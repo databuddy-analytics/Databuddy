@@ -1,7 +1,10 @@
 import { shutdownPostgres } from "@databuddy/db";
 import { closeUptimeQueue } from "@databuddy/redis";
 import { buildHttpErrorResponse } from "@databuddy/shared/http-error-response";
-import { databuddyEvlogRedaction } from "@databuddy/shared/evlog-redaction";
+import {
+	createDatabuddyEvlogEnv,
+	databuddyEvlogRedaction,
+} from "@databuddy/shared/evlog-redaction";
 import { Elysia } from "elysia";
 import { Effect } from "effect";
 import { initLogger, log } from "evlog";
@@ -18,12 +21,7 @@ import { syncSchedulers } from "./sync-schedulers";
 import { startUptimeWorker } from "./worker";
 
 initLogger({
-	env: {
-		service: "uptime",
-		environment: UPTIME_ENV.environment,
-		region: process.env.RAILWAY_REPLICA_REGION,
-		commitHash: process.env.RAILWAY_GIT_COMMIT_SHA,
-	},
+	env: createDatabuddyEvlogEnv("uptime"),
 	redact: databuddyEvlogRedaction,
 	drain: uptimeLoggerDrain,
 	sampling: {},

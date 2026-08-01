@@ -2,7 +2,10 @@ import { db, shutdownPostgres, sql } from "@databuddy/db";
 import { clickHouse } from "@databuddy/db/clickhouse";
 import { redis } from "@databuddy/redis";
 import { buildHttpErrorResponse } from "@databuddy/shared/http-error-response";
-import { databuddyEvlogRedaction } from "@databuddy/shared/evlog-redaction";
+import {
+	createDatabuddyEvlogEnv,
+	databuddyEvlogRedaction,
+} from "@databuddy/shared/evlog-redaction";
 import { Elysia, redirect } from "elysia";
 import { createError, initLogger, log } from "evlog";
 import { evlog } from "evlog/elysia";
@@ -23,7 +26,7 @@ import { redirectRoute } from "./routes/redirect";
 import { preloadGeoDatabase } from "./utils/geo";
 
 initLogger({
-	env: { service: "links" },
+	env: createDatabuddyEvlogEnv("links"),
 	redact: databuddyEvlogRedaction,
 	drain,
 	sampling: {

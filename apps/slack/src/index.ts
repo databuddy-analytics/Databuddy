@@ -1,7 +1,10 @@
 import { setAiRequestLoggerProvider } from "@databuddy/ai/lib/request-logger";
 import { shutdownPostgres } from "@databuddy/db";
 import { setRpcRequestLoggerProvider } from "@databuddy/rpc/log-context";
-import { databuddyEvlogRedaction } from "@databuddy/shared/evlog-redaction";
+import {
+	createDatabuddyEvlogEnv,
+	databuddyEvlogRedaction,
+} from "@databuddy/shared/evlog-redaction";
 import { App } from "@slack/bolt";
 import { initLogger, log } from "evlog";
 import { DatabuddyAgentClient } from "@/agent/agent-client";
@@ -25,7 +28,7 @@ import { registerSlackListeners } from "@/slack/listeners";
 const SHUTDOWN_RUN_SETTLE_TIMEOUT_MS = 10_000;
 
 initLogger({
-	env: { service: "slack" },
+	env: createDatabuddyEvlogEnv("slack"),
 	redact: databuddyEvlogRedaction,
 	drain: slackLoggerDrain,
 	sampling: {},

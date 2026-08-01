@@ -12,7 +12,10 @@ import {
 	INSIGHTS_QUEUE_NAME,
 	type InsightsQueueJobData,
 } from "@databuddy/redis";
-import { databuddyEvlogRedaction } from "@databuddy/shared/evlog-redaction";
+import {
+	createDatabuddyEvlogEnv,
+	databuddyEvlogRedaction,
+} from "@databuddy/shared/evlog-redaction";
 import { Worker } from "bullmq";
 import { Elysia } from "elysia";
 import { initLogger } from "evlog";
@@ -29,22 +32,13 @@ import {
 	ensureInsightsMaintenanceSchedule,
 } from "./scheduler";
 
-const environment =
-	process.env.APP_ENV ??
-	process.env.RAILWAY_ENVIRONMENT_NAME ??
-	(process.env.NODE_ENV === "development" ? "development" : "production");
 const workerEnabled = readBooleanEnv("INSIGHTS_WORKER_ENABLED");
 const DRAIN_TIMEOUT_MS = 10_000;
 const TRANSIENT_REDIS_ERROR =
 	/^READONLY |^ERR caller gone|ECONNRESET|Connection is closed|Socket closed unexpectedly/;
 
 initLogger({
-	env: {
-		service: "insights",
-		environment,
-		region: process.env.RAILWAY_REPLICA_REGION,
-		commitHash: process.env.RAILWAY_GIT_COMMIT_SHA,
-	},
+	env: createDatabuddyEvlogEnv("insights"),
 	redact: databuddyEvlogRedaction,
 	drain: insightsLoggerDrain,
 	sampling: {},

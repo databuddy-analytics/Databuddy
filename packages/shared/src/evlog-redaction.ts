@@ -45,7 +45,34 @@ interface EvlogRuntimeEnv {
 	APP_ENV?: string;
 	NODE_ENV?: string;
 	RAILWAY_ENVIRONMENT_NAME?: string;
+	RAILWAY_GIT_COMMIT_SHA?: string;
+	RAILWAY_REPLICA_REGION?: string;
 	VERCEL_ENV?: string;
+}
+
+export function resolveEvlogEnvironment(
+	env: EvlogRuntimeEnv = process.env
+): string {
+	return (
+		env.APP_ENV?.trim() ||
+		env.RAILWAY_ENVIRONMENT_NAME?.trim() ||
+		env.VERCEL_ENV?.trim() ||
+		(env.NODE_ENV === "development" || env.NODE_ENV === "test"
+			? env.NODE_ENV
+			: "production")
+	);
+}
+
+export function createDatabuddyEvlogEnv(
+	service: string,
+	env: EvlogRuntimeEnv = process.env
+) {
+	return {
+		service,
+		environment: resolveEvlogEnvironment(env),
+		region: env.RAILWAY_REPLICA_REGION,
+		commitHash: env.RAILWAY_GIT_COMMIT_SHA,
+	};
 }
 
 export function shouldRedactEvlog(env: EvlogRuntimeEnv = process.env) {

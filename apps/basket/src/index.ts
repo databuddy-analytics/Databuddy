@@ -16,7 +16,10 @@ import {
 	runPromise,
 	ShutdownDrainError,
 } from "@lib/producer";
-import { databuddyEvlogRedaction } from "@databuddy/shared/evlog-redaction";
+import {
+	createDatabuddyEvlogEnv,
+	databuddyEvlogRedaction,
+} from "@databuddy/shared/evlog-redaction";
 import {
 	handleUncaughtException,
 	handleUnhandledRejection,
@@ -36,7 +39,7 @@ import { EvlogError, initLogger, log } from "evlog";
 import { evlog } from "evlog/elysia";
 
 initLogger({
-	env: { service: "basket" },
+	env: createDatabuddyEvlogEnv("basket"),
 	redact: databuddyEvlogRedaction,
 	drain: basketLoggerDrain,
 	sampling: {
