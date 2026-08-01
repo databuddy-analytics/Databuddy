@@ -367,6 +367,7 @@ const app = new Elysia()
 			}
 
 			const events = parseResult.data.map((event) => ({
+				...(event.eventId ? { event_id: event.eventId } : {}),
 				owner_id: organizationId,
 				website_id: clientId,
 				timestamp: event.timestamp,

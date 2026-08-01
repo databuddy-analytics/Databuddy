@@ -368,6 +368,7 @@ export const trackRoute = new Elysia().post(
 
 			const now = Date.now();
 			const spans = targets.map(({ event, websiteId }) => ({
+				...(event.eventId ? { event_id: event.eventId } : {}),
 				owner_id: auth.ownerId,
 				website_id: websiteId,
 				timestamp: parseTimestamp(event.timestamp, now),
