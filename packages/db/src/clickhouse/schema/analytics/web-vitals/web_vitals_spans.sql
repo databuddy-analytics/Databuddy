@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS analytics.web_vitals_spans
 	`path` String CODEC(ZSTD(1)),
 	`metric_name` LowCardinality(String) CODEC(ZSTD(1)),
 	`metric_value` Float64 CODEC(Gorilla(8), ZSTD(1)),
+	`delivery_id` String DEFAULT '' CODEC(ZSTD(1)),
 	INDEX idx_session_id session_id TYPE bloom_filter(0.01) GRANULARITY 1,
 	INDEX idx_metric_value metric_value TYPE minmax GRANULARITY 1
 )

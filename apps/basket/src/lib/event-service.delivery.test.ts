@@ -104,7 +104,9 @@ vi.mock("evlog/elysia", () => ({
 }));
 
 const {
+	insertCustomEvents,
 	insertErrorSpans,
+	insertIndividualVitals,
 	insertOutgoingLink,
 	insertTrackEvent,
 	insertTrackEventsBatch,
@@ -273,6 +275,41 @@ describe("event-service producer handoff", () => {
 		);
 	});
 
+	test("keeps direct delivery IDs distinct before storage truncation", async () => {
+		const prefix = "x".repeat(512);
+
+		await insertOutgoingLink(
+			{
+				eventId: `${prefix}a`,
+				href: "https://external.example/a",
+			},
+			"ws_1",
+			new Request("https://basket.example/px.jpg")
+		);
+		await insertOutgoingLink(
+			{
+				eventId: `${prefix}b`,
+				href: "https://external.example/b",
+			},
+			"ws_1",
+			new Request("https://basket.example/px.jpg")
+		);
+
+		const firstDeliveryId = (
+			mockSend.mock.calls[0]?.[1] as { id?: string } | undefined
+		)?.id;
+		const secondDeliveryId = (
+			mockSend.mock.calls[1]?.[1] as { id?: string } | undefined
+		)?.id;
+		expect(firstDeliveryId).toBeTruthy();
+		expect(secondDeliveryId).toBeTruthy();
+		expect(firstDeliveryId).not.toBe(secondDeliveryId);
+		expect(mockReserveDuplicate.mock.calls[0]?.[0]).toBe(firstDeliveryId);
+		expect(mockReserveDuplicate.mock.calls[1]?.[0]).toBe(secondDeliveryId);
+		expect(mockReserveDuplicate.mock.calls[0]?.[2]).toBe(prefix);
+		expect(mockReserveDuplicate.mock.calls[1]?.[2]).toBe(prefix);
+	});
+
 	test("uses stable side-channel identities for id-less span retries", async () => {
 		const error = {
 			anonymousId: "anon_1",
@@ -292,11 +329,72 @@ describe("event-service producer handoff", () => {
 		);
 		expect(mockSendBatch).toHaveBeenCalledWith(
 			"analytics-error-spans",
-			[expect.objectContaining({ message: "boom", path: "/checkout" })],
+			[
+				expect.objectContaining({
+					delivery_id: expectedDeliveryId,
+					message: "boom",
+					path: "/checkout",
+				}),
+			],
 			[expectedDeliveryId],
 			{ allowDirectFallback: true }
 		);
 		expect(expectedDeliveryId).toMatch(/^[\da-f]{64}$/);
+	});
+
+	test("persists stable delivery identities on vital and custom span rows", async () => {
+		const vital = {
+			eventId: "evt_vital_1",
+			metricName: "LCP" as const,
+			metricValue: 1234,
+			path: "/checkout",
+			timestamp: 1_780_000_000_000,
+		};
+		await insertIndividualVitals([vital], "ws_1", "US");
+		const vitalDeliveryId = stableBatchDeliveryId(
+			"ws_1",
+			"vital",
+			vital,
+			0
+		);
+		expect(mockSendBatch).toHaveBeenLastCalledWith(
+			"analytics-vitals-spans",
+			[
+				expect.objectContaining({
+					delivery_id: vitalDeliveryId,
+					metric_name: "LCP",
+				}),
+			],
+			[vitalDeliveryId],
+			{ allowDirectFallback: true }
+		);
+
+		const customEvent = {
+			event_id: "evt_custom_1",
+			event_name: "checkout_completed",
+			owner_id: "org_1",
+			properties: { plan: "pro" },
+			timestamp: 1_780_000_000_000,
+			website_id: "ws_1",
+		};
+		await insertCustomEvents([customEvent], "US");
+		const customDeliveryId = stableBatchDeliveryId(
+			"org_1",
+			"custom_event",
+			customEvent,
+			0
+		);
+		expect(mockSendBatch).toHaveBeenLastCalledWith(
+			"analytics-custom-events",
+			[
+				expect.objectContaining({
+					delivery_id: customDeliveryId,
+					event_name: "checkout_completed",
+				}),
+			],
+			[customDeliveryId],
+			{ allowDirectFallback: true }
+		);
 	});
 
 	test("prefers a source event id over generated span fields", () => {
@@ -347,7 +445,12 @@ describe("event-service producer handoff", () => {
 
 		expect(mockSendBatch).toHaveBeenCalledWith(
 			"analytics-error-spans",
-			[expect.objectContaining({ message: "b" })],
+			[
+				expect.objectContaining({
+					delivery_id: stableBatchDeliveryId("ws_1", "error", second, 1),
+					message: "b",
+				}),
+			],
 			[stableBatchDeliveryId("ws_1", "error", second, 1)],
 			{ allowDirectFallback: true }
 		);

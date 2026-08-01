@@ -138,6 +138,17 @@ function deliveryUnavailable(cause: unknown) {
 	});
 }
 
+function directEventIdentity(eventId: unknown, generateFn: () => string) {
+	const sourceEventId =
+		typeof eventId === "string" && eventId.trim()
+			? eventId.trim()
+			: generateFn();
+	const storedEventId =
+		sanitizeString(sourceEventId, VALIDATION_LIMITS.EVENT_ID_MAX_LENGTH) ||
+		generateFn();
+	return { sourceEventId, storedEventId };
+}
+
 /**
  * ClickHouse stores analytics ids as UUIDs, while public client event ids can
  * be arbitrary strings. Derive a valid, stable UUID so the same client retry
@@ -232,16 +243,17 @@ export function insertTrackEvent(
 ): Promise<void> {
 	return record("insertTrackEvent", async () => {
 		const log = useLogger();
-		let eventId = sanitizeString(
+		const { sourceEventId, storedEventId } = directEventIdentity(
 			trackData.eventId,
-			VALIDATION_LIMITS.EVENT_ID_MAX_LENGTH
+			() => randomUUIDv7()
 		);
-		if (!eventId) {
-			eventId = randomUUIDv7();
-		}
 
-		const deliveryId = stableAnalyticsEventId(clientId, "track", eventId);
-		const reservation = await reserveDuplicate(deliveryId, "track", eventId);
+		const deliveryId = stableAnalyticsEventId(clientId, "track", sourceEventId);
+		const reservation = await reserveDuplicate(
+			deliveryId,
+			"track",
+			storedEventId
+		);
 		if (reservation.duplicate) {
 			return;
 		}
@@ -266,7 +278,11 @@ export function insertTrackEvent(
 			]);
 
 			log.set({
-				event: { id: eventId, name: trackData.name, path: trackData.path },
+				event: {
+					id: storedEventId,
+					name: trackData.name,
+					path: trackData.path,
+				},
 				geo: {
 					country: geoData.country,
 					region: geoData.region,
@@ -284,7 +300,7 @@ export function insertTrackEvent(
 
 			const trackEvent = buildTrackEvent(trackData, {
 				clientId,
-				eventId,
+				eventId: sourceEventId,
 				anonymousId,
 				geo: geoData,
 				ua,
@@ -312,24 +328,20 @@ export function insertOutgoingLink(
 ): Promise<void> {
 	return record("insertOutgoingLink", async () => {
 		const log = useLogger();
-		let eventId = sanitizeString(
+		const { sourceEventId, storedEventId } = directEventIdentity(
 			linkData.eventId,
-			VALIDATION_LIMITS.EVENT_ID_MAX_LENGTH
+			() => randomUUIDv7()
 		);
-
-		if (!eventId) {
-			eventId = randomUUIDv7();
-		}
 
 		const deliveryId = stableAnalyticsEventId(
 			clientId,
 			"outgoing_link",
-			eventId
+			sourceEventId
 		);
 		const reservation = await reserveDuplicate(
 			deliveryId,
 			"outgoing_link",
-			eventId
+			storedEventId
 		);
 		if (reservation.duplicate) {
 			return;
@@ -342,7 +354,11 @@ export function insertOutgoingLink(
 
 		try {
 			log.set({
-				event: { id: eventId, type: "outgoing_link", href: linkData.href },
+				event: {
+					id: storedEventId,
+					type: "outgoing_link",
+					href: linkData.href,
+				},
 			});
 
 			const now = Date.now();
@@ -477,7 +493,7 @@ async function deliverItems<T>(
 	}
 }
 
-async function deliverSpanBatch<TSource, TEvent>(
+async function deliverSpanBatch<TSource, TEvent extends object>(
 	eventType: string,
 	topic: string,
 	scope: string,
@@ -499,7 +515,10 @@ async function deliverSpanBatch<TSource, TEvent>(
 		topic,
 		events.map((event, index) => ({
 			deliveryId: deliveryIds[index] as string,
-			event,
+			event: {
+				...event,
+				delivery_id: deliveryIds[index] as string,
+			},
 			sourceEventId: deliveryIds[index] as string,
 		}))
 	);

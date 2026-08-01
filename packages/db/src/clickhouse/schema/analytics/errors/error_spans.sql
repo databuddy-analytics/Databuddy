@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS analytics.error_spans
 	`colno` Nullable(Int32) CODEC(ZSTD(1)),
 	`stack` Nullable(String) CODEC(ZSTD(1)),
 	`error_type` LowCardinality(String) CODEC(ZSTD(1)),
+	`delivery_id` String DEFAULT '' CODEC(ZSTD(1)),
 	INDEX idx_session_id session_id TYPE bloom_filter(0.01) GRANULARITY 1,
 	INDEX idx_error_type error_type TYPE bloom_filter(0.01) GRANULARITY 1
 )
