@@ -116,7 +116,7 @@ describe("chQuery", () => {
 
 		await chQuery("SELECT count() FROM analytics.events");
 
-		expect(settings).toMatchObject({
+		expect(settings).toEqual({
 			final: 1,
 		});
 		expect(query).toBe("SELECT count() FROM analytics.events");

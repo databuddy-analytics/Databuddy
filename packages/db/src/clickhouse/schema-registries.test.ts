@@ -90,14 +90,32 @@ describe("hand-maintained registries stay in sync with the generated DDL columns
 		}
 	});
 
-	it("delivery replacement keys do not depend on Vector record time", () => {
+	it("delivery keys preserve time locality without a skip-index fallback", () => {
 		const keys = {
-			"analytics.custom_events": "(owner_id, delivery_key)",
-			"analytics.error_spans": "(client_id, delivery_key)",
-			"analytics.events": "(client_id, id)",
-			"analytics.link_visits": "(link_id, id)",
-			"analytics.outgoing_links": "(client_id, id)",
-			"analytics.web_vitals_spans": "(client_id, delivery_key)",
+			"analytics.custom_events": {
+				orderBy: "(owner_id, event_name, timestamp, delivery_key)",
+				primaryKey: "(owner_id, event_name, timestamp)",
+			},
+			"analytics.error_spans": {
+				orderBy: "(client_id, error_type, path, timestamp, delivery_key)",
+				primaryKey: "(client_id, error_type, path, timestamp)",
+			},
+			"analytics.events": {
+				orderBy: "(client_id, time, id)",
+				primaryKey: "(client_id, time)",
+			},
+			"analytics.link_visits": {
+				orderBy: "(link_id, timestamp, id)",
+				primaryKey: "(link_id, timestamp)",
+			},
+			"analytics.outgoing_links": {
+				orderBy: "(client_id, timestamp, id)",
+				primaryKey: "(client_id, timestamp)",
+			},
+			"analytics.web_vitals_spans": {
+				orderBy: "(client_id, metric_name, path, timestamp, delivery_key)",
+				primaryKey: "(client_id, metric_name, path, timestamp)",
+			},
 		} as const;
 
 		for (const [table, expected] of Object.entries(keys)) {
@@ -105,10 +123,13 @@ describe("hand-maintained registries stay in sync with the generated DDL columns
 				table as keyof typeof DELIVERY_TABLE_FILES
 			];
 			const parsed = parseTable(readSql(`${import.meta.dir}/schema/${file}`));
-			expect(parsed.orderBy).toBe(expected);
-			expect(parsed.indexes.some((index) => index.name.includes("time"))).toBe(
-				true
-			);
+			expect(parsed.orderBy).toBe(expected.orderBy);
+			expect(parsed.primaryKey).toBe(expected.primaryKey);
+			expect(
+				parsed.indexes.some((index) =>
+					/^(?:time|timestamp) TYPE minmax\b/.test(index.definition)
+				)
+			).toBe(false);
 		}
 	});
 
@@ -138,7 +159,8 @@ describe("hand-maintained registries stay in sync with the generated DDL columns
 		);
 
 		expect(table.engine).toContain("ReplicatedReplacingMergeTree");
-		expect(table.orderBy).toContain("id");
+		expect(table.primaryKey).toBe("(client_id, date)");
+		expect(table.orderBy).toBe("(client_id, date, id)");
 		expect(view).toContain("id,");
 		expect(view).toContain("WHERE event_name = 'screen_view'");
 		expect(view).not.toContain("countIf");
