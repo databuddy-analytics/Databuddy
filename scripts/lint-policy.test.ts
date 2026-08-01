@@ -53,6 +53,26 @@ describe("policy lint", () => {
 		);
 	});
 
+	it("blocks Tailwind palette classes inside template literals", () => {
+		const violations = findPolicyViolations(
+			"apps/dashboard/app/example.tsx",
+			"export const className = `bg-red-500 ${active ? 'text-primary' : ''}`;"
+		);
+
+		expect(violations.map((violation) => violation.rule)).toContain(
+			"dashboard/no-custom-color"
+		);
+	});
+
+	it("allows hash link targets that are not color values", () => {
+		expect(
+			findPolicyViolations(
+				"apps/dashboard/app/example.tsx",
+				'export function Example() { return <a href="#abc">Jump</a>; }'
+			)
+		).toEqual([]);
+	});
+
 	it("allows semantic design tokens", () => {
 		expect(
 			findPolicyViolations(
@@ -66,6 +86,28 @@ describe("policy lint", () => {
 		const violations = findPolicyViolations(
 			"apps/api/src/routes/example.ts",
 			'Response.json({ error: "Not found" }, { status: 404 });'
+		);
+
+		expect(violations.map((violation) => violation.rule)).toContain(
+			"http/no-custom-json-error-response"
+		);
+	});
+
+	it("blocks quoted JSON error payload keys", () => {
+		const violations = findPolicyViolations(
+			"apps/api/src/routes/example.ts",
+			'Response.json({ "error": "Not found" }, { status: 404 });'
+		);
+
+		expect(violations.map((violation) => violation.rule)).toContain(
+			"http/no-custom-json-error-response"
+		);
+	});
+
+	it("blocks local JSON error payload variables", () => {
+		const violations = findPolicyViolations(
+			"apps/api/src/routes/example.ts",
+			'const payload = { error: "Not found" };\nResponse.json(payload, { status: 404 });'
 		);
 
 		expect(violations.map((violation) => violation.rule)).toContain(
