@@ -3,6 +3,7 @@ import { HttpClient, type HttpResult } from "../../src/core/client";
 import { BaseTracker } from "../../src/core/tracker";
 
 const originalFetch = globalThis.fetch;
+const originalNavigator = Object.getOwnPropertyDescriptor(globalThis, "navigator");
 
 class DeliveryTestTracker extends BaseTracker {
 	private deliveryBlocked = false;
@@ -27,6 +28,11 @@ afterEach(() => {
 		jest.useRealTimers();
 	}
 	globalThis.fetch = originalFetch;
+	if (originalNavigator) {
+		Object.defineProperty(globalThis, "navigator", originalNavigator);
+	} else {
+		Reflect.deleteProperty(globalThis, "navigator");
+	}
 });
 
 async function flushMicrotasks(): Promise<void> {
@@ -67,6 +73,64 @@ describe("HttpClient", () => {
 			status: 202,
 			attempts: 1,
 			transport: "fetch",
+		});
+	});
+
+	test("uses acknowledged fetch for normal keepalive delivery", async () => {
+		const sendBeacon = mock(() => true);
+		Object.defineProperty(globalThis, "navigator", {
+			configurable: true,
+			value: { sendBeacon },
+		});
+		const fetchMock = mock(async () =>
+			Response.json({ status: "accepted" }, { status: 202 })
+		);
+		globalThis.fetch = fetchMock as typeof fetch;
+		const client = new HttpClient({ baseUrl: "https://example.com" });
+
+		const result = await client.post(
+			"https://example.com/events",
+			{},
+			{ keepalive: true }
+		);
+
+		expect(result).toMatchObject({ ok: true, status: 202, transport: "fetch" });
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(sendBeacon).not.toHaveBeenCalled();
+	});
+
+	test("returns a retryable result when an HTTP request exceeds its deadline", async () => {
+		jest.useFakeTimers();
+		globalThis.fetch = mock(
+			(_input: RequestInfo | URL, init?: RequestInit) =>
+				new Promise<Response>((_resolve, reject) => {
+					init?.signal?.addEventListener(
+						"abort",
+						() => {
+							const error = new Error("Request aborted");
+							error.name = "AbortError";
+							reject(error);
+						},
+						{ once: true }
+					);
+				})
+		) as typeof fetch;
+		const client = new HttpClient({
+			baseUrl: "https://example.com",
+			maxRetries: 0,
+			requestTimeoutMs: 20,
+		});
+
+		const delivery = client.post("https://example.com/events", {}, { keepalive: true });
+		await flushMicrotasks();
+		jest.advanceTimersByTime(20);
+		await flushMicrotasks();
+
+		await expect(delivery).resolves.toMatchObject({
+			ok: false,
+			code: "NETWORK_ERROR",
+			message: "Request timed out after 20ms",
+			retryable: true,
 		});
 	});
 
