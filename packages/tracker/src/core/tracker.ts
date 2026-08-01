@@ -649,8 +649,7 @@ export class BaseTracker {
 				deliveryGeneration === this.deliveryGeneration &&
 				!result.ok &&
 				result.retryable &&
-				!this.shouldBlockQueuedDelivery() &&
-				deliveryGeneration === this.deliveryGeneration
+				!this.shouldBlockQueuedDelivery()
 			) {
 				queue.unshift(...items);
 				meta.retryAttempts += 1;

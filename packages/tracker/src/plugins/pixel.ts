@@ -228,6 +228,4 @@ export function initPixelTracking(tracker: BaseTracker) {
 	// keeps BaseTracker's queue for its fetch-style pixel fallback instead of
 	// dropping it immediately on an unverified load.
 	tracker.sendBeacon = () => false;
-
-	tracker.sendBatchBeacon = () => false;
 }
