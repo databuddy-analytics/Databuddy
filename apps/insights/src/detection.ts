@@ -920,36 +920,34 @@ async function detectWow(
 		);
 	}
 
-	const [summary, errors, revenue, vitals] = await Promise.all([
-		readDetectorPair({
-			abortSignal,
-			current: () => query("summary_metrics", currentFrom, currentTo),
-			family: "summary",
-			previous: () => query("summary_metrics", previousFrom, previousTo),
-			websiteId,
-		}),
-		readDetectorPair({
-			abortSignal,
-			current: () => query("error_fingerprints", currentFrom, currentTo),
-			family: "errors",
-			previous: () => query("error_fingerprints", previousFrom, previousTo),
-			websiteId,
-		}),
-		readDetectorPair({
-			abortSignal,
-			current: () => query("revenue_overview", currentFrom, currentTo),
-			family: "revenue",
-			previous: () => query("revenue_overview", previousFrom, previousTo),
-			websiteId,
-		}),
-		readDetectorPair({
-			abortSignal,
-			current: () => query("vitals_overview", currentFrom, currentTo),
-			family: "vitals",
-			previous: () => query("vitals_overview", previousFrom, previousTo),
-			websiteId,
-		}),
-	]);
+	const summary = await readDetectorPair({
+		abortSignal,
+		current: () => query("summary_metrics", currentFrom, currentTo),
+		family: "summary",
+		previous: () => query("summary_metrics", previousFrom, previousTo),
+		websiteId,
+	});
+	const errors = await readDetectorPair({
+		abortSignal,
+		current: () => query("error_fingerprints", currentFrom, currentTo),
+		family: "errors",
+		previous: () => query("error_fingerprints", previousFrom, previousTo),
+		websiteId,
+	});
+	const revenue = await readDetectorPair({
+		abortSignal,
+		current: () => query("revenue_overview", currentFrom, currentTo),
+		family: "revenue",
+		previous: () => query("revenue_overview", previousFrom, previousTo),
+		websiteId,
+	});
+	const vitals = await readDetectorPair({
+		abortSignal,
+		current: () => query("vitals_overview", currentFrom, currentTo),
+		family: "vitals",
+		previous: () => query("vitals_overview", previousFrom, previousTo),
+		websiteId,
+	});
 	const [currentSummary, previousSummary] = summary.value ?? [[], []];
 	const [currentErrors, previousErrors] = errors.value ?? [[], []];
 	const [currentRevenue, previousRevenue] = revenue.value ?? [[], []];
