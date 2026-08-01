@@ -123,6 +123,7 @@ ALERTS_EMAIL_FROM=Databuddy <alerts@example.com>
 PORT=4000
 DATABASE_URL=${{Postgres.DATABASE_URL}}
 REDIS_URL=${{Redis.REDIS_URL}}
+BULLMQ_REDIS_URL=${{Redis.REDIS_URL}}
 CLICKHOUSE_URL=${{ClickHouse.DATABASE_URL}}
 DATABUDDY_ENCRYPTION_KEY=${{shared.DATABUDDY_ENCRYPTION_KEY}}
 IP_HASH_SALT=${{shared.IP_HASH_SALT}}
@@ -167,6 +168,7 @@ bun run --cwd packages/db db:push && bun --cwd packages/db src/clickhouse/setup.
 ```txt
 DATABASE_URL=${{Postgres.DATABASE_URL}}
 REDIS_URL=${{Redis.REDIS_URL}}
+BULLMQ_REDIS_URL=${{Redis.REDIS_URL}}
 CLICKHOUSE_URL=${{ClickHouse.DATABASE_URL}}
 DASHBOARD_URL=https://${{Dashboard.RAILWAY_PUBLIC_DOMAIN}}
 LINKS_ROOT_REDIRECT_URL=https://${{Dashboard.RAILWAY_PUBLIC_DOMAIN}}
@@ -174,8 +176,8 @@ LINKS_ROOT_REDIRECT_URL=https://${{Dashboard.RAILWAY_PUBLIC_DOMAIN}}
 
 Run the `Init` job after any Links schema change before deploying the Links
 service. Its `/health/status` readiness check verifies that the
-`links.deep_link_app` column is available, so a stale database cannot serve
-deep links.
+`links.deep_link_app` column and durable BullMQ Redis are available, so a stale
+database or non-durable click admission path cannot serve deep links.
 
 ## Health checks
 
@@ -186,6 +188,10 @@ deep links.
 - `Insights`: `/health/status`
 - `Links`: `/health/status`
 - `ClickHouse`: `/ping`
+
+Links reports Redpanda as diagnostic degradation while continuing to return a
+successful readiness status when PostgreSQL, ClickHouse, Redis, and its BullMQ
+admission queue are healthy.
 
 ## First-run schema setup
 

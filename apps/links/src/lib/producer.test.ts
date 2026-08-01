@@ -1,8 +1,9 @@
-import { beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
+import { beforeEach, describe, expect, mock, test } from "bun:test";
 
 const setAttributes = mock(() => {});
 const captureError = mock(() => {});
 const mergeWideEvent = mock(() => {});
+const clickHouseInsert = mock(() => Promise.resolve());
 const kafkaConfigs: Array<Record<string, unknown>> = [];
 
 type FakeProducer = {
@@ -34,6 +35,11 @@ mock.module("./logging", () => ({
 	mergeWideEvent,
 	record: async <T>(_name: string, run: () => Promise<T> | T) => run(),
 	setAttributes,
+}));
+
+mock.module("@databuddy/db/clickhouse", () => ({
+	clickHouse: { insert: clickHouseInsert },
+	TABLE_NAMES: { link_visits: "analytics.link_visits" },
 }));
 
 mock.module("kafkajs", () => ({
@@ -80,56 +86,93 @@ beforeEach(() => {
 	delete process.env.REDPANDA_USER;
 	setAttributes.mockClear();
 	captureError.mockClear();
+	clickHouseInsert.mockClear();
 	createProducer.mockClear();
 	kafkaConfigs.length = 0;
 	nextProducer = null;
 });
 
 describe("sendLinkVisit", () => {
-	test("reports an unavailable broker when Kafka is not configured", async () => {
+	test("persists directly when Kafka is not configured", async () => {
+		const { sendLinkVisit } = await loadProducer();
+
+		const result = await sendLinkVisit(event, event.link_id);
+
+		expect(result).toBe(true);
+		expect(setAttributes).toHaveBeenLastCalledWith({
+			clickhouse_fallback_success: true,
+		});
+		expect(clickHouseInsert).toHaveBeenCalledWith({
+			format: "JSONEachRow",
+			table: "analytics.link_visits",
+			values: [event],
+		});
+	});
+
+	test("rejects delivery when the direct fallback is unavailable", async () => {
+		const error = new Error("clickhouse unavailable");
+		clickHouseInsert.mockRejectedValueOnce(error);
 		const { sendLinkVisit } = await loadProducer();
 
 		const result = await sendLinkVisit(event, event.link_id);
 
 		expect(result).toBe(false);
-		expect(setAttributes).toHaveBeenLastCalledWith({
-			kafka_connected: false,
-			kafka_send_skipped: true,
+		expect(captureError).toHaveBeenCalledWith(error, {
+			clickhouse_table: "analytics.link_visits",
+			operation: "clickhouse_link_visit_fallback",
 		});
 	});
 
-	test("uses bounded native Kafka timeouts and enables TLS without SASL", async () => {
+	test("uses native Kafka timeouts and enables TLS without SASL", async () => {
 		process.env.REDPANDA_BROKER = "redpanda.test:9092";
 		process.env.REDPANDA_SSL = "true";
 		nextProducer = makeProducer();
 		const { disconnectProducer, sendLinkVisit } = await loadProducer();
-		const clearTimeoutSpy = spyOn(globalThis, "clearTimeout");
 
-		try {
-			const result = await sendLinkVisit(event, event.link_id);
+		const result = await sendLinkVisit(event, event.link_id);
 
-			expect(result).toBe(true);
-			expect(clearTimeoutSpy).toHaveBeenCalledTimes(2);
-			expect(kafkaConfigs).toEqual([
-				expect.objectContaining({
-					authenticationTimeout: 3000,
-					brokers: ["redpanda.test:9092"],
-					connectionTimeout: 3000,
-					enforceRequestTimeout: true,
-					requestTimeout: 3000,
-					ssl: true,
-				}),
-			]);
-			expect(nextProducer.send).toHaveBeenCalledWith(
-				expect.objectContaining({ acks: -1 })
-			);
-			expect(kafkaConfigs[0]).not.toHaveProperty("sasl");
-		} finally {
-			clearTimeoutSpy.mockRestore();
-		}
+		expect(result).toBe(true);
+		expect(kafkaConfigs).toEqual([
+			expect.objectContaining({
+				authenticationTimeout: 10_000,
+				brokers: ["redpanda.test:9092"],
+				connectionTimeout: 10_000,
+				enforceRequestTimeout: true,
+				requestTimeout: 10_000,
+				ssl: true,
+			}),
+		]);
+		expect(nextProducer.send).toHaveBeenCalledWith(
+			expect.objectContaining({ acks: -1, timeout: 10_000 })
+		);
+		expect(kafkaConfigs[0]).not.toHaveProperty("sasl");
 
 		await disconnectProducer();
 		expect(nextProducer.disconnect).toHaveBeenCalledTimes(1);
+	});
+
+	test("shares one connection attempt across concurrent sends", async () => {
+		process.env.REDPANDA_BROKER = "redpanda.test:9092";
+		let releaseConnect: (() => void) | undefined;
+		nextProducer = makeProducer({
+			connect: () =>
+				new Promise<void>((resolve) => {
+					releaseConnect = resolve;
+				}),
+		});
+		const { disconnectProducer, sendLinkVisit } = await loadProducer();
+
+		const sends = [
+			sendLinkVisit(event, event.link_id),
+			sendLinkVisit({ ...event, id: "second-event" }, event.link_id),
+		];
+		await Bun.sleep(0);
+		expect(nextProducer.connect).toHaveBeenCalledTimes(1);
+		releaseConnect?.();
+
+		expect(await Promise.all(sends)).toEqual([true, true]);
+		expect(nextProducer.send).toHaveBeenCalledTimes(2);
+		await disconnectProducer();
 	});
 
 	test("disposes a producer whose connection fails before retry", async () => {
@@ -143,10 +186,11 @@ describe("sendLinkVisit", () => {
 		const result = await sendLinkVisit(event, event.link_id);
 
 		expect(nextProducer.disconnect).toHaveBeenCalledTimes(1);
-		expect(result).toBe(false);
+		expect(result).toBe(true);
 		expect(captureError).toHaveBeenCalledWith(connectionError, {
 			operation: "kafka_connect",
 		});
+		expect(clickHouseInsert).toHaveBeenCalledTimes(1);
 	});
 
 	test("disposes a failed producer without falling back after an ambiguous send", async () => {
@@ -161,9 +205,31 @@ describe("sendLinkVisit", () => {
 
 		expect(nextProducer.disconnect).toHaveBeenCalledTimes(1);
 		expect(result).toBe(false);
+		expect(clickHouseInsert).not.toHaveBeenCalled();
 		expect(captureError).toHaveBeenCalledWith(sendError, {
 			kafka_topic: "analytics-link-visits",
 			operation: "kafka_send",
 		});
+	});
+});
+
+describe("checkProducerHealth", () => {
+	test("fails when Kafka is not configured", async () => {
+		const { checkProducerHealth } = await loadProducer();
+
+		await expect(checkProducerHealth()).rejects.toThrow(
+			"Redpanda producer is unavailable"
+		);
+	});
+
+	test("passes after connecting a producer", async () => {
+		process.env.REDPANDA_BROKER = "redpanda.test:9092";
+		nextProducer = makeProducer();
+		const { checkProducerHealth, disconnectProducer } = await loadProducer();
+
+		await checkProducerHealth();
+
+		expect(nextProducer.connect).toHaveBeenCalledTimes(1);
+		await disconnectProducer();
 	});
 });
