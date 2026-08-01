@@ -105,7 +105,8 @@ export function InvestigationSettings({
 	});
 
 	const analysisPending = isAnalyzing || triggerMutation.isPending;
-	const isBusy = configQuery.isLoading || saveMutation.isPending || analysisPending;
+	const isBusy =
+		configQuery.isLoading || saveMutation.isPending || analysisPending;
 
 	return (
 		<Sheet onOpenChange={setOpen} open={open}>
