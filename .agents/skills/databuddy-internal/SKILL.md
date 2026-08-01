@@ -97,6 +97,7 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 - Run filtered Turbo commands such as `bun run check-types --filter=…` from the workspace root; inside a package, its local script invokes `tsc` directly and treats those flags as TypeScript options.
 - Formatting/linting: `bun run format`, `bun run lint`
 - Use neutral branch names, commit messages, and PR copy; do not include tool-attribution prefixes or generated-by language.
+- When the user names an integration branch such as `staging`, verify `HEAD`, the intended commit set, and upstream divergence on that branch before declaring the work complete.
 - Lefthook's `no-secrets` guard intentionally ignores the exact `.env.example` template; real `.env`, `.env.*`, key, and credential files should still be blocked.
 - Root dev orchestration: `bun run dev`
 - Dashboard + API together: `bun run dev:dashboard`
