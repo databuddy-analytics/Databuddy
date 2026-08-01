@@ -33,6 +33,8 @@ const DEFAULT_BATCH_SIZE = 10;
 const DEFAULT_BATCH_TIMEOUT = 2000;
 const DEFAULT_MAX_QUEUE_SIZE = 1000;
 const DEFAULT_MAX_DEDUPLICATION_CACHE_SIZE = 10_000;
+const DEFAULT_REQUEST_TIMEOUT = 10_000;
+const MAX_BATCH_EVENTS = 100;
 const MIN_RETRY_DELAY = 250;
 const MAX_RETRY_DELAY = 30_000;
 
@@ -40,6 +42,13 @@ type FailedResponse = FailureDetails & {
 	error: string;
 	success: false;
 };
+
+class RequestTimeoutError extends Error {
+	constructor(timeoutMs: number) {
+		super(`Request timed out after ${timeoutMs}ms`);
+		this.name = "RequestTimeoutError";
+	}
+}
 
 function isRetryableStatus(status: number): boolean {
 	return status === 408 || status === 425 || status === 429 || status >= 500;
@@ -131,14 +140,20 @@ export class Databuddy {
 	private readonly batchSize: number;
 	private readonly batchTimeout: number;
 	private readonly maxQueueSize: number;
+	private readonly requestTimeoutMs: number;
 	private queue: BatchEventInput[] = [];
 	private flushTimer: ReturnType<typeof setTimeout> | null = null;
+	private flushPromise: Promise<BatchEventResponse> | null = null;
 	private retryAttempts = 0;
 	private globalProperties: GlobalProperties = {};
 	private middleware: Middleware[] = [];
 	private readonly enableDeduplication: boolean;
 	private readonly deduplicationCache: Set<string> = new Set();
 	private readonly maxDeduplicationCacheSize: number;
+	private readonly preparedEvents = new WeakMap<
+		object,
+		BatchEventInput | null
+	>();
 
 	constructor(config: DatabuddyConfig) {
 		const apiKey =
@@ -165,6 +180,10 @@ export class Databuddy {
 		this.maxQueueSize = Math.max(
 			1,
 			Math.floor(config.maxQueueSize ?? DEFAULT_MAX_QUEUE_SIZE)
+		);
+		this.requestTimeoutMs = Math.max(
+			1,
+			Math.floor(config.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT)
 		);
 		this.middleware = config.middleware || [];
 		this.enableDeduplication = config.enableDeduplication !== false;
@@ -202,34 +221,42 @@ export class Databuddy {
 			return validationFailure("Event name is required and must be a string");
 		}
 
-		const batchEvent = withStableDeliveryIdentity({
-			type: "custom",
-			name: event.name,
-			eventId: event.eventId,
-			anonymousId: event.anonymousId,
-			anonymizeVisitorIds:
-				event.anonymizeVisitorIds ?? this.anonymizeVisitorIds,
-			profileId: event.profileId,
-			sessionId: event.sessionId,
-			timestamp: event.timestamp,
-			properties: {
-				...this.globalProperties,
-				...(event.properties || {}),
-			},
-			websiteId: event.websiteId ?? this.websiteId,
-			namespace: event.namespace ?? this.namespace,
-			source: event.source ?? this.source,
-		});
+		let processedEvent: BatchEventInput | null;
+		if (this.preparedEvents.has(event)) {
+			processedEvent = this.preparedEvents.get(event) ?? null;
+		} else {
+			const batchEvent = withStableDeliveryIdentity({
+				type: "custom",
+				name: event.name,
+				eventId: event.eventId,
+				anonymousId: event.anonymousId,
+				anonymizeVisitorIds:
+					event.anonymizeVisitorIds ?? this.anonymizeVisitorIds,
+				profileId: event.profileId,
+				sessionId: event.sessionId,
+				timestamp: event.timestamp,
+				properties: {
+					...this.globalProperties,
+					...(event.properties || {}),
+				},
+				websiteId: event.websiteId ?? this.websiteId,
+				namespace: event.namespace ?? this.namespace,
+				source: event.source ?? this.source,
+			});
+			const middlewareEvent = await this.applyMiddleware(batchEvent);
+			processedEvent = middlewareEvent
+				? withStableDeliveryIdentity(middlewareEvent, batchEvent)
+				: null;
+			this.preparedEvents.set(event, processedEvent);
+			if (processedEvent) {
+				this.preparedEvents.set(processedEvent, processedEvent);
+			}
+		}
 
-		const middlewareEvent = await this.applyMiddleware(batchEvent);
-		if (!middlewareEvent) {
+		if (!processedEvent) {
 			this.logger.debug("Event dropped by middleware", { name: event.name });
 			return { success: true, delivery: "skipped" };
 		}
-		const processedEvent = withStableDeliveryIdentity(
-			middlewareEvent,
-			batchEvent
-		);
 
 		if (this.isDuplicate(processedEvent)) {
 			this.logger.debug("Event deduplicated", {
@@ -283,7 +310,7 @@ export class Databuddy {
 
 		try {
 			const url = `${this.apiUrl}/identify`;
-			const response = await fetch(url, {
+			const response = await this.fetchWithDeadline(url, {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
@@ -341,7 +368,7 @@ export class Databuddy {
 				source: payload.source,
 			});
 
-			const response = await fetch(url, {
+			const response = await this.fetchWithDeadline(url, {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
@@ -399,6 +426,7 @@ export class Databuddy {
 		}
 
 		this.flushTimer = setTimeout(() => {
+			this.flushTimer = null;
 			this.flush().catch((error) => {
 				this.logger.error("Auto-flush error", {
 					error: error instanceof Error ? error.message : String(error),
@@ -409,6 +437,22 @@ export class Databuddy {
 	}
 
 	async flush(): Promise<BatchEventResponse> {
+		if (this.flushPromise) {
+			return this.flushPromise;
+		}
+
+		const operation = this.flushQueue();
+		this.flushPromise = operation;
+		try {
+			return await operation;
+		} finally {
+			if (this.flushPromise === operation) {
+				this.flushPromise = null;
+			}
+		}
+	}
+
+	private async flushQueue(): Promise<BatchEventResponse> {
 		if (this.flushTimer) {
 			clearTimeout(this.flushTimer);
 			this.flushTimer = null;
@@ -424,28 +468,58 @@ export class Databuddy {
 			};
 		}
 
-		const events = [...this.queue];
+		const events = this.queue;
 		this.queue = [];
 
 		this.logger.info("Flushing events", { count: events.length });
 
-		const result = await this.batch(events);
-		if (!result.success && result.retryable === true) {
-			const pending = [...events, ...this.queue];
-			this.queue = pending.slice(0, this.maxQueueSize);
-			this.retryAttempts += 1;
-			this.scheduleFlush(this.retryDelay());
-			this.logger.warn("Retryable batch failure kept events queued", {
-				queued: this.queue.length,
-				dropped: Math.max(0, pending.length - this.queue.length),
-				retryAttempt: this.retryAttempts,
-				code: result.code,
-				requestId: result.requestId,
-			});
-			return result;
+		let processed = 0;
+		const results: NonNullable<BatchEventResponse["results"]> = [];
+		for (let offset = 0; offset < events.length; offset += MAX_BATCH_EVENTS) {
+			const chunk = events.slice(offset, offset + MAX_BATCH_EVENTS);
+			const result = await this.batch(chunk);
+			if (!result.success) {
+				const unsent = events.slice(offset + chunk.length);
+				const pending = [
+					...(result.retryable === true ? chunk : []),
+					...unsent,
+					...this.queue,
+				];
+				this.queue = pending.slice(0, this.maxQueueSize);
+
+				if (result.retryable === true) {
+					this.retryAttempts += 1;
+					this.scheduleFlush(this.retryDelay());
+					this.logger.warn("Retryable batch failure kept events queued", {
+						queued: this.queue.length,
+						dropped: Math.max(0, pending.length - this.queue.length),
+						retryAttempt: this.retryAttempts,
+						code: result.code,
+						requestId: result.requestId,
+					});
+				} else if (this.queue.length > 0) {
+					this.retryAttempts = 0;
+					this.scheduleFlush(0);
+				}
+				return result;
+			}
+
+			processed += result.processed ?? 0;
+			if (result.results) {
+				results.push(...result.results);
+			}
 		}
+
 		this.retryAttempts = 0;
-		return result;
+		if (this.queue.length > 0) {
+			this.scheduleFlush(0);
+		}
+		return {
+			success: true,
+			processed,
+			results,
+			delivery: "delivered",
+		};
 	}
 
 	async batch(events: BatchEventInput[]): Promise<BatchEventResponse> {
@@ -457,7 +531,7 @@ export class Databuddy {
 			return validationFailure("Events array cannot be empty");
 		}
 
-		if (events.length > 100) {
+		if (events.length > MAX_BATCH_EVENTS) {
 			return validationFailure("Batch size cannot exceed 100 events");
 		}
 
@@ -467,29 +541,13 @@ export class Databuddy {
 			}
 		}
 
-		const enrichedEvents = events.map((event) =>
-			withStableDeliveryIdentity({
-				...event,
-				properties: {
-					...this.globalProperties,
-					...(event.properties || {}),
-				},
-				anonymizeVisitorIds:
-					event.anonymizeVisitorIds ?? this.anonymizeVisitorIds,
-				websiteId: event.websiteId ?? this.websiteId,
-				namespace: event.namespace ?? this.namespace,
-				source: event.source ?? this.source,
-			})
-		);
-
 		const processedEvents: BatchEventInput[] = [];
 		const seenEventIds = new Set<string>();
-		for (const event of enrichedEvents) {
-			const middlewareEvent = await this.applyMiddleware(event);
-			if (!middlewareEvent) {
+		for (const event of events) {
+			const processedEvent = await this.prepareBatchEvent(event);
+			if (!processedEvent) {
 				continue;
 			}
-			const processedEvent = withStableDeliveryIdentity(middlewareEvent, event);
 
 			if (this.enableDeduplication && processedEvent.eventId) {
 				if (
@@ -529,7 +587,7 @@ export class Databuddy {
 				firstSource: payloads[0]?.source,
 			});
 
-			const response = await fetch(url, {
+			const response = await this.fetchWithDeadline(url, {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
@@ -571,6 +629,60 @@ export class Databuddy {
 				error: error instanceof Error ? error.message : String(error),
 			});
 			return networkFailure(error);
+		}
+	}
+
+	private async prepareBatchEvent(
+		event: BatchEventInput
+	): Promise<BatchEventInput | null> {
+		if (this.preparedEvents.has(event)) {
+			return this.preparedEvents.get(event) ?? null;
+		}
+
+		const enrichedEvent = withStableDeliveryIdentity({
+			...event,
+			properties: {
+				...this.globalProperties,
+				...(event.properties || {}),
+			},
+			anonymizeVisitorIds:
+				event.anonymizeVisitorIds ?? this.anonymizeVisitorIds,
+			websiteId: event.websiteId ?? this.websiteId,
+			namespace: event.namespace ?? this.namespace,
+			source: event.source ?? this.source,
+		});
+		const middlewareEvent = await this.applyMiddleware(enrichedEvent);
+		const processedEvent = middlewareEvent
+			? withStableDeliveryIdentity(middlewareEvent, enrichedEvent)
+			: null;
+
+		this.preparedEvents.set(event, processedEvent);
+		this.preparedEvents.set(enrichedEvent, processedEvent);
+		if (processedEvent) {
+			this.preparedEvents.set(processedEvent, processedEvent);
+		}
+		return processedEvent;
+	}
+
+	private async fetchWithDeadline(
+		input: string | URL | Request,
+		init: RequestInit
+	): Promise<Response> {
+		const controller = new AbortController();
+		const timeout = setTimeout(() => {
+			controller.abort(new RequestTimeoutError(this.requestTimeoutMs));
+		}, this.requestTimeoutMs);
+		timeout.unref?.();
+
+		try {
+			return await fetch(input, { ...init, signal: controller.signal });
+		} catch (error) {
+			if (controller.signal.reason instanceof RequestTimeoutError) {
+				throw controller.signal.reason;
+			}
+			throw error;
+		} finally {
+			clearTimeout(timeout);
 		}
 	}
 
