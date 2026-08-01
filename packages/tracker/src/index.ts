@@ -15,6 +15,14 @@ import { initPixelTracking } from "./plugins/pixel";
 import { initScrollDepthTracking } from "./plugins/scroll-depth";
 import { initWebVitalsTracking } from "./plugins/vitals";
 
+const MAX_BEACON_PAYLOAD_BYTES = 60 * 1024;
+const MAX_BEACON_EVENTS_BY_ENDPOINT: Record<string, number> = {
+	"/batch": 100,
+	"/errors": 50,
+	"/track": 100,
+	"/vitals": 20,
+};
+
 export class Databuddy extends BaseTracker {
 	private cleanupFns: Array<() => void> = [];
 	private globalProperties: Record<string, unknown> = {};
@@ -221,10 +229,30 @@ export class Databuddy extends BaseTracker {
 		if (queue.length === 0) {
 			return;
 		}
-		if (this.sendBeacon(queue, endpoint)) {
-			queue.length = 0;
-		} else {
-			fallback().catch(() => {});
+
+		const maxEvents = MAX_BEACON_EVENTS_BY_ENDPOINT[endpoint] ?? 100;
+		while (queue.length > 0) {
+			const chunk: unknown[] = [];
+			let payloadBytes = 2;
+			for (const item of queue.slice(0, maxEvents)) {
+				const serialized = JSON.stringify(item) ?? "null";
+				const itemBytes =
+					new Blob([serialized]).size + (chunk.length > 0 ? 1 : 0);
+				if (
+					chunk.length > 0 &&
+					payloadBytes + itemBytes > MAX_BEACON_PAYLOAD_BYTES
+				) {
+					break;
+				}
+				chunk.push(item);
+				payloadBytes += itemBytes;
+			}
+
+			if (!(chunk.length > 0 && this.sendBeacon(chunk, endpoint))) {
+				fallback().catch(() => {});
+				return;
+			}
+			queue.splice(0, chunk.length);
 		}
 	}
 
@@ -233,6 +261,9 @@ export class Databuddy extends BaseTracker {
 			this.discardPendingEvents();
 			return;
 		}
+		this.flushQueueViaBeacon(this.batchQueue, "/batch", () =>
+			this.flushBatch()
+		);
 		this.flushQueueViaBeacon(this.trackQueue, "/track", () =>
 			this.flushTrack()
 		);

@@ -47,7 +47,7 @@ export function initOutgoingLinksTracking(tracker: BaseTracker): () => void {
 					text: link.innerText || link.title || "",
 					...tracker.getBaseContext(),
 				},
-				{ keepalive: true },
+				{ keepalive: false },
 				{ client_id: tracker.options.clientId }
 			);
 		} catch {

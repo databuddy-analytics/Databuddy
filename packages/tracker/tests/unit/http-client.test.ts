@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, jest, mock, test } from "bun:test";
 import { HttpClient, type HttpResult } from "../../src/core/client";
 import { BaseTracker } from "../../src/core/tracker";
+import { Databuddy as BrowserDatabuddy } from "../../src/index";
 
 const originalFetch = globalThis.fetch;
 const originalNavigator = Object.getOwnPropertyDescriptor(globalThis, "navigator");
@@ -19,6 +20,26 @@ class DeliveryTestTracker extends BaseTracker {
 
 	optInForTest(): void {
 		this.deliveryBlocked = false;
+	}
+}
+
+class UnloadTestTracker extends BrowserDatabuddy {
+	protected override shouldSkipTracking(): boolean {
+		return false;
+	}
+
+	flushForPageUnload(): void {
+		(
+			this as unknown as {
+				handlePageUnload: () => void;
+				hasSentExitBeacon: boolean;
+			}
+		).hasSentExitBeacon = true;
+		(
+			this as unknown as {
+				handlePageUnload: () => void;
+			}
+		).handlePageUnload();
 	}
 }
 
@@ -265,6 +286,93 @@ describe("HttpClient", () => {
 });
 
 describe("BaseTracker delivery outcomes", () => {
+	test("flushes backlogs in endpoint-sized chunks without keepalive", async () => {
+		jest.useFakeTimers();
+		const tracker = new DeliveryTestTracker({ clientId: "site_example" });
+		const send = mock(async () => ({
+			ok: true as const,
+			data: { status: "success" },
+			status: 202,
+			attempts: 1,
+			transport: "fetch" as const,
+		}));
+		tracker.api.fetch = send;
+		tracker.batchQueue.push(
+			...Array.from({ length: 205 }, (_, index) => ({
+				eventId: `event_${index}`,
+				timestamp: index,
+			}))
+		);
+
+		expect(await tracker.flushBatch()).toMatchObject({
+			ok: true,
+			count: 100,
+		});
+		expect(tracker.batchQueue).toHaveLength(105);
+		expect(send.mock.calls[0]?.[1]).toHaveLength(100);
+		expect(send.mock.calls[0]?.[2]).toEqual({ keepalive: false });
+
+		await tracker.flushBatch();
+		await tracker.flushBatch();
+		expect(send.mock.calls.map((call) => call[1].length)).toEqual([100, 100, 5]);
+		expect(tracker.batchQueue).toHaveLength(0);
+	});
+
+	test("drops only a rejected chunk and preserves the unsent backlog", async () => {
+		jest.useFakeTimers();
+		const tracker = new DeliveryTestTracker({ clientId: "site_example" });
+		tracker.api.fetch = mock(async () => ({
+			ok: false as const,
+			code: "HTTP_ERROR" as const,
+			message: "invalid batch",
+			status: 400,
+			retryable: false,
+			attempts: 1,
+			transport: "fetch" as const,
+		}));
+		tracker.batchQueue.push(
+			...Array.from({ length: 101 }, (_, index) => ({
+				eventId: `event_${index}`,
+				timestamp: index,
+			}))
+		);
+
+		expect(await tracker.flushBatch()).toMatchObject({
+			ok: false,
+			statusCode: 400,
+			count: 100,
+		});
+		expect(tracker.batchQueue).toEqual([
+			{ eventId: "event_100", timestamp: 100 },
+		]);
+	});
+
+	test("beacons the analytics queue on unload in count and byte bounded chunks", () => {
+		const tracker = new UnloadTestTracker({ clientId: "site_example" });
+		const sendBeacon = mock(() => true);
+		tracker.sendBeacon = sendBeacon;
+		tracker.batchQueue.push(
+			...Array.from({ length: 100 }, (_, index) => ({
+				eventId: `small_${index}`,
+				timestamp: index,
+			})),
+			{ eventId: "large_1", timestamp: 101, value: "x".repeat(40_000) },
+			{ eventId: "large_2", timestamp: 102, value: "x".repeat(40_000) }
+		);
+
+		tracker.flushForPageUnload();
+
+		expect(sendBeacon.mock.calls.map((call) => call[1])).toEqual([
+			"/batch",
+			"/batch",
+			"/batch",
+		]);
+		expect(sendBeacon.mock.calls.map((call) => call[0].length)).toEqual([
+			100, 1, 1,
+		]);
+		expect(tracker.batchQueue).toHaveLength(0);
+	});
+
 	test("keeps a retryable failed batch queued", async () => {
 		jest.useFakeTimers();
 		const tracker = new DeliveryTestTracker({ clientId: "site_example" });

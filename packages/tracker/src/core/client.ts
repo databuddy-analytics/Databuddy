@@ -144,7 +144,7 @@ export class HttpClient {
 				method: "POST",
 				headers: this.headers,
 				body: JSON.stringify(data ?? {}),
-				keepalive: true,
+				keepalive: false,
 				credentials: "omit",
 				...options,
 			});
