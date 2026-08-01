@@ -224,6 +224,9 @@ describe("intelligence agent", () => {
 		expect(JSON.stringify(call)).toContain(
 			"copy that candidate exactly as kind databuddy_setup"
 		);
+		expect(JSON.stringify(call)).toContain(
+			"never narrow the headline, summary, impact, or repair request to one representative path"
+		);
 	});
 
 	it("accepts only the supplied Databuddy setup recommendation", async () => {
