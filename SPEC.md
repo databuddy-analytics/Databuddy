@@ -94,7 +94,7 @@ Outcomes may be updated repeatedly. They are operational state, not prose templa
 
 Customer copy names the exact goal, funnel, page, event, error, or campaign. It describes the operational change, never the detector, agent, evaluation, suppression decision, or other internal mechanics.
 
-The Insights brief reads like a short news report: headline, what happened, why it matters, why it happened when known, evidence, then the recommendation. It does not expose `act | ask | watch | resolve` mechanics. An investigation presents the same factual hierarchy before its current next move and full timeline.
+The Insights brief reads like a short news report: headline, what happened, why it matters, why it happened when known, then evidence. It does not expose `act | ask | watch | resolve` mechanics. An investigation presents the same factual hierarchy before its current next move and full timeline. Recommendations live in a separate concise view with the suggestion, its source context, and an existing review action when one is available; they are not investigation activity.
 
 ## Continuity
 
@@ -128,6 +128,6 @@ When business meaning is missing, inspect the definition, site, events, and conn
 
 ## Implementation constraint
 
-Use `insight_observations` as the append-only Insights source and `analytics_insights` as the current investigation projection. An `act` or `ask` creates or reopens that projection; `watch` and `resolve` may update an open investigation but never create or reopen one. Keep one agent and one evidence/tool stack. Add storage only when this model cannot represent a real use case.
+Use `insight_observations` as the append-only Insights source and `analytics_insights` as the current investigation projection. An `act` or `ask` creates or reopens that projection; `watch` and `resolve` may update an open investigation but never create or reopen one. Recommendations are a read projection of the latest published observation for each signal: an unpublished recheck does not erase one, while a newer published observation replaces or removes it. Keep one agent and one evidence/tool stack. Add storage only when this model cannot represent a real use case.
 
 Exact error-customer joins run as a private, aggregate-only enrichment after the backend selects a signal. They return counts and coverage, never visitor, profile, session, payment, order, or request identifiers. Identity joins report same-window resolution explicitly; attributed completed-payment matches require the payment to predate the affected profile's first error and remain a lower bound.

@@ -14,7 +14,7 @@ const quietResolve: InvestigationOutcome = {
 };
 
 describe("isVisibleInvestigation", () => {
-	it("surfaces published resolve recommendations", () => {
+	it("keeps published recommendations out of the case queue", () => {
 		expect(
 			isVisibleInvestigation({
 				outcome: {
@@ -27,7 +27,26 @@ describe("isVisibleInvestigation", () => {
 					},
 				},
 			})
-		).toBe(true);
+		).toBe(false);
+	});
+
+	it("surfaces only outcomes that need action or an answer", () => {
+		for (const type of ["act", "ask"] as const) {
+			const next =
+				type === "act"
+					? {
+							action: "Fix the checkout event.",
+							target: "Checkout completed",
+							type,
+							verification: "Completed checkout is measured again.",
+						}
+					: { question: "Which repository owns checkout?", type };
+			expect(
+				isVisibleInvestigation({
+					outcome: { ...quietResolve, next, publish: true },
+				})
+			).toBe(true);
+		}
 	});
 
 	it("keeps plain quiet resolves out of the feed", () => {
