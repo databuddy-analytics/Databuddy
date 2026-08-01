@@ -1122,16 +1122,6 @@ export async function generateWebsiteInsights(
 	if (billingCheckError) {
 		throw billingCheckError;
 	}
-	const effects = (
-		await Promise.all(
-			visibleInvestigations.map((insight) =>
-				prepareInsightSlackEffects({
-					insight,
-					organizationId: input.organizationId,
-				})
-			)
-		)
-	).flat();
 	const succeeded = outcomes.length > 0;
 	const published = outcomes.filter(
 		(outcome) => outcome.publish === true
@@ -1153,7 +1143,7 @@ export async function generateWebsiteInsights(
 			};
 	const preparedResult = await prepareInsightRun({
 		...runIdentity,
-		effects,
+		effects: [],
 		result,
 	});
 	try {
