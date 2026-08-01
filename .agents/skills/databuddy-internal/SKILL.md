@@ -58,6 +58,7 @@ Keep additions **minimal**: one bullet, a new `rg` hint, or a routing note—eno
 - Slack-reachable shared packages (`@databuddy/ai`, `@databuddy/rpc`) must not import `evlog/elysia`; use host-injected request logger providers from the API and plain evlog fallbacks elsewhere.
 - AI link tools must assign link folders by existing folder `id` or `slug` only; folder names are display text and must not be used for routing or dedupe.
 - `apps/basket`: ingest and LLM tracking service, Elysia app on port `4000`
+- Basket tests use Vitest; run them through `bun run test` inside `apps/basket`, not `bun test` directly.
 - `apps/docs`: Next.js + Fumadocs docs app on port `3005`
 - When a user drops a prototype, remove only prototype-specific wiring and preserve the existing product surfaces it temporarily reused.
 - `apps/links`: redirect/link service
