@@ -336,6 +336,26 @@ describe("POST /vitals", () => {
 		expect(body.count).toBe(1);
 	});
 
+	test("accepts a CORS-safelisted unload beacon body", async () => {
+		const res = await post(
+			basketApp,
+			"/vitals",
+			[
+				{
+					eventId: "vital_stable_1",
+					timestamp: now,
+					path: "https://example.com/page",
+					metricName: "LCP",
+					metricValue: 2500,
+				},
+			],
+			{ "Content-Type": "text/plain;charset=UTF-8" }
+		);
+
+		expect(res.status).toBe(200);
+		expect(await json(res)).toMatchObject({ count: 1, type: "web_vitals" });
+	});
+
 	test("invalid vitals (bad metric name) → 400", async () => {
 		const res = await post(basketApp, "/vitals", [
 			{
@@ -377,6 +397,25 @@ describe("POST /errors", () => {
 		expect(body.status).toBe("success");
 		expect(body.type).toBe("error");
 		expect(body.count).toBe(1);
+	});
+
+	test("accepts a CORS-safelisted unload beacon body", async () => {
+		const res = await post(
+			basketApp,
+			"/errors",
+			[
+				{
+					eventId: "error_stable_1",
+					timestamp: now,
+					path: "https://example.com/page",
+					message: "TypeError: x is undefined",
+				},
+			],
+			{ "Content-Type": "text/plain;charset=UTF-8" }
+		);
+
+		expect(res.status).toBe(200);
+		expect(await json(res)).toMatchObject({ count: 1, type: "error" });
 	});
 
 	test("missing message → 400", async () => {
@@ -518,6 +557,25 @@ describe("POST /batch", () => {
 		const body = await json(res);
 		expect(body.batch).toBe(true);
 		expect(body.processed).toBe(2);
+	});
+
+	test("accepts a CORS-safelisted unload beacon body", async () => {
+		const res = await post(
+			basketApp,
+			"/batch",
+			[
+				{
+					type: "track",
+					eventId: "event_stable_1",
+					name: "pageview",
+					path: "https://example.com/a",
+				},
+			],
+			{ "Content-Type": "text/plain;charset=UTF-8" }
+		);
+
+		expect(res.status).toBe(200);
+		expect(await json(res)).toMatchObject({ batch: true, processed: 1 });
 	});
 
 	test("not an array → 400", async () => {
@@ -692,6 +750,30 @@ describe("POST /track", () => {
 			[
 				expect.objectContaining({
 					event_id: "evt_custom_1",
+					event_name: "signup",
+				}),
+			],
+			undefined
+		);
+	});
+
+	test("accepts a CORS-safelisted unload beacon body", async () => {
+		const res = await post(
+			trackRoute,
+			"/track",
+			{
+				eventId: "evt_unload_stable_1",
+				name: "signup",
+				websiteId: "ws_test",
+			},
+			{ "Content-Type": "text/plain;charset=UTF-8" }
+		);
+
+		expect(res.status).toBe(200);
+		expect(mockInsertCustomEvents).toHaveBeenCalledWith(
+			[
+				expect.objectContaining({
+					event_id: "evt_unload_stable_1",
 					event_name: "signup",
 				}),
 			],

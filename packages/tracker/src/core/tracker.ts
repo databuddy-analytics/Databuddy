@@ -827,10 +827,14 @@ export class BaseTracker {
 		}
 
 		try {
+			// text/plain is CORS-safelisted, so an unload beacon does not depend on
+			// completing a preflight while the document is being torn down.
 			const blob = new Blob([JSON.stringify(data)], {
-				type: "application/json",
+				type: "text/plain;charset=UTF-8",
 			});
 			const baseUrl = this.options.apiUrl || "https://basket.databuddy.cc";
+			// A true result only means the user agent accepted the payload for
+			// transfer; sendBeacon cannot acknowledge server-side persistence.
 			return navigator.sendBeacon(
 				`${baseUrl}${endpoint}?client_id=${encodeURIComponent(this.options.clientId)}`,
 				blob

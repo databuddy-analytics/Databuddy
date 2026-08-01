@@ -11,6 +11,7 @@ import {
 	hasKeyScope,
 } from "@lib/api-key";
 import { checkAutumnUsage } from "@lib/billing";
+import { parseCorsSafeJson } from "@lib/cors-safe-json";
 import { insertCustomEvents } from "@lib/event-service";
 import { ratelimit } from "@databuddy/redis/rate-limit";
 import { getWebsiteSecuritySettings } from "@lib/request-validation";
@@ -215,9 +216,9 @@ function resolveAuth(
 	});
 }
 
-export const trackRoute = new Elysia().post(
-	"/track",
-	async ({ body, query, request }) => {
+export const trackRoute = new Elysia()
+	.onParse(parseCorsSafeJson)
+	.post("/track", async ({ body, query, request }) => {
 		const log = useLogger();
 		log.set({ route: "track" });
 		const typedBody = body as unknown;
@@ -393,5 +394,4 @@ export const trackRoute = new Elysia().post(
 		} catch (error) {
 			rethrowOrWrap(error, log);
 		}
-	}
-);
+	});

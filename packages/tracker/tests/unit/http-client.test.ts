@@ -23,6 +23,22 @@ class DeliveryTestTracker extends BaseTracker {
 	}
 }
 
+class BeaconTestTracker extends BaseTracker {
+	private browserRuntime = false;
+
+	override isServer(): boolean {
+		return !this.browserRuntime;
+	}
+
+	protected override shouldSkipTracking(): boolean {
+		return false;
+	}
+
+	enableBrowserRuntime(): void {
+		this.browserRuntime = true;
+	}
+}
+
 class UnloadTestTracker extends BrowserDatabuddy {
 	protected override shouldSkipTracking(): boolean {
 		return false;
@@ -286,6 +302,31 @@ describe("HttpClient", () => {
 });
 
 describe("BaseTracker delivery outcomes", () => {
+	test("uses a CORS-safelisted JSON payload for unload beacons", async () => {
+		const sendBeacon = mock(
+			(_url: string | URL, _data?: BodyInit | null) => true
+		);
+		Object.defineProperty(globalThis, "navigator", {
+			configurable: true,
+			value: { sendBeacon },
+		});
+		const tracker = new BeaconTestTracker({ clientId: "site_example" });
+		tracker.enableBrowserRuntime();
+		const events = [{ eventId: "event_stable", name: "signup" }];
+
+		expect(tracker.sendBeacon(events, "/track")).toBe(true);
+		expect(sendBeacon).toHaveBeenCalledTimes(1);
+		const [url, data] = sendBeacon.mock.calls[0] ?? [];
+		expect(url).toBe(
+			"https://basket.databuddy.cc/track?client_id=site_example"
+		);
+		if (!(data instanceof Blob)) {
+			throw new Error("Expected sendBeacon to receive a Blob payload");
+		}
+		expect(data.type).toBe("text/plain;charset=utf-8");
+		expect(JSON.parse(await data.text())).toEqual(events);
+	});
+
 	test("flushes backlogs in endpoint-sized chunks without keepalive", async () => {
 		jest.useFakeTimers();
 		const tracker = new DeliveryTestTracker({ clientId: "site_example" });

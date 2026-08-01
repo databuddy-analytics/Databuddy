@@ -27,6 +27,7 @@ import {
 	stableAnalyticsEventId,
 	type BatchEvent,
 } from "@lib/event-service";
+import { parseCorsSafeJson } from "@lib/cors-safe-json";
 import { summarizeRejectedBody } from "@lib/rejection-summary";
 import {
 	checkForBot,
@@ -147,6 +148,7 @@ async function processOutgoingLinkData(
 }
 
 const app = new Elysia()
+	.onParse(parseCorsSafeJson)
 	.get("/px.jpg", async ({ query, request }) => {
 		const log = useLogger();
 		log.set({ route: "pixel" });
