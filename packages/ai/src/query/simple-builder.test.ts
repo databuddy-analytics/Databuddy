@@ -1,3 +1,4 @@
+import { TABLE_COLUMNS } from "@databuddy/db/clickhouse/tables";
 import { describe, expect, it } from "vitest";
 import { QueryBuilders } from "./builders";
 import {
@@ -1048,9 +1049,9 @@ describe("SimpleQueryBuilder.compile", () => {
 			const { sql } = compileBuilder(type, config);
 
 			expect(sql).toContain(
-				"LIMIT 1 BY site_id, url, timestamp, status, http_code, ttfb_ms, total_ms"
+				`LIMIT 1 BY ${TABLE_COLUMNS["uptime.uptime_monitor"].join(", ")}`
 			);
-			expect(sql).toContain("user_agent, error, json_data");
+			expect(sql).not.toContain("ORDER BY timestamp DESC LIMIT 1 BY");
 			expect(sql).not.toContain("event_id");
 			expect(sql.match(/FROM uptime\.uptime_monitor/g)).toHaveLength(1);
 		}

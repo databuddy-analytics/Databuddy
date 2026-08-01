@@ -248,12 +248,6 @@ function groupDailyRows(rows: DailyRow[]): Map<string, DailyRow[]> {
 	return grouped;
 }
 
-function indexLatestChecks(
-	rows: LatestCheckRow[]
-): Map<string, LatestCheckRow> {
-	return new Map(rows.map((row) => [row.site_id, row]));
-}
-
 function applyIncidentImpacts(
 	monitors: z.infer<typeof monitorSchema>[],
 	activeIncidents: z.infer<typeof incidentSchema>[],
@@ -422,7 +416,9 @@ async function _fetchStatusPageData(
 	const websiteMap = new Map(websiteRows.map((w) => [w.id, w] as const));
 
 	const dailyBySite = groupDailyRows(allDailyData);
-	const latestBySite = indexLatestChecks(allRecentChecks);
+	const latestBySite = new Map(
+		allRecentChecks.map((row) => [row.site_id, row])
+	);
 
 	const monitors = schedules.map((schedule) => {
 		const siteId = schedule.websiteId ?? schedule.id;
