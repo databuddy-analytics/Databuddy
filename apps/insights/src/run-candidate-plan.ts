@@ -1,4 +1,4 @@
-import { and, db, eq, isNull } from "@databuddy/db";
+import { db } from "@databuddy/db";
 import { insightRunItems } from "@databuddy/db/schema";
 import { investigationSignalSchema } from "@databuddy/shared/insights";
 import { z } from "zod";
@@ -6,17 +6,13 @@ import {
 	coveragePortfolioLimit,
 	type CoveragePortfolioReason,
 } from "./coverage-planner";
+import {
+	type InsightRunIdentity,
+	runIdentityCondition,
+} from "./effects";
 
 const frozenPlanReasonSchema = z.enum(["manual", "scheduled"]);
 const emptyPlanStatusSchema = z.enum(["deferred", "no_signals"]);
-
-export interface InsightRunIdentity {
-	itemId: string;
-	organizationId: string;
-	queueJobId: string | null;
-	runId: string;
-	websiteId: string;
-}
 
 const measurementCandidateSchema = z.discriminatedUnion("kind", [
 	z
@@ -80,18 +76,6 @@ export type FrozenInvestigationPlan = z.infer<
 	typeof frozenInvestigationPlanSchema
 >;
 
-function condition(identity: InsightRunIdentity) {
-	return and(
-		eq(insightRunItems.id, identity.itemId),
-		eq(insightRunItems.runId, identity.runId),
-		eq(insightRunItems.organizationId, identity.organizationId),
-		eq(insightRunItems.websiteId, identity.websiteId),
-		identity.queueJobId === null
-			? isNull(insightRunItems.queueJobId)
-			: eq(insightRunItems.queueJobId, identity.queueJobId)
-	);
-}
-
 export function parseFrozenInvestigationPlan(
 	value: unknown,
 	expectedReason?: CoveragePortfolioReason
@@ -116,7 +100,7 @@ export async function loadInsightRunCandidatePlan(
 	const [item] = await db
 		.select({ plan: insightRunItems.candidatePlan })
 		.from(insightRunItems)
-		.where(condition(identity))
+		.where(runIdentityCondition(identity))
 		.limit(1);
 	if (!item?.plan) {
 		return null;
@@ -139,7 +123,7 @@ export function freezeInsightRunCandidatePlan(
 		const [item] = await tx
 			.select({ plan: insightRunItems.candidatePlan })
 			.from(insightRunItems)
-			.where(condition(identity))
+			.where(runIdentityCondition(identity))
 			.limit(1)
 			.for("update");
 		if (!item) {
@@ -155,7 +139,7 @@ export function freezeInsightRunCandidatePlan(
 				candidatePlanAsOf: new Date(parsedProposed.asOf),
 				updatedAt: new Date(),
 			})
-			.where(condition(identity));
+			.where(runIdentityCondition(identity));
 		return parsedProposed;
 	});
 }

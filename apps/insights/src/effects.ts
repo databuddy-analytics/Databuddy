@@ -207,8 +207,7 @@ export function enqueueInsightRunEffects(
 			.select({ id: insightRunItems.id })
 			.from(insightRunItems)
 			.where(runIdentityCondition(params))
-			.limit(1)
-			.for("update");
+			.limit(1);
 		if (!item) {
 			throw new Error("Insight run item not found while queuing effects");
 		}
