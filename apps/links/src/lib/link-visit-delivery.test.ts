@@ -2,6 +2,7 @@ import { describe, expect, mock, test } from "bun:test";
 import {
 	addLinkVisitJob,
 	closeLinkVisitDeliveryResources,
+	getLinkVisitQueueConnectionOptions,
 	getWorkerConcurrency,
 	getLinkVisitRetryDelay,
 	KAFKA_ATTEMPTED_FIELD,
@@ -123,6 +124,25 @@ describe("link visit durable delivery", () => {
 		expect(getLinkVisitRetryDelay(6)).toBe(32_000);
 		expect(getLinkVisitRetryDelay(7)).toBe(60_000);
 		expect(getLinkVisitRetryDelay(20)).toBe(60_000);
+	});
+
+	test("bounds redirect queue connection and command admission", () => {
+		const originalUrl = process.env.BULLMQ_REDIS_URL;
+		process.env.BULLMQ_REDIS_URL = "redis://localhost:6379/0";
+		try {
+			expect(getLinkVisitQueueConnectionOptions()).toMatchObject({
+				commandTimeout: 1500,
+				connectTimeout: 1500,
+				enableOfflineQueue: false,
+				maxRetriesPerRequest: 1,
+			});
+		} finally {
+			if (originalUrl === undefined) {
+				delete process.env.BULLMQ_REDIS_URL;
+			} else {
+				process.env.BULLMQ_REDIS_URL = originalUrl;
+			}
+		}
 	});
 
 	test("bounds failed-job retention", () => {
