@@ -204,8 +204,10 @@ export async function closeLinkVisitDeliveryResources(
 	activeQueue: Pick<Queue<LinkVisitJobData>, "close"> | null
 ): Promise<void> {
 	const results = await Promise.allSettled([
-		...(activeWorker ? [activeWorker.close()] : []),
-		...(activeQueue ? [activeQueue.close()] : []),
+		...(activeWorker
+			? [Promise.resolve().then(() => activeWorker.close())]
+			: []),
+		...(activeQueue ? [Promise.resolve().then(() => activeQueue.close())] : []),
 	]);
 	const failures = results.flatMap((result) =>
 		result.status === "rejected" ? [result.reason] : []

@@ -244,6 +244,27 @@ describe("sendLinkVisit", () => {
 		});
 	});
 
+	test("does not classify a failed job-marker write as a Kafka send", async () => {
+		process.env.REDPANDA_BROKER = "redpanda.test:9092";
+		nextProducer = makeProducer();
+		const { disconnectProducer, sendLinkVisit } = await loadProducer();
+		const markerError = new Error("BullMQ marker unavailable");
+
+		await expect(
+			sendLinkVisit(event, event.link_id, {
+				beforeKafkaSend: () => Promise.reject(markerError),
+			})
+		).rejects.toBe(markerError);
+
+		expect(nextProducer.send).not.toHaveBeenCalled();
+		expect(nextProducer.disconnect).not.toHaveBeenCalled();
+		expect(captureError).not.toHaveBeenCalledWith(
+			markerError,
+			expect.objectContaining({ operation: "kafka_send" })
+		);
+		await disconnectProducer();
+	});
+
 	test("propagates disconnect failures to shutdown", async () => {
 		process.env.REDPANDA_BROKER = "redpanda.test:9092";
 		const disconnectError = new Error("disconnect timed out");
@@ -256,6 +277,27 @@ describe("sendLinkVisit", () => {
 		await warmProducerConnection();
 
 		await expect(disconnectProducer()).rejects.toBe(disconnectError);
+	});
+
+	test("disconnects a producer that finishes connecting during shutdown", async () => {
+		process.env.REDPANDA_BROKER = "redpanda.test:9092";
+		let releaseConnect: (() => void) | undefined;
+		nextProducer = makeProducer({
+			connect: () =>
+				new Promise<void>((resolve) => {
+					releaseConnect = resolve;
+				}),
+		});
+		const { disconnectProducer, warmProducerConnection } =
+			await loadProducer();
+
+		const warmup = warmProducerConnection();
+		await Bun.sleep(0);
+		const shutdown = disconnectProducer();
+		releaseConnect?.();
+
+		await Promise.all([warmup, shutdown]);
+		expect(nextProducer.disconnect).toHaveBeenCalledTimes(1);
 	});
 });
 

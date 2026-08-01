@@ -153,7 +153,9 @@ describe("link visit durable delivery", () => {
 	test("closes the queue even when worker shutdown fails", async () => {
 		const workerError = new Error("worker close failed");
 		const activeWorker = {
-			close: mock(() => Promise.reject(workerError)),
+			close: mock(() => {
+				throw workerError;
+			}),
 		};
 		const activeQueue = {
 			close: mock(() => Promise.resolve()),
