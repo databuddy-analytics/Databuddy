@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { getRedisCache } from "./redis";
+import { runLinkCacheCommand } from "./redis";
 
 const LINKS_CACHE_PREFIX = "link:slug";
 const LINKS_CACHE_TTL = 604_800;
@@ -200,11 +200,8 @@ async function evictInvalidCachedLinkIfCurrent(
 	cached: string
 ): Promise<void> {
 	try {
-		await getRedisCache().eval(
-			DELETE_CACHED_LINK_IF_CURRENT_SCRIPT,
-			1,
-			key,
-			cached
+		await runLinkCacheCommand((redis) =>
+			redis.eval(DELETE_CACHED_LINK_IF_CURRENT_SCRIPT, 1, key, cached)
 		);
 	} catch {
 		// A corrupt cache value is still a miss when best-effort eviction fails.
@@ -223,10 +220,9 @@ export function getLinkCacheKey(slug: string): string {
  * through to a read-through database lookup.
  */
 export async function getCachedLink(slug: string): Promise<CachedLinkLookup> {
-	const redis = getRedisCache();
 	const key = getLinkCacheKey(slug);
 
-	const cached = await redis.get(key);
+	const cached = await runLinkCacheCommand((redis) => redis.get(key));
 	if (!cached) {
 		return { state: "miss" };
 	}
@@ -265,16 +261,17 @@ export async function beginCachedLinkMutation(
 	slug: string,
 	mutation: { id: string; mode: "existing" | "new" }
 ): Promise<CachedLinkMutationStart> {
-	const redis = getRedisCache();
 	const token = randomUUID();
-	const result = (await redis.eval(
-		BEGIN_CACHED_LINK_MUTATION_SCRIPT,
-		1,
-		getLinkCacheKey(slug),
-		mutation.id,
-		token,
-		mutation.mode,
-		String(LINKS_MUTATION_LEASE_TTL)
+	const result = (await runLinkCacheCommand((redis) =>
+		redis.eval(
+			BEGIN_CACHED_LINK_MUTATION_SCRIPT,
+			1,
+			getLinkCacheKey(slug),
+			mutation.id,
+			token,
+			mutation.mode,
+			String(LINKS_MUTATION_LEASE_TTL)
+		)
 	)) as string;
 
 	if (result === "acquired") {
@@ -294,14 +291,15 @@ export async function finishCachedLinkMutation(
 	token: string,
 	next: CachedLinkMutationNext
 ): Promise<boolean> {
-	const redis = getRedisCache();
-	const result = (await redis.eval(
-		FINISH_CACHED_LINK_MUTATION_SCRIPT,
-		1,
-		getLinkCacheKey(slug),
-		token,
-		serializeMutationNext(next),
-		String(LINKS_CACHE_TTL)
+	const result = (await runLinkCacheCommand((redis) =>
+		redis.eval(
+			FINISH_CACHED_LINK_MUTATION_SCRIPT,
+			1,
+			getLinkCacheKey(slug),
+			token,
+			serializeMutationNext(next),
+			String(LINKS_CACHE_TTL)
+		)
 	)) as number;
 	return result === 1;
 }
@@ -314,12 +312,13 @@ export async function abandonCachedLinkMutation(
 	slug: string,
 	token: string
 ): Promise<boolean> {
-	const redis = getRedisCache();
-	const result = (await redis.eval(
-		ABANDON_CACHED_LINK_MUTATION_SCRIPT,
-		1,
-		getLinkCacheKey(slug),
-		token
+	const result = (await runLinkCacheCommand((redis) =>
+		redis.eval(
+			ABANDON_CACHED_LINK_MUTATION_SCRIPT,
+			1,
+			getLinkCacheKey(slug),
+			token
+		)
 	)) as number;
 	return result === 1;
 }
@@ -331,13 +330,14 @@ export async function setCachedLinkIfAbsent(
 	slug: string,
 	link: CachedLink
 ): Promise<boolean> {
-	const redis = getRedisCache();
-	const result = await redis.set(
-		getLinkCacheKey(slug),
-		JSON.stringify(link),
-		"EX",
-		LINKS_CACHE_TTL,
-		"NX"
+	const result = await runLinkCacheCommand((redis) =>
+		redis.set(
+			getLinkCacheKey(slug),
+			JSON.stringify(link),
+			"EX",
+			LINKS_CACHE_TTL,
+			"NX"
+		)
 	);
 	return result === "OK";
 }
@@ -348,13 +348,14 @@ export async function setCachedLinkIfAbsent(
 export async function setCachedLinkNotFoundIfAbsent(
 	slug: string
 ): Promise<boolean> {
-	const redis = getRedisCache();
-	const result = await redis.set(
-		getLinkCacheKey(slug),
-		"null",
-		"EX",
-		LINKS_NEGATIVE_CACHE_TTL,
-		"NX"
+	const result = await runLinkCacheCommand((redis) =>
+		redis.set(
+			getLinkCacheKey(slug),
+			"null",
+			"EX",
+			LINKS_NEGATIVE_CACHE_TTL,
+			"NX"
+		)
 	);
 	return result === "OK";
 }
