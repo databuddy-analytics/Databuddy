@@ -28,13 +28,13 @@ class UnloadTestTracker extends BrowserDatabuddy {
 		return false;
 	}
 
-	flushForPageUnload(): void {
+	flushForPageUnload(sendExit = false): void {
 		(
 			this as unknown as {
 				handlePageUnload: () => void;
 				hasSentExitBeacon: boolean;
 			}
-		).hasSentExitBeacon = true;
+		).hasSentExitBeacon = !sendExit;
 		(
 			this as unknown as {
 				handlePageUnload: () => void;
@@ -403,6 +403,39 @@ describe("BaseTracker delivery outcomes", () => {
 			transport: "fetch",
 		});
 		await flush;
+	});
+
+	test("drops only an unserializable unload event and continues flushing", () => {
+		const tracker = new UnloadTestTracker({ clientId: "site_example" });
+		const sendBeacon = mock(() => true);
+		tracker.sendBeacon = sendBeacon;
+		const cyclic: Record<string, unknown> = {
+			eventId: "event_cyclic",
+			timestamp: 1,
+		};
+		cyclic.self = cyclic;
+		tracker.batchQueue.push(
+			cyclic as never,
+			{ eventId: "event_valid", timestamp: 2 }
+		);
+		tracker.trackQueue.push({
+			eventId: "track_valid",
+			name: "signup",
+			timestamp: 3,
+		});
+
+		expect(() => tracker.flushForPageUnload(true)).not.toThrow();
+
+		expect(sendBeacon.mock.calls.map((call) => call[1])).toEqual([
+			"/batch",
+			"/track",
+			"/batch",
+		]);
+		expect(sendBeacon.mock.calls[0]?.[0]).toEqual([
+			{ eventId: "event_valid", timestamp: 2 },
+		]);
+		expect(tracker.batchQueue).toHaveLength(0);
+		expect(tracker.trackQueue).toHaveLength(0);
 	});
 
 	test("keeps a retryable failed batch queued", async () => {
