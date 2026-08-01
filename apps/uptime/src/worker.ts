@@ -590,9 +590,7 @@ export function startUptimeWorker() {
 
 		captureError(error, {
 			error_step: "uptime_worker_job_failed",
-			schedule_id: parsedJobData?.success
-				? parsedJobData.data.scheduleId
-				: "",
+			schedule_id: parsedJobData?.success ? parsedJobData.data.scheduleId : "",
 			job_id: job?.id ?? "",
 			trigger: parsedJobData?.success ? parsedJobData.data.trigger : "",
 			attempts_used: attemptsMade,
