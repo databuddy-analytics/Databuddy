@@ -37,6 +37,7 @@ export const LINK_VISIT_JOB_OPTIONS = {
 };
 const RETRY_LOG_INTERVAL_MS = 30_000;
 const MAX_RETRY_DELAY_MS = 60_000;
+export const LINK_VISIT_QUEUE_IO_TIMEOUT_MS = 1500;
 
 let queue: Queue<LinkVisitJobData> | null = null;
 let worker: Worker<LinkVisitJobData> | null = null;
@@ -62,13 +63,22 @@ export function getLinkVisitRetryDelay(attemptsMade: number): number {
 	return Math.min(MAX_RETRY_DELAY_MS, 1000 * 2 ** exponent);
 }
 
+export function getLinkVisitQueueConnectionOptions() {
+	return {
+		...getBullMQConnectionOptions(),
+		commandTimeout: LINK_VISIT_QUEUE_IO_TIMEOUT_MS,
+		connectTimeout: LINK_VISIT_QUEUE_IO_TIMEOUT_MS,
+		enableOfflineQueue: false,
+	};
+}
+
 function getLinkVisitQueue(): Queue<LinkVisitJobData> {
 	if (queue) {
 		return queue;
 	}
 
 	queue = new Queue<LinkVisitJobData>(LINK_VISIT_QUEUE_NAME, {
-		connection: getBullMQConnectionOptions(),
+		connection: getLinkVisitQueueConnectionOptions(),
 		defaultJobOptions: LINK_VISIT_JOB_OPTIONS,
 	});
 	queue.on("error", (error) => {
