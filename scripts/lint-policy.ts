@@ -49,9 +49,9 @@ const APPROVED_ERROR_RESPONSE_PATHS = new Set([
 ]);
 
 const TAILWIND_PALETTE_UTILITY =
-	/(?:^|\s)(?:[\w-]+:)*(?:accent|bg|border(?:-[trblxy])?|caret|decoration|divide|fill|from|outline|ring|shadow|stroke|text|to|via)-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\d{2,3}(?:\/\d{1,3})?(?=\s|$)/u;
+	/(?:^|\s)(?:[\w-]+:)*(?:accent|bg|border(?:-[trblxy])?|caret|decoration|divide|fill|from|outline|ring|shadow|stroke|text|to|via)-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\d{2,3}(?:\/\d{1,3})?!?(?=\s|$)/u;
 const ARBITRARY_COLOR_UTILITY =
-	/(?:^|\s)(?:[\w-]+:)*(?:accent|bg|border(?:-[trblxy])?|caret|decoration|divide|fill|from|outline|ring|shadow|stroke|text|to|via)-\[[^\]]*(?:#[\da-f]{3,8}\b|(?:rgba?|hsla?|oklch)\()[^\]]*\]/iu;
+	/(?:^|\s)(?:[\w-]+:)*(?:accent|bg|border(?:-[trblxy])?|caret|decoration|divide|fill|from|outline|ring|shadow|stroke|text|to|via)-\[[^\]]*(?:#[\da-f]{3,8}\b|(?:rgba?|hsla?|oklch)\()[^\]]*\]!?/iu;
 const RAW_COLOR_VALUE = /#[\da-f]{3,8}\b|(?:rgba?|hsla?|oklch)\(/iu;
 const COLORISH_IDENTIFIER =
 	/(?:^|[_-])(?:color|background|border|fill|stroke|shadow)(?:$|[_-])/iu;
@@ -59,6 +59,7 @@ const DASHBOARD_SOURCE_EXTENSION = /\.(?:css|ts|tsx)$/u;
 const HTTP_SOURCE_EXTENSION = /\.(?:ts|tsx)$/u;
 const NEWLINE = /\r?\n/u;
 const DIFF_HUNK = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/u;
+const STAGED = process.argv.includes("--staged");
 
 export function findPolicyViolations(
 	path: string,
@@ -259,7 +260,11 @@ function isColorishName(name: ts.PropertyName) {
 }
 
 function isColorishIdentifier(name: string) {
-	return COLORISH_IDENTIFIER.test(name);
+	const normalized = name.replace(
+		/[A-Z]/g,
+		(letter) => `_${letter.toLowerCase()}`
+	);
+	return COLORISH_IDENTIFIER.test(normalized);
 }
 
 function isCustomJsonErrorResponse(node: ts.Node) {
@@ -486,24 +491,11 @@ function findCustomCssColors(path: string, text: string): PolicyViolation[] {
 }
 
 function getChangedLines() {
-	if (process.argv.includes("--staged")) {
+	if (STAGED) {
 		return getStagedChangedLines();
 	}
 
-	const diff = tryRunGit([
-		"diff",
-		"--unified=0",
-		"--no-ext-diff",
-		POLICY_ROLLOUT_BASE,
-	]);
-	const changedLines = diff
-		? parseChangedLines(diff)
-		: new Map<string, Set<number>>();
-	if (!diff) {
-		console.warn(
-			`Policy lint skipped changed-line diff because rollout commit ${POLICY_ROLLOUT_BASE} is unavailable.`
-		);
-	}
+	const changedLines = parseChangedLines(getRolloutDiff());
 	for (const path of runGit(["ls-files", "--others", "--exclude-standard"])
 		.split("\n")
 		.filter(Boolean)) {
@@ -517,6 +509,27 @@ function getChangedLines() {
 		);
 	}
 	return changedLines;
+}
+
+function getRolloutDiff() {
+	const diffArgs = [
+		"diff",
+		"--unified=0",
+		"--no-ext-diff",
+		POLICY_ROLLOUT_BASE,
+	];
+	const diff = tryRunGit(diffArgs);
+	if (diff !== null) {
+		return diff;
+	}
+	tryRunGit(["fetch", "--depth=1", "origin", POLICY_ROLLOUT_BASE]);
+	const fetchedDiff = tryRunGit(diffArgs);
+	if (fetchedDiff !== null) {
+		return fetchedDiff;
+	}
+	throw new Error(
+		`Policy lint could not diff against rollout commit ${POLICY_ROLLOUT_BASE}. Fetch it with git fetch --depth=1 origin ${POLICY_ROLLOUT_BASE}.`
+	);
 }
 
 function getStagedChangedLines() {
@@ -592,10 +605,20 @@ function formatViolation(violation: PolicyViolation) {
 	return `${violation.path}:${violation.line}:${violation.column} [${violation.rule}] ${violation.message}\n  Add // policy-ignore ${violation.rule}: <specific reason> immediately above only when the exception is intentional.`;
 }
 
+function readPolicyText(path: string) {
+	if (STAGED) {
+		const text = tryRunGit(["show", `:${path}`]);
+		if (text !== null) {
+			return text;
+		}
+	}
+	return readFileSync(resolve(path), "utf8");
+}
+
 function main() {
 	const changedLines = getChangedLines();
 	const violations = [...changedLines.keys()].flatMap((path) => {
-		const text = readFileSync(resolve(path), "utf8");
+		const text = readPolicyText(path);
 		return findPolicyViolations(path, text).filter((violation) =>
 			intersectsChangedLines(violation, changedLines)
 		);
