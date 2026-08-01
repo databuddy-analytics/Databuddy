@@ -408,18 +408,14 @@ export async function findRunObservations(params: {
 			)
 		)
 		.orderBy(insightObservations.signalKey, insightObservations.id);
-	return observations.flatMap((observation) => {
+	return observations.map((observation) => {
 		const outcome = parseInvestigationOutcome(observation.outcome);
 		const signal = parseInvestigationSignal(observation.signal);
-		return outcome && signal ? [{ ...observation, outcome, signal }] : [];
+		if (!(outcome && signal)) {
+			throw new Error(
+				`Persisted run observation ${observation.signalKey} is invalid`
+			);
+		}
+		return { ...observation, outcome, signal };
 	});
-}
-
-/** @deprecated Use findRunObservations so callers preserve all work in a run. */
-export async function findRunObservation(params: {
-	organizationId: string;
-	runId: string;
-	websiteId: string;
-}) {
-	return (await findRunObservations(params))[0];
 }
