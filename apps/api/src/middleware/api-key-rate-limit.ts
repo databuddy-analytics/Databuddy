@@ -1,3 +1,4 @@
+import { mergeWideEvent } from "@databuddy/ai/lib/tracing";
 import {
 	type ApiKeyRow,
 	extractSecret,
@@ -10,7 +11,6 @@ import {
 	ratelimit,
 	type RateLimitResult,
 } from "@databuddy/redis/rate-limit";
-import { mergeWideEvent } from "@databuddy/ai/lib/tracing";
 import { createError } from "evlog";
 import { handleAppError } from "@/http/errors";
 
@@ -34,6 +34,13 @@ export type ApiKeyAdmissionOutcome =
 	| "in_flight_rejected"
 	| "redis_fail_open"
 	| "rolling_quota_rejected";
+
+interface ApiKeyAdmissionWideEventFields {
+	api_key_admission_outcome: ApiKeyAdmissionOutcome;
+	api_key_in_flight_rejected: boolean;
+	api_key_rate_limit_degraded: boolean;
+	api_key_rolling_quota_rejected: boolean;
+}
 
 export interface ApiKeyAdmissionDependencies {
 	consume: (
@@ -236,7 +243,7 @@ export async function enforceApiKeyRateLimit(
 }
 
 function recordAdmissionOutcome(outcome: ApiKeyAdmissionOutcome): void {
-	const fields: Record<string, boolean | string> = {
+	const fields: Partial<ApiKeyAdmissionWideEventFields> = {
 		api_key_admission_outcome: outcome,
 	};
 	if (outcome === "in_flight_rejected") {
@@ -246,7 +253,12 @@ function recordAdmissionOutcome(outcome: ApiKeyAdmissionOutcome): void {
 	} else {
 		fields.api_key_rate_limit_degraded = true;
 	}
-	mergeWideEvent(fields);
+	try {
+		// Keep admission telemetry low-cardinality: no key ID, hash, or secret.
+		mergeWideEvent<ApiKeyAdmissionWideEventFields>(fields);
+	} catch {
+		// Telemetry must never change the admission decision.
+	}
 }
 
 function createRateLimitRejection(
