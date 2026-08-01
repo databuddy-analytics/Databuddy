@@ -334,6 +334,20 @@ describeIntegration("insights idempotency integration", () => {
 			runId,
 			timezone: "UTC",
 		});
+		await db().insert(insightObservations).values({
+			asOf,
+			createdAt: new Date("2026-07-10T10:00:00.000Z"),
+			evidence: ["Malformed historical row."],
+			id: randomUUIDv7(),
+			insightId: checkout.id,
+			organizationId: organization.id,
+			outcome: { next: { type: "unsupported" } },
+			recheckAt: new Date("2026-07-17T10:00:00.000Z"),
+			runId,
+			signal: {},
+			signalKey: "malformed",
+			websiteId: website.id,
+		});
 
 		const replay = await findRunObservations({
 			organizationId: organization.id,

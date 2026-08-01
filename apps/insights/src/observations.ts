@@ -421,7 +421,7 @@ export async function findRunObservations(params: {
 				run_id: params.runId,
 				website_id: params.websiteId,
 			});
-			throw error;
+			return [];
 		}
 		return [{ ...observation, outcome, signal }];
 	});
