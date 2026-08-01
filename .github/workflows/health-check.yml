@@ -41,9 +41,25 @@ concurrency:
 
 jobs:
   vector-config-check:
-    name: Vector Config Check
+    name: Vector Delivery Canary
     runs-on: blacksmith-2vcpu-ubuntu-2404
-    timeout-minutes: 5
+    timeout-minutes: 10
+
+    services:
+      clickhouse:
+        image: clickhouse/clickhouse-server:25.5.1-alpine
+        env:
+          CLICKHOUSE_USER: default
+          CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+        ports:
+          - 8123:8123
+        options: >-
+          --ulimit nofile=262144:262144
+          --health-cmd "clickhouse-client --query 'SELECT 1'"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-start-period 30s
+          --health-retries 12
 
     steps:
       - name: Checkout repository
@@ -61,6 +77,109 @@ jobs:
             -e CLICKHOUSE_PASSWORD=vector-test-password \
             timberio/vector:0.50.0-alpine \
             validate --deny-warnings --no-environment /etc/vector/vector.yaml
+
+      - name: Prove Redpanda to Vector to ClickHouse delivery
+        run: |
+          set -euo pipefail
+
+          # ShellCheck cannot see that trap invokes this function.
+          # shellcheck disable=SC2317
+          cleanup() {
+            docker rm -f vector-delivery-canary vector-canary-redpanda >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          curl -fsS \
+            --data-binary 'CREATE DATABASE IF NOT EXISTS analytics' \
+            http://localhost:8123/
+          sed -E \
+            "s@ENGINE = ReplicatedMergeTree\\([^)]*\\)@ENGINE = MergeTree@" \
+            packages/db/src/clickhouse/schema/analytics/core/custom_events.sql \
+            | curl -fsS --data-binary @- http://localhost:8123/
+
+          docker run -d \
+            --name vector-canary-redpanda \
+            --network host \
+            redpandadata/redpanda:v25.2.9 \
+            redpanda start \
+            --mode dev-container \
+            --smp 1 \
+            --default-log-level=warn \
+            --kafka-addr 0.0.0.0:9092 \
+            --advertise-kafka-addr localhost:9092
+
+          for i in {1..30}; do
+            if docker exec vector-canary-redpanda rpk cluster health >/dev/null 2>&1; then
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              docker logs vector-canary-redpanda
+              exit 1
+            fi
+            sleep 1
+          done
+
+          docker exec vector-canary-redpanda \
+            rpk topic create analytics-custom-events
+
+          docker run -d \
+            --name vector-delivery-canary \
+            --network host \
+            -v "$PWD/infra/ingest/vector.yaml:/etc/vector/vector.yaml:ro" \
+            -e REDPANDA_BROKER=localhost:9092 \
+            -e VECTOR_KAFKA_USER=unused \
+            -e VECTOR_KAFKA_PASSWORD=unused \
+            -e VECTOR_KAFKA_SASL_ENABLED=false \
+            -e VECTOR_KAFKA_TLS_ENABLED=false \
+            -e CLICKHOUSE_URL=http://localhost:8123 \
+            -e CLICKHOUSE_USER=default \
+            -e CLICKHOUSE_PASSWORD= \
+            timberio/vector:0.50.0-alpine \
+            --config /etc/vector/vector.yaml
+
+          CANARY_ID="ci-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-0}"
+          CANARY_PAYLOAD=$(jq -cn \
+            --arg delivery_id "$CANARY_ID" \
+            '{
+              owner_id: "ci-owner",
+              website_id: "ci-website",
+              timestamp: "2026-08-01T00:00:00.000Z",
+              event_name: "vector_delivery_canary",
+              namespace: "ci",
+              path: "/ci/vector-canary",
+              properties: "{}",
+              anonymous_id: "ci-anonymous",
+              session_id: "ci-session",
+              source: "ci",
+              profile_id: "",
+              delivery_id: $delivery_id
+            }')
+
+          printf '%s\n' "$CANARY_PAYLOAD" \
+            | docker exec -i vector-canary-redpanda \
+                rpk topic produce analytics-custom-events
+
+          for i in {1..45}; do
+            COUNT=$(curl -fsSG \
+              --data-urlencode \
+                'query=SELECT count() FROM analytics.custom_events WHERE delivery_id = {delivery_id:String}' \
+              --data-urlencode "param_delivery_id=$CANARY_ID" \
+              http://localhost:8123/)
+            if [ "$COUNT" = "1" ]; then
+              echo "Vector delivered the canary with its delivery_id intact"
+              exit 0
+            fi
+            if ! docker inspect -f '{{.State.Running}}' vector-delivery-canary | grep -q true; then
+              docker logs vector-delivery-canary
+              exit 1
+            fi
+            sleep 1
+          done
+
+          echo "Canary was not delivered to ClickHouse within 45 seconds"
+          docker logs vector-delivery-canary
+          docker logs vector-canary-redpanda
+          exit 1
 
   api-health-check:
     name: API Health Check
