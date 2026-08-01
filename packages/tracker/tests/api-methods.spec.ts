@@ -668,41 +668,42 @@ test.describe("API Methods", () => {
 			expect(trackFired).toBe(true);
 		});
 
-		test("custom track events are sent on page unload", async ({
-			page,
-			browserName,
-		}) => {
+		test("custom track events are sent on page unload", async ({ page }, testInfo) => {
 			test.skip(
-				browserName === "webkit",
-				"WebKit/Playwright issue with batch interception"
+				testInfo.project.name !== "chromium",
+				"Native unload transport is exercised once to avoid shared server contention"
 			);
-
-			const trackEvents: string[] = [];
-
-			await page.route("**/basket.databuddy.cc/track**", async (route) => {
-				const data = JSON.parse(route.request().postData() ?? "[]");
-				const events = Array.isArray(data) ? data : [data];
-				for (const e of events) {
-					if (e.name) {
-						trackEvents.push(e.name as string);
-					}
-				}
-				await route.fulfill({
-					status: 200,
-					body: JSON.stringify({ success: true }),
-				});
-			});
+			type BeaconRequest = {
+				body: string;
+				contentType: string;
+				method: string;
+			};
+			const clientId = `test-unload-${crypto.randomUUID()}`;
+			const readRequests = async (): Promise<BeaconRequest[]> => {
+				const params = new URLSearchParams({ client_id: clientId, path: "/track" });
+				const response = await fetch(
+					`http://127.0.0.1:3033/__test/beacons?${params}`
+				);
+				const result = (await response.json()) as { requests: BeaconRequest[] };
+				return result.requests;
+			};
 
 			await page.goto("/test");
-			await page.evaluate(() => {
+			const hasNativeBeacon = await page.evaluate(() => {
+				Reflect.deleteProperty(navigator, "sendBeacon");
+				return typeof navigator.sendBeacon === "function";
+			});
+			expect(hasNativeBeacon).toBe(true);
+			await page.evaluate((id) => {
 				(window as any).databuddyConfig = {
-					clientId: "test-unload-track",
+					apiUrl: "http://localhost:3033",
+					clientId: id,
 					ignoreBotDetection: true,
 					enableBatching: true,
 					batchSize: 100,
 					batchTimeout: 60_000,
 				};
-			});
+			}, clientId);
 			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			await expect
@@ -714,12 +715,26 @@ test.describe("API Methods", () => {
 			});
 
 			await page.waitForTimeout(100);
-			expect(trackEvents.length).toBe(0);
+			expect(await readRequests()).toHaveLength(0);
 
 			await page.goto("about:blank");
-			await page.waitForTimeout(500);
+			await expect
+				.poll(async () => (await readRequests()).length)
+				.toBeGreaterThan(0);
 
-			expect(trackEvents).toContain("pre_nav_click");
+			const requests = await readRequests();
+			expect(requests.map((request) => request.method)).toEqual(["POST"]);
+			expect(requests[0]?.contentType).toMatch(/^text\/plain(?:;|$)/i);
+			const body = JSON.parse(requests[0]?.body ?? "[]") as unknown;
+			const events = Array.isArray(body) ? body : [body];
+			expect(events).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						eventId: expect.any(String),
+						name: "pre_nav_click",
+					}),
+				])
+			);
 		});
 
 		test("flush() delivers queued vitals via /vitals", async ({
