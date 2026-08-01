@@ -44,6 +44,7 @@ describe("parseFrozenInvestigationPlan", () => {
 			parseFrozenInvestigationPlan({
 				asOf: "2026-08-01T12:00:00.000Z",
 				candidates: [candidate, candidate],
+				reason: "manual",
 			})
 		).toThrow("cannot repeat a signal");
 	});
@@ -81,14 +82,13 @@ describe("parseFrozenInvestigationPlan", () => {
 		);
 	});
 
-	it("allows legacy empty plans while preserving an explicit empty disposition", () => {
-		expect(
+	it("rejects empty snapshots because there is no agent work to retry", () => {
+		expect(() =>
 			parseFrozenInvestigationPlan({
 				asOf: "2026-08-01T12:00:00.000Z",
 				candidates: [],
-				emptyStatus: "deferred",
 				reason: "scheduled",
 			})
-		).toMatchObject({ emptyStatus: "deferred", reason: "scheduled" });
+		).toThrow();
 	});
 });

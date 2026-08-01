@@ -888,7 +888,7 @@ export async function generateWebsiteInsights(
 		websiteId: site.id,
 	};
 	let plan = await loadInsightRunCandidatePlan(runIdentity, input.reason);
-	let emptyStatus: "deferred" | "no_signals" | null = plan?.emptyStatus ?? null;
+	let emptyStatus: "deferred" | "no_signals" | null = null;
 	if (!plan && existingObservations.length > 0) {
 		// A run created before candidate portfolios existed can contain at most
 		// one observation. Freeze that completed legacy work explicitly rather
@@ -927,13 +927,6 @@ export async function generateWebsiteInsights(
 				);
 			}
 			emptyStatus = discovered.artifact.status;
-			plan = await freezeInsightRunCandidatePlan(runIdentity, input.reason, {
-				asOf: discovered.artifact.asOf,
-				candidates: [],
-				emptyStatus,
-				reason: input.reason,
-			});
-			emptyStatus = plan.emptyStatus ?? emptyStatus;
 		} else {
 			const selectedCandidates = plannedPortfolio(
 				discovered.value,

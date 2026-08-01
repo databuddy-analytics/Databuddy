@@ -153,10 +153,6 @@ export const insightRunItems = pgTable(
 		 * rediscovering a different set of signals after telemetry changes.
 		 */
 		candidatePlan: jsonb("candidate_plan").$type<unknown>(),
-		candidatePlanAsOf: timestamp("candidate_plan_as_of", {
-			precision: 3,
-			withTimezone: true,
-		}),
 		preparedAt: timestamp("prepared_at", {
 			precision: 3,
 			withTimezone: true,
