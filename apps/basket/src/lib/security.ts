@@ -14,11 +14,16 @@ export const DEDUP_RESERVATION_TIMEOUT_MS = 750;
 const DEDUP_BYPASS_COOLDOWN_MS = 5000;
 const PENDING_DEDUP_PREFIX = "pending:";
 const DELIVERED_DEDUP_VALUE = "delivered";
+const AMBIGUOUS_DEDUP_VALUE = "ambiguous";
 const RELEASE_PENDING_DEDUP_RESERVATION = `if redis.call("GET", KEYS[1]) == ARGV[1] then
 	return redis.call("DEL", KEYS[1])
 end
 return 0`;
 const MARK_PENDING_DEDUP_RESERVATION_DELIVERED = `if redis.call("GET", KEYS[1]) == ARGV[1] then
+	return redis.call("SET", KEYS[1], ARGV[2], "EX", ARGV[3])
+end
+return 0`;
+const MARK_PENDING_DEDUP_RESERVATION_AMBIGUOUS = `if redis.call("GET", KEYS[1]) == ARGV[1] then
 	return redis.call("SET", KEYS[1], ARGV[2], "EX", ARGV[3])
 end
 return 0`;
@@ -31,6 +36,8 @@ const COUNTRY_CODES: Record<string, string> = {
 };
 
 let dedupBypassUntil = 0;
+
+class DeduplicationDeadlineError extends Error {}
 
 /** @internal */
 export function resetDeduplicationCircuitForTesting(): void {
@@ -45,7 +52,9 @@ function withDedupDeadline<T>(
 	const deadline = new Promise<never>((_resolve, reject) => {
 		timeout = setTimeout(() => {
 			reject(
-				new Error(`Redis deduplication operation exceeded ${timeoutMs}ms`)
+				new DeduplicationDeadlineError(
+					`Redis deduplication operation exceeded ${timeoutMs}ms`
+				)
 			);
 		}, timeoutMs);
 		timeout.unref?.();
@@ -183,6 +192,7 @@ export interface DuplicateReservation {
 
 type DedupReservationState =
 	| "acquired"
+	| "ambiguous"
 	| "delivered"
 	| "pending"
 	| "unreserved";
@@ -194,6 +204,9 @@ async function readDedupReservationState(
 	const value = await redis.get(key);
 	if (value === DELIVERED_DEDUP_VALUE) {
 		return "delivered";
+	}
+	if (value === AMBIGUOUS_DEDUP_VALUE) {
+		return "ambiguous";
 	}
 	if (value === token) {
 		return "acquired";
@@ -255,12 +268,17 @@ export function reserveDuplicate(
 			: STANDARD_EVENT_TTL;
 		const token = `${PENDING_DEDUP_PREFIX}${crypto.randomUUID()}`;
 
+		const reservationOperation = setDedupKey(key, PENDING_DEDUP_TTL, token);
 		try {
-			const result = await withDedupDeadline(
-				setDedupKey(key, PENDING_DEDUP_TTL, token)
-			);
-			if (result === "delivered") {
-				useLogger().set({ dedup: { duplicate: true, eventType } });
+			const result = await withDedupDeadline(reservationOperation);
+			if (result === "delivered" || result === "ambiguous") {
+				useLogger().set({
+					dedup: {
+						ambiguous: result === "ambiguous",
+						duplicate: true,
+						eventType,
+					},
+				});
 				return { duplicate: true };
 			}
 
@@ -277,6 +295,23 @@ export function reserveDuplicate(
 				token,
 			};
 		} catch (error) {
+			if (error instanceof DeduplicationDeadlineError) {
+				// Redis commands cannot be cancelled. If SET NX succeeds after the
+				// caller has failed open, conditionally remove only this attempt's
+				// token so it cannot strand an ownerless 120-second reservation.
+				reservationOperation
+					.then(async (state) => {
+						if (state !== "acquired") {
+							return;
+						}
+						await redis.eval(RELEASE_PENDING_DEDUP_RESERVATION, 1, key, token);
+					})
+					.catch((cleanupError) => {
+						captureError(cleanupError, {
+							message: "Failed to clean up a late Redis dedup reservation",
+						});
+					});
+			}
 			dedupBypassUntil = Date.now() + DEDUP_BYPASS_COOLDOWN_MS;
 			captureError(error, {
 				message: "Failed to check duplicate event in Redis",
@@ -284,6 +319,39 @@ export function reserveDuplicate(
 				eventType,
 			});
 			return { duplicate: false };
+		}
+	});
+}
+
+/**
+ * A Kafka timeout after send is an unknown outcome: the broker may have
+ * committed the record even though Basket did not receive the acknowledgement.
+ * Preserve that uncertainty per delivery key so a client retry cannot switch
+ * the same payload to ClickHouse or create a new application-level Kafka send.
+ */
+export function markDuplicateReservationAmbiguous(
+	reservation: DuplicateReservation
+): Promise<void> {
+	return record("markDuplicateReservationAmbiguous", async () => {
+		if (!(reservation.deliveredTtl && reservation.key && reservation.token)) {
+			return;
+		}
+
+		try {
+			await withDedupDeadline(
+				redis.eval(
+					MARK_PENDING_DEDUP_RESERVATION_AMBIGUOUS,
+					1,
+					reservation.key,
+					reservation.token,
+					AMBIGUOUS_DEDUP_VALUE,
+					reservation.deliveredTtl
+				)
+			);
+		} catch (error) {
+			captureError(error, {
+				message: "Failed to preserve an ambiguous Kafka delivery reservation",
+			});
 		}
 	});
 }

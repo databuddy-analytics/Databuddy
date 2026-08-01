@@ -93,7 +93,7 @@ afterAll(async () => {
 });
 
 describe("producer Kafka send failure handling", () => {
-	test("rejects retries during an ambiguous-send cooldown", async () => {
+	test("falls back directly during reconnect cooldown after an ambiguous Kafka send", async () => {
 		await expect(
 			runPromise(
 				send("analytics-events", {
@@ -112,10 +112,7 @@ describe("producer Kafka send failure handling", () => {
 					timestamp: Date.now(),
 				})
 			)
-		).rejects.toMatchObject({
-			_tag: "ProducerUnavailableError",
-			reason: "ambiguous-kafka-send",
-		});
+		).resolves.toBeUndefined();
 
 		const stats = await runPromise(getStats);
 
@@ -123,8 +120,8 @@ describe("producer Kafka send failure handling", () => {
 		expect(mockProducer).toHaveBeenCalledTimes(1);
 		expect(mockConnect).toHaveBeenCalledTimes(1);
 		expect(mockSend).toHaveBeenCalledTimes(1);
-		expect(mockClickHouseInsert).not.toHaveBeenCalled();
-		expect(stats?.sent).toBe(0);
+		expect(mockClickHouseInsert).toHaveBeenCalledTimes(1);
+		expect(stats?.sent).toBe(1);
 		expect(stats?.connected).toBe(false);
 		expect(stats?.failed).toBe(true);
 		expect(stats?.failedCount).toBe(1);
