@@ -2,6 +2,9 @@
 # each acknowledged ClickHouse sink below holds its Kafka offset until the
 # warehouse confirms delivery, so an interrupted process replays from Kafka.
 
+acknowledgements:
+  enabled: true
+
 sources:
   redpanda:
     type: kafka
@@ -60,12 +63,6 @@ sinks:
       max_events: 5000
       max_bytes: 5000000
       timeout_secs: 5
-    acknowledgements:
-      enabled: true
-    buffer:
-      type: memory
-      max_events: 500
-      when_full: block
     date_time_best_effort: true
     skip_unknown_fields: true
     encoding:
@@ -86,12 +83,6 @@ sinks:
       max_events: 5000
       max_bytes: 5000000
       timeout_secs: 5
-    acknowledgements:
-      enabled: true
-    buffer:
-      type: memory
-      max_events: 500
-      when_full: block
     date_time_best_effort: true
     skip_unknown_fields: true
     encoding:
@@ -112,12 +103,6 @@ sinks:
       max_events: 5000
       max_bytes: 5000000
       timeout_secs: 5
-    acknowledgements:
-      enabled: true
-    buffer:
-      type: memory
-      max_events: 500
-      when_full: block
     date_time_best_effort: true
     skip_unknown_fields: true
     encoding:
@@ -138,12 +123,6 @@ sinks:
       max_events: 5000
       max_bytes: 5000000
       timeout_secs: 5
-    acknowledgements:
-      enabled: true
-    buffer:
-      type: memory
-      max_events: 500
-      when_full: block
     date_time_best_effort: true
     skip_unknown_fields: true
     encoding:
@@ -164,12 +143,6 @@ sinks:
       max_events: 5000
       max_bytes: 5000000
       timeout_secs: 5
-    acknowledgements:
-      enabled: true
-    buffer:
-      type: memory
-      max_events: 500
-      when_full: block
     date_time_best_effort: true
     skip_unknown_fields: true
     encoding:
@@ -190,12 +163,6 @@ sinks:
       max_events: 5000
       max_bytes: 5000000
       timeout_secs: 5
-    acknowledgements:
-      enabled: true
-    buffer:
-      type: memory
-      max_events: 500
-      when_full: block
     date_time_best_effort: true
     skip_unknown_fields: true
     encoding:
@@ -216,12 +183,6 @@ sinks:
       max_events: 50000
       max_bytes: 5000000
       timeout_secs: 60
-    acknowledgements:
-      enabled: true
-    buffer:
-      type: memory
-      max_events: 500
-      when_full: block
     date_time_best_effort: true
     skip_unknown_fields: true
     encoding:
@@ -242,12 +203,6 @@ sinks:
       max_events: 5000
       max_bytes: 5000000
       timeout_secs: 5
-    acknowledgements:
-      enabled: true
-    buffer:
-      type: memory
-      max_events: 500
-      when_full: block
     date_time_best_effort: true
     skip_unknown_fields: true
     encoding:
@@ -268,12 +223,6 @@ sinks:
       max_events: 5000
       max_bytes: 5000000
       timeout_secs: 5
-    acknowledgements:
-      enabled: true
-    buffer:
-      type: memory
-      max_events: 500
-      when_full: block
     date_time_best_effort: true
     skip_unknown_fields: true
     encoding:
@@ -292,11 +241,5 @@ sinks:
       password: "${VECTOR_KAFKA_PASSWORD}"
     tls:
       enabled: true
-    acknowledgements:
-      enabled: true
-    buffer:
-      type: memory
-      max_events: 500
-      when_full: block
     encoding:
       codec: json
