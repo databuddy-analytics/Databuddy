@@ -199,16 +199,29 @@ export function checkLinkVisitQueueHealth() {
 	);
 }
 
+export async function closeLinkVisitDeliveryResources(
+	activeWorker: Pick<Worker<LinkVisitJobData>, "close"> | null,
+	activeQueue: Pick<Queue<LinkVisitJobData>, "close"> | null
+): Promise<void> {
+	const results = await Promise.allSettled([
+		...(activeWorker ? [activeWorker.close()] : []),
+		...(activeQueue ? [activeQueue.close()] : []),
+	]);
+	const failures = results.flatMap((result) =>
+		result.status === "rejected" ? [result.reason] : []
+	);
+	if (failures.length > 0) {
+		throw new AggregateError(
+			failures,
+			"Failed to close one or more link-visit delivery resources"
+		);
+	}
+}
+
 export async function closeLinkVisitDelivery(): Promise<void> {
 	const activeWorker = worker;
 	worker = null;
-	if (activeWorker) {
-		await activeWorker.close();
-	}
-
 	const activeQueue = queue;
 	queue = null;
-	if (activeQueue) {
-		await activeQueue.close();
-	}
+	await closeLinkVisitDeliveryResources(activeWorker, activeQueue);
 }
