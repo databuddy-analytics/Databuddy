@@ -236,6 +236,45 @@ describe("producer delivery guarantees", () => {
 		).toBe(true);
 	});
 
+	test("bounds the complete Kafka send and tracks its late acknowledgement", async () => {
+		let releaseSend: (() => void) | undefined;
+		const kafka = {
+			connect: vi.fn(() => Promise.resolve()),
+			disconnect: vi.fn(() => Promise.resolve()),
+			send: vi.fn(
+				() =>
+					new Promise<unknown[]>((resolve) => {
+						releaseSend = () => resolve([]);
+					})
+			),
+		} as unknown as Producer;
+		const effects = await makeEffects(
+			vi.fn(() => Promise.resolve()),
+			{
+				broker: "redpanda.test:9092",
+				connectTimeout: 20,
+				kafkaTimeout: 20,
+				selfHost: false,
+			},
+			kafka
+		);
+
+		await expect(
+			Effect.runPromise(effects.sendOne("analytics-events", event("event_1")))
+		).rejects.toMatchObject({
+			_tag: "KafkaSendError",
+			cause: expect.objectContaining({
+				message: "Redpanda send acknowledgement exceeded 20ms",
+			}),
+		});
+		expect((await Effect.runPromise(effects.stats)).inFlight).toBe(1);
+
+		releaseSend?.();
+		await vi.waitFor(async () =>
+			expect((await Effect.runPromise(effects.stats)).inFlight).toBe(0)
+		);
+	});
+
 	test("keeps an active direct delivery counted when shutdown rejects another send", async () => {
 		let releaseInsert: (() => void) | undefined;
 		const effects = await makeEffects(
@@ -289,6 +328,41 @@ describe("producer delivery guarantees", () => {
 
 		releaseInsert?.();
 		await activeDelivery;
+	});
+
+	test("bounds a stalled admin disconnect within the shutdown deadline", async () => {
+		const kafka = {
+			connect: vi.fn(() => Promise.resolve()),
+			disconnect: vi.fn(() => Promise.resolve()),
+			send: vi.fn(() => Promise.resolve([])),
+		} as unknown as Producer;
+		const kafkaAdmin = {
+			connect: vi.fn(() => Promise.resolve()),
+			describeCluster: vi.fn(() =>
+				Promise.resolve({ brokers: [{ nodeId: 1 }], clusterId: "test" })
+			),
+			disconnect: vi.fn(() => new Promise<void>(() => undefined)),
+		} as unknown as Admin;
+		const effects = await makeEffects(
+			vi.fn(() => Promise.resolve()),
+			{
+				broker: "redpanda.test:9092",
+				selfHost: false,
+				shutdownDrainTimeout: 20,
+			},
+			kafka,
+			kafkaAdmin
+		);
+		await Effect.runPromise(effects.checkConnection);
+
+		await expect(Effect.runPromise(effects.shutDown)).rejects.toMatchObject({
+			_tag: "ShutdownDrainError",
+			deadlineMs: 20,
+			phase: "disconnect",
+			retryable: true,
+		});
+		expect(kafka.disconnect).toHaveBeenCalledOnce();
+		expect(kafkaAdmin.disconnect).toHaveBeenCalledOnce();
 	});
 
 	test("shares one successful connection across all concurrent callers", async () => {
@@ -445,6 +519,50 @@ describe("producer delivery guarantees", () => {
 		expect(performance.now() - startedAt).toBeLessThan(500);
 		await vi.waitFor(() => expect(kafkaAdmin.disconnect).toHaveBeenCalledOnce());
 		expect((await Effect.runPromise(effects.stats)).inFlight).toBe(0);
+	});
+
+	test("bounds a stalled producer connection and disconnects a late success", async () => {
+		let releaseConnect: (() => void) | undefined;
+		const kafka = {
+			connect: vi.fn(
+				() =>
+					new Promise<void>((resolve) => {
+						releaseConnect = resolve;
+					})
+			),
+			disconnect: vi.fn(() => Promise.resolve()),
+			send: vi.fn(() => Promise.resolve([])),
+		} as unknown as Producer;
+		const kafkaAdmin = {
+			connect: vi.fn(() => Promise.resolve()),
+			describeCluster: vi.fn(() =>
+				Promise.resolve({ brokers: [{ nodeId: 1 }], clusterId: "test" })
+			),
+			disconnect: vi.fn(() => Promise.resolve()),
+		} as unknown as Admin;
+		const effects = await makeEffects(
+			vi.fn(() => Promise.resolve()),
+			{
+				broker: "redpanda.test:9092",
+				connectTimeout: 20,
+				selfHost: false,
+			},
+			kafka,
+			kafkaAdmin
+		);
+
+		await expect(Effect.runPromise(effects.checkConnection)).rejects.toMatchObject({
+			_tag: "ProducerUnavailableError",
+			retryable: true,
+		});
+		expect(await Effect.runPromise(effects.stats)).toMatchObject({
+			connecting: false,
+			inFlight: 0,
+		});
+
+		releaseConnect?.();
+		await vi.waitFor(() => expect(kafka.disconnect).toHaveBeenCalledOnce());
+		expect(kafkaAdmin.connect).not.toHaveBeenCalled();
 	});
 
 	test("fails the producer health check when its connection cannot be established", async () => {
