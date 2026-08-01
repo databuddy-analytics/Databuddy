@@ -134,6 +134,16 @@ describe("Databuddy Node client", () => {
 			processed: 1,
 		});
 		expect(calls).toHaveLength(2);
+		expect(calls[1]?.body).toEqual(calls[0]?.body);
+		const firstPayload = calls[0]?.body;
+		expect(Array.isArray(firstPayload)).toBe(true);
+		if (!Array.isArray(firstPayload)) {
+			throw new Error("Expected batch body");
+		}
+		expect(firstPayload[0]).toMatchObject({
+			eventId: expect.any(String),
+			timestamp: expect.any(Number),
+		});
 	});
 
 	it("automatically retries queued failures with capped exponential backoff", async () => {
@@ -211,6 +221,10 @@ describe("Databuddy Node client", () => {
 		expect(first.success).toBe(false);
 		expect(second.success).toBe(true);
 		expect(calls).toHaveLength(2);
+		expect(calls[0]?.body).toMatchObject({
+			eventId: "evt_1",
+			timestamp: expect.any(Number),
+		});
 		expect(client.getDeduplicationCacheSize()).toBe(1);
 	});
 
