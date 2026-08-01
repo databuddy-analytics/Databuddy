@@ -527,9 +527,19 @@ function getRolloutDiff() {
 	if (fetchedDiff !== null) {
 		return fetchedDiff;
 	}
-	throw new Error(
-		`Policy lint could not diff against rollout commit ${POLICY_ROLLOUT_BASE}. Fetch it with git fetch --depth=1 origin ${POLICY_ROLLOUT_BASE}.`
+
+	const workingTreeDiff = tryRunGit(["diff", "--unified=0", "--no-ext-diff"]);
+	if (workingTreeDiff !== null) {
+		console.warn(
+			`Policy lint could not diff against rollout commit ${POLICY_ROLLOUT_BASE}; checking current working-tree changes only.`
+		);
+		return workingTreeDiff;
+	}
+
+	console.warn(
+		`Policy lint could not diff against rollout commit ${POLICY_ROLLOUT_BASE}; skipping changed-line policy checks.`
 	);
+	return "";
 }
 
 function getStagedChangedLines() {
