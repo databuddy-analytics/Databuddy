@@ -234,7 +234,7 @@ export interface DuplicateReservation {
 	/**
 	 * Redis confirmed that this request did not acquire the reservation. The
 	 * caller must retry instead of publishing alongside its current owner.
-	 * Omitted when Redis is unavailable so ingestion remains fail-open.
+	 * Redis failures also return this state while the short circuit is open.
 	 */
 	readonly retryable?: true;
 	/**
@@ -325,9 +325,9 @@ async function setDedupKey(
 		} catch {
 			try {
 				const state = await resolveExistingState();
-				// Both writes failed and Redis confirms there is no reservation.
-				// Preserve fail-open ingestion instead of converting a write-only
-				// Redis degradation into a service-wide 503.
+				// A best-effort read can still prove an existing state after both write
+				// replies fail. Otherwise propagate the unknown outcome so admission
+				// pauses instead of publishing without ownership.
 				if (state === "unreserved") {
 					throw firstError;
 				}
@@ -392,7 +392,7 @@ export function reserveDuplicate(
 		} catch (error) {
 			if (error instanceof DeduplicationDeadlineError) {
 				// Redis commands cannot be cancelled. If SET NX succeeds after the
-				// caller has failed open, conditionally remove only this attempt's
+				// caller returns retryable, conditionally reconcile only this attempt's
 				// token so it cannot strand an ownerless 120-second reservation.
 				reservationOperation
 					.then(async (state) => {
@@ -599,7 +599,8 @@ export function reserveDuplicateBatch(
  * A Kafka timeout after send is an unknown outcome: the broker may have
  * committed the record even though Basket did not receive the acknowledgement.
  * Preserve that uncertainty per delivery key so a client retry cannot switch
- * the same payload to ClickHouse or create a new application-level Kafka send.
+ * the same payload to ClickHouse. The retry remains Kafka-only and reuses its
+ * stable delivery identity for downstream idempotency.
  */
 export function markDuplicateReservationAmbiguous(
 	reservation: DuplicateReservation

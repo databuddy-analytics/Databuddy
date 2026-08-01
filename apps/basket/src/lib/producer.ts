@@ -6,7 +6,7 @@ import { captureError, record } from "@lib/tracing";
 import { PRODUCER_DRAIN_TIMEOUT_MS } from "@lib/shutdown-budget";
 import { Data, Deferred, Effect, Layer, ManagedRuntime, Ref } from "effect";
 import { createError } from "evlog";
-import { CompressionTypes, Kafka, type Producer } from "kafkajs";
+import { type Admin, CompressionTypes, Kafka, type Producer } from "kafkajs";
 
 function stringifyEvent(event: unknown): string {
 	return JSON.stringify(event, (_key, value) =>
@@ -30,6 +30,7 @@ export class ProducerShuttingDownError extends Data.TaggedError(
 export class ProducerUnavailableError extends Data.TaggedError(
 	"ProducerUnavailableError"
 )<{
+	readonly cause?: Error;
 	readonly retryable: true;
 }> {}
 export class UnknownKafkaTopicError extends Data.TaggedError(
@@ -78,12 +79,14 @@ type ConnectDecision =
 	| { readonly type: "connected" }
 	| { readonly deferred: Deferred.Deferred<boolean>; readonly type: "connect" }
 	| { readonly type: "fallback" }
+	| { readonly type: "shutting-down" }
 	| { readonly deferred: Deferred.Deferred<boolean>; readonly type: "wait" };
 
 export interface ProducerConfig {
 	broker?: string;
 	chunkSize: number;
 	directFallbackTimeout: number;
+	healthProbeTimeout: number;
 	kafkaTimeout: number;
 	maxProducerRetries: number;
 	password?: string;
@@ -117,6 +120,11 @@ export interface ProducerDeliveryOptions {
 	readonly allowDirectFallback?: boolean;
 }
 
+export interface KafkaResources {
+	readonly admin: Admin;
+	readonly producer: Producer;
+}
+
 const INITIAL_STATE: ProducerState = {
 	sent: 0,
 	failedCount: 0,
@@ -133,6 +141,153 @@ const INITIAL_STATE: ProducerState = {
 
 function toError(err: unknown): Error {
 	return err instanceof Error ? err : new Error(String(err));
+}
+
+class HealthProbeDeadlineError extends Error {}
+
+interface ActiveHealthProbe {
+	cancelled: boolean;
+	promise: Promise<void>;
+}
+
+interface KafkaHealthProbe {
+	beginShutdown: () => void;
+	disconnect: () => Promise<void>;
+	hasActiveProbe: () => boolean;
+	probe: (timeoutMs: number) => Promise<void>;
+}
+
+function withHealthProbeDeadline(
+	operation: Promise<void>,
+	timeoutMs: number
+): Promise<void> {
+	let timeout: ReturnType<typeof setTimeout> | undefined;
+	const deadline = new Promise<never>((_resolve, reject) => {
+		timeout = setTimeout(() => {
+			reject(
+				new HealthProbeDeadlineError(
+					`Redpanda health probe exceeded ${timeoutMs}ms`
+				)
+			);
+		}, timeoutMs);
+		timeout.unref?.();
+	});
+
+	return Promise.race([operation, deadline]).finally(() => {
+		if (timeout) {
+			clearTimeout(timeout);
+		}
+	});
+}
+
+function createKafkaHealthProbe(admin: Admin): KafkaHealthProbe {
+	let activeProbe: ActiveHealthProbe | null = null;
+	let connected = false;
+	let disconnecting: Promise<void> | null = null;
+	let shuttingDown = false;
+
+	const disconnect = (): Promise<void> => {
+		if (disconnecting) {
+			return disconnecting;
+		}
+		if (!(connected || activeProbe)) {
+			return Promise.resolve();
+		}
+
+		connected = false;
+		const operation = admin
+			.disconnect()
+			.catch((error) => {
+				captureError(error, {
+					message: "Error disconnecting Redpanda health client",
+				});
+			})
+			.finally(() => {
+				if (disconnecting === operation) {
+					disconnecting = null;
+				}
+			});
+		disconnecting = operation;
+		return operation;
+	};
+
+	const startProbe = (): ActiveHealthProbe => {
+		if (activeProbe) {
+			return activeProbe;
+		}
+
+		const candidate: ActiveHealthProbe = {
+			cancelled: false,
+			promise: Promise.resolve(),
+		};
+		candidate.promise = (async () => {
+			try {
+				if (!connected) {
+					await admin.connect();
+					connected = true;
+				}
+				if (candidate.cancelled || shuttingDown) {
+					throw new Error("Redpanda health probe cancelled");
+				}
+
+				const cluster = await admin.describeCluster();
+				if (candidate.cancelled || shuttingDown) {
+					throw new Error("Redpanda health probe cancelled");
+				}
+				if (cluster.brokers.length === 0) {
+					throw new Error("Redpanda returned no brokers");
+				}
+			} catch (error) {
+				await disconnect();
+				throw error;
+			}
+		})();
+		const operation = candidate.promise;
+		activeProbe = candidate;
+		operation.then(
+			() => {
+				if (activeProbe === candidate) {
+					activeProbe = null;
+				}
+			},
+			() => {
+				if (activeProbe === candidate) {
+					activeProbe = null;
+				}
+			}
+		);
+		return candidate;
+	};
+
+	return {
+		beginShutdown: () => {
+			shuttingDown = true;
+			if (activeProbe) {
+				activeProbe.cancelled = true;
+			}
+		},
+		disconnect,
+		hasActiveProbe: () => activeProbe !== null,
+		probe: async (timeoutMs) => {
+			if (shuttingDown) {
+				throw new Error("Redpanda health client is shutting down");
+			}
+			const probe = startProbe();
+			try {
+				await withHealthProbeDeadline(probe.promise, timeoutMs);
+			} catch (error) {
+				if (error instanceof HealthProbeDeadlineError) {
+					probe.cancelled = true;
+					disconnect().catch((disconnectError) => {
+						captureError(disconnectError, {
+							message: "Failed to cancel Redpanda health probe",
+						});
+					});
+				}
+				throw error;
+			}
+		},
+	};
 }
 
 function clickHouseInsertDeduplicationToken(
@@ -217,14 +372,30 @@ async function insertClickHouseChunks(
 function makeProducerEffects(
 	config: ProducerConfig,
 	kafka: Producer | null,
+	kafkaAdmin: Admin | null,
 	ch: ClickHouseClient,
 	topicMap: Record<string, string>,
 	ref: Ref.Ref<ProducerState>
 ): ProducerEffects {
 	const enabled = !config.selfHost && Boolean(config.broker);
+	const healthProbe = kafkaAdmin ? createKafkaHealthProbe(kafkaAdmin) : null;
 
 	const inc = (field: keyof ProducerState, n = 1) =>
 		Ref.update(ref, (s) => ({ ...s, [field]: (s[field] as number) + n }));
+
+	const reserveInFlight = (count: number) =>
+		Ref.modify(ref, (state) => {
+			if (state.shuttingDown) {
+				return [false, state] as const;
+			}
+			return [true, { ...state, inFlight: state.inFlight + count }] as const;
+		});
+
+	const releaseInFlight = (count: number) =>
+		Ref.update(ref, (state) => ({
+			...state,
+			inFlight: Math.max(0, state.inFlight - count),
+		}));
 
 	const connect: Effect.Effect<boolean> = Effect.gen(function* () {
 		if (!(enabled && kafka)) {
@@ -235,6 +406,9 @@ function makeProducerEffects(
 		const decision = yield* Ref.modify<ProducerState, ConnectDecision>(
 			ref,
 			(state) => {
+				if (state.shuttingDown) {
+					return [{ type: "shutting-down" as const }, state];
+				}
 				if (state.connected) {
 					return [{ type: "connected" as const }, state];
 				}
@@ -260,6 +434,9 @@ function makeProducerEffects(
 		if (decision.type === "fallback") {
 			return false;
 		}
+		if (decision.type === "shutting-down") {
+			return false;
+		}
 		if (decision.type === "wait") {
 			return yield* Deferred.await(decision.deferred);
 		}
@@ -268,17 +445,23 @@ function makeProducerEffects(
 			try: () => kafka.connect(),
 			catch: (e) => new KafkaConnectionError({ cause: toError(e) }),
 		}).pipe(
-			Effect.tap(() =>
-				Ref.update(ref, (st) => ({
-					...st,
-					connected: true,
-					connecting: st.connecting === candidate ? null : st.connecting,
-					connectionFailed: false,
-					lastRetry: 0,
-					producerInitialized: true,
-				}))
+			Effect.flatMap(() =>
+				Ref.modify(ref, (state) => {
+					const accepted = !state.shuttingDown;
+					return [
+						accepted,
+						{
+							...state,
+							connected: accepted,
+							connecting:
+								state.connecting === candidate ? null : state.connecting,
+							connectionFailed: false,
+							lastRetry: 0,
+							producerInitialized: true,
+						},
+					] as const;
+				})
 			),
-			Effect.as(true),
 			Effect.catchTag("KafkaConnectionError", (err) =>
 				Ref.update(ref, (st) => ({
 					...st,
@@ -315,12 +498,26 @@ function makeProducerEffects(
 	});
 
 	const checkConnection: Effect.Effect<void, ProducerUnavailableError> =
-		connect.pipe(
-			Effect.flatMap((connected) =>
-				connected
-					? Effect.void
+		reserveInFlight(1).pipe(
+			Effect.flatMap((accepted) =>
+				accepted
+					? connect
 					: Effect.fail(new ProducerUnavailableError({ retryable: true }))
-			)
+			),
+			Effect.flatMap((connected) => {
+				if (!(connected && healthProbe)) {
+					return Effect.fail(new ProducerUnavailableError({ retryable: true }));
+				}
+				return Effect.tryPromise({
+					try: () => healthProbe.probe(config.healthProbeTimeout),
+					catch: (error) =>
+						new ProducerUnavailableError({
+							cause: toError(error),
+							retryable: true,
+						}),
+				});
+			}),
+			Effect.ensuring(releaseInFlight(1))
 		);
 
 	const resolveTopic = (
@@ -401,12 +598,7 @@ function makeProducerEffects(
 		});
 
 	const acquireSendSlot = (eventCount: number) =>
-		Ref.modify(ref, (s) => {
-			if (s.shuttingDown) {
-				return [false, s] as const;
-			}
-			return [true, { ...s, inFlight: s.inFlight + eventCount }] as const;
-		}).pipe(
+		reserveInFlight(eventCount).pipe(
 			Effect.flatMap((accepted) =>
 				accepted
 					? Effect.void
@@ -418,12 +610,6 @@ function makeProducerEffects(
 						)
 			)
 		);
-
-	const releaseSendSlot = (eventCount: number) =>
-		Ref.update(ref, (s) => ({
-			...s,
-			inFlight: Math.max(0, s.inFlight - eventCount),
-		}));
 
 	const sendViaKafka = (
 		topic: string,
@@ -483,7 +669,7 @@ function makeProducerEffects(
 						);
 					}
 					yield* persistDirectly(topic, fallbackEvents, deliveryIds);
-				}).pipe(Effect.ensuring(releaseSendSlot(fallbackEvents.length)))
+				}).pipe(Effect.ensuring(releaseInFlight(fallbackEvents.length)))
 			)
 		);
 
@@ -517,19 +703,24 @@ function makeProducerEffects(
 		}
 		return sendViaKafka(
 			topic,
-			events.map((e) => ({
-				value: stringifyEvent(e),
-				key:
-					(e as { client_id?: string }).client_id ||
-					(e as { event_id?: string }).event_id,
-			})),
+			events.map((event) => {
+				const identity = event as {
+					client_id?: string;
+					delivery_id?: string;
+					event_id?: string;
+				};
+				return {
+					value: stringifyEvent(event),
+					key: identity.delivery_id || identity.client_id || identity.event_id,
+				};
+			}),
 			events,
 			deliveryIds,
 			options
 		);
 	};
 
-	const disconnectKafka = Effect.gen(function* () {
+	const disconnectProducer = Effect.gen(function* () {
 		const state = yield* Ref.get(ref);
 		if (!(state.producerInitialized && kafka)) {
 			return;
@@ -557,8 +748,31 @@ function makeProducerEffects(
 		);
 	});
 
+	const disconnectHealthProbe = healthProbe
+		? Effect.tryPromise({
+				try: () => healthProbe.disconnect(),
+				catch: (error) => new KafkaConnectionError({ cause: toError(error) }),
+			}).pipe(
+				Effect.catch((error) =>
+					Effect.sync(() =>
+						captureError(error.cause, {
+							message: "Error disconnecting Redpanda health probe",
+						})
+					)
+				)
+			)
+		: Effect.void;
+
+	const disconnectKafka = Effect.gen(function* () {
+		yield* disconnectProducer;
+		yield* disconnectHealthProbe;
+	});
+
 	const drainInFlight = Effect.gen(function* () {
-		while ((yield* Ref.get(ref)).inFlight > 0) {
+		while (
+			(yield* Ref.get(ref)).inFlight > 0 ||
+			healthProbe?.hasActiveProbe()
+		) {
 			yield* Effect.sleep("10 millis");
 		}
 	});
@@ -566,6 +780,7 @@ function makeProducerEffects(
 	const shutDown: Effect.Effect<void, ShutdownDrainError> = Effect.gen(
 		function* () {
 			yield* Ref.update(ref, (s) => ({ ...s, shuttingDown: true }));
+			yield* Effect.sync(() => healthProbe?.beginShutdown());
 			yield* drainInFlight.pipe(
 				Effect.timeout(`${config.shutdownDrainTimeout} millis`),
 				Effect.catch(() =>
@@ -616,13 +831,16 @@ export const createProducerEffects = (
 	config: ProducerConfig,
 	kafka: Producer | null,
 	ch: ClickHouseClient,
-	topicMap: Record<string, string>
+	topicMap: Record<string, string>,
+	kafkaAdmin: Admin | null = null
 ): Effect.Effect<ProducerEffects> =>
 	Ref.make<ProducerState>(INITIAL_STATE).pipe(
-		Effect.map((ref) => makeProducerEffects(config, kafka, ch, topicMap, ref))
+		Effect.map((ref) =>
+			makeProducerEffects(config, kafka, kafkaAdmin, ch, topicMap, ref)
+		)
 	);
 
-export function initializeKafka(config: ProducerConfig): Producer | null {
+export function initializeKafka(config: ProducerConfig): KafkaResources | null {
 	if (config.selfHost || !config.broker) {
 		return null;
 	}
@@ -641,7 +859,7 @@ export function initializeKafka(config: ProducerConfig): Producer | null {
 		return null;
 	}
 
-	return new Kafka({
+	const client = new Kafka({
 		clientId: "basket",
 		brokers: [config.broker],
 		connectionTimeout: 5000,
@@ -662,16 +880,27 @@ export function initializeKafka(config: ProducerConfig): Producer | null {
 				},
 			}),
 		ssl: process.env.REDPANDA_SSL === "true",
-	}).producer({
-		allowAutoTopicCreation: true,
-		retry: {
-			initialRetryTime: config.producerRetryDelay,
-			retries: config.maxProducerRetries,
-			maxRetryTime: 3000,
-		},
-		idempotent: true,
-		maxInFlightRequests: 15,
 	});
+
+	return {
+		admin: client.admin({
+			retry: {
+				initialRetryTime: config.producerRetryDelay,
+				maxRetryTime: 1000,
+				retries: 0,
+			},
+		}),
+		producer: client.producer({
+			allowAutoTopicCreation: true,
+			retry: {
+				initialRetryTime: config.producerRetryDelay,
+				retries: config.maxProducerRetries,
+				maxRetryTime: 3000,
+			},
+			idempotent: true,
+			maxInFlightRequests: 15,
+		}),
+	};
 }
 
 export interface ProducerStatsSnapshot {
@@ -698,6 +927,7 @@ const CONFIG: ProducerConfig = {
 	producerRetryDelay: 300,
 	chunkSize: 5000,
 	directFallbackTimeout: 4000,
+	healthProbeTimeout: 4000,
 	shutdownDrainTimeout: PRODUCER_DRAIN_TIMEOUT_MS,
 };
 
@@ -716,11 +946,13 @@ let fx: ReturnType<typeof makeProducerEffects> | null = null;
 
 const ProducerLive = Layer.effectDiscard(
 	Effect.gen(function* () {
+		const kafka = initializeKafka(CONFIG);
 		const effects = yield* createProducerEffects(
 			CONFIG,
-			initializeKafka(CONFIG),
+			kafka?.producer ?? null,
 			clickHouse,
-			TOPIC_MAP
+			TOPIC_MAP,
+			kafka?.admin ?? null
 		);
 		fx = effects;
 	})
