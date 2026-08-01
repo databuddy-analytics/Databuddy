@@ -41,7 +41,7 @@ export const uptimeCheckJobDataSchema = z.object({
 	delivery: z.object({ event: requiredUnknownSchema }).optional(),
 	scheduleId: z.string(),
 	trigger: z.enum(["manual", "scheduled"]),
-});
+}).passthrough();
 
 export const uptimeDeliveryJobDataSchema = z.object({
 	event: requiredUnknownSchema,

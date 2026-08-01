@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "bun:test";
+import type { UptimeCheckJobData } from "@databuddy/redis";
 import type { ScheduleData } from "./actions";
 import type { UptimeData } from "./types";
 import {
@@ -227,6 +228,33 @@ describe("processUptimeCheck", () => {
 		expect(calls.loggerFields).toContainEqual(
 			expect.objectContaining({ uptime_trigger: "manual" })
 		);
+	});
+
+	it("preserves unknown job metadata when checkpointing a delivery", async () => {
+		let checkpoint: unknown;
+		const data = {
+			scheduleId: "schedule-1",
+			trigger: "manual",
+			futureMetadata: { retryToken: "retry-1" },
+		} as UptimeCheckJobData & {
+			futureMetadata: { retryToken: string };
+		};
+
+		await processUptimeJob(
+			{
+				name: "uptime-check",
+				data,
+				updateData: async (updated) => {
+					checkpoint = updated;
+				},
+			},
+			deps()
+		);
+
+		expect(checkpoint).toMatchObject({
+			delivery: { event: uptimeData() },
+			futureMetadata: { retryToken: "retry-1" },
+		});
 	});
 
 	it("rejects malformed BullMQ job envelopes before accessing their fields", async () => {
