@@ -48,6 +48,7 @@ interface QueueMeta {
 	activeDeliveryGeneration: number | null;
 	endpoint: string;
 	flushing: boolean;
+	maxBatchSize: number;
 	queryParam: string;
 	retryAttempts: number;
 	threshold: number;
@@ -137,6 +138,7 @@ export class BaseTracker {
 				activeDeliveryGeneration: null,
 				timer: null,
 				flushing: false,
+				maxBatchSize: 100,
 				endpoint: "/batch",
 				queryParam: "client_id",
 				retryAttempts: 0,
@@ -146,6 +148,7 @@ export class BaseTracker {
 				activeDeliveryGeneration: null,
 				timer: null,
 				flushing: false,
+				maxBatchSize: 20,
 				endpoint: "/vitals",
 				queryParam: "client_id",
 				retryAttempts: 0,
@@ -155,6 +158,7 @@ export class BaseTracker {
 				activeDeliveryGeneration: null,
 				timer: null,
 				flushing: false,
+				maxBatchSize: 50,
 				endpoint: "/errors",
 				queryParam: "client_id",
 				retryAttempts: 0,
@@ -164,6 +168,7 @@ export class BaseTracker {
 				activeDeliveryGeneration: null,
 				timer: null,
 				flushing: false,
+				maxBatchSize: 100,
 				endpoint: "/track",
 				queryParam: "website_id",
 				retryAttempts: 0,
@@ -362,7 +367,7 @@ export class BaseTracker {
 			.fetch(
 				"/identify",
 				{ profileId, anonymousId: this.anonymousId, traits },
-				{ keepalive: true },
+				{ keepalive: false },
 				{ client_id: this.options.clientId }
 			)
 			.then((result) => {
@@ -573,7 +578,7 @@ export class BaseTracker {
 			.fetch(
 				"/",
 				event,
-				{ keepalive: true },
+				{ keepalive: false },
 				{ client_id: this.options.clientId }
 			)
 			.then((result) => this.toSendOutcome(result, 1));
@@ -635,14 +640,14 @@ export class BaseTracker {
 		const deliveryGeneration = this.deliveryGeneration;
 		meta.flushing = true;
 		meta.activeDeliveryGeneration = deliveryGeneration;
-		const items = queue.slice();
-		queue.length = 0;
+		const items = queue.splice(0, meta.maxBatchSize);
+		let retryScheduled = false;
 
 		try {
 			const result = await this.api.fetch(
 				meta.endpoint,
 				items,
-				{ keepalive: true },
+				{ keepalive: false },
 				{ [meta.queryParam]: this.options.clientId }
 			);
 			if (
@@ -654,11 +659,16 @@ export class BaseTracker {
 			) {
 				queue.unshift(...items);
 				meta.retryAttempts += 1;
+				if (meta.timer) {
+					clearTimeout(meta.timer);
+					meta.timer = null;
+				}
 				this._scheduleQueueFlush(
 					queue,
 					meta,
 					this._retryDelay(meta.retryAttempts)
 				);
+				retryScheduled = true;
 			} else if (deliveryGeneration === this.deliveryGeneration) {
 				meta.retryAttempts = 0;
 			}
@@ -667,6 +677,17 @@ export class BaseTracker {
 			if (meta.activeDeliveryGeneration === deliveryGeneration) {
 				meta.activeDeliveryGeneration = null;
 				meta.flushing = false;
+				if (
+					queue.length > 0 &&
+					!retryScheduled &&
+					!this.shouldBlockQueuedDelivery()
+				) {
+					if (meta.timer) {
+						clearTimeout(meta.timer);
+						meta.timer = null;
+					}
+					this._scheduleQueueFlush(queue, meta, 0);
+				}
 			}
 		}
 	}
