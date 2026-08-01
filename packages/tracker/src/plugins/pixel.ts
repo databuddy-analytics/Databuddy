@@ -12,6 +12,7 @@ const PIXEL_TYPE_BY_ENDPOINT: Record<string, string> = {
 	"/errors": "error",
 };
 const MAX_PIXEL_RETRY_DELAY_MS = 30_000;
+const PIXEL_LOAD_TIMEOUT_MS = 10_000;
 
 interface PixelDeliveryResult {
 	attempts: number;
@@ -56,18 +57,27 @@ function flattenIntoParams(
 export function initPixelTracking(tracker: BaseTracker) {
 	tracker.options.enableBatching = false;
 	let deliveryGeneration = 0;
+	const activeImageCancels = new Set<() => void>();
 	const cancelPendingRequests = tracker.api.cancelPendingRequests.bind(
 		tracker.api
 	);
 	tracker.api.cancelPendingRequests = () => {
 		deliveryGeneration += 1;
+		for (const cancel of activeImageCancels) {
+			cancel();
+		}
 		cancelPendingRequests();
 	};
 
+	const configuredMaxRetries = tracker.options.maxRetries;
 	const maxRetries =
 		tracker.options.enableRetries === false
 			? 0
-			: (tracker.options.maxRetries ?? 3);
+			: typeof configuredMaxRetries === "number" &&
+					Number.isFinite(configuredMaxRetries) &&
+					configuredMaxRetries >= 0
+				? Math.floor(configuredMaxRetries)
+				: 3;
 	const initialRetryDelay = Math.max(
 		0,
 		tracker.options.initialRetryDelay ?? 500
@@ -111,8 +121,35 @@ export function initPixelTracking(tracker: BaseTracker) {
 		const load = (): Promise<boolean> =>
 			new Promise((resolve) => {
 				const img = new Image();
-				img.onload = () => resolve(true);
-				img.onerror = () => resolve(false);
+				let settled = false;
+				let timeout: ReturnType<typeof setTimeout> | undefined;
+				const finish = (success: boolean) => {
+					if (settled) {
+						return;
+					}
+					settled = true;
+					if (timeout !== undefined) {
+						clearTimeout(timeout);
+					}
+					activeImageCancels.delete(cancel);
+					img.onload = null;
+					img.onerror = null;
+					resolve(success);
+				};
+				const cancel = () => {
+					if (settled) {
+						return;
+					}
+					img.onload = null;
+					img.onerror = null;
+					img.src = "";
+					finish(false);
+				};
+
+				activeImageCancels.add(cancel);
+				timeout = setTimeout(cancel, PIXEL_LOAD_TIMEOUT_MS);
+				img.onload = () => finish(true);
+				img.onerror = () => finish(false);
 				img.src = url.toString();
 			});
 

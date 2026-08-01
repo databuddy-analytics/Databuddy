@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, mock, test } from "bun:test";
+import { afterEach, describe, expect, jest, mock, test } from "bun:test";
 import type { BaseTracker } from "../../src/core/tracker";
 import type { TrackerOptions } from "../../src/core/types";
 import { initPixelTracking } from "../../src/plugins/pixel";
@@ -6,6 +6,10 @@ import { initPixelTracking } from "../../src/plugins/pixel";
 const originalImage = Object.getOwnPropertyDescriptor(globalThis, "Image");
 
 afterEach(() => {
+	if (jest.isFakeTimers()) {
+		jest.clearAllTimers();
+		jest.useRealTimers();
+	}
 	if (originalImage) {
 		Object.defineProperty(globalThis, "Image", originalImage);
 		return;
@@ -32,7 +36,9 @@ function createTracker(
 	} as unknown as BaseTracker;
 }
 
-function installImageOutcomes(outcomes: Array<"error" | "load">): string[] {
+function installImageOutcomes(
+	outcomes: Array<"error" | "load" | "pending">
+): string[] {
 	const requests: string[] = [];
 
 	class MockImage {
@@ -41,7 +47,13 @@ function installImageOutcomes(outcomes: Array<"error" | "load">): string[] {
 
 		set src(value: string) {
 			requests.push(value);
+			if (!value) {
+				return;
+			}
 			const outcome = outcomes.shift() ?? "error";
+			if (outcome === "pending") {
+				return;
+			}
 			queueMicrotask(() => {
 				if (outcome === "load") {
 					this.onload?.();
@@ -83,5 +95,49 @@ describe("pixel transport", () => {
 		initPixelTracking(tracker);
 
 		expect(tracker.sendBeacon({ eventId: "event_1" }, "/")).toBe(false);
+	});
+
+	test("cancels an active image request when tracking is cleared", async () => {
+		const requests = installImageOutcomes(["pending"]);
+		const tracker = createTracker();
+		initPixelTracking(tracker);
+
+		const delivery = tracker.api.fetch("/", { eventId: "event_1" });
+		tracker.api.cancelPendingRequests();
+
+		expect(await delivery).toMatchObject({
+			ok: false,
+			attempts: 1,
+		});
+		expect(requests).toHaveLength(2);
+		expect(requests[1]).toBe("");
+	});
+
+	test("bounds a pixel image load that never completes", async () => {
+		jest.useFakeTimers();
+		const requests = installImageOutcomes(["pending"]);
+		const tracker = createTracker({ maxRetries: 0 });
+		initPixelTracking(tracker);
+
+		const delivery = tracker.api.fetch("/", { eventId: "event_1" });
+		jest.advanceTimersByTime(10_000);
+
+		expect(await delivery).toMatchObject({
+			ok: false,
+			attempts: 1,
+		});
+		expect(requests).toHaveLength(2);
+		expect(requests[1]).toBe("");
+	});
+
+	test("uses the retry fallback for an invalid maxRetries value", async () => {
+		const requests = installImageOutcomes(["error", "error", "error", "error"]);
+		const tracker = createTracker({ maxRetries: Number.NaN });
+		initPixelTracking(tracker);
+
+		const result = await tracker.api.fetch("/", { eventId: "event_1" });
+
+		expect(result).toMatchObject({ ok: false, attempts: 4 });
+		expect(requests).toHaveLength(4);
 	});
 });

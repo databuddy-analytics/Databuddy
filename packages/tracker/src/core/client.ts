@@ -116,30 +116,6 @@ export class HttpClient {
 			return this.abortedResult(retryCount);
 		}
 
-		if (
-			retryCount === 0 &&
-			typeof navigator !== "undefined" &&
-			navigator.sendBeacon &&
-			options.keepalive
-		) {
-			try {
-				const blob = new Blob([JSON.stringify(data ?? {})], {
-					type: "application/json",
-				});
-				if (navigator.sendBeacon(url, blob)) {
-					return {
-						ok: true,
-						data: null,
-						status: null,
-						attempts: 1,
-						transport: "beacon",
-					};
-				}
-			} catch {
-				// Fall through to fetch so callers receive a verifiable outcome.
-			}
-		}
-
 		try {
 			const response = await fetch(url, {
 				method: "POST",

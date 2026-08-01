@@ -3,6 +3,7 @@ import { HttpClient, type HttpResult } from "../../src/core/client";
 import { BaseTracker } from "../../src/core/tracker";
 
 const originalFetch = globalThis.fetch;
+const originalNavigator = Object.getOwnPropertyDescriptor(globalThis, "navigator");
 
 class DeliveryTestTracker extends BaseTracker {
 	private deliveryBlocked = false;
@@ -27,6 +28,11 @@ afterEach(() => {
 		jest.useRealTimers();
 	}
 	globalThis.fetch = originalFetch;
+	if (originalNavigator) {
+		Object.defineProperty(globalThis, "navigator", originalNavigator);
+		return;
+	}
+	Reflect.deleteProperty(globalThis, "navigator");
 });
 
 async function flushMicrotasks(): Promise<void> {
@@ -201,6 +207,36 @@ describe("HttpClient", () => {
 });
 
 describe("BaseTracker delivery outcomes", () => {
+	test("requeues a retryable batch despite an accepted Beacon", async () => {
+		jest.useFakeTimers();
+		const sendBeacon = mock(() => true);
+		Object.defineProperty(globalThis, "navigator", {
+			configurable: true,
+			value: { sendBeacon },
+		});
+		const fetchMock = mock(async () =>
+			Response.json({ error: "Temporarily unavailable" }, { status: 503 })
+		);
+		globalThis.fetch = fetchMock as typeof fetch;
+		const tracker = new DeliveryTestTracker({
+			clientId: "site_example",
+			enableRetries: false,
+		});
+		const event = { eventId: "event_1", timestamp: 1 };
+		await tracker.addToBatch(event);
+
+		const result = await tracker.flushBatch();
+
+		expect(sendBeacon).not.toHaveBeenCalled();
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(result).toMatchObject({
+			ok: false,
+			status: "failed",
+			retryable: true,
+		});
+		expect(tracker.batchQueue).toEqual([event]);
+	});
+
 	test("keeps a retryable failed batch queued", async () => {
 		jest.useFakeTimers();
 		const tracker = new DeliveryTestTracker({ clientId: "site_example" });
