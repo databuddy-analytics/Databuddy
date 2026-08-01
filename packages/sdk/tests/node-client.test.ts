@@ -53,6 +53,19 @@ async function flushMicrotasks(): Promise<void> {
 	}
 }
 
+function createDeferred<T>(): {
+	promise: Promise<T>;
+	resolve: (value: T) => void;
+} {
+	let resolvePromise: (value: T) => void = () => {
+		throw new Error("Deferred promise was not initialized");
+	};
+	const promise = new Promise<T>((resolve) => {
+		resolvePromise = resolve;
+	});
+	return { promise, resolve: resolvePromise };
+}
+
 describe("Databuddy Node client", () => {
 	it("rejects blank API keys after trimming", () => {
 		expect(() => new Databuddy({ apiKey: "   " })).toThrow("apiKey");
@@ -144,6 +157,136 @@ describe("Databuddy Node client", () => {
 			eventId: expect.any(String),
 			timestamp: expect.any(Number),
 		});
+	});
+
+	it("flushes an internal backlog in batches of at most 100", async () => {
+		const firstRequest = createDeferred<Response>();
+		const calls = mockFetch((callNumber) => {
+			if (callNumber === 1) {
+				return firstRequest.promise;
+			}
+			const body = calls[callNumber - 1]?.body;
+			return jsonResponse({
+				status: "success",
+				processed: Array.isArray(body) ? body.length : 1,
+			});
+		});
+		const client = new Databuddy({
+			apiKey: "dbdy_test",
+			batchSize: 1,
+			batchTimeout: 60_000,
+		});
+
+		const firstDelivery = client.track({
+			name: "event_0",
+			websiteId: "site_1",
+		});
+		await flushMicrotasks();
+		const queuedDeliveries = Array.from({ length: 150 }, (_, index) =>
+			client.track({
+				name: `event_${index + 1}`,
+				websiteId: "site_1",
+			})
+		);
+		await flushMicrotasks();
+		expect(calls).toHaveLength(1);
+
+		firstRequest.resolve(jsonResponse({ status: "success", processed: 1 }));
+		await firstDelivery;
+		await Promise.all(queuedDeliveries);
+		expect(await client.flush()).toMatchObject({
+			success: true,
+			processed: 150,
+		});
+
+		expect(calls.map((call) => (call.body as unknown[]).length)).toEqual([
+			1, 100, 50,
+		]);
+	});
+
+	it("bounds blackholed batch requests and keeps them retryable", async () => {
+		globalThis.fetch = mock(
+			(_input: string | URL | Request, init?: RequestInit) =>
+				new Promise<Response>((_resolve, reject) => {
+					init?.signal?.addEventListener(
+						"abort",
+						() => reject(init.signal?.reason),
+						{ once: true }
+					);
+				})
+		) as typeof fetch;
+		const client = new Databuddy({
+			apiKey: "dbdy_test",
+			batchSize: 1,
+			requestTimeoutMs: 20,
+		});
+
+		const result = await client.track({
+			name: "blackholed",
+			websiteId: "site_1",
+		});
+
+		expect(result).toMatchObject({
+			success: false,
+			code: "NETWORK_ERROR",
+			retryable: true,
+			error: "Request timed out after 20ms",
+		});
+	});
+
+	it("applies middleware once and preserves its identity across queued retries", async () => {
+		const calls = mockFetch((callNumber) =>
+			callNumber === 1
+				? Response.json({ error: "Temporarily unavailable" }, { status: 503 })
+				: jsonResponse({ status: "success", processed: 1 })
+		);
+		let middlewareCalls = 0;
+		const client = new Databuddy({
+			apiKey: "dbdy_test",
+			batchSize: 1,
+			middleware: [
+				(event) => ({
+					...event,
+					eventId: `middleware_${++middlewareCalls}`,
+				}),
+			],
+		});
+
+		expect(
+			await client.track({ name: "signup", websiteId: "site_1" })
+		).toMatchObject({ success: false, retryable: true });
+		expect(await client.flush()).toMatchObject({ success: true });
+
+		expect(middlewareCalls).toBe(1);
+		expect(calls[1]?.body).toEqual(calls[0]?.body);
+	});
+
+	it("preserves generated identity when the same public batch is retried", async () => {
+		const calls = mockFetch((callNumber) =>
+			callNumber === 1
+				? Response.json({ error: "Temporarily unavailable" }, { status: 503 })
+				: jsonResponse({ status: "success", processed: 1 })
+		);
+		const client = new Databuddy({ apiKey: "dbdy_test" });
+		const event: BatchEventInput = {
+			type: "custom",
+			name: "webhook_received",
+			websiteId: "site_1",
+		};
+
+		expect(await client.batch([event])).toMatchObject({
+			success: false,
+			retryable: true,
+		});
+		expect(await client.batch([event])).toMatchObject({ success: true });
+
+		expect(calls[1]?.body).toEqual(calls[0]?.body);
+		expect(calls[0]?.body).toEqual([
+			expect.objectContaining({
+				eventId: expect.any(String),
+				timestamp: expect.any(Number),
+			}),
+		]);
 	});
 
 	it("automatically retries queued failures with capped exponential backoff", async () => {

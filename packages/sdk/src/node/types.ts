@@ -31,6 +31,8 @@ export interface DatabuddyConfig {
 	middleware?: Middleware[];
 	/** Logical grouping for events (e.g. `'auth'`, `'jobs'`) */
 	namespace?: string;
+	/** Overall request deadline in ms (default: 10000) */
+	requestTimeoutMs?: number;
 	/** Origin identifier (e.g. `'backend'`, `'webhook'`, `'cli'`) */
 	source?: string;
 	/** Default Databuddy Client ID to scope events to */
