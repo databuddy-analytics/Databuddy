@@ -48,8 +48,10 @@ export class ClickHouseFallbackError extends Data.TaggedError(
 	readonly topic: string;
 }> {}
 export class ShutdownDrainError extends Data.TaggedError("ShutdownDrainError")<{
+	readonly cause?: Error;
 	readonly deadlineMs: number;
 	readonly inFlight: number;
+	readonly phase: "disconnect" | "drain";
 	readonly retryable: true;
 }> {}
 
@@ -85,6 +87,7 @@ type ConnectDecision =
 export interface ProducerConfig {
 	broker?: string;
 	chunkSize: number;
+	connectTimeout: number;
 	directFallbackTimeout: number;
 	healthProbeTimeout: number;
 	kafkaTimeout: number;
@@ -144,6 +147,72 @@ function toError(err: unknown): Error {
 }
 
 class HealthProbeDeadlineError extends Error {}
+class KafkaOperationDeadlineError extends Error {}
+
+function withPromiseDeadline<T>(
+	operation: Promise<T>,
+	timeoutMs: number,
+	message: string,
+	signal?: AbortSignal,
+	onUncertain?: () => void
+): Promise<T> {
+	return new Promise<T>((resolve, reject) => {
+		let settled = false;
+		let timeout: ReturnType<typeof setTimeout> | undefined;
+
+		const cleanup = () => {
+			if (timeout) {
+				clearTimeout(timeout);
+			}
+			signal?.removeEventListener("abort", handleAbort);
+		};
+		const settle = (fn: (value: T) => void, value: T) => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			cleanup();
+			fn(value);
+		};
+		const fail = (error: unknown) => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			onUncertain?.();
+			cleanup();
+			reject(error);
+		};
+		const handleAbort = () => {
+			fail(
+				signal?.reason instanceof Error
+					? signal.reason
+					: new Error(`${message} (cancelled)`)
+			);
+		};
+
+		operation.then(
+			(value) => settle(resolve, value),
+			(error) => {
+				if (settled) {
+					return;
+				}
+				settled = true;
+				cleanup();
+				reject(error);
+			}
+		);
+		timeout = setTimeout(() => {
+			fail(new KafkaOperationDeadlineError(message));
+		}, timeoutMs);
+		timeout.unref?.();
+		if (signal?.aborted) {
+			handleAbort();
+		} else {
+			signal?.addEventListener("abort", handleAbort, { once: true });
+		}
+	});
+}
 
 interface ActiveHealthProbe {
 	cancelled: boolean;
@@ -195,14 +264,7 @@ function createKafkaHealthProbe(admin: Admin): KafkaHealthProbe {
 		}
 
 		connected = false;
-		const operation = admin
-			.disconnect()
-			.catch((error) => {
-				captureError(error, {
-					message: "Error disconnecting Redpanda health client",
-				});
-			})
-			.finally(() => {
+		const operation = admin.disconnect().finally(() => {
 				if (disconnecting === operation) {
 					disconnecting = null;
 				}
@@ -238,7 +300,13 @@ function createKafkaHealthProbe(admin: Admin): KafkaHealthProbe {
 					throw new Error("Redpanda returned no brokers");
 				}
 			} catch (error) {
-				await disconnect();
+				try {
+					await disconnect();
+				} catch (disconnectError) {
+					captureError(disconnectError, {
+						message: "Error disconnecting Redpanda health client",
+					});
+				}
 				throw error;
 			}
 		})();
@@ -379,6 +447,7 @@ function makeProducerEffects(
 ): ProducerEffects {
 	const enabled = !config.selfHost && Boolean(config.broker);
 	const healthProbe = kafkaAdmin ? createKafkaHealthProbe(kafkaAdmin) : null;
+	const lateKafkaSends = new Map<Promise<unknown>, number>();
 
 	const inc = (field: keyof ProducerState, n = 1) =>
 		Ref.update(ref, (s) => ({ ...s, [field]: (s[field] as number) + n }));
@@ -441,8 +510,35 @@ function makeProducerEffects(
 			return yield* Deferred.await(decision.deferred);
 		}
 
+		let reconcileLateConnection = false;
+		let lateDisconnectStarted = false;
+		const connection = kafka.connect();
+		connection.then(
+			() => {
+				if (!(reconcileLateConnection && !lateDisconnectStarted)) {
+					return;
+				}
+				lateDisconnectStarted = true;
+				kafka.disconnect().catch((error) => {
+					captureError(error, {
+						message: "Failed to reconcile a late Redpanda connection",
+					});
+				});
+			},
+			() => undefined
+		);
+
 		return yield* Effect.tryPromise({
-			try: () => kafka.connect(),
+			try: (signal) =>
+				withPromiseDeadline(
+					connection,
+					config.connectTimeout,
+					`Redpanda connection exceeded ${config.connectTimeout}ms`,
+					signal,
+					() => {
+						reconcileLateConnection = true;
+					}
+				),
 			catch: (e) => new KafkaConnectionError({ cause: toError(e) }),
 		}).pipe(
 			Effect.flatMap(() =>
@@ -624,14 +720,27 @@ function makeProducerEffects(
 					if (enabled && kafka) {
 						const isConnected = yield* connect;
 						if (isConnected) {
+							const sendOperation = kafka.send({
+								topic,
+								messages,
+								timeout: config.kafkaTimeout,
+								compression: CompressionTypes.GZIP,
+							});
+							sendOperation.then(
+								() => lateKafkaSends.delete(sendOperation),
+								() => lateKafkaSends.delete(sendOperation)
+							);
 							yield* Effect.tryPromise({
-								try: () =>
-									kafka.send({
-										topic,
-										messages,
-										timeout: config.kafkaTimeout,
-										compression: CompressionTypes.GZIP,
-									}),
+								try: (signal) =>
+									withPromiseDeadline(
+										sendOperation,
+										config.kafkaTimeout,
+										`Redpanda send acknowledgement exceeded ${config.kafkaTimeout}ms`,
+										signal,
+										() => {
+											lateKafkaSends.set(sendOperation, messages.length);
+										}
+									),
 								catch: (e) => new KafkaSendError({ topic, cause: toError(e) }),
 							}).pipe(
 								Effect.tap(() => inc("sent", messages.length)),
@@ -722,7 +831,7 @@ function makeProducerEffects(
 
 	const disconnectProducer = Effect.gen(function* () {
 		const state = yield* Ref.get(ref);
-		if (!(state.producerInitialized && kafka)) {
+		if (!(kafka && (state.producerInitialized || state.connecting))) {
 			return;
 		}
 
@@ -738,7 +847,7 @@ function makeProducerEffects(
 					producerInitialized: false,
 				}))
 			),
-			Effect.catch((err) =>
+			Effect.tapError((err) =>
 				Effect.sync(() =>
 					captureError(err.cause, {
 						message: "Error disconnecting Redpanda producer",
@@ -753,7 +862,7 @@ function makeProducerEffects(
 				try: () => healthProbe.disconnect(),
 				catch: (error) => new KafkaConnectionError({ cause: toError(error) }),
 			}).pipe(
-				Effect.catch((error) =>
+				Effect.tapError((error) =>
 					Effect.sync(() =>
 						captureError(error.cause, {
 							message: "Error disconnecting Redpanda health probe",
@@ -763,15 +872,16 @@ function makeProducerEffects(
 			)
 		: Effect.void;
 
-	const disconnectKafka = Effect.gen(function* () {
-		yield* disconnectProducer;
-		yield* disconnectHealthProbe;
-	});
+	const disconnectKafka = Effect.all(
+		[disconnectProducer, disconnectHealthProbe],
+		{ concurrency: "unbounded", discard: true }
+	);
 
 	const drainInFlight = Effect.gen(function* () {
 		while (
 			(yield* Ref.get(ref)).inFlight > 0 ||
-			healthProbe?.hasActiveProbe()
+			healthProbe?.hasActiveProbe() ||
+			lateKafkaSends.size > 0
 		) {
 			yield* Effect.sleep("10 millis");
 		}
@@ -779,25 +889,44 @@ function makeProducerEffects(
 
 	const shutDown: Effect.Effect<void, ShutdownDrainError> = Effect.gen(
 		function* () {
+			const deadlineAt = Date.now() + config.shutdownDrainTimeout;
+			let shutdownFailure: ShutdownDrainError | null = null;
+			const remaining = () => Math.max(1, deadlineAt - Date.now());
+			const rememberFailure = (
+				phase: "disconnect" | "drain",
+				cause: unknown
+			) =>
+				Ref.get(ref).pipe(
+					Effect.flatMap((state) =>
+						Effect.sync(() => {
+							const lateInFlight = Array.from(lateKafkaSends.values()).reduce(
+								(total, count) => total + count,
+								0
+							);
+							shutdownFailure ??= new ShutdownDrainError({
+								cause: toError(cause),
+								deadlineMs: config.shutdownDrainTimeout,
+								inFlight: state.inFlight + lateInFlight,
+								phase,
+								retryable: true,
+							});
+						})
+					)
+				);
+
 			yield* Ref.update(ref, (s) => ({ ...s, shuttingDown: true }));
 			yield* Effect.sync(() => healthProbe?.beginShutdown());
 			yield* drainInFlight.pipe(
-				Effect.timeout(`${config.shutdownDrainTimeout} millis`),
-				Effect.catch(() =>
-					Ref.get(ref).pipe(
-						Effect.flatMap((state) =>
-							Effect.fail(
-								new ShutdownDrainError({
-									deadlineMs: config.shutdownDrainTimeout,
-									inFlight: state.inFlight,
-									retryable: true,
-								})
-							)
-						)
-					)
-				),
-				Effect.ensuring(disconnectKafka)
+				Effect.timeout(`${remaining()} millis`),
+				Effect.catch((error) => rememberFailure("drain", error))
 			);
+			yield* disconnectKafka.pipe(
+				Effect.timeout(`${remaining()} millis`),
+				Effect.catch((error) => rememberFailure("disconnect", error))
+			);
+			if (shutdownFailure) {
+				return yield* Effect.fail(shutdownFailure);
+			}
 		}
 	);
 
@@ -813,6 +942,12 @@ function makeProducerEffects(
 				...rest,
 				connecting: connecting !== null,
 				failed: connectionFailed,
+				inFlight:
+					rest.inFlight +
+					Array.from(lateKafkaSends.values()).reduce(
+						(total, count) => total + count,
+						0
+					),
 				kafkaEnabled: enabled,
 			})
 		)
@@ -922,6 +1057,7 @@ const CONFIG: ProducerConfig = {
 	password: process.env.REDPANDA_PASSWORD,
 	selfHost: readBooleanEnv("SELFHOST"),
 	reconnectCooldown: 60_000,
+	connectTimeout: 4000,
 	kafkaTimeout: 10_000,
 	maxProducerRetries: 3,
 	producerRetryDelay: 300,

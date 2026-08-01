@@ -34,6 +34,7 @@ const topicMap = { "analytics-events": "analytics.events" };
 const baseConfig: ProducerConfig = {
 	broker: undefined,
 	chunkSize: 100,
+	connectTimeout: 100,
 	directFallbackTimeout: 1_000,
 	healthProbeTimeout: 100,
 	kafkaTimeout: 1_000,
