@@ -2,39 +2,19 @@
 
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { type ReactNode, useCallback, useEffect, useRef } from "react";
-import { TopBar } from "@/components/layout/top-bar";
+import type { ReactNode } from "react";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
-import { useWebsitesLight } from "@/hooks/use-websites";
 import { type BriefInsight, insightQueries } from "@/lib/insight-api";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 import { Badge, Button, Card, EmptyState, fromNow } from "@databuddy/ui";
 import {
-	ArrowClockwiseIcon,
 	ArrowRightIcon,
-	GlobeIcon,
 	LightbulbIcon,
 	TrendDownIcon,
 	TrendUpIcon,
 } from "@databuddy/ui/icons";
-import { InvestigationSettings } from "./_components/investigation-settings";
-import {
-	ConversionDraftRecommendationAction,
-	InstrumentationRecommendationDetails,
-} from "./_components/conversion-draft-recommendation";
-import {
-	GoalRecommendationAction,
-	InvestigationRow,
-	InvestigationRowSkeleton,
-} from "./_components/investigation-row";
-import {
-	isConversionDraftRecommendation,
-	isDatabuddySetupRecommendation,
-	isGoalRecommendation,
-	isInstrumentationRecommendation,
-} from "./_components/recommendation-guards";
-import { useInsightsFeed } from "./hooks/use-insights-feed";
+import { latestRunDescription } from "./_lib/insight-run";
 
 const PERIOD_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
 	day: "numeric",
@@ -43,237 +23,43 @@ const PERIOD_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
 	year: "numeric",
 });
 
-interface LatestRunSummary {
-	analyzedSignalCount: number;
-	analyzedWebsiteCount: number;
-	completedItems: number;
-	failedItems: number;
-	id: string;
-	insightCount: number;
-	skippedItems: number;
-	status:
-		| "failed"
-		| "partially_succeeded"
-		| "queued"
-		| "running"
-		| "skipped"
-		| "succeeded";
-	totalItems: number;
-}
-
-function isActiveRun(status: string | undefined): boolean {
-	return status === "queued" || status === "running";
-}
-
-function countLabel(count: number, singular: string): string {
-	return `${count} ${singular}${count === 1 ? "" : "s"}`;
-}
-
-function latestRunDescription(
-	run: LatestRunSummary | null | undefined
-): string {
-	if (!run) {
-		return "What changed, why it matters, and what to do next.";
-	}
-	if (isActiveRun(run.status)) {
-		return "Analyzing your websites…";
-	}
-	if (run.status === "failed") {
-		if (run.analyzedSignalCount === 0) {
-			return "The latest analysis couldn't finish. Try again.";
-		}
-		return `Latest analysis examined ${countLabel(run.analyzedSignalCount, "signal")} and found ${run.insightCount === 0 ? "nothing noteworthy" : countLabel(run.insightCount, "noteworthy insight")}, but couldn't finish.`;
-	}
-	if (run.status === "skipped") {
-		return run.totalItems === 0
-			? "No websites were available to analyze."
-			: "The latest analysis finished without publishing new insights.";
-	}
-
-	const reviewed = run.completedItems + run.skippedItems;
-	const findings =
-		run.insightCount === 0
-			? "none were noteworthy"
-			: `${run.insightCount.toLocaleString("en-US")} ${run.insightCount === 1 ? "was" : "were"} noteworthy`;
-	const coverage =
-		run.analyzedSignalCount === 0
-			? `reviewed ${countLabel(reviewed, "website")}`
-			: `examined ${countLabel(run.analyzedSignalCount, "signal")} across ${countLabel(run.analyzedWebsiteCount, "website")}`;
-	if (run.status === "partially_succeeded") {
-		return `Latest analysis ${coverage}; ${findings}. ${countLabel(run.failedItems, "website")} couldn't finish.`;
-	}
-	return `Latest analysis ${coverage}; ${findings}.`;
-}
-
 export default function InsightsPage() {
 	const { activeOrganization, activeOrganizationId } =
 		useOrganizationsContext();
-	const orgId = activeOrganization?.id ?? activeOrganizationId ?? undefined;
-	const feed = useInsightsFeed();
-	const { isLoading, isRefreshing, refetch } = feed;
-	const brief = useInfiniteQuery(insightQueries.briefInfinite(orgId));
+	const organizationId =
+		activeOrganization?.id ?? activeOrganizationId ?? undefined;
+	const brief = useInfiniteQuery(insightQueries.briefInfinite(organizationId));
 	const latestRun = useQuery({
 		...orpc.insightGeneration.getLatestRun.queryOptions({
-			input: { organizationId: orgId },
+			input: { organizationId },
 		}),
-		enabled: Boolean(orgId),
+		enabled: Boolean(organizationId),
 		meta: { suppressGlobalErrorToast: true },
-		refetchInterval: (query) => {
-			const failures = query.state.fetchFailureCount;
-			if (failures > 0) {
-				return Math.min(30_000 * 2 ** Math.min(failures - 1, 3), 5 * 60_000);
-			}
-			return isActiveRun(query.state.data?.status) ? 2000 : 30_000;
-		},
 	});
-	const briefInsights =
-		brief.data?.pages.flatMap((page) => page.insights) ?? [];
-	const refetchBrief = brief.refetch;
-	const { websites, isLoading: websitesLoading } = useWebsitesLight();
-	const hasNoWebsites =
-		!websitesLoading && websites !== undefined && websites.length === 0;
-	const showInvestigationsFirst =
-		isLoading ||
-		feed.isError ||
-		feed.insights.some((insight) => insight.status === "open");
-	const refreshInsights = useCallback(() => {
-		Promise.all([refetch(), refetchBrief()]).catch(() => undefined);
-	}, [refetch, refetchBrief]);
-	const refresh = useCallback(() => {
-		Promise.all([refetch(), refetchBrief(), latestRun.refetch()]).catch(
-			() => undefined
-		);
-	}, [latestRun.refetch, refetch, refetchBrief]);
-	const latestRunTracker = useRef<{
-		organizationId: string;
-		terminalRunId: string | null;
-	} | null>(null);
-	useEffect(() => {
-		if (!orgId) {
-			latestRunTracker.current = null;
-			return;
-		}
-		if (!latestRun.isSuccess) {
-			if (latestRunTracker.current?.organizationId !== orgId) {
-				latestRunTracker.current = null;
-			}
-			return;
-		}
-
-		const run = latestRun.data;
-		const tracked = latestRunTracker.current;
-		if (!tracked || tracked.organizationId !== orgId) {
-			latestRunTracker.current = {
-				organizationId: orgId,
-				terminalRunId: run && !isActiveRun(run.status) ? run.id : null,
-			};
-			if (run && !isActiveRun(run.status)) {
-				refreshInsights();
-			}
-			return;
-		}
-		if (!run || isActiveRun(run.status) || tracked.terminalRunId === run.id) {
-			return;
-		}
-
-		latestRunTracker.current = {
-			organizationId: orgId,
-			terminalRunId: run.id,
-		};
-		refreshInsights();
-	}, [latestRun.data, latestRun.isSuccess, orgId, refreshInsights]);
-	const isAnalyzing = isActiveRun(latestRun.data?.status);
+	const insights = brief.data?.pages.flatMap((page) => page.insights) ?? [];
 
 	return (
-		<div
-			aria-busy={isLoading || brief.isLoading || websitesLoading}
-			className="flex h-full flex-col"
-		>
-			<TopBar.Title>
-				<h1 className="font-semibold text-sm">Insights</h1>
-			</TopBar.Title>
-			<TopBar.Actions>
-				<Button
-					aria-label="Refresh insights"
-					disabled={isLoading || brief.isLoading || websitesLoading}
-					onClick={refresh}
-					size="sm"
-					type="button"
-					variant="ghost"
-				>
-					<ArrowClockwiseIcon
-						aria-hidden
-						className={cn(
-							"size-3.5 shrink-0",
-							(isRefreshing || brief.isFetching) && "animate-spin"
-						)}
-					/>
-				</Button>
-				<InvestigationSettings
-					isAnalyzing={isAnalyzing}
-					key={orgId}
-					organizationId={orgId}
-				/>
-			</TopBar.Actions>
-
-			{hasNoWebsites ? (
-				<EmptyOrg />
-			) : (
-				<div className="min-h-0 flex-1 overflow-y-auto overscroll-none">
-					<div className="mx-auto w-full max-w-4xl space-y-8 p-4 sm:p-6">
-						{showInvestigationsFirst ? (
-							<InvestigationsPanel feed={feed} />
-						) : null}
-						<InsightBrief
-							description={latestRunDescription(latestRun.data)}
-							hasNextPage={brief.hasNextPage ?? false}
-							insights={briefInsights}
-							isFetchingNextPage={brief.isFetchingNextPage}
-							onLoadMoreAction={() => {
-								brief.fetchNextPage().catch(() => undefined);
-							}}
-							onRetryAction={() => {
-								brief.refetch().catch(() => undefined);
-							}}
-							state={
-								brief.isLoading
-									? "loading"
-									: briefInsights.length === 0 && brief.isError
-										? "error"
-										: "ready"
-							}
-						/>
-						{showInvestigationsFirst ? null : (
-							<InvestigationsPanel feed={feed} />
-						)}
-					</div>
-				</div>
-			)}
+		<div className="mx-auto w-full max-w-4xl p-4 sm:p-6">
+			<InsightBrief
+				description={latestRunDescription(latestRun.data)}
+				hasNextPage={brief.hasNextPage ?? false}
+				insights={insights}
+				isFetchingNextPage={brief.isFetchingNextPage}
+				onLoadMoreAction={() => {
+					brief.fetchNextPage().catch(() => undefined);
+				}}
+				onRetryAction={() => {
+					brief.refetch().catch(() => undefined);
+				}}
+				state={
+					brief.isLoading
+						? "loading"
+						: insights.length === 0 && brief.isError
+							? "error"
+							: "ready"
+				}
+			/>
 		</div>
-	);
-}
-
-function InvestigationsPanel({
-	feed,
-}: {
-	feed: ReturnType<typeof useInsightsFeed>;
-}) {
-	return (
-		<Card
-			aria-label="Investigations"
-			className="border-border/70 shadow-sm"
-			id="investigations"
-		>
-			<Card.Header className="border-b bg-card">
-				<Card.Title>Investigations</Card.Title>
-				<Card.Description className="mt-1">
-					Questions and fixes waiting for your input.
-				</Card.Description>
-			</Card.Header>
-			<Card.Content className="p-0">
-				<InvestigationList feed={feed} />
-			</Card.Content>
-		</Card>
 	);
 }
 
@@ -383,8 +169,6 @@ function InsightBriefRow({ insight }: { insight: BriefInsight }) {
 				? TrendDownIcon
 				: LightbulbIcon;
 	const metric = insight.signal.metric;
-	const recommendation = insight.recommendation;
-
 	const entityType = insight.signal.entity.type.replaceAll("_", " ");
 
 	return (
@@ -449,49 +233,13 @@ function InsightBriefRow({ insight }: { insight: BriefInsight }) {
 							</dd>
 						</div>
 					) : null}
-					{insight.evidence.length > 0 ? (
-						<div className="sm:col-span-2">
-							<dt className="font-semibold text-foreground/75">Evidence</dt>
-							<dd className="mt-0.5 text-muted-foreground">
-								{insight.evidence.join(" · ")}
-							</dd>
-						</div>
-					) : null}
-				</dl>
-				{recommendation ? (
-					<div className="mt-3 rounded-md border border-primary/15 bg-primary/[0.035] px-3 py-2.5">
-						<p className="text-foreground/85 text-sm leading-relaxed">
-							<span className="mr-1 font-semibold text-primary text-xs uppercase tracking-wide">
-								{isDatabuddySetupRecommendation(recommendation)
-									? "Improve future reports"
-									: "Next step"}
-							</span>
-							{recommendation.action}
-						</p>
-						{isInstrumentationRecommendation(recommendation) ? (
-							<InstrumentationRecommendationDetails
-								recommendation={recommendation}
-							/>
-						) : null}
-						{isConversionDraftRecommendation(recommendation) ? (
-							<div className="mt-2 flex flex-wrap gap-1.5">
-								<ConversionDraftRecommendationAction
-									recommendation={recommendation}
-									websiteId={insight.websiteId}
-								/>
-							</div>
-						) : insight.signal.entity.type === "goal" &&
-							isGoalRecommendation(recommendation) ? (
-							<div className="mt-2 flex flex-wrap gap-1.5">
-								<GoalRecommendationAction
-									goalId={insight.signal.entity.id}
-									recommendation={recommendation}
-									websiteId={insight.websiteId}
-								/>
-							</div>
-						) : null}
+					<div className="sm:col-span-2">
+						<dt className="font-semibold text-foreground/75">Evidence</dt>
+						<dd className="mt-0.5 text-muted-foreground">
+							{insight.evidence.join(" · ")}
+						</dd>
 					</div>
-				) : null}
+				</dl>
 				<div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1.5 border-t pt-3 text-[11px] text-muted-foreground">
 					<span className="font-medium text-foreground/70">
 						{insight.websiteName ?? insight.websiteDomain}
@@ -565,146 +313,4 @@ function formatWindow(window: { from: string; to: string }) {
 
 function formatDate(value: string) {
 	return PERIOD_DATE_FORMATTER.format(new Date(`${value}T00:00:00Z`));
-}
-
-function InvestigationList({
-	feed,
-}: {
-	feed: ReturnType<typeof useInsightsFeed>;
-}) {
-	const {
-		fetchNextPage,
-		hasNextPage,
-		insights,
-		isError,
-		isFetchingNextPage,
-		isLoading,
-		refetch,
-	} = feed;
-	const openInsights = insights.filter((insight) => insight.status === "open");
-	const loadMore = useCallback(() => {
-		fetchNextPage().catch(() => undefined);
-	}, [fetchNextPage]);
-
-	if (isLoading) {
-		return (
-			<div
-				aria-label="Loading investigations"
-				aria-live="polite"
-				className="divide-y"
-				role="status"
-			>
-				{Array.from({ length: 4 }, (_, index) => (
-					<InvestigationRowSkeleton key={`investigation-${index + 1}`} />
-				))}
-			</div>
-		);
-	}
-
-	if (isError) {
-		return <ErrorState onRetryAction={refetch} />;
-	}
-
-	if (openInsights.length === 0) {
-		return (
-			<EmptyList
-				hasNextPage={hasNextPage}
-				isFetchingNextPage={isFetchingNextPage}
-				onLoadMoreAction={loadMore}
-			/>
-		);
-	}
-
-	return (
-		<>
-			<div>
-				{openInsights.map((insight) => (
-					<InvestigationRow insight={insight} key={insight.id} />
-				))}
-			</div>
-
-			{hasNextPage ? (
-				<div className="flex justify-center border-t px-5 py-4">
-					<Button
-						disabled={isFetchingNextPage}
-						loading={isFetchingNextPage}
-						onClick={loadMore}
-						type="button"
-						variant="secondary"
-					>
-						Load more
-					</Button>
-				</div>
-			) : null}
-		</>
-	);
-}
-
-function ErrorState({ onRetryAction }: { onRetryAction: () => void }) {
-	return (
-		<div className="px-5 py-12">
-			<EmptyState
-				action={{
-					label: "Try again",
-					onClick: onRetryAction,
-					variant: "secondary",
-				}}
-				description="Databuddy couldn't load recent investigations."
-				icon={<LightbulbIcon weight="duotone" />}
-				title="Couldn't load investigations"
-				variant="error"
-			/>
-		</div>
-	);
-}
-
-function EmptyList({
-	hasNextPage,
-	isFetchingNextPage,
-	onLoadMoreAction,
-}: {
-	hasNextPage: boolean;
-	isFetchingNextPage: boolean;
-	onLoadMoreAction: () => void;
-}) {
-	return (
-		<div className="px-5 py-12">
-			<EmptyState
-				action={
-					hasNextPage
-						? {
-								label: isFetchingNextPage ? "Loading…" : "Load more",
-								onClick: onLoadMoreAction,
-								variant: "secondary",
-							}
-						: undefined
-				}
-				description={
-					hasNextPage
-						? "No open investigations in the latest results."
-						: "Databuddy starts an investigation when it finds a question or fix worth following through."
-				}
-				icon={<LightbulbIcon weight="duotone" />}
-				title="Nothing needs your input"
-				variant="minimal"
-			/>
-		</div>
-	);
-}
-
-function EmptyOrg() {
-	return (
-		<EmptyState
-			action={{
-				label: "Go to websites",
-				onClick: () => {
-					window.location.href = "/websites";
-				},
-			}}
-			description="Add a website to start receiving insights across your organization."
-			icon={<GlobeIcon weight="duotone" />}
-			title="No websites yet"
-			variant="minimal"
-		/>
-	);
 }

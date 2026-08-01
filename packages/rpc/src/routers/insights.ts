@@ -943,6 +943,9 @@ export const insightsRouter = {
 					[insightObservations.websiteId, insightObservations.signalKey],
 					{
 						...insightBriefSelection,
+						investigationId: sql<string | null>`${analyticsInsights.id}`.as(
+							"investigation_id"
+						),
 						signalKey: insightObservations.signalKey,
 					}
 				)
@@ -1012,6 +1015,7 @@ export const insightsRouter = {
 				limit: z.number().int().min(1).max(100).default(50),
 				offset: z.number().int().min(0).default(0),
 				organizationId: z.string().min(1),
+				status: z.enum(["open", "resolved"]).optional(),
 				websiteId: z.string().min(1).optional(),
 			})
 		)
@@ -1085,6 +1089,7 @@ export const insightsRouter = {
 			const rows = await db
 				.select()
 				.from(latestCases)
+				.where(input.status ? eq(latestCases.status, input.status) : undefined)
 				.orderBy(desc(latestCases.activityAt), desc(latestCases.id))
 				.limit(input.limit + 1)
 				.offset(input.offset);
