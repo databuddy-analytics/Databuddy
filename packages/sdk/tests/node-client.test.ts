@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, jest, mock } from "bun:test";
 import { Databuddy } from "../src/node/index";
-import type { BatchEventInput } from "../src/node/types";
+import type {
+	BatchEventInput,
+	BatchEventResponse,
+} from "../src/node/types";
 
 interface FetchCall {
 	body: unknown;
@@ -285,6 +288,62 @@ describe("Databuddy Node client", () => {
 			[expect.objectContaining({ name: "first" })],
 			[expect.objectContaining({ name: "second" })],
 		]);
+		expect(await client.flush()).toMatchObject({
+			success: true,
+			delivery: "skipped",
+			processed: 0,
+		});
+	});
+
+	it("starts a new flush for an event queued as the active flush settles", async () => {
+		const client = new Databuddy({
+			apiKey: "dbdy_test",
+			batchSize: 1,
+			batchTimeout: 60_000,
+			enableDeduplication: false,
+		});
+		const event = { name: "settlement_race", websiteId: "site_1" };
+		let batchCalls = 0;
+		let lateDelivery: ReturnType<Databuddy["track"]> | undefined;
+
+		client.batch = async () => {
+			batchCalls += 1;
+			if (batchCalls > 1) {
+				return {
+					success: true,
+					delivery: "delivered",
+					processed: 1,
+				};
+			}
+
+			const result: BatchEventResponse = {
+				success: true,
+				delivery: "delivered",
+			};
+			Object.defineProperty(result, "processed", {
+				get() {
+					queueMicrotask(() => {
+						lateDelivery = client.track(event);
+					});
+					return 1;
+				},
+			});
+			return result;
+		};
+
+		expect(await client.track(event)).toMatchObject({
+			success: true,
+			delivery: "delivered",
+			processed: 1,
+		});
+		await flushMicrotasks();
+		expect(lateDelivery).toBeDefined();
+		expect(await lateDelivery).toMatchObject({
+			success: true,
+			delivery: "delivered",
+			processed: 1,
+		});
+		expect(batchCalls).toBe(2);
 		expect(await client.flush()).toMatchObject({
 			success: true,
 			delivery: "skipped",
