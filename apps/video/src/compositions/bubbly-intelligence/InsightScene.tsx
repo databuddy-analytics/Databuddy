@@ -64,7 +64,7 @@ export function InsightScene() {
 					color={bubbleColors.offWhite}
 					fontSize={76}
 					from={19}
-					style={{ left: 42, top: 132 }}
+					style={{ left: 42, lineHeight: 1.1, top: 132 }}
 				>
 					ONBOARDING
 					<br />
