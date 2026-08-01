@@ -102,6 +102,7 @@ vi.mock("@lib/event-service", () => ({
 	insertIndividualVitals: mockInsertIndividualVitals,
 	insertErrorSpans: mockInsertErrorSpans,
 	insertCustomEvents: mockInsertCustomEvents,
+	stableAnalyticsEventId: vi.fn(() => "stable_id"),
 }));
 
 vi.mock("@lib/security", () => ({
@@ -181,7 +182,7 @@ vi.mock("@lib/producer", () => ({
 const { basketErrors, buildBasketErrorPayload } = await import(
 	"@lib/structured-errors"
 );
-const { createError } = await import("evlog");
+const { createError, EvlogError } = await import("evlog");
 const { Elysia } = await import("elysia");
 const mockGlobalErrorHandler = vi.fn();
 
@@ -189,7 +190,11 @@ const mockGlobalErrorHandler = vi.fn();
 const rawBasket = (await import("./basket")).default;
 const basketApp = new Elysia()
 	.onError(({ error, code }) => {
-		mockGlobalErrorHandler(error);
+		const isExpectedClientError =
+			error instanceof EvlogError && error.status >= 400 && error.status < 500;
+		if (!isExpectedClientError) {
+			mockGlobalErrorHandler(error);
+		}
 		if (code === "NOT_FOUND") {
 			return new Response(null, { status: 404 });
 		}
@@ -472,7 +477,7 @@ describe("POST /events", () => {
 // ── POST /batch ──
 
 describe("POST /batch", () => {
-	test("validation quota errors reach the global error handler", async () => {
+	test("validation quota errors stay out of the global error reporter", async () => {
 		mockGlobalErrorHandler.mockClear();
 		const quotaError = basketErrors.billingLimitExceeded();
 		mockValidateRequest.mockRejectedValueOnce(quotaError);
@@ -487,7 +492,7 @@ describe("POST /batch", () => {
 		]);
 
 		expect(res.status).toBe(402);
-		expect(mockGlobalErrorHandler).toHaveBeenCalledWith(quotaError);
+		expect(mockGlobalErrorHandler).not.toHaveBeenCalled();
 	});
 
 	test("batch of track events → 200", async () => {

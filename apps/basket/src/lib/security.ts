@@ -9,6 +9,16 @@ import { useLogger } from "evlog/elysia";
 const EXIT_EVENT_TTL = 172_800;
 const STANDARD_EVENT_TTL = 86_400;
 const DEDUP_RETRY_DELAY_MS = 25;
+const PENDING_DEDUP_PREFIX = "pending:";
+const DELIVERED_DEDUP_VALUE = "delivered";
+const RELEASE_PENDING_DEDUP_RESERVATION = `if redis.call("GET", KEYS[1]) == ARGV[1] then
+	return redis.call("DEL", KEYS[1])
+end
+return 0`;
+const MARK_PENDING_DEDUP_RESERVATION_DELIVERED = `if redis.call("GET", KEYS[1]) == ARGV[1] then
+	return redis.call("SET", KEYS[1], ARGV[2], "EX", ARGV[3])
+end
+return 0`;
 
 const RAW_VISITOR_ID_COUNTRIES = ["US"];
 const COUNTRY_CODES: Record<string, string> = {
@@ -123,46 +133,167 @@ function wait(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function setDedupKey(key: string, ttl: number): Promise<string | null> {
+export interface DuplicateReservation {
+	readonly duplicate: boolean;
+	readonly key?: string;
+	/**
+	 * Redis confirmed that this request did not acquire the reservation. The
+	 * caller must retry instead of publishing alongside its current owner.
+	 * Omitted when Redis is unavailable so ingestion remains fail-open.
+	 */
+	readonly retryable?: true;
+	/**
+	 * Present only when this request atomically acquired the pending key. It is
+	 * required to release the key so an older failed request cannot erase a
+	 * newer retry's reservation.
+	 */
+	readonly token?: string;
+	readonly ttl?: number;
+}
+
+type DedupReservationState =
+	| "acquired"
+	| "delivered"
+	| "pending"
+	| "unreserved";
+
+async function readDedupReservationState(
+	key: string,
+	token: string
+): Promise<DedupReservationState> {
+	const value = await redis.get(key);
+	if (value === DELIVERED_DEDUP_VALUE) {
+		return "delivered";
+	}
+	if (value === token) {
+		return "acquired";
+	}
+	return value === null || value === undefined ? "unreserved" : "pending";
+}
+
+async function setDedupKey(
+	key: string,
+	ttl: number,
+	token: string
+): Promise<DedupReservationState> {
 	try {
-		return await redis.set(key, "1", "EX", ttl, "NX");
+		const result = await redis.set(key, token, "EX", ttl, "NX");
+		return result === null ? readDedupReservationState(key, token) : "acquired";
 	} catch (firstError) {
 		await wait(DEDUP_RETRY_DELAY_MS);
 		try {
-			const retryResult = await redis.set(key, "1", "EX", ttl, "NX");
-			// If the first SET succeeded but the client saw an error, retry returns null.
-			// Treat that ambiguous state as first delivery so ingestion fails open.
-			return retryResult ?? "OK";
+			const retryResult = await redis.set(key, token, "EX", ttl, "NX");
+			if (retryResult !== null) {
+				return "acquired";
+			}
+
+			// The first SET may have succeeded even though the client saw an error.
+			// Seeing our token again proves that this request owns the reservation.
+			// Any other pending token is retryable: only a confirmed delivery may
+			// suppress the event.
+			return await readDedupReservationState(key, token);
 		} catch {
-			throw firstError;
+			try {
+				return await readDedupReservationState(key, token);
+			} catch {
+				throw firstError;
+			}
 		}
 	}
 }
 
-export function checkDuplicate(
+export function reserveDuplicate(
 	eventId: string,
-	eventType: string
-): Promise<boolean> {
-	return record("checkDuplicate", async () => {
+	eventType: string,
+	sourceEventId = eventId
+): Promise<DuplicateReservation> {
+	return record("reserveDuplicate", async () => {
 		const key = `dedup:${eventType}:${eventId}`;
-		const ttl = eventId.startsWith("exit_")
+		const ttl = sourceEventId.startsWith("exit_")
 			? EXIT_EVENT_TTL
 			: STANDARD_EVENT_TTL;
+		const token = `${PENDING_DEDUP_PREFIX}${crypto.randomUUID()}`;
 
 		try {
-			const result = await setDedupKey(key, ttl);
-			const isDuplicate = result === null;
-			if (isDuplicate) {
+			const result = await setDedupKey(key, ttl, token);
+			if (result === "delivered") {
 				useLogger().set({ dedup: { duplicate: true, eventType } });
+				return { duplicate: true };
 			}
-			return isDuplicate;
+
+			// This request did not acquire a pending key. Publishing without ownership
+			// can duplicate a concurrent delivery or overwrite its confirmed state.
+			if (result === "pending" || result === "unreserved") {
+				return { duplicate: false, retryable: true };
+			}
+
+			return {
+				duplicate: false,
+				key,
+				token,
+				ttl,
+			};
 		} catch (error) {
 			captureError(error, {
 				message: "Failed to check duplicate event in Redis",
 				eventId,
 				eventType,
 			});
-			return false;
+			return { duplicate: false };
+		}
+	});
+}
+
+/**
+ * Only a confirmed Kafka or ClickHouse acknowledgement may turn a pending
+ * retry guard into a duplicate suppression key. The promotion is conditional
+ * on the owner's token so a stale request cannot overwrite a newer reservation.
+ */
+export function markDuplicateReservationDelivered(
+	reservation: DuplicateReservation
+): Promise<void> {
+	return record("markDuplicateReservationDelivered", async () => {
+		if (!(reservation.key && reservation.token && reservation.ttl)) {
+			return;
+		}
+
+		try {
+			await redis.eval(
+				MARK_PENDING_DEDUP_RESERVATION_DELIVERED,
+				1,
+				reservation.key,
+				reservation.token,
+				DELIVERED_DEDUP_VALUE,
+				reservation.ttl
+			);
+		} catch (error) {
+			captureError(error, {
+				message: "Failed to confirm duplicate reservation after delivery",
+			});
+		}
+	});
+}
+
+export function releaseDuplicateReservation(
+	reservation: DuplicateReservation
+): Promise<void> {
+	return record("releaseDuplicateReservation", async () => {
+		if (!(reservation.key && reservation.token)) {
+			return;
+		}
+
+		try {
+			await redis.eval(
+				RELEASE_PENDING_DEDUP_RESERVATION,
+				1,
+				reservation.key,
+				reservation.token
+			);
+		} catch (error) {
+			captureError(error, {
+				message:
+					"Failed to release duplicate reservation after delivery failure",
+			});
 		}
 	});
 }

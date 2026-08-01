@@ -2,7 +2,7 @@ import type { ClickHouseClient } from "@clickhouse/client";
 import { clickHouse, TABLE_NAMES } from "@databuddy/db/clickhouse";
 import { readBooleanEnv } from "@databuddy/env/boolean";
 import { captureError, record } from "@lib/tracing";
-import { Data, Effect, Layer, ManagedRuntime, Ref, Schedule } from "effect";
+import { Data, Effect, Layer, ManagedRuntime, Ref } from "effect";
 import { createError } from "evlog";
 import { CompressionTypes, Kafka, type Producer } from "kafkajs";
 
@@ -19,35 +19,50 @@ export class KafkaSendError extends Data.TaggedError("KafkaSendError")<{
 	readonly topic: string;
 	readonly cause?: Error;
 }> {}
-export class BufferOverflowError extends Data.TaggedError(
-	"BufferOverflowError"
-)<{ readonly bufferLength: number }> {}
-export class FlushError extends Data.TaggedError("FlushError")<{
-	readonly table: string;
+export class ProducerShuttingDownError extends Data.TaggedError(
+	"ProducerShuttingDownError"
+)<{
+	readonly eventCount: number;
+	readonly retryable: true;
+}> {}
+export class ProducerUnavailableError extends Data.TaggedError(
+	"ProducerUnavailableError"
+)<{ readonly retryable: true }> {}
+export class UnknownKafkaTopicError extends Data.TaggedError(
+	"UnknownKafkaTopicError"
+)<{
+	readonly retryable: false;
+	readonly topic: string;
+}> {}
+export class ClickHouseFallbackError extends Data.TaggedError(
+	"ClickHouseFallbackError"
+)<{
 	readonly cause?: Error;
+	readonly retryable: true;
+	readonly table: string;
+	readonly topic: string;
+}> {}
+export class ShutdownDrainError extends Data.TaggedError("ShutdownDrainError")<{
+	readonly deadlineMs: number;
+	readonly inFlight: number;
+	readonly retryable: true;
 }> {}
 
 export type ProducerError =
 	| KafkaConnectionError
 	| KafkaSendError
-	| BufferOverflowError
-	| FlushError;
-
-interface BufferedEvent {
-	event: unknown;
-	table: string;
-}
+	| ProducerShuttingDownError
+	| ProducerUnavailableError
+	| UnknownKafkaTopicError
+	| ClickHouseFallbackError;
 
 interface ProducerState {
-	buffer: BufferedEvent[];
-	buffered: number;
 	connected: boolean;
+	connecting: boolean;
 	connectionFailed: boolean;
-	dropped: number;
 	errors: number;
 	failedCount: number;
-	flushed: number;
-	flushing: boolean;
+	inFlight: number;
 	lastErrorTime: number | null;
 	lastRetry: number;
 	producerInitialized: boolean;
@@ -55,11 +70,8 @@ interface ProducerState {
 	shuttingDown: boolean;
 }
 
-interface ProducerConfig {
+export interface ProducerConfig {
 	broker?: string;
-	bufferHardMax: number;
-	bufferInterval: number;
-	bufferMax: number;
 	chunkSize: number;
 	kafkaTimeout: number;
 	maxProducerRetries: number;
@@ -67,43 +79,40 @@ interface ProducerConfig {
 	producerRetryDelay: number;
 	reconnectCooldown: number;
 	selfHost: boolean;
+	shutdownDrainTimeout: number;
 	username?: string;
 }
 
+export interface ProducerEffects {
+	sendMany: (
+		topic: string,
+		events: unknown[]
+	) => Effect.Effect<void, ProducerError>;
+	sendOne: (
+		topic: string,
+		event: unknown,
+		key?: string
+	) => Effect.Effect<void, ProducerError>;
+	shutDown: Effect.Effect<void, ShutdownDrainError>;
+	stats: Effect.Effect<ProducerStatsSnapshot>;
+}
+
 const INITIAL_STATE: ProducerState = {
-	buffer: [],
 	sent: 0,
 	failedCount: 0,
-	buffered: 0,
-	flushed: 0,
-	dropped: 0,
 	errors: 0,
 	lastErrorTime: null,
 	connected: false,
+	connecting: false,
 	connectionFailed: false,
 	lastRetry: 0,
 	producerInitialized: false,
 	shuttingDown: false,
-	flushing: false,
+	inFlight: 0,
 };
 
 function toError(err: unknown): Error {
 	return err instanceof Error ? err : new Error(String(err));
-}
-
-function groupBufferedEvents(
-	items: BufferedEvent[]
-): Map<string, BufferedEvent[]> {
-	const grouped = new Map<string, BufferedEvent[]>();
-	for (const item of items) {
-		const tableEvents = grouped.get(item.table);
-		if (tableEvents) {
-			tableEvents.push(item);
-			continue;
-		}
-		grouped.set(item.table, [item]);
-	}
-	return grouped;
 }
 
 async function insertClickHouseChunks(
@@ -121,55 +130,13 @@ async function insertClickHouseChunks(
 	}
 }
 
-function rebufferOrDropEvents({
-	bufferHardMax,
-	events,
-	inc,
-	ref,
-	table,
-	error,
-}: {
-	bufferHardMax: number;
-	error: FlushError;
-	events: unknown[];
-	inc: (field: keyof ProducerState, n?: number) => Effect.Effect<void>;
-	ref: Ref.Ref<ProducerState>;
-	table: string;
-}) {
-	return Ref.get(ref).pipe(
-		Effect.flatMap((state) => {
-			if (state.buffer.length + events.length <= bufferHardMax) {
-				return Ref.update(ref, (current) => ({
-					...current,
-					buffer: [
-						...current.buffer,
-						...events.map((event) => ({ table, event })),
-					],
-					errors: current.errors + 1,
-				}));
-			}
-
-			return inc("dropped", events.length).pipe(
-				Effect.tap(() => inc("errors", 1)),
-				Effect.tap(() =>
-					Effect.sync(() =>
-						captureError(error.cause, {
-							message: `Dropped ${String(events.length)} events - buffer full`,
-						})
-					)
-				)
-			);
-		})
-	);
-}
-
 function makeProducerEffects(
 	config: ProducerConfig,
 	kafka: Producer | null,
 	ch: ClickHouseClient,
 	topicMap: Record<string, string>,
 	ref: Ref.Ref<ProducerState>
-) {
+): ProducerEffects {
 	const enabled = !config.selfHost && Boolean(config.broker);
 
 	const inc = (field: keyof ProducerState, n = 1) =>
@@ -179,14 +146,27 @@ function makeProducerEffects(
 		if (!(enabled && kafka)) {
 			return (yield* Ref.get(ref)).connected;
 		}
-		const s = yield* Ref.get(ref);
-		if (s.connected) {
+
+		const decision = yield* Ref.modify(ref, (state) => {
+			if (state.connected) {
+				return ["connected" as const, state];
+			}
+			if (state.connecting) {
+				return ["fallback" as const, state];
+			}
+			if (
+				state.connectionFailed &&
+				Date.now() - state.lastRetry < config.reconnectCooldown
+			) {
+				return ["fallback" as const, state];
+			}
+			return ["connect" as const, { ...state, connecting: true }];
+		});
+
+		if (decision === "connected") {
 			return true;
 		}
-		if (
-			s.connectionFailed &&
-			Date.now() - s.lastRetry < config.reconnectCooldown
-		) {
+		if (decision === "fallback") {
 			return false;
 		}
 
@@ -198,6 +178,7 @@ function makeProducerEffects(
 				Ref.update(ref, (st) => ({
 					...st,
 					connected: true,
+					connecting: false,
 					connectionFailed: false,
 					lastRetry: 0,
 					producerInitialized: true,
@@ -207,6 +188,7 @@ function makeProducerEffects(
 			Effect.catchTag("KafkaConnectionError", (err) =>
 				Ref.update(ref, (st) => ({
 					...st,
+					connecting: false,
 					connectionFailed: true,
 					lastRetry: Date.now(),
 					errors: st.errors + 1,
@@ -222,164 +204,164 @@ function makeProducerEffects(
 					),
 					Effect.as(false)
 				)
+			),
+			Effect.ensuring(
+				Ref.update(ref, (state) =>
+					state.connecting ? { ...state, connecting: false } : state
+				)
 			)
 		);
 	});
 
-	const flush: Effect.Effect<void, FlushError> = Effect.gen(function* () {
-		const pre = yield* Ref.get(ref);
-		if (pre.buffer.length === 0 || pre.flushing) {
-			return;
-		}
-
-		const batchSize = Math.min(pre.buffer.length, config.bufferMax);
-		const items = yield* Ref.modify(ref, (s) => [
-			s.buffer.slice(0, batchSize),
-			{ ...s, buffer: s.buffer.slice(batchSize), flushing: true },
-		]);
-
-		const grouped = groupBufferedEvents(items);
-
-		yield* Effect.forEach(
-			grouped.entries(),
-			([table, entries]: [string, BufferedEvent[]]) => {
-				const events = entries.map((entry) => entry.event);
-				return Effect.tryPromise({
-					try: () =>
-						record("clickhouseFallbackInsert", () =>
-							insertClickHouseChunks(ch, table, events, config.chunkSize)
-						),
-					catch: (e) => new FlushError({ table, cause: toError(e) }),
-				}).pipe(
-					Effect.tap(() => inc("flushed", events.length)),
-					Effect.catchTag("FlushError", (error) =>
-						rebufferOrDropEvents({
-							bufferHardMax: config.bufferHardMax,
-							error,
-							events,
-							inc,
-							ref,
-							table,
-						})
-					)
-				);
-			},
-			{ concurrency: "unbounded" }
-		);
-
-		yield* Ref.update(ref, (s) => ({ ...s, flushing: false }));
-	});
-
-	const toBuffer = (
-		topic: string,
-		event: unknown
-	): Effect.Effect<void, BufferOverflowError> =>
+	const resolveTopic = (
+		topic: string
+	): Effect.Effect<string, UnknownKafkaTopicError> =>
 		Effect.gen(function* () {
 			const table = topicMap[topic];
-			if (!table) {
-				yield* inc("errors", 1);
-				yield* Effect.sync(() =>
-					captureError(
-						createError({
-							code: "basket.UNKNOWN_KAFKA_TOPIC",
-							message: "Unknown Kafka topic",
-							status: 500,
-							why: `Topic "${topic}" is not mapped to a ClickHouse table.`,
-							fix: "Check topicMap configuration.",
-						}),
-						{ topic }
-					)
-				);
-				return;
+			if (table) {
+				return table;
 			}
 
-			const result = yield* Ref.modify(ref, (s) => {
-				if (s.shuttingDown) {
-					return ["shutdown" as const, { ...s, dropped: s.dropped + 1 }];
-				}
-				if (s.buffer.length >= config.bufferHardMax) {
-					return ["overflow" as const, { ...s, dropped: s.dropped + 1 }];
-				}
-				return [
-					"ok" as const,
-					{
+			yield* inc("errors", 1);
+			yield* Effect.sync(() =>
+				captureError(
+					createError({
+						code: "basket.UNKNOWN_KAFKA_TOPIC",
+						message: "Unknown Kafka topic",
+						status: 500,
+						why: `Topic "${topic}" is not mapped to a ClickHouse table.`,
+						fix: "Check topicMap configuration.",
+					}),
+					{ topic }
+				)
+			);
+			return yield* Effect.fail(
+				new UnknownKafkaTopicError({ retryable: false, topic })
+			);
+		});
+
+	const persistDirectly = (
+		topic: string,
+		events: unknown[]
+	): Effect.Effect<void, ClickHouseFallbackError | UnknownKafkaTopicError> =>
+		Effect.gen(function* () {
+			const table = yield* resolveTopic(topic);
+			yield* Effect.tryPromise({
+				try: () =>
+					record("clickhouseDirectFallbackInsert", () =>
+						insertClickHouseChunks(ch, table, events, config.chunkSize)
+					),
+				catch: (e) =>
+					new ClickHouseFallbackError({
+						cause: toError(e),
+						retryable: true,
+						table,
+						topic,
+					}),
+			}).pipe(
+				Effect.tap(() => inc("sent", events.length)),
+				Effect.catchTag("ClickHouseFallbackError", (error) =>
+					Ref.update(ref, (s) => ({
 						...s,
-						buffer: [...s.buffer, { table, event }],
-						buffered: s.buffered + 1,
-					},
-				];
-			});
+						errors: s.errors + 1,
+						lastErrorTime: Date.now(),
+					})).pipe(
+						Effect.tap(() =>
+							Effect.sync(() =>
+								captureError(error.cause, {
+									message:
+										"Direct ClickHouse fallback insert failed; rejecting delivery",
+									table,
+									topic,
+								})
+							)
+						),
+						Effect.flatMap(() => Effect.fail(error))
+					)
+				)
+			);
+		});
 
-			if (result === "overflow") {
-				return yield* Effect.fail(
-					new BufferOverflowError({
-						bufferLength: (yield* Ref.get(ref)).buffer.length,
-					})
-				);
+	const acquireSendSlot = (eventCount: number) =>
+		Ref.modify(ref, (s) => {
+			if (s.shuttingDown) {
+				return [false, s] as const;
 			}
-		});
+			return [true, { ...s, inFlight: s.inFlight + eventCount }] as const;
+		}).pipe(
+			Effect.flatMap((accepted) =>
+				accepted
+					? Effect.void
+					: Effect.fail(
+							new ProducerShuttingDownError({
+								eventCount,
+								retryable: true,
+							})
+						)
+			)
+		);
 
-	const bufferAll = (topic: string, events: unknown[]) =>
-		Effect.forEach(events, (e) => toBuffer(topic, e), {
-			discard: true,
-		});
+	const releaseSendSlot = (eventCount: number) =>
+		Ref.update(ref, (s) => ({
+			...s,
+			inFlight: Math.max(0, s.inFlight - eventCount),
+		}));
 
 	const sendViaKafka = (
 		topic: string,
 		messages: Array<{ value: string; key?: string }>,
 		fallbackEvents: unknown[]
 	): Effect.Effect<void, ProducerError> =>
-		Effect.gen(function* () {
-			const s = yield* Ref.get(ref);
-			if (s.shuttingDown) {
-				yield* bufferAll(topic, fallbackEvents);
-				return;
-			}
-
-			if (enabled && kafka) {
-				const isConnected = yield* connect;
-				if (isConnected) {
-					const sent = yield* Effect.tryPromise({
-						try: () =>
-							kafka.send({
-								topic,
-								messages,
-								timeout: config.kafkaTimeout,
-								compression: CompressionTypes.GZIP,
-							}),
-						catch: (e) => new KafkaSendError({ topic, cause: toError(e) }),
-					}).pipe(
-						Effect.tap(() => inc("sent", messages.length)),
-						Effect.as(true),
-						Effect.catchTag("KafkaSendError", (err) =>
-							Ref.update(ref, (st) => ({
-								...st,
-								connectionFailed: true,
-								connected: false,
-								lastRetry: Date.now(),
-								failedCount: st.failedCount + messages.length,
-							})).pipe(
-								Effect.tap(() =>
-									Effect.sync(() =>
-										captureError(err.cause, {
-											message: "Redpanda send failed, buffering to ClickHouse",
-											message_count: messages.length,
-											topic,
-										})
+		acquireSendSlot(fallbackEvents.length).pipe(
+			Effect.flatMap(() =>
+				Effect.gen(function* () {
+					if (enabled && kafka) {
+						const isConnected = yield* connect;
+						if (isConnected) {
+							const sent = yield* Effect.tryPromise({
+								try: () =>
+									kafka.send({
+										topic,
+										messages,
+										timeout: config.kafkaTimeout,
+										compression: CompressionTypes.GZIP,
+									}),
+								catch: (e) => new KafkaSendError({ topic, cause: toError(e) }),
+							}).pipe(
+								Effect.tap(() => inc("sent", messages.length)),
+								Effect.as(true),
+								Effect.catchTag("KafkaSendError", (err) =>
+									Ref.update(ref, (st) => ({
+										...st,
+										connectionFailed: true,
+										connected: false,
+										lastRetry: Date.now(),
+										failedCount: st.failedCount + messages.length,
+									})).pipe(
+										Effect.tap(() =>
+											Effect.sync(() =>
+												captureError(err.cause, {
+													message:
+														"Redpanda send failed, falling back to ClickHouse",
+													message_count: messages.length,
+													topic,
+												})
+											)
+										),
+										Effect.as(false)
 									)
-								),
-								Effect.as(false)
-							)
-						)
-					);
-					if (sent) {
-						return;
+								)
+							);
+							if (sent) {
+								return;
+							}
+						}
 					}
-				}
-			}
 
-			yield* bufferAll(topic, fallbackEvents);
-		});
+					yield* persistDirectly(topic, fallbackEvents);
+				}).pipe(Effect.ensuring(releaseSendSlot(fallbackEvents.length)))
+			)
+		);
 
 	const sendOne = (
 		topic: string,
@@ -416,42 +398,66 @@ function makeProducerEffects(
 		);
 	};
 
-	const shutDown: Effect.Effect<void> = Effect.gen(function* () {
-		yield* Ref.update(ref, (s) => ({ ...s, shuttingDown: true }));
-		yield* Effect.sleep("1 second");
-		yield* flush.pipe(Effect.catch(() => Effect.void));
-		const post = yield* Ref.get(ref);
-		if (post.buffer.length > 0 && !post.flushing) {
-			yield* flush.pipe(Effect.catch(() => Effect.void));
+	const disconnectKafka = Effect.gen(function* () {
+		const state = yield* Ref.get(ref);
+		if (!(state.producerInitialized && kafka)) {
+			return;
 		}
-		if (post.producerInitialized && kafka) {
-			yield* Effect.tryPromise({
-				try: () => kafka.disconnect(),
-				catch: (e) => new KafkaConnectionError({ cause: toError(e) }),
-			}).pipe(
-				Effect.ensuring(
-					Ref.update(ref, (s) => ({
-						...s,
-						connected: false,
-						producerInitialized: false,
-					}))
-				),
-				Effect.catch((err) =>
-					Effect.sync(() =>
-						captureError(err.cause, {
-							message: "Error disconnecting Redpanda producer",
-						})
-					)
+
+		yield* Effect.tryPromise({
+			try: () => kafka.disconnect(),
+			catch: (e) => new KafkaConnectionError({ cause: toError(e) }),
+		}).pipe(
+			Effect.ensuring(
+				Ref.update(ref, (s) => ({
+					...s,
+					connected: false,
+					connecting: false,
+					producerInitialized: false,
+				}))
+			),
+			Effect.catch((err) =>
+				Effect.sync(() =>
+					captureError(err.cause, {
+						message: "Error disconnecting Redpanda producer",
+					})
 				)
-			);
+			)
+		);
+	});
+
+	const drainInFlight = Effect.gen(function* () {
+		while ((yield* Ref.get(ref)).inFlight > 0) {
+			yield* Effect.sleep("10 millis");
 		}
 	});
+
+	const shutDown: Effect.Effect<void, ShutdownDrainError> = Effect.gen(
+		function* () {
+			yield* Ref.update(ref, (s) => ({ ...s, shuttingDown: true }));
+			yield* drainInFlight.pipe(
+				Effect.timeout(`${config.shutdownDrainTimeout} millis`),
+				Effect.catch(() =>
+					Ref.get(ref).pipe(
+						Effect.flatMap((state) =>
+							Effect.fail(
+								new ShutdownDrainError({
+									deadlineMs: config.shutdownDrainTimeout,
+									inFlight: state.inFlight,
+									retryable: true,
+								})
+							)
+						)
+					)
+				),
+				Effect.ensuring(disconnectKafka)
+			);
+		}
+	);
 
 	const stats: Effect.Effect<ProducerStatsSnapshot> = Ref.get(ref).pipe(
 		Effect.map(
 			({
-				buffer,
-				flushing: _f,
 				shuttingDown: _s,
 				connectionFailed,
 				producerInitialized: _p,
@@ -459,14 +465,28 @@ function makeProducerEffects(
 			}) => ({
 				...rest,
 				failed: connectionFailed,
-				bufferSize: buffer.length,
 				kafkaEnabled: enabled,
 			})
 		)
 	);
 
-	return { flush, sendOne, sendMany, shutDown, stats };
+	return {
+		sendOne,
+		sendMany,
+		shutDown,
+		stats,
+	};
 }
+
+export const createProducerEffects = (
+	config: ProducerConfig,
+	kafka: Producer | null,
+	ch: ClickHouseClient,
+	topicMap: Record<string, string>
+): Effect.Effect<ProducerEffects> =>
+	Ref.make<ProducerState>(INITIAL_STATE).pipe(
+		Effect.map((ref) => makeProducerEffects(config, kafka, ch, topicMap, ref))
+	);
 
 function initializeKafka(config: ProducerConfig): Producer | null {
 	if (config.selfHost || !config.broker) {
@@ -509,14 +529,12 @@ function initializeKafka(config: ProducerConfig): Producer | null {
 }
 
 export interface ProducerStatsSnapshot {
-	buffered: number;
-	bufferSize: number;
 	connected: boolean;
-	dropped: number;
+	connecting: boolean;
 	errors: number;
 	failed: boolean;
 	failedCount: number;
-	flushed: number;
+	inFlight: number;
 	kafkaEnabled: boolean;
 	lastErrorTime: number | null;
 	lastRetry: number;
@@ -532,10 +550,8 @@ const CONFIG: ProducerConfig = {
 	kafkaTimeout: 10_000,
 	maxProducerRetries: 3,
 	producerRetryDelay: 300,
-	bufferInterval: 5000,
-	bufferMax: 1000,
-	bufferHardMax: 10_000,
 	chunkSize: 5000,
+	shutdownDrainTimeout: 8000,
 };
 
 const TOPIC_MAP: Record<string, string> = {
@@ -553,20 +569,13 @@ let fx: ReturnType<typeof makeProducerEffects> | null = null;
 
 const ProducerLive = Layer.effectDiscard(
 	Effect.gen(function* () {
-		const ref = yield* Ref.make<ProducerState>({ ...INITIAL_STATE });
-		const effects = makeProducerEffects(
+		const effects = yield* createProducerEffects(
 			CONFIG,
 			initializeKafka(CONFIG),
 			clickHouse,
-			TOPIC_MAP,
-			ref
+			TOPIC_MAP
 		);
 		fx = effects;
-		yield* effects.flush.pipe(
-			Effect.catch(() => Effect.void),
-			Effect.repeat(Schedule.spaced(CONFIG.bufferInterval)),
-			Effect.forkScoped
-		);
 	})
 );
 
@@ -577,18 +586,38 @@ const withFx = <A, E>(
 ): Effect.Effect<A | undefined, E> =>
 	Effect.suspend(() => (fx ? fn(fx) : Effect.succeed(undefined)));
 
+const withActiveFx = <A, E>(
+	fn: (f: NonNullable<typeof fx>) => Effect.Effect<A, E>
+): Effect.Effect<A, E | ProducerUnavailableError> =>
+	Effect.suspend(
+		(): Effect.Effect<A, E | ProducerUnavailableError> =>
+			fx
+				? fn(fx)
+				: Effect.fail(new ProducerUnavailableError({ retryable: true }))
+	);
+
 export const send = (topic: string, event: unknown, key?: string) =>
-	withFx((f) => f.sendOne(topic, event, key));
+	withActiveFx((f) => f.sendOne(topic, event, key));
 
 export const sendBatch = (topic: string, events: unknown[]) =>
-	withFx((f) => f.sendMany(topic, events));
+	withActiveFx((f) => f.sendMany(topic, events));
 
 export const disconnect = withFx((f) => f.shutDown);
 
 export const getStats = withFx((f) => f.stats);
 
 export const runFork = <A, E>(effect: Effect.Effect<A, E>) =>
-	runtime.runFork(effect);
+	runtime.runFork(
+		effect.pipe(
+			Effect.tapError((error) =>
+				Effect.sync(() =>
+					captureError(error, {
+						message: "Asynchronous producer delivery rejected",
+					})
+				)
+			)
+		)
+	);
 
 export const runPromise = <A, E>(effect: Effect.Effect<A, E>) =>
 	runtime.runPromise(effect);
