@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { finalizeDeliveryTables } from "./logical-reads";
 
 describe("finalizeDeliveryTables", () => {
-	it("finalizes only delivery-backed relations", () => {
+	it("detects delivery-backed relations without rewriting SQL", () => {
 		const result = finalizeDeliveryTables(`
 			SELECT e.path, r.amount
 			FROM analytics.events e
@@ -10,9 +10,9 @@ describe("finalizeDeliveryTables", () => {
 		`);
 
 		expect(result.usesFinal).toBe(true);
-		expect(result.query).toContain("FROM analytics.events FINAL AS e");
+		expect(result.query).toContain("FROM analytics.events e");
 		expect(result.query).toContain("JOIN analytics.revenue r");
-		expect(result.query).not.toContain("analytics.revenue FINAL");
+		expect(result.query).not.toContain("FINAL");
 	});
 
 	it("supports quoted relations and nested queries", () => {
@@ -24,25 +24,15 @@ describe("finalizeDeliveryTables", () => {
 			JOIN events ON 1 = 1
 		`);
 
-		expect(result.query).toContain("FROM `analytics`.`events` FINAL");
+		expect(result.query).toContain("FROM `analytics`.`events`");
 		expect(result.query).toContain(
-			'FROM "analytics.custom_events" FINAL AS custom'
+			'FROM "analytics.custom_events" AS custom'
 		);
 	});
 
-	it("does not duplicate an explicit FINAL modifier", () => {
+	it("leaves an explicit FINAL modifier untouched", () => {
 		const query = "SELECT count() FROM analytics.link_visits FINAL";
 		expect(finalizeDeliveryTables(query)).toEqual({ query, usesFinal: true });
-	});
-
-	it("normalizes implicit and explicit aliases after FINAL", () => {
-		expect(
-			finalizeDeliveryTables(
-				"SELECT * FROM analytics.events event JOIN analytics.link_visits AS visit ON 1 = 1"
-			).query
-		).toBe(
-			"SELECT * FROM analytics.events FINAL AS event JOIN analytics.link_visits FINAL AS visit ON 1 = 1"
-		);
 	});
 
 	it("ignores table names inside strings and comments", () => {
