@@ -36,16 +36,22 @@ need ClickHouse Keeper enabled (a one-node Keeper is fine).
 The Basket/Vector delivery tables use `ReplicatedReplacingMergeTree` with a
 stable row identity and an `ingested_at` version. Background merges reclaim
 duplicate storage asynchronously; the shared ClickHouse readers add `FINAL`
-through a scoped query setting without changing unrelated MergeTree reads. The
-sorting keys keep their existing tenant/time prefix and append stable identity,
-so tenant time-window queries retain primary-key locality under `FINAL`.
-Vector keeps Kafka record time in `kafka_timestamp`, leaving the analytics
-payload timestamp immutable across exact-message retries; every other sort-key
-prefix field must remain immutable as well. The production cutover globally
+through a scoped query setting without changing unrelated MergeTree reads. A
+delivery table's complete sorting key is its tenant plus stable row identity;
+mutable timestamps, routes, event names, and metric names are payload, not
+replacement identity. This lets `FINAL` collapse a retry even if normalization
+changed one of those values.
+
+The tables remain partitioned by analytics time for retention. Producers must
+therefore still preserve one analytics timestamp for every stable identity so
+time-filtered reads cannot prune a different version's partition. Vector keeps
+Kafka record time in `kafka_timestamp`, leaving the analytics payload timestamp
+unchanged across exact-message retries. The production cutover globally
 canonicalizes historical timestamp variants before enabling the reference
-schema. Readers retain ClickHouse's default cross-partition `FINAL` behavior
-because the setting is query-wide and a delivery-table query may join another
-ReplacingMergeTree whose logical versions legitimately span partitions.
+schema. Readers retain ClickHouse's default cross-partition `FINAL` behavior;
+it is required for unbounded validation and for joins whose logical versions
+can span partitions, but it is not a substitute for the producer timestamp
+invariant on partition-pruned reads.
 
 Custom events, error spans, and web-vital spans may contain historical rows
 created before `delivery_id` existed. Their materialized `delivery_key` gives

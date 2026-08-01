@@ -12,6 +12,6 @@ CREATE TABLE IF NOT EXISTS analytics.outgoing_links
 )
 ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/analytics_outgoing_links_delivery_v2', '{replica}', ingested_at)
 PARTITION BY toYYYYMM(timestamp)
-PRIMARY KEY (client_id, timestamp)
-ORDER BY (client_id, timestamp, id)
+PRIMARY KEY client_id
+ORDER BY (client_id, id)
 SETTINGS index_granularity = 8192

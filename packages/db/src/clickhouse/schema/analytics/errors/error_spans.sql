@@ -19,6 +19,6 @@ CREATE TABLE IF NOT EXISTS analytics.error_spans
 )
 ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/analytics_error_spans_delivery_v2', '{replica}', ingested_at)
 PARTITION BY toDate(timestamp)
-PRIMARY KEY (client_id, error_type, path, timestamp)
-ORDER BY (client_id, error_type, path, timestamp, delivery_key)
+PRIMARY KEY client_id
+ORDER BY (client_id, delivery_key)
 SETTINGS index_granularity = 8192

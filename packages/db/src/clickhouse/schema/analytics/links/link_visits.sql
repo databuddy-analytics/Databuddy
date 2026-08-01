@@ -16,6 +16,6 @@ CREATE TABLE IF NOT EXISTS analytics.link_visits
 )
 ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/analytics_link_visits_delivery_v2', '{replica}', ingested_at)
 PARTITION BY toDate(timestamp)
-PRIMARY KEY (link_id, timestamp)
-ORDER BY (link_id, timestamp, id)
+PRIMARY KEY link_id
+ORDER BY (link_id, id)
 SETTINGS index_granularity = 8192
