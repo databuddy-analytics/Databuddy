@@ -43,6 +43,11 @@ type FailedResponse = FailureDetails & {
 	success: false;
 };
 
+type PreparedEvent = {
+	aliases: object[];
+	event: BatchEventInput;
+};
+
 class RequestTimeoutError extends Error {
 	constructor(timeoutMs: number) {
 		super(`Request timed out after ${timeoutMs}ms`);
@@ -106,6 +111,17 @@ function validationFailure(error: string): FailedResponse {
 	};
 }
 
+function queueFullFailure(maxQueueSize: number): FailedResponse {
+	return {
+		success: false,
+		error: `Event queue is full (${maxQueueSize} events)`,
+		code: "QUEUE_FULL",
+		retryable: true,
+		why: "The SDK already has the maximum number of events awaiting delivery.",
+		fix: "Retry the same event after an in-flight delivery completes.",
+	};
+}
+
 function withStableDeliveryIdentity(
 	event: BatchEventInput,
 	fallback?: BatchEventInput
@@ -142,6 +158,7 @@ export class Databuddy {
 	private readonly maxQueueSize: number;
 	private readonly requestTimeoutMs: number;
 	private queue: BatchEventInput[] = [];
+	private pendingEvents = 0;
 	private flushTimer: ReturnType<typeof setTimeout> | null = null;
 	private flushPromise: Promise<BatchEventResponse> | null = null;
 	private retryAttempts = 0;
@@ -150,10 +167,7 @@ export class Databuddy {
 	private readonly enableDeduplication: boolean;
 	private readonly deduplicationCache: Set<string> = new Set();
 	private readonly maxDeduplicationCacheSize: number;
-	private readonly preparedEvents = new WeakMap<
-		object,
-		BatchEventInput | null
-	>();
+	private readonly preparedEvents = new WeakMap<object, PreparedEvent>();
 
 	constructor(config: DatabuddyConfig) {
 		const apiKey =
@@ -222,8 +236,9 @@ export class Databuddy {
 		}
 
 		let processedEvent: BatchEventInput | null;
-		if (this.preparedEvents.has(event)) {
-			processedEvent = this.preparedEvents.get(event) ?? null;
+		const preparedEvent = this.preparedEvents.get(event);
+		if (preparedEvent) {
+			processedEvent = preparedEvent.event;
 		} else {
 			const batchEvent = withStableDeliveryIdentity({
 				type: "custom",
@@ -247,9 +262,8 @@ export class Databuddy {
 			processedEvent = middlewareEvent
 				? withStableDeliveryIdentity(middlewareEvent, batchEvent)
 				: null;
-			this.preparedEvents.set(event, processedEvent);
 			if (processedEvent) {
-				this.preparedEvents.set(processedEvent, processedEvent);
+				this.cachePreparedEvent(processedEvent, [event, processedEvent]);
 			}
 		}
 
@@ -262,6 +276,9 @@ export class Databuddy {
 			this.logger.debug("Event deduplicated", {
 				eventId: processedEvent.eventId,
 			});
+			if (!this.hasQueuedPreparation(processedEvent)) {
+				this.forgetPreparedEvent(processedEvent);
+			}
 			return { success: true, delivery: "skipped" };
 		}
 
@@ -270,16 +287,29 @@ export class Databuddy {
 			if (response.success) {
 				this.rememberEvents([processedEvent]);
 			}
+			this.settlePreparedEvents([processedEvent], response);
 			return response;
 		}
 
+		if (this.pendingEvents >= this.maxQueueSize) {
+			this.logger.warn("Event queue is full", {
+				maxQueueSize: this.maxQueueSize,
+				pending: this.pendingEvents,
+			});
+			return queueFullFailure(this.maxQueueSize);
+		}
+
 		this.queue.push(processedEvent);
-		this.logger.debug("Event queued", { queueSize: this.queue.length });
+		this.pendingEvents += 1;
+		this.logger.debug("Event queued", {
+			pending: this.pendingEvents,
+			queueSize: this.queue.length,
+		});
 
 		this.scheduleFlush();
 
 		if (
-			this.queue.length >= this.maxQueueSize ||
+			this.pendingEvents >= this.maxQueueSize ||
 			this.queue.length >= this.batchSize
 		) {
 			return this.flush();
@@ -489,6 +519,9 @@ export class Databuddy {
 				const chunk = events.slice(offset, offset + MAX_BATCH_EVENTS);
 				const result = await this.batch(chunk);
 				if (!result.success) {
+					if (result.retryable !== true) {
+						this.releasePendingEvents(chunk.length);
+					}
 					const unsent = events.slice(offset + chunk.length);
 					const pending = [
 						...(result.retryable === true ? chunk : []),
@@ -496,13 +529,15 @@ export class Databuddy {
 						...this.queue,
 					];
 					this.queue = pending.slice(0, this.maxQueueSize);
+					const dropped = Math.max(0, pending.length - this.queue.length);
+					this.releasePendingEvents(dropped);
 
 					if (result.retryable === true) {
 						this.retryAttempts += 1;
 						this.scheduleFlush(this.retryDelay());
 						this.logger.warn("Retryable batch failure kept events queued", {
 							queued: this.queue.length,
-							dropped: Math.max(0, pending.length - this.queue.length),
+							dropped,
 							retryAttempt: this.retryAttempts,
 							code: result.code,
 							requestId: result.requestId,
@@ -514,6 +549,7 @@ export class Databuddy {
 					return result;
 				}
 
+				this.releasePendingEvents(chunk.length);
 				processed += result.processed ?? 0;
 				if (result.results) {
 					results.push(...result.results);
@@ -550,7 +586,7 @@ export class Databuddy {
 		}
 
 		const processedEvents: BatchEventInput[] = [];
-		const seenEventIds = new Set<string>();
+		const seenEvents = new Map<string, BatchEventInput>();
 		for (const event of events) {
 			const processedEvent = await this.prepareBatchEvent(event);
 			if (!processedEvent) {
@@ -558,16 +594,23 @@ export class Databuddy {
 			}
 
 			if (this.enableDeduplication && processedEvent.eventId) {
+				const seenEvent = seenEvents.get(processedEvent.eventId);
 				if (
 					this.deduplicationCache.has(processedEvent.eventId) ||
-					seenEventIds.has(processedEvent.eventId)
+					seenEvent
 				) {
 					this.logger.debug("Event deduplicated in batch", {
 						eventId: processedEvent.eventId,
 					});
+					if (
+						!seenEvent ||
+						!this.sharesPreparedEvent(processedEvent, seenEvent)
+					) {
+						this.forgetPreparedEvent(processedEvent);
+					}
 					continue;
 				}
-				seenEventIds.add(processedEvent.eventId);
+				seenEvents.set(processedEvent.eventId, processedEvent);
 			}
 
 			processedEvents.push(processedEvent);
@@ -595,7 +638,7 @@ export class Databuddy {
 				firstSource: payloads[0]?.source,
 			});
 
-			return await this.fetchWithDeadline(
+			const result = await this.fetchWithDeadline<BatchEventResponse>(
 				url,
 				{
 					method: "POST",
@@ -636,6 +679,8 @@ export class Databuddy {
 					};
 				}
 			);
+			this.settlePreparedEvents(processedEvents, result);
+			return result;
 		} catch (error) {
 			this.logger.error("Batch request error", {
 				error: error instanceof Error ? error.message : String(error),
@@ -647,8 +692,9 @@ export class Databuddy {
 	private async prepareBatchEvent(
 		event: BatchEventInput
 	): Promise<BatchEventInput | null> {
-		if (this.preparedEvents.has(event)) {
-			return this.preparedEvents.get(event) ?? null;
+		const preparedEvent = this.preparedEvents.get(event);
+		if (preparedEvent) {
+			return preparedEvent.event;
 		}
 
 		const enrichedEvent = withStableDeliveryIdentity({
@@ -668,10 +714,12 @@ export class Databuddy {
 			? withStableDeliveryIdentity(middlewareEvent, enrichedEvent)
 			: null;
 
-		this.preparedEvents.set(event, processedEvent);
-		this.preparedEvents.set(enrichedEvent, processedEvent);
 		if (processedEvent) {
-			this.preparedEvents.set(processedEvent, processedEvent);
+			this.cachePreparedEvent(processedEvent, [
+				event,
+				enrichedEvent,
+				processedEvent,
+			]);
 		}
 		return processedEvent;
 	}
@@ -736,6 +784,65 @@ export class Databuddy {
 	clearDeduplicationCache(): void {
 		this.deduplicationCache.clear();
 		this.logger.debug("Deduplication cache cleared");
+	}
+
+	private cachePreparedEvent(
+		event: BatchEventInput,
+		aliases: object[]
+	): void {
+		const preparedEvent: PreparedEvent = {
+			aliases: [...new Set(aliases)],
+			event,
+		};
+		for (const alias of preparedEvent.aliases) {
+			this.preparedEvents.set(alias, preparedEvent);
+		}
+	}
+
+	private forgetPreparedEvent(event: object): void {
+		const preparedEvent = this.preparedEvents.get(event);
+		if (!preparedEvent) {
+			return;
+		}
+		for (const alias of preparedEvent.aliases) {
+			if (this.preparedEvents.get(alias) === preparedEvent) {
+				this.preparedEvents.delete(alias);
+			}
+		}
+	}
+
+	private settlePreparedEvents(
+		events: BatchEventInput[],
+		result: { retryable?: boolean; success: boolean }
+	): void {
+		if (!(result.success || result.retryable !== true)) {
+			return;
+		}
+		for (const event of events) {
+			this.forgetPreparedEvent(event);
+		}
+	}
+
+	private sharesPreparedEvent(first: object, second: object): boolean {
+		const preparedEvent = this.preparedEvents.get(first);
+		return Boolean(
+			preparedEvent && this.preparedEvents.get(second) === preparedEvent
+		);
+	}
+
+	private hasQueuedPreparation(event: object): boolean {
+		const preparedEvent = this.preparedEvents.get(event);
+		return Boolean(
+			preparedEvent &&
+				this.queue.some(
+					(queuedEvent) =>
+						this.preparedEvents.get(queuedEvent) === preparedEvent
+				)
+		);
+	}
+
+	private releasePendingEvents(count: number): void {
+		this.pendingEvents = Math.max(0, this.pendingEvents - count);
 	}
 
 	private isDuplicate(event: BatchEventInput): boolean {
