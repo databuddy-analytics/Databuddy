@@ -1,5 +1,6 @@
 import { createClient, type ResponseJSON } from "@clickhouse/client";
 import type { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
+import { finalizeDeliveryTables } from "./logical-reads";
 /**
  * ClickHouse table names used throughout the application
  */
@@ -27,9 +28,8 @@ export const CLICKHOUSE_OPTIONS: NodeClickHouseClientConfigOptions = {
 	},
 };
 
-export const LOGICAL_READ_SETTINGS = {
+export const FINAL_READ_SETTINGS = {
 	do_not_merge_across_partitions_select_final: 1,
-	final: 1,
 } as const;
 
 function assertCacheCompatibleSettings(
@@ -130,19 +130,6 @@ async function withInsertRetry<T>(
 
 type ClickHouseClient = typeof baseClient;
 
-function queryLogicalRows(
-	...args: Parameters<ClickHouseClient["query"]>
-): ReturnType<ClickHouseClient["query"]> {
-	const [options] = args;
-	return baseClient.query({
-		...options,
-		clickhouse_settings: {
-			...options.clickhouse_settings,
-			...LOGICAL_READ_SETTINGS,
-		},
-	}) as ReturnType<ClickHouseClient["query"]>;
-}
-
 export const clickHouse: ClickHouseClient = Object.assign(
 	Object.create(Object.getPrototypeOf(baseClient)),
 	baseClient,
@@ -156,7 +143,7 @@ export const clickHouse: ClickHouseClient = Object.assign(
 		query: (
 			...args: Parameters<ClickHouseClient["query"]>
 		): ReturnType<ClickHouseClient["query"]> =>
-			withChTiming(() => queryLogicalRows(...args)),
+			withChTiming(() => baseClient.query(...args)),
 		command: (
 			...args: Parameters<ClickHouseClient["command"]>
 		): ReturnType<ClickHouseClient["command"]> =>
@@ -216,18 +203,20 @@ async function chQueryWithMeta<T>(
 	params?: Record<string, unknown>,
 	options?: ChQueryOptions
 ): Promise<ResponseJSON<T>> {
+	const logical = finalizeDeliveryTables(query);
+	const finalSettings = logical.usesFinal ? FINAL_READ_SETTINGS : {};
 	const settings: Record<string, string | number> = options?.readonly
 		? {
 				...(options.clickhouse_settings ?? {}),
-				...LOGICAL_READ_SETTINGS,
+				...finalSettings,
 				readonly: "2",
 			}
-		: { ...(options?.clickhouse_settings ?? {}), ...LOGICAL_READ_SETTINGS };
+		: { ...(options?.clickhouse_settings ?? {}), ...finalSettings };
 	assertCacheCompatibleSettings(settings);
 	const json = await readJsonResponse<T>(
 		() =>
 			clickHouse.query({
-				query,
+				query: logical.query,
 				query_params: params,
 				...(options?.abort_signal && {
 					abort_signal: options.abort_signal,

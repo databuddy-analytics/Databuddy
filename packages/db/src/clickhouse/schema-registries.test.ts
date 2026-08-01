@@ -16,6 +16,7 @@ const DELIVERY_TABLE_FILES = {
 	"analytics.custom_events": "analytics/core/custom_events.sql",
 	"analytics.error_spans": "analytics/errors/error_spans.sql",
 	"analytics.events": "analytics/core/events.sql",
+	"analytics.link_visits": "analytics/links/link_visits.sql",
 	"analytics.outgoing_links": "analytics/links/outgoing_links.sql",
 	"analytics.web_vitals_spans":
 		"analytics/web-vitals/web_vitals_spans.sql",
@@ -70,6 +71,7 @@ describe("hand-maintained registries stay in sync with the generated DDL columns
 			const parsed = parseTable(ddl);
 			const identity =
 				table === "analytics.events" ||
+				table === "analytics.link_visits" ||
 				table === "analytics.outgoing_links"
 					? "id"
 					: "delivery_key";
@@ -85,6 +87,29 @@ describe("hand-maintained registries stay in sync with the generated DDL columns
 						?.computed
 				).toBe(true);
 			}
+		}
+	});
+
+	it("delivery identity extends the existing analytics sort locality", () => {
+		const keys = {
+			"analytics.custom_events":
+				"(owner_id, event_name, timestamp, delivery_key)",
+			"analytics.error_spans":
+				"(client_id, error_type, path, timestamp, delivery_key)",
+			"analytics.events": "(client_id, time, id)",
+			"analytics.link_visits": "(link_id, timestamp, id)",
+			"analytics.outgoing_links": "(client_id, timestamp, id)",
+			"analytics.web_vitals_spans":
+				"(client_id, metric_name, path, timestamp, delivery_key)",
+		} as const;
+
+		for (const [table, expected] of Object.entries(keys)) {
+			const file = DELIVERY_TABLE_FILES[
+				table as keyof typeof DELIVERY_TABLE_FILES
+			];
+			expect(
+				parseTable(readSql(`${import.meta.dir}/schema/${file}`)).orderBy
+			).toBe(expected);
 		}
 	});
 

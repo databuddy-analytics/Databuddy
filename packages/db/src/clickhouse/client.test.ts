@@ -102,23 +102,24 @@ describe("chQuery", () => {
 		expect(querySpy).not.toHaveBeenCalled();
 	});
 
-	test("always reads the logical rows of replacing tables", async () => {
+	test("finalizes only delivery tables without enabling blanket FINAL", async () => {
 		let settings: Record<string, string | number> | undefined;
+		let query = "";
 		spyOn(clickHouse, "query").mockImplementation(async (options) => {
 			settings = options.clickhouse_settings as Record<string, string | number>;
+			query = options.query;
 			return {
 				close: () => undefined,
 				json: async () => ({ data: [] }),
 			} as unknown as ResultSet<"JSON">;
 		});
 
-		await chQuery("SELECT count() FROM analytics.events", undefined, {
-			clickhouse_settings: { final: 0 },
-		});
+		await chQuery("SELECT count() FROM analytics.events");
 
 		expect(settings).toMatchObject({
 			do_not_merge_across_partitions_select_final: 1,
-			final: 1,
 		});
+		expect(settings).not.toHaveProperty("final");
+		expect(query).toBe("SELECT count() FROM analytics.events FINAL");
 	});
 });

@@ -10,6 +10,7 @@ The migration covers every Basket/Vector table with a stable row identity:
 | Table | Logical identity |
 | --- | --- |
 | `analytics.events` | `(client_id, id)` |
+| `analytics.link_visits` | `(link_id, id)` |
 | `analytics.outgoing_links` | `(client_id, id)` |
 | `analytics.custom_events` | `(owner_id, delivery_id)` |
 | `analytics.error_spans` | `(client_id, delivery_id)` |
@@ -29,7 +30,8 @@ when the base event is later replaced.
 
 1. Apply `20260801_add_span_delivery_ids.sql` everywhere.
 2. Deploy Basket code that assigns a stable `delivery_id`, and deploy the
-   shared ClickHouse reader with `final = 1` before changing any engine.
+   shared ClickHouse reader that adds `FINAL` only to delivery-table relations
+   before changing any engine.
 3. Keep Vector acknowledgements enabled and wait for Kafka consumer lag to
    reach zero. Confirm newly inserted custom/error/vital rows have non-empty
    delivery IDs. Old empty IDs are allowed.
@@ -37,8 +39,8 @@ when the base event is later replaced.
    confirm the production cluster name. Commands below use
    `databuddy_cluster`; stop if the live name differs.
 5. Take and verify a ClickHouse backup. Benchmark representative `FINAL`
-   queries before cutover; the identity-first sorting keys trade some time
-   locality for correct row replacement.
+   queries before cutover. The new sorting keys retain every existing
+   tenant/time dimension and append stable identity.
 
 Stable retries must retain their original event timestamp. This keeps every
 version in the same date/month partition and makes
@@ -46,13 +48,14 @@ version in the same date/month partition and makes
 
 ## 1. Create shadow tables
 
-On every replica, create these six tables from the corresponding reference DDL
+On every replica, create these seven tables from the corresponding reference DDL
 in `../schema`. Change only the table name; keep the `_delivery_v2` Keeper path
 already present in each reference definition.
 
 | Reference file | Shadow table |
 | --- | --- |
 | `analytics/core/events.sql` | `analytics.events_delivery_v2` |
+| `analytics/links/link_visits.sql` | `analytics.link_visits_delivery_v2` |
 | `analytics/core/custom_events.sql` | `analytics.custom_events_delivery_v2` |
 | `analytics/errors/error_spans.sql` | `analytics.error_spans_delivery_v2` |
 | `analytics/web-vitals/web_vitals_spans.sql` | `analytics.web_vitals_spans_delivery_v2` |
@@ -84,6 +87,10 @@ AS SELECT *, now64(6) AS ingested_at FROM analytics.events;
 CREATE MATERIALIZED VIEW analytics.outgoing_links_delivery_mirror_mv
 TO analytics.outgoing_links_delivery_v2
 AS SELECT *, now64(6) AS ingested_at FROM analytics.outgoing_links;
+
+CREATE MATERIALIZED VIEW analytics.link_visits_delivery_mirror_mv
+TO analytics.link_visits_delivery_v2
+AS SELECT *, now64(6) AS ingested_at FROM analytics.link_visits;
 
 CREATE MATERIALIZED VIEW analytics.custom_events_delivery_mirror_mv
 TO analytics.custom_events_delivery_v2
@@ -128,6 +135,10 @@ FROM analytics.events;
 INSERT INTO analytics.outgoing_links_delivery_v2
 SELECT *, toDateTime64(timestamp, 6, 'UTC') AS ingested_at
 FROM analytics.outgoing_links;
+
+INSERT INTO analytics.link_visits_delivery_v2
+SELECT *, toDateTime64(timestamp, 6, 'UTC') AS ingested_at
+FROM analytics.link_visits;
 
 INSERT INTO analytics.custom_events_delivery_v2
 SELECT *, toDateTime64(timestamp, 6, 'UTC') AS ingested_at
@@ -192,6 +203,11 @@ SELECT
 FROM analytics.outgoing_links;
 
 SELECT
+    uniqExact((link_id, id)) AS expected,
+    (SELECT count() FROM analytics.link_visits_delivery_v2 FINAL) AS actual
+FROM analytics.link_visits;
+
+SELECT
     uniqExactIf((client_id, id), event_name = 'screen_view') AS expected,
     (SELECT count() FROM analytics.daily_pageviews_delivery_v2 FINAL) AS actual
 FROM analytics.events;
@@ -203,15 +219,16 @@ mismatch.
 
 ## 5. Pause, drain, and exchange names
 
-1. Pause Basket and every other producer of the five source topics.
+1. Pause Basket, Links, and every other producer of the six source topics.
 2. Leave Vector running until Kafka lag reaches zero, then stop Vector.
-3. Wait for all six source and shadow replica queues to reach zero.
+3. Wait for all seven source and shadow replica queues to reach zero.
 4. Re-run the validation queries.
 5. Drop the old aggregate view and all transient mirror views on the cluster.
 
 ```sql
 DROP TABLE analytics.daily_pageviews_mv ON CLUSTER databuddy_cluster SYNC;
 DROP TABLE analytics.events_delivery_mirror_mv ON CLUSTER databuddy_cluster SYNC;
+DROP TABLE analytics.link_visits_delivery_mirror_mv ON CLUSTER databuddy_cluster SYNC;
 DROP TABLE analytics.outgoing_links_delivery_mirror_mv ON CLUSTER databuddy_cluster SYNC;
 DROP TABLE analytics.custom_events_delivery_mirror_mv ON CLUSTER databuddy_cluster SYNC;
 DROP TABLE analytics.error_spans_delivery_mirror_mv ON CLUSTER databuddy_cluster SYNC;
@@ -224,6 +241,7 @@ keeps the old table under the `_delivery_v2` name for rollback.
 
 ```sql
 EXCHANGE TABLES analytics.events AND analytics.events_delivery_v2 ON CLUSTER databuddy_cluster;
+EXCHANGE TABLES analytics.link_visits AND analytics.link_visits_delivery_v2 ON CLUSTER databuddy_cluster;
 EXCHANGE TABLES analytics.outgoing_links AND analytics.outgoing_links_delivery_v2 ON CLUSTER databuddy_cluster;
 EXCHANGE TABLES analytics.custom_events AND analytics.custom_events_delivery_v2 ON CLUSTER databuddy_cluster;
 EXCHANGE TABLES analytics.error_spans AND analytics.error_spans_delivery_v2 ON CLUSTER databuddy_cluster;
@@ -238,13 +256,13 @@ row under `FINAL`, then resume Vector and Basket in that order.
 
 The `_delivery_v2` names now contain the old tables. Keep them only for the
 agreed rollback window. They will appear as expected temporary extras in
-`ch:verify`. After the observation window, drop those six backups on the
+`ch:verify`. After the observation window, drop those seven backups on the
 cluster and run `bun run ch:verify`; all managed objects must then match.
 
 ## Rollback
 
 Pause and drain ingestion again, drop the new `daily_pageviews_mv`, and run the
-same six `EXCHANGE TABLES` statements to restore the old tables. Recreate the
+same seven `EXCHANGE TABLES` statements to restore the old tables. Recreate the
 old aggregate view definition (`countIf(event_name = 'screen_view') GROUP BY
 client_id, date`) before resuming. Do not drop either side until the rollback
 window and backup verification are complete.
