@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { SIGNUP_METHODS } from "@databuddy/shared/custom-events";
 import {
+	clearOnboardingAttribution,
 	consumePendingSocialSignup,
 	isSocialSignupMethod,
+	readOnboardingAttribution,
+	storeOnboardingAttribution,
 	storePendingSocialSignup,
 } from "./app-events";
 
@@ -63,5 +66,51 @@ describe("isSocialSignupMethod", () => {
 			wolref: "web-origin-reference",
 		});
 		expect(consumePendingSocialSignup()).toBeNull();
+	});
+
+	it("preserves marketing attribution for onboarding activation events", () => {
+		installSessionStorageMock();
+
+		storeOnboardingAttribution({
+			oppref: " openai-reference ",
+			plan: " scale ",
+			utm_campaign: "competitors",
+			utm_content: "ai_analytics_for_startups",
+			utm_medium: "paid",
+			utm_source: "openai_ads",
+			wolref: "w".repeat(200),
+		});
+
+		expect(readOnboardingAttribution()).toEqual({
+			oppref: "openai-reference",
+			plan: "scale",
+			utm_campaign: "competitors",
+			utm_content: "ai_analytics_for_startups",
+			utm_medium: "paid",
+			utm_source: "openai_ads",
+			wolref: "w".repeat(160),
+		});
+
+		clearOnboardingAttribution();
+		expect(readOnboardingAttribution()).toEqual({});
+	});
+
+	it("also stores onboarding attribution when preserving social signup state", () => {
+		installSessionStorageMock();
+
+		storePendingSocialSignup({
+			method: "social_github",
+			utm_campaign: "competitors",
+			utm_content: "analytics_you_can_ask",
+			utm_medium: "paid",
+			utm_source: "openai_ads",
+		});
+
+		expect(readOnboardingAttribution()).toEqual({
+			utm_campaign: "competitors",
+			utm_content: "analytics_you_can_ask",
+			utm_medium: "paid",
+			utm_source: "openai_ads",
+		});
 	});
 });

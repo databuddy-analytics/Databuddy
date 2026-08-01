@@ -6,6 +6,7 @@ import type {
 	AppEventNameWithProperties,
 	AppEventProperties,
 	EmptyAppEventName,
+	OnboardingAttributionProperties,
 	SignupEventProperties,
 	SignupMethod,
 } from "@databuddy/shared/custom-events";
@@ -21,10 +22,12 @@ export {
 	readUtmProperties,
 } from "@databuddy/shared/custom-events";
 export type {
+	OnboardingAttributionProperties,
 	SignupEventProperties,
 	SignupMethod,
 } from "@databuddy/shared/custom-events";
 
+const ONBOARDING_ATTRIBUTION_KEY = "databuddy.onboardingAttribution";
 const PENDING_SOCIAL_SIGNUP_KEY = "databuddy.pendingSocialSignup";
 
 interface TrackOptions {
@@ -79,20 +82,15 @@ function trimStoredString(value: unknown, maxLength = 160): string | undefined {
 	return trimmed ? trimmed.slice(0, maxLength) : undefined;
 }
 
-function readStoredSignupProperties(
+function readStoredOnboardingAttribution(
 	value: unknown
-): SignupEventProperties | null {
+): OnboardingAttributionProperties {
 	if (!value || typeof value !== "object") {
-		return null;
+		return {};
 	}
 
 	const source = value as Record<string, unknown>;
-	const method = source.method;
-	if (!(isSignupMethod(method) && SOCIAL_SIGNUP_METHODS.has(method))) {
-		return null;
-	}
-
-	const properties: SignupEventProperties = { method };
+	const properties: OnboardingAttributionProperties = {};
 	const plan = trimStoredString(source.plan);
 	if (plan) {
 		properties.plan = plan;
@@ -108,12 +106,76 @@ function readStoredSignupProperties(
 	return properties;
 }
 
+function hasOnboardingAttribution(
+	properties: OnboardingAttributionProperties
+): boolean {
+	return Boolean(
+		properties.plan || MARKETING_PARAM_KEYS.some((key) => properties[key])
+	);
+}
+
+function readStoredSignupProperties(
+	value: unknown
+): SignupEventProperties | null {
+	if (!value || typeof value !== "object") {
+		return null;
+	}
+
+	const source = value as Record<string, unknown>;
+	const method = source.method;
+	if (!(isSignupMethod(method) && SOCIAL_SIGNUP_METHODS.has(method))) {
+		return null;
+	}
+
+	return { ...readStoredOnboardingAttribution(source), method };
+}
+
+export function storeOnboardingAttribution(
+	properties: OnboardingAttributionProperties
+): void {
+	const attribution = readStoredOnboardingAttribution(properties);
+	if (!hasOnboardingAttribution(attribution)) {
+		return;
+	}
+
+	try {
+		sessionStorage.setItem(
+			ONBOARDING_ATTRIBUTION_KEY,
+			JSON.stringify(attribution)
+		);
+	} catch {
+		// Session storage can be unavailable in hardened browser contexts.
+	}
+}
+
+export function readOnboardingAttribution(): OnboardingAttributionProperties {
+	try {
+		const raw = sessionStorage.getItem(ONBOARDING_ATTRIBUTION_KEY);
+		if (!raw) {
+			return {};
+		}
+		return readStoredOnboardingAttribution(JSON.parse(raw));
+	} catch {
+		return {};
+	}
+}
+
+export function clearOnboardingAttribution(): void {
+	try {
+		sessionStorage.removeItem(ONBOARDING_ATTRIBUTION_KEY);
+	} catch {
+		// Session storage can be unavailable in hardened browser contexts.
+	}
+}
+
 export function storePendingSocialSignup(
 	properties: SignupEventProperties
 ): void {
 	if (!SOCIAL_SIGNUP_METHODS.has(properties.method)) {
 		return;
 	}
+
+	storeOnboardingAttribution(properties);
 
 	try {
 		sessionStorage.setItem(

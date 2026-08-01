@@ -6,7 +6,11 @@ import { trackOpenAiRegistrationCompleted } from "@/components/openai-ads-pixel"
 import { useWebsitesLight } from "@/hooks/use-websites";
 import {
 	APP_EVENTS,
+	clearOnboardingAttribution,
 	consumePendingSocialSignup,
+	readOnboardingAttribution,
+	storeOnboardingAttribution,
+	type OnboardingAttributionProperties,
 	trackAppEvent,
 } from "@/lib/app-events";
 import { OnboardingStepIndicator } from "./_components/onboarding-step-indicator";
@@ -51,6 +55,10 @@ export default function OnboardingPage() {
 	const [currentStep, setCurrentStep] = useState(0);
 	const [completedSteps, setCompletedSteps] = useState<Set<string>>(new Set());
 	const [createdWebsiteId, setCreatedWebsiteId] = useState<string | null>(null);
+	const [attribution, setAttribution] =
+		useState<OnboardingAttributionProperties>(() =>
+			readOnboardingAttribution()
+		);
 
 	const hasWebsite = websites && websites.length > 0;
 	const websiteId = createdWebsiteId ?? websites?.[0]?.id ?? null;
@@ -81,13 +89,17 @@ export default function OnboardingPage() {
 	// Track onboarding start once
 	useEffect(() => {
 		const signupProperties = consumePendingSocialSignup();
+		const onboardingAttribution =
+			signupProperties ?? readOnboardingAttribution();
 		if (signupProperties) {
+			storeOnboardingAttribution(signupProperties);
 			trackAppEvent(APP_EVENTS.signupCompleted, signupProperties, {
 				flush: true,
 			});
 			trackOpenAiRegistrationCompleted();
 		}
-		trackAppEvent(APP_EVENTS.onboardingStarted);
+		setAttribution(onboardingAttribution);
+		trackAppEvent(APP_EVENTS.onboardingStarted, onboardingAttribution);
 	}, []);
 
 	const markComplete = useCallback((stepId: StepId) => {
@@ -133,8 +145,9 @@ export default function OnboardingPage() {
 		}
 		onboardingCompletedRef.current = true;
 		markComplete("explore");
-		trackAppEvent(APP_EVENTS.onboardingCompleted);
-	}, [markComplete]);
+		trackAppEvent(APP_EVENTS.onboardingCompleted, attribution);
+		clearOnboardingAttribution();
+	}, [attribution, markComplete]);
 
 	const handleExploreComplete = useCallback(() => {
 		recordExploreComplete();
@@ -207,7 +220,12 @@ export default function OnboardingPage() {
 	const renderStep = () => {
 		switch (STEPS[currentStep].id) {
 			case "website":
-				return <StepCreateWebsite onComplete={handleWebsiteCreated} />;
+				return (
+					<StepCreateWebsite
+						attribution={attribution}
+						onComplete={handleWebsiteCreated}
+					/>
+				);
 			case "tracking":
 				return (
 					<StepInstallTracking

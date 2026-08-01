@@ -11,6 +11,7 @@ import VisuallyHidden from "@/components/ui/visuallyhidden";
 import {
 	APP_EVENTS,
 	readMarketingProperties,
+	storeOnboardingAttribution,
 	storePendingSocialSignup,
 	type SignupEventProperties,
 	type SignupMethod,
@@ -111,6 +112,7 @@ function RegisterPageContent() {
 			callbackURL: getCallbackUrl(),
 			fetchOptions: {
 				onSuccess: () => {
+					storeOnboardingAttribution(signupProperties);
 					trackSignup(APP_EVENTS.signupCompleted, signupProperties);
 					trackOpenAiRegistrationCompleted();
 					toast.success(
