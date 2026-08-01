@@ -32,6 +32,7 @@ const transaction = mock(
 );
 
 let configuredQueryTimeoutMs: number | undefined;
+let queryTimeoutOverrideMs: number | undefined;
 
 mock.module("@databuddy/db", () => ({
 	db: {
@@ -66,7 +67,27 @@ mock.module("@databuddy/redis", () => ({
 				return existing;
 			}
 
-			const shared = lookup(...args).finally(() => inFlight.delete(key));
+			const raw = lookup(...args);
+			const timeoutMs = queryTimeoutOverrideMs ?? options.queryTimeoutMs;
+			let timer: ReturnType<typeof setTimeout> | undefined;
+			const bounded =
+				timeoutMs === undefined
+					? raw
+					: Promise.race([
+							raw,
+							new Promise<never>((_, reject) => {
+								timer = setTimeout(
+									() => reject(new Error("Query timeout")),
+									timeoutMs
+								);
+							}),
+						]);
+			const shared = bounded.finally(() => {
+				if (timer) {
+					clearTimeout(timer);
+				}
+				inFlight.delete(key);
+			});
 			inFlight.set(key, shared);
 			return shared;
 		};
@@ -77,9 +98,11 @@ mock.module("@databuddy/redis", () => ({
 	redis: { set: redisSet },
 }));
 
-const { API_KEY_STATEMENT_TIMEOUT_MS, resolveApiKeySecret } = await import(
-	"./resolve"
-);
+const {
+	API_KEY_LOOKUP_TIMEOUT_MS,
+	API_KEY_STATEMENT_TIMEOUT_MS,
+	resolveApiKeySecret,
+} = await import("./resolve");
 
 describe("API key database deadline", () => {
 	beforeEach(() => {
@@ -88,6 +111,7 @@ describe("API key database deadline", () => {
 		findApiKey.mockReset();
 		findApiKey.mockResolvedValue(null);
 		transaction.mockClear();
+		queryTimeoutOverrideMs = undefined;
 	});
 
 	afterAll(() => {
@@ -100,7 +124,8 @@ describe("API key database deadline", () => {
 		).resolves.toMatchObject({ outcome: "invalid" });
 
 		expect(API_KEY_STATEMENT_TIMEOUT_MS).toBe(5000);
-		expect(configuredQueryTimeoutMs).toBeUndefined();
+		expect(API_KEY_LOOKUP_TIMEOUT_MS).toBe(5000);
+		expect(configuredQueryTimeoutMs).toBe(API_KEY_LOOKUP_TIMEOUT_MS);
 		expect(calls).toEqual(["transaction", "statement-timeout", "lookup"]);
 		expect(transaction).toHaveBeenCalledTimes(1);
 		expect(execute).toHaveBeenCalledTimes(1);
@@ -134,5 +159,25 @@ describe("API key database deadline", () => {
 			resolveApiKeySecret("dbdy_stalled_lookup")
 		).resolves.toMatchObject({ outcome: "invalid" });
 		expect(findApiKey).toHaveBeenCalledTimes(2);
+	});
+
+	test("bounds pool acquisition before the transaction callback starts and retries", async () => {
+		queryTimeoutOverrideMs = 10;
+		transaction.mockImplementationOnce(
+			() => new Promise<never>(() => undefined)
+		);
+
+		await expect(
+			resolveApiKeySecret("dbdy_waiting_for_pool")
+		).rejects.toThrow("Query timeout");
+		expect(transaction).toHaveBeenCalledTimes(1);
+		expect(execute).not.toHaveBeenCalled();
+		expect(findApiKey).not.toHaveBeenCalled();
+
+		await expect(
+			resolveApiKeySecret("dbdy_waiting_for_pool")
+		).resolves.toMatchObject({ outcome: "invalid" });
+		expect(transaction).toHaveBeenCalledTimes(2);
+		expect(findApiKey).toHaveBeenCalledTimes(1);
 	});
 });

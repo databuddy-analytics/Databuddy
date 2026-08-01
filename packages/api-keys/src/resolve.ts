@@ -18,7 +18,8 @@ interface KeyMetadata {
 
 export const keys = createKeys({ prefix: "dbdy_", length: 48 });
 
-export const API_KEY_STATEMENT_TIMEOUT_MS = 5000;
+export const API_KEY_LOOKUP_TIMEOUT_MS = 5000;
+export const API_KEY_STATEMENT_TIMEOUT_MS = API_KEY_LOOKUP_TIMEOUT_MS;
 
 export type ApiKeyResolveOutcome =
 	| "ok"
@@ -62,6 +63,7 @@ const getCachedApiKeyByHash = cacheable(
 	{
 		expireInSec: 30,
 		prefix: cacheNamespaces.apiKeyByHash,
+		queryTimeoutMs: API_KEY_LOOKUP_TIMEOUT_MS,
 	}
 );
 

@@ -1,7 +1,8 @@
 import { db, sql } from "@databuddy/db";
 import { cacheNamespaces, cacheable } from "@databuddy/redis";
 
-export const ORGANIZATION_STATEMENT_TIMEOUT_MS = 5000;
+export const ORGANIZATION_LOOKUP_TIMEOUT_MS = 5000;
+export const ORGANIZATION_STATEMENT_TIMEOUT_MS = ORGANIZATION_LOOKUP_TIMEOUT_MS;
 
 function withOrganizationStatementTimeout<T>(
 	query: (tx: Parameters<Parameters<typeof db.transaction>[0]>[0]) => Promise<T>
@@ -30,6 +31,7 @@ export const getOrganizationOwnerId = cacheable(
 	{
 		expireInSec: 300,
 		prefix: cacheNamespaces.organizationOwner,
+		queryTimeoutMs: ORGANIZATION_LOOKUP_TIMEOUT_MS,
 		staleWhileRevalidate: true,
 		staleTime: 60,
 	}
@@ -48,6 +50,7 @@ export const getMemberRole = cacheable(
 	{
 		expireInSec: 300,
 		prefix: cacheNamespaces.memberRole,
+		queryTimeoutMs: ORGANIZATION_LOOKUP_TIMEOUT_MS,
 		staleWhileRevalidate: true,
 		staleTime: 60,
 	}
