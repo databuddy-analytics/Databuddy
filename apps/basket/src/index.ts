@@ -23,6 +23,7 @@ import {
 import { sanitizeRequestId } from "@lib/request-id";
 import { buildBasketErrorPayload } from "@lib/structured-errors";
 import { captureError } from "@lib/tracing";
+import { BASKET_SHUTDOWN_TIMEOUT_MS } from "@lib/shutdown-budget";
 import basketRouter from "@routes/basket";
 import { identifyRoute } from "@routes/identify";
 import { trackRoute } from "@routes/track";
@@ -57,7 +58,6 @@ if (!process.env.DATABUDDY_ENCRYPTION_KEY) {
 	});
 }
 
-const SHUTDOWN_TIMEOUT_MS = 10_000;
 let shutdownStarted = false;
 
 async function gracefulShutdown(signal: string, exitCode = 0) {
@@ -72,7 +72,7 @@ async function gracefulShutdown(signal: string, exitCode = 0) {
 			message: "Graceful shutdown timed out",
 		});
 		process.exit(1);
-	}, SHUTDOWN_TIMEOUT_MS);
+	}, BASKET_SHUTDOWN_TIMEOUT_MS);
 	timeout.unref?.();
 
 	let finalExitCode = exitCode;

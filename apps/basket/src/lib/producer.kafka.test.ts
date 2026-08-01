@@ -93,22 +93,29 @@ afterAll(async () => {
 });
 
 describe("producer Kafka send failure handling", () => {
-	test("falls back to direct ClickHouse writes and still disconnects on shutdown", async () => {
-		await runPromise(
-			send("analytics-events", {
-				client_id: "ws_1",
-				event_id: "event_1",
-				timestamp: Date.now(),
-			})
-		);
+	test("rejects retries during an ambiguous-send cooldown", async () => {
+		await expect(
+			runPromise(
+				send("analytics-events", {
+					client_id: "ws_1",
+					event_id: "event_1",
+					timestamp: Date.now(),
+				})
+			)
+		).rejects.toMatchObject({ _tag: "KafkaSendError" });
 
-		await runPromise(
-			send("analytics-events", {
-				client_id: "ws_1",
-				event_id: "event_2",
-				timestamp: Date.now(),
-			})
-		);
+		await expect(
+			runPromise(
+				send("analytics-events", {
+					client_id: "ws_1",
+					event_id: "event_2",
+					timestamp: Date.now(),
+				})
+			)
+		).rejects.toMatchObject({
+			_tag: "ProducerUnavailableError",
+			reason: "ambiguous-kafka-send",
+		});
 
 		const stats = await runPromise(getStats);
 
@@ -116,8 +123,8 @@ describe("producer Kafka send failure handling", () => {
 		expect(mockProducer).toHaveBeenCalledTimes(1);
 		expect(mockConnect).toHaveBeenCalledTimes(1);
 		expect(mockSend).toHaveBeenCalledTimes(1);
-		expect(mockClickHouseInsert).toHaveBeenCalledTimes(2);
-		expect(stats?.sent).toBe(2);
+		expect(mockClickHouseInsert).not.toHaveBeenCalled();
+		expect(stats?.sent).toBe(0);
 		expect(stats?.connected).toBe(false);
 		expect(stats?.failed).toBe(true);
 		expect(stats?.failedCount).toBe(1);

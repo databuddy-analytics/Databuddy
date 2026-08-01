@@ -68,10 +68,10 @@ describe("parseEventId", () => {
 		expect(parseEventId(undefined, gen)).toBe("generated-uuid"));
 	test("number → calls generator", () =>
 		expect(parseEventId(123, gen)).toBe("generated-uuid"));
-	test("long string → truncated to 255", () => {
-		const long = "a".repeat(300);
+	test("long string → truncated to event id limit", () => {
+		const long = "a".repeat(600);
 		const result = parseEventId(long, gen);
-		expect(result.length).toBe(255);
+		expect(result.length).toBe(512);
 	});
 	test("generator called only when needed", () => {
 		let called = false;
