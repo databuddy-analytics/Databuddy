@@ -11,8 +11,9 @@ const STANDARD_EVENT_TTL = 86_400;
 const PENDING_DEDUP_TTL = 120;
 const DEDUP_RETRY_DELAY_MS = 25;
 export const DEDUP_RESERVATION_TIMEOUT_MS = 750;
-const DEDUP_BYPASS_COOLDOWN_MS = 5000;
+const DEDUP_FAILURE_COOLDOWN_MS = 5000;
 const PENDING_DEDUP_PREFIX = "pending:";
+const AMBIGUOUS_PENDING_PREFIX = "ambiguous-pending:";
 const DELIVERED_DEDUP_VALUE = "delivered";
 const AMBIGUOUS_DEDUP_VALUE = "ambiguous";
 const RELEASE_PENDING_DEDUP_RESERVATION = `if redis.call("GET", KEYS[1]) == ARGV[1] then
@@ -27,37 +28,58 @@ const MARK_PENDING_DEDUP_RESERVATION_AMBIGUOUS = `if redis.call("GET", KEYS[1]) 
 	return redis.call("SET", KEYS[1], ARGV[2], "EX", ARGV[3])
 end
 return 0`;
-const CLAIM_AMBIGUOUS_DEDUP_RESERVATION = `if redis.call("GET", KEYS[1]) == ARGV[1] then
+const CLAIM_AMBIGUOUS_DEDUP_RESERVATION = `local value = redis.call("GET", KEYS[1])
+if value == ARGV[1] or value == ARGV[2] then
 	redis.call("SET", KEYS[1], ARGV[2], "EX", ARGV[3])
 	return 1
+end
+if value and string.sub(value, 1, string.len(ARGV[5])) == ARGV[5] then
+	local claimed_at = tonumber(string.match(value, "^ambiguous%-pending:(%d+):"))
+	if claimed_at and claimed_at <= tonumber(ARGV[4]) then
+		redis.call("SET", KEYS[1], ARGV[2], "EX", ARGV[3])
+		return 1
+	end
 end
 return 0`;
 const RESERVE_DEDUP_BATCH = `local states = {}
 for i, key in ipairs(KEYS) do
 	local value = redis.call("GET", key)
-	if value == ARGV[2] then
+	if value == ARGV[3] then
 		states[i] = "delivered"
-	elseif value == ARGV[3] then
+	elseif value == ARGV[2] or value == ARGV[4] then
 		states[i] = "ambiguous-acquired"
 	elseif value == ARGV[1] or not value then
 		states[i] = "acquired"
+	elseif string.sub(value, 1, string.len(ARGV[7])) == ARGV[7] then
+		local claimed_at = tonumber(string.match(value, "^ambiguous%-pending:(%d+):"))
+		if claimed_at and claimed_at <= tonumber(ARGV[6]) then
+			states[i] = "ambiguous-acquired"
+		else
+			return { "retryable" }
+		end
 	else
 		return { "retryable" }
 	end
 end
 for i, key in ipairs(KEYS) do
-	if states[i] == "acquired" or states[i] == "ambiguous-acquired" then
-		redis.call("SET", key, ARGV[1], "EX", ARGV[4])
+	if states[i] == "acquired" then
+		redis.call("SET", key, ARGV[1], "EX", ARGV[5])
+	elseif states[i] == "ambiguous-acquired" then
+		redis.call("SET", key, ARGV[2], "EX", ARGV[7 + i])
 	end
 end
 return states`;
-const RELEASE_DEDUP_BATCH = `local released = 0
-for _, key in ipairs(KEYS) do
-	if redis.call("GET", key) == ARGV[1] then
-		released = released + redis.call("DEL", key)
+const RECONCILE_LATE_DEDUP_BATCH = `local reconciled = 0
+for i, key in ipairs(KEYS) do
+	local value = redis.call("GET", key)
+	if value == ARGV[1] then
+		reconciled = reconciled + redis.call("DEL", key)
+	elseif value == ARGV[2] then
+		redis.call("SET", key, ARGV[3], "EX", ARGV[3 + i])
+		reconciled = reconciled + 1
 	end
 end
-return released`;
+return reconciled`;
 
 const RAW_VISITOR_ID_COUNTRIES = ["US"];
 const COUNTRY_CODES: Record<string, string> = {
@@ -66,47 +88,13 @@ const COUNTRY_CODES: Record<string, string> = {
 	"UNITED STATES OF AMERICA": "US",
 };
 
-let dedupBypassUntil = 0;
-const timedOutReservationKeys = new Map<string, number>();
-let timedOutReservationCleanup: ReturnType<typeof setTimeout> | undefined;
+let dedupUnavailableUntil = 0;
 
 class DeduplicationDeadlineError extends Error {}
 
 /** @internal */
 export function resetDeduplicationCircuitForTesting(): void {
-	dedupBypassUntil = 0;
-	timedOutReservationKeys.clear();
-	if (timedOutReservationCleanup) {
-		clearTimeout(timedOutReservationCleanup);
-		timedOutReservationCleanup = undefined;
-	}
-}
-
-function scheduleTimedOutReservationCleanup(): void {
-	if (timedOutReservationCleanup) {
-		return;
-	}
-	const cleanup = () => {
-		timedOutReservationCleanup = undefined;
-		const now = Date.now();
-		let nextExpiry = Number.POSITIVE_INFINITY;
-		for (const [key, expiresAt] of timedOutReservationKeys) {
-			if (expiresAt <= now) {
-				timedOutReservationKeys.delete(key);
-			} else {
-				nextExpiry = Math.min(nextExpiry, expiresAt);
-			}
-		}
-		if (Number.isFinite(nextExpiry)) {
-			timedOutReservationCleanup = setTimeout(
-				cleanup,
-				Math.max(1, nextExpiry - now)
-			);
-			timedOutReservationCleanup.unref?.();
-		}
-	};
-	timedOutReservationCleanup = setTimeout(cleanup, DEDUP_BYPASS_COOLDOWN_MS);
-	timedOutReservationCleanup.unref?.();
+	dedupUnavailableUntil = 0;
 }
 
 function withDedupDeadline<T>(
@@ -267,13 +255,20 @@ type DedupReservationState =
 
 async function readDedupReservationState(
 	key: string,
-	token: string
+	token: string,
+	ambiguousToken: string
 ): Promise<DedupReservationState> {
 	const value = await redis.get(key);
 	if (value === DELIVERED_DEDUP_VALUE) {
 		return "delivered";
 	}
-	if (value === AMBIGUOUS_DEDUP_VALUE) {
+	if (value === ambiguousToken) {
+		return "ambiguous-acquired";
+	}
+	if (
+		value === AMBIGUOUS_DEDUP_VALUE ||
+		value?.startsWith(AMBIGUOUS_PENDING_PREFIX)
+	) {
 		return "ambiguous";
 	}
 	if (value === token) {
@@ -285,10 +280,12 @@ async function readDedupReservationState(
 async function setDedupKey(
 	key: string,
 	ttl: number,
-	token: string
+	token: string,
+	ambiguousToken: string,
+	deliveredTtl: number
 ): Promise<DedupReservationState> {
 	const resolveExistingState = async (): Promise<DedupReservationState> => {
-		const state = await readDedupReservationState(key, token);
+		const state = await readDedupReservationState(key, token, ambiguousToken);
 		if (state !== "ambiguous") {
 			return state;
 		}
@@ -297,13 +294,15 @@ async function setDedupKey(
 			1,
 			key,
 			AMBIGUOUS_DEDUP_VALUE,
-			token,
-			PENDING_DEDUP_TTL
+			ambiguousToken,
+			deliveredTtl,
+			Date.now() - PENDING_DEDUP_TTL * 1000,
+			AMBIGUOUS_PENDING_PREFIX
 		);
 		if (claimed === 1) {
 			return "ambiguous-acquired";
 		}
-		const current = await readDedupReservationState(key, token);
+		const current = await readDedupReservationState(key, token, ambiguousToken);
 		return current === "ambiguous" ? "pending" : current;
 	};
 
@@ -348,23 +347,24 @@ export function reserveDuplicate(
 	return record("reserveDuplicate", async () => {
 		const key = `dedup:${eventType}:${eventId}`;
 		const now = Date.now();
-		const timedOutUntil = timedOutReservationKeys.get(key);
-		if (timedOutUntil && now < timedOutUntil) {
+		if (now < dedupUnavailableUntil) {
 			return { duplicate: false, retryable: true };
-		}
-		if (timedOutUntil) {
-			timedOutReservationKeys.delete(key);
-		}
-		if (now < dedupBypassUntil) {
-			return { duplicate: false };
 		}
 
 		const deliveredTtl = sourceEventId.startsWith("exit_")
 			? EXIT_EVENT_TTL
 			: STANDARD_EVENT_TTL;
-		const token = `${PENDING_DEDUP_PREFIX}${crypto.randomUUID()}`;
+		const tokenId = crypto.randomUUID();
+		const token = `${PENDING_DEDUP_PREFIX}${tokenId}`;
+		const ambiguousToken = `${AMBIGUOUS_PENDING_PREFIX}${now}:${tokenId}`;
 
-		const reservationOperation = setDedupKey(key, PENDING_DEDUP_TTL, token);
+		const reservationOperation = setDedupKey(
+			key,
+			PENDING_DEDUP_TTL,
+			token,
+			ambiguousToken,
+			deliveredTtl
+		);
 		try {
 			const result = await withDedupDeadline(reservationOperation);
 			if (result === "delivered") {
@@ -387,7 +387,7 @@ export function reserveDuplicate(
 				duplicate: false,
 				deliveredTtl,
 				key,
-				token,
+				token: result === "ambiguous-acquired" ? ambiguousToken : token,
 			};
 		} catch (error) {
 			if (error instanceof DeduplicationDeadlineError) {
@@ -396,12 +396,22 @@ export function reserveDuplicate(
 				// token so it cannot strand an ownerless 120-second reservation.
 				reservationOperation
 					.then(async (state) => {
-						if (!(state === "acquired" || state === "ambiguous-acquired")) {
-							return;
+						if (state === "ambiguous-acquired") {
+							await withDedupDeadline(
+								redis.eval(
+									MARK_PENDING_DEDUP_RESERVATION_AMBIGUOUS,
+									1,
+									key,
+									ambiguousToken,
+									AMBIGUOUS_DEDUP_VALUE,
+									deliveredTtl
+								)
+							);
+						} else if (state === "acquired") {
+							await withDedupDeadline(
+								redis.eval(RELEASE_PENDING_DEDUP_RESERVATION, 1, key, token)
+							);
 						}
-						await withDedupDeadline(
-							redis.eval(RELEASE_PENDING_DEDUP_RESERVATION, 1, key, token)
-						);
 					})
 					.catch((cleanupError) => {
 						captureError(cleanupError, {
@@ -409,23 +419,16 @@ export function reserveDuplicate(
 						});
 					});
 			}
-			dedupBypassUntil = Date.now() + DEDUP_BYPASS_COOLDOWN_MS;
-			if (error instanceof DeduplicationDeadlineError) {
-				timedOutReservationKeys.set(key, dedupBypassUntil);
-				scheduleTimedOutReservationCleanup();
-			}
+			dedupUnavailableUntil = Date.now() + DEDUP_FAILURE_COOLDOWN_MS;
 			captureError(error, {
 				message: "Failed to check duplicate event in Redis",
 				eventId,
 				eventType,
 			});
-			if (error instanceof DeduplicationDeadlineError) {
-				// The SET outcome is unknown, so this particular payload must not be
-				// published fail-open. Distinct events may use the short circuit-breaker
-				// bypass while the late operation is reconciled above.
-				return { duplicate: false, retryable: true };
-			}
-			return { duplicate: false };
+			// Redis writes have unknown outcomes on timeouts and connection resets.
+			// Reject admission until the short circuit breaker elapses instead of
+			// publishing without an owner and potentially changing delivery sinks.
+			return { duplicate: false, retryable: true };
 		}
 	});
 }
@@ -442,14 +445,30 @@ function deliveredTtlFor(sourceEventId: string): number {
 		: STANDARD_EVENT_TTL;
 }
 
-type BatchDedupReservationState = DedupReservationState | "retryable";
+type BatchDedupReservationState =
+	| "acquired"
+	| "ambiguous-acquired"
+	| "delivered"
+	| "retryable";
 
 function parseBatchReservationStates(
-	value: unknown
+	value: unknown,
+	expectedCount: number
 ): BatchDedupReservationState[] {
+	if (!Array.isArray(value)) {
+		throw new Error("Redis returned an invalid batch reservation result");
+	}
+	if (value.length === 1 && value[0] === "retryable") {
+		return ["retryable"];
+	}
+	const validStates = new Set<BatchDedupReservationState>([
+		"acquired",
+		"ambiguous-acquired",
+		"delivered",
+	]);
 	if (
-		!Array.isArray(value) ||
-		value.some((state) => typeof state !== "string")
+		value.length !== expectedCount ||
+		value.some((state) => !validStates.has(state))
 	) {
 		throw new Error("Redis returned an invalid batch reservation result");
 	}
@@ -472,38 +491,63 @@ export function reserveDuplicateBatch(
 			({ eventId, eventType }) => `dedup:${eventType}:${eventId}`
 		);
 		const now = Date.now();
-		for (const key of keys) {
-			const timedOutUntil = timedOutReservationKeys.get(key);
-			if (timedOutUntil && now < timedOutUntil) {
-				return inputs.map(() => ({ duplicate: false, retryable: true }));
-			}
-			if (timedOutUntil) {
-				timedOutReservationKeys.delete(key);
-			}
-		}
-		if (now < dedupBypassUntil) {
-			return inputs.map(() => ({ duplicate: false }));
+		if (now < dedupUnavailableUntil) {
+			return inputs.map(() => ({ duplicate: false, retryable: true }));
 		}
 
-		const token = `${PENDING_DEDUP_PREFIX}${crypto.randomUUID()}`;
-		const reservationOperation = redis
-			.eval(
-				RESERVE_DEDUP_BATCH,
+		const deliveredTtls = inputs.map((input) =>
+			deliveredTtlFor(input.sourceEventId ?? input.eventId)
+		);
+		const tokenId = crypto.randomUUID();
+		const token = `${PENDING_DEDUP_PREFIX}${tokenId}`;
+		const ambiguousToken = `${AMBIGUOUS_PENDING_PREFIX}${now}:${tokenId}`;
+		const executeReservation = () =>
+			redis
+				.eval(
+					RESERVE_DEDUP_BATCH,
+					keys.length,
+					...keys,
+					token,
+					ambiguousToken,
+					DELIVERED_DEDUP_VALUE,
+					AMBIGUOUS_DEDUP_VALUE,
+					PENDING_DEDUP_TTL,
+					now - PENDING_DEDUP_TTL * 1000,
+					AMBIGUOUS_PENDING_PREFIX,
+					...deliveredTtls
+				)
+				.then((value) => parseBatchReservationStates(value, inputs.length));
+		const reservationOperation = (async () => {
+			try {
+				return await executeReservation();
+			} catch (firstError) {
+				await wait(DEDUP_RETRY_DELAY_MS);
+				try {
+					// Retrying with the same normal and ambiguous ownership tokens is
+					// idempotent and recovers a reply lost after Redis executed EVAL.
+					return await executeReservation();
+				} catch {
+					throw firstError;
+				}
+			}
+		})();
+		const reconcileOwnedReservations = () =>
+			redis.eval(
+				RECONCILE_LATE_DEDUP_BATCH,
 				keys.length,
 				...keys,
 				token,
-				DELIVERED_DEDUP_VALUE,
+				ambiguousToken,
 				AMBIGUOUS_DEDUP_VALUE,
-				PENDING_DEDUP_TTL
-			)
-			.then(parseBatchReservationStates);
+				...deliveredTtls
+			);
 
 		try {
 			const states = await withDedupDeadline(reservationOperation);
 			if (states[0] === "retryable") {
 				return inputs.map(() => ({ duplicate: false, retryable: true }));
 			}
-			return inputs.map((input, index) => {
+			return inputs.map((_input, index) => {
 				const state = states[index];
 				if (state === "delivered") {
 					return { duplicate: true };
@@ -512,50 +556,41 @@ export function reserveDuplicateBatch(
 					...(state === "ambiguous-acquired"
 						? { ambiguous: true as const }
 						: {}),
-					deliveredTtl: deliveredTtlFor(input.sourceEventId ?? input.eventId),
+					deliveredTtl: deliveredTtls[index],
 					duplicate: false,
 					key: keys[index],
-					token,
+					token: state === "ambiguous-acquired" ? ambiguousToken : token,
 				};
 			});
 		} catch (error) {
 			if (error instanceof DeduplicationDeadlineError) {
 				reservationOperation
-					.then(async (states) => {
-						if (
-							!states.some(
-								(state) =>
-									state === "acquired" || state === "ambiguous-acquired"
-							)
-						) {
-							return;
-						}
-						await withDedupDeadline(
-							redis.eval(RELEASE_DEDUP_BATCH, keys.length, ...keys, token)
-						);
-					})
+					.then(() => withDedupDeadline(reconcileOwnedReservations()))
 					.catch((cleanupError) => {
 						captureError(cleanupError, {
 							message: "Failed to clean up late Redis batch reservations",
 						});
 					});
+			} else {
+				// The EVAL reply can be lost after mutation. Best-effort reconciliation
+				// releases fresh leases and restores Kafka ambiguity provenance.
+				withDedupDeadline(reconcileOwnedReservations()).catch(
+					(cleanupError) => {
+						captureError(cleanupError, {
+							message: "Failed to reconcile uncertain Redis batch reservations",
+						});
+					}
+				);
 			}
-			dedupBypassUntil = Date.now() + DEDUP_BYPASS_COOLDOWN_MS;
-			if (error instanceof DeduplicationDeadlineError) {
-				for (const key of keys) {
-					timedOutReservationKeys.set(key, dedupBypassUntil);
-				}
-				scheduleTimedOutReservationCleanup();
-			}
+			dedupUnavailableUntil = Date.now() + DEDUP_FAILURE_COOLDOWN_MS;
 			captureError(error, {
 				message: "Failed to reserve analytics batch in Redis",
 				eventCount: inputs.length,
 			});
-			return inputs.map(() =>
-				error instanceof DeduplicationDeadlineError
-					? { duplicate: false, retryable: true as const }
-					: { duplicate: false }
-			);
+			return inputs.map(() => ({
+				duplicate: false,
+				retryable: true as const,
+			}));
 		}
 	});
 }
