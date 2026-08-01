@@ -7,9 +7,12 @@ export interface RedisConnectionOptions {
 
 export interface LinkCacheRedisConnectionOptions
 	extends RedisConnectionOptions {
+	connectionName: string;
 	enableOfflineQueue: false;
 	lazyConnect: true;
 }
+
+export type RateLimitRedisConnectionOptions = LinkCacheRedisConnectionOptions;
 
 export function getRedisUrl(): string {
 	const url = process.env.REDIS_URL;
@@ -30,11 +33,19 @@ export function createRedisConnectionOptions(): RedisConnectionOptions {
 
 export function createLinkCacheRedisConnectionOptions(): LinkCacheRedisConnectionOptions {
 	return {
+		connectionName: "databuddy-link-cache",
 		connectTimeout: 1000,
 		commandTimeout: 1000,
 		enableOfflineQueue: false,
 		lazyConnect: true,
 		maxRetriesPerRequest: 1,
 		retryStrategy: () => null,
+	};
+}
+
+export function createRateLimitRedisConnectionOptions(): RateLimitRedisConnectionOptions {
+	return {
+		...createLinkCacheRedisConnectionOptions(),
+		connectionName: "databuddy-rate-limit",
 	};
 }

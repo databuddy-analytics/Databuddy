@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { getRedisCache } from "./redis";
+import { runRateLimitCommand } from "./redis";
 
-interface RateLimitResult {
+export interface RateLimitResult {
+	degraded?: boolean;
 	limit: number;
 	remaining: number;
 	reset: number;
@@ -13,14 +14,14 @@ export async function ratelimit(
 	limit: number,
 	windowSeconds: number
 ): Promise<RateLimitResult> {
-	const redis = getRedisCache();
 	const now = Date.now();
 	const windowMs = windowSeconds * 1000;
 	const key = `rl:${identifier}`;
 
 	try {
-		const result = (await redis.eval(
-			`local key = KEYS[1]
+		const result = (await runRateLimitCommand((redis) =>
+			redis.eval(
+				`local key = KEYS[1]
 local now = tonumber(ARGV[1])
 local window_ms = tonumber(ARGV[2])
 local limit = tonumber(ARGV[3])
@@ -36,13 +37,14 @@ if count < limit then
 end
 redis.call("EXPIRE", key, window_seconds)
 return { success, count }`,
-			1,
-			key,
-			String(now),
-			String(windowMs),
-			String(limit),
-			`${now}:${randomUUID()}`,
-			String(windowSeconds)
+				1,
+				key,
+				String(now),
+				String(windowMs),
+				String(limit),
+				`${now}:${randomUUID()}`,
+				String(windowSeconds)
+			)
 		)) as [number, number];
 
 		const [success, count] = result;
@@ -54,6 +56,7 @@ return { success, count }`,
 		};
 	} catch {
 		return {
+			degraded: true,
 			success: true,
 			limit,
 			remaining: limit - 1,
