@@ -5,7 +5,7 @@ import {
 } from "@hooks/auth";
 import { checkAutumnUsage } from "@lib/billing";
 import { logBlockedTraffic } from "@lib/blocked-traffic";
-import { runFork, sendBuffered } from "@lib/producer";
+import { runFork, send } from "@lib/producer";
 import { basketErrors } from "@lib/structured-errors";
 import { record } from "@lib/tracing";
 import { extractIpFromRequest, extractTrustedClientIp } from "@utils/ip-geo";
@@ -286,7 +286,7 @@ export function checkForBot(
 				undefined;
 
 			runFork(
-				sendBuffered("analytics-ai-traffic-spans", {
+				send("analytics-ai-traffic-spans", {
 					client_id: clientId,
 					timestamp: Date.now(),
 					bot_type: result?.category || "unknown",
