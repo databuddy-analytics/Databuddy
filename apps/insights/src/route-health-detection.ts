@@ -4,11 +4,14 @@ import dayjs from "dayjs";
 import {
 	type DetectedSignal,
 	type DetectSignalsParams,
+	INSIGHT_VITALS,
 	makeWowSignal,
 	wowWindow,
 } from "./detection";
 
-const ROUTE_QUERY_LIMIT = 500;
+// The query API caps limits at 1000; use the ceiling because dynamic routes
+// are filtered after the aggregate query returns.
+const ROUTE_QUERY_LIMIT = 1000;
 const MIN_ERROR_COUNT = 10;
 const MIN_ERROR_DELTA = 5;
 const MIN_ERROR_USERS = 5;
@@ -66,20 +69,7 @@ const STATIC_ROUTE_SEGMENTS = new Set([
 	"welcome",
 ]);
 
-const VITALS = {
-	INP: {
-		badThreshold: 200,
-		label: "Interaction speed (INP)",
-		maxPlausible: 10_000,
-	},
-	LCP: {
-		badThreshold: 2500,
-		label: "Page load time (LCP)",
-		maxPlausible: 60_000,
-	},
-} as const;
-
-type RouteVital = keyof typeof VITALS;
+type RouteVital = keyof typeof INSIGHT_VITALS;
 type RouteHealthQueryType = "errors_by_page" | "vitals_by_page";
 
 export interface RouteHealthQueryInput {
@@ -176,18 +166,18 @@ export function canonicalStaticRoute(value: string): string | null {
 	const segments = pathname.split("/").filter(Boolean);
 	if (
 		segments.length === 0 ||
-		segments.some((segment) => {
-			const normalized = segment.toLowerCase();
-			return !(
-				STATIC_ROUTE_SEGMENT_PATTERN.test(normalized) &&
-				STATIC_ROUTE_SEGMENTS.has(normalized)
-			);
-		})
+		segments.some(
+			(segment) =>
+				!(
+					STATIC_ROUTE_SEGMENT_PATTERN.test(segment) &&
+					STATIC_ROUTE_SEGMENTS.has(segment)
+				)
+		)
 	) {
 		return null;
 	}
 
-	return `/${segments.map((segment) => segment.toLowerCase()).join("/")}`;
+	return `/${segments.join("/")}`;
 }
 
 function routeFromRow(row: Record<string, unknown>): string | null {
@@ -304,7 +294,7 @@ function routeVitalSignal(params: {
 	metric: RouteVital;
 	route: string;
 }): DetectedSignal | null {
-	const vital = VITALS[params.metric];
+	const vital = INSIGHT_VITALS[params.metric];
 	if (
 		params.current.samples < MIN_VITAL_SAMPLES ||
 		params.baseline.samples < MIN_VITAL_SAMPLES ||

@@ -2,7 +2,7 @@ import { chmod, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { Pool, type PoolClient } from "pg";
-import type { StepResult, ToolSet } from "ai";
+import type { LanguageModelUsage, StepResult, ToolSet } from "ai";
 import dayjs from "dayjs";
 import timezonePlugin from "dayjs/plugin/timezone";
 import utcPlugin from "dayjs/plugin/utc";
@@ -14,18 +14,10 @@ import type {
 	InvestigationSources,
 	WebsiteInvestigationArtifact,
 } from "./generation";
-import { resolveInvestigationAsOf } from "./generation";
 import type { InsightAgentInput, InsightAgentResult } from "./agent";
-import type { DetectedSignal, DetectionDiagnostics } from "./detection";
-import type {
-	FunnelDef,
-	FunnelGoalDetectionDiagnostics,
-	GoalDef,
-} from "./funnel-detection";
+import type { FunnelDef, GoalDef } from "./funnel-detection";
 import type { InvestigationAnnotation } from "./investigation";
 import type { LatestInsightObservation } from "./observations";
-import { runDistinctSignalBatch } from "./batch-shadow";
-import { runBoundedWorkerFanout } from "./worker-fanout-shadow";
 
 dayjs.extend(utcPlugin);
 dayjs.extend(timezonePlugin);
@@ -51,8 +43,6 @@ interface CliOptions {
 	output: string | null;
 	referenceTime: Date;
 	websiteId: string | null;
-	workerConcurrency: number;
-	workerFanout: boolean;
 }
 
 interface RankedWebsite {
@@ -130,6 +120,15 @@ interface ShadowAgentUsage {
 	reasoningTokens: number;
 }
 
+interface ShadowAgentAttempt {
+	agent: ShadowAgentUsage | null;
+	durationMs: number;
+	error?: unknown;
+	input: InsightAgentInput;
+	result?: InsightAgentResult;
+	trace: InsightAgentStepTrace[];
+}
+
 interface ShadowCostSummary {
 	average: number;
 	fallbackPricedInvestigations: number;
@@ -166,14 +165,13 @@ interface ShadowReport {
 		offsets: number[];
 		referenceTime: string;
 		sites: number;
-		workerConcurrency: number;
-		workerFanout: boolean;
 	};
 }
 
 interface ShadowObservation extends LatestInsightObservation {
 	asOf: Date;
 	evidence: string[];
+	hasOpenInvestigation: boolean;
 }
 
 function otherOpenWorkAt(
@@ -263,7 +261,7 @@ function parseOptions(args: string[]): CliOptions {
 		args,
 		options: {
 			"as-of-mode": { default: "day", type: "string" },
-			"batch-size": { default: "1", type: "string" },
+			"batch-size": { default: String(MAX_BATCH_SIZE), type: "string" },
 			concurrency: { default: String(DEFAULT_CONCURRENCY), type: "string" },
 			"confirm-read-only-production": { default: false, type: "boolean" },
 			limit: { type: "string" },
@@ -273,8 +271,6 @@ function parseOptions(args: string[]): CliOptions {
 			output: { type: "string" },
 			"reference-time": { type: "string" },
 			"website-id": { type: "string" },
-			"worker-concurrency": { default: "1", type: "string" },
-			"worker-fanout": { default: false, type: "boolean" },
 		},
 		strict: true,
 	});
@@ -304,12 +300,6 @@ function parseOptions(args: string[]): CliOptions {
 		output: values.output ?? null,
 		referenceTime: resolveReferenceTime(values["reference-time"]),
 		websiteId: values["website-id"]?.trim() || null,
-		workerConcurrency: integerOption(
-			values["worker-concurrency"],
-			"worker-concurrency",
-			1
-		),
-		workerFanout: values["worker-fanout"],
 	};
 }
 
@@ -328,6 +318,17 @@ function configureReadOnlyClickHouse(): void {
 		throw new Error("CLICKHOUSE_READONLY_URL is required");
 	}
 	process.env.CLICKHOUSE_URL = readonlyUrl;
+}
+
+async function assertReadOnlyClickHouse(): Promise<void> {
+	const { chQuery } = await import("@databuddy/db/clickhouse");
+	const rows = await chQuery<{ readonly: number | string }>(
+		"SELECT getSetting({setting:String}) AS readonly",
+		{ setting: "readonly" }
+	);
+	if (Number(rows[0]?.readonly) < 1) {
+		throw new Error("ClickHouse connection is not read-only");
+	}
 }
 
 function silenceLibraryConsole(): () => void {
@@ -397,13 +398,6 @@ async function loadCohort(
 	referenceTime: Date
 ): Promise<string[]> {
 	const { chQuery } = await import("@databuddy/db/clickhouse");
-	const readonlySetting = await chQuery<{ readonly: number | string }>(
-		"SELECT getSetting({setting:String}) AS readonly",
-		{ setting: "readonly" }
-	);
-	if (Number(readonlySetting[0]?.readonly) < 1) {
-		throw new Error("ClickHouse connection is not read-only");
-	}
 	const rows = await chQuery<{ id: string }>(
 		`SELECT client_id AS id
 		 FROM analytics.events
@@ -585,10 +579,24 @@ export function resolveShadowAsOf(
 	if (asOfMode === "instant") {
 		return new Date(referenceTime);
 	}
-	return resolveInvestigationAsOf(
-		dateAtOffset(referenceTime, offsetDays, timezone),
-		timezone
-	);
+	return dayjs
+		.tz(dateAtOffset(referenceTime, offsetDays, timezone), timezone)
+		.toDate();
+}
+
+function shadowNextRecheckAt(
+	asOf: Date,
+	next: InsightAgentResult["outcome"]["next"]
+): Date {
+	const requested =
+		(next.type === "act" || next.type === "watch") && next.recheckAt
+			? new Date(next.recheckAt)
+			: null;
+	if (requested && !Number.isNaN(requested.getTime()) && requested > asOf) {
+		return requested;
+	}
+	const days = next.type === "act" || next.type === "watch" ? 1 : 30;
+	return new Date(asOf.getTime() + days * 86_400_000);
 }
 
 function definitionsAt<T extends { createdAt: Date; updatedAt: Date }>(
@@ -603,16 +611,13 @@ function definitionsAt<T extends { createdAt: Date; updatedAt: Date }>(
 async function createSources(params: {
 	annotations: AnnotationRow[];
 	asOf: Date;
-	excludedSignalKeys: ReadonlySet<string>;
+	attempts: ShadowAgentAttempt[];
 	funnels: FunnelRow[];
 	goals: GoalRow[];
 	historical: boolean;
 	model: string;
-	observations: readonly ShadowObservation[];
-	onAgentResult: (result: InsightAgentResult) => void;
+	observations: ShadowObservation[];
 	site: RankedWebsite;
-	attemptSignal: AbortSignal;
-	trace: InsightAgentStepTrace[];
 }): Promise<InvestigationSources> {
 	const [
 		{ createModelFromId },
@@ -622,11 +627,11 @@ async function createSources(params: {
 			defaultMeasurementRecommendationDeps,
 			detectMeasurementRecommendationSignals,
 		},
-		{ signalAnnotationWindow, signalKeyForDetectedSignal },
+		{ signalAnnotationWindow },
 		{ createToolkit },
 		{ remeasureStoredSignal },
 		{ detectRouteHealthSignals },
-		{ runInsightAgent },
+		{ InsightAgentExecutionError, runInsightAgent },
 	] = await Promise.all([
 		import("@databuddy/ai/config/models"),
 		import("./detection"),
@@ -650,12 +655,6 @@ async function createSources(params: {
 	for (const observation of params.observations) {
 		latestObservations.set(observation.signal.signalKey, observation);
 	}
-	const withAttemptSignal = (signal?: AbortSignal) =>
-		signal
-			? AbortSignal.any([params.attemptSignal, signal])
-			: params.attemptSignal;
-	const isExcluded = (signal: DetectedSignal) =>
-		params.excludedSignalKeys.has(signalKeyForDetectedSignal(signal));
 	let historicalTools: ToolSet | undefined;
 	if (params.historical) {
 		const getData = createToolkit({ capabilities: ["analytics"] }).get_data;
@@ -674,12 +673,12 @@ async function createSources(params: {
 				funnel: FunnelDef,
 				range: Parameters<typeof base.funnelConversion>[1],
 				signal?: AbortSignal
-			) => base.funnelConversion(funnel, range, withAttemptSignal(signal)),
+			) => base.funnelConversion(funnel, range, signal),
 			goalConversion: (
 				goal: GoalDef,
 				range: Parameters<typeof base.goalConversion>[1],
 				signal?: AbortSignal
-			) => base.goalConversion(goal, range, withAttemptSignal(signal)),
+			) => base.goalConversion(goal, range, signal),
 		};
 	};
 	const measurementRecommendationDependencies = () => {
@@ -697,58 +696,40 @@ async function createSources(params: {
 			fetchTelemetry: (
 				range: { from: string; to: string },
 				signal?: AbortSignal
-			) => base.fetchTelemetry(range, withAttemptSignal(signal)),
+			) => base.fetchTelemetry(range, signal),
 		};
 	};
 	return {
 		detectDefinitionSignals: async (detectParams, today, _deps, options) =>
-			(
-				await detectFunnelGoalSignals(
-					detectParams,
-					today,
-					funnelGoalDependencies(),
-					options
-				)
-			).filter((signal) => !isExcluded(signal)),
+			detectFunnelGoalSignals(
+				detectParams,
+				today,
+				funnelGoalDependencies(),
+				options
+			),
 		detectMeasurementRecommendationSignals: async (
 			detectParams,
 			today,
 			_deps,
 			signal
 		) =>
-			(
-				await detectMeasurementRecommendationSignals(
-					detectParams,
-					today,
-					measurementRecommendationDependencies(),
-					withAttemptSignal(signal)
-				)
-			).filter((candidate) => !isExcluded(candidate)),
+			params.historical
+				? []
+				: detectMeasurementRecommendationSignals(
+						detectParams,
+						today,
+						measurementRecommendationDependencies(),
+						signal
+					),
 		detectMetricSignals: async (
 			detectParams,
 			queryFn,
 			today,
 			signal,
 			diagnostics
-		) =>
-			(
-				await detectSignals(
-					detectParams,
-					queryFn,
-					today,
-					withAttemptSignal(signal),
-					diagnostics
-				)
-			).filter((candidate) => !isExcluded(candidate)),
+		) => detectSignals(detectParams, queryFn, today, signal, diagnostics),
 		detectRouteHealthSignals: async (detectParams, today, _deps, signal) =>
-			(
-				await detectRouteHealthSignals(
-					detectParams,
-					today,
-					undefined,
-					withAttemptSignal(signal)
-				)
-			).filter((candidate) => !isExcluded(candidate)),
+			detectRouteHealthSignals(detectParams, today, undefined, signal),
 		fetchAnnotations: (_websiteId, signal, _asOf, timezone) => {
 			const window = signalAnnotationWindow(signal, timezone);
 			return Promise.resolve(
@@ -766,31 +747,69 @@ async function createSources(params: {
 					.slice(0, 10)
 					.map(
 						(row): InvestigationAnnotation => ({
-							date: row.xValue.toISOString().slice(0, 10),
+							date: dayjs(row.xValue).tz(timezone).format("YYYY-MM-DD"),
 							title: row.text,
 						})
 					)
 			);
 		},
 		investigateSignal: async (input) => {
-			const result = await runInsightAgent(input, {
-				abortSignal: params.attemptSignal,
-				model: createModelFromId(params.model),
-				...(historicalTools ? { tools: historicalTools } : {}),
-				onStepFinish: (step) => {
-					params.trace.push(projectStep(step));
-				},
-			});
-			params.onAgentResult(result);
-			return result;
+			const startedAt = Date.now();
+			const attempt: ShadowAgentAttempt = {
+				agent: null,
+				durationMs: 0,
+				input,
+				trace: [],
+			};
+			params.attempts.push(attempt);
+			try {
+				const result = await runCancellableAttempt((attemptSignal) =>
+					runInsightAgent(input, {
+						abortSignal: attemptSignal,
+						model: createModelFromId(params.model),
+						...(historicalTools ? { tools: historicalTools } : {}),
+						onStepFinish: (step) => {
+							attempt.trace.push(projectStep(step));
+						},
+					})
+				);
+				attempt.agent = projectAgentUsage(result);
+				attempt.result = result;
+				const previous = latestObservations.get(input.signal.signalKey);
+				const hasOpenInvestigation =
+					result.outcome.next.type === "act" ||
+					result.outcome.next.type === "ask" ||
+					(result.outcome.next.type === "watch" &&
+						previous?.hasOpenInvestigation === true);
+				const observation: ShadowObservation = {
+					asOf: params.asOf,
+					evidence: input.evidence,
+					hasOpenInvestigation,
+					outcome: result.outcome,
+					recheckAt: shadowNextRecheckAt(params.asOf, result.outcome.next),
+					signal: input.signal,
+				};
+				params.observations.push(observation);
+				latestObservations.set(input.signal.signalKey, observation);
+				return result;
+			} catch (error) {
+				attempt.agent =
+					error instanceof InsightAgentExecutionError
+						? projectUsage(error.modelId, error.usage)
+						: projectTraceUsage(attempt.trace);
+				attempt.error = error;
+				throw error;
+			} finally {
+				attempt.durationMs = Date.now() - startedAt;
+			}
 		},
 		loadDueInvestigation: () => {
 			const due = [...latestObservations.values()]
 				.filter(
 					(observation) =>
+						observation.hasOpenInvestigation &&
 						observation.outcome.next.type !== "resolve" &&
-						observation.recheckAt <= params.asOf &&
-						!params.excludedSignalKeys.has(observation.signal.signalKey)
+						observation.recheckAt <= params.asOf
 				)
 				.sort(
 					(a, b) =>
@@ -808,10 +827,16 @@ async function createSources(params: {
 					: null
 			);
 		},
-		loadHistory: ({ signalKey }) =>
+		loadHistory: ({ signalKey, through }) =>
 			Promise.resolve(
 				params.observations
-					.filter((observation) => observation.signal.signalKey === signalKey)
+					.filter(
+						(observation) =>
+							observation.signal.signalKey === signalKey &&
+							(!through || observation.asOf <= through)
+					)
+					.sort((a, b) => a.asOf.getTime() - b.asOf.getTime())
+					.slice(-12)
 					.map((observation) => ({
 						asOf: observation.asOf.toISOString(),
 						evidence: observation.evidence,
@@ -827,127 +852,10 @@ async function createSources(params: {
 				new Map<string, LatestInsightObservation>(latestObservations)
 			),
 		remeasureSignal: (detectParams, prior, today, signal) =>
-			remeasureStoredSignal(
-				detectParams,
-				prior,
-				today,
-				withAttemptSignal(signal),
-				{ funnelGoal: funnelGoalDependencies() }
-			),
+			remeasureStoredSignal(detectParams, prior, today, signal, {
+				funnelGoal: funnelGoalDependencies(),
+			}),
 	};
-}
-
-interface PlannedWorkerSignal {
-	signal: DetectedSignal;
-	signalKey: string;
-}
-
-async function planWorkerSignals(params: {
-	asOf: Date;
-	batchSize: number;
-	site: RankedWebsite;
-	sources: InvestigationSources;
-	attemptSignal: AbortSignal;
-}): Promise<PlannedWorkerSignal[]> {
-	const [{ planCoveragePortfolio }, { signalKeyForDetectedSignal }] =
-		await Promise.all([
-			import("./coverage-planner"),
-			import("./investigation"),
-		]);
-	const detectParams = {
-		lookbackDays: 7,
-		timezone: params.site.timezone,
-		websiteId: params.site.id,
-	};
-	const today = dayjs(params.asOf).tz(params.site.timezone);
-	const metricDiagnostics: DetectionDiagnostics = { failedFamilies: 0 };
-	const definitionDiagnostics: FunnelGoalDetectionDiagnostics = {
-		failedDefinitions: 0,
-	};
-	const due = await params.sources.loadDueInvestigation({
-		asOf: params.asOf,
-		organizationId: params.site.organizationId,
-		websiteId: params.site.id,
-	});
-	const [
-		dueResult,
-		metricResult,
-		definitionResult,
-		measurementResult,
-		routeHealthResult,
-	] = await Promise.allSettled([
-		due
-			? params.sources.remeasureSignal(
-					detectParams,
-					due.signal,
-					today,
-					params.attemptSignal
-				)
-			: Promise.resolve(null),
-		params.sources.detectMetricSignals(
-			detectParams,
-			undefined,
-			today,
-			params.attemptSignal,
-			metricDiagnostics
-		),
-		params.sources.detectDefinitionSignals(detectParams, today, undefined, {
-			diagnostics: definitionDiagnostics,
-		}),
-		params.sources.detectMeasurementRecommendationSignals(
-			detectParams,
-			today,
-			undefined,
-			params.attemptSignal
-		),
-		params.sources.detectRouteHealthSignals(
-			detectParams,
-			today,
-			undefined,
-			params.attemptSignal
-		),
-	]);
-	const failed = [
-		dueResult,
-		metricResult,
-		definitionResult,
-		measurementResult,
-		routeHealthResult,
-	].find((result) => result.status === "rejected");
-	const signalsByKey = new Map<string, DetectedSignal>();
-	for (const signal of [
-		...(dueResult.status === "fulfilled" && dueResult.value
-			? [dueResult.value]
-			: []),
-		...(metricResult.status === "fulfilled" ? metricResult.value : []),
-		...(definitionResult.status === "fulfilled" ? definitionResult.value : []),
-		...(measurementResult.status === "fulfilled"
-			? measurementResult.value
-			: []),
-		...(routeHealthResult.status === "fulfilled"
-			? routeHealthResult.value
-			: []),
-	]) {
-		const key = signalKeyForDetectedSignal(signal);
-		if (!signalsByKey.has(key)) {
-			signalsByKey.set(key, signal);
-		}
-	}
-	if (signalsByKey.size === 0 && failed?.status === "rejected") {
-		throw failed.reason;
-	}
-	return planCoveragePortfolio([...signalsByKey.values()], {
-		dueSignalKey:
-			dueResult.status === "fulfilled" && dueResult.value
-				? signalKeyForDetectedSignal(dueResult.value)
-				: null,
-		reason: "manual",
-	})
-		.slice(0, params.batchSize)
-		.map((signal) => ({
-			signal,
-			signalKey: signalKeyForDetectedSignal(signal),
-		}));
 }
 
 async function runCancellableAttempt<T>(
@@ -1133,14 +1041,21 @@ function projectAgentUsage(
 	if (!(result.modelId && result.usage)) {
 		return null;
 	}
-	const usage = summarizeAgentUsage(result.modelId, result.usage);
+	return projectUsage(result.modelId, result.usage);
+}
+
+function projectUsage(
+	modelId: string,
+	modelUsage: LanguageModelUsage
+): ShadowAgentUsage {
+	const usage = summarizeAgentUsage(modelId, modelUsage);
 	return {
 		cacheReadTokens: usage.cache_read_tokens,
 		cacheWriteTokens: usage.cache_write_tokens,
 		costFallback: usage.cost_fallback,
 		estimatedCostUsd: usage.cost_total_usd,
 		inputTokens: usage.input_tokens,
-		modelId: result.modelId,
+		modelId,
 		outputTokens: usage.output_tokens,
 		reasoningTokens: usage.reasoning_tokens,
 	};
@@ -1207,15 +1122,6 @@ function subjectAliasForSignal(
 	const alias = `${entity} ${subjectAliases.size + 1}`;
 	subjectAliases.set(subjectKey, alias);
 	return alias;
-}
-
-function subjectAliasFor(
-	artifact: WebsiteInvestigationArtifact,
-	subjectAliases: Map<string, string>
-): string | null {
-	return artifact.signal
-		? subjectAliasForSignal(artifact.signal, subjectAliases)
-		: null;
 }
 
 function projectSelectedSignal(
@@ -1294,7 +1200,9 @@ function failedCase(params: {
 			: null;
 	const message =
 		params.error instanceof Error
-			? [params.error.message, cause].filter(Boolean).join(": ")
+			? cause && cause !== params.error.message
+				? `${params.error.message}: ${cause}`
+				: params.error.message
 			: "Unknown failure";
 	return {
 		agent: params.agent,
@@ -1400,19 +1308,17 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 	const referenceTime = options.referenceTime;
 	const restoreConsole = silenceLibraryConsole();
 	try {
+		await assertReadOnlyClickHouse();
 		const ranked = options.websiteId
 			? [options.websiteId]
 			: await loadCohort(options.minEvents, options.limit, referenceTime);
 		const metadata = await loadMetadata(ranked);
-		const [
-			{ investigateWebsiteWithSources },
-			{ prepareInvestigation },
-			{ nextRecheckAt },
-		] = await Promise.all([
-			import("./generation"),
-			import("./investigation"),
-			import("./observations"),
-		]);
+		if (options.websiteId && metadata.sites.length === 0) {
+			throw new Error("The requested website was not found");
+		}
+		const { investigateWebsitePortfolioWithSources } = await import(
+			"./generation"
+		);
 		const siteCases = await mapConcurrent(
 			metadata.sites,
 			options.concurrency,
@@ -1460,299 +1366,118 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 						timezone: site.timezone,
 						websiteId: site.id,
 					};
-					if (options.workerFanout) {
-						const preRunObservations = [...observations];
-						let planned: PlannedWorkerSignal[];
-						try {
-							planned = await runCancellableAttempt(async (attemptSignal) => {
-								const sources = await createSources({
-									annotations: metadata.annotations,
-									asOf,
-									attemptSignal,
-									excludedSignalKeys: new Set<string>(),
-									funnels: metadata.funnels,
-									goals: metadata.goals,
-									historical: offsetDays > 0,
-									model: options.model,
-									observations: preRunObservations,
-									onAgentResult: () => undefined,
-									site,
-									trace: [],
-								});
-								return planWorkerSignals({
-									asOf,
-									attemptSignal,
-									batchSize: options.batchSize,
-									site,
-									sources,
-								});
-							});
-						} catch (error) {
+					const attempts: ShadowAgentAttempt[] = [];
+					let artifacts: WebsiteInvestigationArtifact[] = [];
+					let portfolioError: unknown;
+					try {
+						const sources = await createSources({
+							annotations: metadata.annotations,
+							asOf,
+							attempts,
+							funnels: metadata.funnels,
+							goals: metadata.goals,
+							historical: offsetDays > 0,
+							model: options.model,
+							observations,
+							site,
+						});
+						let remainingAgentSlots = options.batchSize;
+						artifacts = await investigateWebsitePortfolioWithSources(
+							input,
+							sources,
+							"manual",
+							() => {
+								if (remainingAgentSlots === 0) {
+									return Promise.resolve(false);
+								}
+								remainingAgentSlots -= 1;
+								return Promise.resolve(true);
+							}
+						);
+					} catch (error) {
+						portfolioError = error;
+					}
+
+					for (const [attemptIndex, attempt] of attempts.entries()) {
+						const signal = attempt.input.signal;
+						const subjectAlias = subjectAliasForSignal(signal, subjectAliases);
+						const secrets = [
+							...siteSecrets,
+							signal.entity.id,
+							signal.entity.label,
+							...(attempt.input.relatedSignals ?? []).flatMap((related) => [
+								related.entity.id,
+								related.entity.label,
+							]),
+						];
+						const caseId = `${caseIdPrefix}#${attemptIndex + 1}`;
+						if (attempt.error !== undefined) {
 							cases.push(
 								failedCase({
-									agent: null,
+									agent: attempt.agent,
 									asOf,
-									caseId: `${caseIdPrefix}#plan-error`,
-									durationMs: Date.now() - offsetStartedAt,
-									error,
-									secrets: siteSecrets,
-									trace: [],
+									caseId,
+									durationMs: attempt.durationMs,
+									error: attempt.error,
+									selectedSignal: signal,
+									secrets,
+									subjectAlias,
+									trace: attempt.trace,
 								})
 							);
 							continue;
 						}
-						if (planned.length === 0) {
+						if (!attempt.result) {
+							continue;
+						}
+						const artifact: WebsiteInvestigationArtifact = {
+							asOf: asOf.toISOString(),
+							evidence: attempt.input.evidence,
+							outcome: attempt.result.outcome,
+							signal,
+							status: "completed",
+						};
+						cases.push(
+							projectCase({
+								agent: attempt.agent,
+								artifact,
+								caseId,
+								durationMs: attempt.durationMs,
+								secrets,
+								subjectAlias,
+								trace: attempt.trace,
+							})
+						);
+					}
+
+					if (attempts.length === 0 && !portfolioError) {
+						for (const artifact of artifacts) {
 							cases.push(
 								projectCase({
 									agent: null,
-									artifact: {
-										asOf: asOf.toISOString(),
-										evidence: [],
-										outcome: null,
-										signal: null,
-										status: "no_signals",
-									},
-									caseId: `${caseIdPrefix}#worker-0`,
+									artifact,
+									caseId: `${caseIdPrefix}#1`,
 									durationMs: Date.now() - offsetStartedAt,
 									secrets: siteSecrets,
 									subjectAlias: null,
 									trace: [],
 								})
 							);
-							continue;
 						}
-						const attemptsBySignal = new Map<
-							string,
-							{
-								agent: ShadowAgentUsage | null;
-								durationMs: number;
-								trace: InsightAgentStepTrace[];
-							}
-						>();
-						const workerResults = await runBoundedWorkerFanout(
-							planned,
-							options.workerConcurrency,
-							async (worker) => {
-								const startedAt = Date.now();
-								const trace: InsightAgentStepTrace[] = [];
-								let agent: ShadowAgentUsage | null = null;
-								try {
-									const artifact = await runCancellableAttempt(
-										async (attemptSignal) => {
-											const sources = await createSources({
-												annotations: metadata.annotations,
-												asOf,
-												attemptSignal,
-												excludedSignalKeys: new Set<string>(),
-												funnels: metadata.funnels,
-												goals: metadata.goals,
-												historical: offsetDays > 0,
-												model: options.model,
-												observations: preRunObservations,
-												onAgentResult: (result) => {
-													agent = projectAgentUsage(result);
-												},
-												site,
-												trace,
-											});
-											return investigateWebsiteWithSources(
-												{ ...input, selectedSignalKey: worker.signalKey },
-												sources
-											);
-										}
-									);
-									attemptsBySignal.set(worker.signalKey, {
-										agent,
-										durationMs: Date.now() - startedAt,
-										trace,
-									});
-									return artifact;
-								} catch (error) {
-									attemptsBySignal.set(worker.signalKey, {
-										agent: agent ?? projectTraceUsage(trace),
-										durationMs: Date.now() - startedAt,
-										trace,
-									});
-									throw error;
-								}
-							}
-						);
-						for (const [workerIndex, result] of workerResults.entries()) {
-							const attempt = attemptsBySignal.get(
-								result.candidate.signalKey
-							) ?? {
-								agent: null,
-								durationMs: 0,
-								trace: [],
-							};
-							if (result.status === "rejected") {
-								const selectedSignal = prepareInvestigation(
-									result.candidate.signal,
-									7
-								).signal;
-								const subjectAlias = subjectAliasForSignal(
-									selectedSignal,
-									subjectAliases
-								);
-								cases.push(
-									failedCase({
-										agent: attempt.agent,
-										asOf,
-										caseId: `${caseIdPrefix}#worker-${workerIndex + 1}`,
-										durationMs: attempt.durationMs,
-										error: result.reason,
-										selectedSignal,
-										secrets: [
-											...siteSecrets,
-											selectedSignal.entity.id,
-											selectedSignal.entity.label,
-										],
-										subjectAlias,
-										trace: attempt.trace,
-									})
-								);
-								continue;
-							}
-							const artifact = result.value;
-							const secrets = [
-								...siteSecrets,
-								artifact.signal?.entity.id ?? "",
-								artifact.signal?.entity.label ?? "",
-							];
-							cases.push(
-								projectCase({
-									agent: attempt.agent,
-									artifact,
-									caseId: `${caseIdPrefix}#worker-${workerIndex + 1}`,
-									durationMs: attempt.durationMs,
-									secrets,
-									subjectAlias: subjectAliasFor(artifact, subjectAliases),
-									trace: attempt.trace,
-								})
-							);
-						}
-						continue;
 					}
-					const attempts = new WeakMap<
-						WebsiteInvestigationArtifact,
-						{
-							agent: ShadowAgentUsage | null;
-							durationMs: number;
-							trace: InsightAgentStepTrace[];
-						}
-					>();
-					let failedAttempt:
-						| {
-								agent: ShadowAgentUsage | null;
-								durationMs: number;
-								trace: InsightAgentStepTrace[];
-						  }
-						| undefined;
-					try {
-						const artifacts = await runDistinctSignalBatch(
-							options.batchSize,
-							async (excludedSignalKeys) => {
-								const startedAt = Date.now();
-								const trace: InsightAgentStepTrace[] = [];
-								let agent: ShadowAgentUsage | null = null;
-								let artifact: WebsiteInvestigationArtifact;
-								try {
-									artifact = await runCancellableAttempt(
-										async (attemptSignal) => {
-											const sources = await createSources({
-												annotations: metadata.annotations,
-												asOf,
-												attemptSignal,
-												excludedSignalKeys,
-												funnels: metadata.funnels,
-												goals: metadata.goals,
-												historical: offsetDays > 0,
-												model: options.model,
-												observations,
-												onAgentResult: (result) => {
-													agent = projectAgentUsage(result);
-												},
-												site,
-												trace,
-											});
-											return investigateWebsiteWithSources(input, sources);
-										}
-									);
-								} catch (error) {
-									failedAttempt = {
-										agent: agent ?? projectTraceUsage(trace),
-										durationMs: Date.now() - startedAt,
-										trace,
-									};
-									throw error;
-								}
-								attempts.set(artifact, {
-									agent,
-									durationMs: Date.now() - startedAt,
-									trace,
-								});
-								return artifact;
-							},
-							(artifact) => {
-								if (artifact.outcome && artifact.signal) {
-									observations.push({
-										asOf,
-										evidence: artifact.evidence,
-										outcome: artifact.outcome,
-										recheckAt: nextRecheckAt(asOf, artifact.outcome.next),
-										signal: artifact.signal,
-									});
-								}
-							}
-						);
-						for (const [batchIndex, artifact] of artifacts.entries()) {
-							const attempt = attempts.get(artifact) ?? {
-								agent: failedAttempt?.agent ?? null,
-								durationMs: 0,
-								trace: [],
-							};
-							const secrets = [
-								...siteSecrets,
-								artifact.signal?.entity.id ?? "",
-								artifact.signal?.entity.label ?? "",
-							];
-							let subjectAlias: string | null = null;
-							if (artifact.signal) {
-								const subjectKey = `${artifact.signal.entity.type}:${artifact.signal.entity.id}`;
-								subjectAlias = subjectAliases.get(subjectKey) ?? null;
-								if (!subjectAlias) {
-									const normalized = artifact.signal.entity.type.replaceAll(
-										"_",
-										" "
-									);
-									const entity = `${normalized[0]?.toUpperCase() ?? ""}${normalized.slice(1)}`;
-									subjectAlias = `${entity} ${subjectAliases.size + 1}`;
-									subjectAliases.set(subjectKey, subjectAlias);
-								}
-							}
-							cases.push(
-								projectCase({
-									agent: attempt.agent,
-									artifact,
-									caseId: `${caseIdPrefix}#${batchIndex + 1}`,
-									durationMs: attempt.durationMs,
-									secrets,
-									subjectAlias,
-									trace: attempt.trace,
-								})
-							);
-						}
-					} catch (error) {
+					if (
+						portfolioError !== undefined &&
+						!attempts.some((attempt) => attempt.error === portfolioError)
+					) {
 						cases.push(
 							failedCase({
-								agent: failedAttempt?.agent ?? null,
+								agent: null,
 								asOf,
 								caseId: `${caseIdPrefix}#error`,
-								durationMs:
-									failedAttempt?.durationMs ?? Date.now() - offsetStartedAt,
-								error,
+								durationMs: Date.now() - offsetStartedAt,
+								error: portfolioError,
 								secrets: siteSecrets,
-								trace: failedAttempt?.trace ?? [],
+								trace: [],
 							})
 						);
 					}
@@ -1783,8 +1508,6 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 				offsets: options.offsets,
 				referenceTime: referenceTime.toISOString(),
 				sites: metadata.sites.length,
-				workerConcurrency: options.workerConcurrency,
-				workerFanout: options.workerFanout,
 			},
 		};
 	} finally {
@@ -1804,7 +1527,9 @@ if (import.meta.main) {
 			: null;
 		const result = await runProductionShadow(options);
 		if (output) {
-			await writeFile(output, `${JSON.stringify(result, null, 2)}\n`);
+			await writeFile(output, `${JSON.stringify(result, null, 2)}\n`, {
+				mode: 0o600,
+			});
 			await chmod(output, 0o600);
 		}
 		process.stdout.write(

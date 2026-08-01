@@ -13,6 +13,7 @@ import {
 	INSIGHT_RUN_ACTIVE_STATUSES,
 	INSIGHT_RUN_ACTIVE_UNIQUE_INDEX,
 	insightGenerationConfigs,
+	insightObservations,
 	insightRunItems,
 	insightRuns,
 	slackChannelBindings,
@@ -644,6 +645,7 @@ export const insightGenerationRouter = {
 		.output(
 			z
 				.object({
+					analyzedSignalCount: z.number(),
 					completedItems: z.number(),
 					failedItems: z.number(),
 					id: z.string(),
@@ -667,23 +669,34 @@ export const insightGenerationRouter = {
 				})
 				.from(insightRuns)
 				.where(eq(insightRuns.organizationId, organizationId))
-				.orderBy(desc(insightRuns.createdAt))
+				.orderBy(desc(insightRuns.createdAt), desc(insightRuns.id))
 				.limit(1);
 			if (!run) {
 				return null;
 			}
 			const [count] = await db
 				.select({
-					insightCount: sql<number>`coalesce(sum(${insightRunItems.resultCount}), 0)::integer`,
+					analyzedSignalCount: sql<number>`count(*)::integer`,
+					insightCount: sql<number>`count(*) filter (where ${
+						insightObservations.outcome
+					}->>'publish' = 'true' or (${
+						insightObservations.outcome
+					}->>'publish' is null and ${
+						insightObservations.insightId
+					} is not null))::integer`,
 				})
-				.from(insightRunItems)
+				.from(insightObservations)
 				.where(
 					and(
-						eq(insightRunItems.runId, run.id),
-						eq(insightRunItems.organizationId, organizationId)
+						eq(insightObservations.runId, run.id),
+						eq(insightObservations.organizationId, organizationId)
 					)
 				);
 
-			return { ...run, insightCount: count?.insightCount ?? 0 };
+			return {
+				...run,
+				analyzedSignalCount: count?.analyzedSignalCount ?? 0,
+				insightCount: count?.insightCount ?? 0,
+			};
 		}),
 };

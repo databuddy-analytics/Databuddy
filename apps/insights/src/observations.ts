@@ -23,6 +23,7 @@ import {
 import type { DetectedSignal } from "./detection";
 import type { InsightAgentInput } from "./agent";
 import { isRegression, signalKeyForDetectedSignal } from "./investigation";
+import { captureInsightsError } from "./lib/evlog-insights";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const HISTORY_LIMIT = 12;
@@ -408,14 +409,23 @@ export async function findRunObservations(params: {
 			)
 		)
 		.orderBy(insightObservations.signalKey, insightObservations.id);
-	return observations.map((observation) => {
+	return observations.flatMap((observation) => {
 		const outcome = parseInvestigationOutcome(observation.outcome);
 		const signal = parseInvestigationSignal(observation.signal);
 		if (!(outcome && signal)) {
-			throw new Error(
-				`Persisted run observation ${observation.signalKey} is invalid`
+			captureInsightsError(
+				new Error(
+					`Persisted run observation ${observation.signalKey} is invalid`
+				),
+				"generation.persisted_observation.invalid",
+				{
+					organization_id: params.organizationId,
+					run_id: params.runId,
+					website_id: params.websiteId,
+				}
 			);
+			return [];
 		}
-		return { ...observation, outcome, signal };
+		return [{ ...observation, outcome, signal }];
 	});
 }

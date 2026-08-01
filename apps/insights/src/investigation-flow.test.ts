@@ -7,7 +7,11 @@ import type {
 import { tool } from "ai";
 import { MockLanguageModelV3, mockValues } from "ai/test";
 import { z } from "zod";
-import { runInsightAgent } from "./agent";
+import {
+	InsightAgentExecutionError,
+	InsightAgentGenerationError,
+	runInsightAgent,
+} from "./agent";
 
 const signal: InvestigationSignal = {
 	signalKey: "visitors",
@@ -80,6 +84,37 @@ const goalDraftOutcome = {
 	},
 };
 
+const funnelDraftOutcome = {
+	...agentOutcome,
+	next: {
+		reason: "The inspected route and event can be reviewed as a funnel draft.",
+		type: "resolve" as const,
+	},
+	recommendation: {
+		action: "Review a signup funnel.",
+		draft: {
+			description: "Tracks visitors from landing to completed signup.",
+			filters: [],
+			ignoreHistoricData: false,
+			name: "Landing to signup",
+			steps: [
+				{ name: "Viewed landing", target: "/", type: "PAGE_VIEW" as const },
+				{
+					name: "Viewed pricing v2",
+					target: "/pricing_v2",
+					type: "PAGE_VIEW" as const,
+				},
+				{
+					name: "Completed signup",
+					target: "signup_completed",
+					type: "EVENT" as const,
+				},
+			],
+		},
+		kind: "funnel_draft" as const,
+	},
+};
+
 const usage = {
 	inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
 	outputTokens: { total: 1, text: 1, reasoning: 0 },
@@ -109,9 +144,29 @@ function outputResponse(value: unknown) {
 	};
 }
 
+function toolCallResponse(toolName = "inspect") {
+	return {
+		content: [
+			{
+				input: "{}",
+				toolCallId: `${toolName}-1`,
+				toolName,
+				type: "tool-call" as const,
+			},
+		],
+		finishReason: { unified: "tool-calls" as const, raw: undefined },
+		usage,
+		warnings: [],
+	};
+}
+
 function outputModel(value: unknown = agentOutcome) {
 	return new MockLanguageModelV3({
-		doGenerate: mockValues(outputResponse(value)),
+		doGenerate: mockValues(
+			outputResponse(value),
+			outputResponse(value),
+			outputResponse(value)
+		),
 	});
 }
 
@@ -199,6 +254,162 @@ describe("intelligence agent", () => {
 		);
 	});
 
+	it("retries a structurally valid outcome that fails semantic validation", async () => {
+		const invalidOutcome = {
+			...agentOutcome,
+			evidenceRefs: [
+				{ name: "unused_tool", source: "tool" as const },
+				{ index: 1, source: "provided" as const },
+			],
+		};
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				outputResponse(invalidOutcome),
+				outputResponse(agentOutcome)
+			),
+		});
+
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal,
+			},
+			{ model, tools: {} }
+		);
+
+		expect(result.outcome).toEqual(outcome);
+		expect(result.usage?.inputTokens).toBe(2);
+		expect(model.doGenerateCalls).toHaveLength(2);
+		expect(JSON.stringify(model.doGenerateCalls[1]?.prompt)).toContain(
+			"cited a read tool"
+		);
+	});
+
+	it("retries when the structured response reaches the output limit", async () => {
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				{
+					content: [{ type: "text" as const, text: '{"title":"cut off' }],
+					finishReason: { unified: "length" as const, raw: undefined },
+					usage,
+					warnings: [],
+				},
+				outputResponse(agentOutcome)
+			),
+		});
+
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal,
+			},
+			{ model, tools: {} }
+		);
+
+		expect(result.outcome).toEqual(outcome);
+		expect(result.usage?.inputTokens).toBe(2);
+		expect(model.doGenerateCalls).toHaveLength(2);
+	});
+
+	it("reports aggregate usage when all structured output attempts fail", async () => {
+		const malformed = {
+			content: [{ type: "text" as const, text: "not-json" }],
+			finishReason: { unified: "stop" as const, raw: undefined },
+			usage,
+			warnings: [],
+		};
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(malformed, malformed, malformed),
+		});
+
+		let failure: unknown;
+		try {
+			await runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+					signal,
+				},
+				{ model, tools: {} }
+			);
+		} catch (error) {
+			failure = error;
+		}
+
+		expect(failure).toBeInstanceOf(InsightAgentGenerationError);
+		if (!(failure instanceof InsightAgentGenerationError)) {
+			throw failure;
+		}
+		expect(failure.modelId).toBeDefined();
+		expect(failure.toolCallCount).toBe(0);
+		expect(failure.usage.inputTokens).toBe(3);
+		expect(failure.usage.outputTokens).toBe(3);
+		expect(model.doGenerateCalls).toHaveLength(3);
+	});
+
+	it("keeps a paid mid-run infrastructure failure out of candidate-local errors", async () => {
+		let generationCallCount = 0;
+		const providerFailure = new Error("AI gateway became unavailable");
+		const model = new MockLanguageModelV3({
+			doGenerate: async () => {
+				generationCallCount += 1;
+				if (generationCallCount === 1) {
+					return toolCallResponse();
+				}
+				throw providerFailure;
+			},
+		});
+
+		let failure: unknown;
+		try {
+			await runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+					signal,
+				},
+				{
+					model,
+					tools: {
+						inspect: tool({
+							description: "Inspect another relevant fact.",
+							execute: () => ({ inspected: true }),
+							inputSchema: z.object({}).strict(),
+						}),
+					},
+				}
+			);
+		} catch (error) {
+			failure = error;
+		}
+
+		expect(failure).toBeInstanceOf(InsightAgentExecutionError);
+		expect(failure).not.toBeInstanceOf(InsightAgentGenerationError);
+		if (!(failure instanceof InsightAgentExecutionError)) {
+			throw failure;
+		}
+		expect(failure.cause).toBe(providerFailure);
+		expect(failure.message).toBe("AI gateway became unavailable");
+		expect(failure.toolCallCount).toBe(1);
+		expect(failure.usage.inputTokens).toBe(1);
+		expect(failure.usage.outputTokens).toBe(1);
+		expect(model.doGenerateCalls).toHaveLength(2);
+	});
+
 	it("accepts an observed event as a review-only goal draft", async () => {
 		const result = await runInsightAgent(
 			{
@@ -222,6 +433,165 @@ describe("intelligence agent", () => {
 			goalDraftOutcome.recommendation
 		);
 		expect(result.outcome.next.type).toBe("resolve");
+	});
+
+	it("accepts a canonical inspected event outside the discovery allowlist", async () => {
+		const inspectedOutcome = {
+			...goalDraftOutcome,
+			recommendation: {
+				...goalDraftOutcome.recommendation,
+				draft: {
+					...goalDraftOutcome.recommendation.draft,
+					name: "Workspace created",
+					target: "workspace_created",
+				},
+			},
+		};
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal,
+			},
+			{
+				model: new MockLanguageModelV3({
+					doGenerate: mockValues(
+						toolCallResponse(),
+						outputResponse(inspectedOutcome)
+					),
+				}),
+				tools: {
+					inspect: tool({
+						description: "Inspect the website event schema.",
+						execute: () => ({ target: "workspace_created" }),
+						inputSchema: z.object({}).strict(),
+					}),
+				},
+			}
+		);
+
+		expect(result.outcome.recommendation).toMatchObject({
+			draft: { target: "workspace_created" },
+			kind: "goal_draft",
+		});
+	});
+
+	it("accepts a funnel draft only when every step was inspected", async () => {
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal,
+			},
+			{
+				model: new MockLanguageModelV3({
+					doGenerate: mockValues(
+						toolCallResponse(),
+						outputResponse(funnelDraftOutcome)
+					),
+				}),
+				tools: {
+					inspect: tool({
+						description: "Inspect the signup journey.",
+						execute: () => ({
+							data: [
+								{ event_name: "signup_completed" },
+								{ path: "/" },
+								{ path: "/pricing_v2" },
+							],
+						}),
+						inputSchema: z.object({}).strict(),
+					}),
+				},
+			}
+		);
+
+		expect(result.outcome.recommendation).toMatchObject({
+			kind: "funnel_draft",
+		});
+	});
+
+	it("rejects funnel drafts with uninspected steps", async () => {
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+					signal,
+				},
+				{
+					model: new MockLanguageModelV3({
+						doGenerate: mockValues(
+							toolCallResponse(),
+							outputResponse(funnelDraftOutcome)
+						),
+					}),
+					tools: {
+						inspect: tool({
+							description: "Inspect only one funnel step.",
+							execute: () => ({ data: [{ path: "/pricing_v2" }] }),
+							inputSchema: z.object({}).strict(),
+						}),
+					},
+				}
+			)
+		).rejects.toThrow("every ordered step");
+	});
+
+	it("rejects an inspected goal draft that does not match its observed candidate", async () => {
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				toolCallResponse(),
+				outputResponse({
+					...goalDraftOutcome,
+					recommendation: {
+						...goalDraftOutcome.recommendation,
+						draft: {
+							...goalDraftOutcome.recommendation.draft,
+							target: "account_created",
+						},
+					},
+				})
+			),
+		});
+
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					githubRepository: null,
+					history: [],
+					measurementCandidate: {
+						basis: "observed_custom_event",
+						kind: "event_goal_candidate",
+						target: "signup_completed",
+						type: "EVENT",
+					},
+					otherOpenWork: [],
+					signal,
+				},
+				{
+					model,
+					tools: {
+						inspect: tool({
+							description: "Inspect another unrelated fact.",
+							inputSchema: z.object({}).strict(),
+							execute: () => ({ inspected: true }),
+						}),
+					},
+				}
+			)
+		).rejects.toThrow("must match the observed measurement candidate");
 	});
 
 	it("rejects a navigation proxy as a goal draft without inspected evidence", async () => {
@@ -262,19 +632,7 @@ describe("intelligence agent", () => {
 	it("can inspect evidence before returning structured output", async () => {
 		const model = new MockLanguageModelV3({
 			doGenerate: mockValues(
-				{
-					content: [
-						{
-							input: "{}",
-							toolCallId: "inspect-1",
-							toolName: "inspect",
-							type: "tool-call" as const,
-						},
-					],
-					finishReason: { unified: "tool-calls" as const, raw: undefined },
-					usage,
-					warnings: [],
-				},
+				toolCallResponse(),
 				outputResponse(agentOutcome)
 			),
 		});
@@ -321,8 +679,9 @@ describe("intelligence agent", () => {
 	});
 
 	it("rejects evidence references that were not available to the agent", async () => {
-		await expect(
-			runInsightAgent(
+		let failure: unknown;
+		try {
+			await runInsightAgent(
 				{
 					appContext: appContext(),
 					evidence,
@@ -341,8 +700,17 @@ describe("intelligence agent", () => {
 					}),
 					tools: {},
 				}
-			)
-		).rejects.toThrow("cited supplied evidence");
+			);
+		} catch (error) {
+			failure = error;
+		}
+
+		expect(failure).toBeInstanceOf(InsightAgentGenerationError);
+		if (!(failure instanceof InsightAgentGenerationError)) {
+			throw failure;
+		}
+		expect(failure.message).toContain("cited supplied evidence");
+		expect(failure.usage.inputTokens).toBe(3);
 	});
 
 	it("rejects evidence references to tools the agent did not use", async () => {
@@ -435,6 +803,49 @@ describe("intelligence agent", () => {
 				value: 800,
 			},
 			type: "watch",
+			});
+		});
+
+	it("renders percent watch thresholds in native units", async () => {
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal: {
+					...signal,
+					metric: {
+						current: 12,
+						format: "percent",
+						label: "Signup rate",
+						previous: 24,
+					},
+				},
+			},
+			{
+				model: outputModel({
+					...agentOutcome,
+					impact: null,
+					next: {
+						escalation: "Ignore this generated copy.",
+						recheckAt: "2026-07-15T00:00:00.000Z",
+						threshold: {
+							anchor: "healthy_range",
+							comparison: "below",
+							evidenceRef: { index: 0, source: "provided" },
+							value: 20,
+						},
+						type: "watch",
+					},
+				}),
+				tools: {},
+			}
+		);
+
+		expect(result.outcome.next).toMatchObject({
+			escalation: "Escalate when Signup rate is below 20% (healthy range).",
 		});
 	});
 

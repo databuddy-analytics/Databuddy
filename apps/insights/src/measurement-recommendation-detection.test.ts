@@ -104,7 +104,25 @@ describe("detectMeasurementRecommendationSignals", () => {
 		expect(JSON.stringify(signal)).not.toContain("private");
 	});
 
+	it("rejects double-slash route candidates", async () => {
+		const [signal] = await detectMeasurementRecommendationSignals(
+			PARAMS,
+			TODAY,
+			makeDeps({
+				fetchTelemetry: async () => ({
+					customEventNames: [],
+					pageviews: 60,
+					routes: ["//signup", "https://example.com//checkout"],
+					sessions: 40,
+				}),
+			})
+		);
+
+		expect(signal?.measurementCandidate).toBeUndefined();
+	});
+
 	it("suppresses the signal when usable measurement definitions already exist", async () => {
+		let telemetryCalls = 0;
 		const signals = await detectMeasurementRecommendationSignals(
 			PARAMS,
 			TODAY,
@@ -113,10 +131,15 @@ describe("detectMeasurementRecommendationSignals", () => {
 					activeFunnels: 0,
 					activeGoals: 1,
 				}),
+				fetchTelemetry: async () => {
+					telemetryCalls += 1;
+					throw new Error("telemetry should not be fetched");
+				},
 			})
 		);
 
 		expect(signals).toEqual([]);
+		expect(telemetryCalls).toBe(0);
 	});
 
 	it("suppresses the signal for insufficient current activity", async () => {

@@ -19,18 +19,57 @@ import {
 	type LanguageModelUsage,
 	NoObjectGeneratedError,
 	Output,
+	type StepResult,
 	stepCountIs,
 	type ToolLoopAgentOnStepFinishCallback,
 	type ToolSet,
 	ToolLoopAgent,
 } from "ai";
 import type { MeasurementCandidate } from "./detection";
+import {
+	isCanonicalMeasurementEventTarget,
+	isCanonicalMeasurementRouteTarget,
+	normalizeInspectedMeasurementRouteTarget,
+} from "./measurement-targets";
 
 const MAX_STEPS = 8;
 const TIMEOUT_MS = 2 * 60_000;
-const STRUCTURED_OUTPUT_ATTEMPTS = 2;
+const STRUCTURED_OUTPUT_ATTEMPTS = 3;
 const INSIGHTS_MODEL_ID = "openai/gpt-5.6-terra";
 const INSIGHTS_MODEL = createModelFromId(INSIGHTS_MODEL_ID);
+
+function resolveModelId(model?: LanguageModel): string {
+	if (typeof model === "string") {
+		return model;
+	}
+	return typeof model === "object" &&
+		model !== null &&
+		"modelId" in model &&
+		typeof model.modelId === "string"
+		? model.modelId
+		: INSIGHTS_MODEL_ID;
+}
+
+const ROUTE_TARGET_FIELDS = new Set([
+	"entry_page",
+	"exit_page",
+	"from_path",
+	"name",
+	"next_path",
+	"path",
+	"route",
+	"target",
+	"to_path",
+]);
+const EVENT_TARGET_FIELDS = new Set([
+	"custom_event",
+	"customEvent",
+	"event",
+	"eventName",
+	"event_name",
+	"name",
+	"target",
+]);
 
 function aggregateUsage(usages: LanguageModelUsage[]): LanguageModelUsage {
 	const sum = (values: Array<number | undefined>) =>
@@ -106,6 +145,45 @@ export interface InsightAgentResult {
 	outcome: InvestigationOutcome;
 	toolCallCount: number;
 	usage?: LanguageModelUsage;
+}
+
+/**
+ * A terminal generation failure still represents paid model work. Keep its
+ * aggregate usage attached so the caller can meter it before retrying the
+ * candidate without treating an invalid response as an investigation.
+ */
+export class InsightAgentExecutionError extends Error {
+	readonly modelId: string;
+	readonly toolCallCount: number;
+	readonly usage: LanguageModelUsage;
+
+	constructor(params: {
+		cause: unknown;
+		modelId: string;
+		toolCallCount: number;
+		usage: LanguageModelUsage;
+	}) {
+		super(
+			params.cause instanceof Error
+				? params.cause.message
+				: "Insight agent generation failed",
+			{ cause: params.cause }
+		);
+		this.name = "InsightAgentExecutionError";
+		this.modelId = params.modelId;
+		this.toolCallCount = params.toolCallCount;
+		this.usage = params.usage;
+	}
+}
+
+/** A candidate-local output failure; sibling investigations may still run. */
+export class InsightAgentGenerationError extends InsightAgentExecutionError {
+	constructor(
+		params: ConstructorParameters<typeof InsightAgentExecutionError>[0]
+	) {
+		super(params);
+		this.name = "InsightAgentGenerationError";
+	}
 }
 
 const INSTRUCTIONS = `Investigate one exact Databuddy signal until a teammate has a clear next move or a useful new fact.
@@ -190,10 +268,7 @@ function formatWatchValue(
 	format: InvestigationSignal["metric"]["format"]
 ): string {
 	if (format === "percent") {
-		return new Intl.NumberFormat("en", {
-			maximumFractionDigits: 1,
-			style: "percent",
-		}).format(value);
+		return `${value.toLocaleString("en-US", { maximumFractionDigits: 1 })}%`;
 	}
 	if (format === "duration_ms") {
 		return `${value.toLocaleString("en-US")} ms`;
@@ -217,10 +292,82 @@ function measurementRecommendation(
 	return recommendation && "kind" in recommendation ? recommendation : null;
 }
 
+function isCanonicalDraftTarget(type: "EVENT" | "PAGE_VIEW", target: string) {
+	return type === "EVENT"
+		? isCanonicalMeasurementEventTarget(target)
+		: isCanonicalMeasurementRouteTarget(target);
+}
+
+function draftTargetKey(type: "EVENT" | "PAGE_VIEW", target: string) {
+	return `${type}\u0000${target}`;
+}
+
+function addVerifiedDraftTargetFromField(
+	targets: Set<string>,
+	field: string,
+	value: unknown
+) {
+	if (typeof value !== "string") {
+		return;
+	}
+	if (ROUTE_TARGET_FIELDS.has(field)) {
+		const target = normalizeInspectedMeasurementRouteTarget(value);
+		if (target) {
+			targets.add(draftTargetKey("PAGE_VIEW", target));
+		}
+	}
+	if (
+		EVENT_TARGET_FIELDS.has(field) &&
+		isCanonicalMeasurementEventTarget(value)
+	) {
+		targets.add(draftTargetKey("EVENT", value));
+	}
+}
+
+function collectVerifiedDraftTargets(value: unknown, targets: Set<string>) {
+	if (Array.isArray(value)) {
+		for (const item of value) {
+			collectVerifiedDraftTargets(item, targets);
+		}
+		return;
+	}
+	if (!(value && typeof value === "object")) {
+		return;
+	}
+	for (const [field, child] of Object.entries(value)) {
+		addVerifiedDraftTargetFromField(targets, field, child);
+		collectVerifiedDraftTargets(child, targets);
+	}
+}
+
+function verifiedDraftTargetsFromSteps(
+	steps: readonly StepResult<ToolSet>[],
+	input: Pick<InsightAgentInput, "measurementCandidate">
+) {
+	const targets = new Set<string>();
+	if (input.measurementCandidate?.kind === "event_goal_candidate") {
+		targets.add(
+			draftTargetKey(
+				input.measurementCandidate.type,
+				input.measurementCandidate.target
+			)
+		);
+	}
+	for (const step of steps) {
+		for (const result of step.toolResults) {
+			collectVerifiedDraftTargets(result.output, targets);
+		}
+	}
+	return targets;
+}
+
 function validateMeasurementRecommendation(
 	outcome: AgentInvestigationOutcome,
 	input: Pick<InsightAgentInput, "measurementCandidate">,
-	usedToolNames: ReadonlySet<string>
+	verification: {
+		usedToolNames: ReadonlySet<string>;
+		verifiedDraftTargets: ReadonlySet<string>;
+	}
 ) {
 	const recommendation = measurementRecommendation(outcome.recommendation);
 	if (!recommendation) {
@@ -232,7 +379,7 @@ function validateMeasurementRecommendation(
 		);
 	}
 
-	const hasInspectedEvidence = usedToolNames.size > 0;
+	const hasInspectedEvidence = verification.usedToolNames.size > 0;
 	const candidate = input.measurementCandidate;
 	if (recommendation.kind === "goal_draft") {
 		if (
@@ -246,9 +393,25 @@ function validateMeasurementRecommendation(
 			candidate?.kind === "event_goal_candidate" &&
 			candidate.target === recommendation.draft.target &&
 			candidate.type === recommendation.draft.type;
-		if (!(matchesObservedEvent || hasInspectedEvidence)) {
+		if (candidate && !matchesObservedEvent) {
 			throw new Error(
-				"Insights goal drafts require an observed event candidate or inspected evidence"
+				"Insights goal drafts must match the observed measurement candidate exactly"
+			);
+		}
+		if (
+			!isCanonicalDraftTarget(
+				recommendation.draft.type,
+				recommendation.draft.target
+			)
+		) {
+			throw new Error("Insights goal drafts require a canonical target");
+		}
+		const verifiedDraftTarget = verification.verifiedDraftTargets.has(
+			draftTargetKey(recommendation.draft.type, recommendation.draft.target)
+		);
+		if (!(matchesObservedEvent || verifiedDraftTarget)) {
+			throw new Error(
+				"Insights goal drafts require an observed event candidate or inspected target"
 			);
 		}
 		return;
@@ -264,10 +427,42 @@ function validateMeasurementRecommendation(
 			"Insights navigation proxies cannot become funnel draft steps"
 		);
 	}
-	if (recommendation.kind === "funnel_draft" && !hasInspectedEvidence) {
-		throw new Error(
-			"Insights funnel drafts require inspected evidence for every ordered step"
-		);
+	if (recommendation.kind === "funnel_draft") {
+		if (!hasInspectedEvidence) {
+			throw new Error(
+				"Insights funnel drafts require inspected evidence for every ordered step"
+			);
+		}
+		if (
+			recommendation.draft.steps.some(
+				(step) => !isCanonicalDraftTarget(step.type, step.target)
+			)
+		) {
+			throw new Error("Insights funnel drafts require canonical step targets");
+		}
+		if (
+			recommendation.draft.steps.some(
+				(step) =>
+					!verification.verifiedDraftTargets.has(
+						draftTargetKey(step.type, step.target)
+					)
+			)
+		) {
+			throw new Error(
+				"Insights funnel drafts require inspected evidence for every ordered step"
+			);
+		}
+		if (
+			candidate?.kind === "event_goal_candidate" &&
+			!recommendation.draft.steps.some(
+				(step) =>
+					step.type === candidate.type && step.target === candidate.target
+			)
+		) {
+			throw new Error(
+				"Insights funnel drafts must include the observed measurement candidate"
+			);
+		}
 	}
 	if (
 		recommendation.kind === "instrumentation" &&
@@ -285,7 +480,10 @@ function validateAgentOutcome(
 		InsightAgentInput,
 		"appContext" | "evidence" | "measurementCandidate" | "signal"
 	>,
-	usedToolNames: ReadonlySet<string>
+	verification: {
+		usedToolNames: ReadonlySet<string>;
+		verifiedDraftTargets: ReadonlySet<string>;
+	}
 ): InvestigationOutcome {
 	const asOf = new Date(input.appContext.currentDateTime);
 	function validateEvidenceRef(
@@ -299,7 +497,10 @@ function validateAgentOutcome(
 				"Insights agent cited supplied evidence that was not available in this investigation"
 			);
 		}
-		if (evidenceRef.source === "tool" && !usedToolNames.has(evidenceRef.name)) {
+		if (
+			evidenceRef.source === "tool" &&
+			!verification.usedToolNames.has(evidenceRef.name)
+		) {
 			throw new Error(
 				"Insights agent cited a read tool that was not used in this investigation"
 			);
@@ -308,7 +509,7 @@ function validateAgentOutcome(
 	for (const evidenceRef of outcome.evidenceRefs) {
 		validateEvidenceRef(evidenceRef);
 	}
-	validateMeasurementRecommendation(outcome, input, usedToolNames);
+	validateMeasurementRecommendation(outcome, input, verification);
 	if (outcome.next.type === "act" || outcome.next.type === "watch") {
 		const recheckAt = outcome.next.recheckAt;
 		if (!recheckAt || new Date(recheckAt).getTime() <= asOf.getTime()) {
@@ -431,7 +632,8 @@ export async function runInsightAgent(
 	const deadline = Date.now() + TIMEOUT_MS;
 	const usages: LanguageModelUsage[] = [];
 	let toolCallCount = 0;
-	let lastOutputError: unknown;
+	let modelId = resolveModelId(options.model);
+	let outputRetry: string | undefined;
 	for (let attempt = 0; attempt < STRUCTURED_OUTPUT_ATTEMPTS; attempt += 1) {
 		const usageCount = usages.length;
 		try {
@@ -444,45 +646,98 @@ export async function runInsightAgent(
 				},
 				prompt: JSON.stringify({
 					...prompt,
-					...(attempt > 0
-						? {
-								outputRetry:
-									"The prior final response was not valid structured output. Return exactly one complete object matching the required schema.",
-							}
-						: {}),
+					...(outputRetry ? { outputRetry } : {}),
 				}),
 				timeout: { totalMs: Math.max(1, deadline - Date.now()) },
 			});
+			modelId = result.response.modelId;
+			if (
+				result.finishReason === "length" &&
+				attempt < STRUCTURED_OUTPUT_ATTEMPTS - 1 &&
+				Date.now() < deadline
+			) {
+				outputRetry =
+					"The prior final response was cut off. Return one shorter, complete object matching the required schema.";
+				continue;
+			}
+			if (result.finishReason !== "stop") {
+				throw new InsightAgentGenerationError({
+					cause: new Error(
+						`Insights agent stopped before structured output (${result.finishReason})`
+					),
+					modelId,
+					toolCallCount,
+					usage: aggregateUsage(usages),
+				});
+			}
+			let outcome: InvestigationOutcome;
+			try {
+				const usedToolNames = new Set(
+					result.steps.flatMap((step) =>
+						step.toolCalls.map((toolCall) => toolCall.toolName)
+					)
+				);
+				outcome = validateAgentOutcome(result.output, input, {
+					usedToolNames,
+					verifiedDraftTargets: verifiedDraftTargetsFromSteps(
+						result.steps,
+						input
+					),
+				});
+			} catch (error) {
+				const generationError = new InsightAgentGenerationError({
+					cause: error,
+					modelId,
+					toolCallCount,
+					usage: aggregateUsage(usages),
+				});
+				if (attempt < STRUCTURED_OUTPUT_ATTEMPTS - 1 && Date.now() < deadline) {
+					outputRetry = `The prior final response failed validation: ${generationError.message}. Correct that error and return one complete object matching the required schema.`;
+					continue;
+				}
+				throw generationError;
+			}
 			return {
 				modelId: result.response.modelId,
-				outcome: validateAgentOutcome(
-					result.output,
-					input,
-					new Set(
-						result.steps.flatMap((step) =>
-							step.toolCalls.map((toolCall) => toolCall.toolName)
-						)
-					)
-				),
+				outcome,
 				toolCallCount,
 				usage: aggregateUsage(usages),
 			};
 		} catch (error) {
-			if (!NoObjectGeneratedError.isInstance(error)) {
+			if (NoObjectGeneratedError.isInstance(error)) {
+				if (usages.length === usageCount && error.usage) {
+					usages.push(error.usage);
+				}
+				modelId = error.response?.modelId ?? modelId;
+				if (
+					attempt < STRUCTURED_OUTPUT_ATTEMPTS - 1 &&
+					error.finishReason !== "content-filter" &&
+					Date.now() < deadline
+				) {
+					outputRetry =
+						"The prior final response was not valid structured output. Return exactly one complete object matching the required schema.";
+					continue;
+				}
+				throw new InsightAgentGenerationError({
+					cause: error,
+					modelId,
+					toolCallCount,
+					usage: aggregateUsage(usages),
+				});
+			}
+			if (error instanceof InsightAgentExecutionError) {
 				throw error;
 			}
-			if (usages.length === usageCount && error.usage) {
-				usages.push(error.usage);
+			if (usages.length > 0) {
+				throw new InsightAgentExecutionError({
+					cause: error,
+					modelId,
+					toolCallCount,
+					usage: aggregateUsage(usages),
+				});
 			}
-			lastOutputError = error;
-			if (
-				attempt === STRUCTURED_OUTPUT_ATTEMPTS - 1 ||
-				error.finishReason === "content-filter" ||
-				Date.now() >= deadline
-			) {
-				throw error;
-			}
+			throw error;
 		}
 	}
-	throw lastOutputError;
+	throw new Error("Insights agent exhausted structured output attempts");
 }

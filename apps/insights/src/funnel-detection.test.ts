@@ -80,6 +80,18 @@ function makeDeps(overrides: Partial<FunnelGoalDeps>): FunnelGoalDeps {
 	};
 }
 
+function waitForAbort(signal?: AbortSignal): Promise<never> {
+	return new Promise((_resolve, reject) => {
+		const onAbort = () =>
+			reject(signal?.reason ?? new Error("Definition probe aborted"));
+		if (signal?.aborted) {
+			onAbort();
+			return;
+		}
+		signal?.addEventListener("abort", onAbort, { once: true });
+	});
+}
+
 describe("detectFunnelGoalSignals", () => {
 	it("uses the goal filters for both completions and the visitor denominator", async () => {
 		const filters = [
@@ -725,6 +737,45 @@ describe("detectFunnelGoalSignals", () => {
 		});
 	});
 
+	it("remeasures sparse zero-completion funnels without keeping the zero warning", async () => {
+		const prior = prepareInvestigation(
+			{
+				baseline: 0,
+				current: 0,
+				deltaPercent: 0,
+				detectedAt: "2026-05-21",
+				direction: "down",
+				entityLabel: "Checkout",
+				label: 'Funnel "Checkout" has no completions',
+				method: "wow",
+				metric: "funnel:f1",
+				severity: "warning",
+				subjectKey: "funnel:f1:zero-completions",
+			},
+			7
+		).signal;
+		let call = 0;
+		const signal = await remeasureFunnelGoalSignal(
+			PARAMS,
+			prior,
+			TODAY,
+			makeDeps({
+				fetchFunnels: async () => [FUNNEL],
+				funnelConversion: async () => {
+					call += 1;
+					return call === 1 ? funnelResult(0, 1, 0) : funnelResult(0, 120, 0);
+				},
+			})
+		);
+
+		expect(signal).toMatchObject({
+			label: 'Funnel "Checkout" conversion',
+			subjectKey: "funnel:f1:zero-completions",
+		});
+		expect(signal?.definitionEvidence).toContain("converted 0 of 1 entrants");
+		expect(signal?.definitionEvidence).not.toContain("completed 0 of 1 entrants");
+	});
+
 	it("reports partial regressions without pre-classifying an action", async () => {
 		let call = 0;
 		const signals = await detectFunnelGoalSignals(
@@ -845,11 +896,13 @@ describe("detectFunnelGoalSignals", () => {
 		expect(diagnostics.failedDefinitions).toBe(1);
 	});
 
-	it("limits definition probes to two current and previous pairs", async () => {
+	it("settles a failed pair before starting the next bounded batch", async () => {
 		const goals = Array.from({ length: 4 }, (_, index) => ({
 			...GOAL,
 			id: `goal-${index}`,
 		}));
+		const diagnostics = { failedDefinitions: 0 };
+		const calls = new Map<string, number>();
 		let active = 0;
 		let peak = 0;
 
@@ -858,17 +911,75 @@ describe("detectFunnelGoalSignals", () => {
 			TODAY,
 			makeDeps({
 				fetchGoals: async () => goals,
-				goalConversion: async () => {
+				goalConversion: async (goal) => {
 					active += 1;
 					peak = Math.max(peak, active);
-					await Bun.sleep(5);
-					active -= 1;
-					return goalResult(20, 20, 100);
+					const call = (calls.get(goal.id) ?? 0) + 1;
+					calls.set(goal.id, call);
+					try {
+						await Bun.sleep(goal.id === "goal-0" && call === 1 ? 1 : 5);
+						if (goal.id === "goal-0" && call === 1) {
+							throw new Error("current period failed");
+						}
+						return goalResult(20, 20, 100);
+					} finally {
+						active -= 1;
+					}
 				},
-			})
+			}),
+			{ diagnostics }
 		);
 
-		expect(peak).toBe(4);
+		expect(diagnostics.failedDefinitions).toBe(1);
+		expect(peak).toBeLessThanOrEqual(4);
+		expect(active).toBe(0);
+		expect(calls.size).toBe(goals.length);
+	});
+
+	it("lets a retry complete a full pass over many slow definitions", async () => {
+		const goals = Array.from({ length: 10 }, (_, index) => ({
+			...GOAL,
+			id: `goal-${index}`,
+		}));
+		const seenByAttempt = [new Set<string>(), new Set<string>()];
+		const calls = new Map<string, number>();
+		let attempt = 0;
+		const deps = makeDeps({
+			fetchGoals: async () => goals,
+			goalConversion: async (goal) => {
+				seenByAttempt[attempt]?.add(goal.id);
+				await Bun.sleep(5);
+				if (attempt === 0 && goal.id === "goal-0") {
+					throw new Error("temporary definition failure");
+				}
+				const key = `${attempt}:${goal.id}`;
+				const call = (calls.get(key) ?? 0) + 1;
+				calls.set(key, call);
+				return goal.id === "goal-9" && call === 1
+					? goalResult(0, 0, 100)
+					: goalResult(20, 20, 100);
+			},
+		});
+		const firstDiagnostics = { failedDefinitions: 0 };
+
+		await detectFunnelGoalSignals(PARAMS, TODAY, deps, {
+			diagnostics: firstDiagnostics,
+			timeoutMs: 100,
+		});
+
+		expect(firstDiagnostics.failedDefinitions).toBe(1);
+		expect(seenByAttempt[0]?.size).toBe(goals.length);
+
+		attempt = 1;
+		const retryDiagnostics = { failedDefinitions: 0 };
+		const signals = await detectFunnelGoalSignals(PARAMS, TODAY, deps, {
+			diagnostics: retryDiagnostics,
+			timeoutMs: 100,
+		});
+
+		expect(retryDiagnostics.failedDefinitions).toBe(0);
+		expect(seenByAttempt[1]?.size).toBe(goals.length);
+		expect(signals.map((signal) => signal.metric)).toContain("goal:goal-9");
 	});
 
 	it("keeps AbortError fatal and stops scheduling more definitions", async () => {
@@ -904,60 +1015,252 @@ describe("detectFunnelGoalSignals", () => {
 		const abortError = new Error("goal analytics aborted");
 		abortError.name = "AbortError";
 		let calls = 0;
-		let release: (() => void) | undefined;
-		const blocked = new Promise<void>((resolve) => {
-			release = resolve;
-		});
 
 		const detection = detectFunnelGoalSignals(
 			PARAMS,
 			TODAY,
 			makeDeps({
 				fetchGoals: async () => goals,
-				goalConversion: async (goal) => {
+				goalConversion: async (goal, _range, signal) => {
 					calls += 1;
 					if (goal.id === "goal-0") {
 						throw abortError;
 					}
-					await blocked;
-					return goalResult(20, 20, 100);
+					return waitForAbort(signal);
 				},
 			})
 		);
 
 		await expect(detection).rejects.toThrow("goal analytics aborted");
 		const callsAtFailure = calls;
-		release?.();
 		await Bun.sleep(0);
 		expect(calls).toBe(callsAtFailure);
 	});
 
-	it("stops scheduling definition queries when the detection budget expires", async () => {
-		const definitions = Array.from({ length: 30 }, (_, index) => ({
+	it("keeps a same-batch sibling when one definition times out", async () => {
+		const slowGoal = { ...GOAL, id: "slow-goal" };
+		const validGoal = { ...GOAL, id: "valid-goal", name: "Purchase" };
+		const diagnostics = { failedDefinitions: 0 };
+		let validCalls = 0;
+		const signals = await detectFunnelGoalSignals(
+			PARAMS,
+			TODAY,
+			makeDeps({
+				fetchGoals: async () => [slowGoal, validGoal],
+				goalConversion: async (goal, _range, signal) => {
+					if (goal.id === slowGoal.id) {
+						return waitForAbort(signal);
+					}
+					validCalls += 1;
+					return validCalls === 1
+						? goalResult(0, 0, 100)
+						: goalResult(20, 20, 100);
+				},
+			}),
+			{ diagnostics, overallTimeoutMs: 200, timeoutMs: 15 }
+		);
+
+		expect(diagnostics.failedDefinitions).toBe(1);
+		expect(signals.map((signal) => signal.metric)).toContain("goal:valid-goal");
+	});
+
+	it("continues past an uncooperative definition after its hard deadline", async () => {
+		const definitions = Array.from({ length: 3 }, (_, index) => ({
 			...GOAL,
 			id: `goal-${index}`,
 		}));
+		const diagnostics = { failedDefinitions: 0 };
+		const seen = new Set<string>();
+		await detectFunnelGoalSignals(
+			PARAMS,
+			TODAY,
+			makeDeps({
+				fetchGoals: async () => definitions,
+				goalConversion: async (goal) => {
+					seen.add(goal.id);
+					if (goal.id === "goal-0") {
+						return new Promise<ConversionResult>(() => undefined);
+					}
+					return goalResult(20, 20, 100);
+				},
+			}),
+			{ diagnostics, overallTimeoutMs: 200, timeoutMs: 15 }
+		);
+
+		expect(diagnostics.failedDefinitions).toBe(1);
+		expect(seen).toEqual(new Set(["goal-0", "goal-1", "goal-2"]));
+	});
+
+	it("continues with later definitions after one bounded batch times out", async () => {
+		const definitions = Array.from({ length: 4 }, (_, index) => ({
+			...GOAL,
+			id: `goal-${index}`,
+		}));
+		const diagnostics = { failedDefinitions: 0 };
+		const seen = new Set<string>();
+		await detectFunnelGoalSignals(
+			PARAMS,
+			TODAY,
+			makeDeps({
+				fetchGoals: async () => definitions,
+				goalConversion: async (goal, _range, signal) => {
+					seen.add(goal.id);
+					if (goal.id === "goal-0" || goal.id === "goal-1") {
+						return waitForAbort(signal);
+					}
+					return goalResult(20, 20, 100);
+				},
+			}),
+			{ diagnostics, overallTimeoutMs: 100, timeoutMs: 5 }
+		);
+
+		expect(diagnostics.failedDefinitions).toBe(2);
+		expect(seen).toEqual(
+			new Set(["goal-0", "goal-1", "goal-2", "goal-3"])
+		);
+	});
+
+	it("uses one overall budget for definition fetch and scanning", async () => {
+		const definitions = Array.from({ length: 3 }, (_, index) => ({
+			...GOAL,
+			id: `goal-${index}`,
+		}));
+		const diagnostics = { failedDefinitions: 0 };
+		const seen = new Set<string>();
+		const slowAbortDelays: number[] = [];
+		let fetchFinishedAt = 0;
+		const startedAt = performance.now();
+		await detectFunnelGoalSignals(
+			PARAMS,
+			TODAY,
+			makeDeps({
+				fetchGoals: async () => {
+					await Bun.sleep(100);
+					fetchFinishedAt = performance.now();
+					return definitions;
+				},
+				goalConversion: async (goal, _range, signal) => {
+					seen.add(goal.id);
+					if (goal.id !== "goal-0") {
+						return goalResult(20, 20, 100);
+					}
+					try {
+						return await waitForAbort(signal);
+					} finally {
+						slowAbortDelays.push(performance.now() - fetchFinishedAt);
+					}
+				},
+			}),
+			{ diagnostics, overallTimeoutMs: 300, timeoutMs: 500 }
+		);
+
+		const elapsedMs = performance.now() - startedAt;
+		expect(diagnostics.failedDefinitions).toBe(1);
+		expect(seen).toEqual(new Set(["goal-0", "goal-1", "goal-2"]));
+		expect(slowAbortDelays).toHaveLength(2);
+		expect(slowAbortDelays.every((delay) => delay < 180)).toBe(true);
+		expect(elapsedMs).toBeLessThan(360);
+	});
+
+	it("shares the remaining scan budget without starving later batches", async () => {
+		const definitions = Array.from({ length: 6 }, (_, index) => ({
+			...GOAL,
+			id: `goal-${index}`,
+		}));
+		const diagnostics = { failedDefinitions: 0 };
+		const seen = new Set<string>();
+		const startedAt = performance.now();
+		await detectFunnelGoalSignals(
+			PARAMS,
+			TODAY,
+			makeDeps({
+				fetchGoals: async () => definitions,
+				goalConversion: async (goal) => {
+					seen.add(goal.id);
+					if (["goal-0", "goal-1", "goal-2", "goal-3"].includes(goal.id)) {
+						return new Promise<ConversionResult>(() => undefined);
+					}
+					return goalResult(20, 20, 100);
+				},
+			}),
+			{ diagnostics, overallTimeoutMs: 300, timeoutMs: 500 }
+		);
+
+		expect(diagnostics.failedDefinitions).toBe(4);
+		expect(seen).toEqual(
+			new Set(["goal-0", "goal-1", "goal-2", "goal-3", "goal-4", "goal-5"])
+		);
+		expect(performance.now() - startedAt).toBeLessThan(400);
+	});
+
+	it("does not fetch definitions for a pre-aborted caller", async () => {
+		const controller = new AbortController();
+		controller.abort(new Error("discovery already canceled"));
+		let fetchCalls = 0;
+		let conversionCalls = 0;
+
+		await expect(
+			detectFunnelGoalSignals(
+				PARAMS,
+				TODAY,
+				makeDeps({
+					fetchFunnels: async () => {
+						fetchCalls += 1;
+						return [];
+					},
+					fetchGoals: async () => {
+						fetchCalls += 1;
+						return [GOAL];
+					},
+					goalConversion: async () => {
+						conversionCalls += 1;
+						return goalResult(20, 20, 100);
+					},
+				}),
+				{ abortSignal: controller.signal }
+			)
+		).rejects.toThrow("discovery already canceled");
+		expect(fetchCalls).toBe(0);
+		expect(conversionCalls).toBe(0);
+	});
+
+	it("composes a caller abort and does not start future batches", async () => {
+		const definitions = Array.from({ length: 6 }, (_, index) => ({
+			...GOAL,
+			id: `goal-${index}`,
+		}));
+		const controller = new AbortController();
+		let active = 0;
 		let calls = 0;
-		let release: (() => void) | undefined;
-		const blocked = new Promise<void>((resolve) => {
-			release = resolve;
+		let started: (() => void) | undefined;
+		const firstWaveStarted = new Promise<void>((resolve) => {
+			started = resolve;
 		});
 		const detection = detectFunnelGoalSignals(
 			PARAMS,
 			TODAY,
 			makeDeps({
 				fetchGoals: async () => definitions,
-				goalConversion: async () => {
+				goalConversion: async (_goal, _range, signal) => {
+					active += 1;
 					calls += 1;
-					await blocked;
-					return goalResult(20, 20, 100);
+					if (calls === 4) {
+						started?.();
+					}
+					try {
+						return await waitForAbort(signal);
+					} finally {
+						active -= 1;
+					}
 				},
 			}),
-			{ timeoutMs: 5 }
+			{ abortSignal: controller.signal }
 		);
 
-		await expect(detection).rejects.toThrow("detection exceeded 5ms");
-		expect(calls).toBeLessThanOrEqual(4);
-		release?.();
+		await firstWaveStarted;
+		controller.abort(new Error("discovery canceled"));
+		await expect(detection).rejects.toThrow("discovery canceled");
+		expect(calls).toBe(4);
+		expect(active).toBe(0);
 	});
 });
