@@ -8,7 +8,12 @@ import {
 import { shutdownPostgres } from "@databuddy/db";
 import { clickHouse } from "@databuddy/db/clickhouse";
 import { getRedisCache } from "@databuddy/redis/redis";
-import { disconnect, disposeRuntime, runPromise } from "@lib/producer";
+import {
+	disconnect,
+	disposeRuntime,
+	runPromise,
+	ShutdownDrainError,
+} from "@lib/producer";
 import { Kafka } from "kafkajs";
 import { databuddyEvlogRedaction } from "@databuddy/shared/evlog-redaction";
 import {
@@ -79,13 +84,35 @@ async function gracefulShutdown(signal: string, exitCode = 0) {
 				error_message: error instanceof Error ? error.message : String(error),
 			});
 		const { shutdownRedis } = await import("@databuddy/redis");
+		// Wait for acknowledged delivery before tearing down its dependencies.
+		try {
+			await runPromise(disconnect);
+		} catch (error) {
+			finalExitCode = 1;
+			if (error instanceof ShutdownDrainError) {
+				log.error({
+					lifecycle: "producerDrain",
+					error_message:
+						"Basket producer drain timed out waiting for in-flight delivery",
+					in_flight: error.inFlight,
+					drain_timeout_ms: error.deadlineMs,
+				});
+			} else {
+				logErr("producerDrain")(error);
+			}
+		} finally {
+			try {
+				await disposeRuntime();
+			} catch (error) {
+				finalExitCode = 1;
+				logErr("runtimeDispose")(error);
+			}
+		}
 		await Promise.all([
 			shutdownRedis().catch(logErr("redisShutdown")),
 			shutdownPostgres().catch(logErr("postgresShutdown")),
-			flushBatchedAxiomDrain().catch(logErr("drainFlush")),
-			runPromise(disconnect).catch(logErr("shutdown")),
-			disposeRuntime().catch(logErr("runtimeDispose")),
 		]);
+		await flushBatchedAxiomDrain().catch(logErr("drainFlush"));
 		closeGeoIPReader();
 	} catch (error) {
 		finalExitCode = 1;
@@ -209,8 +236,8 @@ const app = new Elysia()
 								username: process.env.REDPANDA_USER,
 								password: process.env.REDPANDA_PASSWORD,
 							},
-							ssl: false,
 						}),
+					...(process.env.REDPANDA_SSL === "true" ? { ssl: true } : {}),
 				});
 				const admin = kafka.admin();
 				try {

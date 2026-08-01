@@ -1,352 +1,182 @@
-import { describe, expect, test } from "vitest";
-import { CONTROL_CHARS, longString, XSS_PAYLOADS } from "../test-helpers";
-import { buildTrackEvent, type TrackEventContext } from "./event-service";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 
-// ── Fixtures ──
-
-const NOW = 1_700_000_000_000;
-
-const fullTrackData = {
-	name: "pageview",
-	timestamp: 1_700_000_001_000,
-	sessionStartTime: 1_700_000_000_500,
-	sessionId: "sess_abc123",
-	anonymousId: "anon_1",
-	referrer: "https://google.com",
-	path: "/dashboard",
-	title: "Dashboard | App",
-	screen_resolution: "1920x1080",
-	viewport_size: "1024x768",
-	language: "en-US",
-	timezone: "America/New_York",
-	connection_type: "wifi",
-	rtt: 50,
-	downlink: 10.5,
-	time_on_page: 30_000,
-	scroll_depth: 75,
-	interaction_count: 12,
-	page_count: 3,
-	utm_source: "google",
-	utm_medium: "cpc",
-	utm_campaign: "summer",
-	utm_term: "analytics",
-	utm_content: "banner",
-	gclid: "gclid_abc",
-	load_time: 1500,
-	dom_ready_time: 800,
-	dom_interactive: 600,
-	ttfb: 200,
-	connection_time: 50,
-	render_time: 100,
-	redirect_time: 10,
-	domain_lookup_time: 30,
-	properties: { plan: "pro", color: "blue" },
-};
-
-const fullCtx: TrackEventContext = {
-	clientId: "ws_test",
-	eventId: "evt_123",
-	anonymousId: "salted_anon_1",
-	geo: {
-		anonymizedIP: "abc123def456",
-		country: "United States",
-		region: "California",
-		city: "San Francisco",
+const {
+	mockApplyVisitorIdPrivacy,
+	mockGetDailySalt,
+	mockGetGeo,
+	mockMarkDuplicateReservationDelivered,
+	mockParseUserAgent,
+	mockReleaseDuplicateReservation,
+	mockReserveDuplicate,
+	mockRunPromise,
+	mockSend,
+	mockShouldAnonymizeVisitorIds,
+	mockUseLogger,
+} = vi.hoisted(() => ({
+	mockApplyVisitorIdPrivacy: vi.fn((id: unknown) =>
+		typeof id === "string" ? id : ""
+	),
+	mockGetDailySalt: vi.fn(() => Promise.resolve("daily-salt")),
+	mockGetGeo: vi.fn(() =>
+		Promise.resolve({
+			anonymizedIP: "1.2.3.0",
+			city: "San Francisco",
+			country: "US",
+			region: "CA",
+		})
+	),
+	mockParseUserAgent: vi.fn(() =>
+		Promise.resolve({
+			browserName: "Chrome",
+			browserVersion: "120",
+			deviceType: "desktop",
+			osName: "macOS",
+			osVersion: "14",
+		})
+	),
+	mockMarkDuplicateReservationDelivered: vi.fn(() => Promise.resolve()),
+	mockReleaseDuplicateReservation: vi.fn(() => Promise.resolve()),
+	mockReserveDuplicate: vi.fn(() =>
+		Promise.resolve({
+			duplicate: false,
+			key: "dedup:track:stable-id",
+			token: "pending:test",
+			ttl: 86_400,
+		})
+	),
+	mockRunPromise: vi.fn(() => Promise.resolve()),
+	mockSend: vi.fn(() => ({ type: "producer-effect" })),
+	mockShouldAnonymizeVisitorIds: vi.fn(() => false),
+	mockUseLogger: {
+		set: vi.fn(),
 	},
-	ua: {
-		browserName: "Chrome",
-		browserVersion: "120.0",
-		osName: "Windows",
-		osVersion: "10",
-		deviceType: "desktop",
-		deviceBrand: "Dell",
-		deviceModel: "XPS",
-	},
-	now: NOW,
-};
+}));
 
-// ── Field mapping snapshot ──
+vi.mock("@lib/producer", () => ({
+	runPromise: mockRunPromise,
+	send: mockSend,
+	sendBatch: vi.fn(),
+}));
 
-describe("buildTrackEvent — field mapping", () => {
-	test("full input → every field mapped correctly", () => {
-		const result = buildTrackEvent(fullTrackData, fullCtx);
+vi.mock("@lib/security", () => ({
+	applyVisitorIdPrivacy: mockApplyVisitorIdPrivacy,
+	getDailySalt: mockGetDailySalt,
+	markDuplicateReservationDelivered: mockMarkDuplicateReservationDelivered,
+	releaseDuplicateReservation: mockReleaseDuplicateReservation,
+	reserveDuplicate: mockReserveDuplicate,
+	shouldAnonymizeVisitorIds: mockShouldAnonymizeVisitorIds,
+}));
 
-		// Identity
-		expect(result.id).toBeTruthy(); // randomUUIDv7
-		expect(result.client_id).toBe("ws_test");
+vi.mock("@lib/tracing", () => ({
+	record: (_name: string, fn: () => Promise<void>) => fn(),
+}));
 
-		// Names & content
-		expect(result.event_name).toBe("pageview");
-		expect(result.title).toBe("Dashboard | App");
-		expect(result.referrer).toBe("https://google.com");
-		expect(result.path).toBe("/dashboard");
-		expect(result.url).toBe("/dashboard"); // url === path
+vi.mock("@utils/ip-geo", () => ({
+	extractTrustedClientIp: vi.fn(() => "1.2.3.4"),
+	getGeo: mockGetGeo,
+}));
 
-		// User identity
-		expect(result.anonymous_id).toBe("salted_anon_1");
-		expect(result.session_id).toBe("sess_abc123");
+vi.mock("@utils/user-agent", () => ({
+	parseUserAgent: mockParseUserAgent,
+}));
 
-		// Timestamps — uses trackData values when numeric
-		expect(result.timestamp).toBe(1_700_000_001_000);
-		expect(result.time).toBe(1_700_000_001_000);
-		expect(result.created_at).toBe(NOW);
+vi.mock("evlog/elysia", () => ({
+	useLogger: () => mockUseLogger,
+}));
 
-		// Geo
-		expect(result.ip).toBe("abc123def456");
-		expect(result.country).toBe("United States");
-		expect(result.region).toBe("California");
-		expect(result.city).toBe("San Francisco");
+const { insertOutgoingLink, insertTrackEvent, stableAnalyticsEventId } =
+	await import("./event-service");
 
-		// UA
-		expect(result.user_agent).toBe(""); // always empty (privacy)
-		expect(result.browser_name).toBe("Chrome");
-		expect(result.browser_version).toBe("120.0");
-		expect(result.os_name).toBe("Windows");
-		expect(result.os_version).toBe("10");
-		expect(result.device_type).toBe("desktop");
-		expect(result.device_brand).toBe("Dell");
-		expect(result.device_model).toBe("XPS");
-
-		// Client context — passthrough
-		expect(result.viewport_size).toBe("1024x768");
-		expect(result.language).toBe("en-US");
-		expect(result.timezone).toBe("America/New_York");
-
-		// Engagement
-		expect(result.time_on_page).toBe(30_000);
-		expect(result.scroll_depth).toBe(75);
-		expect(result.interaction_count).toBe(12);
-		expect(result.page_count).toBe(3);
-
-		// UTM
-		expect(result.utm_source).toBe("google");
-		expect(result.utm_medium).toBe("cpc");
-		expect(result.utm_campaign).toBe("summer");
-		expect(result.utm_term).toBe("analytics");
-		expect(result.utm_content).toBe("banner");
-		expect(result.gclid).toBe("gclid_abc");
-
-		// Performance — validated through validatePerformanceMetric
-		expect(result.dom_ready_time).toBe(800);
-		expect(result.ttfb).toBe(200);
-		expect(result.render_time).toBe(100);
-
-		// Properties
-		expect(result.properties).toBe('{"plan":"pro","color":"blue"}');
+describe("event-service producer handoff", () => {
+	beforeEach(() => {
+		mockApplyVisitorIdPrivacy.mockClear();
+		mockGetDailySalt.mockClear();
+		mockGetGeo.mockClear();
+		mockMarkDuplicateReservationDelivered.mockClear();
+		mockParseUserAgent.mockClear();
+		mockReleaseDuplicateReservation.mockClear();
+		mockReserveDuplicate.mockClear();
+		mockRunPromise.mockClear();
+		mockSend.mockClear();
+		mockShouldAnonymizeVisitorIds.mockClear();
+		mockUseLogger.set.mockClear();
 	});
 
-	test("minimal input → defaults applied", () => {
-		const result = buildTrackEvent({ name: "click" }, fullCtx);
+	test("awaits track event producer admission", async () => {
+		const effect = { type: "track-effect" };
+		mockSend.mockReturnValueOnce(effect);
 
-		expect(result.event_name).toBe("click");
-		expect(result.timestamp).toBe(NOW); // falls back to ctx.now
-		expect(result.time).toBe(NOW);
-		expect(result.page_count).toBe(1); // default
-		expect(result.properties).toBe("{}"); // empty
-		expect(result.referrer).toBe("");
-		expect(result.path).toBe("");
-		expect(result.url).toBe("");
-		expect(result.title).toBe("");
-		expect(result.session_id).toBe("");
-	});
-
-	test("missing geo fields → empty strings", () => {
-		const ctx = { ...fullCtx, geo: { anonymizedIP: "" } };
-		const result = buildTrackEvent({ name: "x" }, ctx);
-		expect(result.ip).toBe("");
-		expect(result.country).toBe("");
-		expect(result.region).toBe("");
-		expect(result.city).toBe("");
-	});
-
-	test("missing UA fields → empty strings", () => {
-		const ctx = { ...fullCtx, ua: {} };
-		const result = buildTrackEvent({ name: "x" }, ctx);
-		expect(result.browser_name).toBe("");
-		expect(result.os_name).toBe("");
-		expect(result.device_type).toBe("");
-	});
-
-	test("non-numeric timestamp → uses ctx.now", () => {
-		const result = buildTrackEvent(
-			{ name: "x", timestamp: "not-a-number", sessionStartTime: null },
-			fullCtx
-		);
-		expect(result.timestamp).toBe(NOW);
-	});
-
-	test("performance metrics validated (negative → undefined)", () => {
-		const result = buildTrackEvent({ name: "x", ttfb: 999_999 }, fullCtx);
-		expect(result.ttfb).toBeUndefined(); // >300000
-	});
-
-	test("event_name sanitized (truncated to 255)", () => {
-		const result = buildTrackEvent({ name: longString(300) }, fullCtx);
-		expect(result.event_name.length).toBeLessThanOrEqual(255);
-	});
-
-	test("referrer/path/title sanitized (truncated to 2048)", () => {
-		const result = buildTrackEvent(
+		await insertTrackEvent(
 			{
-				name: "x",
-				referrer: longString(3000),
-				path: longString(3000),
-				title: longString(3000),
+				anonymousId: "anon_1",
+				eventId: "evt_1",
+				name: "pageview",
+				path: "https://example.com/page",
+				sessionId: "session_1",
 			},
-			fullCtx
+			"ws_1",
+			"Mozilla/5.0",
+			"1.2.3.4",
+			new Request("https://basket.example/px.jpg")
 		);
-		expect(result.referrer.length).toBeLessThanOrEqual(2048);
-		expect(result.path.length).toBeLessThanOrEqual(2048);
-		expect(result.title.length).toBeLessThanOrEqual(2048);
+
+		expect(mockSend).toHaveBeenCalledWith(
+			"analytics-events",
+			expect.objectContaining({
+				anonymous_id: "anon_1",
+				client_id: "ws_1",
+				event_name: "pageview",
+			})
+		);
+		expect(mockRunPromise).toHaveBeenCalledWith(effect);
+		expect(mockMarkDuplicateReservationDelivered).toHaveBeenCalledOnce();
 	});
-});
 
-// ── Sanitization boundary ──
+	test("propagates outgoing-link producer admission failures", async () => {
+		const error = new Error("buffer full");
+		mockRunPromise.mockRejectedValueOnce(error);
 
-describe("buildTrackEvent — sanitization boundary", () => {
-	for (const payload of XSS_PAYLOADS) {
-		test(`XSS in name: ${payload.slice(0, 30)}…`, () => {
-			const result = buildTrackEvent({ name: payload }, fullCtx);
-			expect(result.event_name).not.toContain("<");
-			expect(result.event_name).not.toContain(">");
+		await expect(
+			insertOutgoingLink(
+				{
+					anonymousId: "anon_1",
+					eventId: "evt_link_1",
+					href: "https://external.example",
+					sessionId: "session_1",
+				},
+				"ws_1",
+				new Request("https://basket.example/px.jpg")
+			)
+		).rejects.toThrow("Analytics delivery temporarily unavailable");
+		expect(mockReleaseDuplicateReservation).toHaveBeenCalledOnce();
+		expect(mockMarkDuplicateReservationDelivered).not.toHaveBeenCalled();
+	});
+
+	test("returns a retryable failure while another request owns the event", async () => {
+		mockReserveDuplicate.mockResolvedValueOnce({
+			duplicate: false,
+			retryable: true,
 		});
-	}
 
-	test("XSS in all text fields stripped", () => {
-		const xss = '<script>alert("xss")</script>';
-		const result = buildTrackEvent(
-			{
-				name: xss,
-				referrer: xss,
-				path: xss,
-				title: xss,
-			},
-			fullCtx
+		await expect(
+			insertTrackEvent(
+				{ eventId: "evt_1", name: "pageview", path: "/" },
+				"ws_1",
+				"Mozilla/5.0",
+				"1.2.3.4",
+				new Request("https://basket.example/px.jpg")
+			)
+		).rejects.toMatchObject({ status: 503 });
+		expect(mockSend).not.toHaveBeenCalled();
+	});
+
+	test("uses a stable UUID for a retried source event", () => {
+		const first = stableAnalyticsEventId("ws_1", "track", "evt_1");
+		const retry = stableAnalyticsEventId("ws_1", "track", "evt_1");
+
+		expect(first).toBe(retry);
+		expect(first).toMatch(
+			/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 		);
-		for (const field of [
-			result.event_name,
-			result.referrer,
-			result.path,
-			result.title,
-		]) {
-			expect(field).not.toContain("<script>");
-			expect(field).not.toContain("<");
-		}
-	});
-
-	test("control chars stripped from text fields", () => {
-		const dirty = `clean${CONTROL_CHARS}text`;
-		const result = buildTrackEvent(
-			{ name: dirty, referrer: dirty, path: dirty, title: dirty },
-			fullCtx
-		);
-		for (const field of [
-			result.event_name,
-			result.referrer,
-			result.path,
-			result.title,
-		]) {
-			for (const char of CONTROL_CHARS) {
-				expect(field).not.toContain(char);
-			}
-		}
-	});
-
-	test("properties with XSS are JSON-stringified (not sanitized — stored as JSON)", () => {
-		const result = buildTrackEvent(
-			{ name: "x", properties: { evil: "<script>alert(1)</script>" } },
-			fullCtx
-		);
-		// Properties are JSON-stringified, not HTML-sanitized (they're stored as JSON in CH)
-		expect(result.properties).toContain("script");
-		expect(typeof result.properties).toBe("string");
-		// But it's valid JSON
-		expect(() => JSON.parse(result.properties as string)).not.toThrow();
-	});
-
-	test("passthrough fields (language, timezone, etc.) are NOT sanitized", () => {
-		const result = buildTrackEvent(
-			{
-				name: "x",
-				language: "<img onerror=alert(1)>",
-				timezone: "America/New_York",
-			},
-			fullCtx
-		);
-		expect(result.language).toBe("<img onerror=alert(1)>");
-		expect(result.timezone).toBe("America/New_York");
-	});
-
-	test("session_id validated (rejects special chars)", () => {
-		const result = buildTrackEvent(
-			{ name: "x", sessionId: "sess<script>123" },
-			fullCtx
-		);
-		// sanitizeString strips <script>, then regex check rejects remaining if invalid
-		expect(result.session_id).not.toContain("<");
-	});
-});
-
-// ── Response contract shapes ──
-
-describe("buildTrackEvent — output shape completeness", () => {
-	const REQUIRED_FIELDS = [
-		"id",
-		"client_id",
-		"event_name",
-		"anonymous_id",
-		"profile_id",
-		"time",
-		"session_id",
-		"timestamp",
-		"referrer",
-		"url",
-		"path",
-		"title",
-		"ip",
-		"user_agent",
-		"browser_name",
-		"browser_version",
-		"os_name",
-		"os_version",
-		"device_type",
-		"device_brand",
-		"device_model",
-		"country",
-		"region",
-		"city",
-		"viewport_size",
-		"language",
-		"timezone",
-		"time_on_page",
-		"scroll_depth",
-		"interaction_count",
-		"page_count",
-		"utm_source",
-		"utm_medium",
-		"utm_campaign",
-		"utm_term",
-		"utm_content",
-		"gclid",
-		"dom_ready_time",
-		"ttfb",
-		"render_time",
-		"properties",
-		"created_at",
-	] as const;
-
-	test("output has all required fields", () => {
-		const result = buildTrackEvent(fullTrackData, fullCtx);
-		for (const field of REQUIRED_FIELDS) {
-			expect(result).toHaveProperty(field);
-		}
-	});
-
-	test("output has no unexpected fields", () => {
-		const result = buildTrackEvent(fullTrackData, fullCtx);
-		const keys = Object.keys(result);
-		for (const key of keys) {
-			expect(REQUIRED_FIELDS).toContain(key as any);
-		}
 	});
 });

@@ -24,6 +24,8 @@ import {
 	insertOutgoingLinksBatch,
 	insertTrackEvent,
 	insertTrackEventsBatch,
+	stableAnalyticsEventId,
+	type BatchEvent,
 } from "@lib/event-service";
 import { summarizeRejectedBody } from "@lib/rejection-summary";
 import {
@@ -96,14 +98,17 @@ function processTrackEventData(
 			salt
 		);
 
-		return buildTrackEvent(trackData, {
-			clientId,
-			eventId,
-			anonymousId,
-			geo: geoData,
-			ua,
-			now: Date.now(),
-		});
+		return {
+			event: buildTrackEvent(trackData, {
+				clientId,
+				eventId,
+				anonymousId,
+				geo: geoData,
+				ua,
+				now: Date.now(),
+			}),
+			sourceEventId: eventId,
+		};
 	});
 }
 
@@ -111,7 +116,8 @@ async function processOutgoingLinkData(
 	linkData: OutgoingLinkInput,
 	clientId: string,
 	visitorCountry?: unknown
-): Promise<OutgoingLinksInsert> {
+): Promise<BatchEvent<OutgoingLinksInsert>> {
+	const eventId = parseEventId(linkData.eventId, () => randomUUIDv7());
 	const timestamp = parseTimestamp(linkData.timestamp);
 	const anonymizeVisitorIds = shouldAnonymizeVisitorIds(
 		linkData.anonymizeVisitorIds,
@@ -126,14 +132,17 @@ async function processOutgoingLinkData(
 	);
 
 	return {
-		id: randomUUIDv7(),
-		client_id: clientId,
-		anonymous_id: anonymousId,
-		session_id: validateSessionId(linkData.sessionId),
-		href: sanitizeString(linkData.href, VALIDATION_LIMITS.PATH_MAX_LENGTH),
-		text: sanitizeString(linkData.text, VALIDATION_LIMITS.TEXT_MAX_LENGTH),
-		properties: parseProperties(linkData.properties),
-		timestamp,
+		event: {
+			id: stableAnalyticsEventId(clientId, "outgoing_link", eventId),
+			client_id: clientId,
+			anonymous_id: anonymousId,
+			session_id: validateSessionId(linkData.sessionId),
+			href: sanitizeString(linkData.href, VALIDATION_LIMITS.PATH_MAX_LENGTH),
+			text: sanitizeString(linkData.text, VALIDATION_LIMITS.TEXT_MAX_LENGTH),
+			properties: parseProperties(linkData.properties),
+			timestamp,
+		},
+		sourceEventId: eventId,
 	};
 }
 
@@ -489,8 +498,8 @@ const app = new Elysia()
 			const { clientId, userAgent, ip } = validation;
 			log.set({ clientId });
 
-			const trackEvents: EventsInsert[] = [];
-			const outgoingLinkEvents: OutgoingLinksInsert[] = [];
+			const trackEvents: BatchEvent<EventsInsert>[] = [];
+			const outgoingLinkEvents: BatchEvent<OutgoingLinksInsert>[] = [];
 			const results: Record<string, unknown>[] = [];
 			let batchVisitorCountry: string | undefined;
 			let hasResolvedBatchVisitorCountry = false;
@@ -619,10 +628,17 @@ const app = new Elysia()
 				}
 			}
 
-			await Promise.all([
+			const deliveryResults = await Promise.allSettled([
 				insertTrackEventsBatch(trackEvents),
 				insertOutgoingLinksBatch(outgoingLinkEvents),
 			]);
+			const deliveryFailure = deliveryResults.find(
+				(result): result is PromiseRejectedResult =>
+					result.status === "rejected"
+			);
+			if (deliveryFailure) {
+				throw deliveryFailure.reason;
+			}
 
 			log.set({
 				processed: results.length,

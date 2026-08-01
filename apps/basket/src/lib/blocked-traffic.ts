@@ -91,8 +91,8 @@ async function _logBlockedTrafficAsync(
 			created_at: now,
 		};
 
-		// Security telemetry must never delay the rejection path. It is explicitly
-		// buffered and drained on shutdown; core customer events use durable send.
+		// Security telemetry must never delay the rejection path; producer
+		// failures are captured by the shared fire-and-forget send path.
 		runFork(send("analytics-blocked-traffic", blockedEvent));
 		queueBlockedTrafficAlert(blockedEvent, context);
 	} catch (error) {
