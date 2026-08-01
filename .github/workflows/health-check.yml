@@ -471,7 +471,32 @@ jobs:
       - name: Run Links health check
         run: |
           set -euo pipefail
-          trap 'docker rm -f links-health-check >/dev/null 2>&1 || true' EXIT
+          trap 'docker rm -f links-health-check links-redpanda >/dev/null 2>&1 || true' EXIT
+
+          docker run -d \
+            --name links-redpanda \
+            --network host \
+            redpandadata/redpanda:v25.2.9 \
+            redpanda start \
+            --mode dev-container \
+            --smp 1 \
+            --default-log-level=warn \
+            --kafka-addr 0.0.0.0:9092 \
+            --advertise-kafka-addr localhost:9092
+
+          echo "Waiting for Redpanda to start..."
+          for i in {1..30}; do
+            if docker exec links-redpanda rpk cluster health > /dev/null 2>&1; then
+              echo "Redpanda is healthy!"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              echo "Redpanda failed to start within 30 seconds"
+              docker logs links-redpanda
+              exit 1
+            fi
+            sleep 1
+          done
 
           docker run -d \
             --name links-health-check \
@@ -479,6 +504,7 @@ jobs:
             -e NODE_ENV=production \
             -e DATABASE_URL=postgresql://postgres:postgres@localhost:5432/databuddy_test \
             -e REDIS_URL=redis://localhost:6379 \
+            -e REDPANDA_BROKER=localhost:9092 \
             -e DASHBOARD_URL=http://localhost:3000 \
             -e CLICKHOUSE_URL=http://default:@localhost:8123/databuddy_analytics \
             links:test

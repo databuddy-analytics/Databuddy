@@ -21,7 +21,8 @@ import { createHash, randomUUID } from "node:crypto";
 import { UAParser } from "ua-parser-js";
 import { captureError, mergeWideEvent, record } from "../lib/logging";
 import { createDeepLinkFallbackResponse } from "../lib/deep-link-fallback";
-import { sendLinkVisit, type LinkVisitEvent } from "../lib/producer";
+import { enqueueLinkVisit } from "../lib/link-visit-delivery";
+import type { LinkVisitEvent } from "../lib/producer";
 import { extractIp, getGeo } from "../utils/geo";
 
 const EXPIRED_URL = `${config.urls.dashboard}/dby/expired`;
@@ -306,21 +307,12 @@ async function recordClick(
 		user_agent: userAgent,
 	};
 	const tDelivery = performance.now();
-	const acknowledged = await record("link.click.kafka", () =>
-		sendLinkVisit(event, link.id)
-	);
+	await record("link.click.queue", () => enqueueLinkVisit(event));
 	const delivery_ms = ms(tDelivery);
-
-	// Kafka's full acknowledgement is the only success boundary. A timeout or
-	// disconnect is intentionally treated as ambiguous: returning a 503 lets
-	// the caller retry instead of claiming a click that might be lost.
-	if (!acknowledged) {
-		throw new Error("Link visit was not acknowledged by Redpanda");
-	}
 
 	mergeWideEvent({
 		click_recorded: true,
-		click_reason: "kafka_acknowledged",
+		click_reason: "queue_admitted",
 		...(ua.browser ? { click_browser: ua.browser } : {}),
 		...(ua.device ? { click_device: ua.device } : {}),
 		...(geo.country ? { click_country: geo.country } : {}),

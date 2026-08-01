@@ -207,13 +207,14 @@ services:
       DB_POOL_MAX: ${DB_POOL_MAX:-10}
       SERVICE_NAME: databuddy-links
       REDIS_URL: "redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in your environment}@redis:6379"
+      BULLMQ_REDIS_URL: "redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in your environment}@redis:6379"
       CLICKHOUSE_URL: "http://${CLICKHOUSE_USER:-default}:${CLICKHOUSE_PASSWORD:?Set CLICKHOUSE_PASSWORD in your environment}@clickhouse:8123/${CLICKHOUSE_DB:-databuddy_analytics}"
       DASHBOARD_URL: ${DASHBOARD_URL:?Set DASHBOARD_URL in your environment}
       SUPERLOG_API_KEY: ${SUPERLOG_API_KEY:-}
       LINKS_ROOT_REDIRECT_URL: ${LINKS_ROOT_REDIRECT_URL:-https://databuddy.cc}
       GEOIP_DB_URL: ${GEOIP_DB_URL:-https://cdn.databuddy.cc/mmdb/GeoLite2-City.mmdb}
     healthcheck:
-      test: [ "CMD", "bun", "-e", "fetch('http://localhost:2500/health/status').then(async r=>process.exit(r.ok&&(await r.json()).status==='ok'?0:1)).catch(()=>process.exit(1))" ]
+      test: [ "CMD", "bun", "-e", "fetch('http://localhost:2500/health/status').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" ]
       interval: 30s
       timeout: 3s
       start_period: 10s

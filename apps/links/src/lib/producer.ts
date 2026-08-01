@@ -1,3 +1,4 @@
+import { clickHouse, TABLE_NAMES } from "@databuddy/db/clickhouse";
 import { CompressionTypes, Kafka, type Producer } from "kafkajs";
 import { captureError, setAttributes } from "./logging";
 
@@ -6,7 +7,7 @@ const broker = process.env.REDPANDA_BROKER;
 const username = process.env.REDPANDA_USER;
 const password = process.env.REDPANDA_PASSWORD;
 const reconnectCooldownMs = 60_000;
-const sendTimeoutMs = 3000;
+const kafkaTimeoutMs = 10_000;
 
 let producer: Producer | null = null;
 let connectPromise: Promise<boolean> | null = null;
@@ -31,26 +32,6 @@ export interface LinkVisitEvent {
 	user_agent: string | null;
 }
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
-	return new Promise<T>((resolve, reject) => {
-		const timeout = setTimeout(
-			() => reject(new Error(`Operation timed out after ${timeoutMs}ms`)),
-			timeoutMs
-		);
-
-		promise.then(
-			(value) => {
-				clearTimeout(timeout);
-				resolve(value);
-			},
-			(error) => {
-				clearTimeout(timeout);
-				reject(error);
-			}
-		);
-	});
-}
-
 function discardProducer(
 	candidate: Producer,
 	operation: "kafka_connect_disconnect" | "kafka_send_disconnect"
@@ -60,7 +41,7 @@ function discardProducer(
 	}
 
 	try {
-		withTimeout(candidate.disconnect(), sendTimeoutMs).catch((error) => {
+		candidate.disconnect().catch((error) => {
 			captureError(error, { operation });
 		});
 	} catch (error) {
@@ -94,9 +75,9 @@ function connect(): Promise<boolean> {
 			const kafka = new Kafka({
 				brokers: [broker],
 				clientId: "links-producer",
-				connectionTimeout: sendTimeoutMs,
-				authenticationTimeout: sendTimeoutMs,
-				requestTimeout: sendTimeoutMs,
+				connectionTimeout: kafkaTimeoutMs,
+				authenticationTimeout: kafkaTimeoutMs,
+				requestTimeout: kafkaTimeoutMs,
 				enforceRequestTimeout: true,
 				...(username && password
 					? { sasl: { mechanism: "scram-sha-256", username, password } }
@@ -110,7 +91,7 @@ function connect(): Promise<boolean> {
 				transactionTimeout: 30_000,
 			});
 
-			await withTimeout(candidate.connect(), sendTimeoutMs);
+			await candidate.connect();
 			producer = candidate;
 			nextReconnectAt = 0;
 			setAttributes({ kafka_connected: true });
@@ -132,6 +113,33 @@ function connect(): Promise<boolean> {
 	return connectPromise;
 }
 
+export async function checkProducerHealth(): Promise<void> {
+	if (!(await connect())) {
+		throw new Error("Redpanda producer is unavailable");
+	}
+}
+
+async function persistLinkVisitDirectly(
+	event: LinkVisitEvent
+): Promise<boolean> {
+	try {
+		await clickHouse.insert({
+			table: TABLE_NAMES.link_visits,
+			values: [event],
+			format: "JSONEachRow",
+		});
+		setAttributes({ clickhouse_fallback_success: true });
+		return true;
+	} catch (error) {
+		captureError(error, {
+			operation: "clickhouse_link_visit_fallback",
+			clickhouse_table: TABLE_NAMES.link_visits,
+		});
+		setAttributes({ clickhouse_fallback_success: false });
+		return false;
+	}
+}
+
 export async function sendLinkVisit(
 	event: LinkVisitEvent,
 	key?: string
@@ -150,27 +158,25 @@ export async function sendLinkVisit(
 			kafka_connected: false,
 			kafka_send_skipped: true,
 		});
-		return false;
+		// No Kafka write was attempted, so direct persistence is not ambiguous.
+		// The BullMQ job remains active until this insert is acknowledged.
+		return persistLinkVisitDirectly(event);
 	}
 
 	setAttributes({ kafka_connected: true });
 	try {
-		await withTimeout(
-			activeProducer.send({
-				topic: TOPIC,
-				acks: -1,
-				messages: [
-					{
-						value: JSON.stringify(event, (_k, v) =>
-							v === undefined ? null : v
-						),
-						key: eventKey,
-					},
-				],
-				compression: CompressionTypes.GZIP,
-			}),
-			sendTimeoutMs
-		);
+		await activeProducer.send({
+			topic: TOPIC,
+			acks: -1,
+			timeout: kafkaTimeoutMs,
+			messages: [
+				{
+					value: JSON.stringify(event, (_k, v) => (v === undefined ? null : v)),
+					key: eventKey,
+				},
+			],
+			compression: CompressionTypes.GZIP,
+		});
 		setAttributes({ kafka_send_success: true });
 		return true;
 	} catch (error) {
