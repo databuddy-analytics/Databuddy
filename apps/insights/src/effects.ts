@@ -364,7 +364,13 @@ export async function drainInsightRunEffects(
 								),
 								eq(insightRunEffects.status, "succeeded"),
 								isNotNull(insightRunEffects.externalId),
-								sql`${insightRunEffects.payload}->>'insightId' = ${payload.insightId}`
+								or(
+									sql`${insightRunEffects.payload}->>'insightId' = ${payload.insightId}`,
+									and(
+										eq(insightRunEffects.effectKey, channelId),
+										sql`${insightRunEffects.payload}->>'insightId' is null`
+									)
+								)
 							)
 						)
 						.orderBy(insightRunEffects.createdAt, insightRunEffects.id)

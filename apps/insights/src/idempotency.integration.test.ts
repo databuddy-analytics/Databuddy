@@ -1876,26 +1876,29 @@ describeIntegration("insights idempotency integration", () => {
 				}))
 			);
 
-			const legacyPayload = {
-				blocks: [],
-				insightId,
-				text: "Checkout conversion fell",
-			};
-			await prepareInsightRun({
-				...first,
-				effects: [{ effectKey: "C_TEST", payload: legacyPayload }],
-				result: { resultCount: 1, status: "succeeded" },
-			});
-			await prepareInsightRun({
-				...second,
-				effects: [
-					{
-						effectKey: `C_TEST:${insightId}`,
-						payload: { ...legacyPayload, channelId: "C_TEST" },
+		const legacyPayload = {
+			blocks: [],
+			text: "Checkout conversion fell",
+		};
+		await prepareInsightRun({
+			...first,
+			effects: [{ effectKey: "C_TEST", payload: legacyPayload }],
+			result: { resultCount: 1, status: "succeeded" },
+		});
+		await prepareInsightRun({
+			...second,
+			effects: [
+				{
+					effectKey: `C_TEST:${insightId}`,
+					payload: {
+						...legacyPayload,
+						channelId: "C_TEST",
+						insightId,
 					},
-				],
-				result: { resultCount: 1, status: "succeeded" },
-			});
+				},
+			],
+			result: { resultCount: 1, status: "succeeded" },
+		});
 
 		const threadTimestamps: Array<string | undefined> = [];
 		const deliver = async (
