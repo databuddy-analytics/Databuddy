@@ -30,22 +30,11 @@ const connectProducer = (): Promise<Producer> => {
 };
 
 let singletonProducer: Producer | null = null;
-let singletonConnection: Promise<Producer | null> | null = null;
+let singletonConnection: Promise<Producer> | null = null;
 
-export type UptimeEventSendResult =
-	| { sent: true }
-	| {
-			sent: false;
-			reason: "producer_unavailable" | "send_failed";
-	  };
-
-function ensureProducer(): Promise<Producer | null> {
+function ensureProducer(): Promise<Producer> {
 	if (singletonProducer) {
 		return Promise.resolve(singletonProducer);
-	}
-
-	if (!process.env.REDPANDA_BROKER) {
-		return Promise.resolve(null);
 	}
 
 	if (singletonConnection) {
@@ -60,7 +49,7 @@ function ensureProducer(): Promise<Producer | null> {
 		.catch((error) => {
 			captureError(error, { error_step: "kafka_producer_connect" });
 			singletonProducer = null;
-			return null;
+			throw error;
 		})
 		.finally(() => {
 			singletonConnection = null;
@@ -86,11 +75,8 @@ async function resetProducer(producer: Producer): Promise<void> {
 export async function sendUptimeEvent(
 	event: unknown,
 	key?: string
-): Promise<UptimeEventSendResult> {
+): Promise<void> {
 	const p = await ensureProducer();
-	if (!p) {
-		return { sent: false, reason: "producer_unavailable" };
-	}
 
 	try {
 		await p.send({
@@ -104,16 +90,16 @@ export async function sendUptimeEvent(
 			],
 			compression: CompressionTypes.GZIP,
 		});
-		return { sent: true };
 	} catch (error) {
 		captureError(error, { error_step: "kafka_producer_send" });
 		await resetProducer(p);
-		return { sent: false, reason: "send_failed" };
+		throw error;
 	}
 }
 
 export async function disconnectProducer(): Promise<void> {
-	const producer = singletonProducer ?? (await singletonConnection);
+	const producer =
+		singletonProducer ?? (await singletonConnection?.catch(() => null));
 	if (!producer) {
 		return;
 	}

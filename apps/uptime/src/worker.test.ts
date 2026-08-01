@@ -120,7 +120,7 @@ function deps(): UptimeWorkerDeps {
 			"enabled" in config &&
 			config.enabled === true,
 		lookupSchedule: async () => lookupResult,
-		sendUptimeEvent: async () => ({ sent: true }),
+		sendUptimeEvent: async () => {},
 		reapOrphanScheduler: async (scheduleId: string) => {
 			calls.reaped.push(scheduleId);
 			if (reapBehaviour === "throw") {
@@ -595,12 +595,11 @@ describe("processUptimeCheck", () => {
 		expect(calls.delivery).toEqual([]);
 	});
 
-	it("retries a delivery job when Redpanda does not acknowledge it", async () => {
+	it("retries a delivery job when Redpanda rejects it", async () => {
 		const failingDeps = deps();
-		failingDeps.sendUptimeEvent = async () => ({
-			sent: false,
-			reason: "send_failed",
-		});
+		failingDeps.sendUptimeEvent = async () => {
+			throw new Error("Redpanda send failed");
+		};
 
 		await expect(
 			processUptimeDeliveryJob(
@@ -611,7 +610,7 @@ describe("processUptimeCheck", () => {
 				},
 				failingDeps
 			)
-		).rejects.toThrow("Redpanda delivery failed: send_failed");
+		).rejects.toThrow("Redpanda send failed");
 
 		expect(calls.captureError).toContainEqual(
 			expect.objectContaining({

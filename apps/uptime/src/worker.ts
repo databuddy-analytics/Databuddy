@@ -12,7 +12,7 @@ import {
 	uptimeDeliveryJobId,
 	uptimeSchedulerId,
 } from "@databuddy/redis";
-import { Worker } from "bullmq";
+import { type Job, Worker } from "bullmq";
 import type { RequestLogger } from "evlog";
 import { createLogger, log } from "evlog";
 import { Cause, Data, Effect, Exit } from "effect";
@@ -23,7 +23,7 @@ import {
 	lookupSchedule,
 } from "./actions";
 import { isHealthExtractionEnabled } from "./json-parser";
-import { sendUptimeEvent, type UptimeEventSendResult } from "./lib/producer";
+import { sendUptimeEvent } from "./lib/producer";
 import { captureError } from "./lib/tracing";
 import {
 	MonitorStatus,
@@ -48,11 +48,6 @@ const REAPABLE_REASONS: ReadonlySet<ScheduleLookupReason> = new Set([
 	"not_found",
 	"malformed",
 ]);
-
-async function defaultReapOrphanScheduler(scheduleId: string): Promise<void> {
-	const queue = getUptimeQueue();
-	await queue.removeJobScheduler(uptimeSchedulerId(scheduleId));
-}
 
 class SchedulePaused extends Data.TaggedError("SchedulePaused")<
 	Record<string, never>
@@ -93,29 +88,26 @@ export interface UptimeWorkerDeps {
 	isHealthExtractionEnabled: (config: unknown) => boolean;
 	lookupSchedule: (scheduleId: string) => Promise<ActionResult<ScheduleData>>;
 	reapOrphanScheduler: (scheduleId: string) => Promise<void>;
-	sendUptimeEvent: (
-		event: unknown,
-		key?: string
-	) => Promise<UptimeEventSendResult>;
-}
-
-async function defaultEnqueueUptimeDelivery(data: UptimeData): Promise<void> {
-	await getUptimeDeliveryQueue().add(
-		UPTIME_DELIVERY_JOB_NAME,
-		{ event: data },
-		{ jobId: uptimeDeliveryJobId(data.event_id) }
-	);
+	sendUptimeEvent: (event: unknown, key?: string) => Promise<void>;
 }
 
 const uptimeWorkerDeps: UptimeWorkerDeps = {
 	captureError,
 	checkUptime,
 	createLogger: (fields) => createLogger(fields),
-	enqueueUptimeDelivery: defaultEnqueueUptimeDelivery,
+	enqueueUptimeDelivery: async (data) => {
+		await getUptimeDeliveryQueue().add(
+			UPTIME_DELIVERY_JOB_NAME,
+			{ event: data },
+			{ jobId: uptimeDeliveryJobId(data.event_id) }
+		);
+	},
 	getPreviousMonitorStatus,
 	isHealthExtractionEnabled,
 	lookupSchedule,
-	reapOrphanScheduler: defaultReapOrphanScheduler,
+	reapOrphanScheduler: async (scheduleId) => {
+		await getUptimeQueue().removeJobScheduler(uptimeSchedulerId(scheduleId));
+	},
 	sendUptimeEvent,
 	fireTransitionAlerts,
 };
@@ -138,20 +130,15 @@ export function getUptimeWorkerConcurrency(
 	return parsed;
 }
 
-export interface UptimeWorkerJob {
-	attemptsMade?: number;
-	data: UptimeCheckJobData;
-	id?: string;
-	name: string;
-	updateData: (data: UptimeCheckJobData) => Promise<void>;
-}
+export type UptimeWorkerJob = Pick<
+	Job<UptimeCheckJobData>,
+	"attemptsMade" | "data" | "id" | "name" | "updateData"
+>;
 
-export interface UptimeDeliveryWorkerJob {
-	attemptsMade?: number;
-	data: UptimeDeliveryJobData;
-	id?: string;
-	name: string;
-}
+export type UptimeDeliveryWorkerJob = Pick<
+	Job<UptimeDeliveryJobData>,
+	"attemptsMade" | "data" | "id" | "name"
+>;
 
 const timed = <A, E>(
 	label: string,
@@ -553,10 +540,7 @@ export async function processUptimeDeliveryJob(
 
 	const data = parsedEvent.data;
 	try {
-		const result = await deps.sendUptimeEvent(data, data.site_id);
-		if (!result.sent) {
-			throw new Error(`Redpanda delivery failed: ${result.reason}`);
-		}
+		await deps.sendUptimeEvent(data, data.site_id);
 	} catch (error) {
 		deps.captureError(error, {
 			error_step: "uptime_delivery_send",

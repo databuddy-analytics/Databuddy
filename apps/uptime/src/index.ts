@@ -209,19 +209,16 @@ const probe = (_name: string, fn: () => Promise<void>) =>
 
 const healthCheck = Effect.gen(function* () {
 	const { db, sql } = yield* Effect.promise(() => import("@databuddy/db"));
-	const { getUptimeDeliveryQueue, getUptimeQueue } = yield* Effect.promise(
+	const { getUptimeQueue } = yield* Effect.promise(
 		() => import("@databuddy/redis")
 	);
 	const { Kafka } = yield* Effect.promise(() => import("kafkajs"));
 
-	const [postgres, bullmqRedis, deliveryRedis, redpanda] = yield* Effect.all(
+	const [postgres, bullmqRedis, redpanda] = yield* Effect.all(
 		[
 			probe("postgres", () => db.execute(sql`SELECT 1`).then(() => {})),
 			probe("bullmqRedis", async () => {
 				await getUptimeQueue().count();
-			}),
-			probe("uptimeDeliveryRedis", async () => {
-				await getUptimeDeliveryQueue().count();
 			}),
 			probe("redpanda", async () => {
 				const broker = process.env.REDPANDA_BROKER;
@@ -257,7 +254,6 @@ const healthCheck = Effect.gen(function* () {
 	const services = {
 		postgres,
 		bullmqRedis,
-		uptimeDeliveryRedis: deliveryRedis,
 		redpanda,
 	};
 	const status = Object.values(services).every((s) => s.status === "ok")

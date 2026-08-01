@@ -91,9 +91,7 @@ describe("sendUptimeEvent", () => {
 		expect(resolveConnection).toBeDefined();
 		resolveConnection?.();
 
-		expect(await Promise.all(sends)).toEqual(
-			Array.from({ length: 20 }, () => ({ sent: true }))
-		);
+		await Promise.all(sends);
 		expect(producer.send).toHaveBeenCalledTimes(20);
 		expect(producer.send).toHaveBeenCalledWith(
 			expect.objectContaining({ acks: -1 })
@@ -108,25 +106,40 @@ describe("sendUptimeEvent", () => {
 		const recoveredProducer = createProducer();
 		producers.push(failedProducer, recoveredProducer);
 
-		expect(await sendUptimeEvent({ attempt: 1 })).toEqual({
-			sent: false,
-			reason: "send_failed",
-		});
+		await expect(sendUptimeEvent({ attempt: 1 })).rejects.toThrow(
+			"broker unavailable"
+		);
 		expect(failedProducer.disconnect).toHaveBeenCalledTimes(1);
 
-		expect(await sendUptimeEvent({ attempt: 2 })).toEqual({ sent: true });
+		await expect(sendUptimeEvent({ attempt: 2 })).resolves.toBeUndefined();
 		expect(recoveredProducer.connect).toHaveBeenCalledTimes(1);
 		expect(recoveredProducer.send).toHaveBeenCalledTimes(1);
 		expect(kafkaConfigs).toHaveLength(2);
 	});
 
-	test("reports an unavailable producer when Kafka is not configured", async () => {
+	test("reconnects after a failed cold-start connection", async () => {
+		const failedProducer = createProducer({
+			connect: () => Promise.reject(new Error("broker unavailable")),
+		});
+		const recoveredProducer = createProducer();
+		producers.push(failedProducer, recoveredProducer);
+
+		await expect(sendUptimeEvent({ attempt: 1 })).rejects.toThrow(
+			"broker unavailable"
+		);
+
+		await expect(sendUptimeEvent({ attempt: 2 })).resolves.toBeUndefined();
+		expect(recoveredProducer.connect).toHaveBeenCalledTimes(1);
+		expect(recoveredProducer.send).toHaveBeenCalledTimes(1);
+		expect(kafkaConfigs).toHaveLength(2);
+	});
+
+	test("rejects when Kafka is not configured", async () => {
 		delete process.env.REDPANDA_BROKER;
 
-		expect(await sendUptimeEvent({ ok: true })).toEqual({
-			sent: false,
-			reason: "producer_unavailable",
-		});
+		await expect(sendUptimeEvent({ ok: true })).rejects.toThrow(
+			"REDPANDA_BROKER not set"
+		);
 		expect(kafkaConfigs).toEqual([]);
 	});
 
@@ -135,7 +148,7 @@ describe("sendUptimeEvent", () => {
 		const producer = createProducer();
 		producers.push(producer);
 
-		expect(await sendUptimeEvent({ ok: true })).toEqual({ sent: true });
+		await expect(sendUptimeEvent({ ok: true })).resolves.toBeUndefined();
 		expect(kafkaConfigs[0]).toEqual(
 			expect.objectContaining({ ssl: true })
 		);
