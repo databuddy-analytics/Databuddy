@@ -38,7 +38,6 @@ import {
 } from "./persistence";
 import { recordInsightReplyFailure, resumeInsightReply } from "./resume";
 import {
-	findRunObservation,
 	findRunObservations,
 	loadDueOpenInvestigation,
 	loadInvestigationHistory,
@@ -1573,7 +1572,7 @@ describeIntegration("insights idempotency integration", () => {
 			.select({ outcome: insightObservations.outcome })
 			.from(insightObservations)
 			.where(eq(insightObservations.websiteId, website.id));
-		const replay = await findRunObservation({
+		const [replay] = await findRunObservations({
 			organizationId: org.id,
 			runId: firstRunId,
 			websiteId: website.id,
