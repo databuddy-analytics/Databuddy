@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS analytics.custom_events
 	`session_id` Nullable(String) CODEC(ZSTD(1)),
 	`source` LowCardinality(Nullable(String)) CODEC(ZSTD(1)),
 	`profile_id` String DEFAULT '',
+	`delivery_id` String DEFAULT '' CODEC(ZSTD(1)),
 	INDEX idx_event_name event_name TYPE bloom_filter(0.01) GRANULARITY 1,
 	INDEX idx_namespace namespace TYPE bloom_filter(0.01) GRANULARITY 1,
 	INDEX idx_website_id website_id TYPE bloom_filter(0.01) GRANULARITY 1,
