@@ -535,11 +535,14 @@ export const investigationOutcomeSchema = z
 		}
 		if (
 			outcome.recommendation &&
-			(outcome.next.type === "act" || outcome.next.type === "ask")
+			(outcome.next.type === "act" || outcome.next.type === "ask") &&
+			(!("kind" in outcome.recommendation) ||
+				outcome.recommendation.kind !== "databuddy_setup")
 		) {
 			context.addIssue({
 				code: "custom",
-				message: "Actions and questions cannot also carry a recommendation",
+				message:
+					"Actions and questions can only carry a backend-verified Databuddy setup recommendation",
 				path: ["recommendation"],
 			});
 		}

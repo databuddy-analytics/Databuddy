@@ -287,7 +287,14 @@ describe("duplicate reservations", () => {
 
 			const stalled = reserveDuplicate("evt_1", "track");
 			await vi.advanceTimersByTimeAsync(DEDUP_RESERVATION_TIMEOUT_MS);
-			await expect(stalled).resolves.toEqual({ duplicate: false });
+			await expect(stalled).resolves.toEqual({
+				duplicate: false,
+				retryable: true,
+			});
+			await expect(reserveDuplicate("evt_1", "track")).resolves.toEqual({
+				duplicate: false,
+				retryable: true,
+			});
 
 			await expect(reserveDuplicate("evt_2", "track")).resolves.toEqual({
 				duplicate: false,
@@ -315,7 +322,10 @@ describe("duplicate reservations", () => {
 
 			const reservation = reserveDuplicate("evt_late", "track");
 			await vi.advanceTimersByTimeAsync(DEDUP_RESERVATION_TIMEOUT_MS);
-			await expect(reservation).resolves.toEqual({ duplicate: false });
+			await expect(reservation).resolves.toEqual({
+				duplicate: false,
+				retryable: true,
+			});
 			expect(mockRedisEval).not.toHaveBeenCalled();
 
 			await vi.advanceTimersByTimeAsync(50);

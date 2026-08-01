@@ -36,12 +36,46 @@ const COUNTRY_CODES: Record<string, string> = {
 };
 
 let dedupBypassUntil = 0;
+const timedOutReservationKeys = new Map<string, number>();
+let timedOutReservationCleanup: ReturnType<typeof setTimeout> | undefined;
 
 class DeduplicationDeadlineError extends Error {}
 
 /** @internal */
 export function resetDeduplicationCircuitForTesting(): void {
 	dedupBypassUntil = 0;
+	timedOutReservationKeys.clear();
+	if (timedOutReservationCleanup) {
+		clearTimeout(timedOutReservationCleanup);
+		timedOutReservationCleanup = undefined;
+	}
+}
+
+function scheduleTimedOutReservationCleanup(): void {
+	if (timedOutReservationCleanup) {
+		return;
+	}
+	const cleanup = () => {
+		timedOutReservationCleanup = undefined;
+		const now = Date.now();
+		let nextExpiry = Number.POSITIVE_INFINITY;
+		for (const [key, expiresAt] of timedOutReservationKeys) {
+			if (expiresAt <= now) {
+				timedOutReservationKeys.delete(key);
+			} else {
+				nextExpiry = Math.min(nextExpiry, expiresAt);
+			}
+		}
+		if (Number.isFinite(nextExpiry)) {
+			timedOutReservationCleanup = setTimeout(
+				cleanup,
+				Math.max(1, nextExpiry - now)
+			);
+			timedOutReservationCleanup.unref?.();
+		}
+	};
+	timedOutReservationCleanup = setTimeout(cleanup, DEDUP_BYPASS_COOLDOWN_MS);
+	timedOutReservationCleanup.unref?.();
 }
 
 function withDedupDeadline<T>(
@@ -258,11 +292,19 @@ export function reserveDuplicate(
 	sourceEventId = eventId
 ): Promise<DuplicateReservation> {
 	return record("reserveDuplicate", async () => {
-		if (Date.now() < dedupBypassUntil) {
+		const key = `dedup:${eventType}:${eventId}`;
+		const now = Date.now();
+		const timedOutUntil = timedOutReservationKeys.get(key);
+		if (timedOutUntil && now < timedOutUntil) {
+			return { duplicate: false, retryable: true };
+		}
+		if (timedOutUntil) {
+			timedOutReservationKeys.delete(key);
+		}
+		if (now < dedupBypassUntil) {
 			return { duplicate: false };
 		}
 
-		const key = `dedup:${eventType}:${eventId}`;
 		const deliveredTtl = sourceEventId.startsWith("exit_")
 			? EXIT_EVENT_TTL
 			: STANDARD_EVENT_TTL;
@@ -315,11 +357,21 @@ export function reserveDuplicate(
 					});
 			}
 			dedupBypassUntil = Date.now() + DEDUP_BYPASS_COOLDOWN_MS;
+			if (error instanceof DeduplicationDeadlineError) {
+				timedOutReservationKeys.set(key, dedupBypassUntil);
+				scheduleTimedOutReservationCleanup();
+			}
 			captureError(error, {
 				message: "Failed to check duplicate event in Redis",
 				eventId,
 				eventType,
 			});
+			if (error instanceof DeduplicationDeadlineError) {
+				// The SET outcome is unknown, so this particular payload must not be
+				// published fail-open. Distinct events may use the short circuit-breaker
+				// bypass while the late operation is reconciled above.
+				return { duplicate: false, retryable: true };
+			}
 			return { duplicate: false };
 		}
 	});
