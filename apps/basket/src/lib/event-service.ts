@@ -70,12 +70,14 @@ function isAmbiguousKafkaSend(error: unknown): boolean {
 
 async function settleFailedReservations(
 	error: unknown,
-	reservations: Array<Awaited<ReturnType<typeof reserveDuplicate>>>
+	reservations: Awaited<ReturnType<typeof reserveDuplicate>>[]
 ): Promise<void> {
 	const settle = isAmbiguousKafkaSend(error)
 		? markDuplicateReservationAmbiguous
 		: releaseDuplicateReservation;
-	await Promise.allSettled(reservations.map((reservation) => settle(reservation)));
+	await Promise.allSettled(
+		reservations.map((reservation) => settle(reservation))
+	);
 }
 
 function canonicalizeDeliverySource(value: unknown): unknown {
@@ -692,9 +694,9 @@ export function insertCustomEvents(
 		await deliverSpanBatch(
 			"custom_event",
 			"analytics-custom-events",
-			events.map((event) => `${event.owner_id}:${event.website_id ?? ""}`).join(
-				"|"
-			),
+			events
+				.map((event) => `${event.owner_id}:${event.website_id ?? ""}`)
+				.join("|"),
 			events,
 			spans
 		);
