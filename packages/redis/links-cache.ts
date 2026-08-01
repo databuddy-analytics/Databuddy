@@ -291,6 +291,8 @@ export async function finishCachedLinkMutation(
 	token: string,
 	next: CachedLinkMutationNext
 ): Promise<boolean> {
+	const ttl =
+		next.state === "tombstone" ? LINKS_NEGATIVE_CACHE_TTL : LINKS_CACHE_TTL;
 	const result = (await runLinkCacheCommand((redis) =>
 		redis.eval(
 			FINISH_CACHED_LINK_MUTATION_SCRIPT,
@@ -298,7 +300,7 @@ export async function finishCachedLinkMutation(
 			getLinkCacheKey(slug),
 			token,
 			serializeMutationNext(next),
-			String(LINKS_CACHE_TTL)
+			String(ttl)
 		)
 	)) as number;
 	return result === 1;

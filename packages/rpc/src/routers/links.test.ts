@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { rpcError } from "../errors";
 import {
 	createLinkSchema,
 	deleteLinkSchema,
@@ -8,6 +9,19 @@ import {
 	listLinksSchema,
 	updateLinkSchema,
 } from "./links.schemas";
+
+describe("link retryable failure contract", () => {
+	it("preserves a 503 status and retry delay for transient cache failures", () => {
+		const error = rpcError.serviceUnavailable(
+			1,
+			"Link cache is temporarily unavailable"
+		);
+
+		expect(error.code).toBe("SERVICE_UNAVAILABLE");
+		expect(error.status).toBe(503);
+		expect(error.data).toEqual({ retryAfter: 1 });
+	});
+});
 
 describe("createLinkSchema validation", () => {
 	it("accepts valid minimal input", () => {

@@ -11,6 +11,7 @@ let linkCacheRedisInstance: Redis | null = null;
 let linkCacheConnectPromise: Promise<Redis> | null = null;
 let rateLimitRedisInstance: Redis | null = null;
 let rateLimitConnectPromise: Promise<Redis> | null = null;
+let shutdownHooksRegistered = false;
 
 const LINK_CACHE_CONNECT_DEADLINE_MS = 1250;
 export const LINK_CACHE_OPERATION_DEADLINE_MS = 1500;
@@ -57,6 +58,7 @@ function getLinkCacheRedis(): Promise<Redis> {
 		getRedisUrl(),
 		createLinkCacheRedisConnectionOptions()
 	);
+	registerRedisShutdownHooks();
 	linkCacheRedisInstance = instance;
 	instance.on("end", () => {
 		if (linkCacheRedisInstance === instance) {
@@ -105,6 +107,7 @@ function getRateLimitRedis(): Promise<Redis> {
 		getRedisUrl(),
 		createRateLimitRedisConnectionOptions()
 	);
+	registerRedisShutdownHooks();
 	rateLimitRedisInstance = instance;
 	instance.on("end", () => {
 		if (rateLimitRedisInstance === instance) {
@@ -219,6 +222,15 @@ export async function shutdownRedis() {
 	}
 }
 
+function registerRedisShutdownHooks(): void {
+	if (shutdownHooksRegistered) {
+		return;
+	}
+	shutdownHooksRegistered = true;
+	process.on("SIGTERM", shutdownRedis);
+	process.on("SIGINT", shutdownRedis);
+}
+
 export function getRedisCache() {
 	if (redisInstance) {
 		return redisInstance;
@@ -235,8 +247,7 @@ export function getRedisCache() {
 			redisInstance = null;
 		}
 	});
-	process.on("SIGTERM", shutdownRedis);
-	process.on("SIGINT", shutdownRedis);
+	registerRedisShutdownHooks();
 
 	return instance;
 }
