@@ -55,6 +55,22 @@ describe("databuddy evlog redaction", () => {
 		});
 	});
 
+	it("uses Unkey deployment context outside Railway", () => {
+		expect(
+			createDatabuddyEvlogEnv("links", {
+				NODE_ENV: "production",
+				UNKEY_ENVIRONMENT_SLUG: "preview",
+				UNKEY_GIT_COMMIT_SHA: "def456",
+				UNKEY_REGION: "aws::eu-central-1",
+			})
+		).toEqual({
+			service: "links",
+			environment: "preview",
+			region: "aws::eu-central-1",
+			commitHash: "def456",
+		});
+	});
+
 	it("covers sensitive field names used across services", () => {
 		expect(databuddyEvlogRedactConfig.paths).toContain("headers.authorization");
 		expect(databuddyEvlogRedactConfig.paths).toContain("headers.cookie");
