@@ -15,6 +15,6 @@ CREATE TABLE IF NOT EXISTS analytics.web_vitals_spans
 )
 ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/analytics_web_vitals_spans_delivery_v2', '{replica}', ingested_at)
 PARTITION BY toDate(timestamp)
-PRIMARY KEY (client_id, metric_name, path, timestamp)
-ORDER BY (client_id, metric_name, path, timestamp, delivery_key)
+PRIMARY KEY client_id
+ORDER BY (client_id, delivery_key)
 SETTINGS index_granularity = 8192

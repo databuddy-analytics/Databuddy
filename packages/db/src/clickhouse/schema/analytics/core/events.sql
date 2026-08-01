@@ -51,6 +51,6 @@ CREATE TABLE IF NOT EXISTS analytics.events
 )
 ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/analytics_events_delivery_v2', '{replica}', ingested_at)
 PARTITION BY toYYYYMM(time)
-PRIMARY KEY (client_id, time)
-ORDER BY (client_id, time, id)
+PRIMARY KEY client_id
+ORDER BY (client_id, id)
 SETTINGS index_granularity = 8192

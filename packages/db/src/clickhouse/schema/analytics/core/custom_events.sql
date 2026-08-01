@@ -22,6 +22,6 @@ CREATE TABLE IF NOT EXISTS analytics.custom_events
 )
 ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/analytics_custom_events_delivery_v2', '{replica}', ingested_at)
 PARTITION BY toDate(timestamp)
-PRIMARY KEY (owner_id, event_name, timestamp)
-ORDER BY (owner_id, event_name, timestamp, delivery_key)
+PRIMARY KEY owner_id
+ORDER BY (owner_id, delivery_key)
 SETTINGS index_granularity = 8192

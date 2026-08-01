@@ -90,31 +90,31 @@ describe("hand-maintained registries stay in sync with the generated DDL columns
 		}
 	});
 
-	it("delivery keys preserve time locality without a skip-index fallback", () => {
+	it("delivery keys use only stable identity fields", () => {
 		const keys = {
 			"analytics.custom_events": {
-				orderBy: "(owner_id, event_name, timestamp, delivery_key)",
-				primaryKey: "(owner_id, event_name, timestamp)",
+				orderBy: "(owner_id, delivery_key)",
+				primaryKey: "owner_id",
 			},
 			"analytics.error_spans": {
-				orderBy: "(client_id, error_type, path, timestamp, delivery_key)",
-				primaryKey: "(client_id, error_type, path, timestamp)",
+				orderBy: "(client_id, delivery_key)",
+				primaryKey: "client_id",
 			},
 			"analytics.events": {
-				orderBy: "(client_id, time, id)",
-				primaryKey: "(client_id, time)",
+				orderBy: "(client_id, id)",
+				primaryKey: "client_id",
 			},
 			"analytics.link_visits": {
-				orderBy: "(link_id, timestamp, id)",
-				primaryKey: "(link_id, timestamp)",
+				orderBy: "(link_id, id)",
+				primaryKey: "link_id",
 			},
 			"analytics.outgoing_links": {
-				orderBy: "(client_id, timestamp, id)",
-				primaryKey: "(client_id, timestamp)",
+				orderBy: "(client_id, id)",
+				primaryKey: "client_id",
 			},
 			"analytics.web_vitals_spans": {
-				orderBy: "(client_id, metric_name, path, timestamp, delivery_key)",
-				primaryKey: "(client_id, metric_name, path, timestamp)",
+				orderBy: "(client_id, delivery_key)",
+				primaryKey: "client_id",
 			},
 		} as const;
 
@@ -159,8 +159,13 @@ describe("hand-maintained registries stay in sync with the generated DDL columns
 		);
 
 		expect(table.engine).toContain("ReplicatedReplacingMergeTree");
-		expect(table.primaryKey).toBe("(client_id, date)");
-		expect(table.orderBy).toBe("(client_id, date, id)");
+		expect(table.primaryKey).toBe("client_id");
+		expect(table.orderBy).toBe("(client_id, id)");
+		expect(
+			table.indexes.some((index) =>
+				/^date TYPE minmax\b/.test(index.definition)
+			)
+		).toBe(false);
 		expect(view).toContain("id,");
 		expect(view).toContain("WHERE event_name = 'screen_view'");
 		expect(view).not.toContain("countIf");

@@ -9,6 +9,6 @@ CREATE TABLE IF NOT EXISTS analytics.daily_pageviews
 )
 ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/analytics_daily_pageviews_delivery_v2', '{replica}', ingested_at)
 PARTITION BY toYYYYMM(date)
-PRIMARY KEY (client_id, date)
-ORDER BY (client_id, date, id)
+PRIMARY KEY client_id
+ORDER BY (client_id, id)
 SETTINGS index_granularity = 8192

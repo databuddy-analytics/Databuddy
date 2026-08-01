@@ -15,21 +15,26 @@ The migration covers every Basket/Vector table with a stable row identity:
 | `analytics.custom_events` | `(owner_id, delivery_id)` |
 | `analytics.error_spans` | `(client_id, delivery_id)` |
 | `analytics.web_vitals_spans` | `(client_id, delivery_id)` |
-| `analytics.daily_pageviews` | `(client_id, date, id)` derived from `events.id` |
+| `analytics.daily_pageviews` | `(client_id, id)` derived from `events.id` |
 
 The three `delivery_id` tables use a materialized `delivery_key`. A non-empty
 delivery ID maps to a stable key. An empty legacy ID maps to a fresh UUID, so
 historical rows without an identity are preserved instead of being collapsed
 together. `ingested_at` is the `ReplacingMergeTree` version.
 
-The serving tables deliberately keep their existing tenant/time-first sort
-prefix and append stable identity. This preserves time-range pruning under
-`FINAL`; an identity-first sort makes every tenant time-window query scan the
-tenant's full retained history. Replacement therefore depends on an immutable
-payload for every sort-key field before identity, especially the mapped
-timestamp. The Vector timestamp-key deployment and the global historical
-canonicalization below are required correctness steps, not optional
-optimizations.
+The complete `ORDER BY` key of each serving table is exactly its tenant plus
+stable row identity. Timestamps, dates, routes, event names, and metric names
+are payload and must not participate in replacement identity: Basket can map
+the same stable ID more than once after an ambiguous acknowledgement, and
+`ReplacingMergeTree` only replaces rows whose complete sorting keys match.
+
+The tables remain partitioned by analytics time for retention. Every live
+retry must therefore retain the same mapped timestamp so a time-filtered query
+cannot prune another version's partition. The Vector timestamp-key deployment,
+the producer audit below, and the global historical canonicalization remain
+required correctness steps. Cross-partition `FINAL` is necessary for the
+unbounded validation queries, but it cannot repair a partition-pruned read when
+one live identity was written with different analytics timestamps.
 
 `analytics.daily_pageviews` must migrate with `events`. The old incremental
 materialized view aggregates raw insert blocks, so a replay can be counted even
@@ -50,29 +55,33 @@ when the base event is later replaced.
 4. Keep Vector acknowledgements enabled and first wait for the existing Kafka
    lag to reach zero, so pre-deployment messages without delivery IDs cannot
    race the shadow backfill. Publish controlled retries for every source topic
-   and confirm every pre-identity sort-key field is identical across attempts.
-   In particular, compare `time` for `events` and `timestamp` for the other five
+   and confirm the mapped analytics timestamp is identical across attempts. In
+   particular, compare `time` for `events` and `timestamp` for the other five
    source tables. Confirm newly inserted custom/error/vital rows have non-empty
-   delivery IDs. Old empty IDs already stored in ClickHouse are allowed.
+   delivery IDs. Old empty IDs already stored in ClickHouse are allowed. Stop
+   if one stable identity can receive two mapped analytics timestamps.
 5. Confirm `analytics` uses the `Atomic` or `Replicated` database engine and
    confirm the production cluster name. Commands below use
    `databuddy_cluster`; stop if the live name differs.
 6. Take and verify a ClickHouse backup. Benchmark representative `FINAL`
-   queries before cutover. Do not rely on a timestamp skip index to rescue an
-   identity-first sort: `use_skip_indexes_if_final` is off by default and
-   enabling it can make replacement results incorrect.
+   queries before cutover. Identity-only sorting trades primary-key time
+   locality for correct replacement. Do not use timestamp skip indexes as a
+   workaround: `use_skip_indexes_if_final` is off by default, and enabling it
+   can hide a row version before replacement is resolved.
 7. Set `BACKFILL_VERSION` to the fixed UTC value
    `1970-01-01 00:00:00.000000`. Pass it as the `backfill_version` string
    parameter in every backfill below; the SQL converts it to
    `DateTime64(6, 'UTC')`. Do not use current wall-clock time. Mirrored live
-   rows use `now64(6)` and must always win replacement when the complete sort
-   key is the same.
+   rows use `now64(6)` and must always win replacement for the same stable
+   identity.
 
 Historical Vector rows may already carry Kafka record time while a replay after
 the fix carries payload time. The backfill must choose one canonical row for
 each stable identity across the entire source table, not once per time
-partition. After that canonicalization, all new retries must retain the same
-payload timestamp so an identity cannot cross serving-table partitions.
+partition. Identity-only sorting lets unbounded `FINAL` collapse those
+historical variants during the cutover. After canonicalization, all new retries
+must retain the same payload timestamp so an identity cannot cross serving-table
+partitions and produce incorrect partition-pruned time-window reads.
 
 ## 1. Create shadow tables
 
@@ -358,6 +367,11 @@ SELECT client_id, id, count() AS copies
 FROM analytics.events_delivery_v2 FINAL
 GROUP BY client_id, id
 HAVING copies > 1;
+
+SELECT client_id, id, uniqExact(time) AS mapped_times
+FROM analytics.events_delivery_v2
+GROUP BY client_id, id
+HAVING mapped_times > 1;
 ```
 
 Repeat that shape for every identity in the table at the top of this runbook.
@@ -370,8 +384,12 @@ snapshots are not atomic. Investigate any persistent mismatch before scheduling
 the cutover. In addition to the counts above, compare both directions of the
 distinct stable-identity sets with `EXCEPT`; both differences must be empty.
 For each shadow table, group `FINAL` rows by its stable identity and require
-`HAVING count() > 1` to return no non-empty identity. That last check detects a
-mirrored retry whose old and new timestamps produced two complete sort keys.
+`HAVING count() > 1` to return no non-empty identity. Separately group raw
+shadow rows by stable identity and require `uniqExact(time)` or
+`uniqExact(timestamp)` to be at most one (`uniqExact(date)` for daily
+pageviews). That timestamp check detects a mirrored retry that would make
+partition-pruned reads ambiguous even though an unbounded `FINAL` can collapse
+the identity.
 
 Compare representative tenant/day aggregates as well. All of these checks are
 run again against frozen inputs in the next section; only the frozen checks
@@ -411,14 +429,15 @@ Re-run every validation from section 4 now. Require all of the following:
   row count;
 - both directions of every stable-identity `EXCEPT` are empty;
 - no non-empty stable identity has more than one shadow `FINAL` row;
+- no stable identity spans more than one mapped analytics time or date;
 - the empty-`delivery_id` row counts match exactly; and
 - representative per-tenant/per-day aggregates match.
 
 These checks prove the global historical canonicalization completed and no
-concurrent mirror race left one identity under two time-first sort keys. On any
-mismatch, do not exchange names. Recreate the affected shadow table from the
-now-frozen source and rerun its global section-3 backfill, or resume ingestion
-only after recreating its mirror and restart the migration later.
+concurrent mirror race left one identity across analytics-time partitions. On
+any mismatch, do not exchange names. Recreate the affected shadow table from
+the now-frozen source and rerun its global section-3 backfill, or resume
+ingestion only after recreating its mirror and restart the migration later.
 
 ## 6. Exchange names
 
