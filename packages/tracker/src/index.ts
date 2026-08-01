@@ -242,9 +242,7 @@ export class Databuddy extends BaseTracker {
 				try {
 					serialized = JSON.stringify(item) ?? "null";
 				} catch {
-					logger.error(
-						"Dropping unserializable analytics event during unload"
-					);
+					logger.error("Dropping unserializable analytics event during unload");
 					queue.splice(queueIndex, 1);
 					continue;
 				}
