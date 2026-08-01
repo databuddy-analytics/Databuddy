@@ -141,6 +141,19 @@ const app = new Elysia()
 	.get("/px.jpg", async ({ query, request }) => {
 		const log = useLogger();
 		log.set({ route: "pixel" });
+		const retryablePixelResponse = (error: unknown) => {
+			const status =
+				error instanceof EvlogError && error.status >= 400 && error.status < 600
+					? error.status
+					: 503;
+			const retryable =
+				status === 408 || status === 425 || status === 429 || status >= 500;
+			if (!retryable) {
+				return createPixelResponse();
+			}
+			log.error(error instanceof Error ? error : new Error(String(error)));
+			return createPixelResponse({ retryAfterSeconds: 5, status });
+		};
 
 		try {
 			const { eventData, eventType } = parsePixelQuery(
@@ -168,9 +181,9 @@ const app = new Elysia()
 			}
 
 			if (eventType === "track") {
-				insertTrackEvent(eventData, clientId, userAgent, ip, request);
+				await insertTrackEvent(eventData, clientId, userAgent, ip, request);
 			} else if (eventType === "outgoing_link") {
-				insertOutgoingLink(eventData, clientId, request);
+				await insertOutgoingLink(eventData, clientId, request);
 			} else if (eventType === "web_vitals") {
 				const vitalParse = individualVitalSchema.safeParse(eventData);
 				if (!vitalParse.success) {
@@ -181,7 +194,11 @@ const app = new Elysia()
 					[vitalParse.data],
 					request
 				);
-				insertIndividualVitals([vitalParse.data], clientId, visitorCountry);
+				await insertIndividualVitals(
+					[vitalParse.data],
+					clientId,
+					visitorCountry
+				);
 			} else if (eventType === "error") {
 				const errorParse = errorSpanSchema.safeParse(eventData);
 				if (!errorParse.success) {
@@ -192,16 +209,12 @@ const app = new Elysia()
 					[errorParse.data],
 					request
 				);
-				insertErrorSpans([errorParse.data], clientId, visitorCountry);
+				await insertErrorSpans([errorParse.data], clientId, visitorCountry);
 			}
 
 			return createPixelResponse();
 		} catch (error) {
-			if (error instanceof EvlogError) {
-				return createPixelResponse();
-			}
-			log.error(error instanceof Error ? error : new Error(String(error)));
-			return createPixelResponse();
+			return retryablePixelResponse(error);
 		}
 	})
 	.post("/vitals", async ({ body, query, request }) => {
