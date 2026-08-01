@@ -130,7 +130,16 @@ jobs:
           done
 
           docker exec vector-canary-redpanda \
-            rpk topic create analytics-custom-events analytics-link-visits
+            rpk topic create \
+              analytics-events \
+              analytics-error-spans \
+              analytics-vitals-spans \
+              analytics-custom-events \
+              analytics-ai-traffic-spans \
+              analytics-outgoing-links \
+              analytics-blocked-traffic \
+              analytics-uptime-checks \
+              analytics-link-visits
 
           docker run -d \
             --name vector-delivery-canary \
