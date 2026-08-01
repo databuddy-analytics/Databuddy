@@ -6,10 +6,7 @@ import {
 	coveragePortfolioLimit,
 	type CoveragePortfolioReason,
 } from "./coverage-planner";
-import {
-	type InsightRunIdentity,
-	runIdentityCondition,
-} from "./effects";
+import { type InsightRunIdentity, runIdentityCondition } from "./effects";
 
 const frozenPlanReasonSchema = z.enum(["manual", "scheduled"]);
 
