@@ -1,5 +1,5 @@
-import * as actualRedis from "@databuddy/redis";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createInertRedisModule } from "../../test-utils/redis-mock";
 
 const redisStore = new Map<string, string>();
 let failGet = false;
@@ -22,17 +22,26 @@ const mockRedisClient = {
 	}),
 };
 
-const redisModule = { ...actualRedis };
+const bunRedisModule =
+	typeof Bun === "undefined" ? undefined : await import("@databuddy/redis");
 
-vi.mock("@databuddy/redis", () => ({
-	...redisModule,
-	getRedisCache: () => {
-		if (redisUnavailable) {
-			throw new Error("redis unavailable");
-		}
-		return mockRedisClient;
-	},
-}));
+vi.mock("@databuddy/redis", async (importOriginal) => {
+	const actualRedis = importOriginal
+		? await importOriginal<typeof import("@databuddy/redis")>()
+		: bunRedisModule;
+	if (!actualRedis) {
+		throw new Error("Unable to load the Redis test module");
+	}
+	return createInertRedisModule(actualRedis, {
+		getRedisCache: () => {
+			if (redisUnavailable) {
+				throw new Error("redis unavailable");
+			}
+			return mockRedisClient;
+		},
+		redis: mockRedisClient,
+	});
+});
 
 const { appendToConversation, getConversationHistory } = await import(
 	"./conversation-store"

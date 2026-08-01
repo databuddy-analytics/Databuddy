@@ -1,5 +1,5 @@
-import * as actualRedis from "@databuddy/redis";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createInertRedisModule } from "../../test-utils/redis-mock";
 
 interface RedisEntry {
 	ttl: number;
@@ -45,6 +45,9 @@ const mockEnrichAgentContext = vi.fn(
 	}) => `fresh:${opts.organizationId ?? opts.userId}:${opts.websiteId}`
 );
 
+const bunRedisModule =
+	typeof Bun === "undefined" ? undefined : await import("@databuddy/redis");
+
 vi.mock("@databuddy/auth", () => ({
 	auth: {},
 	websitesApi: {
@@ -52,12 +55,18 @@ vi.mock("@databuddy/auth", () => ({
 	},
 }));
 
-const redisModule = { ...actualRedis };
-
-vi.mock("@databuddy/redis", () => ({
-	...redisModule,
-	getRedisCache: () => mockRedisClient,
-}));
+vi.mock("@databuddy/redis", async (importOriginal) => {
+	const actualRedis = importOriginal
+		? await importOriginal<typeof import("@databuddy/redis")>()
+		: bunRedisModule;
+	if (!actualRedis) {
+		throw new Error("Unable to load the Redis test module");
+	}
+	return createInertRedisModule(actualRedis, {
+		getRedisCache: () => mockRedisClient,
+		redis: mockRedisClient,
+	});
+});
 
 vi.mock("../../lib/supermemory", () => ({
 	formatMemoryForPrompt: vi.fn(() => ""),
