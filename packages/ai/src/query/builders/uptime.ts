@@ -1,3 +1,4 @@
+import { TABLE_COLUMNS } from "@databuddy/db/clickhouse/tables";
 import type { SimpleQueryConfig } from "../types";
 
 /**
@@ -18,30 +19,7 @@ import type { SimpleQueryConfig } from "../types";
  */
 
 const UPTIME_TABLE = "uptime.uptime_monitor";
-const UPTIME_REPLAY_IDENTITY = [
-	"site_id",
-	"url",
-	"timestamp",
-	"status",
-	"http_code",
-	"ttfb_ms",
-	"total_ms",
-	"attempt",
-	"retries",
-	"failure_streak",
-	"response_bytes",
-	"content_hash",
-	"redirect_count",
-	"probe_region",
-	"probe_ip",
-	"ssl_expiry",
-	"ssl_valid",
-	"env",
-	"check_type",
-	"user_agent",
-	"error",
-	"json_data",
-].join(", ");
+const UPTIME_REPLAY_IDENTITY = TABLE_COLUMNS[UPTIME_TABLE].join(", ");
 
 /**
  * A replay keeps the original check payload and timestamp. The deployed
@@ -55,7 +33,6 @@ function uptimeEventSource(scope: string): string {
 		FROM ${UPTIME_TABLE}
 		WHERE
 			${scope}
-		ORDER BY timestamp DESC
 		LIMIT 1 BY ${UPTIME_REPLAY_IDENTITY}
 	)`;
 }

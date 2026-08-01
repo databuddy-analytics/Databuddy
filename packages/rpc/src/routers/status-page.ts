@@ -1,5 +1,6 @@
 import { and, db, desc, eq, inArray, withTransaction } from "@databuddy/db";
 import { chQuery } from "@databuddy/db/clickhouse";
+import { TABLE_COLUMNS } from "@databuddy/db/clickhouse/tables";
 import {
 	incidentAffectedMonitors,
 	incidentUpdates,
@@ -33,30 +34,7 @@ import {
 } from "./status-page-health";
 
 const UPTIME_TABLE = "uptime.uptime_monitor";
-const UPTIME_REPLAY_IDENTITY = [
-	"site_id",
-	"url",
-	"timestamp",
-	"status",
-	"http_code",
-	"ttfb_ms",
-	"total_ms",
-	"attempt",
-	"retries",
-	"failure_streak",
-	"response_bytes",
-	"content_hash",
-	"redirect_count",
-	"probe_region",
-	"probe_ip",
-	"ssl_expiry",
-	"ssl_valid",
-	"env",
-	"check_type",
-	"user_agent",
-	"error",
-	"json_data",
-].join(", ");
+const UPTIME_REPLAY_IDENTITY = TABLE_COLUMNS[UPTIME_TABLE].join(", ");
 
 /**
  * Replaying a persisted delivery preserves its original check payload and timestamp.
@@ -69,7 +47,6 @@ function uptimeEventSource(scope: string): string {
 		FROM ${UPTIME_TABLE}
 		WHERE
 			${scope}
-		ORDER BY timestamp DESC
 		LIMIT 1 BY ${UPTIME_REPLAY_IDENTITY}
 	)`;
 }
