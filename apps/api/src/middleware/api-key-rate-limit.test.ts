@@ -485,11 +485,13 @@ describe("API key rate limit admission", () => {
 
 		expect(response.status).toBe(503);
 		expect(response.headers.get("retry-after")).toBe("5");
-		expect(await response.json()).toMatchObject({
+		const body = await response.json();
+		expect(body).toMatchObject({
 			code: "SERVICE_UNAVAILABLE",
-			error: "Service temporarily unavailable",
 			success: false,
 		});
+		expect(JSON.stringify(body)).not.toContain("Rate limit operation timed out");
+		expect(JSON.stringify(body)).not.toContain("dbdy_quota_timeout");
 		expect(getHandlerCalls()).toBe(0);
 		expect(timeout.recordAdmissionOutcome).toHaveBeenCalledWith(
 			"dependency_unavailable"
