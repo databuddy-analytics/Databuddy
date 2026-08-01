@@ -12,6 +12,10 @@ const PIXEL_TYPE_BY_ENDPOINT: Record<string, string> = {
 	"/errors": "error",
 };
 
+function wait(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function safeStringify(value: unknown): string {
 	const seen = new WeakSet();
 	return JSON.stringify(value, (_key, val) => {
@@ -50,10 +54,17 @@ function flattenIntoParams(
 export function initPixelTracking(tracker: BaseTracker) {
 	tracker.options.enableBatching = false;
 
-	const sendOnePixel = (
+	const maxRetries =
+		tracker.options.enableRetries === false
+			? 0
+			: (tracker.options.maxRetries ?? 3);
+	const retryDelay = Math.max(0, tracker.options.initialRetryDelay ?? 500);
+
+	const sendOnePixel = async (
 		eventType: string,
-		data: Record<string, unknown>
-	): Promise<{ success: boolean }> => {
+		data: Record<string, unknown>,
+		retryCount = 0
+	): Promise<{ attempts: number; success: boolean }> => {
 		const params = new URLSearchParams();
 		flattenIntoParams(params, data);
 
@@ -76,21 +87,26 @@ export function initPixelTracking(tracker: BaseTracker) {
 			url.searchParams.append(key, value);
 		});
 
-		return new Promise((resolve) => {
+		const result = await new Promise<{ success: boolean }>((resolve) => {
 			const img = new Image();
 			img.onload = () => resolve({ success: true });
 			img.onerror = () => resolve({ success: false });
 			img.src = url.toString();
 		});
+		if (result.success || retryCount >= maxRetries) {
+			return { attempts: retryCount + 1, success: result.success };
+		}
+		await wait(retryDelay);
+		return sendOnePixel(eventType, data, retryCount + 1);
 	};
 
 	const sendToPixel = async (
 		endpoint: string,
 		data: unknown
-	): Promise<{ success: boolean }> => {
+	): Promise<{ attempts: number; success: boolean }> => {
 		const eventType = PIXEL_TYPE_BY_ENDPOINT[endpoint];
 		if (!eventType) {
-			return { success: false };
+			return { attempts: 0, success: false };
 		}
 
 		if (Array.isArray(data)) {
@@ -98,14 +114,17 @@ export function initPixelTracking(tracker: BaseTracker) {
 				data.map((event) =>
 					event && typeof event === "object"
 						? sendOnePixel(eventType, event as Record<string, unknown>)
-						: Promise.resolve({ success: false })
+						: Promise.resolve({ attempts: 0, success: false })
 				)
 			);
-			return { success: results.every((r) => r.success) };
+			return {
+				attempts: Math.max(0, ...results.map((result) => result.attempts)),
+				success: results.every((result) => result.success),
+			};
 		}
 
 		if (typeof data !== "object" || data === null) {
-			return { success: false };
+			return { attempts: 0, success: false };
 		}
 		return sendOnePixel(eventType, data as Record<string, unknown>);
 	};
@@ -120,7 +139,7 @@ export function initPixelTracking(tracker: BaseTracker) {
 				ok: true,
 				data: null,
 				status: null,
-				attempts: 1,
+				attempts: result.attempts,
 				transport: "beacon",
 			};
 		}
@@ -130,7 +149,7 @@ export function initPixelTracking(tracker: BaseTracker) {
 			message: "Tracking pixel failed to load",
 			status: null,
 			retryable: true,
-			attempts: 1,
+			attempts: result.attempts,
 			transport: "fetch",
 		};
 	};
