@@ -44,6 +44,7 @@ const PERIOD_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
 
 interface LatestRunSummary {
 	analyzedSignalCount: number;
+	analyzedWebsiteCount: number;
 	completedItems: number;
 	failedItems: number;
 	id: string;
@@ -96,9 +97,9 @@ function latestRunDescription(
 	const coverage =
 		run.analyzedSignalCount === 0
 			? `reviewed ${countLabel(reviewed, "website")}`
-			: `examined ${countLabel(run.analyzedSignalCount, "signal")} across ${countLabel(reviewed, "website")}`;
+			: `examined ${countLabel(run.analyzedSignalCount, "signal")} across ${countLabel(run.analyzedWebsiteCount, "website")}`;
 	if (run.status === "partially_succeeded") {
-		return `Latest analysis ${coverage}; ${findings}. ${countLabel(run.failedItems, "website")} couldn't be analyzed.`;
+		return `Latest analysis ${coverage}; ${findings}. ${countLabel(run.failedItems, "website")} couldn't finish.`;
 	}
 	return `Latest analysis ${coverage}; ${findings}.`;
 }
@@ -422,9 +423,40 @@ function InsightBriefRow({ insight }: { insight: BriefInsight }) {
 						</Badge>
 					) : null}
 				</div>
-				<p className="mt-1.5 max-w-3xl text-muted-foreground text-sm leading-relaxed">
-					{insight.summary}
-				</p>
+				<dl className="mt-3 grid gap-2 border-muted border-l-2 pl-3 text-xs leading-relaxed sm:grid-cols-2 sm:gap-x-5">
+					<div className="sm:col-span-2">
+						<dt className="font-semibold text-foreground/75">What happened</dt>
+						<dd className="mt-0.5 max-w-3xl text-muted-foreground">
+							{insight.summary}
+						</dd>
+					</div>
+					{insight.impact ? (
+						<div>
+							<dt className="font-semibold text-foreground/75">
+								Why it matters
+							</dt>
+							<dd className="mt-0.5 text-muted-foreground">{insight.impact}</dd>
+						</div>
+					) : null}
+					{insight.rootCause ? (
+						<div>
+							<dt className="font-semibold text-foreground/75">
+								Why it happened
+							</dt>
+							<dd className="mt-0.5 text-muted-foreground">
+								{insight.rootCause}
+							</dd>
+						</div>
+					) : null}
+					{insight.evidence.length > 0 ? (
+						<div className="sm:col-span-2">
+							<dt className="font-semibold text-foreground/75">Evidence</dt>
+							<dd className="mt-0.5 text-muted-foreground">
+								{insight.evidence.join(" · ")}
+							</dd>
+						</div>
+					) : null}
+				</dl>
 				{recommendation ? (
 					<div className="mt-3 rounded-md border border-primary/15 bg-primary/[0.035] px-3 py-2.5">
 						<p className="text-foreground/85 text-sm leading-relaxed">
@@ -456,38 +488,6 @@ function InsightBriefRow({ insight }: { insight: BriefInsight }) {
 							</div>
 						) : null}
 					</div>
-				) : null}
-				{insight.impact || insight.rootCause || insight.evidence.length > 0 ? (
-					<dl className="mt-3 grid gap-2 border-muted border-l-2 pl-3 text-xs leading-relaxed sm:grid-cols-2 sm:gap-x-5">
-						{insight.impact ? (
-							<div>
-								<dt className="font-semibold text-foreground/75">
-									Why it matters
-								</dt>
-								<dd className="mt-0.5 text-muted-foreground">
-									{insight.impact}
-								</dd>
-							</div>
-						) : null}
-						{insight.rootCause ? (
-							<div>
-								<dt className="font-semibold text-foreground/75">
-									What explains it
-								</dt>
-								<dd className="mt-0.5 text-muted-foreground">
-									{insight.rootCause}
-								</dd>
-							</div>
-						) : null}
-						{insight.evidence.length > 0 ? (
-							<div className="sm:col-span-2">
-								<dt className="font-semibold text-foreground/75">Evidence</dt>
-								<dd className="mt-0.5 text-muted-foreground">
-									{insight.evidence.join(" · ")}
-								</dd>
-							</div>
-						) : null}
-					</dl>
 				) : null}
 				<div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1.5 border-t pt-3 text-[11px] text-muted-foreground">
 					<span className="font-medium text-foreground/70">

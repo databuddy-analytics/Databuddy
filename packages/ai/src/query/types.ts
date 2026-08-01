@@ -137,6 +137,7 @@ export interface PercentageOf {
 }
 
 export interface SimpleQueryConfig {
+	allowedFilterOperators?: Partial<Record<string, readonly FilterOperator[]>>;
 	allowedFilters?: string[];
 	appendEndOfDayToTo?: boolean;
 	customizable?: boolean;
@@ -153,6 +154,7 @@ export interface SimpleQueryConfig {
 	percentageOf?: PercentageOf;
 	plugins?: QueryPlugins;
 	publicAccess?: boolean;
+	requiredAnyFilter?: string[];
 	requiredFilters?: string[];
 	skipDateFilter?: boolean;
 	table?: string;

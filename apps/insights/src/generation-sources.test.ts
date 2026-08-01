@@ -89,6 +89,7 @@ function fixtureSources(
 		fetchAnnotations: unexpected,
 		investigateSignal: unexpected,
 		loadDueInvestigation: unexpected,
+		loadErrorCustomerImpact: async () => null,
 		loadHistory: unexpected,
 		loadOtherOpenWork: async () => [],
 		loadObservations: unexpected,
@@ -249,6 +250,70 @@ describe("fixture investigation sources", () => {
 			"route:error:/explore",
 			"visitors",
 		]);
+	});
+
+	it("adds aggregate customer impact before an error reaches the agent", async () => {
+		const routeError: DetectedSignal = {
+			...trafficDrop,
+			baseline: 23,
+			current: 36,
+			deltaPercent: 56.5,
+			direction: "up",
+			entityId: "/explore",
+			entityLabel: "Route /explore",
+			label: "Errors on /explore",
+			metric: "error_count",
+			severity: "warning",
+			subjectKey: "route:error:/explore",
+		};
+		let received: Parameters<InvestigationSources["investigateSignal"]>[0] | null =
+			null;
+		const outcome: InvestigationOutcome = {
+			evidence: ["The exact error cohort was measured."],
+			impact: "Five identified profiles were affected.",
+			next: { reason: "No case is required in this fixture.", type: "resolve" },
+			rootCause: null,
+			summary: "Route-loading failures affected the explore route.",
+			title: "Explore route hit loading failures",
+		};
+		const sources = fixtureSources({
+			detectDefinitionSignals: async () => [],
+			detectMetricSignals: async () => [routeError],
+			fetchAnnotations: async () => [],
+			investigateSignal: async (input) => {
+				received = input;
+				return { outcome, toolCallCount: 0 };
+			},
+			loadDueInvestigation: async () => null,
+			loadErrorCustomerImpact: async () => ({
+				affectedSessions: 34,
+				affectedVisitorIdentifiers: 35,
+				ambiguousProfileSessions: 1,
+				errorOccurrences: 36,
+				identifiedProfiles: 5,
+				identifiedProfilesWithPriorAttributedCompletedPayment: 2,
+				identityCoveragePercent: 14.3,
+				linkedVisitorIdentifiers: 5,
+				paymentMatchIsLowerBound: true,
+				qualifyingProfilePaymentHistoryObserved: true,
+				sessionsWithLaterTrackedActivity: 20,
+				scope: "route",
+				unlinkedVisitorIdentifiers: 30,
+			}),
+			loadHistory: async () => [],
+			loadObservations: async () => new Map(),
+		});
+
+		const artifact = await investigateFixture(sources);
+
+		expect(received?.customerImpact).toMatchObject({
+			affectedVisitorIdentifiers: 35,
+			identifiedProfilesWithPriorAttributedCompletedPayment: 2,
+		});
+		expect(received?.evidence.some((item) => item.includes("At least 2"))).toBe(
+			true
+		);
+		expect(artifact.evidence).toEqual(received?.evidence ?? []);
 	});
 
 	it("stops sibling candidates after an agent infrastructure failure", async () => {

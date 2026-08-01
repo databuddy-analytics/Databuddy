@@ -9,8 +9,6 @@ import { listQueryOutcome } from "@/lib/list-query-outcome";
 import { orpc } from "@/lib/orpc";
 
 export type Goal = InferSelectModel<typeof goals>;
-export type CreateGoalData = InferInsertModel<typeof goals>;
-export type UpdateGoalData = Partial<InferInsertModel<typeof goals>>;
 
 export interface GoalAnalyticsData {
 	avg_completion_time: number;
@@ -72,6 +70,10 @@ interface CreateGoalInput {
 	type: "PAGE_VIEW" | "EVENT" | "CUSTOM";
 	websiteId: string;
 }
+
+export type CreateGoalData = CreateGoalInput;
+export type UpdateGoalData = Partial<CreateGoalInput> &
+	Pick<Partial<InferInsertModel<typeof goals>>, "isActive">;
 
 interface UpdateGoalInput {
 	description?: string | null;

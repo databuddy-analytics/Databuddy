@@ -130,15 +130,16 @@ function GoalDraftAction({
 
 	const handleSave = async (data: Goal | Omit<CreateGoalData, "websiteId">) => {
 		try {
-			const goal = await createGoal({
+			const goalInput: CreateGoalData = {
 				description: data.description ?? null,
-				filters: data.filters,
+				filters: data.filters ?? undefined,
 				ignoreHistoricData: data.ignoreHistoricData,
 				name: data.name,
 				target: data.target,
 				type: data.type,
 				websiteId,
-			} as CreateGoalData);
+			};
+			const goal = await createGoal(goalInput);
 			setIsOpen(false);
 			setCreatedGoal({ id: goal.id, name: goal.name });
 		} catch (error) {

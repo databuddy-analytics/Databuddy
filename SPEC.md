@@ -94,7 +94,7 @@ Outcomes may be updated repeatedly. They are operational state, not prose templa
 
 Customer copy names the exact goal, funnel, page, event, error, or campaign. It describes the operational change, never the detector, agent, evaluation, suppression decision, or other internal mechanics.
 
-The Insights brief presents the title, summary, recommendation, impact, cause, evidence, and measured signal. It does not expose `act | ask | watch | resolve` mechanics. An investigation presents its current next move and full timeline.
+The Insights brief reads like a short news report: headline, what happened, why it matters, why it happened when known, evidence, then the recommendation. It does not expose `act | ask | watch | resolve` mechanics. An investigation presents the same factual hierarchy before its current next move and full timeline.
 
 ## Continuity
 
@@ -120,8 +120,14 @@ Reject output that merely restates a percentage, invents a cause, asks for data 
 
 Summary, impact, cause, and evidence each contribute a different fact. Routine or unchanged rechecks remain in internal history with `publish: false`.
 
+Customer impact stays explicit about coverage. Anonymous visitors, sessions, identified profiles, and customers with attributed completed-payment history are different cohorts. Unknown payment status is never reported as non-paying, and payment history is not called an active subscription. Error exposure alone does not prove that a page broke, a task failed, or work was lost.
+
+When the investigation proves that missing Databuddy setup blocks a useful answer, the insight may recommend the exact feature and the decision it unlocks—for example `identify()` to distinguish affected accounts and plan traits, revenue attribution to establish customer value, or a custom event for a currently unmeasured completion. These are evidence-backed product recommendations, not generic onboarding tips.
+
 When business meaning is missing, inspect the definition, site, events, and connected code first. Ambiguity alone does not open a case, and the customer should not have to invent a metric's purpose. Explain what a broad metric does measure and recommend a concrete edit, replacement, or cleanup only from inspected evidence. Do not recommend deletion merely because a description is missing. A definition that contradicts its configured purpose is broken tracking and becomes an action; an undescribed broad definition resolves when no material harm is proven. Ask only for a specific external fact that cannot be inspected and chooses between concrete next moves.
 
 ## Implementation constraint
 
 Use `insight_observations` as the append-only Insights source and `analytics_insights` as the current investigation projection. An `act` or `ask` creates or reopens that projection; `watch` and `resolve` may update an open investigation but never create or reopen one. Keep one agent and one evidence/tool stack. Add storage only when this model cannot represent a real use case.
+
+Exact error-customer joins run as a private, aggregate-only enrichment after the backend selects a signal. They return counts and coverage, never visitor, profile, session, payment, order, or request identifiers. Historical identity joins accept only unambiguous profile matches; attributed completed-payment matches remain a lower bound.

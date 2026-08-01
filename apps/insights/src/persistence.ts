@@ -48,7 +48,7 @@ export function isVisibleInvestigation(
 		next === "act" ||
 		next === "ask" ||
 		(investigation.outcome.publish === true &&
-			investigation.outcome.recommendation !== null)
+			investigation.outcome.recommendation != null)
 	);
 }
 

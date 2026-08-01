@@ -335,6 +335,7 @@ export const insightWatchThresholdSchema = z
 		value: z
 			.number()
 			.finite()
+			.nonnegative()
 			.describe("Exact threshold in the signal metric's native unit."),
 	})
 	.strict();
@@ -418,7 +419,7 @@ export const insightRecommendationSchema = z
 	.union([insightGoalOperationSchema, insightMeasurementRecommendationSchema])
 	.nullable()
 	.describe(
-		"Concrete evidence-backed next step worth suggesting without opening an investigation. Name the exact object and change; use null when there is no useful next step."
+		"Concrete evidence-backed next step worth suggesting without opening an investigation. This may recommend a Databuddy feature such as user identification or a custom event only when measured coverage proves the exact blind spot it would remove. Name the exact object, setup, and unlock; use null when there is no useful next step."
 	);
 
 export const investigationOutcomeSchema = z
@@ -428,14 +429,14 @@ export const investigationOutcomeSchema = z
 			.trim()
 			.min(1)
 			.describe(
-				"A 5–12 word, sentence-case headline that states the human outcome. Use the exact entity only when it clarifies the outcome; never use a raw identifier, generic config label such as Goal 1 or Event 1, schema label, arrow relationship, or measurement language such as tracked, recorded, metric, or event as the title."
+				"A 5–12 word news headline stating the verified human outcome. When an affected-visitor or affected-customer count is known, lead with that count and the observed problem. Never translate occurrences, sessions, entrants, or performance samples into people, or use a raw identifier, generic config label, schema label, arrow relationship, or measurement language as the title."
 			),
 		summary: z
 			.string()
 			.trim()
 			.min(1)
 			.describe(
-				"One short sentence with the measured change and useful conclusion. Do not repeat the title, impact, root cause, or evidence."
+				"One short sentence stating what happened, where, and when. Prefer the verified problem or experience over the percentage change; keep comparison detail in evidence when an affected cohort is known. Do not repeat the title, impact, root cause, or evidence."
 			),
 		impact: z
 			.string()
@@ -443,7 +444,7 @@ export const investigationOutcomeSchema = z
 			.min(1)
 			.nullable()
 			.describe(
-				"One short, distinct measured user, workflow, revenue, or decision consequence. Do not predict lost progress, broken checkout, failed requests, or other downstream effects from an error alone. For a broken definition, say the decision it cannot support. Null when only the metric change is known."
+				"One short, directly measured user, reliability, business, or decision consequence. State affected scope and notable verified cohorts when available. Error exposure does not prove a broken page, failed task, lost work, or blocked conversion. For a broken definition, say the decision it cannot support. Null when no consequence was measured."
 			),
 		rootCause: z
 			.string()
@@ -451,7 +452,7 @@ export const investigationOutcomeSchema = z
 			.min(1)
 			.nullable()
 			.describe(
-				"One short, known mechanism only; use null for unknown, suspected, or merely correlated explanations. A runtime stack, bundle location, browser document line, or error message is not a source-code mechanism and does not prove teardown order, a missing guard, or a hosting rewrite."
+				"One short, inspected causal mechanism. Use null for unknown, suspected, or merely correlated explanations. Error text, a runtime stack, bundle location, route, browser document line, timing, or annotation is not a source-code mechanism."
 			),
 		evidence: z
 			.array(
@@ -460,7 +461,7 @@ export const investigationOutcomeSchema = z
 					.trim()
 					.min(1)
 					.describe(
-						"One terse fact that supports a distinct claim in the brief."
+						"One sourced fact for scale, comparison, or verified cohort coverage. Distinguish visitor identifiers, sessions, identified profiles, and attributed completed-payment history; unknown is not zero."
 					)
 			)
 			.min(1)

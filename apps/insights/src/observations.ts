@@ -413,18 +413,15 @@ export async function findRunObservations(params: {
 		const outcome = parseInvestigationOutcome(observation.outcome);
 		const signal = parseInvestigationSignal(observation.signal);
 		if (!(outcome && signal)) {
-			captureInsightsError(
-				new Error(
-					`Persisted run observation ${observation.signalKey} is invalid`
-				),
-				"generation.persisted_observation.invalid",
-				{
-					organization_id: params.organizationId,
-					run_id: params.runId,
-					website_id: params.websiteId,
-				}
+			const error = new Error(
+				`Persisted run observation ${observation.signalKey} is invalid`
 			);
-			return [];
+			captureInsightsError(error, "generation.persisted_observation.invalid", {
+				organization_id: params.organizationId,
+				run_id: params.runId,
+				website_id: params.websiteId,
+			});
+			throw error;
 		}
 		return [{ ...observation, outcome, signal }];
 	});

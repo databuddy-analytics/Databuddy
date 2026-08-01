@@ -15,6 +15,7 @@ import {
 
 const MIN_ACTIVE_PAGEVIEWS = 30;
 const MIN_ACTIVE_SESSIONS = 30;
+const CUSTOM_EVENT_SAMPLE_LIMIT = 1000;
 const TARGET_SEGMENT_DELIMITER_PATTERN = /[/_-]/;
 const CONVERSION_TERMS = new Set([
 	"book",
@@ -55,6 +56,8 @@ export interface MeasurementDefinitionCounts {
 
 export interface MeasurementTelemetry {
 	customEventNames: string[];
+	customEventSampled?: boolean;
+	customEventSampleLimit?: number;
 	pageviews: number;
 	routes: string[];
 	sessions: number;
@@ -134,6 +137,8 @@ function routeCandidate(routes: string[]): MeasurementCandidate | undefined {
 function readableEvidence(params: {
 	candidate: MeasurementCandidate | undefined;
 	canonicalEventCount: number;
+	customEventSampleLimit?: number;
+	customEventSampled?: boolean;
 	pageviews: number;
 	sessions: number;
 }): string {
@@ -144,10 +149,13 @@ function readableEvidence(params: {
 	if (params.candidate?.kind === "page_navigation_proxy") {
 		return `${baseline} Only page-navigation evidence is available for the candidate route. It is a navigation proxy and coverage-gap signal, not evidence of a completed conversion; prefer instrumentation before treating it as a conversion.`;
 	}
+	const sampleCopy = params.customEventSampled
+		? ` in the top ${params.customEventSampleLimit ?? CUSTOM_EVENT_SAMPLE_LIMIT} custom event types by unique users`
+		: "";
 	if (params.canonicalEventCount > 0) {
-		return `${baseline} ${params.canonicalEventCount} safely canonical custom event types were observed, but none can be conservatively identified as a conversion target. This is measurement coverage only, not a completed conversion.`;
+		return `${baseline} ${params.canonicalEventCount} safely canonical custom event types were observed${sampleCopy}, but none can be conservatively identified as a conversion target. This is measurement coverage only, not a completed conversion.`;
 	}
-	return `${baseline} Only page-navigation coverage is available; no safely canonical custom event can support a conversion target. This is a coverage-gap signal, not a completed conversion.`;
+	return `${baseline} Only page-navigation coverage is available; no safely canonical custom event${sampleCopy} can support a conversion target. This is a coverage-gap signal, not a completed conversion.`;
 }
 
 export function defaultMeasurementRecommendationDeps(
@@ -206,7 +214,7 @@ export function defaultMeasurementRecommendationDeps(
 					executeQuery(
 						{
 							from: range.from,
-							limit: 100,
+							limit: CUSTOM_EVENT_SAMPLE_LIMIT,
 							projectId: websiteId,
 							to: range.to,
 							type: "custom_events",
@@ -229,10 +237,13 @@ export function defaultMeasurementRecommendationDeps(
 					),
 				]);
 			const summary = rows(summaryResult)[0] ?? {};
+			const customEventRows = rows(customEventsResult);
 			return {
-				customEventNames: rows(customEventsResult)
+				customEventNames: customEventRows
 					.map((row) => stringField(row, "name"))
 					.filter((value): value is string => value !== null),
+				customEventSampleLimit: CUSTOM_EVENT_SAMPLE_LIMIT,
+				customEventSampled: customEventRows.length >= CUSTOM_EVENT_SAMPLE_LIMIT,
 				pageviews: asNonNegativeNumber(summary.pageviews),
 				routes: rows(pagesResult)
 					.map((row) => stringField(row, "name"))
@@ -291,6 +302,8 @@ export async function detectMeasurementRecommendationSignals(
 			definitionEvidence: readableEvidence({
 				candidate,
 				canonicalEventCount: canonicalEvents.length,
+				customEventSampleLimit: telemetry.customEventSampleLimit,
+				customEventSampled: telemetry.customEventSampled,
 				pageviews: telemetry.pageviews,
 				sessions: telemetry.sessions,
 			}),

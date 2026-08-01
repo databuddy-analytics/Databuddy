@@ -101,16 +101,14 @@ const SAFE_ROUTE_SEGMENTS = new Set([
 ]);
 
 export function canonicalMeasurementEventTarget(value: string): string | null {
-	return isCanonicalMeasurementEventTarget(value) &&
-		value.split("_").every((segment) => SAFE_EVENT_SEGMENTS.has(segment))
-		? value
-		: null;
+	return isCanonicalMeasurementEventTarget(value) ? value : null;
 }
 
 export function isCanonicalMeasurementEventTarget(value: string): boolean {
 	return (
 		value.length <= MAX_CANONICAL_EVENT_LENGTH &&
-		CANONICAL_EVENT_PATTERN.test(value)
+		CANONICAL_EVENT_PATTERN.test(value) &&
+		value.split("_").every((segment) => SAFE_EVENT_SEGMENTS.has(segment))
 	);
 }
 

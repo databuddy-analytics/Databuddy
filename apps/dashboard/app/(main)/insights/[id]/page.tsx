@@ -435,10 +435,44 @@ function InvestigationActivity({
 				<h3 className="text-pretty font-medium text-foreground text-sm leading-snug">
 					{outcome.title}
 				</h3>
-				<p className="mt-1 text-foreground/80 text-sm leading-relaxed">
-					{outcome.summary}
-				</p>
 			</div>
+
+			<dl className="grid gap-3 sm:grid-cols-2">
+				<div className="sm:col-span-2">
+					<dt className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
+						What happened
+					</dt>
+					<dd className="mt-1 text-foreground/80 text-sm leading-relaxed">
+						{outcome.summary}
+					</dd>
+				</div>
+				{outcome.impact && (
+					<div>
+						<dt className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
+							Why it matters
+						</dt>
+						<dd className="mt-1 text-foreground/80 text-sm leading-relaxed">
+							{outcome.impact}
+						</dd>
+					</div>
+				)}
+				{outcome.rootCause && (
+					<div>
+						<dt className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
+							Why it happened
+						</dt>
+						<dd className="mt-1 text-foreground/80 text-sm leading-relaxed">
+							{outcome.rootCause}
+						</dd>
+					</div>
+				)}
+			</dl>
+
+			<Evidence
+				evidence={outcome.evidence}
+				initiallyCollapsed={collapseEvidence}
+				sourceHref={sourceHref}
+			/>
 
 			{recommendation ? (
 				<div className="rounded-md border border-primary/15 bg-primary/5 px-3 py-3">
@@ -485,37 +519,6 @@ function InvestigationActivity({
 					<ExecuteGoalAction execution={execution} insightId={insightId} />
 				</div>
 			) : null}
-
-			{(outcome.impact || outcome.rootCause) && (
-				<dl className="grid gap-3 sm:grid-cols-2">
-					{outcome.impact && (
-						<div>
-							<dt className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
-								Impact
-							</dt>
-							<dd className="mt-1 text-foreground/80 text-sm leading-relaxed">
-								{outcome.impact}
-							</dd>
-						</div>
-					)}
-					{outcome.rootCause && (
-						<div>
-							<dt className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
-								Cause
-							</dt>
-							<dd className="mt-1 text-foreground/80 text-sm leading-relaxed">
-								{outcome.rootCause}
-							</dd>
-						</div>
-					)}
-				</dl>
-			)}
-
-			<Evidence
-				evidence={outcome.evidence}
-				initiallyCollapsed={collapseEvidence}
-				sourceHref={sourceHref}
-			/>
 		</div>
 	);
 }

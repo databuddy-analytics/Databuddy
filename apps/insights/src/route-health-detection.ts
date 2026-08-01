@@ -548,20 +548,20 @@ export async function remeasureRouteHealthSignal(
 	const type: RouteHealthQueryType =
 		spec.kind === "error" ? "errors_by_page" : "vitals_by_page";
 	const [currentRows, previousRows] = await Promise.all([
-		query(
+		queryRouteHealthPages(
+			query,
 			queryInput({
 				from: window.currentFrom,
-				route: spec.route,
 				to: window.currentTo,
 				type,
 				values: params,
 			}),
 			abortSignal
 		),
-		query(
+		queryRouteHealthPages(
+			query,
 			queryInput({
 				from: window.previousFrom,
-				route: spec.route,
 				to: window.previousTo,
 				type,
 				values: params,

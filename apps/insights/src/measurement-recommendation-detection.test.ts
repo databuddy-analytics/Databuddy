@@ -121,6 +121,28 @@ describe("detectMeasurementRecommendationSignals", () => {
 		expect(signal?.measurementCandidate).toBeUndefined();
 	});
 
+	it("labels no-candidate evidence as sampled when custom event discovery hits its cap", async () => {
+		const [signal] = await detectMeasurementRecommendationSignals(
+			PARAMS,
+			TODAY,
+			makeDeps({
+				fetchTelemetry: async () => ({
+					customEventNames: ["button_click", "screen_view"],
+					customEventSampleLimit: 1000,
+					customEventSampled: true,
+					pageviews: 60,
+					routes: [],
+					sessions: 40,
+				}),
+			})
+		);
+
+		expect(signal?.measurementCandidate).toBeUndefined();
+		expect(signal?.definitionEvidence).toContain(
+			"top 1000 custom event types"
+		);
+	});
+
 	it("suppresses the signal when usable measurement definitions already exist", async () => {
 		let telemetryCalls = 0;
 		const signals = await detectMeasurementRecommendationSignals(

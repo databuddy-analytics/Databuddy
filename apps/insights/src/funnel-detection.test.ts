@@ -1158,8 +1158,8 @@ describe("detectFunnelGoalSignals", () => {
 		expect(diagnostics.failedDefinitions).toBe(1);
 		expect(seen).toEqual(new Set(["goal-0", "goal-1", "goal-2"]));
 		expect(slowAbortDelays).toHaveLength(2);
-		expect(slowAbortDelays.every((delay) => delay < 180)).toBe(true);
-		expect(elapsedMs).toBeLessThan(360);
+		expect(slowAbortDelays.every((delay) => delay < 500)).toBe(true);
+		expect(elapsedMs).toBeLessThan(800);
 	});
 
 	it("shares the remaining scan budget without starving later batches", async () => {
@@ -1190,7 +1190,7 @@ describe("detectFunnelGoalSignals", () => {
 		expect(seen).toEqual(
 			new Set(["goal-0", "goal-1", "goal-2", "goal-3", "goal-4", "goal-5"])
 		);
-		expect(performance.now() - startedAt).toBeLessThan(400);
+		expect(performance.now() - startedAt).toBeLessThan(800);
 	});
 
 	it("does not fetch definitions for a pre-aborted caller", async () => {

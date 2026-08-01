@@ -67,6 +67,10 @@ import {
 	runInsightAgent,
 } from "./agent";
 import {
+	errorCustomerImpactEvidence,
+	loadErrorCustomerImpact,
+} from "./error-customer-impact";
+import {
 	freezeInsightRunCandidatePlan,
 	loadInsightRunCandidatePlan,
 	type PlannedInvestigationCandidate,
@@ -149,6 +153,7 @@ export interface InvestigationSources {
 		organizationId: string;
 		websiteId: string;
 	}) => Promise<DueOpenInvestigation | null>;
+	loadErrorCustomerImpact: typeof loadErrorCustomerImpact;
 	loadHistory: typeof loadInvestigationHistory;
 	loadObservations: (params: {
 		asOf: Date;
@@ -304,6 +309,7 @@ const productionInvestigationSources: InvestigationSources = {
 	fetchAnnotations: fetchSignalAnnotations,
 	investigateSignal: runInsightAgent,
 	loadDueInvestigation: loadDueOpenInvestigation,
+	loadErrorCustomerImpact,
 	loadHistory: loadInvestigationHistory,
 	loadOtherOpenWork,
 	loadObservations: loadLatestSignalObservations,
@@ -575,12 +581,34 @@ async function investigatePlannedCandidate(
 		return emptyInvestigationArtifact({ asOf, status: "deferred" });
 	}
 	let evidence = [...candidate.evidence];
-	const annotationRows = await runtime.sources.fetchAnnotations(
-		input.websiteId,
-		candidate.signal,
-		asOf.toDate(),
-		input.timezone
-	);
+	const [annotationRows, customerImpact] = await Promise.all([
+		runtime.sources.fetchAnnotations(
+			input.websiteId,
+			candidate.signal,
+			asOf.toDate(),
+			input.timezone
+		),
+		runtime.sources
+			.loadErrorCustomerImpact({
+				abortSignal: AbortSignal.timeout(SOURCE_DETECTION_TIMEOUT_MS),
+				signal: candidate.signal,
+				timezone: input.timezone,
+				websiteId: input.websiteId,
+			})
+			.catch((error) => {
+				if (runtime.mode === "production") {
+					captureInsightsError(error, "generation.customer_impact.failed", {
+						organization_id: input.organizationId,
+						signal_key: candidate.signal.signalKey,
+						website_id: input.websiteId,
+					});
+				}
+				return null;
+			}),
+	]);
+	if (customerImpact) {
+		evidence.push(errorCustomerImpactEvidence(customerImpact));
+	}
 	const annotation = annotationEvidence(annotationRows);
 	if (annotation) {
 		evidence = [...evidence, annotation];
@@ -616,6 +644,7 @@ async function investigatePlannedCandidate(
 	try {
 		investigationResult = await runtime.sources.investigateSignal({
 			appContext,
+			customerImpact,
 			evidence,
 			githubRepository: input.githubRepository ?? null,
 			history,

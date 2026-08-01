@@ -584,6 +584,15 @@ describe("investigationOutcomeSchema", () => {
 		expect(
 			agentInvestigationOutcomeSchema.safeParse({
 				...candidate,
+				next: {
+					...watch,
+					threshold: { ...watch.threshold, value: -1 },
+				},
+			}).success
+		).toBe(false);
+		expect(
+			agentInvestigationOutcomeSchema.safeParse({
+				...candidate,
 				evidenceRefs: [],
 			}).success
 		).toBe(false);

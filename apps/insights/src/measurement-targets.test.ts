@@ -1,8 +1,21 @@
 import { describe, expect, it } from "bun:test";
 import {
+	canonicalMeasurementEventTarget,
+	isCanonicalMeasurementEventTarget,
 	isCanonicalMeasurementRouteTarget,
 	normalizeInspectedMeasurementRouteTarget,
 } from "./measurement-targets";
+
+describe("measurement event targets", () => {
+	it("accepts known conversion events without admitting identifiers", () => {
+		expect(canonicalMeasurementEventTarget("signup_completed")).toBe(
+			"signup_completed"
+		);
+		expect(isCanonicalMeasurementEventTarget("signup_completed")).toBe(true);
+		expect(canonicalMeasurementEventTarget("purchase_ari")).toBeNull();
+		expect(isCanonicalMeasurementEventTarget("purchase_ari")).toBe(false);
+	});
+});
 
 describe("inspected measurement route targets", () => {
 	it("accepts static platform routes without admitting identifiers or queries", () => {
