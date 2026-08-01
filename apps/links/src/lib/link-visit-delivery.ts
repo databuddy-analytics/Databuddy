@@ -38,6 +38,17 @@ export const LINK_VISIT_JOB_OPTIONS = {
 const RETRY_LOG_INTERVAL_MS = 30_000;
 const MAX_RETRY_DELAY_MS = 60_000;
 export const LINK_VISIT_QUEUE_IO_TIMEOUT_MS = 1500;
+const LINK_VISIT_QUEUE_HEALTH_TIMEOUT_MS = 1250;
+
+export class LinkVisitQueueAdmissionTimeoutError extends Error {
+	readonly deadlineMs: number;
+
+	constructor(deadlineMs: number) {
+		super(`Link visit queue admission exceeded ${deadlineMs}ms`);
+		this.deadlineMs = deadlineMs;
+		this.name = "LinkVisitQueueAdmissionTimeoutError";
+	}
+}
 
 let queue: Queue<LinkVisitJobData> | null = null;
 let worker: Worker<LinkVisitJobData> | null = null;
@@ -49,6 +60,16 @@ interface LinkVisitQueueWriter {
 		name: string,
 		data: LinkVisitJobData,
 		options: { jobId: string }
+	): Promise<unknown>;
+}
+
+interface CloseableLinkVisitQueueWriter extends LinkVisitQueueWriter {
+	close(): Promise<void>;
+}
+
+interface LinkVisitQueueHealthWriter extends CloseableLinkVisitQueueWriter {
+	getJobCounts(
+		...types: Array<"active" | "delayed" | "failed" | "waiting">
 	): Promise<unknown>;
 }
 
@@ -69,6 +90,9 @@ export function getLinkVisitQueueConnectionOptions() {
 		commandTimeout: LINK_VISIT_QUEUE_IO_TIMEOUT_MS,
 		connectTimeout: LINK_VISIT_QUEUE_IO_TIMEOUT_MS,
 		enableOfflineQueue: false,
+		// The HTTP writer is disposable. Do not let BullMQ wait through an
+		// unbounded reconnect loop before Queue.add can start its command timer.
+		retryStrategy: () => null,
 	};
 }
 
@@ -88,12 +112,59 @@ function getLinkVisitQueue(): Queue<LinkVisitJobData> {
 }
 
 export async function enqueueLinkVisit(event: LinkVisitEvent): Promise<void> {
-	await addLinkVisitJob(getLinkVisitQueue(), event);
+	const targetQueue = getLinkVisitQueue();
+	await addLinkVisitJobWithinDeadline(targetQueue, event, {
+		onDiscard: () => {
+			if (queue === targetQueue) {
+				queue = null;
+			}
+		},
+	});
 	setAttributes({
 		click_admitted: true,
 		click_delivery: "bullmq",
 		link_visit_job_id: event.id,
 	});
+}
+
+export async function addLinkVisitJobWithinDeadline(
+	targetQueue: CloseableLinkVisitQueueWriter,
+	event: LinkVisitEvent,
+	options: {
+		readonly deadlineMs?: number;
+		readonly onDiscard?: () => void;
+	} = {}
+): Promise<void> {
+	const deadlineMs = options.deadlineMs ?? LINK_VISIT_QUEUE_IO_TIMEOUT_MS;
+	let timeout: ReturnType<typeof setTimeout> | undefined;
+	const deadline = new Promise<never>((_resolve, reject) => {
+		timeout = setTimeout(
+			() => reject(new LinkVisitQueueAdmissionTimeoutError(deadlineMs)),
+			deadlineMs
+		);
+		timeout.unref?.();
+	});
+
+	try {
+		await Promise.race([addLinkVisitJob(targetQueue, event), deadline]);
+	} catch (error) {
+		// Discard and close this exact writer before rejecting. Queue.close aborts
+		// BullMQ while RedisConnection is still initializing, so a timed-out add
+		// cannot wake later and silently enqueue after the redirect returned 503.
+		options.onDiscard?.();
+		Promise.resolve()
+			.then(() => targetQueue.close())
+			.catch((closeError) => {
+				captureError(closeError, {
+					error_step: "link_visit_queue_discard_close",
+				});
+			});
+		throw error;
+	} finally {
+		if (timeout) {
+			clearTimeout(timeout);
+		}
+	}
 }
 
 export async function addLinkVisitJob(
