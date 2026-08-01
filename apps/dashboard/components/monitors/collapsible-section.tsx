@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { cn } from "@/lib/utils";
 import { CaretDownIcon } from "@databuddy/ui/icons";
+import { Button } from "@databuddy/ui";
 
 interface CollapsibleSectionProps {
 	badge?: number;
@@ -23,10 +24,11 @@ export function CollapsibleSection({
 }: CollapsibleSectionProps) {
 	return (
 		<div className="flex flex-col gap-2">
-			<button
-				className="group flex w-full cursor-pointer items-center justify-between rounded p-3 text-left transition-colors hover:bg-accent/50"
+			<Button
+				className="group h-auto w-full justify-between p-3 text-left"
 				onClick={onToggleAction}
 				type="button"
+				variant="ghost"
 			>
 				<div className="flex items-center gap-2.5">
 					<Icon size={16} weight="duotone" />
@@ -44,7 +46,7 @@ export function CollapsibleSection({
 					)}
 					weight="fill"
 				/>
-			</button>
+			</Button>
 
 			<AnimatePresence initial={false}>
 				{isExpanded && (

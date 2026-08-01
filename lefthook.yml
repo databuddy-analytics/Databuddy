@@ -35,6 +35,9 @@ pre-commit:
           git add packages/db/src/clickhouse/schema/tables.generated.ts
         fi
         bun run check-types
+    policy-lint:
+      glob: "**/*.{css,ts,tsx}"
+      run: bun run lint:policies
     lockfile-check:
       glob:
         - "**/package.json"

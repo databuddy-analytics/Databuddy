@@ -135,14 +135,15 @@ export function FeedbackPrompt() {
 						weight="duotone"
 					/>
 				</div>
-				<button
+				<Button
 					aria-label="Dismiss feedback prompt"
-					className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground"
+					className="size-6 shrink-0"
 					onClick={handleDismissAction}
-					type="button"
+					size="icon-sm"
+					variant="ghost"
 				>
 					<XIcon size={14} />
-				</button>
+				</Button>
 			</div>
 			<p className="mb-1 text-balance font-medium text-sm">{prompt.heading}</p>
 			<p className="mb-3 text-pretty text-muted-foreground text-xs leading-relaxed">
