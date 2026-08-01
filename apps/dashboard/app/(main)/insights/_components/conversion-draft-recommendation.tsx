@@ -259,7 +259,6 @@ function DraftReviewButton({
 				size="sm"
 				title={access.reason ?? undefined}
 				type="button"
-				variant="secondary"
 			>
 				Review {label} draft
 			</Button>

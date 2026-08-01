@@ -13,7 +13,17 @@ import {
 	fromNow,
 	Skeleton,
 } from "@databuddy/ui";
-import { WrenchIcon } from "@databuddy/ui/icons";
+import {
+	ArrowSquareOutIcon,
+	CodeIcon,
+	FilterIcon,
+	IdBadge2Icon,
+	PencilSimpleIcon,
+	TargetIcon,
+	TrashIcon,
+	WarningIcon,
+	WrenchIcon,
+} from "@databuddy/ui/icons";
 import {
 	ConversionDraftRecommendationAction,
 	InstrumentationRecommendationDetails,
@@ -152,49 +162,77 @@ function RecommendationSkeleton() {
 
 function RecommendationRow({ insight }: { insight: InsightRecommendation }) {
 	const { recommendation } = insight;
+	const presentation = getRecommendationPresentation(insight);
+	const SignalIcon = presentation.icon;
+	const signalStatus = getSignalStatus(insight);
+	const hasAction = hasRecommendationAction(insight);
 
 	return (
 		<List.Row align="start" asChild interactive={false}>
 			<li>
-				<span className="flex size-8 shrink-0 items-center justify-center rounded bg-primary/10 text-primary">
-					<WrenchIcon aria-hidden className="size-4" weight="duotone" />
+				<span
+					className={`flex size-8 shrink-0 items-center justify-center rounded ${presentation.iconClassName}`}
+				>
+					<SignalIcon aria-hidden className="size-4" weight="duotone" />
 				</span>
-				<div className="min-w-0 flex-1">
-					<span className="flex flex-wrap items-center gap-2">
-						<Badge size="sm" variant="muted">
-							{recommendationLabel(recommendation)}
-						</Badge>
-						<span className="min-w-0 truncate text-[11px] text-muted-foreground">
-							{insight.websiteName ?? insight.websiteDomain} ·{" "}
-							{fromNow(insight.createdAt)}
-						</span>
-					</span>
-					<p className="mt-2 break-words font-medium text-foreground text-sm leading-relaxed [overflow-wrap:anywhere]">
-						{recommendation.action}
-					</p>
-					<p className="mt-1.5 break-words text-muted-foreground text-xs leading-relaxed [overflow-wrap:anywhere]">
-						<span className="font-medium text-foreground/75">Why: </span>
-						{insight.impact ?? insight.summary}
-					</p>
-					{isInstrumentationRecommendation(recommendation) ? (
-						<InstrumentationRecommendationDetails
-							recommendation={recommendation}
-						/>
-					) : null}
-					<p className="mt-2 break-words text-muted-foreground text-xs leading-relaxed [overflow-wrap:anywhere]">
-						Based on{" "}
-						{insight.investigationId ? (
-							<Link
-								className="font-medium text-foreground/80 transition-colors hover:text-foreground"
-								href={`/insights/${insight.investigationId}`}
+				<div className="min-w-0 flex-1 sm:flex sm:items-start sm:gap-4">
+					<div className="min-w-0 flex-1">
+						<span className="flex flex-wrap items-center gap-2">
+							<Badge
+								className={
+									presentation.badgeVariant === "primary"
+										? "bg-brand-purple text-white"
+										: undefined
+								}
+								size="sm"
+								variant={presentation.badgeVariant}
 							>
-								{insight.title}
-							</Link>
-						) : (
-							<span className="text-foreground/80">{insight.title}</span>
-						)}
-					</p>
-					<RecommendationAction insight={insight} />
+								{presentation.label}
+							</Badge>
+							{signalStatus ? (
+								<Badge size="sm" variant={signalStatus.variant}>
+									<WarningIcon aria-hidden className="size-3" weight="fill" />
+									{signalStatus.label}
+								</Badge>
+							) : null}
+							<span className="min-w-0 truncate text-[11px] text-muted-foreground">
+								{insight.websiteName ?? insight.websiteDomain} ·{" "}
+								{fromNow(insight.createdAt)}
+							</span>
+						</span>
+						<p className="mt-2 break-words font-medium text-foreground text-sm leading-relaxed [overflow-wrap:anywhere]">
+							{recommendation.action}
+						</p>
+						<p className="mt-1.5 break-words text-muted-foreground text-xs leading-relaxed [overflow-wrap:anywhere]">
+							<span className="font-medium text-foreground/75">
+								{insight.impact ? "Why it matters: " : "Context: "}
+							</span>
+							{insight.impact ?? insight.summary}
+						</p>
+						{isInstrumentationRecommendation(recommendation) ? (
+							<InstrumentationRecommendationDetails
+								recommendation={recommendation}
+							/>
+						) : null}
+						<p className="mt-2 break-words text-muted-foreground text-xs leading-relaxed [overflow-wrap:anywhere]">
+							Based on{" "}
+							{insight.investigationId ? (
+								<Link
+									className="font-medium text-foreground/80 transition-colors hover:text-foreground"
+									href={`/insights/${insight.investigationId}`}
+								>
+									{insight.title}
+								</Link>
+							) : (
+								<span className="text-foreground/80">{insight.title}</span>
+							)}
+						</p>
+					</div>
+					{hasAction ? (
+						<div className="mt-3 flex shrink-0 flex-wrap gap-1.5 sm:mt-0 sm:justify-end">
+							<RecommendationAction insight={insight} />
+						</div>
+					) : null}
 				</div>
 			</li>
 		</List.Row>
@@ -205,12 +243,10 @@ function RecommendationAction({ insight }: { insight: InsightRecommendation }) {
 	const { recommendation } = insight;
 	if (isConversionDraftRecommendation(recommendation)) {
 		return (
-			<div className="mt-3 flex flex-wrap gap-1.5">
-				<ConversionDraftRecommendationAction
-					recommendation={recommendation}
-					websiteId={insight.websiteId}
-				/>
-			</div>
+			<ConversionDraftRecommendationAction
+				recommendation={recommendation}
+				websiteId={insight.websiteId}
+			/>
 		);
 	}
 	if (
@@ -218,32 +254,139 @@ function RecommendationAction({ insight }: { insight: InsightRecommendation }) {
 		isGoalRecommendation(recommendation)
 	) {
 		return (
-			<div className="mt-3 flex flex-wrap gap-1.5">
-				<GoalRecommendationAction
-					goalId={insight.signal.entity.id}
-					recommendation={recommendation}
-					websiteId={insight.websiteId}
-				/>
-			</div>
+			<GoalRecommendationAction
+				goalId={insight.signal.entity.id}
+				recommendation={recommendation}
+				websiteId={insight.websiteId}
+			/>
+		);
+	}
+	if (isInstrumentationRecommendation(recommendation)) {
+		return (
+			<Button asChild size="sm">
+				<Link
+					href="https://www.databuddy.cc/docs/hooks"
+					rel="noreferrer"
+					target="_blank"
+				>
+					Event tracking guide
+					<ArrowSquareOutIcon aria-hidden className="size-3.5" />
+					<span className="sr-only">(opens in a new tab)</span>
+				</Link>
+			</Button>
+		);
+	}
+	if (isDatabuddySetupRecommendation(recommendation)) {
+		return (
+			<Button asChild size="sm">
+				<Link
+					href="https://www.databuddy.cc/docs/sdk/identify-users"
+					rel="noreferrer"
+					target="_blank"
+				>
+					Identification guide
+					<ArrowSquareOutIcon aria-hidden className="size-3.5" />
+					<span className="sr-only">(opens in a new tab)</span>
+				</Link>
+			</Button>
 		);
 	}
 	return null;
 }
 
-function recommendationLabel(
-	recommendation: InsightRecommendation["recommendation"]
-): string {
+function hasRecommendationAction(insight: InsightRecommendation): boolean {
+	const { recommendation } = insight;
+	return (
+		isConversionDraftRecommendation(recommendation) ||
+		isInstrumentationRecommendation(recommendation) ||
+		isDatabuddySetupRecommendation(recommendation) ||
+		(insight.signal.entity.type === "goal" &&
+			isGoalRecommendation(recommendation))
+	);
+}
+
+type BadgeVariant = "destructive" | "muted" | "primary" | "warning";
+
+interface RecommendationPresentation {
+	badgeVariant: BadgeVariant;
+	icon: typeof WrenchIcon;
+	iconClassName: string;
+	label: string;
+}
+
+function getRecommendationPresentation(
+	insight: InsightRecommendation
+): RecommendationPresentation {
+	const { recommendation } = insight;
 	if (isDatabuddySetupRecommendation(recommendation)) {
-		return "Databuddy setup";
+		return {
+			badgeVariant: "warning",
+			icon: IdBadge2Icon,
+			iconClassName: "bg-warning/10 text-warning",
+			label: "Identify users",
+		};
 	}
 	if (isInstrumentationRecommendation(recommendation)) {
-		return "Tracking";
+		return {
+			badgeVariant: "warning",
+			icon: CodeIcon,
+			iconClassName: "bg-warning/10 text-warning",
+			label: "Add events",
+		};
 	}
 	if (isConversionDraftRecommendation(recommendation)) {
-		return recommendation.kind === "goal_draft" ? "Goal draft" : "Funnel draft";
+		return recommendation.kind === "goal_draft"
+			? {
+					badgeVariant: "primary",
+					icon: TargetIcon,
+					iconClassName: "bg-brand-purple/10 text-brand-purple",
+					label: "Create goal",
+				}
+			: {
+					badgeVariant: "primary",
+					icon: FilterIcon,
+					iconClassName: "bg-brand-purple/10 text-brand-purple",
+					label: "Create funnel",
+				};
 	}
-	if (isGoalRecommendation(recommendation)) {
-		return "Goal change";
+	if (
+		insight.signal.entity.type === "goal" &&
+		isGoalRecommendation(recommendation)
+	) {
+		return recommendation.operation === "delete"
+			? {
+					badgeVariant: "destructive",
+					icon: TrashIcon,
+					iconClassName: "bg-destructive/10 text-destructive",
+					label: "Delete goal",
+				}
+			: {
+					badgeVariant: "primary",
+					icon: PencilSimpleIcon,
+					iconClassName: "bg-brand-purple/10 text-brand-purple",
+					label: "Edit goal",
+				};
 	}
-	return "Recommendation";
+	return {
+		badgeVariant: "muted",
+		icon: WrenchIcon,
+		iconClassName: "bg-muted text-muted-foreground",
+		label: "Suggestion",
+	};
+}
+
+function getSignalStatus(insight: InsightRecommendation): {
+	label: string;
+	variant: "destructive" | "warning";
+} | null {
+	if (insight.signal.sentiment !== "negative") {
+		return null;
+	}
+	if (insight.signal.severity === "critical") {
+		return { label: "Critical signal", variant: "destructive" };
+	}
+	if (insight.signal.severity === "warning") {
+		return { label: "Warning signal", variant: "warning" };
+	}
+	return null;
 }

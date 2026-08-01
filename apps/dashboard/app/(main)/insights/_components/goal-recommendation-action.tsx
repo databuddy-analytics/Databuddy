@@ -27,16 +27,20 @@ export function GoalRecommendationAction({
 
 	if (accessReason) {
 		return (
-			<Button
-				disabled
-				size="sm"
-				title={accessReason}
-				tone={deleting ? "destructive" : "neutral"}
-				type="button"
-				variant={deleting ? "ghost" : "secondary"}
-			>
-				{label}
-			</Button>
+			<div className="space-y-1.5 sm:max-w-48">
+				<Button
+					disabled
+					size="sm"
+					tone={deleting ? "destructive" : "neutral"}
+					type="button"
+					variant={deleting ? "ghost" : "primary"}
+				>
+					{label}
+				</Button>
+				<p className="text-muted-foreground text-xs sm:text-right">
+					{accessReason}
+				</p>
+			</div>
 		);
 	}
 
@@ -45,7 +49,7 @@ export function GoalRecommendationAction({
 			asChild
 			size="sm"
 			tone={deleting ? "destructive" : "neutral"}
-			variant={deleting ? "ghost" : "secondary"}
+			variant={deleting ? "ghost" : "primary"}
 		>
 			<Link
 				href={{
