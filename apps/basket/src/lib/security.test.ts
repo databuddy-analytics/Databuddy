@@ -186,13 +186,37 @@ describe("duplicate reservations", () => {
 		});
 	});
 
-	test("suppresses a delivered reservation written by the legacy key format", async () => {
+	test("claims a legacy admission reservation before delivery", async () => {
 		mockRedisSet.mockResolvedValue(null);
 		mockRedisGet.mockResolvedValue("1");
+		mockRedisEval.mockResolvedValue(1);
 
 		const reservation = await reserveDuplicate("evt_1", "track");
 
-		expect(reservation).toEqual({ duplicate: true });
+		expect(reservation).toMatchObject({
+			duplicate: false,
+			key: "dedup:track:evt_1",
+			token: expect.stringMatching(/^pending:/),
+			ttl: 86_400,
+		});
+		expect(mockRedisEval).toHaveBeenCalledWith(
+			expect.stringContaining('redis.call("GET", KEYS[1]) == ARGV[1]'),
+			1,
+			"dedup:track:evt_1",
+			"1",
+			expect.stringMatching(/^pending:/),
+			86_400
+		);
+	});
+
+	test("requires a retry when a legacy reservation cannot be claimed", async () => {
+		mockRedisSet.mockResolvedValue(null);
+		mockRedisGet.mockResolvedValue("1");
+		mockRedisEval.mockResolvedValue(0);
+
+		const reservation = await reserveDuplicate("evt_1", "track");
+
+		expect(reservation).toEqual({ duplicate: false, retryable: true });
 	});
 
 	test("requires a retry when another request owns a pending reservation", async () => {

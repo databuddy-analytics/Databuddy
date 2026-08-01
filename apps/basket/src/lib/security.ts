@@ -12,9 +12,15 @@ const DEDUP_RETRY_DELAY_MS = 25;
 const PENDING_DEDUP_PREFIX = "pending:";
 const DELIVERED_DEDUP_VALUE = "delivered";
 // Kept until all keys written by the pre-reservation implementation expire.
-const LEGACY_DELIVERED_DEDUP_VALUE = "1";
+// Unlike "delivered", this value was written before delivery was acknowledged.
+const LEGACY_PENDING_DEDUP_VALUE = "1";
 const RELEASE_PENDING_DEDUP_RESERVATION = `if redis.call("GET", KEYS[1]) == ARGV[1] then
 	return redis.call("DEL", KEYS[1])
+end
+return 0`;
+const CLAIM_LEGACY_DEDUP_RESERVATION = `if redis.call("GET", KEYS[1]) == ARGV[1] then
+	redis.call("SET", KEYS[1], ARGV[2], "EX", ARGV[3])
+	return 1
 end
 return 0`;
 const MARK_PENDING_DEDUP_RESERVATION_DELIVERED = `if redis.call("GET", KEYS[1]) == ARGV[1] then
@@ -156,6 +162,7 @@ export interface DuplicateReservation {
 type DedupReservationState =
 	| "acquired"
 	| "delivered"
+	| "legacy"
 	| "pending"
 	| "unreserved";
 
@@ -164,16 +171,37 @@ async function readDedupReservationState(
 	token: string
 ): Promise<DedupReservationState> {
 	const value = await redis.get(key);
-	if (
-		value === DELIVERED_DEDUP_VALUE ||
-		value === LEGACY_DELIVERED_DEDUP_VALUE
-	) {
+	if (value === DELIVERED_DEDUP_VALUE) {
 		return "delivered";
+	}
+	if (value === LEGACY_PENDING_DEDUP_VALUE) {
+		return "legacy";
 	}
 	if (value === token) {
 		return "acquired";
 	}
 	return value === null || value === undefined ? "unreserved" : "pending";
+}
+
+async function resolveDedupReservationState(
+	key: string,
+	ttl: number,
+	token: string
+): Promise<DedupReservationState> {
+	const state = await readDedupReservationState(key, token);
+	if (state !== "legacy") {
+		return state;
+	}
+
+	const claimed = await redis.eval(
+		CLAIM_LEGACY_DEDUP_RESERVATION,
+		1,
+		key,
+		LEGACY_PENDING_DEDUP_VALUE,
+		token,
+		ttl
+	);
+	return claimed === 1 ? "acquired" : readDedupReservationState(key, token);
 }
 
 async function setDedupKey(
@@ -183,7 +211,9 @@ async function setDedupKey(
 ): Promise<DedupReservationState> {
 	try {
 		const result = await redis.set(key, token, "EX", ttl, "NX");
-		return result === null ? readDedupReservationState(key, token) : "acquired";
+		return result === null
+			? resolveDedupReservationState(key, ttl, token)
+			: "acquired";
 	} catch (firstError) {
 		await wait(DEDUP_RETRY_DELAY_MS);
 		try {
@@ -196,10 +226,10 @@ async function setDedupKey(
 			// Seeing our token again proves that this request owns the reservation.
 			// Any other pending token is retryable: only a confirmed delivery may
 			// suppress the event.
-			return await readDedupReservationState(key, token);
+			return await resolveDedupReservationState(key, ttl, token);
 		} catch {
 			try {
-				return await readDedupReservationState(key, token);
+				return await resolveDedupReservationState(key, ttl, token);
 			} catch {
 				throw firstError;
 			}
@@ -228,7 +258,11 @@ export function reserveDuplicate(
 
 			// This request did not acquire a pending key. Publishing without ownership
 			// can duplicate a concurrent delivery or overwrite its confirmed state.
-			if (result === "pending" || result === "unreserved") {
+			if (
+				result === "legacy" ||
+				result === "pending" ||
+				result === "unreserved"
+			) {
 				return { duplicate: false, retryable: true };
 			}
 
