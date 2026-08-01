@@ -1,6 +1,7 @@
 import { describe, expect, mock, test } from "bun:test";
 import {
 	addLinkVisitJob,
+	closeLinkVisitDeliveryResources,
 	getWorkerConcurrency,
 	getLinkVisitRetryDelay,
 	KAFKA_ATTEMPTED_FIELD,
@@ -147,5 +148,21 @@ describe("link visit durable delivery", () => {
 				process.env.LINK_VISIT_WORKER_CONCURRENCY = previous;
 			}
 		}
+	});
+
+	test("closes the queue even when worker shutdown fails", async () => {
+		const workerError = new Error("worker close failed");
+		const activeWorker = {
+			close: mock(() => Promise.reject(workerError)),
+		};
+		const activeQueue = {
+			close: mock(() => Promise.resolve()),
+		};
+
+		await expect(
+			closeLinkVisitDeliveryResources(activeWorker, activeQueue)
+		).rejects.toBeInstanceOf(AggregateError);
+		expect(activeWorker.close).toHaveBeenCalledTimes(1);
+		expect(activeQueue.close).toHaveBeenCalledTimes(1);
 	});
 });

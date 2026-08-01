@@ -79,8 +79,14 @@ const app = new Elysia()
 	.use(evlog({ enrich }))
 	.onBeforeHandle(({ request }) => {
 		const pathname = new URL(request.url).pathname;
-		if (!(shuttingDown && !pathname.startsWith("/health"))) {
+		if (!shuttingDown || pathname === "/health") {
 			return;
+		}
+		if (pathname === "/health/status") {
+			return Response.json(
+				{ reason: "shutting_down", status: "unavailable" },
+				{ status: 503 }
+			);
 		}
 		throw createError({
 			code: "links.SHUTTING_DOWN",

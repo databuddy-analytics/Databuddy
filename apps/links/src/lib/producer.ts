@@ -17,6 +17,7 @@ let connectPromise: Promise<boolean> | null = null;
 let nextReconnectAt = 0;
 let lastConnectErrorLogAt = 0;
 let lastFallbackErrorLogAt = 0;
+let shuttingDown = false;
 
 /**
  * Immutable wire payload for a short-link click. The generated ID stays with
@@ -75,6 +76,9 @@ function captureDependencyError(
 }
 
 function connect(reportFailure = true): Promise<boolean> {
+	if (shuttingDown) {
+		return Promise.resolve(false);
+	}
 	if (producer) {
 		return Promise.resolve(true);
 	}
@@ -127,6 +131,10 @@ function connect(reportFailure = true): Promise<boolean> {
 			});
 
 			await candidate.connect();
+			if (shuttingDown) {
+				await candidate.disconnect();
+				return false;
+			}
 			producer = candidate;
 			nextReconnectAt = 0;
 			setAttributes({ kafka_connected: true });
@@ -269,8 +277,12 @@ export async function sendLinkVisit(
 	}
 
 	setAttributes({ kafka_connected: true });
+	if (options.beforeKafkaSend) {
+		// Persist the BullMQ job's per-event ambiguity marker before Kafka sees
+		// the record. A Redis failure here means no Kafka send was attempted.
+		await options.beforeKafkaSend();
+	}
 	try {
-		await options.beforeKafkaSend?.();
 		await activeProducer.send({
 			topic: TOPIC,
 			acks: -1,
@@ -302,12 +314,14 @@ export async function sendLinkVisit(
 }
 
 export async function disconnectProducer(): Promise<void> {
-	if (!producer) {
+	shuttingDown = true;
+	if (connectPromise) {
+		await connectPromise;
+	}
+	const activeProducer = producer;
+	producer = null;
+	if (!activeProducer) {
 		return;
 	}
-	try {
-		await producer.disconnect();
-	} finally {
-		producer = null;
-	}
+	await activeProducer.disconnect();
 }
