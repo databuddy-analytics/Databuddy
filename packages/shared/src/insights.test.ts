@@ -165,7 +165,7 @@ const instrumentationRecommendation = {
 
 const databuddySetupRecommendation = {
 	action:
-		"Verify or add Databuddy identify() after successful authentication so future error reports can distinguish affected signed-in users from anonymous visitors.",
+		"Verify or add Databuddy identify() after authentication so future errors can be tied to signed-in users.",
 	feature: "user_identification" as const,
 	kind: "databuddy_setup" as const,
 };
@@ -381,6 +381,18 @@ describe("investigationOutcomeSchema", () => {
 				rootCause: "The goal name does not match its configured target.",
 			}).success
 		).toBe(false);
+		expect(
+			investigationOutcomeSchema.safeParse({
+				...outcomeBase,
+				next: {
+					question:
+						"Connect the repository that owns the application so Databuddy can inspect the failure path.",
+					type: "ask",
+				},
+				publish: true,
+				recommendation: databuddySetupRecommendation,
+			}).success
+		).toBe(true);
 	});
 
 	it("accepts a published measurement recommendation without an executable action", () => {

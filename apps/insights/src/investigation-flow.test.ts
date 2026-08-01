@@ -232,15 +232,16 @@ describe("intelligence agent", () => {
 	it("accepts only the supplied Databuddy setup recommendation", async () => {
 		const setupRecommendationCandidate = {
 			action:
-				"Verify or add Databuddy identify() after successful authentication so future error reports can distinguish affected signed-in users from anonymous visitors.",
+				"Verify or add Databuddy identify() after authentication so future errors can be tied to signed-in users.",
 			feature: "user_identification" as const,
 			kind: "databuddy_setup" as const,
 		};
 		const setupOutcome = {
 			...agentOutcome,
 			next: {
-				reason: "Identification coverage is the remaining measurement gap.",
-				type: "resolve" as const,
+				question:
+					"Connect the repository that owns the application so Databuddy can inspect the failure path.",
+				type: "ask" as const,
 			},
 			recommendation: setupRecommendationCandidate,
 		};

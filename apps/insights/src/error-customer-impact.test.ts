@@ -157,7 +157,7 @@ describe("error customer impact", () => {
 
 		expect(errorIdentitySetupRecommendation(impact)).toEqual({
 			action:
-				"Verify or add Databuddy identify() after successful authentication so future error reports can distinguish affected signed-in users from anonymous visitors.",
+				"Verify or add Databuddy identify() after authentication so future errors can be tied to signed-in users.",
 			feature: "user_identification",
 			kind: "databuddy_setup",
 		});

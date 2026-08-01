@@ -40,6 +40,7 @@ import {
 } from "../_components/conversion-draft-recommendation";
 import {
 	isConversionDraftRecommendation,
+	isDatabuddySetupRecommendation,
 	isGoalRecommendation,
 	isInstrumentationRecommendation,
 } from "../_components/recommendation-guards";
@@ -477,7 +478,9 @@ function InvestigationActivity({
 			{recommendation ? (
 				<div className="rounded-md border border-primary/15 bg-primary/5 px-3 py-3">
 					<p className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
-						Recommended
+						{isDatabuddySetupRecommendation(recommendation)
+							? "Improve future reports"
+							: "Recommended"}
 					</p>
 					<p className="mt-1 font-medium text-foreground/85 text-sm leading-relaxed">
 						{recommendation.action}
