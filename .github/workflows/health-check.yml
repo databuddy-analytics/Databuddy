@@ -10,6 +10,7 @@ on:
       - "apps/basket/**"
       - "apps/insights/**"
       - "apps/links/**"
+      - "infra/ingest/**"
       - "packages/**"
       - "bun.lock"
       - "package.json"
@@ -24,6 +25,7 @@ on:
       - "apps/basket/**"
       - "apps/insights/**"
       - "apps/links/**"
+      - "infra/ingest/**"
       - "packages/**"
       - "bun.lock"
       - "package.json"
@@ -38,6 +40,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  vector-config-check:
+    name: Vector Config Check
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Validate Vector config
+        run: |
+          docker run --rm \
+            -v "$PWD/infra/ingest/vector.yaml:/etc/vector/vector.yaml:ro" \
+            -e REDPANDA_BROKER=localhost:9092 \
+            -e VECTOR_KAFKA_USER=vector-test \
+            -e VECTOR_KAFKA_PASSWORD=vector-test-password \
+            -e CLICKHOUSE_URL=http://localhost:8123 \
+            -e CLICKHOUSE_USER=default \
+            -e CLICKHOUSE_PASSWORD=vector-test-password \
+            timberio/vector:0.50.0-alpine \
+            validate --deny-warnings --no-environment /etc/vector/vector.yaml
+
   api-health-check:
     name: API Health Check
     runs-on: blacksmith-4vcpu-ubuntu-2404
