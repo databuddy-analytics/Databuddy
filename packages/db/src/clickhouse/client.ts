@@ -30,6 +30,7 @@ export const CLICKHOUSE_OPTIONS: NodeClickHouseClientConfigOptions = {
 
 export const FINAL_READ_SETTINGS = {
 	do_not_merge_across_partitions_select_final: 1,
+	final: 1,
 } as const;
 
 function assertCacheCompatibleSettings(

@@ -16,38 +16,7 @@ const TABLE = [
 	`\`analytics\\.(?:${NAMES})\``,
 	`"analytics\\.(?:${NAMES})"`,
 ].join("|");
-const RESERVED = [
-	"ALL",
-	"ANY",
-	"ARRAY",
-	"CROSS",
-	"FINAL",
-	"FORMAT",
-	"FULL",
-	"GLOBAL",
-	"GROUP",
-	"HAVING",
-	"INNER",
-	"JOIN",
-	"LEFT",
-	"LIMIT",
-	"OFFSET",
-	"ON",
-	"ORDER",
-	"OUTER",
-	"PREWHERE",
-	"RIGHT",
-	"SAMPLE",
-	"SETTINGS",
-	"UNION",
-	"USING",
-	"WHERE",
-	"WINDOW",
-].join("|");
-const RELATION = new RegExp(
-	`\\b(FROM|JOIN)\\s+(${TABLE})(\\s+FINAL)?(?:\\s+AS\\s+([a-zA-Z_][a-zA-Z0-9_]*)|\\s+(?!(?:${RESERVED})\\b)([a-zA-Z_][a-zA-Z0-9_]*))?`,
-	"gi"
-);
+const RELATION = new RegExp(`\\b(?:FROM|JOIN)\\s+(?:${TABLE})`, "gi");
 
 function maskCommentsAndStrings(sql: string): string {
 	let out = "";
@@ -117,27 +86,6 @@ export interface LogicalRead {
 
 export function finalizeDeliveryTables(query: string): LogicalRead {
 	const masked = maskCommentsAndStrings(query);
-	const replacements: Array<{ end: number; start: number; value: string }> = [];
-	let usesFinal = false;
-
 	RELATION.lastIndex = 0;
-	let match = RELATION.exec(masked);
-	while (match) {
-		const keyword = match[1];
-		const table = match[2];
-		const alias = match[4] ?? match[5];
-		usesFinal = true;
-		replacements.push({
-			start: match.index,
-			end: match.index + match[0].length,
-			value: `${keyword} ${table} FINAL${alias ? ` AS ${alias}` : ""}`,
-		});
-		match = RELATION.exec(masked);
-	}
-
-	let rewritten = query;
-	for (const replacement of replacements.reverse()) {
-		rewritten = `${rewritten.slice(0, replacement.start)}${replacement.value}${rewritten.slice(replacement.end)}`;
-	}
-	return { query: rewritten, usesFinal };
+	return { query, usesFinal: RELATION.test(masked) };
 }
