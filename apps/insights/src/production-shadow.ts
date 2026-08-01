@@ -1454,7 +1454,6 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 					const input = {
 						asOf,
 						domain: site.domain,
-						forceRecheck: true,
 						githubRepository: offsetDays === 0 ? site.githubRepository : null,
 						name: site.name,
 						organizationId: site.organizationId,

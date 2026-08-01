@@ -142,7 +142,7 @@ describe("fixture investigation sources", () => {
 		});
 
 		const artifacts = await investigateWebsitePortfolioWithSources(
-			{ ...fixtureInput, forceRecheck: true },
+			fixtureInput,
 			sources,
 			"manual"
 		);
@@ -204,7 +204,7 @@ describe("fixture investigation sources", () => {
 
 		await expect(
 			investigateWebsitePortfolioWithSources(
-				{ ...fixtureInput, forceRecheck: true },
+				fixtureInput,
 				sources,
 				"manual"
 			)
@@ -244,7 +244,7 @@ describe("fixture investigation sources", () => {
 
 		await expect(
 			investigateWebsitePortfolioWithSources(
-				{ ...fixtureInput, forceRecheck: true },
+				fixtureInput,
 				sources,
 				"manual"
 			)
@@ -410,7 +410,6 @@ describe("fixture investigation sources", () => {
 		});
 
 		const artifact = await investigateFixture(sources, {
-			forceRecheck: true,
 			selectedSignalKey: "revenue",
 		});
 
@@ -925,7 +924,7 @@ describe("fixture investigation sources", () => {
 		).rejects.toThrow("Due remeasurement unavailable");
 	});
 
-	it("rechecks a detected signal when the run was requested manually", async () => {
+	it("keeps an unchanged signal in cooldown during another full scan", async () => {
 		const prior = prepareInvestigation(trafficDrop, 7);
 		const priorOutcome: InvestigationOutcome = {
 			evidence: ["Visitors fell in the previous complete week."],
@@ -963,12 +962,11 @@ describe("fixture investigation sources", () => {
 		});
 
 		const artifact = await investigateFixture(sources, {
-			forceRecheck: true,
 			asOf: "2026-07-19",
 		});
 
-		expect(investigated).toBe("visitors");
-		expect(artifact.status).toBe("completed");
+		expect(investigated).toBeUndefined();
+		expect(artifact.status).toBe("deferred");
 	});
 
 	it("retries when the only fresh regression is still in cooldown", async () => {
