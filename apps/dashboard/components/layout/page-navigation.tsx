@@ -13,6 +13,8 @@ type IconComponent = ComponentType<
 
 interface TabItem {
 	count?: number;
+	countLabel?: string;
+	countTone?: "attention" | "default";
 	href: string;
 	icon?: IconComponent;
 	id: string;
@@ -88,7 +90,7 @@ export function PageNavigation(props: PageNavigationProps) {
 					<Link
 						aria-current={isActive ? "page" : undefined}
 						className={cn(
-							"relative flex shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap px-3 py-2.5 font-medium text-sm transition-colors",
+							"relative flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap px-2.5 py-2.5 font-medium text-sm transition-colors sm:gap-2 sm:px-3",
 							isActive
 								? "text-foreground"
 								: "text-muted-foreground hover:text-foreground"
@@ -97,7 +99,7 @@ export function PageNavigation(props: PageNavigationProps) {
 						key={tab.id}
 					>
 						{IconComponent && (
-							<span className="inline-flex">
+							<span className="hidden sm:inline-flex">
 								<IconComponent
 									aria-hidden
 									className={cn(
@@ -110,16 +112,24 @@ export function PageNavigation(props: PageNavigationProps) {
 						)}
 						{tab.label}
 						{tab.count !== undefined && tab.count > 0 && (
-							<span
-								className={cn(
-									"flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 font-semibold text-xs tabular-nums transition-colors",
-									isActive
-										? "bg-primary text-primary-foreground"
-										: "bg-muted text-foreground"
-								)}
-							>
-								{tab.count}
-							</span>
+							<>
+								<span
+									aria-hidden={tab.countLabel ? true : undefined}
+									className={cn(
+										"flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 font-semibold text-xs tabular-nums transition-colors",
+										tab.countTone === "attention"
+											? "bg-destructive text-destructive-foreground"
+											: isActive
+												? "bg-primary text-primary-foreground"
+												: "bg-muted text-foreground"
+									)}
+								>
+									{tab.count > 99 ? "99+" : tab.count}
+								</span>
+								{tab.countLabel ? (
+									<span className="sr-only">{tab.countLabel}</span>
+								) : null}
+							</>
 						)}
 						{isActive && (
 							<div className="absolute inset-x-0 bottom-0 h-0.5 bg-brand-purple" />

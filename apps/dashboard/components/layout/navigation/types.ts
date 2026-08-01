@@ -11,6 +11,7 @@ export interface NavigationItem {
 	activePathExclusions?: string[];
 	alpha?: boolean;
 	badge?: {
+		label?: string;
 		text: string;
 		variant: "purple" | "blue" | "green" | "orange" | "red";
 	};

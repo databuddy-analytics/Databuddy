@@ -1,5 +1,6 @@
 import {
 	and,
+	count,
 	db,
 	desc,
 	eq,
@@ -934,65 +935,77 @@ export const insightsRouter = {
 			z.object({
 				hasMore: z.boolean(),
 				recommendations: z.array(insightRecommendationItemSchema),
+				total: z.number().int().nonnegative(),
 			})
 		)
 		.handler(async ({ context, input }) => {
 			await authorizeInsightsRead(context, input);
-			const latestPublished = db
-				.selectDistinctOn(
-					[insightObservations.websiteId, insightObservations.signalKey],
-					{
-						...insightBriefSelection,
-						investigationId: sql<string | null>`${analyticsInsights.id}`.as(
-							"investigation_id"
-						),
-						signalKey: insightObservations.signalKey,
-					}
-				)
-				.from(insightObservations)
-				.innerJoin(websites, eq(insightObservations.websiteId, websites.id))
-				.leftJoin(
-					analyticsInsights,
-					and(
-						eq(insightObservations.insightId, analyticsInsights.id),
-						eq(
-							insightObservations.organizationId,
-							analyticsInsights.organizationId
-						),
-						eq(insightObservations.websiteId, analyticsInsights.websiteId),
-						eq(insightObservations.signalKey, analyticsInsights.subjectKey)
+			const latestPublished = (alias: string) =>
+				db
+					.selectDistinctOn(
+						[insightObservations.websiteId, insightObservations.signalKey],
+						{
+							...insightBriefSelection,
+							investigationId: sql<string | null>`${analyticsInsights.id}`.as(
+								"investigation_id"
+							),
+							signalKey: insightObservations.signalKey,
+						}
 					)
-				)
-				.where(
-					and(
-						eq(insightObservations.organizationId, input.organizationId),
-						input.websiteId
-							? eq(insightObservations.websiteId, input.websiteId)
-							: undefined,
-						sql`${insightObservations.outcome}->>'publish' = 'true'`,
-						isNull(websites.deletedAt)
+					.from(insightObservations)
+					.innerJoin(websites, eq(insightObservations.websiteId, websites.id))
+					.leftJoin(
+						analyticsInsights,
+						and(
+							eq(insightObservations.insightId, analyticsInsights.id),
+							eq(
+								insightObservations.organizationId,
+								analyticsInsights.organizationId
+							),
+							eq(insightObservations.websiteId, analyticsInsights.websiteId),
+							eq(insightObservations.signalKey, analyticsInsights.subjectKey)
+						)
 					)
-				)
-				.orderBy(
-					insightObservations.websiteId,
-					insightObservations.signalKey,
-					desc(insightObservations.asOf),
-					desc(insightObservations.createdAt),
-					desc(insightObservations.id)
-				)
-				.as("latest_published_recommendations");
+					.where(
+						and(
+							eq(insightObservations.organizationId, input.organizationId),
+							input.websiteId
+								? eq(insightObservations.websiteId, input.websiteId)
+								: undefined,
+							sql`${insightObservations.outcome}->>'publish' = 'true'`,
+							isNull(websites.deletedAt)
+						)
+					)
+					.orderBy(
+						insightObservations.websiteId,
+						insightObservations.signalKey,
+						desc(insightObservations.asOf),
+						desc(insightObservations.createdAt),
+						desc(insightObservations.id)
+					)
+					.as(alias);
 
-			const rows = await db
-				.select()
-				.from(latestPublished)
-				.where(sql`${latestPublished.outcome}->>'recommendation' is not null`)
-				.orderBy(
-					desc(latestPublished.asOf),
-					desc(latestPublished.createdAt),
-					desc(latestPublished.id)
-				)
-				.limit(input.limit + 1)
-				.offset(input.offset);
+			const pageSource = latestPublished("latest_published_recommendations");
+			const countSource = latestPublished(
+				"latest_published_recommendations_count"
+			);
+			const [rows, [summary]] = await Promise.all([
+				db
+					.select()
+					.from(pageSource)
+					.where(sql`${pageSource.outcome}->>'recommendation' is not null`)
+					.orderBy(
+						desc(pageSource.asOf),
+						desc(pageSource.createdAt),
+						desc(pageSource.id)
+					)
+					.limit(input.limit + 1)
+					.offset(input.offset),
+				db
+					.select({ total: count() })
+					.from(countSource)
+					.where(sql`${countSource.outcome}->>'recommendation' is not null`),
+			]);
 			const page = rows.slice(0, input.limit).flatMap((row) => {
 				const recommendation = serializeInsightRecommendation(row);
 				return recommendation ? [recommendation] : [];
@@ -1000,6 +1013,7 @@ export const insightsRouter = {
 			return {
 				hasMore: rows.length > input.limit,
 				recommendations: page,
+				total: summary?.total ?? 0,
 			};
 		}),
 
