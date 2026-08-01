@@ -520,7 +520,7 @@ export async function remeasureMetricSignal(
 		signal.subjectKey = prior.signalKey;
 		signal.entityId = fingerprint;
 		signal.entityLabel = label;
-		signal.definitionEvidence = `${label} occurred ${signal.current} times and affected ${numberField(currentRow, "users")} users, compared with ${signal.baseline} occurrences affecting ${numberField(previousRow, "users")} users previously.`;
+		signal.definitionEvidence = `${label} occurred ${signal.current} times across ${numberField(currentRow, "users")} visitor identifiers, compared with ${signal.baseline} occurrences across ${numberField(previousRow, "users")} visitor identifiers previously.`;
 		return signal;
 	}
 
@@ -1076,7 +1076,7 @@ async function detectWow(
 		signal.subjectKey = `error:${fingerprint}`;
 		signal.entityId = fingerprint;
 		signal.entityLabel = label;
-		signal.definitionEvidence = `${label} occurred ${current} times and affected ${numberField(currentRow, "users")} users, compared with ${previous} occurrences affecting ${numberField(previousRow, "users")} users previously.`;
+		signal.definitionEvidence = `${label} occurred ${current} times across ${numberField(currentRow, "users")} visitor identifiers, compared with ${previous} occurrences across ${numberField(previousRow, "users")} visitor identifiers previously.`;
 		signals.push(signal);
 	}
 
