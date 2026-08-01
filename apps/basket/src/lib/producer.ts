@@ -265,10 +265,10 @@ function createKafkaHealthProbe(admin: Admin): KafkaHealthProbe {
 
 		connected = false;
 		const operation = admin.disconnect().finally(() => {
-				if (disconnecting === operation) {
-					disconnecting = null;
-				}
-			});
+			if (disconnecting === operation) {
+				disconnecting = null;
+			}
+		});
 		disconnecting = operation;
 		return operation;
 	};
@@ -892,10 +892,7 @@ function makeProducerEffects(
 			const deadlineAt = Date.now() + config.shutdownDrainTimeout;
 			let shutdownFailure: ShutdownDrainError | null = null;
 			const remaining = () => Math.max(1, deadlineAt - Date.now());
-			const rememberFailure = (
-				phase: "disconnect" | "drain",
-				cause: unknown
-			) =>
+			const rememberFailure = (phase: "disconnect" | "drain", cause: unknown) =>
 				Ref.get(ref).pipe(
 					Effect.flatMap((state) =>
 						Effect.sync(() => {

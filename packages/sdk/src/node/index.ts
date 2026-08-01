@@ -43,10 +43,10 @@ type FailedResponse = FailureDetails & {
 	success: false;
 };
 
-type PreparedEvent = {
+interface PreparedEvent {
 	aliases: object[];
 	event: BatchEventInput;
-};
+}
 
 class RequestTimeoutError extends Error {
 	constructor(timeoutMs: number) {
@@ -595,16 +595,12 @@ export class Databuddy {
 
 			if (this.enableDeduplication && processedEvent.eventId) {
 				const seenEvent = seenEvents.get(processedEvent.eventId);
-				if (
-					this.deduplicationCache.has(processedEvent.eventId) ||
-					seenEvent
-				) {
+				if (this.deduplicationCache.has(processedEvent.eventId) || seenEvent) {
 					this.logger.debug("Event deduplicated in batch", {
 						eventId: processedEvent.eventId,
 					});
 					if (
-						!seenEvent ||
-						!this.sharesPreparedEvent(processedEvent, seenEvent)
+						!(seenEvent && this.sharesPreparedEvent(processedEvent, seenEvent))
 					) {
 						this.forgetPreparedEvent(processedEvent);
 					}
@@ -786,10 +782,7 @@ export class Databuddy {
 		this.logger.debug("Deduplication cache cleared");
 	}
 
-	private cachePreparedEvent(
-		event: BatchEventInput,
-		aliases: object[]
-	): void {
+	private cachePreparedEvent(event: BatchEventInput, aliases: object[]): void {
 		const preparedEvent: PreparedEvent = {
 			aliases: [...new Set(aliases)],
 			event,
