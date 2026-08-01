@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { EvlogError } from "evlog";
 
-const { mockCheck, mockLoggerSet } = vi.hoisted(() => ({
+const { mockCheck, mockLoggerSet, mockLoggerWarn } = vi.hoisted(() => ({
 	mockCheck: vi.fn(() =>
 		Promise.resolve({
 			allowed: true,
@@ -10,6 +10,7 @@ const { mockCheck, mockLoggerSet } = vi.hoisted(() => ({
 		})
 	),
 	mockLoggerSet: vi.fn(() => {}),
+	mockLoggerWarn: vi.fn(() => {}),
 }));
 
 vi.mock("@databuddy/rpc/autumn", () => ({
@@ -19,7 +20,7 @@ vi.mock("@databuddy/rpc/autumn", () => ({
 vi.mock("evlog/elysia", () => ({
 	useLogger: () => ({
 		set: mockLoggerSet,
-		warn: vi.fn(),
+		warn: mockLoggerWarn,
 		error: vi.fn(),
 	}),
 }));
@@ -35,6 +36,7 @@ describe("checkAutumnUsage", () => {
 	beforeEach(() => {
 		mockCheck.mockReset();
 		mockLoggerSet.mockReset();
+		mockLoggerWarn.mockReset();
 	});
 
 	// ── Enforcement ──
@@ -123,6 +125,33 @@ describe("checkAutumnUsage", () => {
 				}),
 			})
 		);
+	});
+
+	test("quota denial logging excludes customer and website metadata", async () => {
+		mockCheck.mockResolvedValue({
+			allowed: false,
+			customerId: "cust_1",
+			balance: { usage: 10_001, granted: 10_000, unlimited: false },
+		});
+
+		await expect(
+			checkAutumnUsage(
+				"cust_sensitive",
+				"events",
+				{
+					website_id: "website_sensitive",
+					domain: "customer.example",
+					name: "Sensitive website name",
+				},
+				25
+			)
+		).rejects.toMatchObject({ status: 402 });
+
+		expect(mockLoggerWarn).toHaveBeenCalledWith("Event quota exceeded", {
+			featureId: "events",
+			quantity: 25,
+			billing: { usage: 10_001, granted: 10_000, unlimited: false },
+		});
 	});
 
 	test("logs checkFailed on API error", async () => {

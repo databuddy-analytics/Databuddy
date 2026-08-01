@@ -10,6 +10,7 @@ const {
 	mockLogBlockedTraffic,
 	mockRunFork,
 	mockSend,
+	mockSendBuffered,
 	mockDetectBot,
 	mockLoggerSet,
 	mockLoggerWarn,
@@ -32,6 +33,7 @@ const {
 	mockLogBlockedTraffic: vi.fn(() => {}),
 	mockRunFork: vi.fn(() => {}),
 	mockSend: vi.fn(() => ({})),
+	mockSendBuffered: vi.fn(() => ({})),
 	mockDetectBot: vi.fn(() => ({ isBot: false })),
 	mockLoggerSet: vi.fn(() => {}),
 	mockLoggerWarn: vi.fn(() => {}),
@@ -55,6 +57,7 @@ vi.mock("@lib/blocked-traffic", () => ({
 vi.mock("@lib/producer", () => ({
 	runFork: mockRunFork,
 	send: mockSend,
+	sendBuffered: mockSendBuffered,
 }));
 
 vi.mock("ua-parser-js/bot-detection", () => ({
@@ -417,7 +420,7 @@ describe("checkForBot", () => {
 		expect(result).toBeDefined();
 		expect(result!.error).toBeDefined();
 		expect(result!.error!.status).toBe(204);
-		expect(mockSend).toHaveBeenCalledWith(
+		expect(mockSendBuffered).toHaveBeenCalledWith(
 			"analytics-ai-traffic-spans",
 			expect.objectContaining({
 				client_id: "ws_1",
@@ -437,7 +440,7 @@ describe("checkForBot", () => {
 			result: { category: "ai_crawler" },
 		});
 		await checkForBot(makeReq(), { url: "/from-url" }, {}, "ws_1", "ClaudeBot");
-		expect(mockSend).toHaveBeenCalledWith(
+		expect(mockSendBuffered).toHaveBeenCalledWith(
 			"analytics-ai-traffic-spans",
 			expect.objectContaining({ path: "/from-url" })
 		);
@@ -457,7 +460,7 @@ describe("checkForBot", () => {
 			"ws_1",
 			"Bot"
 		);
-		expect(mockSend).toHaveBeenCalledWith(
+		expect(mockSendBuffered).toHaveBeenCalledWith(
 			"analytics-ai-traffic-spans",
 			expect.objectContaining({ path: "https://ref.com/page" })
 		);

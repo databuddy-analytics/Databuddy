@@ -3,6 +3,7 @@ import { clickHouse } from "@databuddy/db/clickhouse";
 import { Elysia } from "elysia";
 import { evlog, useLogger } from "evlog/elysia";
 import { getDailySalt, saltAnonymousId } from "@lib/security";
+import { basketErrors } from "@lib/structured-errors";
 import { sanitizeString, VALIDATION_LIMITS } from "@utils/validation";
 import {
 	type NormalizedStripeRecord,
@@ -215,21 +216,19 @@ async function persistStripeRecords(
 
 export const stripeWebhook = new Elysia().use(evlog()).post(
 	"/webhooks/stripe/:hash",
-	async ({ params, request, set }) => {
+	async ({ params, request }) => {
 		const log = useLogger();
 		log.set({ provider: "stripe", webhookHash: params.hash });
 
 		const config = await getConfig(params.hash);
 		if ("error" in config) {
 			log.set({ configError: config.error });
-			set.status = 404;
-			return { error: "Webhook endpoint not found" };
+			throw basketErrors.webhookEndpointNotFound();
 		}
 
 		const signature = request.headers.get("stripe-signature");
 		if (!signature) {
-			set.status = 400;
-			return { error: "Missing stripe-signature header" };
+			throw basketErrors.webhookMissingSignature();
 		}
 		const verification = verifyStripeSignature(
 			await request.text(),
@@ -239,8 +238,7 @@ export const stripeWebhook = new Elysia().use(evlog()).post(
 		if (!verification.valid) {
 			log.warn("Stripe signature verification failed");
 			log.set({ signatureError: verification.error });
-			set.status = 401;
-			return { error: "Invalid webhook signature" };
+			throw basketErrors.webhookInvalidSignature();
 		}
 
 		const event = verification.event;
@@ -264,8 +262,7 @@ export const stripeWebhook = new Elysia().use(evlog()).post(
 			return { received: true, type: event.type };
 		} catch (error) {
 			log.error(error instanceof Error ? error : new Error(String(error)));
-			set.status = 500;
-			return { error: "Failed to process webhook event" };
+			throw basketErrors.webhookProcessingFailed();
 		}
 	},
 	{ parse: "none" }
