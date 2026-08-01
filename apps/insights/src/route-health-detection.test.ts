@@ -138,6 +138,48 @@ describe("detectRouteHealthSignals", () => {
 		expect(serialized).not.toContain("019fb864");
 	});
 
+	it("paginates route aggregates before applying static-route eligibility", async () => {
+		const requests: RouteHealthQueryInput[] = [];
+		const crowdedDynamicRows = Array.from({ length: 1000 }, (_, index) => ({
+			errors: 1000 - index,
+			name: `/users/person-${index}`,
+			users: 50,
+		}));
+		const signals = await detectRouteHealthSignals(PARAMS, TODAY, {
+			query: async (input) => {
+				requests.push(input);
+				if (input.type !== "errors_by_page") {
+					return [];
+				}
+				if ((input.offset ?? 0) === 0) {
+					return crowdedDynamicRows;
+				}
+				return [
+					{
+						errors: input.from === "2026-07-25" ? 36 : 23,
+						name: "/explore",
+						users: input.from === "2026-07-25" ? 35 : 19,
+					},
+				];
+			},
+		});
+
+		expect(
+			requests.filter(
+				(request) =>
+					request.type === "errors_by_page" && request.offset === 1000
+			)
+		).toHaveLength(2);
+		expect(signals).toContainEqual(
+			expect.objectContaining({
+				current: 36,
+				entityId: "/explore",
+				metric: "error_count",
+				subjectKey: "route:error:/explore",
+			})
+		);
+	});
+
 	it("suppresses low-reach errors and non-regressing or healthy vital rows", async () => {
 		const signals = await detectRouteHealthSignals(
 			PARAMS,
