@@ -35,9 +35,7 @@ transforms:
       - redpanda
     route:
       events: '.topic == "analytics-events"'
-      errors: '.topic == "analytics-errors"'
       error_spans: '.topic == "analytics-error-spans"'
-      web_vitals: '.topic == "analytics-web-vitals"'
       vitals_spans: '.topic == "analytics-vitals-spans"'
       custom_events: '.topic == "analytics-custom-events"'
       ai_traffic_spans: '.topic == "analytics-ai-traffic-spans"'
@@ -73,32 +71,6 @@ sinks:
     encoding:
       timestamp_format: unix_ms
 
-  clickhouse_errors:
-    type: clickhouse
-    inputs:
-      - route_analytics.errors
-    endpoint: "${CLICKHOUSE_URL}"
-    database: analytics
-    table: errors
-    auth:
-      strategy: basic
-      user: "${CLICKHOUSE_USER}"
-      password: "${CLICKHOUSE_PASSWORD}"
-    batch:
-      max_events: 5000
-      max_bytes: 5000000
-      timeout_secs: 5
-    acknowledgements:
-      enabled: true
-    buffer:
-      type: memory
-      max_events: 500
-      when_full: block
-    date_time_best_effort: true
-    skip_unknown_fields: true
-    encoding:
-      timestamp_format: unix_ms
-
   clickhouse_error_spans:
     type: clickhouse
     inputs:
@@ -106,32 +78,6 @@ sinks:
     endpoint: "${CLICKHOUSE_URL}"
     database: analytics
     table: error_spans
-    auth:
-      strategy: basic
-      user: "${CLICKHOUSE_USER}"
-      password: "${CLICKHOUSE_PASSWORD}"
-    batch:
-      max_events: 5000
-      max_bytes: 5000000
-      timeout_secs: 5
-    acknowledgements:
-      enabled: true
-    buffer:
-      type: memory
-      max_events: 500
-      when_full: block
-    date_time_best_effort: true
-    skip_unknown_fields: true
-    encoding:
-      timestamp_format: unix_ms
-
-  clickhouse_web_vitals:
-    type: clickhouse
-    inputs:
-      - route_analytics.web_vitals
-    endpoint: "${CLICKHOUSE_URL}"
-    database: analytics
-    table: web_vitals
     auth:
       strategy: basic
       user: "${CLICKHOUSE_USER}"
