@@ -16,27 +16,30 @@ import { handleAppError } from "@/http/errors";
 
 const API_KEY_RATE_LIMIT_PREFIX = "api-key";
 const API_KEY_IN_FLIGHT_RETRY_AFTER_SECONDS = 1;
+const API_KEY_DEPENDENCY_RETRY_AFTER_SECONDS = 5;
 
 export const API_KEY_IN_FLIGHT_LIMIT = 20;
 
 /**
- * Admission does not currently have plan data. Enabled keys therefore use the
- * Free-plan ceiling unless they persist an explicit override; paid keys that
- * need the documented 1,200 req/min ceiling must set that override until
- * plan-aware resolution is available here.
+ * API-key admission does not currently resolve the organization's plan. Use
+ * the highest documented self-serve plan default so null-backed paid keys are
+ * not silently throttled at the Free-plan ceiling. Custom/enterprise limits
+ * remain available through the persisted per-key override.
  */
 export const DEFAULT_API_KEY_RATE_LIMIT = {
-	limit: 300,
+	limit: 1200,
 	windowSeconds: 60,
 } as const;
 
 export type ApiKeyAdmissionOutcome =
+	| "dependency_unavailable"
 	| "in_flight_rejected"
 	| "redis_fail_open"
 	| "rolling_quota_rejected";
 
 interface ApiKeyAdmissionWideEventFields {
 	api_key_admission_outcome: ApiKeyAdmissionOutcome;
+	api_key_dependency_unavailable: boolean;
 	api_key_in_flight_rejected: boolean;
 	api_key_rate_limit_degraded: boolean;
 	api_key_rolling_quota_rejected: boolean;
@@ -167,7 +170,7 @@ export function enforceApiKeyInFlightLimit(
 	setHeader: (name: string, value: string) => void,
 	dependencies: ApiKeyAdmissionDependencies = defaultDependencies
 ): Response | undefined {
-	if (request.method === "OPTIONS" || request.method === "HEAD") {
+	if (request.method === "OPTIONS") {
 		return;
 	}
 
@@ -196,23 +199,31 @@ export function enforceApiKeyInFlightLimit(
 
 /**
  * Enforce an API key's configured distributed rolling-window limit after auth
- * resolution. rateLimitEnabled controls only this quota; every presented key
- * has already passed through the local in-flight gate above.
+ * resolution. Every presented key has already passed through the local
+ * in-flight gate above.
  */
 export async function enforceApiKeyRateLimit(
 	request: Request,
 	setHeader: (name: string, value: string) => void,
 	options: EnforceApiKeyRateLimitOptions = {}
 ): Promise<Response | undefined> {
-	if (request.method === "OPTIONS" || request.method === "HEAD") {
+	if (request.method === "OPTIONS") {
 		return;
 	}
 
 	const dependencies = options.dependencies ?? defaultDependencies;
-	const apiKey =
-		options.apiKey === undefined
-			? await dependencies.resolveApiKey(request.headers)
-			: options.apiKey;
+	let apiKey: ApiKeyRow | null;
+	try {
+		apiKey =
+			options.apiKey === undefined
+				? await dependencies.resolveApiKey(request.headers)
+				: options.apiKey;
+	} catch {
+		return createApiKeyDependencyUnavailableResponse(
+			request,
+			dependencies.recordAdmissionOutcome
+		);
+	}
 	if (!apiKey) {
 		return;
 	}
@@ -221,11 +232,19 @@ export async function enforceApiKeyRateLimit(
 		return;
 	}
 
-	const result = await dependencies.consume(
-		`${API_KEY_RATE_LIMIT_PREFIX}:${apiKey.id}`,
-		config.limit,
-		config.windowSeconds
-	);
+	let result: RateLimitResult;
+	try {
+		result = await dependencies.consume(
+			`${API_KEY_RATE_LIMIT_PREFIX}:${apiKey.id}`,
+			config.limit,
+			config.windowSeconds
+		);
+	} catch {
+		return createApiKeyDependencyUnavailableResponse(
+			request,
+			dependencies.recordAdmissionOutcome
+		);
+	}
 	if (result.degraded) {
 		dependencies.recordAdmissionOutcome("redis_fail_open");
 	}
@@ -246,7 +265,9 @@ function recordAdmissionOutcome(outcome: ApiKeyAdmissionOutcome): void {
 	const fields: Partial<ApiKeyAdmissionWideEventFields> = {
 		api_key_admission_outcome: outcome,
 	};
-	if (outcome === "in_flight_rejected") {
+	if (outcome === "dependency_unavailable") {
+		fields.api_key_dependency_unavailable = true;
+	} else if (outcome === "in_flight_rejected") {
 		fields.api_key_in_flight_rejected = true;
 	} else if (outcome === "rolling_quota_rejected") {
 		fields.api_key_rolling_quota_rejected = true;
@@ -259,6 +280,28 @@ function recordAdmissionOutcome(outcome: ApiKeyAdmissionOutcome): void {
 	} catch {
 		// Telemetry must never change the admission decision.
 	}
+}
+
+export function createApiKeyDependencyUnavailableResponse(
+	request: Request,
+	recordOutcome: (
+		outcome: ApiKeyAdmissionOutcome
+	) => void = recordAdmissionOutcome
+): Response {
+	recordOutcome("dependency_unavailable");
+	const response = handleAppError({
+		error: createError({
+			code: "SERVICE_UNAVAILABLE",
+			message: "API key admission is temporarily unavailable",
+			status: 503,
+		}),
+		request,
+	});
+	response.headers.set(
+		"Retry-After",
+		String(API_KEY_DEPENDENCY_RETRY_AFTER_SECONDS)
+	);
+	return response;
 }
 
 function createRateLimitRejection(

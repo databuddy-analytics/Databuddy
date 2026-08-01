@@ -1,4 +1,4 @@
-import { db, eq, type InferSelectModel } from "@databuddy/db";
+import { db, eq, type InferSelectModel, sql } from "@databuddy/db";
 import { apikey } from "@databuddy/db/schema";
 import { cacheNamespaces, cacheable, redis } from "@databuddy/redis";
 import {
@@ -18,6 +18,8 @@ interface KeyMetadata {
 
 export const keys = createKeys({ prefix: "dbdy_", length: 48 });
 
+export const API_KEY_STATEMENT_TIMEOUT_MS = 5000;
+
 export type ApiKeyResolveOutcome =
 	| "ok"
 	| "missing"
@@ -35,8 +37,13 @@ type CachedResolveResult =
 
 const getCachedApiKeyByHash = cacheable(
 	async (keyHash: string): Promise<CachedResolveResult> => {
-		const key = await db.query.apikey.findFirst({
-			where: { keyHash },
+		const key = await db.transaction(async (tx) => {
+			await tx.execute(
+				sql`SELECT set_config('statement_timeout', ${String(API_KEY_STATEMENT_TIMEOUT_MS)}, true)`
+			);
+			return tx.query.apikey.findFirst({
+				where: { keyHash },
+			});
 		});
 		if (!key) {
 			return { outcome: "invalid", key: null };

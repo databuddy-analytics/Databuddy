@@ -87,7 +87,6 @@ function createLinksApp(
 	handleCreate: (request: Request) => unknown = () => ({ created: true })
 ) {
 	let handlerCalls = 0;
-	const resolvedApiKeys = new WeakMap<Request, ApiKeyRow | null>();
 	const app = new Elysia()
 		.onAfterResponse(({ request }) => {
 			releaseApiKeyInFlight(request, dependencies.inFlightGate);
@@ -104,12 +103,6 @@ function createLinksApp(
 				dependencies
 			)
 		)
-		.onBeforeHandle(async ({ request }) => {
-			resolvedApiKeys.set(
-				request,
-				await dependencies.resolveApiKey(request.headers)
-			);
-		})
 		.onBeforeHandle(({ request, set }) =>
 			enforceApiKeyRateLimit(
 				request,
@@ -117,13 +110,14 @@ function createLinksApp(
 					set.headers[name] = value;
 				},
 				{
-					apiKey: resolvedApiKeys.has(request)
-						? (resolvedApiKeys.get(request) ?? null)
-						: undefined,
 					dependencies,
 				}
 			)
 		)
+		.get("/links/create", ({ request }) => {
+			handlerCalls += 1;
+			return handleCreate(request);
+		})
 		.post("/links/create", ({ request }) => {
 			handlerCalls += 1;
 			return handleCreate(request);
@@ -154,6 +148,13 @@ function createLinkRequest(secret: string): Request {
 			"x-api-key": secret,
 		},
 		method: "POST",
+	});
+}
+
+function createHeadRequest(secret: string): Request {
+	return new Request("https://api.example.com/links/create", {
+		headers: { "x-api-key": secret },
+		method: "HEAD",
 	});
 }
 
@@ -243,29 +244,80 @@ describe("API key rate limit admission", () => {
 		expect(getHandlerCalls()).toBe(3);
 	});
 
-	it("bounds enabled keys with null overrides at the safe default", async () => {
-		const defaulted = createApiKey("defaulted", {
+	it("keeps plan-default keys on the paid-safe distributed quota", async () => {
+		const planDefault = createApiKey("plan-default", {
 			rateLimitMax: null,
 			rateLimitTimeWindow: null,
 		});
 		const { consume, dependencies } = createDependencies(
-			new Map([["dbdy_defaulted", defaulted]])
+			new Map([["dbdy_plan_default", planDefault]])
 		);
 		const { app, getHandlerCalls } = createLinksApp(dependencies);
 
-		for (let requestNumber = 0; requestNumber < 300; requestNumber += 1) {
-			const response = await app.handle(createLinkRequest("dbdy_defaulted"));
-			expect(response.status).toBe(200);
-		}
-		const rejected = await app.handle(createLinkRequest("dbdy_defaulted"));
-		expect(rejected.status).toBe(429);
-		expect(rejected.headers.get("x-ratelimit-limit")).toBe("300");
-		expect(getHandlerCalls()).toBe(300);
-		expect(consume).toHaveBeenLastCalledWith(
-			"api-key:defaulted",
+		const response = await app.handle(
+			createLinkRequest("dbdy_plan_default")
+		);
+
+		expect(response.status).toBe(200);
+		expect(consume).toHaveBeenCalledWith(
+			"api-key:plan-default",
 			DEFAULT_API_KEY_RATE_LIMIT.limit,
 			DEFAULT_API_KEY_RATE_LIMIT.windowSeconds
 		);
+		expect(getHandlerCalls()).toBe(1);
+	});
+
+	it("admits, limits, and releases HEAD requests", async () => {
+		const key = createApiKey("head", { rateLimitMax: 300 });
+		const { consume, dependencies } = createDependencies(
+			new Map([["dbdy_head_key", key]]),
+			1
+		);
+		const setHeader = vi.fn();
+		const first = createHeadRequest("dbdy_head_key");
+		const concurrent = createHeadRequest("dbdy_head_key");
+
+		expect(
+			enforceApiKeyInFlightLimit(first, setHeader, dependencies)
+		).toBeUndefined();
+		expect(
+			await enforceApiKeyRateLimit(first, setHeader, { dependencies })
+		).toBeUndefined();
+
+		const rejected = enforceApiKeyInFlightLimit(
+			concurrent,
+			setHeader,
+			dependencies
+		);
+		expect(rejected?.status).toBe(429);
+		expect(rejected?.headers.get("retry-after")).toBe("1");
+		expect(consume).toHaveBeenCalledTimes(1);
+
+		releaseApiKeyInFlight(first, dependencies.inFlightGate);
+
+		const retried = createHeadRequest("dbdy_head_key");
+		expect(
+			enforceApiKeyInFlightLimit(retried, setHeader, dependencies)
+		).toBeUndefined();
+		expect(
+			await enforceApiKeyRateLimit(retried, setHeader, { dependencies })
+		).toBeUndefined();
+		expect(consume).toHaveBeenCalledTimes(2);
+		releaseApiKeyInFlight(retried, dependencies.inFlightGate);
+	});
+
+	it("applies admission when Elysia dispatches HEAD to a GET handler", async () => {
+		const key = createApiKey("head-route", { rateLimitMax: 300 });
+		const { consume, dependencies } = createDependencies(
+			new Map([["dbdy_head_route", key]])
+		);
+		const { app, getHandlerCalls } = createLinksApp(dependencies);
+
+		const response = await app.handle(createHeadRequest("dbdy_head_route"));
+
+		expect(response.status).toBe(200);
+		expect(consume).toHaveBeenCalledWith("api-key:head-route", 300, 60);
+		expect(getHandlerCalls()).toBe(1);
 	});
 
 	it("caps one key at 20 in flight before Redis and route work", async () => {
@@ -370,6 +422,80 @@ describe("API key rate limit admission", () => {
 		);
 	});
 
+	it.each([
+		[
+			"pool acquisition timeout",
+			Object.assign(new Error("Connection terminated due to timeout"), {
+				code: "ETIMEDOUT",
+			}),
+		],
+		[
+			"PostgreSQL statement timeout",
+			Object.assign(
+				new Error("canceling statement due to statement timeout"),
+				{ code: "57014" }
+			),
+		],
+	])("releases the in-flight lease after %s", async (_case, error) => {
+		const key = createApiKey("resolution-timeout", { rateLimitMax: 300 });
+		const timeout = createDependencies(
+			new Map([["dbdy_resolution_timeout", key]]),
+			1
+		);
+		timeout.dependencies.resolveApiKey = vi
+			.fn()
+			.mockRejectedValueOnce(error)
+			.mockResolvedValue(key);
+		const { app, getHandlerCalls } = createLinksApp(timeout.dependencies);
+
+		const failed = await app.handle(
+			createLinkRequest("dbdy_resolution_timeout")
+		);
+		expect(failed.status).toBe(503);
+		expect(failed.headers.get("retry-after")).toBe("5");
+		expect(await failed.json()).toMatchObject({
+			code: "SERVICE_UNAVAILABLE",
+			success: false,
+		});
+		expect(timeout.recordAdmissionOutcome).toHaveBeenCalledWith(
+			"dependency_unavailable"
+		);
+		await waitForAfterResponse();
+
+		const retried = await app.handle(
+			createLinkRequest("dbdy_resolution_timeout")
+		);
+		expect(retried.status).toBe(200);
+		expect(getHandlerCalls()).toBe(1);
+	});
+
+	it("fails closed when the distributed quota dependency rejects", async () => {
+		const key = createApiKey("quota-timeout", { rateLimitMax: 300 });
+		const timeout = createDependencies(
+			new Map([["dbdy_quota_timeout", key]])
+		);
+		timeout.dependencies.consume = vi
+			.fn()
+			.mockRejectedValue(new Error("Rate limit operation timed out"));
+		const { app, getHandlerCalls } = createLinksApp(timeout.dependencies);
+
+		const response = await app.handle(
+			createLinkRequest("dbdy_quota_timeout")
+		);
+
+		expect(response.status).toBe(503);
+		expect(response.headers.get("retry-after")).toBe("5");
+		expect(await response.json()).toMatchObject({
+			code: "SERVICE_UNAVAILABLE",
+			error: "Service temporarily unavailable",
+			success: false,
+		});
+		expect(getHandlerCalls()).toBe(0);
+		expect(timeout.recordAdmissionOutcome).toHaveBeenCalledWith(
+			"dependency_unavailable"
+		);
+	});
+
 	it("releases in-flight leases after early rate responses and errors", async () => {
 		const key = createApiKey("release", { rateLimitMax: 300 });
 		const quota = createDependencies(new Map([["dbdy_release", key]]), 1);
@@ -415,7 +541,7 @@ describe("API key rate limit admission", () => {
 		).toBe(200);
 	});
 
-	it("uses safe defaults for enabled keys and lets either override win", () => {
+	it("uses the paid-safe default for either missing or invalid value", () => {
 		expect(
 			getApiKeyRateLimitConfig(
 				createApiKey("missing-max", { rateLimitMax: null })
@@ -443,6 +569,22 @@ describe("API key rate limit admission", () => {
 				})
 			)
 		).toEqual(DEFAULT_API_KEY_RATE_LIMIT);
+		expect(
+			getApiKeyRateLimitConfig(
+				createApiKey("invalid-max", { rateLimitMax: 0 })
+			)
+		).toEqual({
+			limit: DEFAULT_API_KEY_RATE_LIMIT.limit,
+			windowSeconds: 60,
+		});
+		expect(
+			getApiKeyRateLimitConfig(
+				createApiKey("invalid-window", { rateLimitTimeWindow: -1 })
+			)
+		).toEqual({
+			limit: 2,
+			windowSeconds: DEFAULT_API_KEY_RATE_LIMIT.windowSeconds,
+		});
 		expect(getApiKeyRateLimitConfig(createApiKey("configured"))).toEqual({
 			limit: 2,
 			windowSeconds: 60,
