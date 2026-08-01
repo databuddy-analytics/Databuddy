@@ -177,6 +177,8 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 - Postgres schema: `packages/db/src/drizzle/schema.ts`
 - Relations: `packages/db/src/drizzle/relations.ts`
 - Drizzle client: `packages/db/src/client.ts`
+- Production `DATABASE_URL` may already target PgBouncer; inspect both the process pool and PgBouncer queues before attributing API timeouts to PostgreSQL.
+- `pg.Pool` already grows lazily from zero to its configured `max`; do not replace it with one `Client` to address acquisition timeouts, because that serializes queries. Keep a bounded pool, tune its acquisition timeout, and monitor `waitingCount`.
 - ClickHouse helpers and schema: `packages/db/src/clickhouse/*`
 - After schema changes, use the repo db scripts rather than ad hoc commands
 
