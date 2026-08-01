@@ -410,6 +410,74 @@ describe("Databuddy Node client", () => {
 		]);
 	});
 
+	it("rejects admission when in-flight and queued events reach maxQueueSize", async () => {
+		const firstResponse = createDeferred<Response>();
+		const calls = mockFetch((callNumber) =>
+			callNumber === 1
+				? firstResponse.promise
+				: jsonResponse({ status: "success", processed: 1 })
+		);
+		let middlewareCalls = 0;
+		const client = new Databuddy({
+			apiKey: "dbdy_test",
+			batchSize: 1,
+			batchTimeout: 60_000,
+			maxQueueSize: 2,
+			middleware: [
+				(event) => ({
+					...event,
+					eventId: `middleware_${++middlewareCalls}`,
+				}),
+			],
+		});
+		const rejectedEvent = {
+			name: "third",
+			websiteId: "site_1",
+		};
+
+		const firstDelivery = client.track({
+			name: "first",
+			websiteId: "site_1",
+		});
+		await flushMicrotasks();
+		const secondDelivery = client.track({
+			name: "second",
+			websiteId: "site_1",
+		});
+		await flushMicrotasks();
+
+		expect(await client.track(rejectedEvent)).toMatchObject({
+			success: false,
+			code: "QUEUE_FULL",
+			retryable: true,
+		});
+		expect(calls).toHaveLength(1);
+		expect(middlewareCalls).toBe(3);
+
+		firstResponse.resolve(jsonResponse({ status: "success", processed: 1 }));
+		expect(await firstDelivery).toMatchObject({
+			success: true,
+			processed: 2,
+		});
+		expect(await secondDelivery).toMatchObject({
+			success: true,
+			processed: 2,
+		});
+		expect(calls).toHaveLength(2);
+
+		expect(await client.track(rejectedEvent)).toMatchObject({
+			success: true,
+			delivery: "delivered",
+		});
+		expect(middlewareCalls).toBe(3);
+		expect(calls[2]?.body).toEqual([
+			expect.objectContaining({
+				eventId: "middleware_3",
+				name: "third",
+			}),
+		]);
+	});
+
 	it("bounds blackholed batch requests and keeps them retryable", async () => {
 		globalThis.fetch = mock(
 			(_input: string | URL | Request, init?: RequestInit) =>
@@ -529,14 +597,59 @@ describe("Databuddy Node client", () => {
 				}),
 			],
 		});
+		const event = { name: "signup", websiteId: "site_1" };
 
-		expect(
-			await client.track({ name: "signup", websiteId: "site_1" })
-		).toMatchObject({ success: false, retryable: true });
+		expect(await client.track(event)).toMatchObject({
+			success: false,
+			retryable: true,
+		});
 		expect(await client.flush()).toMatchObject({ success: true });
 
 		expect(middlewareCalls).toBe(1);
 		expect(calls[1]?.body).toEqual(calls[0]?.body);
+
+		event.name = "purchase";
+		expect(await client.track(event)).toMatchObject({ success: true });
+		expect(middlewareCalls).toBe(2);
+		expect(calls[2]?.body).toEqual([
+			expect.objectContaining({
+				eventId: "middleware_2",
+				name: "purchase",
+			}),
+		]);
+	});
+
+	it("clears prepared identity after a permanent failure", async () => {
+		const calls = mockFetch((callNumber) =>
+			callNumber === 1
+				? Response.json({ error: "Invalid event" }, { status: 400 })
+				: jsonResponse({ status: "success", processed: 1 })
+		);
+		let middlewareCalls = 0;
+		const client = new Databuddy({
+			apiKey: "dbdy_test",
+			batchSize: 1,
+			middleware: [
+				(event) => ({
+					...event,
+					eventId: `middleware_${++middlewareCalls}`,
+				}),
+			],
+		});
+		const event = { name: "invalid", websiteId: "site_1" };
+
+		expect(await client.track(event)).toMatchObject({
+			success: false,
+			retryable: false,
+		});
+		event.name = "valid";
+		expect(await client.track(event)).toMatchObject({ success: true });
+
+		expect(middlewareCalls).toBe(2);
+		expect(calls.map((call) => call.body)).toEqual([
+			[expect.objectContaining({ eventId: "middleware_1", name: "invalid" })],
+			[expect.objectContaining({ eventId: "middleware_2", name: "valid" })],
+		]);
 	});
 
 	it("preserves generated identity when the same public batch is retried", async () => {
@@ -565,6 +678,16 @@ describe("Databuddy Node client", () => {
 				timestamp: expect.any(Number),
 			}),
 		]);
+
+		event.name = "webhook_replayed";
+		expect(await client.batch([event])).toMatchObject({ success: true });
+		expect(calls[2]?.body).toEqual([
+			expect.objectContaining({
+				eventId: expect.any(String),
+				name: "webhook_replayed",
+			}),
+		]);
+		expect(calls[2]?.body).not.toEqual(calls[1]?.body);
 	});
 
 	it("automatically retries queued failures with capped exponential backoff", async () => {
