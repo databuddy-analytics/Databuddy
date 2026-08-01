@@ -102,11 +102,26 @@ describe("sendLinkVisit", () => {
 		expect(setAttributes).toHaveBeenLastCalledWith({
 			clickhouse_fallback_success: true,
 		});
-		expect(clickHouseInsert).toHaveBeenCalledWith({
-			format: "JSONEachRow",
-			table: "analytics.link_visits",
-			values: [event],
-		});
+		expect(clickHouseInsert).toHaveBeenCalledWith(
+			expect.objectContaining({
+				format: "JSONEachRow",
+				table: "analytics.link_visits",
+				values: [event],
+			})
+		);
+		expect(
+			(clickHouseInsert.mock.calls[0]?.[0] as {
+				abort_signal?: AbortSignal;
+			}).abort_signal
+		).toBeInstanceOf(AbortSignal);
+		expect(clickHouseInsert).toHaveBeenCalledWith(
+			expect.objectContaining({
+				clickhouse_settings: {
+					async_insert: 1,
+					wait_for_async_insert: 1,
+				},
+			})
+		);
 	});
 
 	test("rejects delivery when the direct fallback is unavailable", async () => {
@@ -134,16 +149,22 @@ describe("sendLinkVisit", () => {
 		expect(result).toBe(true);
 		expect(kafkaConfigs).toEqual([
 			expect.objectContaining({
-				authenticationTimeout: 10_000,
+				authenticationTimeout: 5000,
 				brokers: ["redpanda.test:9092"],
-				connectionTimeout: 10_000,
+				connectionTimeout: 5000,
 				enforceRequestTimeout: true,
+				retry: expect.objectContaining({ retries: 0 }),
 				requestTimeout: 10_000,
 				ssl: true,
 			}),
 		]);
 		expect(nextProducer.send).toHaveBeenCalledWith(
 			expect.objectContaining({ acks: -1, timeout: 10_000 })
+		);
+		expect(createProducer).toHaveBeenCalledWith(
+			expect.objectContaining({
+				retry: expect.objectContaining({ retries: 1 }),
+			})
 		);
 		expect(kafkaConfigs[0]).not.toHaveProperty("sasl");
 
@@ -202,34 +223,95 @@ describe("sendLinkVisit", () => {
 		const { sendLinkVisit } = await loadProducer();
 
 		const result = await sendLinkVisit(event, event.link_id);
+		const retry = await sendLinkVisit(
+			{ ...event, id: "retry-after-ambiguous-send" },
+			event.link_id,
+			{ allowDirectFallback: false }
+		);
+		const unrelated = await sendLinkVisit(
+			{ ...event, id: "unrelated-event" },
+			event.link_id
+		);
 
 		expect(nextProducer.disconnect).toHaveBeenCalledTimes(1);
 		expect(result).toBe(false);
-		expect(clickHouseInsert).not.toHaveBeenCalled();
+		expect(retry).toBe(false);
+		expect(unrelated).toBe(true);
+		expect(clickHouseInsert).toHaveBeenCalledTimes(1);
 		expect(captureError).toHaveBeenCalledWith(sendError, {
 			kafka_topic: "analytics-link-visits",
 			operation: "kafka_send",
 		});
 	});
+
+	test("propagates disconnect failures to shutdown", async () => {
+		process.env.REDPANDA_BROKER = "redpanda.test:9092";
+		const disconnectError = new Error("disconnect timed out");
+		nextProducer = makeProducer({
+			disconnect: () => Promise.reject(disconnectError),
+		});
+		const { disconnectProducer, warmProducerConnection } =
+			await loadProducer();
+
+		await warmProducerConnection();
+
+		await expect(disconnectProducer()).rejects.toBe(disconnectError);
+	});
 });
 
-describe("checkProducerHealth", () => {
-	test("fails when Kafka is not configured", async () => {
-		const { checkProducerHealth } = await loadProducer();
+describe("producer health state", () => {
+	test("reports disabled without initiating a connection", async () => {
+		const { getProducerHealthState } = await loadProducer();
 
-		await expect(checkProducerHealth()).rejects.toThrow(
-			"Redpanda producer is unavailable"
-		);
+		expect(getProducerHealthState()).toBe("disabled");
+		expect(createProducer).not.toHaveBeenCalled();
 	});
 
-	test("passes after connecting a producer", async () => {
+	test("warms one producer and reports it connected", async () => {
 		process.env.REDPANDA_BROKER = "redpanda.test:9092";
 		nextProducer = makeProducer();
-		const { checkProducerHealth, disconnectProducer } = await loadProducer();
+		const {
+			disconnectProducer,
+			getProducerHealthState,
+			warmProducerConnection,
+		} = await loadProducer();
 
-		await checkProducerHealth();
+		expect(getProducerHealthState()).toBe("idle");
+		await warmProducerConnection();
 
 		expect(nextProducer.connect).toHaveBeenCalledTimes(1);
+		expect(getProducerHealthState()).toBe("connected");
 		await disconnectProducer();
+	});
+
+	test("refreshes Redpanda after a failed connection cooldown", async () => {
+		process.env.REDPANDA_BROKER = "redpanda.test:9092";
+		const realNow = Date.now;
+		let now = 1000;
+		Date.now = () => now;
+		try {
+			nextProducer = makeProducer({
+				connect: () => Promise.reject(new Error("broker unavailable")),
+			});
+			const {
+				disconnectProducer,
+				getProducerHealthState,
+				refreshProducerConnection,
+				warmProducerConnection,
+			} = await loadProducer();
+
+			await warmProducerConnection();
+			expect(getProducerHealthState()).toBe("cooldown");
+
+			now += 60_001;
+			nextProducer = makeProducer();
+			await refreshProducerConnection();
+
+			expect(createProducer).toHaveBeenCalledTimes(2);
+			expect(getProducerHealthState()).toBe("connected");
+			await disconnectProducer();
+		} finally {
+			Date.now = realNow;
+		}
 	});
 });
