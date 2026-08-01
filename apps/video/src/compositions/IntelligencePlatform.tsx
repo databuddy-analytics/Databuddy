@@ -9,7 +9,64 @@ import { PromiseScene } from "./bubbly-intelligence/PromiseScene";
 import { ProofScene } from "./bubbly-intelligence/ProofScene";
 import { SignalScene } from "./bubbly-intelligence/SignalScene";
 
-export const intelligencePlatformDurationInFrames = 480;
+export const intelligencePlatformCompositionId = "IntelligencePlatform";
+
+export const intelligenceSceneTimeline = [
+	{
+		component: ArrivalScene,
+		durationInFrames: 45,
+		id: "Intelligence-Arrival",
+		name: "Arrival",
+	},
+	{
+		component: MovementScene,
+		durationInFrames: 54,
+		id: "Intelligence-Movement",
+		name: "Product movement",
+	},
+	{
+		component: SignalScene,
+		durationInFrames: 51,
+		id: "Intelligence-Signal",
+		name: "Signal",
+	},
+	{
+		component: InsightScene,
+		durationInFrames: 75,
+		id: "Intelligence-Insight",
+		name: "Insight",
+	},
+	{
+		component: InvestigationScene,
+		durationInFrames: 84,
+		id: "Intelligence-Investigation",
+		name: "Investigation",
+	},
+	{
+		component: ProofScene,
+		durationInFrames: 36,
+		id: "Intelligence-Proof",
+		name: "Product proof",
+	},
+	{
+		component: PromiseScene,
+		durationInFrames: 63,
+		id: "Intelligence-Promise",
+		name: "Promise",
+	},
+	{
+		component: OutroScene,
+		durationInFrames: 72,
+		id: "Intelligence-Outro",
+		name: "Outro",
+	},
+] as const;
+
+export const intelligencePlatformDurationInFrames =
+	intelligenceSceneTimeline.reduce(
+		(total, scene) => total + scene.durationInFrames,
+		0
+	);
 
 export function IntelligencePlatform() {
 	return (
@@ -24,30 +81,18 @@ export function IntelligencePlatform() {
 				}
 			/>
 			<Series>
-				<Series.Sequence durationInFrames={45} name="Arrival">
-					<ArrivalScene />
-				</Series.Sequence>
-				<Series.Sequence durationInFrames={54} name="Product movement">
-					<MovementScene />
-				</Series.Sequence>
-				<Series.Sequence durationInFrames={51} name="Signal">
-					<SignalScene />
-				</Series.Sequence>
-				<Series.Sequence durationInFrames={75} name="Insight">
-					<InsightScene />
-				</Series.Sequence>
-				<Series.Sequence durationInFrames={84} name="Investigation">
-					<InvestigationScene />
-				</Series.Sequence>
-				<Series.Sequence durationInFrames={36} name="Product proof">
-					<ProofScene />
-				</Series.Sequence>
-				<Series.Sequence durationInFrames={63} name="Promise">
-					<PromiseScene />
-				</Series.Sequence>
-				<Series.Sequence durationInFrames={72} name="Outro">
-					<OutroScene />
-				</Series.Sequence>
+				{intelligenceSceneTimeline.map((scene) => {
+					const Scene = scene.component;
+					return (
+						<Series.Sequence
+							durationInFrames={scene.durationInFrames}
+							key={scene.id}
+							name={scene.name}
+						>
+							<Scene />
+						</Series.Sequence>
+					);
+				})}
 			</Series>
 		</>
 	);
