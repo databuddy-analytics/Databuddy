@@ -224,11 +224,12 @@ describe("links cache", () => {
 		expect(await setCachedLinkIfAbsent("updating-link", link)).toBe(false);
 		expect(await setCachedLinkNotFoundIfAbsent("updating-link")).toBe(false);
 		expect(
-		await finishCachedLinkMutation("updating-link", token, {
-			link,
-			state: "link",
-		})
-	).toBe(true);
+			await finishCachedLinkMutation("updating-link", token, {
+				link,
+				state: "link",
+			})
+		).toBe(true);
+		expect(redis.eval.mock.calls.at(-1)?.at(-1)).toBe("604800");
 
 		expect(await getCachedLink("updating-link")).toEqual({
 			state: "hit",
@@ -360,6 +361,7 @@ describe("links cache", () => {
 				state: "tombstone",
 			})
 		).toBe(true);
+		expect(redis.eval.mock.calls.at(-1)?.at(-1)).toBe("60");
 
 		expect(await setCachedLinkIfAbsent("deleted-link", link)).toBe(false);
 		expect(await getCachedLink("deleted-link")).toEqual({
@@ -408,6 +410,75 @@ describe("links cache", () => {
 		).toBe(false);
 		expect(await getCachedLink("race-link")).toEqual({
 			state: "not_found",
+		});
+	});
+
+	test("serializes create, update, and delete ownership for one slug", async () => {
+		const key = getLinkCacheKey("shared-link");
+		store.set(key, JSON.stringify(link));
+
+		const updateToken = getMutationToken(
+			await beginCachedLinkMutation("shared-link", {
+				id: link.id,
+				mode: "existing",
+			})
+		);
+		expect(
+			await beginCachedLinkMutation("shared-link", {
+				id: "replacement-link",
+				mode: "new",
+			})
+		).toEqual({ state: "busy" });
+		expect(
+			await beginCachedLinkMutation("shared-link", {
+				id: link.id,
+				mode: "existing",
+			})
+		).toEqual({ state: "busy" });
+
+		await finishCachedLinkMutation("shared-link", updateToken, {
+			link,
+			state: "link",
+		});
+		const deleteToken = getMutationToken(
+			await beginCachedLinkMutation("shared-link", {
+				id: link.id,
+				mode: "existing",
+			})
+		);
+		expect(
+			await beginCachedLinkMutation("shared-link", {
+				id: "replacement-link",
+				mode: "new",
+			})
+		).toEqual({ state: "busy" });
+
+		await finishCachedLinkMutation("shared-link", deleteToken, {
+			id: link.id,
+			state: "tombstone",
+		});
+		const replacement = { ...link, id: "replacement-link" };
+		const createToken = getMutationToken(
+			await beginCachedLinkMutation("shared-link", {
+				id: replacement.id,
+				mode: "new",
+			})
+		);
+		expect(
+			await finishCachedLinkMutation("shared-link", deleteToken, {
+				id: link.id,
+				state: "tombstone",
+			})
+		).toBe(false);
+		expect(
+			await finishCachedLinkMutation("shared-link", createToken, {
+				link: replacement,
+				state: "link",
+			})
+		).toBe(true);
+		expect(await getCachedLink("shared-link")).toEqual({
+			state: "hit",
+			link: replacement,
 		});
 	});
 
