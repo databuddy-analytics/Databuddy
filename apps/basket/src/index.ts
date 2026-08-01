@@ -5,6 +5,7 @@ import {
 	enrichBasketWideEvent,
 	flushBatchedAxiomDrain,
 } from "@lib/evlog-basket";
+import { withHealthProbeDeadline } from "@lib/health-probe";
 import { shutdownPostgres } from "@databuddy/db";
 import { clickHouse } from "@databuddy/db/clickhouse";
 import { getRedisCache } from "@databuddy/redis/redis";
@@ -189,7 +190,7 @@ const app = new Elysia()
 		async function ping(name: string, probe: () => Promise<void>) {
 			const start = performance.now();
 			try {
-				await probe();
+				await withHealthProbeDeadline(probe);
 				return {
 					status: "ok" as const,
 					latency_ms: Math.round(performance.now() - start),

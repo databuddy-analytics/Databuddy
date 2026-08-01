@@ -14,6 +14,10 @@ delete process.env.REDPANDA_PASSWORD;
 
 const {
 	mockCaptureError,
+	mockAdmin,
+	mockAdminConnect,
+	mockAdminDescribeCluster,
+	mockAdminDisconnect,
 	mockClickHouseInsert,
 	mockConnect,
 	mockDisconnect,
@@ -21,6 +25,16 @@ const {
 	mockProducer,
 	mockSend,
 } = vi.hoisted(() => {
+	const mockAdminConnect = vi.fn(() => Promise.resolve());
+	const mockAdminDescribeCluster = vi.fn(() =>
+		Promise.resolve({ brokers: [{ nodeId: 1 }], clusterId: "test" })
+	);
+	const mockAdminDisconnect = vi.fn(() => Promise.resolve());
+	const mockAdmin = vi.fn(() => ({
+		connect: mockAdminConnect,
+		describeCluster: mockAdminDescribeCluster,
+		disconnect: mockAdminDisconnect,
+	}));
 	const mockConnect = vi.fn(() => Promise.resolve());
 	const mockDisconnect = vi.fn(() => Promise.resolve());
 	const mockSend = vi.fn(() => Promise.reject(new Error("send failed")));
@@ -31,11 +45,16 @@ const {
 	}));
 	const mockKafka = vi.fn(function Kafka() {
 		return {
-		producer: mockProducer,
+			admin: mockAdmin,
+			producer: mockProducer,
 		};
 	});
 
 	return {
+		mockAdmin,
+		mockAdminConnect,
+		mockAdminDescribeCluster,
+		mockAdminDisconnect,
 		mockCaptureError: vi.fn(),
 		mockClickHouseInsert: vi.fn(() => Promise.resolve()),
 		mockConnect,
@@ -125,6 +144,12 @@ describe("producer Kafka send failure handling", () => {
 		);
 		expect(mockKafka.mock.calls[0]?.[0]).not.toHaveProperty("sasl");
 		expect(mockProducer).toHaveBeenCalledTimes(1);
+		expect(mockAdmin).toHaveBeenCalledTimes(1);
+		expect(mockAdmin).toHaveBeenCalledWith(
+			expect.objectContaining({ retry: expect.objectContaining({ retries: 0 }) })
+		);
+		expect(mockAdminConnect).not.toHaveBeenCalled();
+		expect(mockAdminDescribeCluster).not.toHaveBeenCalled();
 		expect(mockConnect).toHaveBeenCalledTimes(1);
 		expect(mockSend).toHaveBeenCalledTimes(1);
 		expect(mockClickHouseInsert).toHaveBeenCalledTimes(1);
@@ -136,5 +161,6 @@ describe("producer Kafka send failure handling", () => {
 		await runPromise(disconnect);
 
 		expect(mockDisconnect).toHaveBeenCalledTimes(1);
+		expect(mockAdminDisconnect).not.toHaveBeenCalled();
 	});
 });
