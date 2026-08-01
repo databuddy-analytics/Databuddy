@@ -1,5 +1,6 @@
 /** biome-ignore-all lint/performance/noBarrelFile: im a big fan of barrels */
 
+import { randomUUID } from "node:crypto";
 import { createLogger, createNoopLogger, type Logger } from "./logger";
 import type {
 	BatchEventInput,
@@ -96,6 +97,28 @@ function validationFailure(error: string): FailedResponse {
 	};
 }
 
+function withStableDeliveryIdentity(
+	event: BatchEventInput,
+	fallback?: BatchEventInput
+): BatchEventInput {
+	const candidateId = event.eventId?.trim();
+	const fallbackId = fallback?.eventId?.trim();
+	const candidateTimestamp = event.timestamp;
+	const fallbackTimestamp = fallback?.timestamp;
+	return {
+		...event,
+		eventId: candidateId || fallbackId || randomUUID(),
+		timestamp:
+			typeof candidateTimestamp === "number" &&
+			Number.isFinite(candidateTimestamp)
+				? Math.floor(candidateTimestamp)
+				: typeof fallbackTimestamp === "number" &&
+						Number.isFinite(fallbackTimestamp)
+					? Math.floor(fallbackTimestamp)
+					: Date.now(),
+	};
+}
+
 export class Databuddy {
 	private readonly apiKey: string;
 	private readonly websiteId?: string;
@@ -179,7 +202,7 @@ export class Databuddy {
 			return validationFailure("Event name is required and must be a string");
 		}
 
-		const batchEvent: BatchEventInput = {
+		const batchEvent = withStableDeliveryIdentity({
 			type: "custom",
 			name: event.name,
 			eventId: event.eventId,
@@ -196,13 +219,17 @@ export class Databuddy {
 			websiteId: event.websiteId ?? this.websiteId,
 			namespace: event.namespace ?? this.namespace,
 			source: event.source ?? this.source,
-		};
+		});
 
-		const processedEvent = await this.applyMiddleware(batchEvent);
-		if (!processedEvent) {
+		const middlewareEvent = await this.applyMiddleware(batchEvent);
+		if (!middlewareEvent) {
 			this.logger.debug("Event dropped by middleware", { name: event.name });
 			return { success: true, delivery: "skipped" };
 		}
+		const processedEvent = withStableDeliveryIdentity(
+			middlewareEvent,
+			batchEvent
+		);
 
 		if (this.isDuplicate(processedEvent)) {
 			this.logger.debug("Event deduplicated", {
@@ -288,14 +315,11 @@ export class Databuddy {
 	}
 
 	private toTrackPayload(event: BatchEventInput) {
-		const timestamp = event.timestamp
-			? Math.floor(event.timestamp)
-			: Date.now();
-
 		return {
+			eventId: event.eventId,
 			name: event.name,
 			namespace: event.namespace ?? undefined,
-			timestamp,
+			timestamp: event.timestamp,
 			properties: event.properties ?? undefined,
 			anonymousId: event.anonymousId ?? undefined,
 			anonymizeVisitorIds: event.anonymizeVisitorIds ?? undefined,
@@ -443,26 +467,29 @@ export class Databuddy {
 			}
 		}
 
-		const enrichedEvents = events.map((event) => ({
-			...event,
-			properties: {
-				...this.globalProperties,
-				...(event.properties || {}),
-			},
-			anonymizeVisitorIds:
-				event.anonymizeVisitorIds ?? this.anonymizeVisitorIds,
-			websiteId: event.websiteId ?? this.websiteId,
-			namespace: event.namespace ?? this.namespace,
-			source: event.source ?? this.source,
-		}));
+		const enrichedEvents = events.map((event) =>
+			withStableDeliveryIdentity({
+				...event,
+				properties: {
+					...this.globalProperties,
+					...(event.properties || {}),
+				},
+				anonymizeVisitorIds:
+					event.anonymizeVisitorIds ?? this.anonymizeVisitorIds,
+				websiteId: event.websiteId ?? this.websiteId,
+				namespace: event.namespace ?? this.namespace,
+				source: event.source ?? this.source,
+			})
+		);
 
 		const processedEvents: BatchEventInput[] = [];
 		const seenEventIds = new Set<string>();
 		for (const event of enrichedEvents) {
-			const processedEvent = await this.applyMiddleware(event);
-			if (!processedEvent) {
+			const middlewareEvent = await this.applyMiddleware(event);
+			if (!middlewareEvent) {
 				continue;
 			}
+			const processedEvent = withStableDeliveryIdentity(middlewareEvent, event);
 
 			if (this.enableDeduplication && processedEvent.eventId) {
 				if (
