@@ -680,6 +680,25 @@ describe("POST /track", () => {
 		expect(body.count).toBe(1);
 	});
 
+	test("preserves the SDK event id for retry-safe delivery", async () => {
+		const res = await post(trackRoute, "/track", {
+			eventId: "evt_custom_1",
+			name: "signup",
+			websiteId: "ws_test",
+		});
+
+		expect(res.status).toBe(200);
+		expect(mockInsertCustomEvents).toHaveBeenCalledWith(
+			[
+				expect.objectContaining({
+					event_id: "evt_custom_1",
+					event_name: "signup",
+				}),
+			],
+			undefined
+		);
+	});
+
 	test("batch of events → 200", async () => {
 		const res = await post(trackRoute, "/track", [
 			{ name: "signup", websiteId: "ws_test" },

@@ -1,7 +1,7 @@
 import { type Metric, onCLS, onFCP, onINP, onLCP, onTTFB } from "web-vitals";
 import type { BaseTracker } from "../core/tracker";
 import type { WebVitalMetricName } from "../core/types";
-import { logger } from "../core/utils";
+import { generateUUIDv4, logger } from "../core/utils";
 
 interface FPSMetric {
 	name: "FPS";
@@ -68,6 +68,7 @@ export function initWebVitalsTracking(tracker: BaseTracker) {
 		logger.log(`Web Vital captured: ${name}`, value);
 
 		tracker.sendVital({
+			eventId: generateUUIDv4(),
 			timestamp: Date.now(),
 			path: window.location.pathname,
 			metricName: name,

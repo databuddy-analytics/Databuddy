@@ -279,6 +279,23 @@ describe("event-service producer handoff", () => {
 		expect(expectedDeliveryId).toMatch(/^[\da-f]{64}$/);
 	});
 
+	test("prefers a source event id over generated span fields", () => {
+		const first = stableBatchDeliveryId(
+			"ws_1",
+			"error",
+			{ eventId: "evt_error_1", message: "first", timestamp: 1 },
+			0
+		);
+		const retry = stableBatchDeliveryId(
+			"ws_1",
+			"error",
+			{ eventId: "evt_error_1", message: "changed", timestamp: 2 },
+			0
+		);
+
+		expect(retry).toBe(first);
+	});
+
 	test("preserves an ambiguous id-less batch reservation", async () => {
 		mockRunPromise.mockRejectedValueOnce({ _tag: "KafkaSendError" });
 

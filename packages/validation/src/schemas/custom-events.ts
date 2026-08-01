@@ -35,6 +35,7 @@ export const customEventSchema = z.object({
 
 // Lean custom event span schema (v2.x)
 export const customEventSpanSchema = z.object({
+	eventId: z.string().max(VALIDATION_LIMITS.EVENT_ID_MAX_LENGTH).optional(),
 	timestamp: z.number().int(),
 	path: z.string().max(VALIDATION_LIMITS.PATH_MAX_LENGTH),
 	eventName: z.string().min(1).max(VALIDATION_LIMITS.NAME_MAX_LENGTH),

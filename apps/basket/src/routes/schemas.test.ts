@@ -19,6 +19,7 @@ schemaTable(
 	trackEventSchema,
 	[
 		["single event, minimal", { name: "signup" }],
+		["single event with delivery id", { eventId: "evt_1", name: "signup" }],
 		[
 			"single event, full",
 			{
@@ -192,7 +193,14 @@ schemaTable(
 		],
 		[
 			"with optional IDs",
-			[{ ...validVital, anonymousId: "anon", sessionId: "sess" }],
+			[
+				{
+					...validVital,
+					eventId: "evt_vital_1",
+					anonymousId: "anon",
+					sessionId: "sess",
+				},
+			],
 		],
 		["empty array", []],
 	],
@@ -226,6 +234,7 @@ schemaTable(
 			[
 				{
 					...validError,
+					eventId: "evt_error_1",
 					filename: "app.js",
 					lineno: 42,
 					colno: 10,
@@ -264,6 +273,7 @@ schemaTable(
 			[
 				{
 					...validCustomEvent,
+					eventId: "evt_custom_1",
 					anonymousId: "anon",
 					sessionId: "sess",
 					properties: '{"key":"val"}',

@@ -108,13 +108,19 @@ export function stableBatchDeliveryId(
 	source: unknown,
 	index: number
 ): string {
-	const candidate =
+	const sourceRecord =
 		source && typeof source === "object"
-			? (source as { eventId?: unknown }).eventId
+			? (source as Record<string, unknown>)
 			: undefined;
+	const candidate = sourceRecord?.eventId ?? sourceRecord?.event_id;
 	const sourceIdentity =
 		typeof candidate === "string" && candidate.length > 0
-			? ["event-id", candidate]
+			? [
+					"event-id",
+					candidate,
+					sourceRecord?.owner_id ?? null,
+					sourceRecord?.website_id ?? null,
+				]
 			: ["payload", index, canonicalizeDeliverySource(source)];
 	return createHash("sha256")
 		.update(JSON.stringify([scope, eventType, sourceIdentity]))
@@ -625,6 +631,7 @@ export function insertOutgoingLinksBatch(
 
 export function insertCustomEvents(
 	events: Array<{
+		event_id?: string;
 		owner_id: string;
 		website_id?: string;
 		timestamp: number;
@@ -694,9 +701,7 @@ export function insertCustomEvents(
 		await deliverSpanBatch(
 			"custom_event",
 			"analytics-custom-events",
-			events
-				.map((event) => `${event.owner_id}:${event.website_id ?? ""}`)
-				.join("|"),
+			events[0]?.owner_id ?? "",
 			events,
 			spans
 		);
