@@ -203,7 +203,7 @@ describe("duplicate reservations", () => {
 			deliveredTtl: 86_400,
 			duplicate: false,
 			key: "dedup:track:evt_1",
-			token: expect.stringMatching(/^pending:/),
+			token: expect.stringMatching(/^ambiguous-pending:\d+:/),
 		});
 		expect(mockLoggerSet).not.toHaveBeenCalled();
 		expect(mockRedisEval).toHaveBeenCalledWith(
@@ -211,8 +211,10 @@ describe("duplicate reservations", () => {
 			1,
 			"dedup:track:evt_1",
 			"ambiguous",
-			expect.stringMatching(/^pending:/),
-			120
+			expect.stringMatching(/^ambiguous-pending:\d+:/),
+			86_400,
+			expect.any(Number),
+			"ambiguous-pending:"
 		);
 	});
 
@@ -234,7 +236,25 @@ describe("duplicate reservations", () => {
 		expect(reservations[2]).toMatchObject({
 			ambiguous: true,
 			duplicate: false,
+			token: expect.stringMatching(/^ambiguous-pending:\d+:/),
 		});
+		expect(mockRedisEval).toHaveBeenCalledWith(
+			expect.stringContaining("ambiguous%-pending"),
+			3,
+			"dedup:error:new",
+			"dedup:error:done",
+			"dedup:error:unknown",
+			expect.stringMatching(/^pending:/),
+			expect.stringMatching(/^ambiguous-pending:\d+:/),
+			"delivered",
+			"ambiguous",
+			120,
+			expect.any(Number),
+			"ambiguous-pending:",
+			86_400,
+			86_400,
+			86_400
+		);
 	});
 
 	test("does not partially acquire a batch when another owner is pending", async () => {
@@ -249,6 +269,21 @@ describe("duplicate reservations", () => {
 			{ duplicate: false, retryable: true },
 			{ duplicate: false, retryable: true },
 		]);
+	});
+
+	test("does not publish after an unknown batch EVAL outcome", async () => {
+		mockRedisEval.mockRejectedValue(new Error("connection reset after write"));
+
+		await expect(
+			reserveDuplicateBatch([
+				{ eventId: "a", eventType: "error" },
+				{ eventId: "b", eventType: "error" },
+			])
+		).resolves.toEqual([
+			{ duplicate: false, retryable: true },
+			{ duplicate: false, retryable: true },
+		]);
+		expect(mockRedisEval.mock.calls.length).toBeGreaterThanOrEqual(2);
 	});
 
 	test("requires a retry when another request owns a pending reservation", async () => {
@@ -304,30 +339,30 @@ describe("duplicate reservations", () => {
 		expect(mockCaptureError).not.toHaveBeenCalled();
 	});
 
-	test("fails open for a Redis outage without turning an event into a duplicate", async () => {
+	test("rejects admission for a Redis outage without publishing unowned", async () => {
 		mockRedisSet.mockRejectedValue(new Error("Redis down"));
 		mockRedisGet.mockRejectedValue(new Error("Redis down"));
 
 		const reservation = await reserveDuplicate("evt_1", "track");
 
-		expect(reservation).toEqual({ duplicate: false });
+		expect(reservation).toEqual({ duplicate: false, retryable: true });
 		expect(mockRedisSet).toHaveBeenCalledTimes(2);
 		expect(mockCaptureError).toHaveBeenCalledOnce();
 	});
 
-	test("fails open when both writes fail but Redis confirms no reservation", async () => {
+	test("keeps Redis write failures retryable even when a read sees no reservation", async () => {
 		mockRedisSet.mockRejectedValue(new Error("Redis writes unavailable"));
 		mockRedisGet.mockResolvedValue(null);
 
 		const reservation = await reserveDuplicate("evt_1", "track");
 
-		expect(reservation).toEqual({ duplicate: false });
+		expect(reservation).toEqual({ duplicate: false, retryable: true });
 		expect(mockRedisSet).toHaveBeenCalledTimes(2);
 		expect(mockRedisGet).toHaveBeenCalledOnce();
 		expect(mockCaptureError).toHaveBeenCalledOnce();
 	});
 
-	test("bounds a stalled reservation and bypasses Redis during cooldown", async () => {
+	test("bounds a stalled reservation and opens a retryable circuit", async () => {
 		vi.useFakeTimers();
 		try {
 			mockRedisSet.mockImplementation(
@@ -347,6 +382,7 @@ describe("duplicate reservations", () => {
 
 			await expect(reserveDuplicate("evt_2", "track")).resolves.toEqual({
 				duplicate: false,
+				retryable: true,
 			});
 			expect(mockRedisSet).toHaveBeenCalledOnce();
 			expect(mockCaptureError).toHaveBeenCalledOnce();
@@ -384,6 +420,86 @@ describe("duplicate reservations", () => {
 				1,
 				"dedup:track:evt_late",
 				expect.stringMatching(/^pending:/)
+			);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	test("restores ambiguity when a claim completes after the deadline", async () => {
+		vi.useFakeTimers();
+		try {
+			mockRedisSet.mockImplementation(
+				() =>
+					new Promise<string | null>((resolve) => {
+						setTimeout(
+							() => resolve(null),
+							DEDUP_RESERVATION_TIMEOUT_MS + 50
+						);
+					})
+			);
+			mockRedisGet.mockResolvedValue("ambiguous");
+			mockRedisEval.mockResolvedValue(1);
+
+			const reservation = reserveDuplicate("evt_ambiguous_late", "track");
+			await vi.advanceTimersByTimeAsync(DEDUP_RESERVATION_TIMEOUT_MS);
+			await expect(reservation).resolves.toEqual({
+				duplicate: false,
+				retryable: true,
+			});
+
+			await vi.advanceTimersByTimeAsync(50);
+
+			expect(mockRedisEval).toHaveBeenLastCalledWith(
+				expect.stringContaining('redis.call("SET", KEYS[1], ARGV[2]'),
+				1,
+				"dedup:track:evt_ambiguous_late",
+				expect.stringMatching(/^ambiguous-pending:\d+:/),
+				"ambiguous",
+				86_400
+			);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	test("restores ambiguous batch leases that complete after the deadline", async () => {
+		vi.useFakeTimers();
+		try {
+			mockRedisEval
+				.mockImplementationOnce(
+					() =>
+						new Promise<string[]>((resolve) => {
+							setTimeout(
+								() => resolve(["ambiguous-acquired", "acquired"]),
+								DEDUP_RESERVATION_TIMEOUT_MS + 50
+							);
+						})
+				)
+				.mockResolvedValueOnce(2);
+
+			const reservation = reserveDuplicateBatch([
+				{ eventId: "unknown", eventType: "error" },
+				{ eventId: "new", eventType: "error" },
+			]);
+			await vi.advanceTimersByTimeAsync(DEDUP_RESERVATION_TIMEOUT_MS);
+			await expect(reservation).resolves.toEqual([
+				{ duplicate: false, retryable: true },
+				{ duplicate: false, retryable: true },
+			]);
+
+			await vi.advanceTimersByTimeAsync(50);
+
+			expect(mockRedisEval).toHaveBeenLastCalledWith(
+				expect.stringContaining("local reconciled = 0"),
+				2,
+				"dedup:error:unknown",
+				"dedup:error:new",
+				expect.stringMatching(/^pending:/),
+				expect.stringMatching(/^ambiguous-pending:\d+:/),
+				"ambiguous",
+				86_400,
+				86_400
 			);
 		} finally {
 			vi.useRealTimers();
