@@ -5,6 +5,7 @@ const {
 	mockApplyVisitorIdPrivacy,
 	mockGetDailySalt,
 	mockGetGeo,
+	mockMarkDuplicateReservationAmbiguous,
 	mockMarkDuplicateReservationDelivered,
 	mockParseUserAgent,
 	mockReleaseDuplicateReservation,
@@ -37,6 +38,7 @@ const {
 		})
 	),
 	mockMarkDuplicateReservationDelivered: vi.fn(() => Promise.resolve()),
+	mockMarkDuplicateReservationAmbiguous: vi.fn(() => Promise.resolve()),
 	mockReleaseDuplicateReservation: vi.fn(() => Promise.resolve()),
 	mockReserveDuplicate: vi.fn(() =>
 		Promise.resolve({
@@ -64,6 +66,7 @@ vi.mock("@lib/producer", () => ({
 vi.mock("@lib/security", () => ({
 	applyVisitorIdPrivacy: mockApplyVisitorIdPrivacy,
 	getDailySalt: mockGetDailySalt,
+	markDuplicateReservationAmbiguous: mockMarkDuplicateReservationAmbiguous,
 	markDuplicateReservationDelivered: mockMarkDuplicateReservationDelivered,
 	releaseDuplicateReservation: mockReleaseDuplicateReservation,
 	reserveDuplicate: mockReserveDuplicate,
@@ -88,9 +91,11 @@ vi.mock("evlog/elysia", () => ({
 }));
 
 const {
+	insertErrorSpans,
 	insertOutgoingLink,
 	insertTrackEvent,
 	insertTrackEventsBatch,
+	stableBatchDeliveryId,
 	stableAnalyticsEventId,
 } = await import("./event-service");
 
@@ -99,6 +104,7 @@ describe("event-service producer handoff", () => {
 		mockApplyVisitorIdPrivacy.mockClear();
 		mockGetDailySalt.mockClear();
 		mockGetGeo.mockClear();
+		mockMarkDuplicateReservationAmbiguous.mockClear();
 		mockMarkDuplicateReservationDelivered.mockClear();
 		mockParseUserAgent.mockClear();
 		mockReleaseDuplicateReservation.mockClear();
@@ -166,6 +172,26 @@ describe("event-service producer handoff", () => {
 		expect(mockMarkDuplicateReservationDelivered).not.toHaveBeenCalled();
 	});
 
+	test("preserves an ambiguous Kafka reservation instead of releasing it", async () => {
+		mockRunPromise.mockRejectedValueOnce({
+			_tag: "KafkaSendError",
+			message: "request timed out",
+		});
+
+		await expect(
+			insertTrackEvent(
+				{ eventId: "evt_1", name: "pageview", path: "/" },
+				"ws_1",
+				"Mozilla/5.0",
+				"1.2.3.4",
+				new Request("https://basket.example/px.jpg")
+			)
+		).rejects.toThrow("Analytics delivery temporarily unavailable");
+
+		expect(mockMarkDuplicateReservationAmbiguous).toHaveBeenCalledOnce();
+		expect(mockReleaseDuplicateReservation).not.toHaveBeenCalled();
+	});
+
 	test("returns a retryable failure while another request owns the event", async () => {
 		mockReserveDuplicate.mockResolvedValueOnce({
 			duplicate: false,
@@ -226,5 +252,51 @@ describe("event-service producer handoff", () => {
 		expect(first).toMatch(
 			/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 		);
+	});
+
+	test("uses stable side-channel identities for id-less span retries", async () => {
+		const error = {
+			anonymousId: "anon_1",
+			errorType: "TypeError",
+			message: "boom",
+			path: "/checkout",
+			timestamp: 1_780_000_000_000,
+		};
+
+		await insertErrorSpans([error], "ws_1", "US");
+
+		const expectedDeliveryId = stableBatchDeliveryId(
+			"ws_1",
+			"error",
+			error,
+			0
+		);
+		expect(mockSendBatch).toHaveBeenCalledWith(
+			"analytics-error-spans",
+			[expect.objectContaining({ message: "boom", path: "/checkout" })],
+			[expectedDeliveryId]
+		);
+		expect(expectedDeliveryId).toMatch(/^[\da-f]{64}$/);
+	});
+
+	test("preserves an ambiguous id-less batch reservation", async () => {
+		mockRunPromise.mockRejectedValueOnce({ _tag: "KafkaSendError" });
+
+		await expect(
+			insertErrorSpans(
+				[
+					{
+						errorType: "Error",
+						message: "boom",
+						path: "/",
+						timestamp: 1_780_000_000_000,
+					},
+				],
+				"ws_1"
+			)
+		).rejects.toThrow("Analytics delivery temporarily unavailable");
+
+		expect(mockMarkDuplicateReservationAmbiguous).toHaveBeenCalledOnce();
+		expect(mockReleaseDuplicateReservation).not.toHaveBeenCalled();
 	});
 });
