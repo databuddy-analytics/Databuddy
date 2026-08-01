@@ -9,7 +9,6 @@ const {
 	mockParseUserAgent,
 	mockReleaseDuplicateReservation,
 	mockReserveDuplicate,
-	mockRunPromise,
 	mockSend,
 	mockSendBatch,
 	mockShouldAnonymizeVisitorIds,
@@ -35,14 +34,12 @@ const {
 			token: "reservation-token",
 		})
 	),
-	mockRunPromise: vi.fn(() => Promise.resolve()),
-	mockSend: vi.fn(() => ({ _tag: "MockEffect" })),
-	mockSendBatch: vi.fn(() => ({ _tag: "MockEffect" })),
+	mockSend: vi.fn(() => Promise.resolve()),
+	mockSendBatch: vi.fn(() => Promise.resolve()),
 	mockShouldAnonymizeVisitorIds: vi.fn(() => false),
 }));
 
 vi.mock("@lib/producer", () => ({
-	runPromise: mockRunPromise,
 	send: mockSend,
 	sendBatch: mockSendBatch,
 }));
@@ -117,9 +114,8 @@ describe("core event delivery", () => {
 		});
 		mockParseUserAgent.mockResolvedValue({ browserName: "Chrome" });
 		mockReserveDuplicate.mockResolvedValue(trackReservation);
-		mockRunPromise.mockResolvedValue(undefined);
-		mockSend.mockReturnValue({ _tag: "MockEffect" });
-		mockSendBatch.mockReturnValue({ _tag: "MockEffect" });
+		mockSend.mockResolvedValue(undefined);
+		mockSendBatch.mockResolvedValue(undefined);
 		mockShouldAnonymizeVisitorIds.mockReturnValue(false);
 	});
 
@@ -136,7 +132,6 @@ describe("core event delivery", () => {
 			"analytics-events",
 			expect.objectContaining({ client_id: "ws_test", event_name: "pageview" })
 		);
-		expect(mockRunPromise).toHaveBeenCalledWith(mockSend.mock.results[0]?.value);
 		expect(mockMarkDuplicateReservationDelivered).toHaveBeenCalledWith(
 			trackReservation
 		);
@@ -145,7 +140,7 @@ describe("core event delivery", () => {
 
 	test("releases a track reservation and returns retryable 503 when delivery fails", async () => {
 		const deliveryFailure = new Error("ClickHouse unavailable");
-		mockRunPromise.mockRejectedValueOnce(deliveryFailure);
+		mockSend.mockRejectedValueOnce(deliveryFailure);
 
 		await expect(
 			insertTrackEvent(
@@ -167,13 +162,14 @@ describe("core event delivery", () => {
 
 	test("reuses the same ClickHouse UUID when a client retries a failed track event", async () => {
 		const deliveredEvents: Array<{ id: string }> = [];
+		let attempts = 0;
 		mockSend.mockImplementation((_topic, event) => {
 			deliveredEvents.push(event as { id: string });
-			return { _tag: "MockEffect" };
+			attempts += 1;
+			return attempts === 1
+				? Promise.reject(new Error("ambiguous delivery"))
+				: Promise.resolve();
 		});
-		mockRunPromise
-			.mockRejectedValueOnce(new Error("ambiguous delivery"))
-			.mockResolvedValueOnce(undefined);
 
 		await expect(
 			insertTrackEvent(
@@ -211,7 +207,7 @@ describe("core event delivery", () => {
 			ttl: 86_400,
 		};
 		mockReserveDuplicate.mockResolvedValueOnce(reservation);
-		mockRunPromise.mockRejectedValueOnce(new Error("ClickHouse unavailable"));
+		mockSend.mockRejectedValueOnce(new Error("ClickHouse unavailable"));
 
 		await expect(
 			insertOutgoingLink(
@@ -229,7 +225,6 @@ describe("core event delivery", () => {
 			"analytics-outgoing-links",
 			expect.objectContaining({ client_id: "ws_test" })
 		);
-		expect(mockRunPromise).toHaveBeenCalledWith(mockSend.mock.results[0]?.value);
 		expect(mockReleaseDuplicateReservation).toHaveBeenCalledWith(reservation);
 	});
 
@@ -245,7 +240,6 @@ describe("core event delivery", () => {
 		);
 
 		expect(mockSend).not.toHaveBeenCalled();
-		expect(mockRunPromise).not.toHaveBeenCalled();
 	});
 
 	test("returns retryable 503 without publishing a track event owned by another request", async () => {
@@ -265,7 +259,6 @@ describe("core event delivery", () => {
 		).rejects.toMatchObject({ status: 503 });
 
 		expect(mockSend).not.toHaveBeenCalled();
-		expect(mockRunPromise).not.toHaveBeenCalled();
 		expect(mockMarkDuplicateReservationDelivered).not.toHaveBeenCalled();
 		expect(mockReleaseDuplicateReservation).not.toHaveBeenCalled();
 	});
@@ -289,7 +282,6 @@ describe("core event delivery", () => {
 		).rejects.toMatchObject({ status: 503 });
 
 		expect(mockSend).not.toHaveBeenCalled();
-		expect(mockRunPromise).not.toHaveBeenCalled();
 		expect(mockMarkDuplicateReservationDelivered).not.toHaveBeenCalled();
 		expect(mockReleaseDuplicateReservation).not.toHaveBeenCalled();
 	});
@@ -307,7 +299,6 @@ describe("core event delivery", () => {
 		);
 
 		expect(mockSend).toHaveBeenCalledOnce();
-		expect(mockRunPromise).toHaveBeenCalledOnce();
 		expect(mockMarkDuplicateReservationDelivered).toHaveBeenCalledWith(
 			unavailableReservation
 		);
@@ -363,7 +354,7 @@ describe("core event delivery", () => {
 	});
 
 	test("releases batch reservations when durable delivery fails", async () => {
-		mockRunPromise.mockRejectedValueOnce(new Error("ClickHouse unavailable"));
+		mockSendBatch.mockRejectedValueOnce(new Error("ClickHouse unavailable"));
 
 		await expect(insertTrackEventsBatch([trackBatchItem("evt_1")])).rejects.toMatchObject({
 			status: 503,

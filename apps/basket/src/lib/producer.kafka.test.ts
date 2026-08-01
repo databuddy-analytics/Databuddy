@@ -72,9 +72,7 @@ vi.mock("@lib/tracing", () => ({
 	record: (_name: string, fn: Function) => Promise.resolve().then(() => fn()),
 }));
 
-const { disconnect, disposeRuntime, getStats, runPromise, send } = await import(
-	"./producer"
-);
+const { disconnect, send } = await import("./producer");
 
 beforeEach(() => {
 	mockCaptureError.mockClear();
@@ -82,7 +80,6 @@ beforeEach(() => {
 });
 
 afterAll(async () => {
-	await disposeRuntime().catch(() => {});
 	for (const [key, value] of Object.entries(originalEnv)) {
 		if (value === undefined) {
 			delete process.env[key];
@@ -94,35 +91,25 @@ afterAll(async () => {
 
 describe("producer Kafka send failure handling", () => {
 	test("falls back to direct ClickHouse writes and still disconnects on shutdown", async () => {
-		await runPromise(
-			send("analytics-events", {
-				client_id: "ws_1",
-				event_id: "event_1",
-				timestamp: Date.now(),
-			})
-		);
+		await send("analytics-events", {
+			client_id: "ws_1",
+			event_id: "event_1",
+			timestamp: Date.now(),
+		});
 
-		await runPromise(
-			send("analytics-events", {
-				client_id: "ws_1",
-				event_id: "event_2",
-				timestamp: Date.now(),
-			})
-		);
-
-		const stats = await runPromise(getStats);
+		await send("analytics-events", {
+			client_id: "ws_1",
+			event_id: "event_2",
+			timestamp: Date.now(),
+		});
 
 		expect(mockKafka).toHaveBeenCalledTimes(1);
 		expect(mockProducer).toHaveBeenCalledTimes(1);
 		expect(mockConnect).toHaveBeenCalledTimes(1);
 		expect(mockSend).toHaveBeenCalledTimes(1);
 		expect(mockClickHouseInsert).toHaveBeenCalledTimes(2);
-		expect(stats?.sent).toBe(2);
-		expect(stats?.connected).toBe(false);
-		expect(stats?.failed).toBe(true);
-		expect(stats?.failedCount).toBe(1);
 
-		await runPromise(disconnect);
+		await disconnect();
 
 		expect(mockDisconnect).toHaveBeenCalledTimes(1);
 	});

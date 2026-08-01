@@ -3,7 +3,6 @@ import { vi, beforeEach, describe, expect, test } from "vitest";
 
 const {
 	noop,
-	noopAsync,
 	mockLogger,
 	mockValidateRequest,
 	mockCheckForBot,
@@ -23,7 +22,6 @@ const {
 	mockResolveApiKeyOwnerId,
 } = vi.hoisted(() => {
 	const noop = vi.fn(() => {});
-	const noopAsync = vi.fn(() => Promise.resolve());
 	const defaultApiKey = {
 		id: "key_1",
 		organizationId: "org_1",
@@ -40,7 +38,6 @@ const {
 	};
 	return {
 		noop,
-		noopAsync,
 		mockLogger: {
 			set: vi.fn(() => {}),
 			warn: vi.fn(() => {}),
@@ -173,9 +170,8 @@ vi.mock("@hooks/auth", () => ({
 
 vi.mock("@lib/producer", () => ({
 	runFork: noop,
-	send: vi.fn(() => ({})),
-	sendBatch: vi.fn(() => ({})),
-	runPromise: noopAsync,
+	send: vi.fn(() => Promise.resolve()),
+	sendBatch: vi.fn(() => Promise.resolve()),
 }));
 
 // ── Import routes after mocks ──

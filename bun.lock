@@ -106,7 +106,6 @@
         "@maxmind/geoip2-node": "^6.3.4",
         "@types/ua-parser-js": "^0.7.39",
         "async-mutex": "^0.5.0",
-        "effect": "^4.0.0-beta.90",
         "elysia": "catalog:",
         "evlog": "catalog:",
         "kafkajs": "^2.2.4",

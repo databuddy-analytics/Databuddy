@@ -5,7 +5,7 @@ import type {
 	WebVitalsSpansInsert,
 } from "@databuddy/db/clickhouse/tables";
 import type { ErrorSpan, IndividualVital } from "@databuddy/validation";
-import { runPromise, send, sendBatch } from "@lib/producer";
+import { send, sendBatch } from "@lib/producer";
 import {
 	getDailySalt,
 	applyVisitorIdPrivacy,
@@ -152,6 +152,36 @@ export function buildTrackEvent(
 	};
 }
 
+async function deliverReserved(
+	deliveryId: string,
+	eventType: "outgoing_link" | "track",
+	sourceEventId: string,
+	deliver: () => Promise<void>
+): Promise<void> {
+	const reservation = await reserveDuplicate(
+		deliveryId,
+		eventType,
+		sourceEventId
+	);
+	if (reservation.duplicate) {
+		return;
+	}
+	if (reservation.retryable) {
+		throw deliveryUnavailable(
+			new Error("A concurrent attempt owns this analytics event")
+		);
+	}
+
+	try {
+		await deliver();
+	} catch (error) {
+		await releaseDuplicateReservation(reservation);
+		throw deliveryUnavailable(error);
+	}
+
+	await markDuplicateReservationDelivered(reservation);
+}
+
 export function insertTrackEvent(
 	trackData: any,
 	clientId: string,
@@ -161,26 +191,14 @@ export function insertTrackEvent(
 ): Promise<void> {
 	return record("insertTrackEvent", async () => {
 		const log = useLogger();
-		let eventId = sanitizeString(
-			trackData.eventId,
-			VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH
-		);
-		if (!eventId) {
-			eventId = randomUUIDv7();
-		}
+		const eventId =
+			sanitizeString(
+				trackData.eventId,
+				VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH
+			) || randomUUIDv7();
 
 		const deliveryId = stableAnalyticsEventId(clientId, "track", eventId);
-		const reservation = await reserveDuplicate(deliveryId, "track", eventId);
-		if (reservation.duplicate) {
-			return;
-		}
-		if (reservation.retryable) {
-			throw deliveryUnavailable(
-				new Error("A concurrent attempt owns this analytics event")
-			);
-		}
-
-		try {
+		await deliverReserved(deliveryId, "track", eventId, async () => {
 			const geoData = await getGeo(ip, request);
 			const trustedCountry = extractTrustedClientIp(request)
 				? geoData.country
@@ -220,13 +238,8 @@ export function insertTrackEvent(
 				now,
 			});
 
-			await runPromise(send("analytics-events", trackEvent));
-		} catch (error) {
-			await releaseDuplicateReservation(reservation);
-			throw deliveryUnavailable(error);
-		}
-
-		await markDuplicateReservationDelivered(reservation);
+			await send("analytics-events", trackEvent);
+		});
 	});
 }
 
@@ -237,35 +250,18 @@ export function insertOutgoingLink(
 ): Promise<void> {
 	return record("insertOutgoingLink", async () => {
 		const log = useLogger();
-		let eventId = sanitizeString(
-			linkData.eventId,
-			VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH
-		);
-
-		if (!eventId) {
-			eventId = randomUUIDv7();
-		}
+		const eventId =
+			sanitizeString(
+				linkData.eventId,
+				VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH
+			) || randomUUIDv7();
 
 		const deliveryId = stableAnalyticsEventId(
 			clientId,
 			"outgoing_link",
 			eventId
 		);
-		const reservation = await reserveDuplicate(
-			deliveryId,
-			"outgoing_link",
-			eventId
-		);
-		if (reservation.duplicate) {
-			return;
-		}
-		if (reservation.retryable) {
-			throw deliveryUnavailable(
-				new Error("A concurrent attempt owns this analytics event")
-			);
-		}
-
-		try {
+		await deliverReserved(deliveryId, "outgoing_link", eventId, async () => {
 			log.set({
 				event: { id: eventId, type: "outgoing_link", href: linkData.href },
 			});
@@ -301,13 +297,8 @@ export function insertOutgoingLink(
 					typeof linkData.timestamp === "number" ? linkData.timestamp : now,
 			};
 
-			await runPromise(send("analytics-outgoing-links", outgoingLinkEvent));
-		} catch (error) {
-			await releaseDuplicateReservation(reservation);
-			throw deliveryUnavailable(error);
-		}
-
-		await markDuplicateReservationDelivered(reservation);
+			await send("analytics-outgoing-links", outgoingLinkEvent);
+		});
 	});
 }
 
@@ -362,11 +353,9 @@ async function deliverBatch<T extends { id: string }>(
 	}
 
 	try {
-		await runPromise(
-			sendBatch(
-				topic,
-				accepted.map(({ item }) => item.event)
-			)
+		await sendBatch(
+			topic,
+			accepted.map(({ item }) => item.event)
 		);
 	} catch (error) {
 		await Promise.allSettled(
@@ -437,7 +426,7 @@ export function insertErrorSpans(
 				) || "Error",
 		}));
 
-		await runPromise(sendBatch("analytics-error-spans", spans));
+		await sendBatch("analytics-error-spans", spans);
 	});
 }
 
@@ -472,7 +461,7 @@ export function insertIndividualVitals(
 			metric_value: vital.metricValue,
 		}));
 
-		await runPromise(sendBatch("analytics-vitals-spans", spans));
+		await sendBatch("analytics-vitals-spans", spans);
 	});
 }
 
@@ -552,6 +541,6 @@ export function insertCustomEvents(
 				: undefined,
 		}));
 
-		await runPromise(sendBatch("analytics-custom-events", spans));
+		await sendBatch("analytics-custom-events", spans);
 	});
 }

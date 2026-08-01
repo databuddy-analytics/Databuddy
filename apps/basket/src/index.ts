@@ -8,12 +8,7 @@ import {
 import { shutdownPostgres } from "@databuddy/db";
 import { clickHouse } from "@databuddy/db/clickhouse";
 import { getRedisCache } from "@databuddy/redis/redis";
-import {
-	disconnect,
-	disposeRuntime,
-	runPromise,
-	ShutdownDrainError,
-} from "@lib/producer";
+import { disconnect, ShutdownDrainError } from "@lib/producer";
 import { Kafka } from "kafkajs";
 import { databuddyEvlogRedaction } from "@databuddy/shared/evlog-redaction";
 import {
@@ -86,7 +81,7 @@ async function gracefulShutdown(signal: string, exitCode = 0) {
 		const { shutdownRedis } = await import("@databuddy/redis");
 		// Wait for acknowledged delivery before tearing down its dependencies.
 		try {
-			await runPromise(disconnect);
+			await disconnect();
 		} catch (error) {
 			finalExitCode = 1;
 			if (error instanceof ShutdownDrainError) {
@@ -99,13 +94,6 @@ async function gracefulShutdown(signal: string, exitCode = 0) {
 				});
 			} else {
 				logErr("producerDrain")(error);
-			}
-		} finally {
-			try {
-				await disposeRuntime();
-			} catch (error) {
-				finalExitCode = 1;
-				logErr("runtimeDispose")(error);
 			}
 		}
 		await Promise.all([

@@ -118,18 +118,15 @@ describe("visitor ID anonymization helpers", () => {
 
 // ── duplicate reservations (needs Redis mock) ──
 
-const { mockRedisSet, mockRedisGet, mockRedisEval, mockLoggerSet, mockCaptureError } =
-	vi.hoisted(() => ({
-		mockRedisSet: vi.fn(() => Promise.resolve("OK")),
-		mockRedisGet: vi.fn(() => Promise.resolve(null)),
-		mockRedisEval: vi.fn(() => Promise.resolve(1)),
-		mockLoggerSet: vi.fn(() => {}),
-		mockCaptureError: vi.fn(),
-	}));
+const { mockRedisEval, mockLoggerSet, mockCaptureError } = vi.hoisted(() => ({
+	mockRedisEval: vi.fn(),
+	mockLoggerSet: vi.fn(() => {}),
+	mockCaptureError: vi.fn(),
+}));
 
 vi.mock("@databuddy/redis/redis", () => ({
-	redis: { set: mockRedisSet, get: mockRedisGet, eval: mockRedisEval },
-	getRedisCache: () => ({ set: mockRedisSet }),
+	redis: { eval: mockRedisEval },
+	getRedisCache: () => ({}),
 }));
 vi.mock("@databuddy/redis/cacheable", () => ({
 	cacheable: (fn: () => Promise<any>) => fn,
@@ -147,49 +144,13 @@ vi.mock("@lib/tracing", () => ({
 
 describe("duplicate reservations", () => {
 	beforeEach(() => {
-		mockRedisSet.mockReset();
-		mockRedisGet.mockReset();
 		mockRedisEval.mockReset();
 		mockLoggerSet.mockReset();
 		mockCaptureError.mockReset();
 	});
 
-	test("writes a pending reservation for a new event", async () => {
-		mockRedisSet.mockResolvedValue("OK");
-
-		const reservation = await reserveDuplicate("evt_1", "track");
-
-		expect(reservation).toMatchObject({
-			duplicate: false,
-			key: "dedup:track:evt_1",
-			token: expect.stringMatching(/^pending:/),
-			ttl: 86_400,
-		});
-		expect(mockRedisSet).toHaveBeenCalledWith(
-			"dedup:track:evt_1",
-			expect.stringMatching(/^pending:/),
-			"EX",
-			86_400,
-			"NX"
-		);
-	});
-
-	test("suppresses only a confirmed delivered reservation", async () => {
-		mockRedisSet.mockResolvedValue(null);
-		mockRedisGet.mockResolvedValue("delivered");
-
-		const reservation = await reserveDuplicate("evt_1", "track");
-
-		expect(reservation).toEqual({ duplicate: true });
-		expect(mockLoggerSet).toHaveBeenCalledWith({
-			dedup: { duplicate: true, eventType: "track" },
-		});
-	});
-
-	test("claims a legacy admission reservation before delivery", async () => {
-		mockRedisSet.mockResolvedValue(null);
-		mockRedisGet.mockResolvedValue("1");
-		mockRedisEval.mockResolvedValue(1);
+	test("atomically writes a pending reservation for a new event", async () => {
+		mockRedisEval.mockResolvedValue("acquired");
 
 		const reservation = await reserveDuplicate("evt_1", "track");
 
@@ -200,86 +161,90 @@ describe("duplicate reservations", () => {
 			ttl: 86_400,
 		});
 		expect(mockRedisEval).toHaveBeenCalledWith(
-			expect.stringContaining('redis.call("GET", KEYS[1]) == ARGV[1]'),
+			expect.stringContaining('redis.call("GET", KEYS[1])'),
 			1,
 			"dedup:track:evt_1",
-			"1",
 			expect.stringMatching(/^pending:/),
 			86_400
 		);
 	});
 
-	test("requires a retry when a legacy reservation cannot be claimed", async () => {
-		mockRedisSet.mockResolvedValue(null);
-		mockRedisGet.mockResolvedValue("1");
-		mockRedisEval.mockResolvedValue(0);
+	test("suppresses only a confirmed delivered reservation", async () => {
+		mockRedisEval.mockResolvedValue("delivered");
 
 		const reservation = await reserveDuplicate("evt_1", "track");
 
-		expect(reservation).toEqual({ duplicate: false, retryable: true });
+		expect(reservation).toEqual({ duplicate: true });
+		expect(mockLoggerSet).toHaveBeenCalledWith({
+			dedup: { duplicate: true, eventType: "track" },
+		});
 	});
 
-	test("requires a retry when another request owns a pending reservation", async () => {
-		mockRedisSet.mockResolvedValue(null);
-		mockRedisGet.mockResolvedValue("pending:other-attempt");
+	test("claims a legacy admission reservation before delivery", async () => {
+		mockRedisEval.mockResolvedValue("acquired");
 
 		const reservation = await reserveDuplicate("evt_1", "track");
 
-		expect(reservation).toEqual({ duplicate: false, retryable: true });
-	});
-
-	test("requires a retry when a lost reservation vanishes before it can be read", async () => {
-		mockRedisSet.mockResolvedValue(null);
-		mockRedisGet.mockResolvedValue(null);
-
-		const reservation = await reserveDuplicate("evt_1", "track");
-
-		expect(reservation).toEqual({ duplicate: false, retryable: true });
-	});
-
-	test("recovers ownership when an ambiguous SET wrote this request's token", async () => {
-		mockRedisSet.mockResolvedValue(null);
-		mockRedisGet.mockImplementation(async () => mockRedisSet.mock.calls[0]?.[1]);
-
-		const reservation = await reserveDuplicate("evt_1", "track");
-
-		expect(reservation.token).toBe(mockRedisSet.mock.calls[0]?.[1]);
-	});
-
-	test("preserves the exit-event retention when its delivery id is hashed", async () => {
-		mockRedisSet.mockResolvedValue("OK");
-
-		await reserveDuplicate("stable-delivery-id", "track", "exit_abc");
-
-		expect(mockRedisSet).toHaveBeenCalledWith(
-			"dedup:track:stable-delivery-id",
+		expect(reservation).toMatchObject({
+			duplicate: false,
+			key: "dedup:track:evt_1",
+			token: expect.stringMatching(/^pending:/),
+			ttl: 86_400,
+		});
+		expect(mockRedisEval).toHaveBeenCalledWith(
+			expect.stringContaining('if value == "1" then'),
+			1,
+			"dedup:track:evt_1",
 			expect.stringMatching(/^pending:/),
-			"EX",
-			172_800,
-			"NX"
+			86_400
 		);
 	});
 
-	test("retries a Redis error before returning a retryable reservation", async () => {
-		mockRedisSet
-			.mockRejectedValueOnce(new Error("stale connection"))
-			.mockResolvedValueOnce("OK");
+	test("requires a retry when another request owns a pending reservation", async () => {
+		mockRedisEval.mockResolvedValue("pending");
 
 		const reservation = await reserveDuplicate("evt_1", "track");
 
-		expect(reservation.duplicate).toBe(false);
-		expect(mockRedisSet).toHaveBeenCalledTimes(2);
+		expect(reservation).toEqual({ duplicate: false, retryable: true });
+	});
+
+	test("recovers ownership when an ambiguous EVAL wrote this request's token", async () => {
+		mockRedisEval
+			.mockRejectedValueOnce(new Error("stale connection"))
+			.mockResolvedValueOnce("acquired");
+
+		const reservation = await reserveDuplicate("evt_1", "track");
+
+		expect(reservation).toMatchObject({
+			duplicate: false,
+			token: expect.stringMatching(/^pending:/),
+		});
+		expect(mockRedisEval).toHaveBeenCalledTimes(2);
+		expect(mockRedisEval.mock.calls[1]).toEqual(mockRedisEval.mock.calls[0]);
 		expect(mockCaptureError).not.toHaveBeenCalled();
 	});
 
+	test("preserves the exit-event retention when its delivery id is hashed", async () => {
+		mockRedisEval.mockResolvedValue("acquired");
+
+		await reserveDuplicate("stable-delivery-id", "track", "exit_abc");
+
+		expect(mockRedisEval).toHaveBeenCalledWith(
+			expect.any(String),
+			1,
+			"dedup:track:stable-delivery-id",
+			expect.stringMatching(/^pending:/),
+			172_800
+		);
+	});
+
 	test("fails open for a Redis outage without turning an event into a duplicate", async () => {
-		mockRedisSet.mockRejectedValue(new Error("Redis down"));
-		mockRedisGet.mockRejectedValue(new Error("Redis down"));
+		mockRedisEval.mockRejectedValue(new Error("Redis down"));
 
 		const reservation = await reserveDuplicate("evt_1", "track");
 
 		expect(reservation).toEqual({ duplicate: false });
-		expect(mockRedisSet).toHaveBeenCalledTimes(2);
+		expect(mockRedisEval).toHaveBeenCalledTimes(2);
 		expect(mockCaptureError).toHaveBeenCalledOnce();
 	});
 

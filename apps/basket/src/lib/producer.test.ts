@@ -29,12 +29,7 @@ vi.mock("@lib/tracing", () => ({
 	record: (_name: string, fn: Function) => Promise.resolve().then(() => fn()),
 }));
 
-const {
-	disposeRuntime,
-	getStats,
-	runPromise,
-	send,
-} = await import("./producer");
+const { send } = await import("./producer");
 
 beforeEach(async () => {
 	mockCaptureError.mockClear();
@@ -42,7 +37,6 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
-	await disposeRuntime().catch(() => {});
 	if (originalSelfHost === undefined) {
 		delete process.env.SELFHOST;
 	} else {
@@ -50,19 +44,14 @@ afterAll(async () => {
 	}
 });
 
-describe("producer fallback topics", () => {
+	describe("producer fallback topics", () => {
 	test("blocked traffic is delivered through the direct ClickHouse fallback", async () => {
-		await runPromise(
-			send("analytics-blocked-traffic", {
-				id: "blocked_1",
-				client_id: "ws_1",
-				timestamp: Date.now(),
-			})
-		);
+		await send("analytics-blocked-traffic", {
+			id: "blocked_1",
+			client_id: "ws_1",
+			timestamp: Date.now(),
+		});
 
-		const stats = await runPromise(getStats);
-		expect(stats?.errors).toBe(0);
-		expect(stats?.sent).toBe(1);
 		expect(mockClickHouseInsert).toHaveBeenCalledWith(
 			expect.objectContaining({
 				table: "analytics.blocked_traffic",
@@ -75,21 +64,17 @@ describe("producer fallback topics", () => {
 
 	test("unknown topics include the missing topic in error context", async () => {
 		await expect(
-			runPromise(
-				send("analytics-unmapped-topic", {
-					id: "evt_1",
-					client_id: "ws_1",
-					timestamp: Date.now(),
-				})
-			)
+			send("analytics-unmapped-topic", {
+				id: "evt_1",
+				client_id: "ws_1",
+				timestamp: Date.now(),
+			})
 		).rejects.toMatchObject({
 			_tag: "UnknownKafkaTopicError",
 			retryable: false,
 			topic: "analytics-unmapped-topic",
 		});
 
-		const stats = await runPromise(getStats);
-		expect(stats?.errors).toBe(1);
 		expect(mockCaptureError).toHaveBeenCalledWith(
 			expect.objectContaining({ message: "Unknown Kafka topic" }),
 			{ topic: "analytics-unmapped-topic" }

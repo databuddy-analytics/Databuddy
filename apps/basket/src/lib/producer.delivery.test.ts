@@ -1,5 +1,5 @@
 import type { ClickHouseClient } from "@clickhouse/client";
-import { Effect } from "effect";
+import type { Producer } from "kafkajs";
 import { describe, expect, test, vi } from "vitest";
 import type { ProducerConfig } from "./producer";
 
@@ -26,7 +26,7 @@ vi.mock("@lib/tracing", () => ({
 	record: (_name: string, fn: () => Promise<unknown>) => fn(),
 }));
 
-const { createProducerEffects } = await import("./producer");
+const { createProducer } = await import("./producer");
 
 const topicMap = { "analytics-events": "analytics.events" };
 
@@ -49,26 +49,24 @@ const event = (id: string) => ({
 	timestamp: 1,
 });
 
-async function makeEffects(
+function makeProducer(
 	insert: (input: unknown) => Promise<unknown>,
 	config: Partial<ProducerConfig> = {}
 ) {
-	return Effect.runPromise(
-		createProducerEffects(
-			{ ...baseConfig, ...config },
-			null,
-			{ insert } as unknown as ClickHouseClient,
-			topicMap
-		)
+	return createProducer(
+		{ ...baseConfig, ...config },
+		null,
+		{ insert } as unknown as ClickHouseClient,
+		topicMap
 	);
 }
 
 describe("producer delivery guarantees", () => {
 	test("resolves a core send only after direct ClickHouse fallback succeeds", async () => {
 		const insert = vi.fn(() => Promise.resolve());
-		const effects = await makeEffects(insert);
+		const producer = makeProducer(insert);
 
-		await Effect.runPromise(effects.sendOne("analytics-events", event("event_1")));
+		await producer.sendOne("analytics-events", event("event_1"));
 
 		expect(insert).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -77,29 +75,24 @@ describe("producer delivery guarantees", () => {
 				values: [event("event_1")],
 			})
 		);
-		const stats = await Effect.runPromise(effects.stats);
-		expect(stats).toMatchObject({ inFlight: 0, sent: 1 });
 	});
 
 	test("returns a retryable error instead of acknowledging a failed direct fallback", async () => {
-		const effects = await makeEffects(() => Promise.reject(new Error("offline")));
+		const producer = makeProducer(() => Promise.reject(new Error("offline")));
 
 		await expect(
-			Effect.runPromise(effects.sendOne("analytics-events", event("event_1")))
+			producer.sendOne("analytics-events", event("event_1"))
 		).rejects.toMatchObject({
 			_tag: "ClickHouseFallbackError",
 			retryable: true,
 			table: "analytics.events",
 			topic: "analytics-events",
 		});
-
-		const stats = await Effect.runPromise(effects.stats);
-		expect(stats).toMatchObject({ errors: 1, inFlight: 0, sent: 0 });
 	});
 
-	test("keeps an active direct delivery counted when shutdown rejects another send", async () => {
+	test("does not admit a send after shutdown starts while delivery is active", async () => {
 		let releaseInsert: (() => void) | undefined;
-		const effects = await makeEffects(
+		const producer = makeProducer(
 			() =>
 				new Promise<void>((resolve) => {
 					releaseInsert = resolve;
@@ -107,21 +100,16 @@ describe("producer delivery guarantees", () => {
 			{ shutdownDrainTimeout: 500 }
 		);
 
-		const activeDelivery = Effect.runPromise(
-			effects.sendOne("analytics-events", event("event_1"))
-		);
+		const activeDelivery = producer.sendOne("analytics-events", event("event_1"));
 		await vi.waitFor(() => expect(releaseInsert).toBeTypeOf("function"));
 
-		const shutdown = Effect.runPromise(effects.shutDown);
+		const shutdown = producer.shutDown();
 		await expect(
-			Effect.runPromise(effects.sendOne("analytics-events", event("event_2")))
+			producer.sendOne("analytics-events", event("event_2"))
 		).rejects.toMatchObject({
 			_tag: "ProducerShuttingDownError",
 			retryable: true,
 		});
-
-		const stats = await Effect.runPromise(effects.stats);
-		expect(stats.inFlight).toBe(1);
 
 		releaseInsert?.();
 		await activeDelivery;
@@ -130,7 +118,7 @@ describe("producer delivery guarantees", () => {
 
 	test("reports an in-flight direct delivery when shutdown reaches its deadline", async () => {
 		let releaseInsert: (() => void) | undefined;
-		const effects = await makeEffects(
+		const producer = makeProducer(
 			() =>
 				new Promise<void>((resolve) => {
 					releaseInsert = resolve;
@@ -138,11 +126,9 @@ describe("producer delivery guarantees", () => {
 			{ shutdownDrainTimeout: 20 }
 		);
 
-		const activeDelivery = Effect.runPromise(
-			effects.sendOne("analytics-events", event("event_1"))
-		);
+		const activeDelivery = producer.sendOne("analytics-events", event("event_1"));
 		await vi.waitFor(() => expect(releaseInsert).toBeTypeOf("function"));
-		await expect(Effect.runPromise(effects.shutDown)).rejects.toMatchObject({
+		await expect(producer.shutDown()).rejects.toMatchObject({
 			_tag: "ShutdownDrainError",
 			inFlight: 1,
 			retryable: true,
@@ -150,5 +136,58 @@ describe("producer delivery guarantees", () => {
 
 		releaseInsert?.();
 		await activeDelivery;
+	});
+
+	test("shares a cold Kafka connection across concurrent sends", async () => {
+		let resolveConnect: (() => void) | undefined;
+		const connect = vi.fn(
+			() =>
+				new Promise<void>((resolve) => {
+					resolveConnect = resolve;
+				})
+		);
+		const send = vi.fn(() => Promise.resolve());
+		const kafka = {
+			connect,
+			disconnect: vi.fn(() => Promise.resolve()),
+			send,
+		} as unknown as Producer;
+		const producer = createProducer(
+			{ ...baseConfig, broker: "redpanda.test:9092", selfHost: false },
+			kafka,
+			{ insert: vi.fn(() => Promise.resolve()) } as unknown as ClickHouseClient,
+			topicMap
+		);
+
+		const first = producer.sendOne("analytics-events", event("event_1"));
+		const second = producer.sendOne("analytics-events", event("event_2"));
+		await vi.waitFor(() => expect(connect).toHaveBeenCalledOnce());
+		resolveConnect?.();
+
+		await Promise.all([first, second]);
+		expect(send).toHaveBeenCalledTimes(2);
+	});
+
+	test("falls back when Kafka connect throws synchronously", async () => {
+		const insert = vi.fn(() => Promise.resolve());
+		const kafka = {
+			connect: vi.fn(() => {
+				throw new Error("Kafka client is not ready");
+			}),
+			disconnect: vi.fn(() => Promise.resolve()),
+			send: vi.fn(() => Promise.resolve()),
+		} as unknown as Producer;
+		const producer = createProducer(
+			{ ...baseConfig, broker: "redpanda.test:9092", selfHost: false },
+			kafka,
+			{ insert } as unknown as ClickHouseClient,
+			topicMap
+		);
+
+		await producer.sendOne("analytics-events", event("event_1"));
+
+		expect(insert).toHaveBeenCalledWith(
+			expect.objectContaining({ values: [event("event_1")] })
+		);
 	});
 });
