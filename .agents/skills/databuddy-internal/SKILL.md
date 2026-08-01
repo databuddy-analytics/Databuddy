@@ -100,6 +100,7 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 - Root dev orchestration: `bun run dev`
 - Dashboard + API together: `bun run dev:dashboard`
 - Tests at root currently target `./apps`: `bun run test`
+- Package test mocks can leak across files in one Bun process; when `packages/ai` broadly mocks `@databuddy/redis`, keep the mock export surface in sync with runtime imports from shared RPC/tool code.
 - Database scripts are routed from root into `packages/db`
 - Runtime environment reads stay in the owning service; shared URL/public helpers live in `packages/env`
 - BullMQ queues use `BULLMQ_REDIS_URL`; generic Redis cache/pubsub code uses `REDIS_URL`.
