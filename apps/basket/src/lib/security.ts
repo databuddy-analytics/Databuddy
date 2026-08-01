@@ -11,6 +11,8 @@ const STANDARD_EVENT_TTL = 86_400;
 const DEDUP_RETRY_DELAY_MS = 25;
 const PENDING_DEDUP_PREFIX = "pending:";
 const DELIVERED_DEDUP_VALUE = "delivered";
+// Kept until all keys written by the pre-reservation implementation expire.
+const LEGACY_DELIVERED_DEDUP_VALUE = "1";
 const RELEASE_PENDING_DEDUP_RESERVATION = `if redis.call("GET", KEYS[1]) == ARGV[1] then
 	return redis.call("DEL", KEYS[1])
 end
@@ -162,7 +164,10 @@ async function readDedupReservationState(
 	token: string
 ): Promise<DedupReservationState> {
 	const value = await redis.get(key);
-	if (value === DELIVERED_DEDUP_VALUE) {
+	if (
+		value === DELIVERED_DEDUP_VALUE ||
+		value === LEGACY_DELIVERED_DEDUP_VALUE
+	) {
 		return "delivered";
 	}
 	if (value === token) {

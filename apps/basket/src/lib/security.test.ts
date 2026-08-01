@@ -186,6 +186,15 @@ describe("duplicate reservations", () => {
 		});
 	});
 
+	test("suppresses a delivered reservation written by the legacy key format", async () => {
+		mockRedisSet.mockResolvedValue(null);
+		mockRedisGet.mockResolvedValue("1");
+
+		const reservation = await reserveDuplicate("evt_1", "track");
+
+		expect(reservation).toEqual({ duplicate: true });
+	});
+
 	test("requires a retry when another request owns a pending reservation", async () => {
 		mockRedisSet.mockResolvedValue(null);
 		mockRedisGet.mockResolvedValue("pending:other-attempt");
