@@ -8,7 +8,10 @@ import { startAuditOutboxReplayLoop } from "@/audit/audit-outbox-replay";
 import { configureApiInstrumentation } from "@/bootstrap/instrumentation";
 import { configureApiLogger } from "@/bootstrap/logger";
 import { registerProcessErrorHandlers } from "@/bootstrap/process-errors";
-import { registerShutdownHooks, warmPostgresPool } from "@/bootstrap/shutdown";
+import {
+	registerShutdownHooks,
+	warmPostgresConnection,
+} from "@/bootstrap/shutdown";
 import { isAllowedApiOrigin } from "@/http/cors";
 import { handleAppError } from "@/http/errors";
 import { getRequestId } from "@/http/request-id";
@@ -117,7 +120,7 @@ const app = new Elysia({ precompile: true })
 
 const autumnWebhookReplay = startAutumnWebhookReplayLoop();
 const auditOutboxReplay = startAuditOutboxReplayLoop();
-warmPostgresPool();
+warmPostgresConnection();
 registerShutdownHooks(async () => {
 	await Promise.all([autumnWebhookReplay.stop(), auditOutboxReplay.stop()]);
 });

@@ -4,7 +4,7 @@ export {
 	setPgErrorFn,
 	setPgTimingFn,
 	shutdownPostgres,
-	warmPool,
+	warmPostgres,
 } from "./client";
 export { notDeleted, withTransaction, isUniqueViolationFor } from "./utils";
 export * from "./drizzle/schema";

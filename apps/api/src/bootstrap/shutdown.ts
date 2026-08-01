@@ -1,4 +1,4 @@
-import { shutdownPostgres, warmPool } from "@databuddy/db";
+import { shutdownPostgres, warmPostgres } from "@databuddy/db";
 import { log } from "evlog";
 import { flushBatchedApiDrain } from "@/lib/evlog-api";
 import { shutdownTccTracing } from "@/lib/tcc-otel";
@@ -6,10 +6,10 @@ import { shutdownTccTracing } from "@/lib/tcc-otel";
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 let shuttingDown = false;
 
-export function warmPostgresPool() {
-	warmPool().catch((error) =>
+export function warmPostgresConnection() {
+	warmPostgres().catch((error) =>
 		log.error({
-			lifecycle: "poolWarm",
+			lifecycle: "postgresWarm",
 			error_message: error instanceof Error ? error.message : String(error),
 		})
 	);

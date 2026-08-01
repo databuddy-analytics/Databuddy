@@ -1,13 +1,10 @@
 /** biome-ignore-all lint/performance/noNamespaceImport: "Required" */
 
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
-import { Pool } from "pg";
+import { Client } from "pg";
 import { relations } from "./drizzle/schema/relations";
 
 type DB = NodePgDatabase<typeof relations>;
-
-const DEFAULT_POOL_MAX = 10;
-const DEFAULT_CONNECTION_TIMEOUT_MS = 2000;
 
 let _pgErrorFn: ((error: Error) => void) | null = null;
 
@@ -21,23 +18,20 @@ export function setPgTimingFn(fn: (durationMs: number) => void) {
 	_pgTimingFn = fn;
 }
 
-function timePoolQueries(pool: Pool): void {
-	const originalQuery = pool.query.bind(pool) as (
+function timeClientQueries(client: Client, ready: () => Promise<void>): void {
+	const originalQuery = client.query.bind(client) as (
 		...args: unknown[]
 	) => unknown;
-	pool.query = ((...args: unknown[]) => {
+	client.query = ((...args: unknown[]) => {
 		const timingFn = _pgTimingFn;
-		if (!timingFn) {
-			return originalQuery(...args);
-		}
 		const startedAt = performance.now();
-		const result = originalQuery(...args);
-		if (result instanceof Promise) {
+		const result = ready().then(() => originalQuery(...args));
+		if (timingFn) {
 			const record = () => timingFn(performance.now() - startedAt);
 			result.then(record, record);
 		}
 		return result;
-	}) as Pool["query"];
+	}) as Client["query"];
 }
 
 function connectionStringForNodePg(connectionString: string): string {
@@ -52,16 +46,21 @@ function connectionStringForNodePg(connectionString: string): string {
 	}
 }
 
-function parsePositiveInt(value: string | undefined, fallback: number): number {
-	const parsed = Number.parseInt(value ?? "", 10);
-	if (Number.isFinite(parsed) && parsed > 0) {
-		return parsed;
-	}
-	return fallback;
-}
-
 let _db: DB | null = null;
-let _pool: Pool | null = null;
+let _client: Client | null = null;
+let _connection: Promise<void> | null = null;
+
+function connectClient(client: Client): Promise<void> {
+	if (_connection) {
+		return _connection;
+	}
+	const connection = client.connect().then(() => undefined);
+	_connection = connection.catch((error: unknown) => {
+		_connection = null;
+		throw error;
+	});
+	return _connection;
+}
 
 function getDb(): DB {
 	if (!_db) {
@@ -70,44 +69,42 @@ function getDb(): DB {
 			throw new Error("DATABASE_URL is not set");
 		}
 
-		_pool = new Pool({
+		const client = new Client({
 			connectionString: connectionStringForNodePg(databaseUrl),
-			max: parsePositiveInt(process.env.DB_POOL_MAX, DEFAULT_POOL_MAX),
-			idleTimeoutMillis: 30_000,
-			connectionTimeoutMillis: DEFAULT_CONNECTION_TIMEOUT_MS,
 			application_name: process.env.SERVICE_NAME || "databuddy",
 		});
-		timePoolQueries(_pool);
-		_pool.on("error", (error) => {
+		_client = client;
+		timeClientQueries(client, () => connectClient(client));
+		client.on("error", (error) => {
 			if (_pgErrorFn) {
 				_pgErrorFn(error);
 				return;
 			}
-			console.error("[db] postgres pool error", error);
+			console.error("[db] postgres client error", error);
 		});
 
-		_db = drizzle({ client: _pool, relations, jit: true });
+		_db = drizzle({ client, relations, jit: true });
 	}
 	return _db;
 }
 
-export async function warmPool(): Promise<void> {
+export async function warmPostgres(): Promise<void> {
 	getDb();
-	if (!_pool) {
+	if (!_client) {
 		return;
 	}
-	const client = await _pool.connect();
-	client.release();
+	await connectClient(_client);
 }
 
 export async function shutdownPostgres(): Promise<void> {
-	const pool = _pool;
+	const client = _client;
 	_db = null;
-	_pool = null;
-	if (!pool) {
+	_client = null;
+	_connection = null;
+	if (!client) {
 		return;
 	}
-	await pool.end();
+	await client.end();
 }
 
 export const db = new Proxy({} as DB, {
