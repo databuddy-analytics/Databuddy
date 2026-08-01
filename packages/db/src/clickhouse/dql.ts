@@ -14,11 +14,8 @@ import {
 	type ResultSet,
 } from "@clickhouse/client";
 import { password as bunPassword } from "bun";
-import {
-	clickHouse,
-	CLICKHOUSE_OPTIONS,
-	LOGICAL_READ_SETTINGS,
-} from "./client";
+import { clickHouse, CLICKHOUSE_OPTIONS, FINAL_READ_SETTINGS } from "./client";
+import { finalizeDeliveryTables } from "./logical-reads";
 import { hasCommaJoinInFrom } from "./sql-validation";
 
 export const DQL_DEFAULT_USER = "dql_user";
@@ -192,7 +189,8 @@ function parseDqlUrl(rawUrl: string | undefined): {
 }
 
 export function dqlSettingsForWebsite(
-	websiteId: string
+	websiteId: string,
+	query?: string
 ): Record<string, number | string> {
 	if (!websiteId.trim()) {
 		throw new Error("DQL requires an authorized website identifier.");
@@ -200,7 +198,9 @@ export function dqlSettingsForWebsite(
 
 	return {
 		[DQL_TENANT_SETTING]: websiteId,
-		...LOGICAL_READ_SETTINGS,
+		...(query && finalizeDeliveryTables(query).usesFinal
+			? FINAL_READ_SETTINGS
+			: {}),
 		readonly: 1,
 	};
 }
@@ -246,11 +246,12 @@ export async function executeDqlQuery<T extends Record<string, unknown>>(
 	let result: ResultSet<"JSON">;
 	let response: ResponseJSON<T>;
 	try {
+		const logical = finalizeDeliveryTables(sql);
 		result = await client.query({
-			query: sql,
+			query: logical.query,
 			query_params: { ...(input.params ?? {}) },
 			format: "JSON",
-			clickhouse_settings: dqlSettingsForWebsite(input.websiteId),
+			clickhouse_settings: dqlSettingsForWebsite(input.websiteId, sql),
 		});
 		response = (await result.json<T>()) as ResponseJSON<T>;
 	} catch (error) {

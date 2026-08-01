@@ -96,8 +96,15 @@ jobs:
             "s@ENGINE = ReplicatedReplacingMergeTree\\('[^']*', '[^']*', ([^)]+)\\)@ENGINE = ReplacingMergeTree(\\1)@" \
             packages/db/src/clickhouse/schema/analytics/core/custom_events.sql \
             | curl -fsS --data-binary @- http://localhost:8123/
+          sed -E \
+            "s@ENGINE = ReplicatedReplacingMergeTree\\('[^']*', '[^']*', ([^)]+)\\)@ENGINE = ReplacingMergeTree(\\1)@" \
+            packages/db/src/clickhouse/schema/analytics/links/link_visits.sql \
+            | curl -fsS --data-binary @- http://localhost:8123/
           curl -fsS \
             --data-binary 'SYSTEM STOP MERGES analytics.custom_events' \
+            http://localhost:8123/
+          curl -fsS \
+            --data-binary 'SYSTEM STOP MERGES analytics.link_visits' \
             http://localhost:8123/
 
           docker run -d \
@@ -123,7 +130,7 @@ jobs:
           done
 
           docker exec vector-canary-redpanda \
-            rpk topic create analytics-custom-events
+            rpk topic create analytics-custom-events analytics-link-visits
 
           docker run -d \
             --name vector-delivery-canary \
@@ -141,6 +148,7 @@ jobs:
             --config /etc/vector/vector.yaml
 
           CANARY_ID="ci-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-0}"
+          LINK_CANARY_ID="11111111-1111-4111-8111-111111111111"
           CANARY_PAYLOAD=$(jq -cn \
             --arg delivery_id "$CANARY_ID" \
             '{
@@ -157,10 +165,28 @@ jobs:
               profile_id: "",
               delivery_id: $delivery_id
             }')
+          LINK_CANARY_PAYLOAD=$(jq -cn \
+            --arg id "$LINK_CANARY_ID" \
+            '{
+              id: $id,
+              link_id: "ci-link",
+              timestamp: "2026-08-01T00:00:00.000Z",
+              referrer: null,
+              user_agent: "vector-delivery-canary",
+              ip_hash: "ci-ip-hash",
+              country: null,
+              region: null,
+              city: null,
+              browser_name: null,
+              device_type: null
+            }')
 
           printf '%s\n' "$CANARY_PAYLOAD" \
             | docker exec -i vector-canary-redpanda \
                 rpk topic produce analytics-custom-events
+          printf '%s\n' "$LINK_CANARY_PAYLOAD" \
+            | docker exec -i vector-canary-redpanda \
+                rpk topic produce analytics-link-visits
 
           for i in {1..30}; do
             FIRST_COUNT=$(curl -fsSG \
@@ -168,7 +194,12 @@ jobs:
                 'query=SELECT count() FROM analytics.custom_events WHERE delivery_id = {delivery_id:String}' \
               --data-urlencode "param_delivery_id=$CANARY_ID" \
               http://localhost:8123/)
-            if [ "$FIRST_COUNT" = "1" ]; then
+            FIRST_LINK_COUNT=$(curl -fsSG \
+              --data-urlencode \
+                'query=SELECT count() FROM analytics.link_visits WHERE id = {id:UUID}' \
+              --data-urlencode "param_id=$LINK_CANARY_ID" \
+              http://localhost:8123/)
+            if [ "$FIRST_COUNT" = "1" ] && [ "$FIRST_LINK_COUNT" = "1" ]; then
               break
             fi
             if [ "$i" -eq 30 ]; then
@@ -182,6 +213,9 @@ jobs:
           printf '%s\n' "$CANARY_PAYLOAD" \
             | docker exec -i vector-canary-redpanda \
                 rpk topic produce analytics-custom-events
+          printf '%s\n' "$LINK_CANARY_PAYLOAD" \
+            | docker exec -i vector-canary-redpanda \
+                rpk topic produce analytics-link-visits
 
           for i in {1..45}; do
             PHYSICAL_COUNT=$(curl -fsSG \
@@ -194,8 +228,21 @@ jobs:
                 'query=SELECT count() FROM analytics.custom_events FINAL WHERE delivery_id = {delivery_id:String}' \
               --data-urlencode "param_delivery_id=$CANARY_ID" \
               http://localhost:8123/)
-            if [ "$PHYSICAL_COUNT" = "2" ] && [ "$LOGICAL_COUNT" = "1" ]; then
-              echo "Vector replay produced two physical rows and one logical delivery"
+            PHYSICAL_LINK_COUNT=$(curl -fsSG \
+              --data-urlencode \
+                'query=SELECT count() FROM analytics.link_visits WHERE id = {id:UUID}' \
+              --data-urlencode "param_id=$LINK_CANARY_ID" \
+              http://localhost:8123/)
+            LOGICAL_LINK_COUNT=$(curl -fsSG \
+              --data-urlencode \
+                'query=SELECT count() FROM analytics.link_visits FINAL WHERE id = {id:UUID}' \
+              --data-urlencode "param_id=$LINK_CANARY_ID" \
+              http://localhost:8123/)
+            if [ "$PHYSICAL_COUNT" = "2" ] \
+              && [ "$LOGICAL_COUNT" = "1" ] \
+              && [ "$PHYSICAL_LINK_COUNT" = "2" ] \
+              && [ "$LOGICAL_LINK_COUNT" = "1" ]; then
+              echo "Vector replays produced two physical rows and one logical delivery per sink"
               exit 0
             fi
             if ! docker inspect -f '{{.State.Running}}' vector-delivery-canary | grep -q true; then

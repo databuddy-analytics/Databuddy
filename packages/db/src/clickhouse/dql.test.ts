@@ -153,8 +153,16 @@ describe("DQL ClickHouse client", () => {
 	test("binds the tenant and readonly mode", () => {
 		expect(dqlSettingsForWebsite("website-a")).toEqual({
 			[DQL_TENANT_SETTING]: "website-a",
+			readonly: 1,
+		});
+		expect(
+			dqlSettingsForWebsite(
+				"website-a",
+				"SELECT count() FROM analytics.events"
+			)
+		).toEqual({
+			[DQL_TENANT_SETTING]: "website-a",
 			do_not_merge_across_partitions_select_final: 1,
-			final: 1,
 			readonly: 1,
 		});
 		expect(() => dqlSettingsForWebsite(" ")).toThrow(
@@ -198,13 +206,12 @@ describe("DQL ClickHouse client", () => {
 		);
 
 		expect(captured).toMatchObject({
-			query: sql,
+			query: sql.replace("analytics.events", "analytics.events FINAL"),
 			query_params: { from: "2026-07-01 00:00:00" },
 			format: "JSON",
 			clickhouse_settings: {
 				[DQL_TENANT_SETTING]: "website-a",
 				do_not_merge_across_partitions_select_final: 1,
-				final: 1,
 				readonly: 1,
 			},
 		});

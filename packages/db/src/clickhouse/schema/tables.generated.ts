@@ -267,6 +267,7 @@ export interface LinkVisitsRow {
 	city: string | null;
 	browser_name: string | null;
 	device_type: string | null;
+	ingested_at: string;
 }
 
 export interface LinkVisitsInsert {
@@ -281,6 +282,7 @@ export interface LinkVisitsInsert {
 	city?: string | null;
 	browser_name?: string | null;
 	device_type?: string | null;
+	ingested_at?: number | string;
 }
 
 export interface OutgoingLinksRow {
@@ -447,7 +449,7 @@ export const TABLE_COLUMNS = {
 	"analytics.daily_pageviews": ["client_id", "date", "id", "pageviews", "ingested_at"],
 	"analytics.error_spans": ["client_id", "anonymous_id", "session_id", "timestamp", "path", "message", "filename", "lineno", "colno", "stack", "error_type", "delivery_id", "delivery_key", "ingested_at"],
 	"analytics.events": ["id", "client_id", "event_name", "anonymous_id", "time", "session_id", "referrer", "url", "path", "title", "ip", "user_agent", "browser_name", "browser_version", "os_name", "os_version", "device_type", "device_brand", "device_model", "viewport_size", "language", "timezone", "time_on_page", "country", "region", "city", "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "gclid", "dom_ready_time", "ttfb", "request_time", "render_time", "scroll_depth", "interaction_count", "page_count", "properties", "created_at", "timestamp", "profile_id", "ingested_at"],
-	"analytics.link_visits": ["id", "link_id", "timestamp", "referrer", "user_agent", "ip_hash", "country", "region", "city", "browser_name", "device_type"],
+	"analytics.link_visits": ["id", "link_id", "timestamp", "referrer", "user_agent", "ip_hash", "country", "region", "city", "browser_name", "device_type", "ingested_at"],
 	"analytics.outgoing_links": ["id", "client_id", "anonymous_id", "session_id", "href", "text", "properties", "timestamp", "ingested_at"],
 	"analytics.revenue": ["owner_id", "website_id", "transaction_id", "provider", "type", "status", "amount", "original_amount", "original_currency", "currency", "anonymous_id", "session_id", "customer_id", "product_id", "product_name", "metadata", "created", "synced_at", "profile_id"],
 	"analytics.web_vitals_spans": ["client_id", "anonymous_id", "session_id", "timestamp", "path", "metric_name", "metric_value", "delivery_id", "delivery_key", "ingested_at"],

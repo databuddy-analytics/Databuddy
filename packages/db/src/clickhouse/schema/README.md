@@ -35,9 +35,9 @@ need ClickHouse Keeper enabled (a one-node Keeper is fine).
 
 The Basket/Vector delivery tables use `ReplicatedReplacingMergeTree` with a
 stable row identity and an `ingested_at` version. Background merges reclaim
-duplicate storage asynchronously; correct reads use `FINAL` (the shared
-ClickHouse clients set `final = 1`). Because retry timestamps are immutable,
-versions stay in one partition and reads also enable
+duplicate storage asynchronously; the shared ClickHouse readers add `FINAL`
+to these table relations without changing other MergeTree reads. Because retry
+timestamps are immutable, versions stay in one partition and reads also enable
 `do_not_merge_across_partitions_select_final = 1`.
 
 Custom events, error spans, and web-vital spans may contain historical rows

@@ -47,11 +47,10 @@ CREATE TABLE IF NOT EXISTS analytics.events
 	INDEX idx_session_id session_id TYPE bloom_filter(0.01) GRANULARITY 1,
 	INDEX idx_anonymous_id anonymous_id TYPE bloom_filter(0.01) GRANULARITY 1,
 	INDEX idx_path path TYPE bloom_filter(0.02) GRANULARITY 1,
-	INDEX idx_profile_id profile_id TYPE bloom_filter(0.01) GRANULARITY 1,
-	INDEX idx_time time TYPE minmax GRANULARITY 1
+	INDEX idx_profile_id profile_id TYPE bloom_filter(0.01) GRANULARITY 1
 )
 ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/analytics_events_delivery_v2', '{replica}', ingested_at)
 PARTITION BY toYYYYMM(time)
-PRIMARY KEY client_id
-ORDER BY (client_id, id)
+PRIMARY KEY (client_id, time)
+ORDER BY (client_id, time, id)
 SETTINGS index_granularity = 8192
