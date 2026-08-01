@@ -261,6 +261,7 @@ export class Databuddy extends BaseTracker {
 			this.discardPendingEvents();
 			return;
 		}
+		this.requeueActiveDeliveriesForUnload();
 		this.flushQueueViaBeacon(this.batchQueue, "/batch", () =>
 			this.flushBatch()
 		);
@@ -436,6 +437,8 @@ export class Databuddy extends BaseTracker {
 			cleanup();
 		}
 		this.cleanupFns = [];
+
+		this.requeueActiveDeliveriesForUnload();
 
 		// Flush all pending data via sendBeacon (with fetch fallback) before clearing.
 		// flushQueueViaBeacon empties the array in-place on success; on failure it

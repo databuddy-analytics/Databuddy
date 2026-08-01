@@ -46,6 +46,7 @@ const MAX_RETRY_DELAY = 30_000;
 
 interface QueueMeta {
 	activeDeliveryGeneration: number | null;
+	activeItems: unknown[] | null;
 	endpoint: string;
 	flushing: boolean;
 	maxBatchSize: number;
@@ -136,6 +137,7 @@ export class BaseTracker {
 		this._meta = {
 			batch: {
 				activeDeliveryGeneration: null,
+				activeItems: null,
 				timer: null,
 				flushing: false,
 				maxBatchSize: 100,
@@ -146,6 +148,7 @@ export class BaseTracker {
 			},
 			vitals: {
 				activeDeliveryGeneration: null,
+				activeItems: null,
 				timer: null,
 				flushing: false,
 				maxBatchSize: 20,
@@ -156,6 +159,7 @@ export class BaseTracker {
 			},
 			errors: {
 				activeDeliveryGeneration: null,
+				activeItems: null,
 				timer: null,
 				flushing: false,
 				maxBatchSize: 50,
@@ -166,6 +170,7 @@ export class BaseTracker {
 			},
 			track: {
 				activeDeliveryGeneration: null,
+				activeItems: null,
 				timer: null,
 				flushing: false,
 				maxBatchSize: 100,
@@ -446,8 +451,40 @@ export class BaseTracker {
 				meta.timer = null;
 			}
 			meta.activeDeliveryGeneration = null;
+			meta.activeItems = null;
 			meta.flushing = false;
 			meta.retryAttempts = 0;
+		}
+	}
+
+	private requeueActiveItems<T>(queue: T[], meta: QueueMeta): boolean {
+		if (!meta.activeItems || meta.activeItems.length === 0) {
+			return false;
+		}
+
+		queue.unshift(...(meta.activeItems as T[]));
+		meta.activeDeliveryGeneration = null;
+		meta.activeItems = null;
+		meta.flushing = false;
+		return true;
+	}
+
+	/**
+	 * An ordinary fetch may still be pending when the browser starts unloading.
+	 * Reclaim its removed queue items so the lifecycle handler can send the same
+	 * stable event identities through the unload beacon path.
+	 */
+	protected requeueActiveDeliveriesForUnload(): void {
+		const reclaimed = [
+			this.requeueActiveItems(this.batchQueue, this._meta.batch),
+			this.requeueActiveItems(this.trackQueue, this._meta.track),
+			this.requeueActiveItems(this.vitalsQueue, this._meta.vitals),
+			this.requeueActiveItems(this.errorsQueue, this._meta.errors),
+		].some(Boolean);
+
+		if (reclaimed) {
+			this.deliveryGeneration += 1;
+			this.api.cancelPendingRequests();
 		}
 	}
 
@@ -641,6 +678,7 @@ export class BaseTracker {
 		meta.flushing = true;
 		meta.activeDeliveryGeneration = deliveryGeneration;
 		const items = queue.splice(0, meta.maxBatchSize);
+		meta.activeItems = items;
 		let retryScheduled = false;
 
 		try {
@@ -676,6 +714,7 @@ export class BaseTracker {
 		} finally {
 			if (meta.activeDeliveryGeneration === deliveryGeneration) {
 				meta.activeDeliveryGeneration = null;
+				meta.activeItems = null;
 				meta.flushing = false;
 				if (
 					queue.length > 0 &&
