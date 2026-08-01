@@ -532,6 +532,26 @@ describe("processUptimeCheck", () => {
 		expect(calls.email).toHaveLength(1);
 	});
 
+	it("rejects malformed checkpointed delivery payloads before replaying", async () => {
+		await expect(
+			processUptimeJob(
+				{
+					name: "uptime-check",
+					data: {
+						delivery: { event: { ...uptimeData(), http_code: "200" } },
+						scheduleId: "schedule-1",
+						trigger: "scheduled",
+					},
+					updateData: async () => {},
+				},
+				deps()
+			)
+		).rejects.toThrow("Invalid persisted uptime delivery payload");
+
+		expect(calls.check).toEqual([]);
+		expect(calls.delivery).toEqual([]);
+	});
+
 	it("retries a delivery job when Redpanda does not acknowledge it", async () => {
 		const failingDeps = deps();
 		failingDeps.sendUptimeEvent = async () => ({
@@ -558,5 +578,20 @@ describe("processUptimeCheck", () => {
 				}),
 			})
 		);
+	});
+
+	it("rejects malformed delivery queue payloads before sending", async () => {
+		await expect(
+			processUptimeDeliveryJob(
+				{
+					data: { event: { ...uptimeData(), site_id: 1 } },
+					id: "uptime-delivery-uptime-event-1",
+					name: "uptime-event-delivery",
+				},
+				deps()
+			)
+		).rejects.toThrow("Invalid uptime delivery payload");
+
+		expect(calls.captureError).toEqual([]);
 	});
 });

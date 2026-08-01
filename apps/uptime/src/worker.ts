@@ -29,6 +29,7 @@ import {
 	MonitorStatus,
 	type ActionResult,
 	type ScheduleLookupReason,
+	uptimeDataSchema,
 	type UptimeData,
 } from "./types";
 import {
@@ -434,23 +435,6 @@ export async function processUptimeCheck(
 	}
 }
 
-function isUptimeData(value: unknown): value is UptimeData {
-	if (typeof value !== "object" || value === null) {
-		return false;
-	}
-
-	const event = value as {
-		event_id?: unknown;
-		site_id?: unknown;
-		timestamp?: unknown;
-	};
-	return (
-		typeof event.event_id === "string" &&
-		typeof event.site_id === "string" &&
-		typeof event.timestamp === "number"
-	);
-}
-
 async function replayPersistedUptimeDelivery(
 	job: UptimeWorkerJob,
 	data: UptimeData,
@@ -518,10 +502,11 @@ export async function processUptimeJob(
 
 	const persistedEvent = job.data.delivery?.event;
 	if (persistedEvent !== undefined) {
-		if (!isUptimeData(persistedEvent)) {
+		const parsedEvent = uptimeDataSchema.safeParse(persistedEvent);
+		if (!parsedEvent.success) {
 			throw new Error("Invalid persisted uptime delivery payload");
 		}
-		await replayPersistedUptimeDelivery(job, persistedEvent, deps);
+		await replayPersistedUptimeDelivery(job, parsedEvent.data, deps);
 		return;
 	}
 
@@ -548,11 +533,12 @@ export async function processUptimeDeliveryJob(
 	if (job.name !== UPTIME_DELIVERY_JOB_NAME) {
 		throw new Error(`Unknown uptime delivery job: ${job.name}`);
 	}
-	if (!isUptimeData(job.data.event)) {
+	const parsedEvent = uptimeDataSchema.safeParse(job.data.event);
+	if (!parsedEvent.success) {
 		throw new Error("Invalid uptime delivery payload");
 	}
 
-	const data = job.data.event;
+	const data = parsedEvent.data;
 	try {
 		const result = await deps.sendUptimeEvent(data, data.site_id);
 		if (!result.sent) {
@@ -629,10 +615,12 @@ export function startUptimeDeliveryWorker() {
 	);
 
 	worker.on("failed", (job, error) => {
+		const parsedEvent = job
+			? uptimeDataSchema.safeParse(job.data.event)
+			: undefined;
 		captureError(error, {
 			error_step: "uptime_delivery_worker_job_failed",
-			event_id:
-				job && isUptimeData(job.data.event) ? job.data.event.event_id : "",
+			event_id: parsedEvent?.success ? parsedEvent.data.event_id : "",
 			job_id: job?.id ?? "",
 			attempts_used: job?.attemptsMade ?? 0,
 			attempts_max: job?.opts?.attempts ?? 1_000_000,

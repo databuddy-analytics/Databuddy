@@ -6,7 +6,6 @@ import * as actualEvlog from "evlog";
 
 const monitors = [{ granularity: "five_minutes", id: "schedule-1" }];
 const upsertJobScheduler = mock(async () => undefined);
-const getJobScheduler = mock(async () => ({ id: "uptime-schedule-1" }));
 const dbSelect = mock(() => ({
 	from: () => ({ where: async () => monitors }),
 }));
@@ -27,7 +26,7 @@ mock.module("@databuddy/db/schema", () => ({
 }));
 mock.module("@databuddy/redis", () => ({
 	...actualRedis,
-	getUptimeQueue: () => ({ getJobScheduler, upsertJobScheduler }),
+	getUptimeQueue: () => ({ upsertJobScheduler }),
 	UPTIME_CHECK_JOB_NAME: "uptime-check",
 	UPTIME_JOB_OPTIONS: { attempts: 1_000_000 },
 	uptimeSchedulerId: (scheduleId: string) => `uptime-${scheduleId}`,
@@ -41,7 +40,6 @@ const { syncSchedulers } = await import("./sync-schedulers");
 
 beforeEach(() => {
 	dbSelect.mockClear();
-	getJobScheduler.mockClear();
 	logInfo.mockClear();
 	upsertJobScheduler.mockClear();
 });
@@ -54,10 +52,9 @@ afterAll(() => {
 });
 
 describe("syncSchedulers", () => {
-	test("updates an existing scheduler with the current durable job options", async () => {
+	test("upserts an active scheduler with current durable job options", async () => {
 		await syncSchedulers();
 
-		expect(getJobScheduler).not.toHaveBeenCalled();
 		expect(upsertJobScheduler).toHaveBeenCalledWith(
 			"uptime-schedule-1",
 			{ pattern: "*/5 * * * *" },
