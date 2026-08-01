@@ -32,6 +32,7 @@ import type { Context } from "../orpc";
 import { publicProcedure, trackedProcedure } from "../orpc";
 import { setTrackProperties } from "../middleware/track-mutation";
 import {
+	type AuthedWorkspaceWithPlan,
 	type Workspace,
 	withPublicWorkspace,
 	withWorkspace,
@@ -459,11 +460,13 @@ export const flagsRouter = {
 						websiteId: wsId,
 						resource: "flag",
 						permissions: ["create"],
+						includePlan: true,
 					})
 				: await withWorkspace(context, {
 						organizationId: orgId,
 						resource: "flag",
 						permissions: ["create"],
+						includePlan: true,
 					});
 
 			const createdBy = await workspace.getCreatedBy();
@@ -716,18 +719,20 @@ export const flagsRouter = {
 
 			const flag = existingFlag[0];
 
-			let workspace: Workspace | undefined;
+			let workspace: AuthedWorkspaceWithPlan | undefined;
 			if (flag.websiteId) {
 				workspace = await withWorkspace(context, {
 					websiteId: flag.websiteId,
 					resource: "flag",
 					permissions: ["update"],
+					includePlan: true,
 				});
 			} else if (flag.organizationId) {
 				workspace = await withWorkspace(context, {
 					organizationId: flag.organizationId,
 					resource: "flag",
 					permissions: ["update"],
+					includePlan: true,
 				});
 			} else {
 				throw rpcError.forbidden(

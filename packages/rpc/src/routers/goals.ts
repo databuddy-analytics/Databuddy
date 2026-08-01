@@ -232,6 +232,7 @@ export const goalsRouter = {
 			const workspace = await withWorkspace(context, {
 				websiteId: input.websiteId,
 				permissions: ["update"],
+				includePlan: true,
 			});
 
 			const existingGoals = await context.db

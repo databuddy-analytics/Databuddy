@@ -1,6 +1,6 @@
 import "@databuddy/test/env";
 
-import { describe, it, expect, beforeEach, afterAll } from "vitest";
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { createProcedureClient } from "@orpc/server";
 import {
 	withWorkspace,
@@ -320,14 +320,27 @@ describe("withWorkspace", () => {
 				organizationId: org.id,
 				isPublic: true,
 			});
+			let billingCalls = 0;
+			const ctx = context();
+			ctx.getBilling = async () => {
+				billingCalls += 1;
+				return {
+					canUserUpgrade: true,
+					customerId: owner.id,
+					isOrganization: true,
+					planId: "pro",
+				};
+			};
 
-			const ws = await withPublicWorkspace(context(), {
+			const ws = await withPublicWorkspace(ctx, {
 				websiteId: site.id,
 				permissions: ["read"],
 			});
 			expect(ws.tier).toBe("demo");
 			expect(ws.user).toBeNull();
 			expect(ws.website.id).toBe(site.id);
+			expect(billingCalls).toBe(0);
+			expect("plan" in ws).toBe(false);
 		});
 
 		iit("treats view_analytics as read-only for public access", async () => {
@@ -386,13 +399,57 @@ describe("withWorkspace", () => {
 				organizationId: org.id,
 				isPublic: true,
 			});
+			let billingCalls = 0;
+			const ctx = userContext(owner, org.id);
+			ctx.getBilling = async () => {
+				billingCalls += 1;
+				return {
+					canUserUpgrade: true,
+					customerId: owner.id,
+					isOrganization: true,
+					planId: "pro",
+				};
+			};
 
-			const ws = await withPublicWorkspace(userContext(owner, org.id), {
+			const ws = await withPublicWorkspace(ctx, {
 				websiteId: site.id,
 				permissions: ["read"],
 			});
 			expect(ws.tier).toBe("authed");
 			expect(ws.role).toBe("owner");
+			expect(billingCalls).toBe(0);
+			expect("plan" in ws).toBe(false);
+		});
+
+		iit("resolves billing for an explicit public plan consumer", async () => {
+			const owner = await signUp();
+			const org = await insertOrganization();
+			await addToOrganization(owner.id, org.id, "owner");
+			const site = await insertWebsite({
+				organizationId: org.id,
+				isPublic: true,
+			});
+			let billingCalls = 0;
+			const ctx = userContext(owner, org.id);
+			ctx.getBilling = async () => {
+				billingCalls += 1;
+				return {
+					canUserUpgrade: true,
+					customerId: owner.id,
+					isOrganization: true,
+					planId: "pro",
+				};
+			};
+
+			const ws = await withPublicWorkspace(ctx, {
+				websiteId: site.id,
+				permissions: ["read"],
+				includePlan: true,
+			});
+
+			expect(ws.tier).toBe("authed");
+			expect(ws.plan).toBe("pro");
+			expect(billingCalls).toBe(1);
 		});
 
 		iit("gives authed non-member demo tier on public website", async () => {
@@ -698,7 +755,7 @@ describe("withWorkspace", () => {
 			);
 		});
 
-		iit("allows when no plan requirement", async () => {
+		iit("defaults explicit plan resolution to free without billing", async () => {
 			const user = await signUp();
 			const org = await insertOrganization();
 			await addToOrganization(user.id, org.id, "owner");
@@ -707,7 +764,9 @@ describe("withWorkspace", () => {
 				organizationId: org.id,
 				resource: "organization",
 				permissions: ["read"],
+				includePlan: true,
 			});
+
 			expect(ws.plan).toBe("free");
 		});
 	});
