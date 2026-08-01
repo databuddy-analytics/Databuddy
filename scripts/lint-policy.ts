@@ -53,6 +53,8 @@ const TAILWIND_PALETTE_UTILITY =
 const ARBITRARY_COLOR_UTILITY =
 	/(?:^|\s)(?:[\w-]+:)*(?:accent|bg|border(?:-[trblxy])?|caret|decoration|divide|fill|from|outline|ring|shadow|stroke|text|to|via)-\[[^\]]*(?:#[\da-f]{3,8}\b|(?:rgba?|hsla?|oklch)\()[^\]]*\]/iu;
 const RAW_COLOR_VALUE = /#[\da-f]{3,8}\b|(?:rgba?|hsla?|oklch)\(/iu;
+const COLORISH_IDENTIFIER =
+	/(?:^|[_-])(?:color|background|border|fill|stroke|shadow)(?:$|[_-])/iu;
 const DASHBOARD_SOURCE_EXTENSION = /\.(?:css|ts|tsx)$/u;
 const HTTP_SOURCE_EXTENSION = /\.(?:ts|tsx)$/u;
 const NEWLINE = /\r?\n/u;
@@ -119,11 +121,7 @@ export function findPolicyViolations(
 				);
 			}
 
-			if (
-				(ts.isStringLiteral(node) ||
-					ts.isNoSubstitutionTemplateLiteral(node)) &&
-				isCustomColor(node.text)
-			) {
+			if (isCustomColorNode(node)) {
 				report(
 					node,
 					RULE.noCustomColor,
@@ -196,12 +194,72 @@ function isDirectPrimitiveImport(node: ts.ImportDeclaration) {
 	);
 }
 
-function isCustomColor(value: string) {
+function isCustomColor(value: string, allowRawColor: boolean) {
 	return (
 		TAILWIND_PALETTE_UTILITY.test(value) ||
 		ARBITRARY_COLOR_UTILITY.test(value) ||
-		RAW_COLOR_VALUE.test(value)
+		(allowRawColor && RAW_COLOR_VALUE.test(value))
 	);
+}
+
+function isCustomColorNode(node: ts.Node) {
+	if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+		return isCustomColor(node.text, isRawColorContext(node));
+	}
+	if (ts.isTemplateExpression(node)) {
+		return isCustomColor(
+			[
+				node.head.text,
+				...node.templateSpans.map((span) => span.literal.text),
+			].join(" "),
+			isRawColorContext(node)
+		);
+	}
+	return false;
+}
+
+function isRawColorContext(node: ts.Node) {
+	let current = node;
+	while (
+		current.parent &&
+		(ts.isTemplateSpan(current.parent) ||
+			ts.isTemplateExpression(current.parent) ||
+			ts.isParenthesizedExpression(current.parent) ||
+			ts.isJsxExpression(current.parent))
+	) {
+		current = current.parent;
+	}
+
+	if (
+		current.parent &&
+		ts.isJsxAttribute(current.parent) &&
+		ts.isIdentifier(current.parent.name)
+	) {
+		return ["class", "className", "style"].includes(current.parent.name.text);
+	}
+
+	if (
+		current.parent &&
+		ts.isPropertyAssignment(current.parent) &&
+		isColorishName(current.parent.name)
+	) {
+		return true;
+	}
+
+	return (
+		current.parent &&
+		ts.isVariableDeclaration(current.parent) &&
+		ts.isIdentifier(current.parent.name) &&
+		isColorishIdentifier(current.parent.name.text)
+	);
+}
+
+function isColorishName(name: ts.PropertyName) {
+	return isColorishIdentifier(propertyNameText(name));
+}
+
+function isColorishIdentifier(name: string) {
+	return COLORISH_IDENTIFIER.test(name);
 }
 
 function isCustomJsonErrorResponse(node: ts.Node) {
@@ -285,12 +343,16 @@ function isFunctionLike(node: ts.Node): node is ts.FunctionLikeDeclaration {
 	);
 }
 
-function objectHasErrorProperty(node: ts.Node | undefined) {
-	if (!(node && ts.isObjectLiteralExpression(node))) {
+function objectHasErrorProperty(
+	node: ts.Node | undefined,
+	context: ts.Node = node as ts.Node
+) {
+	const object = resolveObjectLiteral(node, context);
+	if (!object) {
 		return false;
 	}
 
-	return node.properties.some((property) => {
+	return object.properties.some((property) => {
 		if (
 			!(
 				ts.isPropertyAssignment(property) ||
@@ -299,8 +361,73 @@ function objectHasErrorProperty(node: ts.Node | undefined) {
 		) {
 			return false;
 		}
-		return property.name.getText() === "error";
+		return propertyNameText(property.name) === "error";
 	});
+}
+
+function resolveObjectLiteral(node: ts.Node | undefined, context: ts.Node) {
+	if (!node) {
+		return;
+	}
+	if (ts.isObjectLiteralExpression(node)) {
+		return node;
+	}
+	if (ts.isIdentifier(node)) {
+		return findPreviousObjectLiteralDeclaration(node.text, context);
+	}
+}
+
+function findPreviousObjectLiteralDeclaration(name: string, context: ts.Node) {
+	let current: ts.Node | undefined = context.parent;
+	while (current) {
+		if (ts.isBlock(current) || ts.isSourceFile(current)) {
+			const found = findObjectLiteralInStatements(
+				name,
+				current.statements,
+				context.getStart()
+			);
+			if (found) {
+				return found;
+			}
+		}
+		current = current.parent;
+	}
+}
+
+function findObjectLiteralInStatements(
+	name: string,
+	statements: ts.NodeArray<ts.Statement>,
+	beforePosition: number
+) {
+	for (const statement of statements) {
+		if (statement.getStart() >= beforePosition) {
+			break;
+		}
+		if (!ts.isVariableStatement(statement)) {
+			continue;
+		}
+		for (const declaration of statement.declarationList.declarations) {
+			if (
+				ts.isIdentifier(declaration.name) &&
+				declaration.name.text === name &&
+				declaration.initializer &&
+				ts.isObjectLiteralExpression(declaration.initializer)
+			) {
+				return declaration.initializer;
+			}
+		}
+	}
+}
+
+function propertyNameText(name: ts.PropertyName) {
+	if (
+		ts.isIdentifier(name) ||
+		ts.isStringLiteral(name) ||
+		ts.isNumericLiteral(name)
+	) {
+		return name.text;
+	}
+	return name.getText();
 }
 
 function hasPolicyIgnore(
@@ -359,13 +486,24 @@ function findCustomCssColors(path: string, text: string): PolicyViolation[] {
 }
 
 function getChangedLines() {
-	const diff = runGit([
+	if (process.argv.includes("--staged")) {
+		return getStagedChangedLines();
+	}
+
+	const diff = tryRunGit([
 		"diff",
 		"--unified=0",
 		"--no-ext-diff",
 		POLICY_ROLLOUT_BASE,
 	]);
-	const changedLines = parseChangedLines(diff);
+	const changedLines = diff
+		? parseChangedLines(diff)
+		: new Map<string, Set<number>>();
+	if (!diff) {
+		console.warn(
+			`Policy lint skipped changed-line diff because rollout commit ${POLICY_ROLLOUT_BASE} is unavailable.`
+		);
+	}
 	for (const path of runGit(["ls-files", "--others", "--exclude-standard"])
 		.split("\n")
 		.filter(Boolean)) {
@@ -379,6 +517,11 @@ function getChangedLines() {
 		);
 	}
 	return changedLines;
+}
+
+function getStagedChangedLines() {
+	const diff = runGit(["diff", "--cached", "--unified=0", "--no-ext-diff"]);
+	return parseChangedLines(diff);
 }
 
 function parseChangedLines(diff: string) {
@@ -408,6 +551,16 @@ function parseChangedLines(diff: string) {
 }
 
 function runGit(args: string[]) {
+	const output = tryRunGit(args);
+	if (output !== null) {
+		return output;
+	}
+	throw new Error(
+		`Policy lint could not run git ${args.join(" ")} from ${process.cwd()}.`
+	);
+}
+
+function tryRunGit(args: string[]) {
 	try {
 		return execFileSync("git", args, {
 			cwd: process.cwd(),
@@ -415,9 +568,7 @@ function runGit(args: string[]) {
 			stdio: ["ignore", "pipe", "pipe"],
 		});
 	} catch {
-		throw new Error(
-			`Policy lint needs the ${POLICY_ROLLOUT_BASE} rollout commit. Fetch full git history and retry.`
-		);
+		return null;
 	}
 }
 

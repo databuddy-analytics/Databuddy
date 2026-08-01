@@ -69,11 +69,6 @@ vi.mock("@databuddy/redis", () => ({
 		website: (websiteId: string) => `website:${websiteId}`,
 	},
 	cacheable: <T extends (...args: never[]) => unknown>(fn: T) => fn,
-	abandonCachedLinkMutation: vi.fn(async () => true),
-	beginCachedLinkMutation: vi.fn(async () => ({
-		state: "acquired",
-		token: "test-token",
-	})),
 	clearActiveStream: vi.fn(async () => undefined),
 	closeInsightsQueue: vi.fn(async () => undefined),
 	closeUptimeQueue: vi.fn(async () => undefined),
@@ -98,7 +93,6 @@ vi.mock("@databuddy/redis", () => ({
 		}
 		return mockRedisClient;
 	},
-	finishCachedLinkMutation: vi.fn(async () => true),
 	getInsightsQueue: vi.fn(() => ({})),
 	getUptimeQueue: vi.fn(() => ({})),
 	invalidateAgentContextSnapshot: vi.fn(async () => 0),

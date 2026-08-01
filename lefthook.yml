@@ -37,7 +37,7 @@ pre-commit:
         bun run check-types
     policy-lint:
       glob: "**/*.{css,ts,tsx}"
-      run: bun run lint:policies
+      run: bun scripts/lint-policy.ts --staged
     lockfile-check:
       glob:
         - "**/package.json"
