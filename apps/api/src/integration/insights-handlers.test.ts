@@ -35,7 +35,7 @@ import {
 } from "@databuddy/test";
 import { createProcedureClient, type AnyProcedure } from "@orpc/server";
 import { randomUUIDv7 } from "bun";
-import { afterAll, beforeEach, describe, expect, it } from "bun:test";
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
 const iit = hasTestDb ? it : it.skip;
 
