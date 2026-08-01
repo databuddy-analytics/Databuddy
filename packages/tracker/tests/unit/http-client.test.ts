@@ -373,6 +373,38 @@ describe("BaseTracker delivery outcomes", () => {
 		expect(tracker.batchQueue).toHaveLength(0);
 	});
 
+	test("reclaims an in-flight analytics chunk for the unload beacon", async () => {
+		const tracker = new UnloadTestTracker({ clientId: "site_example" });
+		const delivery = createDeferred<HttpResult<unknown>>();
+		tracker.api.fetch = mock(() => delivery.promise);
+		const sendBeacon = mock(() => true);
+		tracker.sendBeacon = sendBeacon;
+		await tracker.addToBatch({ eventId: "event_in_flight", timestamp: 1 });
+
+		const flush = tracker.flushBatch();
+		await flushMicrotasks();
+		expect(tracker.batchQueue).toHaveLength(0);
+
+		tracker.flushForPageUnload();
+
+		expect(sendBeacon).toHaveBeenCalledWith(
+			[{ eventId: "event_in_flight", timestamp: 1 }],
+			"/batch"
+		);
+		expect(tracker.batchQueue).toHaveLength(0);
+
+		delivery.resolve({
+			ok: false,
+			code: "REQUEST_ERROR",
+			message: "Request aborted",
+			status: null,
+			retryable: false,
+			attempts: 1,
+			transport: "fetch",
+		});
+		await flush;
+	});
+
 	test("keeps a retryable failed batch queued", async () => {
 		jest.useFakeTimers();
 		const tracker = new DeliveryTestTracker({ clientId: "site_example" });
