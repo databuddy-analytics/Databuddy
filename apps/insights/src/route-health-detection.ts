@@ -276,7 +276,7 @@ function routeErrorSignal(params: {
 		signal.deltaPercent >= 60;
 	return {
 		...signal,
-		definitionEvidence: `Route ${params.route} logged ${params.current.errors} errors affecting ${params.current.users} people, compared with ${params.baseline.errors} errors affecting ${params.baseline.users} people in the preceding period.`,
+		definitionEvidence: `Route ${params.route} logged ${params.current.errors} errors across ${params.current.users} visitor identifiers, compared with ${params.baseline.errors} errors across ${params.baseline.users} visitor identifiers in the preceding period.`,
 		entityId: params.route,
 		entityLabel: routeEntityLabel(params.route),
 		severity: params.applyThreshold
