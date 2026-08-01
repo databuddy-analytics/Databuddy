@@ -1,3 +1,6 @@
+acknowledgements:
+  enabled: true
+
 sources:
   redpanda:
     type: kafka
