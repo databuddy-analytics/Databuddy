@@ -7,11 +7,16 @@ const broker = process.env.REDPANDA_BROKER;
 const username = process.env.REDPANDA_USER;
 const password = process.env.REDPANDA_PASSWORD;
 const reconnectCooldownMs = 60_000;
-const kafkaTimeoutMs = 10_000;
+const kafkaConnectionTimeoutMs = 5000;
+const kafkaRequestTimeoutMs = 10_000;
+const fallbackTimeoutMs = 10_000;
+const dependencyErrorLogIntervalMs = 300_000;
 
 let producer: Producer | null = null;
 let connectPromise: Promise<boolean> | null = null;
 let nextReconnectAt = 0;
+let lastConnectErrorLogAt = 0;
+let lastFallbackErrorLogAt = 0;
 
 /**
  * Immutable wire payload for a short-link click. The generated ID stays with
@@ -49,7 +54,27 @@ function discardProducer(
 	}
 }
 
-function connect(): Promise<boolean> {
+function captureDependencyError(
+	error: unknown,
+	context: Record<string, string | number | boolean>,
+	kind: "connect" | "fallback"
+): void {
+	const now = Date.now();
+	const lastLogAt =
+		kind === "connect" ? lastConnectErrorLogAt : lastFallbackErrorLogAt;
+	if (now - lastLogAt < dependencyErrorLogIntervalMs) {
+		setAttributes({ [`${kind}_error_log_suppressed`]: true });
+		return;
+	}
+	if (kind === "connect") {
+		lastConnectErrorLogAt = now;
+	} else {
+		lastFallbackErrorLogAt = now;
+	}
+	captureError(error, context);
+}
+
+function connect(reportFailure = true): Promise<boolean> {
 	if (producer) {
 		return Promise.resolve(true);
 	}
@@ -75,10 +100,15 @@ function connect(): Promise<boolean> {
 			const kafka = new Kafka({
 				brokers: [broker],
 				clientId: "links-producer",
-				connectionTimeout: kafkaTimeoutMs,
-				authenticationTimeout: kafkaTimeoutMs,
-				requestTimeout: kafkaTimeoutMs,
+				connectionTimeout: kafkaConnectionTimeoutMs,
+				authenticationTimeout: kafkaConnectionTimeoutMs,
+				requestTimeout: kafkaRequestTimeoutMs,
 				enforceRequestTimeout: true,
+				retry: {
+					initialRetryTime: 300,
+					maxRetryTime: 1000,
+					retries: 0,
+				},
 				...(username && password
 					? { sasl: { mechanism: "scram-sha-256", username, password } }
 					: {}),
@@ -89,6 +119,11 @@ function connect(): Promise<boolean> {
 				maxInFlightRequests: 5,
 				idempotent: true,
 				transactionTimeout: 30_000,
+				retry: {
+					initialRetryTime: 300,
+					maxRetryTime: 3000,
+					retries: 1,
+				},
 			});
 
 			await candidate.connect();
@@ -97,7 +132,15 @@ function connect(): Promise<boolean> {
 			setAttributes({ kafka_connected: true });
 			return true;
 		} catch (error) {
-			captureError(error, { operation: "kafka_connect" });
+			if (reportFailure) {
+				captureDependencyError(
+					error,
+					{ operation: "kafka_connect" },
+					"connect"
+				);
+			} else {
+				setAttributes({ kafka_health_connect_failed: true });
+			}
 			if (candidate) {
 				discardProducer(candidate, "kafka_connect_disconnect");
 			}
@@ -113,36 +156,94 @@ function connect(): Promise<boolean> {
 	return connectPromise;
 }
 
-export async function checkProducerHealth(): Promise<void> {
-	if (!(await connect())) {
-		throw new Error("Redpanda producer is unavailable");
+export type ProducerHealthState =
+	| "connected"
+	| "connecting"
+	| "cooldown"
+	| "disabled"
+	| "idle";
+
+export function getProducerHealthState(): ProducerHealthState {
+	if (!broker) {
+		return "disabled";
 	}
+	if (producer) {
+		return "connected";
+	}
+	if (connectPromise) {
+		return "connecting";
+	}
+	if (Date.now() < nextReconnectAt) {
+		return "cooldown";
+	}
+	return "idle";
+}
+
+export async function warmProducerConnection(): Promise<void> {
+	await connect();
+}
+
+export async function refreshProducerConnection(): Promise<void> {
+	await connect(false);
+}
+
+export interface LinkVisitDeliveryOptions {
+	allowDirectFallback?: boolean;
+	beforeKafkaSend?: () => Promise<void>;
 }
 
 async function persistLinkVisitDirectly(
 	event: LinkVisitEvent
 ): Promise<boolean> {
+	const controller = new AbortController();
+	let timeout: ReturnType<typeof setTimeout> | undefined;
 	try {
-		await clickHouse.insert({
-			table: TABLE_NAMES.link_visits,
-			values: [event],
-			format: "JSONEachRow",
-		});
+		await Promise.race([
+			clickHouse.insert({
+				table: TABLE_NAMES.link_visits,
+				values: [event],
+				format: "JSONEachRow",
+				abort_signal: controller.signal,
+				clickhouse_settings: {
+					async_insert: 1,
+					wait_for_async_insert: 1,
+				},
+			}),
+			new Promise<never>((_resolve, reject) => {
+				timeout = setTimeout(() => {
+					const error = new Error(
+						`ClickHouse link-visit fallback exceeded ${fallbackTimeoutMs}ms`
+					);
+					controller.abort(error);
+					reject(error);
+				}, fallbackTimeoutMs);
+				timeout.unref?.();
+			}),
+		]);
 		setAttributes({ clickhouse_fallback_success: true });
 		return true;
 	} catch (error) {
-		captureError(error, {
-			operation: "clickhouse_link_visit_fallback",
-			clickhouse_table: TABLE_NAMES.link_visits,
-		});
+		captureDependencyError(
+			error,
+			{
+				operation: "clickhouse_link_visit_fallback",
+				clickhouse_table: TABLE_NAMES.link_visits,
+			},
+			"fallback"
+		);
 		setAttributes({ clickhouse_fallback_success: false });
 		return false;
+	} finally {
+		if (timeout) {
+			clearTimeout(timeout);
+		}
 	}
 }
 
 export async function sendLinkVisit(
 	event: LinkVisitEvent,
-	key?: string
+	key?: string,
+	options: LinkVisitDeliveryOptions = {}
 ): Promise<boolean> {
 	const eventKey = key ?? event.link_id;
 	setAttributes({
@@ -158,6 +259,10 @@ export async function sendLinkVisit(
 			kafka_connected: false,
 			kafka_send_skipped: true,
 		});
+		if (options.allowDirectFallback === false) {
+			setAttributes({ clickhouse_fallback_blocked_by_ambiguous_send: true });
+			return false;
+		}
 		// No Kafka write was attempted, so direct persistence is not ambiguous.
 		// The BullMQ job remains active until this insert is acknowledged.
 		return persistLinkVisitDirectly(event);
@@ -165,10 +270,11 @@ export async function sendLinkVisit(
 
 	setAttributes({ kafka_connected: true });
 	try {
+		await options.beforeKafkaSend?.();
 		await activeProducer.send({
 			topic: TOPIC,
 			acks: -1,
-			timeout: kafkaTimeoutMs,
+			timeout: kafkaRequestTimeoutMs,
 			messages: [
 				{
 					value: JSON.stringify(event, (_k, v) => (v === undefined ? null : v)),
@@ -201,8 +307,7 @@ export async function disconnectProducer(): Promise<void> {
 	}
 	try {
 		await producer.disconnect();
-	} catch (error) {
-		captureError(error, { operation: "kafka_disconnect" });
+	} finally {
+		producer = null;
 	}
-	producer = null;
 }

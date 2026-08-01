@@ -5,54 +5,69 @@ import {
 import { type Job, Queue, Worker } from "bullmq";
 import { log } from "evlog";
 import { captureError, setAttributes } from "./logging";
-import { sendLinkVisit, type LinkVisitEvent } from "./producer";
+import {
+	sendLinkVisit,
+	type LinkVisitDeliveryOptions,
+	type LinkVisitEvent,
+} from "./producer";
 
 export const LINK_VISIT_QUEUE_NAME = "link-visit-delivery";
 export const LINK_VISIT_JOB_NAME = "deliver-link-visit";
+export const LINK_VISIT_BACKOFF_TYPE = "link-visit-capped";
+export const KAFKA_ATTEMPTED_FIELD = "__kafka_attempted";
 
-const LINK_VISIT_JOB_OPTIONS = {
+export interface LinkVisitJobData extends LinkVisitEvent {
+	readonly __kafka_attempted?: true;
+}
+
+export const LINK_VISIT_JOB_OPTIONS = {
 	attempts: 20,
 	backoff: {
-		type: "exponential" as const,
+		type: LINK_VISIT_BACKOFF_TYPE,
 		delay: 1000,
 	},
 	removeOnComplete: {
 		age: 24 * 3600,
 		count: 100_000,
 	},
-	// Failed jobs are a replayable incident record. Never discard them
-	// automatically; operators can retry them after the dependency recovers.
-	removeOnFail: false,
+	removeOnFail: {
+		age: 7 * 24 * 3600,
+		count: 100_000,
+	},
 };
 const RETRY_LOG_INTERVAL_MS = 30_000;
+const MAX_RETRY_DELAY_MS = 60_000;
 
-let queue: Queue<LinkVisitEvent> | null = null;
-let worker: Worker<LinkVisitEvent> | null = null;
+let queue: Queue<LinkVisitJobData> | null = null;
+let worker: Worker<LinkVisitJobData> | null = null;
 let lastRetryLogAt = 0;
 let suppressedRetryLogs = 0;
 
 interface LinkVisitQueueWriter {
 	add(
 		name: string,
-		data: LinkVisitEvent,
+		data: LinkVisitJobData,
 		options: { jobId: string }
 	): Promise<unknown>;
 }
 
-function getWorkerConcurrency(): number {
-	const configured = Number.parseInt(
-		process.env.LINK_VISIT_WORKER_CONCURRENCY ?? "",
-		10
-	);
+export function getWorkerConcurrency(): number {
+	const raw = process.env.LINK_VISIT_WORKER_CONCURRENCY?.trim();
+	const configured = raw ? Number(raw) : Number.NaN;
 	return Number.isSafeInteger(configured) && configured > 0 ? configured : 2;
 }
 
-function getLinkVisitQueue(): Queue<LinkVisitEvent> {
+export function getLinkVisitRetryDelay(attemptsMade: number): number {
+	const exponent = Math.max(0, attemptsMade - 1);
+	return Math.min(MAX_RETRY_DELAY_MS, 1000 * 2 ** exponent);
+}
+
+function getLinkVisitQueue(): Queue<LinkVisitJobData> {
 	if (queue) {
 		return queue;
 	}
 
-	queue = new Queue<LinkVisitEvent>(LINK_VISIT_QUEUE_NAME, {
+	queue = new Queue<LinkVisitJobData>(LINK_VISIT_QUEUE_NAME, {
 		connection: getBullMQConnectionOptions(),
 		defaultJobOptions: LINK_VISIT_JOB_OPTIONS,
 	});
@@ -81,28 +96,43 @@ export async function addLinkVisitJob(
 }
 
 export async function processLinkVisitJob(
-	job: Pick<Job<LinkVisitEvent>, "data" | "name">,
+	job: Pick<Job<LinkVisitJobData>, "data" | "name" | "updateData">,
 	deliver: (
 		event: LinkVisitEvent,
-		key?: string
+		key?: string,
+		options?: LinkVisitDeliveryOptions
 	) => Promise<boolean> = sendLinkVisit
 ): Promise<void> {
 	if (job.name !== LINK_VISIT_JOB_NAME) {
 		throw new Error(`Unknown link visit job: ${job.name}`);
 	}
 
-	const acknowledged = await deliver(job.data, job.data.link_id);
+	const { __kafka_attempted: kafkaAttempted, ...event } = job.data;
+	const options: LinkVisitDeliveryOptions = {
+		allowDirectFallback: kafkaAttempted !== true,
+		...(kafkaAttempted
+			? {}
+			: {
+					beforeKafkaSend: async () => {
+						await job.updateData({
+							...job.data,
+							[KAFKA_ATTEMPTED_FIELD]: true,
+						});
+					},
+				}),
+	};
+	const acknowledged = await deliver(event, event.link_id, options);
 	if (!acknowledged) {
-		throw new Error("Link visit was not acknowledged by Redpanda");
+		throw new Error("Link visit was not acknowledged by a delivery sink");
 	}
 }
 
-export function startLinkVisitDeliveryWorker(): Worker<LinkVisitEvent> {
+export function startLinkVisitDeliveryWorker(): Worker<LinkVisitJobData> {
 	if (worker) {
 		return worker;
 	}
 
-	worker = new Worker<LinkVisitEvent>(
+	worker = new Worker<LinkVisitJobData>(
 		LINK_VISIT_QUEUE_NAME,
 		(job) => processLinkVisitJob(job),
 		{
@@ -110,6 +140,12 @@ export function startLinkVisitDeliveryWorker(): Worker<LinkVisitEvent> {
 			concurrency: getWorkerConcurrency(),
 			lockDuration: 60_000,
 			stalledInterval: 90_000,
+			settings: {
+				backoffStrategy: (attemptsMade, type) =>
+					type === LINK_VISIT_BACKOFF_TYPE
+						? getLinkVisitRetryDelay(attemptsMade)
+						: 0,
+			},
 		}
 	);
 
@@ -154,8 +190,8 @@ export function startLinkVisitDeliveryWorker(): Worker<LinkVisitEvent> {
 	return worker;
 }
 
-export async function checkLinkVisitQueueHealth(): Promise<void> {
-	await getLinkVisitQueue().getJobCounts(
+export function checkLinkVisitQueueHealth() {
+	return getLinkVisitQueue().getJobCounts(
 		"waiting",
 		"active",
 		"delayed",
