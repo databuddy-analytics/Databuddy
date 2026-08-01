@@ -44,12 +44,7 @@ export function isVisibleInvestigation(
 	investigation: Pick<WebsiteInvestigation, "outcome">
 ): boolean {
 	const next = investigation.outcome.next.type;
-	return (
-		next === "act" ||
-		next === "ask" ||
-		(investigation.outcome.publish === true &&
-			investigation.outcome.recommendation != null)
-	);
+	return next === "act" || next === "ask";
 }
 
 function excludedRefreshSet() {

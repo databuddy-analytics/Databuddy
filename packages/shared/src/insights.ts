@@ -632,6 +632,10 @@ export const insightBriefItemSchema = z.object({
 	websiteName: z.string().nullable(),
 });
 
+export const insightRecommendationItemSchema = insightBriefItemSchema.extend({
+	recommendation: insightRecommendationSchema.unwrap(),
+});
+
 export const historyInsightSchema = z.object({
 	changePercent: z.number().optional(),
 	description: z.string(),
@@ -675,6 +679,9 @@ export type InsightSeverity = z.infer<typeof insightSeveritySchema>;
 export type InsightSentiment = z.infer<typeof insightSentimentSchema>;
 export type InsightMetric = z.infer<typeof insightMetricSchema>;
 export type InsightBriefItem = z.infer<typeof insightBriefItemSchema>;
+export type InsightRecommendationItem = z.infer<
+	typeof insightRecommendationItemSchema
+>;
 export type InvestigationSignal = z.infer<typeof investigationSignalSchema>;
 export type InvestigationOutcome = z.infer<typeof investigationOutcomeSchema>;
 export type AgentInvestigationOutcome = z.infer<
