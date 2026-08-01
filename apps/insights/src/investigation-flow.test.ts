@@ -165,6 +165,40 @@ describe("intelligence agent", () => {
 		);
 	});
 
+	it("retries one malformed final object without losing its usage", async () => {
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				{
+					content: [{ type: "text" as const, text: "not-json" }],
+					finishReason: { unified: "stop" as const, raw: undefined },
+					usage,
+					warnings: [],
+				},
+				outputResponse(agentOutcome)
+			),
+		});
+
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal,
+			},
+			{ model, tools: {} }
+		);
+
+		expect(result.outcome).toEqual(outcome);
+		expect(result.usage?.inputTokens).toBe(2);
+		expect(result.usage?.outputTokens).toBe(2);
+		expect(model.doGenerateCalls).toHaveLength(2);
+		expect(JSON.stringify(model.doGenerateCalls[1]?.prompt)).toContain(
+			"prior final response was not valid structured output"
+		);
+	});
+
 	it("accepts an observed event as a review-only goal draft", async () => {
 		const result = await runInsightAgent(
 			{
