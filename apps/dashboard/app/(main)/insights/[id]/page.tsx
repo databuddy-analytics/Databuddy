@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useId, useState } from "react";
 import { toast } from "sonner";
 import { TopBar } from "@/components/layout/top-bar";
 import { insightQueries, type InsightByIdResponse } from "@/lib/insight-api";
@@ -533,11 +533,14 @@ function Evidence({
 	sourceHref: string | null;
 }) {
 	const [expanded, setExpanded] = useState(!initiallyCollapsed);
+	const evidenceId = useId();
 
 	return (
 		<div>
 			<div className="flex items-center justify-between gap-3">
 				<Button
+					aria-controls={evidenceId}
+					aria-expanded={expanded}
 					onClick={() => setExpanded((open) => !open)}
 					size="sm"
 					type="button"
@@ -545,6 +548,7 @@ function Evidence({
 				>
 					Evidence
 					<CaretDownIcon
+						aria-hidden
 						className={expanded ? "rotate-180" : undefined}
 						weight="bold"
 					/>
@@ -555,12 +559,12 @@ function Evidence({
 						href={sourceHref}
 					>
 						View source
-						<ArrowSquareOutIcon className="size-3" />
+						<ArrowSquareOutIcon aria-hidden className="size-3" />
 					</Link>
 				) : null}
 			</div>
 			{expanded ? (
-				<ul className="mt-1 space-y-1">
+				<ul className="mt-1 space-y-1" id={evidenceId}>
 					{evidence.map((entry) => (
 						<li
 							className="flex gap-2 text-muted-foreground text-sm leading-relaxed"
