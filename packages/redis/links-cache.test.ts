@@ -115,7 +115,8 @@ const redis = {
 };
 
 mock.module("./redis", () => ({
-	getRedisCache: () => redis,
+	runLinkCacheCommand: <T>(operation: (client: typeof redis) => Promise<T>) =>
+		operation(redis),
 }));
 
 const {
