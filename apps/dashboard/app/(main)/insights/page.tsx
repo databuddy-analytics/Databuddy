@@ -1,12 +1,13 @@
 "use client";
 
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { type ReactNode, useCallback } from "react";
+import { type ReactNode, useCallback, useEffect, useRef } from "react";
 import { TopBar } from "@/components/layout/top-bar";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { useWebsitesLight } from "@/hooks/use-websites";
 import { type BriefInsight, insightQueries } from "@/lib/insight-api";
+import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 import { Badge, Button, Card, EmptyState, fromNow } from "@databuddy/ui";
 import {
@@ -19,10 +20,19 @@ import {
 } from "@databuddy/ui/icons";
 import { InvestigationSettings } from "./_components/investigation-settings";
 import {
+	ConversionDraftRecommendationAction,
+	InstrumentationRecommendationDetails,
+} from "./_components/conversion-draft-recommendation";
+import {
 	GoalRecommendationAction,
 	InvestigationRow,
 	InvestigationRowSkeleton,
 } from "./_components/investigation-row";
+import {
+	isConversionDraftRecommendation,
+	isGoalRecommendation,
+	isInstrumentationRecommendation,
+} from "./_components/recommendation-guards";
 import { useInsightsFeed } from "./hooks/use-insights-feed";
 
 const PERIOD_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
@@ -32,6 +42,48 @@ const PERIOD_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
 	year: "numeric",
 });
 
+interface LatestRunSummary {
+	completedItems: number;
+	failedItems: number;
+	id: string;
+	insightCount: number;
+	skippedItems: number;
+	status: string;
+	totalItems: number;
+}
+
+function isActiveRun(status: string | undefined): boolean {
+	return status === "queued" || status === "running";
+}
+
+function countLabel(count: number, singular: string): string {
+	return `${count} ${singular}${count === 1 ? "" : "s"}`;
+}
+
+function latestRunDescription(
+	run: LatestRunSummary | null | undefined
+): string {
+	if (!run) {
+		return "What changed, why it matters, and what to do next.";
+	}
+	if (isActiveRun(run.status)) {
+		return "Analyzing your websites…";
+	}
+	if (run.status === "failed") {
+		return "The latest analysis couldn't finish. Try again.";
+	}
+
+	const reviewed = run.completedItems + run.skippedItems;
+	const findings =
+		run.insightCount === 0
+			? "no noteworthy changes"
+			: countLabel(run.insightCount, "noteworthy insight");
+	if (run.status === "partially_succeeded") {
+		return `Latest analysis reviewed ${reviewed} of ${run.totalItems} websites and found ${findings}. ${countLabel(run.failedItems, "website")} couldn't be analyzed.`;
+	}
+	return `Latest analysis reviewed ${countLabel(reviewed, "website")} and found ${findings}.`;
+}
+
 export default function InsightsPage() {
 	const { activeOrganization, activeOrganizationId } =
 		useOrganizationsContext();
@@ -39,6 +91,14 @@ export default function InsightsPage() {
 	const feed = useInsightsFeed();
 	const { isLoading, isRefreshing, refetch } = feed;
 	const brief = useInfiniteQuery(insightQueries.briefInfinite(orgId));
+	const latestRun = useQuery({
+		...orpc.insightGeneration.getLatestRun.queryOptions({
+			input: { organizationId: orgId },
+		}),
+		enabled: Boolean(orgId),
+		refetchInterval: (query) =>
+			isActiveRun(query.state.data?.status) ? 2000 : 30_000,
+	});
 	const briefInsights =
 		brief.data?.pages.flatMap((page) => page.insights) ?? [];
 	const refetchBrief = brief.refetch;
@@ -49,9 +109,36 @@ export default function InsightsPage() {
 		isLoading ||
 		feed.isError ||
 		feed.insights.some((insight) => insight.status === "open");
-	const refresh = useCallback(() => {
+	const refreshInsights = useCallback(() => {
 		Promise.all([refetch(), refetchBrief()]).catch(() => undefined);
 	}, [refetch, refetchBrief]);
+	const refresh = useCallback(() => {
+		Promise.all([refetch(), refetchBrief(), latestRun.refetch()]).catch(
+			() => undefined
+		);
+	}, [latestRun.refetch, refetch, refetchBrief]);
+	const activeRun = useRef<{ organizationId: string; runId: string } | null>(
+		null
+	);
+	useEffect(() => {
+		const run = latestRun.data;
+		if (!(orgId && run)) {
+			activeRun.current = null;
+			return;
+		}
+		if (isActiveRun(run.status)) {
+			activeRun.current = { organizationId: orgId, runId: run.id };
+			return;
+		}
+		if (
+			activeRun.current?.organizationId === orgId &&
+			activeRun.current.runId === run.id
+		) {
+			activeRun.current = null;
+			refreshInsights();
+		}
+	}, [latestRun.data, orgId, refreshInsights]);
+	const isAnalyzing = isActiveRun(latestRun.data?.status);
 
 	return (
 		<div
@@ -78,7 +165,10 @@ export default function InsightsPage() {
 						)}
 					/>
 				</Button>
-				<InvestigationSettings organizationId={orgId} />
+				<InvestigationSettings
+					isAnalyzing={isAnalyzing}
+					organizationId={orgId}
+				/>
 			</TopBar.Actions>
 
 			{hasNoWebsites ? (
@@ -90,6 +180,7 @@ export default function InsightsPage() {
 							<InvestigationsPanel feed={feed} />
 						) : null}
 						<InsightBrief
+							description={latestRunDescription(latestRun.data)}
 							hasNextPage={brief.hasNextPage ?? false}
 							insights={briefInsights}
 							isFetchingNextPage={brief.isFetchingNextPage}
@@ -130,6 +221,9 @@ function InvestigationsPanel({
 		>
 			<Card.Header className="border-b bg-card">
 				<Card.Title>Investigations</Card.Title>
+				<Card.Description className="mt-1">
+					Questions and fixes waiting for your input.
+				</Card.Description>
 			</Card.Header>
 			<Card.Content className="p-0">
 				<InvestigationList feed={feed} />
@@ -139,6 +233,7 @@ function InvestigationsPanel({
 }
 
 function InsightBrief({
+	description,
 	hasNextPage,
 	insights,
 	isFetchingNextPage,
@@ -146,6 +241,7 @@ function InsightBrief({
 	onRetryAction,
 	state,
 }: {
+	description: string;
 	hasNextPage: boolean;
 	insights: BriefInsight[];
 	isFetchingNextPage: boolean;
@@ -221,8 +317,8 @@ function InsightBrief({
 		<Card aria-label="Latest insights" className="border-border/70 shadow-sm">
 			<Card.Header className="border-b bg-card px-5 py-4 sm:px-6">
 				<Card.Title>Latest insights</Card.Title>
-				<Card.Description className="mt-1">
-					What changed, why it matters, and what to do next.
+				<Card.Description aria-live="polite" className="mt-1">
+					{description}
 				</Card.Description>
 			</Card.Header>
 			<Card.Content className="p-0">{content}</Card.Content>
@@ -242,6 +338,7 @@ function InsightBriefRow({ insight }: { insight: BriefInsight }) {
 				? TrendDownIcon
 				: LightbulbIcon;
 	const metric = insight.signal.metric;
+	const recommendation = insight.recommendation;
 
 	const entityType = insight.signal.entity.type.replaceAll("_", " ");
 
@@ -285,20 +382,32 @@ function InsightBriefRow({ insight }: { insight: BriefInsight }) {
 				<p className="mt-1.5 max-w-3xl text-muted-foreground text-sm leading-relaxed">
 					{insight.summary}
 				</p>
-				{insight.recommendation ? (
+				{recommendation ? (
 					<div className="mt-3 rounded-md border border-primary/15 bg-primary/[0.035] px-3 py-2.5">
 						<p className="text-foreground/85 text-sm leading-relaxed">
 							<span className="mr-1 font-semibold text-primary text-xs uppercase tracking-wide">
 								Next step
 							</span>
-							{insight.recommendation.action}
+							{recommendation.action}
 						</p>
-						{insight.signal.entity.type === "goal" &&
-						insight.recommendation.operation ? (
+						{isInstrumentationRecommendation(recommendation) ? (
+							<InstrumentationRecommendationDetails
+								recommendation={recommendation}
+							/>
+						) : null}
+						{isConversionDraftRecommendation(recommendation) ? (
+							<div className="mt-2 flex flex-wrap gap-1.5">
+								<ConversionDraftRecommendationAction
+									recommendation={recommendation}
+									websiteId={insight.websiteId}
+								/>
+							</div>
+						) : insight.signal.entity.type === "goal" &&
+							isGoalRecommendation(recommendation) ? (
 							<div className="mt-2 flex flex-wrap gap-1.5">
 								<GoalRecommendationAction
 									goalId={insight.signal.entity.id}
-									recommendation={insight.recommendation}
+									recommendation={recommendation}
 									websiteId={insight.websiteId}
 								/>
 							</div>

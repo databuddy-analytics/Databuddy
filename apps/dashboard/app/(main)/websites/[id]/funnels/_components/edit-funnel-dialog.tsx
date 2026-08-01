@@ -2,6 +2,7 @@
 
 import { AutocompleteInput } from "@/components/ui/autocomplete-input";
 import { FilterRow } from "@/components/ui/filter-row";
+import type { InsightMeasurementRecommendation } from "@databuddy/shared/insights";
 import type { AutocompleteData } from "@/hooks/use-autocomplete";
 import { goalFunnelOperatorOptions, useFilters } from "@/hooks/use-filters";
 import { cn } from "@/lib/utils";
@@ -18,7 +19,7 @@ import {
 	Droppable,
 	type DropResult,
 } from "@hello-pangea/dnd";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	DotsNineIcon,
 	FunnelIcon as FunnelSimpleIcon,
@@ -36,9 +37,15 @@ const defaultFilter: FunnelFilter = {
 	value: "",
 } as const;
 
+export type FunnelDraft = Extract<
+	InsightMeasurementRecommendation,
+	{ kind: "funnel_draft" }
+>["draft"];
+
 interface EditFunnelDialogProps {
 	autocompleteData?: AutocompleteData;
 	funnel: Funnel | null;
+	initialDraft?: FunnelDraft;
 	isCreating?: boolean;
 	isOpen: boolean;
 	isUpdating: boolean;
@@ -53,14 +60,26 @@ export function EditFunnelDialog({
 	onSubmit,
 	onCreate,
 	funnel,
+	initialDraft,
 	isUpdating,
 	isCreating = false,
 	autocompleteData,
 }: EditFunnelDialogProps) {
 	const [formData, setFormData] = useState<Funnel | null>(null);
+	const wasOpen = useRef(false);
 	const isCreateMode = !funnel;
+	const isSuggestedDraft = isCreateMode && Boolean(initialDraft);
 
 	useEffect(() => {
+		if (!isOpen) {
+			wasOpen.current = false;
+			return;
+		}
+		if (wasOpen.current) {
+			return;
+		}
+		wasOpen.current = true;
+
 		if (funnel) {
 			const sanitizedFilters = (funnel.filters || []).map((f) => ({
 				...f,
@@ -70,6 +89,21 @@ export function EditFunnelDialog({
 				...funnel,
 				filters: sanitizedFilters,
 				ignoreHistoricData: funnel.ignoreHistoricData ?? false,
+			});
+		} else if (initialDraft) {
+			setFormData({
+				id: "",
+				name: initialDraft.name,
+				description: initialDraft.description,
+				steps: initialDraft.steps.map((step) => ({ ...step })),
+				filters: initialDraft.filters.map((filter) => ({
+					...filter,
+					operator: filter.operator || "equals",
+				})),
+				ignoreHistoricData: initialDraft.ignoreHistoricData,
+				isActive: true,
+				createdAt: "",
+				updatedAt: "",
 			});
 		} else {
 			setFormData({
@@ -91,7 +125,7 @@ export function EditFunnelDialog({
 				updatedAt: "",
 			});
 		}
-	}, [funnel]);
+	}, [funnel, initialDraft, isOpen]);
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -112,8 +146,13 @@ export function EditFunnelDialog({
 				filters: sanitizedFilters,
 				ignoreHistoricData: formData.ignoreHistoricData,
 			};
-			await onCreate(createData);
-			resetForm();
+			try {
+				await onCreate(createData);
+				resetForm();
+			} catch {
+				// The caller surfaces the error; retain the user's draft for correction.
+				return;
+			}
 		} else {
 			await onSubmit({
 				...formData,
@@ -302,11 +341,17 @@ export function EditFunnelDialog({
 						</div>
 						<div>
 							<Sheet.Title className="text-lg">
-								{isCreateMode ? "New Funnel" : formData.name || "Edit Funnel"}
+								{isCreateMode
+									? isSuggestedDraft
+										? "Review Funnel Draft"
+										: "New Funnel"
+									: formData.name || "Edit Funnel"}
 							</Sheet.Title>
 							<Sheet.Description>
 								{isCreateMode
-									? "Track user conversion journeys"
+									? isSuggestedDraft
+										? "Review and adjust this proposed journey before creating it"
+										: "Track user conversion journeys"
 									: `${formData.steps.length} steps configured`}
 							</Sheet.Description>
 						</div>

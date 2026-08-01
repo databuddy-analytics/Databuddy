@@ -33,10 +33,18 @@ dayjs.extend(timezonePlugin);
 const CONVERSION_WOW_THRESHOLD = 20;
 const MIN_ENTRANTS = 30;
 const MIN_COMPLETIONS = 10;
+/**
+ * A zero-completion condition is stronger than an ordinary rate movement, but
+ * it must still have enough traffic in both windows to distinguish a real
+ * configured-conversion failure from a sparse goal or funnel.
+ */
+const ZERO_COMPLETION_MIN_ENTRANTS = 50;
 const DEFINITION_QUERY_CONCURRENCY = 2;
 const DEFINITION_DETECTION_TIMEOUT_MS = 45_000;
-const FUNNEL_SIGNAL_KEY = /^funnel:([^:]+)(?::step:(\d+))?$/;
-const GOAL_SIGNAL_KEY = /^goal:([^:]+)$/;
+const ZERO_COMPLETION_SUFFIX = "zero-completions";
+const FUNNEL_SIGNAL_KEY =
+	/^funnel:([^:]+)(?::step:(\d+)|:(zero-completions))?$/;
+const GOAL_SIGNAL_KEY = /^goal:([^:]+)(?::(zero-completions))?$/;
 
 export interface FunnelDef {
 	createdAt: Date;
@@ -359,6 +367,83 @@ function definitionHistory(
 	return `Definition history: created ${createdAt}; last updated ${updatedAt}; comparison started ${comparisonStart}.`;
 }
 
+function hasZeroCompletionFailure(
+	current: ConversionResult,
+	previous: ConversionResult
+): boolean {
+	return (
+		current.completions === 0 &&
+		current.entrants >= ZERO_COMPLETION_MIN_ENTRANTS &&
+		previous.entrants >= ZERO_COMPLETION_MIN_ENTRANTS
+	);
+}
+
+function hasMeaningfulConversionChange(
+	current: ConversionResult,
+	previous: ConversionResult
+): boolean {
+	return (
+		current.entrants >= MIN_ENTRANTS &&
+		previous.entrants >= MIN_ENTRANTS &&
+		Math.max(current.completions, previous.completions) >= MIN_COMPLETIONS &&
+		previous.rate > 0 &&
+		Math.abs(safeDeltaPercent(current.rate, previous.rate)) >=
+			CONVERSION_WOW_THRESHOLD
+	);
+}
+
+function goalZeroCompletionSignal(params: {
+	current: ConversionResult;
+	currentTo: string;
+	goal: GoalDef;
+	previous: ConversionResult;
+	previousFrom: string;
+	timezone: string;
+}): DetectedSignal {
+	const signal = makeWowSignal(
+		`goal:${params.goal.id}`,
+		`Goal "${params.goal.name}" has no completions`,
+		params.current.rate,
+		params.previous.rate,
+		params.currentTo,
+		{ round: true }
+	);
+	// A persistent zero has no percentage movement, but remains a negative
+	// configured-conversion condition while there are eligible visitors.
+	signal.direction = "down";
+	signal.severity = "warning";
+	signal.subjectKey = `goal:${params.goal.id}:${ZERO_COMPLETION_SUFFIX}`;
+	signal.entityLabel = params.goal.name;
+	signal.definitionEvidence = `Goal "${params.goal.name}" tracks the ${params.goal.type} target "${params.goal.target}". It completed for 0 of ${params.current.entrants} observed website visitors, compared with ${params.previous.completions} of ${params.previous.entrants} previously. ${definitionHistory(params.goal, params.previousFrom, params.timezone)} ${definitionDescription(params.goal.description)} ${definitionFilters(params.goal.filters)}`;
+	return signal;
+}
+
+function funnelZeroCompletionSignal(params: {
+	current: ConversionResult;
+	currentTo: string;
+	funnel: FunnelDef;
+	previous: ConversionResult;
+	previousFrom: string;
+	timezone: string;
+}): DetectedSignal {
+	const signal = makeWowSignal(
+		`funnel:${params.funnel.id}`,
+		`Funnel "${params.funnel.name}" has no completions`,
+		params.current.rate,
+		params.previous.rate,
+		params.currentTo,
+		{ round: true }
+	);
+	// A persistent zero has no percentage movement, but remains a negative
+	// configured-conversion condition while there are eligible entrants.
+	signal.direction = "down";
+	signal.severity = "warning";
+	signal.subjectKey = `funnel:${params.funnel.id}:${ZERO_COMPLETION_SUFFIX}`;
+	signal.entityLabel = params.funnel.name;
+	signal.definitionEvidence = `Funnel "${params.funnel.name}" completed 0 of ${params.current.entrants} entrants, compared with ${params.previous.completions} of ${params.previous.entrants} previously. ${definitionHistory(params.funnel, params.previousFrom, params.timezone)} ${definitionDescription(params.funnel.description)} ${definitionFilters(params.funnel.filters)}`;
+	return signal;
+}
+
 function handleDefinitionFailure(
 	error: unknown,
 	signal: AbortSignal,
@@ -402,6 +487,8 @@ export async function remeasureFunnelGoalSignal(
 	}
 	const definitionId = goalMatch?.[1] ?? funnelMatch?.[1] ?? "unknown";
 	const definitionType = goalMatch ? "goal" : "funnel";
+	const isZeroCompletionGoal = goalMatch?.[2] === ZERO_COMPLETION_SUFFIX;
+	const isZeroCompletionFunnel = funnelMatch?.[3] === ZERO_COMPLETION_SUFFIX;
 	const activeDeps =
 		deps ?? defaultFunnelGoalDeps(params.websiteId, today.toDate());
 	const window = wowWindow(today, params.lookbackDays);
@@ -425,18 +512,32 @@ export async function remeasureFunnelGoalSignal(
 				activeDeps.goalConversion(goal, current, abortSignal),
 				activeDeps.goalConversion(goal, previous, abortSignal),
 			]);
-			const signal = makeWowSignal(
-				`goal:${goal.id}`,
-				`Goal "${goal.name}" completion rate`,
-				cur.rate,
-				prev.rate,
-				current.to,
-				{ round: true }
-			);
+			const signal =
+				isZeroCompletionGoal && cur.completions === 0 && cur.entrants > 0
+					? goalZeroCompletionSignal({
+							current: cur,
+							currentTo: current.to,
+							goal,
+							previous: prev,
+							previousFrom: previous.from,
+							timezone: params.timezone,
+						})
+					: makeWowSignal(
+							`goal:${goal.id}`,
+							`Goal "${goal.name}" completion rate`,
+							cur.rate,
+							prev.rate,
+							current.to,
+							{ round: true }
+						);
 			signal.subjectKey = prior.signalKey;
 			signal.entityLabel = goal.name;
 			const state = inactiveDefinitionEvidence(goal, "goal");
-			signal.definitionEvidence = `${state ? `${state} ` : ""}Goal "${goal.name}" tracks the ${goal.type} target "${goal.target}". It completed for ${cur.completions} of ${cur.entrants} observed website visitors, compared with ${prev.completions} previously. ${definitionHistory(goal, previous.from, params.timezone)} ${definitionDescription(goal.description)} ${definitionFilters(goal.filters)}`;
+			if (isZeroCompletionGoal && cur.completions === 0 && cur.entrants > 0) {
+				signal.definitionEvidence = `${state ? `${state} ` : ""}${signal.definitionEvidence}`;
+			} else {
+				signal.definitionEvidence = `${state ? `${state} ` : ""}Goal "${goal.name}" tracks the ${goal.type} target "${goal.target}". It completed for ${cur.completions} of ${cur.entrants} observed website visitors, compared with ${prev.completions} previously. ${definitionHistory(goal, previous.from, params.timezone)} ${definitionDescription(goal.description)} ${definitionFilters(goal.filters)}`;
+			}
 			return signal;
 		}
 
@@ -478,23 +579,37 @@ export async function remeasureFunnelGoalSignal(
 		const label = currentStep
 			? `Funnel "${funnel.name}" step "${currentStep.name}" conversion`
 			: `Funnel "${funnel.name}" conversion`;
-		const signal = makeWowSignal(
-			`funnel:${funnel.id}`,
-			label,
-			currentStep?.rate ?? cur.rate,
-			previousStep?.rate ?? prev.rate,
-			current.to,
-			{ round: true }
-		);
+		const signal =
+			isZeroCompletionFunnel && cur.completions === 0 && cur.entrants > 0
+				? funnelZeroCompletionSignal({
+						current: cur,
+						currentTo: current.to,
+						funnel,
+						previous: prev,
+						previousFrom: previous.from,
+						timezone: params.timezone,
+					})
+				: makeWowSignal(
+						`funnel:${funnel.id}`,
+						label,
+						currentStep?.rate ?? cur.rate,
+						previousStep?.rate ?? prev.rate,
+						current.to,
+						{ round: true }
+					);
 		signal.subjectKey = prior.signalKey;
 		signal.entityLabel = currentStep
 			? `${funnel.name} → ${currentStep.name}`
 			: funnel.name;
 		const state = inactiveDefinitionEvidence(funnel, "funnel");
-		const measurementEvidence = currentStep
-			? `Step ${currentStep.number} "${currentStep.name}" converted ${currentStep.rate}% of visitors reaching it, compared with ${previousStep?.rate}% previously. Funnel "${funnel.name}" converted ${cur.completions} of ${cur.entrants} entrants, compared with ${prev.completions} previously. ${definitionHistory(funnel, previous.from, params.timezone)} ${definitionDescription(funnel.description)} ${definitionFilters(funnel.filters)}`
-			: `Funnel "${funnel.name}" converted ${cur.completions} of ${cur.entrants} entrants, compared with ${prev.completions} previously. ${definitionHistory(funnel, previous.from, params.timezone)} ${definitionDescription(funnel.description)} ${definitionFilters(funnel.filters)}`;
-		signal.definitionEvidence = `${state ? `${state} ` : ""}${measurementEvidence}`;
+		if (isZeroCompletionFunnel && cur.completions === 0 && cur.entrants > 0) {
+			signal.definitionEvidence = `${state ? `${state} ` : ""}${signal.definitionEvidence}`;
+		} else {
+			const measurementEvidence = currentStep
+				? `Step ${currentStep.number} "${currentStep.name}" converted ${currentStep.rate}% of visitors reaching it, compared with ${previousStep?.rate}% previously. Funnel "${funnel.name}" converted ${cur.completions} of ${cur.entrants} entrants, compared with ${prev.completions} previously. ${definitionHistory(funnel, previous.from, params.timezone)} ${definitionDescription(funnel.description)} ${definitionFilters(funnel.filters)}`
+				: `Funnel "${funnel.name}" converted ${cur.completions} of ${cur.entrants} entrants, compared with ${prev.completions} previously. ${definitionHistory(funnel, previous.from, params.timezone)} ${definitionDescription(funnel.description)} ${definitionFilters(funnel.filters)}`;
+			signal.definitionEvidence = `${state ? `${state} ` : ""}${measurementEvidence}`;
+		}
 		return signal;
 	} catch (error) {
 		return handleDefinitionFailure(
@@ -541,11 +656,73 @@ export function detectFunnelGoalSignals(
 			activeDeps.fetchGoals(),
 		]);
 
-		const funnelSignals = await mapWithConcurrency(
-			funnels,
+		const definitions: Array<
+			| { definition: FunnelDef; type: "funnel" }
+			| { definition: GoalDef; type: "goal" }
+		> = [];
+		for (
+			let index = 0;
+			index < Math.max(funnels.length, goalDefs.length);
+			index += 1
+		) {
+			const funnel = funnels[index];
+			const goal = goalDefs[index];
+			if (funnel) {
+				definitions.push({ definition: funnel, type: "funnel" });
+			}
+			if (goal) {
+				definitions.push({ definition: goal, type: "goal" });
+			}
+		}
+
+		const signals = await mapWithConcurrency(
+			definitions,
 			DEFINITION_QUERY_CONCURRENCY,
-			async (funnel) => {
+			async ({ definition, type }) => {
 				try {
+					if (type === "goal") {
+						const goal = definition;
+						if (
+							!definitionPredatesComparison(
+								goal,
+								previous.from,
+								params.timezone
+							)
+						) {
+							return null;
+						}
+						const [cur, prev] = await Promise.all([
+							activeDeps.goalConversion(goal, current, deadlineSignal),
+							activeDeps.goalConversion(goal, previous, deadlineSignal),
+						]);
+						if (!hasMeaningfulConversionChange(cur, prev)) {
+							return hasZeroCompletionFailure(cur, prev)
+								? goalZeroCompletionSignal({
+										current: cur,
+										currentTo: current.to,
+										goal,
+										previous: prev,
+										previousFrom: previous.from,
+										timezone: params.timezone,
+									})
+								: null;
+						}
+						const signal = makeWowSignal(
+							`goal:${goal.id}`,
+							`Goal "${goal.name}" completion rate`,
+							cur.rate,
+							prev.rate,
+							current.to,
+							{ round: true }
+						);
+						signal.entityLabel = goal.name;
+						return {
+							...signal,
+							definitionEvidence: `Goal "${goal.name}" tracks the ${goal.type} target "${goal.target}". It completed for ${cur.completions} of ${cur.entrants} observed website visitors, compared with ${prev.completions} previously. ${definitionHistory(goal, previous.from, params.timezone)} ${definitionDescription(goal.description)} ${definitionFilters(goal.filters)}`,
+						};
+					}
+
+					const funnel = definition;
 					if (
 						!definitionPredatesComparison(
 							funnel,
@@ -559,19 +736,17 @@ export function detectFunnelGoalSignals(
 						activeDeps.funnelConversion(funnel, current, deadlineSignal),
 						activeDeps.funnelConversion(funnel, previous, deadlineSignal),
 					]);
-					if (
-						cur.entrants < MIN_ENTRANTS ||
-						prev.entrants < MIN_ENTRANTS ||
-						Math.max(cur.completions, prev.completions) < MIN_COMPLETIONS ||
-						prev.rate <= 0
-					) {
-						return null;
-					}
-					if (
-						Math.abs(safeDeltaPercent(cur.rate, prev.rate)) <
-						CONVERSION_WOW_THRESHOLD
-					) {
-						return null;
+					if (!hasMeaningfulConversionChange(cur, prev)) {
+						return hasZeroCompletionFailure(cur, prev)
+							? funnelZeroCompletionSignal({
+									current: cur,
+									currentTo: current.to,
+									funnel,
+									previous: prev,
+									previousFrom: previous.from,
+									timezone: params.timezone,
+								})
+							: null;
 					}
 					const signal = makeWowSignal(
 						`funnel:${funnel.id}`,
@@ -611,8 +786,8 @@ export function detectFunnelGoalSignals(
 					return signal;
 				} catch (error) {
 					return handleDefinitionFailure(error, deadlineSignal, {
-						definitionId: funnel.id,
-						definitionType: "funnel",
+						definitionId: definition.id,
+						definitionType: type,
 						diagnostics: options.diagnostics,
 						websiteId: params.websiteId,
 					});
@@ -621,61 +796,6 @@ export function detectFunnelGoalSignals(
 			deadlineSignal
 		);
 
-		const goalSignals = await mapWithConcurrency(
-			goalDefs,
-			DEFINITION_QUERY_CONCURRENCY,
-			async (goal) => {
-				try {
-					if (
-						!definitionPredatesComparison(goal, previous.from, params.timezone)
-					) {
-						return null;
-					}
-					const [cur, prev] = await Promise.all([
-						activeDeps.goalConversion(goal, current, deadlineSignal),
-						activeDeps.goalConversion(goal, previous, deadlineSignal),
-					]);
-					if (
-						cur.entrants < MIN_ENTRANTS ||
-						prev.entrants < MIN_ENTRANTS ||
-						Math.max(cur.completions, prev.completions) < MIN_COMPLETIONS ||
-						prev.rate <= 0
-					) {
-						return null;
-					}
-					if (
-						Math.abs(safeDeltaPercent(cur.rate, prev.rate)) <
-						CONVERSION_WOW_THRESHOLD
-					) {
-						return null;
-					}
-					const signal = makeWowSignal(
-						`goal:${goal.id}`,
-						`Goal "${goal.name}" completion rate`,
-						cur.rate,
-						prev.rate,
-						current.to,
-						{ round: true }
-					);
-					signal.entityLabel = goal.name;
-					return {
-						...signal,
-						definitionEvidence: `Goal "${goal.name}" tracks the ${goal.type} target "${goal.target}". It completed for ${cur.completions} of ${cur.entrants} observed website visitors, compared with ${prev.completions} previously. ${definitionHistory(goal, previous.from, params.timezone)} ${definitionDescription(goal.description)} ${definitionFilters(goal.filters)}`,
-					};
-				} catch (error) {
-					return handleDefinitionFailure(error, deadlineSignal, {
-						definitionId: goal.id,
-						definitionType: "goal",
-						diagnostics: options.diagnostics,
-						websiteId: params.websiteId,
-					});
-				}
-			},
-			deadlineSignal
-		);
-
-		return [...funnelSignals, ...goalSignals].filter(
-			(signal) => signal !== null
-		);
+		return signals.filter((signal) => signal !== null);
 	}, options.timeoutMs ?? DEFINITION_DETECTION_TIMEOUT_MS);
 }

@@ -387,16 +387,17 @@ export async function loadOtherOpenWork(params: {
 		}));
 }
 
-export async function findRunObservation(params: {
+export async function findRunObservations(params: {
 	organizationId: string;
 	runId: string;
 	websiteId: string;
 }) {
-	const [observation] = await db
+	const observations = await db
 		.select({
 			insightId: insightObservations.insightId,
 			outcome: insightObservations.outcome,
 			signal: insightObservations.signal,
+			signalKey: insightObservations.signalKey,
 		})
 		.from(insightObservations)
 		.where(
@@ -406,11 +407,19 @@ export async function findRunObservation(params: {
 				eq(insightObservations.websiteId, params.websiteId)
 			)
 		)
-		.limit(1);
-	if (!observation) {
-		return;
-	}
-	const outcome = parseInvestigationOutcome(observation.outcome);
-	const signal = parseInvestigationSignal(observation.signal);
-	return outcome && signal ? { ...observation, outcome, signal } : undefined;
+		.orderBy(insightObservations.signalKey, insightObservations.id);
+	return observations.flatMap((observation) => {
+		const outcome = parseInvestigationOutcome(observation.outcome);
+		const signal = parseInvestigationSignal(observation.signal);
+		return outcome && signal ? [{ ...observation, outcome, signal }] : [];
+	});
+}
+
+/** @deprecated Use findRunObservations so callers preserve all work in a run. */
+export async function findRunObservation(params: {
+	organizationId: string;
+	runId: string;
+	websiteId: string;
+}) {
+	return (await findRunObservations(params))[0];
 }

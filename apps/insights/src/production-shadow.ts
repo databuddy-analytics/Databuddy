@@ -3,6 +3,9 @@ import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { Pool, type PoolClient } from "pg";
 import type { StepResult, ToolSet } from "ai";
+import dayjs from "dayjs";
+import timezonePlugin from "dayjs/plugin/timezone";
+import utcPlugin from "dayjs/plugin/utc";
 import {
 	summarizeAgentUsage,
 	type UsageTelemetry,
@@ -11,19 +14,35 @@ import type {
 	InvestigationSources,
 	WebsiteInvestigationArtifact,
 } from "./generation";
+import { resolveInvestigationAsOf } from "./generation";
 import type { InsightAgentInput, InsightAgentResult } from "./agent";
-import type { FunnelDef, GoalDef } from "./funnel-detection";
+import type { DetectedSignal, DetectionDiagnostics } from "./detection";
+import type {
+	FunnelDef,
+	FunnelGoalDetectionDiagnostics,
+	GoalDef,
+} from "./funnel-detection";
 import type { InvestigationAnnotation } from "./investigation";
 import type { LatestInsightObservation } from "./observations";
+import { runDistinctSignalBatch } from "./batch-shadow";
+import { runBoundedWorkerFanout } from "./worker-fanout-shadow";
+
+dayjs.extend(utcPlugin);
+dayjs.extend(timezonePlugin);
 
 const REQUIRED_CONFIRMATION = "--confirm-read-only-production";
 const DEFAULT_OFFSETS = [60, 30, 7, 0];
 const DEFAULT_MIN_EVENTS = 25_000;
 const DEFAULT_CONCURRENCY = 2;
 const DEFAULT_MODEL = "openai/gpt-5.6-terra";
+const MAX_BATCH_SIZE = 3;
 const STATEMENT_TIMEOUT_MS = 60_000;
 const CASE_ATTEMPT_TIMEOUT_MS = 150_000;
+type AsOfMode = "day" | "instant";
+
 interface CliOptions {
+	asOfMode: AsOfMode;
+	batchSize: number;
 	concurrency: number;
 	limit: number | null;
 	minEvents: number;
@@ -31,6 +50,9 @@ interface CliOptions {
 	offsets: number[];
 	output: string | null;
 	referenceTime: Date;
+	websiteId: string | null;
+	workerConcurrency: number;
+	workerFanout: boolean;
 }
 
 interface RankedWebsite {
@@ -126,6 +148,8 @@ interface ShadowReport {
 	};
 	cases: ShadowCase[];
 	meta: {
+		asOfMode: AsOfMode;
+		batchSize: number;
 		concurrency: number;
 		dataAccess: {
 			clickhouse: "read_only";
@@ -142,6 +166,8 @@ interface ShadowReport {
 		offsets: number[];
 		referenceTime: string;
 		sites: number;
+		workerConcurrency: number;
+		workerFanout: boolean;
 	};
 }
 
@@ -198,6 +224,21 @@ function integerOption(value: string, name: string, minimum: number): number {
 	return parsed;
 }
 
+function batchSizeOption(value: string): number {
+	const batchSize = integerOption(value, "batch-size", 1);
+	if (batchSize > MAX_BATCH_SIZE) {
+		throw new Error(`batch-size must be at most ${MAX_BATCH_SIZE}`);
+	}
+	return batchSize;
+}
+
+function asOfModeOption(value: string): AsOfMode {
+	if (value === "day" || value === "instant") {
+		return value;
+	}
+	throw new Error("as-of-mode must be either day or instant");
+}
+
 function modelOption(value: string | undefined): string {
 	const model = value?.trim();
 	if (model) {
@@ -221,6 +262,8 @@ function parseOptions(args: string[]): CliOptions {
 	const { values } = parseArgs({
 		args,
 		options: {
+			"as-of-mode": { default: "day", type: "string" },
+			"batch-size": { default: "1", type: "string" },
 			concurrency: { default: String(DEFAULT_CONCURRENCY), type: "string" },
 			"confirm-read-only-production": { default: false, type: "boolean" },
 			limit: { type: "string" },
@@ -229,6 +272,9 @@ function parseOptions(args: string[]): CliOptions {
 			offsets: { type: "string" },
 			output: { type: "string" },
 			"reference-time": { type: "string" },
+			"website-id": { type: "string" },
+			"worker-concurrency": { default: "1", type: "string" },
+			"worker-fanout": { default: false, type: "boolean" },
 		},
 		strict: true,
 	});
@@ -243,7 +289,13 @@ function parseOptions(args: string[]): CliOptions {
 	if (new Set(offsets).size !== offsets.length) {
 		throw new Error("Offsets must be unique");
 	}
+	const asOfMode = asOfModeOption(values["as-of-mode"]);
+	if (asOfMode === "instant" && offsets.some((offset) => offset !== 0)) {
+		throw new Error("as-of-mode=instant only supports offsets=0");
+	}
 	return {
+		asOfMode,
+		batchSize: batchSizeOption(values["batch-size"]),
 		concurrency: integerOption(values.concurrency, "concurrency", 1),
 		limit: values.limit ? integerOption(values.limit, "limit", 1) : null,
 		minEvents: integerOption(values["min-events"], "min-events", 1),
@@ -251,6 +303,13 @@ function parseOptions(args: string[]): CliOptions {
 		offsets,
 		output: values.output ?? null,
 		referenceTime: resolveReferenceTime(values["reference-time"]),
+		websiteId: values["website-id"]?.trim() || null,
+		workerConcurrency: integerOption(
+			values["worker-concurrency"],
+			"worker-concurrency",
+			1
+		),
+		workerFanout: values["worker-fanout"],
 	};
 }
 
@@ -517,6 +576,21 @@ function dateAtOffset(
 	return date.toISOString().slice(0, 10);
 }
 
+export function resolveShadowAsOf(
+	referenceTime: Date,
+	offsetDays: number,
+	timezone: string,
+	asOfMode: AsOfMode
+): Date {
+	if (asOfMode === "instant") {
+		return new Date(referenceTime);
+	}
+	return resolveInvestigationAsOf(
+		dateAtOffset(referenceTime, offsetDays, timezone),
+		timezone
+	);
+}
+
 function definitionsAt<T extends { createdAt: Date; updatedAt: Date }>(
 	rows: T[],
 	asOf: Date
@@ -529,6 +603,7 @@ function definitionsAt<T extends { createdAt: Date; updatedAt: Date }>(
 async function createSources(params: {
 	annotations: AnnotationRow[];
 	asOf: Date;
+	excludedSignalKeys: ReadonlySet<string>;
 	funnels: FunnelRow[];
 	goals: GoalRow[];
 	historical: boolean;
@@ -543,17 +618,24 @@ async function createSources(params: {
 		{ createModelFromId },
 		{ detectSignals },
 		{ defaultFunnelGoalDeps, detectFunnelGoalSignals },
-		{ signalAnnotationWindow },
+		{
+			defaultMeasurementRecommendationDeps,
+			detectMeasurementRecommendationSignals,
+		},
+		{ signalAnnotationWindow, signalKeyForDetectedSignal },
 		{ createToolkit },
 		{ remeasureStoredSignal },
+		{ detectRouteHealthSignals },
 		{ runInsightAgent },
 	] = await Promise.all([
 		import("@databuddy/ai/config/models"),
 		import("./detection"),
 		import("./funnel-detection"),
+		import("./measurement-recommendation-detection"),
 		import("./investigation"),
 		import("@databuddy/ai/tools/toolkit"),
 		import("./generation"),
+		import("./route-health-detection"),
 		import("./agent"),
 	]);
 	const siteFunnels = definitionsAt(
@@ -572,6 +654,8 @@ async function createSources(params: {
 		signal
 			? AbortSignal.any([params.attemptSignal, signal])
 			: params.attemptSignal;
+	const isExcluded = (signal: DetectedSignal) =>
+		params.excludedSignalKeys.has(signalKeyForDetectedSignal(signal));
 	let historicalTools: ToolSet | undefined;
 	if (params.historical) {
 		const getData = createToolkit({ capabilities: ["analytics"] }).get_data;
@@ -598,22 +682,73 @@ async function createSources(params: {
 			) => base.goalConversion(goal, range, withAttemptSignal(signal)),
 		};
 	};
+	const measurementRecommendationDependencies = () => {
+		const base = defaultMeasurementRecommendationDeps(
+			params.site.id,
+			params.asOf,
+			params.site.timezone
+		);
+		return {
+			...base,
+			fetchDefinitionCounts: async () => ({
+				activeFunnels: siteFunnels.length,
+				activeGoals: siteGoals.length,
+			}),
+			fetchTelemetry: (
+				range: { from: string; to: string },
+				signal?: AbortSignal
+			) => base.fetchTelemetry(range, withAttemptSignal(signal)),
+		};
+	};
 	return {
-		detectDefinitionSignals: (detectParams, today, _deps, options) =>
-			detectFunnelGoalSignals(
-				detectParams,
-				today,
-				funnelGoalDependencies(),
-				options
-			),
-		detectMetricSignals: (detectParams, queryFn, today, signal, diagnostics) =>
-			detectSignals(
-				detectParams,
-				queryFn,
-				today,
-				withAttemptSignal(signal),
-				diagnostics
-			),
+		detectDefinitionSignals: async (detectParams, today, _deps, options) =>
+			(
+				await detectFunnelGoalSignals(
+					detectParams,
+					today,
+					funnelGoalDependencies(),
+					options
+				)
+			).filter((signal) => !isExcluded(signal)),
+		detectMeasurementRecommendationSignals: async (
+			detectParams,
+			today,
+			_deps,
+			signal
+		) =>
+			(
+				await detectMeasurementRecommendationSignals(
+					detectParams,
+					today,
+					measurementRecommendationDependencies(),
+					withAttemptSignal(signal)
+				)
+			).filter((candidate) => !isExcluded(candidate)),
+		detectMetricSignals: async (
+			detectParams,
+			queryFn,
+			today,
+			signal,
+			diagnostics
+		) =>
+			(
+				await detectSignals(
+					detectParams,
+					queryFn,
+					today,
+					withAttemptSignal(signal),
+					diagnostics
+				)
+			).filter((candidate) => !isExcluded(candidate)),
+		detectRouteHealthSignals: async (detectParams, today, _deps, signal) =>
+			(
+				await detectRouteHealthSignals(
+					detectParams,
+					today,
+					undefined,
+					withAttemptSignal(signal)
+				)
+			).filter((candidate) => !isExcluded(candidate)),
 		fetchAnnotations: (_websiteId, signal, _asOf, timezone) => {
 			const window = signalAnnotationWindow(signal, timezone);
 			return Promise.resolve(
@@ -654,7 +789,8 @@ async function createSources(params: {
 				.filter(
 					(observation) =>
 						observation.outcome.next.type !== "resolve" &&
-						observation.recheckAt <= params.asOf
+						observation.recheckAt <= params.asOf &&
+						!params.excludedSignalKeys.has(observation.signal.signalKey)
 				)
 				.sort(
 					(a, b) =>
@@ -699,6 +835,119 @@ async function createSources(params: {
 				{ funnelGoal: funnelGoalDependencies() }
 			),
 	};
+}
+
+interface PlannedWorkerSignal {
+	signal: DetectedSignal;
+	signalKey: string;
+}
+
+async function planWorkerSignals(params: {
+	asOf: Date;
+	batchSize: number;
+	site: RankedWebsite;
+	sources: InvestigationSources;
+	attemptSignal: AbortSignal;
+}): Promise<PlannedWorkerSignal[]> {
+	const [{ planCoveragePortfolio }, { signalKeyForDetectedSignal }] =
+		await Promise.all([
+			import("./coverage-planner"),
+			import("./investigation"),
+		]);
+	const detectParams = {
+		lookbackDays: 7,
+		timezone: params.site.timezone,
+		websiteId: params.site.id,
+	};
+	const today = dayjs(params.asOf).tz(params.site.timezone);
+	const metricDiagnostics: DetectionDiagnostics = { failedFamilies: 0 };
+	const definitionDiagnostics: FunnelGoalDetectionDiagnostics = {
+		failedDefinitions: 0,
+	};
+	const due = await params.sources.loadDueInvestigation({
+		asOf: params.asOf,
+		organizationId: params.site.organizationId,
+		websiteId: params.site.id,
+	});
+	const [
+		dueResult,
+		metricResult,
+		definitionResult,
+		measurementResult,
+		routeHealthResult,
+	] = await Promise.allSettled([
+		due
+			? params.sources.remeasureSignal(
+					detectParams,
+					due.signal,
+					today,
+					params.attemptSignal
+				)
+			: Promise.resolve(null),
+		params.sources.detectMetricSignals(
+			detectParams,
+			undefined,
+			today,
+			params.attemptSignal,
+			metricDiagnostics
+		),
+		params.sources.detectDefinitionSignals(detectParams, today, undefined, {
+			diagnostics: definitionDiagnostics,
+		}),
+		params.sources.detectMeasurementRecommendationSignals(
+			detectParams,
+			today,
+			undefined,
+			params.attemptSignal
+		),
+		params.sources.detectRouteHealthSignals(
+			detectParams,
+			today,
+			undefined,
+			params.attemptSignal
+		),
+	]);
+	const failed = [
+		dueResult,
+		metricResult,
+		definitionResult,
+		measurementResult,
+		routeHealthResult,
+	].find((result) => result.status === "rejected");
+	const signalsByKey = new Map<string, DetectedSignal>();
+	for (const signal of [
+		...(dueResult.status === "fulfilled" && dueResult.value
+			? [dueResult.value]
+			: []),
+		...(metricResult.status === "fulfilled" ? metricResult.value : []),
+		...(definitionResult.status === "fulfilled" ? definitionResult.value : []),
+		...(measurementResult.status === "fulfilled"
+			? measurementResult.value
+			: []),
+		...(routeHealthResult.status === "fulfilled"
+			? routeHealthResult.value
+			: []),
+	]) {
+		const key = signalKeyForDetectedSignal(signal);
+		if (!signalsByKey.has(key)) {
+			signalsByKey.set(key, signal);
+		}
+	}
+	if (signalsByKey.size === 0 && failed?.status === "rejected") {
+		throw failed.reason;
+	}
+	return planCoveragePortfolio([...signalsByKey.values()], {
+		dueSignalKey:
+			dueResult.status === "fulfilled" && dueResult.value
+				? signalKeyForDetectedSignal(dueResult.value)
+				: null,
+		reason: "manual",
+	})
+		.slice(0, params.batchSize)
+		.map((signal) => ({
+			signal,
+			signalKey: signalKeyForDetectedSignal(signal),
+		}));
 }
 
 async function runCancellableAttempt<T>(
@@ -856,7 +1105,7 @@ function sanitizeOutcome(
 		: null;
 }
 
-function metricFamily(key: string): string {
+export function metricFamily(key: string): string {
 	if (key.startsWith("goal:")) {
 		return "goal";
 	}
@@ -865,6 +1114,15 @@ function metricFamily(key: string): string {
 	}
 	if (key.startsWith("custom_event:")) {
 		return "custom_event";
+	}
+	if (key.startsWith("error:")) {
+		return "error";
+	}
+	if (key.startsWith("route:")) {
+		return "route_health";
+	}
+	if (key.startsWith("measurement:")) {
+		return "measurement";
 	}
 	return key;
 }
@@ -935,6 +1193,49 @@ function projectTraceUsage(
 	};
 }
 
+function subjectAliasForSignal(
+	signal: NonNullable<WebsiteInvestigationArtifact["signal"]>,
+	subjectAliases: Map<string, string>
+): string | null {
+	const subjectKey = `${signal.entity.type}:${signal.entity.id}`;
+	const existing = subjectAliases.get(subjectKey);
+	if (existing) {
+		return existing;
+	}
+	const normalized = signal.entity.type.replaceAll("_", " ");
+	const entity = `${normalized[0]?.toUpperCase() ?? ""}${normalized.slice(1)}`;
+	const alias = `${entity} ${subjectAliases.size + 1}`;
+	subjectAliases.set(subjectKey, alias);
+	return alias;
+}
+
+function subjectAliasFor(
+	artifact: WebsiteInvestigationArtifact,
+	subjectAliases: Map<string, string>
+): string | null {
+	return artifact.signal
+		? subjectAliasForSignal(artifact.signal, subjectAliases)
+		: null;
+}
+
+function projectSelectedSignal(
+	signal: WebsiteInvestigationArtifact["signal"],
+	subjectAlias: string | null
+): ShadowCase["selectedSignal"] {
+	return signal
+		? {
+				changePercent: signal.changePercent,
+				current: signal.metric.current,
+				entityType: signal.entity.type,
+				metric: metricFamily(signal.signalKey),
+				period: signal.period,
+				previous: signal.metric.previous ?? null,
+				severity: signal.severity,
+				subject: subjectAlias ?? "[entity]",
+			}
+		: null;
+}
+
 function projectCase(params: {
 	agent: ShadowAgentUsage | null;
 	artifact: WebsiteInvestigationArtifact;
@@ -962,18 +1263,7 @@ function projectCase(params: {
 					}
 				: undefined
 		),
-		selectedSignal: artifact.signal
-			? {
-					changePercent: artifact.signal.changePercent,
-					current: artifact.signal.metric.current,
-					entityType: artifact.signal.entity.type,
-					metric: metricFamily(artifact.signal.signalKey),
-					period: artifact.signal.period,
-					previous: artifact.signal.metric.previous ?? null,
-					severity: artifact.signal.severity,
-					subject: params.subjectAlias ?? "[entity]",
-				}
-			: null,
+		selectedSignal: projectSelectedSignal(artifact.signal, params.subjectAlias),
 		status: artifact.status,
 		trace: params.trace.map(({ tools }) => ({ tools })),
 		toolCallCount: params.trace.reduce(
@@ -989,7 +1279,9 @@ function failedCase(params: {
 	caseId: string;
 	durationMs: number;
 	error: unknown;
+	selectedSignal?: WebsiteInvestigationArtifact["signal"];
 	secrets: string[];
+	subjectAlias?: string | null;
 	trace: InsightAgentStepTrace[];
 }): ShadowCase {
 	const cause =
@@ -1015,7 +1307,10 @@ function failedCase(params: {
 				? params.error.constructor.name
 				: typeof params.error,
 		outcome: null,
-		selectedSignal: null,
+		selectedSignal: projectSelectedSignal(
+			params.selectedSignal ?? null,
+			params.subjectAlias ?? null
+		),
 		status: "error",
 		trace: params.trace.map(({ tools }) => ({ tools })),
 		toolCallCount: params.trace.reduce(
@@ -1105,16 +1400,19 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 	const referenceTime = options.referenceTime;
 	const restoreConsole = silenceLibraryConsole();
 	try {
-		const ranked = await loadCohort(
-			options.minEvents,
-			options.limit,
-			referenceTime
-		);
+		const ranked = options.websiteId
+			? [options.websiteId]
+			: await loadCohort(options.minEvents, options.limit, referenceTime);
 		const metadata = await loadMetadata(ranked);
 		const [
-			{ investigateWebsiteWithSources, resolveInvestigationAsOf },
+			{ investigateWebsiteWithSources },
+			{ prepareInvestigation },
 			{ nextRecheckAt },
-		] = await Promise.all([import("./generation"), import("./observations")]);
+		] = await Promise.all([
+			import("./generation"),
+			import("./investigation"),
+			import("./observations"),
+		]);
 		const siteCases = await mapConcurrent(
 			metadata.sites,
 			options.concurrency,
@@ -1145,94 +1443,317 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 						.map((row) => row.text),
 				];
 				for (const offsetDays of [...options.offsets].sort((a, b) => b - a)) {
-					const caseId = `site-${String(siteIndex + 1).padStart(2, "0")}@d-${offsetDays}`;
-					const asOf = resolveInvestigationAsOf(
-						dateAtOffset(referenceTime, offsetDays, site.timezone),
-						site.timezone
+					const caseIdPrefix = `site-${String(siteIndex + 1).padStart(2, "0")}@d-${offsetDays}`;
+					const asOf = resolveShadowAsOf(
+						referenceTime,
+						offsetDays,
+						site.timezone,
+						options.asOfMode
 					);
-					const startedAt = Date.now();
-					const trace: InsightAgentStepTrace[] = [];
-					let agent: ShadowAgentUsage | null = null;
-					try {
-						const input = {
-							asOf,
-							domain: site.domain,
-							githubRepository: offsetDays === 0 ? site.githubRepository : null,
-							name: site.name,
-							organizationId: site.organizationId,
-							timezone: site.timezone,
-							websiteId: site.id,
-						};
-						const artifact = await runCancellableAttempt(
-							async (attemptSignal) => {
+					const offsetStartedAt = Date.now();
+					const input = {
+						asOf,
+						domain: site.domain,
+						forceRecheck: true,
+						githubRepository: offsetDays === 0 ? site.githubRepository : null,
+						name: site.name,
+						organizationId: site.organizationId,
+						timezone: site.timezone,
+						websiteId: site.id,
+					};
+					if (options.workerFanout) {
+						const preRunObservations = [...observations];
+						let planned: PlannedWorkerSignal[];
+						try {
+							planned = await runCancellableAttempt(async (attemptSignal) => {
 								const sources = await createSources({
 									annotations: metadata.annotations,
 									asOf,
 									attemptSignal,
+									excludedSignalKeys: new Set<string>(),
 									funnels: metadata.funnels,
 									goals: metadata.goals,
 									historical: offsetDays > 0,
 									model: options.model,
-									observations,
-									onAgentResult: (result) => {
-										agent = projectAgentUsage(result);
-									},
+									observations: preRunObservations,
+									onAgentResult: () => undefined,
 									site,
+									trace: [],
+								});
+								return planWorkerSignals({
+									asOf,
+									attemptSignal,
+									batchSize: options.batchSize,
+									site,
+									sources,
+								});
+							});
+						} catch (error) {
+							cases.push(
+								failedCase({
+									agent: null,
+									asOf,
+									caseId: `${caseIdPrefix}#plan-error`,
+									durationMs: Date.now() - offsetStartedAt,
+									error,
+									secrets: siteSecrets,
+									trace: [],
+								})
+							);
+							continue;
+						}
+						if (planned.length === 0) {
+							cases.push(
+								projectCase({
+									agent: null,
+									artifact: {
+										asOf: asOf.toISOString(),
+										evidence: [],
+										outcome: null,
+										signal: null,
+										status: "no_signals",
+									},
+									caseId: `${caseIdPrefix}#worker-0`,
+									durationMs: Date.now() - offsetStartedAt,
+									secrets: siteSecrets,
+									subjectAlias: null,
+									trace: [],
+								})
+							);
+							continue;
+						}
+						const attemptsBySignal = new Map<
+							string,
+							{
+								agent: ShadowAgentUsage | null;
+								durationMs: number;
+								trace: InsightAgentStepTrace[];
+							}
+						>();
+						const workerResults = await runBoundedWorkerFanout(
+							planned,
+							options.workerConcurrency,
+							async (worker) => {
+								const startedAt = Date.now();
+								const trace: InsightAgentStepTrace[] = [];
+								let agent: ShadowAgentUsage | null = null;
+								try {
+									const artifact = await runCancellableAttempt(
+										async (attemptSignal) => {
+											const sources = await createSources({
+												annotations: metadata.annotations,
+												asOf,
+												attemptSignal,
+												excludedSignalKeys: new Set<string>(),
+												funnels: metadata.funnels,
+												goals: metadata.goals,
+												historical: offsetDays > 0,
+												model: options.model,
+												observations: preRunObservations,
+												onAgentResult: (result) => {
+													agent = projectAgentUsage(result);
+												},
+												site,
+												trace,
+											});
+											return investigateWebsiteWithSources(
+												{ ...input, selectedSignalKey: worker.signalKey },
+												sources
+											);
+										}
+									);
+									attemptsBySignal.set(worker.signalKey, {
+										agent,
+										durationMs: Date.now() - startedAt,
+										trace,
+									});
+									return artifact;
+								} catch (error) {
+									attemptsBySignal.set(worker.signalKey, {
+										agent: agent ?? projectTraceUsage(trace),
+										durationMs: Date.now() - startedAt,
+										trace,
+									});
+									throw error;
+								}
+							}
+						);
+						for (const [workerIndex, result] of workerResults.entries()) {
+							const attempt = attemptsBySignal.get(
+								result.candidate.signalKey
+							) ?? {
+								agent: null,
+								durationMs: 0,
+								trace: [],
+							};
+							if (result.status === "rejected") {
+								const selectedSignal = prepareInvestigation(
+									result.candidate.signal,
+									7
+								).signal;
+								const subjectAlias = subjectAliasForSignal(
+									selectedSignal,
+									subjectAliases
+								);
+								cases.push(
+									failedCase({
+										agent: attempt.agent,
+										asOf,
+										caseId: `${caseIdPrefix}#worker-${workerIndex + 1}`,
+										durationMs: attempt.durationMs,
+										error: result.reason,
+										selectedSignal,
+										secrets: [
+											...siteSecrets,
+											selectedSignal.entity.id,
+											selectedSignal.entity.label,
+										],
+										subjectAlias,
+										trace: attempt.trace,
+									})
+								);
+								continue;
+							}
+							const artifact = result.value;
+							const secrets = [
+								...siteSecrets,
+								artifact.signal?.entity.id ?? "",
+								artifact.signal?.entity.label ?? "",
+							];
+							cases.push(
+								projectCase({
+									agent: attempt.agent,
+									artifact,
+									caseId: `${caseIdPrefix}#worker-${workerIndex + 1}`,
+									durationMs: attempt.durationMs,
+									secrets,
+									subjectAlias: subjectAliasFor(artifact, subjectAliases),
+									trace: attempt.trace,
+								})
+							);
+						}
+						continue;
+					}
+					const attempts = new WeakMap<
+						WebsiteInvestigationArtifact,
+						{
+							agent: ShadowAgentUsage | null;
+							durationMs: number;
+							trace: InsightAgentStepTrace[];
+						}
+					>();
+					let failedAttempt:
+						| {
+								agent: ShadowAgentUsage | null;
+								durationMs: number;
+								trace: InsightAgentStepTrace[];
+						  }
+						| undefined;
+					try {
+						const artifacts = await runDistinctSignalBatch(
+							options.batchSize,
+							async (excludedSignalKeys) => {
+								const startedAt = Date.now();
+								const trace: InsightAgentStepTrace[] = [];
+								let agent: ShadowAgentUsage | null = null;
+								let artifact: WebsiteInvestigationArtifact;
+								try {
+									artifact = await runCancellableAttempt(
+										async (attemptSignal) => {
+											const sources = await createSources({
+												annotations: metadata.annotations,
+												asOf,
+												attemptSignal,
+												excludedSignalKeys,
+												funnels: metadata.funnels,
+												goals: metadata.goals,
+												historical: offsetDays > 0,
+												model: options.model,
+												observations,
+												onAgentResult: (result) => {
+													agent = projectAgentUsage(result);
+												},
+												site,
+												trace,
+											});
+											return investigateWebsiteWithSources(input, sources);
+										}
+									);
+								} catch (error) {
+									failedAttempt = {
+										agent: agent ?? projectTraceUsage(trace),
+										durationMs: Date.now() - startedAt,
+										trace,
+									};
+									throw error;
+								}
+								attempts.set(artifact, {
+									agent,
+									durationMs: Date.now() - startedAt,
 									trace,
 								});
-								return investigateWebsiteWithSources(input, sources);
+								return artifact;
+							},
+							(artifact) => {
+								if (artifact.outcome && artifact.signal) {
+									observations.push({
+										asOf,
+										evidence: artifact.evidence,
+										outcome: artifact.outcome,
+										recheckAt: nextRecheckAt(asOf, artifact.outcome.next),
+										signal: artifact.signal,
+									});
+								}
 							}
 						);
-						if (artifact.outcome && artifact.signal) {
-							observations.push({
-								asOf,
-								evidence: artifact.evidence,
-								outcome: artifact.outcome,
-								recheckAt: nextRecheckAt(asOf, artifact.outcome.next),
-								signal: artifact.signal,
-							});
-						}
-						const secrets = [
-							...siteSecrets,
-							artifact.signal?.entity.id ?? "",
-							artifact.signal?.entity.label ?? "",
-						];
-						let subjectAlias: string | null = null;
-						if (artifact.signal) {
-							const subjectKey = `${artifact.signal.entity.type}:${artifact.signal.entity.id}`;
-							subjectAlias = subjectAliases.get(subjectKey) ?? null;
-							if (!subjectAlias) {
-								const normalized = artifact.signal.entity.type.replaceAll(
-									"_",
-									" "
-								);
-								const entity = `${normalized[0]?.toUpperCase() ?? ""}${normalized.slice(1)}`;
-								subjectAlias = `${entity} ${subjectAliases.size + 1}`;
-								subjectAliases.set(subjectKey, subjectAlias);
+						for (const [batchIndex, artifact] of artifacts.entries()) {
+							const attempt = attempts.get(artifact) ?? {
+								agent: failedAttempt?.agent ?? null,
+								durationMs: 0,
+								trace: [],
+							};
+							const secrets = [
+								...siteSecrets,
+								artifact.signal?.entity.id ?? "",
+								artifact.signal?.entity.label ?? "",
+							];
+							let subjectAlias: string | null = null;
+							if (artifact.signal) {
+								const subjectKey = `${artifact.signal.entity.type}:${artifact.signal.entity.id}`;
+								subjectAlias = subjectAliases.get(subjectKey) ?? null;
+								if (!subjectAlias) {
+									const normalized = artifact.signal.entity.type.replaceAll(
+										"_",
+										" "
+									);
+									const entity = `${normalized[0]?.toUpperCase() ?? ""}${normalized.slice(1)}`;
+									subjectAlias = `${entity} ${subjectAliases.size + 1}`;
+									subjectAliases.set(subjectKey, subjectAlias);
+								}
 							}
+							cases.push(
+								projectCase({
+									agent: attempt.agent,
+									artifact,
+									caseId: `${caseIdPrefix}#${batchIndex + 1}`,
+									durationMs: attempt.durationMs,
+									secrets,
+									subjectAlias,
+									trace: attempt.trace,
+								})
+							);
 						}
-						cases.push(
-							projectCase({
-								agent,
-								artifact,
-								caseId,
-								durationMs: Date.now() - startedAt,
-								secrets,
-								subjectAlias,
-								trace,
-							})
-						);
 					} catch (error) {
-						agent ??= projectTraceUsage(trace);
 						cases.push(
 							failedCase({
-								agent,
+								agent: failedAttempt?.agent ?? null,
 								asOf,
-								caseId,
-								durationMs: Date.now() - startedAt,
+								caseId: `${caseIdPrefix}#error`,
+								durationMs:
+									failedAttempt?.durationMs ?? Date.now() - offsetStartedAt,
 								error,
 								secrets: siteSecrets,
-								trace,
+								trace: failedAttempt?.trace ?? [],
 							})
 						);
 					}
@@ -1245,6 +1766,8 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 			aggregate: aggregateCases(cases),
 			cases,
 			meta: {
+				asOfMode: options.asOfMode,
+				batchSize: options.batchSize,
 				concurrency: options.concurrency,
 				dataAccess: {
 					clickhouse: "read_only",
@@ -1261,6 +1784,8 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 				offsets: options.offsets,
 				referenceTime: referenceTime.toISOString(),
 				sites: metadata.sites.length,
+				workerConcurrency: options.workerConcurrency,
+				workerFanout: options.workerFanout,
 			},
 		};
 	} finally {

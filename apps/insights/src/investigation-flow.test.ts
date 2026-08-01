@@ -52,6 +52,34 @@ const outcome: InvestigationOutcome = {
 	},
 };
 
+const agentOutcome = {
+	...outcome,
+	evidenceRefs: [
+		{ index: 0, source: "provided" as const },
+		{ index: 1, source: "provided" as const },
+	],
+};
+
+const goalDraftOutcome = {
+	...agentOutcome,
+	next: {
+		reason: "The observed completion event can be reviewed as a goal draft.",
+		type: "resolve" as const,
+	},
+	recommendation: {
+		action: "Review a goal for completed signup.",
+		draft: {
+			description: "Counts visitors who complete signup.",
+			filters: [],
+			ignoreHistoricData: false,
+			name: "Signup completed",
+			target: "signup_completed",
+			type: "EVENT" as const,
+		},
+		kind: "goal_draft" as const,
+	},
+};
+
 const usage = {
 	inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
 	outputTokens: { total: 1, text: 1, reasoning: 0 },
@@ -81,7 +109,7 @@ function outputResponse(value: unknown) {
 	};
 }
 
-function outputModel(value: unknown = outcome) {
+function outputModel(value: unknown = agentOutcome) {
 	return new MockLanguageModelV3({
 		doGenerate: mockValues(outputResponse(value)),
 	});
@@ -137,6 +165,66 @@ describe("intelligence agent", () => {
 		);
 	});
 
+	it("accepts an observed event as a review-only goal draft", async () => {
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence,
+				githubRepository: null,
+				history: [],
+				measurementCandidate: {
+					basis: "observed_custom_event",
+					kind: "event_goal_candidate",
+					target: "signup_completed",
+					type: "EVENT",
+				},
+				otherOpenWork: [],
+				signal,
+			},
+			{ model: outputModel(goalDraftOutcome), tools: {} }
+		);
+
+		expect(result.outcome.recommendation).toEqual(
+			goalDraftOutcome.recommendation
+		);
+		expect(result.outcome.next.type).toBe("resolve");
+	});
+
+	it("rejects a navigation proxy as a goal draft without inspected evidence", async () => {
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					githubRepository: null,
+					history: [],
+					measurementCandidate: {
+						basis: "observed_navigation_proxy",
+						kind: "page_navigation_proxy",
+						target: "/signup",
+						type: "PAGE_VIEW",
+					},
+					otherOpenWork: [],
+					signal,
+				},
+				{
+					model: outputModel({
+						...goalDraftOutcome,
+						recommendation: {
+							...goalDraftOutcome.recommendation,
+							draft: {
+								...goalDraftOutcome.recommendation.draft,
+								target: "/signup",
+								type: "PAGE_VIEW",
+							},
+						},
+					}),
+					tools: {},
+				}
+			)
+		).rejects.toThrow("navigation proxies cannot become goal drafts");
+	});
+
 	it("can inspect evidence before returning structured output", async () => {
 		const model = new MockLanguageModelV3({
 			doGenerate: mockValues(
@@ -153,7 +241,7 @@ describe("intelligence agent", () => {
 					usage,
 					warnings: [],
 				},
-				outputResponse(outcome)
+				outputResponse(agentOutcome)
 			),
 		});
 		const result = await runInsightAgent(
@@ -196,6 +284,124 @@ describe("intelligence agent", () => {
 				{ model: outputModel({ title: "Incomplete" }), tools: {} }
 			)
 		).rejects.toThrow();
+	});
+
+	it("rejects evidence references that were not available to the agent", async () => {
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+					signal,
+				},
+				{
+					model: outputModel({
+						...agentOutcome,
+						evidenceRefs: [
+							{ index: 2, source: "provided" },
+							{ index: 1, source: "provided" },
+						],
+					}),
+					tools: {},
+				}
+			)
+		).rejects.toThrow("cited supplied evidence");
+	});
+
+	it("rejects evidence references to tools the agent did not use", async () => {
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+					signal,
+				},
+				{
+					model: outputModel({
+						...agentOutcome,
+						evidenceRefs: [
+							{ name: "get_data", source: "tool" },
+							{ index: 1, source: "provided" },
+						],
+					}),
+					tools: {},
+				}
+			)
+		).rejects.toThrow("cited a read tool");
+	});
+
+	it("rejects rechecks scheduled before the investigation", async () => {
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+					signal,
+				},
+				{
+					model: outputModel({
+						...agentOutcome,
+						next: {
+							...agentOutcome.next,
+							recheckAt: "2026-07-11T00:00:00.000Z",
+						},
+					}),
+					tools: {},
+				}
+			)
+		).rejects.toThrow("scheduled a recheck");
+	});
+
+	it("renders watch copy from its structured threshold", async () => {
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal,
+			},
+		{
+			model: outputModel({
+				...agentOutcome,
+				impact: null,
+				next: {
+					escalation: "Ignore this generated copy.",
+					recheckAt: "2026-07-15T00:00:00.000Z",
+					threshold: {
+						anchor: "prior_baseline",
+						comparison: "below",
+						evidenceRef: { index: 0, source: "provided" },
+						value: 800,
+					},
+					type: "watch",
+				},
+			}),
+			tools: {},
+		}
+		);
+
+		expect(result.outcome.next).toEqual({
+			escalation: "Escalate when Visitors is below 800 (prior baseline).",
+			recheckAt: "2026-07-15T00:00:00.000Z",
+			threshold: {
+				anchor: "prior_baseline",
+				comparison: "below",
+				evidenceRef: { index: 0, source: "provided" },
+				value: 800,
+			},
+			type: "watch",
+		});
 	});
 
 	it("replays prior outcomes and new human context", async () => {

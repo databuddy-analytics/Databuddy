@@ -39,6 +39,7 @@ import {
 import { recordInsightReplyFailure, resumeInsightReply } from "./resume";
 import {
 	findRunObservation,
+	findRunObservations,
 	loadDueOpenInvestigation,
 	loadInvestigationHistory,
 	loadLatestSignalObservations,
@@ -46,6 +47,7 @@ import {
 } from "./observations";
 import {
 	drainInsightRunEffects,
+	enqueueInsightRunEffects,
 	loadPreparedInsightRun,
 	prepareInsightRun,
 } from "./effects";
@@ -262,6 +264,66 @@ describeIntegration("insights idempotency integration", () => {
 				.where(eq(insightObservations.runId, runId)),
 		]);
 		expect(stored.title).toBe(observation.outcome.title);
+	});
+
+	it("persists and replays distinct signal observations from one website run", async () => {
+		const organization = await insertOrganization();
+		const website = await insertWebsite({ organizationId: organization.id });
+		const runId = randomUUIDv7();
+		const asOf = new Date("2026-07-10T10:00:00.000Z");
+		await db().insert(insightRuns).values({
+			id: runId,
+			organizationId: organization.id,
+			status: "running",
+		});
+		const checkout = websiteInvestigation({
+			title: "Checkout completion fell",
+			website,
+		});
+		const revenue = {
+			...websiteInvestigation({ title: "Revenue declined", website }),
+			signal: prepareInvestigation(
+				{
+					baseline: 500,
+					current: 250,
+					deltaPercent: -50,
+					detectedAt: "2026-07-10",
+					direction: "down",
+					label: "Revenue",
+					method: "wow",
+					metric: "revenue",
+					severity: "warning",
+				},
+				7
+			).signal,
+		};
+
+		await persistInvestigation({
+			investigation: checkout,
+			notNewerThan: asOf,
+			organizationId: organization.id,
+			recheckAt: new Date("2026-07-17T10:00:00.000Z"),
+			runId,
+			timezone: "UTC",
+		});
+		await persistInvestigation({
+			investigation: revenue,
+			notNewerThan: asOf,
+			organizationId: organization.id,
+			recheckAt: new Date("2026-07-17T10:00:00.000Z"),
+			runId,
+			timezone: "UTC",
+		});
+
+		const replay = await findRunObservations({
+			organizationId: organization.id,
+			runId,
+			websiteId: website.id,
+		});
+		expect(replay.map((observation) => observation.signal.signalKey)).toEqual([
+			"checkout",
+			"revenue",
+		]);
 	});
 
 	it("loads only unresolved sibling work available at the investigation clock", async () => {
@@ -1500,7 +1562,11 @@ describeIntegration("insights idempotency integration", () => {
 				},
 			])
 			.onConflictDoNothing({
-				target: [insightObservations.runId, insightObservations.websiteId],
+				target: [
+					insightObservations.runId,
+					insightObservations.websiteId,
+					insightObservations.signalKey,
+				],
 			});
 
 		const rows = await db()
@@ -1713,6 +1779,38 @@ describeIntegration("insights idempotency integration", () => {
 			})
 		).rejects.toThrow("failed external effect");
 		expect(replayCalls).toBe(0);
+	});
+
+	it("queues a persisted portfolio candidate effect without completing its run", async () => {
+		const { identity } = await runItemFixture();
+		const effects = [
+			{
+				effectKey: "channel-a:insight-a",
+				payload: {
+					blocks: [],
+					channelId: "channel-a",
+					insightId: "insight-a",
+					text: "A completed candidate",
+				},
+			},
+		];
+
+		await enqueueInsightRunEffects({ ...identity, effects });
+		await enqueueInsightRunEffects({ ...identity, effects });
+
+		const [[item], rows] = await Promise.all([
+			db()
+				.select({ preparedAt: insightRunItems.preparedAt })
+				.from(insightRunItems)
+				.where(eq(insightRunItems.id, identity.itemId)),
+			db()
+				.select({ effectKey: insightRunEffects.effectKey })
+				.from(insightRunEffects)
+				.where(eq(insightRunEffects.runItemId, identity.itemId)),
+		]);
+
+		expect(item.preparedAt).toBeNull();
+		expect(rows).toEqual([{ effectKey: "channel-a:insight-a" }]);
 	});
 
 	it("reuses the original Slack thread for recurring case delivery", async () => {

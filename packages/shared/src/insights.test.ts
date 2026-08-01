@@ -2,6 +2,8 @@ import { describe, expect, it } from "bun:test";
 import {
 	agentInvestigationOutcomeSchema,
 	insightBriefItemSchema,
+	insightMeasurementRecommendationSchema,
+	insightRecommendationSchema,
 	investigationOutcomeSchema,
 	investigationSignalSchema,
 	parseInvestigationOutcome,
@@ -110,6 +112,145 @@ const outcomeBase = {
 	},
 };
 
+const agentFields = {
+	evidenceRefs: [{ index: 0, source: "provided" as const }],
+};
+
+const goalDraftRecommendation = {
+	action: "Create a goal for completed signup pages.",
+	draft: {
+		description: "Counts visitors who reach the completed signup page.",
+		filters: [],
+		ignoreHistoricData: false,
+		name: "Signup completed",
+		target: "/sign-up/complete",
+		type: "PAGE_VIEW" as const,
+	},
+	kind: "goal_draft" as const,
+};
+
+const funnelDraftRecommendation = {
+	action: "Create a signup journey funnel.",
+	draft: {
+		description: "Measures progression from signup to onboarding.",
+		filters: [],
+		ignoreHistoricData: false,
+		name: "Signup journey",
+		steps: [
+			{ name: "Sign up", target: "/sign-up", type: "PAGE_VIEW" as const },
+			{
+				name: "Onboarding complete",
+				target: "onboarding_completed",
+				type: "EVENT" as const,
+			},
+		],
+	},
+	kind: "funnel_draft" as const,
+};
+
+const instrumentationRecommendation = {
+	action: "Instrument the activation milestones before creating a funnel.",
+	events: [
+		{
+			description: "Emit when a visitor completes signup.",
+			name: "signup_completed",
+		},
+		{
+			description: "Emit when a visitor completes onboarding.",
+			name: "onboarding_completed",
+		},
+	],
+	kind: "instrumentation" as const,
+};
+
+describe("insightMeasurementRecommendationSchema", () => {
+	it("accepts strict goal, funnel, and instrumentation recommendations", () => {
+		for (const recommendation of [
+			goalDraftRecommendation,
+			funnelDraftRecommendation,
+			instrumentationRecommendation,
+		]) {
+			expect(
+				insightMeasurementRecommendationSchema.safeParse(recommendation).success
+			).toBe(true);
+		}
+	});
+
+	it("keeps draft targets executable without widening goal actions", () => {
+		for (const invalid of [
+			{
+				...goalDraftRecommendation,
+				draft: { ...goalDraftRecommendation.draft, type: "CUSTOM" },
+			},
+			{
+				...goalDraftRecommendation,
+				draft: {
+					...goalDraftRecommendation.draft,
+					filters: [
+						{ field: "country", operator: "equals", value: "US" },
+					],
+				},
+			},
+			{
+				...funnelDraftRecommendation,
+				draft: {
+					...funnelDraftRecommendation.draft,
+					steps: [funnelDraftRecommendation.draft.steps[0]],
+				},
+			},
+			{
+				...funnelDraftRecommendation,
+				draft: {
+					...funnelDraftRecommendation.draft,
+					filters: [
+						{ field: "country", operator: "equals", value: "US" },
+					],
+				},
+			},
+			{
+				...funnelDraftRecommendation,
+				draft: {
+					...funnelDraftRecommendation.draft,
+					steps: [
+						{
+							...funnelDraftRecommendation.draft.steps[0],
+							conditions: { plan: "pro" },
+						},
+						funnelDraftRecommendation.draft.steps[1],
+					],
+				},
+			},
+			{
+				...instrumentationRecommendation,
+				events: [{ name: "signup_completed" }],
+			},
+			{
+				...instrumentationRecommendation,
+				events: [
+					instrumentationRecommendation.events[0],
+					instrumentationRecommendation.events[0],
+				],
+			},
+			{ ...goalDraftRecommendation, operation: "edit" },
+		]) {
+			expect(
+				insightMeasurementRecommendationSchema.safeParse(invalid).success
+			).toBe(false);
+		}
+	});
+
+	it("preserves legacy generic and null recommendations", () => {
+		expect(
+			insightRecommendationSchema.safeParse({
+				action: "Review the pricing-page CTA.",
+				changes: null,
+				operation: null,
+			}).success
+		).toBe(true);
+		expect(insightRecommendationSchema.safeParse(null).success).toBe(true);
+	});
+});
+
 describe("insightBriefItemSchema", () => {
 	it("keeps readable context and measured signal data without case mechanics", () => {
 		const recommendation = {
@@ -152,6 +293,27 @@ describe("insightBriefItemSchema", () => {
 			}).success
 		).toBe(false);
 	});
+
+	it("returns a typed measurement recommendation", () => {
+		const parsed = insightBriefItemSchema.parse({
+			asOf: "2026-07-07T00:00:00.000Z",
+			createdAt: "2026-07-07T01:00:00.000Z",
+			evidence: outcomeBase.evidence,
+			id: "observation-2",
+			impact: outcomeBase.impact,
+			investigationId: null,
+			recommendation: funnelDraftRecommendation,
+			rootCause: outcomeBase.rootCause,
+			signal,
+			summary: outcomeBase.summary,
+			title: outcomeBase.title,
+			websiteDomain: "example.com",
+			websiteId: "site-1",
+			websiteName: "Example",
+		});
+
+		expect(parsed.recommendation).toEqual(funnelDraftRecommendation);
+	});
 });
 
 describe("investigationOutcomeSchema", () => {
@@ -162,6 +324,7 @@ describe("investigationOutcomeSchema", () => {
 		expect(
 			agentInvestigationOutcomeSchema.safeParse({
 				...outcomeBase,
+				...agentFields,
 				publish: true,
 				recommendation: null,
 			}).success
@@ -201,6 +364,58 @@ describe("investigationOutcomeSchema", () => {
 		).toBe(false);
 	});
 
+	it("accepts a published measurement recommendation without an executable action", () => {
+		const outcome = {
+			...outcomeBase,
+			publish: true,
+			recommendation: instrumentationRecommendation,
+		};
+
+		expect(investigationOutcomeSchema.safeParse(outcome).success).toBe(true);
+		expect(
+			agentInvestigationOutcomeSchema.safeParse({
+				...outcome,
+				...agentFields,
+			}).success
+		).toBe(true);
+	});
+
+	it("keeps measurement drafts separate from actions and execution", () => {
+		const action = {
+			action: "Rename Signup completed to Signup completion.",
+			execution: {
+				action: "Rename Signup completed to Signup completion.",
+				changes: { description: null, name: "Signup completion" },
+				operation: "edit" as const,
+			},
+			recheckAt: "2026-07-20T12:00:00.000Z",
+			target: "Signup completed goal",
+			type: "act" as const,
+			verification: "The goal name reflects its configured target.",
+		};
+
+		expect(
+			investigationOutcomeSchema.safeParse({
+				...outcomeBase,
+				next: action,
+				publish: true,
+				recommendation: goalDraftRecommendation,
+				rootCause: "The goal name no longer reflects its configured target.",
+			}).success
+		).toBe(false);
+		expect(
+			investigationOutcomeSchema.safeParse({
+				...outcomeBase,
+				next: {
+					question: "Which event marks completed signup?",
+					type: "ask",
+				},
+				publish: true,
+				recommendation: funnelDraftRecommendation,
+			}).success
+		).toBe(false);
+	});
+
 	it("requires an exact future measurement window from the agent", () => {
 		const action = {
 			action: "Roll back the checkout handler.",
@@ -212,6 +427,7 @@ describe("investigationOutcomeSchema", () => {
 		expect(
 			agentInvestigationOutcomeSchema.safeParse({
 				...outcomeBase,
+				...agentFields,
 				next: action,
 				publish: true,
 				recommendation: null,
@@ -221,6 +437,7 @@ describe("investigationOutcomeSchema", () => {
 		expect(
 			agentInvestigationOutcomeSchema.safeParse({
 				...outcomeBase,
+				...agentFields,
 				next: { ...action, recheckAt: "2026-07-20T12:00:00.000Z" },
 				publish: true,
 				recommendation: null,
@@ -244,6 +461,7 @@ describe("investigationOutcomeSchema", () => {
 		};
 		const candidate = {
 			...outcomeBase,
+			...agentFields,
 			next: action,
 			publish: true,
 			recommendation: null,
@@ -298,6 +516,7 @@ describe("investigationOutcomeSchema", () => {
 		const accepts = (candidate: unknown) =>
 			agentInvestigationOutcomeSchema.safeParse({
 				...outcomeBase,
+				...agentFields,
 				publish: true,
 				recommendation: candidate,
 			}).success;
@@ -322,6 +541,52 @@ describe("investigationOutcomeSchema", () => {
 		] as const) {
 			expect(accepts(candidate)).toBe(expected);
 		}
+	});
+
+	it("requires a structured, evidence-backed watch condition from the agent", () => {
+		const watch = {
+			escalation: "Escalate if visitors fall below the baseline.",
+			recheckAt: "2026-07-20T12:00:00.000Z",
+			threshold: {
+				anchor: "prior_baseline" as const,
+				comparison: "below" as const,
+				evidenceRef: { index: 0, source: "provided" as const },
+				value: 800,
+			},
+			type: "watch" as const,
+		};
+		const candidate = {
+			...outcomeBase,
+			...agentFields,
+			next: watch,
+			publish: false,
+			recommendation: null,
+		};
+
+		expect(agentInvestigationOutcomeSchema.safeParse(candidate).success).toBe(
+			true
+		);
+		expect(
+			agentInvestigationOutcomeSchema.safeParse({
+				...candidate,
+				next: { ...watch, threshold: undefined },
+			}).success
+		).toBe(false);
+		expect(
+			agentInvestigationOutcomeSchema.safeParse({
+				...candidate,
+				next: {
+					...watch,
+					threshold: { ...watch.threshold, evidenceRef: undefined },
+				},
+			}).success
+		).toBe(false);
+		expect(
+			agentInvestigationOutcomeSchema.safeParse({
+				...candidate,
+				evidenceRefs: [],
+			}).success
+		).toBe(false);
 	});
 
 	it("accepts concise output with measured or unknown impact", () => {

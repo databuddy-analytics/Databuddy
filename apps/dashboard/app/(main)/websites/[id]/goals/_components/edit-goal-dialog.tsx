@@ -2,12 +2,13 @@
 
 import { AutocompleteInput } from "@/components/ui/autocomplete-input";
 import { FilterRow } from "@/components/ui/filter-row";
+import type { InsightMeasurementRecommendation } from "@databuddy/shared/insights";
 import type { AutocompleteData } from "@/hooks/use-autocomplete";
 import { goalFunnelOperatorOptions, useFilters } from "@/hooks/use-filters";
 import type { CreateGoalData, Goal } from "@/hooks/use-goals";
 import { goalFunnelFilterOptions } from "@/lib/filter-options";
 import type { GoalFilter } from "@/types/api";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	FunnelIcon as FunnelSimpleIcon,
 	GearIcon,
@@ -33,9 +34,15 @@ interface GoalFormData {
 	type: string;
 }
 
+export type GoalDraft = Extract<
+	InsightMeasurementRecommendation,
+	{ kind: "goal_draft" }
+>["draft"];
+
 interface EditGoalDialogProps {
 	autocompleteData?: AutocompleteData;
 	goal: Goal | null;
+	initialDraft?: GoalDraft;
 	isOpen: boolean;
 	isSaving: boolean;
 	onClose: () => void;
@@ -47,13 +54,25 @@ export function EditGoalDialog({
 	onClose,
 	onSave,
 	goal,
+	initialDraft,
 	isSaving,
 	autocompleteData,
 }: EditGoalDialogProps) {
 	const [formData, setFormData] = useState<GoalFormData | null>(null);
+	const wasOpen = useRef(false);
 	const isCreateMode = !goal;
+	const isSuggestedDraft = isCreateMode && Boolean(initialDraft);
 
 	useEffect(() => {
+		if (!isOpen) {
+			wasOpen.current = false;
+			return;
+		}
+		if (wasOpen.current) {
+			return;
+		}
+		wasOpen.current = true;
+
 		if (goal) {
 			const sanitizedFilters = ((goal.filters as GoalFilter[]) || []).map(
 				(f) => ({
@@ -70,6 +89,18 @@ export function EditGoalDialog({
 				filters: sanitizedFilters,
 				ignoreHistoricData: goal.ignoreHistoricData ?? false,
 			});
+		} else if (initialDraft) {
+			setFormData({
+				name: initialDraft.name,
+				description: initialDraft.description,
+				type: initialDraft.type,
+				target: initialDraft.target,
+				filters: initialDraft.filters.map((filter) => ({
+					...filter,
+					operator: filter.operator || "equals",
+				})),
+				ignoreHistoricData: initialDraft.ignoreHistoricData,
+			});
 		} else {
 			setFormData({
 				name: "",
@@ -80,7 +111,7 @@ export function EditGoalDialog({
 				ignoreHistoricData: false,
 			});
 		}
-	}, [goal]);
+	}, [goal, initialDraft, isOpen]);
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -198,11 +229,17 @@ export function EditGoalDialog({
 						</div>
 						<div>
 							<Sheet.Title className="text-lg">
-								{isCreateMode ? "New Goal" : formData.name || "Edit Goal"}
+								{isCreateMode
+									? isSuggestedDraft
+										? "Review Goal Draft"
+										: "New Goal"
+									: formData.name || "Edit Goal"}
 							</Sheet.Title>
 							<Sheet.Description>
 								{isCreateMode
-									? "Track single-step conversions"
+									? isSuggestedDraft
+										? "Review and adjust this proposed conversion before creating it"
+										: "Track single-step conversions"
 									: "Update goal settings"}
 							</Sheet.Description>
 						</div>

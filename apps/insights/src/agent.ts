@@ -7,8 +7,12 @@ import {
 import { getAILogger } from "@databuddy/ai/lib/ai-logger";
 import {
 	agentInvestigationOutcomeSchema,
+	investigationOutcomeSchema,
+	type AgentInvestigationOutcome,
 	type InvestigationOutcome,
 	type InvestigationSignal,
+	type InsightMeasurementRecommendation,
+	type InsightWatchThreshold,
 } from "@databuddy/shared/insights";
 import {
 	type LanguageModel,
@@ -19,6 +23,7 @@ import {
 	type ToolSet,
 	ToolLoopAgent,
 } from "ai";
+import type { MeasurementCandidate } from "./detection";
 
 const MAX_STEPS = 8;
 const TIMEOUT_MS = 2 * 60_000;
@@ -49,6 +54,7 @@ export interface InsightAgentInput {
 				kind: "reply";
 		  }
 	)[];
+	measurementCandidate?: MeasurementCandidate;
 	otherOpenWork: {
 		asOf: string;
 		next: InterruptingNext;
@@ -90,7 +96,9 @@ Return one next outcome:
 Act and ask interrupt people. Use either only when the result is worth interrupting a teammate now. A missing description or unclear name alone is not an alert.
 When an action changes the named goal's title or description, set next.execution to the exact goal edit so Databuddy can apply it transactionally on click. When an action removes a duplicated or useless named goal, set next.execution to the exact delete. Omit execution for code, tracking, external, or any other action that Databuddy cannot safely apply itself. Never provide an execution for a different entity.
 For every act or watch, set next.recheckAt to the earliest exact ISO 8601 time after asOf when its verification or escalation condition can be measured. Use the actual measurement window or sample window, not a generic tomorrow. Never schedule a recheck before the window can answer the condition; when no defensible time exists, resolve or ask instead.
+For every evidence item, return one evidenceRefs item in the same order. Use source=provided with the zero-based supplied-evidence index for supplied facts, or source=tool with the exact name of a read tool you used. Never cite a tool you did not use. For every watch, return next.threshold with the exact native-unit value, comparison, defensible anchor, and evidenceRef. The system writes the customer-facing escalation sentence from this structured condition.
 A recommendation is one concrete, non-interrupting next step on a published insight; otherwise use null. Name the exact object and evidence-backed change, never generic narrowing or an invented target. Code, hosting, browser, or integration recommendations require inspected source or configuration; an error message, stack, route, or common implementation pattern is not enough. If source access is the next move, use ask and recommendation null rather than proposing a speculative repair. Goal edits put the proposed name and business description in changes, with null for an unchanged field, and action names the proposed value. Goal deletes and non-goal recommendations use null changes. operation is null unless the exact goal editor action is edit or delete. Never combine a recommendation with act or ask, confuse an event with a goal, or claim a proposal was applied, fixed, or verified.
+When supplied or inspected evidence establishes an exact measurement candidate, you may return a typed goal_draft or funnel_draft recommendation. measurementCandidate is a backend-verified candidate: copy its target exactly, and never turn a page_navigation_proxy into a goal or funnel draft. Copy only the exact PAGE_VIEW path or EVENT name that evidence establishes; never infer a target, invent an event, use CUSTOM, add conditions, or widen the 24-hour funnel window. A goal draft has one target; a funnel draft has two to ten ordered steps. These drafts are review-only: set next to resolve, omit next.execution, and explain that the teammate can edit the normal setup form before saving. Route-only evidence proves navigation, not a business conversion. Label a route-only funnel as a navigation proxy and prefer an instrumentation recommendation when the missing product event is the real limitation. An instrumentation recommendation is display-only, names the behavior that needs measurement, and must never claim a goal or funnel already exists.
 Measured reliability or performance harm to a named cohort is impact even when revenue is unknown. A goal or funnel that contradicts its configured purpose or inspected source is broken tracking: act on the exact definition and verification, with no recommendation. Without a configured purpose, do not invent or ask for one. If an undescribed goal combines unrelated behaviors, explain what it measures, put the exact target and filters in rootCause, state what the number cannot tell the teammate in impact, and resolve because no isolated failure is proven. Recommend renaming and describing the broad goal, or creating a narrower goal from an existing purpose-specific event; delete only a duplicate or useless goal. Publish this limitation once. If its description already defines broad engagement, keep it and investigate the change.
 An improvement from a failing value to another failing value is not recovery. For performance regressions, identify the worst meaningful route and affected traffic before deciding; if the metric remains unhealthy and code ownership is missing, ask for that ownership instead of inventing a fix or waiting on a noise-sensitive threshold. The same rule applies to ongoing reliability harm: when a current failure affects a material named cohort and repair needs source access, ask for the owning repository now; do not watch it merely because the exact code mechanism is not yet inspected.
 An event name does not prove whether more or less is good. Never resolve an unexplained event change from its name alone; inspect its definition, emission code, related workflow, and revenue evidence. If its meaning remains unknown, do not open a case for ambiguity alone; ask only when an external fact gates an already-material fix.
@@ -127,6 +135,174 @@ function promptSignal(signal: InvestigationSignal) {
 		period: signal.period,
 		...(signal.baselineDates ? { baselineDates: signal.baselineDates } : {}),
 	};
+}
+
+const watchAnchorCopy: Record<InsightWatchThreshold["anchor"], string> = {
+	configured_target: "configured target",
+	healthy_range: "healthy range",
+	measured_severity: "measured severity",
+	prior_baseline: "prior baseline",
+};
+
+const watchComparisonCopy: Record<InsightWatchThreshold["comparison"], string> =
+	{
+		at_or_above: "at or above",
+		at_or_below: "at or below",
+		above: "above",
+		below: "below",
+	};
+
+function formatWatchValue(
+	value: number,
+	format: InvestigationSignal["metric"]["format"]
+): string {
+	if (format === "percent") {
+		return new Intl.NumberFormat("en", {
+			maximumFractionDigits: 1,
+			style: "percent",
+		}).format(value);
+	}
+	if (format === "duration_ms") {
+		return `${value.toLocaleString("en-US")} ms`;
+	}
+	if (format === "duration_s") {
+		return `${value.toLocaleString("en-US")} seconds`;
+	}
+	return value.toLocaleString("en-US", { maximumFractionDigits: 2 });
+}
+
+function formatWatchEscalation(
+	signal: InvestigationSignal,
+	threshold: InsightWatchThreshold
+): string {
+	return `Escalate when ${signal.metric.label} is ${watchComparisonCopy[threshold.comparison]} ${formatWatchValue(threshold.value, signal.metric.format)} (${watchAnchorCopy[threshold.anchor]}).`;
+}
+
+function measurementRecommendation(
+	recommendation: AgentInvestigationOutcome["recommendation"]
+): InsightMeasurementRecommendation | null {
+	return recommendation && "kind" in recommendation ? recommendation : null;
+}
+
+function validateMeasurementRecommendation(
+	outcome: AgentInvestigationOutcome,
+	input: Pick<InsightAgentInput, "measurementCandidate">,
+	usedToolNames: ReadonlySet<string>
+) {
+	const recommendation = measurementRecommendation(outcome.recommendation);
+	if (!recommendation) {
+		return;
+	}
+	if (outcome.next.type !== "resolve") {
+		throw new Error(
+			"Insights measurement recommendations must resolve without an executable action"
+		);
+	}
+
+	const hasInspectedEvidence = usedToolNames.size > 0;
+	const candidate = input.measurementCandidate;
+	if (recommendation.kind === "goal_draft") {
+		if (
+			candidate?.kind === "page_navigation_proxy" &&
+			recommendation.draft.type === candidate.type &&
+			recommendation.draft.target === candidate.target
+		) {
+			throw new Error("Insights navigation proxies cannot become goal drafts");
+		}
+		const matchesObservedEvent =
+			candidate?.kind === "event_goal_candidate" &&
+			candidate.target === recommendation.draft.target &&
+			candidate.type === recommendation.draft.type;
+		if (!(matchesObservedEvent || hasInspectedEvidence)) {
+			throw new Error(
+				"Insights goal drafts require an observed event candidate or inspected evidence"
+			);
+		}
+		return;
+	}
+	if (
+		recommendation.kind === "funnel_draft" &&
+		candidate?.kind === "page_navigation_proxy" &&
+		recommendation.draft.steps.some(
+			(step) => step.type === candidate.type && step.target === candidate.target
+		)
+	) {
+		throw new Error(
+			"Insights navigation proxies cannot become funnel draft steps"
+		);
+	}
+	if (recommendation.kind === "funnel_draft" && !hasInspectedEvidence) {
+		throw new Error(
+			"Insights funnel drafts require inspected evidence for every ordered step"
+		);
+	}
+	if (
+		recommendation.kind === "instrumentation" &&
+		!(candidate || hasInspectedEvidence)
+	) {
+		throw new Error(
+			"Insights instrumentation recommendations require an observed coverage gap or inspected evidence"
+		);
+	}
+}
+
+function validateAgentOutcome(
+	outcome: AgentInvestigationOutcome,
+	input: Pick<
+		InsightAgentInput,
+		"appContext" | "evidence" | "measurementCandidate" | "signal"
+	>,
+	usedToolNames: ReadonlySet<string>
+): InvestigationOutcome {
+	const asOf = new Date(input.appContext.currentDateTime);
+	function validateEvidenceRef(
+		evidenceRef: AgentInvestigationOutcome["evidenceRefs"][number]
+	) {
+		if (
+			evidenceRef.source === "provided" &&
+			evidenceRef.index >= input.evidence.length
+		) {
+			throw new Error(
+				"Insights agent cited supplied evidence that was not available in this investigation"
+			);
+		}
+		if (evidenceRef.source === "tool" && !usedToolNames.has(evidenceRef.name)) {
+			throw new Error(
+				"Insights agent cited a read tool that was not used in this investigation"
+			);
+		}
+	}
+	for (const evidenceRef of outcome.evidenceRefs) {
+		validateEvidenceRef(evidenceRef);
+	}
+	validateMeasurementRecommendation(outcome, input, usedToolNames);
+	if (outcome.next.type === "act" || outcome.next.type === "watch") {
+		const recheckAt = outcome.next.recheckAt;
+		if (!recheckAt || new Date(recheckAt).getTime() <= asOf.getTime()) {
+			throw new Error(
+				"Insights agent scheduled a recheck before this investigation"
+			);
+		}
+	}
+
+	let next: InvestigationOutcome["next"] = outcome.next;
+	if (outcome.next.type === "watch") {
+		const threshold = outcome.next.threshold;
+		if (!threshold) {
+			throw new Error("Insights agent returned a watch without a threshold");
+		}
+		if (!threshold.evidenceRef) {
+			throw new Error(
+				"Insights agent returned a watch threshold without evidence"
+			);
+		}
+		validateEvidenceRef(threshold.evidenceRef);
+		next = {
+			...outcome.next,
+			escalation: formatWatchEscalation(input.signal, threshold),
+		};
+	}
+	return investigationOutcomeSchema.parse({ ...outcome, next });
 }
 
 export async function runInsightAgent(
@@ -206,6 +382,7 @@ export async function runInsightAgent(
 					: item
 			),
 			otherOpenWork: input.otherOpenWork,
+			measurementCandidate: input.measurementCandidate ?? null,
 			...(input.request
 				? {
 						request: {
@@ -219,13 +396,22 @@ export async function runInsightAgent(
 		}),
 		timeout: { totalMs: TIMEOUT_MS },
 	});
+	const toolCallCount = result.steps.reduce(
+		(count, step) => count + step.toolCalls.length,
+		0
+	);
 	return {
 		modelId: result.response.modelId,
-		outcome: result.output,
-		toolCallCount: result.steps.reduce(
-			(count, step) => count + step.toolCalls.length,
-			0
+		outcome: validateAgentOutcome(
+			result.output,
+			input,
+			new Set(
+				result.steps.flatMap((step) =>
+					step.toolCalls.map((toolCall) => toolCall.toolName)
+				)
+			)
 		),
+		toolCallCount,
 		usage: result.totalUsage,
 	};
 }

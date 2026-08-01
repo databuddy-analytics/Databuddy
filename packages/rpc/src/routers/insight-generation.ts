@@ -6,6 +6,7 @@ import {
 	inArray,
 	isNull,
 	isUniqueViolationFor,
+	sql,
 	withTransaction,
 } from "@databuddy/db";
 import {
@@ -632,34 +633,57 @@ export const insightGenerationRouter = {
 			});
 		}),
 
-	getRun: protectedProcedure
+	getLatestRun: protectedProcedure
 		.route({
 			method: "POST",
-			path: "/insights/generation/getRun",
-			summary: "Get insight generation run",
+			path: "/insights/generation/getLatestRun",
+			summary: "Get the latest insight generation run",
 			tags: ["Insights"],
 		})
-		.input(z.object({ runId: z.string() }))
-		.output(z.object({ status: runStatusSchema }))
+		.input(organizationScopeSchema)
+		.output(
+			z
+				.object({
+					completedItems: z.number(),
+					failedItems: z.number(),
+					id: z.string(),
+					insightCount: z.number(),
+					skippedItems: z.number(),
+					status: runStatusSchema,
+					totalItems: z.number(),
+				})
+				.nullable()
+		)
 		.handler(async ({ context, input }) => {
+			const organizationId = await resolveOrganization(context, input, "read");
 			const [run] = await db
 				.select({
-					organizationId: insightRuns.organizationId,
+					completedItems: insightRuns.completedItems,
+					failedItems: insightRuns.failedItems,
+					id: insightRuns.id,
+					skippedItems: insightRuns.skippedItems,
 					status: insightRuns.status,
+					totalItems: insightRuns.totalItems,
 				})
 				.from(insightRuns)
-				.where(eq(insightRuns.id, input.runId))
+				.where(eq(insightRuns.organizationId, organizationId))
+				.orderBy(desc(insightRuns.createdAt))
 				.limit(1);
 			if (!run) {
-				throw rpcError.notFound("InsightRun", input.runId);
+				return null;
 			}
+			const [count] = await db
+				.select({
+					insightCount: sql<number>`coalesce(sum(${insightRunItems.resultCount}), 0)::integer`,
+				})
+				.from(insightRunItems)
+				.where(
+					and(
+						eq(insightRunItems.runId, run.id),
+						eq(insightRunItems.organizationId, organizationId)
+					)
+				);
 
-			await withWorkspace(context, {
-				organizationId: run.organizationId,
-				resource: "organization",
-				permissions: ["read"],
-			});
-
-			return { status: run.status };
+			return { ...run, insightCount: count?.insightCount ?? 0 };
 		}),
 };

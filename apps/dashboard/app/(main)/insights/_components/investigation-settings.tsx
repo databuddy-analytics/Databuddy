@@ -3,9 +3,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { insightQueries } from "@/lib/insight-api";
 import { orpc } from "@/lib/orpc";
-import { Button, Field, Skeleton, guessTimezone } from "@databuddy/ui";
+import { Button, Field, Skeleton, Spinner, guessTimezone } from "@databuddy/ui";
 import {
 	CaretUpDownIcon,
 	FloppyDiskIcon,
@@ -22,6 +21,7 @@ interface ConfigFormState {
 }
 
 interface InvestigationSettingsProps {
+	isAnalyzing: boolean;
 	organizationId?: string;
 }
 
@@ -39,21 +39,17 @@ const SCHEDULE_OPTIONS: { label: string; value: Schedule }[] = [
 const TIMEZONES = Intl.supportedValuesOf("timeZone");
 
 export function InvestigationSettings({
+	isAnalyzing,
 	organizationId,
 }: InvestigationSettingsProps) {
 	const queryClient = useQueryClient();
 	const [open, setOpen] = useState(false);
 	const [form, setForm] = useState(DEFAULT_FORM);
-	const [runId, setRunId] = useState<string>();
 	const refreshConfig = useCallback(
 		() =>
 			queryClient.invalidateQueries({
 				queryKey: orpc.insightGeneration.key(),
 			}),
-		[queryClient]
-	);
-	const refreshInvestigations = useCallback(
-		() => queryClient.invalidateQueries({ queryKey: insightQueries.all() }),
 		[queryClient]
 	);
 	const configQuery = useQuery({
@@ -78,43 +74,6 @@ export function InvestigationSettings({
 		});
 	}, [configQuery.data]);
 
-	const runQuery = useQuery({
-		...orpc.insightGeneration.getRun.queryOptions({
-			input: { runId: runId ?? "" },
-		}),
-		enabled: Boolean(runId),
-		refetchInterval: (query) => {
-			if (query.state.error) {
-				return false;
-			}
-			const status = query.state.data?.status;
-			return !status || status === "queued" || status === "running"
-				? 2000
-				: false;
-		},
-	});
-
-	useEffect(() => {
-		if (runId && runQuery.isError) {
-			setRunId(undefined);
-			return;
-		}
-		const status = runQuery.data?.status;
-		if (!(runId && status) || status === "queued" || status === "running") {
-			return;
-		}
-		setRunId(undefined);
-		Promise.all([refreshConfig(), refreshInvestigations()]).catch(() => {
-			toast.error("Analysis finished, but results could not be refreshed");
-		});
-	}, [
-		refreshConfig,
-		refreshInvestigations,
-		runId,
-		runQuery.data?.status,
-		runQuery.isError,
-	]);
-
 	const saveMutation = useMutation({
 		...orpc.insightGeneration.upsertConfig.mutationOptions(),
 		onError: (error) =>
@@ -134,29 +93,19 @@ export function InvestigationSettings({
 			if (data.reusedRun) {
 				toast.info("Analysis is already running");
 			} else if (data.status === "queued") {
-				toast.success(
-					`Queued ${data.queuedItems} website${data.queuedItems === 1 ? "" : "s"}`
-				);
+				toast.success("Analysis started");
 			} else if (data.status === "disabled") {
 				toast.info("Scheduled analysis is disabled");
 			} else {
 				toast.info("No websites available");
-			}
-			if (data.runId && data.status === "queued") {
-				setRunId(data.runId);
-			} else {
-				await refreshInvestigations();
 			}
 			await refreshConfig();
 			setOpen(false);
 		},
 	});
 
-	const isBusy =
-		configQuery.isLoading ||
-		saveMutation.isPending ||
-		triggerMutation.isPending ||
-		Boolean(runId);
+	const analysisPending = isAnalyzing || triggerMutation.isPending;
+	const isBusy = configQuery.isLoading || saveMutation.isPending || analysisPending;
 
 	return (
 		<Sheet onOpenChange={setOpen} open={open}>
@@ -168,8 +117,14 @@ export function InvestigationSettings({
 						type="button"
 						variant="secondary"
 					>
-						<GearIcon className="size-4" weight="duotone" />
-						<span className="hidden sm:inline">Analysis</span>
+						{analysisPending ? (
+							<Spinner size="sm" />
+						) : (
+							<GearIcon className="size-4" weight="duotone" />
+						)}
+						<span className="hidden sm:inline">
+							{analysisPending ? "Analyzing…" : "Analysis"}
+						</span>
 					</Button>
 				}
 			/>
@@ -241,8 +196,12 @@ export function InvestigationSettings({
 						type="button"
 						variant="secondary"
 					>
-						<MediaPlayIcon className="size-4" />
-						Run now
+						{analysisPending ? (
+							<Spinner size="sm" />
+						) : (
+							<MediaPlayIcon className="size-4" />
+						)}
+						{analysisPending ? "Analyzing…" : "Run now"}
 					</Button>
 					<Button
 						disabled={!organizationId || isBusy}

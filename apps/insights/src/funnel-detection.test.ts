@@ -345,9 +345,9 @@ describe("detectFunnelGoalSignals", () => {
 			expected: undefined,
 		},
 		{
-			name: "ignores dramatic funnel deltas caused by only a few completions",
-			current: funnelResult(0, 18_245),
-			previous: funnelResult(0.01, 19_516),
+			name: "ignores low-volume funnel completions without a zero-completion state",
+			current: funnelResult(0.01, 18_245, 1),
+			previous: funnelResult(0.01, 19_516, 2),
 			expected: undefined,
 		},
 	] as const) {
@@ -473,6 +473,256 @@ describe("detectFunnelGoalSignals", () => {
 		);
 		const investigation = prepareInvestigation(signals[0], 7);
 		expect(investigation.evidence[0]).toBe(signals[0]?.definitionEvidence);
+		expect(signals[0]?.subjectKey).toBeUndefined();
+	});
+
+	it("reports a persistent zero-completion goal with its own stable subject", async () => {
+		let call = 0;
+		const [signal] = await detectFunnelGoalSignals(
+			PARAMS,
+			TODAY,
+			makeDeps({
+				fetchGoals: async () => [GOAL],
+				goalConversion: async () => {
+					call += 1;
+					return call === 1
+						? goalResult(0, 0, 100)
+						: goalResult(0, 0, 120);
+				},
+			})
+		);
+
+		expect(signal).toMatchObject({
+			current: 0,
+			baseline: 0,
+			direction: "down",
+			metric: "goal:g1",
+			severity: "warning",
+			subjectKey: "goal:g1:zero-completions",
+		});
+		expect(signal?.definitionEvidence).toContain(
+			"completed for 0 of 100 observed website visitors, compared with 0 of 120 previously"
+		);
+		const investigation = prepareInvestigation(signal, 7).signal;
+		expect(investigation).toMatchObject({
+			entity: { id: "g1", type: "goal" },
+			signalKey: "goal:g1:zero-completions",
+			sentiment: "negative",
+		});
+	});
+
+	it("reports zero current goal completions below the usual WoW completion floor", async () => {
+		let call = 0;
+		const [signal] = await detectFunnelGoalSignals(
+			PARAMS,
+			TODAY,
+			makeDeps({
+				fetchGoals: async () => [GOAL],
+				goalConversion: async () => {
+					call += 1;
+					return call === 1
+						? goalResult(0, 0, 100)
+						: goalResult(1.67, 2, 120);
+				},
+			})
+		);
+
+		expect(signal).toMatchObject({
+			baseline: 1.67,
+			current: 0,
+			direction: "down",
+			subjectKey: "goal:g1:zero-completions",
+		});
+	});
+
+	it("reports a persistent zero-completion funnel with its own stable subject", async () => {
+		let call = 0;
+		const [signal] = await detectFunnelGoalSignals(
+			PARAMS,
+			TODAY,
+			makeDeps({
+				fetchFunnels: async () => [FUNNEL],
+				funnelConversion: async () => {
+					call += 1;
+					return call === 1
+						? funnelResult(0, 100, 0)
+						: funnelResult(0, 120, 0);
+				},
+			})
+		);
+
+		expect(signal).toMatchObject({
+			direction: "down",
+			metric: "funnel:f1",
+			severity: "warning",
+			subjectKey: "funnel:f1:zero-completions",
+		});
+		expect(signal?.definitionEvidence).toContain(
+			'Funnel "Checkout" completed 0 of 100 entrants, compared with 0 of 120 previously'
+		);
+		const investigation = prepareInvestigation(signal, 7).signal;
+		expect(investigation).toMatchObject({
+			entity: { id: "f1", type: "funnel" },
+			signalKey: "funnel:f1:zero-completions",
+			sentiment: "negative",
+		});
+	});
+
+	it("does not report persistent zero completions below the conservative traffic floor", async () => {
+		let call = 0;
+		const signals = await detectFunnelGoalSignals(
+			PARAMS,
+			TODAY,
+			makeDeps({
+				fetchGoals: async () => [GOAL],
+				goalConversion: async () => {
+					call += 1;
+					return call === 1
+						? goalResult(0, 0, 49)
+						: goalResult(0, 0, 120);
+				},
+			})
+		);
+
+		expect(signals).toEqual([]);
+	});
+
+	it("does not report persistent zero completions for a changed definition", async () => {
+		const changedGoal = {
+			...GOAL,
+			updatedAt: new Date("2026-05-20T00:00:00.000Z"),
+		};
+		const signals = await detectFunnelGoalSignals(
+			PARAMS,
+			TODAY,
+			makeDeps({
+				fetchGoals: async () => [changedGoal],
+				goalConversion: async () => goalResult(0, 0, 100),
+			})
+		);
+
+		expect(signals).toEqual([]);
+	});
+
+	it("remeasures persistent zero-completion goals without losing their state subject", async () => {
+		const prior = prepareInvestigation(
+			{
+				baseline: 0,
+				current: 0,
+				deltaPercent: 0,
+				detectedAt: "2026-05-21",
+				direction: "down",
+				entityLabel: "Signup",
+				label: 'Goal "Signup" has no completions',
+				method: "wow",
+				metric: "goal:g1",
+				severity: "warning",
+				subjectKey: "goal:g1:zero-completions",
+			},
+			7
+		).signal;
+		let call = 0;
+		const signal = await remeasureFunnelGoalSignal(
+			PARAMS,
+			prior,
+			TODAY,
+			makeDeps({
+				fetchGoals: async () => [GOAL],
+				goalConversion: async () => {
+					call += 1;
+					return call === 1
+						? goalResult(0, 0, 100)
+						: goalResult(0, 0, 120);
+				},
+			})
+		);
+
+		expect(signal).toMatchObject({
+			direction: "down",
+			metric: "goal:g1",
+			subjectKey: "goal:g1:zero-completions",
+		});
+	});
+
+	it("remeasures a recovered zero-completion goal as positive", async () => {
+		const prior = prepareInvestigation(
+			{
+				baseline: 0,
+				current: 0,
+				deltaPercent: 0,
+				detectedAt: "2026-05-21",
+				direction: "down",
+				entityLabel: "Signup",
+				label: 'Goal "Signup" has no completions',
+				method: "wow",
+				metric: "goal:g1",
+				severity: "warning",
+				subjectKey: "goal:g1:zero-completions",
+			},
+			7
+		).signal;
+		let call = 0;
+		const signal = await remeasureFunnelGoalSignal(
+			PARAMS,
+			prior,
+			TODAY,
+			makeDeps({
+				fetchGoals: async () => [GOAL],
+				goalConversion: async () => {
+					call += 1;
+					return call === 1
+						? goalResult(5, 5, 100)
+						: goalResult(0, 0, 120);
+				},
+			})
+		);
+
+		expect(signal).toMatchObject({
+			current: 5,
+			direction: "up",
+			subjectKey: "goal:g1:zero-completions",
+		});
+		expect(prepareInvestigation(signal!, 7).signal.sentiment).toBe("positive");
+	});
+
+	it("remeasures persistent zero-completion funnels without losing their state subject", async () => {
+		const prior = prepareInvestigation(
+			{
+				baseline: 0,
+				current: 0,
+				deltaPercent: 0,
+				detectedAt: "2026-05-21",
+				direction: "down",
+				entityLabel: "Checkout",
+				label: 'Funnel "Checkout" has no completions',
+				method: "wow",
+				metric: "funnel:f1",
+				severity: "warning",
+				subjectKey: "funnel:f1:zero-completions",
+			},
+			7
+		).signal;
+		let call = 0;
+		const signal = await remeasureFunnelGoalSignal(
+			PARAMS,
+			prior,
+			TODAY,
+			makeDeps({
+				fetchFunnels: async () => [FUNNEL],
+				funnelConversion: async () => {
+					call += 1;
+					return call === 1
+						? funnelResult(0, 100, 0)
+						: funnelResult(0, 120, 0);
+				},
+			})
+		);
+
+		expect(signal).toMatchObject({
+			direction: "down",
+			metric: "funnel:f1",
+			subjectKey: "funnel:f1:zero-completions",
+		});
 	});
 
 	it("reports partial regressions without pre-classifying an action", async () => {

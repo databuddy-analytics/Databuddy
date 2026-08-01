@@ -8,6 +8,25 @@ import { emitInsightsEvent } from "./lib/evlog-insights";
 dayjs.extend(utcPlugin);
 dayjs.extend(timezonePlugin);
 
+/**
+ * A bounded, canonical telemetry target that an investigation agent may use
+ * when proposing measurement setup. It deliberately excludes raw paths,
+ * query strings, and dynamic identifiers.
+ */
+export type MeasurementCandidate =
+	| {
+			basis: "observed_custom_event";
+			kind: "event_goal_candidate";
+			target: string;
+			type: "EVENT";
+	  }
+	| {
+			basis: "observed_navigation_proxy";
+			kind: "page_navigation_proxy";
+			target: string;
+			type: "PAGE_VIEW";
+	  };
+
 export interface DetectedSignal {
 	baseline: number;
 	baselineDates?: string[];
@@ -19,6 +38,7 @@ export interface DetectedSignal {
 	entityId?: string;
 	entityLabel?: string;
 	label: string;
+	measurementCandidate?: MeasurementCandidate;
 	method: "zscore" | "wow";
 	metric: string;
 	severity: "critical" | "warning" | "info";
@@ -900,34 +920,36 @@ async function detectWow(
 		);
 	}
 
-	const summary = await readDetectorPair({
-		abortSignal,
-		current: () => query("summary_metrics", currentFrom, currentTo),
-		family: "summary",
-		previous: () => query("summary_metrics", previousFrom, previousTo),
-		websiteId,
-	});
-	const errors = await readDetectorPair({
-		abortSignal,
-		current: () => query("error_fingerprints", currentFrom, currentTo),
-		family: "errors",
-		previous: () => query("error_fingerprints", previousFrom, previousTo),
-		websiteId,
-	});
-	const revenue = await readDetectorPair({
-		abortSignal,
-		current: () => query("revenue_overview", currentFrom, currentTo),
-		family: "revenue",
-		previous: () => query("revenue_overview", previousFrom, previousTo),
-		websiteId,
-	});
-	const vitals = await readDetectorPair({
-		abortSignal,
-		current: () => query("vitals_overview", currentFrom, currentTo),
-		family: "vitals",
-		previous: () => query("vitals_overview", previousFrom, previousTo),
-		websiteId,
-	});
+	const [summary, errors, revenue, vitals] = await Promise.all([
+		readDetectorPair({
+			abortSignal,
+			current: () => query("summary_metrics", currentFrom, currentTo),
+			family: "summary",
+			previous: () => query("summary_metrics", previousFrom, previousTo),
+			websiteId,
+		}),
+		readDetectorPair({
+			abortSignal,
+			current: () => query("error_fingerprints", currentFrom, currentTo),
+			family: "errors",
+			previous: () => query("error_fingerprints", previousFrom, previousTo),
+			websiteId,
+		}),
+		readDetectorPair({
+			abortSignal,
+			current: () => query("revenue_overview", currentFrom, currentTo),
+			family: "revenue",
+			previous: () => query("revenue_overview", previousFrom, previousTo),
+			websiteId,
+		}),
+		readDetectorPair({
+			abortSignal,
+			current: () => query("vitals_overview", currentFrom, currentTo),
+			family: "vitals",
+			previous: () => query("vitals_overview", previousFrom, previousTo),
+			websiteId,
+		}),
+	]);
 	const [currentSummary, previousSummary] = summary.value ?? [[], []];
 	const [currentErrors, previousErrors] = errors.value ?? [[], []];
 	const [currentRevenue, previousRevenue] = revenue.value ?? [[], []];
