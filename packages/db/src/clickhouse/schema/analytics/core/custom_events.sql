@@ -18,11 +18,10 @@ CREATE TABLE IF NOT EXISTS analytics.custom_events
 	INDEX idx_namespace namespace TYPE bloom_filter(0.01) GRANULARITY 1,
 	INDEX idx_website_id website_id TYPE bloom_filter(0.01) GRANULARITY 1,
 	INDEX idx_source source TYPE bloom_filter(0.01) GRANULARITY 1,
-	INDEX idx_profile_id profile_id TYPE bloom_filter(0.01) GRANULARITY 1,
-	INDEX idx_timestamp timestamp TYPE minmax GRANULARITY 1
+	INDEX idx_profile_id profile_id TYPE bloom_filter(0.01) GRANULARITY 1
 )
 ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/analytics_custom_events_delivery_v2', '{replica}', ingested_at)
 PARTITION BY toDate(timestamp)
-PRIMARY KEY owner_id
-ORDER BY (owner_id, delivery_key)
+PRIMARY KEY (owner_id, event_name, timestamp)
+ORDER BY (owner_id, event_name, timestamp, delivery_key)
 SETTINGS index_granularity = 8192

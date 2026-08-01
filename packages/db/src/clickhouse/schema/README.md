@@ -36,11 +36,16 @@ need ClickHouse Keeper enabled (a one-node Keeper is fine).
 The Basket/Vector delivery tables use `ReplicatedReplacingMergeTree` with a
 stable row identity and an `ingested_at` version. Background merges reclaim
 duplicate storage asynchronously; the shared ClickHouse readers add `FINAL`
-to these table relations without changing other MergeTree reads. Because retry
-timestamps on historical Vector rows may differ from their payload timestamps,
-reads intentionally finalize across partitions. The date/month partitions and
-timestamp minmax indexes retain time-range pruning while stable identity stays
-the replacement key.
+through a scoped query setting without changing unrelated MergeTree reads. The
+sorting keys keep their existing tenant/time prefix and append stable identity,
+so tenant time-window queries retain primary-key locality under `FINAL`.
+Vector keeps Kafka record time in `kafka_timestamp`, leaving the analytics
+payload timestamp immutable across exact-message retries; every other sort-key
+prefix field must remain immutable as well. The production cutover globally
+canonicalizes historical timestamp variants before enabling the reference
+schema. Readers retain ClickHouse's default cross-partition `FINAL` behavior
+because the setting is query-wide and a delivery-table query may join another
+ReplacingMergeTree whose logical versions legitimately span partitions.
 
 Custom events, error spans, and web-vital spans may contain historical rows
 created before `delivery_id` existed. Their materialized `delivery_key` gives
