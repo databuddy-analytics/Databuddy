@@ -6,6 +6,7 @@ import {
 	getTrackerConfig,
 	isDebugMode,
 	isOptedOut,
+	logger,
 	sanitizePageUrl,
 } from "./core/utils";
 import { initErrorTracking } from "./plugins/errors";
@@ -234,8 +235,19 @@ export class Databuddy extends BaseTracker {
 		while (queue.length > 0) {
 			const chunk: unknown[] = [];
 			let payloadBytes = 2;
-			for (const item of queue.slice(0, maxEvents)) {
-				const serialized = JSON.stringify(item) ?? "null";
+			let queueIndex = 0;
+			while (queueIndex < queue.length && chunk.length < maxEvents) {
+				const item = queue[queueIndex];
+				let serialized: string;
+				try {
+					serialized = JSON.stringify(item) ?? "null";
+				} catch {
+					logger.error(
+						"Dropping unserializable analytics event during unload"
+					);
+					queue.splice(queueIndex, 1);
+					continue;
+				}
 				const itemBytes =
 					new Blob([serialized]).size + (chunk.length > 0 ? 1 : 0);
 				if (
@@ -246,6 +258,10 @@ export class Databuddy extends BaseTracker {
 				}
 				chunk.push(item);
 				payloadBytes += itemBytes;
+				queueIndex += 1;
+			}
+			if (queue.length === 0) {
+				return;
 			}
 
 			if (!(chunk.length > 0 && this.sendBeacon(chunk, endpoint))) {
