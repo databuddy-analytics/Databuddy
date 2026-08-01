@@ -1,6 +1,7 @@
 import { describe, expect, mock, test } from "bun:test";
 import {
 	addLinkVisitJob,
+	addLinkVisitJobWithinDeadline,
 	closeLinkVisitDeliveryResources,
 	getLinkVisitQueueConnectionOptions,
 	getWorkerConcurrency,
@@ -8,6 +9,7 @@ import {
 	KAFKA_ATTEMPTED_FIELD,
 	LINK_VISIT_JOB_OPTIONS,
 	LINK_VISIT_JOB_NAME,
+	LinkVisitQueueAdmissionTimeoutError,
 	processLinkVisitJob,
 } from "./link-visit-delivery";
 import type { LinkVisitEvent } from "./producer";
@@ -136,6 +138,7 @@ describe("link visit durable delivery", () => {
 				enableOfflineQueue: false,
 				maxRetriesPerRequest: 1,
 			});
+			expect(getLinkVisitQueueConnectionOptions().retryStrategy?.(1)).toBeNull();
 		} finally {
 			if (originalUrl === undefined) {
 				delete process.env.BULLMQ_REDIS_URL;
@@ -150,6 +153,24 @@ describe("link visit durable delivery", () => {
 			age: 7 * 24 * 3600,
 			count: 100_000,
 		});
+	});
+
+	test("rejects and closes the exact writer when queue admission stalls", async () => {
+		const add = mock(() => new Promise<unknown>(() => undefined));
+		const close = mock(() => Promise.resolve());
+		const onDiscard = mock(() => undefined);
+		const startedAt = Date.now();
+
+		await expect(
+			addLinkVisitJobWithinDeadline({ add, close }, event, {
+				deadlineMs: 20,
+				onDiscard,
+			})
+		).rejects.toBeInstanceOf(LinkVisitQueueAdmissionTimeoutError);
+
+		expect(Date.now() - startedAt).toBeLessThan(250);
+		expect(onDiscard).toHaveBeenCalledTimes(1);
+		expect(close).toHaveBeenCalledTimes(1);
 	});
 
 	test("requires full integer worker concurrency values", () => {
