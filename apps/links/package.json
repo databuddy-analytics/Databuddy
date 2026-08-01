@@ -16,6 +16,7 @@
     "@databuddy/redis": "workspace:*",
     "@databuddy/shared": "workspace:*",
     "@maxmind/geoip2-node": "^6.3.4",
+    "bullmq": "^5.78.0",
     "elysia": "catalog:",
     "evlog": "catalog:",
     "kafkajs": "^2.2.4",
