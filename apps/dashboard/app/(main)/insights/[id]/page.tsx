@@ -30,20 +30,7 @@ import {
 	StatusDot,
 	Textarea,
 } from "@databuddy/ui";
-import {
-	ExecuteGoalAction,
-	GoalRecommendationAction,
-} from "../_components/investigation-row";
-import {
-	ConversionDraftRecommendationAction,
-	InstrumentationRecommendationDetails,
-} from "../_components/conversion-draft-recommendation";
-import {
-	isConversionDraftRecommendation,
-	isDatabuddySetupRecommendation,
-	isGoalRecommendation,
-	isInstrumentationRecommendation,
-} from "../_components/recommendation-guards";
+import { ExecuteGoalAction } from "../_components/investigation-row";
 
 type TimelineItem = InsightByIdResponse["timeline"][number];
 type InvestigationItem = Extract<TimelineItem, { kind: "investigation" }>;
@@ -80,7 +67,7 @@ export default function InsightDetailPage() {
 			<div className="mx-auto w-full max-w-2xl space-y-3 px-3 pt-3 pb-20 sm:space-y-4 sm:p-5">
 				<Link
 					className="inline-flex w-fit items-center gap-1.5 text-muted-foreground text-xs transition-colors hover:text-foreground"
-					href="/insights"
+					href="/insights/investigations"
 				>
 					<ArrowLeftIcon className="size-3.5 shrink-0" />
 					All investigations
@@ -131,7 +118,7 @@ export default function InsightDetailPage() {
 					<EmptyState
 						action={{
 							label: "All investigations",
-							onClick: () => router.push("/insights"),
+							onClick: () => router.push("/insights/investigations"),
 						}}
 						description={
 							isError
@@ -419,7 +406,6 @@ function InvestigationActivity({
 }) {
 	const { outcome } = item;
 	const sourceHref = investigationSourceHref(item, websiteId);
-	const recommendation = outcome.recommendation;
 	const execution =
 		outcome.next.type === "act" ? outcome.next.execution : undefined;
 
@@ -475,47 +461,10 @@ function InvestigationActivity({
 				sourceHref={sourceHref}
 			/>
 
-			{recommendation ? (
-				<div className="rounded-md border border-primary/15 bg-primary/5 px-3 py-3">
-					<p className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
-						{isDatabuddySetupRecommendation(recommendation)
-							? "Improve future reports"
-							: "Recommended"}
-					</p>
-					<p className="mt-1 font-medium text-foreground/85 text-sm leading-relaxed">
-						{recommendation.action}
-					</p>
-					{isInstrumentationRecommendation(recommendation) ? (
-						<InstrumentationRecommendationDetails
-							recommendation={recommendation}
-						/>
-					) : null}
-					{isConversionDraftRecommendation(recommendation) ? (
-						<div className="mt-2 flex flex-wrap gap-1.5">
-							<ConversionDraftRecommendationAction
-								recommendation={recommendation}
-								websiteId={websiteId}
-							/>
-						</div>
-					) : item.entity.type === "goal" &&
-						isGoalRecommendation(recommendation) ? (
-						<div className="mt-2 flex flex-wrap gap-1.5">
-							<GoalRecommendationAction
-								goalId={item.entity.id}
-								recommendation={recommendation}
-								websiteId={websiteId}
-							/>
-						</div>
-					) : null}
-				</div>
-			) : null}
-
-			{outcome.next.type !== "resolve" || !outcome.recommendation ? (
-				<NextStep
-					hideAction={Boolean(execution?.operation)}
-					next={outcome.next}
-				/>
-			) : null}
+			<NextStep
+				hideAction={Boolean(execution?.operation)}
+				next={outcome.next}
+			/>
 
 			{insightId && execution?.operation ? (
 				<div className="flex flex-wrap">
