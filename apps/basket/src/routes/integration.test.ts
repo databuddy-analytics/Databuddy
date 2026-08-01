@@ -284,6 +284,7 @@ describe("POST /", () => {
 	});
 
 	test("durable core delivery failure → retryable 503", async () => {
+		mockGlobalErrorHandler.mockClear();
 		mockInsertTrackEvent.mockRejectedValueOnce(
 			createError({
 				code: "basket.DELIVERY_UNAVAILABLE",
@@ -305,6 +306,9 @@ describe("POST /", () => {
 			code: "basket.DELIVERY_UNAVAILABLE",
 			retryable: true,
 		});
+		expect(mockGlobalErrorHandler).toHaveBeenCalledWith(
+			expect.any(EvlogError)
+		);
 	});
 
 	test("unknown event type → 400", async () => {

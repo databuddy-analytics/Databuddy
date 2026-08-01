@@ -1,8 +1,10 @@
+import { createHash } from "node:crypto";
 import type { ClickHouseClient } from "@clickhouse/client";
 import { clickHouse, TABLE_NAMES } from "@databuddy/db/clickhouse";
 import { readBooleanEnv } from "@databuddy/env/boolean";
 import { captureError, record } from "@lib/tracing";
-import { Data, Effect, Layer, ManagedRuntime, Ref } from "effect";
+import { PRODUCER_DRAIN_TIMEOUT_MS } from "@lib/shutdown-budget";
+import { Data, Deferred, Effect, Layer, ManagedRuntime, Ref } from "effect";
 import { createError } from "evlog";
 import { CompressionTypes, Kafka, type Producer } from "kafkajs";
 
@@ -27,7 +29,10 @@ export class ProducerShuttingDownError extends Data.TaggedError(
 }> {}
 export class ProducerUnavailableError extends Data.TaggedError(
 	"ProducerUnavailableError"
-)<{ readonly retryable: true }> {}
+)<{
+	readonly reason?: "ambiguous-kafka-send";
+	readonly retryable: true;
+}> {}
 export class UnknownKafkaTopicError extends Data.TaggedError(
 	"UnknownKafkaTopicError"
 )<{
@@ -58,8 +63,9 @@ export type ProducerError =
 
 interface ProducerState {
 	connected: boolean;
-	connecting: boolean;
+	connecting: Deferred.Deferred<boolean> | null;
 	connectionFailed: boolean;
+	directFallbackAllowed: boolean;
 	errors: number;
 	failedCount: number;
 	inFlight: number;
@@ -70,9 +76,16 @@ interface ProducerState {
 	shuttingDown: boolean;
 }
 
+type ConnectDecision =
+	| { readonly type: "connected" }
+	| { readonly deferred: Deferred.Deferred<boolean>; readonly type: "connect" }
+	| { readonly type: "fallback" }
+	| { readonly deferred: Deferred.Deferred<boolean>; readonly type: "wait" };
+
 export interface ProducerConfig {
 	broker?: string;
 	chunkSize: number;
+	directFallbackTimeout: number;
 	kafkaTimeout: number;
 	maxProducerRetries: number;
 	password?: string;
@@ -103,8 +116,9 @@ const INITIAL_STATE: ProducerState = {
 	errors: 0,
 	lastErrorTime: null,
 	connected: false,
-	connecting: false,
+	connecting: null,
 	connectionFailed: false,
+	directFallbackAllowed: true,
 	lastRetry: 0,
 	producerInitialized: false,
 	shuttingDown: false,
@@ -115,18 +129,73 @@ function toError(err: unknown): Error {
 	return err instanceof Error ? err : new Error(String(err));
 }
 
+function clickHouseInsertDeduplicationToken(
+	table: string,
+	events: unknown[]
+): string {
+	const hash = createHash("sha256").update(table);
+	for (const event of events) {
+		hash.update("\0");
+		if (event && typeof event === "object") {
+			const candidate = event as { event_id?: unknown; id?: unknown };
+			const id = candidate.id ?? candidate.event_id;
+			if (typeof id === "string" || typeof id === "number") {
+				hash.update(String(id));
+				continue;
+			}
+		}
+		hash.update(stringifyEvent(event));
+	}
+	return hash.digest("hex");
+}
+
 async function insertClickHouseChunks(
 	ch: ClickHouseClient,
 	table: string,
 	events: unknown[],
-	chunkSize: number
+	chunkSize: number,
+	timeoutMs: number
 ) {
-	for (let i = 0; i < events.length; i += chunkSize) {
-		await ch.insert({
-			table,
-			values: events.slice(i, i + chunkSize),
-			format: "JSONEachRow",
-		});
+	const controller = new AbortController();
+	let timeout: ReturnType<typeof setTimeout> | undefined;
+	const deadline = new Promise<never>((_resolve, reject) => {
+		timeout = setTimeout(() => {
+			const error = new Error(
+				`Direct ClickHouse fallback exceeded ${timeoutMs}ms admission deadline`
+			);
+			controller.abort(error);
+			reject(error);
+		}, timeoutMs);
+		timeout.unref?.();
+	});
+
+	try {
+		await Promise.race([
+			(async () => {
+				for (let i = 0; i < events.length; i += chunkSize) {
+					const values = events.slice(i, i + chunkSize);
+					const deduplicationToken = clickHouseInsertDeduplicationToken(
+						table,
+						values
+					);
+					await ch.insert({
+						table,
+						values,
+						format: "JSONEachRow",
+						abort_signal: controller.signal,
+						clickhouse_settings: {
+							insert_deduplication_token: deduplicationToken,
+						},
+						query_id: `basket-${deduplicationToken}`,
+					});
+				}
+			})(),
+			deadline,
+		]);
+	} finally {
+		if (timeout) {
+			clearTimeout(timeout);
+		}
 	}
 }
 
@@ -147,27 +216,37 @@ function makeProducerEffects(
 			return (yield* Ref.get(ref)).connected;
 		}
 
-		const decision = yield* Ref.modify(ref, (state) => {
-			if (state.connected) {
-				return ["connected" as const, state];
+		const candidate = yield* Deferred.make<boolean>();
+		const decision = yield* Ref.modify<ProducerState, ConnectDecision>(
+			ref,
+			(state) => {
+				if (state.connected) {
+					return [{ type: "connected" as const }, state];
+				}
+				if (state.connecting) {
+					return [{ deferred: state.connecting, type: "wait" as const }, state];
+				}
+				if (
+					state.connectionFailed &&
+					Date.now() - state.lastRetry < config.reconnectCooldown
+				) {
+					return [{ type: "fallback" as const }, state];
+				}
+				return [
+					{ deferred: candidate, type: "connect" as const },
+					{ ...state, connecting: candidate },
+				];
 			}
-			if (state.connecting) {
-				return ["fallback" as const, state];
-			}
-			if (
-				state.connectionFailed &&
-				Date.now() - state.lastRetry < config.reconnectCooldown
-			) {
-				return ["fallback" as const, state];
-			}
-			return ["connect" as const, { ...state, connecting: true }];
-		});
+		);
 
-		if (decision === "connected") {
+		if (decision.type === "connected") {
 			return true;
 		}
-		if (decision === "fallback") {
+		if (decision.type === "fallback") {
 			return false;
+		}
+		if (decision.type === "wait") {
+			return yield* Deferred.await(decision.deferred);
 		}
 
 		return yield* Effect.tryPromise({
@@ -178,8 +257,9 @@ function makeProducerEffects(
 				Ref.update(ref, (st) => ({
 					...st,
 					connected: true,
-					connecting: false,
+					connecting: st.connecting === candidate ? null : st.connecting,
 					connectionFailed: false,
+					directFallbackAllowed: true,
 					lastRetry: 0,
 					producerInitialized: true,
 				}))
@@ -188,7 +268,7 @@ function makeProducerEffects(
 			Effect.catchTag("KafkaConnectionError", (err) =>
 				Ref.update(ref, (st) => ({
 					...st,
-					connecting: false,
+					connecting: st.connecting === candidate ? null : st.connecting,
 					connectionFailed: true,
 					lastRetry: Date.now(),
 					errors: st.errors + 1,
@@ -205,9 +285,16 @@ function makeProducerEffects(
 					Effect.as(false)
 				)
 			),
+			Effect.tap((result) => Deferred.succeed(candidate, result)),
 			Effect.ensuring(
-				Ref.update(ref, (state) =>
-					state.connecting ? { ...state, connecting: false } : state
+				Deferred.succeed(candidate, false).pipe(
+					Effect.andThen(
+						Ref.update(ref, (state) =>
+							state.connecting === candidate
+								? { ...state, connecting: null }
+								: state
+						)
+					)
 				)
 			)
 		);
@@ -249,7 +336,13 @@ function makeProducerEffects(
 			yield* Effect.tryPromise({
 				try: () =>
 					record("clickhouseDirectFallbackInsert", () =>
-						insertClickHouseChunks(ch, table, events, config.chunkSize)
+						insertClickHouseChunks(
+							ch,
+							table,
+							events,
+							config.chunkSize,
+							config.directFallbackTimeout
+						)
 					),
 				catch: (e) =>
 					new ClickHouseFallbackError({
@@ -318,7 +411,7 @@ function makeProducerEffects(
 					if (enabled && kafka) {
 						const isConnected = yield* connect;
 						if (isConnected) {
-							const sent = yield* Effect.tryPromise({
+							yield* Effect.tryPromise({
 								try: () =>
 									kafka.send({
 										topic,
@@ -329,35 +422,46 @@ function makeProducerEffects(
 								catch: (e) => new KafkaSendError({ topic, cause: toError(e) }),
 							}).pipe(
 								Effect.tap(() => inc("sent", messages.length)),
-								Effect.as(true),
 								Effect.catchTag("KafkaSendError", (err) =>
 									Ref.update(ref, (st) => ({
 										...st,
 										connectionFailed: true,
 										connected: false,
+										directFallbackAllowed: false,
+										errors: st.errors + 1,
 										lastRetry: Date.now(),
+										lastErrorTime: Date.now(),
 										failedCount: st.failedCount + messages.length,
 									})).pipe(
 										Effect.tap(() =>
 											Effect.sync(() =>
 												captureError(err.cause, {
 													message:
-														"Redpanda send failed, falling back to ClickHouse",
+														"Redpanda send acknowledgement is ambiguous; rejecting delivery",
 													message_count: messages.length,
 													topic,
 												})
 											)
 										),
-										Effect.as(false)
+										Effect.flatMap(() => Effect.fail(err))
 									)
 								)
 							);
-							if (sent) {
-								return;
-							}
+							return;
 						}
 					}
 
+					if (enabled && kafka) {
+						const state = yield* Ref.get(ref);
+						if (!state.directFallbackAllowed) {
+							return yield* Effect.fail(
+								new ProducerUnavailableError({
+									reason: "ambiguous-kafka-send",
+									retryable: true,
+								})
+							);
+						}
+					}
 					yield* persistDirectly(topic, fallbackEvents);
 				}).pipe(Effect.ensuring(releaseSendSlot(fallbackEvents.length)))
 			)
@@ -412,7 +516,7 @@ function makeProducerEffects(
 				Ref.update(ref, (s) => ({
 					...s,
 					connected: false,
-					connecting: false,
+					connecting: null,
 					producerInitialized: false,
 				}))
 			),
@@ -458,12 +562,15 @@ function makeProducerEffects(
 	const stats: Effect.Effect<ProducerStatsSnapshot> = Ref.get(ref).pipe(
 		Effect.map(
 			({
+				connecting,
+				directFallbackAllowed: _d,
 				shuttingDown: _s,
 				connectionFailed,
 				producerInitialized: _p,
 				...rest
 			}) => ({
 				...rest,
+				connecting: connecting !== null,
 				failed: connectionFailed,
 				kafkaEnabled: enabled,
 			})
@@ -509,7 +616,14 @@ function initializeKafka(config: ProducerConfig): Producer | null {
 		clientId: "basket",
 		brokers: [config.broker],
 		connectionTimeout: 5000,
+		authenticationTimeout: 5000,
 		requestTimeout: config.kafkaTimeout,
+		enforceRequestTimeout: true,
+		retry: {
+			initialRetryTime: config.producerRetryDelay,
+			maxRetryTime: 1000,
+			retries: 0,
+		},
 		sasl: {
 			mechanism: "scram-sha-256",
 			username: config.username,
@@ -551,7 +665,8 @@ const CONFIG: ProducerConfig = {
 	maxProducerRetries: 3,
 	producerRetryDelay: 300,
 	chunkSize: 5000,
-	shutdownDrainTimeout: 8000,
+	directFallbackTimeout: 4000,
+	shutdownDrainTimeout: PRODUCER_DRAIN_TIMEOUT_MS,
 };
 
 const TOPIC_MAP: Record<string, string> = {

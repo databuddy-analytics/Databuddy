@@ -34,6 +34,7 @@ const topicMap = { "analytics-events": "analytics.events" };
 const baseConfig: ProducerConfig = {
 	broker: undefined,
 	chunkSize: 100,
+	directFallbackTimeout: 1_000,
 	kafkaTimeout: 1_000,
 	maxProducerRetries: 0,
 	password: undefined,
@@ -78,13 +79,39 @@ describe("producer delivery guarantees", () => {
 
 		expect(insert).toHaveBeenCalledWith(
 			expect.objectContaining({
+				clickhouse_settings: {
+					insert_deduplication_token: expect.stringMatching(/^[\da-f]{64}$/),
+				},
 				format: "JSONEachRow",
+				query_id: expect.stringMatching(/^basket-[\da-f]{64}$/),
 				table: "analytics.events",
 				values: [event("event_1")],
 			})
 		);
 		const stats = await Effect.runPromise(effects.stats);
 		expect(stats).toMatchObject({ inFlight: 0, sent: 1 });
+	});
+
+	test("keeps the ClickHouse deduplication token stable across an event retry", async () => {
+		const insert = vi.fn(() => Promise.resolve());
+		const effects = await makeEffects(insert);
+
+		await Effect.runPromise(effects.sendOne("analytics-events", event("event_1")));
+		await Effect.runPromise(
+			effects.sendOne("analytics-events", {
+				...event("event_1"),
+				timestamp: 2,
+			})
+		);
+
+		const tokenAt = (call: number) =>
+			(
+				insert.mock.calls[call]?.[0] as {
+					clickhouse_settings?: { insert_deduplication_token?: string };
+				}
+			).clickhouse_settings?.insert_deduplication_token;
+		expect(tokenAt(0)).toBeTruthy();
+		expect(tokenAt(1)).toBe(tokenAt(0));
 	});
 
 	test("returns a retryable error instead of acknowledging a failed direct fallback", async () => {
@@ -101,6 +128,26 @@ describe("producer delivery guarantees", () => {
 
 		const stats = await Effect.runPromise(effects.stats);
 		expect(stats).toMatchObject({ errors: 1, inFlight: 0, sent: 0 });
+	});
+
+	test("bounds direct fallback admission and aborts the ClickHouse request", async () => {
+		const insert = vi.fn(() => new Promise<void>(() => undefined));
+		const effects = await makeEffects(insert, {
+			directFallbackTimeout: 20,
+		});
+
+		await expect(
+			Effect.runPromise(effects.sendOne("analytics-events", event("event_1")))
+		).rejects.toMatchObject({
+			_tag: "ClickHouseFallbackError",
+			retryable: true,
+		});
+
+		expect(insert).toHaveBeenCalledOnce();
+		expect(
+			(insert.mock.calls[0]?.[0] as { abort_signal?: AbortSignal })
+				.abort_signal?.aborted
+		).toBe(true);
 	});
 
 	test("keeps an active direct delivery counted when shutdown rejects another send", async () => {
@@ -158,7 +205,7 @@ describe("producer delivery guarantees", () => {
 		await activeDelivery;
 	});
 
-	test("lets one caller connect while concurrent callers persist directly", async () => {
+	test("shares one successful connection across all concurrent callers", async () => {
 		let releaseConnect: (() => void) | undefined;
 		const insert = vi.fn(() => Promise.resolve());
 		const kafka = {
@@ -187,14 +234,13 @@ describe("producer delivery guarantees", () => {
 			)
 		);
 		await vi.waitFor(() => expect(kafka.connect).toHaveBeenCalledTimes(1));
-		await vi.waitFor(() => expect(insert).toHaveBeenCalledTimes(49));
 
 		releaseConnect?.();
 		await Promise.all(deliveries);
 
 		expect(kafka.connect).toHaveBeenCalledTimes(1);
-		expect(kafka.send).toHaveBeenCalledTimes(1);
-		expect(insert).toHaveBeenCalledTimes(49);
+		expect(kafka.send).toHaveBeenCalledTimes(50);
+		expect(insert).not.toHaveBeenCalled();
 		expect(await Effect.runPromise(effects.stats)).toMatchObject({
 			connected: true,
 			connecting: false,
@@ -232,7 +278,6 @@ describe("producer delivery guarantees", () => {
 			)
 		);
 		await vi.waitFor(() => expect(kafka.connect).toHaveBeenCalledTimes(1));
-		await vi.waitFor(() => expect(insert).toHaveBeenCalledTimes(49));
 		rejectConnect?.(new Error("broker unavailable"));
 		await Promise.all(deliveries);
 
@@ -252,5 +297,46 @@ describe("producer delivery guarantees", () => {
 		);
 		expect(kafka.connect).toHaveBeenCalledTimes(1);
 		expect(insert).toHaveBeenCalledTimes(51);
+	});
+
+	test("rejects an ambiguous Kafka send without writing the same event directly", async () => {
+		const insert = vi.fn(() => Promise.resolve());
+		const kafka = {
+			connect: vi.fn(() => Promise.resolve()),
+			disconnect: vi.fn(() => Promise.resolve()),
+			send: vi.fn(() => Promise.reject(new Error("request timed out"))),
+		} as unknown as Producer;
+		const effects = await makeEffects(
+			insert,
+			{
+				broker: "redpanda.test:9092",
+				reconnectCooldown: 60_000,
+				selfHost: false,
+			},
+			kafka
+		);
+
+		await expect(
+			Effect.runPromise(effects.sendOne("analytics-events", event("event_1")))
+		).rejects.toMatchObject({
+			_tag: "KafkaSendError",
+			topic: "analytics-events",
+		});
+
+		await expect(
+			Effect.runPromise(effects.sendOne("analytics-events", event("event_1")))
+		).rejects.toMatchObject({
+			_tag: "ProducerUnavailableError",
+			reason: "ambiguous-kafka-send",
+		});
+		expect(insert).not.toHaveBeenCalled();
+		expect(await Effect.runPromise(effects.stats)).toMatchObject({
+			connected: false,
+			errors: 1,
+			failed: true,
+			failedCount: 1,
+			inFlight: 0,
+			sent: 0,
+		});
 	});
 });

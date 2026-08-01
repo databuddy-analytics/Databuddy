@@ -8,7 +8,10 @@ import { useLogger } from "evlog/elysia";
 
 const EXIT_EVENT_TTL = 172_800;
 const STANDARD_EVENT_TTL = 86_400;
+const PENDING_DEDUP_TTL = 120;
 const DEDUP_RETRY_DELAY_MS = 25;
+export const DEDUP_RESERVATION_TIMEOUT_MS = 750;
+const DEDUP_BYPASS_COOLDOWN_MS = 5000;
 const PENDING_DEDUP_PREFIX = "pending:";
 const DELIVERED_DEDUP_VALUE = "delivered";
 const RELEASE_PENDING_DEDUP_RESERVATION = `if redis.call("GET", KEYS[1]) == ARGV[1] then
@@ -26,6 +29,33 @@ const COUNTRY_CODES: Record<string, string> = {
 	"UNITED STATES": "US",
 	"UNITED STATES OF AMERICA": "US",
 };
+
+let dedupBypassUntil = 0;
+
+/** @internal */
+export function resetDeduplicationCircuitForTesting(): void {
+	dedupBypassUntil = 0;
+}
+
+function withDedupDeadline<T>(
+	operation: Promise<T>,
+	timeoutMs = DEDUP_RESERVATION_TIMEOUT_MS
+): Promise<T> {
+	let timeout: ReturnType<typeof setTimeout> | undefined;
+	const deadline = new Promise<never>((_resolve, reject) => {
+		timeout = setTimeout(() => {
+			reject(
+				new Error(`Redis deduplication operation exceeded ${timeoutMs}ms`)
+			);
+		}, timeoutMs);
+		timeout.unref?.();
+	});
+	return Promise.race([operation, deadline]).finally(() => {
+		if (timeout) {
+			clearTimeout(timeout);
+		}
+	});
+}
 
 function getCurrentDay(): number {
 	const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -134,6 +164,7 @@ function wait(ms: number): Promise<void> {
 }
 
 export interface DuplicateReservation {
+	readonly deliveredTtl?: number;
 	readonly duplicate: boolean;
 	readonly key?: string;
 	/**
@@ -148,7 +179,6 @@ export interface DuplicateReservation {
 	 * newer retry's reservation.
 	 */
 	readonly token?: string;
-	readonly ttl?: number;
 }
 
 type DedupReservationState =
@@ -194,7 +224,14 @@ async function setDedupKey(
 			return await readDedupReservationState(key, token);
 		} catch {
 			try {
-				return await readDedupReservationState(key, token);
+				const state = await readDedupReservationState(key, token);
+				// Both writes failed and Redis confirms there is no reservation.
+				// Preserve fail-open ingestion instead of converting a write-only
+				// Redis degradation into a service-wide 503.
+				if (state === "unreserved") {
+					throw firstError;
+				}
+				return state;
 			} catch {
 				throw firstError;
 			}
@@ -208,14 +245,20 @@ export function reserveDuplicate(
 	sourceEventId = eventId
 ): Promise<DuplicateReservation> {
 	return record("reserveDuplicate", async () => {
+		if (Date.now() < dedupBypassUntil) {
+			return { duplicate: false };
+		}
+
 		const key = `dedup:${eventType}:${eventId}`;
-		const ttl = sourceEventId.startsWith("exit_")
+		const deliveredTtl = sourceEventId.startsWith("exit_")
 			? EXIT_EVENT_TTL
 			: STANDARD_EVENT_TTL;
 		const token = `${PENDING_DEDUP_PREFIX}${crypto.randomUUID()}`;
 
 		try {
-			const result = await setDedupKey(key, ttl, token);
+			const result = await withDedupDeadline(
+				setDedupKey(key, PENDING_DEDUP_TTL, token)
+			);
 			if (result === "delivered") {
 				useLogger().set({ dedup: { duplicate: true, eventType } });
 				return { duplicate: true };
@@ -229,11 +272,12 @@ export function reserveDuplicate(
 
 			return {
 				duplicate: false,
+				deliveredTtl,
 				key,
 				token,
-				ttl,
 			};
 		} catch (error) {
+			dedupBypassUntil = Date.now() + DEDUP_BYPASS_COOLDOWN_MS;
 			captureError(error, {
 				message: "Failed to check duplicate event in Redis",
 				eventId,
@@ -253,18 +297,20 @@ export function markDuplicateReservationDelivered(
 	reservation: DuplicateReservation
 ): Promise<void> {
 	return record("markDuplicateReservationDelivered", async () => {
-		if (!(reservation.key && reservation.token && reservation.ttl)) {
+		if (!(reservation.deliveredTtl && reservation.key && reservation.token)) {
 			return;
 		}
 
 		try {
-			await redis.eval(
-				MARK_PENDING_DEDUP_RESERVATION_DELIVERED,
-				1,
-				reservation.key,
-				reservation.token,
-				DELIVERED_DEDUP_VALUE,
-				reservation.ttl
+			await withDedupDeadline(
+				redis.eval(
+					MARK_PENDING_DEDUP_RESERVATION_DELIVERED,
+					1,
+					reservation.key,
+					reservation.token,
+					DELIVERED_DEDUP_VALUE,
+					reservation.deliveredTtl
+				)
 			);
 		} catch (error) {
 			captureError(error, {
@@ -283,11 +329,13 @@ export function releaseDuplicateReservation(
 		}
 
 		try {
-			await redis.eval(
-				RELEASE_PENDING_DEDUP_RESERVATION,
-				1,
-				reservation.key,
-				reservation.token
+			await withDedupDeadline(
+				redis.eval(
+					RELEASE_PENDING_DEDUP_RESERVATION,
+					1,
+					reservation.key,
+					reservation.token
+				)
 			);
 		} catch (error) {
 			captureError(error, {

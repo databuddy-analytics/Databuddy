@@ -56,6 +56,8 @@ export interface BatchEvent<T extends { id: string }> {
 	sourceEventId: string;
 }
 
+const BATCH_RESERVATION_DEADLINE_MS = 2000;
+
 function deliveryUnavailable(cause: unknown) {
 	return createError({
 		code: "basket.DELIVERY_UNAVAILABLE",
@@ -163,7 +165,7 @@ export function insertTrackEvent(
 		const log = useLogger();
 		let eventId = sanitizeString(
 			trackData.eventId,
-			VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH
+			VALIDATION_LIMITS.EVENT_ID_MAX_LENGTH
 		);
 		if (!eventId) {
 			eventId = randomUUIDv7();
@@ -239,7 +241,7 @@ export function insertOutgoingLink(
 		const log = useLogger();
 		let eventId = sanitizeString(
 			linkData.eventId,
-			VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH
+			VALIDATION_LIMITS.EVENT_ID_MAX_LENGTH
 		);
 
 		if (!eventId) {
@@ -323,40 +325,55 @@ async function deliverBatch<T extends { id: string }>(
 		return;
 	}
 
-	const reservationResults = await Promise.allSettled(
-		uniqueItems.map(async (item) => ({
-			item,
-			reservation: await reserveDuplicate(
+	// Acquire in a deterministic order. Parallel acquisition lets two retries
+	// split ownership of the same batch, after which both release and retry
+	// forever. Sorted sequential acquisition gives one request a consistent
+	// winner and stops at the first conflict.
+	const acquisitionItems = [...uniqueItems].sort((left, right) =>
+		left.event.id.localeCompare(right.event.id)
+	);
+	const reservations: Array<{
+		item: BatchEvent<T>;
+		reservation: Awaited<ReturnType<typeof reserveDuplicate>>;
+	}> = [];
+	const reservationDeadline = Date.now() + BATCH_RESERVATION_DEADLINE_MS;
+	try {
+		for (const item of acquisitionItems) {
+			if (Date.now() >= reservationDeadline) {
+				throw new Error("Batch duplicate reservation deadline exceeded");
+			}
+			const reservation = await reserveDuplicate(
 				item.event.id,
 				eventType,
 				item.sourceEventId
-			),
-		}))
-	);
-	const reservations = reservationResults.flatMap((result) =>
-		result.status === "fulfilled" ? [result.value] : []
-	);
-	const reservationFailure = reservationResults.find(
-		(result): result is PromiseRejectedResult => result.status === "rejected"
-	);
-	const retryableReservation = reservations.find(
-		({ reservation }) => reservation.retryable
-	);
-	if (reservationFailure || retryableReservation) {
+			);
+			if (reservation.retryable) {
+				throw new Error("A concurrent attempt owns this analytics event");
+			}
+			reservations.push({ item, reservation });
+			if (
+				reservations.length < acquisitionItems.length &&
+				Date.now() >= reservationDeadline
+			) {
+				throw new Error("Batch duplicate reservation deadline exceeded");
+			}
+		}
+	} catch (error) {
 		await Promise.allSettled(
 			reservations.map(({ reservation }) =>
 				releaseDuplicateReservation(reservation)
 			)
 		);
-		throw deliveryUnavailable(
-			reservationFailure?.reason ??
-				new Error("A concurrent attempt owns this analytics event")
-		);
+		throw deliveryUnavailable(error);
 	}
 
-	const accepted = reservations.filter(
-		({ reservation }) => !reservation.duplicate
+	const reservationById = new Map(
+		reservations.map(({ item, reservation }) => [item.event.id, reservation])
 	);
+	const accepted = uniqueItems.flatMap((item) => {
+		const reservation = reservationById.get(item.event.id);
+		return reservation && !reservation.duplicate ? [{ item, reservation }] : [];
+	});
 	if (accepted.length === 0) {
 		return;
 	}

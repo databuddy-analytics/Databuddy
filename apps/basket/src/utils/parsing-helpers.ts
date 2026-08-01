@@ -96,7 +96,7 @@ export function parseEventId(
 
 	const sanitized = sanitizeString(
 		eventId,
-		VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH
+		VALIDATION_LIMITS.EVENT_ID_MAX_LENGTH
 	);
 	return sanitized || generateFn();
 }
