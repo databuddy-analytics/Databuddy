@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import type { InvestigationOutcome } from "@databuddy/shared/insights";
-import { isVisibleInvestigation } from "./persistence";
+import { isInterruptingInvestigation } from "./persistence";
 
 const quietResolve: InvestigationOutcome = {
 	evidence: ["The recommendation is informational."],
@@ -13,10 +13,10 @@ const quietResolve: InvestigationOutcome = {
 	title: "Quiet resolve",
 };
 
-describe("isVisibleInvestigation", () => {
+describe("isInterruptingInvestigation", () => {
 	it("keeps published recommendations out of the case queue", () => {
 		expect(
-			isVisibleInvestigation({
+			isInterruptingInvestigation({
 				outcome: {
 					...quietResolve,
 					publish: true,
@@ -42,7 +42,7 @@ describe("isVisibleInvestigation", () => {
 						}
 					: { question: "Which repository owns checkout?", type };
 			expect(
-				isVisibleInvestigation({
+				isInterruptingInvestigation({
 					outcome: { ...quietResolve, next, publish: true },
 				})
 			).toBe(true);
@@ -50,12 +50,12 @@ describe("isVisibleInvestigation", () => {
 	});
 
 	it("keeps plain quiet resolves out of the feed", () => {
-		expect(isVisibleInvestigation({ outcome: quietResolve })).toBe(false);
+		expect(isInterruptingInvestigation({ outcome: quietResolve })).toBe(false);
 	});
 
-	it("does not treat omitted recommendations as visible", () => {
+	it("does not treat omitted recommendations as interrupting", () => {
 		expect(
-			isVisibleInvestigation({
+			isInterruptingInvestigation({
 				outcome: {
 					...quietResolve,
 					publish: true,

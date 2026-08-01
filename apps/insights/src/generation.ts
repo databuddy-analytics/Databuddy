@@ -78,7 +78,10 @@ import {
 } from "./run-candidate-plan";
 import { planCoveragePortfolio } from "./coverage-planner";
 import type { WebsiteInvestigation } from "./persistence";
-import { isVisibleInvestigation, persistInvestigation } from "./persistence";
+import {
+	isInterruptingInvestigation,
+	persistInvestigation,
+} from "./persistence";
 import {
 	captureInsightsError,
 	emitInsightsEvent,
@@ -945,9 +948,9 @@ export async function generateWebsiteInsights(
 	const outcomes = existingObservations.map(
 		(observation) => observation.outcome
 	);
-	const visibleInvestigations: WebsiteInvestigation[] =
+	const interruptingInvestigations: WebsiteInvestigation[] =
 		existingObservations.flatMap((observation) =>
-			observation.insightId && isVisibleInvestigation(observation)
+			observation.insightId && isInterruptingInvestigation(observation)
 				? [
 						{
 							id: observation.insightId,
@@ -960,7 +963,7 @@ export async function generateWebsiteInsights(
 					]
 				: []
 		);
-	const enqueueVisibleEffects = async (
+	const enqueueInterruptingEffects = async (
 		investigations: WebsiteInvestigation[]
 	): Promise<void> => {
 		const effects = (
@@ -987,7 +990,7 @@ export async function generateWebsiteInsights(
 		}
 	};
 
-	await enqueueVisibleEffects(visibleInvestigations);
+	await enqueueInterruptingEffects(interruptingInvestigations);
 	try {
 		if (plan) {
 			const frozenInput = { ...investigationInput, asOf: plan.asOf };
@@ -1078,8 +1081,8 @@ export async function generateWebsiteInsights(
 						completedSignalKeys.add(candidate.signal.signalKey);
 						outcomes.push(candidate.outcome);
 						if (saved) {
-							visibleInvestigations.push(saved);
-							await enqueueVisibleEffects([saved]);
+							interruptingInvestigations.push(saved);
+							await enqueueInterruptingEffects([saved]);
 						}
 					} finally {
 						const billableUsage = agentUsage.value;
