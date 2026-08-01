@@ -57,6 +57,9 @@ function InsightsListShell({ children }: { children: ReactNode }) {
 			return isActiveRun(query.state.data?.status) ? 2000 : 30_000;
 		},
 	});
+	const recommendationTotal = useQuery(
+		insightQueries.recommendationTotal(organizationId)
+	);
 	const { websites, isLoading: websitesLoading } = useWebsitesLight();
 	const hasNoWebsites =
 		!websitesLoading && websites !== undefined && websites.length === 0;
@@ -157,6 +160,11 @@ function InsightsListShell({ children }: { children: ReactNode }) {
 						label: "Investigations",
 					},
 					{
+						count: recommendationTotal.data,
+						countLabel: recommendationTotal.data
+							? `${recommendationTotal.data} current recommendation${recommendationTotal.data === 1 ? "" : "s"}`
+							: undefined,
+						countTone: "attention",
 						href: "/insights/recommendations",
 						icon: WrenchIcon,
 						id: "recommendations",

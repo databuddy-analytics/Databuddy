@@ -96,9 +96,21 @@ test(
 
 		await authenticatedPage.goto("/insights/recommendations");
 		await expect(
-			authenticatedPage.getByRole("link", { name: "Recommendations" })
+			authenticatedPage.getByRole("link", {
+				exact: true,
+				name: "Recommendations 1 current recommendation",
+			})
 		).toHaveAttribute("aria-current", "page");
+		await expect(
+			authenticatedPage.getByRole("link", {
+				exact: true,
+				name: "Insights 1 current recommendation",
+			})
+		).toBeVisible();
 
+		await expect(
+			authenticatedPage.getByText("Create goal", { exact: true })
+		).toBeVisible();
 		await expect(
 			authenticatedPage.getByText(outcome.title, { exact: true })
 		).toBeVisible();

@@ -69,6 +69,20 @@ export const insightQueries = {
 			retry: 2,
 			retryDelay: (attempt: number) => Math.min(2000 * 2 ** attempt, 15_000),
 		}),
+	recommendationTotal: (orgId: string | undefined) =>
+		queryOptions({
+			queryKey: [...INSIGHTS_ROOT, "recommendation-total", orgId] as const,
+			queryFn: async () =>
+				(await fetchInsightRecommendationsPage(orgId ?? "", 0, 1)).total,
+			enabled: !!orgId,
+			staleTime: INSIGHT_CACHE.historyStaleTime,
+			gcTime: INSIGHT_CACHE.gcTime,
+			meta: { suppressGlobalErrorToast: true },
+			refetchInterval: 60_000,
+			refetchOnWindowFocus: true,
+			retry: 2,
+			retryDelay: (attempt: number) => Math.min(2000 * 2 ** attempt, 15_000),
+		}),
 	byId: (insightId: string | undefined) =>
 		queryOptions({
 			queryKey: [...INSIGHTS_ROOT, "by-id", insightId] as const,

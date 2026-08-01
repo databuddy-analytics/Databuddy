@@ -709,6 +709,9 @@ describe("insight investigation timeline", () => {
 		const secondWebsite = await insertWebsite({
 			organizationId: organization.id,
 		});
+		const emptyWebsite = await insertWebsite({
+			organizationId: organization.id,
+		});
 		const otherOrganization = await insertOrganization();
 		const otherWebsite = await insertWebsite({
 			organizationId: otherOrganization.id,
@@ -825,6 +828,7 @@ describe("insight investigation timeline", () => {
 			organizationId: organization.id,
 		});
 		expect(firstPage.hasMore).toBe(true);
+		expect(firstPage.total).toBe(3);
 		expect(
 			firstPage.recommendations.map((item) => item.recommendation.action)
 		).toEqual([
@@ -838,6 +842,7 @@ describe("insight investigation timeline", () => {
 			organizationId: organization.id,
 		});
 		expect(secondPage.hasMore).toBe(false);
+		expect(secondPage.total).toBe(3);
 		expect(
 			secondPage.recommendations.map((item) => item.recommendation.action)
 		).toEqual(["Use the updated signup goal."]);
@@ -857,6 +862,30 @@ describe("insight investigation timeline", () => {
 			"Add the measured checkout goal.",
 			"Use the updated signup goal.",
 		]);
+		expect(websiteOnly.total).toBe(2);
+
+		const pastEnd = await call(appRouter.insights.recommendations, context)({
+			limit: 2,
+			offset: 10,
+			organizationId: organization.id,
+		});
+		expect(pastEnd).toMatchObject({
+			hasMore: false,
+			recommendations: [],
+			total: 3,
+		});
+
+		const emptyScope = await call(appRouter.insights.recommendations, context)({
+			limit: 10,
+			offset: 0,
+			organizationId: organization.id,
+			websiteId: emptyWebsite.id,
+		});
+		expect(emptyScope).toMatchObject({
+			hasMore: false,
+			recommendations: [],
+			total: 0,
+		});
 	});
 
 	iit("persists a reply beside every observation for the same signal", async () => {
