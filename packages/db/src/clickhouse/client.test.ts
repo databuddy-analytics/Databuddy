@@ -101,4 +101,24 @@ describe("chQuery", () => {
 		).rejects.toBe(reason);
 		expect(querySpy).not.toHaveBeenCalled();
 	});
+
+	test("always reads the logical rows of replacing tables", async () => {
+		let settings: Record<string, string | number> | undefined;
+		spyOn(clickHouse, "query").mockImplementation(async (options) => {
+			settings = options.clickhouse_settings as Record<string, string | number>;
+			return {
+				close: () => undefined,
+				json: async () => ({ data: [] }),
+			} as unknown as ResultSet<"JSON">;
+		});
+
+		await chQuery("SELECT count() FROM analytics.events", undefined, {
+			clickhouse_settings: { final: 0 },
+		});
+
+		expect(settings).toMatchObject({
+			do_not_merge_across_partitions_select_final: 1,
+			final: 1,
+		});
+	});
 });

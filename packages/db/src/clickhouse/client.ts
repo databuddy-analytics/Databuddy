@@ -27,6 +27,11 @@ export const CLICKHOUSE_OPTIONS: NodeClickHouseClientConfigOptions = {
 	},
 };
 
+export const LOGICAL_READ_SETTINGS = {
+	do_not_merge_across_partitions_select_final: 1,
+	final: 1,
+} as const;
+
 function assertCacheCompatibleSettings(
 	settings: Record<string, string | number>
 ): void {
@@ -125,6 +130,19 @@ async function withInsertRetry<T>(
 
 type ClickHouseClient = typeof baseClient;
 
+function queryLogicalRows(
+	...args: Parameters<ClickHouseClient["query"]>
+): ReturnType<ClickHouseClient["query"]> {
+	const [options] = args;
+	return baseClient.query({
+		...options,
+		clickhouse_settings: {
+			...options.clickhouse_settings,
+			...LOGICAL_READ_SETTINGS,
+		},
+	}) as ReturnType<ClickHouseClient["query"]>;
+}
+
 export const clickHouse: ClickHouseClient = Object.assign(
 	Object.create(Object.getPrototypeOf(baseClient)),
 	baseClient,
@@ -138,7 +156,7 @@ export const clickHouse: ClickHouseClient = Object.assign(
 		query: (
 			...args: Parameters<ClickHouseClient["query"]>
 		): ReturnType<ClickHouseClient["query"]> =>
-			withChTiming(() => baseClient.query(...args)),
+			withChTiming(() => queryLogicalRows(...args)),
 		command: (
 			...args: Parameters<ClickHouseClient["command"]>
 		): ReturnType<ClickHouseClient["command"]> =>
@@ -199,8 +217,12 @@ async function chQueryWithMeta<T>(
 	options?: ChQueryOptions
 ): Promise<ResponseJSON<T>> {
 	const settings: Record<string, string | number> = options?.readonly
-		? { ...(options.clickhouse_settings ?? {}), readonly: "2" }
-		: (options?.clickhouse_settings ?? {});
+		? {
+				...(options.clickhouse_settings ?? {}),
+				...LOGICAL_READ_SETTINGS,
+				readonly: "2",
+			}
+		: { ...(options?.clickhouse_settings ?? {}), ...LOGICAL_READ_SETTINGS };
 	assertCacheCompatibleSettings(settings);
 	const json = await readJsonResponse<T>(
 		() =>
