@@ -18,12 +18,12 @@ sources:
       - analytics-link-visits
     auto_offset_reset: earliest
     sasl:
-      enabled: true
+      enabled: ${VECTOR_KAFKA_SASL_ENABLED:-true}
       mechanism: SCRAM-SHA-256
       username: "${VECTOR_KAFKA_USER}"
       password: "${VECTOR_KAFKA_PASSWORD}"
     tls:
-      enabled: true
+      enabled: ${VECTOR_KAFKA_TLS_ENABLED:-true}
     decoding:
       codec: json
 
