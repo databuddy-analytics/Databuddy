@@ -15,13 +15,17 @@ export const LINK_VISIT_QUEUE_NAME = "link-visit-delivery";
 export const LINK_VISIT_JOB_NAME = "deliver-link-visit";
 export const LINK_VISIT_BACKOFF_TYPE = "link-visit-capped";
 export const KAFKA_ATTEMPTED_FIELD = "__kafka_attempted";
+const LINK_VISIT_MAX_ATTEMPTS = 2_147_483_647;
 
 export interface LinkVisitJobData extends LinkVisitEvent {
 	readonly __kafka_attempted?: true;
 }
 
 export const LINK_VISIT_JOB_OPTIONS = {
-	attempts: 20,
+	// A redirect is acknowledged only after this durable job exists. Keep
+	// retrying transient sink outages instead of silently abandoning an
+	// admitted click after a short fixed window (roughly 4,000 years at cap).
+	attempts: LINK_VISIT_MAX_ATTEMPTS,
 	backoff: {
 		type: LINK_VISIT_BACKOFF_TYPE,
 		delay: 1000,
@@ -135,6 +139,21 @@ export async function addLinkVisitJobWithinDeadline(
 		readonly onDiscard?: () => void;
 	} = {}
 ): Promise<void> {
+	await runLinkVisitQueueOperationWithinDeadline(
+		targetQueue,
+		() => addLinkVisitJob(targetQueue, event),
+		options
+	);
+}
+
+async function runLinkVisitQueueOperationWithinDeadline<T>(
+	targetQueue: CloseableLinkVisitQueueWriter,
+	operation: () => Promise<T>,
+	options: {
+		readonly deadlineMs?: number;
+		readonly onDiscard?: () => void;
+	} = {}
+): Promise<T> {
 	const deadlineMs = options.deadlineMs ?? LINK_VISIT_QUEUE_IO_TIMEOUT_MS;
 	let timeout: ReturnType<typeof setTimeout> | undefined;
 	const deadline = new Promise<never>((_resolve, reject) => {
@@ -146,7 +165,7 @@ export async function addLinkVisitJobWithinDeadline(
 	});
 
 	try {
-		await Promise.race([addLinkVisitJob(targetQueue, event), deadline]);
+		return await Promise.race([operation(), deadline]);
 	} catch (error) {
 		// Discard and close this exact writer before rejecting. Queue.close aborts
 		// BullMQ while RedisConnection is still initializing, so a timed-out add
@@ -271,13 +290,30 @@ export function startLinkVisitDeliveryWorker(): Worker<LinkVisitJobData> {
 	return worker;
 }
 
-export function checkLinkVisitQueueHealth() {
-	return getLinkVisitQueue().getJobCounts(
-		"waiting",
-		"active",
-		"delayed",
-		"failed"
+export function checkLinkVisitQueueWriterHealth(
+	targetQueue: LinkVisitQueueHealthWriter,
+	options: {
+		readonly deadlineMs?: number;
+		readonly onDiscard?: () => void;
+	} = {}
+) {
+	return runLinkVisitQueueOperationWithinDeadline(
+		targetQueue,
+		() => targetQueue.getJobCounts("waiting", "active", "delayed", "failed"),
+		options
 	);
+}
+
+export function checkLinkVisitQueueHealth() {
+	const targetQueue = getLinkVisitQueue();
+	return checkLinkVisitQueueWriterHealth(targetQueue, {
+		deadlineMs: LINK_VISIT_QUEUE_HEALTH_TIMEOUT_MS,
+		onDiscard: () => {
+			if (queue === targetQueue) {
+				queue = null;
+			}
+		},
+	});
 }
 
 export async function closeLinkVisitDeliveryResources(

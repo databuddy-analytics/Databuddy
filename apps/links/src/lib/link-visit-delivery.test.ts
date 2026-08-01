@@ -2,6 +2,7 @@ import { describe, expect, mock, test } from "bun:test";
 import {
 	addLinkVisitJob,
 	addLinkVisitJobWithinDeadline,
+	checkLinkVisitQueueWriterHealth,
 	closeLinkVisitDeliveryResources,
 	getLinkVisitQueueConnectionOptions,
 	getWorkerConcurrency,
@@ -149,6 +150,7 @@ describe("link visit durable delivery", () => {
 	});
 
 	test("bounds failed-job retention", () => {
+		expect(LINK_VISIT_JOB_OPTIONS.attempts).toBeGreaterThan(1_000_000);
 		expect(LINK_VISIT_JOB_OPTIONS.removeOnFail).toEqual({
 			age: 7 * 24 * 3600,
 			count: 100_000,
@@ -171,6 +173,35 @@ describe("link visit durable delivery", () => {
 		expect(Date.now() - startedAt).toBeLessThan(250);
 		expect(onDiscard).toHaveBeenCalledTimes(1);
 		expect(close).toHaveBeenCalledTimes(1);
+	});
+
+	test("discards a failed health writer so its replacement can recover", async () => {
+		const closeFailed = mock(() => Promise.resolve());
+		const discardFailed = mock(() => undefined);
+		await expect(
+			checkLinkVisitQueueWriterHealth(
+				{
+					add: mock(() => Promise.resolve()),
+					close: closeFailed,
+					getJobCounts: mock(() => Promise.reject(new Error("offline"))),
+				},
+				{ deadlineMs: 20, onDiscard: discardFailed }
+			)
+		).rejects.toThrow("offline");
+		expect(discardFailed).toHaveBeenCalledTimes(1);
+		expect(closeFailed).toHaveBeenCalledTimes(1);
+
+		const counts = { active: 0, delayed: 0, failed: 0, waiting: 0 };
+		await expect(
+			checkLinkVisitQueueWriterHealth(
+				{
+					add: mock(() => Promise.resolve()),
+					close: mock(() => Promise.resolve()),
+					getJobCounts: mock(() => Promise.resolve(counts)),
+				},
+				{ deadlineMs: 20 }
+			)
+		).resolves.toEqual(counts);
 	});
 
 	test("requires full integer worker concurrency values", () => {
