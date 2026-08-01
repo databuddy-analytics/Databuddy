@@ -447,7 +447,18 @@ export class Databuddy {
 
 	async flush(): Promise<BatchEventResponse> {
 		if (this.flushPromise) {
-			return this.flushPromise;
+			const active = this.flushPromise;
+			const result = await active;
+			if (this.flushPromise && this.flushPromise !== active) {
+				return this.flush();
+			}
+			if (!result.success || this.queue.length === 0) {
+				return result;
+			}
+			if (this.flushPromise === active) {
+				this.flushPromise = null;
+			}
+			return this.flush();
 		}
 
 		const operation = this.flushQueue();

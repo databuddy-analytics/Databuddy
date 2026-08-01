@@ -292,6 +292,65 @@ describe("Databuddy Node client", () => {
 		});
 	});
 
+	it("does not bypass retry delay for callers joined to a failed active flush", async () => {
+		const firstResponse = createDeferred<Response>();
+		const calls = mockFetch((callNumber) =>
+			callNumber === 1
+				? firstResponse.promise
+				: jsonResponse({ status: "success", processed: 2 })
+		);
+		const client = new Databuddy({
+			apiKey: "dbdy_test",
+			batchSize: 1,
+			batchTimeout: 60_000,
+		});
+
+		const firstDelivery = client.track({
+			name: "first",
+			websiteId: "site_1",
+		});
+		await flushMicrotasks();
+		expect(calls).toHaveLength(1);
+
+		const secondDelivery = client.track({
+			name: "second",
+			websiteId: "site_1",
+		});
+		await flushMicrotasks();
+		expect(calls).toHaveLength(1);
+
+		firstResponse.resolve(
+			Response.json(
+				{
+					error: "Temporarily unavailable",
+					retryable: true,
+				},
+				{ status: 503 }
+			)
+		);
+
+		expect(await firstDelivery).toMatchObject({
+			success: false,
+			retryable: true,
+		});
+		expect(await secondDelivery).toMatchObject({
+			success: false,
+			retryable: true,
+		});
+		expect(calls).toHaveLength(1);
+
+		expect(await client.flush()).toMatchObject({
+			success: true,
+			delivery: "delivered",
+			processed: 2,
+		});
+		expect(calls).toHaveLength(2);
+		expect(calls[1]?.body).toEqual([
+			expect.objectContaining({ name: "first" }),
+			expect.objectContaining({ name: "second" }),
+		]);
+	});
+
 	it("bounds blackholed batch requests and keeps them retryable", async () => {
 		globalThis.fetch = mock(
 			(_input: string | URL | Request, init?: RequestInit) =>
