@@ -163,10 +163,10 @@ describe("API key rate limit admission", () => {
 		const keyB = createApiKey("key-b");
 		const { consume, dependencies, recordAdmissionOutcome } =
 			createDependencies(
-			new Map([
-				["dbdy_key_a", keyA],
-				["dbdy_key_b", keyB],
-			])
+				new Map([
+					["dbdy_key_a", keyA],
+					["dbdy_key_b", keyB],
+				])
 			);
 		const { app, getHandlerCalls } = createLinksApp(dependencies);
 
@@ -189,7 +189,8 @@ describe("API key rate limit admission", () => {
 		expect(getHandlerCalls()).toBe(3);
 		expect(consume).toHaveBeenNthCalledWith(1, "api-key:key-a", 2, 60);
 		expect(consume).toHaveBeenNthCalledWith(4, "api-key:key-b", 2, 60);
-		expect(recordAdmissionOutcome).toHaveBeenCalledExactlyOnceWith(
+		expect(recordAdmissionOutcome).toHaveBeenCalledTimes(1);
+		expect(recordAdmissionOutcome).toHaveBeenCalledWith(
 			"rolling_quota_rejected"
 		);
 	});
@@ -257,7 +258,6 @@ describe("API key rate limit admission", () => {
 			expect(response.status).toBe(200);
 		}
 		const rejected = await app.handle(createLinkRequest("dbdy_defaulted"));
-
 		expect(rejected.status).toBe(429);
 		expect(rejected.headers.get("x-ratelimit-limit")).toBe("300");
 		expect(getHandlerCalls()).toBe(300);
@@ -325,7 +325,8 @@ describe("API key rate limit admission", () => {
 		expect(consume).toHaveBeenCalledTimes(API_KEY_IN_FLIGHT_LIMIT + 1);
 		expect(resolveApiKey).toHaveBeenCalledTimes(API_KEY_IN_FLIGHT_LIMIT + 1);
 		expect(getHandlerCalls()).toBe(API_KEY_IN_FLIGHT_LIMIT + 1);
-		expect(recordAdmissionOutcome).toHaveBeenCalledExactlyOnceWith(
+		expect(recordAdmissionOutcome).toHaveBeenCalledTimes(1);
+		expect(recordAdmissionOutcome).toHaveBeenCalledWith(
 			"in_flight_rejected"
 		);
 
@@ -361,9 +362,12 @@ describe("API key rate limit admission", () => {
 
 		expect(response.status).toBe(200);
 		expect(getHandlerCalls()).toBe(1);
-		expect(
-			degraded.dependencies.recordAdmissionOutcome
-		).toHaveBeenCalledExactlyOnceWith("redis_fail_open");
+		expect(degraded.dependencies.recordAdmissionOutcome).toHaveBeenCalledTimes(
+			1
+		);
+		expect(degraded.dependencies.recordAdmissionOutcome).toHaveBeenCalledWith(
+			"redis_fail_open"
+		);
 	});
 
 	it("releases in-flight leases after early rate responses and errors", async () => {
