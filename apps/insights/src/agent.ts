@@ -9,6 +9,7 @@ import {
 	agentInvestigationOutcomeSchema,
 	investigationOutcomeSchema,
 	type AgentInvestigationOutcome,
+	type InsightDatabuddySetupRecommendation,
 	type InvestigationOutcome,
 	type InvestigationSignal,
 	type InsightMeasurementRecommendation,
@@ -135,6 +136,7 @@ export interface InsightAgentInput {
 		body: string;
 		createdAt: string;
 	};
+	setupRecommendationCandidate?: InsightDatabuddySetupRecommendation | null;
 	signal: InvestigationSignal;
 }
 
@@ -206,7 +208,7 @@ Act and ask interrupt people. Use either only when the result is worth interrupt
 When an action changes the named goal's title or description, set next.execution to the exact goal edit so Databuddy can apply it transactionally on click. When an action removes a duplicated or useless named goal, set next.execution to the exact delete. Omit execution for code, tracking, external, or any other action that Databuddy cannot safely apply itself. Never provide an execution for a different entity.
 For every act or watch, set next.recheckAt to the earliest exact ISO 8601 time after asOf when its verification or escalation condition can be measured. Use the actual measurement window or sample window, not a generic tomorrow. Never schedule a recheck before the window can answer the condition; when no defensible time exists, resolve or ask instead.
 For every evidence item, return one evidenceRefs item in the same order. Use source=provided with the zero-based supplied-evidence index for supplied facts, or source=tool with the exact name of a read tool you used. Never cite a tool you did not use. For every watch, return next.threshold with the exact native-unit value, comparison, defensible anchor, and evidenceRef. The system writes the customer-facing escalation sentence from this structured condition.
-A recommendation is one concrete, non-interrupting next step on a published insight; otherwise use null. Name the exact object and evidence-backed change, never generic narrowing or an invented target. You may recommend a Databuddy feature such as identify(), profile traits, revenue attribution, or one custom event only when customerImpact or inspected analytics proves the exact blind spot it removes; name the setup and the customer or product decision it unlocks. Identification, a plan trait, or a purchase-like event does not prove payment. Code, hosting, browser, or integration recommendations require inspected source or configuration; an error message, stack, route, or common implementation pattern is not enough. If source access is the next move, use ask and recommendation null rather than proposing a speculative repair. Goal edits put the proposed name and business description in changes, with null for an unchanged field, and action names the proposed value. Goal deletes and non-goal recommendations use null changes. operation is null unless the exact goal editor action is edit or delete. Never combine a recommendation with act or ask, confuse an event with a goal, or claim a proposal was applied, fixed, or verified.
+A recommendation is one concrete, non-interrupting next step on a published insight; otherwise use null. Name the exact object and evidence-backed change, never generic narrowing or an invented target. A Databuddy user-identification recommendation is allowed only when setupRecommendationCandidate is supplied; copy that candidate exactly as kind databuddy_setup. Never infer a missing profile trait or revenue setup from customerImpact. Custom-event instrumentation requires an observed coverage gap or an inspected workflow that establishes the exact behavior to measure; customerImpact alone cannot justify an event. Identification, a plan trait, or a purchase-like event does not prove payment. Code, hosting, browser, or integration recommendations require inspected source or configuration; an error message, stack, route, or common implementation pattern is not enough. If source access is the next move, use ask and recommendation null rather than proposing a speculative repair. Goal edits put the proposed name and business description in changes, with null for an unchanged field, and action names the proposed value. Goal deletes and non-goal recommendations use null changes. operation is null unless the exact goal editor action is edit or delete. Never combine a recommendation with act or ask, confuse an event with a goal, or claim a proposal was applied, fixed, or verified.
 When supplied or inspected evidence establishes an exact measurement candidate, you may return a typed goal_draft or funnel_draft recommendation. measurementCandidate is a backend-verified candidate: copy its target exactly, and never turn a page_navigation_proxy into a goal or funnel draft. Copy only the exact PAGE_VIEW path or EVENT name that evidence establishes; never infer a target, invent an event, use CUSTOM, add conditions, or widen the 24-hour funnel window. A goal draft has one target; a funnel draft has two to ten ordered steps. These drafts are review-only: set next to resolve, omit next.execution, and explain that the teammate can edit the normal setup form before saving. Route-only evidence proves navigation, not a business conversion. Label a route-only funnel as a navigation proxy and prefer an instrumentation recommendation when the missing product event is the real limitation. An instrumentation recommendation is display-only, names the behavior that needs measurement, and must never claim a goal or funnel already exists.
 Measured reliability or performance harm to a named cohort is impact even when revenue is unknown. A goal or funnel that contradicts its configured purpose or inspected source is broken tracking: act on the exact definition and verification, with no recommendation. Without a configured purpose, do not invent or ask for one. If an undescribed goal combines unrelated behaviors, explain what it measures, put the exact target and filters in rootCause, state what the number cannot tell the teammate in impact, and resolve because no isolated failure is proven. Recommend renaming and describing the broad goal, or creating a narrower goal from an existing purpose-specific event; delete only a duplicate or useless goal. Publish this limitation once. If its description already defines broad engagement, keep it and investigate the change.
 An improvement from a failing value to another failing value is not recovery. For performance regressions, identify the worst meaningful route and affected traffic before deciding; if the metric remains unhealthy and code ownership is missing, ask for that ownership instead of inventing a fix or waiting on a noise-sensitive threshold. The same rule applies to ongoing reliability harm: when a current failure affects a material named cohort and repair needs source access, ask for the owning repository now; do not watch it merely because the exact code mechanism is not yet inspected.
@@ -287,7 +289,27 @@ function formatWatchEscalation(
 function measurementRecommendation(
 	recommendation: AgentInvestigationOutcome["recommendation"]
 ): InsightMeasurementRecommendation | null {
-	return recommendation && "kind" in recommendation ? recommendation : null;
+	if (!(recommendation && "kind" in recommendation)) {
+		return null;
+	}
+	switch (recommendation.kind) {
+		case "funnel_draft":
+		case "goal_draft":
+		case "instrumentation":
+			return recommendation;
+		default:
+			return null;
+	}
+}
+
+function databuddySetupRecommendation(
+	recommendation: AgentInvestigationOutcome["recommendation"]
+): InsightDatabuddySetupRecommendation | null {
+	return recommendation &&
+		"kind" in recommendation &&
+		recommendation.kind === "databuddy_setup"
+		? recommendation
+		: null;
 }
 
 function isCanonicalDraftTarget(type: "EVENT" | "PAGE_VIEW", target: string) {
@@ -361,12 +383,37 @@ function verifiedDraftTargetsFromSteps(
 
 function validateMeasurementRecommendation(
 	outcome: AgentInvestigationOutcome,
-	input: Pick<InsightAgentInput, "measurementCandidate">,
+	input: Pick<
+		InsightAgentInput,
+		"measurementCandidate" | "setupRecommendationCandidate"
+	>,
 	verification: {
 		usedToolNames: ReadonlySet<string>;
 		verifiedDraftTargets: ReadonlySet<string>;
 	}
 ) {
+	const setupRecommendation = databuddySetupRecommendation(
+		outcome.recommendation
+	);
+	if (setupRecommendation) {
+		const candidate = input.setupRecommendationCandidate;
+		if (outcome.next.type !== "resolve") {
+			throw new Error(
+				"Insights Databuddy setup recommendations must resolve without an executable action"
+			);
+		}
+		if (
+			!candidate ||
+			candidate.kind !== setupRecommendation.kind ||
+			candidate.feature !== setupRecommendation.feature ||
+			candidate.action !== setupRecommendation.action
+		) {
+			throw new Error(
+				"Insights Databuddy setup recommendations must match the evidence-backed candidate exactly"
+			);
+		}
+		return;
+	}
 	const recommendation = measurementRecommendation(outcome.recommendation);
 	if (!recommendation) {
 		return;
@@ -476,7 +523,11 @@ function validateAgentOutcome(
 	outcome: AgentInvestigationOutcome,
 	input: Pick<
 		InsightAgentInput,
-		"appContext" | "evidence" | "measurementCandidate" | "signal"
+		| "appContext"
+		| "evidence"
+		| "measurementCandidate"
+		| "setupRecommendationCandidate"
+		| "signal"
 	>,
 	verification: {
 		usedToolNames: ReadonlySet<string>;
@@ -617,6 +668,7 @@ export async function runInsightAgent(
 		),
 		otherOpenWork: input.otherOpenWork,
 		measurementCandidate: input.measurementCandidate ?? null,
+		setupRecommendationCandidate: input.setupRecommendationCandidate ?? null,
 		...(input.request
 			? {
 					request: {

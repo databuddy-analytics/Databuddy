@@ -68,6 +68,7 @@ import {
 } from "./agent";
 import {
 	errorCustomerImpactEvidence,
+	errorIdentitySetupRecommendation,
 	loadErrorCustomerImpact,
 } from "./error-customer-impact";
 import {
@@ -609,6 +610,9 @@ async function investigatePlannedCandidate(
 	if (customerImpact) {
 		evidence.push(errorCustomerImpactEvidence(customerImpact));
 	}
+	const setupRecommendationCandidate = customerImpact
+		? errorIdentitySetupRecommendation(customerImpact)
+		: null;
 	const annotation = annotationEvidence(annotationRows);
 	if (annotation) {
 		evidence = [...evidence, annotation];
@@ -651,6 +655,7 @@ async function investigatePlannedCandidate(
 			measurementCandidate: candidate.measurementCandidate,
 			otherOpenWork,
 			relatedSignals,
+			setupRecommendationCandidate,
 			signal: candidate.signal,
 		});
 	} catch (error) {

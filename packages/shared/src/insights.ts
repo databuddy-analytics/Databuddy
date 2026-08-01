@@ -180,6 +180,16 @@ const measurementRecommendationActionSchema = z
 	.max(320)
 	.describe("One short, concrete measurement recommendation for a teammate.");
 
+export const insightDatabuddySetupRecommendationSchema = z
+	.object({
+		action: measurementRecommendationActionSchema.describe(
+			"Exact evidence-backed Databuddy setup and the future customer question it unlocks."
+		),
+		feature: z.literal("user_identification"),
+		kind: z.literal("databuddy_setup"),
+	})
+	.strict();
+
 const measurementGoalFilterSchema = z
 	.object({
 		field: z.string().trim().min(1),
@@ -416,7 +426,11 @@ const investigationNextSchema = z.discriminatedUnion("type", [
 ]);
 
 export const insightRecommendationSchema = z
-	.union([insightGoalOperationSchema, insightMeasurementRecommendationSchema])
+	.union([
+		insightGoalOperationSchema,
+		insightMeasurementRecommendationSchema,
+		insightDatabuddySetupRecommendationSchema,
+	])
 	.nullable()
 	.describe(
 		"Concrete evidence-backed next step worth suggesting without opening an investigation. This may recommend a Databuddy feature such as user identification or a custom event only when measured coverage proves the exact blind spot it would remove. Name the exact object, setup, and unlock; use null when there is no useful next step."
@@ -665,6 +679,9 @@ export type AgentInvestigationOutcome = z.infer<
 >;
 export type InsightMeasurementRecommendation = z.infer<
 	typeof insightMeasurementRecommendationSchema
+>;
+export type InsightDatabuddySetupRecommendation = z.infer<
+	typeof insightDatabuddySetupRecommendationSchema
 >;
 export type InsightRecommendation = z.infer<typeof insightRecommendationSchema>;
 export type InsightWatchThreshold = z.infer<typeof insightWatchThresholdSchema>;

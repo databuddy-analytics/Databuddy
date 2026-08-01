@@ -47,6 +47,15 @@ describe("error customer impact query", () => {
 				],
 			}).compile()
 		).toThrow("requires exactly one scalar message or path equality filter");
+		expect(() =>
+			new SimpleQueryBuilder(config, {
+				...request,
+				filters: [
+					{ field: "message", op: "eq", value: "manifest" },
+					{ field: "country", op: "eq", value: "US" },
+				],
+			}).compile()
+		).toThrow("requires exactly one scalar message or path equality filter");
 	});
 
 	it("preaggregates identity and terminal payment facts without returning ids", () => {
@@ -62,6 +71,12 @@ describe("error customer impact query", () => {
 		expect(sql).toContain("GROUP BY owner_id, provider, transaction_id");
 		expect(sql).toContain("status = 'completed'");
 		expect(sql).toContain("type IN ('sale', 'subscription')");
+		expect(sql).toContain(
+			"profile_id IN (SELECT resolved_profile_id FROM affected_profiles)"
+		);
+		expect(sql).toContain(
+			"payment.first_completed_payment_at <= affected.first_error_at"
+		);
 		expect(sql).toContain("uniqExactIf");
 		expect(params.f0).toBe("Failed to fetch dynamically imported module");
 		expect(config?.publicAccess).not.toBe(true);
@@ -74,7 +89,7 @@ describe("error customer impact query", () => {
 			"unlinked_visitor_identifiers",
 			"ambiguous_profile_sessions",
 			"identity_coverage_percent",
-			"sessions_with_later_tracked_activity",
+			"sessions_with_later_telemetry",
 			"identified_profiles_with_prior_attributed_completed_payment",
 			"qualifying_profile_payment_history_observed",
 			"payment_match_is_lower_bound",
