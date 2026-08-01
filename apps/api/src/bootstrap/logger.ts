@@ -1,10 +1,13 @@
-import { databuddyEvlogRedaction } from "@databuddy/shared/evlog-redaction";
+import {
+	createDatabuddyEvlogEnv,
+	databuddyEvlogRedaction,
+} from "@databuddy/shared/evlog-redaction";
 import { initLogger } from "evlog";
 import { apiLoggerDrain } from "@/lib/evlog-api";
 
 export function configureApiLogger() {
 	initLogger({
-		env: { service: "api" },
+		env: createDatabuddyEvlogEnv("api"),
 		redact: databuddyEvlogRedaction,
 		drain: apiLoggerDrain,
 		sampling: {
