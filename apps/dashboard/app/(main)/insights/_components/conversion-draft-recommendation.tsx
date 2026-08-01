@@ -14,8 +14,12 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useFeatureGate } from "@/components/feature-gate";
 import { useAutocompleteData } from "@/hooks/use-autocomplete";
-import { type CreateGoalData, type Goal, useGoals } from "@/hooks/use-goals";
-import { useFunnels } from "@/hooks/use-funnels";
+import {
+	type CreateGoalData,
+	type Goal,
+	useGoalActions,
+} from "@/hooks/use-goals";
+import { useFunnelActions } from "@/hooks/use-funnels";
 import type { CreateFunnelData } from "@/types/funnels";
 
 const EditGoalDialog = dynamic(
@@ -122,7 +126,7 @@ function GoalDraftAction({
 	const [createdGoal, setCreatedGoal] = useState<CreatedDraft | null>(null);
 	const [isOpen, setIsOpen] = useState(false);
 	const autocomplete = useAutocompleteData(websiteId, isOpen);
-	const { createGoal, isCreating } = useGoals(websiteId, isOpen);
+	const { createGoal, isCreating } = useGoalActions(websiteId);
 
 	const handleSave = async (data: Goal | Omit<CreateGoalData, "websiteId">) => {
 		try {
@@ -188,9 +192,7 @@ function FunnelDraftAction({
 	const [createdFunnel, setCreatedFunnel] = useState<CreatedDraft | null>(null);
 	const [isOpen, setIsOpen] = useState(false);
 	const autocomplete = useAutocompleteData(websiteId, isOpen);
-	const { createAction, isCreating } = useFunnels(websiteId, {
-		enabled: isOpen,
-	});
+	const { createAction, isCreating } = useFunnelActions(websiteId);
 
 	const handleCreate = async (data: CreateFunnelData) => {
 		try {

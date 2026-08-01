@@ -66,19 +66,30 @@ export function EditFunnelDialog({
 	autocompleteData,
 }: EditFunnelDialogProps) {
 	const [formData, setFormData] = useState<Funnel | null>(null);
-	const wasOpen = useRef(false);
+	const initializedFor = useRef<string | null>(null);
 	const isCreateMode = !funnel;
 	const isSuggestedDraft = isCreateMode && Boolean(initialDraft);
+	const formIdentity = useMemo(() => {
+		if (funnel) {
+			return `funnel:${funnel.id}`;
+		}
+		if (initialDraft) {
+			return `draft:${initialDraft.name}:${initialDraft.steps
+				.map((step) => `${step.type}:${step.target}`)
+				.join("|")}`;
+		}
+		return "new";
+	}, [funnel, initialDraft]);
 
 	useEffect(() => {
 		if (!isOpen) {
-			wasOpen.current = false;
+			initializedFor.current = null;
 			return;
 		}
-		if (wasOpen.current) {
+		if (initializedFor.current === formIdentity) {
 			return;
 		}
-		wasOpen.current = true;
+		initializedFor.current = formIdentity;
 
 		if (funnel) {
 			const sanitizedFilters = (funnel.filters || []).map((f) => ({
@@ -125,7 +136,7 @@ export function EditFunnelDialog({
 				updatedAt: "",
 			});
 		}
-	}, [funnel, initialDraft, isOpen]);
+	}, [formIdentity, funnel, initialDraft, isOpen]);
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();

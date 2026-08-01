@@ -25,7 +25,7 @@ export function CollapsibleSection({
 	return (
 		<div className="flex flex-col gap-2">
 			<Button
-				className="group h-auto w-full justify-between p-3 text-left"
+				className="group h-auto w-full justify-between whitespace-normal p-3 text-left font-normal"
 				onClick={onToggleAction}
 				type="button"
 				variant="ghost"

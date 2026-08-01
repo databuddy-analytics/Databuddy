@@ -43,12 +43,19 @@ const PERIOD_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
 });
 
 interface LatestRunSummary {
+	analyzedSignalCount: number;
 	completedItems: number;
 	failedItems: number;
 	id: string;
 	insightCount: number;
 	skippedItems: number;
-	status: string;
+	status:
+		| "failed"
+		| "partially_succeeded"
+		| "queued"
+		| "running"
+		| "skipped"
+		| "succeeded";
 	totalItems: number;
 }
 
@@ -70,18 +77,30 @@ function latestRunDescription(
 		return "Analyzing your websites…";
 	}
 	if (run.status === "failed") {
-		return "The latest analysis couldn't finish. Try again.";
+		if (run.analyzedSignalCount === 0) {
+			return "The latest analysis couldn't finish. Try again.";
+		}
+		return `Latest analysis examined ${countLabel(run.analyzedSignalCount, "signal")} and found ${run.insightCount === 0 ? "nothing noteworthy" : countLabel(run.insightCount, "noteworthy insight")}, but couldn't finish.`;
+	}
+	if (run.status === "skipped") {
+		return run.totalItems === 0
+			? "No websites were available to analyze."
+			: "The latest analysis finished without publishing new insights.";
 	}
 
 	const reviewed = run.completedItems + run.skippedItems;
 	const findings =
 		run.insightCount === 0
-			? "no noteworthy changes"
-			: countLabel(run.insightCount, "noteworthy insight");
+			? "none were noteworthy"
+			: `${run.insightCount.toLocaleString("en-US")} ${run.insightCount === 1 ? "was" : "were"} noteworthy`;
+	const coverage =
+		run.analyzedSignalCount === 0
+			? `reviewed ${countLabel(reviewed, "website")}`
+			: `examined ${countLabel(run.analyzedSignalCount, "signal")} across ${countLabel(reviewed, "website")}`;
 	if (run.status === "partially_succeeded") {
-		return `Latest analysis reviewed ${reviewed} of ${run.totalItems} websites and found ${findings}. ${countLabel(run.failedItems, "website")} couldn't be analyzed.`;
+		return `Latest analysis ${coverage}; ${findings}. ${countLabel(run.failedItems, "website")} couldn't be analyzed.`;
 	}
-	return `Latest analysis reviewed ${countLabel(reviewed, "website")} and found ${findings}.`;
+	return `Latest analysis ${coverage}; ${findings}.`;
 }
 
 export default function InsightsPage() {
@@ -96,8 +115,14 @@ export default function InsightsPage() {
 			input: { organizationId: orgId },
 		}),
 		enabled: Boolean(orgId),
-		refetchInterval: (query) =>
-			isActiveRun(query.state.data?.status) ? 2000 : 30_000,
+		meta: { suppressGlobalErrorToast: true },
+		refetchInterval: (query) => {
+			const failures = query.state.fetchFailureCount;
+			if (failures > 0) {
+				return Math.min(30_000 * 2 ** Math.min(failures - 1, 3), 5 * 60_000);
+			}
+			return isActiveRun(query.state.data?.status) ? 2000 : 30_000;
+		},
 	});
 	const briefInsights =
 		brief.data?.pages.flatMap((page) => page.insights) ?? [];
@@ -117,27 +142,44 @@ export default function InsightsPage() {
 			() => undefined
 		);
 	}, [latestRun.refetch, refetch, refetchBrief]);
-	const activeRun = useRef<{ organizationId: string; runId: string } | null>(
-		null
-	);
+	const latestRunTracker = useRef<{
+		organizationId: string;
+		terminalRunId: string | null;
+	} | null>(null);
 	useEffect(() => {
+		if (!orgId) {
+			latestRunTracker.current = null;
+			return;
+		}
+		if (!latestRun.isSuccess) {
+			if (latestRunTracker.current?.organizationId !== orgId) {
+				latestRunTracker.current = null;
+			}
+			return;
+		}
+
 		const run = latestRun.data;
-		if (!(orgId && run)) {
-			activeRun.current = null;
+		const tracked = latestRunTracker.current;
+		if (!tracked || tracked.organizationId !== orgId) {
+			latestRunTracker.current = {
+				organizationId: orgId,
+				terminalRunId: run && !isActiveRun(run.status) ? run.id : null,
+			};
+			if (run && !isActiveRun(run.status)) {
+				refreshInsights();
+			}
 			return;
 		}
-		if (isActiveRun(run.status)) {
-			activeRun.current = { organizationId: orgId, runId: run.id };
+		if (!run || isActiveRun(run.status) || tracked.terminalRunId === run.id) {
 			return;
 		}
-		if (
-			activeRun.current?.organizationId === orgId &&
-			activeRun.current.runId === run.id
-		) {
-			activeRun.current = null;
-			refreshInsights();
-		}
-	}, [latestRun.data, orgId, refreshInsights]);
+
+		latestRunTracker.current = {
+			organizationId: orgId,
+			terminalRunId: run.id,
+		};
+		refreshInsights();
+	}, [latestRun.data, latestRun.isSuccess, orgId, refreshInsights]);
 	const isAnalyzing = isActiveRun(latestRun.data?.status);
 
 	return (
@@ -167,6 +209,7 @@ export default function InsightsPage() {
 				</Button>
 				<InvestigationSettings
 					isAnalyzing={isAnalyzing}
+					key={orgId}
 					organizationId={orgId}
 				/>
 			</TopBar.Actions>

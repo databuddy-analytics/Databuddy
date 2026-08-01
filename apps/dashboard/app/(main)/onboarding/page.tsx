@@ -9,7 +9,7 @@ import {
 	clearOnboardingAttribution,
 	consumePendingSocialSignup,
 	readOnboardingAttribution,
-	storeOnboardingAttribution,
+	toOnboardingAttribution,
 	type OnboardingAttributionProperties,
 	trackAppEvent,
 } from "@/lib/app-events";
@@ -51,6 +51,7 @@ export default function OnboardingPage() {
 	const { websites } = useWebsitesLight();
 	const trackedStepRef = useRef<number>(-1);
 	const onboardingCompletedRef = useRef(false);
+	const onboardingStartedRef = useRef(false);
 
 	const [currentStep, setCurrentStep] = useState(0);
 	const [completedSteps, setCompletedSteps] = useState<Set<string>>(new Set());
@@ -88,11 +89,16 @@ export default function OnboardingPage() {
 
 	// Track onboarding start once
 	useEffect(() => {
+		if (onboardingStartedRef.current) {
+			return;
+		}
+		onboardingStartedRef.current = true;
 		const signupProperties = consumePendingSocialSignup();
 		const onboardingAttribution =
-			signupProperties ?? readOnboardingAttribution();
+			signupProperties === null
+				? readOnboardingAttribution()
+				: toOnboardingAttribution(signupProperties);
 		if (signupProperties) {
-			storeOnboardingAttribution(signupProperties);
 			trackAppEvent(APP_EVENTS.signupCompleted, signupProperties, {
 				flush: true,
 			});
