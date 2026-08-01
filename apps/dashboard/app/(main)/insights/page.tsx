@@ -30,6 +30,7 @@ import {
 } from "./_components/investigation-row";
 import {
 	isConversionDraftRecommendation,
+	isDatabuddySetupRecommendation,
 	isGoalRecommendation,
 	isInstrumentationRecommendation,
 } from "./_components/recommendation-guards";
@@ -461,7 +462,9 @@ function InsightBriefRow({ insight }: { insight: BriefInsight }) {
 					<div className="mt-3 rounded-md border border-primary/15 bg-primary/[0.035] px-3 py-2.5">
 						<p className="text-foreground/85 text-sm leading-relaxed">
 							<span className="mr-1 font-semibold text-primary text-xs uppercase tracking-wide">
-								Next step
+								{isDatabuddySetupRecommendation(recommendation)
+									? "Improve future reports"
+									: "Next step"}
 							</span>
 							{recommendation.action}
 						</p>

@@ -5,6 +5,11 @@ import type {
 
 type Recommendation = NonNullable<InsightRecommendation>;
 
+type DatabuddySetupRecommendation = Extract<
+	Recommendation,
+	{ kind: "databuddy_setup" }
+>;
+
 export type GoalRecommendation = Extract<
 	Recommendation,
 	{ operation: "delete" | "edit" }
@@ -28,6 +33,12 @@ export function isGoalRecommendation(
 		(recommendation.operation === "delete" ||
 			recommendation.operation === "edit")
 	);
+}
+
+export function isDatabuddySetupRecommendation(
+	recommendation: Recommendation
+): recommendation is DatabuddySetupRecommendation {
+	return "kind" in recommendation && recommendation.kind === "databuddy_setup";
 }
 
 export function isConversionDraftRecommendation(
