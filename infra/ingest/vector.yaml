@@ -1,6 +1,10 @@
 acknowledgements:
   enabled: true
 
+log_schema:
+  # Keep Kafka record time separate from the analytics event's immutable time.
+  timestamp_key: kafka_timestamp
+
 sources:
   redpanda:
     type: kafka
