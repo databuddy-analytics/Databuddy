@@ -23,7 +23,7 @@ export function PromiseScene() {
 						top: 148 + index * 220,
 						translate: `0 ${interpolate(
 							frame,
-							[promise.from + 13, promise.from + 24, 63],
+							[promise.from + 13, promise.from + 24, 62],
 							[0, 0, -index * 38],
 							{
 								extrapolateLeft: "clamp",

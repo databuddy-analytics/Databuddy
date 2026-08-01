@@ -1,7 +1,6 @@
 import type { CSSProperties, PropsWithChildren, ReactNode } from "react";
 import {
 	AbsoluteFill,
-	Easing,
 	Img,
 	interpolate,
 	spring,
@@ -27,8 +26,6 @@ const popConfig = {
 	mass: 0.62,
 	stiffness: 220,
 };
-
-export const easeSnap = Easing.bezier(0.16, 1, 0.3, 1);
 
 export function popIn(frame: number, fps: number, from = 0) {
 	return spring({

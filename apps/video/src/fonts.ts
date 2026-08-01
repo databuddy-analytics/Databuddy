@@ -1,7 +1,9 @@
 import { loadFont } from "@remotion/fonts";
-import { staticFile } from "remotion";
+import { continueRender, delayRender, staticFile } from "remotion";
 
 export const databuddyFontFamily = "LT Superior";
+
+const fontsHandle = delayRender("Loading Databuddy fonts");
 
 export const fontsReady = Promise.all([
 	loadFont({
@@ -25,3 +27,11 @@ export const fontsReady = Promise.all([
 		weight: "700",
 	}),
 ]);
+
+fontsReady.then(
+	() => continueRender(fontsHandle),
+	(error) => {
+		console.error(error);
+		continueRender(fontsHandle);
+	}
+);
