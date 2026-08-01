@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { SIGNUP_METHODS } from "@databuddy/shared/custom-events";
 import {
 	clearOnboardingAttribution,
+	clearPendingSocialSignup,
 	consumePendingSocialSignup,
 	isSocialSignupMethod,
 	readOnboardingAttribution,
@@ -125,6 +126,23 @@ describe("isSocialSignupMethod", () => {
 		storeOnboardingAttribution({});
 
 		expect(readOnboardingAttribution()).toEqual({});
+	});
+
+	it("clears stale pending social signup state without changing onboarding attribution", () => {
+		installSessionStorageMock();
+
+		storePendingSocialSignup({
+			method: "social_google",
+			utm_campaign: "competitors",
+			utm_source: "openai_ads",
+		});
+		clearPendingSocialSignup();
+
+		expect(consumePendingSocialSignup()).toBeNull();
+		expect(readOnboardingAttribution()).toEqual({
+			utm_campaign: "competitors",
+			utm_source: "openai_ads",
+		});
 	});
 
 	it("normalizes signup properties before onboarding events reuse them", () => {
