@@ -30,7 +30,6 @@ export class ProducerShuttingDownError extends Data.TaggedError(
 export class ProducerUnavailableError extends Data.TaggedError(
 	"ProducerUnavailableError"
 )<{
-	readonly reason?: "ambiguous-kafka-send";
 	readonly retryable: true;
 }> {}
 export class UnknownKafkaTopicError extends Data.TaggedError(
@@ -65,7 +64,6 @@ interface ProducerState {
 	connected: boolean;
 	connecting: Deferred.Deferred<boolean> | null;
 	connectionFailed: boolean;
-	directFallbackAllowed: boolean;
 	errors: number;
 	failedCount: number;
 	inFlight: number;
@@ -99,7 +97,8 @@ export interface ProducerConfig {
 export interface ProducerEffects {
 	sendMany: (
 		topic: string,
-		events: unknown[]
+		events: unknown[],
+		deliveryIds?: string[]
 	) => Effect.Effect<void, ProducerError>;
 	sendOne: (
 		topic: string,
@@ -118,7 +117,6 @@ const INITIAL_STATE: ProducerState = {
 	connected: false,
 	connecting: null,
 	connectionFailed: false,
-	directFallbackAllowed: true,
 	lastRetry: 0,
 	producerInitialized: false,
 	shuttingDown: false,
@@ -131,11 +129,17 @@ function toError(err: unknown): Error {
 
 function clickHouseInsertDeduplicationToken(
 	table: string,
-	events: unknown[]
+	events: unknown[],
+	deliveryIds?: string[]
 ): string {
 	const hash = createHash("sha256").update(table);
-	for (const event of events) {
+	for (const [index, event] of events.entries()) {
 		hash.update("\0");
+		const deliveryId = deliveryIds?.[index];
+		if (deliveryId) {
+			hash.update(deliveryId);
+			continue;
+		}
 		if (event && typeof event === "object") {
 			const candidate = event as { event_id?: unknown; id?: unknown };
 			const id = candidate.id ?? candidate.event_id;
@@ -154,7 +158,8 @@ async function insertClickHouseChunks(
 	table: string,
 	events: unknown[],
 	chunkSize: number,
-	timeoutMs: number
+	timeoutMs: number,
+	deliveryIds?: string[]
 ) {
 	const controller = new AbortController();
 	let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -174,9 +179,11 @@ async function insertClickHouseChunks(
 			(async () => {
 				for (let i = 0; i < events.length; i += chunkSize) {
 					const values = events.slice(i, i + chunkSize);
+					const chunkDeliveryIds = deliveryIds?.slice(i, i + chunkSize);
 					const deduplicationToken = clickHouseInsertDeduplicationToken(
 						table,
-						values
+						values,
+						chunkDeliveryIds
 					);
 					await ch.insert({
 						table,
@@ -259,7 +266,6 @@ function makeProducerEffects(
 					connected: true,
 					connecting: st.connecting === candidate ? null : st.connecting,
 					connectionFailed: false,
-					directFallbackAllowed: true,
 					lastRetry: 0,
 					producerInitialized: true,
 				}))
@@ -329,7 +335,8 @@ function makeProducerEffects(
 
 	const persistDirectly = (
 		topic: string,
-		events: unknown[]
+		events: unknown[],
+		deliveryIds?: string[]
 	): Effect.Effect<void, ClickHouseFallbackError | UnknownKafkaTopicError> =>
 		Effect.gen(function* () {
 			const table = yield* resolveTopic(topic);
@@ -341,7 +348,8 @@ function makeProducerEffects(
 							table,
 							events,
 							config.chunkSize,
-							config.directFallbackTimeout
+							config.directFallbackTimeout,
+							deliveryIds
 						)
 					),
 				catch: (e) =>
@@ -403,7 +411,8 @@ function makeProducerEffects(
 	const sendViaKafka = (
 		topic: string,
 		messages: Array<{ value: string; key?: string }>,
-		fallbackEvents: unknown[]
+		fallbackEvents: unknown[],
+		deliveryIds?: string[]
 	): Effect.Effect<void, ProducerError> =>
 		acquireSendSlot(fallbackEvents.length).pipe(
 			Effect.flatMap(() =>
@@ -427,7 +436,6 @@ function makeProducerEffects(
 										...st,
 										connectionFailed: true,
 										connected: false,
-										directFallbackAllowed: false,
 										errors: st.errors + 1,
 										lastRetry: Date.now(),
 										lastErrorTime: Date.now(),
@@ -451,18 +459,7 @@ function makeProducerEffects(
 						}
 					}
 
-					if (enabled && kafka) {
-						const state = yield* Ref.get(ref);
-						if (!state.directFallbackAllowed) {
-							return yield* Effect.fail(
-								new ProducerUnavailableError({
-									reason: "ambiguous-kafka-send",
-									retryable: true,
-								})
-							);
-						}
-					}
-					yield* persistDirectly(topic, fallbackEvents);
+					yield* persistDirectly(topic, fallbackEvents, deliveryIds);
 				}).pipe(Effect.ensuring(releaseSendSlot(fallbackEvents.length)))
 			)
 		);
@@ -485,7 +482,8 @@ function makeProducerEffects(
 
 	const sendMany = (
 		topic: string,
-		events: unknown[]
+		events: unknown[],
+		deliveryIds?: string[]
 	): Effect.Effect<void, ProducerError> => {
 		if (events.length === 0) {
 			return Effect.void;
@@ -498,7 +496,8 @@ function makeProducerEffects(
 					(e as { client_id?: string }).client_id ||
 					(e as { event_id?: string }).event_id,
 			})),
-			events
+			events,
+			deliveryIds
 		);
 	};
 
@@ -563,7 +562,6 @@ function makeProducerEffects(
 		Effect.map(
 			({
 				connecting,
-				directFallbackAllowed: _d,
 				shuttingDown: _s,
 				connectionFailed,
 				producerInitialized: _p,
@@ -714,8 +712,11 @@ const withActiveFx = <A, E>(
 export const send = (topic: string, event: unknown, key?: string) =>
 	withActiveFx((f) => f.sendOne(topic, event, key));
 
-export const sendBatch = (topic: string, events: unknown[]) =>
-	withActiveFx((f) => f.sendMany(topic, events));
+export const sendBatch = (
+	topic: string,
+	events: unknown[],
+	deliveryIds?: string[]
+) => withActiveFx((f) => f.sendMany(topic, events, deliveryIds));
 
 export const disconnect = withFx((f) => f.shutDown);
 

@@ -299,7 +299,7 @@ describe("producer delivery guarantees", () => {
 		expect(insert).toHaveBeenCalledTimes(51);
 	});
 
-	test("rejects an ambiguous Kafka send without writing the same event directly", async () => {
+	test("uses direct fallback during reconnect cooldown after an ambiguous Kafka send", async () => {
 		const insert = vi.fn(() => Promise.resolve());
 		const kafka = {
 			connect: vi.fn(() => Promise.resolve()),
@@ -323,20 +323,17 @@ describe("producer delivery guarantees", () => {
 			topic: "analytics-events",
 		});
 
-		await expect(
-			Effect.runPromise(effects.sendOne("analytics-events", event("event_1")))
-		).rejects.toMatchObject({
-			_tag: "ProducerUnavailableError",
-			reason: "ambiguous-kafka-send",
-		});
-		expect(insert).not.toHaveBeenCalled();
+		await Effect.runPromise(
+			effects.sendOne("analytics-events", event("event_1"))
+		);
+		expect(insert).toHaveBeenCalledTimes(1);
 		expect(await Effect.runPromise(effects.stats)).toMatchObject({
 			connected: false,
 			errors: 1,
 			failed: true,
 			failedCount: 1,
 			inFlight: 0,
-			sent: 0,
+			sent: 1,
 		});
 	});
 });
