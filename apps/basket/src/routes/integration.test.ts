@@ -89,6 +89,7 @@ vi.mock("evlog/elysia", () => ({
 vi.mock("@lib/tracing", () => ({
 	record: (_n: string, fn: Function) => Promise.resolve().then(() => fn()),
 	captureError: noop,
+	mergeWideEvent: noop,
 }));
 
 vi.mock("@lib/request-validation", () => ({
@@ -616,6 +617,39 @@ describe("POST /batch", () => {
 		expect(mockInsertOutgoingLinksBatch).not.toHaveBeenCalled();
 	});
 
+	test("keeps malformed items as schema failures without dropping valid events", async () => {
+		mockInsertTrackEventsBatch.mockClear();
+		mockInsertOutgoingLinksBatch.mockClear();
+
+		const result = await post(basketApp, "/batch", [
+			{
+				type: "track",
+				eventId: "evt_1",
+				name: "pageview",
+				path: "https://example.com/a",
+			},
+			null,
+		]);
+
+		expect(result.status).toBe(200);
+		expect(await json(result)).toMatchObject({
+			status: "partial",
+			batch: true,
+			processed: 2,
+			batched: { track: 1, outgoing_link: 0 },
+			results: [
+				{ status: "success", type: "track", eventId: "evt_1" },
+				{
+					status: "error",
+					code: "INVALID_EVENT_SCHEMA",
+					eventType: "track",
+				},
+			],
+		});
+		expect(mockInsertTrackEventsBatch).toHaveBeenCalledOnce();
+		expect(mockInsertOutgoingLinksBatch).toHaveBeenCalledOnce();
+	});
+
 	test("not an array → 400", async () => {
 		const res = await post(basketApp, "/batch", { not: "array" });
 		expect(res.status).toBe(400);
@@ -632,7 +666,7 @@ describe("POST /batch", () => {
 		expect(res.status).toBe(400);
 	});
 
-	test("mixed valid + unknown types → partial results", async () => {
+	test("mixed valid + invalid types → partial results", async () => {
 		const res = await post(basketApp, "/batch", [
 			{
 				type: "track",
@@ -640,7 +674,7 @@ describe("POST /batch", () => {
 				name: "pageview",
 				path: "https://example.com/a",
 			},
-			{ type: "bogus_type" },
+			{ type: 1 },
 		]);
 		expect(res.status).toBe(200);
 		const body = await json(res);

@@ -5,7 +5,6 @@ import {
 	buildBasketErrorPayload,
 	createIngestSchemaValidationError,
 	deliveryUnavailable,
-	isDeliveryUnavailableError,
 	isIngestSchemaValidationError,
 	rethrowOrWrap,
 } from "./structured-errors";
@@ -96,8 +95,6 @@ describe("deliveryUnavailable", () => {
 			code: "basket.DELIVERY_UNAVAILABLE",
 			status: 503,
 		});
-		expect(isDeliveryUnavailableError(error)).toBe(true);
-		expect(isDeliveryUnavailableError(new Error("nope"))).toBe(false);
 	});
 });
 

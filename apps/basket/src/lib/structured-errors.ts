@@ -242,16 +242,6 @@ export function deliveryUnavailable(cause: unknown) {
 	});
 }
 
-export function isDeliveryUnavailableError(
-	error: unknown
-): error is EvlogError {
-	return (
-		error instanceof EvlogError &&
-		error.status === 503 &&
-		error.code === "basket.DELIVERY_UNAVAILABLE"
-	);
-}
-
 export function isIngestSchemaValidationError(
 	error: unknown
 ): error is IngestSchemaValidationError {

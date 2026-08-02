@@ -181,6 +181,82 @@ describe("event-service producer handoff", () => {
 		expect(mockMarkDuplicateReservationDelivered).toHaveBeenCalledOnce();
 	});
 
+	test("reserves track events only after enrichment completes", async () => {
+		let resolveGeo!: (value: {
+			anonymizedIP: string;
+			city: string;
+			country: string;
+			region: string;
+		}) => void;
+		mockGetGeo.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					resolveGeo = resolve;
+				})
+		);
+
+		const pending = insertTrackEvent(
+			{ eventId: "evt_1", name: "pageview", path: "/" },
+			"ws_1",
+			"Mozilla/5.0",
+			"1.2.3.4",
+			new Request("https://basket.example/px.jpg")
+		);
+
+		expect(mockGetGeo).toHaveBeenCalledOnce();
+		expect(mockReserveDuplicate).not.toHaveBeenCalled();
+		resolveGeo({
+			anonymizedIP: "1.2.3.0",
+			city: "San Francisco",
+			country: "US",
+			region: "CA",
+		});
+		await pending;
+
+		expect(mockReserveDuplicate.mock.invocationCallOrder[0]).toBeLessThan(
+			mockSend.mock.invocationCallOrder[0] as number
+		);
+	});
+
+	test("reserves outgoing links only after GeoIP enrichment completes", async () => {
+		let resolveGeo!: (value: {
+			anonymizedIP: string;
+			city: string;
+			country: string;
+			region: string;
+		}) => void;
+		mockGetGeo.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					resolveGeo = resolve;
+				})
+		);
+
+		const pending = insertOutgoingLink(
+			{
+				anonymizeVisitorIds: "auto",
+				eventId: "evt_link_1",
+				href: "https://external.example",
+			},
+			"ws_1",
+			new Request("https://basket.example/px.jpg")
+		);
+
+		expect(mockGetGeo).toHaveBeenCalledOnce();
+		expect(mockReserveDuplicate).not.toHaveBeenCalled();
+		resolveGeo({
+			anonymizedIP: "1.2.3.0",
+			city: "San Francisco",
+			country: "US",
+			region: "CA",
+		});
+		await pending;
+
+		expect(mockReserveDuplicate.mock.invocationCallOrder[0]).toBeLessThan(
+			mockSend.mock.invocationCallOrder[0] as number
+		);
+	});
+
 	test("propagates outgoing-link producer admission failures", async () => {
 		const error = new Error("buffer full");
 		mockRunPromise.mockRejectedValueOnce(error);
