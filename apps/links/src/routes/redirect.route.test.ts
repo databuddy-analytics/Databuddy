@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { Elysia } from "elysia";
+import * as actualLinkVisitDelivery from "../lib/link-visit-delivery";
 
 const dbSelect = mock(() => ({
 	from: () => ({
@@ -12,6 +13,7 @@ const getCachedLink = mock();
 const ratelimit = mock();
 const resolveDeepLink = mock();
 const enqueueLinkVisit = mock();
+const linkVisitDeliveryModule = { ...actualLinkVisitDelivery };
 
 mock.module("@databuddy/env/app", () => ({
 	config: { urls: { dashboard: "https://dashboard.test" } },
@@ -78,6 +80,7 @@ mock.module("../lib/logging", () => ({
 }));
 
 mock.module("../lib/link-visit-delivery", () => ({
+	...linkVisitDeliveryModule,
 	enqueueLinkVisit,
 }));
 

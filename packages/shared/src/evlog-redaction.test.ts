@@ -40,6 +40,22 @@ describe("databuddy evlog redaction", () => {
 		expect(resolveEvlogEnvironment({})).toBe("production");
 	});
 
+	it("preserves established platform precedence over Unkey", () => {
+		expect(
+			resolveEvlogEnvironment({
+				RAILWAY_ENVIRONMENT_NAME: "staging",
+				UNKEY_ENVIRONMENT_SLUG: "unkey-preview",
+				VERCEL_ENV: "preview",
+			})
+		).toBe("staging");
+		expect(
+			resolveEvlogEnvironment({
+				UNKEY_ENVIRONMENT_SLUG: "unkey-preview",
+				VERCEL_ENV: "preview",
+			})
+		).toBe("preview");
+	});
+
 	it("adds deployment metadata to every service environment", () => {
 		expect(
 			createDatabuddyEvlogEnv("api", {
@@ -52,6 +68,22 @@ describe("databuddy evlog redaction", () => {
 			environment: "staging",
 			region: "eu-central-1",
 			commitHash: "abc123",
+		});
+	});
+
+	it("uses Unkey deployment context outside Railway", () => {
+		expect(
+			createDatabuddyEvlogEnv("links", {
+				NODE_ENV: "production",
+				UNKEY_ENVIRONMENT_SLUG: "preview",
+				UNKEY_GIT_COMMIT_SHA: "def456",
+				UNKEY_REGION: "aws::eu-central-1",
+			})
+		).toEqual({
+			service: "links",
+			environment: "preview",
+			region: "aws::eu-central-1",
+			commitHash: "def456",
 		});
 	});
 
