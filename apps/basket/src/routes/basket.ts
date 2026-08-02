@@ -43,7 +43,6 @@ import {
 	basketErrors,
 	createIngestSchemaValidationError,
 	deliveryUnavailable,
-	isDeliveryUnavailableError,
 	rethrowOrWrap,
 } from "@lib/structured-errors";
 import { record } from "@lib/tracing";
@@ -520,7 +519,10 @@ const app = new Elysia()
 			};
 
 			for (const event of body) {
-				const eventType = event.type || "track";
+				const isEventObject =
+					event !== null && typeof event === "object" && !Array.isArray(event);
+				const eventType = isEventObject ? event.type || "track" : "track";
+				const eventId = isEventObject ? event.eventId : undefined;
 
 				try {
 					if (eventType === "track") {
@@ -549,7 +551,7 @@ const app = new Elysia()
 								batchSchemaItemFailure(
 									parseResult.error.issues,
 									eventType,
-									event.eventId
+									eventId
 								)
 							);
 							continue;
@@ -594,7 +596,7 @@ const app = new Elysia()
 								batchSchemaItemFailure(
 									parseResult.error.issues,
 									eventType,
-									event.eventId
+									eventId
 								)
 							);
 							continue;
@@ -623,7 +625,11 @@ const app = new Elysia()
 						});
 					}
 				} catch (error) {
-					if (isDeliveryUnavailableError(error)) {
+					if (
+						error instanceof EvlogError &&
+						error.status === 503 &&
+						error.code === "basket.DELIVERY_UNAVAILABLE"
+					) {
 						throw error;
 					}
 					const processingError =

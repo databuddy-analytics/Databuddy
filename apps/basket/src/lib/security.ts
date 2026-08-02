@@ -8,9 +8,9 @@ import { useLogger } from "evlog/elysia";
 
 const EXIT_EVENT_TTL = 172_800;
 const STANDARD_EVENT_TTL = 86_400;
-// Pending ownership only guards an in-flight admission. It must outlive the
-// 20-second Railway shutdown budget while still letting a crashed owner expire
-// before client retries are suppressed for minutes.
+// Reservations begin immediately before the bounded producer handoff. This
+// exceeds the 20-second Railway shutdown budget while letting a crashed owner
+// expire before client retries are suppressed for minutes.
 const PENDING_DEDUP_TTL = 30;
 const DEDUP_RETRY_DELAY_MS = 25;
 export const DEDUP_RESERVATION_TIMEOUT_MS = 750;

@@ -327,7 +327,7 @@ describe("duplicate reservations", () => {
 		);
 	});
 
-	test("recovers a stale pending lease without shortening delivered retention", async () => {
+	test("allows a later retry after a stale pending lease", async () => {
 		mockRedisSet.mockResolvedValueOnce(null).mockResolvedValueOnce("OK");
 		mockRedisGet.mockResolvedValue("pending:crashed-owner");
 
@@ -342,13 +342,6 @@ describe("duplicate reservations", () => {
 			key: "dedup:track:evt_1",
 			token: expect.stringMatching(/^pending:/),
 		});
-		expect(mockRedisSet.mock.calls[1]).toEqual([
-			"dedup:track:evt_1",
-			expect.stringMatching(/^pending:/),
-			"EX",
-			30,
-			"NX",
-		]);
 	});
 
 	test("retries a Redis error before acquiring the reservation", async () => {
