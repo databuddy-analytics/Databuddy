@@ -16,6 +16,7 @@ const baseUptimeData: UptimeData = {
 	attempt: 1,
 	check_type: "http",
 	content_hash: "",
+	event_id: "uptime-event-1",
 	env: "production",
 	error: "",
 	failure_streak: 0,

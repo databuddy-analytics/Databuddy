@@ -187,6 +187,7 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 - `pg.Pool` already grows lazily from zero to its configured `max`; do not replace it with one `Client` to address acquisition timeouts, because that serializes queries. Keep a bounded pool, tune its acquisition timeout, and monitor `waitingCount`.
 - ClickHouse helpers and schema: `packages/db/src/clickhouse/*`
 - After schema changes, use the repo db scripts rather than ad hoc commands
+- Do not add ClickHouse migration files for delivery hardening; keep relay identity in the worker/queue unless **iza** explicitly requests persistent warehouse identity.
 
 ### Auth and permissions
 
