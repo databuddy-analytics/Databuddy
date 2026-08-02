@@ -13,6 +13,7 @@ const {
 	mockInsertIndividualVitals,
 	mockInsertErrorSpans,
 	mockInsertCustomEvents,
+	mockGetGeo,
 	mockCheckAutumnUsage,
 	mockGetApiKeyFromHeader,
 	mockHasKeyScope,
@@ -63,6 +64,14 @@ const {
 		mockInsertIndividualVitals: vi.fn(() => Promise.resolve()),
 		mockInsertErrorSpans: vi.fn(() => Promise.resolve()),
 		mockInsertCustomEvents: vi.fn(() => Promise.resolve()),
+		mockGetGeo: vi.fn(() =>
+			Promise.resolve({
+				anonymizedIP: "abc123",
+				country: "US",
+				region: "CA",
+				city: "SF",
+			})
+		),
 		mockCheckAutumnUsage: vi.fn(() => Promise.resolve({ allowed: true })),
 		mockGetApiKeyFromHeader: vi.fn(() => Promise.resolve(defaultApiKey)),
 		mockHasKeyScope: vi.fn(() => true),
@@ -114,14 +123,7 @@ vi.mock("@lib/security", () => ({
 }));
 
 vi.mock("@utils/ip-geo", () => ({
-	getGeo: vi.fn(() =>
-		Promise.resolve({
-			anonymizedIP: "abc123",
-			country: "US",
-			region: "CA",
-			city: "SF",
-		})
-	),
+	getGeo: mockGetGeo,
 	extractIpFromRequest: vi.fn(() => "1.2.3.4"),
 	extractTrustedClientIp: vi.fn(() => "1.2.3.4"),
 	getVisitorCountryForAutoMode: vi.fn((events: Array<{ anonymizeVisitorIds?: unknown }>) =>
@@ -576,6 +578,42 @@ describe("POST /batch", () => {
 
 		expect(res.status).toBe(200);
 		expect(await json(res)).toMatchObject({ batch: true, processed: 1 });
+	});
+
+	test("returns 503 instead of accepting an event that could not be prepared", async () => {
+		mockInsertTrackEventsBatch.mockClear();
+		mockInsertOutgoingLinksBatch.mockClear();
+		mockGetGeo
+			.mockResolvedValueOnce({
+				anonymizedIP: "abc123",
+				country: "US",
+				region: "CA",
+				city: "SF",
+			})
+			.mockRejectedValueOnce(new Error("GeoIP unavailable"));
+
+		const result = await post(basketApp, "/batch", [
+			{
+				type: "track",
+				eventId: "evt_1",
+				name: "pageview",
+				path: "https://example.com/a",
+			},
+			{
+				type: "track",
+				eventId: "evt_2",
+				name: "click",
+				path: "https://example.com/b",
+			},
+		]);
+
+		expect(result.status).toBe(503);
+		expect(await json(result)).toMatchObject({
+			code: "basket.DELIVERY_UNAVAILABLE",
+			retryable: true,
+		});
+		expect(mockInsertTrackEventsBatch).not.toHaveBeenCalled();
+		expect(mockInsertOutgoingLinksBatch).not.toHaveBeenCalled();
 	});
 
 	test("not an array → 400", async () => {

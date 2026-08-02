@@ -16,6 +16,7 @@ import {
 	reserveDuplicateBatch,
 	shouldAnonymizeVisitorIds,
 } from "@lib/security";
+import { deliveryUnavailable } from "@lib/structured-errors";
 import { record } from "@lib/tracing";
 import { extractTrustedClientIp, getGeo } from "@utils/ip-geo";
 import { parseUserAgent } from "@utils/user-agent";
@@ -27,7 +28,6 @@ import {
 	validateSessionId,
 } from "@utils/validation";
 import { randomUUIDv7 } from "bun";
-import { createError } from "evlog";
 import { useLogger } from "evlog/elysia";
 import { createHash } from "node:crypto";
 
@@ -125,17 +125,6 @@ export function stableBatchDeliveryId(
 	return createHash("sha256")
 		.update(JSON.stringify([scope, eventType, sourceIdentity]))
 		.digest("hex");
-}
-
-function deliveryUnavailable(cause: unknown) {
-	return createError({
-		code: "basket.DELIVERY_UNAVAILABLE",
-		message: "Analytics delivery temporarily unavailable",
-		status: 503,
-		why: "Databuddy could not durably accept the event.",
-		fix: "Retry the same event after a short delay.",
-		cause: cause instanceof Error ? cause : new Error(String(cause)),
-	});
 }
 
 function directEventIdentity(eventId: unknown, generateFn: () => string) {

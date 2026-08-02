@@ -227,6 +227,31 @@ export function createIngestSchemaValidationError(
 	return Object.assign(err, { issues });
 }
 
+/**
+ * A request must not report success while its telemetry could not be durably
+ * admitted. Callers return this 503 so SDKs and queueing clients retry.
+ */
+export function deliveryUnavailable(cause: unknown) {
+	return createError({
+		code: "basket.DELIVERY_UNAVAILABLE",
+		message: "Analytics delivery temporarily unavailable",
+		status: 503,
+		why: "Databuddy could not durably accept the event.",
+		fix: "Retry the same event after a short delay.",
+		cause: cause instanceof Error ? cause : new Error(String(cause)),
+	});
+}
+
+export function isDeliveryUnavailableError(
+	error: unknown
+): error is EvlogError {
+	return (
+		error instanceof EvlogError &&
+		error.status === 503 &&
+		error.code === "basket.DELIVERY_UNAVAILABLE"
+	);
+}
+
 export function isIngestSchemaValidationError(
 	error: unknown
 ): error is IngestSchemaValidationError {
