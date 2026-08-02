@@ -8,7 +8,10 @@ import { useLogger } from "evlog/elysia";
 
 const EXIT_EVENT_TTL = 172_800;
 const STANDARD_EVENT_TTL = 86_400;
-const PENDING_DEDUP_TTL = 120;
+// Pending ownership only guards an in-flight admission. It must outlive the
+// 20-second Railway shutdown budget while still letting a crashed owner expire
+// before client retries are suppressed for minutes.
+const PENDING_DEDUP_TTL = 30;
 const DEDUP_RETRY_DELAY_MS = 25;
 export const DEDUP_RESERVATION_TIMEOUT_MS = 750;
 const DEDUP_FAILURE_COOLDOWN_MS = 5000;
@@ -393,7 +396,7 @@ export function reserveDuplicate(
 			if (error instanceof DeduplicationDeadlineError) {
 				// Redis commands cannot be cancelled. If SET NX succeeds after the
 				// caller returns retryable, conditionally reconcile only this attempt's
-				// token so it cannot strand an ownerless 120-second reservation.
+				// token so it cannot strand an ownerless pending reservation.
 				reservationOperation
 					.then(async (state) => {
 						if (state === "ambiguous-acquired") {

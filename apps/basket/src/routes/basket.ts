@@ -42,6 +42,8 @@ import {
 import {
 	basketErrors,
 	createIngestSchemaValidationError,
+	deliveryUnavailable,
+	isDeliveryUnavailableError,
 	rethrowOrWrap,
 } from "@lib/structured-errors";
 import { record } from "@lib/tracing";
@@ -621,13 +623,13 @@ const app = new Elysia()
 						});
 					}
 				} catch (error) {
-					log.error(error instanceof Error ? error : new Error(String(error)));
-					results.push({
-						status: "error",
-						message: "Processing failed",
-						code: "EVENT_PROCESSING_FAILED",
-						eventType,
-					});
+					if (isDeliveryUnavailableError(error)) {
+						throw error;
+					}
+					const processingError =
+						error instanceof Error ? error : new Error(String(error));
+					log.error(processingError);
+					throw deliveryUnavailable(processingError);
 				}
 			}
 

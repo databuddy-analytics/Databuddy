@@ -4,6 +4,8 @@ import {
 	basketErrors,
 	buildBasketErrorPayload,
 	createIngestSchemaValidationError,
+	deliveryUnavailable,
+	isDeliveryUnavailableError,
 	isIngestSchemaValidationError,
 	rethrowOrWrap,
 } from "./structured-errors";
@@ -83,6 +85,19 @@ describe("IngestSchemaValidationError", () => {
 		expect(isIngestSchemaValidationError("string")).toBe(false);
 		expect(isIngestSchemaValidationError(null)).toBe(false);
 		expect(isIngestSchemaValidationError(undefined)).toBe(false);
+	});
+});
+
+describe("deliveryUnavailable", () => {
+	test("creates a retryable structured 503", () => {
+		const error = deliveryUnavailable(new Error("Redis unavailable"));
+
+		expect(error).toMatchObject({
+			code: "basket.DELIVERY_UNAVAILABLE",
+			status: 503,
+		});
+		expect(isDeliveryUnavailableError(error)).toBe(true);
+		expect(isDeliveryUnavailableError(new Error("nope"))).toBe(false);
 	});
 });
 
