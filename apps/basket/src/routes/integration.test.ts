@@ -13,6 +13,7 @@ const {
 	mockInsertIndividualVitals,
 	mockInsertErrorSpans,
 	mockInsertCustomEvents,
+	mockGetGeo,
 	mockCheckAutumnUsage,
 	mockGetApiKeyFromHeader,
 	mockHasKeyScope,
@@ -63,6 +64,14 @@ const {
 		mockInsertIndividualVitals: vi.fn(() => Promise.resolve()),
 		mockInsertErrorSpans: vi.fn(() => Promise.resolve()),
 		mockInsertCustomEvents: vi.fn(() => Promise.resolve()),
+		mockGetGeo: vi.fn(() =>
+			Promise.resolve({
+				anonymizedIP: "abc123",
+				country: "US",
+				region: "CA",
+				city: "SF",
+			})
+		),
 		mockCheckAutumnUsage: vi.fn(() => Promise.resolve({ allowed: true })),
 		mockGetApiKeyFromHeader: vi.fn(() => Promise.resolve(defaultApiKey)),
 		mockHasKeyScope: vi.fn(() => true),
@@ -80,6 +89,7 @@ vi.mock("evlog/elysia", () => ({
 vi.mock("@lib/tracing", () => ({
 	record: (_n: string, fn: Function) => Promise.resolve().then(() => fn()),
 	captureError: noop,
+	mergeWideEvent: noop,
 }));
 
 vi.mock("@lib/request-validation", () => ({
@@ -114,14 +124,7 @@ vi.mock("@lib/security", () => ({
 }));
 
 vi.mock("@utils/ip-geo", () => ({
-	getGeo: vi.fn(() =>
-		Promise.resolve({
-			anonymizedIP: "abc123",
-			country: "US",
-			region: "CA",
-			city: "SF",
-		})
-	),
+	getGeo: mockGetGeo,
 	extractIpFromRequest: vi.fn(() => "1.2.3.4"),
 	extractTrustedClientIp: vi.fn(() => "1.2.3.4"),
 	getVisitorCountryForAutoMode: vi.fn((events: Array<{ anonymizeVisitorIds?: unknown }>) =>
@@ -578,6 +581,75 @@ describe("POST /batch", () => {
 		expect(await json(res)).toMatchObject({ batch: true, processed: 1 });
 	});
 
+	test("returns 503 instead of accepting an event that could not be prepared", async () => {
+		mockInsertTrackEventsBatch.mockClear();
+		mockInsertOutgoingLinksBatch.mockClear();
+		mockGetGeo
+			.mockResolvedValueOnce({
+				anonymizedIP: "abc123",
+				country: "US",
+				region: "CA",
+				city: "SF",
+			})
+			.mockRejectedValueOnce(new Error("GeoIP unavailable"));
+
+		const result = await post(basketApp, "/batch", [
+			{
+				type: "track",
+				eventId: "evt_1",
+				name: "pageview",
+				path: "https://example.com/a",
+			},
+			{
+				type: "track",
+				eventId: "evt_2",
+				name: "click",
+				path: "https://example.com/b",
+			},
+		]);
+
+		expect(result.status).toBe(503);
+		expect(await json(result)).toMatchObject({
+			code: "basket.DELIVERY_UNAVAILABLE",
+			retryable: true,
+		});
+		expect(mockInsertTrackEventsBatch).not.toHaveBeenCalled();
+		expect(mockInsertOutgoingLinksBatch).not.toHaveBeenCalled();
+	});
+
+	test("keeps malformed items as schema failures without dropping valid events", async () => {
+		mockInsertTrackEventsBatch.mockClear();
+		mockInsertOutgoingLinksBatch.mockClear();
+
+		const result = await post(basketApp, "/batch", [
+			{
+				type: "track",
+				eventId: "evt_1",
+				name: "pageview",
+				path: "https://example.com/a",
+			},
+			null,
+		]);
+
+		expect(result.status).toBe(200);
+		expect(await json(result)).toMatchObject({
+			status: "partial",
+			batch: true,
+			processed: 2,
+			batched: { track: 1, outgoing_link: 0 },
+			results: [
+				{ status: "success", type: "track", eventId: "evt_1" },
+				{
+					status: "error",
+					code: "INVALID_EVENT_SCHEMA",
+					eventType: "track",
+				},
+			],
+		});
+		expect(mockInsertTrackEventsBatch).toHaveBeenCalledOnce();
+		expect(mockInsertOutgoingLinksBatch).toHaveBeenCalledOnce();
+	});
+
 	test("not an array → 400", async () => {
 		const res = await post(basketApp, "/batch", { not: "array" });
 		expect(res.status).toBe(400);
@@ -594,7 +666,7 @@ describe("POST /batch", () => {
 		expect(res.status).toBe(400);
 	});
 
-	test("mixed valid + unknown types → partial results", async () => {
+	test("mixed valid + invalid types → partial results", async () => {
 		const res = await post(basketApp, "/batch", [
 			{
 				type: "track",
@@ -602,7 +674,7 @@ describe("POST /batch", () => {
 				name: "pageview",
 				path: "https://example.com/a",
 			},
-			{ type: "bogus_type" },
+			{ type: 1 },
 		]);
 		expect(res.status).toBe(200);
 		const body = await json(res);
