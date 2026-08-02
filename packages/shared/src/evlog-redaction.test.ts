@@ -40,6 +40,22 @@ describe("databuddy evlog redaction", () => {
 		expect(resolveEvlogEnvironment({})).toBe("production");
 	});
 
+	it("preserves established platform precedence over Unkey", () => {
+		expect(
+			resolveEvlogEnvironment({
+				RAILWAY_ENVIRONMENT_NAME: "staging",
+				UNKEY_ENVIRONMENT_SLUG: "unkey-preview",
+				VERCEL_ENV: "preview",
+			})
+		).toBe("staging");
+		expect(
+			resolveEvlogEnvironment({
+				UNKEY_ENVIRONMENT_SLUG: "unkey-preview",
+				VERCEL_ENV: "preview",
+			})
+		).toBe("preview");
+	});
+
 	it("adds deployment metadata to every service environment", () => {
 		expect(
 			createDatabuddyEvlogEnv("api", {
