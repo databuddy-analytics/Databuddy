@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 export const MonitorStatus = {
 	DOWN: 0,
 	UP: 1,
@@ -5,30 +7,49 @@ export const MonitorStatus = {
 	MAINTENANCE: 3,
 } as const;
 
-export interface UptimeData {
-	attempt: number;
-	check_type: string;
-	content_hash: string;
-	env: string;
-	error: string;
-	failure_streak: number;
-	http_code: number;
-	json_data?: string;
-	probe_ip: string;
-	probe_region: string;
-	redirect_count: number;
-	response_bytes: number;
-	retries: number;
-	site_id: string;
-	ssl_expiry: number;
-	ssl_valid: number;
-	status: number;
-	timestamp: number;
-	total_ms: number;
-	ttfb_ms: number;
-	url: string;
-	user_agent: string;
-}
+export const uptimeDataSchema = z.object({
+	attempt: z.number(),
+	check_type: z.string(),
+	content_hash: z.string(),
+	env: z.string(),
+	error: z.string(),
+	event_id: z.string(),
+	failure_streak: z.number(),
+	http_code: z.number(),
+	json_data: z.string().optional(),
+	probe_ip: z.string(),
+	probe_region: z.string(),
+	redirect_count: z.number(),
+	response_bytes: z.number(),
+	retries: z.number(),
+	site_id: z.string(),
+	ssl_expiry: z.number(),
+	ssl_valid: z.number(),
+	status: z.number(),
+	timestamp: z.number(),
+	total_ms: z.number(),
+	ttfb_ms: z.number(),
+	url: z.string(),
+	user_agent: z.string(),
+});
+
+const requiredUnknownSchema = z
+	.unknown()
+	.refine((value) => value !== undefined, "Required");
+
+export const uptimeCheckJobDataSchema = z
+	.object({
+		delivery: z.object({ event: requiredUnknownSchema }).optional(),
+		scheduleId: z.string(),
+		trigger: z.enum(["manual", "scheduled"]),
+	})
+	.passthrough();
+
+export const uptimeDeliveryJobDataSchema = z.object({
+	event: requiredUnknownSchema,
+});
+
+export type UptimeData = z.infer<typeof uptimeDataSchema>;
 
 export type ScheduleLookupReason = "not_found" | "malformed" | "transient";
 

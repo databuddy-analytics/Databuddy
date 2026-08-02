@@ -31,15 +31,6 @@ const syncMonitor = (
 ) =>
 	Effect.gen(function* () {
 		const schedulerId = uptimeSchedulerId(monitor.id);
-
-		const existing = yield* Effect.tryPromise({
-			try: () => queue.getJobScheduler(schedulerId),
-			catch: (cause) => cause,
-		});
-		if (existing) {
-			return "skipped" as const;
-		}
-
 		const pattern = CRON_GRANULARITIES[monitor.granularity];
 		if (!pattern) {
 			return yield* Effect.fail(
@@ -66,8 +57,6 @@ const syncMonitor = (
 				),
 			catch: (cause) => cause,
 		});
-
-		return "created" as const;
 	});
 
 const syncAll = Effect.gen(function* () {
@@ -85,17 +74,12 @@ const syncAll = Effect.gen(function* () {
 		catch: (cause) => cause,
 	});
 
-	const created = yield* Ref.make(0);
-	const skipped = yield* Ref.make(0);
+	const upserted = yield* Ref.make(0);
 	const failed = yield* Ref.make(0);
 
 	for (const monitor of monitors) {
 		yield* syncMonitor(monitor, queue).pipe(
-			Effect.tap((result) =>
-				result === "created"
-					? Ref.update(created, (n) => n + 1)
-					: Ref.update(skipped, (n) => n + 1)
-			),
+			Effect.tap(() => Ref.update(upserted, (n) => n + 1)),
 			Effect.catch((error) => {
 				if (error instanceof UnknownGranularity) {
 					log.error({
@@ -116,17 +100,12 @@ const syncAll = Effect.gen(function* () {
 		);
 	}
 
-	const [c, s, f] = yield* Effect.all([
-		Ref.get(created),
-		Ref.get(skipped),
-		Ref.get(failed),
-	]);
+	const [u, f] = yield* Effect.all([Ref.get(upserted), Ref.get(failed)]);
 
 	log.info({
 		sync: "scheduler",
 		total: monitors.length,
-		created: c,
-		skipped: s,
+		upserted: u,
 		failed: f,
 	});
 });
