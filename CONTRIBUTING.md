@@ -100,42 +100,72 @@ You can also `cd` into any package and run its scripts directly.
 
 ### Development Workflow
 
-1. Create a new branch:
+#### Branch and PR lifecycle
+
+Keep each branch short-lived: one branch, one independently reviewable and
+revertible slice, one pull request. Do not use a branch as a general work
+queue.
+
+1. Before starting, check open pull requests for the same surface, public
+   contract, schema, or deployment configuration. Update `staging`, then create
+   a fresh branch from it:
 
 ```bash
-git checkout -b feature/your-feature
+git switch staging
+git pull --ff-only origin staging
+git switch -c codex/short-slice
 ```
 
-2. Make your changes
+   Do not branch from another feature branch. An exception needs an explicit
+   `Depends on #…` in both PRs and agreement from its owner; land the
+   prerequisite first.
 
-3. Run tests:
+2. Keep the branch to its stated slice. If a change can be reviewed or reverted
+   independently, open a separate branch and PR; leave unrelated cleanup and
+   refactors out of the current one.
+
+3. Push early and open a draft PR against `staging`. State the problem being
+   solved and any dependency or known overlap. This makes ownership visible
+   before parallel work drifts into the same files.
+
+4. Before requesting review, rebase onto the current `origin/staging` and
+   resolve the conflicts in the slice. Do not merge `staging` into a feature
+   branch just to refresh it. If the rebase changes reviewed code, request a
+   fresh review.
+
+5. Run the relevant checks:
 
 ```bash
 bun run test
 ```
 
-4. Create a changeset:
+6. Create a changeset when the change affects a published package:
 
 ```bash
 bun run changeset
 ```
 
-5. Commit your changes:
+7. Commit your changes:
 
 ```bash
 git add .
 git commit -m "feat: your feature"
 ```
 
-6. Push your changes:
+8. Push your changes:
 
 ```bash
-git push origin feature/your-feature
+git push -u origin codex/short-slice
 ```
 
-Note: Open a pull request to the STAGING branch
+9. When the PR is merged or closed, retire the branch. GitHub automatically
+   deletes merged source branches; delete a closed branch manually. Never
+   repurpose or reopen an old branch for a new slice—start again from current
+   `staging`.
 
-7. Create a Pull Request
+For parallel work, use one worktree per branch and never have two people or
+agents mutate the same branch. Remove a worktree only after its work is merged,
+closed, or safely moved to a new branch.
 
 
 ## Code Style

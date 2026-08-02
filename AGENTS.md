@@ -153,7 +153,15 @@ For picker controls, use the component that matches the interaction:
   - For broad migrations, follow the repo’s existing pattern: one commit per meaningful area, e.g. `feat(dashboard): migrate home, events, insights, and links pages to shared UI components`.
   - Before committing, check `git diff --stat` and `git status --short`; if the diff mixes unrelated intents, split it.
   - Only make a single snapshot commit for the whole worktree when the user explicitly asks to include everything as-is.
-- **PRs**: Open against `staging` branch (not `main`).
+
+## Branch and PR Lifecycle
+
+- **One task, one branch, one PR**: Keep a branch to one independently reviewable and reversible slice. If work can land separately, split it before it becomes a mixed PR.
+- **Start fresh**: Check for an existing PR that owns the same surface, public contract, schema, or deployment configuration, then create the branch from an up-to-date `origin/staging`. Do not use an unmerged feature branch as a base unless the dependency is explicit, approved, and named as `Depends on #…` in both PRs.
+- **Make ownership visible**: Push and open a draft PR against `staging` once the slice has a first commit. State its scope, dependencies, and known overlaps.
+- **Keep integration linear**: Rebase a slice onto current `origin/staging` before it is ready for review; do not merge `staging` into the slice merely to refresh it. Request fresh review when a rebase changes reviewed code.
+- **Isolate parallel work**: Use one worktree per active branch. Never let two agents or contributors mutate the same branch or reuse a task branch for a different concern.
+- **Retire completed work**: Merged PR source branches are automatically deleted. Delete closed PR branches manually, remove clean finished worktrees, and create a new branch from current `staging` for any follow-up—never revive or repurpose an old PR branch.
 
 ## CI and Review Lessons
 
