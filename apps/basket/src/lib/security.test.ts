@@ -174,7 +174,7 @@ describe("duplicate reservations", () => {
 			"dedup:track:evt_1",
 			expect.stringMatching(/^pending:/),
 			"EX",
-			120,
+			30,
 			"NX"
 		);
 	});
@@ -248,7 +248,7 @@ describe("duplicate reservations", () => {
 			expect.stringMatching(/^ambiguous-pending:\d+:/),
 			"delivered",
 			"ambiguous",
-			120,
+			30,
 			expect.any(Number),
 			"ambiguous-pending:",
 			86_400,
@@ -322,9 +322,26 @@ describe("duplicate reservations", () => {
 			"dedup:track:stable-delivery-id",
 			expect.stringMatching(/^pending:/),
 			"EX",
-			120,
+			30,
 			"NX"
 		);
+	});
+
+	test("allows a later retry after a stale pending lease", async () => {
+		mockRedisSet.mockResolvedValueOnce(null).mockResolvedValueOnce("OK");
+		mockRedisGet.mockResolvedValue("pending:crashed-owner");
+
+		expect(await reserveDuplicate("evt_1", "track")).toEqual({
+			duplicate: false,
+			retryable: true,
+		});
+
+		expect(await reserveDuplicate("evt_1", "track")).toMatchObject({
+			deliveredTtl: 86_400,
+			duplicate: false,
+			key: "dedup:track:evt_1",
+			token: expect.stringMatching(/^pending:/),
+		});
 	});
 
 	test("retries a Redis error before acquiring the reservation", async () => {

@@ -16,6 +16,7 @@ import {
 	reserveDuplicateBatch,
 	shouldAnonymizeVisitorIds,
 } from "@lib/security";
+import { deliveryUnavailable } from "@lib/structured-errors";
 import { record } from "@lib/tracing";
 import { extractTrustedClientIp, getGeo } from "@utils/ip-geo";
 import { parseUserAgent } from "@utils/user-agent";
@@ -27,7 +28,6 @@ import {
 	validateSessionId,
 } from "@utils/validation";
 import { randomUUIDv7 } from "bun";
-import { createError } from "evlog";
 import { useLogger } from "evlog/elysia";
 import { createHash } from "node:crypto";
 
@@ -125,17 +125,6 @@ export function stableBatchDeliveryId(
 	return createHash("sha256")
 		.update(JSON.stringify([scope, eventType, sourceIdentity]))
 		.digest("hex");
-}
-
-function deliveryUnavailable(cause: unknown) {
-	return createError({
-		code: "basket.DELIVERY_UNAVAILABLE",
-		message: "Analytics delivery temporarily unavailable",
-		status: 503,
-		why: "Databuddy could not durably accept the event.",
-		fix: "Retry the same event after a short delay.",
-		cause: cause instanceof Error ? cause : new Error(String(cause)),
-	});
 }
 
 function directEventIdentity(eventId: unknown, generateFn: () => string) {
@@ -249,20 +238,7 @@ export function insertTrackEvent(
 		);
 
 		const deliveryId = stableAnalyticsEventId(clientId, "track", sourceEventId);
-		const reservation = await reserveDuplicate(
-			deliveryId,
-			"track",
-			storedEventId
-		);
-		if (reservation.duplicate) {
-			return;
-		}
-		if (reservation.retryable) {
-			throw deliveryUnavailable(
-				new Error("A concurrent attempt owns this analytics event")
-			);
-		}
-
+		let trackEvent: EventsInsert;
 		try {
 			const geoData = await getGeo(ip, request);
 			const trustedCountry = extractTrustedClientIp(request)
@@ -298,7 +274,7 @@ export function insertTrackEvent(
 
 			const now = Date.now();
 
-			const trackEvent = buildTrackEvent(trackData, {
+			trackEvent = buildTrackEvent(trackData, {
 				clientId,
 				eventId: sourceEventId,
 				anonymousId,
@@ -306,7 +282,25 @@ export function insertTrackEvent(
 				ua,
 				now,
 			});
+		} catch (error) {
+			throw deliveryUnavailable(error);
+		}
 
+		const reservation = await reserveDuplicate(
+			deliveryId,
+			"track",
+			storedEventId
+		);
+		if (reservation.duplicate) {
+			return;
+		}
+		if (reservation.retryable) {
+			throw deliveryUnavailable(
+				new Error("A concurrent attempt owns this analytics event")
+			);
+		}
+
+		try {
 			await runPromise(
 				send("analytics-events", trackEvent, undefined, {
 					allowDirectFallback: reservation.ambiguous !== true,
@@ -338,20 +332,7 @@ export function insertOutgoingLink(
 			"outgoing_link",
 			sourceEventId
 		);
-		const reservation = await reserveDuplicate(
-			deliveryId,
-			"outgoing_link",
-			storedEventId
-		);
-		if (reservation.duplicate) {
-			return;
-		}
-		if (reservation.retryable) {
-			throw deliveryUnavailable(
-				new Error("A concurrent attempt owns this analytics event")
-			);
-		}
-
+		let outgoingLinkEvent: OutgoingLinksInsert;
 		try {
 			log.set({
 				event: {
@@ -374,7 +355,7 @@ export function insertOutgoingLink(
 			);
 			const salt = anonymizeVisitorIds ? await getDailySalt() : undefined;
 
-			const outgoingLinkEvent: OutgoingLinksInsert = {
+			outgoingLinkEvent = {
 				id: deliveryId,
 				client_id: clientId,
 				anonymous_id: applyVisitorIdPrivacy(
@@ -391,7 +372,25 @@ export function insertOutgoingLink(
 				timestamp:
 					typeof linkData.timestamp === "number" ? linkData.timestamp : now,
 			};
+		} catch (error) {
+			throw deliveryUnavailable(error);
+		}
 
+		const reservation = await reserveDuplicate(
+			deliveryId,
+			"outgoing_link",
+			storedEventId
+		);
+		if (reservation.duplicate) {
+			return;
+		}
+		if (reservation.retryable) {
+			throw deliveryUnavailable(
+				new Error("A concurrent attempt owns this analytics event")
+			);
+		}
+
+		try {
 			await runPromise(
 				send("analytics-outgoing-links", outgoingLinkEvent, undefined, {
 					allowDirectFallback: reservation.ambiguous !== true,
