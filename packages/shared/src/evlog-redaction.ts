@@ -58,9 +58,9 @@ export function resolveEvlogEnvironment(
 ): string {
 	return (
 		env.APP_ENV?.trim() ||
-		env.UNKEY_ENVIRONMENT_SLUG?.trim() ||
 		env.RAILWAY_ENVIRONMENT_NAME?.trim() ||
 		env.VERCEL_ENV?.trim() ||
+		env.UNKEY_ENVIRONMENT_SLUG?.trim() ||
 		(env.NODE_ENV === "development" || env.NODE_ENV === "test"
 			? env.NODE_ENV
 			: "production")
