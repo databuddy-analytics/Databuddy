@@ -44,6 +44,11 @@ pre-commit:
         - "apps/uptime/**/*.{ts,tsx}"
         - "scripts/lint-policy.ts"
       run: bun scripts/lint-policy.ts --staged
+    format:
+      glob:
+        - "**/*.{ts,tsx,js,jsx,mjs,cjs,json,jsonc,css}"
+      run: bunx ultracite check {staged_files}
+      fail_text: "Formatting/lint issues found. Run: bun run format"
     lockfile-check:
       glob:
         - "**/package.json"
