@@ -1,62 +1,55 @@
-# Databuddy Intelligence
+# Databuddy Investigations
 
 ## Product job
 
-Databuddy explains what changed and why it matters, then turns material problems into work that stays open until resolved.
+Databuddy finds an important change, explains what caused it and who it affects, recommends the exact next action, and stays with the problem until it is resolved.
 
-It has two outputs:
+The product is not an insight-card generator. It is an investigation and resolution loop.
 
-- **Insights** are noteworthy discoveries worth reading: improvements, regressions, recoveries, patterns, and useful context. They do not require an action.
-- **Investigations** are durable cases worth interrupting someone about. They own the action, question, recheck, and resolution history.
-
-An insight can open or update an investigation. Investigations do not replace insights.
+> Checkout conversion fell after deploy `abc123`. Mobile sessions fail at the payment step because the new form no longer emits `payment_submitted`. Restore the event in `CheckoutForm.tsx`, then verify at least five completions in 24 hours.
 
 ## Principles
 
-1. **Show useful discoveries.** “Not worth interrupting someone” does not mean “not worth showing.”
-2. **Promote work, do not manufacture it.** Only a material action or answerable question opens a new investigation.
-3. **Keep one engine.** Detection, evidence, tools, and the agent serve both outputs.
-4. **Keep the thread.** New evidence, replies, recurrence, and PR activity continue the same investigation.
-5. **Stay quiet in interrupting channels.** Useful non-actionable findings stay in Insights; weak and duplicate findings stay out everywhere.
+1. **Cases, not cards.** One signal owns one persistent investigation whose latest outcome is the current state.
+2. **Let the agent investigate.** Code owns identity, tenancy, measured facts, and side effects. The agent chooses what to inspect and which hypotheses to test.
+3. **Change the situation.** A useful result proposes a concrete action, asks one answerable question, defines a watch trigger, or resolves the case.
+4. **Keep the thread.** New evidence, human replies, recurrence, and PR activity continue the same investigation.
+5. **Stay quiet.** Weak or duplicate signals do not become customer work.
 
 ## Core model
 
 ### Signal
 
-A measured change with an exact entity, comparison window, baseline, and stable key.
-
-### Insight
-
-An append-only explanation of one signal at one point in time. It names the subject, change, impact, known cause, and supporting facts. The Insights brief is a chronological view of these observations.
+A measured symptom with an exact entity, time window, baseline, and stable key. Examples: an error fingerprint, a broken funnel step, a goal with zero completions, or a campaign whose paid traffic stopped converting.
 
 ### Investigation
 
-The durable work object for one signal. It has an `open` or `resolved` state plus observations, replies, actions, rechecks, and recurrence history.
+The durable customer object. It contains:
+
+- one primary signal and related signals;
+- current state: `open` or `resolved`; a watch outcome schedules a quiet recheck with an exact trigger;
+- outcomes, evidence, human messages, actions, and recurrence history;
+- durable prior agent turns so follow-ups continue with the same case context.
 
 ### Action
 
 An optional proposed change with a target and verification condition. A code action may become a patch and PR. Other actions may target tracking, a goal, a campaign, configuration, or operations.
 
+Do not introduce another product object unless these three cannot represent a real use case.
+
 ## Loop
 
 ```text
 detect signal
+  → open or update investigation
   → inspect analytics, telemetry, history, deploys, and code
-  → append insight
-  → act | ask: open or update investigation and notify
-  → watch: keep a quiet recheck; update an existing case only
-  → resolve: close an existing case or record the finding
-  → resume investigations on new evidence or a human reply
+  → report what changed, why, impact, and the next move
+  → act | ask | watch | resolve
+  → resume on new evidence or a human reply
+  → verify the result
 ```
 
-One exact signal starts an agent turn. The Insights brief aggregates useful turns across websites and time.
-
-A run may first freeze a small, deterministic portfolio of distinct signals.
-Scheduled runs investigate at most two; a deliberate manual full scan investigates at
-most three. The portfolio is diversified across correlated subjects and survives a
-retry unchanged. Each selected signal still gets its own exact agent turn, durable
-observation, and investigation history; a model does not manufacture a broad report
-from ungrounded raw data.
+One exact signal starts the run. The agent does not choose from a bag of unrelated regressions.
 
 ## Agent context
 
@@ -79,8 +72,6 @@ Every completed turn reports:
 - **impact:** who or what is affected, with measured scope when available;
 - **root cause:** the known mechanism, or `unknown`;
 - **evidence:** the few facts that support or contradict it;
-- **publish:** whether this turn adds a new customer-relevant fact to Insights;
-- **recommendation:** an optional useful next step that does not create a case; goal edits include the exact proposed name or description so the existing editor can review and apply them. A recommendation may also carry an evidence-backed goal or funnel draft, or explain the tracking needed before one is useful. Drafts open in the normal editable setup flow and are never created automatically;
 - **next:** exactly one outcome.
 
 The next outcome is one of:
@@ -88,13 +79,11 @@ The next outcome is one of:
 - `act` — exact change, target, and verification condition;
 - `ask` — one self-contained question that says what the answer unlocks;
 - `watch` — keep the backend-owned signal trigger active and state when to escalate;
-- `resolve` — why no investigation needs to remain open, even if a recommendation remains.
+- `resolve` — why no further work remains.
 
 Outcomes may be updated repeatedly. They are operational state, not prose templates.
 
 Customer copy names the exact goal, funnel, page, event, error, or campaign. It describes the operational change, never the detector, agent, evaluation, suppression decision, or other internal mechanics.
-
-The Insights brief reads like a short news report: headline, what happened, why it matters, why it happened when known, then evidence. It does not expose `act | ask | watch | resolve` mechanics. An investigation presents the same factual hierarchy before its current next move and full timeline. Recommendations live in a separate concise view with the suggestion, its source context, and an existing review action when one is available; they are not investigation activity.
 
 ## Continuity
 
@@ -103,7 +92,7 @@ The Insights brief reads like a short news report: headline, what happened, why 
 - A materially worse resolved signal reopens the same investigation with its prior outcomes.
 - Corrections such as terminology, ownership, or known infrastructure become project memory.
 
-`act` and `ask` may create a case and notify people. `watch` schedules another check without creating a new case. `resolve` closes an existing case.
+`act` and `ask` notify people. `watch` schedules another agent check without creating noise. `resolve` closes the case.
 
 ## Actions and PRs
 
@@ -111,23 +100,14 @@ The agent may inspect code without write credentials. For a code action it retur
 
 Only the outer boundary is deterministic: authorization, tenant scope, patch validation, approvals, idempotency, and delivery. Investigation strategy is not.
 
-## Quality bars
+## Quality bar
 
-- An insight is useful when it teaches the teammate something specific they would otherwise need to discover.
-- An investigation is useful when the teammate can act without asking “what exactly should I do?”
+An investigation is useful when a teammate can act without opening another analytics tab or asking “what exactly should I do?”
 
-Reject output that merely restates a percentage, invents a cause, asks for data Databuddy can read, gives a generic recommendation, or creates duplicate work.
+Reject output that merely restates a percentage, invents a cause, asks for data Databuddy can read, gives a generic recommendation, or creates a duplicate case.
 
-Summary, impact, cause, and evidence each contribute a different fact. Routine or unchanged rechecks remain in internal history with `publish: false`.
+When business meaning is missing, inspect the definition, site, events, and connected code first. If the remaining ambiguity changes the decision, ask one specific question that names the subject and proposes the most evidence-backed interpretation.
 
-Customer impact stays explicit about coverage. Anonymous visitor identifiers, sessions, identified profiles, and profiles with prior attributed completed-payment history are different cohorts. Unknown payment status is never reported as non-paying, and payment history is not called an active subscription. Error exposure alone does not prove that a page broke, a task failed, or work was lost.
+## Initial implementation constraint
 
-When measured coverage proves that missing Databuddy setup blocks a useful answer, the insight may recommend a backend-verified setup candidate and the decision it unlocks. Today, a material fully unlinked error cohort can produce an exact `identify()` candidate; custom-event advice requires a measured coverage gap or an inspected workflow. Customer-impact counts alone never justify a profile trait, revenue integration, or invented event. These are evidence-backed product recommendations, not generic onboarding tips.
-
-When business meaning is missing, inspect the definition, site, events, and connected code first. Ambiguity alone does not open a case, and the customer should not have to invent a metric's purpose. Explain what a broad metric does measure and recommend a concrete edit, replacement, or cleanup only from inspected evidence. Do not recommend deletion merely because a description is missing. A definition that contradicts its configured purpose is broken tracking and becomes an action; an undescribed broad definition resolves when no material harm is proven. Ask only for a specific external fact that cannot be inspected and chooses between concrete next moves.
-
-## Implementation constraint
-
-Use `insight_observations` as the append-only Insights source and `analytics_insights` as the current investigation projection. An `act` or `ask` creates or reopens that projection; `watch` and `resolve` may update an open investigation but never create or reopen one. Recommendations are a read projection of the latest published observation for each signal: an unpublished recheck does not erase one, while a newer published observation replaces or removes it. Keep one agent and one evidence/tool stack. Add storage only when this model cannot represent a real use case.
-
-Exact error-customer joins run as a private, aggregate-only enrichment after the backend selects a signal. They return counts and coverage, never visitor, profile, session, payment, order, or request identifiers. Identity joins report same-window resolution explicitly; attributed completed-payment matches require the payment to predate the affected profile's first error and remain a lower bound.
+Use the existing insight as the current investigation and observations as its agent timeline. Human replies are durable timeline events that resume that agent. Add more lifecycle storage only when PR events cannot fit this model; automated execution comes later.
