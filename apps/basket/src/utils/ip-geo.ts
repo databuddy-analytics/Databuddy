@@ -238,6 +238,17 @@ export function getGeo(ip: string, request?: Request) {
 			}
 		}
 
+		mergeWideEvent({
+			geo: geo.country
+				? {
+						source: "maxmind",
+						country: geo.country,
+						region: geo.region,
+						city: geo.city,
+					}
+				: { source: "unresolved" },
+		});
+
 		return {
 			anonymizedIP: anonymizeIp(ip),
 			country: geo.country,
