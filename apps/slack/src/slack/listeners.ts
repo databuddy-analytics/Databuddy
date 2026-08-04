@@ -7,6 +7,7 @@ import {
 } from "@databuddy/db/schema";
 import { createRPCContext } from "@databuddy/rpc";
 import { appendInvestigationReply } from "@databuddy/rpc/insights";
+import { isQuarantinedInsightObservation } from "@databuddy/shared/insights";
 import type { DatabuddyAgentClient, SlackAgentRun } from "@/agent/agent-client";
 import { createSlackEventLog } from "@/lib/evlog-slack";
 import { abortSlackActiveRun } from "@/slack/active-runs";
@@ -425,7 +426,11 @@ async function handleInvestigationThreadReply({
 	}
 
 	const [delivery] = await db
-		.select({ insightId: insightObservations.insightId })
+		.select({
+			evidence: insightObservations.evidence,
+			insightId: insightObservations.insightId,
+			outcome: insightObservations.outcome,
+		})
 		.from(insightRunEffects)
 		.innerJoin(
 			insightRunItems,
@@ -456,10 +461,12 @@ async function handleInvestigationThreadReply({
 		)
 		.orderBy(
 			desc(insightRunEffects.completedAt),
-			desc(insightObservations.createdAt)
+			desc(insightObservations.asOf),
+			desc(insightObservations.createdAt),
+			desc(insightObservations.id)
 		)
 		.limit(1);
-	if (!delivery?.insightId) {
+	if (!delivery?.insightId || isQuarantinedInsightObservation(delivery)) {
 		return false;
 	}
 
