@@ -634,7 +634,7 @@ export function createGitHubTools(
 					"Branch, tag, or commit SHA. Defaults to the default branch."
 				),
 		}),
-		execute: async (input) => {
+		execute: async (input, execution) => {
 			const token = await getToken();
 			if (!token) {
 				return { error: "No GitHub account connected" };
@@ -664,6 +664,7 @@ export function createGitHubTools(
 			const decoded = Buffer.from(file.content, "base64").toString("utf-8");
 			return {
 				path: input.path,
+				receipt: execution.toolCallId,
 				size: file.size,
 				content:
 					decoded.length > 15_000

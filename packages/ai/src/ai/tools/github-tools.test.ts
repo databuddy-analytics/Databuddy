@@ -28,7 +28,8 @@ function toolkit(githubRepository?: typeof repository | null): ToolSet {
 async function executeTool(
 	tools: ToolSet,
 	name: string,
-	input: unknown
+	input: unknown,
+	execution: { toolCallId: string } = { toolCallId: "test-tool-call" }
 ): Promise<unknown> {
 	const execute = tools[name]?.execute as
 		| ((value: unknown, options: unknown) => Promise<unknown> | unknown)
@@ -36,7 +37,7 @@ async function executeTool(
 	if (!execute) {
 		throw new Error(`Missing executable tool ${name}`);
 	}
-	return execute(input, {});
+	return execute(input, execution);
 }
 
 describe("GitHub repository binding", () => {
@@ -126,6 +127,34 @@ describe("GitHub repository binding", () => {
 		for (const number of [0, -1, 1.5]) {
 			expect(pullRequest.safeParse({ number }).success).toBe(false);
 		}
+	});
+
+	test("returns a receipt with successful source-file content", async () => {
+		const tools = createGitHubTools(
+			{ organizationId: "org_1", repository },
+			{
+				getToken: async () => "token",
+				request: async () => ({
+					content: Buffer.from("export const enabled = true;").toString(
+						"base64"
+					),
+					encoding: "base64",
+					size: 28,
+				}),
+			}
+		);
+
+		const result = await executeTool(
+			tools,
+			"github_read_file",
+			{ path: "src/status.ts" },
+			{ toolCallId: "source-read-1" }
+		);
+
+		expect(result).toMatchObject({
+			path: "src/status.ts",
+			receipt: "source-read-1",
+		});
 	});
 });
 

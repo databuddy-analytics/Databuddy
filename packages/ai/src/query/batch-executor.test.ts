@@ -35,6 +35,25 @@ const COMPILE_REQUEST_OVERRIDES = {
 			},
 		],
 	},
+	error_cohort_behavior: {
+		filters: [
+			{
+				field: "message",
+				op: "eq",
+				value: "Failed to fetch dynamically imported module",
+			},
+		],
+	},
+	error_candidate_overlap: {
+		filters: [
+			{
+				field: "message",
+				op: "eq",
+				value: "Failed to fetch dynamically imported module",
+			},
+			{ field: "path", op: "eq", value: "/explore" },
+		],
+	},
 } satisfies Partial<Record<string, Partial<QueryRequest>>>;
 
 function compileSql(type: string): string {

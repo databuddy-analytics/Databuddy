@@ -417,6 +417,424 @@ export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 		timeField: "timestamp",
 	},
 
+	/**
+	 * Private behavioral comparison for one exact error cohort. Route/day
+	 * stratification keeps a broad fingerprint from being compared with an
+	 * unrelated site-wide audience, while all identifiers remain inside CTEs.
+	 */
+	error_cohort_behavior: {
+		meta: {
+			description:
+				"Privacy-safe route/day-matched continuation comparison for one exact error fingerprint or route. Returns aggregate rates only; a lower next-page rate is an observational association, never proof that an error caused abandonment or task failure.",
+			category: "Errors",
+			tags: ["errors", "behavior", "impact", "internal"],
+			output_fields: [
+				{ name: "eligible_error_sessions", type: "number" },
+				{ name: "matched_error_sessions", type: "number" },
+				{ name: "matched_peer_session_observations", type: "number" },
+				{ name: "matched_strata", type: "number" },
+				{ name: "matched_coverage_percent", type: "number", unit: "%" },
+				{
+					name: "affected_next_page_percent",
+					type: "number",
+					unit: "%",
+				},
+				{
+					name: "comparison_next_page_percent",
+					type: "number",
+					unit: "%",
+				},
+			],
+		},
+		allowedFilters: ["message", "path"],
+		allowedFilterOperators: { message: ["eq"], path: ["eq"] },
+		customSql: (ctx) => {
+			const {
+				websiteId,
+				startDate,
+				endDate,
+				filters,
+				filterConditions,
+				filterParams,
+				timezone = "UTC",
+			} = ctx;
+			const selectors = (filters ?? []).filter(
+				(filter) => !(filter.having || filter.target)
+			);
+			if (
+				selectors.length !== 1 ||
+				(selectors[0]?.field !== "message" && selectors[0]?.field !== "path") ||
+				selectors[0]?.op !== "eq" ||
+				Array.isArray(selectors[0].value)
+			) {
+				throw new Error(
+					"error_cohort_behavior requires exactly one scalar message or path equality filter"
+				);
+			}
+			const filterClause = appendFilterClause(filterConditions);
+			const normalizedErrorPath =
+				"if(es.path = '', '', if(trimRight(path(es.path), '/') = '', '/', trimRight(path(es.path), '/')))";
+			const normalizedEventPath =
+				"if(event.path = '', '', if(trimRight(path(event.path), '/') = '', '/', trimRight(path(event.path), '/')))";
+
+			return {
+				sql: `
+					WITH
+						toDateTime(concat({endDate:String}, ' 23:59:59')) AS range_end,
+						matched_errors AS (
+							SELECT
+								session_id,
+								min(timestamp) AS first_error_at,
+								argMin(${normalizedErrorPath}, timestamp) AS error_path
+							FROM ${Analytics.error_spans} es
+							WHERE es.client_id = {websiteId:String}
+								AND es.timestamp >= toDateTime({startDate:String})
+								AND es.timestamp <= range_end
+								AND es.session_id != ''
+								AND es.message != ''
+								${filterClause}
+							GROUP BY es.session_id
+						),
+						exposed_anchors AS (
+							SELECT
+								session_id,
+								toDate(toTimeZone(first_error_at, {timezone:String})) AS local_day,
+								error_path,
+								first_error_at AS anchor_at
+							FROM matched_errors
+							WHERE first_error_at <= range_end - INTERVAL 30 MINUTE
+						),
+						trackable_exposed_anchors AS (
+							SELECT DISTINCT
+								exposed.session_id AS session_id,
+								exposed.local_day AS local_day,
+								exposed.error_path AS error_path,
+								exposed.anchor_at AS anchor_at
+							FROM exposed_anchors exposed
+							INNER JOIN ${Analytics.events} event
+								ON event.client_id = {websiteId:String}
+								AND event.session_id = exposed.session_id
+								AND event.event_name = 'screen_view'
+								AND event.time >= toDateTime({startDate:String})
+								AND event.time <= exposed.anchor_at
+								AND ${normalizedEventPath} = exposed.error_path
+							WHERE exposed.error_path != ''
+						),
+						control_anchors AS (
+							SELECT
+								event.session_id,
+								toDate(toTimeZone(event.time, {timezone:String})) AS local_day,
+								${normalizedEventPath} AS error_path,
+								min(event.time) AS anchor_at
+							FROM ${Analytics.events} event
+							INNER JOIN (
+								SELECT DISTINCT
+									trackable.local_day,
+									trackable.error_path
+								FROM trackable_exposed_anchors trackable
+							) strata
+								ON toDate(toTimeZone(event.time, {timezone:String})) = strata.local_day
+								AND ${normalizedEventPath} = strata.error_path
+							WHERE event.client_id = {websiteId:String}
+								AND event.time >= toDateTime({startDate:String})
+								AND event.time <= range_end
+								AND event.event_name = 'screen_view'
+								AND event.session_id != ''
+								AND ${normalizedEventPath} != ''
+								AND event.session_id NOT IN (SELECT session_id FROM matched_errors)
+							GROUP BY
+								event.session_id,
+								toDate(toTimeZone(event.time, {timezone:String})),
+								${normalizedEventPath}
+							HAVING anchor_at <= range_end - INTERVAL 30 MINUTE
+						),
+						exposed_behavior AS (
+							SELECT
+								exposed.session_id AS session_id,
+								exposed.local_day AS local_day,
+								exposed.error_path AS error_path,
+								countIf(
+									event.event_name = 'screen_view'
+									AND event.time > exposed.anchor_at
+									AND event.time <= exposed.anchor_at + INTERVAL 30 MINUTE
+								) > 0 AS reached_next_page
+							FROM trackable_exposed_anchors exposed
+							LEFT JOIN ${Analytics.events} event
+								ON event.client_id = {websiteId:String}
+								AND event.session_id = exposed.session_id
+								AND event.time > exposed.anchor_at
+								AND event.time <= exposed.anchor_at + INTERVAL 30 MINUTE
+								AND ${normalizedEventPath} != ''
+								AND ${normalizedEventPath} != exposed.error_path
+							GROUP BY exposed.session_id, exposed.local_day, exposed.error_path
+						),
+						control_behavior AS (
+							SELECT
+								control.session_id AS session_id,
+								control.local_day AS local_day,
+								control.error_path AS error_path,
+								countIf(
+									event.event_name = 'screen_view'
+									AND event.time > control.anchor_at
+									AND event.time <= control.anchor_at + INTERVAL 30 MINUTE
+								) > 0 AS reached_next_page
+							FROM control_anchors control
+							LEFT JOIN ${Analytics.events} event
+								ON event.client_id = {websiteId:String}
+								AND event.session_id = control.session_id
+								AND event.time > control.anchor_at
+								AND event.time <= control.anchor_at + INTERVAL 30 MINUTE
+								AND ${normalizedEventPath} != ''
+								AND ${normalizedEventPath} != control.error_path
+							GROUP BY control.session_id, control.local_day, control.error_path
+						),
+						exposed_strata AS (
+							SELECT
+								behavior.local_day AS local_day,
+								behavior.error_path AS error_path,
+								count() AS affected_sessions,
+								countIf(behavior.reached_next_page) AS affected_next_page_sessions
+							FROM exposed_behavior behavior
+							GROUP BY behavior.local_day, behavior.error_path
+						),
+						control_strata AS (
+							SELECT
+								behavior.local_day AS local_day,
+								behavior.error_path AS error_path,
+								count() AS peer_session_observations,
+								countIf(behavior.reached_next_page) AS peer_next_page_sessions
+							FROM control_behavior behavior
+							GROUP BY behavior.local_day, behavior.error_path
+						),
+						matched_strata AS (
+							SELECT
+								exposed.affected_sessions,
+								exposed.affected_next_page_sessions,
+								control.peer_session_observations,
+								control.peer_next_page_sessions
+							FROM exposed_strata exposed
+							INNER JOIN control_strata control
+								ON exposed.local_day = control.local_day
+								AND exposed.error_path = control.error_path
+							WHERE control.peer_session_observations >= 10
+						)
+					SELECT
+						toUInt64((SELECT count() FROM exposed_anchors)) AS eligible_error_sessions,
+						toUInt64(ifNull(sum(affected_sessions), 0)) AS matched_error_sessions,
+						toUInt64(ifNull(sum(peer_session_observations), 0)) AS matched_peer_session_observations,
+						toUInt64(count()) AS matched_strata,
+						if(
+							(SELECT count() FROM exposed_anchors) = 0,
+							0,
+							round(
+								100 * ifNull(sum(affected_sessions), 0)
+									/ (SELECT count() FROM exposed_anchors),
+								1
+							)
+						) AS matched_coverage_percent,
+						if(
+							ifNull(sum(affected_sessions), 0) = 0,
+							0,
+							round(
+								100 * ifNull(sum(affected_next_page_sessions), 0)
+									/ sum(affected_sessions),
+								1
+							)
+						) AS affected_next_page_percent,
+						if(
+							ifNull(sum(affected_sessions), 0) = 0,
+							0,
+							round(
+								100
+									* sum(
+										affected_sessions
+										* peer_next_page_sessions
+										/ peer_session_observations
+									)
+									/ sum(affected_sessions),
+								1
+							)
+						) AS comparison_next_page_percent
+					FROM matched_strata
+				`,
+				params: {
+					websiteId,
+					startDate,
+					endDate,
+					timezone,
+					...filterParams,
+				},
+			};
+		},
+		customizable: false,
+		noCache: true,
+		requiredAnyFilter: ["message", "path"],
+		timeField: "timestamp",
+	},
+
+	/**
+	 * Internal portfolio-evaluation primitive. It deliberately returns only
+	 * aggregate set cardinalities for one exact error fingerprint and one
+	 * canonical route, never the members of either cohort.
+	 */
+	error_candidate_overlap: {
+		meta: {
+			description:
+				"Privacy-safe aggregate overlap between one exact error fingerprint and one canonical error route. Intended for internal portfolio evaluation; never returns visitor or session identifiers.",
+			category: "Errors",
+			tags: ["errors", "overlap", "portfolio", "internal"],
+			output_fields: [
+				{ name: "fingerprint_error_occurrences", type: "number" },
+				{ name: "route_error_occurrences", type: "number" },
+				{ name: "cooccurring_error_occurrences", type: "number" },
+				{ name: "fingerprint_sessions", type: "number" },
+				{ name: "route_sessions", type: "number" },
+				{ name: "shared_sessions", type: "number" },
+				{ name: "cooccurring_sessions", type: "number" },
+				{ name: "fingerprint_visitor_identifiers", type: "number" },
+				{ name: "route_visitor_identifiers", type: "number" },
+				{ name: "shared_visitor_identifiers", type: "number" },
+				{ name: "cooccurring_visitor_identifiers", type: "number" },
+				{ name: "session_overlap_measurable", type: "boolean" },
+				{ name: "visitor_overlap_measurable", type: "boolean" },
+			],
+		},
+		allowedFilters: ["message", "path"],
+		allowedFilterOperators: { message: ["eq"], path: ["eq"] },
+		customSql: (ctx) => {
+			const {
+				websiteId,
+				startDate,
+				endDate,
+				filters,
+				filterConditions,
+				filterParams,
+			} = ctx;
+			const selectors = filters ?? [];
+			const messageIndex = selectors.findIndex(
+				(filter) =>
+					filter.field === "message" &&
+					filter.op === "eq" &&
+					!filter.having &&
+					!filter.target &&
+					!Array.isArray(filter.value)
+			);
+			const pathIndex = selectors.findIndex(
+				(filter) =>
+					filter.field === "path" &&
+					filter.op === "eq" &&
+					!filter.having &&
+					!filter.target &&
+					!Array.isArray(filter.value)
+			);
+			const messageCondition = filterConditions?.[messageIndex];
+			const pathCondition = filterConditions?.[pathIndex];
+			if (
+				selectors.length !== 2 ||
+				messageIndex === -1 ||
+				pathIndex === -1 ||
+				!messageCondition ||
+				!pathCondition
+			) {
+				throw new Error(
+					"error_candidate_overlap requires one scalar message equality filter and one scalar path equality filter"
+				);
+			}
+
+			return {
+				sql: `
+					WITH fingerprint_errors AS (
+						SELECT anonymous_id, session_id
+						FROM ${Analytics.error_spans}
+						WHERE client_id = {websiteId:String}
+							AND timestamp >= toDateTime({startDate:String})
+							AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+							AND message != ''
+							AND ${messageCondition}
+					),
+					route_errors AS (
+						SELECT anonymous_id, session_id
+						FROM ${Analytics.error_spans}
+						WHERE client_id = {websiteId:String}
+							AND timestamp >= toDateTime({startDate:String})
+							AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+							AND message != ''
+							AND ${pathCondition}
+					),
+					cooccurring_errors AS (
+						SELECT anonymous_id, session_id
+						FROM ${Analytics.error_spans}
+						WHERE client_id = {websiteId:String}
+							AND timestamp >= toDateTime({startDate:String})
+							AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+							AND message != ''
+							AND ${messageCondition}
+							AND ${pathCondition}
+					),
+					fingerprint_sessions AS (
+						SELECT DISTINCT session_id
+						FROM fingerprint_errors
+						WHERE session_id != ''
+					),
+					route_sessions AS (
+						SELECT DISTINCT session_id
+						FROM route_errors
+						WHERE session_id != ''
+					),
+					fingerprint_visitors AS (
+						SELECT DISTINCT anonymous_id
+						FROM fingerprint_errors
+						WHERE anonymous_id != ''
+					),
+					route_visitors AS (
+						SELECT DISTINCT anonymous_id
+						FROM route_errors
+						WHERE anonymous_id != ''
+					)
+					SELECT
+						toUInt64((SELECT count() FROM fingerprint_errors)) AS fingerprint_error_occurrences,
+						toUInt64((SELECT count() FROM route_errors)) AS route_error_occurrences,
+						toUInt64((SELECT count() FROM cooccurring_errors)) AS cooccurring_error_occurrences,
+						toUInt64((SELECT count() FROM fingerprint_sessions)) AS fingerprint_sessions,
+						toUInt64((SELECT count() FROM route_sessions)) AS route_sessions,
+						toUInt64((
+							SELECT count()
+							FROM fingerprint_sessions AS fingerprint
+							INNER JOIN route_sessions AS route USING (session_id)
+						)) AS shared_sessions,
+						uniqExactIf(session_id, session_id != '') AS cooccurring_sessions,
+						toUInt64((SELECT count() FROM fingerprint_visitors)) AS fingerprint_visitor_identifiers,
+						toUInt64((SELECT count() FROM route_visitors)) AS route_visitor_identifiers,
+						toUInt64((
+							SELECT count()
+							FROM fingerprint_visitors AS fingerprint
+							INNER JOIN route_visitors AS route USING (anonymous_id)
+						)) AS shared_visitor_identifiers,
+						uniqExactIf(anonymous_id, anonymous_id != '') AS cooccurring_visitor_identifiers,
+						toUInt8(
+							(SELECT count() FROM fingerprint_sessions) > 0
+							AND (SELECT count() FROM route_sessions) > 0
+						) AS session_overlap_measurable,
+						toUInt8(
+							(SELECT count() FROM fingerprint_visitors) > 0
+							AND (SELECT count() FROM route_visitors) > 0
+						) AS visitor_overlap_measurable
+					FROM cooccurring_errors
+				`,
+				params: {
+					websiteId,
+					startDate,
+					endDate,
+					...filterParams,
+				},
+			};
+		},
+		customizable: false,
+		noCache: true,
+		requiredFilters: ["message", "path"],
+		timeField: "timestamp",
+	},
+
 	error_trends: {
 		meta: {
 			description: "Error counts over time to identify spikes and trends.",

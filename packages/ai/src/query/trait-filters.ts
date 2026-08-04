@@ -18,6 +18,7 @@ const PUBLIC_QUERY_ERROR_PATTERNS = [
 	/^Ordering by '[^']+' is not permitted/,
 	/^Missing required filters?:/,
 	/^error_customer_impact requires exactly one scalar message or path equality filter$/,
+	/^error_candidate_overlap requires one scalar message equality filter and one scalar path equality filter$/,
 	/^Trait filters /,
 	/^Trait segment exceeds /,
 	/^[a-z_]+ filter is required for [a-z_]+ query$/,

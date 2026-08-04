@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it } from "bun:test";
 import { QueryBuilders } from "./builders";
+import { SetupBuilders } from "./builders/setup";
 import { SimpleQueryBuilder } from "./simple-builder";
 import type { Filter, QueryRequest, SimpleQueryConfig } from "./types";
 
@@ -49,6 +50,14 @@ const FILTER_FIELD_OVERRIDES: Partial<
 	error_customer_impact: {
 		all: ["message"],
 		required: ["message"],
+	},
+	error_cohort_behavior: {
+		all: ["message"],
+		required: ["message"],
+	},
+	error_candidate_overlap: {
+		all: ["message", "path"],
+		required: ["message", "path"],
 	},
 };
 
@@ -120,4 +129,58 @@ describe("query builders execute against ClickHouse", () => {
 			});
 		}
 	}
+
+	iit(
+		"private post-error configured-goal completion query compiles against ClickHouse",
+		async () => {
+			const config = SetupBuilders.insights_error_cohort_goal_completion;
+			if (!config) {
+				throw new Error("Missing private goal-completion builder");
+			}
+			const { params, sql } = new SimpleQueryBuilder(config, {
+				filters: [
+					{ field: "message", op: "eq", value: "test-error" },
+					{ field: "goal_target", op: "eq", value: "/completed" },
+					{ field: "goal_type", op: "eq", value: "PAGE_VIEW" },
+				],
+				from: "2026-01-01",
+				projectId: "builder-explain-test",
+				to: "2026-01-02",
+				type: "insights_error_cohort_goal_completion",
+			}).compile();
+			const result = await clickHouse.query({
+				format: "TSVRaw",
+				query: `EXPLAIN ${sql}`,
+				query_params: params,
+			});
+			await result.text();
+		}
+	);
+
+	iit(
+		"private route-vital continuation query compiles against ClickHouse",
+		async () => {
+			const config = SetupBuilders.insights_vital_cohort_behavior;
+			if (!config) {
+				throw new Error("Missing private route-vital builder");
+			}
+			const { params, sql } = new SimpleQueryBuilder(config, {
+				filters: [
+					{ field: "path", op: "eq", value: "/route" },
+					{ field: "vital_metric", op: "eq", value: "LCP" },
+					{ field: "vital_threshold", op: "eq", value: 2500 },
+				],
+				from: "2026-01-01",
+				projectId: "builder-explain-test",
+				to: "2026-01-02",
+				type: "insights_vital_cohort_behavior",
+			}).compile();
+			const result = await clickHouse.query({
+				format: "TSVRaw",
+				query: `EXPLAIN ${sql}`,
+				query_params: params,
+			});
+			await result.text();
+		}
+	);
 });
