@@ -1,7 +1,7 @@
 import { createError, defineErrorCatalog, EvlogError, parseError } from "evlog";
 import type { z } from "zod";
 
-export const basketErrorCatalog = defineErrorCatalog("basket", {
+const BASKET_ERROR_SPEC = {
 	TRACK_PAYLOAD_TOO_LARGE: {
 		message: "Payload too large",
 		status: 413,
@@ -176,7 +176,15 @@ export const basketErrorCatalog = defineErrorCatalog("basket", {
 		why: "The JSON did not match the expected event shape.",
 		fix: "Correct the fields listed in errors and retry.",
 	},
-});
+} as const;
+
+export const basketErrorCatalog = defineErrorCatalog("basket", BASKET_ERROR_SPEC);
+
+export const CLIENT_ERROR_MESSAGES: ReadonlySet<string> = new Set(
+	Object.values(BASKET_ERROR_SPEC)
+		.filter((entry) => entry.status >= 400 && entry.status < 500)
+		.map((entry) => entry.message)
+);
 
 declare module "evlog" {
 	interface RegisteredErrorCatalogs {
