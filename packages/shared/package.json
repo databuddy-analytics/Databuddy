@@ -31,6 +31,7 @@
     "./stripe-webhooks": "./src/stripe-webhooks.ts",
     "./audit": "./src/audit.ts",
     "./evlog-fields": "./src/evlog-fields.ts",
+    "./evlog-axiom": "./src/evlog-axiom.ts",
     "./evlog-redaction": "./src/evlog-redaction.ts",
     "./evlog-superlog": "./src/evlog-superlog.ts"
   },
