@@ -4,15 +4,20 @@ import {
 	db,
 	desc,
 	eq,
+	exists,
+	hasTrustedLatestInsightObservation,
 	inArray,
 	isNull,
+	isTrustedInsightObservation,
 	notExists,
 	sql,
 } from "@databuddy/db";
+import type { SQLWrapper } from "drizzle-orm";
 import {
 	analyticsInsights,
 	goals,
 	insightObservations,
+	insightRecommendationApplications,
 	insightReplies,
 	websites,
 } from "@databuddy/db/schema";
@@ -30,6 +35,7 @@ import {
 	insightReplyStatusSchema,
 	insightTimelineItemSchema,
 	insightTimelineReplySchema,
+	isQuarantinedInsightObservation,
 	parseInvestigationOutcome,
 	parseInvestigationSignal,
 } from "@databuddy/shared/insights";
@@ -138,7 +144,8 @@ export async function queueDefinitionChangeRechecks(input: {
 			.where(
 				and(
 					eq(analyticsInsights.websiteId, input.websiteId),
-					eq(analyticsInsights.status, "open")
+					eq(analyticsInsights.status, "open"),
+					hasTrustedLatestInsightObservation(analyticsInsights)
 				)
 			);
 		const subjects = new Map<
@@ -169,6 +176,8 @@ export async function queueDefinitionChangeRechecks(input: {
 					const [current] = await tx
 						.select({
 							id: analyticsInsights.id,
+							isCurrentObservationTrusted:
+								hasTrustedLatestInsightObservation(analyticsInsights),
 							status: analyticsInsights.status,
 						})
 						.from(analyticsInsights)
@@ -179,7 +188,10 @@ export async function queueDefinitionChangeRechecks(input: {
 						)
 						.limit(1)
 						.for("update");
-					if (!current || current.status !== "open") {
+					if (
+						!(current && current.isCurrentObservationTrusted) ||
+						current.status !== "open"
+					) {
 						return null;
 					}
 
@@ -278,6 +290,7 @@ function serializeInsight(
 const insightBriefSelection = {
 	asOf: insightObservations.asOf,
 	createdAt: insightObservations.createdAt,
+	evidence: insightObservations.evidence,
 	id: insightObservations.id,
 	investigationId: analyticsInsights.id,
 	outcome: insightObservations.outcome,
@@ -290,6 +303,7 @@ const insightBriefSelection = {
 interface InsightBriefRow {
 	asOf: Date;
 	createdAt: Date;
+	evidence: (typeof insightObservations.$inferSelect)["evidence"];
 	id: string;
 	investigationId: string | null;
 	outcome: (typeof insightObservations.$inferSelect)["outcome"];
@@ -302,6 +316,9 @@ interface InsightBriefRow {
 function serializeInsightBrief(
 	row: InsightBriefRow
 ): z.infer<typeof insightBriefItemSchema> | null {
+	if (isQuarantinedInsightObservation(row)) {
+		return null;
+	}
 	const outcome = parseInvestigationOutcome(row.outcome);
 	const signal = parseInvestigationSignal(row.signal);
 	if (!(outcome && signal)) {
@@ -335,6 +352,87 @@ function serializeInsightRecommendation(
 	return { ...insight, recommendation: insight.recommendation };
 }
 
+/**
+ * Recommendations are a live projection, rather than a separate task queue.
+ * Legacy goal recommendations can be fulfilled from regular goal editing, so
+ * keep their live-state check outside the latest-observation subquery. Typed
+ * native actions instead use the durable application record because reviewers
+ * may intentionally adjust a prefilled draft before saving it.
+ */
+function isCurrentGoalRecommendation(source: {
+	outcome: SQLWrapper;
+	signal: SQLWrapper;
+	websiteId: SQLWrapper;
+}) {
+	return sql`
+		(
+			(${source.outcome}->'recommendation'->>'operation') is null
+			or (
+				(${source.outcome}->'recommendation'->>'operation') = 'edit'
+				and (${source.signal}->'entity'->>'type') = 'goal'
+				and exists (
+					select 1
+					from ${goals}
+					where ${goals.id} = (${source.signal}->'entity'->>'id')
+						and ${goals.websiteId} = ${source.websiteId}
+						and ${goals.deletedAt} is null
+						and (
+							(
+								(${source.outcome}->'recommendation'->'changes'->>'name') is not null
+								and ${goals.name} is distinct from (${source.outcome}->'recommendation'->'changes'->>'name')
+							)
+							or (
+								(${source.outcome}->'recommendation'->'changes'->>'description') is not null
+								and ${goals.description} is distinct from (${source.outcome}->'recommendation'->'changes'->>'description')
+							)
+						)
+				)
+			)
+			or (
+				(${source.outcome}->'recommendation'->>'operation') = 'delete'
+				and (${source.signal}->'entity'->>'type') = 'goal'
+				and exists (
+					select 1
+					from ${goals}
+					where ${goals.id} = (${source.signal}->'entity'->>'id')
+						and ${goals.websiteId} = ${source.websiteId}
+						and ${goals.deletedAt} is null
+				)
+			)
+		)
+	`;
+}
+
+function isUnappliedRecommendation(source: { id: SQLWrapper }) {
+	return notExists(
+		db
+			.select({ id: insightRecommendationApplications.observationId })
+			.from(insightRecommendationApplications)
+			.where(eq(insightRecommendationApplications.observationId, source.id))
+	);
+}
+
+function hasTrustedInsightAction(source: {
+	id: SQLWrapper;
+	organizationId: SQLWrapper;
+	websiteId: SQLWrapper;
+}) {
+	return exists(
+		db
+			.select({ id: insightObservations.id })
+			.from(insightObservations)
+			.where(
+				and(
+					eq(insightObservations.insightId, source.id),
+					eq(insightObservations.organizationId, source.organizationId),
+					eq(insightObservations.websiteId, source.websiteId),
+					sql`${insightObservations.outcome}->'next'->>'type' in ('act', 'ask')`,
+					isTrustedInsightObservation(insightObservations)
+				)
+			)
+	);
+}
+
 async function authorizeInsightsRead(
 	context: Context,
 	input: { organizationId: string; websiteId?: string }
@@ -361,6 +459,7 @@ async function loadInsightTimeline(
 		db
 			.select({
 				createdAt: insightObservations.createdAt,
+				evidence: insightObservations.evidence,
 				id: insightObservations.id,
 				outcome: insightObservations.outcome,
 				signal: insightObservations.signal,
@@ -370,7 +469,8 @@ async function loadInsightTimeline(
 				and(
 					eq(insightObservations.organizationId, insight.organizationId),
 					eq(insightObservations.websiteId, insight.websiteId),
-					eq(insightObservations.signalKey, insight.subjectKey)
+					eq(insightObservations.signalKey, insight.subjectKey),
+					isTrustedInsightObservation(insightObservations)
 				)
 			)
 			.orderBy(
@@ -395,7 +495,8 @@ async function loadInsightTimeline(
 				and(
 					eq(analyticsInsights.organizationId, insight.organizationId),
 					eq(analyticsInsights.websiteId, insight.websiteId),
-					eq(analyticsInsights.subjectKey, insight.subjectKey)
+					eq(analyticsInsights.subjectKey, insight.subjectKey),
+					hasTrustedLatestInsightObservation(analyticsInsights)
 				)
 			)
 			.orderBy(desc(insightReplies.createdAt), desc(insightReplies.id))
@@ -404,6 +505,9 @@ async function loadInsightTimeline(
 
 	const timeline: InsightTimelineItem[] = [
 		...observations.flatMap((observation) => {
+			if (isQuarantinedInsightObservation(observation)) {
+				return [];
+			}
 			const parsed = parseInvestigationOutcome(observation.outcome);
 			if (!parsed) {
 				return [];
@@ -499,6 +603,7 @@ export async function appendInvestigationReply(
 		.where(
 			and(
 				eq(analyticsInsights.id, parsed.insightId),
+				hasTrustedLatestInsightObservation(analyticsInsights),
 				isNull(websites.deletedAt)
 			)
 		)
@@ -524,13 +629,17 @@ export async function appendInvestigationReply(
 			eq(analyticsInsights.subjectKey, insight.subjectKey)
 		);
 		const [current] = await tx
-			.select({ id: analyticsInsights.id })
+			.select({
+				id: analyticsInsights.id,
+				isCurrentObservationTrusted:
+					hasTrustedLatestInsightObservation(analyticsInsights),
+			})
 			.from(analyticsInsights)
 			.where(insightCase)
 			.orderBy(desc(analyticsInsights.createdAt), desc(analyticsInsights.id))
 			.limit(1)
 			.for("update");
-		if (!current) {
+		if (!(current && current.isCurrentObservationTrusted)) {
 			throw rpcError.notFound("insight", parsed.insightId);
 		}
 
@@ -576,23 +685,6 @@ export async function appendInvestigationReply(
 					status: existing.status,
 				},
 			};
-		}
-
-		const [observation] = await tx
-			.select({ id: insightObservations.id })
-			.from(insightObservations)
-			.where(
-				and(
-					eq(insightObservations.organizationId, insight.organizationId),
-					eq(insightObservations.websiteId, insight.websiteId),
-					eq(insightObservations.signalKey, insight.subjectKey)
-				)
-			)
-			.limit(1);
-		if (!observation) {
-			throw rpcError.badRequest(
-				"This investigation has no history to continue"
-			);
 		}
 
 		const [active] = await tx
@@ -681,6 +773,7 @@ export async function applyInsightGoalAction(input: {
 		.where(
 			and(
 				eq(analyticsInsights.id, parsed.insightId),
+				hasTrustedLatestInsightObservation(analyticsInsights),
 				isNull(websites.deletedAt)
 			)
 		)
@@ -691,6 +784,7 @@ export async function applyInsightGoalAction(input: {
 
 	const [latestObservation] = await db
 		.select({
+			evidence: insightObservations.evidence,
 			outcome: insightObservations.outcome,
 			signal: insightObservations.signal,
 		})
@@ -702,8 +796,15 @@ export async function applyInsightGoalAction(input: {
 				eq(insightObservations.websiteId, target.websiteId)
 			)
 		)
-		.orderBy(desc(insightObservations.createdAt), desc(insightObservations.id))
+		.orderBy(
+			desc(insightObservations.asOf),
+			desc(insightObservations.createdAt),
+			desc(insightObservations.id)
+		)
 		.limit(1);
+	if (isQuarantinedInsightObservation(latestObservation ?? {})) {
+		throw rpcError.badRequest("This investigation has no goal action to apply");
+	}
 	const initialOutcome = parseInvestigationOutcome(latestObservation?.outcome);
 	const initialSignal = parseInvestigationSignal(latestObservation?.signal);
 	const initialAction = initialOutcome && executableGoalAction(initialOutcome);
@@ -723,6 +824,8 @@ export async function applyInsightGoalAction(input: {
 		const [current] = await tx
 			.select({
 				id: analyticsInsights.id,
+				isCurrentObservationTrusted:
+					hasTrustedLatestInsightObservation(analyticsInsights),
 				status: analyticsInsights.status,
 			})
 			.from(analyticsInsights)
@@ -739,6 +842,7 @@ export async function applyInsightGoalAction(input: {
 		if (
 			!current ||
 			current.id !== parsed.insightId ||
+			!current.isCurrentObservationTrusted ||
 			current.status !== "open"
 		) {
 			throw rpcError.conflict(
@@ -748,17 +852,22 @@ export async function applyInsightGoalAction(input: {
 
 		const [observation] = await tx
 			.select({
+				evidence: insightObservations.evidence,
 				outcome: insightObservations.outcome,
 				signal: insightObservations.signal,
 			})
 			.from(insightObservations)
-			.where(eq(insightObservations.insightId, current.id))
+			.where(and(eq(insightObservations.insightId, current.id)))
 			.orderBy(
+				desc(insightObservations.asOf),
 				desc(insightObservations.createdAt),
 				desc(insightObservations.id)
 			)
 			.limit(1)
 			.for("update");
+		if (isQuarantinedInsightObservation(observation ?? {})) {
+			throw rpcError.conflict("This goal action is no longer available");
+		}
 		const outcome = parseInvestigationOutcome(observation?.outcome);
 		const signal = parseInvestigationSignal(observation?.signal);
 		const action = outcome && executableGoalAction(outcome);
@@ -897,6 +1006,7 @@ export const insightsRouter = {
 							? eq(insightObservations.websiteId, input.websiteId)
 							: undefined,
 						sql`${insightObservations.outcome}->>'publish' = 'true'`,
+						isTrustedInsightObservation(insightObservations),
 						isNull(websites.deletedAt)
 					)
 				)
@@ -949,6 +1059,10 @@ export const insightsRouter = {
 							investigationId: sql<string | null>`${analyticsInsights.id}`.as(
 								"investigation_id"
 							),
+							isTrusted:
+								isTrustedInsightObservation(insightObservations).as(
+									"is_trusted"
+								),
 							signalKey: insightObservations.signalKey,
 						}
 					)
@@ -993,7 +1107,14 @@ export const insightsRouter = {
 				db
 					.select()
 					.from(pageSource)
-					.where(sql`${pageSource.outcome}->>'recommendation' is not null`)
+					.where(
+						and(
+							eq(pageSource.isTrusted, true),
+							sql`${pageSource.outcome}->>'recommendation' is not null`,
+							isUnappliedRecommendation(pageSource),
+							isCurrentGoalRecommendation(pageSource)
+						)
+					)
 					.orderBy(
 						desc(pageSource.asOf),
 						desc(pageSource.createdAt),
@@ -1004,7 +1125,14 @@ export const insightsRouter = {
 				db
 					.select({ total: count() })
 					.from(countSource)
-					.where(sql`${countSource.outcome}->>'recommendation' is not null`),
+					.where(
+						and(
+							eq(countSource.isTrusted, true),
+							sql`${countSource.outcome}->>'recommendation' is not null`,
+							isUnappliedRecommendation(countSource),
+							isCurrentGoalRecommendation(countSource)
+						)
+					),
 			]);
 			const page = rows.slice(0, input.limit).flatMap((row) => {
 				const recommendation = serializeInsightRecommendation(row);
@@ -1041,28 +1169,27 @@ export const insightsRouter = {
 		)
 		.handler(async ({ context, input }) => {
 			await authorizeInsightsRead(context, input);
-			const hasNoActiveReply = notExists(
-				db
-					.select({ id: insightReplies.id })
-					.from(insightReplies)
-					.where(
-						and(
-							eq(insightReplies.insightId, analyticsInsights.id),
-							inArray(insightReplies.status, ["queued", "running"])
+			const hasNoActiveReply = (source: { id: SQLWrapper }) =>
+				notExists(
+					db
+						.select({ id: insightReplies.id })
+						.from(insightReplies)
+						.where(
+							and(
+								eq(insightReplies.insightId, source.id),
+								inArray(insightReplies.status, ["queued", "running"])
+							)
 						)
-					)
-			);
+				);
 
 			const whereClause = input.websiteId
 				? and(
 						eq(analyticsInsights.organizationId, input.organizationId),
 						eq(analyticsInsights.websiteId, input.websiteId),
-						hasNoActiveReply,
 						isNull(websites.deletedAt)
 					)
 				: and(
 						eq(analyticsInsights.organizationId, input.organizationId),
-						hasNoActiveReply,
 						isNull(websites.deletedAt)
 					);
 
@@ -1075,23 +1202,17 @@ export const insightsRouter = {
 							sql<Date>`coalesce(${analyticsInsights.resolvedAt}, ${analyticsInsights.createdAt})`.as(
 								"activity_at"
 							),
+						hasTrustedAction:
+							hasTrustedInsightAction(analyticsInsights).as(
+								"has_trusted_action"
+							),
+						isCurrentObservationTrusted: hasTrustedLatestInsightObservation(
+							analyticsInsights
+						).as("is_current_observation_trusted"),
 					}
 				)
 				.from(analyticsInsights)
 				.innerJoin(websites, eq(analyticsInsights.websiteId, websites.id))
-				.innerJoin(
-					insightObservations,
-					and(
-						eq(
-							insightObservations.organizationId,
-							analyticsInsights.organizationId
-						),
-						eq(insightObservations.insightId, analyticsInsights.id),
-						eq(insightObservations.websiteId, analyticsInsights.websiteId),
-						eq(insightObservations.signalKey, analyticsInsights.subjectKey),
-						sql`${insightObservations.outcome}->'next'->>'type' in ('act', 'ask')`
-					)
-				)
 				.where(whereClause)
 				.orderBy(
 					analyticsInsights.websiteId,
@@ -1103,7 +1224,14 @@ export const insightsRouter = {
 			const rows = await db
 				.select()
 				.from(latestCases)
-				.where(input.status ? eq(latestCases.status, input.status) : undefined)
+				.where(
+					and(
+						eq(latestCases.hasTrustedAction, true),
+						eq(latestCases.isCurrentObservationTrusted, true),
+						hasNoActiveReply(latestCases),
+						input.status ? eq(latestCases.status, input.status) : undefined
+					)
+				)
 				.orderBy(desc(latestCases.activityAt), desc(latestCases.id))
 				.limit(input.limit + 1)
 				.offset(input.offset);
@@ -1145,6 +1273,7 @@ export const insightsRouter = {
 				.where(
 					and(
 						eq(analyticsInsights.id, input.insightId),
+						hasTrustedLatestInsightObservation(analyticsInsights),
 						isNull(websites.deletedAt)
 					)
 				)
@@ -1178,7 +1307,14 @@ export const insightsRouter = {
 				};
 			}
 
-			const [current] = await selectInsights()
+			const [current] = await db
+				.select({
+					...insightSelection,
+					isCurrentObservationTrusted:
+						hasTrustedLatestInsightObservation(analyticsInsights),
+				})
+				.from(analyticsInsights)
+				.innerJoin(websites, eq(analyticsInsights.websiteId, websites.id))
 				.where(
 					and(
 						eq(analyticsInsights.organizationId, row.organizationId),
@@ -1189,7 +1325,14 @@ export const insightsRouter = {
 				)
 				.orderBy(desc(analyticsInsights.createdAt), desc(analyticsInsights.id))
 				.limit(1);
-			const insight = current ?? row;
+			if (!current?.isCurrentObservationTrusted) {
+				return {
+					canReply: false,
+					insight: null,
+					timeline: [],
+				};
+			}
+			const insight = current;
 			const timeline = await loadInsightTimeline(insight);
 			const hasInvestigation = timeline.some(
 				(item) => item.kind === "investigation"
@@ -1283,7 +1426,11 @@ export const insightsRouter = {
 				)
 				.innerJoin(websites, eq(analyticsInsights.websiteId, websites.id))
 				.where(
-					and(eq(insightReplies.id, input.replyId), isNull(websites.deletedAt))
+					and(
+						eq(insightReplies.id, input.replyId),
+						hasTrustedLatestInsightObservation(analyticsInsights),
+						isNull(websites.deletedAt)
+					)
 				)
 				.limit(1);
 			if (!reply) {
@@ -1302,7 +1449,11 @@ export const insightsRouter = {
 					eq(analyticsInsights.subjectKey, reply.subjectKey)
 				);
 				const [current] = await tx
-					.select({ id: analyticsInsights.id })
+					.select({
+						id: analyticsInsights.id,
+						isCurrentObservationTrusted:
+							hasTrustedLatestInsightObservation(analyticsInsights),
+					})
 					.from(analyticsInsights)
 					.where(insightCase)
 					.orderBy(
@@ -1311,7 +1462,7 @@ export const insightsRouter = {
 					)
 					.limit(1)
 					.for("update");
-				if (!current) {
+				if (!(current && current.isCurrentObservationTrusted)) {
 					throw rpcError.notFound("insight reply", input.replyId);
 				}
 
@@ -1330,23 +1481,6 @@ export const insightsRouter = {
 				}
 				if (latest.status !== "failed") {
 					return latest.status;
-				}
-
-				const [observation] = await tx
-					.select({ id: insightObservations.id })
-					.from(insightObservations)
-					.where(
-						and(
-							eq(insightObservations.organizationId, reply.organizationId),
-							eq(insightObservations.websiteId, reply.websiteId),
-							eq(insightObservations.signalKey, reply.subjectKey)
-						)
-					)
-					.limit(1);
-				if (!observation) {
-					throw rpcError.badRequest(
-						"This investigation has no history to continue"
-					);
 				}
 
 				const [active] = await tx

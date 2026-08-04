@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull } from "@databuddy/db";
+import { and, desc, eq, inArray, isNull, withTransaction } from "@databuddy/db";
 import { goals } from "@databuddy/db/schema";
 import { createDrizzleCache, redis } from "@databuddy/redis";
 import { GATED_FEATURES } from "@databuddy/shared/types/features";
@@ -21,6 +21,7 @@ import {
 } from "../procedures/with-workspace";
 import { requireFeatureWithLimit } from "../types/billing";
 import { queueDefinitionChangeRechecks } from "./insights";
+import { claimRecommendationApplication } from "../services/recommendation-application";
 
 const ANALYTICS_CACHE_TTL = 180;
 const cache = createDrizzleCache({ redis, namespace: "goals" });
@@ -224,6 +225,7 @@ export const goalsRouter = {
 				description: z.string().nullable().optional(),
 				filters: z.array(filterSchema).optional(),
 				ignoreHistoricData: z.boolean().optional(),
+				recommendationId: z.string().min(1).optional(),
 			})
 		)
 		.output(goalOutputSchema)
@@ -250,21 +252,37 @@ export const goalsRouter = {
 
 			const createdBy = await workspace.getCreatedBy();
 
-			const [newGoal] = await context.db
-				.insert(goals)
-				.values({
-					id: randomUUIDv7(),
+			const [newGoal] = await withTransaction(async (tx) => {
+				const application = await claimRecommendationApplication(tx, {
+					action: { type: "goal.create" },
+					appliedByUserId: context.user?.id ?? null,
+					recommendationId: input.recommendationId,
 					websiteId: input.websiteId,
-					type: input.type,
-					target: input.target,
-					name: input.name,
-					description: input.description,
-					filters: input.filters,
-					ignoreHistoricData: input.ignoreHistoricData ?? false,
-					isActive: true,
-					createdBy,
-				})
-				.returning();
+				});
+				if (application === "missing") {
+					throw rpcError.notFound("recommendation", input.recommendationId);
+				}
+				if (application === "already_applied") {
+					throw rpcError.conflict("This recommendation was already applied");
+				}
+
+				const [goal] = await tx
+					.insert(goals)
+					.values({
+						id: randomUUIDv7(),
+						websiteId: input.websiteId,
+						type: input.type,
+						target: input.target,
+						name: input.name,
+						description: input.description,
+						filters: input.filters,
+						ignoreHistoricData: input.ignoreHistoricData ?? false,
+						isActive: true,
+						createdBy,
+					})
+					.returning();
+				return [goal];
+			});
 
 			await invalidateGoalsCache(input.websiteId);
 
@@ -290,6 +308,7 @@ export const goalsRouter = {
 				filters: z.array(filterSchema).optional(),
 				ignoreHistoricData: z.boolean().optional(),
 				isActive: z.boolean().optional(),
+				recommendationId: z.string().min(1).optional(),
 			})
 		)
 		.output(goalOutputSchema)
@@ -309,12 +328,31 @@ export const goalsRouter = {
 				permissions: ["update"],
 			});
 
-			const { id, ...updates } = input;
-			const [updatedGoal] = await context.db
-				.update(goals)
-				.set({ ...updates, updatedAt: new Date() })
-				.where(and(eq(goals.id, id), isNull(goals.deletedAt)))
-				.returning();
+			const { id, recommendationId, ...updates } = input;
+			const [updatedGoal] = await withTransaction(async (tx) => {
+				const application = await claimRecommendationApplication(tx, {
+					action: { goalId: id, type: "goal.update" },
+					appliedByUserId: context.user?.id ?? null,
+					recommendationId,
+					websiteId: existingGoal.websiteId,
+				});
+				if (application === "missing") {
+					throw rpcError.notFound("recommendation", recommendationId);
+				}
+				if (application === "already_applied") {
+					throw rpcError.conflict("This recommendation was already applied");
+				}
+
+				const [goal] = await tx
+					.update(goals)
+					.set({ ...updates, updatedAt: new Date() })
+					.where(and(eq(goals.id, id), isNull(goals.deletedAt)))
+					.returning();
+				if (!goal) {
+					throw rpcError.notFound("goal", id);
+				}
+				return [goal];
+			});
 
 			await invalidateGoalsCache(existingGoal.websiteId);
 			await queueDefinitionChangeRechecks({
@@ -334,7 +372,12 @@ export const goalsRouter = {
 			summary: "Delete goal",
 			description: "Soft-deletes a goal. Requires website delete permission.",
 		})
-		.input(z.object({ id: z.string() }))
+		.input(
+			z.object({
+				id: z.string(),
+				recommendationId: z.string().min(1).optional(),
+			})
+		)
 		.output(successOutputSchema)
 		.handler(async ({ context, input }) => {
 			const [existingGoal] = await context.db
@@ -352,10 +395,29 @@ export const goalsRouter = {
 				permissions: ["delete"],
 			});
 
-			await context.db
-				.update(goals)
-				.set({ deletedAt: new Date(), isActive: false })
-				.where(and(eq(goals.id, input.id), isNull(goals.deletedAt)));
+			await withTransaction(async (tx) => {
+				const application = await claimRecommendationApplication(tx, {
+					action: { goalId: input.id, type: "goal.delete" },
+					appliedByUserId: context.user?.id ?? null,
+					recommendationId: input.recommendationId,
+					websiteId: existingGoal.websiteId,
+				});
+				if (application === "missing") {
+					throw rpcError.notFound("recommendation", input.recommendationId);
+				}
+				if (application === "already_applied") {
+					throw rpcError.conflict("This recommendation was already applied");
+				}
+
+				const [deletedGoal] = await tx
+					.update(goals)
+					.set({ deletedAt: new Date(), isActive: false })
+					.where(and(eq(goals.id, input.id), isNull(goals.deletedAt)))
+					.returning({ id: goals.id });
+				if (!deletedGoal) {
+					throw rpcError.notFound("goal", input.id);
+				}
+			});
 
 			await invalidateGoalsCache(existingGoal.websiteId);
 			await queueDefinitionChangeRechecks({

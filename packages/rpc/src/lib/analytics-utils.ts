@@ -370,7 +370,7 @@ const normalizedPathExpression = (field = "path") => {
 	return `CASE WHEN trimRight(${pathOnly}, '/') = '' THEN '/' ELSE trimRight(${pathOnly}, '/') END`;
 };
 
-const normalizeGoalPathTarget = (target: string): string => {
+export const normalizeGoalPathTarget = (target: string): string => {
 	const trimmed = target.trim();
 	if (!trimmed) {
 		return "/";

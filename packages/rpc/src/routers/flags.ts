@@ -37,6 +37,7 @@ import {
 	withPublicWorkspace,
 	withWorkspace,
 } from "../procedures/with-workspace";
+import { claimRecommendationApplication } from "../services/recommendation-application";
 import {
 	requireFeatureWithLimit,
 	requireUsageWithinLimit,
@@ -116,6 +117,7 @@ const getFlagByKeySchema = z
 const createFlagSchema = z
 	.object({
 		...flagScopeFields,
+		recommendationId: z.string().min(1).optional(),
 		payload: z
 			.record(z.string(), z.unknown())
 			.refine(
@@ -452,6 +454,11 @@ export const flagsRouter = {
 		.output(flagOutputSchema)
 		.handler(async ({ context, input }) => {
 			setTrackProperties({ type: input.type });
+			if (input.recommendationId && !input.websiteId) {
+				throw rpcError.badRequest(
+					"Native feature flag recommendations require a website scope"
+				);
+			}
 			const wsId = input.websiteId;
 			const orgId = input.organizationId;
 
@@ -544,6 +551,19 @@ export const flagsRouter = {
 
 				// Use transaction to ensure flag restore + target group associations are atomic
 				const restoredFlag = await withTransaction(async (tx) => {
+					const application = await claimRecommendationApplication(tx, {
+						action: { type: "feature_flag.create" },
+						appliedByUserId: context.user?.id ?? null,
+						recommendationId: input.recommendationId,
+						websiteId: input.websiteId ?? "",
+					});
+					if (application === "missing") {
+						throw rpcError.notFound("recommendation", input.recommendationId);
+					}
+					if (application === "already_applied") {
+						throw rpcError.conflict("This recommendation was already applied");
+					}
+
 					const [restored] = await tx
 						.update(flags)
 						.set({
@@ -610,6 +630,19 @@ export const flagsRouter = {
 
 			// Use transaction to ensure flag + target group associations are atomic
 			const newFlag = await withTransaction(async (tx) => {
+				const application = await claimRecommendationApplication(tx, {
+					action: { type: "feature_flag.create" },
+					appliedByUserId: context.user?.id ?? null,
+					recommendationId: input.recommendationId,
+					websiteId: input.websiteId ?? "",
+				});
+				if (application === "missing") {
+					throw rpcError.notFound("recommendation", input.recommendationId);
+				}
+				if (application === "already_applied") {
+					throw rpcError.conflict("This recommendation was already applied");
+				}
+
 				const [createdFlag] = await tx
 					.insert(flags)
 					.values({

@@ -10,6 +10,7 @@ import {
 	withPublicWorkspace,
 	withWorkspace,
 } from "../procedures/with-workspace";
+import { claimRecommendationApplication } from "../services/recommendation-application";
 import { invalidateFlagEvaluationCaches } from "../utils/flags";
 import { scopedCacheKey } from "../utils/scoped-cache-key";
 
@@ -33,6 +34,7 @@ const createSchema = z.object({
 	description: z.string().max(500).optional(),
 	color: z.string().regex(/^#[0-9A-Fa-f]{6}$/),
 	rules: z.array(userRuleSchema),
+	recommendationId: z.string().min(1).optional(),
 });
 
 const updateSchema = z.object({
@@ -123,18 +125,34 @@ export const targetGroupsRouter = {
 
 			const createdBy = await workspace.getCreatedBy();
 
-			const [newGroup] = await context.db
-				.insert(targetGroups)
-				.values({
-					id: randomUUIDv7(),
-					name: input.name,
-					description: input.description ?? null,
-					color: input.color,
-					rules: input.rules,
+			const [newGroup] = await withTransaction(async (tx) => {
+				const application = await claimRecommendationApplication(tx, {
+					action: { type: "target_group.create" },
+					appliedByUserId: context.user?.id ?? null,
+					recommendationId: input.recommendationId,
 					websiteId: input.websiteId,
-					createdBy,
-				})
-				.returning();
+				});
+				if (application === "missing") {
+					throw rpcError.notFound("recommendation", input.recommendationId);
+				}
+				if (application === "already_applied") {
+					throw rpcError.conflict("This recommendation was already applied");
+				}
+
+				const [group] = await tx
+					.insert(targetGroups)
+					.values({
+						id: randomUUIDv7(),
+						name: input.name,
+						description: input.description ?? null,
+						color: input.color,
+						rules: input.rules,
+						websiteId: input.websiteId,
+						createdBy,
+					})
+					.returning();
+				return [group];
+			});
 
 			await targetGroupsCache.invalidateByTables(["target_groups"]);
 

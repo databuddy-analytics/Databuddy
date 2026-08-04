@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, sql } from "@databuddy/db";
+import { and, desc, eq, isNull, sql, withTransaction } from "@databuddy/db";
 import { funnelDefinitions } from "@databuddy/db/schema";
 import {
 	createDrizzleCache,
@@ -28,6 +28,7 @@ import {
 	toAnalyticsSteps,
 } from "./funnel-steps";
 import { queueDefinitionChangeRechecks } from "./insights";
+import { claimRecommendationApplication } from "../services/recommendation-application";
 
 const cache = createDrizzleCache({ redis, namespace: "funnels" });
 
@@ -283,6 +284,7 @@ export const funnelsRouter = {
 				steps: z.array(funnelStepSchema).min(2).max(10),
 				filters: z.array(filterSchema).optional(),
 				ignoreHistoricData: z.boolean().optional(),
+				recommendationId: z.string().min(1).optional(),
 			})
 		)
 		.output(funnelOutputSchema)
@@ -312,19 +314,35 @@ export const funnelsRouter = {
 				existingFunnels.length
 			);
 
-			const [newFunnel] = await context.db
-				.insert(funnelDefinitions)
-				.values({
-					id: randomUUIDv7(),
+			const [newFunnel] = await withTransaction(async (tx) => {
+				const application = await claimRecommendationApplication(tx, {
+					action: { type: "funnel.create" },
+					appliedByUserId: context.user?.id ?? null,
+					recommendationId: input.recommendationId,
 					websiteId: input.websiteId,
-					name: input.name,
-					description: input.description,
-					steps: input.steps,
-					filters: input.filters,
-					ignoreHistoricData: input.ignoreHistoricData ?? false,
-					createdBy,
-				})
-				.returning();
+				});
+				if (application === "missing") {
+					throw rpcError.notFound("recommendation", input.recommendationId);
+				}
+				if (application === "already_applied") {
+					throw rpcError.conflict("This recommendation was already applied");
+				}
+
+				const [funnel] = await tx
+					.insert(funnelDefinitions)
+					.values({
+						id: randomUUIDv7(),
+						websiteId: input.websiteId,
+						name: input.name,
+						description: input.description,
+						steps: input.steps,
+						filters: input.filters,
+						ignoreHistoricData: input.ignoreHistoricData ?? false,
+						createdBy,
+					})
+					.returning();
+				return [funnel];
+			});
 
 			await invalidateFunnelsCache(input.websiteId);
 			return newFunnel;
@@ -373,13 +391,22 @@ export const funnelsRouter = {
 			});
 
 			const { id, ...updates } = input;
-			const [updatedFunnel] = await context.db
-				.update(funnelDefinitions)
-				.set({ ...updates, updatedAt: new Date() })
-				.where(
-					and(eq(funnelDefinitions.id, id), isNull(funnelDefinitions.deletedAt))
-				)
-				.returning();
+			const [updatedFunnel] = await withTransaction(async (tx) => {
+				const [funnel] = await tx
+					.update(funnelDefinitions)
+					.set({ ...updates, updatedAt: new Date() })
+					.where(
+						and(
+							eq(funnelDefinitions.id, id),
+							isNull(funnelDefinitions.deletedAt)
+						)
+					)
+					.returning();
+				if (!funnel) {
+					throw rpcError.notFound("funnel", id);
+				}
+				return [funnel];
+			});
 
 			await invalidateFunnelsCache(existingFunnel.websiteId, id);
 			await queueDefinitionChangeRechecks({
@@ -421,15 +448,17 @@ export const funnelsRouter = {
 				permissions: ["delete"],
 			});
 
-			await context.db
-				.update(funnelDefinitions)
-				.set({ deletedAt: new Date(), isActive: false })
-				.where(
-					and(
-						eq(funnelDefinitions.id, input.id),
-						isNull(funnelDefinitions.deletedAt)
-					)
-				);
+			await withTransaction(async (tx) => {
+				await tx
+					.update(funnelDefinitions)
+					.set({ deletedAt: new Date(), isActive: false })
+					.where(
+						and(
+							eq(funnelDefinitions.id, input.id),
+							isNull(funnelDefinitions.deletedAt)
+						)
+					);
+			});
 
 			await invalidateFunnelsCache(existingFunnel.websiteId, input.id);
 			await queueDefinitionChangeRechecks({

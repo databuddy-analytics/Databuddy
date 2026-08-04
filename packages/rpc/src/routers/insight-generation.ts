@@ -5,6 +5,7 @@ import {
 	eq,
 	inArray,
 	isNull,
+	isTrustedInsightObservation,
 	isUniqueViolationFor,
 	sql,
 	withTransaction,
@@ -92,6 +93,24 @@ const runStatusSchema = z.enum([
 	"failed",
 	"skipped",
 ]);
+
+const latestRunSummarySchema = z.object({
+	analyzedSignalCount: z.number(),
+	analyzedWebsiteCount: z.number(),
+	attentionCount: z.number(),
+	completedItems: z.number(),
+	failedItems: z.number(),
+	id: z.string(),
+	insightCount: z.number(),
+	monitoringCount: z.number(),
+	publishedRecommendationCount: z.number(),
+	resolvedCount: z.number(),
+	skippedItems: z.number(),
+	status: runStatusSchema,
+	totalItems: z.number(),
+});
+
+export type LatestInsightRunSummary = z.infer<typeof latestRunSummarySchema>;
 
 const DEFAULT_CONFIG: z.infer<typeof configOutputSchema> = {
 	deliveries: [],
@@ -459,6 +478,71 @@ export async function queueInsightGenerationRun(
 	};
 }
 
+async function getLatestInsightRunSummary(
+	organizationId: string
+): Promise<LatestInsightRunSummary | null> {
+	const [run] = await db
+		.select({
+			completedItems: insightRuns.completedItems,
+			failedItems: insightRuns.failedItems,
+			id: insightRuns.id,
+			skippedItems: insightRuns.skippedItems,
+			status: insightRuns.status,
+			totalItems: insightRuns.totalItems,
+		})
+		.from(insightRuns)
+		.where(eq(insightRuns.organizationId, organizationId))
+		.orderBy(desc(insightRuns.createdAt), desc(insightRuns.id))
+		.limit(1);
+	if (!run) {
+		return null;
+	}
+
+	const [count] = await db
+		.select({
+			analyzedSignalCount: sql<number>`count(*)::integer`,
+			analyzedWebsiteCount: sql<number>`count(distinct ${
+				insightObservations.websiteId
+			})::integer`,
+			attentionCount: sql<number>`count(*) filter (where ${
+				insightObservations.outcome
+			}->'next'->>'type' in ('act', 'ask'))::integer`,
+			insightCount: sql<number>`count(*) filter (where ${
+				insightObservations.outcome
+			}->>'publish' = 'true')::integer`,
+			monitoringCount: sql<number>`count(*) filter (where ${
+				insightObservations.outcome
+			}->'next'->>'type' = 'watch')::integer`,
+			publishedRecommendationCount: sql<number>`count(*) filter (where ${
+				insightObservations.outcome
+			}->>'publish' = 'true' and ${
+				insightObservations.outcome
+			}->>'recommendation' is not null)::integer`,
+			resolvedCount: sql<number>`count(*) filter (where ${
+				insightObservations.outcome
+			}->'next'->>'type' = 'resolve')::integer`,
+		})
+		.from(insightObservations)
+		.where(
+			and(
+				eq(insightObservations.runId, run.id),
+				eq(insightObservations.organizationId, organizationId),
+				isTrustedInsightObservation(insightObservations)
+			)
+		);
+
+	return {
+		...run,
+		analyzedSignalCount: count?.analyzedSignalCount ?? 0,
+		analyzedWebsiteCount: count?.analyzedWebsiteCount ?? 0,
+		attentionCount: count?.attentionCount ?? 0,
+		insightCount: count?.insightCount ?? 0,
+		monitoringCount: count?.monitoringCount ?? 0,
+		publishedRecommendationCount: count?.publishedRecommendationCount ?? 0,
+		resolvedCount: count?.resolvedCount ?? 0,
+	};
+}
+
 export const insightGenerationRouter = {
 	getConfig: protectedProcedure
 		.route({
@@ -642,62 +726,9 @@ export const insightGenerationRouter = {
 			tags: ["Insights"],
 		})
 		.input(organizationScopeSchema)
-		.output(
-			z
-				.object({
-					analyzedSignalCount: z.number(),
-					analyzedWebsiteCount: z.number(),
-					completedItems: z.number(),
-					failedItems: z.number(),
-					id: z.string(),
-					insightCount: z.number(),
-					skippedItems: z.number(),
-					status: runStatusSchema,
-					totalItems: z.number(),
-				})
-				.nullable()
-		)
+		.output(latestRunSummarySchema.nullable())
 		.handler(async ({ context, input }) => {
 			const organizationId = await resolveOrganization(context, input, "read");
-			const [run] = await db
-				.select({
-					completedItems: insightRuns.completedItems,
-					failedItems: insightRuns.failedItems,
-					id: insightRuns.id,
-					skippedItems: insightRuns.skippedItems,
-					status: insightRuns.status,
-					totalItems: insightRuns.totalItems,
-				})
-				.from(insightRuns)
-				.where(eq(insightRuns.organizationId, organizationId))
-				.orderBy(desc(insightRuns.createdAt), desc(insightRuns.id))
-				.limit(1);
-			if (!run) {
-				return null;
-			}
-			const [count] = await db
-				.select({
-					analyzedSignalCount: sql<number>`count(*)::integer`,
-					analyzedWebsiteCount: sql<number>`count(distinct ${
-						insightObservations.websiteId
-					})::integer`,
-					insightCount: sql<number>`count(*) filter (where ${
-						insightObservations.outcome
-					}->>'publish' = 'true')::integer`,
-				})
-				.from(insightObservations)
-				.where(
-					and(
-						eq(insightObservations.runId, run.id),
-						eq(insightObservations.organizationId, organizationId)
-					)
-				);
-
-			return {
-				...run,
-				analyzedSignalCount: count?.analyzedSignalCount ?? 0,
-				analyzedWebsiteCount: count?.analyzedWebsiteCount ?? 0,
-				insightCount: count?.insightCount ?? 0,
-			};
+			return getLatestInsightRunSummary(organizationId);
 		}),
 };
