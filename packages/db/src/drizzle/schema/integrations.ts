@@ -79,6 +79,49 @@ export const slackChannelBindings = pgTable(
 	]
 );
 
+export const githubInstallations = pgTable(
+	"github_installations",
+	{
+		id: text().primaryKey(),
+		organizationId: text("organization_id").notNull(),
+		installationId: text("installation_id").notNull(),
+		accountLogin: text("account_login"),
+		accountType: text("account_type"),
+		repositorySelection: text("repository_selection"),
+		suspendedAt: timestamp("suspended_at", {
+			precision: 3,
+			withTimezone: true,
+		}),
+		installedByUserId: text("installed_by_user_id"),
+		createdAt: timestamp("created_at", { precision: 3, withTimezone: true })
+			.defaultNow()
+			.notNull(),
+		updatedAt: timestamp("updated_at", { precision: 3, withTimezone: true })
+			.defaultNow()
+			.notNull()
+			.$onUpdate(() => new Date()),
+	},
+	(table) => [
+		uniqueIndex("github_installations_installation_id_unique").on(
+			table.installationId
+		),
+		index("github_installations_organization_id_idx").on(table.organizationId),
+		foreignKey({
+			columns: [table.organizationId],
+			foreignColumns: [organization.id],
+			name: "github_installations_organization_id_fkey",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.installedByUserId],
+			foreignColumns: [user.id],
+			name: "github_installations_installed_by_user_id_fkey",
+		}).onDelete("set null"),
+	]
+);
+
+export type GithubInstallation = typeof githubInstallations.$inferSelect;
+export type GithubInstallationInsert = typeof githubInstallations.$inferInsert;
+
 export type SlackIntegration = typeof slackIntegrations.$inferSelect;
 export type SlackIntegrationInsert = typeof slackIntegrations.$inferInsert;
 export type SlackChannelBinding = typeof slackChannelBindings.$inferSelect;

@@ -57,6 +57,7 @@
     "@databuddy/shared": "workspace:*",
     "@databuddy/validation": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.26.0",
+    "@octokit/auth-app": "^8.3.0",
     "@orpc/server": "^1.14.0",
     "ai": "^6.0.188",
     "dayjs": "^1.11.19",

@@ -1,6 +1,6 @@
 import { tool, type ToolSet } from "ai";
 import { z } from "zod";
-import { createCachedTokenFn } from "./utils/oauth-token";
+import { createGithubTokenFn } from "./utils/oauth-token";
 
 const GITHUB_API = "https://api.github.com";
 const MAX_RESULTS = 10;
@@ -159,7 +159,7 @@ export function createGitHubTools(
 	const repository = params.repository;
 	const getToken =
 		dependencies.getToken ??
-		createCachedTokenFn("github", params.organizationId, params.userId, "repo");
+		createGithubTokenFn(params.organizationId, params.userId);
 	const request = dependencies.request ?? githubFetch;
 	const deploymentInput = createRepositorySchema(repository, {
 		environment: z

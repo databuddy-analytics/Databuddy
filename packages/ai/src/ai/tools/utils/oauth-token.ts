@@ -1,6 +1,7 @@
 import { auth } from "@databuddy/auth";
 import { and, db, eq } from "@databuddy/db";
 import { account, member } from "@databuddy/db/schema";
+import { resolveGithubInstallationToken } from "./github-app";
 import { getOAuthTokenOrderBy } from "./oauth-token-ordering";
 
 const TOKEN_TTL_MS = 45 * 60 * 1000;
@@ -153,5 +154,34 @@ export function createCachedTokenFn(
 			expiresAt = now + NEGATIVE_TTL_MS;
 		}
 		return cached;
+	};
+}
+
+export function createGithubTokenFn(
+	organizationId: string,
+	preferUserId?: string
+): () => Promise<string | null> {
+	const fallback = createCachedTokenFn(
+		"github",
+		organizationId,
+		preferUserId,
+		"repo"
+	);
+	let cached: string | null | undefined;
+	let expiresAt = 0;
+	return async () => {
+		if (cached !== undefined && Date.now() < expiresAt) {
+			return cached;
+		}
+		const installation = await resolveGithubInstallationToken(organizationId);
+		const now = Date.now();
+		if (installation) {
+			const tokenLifetime =
+				installation.expiresAt.getTime() - now - EXPIRY_SKEW_MS;
+			cached = installation.token;
+			expiresAt = now + Math.max(0, Math.min(TOKEN_TTL_MS, tokenLifetime));
+			return cached;
+		}
+		return await fallback();
 	};
 }
