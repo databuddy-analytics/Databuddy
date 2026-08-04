@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { cacheable } from "@databuddy/redis/cacheable";
 import { captureError, mergeWideEvent, record } from "@lib/tracing";
 import type { City } from "@maxmind/geoip2-node";
 import {
@@ -169,30 +168,6 @@ function lookupGeoLocation(ip: string): Promise<{
 	});
 }
 
-function coarsenIpForCache(ip: string): string {
-	if (ip.includes(":")) {
-		const groups = ip.split(":");
-		const head = groups.slice(0, 4).join(":");
-		return `${head}::`;
-	}
-	const octets = ip.split(".");
-	if (octets.length === 4) {
-		return `${octets[0]}.${octets[1]}.${octets[2]}.0`;
-	}
-	return ip;
-}
-
-const getCachedGeoLocation = cacheable(lookupGeoLocation, {
-	expireInSec: 86_400 * 7,
-	prefix: "geoip_location",
-	staleWhileRevalidate: true,
-	staleTime: 86_400,
-});
-
-function getGeoLocation(ip: string) {
-	return getCachedGeoLocation(coarsenIpForCache(ip));
-}
-
 export function anonymizeIp(ip: string): string {
 	if (!ip) {
 		return "";
@@ -218,7 +193,7 @@ export function getGeo(ip: string, request?: Request) {
 			};
 		}
 
-		const geo = await getGeoLocation(ip);
+		const geo = await lookupGeoLocation(ip);
 
 		if (!geo.country && request?.headers) {
 			const cfCountry = getCloudflareCountry(request.headers);
@@ -237,6 +212,17 @@ export function getGeo(ip: string, request?: Request) {
 				};
 			}
 		}
+
+		mergeWideEvent({
+			geo: geo.country
+				? {
+						source: "maxmind",
+						country: geo.country,
+						region: geo.region,
+						city: geo.city,
+					}
+				: { source: "unresolved" },
+		});
 
 		return {
 			anonymizedIP: anonymizeIp(ip),
