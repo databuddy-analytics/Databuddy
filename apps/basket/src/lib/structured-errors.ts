@@ -178,7 +178,10 @@ const BASKET_ERROR_SPEC = {
 	},
 } as const;
 
-export const basketErrorCatalog = defineErrorCatalog("basket", BASKET_ERROR_SPEC);
+export const basketErrorCatalog = defineErrorCatalog(
+	"basket",
+	BASKET_ERROR_SPEC
+);
 
 export const CLIENT_ERROR_MESSAGES: ReadonlySet<string> = new Set(
 	Object.values(BASKET_ERROR_SPEC)
