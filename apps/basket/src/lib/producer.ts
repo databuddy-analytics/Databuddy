@@ -5,7 +5,7 @@ import { readBooleanEnv } from "@databuddy/env/boolean";
 import { captureError, record } from "@lib/tracing";
 import { PRODUCER_DRAIN_TIMEOUT_MS } from "@lib/shutdown-budget";
 import { Data, Deferred, Effect, Layer, ManagedRuntime, Ref } from "effect";
-import { createError } from "evlog";
+import { createError, log } from "evlog";
 import { type Admin, CompressionTypes, Kafka, type Producer } from "kafkajs";
 
 function stringifyEvent(event: unknown): string {
@@ -569,9 +569,13 @@ function makeProducerEffects(
 				})).pipe(
 					Effect.tap(() =>
 						Effect.sync(() =>
-							captureError(err.cause, {
+							log.warn({
 								message:
 									"Redpanda connection failed, using ClickHouse fallback",
+								error_message:
+									err.cause instanceof Error
+										? err.cause.message
+										: String(err.cause),
 							})
 						)
 					),

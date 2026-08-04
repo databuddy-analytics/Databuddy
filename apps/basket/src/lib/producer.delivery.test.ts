@@ -4,9 +4,15 @@ import type { Admin, Producer } from "kafkajs";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import type { ProducerConfig } from "./producer";
 
-const { mockCaptureError } = vi.hoisted(() => ({
+const { mockCaptureError, mockLogWarn } = vi.hoisted(() => ({
 	mockCaptureError: vi.fn(),
+	mockLogWarn: vi.fn(),
 }));
+
+vi.mock("evlog", async () => {
+	const actual = await vi.importActual<typeof import("evlog")>("evlog");
+	return { ...actual, log: { ...actual.log, warn: mockLogWarn } };
+});
 
 vi.mock("@databuddy/db/clickhouse", () => ({
 	clickHouse: {},
@@ -73,6 +79,7 @@ async function makeEffects(
 describe("producer delivery guarantees", () => {
 	beforeEach(() => {
 		mockCaptureError.mockClear();
+		mockLogWarn.mockClear();
 	});
 
 	test("resolves a core send only after direct ClickHouse fallback succeeds", async () => {
@@ -745,7 +752,7 @@ describe("producer delivery guarantees", () => {
 		await Promise.all(deliveries);
 
 		expect(insert).toHaveBeenCalledTimes(50);
-		expect(mockCaptureError).toHaveBeenCalledTimes(1);
+		expect(mockLogWarn).toHaveBeenCalledTimes(1);
 		expect(await Effect.runPromise(effects.stats)).toMatchObject({
 			connected: false,
 			connecting: false,
