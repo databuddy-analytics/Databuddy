@@ -541,35 +541,6 @@ describe("investigationOutcomeSchema", () => {
 		expect(
 			investigationOutcomeSchema.safeParse({
 				...outcomeBase,
-				publish: false,
-				recommendation: {
-					action: "Rename Clicked Nav.",
-					changes: { description: null, name: "Navigation clicks" },
-					operation: "edit",
-				},
-			}).success
-		).toBe(false);
-		expect(
-			investigationOutcomeSchema.safeParse({
-				...outcomeBase,
-				next: {
-					action: "Rename Clicked Nav.",
-					target: "Goal: Clicked Nav",
-					type: "act",
-					verification: "The goal name reflects its broad scope.",
-				},
-				publish: true,
-				recommendation: {
-					action: "Rename Clicked Nav.",
-					changes: { description: null, name: "Navigation clicks" },
-					operation: "edit",
-				},
-				rootCause: "The goal name does not match its configured target.",
-			}).success
-		).toBe(false);
-		expect(
-			investigationOutcomeSchema.safeParse({
-				...outcomeBase,
 				next: {
 					question:
 						"Connect the repository that owns the application so Databuddy can inspect the failure path.",
@@ -601,20 +572,6 @@ describe("investigationOutcomeSchema", () => {
 		expect(
 			investigationOutcomeSchema.safeParse({
 				...outcomeBase,
-				next: {
-					action: featureFlagRecommendation.action,
-					target: "New checkout",
-					type: "act",
-					verification: "The release flag is active.",
-				},
-				publish: true,
-				recommendation: featureFlagRecommendation,
-				rootCause: "The new checkout needs a controlled rollout.",
-			}).success
-		).toBe(false);
-		expect(
-			investigationOutcomeSchema.safeParse({
-				...outcomeBase,
 				publish: true,
 				recommendation: featureFlagRecommendation,
 			}).success
@@ -625,42 +582,6 @@ describe("investigationOutcomeSchema", () => {
 				...agentFields,
 				publish: true,
 				recommendation: featureFlagRecommendation,
-			}).success
-		).toBe(false);
-	});
-
-	it("keeps measurement drafts separate from actions and execution", () => {
-		const action = {
-			action: "Rename Signup completed to Signup completion.",
-			execution: {
-				action: "Rename Signup completed to Signup completion.",
-				changes: { description: null, name: "Signup completion" },
-				operation: "edit" as const,
-			},
-			recheckAt: "2026-07-20T12:00:00.000Z",
-			target: "Signup completed goal",
-			type: "act" as const,
-			verification: "The goal name reflects its configured target.",
-		};
-
-		expect(
-			investigationOutcomeSchema.safeParse({
-				...outcomeBase,
-				next: action,
-				publish: true,
-				recommendation: goalDraftRecommendation,
-				rootCause: "The goal name no longer reflects its configured target.",
-			}).success
-		).toBe(false);
-		expect(
-			investigationOutcomeSchema.safeParse({
-				...outcomeBase,
-				next: {
-					question: "Which event marks completed signup?",
-					type: "ask",
-				},
-				publish: true,
-				recommendation: funnelDraftRecommendation,
 			}).success
 		).toBe(false);
 	});
@@ -857,31 +778,6 @@ describe("investigationOutcomeSchema", () => {
 			investigationOutcomeSchema.safeParse({ ...outcomeBase, impact: null })
 				.success
 		).toBe(true);
-			expect(
-				investigationOutcomeSchema.safeParse({
-					...outcomeBase,
-					impact: null,
-					rootCause:
-						"The handler change dropped valid checkout submissions.",
-					next: {
-					action: "Roll back the checkout handler.",
-					target: "Checkout handler",
-					type: "act",
-					verification: "Checkout attempts succeed again.",
-				},
-			}).success
-		).toBe(false);
-		expect(
-			investigationOutcomeSchema.safeParse({
-				...outcomeBase,
-				next: {
-					action: "Roll back the checkout handler.",
-					target: "Checkout handler",
-					type: "act",
-					verification: "Checkout attempts succeed again.",
-				},
-			}).success
-		).toBe(false);
 		expect(
 			investigationOutcomeSchema.safeParse({
 				...outcomeBase,
@@ -903,23 +799,13 @@ describe("investigationOutcomeSchema", () => {
 		}
 	});
 
-	it("keeps routine rechecks private without hiding actions or questions", () => {
+	it("keeps routine rechecks private", () => {
 		expect(
 			investigationOutcomeSchema.safeParse({
 				...outcomeBase,
 				publish: false,
 			}).success
 		).toBe(true);
-		expect(
-			investigationOutcomeSchema.safeParse({
-				...outcomeBase,
-				next: {
-					question: "Which repository owns checkout?",
-					type: "ask",
-				},
-				publish: false,
-			}).success
-		).toBe(false);
 	});
 
 	it("reads the canonical outcome", () => {

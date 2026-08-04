@@ -721,20 +721,6 @@ export const investigationOutcomeSchema = z
 	})
 	.strip()
 	.superRefine((outcome, context) => {
-		if (outcome.next.type === "act" && outcome.impact === null) {
-			context.addIssue({
-				code: "custom",
-				message: "Actions require measured impact",
-				path: ["impact"],
-			});
-		}
-		if (outcome.next.type === "act" && outcome.rootCause === null) {
-			context.addIssue({
-				code: "custom",
-				message: "Actions require a known mechanism",
-				path: ["rootCause"],
-			});
-		}
 		if (
 			outcome.next.type === "act" &&
 			outcome.next.execution?.operation &&
@@ -744,47 +730,6 @@ export const investigationOutcomeSchema = z
 				code: "custom",
 				message: "Executable actions must match the displayed action",
 				path: ["next", "execution", "action"],
-			});
-		}
-		if (
-			(outcome.next.type === "act" || outcome.next.type === "ask") &&
-			outcome.publish === false
-		) {
-			context.addIssue({
-				code: "custom",
-				message: "Actions and questions must be published",
-				path: ["publish"],
-			});
-		}
-		if (outcome.recommendation && outcome.publish !== true) {
-			context.addIssue({
-				code: "custom",
-				message: "Recommendations must be published",
-				path: ["publish"],
-			});
-		}
-		if (
-			outcome.recommendation &&
-			"nativeAction" in outcome.recommendation &&
-			outcome.next.type !== "resolve"
-		) {
-			context.addIssue({
-				code: "custom",
-				message: "Native recommendations must resolve without opening a case",
-				path: ["recommendation"],
-			});
-		}
-		if (
-			outcome.recommendation &&
-			(outcome.next.type === "act" || outcome.next.type === "ask") &&
-			(!("kind" in outcome.recommendation) ||
-				outcome.recommendation.kind !== "databuddy_setup")
-		) {
-			context.addIssue({
-				code: "custom",
-				message:
-					"Actions and questions can only carry a backend-verified Databuddy setup recommendation",
-				path: ["recommendation"],
 			});
 		}
 	});
