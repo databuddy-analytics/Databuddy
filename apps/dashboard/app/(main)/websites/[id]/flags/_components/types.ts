@@ -1,4 +1,10 @@
-import type { FlagType, Variant } from "@databuddy/shared/flags";
+import type { FlagType, TFlag, Variant } from "@databuddy/shared/flags";
+import type { InsightNativeRecommendationAction } from "@databuddy/shared/insights";
+
+export type TargetGroupRecommendationDraft = Extract<
+	InsightNativeRecommendationAction,
+	{ type: "target_group.create" }
+>["draft"];
 
 export interface Flag {
 	createdAt: Date;
@@ -63,8 +69,11 @@ export type FlagStatus = "active" | "inactive" | "archived";
 
 export interface FlagSheetProps {
 	flag?: Flag | null;
+	initialDraft?: TFlag;
 	isOpen: boolean;
 	onCloseAction: () => void;
+	onSavedAction?: () => Promise<void> | void;
+	recommendationId?: string;
 	template?: FlagTemplate | null;
 	websiteId: string;
 }
@@ -96,8 +105,11 @@ export interface GroupsListProps {
 
 export interface GroupSheetProps {
 	group?: TargetGroup | null;
+	initialDraft?: TargetGroupRecommendationDraft;
 	isOpen: boolean;
 	onCloseAction: () => void;
+	onSavedAction?: () => Promise<void> | void;
+	recommendationId?: string;
 	websiteId: string;
 }
 

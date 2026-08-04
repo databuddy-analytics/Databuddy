@@ -14,25 +14,24 @@ import {
 	Skeleton,
 } from "@databuddy/ui";
 import {
-	ArrowSquareOutIcon,
 	CodeIcon,
+	FlagIcon,
 	FilterIcon,
 	IdBadge2Icon,
 	PencilSimpleIcon,
 	TargetIcon,
 	TrashIcon,
+	UsersThreeIcon,
 	WarningIcon,
 	WrenchIcon,
 } from "@databuddy/ui/icons";
+import { InstrumentationRecommendationDetails } from "../_components/conversion-draft-recommendation";
 import {
-	ConversionDraftRecommendationAction,
-	InstrumentationRecommendationDetails,
-} from "../_components/conversion-draft-recommendation";
-import { GoalRecommendationAction } from "../_components/goal-recommendation-action";
+	hasNativeRecommendationAction,
+	NativeRecommendationAction,
+} from "../_components/native-recommendation-action";
 import {
-	isConversionDraftRecommendation,
-	isDatabuddySetupRecommendation,
-	isGoalRecommendation,
+	getNativeRecommendationIntent,
 	isInstrumentationRecommendation,
 } from "../_components/recommendation-guards";
 
@@ -165,7 +164,7 @@ function RecommendationRow({ insight }: { insight: InsightRecommendation }) {
 	const presentation = getRecommendationPresentation(insight);
 	const SignalIcon = presentation.icon;
 	const signalStatus = getSignalStatus(insight);
-	const hasAction = hasRecommendationAction(insight);
+	const hasAction = hasNativeRecommendationAction(insight);
 
 	return (
 		<List.Row align="start" asChild interactive={false}>
@@ -211,7 +210,7 @@ function RecommendationRow({ insight }: { insight: InsightRecommendation }) {
 						</p>
 						{isInstrumentationRecommendation(recommendation) ? (
 							<InstrumentationRecommendationDetails
-								recommendation={recommendation}
+								events={recommendation.events}
 							/>
 						) : null}
 						<p className="mt-2 break-words text-muted-foreground text-xs leading-relaxed [overflow-wrap:anywhere]">
@@ -230,78 +229,12 @@ function RecommendationRow({ insight }: { insight: InsightRecommendation }) {
 					</div>
 					{hasAction ? (
 						<div className="mt-3 flex shrink-0 flex-wrap gap-1.5 sm:mt-0 sm:justify-end">
-							<RecommendationAction insight={insight} />
+							<NativeRecommendationAction insight={insight} />
 						</div>
 					) : null}
 				</div>
 			</li>
 		</List.Row>
-	);
-}
-
-function RecommendationAction({ insight }: { insight: InsightRecommendation }) {
-	const { recommendation } = insight;
-	if (isConversionDraftRecommendation(recommendation)) {
-		return (
-			<ConversionDraftRecommendationAction
-				recommendation={recommendation}
-				websiteId={insight.websiteId}
-			/>
-		);
-	}
-	if (
-		insight.signal.entity.type === "goal" &&
-		isGoalRecommendation(recommendation)
-	) {
-		return (
-			<GoalRecommendationAction
-				goalId={insight.signal.entity.id}
-				recommendation={recommendation}
-				websiteId={insight.websiteId}
-			/>
-		);
-	}
-	if (isInstrumentationRecommendation(recommendation)) {
-		return (
-			<Button asChild size="sm">
-				<Link
-					href="https://www.databuddy.cc/docs/hooks"
-					rel="noreferrer"
-					target="_blank"
-				>
-					Event tracking guide
-					<ArrowSquareOutIcon aria-hidden className="size-3.5" />
-					<span className="sr-only">(opens in a new tab)</span>
-				</Link>
-			</Button>
-		);
-	}
-	if (isDatabuddySetupRecommendation(recommendation)) {
-		return (
-			<Button asChild size="sm">
-				<Link
-					href="https://www.databuddy.cc/docs/sdk/identify-users"
-					rel="noreferrer"
-					target="_blank"
-				>
-					Identification guide
-					<ArrowSquareOutIcon aria-hidden className="size-3.5" />
-					<span className="sr-only">(opens in a new tab)</span>
-				</Link>
-			</Button>
-		);
-	}
-	return null;
-}
-
-function hasRecommendationAction(insight: InsightRecommendation): boolean {
-	const { recommendation } = insight;
-	return (
-		isConversionDraftRecommendation(recommendation) ||
-		isInstrumentationRecommendation(recommendation) ||
-		isDatabuddySetupRecommendation(recommendation) ||
-		(insight.signal.entity.type === "goal" &&
-			isGoalRecommendation(recommendation))
 	);
 }
 
@@ -317,62 +250,79 @@ interface RecommendationPresentation {
 function getRecommendationPresentation(
 	insight: InsightRecommendation
 ): RecommendationPresentation {
-	const { recommendation } = insight;
-	if (isDatabuddySetupRecommendation(recommendation)) {
-		return {
-			badgeVariant: "warning",
-			icon: IdBadge2Icon,
-			iconClassName: "bg-warning/10 text-warning",
-			label: "Identify users",
-		};
+	const action = getNativeRecommendationIntent(insight);
+	switch (action?.type) {
+		case "databuddy_setup.guide":
+			return {
+				badgeVariant: "warning",
+				icon: IdBadge2Icon,
+				iconClassName: "bg-warning/10 text-warning",
+				label: "Identify users",
+			};
+		case "measurement_gap.guide":
+			return {
+				badgeVariant: "warning",
+				icon: TargetIcon,
+				iconClassName: "bg-warning/10 text-warning",
+				label: "Measure conversion",
+			};
+		case "instrumentation.guide":
+			return {
+				badgeVariant: "warning",
+				icon: CodeIcon,
+				iconClassName: "bg-warning/10 text-warning",
+				label: "Add events",
+			};
+		case "goal.create":
+			return {
+				badgeVariant: "primary",
+				icon: TargetIcon,
+				iconClassName: "bg-brand-purple/10 text-brand-purple",
+				label: "Create goal",
+			};
+		case "funnel.create":
+			return {
+				badgeVariant: "primary",
+				icon: FilterIcon,
+				iconClassName: "bg-brand-purple/10 text-brand-purple",
+				label: "Create funnel",
+			};
+		case "goal.delete":
+			return {
+				badgeVariant: "destructive",
+				icon: TrashIcon,
+				iconClassName: "bg-destructive/10 text-destructive",
+				label: "Delete goal",
+			};
+		case "goal.update":
+			return {
+				badgeVariant: "primary",
+				icon: PencilSimpleIcon,
+				iconClassName: "bg-brand-purple/10 text-brand-purple",
+				label: "Edit goal",
+			};
+		case "feature_flag.create":
+			return {
+				badgeVariant: "primary",
+				icon: FlagIcon,
+				iconClassName: "bg-brand-purple/10 text-brand-purple",
+				label: "Create feature flag",
+			};
+		case "target_group.create":
+			return {
+				badgeVariant: "primary",
+				icon: UsersThreeIcon,
+				iconClassName: "bg-brand-purple/10 text-brand-purple",
+				label: "Create target group",
+			};
+		default:
+			return {
+				badgeVariant: "muted",
+				icon: WrenchIcon,
+				iconClassName: "bg-muted text-muted-foreground",
+				label: "Suggestion",
+			};
 	}
-	if (isInstrumentationRecommendation(recommendation)) {
-		return {
-			badgeVariant: "warning",
-			icon: CodeIcon,
-			iconClassName: "bg-warning/10 text-warning",
-			label: "Add events",
-		};
-	}
-	if (isConversionDraftRecommendation(recommendation)) {
-		return recommendation.kind === "goal_draft"
-			? {
-					badgeVariant: "primary",
-					icon: TargetIcon,
-					iconClassName: "bg-brand-purple/10 text-brand-purple",
-					label: "Create goal",
-				}
-			: {
-					badgeVariant: "primary",
-					icon: FilterIcon,
-					iconClassName: "bg-brand-purple/10 text-brand-purple",
-					label: "Create funnel",
-				};
-	}
-	if (
-		insight.signal.entity.type === "goal" &&
-		isGoalRecommendation(recommendation)
-	) {
-		return recommendation.operation === "delete"
-			? {
-					badgeVariant: "destructive",
-					icon: TrashIcon,
-					iconClassName: "bg-destructive/10 text-destructive",
-					label: "Delete goal",
-				}
-			: {
-					badgeVariant: "primary",
-					icon: PencilSimpleIcon,
-					iconClassName: "bg-brand-purple/10 text-brand-purple",
-					label: "Edit goal",
-				};
-	}
-	return {
-		badgeVariant: "muted",
-		icon: WrenchIcon,
-		iconClassName: "bg-muted text-muted-foreground",
-		label: "Suggestion",
-	};
 }
 
 function getSignalStatus(insight: InsightRecommendation): {

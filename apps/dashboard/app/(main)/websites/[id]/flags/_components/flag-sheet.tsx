@@ -167,6 +167,9 @@ export function FlagSheet({
 	onCloseAction,
 	websiteId,
 	flag,
+	initialDraft,
+	onSavedAction,
+	recommendationId,
 	template,
 }: FlagSheetProps) {
 	const [keyManuallyEdited, setKeyManuallyEdited] = useState(false);
@@ -243,6 +246,8 @@ export function FlagSheet({
 				environment: flag.environment || undefined,
 				targetGroupIds: extractTargetGroupIds(),
 			});
+		} else if (initialDraft) {
+			form.reset(initialDraft);
 		} else if (template) {
 			form.reset({
 				key: template.id,
@@ -278,7 +283,7 @@ export function FlagSheet({
 			});
 		}
 		setKeyManuallyEdited(false);
-	}, [flag, isEditing, form, template]);
+	}, [flag, initialDraft, isEditing, form, template]);
 
 	const handleOpenChange = (open: boolean) => {
 		if (!open) {
@@ -290,7 +295,7 @@ export function FlagSheet({
 		if (isOpen) {
 			resetForm();
 		}
-	}, [flag?.id, template?.id, isOpen]);
+	}, [flag?.id, initialDraft?.key, template?.id, isOpen, resetForm]);
 
 	const watchedType = form.watch("type");
 	const watchedRules = form.watch("rules") || [];
@@ -346,14 +351,18 @@ export function FlagSheet({
 					rolloutPercentage: data.rolloutPercentage ?? 0,
 					rolloutBy: data.rolloutBy || undefined,
 					targetGroupIds: data.targetGroupIds || [],
+					recommendationId,
 				});
 			}
 
 			toast.success(`Flag ${isEditing ? "updated" : "created"} successfully`);
 
-			queryClient.invalidateQueries({
-				queryKey: orpc.flags.list.key({ input: { websiteId } }),
-			});
+			await Promise.all([
+				queryClient.invalidateQueries({
+					queryKey: orpc.flags.list.key({ input: { websiteId } }),
+				}),
+				onSavedAction?.(),
+			]);
 
 			onCloseAction();
 		} catch (error) {

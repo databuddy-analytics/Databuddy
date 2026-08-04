@@ -8,6 +8,7 @@ import {
 import { useMemo } from "react";
 import { toast } from "sonner";
 import { listQueryOutcome } from "@/lib/list-query-outcome";
+import { insightQueries } from "@/lib/insight-api";
 import { orpc } from "@/lib/orpc";
 import type {
 	CreateFunnelData,
@@ -36,29 +37,29 @@ export function useFunnelActions(websiteId: string) {
 				queryKey: orpc.funnels.getAnalyticsByLink.key(),
 			}),
 		]);
+	const invalidateRelatedInsights = () =>
+		queryClient.invalidateQueries({ queryKey: insightQueries.all() });
 
 	const createMutation = useMutation({
 		...orpc.funnels.create.mutationOptions(),
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.funnels.list.key({ input: { websiteId } }),
-			});
+		onSuccess: async () => {
+			await Promise.all([invalidateAll(), invalidateRelatedInsights()]);
 			toast.success("Funnel created successfully");
 		},
 	});
 
 	const updateMutation = useMutation({
 		...orpc.funnels.update.mutationOptions(),
-		onSuccess: () => {
-			invalidateAll();
+		onSuccess: async () => {
+			await Promise.all([invalidateAll(), invalidateRelatedInsights()]);
 			toast.success("Funnel updated successfully");
 		},
 	});
 
 	const deleteMutation = useMutation({
 		...orpc.funnels.delete.mutationOptions(),
-		onSuccess: () => {
-			invalidateAll();
+		onSuccess: async () => {
+			await Promise.all([invalidateAll(), invalidateRelatedInsights()]);
 			toast.success("Funnel deleted successfully");
 		},
 	});
@@ -66,8 +67,8 @@ export function useFunnelActions(websiteId: string) {
 	return {
 		refreshAction: invalidateAll,
 
-		createAction: (data: CreateFunnelData) =>
-			createMutation.mutateAsync({ websiteId, ...data }),
+		createAction: (data: CreateFunnelData, recommendationId?: string) =>
+			createMutation.mutateAsync({ websiteId, ...data, recommendationId }),
 		updateAction: (funnelId: string, updates: Partial<CreateFunnelData>) =>
 			updateMutation.mutateAsync({ id: funnelId, ...updates }),
 		deleteAction: (funnelId: string) =>

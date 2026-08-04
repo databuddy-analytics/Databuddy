@@ -50,8 +50,11 @@ type GroupFormData = z.infer<typeof groupFormSchema>;
 export function GroupSheet({
 	isOpen,
 	onCloseAction,
+	onSavedAction,
+	recommendationId,
 	websiteId,
 	group,
+	initialDraft,
 }: GroupSheetProps) {
 	const queryClient = useQueryClient();
 	const isEditing = Boolean(group);
@@ -86,6 +89,14 @@ export function GroupSheet({
 				rules: group.rules as UserRule[],
 			});
 			setSelectedColor(group.color);
+		} else if (initialDraft) {
+			form.reset({
+				name: initialDraft.name,
+				description: initialDraft.description ?? "",
+				color: initialDraft.color,
+				rules: initialDraft.rules,
+			});
+			setSelectedColor(initialDraft.color);
 		} else {
 			form.reset({
 				name: "",
@@ -95,7 +106,7 @@ export function GroupSheet({
 			});
 			setSelectedColor(GROUP_COLORS[0].value);
 		}
-	}, [group, isEditing, form]);
+	}, [form, group, initialDraft, isEditing]);
 
 	const handleOpenChange = (open: boolean) => {
 		if (open) {
@@ -109,7 +120,7 @@ export function GroupSheet({
 		if (isOpen) {
 			resetForm();
 		}
-	}, [group, isOpen, resetForm]);
+	}, [group, initialDraft, isOpen, resetForm]);
 
 	const watchedRules = form.watch("rules") ?? [];
 
@@ -130,14 +141,18 @@ export function GroupSheet({
 					description: formData.description,
 					color: formData.color,
 					rules: formData.rules,
+					recommendationId,
 				});
 			}
 
 			toast.success(`Group ${isEditing ? "updated" : "created"} successfully`);
 
-			queryClient.invalidateQueries({
-				queryKey: orpc.targetGroups.list.key({ input: { websiteId } }),
-			});
+			await Promise.all([
+				queryClient.invalidateQueries({
+					queryKey: orpc.targetGroups.list.key({ input: { websiteId } }),
+				}),
+				onSavedAction?.(),
+			]);
 
 			onCloseAction();
 		} catch (error) {

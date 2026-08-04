@@ -14,7 +14,11 @@ import {
 	TrendDownIcon,
 	TrendUpIcon,
 } from "@databuddy/ui/icons";
-import { latestRunDescription } from "./_lib/insight-run";
+import {
+	latestRunDescription,
+	latestRunOutcomeSummary,
+	type LatestRunOutcomeSummary,
+} from "./_lib/insight-run";
 
 const PERIOD_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
 	day: "numeric",
@@ -45,6 +49,7 @@ export default function InsightsPage() {
 				hasNextPage={brief.hasNextPage ?? false}
 				insights={insights}
 				isFetchingNextPage={brief.isFetchingNextPage}
+				outcomeSummary={latestRunOutcomeSummary(latestRun.data)}
 				onLoadMoreAction={() => {
 					brief.fetchNextPage().catch(() => undefined);
 				}}
@@ -68,14 +73,16 @@ function InsightBrief({
 	hasNextPage,
 	insights,
 	isFetchingNextPage,
+	outcomeSummary,
 	onLoadMoreAction,
 	onRetryAction,
 	state,
 }: {
-	description: string;
+	description: string | null;
 	hasNextPage: boolean;
 	insights: BriefInsight[];
 	isFetchingNextPage: boolean;
+	outcomeSummary: LatestRunOutcomeSummary | null;
 	onLoadMoreAction: () => void;
 	onRetryAction: () => void;
 	state: "error" | "loading" | "ready";
@@ -148,12 +155,64 @@ function InsightBrief({
 		<Card aria-label="Latest insights" className="border-border/70 shadow-sm">
 			<Card.Header className="border-b bg-card px-5 py-4 sm:px-6">
 				<Card.Title>Latest insights</Card.Title>
-				<Card.Description aria-live="polite" className="mt-1">
-					{description}
-				</Card.Description>
+				{description ? (
+					<Card.Description aria-live="polite" className="mt-1">
+						{description}
+					</Card.Description>
+				) : null}
+				{outcomeSummary ? (
+					<AnalysisResults outcomeSummary={outcomeSummary} />
+				) : null}
 			</Card.Header>
 			<Card.Content className="p-0">{content}</Card.Content>
 		</Card>
+	);
+}
+
+function AnalysisResults({
+	outcomeSummary,
+}: {
+	outcomeSummary: LatestRunOutcomeSummary;
+}) {
+	return (
+		<section
+			aria-label={`Analysis results. ${outcomeSummary.headline}. Outcomes can overlap.`}
+			className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 border-t pt-2 text-xs"
+		>
+			<span className="font-medium text-foreground">
+				{outcomeSummary.headline}
+			</span>
+			<ul className="flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground">
+				{outcomeSummary.items.map((item) => {
+					const content = (
+						<span
+							className={cn(
+								item.tone === "attention" && "font-medium text-destructive"
+							)}
+						>
+							{item.count.toLocaleString("en-US")} {item.label}
+						</span>
+					);
+					return (
+						<li
+							className="after:ml-2 after:text-muted-foreground/35 after:content-['·'] last:after:hidden"
+							key={item.label}
+						>
+							{item.href ? (
+								<Link
+									className="transition-colors hover:underline"
+									href={item.href}
+								>
+									{content}
+								</Link>
+							) : (
+								content
+							)}
+						</li>
+					);
+				})}
+			</ul>
+		</section>
 	);
 }
 

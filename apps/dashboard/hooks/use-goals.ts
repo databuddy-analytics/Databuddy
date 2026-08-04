@@ -5,6 +5,7 @@ import type { GoalFilter } from "@/types/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { toast } from "sonner";
+import { insightQueries } from "@/lib/insight-api";
 import { listQueryOutcome } from "@/lib/list-query-outcome";
 import { orpc } from "@/lib/orpc";
 
@@ -66,6 +67,7 @@ interface CreateGoalInput {
 	filters?: GoalFilter[];
 	ignoreHistoricData?: boolean;
 	name: string;
+	recommendationId?: string;
 	target: string;
 	type: "PAGE_VIEW" | "EVENT" | "CUSTOM";
 	websiteId: string;
@@ -82,6 +84,7 @@ interface UpdateGoalInput {
 	ignoreHistoricData?: boolean;
 	isActive?: boolean;
 	name?: string;
+	recommendationId?: string;
 	target?: string;
 	type?: "PAGE_VIEW" | "EVENT" | "CUSTOM";
 }
@@ -103,34 +106,36 @@ export function useGoalActions(websiteId: string) {
 				queryKey: orpc.goals.bulkAnalytics.key(),
 			}),
 		]);
+	const invalidateRelatedInsights = () =>
+		queryClient.invalidateQueries({ queryKey: insightQueries.all() });
 
 	const createMutation = useMutation({
 		...orpc.goals.create.mutationOptions(),
-		onSuccess: () => {
-			invalidateAll();
+		onSuccess: async () => {
+			await Promise.all([invalidateAll(), invalidateRelatedInsights()]);
 			toast.success("Goal created successfully");
 		},
 	});
 
 	const updateMutation = useMutation({
 		...orpc.goals.update.mutationOptions(),
-		onSuccess: () => {
-			invalidateAll();
+		onSuccess: async () => {
+			await Promise.all([invalidateAll(), invalidateRelatedInsights()]);
 			toast.success("Goal updated successfully");
 		},
 	});
 
 	const deleteMutation = useMutation({
 		...orpc.goals.delete.mutationOptions(),
-		onSuccess: () => {
-			invalidateAll();
+		onSuccess: async () => {
+			await Promise.all([invalidateAll(), invalidateRelatedInsights()]);
 			toast.success("Goal deleted successfully");
 		},
 	});
 
 	return {
 		refreshAction: invalidateAll,
-		createGoal: (goalData: CreateGoalData) => {
+		createGoal: (goalData: CreateGoalData, recommendationId?: string) => {
 			const input: CreateGoalInput = {
 				websiteId: goalData.websiteId,
 				type: goalData.type as "PAGE_VIEW" | "EVENT" | "CUSTOM",
@@ -139,18 +144,22 @@ export function useGoalActions(websiteId: string) {
 				description: goalData.description ?? null,
 				filters: goalData.filters as GoalFilter[] | undefined,
 				ignoreHistoricData: goalData.ignoreHistoricData,
+				recommendationId,
 			};
 			return createMutation.mutateAsync(input);
 		},
 		updateGoal: ({
 			goalId,
+			recommendationId,
 			updates,
 		}: {
 			goalId: string;
+			recommendationId?: string;
 			updates: UpdateGoalData;
 		}) => {
 			const input: UpdateGoalInput = {
 				id: goalId,
+				recommendationId,
 			};
 
 			// Only include RPC-accepted fields, excluding extraneous ones like websiteId/createdBy/createdAt/updatedAt/deletedAt
@@ -178,7 +187,8 @@ export function useGoalActions(websiteId: string) {
 
 			return updateMutation.mutateAsync(input);
 		},
-		deleteGoal: (goalId: string) => deleteMutation.mutateAsync({ id: goalId }),
+		deleteGoal: (goalId: string, recommendationId?: string) =>
+			deleteMutation.mutateAsync({ id: goalId, recommendationId }),
 		isCreating: createMutation.isPending,
 		isUpdating: updateMutation.isPending,
 		isDeleting: deleteMutation.isPending,
