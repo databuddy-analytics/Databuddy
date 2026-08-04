@@ -32,6 +32,13 @@ export const FINAL_READ_SETTINGS = {
 	final: 1,
 } as const;
 
+function usesConfiguredReadOnlyConnection(): boolean {
+	return Boolean(
+		process.env.CLICKHOUSE_READONLY_URL &&
+			process.env.CLICKHOUSE_URL === process.env.CLICKHOUSE_READONLY_URL
+	);
+}
+
 function assertCacheCompatibleSettings(
 	settings: Record<string, string | number>
 ): void {
@@ -204,14 +211,14 @@ async function chQueryWithMeta<T>(
 	options?: ChQueryOptions
 ): Promise<ResponseJSON<T>> {
 	const logical = finalizeDeliveryTables(query);
-	const finalSettings = logical.usesFinal ? FINAL_READ_SETTINGS : {};
-	const settings: Record<string, string | number> = options?.readonly
-		? {
-				...(options.clickhouse_settings ?? {}),
-				...finalSettings,
-				readonly: "2",
-			}
-		: { ...(options?.clickhouse_settings ?? {}), ...finalSettings };
+	const configuredReadOnly = usesConfiguredReadOnlyConnection();
+	const finalSettings =
+		logical.usesFinal && !configuredReadOnly ? FINAL_READ_SETTINGS : {};
+	const settings: Record<string, string | number> = {
+		...(options?.clickhouse_settings ?? {}),
+		...finalSettings,
+		...(options?.readonly && !configuredReadOnly ? { readonly: "2" } : {}),
+	};
 	assertCacheCompatibleSettings(settings);
 	const json = await readJsonResponse<T>(
 		() =>

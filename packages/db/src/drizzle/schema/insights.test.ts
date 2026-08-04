@@ -6,6 +6,7 @@ import {
 	INSIGHT_RUN_ACTIVE_UNIQUE_INDEX,
 	insightGenerationConfigs,
 	insightObservations,
+	insightRecommendationApplications,
 	insightReplies,
 	insightRunEffects,
 	insightRunItems,
@@ -119,6 +120,24 @@ describe("insight replies schema", () => {
 	});
 });
 
+describe("insight recommendation applications schema", () => {
+	test("keeps native recommendation application separate from observation history", () => {
+		const config = getTableConfig(insightRecommendationApplications);
+		expect(config.columns.map((column) => column.name)).toEqual([
+			"observation_id",
+			"applied_by_user_id",
+			"applied_at",
+		]);
+		expect(
+			config.indexes.some(
+				(index) =>
+					index.config.name ===
+					"insight_recommendation_applications_applied_at_idx"
+			)
+		).toBe(true);
+	});
+});
+
 describe("insight runs schema", () => {
 	test("enforces one active run per organization", () => {
 		const index = getTableConfig(insightRuns).indexes.find(
@@ -184,6 +203,7 @@ describe("insight indexes and relations", () => {
 	test("connects investigation history and durable effects", () => {
 		expect(relations.insightObservations.relations).toEqual(
 			expect.objectContaining({
+				application: expect.any(Object),
 				organization: expect.any(Object),
 				run: expect.any(Object),
 				website: expect.any(Object),
@@ -196,5 +216,11 @@ describe("insight indexes and relations", () => {
 		expect(relations.insightRuns.relations).toHaveProperty("observations");
 		expect(relations.insightRunEffects.relations).toHaveProperty("item");
 		expect(relations.insightRunItems.relations).toHaveProperty("effects");
+		expect(relations.insightRecommendationApplications.relations).toEqual(
+			expect.objectContaining({
+				appliedByUser: expect.any(Object),
+				observation: expect.any(Object),
+			})
+		);
 	});
 });

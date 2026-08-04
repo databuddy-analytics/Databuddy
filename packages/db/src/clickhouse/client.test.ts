@@ -122,6 +122,31 @@ describe("chQuery", () => {
 		expect(query).toBe("SELECT count() FROM analytics.events");
 	});
 
+	test("does not modify settings on a configured read-only connection", async () => {
+		const previousReadonlyUrl = process.env.CLICKHOUSE_READONLY_URL;
+		const previousUrl = process.env.CLICKHOUSE_URL;
+		process.env.CLICKHOUSE_READONLY_URL = "https://readonly.example";
+		process.env.CLICKHOUSE_URL = "https://readonly.example";
+		let settings: unknown;
+		spyOn(clickHouse, "query").mockImplementation(async (options) => {
+			settings = options.clickhouse_settings;
+			return {
+				close: () => undefined,
+				json: async () => ({ data: [] }),
+			} as unknown as ResultSet<"JSON">;
+		});
+
+		try {
+			await chQuery("SELECT count() FROM analytics.events", undefined, {
+				readonly: true,
+			});
+			expect(settings).toBeUndefined();
+		} finally {
+			process.env.CLICKHOUSE_READONLY_URL = previousReadonlyUrl;
+			process.env.CLICKHOUSE_URL = previousUrl;
+		}
+	});
+
 	test("does not finalize unrelated MergeTree queries", async () => {
 		let settings: unknown;
 		spyOn(clickHouse, "query").mockImplementation(async (options) => {

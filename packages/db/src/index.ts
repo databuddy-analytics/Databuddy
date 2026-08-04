@@ -7,6 +7,10 @@ export {
 	warmPostgres,
 } from "./client";
 export { notDeleted, withTransaction, isUniqueViolationFor } from "./utils";
+export {
+	hasTrustedLatestInsightObservation,
+	isTrustedInsightObservation,
+} from "./insight-observation";
 export * from "./drizzle/schema";
 export * from "./e2e-db-lifecycle";
 export * from "./email-notifications";

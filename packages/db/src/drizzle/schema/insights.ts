@@ -37,8 +37,13 @@ type InsightRunItemStatus =
 	| "failed"
 	| "skipped";
 export type InsightRunPreparedStatus = "skipped" | "succeeded";
-type InsightRunEffectStatus = "failed" | "pending" | "succeeded";
-type InsightReplyStatus = "queued" | "running" | "succeeded" | "failed";
+type InsightRunEffectStatus = "failed" | "pending" | "skipped" | "succeeded";
+type InsightReplyStatus =
+	| "queued"
+	| "running"
+	| "skipped"
+	| "succeeded"
+	| "failed";
 
 export interface InsightDelivery {
 	channelId: string;
@@ -311,6 +316,39 @@ export const insightObservations = pgTable(
 			foreignColumns: [websites.organizationId, websites.id],
 			name: "insight_observations_org_website_fkey",
 		}).onDelete("cascade"),
+	]
+);
+
+/**
+ * Links a reviewed native recommendation to the configuration mutation that
+ * applied it without mutating the append-only observation itself.
+ */
+export const insightRecommendationApplications = pgTable(
+	"insight_recommendation_applications",
+	{
+		observationId: text("observation_id").primaryKey(),
+		appliedByUserId: text("applied_by_user_id"),
+		appliedAt: timestamp("applied_at", {
+			precision: 3,
+			withTimezone: true,
+		})
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		index("insight_recommendation_applications_applied_at_idx").on(
+			table.appliedAt.desc()
+		),
+		foreignKey({
+			columns: [table.observationId],
+			foreignColumns: [insightObservations.id],
+			name: "insight_recommendation_applications_observation_id_fkey",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.appliedByUserId],
+			foreignColumns: [user.id],
+			name: "insight_recommendation_applications_applied_by_user_id_fkey",
+		}).onDelete("set null"),
 	]
 );
 

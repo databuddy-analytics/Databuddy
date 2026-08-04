@@ -33,6 +33,7 @@ import { slackChannelBindings, slackIntegrations } from "./integrations";
 import {
 	insightGenerationConfigs,
 	insightObservations,
+	insightRecommendationApplications,
 	insightRunEffects,
 	insightRunItems,
 	insightRuns,
@@ -89,6 +90,7 @@ const schema = {
 	insightRunItems,
 	insightRunEffects,
 	insightObservations,
+	insightRecommendationApplications,
 	ssoProvider,
 	agentChats,
 	slackIntegrations,
@@ -107,6 +109,8 @@ export const relations = defineRelations(schema, (r) => ({
 		twoFactors: r.many.twoFactor(),
 		userPreferences: r.many.userPreferences(),
 		apikeys: r.many.apikey(),
+		insightRecommendationApplications:
+			r.many.insightRecommendationApplications(),
 		usageAlertLogs: r.many.usageAlertLog(),
 	},
 
@@ -286,6 +290,22 @@ export const relations = defineRelations(schema, (r) => ({
 			from: r.insightObservations.websiteId,
 			to: r.websites.id,
 			optional: false,
+		}),
+		application: r.one.insightRecommendationApplications({
+			from: r.insightObservations.id,
+			to: r.insightRecommendationApplications.observationId,
+		}),
+	},
+
+	insightRecommendationApplications: {
+		observation: r.one.insightObservations({
+			from: r.insightRecommendationApplications.observationId,
+			to: r.insightObservations.id,
+			optional: false,
+		}),
+		appliedByUser: r.one.user({
+			from: r.insightRecommendationApplications.appliedByUserId,
+			to: r.user.id,
 		}),
 	},
 
