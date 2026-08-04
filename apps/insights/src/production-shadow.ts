@@ -16,12 +16,6 @@ import {
 	type CoveragePortfolioEntry,
 	type SignalFamily,
 } from "./coverage-planner";
-import {
-	evaluateInsightOutputQualityCase,
-	summarizeInsightOutputQualityResults,
-	type InsightOutputQualityEvaluation,
-	type InsightOutputQualityCaseResult,
-} from "./output-quality-evaluation";
 import type { CandidateQualification } from "./candidate-qualification";
 import type { DetectedSignal } from "./detection";
 import type { ErrorCandidateOverlap } from "./error-candidate-overlap";
@@ -63,7 +57,6 @@ interface CliOptions {
 	model: string;
 	offsets: number[];
 	output: string | null;
-	qualityEvaluation: boolean;
 	referenceTime: Date;
 	selectionAudit: boolean;
 	websiteId: string | null;
@@ -152,7 +145,6 @@ interface ShadowCase {
 	errorSummary: string | null;
 	errorType: string | null;
 	outcome: WebsiteInvestigationArtifact["outcome"];
-	quality: InsightOutputQualityCaseResult | null;
 	selectedSignal: null | {
 		changePercent: number | null;
 		current: number;
@@ -330,13 +322,6 @@ interface ShadowReport {
 	selectionAudit?: ShadowSelectionAudit[];
 }
 
-/** A quality-eval report intentionally excludes per-case customer-visible copy. */
-interface ShadowQualityEvaluationReport {
-	aggregate: ShadowReport["aggregate"];
-	meta: ShadowReport["meta"];
-	qualityEvaluation: InsightOutputQualityEvaluation;
-}
-
 interface ShadowObservation extends LatestInsightObservation {
 	asOf: Date;
 	evidence: string[];
@@ -438,7 +423,6 @@ export function parseOptions(args: string[]): CliOptions {
 			model: { default: DEFAULT_MODEL, type: "string" },
 			offsets: { type: "string" },
 			output: { type: "string" },
-			"quality-eval": { default: false, type: "boolean" },
 			"reference-time": { type: "string" },
 			"selection-audit": { default: false, type: "boolean" },
 			"website-id": { type: "string" },
@@ -463,11 +447,6 @@ export function parseOptions(args: string[]): CliOptions {
 	if (values["selection-audit"] && offsets.length !== 1) {
 		throw new Error("selection-audit requires exactly one frozen snapshot");
 	}
-	if (values["quality-eval"] && values["selection-audit"]) {
-		throw new Error(
-			"quality-eval requires generated investigation outcomes, not selection-audit"
-		);
-	}
 	return {
 		asOfMode,
 		batchSize: batchSizeOption(values["batch-size"]),
@@ -477,7 +456,6 @@ export function parseOptions(args: string[]): CliOptions {
 		model: modelOption(values.model),
 		offsets,
 		output: values.output ?? null,
-		qualityEvaluation: values["quality-eval"],
 		referenceTime: resolveReferenceTime(values["reference-time"]),
 		selectionAudit: values["selection-audit"],
 		websiteId: values["website-id"]?.trim() || null,
@@ -1983,11 +1961,6 @@ function projectCase(params: {
 					}
 				: undefined
 		),
-		quality: evaluateInsightOutputQualityCase({
-			brief,
-			outcome: artifact.outcome,
-			status: artifact.status,
-		}),
 		selectedSignal: projectSelectedSignal(artifact.signal, params.subjectAlias),
 		status: artifact.status,
 		trace: params.trace.map(({ tools }) => ({ tools })),
@@ -2072,7 +2045,6 @@ function failedCase(params: {
 				? params.error.constructor.name
 				: typeof params.error,
 		outcome: null,
-		quality: null,
 		selectedSignal: projectSelectedSignal(
 			params.selectedSignal ?? null,
 			params.subjectAlias ?? null
@@ -2145,25 +2117,6 @@ function aggregateCases(cases: ShadowCase[]): ShadowReport["aggregate"] {
 			),
 			phases: countBy(timeouts.map((timeout) => timeout.phase)),
 		},
-	};
-}
-
-/**
- * Reduces a completed shadow to an output-quality report with no customer text,
- * source references, case identifiers, tool names, or failure messages.
- */
-function projectQualityEvaluationReport(
-	report: ShadowReport
-): ShadowQualityEvaluationReport {
-	return {
-		aggregate: report.aggregate,
-		meta: report.meta,
-		qualityEvaluation: summarizeInsightOutputQualityResults({
-			caseCount: report.cases.length,
-			results: report.cases.flatMap((item) =>
-				item.quality ? [item.quality] : []
-			),
-		}),
 	};
 }
 
@@ -2549,46 +2502,34 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 }
 
 if (import.meta.main) {
-	const qualityEvaluationRequested = process.argv.includes("--quality-eval");
 	try {
 		const options = parseOptions(process.argv.slice(2));
 		const output = options.output
 			? assertOutsideRepository(options.output)
 			: null;
 		const shadow = await runProductionShadow(options);
-		const result = options.qualityEvaluation
-			? projectQualityEvaluationReport(shadow)
-			: shadow;
 		if (output) {
-			await writeFile(output, `${JSON.stringify(result, null, 2)}\n`, {
+			await writeFile(output, `${JSON.stringify(shadow, null, 2)}\n`, {
 				mode: 0o600,
 			});
 			await chmod(output, 0o600);
 		}
-		const stdout = options.qualityEvaluation
-			? result
-			: {
-					aggregate: shadow.aggregate,
-					meta: shadow.meta,
-					...(shadow.selectionAudit
-						? { selectionAudit: shadow.selectionAudit }
-						: {}),
-				};
+		const stdout = {
+			aggregate: shadow.aggregate,
+			meta: shadow.meta,
+			...(shadow.selectionAudit
+				? { selectionAudit: shadow.selectionAudit }
+				: {}),
+		};
 		process.stdout.write(`${JSON.stringify(stdout, null, 2)}\n`);
 		if ((shadow.aggregate.status.error ?? 0) > 0) {
 			process.exitCode = 1;
 		}
 	} catch (error) {
 		const type = error instanceof Error ? error.constructor.name : typeof error;
-		const message = qualityEvaluationRequested
-			? "The frozen output evaluation could not complete."
-			: error instanceof Error
-				? error.message
-				: String(error);
+		const message = error instanceof Error ? error.message : String(error);
 		process.stderr.write(
-			qualityEvaluationRequested
-				? `${message}\n`
-				: `Production shadow failed (${type}): ${sanitizeText(message, []).slice(0, 500)}\n`
+			`Production shadow failed (${type}): ${sanitizeText(message, []).slice(0, 500)}\n`
 		);
 		process.exitCode = 1;
 	}

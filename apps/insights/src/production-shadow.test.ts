@@ -600,26 +600,4 @@ describe("selection audit CLI", () => {
 			])
 		).toThrow("selection-audit requires exactly one frozen snapshot");
 	});
-
-	it("keeps output-quality evaluation on generated outcomes", () => {
-		const base = [
-			"--confirm-read-only-production",
-			"--reference-time",
-			"2026-08-02T12:00:00.000Z",
-		];
-		expect(parseOptions([...base, "--quality-eval"]).qualityEvaluation).toBe(
-			true
-		);
-		expect(() =>
-			parseOptions([
-				...base,
-				"--offsets",
-				"0",
-				"--quality-eval",
-				"--selection-audit",
-			])
-		).toThrow(
-			"quality-eval requires generated investigation outcomes, not selection-audit"
-		);
-	});
 });
