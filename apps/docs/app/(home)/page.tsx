@@ -103,41 +103,6 @@ function AgentModeView() {
 	);
 }
 
-function AgentSummary() {
-	return (
-		<Section
-			className="border-border border-b py-12"
-			customPaddings
-			id="agent-summary"
-		>
-			<div className={container}>
-				<div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
-					<div>
-						<h2 className="font-semibold text-2xl sm:text-3xl">
-							Databuddy for agents and developers
-						</h2>
-					</div>
-					<div className="space-y-4 text-muted-foreground">
-						<p>
-							Databuddy is a privacy-first analytics platform for developers. It
-							combines web analytics, error tracking, Core Web Vitals, feature
-							flags, short links, uptime monitoring, and automatic
-							investigations in one lightweight product.
-						</p>
-						<p>
-							AI agents can discover Databuddy through OpenAPI, llms.txt,
-							auth.md, an RFC 9727 API catalog, A2A agent card, and a Streamable
-							HTTP MCP server. API and MCP requests use scoped Databuddy API
-							keys, so agents can answer analytics questions without
-							browser-only steps.
-						</p>
-					</div>
-				</div>
-			</div>
-		</Section>
-	);
-}
-
 export default async function HomePage({ searchParams }: HomePageProps) {
 	const params = searchParams ? await searchParams : {};
 	if (firstValue(params.mode) === "agent") {
@@ -185,8 +150,6 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 				<Section className="overflow-hidden" customPaddings id="hero">
 					<Hero demoEmbedBaseUrl={demoEmbedBaseUrl} />
 				</Section>
-
-				<AgentSummary />
 
 				<Section
 					className="border-border border-t border-b"
