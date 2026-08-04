@@ -2,6 +2,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readBooleanEnv } from "@databuddy/env/boolean";
 import { createBatchedSuperlogDrain } from "@databuddy/shared/evlog-superlog";
+import { CLIENT_ERROR_MESSAGES } from "@lib/structured-errors";
 import type { DrainContext, EnrichContext } from "evlog";
 import { createAxiomDrain } from "evlog/axiom";
 import {
@@ -39,23 +40,24 @@ const devFsDrain = useLocalEvlogFiles
 
 const DURATION_MS_REGEX = /^([\d.]+)(ms|s)$/;
 
-function normalizeWideEventForAxiom(event: Record<string, unknown>): void {
+function isClientHttpError(event: Record<string, unknown>): boolean {
+	const status = event.http_status;
+	if (typeof status === "number" && status >= 400 && status < 500) {
+		return true;
+	}
+	const message = event.error_message;
+	return typeof message === "string" && CLIENT_ERROR_MESSAGES.has(message);
+}
+
+export function normalizeWideEventForAxiom(
+	event: Record<string, unknown>
+): void {
 	if (typeof event.error === "string") {
 		event.error_message = event.error;
 		event.error = undefined;
 	}
 
-	if (event.level !== "error") {
-		return;
-	}
-
-	const err = event.error;
-	if (!err || typeof err !== "object" || Array.isArray(err)) {
-		return;
-	}
-
-	const status = (err as { status?: number }).status;
-	if (typeof status === "number" && status >= 400 && status < 500) {
+	if (event.level === "error" && isClientHttpError(event)) {
 		event.level = "warn";
 		event.client_http_error = true;
 	}
