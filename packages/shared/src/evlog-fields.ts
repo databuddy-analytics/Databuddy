@@ -1,4 +1,9 @@
 export type ApiAuthMethod = "api_key" | "both" | "none" | "session";
+export type BillingPlanResolution =
+	| "missing_customer"
+	| "resolved"
+	| "unavailable";
+export type BillingPlanTier = "free" | "paid";
 export type ApiKeyAuthOutcome =
 	| "disabled"
 	| "expired"
@@ -17,6 +22,9 @@ export interface ApiAuthWideEventFields {
 	api_key_scope_count: number;
 	api_key_type: string;
 	auth_method: ApiAuthMethod;
+	billing_plan: string;
+	billing_plan_resolution: BillingPlanResolution;
+	billing_plan_tier: BillingPlanTier;
 	organization_id: string;
 	user_email: string;
 	user_id: string;
