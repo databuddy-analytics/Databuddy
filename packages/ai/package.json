@@ -32,6 +32,7 @@
     "./tools/toolkit": "./src/ai/tools/toolkit.ts",
     "./tools/scrape-page": "./src/ai/tools/scrape-page.ts",
     "./tools/search-console": "./src/ai/tools/search-console.ts",
+    "./tools/utils/github-app": "./src/ai/tools/utils/github-app.ts",
     "./tools/utils/oauth-token": "./src/ai/tools/utils/oauth-token.ts",
     "./query": "./src/query/index.ts",
     "./query/builders": "./src/query/builders/index.ts",

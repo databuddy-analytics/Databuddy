@@ -62,6 +62,14 @@ export interface Config {
 		from: string;
 		resendApiKey?: string;
 	};
+	githubApp: {
+		appId?: string;
+		clientId?: string;
+		clientSecret?: string;
+		privateKey?: string;
+		slug?: string;
+		webhookSecret?: string;
+	};
 	integrations: {
 		openAiAdsPixelId?: string;
 	};
@@ -140,6 +148,14 @@ export function createConfig(env: Env = process.env): Config {
 			alertsFrom: readEmail(env, EMAIL.alertsFrom),
 			from: readEmail(env, EMAIL.from),
 			resendApiKey: readOptional(env, "RESEND_API_KEY"),
+		},
+		githubApp: {
+			appId: readOptional(env, "GITHUB_APP_ID"),
+			clientId: readOptional(env, "GITHUB_APP_CLIENT_ID"),
+			clientSecret: readOptional(env, "GITHUB_APP_CLIENT_SECRET"),
+			privateKey: readOptional(env, "GITHUB_APP_PRIVATE_KEY"),
+			slug: readOptional(env, "GITHUB_APP_SLUG"),
+			webhookSecret: readOptional(env, "GITHUB_APP_WEBHOOK_SECRET"),
 		},
 		integrations: {
 			openAiAdsPixelId: readOptional(env, "NEXT_PUBLIC_OPENAI_ADS_PIXEL_ID"),

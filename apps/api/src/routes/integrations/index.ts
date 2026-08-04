@@ -1,6 +1,7 @@
+import { getInstallationMetadata } from "@databuddy/ai/tools/utils/github-app";
 import { auth } from "@databuddy/auth";
 import { and, db, eq } from "@databuddy/db";
-import { member, slackIntegrations } from "@databuddy/db/schema";
+import { githubInstallations, member, slackIntegrations } from "@databuddy/db/schema";
 import { encrypt } from "@databuddy/encryption";
 import { config } from "@databuddy/env/app";
 import { invalidateSlackIntegrationCache } from "@databuddy/redis/cache-invalidation";
@@ -396,7 +397,123 @@ async function throttleSlackOAuth(
 	);
 }
 
+function githubSetupRedirect(status: "connected" | "error", message?: string): Response {
+	const url = new URL(
+		"/organizations/settings/integrations",
+		config.urls.dashboard
+	);
+	url.searchParams.set("github", status);
+	if (message) {
+		url.searchParams.set("message", message);
+	}
+	return Response.redirect(url.toString(), 302);
+}
+
+async function saveGithubInstallation(
+	installationId: string,
+	organizationId: string,
+	userId: string
+): Promise<void> {
+	const metadata = await getInstallationMetadata(installationId);
+	const now = new Date();
+
+	await db.transaction(async (tx) => {
+		const [existing] = await tx
+			.select({ id: githubInstallations.id })
+			.from(githubInstallations)
+			.where(eq(githubInstallations.installationId, installationId))
+			.limit(1);
+
+		const values = {
+			accountLogin: metadata?.accountLogin ?? null,
+			accountType: metadata?.accountType ?? null,
+			installedByUserId: userId,
+			organizationId,
+			repositorySelection: metadata?.repositorySelection ?? null,
+			suspendedAt: null,
+			updatedAt: now,
+		};
+
+		if (existing) {
+			await tx
+				.update(githubInstallations)
+				.set(values)
+				.where(eq(githubInstallations.id, existing.id));
+			return;
+		}
+
+		await tx.insert(githubInstallations).values({
+			...values,
+			createdAt: now,
+			id: randomUUIDv7(),
+			installationId,
+		});
+	});
+}
+
 export const integrations = new Elysia({ prefix: "/v1/integrations" })
+	.get(
+		"/github/setup",
+		async ({ query, request }) => {
+			const session = await auth.api.getSession({ headers: request.headers });
+			if (!session?.user) {
+				return Response.redirect(
+					new URL("/login", config.urls.dashboard).toString(),
+					302
+				);
+			}
+
+			if (query.setup_action === "cancel") {
+				return githubSetupRedirect("error", "GitHub install was canceled");
+			}
+
+			const organizationId = query.state?.trim();
+			const installationId = query.installation_id?.trim();
+			if (!(organizationId && installationId)) {
+				return githubSetupRedirect("error", "Missing GitHub installation details");
+			}
+
+			try {
+				const [membership] = await db
+					.select({ userId: member.userId })
+					.from(member)
+					.where(
+						and(
+							eq(member.organizationId, organizationId),
+							eq(member.userId, session.user.id)
+						)
+					)
+					.limit(1);
+
+				if (!membership) {
+					return githubSetupRedirect(
+						"error",
+						"You are not a member of this organization"
+					);
+				}
+
+				await saveGithubInstallation(
+					installationId,
+					organizationId,
+					session.user.id
+				);
+				return githubSetupRedirect("connected");
+			} catch (error) {
+				useLogger().error(
+					error instanceof Error ? error : new Error(String(error)),
+					{ github_app: "setup" }
+				);
+				return githubSetupRedirect("error", "Could not finish GitHub install");
+			}
+		},
+		{
+			query: t.Object({
+				installation_id: t.Optional(t.String()),
+				setup_action: t.Optional(t.String()),
+				state: t.Optional(t.String()),
+			}),
+		}
+	)
 	.get(
 		"/slack/install",
 		async ({ query, request }) => {
