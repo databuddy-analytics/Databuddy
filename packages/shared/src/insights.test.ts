@@ -1,9 +1,12 @@
 import { describe, expect, it } from "bun:test";
+import { z } from "zod";
 import {
 	agentInvestigationOutcomeSchema,
 	insightBriefItemSchema,
 	insightMeasurementRecommendationSchema,
 	insightRecommendationSchema,
+	isLegacyInsightAnnotationEvidence,
+	isQuarantinedInsightObservation,
 	investigationOutcomeSchema,
 	investigationSignalSchema,
 	parseInvestigationOutcome,
@@ -113,6 +116,15 @@ const outcomeBase = {
 };
 
 const agentFields = {
+	brief: {
+		claimRefs: {
+			impact: { index: 0, source: "provided" as const },
+			problem: { index: 0, source: "provided" as const },
+			rootCause: null,
+		},
+		scope: "exact_signal" as const,
+		userExperience: "measured" as const,
+	},
 	evidenceRefs: [{ index: 0, source: "provided" as const }],
 };
 
@@ -163,6 +175,13 @@ const instrumentationRecommendation = {
 	kind: "instrumentation" as const,
 };
 
+const measurementGapRecommendation = {
+	action:
+		"Choose the completed behavior to measure around /sign-up, instrument it as a Databuddy custom event, then review the observed event as a goal or funnel.",
+	kind: "measurement_gap" as const,
+	route: "/sign-up",
+};
+
 const databuddySetupRecommendation = {
 	action:
 		"Verify or add Databuddy identify() after authentication so future errors can be tied to signed-in users.",
@@ -170,12 +189,67 @@ const databuddySetupRecommendation = {
 	kind: "databuddy_setup" as const,
 };
 
+const featureFlagRecommendation = {
+	action: "Create a release flag before rolling out the new checkout.",
+	nativeAction: {
+		draft: {
+			defaultValue: false,
+			description: "Controls the new checkout experience.",
+			key: "new-checkout",
+			name: "New checkout",
+		},
+		type: "feature_flag.create" as const,
+	},
+};
+
+const targetGroupRecommendation = {
+	action: "Create a controlled rollout group for internal testers.",
+	nativeAction: {
+		draft: {
+			color: "#6366f1",
+			description: "Internal testers for the new checkout rollout.",
+			name: "Checkout testers",
+			rules: [],
+		},
+		type: "target_group.create" as const,
+	},
+};
+
+function schemasWithOptionalProperties(
+	value: unknown,
+	path = "$"
+): Array<{ missing: string[]; path: string }> {
+	if (!(value && typeof value === "object") || Array.isArray(value)) {
+		return [];
+	}
+	const schema = value as Record<string, unknown>;
+	const properties = schema.properties;
+	const required = schema.required;
+	const missing =
+		properties &&
+		typeof properties === "object" &&
+		!Array.isArray(properties)
+			? Object.keys(properties).filter(
+					(key) => !Array.isArray(required) || !required.includes(key)
+				)
+			: [];
+	const nested = Object.entries(schema).flatMap(([key, child]) =>
+		Array.isArray(child)
+			? child.flatMap((item, index) =>
+					schemasWithOptionalProperties(item, `${path}.${key}[${index}]`)
+				)
+			: schemasWithOptionalProperties(child, `${path}.${key}`)
+	);
+	return missing.length > 0 ? [{ missing, path }, ...nested] : nested;
+}
+
 describe("insightMeasurementRecommendationSchema", () => {
-	it("accepts strict goal, funnel, and instrumentation recommendations", () => {
+	it("accepts strict measurement recommendations", () => {
 		for (const recommendation of [
 			goalDraftRecommendation,
 			funnelDraftRecommendation,
 			instrumentationRecommendation,
+			measurementGapRecommendation,
 		]) {
 			expect(
 				insightMeasurementRecommendationSchema.safeParse(recommendation).success
@@ -191,6 +265,46 @@ describe("insightMeasurementRecommendationSchema", () => {
 			insightRecommendationSchema.safeParse({
 				...databuddySetupRecommendation,
 				feature: "revenue_attribution",
+			}).success
+		).toBe(false);
+	});
+
+	it("accepts a typed native configuration action", () => {
+		for (const recommendation of [
+			featureFlagRecommendation,
+			targetGroupRecommendation,
+			{
+				...targetGroupRecommendation,
+				nativeAction: {
+					...targetGroupRecommendation.nativeAction,
+					draft: {
+						...targetGroupRecommendation.nativeAction.draft,
+						rules: [
+							{
+								batch: false,
+								enabled: true,
+								operator: "exists" as const,
+								type: "email" as const,
+							},
+						],
+					},
+				},
+			},
+		]) {
+			expect(insightRecommendationSchema.safeParse(recommendation).success).toBe(
+				true
+			);
+		}
+		expect(
+			insightRecommendationSchema.safeParse({
+				...featureFlagRecommendation,
+				nativeAction: {
+					...featureFlagRecommendation.nativeAction,
+					draft: {
+						...featureFlagRecommendation.nativeAction.draft,
+						key: "new checkout",
+					},
+				},
 			}).success
 		).toBe(false);
 	});
@@ -242,6 +356,10 @@ describe("insightMeasurementRecommendationSchema", () => {
 			{
 				...instrumentationRecommendation,
 				events: [{ name: "signup_completed" }],
+			},
+			{
+				...measurementGapRecommendation,
+				route: undefined,
 			},
 			{
 				...instrumentationRecommendation,
@@ -336,6 +454,14 @@ describe("insightBriefItemSchema", () => {
 });
 
 describe("investigationOutcomeSchema", () => {
+	it("uses a strict-compatible schema for agent output", () => {
+		const schema = z.toJSONSchema(agentInvestigationOutcomeSchema);
+		expect(
+			schemasWithOptionalProperties(schema)
+		).toEqual([]);
+		expect(JSON.stringify(schema)).not.toContain('"nativeAction"');
+	});
+
 	it("requires every new agent turn to make the publish decision", () => {
 		expect(agentInvestigationOutcomeSchema.safeParse(outcomeBase).success).toBe(
 			false
@@ -348,6 +474,66 @@ describe("investigationOutcomeSchema", () => {
 				recommendation: null,
 			}).success
 		).toBe(true);
+	});
+
+	it("accepts the backend-owned observed-session-behavior provenance state", () => {
+		expect(
+			agentInvestigationOutcomeSchema.safeParse({
+				...outcomeBase,
+				...agentFields,
+				brief: {
+					...agentFields.brief,
+					userExperience: "observed_session_behavior",
+				},
+				publish: true,
+				recommendation: null,
+			}).success
+		).toBe(true);
+	});
+
+	it("accepts the backend-owned observed-configured-completion provenance state", () => {
+		expect(
+			agentInvestigationOutcomeSchema.safeParse({
+				...outcomeBase,
+				...agentFields,
+				brief: {
+					...agentFields.brief,
+					userExperience: "observed_configured_completion",
+				},
+				publish: true,
+				recommendation: null,
+			}).success
+		).toBe(true);
+	});
+
+	it("keeps agent brief provenance out of stored outcomes", () => {
+		const agentOutcome = {
+			...outcomeBase,
+			...agentFields,
+			publish: true,
+			recommendation: null,
+		};
+
+		expect(agentInvestigationOutcomeSchema.safeParse(agentOutcome).success).toBe(
+			true
+		);
+		expect(
+			agentInvestigationOutcomeSchema.safeParse({
+				...agentOutcome,
+				brief: undefined,
+			}).success
+		).toBe(false);
+		expect(
+			agentInvestigationOutcomeSchema.safeParse({
+				...agentOutcome,
+				brief: { ...agentOutcome.brief, scope: "unscoped" },
+			}).success
+		).toBe(false);
+		expect(investigationOutcomeSchema.parse(agentOutcome)).toEqual({
+			...outcomeBase,
+			publish: true,
+			recommendation: null,
+		});
 	});
 
 	it("keeps old stored outcomes while enforcing recommendation lifecycle", () => {
@@ -411,6 +597,38 @@ describe("investigationOutcomeSchema", () => {
 		).toBe(true);
 	});
 
+	it("keeps native recommendations outside the investigation action lifecycle", () => {
+		expect(
+			investigationOutcomeSchema.safeParse({
+				...outcomeBase,
+				next: {
+					action: featureFlagRecommendation.action,
+					target: "New checkout",
+					type: "act",
+					verification: "The release flag is active.",
+				},
+				publish: true,
+				recommendation: featureFlagRecommendation,
+				rootCause: "The new checkout needs a controlled rollout.",
+			}).success
+		).toBe(false);
+		expect(
+			investigationOutcomeSchema.safeParse({
+				...outcomeBase,
+				publish: true,
+				recommendation: featureFlagRecommendation,
+			}).success
+		).toBe(true);
+		expect(
+			agentInvestigationOutcomeSchema.safeParse({
+				...outcomeBase,
+				...agentFields,
+				publish: true,
+				recommendation: featureFlagRecommendation,
+			}).success
+		).toBe(false);
+	});
+
 	it("keeps measurement drafts separate from actions and execution", () => {
 		const action = {
 			action: "Rename Signup completed to Signup completion.",
@@ -467,9 +685,13 @@ describe("investigationOutcomeSchema", () => {
 		).toBe(false);
 		expect(
 			agentInvestigationOutcomeSchema.safeParse({
-				...outcomeBase,
+			...outcomeBase,
 				...agentFields,
-				next: { ...action, recheckAt: "2026-07-20T12:00:00.000Z" },
+				next: {
+					...action,
+					execution: null,
+					recheckAt: "2026-07-20T12:00:00.000Z",
+				},
 				publish: true,
 				recommendation: null,
 				rootCause: "The handler rejected valid checkout submissions.",
@@ -710,5 +932,58 @@ describe("investigationOutcomeSchema", () => {
 			})
 		).toEqual(outcomeBase);
 		expect(parseInvestigationOutcome({ title: "Incomplete" })).toBeNull();
+	});
+});
+
+describe("legacy annotation compatibility", () => {
+	it("recognizes only the old annotation-as-evidence formatter", () => {
+		expect(
+			isLegacyInsightAnnotationEvidence(
+				"Annotation: 2026-08-01: The billing release was planned; 2026-08-02: Rollback completed"
+			)
+		).toBe(true);
+		expect(
+			isLegacyInsightAnnotationEvidence(
+				"Annotation: 2026-02-29: Invalid leap date"
+			)
+		).toBe(false);
+	});
+
+	it("does not quarantine ordinary evidence that merely mentions annotations", () => {
+		for (const value of [
+			"An annotation says the release was planned.",
+			"Annotation: release was planned.",
+			"Annotation: 2026-08-01",
+			"Annotation: 2026-04-31: Invalid calendar date",
+			"Annotation: 2026-08-01:   ",
+			"Annotation: 2026-08-01:\t",
+			"Annotation: 2026-08-01:\u00a0",
+			"annotation: 2026-08-01: lowercase is not the legacy formatter",
+			42,
+		]) {
+			expect(isLegacyInsightAnnotationEvidence(value)).toBe(false);
+		}
+	});
+
+	it("quarantines a whole observation when either persisted evidence copy uses the formatter", () => {
+		const legacy = "Annotation: 2026-08-01: A release was planned.";
+		expect(
+			isQuarantinedInsightObservation({
+				evidence: [legacy],
+				outcome: outcomeBase,
+			})
+		).toBe(true);
+		expect(
+			isQuarantinedInsightObservation({
+				evidence: ["Measured conversion fell from 40% to 20%."],
+				outcome: { ...outcomeBase, evidence: [legacy] },
+			})
+		).toBe(true);
+		expect(
+			isQuarantinedInsightObservation({
+				evidence: ["Measured conversion fell from 40% to 20%."],
+				outcome: outcomeBase,
+			})
+		).toBe(false);
 	});
 });
