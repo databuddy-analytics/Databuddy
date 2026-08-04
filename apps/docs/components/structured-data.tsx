@@ -253,7 +253,7 @@ export function StructuredData({
 		inLanguage: lang,
 		speakable: {
 			"@type": "SpeakableSpecification",
-			cssSelector: ["#hero h1", "#agent-summary", "#faq"],
+			cssSelector: ["#hero h1", "#faq"],
 		},
 	});
 
