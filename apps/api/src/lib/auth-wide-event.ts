@@ -4,8 +4,13 @@ import {
 	resolveApiKey,
 } from "@databuddy/api-keys/resolve";
 import { auth } from "@databuddy/auth";
+import { getBillingOwner } from "@databuddy/rpc/billing";
+import { getOrganizationOwnerId } from "@databuddy/rpc/organization";
 import { mergeWideEvent } from "@databuddy/ai/lib/tracing";
-import type { ApiAuthWideEventFields } from "@databuddy/shared/evlog-fields";
+import type {
+	ApiAuthWideEventFields,
+	BillingPlanTier,
+} from "@databuddy/shared/evlog-fields";
 
 export interface ResolvedAuth {
 	apiKeyResult: ResolveApiKeyResult | null;
@@ -73,5 +78,55 @@ export async function applyAuthWideEvent(headers: Headers): Promise<void> {
 		fields.organization_id = orgId;
 	}
 
+	await enrichBillingPlanWideEvent(fields, {
+		apiKey,
+		organizationId: orgId,
+		userId: user?.id ?? null,
+	});
+
 	mergeWideEvent<ApiAuthWideEventFields>(fields);
+}
+
+async function enrichBillingPlanWideEvent(
+	fields: Partial<ApiAuthWideEventFields>,
+	principal: {
+		apiKey: ResolveApiKeyResult["key"] | null;
+		organizationId: string | null;
+		userId: string | null;
+	}
+): Promise<void> {
+	try {
+		const billingUserId = await resolveBillingUserId(principal);
+		if (!billingUserId) {
+			fields.billing_plan_resolution = "missing_customer";
+			return;
+		}
+
+		const billing = await getBillingOwner(
+			billingUserId,
+			principal.organizationId
+		);
+		fields.billing_plan = billing.planId;
+		fields.billing_plan_resolution = "resolved";
+		fields.billing_plan_tier = toBillingPlanTier(billing.planId);
+	} catch {
+		// Telemetry enrichment must never reject an authenticated request.
+		fields.billing_plan_resolution = "unavailable";
+	}
+}
+
+async function resolveBillingUserId(principal: {
+	apiKey: ResolveApiKeyResult["key"] | null;
+	organizationId: string | null;
+	userId: string | null;
+}): Promise<string | null> {
+	if (principal.apiKey?.organizationId) {
+		return await getOrganizationOwnerId(principal.apiKey.organizationId);
+	}
+
+	return principal.userId ?? principal.apiKey?.userId ?? null;
+}
+
+function toBillingPlanTier(planId: string): BillingPlanTier {
+	return planId === "free" ? "free" : "paid";
 }
