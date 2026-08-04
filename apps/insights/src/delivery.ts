@@ -9,6 +9,7 @@ import { decrypt } from "@databuddy/encryption";
 import { config } from "@databuddy/env/app";
 import {
 	formatInvestigationNext,
+	isLegacyInsightAnnotationEvidence,
 	type InsightReplySlackDelivery,
 	type InvestigationOutcome,
 	type InvestigationSignal,
@@ -58,6 +59,27 @@ type SlackBlock = z.infer<typeof slackBlockSchema>;
 export type InsightSlackEffectPayload = z.infer<
 	typeof insightSlackEffectPayloadSchema
 >;
+
+/**
+ * Old queued deliveries rendered the legacy annotation evidence as its own
+ * bullet in a section block. Inspect only that known payload shape so normal
+ * Slack copy is never classified from free-form text.
+ */
+export function hasLegacyInsightSlackAnnotation(
+	payload: InsightSlackEffectPayload
+): boolean {
+	const text = [
+		payload.text,
+		...payload.blocks.flatMap((block) => (block.text ? [block.text.text] : [])),
+	];
+	return text
+		.flatMap((value) => value.split("\n"))
+		.some((line) =>
+			isLegacyInsightAnnotationEvidence(
+				line.startsWith("• ") ? line.slice(2) : line
+			)
+		);
+}
 
 interface InsightSlackDeliveryContext {
 	channelId: string;

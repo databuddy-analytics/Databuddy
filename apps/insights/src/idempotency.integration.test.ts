@@ -29,8 +29,15 @@ import {
 } from "@databuddy/test";
 import { eq } from "drizzle-orm";
 import { randomUUIDv7 } from "bun";
+import type { InsightAgentInput } from "./agent";
 import type { DetectedSignal } from "./detection";
+import {
+	errorCustomerImpactEvidence,
+	errorIdentitySetupRecommendation,
+	type ErrorCustomerImpact,
+} from "./error-customer-impact";
 import { generateWebsiteInsights } from "./generation";
+import { buildInvestigationContext } from "./investigation-context";
 import { prepareInvestigation } from "./investigation";
 import {
 	persistInvestigation,
@@ -39,6 +46,7 @@ import {
 import { recordInsightReplyFailure, resumeInsightReply } from "./resume";
 import {
 	findRunObservations,
+	isTrustedRunObservation,
 	loadDueOpenInvestigation,
 	loadInvestigationHistory,
 	loadLatestSignalObservations,
@@ -51,6 +59,7 @@ import {
 import {
 	drainInsightRunEffects,
 	enqueueInsightRunEffects,
+	loadCompletedPreparedResult,
 	loadPreparedInsightRun,
 	prepareInsightRun,
 } from "./effects";
@@ -122,6 +131,62 @@ describeIntegration("insights idempotency integration", () => {
 			asOf: "2026-08-01T12:00:00.000Z",
 			candidates: [],
 			emptyStatus: "no_signals" as const,
+		};
+		const snapshot = { ...proposed, reason: "manual" as const };
+
+		expect(
+			await freezeInsightRunCandidatePlan(identity, "manual", proposed)
+		).toEqual(snapshot);
+		expect(await loadInsightRunCandidatePlan(identity, "manual")).toEqual(
+			snapshot
+		);
+	});
+
+	it("persists private covered-route context through a frozen retry plan", async () => {
+		const { identity } = await runItemFixture();
+		const broadError = prepareInvestigation(
+			{
+				baseline: 23,
+				current: 36,
+				deltaPercent: 56.5,
+				detectedAt: "2026-08-01",
+				direction: "up",
+				entityId: "manifest-failure",
+				entityLabel: "Manifest loading failure",
+				label: "Manifest loading failure",
+				method: "wow",
+				metric: "error_count",
+				severity: "warning",
+				subjectKey: "error:manifest-failure",
+			},
+			7
+		);
+		const coveredRoute = prepareInvestigation(
+			{
+				baseline: 12,
+				current: 22,
+				deltaPercent: 83.3,
+				detectedAt: "2026-08-01",
+				direction: "up",
+				entityId: "/example",
+				entityLabel: "Route /example",
+				label: "Errors on /example",
+				method: "wow",
+				metric: "error_count",
+				severity: "warning",
+				subjectKey: "route:error:/example",
+			},
+			7
+		);
+		const proposed = {
+			asOf: "2026-08-02T12:00:00.000Z",
+			candidates: [
+				{
+					coveredRouteSignals: [coveredRoute.signal],
+					evidence: broadError.evidence,
+					signal: broadError.signal,
+				},
+			],
 		};
 		const snapshot = { ...proposed, reason: "manual" as const };
 
@@ -354,10 +419,11 @@ describeIntegration("insights idempotency integration", () => {
 			runId,
 			websiteId: website.id,
 		});
-		expect(replay.map((observation) => observation.signal.signalKey)).toEqual([
-			"checkout",
-			"revenue",
-		]);
+		expect(
+			replay
+				.filter(isTrustedRunObservation)
+				.map((observation) => observation.signal.signalKey)
+		).toEqual(["checkout", "revenue"]);
 	});
 
 	it("loads only unresolved sibling work available at the investigation clock", async () => {
@@ -852,6 +918,217 @@ describeIntegration("insights idempotency integration", () => {
 		expect(result).toEqual({ resultCount: 1, status: "succeeded" });
 		expect(item).toEqual({ preparedStatus: "succeeded", resultCount: 1 });
 		expect(effects).toHaveLength(0);
+	});
+
+	it("keeps fresh aggregate impact on a resumed error investigation", async () => {
+		const author = await signUp();
+		const org = await insertOrganization();
+		const website = await insertWebsite({ organizationId: org.id });
+		const insightId = randomUUIDv7();
+		const replyId = randomUUIDv7();
+		const detected: DetectedSignal = {
+			baseline: 23,
+			current: 36,
+			deltaPercent: 56.5,
+			detectedAt: "2026-07-30",
+			direction: "up",
+			entityId: "manifest-failure",
+			entityLabel: "Manifest loading failure",
+			label: "Manifest loading failure",
+			method: "wow",
+			metric: "error_count",
+			severity: "warning",
+			subjectKey: "error:manifest-failure",
+		};
+		const initialMeasurement = prepareInvestigation(detected, 7);
+		const refreshedMeasurement = prepareInvestigation(
+			{
+				...detected,
+				current: 41,
+				deltaPercent: 78.26,
+				detectedAt: "2026-08-06",
+			},
+			7
+		);
+		const impact: ErrorCustomerImpact = {
+			affectedSessions: 14,
+			affectedVisitorIdentifiers: 12,
+			ambiguousProfileSessions: 0,
+			errorOccurrences: 14,
+			identifiedProfiles: 2,
+			identifiedProfilesWithPriorAttributedCompletedPayment: 1,
+			identityCoveragePercent: 0,
+			linkedVisitorIdentifiers: 0,
+			paymentMatchIsLowerBound: true,
+			qualifyingProfilePaymentHistoryObserved: true,
+			scope: "fingerprint",
+			sessionsWithLaterTelemetry: 0,
+			unlinkedVisitorIdentifiers: 12,
+		};
+		const expectedEvidence = [
+			"Fresh manifest measurement.",
+			errorCustomerImpactEvidence(impact),
+		];
+		const annotationContext =
+			"Annotation: 2026-08-06: A release was planned during this period";
+		const definitionContext =
+			"The error fingerprint definition includes private configuration context for investigation.";
+		await db().insert(analyticsInsights).values({
+			...insightRow({
+				dedupeKey: `${website.id}|${initialMeasurement.signal.signalKey}`,
+				id: insightId,
+				organizationId: org.id,
+				title: "Manifest failures affect app routes",
+				websiteId: website.id,
+			}),
+			subjectKey: initialMeasurement.signal.signalKey,
+		});
+		await db().insert(insightObservations).values({
+			asOf: new Date("2026-07-31T12:00:00.000Z"),
+			evidence: ["The previous error cohort was measured."],
+			id: randomUUIDv7(),
+			insightId,
+			organizationId: org.id,
+			outcome: investigationOutcome("ask"),
+			recheckAt: new Date("2026-08-07T12:00:00.000Z"),
+			runId: null,
+			signal: initialMeasurement.signal,
+			signalKey: initialMeasurement.signal.signalKey,
+			websiteId: website.id,
+		});
+		await db().insert(insightReplies).values({
+			authorId: author.id,
+			authorName: "Test author",
+			body: "The issue is still happening after the deploy.",
+			id: replyId,
+			insightId,
+			status: "queued",
+		});
+
+		let received: InsightAgentInput | undefined;
+		await withAgentBillingDisabled(() =>
+			resumeInsightReply(
+				replyId,
+				async (input) => {
+					received = input;
+					return { outcome: investigationOutcome("watch"), toolCallCount: 0 };
+				},
+				undefined,
+				async () => ({
+					annotationContext,
+					definitionContext,
+					evidence: ["Fresh manifest measurement."],
+					signal: refreshedMeasurement.signal,
+				}),
+				async (input, dependencies) => {
+					expect(input.signal.period.current).toEqual(
+						refreshedMeasurement.signal.period.current
+					);
+					return buildInvestigationContext(input, {
+						...dependencies,
+						loadCohortBehavior: async () => null,
+						loadCustomerImpact: async () => impact,
+						loadDatabuddySetup: async () => null,
+						loadGoalCompletion: async () => null,
+						loadVitalCohortBehavior: async () => null,
+					});
+				}
+			)
+		);
+
+		expect(received?.customerImpact).toEqual(impact);
+		expect(received?.annotationContext).toBe(annotationContext);
+		expect(received?.definitionContext).toBe(definitionContext);
+		expect(received?.evidence).toEqual(expectedEvidence);
+		expect(received?.evidence).not.toContain(annotationContext);
+		expect(received?.evidence).not.toContain(definitionContext);
+		expect(received?.setupRecommendationCandidate).toEqual(
+			errorIdentitySetupRecommendation(impact)
+		);
+		const [stored] = await db()
+			.select({
+				evidence: insightObservations.evidence,
+				signal: insightObservations.signal,
+				status: insightReplies.status,
+			})
+			.from(insightReplies)
+			.innerJoin(
+				insightObservations,
+				eq(insightReplies.observationId, insightObservations.id)
+		)
+		.where(eq(insightReplies.id, replyId));
+		expect(stored?.evidence).toEqual(expectedEvidence);
+		expect(stored?.evidence).not.toContain(annotationContext);
+		expect(stored?.evidence).not.toContain(definitionContext);
+		expect(stored?.signal).toEqual(refreshedMeasurement.signal);
+		expect(stored?.status).toBe("succeeded");
+	});
+
+	it("suppresses replies and history from a quarantined investigation", async () => {
+		const org = await insertOrganization();
+		const website = await insertWebsite({ organizationId: org.id });
+		const insightId = randomUUIDv7();
+		const replyId = randomUUIDv7();
+		const prepared = prepareInvestigation(
+			{
+				baseline: 40,
+				current: 20,
+				deltaPercent: -50,
+				detectedAt: "2026-08-01",
+				direction: "down",
+				label: "Checkout",
+				method: "wow",
+				metric: "checkout",
+				severity: "warning",
+			},
+			7
+		);
+		await db().insert(analyticsInsights).values({
+			...insightRow({
+				dedupeKey: `${website.id}|${prepared.signal.signalKey}`,
+				id: insightId,
+				organizationId: org.id,
+				title: "Checkout conversion declined",
+				websiteId: website.id,
+			}),
+			subjectKey: prepared.signal.signalKey,
+		});
+		await db().insert(insightObservations).values({
+			asOf: new Date("2026-08-01T12:00:00.000Z"),
+			evidence: ["Annotation: 2026-08-01: A deployment was planned"],
+			id: randomUUIDv7(),
+			insightId,
+			organizationId: org.id,
+			outcome: investigationOutcome("watch"),
+			recheckAt: new Date("2026-08-02T12:00:00.000Z"),
+			runId: null,
+			signal: prepared.signal,
+			signalKey: prepared.signal.signalKey,
+			websiteId: website.id,
+		});
+		await db().insert(insightReplies).values({
+			authorName: "Test author",
+			body: "Please investigate this change.",
+			id: replyId,
+			insightId,
+			status: "queued",
+		});
+
+		expect(
+			await loadInvestigationHistory({
+				organizationId: org.id,
+				signalKey: prepared.signal.signalKey,
+				websiteId: website.id,
+			})
+		).toEqual([]);
+		let agentCalls = 0;
+		const result = await resumeInsightReply(replyId, async () => {
+			agentCalls += 1;
+			throw new Error("A quarantined reply must not reach the agent");
+		});
+		expect(result).toBe("skipped");
+		expect(agentCalls).toBe(0);
+		expect(await replyStatus(replyId)).toBe("skipped");
 	});
 
 	it("resumes an older deep link and commits each reply once", async () => {
@@ -1633,7 +1910,10 @@ describeIntegration("insights idempotency integration", () => {
 		});
 
 		expect(rows).toHaveLength(3);
-		expect(replay?.outcome.next.type).toBe("watch");
+		if (!replay?.trusted) {
+			throw new Error("Expected a trusted run observation");
+		}
+		expect(replay.outcome.next.type).toBe("watch");
 		expect(historical.size).toBe(2);
 		expect(
 			historical.get(investigation.signal.signalKey)?.recheckAt.toISOString()
@@ -1652,6 +1932,137 @@ describeIntegration("insights idempotency integration", () => {
 			.from(insightObservations)
 			.where(eq(insightObservations.asOf, firstAsOf));
 		expect(preserved?.runId).toBeNull();
+	});
+
+	it("does not revive a prior signal state after newer legacy annotation evidence", async () => {
+		const org = await insertOrganization();
+		const website = await insertWebsite({ organizationId: org.id });
+		const insightId = randomUUIDv7();
+		const prepared = prepareInvestigation(
+			{
+				baseline: 40,
+				current: 20,
+				deltaPercent: -50,
+				detectedAt: "2026-01-01",
+				direction: "down",
+				label: "Checkout",
+				method: "wow",
+				metric: "checkout",
+				severity: "warning",
+			},
+			7
+		);
+		const olderAt = new Date("2026-01-01T12:00:00.000Z");
+		const legacyAt = new Date("2026-01-02T12:00:00.000Z");
+		await db().insert(analyticsInsights).values({
+			...insightRow({
+				dedupeKey: `${website.id}|${prepared.signal.signalKey}`,
+				id: insightId,
+				organizationId: org.id,
+				title: "Checkout conversion declined",
+				websiteId: website.id,
+			}),
+			subjectKey: prepared.signal.signalKey,
+		});
+		await db().insert(insightObservations).values([
+			{
+				asOf: olderAt,
+				createdAt: olderAt,
+				id: randomUUIDv7(),
+				insightId,
+				organizationId: org.id,
+				outcome: investigationOutcome("watch"),
+				recheckAt: new Date("2026-01-03T12:00:00.000Z"),
+				signal: prepared.signal,
+				signalKey: prepared.signal.signalKey,
+				websiteId: website.id,
+			},
+			{
+				asOf: legacyAt,
+				createdAt: legacyAt,
+				evidence: ["Annotation: 2026-01-02: A deployment was planned"],
+				id: randomUUIDv7(),
+				insightId,
+				organizationId: org.id,
+				outcome: investigationOutcome("watch"),
+				recheckAt: new Date("2026-01-03T12:00:00.000Z"),
+				signal: prepared.signal,
+				signalKey: prepared.signal.signalKey,
+				websiteId: website.id,
+			},
+		]);
+
+		const through = new Date("2026-01-04T12:00:00.000Z");
+		const [latest, due, otherOpenWork] = await Promise.all([
+			loadLatestSignalObservations({
+				asOf: through,
+				organizationId: org.id,
+				signalKeys: [prepared.signal.signalKey],
+				websiteId: website.id,
+			}),
+			loadDueOpenInvestigation({
+				asOf: through,
+				organizationId: org.id,
+				websiteId: website.id,
+			}),
+			loadOtherOpenWork({
+				organizationId: org.id,
+				signalKey: "goal:another-signal",
+				through,
+				websiteId: website.id,
+			}),
+		]);
+
+		expect(latest.size).toBe(0);
+		expect(due).toBeNull();
+		expect(otherOpenWork).toEqual([]);
+	});
+
+	it("reserves a quarantined run observation without reusing its content", async () => {
+		const org = await insertOrganization();
+		const website = await insertWebsite({ organizationId: org.id });
+		const runId = randomUUIDv7();
+		const prepared = prepareInvestigation(
+			{
+				baseline: 40,
+				current: 20,
+				deltaPercent: -50,
+				detectedAt: "2026-08-01",
+				direction: "down",
+				label: "Checkout",
+				method: "wow",
+				metric: "checkout",
+				severity: "warning",
+			},
+			7
+		);
+		await db().insert(insightObservations).values({
+			asOf: new Date("2026-08-01T12:00:00.000Z"),
+			evidence: ["Annotation: 2026-08-01: A deployment was planned"],
+			id: randomUUIDv7(),
+			insightId: null,
+			organizationId: org.id,
+			outcome: investigationOutcome("watch"),
+			recheckAt: new Date("2026-08-02T12:00:00.000Z"),
+			runId,
+			signal: prepared.signal,
+			signalKey: prepared.signal.signalKey,
+			websiteId: website.id,
+		});
+
+		expect(
+			await findRunObservations({
+				organizationId: org.id,
+				runId,
+				websiteId: website.id,
+			})
+		).toEqual([
+			{
+				insightId: null,
+				signalKey: prepared.signal.signalKey,
+				trusted: false,
+			},
+		]);
 	});
 
 	it("prepares effects once and retries only unfinished provider calls", async () => {
@@ -1813,6 +2224,203 @@ describeIntegration("insights idempotency integration", () => {
 			})
 		).rejects.toThrow("failed external effect");
 		expect(replayCalls).toBe(0);
+	});
+
+	it("suppresses a queued legacy annotation Slack effect without delivery", async () => {
+		const { identity } = await preparedRunFixture({
+			effects: [
+				{
+					effectKey: "legacy-annotation",
+					payload: {
+						blocks: [
+							{
+								type: "section",
+								text: {
+									text: [
+										"*Evidence*",
+										"• Annotation: 2026-08-01: A release was planned",
+									].join("\n"),
+									type: "mrkdwn",
+								},
+							},
+						],
+						text: "A bounded investigation",
+					},
+				},
+			],
+			run: { totalItems: 1 },
+		});
+		let deliveryCalls = 0;
+		const handlers = {
+			slack: async () => {
+				deliveryCalls += 1;
+				return "ts:unexpected-legacy-delivery";
+			},
+		};
+
+		await drainInsightRunEffects(identity, true, handlers);
+		const [effect] = await db()
+			.select({
+				attempts: insightRunEffects.attempts,
+				completedAt: insightRunEffects.completedAt,
+				errorMessage: insightRunEffects.errorMessage,
+				externalId: insightRunEffects.externalId,
+				status: insightRunEffects.status,
+			})
+			.from(insightRunEffects)
+			.where(eq(insightRunEffects.runItemId, identity.itemId));
+		expect(deliveryCalls).toBe(0);
+		expect(effect).toEqual({
+			attempts: 0,
+			completedAt: expect.any(Date),
+			errorMessage: "suppressed: legacy annotation compatibility guard",
+			externalId: null,
+			status: "skipped",
+		});
+		expect(await loadCompletedPreparedResult(identity)).toEqual({
+			resultCount: 0,
+			status: "succeeded",
+		});
+
+		await drainInsightRunEffects(identity, true, handlers);
+		const [afterReplay] = await db()
+			.select({
+				attempts: insightRunEffects.attempts,
+				completedAt: insightRunEffects.completedAt,
+				errorMessage: insightRunEffects.errorMessage,
+				externalId: insightRunEffects.externalId,
+				status: insightRunEffects.status,
+			})
+			.from(insightRunEffects)
+			.where(eq(insightRunEffects.runItemId, identity.itemId));
+		expect(deliveryCalls).toBe(0);
+		expect(afterReplay).toEqual(effect);
+
+		await db()
+			.update(insightRunEffects)
+			.set({
+				completedAt: null,
+				errorMessage: "A legacy provider attempt failed before quarantine.",
+				status: "failed",
+			})
+			.where(eq(insightRunEffects.runItemId, identity.itemId));
+		await drainInsightRunEffects(identity, true, handlers);
+		const [afterLegacyFailure] = await db()
+			.select({
+				attempts: insightRunEffects.attempts,
+				completedAt: insightRunEffects.completedAt,
+				errorMessage: insightRunEffects.errorMessage,
+				status: insightRunEffects.status,
+			})
+			.from(insightRunEffects)
+			.where(eq(insightRunEffects.runItemId, identity.itemId));
+		expect(deliveryCalls).toBe(0);
+		expect(afterLegacyFailure).toEqual({
+			attempts: 0,
+			completedAt: expect.any(Date),
+			errorMessage: "suppressed: legacy annotation compatibility guard",
+			status: "skipped",
+		});
+
+		const now = new Date();
+		const staleAt = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+		await db()
+			.update(insightRunItems)
+			.set({
+				errorMessage: "late worker failure",
+				finishedAt: staleAt,
+				status: "failed",
+				updatedAt: staleAt,
+			})
+			.where(eq(insightRunItems.id, identity.itemId));
+
+		const recovered = await recoverStaleInsightRuns(now);
+		const [item] = await db()
+			.select({
+				errorMessage: insightRunItems.errorMessage,
+				finishedAt: insightRunItems.finishedAt,
+				status: insightRunItems.status,
+			})
+			.from(insightRunItems)
+			.where(eq(insightRunItems.id, identity.itemId));
+		expect(recovered).toMatchObject({
+			failedItems: 0,
+			keptItems: 1,
+			scannedItems: 1,
+			syncedRuns: 1,
+		});
+		expect(item).toEqual({
+			errorMessage: null,
+			finishedAt: now,
+			status: "succeeded",
+		});
+	});
+
+	it("suppresses a clean-looking Slack payload when its insight is quarantined", async () => {
+		const insightId = randomUUIDv7();
+		const { identity } = await preparedRunFixture({
+			effects: [
+				{
+					effectKey: "legacy-by-insight-id",
+					payload: {
+						blocks: [],
+						insightId,
+						text: "A clean-looking delivery payload",
+					},
+				},
+			],
+		});
+		const prepared = prepareInvestigation(
+			{
+				baseline: 40,
+				current: 20,
+				deltaPercent: -50,
+				detectedAt: "2026-08-01",
+				direction: "down",
+				label: "Checkout",
+				method: "wow",
+				metric: "checkout",
+				severity: "warning",
+			},
+			7
+		);
+		await db().insert(analyticsInsights).values({
+			...insightRow({
+				dedupeKey: `${identity.websiteId}|${prepared.signal.signalKey}`,
+				id: insightId,
+				organizationId: identity.organizationId,
+				title: "Checkout conversion declined",
+				websiteId: identity.websiteId,
+			}),
+			subjectKey: prepared.signal.signalKey,
+		});
+		await db().insert(insightObservations).values({
+			asOf: new Date("2026-08-01T12:00:00.000Z"),
+			evidence: ["Annotation: 2026-08-01: A deployment was planned"],
+			id: randomUUIDv7(),
+			insightId,
+			organizationId: identity.organizationId,
+			outcome: investigationOutcome("watch"),
+			recheckAt: new Date("2026-08-02T12:00:00.000Z"),
+			runId: null,
+			signal: prepared.signal,
+			signalKey: prepared.signal.signalKey,
+			websiteId: identity.websiteId,
+		});
+
+		let deliveryCalls = 0;
+		await drainInsightRunEffects(identity, true, {
+			slack: async () => {
+				deliveryCalls += 1;
+				return "ts:unexpected-legacy-delivery";
+			},
+		});
+		const [suppressed] = await db()
+			.select({ status: insightRunEffects.status })
+			.from(insightRunEffects)
+			.where(eq(insightRunEffects.runItemId, identity.itemId));
+		expect(deliveryCalls).toBe(0);
+		expect(suppressed?.status).toBe("skipped");
 	});
 
 	it("queues a persisted portfolio candidate effect without completing its run", async () => {

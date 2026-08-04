@@ -67,6 +67,132 @@ describe("rankSignals", () => {
 			"sessions",
 		]);
 	});
+
+	it("uses observed reach before percentage for comparable error regressions", () => {
+		const smallerCohort = {
+			...baseSignal,
+			baseline: 2,
+			current: 13,
+			deltaPercent: 550,
+			direction: "up" as const,
+			metric: "error_count",
+			reach: {
+				current: 7,
+				previous: 2,
+				unit: "visitor_identifiers" as const,
+			},
+			severity: "warning" as const,
+			subjectKey: "error:smaller-cohort",
+		};
+		const largerCohort = {
+			...smallerCohort,
+			baseline: 6,
+			current: 22,
+			deltaPercent: 266.67,
+			reach: {
+				current: 16,
+				previous: 6,
+				unit: "visitor_identifiers" as const,
+			},
+			subjectKey: "error:larger-cohort",
+		};
+
+		expect(rankSignals([smallerCohort, largerCohort])).toEqual([
+			smallerCohort,
+			largerCohort,
+		]);
+		expect(rankSignals([smallerCohort, largerCohort], "reach")).toEqual([
+			largerCohort,
+			smallerCohort,
+		]);
+	});
+
+	it("does not let reach override a more severe regression", () => {
+		const critical = {
+			...baseSignal,
+			baseline: 10,
+			current: 20,
+			deltaPercent: 100,
+			direction: "up" as const,
+			metric: "error_count",
+			reach: {
+				current: 5,
+				previous: 2,
+				unit: "visitor_identifiers" as const,
+			},
+			severity: "critical" as const,
+			subjectKey: "error:critical",
+		};
+		const warning = {
+			...critical,
+			reach: {
+				current: 100,
+				previous: 10,
+				unit: "visitor_identifiers" as const,
+			},
+			severity: "warning" as const,
+			subjectKey: "error:warning",
+		};
+
+		expect(rankSignals([warning, critical], "reach")).toEqual([
+			critical,
+			warning,
+		]);
+	});
+
+	it("does not compare visitor reach with performance samples", () => {
+		const error = {
+			...baseSignal,
+			baseline: 10,
+			current: 20,
+			deltaPercent: 100,
+			direction: "up" as const,
+			metric: "error_count",
+			reach: {
+				current: 7,
+				previous: 3,
+				unit: "visitor_identifiers" as const,
+			},
+			severity: "warning" as const,
+		};
+		const vital = {
+			...error,
+			metric: "lcp",
+			reach: {
+				current: 100,
+				previous: 60,
+				unit: "samples" as const,
+			},
+		};
+
+		expect(rankSignals([error, vital], "reach")).toEqual(
+			rankSignals([error, vital])
+		);
+	});
+
+	it("keeps the existing order when a comparable cohort has no reach", () => {
+		const knownReach = {
+			...baseSignal,
+			metric: "error_count",
+			direction: "up" as const,
+			reach: {
+				current: 20,
+				previous: 10,
+				unit: "visitor_identifiers" as const,
+			},
+			subjectKey: "error:known",
+		};
+		const missingReach = {
+			...knownReach,
+			deltaPercent: 80,
+			reach: undefined,
+			subjectKey: "error:missing",
+		};
+
+		expect(rankSignals([missingReach, knownReach], "reach")).toEqual(
+			rankSignals([missingReach, knownReach])
+		);
+	});
 });
 
 describe("prepareInvestigation", () => {
@@ -99,13 +225,17 @@ describe("prepareInvestigation", () => {
 		});
 	});
 
-	it("reuses exact detector-owned goal evidence without another read", () => {
+	it("keeps detector definition context private while deriving a typed public fact", () => {
 		const result = prepareInvestigation(
 			{
 				...baseSignal,
+				baseline: 20,
+				current: 0,
 				definitionEvidence:
-					"Signup had 0 completions from 100 eligible visitors, versus 20 previously.",
+					'Goal "Signup" tracks the EVENT target "signup_completed". It completed for 0 of 100 observed website visitors, compared with 20 of 120 previously. Business meaning: New accounts. Filter setup: plan equals (1 value).',
+				deltaPercent: -100,
 				entityLabel: "Signup",
+				label: "Signup completion rate",
 				metric: "goal:goal-1",
 			},
 			7
@@ -113,13 +243,39 @@ describe("prepareInvestigation", () => {
 
 		expect(result.evidence).toHaveLength(1);
 		expect(result.evidence.at(-1)).toBe(
-			"Signup had 0 completions from 100 eligible visitors, versus 20 previously."
+			"Signup completion rate: 0% in the current period, compared with 20% previously."
 		);
+		expect(result.definitionContext).toContain("signup_completed");
+		expect(result.definitionContext).toContain("Filter setup");
+		expect(result.evidence.join(" ")).not.toContain("signup_completed");
+		expect(result.evidence.join(" ")).not.toContain("Filter setup");
 	});
 
-	it("passes signal-window annotations to the agent without classifying them", () => {
+	it("prefers customer-display evidence while retaining the detector fact privately", () => {
+		const candidate = {
+			...baseSignal,
+			definitionEvidence:
+				"Private detector detail includes bounded sampling and candidate mechanics.",
+			displayEvidence:
+				"No active goals or funnels are configured despite recorded activity during this period.",
+		};
+
+		const result = prepareInvestigation(candidate, 7);
+
+		expect(candidate.definitionEvidence).toContain("sampling");
+		expect(result.definitionContext).toBe(candidate.definitionEvidence);
+		expect(result.evidence).toEqual([
+			"No active goals or funnels are configured despite recorded activity during this period.",
+		]);
+	});
+
+	it("keeps signal-window annotations out of citable evidence", () => {
 		const result = prepareInvestigation(
-			baseSignal,
+			{
+				...baseSignal,
+				definitionEvidence: "The measured signup rate declined this week.",
+				displayEvidence: "Signup completion declined in the measured period.",
+			},
 			7,
 			[
 				{
@@ -130,8 +286,34 @@ describe("prepareInvestigation", () => {
 			]
 		);
 
-		expect(result.evidence).toEqual([
+		expect(result.annotationContext).toBe(
 			"Annotation: 2026-07-08: Signup instrumentation intentionally changed; 2026-07-09: Pricing campaign paused",
+		);
+		expect(result.evidence).toEqual([
+			"Signup completion declined in the measured period.",
+		]);
+	});
+
+	it("bounds annotation context without changing detector evidence", () => {
+		const result = prepareInvestigation(
+			{
+				...baseSignal,
+				definitionEvidence: "The measured signup rate declined this week.",
+				displayEvidence: "Signup completion declined in the measured period.",
+			},
+			7,
+			[
+				{
+					date: "2026-07-08",
+					title: "x".repeat(600),
+				},
+			]
+		);
+
+		expect(result.annotationContext).toHaveLength(500);
+		expect(result.annotationContext).toEndWith("…");
+		expect(result.evidence).toEqual([
+			"Signup completion declined in the measured period.",
 		]);
 	});
 

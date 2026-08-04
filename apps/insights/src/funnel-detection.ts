@@ -138,6 +138,47 @@ function definitionFilters(filters: DataFilter[] | null): string {
 	return `Filter setup: ${shown.join("; ")}${remaining > 0 ? `; ${remaining} more` : ""}.`;
 }
 
+function goalDisplayEvidence(
+	goal: Pick<GoalDef, "name">,
+	current: ConversionResult,
+	previous: ConversionResult
+): string {
+	return `Goal "${goal.name}" completed for ${current.completions} of ${current.entrants} observed website visitors, compared with ${previous.completions} of ${previous.entrants} previously.`;
+}
+
+function funnelDisplayEvidence(
+	funnel: Pick<FunnelDef, "name">,
+	current: ConversionResult,
+	previous: ConversionResult
+): string {
+	return `Funnel "${funnel.name}" completed ${current.completions} of ${current.entrants} entrants, compared with ${previous.completions} of ${previous.entrants} previously.`;
+}
+
+function funnelStepDisplayEvidence(
+	funnel: Pick<FunnelDef, "name">,
+	current: NonNullable<ConversionResult["steps"]>[number],
+	previous: NonNullable<ConversionResult["steps"]>[number]
+): string {
+	return `Funnel "${funnel.name}" step "${current.name}" converted ${current.rate}% of visitors reaching it, compared with ${previous.rate}% previously.`;
+}
+
+function displayInactiveDefinition(
+	definition: Pick<FunnelDef | GoalDef, "deletedAt" | "isActive" | "name">,
+	type: "funnel" | "goal"
+): string | null {
+	if (definition.deletedAt) {
+		return `${type === "goal" ? "Goal" : "Funnel"} "${definition.name}" is deleted.`;
+	}
+	if (definition.isActive === false) {
+		return `${type === "goal" ? "Goal" : "Funnel"} "${definition.name}" is disabled.`;
+	}
+	return null;
+}
+
+function withDisplayState(state: string | null, evidence: string): string {
+	return state ? `${state} ${evidence}` : evidence;
+}
+
 function unavailableDefinitionSignal(
 	prior: InvestigationSignal,
 	metric: string,
@@ -151,6 +192,7 @@ function unavailableDefinitionSignal(
 			prior.changePercent ?? safeDeltaPercent(prior.metric.current, baseline),
 		detectedAt: prior.period.current.to,
 		direction: prior.sentiment === "negative" ? "down" : "up",
+		displayEvidence: `${reason} No current conversion can be measured.`,
 		entityLabel: prior.entity.label,
 		definitionEvidence: `${reason} No current conversion can be measured. The last measurable result was ${prior.metric.current}${prior.metric.previous === undefined ? "" : ` compared with ${prior.metric.previous}`} from ${prior.period.current.from} to ${prior.period.current.to}.`,
 		label: prior.metric.label,
@@ -422,6 +464,11 @@ function goalZeroCompletionSignal(params: {
 	signal.severity = "warning";
 	signal.subjectKey = `goal:${params.goal.id}:${ZERO_COMPLETION_SUFFIX}`;
 	signal.entityLabel = params.goal.name;
+	signal.displayEvidence = goalDisplayEvidence(
+		params.goal,
+		params.current,
+		params.previous
+	);
 	signal.definitionEvidence = `Goal "${params.goal.name}" tracks the ${params.goal.type} target "${params.goal.target}". It completed for 0 of ${params.current.entrants} observed website visitors, compared with ${params.previous.completions} of ${params.previous.entrants} previously. ${definitionHistory(params.goal, params.previousFrom, params.timezone)} ${definitionDescription(params.goal.description)} ${definitionFilters(params.goal.filters)}`;
 	return signal;
 }
@@ -448,6 +495,11 @@ function funnelZeroCompletionSignal(params: {
 	signal.severity = "warning";
 	signal.subjectKey = `funnel:${params.funnel.id}:${ZERO_COMPLETION_SUFFIX}`;
 	signal.entityLabel = params.funnel.name;
+	signal.displayEvidence = funnelDisplayEvidence(
+		params.funnel,
+		params.current,
+		params.previous
+	);
 	signal.definitionEvidence = `Funnel "${params.funnel.name}" completed 0 of ${params.current.entrants} entrants, compared with ${params.previous.completions} of ${params.previous.entrants} previously. ${definitionHistory(params.funnel, params.previousFrom, params.timezone)} ${definitionDescription(params.funnel.description)} ${definitionFilters(params.funnel.filters)}`;
 	return signal;
 }
@@ -542,9 +594,18 @@ export async function remeasureFunnelGoalSignal(
 			signal.subjectKey = prior.signalKey;
 			signal.entityLabel = goal.name;
 			const state = inactiveDefinitionEvidence(goal, "goal");
+			const displayState = displayInactiveDefinition(goal, "goal");
 			if (hasZeroCompletion) {
+				signal.displayEvidence = withDisplayState(
+					displayState,
+					signal.displayEvidence ?? goalDisplayEvidence(goal, cur, prev)
+				);
 				signal.definitionEvidence = `${state ? `${state} ` : ""}${signal.definitionEvidence}`;
 			} else {
+				signal.displayEvidence = withDisplayState(
+					displayState,
+					goalDisplayEvidence(goal, cur, prev)
+				);
 				signal.definitionEvidence = `${state ? `${state} ` : ""}Goal "${goal.name}" tracks the ${goal.type} target "${goal.target}". It completed for ${cur.completions} of ${cur.entrants} observed website visitors, compared with ${prev.completions} previously. ${definitionHistory(goal, previous.from, params.timezone)} ${definitionDescription(goal.description)} ${definitionFilters(goal.filters)}`;
 			}
 			return signal;
@@ -612,9 +673,19 @@ export async function remeasureFunnelGoalSignal(
 			? `${funnel.name} → ${currentStep.name}`
 			: funnel.name;
 		const state = inactiveDefinitionEvidence(funnel, "funnel");
+		const displayState = displayInactiveDefinition(funnel, "funnel");
 		if (hasZeroCompletion) {
+			signal.displayEvidence = withDisplayState(
+				displayState,
+				signal.displayEvidence ?? funnelDisplayEvidence(funnel, cur, prev)
+			);
 			signal.definitionEvidence = `${state ? `${state} ` : ""}${signal.definitionEvidence}`;
 		} else {
+			const displayEvidence =
+				currentStep && previousStep
+					? funnelStepDisplayEvidence(funnel, currentStep, previousStep)
+					: funnelDisplayEvidence(funnel, cur, prev);
+			signal.displayEvidence = withDisplayState(displayState, displayEvidence);
 			const measurementEvidence = currentStep
 				? `Step ${currentStep.number} "${currentStep.name}" converted ${currentStep.rate}% of visitors reaching it, compared with ${previousStep?.rate}% previously. Funnel "${funnel.name}" converted ${cur.completions} of ${cur.entrants} entrants, compared with ${prev.completions} previously. ${definitionHistory(funnel, previous.from, params.timezone)} ${definitionDescription(funnel.description)} ${definitionFilters(funnel.filters)}`
 				: `Funnel "${funnel.name}" converted ${cur.completions} of ${cur.entrants} entrants, compared with ${prev.completions} previously. ${definitionHistory(funnel, previous.from, params.timezone)} ${definitionDescription(funnel.description)} ${definitionFilters(funnel.filters)}`;
@@ -680,6 +751,7 @@ async function detectStoredDefinitionSignal(
 			{ round: true }
 		);
 		detected.entityLabel = goal.name;
+		detected.displayEvidence = goalDisplayEvidence(goal, cur, prev);
 		detected.definitionEvidence = `Goal "${goal.name}" tracks the ${goal.type} target "${goal.target}". It completed for ${cur.completions} of ${cur.entrants} observed website visitors, compared with ${prev.completions} previously. ${definitionHistory(goal, previous.from, timezone)} ${definitionDescription(goal.description)} ${definitionFilters(goal.filters)}`;
 		return detected;
 	}
@@ -732,9 +804,15 @@ async function detectStoredDefinitionSignal(
 		detected.subjectKey = `funnel:${funnel.id}:step:${changedStep.number}`;
 		detected.entityLabel = `${funnel.name} → ${changedStep.name}`;
 		detected.label = `Funnel "${funnel.name}" step "${changedStep.name}" conversion`;
+		detected.displayEvidence = funnelStepDisplayEvidence(funnel, changedStep, {
+			name: changedStep.name,
+			number: changedStep.number,
+			rate: changedStep.previousRate,
+		});
 		detected.definitionEvidence = `Step ${changedStep.number} "${changedStep.name}" converted ${changedStep.rate}% of visitors reaching it, compared with ${changedStep.previousRate}% previously. Funnel "${funnel.name}" converted ${cur.completions} of ${cur.entrants} entrants, compared with ${prev.completions} previously. ${definitionHistory(funnel, previous.from, timezone)} ${definitionDescription(funnel.description)} ${definitionFilters(funnel.filters)}`;
 	} else {
 		detected.entityLabel = funnel.name;
+		detected.displayEvidence = funnelDisplayEvidence(funnel, cur, prev);
 		detected.definitionEvidence = `Funnel "${funnel.name}" converted ${cur.completions} of ${cur.entrants} entrants, compared with ${prev.completions} previously. ${definitionHistory(funnel, previous.from, timezone)} ${definitionDescription(funnel.description)} ${definitionFilters(funnel.filters)}`;
 	}
 	return detected;

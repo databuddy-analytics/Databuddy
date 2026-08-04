@@ -2,14 +2,15 @@ import {
 	and,
 	db,
 	eq,
+	hasTrustedLatestInsightObservation,
 	inArray,
 	isNotNull,
 	isNull,
-	ne,
 	or,
 	sql,
 } from "@databuddy/db";
 import {
+	analyticsInsights,
 	insightRunEffects,
 	insightRunItems,
 	type InsightRunPreparedStatus,
@@ -17,9 +18,14 @@ import {
 import { randomUUIDv7 } from "bun";
 import {
 	deliverInsightSlackEffect,
+	hasLegacyInsightSlackAnnotation,
 	insightSlackEffectPayloadSchema,
 	type InsightSlackEffectPayload,
 } from "./delivery";
+import { emitInsightsEvent } from "./lib/evlog-insights";
+
+export const LEGACY_ANNOTATION_EFFECT_SUPPRESSION_MESSAGE =
+	"suppressed: legacy annotation compatibility guard";
 
 export interface InsightRunEffectInput {
 	effectKey: string;
@@ -108,7 +114,7 @@ export async function loadCompletedPreparedResult(
 			.where(
 				and(
 					eq(insightRunEffects.runItemId, itemId),
-					ne(insightRunEffects.status, "succeeded")
+					inArray(insightRunEffects.status, ["pending", "failed"])
 				)
 			)
 			.limit(1),
@@ -288,6 +294,83 @@ async function recordEffectFailure(
 		);
 }
 
+async function claimEffectAttempt(
+	effectId: string,
+	itemId: string
+): Promise<boolean> {
+	const claimed = await db
+		.update(insightRunEffects)
+		.set({
+			attempts: sql`${insightRunEffects.attempts} + 1`,
+			errorMessage: null,
+			updatedAt: new Date(),
+		})
+		.where(
+			and(
+				eq(insightRunEffects.id, effectId),
+				eq(insightRunEffects.runItemId, itemId),
+				eq(insightRunEffects.status, "pending")
+			)
+		)
+		.returning({ id: insightRunEffects.id });
+	return claimed.length > 0;
+}
+
+async function suppressLegacyAnnotationEffect(
+	effectId: string,
+	identity: InsightRunIdentity
+): Promise<boolean> {
+	const skipped = await db
+		.update(insightRunEffects)
+		.set({
+			completedAt: new Date(),
+			errorMessage: LEGACY_ANNOTATION_EFFECT_SUPPRESSION_MESSAGE,
+			externalId: null,
+			status: "skipped",
+			updatedAt: new Date(),
+		})
+		.where(
+			and(
+				eq(insightRunEffects.id, effectId),
+				eq(insightRunEffects.runItemId, identity.itemId),
+				inArray(insightRunEffects.status, ["pending", "failed"])
+			)
+		)
+		.returning({ id: insightRunEffects.id });
+	if (skipped.length === 0) {
+		return false;
+	}
+	emitInsightsEvent("warn", "delivery.slack.suppressed_legacy_annotation", {
+		effect_id: effectId,
+		organization_id: identity.organizationId,
+		run_id: identity.runId,
+		run_item_id: identity.itemId,
+		website_id: identity.websiteId,
+	});
+	return true;
+}
+
+async function hasTrustedEffectInsight(
+	identity: InsightRunIdentity,
+	insightId: string
+): Promise<boolean> {
+	const [insight] = await db
+		.select({
+			isCurrentObservationTrusted:
+				hasTrustedLatestInsightObservation(analyticsInsights),
+		})
+		.from(analyticsInsights)
+		.where(
+			and(
+				eq(analyticsInsights.id, insightId),
+				eq(analyticsInsights.organizationId, identity.organizationId),
+				eq(analyticsInsights.websiteId, identity.websiteId)
+			)
+		)
+		.limit(1);
+	return insight?.isCurrentObservationTrusted === true;
+}
+
 export async function drainInsightRunEffects(
 	identity: InsightRunIdentity,
 	finalAttempt: boolean,
@@ -306,34 +389,54 @@ export async function drainInsightRunEffects(
 			effectKey: insightRunEffects.effectKey,
 			id: insightRunEffects.id,
 			payload: insightRunEffects.payload,
+			status: insightRunEffects.status,
 		})
 		.from(insightRunEffects)
 		.where(
 			and(
 				eq(insightRunEffects.runItemId, identity.itemId),
-				eq(insightRunEffects.status, "pending")
+				inArray(insightRunEffects.status, ["pending", "failed"])
 			)
 		)
 		.orderBy(insightRunEffects.createdAt, insightRunEffects.id);
 	let firstError: unknown;
 	for (const effect of effects) {
+		let payload: InsightSlackEffectPayload;
 		try {
-			const claimed = await db
-				.update(insightRunEffects)
-				.set({
-					attempts: sql`${insightRunEffects.attempts} + 1`,
-					errorMessage: null,
-					updatedAt: new Date(),
-				})
-				.where(
-					and(
-						eq(insightRunEffects.id, effect.id),
-						eq(insightRunEffects.runItemId, identity.itemId),
-						eq(insightRunEffects.status, "pending")
-					)
-				)
-				.returning({ id: insightRunEffects.id });
-			if (claimed.length === 0) {
+			payload = insightSlackEffectPayloadSchema.parse(effect.payload);
+			if (
+				hasLegacyInsightSlackAnnotation(payload) ||
+				(payload.insightId &&
+					!(await hasTrustedEffectInsight(identity, payload.insightId)))
+			) {
+				await suppressLegacyAnnotationEffect(effect.id, identity);
+				continue;
+			}
+		} catch (error) {
+			firstError ??= error;
+			try {
+				if (!(await claimEffectAttempt(effect.id, identity.itemId))) {
+					continue;
+				}
+				await recordEffectFailure(
+					effect.id,
+					identity.itemId,
+					error,
+					finalAttempt
+				);
+			} catch {
+				// Preserve the payload error; the pending row remains retryable.
+			}
+			continue;
+		}
+		if (effect.status === "failed") {
+			// Failed non-legacy effects remain terminal. Only the compatibility
+			// guard above may convert one to a harmless completed state.
+			continue;
+		}
+
+		try {
+			if (!(await claimEffectAttempt(effect.id, identity.itemId))) {
 				continue;
 			}
 		} catch (error) {
@@ -343,7 +446,6 @@ export async function drainInsightRunEffects(
 
 		let externalId: string | null;
 		try {
-			const payload = insightSlackEffectPayloadSchema.parse(effect.payload);
 			const channelId = payload.channelId ?? effect.effectKey;
 			const [root] = payload.insightId
 				? await db

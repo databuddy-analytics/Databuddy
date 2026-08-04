@@ -52,12 +52,27 @@ describe("detectMeasurementRecommendationSignals", () => {
 				basis: "observed_navigation_proxy",
 				kind: "page_navigation_proxy",
 				target: "/signup",
-				type: "PAGE_VIEW",
+				 type: "PAGE_VIEW",
+			},
+			measurementGapRecommendationCandidate: {
+				action:
+					"Choose the completed behavior to measure around /signup, instrument it as a Databuddy custom event, then review the observed event as a goal or funnel.",
+				kind: "measurement_gap",
+				route: "/signup",
 			},
 			severity: "info",
 			subjectKey: "measurement:conversion-coverage",
 		});
 		expect(signals[0]?.definitionEvidence).toContain("navigation proxy");
+		expect(signals[0]?.displayEvidence).toBe(
+			"No active goals or funnels are configured despite recorded activity during this period. The available data does not show whether a conversion was completed."
+		);
+		expect(
+			signals[0]?.displayEvidence?.trim().split(/\s+/).length
+		).toBeLessThan(40);
+		expect(signals[0]?.displayEvidence).not.toMatch(
+			/sample|canonical|proxy|coverage.?gap/i
+		);
 		expect(JSON.stringify(signals[0])).not.toContain("ari@example.com");
 		expect(JSON.stringify(signals[0])).not.toContain("abc123");
 	});
@@ -82,6 +97,7 @@ describe("detectMeasurementRecommendationSignals", () => {
 			target: "signup_completed",
 			type: "EVENT",
 		});
+		expect(signal?.measurementGapRecommendationCandidate).toBeUndefined();
 		expect(signal?.definitionEvidence).toContain("not that the event is a business conversion");
 	});
 
@@ -100,6 +116,12 @@ describe("detectMeasurementRecommendationSignals", () => {
 		);
 
 		expect(signal?.measurementCandidate).toBeUndefined();
+		expect(signal?.measurementGapRecommendationCandidate).toEqual({
+			action:
+				"Choose the completed behavior that matters most to your product, instrument it as a Databuddy custom event, then review the observed event as a goal or funnel.",
+			kind: "measurement_gap",
+			route: null,
+		});
 		expect(JSON.stringify(signal)).not.toContain("ari");
 		expect(JSON.stringify(signal)).not.toContain("private");
 	});
@@ -119,6 +141,7 @@ describe("detectMeasurementRecommendationSignals", () => {
 		);
 
 		expect(signal?.measurementCandidate).toBeUndefined();
+		expect(signal?.measurementGapRecommendationCandidate?.route).toBeNull();
 	});
 
 	it("labels no-candidate evidence as sampled when custom event discovery hits its cap", async () => {
@@ -138,8 +161,15 @@ describe("detectMeasurementRecommendationSignals", () => {
 		);
 
 		expect(signal?.measurementCandidate).toBeUndefined();
+		expect(signal?.measurementGapRecommendationCandidate?.route).toBeNull();
 		expect(signal?.definitionEvidence).toContain(
 			"top 1000 custom event types"
+		);
+		expect(signal?.displayEvidence).toBe(
+			"No active goals or funnels are configured despite recorded activity during this period. The available data does not show whether a conversion was completed."
+		);
+		expect(signal?.displayEvidence).not.toMatch(
+			/sample|canonical|proxy|coverage.?gap/i
 		);
 	});
 

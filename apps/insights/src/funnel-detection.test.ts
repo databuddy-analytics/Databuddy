@@ -216,6 +216,9 @@ describe("detectFunnelGoalSignals", () => {
 		expect(current?.definitionEvidence).toContain(
 			"is no longer present in the website configuration"
 		);
+		expect(current?.displayEvidence).toBe(
+			'Goal "Signup" is no longer present in the website configuration. No current conversion can be measured.'
+		);
 	});
 
 	it("remeasures disabled and deleted goals with their current state", async () => {
@@ -256,6 +259,12 @@ describe("detectFunnelGoalSignals", () => {
 
 			expect(current).toMatchObject({ current: 21, baseline: 20 });
 			expect(current?.definitionEvidence).toContain(state);
+			expect(current?.displayEvidence).toContain(
+				goal.deletedAt ? "is deleted" : "is disabled"
+			);
+			expect(current?.displayEvidence).toContain(
+				"completed for 21 of 100 observed website visitors, compared with 20 of 100 previously"
+			);
 		}
 	});
 
@@ -300,6 +309,50 @@ describe("detectFunnelGoalSignals", () => {
 			subjectKey: prior.signalKey,
 		});
 		expect(current?.definitionEvidence).toContain("no longer contains");
+		expect(current?.displayEvidence).toBe(
+			'Funnel "Checkout" no longer contains Checkout → Buy. No current conversion can be measured.'
+		);
+	});
+
+	it("remeasures funnel steps with a concise citable comparison", async () => {
+		const prior = prepareInvestigation(
+			{
+				baseline: 20,
+				current: 10,
+				deltaPercent: -50,
+				detectedAt: "2026-05-21",
+				direction: "down",
+				entityLabel: "Checkout → Buy",
+				label: 'Funnel "Checkout" step "Buy" conversion',
+				method: "wow",
+				metric: "funnel:f1",
+				severity: "warning",
+				subjectKey: "funnel:f1:step:2",
+			},
+			7
+		).signal;
+		let call = 0;
+		const current = await remeasureFunnelGoalSignal(
+			PARAMS,
+			prior,
+			TODAY,
+			makeDeps({
+				fetchFunnels: async () => [FUNNEL],
+				funnelConversion: async () => {
+					call += 1;
+					return call === 1
+						? funnelResult(10, 100, 10, [100, 10])
+						: funnelResult(20, 120, 24, [100, 20]);
+				},
+			})
+		);
+
+		expect(current?.displayEvidence).toBe(
+			'Funnel "Checkout" step "Buy" converted 10% of visitors reaching it, compared with 20% previously.'
+		);
+		expect(current?.displayEvidence).not.toContain(FUNNEL.description);
+		expect(current?.displayEvidence).not.toContain("purchase");
+		expect(current?.definitionEvidence).toContain(FUNNEL.description);
 	});
 
 	it("flags a funnel conversion drop above threshold", async () => {
@@ -328,6 +381,11 @@ describe("detectFunnelGoalSignals", () => {
 		expect(signal.method).toBe("wow");
 		expect(signal.detectedAt).toBe("2026-05-28");
 		expect(signal.definitionEvidence).toContain(FUNNEL.description);
+		expect(signal.displayEvidence).toBe(
+			'Funnel "Checkout" step "Buy" converted 10% of visitors reaching it, compared with 20% previously.'
+		);
+		expect(signal.displayEvidence).not.toContain(FUNNEL.description);
+		expect(signal.displayEvidence).not.toContain("purchase");
 		const investigation = prepareInvestigation(signal, 7).signal;
 		expect(investigation.entity).toEqual({
 			type: "funnel_step",
@@ -415,6 +473,15 @@ describe("detectFunnelGoalSignals", () => {
 			"Filter setup: plan equals (1 value)."
 		);
 		expect(signals[0].definitionEvidence).not.toContain("pro");
+		expect(signals[0].displayEvidence).toBe(
+			'Goal "Signup" completed for 50 of 2000 observed website visitors, compared with 100 of 2000 previously.'
+		);
+		expect(signals[0].displayEvidence).not.toContain(GOAL.description);
+		expect(signals[0].displayEvidence).not.toContain(GOAL.target);
+		expect(signals[0].displayEvidence).not.toContain("Filter setup");
+		expect(prepareInvestigation(signals[0], 7).evidence).toEqual([
+			signals[0].displayEvidence,
+		]);
 	});
 
 	for (const { name, current, previous } of [
@@ -483,8 +550,11 @@ describe("detectFunnelGoalSignals", () => {
 		expect(signals[0]?.definitionEvidence).toContain(
 			"completed for 0 of 100 observed website visitors"
 		);
+		expect(signals[0]?.displayEvidence).toBe(
+			'Goal "Signup" completed for 0 of 100 observed website visitors, compared with 20 of 100 previously.'
+		);
 		const investigation = prepareInvestigation(signals[0], 7);
-		expect(investigation.evidence[0]).toBe(signals[0]?.definitionEvidence);
+		expect(investigation.evidence[0]).toBe(signals[0]?.displayEvidence);
 		expect(signals[0]?.subjectKey).toBeUndefined();
 	});
 
@@ -514,6 +584,9 @@ describe("detectFunnelGoalSignals", () => {
 		});
 		expect(signal?.definitionEvidence).toContain(
 			"completed for 0 of 100 observed website visitors, compared with 0 of 120 previously"
+		);
+		expect(signal?.displayEvidence).toBe(
+			'Goal "Signup" completed for 0 of 100 observed website visitors, compared with 0 of 120 previously.'
 		);
 		const investigation = prepareInvestigation(signal, 7).signal;
 		expect(investigation).toMatchObject({
@@ -571,6 +644,9 @@ describe("detectFunnelGoalSignals", () => {
 		});
 		expect(signal?.definitionEvidence).toContain(
 			'Funnel "Checkout" completed 0 of 100 entrants, compared with 0 of 120 previously'
+		);
+		expect(signal?.displayEvidence).toBe(
+			'Funnel "Checkout" completed 0 of 100 entrants, compared with 0 of 120 previously.'
 		);
 		const investigation = prepareInvestigation(signal, 7).signal;
 		expect(investigation).toMatchObject({
@@ -774,6 +850,9 @@ describe("detectFunnelGoalSignals", () => {
 		});
 		expect(signal?.definitionEvidence).toContain("converted 0 of 1 entrants");
 		expect(signal?.definitionEvidence).not.toContain("completed 0 of 1 entrants");
+		expect(signal?.displayEvidence).toBe(
+			'Funnel "Checkout" completed 0 of 1 entrants, compared with 0 of 120 previously.'
+		);
 	});
 
 	it("reports partial regressions without pre-classifying an action", async () => {

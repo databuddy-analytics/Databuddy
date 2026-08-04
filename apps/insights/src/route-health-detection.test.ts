@@ -119,6 +119,11 @@ describe("detectRouteHealthSignals", () => {
 				entityId: "/explore",
 				entityLabel: "Route /explore",
 				metric: "error_count",
+				reach: {
+					current: 35,
+					previous: 19,
+					unit: "visitor_identifiers",
+				},
 				severity: "warning",
 				subjectKey: "route:error:/explore",
 			})
@@ -128,6 +133,11 @@ describe("detectRouteHealthSignals", () => {
 				current: 4_000,
 				entityId: "/creations",
 				metric: "lcp",
+				reach: {
+					current: 48,
+					previous: 50,
+					unit: "samples",
+				},
 				severity: "warning",
 				subjectKey: "route:lcp:/creations",
 			})

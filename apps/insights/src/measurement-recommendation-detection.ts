@@ -1,6 +1,7 @@
 import { executeQuery } from "@databuddy/ai/query";
 import { and, count, db, eq, isNull, lte, sql } from "@databuddy/db";
 import { funnelDefinitions, goals } from "@databuddy/db/schema";
+import type { InsightMeasurementGapRecommendation } from "@databuddy/shared/insights";
 import dayjs from "dayjs";
 import {
 	type DetectedSignal,
@@ -48,6 +49,30 @@ const CONVERSION_TERMS = new Set([
 
 export const MEASUREMENT_RECOMMENDATION_SUBJECT_KEY =
 	"measurement:conversion-coverage";
+
+const MEASUREMENT_COVERAGE_DISPLAY_EVIDENCE =
+	"No active goals or funnels are configured despite recorded activity during this period. The available data does not show whether a conversion was completed.";
+
+/**
+ * A guide-only recommendation for a detected measurement gap. It intentionally
+ * names no event or conversion: current traffic and missing definitions do not
+ * reveal which product action matters most.
+ */
+function measurementGapRecommendation(
+	routes: string[]
+): InsightMeasurementGapRecommendation {
+	const route =
+		routes
+			.map(canonicalMeasurementRouteTarget)
+			.find((value): value is string => value !== null) ?? null;
+	return {
+		action: route
+			? `Choose the completed behavior to measure around ${route}, instrument it as a Databuddy custom event, then review the observed event as a goal or funnel.`
+			: "Choose the completed behavior that matters most to your product, instrument it as a Databuddy custom event, then review the observed event as a goal or funnel.",
+		kind: "measurement_gap",
+		route,
+	};
+}
 
 export interface MeasurementDefinitionCounts {
 	activeFunnels: number;
@@ -295,6 +320,10 @@ export async function detectMeasurementRecommendationSignals(
 	];
 	const candidate =
 		eventCandidate(canonicalEvents) ?? routeCandidate(telemetry.routes);
+	const measurementGapRecommendationCandidate =
+		candidate?.kind === "event_goal_candidate"
+			? undefined
+			: measurementGapRecommendation(telemetry.routes);
 	return [
 		{
 			baseline: 0,
@@ -307,11 +336,13 @@ export async function detectMeasurementRecommendationSignals(
 				pageviews: telemetry.pageviews,
 				sessions: telemetry.sessions,
 			}),
+			displayEvidence: MEASUREMENT_COVERAGE_DISPLAY_EVIDENCE,
 			deltaPercent: 0,
 			detectedAt: window.currentTo,
 			direction: "up",
 			label: "Conversion measurement coverage is missing",
 			measurementCandidate: candidate,
+			measurementGapRecommendationCandidate,
 			method: "wow",
 			metric: "measurement_coverage",
 			severity: "info",

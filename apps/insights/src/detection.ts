@@ -1,5 +1,8 @@
 import { executeQuery, type Filter } from "@databuddy/ai/query";
-import type { InvestigationSignal } from "@databuddy/shared/insights";
+import type {
+	InsightMeasurementGapRecommendation,
+	InvestigationSignal,
+} from "@databuddy/shared/insights";
 import dayjs from "dayjs";
 import timezonePlugin from "dayjs/plugin/timezone";
 import utcPlugin from "dayjs/plugin/utc";
@@ -27,6 +30,16 @@ export type MeasurementCandidate =
 			type: "PAGE_VIEW";
 	  };
 
+/**
+ * Detector-owned aggregate exposure. It is intentionally separate from the
+ * signal value: samples are useful for prioritization, but are not people.
+ */
+export interface DetectedSignalReach {
+	current: number;
+	previous: number;
+	unit: "samples" | "visitor_identifiers";
+}
+
 export interface DetectedSignal {
 	baseline: number;
 	baselineDates?: string[];
@@ -35,12 +48,19 @@ export interface DetectedSignal {
 	deltaPercent: number;
 	detectedAt: string;
 	direction: "up" | "down";
+	/**
+	 * Optional customer-safe evidence for the agent and public outcome. The
+	 * detailed detector fact remains in definitionEvidence for private planning.
+	 */
+	displayEvidence?: string;
 	entityId?: string;
 	entityLabel?: string;
 	label: string;
 	measurementCandidate?: MeasurementCandidate;
+	measurementGapRecommendationCandidate?: InsightMeasurementGapRecommendation;
 	method: "zscore" | "wow";
 	metric: string;
+	reach?: DetectedSignalReach;
 	severity: "critical" | "warning" | "info";
 	subjectKey?: string;
 }
@@ -520,6 +540,11 @@ export async function remeasureMetricSignal(
 		signal.subjectKey = prior.signalKey;
 		signal.entityId = fingerprint;
 		signal.entityLabel = label;
+		signal.reach = {
+			current: numberField(currentRow, "users"),
+			previous: numberField(previousRow, "users"),
+			unit: "visitor_identifiers",
+		};
 		signal.definitionEvidence = `${label} occurred ${signal.current} times across ${numberField(currentRow, "users")} visitor identifiers, compared with ${signal.baseline} occurrences across ${numberField(previousRow, "users")} visitor identifiers previously.`;
 		return signal;
 	}
@@ -1076,7 +1101,14 @@ async function detectWow(
 		signal.subjectKey = `error:${fingerprint}`;
 		signal.entityId = fingerprint;
 		signal.entityLabel = label;
-		signal.definitionEvidence = `${label} occurred ${current} times across ${numberField(currentRow, "users")} visitor identifiers, compared with ${previous} occurrences across ${numberField(previousRow, "users")} visitor identifiers previously.`;
+		const currentUsers = numberField(currentRow, "users");
+		const previousUsers = numberField(previousRow, "users");
+		signal.reach = {
+			current: currentUsers,
+			previous: previousUsers,
+			unit: "visitor_identifiers",
+		};
+		signal.definitionEvidence = `${label} occurred ${current} times across ${currentUsers} visitor identifiers, compared with ${previous} occurrences across ${previousUsers} visitor identifiers previously.`;
 		signals.push(signal);
 	}
 

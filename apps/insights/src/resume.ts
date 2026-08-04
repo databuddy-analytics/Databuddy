@@ -4,7 +4,16 @@ import {
 	resolveAgentBillingCustomerId,
 	trackAgentUsageAndBill,
 } from "@databuddy/ai/agents/execution";
-import { and, db, desc, eq, inArray, isNull, ne } from "@databuddy/db";
+import {
+	and,
+	db,
+	desc,
+	eq,
+	exists,
+	hasTrustedLatestInsightObservation,
+	inArray,
+	isNull,
+} from "@databuddy/db";
 import {
 	analyticsInsights,
 	insightObservations,
@@ -18,6 +27,7 @@ import {
 import { createServiceAuth } from "@databuddy/rpc";
 import {
 	insightReplySlackDeliverySchema,
+	isQuarantinedInsightObservation,
 	parseInvestigationOutcome,
 	parseInvestigationSignal,
 } from "@databuddy/shared/insights";
@@ -27,6 +37,7 @@ import {
 	type InsightAgentResult,
 	runInsightAgent,
 } from "./agent";
+import { buildInvestigationContext } from "./investigation-context";
 import {
 	loadInvestigationHistory,
 	loadOtherOpenWork,
@@ -34,11 +45,12 @@ import {
 } from "./observations";
 import { refreshInvestigationSignal } from "./generation";
 import { caseValues } from "./persistence";
-import { captureInsightsError } from "./lib/evlog-insights";
+import { captureInsightsError, emitInsightsEvent } from "./lib/evlog-insights";
 import { deliverInsightSlackReply } from "./delivery";
 
 type Investigate = (input: InsightAgentInput) => Promise<InsightAgentResult>;
 type Refresh = typeof refreshInvestigationSignal;
+type BuildContext = typeof buildInvestigationContext;
 
 async function deliverCompletedSlackReply(
 	replyId: string,
@@ -48,15 +60,16 @@ async function deliverCompletedSlackReply(
 		websiteId: string;
 	},
 	deliver: typeof deliverInsightSlackReply
-): Promise<void> {
+): Promise<boolean> {
 	if (!target.slackDelivery) {
-		return;
+		return true;
 	}
 	const slackDelivery = insightReplySlackDeliverySchema.parse(
 		target.slackDelivery
 	);
 	const [observation] = await db
 		.select({
+			evidence: insightObservations.evidence,
 			outcome: insightObservations.outcome,
 			signal: insightObservations.signal,
 		})
@@ -73,8 +86,11 @@ async function deliverCompletedSlackReply(
 			)
 		)
 		.limit(1);
-	const outcome = parseInvestigationOutcome(observation?.outcome);
-	const signal = parseInvestigationSignal(observation?.signal);
+	if (!observation || isQuarantinedInsightObservation(observation)) {
+		return false;
+	}
+	const outcome = parseInvestigationOutcome(observation.outcome);
+	const signal = parseInvestigationSignal(observation.signal);
 	if (!(outcome && signal)) {
 		throw new Error("The completed investigation result is unavailable");
 	}
@@ -87,13 +103,45 @@ async function deliverCompletedSlackReply(
 		},
 		result: { outcome, signal },
 	});
+	return true;
+}
+
+async function suppressUntrustedInsightReply(params: {
+	organizationId: string;
+	replyId: string;
+	websiteId: string;
+}): Promise<void> {
+	const [suppressed] = await db
+		.update(insightReplies)
+		.set({ status: "skipped" })
+		.where(
+			and(
+				eq(insightReplies.id, params.replyId),
+				inArray(insightReplies.status, [
+					"queued",
+					"running",
+					"failed",
+					"succeeded",
+				])
+			)
+		)
+		.returning({ id: insightReplies.id });
+	if (!suppressed) {
+		return;
+	}
+	emitInsightsEvent("warn", "resume.reply.suppressed_legacy_annotation", {
+		organization_id: params.organizationId,
+		reply_id: params.replyId,
+		website_id: params.websiteId,
+	});
 }
 
 export async function resumeInsightReply(
 	replyId: string,
 	investigate: Investigate = runInsightAgent,
 	deliverSlackReply: typeof deliverInsightSlackReply = deliverInsightSlackReply,
-	refresh: Refresh = refreshInvestigationSignal
+	refresh: Refresh = refreshInvestigationSignal,
+	buildContext: BuildContext = buildInvestigationContext
 ): Promise<"skipped" | "succeeded"> {
 	const [trigger] = await db
 		.select({
@@ -101,6 +149,23 @@ export async function resumeInsightReply(
 			body: insightReplies.body,
 			createdAt: insightReplies.createdAt,
 			integrations: websites.integrations,
+			hasOwnObservation: exists(
+				db
+					.select({ id: insightObservations.id })
+					.from(insightObservations)
+					.where(
+						and(
+							eq(insightObservations.insightId, analyticsInsights.id),
+							eq(
+								insightObservations.organizationId,
+								analyticsInsights.organizationId
+							),
+							eq(insightObservations.websiteId, analyticsInsights.websiteId)
+						)
+					)
+			),
+			isCurrentObservationTrusted:
+				hasTrustedLatestInsightObservation(analyticsInsights),
 			organizationId: analyticsInsights.organizationId,
 			slackDelivery: insightReplies.slackDelivery,
 			status: insightReplies.status,
@@ -122,9 +187,32 @@ export async function resumeInsightReply(
 	if (!trigger) {
 		return "skipped";
 	}
+	if (trigger.hasOwnObservation && !trigger.isCurrentObservationTrusted) {
+		await suppressUntrustedInsightReply({
+			organizationId: trigger.organizationId,
+			replyId,
+			websiteId: trigger.websiteId,
+		});
+		return "skipped";
+	}
+	if (trigger.status === "skipped") {
+		return "skipped";
+	}
 	if (trigger.status === "succeeded") {
-		await deliverCompletedSlackReply(replyId, trigger, deliverSlackReply);
-		return "succeeded";
+		const delivered = await deliverCompletedSlackReply(
+			replyId,
+			trigger,
+			deliverSlackReply
+		);
+		if (delivered) {
+			return "succeeded";
+		}
+		await suppressUntrustedInsightReply({
+			organizationId: trigger.organizationId,
+			replyId,
+			websiteId: trigger.websiteId,
+		});
+		return "skipped";
 	}
 
 	const started = await db
@@ -145,6 +233,8 @@ export async function resumeInsightReply(
 		.select({
 			createdAt: analyticsInsights.createdAt,
 			id: analyticsInsights.id,
+			isCurrentObservationTrusted:
+				hasTrustedLatestInsightObservation(analyticsInsights),
 			status: analyticsInsights.status,
 		})
 		.from(analyticsInsights)
@@ -157,8 +247,13 @@ export async function resumeInsightReply(
 		)
 		.orderBy(desc(analyticsInsights.createdAt), desc(analyticsInsights.id))
 		.limit(1);
-	if (!current) {
-		throw new Error("The investigation no longer exists");
+	if (!(current && current.isCurrentObservationTrusted)) {
+		await suppressUntrustedInsightReply({
+			organizationId: trigger.organizationId,
+			replyId,
+			websiteId: trigger.websiteId,
+		});
+		return "skipped";
 	}
 
 	const startedAt = new Date();
@@ -204,6 +299,53 @@ export async function resumeInsightReply(
 	if (!currentMeasurement) {
 		throw new Error("The current investigation measurement is unavailable");
 	}
+	const context = await buildContext(
+		{
+			abortSignal: AbortSignal.timeout(45_000),
+			evidence: currentMeasurement.evidence,
+			organizationId: trigger.organizationId,
+			signal: currentMeasurement.signal,
+			timezone: trigger.timezone,
+			websiteId: trigger.websiteId,
+		},
+		{
+			reportCohortBehaviorError: (error) => {
+				captureInsightsError(error, "resume.cohort_behavior.failed", {
+					organization_id: trigger.organizationId,
+					reply_id: replyId,
+					website_id: trigger.websiteId,
+				});
+			},
+			reportCustomerImpactError: (error) => {
+				captureInsightsError(error, "resume.customer_impact.failed", {
+					organization_id: trigger.organizationId,
+					reply_id: replyId,
+					website_id: trigger.websiteId,
+				});
+			},
+			reportDatabuddySetupError: (error) => {
+				captureInsightsError(error, "resume.databuddy_setup.failed", {
+					organization_id: trigger.organizationId,
+					reply_id: replyId,
+					website_id: trigger.websiteId,
+				});
+			},
+			reportGoalCompletionError: (error) => {
+				captureInsightsError(error, "resume.goal_completion.failed", {
+					organization_id: trigger.organizationId,
+					reply_id: replyId,
+					website_id: trigger.websiteId,
+				});
+			},
+			reportVitalCohortBehaviorError: (error) => {
+				captureInsightsError(error, "resume.vital_cohort_behavior.failed", {
+					organization_id: trigger.organizationId,
+					reply_id: replyId,
+					website_id: trigger.websiteId,
+				});
+			},
+		}
+	);
 	const chatId = `insights:${trigger.organizationId}:${trigger.websiteId}:${currentMeasurement.signal.signalKey}`;
 	const appContext: AppContext = {
 		chatId,
@@ -220,8 +362,20 @@ export async function resumeInsightReply(
 	};
 
 	const result = await investigate({
+		...(currentMeasurement.annotationContext
+			? { annotationContext: currentMeasurement.annotationContext }
+			: {}),
 		appContext,
-		evidence: currentMeasurement.evidence,
+		customerImpact: context.customerImpact,
+		databuddySetup: context.databuddySetup,
+		...(currentMeasurement.definitionContext
+			? { definitionContext: currentMeasurement.definitionContext }
+			: {}),
+		errorBehavior: context.errorBehavior,
+		errorBehaviorEvidenceIndex: context.errorBehaviorEvidenceIndex,
+		errorGoalCompletion: context.errorGoalCompletion,
+		errorGoalCompletionEvidenceIndex: context.errorGoalCompletionEvidenceIndex,
+		evidence: context.evidence,
 		githubRepository: trigger.integrations?.github ?? null,
 		history,
 		otherOpenWork,
@@ -230,6 +384,9 @@ export async function resumeInsightReply(
 			createdAt: trigger.createdAt.toISOString(),
 		},
 		signal: currentMeasurement.signal,
+		setupRecommendationCandidate: context.setupRecommendationCandidate,
+		vitalBehavior: context.vitalBehavior,
+		vitalBehaviorEvidenceIndex: context.vitalBehaviorEvidenceIndex,
 	});
 	const committed = await db.transaction(async (tx) => {
 		const [locked] = await tx
@@ -244,11 +401,16 @@ export async function resumeInsightReply(
 		if (locked.status === "succeeded") {
 			return false;
 		}
+		if (locked.status === "skipped") {
+			return "skipped" as const;
+		}
 
 		const committedAt = new Date();
 		const [lockedInvestigation] = await tx
 			.select({
 				createdAt: analyticsInsights.createdAt,
+				isCurrentObservationTrusted:
+					hasTrustedLatestInsightObservation(analyticsInsights),
 				status: analyticsInsights.status,
 			})
 			.from(analyticsInsights)
@@ -262,7 +424,20 @@ export async function resumeInsightReply(
 			.limit(1)
 			.for("update");
 		if (
-			!lockedInvestigation ||
+			!(lockedInvestigation && lockedInvestigation.isCurrentObservationTrusted)
+		) {
+			await tx
+				.update(insightReplies)
+				.set({ status: "skipped" })
+				.where(
+					and(
+						eq(insightReplies.id, replyId),
+						inArray(insightReplies.status, ["queued", "running", "failed"])
+					)
+				);
+			return "skipped" as const;
+		}
+		if (
 			lockedInvestigation.status !== current.status ||
 			lockedInvestigation.createdAt.getTime() !== current.createdAt.getTime()
 		) {
@@ -292,7 +467,7 @@ export async function resumeInsightReply(
 		const observationId = randomUUIDv7();
 		await tx.insert(insightObservations).values({
 			asOf: committedAt,
-			evidence: currentMeasurement.evidence,
+			evidence: context.evidence,
 			id: observationId,
 			insightId: current.id,
 			organizationId: trigger.organizationId,
@@ -309,6 +484,9 @@ export async function resumeInsightReply(
 			.where(eq(insightReplies.id, replyId));
 		return true;
 	});
+	if (committed === "skipped") {
+		return "skipped";
+	}
 
 	if (committed) {
 		if (result.modelId && result.usage) {
@@ -344,8 +522,20 @@ export async function resumeInsightReply(
 			});
 		}
 	}
-	await deliverCompletedSlackReply(replyId, trigger, deliverSlackReply);
-	return "succeeded";
+	const delivered = await deliverCompletedSlackReply(
+		replyId,
+		trigger,
+		deliverSlackReply
+	);
+	if (delivered) {
+		return "succeeded";
+	}
+	await suppressUntrustedInsightReply({
+		organizationId: trigger.organizationId,
+		replyId,
+		websiteId: trigger.websiteId,
+	});
+	return "skipped";
 }
 
 export async function recordInsightReplyFailure(
@@ -359,7 +549,7 @@ export async function recordInsightReplyFailure(
 		.where(
 			and(
 				eq(insightReplies.id, replyId),
-				ne(insightReplies.status, "succeeded")
+				inArray(insightReplies.status, ["queued", "running", "failed"])
 			)
 		)
 		.returning({ slackDelivery: insightReplies.slackDelivery });

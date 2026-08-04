@@ -279,6 +279,11 @@ function routeErrorSignal(params: {
 		definitionEvidence: `Route ${params.route} logged ${params.current.errors} errors across ${params.current.users} visitor identifiers, compared with ${params.baseline.errors} errors across ${params.baseline.users} visitor identifiers in the preceding period.`,
 		entityId: params.route,
 		entityLabel: routeEntityLabel(params.route),
+		reach: {
+			current: params.current.users,
+			previous: params.baseline.users,
+			unit: "visitor_identifiers",
+		},
 		severity: params.applyThreshold
 			? isCritical
 				? "critical"
@@ -331,6 +336,11 @@ function routeVitalSignal(params: {
 		definitionEvidence: `Route ${params.route} recorded p75 ${params.metric} of ${signal.current} ms across ${params.current.samples} samples, compared with ${signal.baseline} ms across ${params.baseline.samples} samples in the preceding period.`,
 		entityId: params.route,
 		entityLabel: routeEntityLabel(params.route),
+		reach: {
+			current: params.current.samples,
+			previous: params.baseline.samples,
+			unit: "samples",
+		},
 		severity: params.applyThreshold
 			? isCritical
 				? "critical"

@@ -178,10 +178,6 @@ export async function loadErrorCustomerImpact(
 	return parseErrorCustomerImpact(rows[0], selector.scope);
 }
 
-function countLabel(value: number, singular: string): string {
-	return `${value.toLocaleString("en-US")} ${singular}${value === 1 ? "" : "s"}`;
-}
-
 export function errorIdentitySetupRecommendation(
 	impact: ErrorCustomerImpact
 ): InsightDatabuddySetupRecommendation | null {
@@ -199,44 +195,39 @@ export function errorIdentitySetupRecommendation(
 	};
 }
 
+function hasQualifiedPriorCompletedPayment(
+	impact: ErrorCustomerImpact
+): boolean {
+	return (
+		impact.identifiedProfilesWithPriorAttributedCompletedPayment > 0 &&
+		impact.identifiedProfilesWithPriorAttributedCompletedPayment <=
+			impact.identifiedProfiles &&
+		impact.qualifyingProfilePaymentHistoryObserved &&
+		impact.paymentMatchIsLowerBound
+	);
+}
+
 export function errorCustomerImpactEvidence(
 	impact: ErrorCustomerImpact
 ): string {
-	const facts = [
-		impact.scope === "fingerprint"
-			? `This exact error produced ${countLabel(impact.errorOccurrences, "occurrence")} across ${countLabel(impact.affectedVisitorIdentifiers, "visitor identifier")} and ${countLabel(impact.affectedSessions, "session")}.`
-			: `Errors on this route produced ${countLabel(impact.errorOccurrences, "occurrence")} across ${countLabel(impact.affectedVisitorIdentifiers, "visitor identifier")} and ${countLabel(impact.affectedSessions, "session")}.`,
-		`${countLabel(impact.identifiedProfiles, "profile")} resolved from same-window session or visitor context. ${impact.linkedVisitorIdentifiers.toLocaleString("en-US")} of ${impact.affectedVisitorIdentifiers.toLocaleString("en-US")} non-empty visitor identifiers had an unambiguous same-window profile link; ${impact.unlinkedVisitorIdentifiers.toLocaleString("en-US")} did not.`,
-	];
-	if (impact.identifiedProfilesWithPriorAttributedCompletedPayment > 0) {
-		facts.push(
-			`At least ${countLabel(impact.identifiedProfilesWithPriorAttributedCompletedPayment, "identified profile")} had an attributed completed payment before their first error in this period; unmatched payment status remains unknown.`
-		);
-	} else if (impact.qualifyingProfilePaymentHistoryObserved) {
-		facts.push(
-			"No prior payment match was found for the identified affected profiles despite other qualifying profile-attributed payment history; this does not establish that none paid."
-		);
-	} else {
-		facts.push(
-			"No qualifying profile-attributed completed-payment history was observed, so affected payment status remains unknown."
-		);
+	if (hasQualifiedPriorCompletedPayment(impact)) {
+		return `At least ${impact.identifiedProfilesWithPriorAttributedCompletedPayment.toLocaleString("en-US")} affected profiles had an attributed completed payment before the error; other payment status is unknown.`;
 	}
-	if (impact.ambiguousProfileSessions > 0) {
-		facts.push(
-			`${countLabel(impact.ambiguousProfileSessions, "session")} had ambiguous profile identity.`
-		);
+	if (impact.linkedVisitorIdentifiers === 0) {
+		return "No affected identifiers linked to profiles, so customer and payment status are unknown.";
 	}
-	if (impact.sessionsWithLaterTelemetry > 0) {
-		facts.push(
-			`${countLabel(impact.sessionsWithLaterTelemetry, "affected session")} had later telemetry; that does not prove recovery.`
-		);
+	return `${impact.linkedVisitorIdentifiers.toLocaleString("en-US")} of ${impact.affectedVisitorIdentifiers.toLocaleString("en-US")} affected identifiers linked to profiles; payment status remains unknown.`;
+}
+
+/**
+ * A short, customer-facing lower bound suitable for a broad error brief.
+ * It deliberately says nothing about current subscription or payment status.
+ */
+export function priorCompletedPaymentSummary(
+	impact: ErrorCustomerImpact
+): string | null {
+	if (!hasQualifiedPriorCompletedPayment(impact)) {
+		return null;
 	}
-	const included: string[] = [];
-	for (const fact of facts) {
-		if ([...included, fact].join(" ").length > 500) {
-			break;
-		}
-		included.push(fact);
-	}
-	return included.join(" ");
+	return `At least ${impact.identifiedProfilesWithPriorAttributedCompletedPayment.toLocaleString("en-US")} affected profiles had a prior attributed completed payment.`;
 }

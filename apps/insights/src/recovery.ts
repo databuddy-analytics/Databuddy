@@ -3,14 +3,17 @@ import {
 	asc,
 	db,
 	eq,
+	exists,
+	hasTrustedLatestInsightObservation,
 	inArray,
 	isNotNull,
 	lt,
-	ne,
 	notExists,
 	or,
 } from "@databuddy/db";
 import {
+	analyticsInsights,
+	insightObservations,
 	insightRunEffects,
 	insightRunItems,
 	insightRuns,
@@ -62,10 +65,31 @@ async function recoverStaleReplies(cutoff: Date): Promise<{
 	const replies = await db
 		.select({
 			createdAt: insightReplies.createdAt,
+			hasOwnObservation: exists(
+				db
+					.select({ id: insightObservations.id })
+					.from(insightObservations)
+					.where(
+						and(
+							eq(insightObservations.insightId, analyticsInsights.id),
+							eq(
+								insightObservations.organizationId,
+								analyticsInsights.organizationId
+							),
+							eq(insightObservations.websiteId, analyticsInsights.websiteId)
+						)
+					)
+			),
 			id: insightReplies.id,
+			isCurrentObservationTrusted:
+				hasTrustedLatestInsightObservation(analyticsInsights),
 			status: insightReplies.status,
 		})
 		.from(insightReplies)
+		.innerJoin(
+			analyticsInsights,
+			eq(insightReplies.insightId, analyticsInsights.id)
+		)
 		.where(
 			and(
 				inArray(insightReplies.status, ["queued", "running"]),
@@ -77,6 +101,31 @@ async function recoverStaleReplies(cutoff: Date): Promise<{
 
 	let recovered = 0;
 	for (const reply of replies) {
+		if (reply.hasOwnObservation && !reply.isCurrentObservationTrusted) {
+			const updated = await db
+				.update(insightReplies)
+				.set({ status: "skipped" })
+				.where(
+					and(
+						eq(insightReplies.id, reply.id),
+						eq(insightReplies.status, reply.status),
+						eq(insightReplies.createdAt, reply.createdAt)
+					)
+				)
+				.returning({ id: insightReplies.id });
+			if (updated.length === 1) {
+				recovered += 1;
+				emitInsightsEvent(
+					"warn",
+					"recovery.reply_suppressed_legacy_annotation",
+					{
+						reply_id: reply.id,
+						previous_status: reply.status,
+					}
+				);
+			}
+			continue;
+		}
 		const status = await enqueueInsightsResume(reply.id);
 		const updated = await db
 			.update(insightReplies)
@@ -145,7 +194,7 @@ async function staleItems(cutoff: Date): Promise<RecoverableItem[]> {
 								.where(
 									and(
 										eq(insightRunEffects.runItemId, insightRunItems.id),
-										ne(insightRunEffects.status, "succeeded")
+										inArray(insightRunEffects.status, ["pending", "failed"])
 									)
 								)
 						)

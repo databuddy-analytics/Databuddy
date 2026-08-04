@@ -10,8 +10,26 @@ import { z } from "zod";
 import {
 	InsightAgentExecutionError,
 	InsightAgentGenerationError,
+	InsightAgentTimeoutError,
 	runInsightAgent,
 } from "./agent";
+import type { DatabuddySetupContext } from "./databuddy-setup-context";
+import {
+	errorCustomerImpactEvidence,
+	type ErrorCustomerImpact,
+} from "./error-customer-impact";
+import {
+	errorCohortBehaviorEvidence,
+	type ErrorCohortBehavior,
+} from "./error-cohort-behavior";
+import {
+	errorCohortGoalCompletionEvidence,
+	type ErrorCohortGoalCompletion,
+} from "./error-cohort-goal-completion";
+import {
+	type VitalCohortBehavior,
+	vitalCohortBehaviorEvidence,
+} from "./vital-cohort-behavior";
 
 const signal: InvestigationSignal = {
 	signalKey: "visitors",
@@ -36,11 +54,110 @@ const evidence = [
 	"Campaign cmp_search_1 is paused and owned by the Acquisition team.",
 ];
 
+const fingerprintCustomerImpact: ErrorCustomerImpact = {
+	affectedSessions: 36,
+	affectedVisitorIdentifiers: 35,
+	ambiguousProfileSessions: 0,
+	errorOccurrences: 36,
+	identifiedProfiles: 0,
+	identifiedProfilesWithPriorAttributedCompletedPayment: 0,
+	identityCoveragePercent: 0,
+	linkedVisitorIdentifiers: 0,
+	paymentMatchIsLowerBound: true,
+	qualifyingProfilePaymentHistoryObserved: false,
+	scope: "fingerprint",
+	sessionsWithLaterTelemetry: 0,
+	unlinkedVisitorIdentifiers: 35,
+};
+
+const fingerprintErrorBehavior: ErrorCohortBehavior = {
+	affectedNextPagePercent: 10,
+	comparisonNextPagePercent: 60,
+	eligibleErrorSessions: 36,
+	matchedCoveragePercent: 94.4,
+	matchedErrorSessions: 34,
+	matchedPeerSessionObservations: 48,
+	matchedStrata: 1,
+};
+
+const fingerprintErrorGoalCompletion: ErrorCohortGoalCompletion = {
+	affectedCompletionPercent: 8.8,
+	affectedCompletionSessions: 3,
+	comparisonCompletionPercent: 45,
+	eligibleErrorSessions: 36,
+	matchedCoveragePercent: 94.4,
+	matchedErrorSessions: 34,
+	matchedPeerSessionObservations: 48,
+	matchedStrata: 1,
+};
+
+const fingerprintErrorSignal: InvestigationSignal = {
+	...signal,
+	entity: {
+		id: "fingerprint-1",
+		label: "Browser error",
+		type: "error",
+	},
+	metric: { ...signal.metric, current: 36, label: "Browser errors", previous: 23 },
+	signalKey: "error:fingerprint-1",
+};
+
+const routeVitalSignal: InvestigationSignal = {
+	...signal,
+	entity: {
+		id: "/explore",
+		label: "Route /explore",
+		type: "page",
+	},
+	metric: {
+		current: 3600,
+		format: "duration_ms",
+		label: "Largest Contentful Paint on /explore",
+		previous: 2300,
+	},
+	signalKey: "route:lcp:/explore",
+};
+
+const routeVitalBehavior: VitalCohortBehavior = {
+	comparisonNextPagePercent: 55,
+	eligibleSlowSessions: 40,
+	matchedCoveragePercent: 85,
+	matchedPeerSessionObservations: 380,
+	matchedSlowSessions: 34,
+	matchedStrata: 4,
+	metric: "LCP",
+	slowNextPagePercent: 20,
+};
+
+const databuddySetup: DatabuddySetupContext = {
+	configurationState: "current",
+	conversionMeasurement: { activeFunnels: 0, activeGoals: 0 },
+	customEvents: { eventTypes: 2, sessionsWithCustomEvents: 7 },
+	identity: {
+		coveragePercent: 25,
+		identifiedProfiles: 2,
+		identifiedSessions: 3,
+		trackedSessions: 12,
+	},
+	observedPeriod: { from: "2026-07-05", to: "2026-07-11" },
+	releases: {
+		activeFlags: { boolean: 1, multivariant: 0, rollout: 0 },
+		inactiveFlags: 0,
+		targetGroups: 0,
+	},
+	revenue: {
+		paddleConfigured: false,
+		stripeConfigured: false,
+		websiteConfigPresent: false,
+	},
+	traffic: { pageviews: 40, sessions: 12 },
+};
+
 const outcome: InvestigationOutcome = {
 	title: "Paid search campaign is paused",
 	summary: "Most of the visitor loss followed campaign cmp_search_1 pausing.",
 	impact: "The site lost 700 visitors in the comparison window.",
-	rootCause: "Campaign cmp_search_1 was paused before the comparison window.",
+	rootCause: null,
 	evidence: [
 		"Visitors fell from 1,000 to 300.",
 		"The campaign record shows cmp_search_1 is paused.",
@@ -48,20 +165,66 @@ const outcome: InvestigationOutcome = {
 	publish: true,
 	recommendation: null,
 	next: {
-		type: "act",
-		action: "Resume campaign cmp_search_1.",
-		recheckAt: "2026-07-15T00:00:00.000Z",
-		target: "campaign cmp_search_1",
-		verification: "Paid visits exceed 80 per day for three days.",
+		reason: "The available evidence does not establish a repair mechanism.",
+		type: "resolve",
 	},
 };
 
 const agentOutcome = {
 	...outcome,
+	next: outcome.next,
+	brief: {
+		claimRefs: {
+			impact: { index: 0, source: "provided" as const },
+			problem: { index: 0, source: "provided" as const },
+			rootCause: null,
+		},
+		scope: "exact_signal" as const,
+		userExperience: "measured" as const,
+	},
 	evidenceRefs: [
 		{ index: 0, source: "provided" as const },
 		{ index: 1, source: "provided" as const },
 	],
+};
+
+const canonicalOutcome: InvestigationOutcome = {
+	...outcome,
+	evidence,
+};
+
+const sourceBackedActionOutcome = {
+	...agentOutcome,
+	evidence: [
+		"Visitors fell from 1,000 to 300.",
+		"The inspected source disables campaign delivery.",
+	],
+	evidenceRefs: [
+		{ index: 0, source: "provided" as const },
+		{ name: "github_read_file", source: "tool" as const },
+	],
+	rootCause: "The inspected source disables campaign delivery.",
+	next: {
+		action: "Restore campaign delivery.",
+		execution: null,
+		recheckAt: "2026-07-15T00:00:00.000Z",
+		target: "Campaign delivery configuration",
+		type: "act" as const,
+		verification: "Visitors recover above the prior baseline.",
+	},
+	brief: {
+		...agentOutcome.brief,
+		claimRefs: {
+			impact: { index: 0, source: "provided" as const },
+			problem: { index: 0, source: "provided" as const },
+			rootCause: {
+				name: "github_read_file",
+				path: "src/campaign.ts",
+				receipt: "github_read_file-1",
+				source: "tool" as const,
+			},
+		},
+	},
 };
 
 const goalDraftOutcome = {
@@ -144,11 +307,14 @@ function outputResponse(value: unknown) {
 	};
 }
 
-function toolCallResponse(toolName = "inspect") {
+function toolCallResponse(
+	toolName = "inspect",
+	input: Record<string, unknown> = {}
+) {
 	return {
 		content: [
 			{
-				input: "{}",
+				input: JSON.stringify(input),
 				toolCallId: `${toolName}-1`,
 				toolName,
 				type: "tool-call" as const,
@@ -170,8 +336,43 @@ function outputModel(value: unknown = agentOutcome) {
 	});
 }
 
+function stallEventLoop(milliseconds: number): void {
+	const until = performance.now() + milliseconds;
+	while (performance.now() < until) {
+		// Deliberately block the event loop to exercise the deadline post-check.
+	}
+}
+
+function toolThenOutputModel(
+	toolName: string,
+	value: unknown,
+	input: Record<string, unknown> = {}
+) {
+	return new MockLanguageModelV3({
+		doGenerate: mockValues(
+			toolCallResponse(toolName, input),
+			outputResponse(value),
+			toolCallResponse(toolName, input),
+			outputResponse(value),
+			toolCallResponse(toolName, input),
+			outputResponse(value)
+		),
+	});
+}
+
+function sourceReadTool(output: unknown) {
+	return tool({
+		description: "Read an inspected source file.",
+		execute: (_input, execution) =>
+			output && typeof output === "object" && !("error" in output)
+				? { ...output, receipt: execution.toolCallId }
+				: output,
+		inputSchema: z.object({ path: z.string().optional() }).strict(),
+	});
+}
+
 describe("intelligence agent", () => {
-	it("returns the model's structured outcome directly", async () => {
+	it("returns the canonicalized structured outcome", async () => {
 		const model = outputModel();
 		const availableRead = tool({
 			description: "Test read",
@@ -182,6 +383,7 @@ describe("intelligence agent", () => {
 		const result = await runInsightAgent(
 			{
 				appContext: appContext(),
+				databuddySetup,
 				evidence,
 				githubRepository: null,
 				history: [],
@@ -200,12 +402,20 @@ describe("intelligence agent", () => {
 			}
 		);
 
-		expect(result).toMatchObject({ outcome, toolCallCount: 0 });
+		expect(result).toMatchObject({
+			outcome: canonicalOutcome,
+			toolCallCount: 0,
+		});
+		expect(result.outcome.rootCause).toBeNull();
+		expect(result.outcome.next).toEqual(outcome.next);
+		expect(result.outcome.next).not.toHaveProperty("execution");
 		const call = model.doGenerateCalls[0];
 		expect(call?.tools?.map((item) => item.name)).toEqual(["get_data"]);
 
 		const prompt = JSON.stringify(call?.prompt);
 		expect(prompt).toContain("Example Store");
+		expect(prompt).toContain("databuddyCapabilities");
+		expect(prompt).toContain("configurationState");
 		expect(JSON.stringify(call)).toContain(
 			"Treat the Insights feed as scarce teammate attention"
 		);
@@ -226,6 +436,240 @@ describe("intelligence agent", () => {
 		);
 		expect(JSON.stringify(call)).toContain(
 			"never narrow the headline, summary, impact, or repair request to one representative path"
+		);
+	});
+
+	it("publishes an exact supplied fact instead of a causal paraphrase", async () => {
+		const modelEvidence = [
+			"The first fact proves an unverified mechanism.",
+			"The second fact confirms that mechanism.",
+		];
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal,
+			},
+			{
+				model: outputModel({ ...agentOutcome, evidence: modelEvidence }),
+				tools: {},
+			}
+		);
+
+		expect(result.outcome.evidence).toEqual(evidence);
+		expect(result.outcome.evidence).not.toContain(modelEvidence[0]);
+	});
+
+	it("canonicalizes supplied evidence without changing tool-backed evidence", async () => {
+		const toolEvidence = "The inspected source adds a separate detail.";
+		const mixedEvidenceOutcome = {
+			...agentOutcome,
+			evidence: ["A transformed supplied fact.", toolEvidence],
+			evidenceRefs: [
+				{ index: 0, source: "provided" as const },
+				{ name: "inspect", source: "tool" as const },
+			],
+		};
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal,
+			},
+			{
+				model: toolThenOutputModel("inspect", mixedEvidenceOutcome),
+				tools: {
+					inspect: sourceReadTool({ content: "Source detail." }),
+				},
+			}
+		);
+
+		expect(result.outcome.evidence).toEqual([evidence[0], toolEvidence]);
+	});
+
+	it("rejects a failed read cited as evidence", async () => {
+		const failedToolOutcome = {
+			...agentOutcome,
+			evidence: [evidence[0], "The unavailable read established the impact."],
+			evidenceRefs: [
+				{ index: 0, source: "provided" as const },
+				{ name: "inspect", source: "tool" as const },
+			],
+		};
+
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+					signal,
+				},
+				{
+					model: toolThenOutputModel("inspect", failedToolOutcome),
+					tools: {
+						inspect: sourceReadTool({ error: "Source access was unavailable." }),
+					},
+				}
+			)
+		).rejects.toThrow("did not return usable evidence");
+	});
+
+	it("rejects an unavailable supplied evidence reference before publishing", async () => {
+		const unavailableEvidence = {
+			...agentOutcome,
+			evidenceRefs: [
+				{ index: 99, source: "provided" as const },
+				{ index: 1, source: "provided" as const },
+			],
+		};
+
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+					signal,
+				},
+				{ model: outputModel(unavailableEvidence), tools: {} }
+			)
+		).rejects.toThrow("cited supplied evidence");
+	});
+
+	it("keeps human annotation context outside citable supplied evidence", async () => {
+		const annotationContext =
+			"Annotation: 2026-07-10: A release was planned during this period";
+		const formerAnnotationEvidenceIndex = evidence.length;
+		const invalidAnnotationCitation = {
+			...agentOutcome,
+			evidence: [annotationContext, agentOutcome.evidence[1]],
+			evidenceRefs: [
+				{
+					index: formerAnnotationEvidenceIndex,
+					source: "provided" as const,
+				},
+				{ index: 1, source: "provided" as const },
+			],
+			brief: {
+				...agentOutcome.brief,
+				claimRefs: {
+					impact: {
+						index: formerAnnotationEvidenceIndex,
+						source: "provided" as const,
+					},
+					problem: {
+						index: formerAnnotationEvidenceIndex,
+						source: "provided" as const,
+					},
+					rootCause: null,
+				},
+			},
+		};
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				outputResponse(invalidAnnotationCitation),
+				outputResponse(agentOutcome)
+			),
+		});
+
+		const result = await runInsightAgent(
+			{
+				annotationContext,
+				appContext: appContext(),
+				evidence,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal,
+			},
+			{ model, tools: {} }
+		);
+
+		expect(result.outcome).toEqual(canonicalOutcome);
+		expect(result.outcome.evidence).not.toContain(annotationContext);
+		expect(model.doGenerateCalls).toHaveLength(2);
+		expect(JSON.stringify(model.doGenerateCalls[0]?.prompt)).toContain(
+			"annotationContext"
+		);
+		expect(JSON.stringify(model.doGenerateCalls[0]?.prompt)).toContain(
+			annotationContext
+		);
+		expect(JSON.stringify(model.doGenerateCalls[1]?.prompt)).toContain(
+			"cited supplied evidence"
+		);
+	});
+
+	it("keeps detector definition context outside citable supplied evidence", async () => {
+		const definitionContext =
+			'Goal "Signup" tracks the EVENT target "signup_completed". Filter setup: plan equals (1 value).';
+		const formerDefinitionEvidenceIndex = evidence.length;
+		const invalidDefinitionCitation = {
+			...agentOutcome,
+			evidence: [definitionContext, agentOutcome.evidence[1]],
+			evidenceRefs: [
+				{
+					index: formerDefinitionEvidenceIndex,
+					source: "provided" as const,
+				},
+				{ index: 1, source: "provided" as const },
+			],
+			brief: {
+				...agentOutcome.brief,
+				claimRefs: {
+					impact: {
+						index: formerDefinitionEvidenceIndex,
+						source: "provided" as const,
+					},
+					problem: {
+						index: formerDefinitionEvidenceIndex,
+						source: "provided" as const,
+					},
+					rootCause: null,
+				},
+			},
+		};
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				outputResponse(invalidDefinitionCitation),
+				outputResponse(agentOutcome)
+			),
+		});
+
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				definitionContext,
+				evidence,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal,
+			},
+			{ model, tools: {} }
+		);
+
+		expect(result.outcome).toEqual(canonicalOutcome);
+		expect(result.outcome.evidence).not.toContain(definitionContext);
+		expect(model.doGenerateCalls).toHaveLength(2);
+		expect(JSON.stringify(model.doGenerateCalls[0]?.prompt)).toContain(
+			"definitionContext"
+		);
+		expect(JSON.stringify(model.doGenerateCalls[0]?.prompt)).toContain(
+			"signup_completed"
+		);
+		expect(JSON.stringify(model.doGenerateCalls[1]?.prompt)).toContain(
+			"cited supplied evidence"
 		);
 	});
 
@@ -271,6 +715,52 @@ describe("intelligence agent", () => {
 		);
 	});
 
+	it("accepts only the supplied measurement-gap guide", async () => {
+		const measurementGapRecommendationCandidate = {
+			action:
+				"Choose the completed behavior to measure around /signup, instrument it as a Databuddy custom event, then review the observed event as a goal or funnel.",
+			kind: "measurement_gap" as const,
+			route: "/signup",
+		};
+		const measurementGapOutcome = {
+			...agentOutcome,
+			next: {
+				reason: "The measurement guide is ready for review.",
+				type: "resolve" as const,
+			},
+			recommendation: measurementGapRecommendationCandidate,
+		};
+		const input = {
+			appContext: appContext(),
+			evidence,
+			githubRepository: null,
+			history: [],
+			measurementGapRecommendationCandidate,
+			otherOpenWork: [],
+			signal,
+		};
+
+		const result = await runInsightAgent(input, {
+			model: outputModel(measurementGapOutcome),
+			tools: {},
+		});
+		expect(result.outcome.recommendation).toEqual(
+			measurementGapRecommendationCandidate
+		);
+
+		await expect(
+			runInsightAgent(
+				{ ...input, measurementGapRecommendationCandidate: null },
+				{
+					model: outputModel(measurementGapOutcome),
+					tools: {},
+				}
+			)
+		).rejects.toThrow(
+			"measurement-gap recommendations must match the backend candidate exactly"
+		);
+	});
+
 	it("retries one malformed final object without losing its usage", async () => {
 		const model = new MockLanguageModelV3({
 			doGenerate: mockValues(
@@ -296,7 +786,7 @@ describe("intelligence agent", () => {
 			{ model, tools: {} }
 		);
 
-		expect(result.outcome).toEqual(outcome);
+		expect(result.outcome).toEqual(canonicalOutcome);
 		expect(result.usage?.inputTokens).toBe(2);
 		expect(result.usage?.outputTokens).toBe(2);
 		expect(model.doGenerateCalls).toHaveLength(2);
@@ -332,12 +822,724 @@ describe("intelligence agent", () => {
 			{ model, tools: {} }
 		);
 
-		expect(result.outcome).toEqual(outcome);
+		expect(result.outcome).toEqual(canonicalOutcome);
 		expect(result.usage?.inputTokens).toBe(2);
 		expect(model.doGenerateCalls).toHaveLength(2);
 		expect(JSON.stringify(model.doGenerateCalls[1]?.prompt)).toContain(
 			"cited a read tool"
 		);
+	});
+
+	it("retries a route-scoped declaration for an exact error cohort", async () => {
+		const errorSignal = fingerprintErrorSignal;
+		const invalid = {
+			...agentOutcome,
+			brief: { ...agentOutcome.brief, scope: "route_error" as const },
+		};
+		const repaired = {
+			...agentOutcome,
+			brief: {
+				...agentOutcome.brief,
+				scope: "error_fingerprint" as const,
+			},
+		};
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(outputResponse(invalid), outputResponse(repaired)),
+		});
+
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				customerImpact: fingerprintCustomerImpact,
+				errorBehavior: fingerprintErrorBehavior,
+				evidence,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal: errorSignal,
+			},
+			{ model, tools: {} }
+		);
+
+		expect(result.outcome.title).toBe(
+			"35 visitors encountered an app error"
+		);
+		expect(result.outcome.summary).toBe(
+			"That error occurred 36 times; among 34 matched error sessions, 10.0% reached another tracked page within 30 minutes, versus 60.0% of comparable visits. This is an observed association, not causal proof."
+		);
+		expect(result.brief?.scope).toBe("error_fingerprint");
+		expect(model.doGenerateCalls).toHaveLength(2);
+		expect(JSON.stringify(model.doGenerateCalls[1]?.prompt)).toContain(
+			"brief scope must be error_fingerprint"
+		);
+		expect(JSON.stringify(model.doGenerateCalls[0]?.prompt)).toContain(
+			"errorBehavior"
+		);
+	});
+
+	it("binds a broad error lead over a route-localized model brief", async () => {
+		const errorSignal = fingerprintErrorSignal;
+		const routeSignal: InvestigationSignal = {
+			...signal,
+			entity: { id: "/explore", label: "/explore", type: "page" },
+			signalKey: "route:error:/explore",
+		};
+		const routeLocalized = {
+			...agentOutcome,
+			brief: {
+				...agentOutcome.brief,
+				scope: "error_fingerprint" as const,
+			},
+			summary: "The browser error interrupted visitors while loading Explore.",
+			title: "Explore loading error affected visitors",
+		};
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(outputResponse(routeLocalized)),
+		});
+
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				coveredRouteContext: [routeSignal],
+				customerImpact: fingerprintCustomerImpact,
+				evidence,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal: errorSignal,
+			},
+			{ model, tools: {} }
+		);
+
+		expect(result.outcome.title).toBe(
+			"35 visitors encountered an app error"
+		);
+		expect(result.outcome.summary).toBe(
+			"That error occurred 36 times among them; the data does not show which task, if any, it interrupted."
+		);
+		expect(`${result.outcome.title} ${result.outcome.summary}`).not.toContain(
+			"Explore"
+		);
+			expect(`${result.outcome.title} ${result.outcome.summary}`).not.toContain(
+				"abandon"
+			);
+			expect(result.outcome.evidence).toEqual(evidence);
+			expect(model.doGenerateCalls).toHaveLength(1);
+			expect(JSON.stringify(model.doGenerateCalls[0]?.prompt)).toContain(
+				"storySubject"
+			);
+			expect(JSON.stringify(model.doGenerateCalls[0]?.prompt)).toContain(
+				"coveredRouteContext"
+			);
+			expect(JSON.stringify(model.doGenerateCalls[0]?.prompt)).toContain(
+				"/explore"
+			);
+	});
+
+	it("binds qualified post-error behavior as a sourced non-causal impact", async () => {
+		const behaviorEvidence = errorCohortBehaviorEvidence(
+			fingerprintErrorBehavior
+		);
+		const modelOutcome = {
+			...agentOutcome,
+			brief: {
+				...agentOutcome.brief,
+				scope: "error_fingerprint" as const,
+				userExperience: "unmeasured" as const,
+			},
+			impact: "The model tried to replace the observed behavior.",
+		};
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				customerImpact: fingerprintCustomerImpact,
+				errorBehavior: fingerprintErrorBehavior,
+				errorBehaviorEvidenceIndex: evidence.length,
+				evidence: [...evidence, behaviorEvidence],
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal: fingerprintErrorSignal,
+			},
+			{ model: outputModel(modelOutcome), tools: {} }
+		);
+
+		expect(result.outcome.summary).toBe("That error occurred 36 times among them.");
+		expect(result.outcome.impact).toBe(
+			"In 34 matched error sessions, 10.0% reached another tracked page within 30 minutes versus 60.0% of comparable visits; this association is not causal."
+		);
+		expect(result.brief).toMatchObject({
+			claimRefs: {
+				impact: { index: evidence.length, source: "provided" },
+			},
+			userExperience: "observed_session_behavior",
+		});
+		expect(result.outcome.evidence).toEqual([evidence[0], behaviorEvidence]);
+		for (const unsafeTerm of [
+			"abandon",
+			"bounce",
+			"caused",
+			"retention",
+			"task failure",
+		]) {
+			expect(result.outcome.impact?.toLowerCase()).not.toContain(unsafeTerm);
+		}
+	});
+
+	it("keeps an already-visible backend-owned impact source in its selected order", async () => {
+		const behaviorEvidence = errorCohortBehaviorEvidence(
+			fingerprintErrorBehavior
+		);
+		const modelOutcome = {
+			...agentOutcome,
+			brief: {
+				...agentOutcome.brief,
+				scope: "error_fingerprint" as const,
+				userExperience: "unmeasured" as const,
+			},
+			evidence: ["Model-selected behavior.", "Model-selected problem."],
+			evidenceRefs: [
+				{ index: evidence.length, source: "provided" as const },
+				{ index: 0, source: "provided" as const },
+			],
+		};
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				errorBehavior: fingerprintErrorBehavior,
+				errorBehaviorEvidenceIndex: evidence.length,
+				evidence: [...evidence, behaviorEvidence],
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal: fingerprintErrorSignal,
+			},
+			{ model: outputModel(modelOutcome), tools: {} }
+		);
+
+		expect(result.outcome.evidence).toEqual([behaviorEvidence, evidence[0]]);
+		expect(result.outcome.evidence).toHaveLength(2);
+	});
+
+	it("shows a verified prior-payment lower bound without claiming current status", async () => {
+		const customerImpact: ErrorCustomerImpact = {
+			...fingerprintCustomerImpact,
+			identifiedProfiles: 2,
+			identifiedProfilesWithPriorAttributedCompletedPayment: 2,
+			identityCoveragePercent: 5.7,
+			linkedVisitorIdentifiers: 2,
+			qualifyingProfilePaymentHistoryObserved: true,
+			unlinkedVisitorIdentifiers: 33,
+		};
+		const modelOutcome = {
+			...agentOutcome,
+			brief: {
+				...agentOutcome.brief,
+				scope: "error_fingerprint" as const,
+				userExperience: "unmeasured" as const,
+			},
+		};
+		const paymentEvidence = errorCustomerImpactEvidence(customerImpact);
+
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				customerImpact,
+				evidence: ["The error rose from 23 to 36 occurrences.", paymentEvidence],
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal: fingerprintErrorSignal,
+			},
+			{ model: outputModel(modelOutcome), tools: {} }
+		);
+
+		expect(result.outcome.summary).toBe(
+			"At least 2 affected profiles had a prior attributed completed payment. That error occurred 36 times among them; the data does not show which task, if any, it interrupted."
+		);
+		expect(result.outcome.evidence).toEqual([
+			"The error rose from 23 to 36 occurrences.",
+			paymentEvidence,
+		]);
+		for (const unsafeTerm of [
+			"active subscription",
+			"paying customer",
+			"revenue",
+		]) {
+			expect(result.outcome.summary.toLowerCase()).not.toContain(unsafeTerm);
+		}
+	});
+
+	it("binds configured completion ahead of generic post-error continuation", async () => {
+		const behaviorEvidence = errorCohortBehaviorEvidence(
+			fingerprintErrorBehavior
+		);
+		const completionEvidence = errorCohortGoalCompletionEvidence(
+			fingerprintErrorGoalCompletion,
+			fingerprintErrorSignal
+		);
+		const modelOutcome = {
+			...agentOutcome,
+			brief: {
+				...agentOutcome.brief,
+				scope: "error_fingerprint" as const,
+				userExperience: "unmeasured" as const,
+			},
+			impact: "The model tried to replace the configured outcome.",
+		};
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				customerImpact: fingerprintCustomerImpact,
+				errorBehavior: fingerprintErrorBehavior,
+				errorBehaviorEvidenceIndex: evidence.length,
+				errorGoalCompletion: fingerprintErrorGoalCompletion,
+				errorGoalCompletionEvidenceIndex: evidence.length + 1,
+				evidence: [...evidence, behaviorEvidence, completionEvidence],
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal: fingerprintErrorSignal,
+			},
+			{ model: outputModel(modelOutcome), tools: {} }
+		);
+
+		expect(result.outcome.impact).toBe(
+			"In 34 matched sessions, 8.8% reached the configured completion within 30 minutes after this error, versus 45.0% of comparable same-day visits; the comparison is not causal."
+		);
+		expect(result.brief).toMatchObject({
+			claimRefs: {
+				impact: { index: evidence.length + 1, source: "provided" },
+			},
+			userExperience: "observed_configured_completion",
+		});
+		expect(result.outcome.evidence).toEqual([evidence[0], completionEvidence]);
+		for (const unsafeTerm of [
+			"abandon",
+			"blocked",
+			"caused",
+			"retention",
+			"task failure",
+		]) {
+			expect(result.outcome.impact?.toLowerCase()).not.toContain(unsafeTerm);
+		}
+		expect(JSON.stringify(result)).not.toContain("/completed");
+	});
+
+	it("binds the same qualified behavior for a route-error cohort", async () => {
+		const routeErrorSignal: InvestigationSignal = {
+			...fingerprintErrorSignal,
+			entity: { id: "/browse", label: "/browse", type: "page" },
+			signalKey: "route:error:/browse",
+		};
+		const behaviorEvidence = errorCohortBehaviorEvidence(
+			fingerprintErrorBehavior
+		);
+		const modelOutcome = {
+			...agentOutcome,
+			brief: {
+				...agentOutcome.brief,
+				scope: "route_error" as const,
+				userExperience: "unmeasured" as const,
+			},
+		};
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				errorBehavior: fingerprintErrorBehavior,
+				errorBehaviorEvidenceIndex: evidence.length,
+				evidence: [...evidence, behaviorEvidence],
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal: routeErrorSignal,
+			},
+			{ model: outputModel(modelOutcome), tools: {} }
+		);
+
+		expect(result.outcome.impact).toContain(
+			"10.0% reached another tracked page within 30 minutes versus 60.0%"
+		);
+		expect(result.brief?.userExperience).toBe(
+			"observed_session_behavior"
+		);
+		expect(result.outcome.evidence).toEqual([evidence[0], behaviorEvidence]);
+	});
+
+	it("binds a qualified slow-vital cohort as a sourced non-causal impact", async () => {
+		const behaviorEvidence = vitalCohortBehaviorEvidence(
+			routeVitalBehavior,
+			routeVitalSignal
+		);
+		const modelOutcome = {
+			...agentOutcome,
+			next: {
+				reason: "The cohort comparison is ready for review.",
+				type: "resolve" as const,
+			},
+			brief: {
+				...agentOutcome.brief,
+				claimRefs: {
+					...agentOutcome.brief.claimRefs,
+					rootCause: null,
+				},
+				userExperience: "unmeasured" as const,
+			},
+			impact: "The model tried to replace the observed behavior.",
+			rootCause: null,
+			summary: "A route's load performance became unhealthy.",
+			title: "Route performance became unhealthy",
+		};
+
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence: [...evidence, behaviorEvidence],
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal: routeVitalSignal,
+				vitalBehavior: routeVitalBehavior,
+				vitalBehaviorEvidenceIndex: evidence.length,
+			},
+			{ model: outputModel(modelOutcome), tools: {} }
+		);
+
+		expect(result.outcome.impact).toBe(
+			"In 34 sessions with a slow page load, 20.0% reached another tracked page within 30 minutes, versus 55.0% of same-route, same-day visits without a slow page load; the comparison is not causal."
+		);
+		expect(result.outcome.impact).not.toBe(modelOutcome.impact);
+		expect(result.brief).toMatchObject({
+			claimRefs: {
+				impact: { index: evidence.length, source: "provided" },
+			},
+			userExperience: "observed_session_behavior",
+		});
+		expect(result.outcome.evidence).toEqual([evidence[0], behaviorEvidence]);
+		for (const unsafeTerm of [
+			"abandon",
+			"bounce",
+			"caused",
+			"retention",
+			"task failure",
+		]) {
+			expect(result.outcome.impact?.toLowerCase()).not.toContain(unsafeTerm);
+		}
+	});
+
+	it("keeps an exact route vital unmeasured without a qualifying cohort", async () => {
+		const modelOutcome = {
+			...agentOutcome,
+			next: {
+				reason: "The route health finding is ready for review.",
+				type: "resolve" as const,
+			},
+			brief: {
+				...agentOutcome.brief,
+				claimRefs: {
+					...agentOutcome.brief.claimRefs,
+					rootCause: null,
+				},
+				userExperience: "measured" as const,
+			},
+			impact: "The slow route makes the reliability decision urgent.",
+			rootCause: null,
+			summary: "A route's load performance became unhealthy.",
+			title: "Route performance became unhealthy",
+		};
+
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal: routeVitalSignal,
+			},
+			{ model: outputModel(modelOutcome), tools: {} }
+		);
+
+		expect(result.outcome.impact).toBe(modelOutcome.impact);
+		expect(result.brief?.userExperience).toBe("unmeasured");
+	});
+
+	it("rejects an ungrounded vital continuation claim when its evidence is not exact", async () => {
+		const invalid = {
+			...agentOutcome,
+			next: {
+				reason: "The route health finding is ready for review.",
+				type: "resolve" as const,
+			},
+			brief: {
+				...agentOutcome.brief,
+				claimRefs: {
+					...agentOutcome.brief.claimRefs,
+					rootCause: null,
+				},
+				userExperience: "observed_session_behavior" as const,
+			},
+			rootCause: null,
+			summary: "A route's load performance became unhealthy.",
+			title: "Route performance became unhealthy",
+		};
+
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence: [...evidence, "A different supplied fact."],
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+					signal: routeVitalSignal,
+					vitalBehavior: routeVitalBehavior,
+					vitalBehaviorEvidenceIndex: evidence.length,
+				},
+				{ model: outputModel(invalid), tools: {} }
+			)
+		).rejects.toThrow(
+			"Observed session behavior requires the exact backend-owned post-exposure continuation impact"
+		);
+	});
+
+	it("rejects a model-authored observed-session-behavior state", async () => {
+		const invalid = {
+			...agentOutcome,
+			brief: {
+				...agentOutcome.brief,
+				userExperience: "observed_session_behavior" as const,
+			},
+		};
+
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+					signal,
+				},
+				{ model: outputModel(invalid), tools: {} }
+			)
+		).rejects.toThrow(
+			"Observed session behavior requires the exact backend-owned post-exposure continuation impact"
+		);
+	});
+
+	it("rejects a model-authored configured-completion state", async () => {
+		const invalid = {
+			...agentOutcome,
+			brief: {
+				...agentOutcome.brief,
+				userExperience: "observed_configured_completion" as const,
+			},
+		};
+
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+					signal,
+				},
+				{ model: outputModel(invalid), tools: {} }
+			)
+		).rejects.toThrow(
+			"Observed configured completion requires the exact backend-owned goal-completion impact"
+		);
+	});
+
+	it("keeps model copy when error cohort impact is not a matching fingerprint aggregate", async () => {
+		const routeErrorSignal: InvestigationSignal = {
+			...fingerprintErrorSignal,
+			entity: { id: "/browse", label: "/browse", type: "page" },
+			signalKey: "route:error:/browse",
+		};
+		const candidates = [
+			{
+				customerImpact: null,
+				signal: fingerprintErrorSignal,
+				scope: "error_fingerprint" as const,
+			},
+			{
+				customerImpact: {
+					...fingerprintCustomerImpact,
+					scope: "route" as const,
+				},
+				signal: fingerprintErrorSignal,
+				scope: "error_fingerprint" as const,
+			},
+			{
+				customerImpact: {
+					...fingerprintCustomerImpact,
+					errorOccurrences: 35,
+				},
+				signal: fingerprintErrorSignal,
+				scope: "error_fingerprint" as const,
+			},
+			{
+				customerImpact: {
+					...fingerprintCustomerImpact,
+					affectedVisitorIdentifiers: 0,
+					unlinkedVisitorIdentifiers: 0,
+				},
+				signal: fingerprintErrorSignal,
+				scope: "error_fingerprint" as const,
+			},
+			{
+				customerImpact: fingerprintCustomerImpact,
+				signal: routeErrorSignal,
+				scope: "route_error" as const,
+			},
+		];
+
+		for (const candidate of candidates) {
+			const modelOutcome = {
+				...agentOutcome,
+				brief: { ...agentOutcome.brief, scope: candidate.scope },
+				summary: "A model-authored error summary.",
+				title: "Model-authored error headline",
+			};
+			const model = outputModel(modelOutcome);
+			const result = await runInsightAgent(
+				{
+					appContext: appContext(),
+					customerImpact: candidate.customerImpact,
+					evidence,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+					signal: candidate.signal,
+				},
+				{ model, tools: {} }
+			);
+
+			expect(result.outcome.title).toBe(modelOutcome.title);
+			expect(result.outcome.summary).toBe(modelOutcome.summary);
+		}
+	});
+
+	it("falls back when a behavior comparison exceeds the error cohort", async () => {
+		const modelOutcome = {
+			...agentOutcome,
+			brief: { ...agentOutcome.brief, scope: "error_fingerprint" as const },
+			summary: "A model-authored error summary.",
+			title: "Model-authored error headline",
+		};
+		const model = outputModel(modelOutcome);
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				customerImpact: fingerprintCustomerImpact,
+				errorBehavior: {
+					...fingerprintErrorBehavior,
+					eligibleErrorSessions: 37,
+				},
+				evidence,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal: fingerprintErrorSignal,
+			},
+			{ model, tools: {} }
+		);
+
+		expect(result.outcome.title).toBe(
+			"35 visitors encountered an app error"
+		);
+		expect(result.outcome.summary).toBe(
+			"That error occurred 36 times among them; the data does not show which task, if any, it interrupted."
+		);
+	});
+
+	it("rejects unavailable brief claim provenance", async () => {
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+					signal,
+				},
+				{
+					model: outputModel({
+						...agentOutcome,
+						brief: {
+							...agentOutcome.brief,
+							claimRefs: {
+								...agentOutcome.brief.claimRefs,
+								impact: { index: 99, source: "provided" },
+							},
+						},
+					}),
+					tools: {},
+				}
+			)
+		).rejects.toThrow("cited supplied evidence");
+	});
+
+	it("requires impact provenance for measured and published briefs", async () => {
+		const missingImpact = {
+			...agentOutcome,
+			brief: {
+				...agentOutcome.brief,
+				claimRefs: {
+					...agentOutcome.brief.claimRefs,
+					impact: null,
+				},
+			},
+		};
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+					signal,
+				},
+				{ model: outputModel(missingImpact), tools: {} }
+			)
+		).rejects.toThrow("impact and impact provenance");
+
+		const unmeasuredWithoutImpact = {
+			...agentOutcome,
+			brief: {
+				...agentOutcome.brief,
+				claimRefs: {
+					...agentOutcome.brief.claimRefs,
+					impact: null,
+				},
+				userExperience: "unmeasured" as const,
+			},
+			impact: null,
+			next: {
+				reason: "No repair can be chosen from the available evidence.",
+				type: "resolve" as const,
+			},
+		};
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+					signal,
+				},
+				{ model: outputModel(unmeasuredWithoutImpact), tools: {} }
+			)
+		).rejects.toThrow("Published insights require sourced impact");
 	});
 
 	it("retries when the structured response reaches the output limit", async () => {
@@ -365,7 +1567,7 @@ describe("intelligence agent", () => {
 			{ model, tools: {} }
 		);
 
-		expect(result.outcome).toEqual(outcome);
+		expect(result.outcome).toEqual(canonicalOutcome);
 		expect(result.usage?.inputTokens).toBe(2);
 		expect(model.doGenerateCalls).toHaveLength(2);
 	});
@@ -407,6 +1609,173 @@ describe("intelligence agent", () => {
 		expect(failure.usage.inputTokens).toBe(3);
 		expect(failure.usage.outputTokens).toBe(3);
 		expect(model.doGenerateCalls).toHaveLength(3);
+	});
+
+	it("turns its local deadline into a candidate-local timeout", async () => {
+		let aborted = false;
+		const model = new MockLanguageModelV3({
+			doGenerate: async ({ abortSignal }) =>
+				await new Promise((_, reject) => {
+					abortSignal?.addEventListener(
+						"abort",
+						() => {
+							aborted = true;
+							reject(abortSignal.reason);
+						},
+						{ once: true }
+					);
+				}),
+		});
+
+		let failure: unknown;
+		try {
+			await runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+					signal,
+				},
+				{ model, timeoutMs: 20, tools: {} }
+			);
+		} catch (error) {
+			failure = error;
+		}
+
+		expect(failure).toBeInstanceOf(InsightAgentTimeoutError);
+		if (!(failure instanceof InsightAgentTimeoutError)) {
+			throw failure;
+		}
+		expect(failure.cause).toMatchObject({ name: "TimeoutError" });
+		expect(failure.usage.inputTokens).toBe(0);
+		expect(aborted).toBe(true);
+		expect(failure.timeout).toMatchObject({
+			budgetMs: 20,
+			phase: "generation",
+		});
+	});
+
+	it("rejects an invalid local deadline before starting work", async () => {
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+					signal,
+				},
+				{ model: outputModel(), timeoutMs: 0, tools: {} }
+			)
+		).rejects.toThrow("Insight agent timeout must be a positive finite number");
+	});
+
+	it("starts the deadline before setup work", async () => {
+		const delayedTools = new Proxy(
+			{},
+			{
+				get: () => {
+					stallEventLoop(30);
+					return undefined;
+				},
+			}
+		);
+
+		let failure: unknown;
+		try {
+			await runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+					signal,
+				},
+				{ model: outputModel(), timeoutMs: 20, tools: delayedTools as never }
+			);
+		} catch (error) {
+			failure = error;
+		}
+
+		expect(failure).toBeInstanceOf(InsightAgentTimeoutError);
+		if (!(failure instanceof InsightAgentTimeoutError)) {
+			throw failure;
+		}
+		expect(failure.timeout).toMatchObject({
+			budgetMs: 20,
+			phase: "setup",
+		});
+	});
+
+	it("rejects a completed response observed after a stalled event loop", async () => {
+		const model = new MockLanguageModelV3({
+			doGenerate: async () => {
+				stallEventLoop(30);
+				return outputResponse(agentOutcome);
+			},
+		});
+
+		let failure: unknown;
+		try {
+			await runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+					signal,
+				},
+				{ model, timeoutMs: 20, tools: {} }
+			);
+		} catch (error) {
+			failure = error;
+		}
+
+		expect(failure).toBeInstanceOf(InsightAgentTimeoutError);
+		if (!(failure instanceof InsightAgentTimeoutError)) {
+			throw failure;
+		}
+		expect(failure.timeout).toMatchObject({
+			budgetMs: 20,
+			phase: "generation",
+		});
+		expect(failure.timeout?.elapsedMs).toBeGreaterThanOrEqual(20);
+	});
+
+	it("keeps a provider timeout fail-fast instead of treating it as candidate-local", async () => {
+		const providerFailure = Object.assign(new Error("AI gateway timed out"), {
+			name: "TimeoutError",
+		});
+		const model = new MockLanguageModelV3({
+			doGenerate: async () => {
+				throw providerFailure;
+			},
+		});
+
+		let failure: unknown;
+		try {
+			await runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+					signal,
+				},
+				{ model, tools: {} }
+			);
+		} catch (error) {
+			failure = error;
+		}
+
+		expect(failure).toBe(providerFailure);
+		expect(failure).not.toBeInstanceOf(InsightAgentTimeoutError);
 	});
 
 	it("keeps a paid mid-run infrastructure failure out of candidate-local errors", async () => {
@@ -559,6 +1928,61 @@ describe("intelligence agent", () => {
 			)
 		).rejects.toThrow(
 			"Insights goal drafts require an observed event candidate or inspected target"
+		);
+	});
+
+	it("rejects an invented instrumentation event after inspecting only a route", async () => {
+		const inventedInstrumentation = {
+			...agentOutcome,
+			next: {
+				reason: "The event advice is ready for review.",
+				type: "resolve" as const,
+			},
+			recommendation: {
+				action: "Instrument the completed signup behavior.",
+				events: [
+					{
+						description: "Emit after signup completes.",
+						name: "signup_completed",
+					},
+				],
+				kind: "instrumentation" as const,
+			},
+		};
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					githubRepository: null,
+					history: [],
+					measurementCandidate: {
+						basis: "observed_navigation_proxy",
+						kind: "page_navigation_proxy",
+						target: "/signup",
+						type: "PAGE_VIEW",
+					},
+					otherOpenWork: [],
+					signal,
+				},
+				{
+					model: new MockLanguageModelV3({
+						doGenerate: mockValues(
+							toolCallResponse(),
+							outputResponse(inventedInstrumentation)
+						),
+					}),
+					tools: {
+						inspect: tool({
+							description: "Inspect a navigation path.",
+							execute: () => ({ path: "/signup" }),
+							inputSchema: z.object({}).strict(),
+						}),
+					},
+				}
+			)
+		).rejects.toThrow(
+			"Insights instrumentation recommendations require inspected exact event evidence"
 		);
 	});
 
@@ -740,9 +2164,221 @@ describe("intelligence agent", () => {
 			}
 		);
 
-		expect(result.outcome).toEqual(outcome);
+		expect(result.outcome).toEqual(canonicalOutcome);
 		expect(result.toolCallCount).toBe(1);
 		expect(model.doGenerateCalls).toHaveLength(2);
+	});
+
+	it("rejects a provided causal claim and action without a source receipt", async () => {
+		const providedCause = {
+			...sourceBackedActionOutcome,
+			evidenceRefs: [
+				{ index: 0, source: "provided" as const },
+				{ index: 1, source: "provided" as const },
+			],
+			brief: {
+				...sourceBackedActionOutcome.brief,
+				claimRefs: {
+					...sourceBackedActionOutcome.brief.claimRefs,
+					rootCause: { index: 1, source: "provided" as const },
+				},
+			},
+		};
+
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+					signal,
+				},
+				{ model: outputModel(providedCause), tools: {} }
+		)
+		).rejects.toThrow(
+			"root causes require the exact successful github_read_file path and receipt"
+		);
+	});
+
+	it("rejects a successful generic read as a causal mechanism", async () => {
+		const genericCause = {
+			...sourceBackedActionOutcome,
+			evidenceRefs: [
+				{ index: 0, source: "provided" as const },
+				{ name: "inspect", source: "tool" as const },
+			],
+			brief: {
+				...sourceBackedActionOutcome.brief,
+				claimRefs: {
+					...sourceBackedActionOutcome.brief.claimRefs,
+					rootCause: { name: "inspect", source: "tool" as const },
+				},
+			},
+		};
+
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+					signal,
+				},
+				{
+					model: toolThenOutputModel("inspect", genericCause),
+					tools: {
+						inspect: sourceReadTool({ content: "A generic data result." }),
+					},
+				}
+		)
+		).rejects.toThrow(
+			"root causes require the exact successful github_read_file path and receipt"
+		);
+	});
+
+	it("rejects code-search results as a causal mechanism", async () => {
+		const searchCause = {
+			...sourceBackedActionOutcome,
+			evidenceRefs: [
+				{ index: 0, source: "provided" as const },
+				{ name: "github_search_code", source: "tool" as const },
+			],
+			brief: {
+				...sourceBackedActionOutcome.brief,
+				claimRefs: {
+					...sourceBackedActionOutcome.brief.claimRefs,
+					rootCause: {
+						name: "github_search_code",
+						source: "tool" as const,
+					},
+				},
+			},
+		};
+
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+					signal,
+				},
+				{
+					model: toolThenOutputModel("github_search_code", searchCause),
+					tools: {
+						github_search_code: sourceReadTool({
+							matches: ["src/campaign.ts"],
+						}),
+					},
+				}
+			)
+		).rejects.toThrow(
+			"root causes require the exact successful github_read_file path and receipt"
+		);
+	});
+
+	it("rejects a failed source-file read as a causal mechanism", async () => {
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+					signal,
+				},
+				{
+					model: toolThenOutputModel(
+						"github_read_file",
+						sourceBackedActionOutcome
+					),
+					tools: {
+						github_read_file: sourceReadTool({
+							error: "Source access was unavailable.",
+						}),
+					},
+				}
+			)
+		).rejects.toThrow(
+			"did not return usable evidence"
+		);
+	});
+
+	it("accepts a causal action backed by a successful source-file read", async () => {
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal,
+			},
+		{
+			model: toolThenOutputModel(
+				"github_read_file",
+				sourceBackedActionOutcome,
+				{ path: "src/campaign.ts" }
+			),
+			tools: {
+				github_read_file: sourceReadTool({
+					content: "export const campaignDeliveryEnabled = false;",
+					path: "src/campaign.ts",
+					size: 46,
+				}),
+			},
+		}
+	);
+
+		expect(result.outcome.rootCause).toBe(
+			"The inspected source disables campaign delivery."
+		);
+		expect(result.outcome.next).toEqual({
+			action: "Restore campaign delivery.",
+			recheckAt: "2026-07-15T00:00:00.000Z",
+			target: "Campaign delivery configuration",
+			type: "act",
+			verification: "Visitors recover above the prior baseline.",
+		});
+		expect(result.toolCallCount).toBe(1);
+	});
+
+	it("rejects a root cause tied to a different successful source-file read", async () => {
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+					signal,
+				},
+				{
+					model: toolThenOutputModel(
+						"github_read_file",
+						sourceBackedActionOutcome,
+						{ path: "src/unrelated.ts" }
+					),
+					tools: {
+						github_read_file: sourceReadTool({
+							content: "export const unrelated = true;",
+							path: "src/unrelated.ts",
+							size: 30,
+						}),
+					},
+				}
+			)
+		).rejects.toThrow(
+			"root causes require the exact successful github_read_file path and receipt"
+		);
 	});
 
 	it("fails when the structured output does not match the contract", async () => {
@@ -836,8 +2472,15 @@ describe("intelligence agent", () => {
 					model: outputModel({
 						...agentOutcome,
 						next: {
-							...agentOutcome.next,
+							escalation: "Traffic remains above the prior baseline.",
 							recheckAt: "2026-07-11T00:00:00.000Z",
+							threshold: {
+								anchor: "prior_baseline",
+								comparison: "above",
+								evidenceRef: { index: 0, source: "provided" as const },
+								value: 400,
+							},
+							type: "watch" as const,
 						},
 					}),
 					tools: {},
@@ -859,7 +2502,16 @@ describe("intelligence agent", () => {
 		{
 			model: outputModel({
 				...agentOutcome,
+				brief: {
+					...agentOutcome.brief,
+					claimRefs: {
+						...agentOutcome.brief.claimRefs,
+						impact: null,
+					},
+					userExperience: "unmeasured",
+				},
 				impact: null,
+				publish: false,
 				next: {
 					escalation: "Ignore this generated copy.",
 					recheckAt: "2026-07-15T00:00:00.000Z",
@@ -908,10 +2560,19 @@ describe("intelligence agent", () => {
 				},
 			},
 			{
-				model: outputModel({
-					...agentOutcome,
-					impact: null,
-					next: {
+					model: outputModel({
+						...agentOutcome,
+						brief: {
+							...agentOutcome.brief,
+							claimRefs: {
+								...agentOutcome.brief.claimRefs,
+								impact: null,
+							},
+							userExperience: "unmeasured",
+						},
+						impact: null,
+						publish: false,
+						next: {
 						escalation: "Ignore this generated copy.",
 						recheckAt: "2026-07-15T00:00:00.000Z",
 						threshold: {

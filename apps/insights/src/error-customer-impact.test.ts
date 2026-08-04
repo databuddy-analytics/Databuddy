@@ -6,6 +6,7 @@ import {
 	errorIdentitySetupRecommendation,
 	loadErrorCustomerImpact,
 	parseErrorCustomerImpact,
+	priorCompletedPaymentSummary,
 } from "./error-customer-impact";
 
 const errorSignal: InvestigationSignal = {
@@ -120,26 +121,91 @@ describe("error customer impact", () => {
 			throw new Error("Expected route impact fixture");
 		}
 		expect(impact.scope).toBe("route");
-		expect(errorCustomerImpactEvidence(impact)).toContain("Errors on this route");
-		expect(errorCustomerImpactEvidence(impact)).not.toContain("This exact error");
+		expect(errorCustomerImpactEvidence(impact)).not.toContain("/explore");
 	});
 
-	it("states payment matches as a lower bound and unknowns as unknown", () => {
-		const impact = parseErrorCustomerImpact(row);
-		if (!impact) {
-			throw new Error("Expected impact fixture");
+	it("states one concise identity or payment fact without inventing status", () => {
+		const noIdentity = parseErrorCustomerImpact({
+			...row,
+			identified_profiles: 0,
+			identified_profiles_with_prior_attributed_completed_payment: 0,
+			identity_coverage_percent: 0,
+			linked_visitor_identifiers: 0,
+			qualifying_profile_payment_history_observed: 0,
+			unlinked_visitor_identifiers: 35,
+		});
+		const partialIdentity = parseErrorCustomerImpact({
+			...row,
+			identified_profiles_with_prior_attributed_completed_payment: 0,
+			qualifying_profile_payment_history_observed: 0,
+		});
+		const paymentLowerBound = parseErrorCustomerImpact(row);
+		for (const [impact, expected] of [
+			[
+				noIdentity,
+				"No affected identifiers linked to profiles, so customer and payment status are unknown.",
+			],
+			[
+				partialIdentity,
+				"5 of 35 affected identifiers linked to profiles; payment status remains unknown.",
+			],
+			[
+				paymentLowerBound,
+				"At least 2 affected profiles had an attributed completed payment before the error; other payment status is unknown.",
+			],
+		] as const) {
+			if (!impact) {
+				throw new Error("Expected impact fixture");
+			}
+			const evidence = errorCustomerImpactEvidence(impact);
+			expect(evidence).toBe(expected);
+			expect(evidence.trim().split(/\s+/).length).toBeLessThanOrEqual(25);
+			expect(evidence).not.toContain("active subscription");
+			expect(evidence).not.toContain("paying customers");
+			expect(evidence).not.toContain("anonymous_id");
+			expect(evidence).not.toContain("profile_id");
+			expect(evidence).not.toContain("session_id");
 		}
-		const evidence = errorCustomerImpactEvidence(impact);
+	});
 
-		expect(evidence).toContain(
-			"At least 2 identified profiles had an attributed completed payment"
+	it("exposes only a qualified prior-payment lower bound in a brief", () => {
+		const paymentLowerBound = parseErrorCustomerImpact(row);
+		if (!paymentLowerBound) {
+			throw new Error("Expected payment lower bound fixture");
+		}
+
+		expect(priorCompletedPaymentSummary(paymentLowerBound)).toBe(
+			"At least 2 affected profiles had a prior attributed completed payment."
 		);
-		expect(evidence).toContain("before their first error");
-		expect(evidence).toContain("unmatched payment status remains unknown");
-		expect(evidence).not.toContain("paying customers");
-		expect(evidence).not.toContain("anonymous_id");
-		expect(evidence).not.toContain("profile_id");
-		expect(evidence).not.toContain("session_id");
+		expect(
+			priorCompletedPaymentSummary({
+				...paymentLowerBound,
+				identifiedProfilesWithPriorAttributedCompletedPayment: 0,
+			})
+		).toBeNull();
+		expect(
+			priorCompletedPaymentSummary({
+				...paymentLowerBound,
+				qualifyingProfilePaymentHistoryObserved: false,
+			})
+		).toBeNull();
+		expect(
+			priorCompletedPaymentSummary({
+				...paymentLowerBound,
+				identifiedProfilesWithPriorAttributedCompletedPayment: 6,
+			})
+		).toBeNull();
+		expect(
+			errorCustomerImpactEvidence({
+				...paymentLowerBound,
+				qualifyingProfilePaymentHistoryObserved: false,
+			})
+		).toBe(
+			"5 of 35 affected identifiers linked to profiles; payment status remains unknown."
+		);
+		const summary = priorCompletedPaymentSummary(paymentLowerBound);
+		expect(summary).not.toContain("active subscription");
+		expect(summary).not.toContain("paying customer");
 	});
 
 	it("offers identification only for a material fully unlinked cohort", () => {

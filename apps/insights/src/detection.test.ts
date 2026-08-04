@@ -983,6 +983,11 @@ describe("detectSignals", () => {
 			expect(errorSignal!.deltaPercent).toBe(150);
 			expect(errorSignal!.severity).toBe("warning");
 			expect(errorSignal!.subjectKey).toBe("error:cart is undefined");
+			expect(errorSignal!.reach).toEqual({
+			current: 8,
+			previous: 5,
+			unit: "visitor_identifiers",
+		});
 		});
 
 		it("keeps distinct error fingerprints as distinct signals", async () => {

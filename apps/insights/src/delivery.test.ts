@@ -8,6 +8,7 @@ import {
 	buildFallbackText,
 	buildInsightReplyText,
 	buildThreadBlocks,
+	hasLegacyInsightSlackAnnotation,
 	insightSlackEffectPayloadSchema,
 } from "./delivery";
 import type { WebsiteInvestigation } from "./persistence";
@@ -83,6 +84,37 @@ function investigationWith(
 }
 
 describe("Slack investigation delivery", () => {
+	it("recognizes only the exact legacy annotation bullet in queued payloads", () => {
+		expect(
+			hasLegacyInsightSlackAnnotation({
+				blocks: [
+					{
+						text: {
+							text: "• Annotation: 2026-08-01: Rollback completed.",
+							type: "mrkdwn",
+						},
+						type: "section",
+					},
+				],
+				text: "Route failure needs review.",
+			})
+		).toBe(true);
+		expect(
+			hasLegacyInsightSlackAnnotation({
+				blocks: [
+					{
+						text: {
+							text: "• Annotation: rollback completed.",
+							type: "mrkdwn",
+						},
+						type: "section",
+					},
+				],
+				text: "A teammate left an annotation for this route.",
+			})
+		).toBe(false);
+	});
+
 	it("keeps the canonical insight id in new effects without breaking old ones", () => {
 		expect(
 			insightSlackEffectPayloadSchema.parse({

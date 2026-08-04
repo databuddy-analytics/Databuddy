@@ -2,7 +2,9 @@ import { describe, expect, it } from "bun:test";
 import type { DetectedSignal } from "./detection";
 import {
 	coveragePortfolioLimit,
+	errorQualificationFrontierLimit,
 	planCoveragePortfolio,
+	planCoveragePortfolioWithTrace,
 } from "./coverage-planner";
 import {
 	prepareInvestigation,
@@ -31,22 +33,32 @@ function keys(signals: DetectedSignal[]): string[] {
 }
 
 describe("planCoveragePortfolio", () => {
-	it("caps manual runs at three signals and scheduled runs at two", () => {
+	it("caps manual runs at six signals and scheduled runs at two", () => {
 		const candidates = [
 			signal({ metric: "error_count", subjectKey: "error:checkout" }),
 			signal({ metric: "goal:signup", subjectKey: "goal:signup" }),
 			signal({ metric: "visitors" }),
 			signal({ metric: "bounce_rate", direction: "up" }),
+			signal({ metric: "revenue" }),
+			signal({
+				metric: "custom_event_count",
+				subjectKey: "custom_event:signup",
+			}),
 		];
 
-		expect(coveragePortfolioLimit("manual")).toBe(3);
+		expect(coveragePortfolioLimit("manual")).toBe(6);
 		expect(coveragePortfolioLimit("scheduled")).toBe(2);
 		expect(
 			planCoveragePortfolio(candidates, { reason: "manual" })
-		).toHaveLength(3);
+		).toHaveLength(6);
 		expect(
 			planCoveragePortfolio(candidates, { reason: "scheduled" })
 		).toHaveLength(2);
+	});
+
+	it("keeps a bounded error-qualification replacement window", () => {
+		expect(errorQualificationFrontierLimit("scheduled")).toBe(4);
+		expect(errorQualificationFrontierLimit("manual")).toBe(12);
 	});
 
 	it("reserves a due recheck before higher-ranked newly detected signals", () => {
@@ -72,6 +84,46 @@ describe("planCoveragePortfolio", () => {
 		expect(keys(plan)).toEqual([
 			signalKeyForDetectedSignal(due),
 			signalKeyForDetectedSignal(criticalError),
+		]);
+	});
+
+	it("does not fill capacity from unqualified candidates but preserves a due recheck", () => {
+		const genericTraffic = signal({
+			metric: "visitors",
+			subjectKey: "traffic:weekly-visitors",
+		});
+		const qualifiedGoal = signal({
+			metric: "goal:signup",
+			subjectKey: "goal:signup",
+		});
+		const unqualified = new Set([signalKeyForDetectedSignal(genericTraffic)]);
+
+		const screened = planCoveragePortfolioWithTrace(
+			[genericTraffic, qualifiedGoal],
+			{ reason: "manual", unqualifiedSignalKeys: unqualified }
+		);
+		expect(keys(screened.selected)).toEqual([
+			signalKeyForDetectedSignal(qualifiedGoal),
+		]);
+		expect(
+			screened.entries.find(
+				(entry) =>
+					signalKeyForDetectedSignal(entry.signal) ===
+					signalKeyForDetectedSignal(genericTraffic)
+			)
+		).toMatchObject({ omittedFor: ["unqualified"], selectedAt: null });
+
+		const due = planCoveragePortfolio(
+			[genericTraffic, qualifiedGoal],
+			{
+				dueSignalKey: signalKeyForDetectedSignal(genericTraffic),
+				reason: "scheduled",
+				unqualifiedSignalKeys: unqualified,
+			}
+		);
+		expect(keys(due)).toEqual([
+			signalKeyForDetectedSignal(genericTraffic),
+			signalKeyForDetectedSignal(qualifiedGoal),
 		]);
 	});
 
@@ -166,7 +218,7 @@ describe("planCoveragePortfolio", () => {
 			plan.filter(
 				(item) => item === recovery || item === anotherRecovery
 			)
-		).toHaveLength(1);
+		).toHaveLength(2);
 	});
 
 	it("does not let a neutral measurement gap suppress useful improvements", () => {
@@ -269,6 +321,236 @@ describe("planCoveragePortfolio", () => {
 		).toHaveLength(1);
 	});
 
+	it("traces why a correlated candidate is omitted", () => {
+		const routeError = signal({
+			baseline: 10,
+			current: 30,
+			deltaPercent: 200,
+			direction: "up",
+			entityId: "/explore",
+			metric: "error_count",
+			severity: "critical",
+			subjectKey: "route:error:/explore",
+		});
+		const routeLcp = signal({
+			baseline: 2000,
+			current: 4000,
+			deltaPercent: 100,
+			direction: "up",
+			entityId: "/explore",
+			metric: "lcp",
+			severity: "warning",
+			subjectKey: "route:lcp:/explore",
+		});
+		const signals = [
+			routeError,
+			routeLcp,
+			signal({ metric: "goal:signup", subjectKey: "goal:signup" }),
+			signal({ metric: "visitors" }),
+		];
+
+		const trace = planCoveragePortfolioWithTrace(signals, {
+			reason: "manual",
+		});
+
+		expect(trace.selected).toEqual(
+			planCoveragePortfolio(signals, { reason: "manual" })
+		);
+		const lcp = trace.entries.find((entry) => entry.signal === routeLcp);
+		expect(lcp).toMatchObject({
+			omittedFor: ["same_cluster"],
+			selectedAt: null,
+		});
+	});
+
+	it("backfills a distinct signal when overlap evidence covers a redundant route", () => {
+		const broadError = signal({
+			baseline: 23,
+			current: 38,
+			deltaPercent: 65.22,
+			direction: "up",
+			entityId: "manifest-fingerprint",
+			metric: "error_count",
+			reach: {
+				current: 36,
+				previous: 23,
+				unit: "visitor_identifiers",
+			},
+			severity: "critical",
+			subjectKey: "error:manifest-fingerprint",
+		});
+		const independentRoute = signal({
+			baseline: 2,
+			current: 13,
+			deltaPercent: 550,
+			direction: "up",
+			entityId: "/independent",
+			metric: "error_count",
+			reach: {
+				current: 7,
+				previous: 2,
+				unit: "visitor_identifiers",
+			},
+			severity: "warning",
+			subjectKey: "route:error:/independent",
+		});
+		const redundantRoute = signal({
+			baseline: 6,
+			current: 22,
+			deltaPercent: 266.67,
+			direction: "up",
+			entityId: "/covered",
+			metric: "error_count",
+			reach: {
+				current: 16,
+				previous: 6,
+				unit: "visitor_identifiers",
+			},
+			severity: "warning",
+			subjectKey: "route:error:/covered",
+		});
+		const backfill = signal({
+			metric: "custom_event_count",
+			subjectKey: "custom_event:signup_completed",
+		});
+		const signals = [
+			broadError,
+			independentRoute,
+			redundantRoute,
+			signal({ metric: "visitors" }),
+			signal({ metric: "revenue" }),
+			signal({ metric: "goal:checkout", subjectKey: "goal:checkout" }),
+			backfill,
+		];
+
+		const plan = planCoveragePortfolioWithTrace(signals, {
+			excludedSignalKeys: new Set([
+				signalKeyForDetectedSignal(redundantRoute),
+			]),
+			reason: "manual",
+		});
+
+		expect(plan.selected).toHaveLength(6);
+		expect(keys(plan.selected)).not.toContain(
+			signalKeyForDetectedSignal(redundantRoute)
+		);
+		expect(keys(plan.selected)).toContain(signalKeyForDetectedSignal(backfill));
+		expect(
+			plan.entries.find(
+				(entry) =>
+					signalKeyForDetectedSignal(entry.signal) ===
+					signalKeyForDetectedSignal(redundantRoute)
+			)
+		).toMatchObject({ omittedFor: ["overlap_covered"], selectedAt: null });
+	});
+
+	it("can evaluate reach-aware error ordering without changing the default portfolio", () => {
+		const criticalError = signal({
+			baseline: 23,
+			current: 38,
+			deltaPercent: 65.22,
+			direction: "up",
+			metric: "error_count",
+			reach: {
+				current: 36,
+				previous: 23,
+				unit: "visitor_identifiers",
+			},
+			severity: "critical",
+			subjectKey: "error:critical",
+		});
+		const smallerCohortError = signal({
+			baseline: 2,
+			current: 13,
+			deltaPercent: 550,
+			direction: "up",
+			metric: "error_count",
+			reach: {
+				current: 7,
+				previous: 2,
+				unit: "visitor_identifiers",
+			},
+			severity: "warning",
+			subjectKey: "route:error:smaller-cohort",
+		});
+		const largerCohortError = signal({
+			...smallerCohortError,
+			baseline: 6,
+			current: 22,
+			deltaPercent: 266.67,
+			reach: {
+				current: 16,
+				previous: 6,
+				unit: "visitor_identifiers",
+			},
+			subjectKey: "route:error:larger-cohort",
+		});
+		const vital = signal({
+			baseline: 4424,
+			current: 5796,
+			deltaPercent: 31.01,
+			direction: "up",
+			metric: "lcp",
+			reach: { current: 76, previous: 64, unit: "samples" },
+			severity: "warning",
+			subjectKey: "route:lcp:checkout",
+		});
+		const lowerPrioritySignals = [
+			signal({
+				baseline: 50,
+				current: 100,
+				deltaPercent: 100,
+				direction: "up",
+				metric: "visitors",
+			}),
+			signal({
+				baseline: 50,
+				current: 100,
+				deltaPercent: 100,
+				direction: "up",
+				metric: "revenue",
+			}),
+			signal({
+				baseline: 50,
+				current: 100,
+				deltaPercent: 100,
+				direction: "up",
+				metric: "custom_event_count",
+				subjectKey: "custom_event:signup",
+			}),
+		];
+		const signals = [
+			criticalError,
+			smallerCohortError,
+			largerCohortError,
+			vital,
+			...lowerPrioritySignals,
+		];
+
+		const current = keys(
+			planCoveragePortfolioWithTrace(signals, { reason: "manual" }).selected
+		);
+		expect(current).toHaveLength(6);
+		expect(current).toContain(signalKeyForDetectedSignal(smallerCohortError));
+		expect(current).toContain(signalKeyForDetectedSignal(largerCohortError));
+		expect(
+			current.indexOf(signalKeyForDetectedSignal(smallerCohortError))
+		).toBeLessThan(current.indexOf(signalKeyForDetectedSignal(largerCohortError)));
+
+		const reach = keys(
+			planCoveragePortfolioWithTrace(signals, {
+				rankingStrategy: "reach",
+				reason: "manual",
+			}).selected
+		);
+		expect(reach).toHaveLength(6);
+		expect(reach).toContain(signalKeyForDetectedSignal(largerCohortError));
+		expect(reach).toContain(signalKeyForDetectedSignal(smallerCohortError));
+		expect(
+			reach.indexOf(signalKeyForDetectedSignal(largerCohortError))
+		).toBeLessThan(reach.indexOf(signalKeyForDetectedSignal(smallerCohortError)));
+	});
+
 	it("allows a full diverse portfolio when every candidate is positive", () => {
 		const candidates = [
 			signal({
@@ -334,7 +616,7 @@ describe("planCoveragePortfolio", () => {
 				subjectKey: "measurement:conversion-coverage",
 			}),
 		];
-		const first = planCoveragePortfolio(candidates, { reason: "manual" });
+		const first = planCoveragePortfolio(candidates, { reason: "scheduled" });
 		const observations = new Map(
 			first.map((candidate) => {
 				const prepared = prepareInvestigation(candidate, 7).signal;
@@ -362,11 +644,11 @@ describe("planCoveragePortfolio", () => {
 		);
 		const second = planCoveragePortfolio(candidates, {
 			preferredSignalKeys: new Set(keys(eligible)),
-			reason: "manual",
+			reason: "scheduled",
 		});
 
-		expect(first).toHaveLength(3);
-		expect(second).toHaveLength(3);
+		expect(first).toHaveLength(2);
+		expect(second).toHaveLength(2);
 		expect(keys(second).some((key) => keys(first).includes(key))).toBe(false);
 	});
 

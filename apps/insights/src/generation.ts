@@ -24,6 +24,11 @@ import {
 	remeasureMetricSignal,
 } from "./detection";
 import {
+	type CandidateQualification,
+	qualifyCandidateSignals,
+	unqualifiedSignalKeys,
+} from "./candidate-qualification";
+import {
 	detectFunnelGoalSignals,
 	type FunnelGoalDeps,
 	type FunnelGoalDetectionDiagnostics,
@@ -36,15 +41,18 @@ import {
 	type RouteHealthDetectionDeps,
 } from "./route-health-detection";
 import {
+	formatAnnotationContext,
 	type InvestigationAnnotation,
 	prepareInvestigation,
 	rankSignals,
+	type SignalRankingStrategy,
 	signalAnnotationWindow,
 	signalKeyForDetectedSignal,
 } from "./investigation";
 import {
 	eligibleSignalsForInvestigation,
 	findRunObservations,
+	isTrustedRunObservation,
 	type DueOpenInvestigation,
 	type LatestInsightObservation,
 	loadDueOpenInvestigation,
@@ -67,16 +75,32 @@ import {
 	runInsightAgent,
 } from "./agent";
 import {
-	errorCustomerImpactEvidence,
-	errorIdentitySetupRecommendation,
-	loadErrorCustomerImpact,
-} from "./error-customer-impact";
+	clusterErrorCandidateRoutes,
+	type ErrorCandidateClusteringTrace,
+	type ErrorCandidateRedundantRouteReceipt,
+	isFingerprintErrorCandidate,
+	loadErrorCandidateOverlap,
+	type ErrorCandidateClustering,
+	type ErrorCandidateOverlap,
+} from "./error-candidate-overlap";
+import { loadErrorCohortBehavior } from "./error-cohort-behavior";
+import { loadErrorCustomerImpact } from "./error-customer-impact";
+import { loadErrorCohortGoalCompletion } from "./error-cohort-goal-completion";
+import { loadDatabuddySetupContext } from "./databuddy-setup-context";
+import { buildInvestigationContext } from "./investigation-context";
+import { loadVitalCohortBehavior } from "./vital-cohort-behavior";
 import {
 	freezeInsightRunCandidatePlan,
 	loadInsightRunCandidatePlan,
+	MAX_COVERED_ROUTE_CONTEXT_SIGNALS,
 	type PlannedInvestigationCandidate,
 } from "./run-candidate-plan";
-import { planCoveragePortfolio } from "./coverage-planner";
+import {
+	coveragePortfolioLimit,
+	errorQualificationFrontierLimit,
+	planCoveragePortfolioWithTrace,
+	type CoveragePortfolioPlan,
+} from "./coverage-planner";
 import type { WebsiteInvestigation } from "./persistence";
 import {
 	isInterruptingInvestigation,
@@ -119,6 +143,7 @@ interface InvestigateWebsiteInput {
 
 export interface WebsiteInvestigationArtifact {
 	asOf: string;
+	brief?: InsightAgentResult["brief"];
 	evidence: string[];
 	outcome: InvestigationOutcome | null;
 	signal: InvestigationSignal | null;
@@ -127,7 +152,7 @@ export interface WebsiteInvestigationArtifact {
 
 const SOURCE_DETECTION_TIMEOUT_MS = 45_000;
 const DISCOVERY_DETECTION_TIMEOUT_MS = 180_000;
-const INSIGHT_LOOKBACK_DAYS = 7;
+export const INSIGHT_LOOKBACK_DAYS = 7;
 
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -152,11 +177,15 @@ export interface InvestigationSources {
 		timezone: string
 	) => Promise<InvestigationAnnotation[]>;
 	investigateSignal: (input: InsightAgentInput) => Promise<InsightAgentResult>;
+	loadDatabuddySetup: typeof loadDatabuddySetupContext;
 	loadDueInvestigation: (params: {
 		asOf: Date;
 		organizationId: string;
 		websiteId: string;
 	}) => Promise<DueOpenInvestigation | null>;
+	loadErrorCandidateOverlap: typeof loadErrorCandidateOverlap;
+	loadErrorCohortBehavior: typeof loadErrorCohortBehavior;
+	loadErrorCohortGoalCompletion: typeof loadErrorCohortGoalCompletion;
 	loadErrorCustomerImpact: typeof loadErrorCustomerImpact;
 	loadHistory: typeof loadInvestigationHistory;
 	loadObservations: (params: {
@@ -166,6 +195,7 @@ export interface InvestigationSources {
 		websiteId: string;
 	}) => Promise<Map<string, LatestInsightObservation>>;
 	loadOtherOpenWork: typeof loadOtherOpenWork;
+	loadVitalCohortBehavior: typeof loadVitalCohortBehavior;
 	remeasureSignal: (
 		params: DetectSignalsParams,
 		prior: InvestigationSignal,
@@ -275,7 +305,12 @@ export async function refreshInvestigationSignal(params: {
 	signal: InvestigationSignal;
 	timezone: string;
 	websiteId: string;
-}): Promise<{ evidence: string[]; signal: InvestigationSignal } | null> {
+}): Promise<{
+	annotationContext?: string;
+	definitionContext?: string;
+	evidence: string[];
+	signal: InvestigationSignal;
+} | null> {
 	const today = dayjs(params.asOf).tz(params.timezone);
 	const detected = await remeasureStoredSignal(
 		{
@@ -313,54 +348,189 @@ const productionInvestigationSources: InvestigationSources = {
 	fetchAnnotations: fetchSignalAnnotations,
 	investigateSignal: runInsightAgent,
 	loadDueInvestigation: loadDueOpenInvestigation,
+	loadErrorCandidateOverlap,
+	loadErrorCohortBehavior,
 	loadErrorCustomerImpact,
+	loadErrorCohortGoalCompletion,
+	loadVitalCohortBehavior,
+	loadDatabuddySetup: loadDatabuddySetupContext,
 	loadHistory: loadInvestigationHistory,
 	loadOtherOpenWork,
 	loadObservations: loadLatestSignalObservations,
 	remeasureSignal: remeasureStoredSignal,
 };
 
+function setupContextCacheKey(
+	params: Parameters<InvestigationSources["loadDatabuddySetup"]>[0]
+) {
+	return [
+		params.organizationId,
+		params.websiteId,
+		params.timezone,
+		params.signal.period.current.from,
+		params.signal.period.current.to,
+	].join(":");
+}
+
+type SignalEnrichmentParams = Parameters<
+	InvestigationSources["loadErrorCustomerImpact"]
+>[0];
+
+function signalEnrichmentCacheKey(params: SignalEnrichmentParams): string {
+	return [
+		params.websiteId,
+		params.timezone,
+		params.signal.signalKey,
+		params.signal.period.current.from,
+		params.signal.period.current.to,
+	].join(":");
+}
+
+function memoizeSignalEnrichmentSource<T>(
+	load: (params: SignalEnrichmentParams) => Promise<T>
+): (params: SignalEnrichmentParams) => Promise<T> {
+	const cache = new Map<string, Promise<T>>();
+	return (params) => {
+		const key = signalEnrichmentCacheKey(params);
+		const cached = cache.get(key);
+		if (cached) {
+			return cached;
+		}
+		const result = load(params);
+		let cachedResult: Promise<T>;
+		cachedResult = result.catch((error) => {
+			if (cache.get(key) === cachedResult) {
+				cache.delete(key);
+			}
+			throw error;
+		});
+		cache.set(key, cachedResult);
+		return cachedResult;
+	};
+}
+
+/**
+ * Each portfolio sees one fixed aggregate snapshot per exact signal and
+ * observation window. Failed enrichments are not cached, so the next
+ * candidate can retry without turning a transient read error into a run-wide
+ * blind spot.
+ */
+export function memoizeDatabuddySetupSource(
+	loadDatabuddySetup: InvestigationSources["loadDatabuddySetup"]
+): InvestigationSources["loadDatabuddySetup"] {
+	const cache = new Map<
+		string,
+		ReturnType<InvestigationSources["loadDatabuddySetup"]>
+	>();
+	return (params) => {
+		const key = setupContextCacheKey(params);
+		const cached = cache.get(key);
+		if (cached) {
+			return cached;
+		}
+		const result = loadDatabuddySetup(params);
+		let cachedResult: ReturnType<InvestigationSources["loadDatabuddySetup"]>;
+		cachedResult = result.catch((error) => {
+			if (cache.get(key) === cachedResult) {
+				cache.delete(key);
+			}
+			throw error;
+		});
+		cache.set(key, cachedResult);
+		return cachedResult;
+	};
+}
+
+function memoizedInvestigationSources(
+	sources: InvestigationSources
+): InvestigationSources {
+	return {
+		...sources,
+		loadErrorCohortBehavior: memoizeSignalEnrichmentSource(
+			sources.loadErrorCohortBehavior
+		),
+		loadErrorCohortGoalCompletion: memoizeSignalEnrichmentSource(
+			sources.loadErrorCohortGoalCompletion
+		),
+		loadErrorCustomerImpact: memoizeSignalEnrichmentSource(
+			sources.loadErrorCustomerImpact
+		),
+		loadVitalCohortBehavior: memoizeSignalEnrichmentSource(
+			sources.loadVitalCohortBehavior
+		),
+		loadDatabuddySetup: memoizeDatabuddySetupSource(sources.loadDatabuddySetup),
+	};
+}
+
 interface WebsiteSignalDiscovery {
 	asOf: dayjs.Dayjs;
 	detectedSignals: DetectedSignal[];
 	dueSignalKey: string | null;
 	eligibleSignals: DetectedSignal[];
+	qualifications: CandidateQualification[];
 }
+
+export type WebsitePortfolioInspection =
+	| {
+			asOf: string;
+			detectedSignals: DetectedSignal[];
+			dueSignalKey: string | null;
+			eligibleSignals: DetectedSignal[];
+			qualifications: CandidateQualification[];
+			overlapClustering?: ErrorCohortClustering;
+			plan: CoveragePortfolioPlan;
+			reachPlan: CoveragePortfolioPlan;
+			status: "signals";
+	  }
+	| {
+			asOf: string;
+			detectedSignals: [];
+			dueSignalKey: null;
+			eligibleSignals: [];
+			qualifications: [];
+			plan: null;
+			reachPlan: null;
+			status: "deferred" | "no_signals";
+	  };
 
 type WebsiteDiscoveryResult =
 	| { artifact: WebsiteInvestigationArtifact; kind: "empty" }
 	| { kind: "signals"; value: WebsiteSignalDiscovery };
 
 function toPlannedCandidate(
-	detectedSignal: DetectedSignal
+	detectedSignal: DetectedSignal,
+	coveredRouteSignals: InvestigationSignal[] = []
 ): PlannedInvestigationCandidate {
 	const investigation = prepareInvestigation(
 		detectedSignal,
 		INSIGHT_LOOKBACK_DAYS
 	);
 	return {
+		...(coveredRouteSignals.length > 0 ? { coveredRouteSignals } : {}),
+		...(investigation.definitionContext
+			? { definitionContext: investigation.definitionContext }
+			: {}),
 		evidence: investigation.evidence,
 		...(investigation.measurementCandidate
 			? { measurementCandidate: investigation.measurementCandidate }
+			: {}),
+		...(investigation.measurementGapRecommendationCandidate
+			? {
+					measurementGapRecommendationCandidate:
+						investigation.measurementGapRecommendationCandidate,
+				}
 			: {}),
 		signal: investigation.signal,
 	};
 }
 
-function annotationEvidence(rows: InvestigationAnnotation[]): string | null {
-	if (rows.length === 0) {
-		return null;
-	}
-	const value = `Annotation: ${rows
-		.map((annotation) => `${annotation.date}: ${annotation.title}`)
-		.join("; ")}`;
-	return value.length <= 500 ? value : `${value.slice(0, 499).trimEnd()}…`;
-}
-
 async function discoverWebsiteSignals(
 	input: InvestigateWebsiteInput,
 	runtime: InvestigationRuntime,
-	options: { allowCoolingFallback?: boolean } = {}
+	options: {
+		allowCoolingFallback?: boolean;
+		reason: InsightGenerationReason;
+	}
 ): Promise<WebsiteDiscoveryResult> {
 	const startedAt = performance.now();
 	const asOf = normalizeAsOf(input.asOf, input.timezone);
@@ -550,6 +720,17 @@ async function discoverWebsiteSignals(
 			kind: "empty",
 		};
 	}
+	const qualifications = await qualifyCandidateSignals({
+		abortSignal: sourceAbortSignal,
+		errorQualificationLimit: errorQualificationFrontierLimit(options.reason),
+		lookbackDays: INSIGHT_LOOKBACK_DAYS,
+		...(dueSignalKey ? { prioritizedSignalKeys: new Set([dueSignalKey]) } : {}),
+		signals: detectedSignals,
+		sources: runtime.sources,
+		timezone: input.timezone,
+		vitalQualificationLimit: coveragePortfolioLimit(options.reason),
+		websiteId: input.websiteId,
+	});
 	return {
 		kind: "signals",
 		value: {
@@ -557,6 +738,7 @@ async function discoverWebsiteSignals(
 			detectedSignals,
 			dueSignalKey,
 			eligibleSignals,
+			qualifications,
 		},
 	};
 }
@@ -584,42 +766,82 @@ async function investigatePlannedCandidate(
 		}
 		return emptyInvestigationArtifact({ asOf, status: "deferred" });
 	}
-	let evidence = [...candidate.evidence];
-	const [annotationRows, customerImpact] = await Promise.all([
+	const [annotationRows, context] = await Promise.all([
 		runtime.sources.fetchAnnotations(
 			input.websiteId,
 			candidate.signal,
 			asOf.toDate(),
 			input.timezone
 		),
-		runtime.sources
-			.loadErrorCustomerImpact({
+		buildInvestigationContext(
+			{
 				abortSignal: AbortSignal.timeout(SOURCE_DETECTION_TIMEOUT_MS),
+				evidence: candidate.evidence,
+				organizationId: input.organizationId,
 				signal: candidate.signal,
 				timezone: input.timezone,
 				websiteId: input.websiteId,
-			})
-			.catch((error) => {
-				if (runtime.mode === "production") {
-					captureInsightsError(error, "generation.customer_impact.failed", {
-						organization_id: input.organizationId,
-						signal_key: candidate.signal.signalKey,
-						website_id: input.websiteId,
-					});
-				}
-				return null;
-			}),
+			},
+			{
+				loadCohortBehavior: runtime.sources.loadErrorCohortBehavior,
+				loadCustomerImpact: runtime.sources.loadErrorCustomerImpact,
+				loadDatabuddySetup: runtime.sources.loadDatabuddySetup,
+				loadGoalCompletion: runtime.sources.loadErrorCohortGoalCompletion,
+				loadVitalCohortBehavior: runtime.sources.loadVitalCohortBehavior,
+				reportCohortBehaviorError: (error) => {
+					if (runtime.mode === "production") {
+						captureInsightsError(error, "generation.cohort_behavior.failed", {
+							organization_id: input.organizationId,
+							signal_key: candidate.signal.signalKey,
+							website_id: input.websiteId,
+						});
+					}
+				},
+				reportCustomerImpactError: (error) => {
+					if (runtime.mode === "production") {
+						captureInsightsError(error, "generation.customer_impact.failed", {
+							organization_id: input.organizationId,
+							signal_key: candidate.signal.signalKey,
+							website_id: input.websiteId,
+						});
+					}
+				},
+				reportDatabuddySetupError: (error) => {
+					if (runtime.mode === "production") {
+						captureInsightsError(error, "generation.databuddy_setup.failed", {
+							organization_id: input.organizationId,
+							signal_key: candidate.signal.signalKey,
+							website_id: input.websiteId,
+						});
+					}
+				},
+				reportGoalCompletionError: (error) => {
+					if (runtime.mode === "production") {
+						captureInsightsError(error, "generation.goal_completion.failed", {
+							organization_id: input.organizationId,
+							signal_key: candidate.signal.signalKey,
+							website_id: input.websiteId,
+						});
+					}
+				},
+				reportVitalCohortBehaviorError: (error) => {
+					if (runtime.mode === "production") {
+						captureInsightsError(
+							error,
+							"generation.vital_cohort_behavior.failed",
+							{
+								organization_id: input.organizationId,
+								signal_key: candidate.signal.signalKey,
+								website_id: input.websiteId,
+							}
+						);
+					}
+				},
+			}
+		),
 	]);
-	if (customerImpact) {
-		evidence.push(errorCustomerImpactEvidence(customerImpact));
-	}
-	const setupRecommendationCandidate = customerImpact
-		? errorIdentitySetupRecommendation(customerImpact)
-		: null;
-	const annotation = annotationEvidence(annotationRows);
-	if (annotation) {
-		evidence = [...evidence, annotation];
-	}
+	const annotationContext = formatAnnotationContext(annotationRows);
+	const evidence = context.evidence;
 	const appContext: AppContext = {
 		userId: input.userId ?? "system",
 		organizationId: input.organizationId,
@@ -650,16 +872,31 @@ async function investigatePlannedCandidate(
 	let investigationResult: InsightAgentResult;
 	try {
 		investigationResult = await runtime.sources.investigateSignal({
+			...(annotationContext ? { annotationContext } : {}),
 			appContext,
-			customerImpact,
+			coveredRouteContext: candidate.coveredRouteSignals,
+			customerImpact: context.customerImpact,
+			databuddySetup: context.databuddySetup,
+			...(candidate.definitionContext
+				? { definitionContext: candidate.definitionContext }
+				: {}),
+			errorBehavior: context.errorBehavior,
+			errorBehaviorEvidenceIndex: context.errorBehaviorEvidenceIndex,
+			errorGoalCompletion: context.errorGoalCompletion,
+			errorGoalCompletionEvidenceIndex:
+				context.errorGoalCompletionEvidenceIndex,
 			evidence,
 			githubRepository: input.githubRepository ?? null,
 			history,
 			measurementCandidate: candidate.measurementCandidate,
+			measurementGapRecommendationCandidate:
+				candidate.measurementGapRecommendationCandidate,
 			otherOpenWork,
 			relatedSignals,
-			setupRecommendationCandidate,
+			setupRecommendationCandidate: context.setupRecommendationCandidate,
 			signal: candidate.signal,
+			vitalBehavior: context.vitalBehavior,
+			vitalBehaviorEvidenceIndex: context.vitalBehaviorEvidenceIndex,
 		});
 	} catch (error) {
 		if (error instanceof InsightAgentExecutionError) {
@@ -703,6 +940,7 @@ async function investigatePlannedCandidate(
 	}
 	return {
 		asOf: asOf.toISOString(),
+		brief: investigationResult.brief,
 		evidence,
 		outcome: investigationResult.outcome,
 		signal: candidate.signal,
@@ -710,21 +948,250 @@ async function investigatePlannedCandidate(
 	};
 }
 
-function plannedPortfolio(
+export interface ErrorCohortClustering extends ErrorCandidateClustering {
+	/** Number of cached replan passes needed to settle selected candidates. */
+	passes: number;
+	/**
+	 * Every currently selected non-due broad-error/route pair is classified as
+	 * independent or unavailable; this does not claim every detected route was
+	 * queried.
+	 */
+	selectedCandidatesSettled: boolean;
+}
+
+interface CoveragePortfolioSelection {
+	clustering: ErrorCohortClustering;
+	plan: CoveragePortfolioPlan;
+	redundantRouteReceipts: ErrorCandidateRedundantRouteReceipt[];
+}
+
+function mergeErrorCohortClustering(
+	traces: ErrorCandidateClusteringTrace[],
+	selectedCandidatesSettled: boolean
+): ErrorCohortClustering {
+	const candidatePairs = new Set<string>();
+	const measuredPairs = new Set<string>();
+	const unavailablePairs = new Set<string>();
+	const redundantRoutes = new Set<string>();
+	const independentRoutes = new Set<string>();
+	for (const trace of traces) {
+		for (const key of trace.candidatePairKeys) {
+			candidatePairs.add(key);
+		}
+		for (const key of trace.measuredPairKeys) {
+			measuredPairs.add(key);
+		}
+		for (const key of trace.unavailablePairKeys) {
+			unavailablePairs.add(key);
+		}
+		for (const key of trace.redundantRouteSignalKeys) {
+			redundantRoutes.add(key);
+		}
+		for (const key of trace.independentRouteSignalKeys) {
+			independentRoutes.add(key);
+		}
+	}
+	return {
+		candidatePairCount: candidatePairs.size,
+		independentRouteSignalKeys: [...independentRoutes]
+			.filter((key) => !redundantRoutes.has(key))
+			.sort(),
+		measuredPairCount: measuredPairs.size,
+		passes: traces.length,
+		redundantRouteSignalKeys: [...redundantRoutes].sort(),
+		selectedCandidatesSettled,
+		unavailablePairCount: unavailablePairs.size,
+	};
+}
+
+function mergeRedundantRouteReceipts(
+	traces: readonly ErrorCandidateClusteringTrace[]
+): ErrorCandidateRedundantRouteReceipt[] {
+	const receipts = new Map<string, ErrorCandidateRedundantRouteReceipt>();
+	for (const trace of traces) {
+		for (const receipt of trace.redundantRouteReceipts) {
+			receipts.set(
+				`${receipt.fingerprintSignalKey}\u0000${receipt.routeSignalKey}`,
+				receipt
+			);
+		}
+	}
+	return [...receipts.values()].sort(
+		(left, right) =>
+			left.routeSignalKey.localeCompare(right.routeSignalKey) ||
+			left.fingerprintSignalKey.localeCompare(right.fingerprintSignalKey)
+	);
+}
+
+function portfolioSignalsForReason(
 	discovery: WebsiteSignalDiscovery,
 	reason: InsightGenerationReason
-): PlannedInvestigationCandidate[] {
-	const manual = reason === "manual";
-	return planCoveragePortfolio(
-		manual ? discovery.detectedSignals : discovery.eligibleSignals,
-		{
-			dueSignalKey: discovery.dueSignalKey,
-			preferredSignalKeys: manual
-				? new Set(discovery.eligibleSignals.map(signalKeyForDetectedSignal))
-				: undefined,
-			reason,
+): DetectedSignal[] {
+	return reason === "manual"
+		? discovery.detectedSignals
+		: discovery.eligibleSignals;
+}
+
+/**
+ * Keeps an overlap-covered route as private investigation context for the one
+ * selected broad error that measured it. Selection stays unchanged: this only
+ * enriches the frozen input after the final plan has settled.
+ */
+function coveredRouteSignalsForFinalPortfolio(
+	plan: CoveragePortfolioPlan,
+	receipts: readonly ErrorCandidateRedundantRouteReceipt[]
+): Map<string, InvestigationSignal[]> {
+	const selectedSignalKeys = new Set(
+		plan.selected.map(signalKeyForDetectedSignal)
+	);
+	const selectedOwnerRanks = new Map<string, number>();
+	for (const entry of plan.entries) {
+		if (
+			entry.selectedAt === null ||
+			!isFingerprintErrorCandidate(entry.signal)
+		) {
+			continue;
 		}
-	).map(toPlannedCandidate);
+		selectedOwnerRanks.set(
+			signalKeyForDetectedSignal(entry.signal),
+			entry.selectedAt
+		);
+	}
+	const ownerByRoute = new Map<
+		string,
+		{ ownerRank: number; ownerSignalKey: string; route: InvestigationSignal }
+	>();
+	for (const receipt of receipts) {
+		const ownerRank = selectedOwnerRanks.get(receipt.fingerprintSignalKey);
+		if (
+			ownerRank === undefined ||
+			receipt.route.signalKey !== receipt.routeSignalKey ||
+			selectedSignalKeys.has(receipt.routeSignalKey)
+		) {
+			continue;
+		}
+		const existing = ownerByRoute.get(receipt.routeSignalKey);
+		if (
+			!existing ||
+			ownerRank < existing.ownerRank ||
+			(ownerRank === existing.ownerRank &&
+				receipt.fingerprintSignalKey.localeCompare(existing.ownerSignalKey) < 0)
+		) {
+			ownerByRoute.set(receipt.routeSignalKey, {
+				ownerRank,
+				ownerSignalKey: receipt.fingerprintSignalKey,
+				route: receipt.route,
+			});
+		}
+	}
+	const routesByOwner = new Map<string, InvestigationSignal[]>();
+	for (const owner of ownerByRoute.values()) {
+		const coveredRoutes = routesByOwner.get(owner.ownerSignalKey) ?? [];
+		coveredRoutes.push(owner.route);
+		routesByOwner.set(owner.ownerSignalKey, coveredRoutes);
+	}
+	return new Map(
+		[...routesByOwner.entries()]
+			.sort(([left], [right]) => left.localeCompare(right))
+			.map(([ownerSignalKey, routes]) => [
+				ownerSignalKey,
+				routes
+					.sort((left, right) => left.signalKey.localeCompare(right.signalKey))
+					.slice(0, MAX_COVERED_ROUTE_CONTEXT_SIGNALS),
+			])
+	);
+}
+
+function toPlannedPortfolioCandidates(
+	portfolio: CoveragePortfolioSelection
+): PlannedInvestigationCandidate[] {
+	const coveredRoutesByOwner = coveredRouteSignalsForFinalPortfolio(
+		portfolio.plan,
+		portfolio.redundantRouteReceipts
+	);
+	return portfolio.plan.selected.map((signal) =>
+		toPlannedCandidate(
+			signal,
+			coveredRoutesByOwner.get(signalKeyForDetectedSignal(signal))
+		)
+	);
+}
+
+async function coveragePortfolio(
+	input: InvestigateWebsiteInput,
+	discovery: WebsiteSignalDiscovery,
+	reason: InsightGenerationReason,
+	sources: Pick<InvestigationSources, "loadErrorCandidateOverlap">,
+	evaluation: {
+		overlapCache?: Map<string, Promise<ErrorCandidateOverlap | null>>;
+		rankingStrategy?: SignalRankingStrategy;
+	} = {}
+): Promise<CoveragePortfolioSelection> {
+	const manual = reason === "manual";
+	const signals = portfolioSignalsForReason(discovery, reason);
+	const options = {
+		dueSignalKey: discovery.dueSignalKey,
+		preferredSignalKeys: manual
+			? new Set(discovery.eligibleSignals.map(signalKeyForDetectedSignal))
+			: undefined,
+		rankingStrategy: evaluation.rankingStrategy,
+		reason,
+		unqualifiedSignalKeys: unqualifiedSignalKeys(discovery.qualifications),
+	} as const;
+	const overlapCache =
+		evaluation.overlapCache ??
+		new Map<string, Promise<ErrorCandidateOverlap | null>>();
+	const overlapAbortSignal = AbortSignal.timeout(SOURCE_DETECTION_TIMEOUT_MS);
+	const traces: ErrorCandidateClusteringTrace[] = [];
+	const excludedSignalKeys = new Set<string>();
+	let plan = planCoveragePortfolioWithTrace(signals, options);
+	while (traces.length < signals.length) {
+		const trace = await clusterErrorCandidateRoutes({
+			abortSignal: overlapAbortSignal,
+			candidates: plan.selected,
+			dueSignalKey: discovery.dueSignalKey,
+			loadOverlap: sources.loadErrorCandidateOverlap,
+			lookbackDays: INSIGHT_LOOKBACK_DAYS,
+			overlapCache,
+			timezone: input.timezone,
+			websiteId: input.websiteId,
+		});
+		traces.push(trace);
+		const newExclusions = trace.redundantRouteSignalKeys.filter(
+			(key) => !excludedSignalKeys.has(key)
+		);
+		if (newExclusions.length === 0) {
+			return {
+				clustering: mergeErrorCohortClustering(traces, true),
+				plan,
+				redundantRouteReceipts: mergeRedundantRouteReceipts(traces),
+			};
+		}
+		for (const key of newExclusions) {
+			excludedSignalKeys.add(key);
+		}
+		plan = planCoveragePortfolioWithTrace(signals, {
+			...options,
+			excludedSignalKeys,
+		});
+	}
+	return {
+		clustering: mergeErrorCohortClustering(traces, false),
+		plan,
+		// A fail-open portfolio is not a verified final owner for private route
+		// context, so keep its selection unchanged and attach nothing.
+		redundantRouteReceipts: [],
+	};
+}
+
+async function plannedPortfolio(
+	input: InvestigateWebsiteInput,
+	discovery: WebsiteSignalDiscovery,
+	reason: InsightGenerationReason,
+	sources: Pick<InvestigationSources, "loadErrorCandidateOverlap">
+): Promise<PlannedInvestigationCandidate[]> {
+	const portfolio = await coveragePortfolio(input, discovery, reason, sources);
+	return toPlannedPortfolioCandidates(portfolio);
 }
 
 /**
@@ -768,6 +1235,72 @@ async function runPlannedCandidatePortfolio(params: {
 }
 
 /**
+ * Read-only candidate inventory for evaluating detector and portfolio choices
+ * without calling the investigation agent or creating durable work.
+ */
+export async function inspectWebsitePortfolioWithSources(
+	input: InvestigateWebsiteInput,
+	sources: InvestigationSources,
+	reason: InsightGenerationReason
+): Promise<WebsitePortfolioInspection> {
+	const runtime: InvestigationRuntime = {
+		mode: "shadow",
+		sources,
+	};
+	const discovered = await discoverWebsiteSignals(input, runtime, {
+		allowCoolingFallback: reason === "manual",
+		reason,
+	});
+	if (discovered.kind === "empty") {
+		if (
+			discovered.artifact.status !== "deferred" &&
+			discovered.artifact.status !== "no_signals"
+		) {
+			throw new Error("Candidate inventory received a completed artifact");
+		}
+		return {
+			asOf: discovered.artifact.asOf,
+			detectedSignals: [],
+			dueSignalKey: null,
+			eligibleSignals: [],
+			qualifications: [],
+			plan: null,
+			reachPlan: null,
+			status: discovered.artifact.status,
+		};
+	}
+	// Keep the overlap measurements and clustering policy fixed while changing
+	// only the ranking strategy. Otherwise the reach comparison can mistake
+	// route de-duplication for a ranking improvement.
+	const overlapCache = new Map<string, Promise<ErrorCandidateOverlap | null>>();
+	const portfolio = await coveragePortfolio(
+		input,
+		discovered.value,
+		reason,
+		sources,
+		{ overlapCache }
+	);
+	const reachPortfolio = await coveragePortfolio(
+		input,
+		discovered.value,
+		reason,
+		sources,
+		{ overlapCache, rankingStrategy: "reach" }
+	);
+	return {
+		asOf: discovered.value.asOf.toISOString(),
+		detectedSignals: discovered.value.detectedSignals,
+		dueSignalKey: discovered.value.dueSignalKey,
+		eligibleSignals: discovered.value.eligibleSignals,
+		qualifications: discovered.value.qualifications,
+		overlapClustering: portfolio.clustering,
+		plan: portfolio.plan,
+		reachPlan: reachPortfolio.plan,
+		status: "signals",
+	};
+}
+
+/**
  * Read-only harness for proving a full run selects distinct signals before it
  * reaches durable production persistence. Each artifact remains one exact
  * signal and one agent turn.
@@ -781,15 +1314,29 @@ export async function investigateWebsitePortfolioWithSources(
 	const runtime: InvestigationRuntime = {
 		canRunAgent,
 		mode: "shadow",
-		sources,
+		sources: memoizedInvestigationSources(sources),
 	};
 	const discovered = await discoverWebsiteSignals(input, runtime, {
 		allowCoolingFallback: reason === "manual",
+		reason,
 	});
 	if (discovered.kind === "empty") {
 		return [discovered.artifact];
 	}
-	const candidates = plannedPortfolio(discovered.value, reason);
+	const candidates = await plannedPortfolio(
+		input,
+		discovered.value,
+		reason,
+		sources
+	);
+	if (candidates.length === 0) {
+		return [
+			emptyInvestigationArtifact({
+				asOf: discovered.value.asOf,
+				status: "no_signals",
+			}),
+		];
+	}
 	const artifacts: WebsiteInvestigationArtifact[] = [];
 	await runPlannedCandidatePortfolio({
 		candidates,
@@ -874,6 +1421,12 @@ export async function generateWebsiteInsights(
 		userId: input.requestedByUserId ?? undefined,
 		websiteId: site.id,
 	};
+	// Keep aggregate error evidence stable between admission and the selected
+	// agent turn in this worker. A retry has no in-memory cache and remeasures
+	// once from its frozen candidate plan instead.
+	const runSources = memoizedInvestigationSources(
+		productionInvestigationSources
+	);
 	let plan = await loadInsightRunCandidatePlan(runIdentity, input.reason);
 	if (!plan && existingObservations.length > 0) {
 		// A run created before candidate portfolios existed can contain at most
@@ -881,10 +1434,12 @@ export async function generateWebsiteInsights(
 		// than silently treating a missing plan as a completed new portfolio.
 		plan = await freezeInsightRunCandidatePlan(runIdentity, input.reason, {
 			asOf: new Date().toISOString(),
-			candidates: existingObservations.map((observation) => ({
-				evidence: [],
-				signal: observation.signal,
-			})),
+			candidates: existingObservations
+				.filter(isTrustedRunObservation)
+				.map((observation) => ({
+					evidence: [],
+					signal: observation.signal,
+				})),
 		});
 		emitInsightsEvent(
 			"info",
@@ -902,9 +1457,12 @@ export async function generateWebsiteInsights(
 			investigationInput,
 			{
 				mode: "production",
-				sources: productionInvestigationSources,
+				sources: runSources,
 			},
-			{ allowCoolingFallback: input.reason === "manual" }
+			{
+				allowCoolingFallback: input.reason === "manual",
+				reason: input.reason,
+			}
 		);
 		if (discovered.kind === "empty") {
 			if (
@@ -921,13 +1479,19 @@ export async function generateWebsiteInsights(
 				emptyStatus: discovered.artifact.status,
 			});
 		} else {
-			const selectedCandidates = plannedPortfolio(
+			const portfolio = await coveragePortfolio(
+				investigationInput,
 				discovered.value,
-				input.reason
+				input.reason,
+				runSources
 			);
+			const selectedCandidates = toPlannedPortfolioCandidates(portfolio);
 			plan = await freezeInsightRunCandidatePlan(runIdentity, input.reason, {
 				asOf: discovered.value.asOf.toISOString(),
 				candidates: selectedCandidates,
+				...(selectedCandidates.length === 0
+					? { emptyStatus: "no_signals" }
+					: {}),
 			});
 			emitInsightsEvent("info", "generation.candidate_portfolio.frozen", {
 				organization_id: input.organizationId,
@@ -935,6 +1499,23 @@ export async function generateWebsiteInsights(
 				run_id: input.runId,
 				candidate_count: plan.candidates.length,
 				detected_signal_count: discovered.value.detectedSignals.length,
+				qualified_signal_count: discovered.value.qualifications.filter(
+					(qualification) => qualification.status === "qualified"
+				).length,
+				screened_signal_count: discovered.value.qualifications.filter(
+					(qualification) => qualification.status === "screened"
+				).length,
+				error_cohort_candidate_pair_count:
+					portfolio.clustering.candidatePairCount,
+				error_cohort_measured_pair_count:
+					portfolio.clustering.measuredPairCount,
+				error_cohort_pass_count: portfolio.clustering.passes,
+				error_cohort_selected_candidates_settled:
+					portfolio.clustering.selectedCandidatesSettled,
+				error_cohort_suppressed_route_count:
+					portfolio.clustering.redundantRouteSignalKeys.length,
+				error_cohort_unavailable_pair_count:
+					portfolio.clustering.unavailablePairCount,
 			});
 		}
 	}
@@ -943,13 +1524,16 @@ export async function generateWebsiteInsights(
 	let billingCustomerId: string | null = null;
 	let noCredits = false;
 	const completedSignalKeys = new Set(
-		existingObservations.map((observation) => observation.signal.signalKey)
+		existingObservations.map((observation) => observation.signalKey)
 	);
-	const outcomes = existingObservations.map(
+	const trustedExistingObservations = existingObservations.filter(
+		isTrustedRunObservation
+	);
+	const outcomes = trustedExistingObservations.map(
 		(observation) => observation.outcome
 	);
 	const interruptingInvestigations: WebsiteInvestigation[] =
-		existingObservations.flatMap((observation) =>
+		trustedExistingObservations.flatMap((observation) =>
 			observation.insightId && isInterruptingInvestigation(observation)
 				? [
 						{
@@ -1041,7 +1625,7 @@ export async function generateWebsiteInsights(
 									}
 								},
 								mode: "production",
-								sources: productionInvestigationSources,
+								sources: runSources,
 								onUsage: (usage) => {
 									agentUsage.value = usage;
 								},

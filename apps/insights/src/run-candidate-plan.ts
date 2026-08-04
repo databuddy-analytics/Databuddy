@@ -1,6 +1,9 @@
 import { db } from "@databuddy/db";
 import { insightRunItems } from "@databuddy/db/schema";
-import { investigationSignalSchema } from "@databuddy/shared/insights";
+import {
+	insightMeasurementGapRecommendationSchema,
+	investigationSignalSchema,
+} from "@databuddy/shared/insights";
 import { z } from "zod";
 import {
 	coveragePortfolioLimit,
@@ -14,6 +17,8 @@ import {
 
 const frozenPlanReasonSchema = z.enum(["manual", "scheduled"]);
 const emptyPlanStatusSchema = z.enum(["deferred", "no_signals"]);
+const MAX_MANUAL_CANDIDATES = coveragePortfolioLimit("manual");
+export const MAX_COVERED_ROUTE_CONTEXT_SIGNALS = MAX_MANUAL_CANDIDATES;
 
 const measurementCandidateSchema = z
 	.discriminatedUnion("kind", [
@@ -48,18 +53,117 @@ const measurementCandidateSchema = z
 		}
 	});
 
+const measurementGapRecommendationCandidateSchema =
+	insightMeasurementGapRecommendationSchema.superRefine(
+		(candidate, context) => {
+			if (
+				candidate.route !== null &&
+				canonicalMeasurementRouteTarget(candidate.route) !== candidate.route
+			) {
+				context.addIssue({
+					code: "custom",
+					message: "Measurement-gap route must be canonical",
+					path: ["route"],
+				});
+			}
+		}
+	);
+
+function isBroadErrorOwner(signal: z.infer<typeof investigationSignalSchema>) {
+	return (
+		signal.signalKey.startsWith("error:") && signal.entity.type === "error"
+	);
+}
+
+function isRouteErrorPage(signal: z.infer<typeof investigationSignalSchema>) {
+	return (
+		signal.signalKey.startsWith("route:error:") && signal.entity.type === "page"
+	);
+}
+
+function hasSameComparisonPeriod(
+	owner: z.infer<typeof investigationSignalSchema>,
+	route: z.infer<typeof investigationSignalSchema>
+) {
+	return (
+		owner.period.current.from === route.period.current.from &&
+		owner.period.current.to === route.period.current.to &&
+		owner.period.previous.from === route.period.previous.from &&
+		owner.period.previous.to === route.period.previous.to
+	);
+}
+
 const plannedCandidateSchema = z
 	.object({
+		coveredRouteSignals: z
+			.array(investigationSignalSchema)
+			.min(1)
+			.max(MAX_COVERED_ROUTE_CONTEXT_SIGNALS)
+			.optional(),
+		/**
+		 * Immutable detector context for the agent only. Public artifacts and
+		 * observations retain `evidence`, never this definition detail.
+		 */
+		definitionContext: z.string().max(500).optional(),
 		evidence: z.array(z.string().max(500)).max(20),
 		measurementCandidate: measurementCandidateSchema.optional(),
+		measurementGapRecommendationCandidate:
+			measurementGapRecommendationCandidateSchema.optional(),
 		signal: investigationSignalSchema,
 	})
-	.strict();
+	.strict()
+	.superRefine((candidate, context) => {
+		const coveredRoutes = candidate.coveredRouteSignals;
+		if (!coveredRoutes) {
+			return;
+		}
+		if (!isBroadErrorOwner(candidate.signal)) {
+			context.addIssue({
+				code: "custom",
+				message: "Covered route context requires an exact broad error owner",
+				path: ["coveredRouteSignals"],
+			});
+		}
+		const routeKeys = new Set<string>();
+		for (const [index, route] of coveredRoutes.entries()) {
+			if (!isRouteErrorPage(route)) {
+				context.addIssue({
+					code: "custom",
+					message:
+						"Covered route context must contain exact route-error page signals",
+					path: ["coveredRouteSignals", index],
+				});
+			}
+			if (!hasSameComparisonPeriod(candidate.signal, route)) {
+				context.addIssue({
+					code: "custom",
+					message:
+						"Covered route context must use the broad error owner's comparison period",
+					path: ["coveredRouteSignals", index, "period"],
+				});
+			}
+			if (route.signalKey === candidate.signal.signalKey) {
+				context.addIssue({
+					code: "custom",
+					message: "Covered route context cannot include its broad error owner",
+					path: ["coveredRouteSignals", index, "signalKey"],
+				});
+			}
+			if (routeKeys.has(route.signalKey)) {
+				context.addIssue({
+					code: "custom",
+					message: "Covered route context cannot repeat a route signal",
+					path: ["coveredRouteSignals", index, "signalKey"],
+				});
+			}
+			routeKeys.add(route.signalKey);
+		}
+	});
 
 const frozenInvestigationPlanSchema = z
 	.object({
 		asOf: z.string().datetime({ offset: true }),
-		candidates: z.array(plannedCandidateSchema).max(3),
+		candidates: z.array(plannedCandidateSchema).max(MAX_MANUAL_CANDIDATES),
 		emptyStatus: emptyPlanStatusSchema.optional(),
 		reason: frozenPlanReasonSchema,
 	})
@@ -80,6 +184,27 @@ const frozenInvestigationPlanSchema = z
 					"A run candidate plan must contain candidates or one empty status",
 				path: ["candidates"],
 			});
+		}
+		const selectedSignalKeys = new Set(keys);
+		for (const [candidateIndex, candidate] of plan.candidates.entries()) {
+			for (const [routeIndex, route] of (
+				candidate.coveredRouteSignals ?? []
+			).entries()) {
+				if (selectedSignalKeys.has(route.signalKey)) {
+					context.addIssue({
+						code: "custom",
+						message:
+							"Covered route context cannot include another selected candidate",
+						path: [
+							"candidates",
+							candidateIndex,
+							"coveredRouteSignals",
+							routeIndex,
+							"signalKey",
+						],
+					});
+				}
+			}
 		}
 	});
 

@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import { chmod, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
@@ -10,13 +11,35 @@ import {
 	summarizeAgentUsage,
 	type UsageTelemetry,
 } from "@databuddy/ai/lib/usage-telemetry";
+import {
+	coveragePortfolioLimit,
+	type CoveragePortfolioEntry,
+	type SignalFamily,
+} from "./coverage-planner";
+import {
+	evaluateInsightOutputQualityCase,
+	summarizeInsightOutputQualityResults,
+	type InsightOutputQualityEvaluation,
+	type InsightOutputQualityCaseResult,
+} from "./output-quality-evaluation";
+import type { CandidateQualification } from "./candidate-qualification";
+import type { DetectedSignal } from "./detection";
+import type { ErrorCandidateOverlap } from "./error-candidate-overlap";
+import type { DatabuddySetupConfiguration } from "./databuddy-setup-context";
 import type {
+	ErrorCohortClustering,
 	InvestigationSources,
 	WebsiteInvestigationArtifact,
+	WebsitePortfolioInspection,
 } from "./generation";
 import type { InsightAgentInput, InsightAgentResult } from "./agent";
 import type { FunnelDef, GoalDef } from "./funnel-detection";
-import type { InvestigationAnnotation } from "./investigation";
+import {
+	isRegression,
+	prepareInvestigation,
+	signalKeyForDetectedSignal,
+	type InvestigationAnnotation,
+} from "./investigation";
 import type { LatestInsightObservation } from "./observations";
 
 dayjs.extend(utcPlugin);
@@ -27,9 +50,8 @@ const DEFAULT_OFFSETS = [60, 30, 7, 0];
 const DEFAULT_MIN_EVENTS = 25_000;
 const DEFAULT_CONCURRENCY = 2;
 const DEFAULT_MODEL = "openai/gpt-5.6-terra";
-const MAX_BATCH_SIZE = 3;
+const MAX_BATCH_SIZE = coveragePortfolioLimit("manual");
 const STATEMENT_TIMEOUT_MS = 60_000;
-const CASE_ATTEMPT_TIMEOUT_MS = 150_000;
 type AsOfMode = "day" | "instant";
 
 interface CliOptions {
@@ -41,7 +63,9 @@ interface CliOptions {
 	model: string;
 	offsets: number[];
 	output: string | null;
+	qualityEvaluation: boolean;
 	referenceTime: Date;
+	selectionAudit: boolean;
 	websiteId: string | null;
 }
 
@@ -72,6 +96,31 @@ interface AnnotationRow {
 	xValue: Date;
 }
 
+interface SetupFlagRow {
+	count: number;
+	organizationId: string | null;
+	status: "active" | "inactive";
+	type: "boolean" | "multivariant" | "rollout";
+	websiteId: string | null;
+}
+
+interface SetupTargetGroupRow {
+	count: number;
+	websiteId: string;
+}
+
+interface SetupRevenueRow {
+	paddleConfigured: boolean;
+	stripeConfigured: boolean;
+	websiteId: string;
+}
+
+interface SetupMetadata {
+	flags: SetupFlagRow[];
+	revenue: SetupRevenueRow[];
+	targetGroups: SetupTargetGroupRow[];
+}
+
 interface InsightAgentStepTrace {
 	cacheReadTokens: number | null;
 	cacheWriteTokens: number | null;
@@ -89,11 +138,21 @@ interface InsightAgentStepTrace {
 interface ShadowCase {
 	agent: ShadowAgentUsage | null;
 	asOf: string;
+	brief: null | {
+		claimSources: {
+			impact: "provided" | "tool" | null;
+			problem: "provided" | "tool";
+			rootCause: "provided" | "tool" | null;
+		};
+		scope: NonNullable<InsightAgentResult["brief"]>["scope"];
+		userExperience: NonNullable<InsightAgentResult["brief"]>["userExperience"];
+	};
 	caseId: string;
 	durationMs: number;
 	errorSummary: string | null;
 	errorType: string | null;
 	outcome: WebsiteInvestigationArtifact["outcome"];
+	quality: InsightOutputQualityCaseResult | null;
 	selectedSignal: null | {
 		changePercent: number | null;
 		current: number;
@@ -105,8 +164,16 @@ interface ShadowCase {
 		subject: string;
 	};
 	status: string;
+	timeout: ShadowTimeout | null;
 	toolCallCount: number;
 	trace: Pick<InsightAgentStepTrace, "tools">[];
+}
+
+interface ShadowTimeout {
+	budgetMs: number;
+	elapsedMs: number;
+	overdueMs: number;
+	phase: "generation" | "setup";
 }
 
 interface ShadowAgentUsage {
@@ -138,12 +205,106 @@ interface ShadowCostSummary {
 	total: number;
 }
 
+export interface ShadowSelectionCandidate {
+	alias: string;
+	baseline: number;
+	changePercent: number;
+	current: number;
+	eligible: boolean;
+	family: SignalFamily;
+	marginalSelectedAt: number | null;
+	metric: string;
+	omittedFor: CoveragePortfolioEntry["omittedFor"];
+	qualification: CandidateQualification["status"];
+	qualificationReason: CandidateQualification["reason"];
+	rank: number;
+	reach: DetectedSignal["reach"] | null;
+	reachSelectedAt: number | null;
+	regression: boolean;
+	selectedAt: number | null;
+	severity: DetectedSignal["severity"];
+}
+
+export interface ShadowErrorCandidateOverlap {
+	cooccurring: {
+		errorOccurrences: number;
+		sessions: number;
+		visitorIdentifiers: number;
+	};
+	fingerprint: {
+		alias: string;
+		errorOccurrences: number;
+		sessions: number;
+		visitorIdentifiers: number;
+	};
+	/** Null means one or both candidate cohorts had no visitor identifiers. */
+	marginalRouteVisitorIdentifiers: number | null;
+	route: {
+		alias: string;
+		errorOccurrences: number;
+		sessions: number;
+		visitorIdentifiers: number;
+	};
+	sessionOverlapMeasurable: boolean;
+	shared: {
+		sessions: number;
+		visitorIdentifiers: number;
+	};
+	visitorOverlapMeasurable: boolean;
+}
+
+export interface ShadowSelectionAudit {
+	asOf: string;
+	candidates: ShadowSelectionCandidate[];
+	candidateUniverseFingerprint: string;
+	detectedCount: number;
+	detectedUniverseFingerprint: string;
+	dueCandidate: boolean;
+	eligibleCount: number;
+	errorOverlaps: ShadowErrorCandidateOverlap[];
+	errorOverlapUnavailableCount: number;
+	history: "fresh_in_memory";
+	marginalRankingStatus: "baseline" | "measured" | "unavailable";
+	marginalSelectedCount: number;
+	overlapClustering: ShadowOverlapClustering | null;
+	portfolioLimit: number;
+	qualifiedCount: number;
+	qualifiedSelectedCount: number;
+	reachSelectedCount: number;
+	screenedCount: number;
+	screenedSelectedCount: number;
+	selectedCount: number;
+	status: WebsitePortfolioInspection["status"];
+}
+
+export interface ShadowOverlapClustering {
+	candidatePairCount: number;
+	measuredPairCount: number;
+	passes: number;
+	retainedIndependentRouteCount: number;
+	selectedCandidatesSettled: boolean;
+	suppressedRouteCount: number;
+	unavailablePairCount: number;
+}
+
 interface ShadowReport {
 	aggregate: {
 		agentCostUsd: ShadowCostSummary;
+		briefClaims: {
+			completed: number;
+			scopes: Record<string, number>;
+			sourcedImpact: number;
+			sourcedRootCause: number;
+			userExperience: Record<string, number>;
+		};
 		cases: number;
 		durationsMs: { p50: number; p95: number };
 		status: Record<string, number>;
+		timeouts: {
+			count: number;
+			maxOverdueMs: number;
+			phases: Record<string, number>;
+		};
 	};
 	cases: ShadowCase[];
 	meta: {
@@ -157,15 +318,23 @@ interface ShadowReport {
 			postgres: "metadata_queries_read_only";
 			redaction: "best_effort";
 		};
-		engine: "investigation agent";
+		engine: "candidate inventory" | "investigation agent";
 		generatedAt: string;
 		history: "in_memory";
 		minEvents: number;
-		model: string;
+		model: string | null;
 		offsets: number[];
 		referenceTime: string;
 		sites: number;
 	};
+	selectionAudit?: ShadowSelectionAudit[];
+}
+
+/** A quality-eval report intentionally excludes per-case customer-visible copy. */
+interface ShadowQualityEvaluationReport {
+	aggregate: ShadowReport["aggregate"];
+	meta: ShadowReport["meta"];
+	qualityEvaluation: InsightOutputQualityEvaluation;
 }
 
 interface ShadowObservation extends LatestInsightObservation {
@@ -256,7 +425,7 @@ function resolveReferenceTime(value: string | undefined): Date {
 	return result;
 }
 
-function parseOptions(args: string[]): CliOptions {
+export function parseOptions(args: string[]): CliOptions {
 	const { values } = parseArgs({
 		args,
 		options: {
@@ -269,7 +438,9 @@ function parseOptions(args: string[]): CliOptions {
 			model: { default: DEFAULT_MODEL, type: "string" },
 			offsets: { type: "string" },
 			output: { type: "string" },
+			"quality-eval": { default: false, type: "boolean" },
 			"reference-time": { type: "string" },
+			"selection-audit": { default: false, type: "boolean" },
 			"website-id": { type: "string" },
 		},
 		strict: true,
@@ -289,6 +460,14 @@ function parseOptions(args: string[]): CliOptions {
 	if (asOfMode === "instant" && offsets.some((offset) => offset !== 0)) {
 		throw new Error("as-of-mode=instant only supports offsets=0");
 	}
+	if (values["selection-audit"] && offsets.length !== 1) {
+		throw new Error("selection-audit requires exactly one frozen snapshot");
+	}
+	if (values["quality-eval"] && values["selection-audit"]) {
+		throw new Error(
+			"quality-eval requires generated investigation outcomes, not selection-audit"
+		);
+	}
 	return {
 		asOfMode,
 		batchSize: batchSizeOption(values["batch-size"]),
@@ -298,7 +477,9 @@ function parseOptions(args: string[]): CliOptions {
 		model: modelOption(values.model),
 		offsets,
 		output: values.output ?? null,
+		qualityEvaluation: values["quality-eval"],
 		referenceTime: resolveReferenceTime(values["reference-time"]),
+		selectionAudit: values["selection-audit"],
 		websiteId: values["website-id"]?.trim() || null,
 	};
 }
@@ -433,10 +614,61 @@ function githubRepository(
 		: null;
 }
 
+function setupCount(value: number, field: string): number {
+	if (!Number.isSafeInteger(value) || value < 0) {
+		throw new Error(`Invalid ${field} in shadow setup metadata`);
+	}
+	return value;
+}
+
+function setupConfigurationForSite(params: {
+	activeFunnels: number;
+	activeGoals: number;
+	organizationId: string;
+	setup: SetupMetadata;
+	websiteId: string;
+}): DatabuddySetupConfiguration {
+	const activeFlags = { boolean: 0, multivariant: 0, rollout: 0 };
+	let inactiveFlags = 0;
+	for (const row of params.setup.flags) {
+		if (
+			row.websiteId !== params.websiteId &&
+			row.organizationId !== params.organizationId
+		) {
+			continue;
+		}
+		const value = setupCount(row.count, "flag count");
+		if (row.status === "active") {
+			activeFlags[row.type] += value;
+		} else {
+			inactiveFlags += value;
+		}
+	}
+	const targetGroup = params.setup.targetGroups.find(
+		(row) => row.websiteId === params.websiteId
+	);
+	const revenue = params.setup.revenue.find(
+		(row) => row.websiteId === params.websiteId
+	);
+	return {
+		activeFlags,
+		activeFunnels: setupCount(params.activeFunnels, "active funnel count"),
+		activeGoals: setupCount(params.activeGoals, "active goal count"),
+		inactiveFlags,
+		paddleConfigured: revenue?.paddleConfigured ?? false,
+		stripeConfigured: revenue?.stripeConfigured ?? false,
+		targetGroups: targetGroup
+			? setupCount(targetGroup.count, "target group count")
+			: 0,
+		websiteRevenueConfigPresent: revenue !== undefined,
+	};
+}
+
 function loadMetadata(ids: string[]): Promise<{
 	annotations: AnnotationRow[];
 	funnels: FunnelRow[];
 	goals: GoalRow[];
+	setup: SetupMetadata;
 	sites: RankedWebsite[];
 }> {
 	if (ids.length === 0) {
@@ -444,6 +676,7 @@ function loadMetadata(ids: string[]): Promise<{
 			annotations: [],
 			funnels: [],
 			goals: [],
+			setup: { flags: [], revenue: [], targetGroups: [] },
 			sites: [],
 		});
 	}
@@ -518,6 +751,47 @@ function loadMetadata(ids: string[]): Promise<{
 					 WHERE website_id = ANY($1::text[])`,
 			[ids]
 		);
+		const flagResult = await client.query<SetupFlagRow>(
+			`SELECT website_id AS "websiteId",
+						organization_id AS "organizationId",
+						status,
+						type,
+						count(*)::integer AS count
+					 FROM flags
+					 WHERE (
+						website_id = ANY($1::text[])
+						OR organization_id IN (
+							SELECT organization_id
+							FROM websites
+							WHERE id = ANY($1::text[])
+						)
+					 )
+					 AND user_id IS NULL
+					 AND deleted_at IS NULL
+					 AND status IN ('active', 'inactive')
+					 GROUP BY website_id, organization_id, status, type`,
+			[ids]
+		);
+		const targetGroupResult = await client.query<SetupTargetGroupRow>(
+			`SELECT website_id AS "websiteId",
+						count(*)::integer AS count
+				 FROM target_groups
+				 WHERE website_id = ANY($1::text[])
+					 AND deleted_at IS NULL
+				 GROUP BY website_id`,
+			[ids]
+		);
+		const revenueResult = await client.query<SetupRevenueRow>(
+			`SELECT rc.website_id AS "websiteId",
+						(rc.paddle_webhook_secret IS NOT NULL) AS "paddleConfigured",
+						(rc.stripe_webhook_secret IS NOT NULL) AS "stripeConfigured"
+				 FROM revenue_config rc
+				 INNER JOIN websites w
+					 ON w.id = rc.website_id
+					 AND w.organization_id = rc.owner_id
+				 WHERE rc.website_id = ANY($1::text[])`,
+			[ids]
+		);
 		const sites = siteResult.rows.map((row) => {
 			const repository = githubRepository(row.integrations);
 			return {
@@ -544,6 +818,11 @@ function loadMetadata(ids: string[]): Promise<{
 			funnels: funnelResult.rows,
 			goals: goalResult.rows,
 			annotations: annotationResult.rows,
+			setup: {
+				flags: flagResult.rows,
+				revenue: revenueResult.rows,
+				targetGroups: targetGroupResult.rows,
+			},
 		};
 	});
 }
@@ -632,6 +911,7 @@ async function createSources(params: {
 	historical: boolean;
 	model: string;
 	observations: ShadowObservation[];
+	setup: SetupMetadata;
 	site: RankedWebsite;
 }): Promise<InvestigationSources> {
 	const [
@@ -643,7 +923,12 @@ async function createSources(params: {
 			detectMeasurementRecommendationSignals,
 		},
 		{ signalAnnotationWindow },
+		{ loadErrorCohortBehavior },
 		{ loadErrorCustomerImpact },
+		{ configuredGoalTargetFromDefinitions, loadErrorCohortGoalCompletion },
+		{ loadVitalCohortBehavior },
+		{ loadDatabuddySetupContext },
+		{ loadErrorCandidateOverlap },
 		{ createToolkit },
 		{ remeasureStoredSignal },
 		{ detectRouteHealthSignals },
@@ -654,7 +939,12 @@ async function createSources(params: {
 		import("./funnel-detection"),
 		import("./measurement-recommendation-detection"),
 		import("./investigation"),
+		import("./error-cohort-behavior"),
 		import("./error-customer-impact"),
+		import("./error-cohort-goal-completion"),
+		import("./vital-cohort-behavior"),
+		import("./databuddy-setup-context"),
+		import("./error-candidate-overlap"),
 		import("@databuddy/ai/tools/toolkit"),
 		import("./generation"),
 		import("./route-health-detection"),
@@ -668,6 +958,19 @@ async function createSources(params: {
 		params.goals.filter((row) => row.websiteId === params.site.id),
 		params.asOf
 	);
+	const setupConfiguration = params.historical
+		? null
+		: setupConfigurationForSite({
+				activeFunnels: params.funnels.filter(
+					(row) => row.websiteId === params.site.id
+				).length,
+				activeGoals: params.goals.filter(
+					(row) => row.websiteId === params.site.id
+				).length,
+				organizationId: params.site.organizationId,
+				setup: params.setup,
+				websiteId: params.site.id,
+			});
 	const latestObservations = new Map<string, ShadowObservation>();
 	for (const observation of params.observations) {
 		latestObservations.set(observation.signal.signalKey, observation);
@@ -771,7 +1074,7 @@ async function createSources(params: {
 			);
 		},
 		investigateSignal: async (input) => {
-			const startedAt = Date.now();
+			const startedAt = performance.now();
 			const attempt: ShadowAgentAttempt = {
 				agent: null,
 				durationMs: 0,
@@ -780,16 +1083,13 @@ async function createSources(params: {
 			};
 			params.attempts.push(attempt);
 			try {
-				const result = await runCancellableAttempt((attemptSignal) =>
-					runInsightAgent(input, {
-						abortSignal: attemptSignal,
-						model: createModelFromId(params.model),
-						...(historicalTools ? { tools: historicalTools } : {}),
-						onStepFinish: (step) => {
-							attempt.trace.push(projectStep(step));
-						},
-					})
-				);
+				const result = await runInsightAgent(input, {
+					model: createModelFromId(params.model),
+					...(historicalTools ? { tools: historicalTools } : {}),
+					onStepFinish: (step) => {
+						attempt.trace.push(projectStep(step));
+					},
+				});
 				attempt.agent = projectAgentUsage(result);
 				attempt.result = result;
 				const previous = latestObservations.get(input.signal.signalKey);
@@ -816,7 +1116,10 @@ async function createSources(params: {
 				attempt.error = error;
 				throw error;
 			} finally {
-				attempt.durationMs = Date.now() - startedAt;
+				attempt.durationMs = Math.max(
+					0,
+					Math.round(performance.now() - startedAt)
+				);
 			}
 		},
 		loadDueInvestigation: () => {
@@ -843,7 +1146,27 @@ async function createSources(params: {
 					: null
 			);
 		},
+		loadErrorCandidateOverlap,
+		loadErrorCohortBehavior,
 		loadErrorCustomerImpact,
+		loadVitalCohortBehavior,
+		loadErrorCohortGoalCompletion: (input) =>
+			loadErrorCohortGoalCompletion(input, {
+				fetchConfiguredGoal: async ({ signal, timezone }) =>
+					configuredGoalTargetFromDefinitions(
+						siteGoals.filter(
+							(goal) => goal.isActive !== false && !goal.deletedAt
+						),
+						{ signal, timezone }
+					),
+			}),
+		loadDatabuddySetup:
+			params.historical || !setupConfiguration
+				? async () => null
+				: (input) =>
+						loadDatabuddySetupContext(input, {
+							fetchConfiguration: async () => setupConfiguration,
+						}),
 		loadHistory: ({ signalKey, through }) =>
 			Promise.resolve(
 				params.observations
@@ -873,35 +1196,6 @@ async function createSources(params: {
 				funnelGoal: funnelGoalDependencies(),
 			}),
 	};
-}
-
-async function runCancellableAttempt<T>(
-	work: (signal: AbortSignal) => Promise<T>,
-	timeoutMs = CASE_ATTEMPT_TIMEOUT_MS
-): Promise<T> {
-	const controller = new AbortController();
-	const timeoutError = new Error(
-		`Production shadow attempt exceeded ${timeoutMs}ms`
-	);
-	timeoutError.name = "TimeoutError";
-	let timer: ReturnType<typeof setTimeout> | undefined;
-	const deadline = new Promise<never>((_resolve, reject) => {
-		timer = setTimeout(() => {
-			controller.abort(timeoutError);
-			reject(timeoutError);
-		}, timeoutMs);
-	});
-
-	try {
-		return await Promise.race([work(controller.signal), deadline]);
-	} catch (error) {
-		controller.abort(error);
-		throw error;
-	} finally {
-		if (timer) {
-			clearTimeout(timer);
-		}
-	}
 }
 
 function countBy(values: string[]): Record<string, number> {
@@ -1052,6 +1346,490 @@ export function metricFamily(key: string): string {
 	return key;
 }
 
+const SAFE_SELECTION_METRIC_FAMILIES = new Set([
+	"bounce_rate",
+	"custom_event",
+	"error",
+	"funnel",
+	"goal",
+	"inp",
+	"lcp",
+	"measurement",
+	"pageviews",
+	"revenue",
+	"route_health",
+	"session_duration",
+	"sessions",
+	"visitors",
+]);
+
+function selectionMetricFamily(signal: DetectedSignal): string {
+	if (signal.metric === "error_count") {
+		return "error";
+	}
+	if (signal.metric === "custom_event_count") {
+		return "custom_event";
+	}
+	if (signal.metric.startsWith("funnel:")) {
+		return "funnel";
+	}
+	if (signal.metric.startsWith("goal:")) {
+		return "goal";
+	}
+	const family = metricFamily(signal.subjectKey ?? signal.metric);
+	return SAFE_SELECTION_METRIC_FAMILIES.has(family) ? family : "other";
+}
+
+function selectionDigest(siteId: string, value: string): string {
+	return createHmac("sha256", `candidate-inventory:${siteId}`)
+		.update(value)
+		.digest("hex");
+}
+
+function selectionCandidateAlias(
+	siteId: string,
+	signal: DetectedSignal
+): string {
+	return `candidate-${selectionDigest(
+		siteId,
+		signalKeyForDetectedSignal(signal)
+	).slice(0, 12)}`;
+}
+
+function candidateUniverseFingerprint(
+	siteId: string,
+	entries: CoveragePortfolioEntry[]
+): string {
+	const canonical = entries
+		.map((entry) => ({
+			baseline: entry.signal.baseline,
+			changePercent: entry.signal.deltaPercent,
+			current: entry.signal.current,
+			key: signalKeyForDetectedSignal(entry.signal),
+			omittedFor: entry.omittedFor,
+			rank: entry.rank,
+			reach: entry.signal.reach ?? null,
+			selectedAt: entry.selectedAt,
+			severity: entry.signal.severity,
+		}))
+		.sort((left, right) => left.rank - right.rank);
+	return selectionDigest(siteId, JSON.stringify(canonical)).slice(0, 16);
+}
+
+/**
+ * This digest excludes selection results so frozen before/after audits can
+ * prove the detector universe stayed fixed while portfolio policy changed.
+ */
+function detectedUniverseFingerprint(
+	siteId: string,
+	signals: DetectedSignal[]
+): string {
+	const canonical = signals
+		.map((signal) => ({
+			baseline: signal.baseline,
+			baselineDates: signal.baselineDates ?? null,
+			changePercent: signal.deltaPercent,
+			current: signal.current,
+			detectedAt: signal.detectedAt,
+			direction: signal.direction,
+			key: signalKeyForDetectedSignal(signal),
+			measurementCandidate: signal.measurementCandidate ?? null,
+			measurementGapRecommendationCandidate:
+				signal.measurementGapRecommendationCandidate ?? null,
+			metric: signal.metric,
+			reach: signal.reach ?? null,
+			severity: signal.severity,
+		}))
+		.sort((left, right) => left.key.localeCompare(right.key));
+	return selectionDigest(siteId, JSON.stringify(canonical)).slice(0, 16);
+}
+
+function projectOverlapClustering(
+	clustering: ErrorCohortClustering
+): ShadowOverlapClustering {
+	return {
+		candidatePairCount: clustering.candidatePairCount,
+		measuredPairCount: clustering.measuredPairCount,
+		passes: clustering.passes,
+		retainedIndependentRouteCount: clustering.independentRouteSignalKeys.length,
+		selectedCandidatesSettled: clustering.selectedCandidatesSettled,
+		suppressedRouteCount: clustering.redundantRouteSignalKeys.length,
+		unavailablePairCount: clustering.unavailablePairCount,
+	};
+}
+
+function isFingerprintErrorCandidate(signal: DetectedSignal): boolean {
+	return (
+		signal.metric === "error_count" &&
+		signal.subjectKey?.startsWith("error:") === true
+	);
+}
+
+function isRouteErrorCandidate(signal: DetectedSignal): boolean {
+	return (
+		signal.metric === "error_count" &&
+		signal.subjectKey?.startsWith("route:error:") === true
+	);
+}
+
+function selectedErrorCandidatePairs(
+	inspection: WebsitePortfolioInspection
+): Array<{ fingerprint: DetectedSignal; route: DetectedSignal }> {
+	if (inspection.status !== "signals") {
+		return [];
+	}
+	const selectedByEitherStrategy = new Map<string, DetectedSignal>();
+	for (const plan of [inspection.plan, inspection.reachPlan]) {
+		for (const entry of plan.entries) {
+			if (
+				entry.selectedAt !== null ||
+				entry.omittedFor.includes("overlap_covered")
+			) {
+				selectedByEitherStrategy.set(
+					signalKeyForDetectedSignal(entry.signal),
+					entry.signal
+				);
+			}
+		}
+	}
+	const selected = [...selectedByEitherStrategy.values()];
+	const fingerprints = selected.filter(isFingerprintErrorCandidate);
+	const routes = selected.filter(isRouteErrorCandidate);
+	return fingerprints.flatMap((fingerprint) =>
+		routes.map((route) => ({ fingerprint, route }))
+	);
+}
+
+export function projectErrorCandidateOverlap(params: {
+	fingerprint: DetectedSignal;
+	overlap: ErrorCandidateOverlap;
+	route: DetectedSignal;
+	siteId: string;
+}): ShadowErrorCandidateOverlap {
+	const { overlap } = params;
+	return {
+		cooccurring: { ...overlap.cooccurring },
+		fingerprint: {
+			alias: selectionCandidateAlias(params.siteId, params.fingerprint),
+			...overlap.fingerprint,
+		},
+		marginalRouteVisitorIdentifiers: overlap.visitorOverlapMeasurable
+			? overlap.route.visitorIdentifiers - overlap.shared.visitorIdentifiers
+			: null,
+		route: {
+			alias: selectionCandidateAlias(params.siteId, params.route),
+			...overlap.route,
+		},
+		sessionOverlapMeasurable: overlap.sessionOverlapMeasurable,
+		shared: { ...overlap.shared },
+		visitorOverlapMeasurable: overlap.visitorOverlapMeasurable,
+	};
+}
+
+interface MarginalPortfolioSelection {
+	selected: DetectedSignal[];
+	status: "baseline" | "measured" | "unavailable";
+}
+
+function overlapForRoute(params: {
+	fingerprint: DetectedSignal;
+	overlaps: ShadowErrorCandidateOverlap[];
+	route: DetectedSignal;
+	siteId: string;
+}): ShadowErrorCandidateOverlap | null {
+	const fingerprintAlias = selectionCandidateAlias(
+		params.siteId,
+		params.fingerprint
+	);
+	const routeAlias = selectionCandidateAlias(params.siteId, params.route);
+	return (
+		params.overlaps.find(
+			(overlap) =>
+				overlap.fingerprint.alias === fingerprintAlias &&
+				overlap.route.alias === routeAlias
+		) ?? null
+	);
+}
+
+/**
+ * Evaluation-only comparator for the exact current-vs-reach error swap. It
+ * intentionally declines to infer a union from partial overlap data: a live
+ * generalized portfolio rule would need set-union evidence for every selected
+ * error candidate, not only a pair.
+ */
+function marginalPortfolioSelection(params: {
+	inspection: WebsitePortfolioInspection;
+	overlaps: ShadowErrorCandidateOverlap[];
+	siteId: string;
+}): MarginalPortfolioSelection {
+	if (params.inspection.status !== "signals") {
+		return { selected: [], status: "baseline" };
+	}
+	const current = params.inspection.plan.selected;
+	const reach = params.inspection.reachPlan.selected;
+	const currentKeys = new Set(current.map(signalKeyForDetectedSignal));
+	const reachKeys = new Set(reach.map(signalKeyForDetectedSignal));
+	const currentOnly = current.filter(
+		(signal) => !reachKeys.has(signalKeyForDetectedSignal(signal))
+	);
+	const reachOnly = reach.filter(
+		(signal) => !currentKeys.has(signalKeyForDetectedSignal(signal))
+	);
+	if (currentOnly.length === 0 && reachOnly.length === 0) {
+		return { selected: current, status: "baseline" };
+	}
+	if (currentOnly.length !== 1 || reachOnly.length !== 1) {
+		return { selected: current, status: "unavailable" };
+	}
+	const currentRoute = currentOnly[0];
+	const reachRoute = reachOnly[0];
+	if (!(currentRoute && reachRoute)) {
+		throw new Error("Marginal portfolio candidates were missing");
+	}
+	if (
+		!(
+			isRouteErrorCandidate(currentRoute) &&
+			isRouteErrorCandidate(reachRoute) &&
+			currentRoute.severity === reachRoute.severity &&
+			isRegression(currentRoute) === isRegression(reachRoute) &&
+			currentRoute.reach?.unit === "visitor_identifiers" &&
+			reachRoute.reach?.unit === "visitor_identifiers"
+		)
+	) {
+		return { selected: current, status: "unavailable" };
+	}
+	const sharedFingerprint = current.filter(
+		(signal) =>
+			isFingerprintErrorCandidate(signal) &&
+			reachKeys.has(signalKeyForDetectedSignal(signal))
+	);
+	const fingerprint = sharedFingerprint[0];
+	if (!fingerprint || sharedFingerprint.length !== 1) {
+		return { selected: current, status: "unavailable" };
+	}
+	const currentOverlap = overlapForRoute({
+		fingerprint,
+		overlaps: params.overlaps,
+		route: currentRoute,
+		siteId: params.siteId,
+	});
+	const reachOverlap = overlapForRoute({
+		fingerprint,
+		overlaps: params.overlaps,
+		route: reachRoute,
+		siteId: params.siteId,
+	});
+	const currentMarginal = currentOverlap?.marginalRouteVisitorIdentifiers;
+	const reachMarginal = reachOverlap?.marginalRouteVisitorIdentifiers;
+	if (
+		!(
+			currentOverlap?.visitorOverlapMeasurable &&
+			reachOverlap?.visitorOverlapMeasurable &&
+			typeof currentMarginal === "number" &&
+			typeof reachMarginal === "number" &&
+			fingerprint.reach?.unit === "visitor_identifiers" &&
+			fingerprint.reach.current ===
+				currentOverlap.fingerprint.visitorIdentifiers &&
+			fingerprint.reach.current ===
+				reachOverlap.fingerprint.visitorIdentifiers &&
+			currentRoute.reach.current === currentOverlap.route.visitorIdentifiers &&
+			reachRoute.reach.current === reachOverlap.route.visitorIdentifiers
+		)
+	) {
+		return { selected: current, status: "unavailable" };
+	}
+	if (reachMarginal <= currentMarginal) {
+		return { selected: current, status: "measured" };
+	}
+	return {
+		selected: current.map((signal) =>
+			signalKeyForDetectedSignal(signal) ===
+			signalKeyForDetectedSignal(currentRoute)
+				? reachRoute
+				: signal
+		),
+		status: "measured",
+	};
+}
+
+async function loadSelectedErrorOverlaps(params: {
+	inspection: WebsitePortfolioInspection;
+	lookbackDays: number;
+	loadOverlap: typeof import("./error-candidate-overlap").loadErrorCandidateOverlap;
+	site: RankedWebsite;
+}): Promise<{
+	overlaps: ShadowErrorCandidateOverlap[];
+	unavailableCount: number;
+}> {
+	const pairs = selectedErrorCandidatePairs(params.inspection);
+	const settled = await Promise.all(
+		pairs.map(async ({ fingerprint, route }) => {
+			try {
+				const overlap = await params.loadOverlap({
+					abortSignal: AbortSignal.timeout(STATEMENT_TIMEOUT_MS),
+					fingerprint: prepareInvestigation(fingerprint, params.lookbackDays)
+						.signal,
+					route: prepareInvestigation(route, params.lookbackDays).signal,
+					timezone: params.site.timezone,
+					websiteId: params.site.id,
+				});
+				return overlap
+					? {
+							kind: "measured" as const,
+							value: projectErrorCandidateOverlap({
+								fingerprint,
+								overlap,
+								route,
+								siteId: params.site.id,
+							}),
+						}
+					: { kind: "unavailable" as const };
+			} catch {
+				// The inventory remains valid when optional overlap evidence is absent.
+				return { kind: "unavailable" as const };
+			}
+		})
+	);
+	return {
+		overlaps: settled.flatMap((result) =>
+			result.kind === "measured" ? [result.value] : []
+		),
+		unavailableCount: settled.filter((result) => result.kind === "unavailable")
+			.length,
+	};
+}
+
+/**
+ * Removes raw signal subjects before a candidate inventory leaves the
+ * read-only shadow. The aliases are stable for one website while the report
+ * contains no routes, error text, event names, or configured definitions.
+ */
+export function projectSelectionAudit(params: {
+	errorOverlapUnavailableCount?: number;
+	errorOverlaps?: ShadowErrorCandidateOverlap[];
+	inspection: WebsitePortfolioInspection;
+	siteId: string;
+}): ShadowSelectionAudit {
+	const entries =
+		params.inspection.status === "signals"
+			? params.inspection.plan.entries
+			: [];
+	const eligibleKeys = new Set(
+		params.inspection.eligibleSignals.map(signalKeyForDetectedSignal)
+	);
+	const qualificationsByKey = new Map<string, CandidateQualification>(
+		params.inspection.status === "signals"
+			? params.inspection.qualifications.map((qualification) => [
+					signalKeyForDetectedSignal(qualification.signal),
+					qualification,
+				])
+			: []
+	);
+	const reachEntriesByKey = new Map<string, CoveragePortfolioEntry>(
+		params.inspection.status === "signals"
+			? params.inspection.reachPlan.entries.map((entry) => [
+					signalKeyForDetectedSignal(entry.signal),
+					entry,
+				])
+			: []
+	);
+	const errorOverlaps = params.errorOverlaps ?? [];
+	const marginalPortfolio = marginalPortfolioSelection({
+		inspection: params.inspection,
+		overlaps: errorOverlaps,
+		siteId: params.siteId,
+	});
+	const marginalSelectedAtByKey = new Map(
+		marginalPortfolio.selected.map((signal, index) => [
+			signalKeyForDetectedSignal(signal),
+			index + 1,
+		])
+	);
+	const overlapClustering =
+		params.inspection.status === "signals" &&
+		params.inspection.overlapClustering
+			? projectOverlapClustering(params.inspection.overlapClustering)
+			: null;
+	const candidates = entries.map((entry) => {
+		const qualification = qualificationsByKey.get(
+			signalKeyForDetectedSignal(entry.signal)
+		);
+		if (!qualification) {
+			throw new Error(
+				"Selection audit candidate is missing qualification state"
+			);
+		}
+		return {
+			alias: selectionCandidateAlias(params.siteId, entry.signal),
+			baseline: entry.signal.baseline,
+			changePercent: entry.signal.deltaPercent,
+			current: entry.signal.current,
+			eligible: eligibleKeys.has(signalKeyForDetectedSignal(entry.signal)),
+			family: entry.family,
+			marginalSelectedAt:
+				marginalSelectedAtByKey.get(signalKeyForDetectedSignal(entry.signal)) ??
+				null,
+			metric: selectionMetricFamily(entry.signal),
+			omittedFor: [...entry.omittedFor],
+			qualification: qualification.status,
+			qualificationReason: qualification.reason,
+			rank: entry.rank,
+			reach: entry.signal.reach ?? null,
+			reachSelectedAt:
+				reachEntriesByKey.get(signalKeyForDetectedSignal(entry.signal))
+					?.selectedAt ?? null,
+			regression: isRegression(entry.signal),
+			selectedAt: entry.selectedAt,
+			severity: entry.signal.severity,
+		};
+	});
+	return {
+		asOf: params.inspection.asOf,
+		candidateUniverseFingerprint: candidateUniverseFingerprint(
+			params.siteId,
+			entries
+		),
+		candidates,
+		detectedUniverseFingerprint: detectedUniverseFingerprint(
+			params.siteId,
+			params.inspection.detectedSignals
+		),
+		detectedCount: params.inspection.detectedSignals.length,
+		dueCandidate: params.inspection.dueSignalKey !== null,
+		errorOverlapUnavailableCount: params.errorOverlapUnavailableCount ?? 0,
+		errorOverlaps,
+		eligibleCount: params.inspection.eligibleSignals.length,
+		history: "fresh_in_memory",
+		marginalRankingStatus: marginalPortfolio.status,
+		marginalSelectedCount: marginalPortfolio.selected.length,
+		overlapClustering,
+		portfolioLimit: coveragePortfolioLimit("manual"),
+		qualifiedCount: candidates.filter(
+			(candidate) => candidate.qualification === "qualified"
+		).length,
+		qualifiedSelectedCount: candidates.filter(
+			(candidate) =>
+				candidate.qualification === "qualified" && candidate.selectedAt !== null
+		).length,
+		reachSelectedCount:
+			params.inspection.status === "signals"
+				? params.inspection.reachPlan.selected.length
+				: 0,
+		screenedCount: candidates.filter(
+			(candidate) => candidate.qualification === "screened"
+		).length,
+		screenedSelectedCount: candidates.filter(
+			(candidate) =>
+				candidate.qualification === "screened" && candidate.selectedAt !== null
+		).length,
+		selectedCount:
+			params.inspection.status === "signals"
+				? params.inspection.plan.selected.length
+				: 0,
+		status: params.inspection.status,
+	};
+}
+
 function projectAgentUsage(
 	result: InsightAgentResult
 ): ShadowAgentUsage | null {
@@ -1159,6 +1937,23 @@ function projectSelectedSignal(
 		: null;
 }
 
+export function projectBriefProvenance(
+	brief: InsightAgentResult["brief"]
+): ShadowCase["brief"] {
+	if (!brief) {
+		return null;
+	}
+	return {
+		claimSources: {
+			impact: brief.claimRefs.impact?.source ?? null,
+			problem: brief.claimRefs.problem.source,
+			rootCause: brief.claimRefs.rootCause?.source ?? null,
+		},
+		scope: brief.scope,
+		userExperience: brief.userExperience,
+	};
+}
+
 function projectCase(params: {
 	agent: ShadowAgentUsage | null;
 	artifact: WebsiteInvestigationArtifact;
@@ -1169,9 +1964,11 @@ function projectCase(params: {
 	trace: InsightAgentStepTrace[];
 }): ShadowCase {
 	const { artifact } = params;
+	const brief = projectBriefProvenance(artifact.brief);
 	return {
 		agent: params.agent,
 		asOf: artifact.asOf,
+		brief,
 		caseId: params.caseId,
 		durationMs: params.durationMs,
 		errorType: null,
@@ -1186,6 +1983,11 @@ function projectCase(params: {
 					}
 				: undefined
 		),
+		quality: evaluateInsightOutputQualityCase({
+			brief,
+			outcome: artifact.outcome,
+			status: artifact.status,
+		}),
 		selectedSignal: projectSelectedSignal(artifact.signal, params.subjectAlias),
 		status: artifact.status,
 		trace: params.trace.map(({ tools }) => ({ tools })),
@@ -1193,6 +1995,43 @@ function projectCase(params: {
 			(count, step) => count + step.tools.length,
 			0
 		),
+		timeout: null,
+	};
+}
+
+export function projectTimeoutMetadata(error: unknown): ShadowTimeout | null {
+	if (
+		!(error instanceof Error) ||
+		error.name !== "InsightAgentTimeoutError" ||
+		!("timeout" in error)
+	) {
+		return null;
+	}
+	const timeout = error.timeout as Record<string, unknown> | null;
+	if (
+		!timeout ||
+		typeof timeout.budgetMs !== "number" ||
+		typeof timeout.elapsedMs !== "number" ||
+		typeof timeout.overdueMs !== "number" ||
+		typeof timeout.phase !== "string" ||
+		!Number.isFinite(timeout.budgetMs) ||
+		!Number.isFinite(timeout.elapsedMs) ||
+		!Number.isFinite(timeout.overdueMs) ||
+		timeout.budgetMs < 0 ||
+		timeout.elapsedMs < 0 ||
+		timeout.overdueMs < 0 ||
+		(timeout.phase !== "generation" && timeout.phase !== "setup")
+	) {
+		return null;
+	}
+	if (timeout.overdueMs !== Math.max(0, timeout.elapsedMs - timeout.budgetMs)) {
+		return null;
+	}
+	return {
+		budgetMs: timeout.budgetMs,
+		elapsedMs: timeout.elapsedMs,
+		overdueMs: timeout.overdueMs,
+		phase: timeout.phase,
 	};
 }
 
@@ -1224,6 +2063,7 @@ function failedCase(params: {
 	return {
 		agent: params.agent,
 		asOf: params.asOf.toISOString(),
+		brief: null,
 		caseId: params.caseId,
 		durationMs: params.durationMs,
 		errorSummary: sanitizeText(message, params.secrets).slice(0, 500),
@@ -1232,6 +2072,7 @@ function failedCase(params: {
 				? params.error.constructor.name
 				: typeof params.error,
 		outcome: null,
+		quality: null,
 		selectedSignal: projectSelectedSignal(
 			params.selectedSignal ?? null,
 			params.subjectAlias ?? null
@@ -1242,6 +2083,7 @@ function failedCase(params: {
 			(count, step) => count + step.tools.length,
 			0
 		),
+		timeout: projectTimeoutMetadata(params.error),
 	};
 }
 
@@ -1265,20 +2107,63 @@ async function mapConcurrent<T, R>(
 }
 
 function aggregateCases(cases: ShadowCase[]): ShadowReport["aggregate"] {
+	const briefs = cases.flatMap((item) => (item.brief ? [item.brief] : []));
+	const completed = cases.filter((item) => item.status === "completed");
+	const timeouts = cases.flatMap((item) =>
+		item.timeout ? [item.timeout] : []
+	);
 	return {
 		agentCostUsd: summarizeInvestigationCosts(cases.map((item) => item.agent)),
+		briefClaims: {
+			completed: briefs.length,
+			scopes: countBy(briefs.map((brief) => brief.scope)),
+			sourcedImpact: briefs.filter(
+				(brief) => brief.claimSources.impact !== null
+			).length,
+			sourcedRootCause: briefs.filter(
+				(brief) => brief.claimSources.rootCause !== null
+			).length,
+			userExperience: countBy(briefs.map((brief) => brief.userExperience)),
+		},
 		cases: cases.length,
 		durationsMs: {
 			p50: percentile(
-				cases.map((item) => item.durationMs),
+				completed.map((item) => item.durationMs),
 				0.5
 			),
 			p95: percentile(
-				cases.map((item) => item.durationMs),
+				completed.map((item) => item.durationMs),
 				0.95
 			),
 		},
 		status: countBy(cases.map((item) => item.status)),
+		timeouts: {
+			count: timeouts.length,
+			maxOverdueMs: Math.max(
+				0,
+				...timeouts.map((timeout) => timeout.overdueMs)
+			),
+			phases: countBy(timeouts.map((timeout) => timeout.phase)),
+		},
+	};
+}
+
+/**
+ * Reduces a completed shadow to an output-quality report with no customer text,
+ * source references, case identifiers, tool names, or failure messages.
+ */
+function projectQualityEvaluationReport(
+	report: ShadowReport
+): ShadowQualityEvaluationReport {
+	return {
+		aggregate: report.aggregate,
+		meta: report.meta,
+		qualityEvaluation: summarizeInsightOutputQualityResults({
+			caseCount: report.cases.length,
+			results: report.cases.flatMap((item) =>
+				item.quality ? [item.quality] : []
+			),
+		}),
 	};
 }
 
@@ -1319,6 +2204,83 @@ async function closeShadowConnections(): Promise<void> {
 	await Promise.allSettled([clickHouse.close(), shutdownRedis()]);
 }
 
+async function runSelectionAudit(params: {
+	annotations: AnnotationRow[];
+	funnels: FunnelRow[];
+	goals: GoalRow[];
+	options: CliOptions;
+	referenceTime: Date;
+	setup: SetupMetadata;
+	sites: RankedWebsite[];
+}): Promise<ShadowSelectionAudit[]> {
+	const [offsetDays] = params.options.offsets;
+	if (offsetDays === undefined) {
+		throw new Error("selection-audit requires one frozen snapshot");
+	}
+	const [
+		{ INSIGHT_LOOKBACK_DAYS, inspectWebsitePortfolioWithSources },
+		{ loadErrorCandidateOverlap },
+	] = await Promise.all([
+		import("./generation"),
+		import("./error-candidate-overlap"),
+	]);
+	return mapConcurrent(
+		params.sites,
+		params.options.concurrency,
+		async (site) => {
+			const asOf = resolveShadowAsOf(
+				params.referenceTime,
+				offsetDays,
+				site.timezone,
+				params.options.asOfMode
+			);
+			const attempts: ShadowAgentAttempt[] = [];
+			const sources = await createSources({
+				annotations: params.annotations,
+				asOf,
+				attempts,
+				funnels: params.funnels,
+				goals: params.goals,
+				historical: offsetDays > 0,
+				model: params.options.model,
+				observations: [],
+				setup: params.setup,
+				site,
+			});
+			const inspection = await inspectWebsitePortfolioWithSources(
+				{
+					asOf,
+					domain: site.domain,
+					githubRepository: null,
+					name: site.name,
+					organizationId: site.organizationId,
+					timezone: site.timezone,
+					websiteId: site.id,
+				},
+				sources,
+				"manual"
+			);
+			if (attempts.length > 0) {
+				throw new Error(
+					"selection-audit must not invoke the investigation agent"
+				);
+			}
+			const errorOverlap = await loadSelectedErrorOverlaps({
+				inspection,
+				loadOverlap: loadErrorCandidateOverlap,
+				lookbackDays: INSIGHT_LOOKBACK_DAYS,
+				site,
+			});
+			return projectSelectionAudit({
+				errorOverlapUnavailableCount: errorOverlap.unavailableCount,
+				errorOverlaps: errorOverlap.overlaps,
+				inspection,
+				siteId: site.id,
+			});
+		}
+	);
+}
+
 async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 	disableExternalEffects();
 	configureReadOnlyClickHouse();
@@ -1332,6 +2294,42 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 		const metadata = await loadMetadata(ranked);
 		if (options.websiteId && metadata.sites.length === 0) {
 			throw new Error("The requested website was not found");
+		}
+		if (options.selectionAudit) {
+			const selectionAudit = await runSelectionAudit({
+				annotations: metadata.annotations,
+				funnels: metadata.funnels,
+				goals: metadata.goals,
+				options,
+				referenceTime,
+				setup: metadata.setup,
+				sites: metadata.sites,
+			});
+			return {
+				aggregate: aggregateCases([]),
+				cases: [],
+				meta: {
+					asOfMode: options.asOfMode,
+					batchSize: options.batchSize,
+					concurrency: options.concurrency,
+					dataAccess: {
+						clickhouse: "read_only",
+						connectors: "current_reference_only",
+						historicalTools: "time_bounded_analytics_only",
+						postgres: "metadata_queries_read_only",
+						redaction: "best_effort",
+					},
+					engine: "candidate inventory",
+					generatedAt: new Date().toISOString(),
+					history: "in_memory",
+					minEvents: options.minEvents,
+					model: null,
+					offsets: options.offsets,
+					referenceTime: referenceTime.toISOString(),
+					sites: metadata.sites.length,
+				},
+				selectionAudit,
+			};
 		}
 		const { investigateWebsitePortfolioWithSources } = await import(
 			"./generation"
@@ -1373,7 +2371,7 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 						site.timezone,
 						options.asOfMode
 					);
-					const offsetStartedAt = Date.now();
+					const offsetStartedAt = performance.now();
 					const input = {
 						asOf,
 						domain: site.domain,
@@ -1396,6 +2394,7 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 							historical: offsetDays > 0,
 							model: options.model,
 							observations,
+							setup: metadata.setup,
 							site,
 						});
 						let remainingAgentSlots = options.batchSize;
@@ -1426,6 +2425,12 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 								related.entity.id,
 								related.entity.label,
 							]),
+							...(attempt.input.coveredRouteContext ?? []).flatMap(
+								(coveredRoute) => [
+									coveredRoute.entity.id,
+									coveredRoute.entity.label,
+								]
+							),
 						];
 						const caseId = `${caseIdPrefix}#${attemptIndex + 1}`;
 						if (attempt.error !== undefined) {
@@ -1449,6 +2454,7 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 						}
 						const artifact: WebsiteInvestigationArtifact = {
 							asOf: asOf.toISOString(),
+							brief: attempt.result.brief,
 							evidence: attempt.input.evidence,
 							outcome: attempt.result.outcome,
 							signal,
@@ -1474,7 +2480,10 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 									agent: null,
 									artifact,
 									caseId: `${caseIdPrefix}#1`,
-									durationMs: Date.now() - offsetStartedAt,
+									durationMs: Math.max(
+										0,
+										Math.round(performance.now() - offsetStartedAt)
+									),
 									secrets: siteSecrets,
 									subjectAlias: null,
 									trace: [],
@@ -1491,7 +2500,10 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 								agent: null,
 								asOf,
 								caseId: `${caseIdPrefix}#error`,
-								durationMs: Date.now() - offsetStartedAt,
+								durationMs: Math.max(
+									0,
+									Math.round(performance.now() - offsetStartedAt)
+								),
 								error: portfolioError,
 								secrets: siteSecrets,
 								trace: [],
@@ -1537,29 +2549,46 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 }
 
 if (import.meta.main) {
+	const qualityEvaluationRequested = process.argv.includes("--quality-eval");
 	try {
 		const options = parseOptions(process.argv.slice(2));
 		const output = options.output
 			? assertOutsideRepository(options.output)
 			: null;
-		const result = await runProductionShadow(options);
+		const shadow = await runProductionShadow(options);
+		const result = options.qualityEvaluation
+			? projectQualityEvaluationReport(shadow)
+			: shadow;
 		if (output) {
 			await writeFile(output, `${JSON.stringify(result, null, 2)}\n`, {
 				mode: 0o600,
 			});
 			await chmod(output, 0o600);
 		}
-		process.stdout.write(
-			`${JSON.stringify({ aggregate: result.aggregate, meta: result.meta }, null, 2)}\n`
-		);
-		if ((result.aggregate.status.error ?? 0) > 0) {
+		const stdout = options.qualityEvaluation
+			? result
+			: {
+					aggregate: shadow.aggregate,
+					meta: shadow.meta,
+					...(shadow.selectionAudit
+						? { selectionAudit: shadow.selectionAudit }
+						: {}),
+				};
+		process.stdout.write(`${JSON.stringify(stdout, null, 2)}\n`);
+		if ((shadow.aggregate.status.error ?? 0) > 0) {
 			process.exitCode = 1;
 		}
 	} catch (error) {
 		const type = error instanceof Error ? error.constructor.name : typeof error;
-		const message = error instanceof Error ? error.message : String(error);
+		const message = qualityEvaluationRequested
+			? "The frozen output evaluation could not complete."
+			: error instanceof Error
+				? error.message
+				: String(error);
 		process.stderr.write(
-			`Production shadow failed (${type}): ${sanitizeText(message, []).slice(0, 500)}\n`
+			qualityEvaluationRequested
+				? `${message}\n`
+				: `Production shadow failed (${type}): ${sanitizeText(message, []).slice(0, 500)}\n`
 		);
 		process.exitCode = 1;
 	}

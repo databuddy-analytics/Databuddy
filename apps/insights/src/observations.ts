@@ -3,12 +3,13 @@ import {
 	db,
 	desc,
 	eq,
+	hasTrustedLatestInsightObservation,
 	inArray,
+	isTrustedInsightObservation,
 	lt,
 	lte,
 	ne,
 	or,
-	sql,
 } from "@databuddy/db";
 import {
 	analyticsInsights,
@@ -17,6 +18,7 @@ import {
 } from "@databuddy/db/schema";
 import type { InvestigationOutcome } from "@databuddy/shared/insights";
 import {
+	isQuarantinedInsightObservation,
 	parseInvestigationOutcome,
 	parseInvestigationSignal,
 } from "@databuddy/shared/insights";
@@ -128,6 +130,7 @@ export async function loadLatestSignalObservations(params: {
 	}
 	const rows = await db
 		.selectDistinctOn([insightObservations.signalKey], {
+			evidence: insightObservations.evidence,
 			outcome: insightObservations.outcome,
 			signalKey: insightObservations.signalKey,
 			signal: insightObservations.signal,
@@ -146,11 +149,15 @@ export async function loadLatestSignalObservations(params: {
 		.orderBy(
 			insightObservations.signalKey,
 			desc(insightObservations.asOf),
-			desc(insightObservations.createdAt)
+			desc(insightObservations.createdAt),
+			desc(insightObservations.id)
 		);
 
 	const observations = new Map<string, LatestInsightObservation>();
 	for (const row of rows) {
+		if (isQuarantinedInsightObservation(row)) {
+			continue;
+		}
 		const outcome = parseInvestigationOutcome(row.outcome);
 		const signal = parseInvestigationSignal(row.signal);
 		if (outcome && signal) {
@@ -172,6 +179,7 @@ export async function loadDueOpenInvestigation(params: {
 			recheckAt: insightObservations.recheckAt,
 			signal: insightObservations.signal,
 			signalKey: insightObservations.signalKey,
+			status: analyticsInsights.status,
 		})
 		.from(insightObservations)
 		.innerJoin(
@@ -182,23 +190,27 @@ export async function loadDueOpenInvestigation(params: {
 			and(
 				eq(insightObservations.organizationId, params.organizationId),
 				eq(insightObservations.websiteId, params.websiteId),
-				eq(analyticsInsights.status, "open"),
 				lte(insightObservations.asOf, params.asOf)
 			)
 		)
 		.orderBy(
 			insightObservations.signalKey,
 			desc(insightObservations.asOf),
-			desc(insightObservations.createdAt)
+			desc(insightObservations.createdAt),
+			desc(insightObservations.id)
 		);
 
 	return (
 		rows
 			.flatMap((row) => {
+				if (isQuarantinedInsightObservation(row)) {
+					return [];
+				}
 				const outcome = parseInvestigationOutcome(row.outcome);
 				const signal = parseInvestigationSignal(row.signal);
 				return outcome &&
 					signal &&
+					row.status === "open" &&
 					outcome.next.type !== "resolve" &&
 					row.recheckAt <= params.asOf
 					? [{ ...row, outcome, signal }]
@@ -245,7 +257,8 @@ export async function loadInvestigationHistory(params: {
 								lte(insightObservations.asOf, params.through),
 								lte(insightObservations.createdAt, params.through)
 							)
-						: undefined
+						: undefined,
+					isTrustedInsightObservation(insightObservations)
 				)
 			)
 			.orderBy(
@@ -268,6 +281,7 @@ export async function loadInvestigationHistory(params: {
 			.where(
 				and(
 					replyCase,
+					hasTrustedLatestInsightObservation(analyticsInsights),
 					params.through
 						? lte(insightReplies.createdAt, params.through)
 						: undefined,
@@ -336,6 +350,7 @@ export async function loadOtherOpenWork(params: {
 		.selectDistinctOn([insightObservations.signalKey], {
 			asOf: insightObservations.asOf,
 			createdAt: insightObservations.createdAt,
+			evidence: insightObservations.evidence,
 			id: insightObservations.id,
 			outcome: insightObservations.outcome,
 			signalKey: insightObservations.signalKey,
@@ -347,8 +362,7 @@ export async function loadOtherOpenWork(params: {
 				eq(insightObservations.websiteId, params.websiteId),
 				ne(insightObservations.signalKey, params.signalKey),
 				lte(insightObservations.asOf, params.through),
-				lte(insightObservations.createdAt, params.through),
-				sql`${insightObservations.outcome}->'next'->>'type' in ('act', 'ask', 'resolve')`
+				lte(insightObservations.createdAt, params.through)
 			)
 		)
 		.orderBy(
@@ -360,6 +374,9 @@ export async function loadOtherOpenWork(params: {
 
 	return rows
 		.flatMap((row) => {
+			if (isQuarantinedInsightObservation(row)) {
+				return [];
+			}
 			const outcome = parseInvestigationOutcome(row.outcome);
 			return outcome &&
 				(outcome.next.type === "act" || outcome.next.type === "ask")
@@ -388,13 +405,34 @@ export async function loadOtherOpenWork(params: {
 		}));
 }
 
+export type PersistedRunObservation =
+	| {
+			insightId: string | null;
+			signalKey: string;
+			trusted: false;
+	  }
+	| {
+			insightId: string | null;
+			outcome: InvestigationOutcome;
+			signal: NonNullable<ReturnType<typeof parseInvestigationSignal>>;
+			signalKey: string;
+			trusted: true;
+	  };
+
+export function isTrustedRunObservation(
+	observation: PersistedRunObservation
+): observation is Extract<PersistedRunObservation, { trusted: true }> {
+	return observation.trusted;
+}
+
 export async function findRunObservations(params: {
 	organizationId: string;
 	runId: string;
 	websiteId: string;
-}) {
+}): Promise<PersistedRunObservation[]> {
 	const observations = await db
 		.select({
+			evidence: insightObservations.evidence,
 			insightId: insightObservations.insightId,
 			outcome: insightObservations.outcome,
 			signal: insightObservations.signal,
@@ -409,7 +447,18 @@ export async function findRunObservations(params: {
 			)
 		)
 		.orderBy(insightObservations.signalKey, insightObservations.id);
-	return observations.flatMap((observation) => {
+	return observations.flatMap((observation): PersistedRunObservation[] => {
+		if (isQuarantinedInsightObservation(observation)) {
+			// A row from this run still owns its unique (run, site, signal) slot.
+			// Keep that fact for retry idempotency, but never reuse its content.
+			return [
+				{
+					insightId: observation.insightId,
+					signalKey: observation.signalKey,
+					trusted: false as const,
+				},
+			];
+		}
 		const outcome = parseInvestigationOutcome(observation.outcome);
 		const signal = parseInvestigationSignal(observation.signal);
 		if (!(outcome && signal)) {
@@ -423,6 +472,14 @@ export async function findRunObservations(params: {
 			});
 			return [];
 		}
-		return [{ ...observation, outcome, signal }];
+		return [
+			{
+				insightId: observation.insightId,
+				outcome,
+				signal,
+				signalKey: observation.signalKey,
+				trusted: true as const,
+			},
+		];
 	});
 }

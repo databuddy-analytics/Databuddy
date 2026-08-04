@@ -1,20 +1,36 @@
 import { createHash } from "node:crypto";
 import { investigationSignalSchema } from "@databuddy/shared/insights";
 import type {
+	InsightMeasurementGapRecommendation,
 	InsightMetric,
 	InvestigationSignal,
 } from "@databuddy/shared/insights";
 import dayjs from "dayjs";
 import timezonePlugin from "dayjs/plugin/timezone";
 import utcPlugin from "dayjs/plugin/utc";
-import type { DetectedSignal, MeasurementCandidate } from "./detection";
+import type {
+	DetectedSignal,
+	DetectedSignalReach,
+	MeasurementCandidate,
+} from "./detection";
 
 dayjs.extend(utcPlugin);
 dayjs.extend(timezonePlugin);
 
 interface InvestigationInput {
+	/**
+	 * Human-entered context that may guide a read, but is never eligible for a
+	 * provided-evidence reference or persisted as investigation evidence.
+	 */
+	annotationContext?: string;
+	/**
+	 * Detector-owned configuration and historical context. It can guide a
+	 * targeted read, but is not a customer-facing fact or citable evidence.
+	 */
+	definitionContext?: string;
 	evidence: string[];
 	measurementCandidate?: MeasurementCandidate;
+	measurementGapRecommendationCandidate?: InsightMeasurementGapRecommendation;
 	signal: InvestigationSignal;
 }
 
@@ -77,6 +93,13 @@ function isLowerBetter(metric: string): boolean {
 const SEVERITY_RANK = { critical: 2, warning: 1, info: 0 } as const;
 const ZERO_COMPLETION_SUBJECT_SUFFIX = ":zero-completions";
 
+/**
+ * `reach` is evaluation-only until a portfolio explicitly opts in. Keeping
+ * the current ranking as the default lets frozen audits compare alternatives
+ * without silently changing production investigation selection.
+ */
+export type SignalRankingStrategy = "current" | "reach";
+
 function isPersistentZeroCompletionSignal(signal: DetectedSignal): boolean {
 	return (
 		signal.current === 0 &&
@@ -117,14 +140,95 @@ function signalBucket(signal: DetectedSignal): number {
 	return isDirectSignal(signal) ? 2 : 3;
 }
 
-export function rankSignals(signals: DetectedSignal[]): DetectedSignal[] {
-	return [...signals].sort(
-		(a, b) =>
-			signalBucket(a) - signalBucket(b) ||
-			SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity] ||
-			Math.abs(b.deltaPercent) - Math.abs(a.deltaPercent) ||
-			a.metric.localeCompare(b.metric)
+function compareCurrentRank(
+	left: DetectedSignal,
+	right: DetectedSignal
+): number {
+	return (
+		signalBucket(left) - signalBucket(right) ||
+		SEVERITY_RANK[right.severity] - SEVERITY_RANK[left.severity] ||
+		Math.abs(right.deltaPercent) - Math.abs(left.deltaPercent) ||
+		left.metric.localeCompare(right.metric)
 	);
+}
+
+function reachRankingFamily(signal: DetectedSignal): string {
+	if (signal.metric === "error_count") {
+		return "error";
+	}
+	return signal.metric;
+}
+
+function reachRankingTier(signal: DetectedSignal): string {
+	return [
+		signalBucket(signal),
+		SEVERITY_RANK[signal.severity],
+		reachRankingFamily(signal),
+	].join(":");
+}
+
+function hasComparableReach(
+	signals: DetectedSignal[]
+): signals is Array<DetectedSignal & { reach: DetectedSignalReach }> {
+	const unit = signals[0]?.reach?.unit;
+	return (
+		unit !== undefined && signals.every((signal) => signal.reach?.unit === unit)
+	);
+}
+
+function compareReachRank(
+	left: DetectedSignal & { reach: DetectedSignalReach },
+	right: DetectedSignal & { reach: DetectedSignalReach }
+): number {
+	return (
+		right.reach.current - left.reach.current ||
+		Math.abs(right.current - right.baseline) -
+			Math.abs(left.current - left.baseline) ||
+		Math.abs(right.deltaPercent) - Math.abs(left.deltaPercent) ||
+		(left.subjectKey ?? left.metric).localeCompare(
+			right.subjectKey ?? right.metric
+		)
+	);
+}
+
+function rankSignalsByReach(ranked: DetectedSignal[]): DetectedSignal[] {
+	const positionsByTier = new Map<string, number[]>();
+	for (const [index, signal] of ranked.entries()) {
+		const tier = reachRankingTier(signal);
+		const positions = positionsByTier.get(tier) ?? [];
+		positions.push(index);
+		positionsByTier.set(tier, positions);
+	}
+	const reordered = [...ranked];
+	for (const positions of positionsByTier.values()) {
+		const candidates = positions.map((index) => {
+			const candidate = ranked[index];
+			if (!candidate) {
+				throw new Error("Reach ranking position was missing a candidate");
+			}
+			return candidate;
+		});
+		if (candidates.length < 2 || !hasComparableReach(candidates)) {
+			continue;
+		}
+		const reorderedCandidates = [...candidates].sort(compareReachRank);
+		for (const [index, position] of positions.entries()) {
+			const candidate = reorderedCandidates[index];
+			if (!candidate) {
+				throw new Error("Reach ranking could not restore a candidate");
+			}
+			reordered[position] = candidate;
+		}
+	}
+	return reordered;
+}
+
+export function rankSignals(
+	signals: DetectedSignal[],
+	strategy: SignalRankingStrategy = "current"
+): DetectedSignal[] {
+	const ranked = [...signals].sort(compareCurrentRank);
+	return strategy === "reach" ? rankSignalsByReach(ranked) : ranked;
 }
 
 function signalWindow(signal: DetectedSignal, lookbackDays: number) {
@@ -206,6 +310,59 @@ function evidenceSummary(value: string): string {
 	return value.length <= 500 ? value : `${value.slice(0, 499).trimEnd()}…`;
 }
 
+function displayMetricValue(
+	value: number,
+	format: InvestigationSignal["metric"]["format"]
+): string {
+	const number = Number.isInteger(value)
+		? String(value)
+		: String(Number(value.toFixed(2)));
+	if (format === "percent") {
+		return `${number}%`;
+	}
+	if (format === "duration_ms") {
+		return `${number} ms`;
+	}
+	if (format === "duration_s") {
+		return `${number} s`;
+	}
+	return number;
+}
+
+/**
+ * Every candidate needs one concise, typed public fact even when its detector
+ * has not supplied a hand-authored display sentence. Do not derive this from
+ * detector definition prose: that context can contain configuration details
+ * which must remain private to the investigation.
+ */
+function metricDisplayEvidence(signal: InvestigationSignal): string {
+	const current = displayMetricValue(
+		signal.metric.current,
+		signal.metric.format
+	);
+	if (signal.metric.previous === undefined) {
+		return `${signal.metric.label}: ${current} in the current period.`;
+	}
+	return `${signal.metric.label}: ${current} in the current period, compared with ${displayMetricValue(signal.metric.previous, signal.metric.format)} previously.`;
+}
+
+/**
+ * Keep human annotations bounded before they reach the model, while keeping
+ * them structurally distinct from customer-facing evidence.
+ */
+export function formatAnnotationContext(
+	annotations: readonly InvestigationAnnotation[]
+): string | null {
+	if (annotations.length === 0) {
+		return null;
+	}
+	return evidenceSummary(
+		`Annotation: ${annotations
+			.map((annotation) => `${annotation.date}: ${annotation.title}`)
+			.join("; ")}`
+	);
+}
+
 export function prepareInvestigation(
 	candidate: DetectedSignal,
 	lookbackDays: number,
@@ -240,24 +397,27 @@ export function prepareInvestigation(
 			? { baselineDates: candidate.baselineDates }
 			: {}),
 	};
-	const evidence: string[] = [];
-	if (candidate.definitionEvidence) {
-		evidence.push(evidenceSummary(candidate.definitionEvidence));
-	}
-	if (annotations.length > 0) {
-		evidence.push(
-			evidenceSummary(
-				`Annotation: ${annotations
-					.map((annotation) => `${annotation.date}: ${annotation.title}`)
-					.join("; ")}`
-			)
-		);
-	}
+	const displayEvidence = candidate.displayEvidence?.trim();
+	const definitionContext = candidate.definitionEvidence?.trim();
+	const evidence = [
+		evidenceSummary(displayEvidence || metricDisplayEvidence(signal)),
+	];
+	const annotationContext = formatAnnotationContext(annotations);
 
 	return {
+		...(annotationContext ? { annotationContext } : {}),
+		...(definitionContext && definitionContext !== displayEvidence
+			? { definitionContext: evidenceSummary(definitionContext) }
+			: {}),
 		evidence,
 		...(candidate.measurementCandidate
 			? { measurementCandidate: candidate.measurementCandidate }
+			: {}),
+		...(candidate.measurementGapRecommendationCandidate
+			? {
+					measurementGapRecommendationCandidate:
+						candidate.measurementGapRecommendationCandidate,
+				}
 			: {}),
 		signal: investigationSignalSchema.parse(signal),
 	};
