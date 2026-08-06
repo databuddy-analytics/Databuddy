@@ -12,6 +12,7 @@ import {
 import { auth } from "@databuddy/auth";
 import { config } from "@databuddy/env/app";
 import { Elysia } from "elysia";
+import { getResolvedAuth } from "../lib/auth-wide-event";
 
 const PROTECTED_RESOURCE_METADATA_URL = `${config.urls.api}/.well-known/oauth-protected-resource`;
 
@@ -47,14 +48,19 @@ async function handleMcpRequest({
 }
 
 export const mcp = new Elysia({ name: "mcp" })
-	.derive(async ({ request }) => {
+	.resolve(async (context) => {
+		const { request } = context;
 		const hasApiKey = isApiKeyPresent(request.headers);
-		const apiKey = hasApiKey
-			? await getApiKeyFromHeader(request.headers)
-			: null;
+		const resolvedAuth = getResolvedAuth(context);
+		const apiKey = resolvedAuth
+			? (resolvedAuth.apiKeyResult?.key ?? null)
+			: hasApiKey
+				? await getApiKeyFromHeader(request.headers)
+				: null;
 		const session = hasApiKey
 			? null
-			: await auth.api.getSession({ headers: request.headers });
+			: (resolvedAuth?.session ??
+				(await auth.api.getSession({ headers: request.headers })));
 
 		if (hasApiKey && !(apiKey && canReadMcp(apiKey))) {
 			return {
@@ -88,17 +94,7 @@ export const mcp = new Elysia({ name: "mcp" })
 			await handleMcpRequest({ request, user, apiKey, organizationId })
 	)
 	.all(
-		"/v1/mcp/",
-		async ({ request, user, apiKey, organizationId }) =>
-			await handleMcpRequest({ request, user, apiKey, organizationId })
-	)
-	.all(
 		"/mcp",
-		async ({ request, user, apiKey, organizationId }) =>
-			await handleMcpRequest({ request, user, apiKey, organizationId })
-	)
-	.all(
-		"/mcp/",
 		async ({ request, user, apiKey, organizationId }) =>
 			await handleMcpRequest({ request, user, apiKey, organizationId })
 	)
