@@ -5,7 +5,7 @@
   },
   "features": {
     "app_home": {
-      "home_tab_enabled": false,
+      "home_tab_enabled": true,
       "messages_tab_enabled": true,
       "messages_tab_read_only_enabled": false
     },
@@ -58,6 +58,7 @@
       "bot": [
         "assistant:write",
         "app_mentions:read",
+        "canvases:write",
         "channels:history",
         "channels:read",
         "chat:write",
