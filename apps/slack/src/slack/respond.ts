@@ -2,6 +2,11 @@ import { isDatabuddyAgentUserError } from "@databuddy/ai/agent/errors";
 import type { RequestLogger } from "evlog";
 import type { DatabuddyAgentClient, SlackAgentRun } from "@/agent/agent-client";
 import { getSlackApiErrorCode, setSlackLog, toError } from "@/lib/evlog-slack";
+import {
+	ComponentStreamSplitter,
+	componentsToBlocks,
+	feedbackButtonsBlock,
+} from "@/slack/blocks";
 import { SLACK_COPY } from "@/slack/messages";
 import type { SlackAgentClient } from "@/slack/types";
 
@@ -35,7 +40,7 @@ type SayFn = (message: {
 interface StreamAgentToSlackOptions {
 	abortSignal?: AbortSignal;
 	agent: Pick<DatabuddyAgentClient, "stream">;
-	client: Pick<SlackAgentClient, "chat">;
+	client: Pick<SlackAgentClient, "apiCall" | "chat">;
 	eventLog?: RequestLogger;
 	logger: LoggerLike;
 	run: SlackAgentRun;
@@ -77,6 +82,7 @@ export async function streamAgentToSlack({
 		: null;
 	setSlackLog(eventLog, { slack_stream_started: Boolean(streamTs) });
 
+	const splitter = new ComponentStreamSplitter();
 	let pending = "";
 	let fullText = "";
 	let chunkCount = 0;
@@ -117,13 +123,23 @@ export async function streamAgentToSlack({
 	try {
 		for await (const chunk of agent.stream(run, { abortSignal })) {
 			chunkCount++;
-			fullText += chunk;
-			pending += chunk;
+			const prose = splitter.push(chunk);
+			fullText += prose;
+			pending += prose;
 			await flush(false);
 		}
+		const tail = splitter.flush();
+		fullText += tail.text;
+		pending += tail.text;
 		await flush(true);
 
 		const finalText = fullText.trim();
+		const componentBlocks = componentsToBlocks(tail.components);
+		const trailingBlocks = [...componentBlocks, feedbackButtonsBlock()];
+		setSlackLog(eventLog, {
+			slack_component_count: tail.components.length,
+			slack_block_count: componentBlocks.length,
+		});
 		if (streamTs) {
 			if (!thinkingResolved) {
 				await resolveThinking(client, run.channelId, streamTs, "complete");
@@ -137,6 +153,12 @@ export async function streamAgentToSlack({
 				startedAt,
 				streamTs,
 			});
+			await postComponentBlocks({
+				blocks: trailingBlocks,
+				client,
+				logger,
+				run,
+			});
 			return result;
 		}
 		const result = await sendFinalMessage({
@@ -147,6 +169,7 @@ export async function streamAgentToSlack({
 			chunkCount,
 			startedAt,
 		});
+		await postComponentBlocks({ blocks: trailingBlocks, client, logger, run });
 		return result;
 	} catch (error) {
 		const abortReason =
@@ -204,6 +227,32 @@ export async function streamAgentToSlack({
 			say,
 			streamTs,
 		});
+	}
+}
+
+async function postComponentBlocks({
+	blocks,
+	client,
+	logger,
+	run,
+}: {
+	blocks: Record<string, unknown>[];
+	client: Pick<SlackAgentClient, "apiCall">;
+	logger: LoggerLike;
+	run: SlackAgentRun;
+}): Promise<void> {
+	if (blocks.length === 0) {
+		return;
+	}
+	try {
+		await client.apiCall("chat.postMessage", {
+			blocks,
+			channel: run.channelId,
+			text: SLACK_COPY.blockFallback,
+			thread_ts: run.threadTs ?? run.messageTs,
+		});
+	} catch (error) {
+		logger.warn("Failed to post Slack data blocks", error);
 	}
 }
 

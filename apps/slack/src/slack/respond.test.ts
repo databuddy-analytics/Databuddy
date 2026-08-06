@@ -35,7 +35,11 @@ function createStreamClient(startTs: string | null = "stream_ts") {
 		}
 	};
 
-	const client: Pick<SlackAgentClient, "chat"> = {
+	const client: Pick<SlackAgentClient, "apiCall" | "chat"> = {
+		apiCall: (async (method: string, options?: unknown) => {
+			calls.push({ method, options });
+			return { ok: true };
+		}) as SlackAgentClient["apiCall"],
 		chat: {
 			appendStream: async (options) => {
 				guardMode(options);
@@ -146,7 +150,14 @@ describe("Databuddy Slack response streaming", () => {
 			"chat.appendStream",
 			"chat.appendStream",
 			"chat.stopStream",
+			"chat.postMessage",
 		]);
+
+		const feedbackPost = calls.at(-1);
+		expect(feedbackPost?.method).toBe("chat.postMessage");
+		const feedbackBlocks = (feedbackPost?.options as { blocks: Array<{ type: string }> })
+			.blocks;
+		expect(feedbackBlocks.some((b) => b.type === "context_actions")).toBe(true);
 	});
 
 	it("marks a partial answer as interrupted when streaming fails", async () => {

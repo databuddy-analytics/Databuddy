@@ -16,9 +16,14 @@ import type {
 type Handler = (input: Record<string, unknown>) => Promise<void>;
 
 class FakeSlackApp {
+	actions = new Map<string, Handler>();
 	commands = new Map<string, Handler>();
 	events = new Map<string, Handler>();
 	messages: Handler[] = [];
+
+	action(name: string, handler: Handler) {
+		this.actions.set(name, handler);
+	}
 
 	assistant(value: unknown) {
 		this.events.set("assistant", value as Handler);

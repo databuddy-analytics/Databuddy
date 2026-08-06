@@ -11,7 +11,11 @@ import type { DatabuddyAgentClient, SlackAgentRun } from "@/agent/agent-client";
 import { createSlackEventLog } from "@/lib/evlog-slack";
 import { abortSlackActiveRun } from "@/slack/active-runs";
 import { getSlackChannelMentionPolicy } from "@/slack/channel-policy";
-import { logSlackReactionFeedback } from "@/slack/feedback";
+import { FEEDBACK_ACTION_ID } from "@/slack/blocks";
+import {
+	handleSlackFeedbackAction,
+	logSlackReactionFeedback,
+} from "@/slack/feedback";
 import type { SlackInstallationServices } from "@/slack/installations";
 import {
 	createRecentDedupe,
@@ -404,6 +408,26 @@ export function registerSlackListeners(
 
 	registerSlackCommands(app, installations);
 	registerSlackReactionFeedback(app, installations);
+	registerSlackFeedbackButtons(app, installations);
+}
+
+function registerSlackFeedbackButtons(
+	app: App,
+	installations: SlackInstallationServices
+) {
+	app.action(
+		FEEDBACK_ACTION_ID,
+		async ({ ack, action, body, context, logger }) => {
+			await ack();
+			await handleSlackFeedbackAction({
+				action,
+				body,
+				installations,
+				logger,
+				teamId: context.teamId,
+			});
+		}
+	);
 }
 
 async function handleInvestigationThreadReply({

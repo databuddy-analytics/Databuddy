@@ -23,6 +23,7 @@ export const SLACK_COPY = {
 	assistantGreeting:
 		"I'm in. Show open investigations, run one now, or send new investigations to this channel automatically.",
 	autoBindSuccess: "Ready here.",
+	blockFallback: "Open Slack to view this table.",
 	bindFailure:
 		"I couldn't approve this channel. Check Organization settings → Integrations, then try `/databuddy-bind` again.",
 	bindSuccess: "*Ready here.* Mention `@Databuddy` or DM me with a question.",
