@@ -26,7 +26,11 @@ import {
 	toSlackMessage,
 	toThreadTitle,
 } from "@/slack/message-routing";
-import { SLACK_COPY, SLACK_SUGGESTED_PROMPTS } from "@/slack/messages";
+import {
+	SLACK_COPY,
+	SLACK_LOADING_MESSAGES,
+	SLACK_SUGGESTED_PROMPTS,
+} from "@/slack/messages";
 import { handleAgentRun } from "@/slack/run-handler";
 import { createSlackConversationContext } from "@/slack/slack-context";
 import {
@@ -113,7 +117,7 @@ function createDatabuddyAssistant({
 
 			await setTitle(toThreadTitle(text));
 			await setStatus({
-				loading_messages: [SLACK_COPY.streamOpening],
+				loading_messages: [...SLACK_LOADING_MESSAGES],
 				status: "is thinking...",
 			});
 

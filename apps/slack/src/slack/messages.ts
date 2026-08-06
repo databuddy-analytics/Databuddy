@@ -13,6 +13,14 @@ export const SLACK_SUGGESTED_PROMPTS = [
 	},
 ] as const;
 
+export const SLACK_LOADING_MESSAGES = [
+	"Reading your analytics...",
+	"Checking recent sessions...",
+	"Crunching the numbers...",
+	"Looking for what changed...",
+	"Putting the answer together...",
+] as const;
+
 export const SLACK_COPY = {
 	agentFailure:
 		"I couldn't finish that response. Try again in a moment. If it keeps happening, contact your Databuddy organization admin.",
