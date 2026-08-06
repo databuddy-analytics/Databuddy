@@ -8,6 +8,7 @@ import {
 import { createRPCContext } from "@databuddy/rpc";
 import { appendInvestigationReply } from "@databuddy/rpc/insights";
 import type { DatabuddyAgentClient, SlackAgentRun } from "@/agent/agent-client";
+import { buildAppHomeView } from "@/slack/app-home";
 import { createSlackEventLog } from "@/lib/evlog-slack";
 import { abortSlackActiveRun } from "@/slack/active-runs";
 import { getSlackChannelMentionPolicy } from "@/slack/channel-policy";
@@ -155,6 +156,22 @@ export function registerSlackListeners(
 	const dedupe = createRecentDedupe();
 
 	app.assistant(createDatabuddyAssistant({ agent, dedupe, threadQueue }));
+
+	app.event("app_home_opened", async ({ client, event, logger }) => {
+		if (event.tab !== "home") {
+			return;
+		}
+		try {
+			await client.views.publish({
+				user_id: event.user,
+				view: buildAppHomeView() as unknown as Parameters<
+					typeof client.views.publish
+				>[0]["view"],
+			});
+		} catch (error) {
+			logger.warn("Failed to publish Slack App Home", error);
+		}
+	});
 
 	app.event(
 		"app_mention",
