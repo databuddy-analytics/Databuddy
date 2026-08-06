@@ -4,7 +4,6 @@
   "version": "1.0.0",
   "type": "module",
   "exports": {
-    "./billing-lifecycle": "./src/billing-lifecycle.ts",
     "./audit": "./src/audit.ts",
     "./feedback": "./src/feedback.ts",
     "./identity": "./src/identity.ts",

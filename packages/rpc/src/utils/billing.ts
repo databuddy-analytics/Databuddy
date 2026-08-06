@@ -6,6 +6,7 @@ import { getMemberRole, getOrganizationOwnerId } from "./organization";
 export interface BillingOwner {
 	canUserUpgrade: boolean;
 	customerId: string;
+	hasActiveSubscription: boolean;
 	isOrganization: boolean;
 	planId: string;
 }
@@ -58,7 +59,13 @@ export async function resolveBillingOwner(
 		? String(activeSub.planId).toLowerCase()
 		: "free";
 
-	return { customerId, isOrganization, canUserUpgrade, planId };
+	return {
+		canUserUpgrade,
+		customerId,
+		hasActiveSubscription: Boolean(activeSub),
+		isOrganization,
+		planId,
+	};
 }
 
 export const getBillingOwner = cacheable(resolveBillingOwner, {

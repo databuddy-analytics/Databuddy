@@ -54,9 +54,19 @@ describe("resolveBillingOwner", () => {
 		expect(owner).toMatchObject({
 			canUserUpgrade: true,
 			customerId: "user-2",
+			hasActiveSubscription: true,
 			isOrganization: false,
 			planId: "hobby",
 		});
 		expect(mockGetOrCreate).toHaveBeenCalledTimes(1);
+	});
+
+	it("reports the free fallback without an active subscription", async () => {
+		const owner = await resolveBillingOwner("user-3", null);
+
+		expect(owner).toMatchObject({
+			hasActiveSubscription: false,
+			planId: "free",
+		});
 	});
 });

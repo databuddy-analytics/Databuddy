@@ -20,7 +20,6 @@ import {
 	invalidateBillingOwnerCaches,
 } from "@databuddy/redis";
 import { getAutumn } from "@databuddy/rpc";
-import { recordPlanChange } from "@databuddy/services/billing-lifecycle";
 import { DATABUNNY_USAGE } from "@databuddy/shared/billing";
 import { Elysia } from "elysia";
 import { log } from "evlog";
@@ -631,20 +630,6 @@ async function handleProductsUpdated(
 
 	const isSandboxInProduction =
 		process.env.NODE_ENV === "production" && customer.env === "sandbox";
-
-	if (customer.id && !isSandboxInProduction) {
-		try {
-			await recordPlanChange({
-				customerId: customer.id,
-				planId: updated_product.id,
-				scenario,
-			});
-		} catch (error) {
-			log.error(error instanceof Error ? error : new Error(String(error)), {
-				autumn: { step: "record_plan_change", customerId: customer.id },
-			});
-		}
-	}
 
 	const shouldSkipSlack = !slack || isSandboxInProduction;
 

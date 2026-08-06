@@ -221,10 +221,6 @@ vi.mock("@databuddy/rpc", () => ({
 	getAutumn: () => ({ check: state.check }),
 }));
 
-vi.mock("@databuddy/services/billing-lifecycle", () => ({
-	recordPlanChange: vi.fn(async () => undefined),
-}));
-
 vi.mock("elysia", () => ({
 	Elysia: class {
 		post() {

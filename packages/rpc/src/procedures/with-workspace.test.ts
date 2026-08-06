@@ -37,6 +37,7 @@ describe("withWorkspace plan resolution", () => {
 		const getBilling = mock(async () => ({
 			canUserUpgrade: true,
 			customerId: "user-test",
+			hasActiveSubscription: true,
 			isOrganization: true,
 			planId: "pro",
 		}));
@@ -55,6 +56,7 @@ describe("withWorkspace plan resolution", () => {
 		const getBilling = mock(async () => ({
 			canUserUpgrade: true,
 			customerId: "user-test",
+			hasActiveSubscription: true,
 			isOrganization: true,
 			planId: "pro",
 		}));

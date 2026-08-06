@@ -411,6 +411,7 @@ export const organizationsRouter = {
 		.output(z.record(z.string(), z.unknown()))
 		.handler(async ({ context, input }) => {
 			const isDev = process.env.NODE_ENV !== "production";
+			let billing: Awaited<ReturnType<typeof context.getBilling>>;
 			let customerId: string | null = null;
 			let isOrganization = false;
 			let canUserUpgrade = true;
@@ -421,7 +422,7 @@ export const organizationsRouter = {
 					websiteId: input.websiteId,
 					permissions: ["read"],
 				});
-				const billing = await context.getBilling();
+				billing = await context.getBilling();
 				if (billing) {
 					customerId = billing.customerId;
 					isOrganization = billing.isOrganization;
@@ -429,7 +430,7 @@ export const organizationsRouter = {
 				}
 			} else if (context.user) {
 				activeOrgId = context.organizationId;
-				const billing = await context.getBilling();
+				billing = await context.getBilling();
 				if (billing) {
 					customerId = billing.customerId;
 					isOrganization = billing.isOrganization;
@@ -460,43 +461,12 @@ export const organizationsRouter = {
 				};
 			}
 
-			try {
-				const customer = await getAutumn().customers.getOrCreate({
-					customerId,
-				});
-
-				const subs = customer.subscriptions;
-				const activeSub =
-					subs.find((s) => s.status === "active" && s.addOn === false) ??
-					subs.find((s) => s.status === "active");
-
-				const planId = activeSub?.planId
-					? String(activeSub.planId).toLowerCase()
-					: "free";
-
-				return {
-					planId,
-					isOrganization,
-					canUserUpgrade,
-					hasActiveSubscription: Boolean(activeSub),
-					...debugInfo,
-				};
-			} catch (error) {
-				logger.error(
-					{
-						error,
-						customerId,
-						websiteId: input?.websiteId,
-					},
-					"Failed to get billing context"
-				);
-				return {
-					planId: "free",
-					isOrganization,
-					canUserUpgrade,
-					hasActiveSubscription: false,
-					...debugInfo,
-				};
-			}
+			return {
+				planId: billing?.planId ?? "free",
+				isOrganization,
+				canUserUpgrade,
+				hasActiveSubscription: billing?.hasActiveSubscription ?? false,
+				...debugInfo,
+			};
 		}),
 };
