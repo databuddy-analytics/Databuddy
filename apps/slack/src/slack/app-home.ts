@@ -1,6 +1,7 @@
+import type { HomeView } from "@slack/web-api";
 import { SLACK_SUGGESTED_PROMPTS } from "@/slack/messages";
 
-export function buildAppHomeView(): Record<string, unknown> {
+export function buildAppHomeView(): HomeView {
 	const prompts = SLACK_SUGGESTED_PROMPTS.map(
 		(prompt) => `• ${prompt.message}`
 	).join("\n");

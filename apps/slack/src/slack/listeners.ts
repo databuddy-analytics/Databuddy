@@ -164,9 +164,7 @@ export function registerSlackListeners(
 		try {
 			await client.views.publish({
 				user_id: event.user,
-				view: buildAppHomeView() as unknown as Parameters<
-					typeof client.views.publish
-				>[0]["view"],
+				view: buildAppHomeView(),
 			});
 		} catch (error) {
 			logger.warn("Failed to publish Slack App Home", error);

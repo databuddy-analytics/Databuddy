@@ -122,102 +122,78 @@ function renderDistribution(spec: ComponentSpec): Block[] {
 	return block ? [block] : [];
 }
 
-function renderReferrers(spec: ComponentSpec): Block[] {
-	const rows = asArray(spec.referrers).map((item) => {
-		const ref = item as Record<string, unknown>;
-		return [
-			asString(ref.name) || asString(ref.domain),
-			ref.visitors,
-			formatPercent(ref.percentage),
-		];
-	});
-	const block = dataTable(
-		title(spec, "Top referrers"),
-		["Referrer", "Visitors", "Share"],
-		rows
-	);
-	return block ? [block] : [];
+interface ListTableConfig {
+	columns: string[];
+	items: string;
+	row: (item: Record<string, unknown>) => Row;
+	title: string;
 }
 
-function renderMiniMap(spec: ComponentSpec): Block[] {
-	const rows = asArray(spec.countries).map((item) => {
-		const country = item as Record<string, unknown>;
-		return [
-			asString(country.name),
-			country.visitors,
-			formatPercent(country.percentage),
-		];
-	});
-	const block = dataTable(
-		title(spec, "Top countries"),
-		["Country", "Visitors", "Share"],
-		rows
-	);
-	return block ? [block] : [];
-}
+const LIST_TABLES: Record<string, ListTableConfig> = {
+	"referrers-list": {
+		items: "referrers",
+		title: "Top referrers",
+		columns: ["Referrer", "Visitors", "Share"],
+		row: (r) => [
+			asString(r.name) || asString(r.domain),
+			r.visitors,
+			formatPercent(r.percentage),
+		],
+	},
+	"mini-map": {
+		items: "countries",
+		title: "Top countries",
+		columns: ["Country", "Visitors", "Share"],
+		row: (c) => [asString(c.name), c.visitors, formatPercent(c.percentage)],
+	},
+	"links-list": {
+		items: "links",
+		title: "Links",
+		columns: ["Name", "Slug", "Destination"],
+		row: (l) => [asString(l.name), asString(l.slug), asString(l.targetUrl)],
+	},
+	"funnels-list": {
+		items: "funnels",
+		title: "Funnels",
+		columns: ["Funnel", "Steps", "Status"],
+		row: (f) => [
+			asString(f.name),
+			asArray(f.steps).length,
+			f.isActive ? "Active" : "Paused",
+		],
+	},
+	"goals-list": {
+		items: "goals",
+		title: "Goals",
+		columns: ["Goal", "Type", "Target", "Status"],
+		row: (g) => [
+			asString(g.name),
+			asString(g.type),
+			asString(g.target),
+			g.isActive ? "Active" : "Paused",
+		],
+	},
+	"annotations-list": {
+		items: "annotations",
+		title: "Annotations",
+		columns: ["Annotation", "Type", "When"],
+		row: (a) => [
+			asString(a.text),
+			asString(a.annotationType),
+			asString(a.xValue),
+		],
+	},
+};
 
-function renderLinksList(spec: ComponentSpec): Block[] {
-	const rows = asArray(spec.links).map((item) => {
-		const link = item as Record<string, unknown>;
-		return [asString(link.name), asString(link.slug), asString(link.targetUrl)];
-	});
-	const block = dataTable(
-		title(spec, "Links"),
-		["Name", "Slug", "Destination"],
-		rows
+function renderListTable(spec: ComponentSpec): Block[] {
+	const config = LIST_TABLES[spec.type];
+	if (!config) {
+		return [];
+	}
+	const rows = asArray(spec[config.items]).map((item) =>
+		config.row(item as Record<string, unknown>)
 	);
-	return block ? [block] : [];
-}
-
-function renderFunnelsList(spec: ComponentSpec): Block[] {
-	const rows = asArray(spec.funnels).map((item) => {
-		const funnel = item as Record<string, unknown>;
-		return [
-			asString(funnel.name),
-			asArray(funnel.steps).length,
-			funnel.isActive ? "Active" : "Paused",
-		];
-	});
-	const block = dataTable(
-		title(spec, "Funnels"),
-		["Funnel", "Steps", "Status"],
-		rows
-	);
-	return block ? [block] : [];
-}
-
-function renderGoalsList(spec: ComponentSpec): Block[] {
-	const rows = asArray(spec.goals).map((item) => {
-		const goal = item as Record<string, unknown>;
-		return [
-			asString(goal.name),
-			asString(goal.type),
-			asString(goal.target),
-			goal.isActive ? "Active" : "Paused",
-		];
-	});
-	const block = dataTable(
-		title(spec, "Goals"),
-		["Goal", "Type", "Target", "Status"],
-		rows
-	);
-	return block ? [block] : [];
-}
-
-function renderAnnotationsList(spec: ComponentSpec): Block[] {
-	const rows = asArray(spec.annotations).map((item) => {
-		const annotation = item as Record<string, unknown>;
-		return [
-			asString(annotation.text),
-			asString(annotation.annotationType),
-			asString(annotation.xValue),
-		];
-	});
-	const block = dataTable(
-		title(spec, "Annotations"),
-		["Annotation", "Type", "When"],
-		rows
-	);
+	const block = dataTable(title(spec, config.title), config.columns, rows);
 	return block ? [block] : [];
 }
 
@@ -347,12 +323,12 @@ const RENDERERS: Record<string, (spec: ComponentSpec) => Block[]> = {
 	"stacked-bar-chart": renderTimeSeries,
 	"donut-chart": renderDistribution,
 	"pie-chart": renderDistribution,
-	"referrers-list": renderReferrers,
-	"mini-map": renderMiniMap,
-	"links-list": renderLinksList,
-	"funnels-list": renderFunnelsList,
-	"goals-list": renderGoalsList,
-	"annotations-list": renderAnnotationsList,
+	"referrers-list": renderListTable,
+	"mini-map": renderListTable,
+	"links-list": renderListTable,
+	"funnels-list": renderListTable,
+	"goals-list": renderListTable,
+	"annotations-list": renderListTable,
 	"dashboard-actions": renderDashboardActions,
 	"suggested-actions": renderSuggestedActions,
 	"link-preview": renderLinkPreview,
