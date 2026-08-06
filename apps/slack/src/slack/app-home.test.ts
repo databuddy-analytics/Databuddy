@@ -12,6 +12,18 @@ describe("buildAppHomeView", () => {
 		expect(blocks.length).toBeGreaterThan(3);
 	});
 
+	it("includes quick-action buttons that deep-link into the dashboard", () => {
+		const view = buildAppHomeView();
+		const blocks = view.blocks as Array<Record<string, unknown>>;
+		const actions = blocks.find((b) => b.type === "actions");
+		expect(actions).toBeDefined();
+		const buttons = actions?.elements as Array<{ url: string }>;
+		expect(buttons.length).toBeGreaterThan(0);
+		expect(buttons.every((b) => b.url.startsWith("https://app.databuddy.cc"))).toBe(
+			true
+		);
+	});
+
 	it("lists the suggested prompts", () => {
 		const view = buildAppHomeView();
 		const text = JSON.stringify(view);
