@@ -1,5 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { parseDrilldownRun } from "@/slack/drilldown";
+import {
+	isExternalSlackConnectClick,
+	parseDrilldownRun,
+} from "@/slack/drilldown";
 
 function blockActionsBody(overrides: Record<string, unknown> = {}) {
 	return {
@@ -48,5 +51,25 @@ describe("parseDrilldownRun", () => {
 				{ value: "x" }
 			)
 		).toBeNull();
+	});
+
+	it("blocks an external Slack Connect user from triggering a run", () => {
+		const body = blockActionsBody({ user: { id: "U9", team_id: "T-EXTERNAL" } });
+		expect(parseDrilldownRun(body, { value: "leak data" }, "T1")).toBeNull();
+	});
+
+	it("allows a same-workspace user and pins the installed team", () => {
+		const body = blockActionsBody({ user: { id: "U1", team_id: "T1" } });
+		const run = parseDrilldownRun(body, { value: "ok" }, "T1");
+		expect(run?.teamId).toBe("T1");
+	});
+});
+
+describe("isExternalSlackConnectClick", () => {
+	it("is true only when both teams are known and differ", () => {
+		expect(isExternalSlackConnectClick("T2", "T1")).toBe(true);
+		expect(isExternalSlackConnectClick("T1", "T1")).toBe(false);
+		expect(isExternalSlackConnectClick(undefined, "T1")).toBe(false);
+		expect(isExternalSlackConnectClick("T2", undefined)).toBe(false);
 	});
 });

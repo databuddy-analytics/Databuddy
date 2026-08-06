@@ -424,9 +424,9 @@ function registerSlackDrilldown(
 ) {
 	app.action(
 		DRILLDOWN_ACTION_ID,
-		async ({ ack, action, body, client, logger }) => {
+		async ({ ack, action, body, client, context, logger }) => {
 			await ack();
-			const run = parseDrilldownRun(body, action);
+			const run = parseDrilldownRun(body, action, context.teamId);
 			if (!run) {
 				return;
 			}
