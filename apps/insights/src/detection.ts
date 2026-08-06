@@ -305,6 +305,14 @@ function hasMeaningfulErrorImpact(
 	);
 }
 
+function errorDisplayEvidence(
+	current: number,
+	currentVisitorIdentifiers: number,
+	previous: number
+): string {
+	return `This error occurred ${current} times across ${currentVisitorIdentifiers} visitor identifiers, versus ${previous} occurrences previously.`;
+}
+
 function capLowReachSeverity(
 	signal: DetectedSignal,
 	affectedUsers: number
@@ -545,6 +553,11 @@ export async function remeasureMetricSignal(
 			previous: numberField(previousRow, "users"),
 			unit: "visitor_identifiers",
 		};
+		signal.displayEvidence = errorDisplayEvidence(
+			signal.current,
+			signal.reach.current,
+			signal.baseline
+		);
 		signal.definitionEvidence = `${label} occurred ${signal.current} times across ${numberField(currentRow, "users")} visitor identifiers, compared with ${signal.baseline} occurrences across ${numberField(previousRow, "users")} visitor identifiers previously.`;
 		return signal;
 	}
@@ -1108,6 +1121,11 @@ async function detectWow(
 			previous: previousUsers,
 			unit: "visitor_identifiers",
 		};
+		signal.displayEvidence = errorDisplayEvidence(
+			current,
+			currentUsers,
+			previous
+		);
 		signal.definitionEvidence = `${label} occurred ${current} times across ${currentUsers} visitor identifiers, compared with ${previous} occurrences across ${previousUsers} visitor identifiers previously.`;
 		signals.push(signal);
 	}

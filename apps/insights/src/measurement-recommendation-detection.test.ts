@@ -65,7 +65,7 @@ describe("detectMeasurementRecommendationSignals", () => {
 		});
 		expect(signals[0]?.definitionEvidence).toContain("navigation proxy");
 		expect(signals[0]?.displayEvidence).toBe(
-			"No active goals or funnels are configured despite recorded activity during this period. The available data does not show whether a conversion was completed."
+			"No active goals or funnels are configured; recorded activity cannot establish a completed conversion."
 		);
 		expect(
 			signals[0]?.displayEvidence?.trim().split(/\s+/).length
@@ -166,7 +166,7 @@ describe("detectMeasurementRecommendationSignals", () => {
 			"top 1000 custom event types"
 		);
 		expect(signal?.displayEvidence).toBe(
-			"No active goals or funnels are configured despite recorded activity during this period. The available data does not show whether a conversion was completed."
+			"No active goals or funnels are configured; recorded activity cannot establish a completed conversion."
 		);
 		expect(signal?.displayEvidence).not.toMatch(
 			/sample|canonical|proxy|coverage.?gap/i

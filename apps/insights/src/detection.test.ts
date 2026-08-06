@@ -984,10 +984,14 @@ describe("detectSignals", () => {
 			expect(errorSignal!.severity).toBe("warning");
 			expect(errorSignal!.subjectKey).toBe("error:cart is undefined");
 			expect(errorSignal!.reach).toEqual({
-			current: 8,
-			previous: 5,
-			unit: "visitor_identifiers",
-		});
+				current: 8,
+				previous: 5,
+				unit: "visitor_identifiers",
+			});
+			expect(errorSignal!.displayEvidence).toBe(
+				"This error occurred 50 times across 8 visitor identifiers, versus 20 occurrences previously."
+			);
+			expect(errorSignal!.displayEvidence).not.toContain("TypeError");
 		});
 
 		it("keeps distinct error fingerprints as distinct signals", async () => {

@@ -865,7 +865,7 @@ describe("intelligence agent", () => {
 			"35 visitors encountered an app error"
 		);
 		expect(result.outcome.summary).toBe(
-			"That error occurred 36 times; among 34 matched error sessions, 10.0% reached another tracked page within 30 minutes, versus 60.0% of comparable visits. This is an observed association, not causal proof."
+			"That error occurred 36 times among them; the data does not show which task, if any, it interrupted."
 		);
 		expect(result.brief?.scope).toBe("error_fingerprint");
 		expect(model.doGenerateCalls).toHaveLength(2);
@@ -925,7 +925,7 @@ describe("intelligence agent", () => {
 			);
 			expect(result.outcome.evidence).toEqual(evidence);
 			expect(model.doGenerateCalls).toHaveLength(1);
-			expect(JSON.stringify(model.doGenerateCalls[0]?.prompt)).toContain(
+			expect(JSON.stringify(model.doGenerateCalls[0]?.prompt)).not.toContain(
 				"storySubject"
 			);
 			expect(JSON.stringify(model.doGenerateCalls[0]?.prompt)).toContain(
@@ -974,7 +974,7 @@ describe("intelligence agent", () => {
 			},
 			userExperience: "observed_session_behavior",
 		});
-		expect(result.outcome.evidence).toEqual([evidence[0], behaviorEvidence]);
+		expect(result.outcome.evidence).toEqual([evidence[0]]);
 		for (const unsafeTerm of [
 			"abandon",
 			"bounce",
@@ -986,7 +986,49 @@ describe("intelligence agent", () => {
 		}
 	});
 
-	it("keeps an already-visible backend-owned impact source in its selected order", async () => {
+	it("keeps a sub-material post-error comparison in evidence, not the summary", async () => {
+		const behavior = {
+			...fingerprintErrorBehavior,
+			affectedNextPagePercent: 55,
+			comparisonNextPagePercent: 60,
+		};
+		const behaviorEvidence = errorCohortBehaviorEvidence(behavior);
+		const modelOutcome = {
+			...agentOutcome,
+			brief: {
+				...agentOutcome.brief,
+				scope: "error_fingerprint" as const,
+				userExperience: "unmeasured" as const,
+			},
+			evidence: ["Model-selected problem.", "Model-selected comparison."],
+			evidenceRefs: [
+				{ index: 0, source: "provided" as const },
+				{ index: evidence.length, source: "provided" as const },
+			],
+		};
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				customerImpact: fingerprintCustomerImpact,
+				errorBehavior: behavior,
+				errorBehaviorEvidenceIndex: evidence.length,
+				evidence: [...evidence, behaviorEvidence],
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal: fingerprintErrorSignal,
+			},
+			{ model: outputModel(modelOutcome), tools: {} }
+		);
+
+		expect(result.outcome.summary).toBe(
+			"That error occurred 36 times among them; the data does not show which task, if any, it interrupted."
+		);
+		expect(result.outcome.summary).not.toContain("matched error session");
+		expect(result.outcome.evidence).toEqual([evidence[0], behaviorEvidence]);
+	});
+
+	it("removes an already-visible backend-owned impact source from evidence", async () => {
 		const behaviorEvidence = errorCohortBehaviorEvidence(
 			fingerprintErrorBehavior
 		);
@@ -1017,8 +1059,8 @@ describe("intelligence agent", () => {
 			{ model: outputModel(modelOutcome), tools: {} }
 		);
 
-		expect(result.outcome.evidence).toEqual([behaviorEvidence, evidence[0]]);
-		expect(result.outcome.evidence).toHaveLength(2);
+		expect(result.outcome.evidence).toEqual([evidence[0]]);
+		expect(result.outcome.evidence).toHaveLength(1);
 	});
 
 	it("shows a verified prior-payment lower bound without claiming current status", async () => {
@@ -1113,7 +1155,7 @@ describe("intelligence agent", () => {
 			},
 			userExperience: "observed_configured_completion",
 		});
-		expect(result.outcome.evidence).toEqual([evidence[0], completionEvidence]);
+		expect(result.outcome.evidence).toEqual([evidence[0]]);
 		for (const unsafeTerm of [
 			"abandon",
 			"blocked",
@@ -1163,7 +1205,7 @@ describe("intelligence agent", () => {
 		expect(result.brief?.userExperience).toBe(
 			"observed_session_behavior"
 		);
-		expect(result.outcome.evidence).toEqual([evidence[0], behaviorEvidence]);
+		expect(result.outcome.evidence).toEqual([evidence[0]]);
 	});
 
 	it("binds a qualified slow-vital cohort as a sourced non-causal impact", async () => {
@@ -1215,7 +1257,7 @@ describe("intelligence agent", () => {
 			},
 			userExperience: "observed_session_behavior",
 		});
-		expect(result.outcome.evidence).toEqual([evidence[0], behaviorEvidence]);
+		expect(result.outcome.evidence).toEqual([evidence[0]]);
 		for (const unsafeTerm of [
 			"abandon",
 			"bounce",
@@ -2472,7 +2514,6 @@ describe("intelligence agent", () => {
 					model: outputModel({
 						...agentOutcome,
 						next: {
-							escalation: "Traffic remains above the prior baseline.",
 							recheckAt: "2026-07-11T00:00:00.000Z",
 							threshold: {
 								anchor: "prior_baseline",
@@ -2489,7 +2530,7 @@ describe("intelligence agent", () => {
 		).rejects.toThrow("scheduled a recheck");
 	});
 
-	it("renders watch copy from its structured threshold", async () => {
+	it("derives watch copy from its structured threshold", async () => {
 		const result = await runInsightAgent(
 			{
 				appContext: appContext(),
@@ -2513,7 +2554,6 @@ describe("intelligence agent", () => {
 				impact: null,
 				publish: false,
 				next: {
-					escalation: "Ignore this generated copy.",
 					recheckAt: "2026-07-15T00:00:00.000Z",
 					threshold: {
 						anchor: "prior_baseline",
@@ -2570,10 +2610,9 @@ describe("intelligence agent", () => {
 							},
 							userExperience: "unmeasured",
 						},
-						impact: null,
-						publish: false,
-						next: {
-						escalation: "Ignore this generated copy.",
+					impact: null,
+					publish: false,
+					next: {
 						recheckAt: "2026-07-15T00:00:00.000Z",
 						threshold: {
 							anchor: "healthy_range",

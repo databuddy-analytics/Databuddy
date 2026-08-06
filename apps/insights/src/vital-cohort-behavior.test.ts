@@ -60,10 +60,10 @@ describe("vital cohort behavior", () => {
 		}
 		const evidence = vitalCohortBehaviorEvidence(behavior, vitalSignal);
 		expect(evidence).toContain(
-			"20.0% reached another tracked page within 30 minutes, versus 55.0%"
+			"20.0% reached another tracked page in 30 minutes versus 55.0%"
 		);
 		expect(evidence).toContain("association, not causation");
-		expect(evidence.trim().split(/\s+/).length).toBeLessThanOrEqual(32);
+		expect(evidence.trim().split(/\s+/).length).toBeLessThanOrEqual(26);
 		for (const unsafeTerm of [
 			"bounce",
 			"retention",

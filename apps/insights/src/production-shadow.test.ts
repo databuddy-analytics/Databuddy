@@ -4,10 +4,12 @@ import type { DetectedSignal } from "./detection";
 import type { WebsitePortfolioInspection } from "./generation";
 import {
 	metricFamily,
+	countCandidateRetries,
 	parseOptions,
 	projectBriefProvenance,
 	projectErrorCandidateOverlap,
 	projectSelectionAudit,
+	shadowFailureCategory,
 	projectTimeoutMetadata,
 	resolveShadowAsOf,
 } from "./production-shadow";
@@ -31,6 +33,27 @@ describe("resolveShadowAsOf", () => {
 });
 
 describe("shadow signal projection", () => {
+	it("counts repeated candidate signals without retaining identities", () => {
+		expect(countCandidateRetries([])).toBe(0);
+		expect(countCandidateRetries(["signal-a", "signal-b", "signal-a", "signal-a"])).toBe(
+			2
+		);
+	});
+
+	it("keeps failure diagnostics in fixed redacted categories", () => {
+		expect(shadowFailureCategory("InsightAgentTimeoutError", false)).toBe(
+			"agent_timeout"
+		);
+		expect(shadowFailureCategory("InsightAgentGenerationError", false)).toBe(
+			"agent_generation"
+		);
+		expect(shadowFailureCategory("InsightAgentExecutionError", false)).toBe(
+			"agent_execution"
+		);
+		expect(shadowFailureCategory("ProviderFailure", false)).toBe("other");
+		expect(shadowFailureCategory(null, true)).toBe("agent_timeout");
+	});
+
 	it("never exposes a route or error subject in the report metric family", () => {
 		expect(metricFamily("route:lcp:/settings/billing")).toBe("route_health");
 		expect(
@@ -186,6 +209,7 @@ describe("selection audit projection", () => {
 	it("reports selection evidence without raw subjects or labels", () => {
 		const projected = projectSelectionAudit({
 			inspection: inventoryFixture(),
+			measurementRecommendationScan: "unavailable_historical",
 			siteId: "fixture-site",
 		});
 
@@ -193,6 +217,7 @@ describe("selection audit projection", () => {
 			detectedCount: 2,
 			eligibleCount: 1,
 			history: "fresh_in_memory",
+			measurementRecommendationScan: "unavailable_historical",
 			portfolioLimit: 6,
 			qualifiedCount: 2,
 			qualifiedSelectedCount: 1,

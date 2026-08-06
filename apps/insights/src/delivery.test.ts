@@ -196,35 +196,26 @@ describe("Slack investigation delivery", () => {
 
 describe("Slack investigation detail", () => {
 	it("labels every reply outcome and escapes Slack mentions", () => {
-		const action = buildInsightReplyText(
-			{ ...outcome, title: "Fix <@U123> attribution" },
-			signal
-		);
-		const question = buildInsightReplyText(
-			{
-				...outcome,
-				impact: null,
-				next: { question: "Was this change intentional?", type: "ask" },
+		const action = buildInsightReplyText({
+			...outcome,
+			title: "Fix <@U123> attribution",
+		});
+		const question = buildInsightReplyText({
+			...outcome,
+			impact: null,
+			next: { question: "Was this change intentional?", type: "ask" },
+		});
+		const watching = buildInsightReplyText({
+			...outcome,
+			next: {
+				escalation: "Escalate if completion stays below 20.",
+				type: "watch",
 			},
-			signal
-		);
-		const watching = buildInsightReplyText(
-			{
-				...outcome,
-				next: {
-					escalation: "Escalate if completion stays below 20.",
-					type: "watch",
-				},
-			},
-			signal
-		);
-		const resolved = buildInsightReplyText(
-			{
-				...outcome,
-				next: { reason: "The goal recovered.", type: "resolve" },
-			},
-			signal
-		);
+		});
+		const resolved = buildInsightReplyText({
+			...outcome,
+			next: { reason: "The goal recovered.", type: "resolve" },
+		});
 		const recommended = buildInsightReplyText(
 			{
 				...outcome,
@@ -238,14 +229,17 @@ describe("Slack investigation detail", () => {
 					},
 					operation: "edit",
 				},
-			},
-			signal
+			}
 		);
 
 		expect(action).toStartWith("*Action ·");
 		expect(action).toContain("&lt;@U123&gt;");
 		expect(question).toStartWith("*Question ·");
 		expect(watching).toStartWith("*Watching ·");
+		expect(watching).toContain(
+			"*Next:* Escalate if completion stays below 20."
+		);
+		expect(watching).not.toContain("Escalate: Escalate");
 		expect(resolved).toStartWith("*Resolved ·");
 		expect(recommended).toContain(
 			"*Recommended:* Rename Pricing viewers to All billing navigation."

@@ -273,5 +273,5 @@ export function vitalCohortBehaviorEvidence(
 	signal: InvestigationSignal
 ): string {
 	const selector = assertBehaviorMatchesSignal(behavior, signal);
-	return `Among ${countLabel(behavior.matchedSlowSessions, "matched session")} with ${slowExperienceLabel(selector.metric)}, ${percentLabel(behavior.slowNextPagePercent)} reached another tracked page within 30 minutes, versus ${percentLabel(behavior.comparisonNextPagePercent)} of same-route, same-day visits without ${slowExperienceLabel(selector.metric)}; association, not causation.`;
+	return `Among ${countLabel(behavior.matchedSlowSessions, "matched session")} with ${slowExperienceLabel(selector.metric)}, ${percentLabel(behavior.slowNextPagePercent)} reached another tracked page in 30 minutes versus ${percentLabel(behavior.comparisonNextPagePercent)} of matched comparable visits (association, not causation).`;
 }

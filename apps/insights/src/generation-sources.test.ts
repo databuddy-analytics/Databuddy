@@ -945,6 +945,8 @@ describe("fixture investigation sources", () => {
 
 	it("finishes sibling candidates before retrying a failed agent candidate", async () => {
 		const attempted: string[] = [];
+		let failedGoalAttempts = 0;
+		let remainingAgentSlots = 2;
 		const failedGoal: DetectedSignal = {
 			...trafficDrop,
 			label: "Checkout completion rate",
@@ -980,12 +982,15 @@ describe("fixture investigation sources", () => {
 			investigateSignal: async (input) => {
 				attempted.push(input.signal.signalKey);
 				if (input.signal.signalKey === failedGoal.subjectKey) {
-					throw new InsightAgentGenerationError({
-						cause: new Error("Model returned malformed structured output"),
-						modelId: "test/model",
-						toolCallCount: 0,
-						usage: emptyUsage,
-					});
+					failedGoalAttempts += 1;
+					if (failedGoalAttempts === 1) {
+						throw new InsightAgentGenerationError({
+							cause: new Error("Model returned malformed structured output"),
+							modelId: "test/model",
+							toolCallCount: 0,
+							usage: emptyUsage,
+						});
+					}
 				}
 				return { outcome, toolCallCount: 1 };
 			},
@@ -994,16 +999,26 @@ describe("fixture investigation sources", () => {
 			loadObservations: async () => new Map(),
 		});
 
-		await expect(
-			investigateWebsitePortfolioWithSources(
-				fixtureInput,
-				sources,
-				"manual"
-			)
-		).rejects.toThrow("Model returned malformed structured output");
+		const artifacts = await investigateWebsitePortfolioWithSources(
+			fixtureInput,
+			sources,
+			"manual",
+			async (isRetry) => {
+				if (isRetry) {
+					return true;
+				}
+				if (remainingAgentSlots === 0) {
+					return false;
+				}
+				remainingAgentSlots -= 1;
+				return true;
+			}
+		);
+		expect(artifacts).toHaveLength(2);
 		expect(attempted).toEqual([
 			"goal:checkout",
 			"route:error:/explore",
+			"goal:checkout",
 		]);
 	});
 
@@ -1396,7 +1411,7 @@ describe("fixture investigation sources", () => {
 		});
 		expect(received?.vitalBehaviorEvidenceIndex).toBe(
 			received?.evidence.findIndex((item) =>
-				item.includes("reached another tracked page within 30 minutes")
+				item.includes("reached another tracked page in 30 minutes versus")
 			)
 		);
 		expect(

@@ -51,7 +51,7 @@ export const MEASUREMENT_RECOMMENDATION_SUBJECT_KEY =
 	"measurement:conversion-coverage";
 
 const MEASUREMENT_COVERAGE_DISPLAY_EVIDENCE =
-	"No active goals or funnels are configured despite recorded activity during this period. The available data does not show whether a conversion was completed.";
+	"No active goals or funnels are configured; recorded activity cannot establish a completed conversion.";
 
 /**
  * A guide-only recommendation for a detected measurement gap. It intentionally

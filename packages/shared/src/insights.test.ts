@@ -798,7 +798,6 @@ describe("investigationOutcomeSchema", () => {
 
 	it("requires a structured, evidence-backed watch condition from the agent", () => {
 		const watch = {
-			escalation: "Escalate if visitors fall below the baseline.",
 			recheckAt: "2026-07-20T12:00:00.000Z",
 			threshold: {
 				anchor: "prior_baseline" as const,
@@ -816,9 +815,12 @@ describe("investigationOutcomeSchema", () => {
 			recommendation: null,
 		};
 
-		expect(agentInvestigationOutcomeSchema.safeParse(candidate).success).toBe(
-			true
-		);
+		const parsed = agentInvestigationOutcomeSchema.safeParse(candidate);
+		expect(parsed.success).toBe(true);
+		if (!parsed.success || parsed.data.next.type !== "watch") {
+			throw new Error("Expected the agent watch schema to parse");
+		}
+		expect("escalation" in parsed.data.next).toBe(false);
 		expect(
 			agentInvestigationOutcomeSchema.safeParse({
 				...candidate,

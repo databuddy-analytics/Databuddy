@@ -293,7 +293,7 @@ describe("buildInvestigationContext", () => {
 		expect(context.vitalBehavior).toEqual(vitalBehavior);
 		expect(context.vitalBehaviorEvidenceIndex).toBe(1);
 		expect(context.evidence[1]).toContain(
-			"reached another tracked page within 30 minutes"
+			"reached another tracked page in 30 minutes"
 		);
 
 		const errors: unknown[] = [];

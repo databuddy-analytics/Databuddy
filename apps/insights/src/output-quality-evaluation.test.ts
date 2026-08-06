@@ -59,17 +59,226 @@ describe("evaluateInsightOutputQuality", () => {
 		expect(evaluation.results).toEqual([
 			expect.objectContaining({
 				failures: [],
+				renderedWordCounts: {
+					evidence: 9,
+					impact: 7,
+					next: 11,
+					rootCause: 0,
+					summary: 9,
+					title: 6,
+				},
 			}),
 		]);
+		expect(evaluation.outputShape).toEqual({
+			byDisposition: {
+				act: {
+					cases: 0,
+					notPublished: 0,
+					published: 0,
+					totalNextWords: 0,
+					totalRenderedWords: 0,
+				},
+				ask: {
+					cases: 0,
+					notPublished: 0,
+					published: 0,
+					totalNextWords: 0,
+					totalRenderedWords: 0,
+				},
+				resolve: {
+					cases: 0,
+					notPublished: 0,
+					published: 0,
+					totalNextWords: 0,
+					totalRenderedWords: 0,
+				},
+				watch: {
+					cases: 1,
+					notPublished: 0,
+					published: 1,
+					totalNextWords: 11,
+					totalRenderedWords: 42,
+				},
+			},
+			byEvidenceCount: {
+				one: { cases: 1, totalEvidenceWords: 9, totalRenderedWords: 42 },
+				two: { cases: 0, totalEvidenceWords: 0, totalRenderedWords: 0 },
+			},
+			recommendationKinds: {
+				databuddy_setup: 0,
+				funnel_draft: 0,
+				goal_draft: 0,
+				goal_operation: 0,
+				instrumentation: 0,
+				measurement_gap: 0,
+				native: 0,
+				none: 1,
+			},
+		});
+	});
+
+	it("summarizes completed output shape without adding per-case copy", () => {
+		const evaluation = evaluateInsightOutputQuality([
+			qualityCase({
+				outcome: {
+					...validOutcome,
+					next: {
+						action: "Repair the confirmed loading mechanism.",
+						recheckAt: "2026-08-10T00:00:00.000Z",
+						target: "Route loader",
+						type: "act",
+						verification: "Failures return to the measured baseline.",
+					},
+					rootCause: "The inspected loader retries the malformed manifest.",
+				},
+			}),
+			qualityCase({
+				outcome: {
+					...validOutcome,
+					evidence: [
+						validOutcome.evidence[0],
+						"A second distinct source confirmed the comparison.",
+					],
+					next: {
+						question: "Which release owns the loading mechanism?",
+						type: "ask",
+					},
+					publish: false,
+				},
+			}),
+			qualityCase({
+				outcome: {
+					...validOutcome,
+					evidence: [
+						validOutcome.evidence[0],
+						"A second distinct source confirmed the comparison.",
+					],
+					next: {
+						reason: "The measured change recovered before intervention.",
+						type: "resolve",
+					},
+					publish: false,
+				},
+			}),
+			qualityCase(),
+		]);
+
+		expect(evaluation.outputShape.byDisposition).toMatchObject({
+			act: { cases: 1, notPublished: 0, published: 1 },
+			ask: { cases: 1, notPublished: 1, published: 0 },
+			resolve: { cases: 1, notPublished: 1, published: 0 },
+			watch: { cases: 1, notPublished: 0, published: 1 },
+		});
+		expect(evaluation.outputShape.byEvidenceCount).toMatchObject({
+			one: { cases: 2 },
+			two: { cases: 2 },
+		});
+		expect(
+			Object.values(evaluation.outputShape.byDisposition).reduce(
+				(total, bucket) => total + bucket.cases,
+				0
+			)
+		).toBe(evaluation.casesEvaluated);
+		expect(
+			Object.values(evaluation.outputShape.byEvidenceCount).reduce(
+				(total, bucket) => total + bucket.cases,
+				0
+			)
+		).toBe(evaluation.casesEvaluated);
+	});
+
+	it("classifies every recommendation shape without emitting its payload", () => {
+		const recommendations = [
+			null,
+			{ action: "Review this goal.", changes: null, operation: null },
+			{
+				action: "Add the missing measurement.",
+				kind: "measurement_gap" as const,
+				route: null,
+			},
+			{
+				action: "Review the goal draft.",
+				draft: {
+					description: null,
+					filters: [],
+					ignoreHistoricData: false,
+					name: "Completed signup",
+					target: "signup_completed",
+					type: "EVENT" as const,
+				},
+				kind: "goal_draft" as const,
+			},
+			{
+				action: "Review the funnel draft.",
+				draft: {
+					description: null,
+					filters: [],
+					ignoreHistoricData: false,
+					name: "Signup funnel",
+					steps: [
+						{ name: "Viewed signup", target: "/signup", type: "PAGE_VIEW" as const },
+						{
+							name: "Completed signup",
+							target: "signup_completed",
+							type: "EVENT" as const,
+						},
+					],
+				},
+				kind: "funnel_draft" as const,
+			},
+			{
+				action: "Instrument completed signup.",
+				events: [
+					{ description: "Emit after completion.", name: "signup_completed" },
+				],
+				kind: "instrumentation" as const,
+			},
+			{
+				action: "Identify signed-in visitors.",
+				feature: "user_identification" as const,
+				kind: "databuddy_setup" as const,
+			},
+			{
+				action: "Remove the duplicate goal.",
+				nativeAction: { goalId: "goal_1", type: "goal.delete" as const },
+			},
+		] satisfies InvestigationOutcome["recommendation"][];
+		const evaluation = evaluateInsightOutputQuality(
+			recommendations.map((recommendation) =>
+				qualityCase({
+					outcome: {
+						...validOutcome,
+						next: {
+							reason: "The recommendation is ready for review.",
+							type: "resolve",
+						},
+						recommendation,
+					},
+				})
+			)
+		);
+
+		expect(evaluation.outputShape.recommendationKinds).toEqual({
+			databuddy_setup: 1,
+			funnel_draft: 1,
+			goal_draft: 1,
+			goal_operation: 1,
+			instrumentation: 1,
+			measurement_gap: 1,
+			native: 1,
+			none: 1,
+		});
 	});
 
 	it("finds prompt-only editorial failures without exposing copy", () => {
 		const padded = Array.from({ length: 91 }, () => "word").join(" ");
+		const overlongTitle =
+			"This intentionally overlong headline contains thirteen separate words for evaluation only today here";
 		const outcome: InvestigationOutcome = {
 			...validOutcome,
 			evidence: [padded],
-			summary: "Tiny title",
-			title: "Tiny title",
+			summary: overlongTitle,
+			title: overlongTitle,
 		};
 		const evaluation = evaluateInsightOutputQuality([
 			qualityCase({ outcome }),
@@ -130,6 +339,8 @@ describe("evaluateInsightOutputQuality", () => {
 			casesIgnored: 1,
 			casesPassing: 1,
 		});
+		expect(evaluation.outputShape.byDisposition.watch.cases).toBe(1);
+		expect(evaluation.outputShape.byEvidenceCount.one.cases).toBe(1);
 	});
 
 	it("never emits customer-visible strings from the evaluated outcome", () => {
@@ -140,6 +351,16 @@ describe("evaluateInsightOutputQuality", () => {
 				outcome: {
 					...validOutcome,
 					evidence: [privateCopy],
+					impact: privateCopy,
+					next: { reason: privateCopy, type: "resolve" },
+					recommendation: {
+						action: privateCopy,
+						kind: "measurement_gap",
+						route: "/private-route",
+					},
+					rootCause: privateCopy,
+					summary: privateCopy,
+					title: privateCopy,
 				},
 			}),
 		]);

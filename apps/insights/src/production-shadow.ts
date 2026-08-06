@@ -18,6 +18,7 @@ import {
 } from "./coverage-planner";
 import {
 	evaluateInsightOutputQualityCase,
+	projectInsightOutputShape,
 	summarizeInsightOutputQualityResults,
 	type InsightOutputQualityEvaluation,
 	type InsightOutputQualityCaseResult,
@@ -266,6 +267,7 @@ export interface ShadowSelectionAudit {
 	history: "fresh_in_memory";
 	marginalRankingStatus: "baseline" | "measured" | "unavailable";
 	marginalSelectedCount: number;
+	measurementRecommendationScan: "completed" | "unavailable_historical";
 	overlapClustering: ShadowOverlapClustering | null;
 	portfolioLimit: number;
 	qualifiedCount: number;
@@ -297,8 +299,10 @@ interface ShadowReport {
 			sourcedRootCause: number;
 			userExperience: Record<string, number>;
 		};
+		candidateRetries: number;
 		cases: number;
 		durationsMs: { p50: number; p95: number };
+		failureCategories: Record<ShadowFailureCategory, number>;
 		status: Record<string, number>;
 		timeouts: {
 			count: number;
@@ -328,6 +332,46 @@ interface ShadowReport {
 		sites: number;
 	};
 	selectionAudit?: ShadowSelectionAudit[];
+}
+
+const shadowFailureCategories = [
+	"agent_execution",
+	"agent_generation",
+	"agent_timeout",
+	"other",
+] as const;
+
+type ShadowFailureCategory = (typeof shadowFailureCategories)[number];
+
+/** Maps failures to a fixed redacted class; no model/provider text is retained. */
+export function shadowFailureCategory(
+	errorType: string | null,
+	timedOut: boolean
+): ShadowFailureCategory {
+	if (timedOut || errorType === "InsightAgentTimeoutError") {
+		return "agent_timeout";
+	}
+	if (errorType === "InsightAgentGenerationError") {
+		return "agent_generation";
+	}
+	if (errorType === "InsightAgentExecutionError") {
+		return "agent_execution";
+	}
+	return "other";
+}
+
+/** Counts candidate-level retries without retaining signal identities. */
+export function countCandidateRetries(signalKeys: readonly string[]): number {
+	const seen = new Set<string>();
+	let retries = 0;
+	for (const signalKey of signalKeys) {
+		if (seen.has(signalKey)) {
+			retries += 1;
+			continue;
+		}
+		seen.add(signalKey);
+	}
+	return retries;
 }
 
 /** A quality-eval report intentionally excludes per-case customer-visible copy. */
@@ -1708,6 +1752,7 @@ export function projectSelectionAudit(params: {
 	errorOverlapUnavailableCount?: number;
 	errorOverlaps?: ShadowErrorCandidateOverlap[];
 	inspection: WebsitePortfolioInspection;
+	measurementRecommendationScan?: "completed" | "unavailable_historical";
 	siteId: string;
 }): ShadowSelectionAudit {
 	const entries =
@@ -1802,6 +1847,8 @@ export function projectSelectionAudit(params: {
 		history: "fresh_in_memory",
 		marginalRankingStatus: marginalPortfolio.status,
 		marginalSelectedCount: marginalPortfolio.selected.length,
+		measurementRecommendationScan:
+			params.measurementRecommendationScan ?? "completed",
 		overlapClustering,
 		portfolioLimit: coveragePortfolioLimit("manual"),
 		qualifiedCount: candidates.filter(
@@ -2060,13 +2107,21 @@ function failedCase(params: {
 				? `${params.error.message}: ${cause}`
 				: params.error.message
 			: "Unknown failure";
+	let errorSummary: string;
+	try {
+		errorSummary = sanitizeText(message, params.secrets).slice(0, 500);
+	} catch {
+		// A malformed diagnostic must not prevent a redacted shadow report.
+		errorSummary =
+			"Investigation error details were unavailable after redaction.";
+	}
 	return {
 		agent: params.agent,
 		asOf: params.asOf.toISOString(),
 		brief: null,
 		caseId: params.caseId,
 		durationMs: params.durationMs,
-		errorSummary: sanitizeText(message, params.secrets).slice(0, 500),
+		errorSummary,
 		errorType:
 			params.error instanceof Error
 				? params.error.constructor.name
@@ -2090,7 +2145,8 @@ function failedCase(params: {
 async function mapConcurrent<T, R>(
 	items: T[],
 	concurrency: number,
-	work: (item: T, index: number) => Promise<R>
+	work: (item: T, index: number) => Promise<R>,
+	onError?: (error: unknown, item: T, index: number) => Promise<R> | R
 ): Promise<R[]> {
 	const results = new Array<R>(items.length);
 	let next = 0;
@@ -2099,16 +2155,36 @@ async function mapConcurrent<T, R>(
 			while (next < items.length) {
 				const index = next;
 				next += 1;
-				results[index] = await work(items[index], index);
+				try {
+					results[index] = await work(items[index], index);
+				} catch (error) {
+					if (!onError) {
+						throw error;
+					}
+					results[index] = await onError(error, items[index], index);
+				}
 			}
 		})
 	);
 	return results;
 }
 
-function aggregateCases(cases: ShadowCase[]): ShadowReport["aggregate"] {
+function aggregateCases(
+	cases: ShadowCase[],
+	candidateRetries = 0
+): ShadowReport["aggregate"] {
 	const briefs = cases.flatMap((item) => (item.brief ? [item.brief] : []));
 	const completed = cases.filter((item) => item.status === "completed");
+	const failureCategories = Object.fromEntries(
+		shadowFailureCategories.map((category) => [category, 0])
+	) as Record<ShadowFailureCategory, number>;
+	for (const item of cases) {
+		if (item.status === "error") {
+			failureCategories[
+				shadowFailureCategory(item.errorType, item.timeout !== null)
+			] += 1;
+		}
+	}
 	const timeouts = cases.flatMap((item) =>
 		item.timeout ? [item.timeout] : []
 	);
@@ -2125,6 +2201,7 @@ function aggregateCases(cases: ShadowCase[]): ShadowReport["aggregate"] {
 			).length,
 			userExperience: countBy(briefs.map((brief) => brief.userExperience)),
 		},
+		candidateRetries,
 		cases: cases.length,
 		durationsMs: {
 			p50: percentile(
@@ -2136,6 +2213,7 @@ function aggregateCases(cases: ShadowCase[]): ShadowReport["aggregate"] {
 				0.95
 			),
 		},
+		failureCategories,
 		status: countBy(cases.map((item) => item.status)),
 		timeouts: {
 			count: timeouts.length,
@@ -2160,8 +2238,15 @@ function projectQualityEvaluationReport(
 		meta: report.meta,
 		qualityEvaluation: summarizeInsightOutputQualityResults({
 			caseCount: report.cases.length,
-			results: report.cases.flatMap((item) =>
-				item.quality ? [item.quality] : []
+			evaluations: report.cases.flatMap((item) =>
+				item.quality && item.outcome
+					? [
+							{
+								result: item.quality,
+								shape: projectInsightOutputShape(item.outcome, item.quality),
+							},
+						]
+					: []
 			),
 		}),
 	};
@@ -2275,6 +2360,8 @@ async function runSelectionAudit(params: {
 				errorOverlapUnavailableCount: errorOverlap.unavailableCount,
 				errorOverlaps: errorOverlap.overlaps,
 				inspection,
+				measurementRecommendationScan:
+					offsetDays > 0 ? "unavailable_historical" : "completed",
 				siteId: site.id,
 			});
 		}
@@ -2341,6 +2428,7 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 				const observations: ShadowObservation[] = [];
 				const subjectAliases = new Map<string, string>();
 				const cases: ShadowCase[] = [];
+				let candidateRetries = 0;
 				const definitions = [
 					...metadata.funnels.filter((row) => row.websiteId === site.id),
 					...metadata.goals.filter((row) => row.websiteId === site.id),
@@ -2402,7 +2490,10 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 							input,
 							sources,
 							"manual",
-							() => {
+							(isRetry) => {
+								if (isRetry) {
+									return Promise.resolve(true);
+								}
 								if (remainingAgentSlots === 0) {
 									return Promise.resolve(false);
 								}
@@ -2413,6 +2504,9 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 					} catch (error) {
 						portfolioError = error;
 					}
+					candidateRetries += countCandidateRetries(
+						attempts.map((attempt) => attempt.input.signal.signalKey)
+					);
 
 					for (const [attemptIndex, attempt] of attempts.entries()) {
 						const signal = attempt.input.signal;
@@ -2511,12 +2605,30 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 						);
 					}
 				}
-				return cases;
-			}
+				return { candidateRetries, cases };
+			},
+			(_error, site, siteIndex) => ({
+				candidateRetries: 0,
+				cases: [
+					failedCase({
+						agent: null,
+						asOf: referenceTime,
+						caseId: `site-${String(siteIndex + 1).padStart(2, "0")}@runner-error`,
+						durationMs: 0,
+						error: new Error("Site shadow failed"),
+						secrets: site.secrets,
+						trace: [],
+					}),
+				],
+			})
 		);
-		const cases = siteCases.flat();
+		const cases = siteCases.flatMap((site) => site.cases);
+		const candidateRetries = siteCases.reduce(
+			(total, site) => total + site.candidateRetries,
+			0
+		);
 		return {
-			aggregate: aggregateCases(cases),
+			aggregate: aggregateCases(cases, candidateRetries),
 			cases,
 			meta: {
 				asOfMode: options.asOfMode,

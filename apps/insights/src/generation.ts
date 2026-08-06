@@ -70,6 +70,7 @@ import {
 import {
 	InsightAgentExecutionError,
 	InsightAgentGenerationError,
+	InsightAgentTimeoutError,
 	type InsightAgentInput,
 	type InsightAgentResult,
 	runInsightAgent,
@@ -157,7 +158,7 @@ export const INSIGHT_LOOKBACK_DAYS = 7;
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 interface InvestigationRuntime {
-	canRunAgent?: () => Promise<boolean>;
+	canRunAgent?: (isRetry: boolean) => Promise<boolean>;
 	mode: "production" | "shadow";
 	onUsage?: (
 		result: Required<Pick<InsightAgentResult, "modelId" | "usage">>
@@ -747,11 +748,12 @@ async function investigatePlannedCandidate(
 	input: InvestigateWebsiteInput,
 	candidate: PlannedInvestigationCandidate,
 	relatedSignals: InvestigationSignal[],
-	runtime: InvestigationRuntime
+	runtime: InvestigationRuntime,
+	isRetry = false
 ): Promise<WebsiteInvestigationArtifact> {
 	const startedAt = performance.now();
 	const asOf = normalizeAsOf(input.asOf, input.timezone);
-	if (runtime.canRunAgent && !(await runtime.canRunAgent())) {
+	if (runtime.canRunAgent && !(await runtime.canRunAgent(isRetry))) {
 		if (runtime.mode === "production") {
 			emitInsightsEvent(
 				"info",
@@ -1205,9 +1207,11 @@ async function runPlannedCandidatePortfolio(params: {
 	completedSignalKeys: ReadonlySet<string>;
 	runCandidate: (
 		candidate: PlannedInvestigationCandidate,
-		relatedSignals: InvestigationSignal[]
+		relatedSignals: InvestigationSignal[],
+		isRetry: boolean
 	) => Promise<void>;
 }): Promise<void> {
+	const failedCandidates: PlannedInvestigationCandidate[] = [];
 	let firstCandidateFailure: InsightAgentGenerationError | null = null;
 	for (const candidate of params.candidates) {
 		if (params.completedSignalKeys.has(candidate.signal.signalKey)) {
@@ -1220,14 +1224,30 @@ async function runPlannedCandidatePortfolio(params: {
 					.filter(
 						(sibling) => sibling.signal.signalKey !== candidate.signal.signalKey
 					)
-					.map((sibling) => sibling.signal)
+					.map((sibling) => sibling.signal),
+				false
 			);
 		} catch (error) {
 			if (!(error instanceof InsightAgentGenerationError)) {
 				throw error;
 			}
-			firstCandidateFailure ??= error;
+			if (error instanceof InsightAgentTimeoutError) {
+				firstCandidateFailure ??= error;
+			} else {
+				failedCandidates.push(candidate);
+			}
 		}
+	}
+	for (const candidate of failedCandidates) {
+		await params.runCandidate(
+			candidate,
+			params.candidates
+				.filter(
+					(sibling) => sibling.signal.signalKey !== candidate.signal.signalKey
+				)
+				.map((sibling) => sibling.signal),
+			true
+		);
 	}
 	if (firstCandidateFailure) {
 		throw firstCandidateFailure;
@@ -1309,7 +1329,7 @@ export async function investigateWebsitePortfolioWithSources(
 	input: InvestigateWebsiteInput,
 	sources: InvestigationSources,
 	reason: InsightGenerationReason,
-	canRunAgent?: () => Promise<boolean>
+	canRunAgent?: (isRetry: boolean) => Promise<boolean>
 ): Promise<WebsiteInvestigationArtifact[]> {
 	const runtime: InvestigationRuntime = {
 		canRunAgent,
@@ -1341,13 +1361,14 @@ export async function investigateWebsitePortfolioWithSources(
 	await runPlannedCandidatePortfolio({
 		candidates,
 		completedSignalKeys: new Set(),
-		runCandidate: async (candidate, relatedSignals) => {
+		runCandidate: async (candidate, relatedSignals, isRetry) => {
 			artifacts.push(
 				await investigatePlannedCandidate(
 					input,
 					candidate,
 					relatedSignals,
-					runtime
+					runtime,
+					isRetry
 				)
 			);
 		},
@@ -1581,7 +1602,7 @@ export async function generateWebsiteInsights(
 			await runPlannedCandidatePortfolio({
 				candidates: plan.candidates,
 				completedSignalKeys,
-				runCandidate: async (plannedCandidate, relatedSignals) => {
+				runCandidate: async (plannedCandidate, relatedSignals, isRetry) => {
 					if (noCredits) {
 						return;
 					}
@@ -1597,7 +1618,7 @@ export async function generateWebsiteInsights(
 							plannedCandidate,
 							relatedSignals,
 							{
-								canRunAgent: async () => {
+								canRunAgent: async (_isRetry) => {
 									if (!isAgentBillingConfigured()) {
 										return true;
 									}
@@ -1629,7 +1650,8 @@ export async function generateWebsiteInsights(
 								onUsage: (usage) => {
 									agentUsage.value = usage;
 								},
-							}
+							},
+							isRetry
 						);
 						if (!(analysis.outcome && analysis.signal)) {
 							if (noCredits) {

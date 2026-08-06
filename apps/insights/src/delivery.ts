@@ -130,10 +130,7 @@ export function buildFallbackText(
 	);
 }
 
-export function buildInsightReplyText(
-	outcome: InvestigationOutcome,
-	signal: InvestigationSignal
-): string {
+export function buildInsightReplyText(outcome: InvestigationOutcome): string {
 	const label =
 		outcome.next.type === "act"
 			? "Action"
@@ -158,7 +155,7 @@ export function buildInsightReplyText(
 		lines.push(`*Why:* ${escapeMrkdwn(userVisibleCopy(outcome.rootCause))}`);
 	}
 	lines.push(
-		`*${outcome.next.type === "resolve" ? "Result" : "Next"}:* ${escapeMrkdwn(userVisibleCopy(formatInvestigationNext(outcome, signal)))}`
+		`*${outcome.next.type === "resolve" ? "Result" : "Next"}:* ${escapeMrkdwn(userVisibleCopy(formatInvestigationNext(outcome)))}`
 	);
 	return truncate(lines.join("\n"), SLACK_SECTION_TEXT_MAX);
 }
@@ -228,7 +225,7 @@ export function buildBlocks(
 		);
 	}
 	bodyLines.push(
-		`*Next:* ${escapeMrkdwn(userVisibleCopy(formatInvestigationNext(insight.outcome, insight.signal)))}`
+		`*Next:* ${escapeMrkdwn(userVisibleCopy(formatInvestigationNext(insight.outcome)))}`
 	);
 	blocks.push({
 		type: "section",
@@ -424,7 +421,7 @@ export async function deliverInsightSlackReply(params: {
 		{
 			blocks: [],
 			text: params.result
-				? buildInsightReplyText(params.result.outcome, params.result.signal)
+				? buildInsightReplyText(params.result.outcome)
 				: "I couldn't finish this investigation. Try replying again, or open it from the original message.",
 		},
 		params.context,

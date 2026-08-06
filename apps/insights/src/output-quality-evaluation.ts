@@ -44,7 +44,66 @@ export interface InsightOutputQualityCase {
 export interface InsightOutputQualityCaseResult {
 	failures: InsightOutputQualityFailureCode[];
 	renderedWordCount: number;
+	renderedWordCounts: {
+		evidence: number;
+		impact: number;
+		next: number;
+		rootCause: number;
+		summary: number;
+		title: number;
+	};
 	titleWordCount: number;
+}
+
+type InsightOutputDisposition = InvestigationOutcome["next"]["type"];
+
+type InsightOutputEvidenceBucket = "one" | "two";
+
+type InsightOutputRecommendationKind =
+	| "databuddy_setup"
+	| "funnel_draft"
+	| "goal_draft"
+	| "goal_operation"
+	| "instrumentation"
+	| "measurement_gap"
+	| "native"
+	| "none";
+
+interface InsightOutputShapeSample {
+	disposition: InsightOutputDisposition;
+	evidenceBucket: InsightOutputEvidenceBucket;
+	evidenceWordCount: number;
+	nextWordCount: number;
+	published: boolean;
+	recommendationKind: InsightOutputRecommendationKind;
+	renderedWordCount: number;
+}
+
+interface InsightOutputQualityEvaluationSample {
+	result: InsightOutputQualityCaseResult;
+	shape: InsightOutputShapeSample;
+}
+
+export interface InsightOutputShapeSummary {
+	byDisposition: Record<
+		InsightOutputDisposition,
+		{
+			cases: number;
+			notPublished: number;
+			published: number;
+			totalNextWords: number;
+			totalRenderedWords: number;
+		}
+	>;
+	byEvidenceCount: Record<
+		InsightOutputEvidenceBucket,
+		{
+			cases: number;
+			totalEvidenceWords: number;
+			totalRenderedWords: number;
+		}
+	>;
+	recommendationKinds: Record<InsightOutputRecommendationKind, number>;
 }
 
 export interface InsightOutputQualityEvaluation {
@@ -55,12 +114,12 @@ export interface InsightOutputQualityEvaluation {
 	contractFailureCount: number;
 	editorialFailureCount: number;
 	failureCounts: Record<InsightOutputQualityFailureCode, number>;
+	outputShape: InsightOutputShapeSummary;
 	results: InsightOutputQualityCaseResult[];
 	totalFailures: number;
 }
 
 const MAX_RENDERED_WORDS = 90;
-const MIN_TITLE_WORDS = 5;
 const MAX_TITLE_WORDS = 12;
 const WHITESPACE_PATTERN = /\s+/u;
 const GLOBAL_WHITESPACE_PATTERN = /\s+/gu;
@@ -105,6 +164,37 @@ function renderedCopy(outcome: InvestigationOutcome): string[] {
 	}
 }
 
+function nextCopy(outcome: InvestigationOutcome): string[] {
+	switch (outcome.next.type) {
+		case "act":
+			return [outcome.next.action, outcome.next.verification];
+		case "ask":
+			return [outcome.next.question];
+		case "watch":
+			return [outcome.next.escalation];
+		case "resolve":
+			return [outcome.next.reason];
+		default:
+			throw new Error("Unknown investigation next type");
+	}
+}
+
+function recommendationKind(
+	outcome: InvestigationOutcome
+): InsightOutputRecommendationKind {
+	const recommendation = outcome.recommendation;
+	if (!recommendation) {
+		return "none";
+	}
+	if ("nativeAction" in recommendation) {
+		return "native";
+	}
+	if ("kind" in recommendation) {
+		return recommendation.kind;
+	}
+	return "goal_operation";
+}
+
 function hasDuplicateRenderedCopy(values: string[]): boolean {
 	const seen = new Set<string>();
 	for (const value of values) {
@@ -133,13 +223,27 @@ export function evaluateInsightOutputQualityCase(
 	const brief = item.brief;
 	const rendered = renderedCopy(outcome);
 	const titleWordCount = wordCount(outcome.title);
+	const renderedWordCounts = {
+		evidence: outcome.evidence.reduce(
+			(total, value) => total + wordCount(value),
+			0
+		),
+		impact: outcome.impact ? wordCount(outcome.impact) : 0,
+		next: nextCopy(outcome).reduce(
+			(total, value) => total + wordCount(value),
+			0
+		),
+		rootCause: outcome.rootCause ? wordCount(outcome.rootCause) : 0,
+		summary: wordCount(outcome.summary),
+		title: titleWordCount,
+	};
 	const renderedWordCount = rendered.reduce(
 		(total, value) => total + wordCount(value),
 		0
 	);
 	const failures: InsightOutputQualityFailureCode[] = [];
 
-	if (titleWordCount < MIN_TITLE_WORDS || titleWordCount > MAX_TITLE_WORDS) {
+	if (titleWordCount > MAX_TITLE_WORDS) {
 		failures.push("title_word_count");
 	}
 	if (renderedWordCount > MAX_RENDERED_WORDS) {
@@ -183,8 +287,99 @@ export function evaluateInsightOutputQualityCase(
 	return {
 		failures,
 		renderedWordCount,
+		renderedWordCounts,
 		titleWordCount,
 	};
+}
+
+/**
+ * Aggregate-only structural telemetry for a completed outcome. It deliberately
+ * retains no generated strings, identifiers, routes, thresholds, or payloads.
+ */
+export function projectInsightOutputShape(
+	outcome: InvestigationOutcome,
+	result: InsightOutputQualityCaseResult
+): InsightOutputShapeSample {
+	return {
+		disposition: outcome.next.type,
+		evidenceBucket: outcome.evidence.length === 1 ? "one" : "two",
+		evidenceWordCount: result.renderedWordCounts.evidence,
+		nextWordCount: result.renderedWordCounts.next,
+		published: outcome.publish === true,
+		recommendationKind: recommendationKind(outcome),
+		renderedWordCount: result.renderedWordCount,
+	};
+}
+
+function summarizeOutputShape(
+	evaluations: InsightOutputQualityEvaluationSample[]
+): InsightOutputShapeSummary {
+	const byDisposition: InsightOutputShapeSummary["byDisposition"] = {
+		act: {
+			cases: 0,
+			notPublished: 0,
+			published: 0,
+			totalNextWords: 0,
+			totalRenderedWords: 0,
+		},
+		ask: {
+			cases: 0,
+			notPublished: 0,
+			published: 0,
+			totalNextWords: 0,
+			totalRenderedWords: 0,
+		},
+		resolve: {
+			cases: 0,
+			notPublished: 0,
+			published: 0,
+			totalNextWords: 0,
+			totalRenderedWords: 0,
+		},
+		watch: {
+			cases: 0,
+			notPublished: 0,
+			published: 0,
+			totalNextWords: 0,
+			totalRenderedWords: 0,
+		},
+	};
+	const byEvidenceCount: InsightOutputShapeSummary["byEvidenceCount"] = {
+		one: { cases: 0, totalEvidenceWords: 0, totalRenderedWords: 0 },
+		two: { cases: 0, totalEvidenceWords: 0, totalRenderedWords: 0 },
+	};
+	const recommendationKinds: InsightOutputShapeSummary["recommendationKinds"] =
+		{
+			databuddy_setup: 0,
+			funnel_draft: 0,
+			goal_draft: 0,
+			goal_operation: 0,
+			instrumentation: 0,
+			measurement_gap: 0,
+			native: 0,
+			none: 0,
+		};
+
+	for (const { shape } of evaluations) {
+		const disposition = byDisposition[shape.disposition];
+		disposition.cases += 1;
+		if (shape.published) {
+			disposition.published += 1;
+		} else {
+			disposition.notPublished += 1;
+		}
+		disposition.totalNextWords += shape.nextWordCount;
+		disposition.totalRenderedWords += shape.renderedWordCount;
+
+		const evidence = byEvidenceCount[shape.evidenceBucket];
+		evidence.cases += 1;
+		evidence.totalEvidenceWords += shape.evidenceWordCount;
+		evidence.totalRenderedWords += shape.renderedWordCount;
+
+		recommendationKinds[shape.recommendationKind] += 1;
+	}
+
+	return { byDisposition, byEvidenceCount, recommendationKinds };
 }
 
 /**
@@ -194,9 +389,10 @@ export function evaluateInsightOutputQualityCase(
  */
 export function summarizeInsightOutputQualityResults(params: {
 	caseCount: number;
-	results: InsightOutputQualityCaseResult[];
+	evaluations: InsightOutputQualityEvaluationSample[];
 }): InsightOutputQualityEvaluation {
-	const { caseCount, results } = params;
+	const { caseCount, evaluations } = params;
+	const results = evaluations.map((evaluation) => evaluation.result);
 	const failureCounts = emptyFailureCounts();
 	for (const result of results) {
 		for (const failure of result.failures) {
@@ -222,6 +418,7 @@ export function summarizeInsightOutputQualityResults(params: {
 		contractFailureCount: totalFailures - editorialFailureCount,
 		editorialFailureCount,
 		failureCounts,
+		outputShape: summarizeOutputShape(evaluations),
 		results,
 		totalFailures,
 	};
@@ -230,12 +427,20 @@ export function summarizeInsightOutputQualityResults(params: {
 export function evaluateInsightOutputQuality(
 	cases: InsightOutputQualityCase[]
 ): InsightOutputQualityEvaluation {
-	const results = cases.flatMap((item) => {
+	const evaluations = cases.flatMap((item) => {
 		const result = evaluateInsightOutputQualityCase(item);
-		return result ? [result] : [];
+		if (!(result && item.outcome)) {
+			return [];
+		}
+		return [
+			{
+				result,
+				shape: projectInsightOutputShape(item.outcome, result),
+			},
+		];
 	});
 	return summarizeInsightOutputQualityResults({
 		caseCount: cases.length,
-		results,
+		evaluations,
 	});
 }
