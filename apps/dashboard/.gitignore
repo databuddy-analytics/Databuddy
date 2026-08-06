@@ -50,3 +50,6 @@ certificates
 
 # atmn pull auto-generates this — would drift on every pull
 @useautumn-sdk.d.ts
+
+# Playwright test output
+/test-results/
