@@ -151,6 +151,21 @@ describe("componentToBlocks — native actions and previews", () => {
 		expect(elements[1].url).toBe("https://example.com");
 	});
 
+	it("renders suggested-actions as drill-down buttons carrying the prompt", () => {
+		const block = firstBlock({
+			type: "suggested-actions",
+			actions: [
+				{ label: "Break down by referrer", prompt: "break /pricing down by referrer" },
+				{ label: "No prompt" },
+			],
+		});
+		expect(block.type).toBe("actions");
+		const elements = block.elements as Array<Record<string, unknown>>;
+		expect(elements).toHaveLength(1);
+		expect(elements[0].action_id).toBe("agent_drilldown");
+		expect(elements[0].value).toBe("break /pricing down by referrer");
+	});
+
 	it("renders a feedback-preview as a section card", () => {
 		const blocks = componentToBlocks({
 			type: "feedback-preview",

@@ -4,6 +4,9 @@ const DASHBOARD_BASE_URL = "https://app.databuddy.cc";
 const DATA_TABLE_MAX_COLUMNS = 20;
 const DATA_TABLE_MAX_ROWS = 100;
 const MAX_ACTION_BUTTONS = 5;
+const DRILLDOWN_PROMPT_MAX = 1900;
+
+export const DRILLDOWN_ACTION_ID = "agent_drilldown";
 
 export interface ComponentSpec {
 	type: string;
@@ -238,6 +241,27 @@ function renderDashboardActions(spec: ComponentSpec): Block[] {
 	return elements.length > 0 ? [{ type: "actions", elements }] : [];
 }
 
+function renderSuggestedActions(spec: ComponentSpec): Block[] {
+	const elements = asArray(spec.actions)
+		.map((item): Block | null => {
+			const action = item as Record<string, unknown>;
+			const label = asString(action.label).trim();
+			const prompt = asString(action.prompt).trim();
+			if (!(label && prompt)) {
+				return null;
+			}
+			return {
+				type: "button",
+				text: { type: "plain_text", text: label.slice(0, 75) },
+				action_id: DRILLDOWN_ACTION_ID,
+				value: prompt.slice(0, DRILLDOWN_PROMPT_MAX),
+			};
+		})
+		.filter((element): element is Block => element !== null)
+		.slice(0, MAX_ACTION_BUTTONS);
+	return elements.length > 0 ? [{ type: "actions", elements }] : [];
+}
+
 function previewCard(
 	headline: string,
 	lines: string[],
@@ -330,6 +354,7 @@ const RENDERERS: Record<string, (spec: ComponentSpec) => Block[]> = {
 	"goals-list": renderGoalsList,
 	"annotations-list": renderAnnotationsList,
 	"dashboard-actions": renderDashboardActions,
+	"suggested-actions": renderSuggestedActions,
 	"link-preview": renderLinkPreview,
 	"feedback-preview": renderFeedbackPreview,
 	"funnel-preview": renderFunnelPreview,
