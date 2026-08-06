@@ -483,8 +483,9 @@ function createPlainTextStreamResponse(
 }
 
 export const agent = new Elysia({ prefix: "/v1/agent" })
-	.derive(async ({ request }) => {
-		const preResolved = getResolvedAuth(request.headers);
+	.resolve(async (context) => {
+		const { request } = context;
+		const preResolved = getResolvedAuth(context);
 		let session = preResolved?.session ?? null;
 		let apiKey = preResolved?.apiKeyResult?.key ?? null;
 

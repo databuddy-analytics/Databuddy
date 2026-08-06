@@ -16,7 +16,7 @@ import { isAllowedApiOrigin } from "@/http/cors";
 import { handleAppError } from "@/http/errors";
 import { getRequestId } from "@/http/request-id";
 import { AUTUMN_API_PREFIX } from "@/lib/autumn-mount";
-import { getResolvedAuth } from "@/lib/auth-wide-event";
+import type { ResolvedAuth } from "@/lib/auth-wide-event";
 import { enrichApiWideEvent } from "@/lib/evlog-api";
 import { enrichRequestAuthWideEvent } from "@/middleware/auth-wide-event";
 import {
@@ -47,14 +47,18 @@ registerProcessErrorHandlers();
 const BUN_IDLE_TIMEOUT_SECONDS = 255;
 interface RequestContext {
 	request: Request;
+	resolvedAuth?: ResolvedAuth;
 }
 
-function handleRpcEndpoint({ request }: RequestContext) {
-	return handleAuthenticatedOrpcRequest(request, (orpcRequest, context) =>
-		rpcHandler.handle(orpcRequest, {
-			prefix: "/rpc",
-			context,
-		})
+function handleRpcEndpoint({ request, resolvedAuth }: RequestContext) {
+	return handleAuthenticatedOrpcRequest(
+		request,
+		(orpcRequest, context) =>
+			rpcHandler.handle(orpcRequest, {
+				prefix: "/rpc",
+				context,
+			}),
+		resolvedAuth
 	);
 }
 
@@ -62,8 +66,12 @@ function handleOpenApiReference({ request }: RequestContext) {
 	return handleAnonymousOrpcRequest(request, handleOpenApiRequest);
 }
 
-function handleOpenApiEndpoint({ request }: RequestContext) {
-	return handleAuthenticatedOrpcRequest(request, handleOpenApiRequest);
+function handleOpenApiEndpoint({ request, resolvedAuth }: RequestContext) {
+	return handleAuthenticatedOrpcRequest(
+		request,
+		handleOpenApiRequest,
+		resolvedAuth
+	);
 }
 
 function handleOpenApiJson({ request }: RequestContext) {
@@ -105,7 +113,14 @@ const app = new Elysia({ precompile: true })
 			set.headers[name] = value;
 		})
 	)
-	.onBeforeHandle(({ request }) => enrichRequestAuthWideEvent(request))
+	.resolve({ as: "global" }, async ({ request }) => {
+		const result = await enrichRequestAuthWideEvent(request);
+		if (result instanceof Response) {
+			return { authWideEventResponse: result, resolvedAuth: undefined };
+		}
+		return { authWideEventResponse: undefined, resolvedAuth: result };
+	})
+	.onBeforeHandle(({ authWideEventResponse }) => authWideEventResponse)
 	.use(
 		cors({
 			credentials: true,
@@ -119,9 +134,8 @@ const app = new Elysia({ precompile: true })
 			origin: isAllowedApiOrigin,
 		})
 	)
-	.onBeforeHandle(({ request, set }) => {
-		const resolvedAuth = getResolvedAuth(request.headers);
-		return enforceApiKeyRateLimit(
+	.onBeforeHandle(({ request, resolvedAuth, set }) =>
+		enforceApiKeyRateLimit(
 			request,
 			(name, value) => {
 				set.headers[name] = value;
@@ -131,8 +145,8 @@ const app = new Elysia({ precompile: true })
 					? (resolvedAuth.apiKeyResult?.key ?? null)
 					: undefined,
 			}
-		);
-	})
+		)
+	)
 	.use(publicApi)
 	.use(health)
 	.use(discovery)

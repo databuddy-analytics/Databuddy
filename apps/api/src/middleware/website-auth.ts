@@ -38,7 +38,8 @@ function getSessionUser(
 
 export function websiteAuth() {
 	return new Elysia()
-		.derive(async ({ request }) => {
+		.resolve(async (context) => {
+			const { request } = context;
 			if (isPreflight(request)) {
 				return {
 					user: null,
@@ -54,7 +55,7 @@ export function websiteAuth() {
 			const url = new URL(request.url);
 			const websiteId = url.searchParams.get("website_id");
 
-			const preResolved = getResolvedAuth(request.headers);
+			const preResolved = getResolvedAuth(context);
 			let sessionUser: SessionUser | null = null;
 			let session: Awaited<ReturnType<typeof auth.api.getSession>> | null =
 				null;

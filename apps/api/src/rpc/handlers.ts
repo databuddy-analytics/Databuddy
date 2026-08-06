@@ -9,7 +9,7 @@ import { RPCHandler } from "@orpc/server/fetch";
 import { createError } from "evlog";
 import { useLogger } from "evlog/elysia";
 import { handleAppError } from "@/http/errors";
-import { getResolvedAuth } from "@/lib/auth-wide-event";
+import type { ResolvedAuth } from "@/lib/auth-wide-event";
 import { getRequestId } from "@/http/request-id";
 import { logOrpcHandlerError } from "./interceptors";
 
@@ -26,8 +26,11 @@ export const rpcHandler = new RPCHandler(appRouter, {
 	interceptors: [createAbortSignalInterceptor(), onError(logOrpcHandlerError)],
 });
 
-export function createAuthenticatedOrpcContext(request: Request) {
-	const preResolvedAuth = getPreResolvedAuth(request.headers);
+export function createAuthenticatedOrpcContext(
+	request: Request,
+	resolvedAuth?: ResolvedAuth
+) {
+	const preResolvedAuth = getPreResolvedAuth(resolvedAuth);
 	return createRPCContext({ headers: request.headers }, preResolvedAuth);
 }
 
@@ -37,9 +40,14 @@ export function createAnonymousOrpcContext(request: Request) {
 
 export function handleAuthenticatedOrpcRequest(
 	request: Request,
-	handle: OrpcRouteHandler
+	handle: OrpcRouteHandler,
+	resolvedAuth?: ResolvedAuth
 ) {
-	return handleOrpcRequest(request, createAuthenticatedOrpcContext, handle);
+	return handleOrpcRequest(
+		request,
+		(request) => createAuthenticatedOrpcContext(request, resolvedAuth),
+		handle
+	);
 }
 
 export function handleAnonymousOrpcRequest(
@@ -90,14 +98,15 @@ async function handleOrpcRequest(
 	}
 }
 
-function getPreResolvedAuth(headers: Headers): PreResolvedAuth | undefined {
-	const resolved = getResolvedAuth(headers);
-	if (!resolved) {
+function getPreResolvedAuth(
+	resolvedAuth?: ResolvedAuth
+): PreResolvedAuth | undefined {
+	if (!resolvedAuth) {
 		return;
 	}
 
 	return {
-		session: resolved.session,
-		apiKey: resolved.apiKeyResult?.key ?? null,
+		session: resolvedAuth.session,
+		apiKey: resolvedAuth.apiKeyResult?.key ?? null,
 	};
 }

@@ -2,12 +2,12 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readBooleanEnv } from "@databuddy/env/boolean";
+import { createBatchedAxiomDrain } from "@databuddy/shared/evlog-axiom";
 import { createBatchedSuperlogDrain } from "@databuddy/shared/evlog-superlog";
 import type { DrainContext, RequestLogger } from "evlog";
 import { createLogger, log } from "evlog";
-import { createAxiomDrain } from "evlog/axiom";
 import { createFsDrain } from "evlog/fs";
-import { createDrainPipeline } from "evlog/pipeline";
+import { composeDrains } from "evlog/toolkit";
 
 type SlackLogValue = string | number | boolean;
 type SlackLogFields = Record<string, SlackLogValue | null | undefined>;
@@ -17,18 +17,14 @@ const activeSlackLog = new AsyncLocalStorage<RequestLogger>();
 const hasAxiom =
 	process.env.NODE_ENV !== "development" && Boolean(process.env.AXIOM_TOKEN);
 const batchedAxiomDrain = hasAxiom
-	? createDrainPipeline<DrainContext>({
-			batch: { size: 50, intervalMs: 5000 },
-			maxBufferSize: 2000,
-		})(
-			createAxiomDrain({
-				apiKey: process.env.AXIOM_TOKEN,
-				dataset: "slack",
-			})
-		)
+	? createBatchedAxiomDrain(process.env.AXIOM_TOKEN, "slack")
 	: null;
 
 const batchedSuperlogDrain = createBatchedSuperlogDrain();
+const remoteDrain = composeDrains([
+	...(batchedAxiomDrain ? [batchedAxiomDrain] : []),
+	...(batchedSuperlogDrain ? [batchedSuperlogDrain] : []),
+]);
 
 const fsDrain =
 	process.env.NODE_ENV === "development" || readBooleanEnv("SLACK_EVLOG_FS")
@@ -54,16 +50,7 @@ export async function slackLoggerDrain(ctx: DrainContext): Promise<void> {
 	if (fsDrain) {
 		await fsDrain(ctx);
 	}
-	for (const drain of [batchedAxiomDrain, batchedSuperlogDrain]) {
-		if (!drain) {
-			continue;
-		}
-		try {
-			await drain(ctx);
-		} catch {
-			// Drain failures must not break Slack event handling.
-		}
-	}
+	await remoteDrain(ctx);
 }
 
 export async function flushBatchedSlackDrain(): Promise<void> {

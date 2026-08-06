@@ -4,35 +4,46 @@ import {
 	resolveApiKey,
 } from "@databuddy/api-keys/resolve";
 import { auth } from "@databuddy/auth";
-import { getBillingOwner } from "@databuddy/rpc/billing";
-import { getOrganizationOwnerId } from "@databuddy/rpc/organization";
 import { mergeWideEvent } from "@databuddy/ai/lib/tracing";
-import type {
-	ApiAuthWideEventFields,
-	BillingPlanTier,
-} from "@databuddy/shared/evlog-fields";
+import type { ApiAuthWideEventFields } from "@databuddy/shared/evlog-fields";
 
 export interface ResolvedAuth {
 	apiKeyResult: ResolveApiKeyResult | null;
 	session: Awaited<ReturnType<typeof auth.api.getSession>> | null;
 }
 
-const authCache = new WeakMap<Headers, ResolvedAuth>();
-
-export function getResolvedAuth(headers: Headers): ResolvedAuth | undefined {
-	return authCache.get(headers);
+export interface AuthResolutionContext {
+	resolvedAuth?: ResolvedAuth;
 }
 
-export async function applyAuthWideEvent(headers: Headers): Promise<void> {
+export function getResolvedAuth(context: unknown): ResolvedAuth | undefined {
+	if (!(context && typeof context === "object")) {
+		return;
+	}
+
+	return (context as AuthResolutionContext).resolvedAuth;
+}
+
+export async function applyAuthWideEvent(
+	headers: Headers
+): Promise<ResolvedAuth> {
 	const fields: Partial<ApiAuthWideEventFields> = {};
 
 	const hasKey = isApiKeyPresent(headers);
-	const [session, apiKeyResult] = await Promise.all([
-		auth.api.getSession({ headers }).catch(() => null),
-		hasKey ? resolveApiKey(headers) : null,
-	]);
+	const sessionResolution = Promise.resolve()
+		.then(() => auth.api.getSession({ headers }))
+		.then(
+			(session) => ({ ok: true as const, session }),
+			(error) => ({ error, ok: false as const })
+		);
+	const apiKeyResult = hasKey ? await resolveApiKey(headers) : null;
+	const sessionResult = await sessionResolution;
+	if (!(sessionResult.ok || apiKeyResult?.key)) {
+		throw sessionResult.error;
+	}
+	const session = sessionResult.ok ? sessionResult.session : null;
 
-	authCache.set(headers, { session, apiKeyResult });
+	const resolvedAuth = { session, apiKeyResult };
 
 	const user = session?.user;
 	const role = (user as { role?: string } | undefined)?.role;
@@ -78,55 +89,12 @@ export async function applyAuthWideEvent(headers: Headers): Promise<void> {
 		fields.organization_id = orgId;
 	}
 
-	await enrichBillingPlanWideEvent(fields, {
-		apiKey,
-		organizationId: orgId,
-		userId: user?.id ?? null,
-	});
-
-	mergeWideEvent<ApiAuthWideEventFields>(fields);
-}
-
-async function enrichBillingPlanWideEvent(
-	fields: Partial<ApiAuthWideEventFields>,
-	principal: {
-		apiKey: ResolveApiKeyResult["key"] | null;
-		organizationId: string | null;
-		userId: string | null;
-	}
-): Promise<void> {
 	try {
-		const billingUserId = await resolveBillingUserId(principal);
-		if (!billingUserId) {
-			fields.billing_plan_resolution = "missing_customer";
-			return;
-		}
-
-		const billing = await getBillingOwner(
-			billingUserId,
-			principal.organizationId
-		);
-		fields.billing_plan = billing.planId;
-		fields.billing_plan_resolution = "resolved";
-		fields.billing_plan_tier = toBillingPlanTier(billing.planId);
+		mergeWideEvent<ApiAuthWideEventFields>(fields);
 	} catch {
-		// Telemetry enrichment must never reject an authenticated request.
-		fields.billing_plan_resolution = "unavailable";
-	}
-}
-
-async function resolveBillingUserId(principal: {
-	apiKey: ResolveApiKeyResult["key"] | null;
-	organizationId: string | null;
-	userId: string | null;
-}): Promise<string | null> {
-	if (principal.apiKey?.organizationId) {
-		return await getOrganizationOwnerId(principal.apiKey.organizationId);
+		// Auth resolution is required by downstream route and rate-limit handling;
+		// emitting its observability fields is not.
 	}
 
-	return principal.userId ?? principal.apiKey?.userId ?? null;
-}
-
-function toBillingPlanTier(planId: string): BillingPlanTier {
-	return planId === "free" ? "free" : "paid";
+	return resolvedAuth;
 }

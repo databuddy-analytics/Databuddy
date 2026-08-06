@@ -1,25 +1,20 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readBooleanEnv } from "@databuddy/env/boolean";
+import {
+	createBatchedAxiomDrain,
+	enrichHttpWideEvent,
+	normalizeHttpWideEventForAxiom,
+} from "@databuddy/shared/evlog-axiom";
 import type { DrainContext, EnrichContext } from "evlog";
 import { log } from "evlog";
-import { createAxiomDrain } from "evlog/axiom";
 import { useLogger as getRequestLogger } from "evlog/elysia";
-import {
-	createRequestSizeEnricher,
-	createTraceContextEnricher,
-	createUserAgentEnricher,
-} from "evlog/enrichers";
 import { createFsDrain } from "evlog/fs";
-import { createDrainPipeline } from "evlog/pipeline";
 
 type LogField = string | number | boolean;
 type LogFields = Record<string, LogField>;
 
-const batchedAxiomDrain = createDrainPipeline<DrainContext>({
-	batch: { size: 50, intervalMs: 5000 },
-	maxBufferSize: 2000,
-})(createAxiomDrain({ apiKey: process.env.AXIOM_TOKEN }));
+const batchedAxiomDrain = createBatchedAxiomDrain(process.env.AXIOM_TOKEN);
 
 const fsDrain =
 	process.env.NODE_ENV === "development" || readBooleanEnv("LINKS_EVLOG_FS")
@@ -38,39 +33,8 @@ const fsDrain =
 const drainToAxiom =
 	process.env.NODE_ENV !== "development" && Boolean(process.env.AXIOM_TOKEN);
 
-const DURATION_RE = /^([\d.]+)(ms|s)$/;
-
-function normalizeDrainEvent(event: Record<string, unknown>): void {
-	if (typeof event.error === "string") {
-		event.error_message = event.error;
-		event.error = undefined;
-	}
-
-	if (event.level === "error") {
-		const err = event.error;
-		if (err && typeof err === "object" && !Array.isArray(err)) {
-			const status = (err as { status?: number }).status;
-			if (typeof status === "number" && status >= 400 && status < 500) {
-				event.level = "warn";
-				event.client_http_error = true;
-			}
-		}
-	}
-
-	const d = event.duration;
-	if (typeof d === "string") {
-		const m = d.match(DURATION_RE);
-		if (m?.[1]) {
-			event.duration_ms =
-				m[2] === "s"
-					? Math.round(Number.parseFloat(m[1]) * 1000)
-					: Math.round(Number.parseFloat(m[1]));
-		}
-	}
-}
-
 export async function drain(ctx: DrainContext): Promise<void> {
-	normalizeDrainEvent(ctx.event as Record<string, unknown>);
+	normalizeHttpWideEventForAxiom(ctx.event as Record<string, unknown>);
 	if (fsDrain) {
 		await fsDrain(ctx);
 	}
@@ -83,16 +47,8 @@ export async function flushDrain(): Promise<void> {
 	await batchedAxiomDrain.flush();
 }
 
-const enrichers = [
-	createUserAgentEnricher(),
-	createRequestSizeEnricher(),
-	createTraceContextEnricher(),
-] as const;
-
 export function enrich(ctx: EnrichContext): void {
-	for (const e of enrichers) {
-		e(ctx);
-	}
+	enrichHttpWideEvent(ctx);
 }
 
 export function mergeWideEvent(fields: LogFields): void {
