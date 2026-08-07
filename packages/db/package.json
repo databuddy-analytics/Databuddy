@@ -25,6 +25,7 @@
     "db:seed": "tsx src/seed.ts",
     "email:segments": "dotenv -- bun src/scripts/export-user-email-segments.ts",
     "clickhouse:init": "tsx src/clickhouse/setup.ts",
+    "dql:try": "bun scripts/dql-try.ts",
     "test": "bun test src",
     "e2e:db:create": "bun ./scripts/e2e-db-lifecycle.ts create",
     "e2e:db:drop": "bun ./scripts/e2e-db-lifecycle.ts drop"

@@ -55,30 +55,43 @@ describe("DQL ClickHouse access", () => {
 		);
 		expect(sql).toContain("GRANT SELECT(");
 		expect(sql).toContain("ON analytics.events TO `dql_role`");
+		expect(sql).toContain("ON analytics.custom_events TO `dql_role`");
 		expect(sql).not.toContain("GRANT SELECT ON analytics.*");
 
-		for (const column of DQL_SCHEMA[0].columns) {
-			expect(sql).toContain(`\`${column.name}\``);
+		for (const table of DQL_SCHEMA) {
+			for (const column of table.columns) {
+				expect(sql).toContain(`\`${column.name}\``);
+			}
 		}
 		for (const hidden of [
 			"client_id",
+			"owner_id",
+			"website_id",
+			"delivery_id",
 			"id",
 			"ip",
-			"properties",
 			"url",
 			"user_agent",
+			"metadata",
 		]) {
 			expect(sql).not.toContain(`\`${hidden}\``);
 		}
+
+		const eventsGrant = statements.find((statement) =>
+			statement.includes("ON analytics.events TO")
+		);
+		expect(eventsGrant).toBeDefined();
+		expect(eventsGrant).not.toContain("`properties`");
+		expect(eventsGrant).not.toContain("`url`");
 	});
 
 	test("keeps the catalog physical and rejects unsafe provisioning input", () => {
-		const physicalColumns = new Set(TABLE_COLUMNS["analytics.events"]);
-		expect(
-			DQL_SCHEMA[0].columns.every((column) =>
-				physicalColumns.has(column.name)
-			)
-		).toBe(true);
+		for (const table of DQL_SCHEMA) {
+			const physicalColumns = new Set(TABLE_COLUMNS[table.name]);
+			expect(
+				table.columns.every((column) => physicalColumns.has(column.name))
+			).toBe(true);
+		}
 		expect(() =>
 			buildDqlAccessStatements({
 				hosts: ["0.0.0.0/0"],
@@ -113,6 +126,9 @@ describe("DQL ClickHouse access", () => {
 		);
 		expect(sql).toContain(
 			"CREATE ROW POLICY OR REPLACE `dql_events_website` ON CLUSTER `production` ON analytics.events"
+		);
+		expect(sql).toContain(
+			"CREATE ROW POLICY OR REPLACE `dql_custom_events_website` ON CLUSTER `production` ON analytics.custom_events FOR SELECT USING owner_id = getSetting"
 		);
 		expect(() =>
 			buildDqlAccessStatements({

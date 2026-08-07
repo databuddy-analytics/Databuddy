@@ -41,19 +41,38 @@ export const DQL_RESOURCE_LIMITS = {
 	maxThreads: 4,
 } as const;
 
-const DQL_EVENTS_TABLE = "analytics.events";
-const DQL_EVENTS_TENANT_COLUMN = "client_id";
-const DQL_EVENTS_COLUMNS = [
+export interface DqlColumn {
+	readonly name: string;
+	readonly type: string;
+}
+
+export interface DqlTable {
+	readonly columns: readonly DqlColumn[];
+	readonly name: string;
+	readonly tenantColumn: string;
+}
+
+const DQL_EVENTS_COLUMNS: readonly DqlColumn[] = [
 	{ name: "time", type: "DateTime64(3, 'UTC')" },
 	{ name: "path", type: "String" },
 	{ name: "event_name", type: "String" },
+	{ name: "title", type: "Nullable(String)" },
+	{ name: "language", type: "Nullable(String)" },
+	{ name: "timezone", type: "Nullable(String)" },
+	{ name: "page_count", type: "UInt8" },
+	{ name: "interaction_count", type: "Nullable(Int16)" },
 	{ name: "anonymous_id", type: "String" },
 	{ name: "profile_id", type: "String" },
 	{ name: "session_id", type: "String" },
 	{ name: "referrer", type: "Nullable(String)" },
 	{ name: "browser_name", type: "Nullable(String)" },
+	{ name: "browser_version", type: "Nullable(String)" },
 	{ name: "os_name", type: "Nullable(String)" },
+	{ name: "os_version", type: "Nullable(String)" },
 	{ name: "device_type", type: "Nullable(String)" },
+	{ name: "device_brand", type: "Nullable(String)" },
+	{ name: "device_model", type: "Nullable(String)" },
+	{ name: "viewport_size", type: "Nullable(String)" },
 	{ name: "country", type: "Nullable(String)" },
 	{ name: "region", type: "Nullable(String)" },
 	{ name: "city", type: "Nullable(String)" },
@@ -62,16 +81,123 @@ const DQL_EVENTS_COLUMNS = [
 	{ name: "utm_campaign", type: "Nullable(String)" },
 	{ name: "utm_term", type: "Nullable(String)" },
 	{ name: "utm_content", type: "Nullable(String)" },
+	{ name: "gclid", type: "Nullable(String)" },
 	{ name: "time_on_page", type: "Nullable(Float32)" },
 	{ name: "scroll_depth", type: "Nullable(Float32)" },
-] as const;
+	{ name: "ttfb", type: "Nullable(Int32)" },
+	{ name: "render_time", type: "Nullable(Int32)" },
+	{ name: "request_time", type: "Nullable(Int32)" },
+	{ name: "dom_ready_time", type: "Nullable(Int32)" },
+];
 
-export const DQL_SCHEMA = [
+const DQL_CUSTOM_EVENTS_COLUMNS: readonly DqlColumn[] = [
+	{ name: "timestamp", type: "DateTime64(3, 'UTC')" },
+	{ name: "event_name", type: "LowCardinality(String)" },
+	{ name: "namespace", type: "LowCardinality(Nullable(String))" },
+	{ name: "path", type: "Nullable(String)" },
+	{ name: "properties", type: "String" },
+	{ name: "source", type: "LowCardinality(Nullable(String))" },
+	{ name: "anonymous_id", type: "Nullable(String)" },
+	{ name: "session_id", type: "Nullable(String)" },
+	{ name: "profile_id", type: "String" },
+];
+
+const DQL_REVENUE_COLUMNS: readonly DqlColumn[] = [
+	{ name: "created", type: "DateTime('UTC')" },
+	{ name: "transaction_id", type: "String" },
+	{ name: "provider", type: "LowCardinality(String)" },
+	{ name: "type", type: "LowCardinality(String)" },
+	{ name: "status", type: "LowCardinality(String)" },
+	{ name: "amount", type: "Decimal(18, 4)" },
+	{ name: "currency", type: "LowCardinality(String)" },
+	{ name: "product_name", type: "Nullable(String)" },
+	{ name: "customer_id", type: "Nullable(String)" },
+	{ name: "anonymous_id", type: "Nullable(String)" },
+	{ name: "session_id", type: "Nullable(String)" },
+	{ name: "profile_id", type: "String" },
+];
+
+const DQL_ERROR_SPANS_COLUMNS: readonly DqlColumn[] = [
+	{ name: "timestamp", type: "DateTime64(3, 'UTC')" },
+	{ name: "path", type: "String" },
+	{ name: "message", type: "String" },
+	{ name: "error_type", type: "LowCardinality(String)" },
+	{ name: "filename", type: "Nullable(String)" },
+	{ name: "lineno", type: "Nullable(Int32)" },
+	{ name: "colno", type: "Nullable(Int32)" },
+	{ name: "stack", type: "Nullable(String)" },
+	{ name: "anonymous_id", type: "String" },
+	{ name: "session_id", type: "String" },
+];
+
+const DQL_WEB_VITALS_COLUMNS: readonly DqlColumn[] = [
+	{ name: "timestamp", type: "DateTime64(3, 'UTC')" },
+	{ name: "path", type: "String" },
+	{ name: "metric_name", type: "LowCardinality(String)" },
+	{ name: "metric_value", type: "Float64" },
+	{ name: "anonymous_id", type: "String" },
+	{ name: "session_id", type: "String" },
+];
+
+const DQL_OUTGOING_LINKS_COLUMNS: readonly DqlColumn[] = [
+	{ name: "timestamp", type: "DateTime64(3, 'UTC')" },
+	{ name: "href", type: "String" },
+	{ name: "text", type: "Nullable(String)" },
+	{ name: "anonymous_id", type: "String" },
+	{ name: "session_id", type: "String" },
+];
+
+const DQL_BLOCKED_TRAFFIC_COLUMNS: readonly DqlColumn[] = [
+	{ name: "timestamp", type: "DateTime64(3, 'UTC')" },
+	{ name: "path", type: "Nullable(String)" },
+	{ name: "block_reason", type: "LowCardinality(String)" },
+	{ name: "block_category", type: "LowCardinality(String)" },
+	{ name: "bot_name", type: "Nullable(String)" },
+	{ name: "method", type: "LowCardinality(String)" },
+	{ name: "country", type: "Nullable(String)" },
+	{ name: "region", type: "Nullable(String)" },
+	{ name: "browser_name", type: "Nullable(String)" },
+	{ name: "os_name", type: "Nullable(String)" },
+	{ name: "device_type", type: "Nullable(String)" },
+];
+
+export const DQL_SCHEMA: readonly DqlTable[] = [
 	{
-		name: DQL_EVENTS_TABLE,
+		name: "analytics.events",
+		tenantColumn: "client_id",
 		columns: DQL_EVENTS_COLUMNS,
 	},
-] as const;
+	{
+		name: "analytics.custom_events",
+		tenantColumn: "owner_id",
+		columns: DQL_CUSTOM_EVENTS_COLUMNS,
+	},
+	{
+		name: "analytics.revenue",
+		tenantColumn: "owner_id",
+		columns: DQL_REVENUE_COLUMNS,
+	},
+	{
+		name: "analytics.error_spans",
+		tenantColumn: "client_id",
+		columns: DQL_ERROR_SPANS_COLUMNS,
+	},
+	{
+		name: "analytics.web_vitals_spans",
+		tenantColumn: "client_id",
+		columns: DQL_WEB_VITALS_COLUMNS,
+	},
+	{
+		name: "analytics.outgoing_links",
+		tenantColumn: "client_id",
+		columns: DQL_OUTGOING_LINKS_COLUMNS,
+	},
+	{
+		name: "analytics.blocked_traffic",
+		tenantColumn: "client_id",
+		columns: DQL_BLOCKED_TRAFFIC_COLUMNS,
+	},
+];
 
 type DqlParameterScalar = boolean | null | number | string;
 export type DqlParameterValue =
@@ -335,11 +461,26 @@ export function buildDqlAccessStatements(
 		algorithm: "bcrypt",
 		cost: 12,
 	});
-	const columns = DQL_EVENTS_COLUMNS.map((column) =>
-		accessIdentifier(column.name, "column")
-	).join(", ");
-	const policy = accessIdentifier(`${policyPrefix}_events_website`, "policy");
 	const settings = DQL_RESOURCE_LIMITS;
+
+	const rowPolicies = DQL_SCHEMA.map((table) => {
+		const suffix = table.name.split(".").pop() ?? table.name;
+		const policy = accessIdentifier(
+			`${policyPrefix}_${suffix}_website`,
+			"policy"
+		);
+		const tenantColumn = accessIdentifier(
+			table.tenantColumn,
+			"tenant column"
+		).replace(/`/g, "");
+		return `CREATE ROW POLICY OR REPLACE ${policy}${onCluster} ON ${table.name} FOR SELECT USING ${tenantColumn} = getSetting('${DQL_TENANT_SETTING}') AS RESTRICTIVE TO ${role}`;
+	});
+	const columnGrants = DQL_SCHEMA.map((table) => {
+		const columns = table.columns
+			.map((column) => accessIdentifier(column.name, "column"))
+			.join(", ");
+		return `GRANT${onCluster} SELECT(${columns}) ON ${table.name} TO ${role}`;
+	});
 
 	return [
 		`CREATE ROLE IF NOT EXISTS ${role}${onCluster}`,
@@ -353,8 +494,8 @@ export function buildDqlAccessStatements(
 		`GRANT${onCluster} ${role} TO ${user} WITH REPLACE OPTION`,
 		`ALTER USER ${user}${onCluster} DEFAULT ROLE ${role}`,
 		`ALTER USER ${user}${onCluster} SETTINGS readonly = 0 MAX 1, allow_ddl = 0 READONLY, allow_get_client_http_header = 0 READONLY, max_execution_time = ${settings.maxExecutionTimeSeconds} MIN 1 MAX ${settings.maxExecutionTimeSeconds}, max_memory_usage = ${settings.maxMemoryUsage} MIN 1 MAX ${settings.maxMemoryUsage}, max_memory_usage_for_user = ${settings.maxMemoryUsageForUser} MIN 1 MAX ${settings.maxMemoryUsageForUser}, max_rows_to_read = ${settings.maxRowsToRead} MIN 1 MAX ${settings.maxRowsToRead}, max_bytes_to_read = ${settings.maxBytesToRead} MIN 1 MAX ${settings.maxBytesToRead}, max_result_rows = ${settings.maxResultRows} MIN 1 MAX ${settings.maxResultRows}, max_result_bytes = ${settings.maxResultBytes} MIN 1 MAX ${settings.maxResultBytes}, max_threads = ${settings.maxThreads} MIN 1 MAX ${settings.maxThreads}, max_concurrent_queries_for_user = ${settings.maxConcurrentQueries} MIN 1 MAX ${settings.maxConcurrentQueries}, read_overflow_mode = 'throw' READONLY, result_overflow_mode = 'throw' READONLY, use_query_cache = 0 READONLY`,
-		`CREATE ROW POLICY OR REPLACE ${policy}${onCluster} ON ${DQL_EVENTS_TABLE} FOR SELECT USING ${DQL_EVENTS_TENANT_COLUMN} = getSetting('${DQL_TENANT_SETTING}') AS RESTRICTIVE TO ${role}`,
-		`GRANT${onCluster} SELECT(${columns}) ON ${DQL_EVENTS_TABLE} TO ${role}`,
+		...rowPolicies,
+		...columnGrants,
 	];
 }
 
