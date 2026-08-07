@@ -1,3 +1,4 @@
+import { isRecord } from "@/lib/guards";
 import { isDatabuddyAgentUserError } from "@databuddy/ai/agent/errors";
 import type { RequestLogger } from "evlog";
 import type { DatabuddyAgentClient, SlackAgentRun } from "@/agent/agent-client";
@@ -574,10 +575,6 @@ function getMessageTs(response: unknown): string | undefined {
 	return isRecord(response) && typeof response.ts === "string"
 		? response.ts
 		: undefined;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
 function isAbortError(error: unknown): boolean {

@@ -1,3 +1,4 @@
+import { getString, isRecord } from "@/lib/guards";
 import {
 	classifyAgentFeedbackSentiment,
 	normalizeAgentFeedbackSignal,
@@ -231,12 +232,4 @@ function toSlackReactionMessageItem(
 	return item.type === "message" && channel && ts
 		? { channel, ts, type: "message" }
 		: undefined;
-}
-
-function getString(value: unknown): string | undefined {
-	return typeof value === "string" ? value : undefined;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
