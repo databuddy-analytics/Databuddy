@@ -103,6 +103,11 @@ export const auditActions = {
 		"organization.invitation_cancelled",
 		"invitation"
 	),
+	SESSION_CREATED: defineAction("session.created", "session"),
+	SESSION_REVOKED: defineAction("session.revoked", "session"),
+	USER_CREATED: defineAction("user.created", "user"),
+	USER_PASSWORD_CHANGED: defineAction("user.password_changed", "user"),
+	USER_DELETED: defineAction("user.deleted", "user"),
 } as const;
 
 export type AuditActionDefinition =

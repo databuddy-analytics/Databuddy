@@ -40,6 +40,7 @@ import {
 	auditActions,
 	type AuditActionDefinition,
 	type AuditActor,
+	type AuditRequestContext,
 } from "@databuddy/shared/audit";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
@@ -315,7 +316,8 @@ async function recordAuthAudit<TAction extends AuditActionDefinition>(
 		AppendAuditEventInput<TAction>,
 		"actor" | "operation" | "request" | "source"
 	>,
-	fallbackActor?: AuditActor
+	fallbackActor?: AuditActor,
+	fallbackRequest?: AuditRequestContext
 ): Promise<void> {
 	const context = getAuthAuditContext();
 	const adapter = await getCurrentAdapter(
@@ -327,10 +329,87 @@ async function recordAuthAudit<TAction extends AuditActionDefinition>(
 			...input,
 			actor: context?.actor ?? fallbackActor ?? betterAuthSystemActor,
 			operation: context?.operation,
-			request: context?.request,
+			request: context?.request ?? fallbackRequest,
 			source: "better_auth",
 		}),
 		forceAllowId: true,
+	});
+}
+
+async function resolveActiveOrgId(userId: string): Promise<string | null> {
+	const membership = await db.query.member.findFirst({
+		where: { userId },
+		columns: { organizationId: true },
+	});
+	return membership?.organizationId ?? null;
+}
+
+async function recordAuthLifecycleAudit(
+	auditHook: string,
+	record: () => Promise<void>
+): Promise<void> {
+	try {
+		await record();
+	} catch (error) {
+		log.error({
+			service: "auth",
+			auth_hook: auditHook,
+			error: error instanceof Error ? error.message : String(error),
+		});
+	}
+}
+
+interface SessionAuditFields {
+	activeOrganizationId?: unknown;
+	id: string;
+	ipAddress?: string | null;
+	userAgent?: string | null;
+	userId: string;
+}
+
+function recordSessionAudit(
+	auditHook: string,
+	action: AuditActionDefinition,
+	session: SessionAuditFields
+): Promise<void> {
+	return recordAuthLifecycleAudit(auditHook, async () => {
+		const activeOrgId =
+			typeof session.activeOrganizationId === "string"
+				? session.activeOrganizationId
+				: null;
+		const organizationId =
+			activeOrgId ?? (await resolveActiveOrgId(session.userId));
+		if (!organizationId) {
+			return;
+		}
+		await recordAuthAudit(
+			organizationId,
+			{ action, target: { id: session.id } },
+			{ type: "user", id: session.userId },
+			{
+				ip: session.ipAddress ?? undefined,
+				userAgent: session.userAgent ?? undefined,
+			}
+		);
+	});
+}
+
+function recordUserAudit(
+	auditHook: string,
+	action: AuditActionDefinition,
+	user: { id: string; name?: string | null },
+	organizationId?: string
+): Promise<void> {
+	return recordAuthLifecycleAudit(auditHook, async () => {
+		const orgId = organizationId ?? (await resolveActiveOrgId(user.id));
+		if (!orgId) {
+			return;
+		}
+		await recordAuthAudit(
+			orgId,
+			{ action, target: { id: user.id, displayName: user.name ?? undefined } },
+			toAuditActor(user)
+		);
 	});
 }
 
@@ -415,6 +494,11 @@ export const auth = betterAuth({
 						return;
 					}
 					await purgeOutstandingResetTokens(account.userId);
+					await recordUserAudit(
+						"account.update.after",
+						auditActions.USER_PASSWORD_CHANGED,
+						{ id: account.userId }
+					);
 				},
 			},
 		},
@@ -444,6 +528,13 @@ export const auth = betterAuth({
 						name: createdUser.name,
 						organizationId: orgId,
 					});
+
+					await recordUserAudit(
+						"user.create.after",
+						auditActions.USER_CREATED,
+						createdUser,
+						orgId
+					);
 				},
 			},
 		},
@@ -503,6 +594,20 @@ export const auth = betterAuth({
 
 					return { data: sessionData };
 				},
+				after: (session) =>
+					recordSessionAudit(
+						"session.create.after",
+						auditActions.SESSION_CREATED,
+						session
+					),
+			},
+			delete: {
+				after: (session) =>
+					recordSessionAudit(
+						"session.delete.after",
+						auditActions.SESSION_REVOKED,
+						session
+					),
 			},
 		},
 	},
@@ -527,6 +632,12 @@ export const auth = betterAuth({
 						name: userToDelete.name ?? "—",
 						userId: userToDelete.id,
 					}
+				);
+
+				await recordUserAudit(
+					"user.beforeDelete",
+					auditActions.USER_DELETED,
+					userToDelete
 				);
 			},
 		},

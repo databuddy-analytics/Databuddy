@@ -27,8 +27,17 @@ async function withAuditContext<T>(
 	handler: () => Promise<T>
 ): Promise<T> {
 	const pathname = new URL(request.url).pathname.replace(authRoutePrefix, "");
+	const requestContext = {
+		requestId: request.headers.get("x-request-id") ?? undefined,
+		ip: getTrustedClientIp(request.headers),
+		userAgent: request.headers.get("user-agent") ?? undefined,
+	};
+
 	if (!auditedOrganizationPaths.has(pathname)) {
-		return handler();
+		return runWithAuthAuditContext(
+			{ operation: `auth${pathname}`, request: requestContext },
+			handler
+		);
 	}
 
 	const session = await auth.api.getSession({ headers: request.headers });
@@ -42,11 +51,7 @@ async function withAuditContext<T>(
 					}
 				: undefined,
 			operation: `auth${pathname}`,
-			request: {
-				requestId: request.headers.get("x-request-id") ?? undefined,
-				ip: getTrustedClientIp(request.headers),
-				userAgent: request.headers.get("user-agent") ?? undefined,
-			},
+			request: requestContext,
 		},
 		() => runWithAuthTransaction(handler)
 	);
