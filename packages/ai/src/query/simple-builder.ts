@@ -25,6 +25,8 @@ import type {
 import { FilterOperators } from "./types";
 import { applyPlugins } from "./utils";
 
+export const AGENT_QUERY_MAX_EXECUTION_SECONDS = 25;
+
 export function getClickHouseQuerySettings(
 	noCache?: boolean
 ): Record<string, string | number> {
@@ -34,10 +36,12 @@ export function getClickHouseQuerySettings(
 	) {
 		return {};
 	}
+	const base = { max_execution_time: AGENT_QUERY_MAX_EXECUTION_SECONDS };
 	if (noCache) {
-		return { use_query_cache: 0 };
+		return { ...base, use_query_cache: 0 };
 	}
 	return {
+		...base,
 		use_query_cache: 1,
 		query_cache_nondeterministic_function_handling: "ignore",
 	};

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { QueryBuilders } from "./builders";
 import {
+	AGENT_QUERY_MAX_EXECUTION_SECONDS,
 	getClickHouseQuerySettings,
 	SimpleQueryBuilder,
 } from "./simple-builder";
@@ -1431,6 +1432,7 @@ describe("SimpleQueryBuilder.compile", () => {
 describe("getClickHouseQuerySettings", () => {
 	it("ignores nondeterministic functions when query cache is enabled", () => {
 		expect(getClickHouseQuerySettings()).toEqual({
+			max_execution_time: AGENT_QUERY_MAX_EXECUTION_SECONDS,
 			query_cache_nondeterministic_function_handling: "ignore",
 			use_query_cache: 1,
 		});
@@ -1438,6 +1440,7 @@ describe("getClickHouseQuerySettings", () => {
 
 	it("does not set nondeterministic cache handling when cache is disabled", () => {
 		expect(getClickHouseQuerySettings(true)).toEqual({
+			max_execution_time: AGENT_QUERY_MAX_EXECUTION_SECONDS,
 			use_query_cache: 0,
 		});
 	});
