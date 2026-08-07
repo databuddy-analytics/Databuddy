@@ -362,40 +362,23 @@ export function shadowFailureCategory(
 	return "other";
 }
 
-/** Counts candidate-level retries without retaining signal identities. */
-export function countCandidateRetries(signalKeys: readonly string[]): number {
+/** Counts retries and recoveries without retaining signal identities. */
+export function countCandidateRetryOutcomes(
+	attempts: readonly { signalKey: string; succeeded: boolean }[]
+): { recovered: number; retries: number } {
 	const seen = new Set<string>();
 	let retries = 0;
-	for (const signalKey of signalKeys) {
-		if (seen.has(signalKey)) {
-			retries += 1;
-			continue;
-		}
-		seen.add(signalKey);
-	}
-	return retries;
-}
-
-/** Counts retries whose later attempt completed without retaining signal identities. */
-export function countRecoveredCandidateRetries(
-	attempts: readonly { signalKey: string; succeeded: boolean }[]
-): number {
-	const seen = new Set<string>();
-	let recoveries = 0;
+	let recovered = 0;
 	for (const attempt of attempts) {
-		if (seen.has(attempt.signalKey) && attempt.succeeded) {
-			recoveries += 1;
+		if (seen.has(attempt.signalKey)) {
+			retries += 1;
+			if (attempt.succeeded) {
+				recovered += 1;
+			}
 		}
 		seen.add(attempt.signalKey);
 	}
-	return recoveries;
-}
-
-export function countUnresolvedShadowErrors(
-	rawErrors: number,
-	recoveredCandidateRetries: number
-): number {
-	return Math.max(0, rawErrors - recoveredCandidateRetries);
+	return { recovered, retries };
 }
 
 /** A quality-eval report intentionally excludes per-case customer-visible copy. */
@@ -2241,9 +2224,9 @@ function aggregateCases(
 			),
 		},
 		failureCategories,
-		unresolvedErrors: countUnresolvedShadowErrors(
-			status.error ?? 0,
-			recoveredCandidateRetries
+		unresolvedErrors: Math.max(
+			0,
+			(status.error ?? 0) - recoveredCandidateRetries
 		),
 		status,
 		timeouts: {
@@ -2536,16 +2519,15 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 					} catch (error) {
 						portfolioError = error;
 					}
-					candidateRetries += countCandidateRetries(
-						attempts.map((attempt) => attempt.input.signal.signalKey)
-					);
-					recoveredCandidateRetries += countRecoveredCandidateRetries(
+					const retryOutcomes = countCandidateRetryOutcomes(
 						attempts.map((attempt) => ({
 							signalKey: attempt.input.signal.signalKey,
 							succeeded:
 								attempt.error === undefined && attempt.result !== undefined,
 						}))
 					);
+					candidateRetries += retryOutcomes.retries;
+					recoveredCandidateRetries += retryOutcomes.recovered;
 
 					for (const [attemptIndex, attempt] of attempts.entries()) {
 						const signal = attempt.input.signal;

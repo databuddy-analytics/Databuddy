@@ -4,9 +4,7 @@ import type { DetectedSignal } from "./detection";
 import type { WebsitePortfolioInspection } from "./generation";
 import {
 	metricFamily,
-	countCandidateRetries,
-	countRecoveredCandidateRetries,
-	countUnresolvedShadowErrors,
+	countCandidateRetryOutcomes,
 	parseOptions,
 	projectBriefProvenance,
 	projectErrorCandidateOverlap,
@@ -35,25 +33,16 @@ describe("resolveShadowAsOf", () => {
 });
 
 describe("shadow signal projection", () => {
-	it("counts repeated candidate signals without retaining identities", () => {
-		expect(countCandidateRetries([])).toBe(0);
-		expect(countCandidateRetries(["signal-a", "signal-b", "signal-a", "signal-a"])).toBe(
-			2
-		);
-	});
-
-	it("distinguishes recovered retries from unresolved errors", () => {
+	it("counts retries and recoveries without retaining signal identities", () => {
 		expect(
-			countRecoveredCandidateRetries([
+			countCandidateRetryOutcomes([
 				{ signalKey: "signal-a", succeeded: false },
 				{ signalKey: "signal-b", succeeded: true },
 				{ signalKey: "signal-a", succeeded: true },
 				{ signalKey: "signal-a", succeeded: false },
 			])
-		).toBe(1);
-		expect(countUnresolvedShadowErrors(2, 1)).toBe(1);
-		expect(countUnresolvedShadowErrors(1, 1)).toBe(0);
-		expect(countUnresolvedShadowErrors(0, 1)).toBe(0);
+		).toEqual({ recovered: 1, retries: 2 });
+		expect(countCandidateRetryOutcomes([])).toEqual({ recovered: 0, retries: 0 });
 	});
 
 	it("keeps failure diagnostics in fixed redacted categories", () => {
