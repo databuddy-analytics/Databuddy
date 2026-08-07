@@ -1,3 +1,4 @@
+import { isRecord } from "@/lib/guards";
 import type { SlackAgentRun } from "@/agent/agent-client";
 
 interface SlackBlockAction {
@@ -13,11 +14,7 @@ interface SlackBlockActionsBody {
 	user?: { id?: string; team_id?: string };
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return Boolean(value && typeof value === "object" && !Array.isArray(value));
-}
-
-function getString(value: unknown): string | undefined {
+function getNonEmptyString(value: unknown): string | undefined {
 	return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
@@ -26,8 +23,8 @@ function toBlockAction(action: unknown): SlackBlockAction {
 		return {};
 	}
 	return {
-		action_id: getString(action.action_id),
-		value: getString(action.value),
+		action_id: getNonEmptyString(action.action_id),
+		value: getNonEmptyString(action.value),
 	};
 }
 
@@ -41,17 +38,20 @@ function toBlockActionsBody(body: unknown): SlackBlockActionsBody {
 	const container = isRecord(body.container) ? body.container : {};
 	const message = isRecord(body.message) ? body.message : {};
 	return {
-		channel: { id: getString(channel.id) },
+		channel: { id: getNonEmptyString(channel.id) },
 		container: {
-			channel_id: getString(container.channel_id),
-			message_ts: getString(container.message_ts),
+			channel_id: getNonEmptyString(container.channel_id),
+			message_ts: getNonEmptyString(container.message_ts),
 		},
 		message: {
-			thread_ts: getString(message.thread_ts),
-			ts: getString(message.ts),
+			thread_ts: getNonEmptyString(message.thread_ts),
+			ts: getNonEmptyString(message.ts),
 		},
-		team: { id: getString(team.id) },
-		user: { id: getString(user.id), team_id: getString(user.team_id) },
+		team: { id: getNonEmptyString(team.id) },
+		user: {
+			id: getNonEmptyString(user.id),
+			team_id: getNonEmptyString(user.team_id),
+		},
 	};
 }
 

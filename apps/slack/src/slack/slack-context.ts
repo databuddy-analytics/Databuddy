@@ -1,3 +1,4 @@
+import { getString, isRecord } from "@/lib/guards";
 import type {
 	DatabuddyAgentSlackContext,
 	DatabuddyAgentSlackMessage,
@@ -99,12 +100,4 @@ function getBoolean(value: unknown, key: string): boolean | undefined {
 	return isRecord(value) && typeof value[key] === "boolean"
 		? value[key]
 		: undefined;
-}
-
-function getString(value: unknown): string | undefined {
-	return typeof value === "string" ? value : undefined;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
