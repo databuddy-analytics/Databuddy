@@ -24,6 +24,21 @@ describe("buildAppHomeView", () => {
 		);
 	});
 
+	it("renders connected sites when provided, and omits the block when empty", () => {
+		const withSites = buildAppHomeView([
+			{ domain: "app.databuddy.cc", name: "Dashboard" },
+			{ domain: "databuddy.cc", name: null },
+		]);
+		const text = JSON.stringify(withSites);
+		expect(text).toContain("Your connected sites");
+		expect(text).toContain("*Dashboard* — app.databuddy.cc");
+		expect(text).toContain("• databuddy.cc");
+
+		expect(JSON.stringify(buildAppHomeView([]))).not.toContain(
+			"Your connected sites"
+		);
+	});
+
 	it("lists the suggested prompts", () => {
 		const view = buildAppHomeView();
 		const text = JSON.stringify(view);
