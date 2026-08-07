@@ -8,10 +8,12 @@ import {
 import { createRPCContext } from "@databuddy/rpc";
 import { appendInvestigationReply } from "@databuddy/rpc/insights";
 import type { DatabuddyAgentClient, SlackAgentRun } from "@/agent/agent-client";
+import { buildAppHomeView } from "@/slack/app-home";
 import { createSlackEventLog } from "@/lib/evlog-slack";
 import { abortSlackActiveRun } from "@/slack/active-runs";
 import { getSlackChannelMentionPolicy } from "@/slack/channel-policy";
-import { FEEDBACK_ACTION_ID } from "@/slack/blocks";
+import { DRILLDOWN_ACTION_ID, FEEDBACK_ACTION_ID } from "@/slack/blocks";
+import { parseDrilldownRun } from "@/slack/drilldown";
 import {
 	handleSlackFeedbackAction,
 	logSlackReactionFeedback,
@@ -154,6 +156,20 @@ export function registerSlackListeners(
 	const dedupe = createRecentDedupe();
 
 	app.assistant(createDatabuddyAssistant({ agent, dedupe, threadQueue }));
+
+	app.event("app_home_opened", async ({ client, event, logger }) => {
+		if (event.tab !== "home") {
+			return;
+		}
+		try {
+			await client.views.publish({
+				user_id: event.user,
+				view: buildAppHomeView(),
+			});
+		} catch (error) {
+			logger.warn("Failed to publish Slack App Home", error);
+		}
+	});
 
 	app.event(
 		"app_mention",
@@ -413,6 +429,36 @@ export function registerSlackListeners(
 	registerSlackCommands(app, installations);
 	registerSlackReactionFeedback(app, installations);
 	registerSlackFeedbackButtons(app, installations);
+	registerSlackDrilldown(app, agent, threadQueue);
+}
+
+function registerSlackDrilldown(
+	app: App,
+	agent: Pick<DatabuddyAgentClient, "stream">,
+	threadQueue: SlackThreadQueueStore
+) {
+	app.action(
+		DRILLDOWN_ACTION_ID,
+		async ({ ack, action, body, client, context, logger }) => {
+			await ack();
+			const run = parseDrilldownRun(body, action, context.teamId);
+			if (!run) {
+				return;
+			}
+			const say: SlackSay = (message) =>
+				client.chat.postMessage({ channel: run.channelId, ...message });
+			const slackContext = createSlackConversationContext(client, run);
+			await threadQueue.markEngaged(run);
+			await handleAgentRun({
+				agent,
+				client,
+				logger,
+				run: { ...run, slackContext },
+				say,
+				threadQueue,
+			});
+		}
+	);
 }
 
 function registerSlackFeedbackButtons(

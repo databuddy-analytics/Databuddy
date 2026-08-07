@@ -25,6 +25,7 @@ export interface SlackAgentClient {
 		"history" | "info" | "replies"
 	>;
 	reactions: Pick<WebClient["reactions"], "add">;
+	views: Pick<WebClient["views"], "publish">;
 }
 
 export type SlackSay = (
