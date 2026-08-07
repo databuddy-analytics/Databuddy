@@ -57,7 +57,7 @@ export const SLACK_COPY = {
 	missingSlackScopes:
 		"I'm missing a Slack permission in this workspace. Reconnect Slack from Databuddy settings so the new scopes are granted, then try again.",
 	noAnswer:
-		"I didn't get a usable result. Try again, or ask something specific like `traffic for the last 7 days`.",
+		"That took too long or came back empty. Try a narrower question — one site, or a shorter range like `traffic for the last 7 days`.",
 	processingReaction: "rabbit",
 	responseInterrupted:
 		"Response interrupted. The information above may be incomplete. Try again before acting on it.",
