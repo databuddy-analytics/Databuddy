@@ -6,6 +6,7 @@ import {
 	ShieldCheckIcon,
 	ShieldCheckIcon as ShieldIcon,
 } from "@databuddy/ui/icons";
+import { subprocessors } from "@databuddy/shared/providers";
 import type { Metadata } from "next";
 import { Footer } from "@/components/footer";
 import { StructuredData } from "@/components/structured-data";
@@ -31,6 +32,7 @@ export const metadata: Metadata = {
 
 export default function DPAPage() {
 	const lastUpdated = new Date("2024-12-22");
+	const subprocessorList = subprocessors();
 
 	return (
 		<>
@@ -222,10 +224,8 @@ export default function DPAPage() {
 						<h2 className="mb-4 font-bold text-2xl">Our Partners</h2>
 						<p className="mb-4">
 							We work with a small number of trusted partners to deliver our
-							service. This includes Hetzner for hosting our databases in
-							Germany, Railway for our API infrastructure, Vercel for our
-							dashboard, and Bunny.net for our CDN. We also use Resend for
-							emails and Stripe for payments.
+							service. This includes{" "}
+							{subprocessorList.map((provider) => provider.name).join(", ")}.
 						</p>
 						<p className="mb-4">
 							All our partners are required to follow the same data protection

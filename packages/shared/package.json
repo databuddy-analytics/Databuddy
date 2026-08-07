@@ -23,6 +23,7 @@
     "./analytics-filters": "./src/analytics-filters.ts",
     "./agent-credits": "./src/agent-credits.ts",
     "./billing": "./src/billing.ts",
+    "./providers": "./src/providers.ts",
     "./currency": "./src/currency.ts",
     "./tracking-blocks": "./src/tracking-blocks.ts",
     "./uptime": "./src/uptime.ts",
