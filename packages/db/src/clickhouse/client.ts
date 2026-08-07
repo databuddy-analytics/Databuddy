@@ -198,6 +198,8 @@ async function readJsonResponse<T>(
 	}
 }
 
+const CH_QUERY_MAX_MS = 25_000;
+
 async function chQueryWithMeta<T>(
 	query: string,
 	params?: Record<string, unknown>,
@@ -213,19 +215,21 @@ async function chQueryWithMeta<T>(
 			}
 		: { ...(options?.clickhouse_settings ?? {}), ...finalSettings };
 	assertCacheCompatibleSettings(settings);
+	const timeoutSignal = AbortSignal.timeout(CH_QUERY_MAX_MS);
+	const abortSignal = options?.abort_signal
+		? AbortSignal.any([options.abort_signal, timeoutSignal])
+		: timeoutSignal;
 	const json = await readJsonResponse<T>(
 		() =>
 			clickHouse.query({
 				query: logical.query,
 				query_params: params,
-				...(options?.abort_signal && {
-					abort_signal: options.abort_signal,
-				}),
+				abort_signal: abortSignal,
 				...(Object.keys(settings).length > 0 && {
 					clickhouse_settings: settings,
 				}),
 			}),
-		options?.abort_signal
+		abortSignal
 	);
 
 	const intColumns = new Set(
