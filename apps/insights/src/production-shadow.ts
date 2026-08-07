@@ -300,9 +300,11 @@ interface ShadowReport {
 			userExperience: Record<string, number>;
 		};
 		candidateRetries: number;
+		recoveredCandidateRetries: number;
 		cases: number;
 		durationsMs: { p50: number; p95: number };
 		failureCategories: Record<ShadowFailureCategory, number>;
+		unresolvedErrors: number;
 		status: Record<string, number>;
 		timeouts: {
 			count: number;
@@ -372,6 +374,28 @@ export function countCandidateRetries(signalKeys: readonly string[]): number {
 		seen.add(signalKey);
 	}
 	return retries;
+}
+
+/** Counts retries whose later attempt completed without retaining signal identities. */
+export function countRecoveredCandidateRetries(
+	attempts: readonly { signalKey: string; succeeded: boolean }[]
+): number {
+	const seen = new Set<string>();
+	let recoveries = 0;
+	for (const attempt of attempts) {
+		if (seen.has(attempt.signalKey) && attempt.succeeded) {
+			recoveries += 1;
+		}
+		seen.add(attempt.signalKey);
+	}
+	return recoveries;
+}
+
+export function countUnresolvedShadowErrors(
+	rawErrors: number,
+	recoveredCandidateRetries: number
+): number {
+	return Math.max(0, rawErrors - recoveredCandidateRetries);
 }
 
 /** A quality-eval report intentionally excludes per-case customer-visible copy. */
@@ -2171,7 +2195,8 @@ async function mapConcurrent<T, R>(
 
 function aggregateCases(
 	cases: ShadowCase[],
-	candidateRetries = 0
+	candidateRetries = 0,
+	recoveredCandidateRetries = 0
 ): ShadowReport["aggregate"] {
 	const briefs = cases.flatMap((item) => (item.brief ? [item.brief] : []));
 	const completed = cases.filter((item) => item.status === "completed");
@@ -2188,6 +2213,7 @@ function aggregateCases(
 	const timeouts = cases.flatMap((item) =>
 		item.timeout ? [item.timeout] : []
 	);
+	const status = countBy(cases.map((item) => item.status));
 	return {
 		agentCostUsd: summarizeInvestigationCosts(cases.map((item) => item.agent)),
 		briefClaims: {
@@ -2202,6 +2228,7 @@ function aggregateCases(
 			userExperience: countBy(briefs.map((brief) => brief.userExperience)),
 		},
 		candidateRetries,
+		recoveredCandidateRetries,
 		cases: cases.length,
 		durationsMs: {
 			p50: percentile(
@@ -2214,7 +2241,11 @@ function aggregateCases(
 			),
 		},
 		failureCategories,
-		status: countBy(cases.map((item) => item.status)),
+		unresolvedErrors: countUnresolvedShadowErrors(
+			status.error ?? 0,
+			recoveredCandidateRetries
+		),
+		status,
 		timeouts: {
 			count: timeouts.length,
 			maxOverdueMs: Math.max(
@@ -2429,6 +2460,7 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 				const subjectAliases = new Map<string, string>();
 				const cases: ShadowCase[] = [];
 				let candidateRetries = 0;
+				let recoveredCandidateRetries = 0;
 				const definitions = [
 					...metadata.funnels.filter((row) => row.websiteId === site.id),
 					...metadata.goals.filter((row) => row.websiteId === site.id),
@@ -2506,6 +2538,13 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 					}
 					candidateRetries += countCandidateRetries(
 						attempts.map((attempt) => attempt.input.signal.signalKey)
+					);
+					recoveredCandidateRetries += countRecoveredCandidateRetries(
+						attempts.map((attempt) => ({
+							signalKey: attempt.input.signal.signalKey,
+							succeeded:
+								attempt.error === undefined && attempt.result !== undefined,
+						}))
 					);
 
 					for (const [attemptIndex, attempt] of attempts.entries()) {
@@ -2605,7 +2644,7 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 						);
 					}
 				}
-				return { candidateRetries, cases };
+				return { candidateRetries, cases, recoveredCandidateRetries };
 			},
 			(_error, site, siteIndex) => ({
 				candidateRetries: 0,
@@ -2620,6 +2659,7 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 						trace: [],
 					}),
 				],
+				recoveredCandidateRetries: 0,
 			})
 		);
 		const cases = siteCases.flatMap((site) => site.cases);
@@ -2627,8 +2667,16 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 			(total, site) => total + site.candidateRetries,
 			0
 		);
+		const recoveredCandidateRetries = siteCases.reduce(
+			(total, site) => total + site.recoveredCandidateRetries,
+			0
+		);
 		return {
-			aggregate: aggregateCases(cases, candidateRetries),
+			aggregate: aggregateCases(
+				cases,
+				candidateRetries,
+				recoveredCandidateRetries
+			),
 			cases,
 			meta: {
 				asOfMode: options.asOfMode,
@@ -2687,7 +2735,7 @@ if (import.meta.main) {
 						: {}),
 				};
 		process.stdout.write(`${JSON.stringify(stdout, null, 2)}\n`);
-		if ((shadow.aggregate.status.error ?? 0) > 0) {
+		if (shadow.aggregate.unresolvedErrors > 0) {
 			process.exitCode = 1;
 		}
 	} catch (error) {
