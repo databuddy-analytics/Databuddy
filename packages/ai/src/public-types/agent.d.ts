@@ -109,6 +109,7 @@ export interface DatabuddyAgentOptions {
 	memoryUserId?: string | null;
 	modelOverride?: string | null;
 	mutationMode?: DatabuddyAgentMutationMode;
+	onToolEvent?: (toolNames: string[]) => void;
 	persistConversation?: boolean;
 	slackContext?: DatabuddyAgentSlackContext | null;
 	source?: DatabuddyAgentSource;

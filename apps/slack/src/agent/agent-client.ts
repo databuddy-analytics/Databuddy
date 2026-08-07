@@ -38,6 +38,7 @@ export interface SlackRunContextResolver {
 
 export interface SlackAgentStreamOptions {
 	abortSignal?: AbortSignal;
+	onToolEvent?: (toolNames: string[]) => void;
 }
 
 // Slack streams keep the "thinking" indicator open, and Slack imposes no stream
@@ -103,6 +104,7 @@ class SharedDatabuddyAgentRunner implements SlackAgentRunner {
 			conversationId,
 			input: formatSlackAgentInput(run),
 			memoryUserId: createSlackMemoryUserId(run),
+			onToolEvent: options?.onToolEvent,
 			slackContext: run.slackContext,
 			source: "slack",
 			timeoutMs: SLACK_AGENT_TIMEOUT_MS,

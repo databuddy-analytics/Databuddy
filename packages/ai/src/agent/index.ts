@@ -66,6 +66,7 @@ export interface DatabuddyAgentOptions {
 	memoryUserId?: string | null;
 	modelOverride?: string | null;
 	mutationMode?: DatabuddyAgentMutationMode;
+	onToolEvent?: (toolNames: string[]) => void;
 	persistConversation?: boolean;
 	slackContext?: DatabuddyAgentSlackContext | null;
 	source?: DatabuddyAgentSource;
@@ -179,6 +180,7 @@ export async function* streamDatabuddyAgent(
 		slackContext: options.slackContext,
 		modelOverride: options.modelOverride,
 		mutationMode: options.mutationMode,
+		onToolEvent: options.onToolEvent,
 		storeMemory: options.persistConversation !== false,
 		timeoutMs: options.timeoutMs,
 		timezone: options.timezone,
