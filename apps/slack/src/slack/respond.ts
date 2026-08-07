@@ -120,8 +120,26 @@ export async function streamAgentToSlack({
 		} while (force && pending);
 	};
 
+	const updateThinkingStatus = (toolNames: string[]) => {
+		if (!streamTs || thinkingResolved) {
+			return;
+		}
+		client.chat
+			.appendStream({
+				channel: run.channelId,
+				chunks: [thinkingTaskChunk("in_progress", toolStatusLabel(toolNames))],
+				ts: streamTs,
+			})
+			.catch(() => {
+				// Progress updates are best-effort; the card keeps its last title.
+			});
+	};
+
 	try {
-		for await (const chunk of agent.stream(run, { abortSignal })) {
+		for await (const chunk of agent.stream(run, {
+			abortSignal,
+			onToolEvent: updateThinkingStatus,
+		})) {
 			chunkCount++;
 			const prose = splitter.push(chunk);
 			fullText += prose;
@@ -260,13 +278,38 @@ function markdownChunk(text: string) {
 	return { text, type: "markdown_text" as const };
 }
 
-function thinkingTaskChunk(status: "complete" | "error" | "in_progress") {
+function thinkingTaskChunk(
+	status: "complete" | "error" | "in_progress",
+	title: string = SLACK_COPY.streamOpening
+) {
 	return {
 		id: THINKING_TASK_ID,
 		status,
-		title: SLACK_COPY.streamOpening,
+		title,
 		type: "task_update" as const,
 	};
+}
+
+const TOOL_STATUS_LABELS: [RegExp, string][] = [
+	[/sql|get_data|describe_schema|discover_query/, "Querying your analytics..."],
+	[/session|profile|interesting/, "Reading sessions..."],
+	[/github/, "Checking recent code changes..."],
+	[/scrape/, "Reading the page..."],
+	[/search_console/, "Checking search data..."],
+	[/memory/, "Recalling context..."],
+	[/website/, "Finding your sites..."],
+	[/create|update|delete|configure/, "Applying changes..."],
+	[/investigation|insight/, "Reviewing investigations..."],
+];
+
+export function toolStatusLabel(toolNames: string[]): string {
+	for (const name of toolNames) {
+		const match = TOOL_STATUS_LABELS.find(([pattern]) => pattern.test(name));
+		if (match) {
+			return match[1];
+		}
+	}
+	return "Working on it...";
 }
 
 async function startThinkingStream(
