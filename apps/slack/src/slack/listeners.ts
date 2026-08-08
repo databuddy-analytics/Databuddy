@@ -15,10 +15,7 @@ import { abortSlackActiveRun } from "@/slack/active-runs";
 import { getSlackChannelMentionPolicy } from "@/slack/channel-policy";
 import { DRILLDOWN_ACTION_ID, FEEDBACK_ACTION_ID } from "@/slack/blocks";
 import { parseDrilldownRun } from "@/slack/drilldown";
-import {
-	handleSlackFeedbackAction,
-	logSlackReactionFeedback,
-} from "@/slack/feedback";
+import { handleSlackFeedbackAction } from "@/slack/feedback";
 import type { SlackInstallationServices } from "@/slack/installations";
 import {
 	createRecentDedupe,
@@ -429,7 +426,6 @@ export function registerSlackListeners(
 	});
 
 	registerSlackCommands(app, installations);
-	registerSlackReactionFeedback(app, installations);
 	registerSlackFeedbackButtons(app, installations);
 	registerSlackDrilldown(app, agent, threadQueue);
 }
@@ -642,27 +638,6 @@ function registerSlackCommands(
 		await ack();
 		await respondToBindCommand({ command, installations, logger, respond });
 	});
-}
-
-function registerSlackReactionFeedback(
-	app: App,
-	installations: SlackInstallationServices
-) {
-	for (const [eventName, action] of [
-		["reaction_added", "added"],
-		["reaction_removed", "removed"],
-	] as const) {
-		app.event(eventName, async ({ context, event, logger }) => {
-			await logSlackReactionFeedback({
-				action,
-				botUserId: context.botUserId,
-				event,
-				installations,
-				logger,
-				teamId: context.teamId,
-			});
-		});
-	}
 }
 
 function getMentionSourceTeamId(event: {
