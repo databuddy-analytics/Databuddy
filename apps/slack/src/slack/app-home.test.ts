@@ -19,9 +19,10 @@ describe("buildAppHomeView", () => {
 		expect(actions).toBeDefined();
 		const buttons = actions?.elements as Array<{ url: string }>;
 		expect(buttons.length).toBeGreaterThan(0);
-		expect(buttons.every((b) => b.url.startsWith("https://app.databuddy.cc"))).toBe(
-			true
-		);
+			const dashboardOrigin = new URL("https://app.databuddy.cc").origin;
+			expect(buttons.every((button) => new URL(button.url).origin === dashboardOrigin)).toBe(
+				true
+			);
 	});
 
 	it("renders connected sites when provided, and omits the block when empty", () => {
