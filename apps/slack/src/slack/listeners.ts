@@ -4,11 +4,12 @@ import {
 	insightObservations,
 	insightRunEffects,
 	insightRunItems,
+	websites,
 } from "@databuddy/db/schema";
 import { createRPCContext } from "@databuddy/rpc";
 import { appendInvestigationReply } from "@databuddy/rpc/insights";
 import type { DatabuddyAgentClient, SlackAgentRun } from "@/agent/agent-client";
-import { buildAppHomeView } from "@/slack/app-home";
+import { type ConnectedSite, buildAppHomeView } from "@/slack/app-home";
 import { createSlackEventLog } from "@/lib/evlog-slack";
 import { abortSlackActiveRun } from "@/slack/active-runs";
 import { getSlackChannelMentionPolicy } from "@/slack/channel-policy";
@@ -157,14 +158,15 @@ export function registerSlackListeners(
 
 	app.assistant(createDatabuddyAssistant({ agent, dedupe, threadQueue }));
 
-	app.event("app_home_opened", async ({ client, event, logger }) => {
+	app.event("app_home_opened", async ({ client, context, event, logger }) => {
 		if (event.tab !== "home") {
 			return;
 		}
 		try {
+			const sites = await fetchConnectedSites(installations, context.teamId);
 			await client.views.publish({
 				user_id: event.user,
-				view: buildAppHomeView(),
+				view: buildAppHomeView(sites),
 			});
 		} catch (error) {
 			logger.warn("Failed to publish Slack App Home", error);
@@ -478,6 +480,22 @@ function registerSlackFeedbackButtons(
 			});
 		}
 	);
+}
+
+async function fetchConnectedSites(
+	installations: Pick<SlackInstallationServices, "getTeamContext">,
+	teamId?: string
+): Promise<ConnectedSite[]> {
+	const context = await installations.getTeamContext(teamId);
+	if (!context) {
+		return [];
+	}
+	return await db
+		.select({ domain: websites.domain, name: websites.name })
+		.from(websites)
+		.where(eq(websites.organizationId, context.organizationId))
+		.orderBy(websites.domain)
+		.limit(25);
 }
 
 async function handleInvestigationThreadReply({
