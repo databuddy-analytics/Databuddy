@@ -1,7 +1,13 @@
+import { isRecord } from "@/lib/guards";
 import { isDatabuddyAgentUserError } from "@databuddy/ai/agent/errors";
 import type { RequestLogger } from "evlog";
 import type { DatabuddyAgentClient, SlackAgentRun } from "@/agent/agent-client";
 import { getSlackApiErrorCode, setSlackLog, toError } from "@/lib/evlog-slack";
+import {
+	ComponentStreamSplitter,
+	componentsToBlocks,
+	feedbackButtonsBlock,
+} from "@/slack/blocks";
 import { SLACK_COPY } from "@/slack/messages";
 import type { SlackAgentClient } from "@/slack/types";
 
@@ -35,7 +41,7 @@ type SayFn = (message: {
 interface StreamAgentToSlackOptions {
 	abortSignal?: AbortSignal;
 	agent: Pick<DatabuddyAgentClient, "stream">;
-	client: Pick<SlackAgentClient, "chat">;
+	client: Pick<SlackAgentClient, "apiCall" | "chat">;
 	eventLog?: RequestLogger;
 	logger: LoggerLike;
 	run: SlackAgentRun;
@@ -77,6 +83,7 @@ export async function streamAgentToSlack({
 		: null;
 	setSlackLog(eventLog, { slack_stream_started: Boolean(streamTs) });
 
+	const splitter = new ComponentStreamSplitter();
 	let pending = "";
 	let fullText = "";
 	let chunkCount = 0;
@@ -114,16 +121,44 @@ export async function streamAgentToSlack({
 		} while (force && pending);
 	};
 
+	const updateThinkingStatus = (toolNames: string[]) => {
+		if (!streamTs || thinkingResolved) {
+			return;
+		}
+		client.chat
+			.appendStream({
+				channel: run.channelId,
+				chunks: [thinkingTaskChunk("in_progress", toolStatusLabel(toolNames))],
+				ts: streamTs,
+			})
+			.catch(() => {
+				// Progress updates are best-effort; the card keeps its last title.
+			});
+	};
+
 	try {
-		for await (const chunk of agent.stream(run, { abortSignal })) {
+		for await (const chunk of agent.stream(run, {
+			abortSignal,
+			onToolEvent: updateThinkingStatus,
+		})) {
 			chunkCount++;
-			fullText += chunk;
-			pending += chunk;
+			const prose = splitter.push(chunk);
+			fullText += prose;
+			pending += prose;
 			await flush(false);
 		}
+		const tail = splitter.flush();
+		fullText += tail.text;
+		pending += tail.text;
 		await flush(true);
 
 		const finalText = fullText.trim();
+		const componentBlocks = componentsToBlocks(tail.components);
+		const trailingBlocks = [...componentBlocks, feedbackButtonsBlock()];
+		setSlackLog(eventLog, {
+			slack_component_count: tail.components.length,
+			slack_block_count: componentBlocks.length,
+		});
 		if (streamTs) {
 			if (!thinkingResolved) {
 				await resolveThinking(client, run.channelId, streamTs, "complete");
@@ -137,6 +172,12 @@ export async function streamAgentToSlack({
 				startedAt,
 				streamTs,
 			});
+			await postComponentBlocks({
+				blocks: trailingBlocks,
+				client,
+				logger,
+				run,
+			});
 			return result;
 		}
 		const result = await sendFinalMessage({
@@ -147,6 +188,7 @@ export async function streamAgentToSlack({
 			chunkCount,
 			startedAt,
 		});
+		await postComponentBlocks({ blocks: trailingBlocks, client, logger, run });
 		return result;
 	} catch (error) {
 		const abortReason =
@@ -207,17 +249,68 @@ export async function streamAgentToSlack({
 	}
 }
 
+async function postComponentBlocks({
+	blocks,
+	client,
+	logger,
+	run,
+}: {
+	blocks: Record<string, unknown>[];
+	client: Pick<SlackAgentClient, "apiCall">;
+	logger: LoggerLike;
+	run: SlackAgentRun;
+}): Promise<void> {
+	if (blocks.length === 0) {
+		return;
+	}
+	try {
+		await client.apiCall("chat.postMessage", {
+			blocks,
+			channel: run.channelId,
+			text: SLACK_COPY.blockFallback,
+			thread_ts: run.threadTs ?? run.messageTs,
+		});
+	} catch (error) {
+		logger.warn("Failed to post Slack data blocks", error);
+	}
+}
+
 function markdownChunk(text: string) {
 	return { text, type: "markdown_text" as const };
 }
 
-function thinkingTaskChunk(status: "complete" | "error" | "in_progress") {
+function thinkingTaskChunk(
+	status: "complete" | "error" | "in_progress",
+	title: string = SLACK_COPY.streamOpening
+) {
 	return {
 		id: THINKING_TASK_ID,
 		status,
-		title: SLACK_COPY.streamOpening,
+		title,
 		type: "task_update" as const,
 	};
+}
+
+const TOOL_STATUS_LABELS: [RegExp, string][] = [
+	[/sql|get_data|describe_schema|discover_query/, "Querying your analytics..."],
+	[/session|profile|interesting/, "Reading sessions..."],
+	[/github/, "Checking recent code changes..."],
+	[/scrape/, "Reading the page..."],
+	[/search_console/, "Checking search data..."],
+	[/memory/, "Recalling context..."],
+	[/website/, "Finding your sites..."],
+	[/create|update|delete|configure/, "Applying changes..."],
+	[/investigation|insight/, "Reviewing investigations..."],
+];
+
+export function toolStatusLabel(toolNames: string[]): string {
+	for (const name of toolNames) {
+		const match = TOOL_STATUS_LABELS.find(([pattern]) => pattern.test(name));
+		if (match) {
+			return match[1];
+		}
+	}
+	return "Working on it...";
 }
 
 async function startThinkingStream(
@@ -482,10 +575,6 @@ function getMessageTs(response: unknown): string | undefined {
 	return isRecord(response) && typeof response.ts === "string"
 		? response.ts
 		: undefined;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
 function isAbortError(error: unknown): boolean {

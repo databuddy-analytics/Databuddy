@@ -1,3 +1,4 @@
+import { getString, isRecord } from "@/lib/guards";
 import type { types } from "@slack/bolt";
 
 const LEADING_APP_MENTION_REGEX = /^<@[A-Z0-9]+>\s*/i;
@@ -139,10 +140,6 @@ export function createRecentDedupe(limit = 500) {
 	};
 }
 
-function getString(value: unknown): string | undefined {
-	return typeof value === "string" ? value : undefined;
-}
-
 function getChannelType(
 	value: unknown
 ): types.GenericMessageEvent["channel_type"] | undefined {
@@ -153,8 +150,4 @@ function getChannelType(
 		value === "app_home"
 		? value
 		: undefined;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }

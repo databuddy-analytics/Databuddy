@@ -5,7 +5,7 @@
   },
   "features": {
     "app_home": {
-      "home_tab_enabled": false,
+      "home_tab_enabled": true,
       "messages_tab_enabled": true,
       "messages_tab_read_only_enabled": false
     },
@@ -58,6 +58,7 @@
       "bot": [
         "assistant:write",
         "app_mentions:read",
+        "canvases:write",
         "channels:history",
         "channels:read",
         "chat:write",
@@ -65,7 +66,6 @@
         "groups:history",
         "groups:read",
         "im:history",
-        "reactions:read",
         "reactions:write"
       ]
     }
@@ -73,14 +73,13 @@
   "settings": {
     "event_subscriptions": {
       "bot_events": [
+        "app_home_opened",
         "app_mention",
         "assistant_thread_context_changed",
         "assistant_thread_started",
         "message.channels",
         "message.groups",
-        "message.im",
-        "reaction_added",
-        "reaction_removed"
+        "message.im"
       ]
     },
     "interactivity": {

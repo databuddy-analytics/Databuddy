@@ -4,6 +4,7 @@ import type { RequestLogger } from "evlog";
 import { setAiRequestLoggerProvider } from "../lib/request-logger";
 import { QueryBuilders } from "./builders";
 import { SimpleQueryBuilder } from "./simple-builder";
+import type { QueryRequest } from "./types";
 
 const realClickHouseModule = { ...actualClickHouse };
 const realChQuery = realClickHouseModule.chQuery;
@@ -24,6 +25,18 @@ const {
 
 const lastSelectColumns = extractOuterSelectColumns;
 
+const COMPILE_REQUEST_OVERRIDES = {
+	error_customer_impact: {
+		filters: [
+			{
+				field: "message",
+				op: "eq",
+				value: "Failed to fetch dynamically imported module",
+			},
+		],
+	},
+} satisfies Partial<Record<string, Partial<QueryRequest>>>;
+
 function compileSql(type: string): string {
 	const config = QueryBuilders[type];
 	if (!config) {
@@ -34,6 +47,7 @@ function compileSql(type: string): string {
 		type,
 		from: "2026-04-01",
 		to: "2026-04-11",
+		...COMPILE_REQUEST_OVERRIDES[type],
 	}).compile().sql;
 }
 

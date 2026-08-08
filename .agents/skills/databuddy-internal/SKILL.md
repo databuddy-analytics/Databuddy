@@ -42,6 +42,7 @@ Keep additions **minimal**: one bullet, a new `rg` hint, or a routing note—eno
 - `SPEC.md` is the intelligence product contract. `insight_observations` is the readable Insights history; `analytics_insights` is the durable investigation projection. The agent outcome owns brief publication and `act`/`ask` promotion; do not replace either with frontend heuristics or collapse the feed into cases. Do not add a parallel agent, evidence API, fixed query choreography, or action-specific lifecycle.
 - Insights RPC helpers that take `{ context, ...input }` must strip `context` before parsing a `.strict()` Zod input schema (same pattern as `appendInvestigationReply` / `applyInsightGoalAction`); otherwise CI fails with `Unrecognized key: "context"`.
 - `insights.history` / MCP `list_investigations` hide cases while a reply is `queued`/`running` (action-inbox verification); tests must list before reply or expect an empty list while verifying.
+- When reporting what an organization can see in Insights, follow the `insights.brief`/`history` visibility rules instead of counting `analytics_insights`; the projection can contain legacy rows without a readable or published `insight_observations` turn.
 - Production insight shadows must freeze `--reference-time`, retain a tool-name trace, and pass available GitHub context before supporting quality claims. Postgres and ClickHouse are read-only, but connector token refreshes or cache writes can still occur; never describe the whole run as zero-write.
 - Automatic investigations have one organization-wide schedule (`off`, `daily`, or `weekly`) and one organization-wide delivery set; website selection is only for manual runs. Do not reintroduce per-website overrides, hourly/custom cadence, or cron input.
 - A manual insight run is a deliberate recheck: it bypasses automatic cooldown only for currently detected signals, while retaining detector thresholds and normal signal ranking. Otherwise “Run now” can complete without producing an evaluable result.
@@ -57,6 +58,7 @@ Keep additions **minimal**: one bullet, a new `rg` hint, or a routing note—eno
 - Slack-reachable shared packages (`@databuddy/ai`, `@databuddy/rpc`) must not import `evlog/elysia`; use host-injected request logger providers from the API and plain evlog fallbacks elsewhere.
 - AI link tools must assign link folders by existing folder `id` or `slug` only; folder names are display text and must not be used for routing or dedupe.
 - `apps/basket`: ingest and LLM tracking service, Elysia app on port `4000`
+- Basket tests use Vitest; run them through `bun run test` inside `apps/basket`, not `bun test` directly.
 - `apps/docs`: Next.js + Fumadocs docs app on port `3005`
 - When a user drops a prototype, remove only prototype-specific wiring and preserve the existing product surfaces it temporarily reused.
 - `apps/links`: redirect/link service
@@ -95,10 +97,12 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 - Run filtered Turbo commands such as `bun run check-types --filter=…` from the workspace root; inside a package, its local script invokes `tsc` directly and treats those flags as TypeScript options.
 - Formatting/linting: `bun run format`, `bun run lint`
 - Use neutral branch names, commit messages, and PR copy; do not include tool-attribution prefixes or generated-by language.
+- When the user names an integration branch such as `staging`, verify `HEAD`, the intended commit set, and upstream divergence on that branch before declaring the work complete.
 - Lefthook's `no-secrets` guard intentionally ignores the exact `.env.example` template; real `.env`, `.env.*`, key, and credential files should still be blocked.
 - Root dev orchestration: `bun run dev`
 - Dashboard + API together: `bun run dev:dashboard`
 - Tests at root currently target `./apps`: `bun run test`
+- Package test mocks can leak across files in one Bun process; when `packages/ai` broadly mocks `@databuddy/redis`, keep the mock export surface in sync with runtime imports from shared RPC/tool code.
 - Database scripts are routed from root into `packages/db`
 - Runtime environment reads stay in the owning service; shared URL/public helpers live in `packages/env`
 - BullMQ queues use `BULLMQ_REDIS_URL`; generic Redis cache/pubsub code uses `REDIS_URL`.
@@ -155,6 +159,8 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 
 - Start in `apps/basket/src`
 - Request validation, billing checks, geo/IP parsing, producer logic, and structured errors are important here
+- For analytics delivery, success means a durable, replayable handoff with a stable event identity. Do not treat an in-memory buffer, a pre-persistence Redis dedupe key, or a logged producer error as lossless delivery.
+- When a durability task excludes PostgreSQL and migrations, use acknowledged Redpanda handoff plus a durable Redis/BullMQ checkpoint where needed; never introduce SQL outbox tables.
 
 ## Billing (Autumn)
 
@@ -177,8 +183,11 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 - Postgres schema: `packages/db/src/drizzle/schema.ts`
 - Relations: `packages/db/src/drizzle/relations.ts`
 - Drizzle client: `packages/db/src/client.ts`
+- Production `DATABASE_URL` may already target PgBouncer; inspect both the process pool and PgBouncer queues before attributing API timeouts to PostgreSQL.
+- `pg.Pool` already grows lazily from zero to its configured `max`; do not replace it with one `Client` to address acquisition timeouts, because that serializes queries. Keep a bounded pool, tune its acquisition timeout, and monitor `waitingCount`.
 - ClickHouse helpers and schema: `packages/db/src/clickhouse/*`
 - After schema changes, use the repo db scripts rather than ad hoc commands
+- Do not add ClickHouse migration files for delivery hardening; keep relay identity in the worker/queue unless **iza** explicitly requests persistent warehouse identity.
 
 ### Auth and permissions
 

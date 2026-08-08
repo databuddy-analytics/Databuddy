@@ -14,7 +14,7 @@ import { customAlphabet } from "nanoid";
 import { z } from "zod";
 import { rpcError } from "../errors";
 import { type Context, protectedProcedure, trackedProcedure } from "../orpc";
-import { withWorkspace } from "../procedures/with-workspace";
+import { requireLinkAccess, requireOrganizationId } from "./link-access";
 import {
 	createLinkFolderSchema,
 	deleteLinkFolderSchema,
@@ -25,35 +25,12 @@ import {
 	updateLinkFolderSchema,
 } from "./links.schemas";
 
-type LinkPermission = "read" | "create" | "update" | "delete";
 type LinkFolderRow = typeof linkFolders.$inferSelect;
 
 const generateFolderSuffix = customAlphabet(
 	"0123456789abcdefghijklmnopqrstuvwxyz",
 	4
 );
-
-function requireOrganizationId(
-	organizationId: string | null | undefined
-): string {
-	if (!organizationId) {
-		throw rpcError.badRequest("Organization ID is required");
-	}
-	return organizationId;
-}
-
-function requireLinkAccess(
-	context: Context,
-	organizationId: string,
-	permission: LinkPermission
-) {
-	const permissions: [LinkPermission] = [permission];
-	return withWorkspace(context, {
-		organizationId,
-		resource: "link",
-		permissions,
-	});
-}
 
 async function getFolderOrThrow(
 	context: Context,

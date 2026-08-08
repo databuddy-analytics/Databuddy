@@ -13,6 +13,14 @@ export const SLACK_SUGGESTED_PROMPTS = [
 	},
 ] as const;
 
+export const SLACK_LOADING_MESSAGES = [
+	"Reading your analytics...",
+	"Checking recent sessions...",
+	"Crunching the numbers...",
+	"Looking for what changed...",
+	"Putting the answer together...",
+] as const;
+
 export const SLACK_COPY = {
 	agentFailure:
 		"I couldn't finish that response. Try again in a moment. If it keeps happening, contact your Databuddy organization admin.",
@@ -23,6 +31,7 @@ export const SLACK_COPY = {
 	assistantGreeting:
 		"I'm in. Show open investigations, run one now, or send new investigations to this channel automatically.",
 	autoBindSuccess: "Ready here.",
+	blockFallback: "Open Slack to view this table.",
 	bindFailure:
 		"I couldn't approve this channel. Check Organization settings → Integrations, then try `/databuddy-bind` again.",
 	bindSuccess: "*Ready here.* Mention `@Databuddy` or DM me with a question.",
@@ -48,7 +57,7 @@ export const SLACK_COPY = {
 	missingSlackScopes:
 		"I'm missing a Slack permission in this workspace. Reconnect Slack from Databuddy settings so the new scopes are granted, then try again.",
 	noAnswer:
-		"I didn't get a usable result. Try again, or ask something specific like `traffic for the last 7 days`.",
+		"That took too long or came back empty. Try a narrower question — one site, or a shorter range like `traffic for the last 7 days`.",
 	processingReaction: "rabbit",
 	responseInterrupted:
 		"Response interrupted. The information above may be incomplete. Try again before acting on it.",

@@ -119,6 +119,14 @@ vi.mock("@databuddy/redis", () => ({
 	getInsightsQueue: vi.fn(() => ({})),
 	getRedisCache: () => mockRedisClient,
 	getUptimeQueue: vi.fn(() => ({})),
+	// Bun keeps this module mock active across later AI tests that import links RPC.
+	// Keep the full link-cache surface local so those tests never reach Redis.
+	abandonCachedLinkMutation: vi.fn(async () => true),
+	beginCachedLinkMutation: vi.fn(async () => ({
+		state: "acquired",
+		token: "test-token",
+	})),
+	finishCachedLinkMutation: vi.fn(async () => true),
 	invalidateAgentContextSnapshot: vi.fn(async () => 0),
 	invalidateAgentContextSnapshotsForOwner: vi.fn(async () => 0),
 	invalidateAgentContextSnapshotsForWebsite: vi.fn(async () => 0),
@@ -162,7 +170,9 @@ vi.mock("@databuddy/redis", () => ({
 	redis: mockRedisClient,
 	setActiveStream: vi.fn(async () => undefined),
 	setCachedLink: vi.fn(async () => undefined),
+	setCachedLinkIfAbsent: vi.fn(async () => true),
 	setCachedLinkNotFound: vi.fn(async () => undefined),
+	setCachedLinkNotFoundIfAbsent: vi.fn(async () => true),
 	shouldRecordClick: vi.fn(async () => true),
 	shutdownRedis: vi.fn(async () => undefined),
 	streamBufferKey: (id: string) => `stream:${id}`,

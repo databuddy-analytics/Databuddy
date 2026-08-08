@@ -2,8 +2,29 @@ import { describe, expect, it } from "bun:test";
 import { DatabuddyAgentUserError } from "@databuddy/ai/agent/errors";
 import type { DatabuddyAgentClient } from "@/agent/agent-client";
 import { SLACK_COPY } from "@/slack/messages";
-import { streamAgentToSlack } from "@/slack/respond";
+import { streamAgentToSlack, toolStatusLabel } from "@/slack/respond";
 import type { SlackAgentClient } from "@/slack/types";
+
+describe("toolStatusLabel", () => {
+	it("maps analytics tools to a querying status", () => {
+		expect(toolStatusLabel(["get_data"])).toBe("Querying your analytics...");
+		expect(toolStatusLabel(["execute_sql_query"])).toBe(
+			"Querying your analytics..."
+		);
+	});
+
+	it("maps session and github tools to their own statuses", () => {
+		expect(toolStatusLabel(["session_events"])).toBe("Reading sessions...");
+		expect(toolStatusLabel(["github_commits"])).toBe(
+			"Checking recent code changes..."
+		);
+	});
+
+	it("falls back for unknown tools", () => {
+		expect(toolStatusLabel(["something_else"])).toBe("Working on it...");
+		expect(toolStatusLabel([])).toBe("Working on it...");
+	});
+});
 
 class SlackApiError extends Error {
 	code = "slack_webapi_platform_error";
@@ -35,7 +56,11 @@ function createStreamClient(startTs: string | null = "stream_ts") {
 		}
 	};
 
-	const client: Pick<SlackAgentClient, "chat"> = {
+	const client: Pick<SlackAgentClient, "apiCall" | "chat"> = {
+		apiCall: (async (method: string, options?: unknown) => {
+			calls.push({ method, options });
+			return { ok: true };
+		}) as SlackAgentClient["apiCall"],
 		chat: {
 			appendStream: async (options) => {
 				guardMode(options);
@@ -146,7 +171,14 @@ describe("Databuddy Slack response streaming", () => {
 			"chat.appendStream",
 			"chat.appendStream",
 			"chat.stopStream",
+			"chat.postMessage",
 		]);
+
+		const feedbackPost = calls.at(-1);
+		expect(feedbackPost?.method).toBe("chat.postMessage");
+		const feedbackBlocks = (feedbackPost?.options as { blocks: Array<{ type: string }> })
+			.blocks;
+		expect(feedbackBlocks.some((b) => b.type === "context_actions")).toBe(true);
 	});
 
 	it("marks a partial answer as interrupted when streaming fails", async () => {

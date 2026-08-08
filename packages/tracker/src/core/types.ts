@@ -80,6 +80,7 @@ export type BaseEvent = {
 export type WebVitalMetricName = "FCP" | "LCP" | "CLS" | "INP" | "TTFB" | "FPS";
 
 export type WebVitalEvent = {
+	eventId?: string;
 	timestamp: number;
 	path: string;
 	metricName: WebVitalMetricName;
@@ -90,6 +91,7 @@ export type WebVitalEvent = {
 };
 
 export type ErrorSpan = {
+	eventId?: string;
 	timestamp: number;
 	path: string;
 	message: string;
@@ -104,6 +106,7 @@ export type ErrorSpan = {
 };
 
 export type TrackEventPayload = {
+	eventId: string;
 	name: string;
 	timestamp: number;
 	path?: string;

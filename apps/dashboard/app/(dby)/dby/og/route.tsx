@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { LINKS_BASE_URL } from "@/lib/links-url";
 import { loadOgFonts, OG_COLORS, OgLogo } from "./brand";
 
 export async function GET(request: Request) {
@@ -86,7 +87,7 @@ export async function GET(request: Request) {
 						letterSpacing: "0.08em",
 					}}
 				>
-					dby.sh
+					{LINKS_BASE_URL}
 				</span>
 			</div>
 
@@ -134,7 +135,7 @@ export async function GET(request: Request) {
 						fontWeight: 500,
 					}}
 				>
-					databuddy.cc/links
+					{LINKS_BASE_URL}
 				</span>
 			</div>
 		</div>,

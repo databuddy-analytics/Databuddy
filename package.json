@@ -43,7 +43,8 @@
     "test": "dotenv -- turbo run test",
     "test:watch": "dotenv -- bun test --watch ./apps",
     "test:coverage": "dotenv -- bun test --coverage ./apps",
-    "lint": "bunx ultracite check",
+    "lint": "bunx ultracite check && bun run lint:policies",
+    "lint:policies": "bunx tsc --project scripts/tsconfig.json && bun test scripts/lint-policy.test.ts && bun scripts/lint-policy.ts",
     "format": "bunx ultracite fix",
     "check-types": "dotenv -- turbo run check-types",
     "generate-db": "turbo run generate --filter=@databuddy/db",
@@ -117,7 +118,11 @@
       "ua-parser-js": "^2.0.8",
       "evlog": "^2.11.1",
       "tokenlens": "^2.0.0-alpha.3",
-      "@tokenlens/models": "1.3.0"
+      "@tokenlens/models": "1.3.0",
+      "@remotion/cli": "4.0.502",
+      "@remotion/fonts": "4.0.502",
+      "@remotion/media": "4.0.502",
+      "remotion": "4.0.502"
     }
   },
   "dependencies": {

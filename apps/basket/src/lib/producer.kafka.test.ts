@@ -9,11 +9,15 @@ const originalEnv = {
 
 process.env.SELFHOST = "false";
 process.env.REDPANDA_BROKER = "localhost:9092";
-process.env.REDPANDA_USER = "user";
-process.env.REDPANDA_PASSWORD = "password";
+delete process.env.REDPANDA_USER;
+delete process.env.REDPANDA_PASSWORD;
 
 const {
 	mockCaptureError,
+	mockAdmin,
+	mockAdminConnect,
+	mockAdminDescribeCluster,
+	mockAdminDisconnect,
 	mockClickHouseInsert,
 	mockConnect,
 	mockDisconnect,
@@ -21,6 +25,16 @@ const {
 	mockProducer,
 	mockSend,
 } = vi.hoisted(() => {
+	const mockAdminConnect = vi.fn(() => Promise.resolve());
+	const mockAdminDescribeCluster = vi.fn(() =>
+		Promise.resolve({ brokers: [{ nodeId: 1 }], clusterId: "test" })
+	);
+	const mockAdminDisconnect = vi.fn(() => Promise.resolve());
+	const mockAdmin = vi.fn(() => ({
+		connect: mockAdminConnect,
+		describeCluster: mockAdminDescribeCluster,
+		disconnect: mockAdminDisconnect,
+	}));
 	const mockConnect = vi.fn(() => Promise.resolve());
 	const mockDisconnect = vi.fn(() => Promise.resolve());
 	const mockSend = vi.fn(() => Promise.reject(new Error("send failed")));
@@ -31,11 +45,16 @@ const {
 	}));
 	const mockKafka = vi.fn(function Kafka() {
 		return {
-		producer: mockProducer,
+			admin: mockAdmin,
+			producer: mockProducer,
 		};
 	});
 
 	return {
+		mockAdmin,
+		mockAdminConnect,
+		mockAdminDescribeCluster,
+		mockAdminDisconnect,
 		mockCaptureError: vi.fn(),
 		mockClickHouseInsert: vi.fn(() => Promise.resolve()),
 		mockConnect,
@@ -93,30 +112,48 @@ afterAll(async () => {
 });
 
 describe("producer Kafka send failure handling", () => {
-	test("backs off after a send failure and still disconnects on shutdown", async () => {
-		await runPromise(
-			send("analytics-events", {
-				client_id: "ws_1",
-				event_id: "event_1",
-				timestamp: Date.now(),
-			})
-		);
+	test("falls back directly during reconnect cooldown after an ambiguous Kafka send", async () => {
+		await expect(
+			runPromise(
+				send("analytics-events", {
+					client_id: "ws_1",
+					event_id: "event_1",
+					timestamp: Date.now(),
+				})
+			)
+		).rejects.toMatchObject({ _tag: "KafkaSendError" });
 
-		await runPromise(
-			send("analytics-events", {
-				client_id: "ws_1",
-				event_id: "event_2",
-				timestamp: Date.now(),
-			})
-		);
+		await expect(
+			runPromise(
+				send("analytics-events", {
+					client_id: "ws_1",
+					event_id: "event_2",
+					timestamp: Date.now(),
+				})
+			)
+		).resolves.toBeUndefined();
 
 		const stats = await runPromise(getStats);
 
 		expect(mockKafka).toHaveBeenCalledTimes(1);
+		expect(mockKafka).toHaveBeenCalledWith(
+			expect.objectContaining({
+				brokers: ["localhost:9092"],
+				clientId: "basket",
+			})
+		);
+		expect(mockKafka.mock.calls[0]?.[0]).not.toHaveProperty("sasl");
 		expect(mockProducer).toHaveBeenCalledTimes(1);
+		expect(mockAdmin).toHaveBeenCalledTimes(1);
+		expect(mockAdmin).toHaveBeenCalledWith(
+			expect.objectContaining({ retry: expect.objectContaining({ retries: 0 }) })
+		);
+		expect(mockAdminConnect).not.toHaveBeenCalled();
+		expect(mockAdminDescribeCluster).not.toHaveBeenCalled();
 		expect(mockConnect).toHaveBeenCalledTimes(1);
 		expect(mockSend).toHaveBeenCalledTimes(1);
-		expect(stats?.bufferSize).toBe(2);
+		expect(mockClickHouseInsert).toHaveBeenCalledTimes(1);
+		expect(stats?.sent).toBe(1);
 		expect(stats?.connected).toBe(false);
 		expect(stats?.failed).toBe(true);
 		expect(stats?.failedCount).toBe(1);
@@ -124,5 +161,6 @@ describe("producer Kafka send failure handling", () => {
 		await runPromise(disconnect);
 
 		expect(mockDisconnect).toHaveBeenCalledTimes(1);
+		expect(mockAdminDisconnect).not.toHaveBeenCalled();
 	});
 });

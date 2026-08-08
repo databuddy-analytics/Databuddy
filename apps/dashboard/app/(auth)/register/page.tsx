@@ -10,7 +10,9 @@ import { GithubMark, GoogleMark } from "@/components/ui/brand-icons";
 import VisuallyHidden from "@/components/ui/visuallyhidden";
 import {
 	APP_EVENTS,
+	clearPendingSocialSignup,
 	readMarketingProperties,
+	storeOnboardingAttribution,
 	storePendingSocialSignup,
 	type SignupEventProperties,
 	type SignupMethod,
@@ -101,7 +103,9 @@ function RegisterPageContent() {
 		}
 
 		setIsLoading(true);
+		clearPendingSocialSignup();
 		const signupProperties = getSignupProperties("email");
+		storeOnboardingAttribution(signupProperties);
 		trackSignup(APP_EVENTS.signupStarted, signupProperties);
 
 		const { error } = await authClient.signUp.email({
@@ -111,6 +115,7 @@ function RegisterPageContent() {
 			callbackURL: getCallbackUrl(),
 			fetchOptions: {
 				onSuccess: () => {
+					storeOnboardingAttribution(signupProperties);
 					trackSignup(APP_EVENTS.signupCompleted, signupProperties);
 					trackOpenAiRegistrationCompleted();
 					toast.success(

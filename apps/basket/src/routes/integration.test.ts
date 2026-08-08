@@ -13,6 +13,7 @@ const {
 	mockInsertIndividualVitals,
 	mockInsertErrorSpans,
 	mockInsertCustomEvents,
+	mockGetGeo,
 	mockCheckAutumnUsage,
 	mockGetApiKeyFromHeader,
 	mockHasKeyScope,
@@ -63,6 +64,14 @@ const {
 		mockInsertIndividualVitals: vi.fn(() => Promise.resolve()),
 		mockInsertErrorSpans: vi.fn(() => Promise.resolve()),
 		mockInsertCustomEvents: vi.fn(() => Promise.resolve()),
+		mockGetGeo: vi.fn(() =>
+			Promise.resolve({
+				anonymizedIP: "abc123",
+				country: "US",
+				region: "CA",
+				city: "SF",
+			})
+		),
 		mockCheckAutumnUsage: vi.fn(() => Promise.resolve({ allowed: true })),
 		mockGetApiKeyFromHeader: vi.fn(() => Promise.resolve(defaultApiKey)),
 		mockHasKeyScope: vi.fn(() => true),
@@ -80,6 +89,7 @@ vi.mock("evlog/elysia", () => ({
 vi.mock("@lib/tracing", () => ({
 	record: (_n: string, fn: Function) => Promise.resolve().then(() => fn()),
 	captureError: noop,
+	mergeWideEvent: noop,
 }));
 
 vi.mock("@lib/request-validation", () => ({
@@ -102,6 +112,7 @@ vi.mock("@lib/event-service", () => ({
 	insertIndividualVitals: mockInsertIndividualVitals,
 	insertErrorSpans: mockInsertErrorSpans,
 	insertCustomEvents: mockInsertCustomEvents,
+	stableAnalyticsEventId: vi.fn(() => "stable_id"),
 }));
 
 vi.mock("@lib/security", () => ({
@@ -113,14 +124,7 @@ vi.mock("@lib/security", () => ({
 }));
 
 vi.mock("@utils/ip-geo", () => ({
-	getGeo: vi.fn(() =>
-		Promise.resolve({
-			anonymizedIP: "abc123",
-			country: "US",
-			region: "CA",
-			city: "SF",
-		})
-	),
+	getGeo: mockGetGeo,
 	extractIpFromRequest: vi.fn(() => "1.2.3.4"),
 	extractTrustedClientIp: vi.fn(() => "1.2.3.4"),
 	getVisitorCountryForAutoMode: vi.fn((events: Array<{ anonymizeVisitorIds?: unknown }>) =>
@@ -178,13 +182,22 @@ vi.mock("@lib/producer", () => ({
 
 // ── Import routes after mocks ──
 
-const { buildBasketErrorPayload } = await import("@lib/structured-errors");
+const { basketErrors, buildBasketErrorPayload } = await import(
+	"@lib/structured-errors"
+);
+const { createError, EvlogError } = await import("evlog");
 const { Elysia } = await import("elysia");
+const mockGlobalErrorHandler = vi.fn();
 
 // Wrap basket routes with the same onError handler as index.ts
 const rawBasket = (await import("./basket")).default;
 const basketApp = new Elysia()
 	.onError(({ error, code }) => {
+		const isExpectedClientError =
+			error instanceof EvlogError && error.status >= 400 && error.status < 500;
+		if (!isExpectedClientError) {
+			mockGlobalErrorHandler(error);
+		}
 		if (code === "NOT_FOUND") {
 			return new Response(null, { status: 404 });
 		}
@@ -273,6 +286,34 @@ describe("POST /", () => {
 		expect(body.type).toBe("outgoing_link");
 	});
 
+	test("durable core delivery failure → retryable 503", async () => {
+		mockGlobalErrorHandler.mockClear();
+		mockInsertTrackEvent.mockRejectedValueOnce(
+			createError({
+				code: "basket.DELIVERY_UNAVAILABLE",
+				message: "Analytics delivery temporarily unavailable",
+				status: 503,
+			})
+		);
+
+		const res = await post(basketApp, "/", {
+			type: "track",
+			eventId: "evt_delivery_failure",
+			name: "pageview",
+			path: "https://example.com/page",
+		});
+
+		expect(res.status).toBe(503);
+		const body = await json(res);
+		expect(body).toMatchObject({
+			code: "basket.DELIVERY_UNAVAILABLE",
+			retryable: true,
+		});
+		expect(mockGlobalErrorHandler).toHaveBeenCalledWith(
+			expect.any(EvlogError)
+		);
+	});
+
 	test("unknown event type → 400", async () => {
 		const res = await post(basketApp, "/", { type: "bogus" });
 		expect(res.status).toBe(400);
@@ -296,6 +337,26 @@ describe("POST /vitals", () => {
 		expect(body.status).toBe("success");
 		expect(body.type).toBe("web_vitals");
 		expect(body.count).toBe(1);
+	});
+
+	test("accepts a CORS-safelisted unload beacon body", async () => {
+		const res = await post(
+			basketApp,
+			"/vitals",
+			[
+				{
+					eventId: "vital_stable_1",
+					timestamp: now,
+					path: "https://example.com/page",
+					metricName: "LCP",
+					metricValue: 2500,
+				},
+			],
+			{ "Content-Type": "text/plain;charset=UTF-8" }
+		);
+
+		expect(res.status).toBe(200);
+		expect(await json(res)).toMatchObject({ count: 1, type: "web_vitals" });
 	});
 
 	test("invalid vitals (bad metric name) → 400", async () => {
@@ -339,6 +400,25 @@ describe("POST /errors", () => {
 		expect(body.status).toBe("success");
 		expect(body.type).toBe("error");
 		expect(body.count).toBe(1);
+	});
+
+	test("accepts a CORS-safelisted unload beacon body", async () => {
+		const res = await post(
+			basketApp,
+			"/errors",
+			[
+				{
+					eventId: "error_stable_1",
+					timestamp: now,
+					path: "https://example.com/page",
+					message: "TypeError: x is undefined",
+				},
+			],
+			{ "Content-Type": "text/plain;charset=UTF-8" }
+		);
+
+		expect(res.status).toBe(200);
+		expect(await json(res)).toMatchObject({ count: 1, type: "error" });
 	});
 
 	test("missing message → 400", async () => {
@@ -443,6 +523,24 @@ describe("POST /events", () => {
 // ── POST /batch ──
 
 describe("POST /batch", () => {
+	test("validation quota errors stay out of the global error reporter", async () => {
+		mockGlobalErrorHandler.mockClear();
+		const quotaError = basketErrors.billingLimitExceeded();
+		mockValidateRequest.mockRejectedValueOnce(quotaError);
+
+		const res = await post(basketApp, "/batch", [
+			{
+				type: "track",
+				eventId: "evt_1",
+				name: "pageview",
+				path: "https://example.com/a",
+			},
+		]);
+
+		expect(res.status).toBe(402);
+		expect(mockGlobalErrorHandler).not.toHaveBeenCalled();
+	});
+
 	test("batch of track events → 200", async () => {
 		const res = await post(basketApp, "/batch", [
 			{
@@ -464,6 +562,94 @@ describe("POST /batch", () => {
 		expect(body.processed).toBe(2);
 	});
 
+	test("accepts a CORS-safelisted unload beacon body", async () => {
+		const res = await post(
+			basketApp,
+			"/batch",
+			[
+				{
+					type: "track",
+					eventId: "event_stable_1",
+					name: "pageview",
+					path: "https://example.com/a",
+				},
+			],
+			{ "Content-Type": "text/plain;charset=UTF-8" }
+		);
+
+		expect(res.status).toBe(200);
+		expect(await json(res)).toMatchObject({ batch: true, processed: 1 });
+	});
+
+	test("returns 503 instead of accepting an event that could not be prepared", async () => {
+		mockInsertTrackEventsBatch.mockClear();
+		mockInsertOutgoingLinksBatch.mockClear();
+		mockGetGeo
+			.mockResolvedValueOnce({
+				anonymizedIP: "abc123",
+				country: "US",
+				region: "CA",
+				city: "SF",
+			})
+			.mockRejectedValueOnce(new Error("GeoIP unavailable"));
+
+		const result = await post(basketApp, "/batch", [
+			{
+				type: "track",
+				eventId: "evt_1",
+				name: "pageview",
+				path: "https://example.com/a",
+			},
+			{
+				type: "track",
+				eventId: "evt_2",
+				name: "click",
+				path: "https://example.com/b",
+			},
+		]);
+
+		expect(result.status).toBe(503);
+		expect(await json(result)).toMatchObject({
+			code: "basket.DELIVERY_UNAVAILABLE",
+			retryable: true,
+		});
+		expect(mockInsertTrackEventsBatch).not.toHaveBeenCalled();
+		expect(mockInsertOutgoingLinksBatch).not.toHaveBeenCalled();
+	});
+
+	test("keeps malformed items as schema failures without dropping valid events", async () => {
+		mockInsertTrackEventsBatch.mockClear();
+		mockInsertOutgoingLinksBatch.mockClear();
+
+		const result = await post(basketApp, "/batch", [
+			{
+				type: "track",
+				eventId: "evt_1",
+				name: "pageview",
+				path: "https://example.com/a",
+			},
+			null,
+		]);
+
+		expect(result.status).toBe(200);
+		expect(await json(result)).toMatchObject({
+			status: "partial",
+			batch: true,
+			processed: 2,
+			batched: { track: 1, outgoing_link: 0 },
+			results: [
+				{ status: "success", type: "track", eventId: "evt_1" },
+				{
+					status: "error",
+					code: "INVALID_EVENT_SCHEMA",
+					eventType: "track",
+				},
+			],
+		});
+		expect(mockInsertTrackEventsBatch).toHaveBeenCalledOnce();
+		expect(mockInsertOutgoingLinksBatch).toHaveBeenCalledOnce();
+	});
+
 	test("not an array → 400", async () => {
 		const res = await post(basketApp, "/batch", { not: "array" });
 		expect(res.status).toBe(400);
@@ -480,7 +666,7 @@ describe("POST /batch", () => {
 		expect(res.status).toBe(400);
 	});
 
-	test("mixed valid + unknown types → partial results", async () => {
+	test("mixed valid + invalid types → partial results", async () => {
 		const res = await post(basketApp, "/batch", [
 			{
 				type: "track",
@@ -488,7 +674,7 @@ describe("POST /batch", () => {
 				name: "pageview",
 				path: "https://example.com/a",
 			},
-			{ type: "bogus_type" },
+			{ type: 1 },
 		]);
 		expect(res.status).toBe(200);
 		const body = await json(res);
@@ -529,11 +715,53 @@ describe("GET /px.jpg", () => {
 		expect(res.headers.get("Content-Type")).toBe("image/gif");
 	});
 
-	test("always returns pixel even on error", async () => {
+	test("returns a retryable GIF when an unexpected delivery path fails", async () => {
 		mockValidateRequest.mockRejectedValueOnce(new Error("boom"));
 		const res = await get(basketApp, "/px.jpg?name=test");
-		expect(res.status).toBe(200);
+		expect(res.status).toBe(503);
 		expect(res.headers.get("Content-Type")).toBe("image/gif");
+		expect(res.headers.get("Retry-After")).toBe("5");
+	});
+
+	test("returns a retryable GIF when core delivery rejects", async () => {
+		mockInsertTrackEvent.mockClear();
+		mockLogger.error.mockClear();
+		mockInsertTrackEvent.mockRejectedValueOnce(
+			createError({
+				code: "basket.DELIVERY_UNAVAILABLE",
+				message: "Analytics delivery temporarily unavailable",
+				status: 503,
+			})
+		);
+
+		const res = await get(basketApp, "/px.jpg?type=track&name=pageview");
+
+		expect(res.status).toBe(503);
+		expect(res.headers.get("Content-Type")).toBe("image/gif");
+		expect(res.headers.get("Retry-After")).toBe("5");
+		expect(mockLogger.error).toHaveBeenCalledWith(expect.any(Error));
+	});
+
+	test("returns a retryable GIF when outgoing-link delivery rejects", async () => {
+		mockInsertOutgoingLink.mockClear();
+		mockLogger.error.mockClear();
+		mockInsertOutgoingLink.mockRejectedValueOnce(
+			createError({
+				code: "basket.DELIVERY_UNAVAILABLE",
+				message: "Analytics delivery temporarily unavailable",
+				status: 503,
+			})
+		);
+
+		const res = await get(
+			basketApp,
+			"/px.jpg?type=outgoing_link&href=https%3A%2F%2Fexample.com"
+		);
+
+		expect(res.status).toBe(503);
+		expect(res.headers.get("Content-Type")).toBe("image/gif");
+		expect(res.headers.get("Retry-After")).toBe("5");
+		expect(mockLogger.error).toHaveBeenCalledWith(expect.any(Error));
 	});
 });
 
@@ -580,6 +808,49 @@ describe("POST /track", () => {
 		expect(body.status).toBe("success");
 		expect(body.type).toBe("custom_event");
 		expect(body.count).toBe(1);
+	});
+
+	test("preserves the SDK event id for retry-safe delivery", async () => {
+		const res = await post(trackRoute, "/track", {
+			eventId: "evt_custom_1",
+			name: "signup",
+			websiteId: "ws_test",
+		});
+
+		expect(res.status).toBe(200);
+		expect(mockInsertCustomEvents).toHaveBeenCalledWith(
+			[
+				expect.objectContaining({
+					event_id: "evt_custom_1",
+					event_name: "signup",
+				}),
+			],
+			undefined
+		);
+	});
+
+	test("accepts a CORS-safelisted unload beacon body", async () => {
+		const res = await post(
+			trackRoute,
+			"/track",
+			{
+				eventId: "evt_unload_stable_1",
+				name: "signup",
+				websiteId: "ws_test",
+			},
+			{ "Content-Type": "text/plain;charset=UTF-8" }
+		);
+
+		expect(res.status).toBe(200);
+		expect(mockInsertCustomEvents).toHaveBeenCalledWith(
+			[
+				expect.objectContaining({
+					event_id: "evt_unload_stable_1",
+					event_name: "signup",
+				}),
+			],
+			undefined
+		);
 	});
 
 	test("batch of events → 200", async () => {

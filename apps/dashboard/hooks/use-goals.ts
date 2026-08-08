@@ -9,8 +9,6 @@ import { listQueryOutcome } from "@/lib/list-query-outcome";
 import { orpc } from "@/lib/orpc";
 
 export type Goal = InferSelectModel<typeof goals>;
-export type CreateGoalData = InferInsertModel<typeof goals>;
-export type UpdateGoalData = Partial<InferInsertModel<typeof goals>>;
 
 export interface GoalAnalyticsData {
 	avg_completion_time: number;
@@ -73,6 +71,10 @@ interface CreateGoalInput {
 	websiteId: string;
 }
 
+export type CreateGoalData = CreateGoalInput;
+export type UpdateGoalData = Partial<CreateGoalInput> &
+	Pick<Partial<InferInsertModel<typeof goals>>, "isActive">;
+
 interface UpdateGoalInput {
 	description?: string | null;
 	filters?: GoalFilter[];
@@ -84,34 +86,8 @@ interface UpdateGoalInput {
 	type?: "PAGE_VIEW" | "EVENT" | "CUSTOM";
 }
 
-export function useGoals(websiteId: string, enabled = true) {
+export function useGoalActions(websiteId: string) {
 	const queryClient = useQueryClient();
-	const query = useQuery({
-		...orpc.goals.list.queryOptions({ input: { websiteId } }),
-		enabled: enabled && !!websiteId,
-	});
-
-	const goalsData = useMemo(
-		() =>
-			(query.data ?? []).map((goal) => ({
-				...goal,
-				type: goal.type as "PAGE_VIEW" | "EVENT" | "CUSTOM",
-				filters: (goal.filters as GoalFilter[]) ?? [],
-			})),
-		[query.data]
-	);
-
-	const listOutcome = useMemo(
-		() =>
-			listQueryOutcome({
-				data: goalsData,
-				isError: query.isError,
-				isPending: query.isPending,
-				isSuccess: query.isSuccess,
-			}),
-		[goalsData, query.isError, query.isPending, query.isSuccess]
-	);
-
 	const invalidateAll = () =>
 		Promise.all([
 			queryClient.invalidateQueries({
@@ -153,12 +129,6 @@ export function useGoals(websiteId: string, enabled = true) {
 	});
 
 	return {
-		data: goalsData,
-		listOutcome,
-		isLoading: query.isLoading,
-		isFetching: query.isFetching,
-		error: query.error,
-		refetch: query.refetch,
 		refreshAction: invalidateAll,
 		createGoal: (goalData: CreateGoalData) => {
 			const input: CreateGoalInput = {
@@ -215,6 +185,45 @@ export function useGoals(websiteId: string, enabled = true) {
 		createError: createMutation.error,
 		updateError: updateMutation.error,
 		deleteError: deleteMutation.error,
+	};
+}
+
+export function useGoals(websiteId: string, enabled = true) {
+	const query = useQuery({
+		...orpc.goals.list.queryOptions({ input: { websiteId } }),
+		enabled: enabled && !!websiteId,
+	});
+	const actions = useGoalActions(websiteId);
+
+	const goalsData = useMemo(
+		() =>
+			(query.data ?? []).map((goal) => ({
+				...goal,
+				type: goal.type as "PAGE_VIEW" | "EVENT" | "CUSTOM",
+				filters: (goal.filters as GoalFilter[]) ?? [],
+			})),
+		[query.data]
+	);
+
+	const listOutcome = useMemo(
+		() =>
+			listQueryOutcome({
+				data: goalsData,
+				isError: query.isError,
+				isPending: query.isPending,
+				isSuccess: query.isSuccess,
+			}),
+		[goalsData, query.isError, query.isPending, query.isSuccess]
+	);
+
+	return {
+		data: goalsData,
+		listOutcome,
+		isLoading: query.isLoading,
+		isFetching: query.isFetching,
+		error: query.error,
+		refetch: query.refetch,
+		...actions,
 	};
 }
 

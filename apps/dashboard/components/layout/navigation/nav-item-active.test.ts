@@ -73,6 +73,30 @@ describe("page navigation active matching", () => {
 	it("does not match similarly prefixed sibling paths", () => {
 		expect(getActivePageNavigationTabId(tabs, "/events-archive")).toBeNull();
 	});
+
+	it("selects the most specific insights view", () => {
+		const insightTabs = [
+			{ id: "latest", href: "/insights" },
+			{ id: "investigations", href: "/insights/investigations" },
+			{ id: "recommendations", href: "/insights/recommendations" },
+		];
+
+		expect(getActivePageNavigationTabId(insightTabs, "/insights")).toBe(
+			"latest"
+		);
+		expect(
+			getActivePageNavigationTabId(
+				insightTabs,
+				"/insights/investigations"
+			)
+		).toBe("investigations");
+		expect(
+			getActivePageNavigationTabId(
+				insightTabs,
+				"/insights/recommendations"
+			)
+		).toBe("recommendations");
+	});
 });
 
 describe("demo website navigation", () => {

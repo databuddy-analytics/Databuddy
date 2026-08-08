@@ -90,7 +90,7 @@ export function GoalItem({
 				</div>
 			</List.Cell>
 
-			<List.Cell grow>
+			<List.Cell className="scroll-mt-6" grow id={`goal-${goal.id}`}>
 				<div className="min-w-0 flex-1 text-start">
 					<p className="truncate font-medium text-foreground text-sm">
 						{goal.name}

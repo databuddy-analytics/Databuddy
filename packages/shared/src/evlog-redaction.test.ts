@@ -1,7 +1,9 @@
 import { describe, expect, it } from "bun:test";
 import {
+	createDatabuddyEvlogEnv,
 	databuddyEvlogRedactConfig,
 	databuddyEvlogRedaction,
+	resolveEvlogEnvironment,
 	shouldRedactEvlog,
 } from "./evlog-redaction";
 
@@ -24,6 +26,65 @@ describe("databuddy evlog redaction", () => {
 			true
 		);
 		expect(shouldRedactEvlog({})).toBe(true);
+	});
+
+	it("resolves an explicit app environment before platform defaults", () => {
+		expect(
+			resolveEvlogEnvironment({
+				APP_ENV: "staging",
+				NODE_ENV: "production",
+				RAILWAY_ENVIRONMENT_NAME: "production",
+			})
+		).toBe("staging");
+		expect(resolveEvlogEnvironment({ NODE_ENV: "test" })).toBe("test");
+		expect(resolveEvlogEnvironment({})).toBe("production");
+	});
+
+	it("preserves established platform precedence over Unkey", () => {
+		expect(
+			resolveEvlogEnvironment({
+				RAILWAY_ENVIRONMENT_NAME: "staging",
+				UNKEY_ENVIRONMENT_SLUG: "unkey-preview",
+				VERCEL_ENV: "preview",
+			})
+		).toBe("staging");
+		expect(
+			resolveEvlogEnvironment({
+				UNKEY_ENVIRONMENT_SLUG: "unkey-preview",
+				VERCEL_ENV: "preview",
+			})
+		).toBe("preview");
+	});
+
+	it("adds deployment metadata to every service environment", () => {
+		expect(
+			createDatabuddyEvlogEnv("api", {
+				APP_ENV: "staging",
+				RAILWAY_GIT_COMMIT_SHA: "abc123",
+				RAILWAY_REPLICA_REGION: "eu-central-1",
+			})
+		).toEqual({
+			service: "api",
+			environment: "staging",
+			region: "eu-central-1",
+			commitHash: "abc123",
+		});
+	});
+
+	it("uses Unkey deployment context outside Railway", () => {
+		expect(
+			createDatabuddyEvlogEnv("links", {
+				NODE_ENV: "production",
+				UNKEY_ENVIRONMENT_SLUG: "preview",
+				UNKEY_GIT_COMMIT_SHA: "def456",
+				UNKEY_REGION: "aws::eu-central-1",
+			})
+		).toEqual({
+			service: "links",
+			environment: "preview",
+			region: "aws::eu-central-1",
+			commitHash: "def456",
+		});
 	});
 
 	it("covers sensitive field names used across services", () => {

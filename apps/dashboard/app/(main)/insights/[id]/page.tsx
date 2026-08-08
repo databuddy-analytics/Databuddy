@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useId, useState } from "react";
 import { toast } from "sonner";
 import { TopBar } from "@/components/layout/top-bar";
 import { insightQueries, type InsightByIdResponse } from "@/lib/insight-api";
@@ -30,10 +30,7 @@ import {
 	StatusDot,
 	Textarea,
 } from "@databuddy/ui";
-import {
-	ExecuteGoalAction,
-	GoalRecommendationAction,
-} from "../_components/investigation-row";
+import { ExecuteGoalAction } from "../_components/investigation-row";
 
 type TimelineItem = InsightByIdResponse["timeline"][number];
 type InvestigationItem = Extract<TimelineItem, { kind: "investigation" }>;
@@ -70,7 +67,7 @@ export default function InsightDetailPage() {
 			<div className="mx-auto w-full max-w-2xl space-y-3 px-3 pt-3 pb-20 sm:space-y-4 sm:p-5">
 				<Link
 					className="inline-flex w-fit items-center gap-1.5 text-muted-foreground text-xs transition-colors hover:text-foreground"
-					href="/insights"
+					href="/insights/investigations"
 				>
 					<ArrowLeftIcon className="size-3.5 shrink-0" />
 					All investigations
@@ -121,7 +118,7 @@ export default function InsightDetailPage() {
 					<EmptyState
 						action={{
 							label: "All investigations",
-							onClick: () => router.push("/insights"),
+							onClick: () => router.push("/insights/investigations"),
 						}}
 						description={
 							isError
@@ -425,74 +422,55 @@ function InvestigationActivity({
 				<h3 className="text-pretty font-medium text-foreground text-sm leading-snug">
 					{outcome.title}
 				</h3>
-				<p className="mt-1 text-foreground/80 text-sm leading-relaxed">
-					{outcome.summary}
-				</p>
 			</div>
 
-			{outcome.recommendation ? (
-				<div className="rounded-md border border-primary/15 bg-primary/5 px-3 py-3">
-					<p className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
-						Recommended
-					</p>
-					<p className="mt-1 font-medium text-foreground/85 text-sm leading-relaxed">
-						{outcome.recommendation.action}
-					</p>
-					{item.entity.type === "goal" && outcome.recommendation.operation ? (
-						<div className="mt-2 flex flex-wrap gap-1.5">
-							<GoalRecommendationAction
-								goalId={item.entity.id}
-								recommendation={outcome.recommendation}
-								websiteId={websiteId}
-							/>
-						</div>
-					) : null}
+			<dl className="grid gap-3 sm:grid-cols-2">
+				<div className="sm:col-span-2">
+					<dt className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
+						What happened
+					</dt>
+					<dd className="mt-1 text-foreground/80 text-sm leading-relaxed">
+						{outcome.summary}
+					</dd>
 				</div>
-			) : null}
-
-			{outcome.next.type !== "resolve" || !outcome.recommendation ? (
-				<NextStep
-					hideAction={Boolean(execution?.operation)}
-					next={outcome.next}
-				/>
-			) : null}
-
-			{insightId && execution?.operation ? (
-				<div className="flex flex-wrap">
-					<ExecuteGoalAction execution={execution} insightId={insightId} />
-				</div>
-			) : null}
-
-			{(outcome.impact || outcome.rootCause) && (
-				<dl className="grid gap-3 sm:grid-cols-2">
-					{outcome.impact && (
-						<div>
-							<dt className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
-								Impact
-							</dt>
-							<dd className="mt-1 text-foreground/80 text-sm leading-relaxed">
-								{outcome.impact}
-							</dd>
-						</div>
-					)}
-					{outcome.rootCause && (
-						<div>
-							<dt className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
-								Cause
-							</dt>
-							<dd className="mt-1 text-foreground/80 text-sm leading-relaxed">
-								{outcome.rootCause}
-							</dd>
-						</div>
-					)}
-				</dl>
-			)}
+				{outcome.impact && (
+					<div>
+						<dt className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
+							Why it matters
+						</dt>
+						<dd className="mt-1 text-foreground/80 text-sm leading-relaxed">
+							{outcome.impact}
+						</dd>
+					</div>
+				)}
+				{outcome.rootCause && (
+					<div>
+						<dt className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
+							Why it happened
+						</dt>
+						<dd className="mt-1 text-foreground/80 text-sm leading-relaxed">
+							{outcome.rootCause}
+						</dd>
+					</div>
+				)}
+			</dl>
 
 			<Evidence
 				evidence={outcome.evidence}
 				initiallyCollapsed={collapseEvidence}
 				sourceHref={sourceHref}
 			/>
+
+			<NextStep
+				hideAction={Boolean(execution?.operation)}
+				next={outcome.next}
+			/>
+
+			{insightId && execution?.operation ? (
+				<div className="flex flex-wrap">
+					<ExecuteGoalAction execution={execution} insightId={insightId} />
+				</div>
+			) : null}
 		</div>
 	);
 }
@@ -507,11 +485,14 @@ function Evidence({
 	sourceHref: string | null;
 }) {
 	const [expanded, setExpanded] = useState(!initiallyCollapsed);
+	const evidenceId = useId();
 
 	return (
 		<div>
 			<div className="flex items-center justify-between gap-3">
 				<Button
+					aria-controls={evidenceId}
+					aria-expanded={expanded}
 					onClick={() => setExpanded((open) => !open)}
 					size="sm"
 					type="button"
@@ -519,6 +500,7 @@ function Evidence({
 				>
 					Evidence
 					<CaretDownIcon
+						aria-hidden
 						className={expanded ? "rotate-180" : undefined}
 						weight="bold"
 					/>
@@ -529,12 +511,12 @@ function Evidence({
 						href={sourceHref}
 					>
 						View source
-						<ArrowSquareOutIcon className="size-3" />
+						<ArrowSquareOutIcon aria-hidden className="size-3" />
 					</Link>
 				) : null}
 			</div>
 			{expanded ? (
-				<ul className="mt-1 space-y-1">
+				<ul className="mt-1 space-y-1" id={evidenceId}>
 					{evidence.map((entry) => (
 						<li
 							className="flex gap-2 text-muted-foreground text-sm leading-relaxed"

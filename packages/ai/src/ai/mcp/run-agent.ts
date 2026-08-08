@@ -31,6 +31,7 @@ export interface RunMcpAgentOptions {
 	memoryUserId?: string | null;
 	modelOverride?: string | null;
 	mutationMode?: AppMutationMode;
+	onToolEvent?: (toolNames: string[]) => void;
 	priorMessages?: Array<{ role: "user" | "assistant"; content: string }>;
 	question: string;
 	requestHeaders: Headers;
@@ -337,6 +338,10 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 		experimental_context: config.experimental_context,
 		onStepFinish: (step) => {
 			capturedSteps.push(step);
+			const toolNames = step.toolCalls.map((call) => call.toolName);
+			if (toolNames.length > 0) {
+				options.onToolEvent?.(toolNames);
+			}
 		},
 		experimental_telemetry: {
 			isEnabled: true,

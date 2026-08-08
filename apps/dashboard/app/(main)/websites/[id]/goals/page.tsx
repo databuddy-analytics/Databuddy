@@ -178,7 +178,7 @@ export default function GoalsPage() {
 						description: data.description || undefined,
 						type: data.type,
 						target: data.target,
-						filters: data.filters,
+						filters: data.filters ?? undefined,
 						ignoreHistoricData:
 							"ignoreHistoricData" in data
 								? data.ignoreHistoricData
@@ -191,7 +191,7 @@ export default function GoalsPage() {
 					description: data.description || undefined,
 					type: data.type,
 					target: data.target,
-					filters: data.filters,
+					filters: data.filters ?? undefined,
 					ignoreHistoricData:
 						"ignoreHistoricData" in data ? data.ignoreHistoricData : undefined,
 					websiteId,

@@ -1,0 +1,7 @@
+{
+  "extends": "../../tsconfig/default.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "remotion.config.ts"]
+}

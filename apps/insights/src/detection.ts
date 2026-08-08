@@ -8,6 +8,25 @@ import { emitInsightsEvent } from "./lib/evlog-insights";
 dayjs.extend(utcPlugin);
 dayjs.extend(timezonePlugin);
 
+/**
+ * A bounded, canonical telemetry target that an investigation agent may use
+ * when proposing measurement setup. It deliberately excludes raw paths,
+ * query strings, and dynamic identifiers.
+ */
+export type MeasurementCandidate =
+	| {
+			basis: "observed_custom_event";
+			kind: "event_goal_candidate";
+			target: string;
+			type: "EVENT";
+	  }
+	| {
+			basis: "observed_navigation_proxy";
+			kind: "page_navigation_proxy";
+			target: string;
+			type: "PAGE_VIEW";
+	  };
+
 export interface DetectedSignal {
 	baseline: number;
 	baselineDates?: string[];
@@ -19,6 +38,7 @@ export interface DetectedSignal {
 	entityId?: string;
 	entityLabel?: string;
 	label: string;
+	measurementCandidate?: MeasurementCandidate;
 	method: "zscore" | "wow";
 	metric: string;
 	severity: "critical" | "warning" | "info";
@@ -125,7 +145,7 @@ const MATERIAL_VOLUME_DROP_PERCENT = 60;
 const ADAPTIVE_CV_SCALE = 200;
 const DETECTOR_RETRY_DELAY_MS = 100;
 
-const VITALS = {
+export const INSIGHT_VITALS = {
 	LCP: {
 		badThreshold: 2500,
 		label: "Page load time (LCP)",
@@ -137,6 +157,7 @@ const VITALS = {
 		maxPlausible: 10_000,
 	},
 } as const;
+const VITALS = INSIGHT_VITALS;
 const VITALS_MIN_SAMPLES = 10;
 
 export function wowWindow(today: dayjs.Dayjs, lookbackDays: number) {
@@ -499,7 +520,7 @@ export async function remeasureMetricSignal(
 		signal.subjectKey = prior.signalKey;
 		signal.entityId = fingerprint;
 		signal.entityLabel = label;
-		signal.definitionEvidence = `${label} occurred ${signal.current} times and affected ${numberField(currentRow, "users")} users, compared with ${signal.baseline} occurrences affecting ${numberField(previousRow, "users")} users previously.`;
+		signal.definitionEvidence = `${label} occurred ${signal.current} times across ${numberField(currentRow, "users")} visitor identifiers, compared with ${signal.baseline} occurrences across ${numberField(previousRow, "users")} visitor identifiers previously.`;
 		return signal;
 	}
 
@@ -1055,7 +1076,7 @@ async function detectWow(
 		signal.subjectKey = `error:${fingerprint}`;
 		signal.entityId = fingerprint;
 		signal.entityLabel = label;
-		signal.definitionEvidence = `${label} occurred ${current} times and affected ${numberField(currentRow, "users")} users, compared with ${previous} occurrences affecting ${numberField(previousRow, "users")} users previously.`;
+		signal.definitionEvidence = `${label} occurred ${current} times across ${numberField(currentRow, "users")} visitor identifiers, compared with ${previous} occurrences across ${numberField(previousRow, "users")} visitor identifiers previously.`;
 		signals.push(signal);
 	}
 

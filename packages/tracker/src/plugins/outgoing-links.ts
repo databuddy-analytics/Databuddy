@@ -47,6 +47,8 @@ export function initOutgoingLinksTracking(tracker: BaseTracker): () => void {
 					text: link.innerText || link.title || "",
 					...tracker.getBaseContext(),
 				},
+				// The click may navigate immediately. Keep the acknowledged fetch alive
+				// long enough for the browser to finish this single-event request.
 				{ keepalive: true },
 				{ client_id: tracker.options.clientId }
 			);

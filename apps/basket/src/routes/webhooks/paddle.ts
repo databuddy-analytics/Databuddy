@@ -3,6 +3,7 @@ import { clickHouse } from "@databuddy/db/clickhouse";
 import { Elysia } from "elysia";
 import { evlog, useLogger } from "evlog/elysia";
 import { getDailySalt, saltAnonymousId } from "@lib/security";
+import { basketErrors } from "@lib/structured-errors";
 import { sanitizeString, VALIDATION_LIMITS } from "@utils/validation";
 import { formatDate, getWebhookConfig, resolveWebsiteId } from "./shared";
 
@@ -195,7 +196,7 @@ async function handleTransaction(
 
 export const paddleWebhook = new Elysia().use(evlog()).post(
 	"/webhooks/paddle/:hash",
-	async ({ params, request, set }) => {
+	async ({ params, request }) => {
 		const log = useLogger();
 		log.set({ provider: "paddle", webhookHash: params.hash });
 
@@ -203,8 +204,7 @@ export const paddleWebhook = new Elysia().use(evlog()).post(
 
 		if ("error" in result) {
 			log.set({ configError: result.error });
-			set.status = 404;
-			return { error: "Webhook endpoint not found" };
+			throw basketErrors.webhookEndpointNotFound();
 		}
 
 		log.set({ ownerId: result.ownerId, websiteId: result.websiteId });
@@ -212,8 +212,7 @@ export const paddleWebhook = new Elysia().use(evlog()).post(
 		const signature = request.headers.get("paddle-signature");
 		if (!signature) {
 			log.set({ signatureError: "missing_header" });
-			set.status = 400;
-			return { error: "Missing paddle-signature header" };
+			throw basketErrors.webhookMissingSignature();
 		}
 
 		const body = await request.text();
@@ -226,8 +225,7 @@ export const paddleWebhook = new Elysia().use(evlog()).post(
 		if (!verification.valid) {
 			log.warn("Paddle signature verification failed");
 			log.set({ signatureError: verification.error });
-			set.status = 401;
-			return { error: "Invalid webhook signature" };
+			throw basketErrors.webhookInvalidSignature();
 		}
 
 		let event: PaddleEvent;
@@ -235,8 +233,7 @@ export const paddleWebhook = new Elysia().use(evlog()).post(
 			event = JSON.parse(body);
 		} catch {
 			log.set({ parseError: "invalid_json" });
-			set.status = 400;
-			return { error: "Invalid JSON payload" };
+			throw basketErrors.webhookInvalidPayload();
 		}
 
 		log.set({ eventType: event.event_type });
@@ -251,8 +248,7 @@ export const paddleWebhook = new Elysia().use(evlog()).post(
 			return { received: true, type: event.event_type };
 		} catch (error) {
 			log.error(error instanceof Error ? error : new Error(String(error)));
-			set.status = 500;
-			return { error: "Failed to process webhook event" };
+			throw basketErrors.webhookProcessingFailed();
 		}
 	},
 	{ parse: "none" }

@@ -41,11 +41,8 @@ export const SIGNUP_METHODS = [
 
 export type AppEventName = (typeof APP_EVENTS)[keyof typeof APP_EVENTS];
 export type EmptyAppEventName =
-	| typeof APP_EVENTS.onboardingCompleted
-	| typeof APP_EVENTS.onboardingStarted
 	| typeof APP_EVENTS.onboardingTrackingCheckStatus
-	| typeof APP_EVENTS.onboardingTrackingVerified
-	| typeof APP_EVENTS.onboardingWebsiteCreated;
+	| typeof APP_EVENTS.onboardingTrackingVerified;
 export type AppEventNameWithProperties = Exclude<
 	AppEventName,
 	EmptyAppEventName
@@ -64,8 +61,12 @@ export interface SignupEventProperties extends MarketingProperties {
 	plan?: string;
 }
 
+export interface OnboardingAttributionProperties extends MarketingProperties {
+	plan?: string;
+}
+
 export interface AppEventProperties {
-	[APP_EVENTS.onboardingCompleted]: EmptyProperties;
+	[APP_EVENTS.onboardingCompleted]: OnboardingAttributionProperties;
 	[APP_EVENTS.onboardingInviteSent]: {
 		invite_count: number;
 		role: "admin" | "member";
@@ -74,7 +75,7 @@ export interface AppEventProperties {
 		skipped_at_step: OnboardingStepId;
 		step_number: number;
 	};
-	[APP_EVENTS.onboardingStarted]: EmptyProperties;
+	[APP_EVENTS.onboardingStarted]: OnboardingAttributionProperties;
 	[APP_EVENTS.onboardingStepCompleted]: {
 		step: OnboardingStepId;
 		verified?: boolean;
@@ -89,7 +90,7 @@ export interface AppEventProperties {
 		method: "ai" | "script" | "sdk";
 	};
 	[APP_EVENTS.onboardingTrackingVerified]: EmptyProperties;
-	[APP_EVENTS.onboardingWebsiteCreated]: EmptyProperties;
+	[APP_EVENTS.onboardingWebsiteCreated]: OnboardingAttributionProperties;
 	[APP_EVENTS.signupCompleted]: SignupEventProperties;
 	[APP_EVENTS.signupStarted]: SignupEventProperties;
 }

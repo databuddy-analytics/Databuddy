@@ -4,6 +4,17 @@ import { file as BunFile, serve } from "bun";
 const PORT = 3033;
 const BASE_DIR = import.meta.dir;
 const HTML_HEADERS = { "Content-Type": "text/html" };
+const BEACON_PATHS = new Set(["/batch", "/errors", "/track", "/vitals"]);
+
+interface BeaconRequest {
+	body: string;
+	clientId: string | null;
+	contentType: string;
+	method: string;
+	path: string;
+}
+
+const beaconRequests: BeaconRequest[] = [];
 
 const TEST_PAGE_HTML = `<!DOCTYPE html>
                 <html lang="en">
@@ -240,9 +251,55 @@ async function serveDistFile(pathname: string): Promise<Response> {
 	return new Response(`File not found: ${filePath}`, { status: 404 });
 }
 
-function handleRequest(req: Request): Response | Promise<Response> {
+function corsHeaders(req: Request): Record<string, string> {
+	return {
+		"Access-Control-Allow-Credentials": "true",
+		"Access-Control-Allow-Headers": "content-type",
+		"Access-Control-Allow-Methods": "POST, OPTIONS",
+		"Access-Control-Allow-Origin": req.headers.get("origin") ?? "*",
+	};
+}
+
+async function handleRequest(req: Request): Promise<Response> {
 	const url = new URL(req.url);
 	console.log(`[Test Server] Request: ${req.method} ${url.pathname}`);
+
+	if (url.pathname === "/__test/beacons") {
+		const clientId = url.searchParams.get("client_id");
+		const path = url.searchParams.get("path");
+		return Response.json({
+			requests: beaconRequests.filter(
+				(request) =>
+					(!clientId || request.clientId === clientId) &&
+					(!path || request.path === path)
+			),
+		});
+	}
+
+	if (BEACON_PATHS.has(url.pathname) && req.method === "OPTIONS") {
+		beaconRequests.push({
+			body: "",
+			clientId: url.searchParams.get("client_id"),
+			contentType: req.headers.get("content-type") ?? "",
+			method: req.method,
+			path: url.pathname,
+		});
+		return new Response(null, { status: 204, headers: corsHeaders(req) });
+	}
+
+	if (BEACON_PATHS.has(url.pathname) && req.method === "POST") {
+		beaconRequests.push({
+			body: await req.text(),
+			clientId: url.searchParams.get("client_id"),
+			contentType: req.headers.get("content-type") ?? "",
+			method: req.method,
+			path: url.pathname,
+		});
+		if (beaconRequests.length > 2000) {
+			beaconRequests.splice(0, beaconRequests.length - 2000);
+		}
+		return Response.json({ success: true }, { headers: corsHeaders(req) });
+	}
 
 	if (url.pathname === "/test") {
 		return new Response(TEST_PAGE_HTML, { headers: HTML_HEADERS });
@@ -253,7 +310,7 @@ function handleRequest(req: Request): Response | Promise<Response> {
 	}
 
 	if (url.pathname.startsWith("/dist/")) {
-		return serveDistFile(url.pathname);
+		return await serveDistFile(url.pathname);
 	}
 
 	return new Response("Not Found", { status: 404 });

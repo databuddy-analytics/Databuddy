@@ -1,5 +1,10 @@
+import {
+	type DeepLinkApp,
+	isDeepLinkTarget,
+} from "@databuddy/shared/constants/deep-link-apps";
 import { z } from "zod";
 import { DOMAIN_REGEX, SLUG_REGEX } from "./link-constants";
+import { ensureProtocol } from "./link-utils";
 
 export const linkFormSchema = z.object({
 	name: z
@@ -64,6 +69,23 @@ export const linkFormSchema = z.object({
 });
 
 export type LinkFormData = z.infer<typeof linkFormSchema>;
+
+export function createDeepLinkFormSchema(app: DeepLinkApp) {
+	return linkFormSchema
+		.pick({ folderId: true, name: true, slug: true })
+		.extend({
+			targetUrl: z
+				.string()
+				.min(1, "URL is required")
+				.refine((value) => isDeepLinkTarget(app.id, ensureProtocol(value)), {
+					message: `URL must be an HTTPS ${app.name} link`,
+				}),
+		});
+}
+
+export type DeepLinkFormData = z.infer<
+	ReturnType<typeof createDeepLinkFormSchema>
+>;
 
 export type ExpandedSection =
 	| "expiration"

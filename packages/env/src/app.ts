@@ -23,6 +23,11 @@ const URLS = {
 		local: "http://localhost:3000",
 		env: ["DASHBOARD_URL", "NEXT_PUBLIC_APP_URL", "BETTER_AUTH_URL"],
 	},
+	links: {
+		cloud: "https://dby.sh",
+		local: "http://localhost:2500",
+		env: ["LINKS_URL", "NEXT_PUBLIC_LINKS_URL"],
+	},
 	status: {
 		cloud: "https://status.databuddy.cc",
 		local: "http://localhost:3002",
@@ -64,6 +69,7 @@ export interface Config {
 		api: string;
 		basket: string;
 		dashboard: string;
+		links: string;
 		status: string;
 	};
 }
@@ -142,6 +148,7 @@ export function createConfig(env: Env = process.env): Config {
 			api: readUrl(env, URLS.api),
 			basket: readUrl(env, URLS.basket),
 			dashboard: dashboardUrl,
+			links: readUrl(env, URLS.links),
 			status: readUrl(env, URLS.status),
 		},
 	};

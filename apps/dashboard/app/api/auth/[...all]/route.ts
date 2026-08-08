@@ -3,8 +3,8 @@ import {
 	runWithAuthAuditContext,
 	runWithAuthTransaction,
 } from "@databuddy/auth";
+import { getTrustedClientIp } from "@databuddy/shared/utils/trusted-client-ip";
 import { toNextJsHandler } from "better-auth/next-js";
-import { getTrustedClientIp } from "@/lib/trusted-client-ip";
 
 const handlers = toNextJsHandler(auth.handler);
 

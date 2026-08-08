@@ -1,7 +1,7 @@
 import { createError, defineErrorCatalog, EvlogError, parseError } from "evlog";
 import type { z } from "zod";
 
-export const basketErrorCatalog = defineErrorCatalog("basket", {
+const BASKET_ERROR_SPEC = {
 	TRACK_PAYLOAD_TOO_LARGE: {
 		message: "Payload too large",
 		status: 413,
@@ -140,13 +140,54 @@ export const basketErrorCatalog = defineErrorCatalog("basket", {
 		why: "The event quota could not be verified before ingestion.",
 		fix: "Retry after the billing provider is reachable.",
 	},
+	WEBHOOK_ENDPOINT_NOT_FOUND: {
+		message: "Webhook endpoint not found",
+		status: 404,
+		why: "The webhook URL does not match an active revenue configuration.",
+		fix: "Use the webhook URL configured in Databuddy.",
+	},
+	WEBHOOK_MISSING_SIGNATURE: {
+		message: "Webhook signature header is required",
+		status: 400,
+		why: "The provider did not send its signature header.",
+		fix: "Send the event through the configured payment provider.",
+	},
+	WEBHOOK_INVALID_SIGNATURE: {
+		message: "Invalid webhook signature",
+		status: 401,
+		why: "The payload could not be verified with the configured webhook secret.",
+		fix: "Confirm that the webhook secret matches the provider configuration.",
+	},
+	WEBHOOK_INVALID_PAYLOAD: {
+		message: "Invalid webhook payload",
+		status: 400,
+		why: "The verified webhook body was not valid JSON.",
+		fix: "Send the unmodified JSON payload from the payment provider.",
+	},
+	WEBHOOK_PROCESSING_FAILED: {
+		message: "Failed to process webhook event",
+		status: 500,
+		why: "Databuddy could not persist the provider event.",
+		fix: "Retry delivery after the service is available.",
+	},
 	INVALID_EVENT_SCHEMA: {
 		message: "Invalid event schema",
 		status: 400,
 		why: "The JSON did not match the expected event shape.",
 		fix: "Correct the fields listed in errors and retry.",
 	},
-});
+} as const;
+
+export const basketErrorCatalog = defineErrorCatalog(
+	"basket",
+	BASKET_ERROR_SPEC
+);
+
+export const CLIENT_ERROR_MESSAGES: ReadonlySet<string> = new Set(
+	Object.values(BASKET_ERROR_SPEC)
+		.filter((entry) => entry.status >= 400 && entry.status < 500)
+		.map((entry) => entry.message)
+);
 
 declare module "evlog" {
 	interface RegisteredErrorCatalogs {
@@ -179,6 +220,11 @@ export const basketErrors = {
 	ingestBatchTooLarge: basketErrorCatalog.INGEST_BATCH_TOO_LARGE,
 	billingLimitExceeded: basketErrorCatalog.BILLING_LIMIT_EXCEEDED,
 	billingCheckUnavailable: basketErrorCatalog.BILLING_CHECK_UNAVAILABLE,
+	webhookEndpointNotFound: basketErrorCatalog.WEBHOOK_ENDPOINT_NOT_FOUND,
+	webhookMissingSignature: basketErrorCatalog.WEBHOOK_MISSING_SIGNATURE,
+	webhookInvalidSignature: basketErrorCatalog.WEBHOOK_INVALID_SIGNATURE,
+	webhookInvalidPayload: basketErrorCatalog.WEBHOOK_INVALID_PAYLOAD,
+	webhookProcessingFailed: basketErrorCatalog.WEBHOOK_PROCESSING_FAILED,
 };
 
 export type IngestSchemaValidationError = EvlogError & {
@@ -190,6 +236,21 @@ export function createIngestSchemaValidationError(
 ): IngestSchemaValidationError {
 	const err = basketErrorCatalog.INVALID_EVENT_SCHEMA();
 	return Object.assign(err, { issues });
+}
+
+/**
+ * A request must not report success while its telemetry could not be durably
+ * admitted. Callers return this 503 so SDKs and queueing clients retry.
+ */
+export function deliveryUnavailable(cause: unknown) {
+	return createError({
+		code: "basket.DELIVERY_UNAVAILABLE",
+		message: "Analytics delivery temporarily unavailable",
+		status: 503,
+		why: "Databuddy could not durably accept the event.",
+		fix: "Retry the same event after a short delay.",
+		cause: cause instanceof Error ? cause : new Error(String(cause)),
+	});
 }
 
 export function isIngestSchemaValidationError(

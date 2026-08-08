@@ -1,17 +1,21 @@
 import { Assistant, type App } from "@slack/bolt";
-import { and, db, desc, eq } from "@databuddy/db";
+import { and, db, desc, eq, or, sql } from "@databuddy/db";
 import {
 	insightObservations,
 	insightRunEffects,
 	insightRunItems,
+	websites,
 } from "@databuddy/db/schema";
 import { createRPCContext } from "@databuddy/rpc";
 import { appendInvestigationReply } from "@databuddy/rpc/insights";
 import type { DatabuddyAgentClient, SlackAgentRun } from "@/agent/agent-client";
+import { type ConnectedSite, buildAppHomeView } from "@/slack/app-home";
 import { createSlackEventLog } from "@/lib/evlog-slack";
 import { abortSlackActiveRun } from "@/slack/active-runs";
 import { getSlackChannelMentionPolicy } from "@/slack/channel-policy";
-import { logSlackReactionFeedback } from "@/slack/feedback";
+import { DRILLDOWN_ACTION_ID, FEEDBACK_ACTION_ID } from "@/slack/blocks";
+import { parseDrilldownRun } from "@/slack/drilldown";
+import { handleSlackFeedbackAction } from "@/slack/feedback";
 import type { SlackInstallationServices } from "@/slack/installations";
 import {
 	createRecentDedupe,
@@ -22,7 +26,11 @@ import {
 	toSlackMessage,
 	toThreadTitle,
 } from "@/slack/message-routing";
-import { SLACK_COPY, SLACK_SUGGESTED_PROMPTS } from "@/slack/messages";
+import {
+	SLACK_COPY,
+	SLACK_LOADING_MESSAGES,
+	SLACK_SUGGESTED_PROMPTS,
+} from "@/slack/messages";
 import { handleAgentRun } from "@/slack/run-handler";
 import { createSlackConversationContext } from "@/slack/slack-context";
 import {
@@ -109,7 +117,7 @@ function createDatabuddyAssistant({
 
 			await setTitle(toThreadTitle(text));
 			await setStatus({
-				loading_messages: [SLACK_COPY.streamOpening],
+				loading_messages: [...SLACK_LOADING_MESSAGES],
 				status: "is thinking...",
 			});
 
@@ -146,6 +154,21 @@ export function registerSlackListeners(
 	const dedupe = createRecentDedupe();
 
 	app.assistant(createDatabuddyAssistant({ agent, dedupe, threadQueue }));
+
+	app.event("app_home_opened", async ({ client, context, event, logger }) => {
+		if (event.tab !== "home") {
+			return;
+		}
+		try {
+			const sites = await fetchConnectedSites(installations, context.teamId);
+			await client.views.publish({
+				user_id: event.user,
+				view: buildAppHomeView(sites),
+			});
+		} catch (error) {
+			logger.warn("Failed to publish Slack App Home", error);
+		}
+	});
 
 	app.event(
 		"app_mention",
@@ -403,7 +426,72 @@ export function registerSlackListeners(
 	});
 
 	registerSlackCommands(app, installations);
-	registerSlackReactionFeedback(app, installations);
+	registerSlackFeedbackButtons(app, installations);
+	registerSlackDrilldown(app, agent, threadQueue);
+}
+
+function registerSlackDrilldown(
+	app: App,
+	agent: Pick<DatabuddyAgentClient, "stream">,
+	threadQueue: SlackThreadQueueStore
+) {
+	app.action(
+		DRILLDOWN_ACTION_ID,
+		async ({ ack, action, body, client, context, logger }) => {
+			await ack();
+			const run = parseDrilldownRun(body, action, context.teamId);
+			if (!run) {
+				return;
+			}
+			const say: SlackSay = (message) =>
+				client.chat.postMessage({ channel: run.channelId, ...message });
+			const slackContext = createSlackConversationContext(client, run);
+			await threadQueue.markEngaged(run);
+			await handleAgentRun({
+				agent,
+				client,
+				logger,
+				run: { ...run, slackContext },
+				say,
+				threadQueue,
+			});
+		}
+	);
+}
+
+function registerSlackFeedbackButtons(
+	app: App,
+	installations: SlackInstallationServices
+) {
+	app.action(
+		FEEDBACK_ACTION_ID,
+		async ({ ack, action, body, context, logger }) => {
+			await ack();
+			await handleSlackFeedbackAction({
+				action,
+				body,
+				installations,
+				logger,
+				teamId: context.teamId,
+			});
+		}
+	);
+}
+
+async function fetchConnectedSites(
+	installations: Pick<SlackInstallationServices, "getTeamContext">,
+	teamId?: string
+): Promise<ConnectedSite[]> {
+	const context = await installations.getTeamContext(teamId);
+	if (!context) {
+		return [];
+	}
+	return await db
+		.select({ domain: websites.domain, name: websites.name })
+		.from(websites)
+		.where(eq(websites.organizationId, context.organizationId))
+		.orderBy(websites.domain)
+		.limit(25);
 }
 
 async function handleInvestigationThreadReply({
@@ -442,7 +530,14 @@ async function handleInvestigationThreadReply({
 		.where(
 			and(
 				eq(insightRunEffects.externalId, run.threadTs),
-				eq(insightRunEffects.effectKey, run.channelId),
+				or(
+					eq(insightRunEffects.effectKey, run.channelId),
+					sql`${insightRunEffects.payload}->>'channelId' = ${run.channelId}`
+				),
+				or(
+					sql`${insightRunEffects.payload}->>'insightId' = ${insightObservations.insightId}`,
+					sql`${insightRunEffects.payload}->>'insightId' is null`
+				),
 				eq(insightRunEffects.status, "succeeded"),
 				eq(insightRunItems.organizationId, resolved.organizationId)
 			)
@@ -543,27 +638,6 @@ function registerSlackCommands(
 		await ack();
 		await respondToBindCommand({ command, installations, logger, respond });
 	});
-}
-
-function registerSlackReactionFeedback(
-	app: App,
-	installations: SlackInstallationServices
-) {
-	for (const [eventName, action] of [
-		["reaction_added", "added"],
-		["reaction_removed", "removed"],
-	] as const) {
-		app.event(eventName, async ({ context, event, logger }) => {
-			await logSlackReactionFeedback({
-				action,
-				botUserId: context.botUserId,
-				event,
-				installations,
-				logger,
-				teamId: context.teamId,
-			});
-		});
-	}
 }
 
 function getMentionSourceTeamId(event: {

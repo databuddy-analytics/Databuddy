@@ -2,8 +2,9 @@
 
 The `.sql` files in this directory are reference definitions for the deployed
 ClickHouse schema. `ch:verify` compares their columns, secondary indexes,
-engine (including the Keeper path), partition and sorting keys, and settings
-with the live cluster. One file exists per object and is named after it.
+engine (including the Keeper path), partition, primary and sorting keys, and
+settings with the live cluster. One file exists per object and is named after
+it.
 
 ## Layout
 
@@ -31,6 +32,36 @@ an existing object's indexes, sorting key, engine, or Keeper path.
 All tables use the `Replicated*MergeTree` engine family with `{shard}` /
 `{replica}` macros, matching the production cluster. Single-node deployments
 need ClickHouse Keeper enabled (a one-node Keeper is fine).
+
+The Basket/Vector delivery tables use `ReplicatedReplacingMergeTree` with a
+stable row identity and an `ingested_at` version. Background merges reclaim
+duplicate storage asynchronously; the shared ClickHouse readers add `FINAL`
+through a scoped query setting without changing unrelated MergeTree reads. A
+delivery table's complete sorting key is its tenant plus stable row identity;
+mutable timestamps, routes, event names, and metric names are payload, not
+replacement identity. This lets `FINAL` collapse a retry even if normalization
+changed one of those values.
+
+The tables remain partitioned by analytics time for retention. Producers must
+therefore still preserve one analytics timestamp for every stable identity so
+time-filtered reads cannot prune a different version's partition. Vector keeps
+Kafka record time in `kafka_timestamp`, leaving the analytics payload timestamp
+unchanged across exact-message retries. The production cutover globally
+canonicalizes historical timestamp variants before enabling the reference
+schema. Readers retain ClickHouse's default cross-partition `FINAL` behavior;
+it is required for unbounded validation and for joins whose logical versions
+can span partitions, but it is not a substitute for the producer timestamp
+invariant on partition-pruned reads.
+
+Custom events, error spans, and web-vital spans may contain historical rows
+created before `delivery_id` existed. Their materialized `delivery_key` gives
+every empty legacy ID a unique key while mapping every non-empty delivery ID to
+a stable key. This prevents a migration from collapsing unrelated legacy rows.
+
+`analytics.daily_pageviews` stores one identity-bearing row per pageview rather
+than aggregating raw insert blocks. This is deliberate: an incremental view
+over a replayed block runs before a `ReplacingMergeTree` merge and would
+otherwise reintroduce duplicate counts.
 
 ## Unmanaged legacy objects
 

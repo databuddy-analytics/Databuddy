@@ -25,7 +25,10 @@ export function getProxiedImageUrl(url: string): string {
 	if (!url) {
 		return "";
 	}
-	if (url.startsWith("/") || isTrustedImageHost(url)) {
+	if (
+		(url.startsWith("/") && !url.startsWith("//")) ||
+		isTrustedImageHost(url)
+	) {
 		return url;
 	}
 	return `/api/image-proxy?url=${encodeURIComponent(url)}`;

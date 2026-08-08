@@ -14,7 +14,7 @@ export function useInsightsFeed() {
 	const orgId = activeOrganization?.id ?? activeOrganizationId ?? undefined;
 
 	const historyInfinite = useInfiniteQuery(
-		insightQueries.historyInfinite(orgId)
+		insightQueries.historyInfinite(orgId, "open")
 	);
 
 	const insights =

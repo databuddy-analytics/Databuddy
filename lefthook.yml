@@ -35,6 +35,20 @@ pre-commit:
           git add packages/db/src/clickhouse/schema/tables.generated.ts
         fi
         bun run check-types
+    policy-lint:
+      glob:
+        - "apps/dashboard/**/*.{css,ts,tsx}"
+        - "apps/api/**/*.{ts,tsx}"
+        - "apps/basket/**/*.{ts,tsx}"
+        - "apps/links/**/*.{ts,tsx}"
+        - "apps/uptime/**/*.{ts,tsx}"
+        - "scripts/lint-policy.ts"
+      run: bun scripts/lint-policy.ts --staged
+    format:
+      glob:
+        - "**/*.{ts,tsx,js,jsx,mjs,cjs,json,jsonc,css}"
+      run: bunx ultracite check {staged_files}
+      fail_text: "Formatting/lint issues found. Run: bun run format"
     lockfile-check:
       glob:
         - "**/package.json"

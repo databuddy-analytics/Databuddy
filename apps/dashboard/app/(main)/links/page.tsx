@@ -11,7 +11,6 @@ import {
 	useLinkFolders,
 	useLinksPaginated,
 } from "@/hooks/use-links";
-import { useFlags } from "@databuddy/sdk/react";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -77,8 +76,6 @@ function LinksPageContent() {
 		useOrganizationsContext();
 	const organizationName = activeOrganization?.name ?? "this organization";
 
-	const { isOn } = useFlags();
-	const deepLinksEnabled = isOn("deeplinks");
 	const [debouncedSearch] = useDebouncedValue(search, { wait: 250 });
 
 	const {
@@ -195,8 +192,8 @@ function LinksPageContent() {
 									{isSwitchingOrganization
 										? "Switching organization…"
 										: emptyWorkspace
-											? `${organizationName} does not have any links yet. Create short links with organization-wide analytics.`
-											: `Short links for ${organizationName} · Free while in beta`}
+											? `${organizationName} does not have any links yet. Create short or deep links with organization-wide analytics.`
+											: `Short and deep links for ${organizationName} · Free while in beta`}
 								</Card.Description>
 							</div>
 							<div className="flex shrink-0 items-center gap-2">
@@ -209,39 +206,28 @@ function LinksPageContent() {
 									<ArchiveIcon className="size-3.5" weight="duotone" />
 									Folder
 								</Button>
-								{deepLinksEnabled ? (
-									<DropdownMenu>
-										<DropdownMenu.Trigger
-											className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md bg-primary px-3 font-medium text-primary-foreground text-sm transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-70"
-											disabled={!canMutateWorkspace}
-										>
-											<PlusIcon size={14} />
-											New Link
-										</DropdownMenu.Trigger>
-										<DropdownMenu.Content align="end" className="w-44">
-											<DropdownMenu.Item className="gap-2" onClick={openCreate}>
-												<LinkSimpleIcon className="size-4" weight="duotone" />
-												Short Link
-											</DropdownMenu.Item>
-											<DropdownMenu.Item
-												className="gap-2"
-												onClick={() => setActiveDialog({ type: "deep-link" })}
-											>
-												<RocketIcon className="size-4" weight="duotone" />
-												Deep Link
-											</DropdownMenu.Item>
-										</DropdownMenu.Content>
-									</DropdownMenu>
-								) : (
-									<Button
+								<DropdownMenu>
+									<DropdownMenu.Trigger
+										className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md bg-primary px-3 font-medium text-primary-foreground text-sm transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-70"
 										disabled={!canMutateWorkspace}
-										onClick={openCreate}
-										size="sm"
 									>
 										<PlusIcon size={14} />
 										New Link
-									</Button>
-								)}
+									</DropdownMenu.Trigger>
+									<DropdownMenu.Content align="end" className="w-44">
+										<DropdownMenu.Item className="gap-2" onClick={openCreate}>
+											<LinkSimpleIcon className="size-4" weight="duotone" />
+											Short Link
+										</DropdownMenu.Item>
+										<DropdownMenu.Item
+											className="gap-2"
+											onClick={() => setActiveDialog({ type: "deep-link" })}
+										>
+											<RocketIcon className="size-4" weight="duotone" />
+											Deep Link
+										</DropdownMenu.Item>
+									</DropdownMenu.Content>
+								</DropdownMenu>
 							</div>
 						</Card.Header>
 						<Card.Content className="p-0">
@@ -261,7 +247,6 @@ function LinksPageContent() {
 										<LinksSearchBar
 											folderId={folderId}
 											folders={folders}
-											hasDeepLinks={deepLinksEnabled}
 											onFolderChangeAction={setFolderId}
 											onSearchQueryChangeAction={setSearch}
 											onSortByChangeAction={setSort}

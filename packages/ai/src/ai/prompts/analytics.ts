@@ -96,6 +96,7 @@ Other types:
 - link-preview: {"type":"link-preview","mode":"create","link":{"name":"…","targetUrl":"…","slug":"…","expiresAt":"Never"}}
 - feedback-preview: {"type":"feedback-preview","mode":"offer","feedback":{"title":"…","category":"bug_report","description":"…"}} — emit with mode "offer" when offering to send feedback (instead of restating the report in prose; the card has a send button), and again with mode "sent" as the receipt after submit_feedback succeeds. category: bug_report | feature_request | ux_improvement | performance | documentation | other.
 - dashboard-actions: clickable dashboard navigation. In the dashboard agent, call dashboard_actions instead of writing this JSON. Prefer safe relative hrefs. Known semantic targets are only shortcuts: website.dashboard, website.realtime, website.audience, website.events, website.events.stream, website.event (requires eventName), website.funnels, website.goals, website.users, website.errors, website.vitals, website.map, website.flags, website.revenue, website.settings.tracking, website.agent, global.events, global.events.stream, links, insights, websites, home. Include params/filters only when they materially scope the destination.
+- suggested-actions: {"type":"suggested-actions","actions":[{"label":"Break down by referrer","prompt":"break /pricing down by referrer"}]} — offer 1-3 tailored follow-up questions as buttons. label is the button text (short); prompt is the exact question run when clicked. Only offer genuinely useful next steps, never generic filler.
 
 Rules: Pick JSON component OR markdown table for the same data, never both. Output the raw JSON directly on its own line with no surrounding markup. NEVER wrap in \`\`\`json code fences.
 </agent-specific-rules>
@@ -191,7 +192,8 @@ Routing:
 Output discipline:
 - Use only values from this turn's tool results. Render a Slack delivery's channelId as \`<#CHANNELID>\`.
 - Skip preamble. Lead with the receipt itself. NEVER start with "Sure", "Got it", "Done.", "Done!", "Great", "Perfect", "Here's", "Thinking", "I've routed", "I've set up", "I've configured", "Let me", "I'll", or any acknowledgement of the user's message.
-- Default reply: 1-2 short sentences for receipts, up to 3-6 short sentences for metric summaries. No headings/report formatting unless asked. No dashboard JSON. No invented numbers. No marketing or re-pitch.
+- Default reply: 1-2 short sentences for receipts, up to 3-6 short sentences for metric summaries. No headings/report formatting unless asked. No invented numbers. No marketing or re-pitch.
+- Slack cannot render markdown/ASCII tables — they show as broken stacked text. For ANY tabular data (even two rows), emit a data-table component as JSON on its own line, never a markdown table. Use chart/list components for trends and rankings. After a substantive analytics answer you may append one suggested-actions component with tailored drill-down follow-ups.
 - Rewrite/exact-copy tasks => output only the final copy. No labels, options, explanation, or preamble.
 
 - After delivering concrete metrics, you may offer weekly investigations in this channel once. If accepted, call configure_investigations action=configure, channelAction=add, channelId=slack_channel_id, frequency=weekly, confirmed=false, then confirmed=true after approval.

@@ -147,6 +147,12 @@ export const insightRunItems = pgTable(
 		status: text().$type<InsightRunItemStatus>().default("queued").notNull(),
 		attempts: integer().default(0).notNull(),
 		resultCount: integer("result_count").default(0).notNull(),
+		/**
+		 * The deterministic, read-only portfolio chosen before agents run. Keeping
+		 * it on the run item lets retries complete the same work instead of
+		 * rediscovering a different set of signals after telemetry changes.
+		 */
+		candidatePlan: jsonb("candidate_plan").$type<unknown>(),
 		preparedAt: timestamp("prepared_at", {
 			precision: 3,
 			withTimezone: true,
@@ -274,9 +280,10 @@ export const insightObservations = pgTable(
 			.notNull(),
 	},
 	(table) => [
-		uniqueIndex("insight_observations_run_website_uidx").on(
+		uniqueIndex("insight_observations_run_website_signal_uidx").on(
 			table.runId,
-			table.websiteId
+			table.websiteId,
+			table.signalKey
 		),
 		index("insight_observations_site_signal_asof_idx").on(
 			table.organizationId,

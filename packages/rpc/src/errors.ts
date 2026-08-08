@@ -49,6 +49,11 @@ export const baseErrors = {
 		status: 429,
 		data: retrySchema,
 	},
+	SERVICE_UNAVAILABLE: {
+		message: "The service is temporarily unavailable",
+		status: 503,
+		data: retrySchema,
+	},
 	PLAN_LIMIT_EXCEEDED: {
 		message: "You have reached the limit for your current plan",
 		status: 402,
@@ -88,6 +93,12 @@ export const rpcError = {
 		new ORPCError("RATE_LIMITED", {
 			status: 429,
 			message: "Too many requests, please try again later",
+			data: { retryAfter: normalizeRetryAfterSeconds(retryAfter) },
+		}),
+	serviceUnavailable: (retryAfter = 1, message?: string) =>
+		new ORPCError("SERVICE_UNAVAILABLE", {
+			status: 503,
+			message: message ?? "The service is temporarily unavailable",
 			data: { retryAfter: normalizeRetryAfterSeconds(retryAfter) },
 		}),
 	planLimitExceeded: (

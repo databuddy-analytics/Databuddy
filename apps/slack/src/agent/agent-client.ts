@@ -38,7 +38,13 @@ export interface SlackRunContextResolver {
 
 export interface SlackAgentStreamOptions {
 	abortSignal?: AbortSignal;
+	onToolEvent?: (toolNames: string[]) => void;
 }
+
+// Slack streams keep the "thinking" indicator open, and Slack imposes no stream
+// duration limit, so allow multi-site/complex analytics runs well past the 45s
+// default before the outer 5-minute run timeout in run-handler steps in.
+const SLACK_AGENT_TIMEOUT_MS = 120_000;
 
 export interface SlackAgentRunner {
 	stream(
@@ -98,8 +104,10 @@ class SharedDatabuddyAgentRunner implements SlackAgentRunner {
 			conversationId,
 			input: formatSlackAgentInput(run),
 			memoryUserId: createSlackMemoryUserId(run),
+			onToolEvent: options?.onToolEvent,
 			slackContext: run.slackContext,
 			source: "slack",
+			timeoutMs: SLACK_AGENT_TIMEOUT_MS,
 			timezone: "UTC",
 		});
 	}

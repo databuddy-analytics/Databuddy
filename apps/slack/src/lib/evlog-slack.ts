@@ -1,3 +1,4 @@
+import { isRecord } from "@/lib/guards";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -141,8 +142,4 @@ function cleanFields(fields: SlackLogFields): Record<string, SlackLogValue> {
 		}
 	}
 	return clean;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }

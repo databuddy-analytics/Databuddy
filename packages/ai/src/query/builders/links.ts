@@ -87,7 +87,10 @@ export const LinkShortenerBuilders: Record<string, SimpleQueryConfig> = {
 			version: "1.0",
 		},
 		table: Analytics.link_visits,
-		fields: ["count() as total"],
+		// A broker retry can replay an event after an ambiguous Kafka
+		// acknowledgement. Count its immutable id so at-least-once delivery does
+		// not overstate click analytics.
+		fields: ["uniqExact(id) as total"],
 		timeField: "timestamp",
 		idField: "link_id",
 		customizable: false,
@@ -118,7 +121,7 @@ export const LinkShortenerBuilders: Record<string, SimpleQueryConfig> = {
 			version: "1.0",
 		},
 		table: Analytics.link_visits,
-		fields: ["count() as clicks"],
+		fields: ["uniqExact(id) as clicks"],
 		groupBy: ["date"],
 		orderBy: "date ASC",
 		timeField: "timestamp",
@@ -242,7 +245,7 @@ export const LinkShortenerBuilders: Record<string, SimpleQueryConfig> = {
 		fields: [
 			"coalesce(nullIf(referrer, ''), 'Direct') as name",
 			"coalesce(nullIf(referrer, ''), 'Direct') as referrer",
-			"count() as clicks",
+			"uniqExact(id) as clicks",
 		],
 		groupBy: ["referrer"],
 		orderBy: "clicks DESC",
@@ -288,7 +291,7 @@ export const LinkShortenerBuilders: Record<string, SimpleQueryConfig> = {
 		fields: [
 			"coalesce(nullIf(country, ''), 'Unknown') as name",
 			"coalesce(nullIf(country, ''), 'Unknown') as country",
-			"count() as clicks",
+			"uniqExact(id) as clicks",
 		],
 		groupBy: ["country"],
 		orderBy: "clicks DESC",
@@ -334,7 +337,7 @@ export const LinkShortenerBuilders: Record<string, SimpleQueryConfig> = {
 		fields: [
 			"coalesce(nullIf(region, ''), 'Unknown') as name",
 			"coalesce(nullIf(country, ''), 'Unknown') as country",
-			"count() as clicks",
+			"uniqExact(id) as clicks",
 		],
 		groupBy: ["region", "country"],
 		orderBy: "clicks DESC",
@@ -380,7 +383,7 @@ export const LinkShortenerBuilders: Record<string, SimpleQueryConfig> = {
 		fields: [
 			"coalesce(nullIf(city, ''), 'Unknown') as name",
 			"coalesce(nullIf(country, ''), 'Unknown') as country",
-			"count() as clicks",
+			"uniqExact(id) as clicks",
 		],
 		groupBy: ["city", "country"],
 		orderBy: "clicks DESC",
@@ -419,7 +422,7 @@ export const LinkShortenerBuilders: Record<string, SimpleQueryConfig> = {
 		table: Analytics.link_visits,
 		fields: [
 			"coalesce(nullIf(device_type, ''), 'Unknown') as name",
-			"count() as clicks",
+			"uniqExact(id) as clicks",
 		],
 		groupBy: ["device_type"],
 		orderBy: "clicks DESC",
@@ -455,7 +458,7 @@ export const LinkShortenerBuilders: Record<string, SimpleQueryConfig> = {
 		table: Analytics.link_visits,
 		fields: [
 			"coalesce(nullIf(browser_name, ''), 'Unknown') as name",
-			"count() as clicks",
+			"uniqExact(id) as clicks",
 		],
 		groupBy: ["browser_name"],
 		orderBy: "clicks DESC",

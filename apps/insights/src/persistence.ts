@@ -40,7 +40,7 @@ export interface WebsiteInvestigation {
 	websiteName: string | null;
 }
 
-export function isVisibleInvestigation(
+export function isInterruptingInvestigation(
 	investigation: Pick<WebsiteInvestigation, "outcome">
 ): boolean {
 	const next = investigation.outcome.next.type;
@@ -134,12 +134,12 @@ export async function persistInvestigation(params: {
 		? { ...params.investigation, id: prior.id }
 		: params.investigation;
 	const persistedAt = params.notNewerThan;
-	const visible = isVisibleInvestigation(investigation);
+	const interrupting = isInterruptingInvestigation(investigation);
 	const quietContinuation =
 		prior?.status === "open" &&
 		(investigation.outcome.next.type === "watch" ||
 			investigation.outcome.next.type === "resolve");
-	const shouldPersistCase = visible || quietContinuation;
+	const shouldPersistCase = interrupting || quietContinuation;
 	const open = investigation.outcome.next.type !== "resolve";
 	const resolvedAt = open ? null : persistedAt;
 	const resolvedReason = open ? null : ("recovered" as const);
@@ -161,7 +161,7 @@ export async function persistInvestigation(params: {
 
 	const persisted = await db.transaction(async (tx) => {
 		const rows = shouldPersistCase
-			? prior && (prior.dedupeKey !== key || !visible)
+			? prior && (prior.dedupeKey !== key || !interrupting)
 				? await tx
 						.update(analyticsInsights)
 						.set(caseRow(investigation, key))
@@ -216,11 +216,17 @@ export async function persistInvestigation(params: {
 				websiteId: investigation.websiteId,
 			})
 			.onConflictDoNothing({
-				target: [insightObservations.runId, insightObservations.websiteId],
+				target: [
+					insightObservations.runId,
+					insightObservations.websiteId,
+					insightObservations.signalKey,
+				],
 			})
 			.returning({ id: insightObservations.id });
 		if (observations.length === 0) {
-			throw new Error("This website run already has an investigation outcome");
+			throw new Error(
+				"This website run already has an outcome for this signal"
+			);
 		}
 		return rows[0] ?? null;
 	});
@@ -241,9 +247,11 @@ export async function persistInvestigation(params: {
 		organization_id: params.organizationId,
 		run_id: params.runId,
 		duration_ms: Math.round(performance.now() - startedAt),
-		is_new: visible && prior === undefined,
-		visible,
+		is_new: interrupting && prior === undefined,
+		visible: interrupting,
 	});
 
-	return visible && persisted ? { ...investigation, id: persisted.id } : null;
+	return interrupting && persisted
+		? { ...investigation, id: persisted.id }
+		: null;
 }

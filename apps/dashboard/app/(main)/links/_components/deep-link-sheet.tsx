@@ -1,20 +1,24 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Controller, type SubmitHandler, useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { z } from "zod";
 import {
 	type DeepLinkApp,
 	DEEP_LINK_APPS,
 } from "@databuddy/shared/constants/deep-link-apps";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { useCreateLink, useLinkFolders } from "@/hooks/use-links";
+import { LINKS_BASE_URL } from "@/lib/links-url";
 import { DeepLinkAppIcon } from "./deep-link-icons";
 import { FolderDropdown } from "./folder-dropdown";
-import { LINKS_BASE_URL } from "./link-constants";
 import {
+	createDeepLinkFormSchema,
+	type DeepLinkFormData,
+} from "./link-form-schema";
+import {
+	ensureProtocol,
 	mapLinkApiError,
 	normalizeUrlInput,
 	stripProtocol,
@@ -22,38 +26,6 @@ import {
 import { ArrowLeftIcon } from "@databuddy/ui/icons";
 import { Button, Field, Input } from "@databuddy/ui";
 import { Sheet } from "@databuddy/ui/client";
-
-const deepLinkFormSchema = z.object({
-	name: z.string().min(1, "Name is required").max(255),
-	targetUrl: z.string().min(1, "URL is required"),
-	slug: z.string().optional(),
-	folderId: z.string().optional(),
-});
-
-type DeepLinkFormData = z.infer<typeof deepLinkFormSchema>;
-
-function ensureProtocol(url: string): string {
-	const trimmed = url.trim();
-	if (!trimmed) {
-		return trimmed;
-	}
-	if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
-		return trimmed;
-	}
-	return `https://${trimmed}`;
-}
-
-function validateUrlForApp(url: string, app: DeepLinkApp): string | null {
-	try {
-		const parsed = new URL(ensureProtocol(url));
-		if (!app.hostnames.includes(parsed.hostname)) {
-			return `URL must be a ${app.name} link`;
-		}
-		return null;
-	} catch {
-		return "Invalid URL";
-	}
-}
 
 interface DeepLinkSheetProps {
 	onOpenChange: (open: boolean) => void;
@@ -65,15 +37,16 @@ function AppPicker({ onSelect }: { onSelect: (app: DeepLinkApp) => void }) {
 		<Sheet.Body>
 			<div className="grid grid-cols-3 gap-2">
 				{DEEP_LINK_APPS.map((app) => (
-					<button
-						className="flex flex-col items-center gap-2.5 rounded-lg border border-border/60 bg-secondary/50 px-3 py-4 transition-colors hover:bg-interactive-hover"
+					<Button
+						className="flex h-auto flex-col items-center gap-2.5 rounded-lg border border-border/60 bg-secondary/50 px-3 py-4 text-foreground hover:bg-interactive-hover"
 						key={app.id}
 						onClick={() => onSelect(app)}
 						type="button"
+						variant="ghost"
 					>
 						<DeepLinkAppIcon appId={app.id} />
 						<span className="font-medium text-xs">{app.name}</span>
-					</button>
+					</Button>
 				))}
 			</div>
 		</Sheet.Body>
@@ -93,21 +66,16 @@ function DeepLinkForm({
 		useOrganizationsContext();
 	const createLink = useCreateLink();
 	const { folders, isLoading: foldersLoading } = useLinkFolders();
+	const schema = useMemo(() => createDeepLinkFormSchema(app), [app]);
 
 	const form = useForm<DeepLinkFormData>({
-		resolver: zodResolver(deepLinkFormSchema),
+		resolver: zodResolver(schema),
 		mode: "onChange",
 		defaultValues: { name: "", targetUrl: "", slug: "", folderId: "" },
 	});
 
 	const handleSubmit: SubmitHandler<DeepLinkFormData> = async (data) => {
 		const targetUrl = ensureProtocol(data.targetUrl);
-		const validationError = validateUrlForApp(data.targetUrl, app);
-		if (validationError) {
-			form.setError("targetUrl", { message: validationError });
-			return;
-		}
-
 		const organizationId =
 			activeOrganization?.id ?? activeOrganizationId ?? null;
 
@@ -135,14 +103,16 @@ function DeepLinkForm({
 			onSubmit={form.handleSubmit(handleSubmit)}
 		>
 			<Sheet.Body className="space-y-6">
-				<button
-					className="flex items-center gap-1.5 text-muted-foreground text-xs transition-colors hover:text-foreground"
+				<Button
+					className="h-auto gap-1.5 px-0 py-0 text-muted-foreground text-xs hover:bg-transparent hover:text-foreground"
 					onClick={onBack}
+					size="sm"
 					type="button"
+					variant="ghost"
 				>
 					<ArrowLeftIcon className="size-3" />
 					All apps
-				</button>
+				</Button>
 
 				<div className="flex items-center gap-3 rounded-md border border-border/60 bg-secondary/50 px-3 py-2.5">
 					<DeepLinkAppIcon appId={app.id} size={20} />

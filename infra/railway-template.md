@@ -67,7 +67,6 @@ RAILWAY_DOCKERFILE_PATH=dashboard.Dockerfile
 PORT=3000
 DATABASE_URL=${{Postgres.DATABASE_URL}}
 REDIS_URL=${{Redis.REDIS_URL}}
-BULLMQ_REDIS_URL=${{Redis.REDIS_URL}}
 CLICKHOUSE_URL=${{ClickHouse.DATABASE_URL}}
 BETTER_AUTH_URL=https://${{Dashboard.RAILWAY_PUBLIC_DOMAIN}}
 BETTER_AUTH_SECRET=${{shared.BETTER_AUTH_SECRET}}
@@ -76,6 +75,8 @@ NEXT_PUBLIC_APP_URL=https://${{Dashboard.RAILWAY_PUBLIC_DOMAIN}}
 NEXT_PUBLIC_API_URL=https://${{API.RAILWAY_PUBLIC_DOMAIN}}
 NEXT_PUBLIC_BASKET_URL=https://${{Events.RAILWAY_PUBLIC_DOMAIN}}
 NEXT_PUBLIC_STATUS_URL=https://${{Status.RAILWAY_PUBLIC_DOMAIN}}
+# When Links is enabled and has a public domain, set this before rebuilding Dashboard:
+# NEXT_PUBLIC_LINKS_URL=https://${{Links.RAILWAY_PUBLIC_DOMAIN}}
 ```
 
 ### Status
@@ -165,10 +166,17 @@ bun run --cwd packages/db db:push && bun --cwd packages/db src/clickhouse/setup.
 ```txt
 DATABASE_URL=${{Postgres.DATABASE_URL}}
 REDIS_URL=${{Redis.REDIS_URL}}
+BULLMQ_REDIS_URL=${{Redis.REDIS_URL}}
 CLICKHOUSE_URL=${{ClickHouse.DATABASE_URL}}
 DASHBOARD_URL=https://${{Dashboard.RAILWAY_PUBLIC_DOMAIN}}
 LINKS_ROOT_REDIRECT_URL=https://${{Dashboard.RAILWAY_PUBLIC_DOMAIN}}
 ```
+
+Run the `Init` job after any Links schema change before deploying the Links
+service. Its `/health/status` readiness check verifies that the
+`links.deep_link_app` column, BullMQ Redis connectivity, and at least one
+delivery sink are available. Configure BullMQ Redis with persistence and a
+no-eviction policy; connectivity alone cannot prove those server-side settings.
 
 ## Health checks
 
@@ -177,8 +185,13 @@ LINKS_ROOT_REDIRECT_URL=https://${{Dashboard.RAILWAY_PUBLIC_DOMAIN}}
 - `API`: `/health`
 - `Events`: `/health`
 - `Insights`: `/health/status`
-- `Links`: `/health`
+- `Links`: `/health/status`
 - `ClickHouse`: `/ping`
+
+Links bounds dependency probes to fit its health-check deadline. Readiness
+requires PostgreSQL, Redis, its BullMQ admission queue, and at least one of
+Redpanda or ClickHouse. Losing one delivery sink reports `degraded` with HTTP
+200; losing admission or both sinks reports `unavailable` with HTTP 503.
 
 ## First-run schema setup
 

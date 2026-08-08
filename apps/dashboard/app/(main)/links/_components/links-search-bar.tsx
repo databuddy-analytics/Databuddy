@@ -34,7 +34,6 @@ const ALL_FOLDERS_VALUE = "__all__";
 interface LinksSearchBarProps {
 	folderId: string | null | undefined;
 	folders: LinkFolder[];
-	hasDeepLinks: boolean;
 	onFolderChangeAction: (folderId: string | null | undefined) => void;
 	onSearchQueryChangeAction: (query: string) => void;
 	onSortByChangeAction: (sort: LinkSortOption) => void;
@@ -74,7 +73,6 @@ export function LinksSearchBar({
 	onSortByChangeAction,
 	typeFilter,
 	onTypeFilterChangeAction,
-	hasDeepLinks,
 	folders,
 	folderId,
 	onFolderChangeAction,
@@ -150,39 +148,37 @@ export function LinksSearchBar({
 				</DropdownMenu>
 			)}
 
-			{hasDeepLinks && (
-				<DropdownMenu>
-					<DropdownMenu.Trigger
-						className={`inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs transition-colors hover:bg-interactive-hover hover:text-foreground ${typeFilter === "all" ? "text-muted-foreground" : "text-foreground"}`}
+			<DropdownMenu>
+				<DropdownMenu.Trigger
+					className={`inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs transition-colors hover:bg-interactive-hover hover:text-foreground ${typeFilter === "all" ? "text-muted-foreground" : "text-foreground"}`}
+				>
+					<FunnelIcon
+						size={14}
+						weight={typeFilter === "all" ? "bold" : "fill"}
+					/>
+					<span className="hidden sm:inline">{TYPE_LABELS[typeFilter]}</span>
+				</DropdownMenu.Trigger>
+				<DropdownMenu.Content align="end" className="w-36">
+					<DropdownMenu.Group>
+						<DropdownMenu.GroupLabel>Type</DropdownMenu.GroupLabel>
+					</DropdownMenu.Group>
+					<DropdownMenu.Separator />
+					<DropdownMenu.RadioGroup
+						onValueChange={(value) =>
+							onTypeFilterChangeAction(value as LinkTypeFilter)
+						}
+						value={typeFilter}
 					>
-						<FunnelIcon
-							size={14}
-							weight={typeFilter === "all" ? "bold" : "fill"}
-						/>
-						<span className="hidden sm:inline">{TYPE_LABELS[typeFilter]}</span>
-					</DropdownMenu.Trigger>
-					<DropdownMenu.Content align="end" className="w-36">
-						<DropdownMenu.Group>
-							<DropdownMenu.GroupLabel>Type</DropdownMenu.GroupLabel>
-						</DropdownMenu.Group>
-						<DropdownMenu.Separator />
-						<DropdownMenu.RadioGroup
-							onValueChange={(value) =>
-								onTypeFilterChangeAction(value as LinkTypeFilter)
-							}
-							value={typeFilter}
-						>
-							<DropdownMenu.RadioItem value="all">All</DropdownMenu.RadioItem>
-							<DropdownMenu.RadioItem value="short">
-								Short Links
-							</DropdownMenu.RadioItem>
-							<DropdownMenu.RadioItem value="deep">
-								Deep Links
-							</DropdownMenu.RadioItem>
-						</DropdownMenu.RadioGroup>
-					</DropdownMenu.Content>
-				</DropdownMenu>
-			)}
+						<DropdownMenu.RadioItem value="all">All</DropdownMenu.RadioItem>
+						<DropdownMenu.RadioItem value="short">
+							Short Links
+						</DropdownMenu.RadioItem>
+						<DropdownMenu.RadioItem value="deep">
+							Deep Links
+						</DropdownMenu.RadioItem>
+					</DropdownMenu.RadioGroup>
+				</DropdownMenu.Content>
+			</DropdownMenu>
 
 			<DropdownMenu>
 				<DropdownMenu.Trigger className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-2 text-muted-foreground text-xs transition-colors hover:bg-interactive-hover hover:text-foreground">

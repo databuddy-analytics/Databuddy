@@ -9,14 +9,19 @@ import {
 	isNull,
 	isUniqueViolationFor,
 	or,
+	sql,
 } from "@databuddy/db";
 import { linkFolders, links } from "@databuddy/db/schema";
 import {
+	abandonCachedLinkMutation,
+	beginCachedLinkMutation,
 	type CachedLink,
+	type CachedLinkMutationNext,
+	finishCachedLinkMutation,
 	invalidateAgentContextSnapshotsForOwner,
-	invalidateLinkCache,
-	setCachedLink,
+	setCachedLinkIfAbsent,
 } from "@databuddy/redis";
+import { isDeepLinkTarget } from "@databuddy/shared/constants/deep-link-apps";
 import { randomUUIDv7 } from "bun";
 import { customAlphabet } from "nanoid";
 import { z } from "zod";
@@ -24,7 +29,7 @@ import { rpcError } from "../errors";
 import { logger } from "../lib/logger";
 import { setTrackProperties } from "../middleware/track-mutation";
 import { type Context, protectedProcedure, trackedProcedure } from "../orpc";
-import { withWorkspace } from "../procedures/with-workspace";
+import { requireLinkAccess, requireOrganizationId } from "./link-access";
 import {
 	createLinkSchema,
 	deleteLinkSchema,
@@ -36,7 +41,6 @@ import {
 	updateLinkSchema,
 } from "./links.schemas";
 
-type LinkPermission = "read" | "create" | "update" | "delete";
 type LinkRow = typeof links.$inferSelect;
 type CacheableLink = Pick<
 	LinkRow,
@@ -52,17 +56,66 @@ type CacheableLink = Pick<
 	| "androidUrl"
 	| "deepLinkApp"
 >;
+interface LinkCacheMutation {
+	id: string;
+	slug: string;
+	token: string;
+}
+type LinkCacheMutationRequest = Pick<LinkCacheMutation, "id" | "slug"> & {
+	mode: "existing" | "new";
+};
 
 const generateLinkSlug = customAlphabet(
 	"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
 	8
 );
+const LINK_DB_STATEMENT_TIMEOUT_MS = 10_000;
 
-function validateHttpUrl(url: string): void {
-	const parsed = new URL(url);
-	if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-		throw rpcError.badRequest("URL must be an absolute HTTP or HTTPS URL");
+function setLocalLinkStatementTimeout() {
+	return sql.raw(
+		`SET LOCAL statement_timeout = '${LINK_DB_STATEMENT_TIMEOUT_MS}ms'`
+	);
+}
+
+function hasPostgresSqlState(error: unknown): boolean {
+	const seen = new Set<object>();
+	let current = error;
+
+	while (typeof current === "object" && current !== null) {
+		if (seen.has(current)) {
+			return false;
+		}
+		seen.add(current);
+
+		if (
+			"code" in current &&
+			typeof current.code === "string" &&
+			current.code.length === 5 &&
+			"severity" in current &&
+			typeof current.severity === "string"
+		) {
+			return true;
+		}
+
+		current = "cause" in current ? current.cause : null;
 	}
+
+	return false;
+}
+
+function validateDeepLinkConfiguration(
+	deepLinkApp: string | null | undefined,
+	targetUrl: string
+): void {
+	if (!deepLinkApp) {
+		return;
+	}
+	if (isDeepLinkTarget(deepLinkApp, targetUrl)) {
+		return;
+	}
+	throw rpcError.badRequest(
+		"Deep link URLs must use HTTPS and match the selected app"
+	);
 }
 
 function normalizeNullableText(
@@ -145,26 +198,155 @@ function toCachedLink(link: CacheableLink): CachedLink {
 	};
 }
 
-function requireOrganizationId(
-	organizationId: string | null | undefined
-): string {
-	if (!organizationId) {
-		throw rpcError.badRequest("Organization ID is required");
+function getErrorLogFields(error: unknown): {
+	error_message: string;
+	error_stack?: string;
+} {
+	if (error instanceof Error) {
+		return {
+			error_message: error.message,
+			...(error.stack ? { error_stack: error.stack } : {}),
+		};
 	}
-	return organizationId;
+
+	return { error_message: String(error) };
 }
 
-function requireLinkAccess(
-	context: Context,
-	organizationId: string,
-	permission: LinkPermission
-) {
-	const permissions: [LinkPermission] = [permission];
-	return withWorkspace(context, {
-		organizationId,
-		resource: "link",
-		permissions,
+function invalidateLinkAgentContext(organizationId: string): void {
+	// The helper absorbs expected Redis failures; retain this guard for future errors.
+	invalidateAgentContextSnapshotsForOwner(organizationId).catch((error) => {
+		logger.error(
+			{ organizationId, ...getErrorLogFields(error) },
+			"Unexpected link agent-context invalidation failure"
+		);
 	});
+}
+
+async function abandonLinkCacheMutations(
+	mutations: LinkCacheMutation[],
+	reason: string
+): Promise<void> {
+	await Promise.all(
+		mutations.map(async ({ id, slug, token }) => {
+			try {
+				if (await abandonCachedLinkMutation(slug, token)) {
+					return;
+				}
+				logger.warn(
+					{ linkId: id, slug },
+					"Lost link cache mutation lease while abandoning mutation"
+				);
+			} catch (error) {
+				logger.error(
+					{ linkId: id, slug, reason, ...getErrorLogFields(error) },
+					"Failed to abandon link cache mutation"
+				);
+			}
+		})
+	);
+}
+
+async function finishLinkCacheMutation(
+	mutation: LinkCacheMutation,
+	next: CachedLinkMutationNext,
+	reason: string
+): Promise<boolean> {
+	const { id, slug, token } = mutation;
+	try {
+		if (await finishCachedLinkMutation(slug, token, next)) {
+			return true;
+		}
+		logger.warn(
+			{ linkId: id, slug, reason },
+			"Lost link cache mutation lease before cache finalization"
+		);
+	} catch (error) {
+		logger.error(
+			{ linkId: id, slug, reason, ...getErrorLogFields(error) },
+			"Failed to finalize link cache mutation"
+		);
+	}
+
+	// The database outcome is confirmed before callers finalize a mutation. Clear
+	// only this token's pending marker so redirects can read through to Postgres;
+	// a newer cache owner or already-applied finalization is never overwritten.
+	try {
+		await abandonCachedLinkMutation(slug, token);
+	} catch (error) {
+		logger.error(
+			{ linkId: id, slug, reason, ...getErrorLogFields(error) },
+			"Failed to release link cache mutation after finalization failure"
+		);
+	}
+	return false;
+}
+
+async function backfillLinkCache(
+	slug: string,
+	link: CacheableLink,
+	reason: string
+): Promise<void> {
+	try {
+		if (await setCachedLinkIfAbsent(slug, toCachedLink(link))) {
+			return;
+		}
+		logger.warn(
+			{ linkId: link.id, slug, reason },
+			"Link cache backfill did not replace an existing entry"
+		);
+	} catch (error) {
+		logger.error(
+			{ linkId: link.id, slug, reason, ...getErrorLogFields(error) },
+			"Failed to backfill link cache"
+		);
+	}
+}
+
+async function tombstoneLinkCacheMutations(
+	mutations: LinkCacheMutation[],
+	reason: string
+): Promise<void> {
+	await Promise.all(
+		mutations.map((mutation) =>
+			finishLinkCacheMutation(
+				mutation,
+				{ id: mutation.id, state: "tombstone" },
+				reason
+			)
+		)
+	);
+}
+
+async function beginLinkCacheMutations(
+	requests: LinkCacheMutationRequest[]
+): Promise<LinkCacheMutation[] | null> {
+	const mutations: LinkCacheMutation[] = [];
+	try {
+		for (const request of [...requests].sort((left, right) =>
+			left.slug.localeCompare(right.slug)
+		)) {
+			const started = await beginCachedLinkMutation(request.slug, request);
+			if (started.state !== "acquired") {
+				await abandonLinkCacheMutations(
+					mutations,
+					"another mutation already owns this slug"
+				);
+				return null;
+			}
+			mutations.push({
+				id: request.id,
+				slug: request.slug,
+				token: started.token,
+			});
+		}
+		return mutations;
+	} catch (error) {
+		await abandonLinkCacheMutations(
+			mutations,
+			"failed before the database mutation started"
+		);
+		throw error;
+	}
 }
 
 const LINKS_LIST_MAX = 1000;
@@ -389,10 +571,7 @@ export const linksRouter = {
 				"create"
 			);
 
-			validateHttpUrl(input.targetUrl);
-			if (input.expiredRedirectUrl) {
-				validateHttpUrl(input.expiredRedirectUrl);
-			}
+			validateDeepLinkConfiguration(input.deepLinkApp, input.targetUrl);
 			const createdBy = await workspace.getCreatedBy();
 			const resolvedFolderId = await validateFolderId(
 				context.db,
@@ -408,59 +587,175 @@ export const linksRouter = {
 				: Array.from({ length: 10 }, () => generateLinkSlug());
 
 			for (const slug of slugsToTry) {
+				const linkId = randomUUIDv7();
+				let cacheMutations: LinkCacheMutation[] | null;
 				try {
-					const [newLink] = await context.db
-						.insert(links)
-						.values({
-							id: randomUUIDv7(),
-							slug,
-							organizationId,
-							createdBy,
-							folderId: resolvedFolderId,
-							name: input.name,
-							targetUrl: input.targetUrl,
-							targetDomain,
-							sourceType: normalizeNullableText(input.sourceType),
-							sourceId: normalizeNullableText(input.sourceId),
-							sourceOwnerId: normalizeNullableText(input.sourceOwnerId),
-							expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
-							expiredRedirectUrl: input.expiredRedirectUrl ?? null,
-							ogTitle: input.ogTitle ?? null,
-							ogDescription: input.ogDescription ?? null,
-							ogImageUrl: input.ogImageUrl ?? null,
-							ogVideoUrl: input.ogVideoUrl ?? null,
-							iosUrl: input.iosUrl ?? null,
-							androidUrl: input.androidUrl ?? null,
-							externalId: input.externalId ?? null,
-							deepLinkApp: input.deepLinkApp ?? null,
-						})
-						.returning();
+					cacheMutations = await beginLinkCacheMutations([
+						{ id: linkId, mode: "new", slug },
+					]);
+				} catch (error) {
+					logger.error(
+						{ slug, linkId, ...getErrorLogFields(error) },
+						"Failed to begin link cache mutation before create"
+					);
+					if (input.slug) {
+						throw rpcError.serviceUnavailable(
+							1,
+							"Link cache is temporarily unavailable; retry this custom slug"
+						);
+					}
+					// PostgreSQL's unique constraint is authoritative for generated
+					// slugs. A cache outage must not make random-slug creation
+					// unavailable; redirects read through to PG on cache misses.
+					cacheMutations = [];
+				}
+
+				if (!cacheMutations) {
+					if (input.slug) {
+						throw rpcError.conflict(
+							"This slug is already taken or is being updated"
+						);
+					}
+					continue;
+				}
+
+				const [cacheMutation] = cacheMutations;
+
+				let finalizedFailure = false;
+				try {
+					const newLink = await context.db.transaction(async (tx) => {
+						await tx.execute(setLocalLinkStatementTimeout());
+						const [created] = await tx
+							.insert(links)
+							.values({
+								id: linkId,
+								slug,
+								organizationId,
+								createdBy,
+								folderId: resolvedFolderId,
+								name: input.name,
+								targetUrl: input.targetUrl,
+								targetDomain,
+								sourceType: normalizeNullableText(input.sourceType),
+								sourceId: normalizeNullableText(input.sourceId),
+								sourceOwnerId: normalizeNullableText(input.sourceOwnerId),
+								expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
+								expiredRedirectUrl: input.expiredRedirectUrl ?? null,
+								ogTitle: input.ogTitle ?? null,
+								ogDescription: input.ogDescription ?? null,
+								ogImageUrl: input.ogImageUrl ?? null,
+								ogVideoUrl: input.ogVideoUrl ?? null,
+								iosUrl: input.iosUrl ?? null,
+								androidUrl: input.androidUrl ?? null,
+								externalId: input.externalId ?? null,
+								deepLinkApp: input.deepLinkApp ?? null,
+							})
+							.returning();
+						return created;
+					});
 
 					if (!newLink) {
+						await abandonLinkCacheMutations(
+							cacheMutations,
+							"create returned no persisted link"
+						);
+						finalizedFailure = true;
 						throw rpcError.internal("Failed to create link");
 					}
 
-					setCachedLink(slug, toCachedLink(newLink)).catch((err) =>
-						logger.error(
-							{ slug, linkId: newLink.id, error: String(err) },
-							"Failed to cache link after create"
-						)
-					);
-					invalidateAgentContextSnapshotsForOwner(organizationId).catch((err) =>
-						logger.error(
-							{ organizationId, error: String(err) },
-							"Failed to invalidate agent context snapshots after link create"
-						)
-					);
+					if (cacheMutation) {
+						await finishLinkCacheMutation(
+							cacheMutation,
+							{ link: toCachedLink(newLink), state: "link" },
+							"create persisted"
+						);
+					} else {
+						await backfillLinkCache(
+							slug,
+							newLink,
+							"create bypassed cache lease"
+						);
+					}
+					invalidateLinkAgentContext(organizationId);
 
 					return newLink;
 				} catch (error) {
-					if (!isUniqueViolationFor(error, "links_slug_unique")) {
+					if (isUniqueViolationFor(error, "links_slug_unique")) {
+						await abandonLinkCacheMutations(
+							cacheMutations,
+							"create failed because the slug already exists"
+						);
+						if (input.slug) {
+							throw rpcError.conflict("This slug is already taken");
+						}
+						continue;
+					}
+					if (finalizedFailure) {
 						throw error;
 					}
-					if (input.slug) {
-						throw rpcError.conflict("This slug is already taken");
+					if (hasPostgresSqlState(error)) {
+						await abandonLinkCacheMutations(
+							cacheMutations,
+							"create failed with a definitive PostgreSQL error"
+						);
+						throw error;
 					}
+
+					let persistedLink: LinkRow | undefined;
+					try {
+						persistedLink = await context.db.transaction(async (tx) => {
+							await tx.execute(setLocalLinkStatementTimeout());
+							const [persisted] = await tx
+								.select()
+								.from(links)
+								.where(eq(links.id, linkId))
+								.limit(1);
+							return persisted;
+						});
+					} catch (reconciliationError) {
+						logger.error(
+							{
+								slug,
+								linkId,
+								...getErrorLogFields(reconciliationError),
+							},
+							"Failed to reconcile uncertain link create"
+						);
+						throw rpcError.serviceUnavailable(
+							1,
+							"Link creation outcome is still being reconciled"
+						);
+					}
+
+					if (persistedLink) {
+						if (cacheMutation) {
+							await finishLinkCacheMutation(
+								cacheMutation,
+								{ link: toCachedLink(persistedLink), state: "link" },
+								"create reconciled after ambiguous database error"
+							);
+						} else {
+							await backfillLinkCache(
+								slug,
+								persistedLink,
+								"create reconciled after cache bypass"
+							);
+						}
+						invalidateLinkAgentContext(organizationId);
+						return persistedLink;
+					}
+
+					logger.error(
+						{ slug, linkId, ...getErrorLogFields(error) },
+						"Link create failed with an uncertain persistence outcome"
+					);
+					// A separate read that does not see the row cannot prove an in-flight
+					// COMMIT rolled back. Keep the short lease so no negative read-through
+					// can outlive a late commit, and tell the caller to retry.
+					throw rpcError.serviceUnavailable(
+						1,
+						"Link creation outcome is still being reconciled"
+					);
 				}
 			}
 
@@ -482,11 +777,13 @@ export const linksRouter = {
 			const link = await getLinkOrThrow(context, input.id);
 			await requireLinkAccess(context, link.organizationId, "update");
 
-			if (input.targetUrl) {
-				validateHttpUrl(input.targetUrl);
-			}
-			if (input.expiredRedirectUrl) {
-				validateHttpUrl(input.expiredRedirectUrl);
+			if (input.targetUrl !== undefined || input.deepLinkApp !== undefined) {
+				validateDeepLinkConfiguration(
+					input.deepLinkApp === undefined
+						? link.deepLinkApp
+						: input.deepLinkApp,
+					input.targetUrl ?? link.targetUrl
+				);
 			}
 
 			let resolvedFolderId: string | null | undefined;
@@ -509,6 +806,7 @@ export const linksRouter = {
 				...updates
 			} = input;
 			const oldSlug = link.slug;
+			const nextSlug = updates.slug ?? oldSlug;
 			const nextTargetDomain =
 				targetDomain === undefined
 					? input.targetUrl
@@ -516,65 +814,155 @@ export const linksRouter = {
 						: undefined
 					: normalizeTargetDomain(targetDomain);
 
+			const cacheMutationRequests: LinkCacheMutationRequest[] = [
+				{ id: link.id, mode: "existing", slug: oldSlug },
+			];
+			if (nextSlug !== oldSlug) {
+				cacheMutationRequests.push({
+					id: link.id,
+					mode: "new",
+					slug: nextSlug,
+				});
+			}
+
+			let cacheMutations: LinkCacheMutation[] | null;
 			try {
-				const [updatedLink] = await context.db
-					.update(links)
-					.set({
-						...updates,
-						folderId:
-							resolvedFolderId === undefined ? undefined : resolvedFolderId,
-						sourceType:
-							sourceType === undefined
-								? undefined
-								: normalizeNullableText(sourceType),
-						sourceId:
-							sourceId === undefined
-								? undefined
-								: normalizeNullableText(sourceId),
-						sourceOwnerId:
-							sourceOwnerId === undefined
-								? undefined
-								: normalizeNullableText(sourceOwnerId),
-						targetDomain: nextTargetDomain,
-						expiresAt:
-							expiresAt === undefined
-								? undefined
-								: expiresAt
-									? new Date(expiresAt)
-									: null,
-						updatedAt: new Date(),
-					})
-					.where(eq(links.id, id))
-					.returning();
+				cacheMutations = await beginLinkCacheMutations(cacheMutationRequests);
+			} catch (error) {
+				logger.error(
+					{ slug: oldSlug, linkId: link.id, ...getErrorLogFields(error) },
+					"Failed to begin link cache mutation before update"
+				);
+				throw rpcError.internal("Failed to update cache. Link not updated.");
+			}
+
+			if (!cacheMutations) {
+				logger.warn(
+					{ linkId: link.id, oldSlug, nextSlug },
+					"Link cache mutation conflicts with an in-progress or stale cache entry"
+				);
+				throw rpcError.conflict(
+					"This link is currently being updated. Retry the request."
+				);
+			}
+
+			const oldCacheMutation = cacheMutations.find(
+				(mutation) => mutation.slug === oldSlug
+			);
+			if (!oldCacheMutation) {
+				await abandonLinkCacheMutations(
+					cacheMutations,
+					"missing old-slug cache mutation before update"
+				);
+				throw rpcError.internal("Failed to begin link cache mutation");
+			}
+
+			let finalizedFailure = false;
+			try {
+				const updatedLink = await context.db.transaction(async (tx) => {
+					await tx.execute(setLocalLinkStatementTimeout());
+					const [updated] = await tx
+						.update(links)
+						.set({
+							...updates,
+							folderId:
+								resolvedFolderId === undefined ? undefined : resolvedFolderId,
+							sourceType:
+								sourceType === undefined
+									? undefined
+									: normalizeNullableText(sourceType),
+							sourceId:
+								sourceId === undefined
+									? undefined
+									: normalizeNullableText(sourceId),
+							sourceOwnerId:
+								sourceOwnerId === undefined
+									? undefined
+									: normalizeNullableText(sourceOwnerId),
+							targetDomain: nextTargetDomain,
+							expiresAt:
+								expiresAt === undefined
+									? undefined
+									: expiresAt
+										? new Date(expiresAt)
+										: null,
+							updatedAt: new Date(),
+						})
+						.where(eq(links.id, id))
+						.returning();
+					return updated;
+				});
 
 				if (!updatedLink) {
+					await tombstoneLinkCacheMutations(
+						cacheMutations,
+						"update did not return a persisted link"
+					);
+					finalizedFailure = true;
 					throw rpcError.notFound("link", input.id);
 				}
 
-				Promise.all([
-					oldSlug === updatedLink.slug
-						? Promise.resolve()
-						: invalidateLinkCache(oldSlug),
-					setCachedLink(updatedLink.slug, toCachedLink(updatedLink)),
-					invalidateAgentContextSnapshotsForOwner(link.organizationId),
-				]).catch((err) =>
-					logger.error(
-						{
-							linkId: updatedLink.id,
-							oldSlug,
-							newSlug: updatedLink.slug,
-							error: String(err),
-						},
-						"Failed to update link cache"
-					)
-				);
+				const cachedLink = toCachedLink(updatedLink);
+				if (nextSlug === oldSlug) {
+					await finishLinkCacheMutation(
+						oldCacheMutation,
+						{ link: cachedLink, state: "link" },
+						"update persisted"
+					);
+				} else {
+					const newCacheMutation = cacheMutations.find(
+						(mutation) => mutation.slug === nextSlug
+					);
+					if (newCacheMutation) {
+						await Promise.all([
+							finishLinkCacheMutation(
+								oldCacheMutation,
+								{ id: link.id, state: "tombstone" },
+								"update renamed link"
+							),
+							finishLinkCacheMutation(
+								newCacheMutation,
+								{ link: cachedLink, state: "link" },
+								"update renamed link"
+							),
+						]);
+					} else {
+						await tombstoneLinkCacheMutations(
+							cacheMutations,
+							"update persisted without a new-slug cache mutation"
+						);
+					}
+				}
+
+				invalidateLinkAgentContext(link.organizationId);
 
 				return updatedLink;
 			} catch (error) {
 				if (isUniqueViolationFor(error, "links_slug_unique")) {
+					await abandonLinkCacheMutations(
+						cacheMutations,
+						"update failed because the new slug already exists"
+					);
 					throw rpcError.conflict("This slug is already taken");
 				}
-				throw error;
+				if (finalizedFailure) {
+					throw error;
+				}
+				if (hasPostgresSqlState(error)) {
+					await abandonLinkCacheMutations(
+						cacheMutations,
+						"update failed with a definitive PostgreSQL error"
+					);
+					throw error;
+				}
+				logger.error(
+					{ linkId: link.id, oldSlug, nextSlug, ...getErrorLogFields(error) },
+					"Link update failed with an uncertain persistence outcome"
+				);
+				throw rpcError.serviceUnavailable(
+					1,
+					"Link update outcome is still being reconciled"
+				);
 			}
 		}),
 
@@ -593,26 +981,69 @@ export const linksRouter = {
 			const link = await getLinkOrThrow(context, input.id);
 			await requireLinkAccess(context, link.organizationId, "delete");
 
+			let cacheMutations: LinkCacheMutation[] | null;
 			try {
-				await invalidateLinkCache(link.slug);
+				cacheMutations = await beginLinkCacheMutations([
+					{ id: link.id, mode: "existing", slug: link.slug },
+				]);
 			} catch (error) {
 				logger.error(
-					{ slug: link.slug, linkId: input.id, error: String(error) },
-					"Failed to invalidate link cache before delete"
+					{ slug: link.slug, linkId: input.id, ...getErrorLogFields(error) },
+					"Failed to begin link cache mutation before delete"
 				);
-				throw rpcError.internal(
-					"Failed to invalidate cache. Link not deleted."
+				throw rpcError.internal("Failed to update cache. Link not deleted.");
+			}
+
+			if (!cacheMutations) {
+				logger.warn(
+					{ slug: link.slug, linkId: link.id },
+					"Link cache mutation conflicts with an in-progress or stale cache entry"
+				);
+				throw rpcError.conflict(
+					"This link is currently being updated. Retry the request."
 				);
 			}
 
-			await context.db.delete(links).where(eq(links.id, input.id));
-			invalidateAgentContextSnapshotsForOwner(link.organizationId).catch(
-				(err) =>
-					logger.error(
-						{ organizationId: link.organizationId, error: String(err) },
-						"Failed to invalidate agent context snapshots after link delete"
-					)
-			);
+			let finalizedFailure = false;
+			try {
+				const deleted = await context.db.transaction(async (tx) => {
+					await tx.execute(setLocalLinkStatementTimeout());
+					return tx
+						.delete(links)
+						.where(eq(links.id, input.id))
+						.returning({ id: links.id });
+				});
+				if (deleted.length === 0) {
+					await tombstoneLinkCacheMutations(
+						cacheMutations,
+						"delete did not remove a persisted link"
+					);
+					finalizedFailure = true;
+					throw rpcError.notFound("link", input.id);
+				}
+
+				await tombstoneLinkCacheMutations(cacheMutations, "delete persisted");
+			} catch (error) {
+				if (finalizedFailure) {
+					throw error;
+				}
+				if (hasPostgresSqlState(error)) {
+					await abandonLinkCacheMutations(
+						cacheMutations,
+						"delete failed with a definitive PostgreSQL error"
+					);
+					throw error;
+				}
+				logger.error(
+					{ slug: link.slug, linkId: link.id, ...getErrorLogFields(error) },
+					"Link delete failed with an uncertain persistence outcome"
+				);
+				throw rpcError.serviceUnavailable(
+					1,
+					"Link deletion outcome is still being reconciled"
+				);
+			}
+			invalidateLinkAgentContext(link.organizationId);
 
 			return { success: true };
 		}),

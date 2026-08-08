@@ -119,12 +119,12 @@ Dashboard (Next.js) ←→ ORPC (rpc package) ←→ API (Elysia) → PostgreSQL
 
 **State management in Dashboard**: Jotai for local UI state, TanStack Query for server state.
 
-**Dashboard design system (`apps/dashboard/components/ds`)**: Dashboard UI must be built from DS primitives. Feature code should not use raw form/control primitives (`button`, `input`, `select`, `textarea`, native dialogs), Base UI, Radix, or one-off styled controls directly. If a needed primitive or variant does not exist, add or extend a DS component first, then consume it from the feature. Raw control elements belong inside `components/ds` implementations only.
+**Dashboard design system (`@databuddy/ui`)**: `bun run lint` enforces component-library use, semantic color tokens, and shared HTTP error responses for new code. Dashboard feature code should use `@databuddy/ui`; native controls and direct Radix/Base UI imports are limited to dashboard component implementations. Intentional exceptions require an adjacent `policy-ignore` comment with a specific reason.
 
 For picker controls, use the component that matches the interaction:
 - Use `DropdownMenu` for menu-style folder/status/filter/sort/action pickers.
 - Use `Select` only when the established UI pattern is explicitly a select/combobox.
-- Use `Field` with DS inputs for form labeling, descriptions, errors, ids, and accessibility wiring.
+- Use `Field` with shared inputs for form labeling, descriptions, errors, ids, and accessibility wiring.
 
 ### Tech Stack
 
@@ -143,17 +143,25 @@ For picker controls, use the component that matches the interaction:
 
 - **Linter/Formatter**: Ultracite (Biome-based). Run `bun run lint` / `bun run format`.
 - **TypeScript**: Strict mode. Always use proper types — avoid `any`.
-- **Dashboard UI**: Use `apps/dashboard/components/ds` primitives exactly. Do not hand-roll controls in feature components; extend the DS layer first when the current API is missing something.
+- **Dashboard UI**: Feature code should consume `@databuddy/ui`; `apps/dashboard/components/ds` is the local implementation layer. Do not hand-roll controls in feature components; extend the shared UI layer first when the current API is missing something.
 - **Commit format**: `<type>(<scope>): <description>` (e.g., `feat(dashboard): add export button`, `fix(api): handle null session`)
 - **Commit slicing rule**: Prefer one commit per coherent product or technical slice, not one giant snapshot and not ultra-fragmented file-by-file commits.
   - Split commits by intent: feature, bug fix, refactor, style/copy pass, or migration slice.
   - Use the dominant surface as scope: `dashboard`, `api`, `rpc`, `basket`, `docs`, `db`, `sdk`, `tracker`, `deps`, `ci`.
   - Group closely related UI files into one commit when they ship one visible change.
   - Keep unrelated surfaces in separate commits even if they were edited in the same session.
-  - For broad migrations, follow the repo’s existing pattern: one commit per meaningful area, e.g. `feat(dashboard): migrate home, events, insights, and links pages to DS primitives`.
+  - For broad migrations, follow the repo’s existing pattern: one commit per meaningful area, e.g. `feat(dashboard): migrate home, events, insights, and links pages to shared UI components`.
   - Before committing, check `git diff --stat` and `git status --short`; if the diff mixes unrelated intents, split it.
   - Only make a single snapshot commit for the whole worktree when the user explicitly asks to include everything as-is.
-- **PRs**: Open against `staging` branch (not `main`).
+
+## Branch and PR Lifecycle
+
+- **One task, one branch, one PR**: Keep a branch to one independently reviewable and reversible slice. If work can land separately, split it before it becomes a mixed PR.
+- **Start fresh**: Check for an existing PR that owns the same surface, public contract, schema, or deployment configuration, then create the branch from an up-to-date `origin/staging`. Do not use an unmerged feature branch as a base unless the dependency is explicit, approved, and named as `Depends on #…` in both PRs.
+- **Make ownership visible**: Push and open a draft PR against `staging` once the slice has a first commit. State its scope, dependencies, and known overlaps.
+- **Keep integration linear**: Rebase a slice onto current `origin/staging` before it is ready for review; do not merge `staging` into the slice merely to refresh it. Request fresh review when a rebase changes reviewed code.
+- **Isolate parallel work**: Use one worktree per active branch. Never let two agents or contributors mutate the same branch or reuse a task branch for a different concern.
+- **Retire completed work**: Merged PR source branches are automatically deleted. Delete closed PR branches manually, remove clean finished worktrees, and create a new branch from current `staging` for any follow-up—never revive or repurpose an old PR branch.
 
 ## CI and Review Lessons
 

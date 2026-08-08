@@ -110,7 +110,7 @@ function SidebarNavItem({
 
 	const Icon = item.icon;
 	const base = cn(
-		"flex min-w-0 items-center rounded text-sm",
+		"relative flex min-w-0 items-center rounded text-sm",
 		collapsed ? "size-9 justify-center" : "h-8 gap-2.5",
 		collapsed ? "" : P.item
 	);
@@ -189,6 +189,11 @@ function SidebarNavItem({
 		<LinkComponent
 			{...linkProps}
 			aria-current={active ? "page" : undefined}
+			aria-label={
+				collapsed && item.badge?.label
+					? `${item.name}, ${item.badge.label}`
+					: undefined
+			}
 			className={cn(
 				base,
 				"group",
@@ -199,6 +204,24 @@ function SidebarNavItem({
 			onClick={item.external ? undefined : handleClick}
 		>
 			{iconEl}
+			{collapsed && item.badge && (
+				<>
+					<span
+						aria-hidden={item.badge.label ? true : undefined}
+						className={cn(
+							"absolute -top-1 -right-1 flex min-w-4 items-center justify-center rounded-full px-1 py-0.5 font-semibold text-[9px] tabular-nums leading-none",
+							item.badge.variant === "red"
+								? "bg-destructive text-destructive-foreground"
+								: "bg-primary text-primary-foreground"
+						)}
+					>
+						{item.badge.text}
+					</span>
+					{item.badge.label ? (
+						<span className="sr-only">{item.badge.label}</span>
+					) : null}
+				</>
+			)}
 			{!collapsed && (
 				<>
 					<span className="min-w-0 flex-1 truncate">{item.name}</span>
@@ -210,18 +233,24 @@ function SidebarNavItem({
 								</span>
 							)}
 							{item.badge && (
-								<span
-									className={cn(
-										"rounded px-1.5 py-0.5 font-semibold text-[10px]",
-										item.badge.variant === "orange"
-											? "bg-amber-500/10 text-amber-600 dark:text-amber-500"
-											: item.badge.variant === "red"
-												? "bg-destructive/10 text-destructive"
-												: "bg-accent text-accent-foreground"
-									)}
-								>
-									{item.badge.text}
-								</span>
+								<>
+									<span
+										aria-hidden={item.badge.label ? true : undefined}
+										className={cn(
+											"rounded px-1.5 py-0.5 font-semibold text-[10px]",
+											item.badge.variant === "orange"
+												? "bg-warning/10 text-warning"
+												: item.badge.variant === "red"
+													? "bg-destructive text-destructive-foreground"
+													: "bg-accent text-accent-foreground"
+										)}
+									>
+										{item.badge.text}
+									</span>
+									{item.badge.label ? (
+										<span className="sr-only">{item.badge.label}</span>
+									) : null}
+								</>
 							)}
 							{item.external && (
 								<ArrowSquareOutIcon
@@ -237,7 +266,12 @@ function SidebarNavItem({
 	);
 
 	return collapsed ? (
-		<Tooltip content={item.name} side="right">
+		<Tooltip
+			content={
+				item.badge?.label ? `${item.name} · ${item.badge.label}` : item.name
+			}
+			side="right"
+		>
 			{el}
 		</Tooltip>
 	) : (

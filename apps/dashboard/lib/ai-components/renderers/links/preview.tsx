@@ -4,6 +4,7 @@ import { type ComponentType, type SVGProps, useState } from "react";
 import { LinkSheet } from "@/app/(main)/links/_components/link-sheet";
 import { useChat } from "@/contexts/chat-context";
 import type { Link } from "@/hooks/use-links";
+import { LINKS_BASE_URL } from "@/lib/links-url";
 import { cn } from "@/lib/utils";
 import type { BaseComponentProps } from "../../types";
 import {
@@ -142,7 +143,7 @@ export function LinkPreviewRenderer({
 									<code className="font-semibold text-ring">
 										{link.slug === "(auto-generated)"
 											? "Will be auto-generated"
-											: `dby.sh/${link.slug}`}
+											: `${LINKS_BASE_URL}/${link.slug}`}
 									</code>
 								</pre>
 							</div>

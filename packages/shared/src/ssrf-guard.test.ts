@@ -48,4 +48,21 @@ describe("validateUrl", () => {
 		expect(typeof result.ip).toBe("string");
 		expect(result.ip).not.toMatch(/^(10\.|192\.168\.|172\.16\.|127\.)/);
 	});
+
+	it("cancels DNS validation when the request deadline has elapsed", async () => {
+		const controller = new AbortController();
+		controller.abort(new Error("request deadline elapsed"));
+
+		const startedAt = performance.now();
+		const result = await validateUrl("https://example.com", {
+			signal: controller.signal,
+		});
+
+		expect(result).toMatchObject({
+			error: "DNS resolution timed out",
+			hostname: "example.com",
+			safe: false,
+		});
+		expect(performance.now() - startedAt).toBeLessThan(100);
+	});
 });

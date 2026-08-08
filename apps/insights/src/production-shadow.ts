@@ -2,7 +2,10 @@ import { chmod, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { Pool, type PoolClient } from "pg";
-import type { StepResult, ToolSet } from "ai";
+import type { LanguageModelUsage, StepResult, ToolSet } from "ai";
+import dayjs from "dayjs";
+import timezonePlugin from "dayjs/plugin/timezone";
+import utcPlugin from "dayjs/plugin/utc";
 import {
 	summarizeAgentUsage,
 	type UsageTelemetry,
@@ -16,14 +19,22 @@ import type { FunnelDef, GoalDef } from "./funnel-detection";
 import type { InvestigationAnnotation } from "./investigation";
 import type { LatestInsightObservation } from "./observations";
 
+dayjs.extend(utcPlugin);
+dayjs.extend(timezonePlugin);
+
 const REQUIRED_CONFIRMATION = "--confirm-read-only-production";
 const DEFAULT_OFFSETS = [60, 30, 7, 0];
 const DEFAULT_MIN_EVENTS = 25_000;
 const DEFAULT_CONCURRENCY = 2;
 const DEFAULT_MODEL = "openai/gpt-5.6-terra";
+const MAX_BATCH_SIZE = 3;
 const STATEMENT_TIMEOUT_MS = 60_000;
 const CASE_ATTEMPT_TIMEOUT_MS = 150_000;
+type AsOfMode = "day" | "instant";
+
 interface CliOptions {
+	asOfMode: AsOfMode;
+	batchSize: number;
 	concurrency: number;
 	limit: number | null;
 	minEvents: number;
@@ -31,6 +42,7 @@ interface CliOptions {
 	offsets: number[];
 	output: string | null;
 	referenceTime: Date;
+	websiteId: string | null;
 }
 
 interface RankedWebsite {
@@ -108,6 +120,15 @@ interface ShadowAgentUsage {
 	reasoningTokens: number;
 }
 
+interface ShadowAgentAttempt {
+	agent: ShadowAgentUsage | null;
+	durationMs: number;
+	error?: unknown;
+	input: InsightAgentInput;
+	result?: InsightAgentResult;
+	trace: InsightAgentStepTrace[];
+}
+
 interface ShadowCostSummary {
 	average: number;
 	fallbackPricedInvestigations: number;
@@ -126,6 +147,8 @@ interface ShadowReport {
 	};
 	cases: ShadowCase[];
 	meta: {
+		asOfMode: AsOfMode;
+		batchSize: number;
 		concurrency: number;
 		dataAccess: {
 			clickhouse: "read_only";
@@ -148,6 +171,7 @@ interface ShadowReport {
 interface ShadowObservation extends LatestInsightObservation {
 	asOf: Date;
 	evidence: string[];
+	hasOpenInvestigation: boolean;
 }
 
 function otherOpenWorkAt(
@@ -198,6 +222,21 @@ function integerOption(value: string, name: string, minimum: number): number {
 	return parsed;
 }
 
+function batchSizeOption(value: string): number {
+	const batchSize = integerOption(value, "batch-size", 1);
+	if (batchSize > MAX_BATCH_SIZE) {
+		throw new Error(`batch-size must be at most ${MAX_BATCH_SIZE}`);
+	}
+	return batchSize;
+}
+
+function asOfModeOption(value: string): AsOfMode {
+	if (value === "day" || value === "instant") {
+		return value;
+	}
+	throw new Error("as-of-mode must be either day or instant");
+}
+
 function modelOption(value: string | undefined): string {
 	const model = value?.trim();
 	if (model) {
@@ -221,6 +260,8 @@ function parseOptions(args: string[]): CliOptions {
 	const { values } = parseArgs({
 		args,
 		options: {
+			"as-of-mode": { default: "day", type: "string" },
+			"batch-size": { default: String(MAX_BATCH_SIZE), type: "string" },
 			concurrency: { default: String(DEFAULT_CONCURRENCY), type: "string" },
 			"confirm-read-only-production": { default: false, type: "boolean" },
 			limit: { type: "string" },
@@ -229,6 +270,7 @@ function parseOptions(args: string[]): CliOptions {
 			offsets: { type: "string" },
 			output: { type: "string" },
 			"reference-time": { type: "string" },
+			"website-id": { type: "string" },
 		},
 		strict: true,
 	});
@@ -243,7 +285,13 @@ function parseOptions(args: string[]): CliOptions {
 	if (new Set(offsets).size !== offsets.length) {
 		throw new Error("Offsets must be unique");
 	}
+	const asOfMode = asOfModeOption(values["as-of-mode"]);
+	if (asOfMode === "instant" && offsets.some((offset) => offset !== 0)) {
+		throw new Error("as-of-mode=instant only supports offsets=0");
+	}
 	return {
+		asOfMode,
+		batchSize: batchSizeOption(values["batch-size"]),
 		concurrency: integerOption(values.concurrency, "concurrency", 1),
 		limit: values.limit ? integerOption(values.limit, "limit", 1) : null,
 		minEvents: integerOption(values["min-events"], "min-events", 1),
@@ -251,6 +299,7 @@ function parseOptions(args: string[]): CliOptions {
 		offsets,
 		output: values.output ?? null,
 		referenceTime: resolveReferenceTime(values["reference-time"]),
+		websiteId: values["website-id"]?.trim() || null,
 	};
 }
 
@@ -269,6 +318,17 @@ function configureReadOnlyClickHouse(): void {
 		throw new Error("CLICKHOUSE_READONLY_URL is required");
 	}
 	process.env.CLICKHOUSE_URL = readonlyUrl;
+}
+
+async function assertReadOnlyClickHouse(): Promise<void> {
+	const { chQuery } = await import("@databuddy/db/clickhouse");
+	const rows = await chQuery<{ readonly: number | string }>(
+		"SELECT getSetting({setting:String}) AS readonly",
+		{ setting: "readonly" }
+	);
+	if (Number(rows[0]?.readonly) < 1) {
+		throw new Error("ClickHouse connection is not read-only");
+	}
 }
 
 function silenceLibraryConsole(): () => void {
@@ -338,13 +398,6 @@ async function loadCohort(
 	referenceTime: Date
 ): Promise<string[]> {
 	const { chQuery } = await import("@databuddy/db/clickhouse");
-	const readonlySetting = await chQuery<{ readonly: number | string }>(
-		"SELECT getSetting({setting:String}) AS readonly",
-		{ setting: "readonly" }
-	);
-	if (Number(readonlySetting[0]?.readonly) < 1) {
-		throw new Error("ClickHouse connection is not read-only");
-	}
 	const rows = await chQuery<{ id: string }>(
 		`SELECT client_id AS id
 		 FROM analytics.events
@@ -517,6 +570,50 @@ function dateAtOffset(
 	return date.toISOString().slice(0, 10);
 }
 
+export function resolveShadowAsOf(
+	referenceTime: Date,
+	offsetDays: number,
+	timezone: string,
+	asOfMode: AsOfMode
+): Date {
+	if (asOfMode === "instant") {
+		return new Date(referenceTime);
+	}
+	return dayjs
+		.tz(dateAtOffset(referenceTime, offsetDays, timezone), timezone)
+		.toDate();
+}
+
+function shadowNextRecheckAt(
+	asOf: Date,
+	next: InsightAgentResult["outcome"]["next"]
+): Date {
+	const requested =
+		(next.type === "act" || next.type === "watch") && next.recheckAt
+			? new Date(next.recheckAt)
+			: null;
+	if (requested && !Number.isNaN(requested.getTime()) && requested > asOf) {
+		return requested;
+	}
+	const days = next.type === "act" || next.type === "watch" ? 1 : 30;
+	return new Date(asOf.getTime() + days * 86_400_000);
+}
+
+function keepsShadowInvestigationOpen(
+	outcome: InsightAgentResult["outcome"],
+	previous: ShadowObservation | undefined
+): boolean {
+	if (outcome.next.type === "act" || outcome.next.type === "ask") {
+		return true;
+	}
+	if (outcome.publish === true && outcome.recommendation != null) {
+		return true;
+	}
+	return (
+		outcome.next.type === "watch" && previous?.hasOpenInvestigation === true
+	);
+}
+
 function definitionsAt<T extends { createdAt: Date; updatedAt: Date }>(
 	rows: T[],
 	asOf: Date
@@ -529,31 +626,38 @@ function definitionsAt<T extends { createdAt: Date; updatedAt: Date }>(
 async function createSources(params: {
 	annotations: AnnotationRow[];
 	asOf: Date;
+	attempts: ShadowAgentAttempt[];
 	funnels: FunnelRow[];
 	goals: GoalRow[];
 	historical: boolean;
 	model: string;
-	observations: readonly ShadowObservation[];
-	onAgentResult: (result: InsightAgentResult) => void;
+	observations: ShadowObservation[];
 	site: RankedWebsite;
-	attemptSignal: AbortSignal;
-	trace: InsightAgentStepTrace[];
 }): Promise<InvestigationSources> {
 	const [
 		{ createModelFromId },
 		{ detectSignals },
 		{ defaultFunnelGoalDeps, detectFunnelGoalSignals },
+		{
+			defaultMeasurementRecommendationDeps,
+			detectMeasurementRecommendationSignals,
+		},
 		{ signalAnnotationWindow },
+		{ loadErrorCustomerImpact },
 		{ createToolkit },
 		{ remeasureStoredSignal },
-		{ runInsightAgent },
+		{ detectRouteHealthSignals },
+		{ InsightAgentExecutionError, runInsightAgent },
 	] = await Promise.all([
 		import("@databuddy/ai/config/models"),
 		import("./detection"),
 		import("./funnel-detection"),
+		import("./measurement-recommendation-detection"),
 		import("./investigation"),
+		import("./error-customer-impact"),
 		import("@databuddy/ai/tools/toolkit"),
 		import("./generation"),
+		import("./route-health-detection"),
 		import("./agent"),
 	]);
 	const siteFunnels = definitionsAt(
@@ -568,10 +672,6 @@ async function createSources(params: {
 	for (const observation of params.observations) {
 		latestObservations.set(observation.signal.signalKey, observation);
 	}
-	const withAttemptSignal = (signal?: AbortSignal) =>
-		signal
-			? AbortSignal.any([params.attemptSignal, signal])
-			: params.attemptSignal;
 	let historicalTools: ToolSet | undefined;
 	if (params.historical) {
 		const getData = createToolkit({ capabilities: ["analytics"] }).get_data;
@@ -590,30 +690,63 @@ async function createSources(params: {
 				funnel: FunnelDef,
 				range: Parameters<typeof base.funnelConversion>[1],
 				signal?: AbortSignal
-			) => base.funnelConversion(funnel, range, withAttemptSignal(signal)),
+			) => base.funnelConversion(funnel, range, signal),
 			goalConversion: (
 				goal: GoalDef,
 				range: Parameters<typeof base.goalConversion>[1],
 				signal?: AbortSignal
-			) => base.goalConversion(goal, range, withAttemptSignal(signal)),
+			) => base.goalConversion(goal, range, signal),
+		};
+	};
+	const measurementRecommendationDependencies = () => {
+		const base = defaultMeasurementRecommendationDeps(
+			params.site.id,
+			params.asOf,
+			params.site.timezone
+		);
+		return {
+			...base,
+			fetchDefinitionCounts: async () => ({
+				activeFunnels: siteFunnels.length,
+				activeGoals: siteGoals.length,
+			}),
+			fetchTelemetry: (
+				range: { from: string; to: string },
+				signal?: AbortSignal
+			) => base.fetchTelemetry(range, signal),
 		};
 	};
 	return {
-		detectDefinitionSignals: (detectParams, today, _deps, options) =>
+		detectDefinitionSignals: async (detectParams, today, _deps, options) =>
 			detectFunnelGoalSignals(
 				detectParams,
 				today,
 				funnelGoalDependencies(),
 				options
 			),
-		detectMetricSignals: (detectParams, queryFn, today, signal, diagnostics) =>
-			detectSignals(
-				detectParams,
-				queryFn,
-				today,
-				withAttemptSignal(signal),
-				diagnostics
-			),
+		detectMeasurementRecommendationSignals: async (
+			detectParams,
+			today,
+			_deps,
+			signal
+		) =>
+			params.historical
+				? []
+				: detectMeasurementRecommendationSignals(
+						detectParams,
+						today,
+						measurementRecommendationDependencies(),
+						signal
+					),
+		detectMetricSignals: async (
+			detectParams,
+			queryFn,
+			today,
+			signal,
+			diagnostics
+		) => detectSignals(detectParams, queryFn, today, signal, diagnostics),
+		detectRouteHealthSignals: async (detectParams, today, _deps, signal) =>
+			detectRouteHealthSignals(detectParams, today, undefined, signal),
 		fetchAnnotations: (_websiteId, signal, _asOf, timezone) => {
 			const window = signalAnnotationWindow(signal, timezone);
 			return Promise.resolve(
@@ -631,28 +764,66 @@ async function createSources(params: {
 					.slice(0, 10)
 					.map(
 						(row): InvestigationAnnotation => ({
-							date: row.xValue.toISOString().slice(0, 10),
+							date: dayjs(row.xValue).tz(timezone).format("YYYY-MM-DD"),
 							title: row.text,
 						})
 					)
 			);
 		},
 		investigateSignal: async (input) => {
-			const result = await runInsightAgent(input, {
-				abortSignal: params.attemptSignal,
-				model: createModelFromId(params.model),
-				...(historicalTools ? { tools: historicalTools } : {}),
-				onStepFinish: (step) => {
-					params.trace.push(projectStep(step));
-				},
-			});
-			params.onAgentResult(result);
-			return result;
+			const startedAt = Date.now();
+			const attempt: ShadowAgentAttempt = {
+				agent: null,
+				durationMs: 0,
+				input,
+				trace: [],
+			};
+			params.attempts.push(attempt);
+			try {
+				const result = await runCancellableAttempt((attemptSignal) =>
+					runInsightAgent(input, {
+						abortSignal: attemptSignal,
+						model: createModelFromId(params.model),
+						...(historicalTools ? { tools: historicalTools } : {}),
+						onStepFinish: (step) => {
+							attempt.trace.push(projectStep(step));
+						},
+					})
+				);
+				attempt.agent = projectAgentUsage(result);
+				attempt.result = result;
+				const previous = latestObservations.get(input.signal.signalKey);
+				const hasOpenInvestigation = keepsShadowInvestigationOpen(
+					result.outcome,
+					previous
+				);
+				const observation: ShadowObservation = {
+					asOf: params.asOf,
+					evidence: input.evidence,
+					hasOpenInvestigation,
+					outcome: result.outcome,
+					recheckAt: shadowNextRecheckAt(params.asOf, result.outcome.next),
+					signal: input.signal,
+				};
+				params.observations.push(observation);
+				latestObservations.set(input.signal.signalKey, observation);
+				return result;
+			} catch (error) {
+				attempt.agent =
+					error instanceof InsightAgentExecutionError
+						? projectUsage(error.modelId, error.usage)
+						: projectTraceUsage(attempt.trace);
+				attempt.error = error;
+				throw error;
+			} finally {
+				attempt.durationMs = Date.now() - startedAt;
+			}
 		},
 		loadDueInvestigation: () => {
 			const due = [...latestObservations.values()]
 				.filter(
 					(observation) =>
+						observation.hasOpenInvestigation &&
 						observation.outcome.next.type !== "resolve" &&
 						observation.recheckAt <= params.asOf
 				)
@@ -672,10 +843,17 @@ async function createSources(params: {
 					: null
 			);
 		},
-		loadHistory: ({ signalKey }) =>
+		loadErrorCustomerImpact,
+		loadHistory: ({ signalKey, through }) =>
 			Promise.resolve(
 				params.observations
-					.filter((observation) => observation.signal.signalKey === signalKey)
+					.filter(
+						(observation) =>
+							observation.signal.signalKey === signalKey &&
+							(!through || observation.asOf <= through)
+					)
+					.sort((a, b) => a.asOf.getTime() - b.asOf.getTime())
+					.slice(-12)
 					.map((observation) => ({
 						asOf: observation.asOf.toISOString(),
 						evidence: observation.evidence,
@@ -691,13 +869,9 @@ async function createSources(params: {
 				new Map<string, LatestInsightObservation>(latestObservations)
 			),
 		remeasureSignal: (detectParams, prior, today, signal) =>
-			remeasureStoredSignal(
-				detectParams,
-				prior,
-				today,
-				withAttemptSignal(signal),
-				{ funnelGoal: funnelGoalDependencies() }
-			),
+			remeasureStoredSignal(detectParams, prior, today, signal, {
+				funnelGoal: funnelGoalDependencies(),
+			}),
 	};
 }
 
@@ -856,7 +1030,7 @@ function sanitizeOutcome(
 		: null;
 }
 
-function metricFamily(key: string): string {
+export function metricFamily(key: string): string {
 	if (key.startsWith("goal:")) {
 		return "goal";
 	}
@@ -865,6 +1039,15 @@ function metricFamily(key: string): string {
 	}
 	if (key.startsWith("custom_event:")) {
 		return "custom_event";
+	}
+	if (key.startsWith("error:")) {
+		return "error";
+	}
+	if (key.startsWith("route:")) {
+		return "route_health";
+	}
+	if (key.startsWith("measurement:")) {
+		return "measurement";
 	}
 	return key;
 }
@@ -875,14 +1058,21 @@ function projectAgentUsage(
 	if (!(result.modelId && result.usage)) {
 		return null;
 	}
-	const usage = summarizeAgentUsage(result.modelId, result.usage);
+	return projectUsage(result.modelId, result.usage);
+}
+
+function projectUsage(
+	modelId: string,
+	modelUsage: LanguageModelUsage
+): ShadowAgentUsage {
+	const usage = summarizeAgentUsage(modelId, modelUsage);
 	return {
 		cacheReadTokens: usage.cache_read_tokens,
 		cacheWriteTokens: usage.cache_write_tokens,
 		costFallback: usage.cost_fallback,
 		estimatedCostUsd: usage.cost_total_usd,
 		inputTokens: usage.input_tokens,
-		modelId: result.modelId,
+		modelId,
 		outputTokens: usage.output_tokens,
 		reasoningTokens: usage.reasoning_tokens,
 	};
@@ -935,6 +1125,40 @@ function projectTraceUsage(
 	};
 }
 
+function subjectAliasForSignal(
+	signal: NonNullable<WebsiteInvestigationArtifact["signal"]>,
+	subjectAliases: Map<string, string>
+): string | null {
+	const subjectKey = `${signal.entity.type}:${signal.entity.id}`;
+	const existing = subjectAliases.get(subjectKey);
+	if (existing) {
+		return existing;
+	}
+	const normalized = signal.entity.type.replaceAll("_", " ");
+	const entity = `${normalized[0]?.toUpperCase() ?? ""}${normalized.slice(1)}`;
+	const alias = `${entity} ${subjectAliases.size + 1}`;
+	subjectAliases.set(subjectKey, alias);
+	return alias;
+}
+
+function projectSelectedSignal(
+	signal: WebsiteInvestigationArtifact["signal"],
+	subjectAlias: string | null
+): ShadowCase["selectedSignal"] {
+	return signal
+		? {
+				changePercent: signal.changePercent,
+				current: signal.metric.current,
+				entityType: signal.entity.type,
+				metric: metricFamily(signal.signalKey),
+				period: signal.period,
+				previous: signal.metric.previous ?? null,
+				severity: signal.severity,
+				subject: subjectAlias ?? "[entity]",
+			}
+		: null;
+}
+
 function projectCase(params: {
 	agent: ShadowAgentUsage | null;
 	artifact: WebsiteInvestigationArtifact;
@@ -962,18 +1186,7 @@ function projectCase(params: {
 					}
 				: undefined
 		),
-		selectedSignal: artifact.signal
-			? {
-					changePercent: artifact.signal.changePercent,
-					current: artifact.signal.metric.current,
-					entityType: artifact.signal.entity.type,
-					metric: metricFamily(artifact.signal.signalKey),
-					period: artifact.signal.period,
-					previous: artifact.signal.metric.previous ?? null,
-					severity: artifact.signal.severity,
-					subject: params.subjectAlias ?? "[entity]",
-				}
-			: null,
+		selectedSignal: projectSelectedSignal(artifact.signal, params.subjectAlias),
 		status: artifact.status,
 		trace: params.trace.map(({ tools }) => ({ tools })),
 		toolCallCount: params.trace.reduce(
@@ -989,7 +1202,9 @@ function failedCase(params: {
 	caseId: string;
 	durationMs: number;
 	error: unknown;
+	selectedSignal?: WebsiteInvestigationArtifact["signal"];
 	secrets: string[];
+	subjectAlias?: string | null;
 	trace: InsightAgentStepTrace[];
 }): ShadowCase {
 	const cause =
@@ -1002,7 +1217,9 @@ function failedCase(params: {
 			: null;
 	const message =
 		params.error instanceof Error
-			? [params.error.message, cause].filter(Boolean).join(": ")
+			? cause && cause !== params.error.message
+				? `${params.error.message}: ${cause}`
+				: params.error.message
 			: "Unknown failure";
 	return {
 		agent: params.agent,
@@ -1015,7 +1232,10 @@ function failedCase(params: {
 				? params.error.constructor.name
 				: typeof params.error,
 		outcome: null,
-		selectedSignal: null,
+		selectedSignal: projectSelectedSignal(
+			params.selectedSignal ?? null,
+			params.subjectAlias ?? null
+		),
 		status: "error",
 		trace: params.trace.map(({ tools }) => ({ tools })),
 		toolCallCount: params.trace.reduce(
@@ -1105,16 +1325,17 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 	const referenceTime = options.referenceTime;
 	const restoreConsole = silenceLibraryConsole();
 	try {
-		const ranked = await loadCohort(
-			options.minEvents,
-			options.limit,
-			referenceTime
-		);
+		await assertReadOnlyClickHouse();
+		const ranked = options.websiteId
+			? [options.websiteId]
+			: await loadCohort(options.minEvents, options.limit, referenceTime);
 		const metadata = await loadMetadata(ranked);
-		const [
-			{ investigateWebsiteWithSources, resolveInvestigationAsOf },
-			{ nextRecheckAt },
-		] = await Promise.all([import("./generation"), import("./observations")]);
+		if (options.websiteId && metadata.sites.length === 0) {
+			throw new Error("The requested website was not found");
+		}
+		const { investigateWebsitePortfolioWithSources } = await import(
+			"./generation"
+		);
 		const siteCases = await mapConcurrent(
 			metadata.sites,
 			options.concurrency,
@@ -1145,94 +1366,135 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 						.map((row) => row.text),
 				];
 				for (const offsetDays of [...options.offsets].sort((a, b) => b - a)) {
-					const caseId = `site-${String(siteIndex + 1).padStart(2, "0")}@d-${offsetDays}`;
-					const asOf = resolveInvestigationAsOf(
-						dateAtOffset(referenceTime, offsetDays, site.timezone),
-						site.timezone
+					const caseIdPrefix = `site-${String(siteIndex + 1).padStart(2, "0")}@d-${offsetDays}`;
+					const asOf = resolveShadowAsOf(
+						referenceTime,
+						offsetDays,
+						site.timezone,
+						options.asOfMode
 					);
-					const startedAt = Date.now();
-					const trace: InsightAgentStepTrace[] = [];
-					let agent: ShadowAgentUsage | null = null;
+					const offsetStartedAt = Date.now();
+					const input = {
+						asOf,
+						domain: site.domain,
+						githubRepository: offsetDays === 0 ? site.githubRepository : null,
+						name: site.name,
+						organizationId: site.organizationId,
+						timezone: site.timezone,
+						websiteId: site.id,
+					};
+					const attempts: ShadowAgentAttempt[] = [];
+					let artifacts: WebsiteInvestigationArtifact[] = [];
+					let portfolioError: unknown;
 					try {
-						const input = {
+						const sources = await createSources({
+							annotations: metadata.annotations,
 							asOf,
-							domain: site.domain,
-							githubRepository: offsetDays === 0 ? site.githubRepository : null,
-							name: site.name,
-							organizationId: site.organizationId,
-							timezone: site.timezone,
-							websiteId: site.id,
-						};
-						const artifact = await runCancellableAttempt(
-							async (attemptSignal) => {
-								const sources = await createSources({
-									annotations: metadata.annotations,
-									asOf,
-									attemptSignal,
-									funnels: metadata.funnels,
-									goals: metadata.goals,
-									historical: offsetDays > 0,
-									model: options.model,
-									observations,
-									onAgentResult: (result) => {
-										agent = projectAgentUsage(result);
-									},
-									site,
-									trace,
-								});
-								return investigateWebsiteWithSources(input, sources);
+							attempts,
+							funnels: metadata.funnels,
+							goals: metadata.goals,
+							historical: offsetDays > 0,
+							model: options.model,
+							observations,
+							site,
+						});
+						let remainingAgentSlots = options.batchSize;
+						artifacts = await investigateWebsitePortfolioWithSources(
+							input,
+							sources,
+							"manual",
+							() => {
+								if (remainingAgentSlots === 0) {
+									return Promise.resolve(false);
+								}
+								remainingAgentSlots -= 1;
+								return Promise.resolve(true);
 							}
-						);
-						if (artifact.outcome && artifact.signal) {
-							observations.push({
-								asOf,
-								evidence: artifact.evidence,
-								outcome: artifact.outcome,
-								recheckAt: nextRecheckAt(asOf, artifact.outcome.next),
-								signal: artifact.signal,
-							});
-						}
-						const secrets = [
-							...siteSecrets,
-							artifact.signal?.entity.id ?? "",
-							artifact.signal?.entity.label ?? "",
-						];
-						let subjectAlias: string | null = null;
-						if (artifact.signal) {
-							const subjectKey = `${artifact.signal.entity.type}:${artifact.signal.entity.id}`;
-							subjectAlias = subjectAliases.get(subjectKey) ?? null;
-							if (!subjectAlias) {
-								const normalized = artifact.signal.entity.type.replaceAll(
-									"_",
-									" "
-								);
-								const entity = `${normalized[0]?.toUpperCase() ?? ""}${normalized.slice(1)}`;
-								subjectAlias = `${entity} ${subjectAliases.size + 1}`;
-								subjectAliases.set(subjectKey, subjectAlias);
-							}
-						}
-						cases.push(
-							projectCase({
-								agent,
-								artifact,
-								caseId,
-								durationMs: Date.now() - startedAt,
-								secrets,
-								subjectAlias,
-								trace,
-							})
 						);
 					} catch (error) {
-						agent ??= projectTraceUsage(trace);
+						portfolioError = error;
+					}
+
+					for (const [attemptIndex, attempt] of attempts.entries()) {
+						const signal = attempt.input.signal;
+						const subjectAlias = subjectAliasForSignal(signal, subjectAliases);
+						const secrets = [
+							...siteSecrets,
+							signal.entity.id,
+							signal.entity.label,
+							...(attempt.input.relatedSignals ?? []).flatMap((related) => [
+								related.entity.id,
+								related.entity.label,
+							]),
+						];
+						const caseId = `${caseIdPrefix}#${attemptIndex + 1}`;
+						if (attempt.error !== undefined) {
+							cases.push(
+								failedCase({
+									agent: attempt.agent,
+									asOf,
+									caseId,
+									durationMs: attempt.durationMs,
+									error: attempt.error,
+									selectedSignal: signal,
+									secrets,
+									subjectAlias,
+									trace: attempt.trace,
+								})
+							);
+							continue;
+						}
+						if (!attempt.result) {
+							continue;
+						}
+						const artifact: WebsiteInvestigationArtifact = {
+							asOf: asOf.toISOString(),
+							evidence: attempt.input.evidence,
+							outcome: attempt.result.outcome,
+							signal,
+							status: "completed",
+						};
+						cases.push(
+							projectCase({
+								agent: attempt.agent,
+								artifact,
+								caseId,
+								durationMs: attempt.durationMs,
+								secrets,
+								subjectAlias,
+								trace: attempt.trace,
+							})
+						);
+					}
+
+					if (attempts.length === 0 && !portfolioError) {
+						for (const artifact of artifacts) {
+							cases.push(
+								projectCase({
+									agent: null,
+									artifact,
+									caseId: `${caseIdPrefix}#1`,
+									durationMs: Date.now() - offsetStartedAt,
+									secrets: siteSecrets,
+									subjectAlias: null,
+									trace: [],
+								})
+							);
+						}
+					}
+					if (
+						portfolioError !== undefined &&
+						!attempts.some((attempt) => attempt.error === portfolioError)
+					) {
 						cases.push(
 							failedCase({
-								agent,
+								agent: null,
 								asOf,
-								caseId,
-								durationMs: Date.now() - startedAt,
-								error,
+								caseId: `${caseIdPrefix}#error`,
+								durationMs: Date.now() - offsetStartedAt,
+								error: portfolioError,
 								secrets: siteSecrets,
-								trace,
+								trace: [],
 							})
 						);
 					}
@@ -1245,6 +1507,8 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 			aggregate: aggregateCases(cases),
 			cases,
 			meta: {
+				asOfMode: options.asOfMode,
+				batchSize: options.batchSize,
 				concurrency: options.concurrency,
 				dataAccess: {
 					clickhouse: "read_only",
@@ -1280,7 +1544,9 @@ if (import.meta.main) {
 			: null;
 		const result = await runProductionShadow(options);
 		if (output) {
-			await writeFile(output, `${JSON.stringify(result, null, 2)}\n`);
+			await writeFile(output, `${JSON.stringify(result, null, 2)}\n`, {
+				mode: 0o600,
+			});
 			await chmod(output, 0o600);
 		}
 		process.stdout.write(

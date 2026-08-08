@@ -1,6 +1,12 @@
 import { tool } from "ai";
 import dayjs from "dayjs";
 import { z } from "zod";
+import {
+	DEEP_LINK_APP_IDS,
+	isDeepLinkTarget,
+} from "@databuddy/shared/constants/deep-link-apps";
+import { LINK_SLUG_REGEX } from "@databuddy/shared/constants/links";
+import { httpUrlSchema } from "@databuddy/validation";
 import { getCachedWebsite } from "../../lib/website-utils";
 import {
 	LinkFolderSelectorSchema,
@@ -19,8 +25,6 @@ import {
 import { callRPCProcedure, createToolLogger, getAppContext } from "./utils";
 
 const logger = createToolLogger("Links Tools");
-
-const SLUG_REGEX = /^[a-zA-Z0-9_-]+$/;
 
 async function getOrganizationIdFromWebsite(
 	websiteId: string
@@ -116,26 +120,37 @@ export function createLinksTools() {
 	const createLinkTool = tool({
 		description:
 			"Create a short link. slug auto-generated if omitted. expiresAt is ISO date.",
-		inputSchema: z.object({
-			websiteId: z.string(),
-			name: z.string().min(1).max(255),
-			targetUrl: z.string().url(),
-			slug: z.string().min(3).max(50).regex(SLUG_REGEX).optional(),
-			expiresAt: z.string().optional(),
-			expiredRedirectUrl: z.string().url().optional(),
-			ogTitle: z.string().max(200).optional(),
-			ogDescription: z.string().max(500).optional(),
-			ogImageUrl: z.string().url().optional(),
-			externalId: z.string().max(255).optional(),
-			...LinkFolderSelectorSchema.shape,
-			deepLinkApp: z
-				.string()
-				.optional()
-				.describe(
-					"App ID for deep linking (instagram, tiktok, youtube, x, spotify, linkedin, facebook, whatsapp, telegram). On mobile, opens the native app."
-				),
-			confirmed: z.boolean().describe("false=preview, true=apply"),
-		}),
+		inputSchema: z
+			.object({
+				websiteId: z.string(),
+				name: z.string().min(1).max(255),
+				targetUrl: httpUrlSchema,
+				slug: z.string().min(3).max(50).regex(LINK_SLUG_REGEX).optional(),
+				expiresAt: z.string().optional(),
+				expiredRedirectUrl: httpUrlSchema.optional(),
+				ogTitle: z.string().max(200).optional(),
+				ogDescription: z.string().max(500).optional(),
+				ogImageUrl: httpUrlSchema.optional(),
+				externalId: z.string().max(255).optional(),
+				...LinkFolderSelectorSchema.shape,
+				deepLinkApp: z
+					.enum(DEEP_LINK_APP_IDS)
+					.optional()
+					.describe(
+						"App ID for deep linking (instagram, tiktok, youtube, x, spotify, linkedin, facebook, whatsapp, telegram). On mobile, opens the native app."
+					),
+				confirmed: z.boolean().describe("false=preview, true=apply"),
+			})
+			.superRefine(({ deepLinkApp, targetUrl }, context) => {
+				if (deepLinkApp && !isDeepLinkTarget(deepLinkApp, targetUrl)) {
+					context.addIssue({
+						code: "custom",
+						message:
+							"Deep link URLs must use HTTPS and match the selected app.",
+						path: ["targetUrl"],
+					});
+				}
+			}),
 		execute: async (
 			{
 				websiteId,
@@ -240,16 +255,16 @@ export function createLinksTools() {
 			id: z.string(),
 			websiteId: z.string(),
 			name: z.string().min(1).max(255).optional(),
-			targetUrl: z.string().url().optional(),
-			slug: z.string().min(3).max(50).regex(SLUG_REGEX).optional(),
+			targetUrl: httpUrlSchema.optional(),
+			slug: z.string().min(3).max(50).regex(LINK_SLUG_REGEX).optional(),
 			expiresAt: z.string().datetime().nullable().optional(),
-			expiredRedirectUrl: z.string().url().nullable().optional(),
+			expiredRedirectUrl: httpUrlSchema.nullable().optional(),
 			ogTitle: z.string().max(200).nullable().optional(),
 			ogDescription: z.string().max(500).nullable().optional(),
-			ogImageUrl: z.string().url().nullable().optional(),
+			ogImageUrl: httpUrlSchema.nullable().optional(),
 			externalId: z.string().max(255).nullable().optional(),
 			...LinkFolderSelectorSchema.shape,
-			deepLinkApp: z.string().nullable().optional(),
+			deepLinkApp: z.enum(DEEP_LINK_APP_IDS).nullable().optional(),
 			confirmed: z.boolean().describe("false=preview, true=apply"),
 		}),
 		execute: async (
@@ -287,6 +302,21 @@ export function createLinksTools() {
 
 				const currentFolder =
 					folders.find((folder) => folder.id === currentLink.folderId) ?? null;
+				const effectiveDeepLinkApp =
+					updates.deepLinkApp === undefined
+						? currentLink.deepLinkApp
+						: updates.deepLinkApp;
+				const effectiveTargetUrl = updates.targetUrl ?? currentLink.targetUrl;
+				if (
+					effectiveDeepLinkApp &&
+					!isDeepLinkTarget(effectiveDeepLinkApp, effectiveTargetUrl)
+				) {
+					return {
+						success: false,
+						message:
+							"Deep link URLs must use HTTPS and match the selected app.",
+					};
+				}
 
 				const changes: string[] = [];
 				if (updates.name && updates.name !== currentLink.name) {
@@ -299,6 +329,14 @@ export function createLinksTools() {
 				}
 				if (updates.slug && updates.slug !== currentLink.slug) {
 					changes.push(`Slug: /${currentLink.slug} → /${updates.slug}`);
+				}
+				if (
+					updates.deepLinkApp !== undefined &&
+					updates.deepLinkApp !== currentLink.deepLinkApp
+				) {
+					changes.push(
+						`Deep link app: ${currentLink.deepLinkApp ?? "None"} → ${updates.deepLinkApp ?? "None"}`
+					);
 				}
 				if (updates.expiresAt !== undefined) {
 					const oldExpires = currentLink.expiresAt
@@ -336,6 +374,7 @@ export function createLinksTools() {
 							name: currentLink.name,
 							slug: currentLink.slug,
 							targetUrl: currentLink.targetUrl,
+							deepLinkApp: currentLink.deepLinkApp ?? null,
 							folder: currentFolder
 								? summarizeLinkFolder(currentFolder)
 								: "Unfiled",

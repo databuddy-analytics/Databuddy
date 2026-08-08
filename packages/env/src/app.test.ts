@@ -8,6 +8,7 @@ describe("createConfig", () => {
 				api: "http://localhost:3001",
 				basket: "http://localhost:4000",
 				dashboard: "http://localhost:3000",
+				links: "http://localhost:2500",
 				status: "http://localhost:3002",
 			},
 		});
@@ -19,6 +20,7 @@ describe("createConfig", () => {
 				api: "https://api.databuddy.cc",
 				basket: "https://basket.databuddy.cc",
 				dashboard: "https://app.databuddy.cc",
+				links: "https://dby.sh",
 				status: "https://status.databuddy.cc",
 			},
 		});
@@ -68,6 +70,26 @@ describe("createConfig", () => {
 				basket: "https://public-basket.example.com",
 				status: "https://public-status.example.com",
 			},
+		});
+	});
+
+	it("uses configured public links URLs and removes trailing slashes", () => {
+		expect(
+			createConfig({
+				LINKS_URL: "https://links.example.com/",
+				NODE_ENV: "production",
+			})
+		).toMatchObject({
+			urls: { links: "https://links.example.com" },
+		});
+
+		expect(
+			createConfig({
+				NEXT_PUBLIC_LINKS_URL: "https://public-links.example.com/",
+				NODE_ENV: "production",
+			})
+		).toMatchObject({
+			urls: { links: "https://public-links.example.com" },
 		});
 	});
 

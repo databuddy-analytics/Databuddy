@@ -142,6 +142,7 @@ export async function createShortLink(
 	}
 ): Promise<Locator> {
 	await page.getByRole("button", { name: "New Link" }).click();
+	await page.getByRole("menuitem", { name: "Short Link" }).click();
 	const dialog = page.getByRole("dialog", { name: "Create Link" });
 	await dialog.waitFor();
 	await dialog

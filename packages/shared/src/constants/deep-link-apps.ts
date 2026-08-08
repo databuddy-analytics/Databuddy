@@ -1,23 +1,33 @@
+export const DEEP_LINK_APP_IDS = [
+	"instagram",
+	"tiktok",
+	"youtube",
+	"x",
+	"spotify",
+	"linkedin",
+	"facebook",
+	"whatsapp",
+	"telegram",
+] as const;
+
+export type DeepLinkAppId = (typeof DEEP_LINK_APP_IDS)[number];
+
 export interface DeepLinkApp {
-	color: string;
 	hostnames: string[];
-	id: string;
+	id: DeepLinkAppId;
 	name: string;
 	placeholder: string;
 	resolveUri: (url: URL) => string | null;
-	simpleIconSlug: string;
 }
 
 const TRAILING_SLASH = /\/$/;
 const NON_DIGITS = /\D/g;
 const DIGITS_ONLY = /^\d+$/;
 
-export const DEEP_LINK_APPS: DeepLinkApp[] = [
+export const DEEP_LINK_APPS: readonly DeepLinkApp[] = [
 	{
 		id: "instagram",
 		name: "Instagram",
-		simpleIconSlug: "instagram",
-		color: "#E4405F",
 		hostnames: ["instagram.com", "www.instagram.com", "instagr.am"],
 		placeholder: "https://instagram.com/username",
 		resolveUri: (url) => {
@@ -41,8 +51,6 @@ export const DEEP_LINK_APPS: DeepLinkApp[] = [
 	{
 		id: "tiktok",
 		name: "TikTok",
-		simpleIconSlug: "tiktok",
-		color: "#000000",
 		hostnames: ["tiktok.com", "www.tiktok.com", "vm.tiktok.com"],
 		placeholder: "https://tiktok.com/@username",
 		resolveUri: (url) => {
@@ -60,8 +68,6 @@ export const DEEP_LINK_APPS: DeepLinkApp[] = [
 	{
 		id: "youtube",
 		name: "YouTube",
-		simpleIconSlug: "youtube",
-		color: "#FF0000",
 		hostnames: ["youtube.com", "www.youtube.com", "youtu.be", "m.youtube.com"],
 		placeholder: "https://youtube.com/watch?v=VIDEO_ID",
 		resolveUri: (url) => {
@@ -90,8 +96,6 @@ export const DEEP_LINK_APPS: DeepLinkApp[] = [
 	{
 		id: "x",
 		name: "X",
-		simpleIconSlug: "x",
-		color: "#000000",
 		hostnames: ["x.com", "www.x.com", "twitter.com", "www.twitter.com"],
 		placeholder: "https://x.com/username",
 		resolveUri: (url) => {
@@ -109,8 +113,6 @@ export const DEEP_LINK_APPS: DeepLinkApp[] = [
 	{
 		id: "spotify",
 		name: "Spotify",
-		simpleIconSlug: "spotify",
-		color: "#1DB954",
 		hostnames: ["open.spotify.com"],
 		placeholder: "https://open.spotify.com/track/TRACK_ID",
 		resolveUri: (url) => {
@@ -125,8 +127,6 @@ export const DEEP_LINK_APPS: DeepLinkApp[] = [
 	{
 		id: "linkedin",
 		name: "LinkedIn",
-		simpleIconSlug: "linkedin",
-		color: "#0A66C2",
 		hostnames: ["linkedin.com", "www.linkedin.com"],
 		placeholder: "https://linkedin.com/in/username",
 		resolveUri: (url) => {
@@ -147,8 +147,6 @@ export const DEEP_LINK_APPS: DeepLinkApp[] = [
 	{
 		id: "facebook",
 		name: "Facebook",
-		simpleIconSlug: "facebook",
-		color: "#0866FF",
 		hostnames: [
 			"facebook.com",
 			"www.facebook.com",
@@ -169,8 +167,6 @@ export const DEEP_LINK_APPS: DeepLinkApp[] = [
 	{
 		id: "whatsapp",
 		name: "WhatsApp",
-		simpleIconSlug: "whatsapp",
-		color: "#25D366",
 		hostnames: ["wa.me", "api.whatsapp.com", "chat.whatsapp.com"],
 		placeholder: "https://wa.me/1234567890",
 		resolveUri: (url) => {
@@ -191,8 +187,6 @@ export const DEEP_LINK_APPS: DeepLinkApp[] = [
 	{
 		id: "telegram",
 		name: "Telegram",
-		simpleIconSlug: "telegram",
-		color: "#26A5E4",
 		hostnames: ["t.me", "telegram.me"],
 		placeholder: "https://t.me/username",
 		resolveUri: (url) => {
@@ -212,9 +206,13 @@ export const DEEP_LINK_APPS: DeepLinkApp[] = [
 	},
 ];
 
-const APP_MAP = new Map(DEEP_LINK_APPS.map((app) => [app.id, app]));
+const APP_MAP = new Map<string, DeepLinkApp>(
+	DEEP_LINK_APPS.map((app) => [app.id, app] as const)
+);
 const HOST_MAP = new Map(
-	DEEP_LINK_APPS.flatMap((app) => app.hostnames.map((h) => [h, app]))
+	DEEP_LINK_APPS.flatMap((app) =>
+		app.hostnames.map((hostname) => [hostname.toLowerCase(), app] as const)
+	)
 );
 
 export function getDeepLinkApp(id: string): DeepLinkApp | undefined {
@@ -224,19 +222,46 @@ export function getDeepLinkApp(id: string): DeepLinkApp | undefined {
 export function getDeepLinkAppByHostname(
 	hostname: string
 ): DeepLinkApp | undefined {
-	return HOST_MAP.get(hostname);
+	return HOST_MAP.get(hostname.toLowerCase());
+}
+
+function parseDeepLinkTarget(
+	appId: string,
+	targetUrl: string
+): { app: DeepLinkApp; url: URL } | null {
+	const app = getDeepLinkApp(appId);
+	if (!app) {
+		return null;
+	}
+
+	try {
+		const url = new URL(targetUrl);
+		if (
+			url.protocol === "https:" &&
+			getDeepLinkAppByHostname(url.hostname)?.id === app.id
+		) {
+			return { app, url };
+		}
+		return null;
+	} catch {
+		return null;
+	}
+}
+
+export function isDeepLinkTarget(appId: string, targetUrl: string): boolean {
+	return parseDeepLinkTarget(appId, targetUrl) !== null;
 }
 
 export function resolveDeepLink(
 	appId: string,
 	targetUrl: string
 ): string | null {
-	const app = APP_MAP.get(appId);
-	if (!app) {
+	const target = parseDeepLinkTarget(appId, targetUrl);
+	if (!target) {
 		return null;
 	}
 	try {
-		return app.resolveUri(new URL(targetUrl));
+		return target.app.resolveUri(target.url);
 	} catch {
 		return null;
 	}

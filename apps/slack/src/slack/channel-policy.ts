@@ -1,3 +1,4 @@
+import { isRecord } from "@/lib/guards";
 import { getSlackApiErrorCode } from "@/lib/evlog-slack";
 import type { SlackAgentClient } from "@/slack/types";
 
@@ -57,8 +58,4 @@ export async function getSlackChannelMentionPolicy({
 			reason: code === "missing_scope" ? "missing_scope" : "lookup_failed",
 		};
 	}
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }

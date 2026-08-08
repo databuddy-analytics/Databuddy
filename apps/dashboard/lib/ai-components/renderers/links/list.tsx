@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { LinkSheet } from "@/app/(main)/links/_components/link-sheet";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { type Link, useDeleteLink } from "@/hooks/use-links";
+import { LINKS_BASE_URL, getPublicLinkUrl } from "@/lib/links-url";
 import { cn } from "@/lib/utils";
 import type { BaseComponentProps } from "../../types";
 import {
@@ -21,8 +22,6 @@ import {
 } from "@databuddy/ui/icons";
 import { DeleteDialog, DropdownMenu } from "@databuddy/ui/client";
 import { Badge, Button, Card, fromNow, localDayjs } from "@databuddy/ui";
-
-const BASE_URL = "dby.sh";
 
 interface LinkItem {
 	androidUrl?: string | null;
@@ -97,15 +96,15 @@ function LinkRow({
 }) {
 	const isExpired =
 		link.expiresAt && localDayjs(link.expiresAt).isBefore(localDayjs());
-	const shortUrl = `${BASE_URL}/${link.slug}`;
+	const shortUrl = `${LINKS_BASE_URL}/${link.slug}`;
 
 	const { copyToClipboard, isCopied } = useCopyToClipboard({
 		onCopy: () => toast.success("Link copied"),
 	});
 
 	const handleCopy = useCallback(() => {
-		copyToClipboard(`https://${shortUrl}`);
-	}, [copyToClipboard, shortUrl]);
+		copyToClipboard(getPublicLinkUrl(link.slug));
+	}, [copyToClipboard, link.slug]);
 
 	return (
 		<div

@@ -23,6 +23,7 @@ import {
 import type { DetectedSignal } from "./detection";
 import type { InsightAgentInput } from "./agent";
 import { isRegression, signalKeyForDetectedSignal } from "./investigation";
+import { captureInsightsError } from "./lib/evlog-insights";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const HISTORY_LIMIT = 12;
@@ -387,16 +388,17 @@ export async function loadOtherOpenWork(params: {
 		}));
 }
 
-export async function findRunObservation(params: {
+export async function findRunObservations(params: {
 	organizationId: string;
 	runId: string;
 	websiteId: string;
 }) {
-	const [observation] = await db
+	const observations = await db
 		.select({
 			insightId: insightObservations.insightId,
 			outcome: insightObservations.outcome,
 			signal: insightObservations.signal,
+			signalKey: insightObservations.signalKey,
 		})
 		.from(insightObservations)
 		.where(
@@ -406,11 +408,21 @@ export async function findRunObservation(params: {
 				eq(insightObservations.websiteId, params.websiteId)
 			)
 		)
-		.limit(1);
-	if (!observation) {
-		return;
-	}
-	const outcome = parseInvestigationOutcome(observation.outcome);
-	const signal = parseInvestigationSignal(observation.signal);
-	return outcome && signal ? { ...observation, outcome, signal } : undefined;
+		.orderBy(insightObservations.signalKey, insightObservations.id);
+	return observations.flatMap((observation) => {
+		const outcome = parseInvestigationOutcome(observation.outcome);
+		const signal = parseInvestigationSignal(observation.signal);
+		if (!(outcome && signal)) {
+			const error = new Error(
+				`Persisted run observation ${observation.signalKey} is invalid`
+			);
+			captureInsightsError(error, "generation.persisted_observation.invalid", {
+				organization_id: params.organizationId,
+				run_id: params.runId,
+				website_id: params.websiteId,
+			});
+			return [];
+		}
+		return [{ ...observation, outcome, signal }];
+	});
 }

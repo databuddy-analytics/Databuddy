@@ -13,6 +13,8 @@ type IconComponent = ComponentType<
 
 interface TabItem {
 	count?: number;
+	countLabel?: string;
+	countTone?: "attention" | "default";
 	href: string;
 	icon?: IconComponent;
 	id: string;
@@ -46,7 +48,8 @@ export function PageNavigation(props: PageNavigationProps) {
 
 	if (props.variant === "breadcrumb") {
 		return (
-			<div
+			<nav
+				aria-label="Breadcrumb"
 				className={cn(
 					"flex h-10 shrink-0 items-center gap-2 border-border border-b bg-accent/30 px-3",
 					props.className
@@ -57,7 +60,7 @@ export function PageNavigation(props: PageNavigationProps) {
 					href={props.breadcrumb.href}
 				>
 					<span className="inline-flex transition-transform duration-200 group-hover:-translate-x-0.5">
-						<ArrowLeftIcon className="size-3.5" weight="bold" />
+						<ArrowLeftIcon aria-hidden className="size-3.5" weight="bold" />
 					</span>
 					<span>{props.breadcrumb.label}</span>
 				</Link>
@@ -65,16 +68,17 @@ export function PageNavigation(props: PageNavigationProps) {
 				<span className="font-medium text-foreground text-sm">
 					{props.currentPage}
 				</span>
-			</div>
+			</nav>
 		);
 	}
 
 	const activeTabId = getActivePageNavigationTabId(props.tabs, pathname);
 
 	return (
-		<div
+		<nav
+			aria-label="Page sections"
 			className={cn(
-				"flex h-10 shrink-0 border-border border-b bg-accent/30",
+				"flex h-10 shrink-0 overflow-x-auto overscroll-x-contain border-border border-b bg-accent/30",
 				props.className
 			)}
 		>
@@ -84,8 +88,9 @@ export function PageNavigation(props: PageNavigationProps) {
 
 				return (
 					<Link
+						aria-current={isActive ? "page" : undefined}
 						className={cn(
-							"relative flex cursor-pointer items-center gap-2 px-3 py-2.5 font-medium text-sm transition-colors",
+							"relative flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap px-2.5 py-2.5 font-medium text-sm transition-colors sm:gap-2 sm:px-3",
 							isActive
 								? "text-foreground"
 								: "text-muted-foreground hover:text-foreground"
@@ -94,8 +99,9 @@ export function PageNavigation(props: PageNavigationProps) {
 						key={tab.id}
 					>
 						{IconComponent && (
-							<span className="inline-flex">
+							<span className="hidden sm:inline-flex">
 								<IconComponent
+									aria-hidden
 									className={cn(
 										"size-4 transition-colors",
 										isActive && "text-primary"
@@ -106,16 +112,24 @@ export function PageNavigation(props: PageNavigationProps) {
 						)}
 						{tab.label}
 						{tab.count !== undefined && tab.count > 0 && (
-							<span
-								className={cn(
-									"flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 font-semibold text-xs tabular-nums transition-colors",
-									isActive
-										? "bg-primary text-primary-foreground"
-										: "bg-muted text-foreground"
-								)}
-							>
-								{tab.count}
-							</span>
+							<>
+								<span
+									aria-hidden={tab.countLabel ? true : undefined}
+									className={cn(
+										"flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 font-semibold text-xs tabular-nums transition-colors",
+										tab.countTone === "attention"
+											? "bg-destructive text-destructive-foreground"
+											: isActive
+												? "bg-primary text-primary-foreground"
+												: "bg-muted text-foreground"
+									)}
+								>
+									{tab.count > 99 ? "99+" : tab.count}
+								</span>
+								{tab.countLabel ? (
+									<span className="sr-only">{tab.countLabel}</span>
+								) : null}
+							</>
 						)}
 						{isActive && (
 							<div className="absolute inset-x-0 bottom-0 h-0.5 bg-brand-purple" />
@@ -123,6 +137,6 @@ export function PageNavigation(props: PageNavigationProps) {
 					</Link>
 				);
 			})}
-		</div>
+		</nav>
 	);
 }

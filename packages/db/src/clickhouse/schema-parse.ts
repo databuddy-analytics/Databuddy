@@ -39,6 +39,7 @@ export interface ParsedTable {
 	name: string;
 	orderBy: string;
 	partitionBy: string;
+	primaryKey: string;
 	settings: string;
 }
 
@@ -194,6 +195,12 @@ export function parseTable(sql: string): ParsedTable {
 		]),
 		partitionBy: clause(tail, "PARTITION BY", [
 			"PRIMARY KEY",
+			"ORDER BY",
+			"SAMPLE BY",
+			"TTL",
+			"SETTINGS",
+		]),
+		primaryKey: clause(tail, "PRIMARY KEY", [
 			"ORDER BY",
 			"SAMPLE BY",
 			"TTL",

@@ -4,6 +4,7 @@ import {
 	basketErrors,
 	buildBasketErrorPayload,
 	createIngestSchemaValidationError,
+	deliveryUnavailable,
 	isIngestSchemaValidationError,
 	rethrowOrWrap,
 } from "./structured-errors";
@@ -33,6 +34,11 @@ describe("basketErrors", () => {
 		["ingestBatchTooLarge", 400],
 		["billingLimitExceeded", 402],
 		["billingCheckUnavailable", 503],
+		["webhookEndpointNotFound", 404],
+		["webhookMissingSignature", 400],
+		["webhookInvalidSignature", 401],
+		["webhookInvalidPayload", 400],
+		["webhookProcessingFailed", 500],
 	];
 
 	for (const [key, expectedStatus] of errorTable) {
@@ -78,6 +84,17 @@ describe("IngestSchemaValidationError", () => {
 		expect(isIngestSchemaValidationError("string")).toBe(false);
 		expect(isIngestSchemaValidationError(null)).toBe(false);
 		expect(isIngestSchemaValidationError(undefined)).toBe(false);
+	});
+});
+
+describe("deliveryUnavailable", () => {
+	test("creates a retryable structured 503", () => {
+		const error = deliveryUnavailable(new Error("Redis unavailable"));
+
+		expect(error).toMatchObject({
+			code: "basket.DELIVERY_UNAVAILABLE",
+			status: 503,
+		});
 	});
 });
 
