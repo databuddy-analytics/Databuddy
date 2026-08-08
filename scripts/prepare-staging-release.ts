@@ -58,60 +58,36 @@ function releaseBranchName(stagingSha: string) {
 	return `${RELEASE_BRANCH_PREFIX}${stagingSha.slice(0, RELEASE_BRANCH_SHA_LENGTH)}`;
 }
 
-function arrayValues(value: unknown) {
-	return Array.isArray(value) ? (value as unknown[]) : [];
-}
-
-function recordValue(record: object, key: string) {
-	return Object.entries(record).find(([name]) => name === key)?.[1];
-}
-
 function openReleasePullRequest(repository: string) {
-	const pullRequestPages = arrayValues(
-		JSON.parse(
-			run([
-				"gh",
-				"api",
-				"--paginate",
-				"--slurp",
-				`repos/${repository}/pulls?state=open&base=main&per_page=100`,
-			])
-		)
-	);
+	const promotion = run([
+		"gh",
+		"pr",
+		"list",
+		"--repo",
+		repository,
+		"--state",
+		"open",
+		"--base",
+		"main",
+		"--limit",
+		"1000",
+		"--json",
+		"headRefName,headRepository,url",
+		"--jq",
+		`[.[] | select(.headRepository.nameWithOwner? == "${repository}") | select(.headRefName == "staging" or (.headRefName | startswith("${RELEASE_BRANCH_PREFIX}")))][0] | select(.) | [.headRefName, .url] | @tsv`,
+	]);
 
-	for (const pullRequestPage of pullRequestPages) {
-		for (const pullRequest of arrayValues(pullRequestPage)) {
-			if (typeof pullRequest !== "object" || pullRequest === null) {
-				continue;
-			}
-
-			const head = recordValue(pullRequest, "head");
-			const pullRequestUrl = recordValue(pullRequest, "html_url");
-
-			if (typeof head !== "object" || head === null) {
-				continue;
-			}
-
-			const headReference = recordValue(head, "ref");
-			const headRepository = recordValue(head, "repo");
-
-			if (typeof headRepository !== "object" || headRepository === null) {
-				continue;
-			}
-
-			const headRepositoryName = recordValue(headRepository, "full_name");
-
-			if (
-				headRepositoryName === repository &&
-				typeof headReference === "string" &&
-				typeof pullRequestUrl === "string" &&
-				(headReference === "staging" ||
-					headReference.startsWith(RELEASE_BRANCH_PREFIX))
-			) {
-				return { branch: headReference, url: pullRequestUrl };
-			}
-		}
+	if (!promotion) {
+		return;
 	}
+
+	const [promotionBranch, promotionUrl] = promotion.split("\t");
+
+	if (!(promotionBranch && promotionUrl)) {
+		throw new Error("GitHub returned an invalid open release promotion.");
+	}
+
+	return { branch: promotionBranch, url: promotionUrl };
 }
 
 function verifyNoConflictingRelease(repository: string, branch: string) {
@@ -187,11 +163,17 @@ if (createPullRequest.success) {
 
 const concurrentRelease = openReleasePullRequest(repository);
 
-if (concurrentRelease) {
+if (concurrentRelease?.branch === branch) {
 	output(
 		`A concurrent promotion already created this release PR: ${concurrentRelease.url}`
 	);
 	process.exit(0);
+}
+
+if (concurrentRelease) {
+	throw new Error(
+		`Another staging promotion is already open: ${concurrentRelease.url}. The deterministic branch ${branch} remains reusable on retry.`
+	);
 }
 
 throw new Error(
