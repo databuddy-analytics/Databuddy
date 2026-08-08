@@ -13,6 +13,8 @@ const getCachedLink = mock();
 const ratelimit = mock();
 const resolveDeepLink = mock();
 const enqueueLinkVisit = mock();
+const captureError = mock(() => {});
+const captureWarning = mock(() => {});
 const linkVisitDeliveryModule = { ...actualLinkVisitDelivery };
 
 mock.module("@databuddy/env/app", () => ({
@@ -73,7 +75,8 @@ mock.module("@databuddy/shared/constants/deep-link-apps", () => ({
 }));
 
 mock.module("../lib/logging", () => ({
-	captureError: mock(() => {}),
+	captureError,
+	captureWarning,
 	mergeWideEvent: mock(() => {}),
 	record: async <T>(_name: string, run: () => Promise<T> | T) => run(),
 	setAttributes: mock(() => {}),
@@ -112,6 +115,8 @@ beforeEach(() => {
 	ratelimit.mockClear();
 	resolveDeepLink.mockClear();
 	enqueueLinkVisit.mockClear();
+	captureError.mockClear();
+	captureWarning.mockClear();
 	getCachedLink.mockResolvedValue({ state: "miss" });
 	ratelimit.mockResolvedValue({
 		limit: 60,
@@ -124,6 +129,22 @@ beforeEach(() => {
 });
 
 describe("redirect route", () => {
+	test("warns and falls through to Postgres when the cache is unavailable", async () => {
+		const cacheError = new Error("Redis unavailable");
+		getCachedLink.mockRejectedValueOnce(cacheError);
+
+		const response = await app.handle(
+			new Request("http://links.test/cache-fallback")
+		);
+
+		expect(response.status).toBe(302);
+		expect(dbSelect).toHaveBeenCalledTimes(1);
+		expect(captureWarning).toHaveBeenCalledWith(cacheError, {
+			error_step: "cache_get",
+		});
+		expect(captureError).not.toHaveBeenCalled();
+	});
+
 	test("uses a negative cache hit without querying Postgres", async () => {
 		getCachedLink.mockResolvedValue({ state: "not_found" });
 
