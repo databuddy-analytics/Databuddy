@@ -65,37 +65,34 @@ function releaseBranchName(stagingSha: string) {
 }
 
 interface PullRequest {
-	headRefName: string;
+	head: {
+		ref: string;
+	};
+	html_url: string;
 	number: number;
-	url: string;
 }
 
 function openReleasePullRequest(repository: string, branch: string) {
-	const openPullRequests = JSON.parse(
+	const pullRequestPages = JSON.parse(
 		run([
 			"gh",
-			"pr",
-			"list",
-			"--repo",
-			repository,
-			"--base",
-			"main",
-			"--state",
-			"open",
-			"--json",
-			"headRefName,number,url",
+			"api",
+			"--paginate",
+			"--slurp",
+			`repos/${repository}/pulls?state=open&base=main&per_page=100`,
 		])
-	) as PullRequest[];
+	) as PullRequest[][];
+	const openPullRequests = pullRequestPages.flat();
 
 	const existingPromotion = openPullRequests.find(
 		(pullRequest) =>
-			pullRequest.headRefName === "staging" ||
-			pullRequest.headRefName.startsWith(RELEASE_BRANCH_PREFIX)
+			pullRequest.head.ref === "staging" ||
+			pullRequest.head.ref.startsWith(RELEASE_BRANCH_PREFIX)
 	);
 
-	if (existingPromotion && existingPromotion.headRefName !== branch) {
+	if (existingPromotion && existingPromotion.head.ref !== branch) {
 		throw new Error(
-			`An open staging promotion already exists: ${existingPromotion.url}. Merge or close it before preparing another release.`
+			`An open staging promotion already exists: ${existingPromotion.html_url}. Merge or close it before preparing another release.`
 		);
 	}
 
@@ -120,7 +117,7 @@ const existingRelease = openReleasePullRequest(repository, branch);
 
 if (existingRelease) {
 	output(
-		`A promotion for this staging commit is already open: ${existingRelease.url}`
+		`A promotion for this staging commit is already open: ${existingRelease.html_url}`
 	);
 	process.exit(0);
 }
@@ -165,7 +162,7 @@ const concurrentRelease = openReleasePullRequest(repository, branch);
 
 if (concurrentRelease) {
 	output(
-		`A concurrent promotion already created this release PR: ${concurrentRelease.url}`
+		`A concurrent promotion already created this release PR: ${concurrentRelease.html_url}`
 	);
 	process.exit(0);
 }
