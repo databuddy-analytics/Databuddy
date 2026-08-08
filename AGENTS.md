@@ -162,6 +162,7 @@ For picker controls, use the component that matches the interaction:
 - **Keep integration linear**: Rebase a slice onto current `origin/staging` before it is ready for review; do not merge `staging` into the slice merely to refresh it. Request fresh review when a rebase changes reviewed code.
 - **Isolate parallel work**: Use one worktree per active branch. Never let two agents or contributors mutate the same branch or reuse a task branch for a different concern.
 - **Retire completed work**: Merged PR source branches are automatically deleted. Delete closed PR branches manually, remove clean finished worktrees, and create a new branch from current `staging` for any follow-up—never revive or repurpose an old PR branch.
+- **Promote safely**: Never open a `main` PR directly from `staging`, because GitHub can delete the merged PR head. Use `bun run release:prepare --create` to cut a disposable `release/staging-to-main-*` branch at the exact `origin/staging` commit, then open the promotion PR from that branch.
 
 ## CI and Review Lessons
 

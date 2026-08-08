@@ -69,6 +69,7 @@
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release": "turbo run build --filter=@databuddy/devtools --filter=@databuddy/sdk && changeset publish",
+    "release:prepare": "bun scripts/prepare-staging-release.ts",
     "clean": "find . -type d \\( -name node_modules -o -name .next -o -name .turbo -o -name turbo \\) -prune -print -exec rm -rf {} +"
   },
   "type": "module",
