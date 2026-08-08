@@ -7,15 +7,9 @@ const GITHUB_ORIGIN =
 	/^(?:https:\/\/github\.com\/|git@github\.com:|ssh:\/\/git@github\.com\/)(?<repository>[^/]+\/[^/]+)$/u;
 const create = process.argv.includes("--create");
 
-interface CommandResult {
-	stderr: string;
-	stdout: string;
-	success: boolean;
-}
-
 const decoder = new TextDecoder();
 
-function execute(command: string[]): CommandResult {
+function execute(command: string[]) {
 	const result = spawnSync(command, {
 		stderr: "pipe",
 		stdout: "pipe",
@@ -64,39 +58,68 @@ function releaseBranchName(stagingSha: string) {
 	return `${RELEASE_BRANCH_PREFIX}${stagingSha.slice(0, RELEASE_BRANCH_SHA_LENGTH)}`;
 }
 
-interface PullRequest {
-	head: {
-		ref: string;
-		repo: {
-			full_name: string;
-		} | null;
-	};
-	html_url: string;
-	number: number;
+function arrayValues(value: unknown) {
+	return Array.isArray(value) ? (value as unknown[]) : [];
 }
 
-function openReleasePullRequest(repository: string, branch: string) {
-	const pullRequestPages = JSON.parse(
-		run([
-			"gh",
-			"api",
-			"--paginate",
-			"--slurp",
-			`repos/${repository}/pulls?state=open&base=main&per_page=100`,
-		])
-	) as PullRequest[][];
-	const openPullRequests = pullRequestPages.flat();
+function recordValue(record: object, key: string) {
+	return Object.entries(record).find(([name]) => name === key)?.[1];
+}
 
-	const existingPromotion = openPullRequests.find(
-		(pullRequest) =>
-			pullRequest.head.repo?.full_name === repository &&
-			(pullRequest.head.ref === "staging" ||
-				pullRequest.head.ref.startsWith(RELEASE_BRANCH_PREFIX))
+function openReleasePullRequest(repository: string) {
+	const pullRequestPages = arrayValues(
+		JSON.parse(
+			run([
+				"gh",
+				"api",
+				"--paginate",
+				"--slurp",
+				`repos/${repository}/pulls?state=open&base=main&per_page=100`,
+			])
+		)
 	);
 
-	if (existingPromotion && existingPromotion.head.ref !== branch) {
+	for (const pullRequestPage of pullRequestPages) {
+		for (const pullRequest of arrayValues(pullRequestPage)) {
+			if (typeof pullRequest !== "object" || pullRequest === null) {
+				continue;
+			}
+
+			const head = recordValue(pullRequest, "head");
+			const pullRequestUrl = recordValue(pullRequest, "html_url");
+
+			if (typeof head !== "object" || head === null) {
+				continue;
+			}
+
+			const headReference = recordValue(head, "ref");
+			const headRepository = recordValue(head, "repo");
+
+			if (typeof headRepository !== "object" || headRepository === null) {
+				continue;
+			}
+
+			const headRepositoryName = recordValue(headRepository, "full_name");
+
+			if (
+				headRepositoryName === repository &&
+				typeof headReference === "string" &&
+				typeof pullRequestUrl === "string" &&
+				(headReference === "staging" ||
+					headReference.startsWith(RELEASE_BRANCH_PREFIX))
+			) {
+				return { branch: headReference, url: pullRequestUrl };
+			}
+		}
+	}
+}
+
+function verifyNoConflictingRelease(repository: string, branch: string) {
+	const existingPromotion = openReleasePullRequest(repository);
+
+	if (existingPromotion && existingPromotion.branch !== branch) {
 		throw new Error(
-			`An open staging promotion already exists: ${existingPromotion.html_url}. Merge or close it before preparing another release.`
+			`An open staging promotion already exists: ${existingPromotion.url}. Merge or close it before preparing another release.`
 		);
 	}
 
@@ -117,11 +140,11 @@ if (mainSha === stagingSha) {
 run(["git", "merge-base", "--is-ancestor", "origin/main", "origin/staging"]);
 
 const branch = releaseBranchName(stagingSha);
-const existingRelease = openReleasePullRequest(repository, branch);
+const existingRelease = verifyNoConflictingRelease(repository, branch);
 
 if (existingRelease) {
 	output(
-		`A promotion for this staging commit is already open: ${existingRelease.html_url}`
+		`A promotion for this staging commit is already open: ${existingRelease.url}`
 	);
 	process.exit(0);
 }
@@ -162,11 +185,11 @@ if (createPullRequest.success) {
 	process.exit(0);
 }
 
-const concurrentRelease = openReleasePullRequest(repository, branch);
+const concurrentRelease = openReleasePullRequest(repository);
 
 if (concurrentRelease) {
 	output(
-		`A concurrent promotion already created this release PR: ${concurrentRelease.html_url}`
+		`A concurrent promotion already created this release PR: ${concurrentRelease.url}`
 	);
 	process.exit(0);
 }
