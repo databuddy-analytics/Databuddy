@@ -67,6 +67,9 @@ function releaseBranchName(stagingSha: string) {
 interface PullRequest {
 	head: {
 		ref: string;
+		repo: {
+			full_name: string;
+		} | null;
 	};
 	html_url: string;
 	number: number;
@@ -86,8 +89,9 @@ function openReleasePullRequest(repository: string, branch: string) {
 
 	const existingPromotion = openPullRequests.find(
 		(pullRequest) =>
-			pullRequest.head.ref === "staging" ||
-			pullRequest.head.ref.startsWith(RELEASE_BRANCH_PREFIX)
+			pullRequest.head.repo?.full_name === repository &&
+			(pullRequest.head.ref === "staging" ||
+				pullRequest.head.ref.startsWith(RELEASE_BRANCH_PREFIX))
 	);
 
 	if (existingPromotion && existingPromotion.head.ref !== branch) {
