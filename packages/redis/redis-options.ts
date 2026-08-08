@@ -39,7 +39,9 @@ export function createLinkCacheRedisConnectionOptions(): LinkCacheRedisConnectio
 		enableOfflineQueue: false,
 		lazyConnect: true,
 		maxRetriesPerRequest: 1,
-		retryStrategy: () => null,
+		// Keep the client recovering after a Redis restart, while offline commands
+		// still reject immediately instead of queuing behind that recovery.
+		retryStrategy: (times) => Math.min(times * 100, 3000),
 	};
 }
 

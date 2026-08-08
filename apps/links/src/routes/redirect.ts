@@ -19,7 +19,12 @@ import { Elysia, redirect, t } from "elysia";
 import { LRUCache } from "lru-cache";
 import { createHash, randomUUID } from "node:crypto";
 import { UAParser } from "ua-parser-js";
-import { captureError, mergeWideEvent, record } from "../lib/logging";
+import {
+	captureError,
+	captureWarning,
+	mergeWideEvent,
+	record,
+} from "../lib/logging";
 import { createDeepLinkFallbackResponse } from "../lib/deep-link-fallback";
 import { enqueueLinkVisit } from "../lib/link-visit-delivery";
 import type { LinkVisitEvent } from "../lib/producer";
@@ -154,7 +159,9 @@ async function lookupLink(slug: string, ipHash: string) {
 	const t0 = performance.now();
 	const cached = await record("link.cache.get", () =>
 		getCachedLink(slug).catch((err) => {
-			captureError(err, { error_step: "cache_get" });
+			captureWarning(err instanceof Error ? err : new Error(String(err)), {
+				error_step: "cache_get",
+			});
 			return { state: "miss" as const };
 		})
 	);
@@ -230,9 +237,11 @@ async function lookupLink(slug: string, ipHash: string) {
 
 	if (!row) {
 		await record("link.cache.set_not_found", () =>
-			setCachedLinkNotFoundIfAbsent(slug).catch((err) =>
-				captureError(err, { error_step: "cache_set_not_found" })
-			)
+			setCachedLinkNotFoundIfAbsent(slug).catch((err) => {
+				captureWarning(err instanceof Error ? err : new Error(String(err)), {
+					error_step: "cache_set_not_found",
+				});
+			})
 		);
 		return {
 			link: null,
@@ -259,9 +268,11 @@ async function lookupLink(slug: string, ipHash: string) {
 	};
 
 	await record("link.cache.set", () =>
-		setCachedLinkIfAbsent(slug, link).catch((err) =>
-			captureError(err, { error_step: "cache_backfill" })
-		)
+		setCachedLinkIfAbsent(slug, link).catch((err) => {
+			captureWarning(err instanceof Error ? err : new Error(String(err)), {
+				error_step: "cache_backfill",
+			});
+		})
 	);
 	return {
 		link,

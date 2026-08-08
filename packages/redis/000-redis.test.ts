@@ -40,10 +40,12 @@ describe("redis", () => {
 			expect(options.maxRetriesPerRequest).toBe(1);
 		});
 
-		it("does not queue commands or reconnect after failure", () => {
+		it("does not queue commands and reconnects with capped backoff", () => {
 			expect(options.enableOfflineQueue).toBe(false);
 			expect(options.lazyConnect).toBe(true);
-			expect(options.retryStrategy(1)).toBeNull();
+			expect(options.retryStrategy(1)).toBe(100);
+			expect(options.retryStrategy(30)).toBe(3000);
+			expect(options.retryStrategy(1000)).toBe(3000);
 		});
 	});
 
@@ -59,11 +61,13 @@ describe("redis", () => {
 			expect(options.commandTimeout).toBe(1000);
 		});
 
-		it("does not queue commands or reconnect after failure", () => {
+		it("does not queue commands and reconnects with capped backoff", () => {
 			expect(options.enableOfflineQueue).toBe(false);
 			expect(options.lazyConnect).toBe(true);
 			expect(options.maxRetriesPerRequest).toBe(1);
-			expect(options.retryStrategy(1)).toBeNull();
+			expect(options.retryStrategy(1)).toBe(100);
+			expect(options.retryStrategy(30)).toBe(3000);
+			expect(options.retryStrategy(1000)).toBe(3000);
 		});
 	});
 
