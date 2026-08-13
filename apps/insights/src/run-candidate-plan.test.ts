@@ -39,6 +39,24 @@ describe("parseFrozenInvestigationPlan", () => {
 		});
 	});
 
+	it("accepts five distinct candidates for a manual full scan", () => {
+		const candidates = Array.from({ length: 5 }, (_, index) => ({
+			...candidate,
+			signal: {
+				...candidate.signal,
+				signalKey: `route:error:/route-${index + 1}`,
+			},
+		}));
+
+		expect(
+			parseFrozenInvestigationPlan({
+				asOf: "2026-08-01T12:00:00.000Z",
+				candidates,
+				reason: "manual",
+			})
+		).toMatchObject({ candidates, reason: "manual" });
+	});
+
 	it("rejects a plan that repeats one signal", () => {
 		expect(() =>
 			parseFrozenInvestigationPlan({

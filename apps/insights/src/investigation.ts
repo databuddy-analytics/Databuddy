@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
-import { investigationSignalSchema } from "@databuddy/shared/insights";
-import type {
-	InsightMetric,
-	InvestigationSignal,
+import {
+	investigationSignalSchema,
+	type InsightDatabuddySetupRecommendation,
+	type InsightMetric,
+	type InvestigationSignal,
 } from "@databuddy/shared/insights";
 import dayjs from "dayjs";
 import timezonePlugin from "dayjs/plugin/timezone";
@@ -15,6 +16,7 @@ dayjs.extend(timezonePlugin);
 interface InvestigationInput {
 	evidence: string[];
 	measurementCandidate?: MeasurementCandidate;
+	setupRecommendationCandidate?: InsightDatabuddySetupRecommendation;
 	signal: InvestigationSignal;
 }
 
@@ -77,12 +79,31 @@ function isLowerBetter(metric: string): boolean {
 const SEVERITY_RANK = { critical: 2, warning: 1, info: 0 } as const;
 const ZERO_COMPLETION_SUBJECT_SUFFIX = ":zero-completions";
 
+/**
+ * Conversion definitions are useful context, but an aggregate goal/funnel
+ * rate is still a configured measurement rather than a product behavior. Keep
+ * that distinction visible to ranking so definition maintenance cannot crowd
+ * out route, session, and reliability regressions.
+ */
+export function isConversionDefinitionSignal(signal: DetectedSignal): boolean {
+	return (
+		signal.metric.startsWith("goal:") || signal.metric.startsWith("funnel:")
+	);
+}
+
 function isPersistentZeroCompletionSignal(signal: DetectedSignal): boolean {
 	return (
 		signal.current === 0 &&
 		(signal.metric.startsWith("goal:") ||
 			signal.metric.startsWith("funnel:")) &&
 		signal.subjectKey?.endsWith(ZERO_COMPLETION_SUBJECT_SUFFIX) === true
+	);
+}
+
+function isFunnelStepSignal(signal: DetectedSignal): boolean {
+	return (
+		signal.metric.startsWith("funnel:") &&
+		signal.subjectKey?.includes(":step:") === true
 	);
 }
 
@@ -93,12 +114,15 @@ export function isDirectSignal(signal: DetectedSignal): boolean {
 		signal.metric === "custom_event_count" ||
 		signal.metric === "lcp" ||
 		signal.metric === "inp" ||
-		signal.metric.startsWith("goal:") ||
-		signal.metric.startsWith("funnel:")
+		isPersistentZeroCompletionSignal(signal) ||
+		isFunnelStepSignal(signal)
 	);
 }
 
 export function isRegression(signal: DetectedSignal): boolean {
+	if (signal.method === "behavior") {
+		return signal.direction === "up";
+	}
 	if (signal.metric === "lcp" && signal.current > 2500) {
 		return true;
 	}
@@ -110,11 +134,44 @@ export function isRegression(signal: DetectedSignal): boolean {
 		: signal.direction === "down";
 }
 
-function signalBucket(signal: DetectedSignal): number {
-	if (isRegression(signal)) {
-		return isDirectSignal(signal) ? 0 : 1;
+/** Fresh work merits an agent turn only for a regression, revenue movement, or
+ * known measurement blind spot. Due rechecks are retained by observations. */
+export function isInvestigationCandidate(signal: DetectedSignal): boolean {
+	if (
+		signal.severity === "info" &&
+		["visitors", "sessions", "pageviews"].includes(signal.metric)
+	) {
+		// Weak top-level traffic is useful context, not an agent turn by itself.
+		return false;
 	}
-	return isDirectSignal(signal) ? 2 : 3;
+	return (
+		isRegression(signal) ||
+		signal.metric === "measurement_coverage" ||
+		signal.metric === "revenue"
+	);
+}
+
+function signalBucket(signal: DetectedSignal): number {
+	if (signal.method === "behavior" && isRegression(signal)) {
+		// A validated behavioral consequence is more decision-useful than a
+		// raw symptom count, even when its visual severity remains a warning.
+		return -1;
+	}
+	const isGenericConversion =
+		isConversionDefinitionSignal(signal) && !isDirectSignal(signal);
+	if (isRegression(signal)) {
+		if (isDirectSignal(signal)) {
+			return 0;
+		}
+		// A conversion-definition regression can be investigated after a
+		// behavioral/reliability regression, but should still precede positive
+		// changes when it represents a real drop.
+		return isGenericConversion ? 2 : 1;
+	}
+	if (isDirectSignal(signal)) {
+		return 3;
+	}
+	return isGenericConversion ? 5 : 4;
 }
 
 export function rankSignals(signals: DetectedSignal[]): DetectedSignal[] {
@@ -206,6 +263,20 @@ function evidenceSummary(value: string): string {
 	return value.length <= 500 ? value : `${value.slice(0, 499).trimEnd()}…`;
 }
 
+function cohortMeasurementEvidence(signal: DetectedSignal): string | null {
+	const measurement = signal.cohortMeasurement;
+	if (!measurement) {
+		return null;
+	}
+	const difference =
+		Math.round(
+			(measurement.exposedContinuationPercent -
+				measurement.controlContinuationPercent) *
+				10
+		) / 10;
+	return `Among ${measurement.matchedSessions.toLocaleString("en-US")} error-exposed sessions and ${measurement.matchedSessions.toLocaleString("en-US")} matched control sessions on the same route, day, device, and browser, ${measurement.exposedContinuationPercent.toLocaleString("en-US", { maximumFractionDigits: 1 })}% of exposed sessions later viewed a different page within 10 minutes, versus ${measurement.controlContinuationPercent.toLocaleString("en-US", { maximumFractionDigits: 1 })}% of controls (${difference.toLocaleString("en-US", { maximumFractionDigits: 1 })} percentage points). This is an association, not proof that the error caused the difference.`;
+}
+
 export function prepareInvestigation(
 	candidate: DetectedSignal,
 	lookbackDays: number,
@@ -215,11 +286,15 @@ export function prepareInvestigation(
 	const window = signalWindow(candidate, lookbackDays);
 	const sentiment = isPersistentZeroCompletionSignal(candidate)
 		? "negative"
-		: candidate.current === candidate.baseline
-			? "neutral"
-			: isRegression(candidate)
+		: candidate.method === "behavior"
+			? isRegression(candidate)
 				? "negative"
-				: "positive";
+				: "neutral"
+			: candidate.current === candidate.baseline
+				? "neutral"
+				: isRegression(candidate)
+					? "negative"
+					: "positive";
 	const signal: InvestigationSignal = {
 		signalKey: signalKeyForDetectedSignal(candidate),
 		entity: subject,
@@ -239,10 +314,17 @@ export function prepareInvestigation(
 		...(candidate.method === "zscore"
 			? { baselineDates: candidate.baselineDates }
 			: {}),
+		...(candidate.cohortMeasurement
+			? { cohortMeasurement: candidate.cohortMeasurement }
+			: {}),
 	};
 	const evidence: string[] = [];
 	if (candidate.definitionEvidence) {
 		evidence.push(evidenceSummary(candidate.definitionEvidence));
+	}
+	const cohortEvidence = cohortMeasurementEvidence(candidate);
+	if (cohortEvidence) {
+		evidence.push(evidenceSummary(cohortEvidence));
 	}
 	if (annotations.length > 0) {
 		evidence.push(
@@ -258,6 +340,9 @@ export function prepareInvestigation(
 		evidence,
 		...(candidate.measurementCandidate
 			? { measurementCandidate: candidate.measurementCandidate }
+			: {}),
+		...(candidate.setupRecommendationCandidate
+			? { setupRecommendationCandidate: candidate.setupRecommendationCandidate }
 			: {}),
 		signal: investigationSignalSchema.parse(signal),
 	};

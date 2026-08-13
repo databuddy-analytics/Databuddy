@@ -104,6 +104,22 @@ function errorRow(
 	};
 }
 
+function routeContinuationRow(overrides: Record<string, unknown> = {}) {
+	return {
+		candidate_control_sessions: 72,
+		candidate_exposed_sessions: 42,
+		control_continued_sessions: 28,
+		control_continuation_percent: 66.7,
+		exposed_continued_sessions: 7,
+		exposed_continuation_percent: 16.7,
+		matched_control_sessions: 42,
+		matched_exposed_sessions: 42,
+		unmatched_control_sessions: 30,
+		unmatched_exposed_sessions: 0,
+		...overrides,
+	};
+}
+
 function customEventRow(
 	name: string,
 	totalEvents: number,
@@ -1050,19 +1066,7 @@ describe("detectSignals", () => {
 			expect(signals.find((s) => s.metric === "error_count")).toBeUndefined();
 		});
 
-		it("suppresses a single-user error storm regardless of volume", async () => {
-			const queryFn = createMockQueryFn([], {}, {}, {
-				error_fingerprints: [
-					errorRow(168, 1, { name: "Looping error" }),
-					errorRow(10, 1, { name: "Looping error" }),
-				],
-			});
-
-			const signals = await detectSignals(BASE_PARAMS, queryFn);
-			expect(signals.find((s) => s.metric === "error_count")).toBeUndefined();
-		});
-
-		it("keeps an error recovery when the previous week had enough affected users", async () => {
+		it("keeps a recovery measurement when the prior error reach was material", async () => {
 			const queryFn = createMockQueryFn(
 				[],
 				{ sessions: 500 },
@@ -1082,9 +1086,9 @@ describe("detectSignals", () => {
 			);
 
 			const signals = await detectSignals(BASE_PARAMS, queryFn);
-			const errorSignal = signals.find((s) => s.metric === "error_count");
-			expect(errorSignal).toBeDefined();
-			expect(errorSignal!.direction).toBe("down");
+			expect(
+				signals.find((signal) => signal.metric === "error_count")
+			).toMatchObject({ direction: "down" });
 		});
 
 		it("suppresses a current single-user spike even when the prior week had many affected users", async () => {
@@ -1097,6 +1101,211 @@ describe("detectSignals", () => {
 
 			const signals = await detectSignals(BASE_PARAMS, queryFn);
 			expect(signals.find((s) => s.metric === "error_count")).toBeUndefined();
+		});
+
+		it("finds a stable error only when matched continuation shows material harm", async () => {
+			const queryFn = createMockQueryFn(
+				[],
+				{ sessions: 500 },
+				{ sessions: 500 },
+				{
+					error_fingerprints: [
+						errorRow(48, 36, { name: "Stable checkout error" }),
+						errorRow(47, 35, { name: "Stable checkout error" }),
+					],
+					error_route_continuation_comparison: [
+						routeContinuationRow(),
+						routeContinuationRow(),
+					],
+				}
+			);
+
+			const signal = (await detectSignals(BASE_PARAMS, queryFn)).find(
+				(candidate) => candidate.subjectKey === "error:Stable checkout error"
+			);
+
+			expect(signal).toMatchObject({
+				baseline: 47,
+				current: 48,
+				deltaPercent: 0,
+				direction: "up",
+				method: "behavior",
+				severity: "warning",
+			});
+			if (!signal) {
+				throw new Error("Expected matched-continuation signal");
+			}
+			expect(prepareInvestigation(signal, 7).signal).toMatchObject({
+				cohortMeasurement: {
+					type: "matched_error_continuation",
+				},
+				sentiment: "negative",
+			});
+		});
+
+		it("rotates bounded continuation probes weekly across stable errors", async () => {
+			const requests: Parameters<QueryFn>[0][] = [];
+			const errors = Array.from({ length: 7 }, (_, index) =>
+				errorRow(40 + index, 30, { name: `Stable error ${index}` })
+			);
+			const queryFn: QueryFn = async (request) => {
+				requests.push(request);
+				if (request.type === "error_fingerprints") {
+					return errors;
+				}
+				if (request.type === "summary_metrics") {
+					return [{ sessions: 500 }];
+				}
+				if (request.type === "error_route_continuation_comparison") {
+					return [routeContinuationRow()];
+				}
+				return [];
+			};
+
+			await detectSignals(BASE_PARAMS, queryFn, dayjs("2026-08-12"));
+			await detectSignals(BASE_PARAMS, queryFn, dayjs("2026-08-19"));
+
+			const fingerprintRequests = requests.filter(
+				(request) => request.type === "error_fingerprints"
+			);
+			expect(fingerprintRequests).toHaveLength(4);
+			expect(fingerprintRequests.every((request) => request.limit === 50)).toBe(
+				true
+			);
+			const probes = requests
+				.filter(
+					(request) => request.type === "error_route_continuation_comparison"
+				)
+				.map((request) => request.filters?.[0]?.value);
+			expect(probes).toHaveLength(6);
+			expect(probes.slice(0, 3)).not.toEqual(probes.slice(3));
+			expect(probes.slice(0, 2)).toEqual(probes.slice(3, 5));
+		});
+
+		it("always probes the highest-reach stable cohorts before rotating the tail", async () => {
+			const requests: Parameters<QueryFn>[0][] = [];
+			const errors = Array.from({ length: 11 }, (_, index) =>
+				errorRow(100 - index, 100 - index, {
+					name: `Stable error ${index}`,
+				})
+			);
+			const materialFingerprint = "Stable error 1";
+			const queryFn: QueryFn = async (request) => {
+				requests.push(request);
+				if (request.type === "error_fingerprints") {
+					return errors;
+				}
+				if (request.type === "summary_metrics") {
+					return [{ sessions: 500 }];
+				}
+				if (request.type === "error_route_continuation_comparison") {
+					return [
+						request.filters?.[0]?.value === materialFingerprint
+							? routeContinuationRow()
+							: routeContinuationRow({
+								control_continued_sessions: 26,
+								control_continuation_percent: 61.9,
+								exposed_continued_sessions: 24,
+								exposed_continuation_percent: 57.1,
+							}),
+					];
+				}
+				return [];
+			};
+
+			const signals = await detectSignals(
+				BASE_PARAMS,
+				queryFn,
+				dayjs("2026-08-12")
+			);
+
+			expect(
+				signals.find(
+					(signal) => signal.subjectKey === `error:${materialFingerprint}`
+				)
+			).toMatchObject({ method: "behavior" });
+			const probes = requests
+				.filter(
+					(request) => request.type === "error_route_continuation_comparison"
+				)
+				.map((request) => request.filters?.[0]?.value);
+			expect(probes).toContain("Stable error 0");
+			expect(probes).toContain(materialFingerprint);
+			expect(probes).toHaveLength(3);
+		});
+
+		it("replaces a raw-count trend with material continuation evidence for the same error", async () => {
+			const requests: Parameters<QueryFn>[0][] = [];
+			let errorCalls = 0;
+			const queryFn: QueryFn = async (request) => {
+				requests.push(request);
+				if (request.type === "error_fingerprints") {
+					errorCalls += 1;
+					return [
+						errorCalls === 1
+							? errorRow(60, 40, { name: "Trending checkout error" })
+							: errorRow(20, 30, { name: "Trending checkout error" }),
+					];
+				}
+				if (request.type === "summary_metrics") {
+					return [{ sessions: 500 }];
+				}
+				if (request.type === "error_route_continuation_comparison") {
+					return [routeContinuationRow()];
+				}
+				return [];
+			};
+
+			const signals = await detectSignals(BASE_PARAMS, queryFn);
+
+			expect(
+				signals.find(
+					(signal) => signal.subjectKey === "error:Trending checkout error"
+				)
+			).toMatchObject({
+				method: "behavior",
+				severity: "warning",
+			});
+			expect(
+				requests.some(
+					(request) => request.type === "error_route_continuation_comparison"
+				)
+			).toBe(true);
+		});
+
+		it("keeps ordinary findings when an optional behavior probe fails", async () => {
+			let summaryCalls = 0;
+			const queryFn: QueryFn = async (request) => {
+				if (request.type === "events_by_date") {
+					return [];
+				}
+				if (request.type === "summary_metrics") {
+					summaryCalls += 1;
+					return [
+						{
+							pageviews: 100,
+							sessions: 500,
+							unique_visitors: summaryCalls === 1 ? 200 : 100,
+						},
+					];
+				}
+				if (request.type === "error_fingerprints") {
+					return [errorRow(48, 36, { name: "Stable checkout error" })];
+				}
+				if (request.type === "error_route_continuation_comparison") {
+					throw new Error("comparison unavailable");
+				}
+				return [];
+			};
+
+			const signals = await detectSignals(
+				{ ...BASE_PARAMS, lookbackDays: 7 },
+				queryFn,
+				dayjs("2026-07-23")
+			);
+
+			expect(signals.some((signal) => signal.metric === "visitors")).toBe(true);
+			expect(signals.some((signal) => signal.method === "behavior")).toBe(false);
 		});
 	});
 
@@ -1290,7 +1499,7 @@ describe("detectSignals", () => {
 			});
 		}
 
-		it("ignores regressions that remain within the good threshold", async () => {
+		it("ignores healthy vital movement in either direction", async () => {
 			const queryFn = createMockQueryFn([], {}, {}, {
 				vitals_overview: [
 					{ metric_name: "INP", p75: 147, samples: 100 },
@@ -1300,6 +1509,87 @@ describe("detectSignals", () => {
 
 			const signals = await detectSignals(BASE_PARAMS, queryFn);
 			expect(signals.find((signal) => signal.metric === "inp")).toBeUndefined();
+		});
+
+		it("does not investigate a healthy page-load improvement", async () => {
+			const queryFn = createMockQueryFn(
+				[],
+				{ sessions: 1000 },
+				{ sessions: 1000 },
+				{
+					vitals_overview: [
+						[{ metric_name: "LCP", p75: 512, samples: 17 }],
+						[{ metric_name: "LCP", p75: 1084, samples: 17 }],
+					],
+				}
+			);
+
+			const signals = await detectSignals(BASE_PARAMS, queryFn);
+			expect(signals.find((signal) => signal.metric === "lcp")).toBeUndefined();
+		});
+
+		it("keeps an improvement that remains above the health threshold", async () => {
+			const queryFn = createMockQueryFn(
+				[],
+				{ sessions: 1000 },
+				{ sessions: 1000 },
+				{
+					vitals_overview: [
+						[{ metric_name: "LCP", p75: 3000, samples: 100 }],
+						[{ metric_name: "LCP", p75: 5000, samples: 100 }],
+					],
+				}
+			);
+
+			const signals = await detectSignals(BASE_PARAMS, queryFn);
+			expect(signals.find((signal) => signal.metric === "lcp")).toMatchObject(
+				{ direction: "down" }
+			);
+		});
+
+		it("finds persistently poor high-sample LCP even when it is flat", async () => {
+			const queryFn = createMockQueryFn(
+				[],
+				{ sessions: 1000 },
+				{ sessions: 1000 },
+				{
+					vitals_overview: [
+						[{ metric_name: "LCP", p75: 4984, samples: 5129 }],
+						[{ metric_name: "LCP", p75: 5020, samples: 5000 }],
+					],
+				}
+			);
+
+			const signal = (await detectSignals(BASE_PARAMS, queryFn)).find(
+				(candidate) => candidate.metric === "lcp"
+			);
+
+			expect(signal).toMatchObject({
+				baseline: 5020,
+				current: 4984,
+				direction: "down",
+				severity: "warning",
+			});
+			expect(signal?.definitionEvidence).toContain(
+				"remained above the 4,000 ms poor threshold"
+			);
+		});
+
+		it("requires a substantial sample on both periods for persistent LCP", async () => {
+			const queryFn = createMockQueryFn(
+				[],
+				{ sessions: 1000 },
+				{ sessions: 1000 },
+				{
+					vitals_overview: [
+						[{ metric_name: "LCP", p75: 4984, samples: 100 }],
+						[{ metric_name: "LCP", p75: 5020, samples: 99 }],
+					],
+				}
+			);
+
+			const signals = await detectSignals(BASE_PARAMS, queryFn);
+			expect(signals.find((signal) => signal.metric === "lcp")).toBeUndefined();
 		});
 
 		it("keeps regressions that cross the good threshold", async () => {
@@ -1437,6 +1727,177 @@ describe("detectSignals", () => {
 	});
 
 	describe("exact remeasurement", () => {
+		function vitalPrior(metric: "lcp" | "inp") {
+			const isLcp = metric === "lcp";
+			return prepareInvestigation(
+				{
+					baseline: isLcp ? 5020 : 250,
+					current: isLcp ? 4984 : 250,
+					deltaPercent: isLcp ? -0.72 : 0,
+					detectedAt: "2026-08-11",
+					direction: isLcp ? "down" : "up",
+					label: isLcp
+						? "Page load time (LCP)"
+						: "Interaction speed (INP)",
+					method: "wow",
+					metric,
+					severity: "warning",
+				},
+				7
+			).signal;
+		}
+
+		it("does not reopen a persistent LCP recheck from flat low-sample data", async () => {
+			const remeasured = await remeasureMetricSignal(
+				{ ...BASE_PARAMS, lookbackDays: 7 },
+				vitalPrior("lcp"),
+				createMockQueryFn([], {}, {}, {
+					vitals_overview: [
+						[{ metric_name: "LCP", p75: 4500, samples: 10 }],
+						[{ metric_name: "LCP", p75: 4450, samples: 10 }],
+					],
+				}),
+				dayjs("2026-08-12")
+			);
+
+			expect(remeasured).toBeNull();
+		});
+
+		it("remeasures a persistently poor LCP when both periods have enough samples", async () => {
+			const remeasured = await remeasureMetricSignal(
+				{ ...BASE_PARAMS, lookbackDays: 7 },
+				vitalPrior("lcp"),
+				createMockQueryFn([], {}, {}, {
+					vitals_overview: [
+						[{ metric_name: "LCP", p75: 4984, samples: 5129 }],
+						[{ metric_name: "LCP", p75: 5020, samples: 5000 }],
+					],
+				}),
+				dayjs("2026-08-12")
+			);
+
+			expect(remeasured).toMatchObject({
+				baseline: 5020,
+				current: 4984,
+				metric: "lcp",
+			});
+		});
+
+		it("keeps materially worsening LCP rechecks at the normal sample floor", async () => {
+			const remeasured = await remeasureMetricSignal(
+				{ ...BASE_PARAMS, lookbackDays: 7 },
+				vitalPrior("lcp"),
+				createMockQueryFn([], {}, {}, {
+					vitals_overview: [
+						[{ metric_name: "LCP", p75: 3900, samples: 10 }],
+						[{ metric_name: "LCP", p75: 2500, samples: 10 }],
+					],
+				}),
+				dayjs("2026-08-12")
+			);
+
+			expect(remeasured).toMatchObject({
+				direction: "up",
+				metric: "lcp",
+			});
+		});
+
+		it("keeps INP remeasurements at the existing minimum sample floor", async () => {
+			const remeasured = await remeasureMetricSignal(
+				{ ...BASE_PARAMS, lookbackDays: 7 },
+				vitalPrior("inp"),
+				createMockQueryFn([], {}, {}, {
+					vitals_overview: [
+						[{ metric_name: "INP", p75: 250, samples: 10 }],
+						[{ metric_name: "INP", p75: 250, samples: 10 }],
+					],
+				}),
+				dayjs("2026-08-12")
+			);
+
+			expect(remeasured).toMatchObject({
+				baseline: 250,
+				current: 250,
+				metric: "inp",
+			});
+		});
+
+		it("remeasures a matched-continuation error with its exact fingerprint", async () => {
+			const prior = prepareInvestigation(
+				{
+					baseline: 47,
+					current: 48,
+					deltaPercent: 2.13,
+					detectedAt: "2026-08-11",
+					direction: "up",
+					entityLabel: "Stable checkout error",
+					label: "Stable checkout error",
+					method: "behavior",
+					metric: "error_count",
+					cohortMeasurement: {
+						type: "matched_error_continuation",
+						controlContinuationPercent: 66.7,
+						exposedContinuationPercent: 16.7,
+						matchedSessions: 42,
+					},
+					severity: "warning",
+					subjectKey: "error:Stable checkout error",
+				},
+				7
+			).signal;
+			const requests: Parameters<QueryFn>[0][] = [];
+			let errorCalls = 0;
+			const queryFn: QueryFn = async (request) => {
+				requests.push(request);
+				if (request.type === "error_fingerprints") {
+					errorCalls += 1;
+					return [
+						errorCalls === 1
+							? errorRow(48, 36, { name: "Stable checkout error" })
+							: errorRow(47, 35, { name: "Stable checkout error" }),
+					];
+				}
+				if (request.type === "error_route_continuation_comparison") {
+					return [
+						routeContinuationRow({
+							control_continued_sessions: 9,
+							control_continuation_percent: 21.4,
+							exposed_continued_sessions: 8,
+							exposed_continuation_percent: 19,
+						}),
+					];
+				}
+				return [];
+			};
+
+			const remeasured = await remeasureMetricSignal(
+				{ ...BASE_PARAMS, lookbackDays: 7 },
+				prior,
+				queryFn,
+				dayjs("2026-08-12")
+			);
+
+			expect(remeasured).toMatchObject({
+			direction: "down",
+				method: "behavior",
+				severity: "info",
+				subjectKey: prior.signalKey,
+			});
+			if (!remeasured) {
+				throw new Error("Expected matched-continuation remeasurement");
+			}
+			expect(prepareInvestigation(remeasured, 7).signal).toMatchObject({
+				cohortMeasurement: { type: "matched_error_continuation" },
+				sentiment: "neutral",
+			});
+			expect(requests.map((request) => request.type)).toEqual([
+				"error_fingerprints",
+				"error_fingerprints",
+				"error_route_continuation_comparison",
+			]);
+			expect(requests.every((request) => request.filters)).toBe(true);
+		});
+
 		it("returns the same error subject at zero after the fingerprint disappears", async () => {
 			const prior = prepareInvestigation(
 				{
@@ -1447,9 +1908,15 @@ describe("detectSignals", () => {
 					direction: "up",
 					entityLabel: "TypeError: cart is undefined",
 					label: "TypeError: cart is undefined",
-					method: "wow",
+					method: "behavior",
 					metric: "error_count",
-					severity: "critical",
+					cohortMeasurement: {
+						type: "matched_error_continuation",
+						controlContinuationPercent: 60,
+						exposedContinuationPercent: 20,
+						matchedSessions: 40,
+					},
+					severity: "warning",
 					subjectKey: "error:cart is undefined",
 				},
 				7

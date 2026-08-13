@@ -1,3 +1,5 @@
+import { createHash, createHmac } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import { chmod, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
@@ -6,24 +8,34 @@ import type { LanguageModelUsage, StepResult, ToolSet } from "ai";
 import dayjs from "dayjs";
 import timezonePlugin from "dayjs/plugin/timezone";
 import utcPlugin from "dayjs/plugin/utc";
+import type { InvestigationSignal } from "@databuddy/shared/insights";
 import {
 	summarizeAgentUsage,
 	type UsageTelemetry,
 } from "@databuddy/ai/lib/usage-telemetry";
 import type {
+	InvestigationCoverage,
 	InvestigationSources,
 	WebsiteInvestigationArtifact,
 } from "./generation";
 import type { InsightAgentInput, InsightAgentResult } from "./agent";
+import type { DetectedSignal } from "./detection";
 import type { FunnelDef, GoalDef } from "./funnel-detection";
 import type { InvestigationAnnotation } from "./investigation";
-import type { LatestInsightObservation } from "./observations";
+import { nextRecheckAt, type LatestInsightObservation } from "./observations";
+import {
+	insightSpecialists,
+	portfolioFamilyForDetectedSignal,
+	resolveInsightSpecialist,
+	type InsightSpecialistId,
+} from "./specialists";
 
 dayjs.extend(utcPlugin);
 dayjs.extend(timezonePlugin);
 
 const REQUIRED_CONFIRMATION = "--confirm-read-only-production";
-const DEFAULT_OFFSETS = [60, 30, 7, 0];
+// A normal shadow answers “what would run now?” Historical replay is explicit.
+const DEFAULT_OFFSETS = [0];
 const DEFAULT_MIN_EVENTS = 25_000;
 const DEFAULT_CONCURRENCY = 2;
 const DEFAULT_MODEL = "openai/gpt-5.6-terra";
@@ -31,17 +43,20 @@ const MAX_BATCH_SIZE = 3;
 const STATEMENT_TIMEOUT_MS = 60_000;
 const CASE_ATTEMPT_TIMEOUT_MS = 150_000;
 type AsOfMode = "day" | "instant";
+type ShadowSpecialist = InsightSpecialistId;
 
 interface CliOptions {
 	asOfMode: AsOfMode;
 	batchSize: number;
 	concurrency: number;
+	dryRun: boolean;
 	limit: number | null;
 	minEvents: number;
 	model: string;
 	offsets: number[];
 	output: string | null;
 	referenceTime: Date;
+	specialist: ShadowSpecialist | null;
 	websiteId: string | null;
 }
 
@@ -104,6 +119,7 @@ interface ShadowCase {
 		severity: string;
 		subject: string;
 	};
+	specialist: InsightSpecialistId | null;
 	status: string;
 	toolCallCount: number;
 	trace: Pick<InsightAgentStepTrace, "tools">[];
@@ -138,6 +154,46 @@ interface ShadowCostSummary {
 	total: number;
 }
 
+type ShadowCoverage =
+	| (InvestigationCoverage & {
+			run: string;
+			status: "completed";
+	  })
+	| {
+			coverage: null;
+			run: string;
+			status: "failed";
+	  };
+
+export type ShadowFailurePhase =
+	| "discovery"
+	| "execution"
+	| "initialization"
+	| "report";
+
+export interface ShadowFailure {
+	code: string | null;
+	message: string;
+	phase: ShadowFailurePhase;
+	type: string;
+}
+
+export function projectShadowCoverage(params: {
+	coverage: InvestigationCoverage | null;
+	failed: boolean;
+	run: string;
+}): ShadowCoverage {
+	if (params.failed || params.coverage === null) {
+		return { coverage: null, run: params.run, status: "failed" };
+	}
+	return { ...params.coverage, run: params.run, status: "completed" };
+}
+
+interface ShadowSiteResult {
+	cases: ShadowCase[];
+	coverage: ShadowCoverage[];
+}
+
 interface ShadowReport {
 	aggregate: {
 		agentCostUsd: ShadowCostSummary;
@@ -146,25 +202,42 @@ interface ShadowReport {
 		status: Record<string, number>;
 	};
 	cases: ShadowCase[];
+	coverage: ShadowCoverage[];
+	failure?: ShadowFailure;
 	meta: {
 		asOfMode: AsOfMode;
 		batchSize: number;
+		comparison: ShadowComparison;
 		concurrency: number;
 		dataAccess: {
-			clickhouse: "read_only";
+			clickhouse: "not_verified" | "read_only" | "read_only_without_final";
 			connectors: "current_reference_only";
 			historicalTools: "time_bounded_analytics_only";
 			postgres: "metadata_queries_read_only";
 			redaction: "best_effort";
 		};
 		engine: "investigation agent";
+		dryRun: boolean;
 		generatedAt: string;
 		history: "in_memory";
 		minEvents: number;
 		model: string;
 		offsets: number[];
 		referenceTime: string;
+		specialist: ShadowSpecialist | null;
 		sites: number;
+	};
+}
+
+interface ShadowComparison {
+	selection: {
+		fingerprint: string | null;
+		limit: number | null;
+		scope: "cohort" | "website";
+	};
+	source: {
+		fingerprint: string | null;
+		revision: string | null;
 	};
 }
 
@@ -245,6 +318,19 @@ function modelOption(value: string | undefined): string {
 	throw new Error("model must be a non-empty gateway model id");
 }
 
+function specialistOption(value: string | undefined): ShadowSpecialist | null {
+	if (value === undefined) {
+		return null;
+	}
+	const specialist = insightSpecialists.find((profile) => profile.id === value);
+	if (specialist) {
+		return specialist.id;
+	}
+	throw new Error(
+		`specialist must be one of ${insightSpecialists.map((profile) => profile.id).join(", ")}`
+	);
+}
+
 function resolveReferenceTime(value: string | undefined): Date {
 	if (!value) {
 		throw new Error("reference-time is required");
@@ -256,7 +342,7 @@ function resolveReferenceTime(value: string | undefined): Date {
 	return result;
 }
 
-function parseOptions(args: string[]): CliOptions {
+export function parseShadowOptions(args: string[]): CliOptions {
 	const { values } = parseArgs({
 		args,
 		options: {
@@ -264,12 +350,14 @@ function parseOptions(args: string[]): CliOptions {
 			"batch-size": { default: String(MAX_BATCH_SIZE), type: "string" },
 			concurrency: { default: String(DEFAULT_CONCURRENCY), type: "string" },
 			"confirm-read-only-production": { default: false, type: "boolean" },
+			"dry-run": { default: false, type: "boolean" },
 			limit: { type: "string" },
 			"min-events": { default: String(DEFAULT_MIN_EVENTS), type: "string" },
 			model: { default: DEFAULT_MODEL, type: "string" },
 			offsets: { type: "string" },
 			output: { type: "string" },
 			"reference-time": { type: "string" },
+			specialist: { type: "string" },
 			"website-id": { type: "string" },
 		},
 		strict: true,
@@ -293,14 +381,101 @@ function parseOptions(args: string[]): CliOptions {
 		asOfMode,
 		batchSize: batchSizeOption(values["batch-size"]),
 		concurrency: integerOption(values.concurrency, "concurrency", 1),
+		dryRun: values["dry-run"],
 		limit: values.limit ? integerOption(values.limit, "limit", 1) : null,
 		minEvents: integerOption(values["min-events"], "min-events", 1),
 		model: modelOption(values.model),
 		offsets,
 		output: values.output ?? null,
 		referenceTime: resolveReferenceTime(values["reference-time"]),
+		specialist: specialistOption(values.specialist),
 		websiteId: values["website-id"]?.trim() || null,
 	};
+}
+
+export function shadowCohortFingerprint(
+	ids: readonly string[],
+	key: string | undefined
+): string | null {
+	if (!(key && ids.length > 0)) {
+		return null;
+	}
+	return createHmac("sha256", key)
+		.update([...ids].sort().join("\u0000"))
+		.digest("hex")
+		.slice(0, 24);
+}
+
+function gitOutput(args: string[]): string | null {
+	const result = spawnSync("git", args, {
+		cwd: resolve(import.meta.dir, "../../.."),
+		encoding: "utf8",
+		stdio: ["ignore", "pipe", "ignore"],
+	});
+	if (result.status !== 0) {
+		return null;
+	}
+	return result.stdout.trim();
+}
+
+function shadowSourceSnapshot(): ShadowComparison["source"] {
+	const revision = gitOutput(["rev-parse", "HEAD"]);
+	const diff = gitOutput(["diff", "--binary", "--no-ext-diff", "HEAD"]);
+	const status = gitOutput([
+		"status",
+		"--porcelain=v1",
+		"--untracked-files=all",
+	]);
+	if (!(revision && diff !== null && status !== null)) {
+		return { fingerprint: null, revision };
+	}
+	return {
+		fingerprint: createHash("sha256")
+			.update(`${revision}\u0000${diff}\u0000${status}`)
+			.digest("hex")
+			.slice(0, 24),
+		revision,
+	};
+}
+
+function shadowComparison(
+	options: CliOptions,
+	ids: readonly string[]
+): ShadowComparison {
+	return {
+		selection: {
+			fingerprint: shadowCohortFingerprint(ids, process.env.DATABASE_URL),
+			limit: options.limit,
+			scope: options.websiteId ? "website" : "cohort",
+		},
+		source: shadowSourceSnapshot(),
+	};
+}
+
+export function filterShadowSignals(
+	signals: DetectedSignal[],
+	specialist: ShadowSpecialist | null
+): DetectedSignal[] {
+	return specialist
+		? signals.filter(
+				(signal) => portfolioFamilyForDetectedSignal(signal) === specialist
+			)
+		: signals;
+}
+
+export function matchesShadowSpecialist(
+	signal: InvestigationSignal,
+	specialist: ShadowSpecialist | null
+): boolean {
+	return (
+		specialist === null || resolveInsightSpecialist(signal).id === specialist
+	);
+}
+
+function specialistForShadowSignal(
+	signal: InvestigationSignal | null
+): InsightSpecialistId | null {
+	return signal ? resolveInsightSpecialist(signal).id : null;
 }
 
 function disableExternalEffects(): void {
@@ -329,6 +504,9 @@ async function assertReadOnlyClickHouse(): Promise<void> {
 	if (Number(rows[0]?.readonly) < 1) {
 		throw new Error("ClickHouse connection is not read-only");
 	}
+	await chQuery("SELECT 1 FROM analytics.events LIMIT 0", undefined, {
+		readonly: true,
+	});
 }
 
 function silenceLibraryConsole(): () => void {
@@ -584,21 +762,6 @@ export function resolveShadowAsOf(
 		.toDate();
 }
 
-function shadowNextRecheckAt(
-	asOf: Date,
-	next: InsightAgentResult["outcome"]["next"]
-): Date {
-	const requested =
-		(next.type === "act" || next.type === "watch") && next.recheckAt
-			? new Date(next.recheckAt)
-			: null;
-	if (requested && !Number.isNaN(requested.getTime()) && requested > asOf) {
-		return requested;
-	}
-	const days = next.type === "act" || next.type === "watch" ? 1 : 30;
-	return new Date(asOf.getTime() + days * 86_400_000);
-}
-
 function keepsShadowInvestigationOpen(
 	outcome: InsightAgentResult["outcome"],
 	previous: ShadowObservation | undefined
@@ -630,9 +793,11 @@ async function createSources(params: {
 	funnels: FunnelRow[];
 	goals: GoalRow[];
 	historical: boolean;
+	dryRun: boolean;
 	model: string;
 	observations: ShadowObservation[];
 	site: RankedWebsite;
+	specialist: ShadowSpecialist | null;
 }): Promise<InvestigationSources> {
 	const [
 		{ createModelFromId },
@@ -646,7 +811,7 @@ async function createSources(params: {
 		{ loadErrorCustomerImpact },
 		{ createToolkit },
 		{ remeasureStoredSignal },
-		{ detectRouteHealthSignals },
+		{ detectRouteHealthSignals, loadRouteVitalContinuation },
 		{ InsightAgentExecutionError, runInsightAgent },
 	] = await Promise.all([
 		import("@databuddy/ai/config/models"),
@@ -668,12 +833,20 @@ async function createSources(params: {
 		params.goals.filter((row) => row.websiteId === params.site.id),
 		params.asOf
 	);
+	const includesDefinitionWork =
+		params.specialist === null ||
+		params.specialist === "funnel" ||
+		params.specialist === "goal";
+	const includesMetricWork =
+		params.specialist === null ||
+		params.specialist === "general" ||
+		params.specialist === "reliability";
 	const latestObservations = new Map<string, ShadowObservation>();
 	for (const observation of params.observations) {
 		latestObservations.set(observation.signal.signalKey, observation);
 	}
 	let historicalTools: ToolSet | undefined;
-	if (params.historical) {
+	if (params.historical && !params.dryRun) {
 		const getData = createToolkit({ capabilities: ["analytics"] }).get_data;
 		if (!getData) {
 			throw new Error("Historical analytics tool is unavailable");
@@ -706,7 +879,8 @@ async function createSources(params: {
 		);
 		return {
 			...base,
-			fetchDefinitionCounts: async () => ({
+			fetchDefinitionCoverage: async () => ({
+				...(await base.fetchDefinitionCoverage()),
 				activeFunnels: siteFunnels.length,
 				activeGoals: siteGoals.length,
 			}),
@@ -717,26 +891,34 @@ async function createSources(params: {
 		};
 	};
 	return {
-		detectDefinitionSignals: async (detectParams, today, _deps, options) =>
-			detectFunnelGoalSignals(
+		detectDefinitionSignals: async (detectParams, today, _deps, options) => {
+			if (!includesDefinitionWork) {
+				return [];
+			}
+			const signals = await detectFunnelGoalSignals(
 				detectParams,
 				today,
 				funnelGoalDependencies(),
 				options
-			),
+			);
+			return filterShadowSignals(signals, params.specialist);
+		},
 		detectMeasurementRecommendationSignals: async (
 			detectParams,
 			today,
 			_deps,
 			signal
 		) =>
-			params.historical
+			params.historical || !includesDefinitionWork
 				? []
-				: detectMeasurementRecommendationSignals(
-						detectParams,
-						today,
-						measurementRecommendationDependencies(),
-						signal
+				: filterShadowSignals(
+						await detectMeasurementRecommendationSignals(
+							detectParams,
+							today,
+							measurementRecommendationDependencies(),
+							signal
+						),
+						params.specialist
 					),
 		detectMetricSignals: async (
 			detectParams,
@@ -744,9 +926,31 @@ async function createSources(params: {
 			today,
 			signal,
 			diagnostics
-		) => detectSignals(detectParams, queryFn, today, signal, diagnostics),
+		) =>
+			includesMetricWork
+				? filterShadowSignals(
+						await detectSignals(
+							detectParams,
+							queryFn,
+							today,
+							signal,
+							diagnostics
+						),
+						params.specialist
+					)
+				: [],
 		detectRouteHealthSignals: async (detectParams, today, _deps, signal) =>
-			detectRouteHealthSignals(detectParams, today, undefined, signal),
+			includesMetricWork
+				? filterShadowSignals(
+						await detectRouteHealthSignals(
+							detectParams,
+							today,
+							undefined,
+							signal
+						),
+						params.specialist
+					)
+				: [],
 		fetchAnnotations: (_websiteId, signal, _asOf, timezone) => {
 			const window = signalAnnotationWindow(signal, timezone);
 			return Promise.resolve(
@@ -802,7 +1006,7 @@ async function createSources(params: {
 					evidence: input.evidence,
 					hasOpenInvestigation,
 					outcome: result.outcome,
-					recheckAt: shadowNextRecheckAt(params.asOf, result.outcome.next),
+					recheckAt: nextRecheckAt(params.asOf, result.outcome.next),
 					signal: input.signal,
 				};
 				params.observations.push(observation);
@@ -833,7 +1037,7 @@ async function createSources(params: {
 						a.signal.signalKey.localeCompare(b.signal.signalKey)
 				)[0];
 			return Promise.resolve(
-				due
+				due && matchesShadowSpecialist(due.signal, params.specialist)
 					? {
 							evidence: due.evidence,
 							outcome: due.outcome,
@@ -844,6 +1048,7 @@ async function createSources(params: {
 			);
 		},
 		loadErrorCustomerImpact,
+		loadRouteVitalContinuation,
 		loadHistory: ({ signalKey, through }) =>
 			Promise.resolve(
 				params.observations
@@ -868,10 +1073,22 @@ async function createSources(params: {
 			Promise.resolve(
 				new Map<string, LatestInsightObservation>(latestObservations)
 			),
-		remeasureSignal: (detectParams, prior, today, signal) =>
-			remeasureStoredSignal(detectParams, prior, today, signal, {
-				funnelGoal: funnelGoalDependencies(),
-			}),
+		remeasureSignal: async (detectParams, prior, today, signal) => {
+			if (!matchesShadowSpecialist(prior, params.specialist)) {
+				return null;
+			}
+			const remeasured = await remeasureStoredSignal(
+				detectParams,
+				prior,
+				today,
+				signal,
+				{ funnelGoal: funnelGoalDependencies() }
+			);
+			return remeasured &&
+				filterShadowSignals([remeasured], params.specialist).length === 0
+				? null
+				: remeasured;
+		},
 	};
 }
 
@@ -971,6 +1188,8 @@ function percentile(values: number[], quantile: number): number {
 }
 
 const TOKEN_CHARACTER = /[\p{L}\p{N}_]/u;
+const SHADOW_ERROR_CODE = /^[A-Z][A-Z0-9_.-]{1,63}$/;
+const SHADOW_TIMEOUT_MESSAGE = /^Production shadow attempt exceeded (\d+)ms$/;
 
 function redactSecret(value: string, secret: string): string {
 	const escaped = RegExp.escape(secret);
@@ -1007,6 +1226,103 @@ function sanitizeText(value: string, secrets: string[]): string {
 		.replace(/\b(?:[a-z0-9-]+\.)+[a-z]{2,}\b/gi, "[domain]")
 		.replace(/\b[0-9a-f]{8}-[0-9a-f-]{27,}\b/gi, "[entity]")
 		.replace(/\/(?:[^\s.,;:!?()[\]{}]+\/)*[^\s.,;:!?()[\]{}]*/g, "[path]");
+}
+
+function shadowFailureMessage(error: unknown): string {
+	const raw =
+		error instanceof Error
+			? error.message
+			: typeof error === "string"
+				? error
+				: "Unknown failure";
+	const message = sanitizeText(raw, []).trim();
+	if (message === "CLICKHOUSE_READONLY_URL is required") {
+		return message;
+	}
+	if (message === "DATABASE_URL is required") {
+		return message;
+	}
+	if (message === "ClickHouse connection is not read-only") {
+		return message;
+	}
+	if (message === "Postgres transaction is not read-only") {
+		return message;
+	}
+	if (message === "Historical analytics tool is unavailable") {
+		return message;
+	}
+	if (message.startsWith("Production shadow attempt exceeded ")) {
+		const timeout = message.match(SHADOW_TIMEOUT_MESSAGE)?.[1];
+		if (timeout) {
+			return `Production shadow attempt exceeded ${timeout}ms`;
+		}
+	}
+	if (message.startsWith("The requested website was not found")) {
+		return "The requested website was not found";
+	}
+	return "Shadow stopped before completion; verify the read-only data-source configuration and retry.";
+}
+
+function shadowFailureCode(error: unknown): string | null {
+	if (!(error && typeof error === "object" && "code" in error)) {
+		return null;
+	}
+	const code = error.code;
+	return typeof code === "string" && SHADOW_ERROR_CODE.test(code) ? code : null;
+}
+
+function shadowFailureType(error: unknown): string {
+	return error instanceof Error
+		? error.constructor.name
+		: error === null
+			? "null"
+			: typeof error;
+}
+
+export function projectShadowFailure(params: {
+	error: unknown;
+	options: CliOptions;
+	phase: ShadowFailurePhase;
+}): ShadowReport {
+	return {
+		aggregate: {
+			agentCostUsd: summarizeInvestigationCosts([]),
+			cases: 0,
+			durationsMs: { p50: 0, p95: 0 },
+			status: { error: 1 },
+		},
+		cases: [],
+		coverage: [],
+		failure: {
+			code: shadowFailureCode(params.error),
+			message: shadowFailureMessage(params.error),
+			phase: params.phase,
+			type: shadowFailureType(params.error),
+		},
+		meta: {
+			asOfMode: params.options.asOfMode,
+			batchSize: params.options.batchSize,
+			comparison: shadowComparison(params.options, []),
+			concurrency: params.options.concurrency,
+			dataAccess: {
+				clickhouse: "not_verified",
+				connectors: "current_reference_only",
+				historicalTools: "time_bounded_analytics_only",
+				postgres: "metadata_queries_read_only",
+				redaction: "best_effort",
+			},
+			engine: "investigation agent",
+			dryRun: params.options.dryRun,
+			generatedAt: new Date().toISOString(),
+			history: "in_memory",
+			minEvents: params.options.minEvents,
+			model: params.options.model,
+			offsets: [...params.options.offsets],
+			referenceTime: params.options.referenceTime.toISOString(),
+			specialist: params.options.specialist,
+			sites: 0,
+		},
+	};
 }
 
 function sanitizeOutcome(
@@ -1165,6 +1481,7 @@ function projectCase(params: {
 	caseId: string;
 	durationMs: number;
 	secrets: string[];
+	specialist?: InsightSpecialistId;
 	subjectAlias: string | null;
 	trace: InsightAgentStepTrace[];
 }): ShadowCase {
@@ -1187,6 +1504,7 @@ function projectCase(params: {
 				: undefined
 		),
 		selectedSignal: projectSelectedSignal(artifact.signal, params.subjectAlias),
+		specialist: params.specialist ?? specialistForShadowSignal(artifact.signal),
 		status: artifact.status,
 		trace: params.trace.map(({ tools }) => ({ tools })),
 		toolCallCount: params.trace.reduce(
@@ -1236,6 +1554,7 @@ function failedCase(params: {
 			params.selectedSignal ?? null,
 			params.subjectAlias ?? null
 		),
+		specialist: specialistForShadowSignal(params.selectedSignal ?? null),
 		status: "error",
 		trace: params.trace.map(({ tools }) => ({ tools })),
 		toolCallCount: params.trace.reduce(
@@ -1321,28 +1640,37 @@ async function closeShadowConnections(): Promise<void> {
 
 async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 	disableExternalEffects();
-	configureReadOnlyClickHouse();
 	const referenceTime = options.referenceTime;
 	const restoreConsole = silenceLibraryConsole();
+	let restoreClickHouseReadMode: (() => void) | null = null;
+	let phase: ShadowFailurePhase = "initialization";
+	let comparison = shadowComparison(options, []);
 	try {
+		configureReadOnlyClickHouse();
+		const { setClickHouseReadMode } = await import("@databuddy/db/clickhouse");
+		restoreClickHouseReadMode = setClickHouseReadMode("restricted");
 		await assertReadOnlyClickHouse();
+		phase = "discovery";
 		const ranked = options.websiteId
 			? [options.websiteId]
 			: await loadCohort(options.minEvents, options.limit, referenceTime);
+		comparison = shadowComparison(options, ranked);
 		const metadata = await loadMetadata(ranked);
 		if (options.websiteId && metadata.sites.length === 0) {
 			throw new Error("The requested website was not found");
 		}
+		phase = "execution";
 		const { investigateWebsitePortfolioWithSources } = await import(
 			"./generation"
 		);
 		const siteCases = await mapConcurrent(
 			metadata.sites,
 			options.concurrency,
-			async (site, siteIndex) => {
+			async (site, siteIndex): Promise<ShadowSiteResult> => {
 				const observations: ShadowObservation[] = [];
 				const subjectAliases = new Map<string, string>();
 				const cases: ShadowCase[] = [];
+				const coverage: ShadowCoverage[] = [];
 				const definitions = [
 					...metadata.funnels.filter((row) => row.websiteId === site.id),
 					...metadata.goals.filter((row) => row.websiteId === site.id),
@@ -1385,6 +1713,7 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 					};
 					const attempts: ShadowAgentAttempt[] = [];
 					let artifacts: WebsiteInvestigationArtifact[] = [];
+					let runCoverage: InvestigationCoverage | null = null;
 					let portfolioError: unknown;
 					try {
 						const sources = await createSources({
@@ -1394,9 +1723,11 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 							funnels: metadata.funnels,
 							goals: metadata.goals,
 							historical: offsetDays > 0,
+							dryRun: options.dryRun,
 							model: options.model,
 							observations,
 							site,
+							specialist: options.specialist,
 						});
 						let remainingAgentSlots = options.batchSize;
 						artifacts = await investigateWebsitePortfolioWithSources(
@@ -1404,16 +1735,29 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 							sources,
 							"manual",
 							() => {
+								if (options.dryRun) {
+									return Promise.resolve(false);
+								}
 								if (remainingAgentSlots === 0) {
 									return Promise.resolve(false);
 								}
 								remainingAgentSlots -= 1;
 								return Promise.resolve(true);
+							},
+							(nextCoverage) => {
+								runCoverage = nextCoverage;
 							}
 						);
 					} catch (error) {
 						portfolioError = error;
 					}
+					coverage.push(
+						projectShadowCoverage({
+							coverage: runCoverage,
+							failed: portfolioError !== undefined,
+							run: caseIdPrefix,
+						})
+					);
 
 					for (const [attemptIndex, attempt] of attempts.entries()) {
 						const signal = attempt.input.signal;
@@ -1461,13 +1805,14 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 								caseId,
 								durationMs: attempt.durationMs,
 								secrets,
+								specialist: attempt.result.specialist,
 								subjectAlias,
 								trace: attempt.trace,
 							})
 						);
 					}
 
-					if (attempts.length === 0 && !portfolioError) {
+					if (attempts.length === 0 && !portfolioError && !options.dryRun) {
 						for (const artifact of artifacts) {
 							cases.push(
 								projectCase({
@@ -1499,37 +1844,45 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 						);
 					}
 				}
-				return cases;
+				return { cases, coverage };
 			}
 		);
-		const cases = siteCases.flat();
+		const cases = siteCases.flatMap((result) => result.cases);
+		const coverage = siteCases.flatMap((result) => result.coverage);
 		return {
 			aggregate: aggregateCases(cases),
 			cases,
+			coverage,
 			meta: {
 				asOfMode: options.asOfMode,
 				batchSize: options.batchSize,
+				comparison,
 				concurrency: options.concurrency,
 				dataAccess: {
-					clickhouse: "read_only",
+					clickhouse: "read_only_without_final",
 					connectors: "current_reference_only",
 					historicalTools: "time_bounded_analytics_only",
 					postgres: "metadata_queries_read_only",
 					redaction: "best_effort",
 				},
 				engine: "investigation agent",
+				dryRun: options.dryRun,
 				generatedAt: new Date().toISOString(),
 				history: "in_memory",
 				minEvents: options.minEvents,
 				model: options.model,
 				offsets: options.offsets,
 				referenceTime: referenceTime.toISOString(),
+				specialist: options.specialist,
 				sites: metadata.sites.length,
 			},
 		};
+	} catch (error) {
+		return projectShadowFailure({ error, options, phase });
 	} finally {
+		await closeShadowConnections().catch(() => undefined);
 		try {
-			await closeShadowConnections();
+			restoreClickHouseReadMode?.();
 		} finally {
 			restoreConsole();
 		}
@@ -1538,7 +1891,7 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 
 if (import.meta.main) {
 	try {
-		const options = parseOptions(process.argv.slice(2));
+		const options = parseShadowOptions(process.argv.slice(2));
 		const output = options.output
 			? assertOutsideRepository(options.output)
 			: null;
@@ -1550,9 +1903,18 @@ if (import.meta.main) {
 			await chmod(output, 0o600);
 		}
 		process.stdout.write(
-			`${JSON.stringify({ aggregate: result.aggregate, meta: result.meta }, null, 2)}\n`
+			`${JSON.stringify(
+				{
+					aggregate: result.aggregate,
+					coverage: result.coverage,
+					failure: result.failure ?? null,
+					meta: result.meta,
+				},
+				null,
+				2
+			)}\n`
 		);
-		if ((result.aggregate.status.error ?? 0) > 0) {
+		if (result.failure || (result.aggregate.status.error ?? 0) > 0) {
 			process.exitCode = 1;
 		}
 	} catch (error) {

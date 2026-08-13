@@ -32,6 +32,22 @@ export const FINAL_READ_SETTINGS = {
 	final: 1,
 } as const;
 
+export type ClickHouseReadMode = "default" | "restricted";
+
+let clickHouseReadMode: ClickHouseReadMode = "default";
+
+/**
+ * A bounded evaluator can use an account that enforces read-only access while
+ * forbidding query-setting changes. The caller must restore the prior mode.
+ */
+export function setClickHouseReadMode(mode: ClickHouseReadMode): () => void {
+	const previous = clickHouseReadMode;
+	clickHouseReadMode = mode;
+	return () => {
+		clickHouseReadMode = previous;
+	};
+}
+
 function assertCacheCompatibleSettings(
 	settings: Record<string, string | number>
 ): void {
@@ -206,12 +222,15 @@ async function chQueryWithMeta<T>(
 	options?: ChQueryOptions
 ): Promise<ResponseJSON<T>> {
 	const logical = finalizeDeliveryTables(query);
-	const finalSettings = logical.usesFinal ? FINAL_READ_SETTINGS : {};
+	const finalSettings =
+		logical.usesFinal && clickHouseReadMode === "default"
+			? FINAL_READ_SETTINGS
+			: {};
 	const settings: Record<string, string | number> = options?.readonly
 		? {
 				...(options.clickhouse_settings ?? {}),
 				...finalSettings,
-				readonly: "2",
+				...(clickHouseReadMode === "default" ? { readonly: "2" } : {}),
 			}
 		: { ...(options?.clickhouse_settings ?? {}), ...finalSettings };
 	assertCacheCompatibleSettings(settings);

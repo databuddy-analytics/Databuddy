@@ -1,6 +1,9 @@
 import { db } from "@databuddy/db";
 import { insightRunItems } from "@databuddy/db/schema";
-import { investigationSignalSchema } from "@databuddy/shared/insights";
+import {
+	insightDatabuddySetupRecommendationSchema,
+	investigationSignalSchema,
+} from "@databuddy/shared/insights";
 import { z } from "zod";
 import {
 	coveragePortfolioLimit,
@@ -52,6 +55,8 @@ const plannedCandidateSchema = z
 	.object({
 		evidence: z.array(z.string().max(500)).max(20),
 		measurementCandidate: measurementCandidateSchema.optional(),
+		setupRecommendationCandidate:
+			insightDatabuddySetupRecommendationSchema.optional(),
 		signal: investigationSignalSchema,
 	})
 	.strict();
@@ -59,7 +64,7 @@ const plannedCandidateSchema = z
 const frozenInvestigationPlanSchema = z
 	.object({
 		asOf: z.string().datetime({ offset: true }),
-		candidates: z.array(plannedCandidateSchema).max(3),
+		candidates: z.array(plannedCandidateSchema).max(5),
 		emptyStatus: emptyPlanStatusSchema.optional(),
 		reason: frozenPlanReasonSchema,
 	})

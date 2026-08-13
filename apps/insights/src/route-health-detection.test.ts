@@ -5,7 +5,9 @@ import type { DetectSignalsParams } from "./detection";
 import {
 	canonicalStaticRoute,
 	detectRouteHealthSignals,
+	loadRouteVitalContinuation,
 	remeasureRouteHealthSignal,
+	routeVitalContinuationEvidence,
 	type RouteHealthDetectionDeps,
 	type RouteHealthQueryInput,
 } from "./route-health-detection";
@@ -42,6 +44,42 @@ function routeSignal(signalKey: string): InvestigationSignal {
 		signalKey,
 	};
 }
+
+function routeVitalSignal(
+	overrides: Partial<InvestigationSignal> = {}
+): InvestigationSignal {
+	return {
+		changePercent: 44,
+		entity: { id: "/sign-in", label: "Route /sign-in", type: "page" },
+		metric: {
+			current: 7_200,
+			format: "duration_ms",
+			label: "Page load time (LCP) on /sign-in",
+			previous: 5_000,
+		},
+		period: {
+			current: { from: "2026-07-25", to: "2026-07-31" },
+			previous: { from: "2026-07-18", to: "2026-07-24" },
+		},
+		severity: "warning",
+		sentiment: "negative",
+		signalKey: "route:lcp:/sign-in",
+		...overrides,
+	};
+}
+
+const routeVitalContinuationRow = {
+	candidate_control_sessions: 80,
+	candidate_exposed_sessions: 100,
+	control_continued_sessions: 30,
+	control_continuation_percent: 50,
+	exposed_continued_sessions: 12,
+	exposed_continuation_percent: 20,
+	matched_control_sessions: 60,
+	matched_exposed_sessions: 60,
+	unmatched_control_sessions: 20,
+	unmatched_exposed_sessions: 40,
+};
 
 describe("canonicalStaticRoute", () => {
 	it("retains only a conservative fixed vocabulary of static routes", () => {
@@ -226,6 +264,137 @@ describe("detectRouteHealthSignals", () => {
 		);
 
 		expect(signals).toEqual([]);
+	});
+});
+
+describe("loadRouteVitalContinuation", () => {
+	it("adds only a matched aggregate continuation comparison for a poor canonical route vital", async () => {
+		const requests: Record<string, unknown>[] = [];
+		const continuation = await loadRouteVitalContinuation(
+			{
+				signal: routeVitalSignal(),
+				websiteId: "test-site",
+			},
+			async (input) => {
+				requests.push(input);
+				return [routeVitalContinuationRow];
+			}
+		);
+
+		expect(requests).toEqual([
+			expect.objectContaining({
+				badThreshold: 2_500,
+				from: "2026-07-25",
+				maxPlausible: 60_000,
+				metric: "LCP",
+				route: "/sign-in",
+				to: "2026-07-31",
+				websiteId: "test-site",
+			}),
+		]);
+		expect(continuation).toMatchObject({
+			comparison: {
+				controlSessions: 60,
+				exposedSessions: 60,
+				percentagePointDifference: -30,
+			},
+			metric: "LCP",
+			route: "/sign-in",
+		});
+		if (!continuation) {
+			throw new Error("Expected matched route vital continuation");
+		}
+		const evidence = routeVitalContinuationEvidence(continuation);
+		expect(evidence).toContain("later viewed a different page within 10 minutes");
+		expect(evidence).toContain("This is an association, not proof");
+		expect(evidence).not.toContain("bounce");
+		expect(evidence).not.toContain("session_id");
+	});
+
+	it("does not query healthy, implausible, dynamic, or non-vital route signals", async () => {
+		let calls = 0;
+		const query = async () => {
+			calls += 1;
+			return [routeVitalContinuationRow];
+		};
+		const invalidSignals = [
+			routeVitalSignal({
+				metric: {
+					current: 2_500,
+					format: "duration_ms",
+					label: "Page load time (LCP) on /sign-in",
+					previous: 2_000,
+				},
+			}),
+			routeVitalSignal({
+				metric: {
+					current: 60_001,
+					format: "duration_ms",
+					label: "Page load time (LCP) on /sign-in",
+					previous: 5_000,
+				},
+			}),
+			routeVitalSignal({
+				entity: {
+					id: "/users/example-user",
+					label: "Route /users/example-user",
+					type: "page",
+				},
+				signalKey: "route:lcp:/users/example-user",
+			}),
+			routeVitalSignal({ signalKey: "route:error:/sign-in" }),
+		];
+
+		for (const signal of invalidSignals) {
+			expect(
+				await loadRouteVitalContinuation(
+					{ signal, websiteId: "test-site" },
+					query
+				)
+			).toBeNull();
+		}
+		expect(calls).toBe(0);
+	});
+
+	it("requires a large, sufficiently matched, materially lower continuation cohort", async () => {
+		const variants = [
+			{
+				...routeVitalContinuationRow,
+				control_continued_sessions: 24,
+				control_continuation_percent: 49,
+				exposed_continued_sessions: 10,
+				exposed_continuation_percent: 20.4,
+				matched_control_sessions: 49,
+				matched_exposed_sessions: 49,
+				unmatched_control_sessions: 31,
+				unmatched_exposed_sessions: 51,
+			},
+			{
+				...routeVitalContinuationRow,
+				control_continuation_percent: 50.8,
+				exposed_continuation_percent: 20.3,
+				matched_control_sessions: 59,
+				matched_exposed_sessions: 59,
+				unmatched_control_sessions: 21,
+				unmatched_exposed_sessions: 41,
+			},
+			{
+				...routeVitalContinuationRow,
+				control_continued_sessions: 24,
+				control_continuation_percent: 40,
+				exposed_continued_sessions: 13,
+				exposed_continuation_percent: 21.7,
+			},
+		];
+
+		for (const row of variants) {
+			expect(
+				await loadRouteVitalContinuation(
+					{ signal: routeVitalSignal(), websiteId: "test-site" },
+					async () => [row]
+				)
+			).toBeNull();
+		}
 	});
 });
 

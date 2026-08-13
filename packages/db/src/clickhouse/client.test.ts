@@ -1,7 +1,11 @@
 import { Readable } from "node:stream";
 import { ResultSet } from "@clickhouse/client";
 import { afterEach, describe, expect, mock, spyOn, test } from "bun:test";
-import { chQuery, clickHouse } from "./client";
+import {
+	chQuery,
+	clickHouse,
+	setClickHouseReadMode,
+} from "./client";
 
 describe("chQuery", () => {
 	afterEach(() => {
@@ -120,6 +124,29 @@ describe("chQuery", () => {
 			final: 1,
 		});
 		expect(query).toBe("SELECT count() FROM analytics.events");
+	});
+
+	test("can omit forbidden settings for a bounded read-only evaluator", async () => {
+		let settings: Record<string, string | number> | undefined;
+		spyOn(clickHouse, "query").mockImplementation(async (options) => {
+			settings = options.clickhouse_settings as
+				| Record<string, string | number>
+				| undefined;
+			return {
+				close: () => undefined,
+				json: async () => ({ data: [] }),
+			} as unknown as ResultSet<"JSON">;
+		});
+		const restore = setClickHouseReadMode("restricted");
+		try {
+			await chQuery("SELECT count() FROM analytics.events", undefined, {
+				readonly: true,
+			});
+		} finally {
+			restore();
+		}
+
+		expect(settings).toBeUndefined();
 	});
 
 	test("does not finalize unrelated MergeTree queries", async () => {

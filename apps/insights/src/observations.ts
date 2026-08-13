@@ -22,7 +22,11 @@ import {
 } from "@databuddy/shared/insights";
 import type { DetectedSignal } from "./detection";
 import type { InsightAgentInput } from "./agent";
-import { isRegression, signalKeyForDetectedSignal } from "./investigation";
+import {
+	isInvestigationCandidate,
+	isRegression,
+	signalKeyForDetectedSignal,
+} from "./investigation";
 import { captureInsightsError } from "./lib/evlog-insights";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -90,7 +94,9 @@ export function eligibleSignalsForInvestigation(
 	for (const signal of signals) {
 		const observation = observations.get(signalKeyForDetectedSignal(signal));
 		if (!observation) {
-			buckets[1].push(signal);
+			if (isInvestigationCandidate(signal)) {
+				buckets[1].push(signal);
+			}
 			continue;
 		}
 		const worsened =
@@ -103,11 +109,7 @@ export function eligibleSignalsForInvestigation(
 						severity: observation.signal.severity,
 					}
 				));
-		const recovered =
-			observation.outcome.next.type === "resolve" &&
-			observation.signal.sentiment === "negative" &&
-			!isRegression(signal);
-		if (worsened || recovered) {
+		if (worsened) {
 			buckets[0].push(signal);
 		} else if (observation.recheckAt <= asOf) {
 			buckets[2].push(signal);
@@ -348,7 +350,7 @@ export async function loadOtherOpenWork(params: {
 				ne(insightObservations.signalKey, params.signalKey),
 				lte(insightObservations.asOf, params.through),
 				lte(insightObservations.createdAt, params.through),
-				sql`${insightObservations.outcome}->'next'->>'type' in ('act', 'ask', 'resolve')`
+				sql`${insightObservations.outcome}->'next'->>'type' in ('act', 'ask')`
 			)
 		)
 		.orderBy(

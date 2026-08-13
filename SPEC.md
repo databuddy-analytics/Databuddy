@@ -44,7 +44,6 @@ detect signal
   → inspect analytics, telemetry, history, deploys, and code
   → append insight
   → act | ask: open or update investigation and notify
-  → watch: keep a quiet recheck; update an existing case only
   → resolve: close an existing case or record the finding
   → resume investigations on new evidence or a human reply
 ```
@@ -53,7 +52,8 @@ One exact signal starts an agent turn. The Insights brief aggregates useful turn
 
 A run may first freeze a small, deterministic portfolio of distinct signals.
 Scheduled runs investigate at most two; a deliberate manual full scan investigates at
-most three. The portfolio is diversified across correlated subjects and survives a
+most five and covers a distinct eligible specialist family before taking extra work from
+one family. The portfolio is diversified across correlated subjects and survives a
 retry unchanged. Each selected signal still gets its own exact agent turn, durable
 observation, and investigation history; a model does not manufacture a broad report
 from ungrounded raw data.
@@ -87,14 +87,13 @@ The next outcome is one of:
 
 - `act` — exact change, target, and verification condition;
 - `ask` — one self-contained question that says what the answer unlocks;
-- `watch` — keep the backend-owned signal trigger active and state when to escalate;
 - `resolve` — why no investigation needs to remain open, even if a recommendation remains.
 
 Outcomes may be updated repeatedly. They are operational state, not prose templates.
 
 Customer copy names the exact goal, funnel, page, event, error, or campaign. It describes the operational change, never the detector, agent, evaluation, suppression decision, or other internal mechanics.
 
-The Insights brief reads like a short news report: headline, what happened, why it matters, why it happened when known, then evidence. It does not expose `act | ask | watch | resolve` mechanics. An investigation presents the same factual hierarchy before its current next move and full timeline. Recommendations live in a separate concise view with the suggestion, its source context, and an existing review action when one is available; they are not investigation activity.
+The Insights brief reads like a short news report: headline, what happened, why it matters, why it happened when known, then evidence. It does not expose `act | ask | resolve` mechanics. An investigation presents the same factual hierarchy before its current next move and full timeline. Recommendations live in a separate concise view with the suggestion, its source context, and an existing review action when one is available; they are not investigation activity.
 
 ## Continuity
 
@@ -103,7 +102,7 @@ The Insights brief reads like a short news report: headline, what happened, why 
 - A materially worse resolved signal reopens the same investigation with its prior outcomes.
 - Corrections such as terminology, ownership, or known infrastructure become project memory.
 
-`act` and `ask` may create a case and notify people. `watch` schedules another check without creating a new case. `resolve` closes an existing case.
+`act` and `ask` may create a case and notify people. `resolve` closes an existing case.
 
 ## Actions and PRs
 
@@ -128,6 +127,6 @@ When business meaning is missing, inspect the definition, site, events, and conn
 
 ## Implementation constraint
 
-Use `insight_observations` as the append-only Insights source and `analytics_insights` as the current investigation projection. An `act` or `ask` creates or reopens that projection; `watch` and `resolve` may update an open investigation but never create or reopen one. Recommendations are a read projection of the latest published observation for each signal: an unpublished recheck does not erase one, while a newer published observation replaces or removes it. Keep one agent and one evidence/tool stack. Add storage only when this model cannot represent a real use case.
+Use `insight_observations` as the append-only Insights source and `analytics_insights` as the current investigation projection. An `act` or `ask` creates or reopens that projection; `resolve` may update an open investigation but never creates or reopens one. Recommendations are a read projection of the latest observation for each signal: standalone setup and measurement recommendations expire at their recheck time unless renewed, while definition recommendations also verify against the current definition. Keep one agent and one evidence/tool stack. Add storage only when this model cannot represent a real use case.
 
 Exact error-customer joins run as a private, aggregate-only enrichment after the backend selects a signal. They return counts and coverage, never visitor, profile, session, payment, order, or request identifiers. Identity joins report same-window resolution explicitly; attributed completed-payment matches require the payment to predate the affected profile's first error and remain a lower bound.

@@ -48,7 +48,8 @@ function funnelResult(
 	rate: number,
 	entrants: number,
 	completions = Math.round((rate * entrants) / 100),
-	stepRates = [100, rate]
+	stepRates = [100, rate],
+	stepUsers?: number[]
 ): ConversionResult {
 	return {
 		completions,
@@ -58,6 +59,7 @@ function funnelResult(
 			name: FUNNEL.steps[index]?.name ?? `Step ${index + 1}`,
 			number: index + 1,
 			rate: stepRate,
+			users: stepUsers?.[index],
 		})),
 	};
 }
@@ -580,6 +582,55 @@ describe("detectFunnelGoalSignals", () => {
 		});
 	});
 
+	it("suppresses a persistent zero-completion funnel with sparse terminal cohorts", async () => {
+		let call = 0;
+		const signals = await detectFunnelGoalSignals(
+			PARAMS,
+			TODAY,
+			makeDeps({
+				fetchFunnels: async () => [FUNNEL],
+				funnelConversion: async () => {
+					call += 1;
+					return call === 1
+						? funnelResult(0, 100, 0, [100, 4, 0], [100, 4, 0])
+						: funnelResult(0, 120, 0, [100, 3, 0], [120, 3, 0]);
+				},
+			})
+		);
+
+		expect(signals).toEqual([]);
+	});
+
+	for (const { name, current, previous } of [
+		{
+			name: "keeps a new zero-completion funnel even with sparse terminal cohorts",
+			current: funnelResult(0, 100, 0, [100, 3, 0], [100, 3, 0]),
+			previous: funnelResult(2, 120, 2, [100, 4, 2], [120, 4, 2]),
+		},
+		{
+			name: "keeps a persistent zero-completion funnel when a terminal cohort is meaningful",
+			current: funnelResult(0, 100, 0, [100, 3, 0], [100, 3, 0]),
+			previous: funnelResult(0, 120, 0, [100, 10, 0], [120, 10, 0]),
+		},
+	] as const) {
+		it(name, async () => {
+			let call = 0;
+			const [signal] = await detectFunnelGoalSignals(
+				PARAMS,
+				TODAY,
+				makeDeps({
+					fetchFunnels: async () => [FUNNEL],
+					funnelConversion: async () => {
+						call += 1;
+						return call === 1 ? current : previous;
+					},
+				})
+			);
+
+			expect(signal?.subjectKey).toBe("funnel:f1:zero-completions");
+		});
+	}
+
 	it("does not report persistent zero completions below the conservative traffic floor", async () => {
 		let call = 0;
 		const signals = await detectFunnelGoalSignals(
@@ -841,6 +892,109 @@ describe("detectFunnelGoalSignals", () => {
 
 		expect(signals).toHaveLength(1);
 		expect(signals[0]?.metric).toBe("goal:g1");
+	});
+
+	it("measures one explicit-purpose funnel when an equivalent blank duplicate exists", async () => {
+		const duplicate = {
+			...FUNNEL,
+			description: null,
+			id: "f2",
+			name: "Checkout copy",
+		};
+		const run = async (funnels: FunnelDef[]) => {
+			const calls: string[] = [];
+			const signals = await detectFunnelGoalSignals(
+				PARAMS,
+				TODAY,
+				makeDeps({
+					fetchFunnels: async () => funnels,
+					funnelConversion: async (funnel, range) => {
+						calls.push(funnel.id);
+						return range.from === "2026-05-22"
+							? funnelResult(10, 100, 10)
+							: funnelResult(20, 100, 20);
+					},
+				})
+			);
+			return { calls, signals };
+		};
+
+		const first = await run([duplicate, FUNNEL]);
+		const second = await run([FUNNEL, duplicate]);
+
+		for (const result of [first, second]) {
+			expect(result.calls).toEqual(["f1", "f1"]);
+			expect(result.signals.map((signal) => signal.metric)).toEqual([
+				"funnel:f1",
+			]);
+		}
+	});
+
+	it("keeps equivalent funnels when filters, steps, or stated purpose differ", async () => {
+		const filtered = {
+			...FUNNEL,
+			filters: [{ field: "country", operator: "equals" as const, value: "PS" }],
+			id: "f2",
+		};
+		const reordered = {
+			...FUNNEL,
+			id: "f3",
+			steps: [...FUNNEL.steps].reverse(),
+		};
+		const competingPurpose = {
+			...FUNNEL,
+			description: "A visitor requests a demo.",
+			id: "f4",
+		};
+		const calls: string[] = [];
+		const signals = await detectFunnelGoalSignals(
+			PARAMS,
+			TODAY,
+			makeDeps({
+				fetchFunnels: async () => [FUNNEL, filtered, reordered, competingPurpose],
+				funnelConversion: async (funnel, range) => {
+					calls.push(funnel.id);
+					return range.from === "2026-05-22"
+						? funnelResult(10, 100, 10)
+						: funnelResult(20, 100, 20);
+				},
+			})
+		);
+
+		expect(new Set(calls)).toEqual(new Set(["f1", "f2", "f3", "f4"]));
+		expect(calls).toHaveLength(8);
+		expect(signals.map((signal) => signal.metric)).toEqual([
+			"funnel:f1",
+			"funnel:f2",
+			"funnel:f3",
+			"funnel:f4",
+		]);
+	});
+
+	it("uses a comparison-eligible duplicate instead of a newly edited equivalent", async () => {
+		const recentlyEdited = {
+			...FUNNEL,
+			description: null,
+			id: "f2",
+			updatedAt: new Date("2026-05-20T00:00:00.000Z"),
+		};
+		const calls: string[] = [];
+		const signals = await detectFunnelGoalSignals(
+			PARAMS,
+			TODAY,
+			makeDeps({
+				fetchFunnels: async () => [recentlyEdited, FUNNEL],
+				funnelConversion: async (funnel, range) => {
+					calls.push(funnel.id);
+					return range.from === "2026-05-22"
+						? funnelResult(10, 100, 10)
+						: funnelResult(20, 100, 20);
+				},
+			})
+		);
+
+		expect(calls).toEqual(["f1", "f1"]);
+		expect(signals.map((signal) => signal.metric)).toEqual(["funnel:f1"]);
 	});
 
 	it("evaluates definitions beyond the old ten-item cap", async () => {

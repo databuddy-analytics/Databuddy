@@ -390,6 +390,107 @@ describe("insight investigation timeline", () => {
 		).toEqual({ replyId: applied.reply.id });
 	});
 
+	iit("applies an executable funnel action and queues verification together", async () => {
+		const member = await signUp();
+		const organization = await insertOrganization();
+		await addToOrganization(member.id, organization.id, "member");
+		const website = await insertWebsite({ organizationId: organization.id });
+		const funnelId = randomUUIDv7();
+		const insightId = randomUUIDv7();
+		const subjectKey = `funnel:${funnelId}`;
+		const outcome: InvestigationOutcome = {
+			...investigationOutcome("act"),
+			next: {
+				action: "Rename Documentation journey to Account creation journey.",
+				execution: {
+					changes: {
+						description: "Tracks visitors who complete account creation.",
+						name: "Account creation journey",
+					},
+					operation: "edit",
+				},
+				target: "Funnel: Documentation journey",
+				type: "act",
+				verification:
+					"The funnel definition describes account creation and keeps its verified steps.",
+			},
+			rootCause:
+				"The saved funnel label conflicts with its configured account-creation purpose.",
+		};
+		const actionSignal = {
+			...signal(subjectKey),
+			entity: {
+				id: funnelId,
+				label: "Documentation journey",
+				type: "funnel" as const,
+			},
+		};
+
+		await db().insert(funnelDefinitions).values({
+			createdBy: member.id,
+			description: "A vague journey.",
+			id: funnelId,
+			name: "Documentation journey",
+			steps: [
+				{ name: "Landing", target: "/", type: "PAGE_VIEW" },
+				{
+					name: "Account created",
+					target: "account_created",
+					type: "EVENT",
+				},
+			],
+			websiteId: website.id,
+		});
+		await db().insert(analyticsInsights).values(
+			insightRow({
+				id: insightId,
+				organizationId: organization.id,
+				subjectKey,
+				websiteId: website.id,
+			})
+		);
+		await db().insert(insightObservations).values({
+			asOf: new Date("2026-01-10T00:00:00.000Z"),
+			id: randomUUIDv7(),
+			insightId,
+			organizationId: organization.id,
+			outcome,
+			recheckAt: new Date("2026-01-17T00:00:00.000Z"),
+			signal: actionSignal,
+			signalKey: subjectKey,
+			websiteId: website.id,
+		});
+
+		const applied = await call(
+			appRouter.insights.applyAction,
+			userContext(member, organization.id)
+		)({ insightId });
+
+		expect(applied.reply).toMatchObject({
+			body: "Databuddy applied the funnel action. Recheck its verification condition against current data.",
+			kind: "reply",
+			status: "queued",
+		});
+		expect(
+			await db()
+				.select({
+					description: funnelDefinitions.description,
+					name: funnelDefinitions.name,
+				})
+				.from(funnelDefinitions)
+				.where(eq(funnelDefinitions.id, funnelId))
+		).toEqual([
+			{
+				description: "Tracks visitors who complete account creation.",
+				name: "Account creation journey",
+			},
+		]);
+		expect(
+			(await getInsightsQueue().getJob(insightsResumeJobId(applied.reply.id)))
+				?.data
+		).toEqual({ replyId: applied.reply.id });
+	});
+
 	iit("remeasures an open goal investigation after a teammate edits its definition", async () => {
 		const member = await signUp();
 		const organization = await insertOrganization();
@@ -701,7 +802,7 @@ describe("insight investigation timeline", () => {
 		expect(websiteOnly.insights[0]?.websiteId).toBe(secondWebsite.id);
 	});
 
-	iit("returns only the current published recommendation for each signal", async () => {
+	iit("returns only the current recommendation for each signal", async () => {
 		const member = await signUp();
 		const organization = await insertOrganization();
 		await addToOrganization(member.id, organization.id, "member");
@@ -718,7 +819,8 @@ describe("insight investigation timeline", () => {
 		});
 		const recommendationOutcome = (
 			title: string,
-			action: string
+			action: string,
+			operation: "edit" | "delete" | null = "edit"
 		): InvestigationOutcome => ({
 			evidence: [`${title} is supported by current analytics.`],
 			impact: null,
@@ -729,8 +831,11 @@ describe("insight investigation timeline", () => {
 			publish: true,
 			recommendation: {
 				action,
-				changes: null,
-				operation: null,
+				changes:
+					operation === "edit"
+						? { description: `${title} definition.`, name: null }
+						: null,
+				operation,
 			},
 			rootCause: null,
 			summary: `${title} has a concrete improvement available.`,
@@ -741,13 +846,18 @@ describe("insight investigation timeline", () => {
 			asOf: string;
 			createdAt?: string;
 			organizationId?: string;
+			operation?: "edit" | "delete" | null;
 			publish?: boolean;
 			signalKey: string;
 			title: string;
 			websiteId?: string;
 		}) => {
 			const outcome = input.action
-				? recommendationOutcome(input.title, input.action)
+				? recommendationOutcome(
+						input.title,
+						input.action,
+						input.operation === undefined ? "edit" : input.operation
+					)
 				: {
 						...investigationOutcome("watch"),
 						recommendation: null,
@@ -790,6 +900,7 @@ describe("insight investigation timeline", () => {
 			observation({
 				action: "Add the measured checkout goal.",
 				asOf: "2026-01-04T00:00:00.000Z",
+				publish: false,
 				signalKey: "goal:checkout",
 				title: "Checkout recommendation",
 			}),
@@ -819,33 +930,29 @@ describe("insight investigation timeline", () => {
 				title: "Other organization recommendation",
 				websiteId: otherWebsite.id,
 			}),
+			observation({
+				action: "Keep this display-only suggestion out of the feed.",
+				asOf: "2026-01-09T00:00:00.000Z",
+				operation: null,
+				signalKey: "goal:display-only",
+				title: "Display-only suggestion",
+			}),
 		]);
 
 		const context = userContext(member, organization.id);
 		const firstPage = await call(appRouter.insights.recommendations, context)({
-			limit: 2,
+			limit: 10,
 			offset: 0,
 			organizationId: organization.id,
 		});
-		expect(firstPage.hasMore).toBe(true);
-		expect(firstPage.total).toBe(3);
+		expect(firstPage.hasMore).toBe(false);
+		expect(firstPage.total).toBe(2);
 		expect(
 			firstPage.recommendations.map((item) => item.recommendation.action)
 		).toEqual([
 			"Add the activation goal.",
 			"Add the measured checkout goal.",
 		]);
-
-		const secondPage = await call(appRouter.insights.recommendations, context)({
-			limit: 2,
-			offset: 2,
-			organizationId: organization.id,
-		});
-		expect(secondPage.hasMore).toBe(false);
-		expect(secondPage.total).toBe(3);
-		expect(
-			secondPage.recommendations.map((item) => item.recommendation.action)
-		).toEqual(["Use the updated signup goal."]);
 
 		const websiteOnly = await call(
 			appRouter.insights.recommendations,
@@ -858,22 +965,8 @@ describe("insight investigation timeline", () => {
 		});
 		expect(
 			websiteOnly.recommendations.map((item) => item.recommendation.action)
-		).toEqual([
-			"Add the measured checkout goal.",
-			"Use the updated signup goal.",
-		]);
-		expect(websiteOnly.total).toBe(2);
-
-		const pastEnd = await call(appRouter.insights.recommendations, context)({
-			limit: 2,
-			offset: 10,
-			organizationId: organization.id,
-		});
-		expect(pastEnd).toMatchObject({
-			hasMore: false,
-			recommendations: [],
-			total: 3,
-		});
+		).toEqual(["Add the measured checkout goal."]);
+		expect(websiteOnly.total).toBe(1);
 
 		const emptyScope = await call(appRouter.insights.recommendations, context)({
 			limit: 10,
@@ -883,6 +976,345 @@ describe("insight investigation timeline", () => {
 		});
 		expect(emptyScope).toMatchObject({
 			hasMore: false,
+			recommendations: [],
+			total: 0,
+		});
+	});
+
+	iit("expires standalone setup recommendations at their renewal deadline", async () => {
+		const member = await signUp();
+		const organization = await insertOrganization();
+		await addToOrganization(member.id, organization.id, "member");
+		const website = await insertWebsite({ organizationId: organization.id });
+		const now = Date.now();
+		const expired = new Date(now - 60_000);
+		const fresh = new Date(now + 24 * 60 * 60_000);
+		const standaloneRecommendation = (
+			action: string,
+			kind: "databuddy_setup" | "instrumentation"
+		): InvestigationOutcome => ({
+			evidence: ["The current setup leaves one product question unanswered."],
+			impact: null,
+			next: {
+				reason: "This setup recommendation does not need an investigation.",
+				type: "resolve",
+			},
+			publish: false,
+			recommendation:
+				kind === "instrumentation"
+					? {
+							action,
+							events: [
+								{
+									description:
+										"Measure only after the confirmed signup outcome.",
+									name: "signup_completed",
+								},
+							],
+							kind,
+						}
+					: { action, feature: "tracking", kind },
+			rootCause: null,
+			summary: "The current setup cannot answer the measured product question.",
+			title: "Product behavior needs setup",
+		});
+		const activeSetup: InvestigationOutcome = {
+			...standaloneRecommendation(
+				"Keep the active identity recommendation.",
+				"databuddy_setup"
+			),
+			impact: "The affected error cohort cannot yet be tied to profiles.",
+			next: {
+				question:
+					"Can you connect the repository that owns the affected application?",
+				type: "ask",
+			},
+			publish: true,
+		};
+		const observation = (
+			signalKey: string,
+			outcome: InvestigationOutcome,
+			recheckAt: Date
+		) => ({
+			asOf: new Date(now - 120_000),
+			createdAt: new Date(now - 120_000),
+			id: randomUUIDv7(),
+			insightId: null,
+			organizationId: organization.id,
+			outcome,
+			recheckAt,
+			signal: signal(signalKey),
+			signalKey,
+			websiteId: website.id,
+		});
+
+		await db().insert(insightObservations).values([
+			observation(
+				"measurement:expired-instrumentation",
+				standaloneRecommendation(
+					"Add the expired completion event.",
+					"instrumentation"
+				),
+				expired
+			),
+			observation(
+				"measurement:fresh-instrumentation",
+				standaloneRecommendation(
+					"Add the current completion event.",
+					"instrumentation"
+				),
+				fresh
+			),
+			observation(
+				"measurement:expired-setup",
+				standaloneRecommendation(
+					"Add the expired tracking setup.",
+					"databuddy_setup"
+				),
+				expired
+			),
+			observation(
+				"measurement:fresh-setup",
+				standaloneRecommendation(
+					"Add the current tracking setup.",
+					"databuddy_setup"
+				),
+				fresh
+			),
+			observation("error:active-setup", activeSetup, expired),
+		]);
+
+		const result = await call(appRouter.insights.recommendations, userContext(member, organization.id))({
+			limit: 10,
+			offset: 0,
+			organizationId: organization.id,
+		});
+		expect(result.total).toBe(3);
+		expect(
+			result.recommendations.map((item) => item.recommendation.action).sort()
+		).toEqual([
+			"Add the current completion event.",
+			"Add the current tracking setup.",
+			"Keep the active identity recommendation.",
+		]);
+	});
+
+	iit("keeps precise measurement drafts current until their definition exists", async () => {
+		const member = await signUp();
+		const organization = await insertOrganization();
+		await addToOrganization(member.id, organization.id, "member");
+		const website = await insertWebsite({ organizationId: organization.id });
+		const observedAt = new Date("2026-01-10T00:00:00.000Z");
+		const goalSignalKey = "measurement:uncovered-event:account_created";
+		const funnelSignalKey = "measurement:conversion-coverage";
+		const goalDraft = {
+			evidence: ["An observed completion event is not covered by a goal."],
+			impact: "The team cannot review this completion as a goal.",
+			next: {
+				reason: "The draft is ready for teammate review.",
+				type: "resolve",
+			},
+			publish: true,
+			recommendation: {
+				action: "Review a goal for account creation.",
+				draft: {
+					description: "Counts successful account creation.",
+					filters: [],
+					ignoreHistoricData: false,
+					name: "Account created",
+					target: "account_created",
+					type: "EVENT",
+				},
+				kind: "goal_draft",
+			},
+			rootCause: null,
+			summary: "A high-reach completion event has no reviewed goal.",
+			title: "Account creation lacks a goal",
+		} satisfies InvestigationOutcome;
+		const priorGoalDraft = {
+			...goalDraft,
+			recommendation: {
+				...goalDraft.recommendation,
+				draft: {
+					...goalDraft.recommendation.draft,
+					name: "Earlier account creation",
+					target: "earlier_account_created",
+				},
+			},
+		} satisfies InvestigationOutcome;
+		const funnelDraft: InvestigationOutcome = {
+			evidence: ["Two inspected steps form an uncovered product journey."],
+			impact: "The team cannot measure the ordered journey.",
+			next: {
+				reason: "The draft is ready for teammate review.",
+				type: "resolve",
+			},
+			publish: true,
+			recommendation: {
+				action: "Review the account-creation journey.",
+				draft: {
+					description: "Tracks account creation from the landing page.",
+					filters: [],
+					ignoreHistoricData: false,
+					name: "Landing to account creation",
+					steps: [
+						{ name: "Landing", target: "/", type: "PAGE_VIEW" },
+						{
+							name: "Account created",
+							target: "account_created",
+							type: "EVENT",
+						},
+					],
+				},
+				kind: "funnel_draft",
+			},
+			rootCause: null,
+			summary: "An observed journey has no reviewed funnel.",
+			title: "Account creation lacks a funnel",
+		};
+
+		await db().insert(goals).values({
+			createdBy: member.id,
+			filters: [],
+			id: randomUUIDv7(),
+			ignoreHistoricData: false,
+			name: "Unrelated engagement",
+			target: "nav_clicked",
+			type: "EVENT",
+			websiteId: website.id,
+		});
+		await db().insert(funnelDefinitions).values({
+			createdBy: member.id,
+			filters: [],
+			id: randomUUIDv7(),
+			ignoreHistoricData: false,
+			name: "Unrelated journey",
+			steps: [
+				{ name: "Docs", target: "/docs", type: "PAGE_VIEW" },
+				{ name: "Pricing", target: "/pricing", type: "PAGE_VIEW" },
+			],
+			websiteId: website.id,
+		});
+		await db().insert(insightObservations).values([
+			{
+				asOf: new Date("2026-01-09T00:00:00.000Z"),
+				id: randomUUIDv7(),
+				insightId: null,
+				organizationId: organization.id,
+				outcome: priorGoalDraft,
+				recheckAt: observedAt,
+				signal: signal(goalSignalKey),
+				signalKey: goalSignalKey,
+				websiteId: website.id,
+			},
+			{
+				asOf: observedAt,
+				id: randomUUIDv7(),
+				insightId: null,
+				organizationId: organization.id,
+				outcome: goalDraft,
+				recheckAt: observedAt,
+				signal: signal(goalSignalKey),
+				signalKey: goalSignalKey,
+				websiteId: website.id,
+			},
+			{
+				asOf: observedAt,
+				id: randomUUIDv7(),
+				insightId: null,
+				organizationId: organization.id,
+				outcome: funnelDraft,
+				recheckAt: observedAt,
+				signal: signal(funnelSignalKey),
+				signalKey: funnelSignalKey,
+				websiteId: website.id,
+			},
+		]);
+
+		const context = userContext(member, organization.id);
+		const beforeCreation = await call(
+			appRouter.insights.recommendations,
+			context
+		)({ limit: 10, offset: 0, organizationId: organization.id });
+		expect(beforeCreation.total).toBe(2);
+		expect(
+			beforeCreation.recommendations
+				.map((item) => item.recommendation.kind)
+				.sort()
+		).toEqual(["funnel_draft", "goal_draft"]);
+
+		await db().insert(goals).values({
+			createdBy: member.id,
+			filters: [],
+			id: randomUUIDv7(),
+			ignoreHistoricData: false,
+			name: "Team account conversion",
+			target: "account_created",
+			type: "EVENT",
+			websiteId: website.id,
+		});
+		const afterGoalCreation = await call(
+			appRouter.insights.recommendations,
+			context
+		)({ limit: 10, offset: 0, organizationId: organization.id });
+		expect(
+			afterGoalCreation.recommendations.map(
+				(item) => item.recommendation.kind
+			)
+		).toEqual(["funnel_draft"]);
+
+		await db().insert(funnelDefinitions).values({
+			createdBy: member.id,
+			filters: [],
+			id: randomUUIDv7(),
+			ignoreHistoricData: false,
+			name: "Conditional account journey",
+			steps: [
+				{
+					conditions: { source: "ads" },
+					name: "Entry",
+					target: "/",
+					type: "PAGE_VIEW",
+				},
+				{
+					name: "Registered account",
+					target: "account_created",
+					type: "EVENT",
+				},
+			],
+			websiteId: website.id,
+		});
+		const afterConditionalFunnelCreation = await call(
+			appRouter.insights.recommendations,
+			context
+		)({ limit: 10, offset: 0, organizationId: organization.id });
+		expect(
+			afterConditionalFunnelCreation.recommendations.map(
+				(item) => item.recommendation.kind
+			)
+		).toEqual(["funnel_draft"]);
+
+		await db().insert(funnelDefinitions).values({
+			createdBy: member.id,
+			filters: [],
+			id: randomUUIDv7(),
+			ignoreHistoricData: false,
+			name: "Team account journey",
+			steps: [
+				{ name: "Entry", target: "/", type: "PAGE_VIEW" },
+				{
+					name: "Registered account",
+					target: "account_created",
+					type: "EVENT",
+				},
+			],
+			websiteId: website.id,
+		});
+		const afterFunnelCreation = await call(
+			appRouter.insights.recommendations,
+			context
+		)({ limit: 10, offset: 0, organizationId: organization.id });
+		expect(afterFunnelCreation).toMatchObject({
 			recommendations: [],
 			total: 0,
 		});
