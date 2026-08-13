@@ -1,6 +1,6 @@
 "use client";
 
-import { insightGoalEditChangesSchema } from "@databuddy/shared/insights";
+import { insightDefinitionEditChangesSchema } from "@databuddy/shared/insights";
 import { GATED_FEATURES } from "@databuddy/shared/types/features";
 import { Button } from "@databuddy/ui";
 import { DeleteDialog } from "@databuddy/ui/client";
@@ -113,7 +113,7 @@ export default function GoalsPage() {
 		if (!goal) {
 			toast.error("This goal no longer exists");
 		} else if (command === "edit-goal") {
-			const proposal = insightGoalEditChangesSchema.safeParse({
+			const proposal = insightDefinitionEditChangesSchema.safeParse({
 				description: searchParams.get("description"),
 				name: searchParams.get("name"),
 			});

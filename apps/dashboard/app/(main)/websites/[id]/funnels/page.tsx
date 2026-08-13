@@ -2,6 +2,7 @@
 
 import { FeatureGate } from "@/components/feature-gate";
 import { List } from "@/components/ui/composables/list";
+import { insightDefinitionEditChangesSchema } from "@databuddy/shared/insights";
 import { useAutocompleteData } from "@/hooks/use-autocomplete";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import {
@@ -20,6 +21,7 @@ import {
 	useSearchParams,
 } from "next/navigation";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { TopBar } from "@/components/layout/top-bar";
 import {
 	FunnelAnalytics,
@@ -77,6 +79,7 @@ export default function FunnelsPage() {
 
 	const {
 		analyticsMap,
+		funnels,
 		loadingIds,
 		listOutcome,
 		isFetching,
@@ -88,6 +91,68 @@ export default function FunnelsPage() {
 		isCreating,
 		isUpdating,
 	} = useFunnels(websiteId, { dateRange });
+
+	useEffect(() => {
+		const command = searchParams.get("command");
+		const funnelId = searchParams.get("funnelId");
+		if (
+			isDemoRoute ||
+			!funnelId ||
+			(command !== "edit-funnel" && command !== "delete-funnel") ||
+			isFetching ||
+			listOutcome.status === "loading" ||
+			listOutcome.status === "error"
+		) {
+			return;
+		}
+
+		const funnel = funnels.find((candidate) => candidate.id === funnelId);
+		if (!funnel) {
+			toast.error("This funnel no longer exists");
+		} else if (command === "edit-funnel") {
+			const proposal = insightDefinitionEditChangesSchema.safeParse({
+				description: searchParams.get("description"),
+				name: searchParams.get("name"),
+			});
+			if (proposal.success) {
+				const proposedFunnel = {
+					...funnel,
+					description: proposal.data.description ?? funnel.description,
+					name: proposal.data.name ?? funnel.name,
+				};
+				if (
+					proposedFunnel.description === funnel.description &&
+					proposedFunnel.name === funnel.name
+				) {
+					toast.success("This funnel already matches the recommendation");
+				} else {
+					setEditing(proposedFunnel);
+				}
+			} else {
+				toast.error("Databuddy's suggested changes could not be loaded");
+			}
+		} else {
+			setDeletingId(funnel.id);
+		}
+
+		const params = new URLSearchParams(searchParams.toString());
+		params.delete("command");
+		params.delete("description");
+		params.delete("funnelId");
+		params.delete("name");
+		const query = params.toString();
+		router.replace(query ? `${pathname}?${query}` : pathname, {
+			scroll: false,
+		});
+	}, [
+		funnels,
+		isDemoRoute,
+		isFetching,
+		listOutcome.status,
+		pathname,
+		router,
+		searchParams,
+	]);
 
 	const {
 		data: analyticsData,

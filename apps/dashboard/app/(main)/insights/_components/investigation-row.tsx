@@ -1,5 +1,6 @@
 "use client";
 
+import { authClient } from "@databuddy/auth/client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { InvestigationOutcome } from "@databuddy/shared/insights";
 import { Button, Skeleton } from "@databuddy/ui";
@@ -11,56 +12,75 @@ import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 import {
 	ArrowRightIcon,
-	CheckCircleIcon,
 	LightbulbIcon,
 	WarningCircleIcon,
 } from "@databuddy/ui/icons";
 
-type GoalExecution = Extract<
+type DefinitionExecution = Extract<
 	NonNullable<
 		Extract<InvestigationOutcome["next"], { type: "act" }>["execution"]
 	>,
 	{ operation: "delete" | "edit" }
 >;
 
-export function ExecuteGoalAction({
+export function ExecuteDefinitionAction({
+	action,
 	execution,
 	insightId,
+	definitionType,
 }: {
-	execution: GoalExecution;
+	action: string;
+	execution: DefinitionExecution;
+	definitionType: "funnel" | "goal";
 	insightId: string;
 }) {
 	const queryClient = useQueryClient();
+	const memberRole = authClient.useActiveMemberRole();
 	const apply = useMutation({
-		...orpc.insights.applyGoalAction.mutationOptions(),
+		...orpc.insights.applyAction.mutationOptions(),
 		onError: (error) => {
 			toast.error(
-				error instanceof Error ? error.message : "Could not apply goal action"
+				error instanceof Error
+					? error.message
+					: `Could not apply ${definitionType} action`
 			);
 		},
 		onSuccess: ({ reply }) => {
 			queryClient.invalidateQueries({ queryKey: insightQueries.all() });
+			const noun = definitionType === "funnel" ? "Funnel" : "Goal";
 			toast.success(
 				reply.status === "failed"
-					? "Goal change applied, but verification could not start"
-					: "Goal change applied — verifying the result"
+					? `${noun} change applied, but verification could not start`
+					: `${noun} change applied — verifying the result`
 			);
 		},
 	});
 	const deleting = execution.operation === "delete";
+	const accessReason = memberRole.isPending
+		? "Checking access…"
+		: memberRole.data?.role === "viewer"
+			? `You have view-only access to this ${definitionType}.`
+			: memberRole.data
+				? null
+				: `You need edit access to change this ${definitionType}.`;
 
 	return (
-		<Button
-			disabled={apply.isPending}
-			loading={apply.isPending}
-			onClick={() => apply.mutate({ insightId })}
-			size="sm"
-			tone={deleting ? "destructive" : "neutral"}
-			type="button"
-			variant={deleting ? "ghost" : "secondary"}
-		>
-			{execution.action}
-		</Button>
+		<div className="space-y-1.5">
+			<Button
+				disabled={Boolean(accessReason) || apply.isPending}
+				loading={apply.isPending}
+				onClick={() => apply.mutate({ insightId })}
+				size="sm"
+				tone={deleting ? "destructive" : "neutral"}
+				type="button"
+				variant={deleting ? "ghost" : "secondary"}
+			>
+				{accessReason ? "Review access" : action}
+			</Button>
+			{accessReason ? (
+				<p className="text-muted-foreground text-xs">{accessReason}</p>
+			) : null}
+		</div>
 	);
 }
 
@@ -82,22 +102,6 @@ export function InvestigationRowSkeleton() {
 }
 
 function InsightStatusIcon({ insight }: { insight: Insight }) {
-	if (insight.status === "resolved") {
-		const archived = insight.resolvedReason === "stale";
-		return (
-			<span
-				className={cn(
-					"flex size-8 shrink-0 items-center justify-center rounded",
-					archived
-						? "bg-muted text-muted-foreground"
-						: "bg-emerald-500/10 text-emerald-600"
-				)}
-			>
-				<CheckCircleIcon className="size-4" weight="fill" />
-			</span>
-		);
-	}
-
 	const isInfo = insight.severity === "info";
 	const Icon = isInfo ? LightbulbIcon : WarningCircleIcon;
 
@@ -106,8 +110,8 @@ function InsightStatusIcon({ insight }: { insight: Insight }) {
 			className={cn(
 				"flex size-8 shrink-0 items-center justify-center rounded",
 				isInfo && "bg-primary/10 text-primary",
-				insight.severity === "critical" && "bg-red-500/10 text-red-500",
-				insight.severity === "warning" && "bg-amber-500/10 text-amber-500"
+				insight.severity === "critical" && "bg-destructive/10 text-destructive",
+				insight.severity === "warning" && "bg-warning/10 text-warning"
 			)}
 		>
 			<Icon className="size-4" weight="duotone" />
@@ -115,19 +119,7 @@ function InsightStatusIcon({ insight }: { insight: Insight }) {
 	);
 }
 
-function resolutionLabel(insight: Insight): string | null {
-	if (insight.status !== "resolved") {
-		return null;
-	}
-	if (insight.resolvedReason === "stale") {
-		return "Archived";
-	}
-	return insight.resolvedReason === "recovered" ? "Recovered" : "Resolved";
-}
-
 export function InvestigationRow({ insight }: { insight: Insight }) {
-	const resolution = resolutionLabel(insight);
-	const archived = insight.resolvedReason === "stale";
 	const change = insight.changePercent;
 	const severity =
 		insight.severity === "critical"
@@ -137,11 +129,7 @@ export function InvestigationRow({ insight }: { insight: Insight }) {
 				: "Notice";
 
 	return (
-		<List.Row
-			align="start"
-			asChild
-			className={cn(insight.status === "resolved" && "bg-muted/20")}
-		>
+		<List.Row align="start" asChild>
 			<Link href={`/insights/${insight.id}`}>
 				<InsightStatusIcon insight={insight} />
 				<span className="min-w-0 flex-1">
@@ -159,18 +147,12 @@ export function InvestigationRow({ insight }: { insight: Insight }) {
 						<span
 							className={cn(
 								"font-medium",
-								resolution && archived && "text-muted-foreground",
-								resolution && !archived && "text-emerald-600",
-								!resolution &&
-									insight.severity === "critical" &&
-									"text-red-500",
-								!resolution &&
-									insight.severity === "warning" &&
-									"text-amber-600",
-								!resolution && insight.severity === "info" && "text-primary"
+								insight.severity === "critical" && "text-destructive",
+								insight.severity === "warning" && "text-warning",
+								insight.severity === "info" && "text-primary"
 							)}
 						>
-							{resolution ?? severity}
+							{severity}
 						</span>
 						{change !== undefined && change !== 0 && (
 							<>
@@ -178,8 +160,8 @@ export function InvestigationRow({ insight }: { insight: Insight }) {
 								<span
 									className={cn(
 										"tabular-nums",
-										insight.sentiment === "positive" && "text-emerald-600",
-										insight.sentiment === "negative" && "text-red-500"
+										insight.sentiment === "positive" && "text-success",
+										insight.sentiment === "negative" && "text-destructive"
 									)}
 								>
 									{change > 0 ? "+" : ""}

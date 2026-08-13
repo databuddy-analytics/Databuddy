@@ -102,6 +102,7 @@ export function useGoalActions(websiteId: string) {
 			queryClient.invalidateQueries({
 				queryKey: orpc.goals.bulkAnalytics.key(),
 			}),
+			queryClient.invalidateQueries({ queryKey: orpc.insights.key() }),
 		]);
 
 	const createMutation = useMutation({
