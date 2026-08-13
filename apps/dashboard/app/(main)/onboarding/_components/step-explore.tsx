@@ -41,12 +41,14 @@ const FEATURES = [
 ];
 
 interface StepExploreProps {
+	hasVerifiedTracking: boolean;
 	onComplete: () => void;
 	onEnterProduct: () => void;
 	websiteId: string;
 }
 
 export function StepExplore({
+	hasVerifiedTracking,
 	onComplete,
 	onEnterProduct,
 	websiteId,
@@ -58,9 +60,15 @@ export function StepExplore({
 					<RocketLaunchIcon className="size-5 text-primary" weight="duotone" />
 				</div>
 				<div>
-					<h2 className="text-balance font-semibold text-lg">You're all set</h2>
+					<h2 className="text-balance font-semibold text-lg">
+						{hasVerifiedTracking
+							? "Your first review is set up"
+							: "You're all set"}
+					</h2>
 					<p className="text-pretty text-muted-foreground text-sm">
-						Your organization is ready. Start with one of the core views below.
+						{hasVerifiedTracking
+							? "Tracking is verified. Insights will be ready when there is enough history to compare."
+							: "Your organization is ready. Start with one of the core views below."}
 					</p>
 				</div>
 			</div>
@@ -68,7 +76,7 @@ export function StepExplore({
 			<div className="flex items-center gap-2">
 				<Badge size="sm" variant="success">
 					<CheckCircleIcon className="size-3" weight="duotone" />
-					Setup complete
+					{hasVerifiedTracking ? "Tracking verified" : "Setup complete"}
 				</Badge>
 				<p className="text-muted-foreground text-xs">
 					These links drop you into the places new teams usually check first.
@@ -101,7 +109,7 @@ export function StepExplore({
 			</div>
 
 			<Button className="w-full sm:w-auto" onClick={onComplete} size="lg">
-				Go to dashboard
+				{hasVerifiedTracking ? "Open Insights" : "Go to dashboard"}
 			</Button>
 		</div>
 	);

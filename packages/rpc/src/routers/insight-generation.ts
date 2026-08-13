@@ -9,6 +9,7 @@ import {
 	sql,
 	withTransaction,
 } from "@databuddy/db";
+import { chQuery } from "@databuddy/db/clickhouse";
 import {
 	INSIGHT_RUN_ACTIVE_STATUSES,
 	INSIGHT_RUN_ACTIVE_UNIQUE_INDEX,
@@ -27,6 +28,7 @@ import {
 	insightsWebsiteJobId,
 	invalidateInsightsCachesForOrganization,
 } from "@databuddy/redis";
+import { ORPCError } from "@orpc/server";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
@@ -75,6 +77,10 @@ const organizationScopeSchema = z.object({
 	organizationId: z.string().nullish(),
 	websiteId: z.never().optional(),
 });
+const firstReviewScopeSchema = z.object({
+	organizationId: z.string().nullish(),
+	websiteId: z.string().min(1),
+});
 
 const configOutputSchema = z.object({
 	deliveries: z.array(deliverySchema),
@@ -100,6 +106,226 @@ const DEFAULT_CONFIG: z.infer<typeof configOutputSchema> = {
 	nextRunAt: null,
 	timezone: "UTC",
 };
+
+const FIRST_REVIEW_BASELINE_DAYS = 14;
+const firstReviewItemStatusSchema = z.enum([
+	"queued",
+	"running",
+	"succeeded",
+	"failed",
+	"skipped",
+]);
+const firstReviewRunStateSchema = z.enum([
+	"running",
+	"reviewed",
+	"no_findings",
+	"deferred",
+	"needs_credits",
+	"failed",
+]);
+const firstReviewStateSchema = z.enum([
+	"needs_tracking",
+	"collecting_baseline",
+	"ready",
+	"running",
+	"waiting_for_organization_run",
+	"no_findings",
+	"deferred",
+	"needs_credits",
+	"needs_attention",
+	"reviewed",
+]);
+const firstReviewStatusStateSchema = z.enum([
+	"not_started",
+	"running",
+	"waiting_for_organization_run",
+	"reviewed",
+	"no_findings",
+	"deferred",
+	"needs_credits",
+	"needs_attention",
+]);
+const firstReviewActivitySchema = z.object({
+	activeDays: z.number().int().nonnegative(),
+	pageviews: z.number().int().nonnegative(),
+	sessions: z.number().int().nonnegative(),
+});
+const firstReviewRunSchema = z.object({
+	id: z.string(),
+	insightCount: z.number().int().nonnegative(),
+	state: firstReviewRunStateSchema,
+});
+const firstReviewReadinessOutputSchema = z.object({
+	activity: firstReviewActivitySchema,
+	baselineReadyAt: z.string().datetime().nullable(),
+	canRun: z.boolean(),
+	latestRun: firstReviewRunSchema.nullable(),
+	state: firstReviewStateSchema,
+	websiteId: z.string(),
+});
+const firstReviewStatusOutputSchema = z.object({
+	activeOrganizationRunId: z.string().nullable(),
+	canRun: z.boolean(),
+	latestRun: firstReviewRunSchema.nullable(),
+	state: firstReviewStatusStateSchema,
+	websiteId: z.string(),
+});
+const frozenFirstReviewPlanSchema = z
+	.object({
+		candidates: z.array(z.unknown()),
+		emptyStatus: z.enum(["deferred", "no_signals"]).optional(),
+	})
+	.passthrough();
+
+type FirstReviewState = z.infer<typeof firstReviewStateSchema>;
+type FirstReviewStatusState = z.infer<typeof firstReviewStatusStateSchema>;
+type FirstReviewRunState = z.infer<typeof firstReviewRunStateSchema>;
+
+interface FirstReviewActivity {
+	activeDays: number;
+	firstScreenViewAt: Date | null;
+	pageviews: number;
+	sessions: number;
+}
+
+interface FirstReviewRun {
+	id: string;
+	insightCount: number;
+	state: FirstReviewRunState;
+}
+
+export interface FirstReviewReadinessInput {
+	activeOrganizationRunId: string | null;
+	activeWebsiteRunId: string | null;
+	activity: FirstReviewActivity;
+	canRun: boolean;
+	latestRun: FirstReviewRun | null;
+	now?: Date;
+}
+
+export interface FirstReviewStatusInput {
+	activeOrganizationRunId: string | null;
+	activeWebsiteRunId: string | null;
+	canRun: boolean;
+	latestRun: FirstReviewRun | null;
+}
+
+export interface FirstReviewStoredRunInput {
+	candidatePlan: unknown;
+	status: z.infer<typeof firstReviewItemStatusSchema>;
+}
+
+function baselineReadyAt(firstScreenViewAt: Date | null): Date | null {
+	if (!firstScreenViewAt) {
+		return null;
+	}
+	const readyAt = new Date(firstScreenViewAt);
+	readyAt.setUTCDate(readyAt.getUTCDate() + FIRST_REVIEW_BASELINE_DAYS);
+	return readyAt;
+}
+
+export function classifyFirstReviewRun(
+	input: FirstReviewStoredRunInput
+): FirstReviewRunState {
+	if (input.status === "queued" || input.status === "running") {
+		return "running";
+	}
+	if (input.status === "succeeded") {
+		return "reviewed";
+	}
+	if (input.status === "failed") {
+		return "failed";
+	}
+
+	const plan = frozenFirstReviewPlanSchema.safeParse(input.candidatePlan);
+	if (plan.success && plan.data.emptyStatus === "deferred") {
+		return "deferred";
+	}
+	if (plan.success && plan.data.emptyStatus === "no_signals") {
+		return "no_findings";
+	}
+	if (plan.success && plan.data.candidates.length > 0) {
+		return "needs_credits";
+	}
+
+	// Legacy skipped runs lack a frozen plan. They did not produce a review, so
+	// keep them distinct from a completed no-finding review.
+	return "deferred";
+}
+
+function firstReviewTerminalState(
+	state: FirstReviewRunState
+): Exclude<
+	FirstReviewStatusState,
+	"not_started" | "waiting_for_organization_run"
+> {
+	return state === "failed" ? "needs_attention" : state;
+}
+
+function firstReviewRunOutput(
+	latestRun: FirstReviewRun | null
+): z.infer<typeof firstReviewRunSchema> | null {
+	return latestRun
+		? {
+				id: latestRun.id,
+				insightCount: latestRun.insightCount,
+				state: latestRun.state,
+			}
+		: null;
+}
+
+function firstReviewState(input: FirstReviewReadinessInput): FirstReviewState {
+	if (input.activeWebsiteRunId) {
+		return "running";
+	}
+	if (input.latestRun) {
+		return firstReviewTerminalState(input.latestRun.state);
+	}
+	if (!input.activity.firstScreenViewAt || input.activity.pageviews === 0) {
+		return "needs_tracking";
+	}
+	if (input.activeOrganizationRunId) {
+		return "waiting_for_organization_run";
+	}
+	const readyAt = baselineReadyAt(input.activity.firstScreenViewAt);
+	return readyAt && readyAt <= (input.now ?? new Date())
+		? "ready"
+		: "collecting_baseline";
+}
+
+export function firstReviewReadiness(
+	input: FirstReviewReadinessInput
+): Omit<z.infer<typeof firstReviewReadinessOutputSchema>, "websiteId"> {
+	const readyAt = baselineReadyAt(input.activity.firstScreenViewAt);
+	return {
+		activity: {
+			activeDays: input.activity.activeDays,
+			pageviews: input.activity.pageviews,
+			sessions: input.activity.sessions,
+		},
+		baselineReadyAt: readyAt?.toISOString() ?? null,
+		canRun: input.canRun,
+		latestRun: firstReviewRunOutput(input.latestRun),
+		state: firstReviewState(input),
+	};
+}
+
+export function firstReviewStatus(
+	input: FirstReviewStatusInput
+): Omit<z.infer<typeof firstReviewStatusOutputSchema>, "websiteId"> {
+	return {
+		activeOrganizationRunId: input.activeOrganizationRunId,
+		canRun: input.canRun,
+		latestRun: firstReviewRunOutput(input.latestRun),
+		state: input.activeWebsiteRunId
+			? "running"
+			: input.latestRun
+				? firstReviewTerminalState(input.latestRun.state)
+				: input.activeOrganizationRunId
+					? "waiting_for_organization_run"
+					: "not_started",
+	};
+}
 
 export interface QueueInsightGenerationRunInput
 	extends z.infer<typeof runPatchSchema> {
@@ -285,6 +511,121 @@ async function listTargetWebsites(
 	return rows;
 }
 
+interface FirstReviewActivityRow {
+	activeDays: number;
+	firstScreenViewUnix: number;
+	lifetimePageviews: number;
+	pageviews: number;
+	sessions: number;
+}
+
+function nonNegativeInteger(value: unknown): number {
+	const number = Number(value);
+	return Number.isFinite(number) && number > 0 ? Math.floor(number) : 0;
+}
+
+async function loadFirstReviewActivity(
+	websiteId: string
+): Promise<FirstReviewActivity> {
+	const [row] = await chQuery<FirstReviewActivityRow>(
+		`SELECT
+			countIf(event_name = 'screen_view') AS lifetimePageviews,
+			countIf(event_name = 'screen_view' AND time >= toStartOfDay(now()) - INTERVAL 14 DAY) AS pageviews,
+			uniqExactIf(session_id, event_name = 'screen_view' AND session_id != '' AND time >= toStartOfDay(now()) - INTERVAL 14 DAY) AS sessions,
+			uniqExactIf(toDate(time), event_name = 'screen_view' AND time >= toStartOfDay(now()) - INTERVAL 14 DAY) AS activeDays,
+			toUnixTimestamp(minIf(time, event_name = 'screen_view')) AS firstScreenViewUnix
+		FROM analytics.events
+		PREWHERE client_id = {websiteId:String}`,
+		{ websiteId }
+	);
+	const firstScreenViewUnix = nonNegativeInteger(row?.firstScreenViewUnix);
+	return {
+		activeDays: nonNegativeInteger(row?.activeDays),
+		firstScreenViewAt:
+			nonNegativeInteger(row?.lifetimePageviews) > 0 && firstScreenViewUnix > 0
+				? new Date(firstScreenViewUnix * 1000)
+				: null,
+		pageviews: nonNegativeInteger(row?.pageviews),
+		sessions: nonNegativeInteger(row?.sessions),
+	};
+}
+
+async function loadFirstReviewRun(
+	organizationId: string,
+	websiteId: string
+): Promise<FirstReviewRun | null> {
+	const [row] = await db
+		.select({
+			candidatePlan: insightRunItems.candidatePlan,
+			id: insightRuns.id,
+			resultCount: insightRunItems.resultCount,
+			status: insightRunItems.status,
+		})
+		.from(insightRunItems)
+		.innerJoin(insightRuns, eq(insightRunItems.runId, insightRuns.id))
+		.where(
+			and(
+				eq(insightRunItems.organizationId, organizationId),
+				eq(insightRunItems.websiteId, websiteId)
+			)
+		)
+		.orderBy(desc(insightRuns.createdAt), desc(insightRunItems.createdAt))
+		.limit(1);
+	if (!row) {
+		return null;
+	}
+	return {
+		id: row.id,
+		insightCount: row.resultCount,
+		state: classifyFirstReviewRun({
+			candidatePlan: row.candidatePlan,
+			status: firstReviewItemStatusSchema.parse(row.status),
+		}),
+	};
+}
+
+async function resolveFirstReviewWebsite(
+	context: Context,
+	input: z.infer<typeof firstReviewScopeSchema>
+): Promise<string> {
+	const organizationId = await resolveOrganization(context, input, "read");
+	await withWorkspace(context, {
+		organizationId,
+		permissions: ["read"],
+		websiteId: input.websiteId,
+	});
+	return organizationId;
+}
+
+function isAccessDenied(error: unknown): boolean {
+	return (
+		error instanceof ORPCError &&
+		(error.code === "FORBIDDEN" || error.code === "UNAUTHORIZED")
+	);
+}
+
+/**
+ * Readiness remains readable to viewers, but running a review has the same
+ * organization-level update requirement as triggerRun.
+ */
+function canTriggerInsightGeneration(
+	context: Context,
+	organizationId: string
+): Promise<boolean> {
+	return withWorkspace(context, {
+		organizationId,
+		permissions: ["update"],
+		resource: "organization",
+	})
+		.then(() => true)
+		.catch((error) => {
+			if (isAccessDenied(error)) {
+				return false;
+			}
+			throw error;
+		});
+}
+
 async function findActiveInsightRun(
 	organizationId: string
 ): Promise<{ id: string; totalItems: number } | null> {
@@ -301,6 +642,43 @@ async function findActiveInsightRun(
 		.limit(1);
 
 	return active ?? null;
+}
+
+/**
+ * A concurrent organization run only becomes this site's review while its
+ * own item is still queued or running. A run for another site must not
+ * overwrite this site's last terminal result.
+ */
+async function findActiveFirstReviewRun(
+	organizationId: string,
+	websiteId: string
+): Promise<{ id: string; reviewsWebsite: boolean } | null> {
+	const [active] = await db
+		.select({
+			id: insightRuns.id,
+			websiteItemId: insightRunItems.id,
+		})
+		.from(insightRuns)
+		.leftJoin(
+			insightRunItems,
+			and(
+				eq(insightRunItems.runId, insightRuns.id),
+				eq(insightRunItems.websiteId, websiteId),
+				inArray(insightRunItems.status, INSIGHT_RUN_ACTIVE_STATUSES)
+			)
+		)
+		.where(
+			and(
+				eq(insightRuns.organizationId, organizationId),
+				inArray(insightRuns.status, INSIGHT_RUN_ACTIVE_STATUSES)
+			)
+		)
+		.orderBy(desc(insightRuns.createdAt))
+		.limit(1);
+
+	return active
+		? { id: active.id, reviewsWebsite: active.websiteItemId !== null }
+		: null;
 }
 
 function reusedInsightRun(active: {
@@ -460,6 +838,62 @@ export async function queueInsightGenerationRun(
 }
 
 export const insightGenerationRouter = {
+	getFirstReviewReadiness: protectedProcedure
+		.route({
+			method: "POST",
+			path: "/insights/generation/getFirstReviewReadiness",
+			summary: "Get first-review readiness for a website",
+			tags: ["Insights"],
+		})
+		.input(firstReviewScopeSchema)
+		.output(firstReviewReadinessOutputSchema)
+		.handler(async ({ context, input }) => {
+			const organizationId = await resolveFirstReviewWebsite(context, input);
+			const [activity, canRun, latestRun, activeRun] = await Promise.all([
+				loadFirstReviewActivity(input.websiteId),
+				canTriggerInsightGeneration(context, organizationId),
+				loadFirstReviewRun(organizationId, input.websiteId),
+				findActiveFirstReviewRun(organizationId, input.websiteId),
+			]);
+			return {
+				websiteId: input.websiteId,
+				...firstReviewReadiness({
+					activeOrganizationRunId: activeRun?.id ?? null,
+					activeWebsiteRunId: activeRun?.reviewsWebsite ? activeRun.id : null,
+					activity,
+					canRun,
+					latestRun,
+				}),
+			};
+		}),
+
+	getFirstReviewStatus: protectedProcedure
+		.route({
+			method: "POST",
+			path: "/insights/generation/getFirstReviewStatus",
+			summary: "Get first-review run status for a website",
+			tags: ["Insights"],
+		})
+		.input(firstReviewScopeSchema)
+		.output(firstReviewStatusOutputSchema)
+		.handler(async ({ context, input }) => {
+			const organizationId = await resolveFirstReviewWebsite(context, input);
+			const [canRun, latestRun, activeRun] = await Promise.all([
+				canTriggerInsightGeneration(context, organizationId),
+				loadFirstReviewRun(organizationId, input.websiteId),
+				findActiveFirstReviewRun(organizationId, input.websiteId),
+			]);
+			return {
+				websiteId: input.websiteId,
+				...firstReviewStatus({
+					activeOrganizationRunId: activeRun?.id ?? null,
+					activeWebsiteRunId: activeRun?.reviewsWebsite ? activeRun.id : null,
+					canRun,
+					latestRun,
+				}),
+			};
+		}),
+
 	getConfig: protectedProcedure
 		.route({
 			method: "POST",

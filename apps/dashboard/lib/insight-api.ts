@@ -13,11 +13,27 @@ const RECOMMENDATIONS_PAGE_SIZE = 20;
 
 export const insightQueries = {
 	all: () => INSIGHTS_ROOT,
-	briefInfinite: (orgId: string | undefined) =>
+	briefInfinite: (
+		orgId: string | undefined,
+		websiteId?: string | null,
+		runId?: string | null
+	) =>
 		infiniteQueryOptions({
-			queryKey: [...INSIGHTS_ROOT, "brief-infinite", orgId] as const,
+			queryKey: [
+				...INSIGHTS_ROOT,
+				"brief-infinite",
+				orgId,
+				websiteId ?? null,
+				runId ?? null,
+			] as const,
 			queryFn: ({ pageParam }) =>
-				fetchInsightsBriefPage(orgId ?? "", pageParam, BRIEF_PAGE_SIZE),
+				fetchInsightsBriefPage(
+					orgId ?? "",
+					pageParam,
+					BRIEF_PAGE_SIZE,
+					websiteId ?? undefined,
+					runId ?? undefined
+				),
 			initialPageParam: 0,
 			getNextPageParam: (lastPage, _allPages, lastPageParam) =>
 				lastPage.hasMore ? lastPageParam + BRIEF_PAGE_SIZE : undefined,
@@ -98,9 +114,17 @@ export const insightQueries = {
 function fetchInsightsBriefPage(
 	organizationId: string,
 	offset: number,
-	limit = 50
+	limit = 50,
+	websiteId?: string,
+	runId?: string
 ) {
-	return orpc.insights.brief.call({ organizationId, limit, offset });
+	return orpc.insights.brief.call({
+		organizationId,
+		limit,
+		offset,
+		...(runId ? { runId } : {}),
+		...(websiteId ? { websiteId } : {}),
+	});
 }
 
 type InsightsBriefPage = Awaited<ReturnType<typeof fetchInsightsBriefPage>>;
