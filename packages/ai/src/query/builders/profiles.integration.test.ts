@@ -14,6 +14,14 @@ const collisionWebsiteId = `profile-builder-collision-${randomUUIDv7()}`;
 const collisionProfileA = "profile-builder-collision-a";
 const collisionProfileB = "profile-builder-collision-b";
 const collisionSessionId = "profile-builder-collision-session";
+type ProfileSessionEvent = [
+	string,
+	string,
+	string,
+	string,
+	string | null,
+	string?,
+];
 
 function collisionEvent(
 	anonymous_id: string,
@@ -258,7 +266,10 @@ describeIntegration("profile query identity against ClickHouse", () => {
 					if (!query || typeof query === "string") {
 						throw new Error("Session query did not compile");
 					}
-					return chQuery<{ events: unknown[]; session_id: string }>(
+					return chQuery<{
+						events: ProfileSessionEvent[];
+						session_id: string;
+					}>(
 						query.sql,
 						query.params
 					);
@@ -280,11 +291,7 @@ describeIntegration("profile query identity against ClickHouse", () => {
 		expect(sessionRows).toHaveLength(2);
 		for (const rows of sessionRows) {
 			expect(rows).toHaveLength(1);
-			const events = rows[0]?.events;
-			expect(Array.isArray(events)).toBe(true);
-			if (Array.isArray(events)) {
-				expect(events).toHaveLength(2);
-			}
+			expect(rows[0]?.events).toHaveLength(2);
 		}
 	});
 
