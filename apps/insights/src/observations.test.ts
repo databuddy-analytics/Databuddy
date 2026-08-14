@@ -65,12 +65,37 @@ function memory(
 }
 
 describe("eligibleSignalsForInvestigation", () => {
-	it("returns every unseen signal in detection rank order", () => {
+	it("returns only unseen regressions, revenue movements, and measurement gaps", () => {
 		const first = detected("goal:signup");
 		const second = detected("goal:purchase");
+		const improvement = detected("visitors", {
+			baseline: 100,
+			current: 140,
+			deltaPercent: 40,
+			direction: "up",
+			severity: "info",
+		});
+		const revenueMovement = detected("revenue", {
+			baseline: 100,
+			current: 140,
+			deltaPercent: 40,
+			direction: "up",
+			severity: "info",
+		});
+		const measurementGap = detected("measurement_coverage", {
+			baseline: 0,
+			current: 0,
+			deltaPercent: 0,
+			direction: "up",
+			severity: "info",
+		});
 		expect(
-			eligibleSignalsForInvestigation([first, second], new Map(), NOW)
-		).toEqual([first, second]);
+			eligibleSignalsForInvestigation(
+				[first, improvement, revenueMovement, measurementGap, second],
+				new Map(),
+				NOW
+			)
+		).toEqual([first, revenueMovement, measurementGap, second]);
 	});
 
 	it("rotates past a cooling signal to an unseen signal", () => {
@@ -112,15 +137,22 @@ describe("eligibleSignalsForInvestigation", () => {
 		).toEqual([]);
 	});
 
-	it("rechecks at the exact due boundary", () => {
+	it("rechecks a recovered signal at the exact due boundary", () => {
 		const first = detected("goal:signup");
+		const recovery = detected("goal:signup", {
+			baseline: 100,
+			current: 130,
+			deltaPercent: 30,
+			direction: "up",
+			severity: "info",
+		});
 		expect(
 			eligibleSignalsForInvestigation(
-				[first],
+				[recovery],
 				memory([[first, observed(first, NOW)]]),
 				NOW
 			)
-		).toEqual([first]);
+		).toEqual([recovery]);
 	});
 
 	it("cools resolved signals until they change or reach their recheck", () => {
@@ -157,7 +189,7 @@ describe("eligibleSignalsForInvestigation", () => {
 		).toEqual([resolvedSignal]);
 	});
 
-	it("immediately revisits a resolved regression when it recovers", () => {
+	it("does not reopen resolved work merely because it recovered", () => {
 		const regression = detected("goal:signup", { deltaPercent: -40 });
 		const resolution = observed(regression);
 		resolution.outcome = {
@@ -177,7 +209,7 @@ describe("eligibleSignalsForInvestigation", () => {
 				memory([[regression, resolution]]),
 				NOW
 			)
-		).toEqual([recovery]);
+		).toEqual([]);
 	});
 
 	it("bypasses cooldown for a negative severity or 1.5x magnitude increase", () => {

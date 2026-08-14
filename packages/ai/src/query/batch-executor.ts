@@ -226,7 +226,9 @@ function findOuterProjectionRange(sql: string): [number, number] | null {
 			return [outerSelect + SELECT_KEYWORD.length, i];
 		}
 	}
-	return null;
+	return outerSelect === -1
+		? null
+		: [outerSelect + SELECT_KEYWORD.length, sql.length];
 }
 
 export function extractOuterSelectColumns(sql: string): string[] {
@@ -281,7 +283,10 @@ function getSchemaSignature(
 			from: "2026-01-01",
 			to: "2026-01-02",
 			timeUnit: "day",
-			filters: (config.requiredFilters ?? []).map((field) => ({
+			filters: [
+				...(config.requiredFilters ?? []),
+				...(config.requiredAnyFilter?.slice(0, 1) ?? []),
+			].map((field) => ({
 				field,
 				op: "eq",
 				value: "__probe__",

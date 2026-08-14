@@ -7,10 +7,12 @@ import {
 	inArray,
 	isNull,
 	notExists,
+	or,
 	sql,
 } from "@databuddy/db";
 import {
 	analyticsInsights,
+	funnelDefinitions,
 	goals,
 	insightObservations,
 	insightReplies,
@@ -38,6 +40,7 @@ import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
 import { invalidateGoalsCache } from "../lib/goals-cache";
+import { invalidateFunnelsCache } from "../lib/funnels-cache";
 import { logger } from "../lib/logger";
 import { type Context, protectedProcedure, sessionProcedure } from "../orpc";
 import { withWorkspace } from "../procedures/with-workspace";
@@ -325,19 +328,9 @@ function serializeInsightBrief(
 	};
 }
 
-function serializeInsightRecommendation(
-	row: InsightBriefRow
-): z.infer<typeof insightRecommendationItemSchema> | null {
-	const insight = serializeInsightBrief(row);
-	if (!insight?.recommendation) {
-		return null;
-	}
-	return { ...insight, recommendation: insight.recommendation };
-}
-
 async function authorizeInsightsRead(
 	context: Context,
-	input: { organizationId: string; websiteId?: string }
+	input: { organizationId: string; runId?: string; websiteId?: string }
 ) {
 	if (input.websiteId) {
 		await withWorkspace(context, {
@@ -416,7 +409,6 @@ async function loadInsightTimeline(
 				metric: observation.signal.metric,
 				outcome: parsed,
 				period: observation.signal.period,
-				subject: observation.signal.entity.label,
 			};
 		}),
 		...replies.map((reply) => ({
@@ -650,13 +642,23 @@ export async function appendInvestigationReply(
 	};
 }
 
-const applyInsightGoalActionInputSchema = z
+const applyInsightActionInputSchema = z
 	.object({ insightId: z.string().trim().min(1).max(256) })
 	.strict();
 
-function executableGoalAction(
+type ExecutableDefinitionOperation = Exclude<
+	NonNullable<
+		Extract<
+			NonNullable<ReturnType<typeof parseInvestigationOutcome>>["next"],
+			{ type: "act" }
+		>["execution"]
+	>,
+	{ operation: null }
+>;
+
+function executableDefinitionAction(
 	outcome: NonNullable<ReturnType<typeof parseInvestigationOutcome>>
-) {
+): ExecutableDefinitionOperation | null {
 	if (outcome.next.type !== "act") {
 		return null;
 	}
@@ -664,12 +666,38 @@ function executableGoalAction(
 	return execution?.operation ? execution : null;
 }
 
-export async function applyInsightGoalAction(input: {
+function sameDefinitionExecution(
+	left: ExecutableDefinitionOperation,
+	right: ExecutableDefinitionOperation
+): boolean {
+	if (left.operation !== right.operation) {
+		return false;
+	}
+	if (left.operation === "delete" || right.operation === "delete") {
+		return true;
+	}
+	return (
+		left.changes.name === right.changes.name &&
+		left.changes.description === right.changes.description
+	);
+}
+
+function definitionActionError(
+	phase: "initial" | "current"
+): ReturnType<typeof rpcError.badRequest | typeof rpcError.conflict> {
+	return phase === "initial"
+		? rpcError.badRequest(
+				"This investigation has no executable definition action to apply"
+			)
+		: rpcError.conflict("This definition action is no longer available");
+}
+
+export async function applyInsightAction(input: {
 	context: Context;
 	insightId: string;
 }): Promise<{ reply: z.infer<typeof insightTimelineReplySchema> }> {
 	const { context, ...rawInput } = input;
-	const parsed = applyInsightGoalActionInputSchema.parse(rawInput);
+	const parsed = applyInsightActionInputSchema.parse(rawInput);
 	const [target] = await db
 		.select({
 			organizationId: analyticsInsights.organizationId,
@@ -706,9 +734,16 @@ export async function applyInsightGoalAction(input: {
 		.limit(1);
 	const initialOutcome = parseInvestigationOutcome(latestObservation?.outcome);
 	const initialSignal = parseInvestigationSignal(latestObservation?.signal);
-	const initialAction = initialOutcome && executableGoalAction(initialOutcome);
-	if (!initialAction || initialSignal?.entity.type !== "goal") {
-		throw rpcError.badRequest("This investigation has no goal action to apply");
+	const initialEntityType =
+		initialSignal?.entity.type === "goal" ||
+		initialSignal?.entity.type === "funnel"
+			? initialSignal.entity.type
+			: null;
+	const initialAction = initialOutcome
+		? executableDefinitionAction(initialOutcome)
+		: null;
+	if (!(initialAction && initialSignal && initialEntityType)) {
+		throw definitionActionError("initial");
 	}
 
 	await withWorkspace(context, {
@@ -748,11 +783,18 @@ export async function applyInsightGoalAction(input: {
 
 		const [observation] = await tx
 			.select({
+				createdAt: insightObservations.createdAt,
 				outcome: insightObservations.outcome,
 				signal: insightObservations.signal,
 			})
 			.from(insightObservations)
-			.where(eq(insightObservations.insightId, current.id))
+			.where(
+				and(
+					eq(insightObservations.insightId, current.id),
+					eq(insightObservations.organizationId, target.organizationId),
+					eq(insightObservations.websiteId, target.websiteId)
+				)
+			)
 			.orderBy(
 				desc(insightObservations.createdAt),
 				desc(insightObservations.id)
@@ -761,10 +803,20 @@ export async function applyInsightGoalAction(input: {
 			.for("update");
 		const outcome = parseInvestigationOutcome(observation?.outcome);
 		const signal = parseInvestigationSignal(observation?.signal);
-		const action = outcome && executableGoalAction(outcome);
-		if (!action || signal?.entity.type !== "goal") {
-			throw rpcError.conflict("This goal action is no longer available");
+		const entityType =
+			signal?.entity.type === "goal" || signal?.entity.type === "funnel"
+				? signal.entity.type
+				: null;
+		const action = outcome ? executableDefinitionAction(outcome) : null;
+		if (
+			!(action && signal && entityType && observation) ||
+			entityType !== initialEntityType ||
+			signal.entity.id !== initialSignal.entity.id ||
+			!sameDefinitionExecution(action, initialAction)
+		) {
+			throw definitionActionError("current");
 		}
+
 		const [activeReply] = await tx
 			.select({ id: insightReplies.id })
 			.from(insightReplies)
@@ -781,50 +833,103 @@ export async function applyInsightGoalAction(input: {
 			);
 		}
 
-		const [goal] = await tx
-			.select({
-				description: goals.description,
-				id: goals.id,
-				name: goals.name,
-			})
-			.from(goals)
-			.where(
-				and(
-					eq(goals.id, signal.entity.id),
-					eq(goals.websiteId, target.websiteId),
-					isNull(goals.deletedAt)
-				)
-			)
-			.limit(1)
-			.for("update");
-		if (!goal) {
-			throw rpcError.notFound("goal", signal.entity.id);
-		}
-
 		const completedAt = new Date();
-		if (action.operation === "delete") {
-			await tx
-				.update(goals)
-				.set({
-					deletedAt: completedAt,
-					isActive: false,
-					updatedAt: completedAt,
+		if (entityType === "goal") {
+			const [goal] = await tx
+				.select({
+					description: goals.description,
+					id: goals.id,
+					name: goals.name,
+					updatedAt: goals.updatedAt,
 				})
-				.where(eq(goals.id, goal.id));
+				.from(goals)
+				.where(
+					and(
+						eq(goals.id, signal.entity.id),
+						eq(goals.websiteId, target.websiteId),
+						isNull(goals.deletedAt)
+					)
+				)
+				.limit(1)
+				.for("update");
+			if (!goal) {
+				throw rpcError.notFound("goal", signal.entity.id);
+			}
+			if (
+				goal.name !== initialSignal.entity.label ||
+				goal.updatedAt > observation.createdAt
+			) {
+				throw definitionActionError("current");
+			}
+			if (action.operation === "delete") {
+				await tx
+					.update(goals)
+					.set({
+						deletedAt: completedAt,
+						isActive: false,
+						updatedAt: completedAt,
+					})
+					.where(eq(goals.id, goal.id));
+			} else {
+				await tx
+					.update(goals)
+					.set({
+						description: action.changes.description ?? goal.description,
+						name: action.changes.name ?? goal.name,
+						updatedAt: completedAt,
+					})
+					.where(eq(goals.id, goal.id));
+			}
 		} else {
-			await tx
-				.update(goals)
-				.set({
-					description: action.changes.description ?? goal.description,
-					name: action.changes.name ?? goal.name,
-					updatedAt: completedAt,
+			const [funnel] = await tx
+				.select({
+					description: funnelDefinitions.description,
+					id: funnelDefinitions.id,
+					name: funnelDefinitions.name,
+					updatedAt: funnelDefinitions.updatedAt,
 				})
-				.where(eq(goals.id, goal.id));
+				.from(funnelDefinitions)
+				.where(
+					and(
+						eq(funnelDefinitions.id, signal.entity.id),
+						eq(funnelDefinitions.websiteId, target.websiteId),
+						isNull(funnelDefinitions.deletedAt)
+					)
+				)
+				.limit(1)
+				.for("update");
+			if (!funnel) {
+				throw rpcError.notFound("funnel", signal.entity.id);
+			}
+			if (
+				funnel.name !== initialSignal.entity.label ||
+				funnel.updatedAt > observation.createdAt
+			) {
+				throw definitionActionError("current");
+			}
+			if (action.operation === "delete") {
+				await tx
+					.update(funnelDefinitions)
+					.set({
+						deletedAt: completedAt,
+						isActive: false,
+						updatedAt: completedAt,
+					})
+					.where(eq(funnelDefinitions.id, funnel.id));
+			} else {
+				await tx
+					.update(funnelDefinitions)
+					.set({
+						description: action.changes.description ?? funnel.description,
+						name: action.changes.name ?? funnel.name,
+						updatedAt: completedAt,
+					})
+					.where(eq(funnelDefinitions.id, funnel.id));
+			}
 		}
 
 		const replyId = randomUUIDv7();
-		const body =
-			"Databuddy applied the goal action. Recheck its verification condition against current data.";
+		const body = `Databuddy applied the ${entityType} action. Recheck its verification condition against current data.`;
 		await tx.insert(insightReplies).values({
 			...author,
 			body,
@@ -833,10 +938,19 @@ export async function applyInsightGoalAction(input: {
 			insightId: current.id,
 			status: "queued",
 		});
-		return { body, createdAt: completedAt, id: replyId };
+		return { body, createdAt: completedAt, id: replyId, type: entityType };
 	});
 
-	await invalidateGoalsCache(target.websiteId);
+	if (completed.type === "goal") {
+		await invalidateGoalsCache(target.websiteId);
+	} else {
+		await invalidateFunnelsCache(target.websiteId, initialSignal.entity.id);
+	}
+	await queueDefinitionChangeRechecks({
+		definitionId: initialSignal.entity.id,
+		type: completed.type,
+		websiteId: target.websiteId,
+	});
 	const status = await queueInsightReply(completed.id);
 	return {
 		reply: {
@@ -863,6 +977,7 @@ export const insightsRouter = {
 				limit: z.number().int().min(1).max(100).default(50),
 				offset: z.number().int().min(0).default(0),
 				organizationId: z.string().min(1),
+				runId: z.string().min(1).optional(),
 				websiteId: z.string().min(1).optional(),
 			})
 		)
@@ -893,6 +1008,9 @@ export const insightsRouter = {
 				.where(
 					and(
 						eq(insightObservations.organizationId, input.organizationId),
+						input.runId
+							? eq(insightObservations.runId, input.runId)
+							: undefined,
 						input.websiteId
 							? eq(insightObservations.websiteId, input.websiteId)
 							: undefined,
@@ -940,8 +1058,8 @@ export const insightsRouter = {
 		)
 		.handler(async ({ context, input }) => {
 			await authorizeInsightsRead(context, input);
-			const latestPublished = (alias: string) =>
-				db
+			const latestRecommendation = (alias: string) => {
+				const latestBySignal = db
 					.selectDistinctOn(
 						[insightObservations.websiteId, insightObservations.signalKey],
 						{
@@ -949,6 +1067,7 @@ export const insightsRouter = {
 							investigationId: sql<string | null>`${analyticsInsights.id}`.as(
 								"investigation_id"
 							),
+							recheckAt: insightObservations.recheckAt,
 							signalKey: insightObservations.signalKey,
 						}
 					)
@@ -972,7 +1091,6 @@ export const insightsRouter = {
 							input.websiteId
 								? eq(insightObservations.websiteId, input.websiteId)
 								: undefined,
-							sql`${insightObservations.outcome}->>'publish' = 'true'`,
 							isNull(websites.deletedAt)
 						)
 					)
@@ -983,17 +1101,120 @@ export const insightsRouter = {
 						desc(insightObservations.createdAt),
 						desc(insightObservations.id)
 					)
+					.as(`${alias}_state`);
+				const recommendation = sql`${latestBySignal.outcome}->'recommendation'`;
+				return db
+					.selectDistinctOn([latestBySignal.websiteId, recommendation], {
+						asOf: latestBySignal.asOf,
+						createdAt: latestBySignal.createdAt,
+						id: latestBySignal.id,
+						investigationId: latestBySignal.investigationId,
+						outcome: latestBySignal.outcome,
+						recheckAt: latestBySignal.recheckAt,
+						signal: latestBySignal.signal,
+						signalKey: latestBySignal.signalKey,
+						websiteDomain: latestBySignal.websiteDomain,
+						websiteId: latestBySignal.websiteId,
+						websiteName: latestBySignal.websiteName,
+					})
+					.from(latestBySignal)
+					.where(sql`${recommendation} is not null`)
+					.orderBy(
+						latestBySignal.websiteId,
+						recommendation,
+						desc(latestBySignal.asOf),
+						desc(latestBySignal.createdAt),
+						desc(latestBySignal.id)
+					)
 					.as(alias);
+			};
 
-			const pageSource = latestPublished("latest_published_recommendations");
-			const countSource = latestPublished(
-				"latest_published_recommendations_count"
+			const pageSource = latestRecommendation("latest_recommendations");
+			const recommendation = sql`${pageSource.outcome}->'recommendation'`;
+			const recommendationKind = sql`${recommendation}->>'kind'`;
+			const recommendationDraft = sql`${recommendation}->'draft'`;
+			const isFreshStandaloneRecommendation = or(
+				sql`coalesce(${recommendationKind}, '') not in ('instrumentation', 'databuddy_setup')`,
+				sql`${pageSource.outcome}->'next'->>'type' <> 'resolve'`,
+				sql`${pageSource.recheckAt} > now()`
+			);
+			const noEquivalentGoalDraft = notExists(
+				db
+					.select({ id: goals.id })
+					.from(goals)
+					.where(
+						and(
+							eq(goals.websiteId, pageSource.websiteId),
+							eq(goals.isActive, true),
+							isNull(goals.deletedAt),
+							sql`${goals.type} = ${recommendationDraft}->>'type'`,
+							sql`${goals.target} = ${recommendationDraft}->>'target'`,
+							sql`coalesce(${goals.filters}, '[]'::jsonb) = coalesce(${recommendationDraft}->'filters', '[]'::jsonb)`,
+							sql`${goals.ignoreHistoricData} = CASE ${recommendationDraft}->>'ignoreHistoricData' WHEN 'true' THEN true ELSE false END`
+						)
+					)
+			);
+			const noEquivalentFunnelDraft = notExists(
+				db
+					.select({ id: funnelDefinitions.id })
+					.from(funnelDefinitions)
+					.where(
+						and(
+							eq(funnelDefinitions.websiteId, pageSource.websiteId),
+							eq(funnelDefinitions.isActive, true),
+							isNull(funnelDefinitions.deletedAt),
+							sql`coalesce(${funnelDefinitions.filters}, '[]'::jsonb) = coalesce(${recommendationDraft}->'filters', '[]'::jsonb)`,
+							sql`${funnelDefinitions.ignoreHistoricData} = CASE ${recommendationDraft}->>'ignoreHistoricData' WHEN 'true' THEN true ELSE false END`,
+							sql`(
+								SELECT jsonb_agg(
+									jsonb_build_object(
+										'type', existing_step.value->>'type',
+										'target', existing_step.value->>'target',
+										'conditions', coalesce(nullif(existing_step.value->'conditions', 'null'::jsonb), '{}'::jsonb)
+									)
+									ORDER BY existing_step.ordinality
+								)
+								FROM jsonb_array_elements(${funnelDefinitions.steps}) WITH ORDINALITY AS existing_step(value, ordinality)
+							) = (
+								SELECT jsonb_agg(
+									jsonb_build_object(
+										'type', draft_step.value->>'type',
+										'target', draft_step.value->>'target',
+										'conditions', '{}'::jsonb
+									)
+									ORDER BY draft_step.ordinality
+								)
+								FROM jsonb_array_elements(${recommendationDraft}->'steps') WITH ORDINALITY AS draft_step(value, ordinality)
+							)`
+						)
+					)
+			);
+			const isCurrentRecommendation = and(
+				or(
+					and(sql`${recommendationKind} = 'goal_draft'`, noEquivalentGoalDraft),
+					and(
+						sql`${recommendationKind} = 'funnel_draft'`,
+						noEquivalentFunnelDraft
+					),
+					sql`${recommendationKind} is null or ${recommendationKind} not in ('goal_draft', 'funnel_draft')`
+				),
+				isFreshStandaloneRecommendation
+			);
+			const hasNativeRecommendation = or(
+				sql`${pageSource.outcome}->'recommendation'->>'operation' in ('edit', 'delete')`,
+				sql`${pageSource.outcome}->'recommendation'->>'kind' in ('goal_draft', 'funnel_draft', 'instrumentation', 'databuddy_setup')`
 			);
 			const [rows, [summary]] = await Promise.all([
 				db
 					.select()
 					.from(pageSource)
-					.where(sql`${pageSource.outcome}->>'recommendation' is not null`)
+					.where(
+						and(
+							sql`${pageSource.outcome}->>'recommendation' is not null`,
+							hasNativeRecommendation,
+							isCurrentRecommendation
+						)
+					)
 					.orderBy(
 						desc(pageSource.asOf),
 						desc(pageSource.createdAt),
@@ -1003,12 +1224,20 @@ export const insightsRouter = {
 					.offset(input.offset),
 				db
 					.select({ total: count() })
-					.from(countSource)
-					.where(sql`${countSource.outcome}->>'recommendation' is not null`),
+					.from(pageSource)
+					.where(
+						and(
+							sql`${pageSource.outcome}->>'recommendation' is not null`,
+							hasNativeRecommendation,
+							isCurrentRecommendation
+						)
+					),
 			]);
 			const page = rows.slice(0, input.limit).flatMap((row) => {
-				const recommendation = serializeInsightRecommendation(row);
-				return recommendation ? [recommendation] : [];
+				const insight = serializeInsightBrief(row);
+				return insight?.recommendation
+					? [{ ...insight, recommendation: insight.recommendation }]
+					: [];
 			});
 			return {
 				hasMore: rows.length > input.limit,
@@ -1241,17 +1470,31 @@ export const insightsRouter = {
 			return { reply };
 		}),
 
+	applyAction: protectedProcedure
+		.route({
+			method: "POST",
+			path: "/insights/actions/apply",
+			tags: ["Insights"],
+			summary: "Apply an executable insight action and verify it",
+		})
+		.input(applyInsightActionInputSchema)
+		.output(z.object({ reply: insightTimelineReplySchema }))
+		.handler(async ({ context, input }) =>
+			applyInsightAction({ context, ...input })
+		),
+
+	// Keep the old route for clients that have not migrated to applyAction yet.
 	applyGoalAction: protectedProcedure
 		.route({
 			method: "POST",
 			path: "/insights/actions/goal/apply",
 			tags: ["Insights"],
-			summary: "Apply an executable goal action and verify it",
+			summary: "Apply an executable insight action and verify it",
 		})
-		.input(applyInsightGoalActionInputSchema)
+		.input(applyInsightActionInputSchema)
 		.output(z.object({ reply: insightTimelineReplySchema }))
 		.handler(async ({ context, input }) =>
-			applyInsightGoalAction({ context, ...input })
+			applyInsightAction({ context, ...input })
 		),
 
 	retryReply: sessionProcedure

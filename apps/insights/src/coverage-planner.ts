@@ -1,12 +1,11 @@
 import type { DetectedSignal } from "./detection";
+import { rankSignals, signalKeyForDetectedSignal } from "./investigation";
 import {
-	isDirectSignal,
-	isRegression,
-	rankSignals,
-	signalKeyForDetectedSignal,
-} from "./investigation";
+	portfolioFamilyForDetectedSignal,
+	type InsightPortfolioFamily,
+} from "./specialists";
 
-const PORTFOLIO_LIMIT = { manual: 3, scheduled: 2 } as const;
+const PORTFOLIO_LIMIT = { manual: 5, scheduled: 2 } as const;
 const TRAFFIC_METRICS = new Set(["visitors", "sessions", "pageviews"]);
 
 export type CoveragePortfolioReason = keyof typeof PORTFOLIO_LIMIT;
@@ -19,19 +18,8 @@ export interface CoveragePortfolioOptions {
 	reason: CoveragePortfolioReason;
 }
 
-type SignalFamily =
-	| "conversion"
-	| "engagement"
-	| "error"
-	| "event"
-	| "measurement"
-	| "other"
-	| "revenue"
-	| "traffic"
-	| "vital";
-
 interface Candidate {
-	family: SignalFamily;
+	family: InsightPortfolioFamily;
 	group: string;
 	key: string;
 	signal: DetectedSignal;
@@ -43,55 +31,28 @@ export function coveragePortfolioLimit(
 	return PORTFOLIO_LIMIT[reason];
 }
 
-function signalFamily(signal: DetectedSignal): SignalFamily {
+function signalGroup(signal: DetectedSignal): string {
+	if (signal.subjectKey?.startsWith("route:") && signal.entityId) {
+		return `route-health:${signal.entityId}`;
+	}
 	if (TRAFFIC_METRICS.has(signal.metric)) {
-		return "traffic";
-	}
-	if (signal.metric === "error_count") {
-		return "error";
-	}
-	if (signal.metric === "lcp" || signal.metric === "inp") {
-		return "vital";
-	}
-	if (signal.metric === "revenue") {
-		return "revenue";
-	}
-	if (signal.metric === "custom_event_count") {
-		return "event";
+		return "traffic:top-level";
 	}
 	if (
 		signal.metric.startsWith("funnel:") ||
 		signal.metric.startsWith("goal:")
 	) {
-		return "conversion";
-	}
-	if (signal.metric === "measurement_coverage") {
-		return "measurement";
-	}
-	if (signal.metric === "bounce_rate" || signal.metric === "session_duration") {
-		return "engagement";
-	}
-	return "other";
-}
-
-function signalGroup(signal: DetectedSignal, family: SignalFamily): string {
-	if (signal.subjectKey?.startsWith("route:") && signal.entityId) {
-		return `route-health:${signal.entityId}`;
-	}
-	if (family === "traffic") {
-		return "traffic:top-level";
-	}
-	if (family === "conversion") {
 		const [kind, id] = (signal.subjectKey ?? signal.metric).split(":");
 		return `conversion:${id ? `${kind}:${id}` : kind}`;
 	}
-	if (family === "error" || family === "vital") {
-		return `${family}:${signal.entityId ?? signal.subjectKey ?? signal.metric}`;
+	if (
+		signal.metric === "error_count" ||
+		signal.metric === "lcp" ||
+		signal.metric === "inp"
+	) {
+		return `health:${signal.entityId ?? signal.subjectKey ?? signal.metric}`;
 	}
-	if (family === "engagement") {
-		return `engagement:${signal.metric}`;
-	}
-	return `${family}:${signal.subjectKey ?? signal.entityId ?? signal.metric}`;
+	return signalKeyForDetectedSignal(signal);
 }
 
 function stableIdentity(signal: DetectedSignal): string {
@@ -110,12 +71,9 @@ function stableIdentity(signal: DetectedSignal): string {
 		JSON.stringify(signal.baselineDates ?? []),
 		signal.definitionEvidence ?? "",
 		JSON.stringify(signal.measurementCandidate ?? null),
+		JSON.stringify(signal.setupRecommendationCandidate ?? null),
 		signal.detectedAt,
 	].join("\u0000");
-}
-
-function priority(signal: DetectedSignal): number {
-	return (isRegression(signal) ? 0 : 2) + (isDirectSignal(signal) ? 0 : 1);
 }
 
 function rankedCandidates(signals: DetectedSignal[]): Candidate[] {
@@ -132,10 +90,9 @@ function rankedCandidates(signals: DetectedSignal[]): Candidate[] {
 			continue;
 		}
 		seen.add(key);
-		const family = signalFamily(signal);
 		candidates.push({
-			family,
-			group: signalGroup(signal, family),
+			family: portfolioFamilyForDetectedSignal(signal),
+			group: signalGroup(signal),
 			key,
 			signal,
 		});
@@ -150,7 +107,7 @@ export function planCoveragePortfolio(
 ): DetectedSignal[] {
 	const candidates = rankedCandidates(signals);
 	const selected: Candidate[] = [];
-	const usedFamilies = new Set<SignalFamily>();
+	const usedFamilies = new Set<InsightPortfolioFamily>();
 	const usedGroups = new Set<string>();
 	const usedKeys = new Set<string>();
 
@@ -178,18 +135,15 @@ export function planCoveragePortfolio(
 				)
 			: available;
 		const pool = preferred.length > 0 ? preferred : available;
-		const top = pool[0];
-		if (!top) {
+		const next =
+			options.reason === "manual"
+				? (pool.find((candidate) => !usedFamilies.has(candidate.family)) ??
+					pool[0])
+				: pool[0];
+		if (!next) {
 			break;
 		}
-		const topPriority = priority(top.signal);
-		add(
-			pool.find(
-				(candidate) =>
-					priority(candidate.signal) === topPriority &&
-					!usedFamilies.has(candidate.family)
-			) ?? top
-		);
+		add(next);
 	}
 
 	return selected.map((candidate) => candidate.signal);

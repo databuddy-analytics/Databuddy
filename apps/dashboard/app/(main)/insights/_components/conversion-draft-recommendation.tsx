@@ -49,10 +49,6 @@ type FunnelDraftRecommendation = Extract<
 type ConversionDraftRecommendation =
 	| GoalDraftRecommendation
 	| FunnelDraftRecommendation;
-type InstrumentationRecommendation = Extract<
-	InsightMeasurementRecommendation,
-	{ kind: "instrumentation" }
->;
 
 interface DraftCreationAccess {
 	canCreate: boolean;
@@ -93,24 +89,6 @@ export function ConversionDraftRecommendationAction({
 			recommendation={recommendation}
 			websiteId={websiteId}
 		/>
-	);
-}
-
-export function InstrumentationRecommendationDetails({
-	recommendation,
-}: {
-	recommendation: InstrumentationRecommendation;
-}) {
-	return (
-		<ul className="mt-2 space-y-1.5 text-muted-foreground text-xs leading-relaxed">
-			{recommendation.events.map((event) => (
-				<li key={event.name}>
-					<span className="font-medium text-foreground/85">{event.name}</span>
-					<span className="mx-1">—</span>
-					{event.description}
-				</li>
-			))}
-		</ul>
 	);
 }
 

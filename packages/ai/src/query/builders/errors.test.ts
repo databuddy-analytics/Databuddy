@@ -16,6 +16,20 @@ function compileImpact(field: "message" | "path", value: string) {
 	}).compile();
 }
 
+function compileRouteContinuation(field: "message" | "path", value: string) {
+	const config = QueryBuilders.error_route_continuation_comparison;
+	if (!config) {
+		throw new Error("error_route_continuation_comparison builder is missing");
+	}
+	return new SimpleQueryBuilder(config, {
+		filters: [{ field, op: "eq", value }],
+		from: "2026-07-24",
+		projectId: "site-1",
+		to: "2026-07-30",
+		type: "error_route_continuation_comparison",
+	}).compile();
+}
+
 describe("error customer impact query", () => {
 	it("requires one exact fingerprint or canonical route", () => {
 		const config = QueryBuilders.error_customer_impact;
@@ -89,7 +103,6 @@ describe("error customer impact query", () => {
 			"unlinked_visitor_identifiers",
 			"ambiguous_profile_sessions",
 			"identity_coverage_percent",
-			"sessions_with_later_telemetry",
 			"identified_profiles_with_prior_attributed_completed_payment",
 			"qualifying_profile_payment_history_observed",
 			"payment_match_is_lower_bound",
@@ -111,5 +124,52 @@ describe("error customer impact query", () => {
 
 		expect(sql).toContain("trimRight(path(path), '/')");
 		expect(params.f0).toBe("/explore");
+	});
+
+	it("matches aggregate route-error continuation cohorts without returning ids", () => {
+		const config = QueryBuilders.error_route_continuation_comparison;
+		if (!config) {
+			throw new Error("error_route_continuation_comparison builder is missing");
+		}
+		const request = {
+			from: "2026-07-24",
+			projectId: "site-1",
+			to: "2026-07-30",
+			type: "error_route_continuation_comparison",
+		};
+
+		expect(() => new SimpleQueryBuilder(config, request).compile()).toThrow(
+			"Missing required filter: one of 'message', 'path'"
+		);
+		expect(() =>
+			new SimpleQueryBuilder(config, {
+				...request,
+				filters: [{ field: "path", op: "contains", value: "/explore" }],
+			}).compile()
+		).toThrow("Operator 'contains' is not permitted for filter 'path'");
+
+		const { params, sql } = compileRouteContinuation("message", "manifest");
+		const outputFields = config.meta?.output_fields?.map((field) => field.name);
+		expect(sql).toContain("qualified_exposures AS");
+		expect(sql).toMatch(
+			/view\.session_id NOT IN \(\s+SELECT session_id\s+FROM matched_route_errors\s+\)/
+		);
+		expect(sql).toContain("row_number() OVER");
+		expect(sql).toContain("INTERVAL 30 SECOND");
+		expect(sql).toContain("INTERVAL 10 MINUTE");
+		expect(sql.match(/AND event\.time >= period_start/g)).toHaveLength(2);
+		expect(sql.match(/AND event\.time <= period_end/g)).toHaveLength(2);
+		expect(sql).toContain("event.time > exposed.outcome_at");
+		expect(params.f0).toBe("manifest");
+		for (const unsafe of [
+			"anonymous_id",
+			"profile_id",
+			"session_id",
+			"transaction_id",
+			"customer_id",
+			"email",
+		]) {
+			expect(outputFields).not.toContain(unsafe);
+		}
 	});
 });

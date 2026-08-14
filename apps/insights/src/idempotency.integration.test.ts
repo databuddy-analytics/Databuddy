@@ -360,7 +360,7 @@ describeIntegration("insights idempotency integration", () => {
 		]);
 	});
 
-	it("loads only unresolved sibling work available at the investigation clock", async () => {
+	it("loads sibling work only when its latest outcome is open", async () => {
 		const organization = await insertOrganization();
 		const website = await insertWebsite({
 			organizationId: organization.id,
@@ -450,15 +450,14 @@ describeIntegration("insights idempotency integration", () => {
 				}),
 			]);
 
-		const beforeResolution = await loadOtherOpenWork({
+		const afterWatch = await loadOtherOpenWork({
 			organizationId: organization.id,
 			signalKey: "goal:current",
 			through: new Date("2026-07-10T00:00:00.000Z"),
 			websiteId: website.id,
 		});
-		expect(beforeResolution.map((item) => item.title)).toEqual([
+		expect(afterWatch.map((item) => item.title)).toEqual([
 			"Confirm the paid campaign owner",
-			"Connect the reader repository",
 		]);
 
 		await db()

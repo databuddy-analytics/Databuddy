@@ -1,8 +1,18 @@
 import { executeQuery, type Filter } from "@databuddy/ai/query";
-import type { InvestigationSignal } from "@databuddy/shared/insights";
+import type {
+	InsightDatabuddySetupRecommendation,
+	InvestigationSignal,
+	MatchedErrorContinuationMeasurement,
+} from "@databuddy/shared/insights";
 import dayjs from "dayjs";
 import timezonePlugin from "dayjs/plugin/timezone";
 import utcPlugin from "dayjs/plugin/utc";
+import {
+	hasMaterialRouteContinuation,
+	matchedErrorContinuationMeasurement,
+	parseRouteContinuationComparison,
+	type RouteContinuationComparison,
+} from "./error-customer-impact";
 import { emitInsightsEvent } from "./lib/evlog-insights";
 
 dayjs.extend(utcPlugin);
@@ -30,6 +40,7 @@ export type MeasurementCandidate =
 export interface DetectedSignal {
 	baseline: number;
 	baselineDates?: string[];
+	cohortMeasurement?: MatchedErrorContinuationMeasurement;
 	current: number;
 	definitionEvidence?: string;
 	deltaPercent: number;
@@ -39,8 +50,9 @@ export interface DetectedSignal {
 	entityLabel?: string;
 	label: string;
 	measurementCandidate?: MeasurementCandidate;
-	method: "zscore" | "wow";
+	method: "behavior" | "zscore" | "wow";
 	metric: string;
+	setupRecommendationCandidate?: InsightDatabuddySetupRecommendation;
 	severity: "critical" | "warning" | "info";
 	subjectKey?: string;
 }
@@ -137,6 +149,8 @@ const FILTER_ERROR_MIN_PEAK = 10;
 const MIN_AFFECTED_USERS = 5;
 const SIGNIFICANT_AFFECTED_USERS = 20;
 const ERROR_MIN_SESSION_RATE = 1;
+const MIN_ERROR_BEHAVIOR_CANDIDATE_SESSIONS = 30;
+const MAX_ERROR_BEHAVIOR_COMPARISONS = 3;
 const LOW_TRAFFIC_WEEKLY_SESSIONS = 50;
 const LOW_TRAFFIC_MIN_VALUE = 10;
 const FILTER_TRAFFIC_MIN_PEAK = 80;
@@ -159,6 +173,33 @@ export const INSIGHT_VITALS = {
 } as const;
 const VITALS = INSIGHT_VITALS;
 const VITALS_MIN_SAMPLES = 10;
+const PERSISTENT_LCP_MIN_SAMPLES = 100;
+const PERSISTENT_LCP_POOR_THRESHOLD = 4000;
+
+function hasMaterialVitalChange(
+	current: number,
+	baseline: number,
+	badThreshold: number
+): boolean {
+	return (
+		Math.abs(safeDeltaPercent(current, baseline)) >= WOW_VITALS_THRESHOLD &&
+		current > badThreshold
+	);
+}
+
+function hasPersistentPoorLcp(
+	current: number,
+	baseline: number,
+	currentSamples: number,
+	baselineSamples: number
+): boolean {
+	return (
+		currentSamples >= PERSISTENT_LCP_MIN_SAMPLES &&
+		baselineSamples >= PERSISTENT_LCP_MIN_SAMPLES &&
+		current > PERSISTENT_LCP_POOR_THRESHOLD &&
+		baseline > PERSISTENT_LCP_POOR_THRESHOLD
+	);
+}
 
 export function wowWindow(today: dayjs.Dayjs, lookbackDays: number) {
 	const windowDays = Math.max(3, lookbackDays);
@@ -255,6 +296,10 @@ export function makeWowSignal(
 }
 
 function passesImpactFilter(signal: DetectedSignal): boolean {
+	if (signal.method === "behavior") {
+		// The matched cohort parser is stricter than a raw count-delta filter.
+		return true;
+	}
 	const filter = METRIC_FILTERS[signal.metric];
 	return filter ? filter(signal) : DEFAULT_TRAFFIC_FILTER(signal);
 }
@@ -296,6 +341,149 @@ function capLowReachSeverity(
 		return { ...signal, severity: "warning" };
 	}
 	return signal;
+}
+
+function errorLabel(row: Record<string, unknown> | undefined): string {
+	const message =
+		stringField(row, "name") ?? stringField(row, "message") ?? "Error";
+	const errorType = stringField(row, "error_type");
+	const filename = stringField(row, "filename");
+	const path = stringField(row, "path");
+	const line = numberField(row, "line");
+	const location = filename ? `${filename}${line > 0 ? `:${line}` : ""}` : path;
+	return `${errorType ? `${errorType}: ` : ""}${message}${location ? ` at ${location}` : ""}`;
+}
+
+function errorBehaviorSignal(params: {
+	behavior: RouteContinuationComparison;
+	currentRow: Record<string, unknown>;
+	detectedAt: string;
+	fingerprint: string;
+	previousRow: Record<string, unknown> | undefined;
+}): DetectedSignal {
+	const current = numberField(params.currentRow, "count");
+	const previous = numberField(params.previousRow, "count");
+	const label = errorLabel(params.currentRow ?? params.previousRow);
+	const material = hasMaterialRouteContinuation(params.behavior);
+	return {
+		...makeWowSignal(
+			"error_count",
+			label,
+			current,
+			previous,
+			params.detectedAt
+		),
+		cohortMeasurement: matchedErrorContinuationMeasurement(params.behavior),
+		deltaPercent: 0,
+		direction: material ? "up" : "down",
+		definitionEvidence: `${label} occurred ${current} times across ${numberField(params.currentRow, "users")} visitor identifiers, compared with ${previous} occurrences across ${numberField(params.previousRow, "users")} visitor identifiers previously.`,
+		entityId: params.fingerprint,
+		entityLabel: label,
+		method: "behavior",
+		severity: material
+			? params.behavior.exposedSessions >= 100 &&
+				params.behavior.percentagePointDifference <= -30
+				? "critical"
+				: "warning"
+			: "info",
+		subjectKey: `error:${params.fingerprint}`,
+	};
+}
+
+interface ErrorBehaviorCandidate {
+	currentRow: Record<string, unknown>;
+	fingerprint: string;
+	previousRow: Record<string, unknown> | undefined;
+}
+
+/**
+ * Every run covers the two largest error cohorts, then rotates one remaining
+ * fingerprint weekly. This keeps a bounded query cost without allowing the
+ * highest-reach errors to disappear behind a full rotating sample.
+ */
+function errorBehaviorCandidates(params: {
+	currentByFingerprint: Map<string, Record<string, unknown>>;
+	detectedAt: string;
+	previousByFingerprint: Map<string, Record<string, unknown>>;
+}): ErrorBehaviorCandidate[] {
+	const candidates = [...params.currentByFingerprint.entries()]
+		.filter(
+			([, row]) =>
+				numberField(row, "sessions") >= MIN_ERROR_BEHAVIOR_CANDIDATE_SESSIONS
+		)
+		.map(([fingerprint, currentRow]) => ({
+			currentRow,
+			fingerprint,
+			previousRow: params.previousByFingerprint.get(fingerprint),
+		}))
+		.sort(
+			(left, right) =>
+				numberField(right.currentRow, "sessions") -
+					numberField(left.currentRow, "sessions") ||
+				numberField(right.currentRow, "users") -
+					numberField(left.currentRow, "users") ||
+				numberField(right.currentRow, "count") -
+					numberField(left.currentRow, "count") ||
+				left.fingerprint.localeCompare(right.fingerprint)
+		);
+	if (candidates.length <= MAX_ERROR_BEHAVIOR_COMPARISONS) {
+		return candidates;
+	}
+	const alwaysProbe = candidates.slice(0, MAX_ERROR_BEHAVIOR_COMPARISONS - 1);
+	const rotatingCandidates = candidates.slice(alwaysProbe.length);
+	const week = Math.floor(
+		Date.parse(`${params.detectedAt}T00:00:00.000Z`) / (7 * 24 * 60 * 60 * 1000)
+	);
+	return [...alwaysProbe, rotatingCandidates[week % rotatingCandidates.length]];
+}
+
+async function detectErrorBehaviorSignals(params: {
+	abortSignal?: AbortSignal;
+	candidates: ErrorBehaviorCandidate[];
+	detectedAt: string;
+	query: (fingerprint: string) => Promise<Record<string, unknown>[]>;
+	websiteId: string;
+}): Promise<DetectedSignal[]> {
+	const results = await Promise.allSettled(
+		params.candidates.map(async (candidate) => ({
+			candidate,
+			comparison: parseRouteContinuationComparison(
+				(await params.query(candidate.fingerprint))[0]
+			),
+		}))
+	);
+	const signals: DetectedSignal[] = [];
+	for (const result of results) {
+		if (result.status === "rejected") {
+			rethrowDetectionAbort(result.reason, params.abortSignal);
+			emitInsightsEvent("warn", "detection.error_behavior.comparison_failed", {
+				website_id: params.websiteId,
+				error_type:
+					result.reason instanceof Error
+						? result.reason.constructor.name
+						: typeof result.reason,
+			});
+			continue;
+		}
+		if (
+			!(
+				result.value.comparison &&
+				hasMaterialRouteContinuation(result.value.comparison)
+			)
+		) {
+			continue;
+		}
+		signals.push(
+			errorBehaviorSignal({
+				behavior: result.value.comparison,
+				currentRow: result.value.candidate.currentRow,
+				detectedAt: params.detectedAt,
+				fingerprint: result.value.candidate.fingerprint,
+				previousRow: result.value.candidate.previousRow,
+			})
+		);
+	}
+	return signals;
 }
 
 function makeCustomEventSignal(
@@ -510,18 +698,43 @@ export async function remeasureMetricSignal(
 		const currentRow = currentRows[0];
 		const previousRow = previousRows[0];
 		const label = prior.entity.label || prior.metric.label;
-		const signal = makeWowSignal(
-			"error_count",
-			label,
-			numberField(currentRow, "count"),
-			numberField(previousRow, "count"),
-			currentTo
-		);
-		signal.subjectKey = prior.signalKey;
-		signal.entityId = fingerprint;
-		signal.entityLabel = label;
-		signal.definitionEvidence = `${label} occurred ${signal.current} times across ${numberField(currentRow, "users")} visitor identifiers, compared with ${signal.baseline} occurrences across ${numberField(previousRow, "users")} visitor identifiers previously.`;
-		return signal;
+		const countSignal = () => {
+			const signal = makeWowSignal(
+				"error_count",
+				label,
+				numberField(currentRow, "count"),
+				numberField(previousRow, "count"),
+				currentTo
+			);
+			signal.subjectKey = prior.signalKey;
+			signal.entityId = fingerprint;
+			signal.entityLabel = label;
+			signal.definitionEvidence = `${label} occurred ${signal.current} times across ${numberField(currentRow, "users")} visitor identifiers, compared with ${signal.baseline} occurrences across ${numberField(previousRow, "users")} visitor identifiers previously.`;
+			return signal;
+		};
+		if (prior.cohortMeasurement) {
+			if (!currentRow) {
+				return countSignal();
+			}
+			const continuationRows = await query(
+				"error_route_continuation_comparison",
+				currentFrom,
+				currentTo,
+				[{ field: "message", op: "eq", value: fingerprint }]
+			);
+			const behavior = parseRouteContinuationComparison(continuationRows[0]);
+			if (behavior) {
+				return errorBehaviorSignal({
+					behavior,
+					currentRow,
+					detectedAt: currentTo,
+					fingerprint,
+					previousRow,
+				});
+			}
+			return null;
+		}
+		return countSignal();
 	}
 
 	if (prior.signalKey.startsWith("custom_event:")) {
@@ -573,13 +786,22 @@ export async function remeasureMetricSignal(
 		);
 		const current = numberField(currentRow, "p75");
 		const baseline = numberField(previousRow, "p75");
+		const currentSamples = numberField(currentRow, "samples");
+		const baselineSamples = numberField(previousRow, "samples");
 		if (
-			numberField(currentRow, "samples") < VITALS_MIN_SAMPLES ||
-			numberField(previousRow, "samples") < VITALS_MIN_SAMPLES ||
+			currentSamples < VITALS_MIN_SAMPLES ||
+			baselineSamples < VITALS_MIN_SAMPLES ||
 			current <= 0 ||
 			baseline <= 0 ||
 			current > vital.maxPlausible ||
 			baseline > vital.maxPlausible
+		) {
+			return null;
+		}
+		if (
+			prior.signalKey === "lcp" &&
+			!hasMaterialVitalChange(current, baseline, vital.badThreshold) &&
+			!hasPersistentPoorLcp(current, baseline, currentSamples, baselineSamples)
 		) {
 			return null;
 		}
@@ -759,7 +981,12 @@ export async function detectSignals(
 	for (const signal of all) {
 		const key = signal.subjectKey ?? signal.metric;
 		const prev = bySubject.get(key);
-		if (!prev || Math.abs(signal.deltaPercent) > Math.abs(prev.deltaPercent)) {
+		if (
+			!prev ||
+			(signal.method === "behavior" && prev.method !== "behavior") ||
+			(signal.method === prev.method &&
+				Math.abs(signal.deltaPercent) > Math.abs(prev.deltaPercent))
+		) {
 			bySubject.set(key, signal);
 		}
 	}
@@ -930,9 +1157,11 @@ async function detectWow(
 	});
 	const errors = await readDetectorPair({
 		abortSignal,
-		current: () => query("error_fingerprints", currentFrom, currentTo),
+		current: () =>
+			query("error_fingerprints", currentFrom, currentTo, { limit: 50 }),
 		family: "errors",
-		previous: () => query("error_fingerprints", previousFrom, previousTo),
+		previous: () =>
+			query("error_fingerprints", previousFrom, previousTo, { limit: 50 }),
 		websiteId,
 	});
 	const revenue = await readDetectorPair({
@@ -1059,16 +1288,7 @@ async function detectWow(
 			continue;
 		}
 		const row = affectedRow ?? currentRow ?? previousRow;
-		const message =
-			stringField(row, "name") ?? stringField(row, "message") ?? "Error";
-		const errorType = stringField(row, "error_type");
-		const filename = stringField(row, "filename");
-		const path = stringField(row, "path");
-		const line = numberField(row, "line");
-		const location = filename
-			? `${filename}${line > 0 ? `:${line}` : ""}`
-			: path;
-		const label = `${errorType ? `${errorType}: ` : ""}${message}${location ? ` at ${location}` : ""}`;
+		const label = errorLabel(row);
 		const signal = capLowReachSeverity(
 			makeWowSignal("error_count", label, current, previous, currentTo),
 			affectedUsers
@@ -1079,6 +1299,21 @@ async function detectWow(
 		signal.definitionEvidence = `${label} occurred ${current} times across ${numberField(currentRow, "users")} visitor identifiers, compared with ${previous} occurrences across ${numberField(previousRow, "users")} visitor identifiers previously.`;
 		signals.push(signal);
 	}
+	const behaviorSignals = await detectErrorBehaviorSignals({
+		abortSignal,
+		candidates: errorBehaviorCandidates({
+			currentByFingerprint,
+			detectedAt: currentTo,
+			previousByFingerprint,
+		}),
+		detectedAt: currentTo,
+		query: (fingerprint) =>
+			query("error_route_continuation_comparison", currentFrom, currentTo, {
+				filters: [{ field: "message", op: "eq", value: fingerprint }],
+			}),
+		websiteId,
+	});
+	signals.push(...behaviorSignals);
 
 	const currentByName = mapRowsByStringField(currentCustomEvents, "name");
 	for (const previousRow of previousCustomEvents) {
@@ -1156,23 +1391,31 @@ async function detectWow(
 			continue;
 		}
 
-		const pct = safeDeltaPercent(curVal, prevVal);
-		if (Math.abs(pct) < WOW_VITALS_THRESHOLD) {
-			continue;
-		}
-		if (curVal > prevVal && curVal <= vital.badThreshold) {
+		const hasMaterialChange = hasMaterialVitalChange(
+			curVal,
+			prevVal,
+			vital.badThreshold
+		);
+		const isPersistentPoorLcp =
+			metricName === "LCP" &&
+			hasPersistentPoorLcp(curVal, prevVal, curSamples, prevSamples);
+		if (!(hasMaterialChange || isPersistentPoorLcp)) {
 			continue;
 		}
 
-		signals.push(
-			makeWowSignal(
-				metricName.toLowerCase(),
-				vital.label,
-				curVal,
-				prevVal,
-				currentTo
-			)
+		const signal = makeWowSignal(
+			metricName.toLowerCase(),
+			vital.label,
+			curVal,
+			prevVal,
+			currentTo
 		);
+		if (isPersistentPoorLcp) {
+			signal.severity =
+				signal.severity === "info" ? "warning" : signal.severity;
+			signal.definitionEvidence = `LCP p75 was ${curVal.toLocaleString("en-US")} ms across ${curSamples.toLocaleString("en-US")} samples and remained above the ${PERSISTENT_LCP_POOR_THRESHOLD.toLocaleString("en-US")} ms poor threshold, compared with ${prevVal.toLocaleString("en-US")} ms across ${prevSamples.toLocaleString("en-US")} samples in the prior period.`;
+		}
+		signals.push(signal);
 	}
 
 	return {

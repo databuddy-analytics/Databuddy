@@ -1,4 +1,7 @@
 export const APP_EVENTS = {
+	firstReviewCompleted: "first_review_completed",
+	firstReviewStarted: "first_review_started",
+	firstReviewViewed: "first_review_viewed",
 	onboardingCompleted: "onboarding_completed",
 	onboardingInviteSent: "onboarding_invite_sent",
 	onboardingSkipped: "onboarding_skipped",
@@ -66,6 +69,16 @@ export interface OnboardingAttributionProperties extends MarketingProperties {
 }
 
 export interface AppEventProperties {
+	[APP_EVENTS.firstReviewCompleted]: {
+		published_insights: number;
+		website_id: string;
+	};
+	[APP_EVENTS.firstReviewStarted]: {
+		website_id: string;
+	};
+	[APP_EVENTS.firstReviewViewed]: {
+		website_id: string;
+	};
 	[APP_EVENTS.onboardingCompleted]: OnboardingAttributionProperties;
 	[APP_EVENTS.onboardingInviteSent]: {
 		invite_count: number;

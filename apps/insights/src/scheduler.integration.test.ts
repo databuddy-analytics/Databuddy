@@ -1,5 +1,13 @@
 import "@databuddy/test/env";
-import { afterAll, afterEach, beforeEach, describe, expect, it } from "bun:test";
+import {
+	afterAll,
+	afterEach,
+	beforeEach,
+	describe,
+	expect,
+	it,
+	spyOn,
+} from "bun:test";
 import { db as appDb, shutdownPostgres } from "@databuddy/db";
 import {
 	insightGenerationConfigs,
@@ -20,6 +28,7 @@ import {
 	db,
 	hasTestDb,
 	insertOrganization,
+	insertUser,
 	insertWebsite,
 	truncatePostgres,
 } from "@databuddy/test";
@@ -328,23 +337,25 @@ describeIntegration("insights scheduler integration", () => {
 		expect(current.nextRunAt).toEqual(stale.nextRunAt);
 	});
 
-	it("coalesces concurrent queue requests into one active organization run", async () => {
+	it("joins selected websites into one active organization run", async () => {
 		const org = await insertOrganization();
 		organizationIds.add(org.id);
-		const website = await insertWebsite({
+		const firstWebsite = await insertWebsite({
 			organizationId: org.id,
-			domain: "concurrent.example.com",
+			domain: "first.example.com",
 		});
-		await insertWebsite({
+		const secondWebsite = await insertWebsite({
 			organizationId: org.id,
-			domain: "not-selected.example.com",
+			domain: "second.example.com",
 		});
 		const results = await Promise.all(
-			Array.from({ length: 8 }, () =>
+			Array.from({ length: 8 }, (_, index) =>
 				queueInsightGenerationRun({
 					organizationId: org.id,
 					timezone: " UTC ",
-					websiteIds: [website.id],
+					websiteIds: [
+						index % 2 === 0 ? firstWebsite.id : secondWebsite.id,
+					],
 				})
 			)
 		);
@@ -359,7 +370,7 @@ describeIntegration("insights scheduler integration", () => {
 		expect(runs[0]).toMatchObject({
 			organizationId: org.id,
 			status: "queued",
-			totalItems: 1,
+			totalItems: 2,
 		});
 
 		const items = await itemsForRun(runs[0].id);
@@ -369,9 +380,119 @@ describeIntegration("insights scheduler integration", () => {
 			.from(insightGenerationConfigs)
 			.where(eq(insightGenerationConfigs.organizationId, org.id));
 		expect(configs).toHaveLength(0);
-		expect(items).toHaveLength(1);
-		expect(jobs).toHaveLength(1);
+		expect(items.map((item) => item.websiteId).sort()).toEqual(
+			[firstWebsite.id, secondWebsite.id].sort()
+		);
+		expect(jobs.map((job) => job.data.websiteId).sort()).toEqual(
+			[firstWebsite.id, secondWebsite.id].sort()
+		);
 		expect(jobs[0]?.data.runId).toBe(runs[0].id);
+	});
+
+	it("keeps a manual site's request context in scheduled work", async () => {
+		const org = await insertOrganization();
+		organizationIds.add(org.id);
+		const requester = await insertUser();
+		const scheduledWebsite = await insertWebsite({
+			organizationId: org.id,
+			domain: "scheduled.example.com",
+		});
+		const manualWebsite = await insertWebsite({
+			organizationId: org.id,
+			domain: "manual.example.com",
+		});
+		await db().insert(insightGenerationConfigs).values({
+			id: randomUUIDv7(),
+			organizationId: org.id,
+			enabled: true,
+		});
+
+		await queueInsightGenerationRun({
+			organizationId: org.id,
+			reason: "scheduled",
+			websiteIds: [scheduledWebsite.id],
+		});
+		const [scheduledRun] = await runsForOrg(org.id);
+		const manual = await queueInsightGenerationRun({
+			organizationId: org.id,
+			requestedByUserId: requester.id,
+			websiteIds: [manualWebsite.id],
+		});
+
+		expect(manual).toMatchObject({
+			reusedRun: true,
+			runId: scheduledRun.id,
+		});
+		const items = await itemsForRun(scheduledRun.id);
+		expect(
+			items.map((item) => ({
+				reason: item.reason,
+				requestedByUserId: item.requestedByUserId,
+				websiteId: item.websiteId,
+			}))
+		).toEqual(
+			expect.arrayContaining([
+				{
+					reason: "scheduled",
+					requestedByUserId: null,
+					websiteId: scheduledWebsite.id,
+				},
+				{
+					reason: "manual",
+					requestedByUserId: requester.id,
+					websiteId: manualWebsite.id,
+				},
+			])
+		);
+	});
+
+	it("settles an active run when appended work cannot be queued", async () => {
+		const org = await insertOrganization();
+		organizationIds.add(org.id);
+		const completedWebsite = await insertWebsite({
+			organizationId: org.id,
+			domain: "completed.example.com",
+		});
+		const failedWebsite = await insertWebsite({
+			organizationId: org.id,
+			domain: "failed.example.com",
+		});
+		await queueInsightGenerationRun({
+			organizationId: org.id,
+			websiteIds: [completedWebsite.id],
+		});
+		const [run] = await runsForOrg(org.id);
+		const [item] = await itemsForRun(run.id);
+		await db()
+			.update(insightRunItems)
+			.set({ finishedAt: new Date(), status: "succeeded" })
+			.where(eq(insightRunItems.id, item.id));
+		await db()
+			.update(insightRuns)
+			.set({ completedItems: 1, status: "running" })
+			.where(eq(insightRuns.id, run.id));
+
+		const publish = spyOn(getInsightsQueue(), "addBulk").mockRejectedValue(
+			new Error("Redis unavailable")
+		);
+		try {
+			await expect(
+				queueInsightGenerationRun({
+					organizationId: org.id,
+					websiteIds: [failedWebsite.id],
+				})
+			).rejects.toThrow("Internal Server Error");
+		} finally {
+			publish.mockRestore();
+		}
+
+		const [failedRun] = await runsForOrg(org.id);
+		expect(failedRun).toMatchObject({
+			completedItems: 1,
+			failedItems: 1,
+			status: "partially_succeeded",
+			totalItems: 2,
+		});
 	});
 
 	async function runsForOrg(organizationId: string) {

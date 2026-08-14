@@ -19,7 +19,7 @@ const baseSignal: DetectedSignal = {
 };
 
 describe("rankSignals", () => {
-	it("prioritizes direct regressions over dramatic generic changes", () => {
+	it("prioritizes measured behavioral consequences over raw regressions", () => {
 		const ranked = rankSignals([
 			{ ...baseSignal, direction: "up", deltaPercent: 120, severity: "critical" },
 			{
@@ -39,6 +39,23 @@ describe("rankSignals", () => {
 			},
 			{
 				...baseSignal,
+				cohortMeasurement: {
+					type: "matched_error_continuation",
+					controlContinuationPercent: 40,
+					exposedContinuationPercent: 20,
+					matchedSessions: 100,
+				},
+				current: 80,
+				baseline: 800,
+				direction: "up",
+				label: "Checkout browser error",
+				method: "behavior",
+				metric: "error_count",
+				severity: "warning",
+				subjectKey: "error:checkout-browser",
+			},
+			{
+				...baseSignal,
 				deltaPercent: -50,
 				metric: "custom_event_count",
 				subjectKey: "custom_event:signup_completed",
@@ -47,10 +64,70 @@ describe("rankSignals", () => {
 		]);
 
 		expect(ranked.map((signal) => signal.metric)).toEqual([
+			"error_count",
 			"custom_event_count",
 			"error_count",
 			"goal:signup",
 			"visitors",
+		]);
+	});
+
+	it("keeps aggregate conversion definitions behind behavioral regressions", () => {
+		const ranked = rankSignals([
+			{
+				...baseSignal,
+				metric: "funnel:homepage-docs",
+				subjectKey: "funnel:homepage-docs",
+			},
+			{
+				...baseSignal,
+				current: 60,
+				deltaPercent: 50,
+				direction: "up",
+				metric: "bounce_rate",
+			},
+			{
+				...baseSignal,
+				metric: "error_count",
+				direction: "up",
+			},
+		]);
+
+		expect(ranked.map((signal) => signal.metric)).toEqual([
+			"error_count",
+			"bounce_rate",
+			"funnel:homepage-docs",
+		]);
+	});
+
+	it("keeps explicit zero-completion conversion failures direct", () => {
+		const ranked = rankSignals([
+			{
+				...baseSignal,
+				metric: "funnel:homepage-docs",
+				subjectKey: "funnel:homepage-docs",
+			},
+			{
+				...baseSignal,
+				current: 0,
+				baseline: 0.7,
+				deltaPercent: -100,
+				metric: "funnel:homepage-docs",
+				subjectKey: "funnel:homepage-docs:zero-completions",
+			},
+			{
+				...baseSignal,
+				current: 60,
+				deltaPercent: 50,
+				direction: "up",
+				metric: "bounce_rate",
+			},
+		]);
+
+		expect(ranked.map((signal) => signal.subjectKey)).toEqual([
+			"funnel:homepage-docs:zero-completions",
+			undefined,
+			"funnel:homepage-docs",
 		]);
 	});
 

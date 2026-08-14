@@ -2,10 +2,13 @@ import "@databuddy/test/env";
 import { describe, expect, it } from "bun:test";
 import type { InvestigationSignal } from "@databuddy/shared/insights";
 import {
-	errorCustomerImpactEvidence,
-	errorIdentitySetupRecommendation,
+	 errorCustomerImpactEvidence,
+	 errorIdentitySetupRecommendation,
+	hasMaterialRouteContinuation,
 	loadErrorCustomerImpact,
+	matchedErrorContinuationMeasurement,
 	parseErrorCustomerImpact,
+	parseRouteContinuationComparison,
 } from "./error-customer-impact";
 
 const errorSignal: InvestigationSignal = {
@@ -41,8 +44,20 @@ const row = {
 	linked_visitor_identifiers: 5,
 	payment_match_is_lower_bound: 1,
 	qualifying_profile_payment_history_observed: 1,
-	sessions_with_later_telemetry: 20,
 	unlinked_visitor_identifiers: 30,
+};
+
+const routeContinuationRow = {
+	candidate_control_sessions: 80,
+	candidate_exposed_sessions: 50,
+	control_continued_sessions: 24,
+	control_continuation_percent: 60,
+	exposed_continued_sessions: 8,
+	exposed_continuation_percent: 20,
+	matched_control_sessions: 40,
+	matched_exposed_sessions: 40,
+	unmatched_control_sessions: 40,
+	unmatched_exposed_sessions: 10,
 };
 
 describe("error customer impact", () => {
@@ -72,11 +87,14 @@ describe("error customer impact", () => {
 			},
 			async (request) => {
 				calls.push(request);
-				return [row];
+				return request.type === "error_route_continuation_comparison"
+					? [routeContinuationRow]
+					: [row];
 			}
 		);
 
 		expect(impact?.errorOccurrences).toBe(36);
+		expect(impact?.routeContinuation?.exposedSessions).toBe(40);
 		expect(calls).toEqual([
 			{
 				filters: [
@@ -92,11 +110,25 @@ describe("error customer impact", () => {
 				to: "2026-07-30",
 				type: "error_customer_impact",
 			},
+			{
+				filters: [
+					{
+						field: "message",
+						op: "eq",
+						value: "Failed to load app manifest",
+					},
+				],
+				from: "2026-07-24",
+				projectId: "site-1",
+				timezone: "UTC",
+				to: "2026-07-30",
+				type: "error_route_continuation_comparison",
+			},
 		]);
 	});
 
 	it("binds a route signal without exposing cohort identifiers", async () => {
-		let request: Record<string, unknown> | undefined;
+		const requests: Record<string, unknown>[] = [];
 		const impact = await loadErrorCustomerImpact(
 			{
 				signal: {
@@ -108,20 +140,149 @@ describe("error customer impact", () => {
 				websiteId: "site-1",
 			},
 			async (input) => {
-				request = input as unknown as Record<string, unknown>;
-				return [row];
+				requests.push(input as unknown as Record<string, unknown>);
+				return input.type === "error_route_continuation_comparison"
+					? [routeContinuationRow]
+					: [row];
 			}
 		);
 
-		expect(request?.filters).toEqual([
-			{ field: "path", op: "eq", value: "/explore" },
-		]);
+		expect(requests).toHaveLength(2);
+		for (const request of requests) {
+			expect(request.filters).toEqual([
+				{ field: "path", op: "eq", value: "/explore" },
+			]);
+		}
 		if (!impact) {
 			throw new Error("Expected route impact fixture");
 		}
 		expect(impact.scope).toBe("route");
+		expect(impact.routeContinuation).toMatchObject({
+			controlContinuationPercent: 60,
+			controlSessions: 40,
+			exposedContinuationPercent: 20,
+			exposedSessions: 40,
+			percentagePointDifference: -40,
+		});
 		expect(errorCustomerImpactEvidence(impact)).toContain("Errors on this route");
+		expect(errorCustomerImpactEvidence(impact)).toContain(
+			"This is an association, not proof"
+		);
 		expect(errorCustomerImpactEvidence(impact)).not.toContain("This exact error");
+	});
+
+	it("parses only internally consistent, sufficiently matched continuation cohorts", () => {
+		expect(parseRouteContinuationComparison(routeContinuationRow)).toMatchObject({
+			controlSessions: 40,
+			exposedSessions: 40,
+			unmatchedControlSessions: 40,
+		});
+		expect(() =>
+			parseRouteContinuationComparison({
+				...routeContinuationRow,
+				control_continuation_percent: 99,
+			})
+		).toThrow("Inconsistent route continuation result");
+		expect(
+			parseRouteContinuationComparison({
+				...routeContinuationRow,
+				control_continued_sessions: 19,
+				control_continuation_percent: 65.5,
+				exposed_continued_sessions: 5,
+				exposed_continuation_percent: 17.2,
+				matched_control_sessions: 29,
+				matched_exposed_sessions: 29,
+				unmatched_control_sessions: 51,
+				unmatched_exposed_sessions: 21,
+			})
+		).toBeNull();
+		const nonmaterial = parseRouteContinuationComparison({
+				...routeContinuationRow,
+				control_continued_sessions: 36,
+				control_continuation_percent: 90,
+				exposed_continued_sessions: 32,
+				exposed_continuation_percent: 80,
+			});
+		expect(nonmaterial).toMatchObject({
+			percentagePointDifference: -10,
+		});
+		if (!nonmaterial) {
+			throw new Error("Expected structurally valid continuation cohort");
+		}
+		expect(hasMaterialRouteContinuation(nonmaterial)).toBe(false);
+	});
+
+	it("projects only aggregate continuation facts into a persisted measurement", () => {
+		const comparison = parseRouteContinuationComparison(routeContinuationRow);
+		if (!comparison) {
+			throw new Error("Expected matched continuation fixture");
+		}
+		expect(matchedErrorContinuationMeasurement(comparison)).toEqual({
+			type: "matched_error_continuation",
+			controlContinuationPercent: 60,
+			exposedContinuationPercent: 20,
+			matchedSessions: 40,
+		});
+	});
+
+	it("reuses a persisted continuation cohort instead of querying it again", async () => {
+		const calls: string[] = [];
+		const impact = await loadErrorCustomerImpact(
+			{
+				signal: {
+					...errorSignal,
+					cohortMeasurement: {
+						type: "matched_error_continuation",
+						controlContinuationPercent: 60,
+						exposedContinuationPercent: 20,
+						matchedSessions: 40,
+					},
+				},
+				timezone: "UTC",
+				websiteId: "site-1",
+			},
+			async (request) => {
+				calls.push(request.type);
+				return [row];
+			}
+		);
+
+		expect(calls).toEqual(["error_customer_impact"]);
+		expect(impact?.routeContinuation).toMatchObject({
+			controlContinuationPercent: 60,
+			exposedContinuationPercent: 20,
+			exposedSessions: 40,
+			percentagePointDifference: -40,
+		});
+	});
+
+	it("skips continuation analysis before the affected session cohort is usable", async () => {
+		const calls: string[] = [];
+		const impact = await loadErrorCustomerImpact(
+			{
+				signal: errorSignal,
+				timezone: "UTC",
+				websiteId: "site-1",
+			},
+			async (request) => {
+				calls.push(request.type);
+				return [
+					{
+						...row,
+						affected_sessions: 9,
+						affected_visitor_identifiers: 9,
+						identified_profiles: 0,
+						identified_profiles_with_prior_attributed_completed_payment: 0,
+						identity_coverage_percent: 0,
+						linked_visitor_identifiers: 0,
+						unlinked_visitor_identifiers: 9,
+					},
+				];
+			}
+		);
+
+		expect(impact?.routeContinuation).toBeNull();
+		expect(calls).toEqual(["error_customer_impact"]);
 	});
 
 	it("states payment matches as a lower bound and unknowns as unknown", () => {

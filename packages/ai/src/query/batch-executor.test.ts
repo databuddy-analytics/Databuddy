@@ -4,7 +4,6 @@ import type { RequestLogger } from "evlog";
 import { setAiRequestLoggerProvider } from "../lib/request-logger";
 import { QueryBuilders } from "./builders";
 import { SimpleQueryBuilder } from "./simple-builder";
-import type { QueryRequest } from "./types";
 
 const realClickHouseModule = { ...actualClickHouse };
 const realChQuery = realClickHouseModule.chQuery;
@@ -25,29 +24,27 @@ const {
 
 const lastSelectColumns = extractOuterSelectColumns;
 
-const COMPILE_REQUEST_OVERRIDES = {
-	error_customer_impact: {
-		filters: [
-			{
-				field: "message",
-				op: "eq",
-				value: "Failed to fetch dynamically imported module",
-			},
-		],
-	},
-} satisfies Partial<Record<string, Partial<QueryRequest>>>;
-
 function compileSql(type: string): string {
 	const config = QueryBuilders[type];
 	if (!config) {
 		throw new Error(`Missing config for ${type}`);
 	}
+	const requiredFilters = [
+		...new Set([
+			...(config.requiredFilters ?? []),
+			...(config.requiredAnyFilter?.slice(0, 1) ?? []),
+		]),
+	].map((field) => ({
+		field,
+		op: "eq" as const,
+		value: `${field}-required-value`,
+	}));
 	return new SimpleQueryBuilder(config, {
+		filters: requiredFilters,
 		projectId: "test-website",
 		type,
 		from: "2026-04-01",
 		to: "2026-04-11",
-		...COMPILE_REQUEST_OVERRIDES[type],
 	}).compile().sql;
 }
 
@@ -101,6 +98,9 @@ describe("batch-executor schema signatures", () => {
 			(types) => types.length > 1
 		);
 		expect(multiGroups.length).toBeGreaterThan(0);
+		expect(Array.from(groups.values()).flat()).toContain(
+			"error_route_continuation_comparison"
+		);
 	});
 
 	it("reports compatible queries for a builder with peers", () => {
@@ -301,6 +301,14 @@ describe("extractOuterSelectColumns", () => {
 				"WITH c AS (SELECT x FROM s) SELECT a, b FROM c"
 			)
 		).toEqual(["a", "b"]);
+	});
+
+	it("handles outer SELECTs with only scalar subqueries", () => {
+		expect(
+			extractOuterSelectColumns(
+				"SELECT (SELECT count() FROM t) AS total, 1 AS count"
+			)
+		).toEqual(["total", "count"]);
 	});
 
 	it("strips aliases", () => {

@@ -16,8 +16,12 @@ import {
 	insightRuns,
 	insightReplies,
 	type InsightRunItem,
-	type InsightRunStatus,
 } from "@databuddy/db/schema";
+import {
+	summarizeInsightRunItemErrors,
+	syncInsightRunStatus,
+	type InsightRunStatusSummary,
+} from "@databuddy/rpc/insight-generation";
 import {
 	enqueueInsightsResume,
 	getInsightsQueue,
@@ -43,17 +47,6 @@ type RecoverableItem = Pick<
 	InsightRunItem,
 	"id" | "queueJobId" | "runId" | "status" | "updatedAt"
 >;
-
-interface RunStatusSummary {
-	completedItems: number;
-	failedItems: number;
-	queuedItems: number;
-	runningItems: number;
-	settled: boolean;
-	skippedItems: number;
-	status: InsightRunStatus;
-	totalItems: number;
-}
 
 async function recoverStaleReplies(cutoff: Date): Promise<{
 	recovered: number;
@@ -206,106 +199,12 @@ export async function finalizeCompletedPreparedItem(
 	return updated.length === 1;
 }
 
-export function summarizeItemErrors(
-	items: Pick<InsightRunItem, "errorMessage" | "status">[]
-): string | null {
-	const counts = new Map<string, number>();
-	for (const item of items) {
-		if (item.status === "failed" && item.errorMessage) {
-			counts.set(item.errorMessage, (counts.get(item.errorMessage) ?? 0) + 1);
-		}
-	}
+export const summarizeItemErrors = summarizeInsightRunItemErrors;
 
-	let topMessage: string | null = null;
-	let topCount = 0;
-	for (const [message, count] of counts) {
-		if (count > topCount) {
-			topMessage = message;
-			topCount = count;
-		}
-	}
-	if (!topMessage) {
-		return null;
-	}
-
-	const otherTypes = counts.size - 1;
-	const suffix = otherTypes > 0 ? ` (+${otherTypes} other error types)` : "";
-	return `${topCount} item${topCount === 1 ? "" : "s"}: ${topMessage}${suffix}`;
-}
-
-export async function syncRunStatus(runId: string): Promise<RunStatusSummary> {
-	const summary = await db.transaction(async (tx) => {
-		await tx
-			.select({ id: insightRuns.id })
-			.from(insightRuns)
-			.where(eq(insightRuns.id, runId))
-			.limit(1)
-			.for("update");
-		const items = await tx
-			.select({
-				errorMessage: insightRunItems.errorMessage,
-				status: insightRunItems.status,
-			})
-			.from(insightRunItems)
-			.where(eq(insightRunItems.runId, runId));
-
-		const completedItems = items.filter(
-			(item) => item.status === "succeeded"
-		).length;
-		const failedItems = items.filter((item) => item.status === "failed").length;
-		const queuedItems = items.filter((item) => item.status === "queued").length;
-		const runningItems = items.filter(
-			(item) => item.status === "running"
-		).length;
-		const skippedItems = items.filter(
-			(item) => item.status === "skipped"
-		).length;
-		const settledItems = completedItems + failedItems + skippedItems;
-		const totalItems = items.length;
-		const settled = settledItems === totalItems;
-
-		let status: InsightRunStatus =
-			queuedItems === totalItems ? "queued" : "running";
-		if (totalItems === 0) {
-			status = "skipped";
-		} else if (settled) {
-			if (completedItems > 0 && failedItems === 0) {
-				status = "succeeded";
-			} else if (completedItems > 0) {
-				status = "partially_succeeded";
-			} else if (skippedItems === totalItems) {
-				status = "skipped";
-			} else {
-				status = "failed";
-			}
-		}
-
-		const now = new Date();
-		await tx
-			.update(insightRuns)
-			.set({
-				completedItems,
-				errorMessage:
-					settled && failedItems > 0 ? summarizeItemErrors(items) : null,
-				failedItems,
-				finishedAt: settled ? now : null,
-				skippedItems,
-				status,
-				updatedAt: now,
-			})
-			.where(eq(insightRuns.id, runId));
-
-		return {
-			completedItems,
-			failedItems,
-			queuedItems,
-			runningItems,
-			settled,
-			skippedItems,
-			status,
-			totalItems,
-		};
-	});
+export async function syncRunStatus(
+	runId: string
+): Promise<InsightRunStatusSummary> {
+	const summary = await syncInsightRunStatus(runId);
 
 	setInsightsLog({
 		run_status: summary.status,

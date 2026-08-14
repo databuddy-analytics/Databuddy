@@ -56,6 +56,9 @@ export default function OnboardingPage() {
 	const [currentStep, setCurrentStep] = useState(0);
 	const [completedSteps, setCompletedSteps] = useState<Set<string>>(new Set());
 	const [createdWebsiteId, setCreatedWebsiteId] = useState<string | null>(null);
+	const [firstReviewWebsiteId, setFirstReviewWebsiteId] = useState<
+		string | null
+	>(null);
 	const [attribution, setAttribution] =
 		useState<OnboardingAttributionProperties>(() =>
 			readOnboardingAttribution()
@@ -130,14 +133,18 @@ export default function OnboardingPage() {
 		[markComplete, goNext]
 	);
 
-	const handleTrackingComplete = useCallback(() => {
-		markComplete("tracking");
-		trackAppEvent(APP_EVENTS.onboardingStepCompleted, {
-			step: "tracking",
-			verified: true,
-		});
-		goNext();
-	}, [markComplete, goNext]);
+	const handleTrackingComplete = useCallback(
+		(verifiedWebsiteId: string) => {
+			setFirstReviewWebsiteId(verifiedWebsiteId);
+			markComplete("tracking");
+			trackAppEvent(APP_EVENTS.onboardingStepCompleted, {
+				step: "tracking",
+				verified: true,
+			});
+			goNext();
+		},
+		[markComplete, goNext]
+	);
 
 	const handleTeamComplete = useCallback(() => {
 		markComplete("team");
@@ -161,12 +168,16 @@ export default function OnboardingPage() {
 		if (pendingPlan) {
 			localStorage.removeItem("pendingPlanSelection");
 			router.replace(`/billing/plans?plan=${encodeURIComponent(pendingPlan)}`);
+		} else if (firstReviewWebsiteId) {
+			router.replace(
+				`/insights?firstReview=${encodeURIComponent(firstReviewWebsiteId)}`
+			);
 		} else if (websiteId) {
 			router.replace(`/websites/${websiteId}`);
 		} else {
 			router.replace("/websites");
 		}
-	}, [recordExploreComplete, router, websiteId]);
+	}, [firstReviewWebsiteId, recordExploreComplete, router, websiteId]);
 
 	const handleSkipOnboarding = useCallback(() => {
 		trackAppEvent(APP_EVENTS.onboardingSkipped, {
@@ -244,6 +255,7 @@ export default function OnboardingPage() {
 			case "explore":
 				return (
 					<StepExplore
+						hasVerifiedTracking={firstReviewWebsiteId !== null}
 						onComplete={handleExploreComplete}
 						onEnterProduct={recordExploreComplete}
 						websiteId={websiteId}

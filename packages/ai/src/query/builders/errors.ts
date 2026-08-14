@@ -203,7 +203,6 @@ export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 				{ name: "unlinked_visitor_identifiers", type: "number" },
 				{ name: "ambiguous_profile_sessions", type: "number" },
 				{ name: "identity_coverage_percent", type: "number", unit: "%" },
-				{ name: "sessions_with_later_telemetry", type: "number" },
 				{
 					name: "identified_profiles_with_prior_attributed_completed_payment",
 					type: "number",
@@ -340,21 +339,6 @@ export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 						LEFT JOIN session_identity session
 							ON matched.session_id = session.session_id
 					),
-					last_error_by_session AS (
-						SELECT session_id, max(timestamp) AS last_error_at
-						FROM matched_errors
-						WHERE session_id != ''
-						GROUP BY session_id
-					),
-					later_telemetry_sessions AS (
-						SELECT DISTINCT event.session_id
-						FROM ${Analytics.events} event
-						INNER JOIN last_error_by_session matched
-							ON event.session_id = matched.session_id
-						WHERE event.client_id = {websiteId:String}
-							AND event.time > matched.last_error_at
-							AND event.time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-					),
 					affected_profiles AS (
 						SELECT resolved_profile_id, min(first_error_at) AS first_error_at
 						FROM identity_rows
@@ -397,11 +381,268 @@ export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 								1
 							)
 						) AS identity_coverage_percent,
-						toUInt64((SELECT count() FROM later_telemetry_sessions)) AS sessions_with_later_telemetry,
 						toUInt64((SELECT count() FROM affected_paying_profiles)) AS identified_profiles_with_prior_attributed_completed_payment,
 						toUInt8((SELECT count() FROM paying_profiles) > 0) AS qualifying_profile_payment_history_observed,
 						toUInt8(1) AS payment_match_is_lower_bound
 					FROM identity_rows
+				`,
+				params: {
+					websiteId,
+					startDate,
+					endDate,
+					...filterParams,
+				},
+			};
+		},
+		customizable: false,
+		noCache: true,
+		requiredAnyFilter: ["message", "path"],
+		timeField: "timestamp",
+	},
+
+	error_route_continuation_comparison: {
+		meta: {
+			description:
+				"Privacy-safe aggregate continuation comparison for one exact error fingerprint or canonical route. It matches error-exposed sessions to same-route, day, device, and browser sessions without that exact error, then measures a different screen view within ten minutes. It is association evidence, never proof of causation.",
+			category: "Errors",
+			tags: ["errors", "behavior", "continuation", "internal"],
+			output_fields: [
+				{ name: "candidate_exposed_sessions", type: "number" },
+				{ name: "candidate_control_sessions", type: "number" },
+				{ name: "matched_exposed_sessions", type: "number" },
+				{ name: "matched_control_sessions", type: "number" },
+				{ name: "unmatched_exposed_sessions", type: "number" },
+				{ name: "unmatched_control_sessions", type: "number" },
+				{ name: "exposed_continued_sessions", type: "number" },
+				{ name: "control_continued_sessions", type: "number" },
+				{
+					name: "exposed_continuation_percent",
+					type: "number",
+					unit: "%",
+				},
+				{
+					name: "control_continuation_percent",
+					type: "number",
+					unit: "%",
+				},
+			],
+		},
+		allowedFilters: ["message", "path"],
+		allowedFilterOperators: { message: ["eq"], path: ["eq"] },
+		customSql: (ctx) => {
+			const {
+				websiteId,
+				startDate,
+				endDate,
+				filters,
+				filterConditions,
+				filterParams,
+			} = ctx;
+			const selectors = (filters ?? []).filter(
+				(filter) => !(filter.having || filter.target)
+			);
+			if (
+				selectors.length !== 1 ||
+				(selectors[0]?.field !== "message" && selectors[0]?.field !== "path") ||
+				selectors[0]?.op !== "eq" ||
+				Array.isArray(selectors[0].value)
+			) {
+				throw new Error(
+					"error_route_continuation_comparison requires one scalar message or path equality filter"
+				);
+			}
+			const filterClause = appendFilterClause(filterConditions);
+			const normalizedPath =
+				"if(trimRight(path(path), '/') = '', '/', trimRight(path(path), '/'))";
+
+			return {
+				sql: `
+					WITH
+						toDateTime({startDate:String}) AS period_start,
+						toDateTime(concat({endDate:String}, ' 23:59:59')) AS period_end,
+						period_end - INTERVAL 10 MINUTE AS latest_entry_at,
+						matched_route_errors AS (
+							SELECT
+								session_id,
+								timestamp,
+								${normalizedPath} AS route
+							FROM ${Analytics.error_spans}
+							WHERE client_id = {websiteId:String}
+								AND session_id != ''
+								AND path != ''
+								AND timestamp >= period_start
+								AND timestamp <= period_end
+								${filterClause}
+						),
+						route_screen_views AS (
+							SELECT
+								session_id,
+								time AS route_view_at,
+								${normalizedPath} AS route,
+								toDate(time) AS route_day,
+								lower(ifNull(device_type, 'unknown')) AS device_type,
+								lower(ifNull(browser_name, 'unknown')) AS browser_name
+							FROM ${Analytics.events}
+							WHERE client_id = {websiteId:String}
+								AND event_name = 'screen_view'
+								AND session_id != ''
+								AND time >= period_start
+								AND time <= latest_entry_at
+								AND ${normalizedPath} IN (
+									SELECT DISTINCT route FROM matched_route_errors
+								)
+						),
+						qualified_exposures AS (
+							SELECT
+								view.session_id,
+								view.route,
+								view.route_day,
+								view.device_type,
+								view.browser_name,
+								min(error.timestamp) AS error_at
+							FROM route_screen_views view
+							INNER JOIN matched_route_errors error
+								ON view.session_id = error.session_id
+								AND view.route = error.route
+							WHERE error.timestamp >= view.route_view_at
+								AND error.timestamp <= view.route_view_at + INTERVAL 30 SECOND
+								AND error.timestamp <= period_end - INTERVAL 10 MINUTE
+							GROUP BY
+								view.session_id,
+								view.route,
+								view.route_day,
+								view.device_type,
+								view.browser_name
+						),
+						exposed_sessions AS (
+							SELECT
+								session_id,
+								argMin(route, error_at) AS route,
+								argMin(route_day, error_at) AS route_day,
+								argMin(device_type, error_at) AS device_type,
+								argMin(browser_name, error_at) AS browser_name,
+								min(error_at) AS outcome_at
+							FROM qualified_exposures
+							GROUP BY session_id
+						),
+						control_sessions AS (
+							SELECT
+								session_id,
+								argMin(route, route_view_at) AS route,
+								argMin(route_day, route_view_at) AS route_day,
+								argMin(device_type, route_view_at) AS device_type,
+								argMin(browser_name, route_view_at) AS browser_name,
+								min(route_view_at) AS outcome_at
+							FROM route_screen_views view
+							WHERE view.session_id NOT IN (
+								SELECT session_id
+								FROM matched_route_errors
+							)
+							GROUP BY session_id
+						),
+						exposed_by_stratum AS (
+							SELECT route, route_day, device_type, browser_name, count() AS sessions
+							FROM exposed_sessions
+							GROUP BY route, route_day, device_type, browser_name
+						),
+						controls_by_stratum AS (
+							SELECT route, route_day, device_type, browser_name, count() AS sessions
+							FROM control_sessions
+							GROUP BY route, route_day, device_type, browser_name
+						),
+						ranked_exposed_sessions AS (
+							SELECT
+								exposed.*,
+								row_number() OVER (
+									PARTITION BY route, route_day, device_type, browser_name
+									ORDER BY cityHash64(session_id)
+								) AS rank_in_stratum
+							FROM exposed_sessions exposed
+						),
+						ranked_control_sessions AS (
+							SELECT
+								control.*,
+								row_number() OVER (
+									PARTITION BY route, route_day, device_type, browser_name
+									ORDER BY cityHash64(session_id)
+								) AS rank_in_stratum
+							FROM control_sessions control
+						),
+						matched_exposed_sessions AS (
+							SELECT exposed.*
+							FROM ranked_exposed_sessions exposed
+							INNER JOIN controls_by_stratum control
+								ON exposed.route = control.route
+								AND exposed.route_day = control.route_day
+								AND exposed.device_type = control.device_type
+								AND exposed.browser_name = control.browser_name
+							WHERE exposed.rank_in_stratum <= control.sessions
+						),
+						matched_control_sessions AS (
+							SELECT control.*
+							FROM ranked_control_sessions control
+							INNER JOIN exposed_by_stratum exposed
+								ON control.route = exposed.route
+								AND control.route_day = exposed.route_day
+								AND control.device_type = exposed.device_type
+								AND control.browser_name = exposed.browser_name
+							WHERE control.rank_in_stratum <= exposed.sessions
+						),
+						continued_exposed_sessions AS (
+							SELECT DISTINCT exposed.session_id
+							FROM ${Analytics.events} event
+							INNER JOIN matched_exposed_sessions exposed
+								ON event.session_id = exposed.session_id
+							WHERE event.client_id = {websiteId:String}
+								AND event.event_name = 'screen_view'
+								AND event.time >= period_start
+								AND event.time <= period_end
+								AND event.time > exposed.outcome_at
+								AND event.time <= exposed.outcome_at + INTERVAL 10 MINUTE
+								AND ${normalizedPath} != exposed.route
+						),
+						continued_control_sessions AS (
+							SELECT DISTINCT control.session_id
+							FROM ${Analytics.events} event
+							INNER JOIN matched_control_sessions control
+								ON event.session_id = control.session_id
+							WHERE event.client_id = {websiteId:String}
+								AND event.event_name = 'screen_view'
+								AND event.time >= period_start
+								AND event.time <= period_end
+								AND event.time > control.outcome_at
+								AND event.time <= control.outcome_at + INTERVAL 10 MINUTE
+								AND ${normalizedPath} != control.route
+						)
+					SELECT
+						toUInt64((SELECT count() FROM exposed_sessions)) AS candidate_exposed_sessions,
+						toUInt64((SELECT count() FROM control_sessions)) AS candidate_control_sessions,
+						toUInt64((SELECT count() FROM matched_exposed_sessions)) AS matched_exposed_sessions,
+						toUInt64((SELECT count() FROM matched_control_sessions)) AS matched_control_sessions,
+						toUInt64((SELECT count() FROM exposed_sessions))
+							- toUInt64((SELECT count() FROM matched_exposed_sessions)) AS unmatched_exposed_sessions,
+						toUInt64((SELECT count() FROM control_sessions))
+							- toUInt64((SELECT count() FROM matched_control_sessions)) AS unmatched_control_sessions,
+						toUInt64((SELECT count() FROM continued_exposed_sessions)) AS exposed_continued_sessions,
+						toUInt64((SELECT count() FROM continued_control_sessions)) AS control_continued_sessions,
+						if(
+							(SELECT count() FROM matched_exposed_sessions) = 0,
+							0,
+							round(
+								100 * (SELECT count() FROM continued_exposed_sessions)
+									/ (SELECT count() FROM matched_exposed_sessions),
+								1
+							)
+						) AS exposed_continuation_percent,
+						if(
+							(SELECT count() FROM matched_control_sessions) = 0,
+							0,
+							round(
+								100 * (SELECT count() FROM continued_control_sessions)
+									/ (SELECT count() FROM matched_control_sessions),
+								1
+							)
+						) AS control_continuation_percent
 				`,
 				params: {
 					websiteId,

@@ -30,7 +30,7 @@ import {
 	StatusDot,
 	Textarea,
 } from "@databuddy/ui";
-import { ExecuteGoalAction } from "../_components/investigation-row";
+import { ExecuteDefinitionAction } from "../_components/investigation-row";
 
 type TimelineItem = InsightByIdResponse["timeline"][number];
 type InvestigationItem = Extract<TimelineItem, { kind: "investigation" }>;
@@ -40,6 +40,7 @@ export default function InsightDetailPage() {
 	const params = useParams();
 	const router = useRouter();
 	const insightId = typeof params.id === "string" ? params.id : "";
+	const [replyOpen, setReplyOpen] = useState(false);
 
 	const { data, isLoading, isError } = useQuery({
 		...insightQueries.byId(insightId || undefined),
@@ -100,7 +101,7 @@ export default function InsightDetailPage() {
 								</span>
 							</div>
 							<h2 className="text-pretty font-semibold text-base text-foreground leading-snug sm:text-lg">
-								{latest?.subject ?? insight.title}
+								{latest?.entity.label ?? insight.title}
 							</h2>
 						</header>
 						<CaseState items={data?.timeline ?? []} latest={latest ?? null} />
@@ -109,6 +110,8 @@ export default function InsightDetailPage() {
 							insightId={insight.id}
 							isResolved={insight.status === "resolved"}
 							items={data?.timeline ?? []}
+							replyOpen={replyOpen}
+							onReplyOpenChange={setReplyOpen}
 							websiteId={insight.websiteId}
 						/>
 					</Card>
@@ -154,37 +157,25 @@ function CaseState({
 		reported &&
 		reported.status !== "failed" &&
 		reported.createdAt > latest.createdAt;
-	const copy = verifying
-		? {
-				body:
-					latest.outcome.next.type === "act"
-						? latest.outcome.next.verification
-						: "Databuddy is checking the latest context.",
-				label: "Measuring",
-			}
-		: nextCopy(latest.outcome.next);
+	const label = verifying
+		? "Measuring"
+		: latest.outcome.next.type === "act"
+			? "Needs attention"
+			: latest.outcome.next.type === "ask"
+				? "Needs your input"
+				: latest.outcome.next.type === "watch"
+					? "Measuring"
+					: "Verified";
 
 	return (
 		<section
 			className="border-b bg-muted/20 px-4 py-4 sm:px-5"
 			aria-label="Current state"
 		>
-			<div className="flex flex-wrap items-start justify-between gap-3">
-				<div className="min-w-0">
-					<p className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
-						{copy.label}
-					</p>
-					{"body" in copy ? (
-						<p className="mt-1 text-foreground text-sm leading-relaxed">
-							{copy.body}
-						</p>
-					) : null}
-					{"detail" in copy && copy.detail ? (
-						<p className="mt-1.5 text-muted-foreground text-xs leading-relaxed">
-							{copy.detail}
-						</p>
-					) : null}
-				</div>
+			<div className="flex items-center justify-between gap-3">
+				<p className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
+					{label}
+				</p>
 				<StatusDot
 					color={
 						verifying
@@ -204,12 +195,16 @@ function CaseActivity({
 	insightId,
 	isResolved,
 	items,
+	onReplyOpenChange,
+	replyOpen,
 	websiteId,
 }: {
 	canReply: boolean;
 	insightId: string;
 	isResolved: boolean;
 	items: TimelineItem[];
+	onReplyOpenChange: (open: boolean) => void;
+	replyOpen: boolean;
 	websiteId: string;
 }) {
 	const queryClient = useQueryClient();
@@ -293,7 +288,12 @@ function CaseActivity({
 			) : null}
 
 			{canReply && !isResolved && (
-				<ContextReply disabled={active} insightId={insightId} />
+				<ContextReply
+					disabled={active}
+					insightId={insightId}
+					onOpenChange={onReplyOpenChange}
+					open={replyOpen}
+				/>
 			)}
 		</section>
 	);
@@ -405,9 +405,16 @@ function InvestigationActivity({
 	websiteId: string;
 }) {
 	const { outcome } = item;
-	const sourceHref = investigationSourceHref(item, websiteId);
+	const sourceLink = investigationSourceLink(item, websiteId);
 	const execution =
 		outcome.next.type === "act" ? outcome.next.execution : undefined;
+	const definitionType =
+		item.entity.type === "goal" || item.entity.type === "funnel"
+			? item.entity.type
+			: null;
+	const executable = Boolean(
+		insightId && execution?.operation && definitionType
+	);
 
 	return (
 		<div className="space-y-3">
@@ -458,17 +465,27 @@ function InvestigationActivity({
 			<Evidence
 				evidence={outcome.evidence}
 				initiallyCollapsed={collapseEvidence}
-				sourceHref={sourceHref}
+				sourceHref={
+					outcome.next.type === "act" && !executable
+						? null
+						: (sourceLink?.href ?? null)
+				}
 			/>
 
 			<NextStep
-				hideAction={Boolean(execution?.operation)}
+				hideAction={executable}
 				next={outcome.next}
+				sourceLink={sourceLink}
 			/>
 
-			{insightId && execution?.operation ? (
+			{insightId && execution?.operation && definitionType ? (
 				<div className="flex flex-wrap">
-					<ExecuteGoalAction execution={execution} insightId={insightId} />
+					<ExecuteDefinitionAction
+						action={outcome.next.type === "act" ? outcome.next.action : ""}
+						definitionType={definitionType}
+						execution={execution}
+						insightId={insightId}
+					/>
 				</div>
 			) : null}
 		</div>
@@ -534,36 +551,37 @@ function Evidence({
 	);
 }
 
-function investigationSourceHref(
+function investigationSourceLink(
 	item: InvestigationItem,
 	websiteId: string
-): string {
+): { href: string; label: string } | null {
 	const base = `/websites/${encodeURIComponent(websiteId)}`;
 	switch (item.entity.type) {
 		case "event":
-			return `${base}/events/${encodeURIComponent(item.entity.id)}`;
-		case "error":
-			return `${base}/errors`;
+			return {
+				href: `${base}/events/${encodeURIComponent(item.entity.id)}`,
+				label: "Open event",
+			};
 		case "funnel":
 		case "funnel_step":
-			return `${base}/funnels`;
+			return { href: `${base}/funnels`, label: "Open funnel" };
 		case "goal":
-			return `${base}/goals`;
-		case "vital":
-			return `${base}/vitals`;
+			return { href: `${base}/goals`, label: "Open goal" };
 		default:
-			return base;
+			return null;
 	}
 }
 
 function NextStep({
 	hideAction,
 	next,
+	sourceLink,
 }: {
 	hideAction: boolean;
 	next: InvestigationNext;
+	sourceLink: { href: string; label: string } | null;
 }) {
-	const copy = nextCopy(next);
+	const copy = nextCopy(next, { executable: hideAction });
 	return (
 		<div className="rounded-md border border-primary/15 bg-primary/5 px-3 py-3">
 			<p className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
@@ -579,6 +597,16 @@ function NextStep({
 					{copy.detail}
 				</p>
 			)}
+			{next.type === "act" && !hideAction && sourceLink ? (
+				<div className="mt-2">
+					<Button asChild size="sm" variant="secondary">
+						<Link href={sourceLink.href}>
+							{sourceLink.label}
+							<ArrowSquareOutIcon aria-hidden className="size-3.5" />
+						</Link>
+					</Button>
+				</div>
+			) : null}
 		</div>
 	);
 }
@@ -586,23 +614,25 @@ function NextStep({
 function ContextReply({
 	disabled,
 	insightId,
+	onOpenChange,
+	open,
 }: {
 	disabled: boolean;
 	insightId: string;
+	onOpenChange: (open: boolean) => void;
+	open: boolean;
 }) {
-	const [open, setOpen] = useState(false);
-
 	if (!open) {
 		return (
-			<div className="border-t px-4 py-2 sm:px-5">
+			<div className="border-t px-4 py-2 sm:px-5" id="context-reply">
 				<Button
 					disabled={disabled}
-					onClick={() => setOpen(true)}
+					onClick={() => onOpenChange(true)}
 					size="sm"
 					type="button"
 					variant="ghost"
 				>
-					Add context
+					Reply with context
 				</Button>
 			</div>
 		);
@@ -612,7 +642,7 @@ function ContextReply({
 		<ReplyComposer
 			disabled={disabled}
 			insightId={insightId}
-			onClose={() => setOpen(false)}
+			onClose={() => onOpenChange(false)}
 		/>
 	);
 }
@@ -714,7 +744,10 @@ function formatPeriod(period: { from: string; to: string }): string {
 	return from === to ? from : `${from}–${to}`;
 }
 
-function nextCopy(next: InvestigationNext): {
+function nextCopy(
+	next: InvestigationNext,
+	options?: { executable?: boolean }
+): {
 	body: string;
 	detail?: string;
 	label: string;
@@ -726,7 +759,7 @@ function nextCopy(next: InvestigationNext): {
 				detail: [`Checks: ${next.verification}`, scheduledRecheck(next)]
 					.filter(Boolean)
 					.join(" · "),
-				label: "Needs you",
+				label: options?.executable ? "Ready to apply" : "Review needed",
 			};
 		case "ask":
 			return {

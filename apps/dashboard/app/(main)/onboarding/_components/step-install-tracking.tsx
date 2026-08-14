@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createHighlighterCoreSync } from "shiki/core";
 import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
 import bash from "shiki/langs/bash.mjs";
@@ -314,7 +314,7 @@ function CodeBlock({
 }
 
 interface StepInstallTrackingProps {
-	onComplete: () => void;
+	onComplete: (websiteId: string) => void;
 	websiteId: string;
 }
 
@@ -324,16 +324,36 @@ export function StepInstallTracking({
 }: StepInstallTrackingProps) {
 	const [copiedBlockId, setCopiedBlockId] = useState<string | null>(null);
 	const [isRefreshing, setIsRefreshing] = useState(false);
+	const verifiedWebsiteRef = useRef<string | null>(null);
 
 	const trackingCode = generateScriptTag(websiteId, RECOMMENDED_DEFAULTS);
 	const npmCode = generateNpmCode(websiteId, RECOMMENDED_DEFAULTS);
 
-	const { data: trackingSetupData, refetch: refetchTrackingSetup } = useQuery({
+	const {
+		data: trackingSetupData,
+		isError: isTrackingSetupError,
+		isLoading: isTrackingSetupLoading,
+		refetch: refetchTrackingSetup,
+	} = useQuery({
 		...orpc.websites.isTrackingSetup.queryOptions({ input: { websiteId } }),
 		enabled: !!websiteId,
 	});
 
 	const isSetup = trackingSetupData?.tracking_setup ?? false;
+	const notifyTrackingVerified = useCallback(() => {
+		if (verifiedWebsiteRef.current === websiteId) {
+			return;
+		}
+		verifiedWebsiteRef.current = websiteId;
+		trackAppEvent(APP_EVENTS.onboardingTrackingVerified);
+		onComplete(websiteId);
+	}, [onComplete, websiteId]);
+
+	useEffect(() => {
+		if (isSetup) {
+			notifyTrackingVerified();
+		}
+	}, [isSetup, notifyTrackingVerified]);
 
 	const handleCopy = async (code: string, blockId: string, message: string) => {
 		const copied = await copyTextToClipboard(code);
@@ -360,10 +380,12 @@ export function StepInstallTracking({
 		trackAppEvent(APP_EVENTS.onboardingTrackingCheckStatus);
 		try {
 			const result = await refetchTrackingSetup();
+			if (result.isError) {
+				throw result.error;
+			}
 			if (result.data?.tracking_setup) {
 				toast.success("Tracking verified! Data is flowing.");
-				trackAppEvent(APP_EVENTS.onboardingTrackingVerified);
-				onComplete();
+				notifyTrackingVerified();
 			} else {
 				toast.info("No tracking detected yet. Check your installation.");
 			}
@@ -393,32 +415,59 @@ export function StepInstallTracking({
 			<Card
 				className={cn(
 					"gap-0 overflow-hidden py-0",
-					isSetup
-						? "border-success/30 bg-success/5"
-						: "border-amber-500/30 bg-amber-500/5"
+					isTrackingSetupError
+						? "border-destructive/30 bg-destructive/5"
+						: isSetup
+							? "border-success/30 bg-success/5"
+							: "border-warning/30 bg-warning/5"
 				)}
 			>
 				<Card.Content className="flex items-center justify-between p-3">
 					<div className="flex items-center gap-3">
-						{isSetup ? (
+						{isTrackingSetupError ? (
+							<WarningCircleIcon
+								className="size-5 text-destructive"
+								weight="duotone"
+							/>
+						) : isSetup ? (
 							<PulseIcon className="size-5 text-success" weight="duotone" />
 						) : (
 							<WarningCircleIcon
-								className="size-5 text-amber-500"
+								className="size-5 text-warning"
 								weight="duotone"
 							/>
 						)}
 						<div className="flex items-center gap-2">
 							<span className="font-medium text-sm">
-								{isSetup ? "Tracking Active" : "Awaiting Installation"}
+								{isTrackingSetupError
+									? "Couldn't check tracking"
+									: isSetup
+										? "Tracking Active"
+										: isTrackingSetupLoading
+											? "Checking tracking"
+											: "Awaiting Installation"}
 							</span>
-							<Badge variant={isSetup ? "success" : "warning"}>
-								{isSetup ? "Live" : "Pending"}
+							<Badge
+								variant={
+									isTrackingSetupError
+										? "destructive"
+										: isSetup
+											? "success"
+											: "warning"
+								}
+							>
+								{isTrackingSetupError
+									? "Try again"
+									: isSetup
+										? "Live"
+										: isTrackingSetupLoading
+											? "Checking"
+											: "Pending"}
 							</Badge>
 						</div>
 					</div>
 					<Button
-						disabled={isRefreshing}
+						disabled={isRefreshing || isTrackingSetupLoading}
 						onClick={handleCheckStatus}
 						size="sm"
 						variant="outline"
@@ -427,7 +476,11 @@ export function StepInstallTracking({
 							className={cn("size-3.5", isRefreshing && "animate-spin")}
 							weight="bold"
 						/>
-						{isRefreshing ? "Checking..." : "Check Status"}
+						{isRefreshing || isTrackingSetupLoading
+							? "Checking..."
+							: isTrackingSetupError
+								? "Try again"
+								: "Check Status"}
 					</Button>
 				</Card.Content>
 			</Card>

@@ -186,6 +186,23 @@ describe("Slack investigation detail", () => {
 			},
 			signal
 		);
+		const structuredWatch = buildInsightReplyText(
+			{
+				...outcome,
+				next: {
+					escalation:
+						"Escalate when Pricing goal completion is below 20 (prior baseline).",
+					recheckAt: "2026-07-20T00:00:00.000Z",
+					threshold: {
+						anchor: "prior_baseline",
+						comparison: "below",
+						value: 20,
+					},
+					type: "watch",
+				},
+			},
+			signal
+		);
 		const resolved = buildInsightReplyText(
 			{
 				...outcome,
@@ -214,6 +231,11 @@ describe("Slack investigation detail", () => {
 		expect(action).toContain("&lt;@U123&gt;");
 		expect(question).toStartWith("*Question ·");
 		expect(watching).toStartWith("*Watching ·");
+		expect(watching).toContain("Watch Pricing goal completion.");
+		expect(structuredWatch).toContain(
+		"*Next:* Escalate when Pricing goal completion is below 20 (prior baseline)."
+	);
+		expect(structuredWatch).not.toContain("Watch Pricing goal completion");
 		expect(resolved).toStartWith("*Resolved ·");
 		expect(recommended).toContain(
 			"*Recommended:* Rename Pricing viewers to All billing navigation."

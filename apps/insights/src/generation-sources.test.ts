@@ -4,6 +4,7 @@ import type { InvestigationOutcome } from "@databuddy/shared/insights";
 import { InsightAgentGenerationError } from "./agent";
 import type { DetectedSignal } from "./detection";
 import {
+	type InvestigationCoverage,
 	type InvestigationSources,
 	investigateWebsitePortfolioWithSources,
 	resolveInvestigationAsOf,
@@ -90,6 +91,7 @@ function fixtureSources(
 		investigateSignal: unexpected,
 		loadDueInvestigation: unexpected,
 		loadErrorCustomerImpact: async () => null,
+		loadRouteVitalContinuation: async () => null,
 		loadHistory: unexpected,
 		loadOtherOpenWork: async () => [],
 		loadObservations: unexpected,
@@ -172,19 +174,33 @@ describe("fixture investigation sources", () => {
 			loadObservations: async () => new Map(),
 		});
 
+		let coverage: InvestigationCoverage | null = null;
 		const artifacts = await investigateWebsitePortfolioWithSources(
 			fixtureInput,
 			sources,
-			"manual"
+			"manual",
+			undefined,
+			(nextCoverage) => {
+				coverage = nextCoverage;
+			}
 		);
 
 		expect(artifacts).toHaveLength(3);
 		expect(seen.map((item) => item.signal)).toEqual([
-			"goal:checkout",
 			"route:error:/explore",
 			"visitors",
+			"goal:checkout",
 		]);
 		expect(seen.every((item) => item.related.length === 2)).toBe(true);
+		expect(coverage).toMatchObject({
+			completed: { general: 1, goal: 1, reliability: 1 },
+			detected: { general: 1, goal: 1, reliability: 1 },
+			eligible: { general: 1, goal: 1, reliability: 1 },
+			noSignalReason: null,
+			published: { general: 0, goal: 0, reliability: 0 },
+			selected: { general: 1, goal: 1, reliability: 1 },
+		});
+		expect(JSON.stringify(coverage)).not.toContain("/explore");
 	});
 
 	it("finishes sibling candidates before retrying a failed agent candidate", async () => {
@@ -246,9 +262,9 @@ describe("fixture investigation sources", () => {
 			)
 		).rejects.toThrow("Model returned malformed structured output");
 		expect(attempted).toEqual([
-			"goal:checkout",
 			"route:error:/explore",
 			"visitors",
+			"goal:checkout",
 		]);
 	});
 
@@ -296,7 +312,6 @@ describe("fixture investigation sources", () => {
 				linkedVisitorIdentifiers: 0,
 				paymentMatchIsLowerBound: true,
 				qualifyingProfilePaymentHistoryObserved: false,
-				sessionsWithLaterTelemetry: 20,
 				scope: "route",
 				unlinkedVisitorIdentifiers: 35,
 			}),
@@ -321,6 +336,70 @@ describe("fixture investigation sources", () => {
 				item.includes("affected payment status remains unknown")
 			)
 		).toBe(true);
+		expect(artifact.evidence).toEqual(received?.evidence ?? []);
+	});
+
+	it("adds supplied route-vital continuation evidence before a slow route reaches the agent", async () => {
+		const slowRoute: DetectedSignal = {
+			...trafficDrop,
+			baseline: 5_000,
+			current: 7_200,
+			deltaPercent: 44,
+			direction: "up",
+			entityId: "/sign-in",
+			entityLabel: "Route /sign-in",
+			label: "Page load time (LCP) on /sign-in",
+			metric: "lcp",
+			severity: "warning",
+			subjectKey: "route:lcp:/sign-in",
+		};
+		let received: Parameters<InvestigationSources["investigateSignal"]>[0] | null =
+			null;
+		let continuationCalls = 0;
+		const outcome: InvestigationOutcome = {
+			evidence: ["The matched route cohort was measured."],
+			impact: null,
+			next: { reason: "No case is required in this fixture.", type: "resolve" },
+			rootCause: null,
+			summary: "The sign-in route was slow in the comparison window.",
+			title: "Sign-in route was slow",
+		};
+		const sources = fixtureSources({
+			detectDefinitionSignals: async () => [],
+			detectMetricSignals: async () => [],
+			detectRouteHealthSignals: async () => [slowRoute],
+			fetchAnnotations: async () => [],
+			investigateSignal: async (input) => {
+				received = input;
+				return { outcome, toolCallCount: 0 };
+			},
+			loadDueInvestigation: async () => null,
+			loadHistory: async () => [],
+			loadObservations: async () => new Map(),
+			loadRouteVitalContinuation: async ({ signal, websiteId }) => {
+				continuationCalls += 1;
+				expect(signal.signalKey).toBe("route:lcp:/sign-in");
+				expect(websiteId).toBe("fixture-site");
+				return {
+					comparison: {
+						controlContinuationPercent: 50,
+						controlSessions: 60,
+						exposedContinuationPercent: 20,
+						exposedSessions: 60,
+						percentagePointDifference: -30,
+						unmatchedControlSessions: 20,
+						unmatchedExposedSessions: 40,
+					},
+					metric: "LCP",
+					route: "/sign-in",
+				};
+			},
+		});
+
+		const artifact = await investigateFixture(sources);
+
+		expect(continuationCalls).toBe(1);
+		expect(received?.hasQualifiedRouteVitalContinuation).toBe(true);
 		expect(artifact.evidence).toEqual(received?.evidence ?? []);
 	});
 
@@ -382,7 +461,7 @@ describe("fixture investigation sources", () => {
 				"manual"
 			)
 		).rejects.toThrow("Annotation storage unavailable");
-		expect(annotationCalls).toEqual(["goal:checkout"]);
+		expect(annotationCalls).toEqual(["visitors"]);
 		expect(attempted).toEqual([]);
 	});
 
@@ -492,10 +571,10 @@ describe("fixture investigation sources", () => {
 			owner: "databuddy-analytics",
 			repo: "app",
 		});
-		expect(receivedRelatedMetrics).toEqual([
-			"revenue",
-			"measurement:conversion-coverage",
-		]);
+			expect(receivedRelatedMetrics).toEqual([
+				"measurement:conversion-coverage",
+				"revenue",
+			]);
 		expect(calls.sort()).toEqual(
 			[
 				"agent:visitors",
@@ -563,13 +642,26 @@ describe("fixture investigation sources", () => {
 
 	it("passes the detector's safe measurement candidate to the agent", async () => {
 		let candidate: unknown;
+		let setupCandidate: unknown;
+		const candidateWithTrackingSetup: DetectedSignal = {
+			...measurementCoverage,
+			setupRecommendationCandidate: {
+				action:
+					"Confirm this site is still active; if it is, install or repair the Databuddy tracker before relying on its analytics.",
+				feature: "tracking",
+				kind: "databuddy_setup",
+			},
+		};
 		const sources = fixtureSources({
 			detectDefinitionSignals: async () => [],
-			detectMeasurementRecommendationSignals: async () => [measurementCoverage],
+			detectMeasurementRecommendationSignals: async () => [
+				candidateWithTrackingSetup,
+			],
 			detectMetricSignals: async () => [],
 			fetchAnnotations: async () => [],
 			investigateSignal: async (input) => {
 				candidate = input.measurementCandidate;
+				setupCandidate = input.setupRecommendationCandidate;
 				return {
 					outcome: {
 						evidence: ["A completion event was observed."],
@@ -597,80 +689,46 @@ describe("fixture investigation sources", () => {
 			"measurement:conversion-coverage"
 		);
 		expect(candidate).toEqual(measurementCoverage.measurementCandidate);
+		expect(setupCandidate).toEqual(
+			candidateWithTrackingSetup.setupRecommendationCandidate
+		);
 	});
 
-	it("investigates an informational change for the brief", async () => {
-		let investigated: string | undefined;
+	it("keeps informational traffic context-only even in a manual run", async () => {
 		const sources = fixtureSources({
 			loadDueInvestigation: async () => null,
 			detectDefinitionSignals: async () => [],
 			detectMetricSignals: async () => [
 				{ ...trafficDrop, severity: "info" },
 			],
-			fetchAnnotations: async () => [],
-			investigateSignal: async (input) => {
-				investigated = input.signal.signalKey;
-				return {
-					outcome: {
-						evidence: ["Visitors fell in the measured period."],
-						impact: null,
-						next: {
-							escalation:
-								"Escalate if the decline continues into the next period.",
-							type: "watch",
-						},
-						publish: true,
-						rootCause: null,
-						summary: "Visitors fell, without a confirmed broken workflow.",
-						title: "Visitor traffic declined",
-					},
-					toolCallCount: 1,
-				};
+			investigateSignal: async () => {
+				throw new Error("Informational traffic must not reach the agent");
 			},
 			loadHistory: async () => [],
 			loadObservations: async () => new Map(),
 		});
 
-		const artifact = await investigateFixture(sources);
-
-		expect(investigated).toBe("visitors");
-		expect(artifact).toMatchObject({
-			signal: { signalKey: "visitors" },
-			status: "completed",
-		});
-	});
-
-	it("investigates an improvement for the brief", async () => {
-		const sources = fixtureSources({
-			loadDueInvestigation: async () => null,
-			detectDefinitionSignals: async () => [],
-			detectMetricSignals: async () => [revenueIncrease],
-			fetchAnnotations: async () => [],
-			investigateSignal: async (input) => ({
-				outcome: {
-					evidence: ["Revenue rose from 100 to 140."],
-					impact: "Revenue increased by 40 in the comparison window.",
-					next: {
-						reason: "The improvement does not require corrective work.",
-						type: "resolve",
-					},
-					publish: true,
-					rootCause: null,
-					summary: "Revenue increased from 100 to 140.",
-					title: "Revenue improved",
-				},
-				toolCallCount: 1,
-			}),
-			loadHistory: async () => [],
-			loadObservations: async () => new Map(),
-		});
-
-		const artifact = await investigateFixture(sources);
+		let coverage: InvestigationCoverage | null = null;
+		const [artifact] = await investigateWebsitePortfolioWithSources(
+			fixtureInput,
+			sources,
+			"manual",
+			undefined,
+			(nextCoverage) => {
+				coverage = nextCoverage;
+			}
+		);
 
 		expect(artifact).toMatchObject({
-			outcome: { title: "Revenue improved" },
-			signal: { sentiment: "positive", signalKey: "revenue" },
-			status: "completed",
+			outcome: null,
+			signal: null,
+			status: "no_signals",
+		});
+		expect(coverage).toMatchObject({
+			detected: { general: 1 },
+			eligible: { general: 0 },
+			noSignalReason: "no_selected_candidates",
+			selected: { general: 0 },
 		});
 	});
 
@@ -937,8 +995,9 @@ describe("fixture investigation sources", () => {
 		expect(investigated).toBeUndefined();
 	});
 
-	it("retries when a failed due recheck leaves no actionable work", async () => {
+	it("defers an unmeasurable due recheck beside cooling revenue", async () => {
 		const prior = prepareInvestigation(trafficDrop, 7);
+		const coolingRevenue = prepareInvestigation(revenueIncrease, 7);
 		const outcome: InvestigationOutcome = {
 			evidence: [],
 			impact: null,
@@ -956,15 +1015,32 @@ describe("fixture investigation sources", () => {
 				recheckAt: new Date("2026-07-18T00:00:00.000Z"),
 				signal: prior.signal,
 			}),
-			loadObservations: async () => new Map(),
-			remeasureSignal: async () => {
-				throw new Error("Due remeasurement unavailable");
-			},
+			loadObservations: async () =>
+				new Map([
+					[
+						coolingRevenue.signal.signalKey,
+						{
+							outcome,
+							recheckAt: new Date("2026-07-26T00:00:00.000Z"),
+							signal: coolingRevenue.signal,
+						},
+					],
+				]),
+			remeasureSignal: async () => null,
 		});
 
-		await expect(
-			investigateFixture(sources, { asOf: "2026-07-19" })
-		).rejects.toThrow("Due remeasurement unavailable");
+		const artifact = await investigateFixture(
+			sources,
+			{ asOf: "2026-07-19" },
+			undefined,
+			"scheduled"
+		);
+
+		expect(artifact).toMatchObject({
+			outcome: null,
+			signal: null,
+			status: "deferred",
+		});
 	});
 
 	it("keeps an unchanged signal in cooldown during another full scan", async () => {
@@ -1015,7 +1091,7 @@ describe("fixture investigation sources", () => {
 		expect(artifact.status).toBe("deferred");
 	});
 
-	it("uses cooling signals as a fallback when a manual portfolio has no fresh work", async () => {
+	it("counts a cooling signal as manual-eligible before selecting it for recheck", async () => {
 		const prior = prepareInvestigation(trafficDrop, 7);
 		const priorOutcome: InvestigationOutcome = {
 			evidence: ["Visitors fell in the previous complete week."],
@@ -1052,15 +1128,77 @@ describe("fixture investigation sources", () => {
 				]),
 		});
 
+		let coverage: InvestigationCoverage | null = null;
 		const artifacts = await investigateWebsitePortfolioWithSources(
 			{ ...fixtureInput, asOf: "2026-07-19" },
 			sources,
-			"manual"
+			"manual",
+			undefined,
+			(nextCoverage) => {
+				coverage = nextCoverage;
+			}
 		);
 
 		expect(artifacts).toHaveLength(1);
 		expect(artifacts[0]?.status).toBe("completed");
 		expect(investigated).toEqual([prior.signal.signalKey]);
+		expect(coverage).toMatchObject({
+			completed: { general: 1 },
+			detected: { general: 1 },
+			eligible: { general: 1 },
+			noSignalReason: null,
+			selected: { general: 1 },
+		});
+	});
+
+	it("manually rechecks cooling measurement and revenue candidates", async () => {
+		for (const candidate of [measurementCoverage, revenueIncrease]) {
+			const prior = prepareInvestigation(candidate, 7);
+			const outcome: InvestigationOutcome = {
+				evidence: ["The selected signal was measured in the comparison window."],
+				impact: null,
+				next: { reason: "No action is required in this fixture.", type: "resolve" },
+				rootCause: null,
+				summary: "The selected signal changed in the comparison window.",
+				title: "Measured signal",
+			};
+			const investigated: string[] = [];
+			const sources = fixtureSources({
+				detectDefinitionSignals: async () => [],
+				detectMeasurementRecommendationSignals: async () =>
+					candidate.metric === "measurement_coverage" ? [candidate] : [],
+				detectMetricSignals: async () =>
+					candidate.metric === "revenue" ? [candidate] : [],
+				fetchAnnotations: async () => [],
+				investigateSignal: async (input) => {
+					investigated.push(input.signal.signalKey);
+					return { outcome, toolCallCount: 1 };
+				},
+				loadDueInvestigation: async () => null,
+				loadHistory: async () => [],
+				loadObservations: async () =>
+					new Map([
+						[
+							prior.signal.signalKey,
+							{
+								outcome,
+								recheckAt: new Date("2026-07-26T00:00:00.000Z"),
+								signal: prior.signal,
+							},
+						],
+					]),
+			});
+
+			const artifact = await investigateFixture(
+				sources,
+				{ asOf: "2026-07-19" },
+				undefined,
+				"manual"
+			);
+
+			expect(artifact.status).toBe("completed");
+			expect(investigated).toEqual([prior.signal.signalKey]);
+		}
 	});
 
 	it("retries when the only fresh regression is still in cooldown", async () => {

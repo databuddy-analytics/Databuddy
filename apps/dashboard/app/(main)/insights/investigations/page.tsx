@@ -14,9 +14,12 @@ export default function InvestigationsPage() {
 
 	return (
 		<div className="mx-auto w-full max-w-4xl p-4 sm:p-6">
-			<Card aria-label="Investigations" className="border-border/70 shadow-sm">
+			<Card
+				aria-label="Open investigations"
+				className="border-border/70 shadow-sm"
+			>
 				<Card.Header className="border-b bg-card">
-					<Card.Title>Investigations</Card.Title>
+					<Card.Title>Open investigations</Card.Title>
 					<Card.Description className="mt-1">
 						Questions and fixes waiting for your input.
 					</Card.Description>

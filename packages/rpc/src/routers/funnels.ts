@@ -1,14 +1,10 @@
 import { and, desc, eq, isNull, sql } from "@databuddy/db";
 import { funnelDefinitions } from "@databuddy/db/schema";
-import {
-	createDrizzleCache,
-	invalidateAgentContextSnapshotsForWebsite,
-	redis,
-} from "@databuddy/redis";
 import { GATED_FEATURES } from "@databuddy/shared/types/features";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
+import { funnelCache, invalidateFunnelsCache } from "../lib/funnels-cache";
 import {
 	processFunnelAnalytics,
 	processFunnelAnalyticsByReferrer,
@@ -29,10 +25,9 @@ import {
 } from "./funnel-steps";
 import { queueDefinitionChangeRechecks } from "./insights";
 
-const cache = createDrizzleCache({ redis, namespace: "funnels" });
-
 const CACHE_TTL = 300;
 const ANALYTICS_CACHE_TTL = 180;
+const cache = funnelCache;
 
 const filterSchema = z.object({
 	field: z.string(),
@@ -63,21 +58,6 @@ const getEffectiveStartDate = (
 	return new Date(requestedStartDate) > new Date(createdDate)
 		? requestedStartDate
 		: createdDate;
-};
-
-const invalidateFunnelsCache = async (websiteId: string, funnelId?: string) => {
-	const keys = [`list:${websiteId}`];
-	if (funnelId) {
-		keys.push(`byId:${funnelId}:${websiteId}`);
-	}
-	const operations: Promise<unknown>[] = keys.map((key) =>
-		cache.invalidateByKey(key)
-	);
-	if (funnelId) {
-		operations.push(cache.invalidateByTags([`funnel:${funnelId}`]));
-	}
-	operations.push(invalidateAgentContextSnapshotsForWebsite(websiteId));
-	await Promise.all(operations);
 };
 
 const funnelListOutputSchema = z.object({

@@ -78,7 +78,7 @@ export interface ConversionResult {
 	completions: number;
 	entrants: number;
 	rate: number;
-	steps?: { name: string; number: number; rate: number }[];
+	steps?: { name: string; number: number; rate: number; users?: number }[];
 }
 
 export interface FunnelGoalDeps {
@@ -252,6 +252,7 @@ export function defaultFunnelGoalDeps(
 					name: step.step_name,
 					number: step.step_number,
 					rate: step.conversion_rate,
+					users: step.users,
 				})),
 			};
 		},
@@ -375,6 +376,104 @@ function definitionHistory(
 	return `Definition history: created ${createdAt}; last updated ${updatedAt}; comparison started ${comparisonStart}.`;
 }
 
+function funnelMeasurementKey(funnel: FunnelDef): string {
+	const steps = funnel.steps.map((step) => [
+		step.type === "PAGE_VIEW" ? "PAGE_VIEW" : "EVENT",
+		step.target,
+	]);
+	const filters = (funnel.filters ?? [])
+		.map((filter) => ({
+			field: filter.field,
+			operator: filter.operator,
+			value: Array.isArray(filter.value)
+				? [...filter.value].sort()
+				: filter.value,
+		}))
+		.sort((left, right) =>
+			JSON.stringify(left).localeCompare(JSON.stringify(right))
+		);
+	return JSON.stringify({ filters, steps });
+}
+
+function normalizedDescription(definition: FunnelDef): string {
+	return definition.description?.trim() ?? "";
+}
+
+function stableFunnelOrder(left: FunnelDef, right: FunnelDef): number {
+	return (
+		left.createdAt.getTime() - right.createdAt.getTime() ||
+		left.updatedAt.getTime() - right.updatedAt.getTime() ||
+		left.id.localeCompare(right.id)
+	);
+}
+
+function preferredEquivalentFunnel(
+	left: FunnelDef,
+	right: FunnelDef,
+	previousFrom: string,
+	timezone: string
+): number {
+	const leftComparable = definitionPredatesComparison(
+		left,
+		previousFrom,
+		timezone
+	);
+	const rightComparable = definitionPredatesComparison(
+		right,
+		previousFrom,
+		timezone
+	);
+	if (leftComparable !== rightComparable) {
+		return leftComparable ? -1 : 1;
+	}
+	const leftHasDescription = normalizedDescription(left).length > 0;
+	const rightHasDescription = normalizedDescription(right).length > 0;
+	if (leftHasDescription !== rightHasDescription) {
+		return leftHasDescription ? -1 : 1;
+	}
+	return (
+		right.updatedAt.getTime() - left.updatedAt.getTime() ||
+		right.createdAt.getTime() - left.createdAt.getTime() ||
+		left.id.localeCompare(right.id)
+	);
+}
+
+/**
+ * This is intentionally a conservative subset of query equivalence. Keep one
+ * only when the configured business meaning is compatible; competing
+ * descriptions remain separate because their decisions may differ.
+ */
+function canonicalFunnelDefinitions(
+	funnels: FunnelDef[],
+	previousFrom: string,
+	timezone: string
+): FunnelDef[] {
+	const groups = new Map<string, FunnelDef[]>();
+	for (const funnel of funnels) {
+		const key = funnelMeasurementKey(funnel);
+		const group = groups.get(key);
+		if (group) {
+			group.push(funnel);
+		} else {
+			groups.set(key, [funnel]);
+		}
+	}
+	return [...groups.values()]
+		.flatMap((group) => {
+			const descriptions = new Set(
+				group.map(normalizedDescription).filter(Boolean)
+			);
+			if (descriptions.size > 1) {
+				return group;
+			}
+			const [preferred] = [...group].sort((left, right) =>
+				preferredEquivalentFunnel(left, right, previousFrom, timezone)
+			);
+			return preferred ? [preferred] : [];
+		})
+		.sort(stableFunnelOrder);
+}
+
 function hasZeroCompletionFailure(
 	current: ConversionResult,
 	previous: ConversionResult
@@ -383,6 +482,27 @@ function hasZeroCompletionFailure(
 		current.completions === 0 &&
 		current.entrants >= ZERO_COMPLETION_MIN_ENTRANTS &&
 		previous.entrants >= ZERO_COMPLETION_MIN_ENTRANTS
+	);
+}
+
+function hasSparsePersistentTerminalCohort(
+	current: ConversionResult,
+	previous: ConversionResult
+): boolean {
+	if (current.completions !== 0 || previous.completions !== 0) {
+		return false;
+	}
+	const currentPenultimate = current.steps?.at(-2)?.users;
+	const previousPenultimate = previous.steps?.at(-2)?.users;
+	return (
+		typeof currentPenultimate === "number" &&
+		Number.isFinite(currentPenultimate) &&
+		currentPenultimate >= 0 &&
+		currentPenultimate < MIN_COMPLETIONS &&
+		typeof previousPenultimate === "number" &&
+		Number.isFinite(previousPenultimate) &&
+		previousPenultimate >= 0 &&
+		previousPenultimate < MIN_COMPLETIONS
 	);
 }
 
@@ -691,7 +811,8 @@ async function detectStoredDefinitionSignal(
 		signal
 	);
 	if (!hasMeaningfulConversionChange(cur, prev)) {
-		return hasZeroCompletionFailure(cur, prev)
+		return hasZeroCompletionFailure(cur, prev) &&
+			!hasSparsePersistentTerminalCohort(cur, prev)
 			? funnelZeroCompletionSignal({
 					current: cur,
 					currentTo: current.to,
@@ -772,13 +893,18 @@ export async function detectFunnelGoalSignals(
 		overallSignal
 	);
 	overallSignal.throwIfAborted();
+	const canonicalFunnels = canonicalFunnelDefinitions(
+		funnels,
+		previous.from,
+		params.timezone
+	);
 	const definitions: StoredConversionDefinition[] = [];
 	for (
 		let index = 0;
-		index < Math.max(funnels.length, goalsForWebsite.length);
+		index < Math.max(canonicalFunnels.length, goalsForWebsite.length);
 		index += 1
 	) {
-		const funnel = funnels[index];
+		const funnel = canonicalFunnels[index];
 		const goal = goalsForWebsite[index];
 		if (funnel) {
 			definitions.push({ definition: funnel, type: "funnel" });

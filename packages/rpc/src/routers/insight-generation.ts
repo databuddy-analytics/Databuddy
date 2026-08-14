@@ -9,6 +9,7 @@ import {
 	sql,
 	withTransaction,
 } from "@databuddy/db";
+import { chQuery } from "@databuddy/db/clickhouse";
 import {
 	INSIGHT_RUN_ACTIVE_STATUSES,
 	INSIGHT_RUN_ACTIVE_UNIQUE_INDEX,
@@ -19,6 +20,8 @@ import {
 	slackChannelBindings,
 	slackIntegrations,
 	type InsightGenerationConfig,
+	type InsightRunItem,
+	type InsightRunStatus,
 	websites,
 } from "@databuddy/db/schema";
 import {
@@ -27,6 +30,7 @@ import {
 	insightsWebsiteJobId,
 	invalidateInsightsCachesForOrganization,
 } from "@databuddy/redis";
+import { ORPCError } from "@orpc/server";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
@@ -75,6 +79,10 @@ const organizationScopeSchema = z.object({
 	organizationId: z.string().nullish(),
 	websiteId: z.never().optional(),
 });
+const firstReviewScopeSchema = z.object({
+	organizationId: z.string().nullish(),
+	websiteId: z.string().min(1),
+});
 
 const configOutputSchema = z.object({
 	deliveries: z.array(deliverySchema),
@@ -100,6 +108,226 @@ const DEFAULT_CONFIG: z.infer<typeof configOutputSchema> = {
 	nextRunAt: null,
 	timezone: "UTC",
 };
+
+const FIRST_REVIEW_BASELINE_DAYS = 14;
+const firstReviewItemStatusSchema = z.enum([
+	"queued",
+	"running",
+	"succeeded",
+	"failed",
+	"skipped",
+]);
+const firstReviewRunStateSchema = z.enum([
+	"running",
+	"reviewed",
+	"no_findings",
+	"deferred",
+	"needs_credits",
+	"failed",
+]);
+const firstReviewStateSchema = z.enum([
+	"needs_tracking",
+	"collecting_baseline",
+	"ready",
+	"running",
+	"waiting_for_organization_run",
+	"no_findings",
+	"deferred",
+	"needs_credits",
+	"needs_attention",
+	"reviewed",
+]);
+const firstReviewStatusStateSchema = z.enum([
+	"not_started",
+	"running",
+	"waiting_for_organization_run",
+	"reviewed",
+	"no_findings",
+	"deferred",
+	"needs_credits",
+	"needs_attention",
+]);
+const firstReviewActivitySchema = z.object({
+	activeDays: z.number().int().nonnegative(),
+	pageviews: z.number().int().nonnegative(),
+	sessions: z.number().int().nonnegative(),
+});
+const firstReviewRunSchema = z.object({
+	id: z.string(),
+	insightCount: z.number().int().nonnegative(),
+	state: firstReviewRunStateSchema,
+});
+const firstReviewReadinessOutputSchema = z.object({
+	activity: firstReviewActivitySchema,
+	baselineReadyAt: z.string().datetime().nullable(),
+	canRun: z.boolean(),
+	latestRun: firstReviewRunSchema.nullable(),
+	state: firstReviewStateSchema,
+	websiteId: z.string(),
+});
+const firstReviewStatusOutputSchema = z.object({
+	activeOrganizationRunId: z.string().nullable(),
+	canRun: z.boolean(),
+	latestRun: firstReviewRunSchema.nullable(),
+	state: firstReviewStatusStateSchema,
+	websiteId: z.string(),
+});
+const frozenFirstReviewPlanSchema = z
+	.object({
+		candidates: z.array(z.unknown()),
+		emptyStatus: z.enum(["deferred", "no_signals"]).optional(),
+	})
+	.passthrough();
+
+type FirstReviewState = z.infer<typeof firstReviewStateSchema>;
+type FirstReviewStatusState = z.infer<typeof firstReviewStatusStateSchema>;
+type FirstReviewRunState = z.infer<typeof firstReviewRunStateSchema>;
+
+interface FirstReviewActivity {
+	activeDays: number;
+	firstScreenViewAt: Date | null;
+	pageviews: number;
+	sessions: number;
+}
+
+interface FirstReviewRun {
+	id: string;
+	insightCount: number;
+	state: FirstReviewRunState;
+}
+
+export interface FirstReviewReadinessInput {
+	activeOrganizationRunId: string | null;
+	activeWebsiteRunId: string | null;
+	activity: FirstReviewActivity;
+	canRun: boolean;
+	latestRun: FirstReviewRun | null;
+	now?: Date;
+}
+
+export interface FirstReviewStatusInput {
+	activeOrganizationRunId: string | null;
+	activeWebsiteRunId: string | null;
+	canRun: boolean;
+	latestRun: FirstReviewRun | null;
+}
+
+export interface FirstReviewStoredRunInput {
+	candidatePlan: unknown;
+	status: z.infer<typeof firstReviewItemStatusSchema>;
+}
+
+function baselineReadyAt(firstScreenViewAt: Date | null): Date | null {
+	if (!firstScreenViewAt) {
+		return null;
+	}
+	const readyAt = new Date(firstScreenViewAt);
+	readyAt.setUTCDate(readyAt.getUTCDate() + FIRST_REVIEW_BASELINE_DAYS);
+	return readyAt;
+}
+
+export function classifyFirstReviewRun(
+	input: FirstReviewStoredRunInput
+): FirstReviewRunState {
+	if (input.status === "queued" || input.status === "running") {
+		return "running";
+	}
+	if (input.status === "succeeded") {
+		return "reviewed";
+	}
+	if (input.status === "failed") {
+		return "failed";
+	}
+
+	const plan = frozenFirstReviewPlanSchema.safeParse(input.candidatePlan);
+	if (plan.success && plan.data.emptyStatus === "deferred") {
+		return "deferred";
+	}
+	if (plan.success && plan.data.emptyStatus === "no_signals") {
+		return "no_findings";
+	}
+	if (plan.success && plan.data.candidates.length > 0) {
+		return "needs_credits";
+	}
+
+	// Legacy skipped runs lack a frozen plan. They did not produce a review, so
+	// keep them distinct from a completed no-finding review.
+	return "deferred";
+}
+
+function firstReviewTerminalState(
+	state: FirstReviewRunState
+): Exclude<
+	FirstReviewStatusState,
+	"not_started" | "waiting_for_organization_run"
+> {
+	return state === "failed" ? "needs_attention" : state;
+}
+
+function firstReviewRunOutput(
+	latestRun: FirstReviewRun | null
+): z.infer<typeof firstReviewRunSchema> | null {
+	return latestRun
+		? {
+				id: latestRun.id,
+				insightCount: latestRun.insightCount,
+				state: latestRun.state,
+			}
+		: null;
+}
+
+function firstReviewState(input: FirstReviewReadinessInput): FirstReviewState {
+	if (input.activeWebsiteRunId) {
+		return "running";
+	}
+	if (input.latestRun) {
+		return firstReviewTerminalState(input.latestRun.state);
+	}
+	if (!input.activity.firstScreenViewAt || input.activity.pageviews === 0) {
+		return "needs_tracking";
+	}
+	if (input.activeOrganizationRunId) {
+		return "waiting_for_organization_run";
+	}
+	const readyAt = baselineReadyAt(input.activity.firstScreenViewAt);
+	return readyAt && readyAt <= (input.now ?? new Date())
+		? "ready"
+		: "collecting_baseline";
+}
+
+export function firstReviewReadiness(
+	input: FirstReviewReadinessInput
+): Omit<z.infer<typeof firstReviewReadinessOutputSchema>, "websiteId"> {
+	const readyAt = baselineReadyAt(input.activity.firstScreenViewAt);
+	return {
+		activity: {
+			activeDays: input.activity.activeDays,
+			pageviews: input.activity.pageviews,
+			sessions: input.activity.sessions,
+		},
+		baselineReadyAt: readyAt?.toISOString() ?? null,
+		canRun: input.canRun,
+		latestRun: firstReviewRunOutput(input.latestRun),
+		state: firstReviewState(input),
+	};
+}
+
+export function firstReviewStatus(
+	input: FirstReviewStatusInput
+): Omit<z.infer<typeof firstReviewStatusOutputSchema>, "websiteId"> {
+	return {
+		activeOrganizationRunId: input.activeOrganizationRunId,
+		canRun: input.canRun,
+		latestRun: firstReviewRunOutput(input.latestRun),
+		state: input.activeWebsiteRunId
+			? "running"
+			: input.latestRun
+				? firstReviewTerminalState(input.latestRun.state)
+				: input.activeOrganizationRunId
+					? "waiting_for_organization_run"
+					: "not_started",
+	};
+}
 
 export interface QueueInsightGenerationRunInput
 	extends z.infer<typeof runPatchSchema> {
@@ -285,9 +513,130 @@ async function listTargetWebsites(
 	return rows;
 }
 
+interface FirstReviewActivityRow {
+	activeDays: number;
+	firstScreenViewUnix: number;
+	pageviews: number;
+	sessions: number;
+}
+
+function nonNegativeInteger(value: unknown): number {
+	const number = Number(value);
+	return Number.isFinite(number) && number > 0 ? Math.floor(number) : 0;
+}
+
+async function loadFirstReviewActivity(
+	websiteId: string
+): Promise<FirstReviewActivity> {
+	const [row] = await chQuery<FirstReviewActivityRow>(
+		`WITH toStartOfDay(now()) - INTERVAL {baselineDays:UInt32} DAY AS recentFrom
+		SELECT
+			countIf(time >= recentFrom) AS pageviews,
+			uniqExactIf(session_id, session_id != '' AND time >= recentFrom) AS sessions,
+			uniqExactIf(toDate(time), time >= recentFrom) AS activeDays,
+			toUnixTimestamp(min(time)) AS firstScreenViewUnix
+		FROM analytics.events
+		PREWHERE client_id = {websiteId:String}
+			AND time >= recentFrom - INTERVAL {baselineDays:UInt32} DAY
+		WHERE event_name = 'screen_view'`,
+		{ baselineDays: FIRST_REVIEW_BASELINE_DAYS, websiteId }
+	);
+	const firstScreenViewUnix = nonNegativeInteger(row?.firstScreenViewUnix);
+	return {
+		activeDays: nonNegativeInteger(row?.activeDays),
+		firstScreenViewAt:
+			nonNegativeInteger(row?.pageviews) > 0 && firstScreenViewUnix > 0
+				? new Date(firstScreenViewUnix * 1000)
+				: null,
+		pageviews: nonNegativeInteger(row?.pageviews),
+		sessions: nonNegativeInteger(row?.sessions),
+	};
+}
+
+async function loadFirstReviewRun(
+	organizationId: string,
+	websiteId: string
+): Promise<FirstReviewRun | null> {
+	const [row] = await db
+		.select({
+			candidatePlan: insightRunItems.candidatePlan,
+			id: insightRuns.id,
+			resultCount: insightRunItems.resultCount,
+			status: insightRunItems.status,
+		})
+		.from(insightRunItems)
+		.innerJoin(insightRuns, eq(insightRunItems.runId, insightRuns.id))
+		.where(
+			and(
+				eq(insightRunItems.organizationId, organizationId),
+				eq(insightRunItems.websiteId, websiteId)
+			)
+		)
+		.orderBy(desc(insightRuns.createdAt), desc(insightRunItems.createdAt))
+		.limit(1);
+	if (!row) {
+		return null;
+	}
+	return {
+		id: row.id,
+		insightCount: row.resultCount,
+		state: classifyFirstReviewRun({
+			candidatePlan: row.candidatePlan,
+			status: firstReviewItemStatusSchema.parse(row.status),
+		}),
+	};
+}
+
+async function resolveFirstReviewWebsite(
+	context: Context,
+	input: z.infer<typeof firstReviewScopeSchema>
+): Promise<string> {
+	const organizationId = await resolveOrganization(context, input, "read");
+	await withWorkspace(context, {
+		organizationId,
+		permissions: ["read"],
+		websiteId: input.websiteId,
+	});
+	return organizationId;
+}
+
+function isAccessDenied(error: unknown): boolean {
+	return (
+		error instanceof ORPCError &&
+		(error.code === "FORBIDDEN" || error.code === "UNAUTHORIZED")
+	);
+}
+
+/**
+ * Readiness remains readable to viewers, but running a review has the same
+ * organization-level update requirement as triggerRun.
+ */
+function canTriggerInsightGeneration(
+	context: Context,
+	organizationId: string
+): Promise<boolean> {
+	return withWorkspace(context, {
+		organizationId,
+		permissions: ["update"],
+		resource: "organization",
+	})
+		.then(() => true)
+		.catch((error) => {
+			if (isAccessDenied(error)) {
+				return false;
+			}
+			throw error;
+		});
+}
+
+interface InsightRunReference {
+	id: string;
+	totalItems: number;
+}
+
 async function findActiveInsightRun(
 	organizationId: string
-): Promise<{ id: string; totalItems: number } | null> {
+): Promise<InsightRunReference | null> {
 	const [active] = await db
 		.select({ id: insightRuns.id, totalItems: insightRuns.totalItems })
 		.from(insightRuns)
@@ -303,16 +652,303 @@ async function findActiveInsightRun(
 	return active ?? null;
 }
 
-function reusedInsightRun(active: {
-	id: string;
-	totalItems: number;
-}): QueueInsightGenerationRunResult {
+/**
+ * A concurrent organization run only becomes this site's review while its
+ * own item is still queued or running. A run for another site must not
+ * overwrite this site's last terminal result.
+ */
+async function findActiveFirstReviewRun(
+	organizationId: string,
+	websiteId: string
+): Promise<{ id: string; reviewsWebsite: boolean } | null> {
+	const [active] = await db
+		.select({
+			id: insightRuns.id,
+			websiteItemId: insightRunItems.id,
+		})
+		.from(insightRuns)
+		.leftJoin(
+			insightRunItems,
+			and(
+				eq(insightRunItems.runId, insightRuns.id),
+				eq(insightRunItems.websiteId, websiteId),
+				inArray(insightRunItems.status, INSIGHT_RUN_ACTIVE_STATUSES)
+			)
+		)
+		.where(
+			and(
+				eq(insightRuns.organizationId, organizationId),
+				inArray(insightRuns.status, INSIGHT_RUN_ACTIVE_STATUSES)
+			)
+		)
+		.orderBy(desc(insightRuns.createdAt))
+		.limit(1);
+
+	return active
+		? { id: active.id, reviewsWebsite: active.websiteItemId !== null }
+		: null;
+}
+
+function reusedInsightRun(
+	active: InsightRunReference
+): QueueInsightGenerationRunResult {
 	return {
 		queuedItems: active.totalItems,
 		reusedRun: true,
 		runId: active.id,
 		status: "queued",
 	};
+}
+
+export interface InsightRunStatusSummary {
+	completedItems: number;
+	failedItems: number;
+	queuedItems: number;
+	runningItems: number;
+	settled: boolean;
+	skippedItems: number;
+	status: InsightRunStatus;
+	totalItems: number;
+}
+
+export function summarizeInsightRunItemErrors(
+	items: Pick<InsightRunItem, "errorMessage" | "status">[]
+): string | null {
+	const counts = new Map<string, number>();
+	for (const item of items) {
+		if (item.status === "failed" && item.errorMessage) {
+			counts.set(item.errorMessage, (counts.get(item.errorMessage) ?? 0) + 1);
+		}
+	}
+
+	let topMessage: string | null = null;
+	let topCount = 0;
+	for (const [message, count] of counts) {
+		if (count > topCount) {
+			topMessage = message;
+			topCount = count;
+		}
+	}
+	if (!topMessage) {
+		return null;
+	}
+
+	const otherTypes = counts.size - 1;
+	const suffix = otherTypes > 0 ? ` (+${otherTypes} other error types)` : "";
+	return `${topCount} item${topCount === 1 ? "" : "s"}: ${topMessage}${suffix}`;
+}
+
+export function syncInsightRunStatus(
+	runId: string
+): Promise<InsightRunStatusSummary> {
+	return withTransaction(async (tx) => {
+		await tx
+			.select({ id: insightRuns.id })
+			.from(insightRuns)
+			.where(eq(insightRuns.id, runId))
+			.limit(1)
+			.for("update");
+		const items = await tx
+			.select({
+				errorMessage: insightRunItems.errorMessage,
+				status: insightRunItems.status,
+			})
+			.from(insightRunItems)
+			.where(eq(insightRunItems.runId, runId));
+
+		const completedItems = items.filter(
+			(item) => item.status === "succeeded"
+		).length;
+		const failedItems = items.filter((item) => item.status === "failed").length;
+		const queuedItems = items.filter((item) => item.status === "queued").length;
+		const runningItems = items.filter(
+			(item) => item.status === "running"
+		).length;
+		const skippedItems = items.filter(
+			(item) => item.status === "skipped"
+		).length;
+		const settled =
+			completedItems + failedItems + skippedItems === items.length;
+
+		let status: InsightRunStatus =
+			queuedItems === items.length ? "queued" : "running";
+		if (items.length === 0) {
+			status = "skipped";
+		} else if (settled) {
+			if (completedItems > 0 && failedItems === 0) {
+				status = "succeeded";
+			} else if (completedItems > 0) {
+				status = "partially_succeeded";
+			} else if (skippedItems === items.length) {
+				status = "skipped";
+			} else {
+				status = "failed";
+			}
+		}
+
+		const now = new Date();
+		await tx
+			.update(insightRuns)
+			.set({
+				completedItems,
+				errorMessage:
+					settled && failedItems > 0
+						? summarizeInsightRunItemErrors(items)
+						: null,
+				failedItems,
+				finishedAt: settled ? now : null,
+				skippedItems,
+				status,
+				totalItems: items.length,
+				updatedAt: now,
+			})
+			.where(eq(insightRuns.id, runId));
+
+		return {
+			completedItems,
+			failedItems,
+			queuedItems,
+			runningItems,
+			settled,
+			skippedItems,
+			status,
+			totalItems: items.length,
+		};
+	});
+}
+
+interface InsightQueueItem {
+	itemId: string;
+	jobId: string;
+	websiteId: string;
+}
+
+interface AppendedInsightRun extends InsightRunReference {
+	queueItems: InsightQueueItem[];
+}
+
+function createInsightQueueItems(
+	runId: string,
+	targetWebsites: Array<{ id: string }>
+): InsightQueueItem[] {
+	return targetWebsites.map((website) => ({
+		itemId: randomUUIDv7(),
+		jobId: insightsWebsiteJobId(runId, website.id),
+		websiteId: website.id,
+	}));
+}
+
+async function enqueueInsightRunItems(params: {
+	organizationId: string;
+	queueItems: InsightQueueItem[];
+	reason: z.infer<typeof queueReasonSchema>;
+	requestedByUserId: string | null;
+	runId: string;
+}): Promise<void> {
+	const queue = getInsightsQueue();
+	await queue.addBulk(
+		params.queueItems.map((item) => ({
+			name: INSIGHTS_GENERATE_WEBSITE_JOB_NAME,
+			data: {
+				itemId: item.itemId,
+				organizationId: params.organizationId,
+				reason: params.reason,
+				requestedByUserId: params.requestedByUserId,
+				runId: params.runId,
+				websiteId: item.websiteId,
+			},
+			opts: { jobId: item.jobId },
+		}))
+	);
+}
+
+async function failQueueItems(runId: string, itemIds: string[]): Promise<void> {
+	if (itemIds.length === 0) {
+		return;
+	}
+	const now = new Date();
+	await db
+		.update(insightRunItems)
+		.set({
+			errorMessage: QUEUE_INSIGHT_GENERATION_ERROR,
+			finishedAt: now,
+			status: "failed",
+			updatedAt: now,
+		})
+		.where(
+			and(
+				eq(insightRunItems.runId, runId),
+				inArray(insightRunItems.id, itemIds),
+				eq(insightRunItems.status, "queued")
+			)
+		);
+	await syncInsightRunStatus(runId);
+}
+
+function appendManualRunItems(params: {
+	organizationId: string;
+	reason: z.infer<typeof queueReasonSchema>;
+	requestedByUserId: string | null;
+	targetWebsites: Array<{ id: string }>;
+}): Promise<AppendedInsightRun | null> {
+	return withTransaction(async (tx) => {
+		const [active] = await tx
+			.select({
+				id: insightRuns.id,
+				totalItems: insightRuns.totalItems,
+			})
+			.from(insightRuns)
+			.where(
+				and(
+					eq(insightRuns.organizationId, params.organizationId),
+					inArray(insightRuns.status, INSIGHT_RUN_ACTIVE_STATUSES)
+				)
+			)
+			.orderBy(desc(insightRuns.createdAt))
+			.limit(1)
+			.for("update");
+		if (!active) {
+			return null;
+		}
+
+		const items = createInsightQueueItems(active.id, params.targetWebsites);
+		const inserted =
+			items.length === 0
+				? []
+				: await tx
+						.insert(insightRunItems)
+						.values(
+							items.map((item) => ({
+								id: item.itemId,
+								runId: active.id,
+								organizationId: params.organizationId,
+								reason: params.reason,
+								requestedByUserId: params.requestedByUserId,
+								websiteId: item.websiteId,
+								queueJobId: item.jobId,
+							}))
+						)
+						.onConflictDoNothing({
+							target: [insightRunItems.runId, insightRunItems.websiteId],
+						})
+						.returning({ id: insightRunItems.id });
+		const insertedIds = new Set(inserted.map((item) => item.id));
+		const queueItems = items.filter((item) => insertedIds.has(item.itemId));
+		if (queueItems.length > 0) {
+			await tx
+				.update(insightRuns)
+				.set({
+					totalItems: sql`${insightRuns.totalItems} + ${queueItems.length}`,
+				})
+				.where(eq(insightRuns.id, active.id));
+		}
+
+		return {
+			id: active.id,
+			queueItems,
+			totalItems: active.totalItems + queueItems.length,
+		};
+	});
 }
 
 async function insertInsightRunOrFindActive(
@@ -355,11 +991,6 @@ export async function queueInsightGenerationRun(
 	const runConfig = applyPatch(baseConfig, runPatch);
 	const reason = input.reason ?? "manual";
 
-	const active = await findActiveInsightRun(input.organizationId);
-	if (active) {
-		return reusedInsightRun(active);
-	}
-
 	if (reason !== "manual" && !runConfig.enabled) {
 		return { queuedItems: 0, status: "disabled" };
 	}
@@ -368,98 +999,169 @@ export async function queueInsightGenerationRun(
 		input.organizationId,
 		input.websiteIds
 	);
-	const runId = randomUUIDv7();
-	const queueItems = targetWebsites.map((website) => {
-		const itemId = randomUUIDv7();
-		return {
-			itemId,
-			jobId: insightsWebsiteJobId(runId, website.id),
-			websiteId: website.id,
-		};
-	});
 	const requestedByUserId = input.requestedByUserId ?? null;
-	const now = new Date();
 
-	const runItems = queueItems.map((item) => ({
-		id: item.itemId,
-		runId,
-		organizationId: input.organizationId,
-		websiteId: item.websiteId,
-		queueJobId: item.jobId,
-	}));
-	const concurrentRun = await insertInsightRunOrFindActive(
-		input.organizationId,
-		{
-			id: runId,
-			organizationId: input.organizationId,
-			requestedByUserId,
-			reason,
-			status: queueItems.length === 0 ? "skipped" : "queued",
-			timezone: runConfig.timezone,
-			totalItems: queueItems.length,
-			...(queueItems.length === 0 ? { finishedAt: now } : {}),
-		},
-		runItems
-	);
-	if (concurrentRun) {
-		return reusedInsightRun(concurrentRun);
-	}
+	for (let attempt = 0; attempt < 2; attempt += 1) {
+		if (reason === "manual") {
+			const active = await appendManualRunItems({
+				organizationId: input.organizationId,
+				reason,
+				requestedByUserId,
+				targetWebsites,
+			});
+			if (active) {
+				if (active.queueItems.length > 0) {
+					try {
+						await enqueueInsightRunItems({
+							organizationId: input.organizationId,
+							queueItems: active.queueItems,
+							reason,
+							requestedByUserId,
+							runId: active.id,
+						});
+					} catch (error) {
+						logger.error(
+							{ error, organizationId: input.organizationId, runId: active.id },
+							"Failed to queue appended insight generation"
+						);
+						await failQueueItems(
+							active.id,
+							active.queueItems.map((item) => item.itemId)
+						);
+						throw rpcError.internal("Failed to queue insight generation");
+					}
+				}
+				return reusedInsightRun(active);
+			}
+		} else {
+			const active = await findActiveInsightRun(input.organizationId);
+			if (active) {
+				return reusedInsightRun(active);
+			}
+		}
 
-	if (queueItems.length === 0) {
-		return { queuedItems: 0, runId, status: "skipped" };
-	}
-
-	try {
-		const queue = getInsightsQueue();
-		await queue.addBulk(
+		const runId = randomUUIDv7();
+		const queueItems = createInsightQueueItems(runId, targetWebsites);
+		const concurrentRun = await insertInsightRunOrFindActive(
+			input.organizationId,
+			{
+				id: runId,
+				organizationId: input.organizationId,
+				requestedByUserId,
+				reason,
+				status: queueItems.length === 0 ? "skipped" : "queued",
+				timezone: runConfig.timezone,
+				totalItems: queueItems.length,
+				...(queueItems.length === 0 ? { finishedAt: new Date() } : {}),
+			},
 			queueItems.map((item) => ({
-				name: INSIGHTS_GENERATE_WEBSITE_JOB_NAME,
-				data: {
-					itemId: item.itemId,
-					organizationId: input.organizationId,
-					reason,
-					requestedByUserId,
-					runId,
-					websiteId: item.websiteId,
-				},
-				opts: { jobId: item.jobId },
+				id: item.itemId,
+				runId,
+				organizationId: input.organizationId,
+				reason,
+				requestedByUserId,
+				websiteId: item.websiteId,
+				queueJobId: item.jobId,
 			}))
 		);
-	} catch (error) {
-		logger.error(
-			{ error, organizationId: input.organizationId, runId },
-			"Failed to queue insight generation"
-		);
-		await Promise.all([
-			db
-				.update(insightRuns)
-				.set({
-					errorMessage: QUEUE_INSIGHT_GENERATION_ERROR,
-					failedItems: queueItems.length,
-					finishedAt: new Date(),
-					status: "failed",
-				})
-				.where(eq(insightRuns.id, runId)),
-			db
-				.update(insightRunItems)
-				.set({
-					errorMessage: QUEUE_INSIGHT_GENERATION_ERROR,
-					finishedAt: new Date(),
-					status: "failed",
-				})
-				.where(eq(insightRunItems.runId, runId)),
-		]);
-		throw rpcError.internal("Failed to queue insight generation");
+		if (concurrentRun) {
+			if (reason === "manual") {
+				continue;
+			}
+			return reusedInsightRun(concurrentRun);
+		}
+
+		if (queueItems.length === 0) {
+			return { queuedItems: 0, runId, status: "skipped" };
+		}
+
+		try {
+			await enqueueInsightRunItems({
+				organizationId: input.organizationId,
+				queueItems,
+				reason,
+				requestedByUserId,
+				runId,
+			});
+		} catch (error) {
+			logger.error(
+				{ error, organizationId: input.organizationId, runId },
+				"Failed to queue insight generation"
+			);
+			await failQueueItems(
+				runId,
+				queueItems.map((item) => item.itemId)
+			);
+			throw rpcError.internal("Failed to queue insight generation");
+		}
+
+		return {
+			queuedItems: queueItems.length,
+			runId,
+			status: "queued",
+		};
 	}
 
-	return {
-		queuedItems: queueItems.length,
-		runId,
-		status: "queued",
-	};
+	throw rpcError.internal("Failed to join the active insight generation run");
 }
 
 export const insightGenerationRouter = {
+	getFirstReviewReadiness: protectedProcedure
+		.route({
+			method: "POST",
+			path: "/insights/generation/getFirstReviewReadiness",
+			summary: "Get first-review readiness for a website",
+			tags: ["Insights"],
+		})
+		.input(firstReviewScopeSchema)
+		.output(firstReviewReadinessOutputSchema)
+		.handler(async ({ context, input }) => {
+			const organizationId = await resolveFirstReviewWebsite(context, input);
+			const [activity, canRun, latestRun, activeRun] = await Promise.all([
+				loadFirstReviewActivity(input.websiteId),
+				canTriggerInsightGeneration(context, organizationId),
+				loadFirstReviewRun(organizationId, input.websiteId),
+				findActiveFirstReviewRun(organizationId, input.websiteId),
+			]);
+			return {
+				websiteId: input.websiteId,
+				...firstReviewReadiness({
+					activeOrganizationRunId: activeRun?.id ?? null,
+					activeWebsiteRunId: activeRun?.reviewsWebsite ? activeRun.id : null,
+					activity,
+					canRun,
+					latestRun,
+				}),
+			};
+		}),
+
+	getFirstReviewStatus: protectedProcedure
+		.route({
+			method: "POST",
+			path: "/insights/generation/getFirstReviewStatus",
+			summary: "Get first-review run status for a website",
+			tags: ["Insights"],
+		})
+		.input(firstReviewScopeSchema)
+		.output(firstReviewStatusOutputSchema)
+		.handler(async ({ context, input }) => {
+			const organizationId = await resolveFirstReviewWebsite(context, input);
+			const [canRun, latestRun, activeRun] = await Promise.all([
+				canTriggerInsightGeneration(context, organizationId),
+				loadFirstReviewRun(organizationId, input.websiteId),
+				findActiveFirstReviewRun(organizationId, input.websiteId),
+			]);
+			return {
+				websiteId: input.websiteId,
+				...firstReviewStatus({
+					activeOrganizationRunId: activeRun?.id ?? null,
+					activeWebsiteRunId: activeRun?.reviewsWebsite ? activeRun.id : null,
+					canRun,
+					latestRun,
+				}),
+			};
+		}),
+
 	getConfig: protectedProcedure
 		.route({
 			method: "POST",

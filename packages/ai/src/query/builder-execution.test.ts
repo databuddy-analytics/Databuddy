@@ -50,6 +50,10 @@ const FILTER_FIELD_OVERRIDES: Partial<
 		all: ["message"],
 		required: ["message"],
 	},
+	error_route_continuation_comparison: {
+		all: ["message"],
+		required: ["message"],
+	},
 };
 
 function filterFor(field: string): Filter {

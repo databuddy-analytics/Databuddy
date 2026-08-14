@@ -18,7 +18,12 @@ function makeDeps(
 	overrides: Partial<MeasurementRecommendationDeps> = {}
 ): MeasurementRecommendationDeps {
 	return {
-		fetchDefinitionCounts: async () => ({ activeFunnels: 0, activeGoals: 0 }),
+		fetchDefinitionCoverage: async () => ({
+			activeFunnels: 0,
+			activeGoals: 0,
+			coveredEventTargets: [],
+		}),
+		fetchObservedEvents: async () => [],
 		fetchTelemetry: async () => ({
 			customEventNames: [],
 			pageviews: 60,
@@ -143,16 +148,20 @@ describe("detectMeasurementRecommendationSignals", () => {
 		);
 	});
 
-	it("suppresses the signal when usable measurement definitions already exist", async () => {
+	it("finds a high-reach uncovered event even when other definitions exist", async () => {
 		let telemetryCalls = 0;
-		const signals = await detectMeasurementRecommendationSignals(
+		const [signal] = await detectMeasurementRecommendationSignals(
 			PARAMS,
 			TODAY,
 			makeDeps({
-				fetchDefinitionCounts: async () => ({
+				fetchDefinitionCoverage: async () => ({
 					activeFunnels: 0,
 					activeGoals: 1,
+					coveredEventTargets: ["demo_requested"],
 				}),
+				fetchObservedEvents: async () => [
+					{ name: "signup_completed", uniqueUsers: 30 },
+				],
 				fetchTelemetry: async () => {
 					telemetryCalls += 1;
 					throw new Error("telemetry should not be fetched");
@@ -160,8 +169,81 @@ describe("detectMeasurementRecommendationSignals", () => {
 			})
 		);
 
-		expect(signals).toEqual([]);
+		expect(signal).toMatchObject({
+			label: "High-reach conversion event is not measured",
+			measurementCandidate: {
+				basis: "observed_custom_event",
+				kind: "event_goal_candidate",
+				target: "signup_completed",
+				type: "EVENT",
+			},
+			subjectKey: "measurement:uncovered-event:signup_completed",
+		});
+		expect(signal?.definitionEvidence).toContain("30 visitor identifiers");
 		expect(telemetryCalls).toBe(0);
+	});
+
+	it("does not repeat event coverage already represented by a definition", async () => {
+		const signals = await detectMeasurementRecommendationSignals(
+			PARAMS,
+			TODAY,
+			makeDeps({
+				fetchDefinitionCoverage: async () => ({
+					activeFunnels: 1,
+					activeGoals: 1,
+					coveredEventTargets: ["signup_completed"],
+				}),
+				fetchObservedEvents: async () => [
+					{ name: "signup_completed", uniqueUsers: 400 },
+				],
+			})
+		);
+
+		expect(signals).toEqual([]);
+	});
+
+	it("requires safe, conversion-like event coverage at meaningful reach", async () => {
+		const signals = await detectMeasurementRecommendationSignals(
+			PARAMS,
+			TODAY,
+			makeDeps({
+				fetchDefinitionCoverage: async () => ({
+					activeFunnels: 1,
+					activeGoals: 0,
+					coveredEventTargets: [],
+				}),
+				fetchObservedEvents: async () => [
+					{ name: "signup_completed", uniqueUsers: 29 },
+					{ name: "button_clicked", uniqueUsers: 300 },
+					{ name: "signup_ari", uniqueUsers: 300 },
+				],
+			})
+		);
+
+		expect(signals).toEqual([]);
+	});
+
+	it("selects the highest-reach uncovered event deterministically", async () => {
+		const [signal] = await detectMeasurementRecommendationSignals(
+			PARAMS,
+			TODAY,
+			makeDeps({
+				fetchDefinitionCoverage: async () => ({
+					activeFunnels: 1,
+					activeGoals: 0,
+					coveredEventTargets: [],
+				}),
+				fetchObservedEvents: async () => [
+					{ name: "purchase_completed", uniqueUsers: 44 },
+					{ name: "demo_requested", uniqueUsers: 44 },
+					{ name: "signup_completed", uniqueUsers: 43 },
+				],
+			})
+		);
+
+		expect(signal?.measurementCandidate).toMatchObject({
+			target: "demo_requested",
+		});
 	});
 
 	it("suppresses the signal for insufficient current activity", async () => {
@@ -179,6 +261,112 @@ describe("detectMeasurementRecommendationSignals", () => {
 		);
 
 		expect(signals).toEqual([]);
+	});
+
+	it("recommends checking tracking only after sixty days with no telemetry", async () => {
+		const ranges: Array<{ from: string; to: string }> = [];
+		const noTelemetry = {
+			customEventNames: [],
+			pageviews: 0,
+			routes: [],
+			sessions: 0,
+		};
+		const signals = await detectMeasurementRecommendationSignals(
+			PARAMS,
+			TODAY,
+			makeDeps({
+				fetchTelemetry: async (range) => {
+					ranges.push(range);
+					return noTelemetry;
+				},
+			})
+		);
+
+		expect(signals).toMatchObject([
+			{
+				metric: "measurement_coverage",
+				setupRecommendationCandidate: {
+					feature: "tracking",
+					kind: "databuddy_setup",
+				},
+				subjectKey: "measurement:tracking-activity",
+			},
+		]);
+		expect(ranges).toContainEqual({ from: "2026-06-02", to: "2026-07-31" });
+
+		const activeCustomEvents = await detectMeasurementRecommendationSignals(
+			PARAMS,
+			TODAY,
+			makeDeps({
+				fetchTelemetry: async (range) =>
+					range.from === "2026-06-02"
+						? { ...noTelemetry, customEventNames: ["screen_view"] }
+						: noTelemetry,
+			})
+		);
+		expect(activeCustomEvents).toEqual([]);
+	});
+
+	it("uses activity-only reads for long-term tracking checks", async () => {
+		const telemetryRanges: Array<{ from: string; to: string }> = [];
+		const activityRanges: Array<{ from: string; to: string }> = [];
+		const noTelemetry = {
+			customEventNames: [],
+			pageviews: 0,
+			routes: [],
+			sessions: 0,
+		};
+		const signals = await detectMeasurementRecommendationSignals(
+			PARAMS,
+			TODAY,
+			makeDeps({
+				fetchActivity: async (range) => {
+					activityRanges.push(range);
+					return { customEvents: 0, pageviews: 0, sessions: 0 };
+				},
+				fetchTelemetry: async (range) => {
+					telemetryRanges.push(range);
+					return noTelemetry;
+				},
+			})
+		);
+
+		expect(signals[0]?.subjectKey).toBe("measurement:tracking-activity");
+		expect(telemetryRanges).toEqual([
+			{ from: "2026-07-25", to: "2026-07-31" },
+		]);
+		expect(activityRanges).toEqual([
+			{ from: "2026-06-02", to: "2026-07-31" },
+		]);
+	});
+
+	it("never recommends tracker repair for a site younger than the activity lookback", async () => {
+		const noTelemetry = {
+			customEventNames: [],
+			pageviews: 0,
+			routes: [],
+			sessions: 0,
+		};
+		for (const activeDefinitions of [0, 1]) {
+			const signals = await detectMeasurementRecommendationSignals(
+				PARAMS,
+				TODAY,
+				makeDeps({
+					fetchActivity: async () => {
+						throw new Error("recent sites do not need a long-term activity read");
+					},
+					fetchDefinitionCoverage: async () => ({
+						activeFunnels: activeDefinitions,
+						activeGoals: 0,
+						coveredEventTargets: [],
+						websiteCreatedAt: TODAY.subtract(59, "day").toDate(),
+					}),
+					fetchTelemetry: async () => noTelemetry,
+				})
+			);
+
+			expect(signals).toEqual([]);
+		}
 	});
 
 	it("does not hide telemetry failures", async () => {

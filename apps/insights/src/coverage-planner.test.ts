@@ -1,14 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import type { DetectedSignal } from "./detection";
-import {
-	coveragePortfolioLimit,
-	planCoveragePortfolio,
-} from "./coverage-planner";
-import {
-	prepareInvestigation,
-	signalKeyForDetectedSignal,
-} from "./investigation";
-import { eligibleSignalsForInvestigation } from "./observations";
+import { planCoveragePortfolio } from "./coverage-planner";
+import { signalKeyForDetectedSignal } from "./investigation";
 
 function signal(
 	overrides: Partial<DetectedSignal> & Pick<DetectedSignal, "metric">
@@ -31,22 +24,59 @@ function keys(signals: DetectedSignal[]): string[] {
 }
 
 describe("planCoveragePortfolio", () => {
-	it("caps manual runs at three signals and scheduled runs at two", () => {
+	it("caps manual runs at five signals and scheduled runs at two", () => {
 		const candidates = [
 			signal({ metric: "error_count", subjectKey: "error:checkout" }),
 			signal({ metric: "goal:signup", subjectKey: "goal:signup" }),
 			signal({ metric: "visitors" }),
 			signal({ metric: "bounce_rate", direction: "up" }),
+			signal({ metric: "revenue" }),
+			signal({ metric: "custom_event_count", subjectKey: "event:share" }),
 		];
 
-		expect(coveragePortfolioLimit("manual")).toBe(3);
-		expect(coveragePortfolioLimit("scheduled")).toBe(2);
 		expect(
 			planCoveragePortfolio(candidates, { reason: "manual" })
-		).toHaveLength(3);
+		).toHaveLength(5);
 		expect(
 			planCoveragePortfolio(candidates, { reason: "scheduled" })
 		).toHaveLength(2);
+	});
+
+	it("uses a manual full scan for family breadth before repeated reliability work", () => {
+		const reliabilitySignals = ["checkout", "search", "billing", "account", "docs"].map(
+			(subject) =>
+				signal({
+					baseline: 50,
+					current: 100,
+					deltaPercent: 100,
+					direction: "up",
+					metric: "error_count",
+					severity: "critical",
+					subjectKey: `error:${subject}`,
+				})
+		);
+		const revenue = signal({
+			baseline: 100,
+			current: 25,
+			deltaPercent: -75,
+			direction: "down",
+			metric: "revenue",
+		});
+
+		const manual = planCoveragePortfolio([...reliabilitySignals, revenue], {
+			reason: "manual",
+		});
+		const scheduled = planCoveragePortfolio([...reliabilitySignals, revenue], {
+			reason: "scheduled",
+		});
+
+		expect(manual).toHaveLength(5);
+		expect(manual).toContain(revenue);
+		expect(manual.filter((item) => item.metric === "error_count")).toHaveLength(
+			4
+		);
+		expect(scheduled).toHaveLength(2);
+		expect(scheduled).not.toContain(revenue);
 	});
 
 	it("reserves a due recheck before higher-ranked newly detected signals", () => {
@@ -75,7 +105,7 @@ describe("planCoveragePortfolio", () => {
 		]);
 	});
 
-	it("deduplicates identities and diversifies correlated traffic and exact error subjects", () => {
+	it("suppresses duplicate and correlated signals", () => {
 		const primaryError = signal({
 			baseline: 50,
 			current: 100,
@@ -121,80 +151,13 @@ describe("planCoveragePortfolio", () => {
 
 		expect(keys(plan)).toEqual([
 			signalKeyForDetectedSignal(primaryError),
-			signalKeyForDetectedSignal(goal),
 			signalKeyForDetectedSignal(visitors),
+			signalKeyForDetectedSignal(goal),
 		]);
 		expect(plan.filter((item) => item.metric === "error_count")).toHaveLength(1);
 		expect(
 			plan.filter((item) => ["visitors", "sessions", "pageviews"].includes(item.metric))
 		).toHaveLength(1);
-	});
-
-	it("keeps direct regressions ahead of generic changes", () => {
-		const error = signal({
-			baseline: 50,
-			current: 100,
-			deltaPercent: 100,
-			direction: "up",
-			metric: "error_count",
-			subjectKey: "error:checkout",
-		});
-		const traffic = signal({ metric: "visitors" });
-		const recovery = signal({
-			metric: "error_count",
-			subjectKey: "error:search",
-		});
-		const anotherRecovery = signal({
-			baseline: 50,
-			current: 100,
-			deltaPercent: 100,
-			direction: "up",
-			metric: "custom_event_count",
-			subjectKey: "custom_event:signup",
-		});
-
-		const plan = planCoveragePortfolio(
-			[traffic, recovery, anotherRecovery, error],
-			{ reason: "manual" }
-		);
-
-		expect(keys(plan).slice(0, 2)).toEqual([
-			signalKeyForDetectedSignal(error),
-			signalKeyForDetectedSignal(traffic),
-		]);
-		expect(
-			plan.filter(
-				(item) => item === recovery || item === anotherRecovery
-			)
-		).toHaveLength(1);
-	});
-
-	it("does not let a neutral measurement gap suppress useful improvements", () => {
-		const candidates = [
-			signal({
-				baseline: 50,
-				current: 100,
-				deltaPercent: 100,
-				direction: "up",
-				metric: "revenue",
-			}),
-			signal({
-				metric: "error_count",
-				subjectKey: "error:checkout",
-			}),
-			signal({
-				baseline: 0,
-				current: 0,
-				deltaPercent: 0,
-				direction: "up",
-				metric: "measurement_coverage",
-				subjectKey: "measurement:conversion-coverage",
-			}),
-		];
-
-		expect(
-			planCoveragePortfolio(candidates, { reason: "manual" })
-		).toHaveLength(3);
 	});
 
 	it("resolves duplicate same-key candidates deterministically", () => {
@@ -269,34 +232,6 @@ describe("planCoveragePortfolio", () => {
 		).toHaveLength(1);
 	});
 
-	it("allows a full diverse portfolio when every candidate is positive", () => {
-		const candidates = [
-			signal({
-				metric: "error_count",
-				subjectKey: "error:checkout",
-			}),
-			signal({
-				baseline: 50,
-				current: 100,
-				deltaPercent: 100,
-				direction: "up",
-				metric: "custom_event_count",
-				subjectKey: "custom_event:signup",
-			}),
-			signal({
-				baseline: 50,
-				current: 100,
-				deltaPercent: 100,
-				direction: "up",
-				metric: "revenue",
-			}),
-		];
-
-		expect(
-			planCoveragePortfolio(candidates, { reason: "manual" })
-		).toHaveLength(3);
-	});
-
 	it("returns the same portfolio order regardless of detector input order", () => {
 		const candidates = [
 			signal({ metric: "error_count", subjectKey: "error:checkout" }),
@@ -309,65 +244,6 @@ describe("planCoveragePortfolio", () => {
 		).toEqual(
 			keys(planCoveragePortfolio([...candidates].reverse(), { reason: "manual" }))
 		);
-	});
-
-	it("rotates a repeated scan to unseen signals instead of repeating the first portfolio", () => {
-		const candidates = [
-			signal({ metric: "error_count", subjectKey: "error:manifest" }),
-			signal({
-				baseline: 2000,
-				current: 4000,
-				direction: "up",
-				entityId: "/billing",
-				metric: "lcp",
-				subjectKey: "route:lcp:/billing",
-			}),
-			signal({ metric: "goal:signup", subjectKey: "goal:signup" }),
-			signal({ metric: "custom_event_count", subjectKey: "custom_event:share" }),
-			signal({ metric: "pageviews" }),
-			signal({
-				baseline: 0,
-				current: 0,
-				deltaPercent: 0,
-				direction: "up",
-				metric: "measurement_coverage",
-				subjectKey: "measurement:conversion-coverage",
-			}),
-		];
-		const first = planCoveragePortfolio(candidates, { reason: "manual" });
-		const observations = new Map(
-			first.map((candidate) => {
-				const prepared = prepareInvestigation(candidate, 7).signal;
-				return [
-					prepared.signalKey,
-					{
-						outcome: {
-							evidence: ["The signal was investigated."],
-							impact: null,
-							next: { reason: "No immediate action.", type: "resolve" as const },
-							rootCause: null,
-							summary: "The signal was investigated.",
-							title: "Investigated signal",
-						},
-						recheckAt: new Date("2026-08-08T00:00:00.000Z"),
-						signal: prepared,
-					},
-				] as const;
-			})
-		);
-		const eligible = eligibleSignalsForInvestigation(
-			candidates,
-			observations,
-			new Date("2026-08-01T00:00:00.000Z")
-		);
-		const second = planCoveragePortfolio(candidates, {
-			preferredSignalKeys: new Set(keys(eligible)),
-			reason: "manual",
-		});
-
-		expect(first).toHaveLength(3);
-		expect(second).toHaveLength(3);
-		expect(keys(second).some((key) => keys(first).includes(key))).toBe(false);
 	});
 
 	it("fills a manual portfolio from cooling signals when every signal was seen", () => {
@@ -417,4 +293,5 @@ describe("planCoveragePortfolio", () => {
 			signalKeyForDetectedSignal(coolingError),
 		]);
 	});
+
 });

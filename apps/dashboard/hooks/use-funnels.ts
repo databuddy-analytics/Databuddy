@@ -35,14 +35,13 @@ export function useFunnelActions(websiteId: string) {
 			queryClient.invalidateQueries({
 				queryKey: orpc.funnels.getAnalyticsByLink.key(),
 			}),
+			queryClient.invalidateQueries({ queryKey: orpc.insights.key() }),
 		]);
 
 	const createMutation = useMutation({
 		...orpc.funnels.create.mutationOptions(),
 		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.funnels.list.key({ input: { websiteId } }),
-			});
+			invalidateAll();
 			toast.success("Funnel created successfully");
 		},
 	});

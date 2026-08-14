@@ -24,6 +24,8 @@ Keep additions **minimal**: one bullet, a new `rg` hint, or a routing note—eno
 - `@databuddy/test/env` targets local `databuddy_test` unless `CI=true`, so a normal `db:push` may update a different database; sync that test database explicitly before debugging removed-column failures.
 - `apps/dashboard`: Next.js app on port `3000` (per-website **agent** chat: `@ai-sdk/react` `useChat` via `contexts/chat-context.tsx` — not the separate `chat-sdk` package; overlapping sends while streaming are queued client-side to mirror a “queue latest” strategy.)
 - Dashboard Playwright webServer commands run under CI PATH from setup-bun; avoid `bash -lc` because login shells can drop Bun from PATH. Build dist-only workspace packages such as `@databuddy/sdk` and `@databuddy/devtools` before starting the API/dashboard. Client `NEXT_PUBLIC_*` flags must use direct env access so Next can inline them. `readBooleanEnv` only treats the literal string `"true"` as enabled, so CI E2E booleans must use `"true"`/`"false"`, not `"1"`/`"0"`.
+- Dashboard pages that call `useSearchParams()` must keep that call inside a Suspense-rendered child; run the production dashboard build after adding URL-driven onboarding state.
+- The local `.env` sets `NODE_ENV=development`; override it with `NODE_ENV=production` when verifying `next build`, or root-error prerender behavior can produce a misleading local failure.
 - Local E2E dashboard smokes that need `/api/test/e2e/*` should start the API/dashboard directly (or through Playwright's webServer command), not via `bun run dev:dashboard`; Turbo runs in strict env mode and drops `DATABUDDY_E2E_MODE`/`DATABUDDY_E2E_TEST_KEY` unless they are added to `turbo.json` `globalEnv`.
 - Dashboard Playwright public/demo analytics specs call API `/v1/query` anonymously from the browser; keep `DATABUDDY_E2E_MODE` query behavior isolated from production rate limits so CI retries do not exhaust `anon:unknown`.
 - `apps/api`: Elysia API on port `3001`
@@ -92,6 +94,7 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 ## Repo Conventions
 
 - Package manager: `bun`
+- For ad-hoc read-only data scripts, run from an owning package and import the client through `@databuddy/db`; a root-level Bun eval cannot resolve workspace or transitive dependencies directly.
 - When running `bun install --lockfile-only`, preserve lockfile sync for pre-existing `package.json` changes instead of reverting them as unrelated.
 - Task runner: `turbo`
 - Run filtered Turbo commands such as `bun run check-types --filter=…` from the workspace root; inside a package, its local script invokes `tsc` directly and treats those flags as TypeScript options.
