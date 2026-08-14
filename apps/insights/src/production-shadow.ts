@@ -1644,7 +1644,6 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 	const restoreConsole = silenceLibraryConsole();
 	let restoreClickHouseReadMode: (() => void) | null = null;
 	let phase: ShadowFailurePhase = "initialization";
-	let comparison = shadowComparison(options, []);
 	try {
 		configureReadOnlyClickHouse();
 		const { setClickHouseReadMode } = await import("@databuddy/db/clickhouse");
@@ -1654,7 +1653,7 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 		const ranked = options.websiteId
 			? [options.websiteId]
 			: await loadCohort(options.minEvents, options.limit, referenceTime);
-		comparison = shadowComparison(options, ranked);
+		const comparison = shadowComparison(options, ranked);
 		const metadata = await loadMetadata(ranked);
 		if (options.websiteId && metadata.sites.length === 0) {
 			throw new Error("The requested website was not found");

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 
 const setAttributes = mock(() => {});
 const captureError = mock(() => {});
+const captureWarning = mock(() => {});
 const mergeWideEvent = mock(() => {});
 const clickHouseInsert = mock(() => Promise.resolve());
 const kafkaConfigs: Array<Record<string, unknown>> = [];
@@ -32,6 +33,7 @@ class MockKafka {
 
 mock.module("./logging", () => ({
 	captureError,
+	captureWarning,
 	mergeWideEvent,
 	record: async <T>(_name: string, run: () => Promise<T> | T) => run(),
 	setAttributes,

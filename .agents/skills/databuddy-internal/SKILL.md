@@ -94,6 +94,7 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 ## Repo Conventions
 
 - Package manager: `bun`
+- For ad-hoc read-only data scripts, run from an owning package and import the client through `@databuddy/db`; a root-level Bun eval cannot resolve workspace or transitive dependencies directly.
 - When running `bun install --lockfile-only`, preserve lockfile sync for pre-existing `package.json` changes instead of reverting them as unrelated.
 - Task runner: `turbo`
 - Run filtered Turbo commands such as `bun run check-types --filter=…` from the workspace root; inside a package, its local script invokes `tsc` directly and treats those flags as TypeScript options.
