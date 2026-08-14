@@ -77,6 +77,7 @@ const PROFILE_IDENTITY_CTES = `
         FROM visitor_identity_rows
         WHERE session_id != ''
         GROUP BY session_id
+        HAVING uniqExact(profile_id) = 1
       )`;
 
 const PROFILE_TARGET_IDENTITY_CTES = `
@@ -113,13 +114,6 @@ const PROFILE_TARGET_IDENTITY_CTES = `
         FROM target_identity_rows
         WHERE anonymous_id != ''
         GROUP BY anonymous_id
-      ),
-      target_session_ids AS (
-        SELECT
-          session_id
-        FROM target_identity_rows
-        WHERE session_id != ''
-        GROUP BY session_id
       )`;
 
 const identityJoins = (source: string): string => `
@@ -129,17 +123,24 @@ const identityJoins = (source: string): string => `
           ON ifNull(${source}.session_id, '') = session_identity.session_id
         `;
 
-const canonicalVisitorExpression = (source: string): string => `coalesce(
+const canonicalProfileExpression = (source: string): string => `coalesce(
         nullIf(${source}.profile_id, ''),
-        nullIf(session_identity.initial_profile_id, ''),
         nullIf(direct_profile.initial_profile_id, ''),
+        nullIf(
+          if(ifNull(${source}.anonymous_id, '') = '', session_identity.initial_profile_id, ''),
+          ''
+        )
+      )`;
+
+const canonicalVisitorExpression = (source: string): string => `coalesce(
+        ${canonicalProfileExpression(source)},
         nullIf(${source}.anonymous_id, ''),
         ''
       )`;
 
-// Explicit profile ids always win. Anonymous-only rows use the first profile
-// assignment seen for that anonymous/session key so pre-identification activity
-// is backfilled without moving already-attributed rows after a profile change.
+// Explicit profile ids always win. A known anonymous id wins over a session id,
+// because session ids can be reused by multiple visitors. Session identity is
+// only a fallback for rows that have no anonymous id at all.
 
 const SUBQUERY_FILTER_FIELDS = new Set(["event_name"]);
 const PROFILE_LIST_ALLOWED_FILTERS = [
@@ -288,10 +289,7 @@ function profileActivityCte(
             e.profile_id = {visitorId:String}
             OR (
               ifNull(e.profile_id, '') = ''
-              AND (
-                e.anonymous_id IN (SELECT anonymous_id FROM target_anonymous_ids)
-                OR e.session_id IN (SELECT session_id FROM target_session_ids)
-              )
+              AND e.anonymous_id IN (SELECT anonymous_id FROM target_anonymous_ids)
             )
           )`
 		: `AND ${canonicalVisitorExpression("e")} = {visitorId:String}`;
@@ -300,10 +298,7 @@ function profileActivityCte(
             ifNull(ce.profile_id, '') = {visitorId:String}
             OR (
               ifNull(ce.profile_id, '') = ''
-              AND (
-                ifNull(ce.anonymous_id, '') IN (SELECT anonymous_id FROM target_anonymous_ids)
-                OR ifNull(ce.session_id, '') IN (SELECT session_id FROM target_session_ids)
-              )
+              AND ifNull(ce.anonymous_id, '') IN (SELECT anonymous_id FROM target_anonymous_ids)
             )
           )`
 		: `AND ${canonicalVisitorExpression("ce")} = {visitorId:String}`;
@@ -558,7 +553,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
         e.session_id AS session_id,
         e.path AS path,
         e.properties AS properties,
-        e.profile_id AS profile_id,
+        ${canonicalProfileExpression("e")} AS profile_id,
         e.user_agent AS user_agent,
         e.browser_name AS browser_name,
         e.os_name AS os_name,
