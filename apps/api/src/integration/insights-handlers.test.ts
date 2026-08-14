@@ -71,6 +71,68 @@ function call<T extends AnyProcedure>(procedure: T, context: Context) {
 	return createProcedureClient(procedure, { context });
 }
 
+async function seedExecutableGoalAction() {
+	const member = await signUp();
+	const organization = await insertOrganization();
+	await addToOrganization(member.id, organization.id, "member");
+	const website = await insertWebsite({ organizationId: organization.id });
+	const goalId = randomUUIDv7();
+	const insightId = randomUUIDv7();
+	const subjectKey = `goal:${goalId}`;
+	const generatedAt = new Date("2026-01-10T00:00:00.000Z");
+
+	await db().insert(goals).values({
+		createdBy: member.id,
+		description: "A narrow description.",
+		id: goalId,
+		name: "Clicked Nav",
+		target: "nav_clicked",
+		type: "EVENT",
+		updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+		websiteId: website.id,
+	});
+	await db().insert(analyticsInsights).values(
+		insightRow({
+			id: insightId,
+			organizationId: organization.id,
+			subjectKey,
+			websiteId: website.id,
+		})
+	);
+	await db().insert(insightObservations).values({
+		asOf: generatedAt,
+		createdAt: generatedAt,
+		id: randomUUIDv7(),
+		insightId,
+		organizationId: organization.id,
+		outcome: {
+			...investigationOutcome("act"),
+			next: {
+				action: "Rename Clicked Nav to Navigation clicks.",
+				execution: {
+					changes: {
+						description: "Counts navigation activity across the site.",
+						name: "Navigation clicks",
+					},
+					operation: "edit",
+				},
+				target: "Goal: Clicked Nav",
+				type: "act",
+				verification: "The goal definition matches the navigation metric.",
+			},
+		},
+		recheckAt: new Date("2026-01-17T00:00:00.000Z"),
+		signal: {
+			...signal(subjectKey),
+			entity: { id: goalId, label: "Clicked Nav", type: "goal" },
+		},
+		signalKey: subjectKey,
+		websiteId: website.id,
+	});
+
+	return { goalId, insightId, member, organization };
+}
+
 beforeEach(() => reset());
 afterAll(async () => {
 	await closeInsightsQueue();
@@ -300,68 +362,8 @@ describe("insight investigation timeline", () => {
 	});
 
 	iit("applies an executable goal action and queues verification together", async () => {
-		const member = await signUp();
-		const organization = await insertOrganization();
-		await addToOrganization(member.id, organization.id, "member");
-		const website = await insertWebsite({ organizationId: organization.id });
-		const goalId = randomUUIDv7();
-		const insightId = randomUUIDv7();
-		const subjectKey = "goal:clicked-nav";
-		const outcome: InvestigationOutcome = {
-			...investigationOutcome("act"),
-			next: {
-				action: "Rename Clicked Nav to Navigation clicks.",
-				execution: {
-					action: "Rename Clicked Nav to Navigation clicks.",
-					changes: {
-						description: "Counts navigation activity across the site.",
-						name: "Navigation clicks",
-					},
-					operation: "edit",
-				},
-				target: "Goal: Clicked Nav",
-				type: "act",
-				verification: "The goal definition matches the navigation metric.",
-			},
-			rootCause: "The existing goal name is too narrow for its configured target.",
-		};
-		const actionSignal = {
-			...signal(subjectKey),
-			entity: {
-				id: goalId,
-				label: "Clicked Nav",
-				type: "goal" as const,
-			},
-		};
-
-		await db().insert(goals).values({
-			createdBy: member.id,
-			description: "A narrow description.",
-			id: goalId,
-			name: "Clicked Nav",
-			target: "nav_clicked",
-			type: "EVENT",
-			websiteId: website.id,
-		});
-		await db().insert(analyticsInsights).values(
-			insightRow({
-				id: insightId,
-				organizationId: organization.id,
-				subjectKey,
-				websiteId: website.id,
-			})
-		);
-		await db().insert(insightObservations).values({
-			asOf: new Date("2026-01-10T00:00:00.000Z"),
-			id: randomUUIDv7(),
-			insightId,
-			organizationId: organization.id,
-			outcome,
-			recheckAt: new Date("2026-01-17T00:00:00.000Z"),
-			signal: actionSignal,
-			signalKey: subjectKey,
-			websiteId: website.id,
-		});
+		const { goalId, insightId, member, organization } =
+			await seedExecutableGoalAction();
 
 		const applied = await call(
 			appRouter.insights.applyGoalAction,
@@ -388,6 +390,34 @@ describe("insight investigation timeline", () => {
 			(await getInsightsQueue().getJob(insightsResumeJobId(applied.reply.id)))
 				?.data
 		).toEqual({ replyId: applied.reply.id });
+	});
+
+	iit("does not apply a goal action after its definition changes", async () => {
+		const { goalId, insightId, member, organization } =
+			await seedExecutableGoalAction();
+		await db()
+			.update(goals)
+			.set({
+				description: "A teammate updated this goal.",
+				updatedAt: new Date("2026-01-11T00:00:00.000Z"),
+			})
+			.where(eq(goals.id, goalId));
+
+		await expectCode(
+			call(appRouter.insights.applyAction, userContext(member, organization.id))({
+				insightId,
+			}),
+			"CONFLICT"
+		);
+		expect(
+			await db()
+				.select({ description: goals.description, name: goals.name })
+				.from(goals)
+				.where(eq(goals.id, goalId))
+		).toEqual([
+			{ description: "A teammate updated this goal.", name: "Clicked Nav" },
+		]);
+		expect(await db().select().from(insightReplies)).toHaveLength(0);
 	});
 
 	iit("applies an executable funnel action and queues verification together", async () => {

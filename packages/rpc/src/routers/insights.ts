@@ -783,6 +783,7 @@ export async function applyInsightAction(input: {
 
 		const [observation] = await tx
 			.select({
+				createdAt: insightObservations.createdAt,
 				outcome: insightObservations.outcome,
 				signal: insightObservations.signal,
 			})
@@ -808,7 +809,7 @@ export async function applyInsightAction(input: {
 				: null;
 		const action = outcome ? executableDefinitionAction(outcome) : null;
 		if (
-			!(action && signal && entityType) ||
+			!(action && signal && entityType && observation) ||
 			entityType !== initialEntityType ||
 			signal.entity.id !== initialSignal.entity.id ||
 			!sameDefinitionExecution(action, initialAction)
@@ -839,6 +840,7 @@ export async function applyInsightAction(input: {
 					description: goals.description,
 					id: goals.id,
 					name: goals.name,
+					updatedAt: goals.updatedAt,
 				})
 				.from(goals)
 				.where(
@@ -853,7 +855,10 @@ export async function applyInsightAction(input: {
 			if (!goal) {
 				throw rpcError.notFound("goal", signal.entity.id);
 			}
-			if (goal.name !== initialSignal.entity.label) {
+			if (
+				goal.name !== initialSignal.entity.label ||
+				goal.updatedAt > observation.createdAt
+			) {
 				throw definitionActionError("current");
 			}
 			if (action.operation === "delete") {
@@ -881,6 +886,7 @@ export async function applyInsightAction(input: {
 					description: funnelDefinitions.description,
 					id: funnelDefinitions.id,
 					name: funnelDefinitions.name,
+					updatedAt: funnelDefinitions.updatedAt,
 				})
 				.from(funnelDefinitions)
 				.where(
@@ -895,7 +901,10 @@ export async function applyInsightAction(input: {
 			if (!funnel) {
 				throw rpcError.notFound("funnel", signal.entity.id);
 			}
-			if (funnel.name !== initialSignal.entity.label) {
+			if (
+				funnel.name !== initialSignal.entity.label ||
+				funnel.updatedAt > observation.createdAt
+			) {
 				throw definitionActionError("current");
 			}
 			if (action.operation === "delete") {
