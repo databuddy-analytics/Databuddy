@@ -32,13 +32,17 @@ import { VALIDATION_LIMITS as SHARED_LIMITS } from "@databuddy/validation";
 import type { ApiKeyRow } from "@lib/api-key";
 import { hasWebsiteScope } from "@lib/api-key";
 import { VALIDATION_LIMITS } from "@utils/validation";
-import { denyApiKeyIdentify } from "./identify";
+import { denyApiKeyIdentify, normalizeIdentifyProfileId } from "./identify";
 
 describe("validation limit drift", () => {
 	test("profile id cap matches between schema and sanitization", () => {
 		expect(VALIDATION_LIMITS.USER_ID_MAX_LENGTH).toBe(
 			SHARED_LIMITS.USER_ID_MAX_LENGTH
 		);
+	});
+
+	test("normalizes profile ids with the same ingestion sanitizer", () => {
+		expect(normalizeIdentifyProfileId("  profile-1\u0000  ")).toBe("profile-1");
 	});
 });
 
