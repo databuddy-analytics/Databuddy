@@ -1,6 +1,5 @@
 import {
 	CUSTOM_EVENTS_VISITOR_KEY,
-	EVENTS_VISITOR_KEY,
 	revenueLatestCte,
 	visitorMatch,
 } from "@databuddy/db/clickhouse";
@@ -34,6 +33,113 @@ const PROFILE_AGGREGATE_FILTER_OPERATORS = new Set<Filter["op"]>([
 ]);
 
 const VISITOR_MATCH = visitorMatch();
+
+const PROFILE_IDENTITY_CTES = `
+      visitor_identity_rows AS (
+        SELECT
+          profile_id,
+          anonymous_id,
+          session_id,
+          time AS identity_time
+        FROM ${Analytics.events}
+        WHERE
+          client_id = {websiteId:String}
+          AND profile_id != ''
+          AND time >= toDateTime({startDate:String})
+          AND time <= toDateTime({endDate:String})
+
+        UNION ALL
+
+        SELECT
+          profile_id,
+          ifNull(anonymous_id, '') AS anonymous_id,
+          ifNull(session_id, '') AS session_id,
+          timestamp AS identity_time
+        FROM ${Analytics.custom_events}
+        WHERE
+          (owner_id = {websiteId:String} OR website_id = {websiteId:String})
+          AND profile_id != ''
+          AND timestamp >= toDateTime({startDate:String})
+          AND timestamp <= toDateTime({endDate:String})
+      ),
+      visitor_profiles_by_anonymous AS (
+        SELECT
+          anonymous_id,
+          argMin(profile_id, identity_time) AS initial_profile_id
+        FROM visitor_identity_rows
+        WHERE anonymous_id != ''
+        GROUP BY anonymous_id
+      ),
+      visitor_identity_by_session AS (
+        SELECT
+          session_id,
+          argMin(profile_id, identity_time) AS initial_profile_id
+        FROM visitor_identity_rows
+        WHERE session_id != ''
+        GROUP BY session_id
+      )`;
+
+const PROFILE_TARGET_IDENTITY_CTES = `
+      target_identity_rows AS (
+        SELECT
+          profile_id,
+          anonymous_id,
+          session_id,
+          time AS identity_time
+        FROM ${Analytics.events}
+        WHERE
+          client_id = {websiteId:String}
+          AND (profile_id = {visitorId:String} OR anonymous_id = {visitorId:String})
+          AND time >= toDateTime({startDate:String})
+          AND time <= toDateTime({endDate:String})
+
+        UNION ALL
+
+        SELECT
+          profile_id,
+          ifNull(anonymous_id, '') AS anonymous_id,
+          ifNull(session_id, '') AS session_id,
+          timestamp AS identity_time
+        FROM ${Analytics.custom_events}
+        WHERE
+          (owner_id = {websiteId:String} OR website_id = {websiteId:String})
+          AND (profile_id = {visitorId:String} OR anonymous_id = {visitorId:String})
+          AND timestamp >= toDateTime({startDate:String})
+          AND timestamp <= toDateTime({endDate:String})
+      ),
+      target_anonymous_ids AS (
+        SELECT
+          anonymous_id
+        FROM target_identity_rows
+        WHERE anonymous_id != ''
+        GROUP BY anonymous_id
+      ),
+      target_session_ids AS (
+        SELECT
+          session_id
+        FROM target_identity_rows
+        WHERE session_id != ''
+        GROUP BY session_id
+      )`;
+
+const identityJoins = (source: string): string => `
+        LEFT JOIN visitor_profiles_by_anonymous direct_profile
+          ON ifNull(${source}.anonymous_id, '') = direct_profile.anonymous_id
+        LEFT JOIN visitor_identity_by_session session_identity
+          ON ifNull(${source}.session_id, '') = session_identity.session_id
+        `;
+
+const canonicalVisitorExpression = (source: string): string => `coalesce(
+        nullIf(${source}.profile_id, ''),
+        nullIf(session_identity.initial_profile_id, ''),
+        nullIf(direct_profile.initial_profile_id, ''),
+        nullIf(${source}.anonymous_id, ''),
+        ''
+      )`;
+
+// Explicit profile ids always win. Anonymous-only rows use the first profile
+// assignment seen for that anonymous/session key so pre-identification activity
+// is backfilled without moving already-attributed rows after a profile change.
 
 const SUBQUERY_FILTER_FIELDS = new Set(["event_name"]);
 const PROFILE_LIST_ALLOWED_FILTERS = [
@@ -165,18 +271,103 @@ function buildProfileAggregateFilter(
 	};
 }
 
-// error_spans, web_vitals_spans, and outgoing_links carry no profile_id,
-// so an identified visitor's rows there are found via the device set
-// (anonymous_ids) resolved from the events table.
-const PROFILE_ACTIVITY_CTE = `
+function profileActivityCte(
+	identityCtes: string,
+	limitToVisitor = false
+): string {
+	const eventVisitorExpression = limitToVisitor
+		? "{visitorId:String}"
+		: canonicalVisitorExpression("e");
+	const customVisitorExpression = limitToVisitor
+		? "{visitorId:String}"
+		: canonicalVisitorExpression("ce");
+	const eventJoins = limitToVisitor ? "" : identityJoins("e");
+	const customEventJoins = limitToVisitor ? "" : identityJoins("ce");
+	const visitorCondition = limitToVisitor
+		? `AND (
+            e.profile_id = {visitorId:String}
+            OR (
+              ifNull(e.profile_id, '') = ''
+              AND (
+                e.anonymous_id IN (SELECT anonymous_id FROM target_anonymous_ids)
+                OR e.session_id IN (SELECT session_id FROM target_session_ids)
+              )
+            )
+          )`
+		: `AND ${canonicalVisitorExpression("e")} = {visitorId:String}`;
+	const customVisitorCondition = limitToVisitor
+		? `AND (
+            ifNull(ce.profile_id, '') = {visitorId:String}
+            OR (
+              ifNull(ce.profile_id, '') = ''
+              AND (
+                ifNull(ce.anonymous_id, '') IN (SELECT anonymous_id FROM target_anonymous_ids)
+                OR ifNull(ce.session_id, '') IN (SELECT session_id FROM target_session_ids)
+              )
+            )
+          )`
+		: `AND ${canonicalVisitorExpression("ce")} = {visitorId:String}`;
+
+	return `
+      ${identityCtes},
+      profile_events AS (
+        SELECT
+          e.id AS id,
+          e.client_id AS client_id,
+          e.event_name AS event_name,
+          e.anonymous_id AS anonymous_id,
+          e.time AS time,
+          e.session_id AS session_id,
+          e.path AS path,
+          e.properties AS properties,
+          e.profile_id AS profile_id,
+          e.time_on_page AS time_on_page,
+          e.user_agent AS user_agent,
+          e.browser_name AS browser_name,
+          e.os_name AS os_name,
+          e.device_type AS device_type,
+          e.country AS country,
+          e.region AS region,
+          e.referrer AS referrer,
+          ${eventVisitorExpression} AS visitor_id
+        FROM ${Analytics.events} e
+        ${eventJoins}
+        WHERE
+          e.client_id = {websiteId:String}
+          AND e.time >= toDateTime({startDate:String})
+          AND e.time <= toDateTime({endDate:String})
+          ${visitorCondition}
+      ),
+      profile_custom_events AS (
+        SELECT
+          ce.owner_id AS owner_id,
+          ce.website_id AS website_id,
+          ce.timestamp AS timestamp,
+          ce.event_name AS event_name,
+          ce.properties AS properties,
+          ce.anonymous_id AS anonymous_id,
+          ce.session_id AS session_id,
+          ce.profile_id AS profile_id,
+          ce.path AS path,
+          ${customVisitorExpression} AS visitor_id
+        FROM ${Analytics.custom_events} ce
+        ${customEventJoins}
+        WHERE
+          (ce.owner_id = {websiteId:String} OR ce.website_id = {websiteId:String})
+          AND ce.timestamp >= toDateTime({startDate:String})
+          AND ce.timestamp <= toDateTime({endDate:String})
+          ${customVisitorCondition}
+      ),
       visitor_ids AS (
         SELECT DISTINCT anonymous_id
-        FROM ${Analytics.events}
-        WHERE
-          client_id = {websiteId:String}
-          AND ${VISITOR_MATCH}
-          AND time >= toDateTime({startDate:String})
-          AND time <= toDateTime({endDate:String})
+        FROM profile_events
+        WHERE visitor_id = {visitorId:String} AND anonymous_id != ''
+
+        UNION DISTINCT
+
+        SELECT DISTINCT ifNull(anonymous_id, '')
+        FROM profile_custom_events
+        WHERE visitor_id = {visitorId:String} AND ifNull(anonymous_id, '') != ''
 
         UNION DISTINCT
 
@@ -186,24 +377,18 @@ const PROFILE_ACTIVITY_CTE = `
         SELECT
           session_id,
           time
-        FROM ${Analytics.events}
+        FROM profile_events
         WHERE
-          client_id = {websiteId:String}
-          AND ${VISITOR_MATCH}
-          AND time >= toDateTime({startDate:String})
-          AND time <= toDateTime({endDate:String})
+          visitor_id = {visitorId:String}
 
         UNION ALL
 
         SELECT
           ifNull(session_id, '') as session_id,
           timestamp as time
-        FROM ${Analytics.custom_events}
+        FROM profile_custom_events
         WHERE
-          website_id = {websiteId:String}
-          AND ${VISITOR_MATCH}
-          AND timestamp >= toDateTime({startDate:String})
-          AND timestamp <= toDateTime({endDate:String})
+          visitor_id = {visitorId:String}
 
         UNION ALL
 
@@ -241,6 +426,7 @@ const PROFILE_ACTIVITY_CTE = `
           AND timestamp >= toDateTime({startDate:String})
           AND timestamp <= toDateTime({endDate:String})
       )`;
+}
 
 function stripePaymentIntentId(alias = ""): string {
 	const prefix = alias ? `${alias}.` : "";
@@ -348,67 +534,109 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 				: "";
 
 			const eventSubqueryClause = subqueryConditions.length
-				? `AND ${EVENTS_VISITOR_KEY} IN (
-        SELECT DISTINCT ${CUSTOM_EVENTS_VISITOR_KEY}
-        FROM ${Analytics.custom_events}
-        WHERE (owner_id = {websiteId:String} OR website_id = {websiteId:String})
-          AND ${subqueryConditions.join(" AND ")}
-          AND timestamp >= toDateTime({startDate:String})
-          AND timestamp <= toDateTime({endDate:String})
-          AND (anonymous_id IS NOT NULL OR profile_id != '')
-      )`
+				? `AND visitor_id IN (
+	        SELECT DISTINCT visitor_id
+	        FROM profile_custom_events
+	        WHERE ${subqueryConditions.join(" AND ")}
+	          AND visitor_id != ''
+	      )`
 				: "";
 
 			const profileSort = resolveProfileSort(orderBy);
+			const profileRevenueKeyPredicate = `${CUSTOM_EVENTS_VISITOR_KEY} IN (SELECT visitor_id FROM visitor_profiles)`;
 
 			return {
 				sql: `
-    WITH visitor_profiles AS (
+    WITH ${PROFILE_IDENTITY_CTES},
+    profile_events AS (
       SELECT
-        ${EVENTS_VISITOR_KEY} as visitor_id,
-        max(profile_id) as latest_profile_id,
-        MIN(time) as first_visit,
-        MAX(time) as last_visit,
-        uniq(session_id) as session_count,
-        COUNT(*) as total_events,
-        uniqIf(path, event_name = 'screen_view') as unique_pages,
-        any(user_agent) as user_agent,
-        any(country) as country,
-        any(region) as region,
-        any(device_type) as device_type,
-        any(browser_name) as browser_name,
-        any(os_name) as os_name,
-        any(referrer) as referrer
-      FROM ${Analytics.events}
+        e.id AS id,
+        e.client_id AS client_id,
+        e.event_name AS event_name,
+        e.anonymous_id AS anonymous_id,
+        e.time AS time,
+        e.session_id AS session_id,
+        e.path AS path,
+        e.properties AS properties,
+        e.profile_id AS profile_id,
+        e.user_agent AS user_agent,
+        e.browser_name AS browser_name,
+        e.os_name AS os_name,
+        e.device_type AS device_type,
+        e.country AS country,
+        e.region AS region,
+        e.referrer AS referrer,
+        ${canonicalVisitorExpression("e")} AS visitor_id
+      FROM ${Analytics.events} e
+      ${identityJoins("e")}
       WHERE
-        client_id = {websiteId:String}
-        AND time >= toDateTime({startDate:String})
-        AND time <= toDateTime({endDate:String})
+        e.client_id = {websiteId:String}
+        AND e.time >= toDateTime({startDate:String})
+        AND e.time <= toDateTime({endDate:String})
+    ),
+    profile_custom_events AS (
+      SELECT
+        ce.owner_id AS owner_id,
+        ce.website_id AS website_id,
+        ce.timestamp AS timestamp,
+        ce.event_name AS event_name,
+        ce.properties AS properties,
+        ce.anonymous_id AS anonymous_id,
+        ce.session_id AS session_id,
+        ce.profile_id AS profile_id,
+        ce.path AS path,
+        ${canonicalVisitorExpression("ce")} AS visitor_id
+      FROM ${Analytics.custom_events} ce
+      ${identityJoins("ce")}
+      WHERE
+        (ce.owner_id = {websiteId:String} OR ce.website_id = {websiteId:String})
+        AND ce.timestamp >= toDateTime({startDate:String})
+        AND ce.timestamp <= toDateTime({endDate:String})
+    ),
+    all_visitor_profiles AS (
+      SELECT
+        pe.visitor_id AS visitor_id,
+        argMaxIf(pe.profile_id, pe.time, pe.profile_id != '') as latest_profile_id,
+        MIN(pe.time) as first_visit,
+        MAX(pe.time) as last_visit,
+        uniq(pe.session_id) as session_count,
+        COUNT(*) as total_events,
+        uniqIf(pe.path, pe.event_name = 'screen_view') as unique_pages,
+        any(pe.user_agent) as user_agent,
+        any(pe.country) as country,
+        any(pe.region) as region,
+        any(pe.device_type) as device_type,
+        any(pe.browser_name) as browser_name,
+        any(pe.os_name) as os_name,
+        any(pe.referrer) as referrer
+      FROM profile_events pe
+      WHERE
+        pe.visitor_id != ''
 	${combinedWhereClause}
 	${eventSubqueryClause}
       GROUP BY visitor_id
       ${havingClause}
+    ),
+    visitor_profiles AS (
+      SELECT *
+      FROM all_visitor_profiles
       ORDER BY ${profileSort}
       LIMIT {limit:Int32} OFFSET {offset:Int32}
     ),
     visitor_custom_events AS (
       SELECT
-        ${CUSTOM_EVENTS_VISITOR_KEY} as visitor_id,
+        visitor_id,
         COUNT(*) as custom_event_count,
         uniq(event_name) as unique_event_names
-      FROM ${Analytics.custom_events}
+      FROM profile_custom_events
       WHERE (owner_id = {websiteId:String} OR website_id = {websiteId:String})
-        AND timestamp >= toDateTime({startDate:String})
-        AND timestamp <= toDateTime({endDate:String})
-        AND ${CUSTOM_EVENTS_VISITOR_KEY} IN (SELECT visitor_id FROM visitor_profiles)
+        AND visitor_id IN (SELECT visitor_id FROM visitor_profiles)
       GROUP BY visitor_id
     ),
-		${stripeProfileContextCtes(
-			`${CUSTOM_EVENTS_VISITOR_KEY} IN (SELECT visitor_id FROM visitor_profiles)`
-		)},
+		${stripeProfileContextCtes(profileRevenueKeyPredicate)},
 		${revenueLatestCte({
 			candidateWhere: `(
-				${CUSTOM_EVENTS_VISITOR_KEY} IN (SELECT visitor_id FROM visitor_profiles)
+				${profileRevenueKeyPredicate}
 				OR (owner_id, ${stripePaymentIntentId()}) IN (
 					SELECT owner_id, payment_intent_id FROM profile_payment_intents
 				)
@@ -424,46 +652,6 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 			FROM profile_revenue_attributed
 			WHERE ${ATTRIBUTED_REVENUE_VISITOR_KEY} IN (SELECT visitor_id FROM visitor_profiles)
 	      GROUP BY visitor_id
-    ),
-    visitor_sessions AS (
-      SELECT
-        ${EVENTS_VISITOR_KEY} as visitor_id,
-        session_id,
-        MIN(time) as session_start,
-        MAX(time) as session_end,
-        LEAST(dateDiff('second', MIN(time), MAX(time)), 28800) as duration,
-        COUNT(*) as page_views,
-        uniqIf(path, event_name = 'screen_view') as unique_pages,
-        any(user_agent) as user_agent,
-        any(country) as country,
-        any(region) as region,
-        any(device_type) as device_type,
-        any(browser_name) as browser_name,
-        any(os_name) as os_name,
-        any(referrer) as referrer,
-        groupArray(
-          tuple(
-            id,
-            time,
-            event_name,
-            path,
-            CASE
-              WHEN event_name NOT IN ('screen_view', 'page_exit', 'web_vitals', 'link_out')
-                AND properties IS NOT NULL
-                AND properties != '{}'
-              THEN CAST(properties AS String)
-              ELSE NULL
-            END
-          )
-        ) as events
-      FROM ${Analytics.events}
-      WHERE client_id = {websiteId:String}
-        AND time >= toDateTime({startDate:String})
-        AND time <= toDateTime({endDate:String})
-        AND ${EVENTS_VISITOR_KEY} IN (SELECT visitor_id FROM visitor_profiles)
-	${combinedWhereClause}
-      GROUP BY visitor_id, session_id
-      ORDER BY visitor_id, session_start DESC
     )
     SELECT
       vp.visitor_id AS visitor_id,
@@ -482,26 +670,11 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
       vp.referrer AS referrer,
       COALESCE(vce.custom_event_count, 0) as custom_event_count,
       COALESCE(vce.unique_event_names, 0) as unique_event_names,
-      COALESCE(vr.ltv, 0) as ltv,
-      COALESCE(vs.session_id, '') as session_id,
-      COALESCE(vs.session_start, '') as session_start,
-      COALESCE(vs.session_end, '') as session_end,
-      COALESCE(vs.duration, 0) as duration,
-      COALESCE(vs.page_views, 0) as page_views,
-      COALESCE(vs.unique_pages, 0) as session_unique_pages,
-      COALESCE(vs.user_agent, '') as session_user_agent,
-      COALESCE(vs.country, '') as session_country,
-      COALESCE(vs.region, '') as session_region,
-      COALESCE(vs.device_type, '') as session_device_type,
-      COALESCE(vs.browser_name, '') as session_browser_name,
-      COALESCE(vs.os_name, '') as session_os_name,
-      COALESCE(vs.referrer, '') as session_referrer,
-      COALESCE(vs.events, []) as events
+      COALESCE(vr.ltv, 0) as ltv
     FROM visitor_profiles vp
     LEFT JOIN visitor_custom_events vce ON vp.visitor_id = vce.visitor_id
     LEFT JOIN visitor_revenue vr ON vp.visitor_id = vr.visitor_id
-    LEFT JOIN visitor_sessions vs ON vp.visitor_id = vs.visitor_id
-    ORDER BY vp.${profileSort}, vs.session_start DESC
+    ORDER BY vp.${profileSort}
   `,
 				params: {
 					websiteId,
@@ -536,7 +709,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 
 			return {
 				sql: `
-    WITH ${PROFILE_ACTIVITY_CTE},
+	    WITH ${profileActivityCte(PROFILE_TARGET_IDENTITY_CTES, true)},
     activity_stats AS (
       SELECT
         {visitorId:String} as visitor_id,
@@ -546,18 +719,14 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
       FROM profile_activity
       WHERE session_id != ''
     ),
-    event_stats AS (
+	    event_stats AS (
       SELECT
         countIf(event_name = 'screen_view') as total_pageviews,
         SUM(CASE WHEN time_on_page > 0 THEN time_on_page ELSE 0 END) as total_duration,
         formatReadableTimeDelta(SUM(CASE WHEN time_on_page > 0 THEN time_on_page ELSE 0 END)) as total_duration_formatted
-      FROM ${Analytics.events}
-      WHERE
-        client_id = {websiteId:String}
-        AND ${VISITOR_MATCH}
-        AND time >= toDateTime({startDate:String})
-        AND time <= toDateTime({endDate:String})
-    ),
+	      FROM profile_events
+	      WHERE visitor_id = {visitorId:String}
+	    ),
     profile_context AS (
       SELECT
         argMaxIf(profile_id, time, profile_id != '') as latest_profile_id,
@@ -566,12 +735,8 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
         any(os_name) as os,
         any(country) as country,
         any(region) as region
-      FROM ${Analytics.events}
-      WHERE
-        client_id = {websiteId:String}
-        AND ${VISITOR_MATCH}
-        AND time >= toDateTime({startDate:String})
-        AND time <= toDateTime({endDate:String})
+	      FROM profile_events
+	      WHERE visitor_id = {visitorId:String}
     )
     SELECT
       ast.visitor_id,
@@ -716,7 +881,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 
 			return {
 				sql: `
-    WITH ${PROFILE_ACTIVITY_CTE},
+	    WITH ${profileActivityCte(PROFILE_TARGET_IDENTITY_CTES, true)},
     user_sessions AS (
       SELECT
         session_id,
@@ -742,13 +907,9 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
         any(country) as country,
         any(region) as region,
         any(referrer) as referrer
-      FROM ${Analytics.events} e
-      INNER JOIN user_sessions us ON e.session_id = us.session_id
-      WHERE
-        e.client_id = {websiteId:String}
-        AND (e.anonymous_id = {visitorId:String} OR e.profile_id = {visitorId:String})
-        AND e.time >= toDateTime({startDate:String})
-        AND e.time <= toDateTime({endDate:String})
+	      FROM profile_events e
+	      INNER JOIN user_sessions us ON e.session_id = us.session_id
+	      WHERE e.visitor_id = {visitorId:String}
       GROUP BY e.session_id
     ),
     all_events AS (
@@ -769,13 +930,9 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
           WHEN e.event_name NOT IN ('screen_view', 'page_exit', 'web_vitals', 'link_out') THEN 'custom'
           ELSE 'analytics'
         END as source
-      FROM ${Analytics.events} e
-      INNER JOIN user_sessions us ON e.session_id = us.session_id
-      WHERE
-        e.client_id = {websiteId:String}
-        AND (e.anonymous_id = {visitorId:String} OR e.profile_id = {visitorId:String})
-        AND e.time >= toDateTime({startDate:String})
-        AND e.time <= toDateTime({endDate:String})
+	      FROM profile_events e
+	      INNER JOIN user_sessions us ON e.session_id = us.session_id
+	      WHERE e.visitor_id = {visitorId:String}
 
       UNION ALL
 
@@ -795,13 +952,9 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
           ELSE NULL
         END as properties,
         'custom' as source
-      FROM ${Analytics.custom_events} ce
-      INNER JOIN user_sessions us ON ifNull(ce.session_id, '') = us.session_id
-      WHERE
-        ce.website_id = {websiteId:String}
-        AND (ce.anonymous_id = {visitorId:String} OR ce.profile_id = {visitorId:String})
-        AND ce.timestamp >= toDateTime({startDate:String})
-        AND ce.timestamp <= toDateTime({endDate:String})
+	      FROM profile_custom_events ce
+	      INNER JOIN user_sessions us ON ifNull(ce.session_id, '') = us.session_id
+	      WHERE ce.visitor_id = {visitorId:String}
 
       UNION ALL
 
@@ -888,7 +1041,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
       GROUP BY session_id
     )
     SELECT
-      us.session_id,
+      us.session_id AS session_id,
       us.session_name,
       us.first_visit,
       us.last_visit,
