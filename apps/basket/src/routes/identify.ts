@@ -18,7 +18,9 @@ import {
 	rethrowOrWrap,
 } from "@lib/structured-errors";
 import { record } from "@lib/tracing";
+import { sanitizeString, VALIDATION_LIMITS } from "@utils/validation";
 import { Elysia } from "elysia";
+import { parseError } from "evlog";
 import { useLogger } from "evlog/elysia";
 
 export type ApiKeyIdentifyDenial =
@@ -70,6 +72,10 @@ type IdentifyTarget =
 	  }
 	| { botResponse: unknown };
 
+export function normalizeIdentifyProfileId(profileId: string): string {
+	return sanitizeString(profileId, VALIDATION_LIMITS.USER_ID_MAX_LENGTH);
+}
+
 async function resolveIdentifyTarget(
 	body: unknown,
 	query: unknown,
@@ -99,13 +105,14 @@ async function resolveIdentifyTarget(
 	const { clientId, userAgent, ip } = await validateRequest(
 		body,
 		query,
-		request
+		request,
+		{ checkUsage: false }
 	);
 	log.set({ clientId });
 
 	const botError = await checkForBot(request, body, query, clientId, userAgent);
 	if (botError) {
-		log.set({ rejected: "bot" });
+		log.set({ identify_outcome: "blocked", http_status: 204, rejected: "bot" });
 		return { botResponse: botError.error };
 	}
 
@@ -146,10 +153,22 @@ export const identifyRoute = new Elysia().post(
 				throw basketErrors.identifyRateLimited();
 			}
 
-			const { profileId, anonymousId, traits } = parseResult.data;
+			const profileId = normalizeIdentifyProfileId(parseResult.data.profileId);
+			if (!profileId) {
+				log.set({ rejected: "profile_id" });
+				throw createIngestSchemaValidationError([
+					{
+						code: "custom",
+						path: ["profileId"],
+						message: "profileId must contain a valid identifier",
+					},
+				]);
+			}
+			const { anonymousId, traits } = parseResult.data;
 			log.set({
 				traitCount: Object.keys(traits ?? {}).length,
 				hasAlias: Boolean(anonymousId),
+				canonicalized_profile_id: profileId !== parseResult.data.profileId,
 			});
 
 			const [update] = await Promise.all([
@@ -166,9 +185,16 @@ export const identifyRoute = new Elysia().post(
 			if (update && update.changes.length > 0) {
 				log.set({ traitChanges: update.changes.length });
 			}
+			log.set({ identify_outcome: "success", http_status: 200 });
 
 			return Response.json({ status: "success", type: "identify" });
 		} catch (error) {
+			const parsed = parseError(error);
+			log.set({
+				identify_outcome: "rejected",
+				http_status: parsed.status,
+				failure_reason: parsed.code,
+			});
 			rethrowOrWrap(error, log);
 		}
 	}

@@ -229,6 +229,17 @@ describe("validateRequest", () => {
 		expect(mockCheckAutumnUsage).toHaveBeenCalled();
 	});
 
+	test("can skip event usage checks for non-event ingestion", async () => {
+		const result = await validateRequest(
+			{},
+			{ client_id: "ws_1" },
+			makeReq(),
+			{ checkUsage: false }
+		);
+		expect("clientId" in result).toBe(true);
+		expect(mockCheckAutumnUsage).not.toHaveBeenCalled();
+	});
+
 	test("no ownerId → skips billing check", async () => {
 		mockGetWebsiteByIdV2.mockResolvedValue({
 			id: "ws_1",
