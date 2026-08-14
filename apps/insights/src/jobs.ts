@@ -138,8 +138,12 @@ async function loadCanonicalGenerateItem(
 			itemId: insightRunItems.id,
 			organizationId: insightRunItems.organizationId,
 			queueJobId: insightRunItems.queueJobId,
-			reason: insightRuns.reason,
-			requestedByUserId: insightRuns.requestedByUserId,
+			reason: sql<
+				InsightsGenerateWebsiteJobData["reason"]
+			>`coalesce(${insightRunItems.reason}, ${insightRuns.reason})`,
+			requestedByUserId: sql<
+				string | null
+			>`coalesce(${insightRunItems.requestedByUserId}, ${insightRuns.requestedByUserId})`,
 			resultCount: insightRunItems.resultCount,
 			runId: insightRunItems.runId,
 			status: insightRunItems.status,

@@ -20,6 +20,8 @@ import {
 	slackChannelBindings,
 	slackIntegrations,
 	type InsightGenerationConfig,
+	type InsightRunItem,
+	type InsightRunStatus,
 	websites,
 } from "@databuddy/db/schema";
 import {
@@ -627,9 +629,14 @@ function canTriggerInsightGeneration(
 		});
 }
 
+interface InsightRunReference {
+	id: string;
+	totalItems: number;
+}
+
 async function findActiveInsightRun(
 	organizationId: string
-): Promise<{ id: string; totalItems: number } | null> {
+): Promise<InsightRunReference | null> {
 	const [active] = await db
 		.select({ id: insightRuns.id, totalItems: insightRuns.totalItems })
 		.from(insightRuns)
@@ -682,16 +689,266 @@ async function findActiveFirstReviewRun(
 		: null;
 }
 
-function reusedInsightRun(active: {
-	id: string;
-	totalItems: number;
-}): QueueInsightGenerationRunResult {
+function reusedInsightRun(
+	active: InsightRunReference
+): QueueInsightGenerationRunResult {
 	return {
 		queuedItems: active.totalItems,
 		reusedRun: true,
 		runId: active.id,
 		status: "queued",
 	};
+}
+
+export interface InsightRunStatusSummary {
+	completedItems: number;
+	failedItems: number;
+	queuedItems: number;
+	runningItems: number;
+	settled: boolean;
+	skippedItems: number;
+	status: InsightRunStatus;
+	totalItems: number;
+}
+
+export function summarizeInsightRunItemErrors(
+	items: Pick<InsightRunItem, "errorMessage" | "status">[]
+): string | null {
+	const counts = new Map<string, number>();
+	for (const item of items) {
+		if (item.status === "failed" && item.errorMessage) {
+			counts.set(item.errorMessage, (counts.get(item.errorMessage) ?? 0) + 1);
+		}
+	}
+
+	let topMessage: string | null = null;
+	let topCount = 0;
+	for (const [message, count] of counts) {
+		if (count > topCount) {
+			topMessage = message;
+			topCount = count;
+		}
+	}
+	if (!topMessage) {
+		return null;
+	}
+
+	const otherTypes = counts.size - 1;
+	const suffix = otherTypes > 0 ? ` (+${otherTypes} other error types)` : "";
+	return `${topCount} item${topCount === 1 ? "" : "s"}: ${topMessage}${suffix}`;
+}
+
+export function syncInsightRunStatus(
+	runId: string
+): Promise<InsightRunStatusSummary> {
+	return withTransaction(async (tx) => {
+		await tx
+			.select({ id: insightRuns.id })
+			.from(insightRuns)
+			.where(eq(insightRuns.id, runId))
+			.limit(1)
+			.for("update");
+		const items = await tx
+			.select({
+				errorMessage: insightRunItems.errorMessage,
+				status: insightRunItems.status,
+			})
+			.from(insightRunItems)
+			.where(eq(insightRunItems.runId, runId));
+
+		const completedItems = items.filter(
+			(item) => item.status === "succeeded"
+		).length;
+		const failedItems = items.filter((item) => item.status === "failed").length;
+		const queuedItems = items.filter((item) => item.status === "queued").length;
+		const runningItems = items.filter(
+			(item) => item.status === "running"
+		).length;
+		const skippedItems = items.filter(
+			(item) => item.status === "skipped"
+		).length;
+		const settled =
+			completedItems + failedItems + skippedItems === items.length;
+
+		let status: InsightRunStatus =
+			queuedItems === items.length ? "queued" : "running";
+		if (items.length === 0) {
+			status = "skipped";
+		} else if (settled) {
+			if (completedItems > 0 && failedItems === 0) {
+				status = "succeeded";
+			} else if (completedItems > 0) {
+				status = "partially_succeeded";
+			} else if (skippedItems === items.length) {
+				status = "skipped";
+			} else {
+				status = "failed";
+			}
+		}
+
+		const now = new Date();
+		await tx
+			.update(insightRuns)
+			.set({
+				completedItems,
+				errorMessage:
+					settled && failedItems > 0
+						? summarizeInsightRunItemErrors(items)
+						: null,
+				failedItems,
+				finishedAt: settled ? now : null,
+				skippedItems,
+				status,
+				totalItems: items.length,
+				updatedAt: now,
+			})
+			.where(eq(insightRuns.id, runId));
+
+		return {
+			completedItems,
+			failedItems,
+			queuedItems,
+			runningItems,
+			settled,
+			skippedItems,
+			status,
+			totalItems: items.length,
+		};
+	});
+}
+
+interface InsightQueueItem {
+	itemId: string;
+	jobId: string;
+	websiteId: string;
+}
+
+interface AppendedInsightRun extends InsightRunReference {
+	queueItems: InsightQueueItem[];
+}
+
+function createInsightQueueItems(
+	runId: string,
+	targetWebsites: Array<{ id: string }>
+): InsightQueueItem[] {
+	return targetWebsites.map((website) => ({
+		itemId: randomUUIDv7(),
+		jobId: insightsWebsiteJobId(runId, website.id),
+		websiteId: website.id,
+	}));
+}
+
+async function enqueueInsightRunItems(params: {
+	organizationId: string;
+	queueItems: InsightQueueItem[];
+	reason: z.infer<typeof queueReasonSchema>;
+	requestedByUserId: string | null;
+	runId: string;
+}): Promise<void> {
+	const queue = getInsightsQueue();
+	await queue.addBulk(
+		params.queueItems.map((item) => ({
+			name: INSIGHTS_GENERATE_WEBSITE_JOB_NAME,
+			data: {
+				itemId: item.itemId,
+				organizationId: params.organizationId,
+				reason: params.reason,
+				requestedByUserId: params.requestedByUserId,
+				runId: params.runId,
+				websiteId: item.websiteId,
+			},
+			opts: { jobId: item.jobId },
+		}))
+	);
+}
+
+async function failQueueItems(runId: string, itemIds: string[]): Promise<void> {
+	if (itemIds.length === 0) {
+		return;
+	}
+	const now = new Date();
+	await db
+		.update(insightRunItems)
+		.set({
+			errorMessage: QUEUE_INSIGHT_GENERATION_ERROR,
+			finishedAt: now,
+			status: "failed",
+			updatedAt: now,
+		})
+		.where(
+			and(
+				eq(insightRunItems.runId, runId),
+				inArray(insightRunItems.id, itemIds),
+				eq(insightRunItems.status, "queued")
+			)
+		);
+	await syncInsightRunStatus(runId);
+}
+
+function appendManualRunItems(params: {
+	organizationId: string;
+	reason: z.infer<typeof queueReasonSchema>;
+	requestedByUserId: string | null;
+	targetWebsites: Array<{ id: string }>;
+}): Promise<AppendedInsightRun | null> {
+	return withTransaction(async (tx) => {
+		const [active] = await tx
+			.select({
+				id: insightRuns.id,
+				totalItems: insightRuns.totalItems,
+			})
+			.from(insightRuns)
+			.where(
+				and(
+					eq(insightRuns.organizationId, params.organizationId),
+					inArray(insightRuns.status, INSIGHT_RUN_ACTIVE_STATUSES)
+				)
+			)
+			.orderBy(desc(insightRuns.createdAt))
+			.limit(1)
+			.for("update");
+		if (!active) {
+			return null;
+		}
+
+		const items = createInsightQueueItems(active.id, params.targetWebsites);
+		const inserted =
+			items.length === 0
+				? []
+				: await tx
+						.insert(insightRunItems)
+						.values(
+							items.map((item) => ({
+								id: item.itemId,
+								runId: active.id,
+								organizationId: params.organizationId,
+								reason: params.reason,
+								requestedByUserId: params.requestedByUserId,
+								websiteId: item.websiteId,
+								queueJobId: item.jobId,
+							}))
+						)
+						.onConflictDoNothing({
+							target: [insightRunItems.runId, insightRunItems.websiteId],
+						})
+						.returning({ id: insightRunItems.id });
+		const insertedIds = new Set(inserted.map((item) => item.id));
+		const queueItems = items.filter((item) => insertedIds.has(item.itemId));
+		if (queueItems.length > 0) {
+			await tx
+				.update(insightRuns)
+				.set({
+					totalItems: sql`${insightRuns.totalItems} + ${queueItems.length}`,
+				})
+				.where(eq(insightRuns.id, active.id));
+		}
+
+		return {
+			id: active.id,
+			queueItems,
+			totalItems: active.totalItems + queueItems.length,
+		};
+	});
 }
 
 async function insertInsightRunOrFindActive(
@@ -734,11 +991,6 @@ export async function queueInsightGenerationRun(
 	const runConfig = applyPatch(baseConfig, runPatch);
 	const reason = input.reason ?? "manual";
 
-	const active = await findActiveInsightRun(input.organizationId);
-	if (active) {
-		return reusedInsightRun(active);
-	}
-
 	if (reason !== "manual" && !runConfig.enabled) {
 		return { queuedItems: 0, status: "disabled" };
 	}
@@ -747,95 +999,110 @@ export async function queueInsightGenerationRun(
 		input.organizationId,
 		input.websiteIds
 	);
-	const runId = randomUUIDv7();
-	const queueItems = targetWebsites.map((website) => {
-		const itemId = randomUUIDv7();
-		return {
-			itemId,
-			jobId: insightsWebsiteJobId(runId, website.id),
-			websiteId: website.id,
-		};
-	});
 	const requestedByUserId = input.requestedByUserId ?? null;
-	const now = new Date();
 
-	const runItems = queueItems.map((item) => ({
-		id: item.itemId,
-		runId,
-		organizationId: input.organizationId,
-		websiteId: item.websiteId,
-		queueJobId: item.jobId,
-	}));
-	const concurrentRun = await insertInsightRunOrFindActive(
-		input.organizationId,
-		{
-			id: runId,
-			organizationId: input.organizationId,
-			requestedByUserId,
-			reason,
-			status: queueItems.length === 0 ? "skipped" : "queued",
-			timezone: runConfig.timezone,
-			totalItems: queueItems.length,
-			...(queueItems.length === 0 ? { finishedAt: now } : {}),
-		},
-		runItems
-	);
-	if (concurrentRun) {
-		return reusedInsightRun(concurrentRun);
-	}
+	for (let attempt = 0; attempt < 2; attempt += 1) {
+		if (reason === "manual") {
+			const active = await appendManualRunItems({
+				organizationId: input.organizationId,
+				reason,
+				requestedByUserId,
+				targetWebsites,
+			});
+			if (active) {
+				if (active.queueItems.length > 0) {
+					try {
+						await enqueueInsightRunItems({
+							organizationId: input.organizationId,
+							queueItems: active.queueItems,
+							reason,
+							requestedByUserId,
+							runId: active.id,
+						});
+					} catch (error) {
+						logger.error(
+							{ error, organizationId: input.organizationId, runId: active.id },
+							"Failed to queue appended insight generation"
+						);
+						await failQueueItems(
+							active.id,
+							active.queueItems.map((item) => item.itemId)
+						);
+						throw rpcError.internal("Failed to queue insight generation");
+					}
+				}
+				return reusedInsightRun(active);
+			}
+		} else {
+			const active = await findActiveInsightRun(input.organizationId);
+			if (active) {
+				return reusedInsightRun(active);
+			}
+		}
 
-	if (queueItems.length === 0) {
-		return { queuedItems: 0, runId, status: "skipped" };
-	}
-
-	try {
-		const queue = getInsightsQueue();
-		await queue.addBulk(
+		const runId = randomUUIDv7();
+		const queueItems = createInsightQueueItems(runId, targetWebsites);
+		const concurrentRun = await insertInsightRunOrFindActive(
+			input.organizationId,
+			{
+				id: runId,
+				organizationId: input.organizationId,
+				requestedByUserId,
+				reason,
+				status: queueItems.length === 0 ? "skipped" : "queued",
+				timezone: runConfig.timezone,
+				totalItems: queueItems.length,
+				...(queueItems.length === 0 ? { finishedAt: new Date() } : {}),
+			},
 			queueItems.map((item) => ({
-				name: INSIGHTS_GENERATE_WEBSITE_JOB_NAME,
-				data: {
-					itemId: item.itemId,
-					organizationId: input.organizationId,
-					reason,
-					requestedByUserId,
-					runId,
-					websiteId: item.websiteId,
-				},
-				opts: { jobId: item.jobId },
+				id: item.itemId,
+				runId,
+				organizationId: input.organizationId,
+				reason,
+				requestedByUserId,
+				websiteId: item.websiteId,
+				queueJobId: item.jobId,
 			}))
 		);
-	} catch (error) {
-		logger.error(
-			{ error, organizationId: input.organizationId, runId },
-			"Failed to queue insight generation"
-		);
-		await Promise.all([
-			db
-				.update(insightRuns)
-				.set({
-					errorMessage: QUEUE_INSIGHT_GENERATION_ERROR,
-					failedItems: queueItems.length,
-					finishedAt: new Date(),
-					status: "failed",
-				})
-				.where(eq(insightRuns.id, runId)),
-			db
-				.update(insightRunItems)
-				.set({
-					errorMessage: QUEUE_INSIGHT_GENERATION_ERROR,
-					finishedAt: new Date(),
-					status: "failed",
-				})
-				.where(eq(insightRunItems.runId, runId)),
-		]);
-		throw rpcError.internal("Failed to queue insight generation");
+		if (concurrentRun) {
+			if (reason === "manual") {
+				continue;
+			}
+			return reusedInsightRun(concurrentRun);
+		}
+
+		if (queueItems.length === 0) {
+			return { queuedItems: 0, runId, status: "skipped" };
+		}
+
+		try {
+			await enqueueInsightRunItems({
+				organizationId: input.organizationId,
+				queueItems,
+				reason,
+				requestedByUserId,
+				runId,
+			});
+		} catch (error) {
+			logger.error(
+				{ error, organizationId: input.organizationId, runId },
+				"Failed to queue insight generation"
+			);
+			await failQueueItems(
+				runId,
+				queueItems.map((item) => item.itemId)
+			);
+			throw rpcError.internal("Failed to queue insight generation");
+		}
+
+		return {
+			queuedItems: queueItems.length,
+			runId,
+			status: "queued",
+		};
 	}
 
-	return {
-		queuedItems: queueItems.length,
-		runId,
-		status: "queued",
-	};
+	throw rpcError.internal("Failed to join the active insight generation run");
 }
 
 export const insightGenerationRouter = {

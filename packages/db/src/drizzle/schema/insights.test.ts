@@ -142,6 +142,8 @@ describe("insight runs schema", () => {
 				"prepared_at",
 				"prepared_status",
 				"prepared_message",
+				"reason",
+				"requested_by_user_id",
 			])
 		);
 		const effects = getTableConfig(insightRunEffects);

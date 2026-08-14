@@ -143,6 +143,8 @@ export const insightRunItems = pgTable(
 		runId: text("run_id").notNull(),
 		organizationId: text("organization_id").notNull(),
 		websiteId: text("website_id").notNull(),
+		reason: text().$type<InsightGenerationReason>(),
+		requestedByUserId: text("requested_by_user_id"),
 		queueJobId: text("queue_job_id"),
 		status: text().$type<InsightRunItemStatus>().default("queued").notNull(),
 		attempts: integer().default(0).notNull(),
@@ -210,6 +212,11 @@ export const insightRunItems = pgTable(
 			foreignColumns: [websites.id],
 			name: "insight_run_items_website_id_fkey",
 		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.requestedByUserId],
+			foreignColumns: [user.id],
+			name: "insight_run_items_requested_by_user_id_fkey",
+		}).onDelete("set null"),
 	]
 );
 
