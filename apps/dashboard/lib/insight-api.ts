@@ -94,7 +94,7 @@ export const insightQueries = {
 			staleTime: INSIGHT_CACHE.historyStaleTime,
 			gcTime: INSIGHT_CACHE.gcTime,
 			meta: { suppressGlobalErrorToast: true },
-			refetchInterval: 60_000,
+			refetchInterval: INSIGHT_CACHE.historyStaleTime,
 			refetchOnWindowFocus: true,
 			retry: 2,
 			retryDelay: (attempt: number) => Math.min(2000 * 2 ** attempt, 15_000),

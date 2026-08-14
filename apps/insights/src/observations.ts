@@ -1,15 +1,4 @@
-import {
-	and,
-	db,
-	desc,
-	eq,
-	inArray,
-	lt,
-	lte,
-	ne,
-	or,
-	sql,
-} from "@databuddy/db";
+import { and, db, desc, eq, inArray, lt, lte, ne, or } from "@databuddy/db";
 import {
 	analyticsInsights,
 	insightObservations,
@@ -349,8 +338,7 @@ export async function loadOtherOpenWork(params: {
 				eq(insightObservations.websiteId, params.websiteId),
 				ne(insightObservations.signalKey, params.signalKey),
 				lte(insightObservations.asOf, params.through),
-				lte(insightObservations.createdAt, params.through),
-				sql`${insightObservations.outcome}->'next'->>'type' in ('act', 'ask')`
+				lte(insightObservations.createdAt, params.through)
 			)
 		)
 		.orderBy(

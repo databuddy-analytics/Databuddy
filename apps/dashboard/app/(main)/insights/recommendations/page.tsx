@@ -27,7 +27,6 @@ import {
 	PencilSimpleIcon,
 	TargetIcon,
 	TrashIcon,
-	WarningIcon,
 	WrenchIcon,
 } from "@databuddy/ui/icons";
 import { ConversionDraftRecommendationAction } from "../_components/conversion-draft-recommendation";
@@ -178,14 +177,6 @@ function RecommendationRow({ insight }: { insight: InsightRecommendation }) {
 	const { recommendation } = insight;
 	const presentation = getRecommendationPresentation(insight);
 	const SignalIcon = presentation.icon;
-	const signalStatus =
-		insight.signal.sentiment === "negative"
-			? insight.signal.severity === "critical"
-				? { label: "Critical signal", variant: "destructive" as const }
-				: insight.signal.severity === "warning"
-					? { label: "Warning signal", variant: "warning" as const }
-					: null
-			: null;
 	const action = recommendationAction(insight);
 
 	return (
@@ -210,12 +201,6 @@ function RecommendationRow({ insight }: { insight: InsightRecommendation }) {
 							>
 								{presentation.label}
 							</Badge>
-							{signalStatus ? (
-								<Badge size="sm" variant={signalStatus.variant}>
-									<WarningIcon aria-hidden className="size-3" weight="fill" />
-									{signalStatus.label}
-								</Badge>
-							) : null}
 							<span className="min-w-0 truncate text-[11px] text-muted-foreground">
 								{insight.websiteName ?? insight.websiteDomain} ·{" "}
 								{fromNow(insight.createdAt)}
@@ -243,19 +228,16 @@ function RecommendationRow({ insight }: { insight: InsightRecommendation }) {
 								))}
 							</ul>
 						) : null}
-						<p className="mt-2 break-words text-muted-foreground text-xs leading-relaxed [overflow-wrap:anywhere]">
-							Based on{" "}
-							{insight.investigationId ? (
-								<Link
-									className="font-medium text-foreground/80 transition-colors hover:text-foreground"
-									href={`/insights/${insight.investigationId}`}
-								>
-									{insight.title}
-								</Link>
-							) : (
-								<span className="text-foreground/80">{insight.title}</span>
-							)}
-						</p>
+						{insight.investigationId ? (
+							<Link
+								aria-label={`View insight: ${insight.title}`}
+								className="mt-2 inline-flex items-center gap-1 text-muted-foreground text-xs transition-colors hover:text-foreground"
+								href={`/insights/${insight.investigationId}`}
+							>
+								View insight
+								<ArrowRightIcon aria-hidden className="size-3" />
+							</Link>
+						) : null}
 					</div>
 					{action ? (
 						<div className="mt-3 flex shrink-0 flex-wrap gap-1.5 sm:mt-0 sm:justify-end">
