@@ -112,7 +112,9 @@ test(
 			authenticatedPage.getByText("Create goal", { exact: true })
 		).toBeVisible();
 		await expect(
-			authenticatedPage.getByText(outcome.title, { exact: true })
+			authenticatedPage.getByText(outcome.recommendation.action, {
+				exact: true,
+			})
 		).toBeVisible();
 		await authenticatedPage
 			.getByRole("button", { name: "Review goal draft" })

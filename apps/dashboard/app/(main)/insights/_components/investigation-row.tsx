@@ -47,6 +47,10 @@ export function ExecuteDefinitionAction({
 		},
 		onSuccess: ({ reply }) => {
 			queryClient.invalidateQueries({ queryKey: insightQueries.all() });
+			queryClient.invalidateQueries({
+				queryKey:
+					definitionType === "funnel" ? orpc.funnels.key() : orpc.goals.key(),
+			});
 			const noun = definitionType === "funnel" ? "Funnel" : "Goal";
 			toast.success(
 				reply.status === "failed"
