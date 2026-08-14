@@ -525,10 +525,6 @@ export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 							FROM qualified_exposures
 							GROUP BY session_id
 						),
-						error_bearing_route_sessions AS (
-							SELECT DISTINCT session_id, route
-							FROM matched_route_errors
-						),
 						control_sessions AS (
 							SELECT
 								session_id,
@@ -538,9 +534,9 @@ export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 								argMin(browser_name, route_view_at) AS browser_name,
 								min(route_view_at) AS outcome_at
 							FROM route_screen_views view
-							WHERE (view.session_id, view.route) NOT IN (
-								SELECT session_id, route
-								FROM error_bearing_route_sessions
+							WHERE view.session_id NOT IN (
+								SELECT session_id
+								FROM matched_route_errors
 							)
 							GROUP BY session_id
 						),
@@ -599,6 +595,8 @@ export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 								ON event.session_id = exposed.session_id
 							WHERE event.client_id = {websiteId:String}
 								AND event.event_name = 'screen_view'
+								AND event.time >= period_start
+								AND event.time <= period_end
 								AND event.time > exposed.outcome_at
 								AND event.time <= exposed.outcome_at + INTERVAL 10 MINUTE
 								AND ${normalizedPath} != exposed.route
@@ -610,6 +608,8 @@ export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 								ON event.session_id = control.session_id
 							WHERE event.client_id = {websiteId:String}
 								AND event.event_name = 'screen_view'
+								AND event.time >= period_start
+								AND event.time <= period_end
 								AND event.time > control.outcome_at
 								AND event.time <= control.outcome_at + INTERVAL 10 MINUTE
 								AND ${normalizedPath} != control.route

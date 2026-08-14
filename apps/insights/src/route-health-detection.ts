@@ -211,6 +211,8 @@ const ROUTE_VITAL_CONTINUATION_SQL = `
 			WHERE event.client_id = {websiteId:String}
 				AND event.event_name = 'screen_view'
 				AND event.path != ''
+				AND event.time >= period_start
+				AND event.time <= period_end
 				AND event.time > exposed.outcome_at
 				AND event.time <= exposed.outcome_at + INTERVAL 10 MINUTE
 				AND ${NORMALIZED_ROUTE_SQL} != exposed.route
@@ -223,6 +225,8 @@ const ROUTE_VITAL_CONTINUATION_SQL = `
 			WHERE event.client_id = {websiteId:String}
 				AND event.event_name = 'screen_view'
 				AND event.path != ''
+				AND event.time >= period_start
+				AND event.time <= period_end
 				AND event.time > control.outcome_at
 				AND event.time <= control.outcome_at + INTERVAL 10 MINUTE
 				AND ${NORMALIZED_ROUTE_SQL} != control.route

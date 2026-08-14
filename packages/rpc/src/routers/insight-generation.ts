@@ -514,7 +514,6 @@ async function listTargetWebsites(
 interface FirstReviewActivityRow {
 	activeDays: number;
 	firstScreenViewUnix: number;
-	lifetimePageviews: number;
 	pageviews: number;
 	sessions: number;
 }
@@ -528,21 +527,23 @@ async function loadFirstReviewActivity(
 	websiteId: string
 ): Promise<FirstReviewActivity> {
 	const [row] = await chQuery<FirstReviewActivityRow>(
-		`SELECT
-			countIf(event_name = 'screen_view') AS lifetimePageviews,
-			countIf(event_name = 'screen_view' AND time >= toStartOfDay(now()) - INTERVAL 14 DAY) AS pageviews,
-			uniqExactIf(session_id, event_name = 'screen_view' AND session_id != '' AND time >= toStartOfDay(now()) - INTERVAL 14 DAY) AS sessions,
-			uniqExactIf(toDate(time), event_name = 'screen_view' AND time >= toStartOfDay(now()) - INTERVAL 14 DAY) AS activeDays,
-			toUnixTimestamp(minIf(time, event_name = 'screen_view')) AS firstScreenViewUnix
+		`WITH toStartOfDay(now()) - INTERVAL {baselineDays:UInt32} DAY AS recentFrom
+		SELECT
+			countIf(time >= recentFrom) AS pageviews,
+			uniqExactIf(session_id, session_id != '' AND time >= recentFrom) AS sessions,
+			uniqExactIf(toDate(time), time >= recentFrom) AS activeDays,
+			toUnixTimestamp(min(time)) AS firstScreenViewUnix
 		FROM analytics.events
-		PREWHERE client_id = {websiteId:String}`,
-		{ websiteId }
+		PREWHERE client_id = {websiteId:String}
+			AND time >= recentFrom - INTERVAL {baselineDays:UInt32} DAY
+		WHERE event_name = 'screen_view'`,
+		{ baselineDays: FIRST_REVIEW_BASELINE_DAYS, websiteId }
 	);
 	const firstScreenViewUnix = nonNegativeInteger(row?.firstScreenViewUnix);
 	return {
 		activeDays: nonNegativeInteger(row?.activeDays),
 		firstScreenViewAt:
-			nonNegativeInteger(row?.lifetimePageviews) > 0 && firstScreenViewUnix > 0
+			nonNegativeInteger(row?.pageviews) > 0 && firstScreenViewUnix > 0
 				? new Date(firstScreenViewUnix * 1000)
 				: null,
 		pageviews: nonNegativeInteger(row?.pageviews),

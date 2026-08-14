@@ -151,11 +151,14 @@ describe("error customer impact query", () => {
 		const { params, sql } = compileRouteContinuation("message", "manifest");
 		const outputFields = config.meta?.output_fields?.map((field) => field.name);
 		expect(sql).toContain("qualified_exposures AS");
-		expect(sql).toContain("error_bearing_route_sessions AS");
-		expect(sql).toContain("(view.session_id, view.route) NOT IN");
+		expect(sql).toMatch(
+			/view\.session_id NOT IN \(\s+SELECT session_id\s+FROM matched_route_errors\s+\)/
+		);
 		expect(sql).toContain("row_number() OVER");
 		expect(sql).toContain("INTERVAL 30 SECOND");
 		expect(sql).toContain("INTERVAL 10 MINUTE");
+		expect(sql.match(/AND event\.time >= period_start/g)).toHaveLength(2);
+		expect(sql.match(/AND event\.time <= period_end/g)).toHaveLength(2);
 		expect(sql).toContain("event.time > exposed.outcome_at");
 		expect(params.f0).toBe("manifest");
 		for (const unsafe of [
