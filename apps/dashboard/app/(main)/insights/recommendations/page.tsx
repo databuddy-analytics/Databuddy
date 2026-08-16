@@ -18,9 +18,11 @@ import {
 	fromNow,
 	Skeleton,
 } from "@databuddy/ui";
+import { Accordion } from "@databuddy/ui/client";
 import {
 	ArrowRightIcon,
 	ArrowSquareOutIcon,
+	CheckCircleIcon,
 	CodeIcon,
 	FilterIcon,
 	IdBadge2Icon,
@@ -57,10 +59,7 @@ export default function RecommendationsPage() {
 
 	return (
 		<div className="mx-auto w-full max-w-4xl p-4 sm:p-6">
-			<Card
-				aria-label="Current recommendations"
-				className="border-border/70 shadow-sm"
-			>
+			<Card aria-label="Recommendations" className="border-border/70 shadow-sm">
 				<Card.Header className="border-b bg-card">
 					<Card.Title>Recommendations</Card.Title>
 					<Card.Description className="mt-1">
@@ -85,6 +84,7 @@ function RecommendationList({
 	);
 	const items =
 		recommendations.data?.pages.flatMap((page) => page.recommendations) ?? [];
+	const completed = recommendations.data?.pages[0]?.completed ?? [];
 
 	if (recommendations.isLoading) {
 		return (
@@ -101,7 +101,7 @@ function RecommendationList({
 		);
 	}
 
-	if (recommendations.isError && items.length === 0) {
+	if (recommendations.isError && items.length === 0 && completed.length === 0) {
 		return (
 			<div className="px-5 py-12">
 				<EmptyState
@@ -121,7 +121,7 @@ function RecommendationList({
 		);
 	}
 
-	if (items.length === 0) {
+	if (items.length === 0 && completed.length === 0) {
 		return (
 			<div className="px-5 py-12">
 				<EmptyState
@@ -136,11 +136,22 @@ function RecommendationList({
 
 	return (
 		<>
-			<ul>
-				{items.map((insight) => (
-					<RecommendationRow insight={insight} key={insight.id} />
-				))}
-			</ul>
+			{items.length > 0 ? (
+				<ul aria-label="Current recommendations">
+					{items.map((insight) => (
+						<RecommendationRow insight={insight} key={insight.id} />
+					))}
+				</ul>
+			) : (
+				<div className="flex items-center gap-2 px-4 py-3 text-muted-foreground text-sm">
+					<CheckCircleIcon
+						aria-hidden
+						className="size-4 text-success"
+						weight="fill"
+					/>
+					Nothing needs attention right now.
+				</div>
+			)}
 			{recommendations.hasNextPage ? (
 				<div className="flex justify-center border-t px-5 py-4">
 					<Button
@@ -156,7 +167,40 @@ function RecommendationList({
 					</Button>
 				</div>
 			) : null}
+			{completed.length > 0 ? (
+				<CompletedRecommendations insights={completed} />
+			) : null}
 		</>
+	);
+}
+
+function CompletedRecommendations({
+	insights,
+}: {
+	insights: InsightRecommendation[];
+}) {
+	return (
+		<Accordion className="border-t">
+			<Accordion.Trigger className="bg-success/5 hover:bg-success/10">
+				<CheckCircleIcon
+					aria-hidden
+					className="size-4 text-success"
+					weight="fill"
+				/>
+				<span className="font-medium text-foreground">Completed</span>
+				<Badge size="sm" variant="success">
+					{insights.length}
+				</Badge>
+				<span className="text-muted-foreground">Latest verified</span>
+			</Accordion.Trigger>
+			<Accordion.Panel>
+				<ul aria-label="Latest verified completed recommendations">
+					{insights.map((insight) => (
+						<RecommendationRow completed insight={insight} key={insight.id} />
+					))}
+				</ul>
+			</Accordion.Panel>
+		</Accordion>
 	);
 }
 
@@ -173,49 +217,65 @@ function RecommendationSkeleton() {
 	);
 }
 
-function RecommendationRow({ insight }: { insight: InsightRecommendation }) {
+function RecommendationRow({
+	completed = false,
+	insight,
+}: {
+	completed?: boolean;
+	insight: InsightRecommendation;
+}) {
 	const { recommendation } = insight;
 	const presentation = getRecommendationPresentation(insight);
-	const SignalIcon = presentation.icon;
-	const action = recommendationAction(insight);
+	const SignalIcon = completed ? CheckCircleIcon : presentation.icon;
+	const action = completed ? null : recommendationAction(insight);
 
 	return (
 		<List.Row align="start" asChild interactive={false}>
 			<li>
 				<span
-					className={`flex size-8 shrink-0 items-center justify-center rounded ${presentation.iconClassName}`}
+					className={`flex size-8 shrink-0 items-center justify-center rounded ${
+						completed
+							? "bg-success/10 text-success"
+							: presentation.iconClassName
+					}`}
 				>
-					<SignalIcon aria-hidden className="size-4" weight="duotone" />
+					<SignalIcon
+						aria-hidden
+						className="size-4"
+						weight={completed ? "fill" : "duotone"}
+					/>
 				</span>
 				<div className="min-w-0 flex-1 sm:flex sm:items-start sm:gap-4">
 					<div className="min-w-0 flex-1">
 						<span className="flex flex-wrap items-center gap-2">
 							<Badge
 								className={
-									presentation.badgeVariant === "primary"
+									!completed && presentation.badgeVariant === "primary"
 										? "bg-brand-purple text-white"
 										: undefined
 								}
 								size="sm"
-								variant={presentation.badgeVariant}
+								variant={completed ? "success" : presentation.badgeVariant}
 							>
-								{presentation.label}
+								{completed ? "Completed" : presentation.label}
 							</Badge>
 							<span className="min-w-0 truncate text-[11px] text-muted-foreground">
-								{insight.websiteName ?? insight.websiteDomain} ·{" "}
-								{fromNow(insight.createdAt)}
+								{insight.websiteName ?? insight.websiteDomain}
+								{completed ? null : ` · ${fromNow(insight.createdAt)}`}
 							</span>
 						</span>
 						<p className="mt-2 break-words font-medium text-foreground text-sm leading-relaxed [overflow-wrap:anywhere]">
-							{recommendation.action}
+							{completed ? completionMessage(insight) : recommendation.action}
 						</p>
-						<p className="mt-1.5 break-words text-muted-foreground text-xs leading-relaxed [overflow-wrap:anywhere]">
-							<span className="font-medium text-foreground/75">
-								{insight.impact ? "Why it matters: " : "Context: "}
-							</span>
-							{insight.impact ?? insight.summary}
-						</p>
-						{isInstrumentationRecommendation(recommendation) ? (
+						{completed ? null : (
+							<p className="mt-1.5 break-words text-muted-foreground text-xs leading-relaxed [overflow-wrap:anywhere]">
+								<span className="font-medium text-foreground/75">
+									{insight.impact ? "Why it matters: " : "Context: "}
+								</span>
+								{insight.impact ?? insight.summary}
+							</p>
+						)}
+						{!completed && isInstrumentationRecommendation(recommendation) ? (
 							<ul className="mt-2 space-y-1.5 text-muted-foreground text-xs leading-relaxed">
 								{recommendation.events.map((event) => (
 									<li key={event.name}>
@@ -248,6 +308,22 @@ function RecommendationRow({ insight }: { insight: InsightRecommendation }) {
 			</li>
 		</List.Row>
 	);
+}
+
+function completionMessage(insight: InsightRecommendation) {
+	const { recommendation } = insight;
+	if (isConversionDraftRecommendation(recommendation)) {
+		return recommendation.kind === "goal_draft"
+			? "Goal is now set up."
+			: "Funnel is now set up.";
+	}
+	if (isDefinitionRecommendation(recommendation)) {
+		const noun = insight.signal.entity.type === "funnel" ? "Funnel" : "Goal";
+		return recommendation.operation === "delete"
+			? `${noun} is no longer present.`
+			: `${noun} change is now set up.`;
+	}
+	return "This recommendation is complete.";
 }
 
 function recommendationAction(insight: InsightRecommendation) {

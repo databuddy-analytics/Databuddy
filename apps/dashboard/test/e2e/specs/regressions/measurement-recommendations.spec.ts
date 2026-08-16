@@ -129,5 +129,23 @@ test(
 		await expect(dialog.locator('input[placeholder="event_name"]')).toHaveValue(
 			"checkout_completed"
 		);
+		await dialog.getByRole("button", { name: "Create Goal" }).click();
+		await expect(dialog).toHaveCount(0);
+		await expect(
+			authenticatedPage.getByText("Nothing needs attention right now.")
+		).toBeVisible();
+		await expect(
+			authenticatedPage.getByRole("link", {
+				exact: true,
+				name: "Recommendations",
+			})
+		).toBeVisible();
+
+		await authenticatedPage
+			.getByRole("button", { name: /Completed 1 Latest verified/ })
+			.click();
+		await expect(
+			authenticatedPage.getByText("Goal is now set up.")
+		).toBeVisible();
 	}
 );

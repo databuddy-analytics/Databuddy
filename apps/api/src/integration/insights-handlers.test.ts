@@ -875,6 +875,7 @@ describe("insight investigation timeline", () => {
 			action?: string;
 			asOf: string;
 			createdAt?: string;
+			entity?: { id: string; label: string; type: "goal" };
 			organizationId?: string;
 			operation?: "edit" | "delete" | null;
 			publish?: boolean;
@@ -902,7 +903,9 @@ describe("insight investigation timeline", () => {
 				organizationId: input.organizationId ?? organization.id,
 				outcome,
 				recheckAt: new Date("2026-02-01T00:00:00.000Z"),
-				signal: signal(input.signalKey),
+				signal: input.entity
+					? { ...signal(input.signalKey), entity: input.entity }
+					: signal(input.signalKey),
 				signalKey: input.signalKey,
 				websiteId: input.websiteId ?? website.id,
 			};
@@ -1009,6 +1012,99 @@ describe("insight investigation timeline", () => {
 			recommendations: [],
 			total: 0,
 		});
+
+		const editableGoalId = randomUUIDv7();
+		const deletedGoalId = randomUUIDv7();
+		await db().insert(goals).values([
+			{
+				createdBy: member.id,
+				description: "An incomplete definition.",
+				id: editableGoalId,
+				name: "Tracked signup",
+				target: "signup_completed",
+				type: "EVENT",
+				websiteId: website.id,
+			},
+			{
+				createdBy: member.id,
+				id: deletedGoalId,
+				name: "Retired signup",
+				target: "signup_started",
+				type: "EVENT",
+				websiteId: website.id,
+			},
+		]);
+		await db().insert(insightObservations).values([
+			observation({
+				action: "Clarify the tracked signup goal.",
+				asOf: "2026-01-10T00:00:00.000Z",
+				entity: {
+					id: editableGoalId,
+					label: "Tracked signup",
+					type: "goal",
+				},
+				signalKey: "goal:tracked-signup",
+				title: "Tracked signup",
+			}),
+			observation({
+				action: "Delete the retired signup goal.",
+				asOf: "2026-01-11T00:00:00.000Z",
+				entity: {
+					id: deletedGoalId,
+					label: "Retired signup",
+					type: "goal",
+				},
+				operation: "delete",
+				signalKey: "goal:retired-signup",
+				title: "Retired signup",
+			}),
+		]);
+		const currentDefinitionActions = await call(
+			appRouter.insights.recommendations,
+			context
+		)({ limit: 10, offset: 0, organizationId: organization.id });
+		expect(
+			currentDefinitionActions.recommendations.map(
+				(item) => item.recommendation.action
+			)
+		).toEqual(
+			expect.arrayContaining([
+				"Clarify the tracked signup goal.",
+				"Delete the retired signup goal.",
+			])
+		);
+
+		const completedAt = new Date("2026-01-12T00:00:00.000Z");
+		await db()
+			.update(goals)
+			.set({ description: "Tracked signup definition." })
+			.where(eq(goals.id, editableGoalId));
+		await db()
+			.update(goals)
+			.set({ deletedAt: completedAt, isActive: false })
+			.where(eq(goals.id, deletedGoalId));
+		const completedDefinitionActions = await call(
+			appRouter.insights.recommendations,
+			context
+		)({ limit: 10, offset: 0, organizationId: organization.id });
+		expect(
+			completedDefinitionActions.recommendations.map(
+				(item) => item.recommendation.action
+			)
+		).not.toEqual(
+			expect.arrayContaining([
+				"Clarify the tracked signup goal.",
+				"Delete the retired signup goal.",
+			])
+		);
+		expect(
+			completedDefinitionActions.completed
+				.map((item) => item.recommendation.action)
+				.sort()
+		).toEqual([
+			"Clarify the tracked signup goal.",
+			"Delete the retired signup goal.",
+		]);
 	});
 
 	iit("expires standalone setup recommendations at their renewal deadline", async () => {
@@ -1127,6 +1223,7 @@ describe("insight investigation timeline", () => {
 			"Add the current tracking setup.",
 			"Keep the active identity recommendation.",
 		]);
+		expect(result.completed).toEqual([]);
 	});
 
 	iit("keeps precise measurement drafts current until their definition exists", async () => {
@@ -1272,6 +1369,7 @@ describe("insight investigation timeline", () => {
 				.map((item) => item.recommendation.kind)
 				.sort()
 		).toEqual(["funnel_draft", "goal_draft"]);
+		expect(beforeCreation.completed).toEqual([]);
 
 		await db().insert(goals).values({
 			createdBy: member.id,
@@ -1292,6 +1390,47 @@ describe("insight investigation timeline", () => {
 				(item) => item.recommendation.kind
 			)
 		).toEqual(["funnel_draft"]);
+		expect(afterGoalCreation.total).toBe(1);
+		expect(
+			afterGoalCreation.completed.map((item) => item.recommendation.kind)
+		).toEqual(["goal_draft"]);
+
+		const resolvedGoal: InvestigationOutcome = {
+			evidence: ["The account_created event is now covered by a goal."],
+			impact: "The team can review this completion as a goal.",
+			next: {
+				reason: "The current goal covers the event.",
+				type: "resolve",
+			},
+			publish: false,
+			recommendation: null,
+			rootCause: null,
+			summary: "Account creation is now covered by a goal.",
+			title: "Account creation goal is configured",
+		};
+		await db().insert(insightObservations).values({
+			asOf: new Date("2026-01-11T00:00:00.000Z"),
+			createdAt: new Date("2026-01-11T00:00:00.000Z"),
+			id: randomUUIDv7(),
+			insightId: null,
+			organizationId: organization.id,
+			outcome: resolvedGoal,
+			recheckAt: new Date("2026-01-18T00:00:00.000Z"),
+			signal: signal(goalSignalKey),
+			signalKey: goalSignalKey,
+			websiteId: website.id,
+		});
+		const afterGoalRecheck = await call(
+			appRouter.insights.recommendations,
+			context
+		)({ limit: 10, offset: 0, organizationId: organization.id });
+		expect(
+			afterGoalRecheck.recommendations.map((item) => item.recommendation.kind)
+		).toEqual(["funnel_draft"]);
+		expect(afterGoalRecheck.total).toBe(1);
+		expect(
+			afterGoalRecheck.completed.map((item) => item.recommendation.kind)
+		).toEqual(["goal_draft"]);
 
 		await db().insert(funnelDefinitions).values({
 			createdBy: member.id,
@@ -1323,6 +1462,11 @@ describe("insight investigation timeline", () => {
 				(item) => item.recommendation.kind
 			)
 		).toEqual(["funnel_draft"]);
+		expect(
+			afterConditionalFunnelCreation.completed.map(
+				(item) => item.recommendation.kind
+			)
+		).toEqual(["goal_draft"]);
 
 		await db().insert(funnelDefinitions).values({
 			createdBy: member.id,
@@ -1348,6 +1492,11 @@ describe("insight investigation timeline", () => {
 			recommendations: [],
 			total: 0,
 		});
+		expect(
+			afterFunnelCreation.completed
+				.map((item) => item.recommendation.kind)
+				.sort()
+		).toEqual(["funnel_draft", "goal_draft"]);
 	});
 
 	iit("persists a reply beside every observation for the same signal", async () => {
