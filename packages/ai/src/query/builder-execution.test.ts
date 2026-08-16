@@ -7,7 +7,7 @@ import {
 	setDefaultTimeout,
 } from "bun:test";
 import { randomUUIDv7 } from "bun";
-import { chCommand, chQuery, clickHouse } from "@databuddy/db/clickhouse";
+import { chCommand, chQuery } from "@databuddy/db/clickhouse";
 import { QueryBuilders } from "./builders";
 import { SimpleQueryBuilder } from "./simple-builder";
 import { ProfilesBuilders } from "./builders/profiles";
