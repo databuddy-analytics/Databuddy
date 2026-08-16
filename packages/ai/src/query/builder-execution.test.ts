@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from "bun:test";
+import { afterAll, describe, expect, it, setDefaultTimeout } from "bun:test";
 import { QueryBuilders } from "./builders";
 import { SimpleQueryBuilder } from "./simple-builder";
 import type { Filter, QueryRequest, SimpleQueryConfig } from "./types";
@@ -19,6 +19,10 @@ process.env.CLICKHOUSE_URL = TEST_CLICKHOUSE_URL;
 const { clickHouse } = await import("@databuddy/db/clickhouse");
 
 const iit = isClickHouseUp ? it : it.skip;
+
+if (isClickHouseUp) {
+	setDefaultTimeout(15_000);
+}
 
 if (!isClickHouseUp) {
 	console.warn(

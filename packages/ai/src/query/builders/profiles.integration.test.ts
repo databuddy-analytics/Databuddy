@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { afterAll, beforeAll, describe, expect, it, setDefaultTimeout } from "bun:test";
 import { randomUUIDv7 } from "bun";
 import { chCommand, chQuery, clickHouse } from "@databuddy/db/clickhouse";
 import { SimpleQueryBuilder } from "../simple-builder";
@@ -6,6 +6,10 @@ import { ProfilesBuilders } from "./profiles";
 
 const describeIntegration =
 	process.env.CLICKHOUSE_INTEGRATION_TESTS === "true" ? describe : describe.skip;
+
+if (process.env.CLICKHOUSE_INTEGRATION_TESTS === "true") {
+	setDefaultTimeout(15_000);
+}
 
 const websiteId = `profile-builder-${randomUUIDv7()}`;
 const profileId = "profile-builder-user";
@@ -89,6 +93,19 @@ describeIntegration("profile query identity against ClickHouse", () => {
 					time: "2026-08-01 13:00:00",
 					url: "https://example.test/return",
 				},
+				{
+					anonymous_id: "",
+					client_id: websiteId,
+					created_at: "2026-08-01 12:03:00",
+					event_name: "screen_view",
+					id: randomUUIDv7(),
+					path: "/session-only",
+					profile_id: "",
+					properties: "{}",
+					session_id: "profile-builder-session-1",
+					time: "2026-08-01 12:03:00",
+					url: "https://example.test/session-only",
+				},
 			],
 		});
 
@@ -104,6 +121,16 @@ describeIntegration("profile query identity against ClickHouse", () => {
 					properties: "{}",
 					session_id: "profile-builder-session-1",
 					timestamp: "2026-08-01 12:01:00",
+					website_id: websiteId,
+				},
+				{
+					anonymous_id: "",
+					event_name: "session_custom",
+					owner_id: websiteId,
+					profile_id: "",
+					properties: "{}",
+					session_id: "profile-builder-session-1",
+					timestamp: "2026-08-01 12:04:00",
 					website_id: websiteId,
 				},
 			],
@@ -187,9 +214,9 @@ describeIntegration("profile query identity against ClickHouse", () => {
 			profile_id: profileId,
 			visitor_id: profileId,
 		});
-		expect(Number(rows[0]?.total_events)).toBe(3);
+		expect(Number(rows[0]?.total_events)).toBe(4);
 		expect(Number(rows[0]?.session_count)).toBe(2);
-		expect(Number(rows[0]?.custom_event_count)).toBe(1);
+		expect(Number(rows[0]?.custom_event_count)).toBe(2);
 	});
 
 	it("keeps stitched activity in the identified profile filter", async () => {
@@ -208,7 +235,7 @@ describeIntegration("profile query identity against ClickHouse", () => {
 
 		expect(rows).toHaveLength(1);
 		expect(rows[0]?.profile_id).toBe(profileId);
-		expect(Number(rows[0]?.total_events)).toBe(3);
+		expect(Number(rows[0]?.total_events)).toBe(4);
 	});
 
 	it("does not cross-attribute reused sessions between profiles", async () => {
@@ -325,7 +352,7 @@ describeIntegration("profile query identity against ClickHouse", () => {
 			chQuery<{ session_id: string }>(sessionsQuery.sql, sessionsQuery.params),
 		]);
 
-		expect(Number(detailRows[0]?.total_pageviews)).toBe(3);
+		expect(Number(detailRows[0]?.total_pageviews)).toBe(4);
 		expect(sessionRows).toHaveLength(2);
 		expect(new Set(sessionRows.map((row) => row.session_id))).toEqual(
 			new Set([
@@ -333,5 +360,15 @@ describeIntegration("profile query identity against ClickHouse", () => {
 				"profile-builder-session-2",
 			])
 		);
+		expect(
+			sessionRows.find(
+				(row) => row.session_id === "profile-builder-session-1"
+			)?.events
+		).toHaveLength(5);
+		expect(
+			sessionRows.find(
+				(row) => row.session_id === "profile-builder-session-2"
+			)?.events
+		).toHaveLength(1);
 	});
 });

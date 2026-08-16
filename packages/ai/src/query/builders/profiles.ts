@@ -114,6 +114,47 @@ const PROFILE_TARGET_IDENTITY_CTES = `
         FROM target_identity_rows
         WHERE anonymous_id != ''
         GROUP BY anonymous_id
+      ),
+      target_session_ids AS (
+        SELECT
+          session_id
+        FROM (
+          SELECT
+            e.session_id,
+            ifNull(e.profile_id, '') AS profile_id
+          FROM ${Analytics.events} e
+          WHERE
+            e.client_id = {websiteId:String}
+            AND e.profile_id != ''
+            AND e.session_id IN (
+              SELECT session_id
+              FROM target_identity_rows
+              WHERE session_id != ''
+            )
+            AND e.time >= toDateTime({startDate:String})
+            AND e.time <= toDateTime({endDate:String})
+
+          UNION ALL
+
+          SELECT
+            ifNull(ce.session_id, '') AS session_id,
+            ifNull(ce.profile_id, '') AS profile_id
+          FROM ${Analytics.custom_events} ce
+          WHERE
+            (ce.owner_id = {websiteId:String} OR ce.website_id = {websiteId:String})
+            AND ce.profile_id != ''
+            AND ifNull(ce.session_id, '') IN (
+              SELECT session_id
+              FROM target_identity_rows
+              WHERE session_id != ''
+            )
+            AND ce.timestamp >= toDateTime({startDate:String})
+            AND ce.timestamp <= toDateTime({endDate:String})
+        )
+        WHERE session_id != '' AND profile_id != ''
+        GROUP BY session_id
+        HAVING uniqExact(profile_id) = 1
+          AND any(profile_id) = {visitorId:String}
       )`;
 
 const identityJoins = (source: string): string => `
@@ -291,6 +332,11 @@ function profileActivityCte(
               ifNull(e.profile_id, '') = ''
               AND e.anonymous_id IN (SELECT anonymous_id FROM target_anonymous_ids)
             )
+            OR (
+              ifNull(e.profile_id, '') = ''
+              AND ifNull(e.anonymous_id, '') = ''
+              AND e.session_id IN (SELECT session_id FROM target_session_ids)
+            )
           )`
 		: `AND ${canonicalVisitorExpression("e")} = {visitorId:String}`;
 	const customVisitorCondition = limitToVisitor
@@ -299,6 +345,11 @@ function profileActivityCte(
             OR (
               ifNull(ce.profile_id, '') = ''
               AND ifNull(ce.anonymous_id, '') IN (SELECT anonymous_id FROM target_anonymous_ids)
+            )
+            OR (
+              ifNull(ce.profile_id, '') = ''
+              AND ifNull(ce.anonymous_id, '') = ''
+              AND ifNull(ce.session_id, '') IN (SELECT session_id FROM target_session_ids)
             )
           )`
 		: `AND ${canonicalVisitorExpression("ce")} = {visitorId:String}`;
