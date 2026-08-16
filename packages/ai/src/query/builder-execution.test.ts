@@ -41,10 +41,6 @@ if (isClickHouseUp) {
 	setDefaultTimeout(15_000);
 }
 
-if (isClickHouseUp) {
-	setDefaultTimeout(15_000);
-}
-
 if (!isClickHouseUp) {
 	console.warn(
 		"builder-execution: ClickHouse not reachable on localhost:8123 — EXPLAIN suite skipped"
