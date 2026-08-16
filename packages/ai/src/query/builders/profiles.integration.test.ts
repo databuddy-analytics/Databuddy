@@ -1,155 +1,15 @@
-import {
-	afterAll,
-	beforeAll,
-	describe,
-	expect,
-	it,
-	setDefaultTimeout,
-} from "bun:test";
+import { afterAll, beforeAll, describe, expect, it, setDefaultTimeout } from "bun:test";
 import { randomUUIDv7 } from "bun";
-import { chCommand, chQuery } from "@databuddy/db/clickhouse";
-import { QueryBuilders } from "./builders";
-import { SimpleQueryBuilder } from "./simple-builder";
-import { ProfilesBuilders } from "./builders/profiles";
-import type {
-	CompiledQuery,
-	Filter,
-	QueryRequest,
-	SimpleQueryConfig,
-} from "./types";
+import { chCommand, chQuery, clickHouse } from "@databuddy/db/clickhouse";
+import { SimpleQueryBuilder } from "../simple-builder";
+import { ProfilesBuilders } from "./profiles";
 
-const TEST_CLICKHOUSE_URL = "http://default:@127.0.0.1:8123";
-
-// Bun's fetch rejects userinfo in URLs, so the probe goes credential-free;
-// the ClickHouse client parses TEST_CLICKHOUSE_URL itself and is unaffected.
-const isClickHouseUp = await fetch("http://127.0.0.1:8123/?query=SELECT+1", {
-	signal: AbortSignal.timeout(1500),
-})
-	.then((response) => response.ok)
-	.catch(() => false);
-
-// The db client reads CLICKHOUSE_URL at import time; hard-assign localhost so
-// this suite can never touch a real deployment from a developer's .env.
-process.env.CLICKHOUSE_URL = TEST_CLICKHOUSE_URL;
-const { clickHouse } = await import("@databuddy/db/clickhouse");
-
-const iit = isClickHouseUp ? it : it.skip;
 const describeIntegration =
 	process.env.CLICKHOUSE_INTEGRATION_TESTS === "true" ? describe : describe.skip;
 
-if (isClickHouseUp) {
+if (process.env.CLICKHOUSE_INTEGRATION_TESTS === "true") {
 	setDefaultTimeout(15_000);
 }
-
-if (isClickHouseUp) {
-	setDefaultTimeout(15_000);
-}
-
-if (!isClickHouseUp) {
-	console.warn(
-		"builder-execution: ClickHouse not reachable on localhost:8123 — EXPLAIN suite skipped"
-	);
-}
-
-afterAll(async () => {
-	// The explicit integration run has more ClickHouse suites after this file.
-	// Isolated builder runs still close their client normally.
-	if (
-		isClickHouseUp &&
-		process.env.CLICKHOUSE_INTEGRATION_TESTS !== "true"
-	) {
-		await clickHouse.close();
-	}
-});
-
-const NUMERIC_FILTER_FIELDS = new Set([
-	"session_count",
-	"total_events",
-	"unique_pages",
-]);
-
-const FILTER_FIELD_OVERRIDES: Partial<
-	Record<string, { all: string[]; required: string[] }>
-> = {
-	error_customer_impact: {
-		all: ["message"],
-		required: ["message"],
-	},
-	error_route_continuation_comparison: {
-		all: ["message"],
-		required: ["message"],
-	},
-};
-
-function filterFor(field: string): Filter {
-	return {
-		field,
-		op: "eq",
-		value: NUMERIC_FILTER_FIELDS.has(field) ? 1 : `test-${field}`,
-	};
-}
-
-function requestFor(
-	name: string,
-	config: SimpleQueryConfig,
-	fields: string[]
-): QueryRequest {
-	return {
-		projectId: "builder-explain-test",
-		type: name,
-		from: "2026-01-01",
-		to: "2026-01-02",
-		filters: fields.map(filterFor),
-		limit: 5,
-		offset: 0,
-	};
-}
-
-async function explainCompiles(
-	name: string,
-	config: SimpleQueryConfig,
-	fields: string[]
-) {
-	const { sql, params } = new SimpleQueryBuilder(
-		config,
-		requestFor(name, config, fields)
-	).compile();
-
-	const result = await clickHouse.query({
-		query: `EXPLAIN ${sql}`,
-		query_params: params,
-		format: "TSVRaw",
-	});
-	await result.text();
-
-	expect(sql.length).toBeGreaterThan(0);
-}
-
-describe("query builders execute against ClickHouse", () => {
-	for (const [name, config] of Object.entries(QueryBuilders)) {
-		iit(`${name} compiles to valid ClickHouse SQL`, async () => {
-			await explainCompiles(
-				name,
-				config,
-				FILTER_FIELD_OVERRIDES[name]?.required ?? config.requiredFilters ?? []
-			);
-		});
-
-		const allFilters =
-			FILTER_FIELD_OVERRIDES[name]?.all ??
-			[
-				...new Set([
-					...(config.requiredFilters ?? []),
-					...(config.allowedFilters ?? []),
-				]),
-			];
-		if (allFilters.length > (config.requiredFilters ?? []).length) {
-			iit(`${name} compiles with every allowed filter applied`, async () => {
-				await explainCompiles(name, config, allFilters);
-			});
-		}
-	}
-});
 
 const websiteId = `profile-builder-${randomUUIDv7()}`;
 const profileId = "profile-builder-user";
@@ -158,6 +18,14 @@ const collisionWebsiteId = `profile-builder-collision-${randomUUIDv7()}`;
 const collisionProfileA = "profile-builder-collision-a";
 const collisionProfileB = "profile-builder-collision-b";
 const collisionSessionId = "profile-builder-collision-session";
+type ProfileSessionEvent = [
+	string,
+	string,
+	string,
+	string,
+	string | null,
+	string?,
+];
 
 function collisionEvent(
 	anonymous_id: string,
@@ -178,13 +46,6 @@ function collisionEvent(
 		time,
 		url: `https://example.test${path}`,
 	};
-}
-
-function requireQuery(query: string | CompiledQuery | undefined): CompiledQuery {
-	if (!query || typeof query === "string") {
-		throw new Error("Profile query did not compile");
-	}
-	return query;
 }
 
 describeIntegration("profile query identity against ClickHouse", () => {
@@ -328,15 +189,38 @@ describeIntegration("profile query identity against ClickHouse", () => {
 		);
 	});
 
-	it("stitches activity and keeps it in the identified profile filter", async () => {
-		const query = requireQuery(ProfilesBuilders.profile_list?.customSql?.({
+	it("stitches pre-identification events and returns one profile row", async () => {
+		const query = ProfilesBuilders.profile_list?.customSql?.({
 			endDate: "2026-08-02",
 			limit: 10,
 			offset: 0,
 			startDate: "2026-08-01",
 			websiteId,
-		}));
-		const filteredQuery = new SimpleQueryBuilder(ProfilesBuilders.profile_list, {
+		});
+		if (!query || typeof query === "string") {
+			throw new Error("Profile list did not compile");
+		}
+
+		const rows = await chQuery<{
+			custom_event_count: number | string;
+			profile_id: string;
+			session_count: number | string;
+			total_events: number | string;
+			visitor_id: string;
+		}>(query.sql, query.params);
+
+		expect(rows).toHaveLength(1);
+		expect(rows[0]).toMatchObject({
+			profile_id: profileId,
+			visitor_id: profileId,
+		});
+		expect(Number(rows[0]?.total_events)).toBe(4);
+		expect(Number(rows[0]?.session_count)).toBe(2);
+		expect(Number(rows[0]?.custom_event_count)).toBe(2);
+	});
+
+	it("keeps stitched activity in the identified profile filter", async () => {
+		const query = new SimpleQueryBuilder(ProfilesBuilders.profile_list, {
 			filters: [{ field: "profile_id", op: "ne", value: "" }],
 			from: "2026-08-01",
 			projectId: websiteId,
@@ -344,55 +228,49 @@ describeIntegration("profile query identity against ClickHouse", () => {
 			type: "profile_list",
 		}).compile();
 
-		const [rows, filteredRows] = await Promise.all([
-			chQuery<{
-				custom_event_count: number | string;
-				profile_id: string;
-				session_count: number | string;
-				total_events: number | string;
-				visitor_id: string;
-			}>(query.sql, query.params),
-			chQuery<{ profile_id: string; total_events: number | string }>(
-				filteredQuery.sql,
-				filteredQuery.params
-			),
-		]);
+		const rows = await chQuery<{
+			profile_id: string;
+			total_events: number | string;
+		}>(query.sql, query.params);
 
 		expect(rows).toHaveLength(1);
 		expect(rows[0]?.profile_id).toBe(profileId);
-		expect(rows[0]?.visitor_id).toBe(profileId);
 		expect(Number(rows[0]?.total_events)).toBe(4);
-		expect(Number(rows[0]?.session_count)).toBe(2);
-		expect(Number(rows[0]?.custom_event_count)).toBe(2);
-		expect(filteredRows).toHaveLength(1);
-		expect(filteredRows[0]?.profile_id).toBe(profileId);
-		expect(Number(filteredRows[0]?.total_events)).toBe(4);
 	});
 
 	it("does not cross-attribute reused sessions between profiles", async () => {
-		const listQuery = requireQuery(ProfilesBuilders.profile_list?.customSql?.({
+		const listQuery = ProfilesBuilders.profile_list?.customSql?.({
 			endDate: "2026-08-02",
 			limit: 10,
 			offset: 0,
 			startDate: "2026-08-01",
 			websiteId: collisionWebsiteId,
-		}));
+		});
 		const detailQueries = [collisionProfileA, collisionProfileB].map((id) =>
-			requireQuery(ProfilesBuilders.profile_detail?.customSql?.({
+			ProfilesBuilders.profile_detail?.customSql?.({
 				endDate: "2026-08-02",
 				filters: [{ field: "anonymous_id", op: "eq", value: id }],
 				startDate: "2026-08-01",
 				websiteId: collisionWebsiteId,
-			}))
+			})
 		);
 		const sessionQueries = [collisionProfileA, collisionProfileB].map((id) =>
-			requireQuery(ProfilesBuilders.profile_sessions?.customSql?.({
+			ProfilesBuilders.profile_sessions?.customSql?.({
 				endDate: "2026-08-02",
 				filters: [{ field: "anonymous_id", op: "eq", value: id }],
 				startDate: "2026-08-01",
 				websiteId: collisionWebsiteId,
-			}))
+			})
 		);
+
+		if (
+			!listQuery ||
+			typeof listQuery === "string" ||
+			detailQueries.some((query) => !query || typeof query === "string") ||
+			sessionQueries.some((query) => !query || typeof query === "string")
+		) {
+			throw new Error("Collision profile queries did not compile");
+		}
 
 		const [listRows, detailRows, sessionRows] = await Promise.all([
 			chQuery<{ profile_id: string; total_events: number | string }>(
@@ -400,20 +278,29 @@ describeIntegration("profile query identity against ClickHouse", () => {
 				listQuery.params
 			),
 			Promise.all(
-				detailQueries.map((query) =>
-					chQuery<{ total_pageviews: number | string }>(
+				detailQueries.map((query) => {
+					if (!query || typeof query === "string") {
+						throw new Error("Detail query did not compile");
+					}
+					return chQuery<{ total_pageviews: number | string }>(
 						query.sql,
 						query.params
-					)
-				)
+					);
+				})
 			),
 			Promise.all(
-					sessionQueries.map((query) =>
-					chQuery<{
-						events: unknown[];
+				sessionQueries.map((query) => {
+					if (!query || typeof query === "string") {
+						throw new Error("Session query did not compile");
+					}
+					return chQuery<{
+						events: ProfileSessionEvent[];
 						session_id: string;
-					}>(query.sql, query.params)
-				)
+					}>(
+						query.sql,
+						query.params
+					);
+				})
 			),
 		]);
 
@@ -436,18 +323,26 @@ describeIntegration("profile query identity against ClickHouse", () => {
 	});
 
 	it("uses the same stitched identity in profile detail and sessions", async () => {
-		const detailQuery = requireQuery(ProfilesBuilders.profile_detail?.customSql?.({
+		const detailQuery = ProfilesBuilders.profile_detail?.customSql?.({
 			endDate: "2026-08-02",
 			filters: [{ field: "anonymous_id", op: "eq", value: profileId }],
 			startDate: "2026-08-01",
 			websiteId,
-		}));
-		const sessionsQuery = requireQuery(ProfilesBuilders.profile_sessions?.customSql?.({
+		});
+		const sessionsQuery = ProfilesBuilders.profile_sessions?.customSql?.({
 			endDate: "2026-08-02",
 			filters: [{ field: "anonymous_id", op: "eq", value: profileId }],
 			startDate: "2026-08-01",
 			websiteId,
-		}));
+		});
+		if (
+			!detailQuery ||
+			typeof detailQuery === "string" ||
+			!sessionsQuery ||
+			typeof sessionsQuery === "string"
+		) {
+			throw new Error("Profile detail queries did not compile");
+		}
 
 		const [detailRows, sessionRows] = await Promise.all([
 			chQuery<{ total_pageviews: number | string }>(

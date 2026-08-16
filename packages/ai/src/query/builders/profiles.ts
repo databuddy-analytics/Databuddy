@@ -151,7 +151,7 @@ const PROFILE_TARGET_IDENTITY_CTES = `
             AND ce.timestamp >= toDateTime({startDate:String})
             AND ce.timestamp <= toDateTime({endDate:String})
         )
-        WHERE session_id != ''
+        WHERE session_id != '' AND profile_id != ''
         GROUP BY session_id
         HAVING uniqExact(profile_id) = 1
           AND any(profile_id) = {visitorId:String}
