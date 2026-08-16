@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { toast } from "sonner";
+import { insightQueries } from "@/lib/insight-api";
 import { listQueryOutcome } from "@/lib/list-query-outcome";
 import { orpc } from "@/lib/orpc";
 import type {
@@ -35,7 +36,7 @@ export function useFunnelActions(websiteId: string) {
 			queryClient.invalidateQueries({
 				queryKey: orpc.funnels.getAnalyticsByLink.key(),
 			}),
-			queryClient.invalidateQueries({ queryKey: orpc.insights.key() }),
+			queryClient.invalidateQueries({ queryKey: insightQueries.all() }),
 		]);
 
 	const createMutation = useMutation({

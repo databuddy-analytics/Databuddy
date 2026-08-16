@@ -71,7 +71,8 @@ export const insightQueries = {
 				fetchInsightRecommendationsPage(
 					orgId ?? "",
 					pageParam,
-					RECOMMENDATIONS_PAGE_SIZE
+					RECOMMENDATIONS_PAGE_SIZE,
+					pageParam === 0
 				),
 			initialPageParam: 0,
 			getNextPageParam: (lastPage, _allPages, lastPageParam) =>
@@ -89,7 +90,7 @@ export const insightQueries = {
 		queryOptions({
 			queryKey: [...INSIGHTS_ROOT, "recommendation-total", orgId] as const,
 			queryFn: async () =>
-				(await fetchInsightRecommendationsPage(orgId ?? "", 0, 1)).total,
+				(await fetchInsightRecommendationsPage(orgId ?? "", 0, 1, false)).total,
 			enabled: !!orgId,
 			staleTime: INSIGHT_CACHE.historyStaleTime,
 			gcTime: INSIGHT_CACHE.gcTime,
@@ -150,9 +151,11 @@ export type Insight = InsightsHistoryPage["insights"][number];
 function fetchInsightRecommendationsPage(
 	organizationId: string,
 	offset: number,
-	limit = 50
+	limit = 50,
+	includeCompleted = true
 ) {
 	return orpc.insights.recommendations.call({
+		includeCompleted,
 		organizationId,
 		limit,
 		offset,

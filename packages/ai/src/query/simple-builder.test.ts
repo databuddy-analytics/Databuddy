@@ -538,13 +538,13 @@ describe("SimpleQueryBuilder.compile", () => {
 		).compile();
 
 		expect(sql).toContain(
-			"AND if(profile_id != '', profile_id, anonymous_id) IN ("
+			"AND visitor_id IN ("
 		);
 		expect(sql).toContain(
-			"SELECT DISTINCT coalesce(nullIf(profile_id, ''), nullIf(anonymous_id, ''))"
+			"SELECT DISTINCT visitor_id"
 		);
 		expect(sql).toContain("FROM analytics.custom_events");
-		expect(sql).toContain("AND event_name = {f0:String}");
+		expect(sql).toContain("event_name = {f0:String}");
 		expect(sql).not.toContain("eventNameFilter");
 		expect(params.f0).toBe("signup");
 	});
@@ -584,7 +584,7 @@ describe("SimpleQueryBuilder.compile", () => {
 			})
 		).compile();
 
-		expect(sql).toContain("AND event_name LIKE {f0:String}");
+		expect(sql).toContain("event_name LIKE {f0:String}");
 		expect(params.f0).toBe("%signup%");
 	});
 
@@ -663,7 +663,7 @@ describe("SimpleQueryBuilder.compile", () => {
 		);
 
 		const { params, sql } = builder.compile();
-		expect(sql).toContain("anonymous_id = {visitorId:String}");
+		expect(sql).toContain("visitor_id = {visitorId:String}");
 		expect(params.visitorId).toBe("visitor-1");
 	});
 
@@ -696,7 +696,7 @@ describe("SimpleQueryBuilder.compile", () => {
 		);
 
 		const { params, sql } = builder.compile();
-		expect(sql).toContain("anonymous_id = {visitorId:String}");
+		expect(sql).toContain("visitor_id = {visitorId:String}");
 		expect(params.visitorId).toBe("visitor-1");
 	});
 

@@ -5,6 +5,7 @@ import type { GoalFilter } from "@/types/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { toast } from "sonner";
+import { insightQueries } from "@/lib/insight-api";
 import { listQueryOutcome } from "@/lib/list-query-outcome";
 import { orpc } from "@/lib/orpc";
 
@@ -102,7 +103,7 @@ export function useGoalActions(websiteId: string) {
 			queryClient.invalidateQueries({
 				queryKey: orpc.goals.bulkAnalytics.key(),
 			}),
-			queryClient.invalidateQueries({ queryKey: orpc.insights.key() }),
+			queryClient.invalidateQueries({ queryKey: insightQueries.all() }),
 		]);
 
 	const createMutation = useMutation({

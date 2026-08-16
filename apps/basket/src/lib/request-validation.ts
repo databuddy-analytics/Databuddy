@@ -25,6 +25,10 @@ export interface ValidatedRequest {
 	userAgent: string;
 }
 
+export interface ValidateRequestOptions {
+	checkUsage?: boolean;
+}
+
 interface WebsiteSecuritySettings {
 	allowedIps?: string[];
 	allowedOrigins?: string[];
@@ -53,7 +57,8 @@ export function getWebsiteSecuritySettings(
 export function validateRequest(
 	body: unknown,
 	query: unknown,
-	request: Request
+	request: Request,
+	options: ValidateRequestOptions = {}
 ): Promise<ValidatedRequest> {
 	return record("validateRequest", async () => {
 		const log = useLogger();
@@ -132,7 +137,7 @@ export function validateRequest(
 
 		log.set({ website: { domain: website.domain, status: website.status } });
 
-		if (website.ownerId) {
+		if (website.ownerId && options.checkUsage !== false) {
 			await checkAutumnUsage(website.ownerId, "events", {
 				website_domain: website.domain,
 				website_id: website.id,
