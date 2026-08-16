@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it, setDefaultTimeout } from "bu
 import { randomUUIDv7 } from "bun";
 import { chCommand, chQuery, clickHouse } from "@databuddy/db/clickhouse";
 import { SimpleQueryBuilder } from "../simple-builder";
+import type { CompiledQuery } from "../types";
 import { ProfilesBuilders } from "./profiles";
 
 const describeIntegration =
@@ -46,6 +47,13 @@ function collisionEvent(
 		time,
 		url: `https://example.test${path}`,
 	};
+}
+
+function requireQuery(query: string | CompiledQuery | undefined): CompiledQuery {
+	if (!query || typeof query === "string") {
+		throw new Error("Profile query did not compile");
+	}
+	return query;
 }
 
 describeIntegration("profile query identity against ClickHouse", () => {
@@ -189,38 +197,15 @@ describeIntegration("profile query identity against ClickHouse", () => {
 		);
 	});
 
-	it("stitches pre-identification events and returns one profile row", async () => {
-		const query = ProfilesBuilders.profile_list?.customSql?.({
+	it("stitches activity and keeps it in the identified profile filter", async () => {
+		const query = requireQuery(ProfilesBuilders.profile_list?.customSql?.({
 			endDate: "2026-08-02",
 			limit: 10,
 			offset: 0,
 			startDate: "2026-08-01",
 			websiteId,
-		});
-		if (!query || typeof query === "string") {
-			throw new Error("Profile list did not compile");
-		}
-
-		const rows = await chQuery<{
-			custom_event_count: number | string;
-			profile_id: string;
-			session_count: number | string;
-			total_events: number | string;
-			visitor_id: string;
-		}>(query.sql, query.params);
-
-		expect(rows).toHaveLength(1);
-		expect(rows[0]).toMatchObject({
-			profile_id: profileId,
-			visitor_id: profileId,
-		});
-		expect(Number(rows[0]?.total_events)).toBe(4);
-		expect(Number(rows[0]?.session_count)).toBe(2);
-		expect(Number(rows[0]?.custom_event_count)).toBe(2);
-	});
-
-	it("keeps stitched activity in the identified profile filter", async () => {
-		const query = new SimpleQueryBuilder(ProfilesBuilders.profile_list, {
+		}));
+		const filteredQuery = new SimpleQueryBuilder(ProfilesBuilders.profile_list, {
 			filters: [{ field: "profile_id", op: "ne", value: "" }],
 			from: "2026-08-01",
 			projectId: websiteId,
@@ -228,49 +213,55 @@ describeIntegration("profile query identity against ClickHouse", () => {
 			type: "profile_list",
 		}).compile();
 
-		const rows = await chQuery<{
-			profile_id: string;
-			total_events: number | string;
-		}>(query.sql, query.params);
+		const [rows, filteredRows] = await Promise.all([
+			chQuery<{
+				custom_event_count: number | string;
+				profile_id: string;
+				session_count: number | string;
+				total_events: number | string;
+				visitor_id: string;
+			}>(query.sql, query.params),
+			chQuery<{ profile_id: string; total_events: number | string }>(
+				filteredQuery.sql,
+				filteredQuery.params
+			),
+		]);
 
 		expect(rows).toHaveLength(1);
 		expect(rows[0]?.profile_id).toBe(profileId);
+		expect(rows[0]?.visitor_id).toBe(profileId);
 		expect(Number(rows[0]?.total_events)).toBe(4);
+		expect(Number(rows[0]?.session_count)).toBe(2);
+		expect(Number(rows[0]?.custom_event_count)).toBe(2);
+		expect(filteredRows).toHaveLength(1);
+		expect(filteredRows[0]?.profile_id).toBe(profileId);
+		expect(Number(filteredRows[0]?.total_events)).toBe(4);
 	});
 
 	it("does not cross-attribute reused sessions between profiles", async () => {
-		const listQuery = ProfilesBuilders.profile_list?.customSql?.({
+		const listQuery = requireQuery(ProfilesBuilders.profile_list?.customSql?.({
 			endDate: "2026-08-02",
 			limit: 10,
 			offset: 0,
 			startDate: "2026-08-01",
 			websiteId: collisionWebsiteId,
-		});
+		}));
 		const detailQueries = [collisionProfileA, collisionProfileB].map((id) =>
-			ProfilesBuilders.profile_detail?.customSql?.({
+			requireQuery(ProfilesBuilders.profile_detail?.customSql?.({
 				endDate: "2026-08-02",
 				filters: [{ field: "anonymous_id", op: "eq", value: id }],
 				startDate: "2026-08-01",
 				websiteId: collisionWebsiteId,
-			})
+			}))
 		);
 		const sessionQueries = [collisionProfileA, collisionProfileB].map((id) =>
-			ProfilesBuilders.profile_sessions?.customSql?.({
+			requireQuery(ProfilesBuilders.profile_sessions?.customSql?.({
 				endDate: "2026-08-02",
 				filters: [{ field: "anonymous_id", op: "eq", value: id }],
 				startDate: "2026-08-01",
 				websiteId: collisionWebsiteId,
-			})
+			}))
 		);
-
-		if (
-			!listQuery ||
-			typeof listQuery === "string" ||
-			detailQueries.some((query) => !query || typeof query === "string") ||
-			sessionQueries.some((query) => !query || typeof query === "string")
-		) {
-			throw new Error("Collision profile queries did not compile");
-		}
 
 		const [listRows, detailRows, sessionRows] = await Promise.all([
 			chQuery<{ profile_id: string; total_events: number | string }>(
@@ -278,29 +269,23 @@ describeIntegration("profile query identity against ClickHouse", () => {
 				listQuery.params
 			),
 			Promise.all(
-				detailQueries.map((query) => {
-					if (!query || typeof query === "string") {
-						throw new Error("Detail query did not compile");
-					}
-					return chQuery<{ total_pageviews: number | string }>(
+				detailQueries.map((query) =>
+					chQuery<{ total_pageviews: number | string }>(
 						query.sql,
 						query.params
-					);
-				})
+					)
+				)
 			),
 			Promise.all(
-				sessionQueries.map((query) => {
-					if (!query || typeof query === "string") {
-						throw new Error("Session query did not compile");
-					}
-					return chQuery<{
+				sessionQueries.map((query) =>
+					chQuery<{
 						events: ProfileSessionEvent[];
 						session_id: string;
 					}>(
 						query.sql,
 						query.params
-					);
-				})
+					)
+				)
 			),
 		]);
 
@@ -323,26 +308,18 @@ describeIntegration("profile query identity against ClickHouse", () => {
 	});
 
 	it("uses the same stitched identity in profile detail and sessions", async () => {
-		const detailQuery = ProfilesBuilders.profile_detail?.customSql?.({
+		const detailQuery = requireQuery(ProfilesBuilders.profile_detail?.customSql?.({
 			endDate: "2026-08-02",
 			filters: [{ field: "anonymous_id", op: "eq", value: profileId }],
 			startDate: "2026-08-01",
 			websiteId,
-		});
-		const sessionsQuery = ProfilesBuilders.profile_sessions?.customSql?.({
+		}));
+		const sessionsQuery = requireQuery(ProfilesBuilders.profile_sessions?.customSql?.({
 			endDate: "2026-08-02",
 			filters: [{ field: "anonymous_id", op: "eq", value: profileId }],
 			startDate: "2026-08-01",
 			websiteId,
-		});
-		if (
-			!detailQuery ||
-			typeof detailQuery === "string" ||
-			!sessionsQuery ||
-			typeof sessionsQuery === "string"
-		) {
-			throw new Error("Profile detail queries did not compile");
-		}
+		}));
 
 		const [detailRows, sessionRows] = await Promise.all([
 			chQuery<{ total_pageviews: number | string }>(
