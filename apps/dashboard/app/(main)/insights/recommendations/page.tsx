@@ -10,6 +10,7 @@ import Link from "next/link";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { List } from "@/components/ui/composables/list";
 import { type InsightRecommendation, insightQueries } from "@/lib/insight-api";
+import { cn } from "@/lib/utils";
 import {
 	Badge,
 	Button,
@@ -233,11 +234,12 @@ function RecommendationRow({
 		<List.Row align="start" asChild interactive={false}>
 			<li>
 				<span
-					className={`flex size-8 shrink-0 items-center justify-center rounded ${
+					className={cn(
+						"flex size-8 shrink-0 items-center justify-center rounded",
 						completed
 							? "bg-success/10 text-success"
 							: presentation.iconClassName
-					}`}
+					)}
 				>
 					<SignalIcon
 						aria-hidden
@@ -264,7 +266,7 @@ function RecommendationRow({
 								{completed ? null : ` · ${fromNow(insight.createdAt)}`}
 							</span>
 						</span>
-						<p className="mt-2 break-words font-medium text-foreground text-sm leading-relaxed [overflow-wrap:anywhere]">
+						<p className="mt-2 text-pretty break-words font-medium text-foreground text-sm leading-relaxed [overflow-wrap:anywhere]">
 							{completed ? completionMessage(insight) : recommendation.action}
 						</p>
 						{completed ? null : (
