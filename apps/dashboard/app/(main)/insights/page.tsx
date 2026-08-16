@@ -511,7 +511,7 @@ function FirstReview({
 			className={FIRST_REVIEW_CARD_CLASSES[status.badgeVariant]}
 		>
 			<Card.Content className="flex flex-wrap items-start gap-3 py-5 sm:flex-nowrap">
-				<span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-card/70 ring-1 ring-border/50 ring-inset">
+				<span className="flex size-10 shrink-0 items-center justify-center rounded bg-card/70 ring-1 ring-border/50 ring-inset">
 					{status.icon}
 				</span>
 				<div className="min-w-0 flex-1">
@@ -523,14 +523,14 @@ function FirstReview({
 							{activity}
 						</p>
 					</div>
-					<h2 className="mt-2 font-semibold text-base text-foreground">
+					<h2 className="mt-2 text-balance font-semibold text-base text-foreground">
 						{title}
 					</h2>
-					<p className="mt-1.5 max-w-2xl text-muted-foreground text-sm leading-relaxed">
+					<p className="mt-1.5 max-w-2xl text-pretty text-muted-foreground text-sm leading-relaxed">
 						{description}
 					</p>
 					{permissionDescription ? (
-						<p className="mt-1.5 text-muted-foreground text-xs">
+						<p className="mt-1.5 text-pretty text-muted-foreground text-xs">
 							{permissionDescription}
 						</p>
 					) : null}
