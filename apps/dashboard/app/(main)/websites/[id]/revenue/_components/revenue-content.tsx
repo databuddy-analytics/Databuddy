@@ -916,31 +916,33 @@ export function RevenueContent({ websiteId }: RevenueContentProps) {
 					/>
 				</div>
 			) : (
-				<EmptyState
-					action={{
-						label: hasInvalidCurrency
-							? "Fix currency"
-							: isConfigured
-								? "Check webhook settings"
-								: "Configure webhooks",
-						onClick: () => setSettingsOpen(true),
-					}}
-					description={
-						hasInvalidCurrency
-							? "Choose the currency used to filter and format revenue reports."
-							: isConfigured
-								? "Revenue will appear here once your payment provider sends webhook events."
-								: "Connect Stripe or Paddle to start tracking revenue and attribution."
-					}
-					icon={<CurrencyDollarIcon />}
-					title={
-						hasInvalidCurrency
-							? "Choose a valid currency"
-							: isConfigured
-								? "Waiting for transactions"
-								: "Set up revenue tracking"
-					}
-				/>
+				<div className="flex min-h-[320px] items-center justify-center p-4 sm:min-h-[400px]">
+					<EmptyState
+						action={{
+							label: hasInvalidCurrency
+								? "Fix currency"
+								: isConfigured
+									? "Check webhook settings"
+									: "Configure webhooks",
+							onClick: () => setSettingsOpen(true),
+						}}
+						description={
+							hasInvalidCurrency
+								? "Choose the currency used to filter and format revenue reports."
+								: isConfigured
+									? "Revenue will appear here once your payment provider sends webhook events."
+									: "Connect Stripe or Paddle to start tracking revenue and attribution."
+						}
+						icon={<CurrencyDollarIcon />}
+						title={
+							hasInvalidCurrency
+								? "Choose a valid currency"
+								: isConfigured
+									? "Waiting for transactions"
+									: "Set up revenue tracking"
+						}
+					/>
+				</div>
 			)}
 
 			<RevenueSettingsSheet
