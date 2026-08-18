@@ -54,6 +54,7 @@ import {
 	SpinnerIcon,
 	TrendUpIcon,
 	UsersIcon,
+	WarningCircleIcon,
 } from "@databuddy/ui/icons";
 import { Sheet } from "@databuddy/ui/client";
 import { Button, Card, EmptyState, Field, Input, dayjs } from "@databuddy/ui";
@@ -129,10 +130,12 @@ function CollapsibleSection({
 	return (
 		<div className="space-y-2">
 			<div className="-mx-3">
-				<button
-					className="group flex w-full cursor-pointer items-center justify-between rounded px-3 py-3 text-left transition-colors hover:bg-accent/50"
+				<Button
+					aria-expanded={isExpanded}
+					className="group h-auto w-full justify-between rounded px-3 py-3 text-left"
 					onClick={onToggleAction}
-					type="button"
+					size="md"
+					variant="ghost"
 				>
 					<div className="flex items-center gap-2.5">
 						<Icon className="size-4" weight="duotone" />
@@ -146,7 +149,7 @@ function CollapsibleSection({
 						)}
 						weight="fill"
 					/>
-				</button>
+				</Button>
 			</div>
 
 			<AnimatePresence initial={false}>
@@ -192,7 +195,13 @@ function RevenueSettingsSheet({
 			onCopy: () => toast.success("Webhook URL copied"),
 		});
 
-	const { data: config, isLoading } = useQuery({
+	const {
+		data: config,
+		error: configError,
+		isError: isConfigError,
+		isLoading,
+		refetch: refetchConfig,
+	} = useQuery({
 		queryKey: ["revenue-config", websiteId],
 		queryFn: () => orpc.revenue.get.call({ websiteId }),
 	});
@@ -204,11 +213,13 @@ function RevenueSettingsSheet({
 	const currencyValue = currencyDraft ?? configuredCurrency;
 	const normalizedCurrency = normalizeCurrencyCode(currencyValue);
 	const currencyInvalid = normalizedCurrency === null;
-	const hasChanges = Boolean(
-		stripeSecret ||
-			paddleSecret ||
-			(normalizedCurrency && normalizedCurrency !== savedCurrency)
-	);
+	const hasChanges =
+		!(isLoading || isConfigError) &&
+		Boolean(
+			stripeSecret ||
+				paddleSecret ||
+				(normalizedCurrency && normalizedCurrency !== savedCurrency)
+		);
 
 	const createWebhookMutation = useMutation({
 		mutationFn: () => {
@@ -316,6 +327,25 @@ function RevenueSettingsSheet({
 						<div className="flex items-center justify-center py-12">
 							<SpinnerIcon className="size-6 animate-spin text-muted-foreground" />
 						</div>
+					) : isConfigError ? (
+						<div className="flex min-h-[280px] items-center justify-center p-4">
+							<EmptyState
+								action={{
+									label: "Retry",
+									onClick: async () => {
+										await refetchConfig();
+									},
+								}}
+								description={
+									configError instanceof Error
+										? configError.message
+										: "We couldn't load revenue settings. Try again in a moment."
+								}
+								icon={<WarningCircleIcon />}
+								title="Couldn't load settings"
+								variant="error"
+							/>
+						</div>
 					) : (
 						<div className="space-y-5">
 							<Field error={currencyInvalid}>
@@ -378,6 +408,7 @@ function RevenueSettingsSheet({
 														{stripeUrl}
 													</code>
 													<Button
+														aria-label="Copy Stripe webhook URL"
 														onClick={() =>
 															stripeUrl && copyStripeUrl(stripeUrl)
 														}
@@ -416,6 +447,7 @@ function RevenueSettingsSheet({
 														{paddleUrl}
 													</code>
 													<Button
+														aria-label="Copy Paddle webhook URL"
 														onClick={() =>
 															paddleUrl && copyPaddleUrl(paddleUrl)
 														}
@@ -434,11 +466,12 @@ function RevenueSettingsSheet({
 												</div>
 											</div>
 
-											<button
-												className="flex w-full items-center justify-center gap-1.5 pt-2 text-muted-foreground text-xs transition-colors hover:text-foreground disabled:opacity-50"
+											<Button
+												className="h-auto w-full justify-center px-0 pt-2 text-muted-foreground text-xs"
 												disabled={regenerateMutation.isPending}
 												onClick={() => regenerateMutation.mutate()}
-												type="button"
+												size="sm"
+												variant="ghost"
 											>
 												{regenerateMutation.isPending ? (
 													<SpinnerIcon className="size-3 animate-spin" />
@@ -446,7 +479,7 @@ function RevenueSettingsSheet({
 													<ArrowClockwiseIcon className="size-3" />
 												)}
 												Regenerate URLs
-											</button>
+											</Button>
 										</div>
 									) : (
 										<div>
@@ -497,6 +530,11 @@ function RevenueSettingsSheet({
 													value={stripeSecret}
 												/>
 												<Button
+													aria-label={
+														showStripeSecret
+															? "Hide Stripe signing secret"
+															: "Show Stripe signing secret"
+													}
 													onClick={() => setShowStripeSecret(!showStripeSecret)}
 													size="sm"
 													variant="ghost"
@@ -578,6 +616,11 @@ function RevenueSettingsSheet({
 													value={paddleSecret}
 												/>
 												<Button
+													aria-label={
+														showPaddleSecret
+															? "Hide Paddle signing secret"
+															: "Show Paddle signing secret"
+													}
 													onClick={() => setShowPaddleSecret(!showPaddleSecret)}
 													size="sm"
 													variant="ghost"
@@ -641,7 +684,9 @@ function RevenueSettingsSheet({
 					</Button>
 					<Button
 						className="min-w-24"
-						disabled={currencyInvalid || !hasChanges}
+						disabled={
+							isLoading || isConfigError || currencyInvalid || !hasChanges
+						}
 						loading={upsertMutation.isPending}
 						onClick={handleSave}
 					>
@@ -666,7 +711,13 @@ export function RevenueContent({ websiteId }: RevenueContentProps) {
 		[addFilterAction]
 	);
 
-	const { data: config, isLoading: isConfigLoading } = useQuery({
+	const {
+		data: config,
+		error: configError,
+		isError: isConfigError,
+		isLoading: isConfigLoading,
+		refetch: refetchConfig,
+	} = useQuery({
 		queryKey: ["revenue-config", websiteId],
 		queryFn: () => orpc.revenue.get.call({ websiteId }),
 	});
@@ -694,13 +745,29 @@ export function RevenueContent({ websiteId }: RevenueContentProps) {
 		[revenueFilters]
 	);
 
-	const { isLoading: isRevenueLoading, getDataForQuery } = useBatchDynamicQuery(
-		websiteId,
-		dateRange,
-		queries,
-		{ enabled: revenueQueryEnabled }
-	);
+	const {
+		error: revenueError,
+		getDataForQuery,
+		isError: isRevenueError,
+		isLoading: isRevenueLoading,
+		refetch: refetchRevenue,
+	} = useBatchDynamicQuery(websiteId, dateRange, queries, {
+		enabled: revenueQueryEnabled,
+	});
 	const isLoading = isConfigLoading || isRevenueLoading;
+	const hasError = isConfigError || isRevenueError;
+	const error = configError ?? revenueError;
+
+	const handleRetry = async () => {
+		const retries: Promise<unknown>[] = [];
+		if (isConfigError) {
+			retries.push(refetchConfig());
+		}
+		if (isRevenueError) {
+			retries.push(refetchRevenue());
+		}
+		await Promise.all(retries);
+	};
 
 	const overviewData = (getDataForQuery(
 		"revenue-overview",
@@ -754,7 +821,7 @@ export function RevenueContent({ websiteId }: RevenueContentProps) {
 			: 0;
 
 	return (
-		<>
+		<div className="relative flex h-full flex-col">
 			<TopBar.Title>
 				<h1 className="font-semibold text-sm">Revenue</h1>
 			</TopBar.Title>
@@ -769,187 +836,204 @@ export function RevenueContent({ websiteId }: RevenueContentProps) {
 				</Button>
 			</TopBar.Actions>
 
-			{isLoading || hasData ? (
-				<div className="space-y-3 p-4 sm:space-y-4">
-					<div className="grid grid-cols-1 gap-1.5 rounded-xl bg-secondary p-1.5 sm:grid-cols-2 lg:grid-cols-5">
-						<StatCard
-							displayMode="text"
-							icon={CurrencyDollarIcon}
-							id="total-revenue"
-							isLoading={isLoading}
-							title="Revenue"
-							value={formatRevenueCurrency(
-								overview?.total_revenue ?? 0,
-								displayCurrency
-							)}
-						/>
-						<StatCard
-							displayMode="text"
-							icon={ReceiptIcon}
-							id="transactions"
-							isLoading={isLoading}
-							title="Transactions"
-							value={overview?.total_transactions ?? 0}
-						/>
-						<StatCard
-							displayMode="text"
-							icon={CreditCardIcon}
-							id="avg-transaction"
-							isLoading={isLoading}
-							title="Avg Transaction"
-							value={formatRevenueCurrency(avgTransaction, displayCurrency)}
-						/>
-						<StatCard
-							displayMode="text"
-							icon={UsersIcon}
-							id="unique-customers"
-							isLoading={isLoading}
-							title="Customers"
-							value={overview?.unique_customers ?? 0}
-						/>
-						<StatCard
+			<div className="min-h-0 flex-1 overflow-y-auto overscroll-none">
+				{hasError ? (
+					<div className="flex min-h-full items-center justify-center p-4 py-16">
+						<EmptyState
+							action={{ label: "Retry", onClick: handleRetry }}
 							description={
-								overview?.attributed_transactions
-									? `${overview.attributed_transactions} of ${overview.total_transactions} attributed`
-									: undefined
+								error instanceof Error
+									? error.message
+									: "We couldn't load revenue data. Try again in a moment."
 							}
-							displayMode="text"
-							icon={TrendUpIcon}
-							id="attribution-rate"
-							isLoading={isLoading}
-							title="Attribution"
-							value={
-								overview?.total_transactions
-									? `${Math.round((overview.attributed_transactions / overview.total_transactions) * 100)}%`
-									: "0%"
-							}
+							icon={<WarningCircleIcon />}
+							title="Couldn't load revenue"
+							variant="error"
 						/>
 					</div>
-
-					{hasPaymentData && (
+				) : isLoading || hasData ? (
+					<div className="space-y-3 p-4 sm:space-y-4">
 						<div className="grid grid-cols-1 gap-1.5 rounded-xl bg-secondary p-1.5 sm:grid-cols-2 lg:grid-cols-5">
-							<StatCard
-								description={paymentFailureObservationDescription(overview)}
-								displayMode="text"
-								icon={CreditCardIcon}
-								id="payment-failure-rate"
-								isLoading={isLoading}
-								title="Payment failure rate"
-								value={paymentFailureRateLabel(overview)}
-							/>
-							<StatCard
-								description={
-									overview?.top_payment_failure_reason
-										? `Top cause: ${paymentFailureReasonLabel(overview.top_payment_failure_reason)}`
-										: undefined
-								}
-								displayMode="text"
-								icon={CreditCardIcon}
-								id="failed-payments"
-								isLoading={isLoading}
-								title="Failed payments"
-								value={overview?.failed_payment_attempts ?? 0}
-							/>
-							<StatCard
-								displayMode="text"
-								icon={ArrowClockwiseIcon}
-								id="recovered-payments"
-								isLoading={isLoading}
-								title="Recovered payments"
-								value={overview?.recovered_payment_attempts ?? 0}
-							/>
-							<StatCard
-								description={
-									overview?.top_payment_cancellation_reason
-										? `Top reason: ${paymentFailureReasonLabel(overview.top_payment_cancellation_reason)}`
-										: undefined
-								}
-								displayMode="text"
-								icon={CreditCardIcon}
-								id="canceled-payments"
-								isLoading={isLoading}
-								title="Canceled payments"
-								value={overview?.canceled_payment_attempts ?? 0}
-							/>
 							<StatCard
 								displayMode="text"
 								icon={CurrencyDollarIcon}
-								id="failed-payment-amount"
+								id="total-revenue"
 								isLoading={isLoading}
-								title="Failed amount"
+								title="Revenue"
 								value={formatRevenueCurrency(
-									overview?.failed_payment_amount ?? 0,
+									overview?.total_revenue ?? 0,
 									displayCurrency
 								)}
 							/>
-						</div>
-					)}
-
-					<Card>
-						<Card.Header className="flex-row items-center justify-between gap-3 py-3">
-							<div className="min-w-0 flex-1">
-								<Card.Title className="truncate text-sm">
-									Revenue Trends
-								</Card.Title>
-								<Card.Description className="line-clamp-2 text-pretty">
-									Revenue, transactions, customers, and refunds over time
-								</Card.Description>
-							</div>
-						</Card.Header>
-						<div className="overflow-x-auto">
-							<RevenueChart
-								currency={displayCurrency}
-								data={chartData}
-								height={isMobile ? 250 : 350}
+							<StatCard
+								displayMode="text"
+								icon={ReceiptIcon}
+								id="transactions"
 								isLoading={isLoading}
+								title="Transactions"
+								value={overview?.total_transactions ?? 0}
+							/>
+							<StatCard
+								displayMode="text"
+								icon={CreditCardIcon}
+								id="avg-transaction"
+								isLoading={isLoading}
+								title="Avg Transaction"
+								value={formatRevenueCurrency(avgTransaction, displayCurrency)}
+							/>
+							<StatCard
+								displayMode="text"
+								icon={UsersIcon}
+								id="unique-customers"
+								isLoading={isLoading}
+								title="Customers"
+								value={overview?.unique_customers ?? 0}
+							/>
+							<StatCard
+								description={
+									overview?.attributed_transactions
+										? `${overview.attributed_transactions} of ${overview.total_transactions} attributed`
+										: undefined
+								}
+								displayMode="text"
+								icon={TrendUpIcon}
+								id="attribution-rate"
+								isLoading={isLoading}
+								title="Attribution"
+								value={
+									overview?.total_transactions
+										? `${Math.round((overview.attributed_transactions / overview.total_transactions) * 100)}%`
+										: "0%"
+								}
 							/>
 						</div>
-					</Card>
 
-					<RevenueAttributionTables
-						currency={displayCurrency}
-						dateRange={dateRange}
-						enabled={revenueQueryEnabled}
-						onAddFilter={handleAddFilter}
-						queryFilters={revenueFilters}
-						websiteId={websiteId}
-					/>
-				</div>
-			) : (
-				<div className="flex min-h-[320px] items-center justify-center p-4 sm:min-h-[400px]">
-					<EmptyState
-						action={{
-							label: hasInvalidCurrency
-								? "Fix currency"
-								: isConfigured
-									? "Check webhook settings"
-									: "Configure webhooks",
-							onClick: () => setSettingsOpen(true),
-						}}
-						description={
-							hasInvalidCurrency
-								? "Choose the currency used to filter and format revenue reports."
-								: isConfigured
-									? "Revenue will appear here once your payment provider sends webhook events."
-									: "Connect Stripe or Paddle to start tracking revenue and attribution."
-						}
-						icon={<CurrencyDollarIcon />}
-						title={
-							hasInvalidCurrency
-								? "Choose a valid currency"
-								: isConfigured
-									? "Waiting for transactions"
-									: "Set up revenue tracking"
-						}
-					/>
-				</div>
-			)}
+						{(isLoading || hasPaymentData) && (
+							<div className="grid grid-cols-1 gap-1.5 rounded-xl bg-secondary p-1.5 sm:grid-cols-2 lg:grid-cols-5">
+								<StatCard
+									description={paymentFailureObservationDescription(overview)}
+									displayMode="text"
+									icon={CreditCardIcon}
+									id="payment-failure-rate"
+									isLoading={isLoading}
+									title="Payment failure rate"
+									value={paymentFailureRateLabel(overview)}
+								/>
+								<StatCard
+									description={
+										overview?.top_payment_failure_reason
+											? `Top cause: ${paymentFailureReasonLabel(overview.top_payment_failure_reason)}`
+											: undefined
+									}
+									displayMode="text"
+									icon={CreditCardIcon}
+									id="failed-payments"
+									isLoading={isLoading}
+									title="Failed payments"
+									value={overview?.failed_payment_attempts ?? 0}
+								/>
+								<StatCard
+									displayMode="text"
+									icon={ArrowClockwiseIcon}
+									id="recovered-payments"
+									isLoading={isLoading}
+									title="Recovered payments"
+									value={overview?.recovered_payment_attempts ?? 0}
+								/>
+								<StatCard
+									description={
+										overview?.top_payment_cancellation_reason
+											? `Top reason: ${paymentFailureReasonLabel(overview.top_payment_cancellation_reason)}`
+											: undefined
+									}
+									displayMode="text"
+									icon={CreditCardIcon}
+									id="canceled-payments"
+									isLoading={isLoading}
+									title="Canceled payments"
+									value={overview?.canceled_payment_attempts ?? 0}
+								/>
+								<StatCard
+									displayMode="text"
+									icon={CurrencyDollarIcon}
+									id="failed-payment-amount"
+									isLoading={isLoading}
+									title="Failed amount"
+									value={formatRevenueCurrency(
+										overview?.failed_payment_amount ?? 0,
+										displayCurrency
+									)}
+								/>
+							</div>
+						)}
+
+						<Card>
+							<Card.Header className="flex-row items-center justify-between gap-3 py-3">
+								<div className="min-w-0 flex-1">
+									<Card.Title className="truncate text-sm">
+										Revenue Trends
+									</Card.Title>
+									<Card.Description className="line-clamp-2 text-pretty">
+										Revenue, transactions, customers, and refunds over time
+									</Card.Description>
+								</div>
+							</Card.Header>
+							<div className="overflow-x-auto">
+								<RevenueChart
+									currency={displayCurrency}
+									data={chartData}
+									height={isMobile ? 250 : 350}
+									isLoading={isLoading}
+									className="rounded-none border-0"
+								/>
+							</div>
+						</Card>
+
+						<RevenueAttributionTables
+							currency={displayCurrency}
+							dateRange={dateRange}
+							enabled={revenueQueryEnabled}
+							onAddFilter={handleAddFilter}
+							queryFilters={revenueFilters}
+							websiteId={websiteId}
+						/>
+					</div>
+				) : (
+					<div className="flex min-h-full items-center justify-center p-4 py-16">
+						<EmptyState
+							action={{
+								label: hasInvalidCurrency
+									? "Fix currency"
+									: isConfigured
+										? "Check webhook settings"
+										: "Configure webhooks",
+								onClick: () => setSettingsOpen(true),
+							}}
+							description={
+								hasInvalidCurrency
+									? "Choose the currency used to filter and format revenue reports."
+									: isConfigured
+										? "Revenue will appear here once your payment provider sends webhook events."
+										: "Connect Stripe or Paddle to start tracking revenue and attribution."
+							}
+							icon={<CurrencyDollarIcon />}
+							title={
+								hasInvalidCurrency
+									? "Choose a valid currency"
+									: isConfigured
+										? "Waiting for transactions"
+										: "Set up revenue tracking"
+							}
+						/>
+					</div>
+				)}
+			</div>
 
 			<RevenueSettingsSheet
 				onOpenChangeAction={setSettingsOpen}
 				open={settingsOpen}
 				websiteId={websiteId}
 			/>
-		</>
+		</div>
 	);
 }
