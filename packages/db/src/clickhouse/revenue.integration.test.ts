@@ -1,12 +1,12 @@
 import { randomUUIDv7 } from "bun";
 import { describe, expect, test } from "bun:test";
 import { chQuery, clickHouse } from "./client";
-import { revenueLatestCte } from "./revenue";
+import { buildRevenueLatestCte } from "./revenue";
 
 const describeIntegration =
 	process.env.CLICKHOUSE_INTEGRATION_TESTS === "true" ? describe : describe.skip;
 
-interface CollapsedRevenueRow {
+interface RevenueRow {
 	amount: number | string;
 	created?: string;
 	status: string;
@@ -21,16 +21,11 @@ interface RevenueHealthSummary {
 	total_revenue: number | string;
 }
 
-function metadata(
-	eventId: string,
-	eventCreated: number,
+function stripeMetadata(
 	paymentIntentId: string,
 	recordKind: "attempt" | "money"
 ): string {
 	return JSON.stringify({
-		databuddy_revenue_model: "stripe_events_v1",
-		stripe_event_created: eventCreated,
-		stripe_event_id: eventId,
 		stripe_payment_intent_id: paymentIntentId,
 		stripe_record_kind: recordKind,
 	});
@@ -44,8 +39,6 @@ function revenueRow(
 	options: {
 		amount?: string;
 		created?: string;
-		eventCreated?: number;
-		eventId?: string;
 		paymentIntentId?: string;
 		recordKind?: "attempt" | "money";
 		type?: string;
@@ -56,9 +49,7 @@ function revenueRow(
 		amount: options.amount ?? "100.0000",
 		created,
 		currency: "USD",
-		metadata: metadata(
-			options.eventId ?? `evt-${transactionId}-${status}`,
-			options.eventCreated ?? 1_785_672_000,
+		metadata: stripeMetadata(
 			options.paymentIntentId ?? transactionId,
 			options.recordKind ?? "money"
 		),
@@ -74,69 +65,41 @@ function revenueRow(
 	};
 }
 
-describe("revenueLatestCte", () => {
-	test("selects one deterministic lifecycle state per provider transaction", () => {
-		const sql = revenueLatestCte({
+describe("buildRevenueLatestCte", () => {
+	test("reads canonical immutable transactions with FINAL", () => {
+		const sql = buildRevenueLatestCte({
 			name: "scoped_revenue",
 			scope: "owner_id = {ownerId:String}",
 		});
 
-		expect(sql).toContain("GROUP BY owner_id, provider, transaction_id");
-		expect(sql).toContain(
-			"tuple(_revenue_state_rank, _revenue_event_unix, _revenue_source_unix, _revenue_identity_richness, _revenue_tiebreaker)"
-		);
-		expect(sql).toContain(
-			"toUInt64(toUnixTimestamp(synced_at)) AS _revenue_source_unix"
-		);
-		expect(sql).toContain("status = 'completed', 4");
-		expect(sql).toContain("status = 'refunded', 5");
-		expect(sql).toContain("status = 'canceled', 3");
-		expect(sql).toContain("status = 'failed', 2");
-		expect(sql).toContain(
-			"JSONExtractUInt(metadata, 'stripe_event_created')"
-		);
-		expect(sql).toContain(") AS _revenue_event_unix");
-		expect(sql).toContain("cityHash64(toString(tuple(");
-		expect(sql).toContain("toUInt8(profile_id != '')");
-		expect(sql).toContain(") AS _revenue_tiebreaker");
-		expect(sql).not.toContain("% 33554432");
+		expect(sql).toContain("FROM analytics.revenue FINAL");
+		expect(sql).toContain("nullIf(website_id, '') AS website_id");
+		expect(sql).toContain("nullIf(anonymous_id, '') AS anonymous_id");
+		expect(sql).toContain("nullIf(product_name, '') AS product_name");
 		expect(sql).toContain("WHERE owner_id = {ownerId:String}");
-		expect(sql).not.toContain(" FINAL");
-	});
+		expect(sql).not.toContain("GROUP BY owner_id, provider, transaction_id");
+});
 
-	test("carries non-empty identity without changing the latest lifecycle row", () => {
-		const sql = revenueLatestCte({ scope: "owner_id = 'org_1'" });
+	test("keeps range predicates in the canonical read", () => {
+		const sql = buildRevenueLatestCte({ scope: "owner_id = 'org_1'" });
 
-		expect(sql).toContain("tuple(profile_id != '', _revenue_state_rank");
-		expect(sql).toContain(
-			"tuple(ifNull(anonymous_id, '') != '', _revenue_state_rank"
-		);
-		expect(sql).toContain("tuple(customer_id != '', _revenue_state_rank");
-		expect(sql).toContain("tuple(ifNull(product_name, '') != ''");
-		expect(sql).toContain("tuple(lengthUTF8(metadata), _revenue_state_rank");
-		expect(sql).toContain("latest_customer_id AS customer_id");
-		expect(sql).toContain("latest_metadata AS metadata");
-		expect(sql).toContain("latest.11 AS created");
-		expect(sql).toContain("latest.12 AS synced_at");
-		expect(sql).toContain("latest.2 AS status");
-		expect(sql).not.toContain("min(created)");
-		expect(sql).not.toContain("canonical_created");
-	});
+		expect(sql).toContain("FROM analytics.revenue FINAL");
+		expect(sql).toContain("WHERE owner_id = 'org_1'");
+});
 
-	test("uses indexed range candidates without excluding another version of a key", () => {
-		const sql = revenueLatestCte({
+	test("applies candidate predicates directly", () => {
+		const sql = buildRevenueLatestCte({
 			candidateWhere: "created >= {from:DateTime}",
 			scope: "owner_id = {ownerId:String}",
 		});
 
-		expect(sql).toContain("(owner_id, provider, transaction_id) IN (");
 		expect(sql).toContain("AND created >= {from:DateTime}");
-		expect(sql.match(/FROM analytics\.revenue/g)).toHaveLength(2);
-		expect(sql.match(/owner_id = \{ownerId:String\}/g)).toHaveLength(2);
+		expect(sql.match(/FROM analytics\.revenue FINAL/g)).toHaveLength(1);
+		expect(sql.match(/owner_id = \{ownerId:String\}/g)).toHaveLength(1);
 	});
 
-	test("can exercise retained versions from a trusted test source", () => {
-		const sql = revenueLatestCte({
+	test("accepts a trusted source override", () => {
+		const sql = buildRevenueLatestCte({
 			scope: "owner_id = {ownerId:String}",
 			source: "analytics.revenue_retained_versions_test",
 		});
@@ -146,22 +109,20 @@ describe("revenueLatestCte", () => {
 	});
 });
 
-describeIntegration("revenue lifecycle collapse against ClickHouse", () => {
-	test("keeps immutable attempts and money across out-of-order delivery", async () => {
-		const ownerId = `revenue-lifecycle-${randomUUIDv7()}`;
+describeIntegration("canonical revenue rows against ClickHouse", () => {
+	test("keeps attempts, payments, and refunds as separate rows", async () => {
+		const ownerId = `revenue-immutable-${randomUUIDv7()}`;
 
 		await clickHouse.insert({
 			format: "JSONEachRow",
 			table: "analytics.revenue",
 			values: [
-				// A late-delivered, older attempt has its immutable Stripe event ID,
-				// so it cannot replace the successful PaymentIntent row.
 				revenueRow(
 					ownerId,
 					"pi_late_failure",
 					"completed",
 					"2026-08-02 12:01:00",
-					{ eventCreated: 1_785_672_200, eventId: "evt_success" }
+					{ paymentIntentId: "pi_late_failure" }
 				),
 				revenueRow(
 					ownerId,
@@ -169,22 +130,17 @@ describeIntegration("revenue lifecycle collapse against ClickHouse", () => {
 					"failed",
 					"2026-08-02 12:05:00",
 					{
-						eventCreated: 1_785_672_100,
-						eventId: "evt_old_failure",
 						paymentIntentId: "pi_late_failure",
 						recordKind: "attempt",
 						type: "subscription_event",
 					}
 				),
-				// A legitimate recovery preserves both the failed attempt and money.
 				revenueRow(
 					ownerId,
 					"evt_initial_failure",
 					"failed",
 					"2026-08-02 12:02:00",
 					{
-						eventCreated: 1_785_672_300,
-						eventId: "evt_initial_failure",
 						paymentIntentId: "pi_recovered",
 						recordKind: "attempt",
 						type: "subscription_event",
@@ -195,15 +151,14 @@ describeIntegration("revenue lifecycle collapse against ClickHouse", () => {
 					"pi_recovered",
 					"completed",
 					"2026-08-02 12:03:00",
-					{ eventCreated: 1_785_672_400, eventId: "evt_recovery" }
+					{ paymentIntentId: "pi_recovered" }
 				),
-				// Refunds keep their own immutable refund IDs and relation metadata.
 				revenueRow(
 					ownerId,
 					"pi_refunded_payment",
 					"completed",
 					"2026-08-02 12:01:00",
-					{ eventCreated: 1_785_672_500, eventId: "evt_charge" }
+					{ paymentIntentId: "pi_refunded_payment" }
 				),
 				revenueRow(
 					ownerId,
@@ -212,8 +167,6 @@ describeIntegration("revenue lifecycle collapse against ClickHouse", () => {
 					"2026-08-02 12:04:00",
 					{
 						amount: "-100.0000",
-						eventCreated: 1_785_672_600,
-						eventId: "evt_refund",
 						paymentIntentId: "pi_refunded_payment",
 						type: "refund",
 					}
@@ -221,8 +174,8 @@ describeIntegration("revenue lifecycle collapse against ClickHouse", () => {
 			],
 		});
 
-		const rows = await chQuery<CollapsedRevenueRow>(
-			`WITH ${revenueLatestCte({
+		const rows = await chQuery<RevenueRow>(
+			`WITH ${buildRevenueLatestCte({
 				scope: "owner_id = {ownerId:String}",
 			})}
 			SELECT transaction_id, type, status, amount
@@ -245,7 +198,7 @@ describeIntegration("revenue lifecycle collapse against ClickHouse", () => {
 		expect(rows).toHaveLength(6);
 
 		const [summary] = await chQuery<RevenueHealthSummary>(
-			`WITH ${revenueLatestCte({
+			`WITH ${buildRevenueLatestCte({
 				scope: "owner_id = {ownerId:String}",
 			})}
 			SELECT
@@ -267,71 +220,4 @@ describeIntegration("revenue lifecycle collapse against ClickHouse", () => {
 		expect(Number(summary?.refunds)).toBe(1);
 	});
 
-	test("uses the winning lifecycle date for legacy retained versions", async () => {
-		const ownerId = `revenue-window-${randomUUIDv7()}`;
-		const table = `analytics.revenue_versions_${randomUUIDv7().replaceAll("-", "")}`;
-		const transactionId = "pi_legacy_recovery";
-
-		await clickHouse.command({
-			query: `CREATE TABLE ${table} AS analytics.revenue ENGINE = Memory`,
-		});
-		try {
-			await clickHouse.insert({
-				format: "JSONEachRow",
-				table,
-				values: [
-					revenueRow(
-						ownerId,
-						transactionId,
-						"failed",
-						"2026-07-01 12:01:00",
-						{
-							created: "2026-07-01 12:00:00",
-							eventCreated: 1_783_000_000,
-							eventId: "evt_legacy_failure",
-							recordKind: "attempt",
-							type: "subscription_event",
-						}
-					),
-					revenueRow(
-						ownerId,
-						transactionId,
-						"completed",
-						"2026-08-02 12:01:00",
-						{
-							created: "2026-08-02 12:00:00",
-							eventCreated: 1_785_672_000,
-							eventId: "evt_legacy_recovery",
-						}
-					),
-				],
-			});
-
-			const rowsInWindow = (startDate: string, endDate: string) =>
-				chQuery<CollapsedRevenueRow>(
-					`WITH ${revenueLatestCte({
-						candidateWhere: `created >= toDateTime({startDate:String})
-							AND created <= toDateTime(concat({endDate:String}, ' 23:59:59'))`,
-						scope: "owner_id = {ownerId:String}",
-						source: table,
-					})}
-					SELECT transaction_id, status, created
-					FROM revenue_latest
-					WHERE created >= toDateTime({startDate:String})
-						AND created <= toDateTime(concat({endDate:String}, ' 23:59:59'))`,
-					{ endDate, ownerId, startDate }
-				);
-
-			expect(await rowsInWindow("2026-07-01", "2026-07-02")).toEqual([]);
-			expect(await rowsInWindow("2026-08-01", "2026-08-03")).toEqual([
-				expect.objectContaining({
-					created: "2026-08-02 12:00:00",
-					status: "completed",
-					transaction_id: transactionId,
-				}),
-			]);
-		} finally {
-			await clickHouse.command({ query: `DROP TABLE IF EXISTS ${table}` });
-		}
-	});
 });

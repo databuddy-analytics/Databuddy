@@ -1,4 +1,4 @@
-import { revenueLatestCte } from "@databuddy/db/clickhouse";
+import { buildRevenueLatestCte } from "@databuddy/db/clickhouse";
 import { STRIPE_FAILURE_WEBHOOK_EVENTS } from "@databuddy/shared/stripe-webhooks";
 import { Analytics } from "../../types/tables";
 import { escapeLikePattern } from "../simple-builder";
@@ -189,7 +189,7 @@ function buildAttributionCte(
 	const eventScope = orgScope
 		? "client_id IN {websiteIds:Array(String)}"
 		: "client_id = {websiteId:String}";
-	const stripePaymentIntentId = `if(
+	const paymentIntentIdExpression = `if(
 		JSONExtractString(metadata, 'stripe_payment_intent_id') != '',
 		JSONExtractString(metadata, 'stripe_payment_intent_id'),
 		if(startsWith(transaction_id, 'pi_'), transaction_id, '')
@@ -204,24 +204,9 @@ function buildAttributionCte(
 	const attributedWebsiteScope = orgScope
 		? "1"
 		: `(r.owner_id = {websiteId:String}
-			OR r.website_id = {websiteId:String}
-			OR r.linked_website_id = {websiteId:String})`;
+			OR r.website_id = {websiteId:String})`;
 
 	return `
-			legacy_pi_dedup AS (
-			SELECT amount, toUnixTimestamp(created) as ts, customer_id
-			FROM ${Analytics.revenue}
-			WHERE
-				${directScope}
-				AND created >= toDateTime({startDate:String})
-				AND created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-				AND provider = 'stripe'
-				AND startsWith(transaction_id, 'pi_')
-				AND type != 'subscription_event'
-				AND status = 'completed'
-				AND amount > 0
-					AND customer_id != ''
-			),
 			scoped_stripe_owners AS (
 				SELECT DISTINCT owner_id
 				FROM ${Analytics.revenue}
@@ -229,136 +214,54 @@ function buildAttributionCte(
 					AND created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 					AND provider = 'stripe'
 					AND owner_id != ''
-			),
-			scoped_stripe_payment_intent_keys AS (
-				SELECT DISTINCT
-					owner_id,
-					${stripePaymentIntentId} AS payment_intent_id
-				FROM ${Analytics.revenue}
-				WHERE ${directScope}
-					AND created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-					AND provider = 'stripe'
-					AND ${stripePaymentIntentId} != ''
-			),
-			${revenueLatestCte({
+				),
+			${buildRevenueLatestCte({
 				candidateWhere: `created >= toDateTime({startDate:String}) - INTERVAL 90 DAY
-					AND created <= toDateTime(concat({endDate:String}, ' 23:59:59'))`,
+						AND created <= toDateTime(concat({endDate:String}, ' 23:59:59'))`,
 				name: "revenue_latest_range",
 				scope: relatedStripeScope,
 			})},
-			stripe_relation_rows AS (
-			SELECT
+		scoped_stripe_payment_intents AS (
+			SELECT DISTINCT
 				owner_id,
-				if(
-					JSONExtractString(metadata, 'stripe_invoice_id') != '',
-					JSONExtractString(metadata, 'stripe_invoice_id'),
-					transaction_id
-				) AS invoice_id,
-					JSONExtractString(metadata, 'stripe_payment_intent_id') AS payment_intent_id,
-					ifNull(website_id, '') AS context_website_id,
-					ifNull(anonymous_id, '') AS context_anonymous_id,
-					ifNull(session_id, '') AS context_session_id,
-					customer_id AS context_customer_id,
-					ifNull(product_name, '') AS context_product_name,
-					synced_at
-				FROM ${Analytics.revenue}
-				WHERE ${relatedStripeScope}
-				AND created >= toDateTime({startDate:String}) - INTERVAL 90 DAY
+				${paymentIntentIdExpression} AS payment_intent_id
+			FROM ${Analytics.revenue} FINAL
+			WHERE ${directScope}
 				AND created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 				AND provider = 'stripe'
-				AND (
-					JSONExtractString(metadata, 'stripe_invoice_id') != ''
-					OR startsWith(transaction_id, 'in_')
-				)
-				AND (
-					JSONExtractString(metadata, 'stripe_record_kind') IN ('link', 'money')
-					OR JSONExtractString(metadata, 'databuddy_revenue_model') = 'stripe_invoice_v2'
-				)
+				AND ${paymentIntentIdExpression} != ''
 		),
 		linked_payment_intents AS (
 			SELECT DISTINCT
 				owner_id,
-				payment_intent_id
-			FROM stripe_relation_rows
-			WHERE payment_intent_id != ''
-		),
-		stripe_payment_context_rows AS (
-			SELECT
-				owner_id,
-				if(
-					JSONExtractString(metadata, 'stripe_payment_intent_id') != '',
-					JSONExtractString(metadata, 'stripe_payment_intent_id'),
-					if(startsWith(transaction_id, 'pi_'), transaction_id, '')
-					) AS payment_intent_id,
-					ifNull(website_id, '') AS context_website_id,
-					ifNull(anonymous_id, '') AS context_anonymous_id,
-					ifNull(session_id, '') AS context_session_id,
-					customer_id AS context_customer_id,
-					ifNull(product_name, '') AS context_product_name,
-					synced_at
-				FROM ${Analytics.revenue}
-				WHERE provider = 'stripe'
-					AND created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-					AND (
-						(owner_id, ${stripePaymentIntentId}) IN (
-							SELECT owner_id, payment_intent_id FROM scoped_stripe_payment_intent_keys
-						)
-						OR (owner_id, ${stripePaymentIntentId}) IN (
-							SELECT owner_id, payment_intent_id FROM linked_payment_intents
-						)
-				)
+				${paymentIntentIdExpression} AS payment_intent_id
+			FROM revenue_latest_range
+			WHERE provider = 'stripe'
+				AND type IN ('sale', 'subscription')
+				AND status = 'completed'
+				AND JSONExtractString(metadata, 'stripe_record_kind') = 'money'
+				AND JSONExtractString(metadata, 'stripe_invoice_id') != ''
+				AND ${paymentIntentIdExpression} != ''
 		),
 		stripe_payment_context AS (
 			SELECT
-					owner_id,
-					payment_intent_id,
-					argMaxIf(context_website_id, synced_at, context_website_id != '') AS website_id,
-					argMaxIf(context_anonymous_id, synced_at, context_anonymous_id != '') AS anonymous_id,
-					argMaxIf(context_session_id, synced_at, context_session_id != '') AS session_id,
-					argMaxIf(context_customer_id, synced_at, context_customer_id != '') AS customer_id,
-					argMaxIf(context_product_name, synced_at, context_product_name != '') AS product_name
-			FROM stripe_payment_context_rows
-			WHERE payment_intent_id != ''
+				owner_id,
+				${paymentIntentIdExpression} AS payment_intent_id,
+				argMaxIf(ifNull(website_id, ''), synced_at, ifNull(website_id, '') != '') AS website_id,
+				argMaxIf(ifNull(anonymous_id, ''), synced_at, ifNull(anonymous_id, '') != '') AS anonymous_id,
+				argMaxIf(ifNull(session_id, ''), synced_at, ifNull(session_id, '') != '') AS session_id,
+				argMaxIf(customer_id, synced_at, customer_id != '') AS customer_id,
+				argMaxIf(ifNull(product_name, ''), synced_at, ifNull(product_name, '') != '') AS product_name
+			FROM ${Analytics.revenue} FINAL
+			WHERE provider = 'stripe'
+				AND created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+				AND (owner_id, ${paymentIntentIdExpression}) IN (
+					SELECT owner_id, payment_intent_id FROM scoped_stripe_payment_intents
+					UNION DISTINCT
+					SELECT owner_id, payment_intent_id FROM linked_payment_intents
+				)
+				AND ${paymentIntentIdExpression} != ''
 			GROUP BY owner_id, payment_intent_id
-		),
-		stripe_invoice_context_rows AS (
-			SELECT
-					owner_id,
-					invoice_id,
-					context_website_id,
-					context_anonymous_id,
-					context_session_id,
-					context_customer_id,
-					context_product_name,
-					synced_at
-			FROM stripe_relation_rows
-			UNION ALL
-			SELECT
-					relation.owner_id,
-					relation.invoice_id,
-					payment.website_id AS context_website_id,
-					payment.anonymous_id AS context_anonymous_id,
-					payment.session_id AS context_session_id,
-					payment.customer_id AS context_customer_id,
-					payment.product_name AS context_product_name,
-					relation.synced_at
-			FROM stripe_relation_rows relation
-			INNER JOIN stripe_payment_context payment
-				ON payment.owner_id = relation.owner_id
-				AND payment.payment_intent_id = relation.payment_intent_id
-		),
-		stripe_invoice_context AS (
-			SELECT
-					owner_id,
-					invoice_id,
-					argMaxIf(context_website_id, synced_at, context_website_id != '') AS website_id,
-					argMaxIf(context_anonymous_id, synced_at, context_anonymous_id != '') AS anonymous_id,
-					argMaxIf(context_session_id, synced_at, context_session_id != '') AS session_id,
-					argMaxIf(context_customer_id, synced_at, context_customer_id != '') AS customer_id,
-					argMaxIf(context_product_name, synced_at, context_product_name != '') AS product_name
-			FROM stripe_invoice_context_rows
-			WHERE invoice_id != ''
-			GROUP BY owner_id, invoice_id
 		),
 		stripe_payment_attempt_rows AS (
 			SELECT
@@ -390,59 +293,13 @@ function buildAttributionCte(
 				currency,
 				created,
 				synced_at
-			FROM ${Analytics.revenue}
+			FROM revenue_latest_range
 			WHERE ${directScope}
 				AND provider = 'stripe'
 				AND type = 'subscription_event'
 				AND JSONExtractString(metadata, 'stripe_record_kind') = 'attempt'
 				AND created >= toDateTime({startDate:String})
 				AND created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-		),
-		stripe_payment_attempt_candidates AS (
-			SELECT
-				attempt_id,
-				latest.1 AS attempt_key,
-				latest.2 AS event_type,
-				latest.3 AS invoice_id,
-				latest.4 AS status,
-				latest.5 AS currency,
-				latest.6 AS amount,
-				latest.7 AS failure_reason,
-				latest.8 AS failure_reason_rank,
-				latest.9 AS cancellation_reason
-			FROM (
-				SELECT
-					attempt_id,
-					argMax(
-						tuple(
-							attempt_key,
-							event_type,
-							invoice_id,
-							status,
-							currency,
-							amount,
-							failure_reason,
-							failure_reason_rank,
-							cancellation_reason
-						),
-						tuple(
-							toUnixTimestamp(synced_at),
-							cityHash64(toString(tuple(
-								attempt_key,
-								event_type,
-								invoice_id,
-								status,
-								currency,
-								amount,
-								failure_reason,
-								failure_reason_rank,
-								cancellation_reason
-							)))
-						)
-					) AS latest
-				FROM stripe_payment_attempt_rows
-				GROUP BY attempt_id
-			)
 		),
 		stripe_payment_attempts AS (
 			SELECT
@@ -473,7 +330,7 @@ function buildAttributionCte(
 							${STRIPE_FAILURE_EVENT_SQL}
 						)
 					) OVER (PARTITION BY currency) AS observed_failure_event_types
-				FROM stripe_payment_attempt_candidates
+					FROM stripe_payment_attempt_rows
 			) attempt
 			WHERE NOT (
 				attempt.event_type = 'payment_intent.payment_failed'
@@ -486,94 +343,30 @@ function buildAttributionCte(
 				)
 			)
 		),
-			revenue_with_invoice_context AS (
-				SELECT
-					r.*,
-					r.owner_id AS reconciliation_owner_id,
-					coalesce(
-						nullIf(invoice_context.website_id, ''),
-						nullIf(payment_context.website_id, '')
-					) AS linked_website_id,
-					coalesce(
-					nullIf(invoice_context.anonymous_id, ''),
-					nullIf(payment_context.anonymous_id, '')
-				) AS linked_anonymous_id,
-				coalesce(
-					nullIf(invoice_context.session_id, ''),
-					nullIf(payment_context.session_id, '')
-				) AS linked_session_id,
-					coalesce(
-						nullIf(invoice_context.customer_id, ''),
-						nullIf(payment_context.customer_id, '')
-					) AS linked_customer_id,
-					coalesce(
-						nullIf(invoice_context.product_name, ''),
-						nullIf(payment_context.product_name, '')
-					) AS linked_product_name
-			FROM revenue_latest_range r
-			LEFT JOIN stripe_invoice_context invoice_context
-				ON invoice_context.owner_id = r.owner_id
-				AND invoice_context.invoice_id = if(
-					JSONExtractString(r.metadata, 'stripe_invoice_id') != '',
-					JSONExtractString(r.metadata, 'stripe_invoice_id'),
-					if(startsWith(r.transaction_id, 'in_'), r.transaction_id, '')
-				)
-			LEFT JOIN stripe_payment_context payment_context
-				ON payment_context.owner_id = r.owner_id
-				AND payment_context.payment_intent_id = if(
-					JSONExtractString(r.metadata, 'stripe_payment_intent_id') != '',
-					JSONExtractString(r.metadata, 'stripe_payment_intent_id'),
-					if(startsWith(r.transaction_id, 'pi_'), r.transaction_id, '')
-				)
-		),
-		stripe_invoice_payment_totals AS (
-			SELECT
-				owner_id,
-				JSONExtractString(metadata, 'stripe_invoice_id') AS invoice_id,
-				currency,
-				sum(amount) AS amount
-			FROM revenue_latest_range
-			WHERE provider = 'stripe'
-				AND status = 'completed'
-				AND JSONExtractString(metadata, 'stripe_money_kind') = 'invoice_payment'
-				AND JSONExtractString(metadata, 'stripe_invoice_id') != ''
-			GROUP BY owner_id, invoice_id, currency
-		),
 		revenue_base AS (
 			SELECT
 				r.transaction_id,
-				if(
-					JSONExtractString(r.metadata, 'stripe_money_kind') = 'invoice_fallback',
-					r.amount - ifNull(invoice_payments.amount, 0),
-					r.amount
-				) AS amount,
-				if(
-					JSONExtractString(r.metadata, 'stripe_money_kind') = 'invoice_fallback',
-					'subscription',
-					r.type
-				) AS type,
-				coalesce(r.anonymous_id, nullIf(r.linked_anonymous_id, '')) as r_anonymous_id,
-				coalesce(r.session_id, nullIf(r.linked_session_id, '')) as r_session_id,
-				coalesce(nullIf(r.customer_id, ''), nullIf(r.linked_customer_id, '')) as r_customer_id,
+				r.amount AS amount,
+				r.type AS type,
+				coalesce(r.anonymous_id, nullIf(payment_context.anonymous_id, '')) as r_anonymous_id,
+				coalesce(r.session_id, nullIf(payment_context.session_id, '')) as r_session_id,
+				coalesce(nullIf(r.customer_id, ''), nullIf(payment_context.customer_id, '')) as r_customer_id,
 				r.product_id,
-					coalesce(r.product_name, nullIf(r.linked_product_name, '')) as product_name,
+				coalesce(r.product_name, nullIf(payment_context.product_name, '')) as product_name,
 				r.provider,
 				r.currency,
 				r.metadata,
 				r.created
-				FROM revenue_with_invoice_context r
-				LEFT JOIN stripe_invoice_payment_totals invoice_payments
-					ON invoice_payments.owner_id = r.reconciliation_owner_id
-					AND invoice_payments.invoice_id = JSONExtractString(r.metadata, 'stripe_invoice_id')
-					AND invoice_payments.currency = r.currency
-				WHERE
-					${attributedWebsiteScope}
-					AND r.created >= toDateTime({startDate:String})
+			FROM revenue_latest_range r
+			LEFT JOIN stripe_payment_context payment_context
+				ON payment_context.owner_id = r.owner_id
+				AND payment_context.payment_intent_id = ${paymentIntentIdExpression.replaceAll("metadata", "r.metadata").replaceAll("transaction_id", "r.transaction_id")}
+			WHERE
+				(${attributedWebsiteScope}
+					OR payment_context.website_id = {websiteId:String})
+				AND r.created >= toDateTime({startDate:String})
 				AND r.created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-				AND (
-					r.type != 'subscription_event'
-					OR JSONExtractString(r.metadata, 'stripe_money_kind') = 'invoice_fallback'
-				)
+				AND r.type != 'subscription_event'
 				AND (
 					(r.type = 'refund' AND r.status = 'refunded')
 					OR (r.type != 'refund' AND r.status = 'completed')
@@ -584,21 +377,6 @@ function buildAttributionCte(
 					AND (r.owner_id, r.transaction_id) IN (
 						SELECT owner_id, payment_intent_id FROM linked_payment_intents
 					)
-				)
-				AND NOT (
-					r.provider = 'stripe'
-					AND startsWith(r.transaction_id, 'in_')
-					AND JSONExtractString(r.metadata, 'databuddy_revenue_model') = ''
-					AND (
-						(r.amount, toUnixTimestamp(r.created), r.customer_id) IN (SELECT amount, ts, customer_id FROM legacy_pi_dedup)
-						OR (r.amount, toUnixTimestamp(r.created) + 1, r.customer_id) IN (SELECT amount, ts, customer_id FROM legacy_pi_dedup)
-						OR (r.amount, toUnixTimestamp(r.created) - 1, r.customer_id) IN (SELECT amount, ts, customer_id FROM legacy_pi_dedup)
-					)
-				)
-				AND NOT (
-					r.provider = 'stripe'
-					AND JSONExtractString(r.metadata, 'stripe_money_kind') = 'invoice_fallback'
-					AND r.amount <= ifNull(invoice_payments.amount, 0)
 				)
 		),
 		customer_session_map AS (
@@ -617,7 +395,7 @@ function buildAttributionCte(
 		),
 		attributed_sessions AS (
 			SELECT DISTINCT session_id
-			FROM ${Analytics.revenue}
+			FROM revenue_latest_range
 			WHERE ${directScope}
 				AND created >= toDateTime({startDate:String}) - INTERVAL 90 DAY
 				AND created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
@@ -958,7 +736,6 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 							transaction_id,
 							revenue_provider = 'stripe'
 							AND type != 'refund'
-							AND JSONExtractString(metadata, 'databuddy_revenue_model') = 'stripe_events_v1'
 						) as successful_payment_attempts,
 						arrayDistinct(arrayFlatten(groupArrayIf(
 							arrayFilter(key -> key != '', [
@@ -983,7 +760,6 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 							]),
 							revenue_provider = 'stripe'
 							AND type != 'refund'
-							AND JSONExtractString(metadata, 'databuddy_revenue_model') = 'stripe_events_v1'
 						))) as successful_payment_keys
 					FROM ${source}
 					GROUP BY currency

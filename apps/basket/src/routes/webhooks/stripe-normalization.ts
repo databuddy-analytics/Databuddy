@@ -37,7 +37,6 @@ export interface WebhookPaymentIntent extends WebhookContextObject {
 	cancellation_reason?: unknown;
 	created: number;
 	currency: string;
-	invoice?: string | WebhookInvoiceContext | null;
 	last_payment_error?: WebhookPaymentError | null;
 }
 
@@ -65,7 +64,6 @@ export interface WebhookInvoice extends WebhookInvoiceContext {
 	billing_reason?: string | null;
 	created: number;
 	currency: string;
-	payment_intent?: string | WebhookPaymentContext | null;
 	payments?: {
 		data: WebhookInvoicePayment[];
 		has_more?: boolean;
@@ -102,9 +100,8 @@ export interface StripeWebhookEvent {
 	type: string;
 }
 
-export type StripeRecordKind = "attempt" | "link" | "money";
+export type StripeRecordKind = "attempt" | "money";
 
-const STRIPE_API_DATE_PREFIX = /^(\d{4}-\d{2}-\d{2})/;
 const STRIPE_ZERO_DECIMAL_CURRENCIES = new Set([
 	"BIF",
 	"CLP",
@@ -123,29 +120,17 @@ const STRIPE_ZERO_DECIMAL_CURRENCIES = new Set([
 	"XOF",
 	"XPF",
 ]);
-// Stripe keeps charge amounts for these nominally zero-decimal currencies in
-// two-decimal form for API compatibility (for example, 5 UGX is sent as 500).
 const STRIPE_TWO_DECIMAL_COMPATIBILITY_CURRENCIES = new Set(["ISK", "UGX"]);
 
 export interface NormalizedStripeRecord {
 	amount: number;
 	context: {
-		apiVersion?: string;
 		cancellationReason?: string;
-		eventCreated: number;
-		eventId: string;
-		eventType?: string;
+		eventType: string;
 		failureCode?: string;
 		failureDeclineCode?: string;
 		failureType?: string;
 		invoiceId?: string;
-		invoicePaymentId?: string;
-		moneyKind?:
-			| "invoice"
-			| "invoice_fallback"
-			| "invoice_payment"
-			| "refund"
-			| "standalone_candidate";
 		paymentIntentId?: string;
 		recordKind: StripeRecordKind;
 	};
@@ -154,7 +139,7 @@ export interface NormalizedStripeRecord {
 	customerId?: string;
 	productName?: string;
 	rawMetadata: Record<string, string>;
-	status: "canceled" | "completed" | "failed" | "linked" | "refunded";
+	status: "canceled" | "completed" | "failed" | "refunded";
 	transactionId: string;
 	type: "refund" | "sale" | "subscription" | "subscription_event";
 }
@@ -191,7 +176,7 @@ function nonNegativeInteger(value: unknown): value is number {
 	return Number.isSafeInteger(value) && Number(value) >= 0;
 }
 
-export function expandableId(
+export function getExpandableId(
 	value: string | ExpandableObject | null | undefined
 ): string | undefined {
 	if (!value) {
@@ -200,13 +185,13 @@ export function expandableId(
 	return typeof value === "string" ? value : value.id;
 }
 
-function customerId(
+function getCustomerId(
 	value: string | ExpandableObject | null | undefined
 ): string | undefined {
-	return expandableId(value);
+	return getExpandableId(value);
 }
 
-function expandedObject<T extends ExpandableObject>(
+function getExpandedObject<T extends ExpandableObject>(
 	value: string | T | null | undefined
 ): T | undefined {
 	return typeof value === "object" && value !== null ? value : undefined;
@@ -222,7 +207,7 @@ function reasonToken(value: unknown): string | undefined {
 	return STRIPE_REASON_TOKEN.test(token) ? token : undefined;
 }
 
-function paymentFailureContext(
+function getPaymentFailureContext(
 	...sources: Array<WebhookPaymentContext | undefined>
 ): Pick<
 	NormalizedStripeRecord["context"],
@@ -246,7 +231,7 @@ function paymentFailureContext(
 	};
 }
 
-export function invoiceMetadataSources(
+export function getInvoiceMetadata(
 	invoice: WebhookInvoiceContext
 ): Record<string, string> {
 	return {
@@ -256,64 +241,22 @@ export function invoiceMetadataSources(
 	};
 }
 
-function eventContext(
+function buildRecordContext(
 	event: StripeWebhookEvent,
 	recordKind: StripeRecordKind,
 	extra: Omit<
 		NormalizedStripeRecord["context"],
-		"apiVersion" | "eventCreated" | "eventId" | "recordKind"
+		"eventType" | "recordKind"
 	> = {}
 ): NormalizedStripeRecord["context"] {
 	return {
-		...(event.api_version ? { apiVersion: event.api_version } : {}),
-		eventCreated: requireUnixSeconds(event.created, "Stripe event.created"),
-		eventId: event.id,
 		eventType: event.type,
 		recordKind,
 		...extra,
 	};
 }
 
-function linkRecord(
-	event: StripeWebhookEvent,
-	input: {
-		createdUnix?: number;
-		currency: string;
-		customerId?: string;
-		invoiceId?: string;
-		invoicePaymentId?: string;
-		paymentIntentId?: string;
-		productName?: string;
-		rawMetadata?: Record<string, string>;
-		transactionId?: string;
-	}
-): NormalizedStripeRecord {
-	return {
-		amount: 0,
-		context: eventContext(event, "link", {
-			...(input.invoiceId ? { invoiceId: input.invoiceId } : {}),
-			...(input.invoicePaymentId
-				? { invoicePaymentId: input.invoicePaymentId }
-				: {}),
-			...(input.paymentIntentId
-				? { paymentIntentId: input.paymentIntentId }
-				: {}),
-		}),
-		createdUnix: requireUnixSeconds(
-			input.createdUnix ?? event.created,
-			"Stripe link timestamp"
-		),
-		currency: input.currency.toUpperCase(),
-		...(input.customerId ? { customerId: input.customerId } : {}),
-		...(input.productName ? { productName: input.productName } : {}),
-		rawMetadata: input.rawMetadata ?? {},
-		status: "linked",
-		transactionId: input.transactionId ?? event.id,
-		type: "subscription_event",
-	};
-}
-
-function attemptRecord(
+function buildAttemptRecord(
 	event: StripeWebhookEvent,
 	input: {
 		amountMinorUnits: number;
@@ -343,7 +286,7 @@ function attemptRecord(
 						"Stripe attempt amount"
 					)
 				: 0,
-		context: eventContext(event, "attempt", {
+		context: buildRecordContext(event, "attempt", {
 			...(input.invoiceId ? { invoiceId: input.invoiceId } : {}),
 			...(input.paymentIntentId
 				? { paymentIntentId: input.paymentIntentId }
@@ -364,31 +307,31 @@ function attemptRecord(
 	};
 }
 
-function invoicePaymentContext(payment: WebhookInvoicePayment): {
+function getInvoicePaymentContext(payment: WebhookInvoicePayment): {
 	customerId?: string;
 	productName?: string;
 	rawMetadata: Record<string, string>;
 } {
-	const invoice = expandedObject(payment.invoice);
+	const invoice = getExpandedObject(payment.invoice);
 	const paymentObject =
-		expandedObject(payment.payment?.payment_intent) ??
-		expandedObject(payment.payment?.charge) ??
-		expandedObject(payment.payment?.payment_record);
+		getExpandedObject(payment.payment?.payment_intent) ??
+		getExpandedObject(payment.payment?.charge) ??
+		getExpandedObject(payment.payment?.payment_record);
 	const productName =
 		invoice?.description ?? paymentObject?.description ?? undefined;
 	const resolvedCustomerId =
-		customerId(invoice?.customer) ?? customerId(paymentObject?.customer);
+		getCustomerId(invoice?.customer) ?? getCustomerId(paymentObject?.customer);
 	return {
 		...(resolvedCustomerId ? { customerId: resolvedCustomerId } : {}),
 		...(productName ? { productName } : {}),
 		rawMetadata: {
 			...paymentObject?.metadata,
-			...(invoice ? invoiceMetadataSources(invoice) : {}),
+			...(invoice ? getInvoiceMetadata(invoice) : {}),
 		},
 	};
 }
 
-function invoicePaymentRecord(
+function buildInvoicePaymentRecord(
 	event: StripeWebhookEvent,
 	payment: WebhookInvoicePayment,
 	rawMetadata: Record<string, string> = {},
@@ -398,12 +341,12 @@ function invoicePaymentRecord(
 	if (payment.status !== "paid" || !payment.amount_paid) {
 		return null;
 	}
-	const invoiceId = expandableId(payment.invoice);
+	const invoiceId = getExpandableId(payment.invoice);
 	if (!invoiceId) {
 		throw new Error("Stripe InvoicePayment is missing invoice identity");
 	}
-	const paymentIntentId = expandableId(payment.payment?.payment_intent);
-	const expandedContext = invoicePaymentContext(payment);
+	const paymentIntentId = getExpandableId(payment.payment?.payment_intent);
+	const expandedContext = getInvoicePaymentContext(payment);
 	const resolvedCustomerId = fallbackCustomerId ?? expandedContext.customerId;
 	const resolvedProductName =
 		fallbackProductName ?? expandedContext.productName;
@@ -413,10 +356,8 @@ function invoicePaymentRecord(
 			payment.currency,
 			"Stripe InvoicePayment.amount_paid"
 		),
-		context: eventContext(event, "money", {
+		context: buildRecordContext(event, "money", {
 			invoiceId,
-			invoicePaymentId: payment.id,
-			moneyKind: "invoice_payment",
 			...(paymentIntentId ? { paymentIntentId } : {}),
 		}),
 		createdUnix: requireUnixSeconds(event.created, "Stripe payment time"),
@@ -430,83 +371,28 @@ function invoicePaymentRecord(
 	};
 }
 
-function invoicePaymentLinkRecord(
-	event: StripeWebhookEvent,
-	payment: WebhookInvoicePayment,
-	rawMetadata: Record<string, string>,
-	fallbackCustomerId?: string,
-	fallbackProductName?: string
-): NormalizedStripeRecord | null {
-	if (payment.status !== "paid") {
-		return null;
-	}
-	const invoiceId = expandableId(payment.invoice);
-	const paymentIntentId = expandableId(payment.payment?.payment_intent);
-	if (!(invoiceId && paymentIntentId)) {
-		return null;
-	}
-	const expandedContext = invoicePaymentContext(payment);
-	return linkRecord(event, {
-		createdUnix: event.created,
-		currency: payment.currency,
-		customerId: fallbackCustomerId ?? expandedContext.customerId,
-		invoiceId,
-		invoicePaymentId: payment.id,
-		paymentIntentId,
-		productName: fallbackProductName ?? expandedContext.productName,
-		rawMetadata: { ...expandedContext.rawMetadata, ...rawMetadata },
-		// A relation and a later direct InvoicePayment event must survive FINAL
-		// independently. Stripe event + allocation IDs are immutable on retries.
-		transactionId: `${event.id}:${payment.id}`,
-	});
-}
-
-function apiDate(apiVersion: string | null | undefined): string | null {
-	const match = apiVersion?.match(STRIPE_API_DATE_PREFIX);
-	return match?.[1] ?? null;
-}
-
-export function usesInvoicePayments(
-	apiVersion: string | null | undefined
-): boolean {
-	const date = apiDate(apiVersion);
-	return date !== null && date >= "2025-03-31";
-}
-
-export function emitsInvoicePaymentPaidEvents(
-	apiVersion: string | null | undefined
-): boolean {
-	const date = apiDate(apiVersion);
-	return date !== null && date >= "2025-05-28";
-}
-
 function normalizePaymentIntent(
 	event: StripeWebhookEvent,
 	status: "canceled" | "failed" | "succeeded"
 ): NormalizedStripeRecord[] {
 	const intent = event.data.object as WebhookPaymentIntent;
-	const invoiceId = expandableId(intent.invoice);
-	const common = {
+	const paymentDetails = {
 		createdUnix: event.created,
 		currency: intent.currency,
-		customerId: customerId(intent.customer),
-		invoiceId,
+		customerId: getCustomerId(intent.customer),
 		paymentIntentId: intent.id,
 		productName: intent.description ?? undefined,
 		rawMetadata: intent.metadata,
 	};
 	if (status !== "succeeded") {
 		return [
-			attemptRecord(event, {
-				...common,
+			buildAttemptRecord(event, {
+				...paymentDetails,
 				amountMinorUnits: intent.amount,
-				reason: paymentFailureContext(intent),
+				reason: getPaymentFailureContext(intent),
 				status,
 			}),
 		];
-	}
-	if (invoiceId) {
-		return [linkRecord(event, common)];
 	}
 	const amountMinorUnits =
 		intent.amount_received && intent.amount_received > 0
@@ -519,14 +405,17 @@ function normalizePaymentIntent(
 				intent.currency,
 				"Stripe PaymentIntent amount"
 			),
-			context: eventContext(event, "money", {
-				moneyKind: "standalone_candidate",
+			context: buildRecordContext(event, "money", {
 				paymentIntentId: intent.id,
 			}),
 			createdUnix: requireUnixSeconds(event.created, "Stripe payment time"),
 			currency: intent.currency.toUpperCase(),
-			...(common.customerId ? { customerId: common.customerId } : {}),
-			...(common.productName ? { productName: common.productName } : {}),
+			...(paymentDetails.customerId
+				? { customerId: paymentDetails.customerId }
+				: {}),
+			...(paymentDetails.productName
+				? { productName: paymentDetails.productName }
+				: {}),
 			rawMetadata: intent.metadata ?? {},
 			status: "completed",
 			transactionId: intent.id,
@@ -535,16 +424,16 @@ function normalizePaymentIntent(
 	];
 }
 
-function invoiceMoneyRecord(
+function buildOutOfBandPaymentRecord(
 	event: StripeWebhookEvent,
 	invoice: WebhookInvoice,
 	amountMinorUnits: number,
 	input: {
 		customerId?: string;
-		moneyKind?: "invoice" | "invoice_fallback";
 		paymentIntentId?: string;
 		productName?: string;
 		rawMetadata: Record<string, string>;
+		transactionId: string;
 	}
 ): NormalizedStripeRecord {
 	return {
@@ -553,9 +442,8 @@ function invoiceMoneyRecord(
 			invoice.currency,
 			"Stripe Invoice.amount_paid"
 		),
-		context: eventContext(event, "money", {
+		context: buildRecordContext(event, "money", {
 			invoiceId: invoice.id,
-			moneyKind: input.moneyKind ?? "invoice",
 			...(input.paymentIntentId
 				? { paymentIntentId: input.paymentIntentId }
 				: {}),
@@ -566,17 +454,12 @@ function invoiceMoneyRecord(
 		...(input.productName ? { productName: input.productName } : {}),
 		rawMetadata: input.rawMetadata,
 		status: "completed",
-		transactionId: invoice.id,
-		// Old readers exclude subscription events. The reconciler promotes marked
-		// fallbacks to subscription money, making Basket/API rollout order safe.
-		type:
-			input.moneyKind === "invoice_fallback"
-				? "subscription_event"
-				: "subscription",
+		transactionId: input.transactionId,
+		type: "subscription",
 	};
 }
 
-function paidInvoiceAllocationMinorUnits(invoice: WebhookInvoice): number {
+function sumPaidInvoiceAllocations(invoice: WebhookInvoice): number {
 	return (invoice.payments?.data ?? []).reduce((total, payment) => {
 		if (
 			payment.status !== "paid" ||
@@ -589,76 +472,27 @@ function paidInvoiceAllocationMinorUnits(invoice: WebhookInvoice): number {
 	}, 0);
 }
 
+function getOutOfBandPaymentAmount(invoice: WebhookInvoice): number | null {
+	if (!invoice.payments || invoice.payments.has_more === true) {
+		return null;
+	}
+	return Math.max(0, invoice.amount_paid - sumPaidInvoiceAllocations(invoice));
+}
+
 function normalizePaidInvoice(
 	event: StripeWebhookEvent
 ): NormalizedStripeRecord[] {
 	const invoice = event.data.object as WebhookInvoice;
-	const rawMetadata = invoiceMetadataSources(invoice);
-	const invoiceCustomerId = customerId(invoice.customer);
+	const rawMetadata = getInvoiceMetadata(invoice);
+	const invoiceCustomerId = getCustomerId(invoice.customer);
 	const productName = invoice.description ?? undefined;
-	const context = linkRecord(event, {
-		currency: invoice.currency,
-		customerId: invoiceCustomerId,
-		invoiceId: invoice.id,
-		productName,
-		rawMetadata,
-	});
 	if (invoice.status !== "paid" || invoice.amount_paid <= 0) {
-		return [context];
+		return [];
 	}
 
-	const supportsInvoicePayments = usesInvoicePayments(event.api_version);
-	const legacyPaymentIntentId = expandableId(invoice.payment_intent);
-	if (!supportsInvoicePayments && legacyPaymentIntentId) {
-		return [
-			context,
-			invoiceMoneyRecord(event, invoice, invoice.amount_paid, {
-				customerId: invoiceCustomerId,
-				paymentIntentId: legacyPaymentIntentId,
-				productName,
-				rawMetadata,
-			}),
-		];
-	}
-
-	const needsFallback =
-		emitsInvoicePaymentPaidEvents(event.api_version) ||
-		(supportsInvoicePayments &&
-			(invoice.payments == null || invoice.payments.has_more === true));
-	if (needsFallback) {
-		const paymentLinks = (invoice.payments?.data ?? [])
-			.map((payment) =>
-				invoicePaymentLinkRecord(
-					event,
-					payment,
-					rawMetadata,
-					invoiceCustomerId,
-					productName
-				)
-			)
-			.filter((record): record is NormalizedStripeRecord => record !== null);
-		// Modern endpoints may not have subscribed to invoice_payment.paid yet,
-		// while transition snapshots can be paginated. Reads subtract any exact
-		// allocations from this total, so neither case loses or duplicates money.
-		return [
-			context,
-			...paymentLinks,
-			invoiceMoneyRecord(event, invoice, invoice.amount_paid, {
-				customerId: invoiceCustomerId,
-				moneyKind: "invoice_fallback",
-				paymentIntentId: legacyPaymentIntentId,
-				productName,
-				rawMetadata,
-			}),
-		];
-	}
-
-	// InvoicePayment objects shipped before their paid webhook. During that
-	// transition window, embedded allocations are the only exact money source.
-	// Older snapshots can expose the same shape, so retain those allocations too.
 	const allocations = (invoice.payments?.data ?? [])
 		.map((payment) =>
-			invoicePaymentRecord(
+			buildInvoicePaymentRecord(
 				event,
 				payment,
 				rawMetadata,
@@ -667,37 +501,19 @@ function normalizePaidInvoice(
 			)
 		)
 		.filter((record): record is NormalizedStripeRecord => record !== null);
-	if (supportsInvoicePayments) {
-		const outOfBandMinorUnits = Math.max(
-			0,
-			invoice.amount_paid - paidInvoiceAllocationMinorUnits(invoice)
-		);
-		return [
-			context,
-			...allocations,
-			...(outOfBandMinorUnits > 0
-				? [
-						invoiceMoneyRecord(event, invoice, outOfBandMinorUnits, {
-							customerId: invoiceCustomerId,
-							productName,
-							rawMetadata,
-						}),
-					]
-				: []),
-		];
-	}
-	if (allocations.length > 0) {
-		return [context, ...allocations];
-	}
-
-	// Old snapshot versions can represent out-of-band invoices with no PaymentIntent.
+	const outOfBandMinorUnits = getOutOfBandPaymentAmount(invoice);
 	return [
-		context,
-		invoiceMoneyRecord(event, invoice, invoice.amount_paid, {
-			customerId: invoiceCustomerId,
-			productName,
-			rawMetadata,
-		}),
+		...allocations,
+		...(outOfBandMinorUnits !== null && outOfBandMinorUnits > 0
+			? [
+					buildOutOfBandPaymentRecord(event, invoice, outOfBandMinorUnits, {
+						customerId: invoiceCustomerId,
+						productName,
+						rawMetadata,
+						transactionId: `${invoice.id}:out_of_band`,
+					}),
+				]
+			: []),
 	];
 }
 
@@ -712,13 +528,12 @@ function normalizeFailedInvoice(
 	const requestedPayment =
 		openPayments.find((payment) => payment.is_default) ??
 		(openPayments.length === 1 ? openPayments[0] : undefined);
-	const requestedPaymentIntentId = expandableId(
+	const requestedPaymentIntentId = getExpandableId(
 		requestedPayment?.payment?.payment_intent
 	);
-	const requestedPaymentIntent = expandedObject(
+	const requestedPaymentIntent = getExpandedObject(
 		requestedPayment?.payment?.payment_intent
 	);
-	const invoicePaymentIntent = expandedObject(invoice.payment_intent);
 	const amountMinorUnits =
 		requestedPayment?.amount_requested ??
 		(nonNegativeInteger(invoice.amount_remaining)
@@ -728,19 +543,17 @@ function normalizeFailedInvoice(
 		(nonNegativeInteger(invoice.total) ? invoice.total : undefined) ??
 		invoice.amount_paid;
 	return [
-		attemptRecord(event, {
+		buildAttemptRecord(event, {
 			amountMinorUnits,
 			currency: invoice.currency,
-			customerId: customerId(invoice.customer),
+			customerId: getCustomerId(invoice.customer),
 			invoiceId: invoice.id,
-			paymentIntentId:
-				requestedPaymentIntentId ?? expandableId(invoice.payment_intent),
+			...(requestedPaymentIntentId
+				? { paymentIntentId: requestedPaymentIntentId }
+				: {}),
 			productName: invoice.description ?? undefined,
-			rawMetadata: invoiceMetadataSources(invoice),
-			reason: paymentFailureContext(
-				requestedPaymentIntent,
-				invoicePaymentIntent
-			),
+			rawMetadata: getInvoiceMetadata(invoice),
+			reason: getPaymentFailureContext(requestedPaymentIntent),
 			status: "failed",
 		}),
 	];
@@ -748,22 +561,20 @@ function normalizeFailedInvoice(
 
 function normalizeRefund(event: StripeWebhookEvent): NormalizedStripeRecord[] {
 	const charge = event.data.object as WebhookCharge;
-	const paymentIntentId = expandableId(charge.payment_intent);
+	const paymentIntentId = getExpandableId(charge.payment_intent);
+	const refundCustomerId = getCustomerId(charge.customer);
 	return (charge.refunds?.data ?? []).map((refund) => ({
 		amount: -amountFromMinorUnits(
 			refund.amount,
 			charge.currency,
 			"Stripe Refund.amount"
 		),
-		context: eventContext(event, "money", {
-			moneyKind: "refund",
+		context: buildRecordContext(event, "money", {
 			...(paymentIntentId ? { paymentIntentId } : {}),
 		}),
 		createdUnix: requireUnixSeconds(refund.created, "Stripe refund time"),
 		currency: charge.currency.toUpperCase(),
-		...(customerId(charge.customer)
-			? { customerId: customerId(charge.customer) }
-			: {}),
+		...(refundCustomerId ? { customerId: refundCustomerId } : {}),
 		productName: "Refund",
 		rawMetadata: charge.metadata ?? {},
 		status: "refunded",
@@ -789,7 +600,7 @@ export function normalizeStripeEvent(
 		case "invoice.payment_failed":
 			return normalizeFailedInvoice(event);
 		case "invoice_payment.paid": {
-			const payment = invoicePaymentRecord(
+			const payment = buildInvoicePaymentRecord(
 				event,
 				event.data.object as WebhookInvoicePayment
 			);

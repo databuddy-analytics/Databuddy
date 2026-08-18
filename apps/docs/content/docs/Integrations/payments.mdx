@@ -37,7 +37,7 @@ In the [Stripe dashboard](https://dashboard.stripe.com/webhooks), add an endpoin
 </tbody>
 </table>
 
-Stripe introduced `invoice_payment.paid` in `2025-05-28.basil`. Subscribe to it on that version or later for exact allocation details. Databuddy also keeps the total from `invoice.paid` as a safe fallback, so adding the newer event after an API upgrade does not drop or double-count revenue. Earlier versions, including the `2025-03-31.basil` transition, use embedded invoice allocations when the full list is available.
+Databuddy expects Stripe API version `2025-05-28.basil` or later. Keep `payment_intent.succeeded` enabled for one-time payments; `invoice_payment.paid` is the canonical event for payments attached to an invoice. Databuddy uses the immutable InvoicePayment ID, so the same allocation embedded in `invoice.paid` and delivered later as `invoice_payment.paid` is counted once. `invoice.paid` also supplies the invoice-level remainder for payments made outside Stripe; Databuddy records that remainder only when Stripe includes a complete payments list.
 
 Paste the endpoint's **signing secret** into the Revenue settings so Databuddy can verify each delivery.
 

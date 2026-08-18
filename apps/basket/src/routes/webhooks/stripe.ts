@@ -84,7 +84,7 @@ export function verifyStripeSignature(
 	}
 }
 
-function analyticsMetadata(
+function buildAnalyticsMetadata(
 	metadata: Record<string, string>,
 	dailySalt: string | undefined
 ): AnalyticsMetadata {
@@ -112,19 +112,16 @@ function analyticsMetadata(
 	};
 }
 
-export function stripeRecordMetadata(
+export function buildStripeMetadata(
 	metadata: AnalyticsMetadata,
 	context: NormalizedStripeRecord["context"]
 ): Record<string, string | number> {
 	return {
 		...metadata,
-		databuddy_revenue_model: "stripe_events_v1",
 		...(context.cancellationReason
 			? { stripe_cancellation_reason: context.cancellationReason }
 			: {}),
-		stripe_event_created: context.eventCreated,
-		stripe_event_id: context.eventId,
-		...(context.eventType ? { stripe_event_type: context.eventType } : {}),
+		stripe_event_type: context.eventType,
 		...(context.failureCode
 			? { stripe_failure_code: context.failureCode }
 			: {}),
@@ -135,25 +132,22 @@ export function stripeRecordMetadata(
 			? { stripe_failure_type: context.failureType }
 			: {}),
 		stripe_record_kind: context.recordKind,
-		...(context.apiVersion ? { stripe_api_version: context.apiVersion } : {}),
 		...(context.invoiceId ? { stripe_invoice_id: context.invoiceId } : {}),
-		...(context.invoicePaymentId
-			? { stripe_invoice_payment_id: context.invoicePaymentId }
-			: {}),
-		...(context.moneyKind ? { stripe_money_kind: context.moneyKind } : {}),
 		...(context.paymentIntentId
 			? { stripe_payment_intent_id: context.paymentIntentId }
 			: {}),
 	};
 }
 
-function getConfig(hash: string): Promise<WebhookConfig | { error: string }> {
+function loadStripeConfig(
+	hash: string
+): Promise<WebhookConfig | { error: string }> {
 	return getWebhookConfig(hash, "stripeWebhookSecret", "stripe") as Promise<
 		WebhookConfig | { error: string }
 	>;
 }
 
-async function persistStripeRecords(
+async function insertStripeRevenue(
 	config: WebhookConfig,
 	records: NormalizedStripeRecord[]
 ): Promise<void> {
@@ -164,27 +158,27 @@ async function persistStripeRecords(
 		(record) => record.rawMetadata.databuddy_anonymous_id
 	);
 	const dailySalt = needsAnonymousSalt ? await getDailySalt() : undefined;
-	const websiteIds = new Map<string, Promise<string | undefined>>();
-	const resolveRecordWebsite = (metadata: AnalyticsMetadata) => {
+	const websiteIdCache = new Map<string, Promise<string | undefined>>();
+	const getRecordWebsiteId = (metadata: AnalyticsMetadata) => {
 		const key = metadata.client_id ?? "";
-		let pending = websiteIds.get(key);
+		let pending = websiteIdCache.get(key);
 		if (!pending) {
 			pending = resolveWebsiteId(
 				metadata.client_id,
 				config.websiteId,
 				config.ownerId
 			);
-			websiteIds.set(key, pending);
+			websiteIdCache.set(key, pending);
 		}
 		return pending;
 	};
 	const syncedAt = formatDate(new Date());
 	const values = await Promise.all(
 		records.map(async (record) => {
-			const metadata = analyticsMetadata(record.rawMetadata, dailySalt);
+			const metadata = buildAnalyticsMetadata(record.rawMetadata, dailySalt);
 			return {
 				owner_id: config.ownerId,
-				website_id: await resolveRecordWebsite(metadata),
+				website_id: await getRecordWebsiteId(metadata),
 				transaction_id: record.transactionId,
 				provider: "stripe",
 				type: record.type,
@@ -198,9 +192,7 @@ async function persistStripeRecords(
 				session_id: metadata.session_id,
 				customer_id: record.customerId,
 				product_name: record.productName,
-				metadata: JSON.stringify(
-					stripeRecordMetadata(metadata, record.context)
-				),
+				metadata: JSON.stringify(buildStripeMetadata(metadata, record.context)),
 				created: formatDate(new Date(record.createdUnix * 1000)),
 				synced_at: syncedAt,
 			};
@@ -220,7 +212,7 @@ export const stripeWebhook = new Elysia().use(evlog()).post(
 		const log = useLogger();
 		log.set({ provider: "stripe", webhookHash: params.hash });
 
-		const config = await getConfig(params.hash);
+		const config = await loadStripeConfig(params.hash);
 		if ("error" in config) {
 			log.set({ configError: config.error });
 			throw basketErrors.webhookEndpointNotFound();
@@ -249,7 +241,7 @@ export const stripeWebhook = new Elysia().use(evlog()).post(
 		});
 		try {
 			const records = normalizeStripeEvent(event);
-			await persistStripeRecords(config, records);
+			await insertStripeRevenue(config, records);
 			log.set({
 				recordCount: records.length,
 				moneyRecordCount: records.filter(

@@ -191,6 +191,7 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 - ClickHouse helpers and schema: `packages/db/src/clickhouse/*`
 - After schema changes, use the repo db scripts rather than ad hoc commands
 - Do not add ClickHouse migration files for delivery hardening; keep relay identity in the worker/queue unless **iza** explicitly requests persistent warehouse identity.
+- For data-cleanup investigations, inspect and describe the existing mutation path first; do not add a persistent purge script unless **iza** explicitly requests one.
 
 ### Auth and permissions
 

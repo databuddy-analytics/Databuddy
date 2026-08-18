@@ -10,11 +10,10 @@ const describeIntegration =
 	process.env.CLICKHOUSE_INTEGRATION_TESTS === "true" ? describe : describe.skip;
 
 function stripeMetadata(
-	recordKind: "attempt" | "link" | "money",
+	recordKind: "attempt" | "money",
 	extra: Record<string, string> = {}
 ): string {
 	return JSON.stringify({
-		databuddy_revenue_model: "stripe_events_v1",
 		stripe_record_kind: recordKind,
 		...extra,
 	});
@@ -150,9 +149,9 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 		});
 	}
 
-	it("preserves legacy totals and reconciles immutable Stripe event records", async () => {
+	it("counts canonical Stripe records and keeps payment diagnostics separate", async () => {
 		const websiteId = `revenue-cutover-${randomUUIDv7()}`;
-		const row = (
+		const cutoverRevenueRow = (
 			transactionId: string,
 			amount: number,
 			type: string,
@@ -176,75 +175,54 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 			table: "analytics.revenue",
 			format: "JSONEachRow",
 			values: [
-				// Legacy invoice and PaymentIntent rows are still reconciled by the
-				// bounded amount/time fallback.
-				row("pi_legacy", 100, "sale", "completed", "{}", "2026-07-01 12:00:00"),
-				row(
-					"in_legacy",
-					100,
-					"subscription",
-					"completed",
-					"{}",
-					"2026-07-01 12:00:00"
-				),
-				// A standalone PaymentIntent must not suppress itself.
-				row(
+				cutoverRevenueRow(
 					"pi_standalone",
 					40,
 					"sale",
 					"completed",
 					stripeMetadata("money", {
-						stripe_money_kind: "standalone_candidate",
 						stripe_payment_intent_id: "pi_standalone",
 					})
 				),
-				// InvoicePayment allocations replace their linked PaymentIntent
-				// candidates exactly, including partial/multi-payment invoices.
-				row(
+				cutoverRevenueRow(
 					"pi_invoice_a",
 					120,
 					"sale",
 					"completed",
 					stripeMetadata("money", {
-						stripe_money_kind: "standalone_candidate",
 						stripe_payment_intent_id: "pi_invoice_a",
 					})
 				),
-				row(
+				cutoverRevenueRow(
 					"pi_invoice_b",
 					80,
 					"sale",
 					"completed",
 					stripeMetadata("money", {
-						stripe_money_kind: "standalone_candidate",
 						stripe_payment_intent_id: "pi_invoice_b",
 					})
 				),
-				row(
+				cutoverRevenueRow(
 					"inpay_a",
 					120,
 					"subscription",
 					"completed",
 					stripeMetadata("money", {
 						stripe_invoice_id: "in_modern",
-						stripe_invoice_payment_id: "inpay_a",
-						stripe_money_kind: "invoice_payment",
 						stripe_payment_intent_id: "pi_invoice_a",
 					})
 				),
-				row(
+				cutoverRevenueRow(
 					"inpay_b",
 					80,
 					"subscription",
 					"completed",
 					stripeMetadata("money", {
 						stripe_invoice_id: "in_modern",
-						stripe_invoice_payment_id: "inpay_b",
-						stripe_money_kind: "invoice_payment",
 						stripe_payment_intent_id: "pi_invoice_b",
 					})
 				),
-				row(
+				cutoverRevenueRow(
 					"evt_failed",
 					50,
 					"subscription_event",
@@ -260,9 +238,7 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 					"2026-08-01 12:00:00",
 					{ synced_at: "2026-08-03 12:00:00" }
 				),
-				// The invoice event wins duplicate-attempt counting, while the richer
-				// PaymentIntent event still supplies its safe decline code.
-				row(
+				cutoverRevenueRow(
 					"evt_invoice_failed",
 					50,
 					"subscription_event",
@@ -276,7 +252,7 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 					"2026-08-01 12:00:00",
 					{ synced_at: "2026-08-03 12:00:01" }
 				),
-				row(
+				cutoverRevenueRow(
 					"evt_canceled",
 					25,
 					"subscription_event",
@@ -287,23 +263,21 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 						stripe_payment_intent_id: "pi_canceled",
 					})
 				),
-				row(
+				cutoverRevenueRow(
 					"pi_recovered",
 					50,
 					"sale",
 					"completed",
 					stripeMetadata("money", {
-						stripe_money_kind: "standalone_candidate",
 						stripe_payment_intent_id: "pi_recovered",
 					})
 				),
-				row(
+				cutoverRevenueRow(
 					"re_recovered_partial",
 					-10,
 					"refund",
 					"refunded",
 					stripeMetadata("money", {
-						stripe_money_kind: "refund",
 						stripe_payment_intent_id: "pi_recovered",
 					}),
 					"2026-08-03 13:00:00"
@@ -327,8 +301,8 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 			total_transactions: number | string;
 		}[];
 
-		expect(Number(overview?.total_revenue)).toBe(390);
-		expect(Number(overview?.total_transactions)).toBe(5);
+		expect(Number(overview?.total_revenue)).toBe(290);
+		expect(Number(overview?.total_transactions)).toBe(4);
 		expect(Number(overview?.failed_payment_attempts)).toBe(1);
 		expect(Number(overview?.canceled_payment_attempts)).toBe(1);
 		expect(Number(overview?.failed_payment_amount)).toBe(50);
@@ -406,12 +380,8 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 		expect(stripe?.top_payment_failure_reason).toBe("do_not_honor");
 	}, 10_000);
 
-	it("reconciles invoice fallbacks as exact allocation events arrive", async () => {
-		const websiteId = `revenue-invoice-fallback-${randomUUIDv7()}`;
-		const invoiceId = `in_${randomUUIDv7()}`;
-		const firstPaymentId = `inpay_${randomUUIDv7()}`;
-		const secondPaymentId = `inpay_${randomUUIDv7()}`;
-		const paymentIntentId = `pi_${randomUUIDv7()}`;
+	it("counts a canonical modern payment once across invoice event deliveries", async () => {
+		const websiteId = `revenue-canonical-${randomUUIDv7()}`;
 		const at = "2026-08-02 12:00:00";
 
 		await clickHouse.insert({
@@ -420,72 +390,40 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 			values: [
 				revenueRow(
 					websiteId,
-					paymentIntentId,
+					"pi_modern",
 					60,
 					"sale",
 					"completed",
 					stripeMetadata("money", {
-						stripe_money_kind: "standalone_candidate",
-						stripe_payment_intent_id: paymentIntentId,
+						stripe_payment_intent_id: "pi_modern",
 					}),
 					at
 				),
 				revenueRow(
 					websiteId,
-					`evt_invoice:${firstPaymentId}`,
-					0,
-					"subscription_event",
-					"linked",
-					stripeMetadata("link", {
-						stripe_invoice_id: invoiceId,
-						stripe_invoice_payment_id: firstPaymentId,
-						stripe_payment_intent_id: paymentIntentId,
-					}),
-					at
-				),
-				revenueRow(
-					websiteId,
-					invoiceId,
-					100,
-					"subscription_event",
-					"completed",
-					stripeMetadata("money", {
-						stripe_invoice_id: invoiceId,
-						stripe_money_kind: "invoice_fallback",
-					}),
-					at
-				),
-			],
-		});
-
-		let [overview] = await revenueOverview(websiteId);
-		expect(Number(overview?.total_revenue)).toBe(100);
-		expect(Number(overview?.total_transactions)).toBe(1);
-
-		await clickHouse.insert({
-			table: "analytics.revenue",
-			format: "JSONEachRow",
-			values: [
-				revenueRow(
-					websiteId,
-					firstPaymentId,
+					"inpay_modern",
 					60,
 					"subscription",
 					"completed",
 					stripeMetadata("money", {
-						stripe_invoice_id: invoiceId,
-						stripe_invoice_payment_id: firstPaymentId,
-						stripe_money_kind: "invoice_payment",
-						stripe_payment_intent_id: paymentIntentId,
+						stripe_invoice_id: "in_modern",
+						stripe_payment_intent_id: "pi_modern",
 					}),
-					"2026-08-02 12:01:00"
+					at
+				),
+				revenueRow(
+					websiteId,
+					"in_modern:out_of_band",
+					40,
+					"subscription",
+					"completed",
+					stripeMetadata("money", {
+						stripe_invoice_id: "in_modern",
+					}),
+					at
 				),
 			],
 		});
-
-		[overview] = await revenueOverview(websiteId);
-		expect(Number(overview?.total_revenue)).toBe(100);
-		expect(Number(overview?.total_transactions)).toBe(2);
 
 		await clickHouse.insert({
 			table: "analytics.revenue",
@@ -493,24 +431,22 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 			values: [
 				revenueRow(
 					websiteId,
-					secondPaymentId,
-					40,
+					"inpay_modern",
+					60,
 					"subscription",
 					"completed",
 					stripeMetadata("money", {
-						stripe_invoice_id: invoiceId,
-						stripe_invoice_payment_id: secondPaymentId,
-						stripe_money_kind: "invoice_payment",
+						stripe_invoice_id: "in_modern",
+						stripe_payment_intent_id: "pi_modern",
+						stripe_event_type: "invoice_payment.paid",
 					}),
-					"2026-08-02 12:02:00"
+					at,
+					{ synced_at: "2026-08-02 12:01:00" }
 				),
 			],
 		});
 
-		await clickHouse.command({
-			query: "OPTIMIZE TABLE analytics.revenue PARTITION 202608 FINAL",
-		});
-		[overview] = await revenueOverview(websiteId);
+		const [overview] = await revenueOverview(websiteId);
 		expect(Number(overview?.total_revenue)).toBe(100);
 		expect(Number(overview?.total_transactions)).toBe(2);
 	}, 10_000);
@@ -520,12 +456,9 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 		const at = "2026-08-02 12:00:00";
 		const invoiceSuccessMetadata = stripeMetadata("money", {
 			stripe_invoice_id: "in_recovered",
-			stripe_invoice_payment_id: "inpay_recovered",
-			stripe_money_kind: "invoice_payment",
 			stripe_payment_intent_id: "pi_invoice_recovered",
 		});
 		const retrySuccessMetadata = stripeMetadata("money", {
-			stripe_money_kind: "standalone_candidate",
 			stripe_payment_intent_id: "pi_retry",
 		});
 		const retryMetadata = stripeMetadata("attempt", {
@@ -536,27 +469,7 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 			table: "analytics.revenue",
 			format: "JSONEachRow",
 			values: [
-				revenueRow(websiteId, "pi_legacy", 100, "sale", "completed", "{}", at),
-				revenueRow(
-					websiteId,
-					"in_legacy_same_customer",
-					100,
-					"subscription",
-					"completed",
-					"{}",
-					at
-				),
-				revenueRow(
-					websiteId,
-					"in_legacy_other_customer",
-					100,
-					"subscription",
-					"completed",
-					"{}",
-					at,
-					{ customer_id: "cus_other" }
-				),
-				revenueRow(
+					revenueRow(
 					websiteId,
 					"inpay_recovered",
 					60,
@@ -619,7 +532,6 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 					retryMetadata,
 					at
 				),
-				// An immutable redelivery of the same Stripe event is still one attempt.
 				revenueRow(
 					websiteId,
 					"evt_retry_2",
@@ -645,13 +557,25 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 					"sale",
 					"completed",
 					stripeMetadata("money", {
-						stripe_money_kind: "standalone_candidate",
 						stripe_payment_intent_id: "pi_eur",
 					}),
 					at,
 					{
 						currency: "EUR",
 						original_currency: "EUR",
+					}
+				),
+				revenueRow(
+					websiteId,
+					"inpay_jpy",
+					70,
+					"subscription",
+					"completed",
+					"{}",
+					at,
+					{
+						currency: "JPY",
+						original_currency: "JPY",
 					}
 				),
 				revenueRow(
@@ -678,9 +602,9 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 		const eur = overview.find((row) => row.currency === "EUR");
 		const gbp = overview.find((row) => row.currency === "GBP");
 
-		expect(overview).toHaveLength(3);
-		expect(Number(usd?.total_revenue)).toBe(300);
-		expect(Number(usd?.total_transactions)).toBe(4);
+		expect(overview).toHaveLength(4);
+		expect(Number(usd?.total_revenue)).toBe(100);
+		expect(Number(usd?.total_transactions)).toBe(2);
 		expect(Number(usd?.failed_payment_attempts)).toBe(4);
 		expect(Number(usd?.failed_payment_amount)).toBe(170);
 		expect(Number(usd?.recovered_payment_attempts)).toBe(2);
@@ -688,6 +612,8 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 		expect(Number(usd?.payment_failure_rate)).toBeCloseTo(66.67, 2);
 		expect(Number(eur?.total_revenue)).toBe(70);
 		expect(Number(eur?.successful_payment_attempts)).toBe(1);
+		const jpy = overview.find((row) => row.currency === "JPY");
+		expect(Number(jpy?.total_revenue)).toBe(70);
 		expect(Number(gbp?.total_revenue)).toBe(0);
 		expect(Number(gbp?.failed_payment_attempts)).toBe(1);
 		expect(Number(gbp?.payment_failure_rate)).toBe(100);
@@ -706,6 +632,8 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 		const otherWebsiteId = `revenue-site-${randomUUIDv7()}`;
 		const invoiceId = `in_${randomUUIDv7()}`;
 		const otherInvoiceId = `in_${randomUUIDv7()}`;
+		const paymentIntentId = `pi_${randomUUIDv7()}`;
+		const otherPaymentIntentId = `pi_${randomUUIDv7()}`;
 		const paymentId = `inpay_${randomUUIDv7()}`;
 		const otherPaymentId = `inpay_${randomUUIDv7()}`;
 		const at = "2026-08-02 12:00:00";
@@ -716,26 +644,29 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 			values: [
 				revenueRow(
 					ownerId,
-					`evt_invoice_${randomUUIDv7()}`,
-					0,
-					"subscription_event",
-					"linked",
-					stripeMetadata("link", { stripe_invoice_id: invoiceId }),
+					paymentIntentId,
+					125,
+					"sale",
+					"completed",
+					stripeMetadata("money", {
+						stripe_payment_intent_id: paymentIntentId,
+					}),
 					at,
 					{
 						customer_id: "cus_rich",
 						product_name: "Pro plan",
-						synced_at: "2026-08-02 12:01:00",
 						website_id: websiteId,
 					}
 				),
 				revenueRow(
 					ownerId,
-					`evt_invoice_${randomUUIDv7()}`,
-					0,
-					"subscription_event",
-					"linked",
-					stripeMetadata("link", { stripe_invoice_id: otherInvoiceId }),
+					otherPaymentIntentId,
+					75,
+					"sale",
+					"completed",
+					stripeMetadata("money", {
+						stripe_payment_intent_id: otherPaymentIntentId,
+					}),
 					at,
 					{ website_id: otherWebsiteId }
 				),
@@ -753,9 +684,7 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 					"completed",
 					stripeMetadata("money", {
 						stripe_invoice_id: invoiceId,
-						stripe_invoice_payment_id: paymentId,
-						stripe_money_kind: "invoice_payment",
-						stripe_payment_intent_id: `pi_${randomUUIDv7()}`,
+						stripe_payment_intent_id: paymentIntentId,
 					}),
 					at,
 					{
@@ -773,8 +702,7 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 					"completed",
 					stripeMetadata("money", {
 						stripe_invoice_id: otherInvoiceId,
-						stripe_invoice_payment_id: otherPaymentId,
-						stripe_money_kind: "invoice_payment",
+						stripe_payment_intent_id: otherPaymentIntentId,
 					}),
 					at,
 					{ website_id: null }
@@ -1019,7 +947,7 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 		expect(transaction?.utm_campaign).toBe("None");
 	});
 
-	it("attributes invoice-only money from its relation context", async () => {
+	it("attributes invoice-only money from its direct session context", async () => {
 		const organizationId = `organization-${randomUUIDv7()}`;
 		const websiteId = `revenue-invoice-context-${randomUUIDv7()}`;
 		const sessionId = `session-${randomUUIDv7()}`;
@@ -1052,11 +980,11 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 			values: [
 				revenueRow(
 					organizationId,
-					"evt_invoice_only_context",
-					0,
-					"subscription_event",
-					"linked",
-					stripeMetadata("link", {
+					"in_invoice_only",
+					125,
+					"subscription",
+					"completed",
+					stripeMetadata("money", {
 						stripe_invoice_id: "in_invoice_only",
 					}),
 					at,
@@ -1066,19 +994,6 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 						session_id: sessionId,
 						website_id: websiteId,
 					}
-				),
-				revenueRow(
-					organizationId,
-					"in_invoice_only",
-					125,
-					"subscription",
-					"completed",
-					stripeMetadata("money", {
-						stripe_invoice_id: "in_invoice_only",
-						stripe_money_kind: "invoice",
-					}),
-					at,
-					{ customer_id: "", website_id: null }
 				),
 			],
 		});
@@ -1111,11 +1026,9 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 		const paymentAt = "2026-04-01 12:00:00";
 		const refundAt = "2026-08-02 12:00:00";
 		const paymentMetadata = stripeMetadata("money", {
-			stripe_money_kind: "standalone_candidate",
 			stripe_payment_intent_id: "pi_profile_refund",
 		});
 		const refundMetadata = stripeMetadata("money", {
-			stripe_money_kind: "refund",
 			stripe_payment_intent_id: "pi_profile_refund",
 		});
 
