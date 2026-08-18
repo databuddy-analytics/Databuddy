@@ -1,12 +1,10 @@
 import { describe, expect, test } from "vitest";
 import { createHmac } from "node:crypto";
-import { stripeRecordMetadata, verifyStripeSignature } from "./stripe";
+import { buildStripeMetadata, verifyStripeSignature } from "./stripe";
 import {
 	type StripeWebhookEvent,
-	emitsInvoicePaymentPaidEvents,
-	invoiceMetadataSources,
+	getInvoiceMetadata,
 	normalizeStripeEvent,
-	usesInvoicePayments,
 } from "./stripe-normalization";
 
 const SECRET = "whsec_test_secret_key";
@@ -34,8 +32,6 @@ const VALID_PAYLOAD = JSON.stringify({
 });
 
 describe("verifyStripeSignature", () => {
-	// ── Valid signatures ──
-
 	test("valid signature → parsed event", () => {
 		const header = sign(VALID_PAYLOAD);
 		const result = verifyStripeSignature(VALID_PAYLOAD, header, SECRET);
@@ -56,8 +52,6 @@ describe("verifyStripeSignature", () => {
 		expect(result.valid).toBe(true);
 	});
 
-	// ── Missing fields ──
-
 	test("missing timestamp → invalid", () => {
 		const result = verifyStripeSignature(VALID_PAYLOAD, "v1=abc123", SECRET);
 		expect(result.valid).toBe(false);
@@ -74,8 +68,6 @@ describe("verifyStripeSignature", () => {
 			expect(result.error).toContain("No v1");
 		}
 	});
-
-	// ── Signature mismatch ──
 
 	test("wrong secret → mismatch", () => {
 		const header = sign(VALID_PAYLOAD, "wrong_secret");
@@ -99,8 +91,6 @@ describe("verifyStripeSignature", () => {
 		const result = verifyStripeSignature(VALID_PAYLOAD, tampered, SECRET);
 		expect(result.valid).toBe(false);
 	});
-
-	// ── Timestamp tolerance ──
 
 	test("timestamp 6 minutes old → rejected", () => {
 		const oldTs = Math.floor(Date.now() / 1000) - 360;
@@ -126,8 +116,6 @@ describe("verifyStripeSignature", () => {
 		expect(result.valid).toBe(true);
 	});
 
-	// ── Invalid JSON ──
-
 	test("valid signature but invalid JSON body → error", () => {
 		const broken = "not json {{{";
 		const header = sign(broken);
@@ -138,12 +126,9 @@ describe("verifyStripeSignature", () => {
 		}
 	});
 
-	// ���─ Edge cases ──
-
 	test("empty payload", () => {
 		const header = sign("");
 		const result = verifyStripeSignature("", header, SECRET);
-		// Empty string is not valid JSON, so should fail at parse step
 		expect(result.valid).toBe(false);
 	});
 
@@ -162,8 +147,6 @@ describe("verifyStripeSignature", () => {
 		expect(result.valid).toBe(true);
 	});
 
-	// ── Fuzz: 50 random payloads with correct signatures ──
-
 	test("50 random payloads → all verify correctly", () => {
 		for (let i = 0; i < 50; i++) {
 			const payload = JSON.stringify({
@@ -176,8 +159,6 @@ describe("verifyStripeSignature", () => {
 			expect(result.valid).toBe(true);
 		}
 	});
-
-	// ── Fuzz: 50 random payloads with wrong signatures ──
 
 	test("50 random payloads with wrong secret → all rejected", () => {
 		for (let i = 0; i < 50; i++) {
@@ -193,9 +174,9 @@ describe("verifyStripeSignature", () => {
 	});
 });
 
-describe("invoiceMetadataSources", () => {
+describe("getInvoiceMetadata", () => {
 	test("merges parent, subscription_details, and invoice metadata with invoice winning", () => {
-		const merged = invoiceMetadataSources({
+		const merged = getInvoiceMetadata({
 			amount_paid: 100,
 			created: 1_700_000_000,
 			currency: "usd",
@@ -222,7 +203,7 @@ describe("invoiceMetadataSources", () => {
 
 	test("returns empty object when no metadata anywhere", () => {
 		expect(
-			invoiceMetadataSources({
+		getInvoiceMetadata({
 				amount_paid: 100,
 				created: 1_700_000_000,
 				currency: "usd",
@@ -233,8 +214,8 @@ describe("invoiceMetadataSources", () => {
 });
 
 describe("normalizeStripeEvent", () => {
-	const acaciaIntent = {
-		api_version: "2024-10-28.acacia",
+	const modernIntent = {
+		api_version: "2025-08-27.basil",
 		created: 1_700_000_200,
 		id: "evt_pi_paid",
 		type: "payment_intent.succeeded",
@@ -244,7 +225,6 @@ describe("normalizeStripeEvent", () => {
 				created: 1_700_000_000,
 				currency: "usd",
 				id: "pi_1",
-				invoice: "in_1",
 				metadata: {
 					databuddy_profile_id: "profile-1",
 					databuddy_session_id: "session-1",
@@ -252,8 +232,8 @@ describe("normalizeStripeEvent", () => {
 			},
 		},
 	} satisfies StripeWebhookEvent;
-	const acaciaInvoice = {
-		api_version: "2024-10-28.acacia",
+	const modernInvoice = {
+		api_version: "2025-08-27.basil",
 		created: 1_700_000_201,
 		id: "evt_invoice_paid",
 		type: "invoice.paid",
@@ -263,68 +243,31 @@ describe("normalizeStripeEvent", () => {
 				created: 1_699_900_000,
 				currency: "usd",
 				id: "in_1",
-				payment_intent: "pi_1",
+				payments: {
+					data: [
+						{
+							amount_paid: 300,
+							created: 1_700_000_190,
+							currency: "usd",
+							id: "inpay_1",
+							invoice: "in_1",
+							payment: {
+								payment_intent: "pi_1",
+								type: "payment_intent",
+							},
+							status: "paid",
+						},
+					],
+					has_more: false,
+				},
 				status: "paid",
 			},
 		},
 	} satisfies StripeWebhookEvent;
 
-	test("keeps Acacia PaymentIntent attribution as a link and counts the invoice once", () => {
-		const records = [
-			...normalizeStripeEvent(acaciaInvoice),
-			...normalizeStripeEvent(acaciaIntent),
-		];
-		const money = records.filter(
-			(record) => record.context.recordKind === "money"
-		);
-		const link = records.find(
-			(record) => record.context.eventId === "evt_pi_paid"
-		);
-
-		expect(money).toHaveLength(1);
-		expect(money[0]).toMatchObject({
-			amount: 3,
-			createdUnix: 1_700_000_201,
-			transactionId: "in_1",
-			type: "subscription",
-		});
-		expect(link).toMatchObject({
-			context: {
-				invoiceId: "in_1",
-				paymentIntentId: "pi_1",
-				recordKind: "link",
-			},
-			rawMetadata: {
-				databuddy_profile_id: "profile-1",
-				databuddy_session_id: "session-1",
-			},
-		});
-	});
-
-	test("is independent of Acacia webhook delivery order and retries", () => {
-		const forward = [
-			...normalizeStripeEvent(acaciaIntent),
-			...normalizeStripeEvent(acaciaInvoice),
-		];
-		const reverse = [
-			...normalizeStripeEvent(acaciaInvoice),
-			...normalizeStripeEvent(acaciaIntent),
-		];
-		expect(
-			forward.map((record) => record.transactionId).sort()
-		).toEqual(reverse.map((record) => record.transactionId).sort());
-		expect(normalizeStripeEvent(acaciaInvoice)).toEqual(
-			normalizeStripeEvent(acaciaInvoice)
-		);
-	});
-
-	test("keeps direct InvoicePayment facts separate from the invoice fallback", () => {
+	test("uses one immutable payment identity for modern invoice revenue", () => {
 		const intent = {
-			...acaciaIntent,
-			api_version: "2025-08-27.basil",
-			data: {
-				object: { ...acaciaIntent.data.object, invoice: undefined },
-			},
+			...modernIntent,
 		} satisfies StripeWebhookEvent;
 		const payment = {
 			api_version: "2025-08-27.basil",
@@ -343,51 +286,32 @@ describe("normalizeStripeEvent", () => {
 				},
 			},
 		} satisfies StripeWebhookEvent;
-		const invoice = {
-			...acaciaInvoice,
-			api_version: "2025-08-27.basil",
-			data: {
-				object: { ...acaciaInvoice.data.object, payment_intent: undefined },
-			},
-		} satisfies StripeWebhookEvent;
+		const invoice = modernInvoice;
 		const records = [
 			...normalizeStripeEvent(intent),
 			...normalizeStripeEvent(payment),
 			...normalizeStripeEvent(invoice),
 		];
 
-		expect(
-			records.filter((record) => record.context.moneyKind === "invoice")
-		).toHaveLength(0);
-		expect(
-			records.find((record) => record.transactionId === "in_1")
-		).toMatchObject({
-			amount: 3,
-			context: {
-				invoiceId: "in_1",
-				moneyKind: "invoice_fallback",
-			},
-			type: "subscription_event",
-		});
+		expect(records.find((record) => record.transactionId === "in_1")).toBeUndefined();
 		expect(
 			records.find((record) => record.transactionId === "inpay_1")
 		).toMatchObject({
 			amount: 3,
 			context: {
 				invoiceId: "in_1",
-				moneyKind: "invoice_payment",
 				paymentIntentId: "pi_1",
 			},
 			createdUnix: 1_700_000_202,
 		});
 		expect(
 			records.find((record) => record.transactionId === "pi_1")
-		).toMatchObject({ context: { moneyKind: "standalone_candidate" } });
+		).toMatchObject({ context: { paymentIntentId: "pi_1" } });
 		expect(
 			normalizeStripeEvent(invoice).filter(
-				(record) => record.context.moneyKind === "invoice_payment"
+				(record) => record.transactionId === "inpay_1"
 			)
-		).toEqual([]);
+		).toHaveLength(1);
 	});
 
 	test.each([
@@ -399,15 +323,14 @@ describe("normalizeStripeEvent", () => {
 		"converts %s Stripe minor units using the charge exponent",
 		(currency, amount, expected) => {
 			const [record] = normalizeStripeEvent({
-				...acaciaIntent,
+				...modernIntent,
 				id: `evt_${currency}`,
 				data: {
 					object: {
-						...acaciaIntent.data.object,
+						...modernIntent.data.object,
 						amount,
 						currency,
 						id: `pi_${currency}`,
-						invoice: undefined,
 					},
 				},
 			});
@@ -419,15 +342,14 @@ describe("normalizeStripeEvent", () => {
 
 	test("applies zero-decimal conversion to attempts and refunds", () => {
 		const [attempt] = normalizeStripeEvent({
-			...acaciaIntent,
+			...modernIntent,
 			id: "evt_jpy_failed",
 			type: "payment_intent.payment_failed",
 			data: {
 				object: {
-					...acaciaIntent.data.object,
+					...modernIntent.data.object,
 					amount: 500,
 					currency: "jpy",
-					invoice: undefined,
 				},
 			},
 		});
@@ -452,7 +374,7 @@ describe("normalizeStripeEvent", () => {
 		expect(refund?.amount).toBe(-250);
 	});
 
-	test("keeps modern invoice totals safe until exact allocations arrive", () => {
+	test("counts complete modern invoice out-of-band payment facts once", () => {
 		const fullyOutOfBand = normalizeStripeEvent({
 			api_version: "2025-08-27.basil",
 			created: 1_700_000_300,
@@ -511,35 +433,45 @@ describe("normalizeStripeEvent", () => {
 		expect(fullMoney).toMatchObject([
 			{
 				amount: 100,
-				context: { invoiceId: "in_oob", moneyKind: "invoice_fallback" },
-				transactionId: "in_oob",
-			},
-		]);
-		expect(partialMoney).toMatchObject([
-			{
-				amount: 100,
 				context: {
-					invoiceId: "in_partial_oob",
-					moneyKind: "invoice_fallback",
+					invoiceId: "in_oob",
 				},
-				transactionId: "in_partial_oob",
+				transactionId: "in_oob:out_of_band",
 			},
 		]);
+		expect(partialMoney).toContainEqual(
+			expect.objectContaining({
+				amount: 60,
+					context: expect.objectContaining({
+						invoiceId: "in_partial_oob",
+						paymentIntentId: "pi_partial",
+				}),
+				transactionId: "inpay_partial",
+			})
+		);
+		expect(partialMoney).toContainEqual(
+			expect.objectContaining({
+				amount: 40,
+					context: expect.objectContaining({
+						invoiceId: "in_partial_oob",
+					}),
+				transactionId: "in_partial_oob:out_of_band",
+			})
+		);
 		expect(partiallyOutOfBand).toContainEqual(
 			expect.objectContaining({
 				context: expect.objectContaining({
 					invoiceId: "in_partial_oob",
 					paymentIntentId: "pi_partial",
-					recordKind: "link",
 				}),
-				transactionId: "evt_partial_oob_invoice:inpay_partial",
+				transactionId: "inpay_partial",
 			})
 		);
 	});
 
-	test("keeps exact allocation and out-of-band amounts in the transition window", () => {
+	test("counts exact embedded allocations and out-of-band remainder", () => {
 		const money = normalizeStripeEvent({
-			api_version: "2025-05-27.basil",
+			api_version: "2025-08-27.basil",
 			created: 1_700_000_301,
 			id: "evt_transition_oob",
 			type: "invoice.paid",
@@ -572,20 +504,18 @@ describe("normalizeStripeEvent", () => {
 		}).filter((record) => record.context.recordKind === "money");
 
 		expect(money).toMatchObject([
-			{
-				amount: 60,
-				context: { moneyKind: "invoice_payment" },
-				transactionId: "inpay_transition",
+				{
+					amount: 60,
+					transactionId: "inpay_transition",
 			},
-			{
-				amount: 40,
-				context: { moneyKind: "invoice" },
-				transactionId: "in_transition_oob",
+				{
+					amount: 40,
+					transactionId: "in_transition_oob:out_of_band",
 			},
 		]);
 	});
 
-	test("falls back to the total and retains visible modern allocation links", () => {
+	test("uses payment IDs when modern invoice allocations are paginated", () => {
 		const records = normalizeStripeEvent({
 			api_version: "2025-08-27.basil",
 			created: 1_700_000_300,
@@ -635,24 +565,44 @@ describe("normalizeStripeEvent", () => {
 		);
 
 		expect(money).toMatchObject([
-			{
-				amount: 4,
-				context: {
-					invoiceId: "in_partial",
-					moneyKind: "invoice_fallback",
-				},
-				transactionId: "in_partial",
+				{
+					amount: 1,
+					transactionId: "inpay_1",
+			},
+				{
+					amount: 2,
+					transactionId: "inpay_2",
 			},
 		]);
+		expect(records.find((record) => record.transactionId === "in_partial")).toBeUndefined();
+	});
+
+	test("does not infer modern out-of-band revenue from a paginated list", () => {
+		const records = normalizeStripeEvent({
+			api_version: "2025-08-27.basil",
+			created: 1_700_000_300,
+			id: "evt_paginated_oob",
+			type: "invoice.paid",
+			data: {
+				object: {
+					amount_paid: 400,
+					created: 1_699_000_000,
+					currency: "usd",
+					id: "in_paginated_oob",
+					payments: {
+						has_more: true,
+						data: [],
+					},
+					status: "paid",
+				},
+			},
+		});
+
 		expect(
-			records
-				.filter((record) => record.context.recordKind === "link")
-				.map((record) => record.transactionId)
-		).toEqual([
-			"evt_partial_invoice",
-			"evt_partial_invoice:inpay_1",
-			"evt_partial_invoice:inpay_2",
-		]);
+			records.some(
+				(record) => record.transactionId.endsWith(":out_of_band")
+			)
+		).toBe(false);
 	});
 
 	test("uses requested and remaining invoice amounts for failed partial payments", () => {
@@ -767,12 +717,12 @@ describe("normalizeStripeEvent", () => {
 			["payment_intent.canceled", "canceled"],
 		] as const) {
 			const [record] = normalizeStripeEvent({
-				...acaciaIntent,
+				...modernIntent,
 				id: `evt_${status}`,
 				type,
 				data: {
 					object: {
-						...acaciaIntent.data.object,
+						...modernIntent.data.object,
 						amount_received: 0,
 					},
 				},
@@ -789,12 +739,12 @@ describe("normalizeStripeEvent", () => {
 
 	test("keeps actionable failure codes without retaining provider messages", () => {
 		const [record] = normalizeStripeEvent({
-			...acaciaIntent,
+			...modernIntent,
 			id: "evt_declined",
 			type: "payment_intent.payment_failed",
 			data: {
 				object: {
-					...acaciaIntent.data.object,
+					...modernIntent.data.object,
 					last_payment_error: {
 						code: "card_declined",
 						decline_code: "insufficient_funds",
@@ -814,24 +764,24 @@ describe("normalizeStripeEvent", () => {
 			failureType: "card_error",
 		});
 		expect(record.context).not.toHaveProperty("message");
-		expect(stripeRecordMetadata({}, record.context)).toMatchObject({
+		expect(buildStripeMetadata({}, record.context)).toMatchObject({
 			stripe_failure_code: "card_declined",
 			stripe_failure_decline_code: "insufficient_funds",
 			stripe_failure_type: "card_error",
 		});
-		expect(JSON.stringify(stripeRecordMetadata({}, record.context))).not.toContain(
+		expect(JSON.stringify(buildStripeMetadata({}, record.context))).not.toContain(
 			"provider message"
 		);
 	});
 
 	test("rejects unbounded failure text but keeps a safe cancellation reason", () => {
 		const [record] = normalizeStripeEvent({
-			...acaciaIntent,
+			...modernIntent,
 			id: "evt_canceled_reason",
 			type: "payment_intent.canceled",
 			data: {
 				object: {
-					...acaciaIntent.data.object,
+					...modernIntent.data.object,
 					cancellation_reason: " Requested_By_Customer ",
 					last_payment_error: {
 						code: "free-form failure text is not a code",
@@ -851,7 +801,7 @@ describe("normalizeStripeEvent", () => {
 		expect(record.context.failureCode).toBeUndefined();
 		expect(record.context.failureDeclineCode).toBeUndefined();
 		expect(record.context.failureType).toBeUndefined();
-		expect(stripeRecordMetadata({}, record.context)).toMatchObject({
+		expect(buildStripeMetadata({}, record.context)).toMatchObject({
 			stripe_cancellation_reason: "requested_by_customer",
 		});
 	});
@@ -912,132 +862,23 @@ describe("normalizeStripeEvent", () => {
 
 	test("uses economic event time instead of object creation or retry arrival", () => {
 		const [record] = normalizeStripeEvent({
-			...acaciaIntent,
+			...modernIntent,
 			api_version: "2025-08-27.basil",
 			created: 1_700_172_800,
 			data: {
-				object: { ...acaciaIntent.data.object, created: 1_700_000_000, invoice: undefined },
+				object: { ...modernIntent.data.object, created: 1_700_000_000 },
 			},
 		});
 		expect(record?.createdUnix).toBe(1_700_172_800);
 	});
 
-	test("retains embedded allocations before InvoicePayment paid webhooks exist", () => {
+	test("keeps embedded payment identities when allocations are paginated", () => {
 		const records = normalizeStripeEvent({
-			...acaciaInvoice,
-			api_version: "2025-03-31.basil",
+			...modernInvoice,
+			api_version: "2025-08-27.basil",
 			data: {
 				object: {
-					...acaciaInvoice.data.object,
-					customer: "cus_invoice_only",
-					metadata: { databuddy_session_id: "session-invoice-only" },
-					payment_intent: undefined,
-					payments: {
-						data: [
-							{
-								amount_paid: 300,
-								created: 1_700_000_190,
-								currency: "usd",
-								id: "inpay_embedded",
-								invoice: "in_1",
-								payment: {
-									payment_intent: "pi_embedded",
-									type: "payment_intent",
-								},
-								status: "paid",
-							},
-						],
-						has_more: false,
-					},
-				},
-			},
-		});
-		expect(records).toHaveLength(2);
-		expect(records[0]).toMatchObject({
-			customerId: "cus_invoice_only",
-			rawMetadata: { databuddy_session_id: "session-invoice-only" },
-			context: {
-				invoiceId: "in_1",
-				recordKind: "link",
-			},
-		});
-		expect(records[0]?.context.paymentIntentId).toBeUndefined();
-		expect(records[1]).toMatchObject({
-			amount: 3,
-			context: {
-				invoiceId: "in_1",
-				invoicePaymentId: "inpay_embedded",
-				moneyKind: "invoice_payment",
-				paymentIntentId: "pi_embedded",
-			},
-			transactionId: "inpay_embedded",
-		});
-		expect(usesInvoicePayments("2025-03-31.basil")).toBe(true);
-		expect(emitsInvoicePaymentPaidEvents("2025-03-31.basil")).toBe(false);
-	});
-
-	test("uses a modern total fallback even before the endpoint subscribes", () => {
-		expect(usesInvoicePayments("2025-03-30.acacia")).toBe(false);
-		expect(emitsInvoicePaymentPaidEvents("2025-05-27.basil")).toBe(false);
-		expect(emitsInvoicePaymentPaidEvents("2025-05-28.basil")).toBe(true);
-
-		const records = normalizeStripeEvent({
-			...acaciaInvoice,
-			api_version: "2025-05-28.basil",
-			data: {
-				object: {
-					...acaciaInvoice.data.object,
-					payment_intent: undefined,
-					payments: {
-						data: [
-							{
-								amount_paid: 300,
-								created: 1_700_000_190,
-								currency: "usd",
-								id: "inpay_direct",
-								invoice: "in_1",
-								payment: {
-									payment_intent: "pi_direct",
-									type: "payment_intent",
-								},
-								status: "paid",
-							},
-						],
-						has_more: false,
-					},
-				},
-			},
-		});
-
-		expect(records).toHaveLength(3);
-		expect(records[0]).toMatchObject({
-			context: { invoiceId: "in_1", recordKind: "link" },
-			transactionId: "evt_invoice_paid",
-		});
-		expect(records[1]).toMatchObject({
-			context: {
-				invoiceId: "in_1",
-				invoicePaymentId: "inpay_direct",
-				paymentIntentId: "pi_direct",
-				recordKind: "link",
-			},
-			transactionId: "evt_invoice_paid:inpay_direct",
-		});
-		expect(records[2]).toMatchObject({
-			amount: 3,
-			context: { invoiceId: "in_1", moneyKind: "invoice_fallback" },
-			transactionId: "in_1",
-		});
-	});
-
-	test("keeps transition-window totals when embedded allocations are paginated", () => {
-		const records = normalizeStripeEvent({
-			...acaciaInvoice,
-			api_version: "2025-05-27.basil",
-			data: {
-				object: {
-					...acaciaInvoice.data.object,
-					payment_intent: undefined,
+					...modernInvoice.data.object,
 					payments: {
 						data: [
 							{
@@ -1059,72 +900,43 @@ describe("normalizeStripeEvent", () => {
 			},
 		});
 
-		expect(records).toHaveLength(3);
-		expect(records[1]).toMatchObject({
+		expect(records).toHaveLength(1);
+		expect(records[0]).toMatchObject({
 			context: {
 				invoiceId: "in_1",
-				invoicePaymentId: "inpay_partial_page",
 				paymentIntentId: "pi_partial_page",
-				recordKind: "link",
 			},
-			transactionId: "evt_invoice_paid:inpay_partial_page",
+			transactionId: "inpay_partial_page",
 		});
-		expect(records[2]).toMatchObject({
-			amount: 3,
-			context: { invoiceId: "in_1", moneyKind: "invoice_fallback" },
-			transactionId: "in_1",
-		});
-	});
-
-	test("keeps legacy out-of-band invoices as money", () => {
-		const records = normalizeStripeEvent({
-			...acaciaInvoice,
-			api_version: "2024-10-28.acacia",
-			data: {
-				object: { ...acaciaInvoice.data.object, payment_intent: undefined },
-			},
-		});
-		expect(records.some((record) => record.context.moneyKind === "invoice")).toBe(
-			true
-		);
 	});
 
 	test("serializes source identity without changing analytics attribution", () => {
 		expect(
-			stripeRecordMetadata(
-				{ profile_id: "profile-1" },
-				{
-					apiVersion: "2025-08-27.basil",
-					eventCreated: 123,
-					eventId: "evt_1",
-					eventType: "invoice_payment.paid",
+				buildStripeMetadata(
+					{ profile_id: "profile-1" },
+					{
+						eventType: "invoice_payment.paid",
 					invoiceId: "in_1",
 					paymentIntentId: "pi_1",
 					recordKind: "money",
 				}
 			)
-		).toEqual({
-			databuddy_revenue_model: "stripe_events_v1",
-			profile_id: "profile-1",
-			stripe_api_version: "2025-08-27.basil",
-			stripe_event_created: 123,
-			stripe_event_id: "evt_1",
-			stripe_event_type: "invoice_payment.paid",
+			).toEqual({
+				profile_id: "profile-1",
+				stripe_event_type: "invoice_payment.paid",
 			stripe_invoice_id: "in_1",
 			stripe_payment_intent_id: "pi_1",
 			stripe_record_kind: "money",
 		});
 		expect(
-			stripeRecordMetadata(
-				{},
-				{
-					eventCreated: 123,
-					eventId: "evt_invoice",
-					invoiceId: "in_1",
-					moneyKind: "invoice_fallback",
-					recordKind: "money",
-				}
-			)
-		).toMatchObject({ stripe_money_kind: "invoice_fallback" });
+				buildStripeMetadata(
+					{},
+					{
+						eventType: "invoice.paid",
+						invoiceId: "in_1",
+						recordKind: "money",
+					}
+				)
+			).toMatchObject({ stripe_event_type: "invoice.paid" });
 	});
 });

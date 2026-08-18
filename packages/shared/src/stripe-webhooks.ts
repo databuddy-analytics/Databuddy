@@ -17,11 +17,11 @@ export const STRIPE_WEBHOOK_EVENTS = {
 		},
 		{
 			event: "invoice.paid",
-			purpose: "Records invoice and subscription context",
+			purpose: "Provides invoice context and records out-of-band payment facts",
 		},
 		{
 			event: "invoice_payment.paid",
-			purpose: "Records exact invoice allocations on modern Stripe versions",
+			purpose: "Records the canonical payment for modern Stripe invoices",
 		},
 		STRIPE_FAILURE_WEBHOOK_EVENTS[0],
 		{
