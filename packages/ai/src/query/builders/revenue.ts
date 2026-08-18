@@ -215,18 +215,31 @@ function buildAttributionCte(
 					AND provider = 'stripe'
 					AND owner_id != ''
 				),
-				${buildRevenueLatestCte({
-					candidateWhere: `created >= toDateTime({startDate:String}) - INTERVAL 90 DAY
+			${buildRevenueLatestCte({
+				candidateWhere: `created >= toDateTime({startDate:String}) - INTERVAL 90 DAY
 						AND created <= toDateTime(concat({endDate:String}, ' 23:59:59'))`,
-					name: "revenue_latest_range",
-					scope: relatedStripeScope,
-				})},
+				name: "revenue_latest_range",
+				scope: relatedStripeScope,
+			})},
+		scoped_stripe_payment_intents AS (
+			SELECT DISTINCT
+				owner_id,
+				${paymentIntentIdExpression} AS payment_intent_id
+			FROM ${Analytics.revenue} FINAL
+			WHERE ${directScope}
+				AND created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+				AND provider = 'stripe'
+				AND ${paymentIntentIdExpression} != ''
+		),
 		linked_payment_intents AS (
 			SELECT DISTINCT
 				owner_id,
 				${paymentIntentIdExpression} AS payment_intent_id
 			FROM revenue_latest_range
 			WHERE provider = 'stripe'
+				AND type IN ('sale', 'subscription')
+				AND status = 'completed'
+				AND JSONExtractString(metadata, 'stripe_record_kind') = 'money'
 				AND JSONExtractString(metadata, 'stripe_invoice_id') != ''
 				AND ${paymentIntentIdExpression} != ''
 		),
@@ -239,8 +252,14 @@ function buildAttributionCte(
 				argMaxIf(ifNull(session_id, ''), synced_at, ifNull(session_id, '') != '') AS session_id,
 				argMaxIf(customer_id, synced_at, customer_id != '') AS customer_id,
 				argMaxIf(ifNull(product_name, ''), synced_at, ifNull(product_name, '') != '') AS product_name
-			FROM revenue_latest_range
+			FROM ${Analytics.revenue} FINAL
 			WHERE provider = 'stripe'
+				AND created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+				AND (owner_id, ${paymentIntentIdExpression}) IN (
+					SELECT owner_id, payment_intent_id FROM scoped_stripe_payment_intents
+					UNION DISTINCT
+					SELECT owner_id, payment_intent_id FROM linked_payment_intents
+				)
 				AND ${paymentIntentIdExpression} != ''
 			GROUP BY owner_id, payment_intent_id
 		),
@@ -343,7 +362,8 @@ function buildAttributionCte(
 				ON payment_context.owner_id = r.owner_id
 				AND payment_context.payment_intent_id = ${paymentIntentIdExpression.replaceAll("metadata", "r.metadata").replaceAll("transaction_id", "r.transaction_id")}
 			WHERE
-				${attributedWebsiteScope}
+				(${attributedWebsiteScope}
+					OR payment_context.website_id = {websiteId:String})
 				AND r.created >= toDateTime({startDate:String})
 				AND r.created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 				AND r.type != 'subscription_event'
