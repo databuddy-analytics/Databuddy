@@ -120,8 +120,8 @@ export function RevenueChart({
 
 	if (isLoading) {
 		return (
-			<div className={cn("w-full overflow-x-auto", className)}>
-				<SkeletonChart className="w-full" height={height} />
+			<div className="w-full overflow-x-auto">
+				<SkeletonChart className={cn("w-full", className)} height={height} />
 			</div>
 		);
 	}

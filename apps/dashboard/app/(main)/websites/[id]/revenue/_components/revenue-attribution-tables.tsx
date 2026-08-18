@@ -70,15 +70,12 @@ export function RevenueAttributionTables({
 		[queryFilters]
 	);
 
-	const {
-		error,
-		getDataForQuery,
-		isError,
-		isLoading: queryLoading,
-		refetch,
-	} = useBatchDynamicQuery(websiteId, dateRange, queries, { enabled });
-
-	const isLoading = queryLoading;
+	const { getDataForQuery, isError, isLoading, refetch } = useBatchDynamicQuery(
+		websiteId,
+		dateRange,
+		queries,
+		{ enabled }
+	);
 
 	const productData = useMemo(
 		() =>
@@ -337,7 +334,7 @@ export function RevenueAttributionTables({
 		return (
 			<Card className="lg:col-span-2">
 				<Card.Header className="py-3">
-					<Card.Title>Revenue attribution</Card.Title>
+					<Card.Title>Revenue Attribution</Card.Title>
 					<Card.Description>
 						Breakdowns by traffic, product, location, and technology
 					</Card.Description>
@@ -350,11 +347,7 @@ export function RevenueAttributionTables({
 								await refetch();
 							},
 						}}
-						description={
-							error instanceof Error
-								? error.message
-								: "We couldn't load attribution data. Try again in a moment."
-						}
+						description="We couldn't load attribution data. Try again in a moment."
 						icon={<WarningCircleIcon />}
 						title="Couldn't load attribution"
 						variant="error"

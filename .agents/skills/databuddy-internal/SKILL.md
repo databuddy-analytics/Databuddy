@@ -126,6 +126,7 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 ### Dashboard work
 
 - Start in `apps/dashboard`
+- Keep large page-owned settings sheets and dialogs in adjacent feature files; route components should own page data and layout rather than embedding unrelated form lifecycles.
 - For dashboard navigation audits, check all route surfaces: `components/layout/navigation/navigation-config.tsx`, `components/ui/command-search.tsx`, and local `PageNavigation` layouts under `app/**/layout.tsx` before calling a page orphaned.
 - When fixing broken dashboard links to moved sections, update the real docs/search/navigation links and section anchors directly; do not add compatibility redirect pages unless explicitly requested.
 - Custom events UI is shared in `apps/dashboard/components/events/custom-events`; keep many-series legends outside the Recharts plot, use compact controls for property-summary event selection, and avoid separate event-count chip/list sections.
