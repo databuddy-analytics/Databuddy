@@ -1,4 +1,4 @@
-import { revenueLatestCte } from "@databuddy/db/clickhouse";
+import { buildRevenueLatestCte } from "@databuddy/db/clickhouse";
 import { Analytics } from "../../types/tables";
 import { appendFilterClause } from "../simple-builder";
 import type { SimpleQueryConfig } from "../types";
@@ -239,7 +239,7 @@ export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 				);
 			}
 			const filterClause = appendFilterClause(filterConditions);
-			const latestRevenue = revenueLatestCte({
+			const latestRevenue = buildRevenueLatestCte({
 				candidateWhere:
 					"created <= toDateTime(concat({endDate:String}, ' 23:59:59')) AND profile_id IN (SELECT resolved_profile_id FROM affected_profiles)",
 				name: "impact_revenue_latest",

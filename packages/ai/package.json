@@ -40,7 +40,8 @@
   ],
   "scripts": {
     "check-types": "tsc --noEmit",
-    "test": "bun test"
+    "test": "bun test",
+    "test:stripe-revenue:e2e": "CLICKHOUSE_INTEGRATION_TESTS=true STRIPE_REVENUE_E2E=true bun test src/query/builders/stripe-revenue.e2e.integration.test.ts"
   },
   "dependencies": {
     "@ai-sdk/provider": "^3.0.5",

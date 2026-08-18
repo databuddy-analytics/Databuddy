@@ -82,7 +82,7 @@ describe("error customer impact query", () => {
 
 		expect(sql).toContain("matched_errors AS");
 		expect(sql).toContain("identity_rows AS");
-		expect(sql).toContain("GROUP BY owner_id, provider, transaction_id");
+		expect(sql).toContain("FROM analytics.revenue FINAL");
 		expect(sql).toContain("status = 'completed'");
 		expect(sql).toContain("type IN ('sale', 'subscription')");
 		expect(sql).toContain(

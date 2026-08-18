@@ -1,6 +1,6 @@
 import {
 	CUSTOM_EVENTS_VISITOR_KEY,
-	revenueLatestCte,
+	buildRevenueLatestCte,
 	visitorMatch,
 } from "@databuddy/db/clickhouse";
 import { Analytics } from "../../types/tables";
@@ -474,7 +474,7 @@ function profileActivityCte(
       )`;
 }
 
-function stripePaymentIntentId(alias = ""): string {
+function paymentIntentIdExpression(alias = ""): string {
 	const prefix = alias ? `${alias}.` : "";
 	return `if(
   JSONExtractString(${prefix}metadata, 'stripe_payment_intent_id') != '',
@@ -487,7 +487,7 @@ const ATTRIBUTED_REVENUE_VISITOR_KEY =
 	"if(attributed_profile_id != '', attributed_profile_id, ifNull(attributed_anonymous_id, ''))";
 
 function stripeProfileContextCtes(visitorPredicate: string): string {
-	const paymentIntentId = stripePaymentIntentId();
+	const paymentIntentId = paymentIntentIdExpression();
 	return `
     profile_payment_intents AS (
       SELECT DISTINCT
@@ -516,7 +516,7 @@ function stripeProfileContextCtes(visitorPredicate: string): string {
 }
 
 function stripeProfileRevenueScope(): string {
-	const paymentIntentId = stripePaymentIntentId();
+	const paymentIntentId = paymentIntentIdExpression();
 	return `(
 		(owner_id = {websiteId:String} OR website_id = {websiteId:String})
 		OR (
@@ -539,7 +539,7 @@ function attributedProfileRevenueCte(latestCte: string): string {
       FROM ${latestCte} r
       LEFT JOIN profile_payment_context context
         ON context.owner_id = r.owner_id
-		AND context.payment_intent_id = ${stripePaymentIntentId("r")}
+		AND context.payment_intent_id = ${paymentIntentIdExpression("r")}
     )`;
 }
 
@@ -680,10 +680,10 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
       GROUP BY visitor_id
     ),
 		${stripeProfileContextCtes(profileRevenueKeyPredicate)},
-		${revenueLatestCte({
+		${buildRevenueLatestCte({
 			candidateWhere: `(
 				${profileRevenueKeyPredicate}
-				OR (owner_id, ${stripePaymentIntentId()}) IN (
+				OR (owner_id, ${paymentIntentIdExpression()}) IN (
 					SELECT owner_id, payment_intent_id FROM profile_payment_intents
 				)
 			)`,
@@ -864,7 +864,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 		OR anonymous_id IN (SELECT anonymous_id FROM visitor_ids)
 		OR session_id IN (SELECT session_id FROM visitor_sessions)
 	)`)},
-	${revenueLatestCte({
+	${buildRevenueLatestCte({
 		candidateWhere: `created >= toDateTime({startDate:String})
 			AND created <= toDateTime({endDate:String})`,
 		name: "profile_revenue_latest",
