@@ -7,7 +7,11 @@ import {
 	isNull,
 	withTransaction,
 } from "@databuddy/db";
-import { flagChangeEvents, flags } from "@databuddy/db/schema";
+import {
+	buildFlagChangeSnapshot,
+	flagChangeEvents,
+	flags,
+} from "@databuddy/db/schema";
 import {
 	createDrizzleCache,
 	invalidateFlagReadCaches,
@@ -84,42 +88,6 @@ export const getScopeCondition = (
 	}
 	return eq(table.organizationId, "");
 };
-
-function buildFlagChangeSnapshot(flag: {
-	defaultValue: boolean;
-	dependencies?: string[] | null;
-	description?: string | null;
-	environment?: string | null;
-	key: string;
-	name?: string | null;
-	persistAcrossAuth: boolean;
-	rolloutBy?: string | null;
-	rolloutPercentage?: number | null;
-	status: "active" | "inactive" | "archived";
-	type: "boolean" | "rollout" | "multivariant";
-	variants?: Array<{
-		description?: string;
-		key: string;
-		type: "string" | "number" | "json";
-		value: unknown;
-		weight?: number;
-	}> | null;
-}) {
-	return {
-		key: flag.key,
-		name: flag.name ?? null,
-		description: flag.description ?? null,
-		type: flag.type,
-		status: flag.status,
-		defaultValue: flag.defaultValue,
-		persistAcrossAuth: flag.persistAcrossAuth,
-		rolloutPercentage: flag.rolloutPercentage ?? null,
-		rolloutBy: flag.rolloutBy ?? null,
-		environment: flag.environment ?? null,
-		dependencies: flag.dependencies ?? [],
-		variants: flag.variants ?? [],
-	};
-}
 
 interface FlagUpdateDependencyCascadingParams {
 	changedBy?: string;
