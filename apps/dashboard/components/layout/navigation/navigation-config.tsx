@@ -136,8 +136,6 @@ export const websiteNavigation: NavigationGroup[] = [
 			createNavItem("Dashboard", ChartPieSliceIcon, "", { rootLevel: false }),
 			createNavItem("Realtime", SignalIcon, "/realtime", {
 				rootLevel: false,
-				flag: "realtime",
-				alpha: true,
 				hideFromDemo: true,
 			}),
 			createNavItem("Audience", UsersThreeIcon, "/audience", {
