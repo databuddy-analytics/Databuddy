@@ -3,7 +3,7 @@ import { eq } from "@databuddy/db";
 import { revenueConfig } from "@databuddy/db/schema";
 import { z } from "zod";
 import { rpcError } from "../errors";
-import { protectedProcedure, sessionProcedure } from "../orpc";
+import { auditedSessionProcedure, protectedProcedure } from "../orpc";
 import { withWorkspace } from "../procedures/with-workspace";
 import { revenueUpsertInputSchema } from "./revenue.schemas";
 
@@ -63,7 +63,7 @@ export const revenueRouter = {
 			};
 		}),
 
-	upsert: sessionProcedure
+	upsert: auditedSessionProcedure
 		.route({
 			description:
 				"Creates or updates revenue config. Requires configure permission.",
@@ -140,7 +140,7 @@ export const revenueRouter = {
 			};
 		}),
 
-	regenerateHash: sessionProcedure
+	regenerateHash: auditedSessionProcedure
 		.route({
 			description: "Regenerates webhook hash. Requires configure permission.",
 			method: "POST",
