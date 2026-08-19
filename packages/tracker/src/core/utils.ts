@@ -265,17 +265,17 @@ export function getTrackerConfig(): TrackerOptions {
 }
 
 export const logger = {
-	log: (...args: any[]) => {
+	log: (...args: unknown[]) => {
 		if (process.env.DATABUDDY_DEBUG) {
 			console.log("[Databuddy]", ...args);
 		}
 	},
-	error: (...args: any[]) => {
+	error: (...args: unknown[]) => {
 		if (process.env.DATABUDDY_DEBUG) {
 			console.error("[Databuddy]", ...args);
 		}
 	},
-	warn: (...args: any[]) => {
+	warn: (...args: unknown[]) => {
 		if (process.env.DATABUDDY_DEBUG) {
 			console.warn("[Databuddy]", ...args);
 		}

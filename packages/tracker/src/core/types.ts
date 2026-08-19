@@ -31,7 +31,7 @@ export type TrackerOptions = {
 	batchTimeout?: number;
 
 	// Filtering & masking
-	filter?: (event: any) => boolean;
+	filter?: (event: BaseEvent) => boolean;
 	skipPatterns?: string[];
 	maskPatterns?: string[];
 };
@@ -74,7 +74,7 @@ export type BaseEvent = {
 	sessionStartTime?: number;
 	timestamp: number;
 	type?: string;
-	[key: string]: any;
+	[key: string]: unknown;
 };
 
 export type WebVitalMetricName = "FCP" | "LCP" | "CLS" | "INP" | "TTFB" | "FPS";

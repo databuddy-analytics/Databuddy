@@ -1,6 +1,17 @@
 import { getTableName, is, Table } from "drizzle-orm";
-import { Cache } from "drizzle-orm/cache/core";
+import { Cache, type MutationOption } from "drizzle-orm/cache/core";
 import type { CacheConfig } from "drizzle-orm/cache/core/types";
+
+export interface RedisCacheClient {
+	del(key: string): Promise<unknown>;
+	expire(key: string, seconds: number): Promise<unknown>;
+	get(key: string): Promise<string | null>;
+	sadd(key: string, member: string): Promise<unknown>;
+	set(key: string, value: string, mode?: "KEEPTTL"): Promise<unknown>;
+	setex(key: string, seconds: number, value: string): Promise<unknown>;
+	smembers(key: string): Promise<string[]>;
+	unlink(key: string): Promise<unknown>;
+}
 
 /**
  * Configuration options for creating a Redis-based Drizzle cache instance.
@@ -56,7 +67,7 @@ export interface RedisCacheConfig {
 	 * const redis = new Redis("redis://localhost:6379");
 	 * ```
 	 */
-	redis: any;
+	redis: RedisCacheClient;
 	/**
 	 * Cache strategy determines when queries are cached.
 	 *
@@ -139,7 +150,7 @@ export interface RedisCacheConfig {
  * ```
  */
 export class RedisDrizzleCache extends Cache {
-	private readonly redis: any;
+	private readonly redis: RedisCacheClient;
 	private readonly defaultTtl: number;
 	private readonly namespace: string;
 	private readonly _strategy: "explicit" | "all";
@@ -212,14 +223,15 @@ export class RedisDrizzleCache extends Cache {
 	 * - Returns `undefined` if JSON parsing fails
 	 * - Logs errors to console but doesn't throw
 	 */
-	override async get(key: string): Promise<any[] | undefined> {
+	override async get(key: string): Promise<unknown[] | undefined> {
 		const cacheKey = this.formatKey(key);
 		try {
 			const cached = await this.redis.get(cacheKey);
 			if (!cached) {
 				return;
 			}
-			return JSON.parse(cached) as any[];
+			const parsed: unknown = JSON.parse(cached);
+			return Array.isArray(parsed) ? parsed : undefined;
 		} catch (error) {
 			console.error(
 				`[RedisDrizzleCache] GET failed for key ${cacheKey}:`,
@@ -276,7 +288,7 @@ export class RedisDrizzleCache extends Cache {
 	 */
 	override async put(
 		key: string,
-		response: any,
+		response: unknown,
 		tables: string[],
 		_isTag: boolean,
 		config?: CacheConfig
@@ -359,10 +371,7 @@ export class RedisDrizzleCache extends Cache {
 	 * - Tag-based invalidation is supported but tags must be tracked separately
 	 * - Operations are performed in parallel for better performance
 	 */
-	override async onMutate(params: {
-		tags?: string | string[];
-		tables?: string | string[] | Table<any> | Table<any>[];
-	}): Promise<void> {
+	override async onMutate(params: MutationOption): Promise<void> {
 		const tagsArray = params.tags
 			? Array.isArray(params.tags)
 				? params.tags
