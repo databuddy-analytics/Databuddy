@@ -1,4 +1,4 @@
-export type NotificationChannel = "slack" | "email" | "webhook";
+export type NotificationChannel = "slack" | "discord" | "email" | "webhook";
 
 export type NotificationPriority = "low" | "normal" | "high" | "urgent";
 
@@ -41,6 +41,27 @@ export interface SlackPayload {
 	icon_emoji?: string;
 	icon_url?: string;
 	text?: string;
+	username?: string;
+}
+
+export interface DiscordEmbedField {
+	inline?: boolean;
+	name: string;
+	value: string;
+}
+
+export interface DiscordEmbed {
+	color?: number;
+	description?: string;
+	fields?: DiscordEmbedField[];
+	footer?: { text: string };
+	title?: string;
+}
+
+export interface DiscordPayload {
+	avatar_url?: string;
+	content?: string;
+	embeds?: DiscordEmbed[];
 	username?: string;
 }
 
