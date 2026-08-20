@@ -17,6 +17,10 @@ const MAX_DESCRIPTION_LENGTH = 4096;
 const MAX_FIELD_NAME_LENGTH = 256;
 const MAX_FIELD_VALUE_LENGTH = 1024;
 const MAX_FIELDS = 25;
+// Discord rejects an embed whose title + description + every field's name and
+// value + footer text sum past 6000 characters, even when each individual
+// piece is within its own per-component limit above.
+const MAX_TOTAL_EMBED_LENGTH = 6000;
 
 const PRIORITY_COLORS: Record<"low" | "high" | "urgent", number> = {
 	low: 0x95_a5_a6,
@@ -25,28 +29,50 @@ const PRIORITY_COLORS: Record<"low" | "high" | "urgent", number> = {
 };
 
 export function buildDiscordEmbed(payload: NotificationPayload): DiscordEmbed {
-	const fields: DiscordEmbedField[] = payload.metadata
-		? Object.entries(payload.metadata)
-				.filter(([key]) => isUserFacingMetadata(key))
-				.slice(0, MAX_FIELDS)
-				.map(([key, value]) => ({
-					inline: true,
-					name: truncate(formatMetadataLabel(key), MAX_FIELD_NAME_LENGTH),
-					value: truncate(String(value), MAX_FIELD_VALUE_LENGTH),
-				}))
-		: [];
-
+	const title = truncate(payload.title, MAX_TITLE_LENGTH);
+	const description = truncate(payload.message, MAX_DESCRIPTION_LENGTH);
 	const elevatedPriority =
 		payload.priority && payload.priority !== "normal" ? payload.priority : null;
+	const priorityStyle = elevatedPriority
+		? {
+				color: PRIORITY_COLORS[elevatedPriority],
+				footer: { text: `Priority: ${elevatedPriority.toUpperCase()}` },
+			}
+		: null;
+
+	let total =
+		title.length +
+		description.length +
+		(priorityStyle?.footer.text.length ?? 0);
+
+	const fields: DiscordEmbedField[] = [];
+	if (payload.metadata) {
+		for (const [key, value] of Object.entries(payload.metadata)) {
+			if (fields.length >= MAX_FIELDS) {
+				break;
+			}
+			if (!isUserFacingMetadata(key)) {
+				continue;
+			}
+
+			const name = truncate(formatMetadataLabel(key), MAX_FIELD_NAME_LENGTH);
+			const fieldValue = truncate(String(value), MAX_FIELD_VALUE_LENGTH);
+			const fieldLength = name.length + fieldValue.length;
+
+			if (total + fieldLength > MAX_TOTAL_EMBED_LENGTH) {
+				break;
+			}
+
+			fields.push({ inline: true, name, value: fieldValue });
+			total += fieldLength;
+		}
+	}
 
 	return {
-		title: truncate(payload.title, MAX_TITLE_LENGTH),
-		description: truncate(payload.message, MAX_DESCRIPTION_LENGTH),
+		title,
+		description,
 		...(fields.length > 0 && { fields }),
-		...(elevatedPriority && {
-			color: PRIORITY_COLORS[elevatedPriority],
-			footer: { text: `Priority: ${elevatedPriority.toUpperCase()}` },
-		}),
+		...priorityStyle,
 	};
 }
 

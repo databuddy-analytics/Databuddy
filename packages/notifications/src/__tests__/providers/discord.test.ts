@@ -55,6 +55,34 @@ describe("buildDiscordEmbed", () => {
 		expect(embed.fields).toHaveLength(25);
 	});
 
+	test("stops adding fields before the 6000-character aggregate embed limit", () => {
+		// 25 fields at the max 1024-char value each would sum to 25,600 chars,
+		// far past Discord's 6000-char total-embed limit even though each field
+		// individually respects its own per-field caps.
+		const embed = buildDiscordEmbed({
+			title: "Anomaly detected",
+			message: "M".repeat(4096),
+			metadata: Object.fromEntries(
+				Array.from({ length: 25 }, (_, index) => [
+					`field${index}`,
+					"V".repeat(1024),
+				])
+			),
+		});
+
+		const total =
+			(embed.title?.length ?? 0) +
+			(embed.description?.length ?? 0) +
+			(embed.footer?.text.length ?? 0) +
+			(embed.fields ?? []).reduce(
+				(sum, field) => sum + field.name.length + field.value.length,
+				0
+			);
+
+		expect(embed.fields?.length ?? 0).toBeLessThan(25);
+		expect(total).toBeLessThanOrEqual(6000);
+	});
+
 	test("only surfaces a color and priority footer for elevated priority", () => {
 		const normal = buildDiscordEmbed({
 			title: "Site alert",
