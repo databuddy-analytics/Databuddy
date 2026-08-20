@@ -222,8 +222,32 @@ export const funnelsRouter = {
 		})
 		.input(z.object({ id: z.string() }))
 		.output(funnelOutputSchema)
-		.handler(({ context, input }) =>
-			cache.withCache({
+		.handler(async ({ context, input }) => {
+			// Resolve the owning website and authorize on every request, not just
+			// on a cache miss: `queryFn` below is skipped entirely on a cache hit,
+			// so any permission check placed inside it would be bypassed for
+			// anyone who requests an id already cached by another caller.
+			const [funnelRef] = await context.db
+				.select({ websiteId: funnelDefinitions.websiteId })
+				.from(funnelDefinitions)
+				.where(
+					and(
+						eq(funnelDefinitions.id, input.id),
+						isNull(funnelDefinitions.deletedAt)
+					)
+				)
+				.limit(1);
+
+			if (!funnelRef) {
+				throw rpcError.notFound("funnel", input.id);
+			}
+
+			await withWorkspace(context, {
+				websiteId: funnelRef.websiteId,
+				permissions: ["read"],
+			});
+
+			return cache.withCache({
 				key: `byId:${input.id}`,
 				ttl: CACHE_TTL,
 				tables: ["funnelDefinitions"],
@@ -243,15 +267,10 @@ export const funnelsRouter = {
 						throw rpcError.notFound("funnel", input.id);
 					}
 
-					await withWorkspace(context, {
-						websiteId: funnel.websiteId,
-						permissions: ["read"],
-					});
-
 					return funnel;
 				},
-			})
-		),
+			});
+		}),
 
 	create: trackedProcedure
 		.route({
