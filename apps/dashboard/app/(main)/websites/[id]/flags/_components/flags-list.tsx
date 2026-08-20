@@ -7,26 +7,31 @@ import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 import { FlagVariants } from "./flag-variants";
 import { RolloutProgress } from "./rollout-progress";
-import type { Flag, TargetGroup } from "./types";
+import type { Flag, FlagStats, TargetGroup } from "./types";
 import {
 	ArchiveIcon,
+	ClockIcon,
 	DotsThreeIcon,
 	FlagIcon,
 	FlaskIcon,
 	GaugeIcon,
+	InfoIcon,
 	LinkIcon,
 	PencilSimpleIcon,
 	ShareNetworkIcon,
 	TrashIcon,
+	UsersIcon,
 } from "@databuddy/ui/icons";
 import { DropdownMenu, Switch } from "@databuddy/ui/client";
-import { Badge, Button, Skeleton, Tooltip } from "@databuddy/ui";
+import { Badge, Button, Skeleton, Tooltip, fromNow } from "@databuddy/ui";
 
 interface FlagsListProps {
 	flags: Flag[];
 	groups: Map<string, TargetGroup[]>;
 	onDelete: (flagId: string) => void;
 	onEdit: (flag: Flag) => void;
+	stats: Map<string, FlagStats>;
+	statsLoading: boolean;
 }
 
 const TYPE_CONFIG = {
@@ -261,11 +266,103 @@ function DependencyBadges({
 	);
 }
 
+function FlagActivity({
+	loading,
+	stats,
+}: {
+	loading: boolean;
+	stats?: FlagStats;
+}) {
+	if (loading) {
+		return <Skeleton className="h-8 w-32" />;
+	}
+
+	if (!stats?.lastEvaluatedAt) {
+		return (
+			<span className="text-center text-[11px] text-muted-foreground/70">
+				No activity in 30d
+			</span>
+		);
+	}
+
+	return (
+		<Tooltip
+			content={
+				<div className="max-w-64 space-y-1.5 text-xs">
+					<p className="font-medium">Observed activity</p>
+					<p className="text-muted-foreground">
+						Directional browser telemetry from the last 30 days—not an exact
+						count of people who used the feature. It may undercount when
+						tracking is blocked, sampled, opted out, or evaluated on the server.
+					</p>
+					<p>
+						{stats.identifiedUsers.toLocaleString()} identified visitors ·{" "}
+						{stats.evaluationCount.toLocaleString()} evaluations
+					</p>
+				</div>
+			}
+			delay={200}
+		>
+			<div className="flex min-w-[132px] flex-col gap-0.5 text-xs">
+				<span className="flex items-center gap-1.5 whitespace-nowrap text-foreground">
+					<ClockIcon className="size-3.5 shrink-0" weight="duotone" />
+					<span>Last seen {fromNow(stats.lastEvaluatedAt)}</span>
+				</span>
+				<span className="flex items-center gap-1.5 whitespace-nowrap text-[11px] text-muted-foreground">
+					<UsersIcon className="size-3.5 shrink-0" weight="duotone" />
+					<span>{stats.evaluatedUsers.toLocaleString()} observed · 30d</span>
+				</span>
+			</div>
+		</Tooltip>
+	);
+}
+
+function FlagsListHead() {
+	return (
+		<List.Head className="min-w-[980px] items-center">
+			<div className="flex min-w-0 flex-1 items-center gap-4">
+				<span className="flex max-w-[min(320px,100%)] shrink-0">Flag</span>
+				<span className="min-w-0 flex-1">Description</span>
+				<span className="flex w-[100px] shrink-0 justify-center">Type</span>
+				<span className="flex w-20 shrink-0 justify-center">Rollout</span>
+				<span className="flex w-[100px] shrink-0 justify-center">Rules</span>
+				<span className="flex w-[100px] shrink-0 justify-center">Groups</span>
+			</div>
+			<Tooltip
+				content={
+					<div className="max-w-64 space-y-1.5 text-xs">
+						<p className="font-medium">Observed activity</p>
+						<p className="text-muted-foreground">
+							Directional browser telemetry, not an exact count of people who
+							used the feature. It can undercount when tracking is blocked,
+							sampled, opted out, or evaluated on the server.
+						</p>
+					</div>
+				}
+				delay={200}
+			>
+				<span className="flex w-[150px] shrink-0 items-center justify-center gap-1.5">
+					Activity
+					<InfoIcon
+						aria-label="Learn about flag activity accuracy"
+						className="size-3.5 text-muted-foreground"
+						weight="duotone"
+					/>
+				</span>
+			</Tooltip>
+			<span className="flex w-[120px] shrink-0 justify-center">Status</span>
+			<span aria-hidden="true" className="w-8 shrink-0" />
+		</List.Head>
+	);
+}
+
 function FlagRow({
 	flag,
 	groups,
 	dependents,
 	flagMap,
+	stats,
+	statsLoading,
 	onEdit,
 	onDelete,
 }: {
@@ -273,6 +370,8 @@ function FlagRow({
 	groups: TargetGroup[];
 	dependents: Flag[];
 	flagMap: Map<string, Flag>;
+	stats?: FlagStats;
+	statsLoading: boolean;
 	onEdit: (flag: Flag) => void;
 	onDelete: (flagId: string) => void;
 }) {
@@ -359,6 +458,10 @@ function FlagRow({
 				</span>
 			</Button>
 
+			<List.Cell className="w-[150px] justify-center">
+				<FlagActivity loading={statsLoading} stats={stats} />
+			</List.Cell>
+
 			<List.Cell className="flex w-[120px] shrink-0 justify-center">
 				{flag.status === "archived" ? (
 					<Badge className="gap-1" variant="warning">
@@ -377,7 +480,14 @@ function FlagRow({
 	);
 }
 
-export function FlagsList({ flags, groups, onEdit, onDelete }: FlagsListProps) {
+export function FlagsList({
+	flags,
+	groups,
+	stats,
+	statsLoading,
+	onEdit,
+	onDelete,
+}: FlagsListProps) {
 	const flagMap = useMemo(() => {
 		const map = new Map<string, Flag>();
 		for (const f of flags) {
@@ -402,6 +512,7 @@ export function FlagsList({ flags, groups, onEdit, onDelete }: FlagsListProps) {
 
 	return (
 		<List className="rounded bg-card">
+			<FlagsListHead />
 			{flags.map((flag) => (
 				<FlagRow
 					dependents={dependentsMap.get(flag.key) ?? []}
@@ -409,6 +520,8 @@ export function FlagsList({ flags, groups, onEdit, onDelete }: FlagsListProps) {
 					flagMap={flagMap}
 					groups={groups.get(flag.id) ?? []}
 					key={flag.id}
+					stats={stats.get(flag.key)}
+					statsLoading={statsLoading}
 					onDelete={onDelete}
 					onEdit={onEdit}
 				/>
@@ -420,6 +533,7 @@ export function FlagsList({ flags, groups, onEdit, onDelete }: FlagsListProps) {
 export function FlagsListSkeleton() {
 	return (
 		<List className="rounded bg-card">
+			<FlagsListHead />
 			{Array.from({ length: 5 }).map((_, i) => (
 				<div
 					className="flex min-h-15 items-center gap-4 border-border/80 border-b px-4 py-3 last:border-b-0"
@@ -446,6 +560,9 @@ export function FlagsListSkeleton() {
 					</div>
 					<div className="flex w-[100px] shrink-0 justify-center">
 						<Skeleton className="h-4 w-12" />
+					</div>
+					<div className="flex w-[150px] shrink-0 justify-center">
+						<Skeleton className="h-8 w-32" />
 					</div>
 					<div className="flex w-[120px] shrink-0 justify-center">
 						<Skeleton className="h-5 w-14" />
