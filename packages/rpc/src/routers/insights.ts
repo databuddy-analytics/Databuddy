@@ -44,6 +44,7 @@ import { rpcError } from "../errors";
 import { invalidateGoalsCache } from "../lib/goals-cache";
 import { invalidateFunnelsCache } from "../lib/funnels-cache";
 import { logger } from "../lib/logger";
+import { setAuditOrganization } from "../lib/audit";
 import {
 	auditedProcedure,
 	auditedSessionProcedure,
@@ -507,6 +508,7 @@ export async function appendInvestigationReply(
 	if (!insight) {
 		throw rpcError.notFound("insight", parsed.insightId);
 	}
+	setAuditOrganization(context, insight.organizationId);
 
 	await withWorkspace(context, {
 		allowCrossOrg: true,
@@ -724,6 +726,7 @@ export async function applyInsightAction(input: {
 	if (!target) {
 		throw rpcError.notFound("insight", parsed.insightId);
 	}
+	setAuditOrganization(context, target.organizationId);
 
 	const [latestObservation] = await db
 		.select({
@@ -1661,6 +1664,7 @@ export const insightsRouter = {
 			if (!reply) {
 				throw rpcError.notFound("insight reply", input.replyId);
 			}
+			setAuditOrganization(context, reply.organizationId);
 			await withWorkspace(context, {
 				allowCrossOrg: true,
 				organizationId: reply.organizationId,

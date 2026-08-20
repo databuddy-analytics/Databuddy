@@ -117,6 +117,7 @@ export const createRPCContext = async (
 	return {
 		db,
 		auth,
+		auditOrganizationId: undefined as string | undefined,
 		session: session?.session,
 		user,
 		apiKey: apiKey ?? undefined,

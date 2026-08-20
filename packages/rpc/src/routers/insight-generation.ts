@@ -34,6 +34,7 @@ import { ORPCError } from "@orpc/server";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
+import { setAuditOrganization } from "../lib/audit";
 import { logger } from "../lib/logger";
 import { auditedProcedure, type Context, protectedProcedure } from "../orpc";
 import { withWorkspace } from "../procedures/with-workspace";
@@ -382,6 +383,7 @@ async function resolveOrganization(
 	if (!organizationId) {
 		throw rpcError.badRequest("Organization ID is required");
 	}
+	setAuditOrganization(context, organizationId);
 	await withWorkspace(context, {
 		organizationId,
 		resource: "organization",

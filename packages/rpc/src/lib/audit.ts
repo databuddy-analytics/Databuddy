@@ -44,6 +44,14 @@ export function getAuditRequestContext(context: Context): AuditRequestContext {
 	};
 }
 
+export function getAuditOrganizationId(context: Context): string | null {
+	return context.auditOrganizationId ?? context.organizationId;
+}
+
+export function setAuditOrganization(context: Context, organizationId: string) {
+	context.auditOrganizationId = organizationId;
+}
+
 export async function appendRpcAuditEvent<
 	TAction extends AuditActionDefinition,
 >(

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { getAuditOrganizationId, setAuditOrganization } from "../lib/audit";
 import { isAuditedMutationPath } from "./audit-mutation";
 
 describe("isAuditedMutationPath", () => {
@@ -21,5 +22,27 @@ describe("isAuditedMutationPath", () => {
 	test("rejects malformed procedure paths", () => {
 		expect(isAuditedMutationPath("create")).toBe(false);
 		expect(isAuditedMutationPath("flags")).toBe(false);
+	});
+});
+
+describe("audit organization targeting", () => {
+	test("uses an explicitly resolved target organization", () => {
+		const context = {
+			auditOrganizationId: undefined,
+			organizationId: "org-active",
+		} as Parameters<typeof setAuditOrganization>[0];
+
+		setAuditOrganization(context, "org-target");
+
+		expect(getAuditOrganizationId(context)).toBe("org-target");
+	});
+
+	test("falls back to the active organization", () => {
+		const context = {
+			auditOrganizationId: undefined,
+			organizationId: "org-active",
+		} as Parameters<typeof setAuditOrganization>[0];
+
+		expect(getAuditOrganizationId(context)).toBe("org-active");
 	});
 });

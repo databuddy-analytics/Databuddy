@@ -1,7 +1,11 @@
 import { log } from "evlog";
 import { auditActions } from "@databuddy/shared/audit";
 import { appendAuditEvent } from "@databuddy/services/audit";
-import { getAuditActor, getAuditRequestContext } from "../lib/audit";
+import {
+	getAuditActor,
+	getAuditOrganizationId,
+	getAuditRequestContext,
+} from "../lib/audit";
 import type { Context } from "../orpc";
 
 const MUTATION_METHOD_PREFIXES = [
@@ -79,7 +83,7 @@ async function writeMutationAudit(
 	outcome: "denied" | "failure" | "success",
 	error?: unknown
 ): Promise<void> {
-	const organizationId = context.organizationId;
+	const organizationId = getAuditOrganizationId(context);
 	if (!(organizationId && (context.user || context.apiKey))) {
 		return;
 	}
