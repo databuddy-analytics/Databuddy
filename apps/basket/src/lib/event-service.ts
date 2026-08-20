@@ -311,7 +311,7 @@ export function insertTrackEvent(
 			throw deliveryUnavailable(error);
 		}
 
-		await markDuplicateReservationDelivered(reservation);
+		markDuplicateReservationDelivered(reservation);
 	});
 }
 
@@ -401,7 +401,7 @@ export function insertOutgoingLink(
 			throw deliveryUnavailable(error);
 		}
 
-		await markDuplicateReservationDelivered(reservation);
+		markDuplicateReservationDelivered(reservation);
 	});
 }
 
@@ -477,7 +477,7 @@ async function deliverItems<T>(
 				);
 				throw error;
 			}
-			await Promise.allSettled(
+			Promise.allSettled(
 				group.map(({ reservation }) =>
 					markDuplicateReservationDelivered(reservation)
 				)
