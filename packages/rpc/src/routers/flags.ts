@@ -11,6 +11,7 @@ import { chQuery } from "@databuddy/db/clickhouse";
 import {
 	buildFlagChangeSnapshot,
 	flagChangeEvents,
+	type FlagUserRule,
 	type TargetGroups,
 	flags,
 	flagsToTargetGroups,
@@ -18,6 +19,7 @@ import {
 import { createDrizzleCache, redis } from "@databuddy/redis";
 import {
 	flagFormShape,
+	FLAG_STATS_WINDOW_DAYS,
 	userRuleSchema,
 	variantSchema,
 } from "@databuddy/shared/flags";
@@ -110,7 +112,7 @@ const listFlagsSchema = z
 
 const flagStatsSchema = z.object({
 	websiteId: z.string(),
-	days: z.number().int().min(1).max(90).default(30),
+	days: z.number().int().min(1).max(90).default(FLAG_STATS_WINDOW_DAYS),
 });
 
 const getFlagSchema = z
@@ -255,6 +257,13 @@ function flattenTargetGroups<T extends FlagRelation>(flag: T) {
 	return { ...rest, targetGroups };
 }
 
+const flagRuleOutputSchema = z.custom<FlagUserRule>(
+	(value) =>
+		Boolean(value && typeof value === "object" && !Array.isArray(value)),
+	"Expected a flag rule object"
+);
+const flagRulesOutputSchema = z.array(flagRuleOutputSchema);
+
 const flagTargetGroupOutputSchema = z.object({
 	color: z.string(),
 	createdAt: z.coerce.date(),
@@ -263,7 +272,7 @@ const flagTargetGroupOutputSchema = z.object({
 	description: z.string().nullable(),
 	id: z.string(),
 	name: z.string(),
-	rules: z.array(userRuleSchema),
+	rules: flagRulesOutputSchema,
 	updatedAt: z.coerce.date(),
 	websiteId: z.string(),
 });
@@ -282,7 +291,7 @@ const flagOutputSchema = z.object({
 	organizationId: z.string().nullable(),
 	payload: z.record(z.string(), z.unknown()).nullable(),
 	persistAcrossAuth: z.boolean(),
-	rules: z.array(userRuleSchema).nullable(),
+	rules: flagRulesOutputSchema.nullable(),
 	rolloutBy: z.string().nullable(),
 	rolloutPercentage: z.number().nullable(),
 	status: z.enum(["active", "inactive", "archived"]),
@@ -290,6 +299,7 @@ const flagOutputSchema = z.object({
 	targetGroups: z.array(flagTargetGroupOutputSchema).optional(),
 	type: z.enum(["boolean", "rollout", "multivariant"]),
 	updatedAt: z.coerce.date(),
+	userId: z.string().nullable(),
 	variants: z.array(variantSchema).nullable(),
 	websiteId: z.string().nullable(),
 });
@@ -373,10 +383,21 @@ export const flagsRouter = {
 		.handler(async ({ context, input }) => {
 			const workspace = await authorizeFlagRead(context, input);
 			requireAuthedFlagRead(workspace);
+			const scopedFlags = await context.db
+				.select({ key: flags.key })
+				.from(flags)
+				.where(
+					and(eq(flags.websiteId, input.websiteId), isNull(flags.deletedAt))
+				);
+			const flagKeys = [...new Set(scopedFlags.map((flag) => flag.key))];
+			if (flagKeys.length === 0) {
+				return [];
+			}
 
 			const startDate = new Date(
 				Date.now() - input.days * 24 * 60 * 60 * 1000
 			).toISOString();
+			const endDate = new Date().toISOString();
 			const rows = await chQuery<{
 				evaluated_users: number;
 				evaluation_count: number;
@@ -402,8 +423,9 @@ export const flagsRouter = {
 							)
 						)
 						AND timestamp >= parseDateTimeBestEffort({startDate:String})
-						AND JSONExtractString(properties, 'flag') != ''
-				)
+						AND timestamp < parseDateTimeBestEffort({endDate:String})
+						AND JSONExtractString(properties, 'flag') IN {flagKeys:Array(String)}
+					)
 				SELECT
 					flag_key,
 					max(timestamp) AS last_evaluated_at,
@@ -413,7 +435,7 @@ export const flagsRouter = {
 				FROM evaluations
 				GROUP BY flag_key
 				ORDER BY last_evaluated_at DESC`,
-				{ startDate, websiteId: input.websiteId },
+				{ endDate, flagKeys, startDate, websiteId: input.websiteId },
 				{ readonly: true }
 			);
 

@@ -1133,8 +1133,10 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 				flag_write: "create",
 			});
 
+			let auditApiKey: ApiKeyRow | undefined;
 			try {
 				const auth = await resolveFlagAdmin(request.headers, body.clientId);
+				auditApiKey = auth.apiKey;
 				if (!auth.ok) {
 					await recordPublicFlagAudit({
 						action: auth.status === 403 ? "denied" : "failure",
@@ -1192,6 +1194,14 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 				const existing = existingRows.at(0) ?? null;
 
 				if (existing && !existing.deletedAt) {
+					await recordPublicFlagAudit({
+						action: "failure",
+						apiKey: auditApiKey,
+						operation: "flags.create",
+						reason: "A flag with this key already exists",
+						request,
+						targetId: body.clientId,
+					});
 					set.status = 409;
 					return { error: "A flag with this key already exists" };
 				}
@@ -1214,6 +1224,14 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 							)
 						);
 					if (dependencyRows.length !== dependencies.length) {
+						await recordPublicFlagAudit({
+							action: "failure",
+							apiKey: auditApiKey,
+							operation: "flags.create",
+							reason: "One or more dependency flags were not found",
+							request,
+							targetId: body.clientId,
+						});
 						set.status = 400;
 						return { error: "One or more dependency flags were not found" };
 					}
@@ -1334,6 +1352,14 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 					},
 				};
 			} catch (error) {
+				await recordPublicFlagAudit({
+					action: "failure",
+					apiKey: auditApiKey,
+					operation: "flags.create",
+					reason: "Failed to create flag",
+					request,
+					targetId: body.clientId,
+				});
 				mergeWideEvent({ flag_error: true });
 				useLogger().error(
 					error instanceof Error ? error : new Error(String(error)),
@@ -1377,8 +1403,10 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 				flag_write: "update",
 			});
 
+			let auditApiKey: ApiKeyRow | undefined;
 			try {
 				const auth = await resolveFlagAdmin(request.headers, body.clientId);
+				auditApiKey = auth.apiKey;
 				if (!auth.ok) {
 					await recordPublicFlagAudit({
 						action: auth.status === 403 ? "denied" : "failure",
@@ -1413,6 +1441,14 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 
 				const flag = existing.at(0);
 				if (!flag) {
+					await recordPublicFlagAudit({
+						action: "failure",
+						apiKey: auditApiKey,
+						operation: "flags.update",
+						reason: "Flag not found",
+						request,
+						targetId: params.id,
+					});
 					set.status = 404;
 					return { error: "Flag not found" };
 				}
@@ -1420,6 +1456,14 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 					flag.websiteId !== body.clientId &&
 					flag.organizationId !== body.clientId
 				) {
+					await recordPublicFlagAudit({
+						action: "failure",
+						apiKey: auditApiKey,
+						operation: "flags.update",
+						reason: "Flag not found",
+						request,
+						targetId: params.id,
+					});
 					set.status = 404;
 					return { error: "Flag not found" };
 				}
@@ -1498,6 +1542,14 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 					},
 				};
 			} catch (error) {
+				await recordPublicFlagAudit({
+					action: "failure",
+					apiKey: auditApiKey,
+					operation: "flags.update",
+					reason: "Failed to update flag",
+					request,
+					targetId: params.id,
+				});
 				mergeWideEvent({ flag_error: true });
 				useLogger().error(
 					error instanceof Error ? error : new Error(String(error)),
@@ -1533,8 +1585,10 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 				flag_write: "delete",
 			});
 
+			let auditApiKey: ApiKeyRow | undefined;
 			try {
 				const auth = await resolveFlagAdmin(request.headers, query.clientId);
+				auditApiKey = auth.apiKey;
 				if (!auth.ok) {
 					await recordPublicFlagAudit({
 						action: auth.status === 403 ? "denied" : "failure",
@@ -1569,6 +1623,14 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 
 				const flag = existing.at(0);
 				if (!flag) {
+					await recordPublicFlagAudit({
+						action: "failure",
+						apiKey: auditApiKey,
+						operation: "flags.delete",
+						reason: "Flag not found",
+						request,
+						targetId: params.id,
+					});
 					set.status = 404;
 					return { error: "Flag not found" };
 				}
@@ -1576,6 +1638,14 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 					flag.websiteId !== query.clientId &&
 					flag.organizationId !== query.clientId
 				) {
+					await recordPublicFlagAudit({
+						action: "failure",
+						apiKey: auditApiKey,
+						operation: "flags.delete",
+						reason: "Flag not found",
+						request,
+						targetId: params.id,
+					});
 					set.status = 404;
 					return { error: "Flag not found" };
 				}
@@ -1624,6 +1694,14 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 
 				return { success: true };
 			} catch (error) {
+				await recordPublicFlagAudit({
+					action: "failure",
+					apiKey: auditApiKey,
+					operation: "flags.delete",
+					reason: "Failed to delete flag",
+					request,
+					targetId: params.id,
+				});
 				mergeWideEvent({ flag_error: true });
 				useLogger().error(
 					error instanceof Error ? error : new Error(String(error)),
