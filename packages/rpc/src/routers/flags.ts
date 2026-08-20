@@ -7,6 +7,7 @@ import {
 	notDeleted,
 	withTransaction,
 } from "@databuddy/db";
+import { chQuery } from "@databuddy/db/clickhouse";
 import {
 	buildFlagChangeSnapshot,
 	flagChangeEvents,
@@ -106,6 +107,11 @@ const listFlagsSchema = z
 		status: z.enum(["active", "inactive", "archived"]).optional(),
 	})
 	.refine(requireScope, scopeRefinement);
+
+const flagStatsSchema = z.object({
+	websiteId: z.string(),
+	days: z.number().int().min(1).max(90).default(30),
+});
 
 const getFlagSchema = z
 	.object({ id: z.string(), ...flagScopeFields })
@@ -288,6 +294,14 @@ const flagOutputSchema = z.object({
 	websiteId: z.string().nullable(),
 });
 
+const flagStatsOutputSchema = z.object({
+	evaluatedUsers: z.number(),
+	evaluationCount: z.number(),
+	identifiedUsers: z.number(),
+	key: z.string(),
+	lastEvaluatedAt: z.coerce.date().nullable(),
+});
+
 const successOutputSchema = z.object({ success: z.literal(true) });
 
 export const flagsRouter = {
@@ -343,6 +357,75 @@ export const flagsRouter = {
 					return flagsList.map(flattenTargetGroups);
 				},
 			});
+		}),
+
+	stats: publicProcedure
+		.route({
+			description:
+				"Returns recent feature flag evaluation stats for a website. Requires scope read permission.",
+			method: "POST",
+			path: "/flags/stats",
+			summary: "Get flag evaluation stats",
+			tags: ["Flags"],
+		})
+		.input(flagStatsSchema)
+		.output(z.array(flagStatsOutputSchema))
+		.handler(async ({ context, input }) => {
+			const workspace = await authorizeFlagRead(context, input);
+			requireAuthedFlagRead(workspace);
+
+			const startDate = new Date(
+				Date.now() - input.days * 24 * 60 * 60 * 1000
+			).toISOString();
+			const rows = await chQuery<{
+				evaluated_users: number;
+				evaluation_count: number;
+				flag_key: string;
+				identified_users: number;
+				last_evaluated_at: string | null;
+			}>(
+				`WITH evaluations AS (
+					SELECT
+						JSONExtractString(properties, 'flag') AS flag_key,
+						timestamp,
+						profile_id,
+						ifNull(anonymous_id, '') AS anonymous_id,
+						if(empty(profile_id), ifNull(anonymous_id, ''), profile_id) AS visitor_id
+					FROM analytics.custom_events
+					PREWHERE event_name = '$flag_evaluated'
+					WHERE
+						(
+							owner_id = {websiteId:String}
+							OR (
+								website_id = {websiteId:String}
+								AND owner_id != {websiteId:String}
+							)
+						)
+						AND timestamp >= parseDateTimeBestEffort({startDate:String})
+						AND JSONExtractString(properties, 'flag') != ''
+				)
+				SELECT
+					flag_key,
+					max(timestamp) AS last_evaluated_at,
+					count() AS evaluation_count,
+					uniqCombined64If(visitor_id, visitor_id != '') AS evaluated_users,
+					uniqCombined64If(profile_id, profile_id != '') AS identified_users
+				FROM evaluations
+				GROUP BY flag_key
+				ORDER BY last_evaluated_at DESC`,
+				{ startDate, websiteId: input.websiteId },
+				{ readonly: true }
+			);
+
+			return rows.map((row) => ({
+				evaluatedUsers: Number(row.evaluated_users),
+				evaluationCount: Number(row.evaluation_count),
+				identifiedUsers: Number(row.identified_users),
+				key: row.flag_key,
+				lastEvaluatedAt: row.last_evaluated_at
+					? new Date(row.last_evaluated_at)
+					: null,
+			}));
 		}),
 
 	getById: publicProcedure
