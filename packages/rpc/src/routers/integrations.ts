@@ -1,4 +1,4 @@
-import { and, desc, eq } from "@databuddy/db";
+import { and, desc, eq, inArray } from "@databuddy/db";
 import {
 	account,
 	slackChannelBindings,
@@ -148,34 +148,46 @@ export const integrationsRouter = {
 				throw error;
 			}
 
-			const slack = await Promise.all(
-				slackRows.map(async (integration) => {
-					let channelBindings: SlackChannelBindingRow[];
-					try {
-						channelBindings = await context.db
-							.select({
-								id: slackChannelBindings.id,
-								slackChannelId: slackChannelBindings.slackChannelId,
-								createdAt: slackChannelBindings.createdAt,
-								updatedAt: slackChannelBindings.updatedAt,
-							})
-							.from(slackChannelBindings)
-							.where(eq(slackChannelBindings.integrationId, integration.id))
-							.orderBy(desc(slackChannelBindings.updatedAt));
-					} catch (error) {
-						if (isMissingSlackSchemaError(error)) {
-							channelBindings = [];
+			const bindingsByIntegration = new Map<string, SlackChannelBindingRow[]>();
+			if (slackRows.length > 0) {
+				try {
+					const bindingRows = await context.db
+						.select({
+							id: slackChannelBindings.id,
+							slackChannelId: slackChannelBindings.slackChannelId,
+							createdAt: slackChannelBindings.createdAt,
+							updatedAt: slackChannelBindings.updatedAt,
+							integrationId: slackChannelBindings.integrationId,
+						})
+						.from(slackChannelBindings)
+						.where(
+							inArray(
+								slackChannelBindings.integrationId,
+								slackRows.map((row) => row.id)
+							)
+						)
+						.orderBy(desc(slackChannelBindings.updatedAt));
+
+					for (const { integrationId, ...binding } of bindingRows) {
+						const existing = bindingsByIntegration.get(integrationId);
+						if (existing) {
+							existing.push(binding);
 						} else {
-							throw error;
+							bindingsByIntegration.set(integrationId, [binding]);
 						}
 					}
+				} catch (error) {
+					if (!isMissingSlackSchemaError(error)) {
+						throw error;
+					}
+					bindingsByIntegration.clear();
+				}
+			}
 
-					return {
-						...integration,
-						channelBindings,
-					};
-				})
-			);
+			const slack = slackRows.map((integration) => ({
+				...integration,
+				channelBindings: bindingsByIntegration.get(integration.id) ?? [],
+			}));
 
 			return { slack };
 		}),

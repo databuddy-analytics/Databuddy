@@ -493,6 +493,7 @@ export const goalsRouter = {
 				.orderBy(desc(goals.createdAt));
 
 			const requestFilters = input.filters ?? [];
+			const totalUsersCache = new Map<string, Promise<number>>();
 			const results = await Promise.all(
 				goalsList.map(async (goal): Promise<[string, GoalAnalyticsResult]> => {
 					const effectiveStartDate = getEffectiveStartDate(
@@ -513,13 +514,20 @@ export const goalsRouter = {
 					const filters = (goal.filters as Filter[]) || [];
 					const combinedFilters = [...requestFilters, ...filters];
 
-					try {
-						const totalUsers = await getTotalWebsiteUsers(
+					const totalUsersKey = `${effectiveStartDate}|${JSON.stringify(combinedFilters)}`;
+					let totalUsersPromise = totalUsersCache.get(totalUsersKey);
+					if (!totalUsersPromise) {
+						totalUsersPromise = getTotalWebsiteUsers(
 							input.websiteId,
 							effectiveStartDate,
 							endDate,
 							combinedFilters
 						);
+						totalUsersCache.set(totalUsersKey, totalUsersPromise);
+					}
+
+					try {
+						const totalUsers = await totalUsersPromise;
 						const analytics = await processGoalAnalytics(
 							steps,
 							combinedFilters,
