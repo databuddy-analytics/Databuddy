@@ -205,10 +205,10 @@ async function deriveWithSession(request: Request) {
 		return { user: session.user, session, timezone: tz } as const;
 	}
 
-	const tz = session?.user
-		? await getTimezone(request, session)
-		: await getTimezone(request, null);
-	const site = await getCachedWebsite(websiteId);
+	const [tz, site] = await Promise.all([
+		getTimezone(request, session?.user ? session : null),
+		getCachedWebsite(websiteId),
+	]);
 
 	if (!site) {
 		throw jsonError(404, "Website not found", "NOT_FOUND");

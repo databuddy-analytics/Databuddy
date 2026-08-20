@@ -21,7 +21,10 @@ import { validateTimezone } from "@databuddy/validation";
 import { readBooleanEnv } from "@databuddy/env/boolean";
 import { getRateLimitHeaders, ratelimit } from "@databuddy/redis/rate-limit";
 import { getBillingOwner } from "@databuddy/rpc/billing";
-import { getOrganizationOwnerId } from "@databuddy/rpc/organization";
+import {
+	getMemberRole,
+	getOrganizationOwnerId,
+} from "@databuddy/rpc/organization";
 import {
 	type GatedFeatureId,
 	GATED_FEATURES,
@@ -319,6 +322,7 @@ type ProjectAccessResult =
 			success: true;
 			projectId: string;
 			projectType: ProjectType;
+			organizationId?: string | null;
 	  }
 	| {
 			success: false;
@@ -519,7 +523,7 @@ async function verifyWebsiteAccess(
 	ctx: AuthContext,
 	websiteId: string,
 	queryTypes: string[] = []
-): Promise<boolean> {
+): Promise<{ granted: boolean; organizationId: string | null }> {
 	mergeWideEvent({ access_check_type: "website", website_id: websiteId });
 
 	const website = await db.query.websites.findFirst({
@@ -527,14 +531,18 @@ async function verifyWebsiteAccess(
 		columns: { id: true, isPublic: true, organizationId: true },
 	});
 
+	const denied = { granted: false, organizationId: null };
+
 	if (!website) {
 		mergeWideEvent({ access_result: "not_found" });
-		return false;
+		return denied;
 	}
+
+	const { organizationId } = website;
 
 	if (website.isPublic && canReadQueryTypesPublicly(queryTypes)) {
 		mergeWideEvent({ access_result: "public_query" });
-		return true;
+		return { granted: true, organizationId };
 	}
 
 	if (!ctx.isAuthenticated) {
@@ -543,45 +551,42 @@ async function verifyWebsiteAccess(
 				? "public_overview_only"
 				: "unauthenticated",
 		});
-		return false;
+		return denied;
 	}
 
-	if (!website.organizationId) {
+	if (!organizationId) {
 		mergeWideEvent({ access_result: "no_organization" });
-		return false;
+		return denied;
 	}
 
 	if (ctx.apiKey) {
 		if (hasGlobalAccess(ctx.apiKey)) {
 			if (!ctx.apiKey.organizationId) {
 				mergeWideEvent({ access_result: "api_key_no_org" });
-				return false;
+				return denied;
 			}
-			const granted = website.organizationId === ctx.apiKey.organizationId;
+			const granted = organizationId === ctx.apiKey.organizationId;
 			mergeWideEvent({
 				access_result: granted ? "api_key_global" : "api_key_denied",
 			});
-			return granted;
+			return { granted, organizationId };
 		}
 
 		const granted = getAccessibleWebsiteIds(ctx.apiKey).includes(websiteId);
 		mergeWideEvent({
 			access_result: granted ? "api_key_scoped" : "api_key_denied",
 		});
-		return granted;
+		return { granted, organizationId };
 	}
 
 	if (ctx.user) {
-		const membership = await db.query.member.findFirst({
-			where: { userId: ctx.user.id, organizationId: website.organizationId },
-			columns: { id: true },
-		});
-		mergeWideEvent({ access_result: membership ? "member" : "not_member" });
-		return !!membership;
+		const role = await getMemberRole(ctx.user.id, organizationId);
+		mergeWideEvent({ access_result: role ? "member" : "not_member" });
+		return { granted: !!role, organizationId };
 	}
 
 	mergeWideEvent({ access_result: "denied" });
-	return false;
+	return denied;
 }
 
 async function verifyScheduleAccess(
@@ -606,12 +611,9 @@ async function verifyScheduleAccess(
 	}
 
 	if (ctx.user) {
-		const membership = await db.query.member.findFirst({
-			where: { userId: ctx.user.id, organizationId: schedule.organizationId },
-			columns: { id: true },
-		});
-		mergeWideEvent({ access_result: membership ? "member" : "not_member" });
-		return !!membership;
+		const role = await getMemberRole(ctx.user.id, schedule.organizationId);
+		mergeWideEvent({ access_result: role ? "member" : "not_member" });
+		return !!role;
 	}
 
 	if (ctx.apiKey) {
@@ -663,12 +665,9 @@ async function verifyLinkAccess(
 	}
 
 	if (ctx.user && link.organizationId) {
-		const membership = await db.query.member.findFirst({
-			where: { userId: ctx.user.id, organizationId: link.organizationId },
-			columns: { id: true },
-		});
-		mergeWideEvent({ access_result: membership ? "member" : "not_member" });
-		return !!membership;
+		const role = await getMemberRole(ctx.user.id, link.organizationId);
+		mergeWideEvent({ access_result: role ? "member" : "not_member" });
+		return !!role;
 	}
 
 	if (ctx.user) {
@@ -707,12 +706,9 @@ async function verifyOrganizationAccess(
 	}
 
 	if (ctx.user) {
-		const membership = await db.query.member.findFirst({
-			where: { userId: ctx.user.id, organizationId },
-			columns: { id: true },
-		});
-		mergeWideEvent({ access_result: membership ? "member" : "not_member" });
-		return !!membership;
+		const role = await getMemberRole(ctx.user.id, organizationId);
+		mergeWideEvent({ access_result: role ? "member" : "not_member" });
+		return !!role;
 	}
 
 	if (ctx.apiKey) {
@@ -772,8 +768,8 @@ async function resolveProjectAccess(
 	}
 
 	if (websiteId) {
-		const hasAccess = await verifyWebsiteAccess(ctx, websiteId, queryTypes);
-		if (!hasAccess) {
+		const access = await verifyWebsiteAccess(ctx, websiteId, queryTypes);
+		if (!access.granted) {
 			return {
 				success: false,
 				error: ctx.isAuthenticated
@@ -783,7 +779,12 @@ async function resolveProjectAccess(
 				status: ctx.isAuthenticated ? 403 : 401,
 			};
 		}
-		return { success: true, projectId: websiteId, projectType: "website" };
+		return {
+			success: true,
+			projectId: websiteId,
+			projectType: "website",
+			organizationId: access.organizationId,
+		};
 	}
 
 	const apiKeyOrgFallback =
@@ -1357,12 +1358,13 @@ export const query = new Elysia({ prefix: "/v1/query" })
 					return rateLimited;
 				}
 
+				const queryTypes = extractQueryTypes(body);
 				const accessResult = await resolveProjectAccess(ctx, {
 					websiteId: q.website_id,
 					scheduleId: q.schedule_id,
 					linkId: q.link_id,
 					organizationId: q.organization_id,
-					queryTypes: extractQueryTypes(body),
+					queryTypes,
 				});
 
 				if (!accessResult.success) {
@@ -1375,24 +1377,16 @@ export const query = new Elysia({ prefix: "/v1/query" })
 				}
 
 				if (accessResult.projectType === "website" && q.website_id) {
-					const queryTypes = extractQueryTypes(body);
-					const website = await db.query.websites.findFirst({
-						where: { id: q.website_id },
-						columns: { organizationId: true },
+					const gateFail = await enforceFeatureGatesForQueryTypes(queryTypes, {
+						organizationId: accessResult.organizationId ?? null,
 					});
-					if (website) {
-						const gateFail = await enforceFeatureGatesForQueryTypes(
-							queryTypes,
-							website
+					if (gateFail) {
+						return createErrorResponse(
+							gateFail.error,
+							"FEATURE_UNAVAILABLE",
+							402,
+							requestId
 						);
-						if (gateFail) {
-							return createErrorResponse(
-								gateFail.error,
-								"FEATURE_UNAVAILABLE",
-								402,
-								requestId
-							);
-						}
 					}
 				}
 

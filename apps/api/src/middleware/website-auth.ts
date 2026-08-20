@@ -4,7 +4,7 @@ import {
 	isApiKeyPresent,
 } from "@databuddy/api-keys/resolve";
 import { auth } from "@databuddy/auth";
-import { db } from "@databuddy/db";
+import { getMemberRole } from "@databuddy/rpc/organization";
 import { Elysia } from "elysia";
 import { getResolvedAuth } from "../lib/auth-wide-event";
 import { getCachedWebsite, getTimezone } from "@databuddy/ai/lib/website-utils";
@@ -75,11 +75,10 @@ export function websiteAuth() {
 				apiKey = resolvedApiKey;
 			}
 
-			const website = websiteId ? await getCachedWebsite(websiteId) : undefined;
-
-			const timezone = session?.user
-				? await getTimezone(request, session)
-				: await getTimezone(request, null);
+			const [website, timezone] = await Promise.all([
+				websiteId ? getCachedWebsite(websiteId) : undefined,
+				getTimezone(request, session?.user ? session : null),
+			]);
 
 			return {
 				user: sessionUser,
@@ -151,14 +150,9 @@ async function checkWebsiteAuth(
 			});
 		}
 
-		const membership = await db.query.member.findFirst({
-			where: { userId: sessionUser.id, organizationId: website.organizationId },
-			columns: {
-				id: true,
-			},
-		});
+		const role = await getMemberRole(sessionUser.id, website.organizationId);
 
-		if (membership) {
+		if (role) {
 			return null;
 		}
 
