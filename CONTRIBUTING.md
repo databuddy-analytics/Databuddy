@@ -18,7 +18,7 @@ git clone https://github.com/databuddy-analytics/Databuddy.git
 cd databuddy
 ```
 
-2. Install dependencies:
+2. Install dependencies (requires Bun ≥ 1.2.0 — run `bun --version` to check, upgrade at https://bun.sh if needed):
 
 ```bash
 bun install

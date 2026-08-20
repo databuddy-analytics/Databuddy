@@ -24,7 +24,8 @@
     "ultracite": "^7.6.1"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=20",
+    "bun": ">=1.2.0"
   },
   "overrides": {
     "protobufjs": ">=7.5.5",
