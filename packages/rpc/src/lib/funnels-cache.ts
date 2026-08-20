@@ -20,7 +20,7 @@ export async function invalidateFunnelsCache(
 ): Promise<void> {
 	const keys = [`list:${websiteId}`];
 	if (funnelId) {
-		keys.push(`byId:${funnelId}:${websiteId}`);
+		keys.push(`byId:${funnelId}`);
 	}
 
 	const operations: Promise<unknown>[] = keys.map((key) =>

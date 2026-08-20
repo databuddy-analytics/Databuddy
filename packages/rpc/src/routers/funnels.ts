@@ -184,7 +184,6 @@ export const funnelsRouter = {
 
 			return cache.withCache({
 				key: `list:${input.websiteId}`,
-				disabled: true, // TODO: Remove this once we have a way to invalidate the cache
 				ttl: CACHE_TTL,
 				tables: ["funnelDefinitions"],
 				queryFn: () =>
@@ -226,7 +225,6 @@ export const funnelsRouter = {
 		.handler(({ context, input }) =>
 			cache.withCache({
 				key: `byId:${input.id}`,
-				disabled: true, // TODO: Remove this once we have a way to invalidate the cache
 				ttl: CACHE_TTL,
 				tables: ["funnelDefinitions"],
 				queryFn: async () => {
@@ -650,7 +648,6 @@ export const funnelsRouter = {
 
 			return cache.withCache({
 				key: cacheKey,
-				disabled: true, // TODO: Remove this once we have a way to invalidate the cache
 				ttl: ANALYTICS_CACHE_TTL,
 				tables: ["funnelDefinitions"],
 				tag: `funnel:${input.funnelId}`,
