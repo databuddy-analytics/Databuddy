@@ -64,7 +64,7 @@ const chartContextSchema = z.object({
 
 const annotationOutputSchema = z.object({
 	annotationType: z.string(),
-	chartContext: z.unknown(),
+	chartContext: chartContextSchema,
 	chartType: z.string(),
 	color: z.string(),
 	createdAt: z.coerce.date(),

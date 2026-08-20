@@ -16,6 +16,7 @@ import {
 	withTransaction,
 } from "@databuddy/db";
 import {
+	buildFlagChangeSnapshot,
 	flagChangeEvents,
 	type FlagUserRule,
 	type FlagVariant,
@@ -25,7 +26,11 @@ import {
 import { cacheNamespaces, cacheTags, cacheable } from "@databuddy/redis";
 import { getRateLimitHeaders, ratelimit } from "@databuddy/redis/rate-limit";
 import { invalidateFlagCache } from "@databuddy/rpc/flags";
+import { appendAuditEvent } from "@databuddy/services/audit";
+import { auditActions } from "@databuddy/shared/audit";
+import { getTrustedClientIp } from "@databuddy/shared/utils/trusted-client-ip";
 import { randomUUIDv7 } from "bun";
+import { getRequestId } from "@/http/request-id";
 import { Elysia, t } from "elysia";
 import { useLogger } from "evlog/elysia";
 import { LRUCache } from "lru-cache";
@@ -668,6 +673,7 @@ interface FlagAdminSuccess {
 }
 
 interface FlagAdminFailure {
+	apiKey?: ApiKeyRow;
 	error: string;
 	ok: false;
 	status: 401 | 403;
@@ -701,9 +707,50 @@ async function resolveFlagAdmin(
 		hasWebsiteAccess = Boolean(website);
 	}
 	if (!(hasWebsiteAccess || hasOrgAccess)) {
-		return { ok: false, status: 403, error: "Forbidden" };
+		return { apiKey, ok: false, status: 403, error: "Forbidden" };
 	}
 	return { ok: true, apiKey };
+}
+
+async function recordPublicFlagAudit(input: {
+	action: "denied" | "failure" | "success";
+	apiKey?: ApiKeyRow;
+	operation: string;
+	request: Request;
+	reason?: string;
+	targetId: string;
+	targetName?: string;
+}): Promise<void> {
+	const organizationId = input.apiKey?.organizationId;
+	if (!(organizationId && input.apiKey)) {
+		return;
+	}
+
+	try {
+		await appendAuditEvent(db, organizationId, {
+			action: auditActions.FLAG_CHANGED,
+			actor: {
+				displayName: input.apiKey.name,
+				id: input.apiKey.id,
+				type: "api",
+			},
+			operation: input.operation,
+			outcome: input.action,
+			reason: input.reason,
+			request: {
+				ip: getTrustedClientIp(input.request.headers),
+				requestId: getRequestId(input.request),
+				userAgent: input.request.headers.get("user-agent") ?? undefined,
+			},
+			source: "public_api",
+			target: { displayName: input.targetName, id: input.targetId },
+		});
+	} catch (error) {
+		useLogger().error(
+			error instanceof Error ? error : new Error(String(error)),
+			{ flags: { audit: true, operation: input.operation } }
+		);
+	}
 }
 
 function invalidateMemCacheForClient(clientId: string) {
@@ -732,23 +779,6 @@ function resolveScope(
 		return { websiteId: null, organizationId: clientId };
 	}
 	return { websiteId: null, organizationId: null };
-}
-
-function buildFlagChangeSnapshot(flag: typeof flags.$inferSelect) {
-	return {
-		key: flag.key,
-		name: flag.name ?? null,
-		description: flag.description ?? null,
-		type: flag.type,
-		status: flag.status,
-		defaultValue: flag.defaultValue,
-		persistAcrossAuth: flag.persistAcrossAuth,
-		rolloutPercentage: flag.rolloutPercentage ?? null,
-		rolloutBy: flag.rolloutBy ?? null,
-		environment: flag.environment ?? null,
-		dependencies: flag.dependencies ?? [],
-		variants: flag.variants ?? [],
-	};
 }
 
 interface BulkFlagInput extends UserContext {
@@ -1106,17 +1136,41 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 			try {
 				const auth = await resolveFlagAdmin(request.headers, body.clientId);
 				if (!auth.ok) {
+					await recordPublicFlagAudit({
+						action: auth.status === 403 ? "denied" : "failure",
+						apiKey: auth.apiKey,
+						operation: "flags.create",
+						reason: auth.error,
+						request,
+						targetId: body.clientId,
+					});
 					set.status = auth.status;
 					return { error: auth.error };
 				}
 
 				if (!auth.apiKey.userId) {
+					await recordPublicFlagAudit({
+						action: "denied",
+						apiKey: auth.apiKey,
+						operation: "flags.create",
+						reason: "Forbidden",
+						request,
+						targetId: body.clientId,
+					});
 					set.status = 403;
 					return { error: "Forbidden" };
 				}
 
 				const scope = resolveScope(auth.apiKey, body.clientId);
 				if (!(scope.websiteId || scope.organizationId)) {
+					await recordPublicFlagAudit({
+						action: "denied",
+						apiKey: auth.apiKey,
+						operation: "flags.create",
+						reason: "Insufficient permissions",
+						request,
+						targetId: body.clientId,
+					});
 					set.status = 403;
 					return { error: "Insufficient permissions" };
 				}
@@ -1257,6 +1311,14 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 					result.key
 				);
 				invalidateMemCacheForClient(body.clientId);
+				await recordPublicFlagAudit({
+					action: "success",
+					apiKey: auth.apiKey,
+					operation: existing ? "flags.restore" : "flags.create",
+					request,
+					targetId: result.id,
+					targetName: result.key,
+				});
 
 				return {
 					flag: {
@@ -1318,11 +1380,27 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 			try {
 				const auth = await resolveFlagAdmin(request.headers, body.clientId);
 				if (!auth.ok) {
+					await recordPublicFlagAudit({
+						action: auth.status === 403 ? "denied" : "failure",
+						apiKey: auth.apiKey,
+						operation: "flags.update",
+						reason: auth.error,
+						request,
+						targetId: params.id,
+					});
 					set.status = auth.status;
 					return { error: auth.error };
 				}
 
 				if (!auth.apiKey.userId) {
+					await recordPublicFlagAudit({
+						action: "denied",
+						apiKey: auth.apiKey,
+						operation: "flags.update",
+						reason: "Forbidden",
+						request,
+						targetId: params.id,
+					});
 					set.status = 403;
 					return { error: "Forbidden" };
 				}
@@ -1397,6 +1475,14 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 					updated.key
 				);
 				invalidateMemCacheForClient(body.clientId);
+				await recordPublicFlagAudit({
+					action: "success",
+					apiKey: auth.apiKey,
+					operation: "flags.update",
+					request,
+					targetId: updated.id,
+					targetName: updated.key,
+				});
 
 				return {
 					flag: {
@@ -1450,11 +1536,27 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 			try {
 				const auth = await resolveFlagAdmin(request.headers, query.clientId);
 				if (!auth.ok) {
+					await recordPublicFlagAudit({
+						action: auth.status === 403 ? "denied" : "failure",
+						apiKey: auth.apiKey,
+						operation: "flags.delete",
+						reason: auth.error,
+						request,
+						targetId: params.id,
+					});
 					set.status = auth.status;
 					return { error: auth.error };
 				}
 
 				if (!auth.apiKey.userId) {
+					await recordPublicFlagAudit({
+						action: "denied",
+						apiKey: auth.apiKey,
+						operation: "flags.delete",
+						reason: "Forbidden",
+						request,
+						targetId: params.id,
+					});
 					set.status = 403;
 					return { error: "Forbidden" };
 				}
@@ -1511,6 +1613,14 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 					flag.key
 				);
 				invalidateMemCacheForClient(query.clientId);
+				await recordPublicFlagAudit({
+					action: "success",
+					apiKey: auth.apiKey,
+					operation: "flags.delete",
+					request,
+					targetId: flag.id,
+					targetName: flag.key,
+				});
 
 				return { success: true };
 			} catch (error) {

@@ -8,7 +8,9 @@ import {
 	withTransaction,
 } from "@databuddy/db";
 import {
+	buildFlagChangeSnapshot,
 	flagChangeEvents,
+	type TargetGroups,
 	flags,
 	flagsToTargetGroups,
 } from "@databuddy/db/schema";
@@ -235,7 +237,7 @@ const checkCircularDependency = async (
 
 interface FlagRelation {
 	flagsToTargetGroups: Array<{
-		targetGroup: { deletedAt: Date | null; [key: string]: unknown } | null;
+		targetGroup: TargetGroups | null;
 	}>;
 }
 
@@ -247,45 +249,46 @@ function flattenTargetGroups<T extends FlagRelation>(flag: T) {
 	return { ...rest, targetGroups };
 }
 
-function buildFlagChangeSnapshot(flag: {
-	defaultValue: boolean;
-	dependencies?: string[] | null;
-	description?: string | null;
-	environment?: string | null;
-	key: string;
-	name?: string | null;
-	persistAcrossAuth: boolean;
-	rolloutBy?: string | null;
-	rolloutPercentage?: number | null;
-	status: "active" | "inactive" | "archived";
-	type: "boolean" | "rollout" | "multivariant";
-	variants?: Array<{
-		description?: string;
-		key: string;
-		type: "string" | "number" | "json";
-		value: unknown;
-		weight?: number;
-	}> | null;
-}) {
-	return {
-		key: flag.key,
-		name: flag.name ?? null,
-		description: flag.description ?? null,
-		type: flag.type,
-		status: flag.status,
-		defaultValue: flag.defaultValue,
-		persistAcrossAuth: flag.persistAcrossAuth,
-		rolloutPercentage: flag.rolloutPercentage ?? null,
-		rolloutBy: flag.rolloutBy ?? null,
-		environment: flag.environment ?? null,
-		dependencies: flag.dependencies ?? [],
-		variants: flag.variants ?? [],
-	};
-}
+const flagTargetGroupOutputSchema = z.object({
+	color: z.string(),
+	createdAt: z.coerce.date(),
+	createdBy: z.string(),
+	deletedAt: z.coerce.date().nullable(),
+	description: z.string().nullable(),
+	id: z.string(),
+	name: z.string(),
+	rules: z.array(userRuleSchema),
+	updatedAt: z.coerce.date(),
+	websiteId: z.string(),
+});
+
+const flagOutputSchema = z.object({
+	createdAt: z.coerce.date(),
+	createdBy: z.string(),
+	defaultValue: z.boolean(),
+	deletedAt: z.coerce.date().nullable(),
+	dependencies: z.array(z.string()).nullable(),
+	description: z.string().nullable(),
+	environment: z.string().nullable(),
+	id: z.string(),
+	key: z.string(),
+	name: z.string().nullable(),
+	organizationId: z.string().nullable(),
+	payload: z.record(z.string(), z.unknown()).nullable(),
+	persistAcrossAuth: z.boolean(),
+	rules: z.array(userRuleSchema).nullable(),
+	rolloutBy: z.string().nullable(),
+	rolloutPercentage: z.number().nullable(),
+	status: z.enum(["active", "inactive", "archived"]),
+	targetGroupIds: z.array(z.string()).nullable(),
+	targetGroups: z.array(flagTargetGroupOutputSchema).optional(),
+	type: z.enum(["boolean", "rollout", "multivariant"]),
+	updatedAt: z.coerce.date(),
+	variants: z.array(variantSchema).nullable(),
+	websiteId: z.string().nullable(),
+});
 
 const successOutputSchema = z.object({ success: z.literal(true) });
-
-const flagOutputSchema = z.record(z.string(), z.unknown());
 
 export const flagsRouter = {
 	list: publicProcedure

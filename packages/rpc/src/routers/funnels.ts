@@ -31,7 +31,16 @@ const cache = funnelCache;
 
 const filterSchema = z.object({
 	field: z.string(),
-	operator: z.enum(["equals", "contains", "not_equals", "in", "not_in"]),
+	operator: z.enum([
+		"contains",
+		"ends_with",
+		"equals",
+		"in",
+		"not_contains",
+		"not_equals",
+		"not_in",
+		"starts_with",
+	]),
 	value: z.union([z.string(), z.array(z.string())]),
 });
 
@@ -63,12 +72,12 @@ const getEffectiveStartDate = (
 const funnelListOutputSchema = z.object({
 	createdAt: z.coerce.date(),
 	description: z.string().nullable(),
-	filters: z.unknown().nullable(),
+	filters: z.array(filterSchema).nullable(),
 	id: z.string(),
 	ignoreHistoricData: z.boolean(),
 	isActive: z.boolean(),
 	name: z.string(),
-	steps: z.unknown(),
+	steps: z.array(funnelStepSchema),
 	updatedAt: z.coerce.date(),
 });
 
@@ -77,12 +86,12 @@ const funnelOutputSchema = z.object({
 	createdBy: z.string(),
 	deletedAt: z.nullable(z.coerce.date()),
 	description: z.string().nullable(),
-	filters: z.unknown().nullable(),
+	filters: z.array(filterSchema).nullable(),
 	id: z.string(),
 	ignoreHistoricData: z.boolean(),
 	isActive: z.boolean(),
 	name: z.string(),
-	steps: z.unknown(),
+	steps: z.array(funnelStepSchema),
 	updatedAt: z.coerce.date(),
 	websiteId: z.string(),
 });

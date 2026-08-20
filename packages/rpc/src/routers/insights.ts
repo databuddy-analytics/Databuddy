@@ -44,7 +44,12 @@ import { rpcError } from "../errors";
 import { invalidateGoalsCache } from "../lib/goals-cache";
 import { invalidateFunnelsCache } from "../lib/funnels-cache";
 import { logger } from "../lib/logger";
-import { type Context, protectedProcedure, sessionProcedure } from "../orpc";
+import {
+	auditedProcedure,
+	auditedSessionProcedure,
+	type Context,
+	protectedProcedure,
+} from "../orpc";
 import { withWorkspace } from "../procedures/with-workspace";
 
 const INSIGHT_TIMELINE_ROWS_PER_KIND = 50;
@@ -1576,7 +1581,7 @@ export const insightsRouter = {
 			};
 		}),
 
-	reply: protectedProcedure
+	reply: auditedProcedure
 		.route({
 			method: "POST",
 			path: "/insights/reply",
@@ -1594,7 +1599,7 @@ export const insightsRouter = {
 			return { reply };
 		}),
 
-	applyAction: protectedProcedure
+	applyAction: auditedProcedure
 		.route({
 			method: "POST",
 			path: "/insights/actions/apply",
@@ -1608,7 +1613,7 @@ export const insightsRouter = {
 		),
 
 	// Keep the old route for clients that have not migrated to applyAction yet.
-	applyGoalAction: protectedProcedure
+	applyGoalAction: auditedProcedure
 		.route({
 			method: "POST",
 			path: "/insights/actions/goal/apply",
@@ -1621,7 +1626,7 @@ export const insightsRouter = {
 			applyInsightAction({ context, ...input })
 		),
 
-	retryReply: sessionProcedure
+	retryReply: auditedSessionProcedure
 		.route({
 			method: "POST",
 			path: "/insights/reply/retry",
