@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { FLAG_STATS_WINDOW_DAYS } from "@databuddy/shared/flags";
 import { useMemo } from "react";
 import { List } from "@/components/ui/composables/list";
 import { orpc } from "@/lib/orpc";
@@ -21,6 +22,7 @@ import {
 	ShareNetworkIcon,
 	TrashIcon,
 	UsersIcon,
+	WarningCircleIcon,
 } from "@databuddy/ui/icons";
 import { DropdownMenu, Switch } from "@databuddy/ui/client";
 import { Badge, Button, Skeleton, Tooltip, fromNow } from "@databuddy/ui";
@@ -30,9 +32,14 @@ interface FlagsListProps {
 	groups: Map<string, TargetGroup[]>;
 	onDelete: (flagId: string) => void;
 	onEdit: (flag: Flag) => void;
+	onRetryStats: () => Promise<unknown>;
 	stats: Map<string, FlagStats>;
+	statsError: boolean;
 	statsLoading: boolean;
 }
+
+const FLAG_LIST_MIN_WIDTH_CLASS = "min-w-[980px]";
+const FLAG_ACTIVITY_ACCURACY_COPY = `Directional browser telemetry from the last ${FLAG_STATS_WINDOW_DAYS} days—not an exact count of people who used the feature. It may undercount when tracking is blocked, sampled, opted out, or evaluated on the server.`;
 
 const TYPE_CONFIG = {
 	boolean: { icon: FlagIcon, label: "Boolean", color: "text-blue-500" },
@@ -267,9 +274,13 @@ function DependencyBadges({
 }
 
 function FlagActivity({
+	onRetry,
+	error,
 	loading,
 	stats,
 }: {
+	onRetry: () => Promise<unknown>;
+	error: boolean;
 	loading: boolean;
 	stats?: FlagStats;
 }) {
@@ -277,49 +288,75 @@ function FlagActivity({
 		return <Skeleton className="h-8 w-32" />;
 	}
 
+	if (error) {
+		return (
+			<Button
+				aria-label="Flag activity unavailable. Retry loading activity."
+				className="h-auto min-h-8 min-w-[132px] justify-start gap-1.5 px-0 font-normal text-destructive hover:bg-transparent"
+				onClick={onRetry}
+				size="sm"
+				variant="ghost"
+			>
+				<WarningCircleIcon className="size-3.5 shrink-0" weight="duotone" />
+				<span>Activity unavailable</span>
+			</Button>
+		);
+	}
+
 	if (!stats?.lastEvaluatedAt) {
 		return (
 			<span className="text-center text-[11px] text-muted-foreground/70">
-				No activity in 30d
+				No activity in {FLAG_STATS_WINDOW_DAYS}d
 			</span>
 		);
 	}
 
 	return (
-		<Tooltip
-			content={
-				<div className="max-w-64 space-y-1.5 text-xs">
-					<p className="font-medium">Observed activity</p>
-					<p className="text-muted-foreground">
-						Directional browser telemetry from the last 30 days—not an exact
-						count of people who used the feature. It may undercount when
-						tracking is blocked, sampled, opted out, or evaluated on the server.
-					</p>
-					<p>
-						{stats.identifiedUsers.toLocaleString()} identified visitors ·{" "}
-						{stats.evaluationCount.toLocaleString()} evaluations
-					</p>
-				</div>
-			}
-			delay={200}
-		>
-			<div className="flex min-w-[132px] flex-col gap-0.5 text-xs">
+		<div className="flex min-w-[150px] items-center gap-1">
+			<div className="flex min-w-0 flex-1 flex-col gap-0.5 text-xs">
 				<span className="flex items-center gap-1.5 whitespace-nowrap text-foreground">
 					<ClockIcon className="size-3.5 shrink-0" weight="duotone" />
 					<span>Last seen {fromNow(stats.lastEvaluatedAt)}</span>
 				</span>
 				<span className="flex items-center gap-1.5 whitespace-nowrap text-[11px] text-muted-foreground">
 					<UsersIcon className="size-3.5 shrink-0" weight="duotone" />
-					<span>{stats.evaluatedUsers.toLocaleString()} observed · 30d</span>
+					<span>
+						{stats.evaluatedUsers.toLocaleString()} observed ·{" "}
+						{FLAG_STATS_WINDOW_DAYS}d
+					</span>
 				</span>
 			</div>
-		</Tooltip>
+			<Tooltip
+				content={
+					<div className="max-w-64 space-y-1.5 text-xs">
+						<p className="font-medium">Observed activity</p>
+						<p className="text-muted-foreground">
+							{FLAG_ACTIVITY_ACCURACY_COPY}
+						</p>
+						<p>
+							{stats.identifiedUsers.toLocaleString()} identified visitors ·{" "}
+							{stats.evaluationCount.toLocaleString()} evaluations
+						</p>
+					</div>
+				}
+				delay={200}
+			>
+				<Button
+					aria-label="Learn about flag activity accuracy"
+					className="size-6 shrink-0 p-0 text-muted-foreground hover:bg-transparent hover:text-foreground"
+					size="icon-sm"
+					variant="ghost"
+				>
+					<InfoIcon className="size-3.5" weight="duotone" />
+				</Button>
+			</Tooltip>
+		</div>
 	);
 }
 
 function FlagsListHead() {
 	return (
-		<List.Head className="min-w-[980px] items-center">
+		<List.Head className={cn(FLAG_LIST_MIN_WIDTH_CLASS, "items-center")}>
 			<div className="flex min-w-0 flex-1 items-center gap-4">
 				<span className="flex max-w-[min(320px,100%)] shrink-0">Flag</span>
 				<span className="min-w-0 flex-1">Description</span>
@@ -328,28 +365,29 @@ function FlagsListHead() {
 				<span className="flex w-[100px] shrink-0 justify-center">Rules</span>
 				<span className="flex w-[100px] shrink-0 justify-center">Groups</span>
 			</div>
-			<Tooltip
-				content={
-					<div className="max-w-64 space-y-1.5 text-xs">
-						<p className="font-medium">Observed activity</p>
-						<p className="text-muted-foreground">
-							Directional browser telemetry, not an exact count of people who
-							used the feature. It can undercount when tracking is blocked,
-							sampled, opted out, or evaluated on the server.
-						</p>
-					</div>
-				}
-				delay={200}
-			>
-				<span className="flex w-[150px] shrink-0 items-center justify-center gap-1.5">
-					Activity
-					<InfoIcon
+			<span className="flex w-[150px] shrink-0 items-center justify-center gap-1.5">
+				Activity
+				<Tooltip
+					content={
+						<div className="max-w-64 space-y-1.5 text-xs">
+							<p className="font-medium">Observed activity</p>
+							<p className="text-muted-foreground">
+								{FLAG_ACTIVITY_ACCURACY_COPY}
+							</p>
+						</div>
+					}
+					delay={200}
+				>
+					<Button
 						aria-label="Learn about flag activity accuracy"
-						className="size-3.5 text-muted-foreground"
-						weight="duotone"
-					/>
-				</span>
-			</Tooltip>
+						className="size-6 p-0 text-muted-foreground hover:bg-transparent hover:text-foreground"
+						size="icon-sm"
+						variant="ghost"
+					>
+						<InfoIcon className="size-3.5" weight="duotone" />
+					</Button>
+				</Tooltip>
+			</span>
 			<span className="flex w-[120px] shrink-0 justify-center">Status</span>
 			<span aria-hidden="true" className="w-8 shrink-0" />
 		</List.Head>
@@ -361,7 +399,9 @@ function FlagRow({
 	groups,
 	dependents,
 	flagMap,
+	onRetryStats,
 	stats,
+	statsError,
 	statsLoading,
 	onEdit,
 	onDelete,
@@ -370,7 +410,9 @@ function FlagRow({
 	groups: TargetGroup[];
 	dependents: Flag[];
 	flagMap: Map<string, Flag>;
+	onRetryStats: () => Promise<unknown>;
 	stats?: FlagStats;
+	statsError: boolean;
 	statsLoading: boolean;
 	onEdit: (flag: Flag) => void;
 	onDelete: (flagId: string) => void;
@@ -386,7 +428,8 @@ function FlagRow({
 	return (
 		<List.Row
 			className={cn(
-				"min-w-full text-left",
+				FLAG_LIST_MIN_WIDTH_CLASS,
+				"text-left",
 				flag.status === "archived" && "opacity-50"
 			)}
 		>
@@ -459,7 +502,12 @@ function FlagRow({
 			</Button>
 
 			<List.Cell className="w-[150px] justify-center">
-				<FlagActivity loading={statsLoading} stats={stats} />
+				<FlagActivity
+					error={statsError}
+					loading={statsLoading}
+					onRetry={onRetryStats}
+					stats={stats}
+				/>
 			</List.Cell>
 
 			<List.Cell className="flex w-[120px] shrink-0 justify-center">
@@ -483,7 +531,9 @@ function FlagRow({
 export function FlagsList({
 	flags,
 	groups,
+	onRetryStats,
 	stats,
+	statsError,
 	statsLoading,
 	onEdit,
 	onDelete,
@@ -520,7 +570,9 @@ export function FlagsList({
 					flagMap={flagMap}
 					groups={groups.get(flag.id) ?? []}
 					key={flag.id}
+					onRetryStats={onRetryStats}
 					stats={stats.get(flag.key)}
+					statsError={statsError}
 					statsLoading={statsLoading}
 					onDelete={onDelete}
 					onEdit={onEdit}
@@ -536,7 +588,10 @@ export function FlagsListSkeleton() {
 			<FlagsListHead />
 			{Array.from({ length: 5 }).map((_, i) => (
 				<div
-					className="flex min-h-15 items-center gap-4 border-border/80 border-b px-4 py-3 last:border-b-0"
+					className={cn(
+						FLAG_LIST_MIN_WIDTH_CLASS,
+						"flex min-h-15 items-center gap-4 border-border/80 border-b px-4 py-3 last:border-b-0"
+					)}
 					key={`skeleton-${i + 1}`}
 				>
 					<div className="flex min-w-0 max-w-[min(320px,100%)] shrink-0 items-center gap-3">

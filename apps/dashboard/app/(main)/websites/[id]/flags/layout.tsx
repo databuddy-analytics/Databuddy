@@ -1,6 +1,7 @@
 "use client";
 
 import { useFlag } from "@databuddy/sdk/react";
+import { FLAG_STATS_WINDOW_DAYS } from "@databuddy/shared/flags";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { useParams, usePathname } from "next/navigation";
@@ -78,7 +79,7 @@ export default function FlagsLayout({
 					refetchFlags(),
 					queryClient.refetchQueries({
 						queryKey: orpc.flags.stats.key({
-							input: { websiteId, days: 30 },
+							input: { websiteId, days: FLAG_STATS_WINDOW_DAYS },
 						}),
 					}),
 				]);

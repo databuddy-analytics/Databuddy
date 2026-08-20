@@ -1,6 +1,7 @@
 "use client";
 
 import { GATED_FEATURES } from "@databuddy/shared/types/features";
+import { FLAG_STATS_WINDOW_DAYS } from "@databuddy/shared/flags";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { useParams } from "next/navigation";
@@ -27,8 +28,15 @@ export default function FlagsPage() {
 	const { data: flags, isLoading: flagsLoading } = useQuery({
 		...orpc.flags.list.queryOptions({ input: { websiteId } }),
 	});
-	const { data: flagStats, isLoading: flagStatsLoading } = useQuery({
-		...orpc.flags.stats.queryOptions({ input: { websiteId, days: 30 } }),
+	const {
+		data: flagStats,
+		isError: flagStatsError,
+		isLoading: flagStatsLoading,
+		refetch: refetchFlagStats,
+	} = useQuery({
+		...orpc.flags.stats.queryOptions({
+			input: { websiteId, days: FLAG_STATS_WINDOW_DAYS },
+		}),
 	});
 
 	const activeFlags = useMemo(
@@ -126,7 +134,9 @@ export default function FlagsPage() {
 								flags={activeFlags as unknown as Flag[]}
 								groups={groupsMap}
 								stats={statsMap}
+								statsError={flagStatsError}
 								statsLoading={flagStatsLoading}
+								onRetryStats={refetchFlagStats}
 								onDelete={handleDeleteFlagRequest}
 								onEdit={handleEditFlag}
 							/>

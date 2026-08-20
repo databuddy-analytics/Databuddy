@@ -1,8 +1,15 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
-import { Badge, Button, Card, EmptyState, Skeleton, Text } from "@databuddy/ui";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import {
+	Badge,
+	Button,
+	Card,
+	EmptyState,
+	formatDateTime,
+	Skeleton,
+	Text,
+} from "@databuddy/ui";
 import { ShieldCheckIcon } from "@databuddy/ui/icons";
 import { useOrganizations } from "@/hooks/use-organizations";
 import { orpc } from "@/lib/orpc";
@@ -18,6 +25,17 @@ function formatAction(action: string): string {
 		.split(".")
 		.map((part) => part.replaceAll("_", " "))
 		.join(" / ");
+}
+
+function getErrorCode(error: unknown): string | undefined {
+	if (!(error && typeof error === "object")) {
+		return;
+	}
+	const details = error as {
+		code?: string;
+		data?: { code?: string };
+	};
+	return details.data?.code ?? details.code;
 }
 
 function AuditSkeleton() {
@@ -44,36 +62,50 @@ function AuditSkeleton() {
 
 export default function AuditLogPage() {
 	const { activeOrganization } = useOrganizations();
-	const [cursor, setCursor] = useState<string>();
-	const query = useQuery({
-		...orpc.audit.list.queryOptions({
-			input: {
+	const query = useInfiniteQuery({
+		queryKey: [...orpc.audit.list.key(), activeOrganization?.id] as const,
+		queryFn: ({ pageParam }) =>
+			orpc.audit.list.call({
 				limit: 50,
 				organizationId: activeOrganization?.id,
-				...(cursor ? { cursor } : {}),
-			},
-		}),
+				...(pageParam ? { cursor: pageParam } : {}),
+			}),
+		initialPageParam: null as string | null,
+		getNextPageParam: (lastPage) =>
+			lastPage.hasMore ? (lastPage.nextCursor ?? undefined) : undefined,
 		enabled: Boolean(activeOrganization?.id),
 	});
 
-	if (!activeOrganization || query.isLoading) {
+	const events = query.data?.pages.flatMap((page) => page.events) ?? [];
+
+	if (!activeOrganization || query.isPending) {
 		return <AuditSkeleton />;
 	}
 
-	if (query.isError) {
+	if (query.isError && events.length === 0) {
+		const isAccessError = ["FORBIDDEN", "UNAUTHORIZED"].includes(
+			getErrorCode(query.error) ?? ""
+		);
 		return (
 			<div className="mx-auto max-w-4xl p-5">
 				<EmptyState
-					description="Audit history is only available to organization administrators and owners."
+					description={
+						isAccessError
+							? "Audit history is only available to organization administrators and owners."
+							: "We could not load the audit history. Try again in a moment."
+					}
+					action={
+						isAccessError
+							? undefined
+							: { label: "Retry", onClick: () => query.refetch() }
+					}
 					icon={<ShieldCheckIcon size={18} weight="duotone" />}
 					title="Audit log unavailable"
-					variant="minimal"
+					variant="error"
 				/>
 			</div>
 		);
 	}
-
-	const events = query.data?.events ?? [];
 
 	return (
 		<div className="mx-auto max-w-4xl space-y-6 p-5">
@@ -124,24 +156,38 @@ export default function AuditLogPage() {
 										tone="muted"
 										variant="caption"
 									>
-										{new Date(event.createdAt).toLocaleString()}
+										{formatDateTime(event.createdAt)}
 									</Text>
 								</div>
 							))}
 						</div>
 					)}
 				</Card.Content>
-				{query.data?.hasMore && query.data.nextCursor && (
+				{query.isFetchNextPageError ? (
+					<Card.Footer className="items-center justify-end gap-3">
+						<Text tone="muted" variant="caption">
+							Could not load older events.
+						</Text>
+						<Button
+							onClick={() => query.fetchNextPage()}
+							size="sm"
+							variant="outline"
+						>
+							Retry
+						</Button>
+					</Card.Footer>
+				) : query.hasNextPage ? (
 					<Card.Footer className="justify-end">
 						<Button
-							onClick={() => setCursor(query.data?.nextCursor ?? undefined)}
+							loading={query.isFetchingNextPage}
+							onClick={() => query.fetchNextPage()}
 							size="sm"
 							variant="outline"
 						>
 							Load older events
 						</Button>
 					</Card.Footer>
-				)}
+				) : null}
 			</Card>
 		</div>
 	);
