@@ -26,6 +26,13 @@ const PUBLIC_OVERVIEW_QUERY_TYPES = [
 	"country",
 ] as const;
 
+const PUBLIC_AUDIENCE_QUERY_TYPES = [
+	"timezone",
+	"language",
+	"browser_versions",
+	"screen_resolution",
+] as const;
+
 const PUBLIC_EVENTS_QUERY_TYPES = [
 	"custom_events",
 	"custom_events_summary",
@@ -65,6 +72,7 @@ describe("query builder publicAccess", () => {
 	it("marks public dashboard query families as public-readable", () => {
 		const publicTypes = [
 			...PUBLIC_OVERVIEW_QUERY_TYPES,
+			...PUBLIC_AUDIENCE_QUERY_TYPES,
 			...PUBLIC_EVENTS_QUERY_TYPES,
 			...PUBLIC_ERROR_QUERY_TYPES,
 			...PUBLIC_VITALS_QUERY_TYPES,
