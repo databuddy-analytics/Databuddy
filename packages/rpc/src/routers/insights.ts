@@ -508,14 +508,13 @@ export async function appendInvestigationReply(
 	if (!insight) {
 		throw rpcError.notFound("insight", parsed.insightId);
 	}
-	setAuditOrganization(context, insight.organizationId);
-
 	await withWorkspace(context, {
 		allowCrossOrg: true,
 		organizationId: insight.organizationId,
 		permissions: ["update"],
 		websiteId: insight.websiteId,
 	});
+	setAuditOrganization(context, insight.organizationId);
 
 	const author = replyAuthor(context, authorName);
 	const createdAt = new Date();
@@ -726,8 +725,6 @@ export async function applyInsightAction(input: {
 	if (!target) {
 		throw rpcError.notFound("insight", parsed.insightId);
 	}
-	setAuditOrganization(context, target.organizationId);
-
 	const [latestObservation] = await db
 		.select({
 			outcome: insightObservations.outcome,
@@ -763,6 +760,7 @@ export async function applyInsightAction(input: {
 		permissions: initialAction.operation === "delete" ? ["delete"] : ["update"],
 		websiteId: target.websiteId,
 	});
+	setAuditOrganization(context, target.organizationId);
 
 	const author = replyAuthor(context);
 	const completed = await db.transaction(async (tx) => {
@@ -1664,13 +1662,13 @@ export const insightsRouter = {
 			if (!reply) {
 				throw rpcError.notFound("insight reply", input.replyId);
 			}
-			setAuditOrganization(context, reply.organizationId);
 			await withWorkspace(context, {
 				allowCrossOrg: true,
 				organizationId: reply.organizationId,
 				permissions: ["update"],
 				websiteId: reply.websiteId,
 			});
+			setAuditOrganization(context, reply.organizationId);
 			const pendingStatus = await db.transaction(async (tx) => {
 				const insightCase = and(
 					eq(analyticsInsights.organizationId, reply.organizationId),
