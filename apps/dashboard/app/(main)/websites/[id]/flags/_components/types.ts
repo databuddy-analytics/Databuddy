@@ -27,6 +27,14 @@ export interface Flag {
 	websiteId?: string | null;
 }
 
+export interface FlagStats {
+	evaluatedUsers: number;
+	evaluationCount: number;
+	identifiedUsers: number;
+	key: string;
+	lastEvaluatedAt: Date | string | null;
+}
+
 export interface UserRule {
 	batch: boolean;
 	batchValues?: string[];

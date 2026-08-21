@@ -3,11 +3,14 @@ import type {
 	AuditActor,
 	AuditRequestContext,
 } from "@databuddy/shared/audit";
+import { getTrustedClientIp } from "@databuddy/shared/utils/trusted-client-ip";
 import {
+	appendAuditEvent,
 	appendAuditEventInTransaction,
 	type AuditDatabase,
 	type AppendAuditEventInput,
 } from "@databuddy/services/audit";
+import { log } from "evlog";
 import type { Context } from "../orpc";
 
 export function getAuditActor(context: Context): AuditActor {
@@ -34,9 +37,19 @@ export function getAuditActor(context: Context): AuditActor {
 
 export function getAuditRequestContext(context: Context): AuditRequestContext {
 	return {
-		requestId: context.headers.get("x-request-id") ?? undefined,
+		ip: getTrustedClientIp(context.headers),
+		requestId:
+			context.requestId ?? context.headers.get("x-request-id") ?? undefined,
 		userAgent: context.headers.get("user-agent") ?? undefined,
 	};
+}
+
+export function getAuditOrganizationId(context: Context): string | null {
+	return context.auditOrganizationId ?? context.organizationId;
+}
+
+export function setAuditOrganization(context: Context, organizationId: string) {
+	context.auditOrganizationId = organizationId;
 }
 
 export async function appendRpcAuditEvent<
@@ -53,4 +66,28 @@ export async function appendRpcAuditEvent<
 		request: getAuditRequestContext(context),
 		source: "orpc",
 	});
+}
+
+export async function appendRpcAuditEventBestEffort<
+	TAction extends AuditActionDefinition,
+>(
+	context: Context,
+	organizationId: string,
+	input: Omit<AppendAuditEventInput<TAction>, "actor" | "request" | "source">
+): Promise<void> {
+	try {
+		await appendAuditEvent(context.db, organizationId, {
+			...input,
+			actor: getAuditActor(context),
+			request: getAuditRequestContext(context),
+			source: "orpc",
+		});
+	} catch (error) {
+		log.error({
+			service: "rpc",
+			component: "audit",
+			audit_error: error,
+			operation: input.operation,
+		});
+	}
 }

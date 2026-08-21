@@ -1,6 +1,7 @@
 "use client";
 
 import { GATED_FEATURES } from "@databuddy/shared/types/features";
+import { FLAG_STATS_WINDOW_DAYS } from "@databuddy/shared/flags";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { useParams } from "next/navigation";
@@ -11,7 +12,7 @@ import { orpc } from "@/lib/orpc";
 import { isFlagSheetOpenAtom } from "@/stores/jotai/flagsAtoms";
 import { FlagSheet } from "./_components/flag-sheet";
 import { FlagsList, FlagsListSkeleton } from "./_components/flags-list";
-import type { Flag, TargetGroup } from "./_components/types";
+import type { Flag, FlagStats, TargetGroup } from "./_components/types";
 import { FlagIcon } from "@databuddy/ui/icons";
 import { EmptyState } from "@databuddy/ui";
 import { DeleteDialog } from "@databuddy/ui/client";
@@ -26,6 +27,16 @@ export default function FlagsPage() {
 
 	const { data: flags, isLoading: flagsLoading } = useQuery({
 		...orpc.flags.list.queryOptions({ input: { websiteId } }),
+	});
+	const {
+		data: flagStats,
+		isError: flagStatsError,
+		isLoading: flagStatsLoading,
+		refetch: refetchFlagStats,
+	} = useQuery({
+		...orpc.flags.stats.queryOptions({
+			input: { websiteId, days: FLAG_STATS_WINDOW_DAYS },
+		}),
 	});
 
 	const activeFlags = useMemo(
@@ -51,6 +62,14 @@ export default function FlagsPage() {
 		}
 		return map;
 	}, [activeFlags]);
+
+	const statsMap = useMemo(() => {
+		const map = new Map<string, FlagStats>();
+		for (const stat of flagStats ?? []) {
+			map.set(stat.key, stat);
+		}
+		return map;
+	}, [flagStats]);
 
 	const deleteFlagMutation = useMutation({
 		...orpc.flags.delete.mutationOptions(),
@@ -114,6 +133,10 @@ export default function FlagsPage() {
 							<FlagsList
 								flags={activeFlags as unknown as Flag[]}
 								groups={groupsMap}
+								stats={statsMap}
+								statsError={flagStatsError}
+								statsLoading={flagStatsLoading}
+								onRetryStats={refetchFlagStats}
 								onDelete={handleDeleteFlagRequest}
 								onEdit={handleEditFlag}
 							/>

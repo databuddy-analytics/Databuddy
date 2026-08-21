@@ -1,7 +1,8 @@
 "use client";
 
 import { useFlag } from "@databuddy/sdk/react";
-import { useQuery } from "@tanstack/react-query";
+import { FLAG_STATS_WINDOW_DAYS } from "@databuddy/shared/flags";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { useParams, usePathname } from "next/navigation";
 import { useCallback, useMemo } from "react";
@@ -35,6 +36,7 @@ export default function FlagsLayout({
 	const websiteId = id as string;
 	const pathname = usePathname();
 	const [isRefreshing, setIsRefreshing] = useAtom(isAnalyticsRefreshingAtom);
+	const queryClient = useQueryClient();
 	const [, setIsFlagSheetOpen] = useAtom(isFlagSheetOpenAtom);
 	const [, setIsGroupSheetOpen] = useAtom(isGroupSheetOpenAtom);
 
@@ -73,7 +75,14 @@ export default function FlagsLayout({
 			if (isGroupsPage) {
 				await refetchGroups();
 			} else if (!isTemplatesPage) {
-				await refetchFlags();
+				await Promise.all([
+					refetchFlags(),
+					queryClient.refetchQueries({
+						queryKey: orpc.flags.stats.key({
+							input: { websiteId, days: FLAG_STATS_WINDOW_DAYS },
+						}),
+					}),
+				]);
 			}
 		} catch {
 			// Error handled by refetch
@@ -85,6 +94,8 @@ export default function FlagsLayout({
 		refetchFlags,
 		refetchGroups,
 		setIsRefreshing,
+		queryClient,
+		websiteId,
 	]);
 
 	return (

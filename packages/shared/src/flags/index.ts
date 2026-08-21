@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export const FLAG_STATS_WINDOW_DAYS = 30;
+
 export const userRuleSchema = z.object({
 	type: z.enum(["user_id", "email", "property"]),
 	operator: z.enum([

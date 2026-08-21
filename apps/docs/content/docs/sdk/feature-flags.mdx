@@ -499,7 +499,11 @@ Direct rules and target group matches short-circuit evaluation as force on/off r
 
 ### Measure Flag Outcomes
 
-Treat flag metrics as two separate questions: who was exposed, and what changed afterward. The browser SDK emits `$flag_evaluated` for single-flag fetches when the tracker is available, but bulk-prefetched or cached reads may not emit a fresh exposure event. For experiments where exposure accounting must be complete, track one explicit exposure event when the meaningful flagged view appears.
+Treat flag metrics as two separate questions: who was evaluated, and what changed afterward. When the tracker is available, the browser SDK emits a deduplicated `$flag_evaluated` event when a flag is read through `useFlag`, `useFlags`, or the manager APIs. The Feature Flags dashboard uses those events to show observed visitors, identified visitors, evaluation count, and the last observed evaluation time.
+
+These dashboard numbers are directional estimates, not guaranteed complete or exact counts of people who used a feature. They only include browser evaluations that Databuddy observed, so blockers, consent or opt-out settings, event sampling, missing tracker coverage, server-side evaluations, and incomplete identity linkage can make the numbers lower than reality. The visitor count should be read as “observed visitors evaluated,” not “people who used the feature.” Passing `userId` to the flags provider and calling Databuddy `identify()` on the tracker lets those evaluations carry your profile ID.
+
+An evaluation is not proof that a feature was rendered or used, and server-side flag evaluations are not automatically sent as analytics events. For experiments where rendered exposure or product usage must be measured, track one explicit exposure event when the meaningful flagged view appears, then track the downstream outcome.
 
 <CodeBlock language="tsx">
   {`import { track } from "@databuddy/sdk";

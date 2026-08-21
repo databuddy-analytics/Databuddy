@@ -216,6 +216,64 @@ test.describe("BrowserFlagsManager", () => {
 	});
 
 	test.describe("isEnabled (synchronous)", () => {
+		test("tracks cached evaluations from the synchronous path", async ({ page }) => {
+			const tracked = await page.evaluate(async () => {
+				const events: Array<{
+					name: string;
+					properties?: Record<string, unknown>;
+				}> = [];
+				window.databuddy = {
+					track: (name, properties) => events.push({ name, properties }),
+				} as typeof window.databuddy;
+
+				const manager = new window.__SDK__.BrowserFlagsManager({
+					config: { clientId: "test-id", autoFetch: false },
+				});
+				await manager.fetchAllFlags();
+				manager.isEnabled("feature-on");
+				manager.destroy();
+				return events;
+			});
+
+			expect(tracked).toEqual([
+				{
+					name: "$flag_evaluated",
+					properties: {
+						flag: "feature-on",
+						value: true,
+						variant: undefined,
+						enabled: true,
+					},
+				},
+			]);
+		});
+
+		test("tracks a new evaluation after the user context changes", async ({
+			page,
+		}) => {
+			const trackedCount = await page.evaluate(async () => {
+				let count = 0;
+				window.databuddy = {
+					track: () => {
+						count += 1;
+					},
+				} as typeof window.databuddy;
+
+				const manager = new window.__SDK__.BrowserFlagsManager({
+					config: { clientId: "test-id", autoFetch: false },
+				});
+				await manager.fetchAllFlags();
+				manager.isEnabled("feature-on");
+				manager.updateUser({ userId: "user-1" });
+				await new Promise((resolve) => setTimeout(resolve, 50));
+				manager.isEnabled("feature-on");
+				manager.destroy();
+				return count;
+			});
+
+			expect(trackedCount).toBe(2);
+		});
+
 		test("returns loading state for uncached flag", async ({ page }) => {
 			const state = await page.evaluate(() => {
 				const manager = new window.__SDK__.BrowserFlagsManager({

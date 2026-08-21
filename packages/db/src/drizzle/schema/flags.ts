@@ -148,6 +148,39 @@ export const flags = pgTable(
 	]
 );
 
+export function buildFlagChangeSnapshot(
+	flag: Pick<
+		typeof flags.$inferSelect,
+		| "defaultValue"
+		| "dependencies"
+		| "description"
+		| "environment"
+		| "key"
+		| "name"
+		| "persistAcrossAuth"
+		| "rolloutBy"
+		| "rolloutPercentage"
+		| "status"
+		| "type"
+		| "variants"
+	>
+): FlagChangeSnapshot {
+	return {
+		key: flag.key,
+		name: flag.name ?? null,
+		description: flag.description ?? null,
+		type: flag.type,
+		status: flag.status,
+		defaultValue: flag.defaultValue,
+		persistAcrossAuth: flag.persistAcrossAuth,
+		rolloutPercentage: flag.rolloutPercentage ?? null,
+		rolloutBy: flag.rolloutBy ?? null,
+		environment: flag.environment ?? null,
+		dependencies: flag.dependencies ?? [],
+		variants: flag.variants ?? [],
+	};
+}
+
 export const flagChangeEvents = pgTable(
 	"flag_change_events",
 	{

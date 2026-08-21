@@ -58,6 +58,8 @@ function defineAction<
 export const auditActions = {
 	AUDIT_LOG_VIEWED: defineAction("audit_log.viewed", "audit_log"),
 	AUDIT_LOG_EVENT_VIEWED: defineAction("audit_log.event_viewed", "audit_log"),
+	RPC_MUTATION: defineAction("rpc.mutation", "organization"),
+	FLAG_CHANGED: defineAction("flag.changed", "flag"),
 	API_KEY_CREATED: defineAction("api_key.created", "api_key"),
 	API_KEY_UPDATED: defineAction("api_key.updated", "api_key"),
 	API_KEY_REVOKED: defineAction("api_key.revoked", "api_key"),

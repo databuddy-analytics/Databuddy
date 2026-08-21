@@ -7,14 +7,19 @@ import {
 	notDeleted,
 	withTransaction,
 } from "@databuddy/db";
+import { chQuery } from "@databuddy/db/clickhouse";
 import {
+	buildFlagChangeSnapshot,
 	flagChangeEvents,
+	type FlagUserRule,
+	type TargetGroups,
 	flags,
 	flagsToTargetGroups,
 } from "@databuddy/db/schema";
 import { createDrizzleCache, redis } from "@databuddy/redis";
 import {
 	flagFormShape,
+	FLAG_STATS_WINDOW_DAYS,
 	userRuleSchema,
 	variantSchema,
 } from "@databuddy/shared/flags";
@@ -104,6 +109,11 @@ const listFlagsSchema = z
 		status: z.enum(["active", "inactive", "archived"]).optional(),
 	})
 	.refine(requireScope, scopeRefinement);
+
+const flagStatsSchema = z.object({
+	websiteId: z.string(),
+	days: z.number().int().min(1).max(90).default(FLAG_STATS_WINDOW_DAYS),
+});
 
 const getFlagSchema = z
 	.object({ id: z.string(), ...flagScopeFields })
@@ -235,7 +245,7 @@ const checkCircularDependency = async (
 
 interface FlagRelation {
 	flagsToTargetGroups: Array<{
-		targetGroup: { deletedAt: Date | null; [key: string]: unknown } | null;
+		targetGroup: TargetGroups | null;
 	}>;
 }
 
@@ -247,45 +257,62 @@ function flattenTargetGroups<T extends FlagRelation>(flag: T) {
 	return { ...rest, targetGroups };
 }
 
-function buildFlagChangeSnapshot(flag: {
-	defaultValue: boolean;
-	dependencies?: string[] | null;
-	description?: string | null;
-	environment?: string | null;
-	key: string;
-	name?: string | null;
-	persistAcrossAuth: boolean;
-	rolloutBy?: string | null;
-	rolloutPercentage?: number | null;
-	status: "active" | "inactive" | "archived";
-	type: "boolean" | "rollout" | "multivariant";
-	variants?: Array<{
-		description?: string;
-		key: string;
-		type: "string" | "number" | "json";
-		value: unknown;
-		weight?: number;
-	}> | null;
-}) {
-	return {
-		key: flag.key,
-		name: flag.name ?? null,
-		description: flag.description ?? null,
-		type: flag.type,
-		status: flag.status,
-		defaultValue: flag.defaultValue,
-		persistAcrossAuth: flag.persistAcrossAuth,
-		rolloutPercentage: flag.rolloutPercentage ?? null,
-		rolloutBy: flag.rolloutBy ?? null,
-		environment: flag.environment ?? null,
-		dependencies: flag.dependencies ?? [],
-		variants: flag.variants ?? [],
-	};
-}
+const flagRuleOutputSchema = z.custom<FlagUserRule>(
+	(value) =>
+		Boolean(value && typeof value === "object" && !Array.isArray(value)),
+	"Expected a flag rule object"
+);
+const flagRulesOutputSchema = z.array(flagRuleOutputSchema);
+
+const flagTargetGroupOutputSchema = z.object({
+	color: z.string(),
+	createdAt: z.coerce.date(),
+	createdBy: z.string(),
+	deletedAt: z.coerce.date().nullable(),
+	description: z.string().nullable(),
+	id: z.string(),
+	name: z.string(),
+	rules: flagRulesOutputSchema,
+	updatedAt: z.coerce.date(),
+	websiteId: z.string(),
+});
+
+const flagOutputSchema = z.object({
+	createdAt: z.coerce.date(),
+	createdBy: z.string(),
+	defaultValue: z.boolean(),
+	deletedAt: z.coerce.date().nullable(),
+	dependencies: z.array(z.string()).nullable(),
+	description: z.string().nullable(),
+	environment: z.string().nullable(),
+	id: z.string(),
+	key: z.string(),
+	name: z.string().nullable(),
+	organizationId: z.string().nullable(),
+	payload: z.record(z.string(), z.unknown()).nullable(),
+	persistAcrossAuth: z.boolean(),
+	rules: flagRulesOutputSchema.nullable(),
+	rolloutBy: z.string().nullable(),
+	rolloutPercentage: z.number().nullable(),
+	status: z.enum(["active", "inactive", "archived"]),
+	targetGroupIds: z.array(z.string()).nullable(),
+	targetGroups: z.array(flagTargetGroupOutputSchema).optional(),
+	type: z.enum(["boolean", "rollout", "multivariant"]),
+	updatedAt: z.coerce.date(),
+	userId: z.string().nullable(),
+	variants: z.array(variantSchema).nullable(),
+	websiteId: z.string().nullable(),
+});
+
+const flagStatsOutputSchema = z.object({
+	evaluatedUsers: z.number(),
+	evaluationCount: z.number(),
+	identifiedUsers: z.number(),
+	key: z.string(),
+	lastEvaluatedAt: z.coerce.date().nullable(),
+});
 
 const successOutputSchema = z.object({ success: z.literal(true) });
-
-const flagOutputSchema = z.record(z.string(), z.unknown());
 
 export const flagsRouter = {
 	list: publicProcedure
@@ -340,6 +367,87 @@ export const flagsRouter = {
 					return flagsList.map(flattenTargetGroups);
 				},
 			});
+		}),
+
+	stats: publicProcedure
+		.route({
+			description:
+				"Returns recent feature flag evaluation stats for a website. Requires scope read permission.",
+			method: "POST",
+			path: "/flags/stats",
+			summary: "Get flag evaluation stats",
+			tags: ["Flags"],
+		})
+		.input(flagStatsSchema)
+		.output(z.array(flagStatsOutputSchema))
+		.handler(async ({ context, input }) => {
+			const workspace = await authorizeFlagRead(context, input);
+			requireAuthedFlagRead(workspace);
+			const scopedFlags = await context.db
+				.select({ key: flags.key })
+				.from(flags)
+				.where(
+					and(eq(flags.websiteId, input.websiteId), isNull(flags.deletedAt))
+				);
+			const flagKeys = [...new Set(scopedFlags.map((flag) => flag.key))];
+			if (flagKeys.length === 0) {
+				return [];
+			}
+
+			const startDate = new Date(
+				Date.now() - input.days * 24 * 60 * 60 * 1000
+			).toISOString();
+			const endDate = new Date().toISOString();
+			const rows = await chQuery<{
+				evaluated_users: number;
+				evaluation_count: number;
+				flag_key: string;
+				identified_users: number;
+				last_evaluated_at: string | null;
+			}>(
+				`WITH evaluations AS (
+					SELECT
+						JSONExtractString(properties, 'flag') AS flag_key,
+						timestamp,
+						profile_id,
+						ifNull(anonymous_id, '') AS anonymous_id,
+						if(empty(profile_id), ifNull(anonymous_id, ''), profile_id) AS visitor_id
+					FROM analytics.custom_events
+					PREWHERE event_name = '$flag_evaluated'
+					WHERE
+						(
+							owner_id = {websiteId:String}
+							OR (
+								website_id = {websiteId:String}
+								AND owner_id != {websiteId:String}
+							)
+						)
+						AND timestamp >= parseDateTimeBestEffort({startDate:String})
+						AND timestamp < parseDateTimeBestEffort({endDate:String})
+						AND JSONExtractString(properties, 'flag') IN {flagKeys:Array(String)}
+					)
+				SELECT
+					flag_key,
+					max(timestamp) AS last_evaluated_at,
+					count() AS evaluation_count,
+					uniqCombined64If(visitor_id, visitor_id != '') AS evaluated_users,
+					uniqCombined64If(profile_id, profile_id != '') AS identified_users
+				FROM evaluations
+				GROUP BY flag_key
+				ORDER BY last_evaluated_at DESC`,
+				{ endDate, flagKeys, startDate, websiteId: input.websiteId },
+				{ readonly: true }
+			);
+
+			return rows.map((row) => ({
+				evaluatedUsers: Number(row.evaluated_users),
+				evaluationCount: Number(row.evaluation_count),
+				identifiedUsers: Number(row.identified_users),
+				key: row.flag_key,
+				lastEvaluatedAt: row.last_evaluated_at
+					? new Date(row.last_evaluated_at)
+					: null,
+			}));
 		}),
 
 	getById: publicProcedure
