@@ -50,7 +50,11 @@ async function seedTargetGroup(websiteId: string, createdBy: string) {
 		});
 }
 
-async function seedFlag(websiteId: string, createdBy: string) {
+async function seedFlag(
+	websiteId: string,
+	createdBy: string,
+	userId?: string
+) {
 	await db()
 		.insert(flags)
 		.values({
@@ -63,6 +67,7 @@ async function seedFlag(websiteId: string, createdBy: string) {
 			status: "active",
 			rules: [{ field: "country", operator: "equals", value: "US" }],
 			createdBy,
+			userId,
 		});
 }
 
@@ -159,6 +164,18 @@ describe("cache-bypass auth: target-groups.list", () => {
 });
 
 describe("cache-bypass auth: flags.list", () => {
+	iit("preserves user-scoped flag identity in the response contract", async () => {
+		const { user, org, site } = await setupOwnedSite();
+		await seedFlag(site.id, user.id, user.id);
+
+		const result = await call(
+			appRouter.flags.list,
+			userContext(user, org.id)
+		)({ websiteId: site.id });
+
+		expect(result[0]).toMatchObject({ userId: user.id });
+	});
+
 	iit("anon caller cannot read flags after authed prime", async () => {
 		const { user, org, site } = await setupOwnedSite();
 		await seedFlag(site.id, user.id);

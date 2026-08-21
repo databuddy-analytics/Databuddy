@@ -93,6 +93,8 @@ export abstract class BaseFlagsManager implements FlagsManager {
 
 	protected onCacheUpdated(): void {}
 
+	protected onContextCleared(): void {}
+
 	protected onFlagEvaluated(_key: string, _result: FlagResult): void {}
 
 	protected async runInit(): Promise<void> {
@@ -481,6 +483,7 @@ export abstract class BaseFlagsManager implements FlagsManager {
 			if (isStale(entry) && !this.shouldSkipFetch()) {
 				this.revalidate(key, cacheKey, this.config.user);
 			}
+			this.onFlagEvaluated(key, entry.result);
 			return {
 				on: entry.result.enabled,
 				status: entry.result.reason === "ERROR" ? "error" : "ready",
@@ -516,6 +519,7 @@ export abstract class BaseFlagsManager implements FlagsManager {
 			if (isStale(entry) && !this.shouldSkipFetch()) {
 				this.revalidate(key, cacheKey, this.config.user);
 			}
+			this.onFlagEvaluated(key, entry.result);
 			return entry.result.value as T;
 		}
 
@@ -728,6 +732,7 @@ export abstract class BaseFlagsManager implements FlagsManager {
 		this.cache.clear();
 		this.storage?.clear();
 		this.lastError = null;
+		this.onContextCleared();
 	}
 
 	private requestGenerationIsCurrent(generation: number): boolean {
@@ -838,6 +843,10 @@ export class BrowserFlagsManager extends BaseFlagsManager {
 
 	protected override onCacheUpdated(): void {
 		this.persist();
+	}
+
+	protected override onContextCleared(): void {
+		this.trackedFlags.clear();
 	}
 
 	protected override onFlagEvaluated(key: string, result: FlagResult): void {

@@ -28,11 +28,17 @@ export const rpcHandler = new RPCHandler(appRouter, {
 
 export function createAuthenticatedOrpcContext(request: Request) {
 	const preResolvedAuth = getPreResolvedAuth(request.headers);
-	return createRPCContext({ headers: request.headers }, preResolvedAuth);
+	return createRPCContext(
+		{ headers: request.headers, requestId: getRequestId(request) },
+		preResolvedAuth
+	);
 }
 
 export function createAnonymousOrpcContext(request: Request) {
-	return createRPCContext({ headers: request.headers }, ANONYMOUS_AUTH);
+	return createRPCContext(
+		{ headers: request.headers, requestId: getRequestId(request) },
+		ANONYMOUS_AUTH
+	);
 }
 
 export function handleAuthenticatedOrpcRequest(

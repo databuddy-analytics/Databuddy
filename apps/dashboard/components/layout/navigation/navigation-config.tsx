@@ -31,6 +31,7 @@ import {
 	ReceiptIcon,
 	RobotIcon,
 	SignalIcon,
+	ShieldCheckIcon,
 	TargetIcon,
 	UserIcon,
 	UserSettingsIcon,
@@ -136,8 +137,6 @@ export const websiteNavigation: NavigationGroup[] = [
 			createNavItem("Dashboard", ChartPieSliceIcon, "", { rootLevel: false }),
 			createNavItem("Realtime", SignalIcon, "/realtime", {
 				rootLevel: false,
-				flag: "realtime",
-				alpha: true,
 				hideFromDemo: true,
 			}),
 			createNavItem("Audience", UsersThreeIcon, "/audience", {
@@ -314,6 +313,11 @@ export const settingsNavigation: NavigationGroup[] = [
 				{ flag: "integrations" }
 			),
 			createNavItem("Members", UserIcon, "/organizations/members"),
+			createNavItem(
+				"Audit Log",
+				ShieldCheckIcon,
+				"/organizations/settings/audit"
+			),
 			createNavItem("Billing", CreditCardIcon, "/billing"),
 			createNavItem("Plans", CurrencyDollarIcon, "/billing/plans"),
 			createNavItem("Invoices", ReceiptIcon, "/billing/history"),

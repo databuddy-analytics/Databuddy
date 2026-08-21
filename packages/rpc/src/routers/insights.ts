@@ -44,7 +44,13 @@ import { rpcError } from "../errors";
 import { invalidateGoalsCache } from "../lib/goals-cache";
 import { invalidateFunnelsCache } from "../lib/funnels-cache";
 import { logger } from "../lib/logger";
-import { type Context, protectedProcedure, sessionProcedure } from "../orpc";
+import { setAuditOrganization } from "../lib/audit";
+import {
+	auditedProcedure,
+	auditedSessionProcedure,
+	type Context,
+	protectedProcedure,
+} from "../orpc";
 import { withWorkspace } from "../procedures/with-workspace";
 
 const INSIGHT_TIMELINE_ROWS_PER_KIND = 50;
@@ -502,6 +508,7 @@ export async function appendInvestigationReply(
 	if (!insight) {
 		throw rpcError.notFound("insight", parsed.insightId);
 	}
+	setAuditOrganization(context, insight.organizationId);
 
 	await withWorkspace(context, {
 		allowCrossOrg: true,
@@ -719,6 +726,7 @@ export async function applyInsightAction(input: {
 	if (!target) {
 		throw rpcError.notFound("insight", parsed.insightId);
 	}
+	setAuditOrganization(context, target.organizationId);
 
 	const [latestObservation] = await db
 		.select({
@@ -1576,7 +1584,7 @@ export const insightsRouter = {
 			};
 		}),
 
-	reply: protectedProcedure
+	reply: auditedProcedure
 		.route({
 			method: "POST",
 			path: "/insights/reply",
@@ -1594,7 +1602,7 @@ export const insightsRouter = {
 			return { reply };
 		}),
 
-	applyAction: protectedProcedure
+	applyAction: auditedProcedure
 		.route({
 			method: "POST",
 			path: "/insights/actions/apply",
@@ -1608,7 +1616,7 @@ export const insightsRouter = {
 		),
 
 	// Keep the old route for clients that have not migrated to applyAction yet.
-	applyGoalAction: protectedProcedure
+	applyGoalAction: auditedProcedure
 		.route({
 			method: "POST",
 			path: "/insights/actions/goal/apply",
@@ -1621,7 +1629,7 @@ export const insightsRouter = {
 			applyInsightAction({ context, ...input })
 		),
 
-	retryReply: sessionProcedure
+	retryReply: auditedSessionProcedure
 		.route({
 			method: "POST",
 			path: "/insights/reply/retry",
@@ -1656,6 +1664,7 @@ export const insightsRouter = {
 			if (!reply) {
 				throw rpcError.notFound("insight reply", input.replyId);
 			}
+			setAuditOrganization(context, reply.organizationId);
 			await withWorkspace(context, {
 				allowCrossOrg: true,
 				organizationId: reply.organizationId,

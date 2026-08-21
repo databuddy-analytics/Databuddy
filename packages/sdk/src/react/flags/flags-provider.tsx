@@ -110,21 +110,10 @@ export function FlagsProvider({ children, ...config }: FlagsProviderProps) {
 				);
 			},
 
-			isOn: (key: string): boolean => {
-				const result = store.flags[key];
-				if (result) {
-					return result.enabled;
-				}
-				return manager.isEnabled(key).on;
-			},
+			isOn: (key: string): boolean => manager.isEnabled(key).on,
 
-			getValue: <T,>(key: string, defaultValue?: T): T => {
-				const result = store.flags[key];
-				if (result) {
-					return result.value as T;
-				}
-				return manager.getValue(key, defaultValue);
-			},
+			getValue: <T,>(key: string, defaultValue?: T): T =>
+				manager.getValue(key, defaultValue),
 
 			fetchFlag: (key: string) => manager.getFlag(key),
 			fetchAllFlags: () => manager.fetchAllFlags(),

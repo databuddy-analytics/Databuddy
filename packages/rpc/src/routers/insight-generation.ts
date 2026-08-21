@@ -34,8 +34,9 @@ import { ORPCError } from "@orpc/server";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
+import { setAuditOrganization } from "../lib/audit";
 import { logger } from "../lib/logger";
-import { type Context, protectedProcedure } from "../orpc";
+import { auditedProcedure, type Context, protectedProcedure } from "../orpc";
 import { withWorkspace } from "../procedures/with-workspace";
 import {
 	getNextInsightRunAt,
@@ -382,6 +383,7 @@ async function resolveOrganization(
 	if (!organizationId) {
 		throw rpcError.badRequest("Organization ID is required");
 	}
+	setAuditOrganization(context, organizationId);
 	await withWorkspace(context, {
 		organizationId,
 		resource: "organization",
@@ -1176,7 +1178,7 @@ export const insightGenerationRouter = {
 			return getConfig(organizationId);
 		}),
 
-	upsertConfig: protectedProcedure
+	upsertConfig: auditedProcedure
 		.route({
 			method: "POST",
 			path: "/insights/generation/upsertConfig",
@@ -1196,7 +1198,7 @@ export const insightGenerationRouter = {
 			);
 		}),
 
-	addSlackDelivery: protectedProcedure
+	addSlackDelivery: auditedProcedure
 		.route({
 			method: "POST",
 			path: "/insights/generation/addSlackDelivery",
@@ -1268,7 +1270,7 @@ export const insightGenerationRouter = {
 			});
 		}),
 
-	removeSlackDelivery: protectedProcedure
+	removeSlackDelivery: auditedProcedure
 		.route({
 			method: "POST",
 			path: "/insights/generation/removeSlackDelivery",
@@ -1299,7 +1301,7 @@ export const insightGenerationRouter = {
 			}));
 		}),
 
-	triggerRun: protectedProcedure
+	triggerRun: auditedProcedure
 		.route({
 			method: "POST",
 			path: "/insights/generation/triggerRun",

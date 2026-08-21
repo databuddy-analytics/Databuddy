@@ -3,6 +3,7 @@ import { alarmsRouter } from "./routers/alarms";
 import { annotationsRouter } from "./routers/annotations";
 import { anomaliesRouter } from "./routers/anomalies";
 import { apikeysRouter } from "./routers/apikeys";
+import { auditRouter } from "./routers/audit";
 import { autocompleteRouter } from "./routers/autocomplete";
 import { billingRouter } from "./routers/billing";
 import { feedbackRouter } from "./routers/feedback";
@@ -28,6 +29,7 @@ export const appRouter = {
 	alarms: alarmsRouter,
 	anomalies: anomaliesRouter,
 	annotations: annotationsRouter,
+	audit: auditRouter,
 	websites: websitesRouter,
 	funnels: funnelsRouter,
 	goals: goalsRouter,

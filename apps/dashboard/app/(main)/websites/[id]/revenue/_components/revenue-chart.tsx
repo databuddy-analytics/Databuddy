@@ -22,6 +22,7 @@ import {
 	toggleRevenueMetricAtom,
 } from "@/stores/jotai/chartAtoms";
 import { ChartLineIcon } from "@databuddy/ui/icons";
+import { EmptyState, dayjs } from "@databuddy/ui";
 
 const {
 	Area,
@@ -119,8 +120,8 @@ export function RevenueChart({
 
 	if (isLoading) {
 		return (
-			<div className={cn("w-full overflow-x-auto", className)}>
-				<SkeletonChart className="w-full" height={height} />
+			<div className="w-full overflow-x-auto">
+				<SkeletonChart className={cn("w-full", className)} height={height} />
 			</div>
 		);
 	}
@@ -128,19 +129,12 @@ export function RevenueChart({
 	if (!hasData) {
 		return (
 			<div className={cn(chartSurfaceClassName, className)}>
-				<div className="flex items-center justify-center p-8">
-					<div className="flex flex-col items-center py-12 text-center">
-						<div className="relative flex size-12 items-center justify-center rounded bg-accent">
-							<ChartLineIcon className="size-6" />
-						</div>
-						<p className="mt-6 font-medium text-foreground text-lg">
-							No data available
-						</p>
-						<p className="mx-auto max-w-sm text-muted-foreground text-sm">
-							Revenue data will appear here once transactions are processed
-						</p>
-					</div>
-				</div>
+				<EmptyState
+					className="min-h-[300px] p-8"
+					description="Revenue trend data will appear here once transactions are processed."
+					icon={<ChartLineIcon />}
+					title="No trend data"
+				/>
 			</div>
 		);
 	}
@@ -191,7 +185,9 @@ export function RevenueChart({
 						<XAxis
 							axisLine={false}
 							dataKey="date"
+							minTickGap={24}
 							tick={chartAxisTickDefault}
+							tickFormatter={(value) => dayjs(String(value)).format("MMM D")}
 							tickLine={false}
 						/>
 						<YAxis
@@ -237,7 +233,11 @@ export function RevenueChart({
 								}
 							}}
 							verticalAlign="bottom"
-							wrapperStyle={chartRechartsLegendInteractiveWrapperStyle}
+							wrapperStyle={{
+								...chartRechartsLegendInteractiveWrapperStyle,
+								flexWrap: "wrap",
+								rowGap: 8,
+							}}
 						/>
 						{metrics.map((metric) => (
 							<Area

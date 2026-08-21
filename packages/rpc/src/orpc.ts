@@ -13,6 +13,7 @@ import {
 	setRpcProcedureType,
 } from "./lib/rpc-log-context";
 import { runTracked } from "./middleware/track-mutation";
+import { runAuditedMutation } from "./middleware/audit-mutation";
 import { type BillingOwner, getBillingOwner } from "./utils/billing";
 import { getOrganizationOwnerId } from "./utils/organization";
 
@@ -73,7 +74,7 @@ export function createServiceAuth(
 }
 
 export const createRPCContext = async (
-	opts: { headers: Headers },
+	opts: { headers: Headers; requestId?: string },
 	preResolved?: PreResolvedAuth
 ) => {
 	const [session, apiKey] = preResolved
@@ -116,6 +117,7 @@ export const createRPCContext = async (
 	return {
 		db,
 		auth,
+		auditOrganizationId: undefined as string | undefined,
 		session: session?.session,
 		user,
 		apiKey: apiKey ?? undefined,
@@ -169,11 +171,29 @@ export const sessionProcedure = protectedProcedure.use(
 );
 
 export const trackedProcedure = protectedProcedure.use(
-	({ context, next, path }) => runTracked(path.join("."), context, next)
+	({ context, next, path }) => {
+		const procedurePath = path.join(".");
+		return runTracked(procedurePath, context, () =>
+			runAuditedMutation(procedurePath, context, next)
+		);
+	}
 );
 
 export const trackedSessionProcedure = sessionProcedure.use(
-	({ context, next, path }) => runTracked(path.join("."), context, next)
+	({ context, next, path }) => {
+		const procedurePath = path.join(".");
+		return runTracked(procedurePath, context, () =>
+			runAuditedMutation(procedurePath, context, next)
+		);
+	}
+);
+
+export const auditedProcedure = protectedProcedure.use(
+	({ context, next, path }) => runAuditedMutation(path.join("."), context, next)
+);
+
+export const auditedSessionProcedure = sessionProcedure.use(
+	({ context, next, path }) => runAuditedMutation(path.join("."), context, next)
 );
 
 export { os };

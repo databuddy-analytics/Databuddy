@@ -111,13 +111,14 @@ export function appendAuditEventInTransaction<
 export async function replayAuditOutbox(
 	database: AuditDatabase,
 	limit = 100
-): Promise<number> {
+): Promise<{ failed: number; replayed: number }> {
 	const rows = await database
 		.select()
 		.from(auditOutboxEvents)
 		.orderBy(asc(auditOutboxEvents.createdAt))
 		.limit(Math.min(Math.max(limit, 1), 100));
 	let replayed = 0;
+	let failed = 0;
 	for (const row of rows) {
 		try {
 			await database
@@ -130,9 +131,10 @@ export async function replayAuditOutbox(
 			replayed += 1;
 		} catch {
 			// Leave the durable entry for the next bounded replay attempt.
+			failed += 1;
 		}
 	}
-	return replayed;
+	return { failed, replayed };
 }
 
 export async function appendAuditEvent<TAction extends AuditActionDefinition>(
@@ -174,8 +176,6 @@ export async function appendAuditEvent<TAction extends AuditActionDefinition>(
 		reason: input.reason,
 		target: { id: input.target.id },
 	});
-
-	replayAuditOutbox(database).catch(() => undefined);
 
 	return event;
 }
@@ -228,6 +228,8 @@ export interface ListAuditEventsInput {
 	targetId?: string;
 }
 
+export const MAX_AUDIT_PAGE_SIZE = 100;
+
 export async function listAuditEvents(
 	database: AuditDatabase,
 	input: ListAuditEventsInput
@@ -259,12 +261,13 @@ export async function listAuditEvents(
 		}
 	}
 
+	const limit = Math.min(Math.max(input.limit, 1), MAX_AUDIT_PAGE_SIZE);
 	return await database
 		.select()
 		.from(auditEvents)
 		.where(and(...conditions))
 		.orderBy(desc(auditEvents.createdAt), desc(auditEvents.id))
-		.limit(input.limit + 1);
+		.limit(limit + 1);
 }
 
 export async function getAuditEvent(

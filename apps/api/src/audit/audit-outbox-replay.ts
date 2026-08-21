@@ -21,7 +21,16 @@ export function startAuditOutboxReplayLoop(): AuditOutboxReplayLoop {
 			return active;
 		}
 		active = replayAuditOutbox(db)
-			.then(() => undefined)
+			.then(({ failed, replayed }) => {
+				if (replayed > 0 || failed > 0) {
+					log.info({
+						service: "api",
+						component: "audit_outbox_replay",
+						replayed,
+						failed,
+					});
+				}
+			})
 			.catch((error) => {
 				log.error({
 					service: "api",

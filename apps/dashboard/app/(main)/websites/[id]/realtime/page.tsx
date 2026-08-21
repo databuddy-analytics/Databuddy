@@ -7,6 +7,28 @@ import { useDynamicQuery } from "@/hooks/use-dynamic-query";
 import { Skeleton } from "@databuddy/ui";
 import { GeistPixelSquare } from "geist/font/pixel";
 
+interface RealtimeCountry {
+	country_code: string;
+	country_name?: string;
+	visitors: number;
+}
+
+interface RealtimeStats {
+	active_users: number;
+}
+
+interface RealtimeVelocity {
+	events: number;
+	minute: string;
+	pageviews: number;
+}
+
+interface RealtimeData extends Record<string, unknown[] | undefined> {
+	active_stats?: RealtimeStats[];
+	realtime_countries?: RealtimeCountry[];
+	realtime_velocity?: RealtimeVelocity[];
+}
+
 const RealtimeMap = dynamic(
 	() =>
 		import("./_components/realtime-map").then((mod) => ({
@@ -35,7 +57,7 @@ export default function RealtimePage() {
 		};
 	}, []);
 
-	const { data } = useDynamicQuery(
+	const { data } = useDynamicQuery<RealtimeData>(
 		websiteId,
 		dateRange,
 		{
@@ -45,23 +67,14 @@ export default function RealtimePage() {
 		{ refetchInterval: 5000, staleTime: 0, gcTime: 10_000 }
 	);
 
-	const countries = ((data as any)?.realtime_countries || []) as Array<{
-		country_code: string;
-		country_name: string;
-		visitors: number;
-	}>;
+	const countries = data?.realtime_countries ?? [];
 
-	const stats = (data as any)?.active_stats?.[0];
-	const activeUsers: number = stats?.active_users || 0;
+	const activeUsers = data?.active_stats?.[0]?.active_users ?? 0;
 
-	const velocity = ((data as any)?.realtime_velocity || []) as Array<{
-		minute: string;
-		pageviews: number;
-		events: number;
-	}>;
+	const velocity = data?.realtime_velocity ?? [];
 	const lastMinute = velocity.length > 0 ? velocity.at(-1) : null;
-	const viewsPerMin = lastMinute?.pageviews || 0;
-	const eventsPerMin = lastMinute?.events || 0;
+	const viewsPerMin = lastMinute?.pageviews ?? 0;
+	const eventsPerMin = lastMinute?.events ?? 0;
 
 	return (
 		<div className={`${GeistPixelSquare.className} flex h-full flex-col`}>
