@@ -1,7 +1,6 @@
 import {
-	getAccessibleWebsiteIds,
 	getApiKeyFromHeader,
-	hasWebsiteScope,
+	hasWebsiteScopeForOrganization,
 	isApiKeyPresent,
 	type ApiKeyRow,
 } from "@databuddy/api-keys/resolve";
@@ -173,7 +172,7 @@ async function deriveWithApiKey(request: Request) {
 		return { user: null, session: null, website: site, timezone } as const;
 	}
 
-	const canRead = await hasWebsiteScope(key, siteId, "read:data");
+	const canRead = hasWebsiteScopeForOrganization(key, site, "read:data");
 	if (!canRead) {
 		if (isKnownWebsiteForKey(key, site)) {
 			throw jsonError(403, "Insufficient permissions", "FORBIDDEN");
@@ -185,11 +184,7 @@ async function deriveWithApiKey(request: Request) {
 }
 
 function isKnownWebsiteForKey(key: ApiKeyRow, site: Website): boolean {
-	return (
-		(key.organizationId != null &&
-			key.organizationId === site.organizationId) ||
-		getAccessibleWebsiteIds(key).includes(site.id)
-	);
+	return key.organizationId === site.organizationId;
 }
 
 async function deriveWithSession(request: Request) {

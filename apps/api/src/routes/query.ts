@@ -5,6 +5,7 @@ import {
 	getApiKeyFromHeader,
 	hasGlobalAccess,
 	hasKeyScope,
+	hasWebsiteScopeForOrganization,
 	isApiKeyPresent,
 } from "@databuddy/api-keys/resolve";
 import { and, db, eq, inArray } from "@databuddy/db";
@@ -552,21 +553,17 @@ async function verifyWebsiteAccess(
 	}
 
 	if (ctx.apiKey) {
-		if (hasGlobalAccess(ctx.apiKey)) {
-			if (!ctx.apiKey.organizationId) {
-				mergeWideEvent({ access_result: "api_key_no_org" });
-				return false;
-			}
-			const granted = website.organizationId === ctx.apiKey.organizationId;
-			mergeWideEvent({
-				access_result: granted ? "api_key_global" : "api_key_denied",
-			});
-			return granted;
-		}
-
-		const granted = getAccessibleWebsiteIds(ctx.apiKey).includes(websiteId);
+		const granted = hasWebsiteScopeForOrganization(
+			ctx.apiKey,
+			website,
+			"read:data"
+		);
 		mergeWideEvent({
-			access_result: granted ? "api_key_scoped" : "api_key_denied",
+			access_result: granted
+				? hasGlobalAccess(ctx.apiKey)
+					? "api_key_global"
+					: "api_key_scoped"
+				: "api_key_denied",
 		});
 		return granted;
 	}

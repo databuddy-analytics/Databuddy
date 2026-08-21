@@ -266,6 +266,23 @@ export function hasWebsiteScope(
 	return hasKeyScope(key, required, `website:${websiteId}`);
 }
 
+/**
+ * Checks a website scope only after binding the website to the key's workspace.
+ * Resource metadata is user input, so its `website:<id>` key is not proof of
+ * ownership by itself.
+ */
+export function hasWebsiteScopeForOrganization(
+	key: ApiKeyRow | null,
+	website: { id: string; organizationId: string | null },
+	required: string
+): boolean {
+	return Boolean(
+		key?.organizationId &&
+			key.organizationId === website.organizationId &&
+			hasWebsiteScope(key, website.id, required)
+	);
+}
+
 export function hasWebsiteAnyScope(
 	key: ApiKeyRow | null,
 	websiteId: string,
