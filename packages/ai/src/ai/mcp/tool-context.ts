@@ -5,7 +5,7 @@ import {
 import {
 	type ApiKeyRow,
 	hasKeyScope,
-	hasWebsiteScope,
+	hasWebsiteScopeForOrganization,
 } from "@databuddy/api-keys/resolve";
 import { websitesApi } from "@databuddy/auth";
 import { getRedisCache } from "@databuddy/redis";
@@ -14,7 +14,7 @@ import { getCachedWebsite, validateWebsite } from "../../lib/website-utils";
 
 const PROTOCOL_RE = /^https?:\/\//;
 const ACCESSIBLE_WEBSITES_TTL_SEC = 30;
-const ACCESSIBLE_WEBSITES_KEY_PREFIX = "mcp:accessible_websites:";
+const ACCESSIBLE_WEBSITES_KEY_PREFIX = "mcp:accessible_websites:v2:";
 
 export interface WebsiteSelectorInput {
 	websiteDomain?: string;
@@ -40,10 +40,11 @@ export async function ensureWebsiteAccess(
 	const { website } = validation;
 
 	if (apiKey) {
-		const hasWebsiteAccess =
-			hasWebsiteScope(apiKey, websiteId, "read:data") ||
-			(hasKeyScope(apiKey, "read:data") &&
-				apiKey.organizationId === website.organizationId);
+		const hasWebsiteAccess = hasWebsiteScopeForOrganization(
+			apiKey,
+			website,
+			"read:data"
+		);
 		if (!hasWebsiteAccess) {
 			return new Error("Access denied to this website");
 		}
@@ -77,7 +78,7 @@ function accessibleWebsitesCacheKey(
 	const organizationId =
 		principal.organizationId ?? principal.apiKey?.organizationId;
 	if (principal.apiKey) {
-		return `apikey:${(principal.apiKey as { id: string }).id}:org:${organizationId ?? "none"}`;
+		return `apikey:${principal.apiKey.id}:org:${organizationId ?? "none"}`;
 	}
 	if (principal.userId && organizationId) {
 		return `user:${principal.userId}:org:${organizationId}`;

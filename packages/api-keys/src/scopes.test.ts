@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { requiredScopesForResource } from "./scopes";
+import {
+	apiKeyScopeTargetForResource,
+	requiredScopesForResource,
+} from "./scopes";
 
 describe("requiredScopesForResource", () => {
 	test("website read requires read:data", () => {
@@ -54,6 +57,11 @@ describe("flag resource scopes", () => {
 });
 
 describe("link resource scopes", () => {
+	test("uses global API-key scopes", () => {
+		expect(apiKeyScopeTargetForResource("link")).toBe("global");
+		expect(apiKeyScopeTargetForResource("website")).toBe("website");
+	});
+
 	test("read requires read:links", () => {
 		expect(requiredScopesForResource("link", ["read"])).toEqual([
 			"read:links",

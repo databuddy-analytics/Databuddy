@@ -12,7 +12,7 @@ import {
 	registerShutdownHooks,
 	warmPostgresConnection,
 } from "@/bootstrap/shutdown";
-import { isAllowedApiOrigin } from "@/http/cors";
+import { isAllowedApiOrigin, rejectInvalidMcpOrigin } from "@/http/cors";
 import { handleAppError } from "@/http/errors";
 import { getRequestId } from "@/http/request-id";
 import { AUTUMN_API_PREFIX } from "@/lib/autumn-mount";
@@ -106,6 +106,7 @@ const app = new Elysia({ precompile: true })
 		})
 	)
 	.onBeforeHandle(({ request }) => enrichRequestAuthWideEvent(request))
+	.onRequest(({ request }) => rejectInvalidMcpOrigin(request))
 	.use(
 		cors({
 			credentials: true,
