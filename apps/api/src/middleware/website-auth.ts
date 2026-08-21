@@ -1,6 +1,6 @@
 import {
 	getApiKeyFromHeader,
-	hasWebsiteScope,
+	hasWebsiteScopeForOrganization,
 	isApiKeyPresent,
 } from "@databuddy/api-keys/resolve";
 import { auth } from "@databuddy/auth";
@@ -125,7 +125,7 @@ function isPreflight(request: Request): boolean {
 }
 
 async function checkWebsiteAuth(
-	websiteId: string,
+	_websiteId: string,
 	sessionUser: SessionUser | null,
 	website: Awaited<ReturnType<typeof getCachedWebsite>> | null,
 	apiKey: Awaited<ReturnType<typeof getApiKeyFromHeader>> | null,
@@ -183,7 +183,7 @@ async function checkWebsiteAuth(
 			code: "AUTH_REQUIRED",
 		});
 	}
-	const ok = await hasWebsiteScope(apiKey, websiteId, "read:data");
+	const ok = hasWebsiteScopeForOrganization(apiKey, website, "read:data");
 	if (!ok) {
 		return json(403, {
 			success: false,

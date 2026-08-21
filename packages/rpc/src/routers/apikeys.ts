@@ -6,8 +6,8 @@ import {
 	withApiKeyCacheInvalidation,
 } from "@databuddy/api-keys/resolve";
 import { API_SCOPES } from "@databuddy/api-keys/scopes";
-import { desc, eq } from "@databuddy/db";
-import { apikey } from "@databuddy/db/schema";
+import { and, desc, eq, inArray, isNull } from "@databuddy/db";
+import { apikey, websites } from "@databuddy/db/schema";
 import { auditActions } from "@databuddy/shared/audit";
 import {
 	ApiKeyErrorCode,
@@ -52,6 +52,45 @@ function assertMetadataSize(meta: Record<string, unknown>) {
 	if (bytes > MAX_METADATA_BYTES) {
 		throw rpcError.badRequest(
 			`Metadata too large: ${bytes} bytes exceeds limit of ${MAX_METADATA_BYTES}`
+		);
+	}
+}
+
+async function assertResourceOwnership(
+	ctx: Context,
+	organizationId: string,
+	resources: Record<string, string[]> | undefined
+) {
+	const websiteIds = Object.keys(resources ?? {}).flatMap((resource) => {
+		if (!resource.startsWith("website:")) {
+			return [];
+		}
+		const websiteId = resource.slice("website:".length);
+		if (!websiteId) {
+			throw rpcError.badRequest(
+				"API key website resource scopes require a website ID"
+			);
+		}
+		return [websiteId];
+	});
+
+	if (websiteIds.length === 0) {
+		return;
+	}
+
+	const ownedWebsites = await ctx.db
+		.select({ id: websites.id })
+		.from(websites)
+		.where(
+			and(
+				eq(websites.organizationId, organizationId),
+				inArray(websites.id, websiteIds),
+				isNull(websites.deletedAt)
+			)
+		);
+	if (ownedWebsites.length !== websiteIds.length) {
+		throw rpcError.badRequest(
+			"API key website resources must belong to the selected organization"
 		);
 	}
 }
@@ -305,6 +344,11 @@ export const apikeysRouter = {
 					"Change API key scopes"
 				);
 			}
+			await assertResourceOwnership(
+				context,
+				input.organizationId,
+				input.resources
+			);
 
 			const nextMetadata = {
 				resources: input.resources,
@@ -414,6 +458,13 @@ export const apikeysRouter = {
 					context,
 					key.organizationId,
 					"Change API key scopes"
+				);
+			}
+			if (input.resources !== undefined && input.resources !== null) {
+				await assertResourceOwnership(
+					context,
+					key.organizationId,
+					input.resources
 				);
 			}
 
@@ -573,6 +624,7 @@ export const apikeysRouter = {
 				throw rpcError.internal("Organization key required for rotate");
 			}
 			await assertOrgAdmin(context, ownerId, "Rotate API keys");
+			await assertResourceOwnership(context, ownerId, meta.resources);
 
 			const { key: secret, record } = await keys.create({
 				ownerId,
