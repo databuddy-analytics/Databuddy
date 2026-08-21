@@ -77,6 +77,7 @@ Keep additions **minimal**: one bullet, a new `rg` hint, or a routing note—eno
 - `packages/sdk`: published analytics SDK for React, Vue, and Node
 - `packages/tracker`: internal tracker script build and release package
 - `packages/encryption`, `packages/notifications`, `packages/cache`, `packages/redis`, `packages/services`, `packages/validation`, `packages/api-keys`: shared infra and domain packages
+- Knip is configured in root `knip.json` (run `bun run knip`); per-workspace test globs are required because the root `test:watch` (`bun test --watch ./apps`) script shadows the Bun plugin's per-workspace script parsing; `apps/cron` is ignored (standalone scripts, no package.json)
 
 Read [codebase-map.md](./references/codebase-map.md) when you need deeper routing guidance.
 
