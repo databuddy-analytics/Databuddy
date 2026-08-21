@@ -111,6 +111,16 @@ export interface McpQueryResult {
 }
 
 const AGENT_RESULT_ROW_LIMIT = 20;
+const DateOnlySchema = z.iso.date();
+
+function timezoneError(timezone: string): string | null {
+	try {
+		Intl.DateTimeFormat("en-US", { timeZone: timezone });
+		return null;
+	} catch {
+		return `Invalid timezone: ${timezone}. Use an IANA timezone such as UTC.`;
+	}
+}
 
 function querySummary(input: {
 	filters?: Filter[];
@@ -141,6 +151,7 @@ export function buildBatchQueryRequests(
 ): McpBatchQueryPlan {
 	const requests: IndexedQueryRequest[] = [];
 	const invalid: InvalidBatchQuery[] = [];
+	const invalidTimezone = timezoneError(timezone);
 	for (const [inputIndex, q] of items.entries()) {
 		const resolvedType = resolveQueryType(q.type);
 		let from = q.from;
@@ -172,14 +183,28 @@ export function buildBatchQueryRequests(
 			reject(message, q.type);
 			continue;
 		}
-		if (!q.preset && Boolean(from) !== Boolean(to)) {
+		if (invalidTimezone) {
+			reject(invalidTimezone);
+			continue;
+		}
+		const hasFrom = q.from !== undefined;
+		const hasTo = q.to !== undefined;
+		if (q.preset && (hasFrom || hasTo)) {
+			reject("Use either a preset or explicit dates, not both.");
+			continue;
+		}
+		if (!q.preset && hasFrom !== hasTo) {
 			reject(
 				`Both 'from' and 'to' are required when one is provided. Got from=${q.from ?? "(unset)"}, to=${q.to ?? "(unset)"}. Use a 'preset' (e.g. last_7d) or pass both dates as YYYY-MM-DD.`
 			);
 			continue;
 		}
-		const preset = q.preset ?? (from && to ? undefined : "last_7d");
-		if (preset && MCP_DATE_PRESETS.includes(preset as DatePreset)) {
+		const preset = q.preset ?? (hasFrom ? undefined : "last_7d");
+		if (preset && !MCP_DATE_PRESETS.includes(preset as DatePreset)) {
+			reject(`Unknown date preset: ${preset}.`);
+			continue;
+		}
+		if (preset) {
 			const resolved = resolveDatePreset(preset as DatePreset, timezone);
 			from = resolved.from;
 			to = resolved.to;
@@ -188,10 +213,20 @@ export function buildBatchQueryRequests(
 			reject("Either preset or both from and to required");
 			continue;
 		}
-		const filterError = invalidFilterFieldError(
-			resolvedType,
-			q.filters as Filter[] | undefined
-		);
+		if (
+			!(
+				DateOnlySchema.safeParse(from).success &&
+				DateOnlySchema.safeParse(to).success
+			)
+		) {
+			reject("from and to must be valid YYYY-MM-DD dates.");
+			continue;
+		}
+		if (from > to) {
+			reject("from must not be after to.");
+			continue;
+		}
+		const filterError = invalidFilterFieldError(resolvedType, q.filters);
 		if (filterError) {
 			reject(filterError);
 			continue;
