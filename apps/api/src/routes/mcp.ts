@@ -1,8 +1,5 @@
 import {
-	getAccessibleWebsiteIds,
 	getApiKeyFromHeader,
-	hasKeyScope,
-	hasWebsiteScope,
 	isApiKeyPresent,
 } from "@databuddy/api-keys/resolve";
 import {
@@ -10,23 +7,14 @@ import {
 	handleDatabuddyMcpRequest,
 } from "@databuddy/ai/mcp/http";
 import { auth } from "@databuddy/auth";
-import { config } from "@databuddy/env/app";
 import { Elysia } from "elysia";
+import {
+	rejectInvalidMcpOrigin,
+	rejectUnsupportedMcpMethod,
+} from "@/http/cors";
+import { getResolvedAuth } from "@/lib/auth-wide-event";
 
-const PROTECTED_RESOURCE_METADATA_URL = `${config.urls.api}/.well-known/oauth-protected-resource`;
-
-function canReadMcp(
-	apiKey: NonNullable<Awaited<ReturnType<typeof getApiKeyFromHeader>>>
-) {
-	return (
-		hasKeyScope(apiKey, "read:data") ||
-		getAccessibleWebsiteIds(apiKey).some((websiteId) =>
-			hasWebsiteScope(apiKey, websiteId, "read:data")
-		)
-	);
-}
-
-async function handleMcpRequest({
+function handleMcpRequest({
 	request,
 	user,
 	apiKey,
@@ -37,7 +25,7 @@ async function handleMcpRequest({
 	request: Request;
 	user: { id: string } | null;
 }) {
-	return await handleDatabuddyMcpRequest({
+	return handleDatabuddyMcpRequest({
 		request,
 		requestHeaders: request.headers,
 		userId: user?.id ?? null,
@@ -47,23 +35,23 @@ async function handleMcpRequest({
 }
 
 export const mcp = new Elysia({ name: "mcp" })
+	.onRequest(
+		({ request }) =>
+			rejectInvalidMcpOrigin(request) ?? rejectUnsupportedMcpMethod(request)
+	)
 	.derive(async ({ request }) => {
+		const preResolved = getResolvedAuth(request.headers);
 		const hasApiKey = isApiKeyPresent(request.headers);
 		const apiKey = hasApiKey
-			? await getApiKeyFromHeader(request.headers)
+			? preResolved
+				? (preResolved.apiKeyResult?.key ?? null)
+				: await getApiKeyFromHeader(request.headers)
 			: null;
 		const session = hasApiKey
 			? null
-			: await auth.api.getSession({ headers: request.headers });
-
-		if (hasApiKey && !(apiKey && canReadMcp(apiKey))) {
-			return {
-				user: null,
-				apiKey: null,
-				isAuthenticated: false,
-				organizationId: null,
-			};
-		}
+			: preResolved
+				? preResolved.session
+				: await auth.api.getSession({ headers: request.headers });
 
 		const user = session?.user ?? null;
 		return {
@@ -74,36 +62,13 @@ export const mcp = new Elysia({ name: "mcp" })
 				apiKey?.organizationId ?? session?.session.activeOrganizationId ?? null,
 		};
 	})
-	.onBeforeHandle(async ({ request, isAuthenticated, set }) => {
+	.onBeforeHandle(({ isAuthenticated, set }) => {
 		if (!isAuthenticated) {
 			set.status = 401;
-			return await createMcpUnauthorizedResponse(request, {
-				resourceMetadataUrl: PROTECTED_RESOURCE_METADATA_URL,
-			});
+			return createMcpUnauthorizedResponse();
 		}
 	})
-	.all(
-		"/v1/mcp",
-		async ({ request, user, apiKey, organizationId }) =>
-			await handleMcpRequest({ request, user, apiKey, organizationId })
-	)
-	.all(
-		"/v1/mcp/",
-		async ({ request, user, apiKey, organizationId }) =>
-			await handleMcpRequest({ request, user, apiKey, organizationId })
-	)
-	.all(
-		"/mcp",
-		async ({ request, user, apiKey, organizationId }) =>
-			await handleMcpRequest({ request, user, apiKey, organizationId })
-	)
-	.all(
-		"/mcp/",
-		async ({ request, user, apiKey, organizationId }) =>
-			await handleMcpRequest({ request, user, apiKey, organizationId })
-	)
-	.all(
-		"/.well-known/mcp",
-		async ({ request, user, apiKey, organizationId }) =>
-			await handleMcpRequest({ request, user, apiKey, organizationId })
-	);
+	.all("/v1/mcp", handleMcpRequest)
+	.all("/v1/mcp/", handleMcpRequest)
+	.all("/mcp", handleMcpRequest)
+	.all("/mcp/", handleMcpRequest);

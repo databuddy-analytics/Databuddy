@@ -31,11 +31,10 @@ import {
 } from "../tools/link-catalog";
 import {
 	defineMcpTool,
+	metadataForResource,
 	McpToolError,
-	type McpHandlerContext,
 	type McpRequestContext,
 	type McpToolFactory,
-	type McpToolMetadata,
 	type RegisteredMcpTool,
 } from "./define-tool";
 import {
@@ -58,24 +57,27 @@ import {
 	getOrganizationId,
 	resolveOrganizationIds,
 } from "./tool-context";
+import { createMcpWorkspaceTools } from "./workspace-tools";
+import {
+	ConfirmedSchema,
+	DynamicObjectSchema,
+	getResolvedWebsiteId,
+	McpDateRangeSchema,
+	MutationResultSchema,
+	WebsiteSelectorSchema,
+	WorkflowFilterSchema,
+} from "./tool-contracts";
 
 const TIME_UNIT = ["minute", "hour", "day", "week", "month"] as const;
-
-const WebsiteSelectorSchema = {
-	websiteId: z.string().optional().describe("Website ID from list_websites"),
-	websiteName: z
-		.string()
-		.optional()
-		.describe("Website name. Alternative to websiteId."),
-	websiteDomain: z
-		.string()
-		.optional()
-		.describe("Website domain. Alternative to websiteId."),
-} as const;
+const DateTimeSchema = z.union([
+	z.iso.date(),
+	z.iso.datetime({ offset: true }),
+]);
 
 const QueryItemSchema = z.object({
 	type: z.string(),
 	preset: z.enum(MCP_DATE_PRESETS as [string, ...string[]]).optional(),
+	// Batch queries report invalid ranges per item rather than rejecting every item.
 	from: z.string().optional(),
 	to: z.string().optional(),
 	timeUnit: z.enum(TIME_UNIT).optional(),
@@ -90,12 +92,6 @@ const WebsiteSummarySchema = z.object({
 	name: z.string().nullable(),
 	domain: z.string().nullable(),
 	isPublic: z.boolean().nullable(),
-});
-
-const WorkflowFilterSchema = z.object({
-	field: z.string(),
-	operator: z.enum(["equals", "contains", "not_equals", "in", "not_in"]),
-	value: z.union([z.string(), z.array(z.string())]),
 });
 
 const FunnelStepSchema = z.object({
@@ -129,41 +125,6 @@ const FlagVariantSchema = variantSchema;
 
 const FlagStatusSchema = z.enum(["active", "inactive", "archived"]);
 const FlagTypeSchema = z.enum(["boolean", "rollout", "multivariant"]);
-const ConfirmedSchema = z.boolean().optional().default(false);
-
-const MutationResultSchema = z
-	.object({
-		confirmationRequired: z.boolean().optional(),
-		message: z.string(),
-		preview: z.boolean().optional(),
-		success: z.boolean().optional(),
-	})
-	.passthrough();
-
-const WRITE_METADATA = {
-	capability: "workspace",
-	access: {
-		confirmation: "recommended",
-		kind: "write",
-	},
-	evlogAction: "tool_mutation",
-} satisfies Partial<McpToolMetadata>;
-
-function writeMetadata(scopes: string[]): Partial<McpToolMetadata> {
-	return {
-		...WRITE_METADATA,
-		access: {
-			...WRITE_METADATA.access,
-			scopes,
-		},
-	};
-}
-
-function assertValidDate(value: string | undefined, field: string): void {
-	if (value && !dayjs(value).isValid()) {
-		throw new McpToolError("invalid_input", `${field} must be a valid date`);
-	}
-}
 
 function createChartContext(input: {
 	from?: string;
@@ -188,13 +149,6 @@ function asRecord(value: unknown): Record<string, unknown> {
 		: {};
 }
 
-function getResolvedWebsiteId(ctx: McpHandlerContext): string {
-	if (!ctx.websiteId) {
-		throw new McpToolError("internal", "Website was not resolved.");
-	}
-	return ctx.websiteId;
-}
-
 function createFlagUserRule(
 	matchBy: "email" | "user_id",
 	values: string[]
@@ -213,12 +167,13 @@ const listWebsitesTool = defineMcpTool(
 	{
 		name: "list_websites",
 		description:
-			"List websites the caller can access. Use only when the user hasn't named one — every other tool accepts websiteId, websiteName, or websiteDomain.",
+			"List accessible websites when the user hasn't named one. Most website-scoped tools accept websiteId, websiteName, or websiteDomain.",
 		inputSchema: z.object({}),
 		outputSchema: z.object({
 			websites: z.array(WebsiteSummarySchema),
 			total: z.number(),
 		}),
+		metadata: metadataForResource("organization", ["read"]),
 		ratelimit: { limit: 60, windowSec: 60 },
 	},
 	async (_input, ctx) => {
@@ -250,10 +205,7 @@ const listInsightsTool = defineMcpTool(
 			hasMore: z.boolean(),
 			insights: z.array(insightBriefItemSchema),
 		}),
-		metadata: {
-			access: { kind: "read", scopes: ["read:data"] },
-			capability: "analytics",
-		},
+		metadata: metadataForResource("website", ["read"]),
 		resolveWebsite: "optional",
 		ratelimit: { limit: 60, windowSec: 60 },
 	},
@@ -300,10 +252,7 @@ const listInvestigationsTool = defineMcpTool(
 			hasMore: z.boolean(),
 			investigations: z.array(historyInsightSchema),
 		}),
-		metadata: {
-			access: { kind: "read", scopes: ["read:data"] },
-			capability: "analytics",
-		},
+		metadata: metadataForResource("website", ["read"]),
 		resolveWebsite: "optional",
 		ratelimit: { limit: 60, windowSec: 60 },
 	},
@@ -349,10 +298,7 @@ const getInvestigationTool = defineMcpTool(
 			investigation: historyInsightSchema.nullable(),
 			timeline: z.array(insightTimelineItemSchema),
 		}),
-		metadata: {
-			access: { kind: "read", scopes: ["read:data"] },
-			capability: "analytics",
-		},
+		metadata: metadataForResource("website", ["read"]),
 		ratelimit: { limit: 60, windowSec: 60 },
 	},
 	async (input, ctx) => {
@@ -392,7 +338,7 @@ const replyToInvestigationTool = defineMcpTool(
 				),
 		}),
 		outputSchema: z.object({ reply: insightTimelineReplySchema }),
-		metadata: writeMetadata(["manage:websites"]),
+		metadata: metadataForResource("website", ["update"]),
 		ratelimit: { limit: 20, windowSec: 60 },
 	},
 	async (input, ctx) => {
@@ -756,27 +702,17 @@ const getFunnelAnalyticsTool = defineMcpTool(
 		name: "get_funnel_analytics",
 		description:
 			"Return per-step conversion, drop-off, and timing for one funnel. Use after list_funnels to analyze a specific funnelId.",
-		inputSchema: z.object({
+		inputSchema: McpDateRangeSchema.safeExtend({
 			...WebsiteSelectorSchema,
 			funnelId: z.string().describe("Funnel ID from list_funnels"),
-			from: z
-				.string()
-				.optional()
-				.describe("Start date YYYY-MM-DD (defaults to 30 days ago)"),
-			to: z
-				.string()
-				.optional()
-				.describe("End date YYYY-MM-DD (defaults to today)"),
 		}),
 		// Passthrough from RPC — shape varies by funnel. Permissive by design.
-		outputSchema: z.record(z.string(), z.unknown()),
+		outputSchema: DynamicObjectSchema,
 		resolveWebsite: true,
 		ratelimit: { limit: 60, windowSec: 60 },
 	},
-	async (input, ctx) => {
-		assertValidDate(input.from, "from");
-		assertValidDate(input.to, "to");
-		return await callRPCProcedure(
+	async (input, ctx) =>
+		await callRPCProcedure(
 			"funnels",
 			"getAnalytics",
 			{
@@ -786,8 +722,7 @@ const getFunnelAnalyticsTool = defineMcpTool(
 				endDate: input.to,
 			},
 			buildRpcContext(ctx)
-		);
-	}
+		)
 );
 
 const createFunnelTool = defineMcpTool(
@@ -806,7 +741,7 @@ const createFunnelTool = defineMcpTool(
 		}),
 		outputSchema: MutationResultSchema,
 		resolveWebsite: true,
-		metadata: writeMetadata(["manage:websites"]),
+		metadata: metadataForResource("website", ["update"]),
 		ratelimit: { limit: 10, windowSec: 60 },
 	},
 	async (input, ctx) => {
@@ -888,27 +823,17 @@ const getGoalAnalyticsTool = defineMcpTool(
 		name: "get_goal_analytics",
 		description:
 			"Return entered/completed counts and conversion rate for one goalId. Use after list_goals.",
-		inputSchema: z.object({
+		inputSchema: McpDateRangeSchema.safeExtend({
 			...WebsiteSelectorSchema,
 			goalId: z.string().describe("Goal ID from list_goals"),
-			from: z
-				.string()
-				.optional()
-				.describe("Start date YYYY-MM-DD (defaults to 30 days ago)"),
-			to: z
-				.string()
-				.optional()
-				.describe("End date YYYY-MM-DD (defaults to today)"),
 		}),
 		// Passthrough from RPC — shape varies by goal. Permissive by design.
-		outputSchema: z.record(z.string(), z.unknown()),
+		outputSchema: DynamicObjectSchema,
 		resolveWebsite: true,
 		ratelimit: { limit: 60, windowSec: 60 },
 	},
-	async (input, ctx) => {
-		assertValidDate(input.from, "from");
-		assertValidDate(input.to, "to");
-		return await callRPCProcedure(
+	async (input, ctx) =>
+		await callRPCProcedure(
 			"goals",
 			"getAnalytics",
 			{
@@ -918,8 +843,7 @@ const getGoalAnalyticsTool = defineMcpTool(
 				endDate: input.to,
 			},
 			buildRpcContext(ctx)
-		);
-	}
+		)
 );
 
 const createGoalTool = defineMcpTool(
@@ -939,7 +863,7 @@ const createGoalTool = defineMcpTool(
 		}),
 		outputSchema: MutationResultSchema,
 		resolveWebsite: true,
-		metadata: writeMetadata(["manage:websites"]),
+		metadata: metadataForResource("website", ["update"]),
 		ratelimit: { limit: 10, windowSec: 60 },
 	},
 	async (input, ctx) => {
@@ -997,6 +921,7 @@ const listLinkFoldersTool = defineMcpTool(
 			hint: z.string(),
 		}),
 		resolveWebsite: true,
+		metadata: metadataForResource("link", ["read"]),
 		ratelimit: { limit: 60, windowSec: 60 },
 	},
 	async (_input, ctx) => {
@@ -1039,6 +964,7 @@ const listLinksTool = defineMcpTool(
 			hint: z.string().optional(),
 		}),
 		resolveWebsite: true,
+		metadata: metadataForResource("link", ["read"]),
 		ratelimit: { limit: 60, windowSec: 60 },
 	},
 	async (_input, ctx) => {
@@ -1105,6 +1031,7 @@ const searchLinksTool = defineMcpTool(
 			hasMore: z.boolean(),
 		}),
 		resolveWebsite: true,
+		metadata: metadataForResource("link", ["read"]),
 		ratelimit: { limit: 20, windowSec: 60 },
 	},
 	async (input, ctx) => {
@@ -1150,7 +1077,7 @@ const createLinkTool = defineMcpTool(
 					.max(50)
 					.regex(/^[a-zA-Z0-9_-]+$/)
 					.optional(),
-				expiresAt: z.string().optional(),
+				expiresAt: DateTimeSchema.optional(),
 				expiredRedirectUrl: httpUrlSchema.optional(),
 				ogTitle: z.string().max(200).optional(),
 				ogDescription: z.string().max(500).optional(),
@@ -1172,11 +1099,10 @@ const createLinkTool = defineMcpTool(
 			}),
 		outputSchema: MutationResultSchema,
 		resolveWebsite: true,
-		metadata: writeMetadata(["write:links"]),
+		metadata: metadataForResource("link", ["read", "create"]),
 		ratelimit: { limit: 20, windowSec: 60 },
 	},
 	async (input, ctx) => {
-		assertValidDate(input.expiresAt, "expiresAt");
 		const orgId = await getOrganizationId(getResolvedWebsiteId(ctx));
 		if (orgId instanceof Error) {
 			throw new McpToolError("not_found", orgId.message);
@@ -1244,12 +1170,9 @@ const createLinkTool = defineMcpTool(
 const listAnnotationsTool = defineMcpTool(
 	{
 		name: "list_annotations",
-		description:
-			"List chart annotations for a website over a date range. Defaults to the last 30 days.",
+		description: "List chart annotations for a website.",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
-			from: z.string().optional(),
-			to: z.string().optional(),
 			granularity: z.enum(["hourly", "daily", "weekly", "monthly"]).optional(),
 			metrics: z.array(z.string()).optional(),
 			chartContext: ChartContextSchema.optional(),
@@ -1262,8 +1185,6 @@ const listAnnotationsTool = defineMcpTool(
 		ratelimit: { limit: 60, windowSec: 60 },
 	},
 	async (input, ctx) => {
-		assertValidDate(input.from, "from");
-		assertValidDate(input.to, "to");
 		const result = await callRPCProcedure(
 			"annotations",
 			"list",
@@ -1284,27 +1205,35 @@ const createAnnotationTool = defineMcpTool(
 		name: "create_annotation",
 		description:
 			"Create a chart annotation. Call with confirmed=false for preview before writing.",
-		inputSchema: z.object({
-			...WebsiteSelectorSchema,
-			chartContext: ChartContextSchema.optional(),
-			annotationType: z.enum(["point", "line", "range"]),
-			xValue: z.string(),
-			xEndValue: z.string().optional(),
-			yValue: z.number().optional(),
-			text: z.string().min(1).max(500),
-			tags: z.array(z.string()).optional(),
-			color: z.string().optional(),
-			isPublic: z.boolean().optional(),
-			confirmed: ConfirmedSchema,
-		}),
+		inputSchema: z
+			.object({
+				...WebsiteSelectorSchema,
+				chartContext: ChartContextSchema.optional(),
+				annotationType: z.enum(["point", "line", "range"]),
+				xValue: DateTimeSchema,
+				xEndValue: DateTimeSchema.optional(),
+				yValue: z.number().optional(),
+				text: z.string().min(1).max(500),
+				tags: z.array(z.string()).optional(),
+				color: z.string().optional(),
+				isPublic: z.boolean().optional(),
+				confirmed: ConfirmedSchema,
+			})
+			.refine(
+				(input) =>
+					!input.xEndValue ||
+					new Date(input.xEndValue) >= new Date(input.xValue),
+				{
+					message: "xEndValue must be on or after xValue.",
+					path: ["xEndValue"],
+				}
+			),
 		outputSchema: MutationResultSchema,
 		resolveWebsite: true,
-		metadata: writeMetadata(["manage:websites"]),
+		metadata: metadataForResource("website", ["update"]),
 		ratelimit: { limit: 20, windowSec: 60 },
 	},
 	async (input, ctx) => {
-		assertValidDate(input.xValue, "xValue");
-		assertValidDate(input.xEndValue, "xEndValue");
 		if (input.annotationType === "range" && !input.xEndValue) {
 			throw new McpToolError(
 				"invalid_input",
@@ -1421,7 +1350,7 @@ const createFlagTool = defineMcpTool(
 		}),
 		outputSchema: MutationResultSchema,
 		resolveWebsite: true,
-		metadata: writeMetadata(["manage:flags", "manage:websites"]),
+		metadata: metadataForResource("flag", ["create"]),
 		ratelimit: { limit: 20, windowSec: 60 },
 	},
 	async (input, ctx) => {
@@ -1500,7 +1429,7 @@ const updateFlagTool = defineMcpTool(
 			confirmed: ConfirmedSchema,
 		}),
 		outputSchema: MutationResultSchema,
-		metadata: writeMetadata(["manage:flags", "manage:websites"]),
+		metadata: metadataForResource("flag", ["update"]),
 		ratelimit: { limit: 20, windowSec: 60 },
 	},
 	async (input, ctx) => {
@@ -1547,7 +1476,7 @@ const addUsersToFlagTool = defineMcpTool(
 		}),
 		outputSchema: MutationResultSchema,
 		resolveWebsite: true,
-		metadata: writeMetadata(["manage:flags", "manage:websites"]),
+		metadata: metadataForResource("flag", ["update"]),
 		ratelimit: { limit: 20, windowSec: 60 },
 	},
 	async (input, ctx) => {
@@ -1605,6 +1534,7 @@ const addUsersToFlagTool = defineMcpTool(
 );
 
 const TOOL_FACTORIES = [
+	...createMcpWorkspaceTools(),
 	listWebsitesTool,
 	listInsightsTool,
 	listInvestigationsTool,
