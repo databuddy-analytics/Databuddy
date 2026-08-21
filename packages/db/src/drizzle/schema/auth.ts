@@ -128,6 +128,7 @@ export const account = pgTable(
 		id: text().primaryKey().notNull(),
 		accountId: text("account_id").notNull(),
 		providerId: text("provider_id").notNull(),
+		issuer: text().notNull(),
 		userId: text("user_id").notNull(),
 		accessToken: text("access_token"),
 		refreshToken: text("refresh_token"),
@@ -163,6 +164,11 @@ export const account = pgTable(
 		uniqueIndex("accounts_provider_account_unique").using(
 			"btree",
 			table.providerId.asc().nullsLast().op("text_ops"),
+			table.accountId.asc().nullsLast().op("text_ops")
+		),
+		uniqueIndex("accounts_issuer_account_unique").using(
+			"btree",
+			table.issuer.asc().nullsLast().op("text_ops"),
 			table.accountId.asc().nullsLast().op("text_ops")
 		),
 		foreignKey({

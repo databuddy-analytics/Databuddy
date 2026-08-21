@@ -56,6 +56,7 @@ import { log } from "evlog";
 import { Resend } from "resend";
 import { ac, admin, member, owner, viewer } from "./permissions";
 import { getAuthAuditContext } from "./audit-context";
+import { createAuthRateLimitStorage } from "./rate-limit-storage";
 
 function generateOrgSlug(name: string): string {
 	const base = name
@@ -381,15 +382,7 @@ export const auth = betterAuth({
 	rateLimit: {
 		window: 60,
 		max: 100,
-		customStorage: {
-			get: async (key) => {
-				const value = await getRedisCache().get(key);
-				return value ? JSON.parse(value) : null;
-			},
-			set: async (key, value) => {
-				await getRedisCache().set(key, JSON.stringify(value), "EX", 120);
-			},
-		},
+		customStorage: createAuthRateLimitStorage(),
 		customRules: {
 			"/sign-up/email": { window: 60, max: 3 },
 			"/sign-in/email": { window: 10, max: 3 },
@@ -532,6 +525,7 @@ export const auth = betterAuth({
 		},
 	},
 	appName: "databuddy.cc",
+	baseURL: config.urls.dashboard,
 	onAPIError: {
 		throw: false,
 		onError: (error) => {

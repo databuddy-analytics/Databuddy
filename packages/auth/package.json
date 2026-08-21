@@ -14,9 +14,9 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
-    "@better-auth/core": "^1.6.11",
-    "@better-auth/redis-storage": "^1.6.5",
-    "@better-auth/sso": "^1.4.10",
+    "@better-auth/core": "1.7.1",
+    "@better-auth/redis-storage": "1.7.1",
+    "@better-auth/sso": "1.7.1",
     "@databuddy/db": "*",
     "@databuddy/email": "*",
     "@databuddy/env": "workspace:*",
@@ -24,7 +24,7 @@
     "@databuddy/redis": "*",
     "@databuddy/services": "workspace:*",
     "@databuddy/shared": "workspace:*",
-    "better-auth": "^1.4.10",
+    "better-auth": "1.7.1",
     "drizzle-kit": "^1.0.0-rc.1",
     "evlog": "catalog:",
     "resend": "^4.8.0"

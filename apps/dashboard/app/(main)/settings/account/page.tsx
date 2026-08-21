@@ -447,8 +447,7 @@ export default function AccountSettingsPage() {
 	const unlinkAccount = useMutation({
 		mutationFn: async (accountToUnlink: Account) => {
 			const result = await authClient.unlinkAccount({
-				providerId: accountToUnlink.providerId,
-				accountId: accountToUnlink.accountId,
+				accountId: accountToUnlink.id,
 			});
 			if (result.error) {
 				throw new Error(result.error.message);
