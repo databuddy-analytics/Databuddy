@@ -28,7 +28,7 @@ const discoveryUrls = {
 	dashboardUrl: config.urls.dashboard,
 	openapiSpecUrl: `${SITE_URL}/openapi.json`,
 	apiOpenapiSpecUrl: `${API_URL}/openapi.json`,
-	mcpServerUrl: `${API_URL}/v1/mcp/`,
+	mcpServerUrl: config.urls.mcp,
 	mcpManifestUrl: `${SITE_URL}/.well-known/mcp.json`,
 	apiCatalogUrl: `${API_URL}/.well-known/api-catalog`,
 	protectedResourceMetadataUrl: `${API_URL}/.well-known/oauth-protected-resource`,

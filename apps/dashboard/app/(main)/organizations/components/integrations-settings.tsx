@@ -7,6 +7,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { ApiKeySheet } from "@/components/organizations/api-key-sheet";
+import type { ApiKeyListItem } from "@/components/organizations/api-key-types";
+import {
+	McpConnectionDetails,
+	McpSetupSheet,
+} from "@/components/organizations/mcp-setup-sheet";
 import { TopBar } from "@/components/layout/top-bar";
 import type { Organization } from "@/hooks/use-organizations";
 import { orpc } from "@/lib/orpc";
@@ -77,6 +83,18 @@ const SLACK_ITEM: IntegrationCatalogItem = {
 	iconPath: SIMPLE_ICONS.slack,
 	id: "slack",
 	name: "Slack",
+};
+
+const MCP_ITEM: IntegrationCatalogItem = {
+	accent: "#111827",
+	accentClassName: "bg-foreground/70",
+	category: "AI agent",
+	description:
+		"Ask Claude, Cursor, Windsurf, or another AI client about your Databuddy analytics.",
+	iconPath:
+		"M6 2a2 2 0 0 0-2 2v5a2 2 0 1 0 2 0V4h5a2 2 0 1 0-2-2H6Zm12 0a2 2 0 0 0-2 2v5H11a2 2 0 1 0 0 2h7a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2ZM6 15a2 2 0 1 0 0 4v1a2 2 0 1 0 2 0v-1h5a2 2 0 1 0-2-2H8v-1a2 2 0 0 0-2-1Zm12 0a2 2 0 1 0 0 4h-5a2 2 0 1 0 0-2h5v-1a2 2 0 0 0-2-1Z",
+	id: "mcp",
+	name: "Databuddy MCP",
 };
 
 const GITHUB_ITEM: IntegrationCatalogItem = {
@@ -356,6 +374,8 @@ export function IntegrationsSettings({
 						</Card.Header>
 
 						<Card.Content className="p-0">
+							<McpIntegrationRow organizationId={organization.id} />
+
 							<SlackIntegrationRow
 								integrations={slackIntegrations}
 								isLoading={integrationsQuery.isLoading}
@@ -838,6 +858,103 @@ function RepoSelector({
 	);
 }
 
+function McpIntegrationRow({ organizationId }: { organizationId: string }) {
+	const queryClient = useQueryClient();
+	const [setupOpen, setSetupOpen] = useState(false);
+	const [selectedKey, setSelectedKey] = useState<ApiKeyListItem | null>(null);
+	const [manageOpen, setManageOpen] = useState(false);
+
+	const keysQuery = useQuery({
+		...orpc.apikeys.list.queryOptions({ input: { organizationId } }),
+	});
+
+	const mcpKeys = ((keysQuery.data ?? []) as ApiKeyListItem[]).filter(
+		(key) =>
+			key.type === "automation" &&
+			(key.tags ?? []).some((tag) => tag.toLowerCase() === "mcp")
+	);
+	const activeMcpKeys = mcpKeys.filter((key) => {
+		if (!key.enabled || key.revokedAt) {
+			return false;
+		}
+		return !key.expiresAt || dayjs(key.expiresAt).isAfter(dayjs());
+	});
+
+	const statusBadge = keysQuery.isLoading ? (
+		<Badge size="sm" variant="muted">
+			Checking
+		</Badge>
+	) : activeMcpKeys.length > 0 ? (
+		<Badge size="sm" variant="success">
+			{activeMcpKeys.length} connected
+		</Badge>
+	) : mcpKeys.length > 0 ? (
+		<Badge size="sm" variant="warning">
+			Needs attention
+		</Badge>
+	) : (
+		<Badge size="sm" variant="warning">
+			Not connected
+		</Badge>
+	);
+
+	const openKey = (key: ApiKeyListItem) => {
+		setSelectedKey(key);
+		setManageOpen(true);
+	};
+
+	return (
+		<>
+			<IntegrationListRow
+				action={
+					<Button
+						disabled={keysQuery.isLoading}
+						onClick={() => setSetupOpen(true)}
+						size="sm"
+						variant="secondary"
+					>
+						<PlugIcon className="size-4" />
+						{mcpKeys.length > 0 ? "Add connection" : "Set up MCP"}
+					</Button>
+				}
+				badge={statusBadge}
+				defaultOpen={activeMcpKeys.length > 0}
+				item={MCP_ITEM}
+			>
+				<McpConnectionDetails keys={mcpKeys} onManage={openKey} />
+			</IntegrationListRow>
+
+			<McpSetupSheet
+				onCreated={() =>
+					queryClient.invalidateQueries({
+						queryKey: orpc.apikeys.list.key(),
+					})
+				}
+				onOpenChangeAction={setSetupOpen}
+				open={setupOpen}
+				organizationId={organizationId}
+			/>
+
+			{selectedKey && (
+				<ApiKeySheet
+					apiKey={selectedKey}
+					onOpenChangeAction={(open) => {
+						setManageOpen(open);
+						if (!open) {
+							setSelectedKey(null);
+							queryClient.invalidateQueries({
+								queryKey: orpc.apikeys.list.key(),
+							});
+						}
+					}}
+					open={manageOpen}
+					organizationId={organizationId}
+				/>
+			)}
+		</>
+	);
+}
+
 function SlackIntegrationRow({
 	integrations,
 	isLoading,
@@ -927,7 +1044,10 @@ function IntegrationListRow({
 
 	if (!children) {
 		return (
-			<div className="border-border/60 border-b px-5 py-4 last:border-b-0">
+			<div
+				className="scroll-mt-16 border-border/60 border-b px-5 py-4 last:border-b-0"
+				id={item.id}
+			>
 				<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 					<div className="flex min-w-0 flex-1 items-center gap-2">{header}</div>
 					<div className="flex shrink-0 items-center gap-2 sm:justify-end">
@@ -939,7 +1059,10 @@ function IntegrationListRow({
 	}
 
 	return (
-		<div className="border-border/60 border-b last:border-b-0">
+		<div
+			className="scroll-mt-16 border-border/60 border-b last:border-b-0"
+			id={item.id}
+		>
 			<Accordion defaultOpen={defaultOpen}>
 				<div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
 					<Accordion.Trigger className="h-auto min-w-0 flex-1 bg-transparent px-0 py-0 hover:bg-transparent">

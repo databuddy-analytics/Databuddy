@@ -17,6 +17,7 @@ import {
 	MagnifyingGlassIcon,
 	MonitorIcon,
 	MoonIcon,
+	PlugIcon,
 	SignOutIcon,
 	SunIcon,
 } from "@databuddy/ui/icons";
@@ -342,6 +343,18 @@ export function MobileSidebar() {
 							<Branding heightPx={22} priority variant="primary-logo" />
 						</Link>
 					</div>
+					{!isDemo && (
+						<Button
+							aria-label="Configure Databuddy MCP"
+							asChild
+							size="sm"
+							variant="ghost"
+						>
+							<Link href="/organizations/settings/integrations#mcp" prefetch>
+								<PlugIcon className="size-[18px] shrink-0" />
+							</Link>
+						</Button>
+					)}
 					<Button
 						aria-label="Search"
 						onClick={() => openSearch()}
