@@ -29,6 +29,13 @@ import { Badge, Button, Field, Input, Text, dayjs } from "@databuddy/ui";
 import { orpc } from "@/lib/orpc";
 import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
 import { createMcpConfig, MCP_ENV_VAR, MCP_SERVER_URL } from "./mcp-config";
+import {
+	getMcpScopeGrant,
+	getMcpScopeSummary,
+	getMcpScopes,
+	MCP_ACTION_OPTIONS,
+	type McpAction,
+} from "./mcp-capabilities";
 
 type McpClient = "cursor" | "claude" | "windsurf" | "other";
 type McpExpiry = "90d" | "never";
@@ -72,18 +79,20 @@ function defaultConnectionName(client: McpClient) {
 }
 
 function scopeSummary(key: ApiKeyListItem) {
-	const globalScopes = key.scopes ?? [];
 	const websiteCount = Object.keys(key.resources ?? {}).filter((key) =>
 		key.startsWith("website:")
 	).length;
+	const grantedScopes = [
+		...(key.scopes ?? []),
+		...Object.values(key.resources ?? {}).flat(),
+	];
+	const capabilitySummary = getMcpScopeSummary(grantedScopes);
 
 	if (websiteCount > 0) {
-		return `${websiteCount} website${websiteCount === 1 ? "" : "s"} · ${globalScopes.length > 0 ? `${globalScopes.length} global` : "scoped"}`;
+		return `${websiteCount} website${websiteCount === 1 ? "" : "s"} · ${capabilitySummary}`;
 	}
 
-	return globalScopes.includes("manage:websites")
-		? "Analytics + investigation replies"
-		: "Read-only analytics";
+	return capabilitySummary;
 }
 
 function keyStatus(key: ApiKeyListItem) {
@@ -185,10 +194,11 @@ export function McpSetupSheet({
 }) {
 	const queryClient = useQueryClient();
 	const [client, setClient] = useState<McpClient>("cursor");
-	const [name, setName] = useState(defaultConnectionName("cursor"));
-	const [allowInvestigationReplies, setAllowInvestigationReplies] =
-		useState(false);
+	const [name, setName] = useState(() => defaultConnectionName("cursor"));
+	const [selectedActions, setSelectedActions] = useState<McpAction[]>([]);
 	const [selectedWebsiteIds, setSelectedWebsiteIds] = useState<string[]>([]);
+	const [allowOrganizationWideLinks, setAllowOrganizationWideLinks] =
+		useState(false);
 	const [expiry, setExpiry] = useState<McpExpiry>("90d");
 	const [newSecret, setNewSecret] = useState<string | null>(null);
 	const [useEnvironmentVariable, setUseEnvironmentVariable] = useState(false);
@@ -221,20 +231,24 @@ export function McpSetupSheet({
 		}
 		setClient("cursor");
 		setName(defaultConnectionName("cursor"));
-		setAllowInvestigationReplies(false);
+		setSelectedActions([]);
 		setSelectedWebsiteIds([]);
+		setAllowOrganizationWideLinks(false);
 		setExpiry("90d");
 		setNewSecret(null);
 		setUseEnvironmentVariable(false);
 	}, [open]);
 
 	const selectedScopes = useMemo<ApiScope[]>(
-		() =>
-			allowInvestigationReplies
-				? ["read:data", "manage:websites"]
-				: ["read:data"],
-		[allowInvestigationReplies]
+		() => getMcpScopes(selectedActions),
+		[selectedActions]
 	);
+	const selectedWebsiteSet = useMemo(
+		() => new Set(selectedWebsiteIds),
+		[selectedWebsiteIds]
+	);
+	const needsOrganizationWideLinkAcknowledgment =
+		selectedActions.includes("links") && selectedWebsiteIds.length > 0;
 
 	const config = newSecret
 		? createMcpConfig(newSecret, useEnvironmentVariable)
@@ -256,30 +270,40 @@ export function McpSetupSheet({
 		);
 	};
 
+	const toggleAction = (action: McpAction) => {
+		setSelectedActions((current) =>
+			current.includes(action)
+				? current.filter((value) => value !== action)
+				: [...current, action]
+		);
+		if (action === "links") {
+			setAllowOrganizationWideLinks(false);
+		}
+	};
+
 	const handleCreate = () => {
 		const trimmedName = name.trim();
 		if (!trimmedName) {
 			toast.error("Give this connection a name first.");
 			return;
 		}
+		if (
+			needsOrganizationWideLinkAcknowledgment &&
+			!allowOrganizationWideLinks
+		) {
+			toast.error("Confirm organization-wide Short links access first.");
+			return;
+		}
 
-		const resources =
-			selectedWebsiteIds.length > 0
-				? Object.fromEntries(
-						selectedWebsiteIds.map((websiteId) => [
-							`website:${websiteId}`,
-							selectedScopes,
-						])
-					)
-				: undefined;
+		const grant = getMcpScopeGrant(selectedActions, selectedWebsiteIds);
 
 		createMutation.mutate({
 			name: trimmedName,
 			description: `Databuddy MCP connection for ${CLIENT_LABELS[client]}`,
 			organizationId,
 			type: "automation",
-			scopes: resources ? [] : selectedScopes,
-			resources,
+			scopes: grant.scopes,
+			resources: grant.resources,
 			tags: ["MCP", CLIENT_LABELS[client]],
 			expiresAt:
 				expiry === "90d" ? dayjs().add(90, "day").toISOString() : undefined,
@@ -365,25 +389,53 @@ export function McpSetupSheet({
 										<ShieldCheckIcon className="size-4 text-success" />
 									</div>
 									<div className="min-w-0 flex-1">
-										<Text variant="label">Read-only analytics</Text>
+										<Text variant="label">Analytics access</Text>
 										<Text className="mt-0.5" tone="muted" variant="caption">
-											Recommended. The client can discover websites and read
-											analytics, but cannot change your configuration.
+											Read access is always included. Add only the workspace
+											actions you want this connection to perform.
 										</Text>
+										<div className="mt-2 flex flex-wrap gap-1">
+											{selectedScopes.map((scope) => (
+												<Badge key={scope} size="sm" variant="muted">
+													{scope}
+												</Badge>
+											))}
+										</div>
 									</div>
-									<Badge size="sm" variant="success">
-										read:data
+									<Badge
+										size="sm"
+										variant={selectedActions.length > 0 ? "warning" : "success"}
+									>
+										{selectedActions.length > 0
+											? `${selectedActions.length} action${selectedActions.length === 1 ? "" : "s"}`
+											: "Read-only"}
 									</Badge>
 								</div>
 								<div className="border-border/60 border-t px-3 py-3">
-									<Checkbox
-										checked={allowInvestigationReplies}
-										description="Allows the client to add context and continue an existing investigation."
-										label="Allow investigation replies"
-										onCheckedChange={(checked) =>
-											setAllowInvestigationReplies(checked === true)
-										}
-									/>
+									<div className="space-y-2.5">
+										<div>
+											<Text variant="label">Optional actions</Text>
+											<Text className="mt-0.5" tone="muted" variant="caption">
+												MCP previews every change first and requires explicit
+												approval before applying it.
+											</Text>
+										</div>
+										<div className="space-y-2">
+											{MCP_ACTION_OPTIONS.map((option) => (
+												<div
+													className="rounded border border-border/60 px-3 py-2.5"
+													key={option.value}
+												>
+													<Checkbox
+														checked={selectedActions.includes(option.value)}
+														description={option.description}
+														label={option.label}
+														onCheckedChange={() => toggleAction(option.value)}
+													/>
+												</div>
+											))}
+										</div>
+									</div>
 								</div>
 							</div>
 
@@ -404,6 +456,18 @@ export function McpSetupSheet({
 											access, or choose specific websites for a least-privilege
 											connection.
 										</Text>
+										{needsOrganizationWideLinkAcknowledgment ? (
+											<div className="rounded border border-warning/30 bg-warning/5 px-3 py-2.5">
+												<Checkbox
+													checked={allowOrganizationWideLinks}
+													description="Short links belong to the organization, so this connection can manage every short link here—not only links associated with the selected websites."
+													label="Allow organization-wide Short links access"
+													onCheckedChange={(checked) =>
+														setAllowOrganizationWideLinks(checked === true)
+													}
+												/>
+											</div>
+										) : null}
 										{websitesQuery.isLoading ? (
 											<div className="flex items-center gap-2 rounded border border-border/60 border-dashed px-3 py-3">
 												<ClockIcon className="size-4 animate-pulse text-muted-foreground" />
@@ -416,7 +480,7 @@ export function McpSetupSheet({
 												{websitesQuery.data.map((website) => (
 													<div className="px-3 py-2.5" key={website.id}>
 														<Checkbox
-															checked={selectedWebsiteIds.includes(website.id)}
+															checked={selectedWebsiteSet.has(website.id)}
 															description={website.domain}
 															label={website.name || website.domain}
 															onCheckedChange={() => toggleWebsite(website.id)}
@@ -476,7 +540,11 @@ export function McpSetupSheet({
 								Cancel
 							</Button>
 							<Button
-								disabled={createMutation.isPending}
+								disabled={
+									createMutation.isPending ||
+									(needsOrganizationWideLinkAcknowledgment &&
+										!allowOrganizationWideLinks)
+								}
 								loading={createMutation.isPending}
 								onClick={handleCreate}
 							>

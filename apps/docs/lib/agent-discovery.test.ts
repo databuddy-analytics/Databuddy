@@ -32,6 +32,12 @@ describe("agent discovery resources", () => {
 		expect(manifest.server.url).toBe("https://api.databuddy.cc/v1/mcp/");
 		expect(manifest.server.transport).toBe("streamable-http");
 		expect(manifest.authentication.name).toBe("x-api-key");
+		expect(
+			Object.hasOwn(
+				manifest.authentication,
+				"protected_resource_metadata_url"
+			)
+		).toBe(false);
 		expect(manifest.openapi_url).toBe("https://www.databuddy.cc/openapi.json");
 	});
 
@@ -44,6 +50,9 @@ describe("agent discovery resources", () => {
 
 		expect(agent.endpoints.auth_md).toBe("https://www.databuddy.cc/auth.md");
 		expect(serverCard.serverUrl).toBe("https://api.databuddy.cc/v1/mcp/");
+		expect(
+			Object.hasOwn(serverCard.authentication, "protectedResourceMetadataUrl")
+		).toBe(false);
 		expect(catalog.linkset[0]["service-desc"][0].href).toBe(
 			"https://www.databuddy.cc/openapi.json"
 		);

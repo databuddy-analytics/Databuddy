@@ -8,7 +8,7 @@ export const MCP_INSTRUCTIONS = `Databuddy gives agents product analytics and du
 - Use reply_to_investigation when a user answers a case's question or adds missing context. This resumes the same investigation.
 - After a queued reply, poll get_investigation and reuse the same replyId on retries.
 - Use capabilities only when you need to discover query types, and get_schema only when a field is uncertain.
-- Every website tool accepts websiteId, websiteName, or websiteDomain.
+- Most website-scoped tools accept websiteId, websiteName, or websiteDomain; tools that operate by a returned ID may not.
 - Use either a date preset or both from and to (YYYY-MM-DD).
 - Never invent a metric, cause, or action that the returned evidence does not support.`;
 
@@ -43,5 +43,5 @@ Do not recreate an investigation with ad hoc anomaly math when a durable case al
 
 ## Mutations
 
-Respect each tool's confirmation metadata and required API-key scopes. Read-only analytics requires \`read:data\`; replying to an investigation requires \`manage:websites\`.
+Respect each tool's API-key scopes. Analytics reads require \`read:data\`; website writes and investigation replies require \`manage:websites\`; flag mutations require \`manage:flags\` (and website-scoped ones also require \`read:data\`); link catalog reads require \`read:links\`, while website-scoped link mutations require \`read:data\` plus \`write:links\` (and \`create_link\` also requires \`read:links\`). Preview goal, annotation, and link mutations with \`confirmed=false\`, then apply only after explicit approval with \`confirmed=true\`.
 `;
