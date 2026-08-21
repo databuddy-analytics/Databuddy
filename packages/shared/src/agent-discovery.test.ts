@@ -3,6 +3,7 @@ import { API_SCOPES } from "./api-scopes";
 import {
 	type AgentDiscoveryUrls,
 	createAuthorizationServerMetadata,
+	createMcpManifest,
 	createMcpServerCard,
 	parseNlwebAskBody,
 } from "./agent-discovery";
@@ -39,6 +40,21 @@ describe("agent discovery builders", () => {
 				description: "MCP workflow guide and query conventions.",
 			},
 		]);
+	});
+
+	it("keeps API-key MCP discovery free of unimplemented OAuth metadata", () => {
+		const manifest = createMcpManifest(urls);
+		const card = createMcpServerCard(urls);
+
+		expect(
+			Object.hasOwn(
+				manifest.authentication,
+				"protected_resource_metadata_url"
+			)
+		).toBe(false);
+		expect(
+			Object.hasOwn(card.authentication, "protectedResourceMetadataUrl")
+		).toBe(false);
 	});
 
 	it("parses NLWeb ask bodies without casts", () => {

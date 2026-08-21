@@ -196,7 +196,6 @@ export function createMcpManifest(urls: AgentDiscoveryUrls) {
 			name: "x-api-key",
 			documentation_url: `${resolved.siteUrl}/docs/api/authentication`,
 			auth_md_url: resolved.authMdUrl,
-			protected_resource_metadata_url: resolved.protectedResourceMetadataUrl,
 			scopes: API_SCOPES,
 		},
 		capabilities: {
@@ -254,7 +253,6 @@ export function createMcpServerCard(urls: AgentDiscoveryUrls) {
 			type: "api_key",
 			header: "x-api-key",
 			documentationUrl: resolved.authMdUrl,
-			protectedResourceMetadataUrl: resolved.protectedResourceMetadataUrl,
 			scopes: API_SCOPES,
 		},
 		resources: [
