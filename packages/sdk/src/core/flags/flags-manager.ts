@@ -850,7 +850,16 @@ export class BrowserFlagsManager extends BaseFlagsManager {
 	}
 
 	protected override onFlagEvaluated(key: string, result: FlagResult): void {
-		const dedupeKey = `${key}:${String(result.value)}`;
+		let valueKey: string;
+		try {
+			valueKey = JSON.stringify(result.value) ?? String(result.value);
+		} catch {
+			// A malformed custom value should not prevent telemetry.
+			valueKey = String(result.value);
+		}
+		const dedupeKey = [key, result.variant ?? "", valueKey]
+			.map((part) => `${part.length}:${part}`)
+			.join("");
 		if (this.trackedFlags.has(dedupeKey)) {
 			return;
 		}

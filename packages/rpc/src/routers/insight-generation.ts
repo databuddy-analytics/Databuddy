@@ -383,12 +383,12 @@ async function resolveOrganization(
 	if (!organizationId) {
 		throw rpcError.badRequest("Organization ID is required");
 	}
-	setAuditOrganization(context, organizationId);
 	await withWorkspace(context, {
 		organizationId,
 		resource: "organization",
 		permissions: [permission],
 	});
+	setAuditOrganization(context, organizationId);
 	return organizationId;
 }
 
