@@ -1,4 +1,4 @@
-import { z } from "zod";
+import z from "zod";
 import { API_SCOPES } from "./api-scopes";
 
 export { API_SCOPES } from "./api-scopes";
