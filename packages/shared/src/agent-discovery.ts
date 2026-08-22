@@ -3,7 +3,7 @@ import { API_SCOPES } from "./api-scopes";
 
 export { API_SCOPES } from "./api-scopes";
 
-export const AGENT_DISCOVERY_UPDATED = "2026-07-20";
+export const AGENT_DISCOVERY_UPDATED = "2026-08-22";
 
 const CDN_SCRIPT_URL = "https://cdn.databuddy.cc/databuddy.js";
 
@@ -14,14 +14,12 @@ export interface AgentDiscoveryUrls {
 	apiOpenapiSpecUrl: string;
 	apiUrl: string;
 	authMdUrl?: string;
-	authorizationServerMetadataUrl?: string;
 	basketUrl: string;
 	dashboardUrl: string;
 	mcpManifestUrl: string;
 	mcpServerCardUrl?: string;
 	mcpServerUrl: string;
 	openapiSpecUrl: string;
-	protectedResourceMetadataUrl?: string;
 	siteUrl: string;
 }
 
@@ -39,17 +37,11 @@ function discoveryUrls(urls: AgentDiscoveryUrls) {
 		mcpServerCardUrl:
 			urls.mcpServerCardUrl ??
 			`${urls.siteUrl}/.well-known/mcp/server-card.json`,
-		protectedResourceMetadataUrl:
-			urls.protectedResourceMetadataUrl ??
-			`${urls.apiUrl}/.well-known/oauth-protected-resource`,
-		authorizationServerMetadataUrl:
-			urls.authorizationServerMetadataUrl ??
-			`${urls.apiUrl}/.well-known/oauth-authorization-server`,
 	};
 }
 
-export function createAuthDiscoveryHeader(urls: AgentDiscoveryUrls) {
-	return `Bearer resource_metadata="${discoveryUrls(urls).protectedResourceMetadataUrl}"`;
+function mcpTransports(mcpServerUrl: string) {
+	return [{ type: "streamable-http" as const, url: mcpServerUrl }];
 }
 
 export function createDeveloperResources(urls: AgentDiscoveryUrls) {
@@ -180,16 +172,7 @@ export function createMcpManifest(urls: AgentDiscoveryUrls) {
 			description:
 				"Authenticated Streamable HTTP MCP server for Databuddy analytics, investigations, and mutations.",
 		},
-		transports: [
-			{
-				type: "streamable-http",
-				url: resolved.mcpServerUrl,
-			},
-			{
-				type: "streamable-http",
-				url: `${resolved.apiUrl}/mcp`,
-			},
-		],
+		transports: mcpTransports(resolved.mcpServerUrl),
 		authentication: {
 			type: "api_key",
 			in: "header",
@@ -245,10 +228,7 @@ export function createMcpServerCard(urls: AgentDiscoveryUrls) {
 			"Databuddy MCP server for privacy-first analytics, errors, web vitals, feature flags, links, funnels, goals, and durable investigations.",
 		version: "1.0.0",
 		serverUrl: resolved.mcpServerUrl,
-		transports: [
-			{ type: "streamable-http", url: resolved.mcpServerUrl },
-			{ type: "streamable-http", url: `${resolved.apiUrl}/mcp` },
-		],
+		transports: mcpTransports(resolved.mcpServerUrl),
 		authentication: {
 			type: "api_key",
 			header: "x-api-key",
@@ -309,8 +289,6 @@ export function createAgentJson(urls: AgentDiscoveryUrls) {
 			mcp_manifest: resolved.mcpManifestUrl,
 			mcp_server_card: resolved.mcpServerCardUrl,
 			auth_md: resolved.authMdUrl,
-			protected_resource_metadata: resolved.protectedResourceMetadataUrl,
-			authorization_server_metadata: resolved.authorizationServerMetadataUrl,
 			llms_txt: `${resolved.siteUrl}/llms.txt`,
 			llms_full_txt: `${resolved.siteUrl}/llms-full.txt`,
 			skill_md: `${resolved.siteUrl}/skill.md`,
@@ -438,56 +416,6 @@ export function createApiCatalog(urls: AgentDiscoveryUrls) {
 	};
 }
 
-export function createProtectedResourceMetadata(
-	urls: AgentDiscoveryUrls,
-	resource = urls.apiUrl
-) {
-	const resolved = discoveryUrls(urls);
-
-	return {
-		resource,
-		resource_name: "Databuddy API",
-		resource_documentation: resolved.authMdUrl,
-		authorization_servers: [resolved.apiUrl],
-		scopes_supported: API_SCOPES,
-		bearer_methods_supported: ["header"],
-		jwks_uri: `${resolved.apiUrl}/.well-known/http-message-signatures-directory`,
-	};
-}
-
-export function createAuthorizationServerMetadata(urls: AgentDiscoveryUrls) {
-	const resolved = discoveryUrls(urls);
-
-	return {
-		issuer: resolved.apiUrl,
-		authorization_endpoint: `${resolved.dashboardUrl}/login`,
-		token_endpoint: `${resolved.apiUrl}/agent-auth/claim`,
-		registration_endpoint: `${resolved.apiUrl}/agent-auth/register`,
-		revocation_endpoint: `${resolved.apiUrl}/agent-auth/revoke`,
-		response_types_supported: ["code"],
-		grant_types_supported: [
-			"authorization_code",
-			"urn:ietf:params:oauth:grant-type:token-exchange",
-		],
-		token_endpoint_auth_methods_supported: ["none", "client_secret_basic"],
-		scopes_supported: API_SCOPES,
-		agent_auth: {
-			register_uri: `${resolved.apiUrl}/agent-auth/register`,
-			claim_uri: `${resolved.apiUrl}/agent-auth/claim`,
-			revocation_uri: `${resolved.apiUrl}/agent-auth/revoke`,
-			skill: resolved.authMdUrl,
-			identity_types_supported: ["anonymous", "identity_assertion"],
-			anonymous: {
-				credential_types_supported: ["api_key"],
-			},
-			identity_assertion: {
-				assertion_types_supported: ["urn:ietf:params:oauth:token-type:id-jag"],
-				credential_types_supported: ["api_key"],
-			},
-		},
-	};
-}
-
 export function createWebBotAuthDirectory() {
 	return {
 		keys: [
@@ -549,21 +477,6 @@ export function createSandboxDiscovery(urls: AgentDiscoveryUrls) {
 		demo_url: `${resolved.siteUrl}/demo`,
 		openapi_url: resolved.openapiSpecUrl,
 		mcp_server_url: resolved.mcpServerUrl,
-	};
-}
-
-export function createUnsupportedAgentAuthBody(
-	urls: AgentDiscoveryUrls,
-	action: string
-) {
-	const resolved = discoveryUrls(urls);
-
-	return {
-		success: false,
-		error: "Agent credential automation is not enabled for anonymous requests.",
-		code: "AGENT_AUTH_MANUAL_SETUP_REQUIRED",
-		action,
-		fix: `Create a scoped Databuddy API key from ${resolved.dashboardUrl}/organizations/settings#api-keys and follow ${resolved.authMdUrl}.`,
 	};
 }
 
@@ -658,29 +571,9 @@ export function createAuthMarkdown(urls: AgentDiscoveryUrls) {
 
 	return `# auth.md
 
-Databuddy supports agent authentication with scoped API keys. This file is the prose companion to Databuddy's OAuth Protected Resource Metadata at ${resolved.protectedResourceMetadataUrl}. Agents should use the metadata as the source of truth for endpoint URLs and this file for the step-by-step flow.
+Databuddy uses scoped API keys for REST and MCP. Create a key for the organization in ${resolved.dashboardUrl}/organizations/settings#api-keys, choose the smallest scope set needed, and store it securely. OAuth is not available yet.
 
-## 1. Discover
-
-Fetch ${resolved.protectedResourceMetadataUrl}. The protected resource metadata advertises \`resource\`, \`authorization_servers\`, \`scopes_supported\`, and \`bearer_methods_supported\`. API 401 responses also include \`WWW-Authenticate: Bearer resource_metadata="${resolved.protectedResourceMetadataUrl}"\` so agents can recover from a cold unauthenticated probe.
-
-## 2. Pick a method
-
-Databuddy supports API-key credentials for agents. Use \`anonymous\` only for discovery and sandbox probes. Use \`identity_assertion\` when an agent provider can present an ID-JAG identity assertion for the user. The machine-readable \`agent_auth\` block is:
-
-\`\`\`json
-${JSON.stringify({ agent_auth: createAuthorizationServerMetadata(urls).agent_auth }, null, 2)}
-\`\`\`
-
-## 3. Register
-
-Use \`register_uri\`: ${resolved.apiUrl}/agent-auth/register. Production organization credentials are created from the Databuddy dashboard at ${resolved.dashboardUrl}/organizations/settings#api-keys. Choose the smallest scope set needed, usually \`read:data\` for analytics questions and only the specific write scope for mutations.
-
-## 4. Claim
-
-Use \`claim_uri\`: ${resolved.apiUrl}/agent-auth/claim. For \`identity_assertion\`, present an \`urn:ietf:params:oauth:token-type:id-jag\` assertion that identifies the user and requested organization. Databuddy returns structured JSON errors when a claim cannot be completed automatically.
-
-## 5. Use the credential
+## Use the credential
 
 Send the credential on every API or MCP request:
 
@@ -703,13 +596,13 @@ For MCP clients:
 }
 \`\`\`
 
-## 6. Errors
+## Errors
 
 Databuddy API errors are JSON objects with \`success: false\`, an error \`code\`, a human-readable \`error\`, and where available a \`fix\` or \`hint\`. A 401 means the credential is missing or invalid. A 403 means the credential exists but lacks the requested organization or scope.
 
-## 7. Revocation
+## Revocation
 
-Use \`revocation_uri\`: ${resolved.apiUrl}/agent-auth/revoke. Users can also revoke credentials from ${resolved.dashboardUrl}/organizations/settings#api-keys. Agents should stop using a credential immediately after a revocation response or any repeated 401 response.
+Revoke credentials from ${resolved.dashboardUrl}/organizations/settings#api-keys. Agents should stop using a credential immediately after revocation or any repeated 401 response.
 
 ## Supported Scopes
 
@@ -730,7 +623,7 @@ Databuddy exposes a REST API at ${resolved.apiUrl}, an OpenAPI spec at ${resolve
 
 ## Authentication
 
-Read ${resolved.authMdUrl}. Unauthenticated protected API probes return \`WWW-Authenticate: Bearer resource_metadata="${resolved.protectedResourceMetadataUrl}"\`.
+Read ${resolved.authMdUrl} and send a scoped API key in \`x-api-key\` or \`Authorization: Bearer\`.
 
 ## Primary Endpoints
 

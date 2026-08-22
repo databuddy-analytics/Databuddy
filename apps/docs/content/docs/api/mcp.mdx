@@ -14,9 +14,7 @@ The Databuddy MCP server lets AI agents (Claude, Cursor, Windsurf, or any MCP-co
 | Production | `https://api.databuddy.cc/v1/mcp/` |
 | Local | `http://localhost:3001/v1/mcp/` |
 
-The server uses the **Streamable HTTP** transport (JSON-RPC over HTTP). No SSE or WebSocket connection required.
-
-Alternate transport surfaces are also available at `https://api.databuddy.cc/mcp` and `https://api.databuddy.cc/.well-known/mcp` for WebMCP-capable agents.
+The server uses the **Streamable HTTP** transport (JSON-RPC over HTTP). No SSE or WebSocket connection required. Configure clients with the canonical URL above. `/.well-known/mcp` is discovery metadata, not an MCP transport endpoint.
 
 ## Discovery Manifest
 

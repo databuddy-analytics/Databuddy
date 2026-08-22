@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { API_SCOPES } from "./api-scopes";
 import {
 	type AgentDiscoveryUrls,
-	createAuthorizationServerMetadata,
+	createAgentJson,
 	createMcpManifest,
 	createMcpServerCard,
 	parseNlwebAskBody,
@@ -20,14 +20,14 @@ const urls = {
 } satisfies AgentDiscoveryUrls;
 
 describe("agent discovery builders", () => {
-	it("uses the shared API scope registry in auth metadata", () => {
-		const metadata = createAuthorizationServerMetadata(urls);
+	it("describes API-key authentication without unimplemented OAuth endpoints", () => {
+		const agent = createAgentJson(urls);
 
 		expect(API_SCOPES).toContain("track:events");
-		expect(metadata.scopes_supported).toBe(API_SCOPES);
-		expect(metadata.agent_auth.register_uri).toBe(
-			"https://api.databuddy.cc/agent-auth/register"
-		);
+		expect(agent.authentication.scopes).toBe(API_SCOPES);
+		expect(agent.updated_at).toBe("2026-08-22");
+		expect(agent.endpoints).not.toHaveProperty("protected_resource_metadata");
+		expect(agent.endpoints).not.toHaveProperty("authorization_server_metadata");
 	});
 
 	it("advertises only the real MCP guide resource", () => {
@@ -40,6 +40,15 @@ describe("agent discovery builders", () => {
 				description: "MCP workflow guide and query conventions.",
 			},
 		]);
+	});
+
+	it("advertises one canonical Streamable HTTP endpoint", () => {
+		const expected = [
+			{ type: "streamable-http", url: "https://api.databuddy.cc/v1/mcp/" },
+		];
+
+		expect(createMcpManifest(urls).transports).toEqual(expected);
+		expect(createMcpServerCard(urls).transports).toEqual(expected);
 	});
 
 	it("keeps API-key MCP discovery free of unimplemented OAuth metadata", () => {
