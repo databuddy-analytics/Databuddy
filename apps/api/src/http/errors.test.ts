@@ -1,6 +1,7 @@
 import { createError } from "evlog";
 import { t, ValidationError } from "elysia";
 import { afterEach, describe, expect, it } from "vitest";
+import { API_KEY_AUTH_CHALLENGE } from "@databuddy/api-keys/resolve";
 import { handleAppError } from "./errors";
 
 const originalNodeEnv = process.env.NODE_ENV;
@@ -60,6 +61,25 @@ describe("handleAppError", () => {
 				fix: "Use one of the documented operators.",
 				requestId: "req_test_4xx",
 			});
+	});
+
+	it("uses the API-key authentication challenge without OAuth metadata", async () => {
+		const response = handleAppError({
+			code: "AUTH_REQUIRED",
+			requestId: "req_test_auth",
+			error: new Error("Authentication required"),
+		});
+
+		expect(response.status).toBe(401);
+		expect(await readPayload(response)).toEqual({
+			success: false,
+			error: "Authentication required",
+			code: "AUTH_REQUIRED",
+			requestId: "req_test_auth",
+		});
+		expect(response.headers.get("WWW-Authenticate")).toBe(
+			API_KEY_AUTH_CHALLENGE
+		);
 	});
 
 	it("returns safe field details for request validation errors", async () => {
