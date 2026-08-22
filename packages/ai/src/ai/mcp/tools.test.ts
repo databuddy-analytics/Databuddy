@@ -255,6 +255,28 @@ describe("MCP tool invariants", () => {
 				xValue: "2026-02-30T12:00:00Z",
 			}).success
 		).toBe(false);
+		expect(
+			createAnnotation.inputSchema.safeParse({
+				annotationType: "range",
+				confirmed: false,
+				text: "Release",
+				websiteId: "website-1",
+				xEndValue: "2026-03-02",
+				xValue: "2026-03-01",
+			}).success
+		).toBe(true);
+		for (const xEndValue of [undefined, "2026-02-28"]) {
+			expect(
+				createAnnotation.inputSchema.safeParse({
+					annotationType: "range",
+					confirmed: false,
+					text: "Release",
+					websiteId: "website-1",
+					xEndValue,
+					xValue: "2026-03-01",
+				}).success
+			).toBe(false);
+		}
 	});
 
 	test("resolves MCP date presets instead of ignoring them", () => {
