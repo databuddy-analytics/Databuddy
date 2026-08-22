@@ -1,5 +1,5 @@
 import { tool } from "ai";
-import dayjs from "dayjs";
+import { analyticsDateRangeSchema } from "@databuddy/validation";
 import { z } from "zod";
 import {
 	callRPCProcedure,
@@ -15,6 +15,10 @@ const goalFilterSchema = z.object({
 	field: z.string(),
 	operator: z.enum(["equals", "contains", "not_equals", "in", "not_in"]),
 	value: z.union([z.string(), z.array(z.string())]),
+});
+const goalAnalyticsInputSchema = analyticsDateRangeSchema.safeExtend({
+	goalId: z.string(),
+	websiteId: z.string().optional(),
 });
 const createGoalInputSchema = z.object({
 	websiteId: z.string(),
@@ -62,12 +66,7 @@ export function createGoalTools() {
 	const getGoalAnalyticsTool = tool({
 		description:
 			"Goal analytics for a chosen date range: conversion rate, users entered, and users completed. Do not repeat an exact measurement already supplied by the caller.",
-		inputSchema: z.object({
-			goalId: z.string(),
-			websiteId: z.string().optional(),
-			startDate: z.string().optional(),
-			endDate: z.string().optional(),
-		}),
+		inputSchema: goalAnalyticsInputSchema,
 		execute: async (
 			{ goalId, websiteId: inputWebsiteId, startDate, endDate },
 			options
@@ -75,17 +74,6 @@ export function createGoalTools() {
 			const context = getAppContext(options);
 			const { websiteId } = resolveToolWebsite(context, inputWebsiteId);
 			try {
-				if (startDate && !dayjs(startDate).isValid()) {
-					throw new Error(
-						"Start date must be in YYYY-MM-DD format (e.g., 2024-01-15)."
-					);
-				}
-				if (endDate && !dayjs(endDate).isValid()) {
-					throw new Error(
-						"End date must be in YYYY-MM-DD format (e.g., 2024-01-15)."
-					);
-				}
-
 				return await callRPCProcedure(
 					"goals",
 					"getAnalytics",

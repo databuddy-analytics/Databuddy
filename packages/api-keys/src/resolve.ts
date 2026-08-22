@@ -20,6 +20,7 @@ export const keys = createKeys({ prefix: "dbdy_", length: 48 });
 
 export const API_KEY_LOOKUP_TIMEOUT_MS = 5000;
 export const API_KEY_STATEMENT_TIMEOUT_MS = API_KEY_LOOKUP_TIMEOUT_MS;
+export const API_KEY_AUTH_CHALLENGE = 'Bearer realm="databuddy"';
 
 export type ApiKeyResolveOutcome =
 	| "ok"

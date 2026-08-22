@@ -4,13 +4,11 @@ import {
 	createAgentJson as createSharedAgentJson,
 	createApiCatalog as createSharedApiCatalog,
 	createAuthMarkdown as createSharedAuthMarkdown,
-	createAuthorizationServerMetadata as createSharedAuthorizationServerMetadata,
 	createDeveloperResources,
 	createIndexMarkdown as createSharedIndexMarkdown,
 	createMcpManifest as createSharedMcpManifest,
 	createMcpServerCard as createSharedMcpServerCard,
 	createNlwebAnswer as createSharedNlwebAnswer,
-	createProtectedResourceMetadata as createSharedProtectedResourceMetadata,
 	createSchemaMapXml as createSharedSchemaMapXml,
 	createScopedLlmsText as createSharedScopedLlmsText,
 	createSoftwareJsonl as createSharedSoftwareJsonl,
@@ -101,14 +99,6 @@ export function createA2aAgentCard() {
 
 export function createApiCatalog() {
 	return createSharedApiCatalog(discoveryUrls);
-}
-
-export function createProtectedResourceMetadata(resource = API_URL) {
-	return createSharedProtectedResourceMetadata(discoveryUrls, resource);
-}
-
-export function createAuthorizationServerMetadata() {
-	return createSharedAuthorizationServerMetadata(discoveryUrls);
 }
 
 export function createUcpProfile() {
