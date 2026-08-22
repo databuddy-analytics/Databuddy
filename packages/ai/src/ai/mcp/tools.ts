@@ -69,6 +69,7 @@ import {
 	getResolvedWebsiteId,
 	McpDateRangeSchema,
 	MutationResultSchema,
+	resolveMcpDateRange,
 	WebsiteSelectorSchema,
 	WorkflowFilterSchema,
 } from "./tool-contracts";
@@ -693,18 +694,20 @@ const getFunnelAnalyticsTool = defineMcpTool(
 		resolveWebsite: true,
 		ratelimit: { limit: 60, windowSec: 60 },
 	},
-	async (input, ctx) =>
-		await callRPCProcedure(
+	(input, ctx) => {
+		const { from, to } = resolveMcpDateRange(input);
+		return callRPCProcedure(
 			"funnels",
 			"getAnalytics",
 			{
 				funnelId: input.funnelId,
 				websiteId: ctx.websiteId,
-				startDate: input.from,
-				endDate: input.to,
+				startDate: from,
+				endDate: to,
 			},
 			buildRpcContext(ctx)
-		)
+		);
+	}
 );
 
 const createFunnelTool = defineMcpTool(
@@ -814,18 +817,20 @@ const getGoalAnalyticsTool = defineMcpTool(
 		resolveWebsite: true,
 		ratelimit: { limit: 60, windowSec: 60 },
 	},
-	async (input, ctx) =>
-		await callRPCProcedure(
+	(input, ctx) => {
+		const { from, to } = resolveMcpDateRange(input);
+		return callRPCProcedure(
 			"goals",
 			"getAnalytics",
 			{
 				goalId: input.goalId,
 				websiteId: ctx.websiteId,
-				startDate: input.from,
-				endDate: input.to,
+				startDate: from,
+				endDate: to,
 			},
 			buildRpcContext(ctx)
-		)
+		);
+	}
 );
 
 const createGoalTool = defineMcpTool(
