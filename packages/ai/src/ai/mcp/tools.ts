@@ -1,5 +1,6 @@
 import dayjs from "dayjs";
 import { z } from "zod";
+import { funnelStepSchema } from "@databuddy/rpc/funnel-steps";
 import {
 	historyInsightSchema,
 	insightBriefItemSchema,
@@ -16,7 +17,11 @@ import {
 	httpUrlSchema,
 	isoDateOrOffsetDateTimeSchema,
 } from "@databuddy/validation";
-import { userRuleSchema, variantSchema } from "@databuddy/shared/flags";
+import {
+	flagFormShape,
+	userRuleSchema,
+	variantSchema,
+} from "@databuddy/shared/flags";
 import { executeBatch } from "../../query";
 import { runInvestigationAction } from "../tools/investigations";
 import { callRPCProcedure } from "../tools/utils";
@@ -96,18 +101,11 @@ const WebsiteSummarySchema = z.object({
 	isPublic: z.boolean().nullable(),
 });
 
-const FunnelStepSchema = z.object({
-	type: z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]),
-	target: z.string().min(1),
-	name: z.string().min(1),
-	conditions: z.record(z.string(), z.unknown()).optional(),
-});
-
 const FlagRuleSchema = userRuleSchema;
 const FlagVariantSchema = variantSchema;
 
-const FlagStatusSchema = z.enum(["active", "inactive", "archived"]);
-const FlagTypeSchema = z.enum(["boolean", "rollout", "multivariant"]);
+const FlagStatusSchema = flagFormShape.status;
+const FlagTypeSchema = flagFormShape.type;
 
 function createChartContext(input: {
 	from?: string;
@@ -727,7 +725,7 @@ const createFunnelTool = defineMcpTool(
 			...WebsiteSelectorSchema,
 			name: z.string().min(1).max(100),
 			description: z.string().optional(),
-			steps: z.array(FunnelStepSchema).min(2).max(10),
+			steps: z.array(funnelStepSchema).min(2).max(10),
 			filters: z.array(WorkflowFilterSchema).optional(),
 			ignoreHistoricData: z.boolean().optional(),
 			confirmed: ConfirmedSchema,
@@ -1302,11 +1300,7 @@ const createFlagTool = defineMcpTool(
 			"Create a feature flag. Defaults to inactive boolean flag until explicitly configured.",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
-			key: z
-				.string()
-				.min(1)
-				.max(100)
-				.regex(/^[a-zA-Z0-9_-]+$/),
+			key: flagFormShape.key,
 			name: z.string().min(1).max(100).optional(),
 			description: z.string().optional(),
 			type: FlagTypeSchema.optional(),
