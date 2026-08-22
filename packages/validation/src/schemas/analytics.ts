@@ -7,6 +7,46 @@ import {
 } from "../regexes";
 import { profileIdSchema } from "./identity";
 
+function dateRangeIssue(input: {
+	endDate?: string;
+	startDate?: string;
+}): string | null {
+	if (Boolean(input.startDate) !== Boolean(input.endDate)) {
+		return "Provide both startDate and endDate, or omit both to use the default range.";
+	}
+	if (input.startDate && input.endDate && input.startDate > input.endDate) {
+		return "endDate must be on or after startDate.";
+	}
+	return null;
+}
+
+/** The same inclusive seven-calendar-day window as the `last_7d` preset. */
+export function getDefaultAnalyticsDateRange(now = new Date()) {
+	const start = new Date(now);
+	start.setUTCDate(start.getUTCDate() - 6);
+	return {
+		startDate: start.toISOString().slice(0, 10),
+		endDate: now.toISOString().slice(0, 10),
+	};
+}
+
+/** Date-only analytics inputs must be complete, valid, and ordered. */
+export const analyticsDateRangeSchema = z
+	.object({
+		startDate: z.iso.date().optional(),
+		endDate: z.iso.date().optional(),
+	})
+	.superRefine((input, context) => {
+		const message = dateRangeIssue(input);
+		if (message) {
+			context.addIssue({
+				code: "custom",
+				message,
+				path: ["endDate"],
+			});
+		}
+	});
+
 const resolutionSchema = z
 	.string()
 	.regex(RESOLUTION_REGEX, "Must be in the format 'WIDTHxHEIGHT'")
