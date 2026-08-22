@@ -1,5 +1,8 @@
 import { tool } from "ai";
-import { annotationCoordinateSchema } from "@databuddy/validation";
+import {
+	annotationChartContextSchema,
+	annotationCoordinateSchema,
+} from "@databuddy/validation";
 import { z } from "zod";
 import {
 	callRPCProcedure,
@@ -26,29 +29,10 @@ interface AnnotationRecord {
 
 const chartTypeSchema = z.enum(["metrics"]);
 
-const chartContextSchema = z.object({
-	dateRange: z.object({
-		start_date: z.string(),
-		end_date: z.string(),
-		granularity: z.enum(["hourly", "daily", "weekly", "monthly"]),
-	}),
-	filters: z
-		.array(
-			z.object({
-				field: z.string(),
-				operator: z.enum(["eq", "ne", "gt", "lt", "contains"]),
-				value: z.string(),
-			})
-		)
-		.optional(),
-	metrics: z.array(z.string()).optional(),
-	tabId: z.string().optional(),
-});
-
 const createAnnotationInputSchema = annotationCoordinateSchema.safeExtend({
 	websiteId: z.string(),
 	chartType: chartTypeSchema,
-	chartContext: chartContextSchema,
+	chartContext: annotationChartContextSchema,
 	yValue: z.number().optional(),
 	text: z.string().min(1).max(500),
 	tags: z.array(z.string()).optional(),
@@ -60,7 +44,7 @@ const createAnnotationInputSchema = annotationCoordinateSchema.safeExtend({
 const listAnnotationsInputSchema = z.object({
 	websiteId: z.string(),
 	chartType: chartTypeSchema,
-	chartContext: chartContextSchema,
+	chartContext: annotationChartContextSchema,
 });
 const updateAnnotationInputSchema = createAnnotationInputSchema
 	.pick({
