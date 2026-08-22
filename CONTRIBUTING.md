@@ -24,6 +24,9 @@ cd databuddy
 bun install
 ```
 
+> [!NOTE]
+> Bun ≥ 1.2.0 is only the minimum required for `catalog:` protocol support. The repo pins an exact version via the `packageManager` field in `package.json`, so contributors should use that version to avoid install conflicts (check it with `grep packageManager package.json`, or activate it via Corepack with `corepack prepare bun@<version> --activate`).
+
 3. Set up environment variables:
 
 ```bash
