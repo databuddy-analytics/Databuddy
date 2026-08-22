@@ -1,5 +1,5 @@
 import { tool } from "ai";
-import dayjs from "dayjs";
+import { annotationCoordinateSchema } from "@databuddy/validation";
 import { z } from "zod";
 import {
 	callRPCProcedure,
@@ -25,7 +25,6 @@ interface AnnotationRecord {
 }
 
 const chartTypeSchema = z.enum(["metrics"]);
-const annotationTypeSchema = z.enum(["point", "line", "range"]);
 
 const chartContextSchema = z.object({
 	dateRange: z.object({
@@ -46,31 +45,17 @@ const chartContextSchema = z.object({
 	tabId: z.string().optional(),
 });
 
-const isoDateSchema = z.string().refine((value) => dayjs(value).isValid(), {
-	message:
-		"Must be a valid ISO 8601 date string (e.g., '2024-01-15T10:30:00Z').",
+const createAnnotationInputSchema = annotationCoordinateSchema.safeExtend({
+	websiteId: z.string(),
+	chartType: chartTypeSchema,
+	chartContext: chartContextSchema,
+	yValue: z.number().optional(),
+	text: z.string().min(1).max(500),
+	tags: z.array(z.string()).optional(),
+	color: z.string().optional(),
+	isPublic: z.boolean().optional(),
+	confirmed: z.boolean().describe("false=preview, true=apply"),
 });
-
-const createAnnotationInputSchema = z
-	.object({
-		websiteId: z.string(),
-		chartType: chartTypeSchema,
-		chartContext: chartContextSchema,
-		annotationType: annotationTypeSchema,
-		xValue: isoDateSchema,
-		xEndValue: isoDateSchema.optional(),
-		yValue: z.number().optional(),
-		text: z.string().min(1).max(500),
-		tags: z.array(z.string()).optional(),
-		color: z.string().optional(),
-		isPublic: z.boolean().optional(),
-		confirmed: z.boolean().describe("false=preview, true=apply"),
-	})
-	.refine((input) => input.annotationType !== "range" || input.xEndValue, {
-		message:
-			"Range annotations require an xEndValue to define the end of the time period.",
-		path: ["xEndValue"],
-	});
 
 const listAnnotationsInputSchema = z.object({
 	websiteId: z.string(),
