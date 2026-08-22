@@ -10,7 +10,12 @@ import {
 	DEEP_LINK_APP_IDS,
 	isDeepLinkTarget,
 } from "@databuddy/shared/constants/deep-link-apps";
-import { httpUrlSchema } from "@databuddy/validation";
+import {
+	annotationChartContextSchema,
+	annotationCoordinateSchema,
+	httpUrlSchema,
+	isoDateOrOffsetDateTimeSchema,
+} from "@databuddy/validation";
 import { userRuleSchema, variantSchema } from "@databuddy/shared/flags";
 import { executeBatch } from "../../query";
 import { runInvestigationAction } from "../tools/investigations";
@@ -69,10 +74,6 @@ import {
 } from "./tool-contracts";
 
 const TIME_UNIT = ["minute", "hour", "day", "week", "month"] as const;
-const DateTimeSchema = z.union([
-	z.iso.date(),
-	z.iso.datetime({ offset: true }),
-]);
 
 const QueryItemSchema = z.object({
 	type: z.string(),
@@ -101,25 +102,6 @@ const FunnelStepSchema = z.object({
 	conditions: z.record(z.string(), z.unknown()).optional(),
 });
 
-const ChartContextSchema = z.object({
-	dateRange: z.object({
-		start_date: z.string(),
-		end_date: z.string(),
-		granularity: z.enum(["hourly", "daily", "weekly", "monthly"]),
-	}),
-	filters: z
-		.array(
-			z.object({
-				field: z.string(),
-				operator: z.enum(["eq", "ne", "gt", "lt", "contains"]),
-				value: z.string(),
-			})
-		)
-		.optional(),
-	metrics: z.array(z.string()).optional(),
-	tabId: z.string().optional(),
-});
-
 const FlagRuleSchema = userRuleSchema;
 const FlagVariantSchema = variantSchema;
 
@@ -131,7 +113,7 @@ function createChartContext(input: {
 	granularity?: "hourly" | "daily" | "weekly" | "monthly";
 	metrics?: string[];
 	to?: string;
-}): z.infer<typeof ChartContextSchema> {
+}): z.infer<typeof annotationChartContextSchema> {
 	return {
 		dateRange: {
 			start_date:
@@ -1077,7 +1059,7 @@ const createLinkTool = defineMcpTool(
 					.max(50)
 					.regex(/^[a-zA-Z0-9_-]+$/)
 					.optional(),
-				expiresAt: DateTimeSchema.optional(),
+				expiresAt: isoDateOrOffsetDateTimeSchema.optional(),
 				expiredRedirectUrl: httpUrlSchema.optional(),
 				ogTitle: z.string().max(200).optional(),
 				ogDescription: z.string().max(500).optional(),
@@ -1175,7 +1157,7 @@ const listAnnotationsTool = defineMcpTool(
 			...WebsiteSelectorSchema,
 			granularity: z.enum(["hourly", "daily", "weekly", "monthly"]).optional(),
 			metrics: z.array(z.string()).optional(),
-			chartContext: ChartContextSchema.optional(),
+			chartContext: annotationChartContextSchema.optional(),
 		}),
 		outputSchema: z.object({
 			annotations: z.array(z.record(z.string(), z.unknown())),
@@ -1205,42 +1187,22 @@ const createAnnotationTool = defineMcpTool(
 		name: "create_annotation",
 		description:
 			"Create a chart annotation. Call with confirmed=false for preview before writing.",
-		inputSchema: z
-			.object({
-				...WebsiteSelectorSchema,
-				chartContext: ChartContextSchema.optional(),
-				annotationType: z.enum(["point", "line", "range"]),
-				xValue: DateTimeSchema,
-				xEndValue: DateTimeSchema.optional(),
-				yValue: z.number().optional(),
-				text: z.string().min(1).max(500),
-				tags: z.array(z.string()).optional(),
-				color: z.string().optional(),
-				isPublic: z.boolean().optional(),
-				confirmed: ConfirmedSchema,
-			})
-			.refine(
-				(input) =>
-					!input.xEndValue ||
-					new Date(input.xEndValue) >= new Date(input.xValue),
-				{
-					message: "xEndValue must be on or after xValue.",
-					path: ["xEndValue"],
-				}
-			),
+		inputSchema: annotationCoordinateSchema.safeExtend({
+			...WebsiteSelectorSchema,
+			chartContext: annotationChartContextSchema.optional(),
+			yValue: z.number().optional(),
+			text: z.string().min(1).max(500),
+			tags: z.array(z.string()).optional(),
+			color: z.string().optional(),
+			isPublic: z.boolean().optional(),
+			confirmed: ConfirmedSchema,
+		}),
 		outputSchema: MutationResultSchema,
 		resolveWebsite: true,
 		metadata: metadataForResource("website", ["update"]),
 		ratelimit: { limit: 20, windowSec: 60 },
 	},
 	async (input, ctx) => {
-		if (input.annotationType === "range" && !input.xEndValue) {
-			throw new McpToolError(
-				"invalid_input",
-				"Range annotations require xEndValue."
-			);
-		}
-
 		const chartContext =
 			input.chartContext ??
 			createChartContext({

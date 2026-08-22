@@ -1,5 +1,6 @@
 import { and, desc, eq, isNull, or, type SQL } from "@databuddy/db";
 import { annotations } from "@databuddy/db/schema";
+import { annotationChartContextSchema } from "@databuddy/validation";
 import {
 	createDrizzleCache,
 	invalidateAgentContextSnapshotsForWebsite,
@@ -7,6 +8,7 @@ import {
 } from "@databuddy/redis";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
+import { createAnnotationInputSchema } from "./annotation-schema";
 import { rpcError } from "../errors";
 import { setTrackProperties } from "../middleware/track-mutation";
 import { type Context, publicProcedure, trackedProcedure } from "../orpc";
@@ -43,28 +45,9 @@ async function invalidateAnnotationCaches(websiteId: string): Promise<void> {
 	]);
 }
 
-const chartContextSchema = z.object({
-	dateRange: z.object({
-		start_date: z.string(),
-		end_date: z.string(),
-		granularity: z.enum(["hourly", "daily", "weekly", "monthly"]),
-	}),
-	filters: z
-		.array(
-			z.object({
-				field: z.string(),
-				operator: z.enum(["eq", "ne", "gt", "lt", "contains"]),
-				value: z.string(),
-			})
-		)
-		.optional(),
-	metrics: z.array(z.string()).optional(),
-	tabId: z.string().optional(),
-});
-
 const annotationOutputSchema = z.object({
 	annotationType: z.string(),
-	chartContext: chartContextSchema,
+	chartContext: annotationChartContextSchema,
 	chartType: z.string(),
 	color: z.string(),
 	createdAt: z.coerce.date(),
@@ -106,7 +89,7 @@ export const annotationsRouter = {
 			z.object({
 				websiteId: z.string(),
 				chartType: z.enum(["metrics"]),
-				chartContext: chartContextSchema,
+				chartContext: annotationChartContextSchema,
 			})
 		)
 		.output(z.array(annotationOutputSchema))
@@ -248,21 +231,7 @@ export const annotationsRouter = {
 			summary: "Create annotation",
 			tags: ["Annotations"],
 		})
-		.input(
-			z.object({
-				websiteId: z.string(),
-				chartType: z.enum(["metrics"]),
-				chartContext: chartContextSchema,
-				annotationType: z.enum(["point", "line", "range"]),
-				xValue: z.string(),
-				xEndValue: z.string().optional(),
-				yValue: z.number().optional(),
-				text: z.string().min(1).max(500),
-				tags: z.array(z.string()).optional(),
-				color: z.string().optional(),
-				isPublic: z.boolean().default(false),
-			})
-		)
+		.input(createAnnotationInputSchema)
 		.output(annotationOutputSchema)
 		.handler(async ({ context, input }) => {
 			setTrackProperties({ type: input.annotationType });
