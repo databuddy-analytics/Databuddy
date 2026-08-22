@@ -43,5 +43,5 @@ Do not recreate an investigation with ad hoc anomaly math when a durable case al
 
 ## Mutations
 
-Respect each tool's API-key scopes. Analytics reads require \`read:data\`; website writes and investigation replies require \`manage:websites\`; flag mutations require \`manage:flags\` (and website-scoped ones also require \`read:data\`); link catalog reads require \`read:links\`, while website-scoped link mutations require \`read:data\` plus \`write:links\` (and \`create_link\` also requires \`read:links\`). Preview goal, annotation, and link mutations with \`confirmed=false\`, then apply only after explicit approval with \`confirmed=true\`.
+Analytics and schema/discovery tools require \`read:data\`. Website writes and investigation replies require \`manage:websites\`; flag mutations require \`manage:flags\`. Short-link reads and previews are organization-wide and require \`read:links\`; every link mutation also requires \`write:links\`. Preview goal, annotation, and link mutations with \`confirmed=false\`, then apply only after explicit approval with \`confirmed=true\`.
 `;

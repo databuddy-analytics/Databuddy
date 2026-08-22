@@ -28,6 +28,7 @@ import {
 	getResolvedWebsiteId,
 	McpDateRangeSchema,
 	MutationResultSchema,
+	resolveMcpDateRange,
 	WebsiteSelectorSchema,
 	WorkflowFilterSchema,
 } from "./tool-contracts";
@@ -53,18 +54,20 @@ const getFunnelAnalyticsByReferrerTool = defineMcpTool(
 		resolveWebsite: true,
 		ratelimit: { limit: 60, windowSec: 60 },
 	},
-	async (input, ctx) =>
-		await callRPCProcedure(
+	(input, ctx) => {
+		const { from, to } = resolveMcpDateRange(input);
+		return callRPCProcedure(
 			"funnels",
 			"getAnalyticsByReferrer",
 			{
 				funnelId: input.funnelId,
 				websiteId: getResolvedWebsiteId(ctx),
-				startDate: input.from,
-				endDate: input.to,
+				startDate: from,
+				endDate: to,
 			},
 			buildRpcContext(ctx)
-		)
+		);
+	}
 );
 
 const updateGoalTool = defineMcpTool(
