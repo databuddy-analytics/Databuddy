@@ -65,6 +65,23 @@ const timestampSchema = z
 		}
 	);
 
+const analyticsDateOnlySchema = z.iso.date();
+
+export const analyticsDateRangeSchema = z
+	.object({
+		startDate: analyticsDateOnlySchema.optional(),
+		endDate: analyticsDateOnlySchema.optional(),
+	})
+	.superRefine((range, ctx) => {
+		if (range.startDate && range.endDate && range.startDate > range.endDate) {
+			ctx.addIssue({
+				code: "custom",
+				message: "startDate must be on or before endDate",
+				path: ["startDate"],
+			});
+		}
+	});
+
 export const analyticsEventSchema = z.object({
 	eventId: z.string().max(VALIDATION_LIMITS.EVENT_ID_MAX_LENGTH),
 	name: z.string().min(1).max(VALIDATION_LIMITS.NAME_MAX_LENGTH),
