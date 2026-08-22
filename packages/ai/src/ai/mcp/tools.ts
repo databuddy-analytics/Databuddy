@@ -124,26 +124,6 @@ function createChartContext(input: {
 	};
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
-	return value && typeof value === "object" && !Array.isArray(value)
-		? (value as Record<string, unknown>)
-		: {};
-}
-
-function createFlagUserRule(
-	matchBy: "email" | "user_id",
-	values: string[]
-): z.infer<typeof FlagRuleSchema> {
-	return {
-		batch: true,
-		batchValues: values,
-		enabled: true,
-		operator: "in",
-		type: matchBy,
-		values,
-	};
-}
-
 const listWebsitesTool = defineMcpTool(
 	{
 		name: "list_websites",
@@ -1452,17 +1432,32 @@ const addUsersToFlagTool = defineMcpTool(
 		const uniqueUsers = [
 			...new Set(input.users.map((user) => user.trim())),
 		].filter(Boolean);
-		const currentFlag = asRecord(
-			await callRPCProcedure(
-				"flags",
-				"getById",
-				{ id: input.flagId, websiteId: ctx.websiteId },
-				buildRpcContext(ctx)
-			)
-		);
-		const currentRules =
-			z.array(FlagRuleSchema).safeParse(currentFlag.rules).data ?? [];
-		const nextRule = createFlagUserRule(input.matchBy, uniqueUsers);
+		const currentFlag = z
+			.object({
+				id: z.string(),
+				key: z.string(),
+				name: z.string().nullable().optional(),
+				rules: z.array(FlagRuleSchema).optional(),
+				status: FlagStatusSchema.optional(),
+			})
+			.passthrough()
+			.parse(
+				await callRPCProcedure(
+					"flags",
+					"getById",
+					{ id: input.flagId, websiteId: ctx.websiteId },
+					buildRpcContext(ctx)
+				)
+			);
+		const currentRules = currentFlag.rules ?? [];
+		const nextRule = {
+			batch: true,
+			batchValues: uniqueUsers,
+			enabled: true,
+			operator: "in",
+			type: input.matchBy,
+			values: uniqueUsers,
+		} satisfies z.infer<typeof FlagRuleSchema>;
 		const nextRules =
 			input.mode === "replace" ? [nextRule] : [...currentRules, nextRule];
 
