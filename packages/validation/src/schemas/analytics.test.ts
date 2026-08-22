@@ -1,5 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { analyticsEventSchema } from "./analytics";
+import {
+	analyticsDateRangeSchema,
+	analyticsEventSchema,
+} from "./analytics";
 
 const validEvent = {
 	eventId: "test-id",
@@ -92,6 +95,74 @@ describe("analyticsEventSchema referrer validation", () => {
 		const result = analyticsEventSchema.safeParse({
 			...validEvent,
 			referrer: "not-a-valid-url",
+		});
+		expect(result.success).toBe(false);
+	});
+});
+
+describe("analyticsDateRangeSchema", () => {
+	it("accepts a complete range", () => {
+		const result = analyticsDateRangeSchema.safeParse({
+			startDate: "2026-01-01",
+			endDate: "2026-01-31",
+		});
+		expect(result.success).toBe(true);
+	});
+
+	it("accepts no dates at all", () => {
+		const result = analyticsDateRangeSchema.safeParse({});
+		expect(result.success).toBe(true);
+	});
+
+	it("rejects a start date without an end date", () => {
+		const result = analyticsDateRangeSchema.safeParse({
+			startDate: "2026-01-01",
+		});
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error.issues[0]?.message).toBe(
+				"endDate is required when startDate is provided"
+			);
+		}
+	});
+
+	it("rejects an end date without a start date", () => {
+		const result = analyticsDateRangeSchema.safeParse({
+			endDate: "2026-01-31",
+		});
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error.issues[0]?.message).toBe(
+				"startDate is required when endDate is provided"
+			);
+		}
+	});
+
+	it("rejects an inverted range", () => {
+		const result = analyticsDateRangeSchema.safeParse({
+			startDate: "2026-02-01",
+			endDate: "2026-01-31",
+		});
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error.issues[0]?.message).toBe(
+				"startDate must be on or before endDate"
+			);
+		}
+	});
+
+	it("accepts equal start and end dates", () => {
+		const result = analyticsDateRangeSchema.safeParse({
+			startDate: "2026-01-31",
+			endDate: "2026-01-31",
+		});
+		expect(result.success).toBe(true);
+	});
+
+	it("rejects non-ISO date strings", () => {
+		const result = analyticsDateRangeSchema.safeParse({
+			startDate: "01/2026",
+			endDate: "2026-01-31",
 		});
 		expect(result.success).toBe(false);
 	});

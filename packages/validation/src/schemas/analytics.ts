@@ -73,6 +73,18 @@ export const analyticsDateRangeSchema = z
 		endDate: analyticsDateOnlySchema.optional(),
 	})
 	.superRefine((range, ctx) => {
+		const hasStart = Boolean(range.startDate);
+		const hasEnd = Boolean(range.endDate);
+		if (hasStart !== hasEnd) {
+			ctx.addIssue({
+				code: "custom",
+				message: hasStart
+					? "endDate is required when startDate is provided"
+					: "startDate is required when endDate is provided",
+				path: [hasStart ? "endDate" : "startDate"],
+			});
+			return;
+		}
 		if (range.startDate && range.endDate && range.startDate > range.endDate) {
 			ctx.addIssue({
 				code: "custom",
