@@ -51,7 +51,7 @@ Pass an API key with the `read:data` scope:
 />
 
 <Callout type="info">
-  The quickest setup is [Dashboard → Organization Settings → Integrations](https://app.databuddy.cc/organizations/settings/integrations): choose **Databuddy MCP**, select the client, capabilities, and website access you want, then copy the generated config. The secret is shown only once. You can also create and manage keys from [API Keys](https://app.databuddy.cc/organizations/settings#api-keys). The key needs at least the `read:data` scope. Add `manage:websites` for workspace actions such as goals, funnels, annotations, and investigation replies; add `manage:flags` for feature-flag mutations; and add `read:links` plus `write:links` for the full short-link workflow.
+  The quickest setup is [Dashboard → Organization Settings → Integrations](https://app.databuddy.cc/organizations/settings/integrations): choose **Databuddy MCP**, select the client, capabilities, and website access you want, then copy the generated config. The secret is shown only once. You can also create and manage keys from [API Keys](https://app.databuddy.cc/organizations/settings#api-keys). The generated key starts with `read:data`. Add `manage:websites` for workspace actions such as goals, funnels, annotations, and investigation replies; add `manage:flags` for feature-flag mutations; and add organization-wide `read:links` plus `write:links` for short-link reads and mutations.
 </Callout>
 
 ### Dashboard setup
@@ -222,11 +222,10 @@ Tools are filtered based on your API key's scopes:
 
 | Scope | Tools |
 |-------|-------|
-| `read:data` | Analytics, investigations, schema, and read-only tools |
+| `read:data` | Analytics, investigations, schema/capability discovery, and website-scoped tools |
 | `manage:websites` | Investigation replies; create, update, and delete goals and annotations; create funnels |
 | `manage:flags` | Feature flag mutations |
-| `read:links` | Read short links, folders, and link search results |
-| `read:data` + `write:links` | Update or delete short links for an accessible website |
-| `read:data` + `read:links` + `write:links` | Create short links |
+| `read:links` | Organization-wide short-link, folder, and search reads; required by every link mutation for its preview |
+| `write:links` | With `read:links`, create, update, and delete short links organization-wide |
 
 Session-authenticated users (via the dashboard) get access based on their organization role instead.

@@ -91,6 +91,14 @@ async function listToolsForScopes(scopes: ApiScope[]) {
 }
 
 describe("MCP tool invariants", () => {
+	test("does not expose discovery tools to a zero-scope API key", async () => {
+		const { tools: listed } = await listToolsForScopes([]);
+		const names = new Set(listed.map((tool) => tool.name));
+
+		expect(names.has("capabilities")).toBe(false);
+		expect(names.has("get_schema")).toBe(false);
+	});
+
 	test("dynamic analytics output schemas work through the installed MCP SDK", async () => {
 		const dynamicTools = tools.filter((tool) =>
 			["get_funnel_analytics", "get_goal_analytics"].includes(tool.name)
@@ -164,6 +172,24 @@ describe("MCP tool invariants", () => {
 		}
 	});
 
+	test("does not expose internal exception text", async () => {
+		const sentinel = "MCP_INTERNAL_SENTINEL_DO_NOT_EXPOSE";
+		const tool = defineMcpTool(
+			{
+				name: "internal_error_test",
+				description: "Test that internal exception text is not returned to callers.",
+				inputSchema: z.object({}),
+			},
+			() => {
+				throw new Error(sentinel);
+			}
+		).build(ctx);
+
+		const result = await tool.handler({});
+		expect(result).toMatchObject({ isError: true });
+		expect(JSON.stringify(result)).not.toContain(sentinel);
+	});
+
 	test("create_link matches the HTTP(S) and deep-link app contract", () => {
 		const createLink = tools.find((tool) => tool.name === "create_link");
 		if (!createLink) {
@@ -207,16 +233,12 @@ describe("MCP tool invariants", () => {
 		).toBe(true);
 	});
 
-	test("uses strict ISO dates for MCP date-only and timestamp inputs", () => {
+	test("uses strict ISO dates for MCP analytics inputs", () => {
 		const getFunnelAnalytics = tools.find(
 			(tool) => tool.name === "get_funnel_analytics"
 		);
-		const createLink = tools.find((tool) => tool.name === "create_link");
-		const createAnnotation = tools.find(
-			(tool) => tool.name === "create_annotation"
-		);
-		if (!(getFunnelAnalytics && createLink && createAnnotation)) {
-			throw new Error("Expected date-bearing MCP tools to be registered");
+		if (!getFunnelAnalytics) {
+			throw new Error("Expected get_funnel_analytics to be registered");
 		}
 
 		expect(
@@ -227,6 +249,17 @@ describe("MCP tool invariants", () => {
 				websiteId: "website-1",
 			}).success
 		).toBe(false);
+	});
+
+	test("uses strict ISO timestamps for MCP link and annotation inputs", () => {
+		const createLink = tools.find((tool) => tool.name === "create_link");
+		const createAnnotation = tools.find(
+			(tool) => tool.name === "create_annotation"
+		);
+		if (!(createLink && createAnnotation)) {
+			throw new Error("Expected date-bearing MCP tools to be registered");
+		}
+
 		expect(
 			createLink.inputSchema.safeParse({
 				confirmed: false,
@@ -427,6 +460,8 @@ describe("investigation tools", () => {
 		const readData = await listToolsForScopes(["read:data"]);
 		const readDataNames = new Set(readData.tools.map((tool) => tool.name));
 		expect(readData.response.status).toBe(200);
+		expect(readDataNames.has("capabilities")).toBe(true);
+		expect(readDataNames.has("get_schema")).toBe(true);
 		expect(readDataNames.has("get_data")).toBe(true);
 		expect(readDataNames.has("get_funnel_analytics_by_referrer")).toBe(true);
 		expect(readDataNames.has("list_links")).toBe(false);

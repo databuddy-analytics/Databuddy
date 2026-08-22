@@ -465,6 +465,12 @@ const getDataTool = defineMcpTool(
 		}
 
 		const plan = buildBatchQueryRequests(items, websiteId, timezone);
+		if (items.length === 1 && plan.requests.length === 0) {
+			throw new McpToolError(
+				"invalid_input",
+				plan.invalid[0]?.error ?? "The query could not be executed."
+			);
+		}
 
 		// ctx.websiteDomain is guaranteed set by defineMcpTool when resolveWebsite is true
 		const websiteDomain = ctx.websiteDomain ?? "unknown";
@@ -522,6 +528,7 @@ const getSchemaTool = defineMcpTool(
 			sections: z.array(z.string()),
 			bytes: z.number(),
 		}),
+		metadata: metadataForResource("organization", ["read"]),
 		ratelimit: { limit: 60, windowSec: 60 },
 	},
 	(input) => {
@@ -601,6 +608,7 @@ const capabilitiesTool = defineMcpTool(
 			queryTypes: z.record(z.string(), z.unknown()).optional(),
 			hints: z.array(z.string()).optional(),
 		}),
+		metadata: metadataForResource("organization", ["read"]),
 		ratelimit: { limit: 60, windowSec: 60 },
 	},
 	(input) => {
