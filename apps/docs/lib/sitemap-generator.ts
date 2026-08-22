@@ -208,8 +208,6 @@ export async function generateSitemapEntries(): Promise<MetadataRoute.Sitemap> {
 			"/.well-known/agent.json",
 			"/.well-known/agent-card.json",
 			"/.well-known/api-catalog",
-			"/.well-known/oauth-protected-resource",
-			"/.well-known/oauth-authorization-server",
 			"/.well-known/http-message-signatures-directory",
 			"/.well-known/ucp",
 			"/auth.md",
