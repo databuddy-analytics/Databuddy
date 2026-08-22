@@ -11,6 +11,7 @@ import {
 	handleDatabuddyMcpRequest,
 } from "../../mcp/http";
 import { defineMcpTool, type McpRequestContext } from "./define-tool";
+import { resolveMcpDateRange } from "./tool-contracts";
 import { createMcpTools } from "./tools";
 
 const ctx: McpRequestContext = {
@@ -155,6 +156,24 @@ describe("MCP tool invariants", () => {
 		}
 	});
 
+	test("does not expose internal exception text", async () => {
+		const sentinel = "MCP_INTERNAL_SENTINEL_DO_NOT_EXPOSE";
+		const tool = defineMcpTool(
+			{
+				name: "internal_error_test",
+				description: "Test that internal exception text is not returned to callers.",
+				inputSchema: z.object({}),
+			},
+			() => {
+				throw new Error(sentinel);
+			}
+		).build(ctx);
+
+		const result = await tool.handler({});
+		expect(result).toMatchObject({ isError: true });
+		expect(JSON.stringify(result)).not.toContain(sentinel);
+	});
+
 	test("create_link matches the HTTP(S) and deep-link app contract", () => {
 		const createLink = tools.find((tool) => tool.name === "create_link");
 		if (!createLink) {
@@ -236,6 +255,39 @@ describe("MCP tool invariants", () => {
 				xValue: "2026-02-30T12:00:00Z",
 			}).success
 		).toBe(false);
+		expect(
+			createAnnotation.inputSchema.safeParse({
+				annotationType: "range",
+				confirmed: false,
+				text: "Release",
+				websiteId: "website-1",
+				xEndValue: "2026-03-02",
+				xValue: "2026-03-01",
+			}).success
+		).toBe(true);
+		for (const xEndValue of [undefined, "2026-02-28"]) {
+			expect(
+				createAnnotation.inputSchema.safeParse({
+					annotationType: "range",
+					confirmed: false,
+					text: "Release",
+					websiteId: "website-1",
+					xEndValue,
+					xValue: "2026-03-01",
+				}).success
+			).toBe(false);
+		}
+	});
+
+	test("resolves MCP date presets instead of ignoring them", () => {
+		const { from, to } = resolveMcpDateRange({ preset: "last_30d" });
+		expect(from).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+		expect(to).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+		expect(
+			(Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) /
+				86_400_000 +
+				1
+		).toBe(30);
 	});
 
 	test("keeps mixed batch date errors inside the batch result", () => {
@@ -318,9 +370,16 @@ describe("MCP tool invariants", () => {
 
 describe("investigation tools", () => {
 	test("only advertises tools whose API-key scopes can satisfy their calls", async () => {
+		const zeroScope = await listToolsForScopes([]);
+		const zeroScopeNames = new Set(zeroScope.tools.map((tool) => tool.name));
+		expect(zeroScopeNames.has("capabilities")).toBe(false);
+		expect(zeroScopeNames.has("get_schema")).toBe(false);
+
 		const readData = await listToolsForScopes(["read:data"]);
 		const readDataNames = new Set(readData.tools.map((tool) => tool.name));
 		expect(readData.response.status).toBe(200);
+		expect(readDataNames.has("capabilities")).toBe(true);
+		expect(readDataNames.has("get_schema")).toBe(true);
 		expect(readDataNames.has("get_data")).toBe(true);
 		expect(readDataNames.has("get_funnel_analytics_by_referrer")).toBe(true);
 		expect(readDataNames.has("list_links")).toBe(false);

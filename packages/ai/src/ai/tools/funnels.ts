@@ -1,5 +1,5 @@
 import { tool } from "ai";
-import dayjs from "dayjs";
+import { analyticsDateRangeSchema } from "@databuddy/validation";
 import { z } from "zod";
 import {
 	callRPCProcedure,
@@ -9,6 +9,11 @@ import {
 } from "./utils";
 
 const logger = createToolLogger("Funnels Tools");
+
+const funnelAnalyticsInputSchema = analyticsDateRangeSchema.safeExtend({
+	funnelId: z.string(),
+	websiteId: z.string().optional(),
+});
 
 export function createFunnelTools() {
 	const listFunnelsTool = tool({
@@ -41,12 +46,7 @@ export function createFunnelTools() {
 	const getFunnelAnalyticsTool = tool({
 		description:
 			"Funnel step conversion and drop-offs for a chosen date range. Do not repeat an exact overall measurement already supplied by the caller.",
-		inputSchema: z.object({
-			funnelId: z.string(),
-			websiteId: z.string().optional(),
-			startDate: z.string().optional(),
-			endDate: z.string().optional(),
-		}),
+		inputSchema: funnelAnalyticsInputSchema,
 		execute: async (
 			{ funnelId, websiteId: inputWebsiteId, startDate, endDate },
 			options
@@ -54,17 +54,6 @@ export function createFunnelTools() {
 			const context = getAppContext(options);
 			const { websiteId } = resolveToolWebsite(context, inputWebsiteId);
 			try {
-				if (startDate && !dayjs(startDate).isValid()) {
-					throw new Error(
-						"Start date must be in YYYY-MM-DD format (e.g., 2024-01-15)."
-					);
-				}
-				if (endDate && !dayjs(endDate).isValid()) {
-					throw new Error(
-						"End date must be in YYYY-MM-DD format (e.g., 2024-01-15)."
-					);
-				}
-
 				return await callRPCProcedure(
 					"funnels",
 					"getAnalytics",
@@ -89,12 +78,7 @@ export function createFunnelTools() {
 	const getFunnelAnalyticsByReferrerTool = tool({
 		description:
 			"Funnel analytics broken down by referrer/source. Shows which sources convert best.",
-		inputSchema: z.object({
-			funnelId: z.string(),
-			websiteId: z.string().optional(),
-			startDate: z.string().optional(),
-			endDate: z.string().optional(),
-		}),
+		inputSchema: funnelAnalyticsInputSchema,
 		execute: async (
 			{ funnelId, websiteId: inputWebsiteId, startDate, endDate },
 			options
@@ -102,17 +86,6 @@ export function createFunnelTools() {
 			const context = getAppContext(options);
 			const { websiteId } = resolveToolWebsite(context, inputWebsiteId);
 			try {
-				if (startDate && !dayjs(startDate).isValid()) {
-					throw new Error(
-						"Start date must be in YYYY-MM-DD format (e.g., 2024-01-15)."
-					);
-				}
-				if (endDate && !dayjs(endDate).isValid()) {
-					throw new Error(
-						"End date must be in YYYY-MM-DD format (e.g., 2024-01-15)."
-					);
-				}
-
 				return await callRPCProcedure(
 					"funnels",
 					"getAnalyticsByReferrer",

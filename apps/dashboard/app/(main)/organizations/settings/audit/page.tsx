@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import {
 	Badge,
@@ -8,11 +9,31 @@ import {
 	EmptyState,
 	formatDateTime,
 	Skeleton,
+	StatusDot,
 	Text,
 } from "@databuddy/ui";
-import { ShieldCheckIcon } from "@databuddy/ui/icons";
+import { DropdownMenu, Sheet } from "@databuddy/ui/client";
+import {
+	ArrowRightIcon,
+	CaretUpDownIcon,
+	CodeIcon,
+	FilterIcon,
+	ShieldCheckIcon,
+} from "@databuddy/ui/icons";
+import {
+	auditActorTypeLabels,
+	auditOutcomes,
+	auditSourceLabels,
+	getAuditActionLabel,
+	getAuditTargetLabel,
+	type AuditOutcome,
+} from "@databuddy/shared/audit";
 import { useOrganizations } from "@/hooks/use-organizations";
 import { orpc } from "@/lib/orpc";
+
+type AuditEvent = Awaited<
+	ReturnType<typeof orpc.audit.list.call>
+>["events"][number];
 
 const outcomeVariant = {
 	denied: "warning",
@@ -20,12 +41,53 @@ const outcomeVariant = {
 	success: "success",
 } as const;
 
-function formatAction(action: string): string {
-	return action
-		.split(".")
-		.map((part) => part.replaceAll("_", " "))
-		.join(" / ");
-}
+const outcomeDotColor: Record<
+	AuditOutcome,
+	"success" | "warning" | "destructive"
+> = {
+	denied: "warning",
+	failure: "destructive",
+	success: "success",
+};
+
+type OutcomeFilter = "all" | AuditOutcome;
+type TargetFilter =
+	| "all"
+	| "api_key"
+	| "flag"
+	| "website"
+	| "organization"
+	| "member"
+	| "invitation";
+
+const outcomeFilterLabels: Record<OutcomeFilter, string> = {
+	all: "All outcomes",
+	denied: "Denied",
+	failure: "Failed",
+	success: "Successful",
+};
+
+const targetFilterLabels: Record<TargetFilter, string> = {
+	all: "All resources",
+	api_key: "API keys",
+	flag: "Feature flags",
+	website: "Websites",
+	organization: "Organizations",
+	member: "Members",
+	invitation: "Invitations",
+};
+
+const targetFilterOptions: TargetFilter[] = [
+	"all",
+	"api_key",
+	"flag",
+	"website",
+	"organization",
+	"member",
+	"invitation",
+];
+
+const sensitiveAuditFieldPattern = /(^|_)(key|password|secret|token)(_|$)/i;
 
 function getErrorCode(error: unknown): string | undefined {
 	if (!(error && typeof error === "object")) {
@@ -36,6 +98,230 @@ function getErrorCode(error: unknown): string | undefined {
 		data?: { code?: string };
 	};
 	return details.data?.code ?? details.code;
+}
+
+function formatFieldName(value: string): string {
+	return value
+		.replaceAll("_", " ")
+		.replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function formatChangeSummary(
+	action: string,
+	changes: Record<string, unknown>
+): string | undefined {
+	if (action.endsWith(".created") || action.endsWith(".deleted")) {
+		return;
+	}
+
+	const fields = Object.keys(changes).filter((field) => field !== "deleted");
+	if (fields.length === 0) {
+		return;
+	}
+
+	const visibleFields = fields.slice(0, 3).map(formatFieldName);
+	const remainingCount = fields.length - visibleFields.length;
+	return `Changed ${visibleFields.join(", ")}${remainingCount > 0 ? ` +${remainingCount} more` : ""}`;
+}
+
+function getTargetSummary(event: {
+	targetDisplayName: string | null;
+	targetType: string;
+}): string {
+	if (event.targetDisplayName) {
+		return `“${event.targetDisplayName}”`;
+	}
+	return getAuditTargetLabel(event.targetType);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function formatAuditValue(value: unknown, field?: string): string {
+	if (field && sensitiveAuditFieldPattern.test(field)) {
+		return "Redacted";
+	}
+	if (value === undefined) {
+		return "—";
+	}
+	if (value === null) {
+		return "None";
+	}
+	if (typeof value === "boolean") {
+		return value ? "Yes" : "No";
+	}
+	if (typeof value === "string") {
+		return value;
+	}
+	if (typeof value === "number") {
+		return String(value);
+	}
+	try {
+		return JSON.stringify(value);
+	} catch {
+		return "Unavailable";
+	}
+}
+
+function getChangeParts(value: unknown): {
+	after: unknown;
+	before: unknown;
+} {
+	if (isRecord(value) && ("before" in value || "after" in value)) {
+		return { after: value.after, before: value.before };
+	}
+	return { after: value, before: undefined };
+}
+
+function DetailValue({ label, value }: { label: string; value: string }) {
+	return (
+		<div className="min-w-0 space-y-1">
+			<Text tone="muted" variant="caption">
+				{label}
+			</Text>
+			<Text className="break-words" variant="label">
+				{value}
+			</Text>
+		</div>
+	);
+}
+
+function AuditEventDetail({
+	event,
+	onOpenChange,
+}: {
+	event: AuditEvent;
+	onOpenChange: (open: boolean) => void;
+}) {
+	const changes = Object.entries(event.changes);
+	const metadata = Object.entries(event.metadata);
+
+	return (
+		<Sheet onOpenChange={onOpenChange} open>
+			<Sheet.Content className="sm:max-w-lg">
+				<Sheet.Close />
+				<Sheet.Header className="border-border/50 border-b">
+					<div className="flex items-start gap-3 pr-7">
+						<div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-secondary">
+							<StatusDot color={outcomeDotColor[event.outcome]} size="lg" />
+						</div>
+						<div className="min-w-0">
+							<Sheet.Title className="text-sm">
+								{getAuditActionLabel(event.action)}
+							</Sheet.Title>
+							<Sheet.Description className="truncate">
+								{getTargetSummary(event)} · {formatDateTime(event.createdAt)}
+							</Sheet.Description>
+						</div>
+					</div>
+				</Sheet.Header>
+				<Sheet.Body className="space-y-6">
+					<div className="grid grid-cols-2 gap-x-4 gap-y-5">
+						<DetailValue
+							label="Outcome"
+							value={outcomeFilterLabels[event.outcome]}
+						/>
+						<DetailValue
+							label="Actor"
+							value={
+								event.actorDisplayName ?? auditActorTypeLabels[event.actorType]
+							}
+						/>
+						<DetailValue
+							label="Source"
+							value={auditSourceLabels[event.source]}
+						/>
+						<DetailValue
+							label="Resource"
+							value={getAuditTargetLabel(event.targetType)}
+						/>
+					</div>
+
+					{event.reason ? (
+						<div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2.5">
+							<Text className="text-destructive" variant="label">
+								{event.reason}
+							</Text>
+						</div>
+					) : null}
+
+					{changes.length > 0 ? (
+						<section className="space-y-2">
+							<Text className="font-semibold" variant="label">
+								Changes
+							</Text>
+							<div className="divide-y rounded-md border border-border/60">
+								{changes.map(([field, rawValue]) => {
+									const change = getChangeParts(rawValue);
+									return (
+										<div
+											className="grid grid-cols-[minmax(0,0.7fr)_minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-3 py-2.5"
+											key={field}
+										>
+											<Text className="break-words" variant="caption">
+												{formatFieldName(field)}
+											</Text>
+											<Text
+												className="break-words text-right"
+												tone="muted"
+												variant="caption"
+											>
+												{formatAuditValue(change.before, field)}
+											</Text>
+											<ArrowRightIcon
+												aria-hidden="true"
+												className="size-3 shrink-0 text-muted-foreground"
+											/>
+											<Text className="break-words" variant="caption">
+												{formatAuditValue(change.after, field)}
+											</Text>
+										</div>
+									);
+								})}
+							</div>
+						</section>
+					) : null}
+
+					{metadata.length > 0 ? (
+						<section className="space-y-2">
+							<Text className="font-semibold" variant="label">
+								Additional context
+							</Text>
+							<div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-md border border-border/60 px-3 py-3">
+								{metadata.map(([field, value]) => (
+									<DetailValue
+										key={field}
+										label={formatFieldName(field)}
+										value={formatAuditValue(value, field)}
+									/>
+								))}
+							</div>
+						</section>
+					) : null}
+
+					<section className="space-y-2">
+						<Text className="font-semibold" variant="label">
+							Technical context
+						</Text>
+						<div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-md border border-border/60 px-3 py-3">
+							<DetailValue
+								label="Operation"
+								value={event.operation ?? "Not recorded"}
+							/>
+							<DetailValue label="Event ID" value={event.id} />
+							{event.requestId ? (
+								<DetailValue label="Request ID" value={event.requestId} />
+							) : null}
+							{event.ip ? (
+								<DetailValue label="IP address" value={event.ip} />
+							) : null}
+						</div>
+					</section>
+				</Sheet.Body>
+			</Sheet.Content>
+		</Sheet>
+	);
 }
 
 function AuditSkeleton() {
@@ -60,15 +346,102 @@ function AuditSkeleton() {
 	);
 }
 
+function AuditEventRow({
+	event,
+	includeTechnical,
+	onSelect,
+}: {
+	event: AuditEvent;
+	includeTechnical: boolean;
+	onSelect: (event: AuditEvent) => void;
+}) {
+	const changeSummary = formatChangeSummary(event.action, event.changes);
+
+	return (
+		<Button
+			aria-label={`View details for ${getAuditActionLabel(event.action)} ${getTargetSummary(event)}`}
+			className="group h-auto w-full items-start justify-between whitespace-normal rounded-none px-5 py-4 text-left font-normal active:scale-100"
+			onClick={() => onSelect(event)}
+			variant="ghost"
+		>
+			<div className="flex min-w-0 items-start gap-3">
+				<div className="mt-1.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-secondary">
+					<StatusDot
+						aria-hidden="true"
+						color={outcomeDotColor[event.outcome]}
+						size="sm"
+					/>
+				</div>
+				<div className="min-w-0 space-y-1">
+					<div className="flex flex-wrap items-center gap-2">
+						<Text className="font-medium" variant="label">
+							{getAuditActionLabel(event.action)}
+						</Text>
+						<Text className="truncate" tone="muted" variant="label">
+							{getTargetSummary(event)}
+						</Text>
+						<Badge size="sm" variant={outcomeVariant[event.outcome]}>
+							{outcomeFilterLabels[event.outcome]}
+						</Badge>
+					</div>
+					<Text className="truncate" tone="muted" variant="caption">
+						{event.actorDisplayName ?? auditActorTypeLabels[event.actorType]}
+						{" · via "}
+						{auditSourceLabels[event.source]}
+					</Text>
+					{changeSummary ? (
+						<Text tone="muted" variant="caption">
+							{changeSummary}
+						</Text>
+					) : null}
+					{(includeTechnical || event.action === "rpc.mutation") &&
+					event.operation ? (
+						<Text className="font-mono" tone="muted" variant="caption">
+							Operation: {event.operation}
+						</Text>
+					) : null}
+					{event.reason ? (
+						<Text className="text-destructive" variant="caption">
+							{event.reason}
+						</Text>
+					) : null}
+				</div>
+			</div>
+			<div className="flex shrink-0 items-center gap-2 pl-3">
+				<Text className="tabular-nums" tone="muted" variant="caption">
+					{formatDateTime(event.createdAt)}
+				</Text>
+				<ArrowRightIcon
+					aria-hidden="true"
+					className="size-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
+				/>
+			</div>
+		</Button>
+	);
+}
+
 export default function AuditLogPage() {
 	const { activeOrganization } = useOrganizations();
+	const [includeTechnical, setIncludeTechnical] = useState(false);
+	const [outcomeFilter, setOutcomeFilter] = useState<OutcomeFilter>("all");
+	const [targetFilter, setTargetFilter] = useState<TargetFilter>("all");
+	const [selectedEvent, setSelectedEvent] = useState<AuditEvent | null>(null);
 	const query = useInfiniteQuery({
-		queryKey: [...orpc.audit.list.key(), activeOrganization?.id] as const,
+		queryKey: [
+			...orpc.audit.list.key(),
+			activeOrganization?.id,
+			includeTechnical,
+			outcomeFilter,
+			targetFilter,
+		] as const,
 		queryFn: ({ pageParam }) =>
 			orpc.audit.list.call({
+				includeTechnical,
 				limit: 50,
 				organizationId: activeOrganization?.id,
+				...(outcomeFilter === "all" ? {} : { outcome: outcomeFilter }),
 				...(pageParam ? { cursor: pageParam } : {}),
+				...(targetFilter === "all" ? {} : { targetType: targetFilter }),
 			}),
 		initialPageParam: null as string | null,
 		getNextPageParam: (lastPage) =>
@@ -110,55 +483,136 @@ export default function AuditLogPage() {
 	return (
 		<div className="mx-auto max-w-4xl space-y-6 p-5">
 			<Card>
-				<Card.Header className="flex-row items-start justify-between gap-4">
+				<Card.Header className="items-start gap-3 sm:flex-row sm:justify-between">
 					<div>
 						<Card.Title>Audit log</Card.Title>
 						<Card.Description>
-							Privileged activity recorded for {activeOrganization.name}.
+							Human-readable history of changes made in{" "}
+							{activeOrganization.name}.
 						</Card.Description>
 					</div>
-					<ShieldCheckIcon className="size-5 text-muted-foreground" />
+					<div className="flex items-center gap-2">
+						<Button
+							aria-pressed={includeTechnical}
+							onClick={() => setIncludeTechnical((current) => !current)}
+							size="sm"
+							variant="ghost"
+						>
+							<CodeIcon aria-hidden="true" className="size-3.5" />
+							{includeTechnical
+								? "Hide technical events"
+								: "Show technical events"}
+						</Button>
+						<ShieldCheckIcon className="size-5 text-muted-foreground" />
+					</div>
 				</Card.Header>
+				<Card.Content className="border-border/60 border-b p-3">
+					<div className="flex flex-wrap items-center gap-2">
+						<div className="flex items-center gap-1.5 pr-1">
+							<FilterIcon
+								aria-hidden="true"
+								className="size-3.5 text-muted-foreground"
+							/>
+							<Text tone="muted" variant="caption">
+								Filter activity
+							</Text>
+						</div>
+						<DropdownMenu>
+							<DropdownMenu.Trigger
+								render={
+									<Button size="sm" variant="outline">
+										{outcomeFilterLabels[outcomeFilter]}
+										<CaretUpDownIcon
+											aria-hidden="true"
+											className="size-3 text-muted-foreground"
+										/>
+									</Button>
+								}
+							/>
+							<DropdownMenu.Content align="start">
+								<DropdownMenu.RadioGroup
+									onValueChange={(value) =>
+										setOutcomeFilter(value as OutcomeFilter)
+									}
+									value={outcomeFilter}
+								>
+									<DropdownMenu.RadioItem value="all">
+										All outcomes
+									</DropdownMenu.RadioItem>
+									{auditOutcomes.map((outcome) => (
+										<DropdownMenu.RadioItem key={outcome} value={outcome}>
+											{outcomeFilterLabels[outcome]}
+										</DropdownMenu.RadioItem>
+									))}
+								</DropdownMenu.RadioGroup>
+							</DropdownMenu.Content>
+						</DropdownMenu>
+						<DropdownMenu>
+							<DropdownMenu.Trigger
+								render={
+									<Button size="sm" variant="outline">
+										{targetFilterLabels[targetFilter]}
+										<CaretUpDownIcon
+											aria-hidden="true"
+											className="size-3 text-muted-foreground"
+										/>
+									</Button>
+								}
+							/>
+							<DropdownMenu.Content align="start">
+								<DropdownMenu.RadioGroup
+									onValueChange={(value) =>
+										setTargetFilter(value as TargetFilter)
+									}
+									value={targetFilter}
+								>
+									{targetFilterOptions.map((target) => (
+										<DropdownMenu.RadioItem key={target} value={target}>
+											{targetFilterLabels[target]}
+										</DropdownMenu.RadioItem>
+									))}
+								</DropdownMenu.RadioGroup>
+							</DropdownMenu.Content>
+						</DropdownMenu>
+						{outcomeFilter !== "all" || targetFilter !== "all" ? (
+							<Button
+								onClick={() => {
+									setOutcomeFilter("all");
+									setTargetFilter("all");
+								}}
+								size="sm"
+								variant="ghost"
+							>
+								Clear filters
+							</Button>
+						) : null}
+					</div>
+				</Card.Content>
 				<Card.Content className="p-0">
 					{events.length === 0 ? (
 						<EmptyState
-							description="New organization, access, flag, and workspace changes will appear here."
+							description={
+								outcomeFilter !== "all" || targetFilter !== "all"
+									? "Try clearing the filters to see more activity."
+									: "New organization, access, flag, and workspace changes will appear here."
+							}
 							icon={<ShieldCheckIcon size={18} weight="duotone" />}
-							title="No audit events yet"
+							title={
+								outcomeFilter !== "all" || targetFilter !== "all"
+									? "No matching activity"
+									: "No audit events yet"
+							}
 							variant="minimal"
 						/>
 					) : (
 						<div className="divide-y">
 							{events.map((event) => (
-								<div
-									className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
+								<AuditEventRow
+									event={event}
+									includeTechnical={includeTechnical}
 									key={event.id}
-								>
-									<div className="min-w-0">
-										<div className="flex flex-wrap items-center gap-2">
-											<Text className="font-medium capitalize" variant="label">
-												{formatAction(event.action)}
-											</Text>
-											<Badge size="sm" variant={outcomeVariant[event.outcome]}>
-												{event.outcome}
-											</Badge>
-										</div>
-										<Text
-											className="mt-1 truncate"
-											tone="muted"
-											variant="caption"
-										>
-											{event.actorDisplayName ?? event.actorId} · {event.source}
-										</Text>
-									</div>
-									<Text
-										className="shrink-0 tabular-nums"
-										tone="muted"
-										variant="caption"
-									>
-										{formatDateTime(event.createdAt)}
-									</Text>
-								</div>
+									onSelect={setSelectedEvent}
+								/>
 							))}
 						</div>
 					)}
@@ -189,6 +643,16 @@ export default function AuditLogPage() {
 					</Card.Footer>
 				) : null}
 			</Card>
+			{selectedEvent ? (
+				<AuditEventDetail
+					event={selectedEvent}
+					onOpenChange={(open) => {
+						if (!open) {
+							setSelectedEvent(null);
+						}
+					}}
+				/>
+			) : null}
 		</div>
 	);
 }

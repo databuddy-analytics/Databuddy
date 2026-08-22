@@ -1,4 +1,5 @@
 import {
+	API_KEY_AUTH_CHALLENGE,
 	getAccessibleWebsiteIds,
 	hasKeyAllScopes,
 	hasWebsiteAllScopes,
@@ -36,8 +37,7 @@ export function createMcpUnauthorizedResponse(): Response {
 		{
 			status: 401,
 			headers: {
-				"WWW-Authenticate":
-					'Bearer realm="databuddy", error="invalid_token", error_description="API key required (x-api-key or Authorization: Bearer)"',
+				"WWW-Authenticate": API_KEY_AUTH_CHALLENGE,
 			},
 		}
 	);
