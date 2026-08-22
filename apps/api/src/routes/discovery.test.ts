@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { API_KEY_AUTH_CHALLENGE } from "@databuddy/api-keys/resolve";
 import { discovery } from "./discovery";
 

@@ -66,6 +66,17 @@ const config: NextConfig = {
 
 	rewrites: async () => ({
 		beforeFiles: [
+			{ source: "/mcp.json", destination: "/.well-known/mcp.json" },
+			{
+				source: "/.well-known/mcp/manifest.json",
+				destination: "/.well-known/mcp.json",
+			},
+			{ source: "/agent.md", destination: "/index.md" },
+			{ source: "/agents.md", destination: "/index.md" },
+			{ source: "/llms.md", destination: "/index.md" },
+			{ source: "/api.md", destination: "/api/llms.txt" },
+			{ source: "/developer.md", destination: "/developers/llms.txt" },
+			{ source: "/developers.md", destination: "/developers/llms.txt" },
 			{
 				source: "/docs/:path*.md",
 				destination: "/api/docs/raw/:path*",
