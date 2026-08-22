@@ -289,17 +289,14 @@ test.describe("SDK Functions", () => {
 			page,
 		}) => {
 			const result = await page.evaluate(() => {
-				const original = Storage.prototype.getItem;
-				Storage.prototype.getItem = function (key: string) {
-					if (this === localStorage) {
-						throw new DOMException("Access denied", "SecurityError");
-					}
-					return original.call(this, key);
+				const { getItem } = Storage.prototype;
+				localStorage.getItem = () => {
+					throw new DOMException("Access denied", "SecurityError");
 				};
 				try {
 					return window.__SDK__.getAnonymousId();
 				} finally {
-					Storage.prototype.getItem = original;
+					localStorage.getItem = getItem;
 				}
 			});
 			expect(result).toBeNull();
@@ -309,17 +306,14 @@ test.describe("SDK Functions", () => {
 			page,
 		}) => {
 			const result = await page.evaluate(() => {
-				const original = Storage.prototype.getItem;
-				Storage.prototype.getItem = function (key: string) {
-					if (this === sessionStorage) {
-						throw new DOMException("Access denied", "SecurityError");
-					}
-					return original.call(this, key);
+				const { getItem } = Storage.prototype;
+				sessionStorage.getItem = () => {
+					throw new DOMException("Access denied", "SecurityError");
 				};
 				try {
 					return window.__SDK__.getSessionId();
 				} finally {
-					Storage.prototype.getItem = original;
+					sessionStorage.getItem = getItem;
 				}
 			});
 			expect(result).toBeNull();
@@ -330,7 +324,7 @@ test.describe("SDK Functions", () => {
 		}) => {
 			const result = await page.evaluate(() => {
 				const original = Storage.prototype.getItem;
-				Storage.prototype.getItem = function () {
+				Storage.prototype.getItem = () => {
 					throw new DOMException("Access denied", "SecurityError");
 				};
 				try {
@@ -348,17 +342,14 @@ test.describe("SDK Functions", () => {
 		}) => {
 			const result = await page.evaluate(() => {
 				sessionStorage.setItem("did_session", "sess-ok");
-				const original = Storage.prototype.getItem;
-				Storage.prototype.getItem = function (key: string) {
-					if (this === localStorage) {
-						throw new DOMException("Access denied", "SecurityError");
-					}
-					return original.call(this, key);
+				const { getItem } = Storage.prototype;
+				localStorage.getItem = () => {
+					throw new DOMException("Access denied", "SecurityError");
 				};
 				try {
 					return window.__SDK__.getTrackingIds();
 				} finally {
-					Storage.prototype.getItem = original;
+					localStorage.getItem = getItem;
 				}
 			});
 			expect(result.anonId).toBeNull();
@@ -370,17 +361,14 @@ test.describe("SDK Functions", () => {
 		}) => {
 			const result = await page.evaluate(() => {
 				localStorage.setItem("did", "anon-ok");
-				const original = Storage.prototype.getItem;
-				Storage.prototype.getItem = function (key: string) {
-					if (this === sessionStorage) {
-						throw new DOMException("Access denied", "SecurityError");
-					}
-					return original.call(this, key);
+				const { getItem } = Storage.prototype;
+				sessionStorage.getItem = () => {
+					throw new DOMException("Access denied", "SecurityError");
 				};
 				try {
 					return window.__SDK__.getTrackingIds();
 				} finally {
-					Storage.prototype.getItem = original;
+					sessionStorage.getItem = getItem;
 				}
 			});
 			expect(result.anonId).toBe("anon-ok");
@@ -392,7 +380,7 @@ test.describe("SDK Functions", () => {
 		}) => {
 			const result = await page.evaluate(() => {
 				const original = Storage.prototype.getItem;
-				Storage.prototype.getItem = function () {
+				Storage.prototype.getItem = () => {
 					throw new DOMException("Access denied", "SecurityError");
 				};
 				try {
@@ -409,17 +397,14 @@ test.describe("SDK Functions", () => {
 		}) => {
 			const result = await page.evaluate(() => {
 				localStorage.setItem("did", "anon-partial");
-				const original = Storage.prototype.getItem;
-				Storage.prototype.getItem = function (key: string) {
-					if (this === sessionStorage) {
-						throw new DOMException("Access denied", "SecurityError");
-					}
-					return original.call(this, key);
+				const { getItem } = Storage.prototype;
+				sessionStorage.getItem = () => {
+					throw new DOMException("Access denied", "SecurityError");
 				};
 				try {
 					return window.__SDK__.getTrackingParams();
 				} finally {
-					Storage.prototype.getItem = original;
+					sessionStorage.getItem = getItem;
 				}
 			});
 			expect(result).toContain("anonId=anon-partial");
@@ -432,7 +417,7 @@ test.describe("SDK Functions", () => {
 			const result = await page.evaluate(() => {
 				const original = Storage.prototype.getItem;
 				let storageWasAccessed = false;
-				Storage.prototype.getItem = function () {
+				Storage.prototype.getItem = () => {
 					storageWasAccessed = true;
 					throw new DOMException("Access denied", "SecurityError");
 				};
