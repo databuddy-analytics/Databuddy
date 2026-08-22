@@ -6,11 +6,9 @@ import {
 	redis,
 } from "@databuddy/redis";
 import { randomUUIDv7 } from "bun";
+import { annotationChartContextSchema } from "@databuddy/validation";
 import { z } from "zod";
-import {
-	chartContextSchema,
-	createAnnotationInputSchema,
-} from "./annotation-schema";
+import { createAnnotationInputSchema } from "./annotation-schema";
 import { rpcError } from "../errors";
 import { setTrackProperties } from "../middleware/track-mutation";
 import { type Context, publicProcedure, trackedProcedure } from "../orpc";
@@ -49,7 +47,7 @@ async function invalidateAnnotationCaches(websiteId: string): Promise<void> {
 
 const annotationOutputSchema = z.object({
 	annotationType: z.string(),
-	chartContext: chartContextSchema,
+	chartContext: annotationChartContextSchema,
 	chartType: z.string(),
 	color: z.string(),
 	createdAt: z.coerce.date(),
@@ -91,7 +89,7 @@ export const annotationsRouter = {
 			z.object({
 				websiteId: z.string(),
 				chartType: z.enum(["metrics"]),
-				chartContext: chartContextSchema,
+				chartContext: annotationChartContextSchema,
 			})
 		)
 		.output(z.array(annotationOutputSchema))
