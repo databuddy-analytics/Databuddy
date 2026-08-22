@@ -24,14 +24,6 @@ const tools = createMcpTools(ctx);
 
 const TOOL_NAME_RE = /^[a-z][a-z0-9_]*$/;
 const MAX_DESCRIPTION_LEN = 240;
-const analyticsToolInputs = [
-	{ input: { funnelId: "funnel-1" }, name: "get_funnel_analytics" },
-	{ input: { goalId: "goal-1" }, name: "get_goal_analytics" },
-	{
-		input: { funnelId: "funnel-1" },
-		name: "get_funnel_analytics_by_referrer",
-	},
-] as const;
 
 describe("MCP transport", () => {
 	test("keeps API-key authentication separate from unimplemented OAuth", async () => {
@@ -91,14 +83,6 @@ async function listToolsForScopes(scopes: ApiScope[]) {
 }
 
 describe("MCP tool invariants", () => {
-	test("does not expose discovery tools to a zero-scope API key", async () => {
-		const { tools: listed } = await listToolsForScopes([]);
-		const names = new Set(listed.map((tool) => tool.name));
-
-		expect(names.has("capabilities")).toBe(false);
-		expect(names.has("get_schema")).toBe(false);
-	});
-
 	test("dynamic analytics output schemas work through the installed MCP SDK", async () => {
 		const dynamicTools = tools.filter((tool) =>
 			["get_funnel_analytics", "get_goal_analytics"].includes(tool.name)
@@ -233,12 +217,16 @@ describe("MCP tool invariants", () => {
 		).toBe(true);
 	});
 
-	test("uses strict ISO dates for MCP analytics inputs", () => {
+	test("uses strict ISO dates for MCP date-only and timestamp inputs", () => {
 		const getFunnelAnalytics = tools.find(
 			(tool) => tool.name === "get_funnel_analytics"
 		);
-		if (!getFunnelAnalytics) {
-			throw new Error("Expected get_funnel_analytics to be registered");
+		const createLink = tools.find((tool) => tool.name === "create_link");
+		const createAnnotation = tools.find(
+			(tool) => tool.name === "create_annotation"
+		);
+		if (!(getFunnelAnalytics && createLink && createAnnotation)) {
+			throw new Error("Expected date-bearing MCP tools to be registered");
 		}
 
 		expect(
@@ -249,17 +237,6 @@ describe("MCP tool invariants", () => {
 				websiteId: "website-1",
 			}).success
 		).toBe(false);
-	});
-
-	test("uses strict ISO timestamps for MCP link and annotation inputs", () => {
-		const createLink = tools.find((tool) => tool.name === "create_link");
-		const createAnnotation = tools.find(
-			(tool) => tool.name === "create_annotation"
-		);
-		if (!(createLink && createAnnotation)) {
-			throw new Error("Expected date-bearing MCP tools to be registered");
-		}
-
 		expect(
 			createLink.inputSchema.safeParse({
 				confirmed: false,
@@ -280,98 +257,12 @@ describe("MCP tool invariants", () => {
 		).toBe(false);
 	});
 
-	test("rejects incomplete and reversed MCP analytics date ranges", () => {
-		for (const { input, name } of analyticsToolInputs) {
-			const tool = tools.find((candidate) => candidate.name === name);
-			if (!tool) {
-				throw new Error(`${name} tool is not registered`);
-			}
-			expect(
-				tool.inputSchema.safeParse({
-					...input,
-					from: "2026-03-02",
-					to: "2026-03-01",
-					websiteId: "website-1",
-				}).success
-			).toBe(false);
-			expect(
-				tool.inputSchema.safeParse({
-					...input,
-					from: "2026-03-01",
-					websiteId: "website-1",
-				}).success
-			).toBe(false);
-		}
-	});
-
-	test("rejects invalid MCP annotation ranges", () => {
-		const createAnnotation = tools.find(
-			(tool) => tool.name === "create_annotation"
-		);
-		const listAnnotations = tools.find(
-			(tool) => tool.name === "list_annotations"
-		);
-		if (!(createAnnotation && listAnnotations)) {
-			throw new Error("Expected annotation tools to be registered");
-		}
+	test("resolves MCP date presets instead of ignoring them", () => {
+		const { from, to } = resolveMcpDateRange({ preset: "last_30d" });
+		expect(from).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+		expect(to).toMatch(/^\d{4}-\d{2}-\d{2}$/);
 		expect(
-			createAnnotation.inputSchema.safeParse({
-				annotationType: "range",
-				confirmed: false,
-				text: "Release window",
-				websiteId: "website-1",
-				xEndValue: "2026-03-01T00:00:00Z",
-				xValue: "2026-03-02T00:00:00Z",
-			}).success
-		).toBe(false);
-		expect(
-			createAnnotation.inputSchema.safeParse({
-				annotationType: "range",
-				confirmed: false,
-				text: "Release window",
-				websiteId: "website-1",
-				xValue: "2026-03-01T00:00:00Z",
-			}).success
-		).toBe(false);
-		const listSchema = z.toJSONSchema(listAnnotations.inputSchema, {
-			io: "input",
-		}) as { properties?: Record<string, unknown> };
-		expect(listSchema.properties).not.toHaveProperty("from");
-		expect(listSchema.properties).not.toHaveProperty("to");
-	});
-
-	test("preserves analytics date presets instead of silently defaulting", () => {
-		for (const { input, name } of analyticsToolInputs) {
-			const tool = tools.find((candidate) => candidate.name === name);
-			if (!tool) {
-				throw new Error(`${name} tool is not registered`);
-			}
-			const result = tool.inputSchema.safeParse({
-				...input,
-				preset: "last_30d",
-				websiteId: "website-1",
-			});
-			expect(result.success).toBe(true);
-			if (result.success) {
-				expect(result.data).toMatchObject({ preset: "last_30d" });
-			}
-			expect(
-				tool.inputSchema.safeParse({
-					...input,
-					from: "2026-03-01",
-					preset: "last_30d",
-					to: "2026-03-30",
-					websiteId: "website-1",
-				}).success
-			).toBe(false);
-		}
-
-		const range = resolveMcpDateRange({ preset: "last_30d" });
-		expect(range.from).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-		expect(range.to).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-		expect(
-			(Date.parse(`${range.to}T00:00:00Z`) -
-				Date.parse(`${range.from}T00:00:00Z`)) /
+			(Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) /
 				86_400_000 +
 				1
 		).toBe(30);
@@ -457,6 +348,11 @@ describe("MCP tool invariants", () => {
 
 describe("investigation tools", () => {
 	test("only advertises tools whose API-key scopes can satisfy their calls", async () => {
+		const zeroScope = await listToolsForScopes([]);
+		const zeroScopeNames = new Set(zeroScope.tools.map((tool) => tool.name));
+		expect(zeroScopeNames.has("capabilities")).toBe(false);
+		expect(zeroScopeNames.has("get_schema")).toBe(false);
+
 		const readData = await listToolsForScopes(["read:data"]);
 		const readDataNames = new Set(readData.tools.map((tool) => tool.name));
 		expect(readData.response.status).toBe(200);

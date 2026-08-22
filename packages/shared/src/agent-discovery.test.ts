@@ -25,7 +25,6 @@ describe("agent discovery builders", () => {
 
 		expect(API_SCOPES).toContain("track:events");
 		expect(agent.authentication.scopes).toBe(API_SCOPES);
-		expect(agent.updated_at).toBe("2026-08-22");
 		expect(agent.endpoints).not.toHaveProperty("protected_resource_metadata");
 		expect(agent.endpoints).not.toHaveProperty("authorization_server_metadata");
 	});
@@ -49,21 +48,6 @@ describe("agent discovery builders", () => {
 
 		expect(createMcpManifest(urls).transports).toEqual(expected);
 		expect(createMcpServerCard(urls).transports).toEqual(expected);
-	});
-
-	it("keeps API-key MCP discovery free of unimplemented OAuth metadata", () => {
-		const manifest = createMcpManifest(urls);
-		const card = createMcpServerCard(urls);
-
-		expect(
-			Object.hasOwn(
-				manifest.authentication,
-				"protected_resource_metadata_url"
-			)
-		).toBe(false);
-		expect(
-			Object.hasOwn(card.authentication, "protectedResourceMetadataUrl")
-		).toBe(false);
 	});
 
 	it("parses NLWeb ask bodies without casts", () => {

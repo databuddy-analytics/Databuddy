@@ -7,16 +7,6 @@ import {
 } from "../regexes";
 import { profileIdSchema } from "./identity";
 
-/** The same inclusive seven-calendar-day window as the `last_7d` preset. */
-export function getDefaultAnalyticsDateRange(now = new Date()) {
-	const start = new Date(now);
-	start.setUTCDate(start.getUTCDate() - 6);
-	return {
-		startDate: start.toISOString().slice(0, 10),
-		endDate: now.toISOString().slice(0, 10),
-	};
-}
-
 /** Date-only analytics inputs must be complete, valid, and ordered. */
 export const analyticsDateRangeSchema = z
 	.object({
@@ -38,9 +28,15 @@ export function resolveAnalyticsDateRange(
 	{ startDate, endDate }: { endDate?: string; startDate?: string },
 	now = new Date()
 ): { endDate: string; startDate: string } {
-	return startDate && endDate
-		? { startDate, endDate }
-		: getDefaultAnalyticsDateRange(now);
+	if (startDate && endDate) {
+		return { startDate, endDate };
+	}
+	const start = new Date(now);
+	start.setUTCDate(start.getUTCDate() - 6);
+	return {
+		startDate: start.toISOString().slice(0, 10),
+		endDate: now.toISOString().slice(0, 10),
+	};
 }
 
 const resolutionSchema = z

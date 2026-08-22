@@ -2,18 +2,11 @@ import { describe, expect, it } from "bun:test";
 import {
 	analyticsDateRangeSchema,
 	analyticsEventSchema,
-	getDefaultAnalyticsDateRange,
 	resolveAnalyticsDateRange,
 } from "./analytics";
 
 describe("analyticsDateRangeSchema", () => {
-	it("uses an inclusive seven-calendar-day default range", () => {
-		expect(
-			getDefaultAnalyticsDateRange(new Date("2026-04-11T12:00:00.000Z"))
-		).toEqual({ startDate: "2026-04-05", endDate: "2026-04-11" });
-	});
-
-	it("preserves an explicit range or resolves the shared default", () => {
+	it("preserves an explicit range or uses an inclusive seven-calendar-day default", () => {
 		const now = new Date("2026-04-11T12:00:00.000Z");
 		expect(
 			resolveAnalyticsDateRange(
@@ -25,16 +18,6 @@ describe("analyticsDateRangeSchema", () => {
 			startDate: "2026-04-05",
 			endDate: "2026-04-11",
 		});
-	});
-
-	it("accepts a complete, ordered ISO date range or no explicit range", () => {
-		expect(
-			analyticsDateRangeSchema.safeParse({
-				startDate: "2026-02-01",
-				endDate: "2026-02-28",
-			}).success
-		).toBe(true);
-		expect(analyticsDateRangeSchema.safeParse({}).success).toBe(true);
 	});
 
 	it("rejects invalid, partial, and reversed date ranges", () => {

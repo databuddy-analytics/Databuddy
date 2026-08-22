@@ -1,6 +1,9 @@
 import { and, desc, eq, isNull, or, type SQL } from "@databuddy/db";
 import { annotations } from "@databuddy/db/schema";
-import { annotationChartContextSchema } from "@databuddy/validation";
+import {
+	annotationChartContextSchema,
+	annotationCoordinateSchema,
+} from "@databuddy/validation";
 import {
 	createDrizzleCache,
 	invalidateAgentContextSnapshotsForWebsite,
@@ -8,7 +11,6 @@ import {
 } from "@databuddy/redis";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
-import { createAnnotationInputSchema } from "./annotation-schema";
 import { rpcError } from "../errors";
 import { setTrackProperties } from "../middleware/track-mutation";
 import { type Context, publicProcedure, trackedProcedure } from "../orpc";
@@ -231,7 +233,18 @@ export const annotationsRouter = {
 			summary: "Create annotation",
 			tags: ["Annotations"],
 		})
-		.input(createAnnotationInputSchema)
+		.input(
+			annotationCoordinateSchema.safeExtend({
+				websiteId: z.string(),
+				chartType: z.enum(["metrics"]),
+				chartContext: annotationChartContextSchema,
+				yValue: z.number().optional(),
+				text: z.string().min(1).max(500),
+				tags: z.array(z.string()).optional(),
+				color: z.string().optional(),
+				isPublic: z.boolean().default(false),
+			})
+		)
 		.output(annotationOutputSchema)
 		.handler(async ({ context, input }) => {
 			setTrackProperties({ type: input.annotationType });

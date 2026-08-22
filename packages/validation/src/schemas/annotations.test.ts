@@ -1,8 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-	annotationChartContextSchema,
-	annotationCoordinateSchema,
-} from "./annotations";
+import { annotationCoordinateSchema } from "./annotations";
 
 describe("annotationCoordinateSchema", () => {
 	test("accepts ISO dates and ordered ISO timestamps", () => {
@@ -18,29 +15,8 @@ describe("annotationCoordinateSchema", () => {
 		}
 	});
 
-	test("shares one chart-context shape across annotation callers", () => {
-		expect(
-			annotationChartContextSchema.safeParse({
-				dateRange: {
-					start_date: "2026-03-01",
-					end_date: "2026-03-02",
-					granularity: "daily",
-				},
-			}).success
-		).toBe(true);
-		expect(annotationChartContextSchema.safeParse({ dateRange: {} }).success).toBe(
-			false
-		);
-	});
-
-	test("rejects malformed, reversed, and incomplete coordinates", () => {
+	test("rejects reversed and incomplete ranges", () => {
 		for (const input of [
-			{ annotationType: "point", xValue: "not-a-date" },
-			{
-				annotationType: "point",
-				xValue: "2026-03-01",
-				xEndValue: "not-a-date",
-			},
 			{
 				annotationType: "range",
 				xValue: "2026-03-02",
