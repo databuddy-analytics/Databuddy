@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { getTableConfig } from "drizzle-orm/pg-core";
-import { account } from "./auth";
+import { account, twoFactor } from "./auth";
 
 describe("Better Auth 1.7 account identity schema", () => {
 	test("requires a trusted issuer on every account row", () => {
@@ -22,5 +22,20 @@ describe("Better Auth 1.7 account identity schema", () => {
 			"issuer",
 			"account_id",
 		]);
+	});
+});
+
+describe("Better Auth two-factor schema", () => {
+	test("supports verified enrollment and account lockout state", () => {
+		const columns = new Map(
+			getTableConfig(twoFactor).columns.map((column) => [column.name, column])
+		);
+
+		expect(columns.get("verified")?.notNull).toBe(true);
+		expect(columns.get("verified")?.default).toBe(true);
+		expect(columns.get("failed_verification_count")?.notNull).toBe(true);
+		expect(columns.get("failed_verification_count")?.default).toBe(0);
+		expect(columns.get("locked_until")?.notNull).toBe(false);
+		expect(columns.get("locked_until")?.dataType).toBe("object date");
 	});
 });
