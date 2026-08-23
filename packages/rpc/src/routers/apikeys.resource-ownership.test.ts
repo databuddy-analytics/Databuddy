@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
+import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { createProcedureClient } from "@orpc/server";
 import { createKeys } from "keypal";
 import type { Context } from "../orpc";
@@ -38,6 +38,10 @@ mock.module("../lib/audit", () => ({
 }));
 
 const { apikeysRouter } = await import("./apikeys");
+
+// Keep the router's captured doubles, but do not leak shared module mocks into
+// sibling test files that exercise the real workspace middleware.
+mock.restore();
 
 function call<T>(procedure: T, context: Context) {
 	return createProcedureClient(procedure as never, { context });
@@ -172,8 +176,4 @@ describe("apikeys website resource ownership", () => {
 		expect(result.secret).toStartWith("dbdy_");
 		expect(mockAppendRpcAuditEvent).toHaveBeenCalledTimes(1);
 	});
-});
-
-afterAll(() => {
-	mock.restore();
 });
