@@ -130,7 +130,7 @@ describe("audit CSV export", () => {
 			operation: "apikeys.delete",
 			actorType: "user",
 			actorId: "user_123",
-			actorDisplayName: "=Issa, Nassar",
+			actorDisplayName: "  =Issa, Nassar",
 			targetType: "api_key",
 			targetId: "key_123",
 			targetDisplayName: "Production key",
@@ -149,7 +149,7 @@ describe("audit CSV export", () => {
 		const csv = auditEventsToCsv([event]);
 
 		expect(csv.split("\n")[0]).toContain("created_at");
-		expect(csv).toContain('"\'=Issa, Nassar"');
+		expect(csv).toContain('"\'  =Issa, Nassar"');
 		expect(csv).toContain('"Production key"');
 		expect(csv).toContain('"{""apiKey"":{""after"":""[REDACTED]""},""deleted"":{""after"":true}}"');
 		expect(csv).toContain('"{""accessToken"":""[REDACTED]""}"');

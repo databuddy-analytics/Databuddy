@@ -94,6 +94,22 @@ const auditExportOutputSchema = z.object({
 
 const MAX_AUDIT_EXPORT_ROWS = 10_000;
 
+export function takeAuditExportPage<T>(
+	currentEvents: readonly T[],
+	rows: readonly T[]
+): { hasMore: boolean; page: T[]; truncated: boolean } {
+	const remainingRows = MAX_AUDIT_EXPORT_ROWS - currentEvents.length;
+	const page = rows.slice(0, Math.min(remainingRows, MAX_AUDIT_PAGE_SIZE));
+	const hasMore = rows.length > page.length;
+
+	return {
+		hasMore,
+		page,
+		truncated:
+			currentEvents.length + page.length >= MAX_AUDIT_EXPORT_ROWS && hasMore,
+	};
+}
+
 function getOrganizationId(
 	context: Parameters<typeof withWorkspace>[0],
 	organizationId?: string
@@ -200,10 +216,18 @@ export const auditRouter = {
 					targetType: input.targetType,
 					to: input.to,
 				});
-				const page = rows.slice(0, MAX_AUDIT_PAGE_SIZE);
+				const {
+					hasMore,
+					page,
+					truncated: hitExportLimit,
+				} = takeAuditExportPage(events, rows);
 				events.push(...page);
 
-				if (rows.length <= MAX_AUDIT_PAGE_SIZE) {
+				if (hitExportLimit) {
+					truncated = true;
+					break;
+				}
+				if (!hasMore) {
 					break;
 				}
 
@@ -215,9 +239,6 @@ export const auditRouter = {
 					createdAt: lastEvent.createdAt,
 					id: lastEvent.id,
 				};
-				if (events.length >= MAX_AUDIT_EXPORT_ROWS) {
-					truncated = true;
-				}
 			}
 
 			await appendRpcAuditEventBestEffort(context, organizationId, {

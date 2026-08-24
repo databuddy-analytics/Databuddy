@@ -310,7 +310,8 @@ function csvCell(value: unknown): string {
 				? JSON.stringify(value)
 				: String(value);
 	const text =
-		typeof value === "string" && csvFormulaInjectionPattern.test(value)
+		typeof value === "string" &&
+		csvFormulaInjectionPattern.test(value.trimStart())
 			? `'${rawText}`
 			: rawText;
 	return `"${text.replaceAll('"', '""')}"`;

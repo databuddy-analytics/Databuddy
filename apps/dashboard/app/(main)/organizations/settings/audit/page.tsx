@@ -232,7 +232,7 @@ function AuditEventDetail({
 				<Sheet.Close />
 				<Sheet.Header className="border-border/50 border-b">
 					<div className="flex items-start gap-3 pr-7">
-						<div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-secondary">
+						<div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded bg-secondary">
 							<StatusDot color={outcomeDotColor[event.outcome]} size="lg" />
 						</div>
 						<div className="min-w-0">
@@ -268,7 +268,7 @@ function AuditEventDetail({
 					</div>
 
 					{event.reason ? (
-						<div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2.5">
+						<div className="rounded border border-destructive/20 bg-destructive/5 px-3 py-2.5">
 							<Text className="text-destructive" variant="label">
 								{event.reason}
 							</Text>
@@ -280,7 +280,7 @@ function AuditEventDetail({
 							<Text className="font-semibold" variant="label">
 								Changes
 							</Text>
-							<div className="divide-y rounded-md border border-border/60">
+							<div className="divide-y rounded border border-border/60">
 								{changes.map(([field, rawValue]) => {
 									const change = getChangeParts(rawValue);
 									return (
@@ -317,7 +317,7 @@ function AuditEventDetail({
 							<Text className="font-semibold" variant="label">
 								Additional context
 							</Text>
-							<div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-md border border-border/60 px-3 py-3">
+							<div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded border border-border/60 px-3 py-3">
 								{metadata.map(([field, value]) => (
 									<DetailValue
 										key={field}
@@ -333,7 +333,7 @@ function AuditEventDetail({
 						<Text className="font-semibold" variant="label">
 							Technical context
 						</Text>
-						<div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-md border border-border/60 px-3 py-3">
+						<div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded border border-border/60 px-3 py-3">
 							<DetailValue
 								label="Operation"
 								value={event.operation ?? "Not recorded"}
