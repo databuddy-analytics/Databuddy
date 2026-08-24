@@ -309,6 +309,17 @@ function toAuditActor(user: { id: string; name?: string | null }): AuditActor {
 	};
 }
 
+async function getAuditMemberDisplayName(userId: string): Promise<string> {
+	const user = await db.query.user.findFirst({
+		where: { id: userId },
+		columns: { email: true, name: true },
+	});
+	if (!user) {
+		return `User ${userId}`;
+	}
+	return user.name ? `${user.name} <${user.email}>` : user.email;
+}
+
 async function recordAuthAudit<TAction extends AuditActionDefinition>(
 	organizationId: string,
 	input: Omit<
@@ -695,11 +706,17 @@ export const auth = betterAuth({
 			organizationHooks: {
 				afterAddMember: async ({ member, organization }) => {
 					await invalidateMemberCaches(member);
+					const memberDisplayName = await getAuditMemberDisplayName(
+						member.userId
+					);
 					await recordAuthAudit(organization.id, {
 						action: auditActions.ORGANIZATION_MEMBER_ADDED,
-						target: { id: member.id },
+						target: { id: member.id, displayName: memberDisplayName },
 						changes: { role: { after: member.role } },
-						metadata: { memberUserId: member.userId },
+						metadata: {
+							affectedUserDisplayName: memberDisplayName,
+							affectedUserId: member.userId,
+						},
 					});
 				},
 				afterCreateOrganization: async ({ member, organization, user }) => {
@@ -750,14 +767,20 @@ export const auth = betterAuth({
 				},
 				afterRemoveMember: async ({ member, organization }) => {
 					await invalidateMemberCaches(member);
+					const memberDisplayName = await getAuditMemberDisplayName(
+						member.userId
+					);
 					await recordAuthAudit(organization.id, {
 						action: auditActions.ORGANIZATION_MEMBER_REMOVED,
-						target: { id: member.id },
+						target: { id: member.id, displayName: memberDisplayName },
 						changes: {
 							deleted: { after: true },
 							role: { before: member.role },
 						},
-						metadata: { memberUserId: member.userId },
+						metadata: {
+							affectedUserDisplayName: memberDisplayName,
+							affectedUserId: member.userId,
+						},
 					});
 				},
 				afterUpdateMemberRole: async ({
@@ -766,11 +789,17 @@ export const auth = betterAuth({
 					previousRole,
 				}) => {
 					await invalidateMemberCaches(member);
+					const memberDisplayName = await getAuditMemberDisplayName(
+						member.userId
+					);
 					await recordAuthAudit(organization.id, {
 						action: auditActions.ORGANIZATION_MEMBER_ROLE_UPDATED,
-						target: { id: member.id },
+						target: { id: member.id, displayName: memberDisplayName },
 						changes: { role: { before: previousRole, after: member.role } },
-						metadata: { memberUserId: member.userId },
+						metadata: {
+							affectedUserDisplayName: memberDisplayName,
+							affectedUserId: member.userId,
+						},
 					});
 				},
 				afterCreateInvitation: async ({
@@ -782,7 +811,10 @@ export const auth = betterAuth({
 						organization.id,
 						{
 							action: auditActions.ORGANIZATION_INVITATION_CREATED,
-							target: { id: invitation.id },
+							target: {
+								id: invitation.id,
+								displayName: invitation.email,
+							},
 							changes: { role: { after: invitation.role } },
 							metadata: { status: invitation.status },
 						},
@@ -794,7 +826,10 @@ export const auth = betterAuth({
 						organization.id,
 						{
 							action: auditActions.ORGANIZATION_INVITATION_ACCEPTED,
-							target: { id: invitation.id },
+							target: {
+								id: invitation.id,
+								displayName: invitation.email,
+							},
 							changes: {
 								status: { before: "pending", after: invitation.status },
 							},
@@ -807,7 +842,10 @@ export const auth = betterAuth({
 						organization.id,
 						{
 							action: auditActions.ORGANIZATION_INVITATION_REJECTED,
-							target: { id: invitation.id },
+							target: {
+								id: invitation.id,
+								displayName: invitation.email,
+							},
 							changes: {
 								status: { before: "pending", after: invitation.status },
 							},
@@ -824,7 +862,10 @@ export const auth = betterAuth({
 						organization.id,
 						{
 							action: auditActions.ORGANIZATION_INVITATION_CANCELLED,
-							target: { id: invitation.id },
+							target: {
+								id: invitation.id,
+								displayName: invitation.email,
+							},
 							changes: {
 								status: { before: "pending", after: invitation.status },
 							},

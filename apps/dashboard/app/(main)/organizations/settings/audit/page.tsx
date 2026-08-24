@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
 	Badge,
 	Button,
@@ -17,15 +18,18 @@ import {
 	ArrowRightIcon,
 	CaretUpDownIcon,
 	CodeIcon,
+	FileDownloadIcon,
 	FilterIcon,
 	ShieldCheckIcon,
 } from "@databuddy/ui/icons";
 import {
+	auditActionNames,
 	auditActorTypeLabels,
 	auditOutcomes,
 	auditSourceLabels,
 	getAuditActionLabel,
 	getAuditTargetLabel,
+	type AuditActionName,
 	type AuditOutcome,
 } from "@databuddy/shared/audit";
 import { useOrganizations } from "@/hooks/use-organizations";
@@ -51,6 +55,8 @@ const outcomeDotColor: Record<
 };
 
 type OutcomeFilter = "all" | AuditOutcome;
+type ActionFilter = "all" | AuditActionName;
+type DateRangeFilter = "all" | "7d" | "30d" | "90d";
 type TargetFilter =
 	| "all"
 	| "api_key"
@@ -65,6 +71,13 @@ const outcomeFilterLabels: Record<OutcomeFilter, string> = {
 	denied: "Denied",
 	failure: "Failed",
 	success: "Successful",
+};
+
+const dateRangeFilterLabels: Record<DateRangeFilter, string> = {
+	all: "All time",
+	"7d": "Last 7 days",
+	"30d": "Last 30 days",
+	"90d": "Last 90 days",
 };
 
 const targetFilterLabels: Record<TargetFilter, string> = {
@@ -88,6 +101,22 @@ const targetFilterOptions: TargetFilter[] = [
 ];
 
 const sensitiveAuditFieldPattern = /(^|_)(key|password|secret|token)(_|$)/i;
+
+function getAuditDateRange(
+	filter: DateRangeFilter
+): { from: Date; to: Date } | Record<string, never> {
+	if (filter === "all") {
+		return {};
+	}
+	const to = new Date();
+	const from = new Date(to);
+	from.setDate(from.getDate() - Number.parseInt(filter, 10));
+	return { from, to };
+}
+
+function getActionFilterLabel(action: ActionFilter): string {
+	return action === "all" ? "All actions" : getAuditActionLabel(action);
+}
 
 function getErrorCode(error: unknown): string | undefined {
 	if (!(error && typeof error === "object")) {
@@ -203,7 +232,7 @@ function AuditEventDetail({
 				<Sheet.Close />
 				<Sheet.Header className="border-border/50 border-b">
 					<div className="flex items-start gap-3 pr-7">
-						<div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-secondary">
+						<div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded bg-secondary">
 							<StatusDot color={outcomeDotColor[event.outcome]} size="lg" />
 						</div>
 						<div className="min-w-0">
@@ -239,7 +268,7 @@ function AuditEventDetail({
 					</div>
 
 					{event.reason ? (
-						<div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2.5">
+						<div className="rounded border border-destructive/20 bg-destructive/5 px-3 py-2.5">
 							<Text className="text-destructive" variant="label">
 								{event.reason}
 							</Text>
@@ -251,7 +280,7 @@ function AuditEventDetail({
 							<Text className="font-semibold" variant="label">
 								Changes
 							</Text>
-							<div className="divide-y rounded-md border border-border/60">
+							<div className="divide-y rounded border border-border/60">
 								{changes.map(([field, rawValue]) => {
 									const change = getChangeParts(rawValue);
 									return (
@@ -288,7 +317,7 @@ function AuditEventDetail({
 							<Text className="font-semibold" variant="label">
 								Additional context
 							</Text>
-							<div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-md border border-border/60 px-3 py-3">
+							<div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded border border-border/60 px-3 py-3">
 								{metadata.map(([field, value]) => (
 									<DetailValue
 										key={field}
@@ -304,7 +333,7 @@ function AuditEventDetail({
 						<Text className="font-semibold" variant="label">
 							Technical context
 						</Text>
-						<div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-md border border-border/60 px-3 py-3">
+						<div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded border border-border/60 px-3 py-3">
 							<DetailValue
 								label="Operation"
 								value={event.operation ?? "Not recorded"}
@@ -420,22 +449,199 @@ function AuditEventRow({
 	);
 }
 
+function AuditFilters({
+	actionFilter,
+	dateRangeFilter,
+	onActionFilterChange,
+	onClear,
+	onDateRangeFilterChange,
+	onOutcomeFilterChange,
+	onTargetFilterChange,
+	outcomeFilter,
+	targetFilter,
+}: {
+	actionFilter: ActionFilter;
+	dateRangeFilter: DateRangeFilter;
+	onActionFilterChange: (value: ActionFilter) => void;
+	onClear: () => void;
+	onDateRangeFilterChange: (value: DateRangeFilter) => void;
+	onOutcomeFilterChange: (value: OutcomeFilter) => void;
+	onTargetFilterChange: (value: TargetFilter) => void;
+	outcomeFilter: OutcomeFilter;
+	targetFilter: TargetFilter;
+}) {
+	const hasFilters =
+		actionFilter !== "all" ||
+		outcomeFilter !== "all" ||
+		targetFilter !== "all" ||
+		dateRangeFilter !== "30d";
+
+	return (
+		<Card.Content className="border-border/60 border-b p-3">
+			<div className="flex flex-wrap items-center gap-2">
+				<div className="flex items-center gap-1.5 pr-1">
+					<FilterIcon
+						aria-hidden="true"
+						className="size-3.5 text-muted-foreground"
+					/>
+					<Text tone="muted" variant="caption">
+						Filter activity
+					</Text>
+				</div>
+				<DropdownMenu>
+					<DropdownMenu.Trigger
+						render={
+							<Button size="sm" variant="outline">
+								{getActionFilterLabel(actionFilter)}
+								<CaretUpDownIcon
+									aria-hidden="true"
+									className="size-3 text-muted-foreground"
+								/>
+							</Button>
+						}
+					/>
+					<DropdownMenu.Content align="start">
+						<DropdownMenu.RadioGroup
+							onValueChange={(value) =>
+								onActionFilterChange(value as ActionFilter)
+							}
+							value={actionFilter}
+						>
+							<DropdownMenu.RadioItem value="all">
+								All actions
+							</DropdownMenu.RadioItem>
+							{auditActionNames.map((action) => (
+								<DropdownMenu.RadioItem key={action} value={action}>
+									{getAuditActionLabel(action)}
+								</DropdownMenu.RadioItem>
+							))}
+						</DropdownMenu.RadioGroup>
+					</DropdownMenu.Content>
+				</DropdownMenu>
+				<DropdownMenu>
+					<DropdownMenu.Trigger
+						render={
+							<Button size="sm" variant="outline">
+								{outcomeFilterLabels[outcomeFilter]}
+								<CaretUpDownIcon
+									aria-hidden="true"
+									className="size-3 text-muted-foreground"
+								/>
+							</Button>
+						}
+					/>
+					<DropdownMenu.Content align="start">
+						<DropdownMenu.RadioGroup
+							onValueChange={(value) =>
+								onOutcomeFilterChange(value as OutcomeFilter)
+							}
+							value={outcomeFilter}
+						>
+							<DropdownMenu.RadioItem value="all">
+								All outcomes
+							</DropdownMenu.RadioItem>
+							{auditOutcomes.map((outcome) => (
+								<DropdownMenu.RadioItem key={outcome} value={outcome}>
+									{outcomeFilterLabels[outcome]}
+								</DropdownMenu.RadioItem>
+							))}
+						</DropdownMenu.RadioGroup>
+					</DropdownMenu.Content>
+				</DropdownMenu>
+				<DropdownMenu>
+					<DropdownMenu.Trigger
+						render={
+							<Button size="sm" variant="outline">
+								{targetFilterLabels[targetFilter]}
+								<CaretUpDownIcon
+									aria-hidden="true"
+									className="size-3 text-muted-foreground"
+								/>
+							</Button>
+						}
+					/>
+					<DropdownMenu.Content align="start">
+						<DropdownMenu.RadioGroup
+							onValueChange={(value) =>
+								onTargetFilterChange(value as TargetFilter)
+							}
+							value={targetFilter}
+						>
+							{targetFilterOptions.map((target) => (
+								<DropdownMenu.RadioItem key={target} value={target}>
+									{targetFilterLabels[target]}
+								</DropdownMenu.RadioItem>
+							))}
+						</DropdownMenu.RadioGroup>
+					</DropdownMenu.Content>
+				</DropdownMenu>
+				<DropdownMenu>
+					<DropdownMenu.Trigger
+						render={
+							<Button size="sm" variant="outline">
+								{dateRangeFilterLabels[dateRangeFilter]}
+								<CaretUpDownIcon
+									aria-hidden="true"
+									className="size-3 text-muted-foreground"
+								/>
+							</Button>
+						}
+					/>
+					<DropdownMenu.Content align="start">
+						<DropdownMenu.RadioGroup
+							onValueChange={(value) =>
+								onDateRangeFilterChange(value as DateRangeFilter)
+							}
+							value={dateRangeFilter}
+						>
+							{(Object.keys(dateRangeFilterLabels) as DateRangeFilter[]).map(
+								(range) => (
+									<DropdownMenu.RadioItem key={range} value={range}>
+										{dateRangeFilterLabels[range]}
+									</DropdownMenu.RadioItem>
+								)
+							)}
+						</DropdownMenu.RadioGroup>
+					</DropdownMenu.Content>
+				</DropdownMenu>
+				{hasFilters ? (
+					<Button onClick={onClear} size="sm" variant="ghost">
+						Clear filters
+					</Button>
+				) : null}
+			</div>
+		</Card.Content>
+	);
+}
+
 export default function AuditLogPage() {
 	const { activeOrganization } = useOrganizations();
 	const [includeTechnical, setIncludeTechnical] = useState(false);
+	const [actionFilter, setActionFilter] = useState<ActionFilter>("all");
+	const [dateRangeFilter, setDateRangeFilter] =
+		useState<DateRangeFilter>("30d");
 	const [outcomeFilter, setOutcomeFilter] = useState<OutcomeFilter>("all");
 	const [targetFilter, setTargetFilter] = useState<TargetFilter>("all");
 	const [selectedEvent, setSelectedEvent] = useState<AuditEvent | null>(null);
+	const [isExporting, setIsExporting] = useState(false);
+	const dateRange = useMemo(
+		() => getAuditDateRange(dateRangeFilter),
+		[dateRangeFilter]
+	);
 	const query = useInfiniteQuery({
 		queryKey: [
 			...orpc.audit.list.key(),
 			activeOrganization?.id,
+			actionFilter,
+			dateRangeFilter,
 			includeTechnical,
 			outcomeFilter,
 			targetFilter,
 		] as const,
 		queryFn: ({ pageParam }) =>
 			orpc.audit.list.call({
+				...(actionFilter === "all" ? {} : { action: actionFilter }),
+				...dateRange,
 				includeTechnical,
 				limit: 50,
 				organizationId: activeOrganization?.id,
@@ -448,6 +654,45 @@ export default function AuditLogPage() {
 			lastPage.hasMore ? (lastPage.nextCursor ?? undefined) : undefined,
 		enabled: Boolean(activeOrganization?.id),
 	});
+
+	const handleExport = async () => {
+		if (!activeOrganization) {
+			return;
+		}
+		setIsExporting(true);
+		try {
+			const result = await orpc.audit.export.call({
+				...(actionFilter === "all" ? {} : { action: actionFilter }),
+				...getAuditDateRange(dateRangeFilter),
+				includeTechnical,
+				organizationId: activeOrganization.id,
+				...(outcomeFilter === "all" ? {} : { outcome: outcomeFilter }),
+				...(targetFilter === "all" ? {} : { targetType: targetFilter }),
+			});
+			const blob = new Blob([result.content], {
+				type: "text/csv;charset=utf-8",
+			});
+			const url = window.URL.createObjectURL(blob);
+			const link = document.createElement("a");
+			link.download = result.filename;
+			link.href = url;
+			link.click();
+			window.URL.revokeObjectURL(url);
+			if (result.truncated) {
+				toast.warning(
+					`Exported the first ${result.rowCount.toLocaleString()} events. Narrow the filters for the complete result.`
+				);
+			} else {
+				toast.success(
+					`Exported ${result.rowCount.toLocaleString()} audit events.`
+				);
+			}
+		} catch {
+			toast.error("Could not export the audit log. Try again in a moment.");
+		} finally {
+			setIsExporting(false);
+		}
+	};
 
 	const events = query.data?.pages.flatMap((page) => page.events) ?? [];
 
@@ -493,6 +738,15 @@ export default function AuditLogPage() {
 					</div>
 					<div className="flex items-center gap-2">
 						<Button
+							loading={isExporting}
+							onClick={handleExport}
+							size="sm"
+							variant="outline"
+						>
+							<FileDownloadIcon aria-hidden="true" className="size-3.5" />
+							Export CSV
+						</Button>
+						<Button
 							aria-pressed={includeTechnical}
 							onClick={() => setIncludeTechnical((current) => !current)}
 							size="sm"
@@ -506,99 +760,39 @@ export default function AuditLogPage() {
 						<ShieldCheckIcon className="size-5 text-muted-foreground" />
 					</div>
 				</Card.Header>
-				<Card.Content className="border-border/60 border-b p-3">
-					<div className="flex flex-wrap items-center gap-2">
-						<div className="flex items-center gap-1.5 pr-1">
-							<FilterIcon
-								aria-hidden="true"
-								className="size-3.5 text-muted-foreground"
-							/>
-							<Text tone="muted" variant="caption">
-								Filter activity
-							</Text>
-						</div>
-						<DropdownMenu>
-							<DropdownMenu.Trigger
-								render={
-									<Button size="sm" variant="outline">
-										{outcomeFilterLabels[outcomeFilter]}
-										<CaretUpDownIcon
-											aria-hidden="true"
-											className="size-3 text-muted-foreground"
-										/>
-									</Button>
-								}
-							/>
-							<DropdownMenu.Content align="start">
-								<DropdownMenu.RadioGroup
-									onValueChange={(value) =>
-										setOutcomeFilter(value as OutcomeFilter)
-									}
-									value={outcomeFilter}
-								>
-									<DropdownMenu.RadioItem value="all">
-										All outcomes
-									</DropdownMenu.RadioItem>
-									{auditOutcomes.map((outcome) => (
-										<DropdownMenu.RadioItem key={outcome} value={outcome}>
-											{outcomeFilterLabels[outcome]}
-										</DropdownMenu.RadioItem>
-									))}
-								</DropdownMenu.RadioGroup>
-							</DropdownMenu.Content>
-						</DropdownMenu>
-						<DropdownMenu>
-							<DropdownMenu.Trigger
-								render={
-									<Button size="sm" variant="outline">
-										{targetFilterLabels[targetFilter]}
-										<CaretUpDownIcon
-											aria-hidden="true"
-											className="size-3 text-muted-foreground"
-										/>
-									</Button>
-								}
-							/>
-							<DropdownMenu.Content align="start">
-								<DropdownMenu.RadioGroup
-									onValueChange={(value) =>
-										setTargetFilter(value as TargetFilter)
-									}
-									value={targetFilter}
-								>
-									{targetFilterOptions.map((target) => (
-										<DropdownMenu.RadioItem key={target} value={target}>
-											{targetFilterLabels[target]}
-										</DropdownMenu.RadioItem>
-									))}
-								</DropdownMenu.RadioGroup>
-							</DropdownMenu.Content>
-						</DropdownMenu>
-						{outcomeFilter !== "all" || targetFilter !== "all" ? (
-							<Button
-								onClick={() => {
-									setOutcomeFilter("all");
-									setTargetFilter("all");
-								}}
-								size="sm"
-								variant="ghost"
-							>
-								Clear filters
-							</Button>
-						) : null}
-					</div>
-				</Card.Content>
+				<AuditFilters
+					actionFilter={actionFilter}
+					dateRangeFilter={dateRangeFilter}
+					onActionFilterChange={setActionFilter}
+					onClear={() => {
+						setActionFilter("all");
+						setDateRangeFilter("30d");
+						setOutcomeFilter("all");
+						setTargetFilter("all");
+					}}
+					onDateRangeFilterChange={setDateRangeFilter}
+					onOutcomeFilterChange={setOutcomeFilter}
+					onTargetFilterChange={setTargetFilter}
+					outcomeFilter={outcomeFilter}
+					targetFilter={targetFilter}
+				/>
 				<Card.Content className="p-0">
 					{events.length === 0 ? (
 						<EmptyState
 							description={
-								outcomeFilter !== "all" || targetFilter !== "all"
+								actionFilter !== "all" ||
+								outcomeFilter !== "all" ||
+								targetFilter !== "all" ||
+								dateRangeFilter !== "30d"
 									? "Try clearing the filters to see more activity."
 									: "New organization, access, flag, and workspace changes will appear here."
 							}
 							icon={<ShieldCheckIcon size={18} weight="duotone" />}
 							title={
-								outcomeFilter !== "all" || targetFilter !== "all"
+								actionFilter !== "all" ||
+								outcomeFilter !== "all" ||
+								targetFilter !== "all" ||
+								dateRangeFilter !== "30d"
 									? "No matching activity"
 									: "No audit events yet"
 							}
