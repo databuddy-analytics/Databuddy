@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
+import { beforeAll, beforeEach, describe, expect, it, mock } from "bun:test";
 import { createProcedureClient } from "@orpc/server";
 import { createKeys } from "keypal";
 import type { Context } from "../orpc";
@@ -14,30 +14,38 @@ const mockWithWorkspace = mock(async () => ({
 }));
 const mockAppendRpcAuditEvent = mock(async () => undefined);
 
-mock.module("@databuddy/auth", () => ({
-	auth: { api: { getSession: async () => null } },
-}));
-mock.module("@databuddy/api-keys/resolve", () => ({
-	collectScopes: (key: { scopes: string[] }) => key.scopes,
-	getApiKeyFromHeader: async () => null,
-	keys: testKeys,
-	markApiKeyUsed: async () => undefined,
-	withApiKeyCacheInvalidation: async <T>(
-		_hashes: Array<string | null | undefined>,
-		operation: () => Promise<T>
-	) => operation(),
-}));
-mock.module("../procedures/with-workspace", () => ({
-	withWorkspace: mockWithWorkspace,
-}));
-mock.module("../lib/audit", () => ({
-	appendRpcAuditEvent: mockAppendRpcAuditEvent,
-	getAuditActor: () => ({ id: "user-a", type: "user" }),
-	getAuditOrganizationId: () => ORGANIZATION_A,
-	getAuditRequestContext: () => ({}),
-}));
+let apikeysRouter: typeof import("./apikeys").apikeysRouter;
 
-const { apikeysRouter } = await import("./apikeys");
+beforeAll(async () => {
+	mock.module("@databuddy/auth", () => ({
+		auth: { api: { getSession: async () => null } },
+	}));
+	mock.module("@databuddy/api-keys/resolve", () => ({
+		collectScopes: (key: { scopes: string[] }) => key.scopes,
+		getApiKeyFromHeader: async () => null,
+		keys: testKeys,
+		markApiKeyUsed: async () => undefined,
+		withApiKeyCacheInvalidation: async <T>(
+			_hashes: Array<string | null | undefined>,
+			operation: () => Promise<T>
+		) => operation(),
+	}));
+	mock.module("../procedures/with-workspace", () => ({
+		withWorkspace: mockWithWorkspace,
+	}));
+	mock.module("../lib/audit", () => ({
+		appendRpcAuditEvent: mockAppendRpcAuditEvent,
+		getAuditActor: () => ({ id: "user-a", type: "user" }),
+		getAuditOrganizationId: () => ORGANIZATION_A,
+		getAuditRequestContext: () => ({}),
+	}));
+
+	({ apikeysRouter } = await import("./apikeys"));
+
+	// Keep the router's captured doubles, but do not leak shared module mocks into
+	// sibling test files that exercise the real workspace middleware.
+	mock.restore();
+});
 
 function call<T>(procedure: T, context: Context) {
 	return createProcedureClient(procedure as never, { context });
@@ -172,8 +180,4 @@ describe("apikeys website resource ownership", () => {
 		expect(result.secret).toStartWith("dbdy_");
 		expect(mockAppendRpcAuditEvent).toHaveBeenCalledTimes(1);
 	});
-});
-
-afterAll(() => {
-	mock.restore();
 });

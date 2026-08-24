@@ -508,7 +508,12 @@ function GitHubIntegrationRow({ organizationId }: { organizationId: string }) {
 
 	const disconnect = useMutation({
 		mutationFn: async () => {
-			const result = await authClient.unlinkAccount({ providerId: "github" });
+			if (!githubAccount) {
+				throw new Error("GitHub account is not linked");
+			}
+			const result = await authClient.unlinkAccount({
+				accountId: githubAccount.id,
+			});
 			if (result.error) {
 				throw new Error(result.error.message);
 			}

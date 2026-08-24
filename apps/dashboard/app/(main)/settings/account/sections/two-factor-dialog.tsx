@@ -120,18 +120,19 @@ export function TwoFactorDialog({
 
 	const enableMutation = useMutation({
 		mutationFn: async () => {
-			const result = await authClient.twoFactor.enable({ password });
+			const result = await authClient.twoFactor.enable({
+				method: "totp",
+				password,
+			});
 			if (result.error) {
 				throw new Error(result.error.message);
 			}
 			return result.data;
 		},
 		onSuccess: (data) => {
-			if (data?.totpURI) {
+			if (data?.method === "totp") {
 				setTotpUri(data.totpURI);
 				setSecret(extractSecretFromTotpUri(data.totpURI));
-			}
-			if (data?.backupCodes) {
 				setBackupCodes(data.backupCodes);
 			}
 			setStep("setup");
