@@ -106,21 +106,6 @@ describe("createConfig", () => {
 		});
 	});
 
-	it("parses public integration readiness overrides", () => {
-		expect(
-			createConfig({
-				NEXT_PUBLIC_DISABLED_INTEGRATIONS:
-					" google-search-console, slack, google-search-console ",
-				NEXT_PUBLIC_ENABLED_INTEGRATIONS: " github, mcp ",
-			})
-		).toMatchObject({
-			integrations: {
-				disabledIds: ["google-search-console", "slack", "google-search-console"],
-				enabledIds: ["github", "mcp"],
-			},
-		});
-	});
-
 	it("deduplicates API CORS origins from dashboard URLs", () => {
 		expect(
 			createConfig({

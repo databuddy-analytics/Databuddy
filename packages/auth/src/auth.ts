@@ -60,6 +60,7 @@ import { getAuthAuditContext } from "./audit-context";
 import {
 	GOOGLE_SEARCH_CONSOLE_PROVIDER_ID,
 	GOOGLE_SEARCH_CONSOLE_SCOPE,
+	INTEGRATION_PRODUCTION_READY,
 } from "@databuddy/shared/integrations";
 
 function generateOrgSlug(name: string): string {
@@ -230,12 +231,8 @@ const googleSearchConsoleClientSecret =
 	process.env.GOOGLE_SEARCH_CONSOLE_CLIENT_SECRET?.trim();
 const googleSearchConsoleOAuth =
 	(process.env.NODE_ENV !== "production" ||
-		(config.integrations.enabledIds.includes(
-			GOOGLE_SEARCH_CONSOLE_PROVIDER_ID
-		) &&
-			!config.integrations.disabledIds.includes(
-				GOOGLE_SEARCH_CONSOLE_PROVIDER_ID
-			))) &&
+		INTEGRATION_PRODUCTION_READY[GOOGLE_SEARCH_CONSOLE_PROVIDER_ID] !==
+			false) &&
 	googleSearchConsoleClientId &&
 	googleSearchConsoleClientSecret
 		? genericOAuth({

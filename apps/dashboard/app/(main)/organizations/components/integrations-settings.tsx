@@ -3,7 +3,10 @@
 import { authClient } from "@databuddy/auth/client";
 import { publicConfig } from "@databuddy/env/public";
 import type { SlackIntegrationOutput } from "@databuddy/rpc";
-import { GOOGLE_SEARCH_CONSOLE_PROVIDER_ID } from "@databuddy/shared/integrations";
+import {
+	GOOGLE_SEARCH_CONSOLE_PROVIDER_ID,
+	INTEGRATION_PRODUCTION_READY,
+} from "@databuddy/shared/integrations";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -118,9 +121,10 @@ const GSC_ITEM: IntegrationCatalogItem = {
 	description:
 		"Use keyword rankings, impression drops, and CTR shifts in investigations.",
 	iconPath: SIMPLE_ICONS.googlesearchconsole,
-	id: "google-search-console",
+	id: GOOGLE_SEARCH_CONSOLE_PROVIDER_ID,
 	name: "Google Search Console",
-	productionReady: false,
+	productionReady:
+		INTEGRATION_PRODUCTION_READY[GOOGLE_SEARCH_CONSOLE_PROVIDER_ID],
 };
 
 const COMING_SOON_INTEGRATIONS: IntegrationCatalogItem[] = [
@@ -258,16 +262,9 @@ function useOAuthConnect(
 }
 
 function isIntegrationEnabled(item: IntegrationCatalogItem): boolean {
-	if (process.env.NODE_ENV !== "production") {
-		return true;
-	}
-	if (publicConfig.integrations.disabledIds.includes(item.id)) {
-		return false;
-	}
-	if (publicConfig.integrations.enabledIds.includes(item.id)) {
-		return true;
-	}
-	return item.productionReady !== false;
+	return (
+		process.env.NODE_ENV !== "production" || item.productionReady !== false
+	);
 }
 
 function IntegrationUnavailableBadge() {

@@ -65,8 +65,6 @@ export interface Config {
 		resendApiKey?: string;
 	};
 	integrations: {
-		disabledIds: string[];
-		enabledIds: string[];
 		openAiAdsPixelId?: string;
 	};
 	urls: {
@@ -148,12 +146,6 @@ export function createConfig(env: Env = process.env): Config {
 			resendApiKey: readOptional(env, "RESEND_API_KEY"),
 		},
 		integrations: {
-			disabledIds: readList(
-				readOptional(env, "NEXT_PUBLIC_DISABLED_INTEGRATIONS")
-			),
-			enabledIds: readList(
-				readOptional(env, "NEXT_PUBLIC_ENABLED_INTEGRATIONS")
-			),
 			openAiAdsPixelId: readOptional(env, "NEXT_PUBLIC_OPENAI_ADS_PIXEL_ID"),
 		},
 		urls: {
