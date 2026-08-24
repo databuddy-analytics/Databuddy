@@ -7,6 +7,7 @@ import {
 } from "@databuddy/db/schema";
 import type { WebsiteIntegrations } from "@databuddy/db/schema";
 import { invalidateSlackIntegrationCache } from "@databuddy/redis";
+import { GOOGLE_SEARCH_CONSOLE_PROVIDER_ID } from "@databuddy/shared/integrations";
 import { z } from "zod";
 import { rpcError } from "../errors";
 import type { Context } from "../orpc";
@@ -394,7 +395,7 @@ export const integrationsRouter = {
 			const token = await getUserProviderToken(
 				context.db,
 				context.user.id,
-				"google"
+				GOOGLE_SEARCH_CONSOLE_PROVIDER_ID
 			);
 			if (!token) {
 				return { hasAccess: false };
