@@ -199,6 +199,7 @@ export const auditRouter = {
 			});
 
 			const events: AuditEvent[] = [];
+			let snapshotCursor: AuditCursor | undefined;
 			let cursor: AuditCursor | undefined;
 			let truncated = false;
 
@@ -206,6 +207,7 @@ export const auditRouter = {
 				const rows = await listAuditEvents(context.db, {
 					action: input.action,
 					actorId: input.actorId,
+					before: snapshotCursor,
 					cursor,
 					from: input.from,
 					includeTechnical: input.includeTechnical,
@@ -216,6 +218,15 @@ export const auditRouter = {
 					targetType: input.targetType,
 					to: input.to,
 				});
+				if (!snapshotCursor) {
+					const firstEvent = rows[0];
+					if (firstEvent) {
+						snapshotCursor = {
+							createdAt: firstEvent.createdAt,
+							id: firstEvent.id,
+						};
+					}
+				}
 				const {
 					hasMore,
 					page,

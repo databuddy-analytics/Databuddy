@@ -22,6 +22,7 @@ import {
 	emitAuditMirror,
 	redactAuditChanges,
 	redactAuditMetadata,
+	type AuditValue,
 } from "@databuddy/shared/audit";
 import type {
 	AuditActionDefinition,
@@ -230,6 +231,7 @@ export function decodeAuditCursor(cursor: string): AuditCursor | null {
 export interface ListAuditEventsInput {
 	action?: string;
 	actorId?: string;
+	before?: AuditCursor;
 	cursor?: AuditCursor;
 	from?: Date;
 	includeTechnical?: boolean;
@@ -280,6 +282,18 @@ export async function listAuditEvents(
 			conditions.push(not(technicalSuccessCondition));
 		}
 	}
+	if (input.before) {
+		const beforeCondition = or(
+			lt(auditEvents.createdAt, input.before.createdAt),
+			and(
+				eq(auditEvents.createdAt, input.before.createdAt),
+				lte(auditEvents.id, input.before.id)
+			)
+		);
+		if (beforeCondition) {
+			conditions.push(beforeCondition);
+		}
+	}
 	if (input.cursor) {
 		const cursorCondition = or(
 			lt(auditEvents.createdAt, input.cursor.createdAt),
@@ -302,7 +316,9 @@ export async function listAuditEvents(
 		.limit(limit + 1);
 }
 
-function csvCell(value: unknown): string {
+type AuditCsvValue = AuditChanges | AuditMetadata | AuditValue;
+
+function csvCell(value: AuditCsvValue): string {
 	const rawText =
 		value === null || value === undefined
 			? ""
