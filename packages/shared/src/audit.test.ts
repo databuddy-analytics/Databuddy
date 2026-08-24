@@ -1,8 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import {
+	AUDIT_REDACTED_VALUE,
 	auditTechnicalActionNames,
 	getAuditActionLabel,
 	getAuditTargetLabel,
+	redactAuditChanges,
+	redactAuditMetadata,
 } from "./audit";
 
 describe("audit display vocabulary", () => {
@@ -20,5 +23,36 @@ describe("audit display vocabulary", () => {
 	test("keeps technical actions available for an explicit forensic view", () => {
 		expect(auditTechnicalActionNames).toContain("rpc.mutation");
 		expect(getAuditTargetLabel("api_key")).toBe("API key");
+	});
+});
+
+describe("audit write-time redaction", () => {
+	test("redacts credential-shaped change fields, including camelCase names", () => {
+		expect(
+			redactAuditChanges({
+				apiKey: { after: "secret-value" },
+				name: { after: "Production" },
+				password: { before: "old-password", after: "new-password" },
+			})
+		).toEqual({
+			apiKey: { after: AUDIT_REDACTED_VALUE },
+			name: { after: "Production" },
+			password: {
+				before: AUDIT_REDACTED_VALUE,
+				after: AUDIT_REDACTED_VALUE,
+			},
+		});
+	});
+
+	test("redacts sensitive metadata before persistence", () => {
+		expect(
+			redactAuditMetadata({
+				requestId: "request_123",
+				accessToken: "secret-token",
+			})
+		).toEqual({
+			requestId: "request_123",
+			accessToken: AUDIT_REDACTED_VALUE,
+		});
 	});
 });

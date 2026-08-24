@@ -58,6 +58,7 @@ function defineAction<
 export const auditActions = {
 	AUDIT_LOG_VIEWED: defineAction("audit_log.viewed", "audit_log"),
 	AUDIT_LOG_EVENT_VIEWED: defineAction("audit_log.event_viewed", "audit_log"),
+	AUDIT_LOG_EXPORTED: defineAction("audit_log.exported", "audit_log"),
 	RPC_MUTATION: defineAction("rpc.mutation", "organization"),
 	FLAG_CHANGED: defineAction("flag.changed", "flag"),
 	API_KEY_CREATED: defineAction("api_key.created", "api_key"),
@@ -118,6 +119,7 @@ export const auditActionLabels = {
 	"api_key.rotated": "Rotated API key",
 	"api_key.updated": "Updated API key",
 	"audit_log.event_viewed": "Viewed audit event",
+	"audit_log.exported": "Exported audit log",
 	"audit_log.viewed": "Viewed audit log",
 	"flag.changed": "Changed feature flag",
 	"organization.created": "Created organization",
@@ -144,6 +146,51 @@ export const auditTechnicalActionNames = [
 	auditActions.AUDIT_LOG_VIEWED.action,
 	auditActions.RPC_MUTATION.action,
 ] as const;
+
+export const AUDIT_REDACTED_VALUE = "[REDACTED]" as const;
+
+const sensitiveAuditFieldPattern =
+	/(^|[_-])(authorization|cookie|key|password|secret|token)([_-]|$)/i;
+
+function isSensitiveAuditField(field: string): boolean {
+	const normalizedField = field.replace(
+		/[A-Z]/g,
+		(character) => `_${character}`
+	);
+	return sensitiveAuditFieldPattern.test(normalizedField);
+}
+
+function redactAuditValue(field: string, value: AuditValue | undefined) {
+	if (value === undefined) {
+		return;
+	}
+	return isSensitiveAuditField(field) ? AUDIT_REDACTED_VALUE : value;
+}
+
+export function redactAuditChanges(changes?: AuditChanges): AuditChanges {
+	return Object.fromEntries(
+		Object.entries(changes ?? {}).map(([field, change]) => {
+			const before = redactAuditValue(field, change.before);
+			const after = redactAuditValue(field, change.after);
+			return [
+				field,
+				{
+					...(before === undefined ? {} : { before }),
+					...(after === undefined ? {} : { after }),
+				},
+			];
+		})
+	);
+}
+
+export function redactAuditMetadata(metadata?: AuditMetadata): AuditMetadata {
+	return Object.fromEntries(
+		Object.entries(metadata ?? {}).map(([field, value]) => [
+			field,
+			redactAuditValue(field, value),
+		])
+	) as AuditMetadata;
+}
 
 export const auditSourceLabels: Record<AuditSource, string> = {
 	better_auth: "Authentication",
