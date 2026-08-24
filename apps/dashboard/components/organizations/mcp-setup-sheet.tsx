@@ -320,8 +320,11 @@ export function McpSetupSheet({
 
 	return (
 		<Sheet onOpenChange={handleClose} open={open}>
-			<Sheet.Content className="sm:max-w-xl" side="right">
-				<Sheet.Header>
+			<Sheet.Content
+				className="top-0 right-0 bottom-0 max-w-none rounded-none sm:top-2 sm:right-2 sm:bottom-2 sm:max-w-xl sm:rounded-lg"
+				side="right"
+			>
+				<Sheet.Header className="px-4 sm:px-5">
 					<div className="flex items-start gap-3">
 						<div className="flex size-8 items-center justify-center rounded-md bg-primary/10">
 							<RobotIcon className="text-primary" size={16} weight="fill" />
@@ -339,7 +342,7 @@ export function McpSetupSheet({
 					</div>
 				</Sheet.Header>
 
-				<Sheet.Body className="space-y-5">
+				<Sheet.Body className="space-y-5 px-4 sm:px-5">
 					{newSecret ? (
 						<ConnectionCreated
 							client={client}
@@ -365,7 +368,7 @@ export function McpSetupSheet({
 							<div className="space-y-2">
 								<Text variant="label">AI client</Text>
 								<SegmentedControl
-									className="w-full overflow-x-auto"
+									className="w-full max-w-full overflow-x-auto [&>label]:min-w-max"
 									name="mcp-client"
 									onChange={handleClientChange}
 									options={CLIENT_OPTIONS.map((option) => ({
@@ -529,17 +532,26 @@ export function McpSetupSheet({
 					)}
 				</Sheet.Body>
 
-				<Sheet.Footer>
+				<Sheet.Footer className="flex-col-reverse items-stretch px-4 sm:flex-row sm:items-center sm:px-5">
 					{newSecret ? (
-						<Button onClick={handleClose} variant="primary">
+						<Button
+							className="w-full sm:w-auto"
+							onClick={handleClose}
+							variant="primary"
+						>
 							Done
 						</Button>
 					) : (
 						<>
-							<Button onClick={handleClose} variant="ghost">
+							<Button
+								className="w-full sm:w-auto"
+								onClick={handleClose}
+								variant="ghost"
+							>
 								Cancel
 							</Button>
 							<Button
+								className="w-full sm:w-auto"
 								disabled={
 									createMutation.isPending ||
 									(needsOrganizationWideLinkAcknowledgment &&
@@ -596,7 +608,7 @@ function ConnectionCreated({
 			</div>
 
 			<div className="space-y-2">
-				<div className="flex items-center justify-between gap-3">
+				<div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
 					<div>
 						<Text variant="label">Secret key</Text>
 						<Text tone="muted" variant="caption">
@@ -614,7 +626,7 @@ function ConnectionCreated({
 			</div>
 
 			<div className="space-y-2">
-				<div className="flex items-center justify-between gap-3">
+				<div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
 					<div>
 						<Text variant="label">Configuration</Text>
 						<Text tone="muted" variant="caption">
@@ -636,7 +648,7 @@ function ConnectionCreated({
 				</div>
 			</div>
 
-			<div className="flex items-center justify-between gap-3 rounded-md border border-border/60 px-3 py-2.5">
+			<div className="flex flex-col items-start gap-2 rounded-md border border-border/60 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
 				<Checkbox
 					checked={useEnvironmentVariable}
 					description={`Set ${MCP_ENV_VAR} in your environment before launching the client.`}
@@ -652,13 +664,14 @@ function ConnectionCreated({
 
 			<div className="space-y-2">
 				<Text variant="label">Test it</Text>
-				<div className="flex items-center gap-2 rounded-md border border-border/60 bg-secondary/30 px-3 py-2.5">
+				<div className="flex items-start gap-2 rounded-md border border-border/60 bg-secondary/30 px-3 py-2.5">
 					<CodeIcon className="size-4 shrink-0 text-muted-foreground" />
-					<Text className="flex-1" variant="label">
+					<Text className="min-w-0 flex-1" variant="label">
 						List my Databuddy websites.
 					</Text>
 					<CopyButton
 						aria-label="Copy test prompt"
+						className="shrink-0"
 						value="List my Databuddy websites."
 					/>
 				</div>
@@ -683,6 +696,7 @@ function ConnectionCreated({
 					</Text>
 					<CopyButton
 						aria-label="Copy MCP server endpoint"
+						className="shrink-0"
 						value={MCP_SERVER_URL}
 					/>
 				</div>
