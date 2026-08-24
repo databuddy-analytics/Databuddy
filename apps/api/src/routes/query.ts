@@ -1,15 +1,16 @@
 import { auth } from "@databuddy/auth";
 import {
+	API_KEY_AUTH_CHALLENGE,
 	type ApiKeyRow,
 	getAccessibleWebsiteIds,
 	getApiKeyFromHeader,
 	hasGlobalAccess,
 	hasKeyScope,
+	hasWebsiteScopeForOrganization,
 	isApiKeyPresent,
 } from "@databuddy/api-keys/resolve";
 import { and, db, eq, inArray } from "@databuddy/db";
 import { profiles } from "@databuddy/db/schema";
-import { config } from "@databuddy/env/app";
 import {
 	isTraitFilterField,
 	resolveTraitSegment,
@@ -57,6 +58,7 @@ import {
 	DynamicQueryRequestSchema,
 	type DynamicQueryRequestType,
 } from "../schemas/query-schemas";
+import { handleAppError } from "../http/errors";
 import { getRequestId } from "../http/request-id";
 
 const PER_WEBSITE_QUERY_CONCURRENCY = 8;
@@ -95,8 +97,6 @@ async function runPerWebsite<T>(key: string, fn: () => Promise<T>): Promise<T> {
 
 const MAX_HOURLY_DAYS = 30;
 const MS_PER_DAY = 86_400_000;
-const PROTECTED_RESOURCE_METADATA_URL = `${config.urls.api}/.well-known/oauth-protected-resource`;
-
 function normalizeDate(input: string): string {
 	return normalizeClickHouseDateTime(input);
 }
@@ -327,25 +327,6 @@ type ProjectAccessResult =
 			status?: number;
 	  };
 
-function createAuthFailedResponse(requestId: string): Response {
-	return new Response(
-		JSON.stringify({
-			success: false,
-			error: "Authentication required",
-			code: "AUTH_REQUIRED",
-			requestId,
-		}),
-		{
-			status: 401,
-			headers: {
-				"Content-Type": "application/json",
-				"X-Request-ID": requestId,
-				"WWW-Authenticate": `Bearer resource_metadata="${PROTECTED_RESOURCE_METADATA_URL}"`,
-			},
-		}
-	);
-}
-
 function clientIpForQuery(request: Request): string {
 	return (
 		request.headers.get("cf-connecting-ip") ||
@@ -417,10 +398,8 @@ function createErrorResponse(
 		headers["X-Request-ID"] = requestId;
 	}
 	if (status === 401) {
-		headers["WWW-Authenticate"] =
-			`Bearer resource_metadata="${PROTECTED_RESOURCE_METADATA_URL}"`;
+		headers["WWW-Authenticate"] = API_KEY_AUTH_CHALLENGE;
 	}
-
 	return new Response(
 		JSON.stringify({
 			success: false,
@@ -552,21 +531,17 @@ async function verifyWebsiteAccess(
 	}
 
 	if (ctx.apiKey) {
-		if (hasGlobalAccess(ctx.apiKey)) {
-			if (!ctx.apiKey.organizationId) {
-				mergeWideEvent({ access_result: "api_key_no_org" });
-				return false;
-			}
-			const granted = website.organizationId === ctx.apiKey.organizationId;
-			mergeWideEvent({
-				access_result: granted ? "api_key_global" : "api_key_denied",
-			});
-			return granted;
-		}
-
-		const granted = getAccessibleWebsiteIds(ctx.apiKey).includes(websiteId);
+		const granted = hasWebsiteScopeForOrganization(
+			ctx.apiKey,
+			website,
+			"read:data"
+		);
 		mergeWideEvent({
-			access_result: granted ? "api_key_scoped" : "api_key_denied",
+			access_result: granted
+				? hasGlobalAccess(ctx.apiKey)
+					? "api_key_global"
+					: "api_key_scoped"
+				: "api_key_denied",
 		});
 		return granted;
 	}
@@ -1214,10 +1189,14 @@ export const query = new Elysia({ prefix: "/v1/query" })
 
 	.get("/websites", ({ auth: ctx, request }) =>
 		(async () => {
-			const requestId = getRequestId(request);
 			if (!ctx.isAuthenticated) {
-				return createAuthFailedResponse(requestId);
+				return handleAppError({
+					code: "AUTH_REQUIRED",
+					error: new Error("Authentication required"),
+					request,
+				});
 			}
+			const requestId = getRequestId(request);
 			const list = await getAccessibleWebsites(ctx);
 			const count = Array.isArray(list) ? list.length : 0;
 			mergeWideEvent({

@@ -4,7 +4,11 @@ import {
 	asc,
 	desc,
 	eq,
+	gte,
+	inArray,
+	lte,
 	lt,
+	not,
 	or,
 	type InferSelectModel,
 } from "@databuddy/db";
@@ -13,7 +17,12 @@ import {
 	auditOutboxEvents,
 	type AuditOutboxPayload,
 } from "@databuddy/db/schema";
-import { emitAuditMirror } from "@databuddy/shared/audit";
+import {
+	auditTechnicalActionNames,
+	emitAuditMirror,
+	redactAuditChanges,
+	redactAuditMetadata,
+} from "@databuddy/shared/audit";
 import type {
 	AuditActionDefinition,
 	AuditActor,
@@ -58,10 +67,10 @@ export function createAuditEventPayload<TAction extends AuditActionDefinition>(
 		actorDisplayName: input.actor.displayName,
 		actorId: input.actor.id,
 		actorType: input.actor.type,
-		changes: input.changes ?? {},
+		changes: redactAuditChanges(input.changes),
 		id: randomUUID(),
 		ip: input.request?.ip,
-		metadata: input.metadata ?? {},
+		metadata: redactAuditMetadata(input.metadata),
 		operation: input.operation,
 		organizationId,
 		outcome: input.outcome ?? "success",
@@ -169,7 +178,7 @@ export async function appendAuditEvent<TAction extends AuditActionDefinition>(
 	emitAuditMirror({
 		action: input.action,
 		actor: input.actor,
-		changes: input.changes,
+		changes: redactAuditChanges(input.changes),
 		correlationId: input.request?.requestId,
 		organizationId,
 		outcome: input.outcome,
@@ -222,13 +231,18 @@ export interface ListAuditEventsInput {
 	action?: string;
 	actorId?: string;
 	cursor?: AuditCursor;
+	from?: Date;
+	includeTechnical?: boolean;
 	limit: number;
 	organizationId: string;
 	outcome?: AuditOutcome;
 	targetId?: string;
+	targetType?: string;
+	to?: Date;
 }
 
 export const MAX_AUDIT_PAGE_SIZE = 100;
+const csvFormulaInjectionPattern = /^[=+\-@]/;
 
 export async function listAuditEvents(
 	database: AuditDatabase,
@@ -247,6 +261,24 @@ export async function listAuditEvents(
 	}
 	if (input.targetId) {
 		conditions.push(eq(auditEvents.targetId, input.targetId));
+	}
+	if (input.targetType) {
+		conditions.push(eq(auditEvents.targetType, input.targetType));
+	}
+	if (input.from) {
+		conditions.push(gte(auditEvents.createdAt, input.from));
+	}
+	if (input.to) {
+		conditions.push(lte(auditEvents.createdAt, input.to));
+	}
+	if (!input.includeTechnical) {
+		const technicalSuccessCondition = and(
+			inArray(auditEvents.action, auditTechnicalActionNames),
+			eq(auditEvents.outcome, "success")
+		);
+		if (technicalSuccessCondition) {
+			conditions.push(not(technicalSuccessCondition));
+		}
 	}
 	if (input.cursor) {
 		const cursorCondition = or(
@@ -268,6 +300,71 @@ export async function listAuditEvents(
 		.where(and(...conditions))
 		.orderBy(desc(auditEvents.createdAt), desc(auditEvents.id))
 		.limit(limit + 1);
+}
+
+function csvCell(value: unknown): string {
+	const rawText =
+		value === null || value === undefined
+			? ""
+			: typeof value === "object"
+				? JSON.stringify(value)
+				: String(value);
+	const text =
+		typeof value === "string" &&
+		csvFormulaInjectionPattern.test(value.trimStart())
+			? `'${rawText}`
+			: rawText;
+	return `"${text.replaceAll('"', '""')}"`;
+}
+
+const auditCsvColumns = [
+	"id",
+	"created_at",
+	"action",
+	"outcome",
+	"actor_type",
+	"actor_id",
+	"actor_name",
+	"source",
+	"operation",
+	"target_type",
+	"target_id",
+	"target_name",
+	"reason",
+	"request_id",
+	"ip",
+	"user_agent",
+	"changes",
+	"metadata",
+] as const;
+
+export function auditEventsToCsv(events: AuditEvent[]): string {
+	const rows = events.map((event) =>
+		[
+			event.id,
+			event.createdAt.toISOString(),
+			event.action,
+			event.outcome,
+			event.actorType,
+			event.actorId,
+			event.actorDisplayName,
+			event.source,
+			event.operation,
+			event.targetType,
+			event.targetId,
+			event.targetDisplayName,
+			event.reason,
+			event.requestId,
+			event.ip,
+			event.userAgent,
+			redactAuditChanges(event.changes),
+			redactAuditMetadata(event.metadata),
+		]
+			.map(csvCell)
+			.join(",")
+	);
+
+	return [auditCsvColumns.join(","), ...rows].join("\n");
 }
 
 export async function getAuditEvent(

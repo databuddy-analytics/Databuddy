@@ -108,13 +108,19 @@ export async function getAccessibleWebsites(
 		const ids = getAccessibleWebsiteIds(authCtx.apiKey).filter((id) =>
 			hasWebsiteScope(authCtx.apiKey, id, "read:data")
 		);
-		if (ids.length === 0) {
+		if (ids.length === 0 || !authCtx.apiKey.organizationId) {
 			return [];
 		}
 		return db
 			.select(select)
 			.from(websites)
-			.where(and(inArray(websites.id, ids), isNull(websites.deletedAt)))
+			.where(
+				and(
+					eq(websites.organizationId, authCtx.apiKey.organizationId),
+					inArray(websites.id, ids),
+					isNull(websites.deletedAt)
+				)
+			)
 			.orderBy((t) => t.createdAt);
 	}
 

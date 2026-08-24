@@ -9,7 +9,9 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { MagnifyingGlassIcon } from "@databuddy/ui/icons";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { MagnifyingGlassIcon, PlugIcon } from "@databuddy/ui/icons";
 import { useCommandSearchOpenAction } from "@/components/ui/command-search";
 import { PendingInvitationsButton } from "./pending-invitations-button";
 import { SidebarTrigger } from "./sidebar-layout";
@@ -182,6 +184,8 @@ export function TopBar() {
 	const actionsContent = useStoreSlot("actions");
 	const [hasMounted, setHasMounted] = useState(false);
 	const openSearch = useCommandSearchOpenAction();
+	const pathname = usePathname();
+	const showMcpShortcut = !pathname.startsWith("/demo");
 
 	useEffect(() => {
 		setHasMounted(true);
@@ -212,6 +216,20 @@ export function TopBar() {
 					) : null}
 
 					<div className="flex h-full shrink-0 items-center gap-1 border-sidebar-border/50 border-l px-2">
+						{showMcpShortcut && (
+							<Button
+								aria-label="Configure Databuddy MCP"
+								asChild
+								className="h-8 min-w-9 justify-start gap-2 rounded-md px-2.5 text-sidebar-foreground/65 hover:text-sidebar-foreground lg:min-w-16"
+								size="sm"
+								variant="secondary"
+							>
+								<Link href="/organizations/settings/integrations#mcp" prefetch>
+									<PlugIcon className="size-4" />
+									<span className="hidden text-xs lg:inline">MCP</span>
+								</Link>
+							</Button>
+						)}
 						<Button
 							aria-label="Search"
 							className="h-8 min-w-9 justify-start gap-2 rounded-md px-2.5 text-sidebar-foreground/65 hover:text-sidebar-foreground lg:min-w-40"

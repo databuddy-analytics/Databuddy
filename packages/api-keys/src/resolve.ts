@@ -20,6 +20,7 @@ export const keys = createKeys({ prefix: "dbdy_", length: 48 });
 
 export const API_KEY_LOOKUP_TIMEOUT_MS = 5000;
 export const API_KEY_STATEMENT_TIMEOUT_MS = API_KEY_LOOKUP_TIMEOUT_MS;
+export const API_KEY_AUTH_CHALLENGE = 'Bearer realm="databuddy"';
 
 export type ApiKeyResolveOutcome =
 	| "ok"
@@ -264,6 +265,23 @@ export function hasWebsiteScope(
 	required: string
 ): boolean {
 	return hasKeyScope(key, required, `website:${websiteId}`);
+}
+
+/**
+ * Checks a website scope only after binding the website to the key's workspace.
+ * Resource metadata is user input, so its `website:<id>` key is not proof of
+ * ownership by itself.
+ */
+export function hasWebsiteScopeForOrganization(
+	key: ApiKeyRow | null,
+	website: { id: string; organizationId: string | null },
+	required: string
+): boolean {
+	return Boolean(
+		key?.organizationId &&
+			key.organizationId === website.organizationId &&
+			hasWebsiteScope(key, website.id, required)
+	);
 }
 
 export function hasWebsiteAnyScope(

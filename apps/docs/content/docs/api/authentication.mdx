@@ -45,11 +45,9 @@ AI agents can discover Databuddy authentication without scraping this page:
 | Resource | URL |
 |----------|-----|
 | auth.md walkthrough | `https://www.databuddy.cc/auth.md` |
-| OAuth Protected Resource Metadata | `https://api.databuddy.cc/.well-known/oauth-protected-resource` |
-| Authorization Server Metadata | `https://api.databuddy.cc/.well-known/oauth-authorization-server` |
 | API catalog | `https://api.databuddy.cc/.well-known/api-catalog` |
 
-Unauthenticated protected API probes return a `WWW-Authenticate` header with `Bearer resource_metadata="https://api.databuddy.cc/.well-known/oauth-protected-resource"`. Agents should fetch that metadata, choose the smallest required scope, and then retry with `x-api-key` or `Authorization: Bearer`.
+Databuddy currently supports scoped API keys for agent access. OAuth is not available yet; agents should create a key in the dashboard and send it with `x-api-key` or `Authorization: Bearer`.
 
 ## API Key Scopes
 

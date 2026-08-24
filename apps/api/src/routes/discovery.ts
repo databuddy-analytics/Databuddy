@@ -2,19 +2,16 @@ import {
 	type AgentDiscoveryUrls,
 	createAcpErrorBody,
 	createApiCatalog,
-	createAuthDiscoveryHeader as createSharedAuthDiscoveryHeader,
-	createAuthorizationServerMetadata,
 	createMcpServerCard,
 	createNlwebAnswer,
 	createNlwebSseBody,
-	createProtectedResourceMetadata,
 	createSandboxDiscovery,
 	createUcpProfile,
-	createUnsupportedAgentAuthBody,
 	createWebBotAuthDirectory,
 	createX402ResourceDiscovery,
 	parseNlwebAskBody,
 } from "@databuddy/shared/agent-discovery";
+import { API_KEY_AUTH_CHALLENGE } from "@databuddy/api-keys/resolve";
 import { config } from "@databuddy/env/app";
 import { Elysia } from "elysia";
 
@@ -28,10 +25,9 @@ const discoveryUrls = {
 	dashboardUrl: config.urls.dashboard,
 	openapiSpecUrl: `${SITE_URL}/openapi.json`,
 	apiOpenapiSpecUrl: `${API_URL}/openapi.json`,
-	mcpServerUrl: `${API_URL}/v1/mcp/`,
+	mcpServerUrl: config.urls.mcp,
 	mcpManifestUrl: `${SITE_URL}/.well-known/mcp.json`,
 	apiCatalogUrl: `${API_URL}/.well-known/api-catalog`,
-	protectedResourceMetadataUrl: `${API_URL}/.well-known/oauth-protected-resource`,
 } satisfies AgentDiscoveryUrls;
 
 function jsonResponse(body: unknown, init?: ResponseInit) {
@@ -64,23 +60,17 @@ function linksetResponse(body: unknown) {
 	});
 }
 
-export function createAuthDiscoveryHeader() {
-	return createSharedAuthDiscoveryHeader(discoveryUrls);
-}
-
 function unauthorizedDiscoveryResponse() {
 	return noStoreJsonResponse(
 		{
 			success: false,
 			error: "Authentication required",
 			code: "AUTH_REQUIRED",
-			fix: `Fetch ${discoveryUrls.protectedResourceMetadataUrl}, then send a scoped Databuddy API key in x-api-key or Authorization: Bearer.`,
+			fix: "Create a scoped Databuddy API key, then send it in x-api-key or Authorization: Bearer.",
 		},
 		{
 			status: 401,
-			headers: {
-				"WWW-Authenticate": createAuthDiscoveryHeader(),
-			},
+			headers: { "WWW-Authenticate": API_KEY_AUTH_CHALLENGE },
 		}
 	);
 }
@@ -99,13 +89,6 @@ function optionsResponse() {
 	});
 }
 
-function unsupportedAgentAuthResponse(action: string) {
-	return noStoreJsonResponse(
-		createUnsupportedAgentAuthBody(discoveryUrls, action),
-		{ status: 400 }
-	);
-}
-
 function acpErrorResponse(code: string, message: string) {
 	return noStoreJsonResponse(createAcpErrorBody(discoveryUrls, code, message), {
 		status: 400,
@@ -122,12 +105,6 @@ function sseResponse(payload: unknown) {
 }
 
 export const discovery = new Elysia({ name: "agent-discovery" })
-	.get("/.well-known/oauth-protected-resource", () =>
-		jsonResponse(createProtectedResourceMetadata(discoveryUrls))
-	)
-	.get("/.well-known/oauth-authorization-server", () =>
-		jsonResponse(createAuthorizationServerMetadata(discoveryUrls))
-	)
 	.get("/.well-known/api-catalog", () =>
 		linksetResponse(createApiCatalog(discoveryUrls))
 	)
@@ -151,12 +128,6 @@ export const discovery = new Elysia({ name: "agent-discovery" })
 	)
 	.get("/.well-known/ucp", () => jsonResponse(createUcpProfile(discoveryUrls)))
 	.get("/sandbox", () => jsonResponse(createSandboxDiscovery(discoveryUrls)))
-	.options("/agent-auth/register", optionsResponse)
-	.post("/agent-auth/register", () => unsupportedAgentAuthResponse("register"))
-	.options("/agent-auth/claim", optionsResponse)
-	.post("/agent-auth/claim", () => unsupportedAgentAuthResponse("claim"))
-	.options("/agent-auth/revoke", optionsResponse)
-	.post("/agent-auth/revoke", () => unsupportedAgentAuthResponse("revoke"))
 	.options("/checkout_sessions", optionsResponse)
 	.post("/checkout_sessions", () =>
 		acpErrorResponse(

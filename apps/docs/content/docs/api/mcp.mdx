@@ -14,9 +14,7 @@ The Databuddy MCP server lets AI agents (Claude, Cursor, Windsurf, or any MCP-co
 | Production | `https://api.databuddy.cc/v1/mcp/` |
 | Local | `http://localhost:3001/v1/mcp/` |
 
-The server uses the **Streamable HTTP** transport (JSON-RPC over HTTP). No SSE or WebSocket connection required.
-
-Alternate transport surfaces are also available at `https://api.databuddy.cc/mcp` and `https://api.databuddy.cc/.well-known/mcp` for WebMCP-capable agents.
+The server uses the **Streamable HTTP** transport (JSON-RPC over HTTP). No SSE or WebSocket connection required. Configure clients with the canonical URL above. `/.well-known/mcp` is discovery metadata, not an MCP transport endpoint.
 
 ## Discovery Manifest
 
@@ -51,8 +49,14 @@ Pass an API key with the `read:data` scope:
 />
 
 <Callout type="info">
-  Get your API key from [Dashboard → Organization Settings → API Keys](https://app.databuddy.cc/organizations/settings#api-keys). The key needs at least the `read:data` scope. Add `manage:websites` to reply to investigations.
+  The quickest setup is [Dashboard → Organization Settings → Integrations](https://app.databuddy.cc/organizations/settings/integrations): choose **Databuddy MCP**, select the client, capabilities, and website access you want, then copy the generated config. The secret is shown only once. You can also create and manage keys from [API Keys](https://app.databuddy.cc/organizations/settings#api-keys). The generated key starts with `read:data`. Add `manage:websites` for workspace actions such as goals, funnels, annotations, and investigation replies; add `manage:flags` for feature-flag mutations; and add organization-wide `read:links` plus `write:links` for short-link reads and mutations.
 </Callout>
+
+### Dashboard setup
+
+The dashboard creates a dedicated automation key tagged `MCP` rather than requiring you to share a personal API key. The setup sheet defaults to read-only analytics, then lets you enable **Workspace actions** (goals, funnels, annotations, and investigation replies), **Feature flags**, and **Short links**. Each capability maps to the narrowest scopes currently supported by the MCP tools. You can create separate connections for Cursor, Claude, Windsurf, or another MCP client, scope a connection to specific websites, choose a 90-day expiry or no expiry, and rotate or revoke it later from **Organization Settings → API Keys**.
+
+For clients that support environment-variable interpolation in remote MCP headers, enable the environment-variable option in the setup sheet and set `DATABUDDY_API_KEY` before launching the client. Otherwise, paste the generated one-time config with the secret in the `x-api-key` header.
 
 ## Client Setup
 
@@ -121,8 +125,22 @@ Add to your MCP settings (typically `.cursor/mcp.json` or workspace settings):
 |------|-------------|
 | `list_funnels` | List configured funnels. |
 | `get_funnel_analytics` | Per-step conversion analytics for a funnel. |
+| `get_funnel_analytics_by_referrer` | Break down funnel performance by referrer/source. |
+| `create_funnel` | Create a funnel after confirmation. |
 | `list_goals` | List configured goals. |
 | `get_goal_analytics` | Goal completion analytics. |
+| `create_goal` | Create a conversion goal after confirmation. |
+| `update_goal` | Update a goal after confirmation. |
+| `delete_goal` | Delete a goal after confirmation. |
+
+### Annotations
+
+| Tool | Description |
+|------|-------------|
+| `list_annotations` | List annotations for a website. |
+| `create_annotation` | Create an annotation after confirmation. |
+| `update_annotation` | Update an annotation after confirmation. |
+| `delete_annotation` | Delete an annotation after confirmation. |
 
 ### Feature Flags
 
@@ -131,6 +149,7 @@ Add to your MCP settings (typically `.cursor/mcp.json` or workspace settings):
 | `list_flags` | List active feature flags. |
 | `create_flag` | Create a new feature flag (requires confirmation). |
 | `update_flag` | Update flag configuration (requires confirmation). |
+| `add_users_to_flag` | Add users to a feature flag target group (requires confirmation). |
 
 ### Links
 
@@ -139,6 +158,9 @@ Add to your MCP settings (typically `.cursor/mcp.json` or workspace settings):
 | `list_links` | List short links. |
 | `search_links` | Search links by keyword. |
 | `list_link_folders` | List link folders with usage counts. |
+| `create_link` | Create a short link after confirmation. |
+| `update_link` | Update a short link after confirmation. |
+| `delete_link` | Delete a short link after confirmation. |
 
 ## Conventions
 
@@ -198,9 +220,10 @@ Tools are filtered based on your API key's scopes:
 
 | Scope | Tools |
 |-------|-------|
-| `read:data` | Analytics, investigations, schema, and read-only tools |
-| `manage:websites` | Reply to investigations; create goals, funnels, and annotations |
-| `manage:flags` + `manage:websites` | Feature flag mutations |
-| `write:links` | Link mutations |
+| `read:data` | Analytics, investigations, schema/capability discovery, and website-scoped tools |
+| `manage:websites` | Investigation replies; create, update, and delete goals and annotations; create funnels |
+| `manage:flags` | Feature flag mutations |
+| `read:links` | Organization-wide short-link, folder, and search reads; required by every link mutation for its preview |
+| `write:links` | With `read:links`, create, update, and delete short links organization-wide |
 
 Session-authenticated users (via the dashboard) get access based on their organization role instead.
