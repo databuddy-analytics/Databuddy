@@ -4,6 +4,7 @@
   "version": "0.0.1",
   "type": "module",
   "exports": {
+    "./integrations": "./src/integrations.ts",
     "./api-scopes": "./src/api-scopes.ts",
     "./agent-discovery": "./src/agent-discovery.ts",
     "./country-codes": "./src/country-codes.ts",

@@ -3,6 +3,10 @@ import { z } from "zod";
 import { getWebsiteDomain } from "../../lib/website-utils";
 import { getAppContext, resolveToolWebsite, toolDateRangeError } from "./utils";
 import { createCachedTokenFn } from "./utils/oauth-token";
+import {
+	GOOGLE_SEARCH_CONSOLE_PROVIDER_ID,
+	GOOGLE_SEARCH_CONSOLE_SCOPE,
+} from "@databuddy/shared/integrations";
 
 const GSC_API = "https://www.googleapis.com/webmasters/v3";
 const MAX_ROWS = 25;
@@ -99,10 +103,10 @@ export function createSearchConsoleTools(params: {
 	userId?: string;
 }) {
 	const getToken = createCachedTokenFn(
-		"google",
+		GOOGLE_SEARCH_CONSOLE_PROVIDER_ID,
 		params.organizationId,
 		params.userId,
-		"https://www.googleapis.com/auth/webmasters.readonly"
+		GOOGLE_SEARCH_CONSOLE_SCOPE
 	);
 
 	return {
@@ -139,7 +143,7 @@ export function createSearchConsoleTools(params: {
 				if (!token) {
 					return {
 						error:
-							"No Google account connected. Connect Google in Settings > Integrations with Search Console scope.",
+							"Google Search Console is not connected. Connect it in Settings > Integrations.",
 					};
 				}
 				try {

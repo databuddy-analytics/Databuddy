@@ -46,6 +46,7 @@ import { APIError } from "better-auth/api";
 import { betterAuth } from "better-auth/minimal";
 import {
 	emailOTP,
+	genericOAuth,
 	lastLoginMethod,
 	magicLink,
 	multiSession,
@@ -56,6 +57,11 @@ import { log } from "evlog";
 import { Resend } from "resend";
 import { ac, admin, member, owner, viewer } from "./permissions";
 import { getAuthAuditContext } from "./audit-context";
+import {
+	GOOGLE_SEARCH_CONSOLE_PROVIDER_ID,
+	GOOGLE_SEARCH_CONSOLE_SCOPE,
+	INTEGRATION_PRODUCTION_READY,
+} from "@databuddy/shared/integrations";
 
 function generateOrgSlug(name: string): string {
 	const base = name
@@ -218,6 +224,36 @@ function formatInvitationRole(role: string | string[]): string {
 }
 
 const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL ?? "";
+
+const googleSearchConsoleClientId =
+	process.env.GOOGLE_SEARCH_CONSOLE_CLIENT_ID?.trim();
+const googleSearchConsoleClientSecret =
+	process.env.GOOGLE_SEARCH_CONSOLE_CLIENT_SECRET?.trim();
+const googleSearchConsoleOAuth =
+	(process.env.NODE_ENV !== "production" ||
+		INTEGRATION_PRODUCTION_READY[GOOGLE_SEARCH_CONSOLE_PROVIDER_ID] !==
+			false) &&
+	googleSearchConsoleClientId &&
+	googleSearchConsoleClientSecret
+		? genericOAuth({
+				config: [
+					{
+						accessType: "offline",
+						authorizationUrl: "https://accounts.google.com/o/oauth2/v2/auth",
+						clientId: googleSearchConsoleClientId,
+						clientSecret: googleSearchConsoleClientSecret,
+						disableImplicitSignUp: true,
+						disableSignUp: true,
+						pkce: true,
+						prompt: "consent",
+						providerId: GOOGLE_SEARCH_CONSOLE_PROVIDER_ID,
+						scopes: ["openid", "email", "profile", GOOGLE_SEARCH_CONSOLE_SCOPE],
+						tokenUrl: "https://oauth2.googleapis.com/token",
+						userInfoUrl: "https://openidconnect.googleapis.com/v1/userinfo",
+					},
+				],
+			})
+		: null;
 
 function notifySlack(
 	title: string,
@@ -613,6 +649,7 @@ export const auth = betterAuth({
 		},
 	},
 	plugins: [
+		...(googleSearchConsoleOAuth ? [googleSearchConsoleOAuth] : []),
 		multiSession({
 			maximumSessions: 5,
 		}),

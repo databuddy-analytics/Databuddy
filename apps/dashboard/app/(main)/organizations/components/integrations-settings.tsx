@@ -3,6 +3,10 @@
 import { authClient } from "@databuddy/auth/client";
 import { publicConfig } from "@databuddy/env/public";
 import type { SlackIntegrationOutput } from "@databuddy/rpc";
+import {
+	GOOGLE_SEARCH_CONSOLE_PROVIDER_ID,
+	INTEGRATION_PRODUCTION_READY,
+} from "@databuddy/shared/integrations";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -36,8 +40,6 @@ import {
 } from "@databuddy/ui";
 import { Accordion, Autocomplete, DeleteDialog } from "@databuddy/ui/client";
 
-type SlackIntegration = SlackIntegrationOutput;
-
 interface IntegrationCatalogItem {
 	accent: string;
 	accentClassName?: string;
@@ -46,6 +48,7 @@ interface IntegrationCatalogItem {
 	iconPath: string;
 	id: string;
 	name: string;
+	productionReady?: boolean;
 }
 
 const SIMPLE_ICONS = {
@@ -116,11 +119,11 @@ const GSC_ITEM: IntegrationCatalogItem = {
 	description:
 		"Use keyword rankings, impression drops, and CTR shifts in investigations.",
 	iconPath: SIMPLE_ICONS.googlesearchconsole,
-	id: "google-search-console",
+	id: GOOGLE_SEARCH_CONSOLE_PROVIDER_ID,
 	name: "Google Search Console",
+	productionReady:
+		INTEGRATION_PRODUCTION_READY[GOOGLE_SEARCH_CONSOLE_PROVIDER_ID],
 };
-
-const GSC_SCOPES = ["https://www.googleapis.com/auth/webmasters.readonly"];
 
 const COMING_SOON_INTEGRATIONS: IntegrationCatalogItem[] = [
 	{
@@ -217,8 +220,9 @@ function slackInstallUrl(organizationId: string): string {
 	return url.toString();
 }
 
-function useLinkedAccounts() {
+function useLinkedAccounts(enabled: boolean) {
 	return useQuery({
+		enabled,
 		queryKey: ["linked-accounts"],
 		queryFn: async () => {
 			const result = await authClient.listAccounts();
@@ -227,14 +231,23 @@ function useLinkedAccounts() {
 	});
 }
 
-function useOAuthConnect(provider: string, scopes: string[], label: string) {
+function useOAuthConnect(
+	provider: string,
+	scopes: string[] | undefined,
+	label: string
+) {
 	return useMutation({
 		mutationFn: async () => {
-			const result = await authClient.linkSocial({
-				provider,
-				scopes,
-				callbackURL: window.location.href,
-			});
+			const result = scopes
+				? await authClient.linkSocial({
+						provider,
+						scopes,
+						callbackURL: window.location.href,
+					})
+				: await authClient.oauth2.link({
+						callbackURL: window.location.href,
+						providerId: provider,
+					});
 			if (result.error) {
 				throw new Error(result.error.message);
 			}
@@ -244,6 +257,29 @@ function useOAuthConnect(provider: string, scopes: string[], label: string) {
 			toast.error(err.message || `Could not connect ${label}`);
 		},
 	});
+}
+
+function isIntegrationEnabled(item: IntegrationCatalogItem): boolean {
+	return (
+		process.env.NODE_ENV !== "production" || item.productionReady !== false
+	);
+}
+
+function IntegrationUnavailableBadge() {
+	return (
+		<Badge size="sm" variant="muted">
+			Not ready
+		</Badge>
+	);
+}
+
+function IntegrationUnavailableButton() {
+	return (
+		<Button className="w-full sm:w-auto" disabled size="sm" variant="secondary">
+			<ClockIcon className="size-4" />
+			Not ready
+		</Button>
+	);
 }
 
 function ConnectionBadge({
@@ -276,7 +312,7 @@ function ConnectionBadge({
 
 function LoadingButton() {
 	return (
-		<Button disabled size="sm" variant="secondary">
+		<Button className="w-full sm:w-auto" disabled size="sm" variant="secondary">
 			<ClockIcon className="size-4" />
 			Checking
 		</Button>
@@ -319,7 +355,8 @@ export function IntegrationsSettings({
 	const queryClient = useQueryClient();
 	const searchParams = useSearchParams();
 	const [pendingUninstall, setPendingUninstall] =
-		useState<SlackIntegration | null>(null);
+		useState<SlackIntegrationOutput | null>(null);
+	const slackEnabled = isIntegrationEnabled(SLACK_ITEM);
 	const listKey = orpc.integrations.list.key({
 		input: { organizationId: organization.id },
 	});
@@ -338,6 +375,7 @@ export function IntegrationsSettings({
 		...orpc.integrations.list.queryOptions({
 			input: { organizationId: organization.id },
 		}),
+		enabled: slackEnabled,
 	});
 
 	const uninstallSlack = useMutation({
@@ -352,7 +390,7 @@ export function IntegrationsSettings({
 	});
 
 	const slackIntegrations = (integrationsQuery.data?.slack ??
-		[]) as SlackIntegration[];
+		[]) as SlackIntegrationOutput[];
 
 	return (
 		<div className="flex h-full flex-col">
@@ -364,7 +402,7 @@ export function IntegrationsSettings({
 			/>
 
 			<div className="flex-1 overflow-y-auto">
-				<div className="mx-auto max-w-4xl p-5">
+				<div className="mx-auto max-w-4xl p-3 sm:p-5">
 					<Card>
 						<Card.Header>
 							<Card.Title>Integrations</Card.Title>
@@ -395,7 +433,12 @@ export function IntegrationsSettings({
 							{COMING_SOON_INTEGRATIONS.map((item) => (
 								<IntegrationListRow
 									action={
-										<Button disabled size="sm" variant="secondary">
+										<Button
+											className="w-full sm:w-auto"
+											disabled
+											size="sm"
+											variant="secondary"
+										>
 											<ClockIcon className="size-4" />
 											Soon
 										</Button>
@@ -435,29 +478,46 @@ export function IntegrationsSettings({
 }
 
 function GSCIntegrationRow() {
-	const accounts = useLinkedAccounts();
-	const googleAccount = accounts.data?.find((a) => a.providerId === "google");
+	const enabled = isIntegrationEnabled(GSC_ITEM);
+	const item = enabled
+		? GSC_ITEM
+		: {
+				...GSC_ITEM,
+				description:
+					"Temporarily unavailable in production while Google verification is pending.",
+			};
+	const accounts = useLinkedAccounts(enabled);
+	const googleSearchConsoleAccount = accounts.data?.find(
+		(a) => a.providerId === GOOGLE_SEARCH_CONSOLE_PROVIDER_ID
+	);
 
 	const gscCheck = useQuery({
 		...orpc.integrations.checkSearchConsoleAccess.queryOptions({
 			input: {},
 		}),
-		enabled: Boolean(googleAccount),
+		enabled: enabled && Boolean(googleSearchConsoleAccount),
 	});
 
 	const hasGscAccess = gscCheck.data?.hasAccess === true;
 	const connect = useOAuthConnect(
-		"google",
-		GSC_SCOPES,
+		GOOGLE_SEARCH_CONSOLE_PROVIDER_ID,
+		undefined,
 		"Google Search Console"
 	);
 
 	let action: React.ReactNode;
-	if (accounts.isLoading || gscCheck.isLoading) {
+	if (!enabled) {
+		action = <IntegrationUnavailableButton />;
+	} else if (accounts.isLoading || gscCheck.isLoading) {
 		action = <LoadingButton />;
 	} else if (hasGscAccess) {
 		action = (
-			<Button disabled size="sm" variant="secondary">
+			<Button
+				className="w-full sm:w-auto"
+				disabled
+				size="sm"
+				variant="secondary"
+			>
 				<CheckCircleIcon className="size-4" />
 				Connected
 			</Button>
@@ -465,6 +525,7 @@ function GSCIntegrationRow() {
 	} else {
 		action = (
 			<Button
+				className="w-full sm:w-auto"
 				disabled={connect.isPending}
 				loading={connect.isPending}
 				onClick={() => connect.mutate()}
@@ -472,7 +533,7 @@ function GSCIntegrationRow() {
 				variant="secondary"
 			>
 				<PlugIcon className="size-4" />
-				{googleAccount ? "Grant access" : "Connect"}
+				{googleSearchConsoleAccount ? "Grant access" : "Connect"}
 			</Button>
 		);
 	}
@@ -481,19 +542,24 @@ function GSCIntegrationRow() {
 		<IntegrationListRow
 			action={action}
 			badge={
-				<ConnectionBadge
-					connected={hasGscAccess}
-					loading={accounts.isLoading || gscCheck.isLoading}
-				/>
+				enabled ? (
+					<ConnectionBadge
+						connected={hasGscAccess}
+						loading={accounts.isLoading || gscCheck.isLoading}
+					/>
+				) : (
+					<IntegrationUnavailableBadge />
+				)
 			}
-			item={GSC_ITEM}
+			item={item}
 		/>
 	);
 }
 
 function GitHubIntegrationRow({ organizationId }: { organizationId: string }) {
 	const queryClient = useQueryClient();
-	const accounts = useLinkedAccounts();
+	const enabled = isIntegrationEnabled(GITHUB_ITEM);
+	const accounts = useLinkedAccounts(enabled);
 	const githubAccount = accounts.data?.find((a) => a.providerId === "github");
 	const canDisconnect = (accounts.data?.length ?? 0) > 1;
 
@@ -501,7 +567,7 @@ function GitHubIntegrationRow({ organizationId }: { organizationId: string }) {
 		...orpc.websites.list.queryOptions({
 			input: { organizationId },
 		}),
-		enabled: Boolean(githubAccount),
+		enabled: enabled && Boolean(githubAccount),
 	});
 
 	const connect = useOAuthConnect("github", GITHUB_SCOPES, "GitHub");
@@ -549,13 +615,16 @@ function GitHubIntegrationRow({ organizationId }: { organizationId: string }) {
 	});
 
 	let action: React.ReactNode;
-	if (accounts.isLoading) {
+	if (!enabled) {
+		action = <IntegrationUnavailableButton />;
+	} else if (accounts.isLoading) {
 		action = <LoadingButton />;
 	} else if (githubAccount) {
 		action = (
-			<div className="flex items-center gap-2">
+			<div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:flex-row sm:items-center">
 				{canDisconnect && (
 					<Button
+						className="w-full sm:w-auto"
 						disabled={disconnect.isPending}
 						loading={disconnect.isPending}
 						onClick={() => disconnect.mutate()}
@@ -567,6 +636,7 @@ function GitHubIntegrationRow({ organizationId }: { organizationId: string }) {
 					</Button>
 				)}
 				<Button
+					className="w-full sm:w-auto"
 					disabled={connect.isPending}
 					loading={connect.isPending}
 					onClick={() => connect.mutate()}
@@ -581,6 +651,7 @@ function GitHubIntegrationRow({ organizationId }: { organizationId: string }) {
 	} else {
 		action = (
 			<Button
+				className="w-full sm:w-auto"
 				disabled={connect.isPending}
 				loading={connect.isPending}
 				onClick={() => connect.mutate()}
@@ -597,15 +668,19 @@ function GitHubIntegrationRow({ organizationId }: { organizationId: string }) {
 		<IntegrationListRow
 			action={action}
 			badge={
-				<ConnectionBadge
-					connected={Boolean(githubAccount)}
-					loading={accounts.isLoading}
-				/>
+				enabled ? (
+					<ConnectionBadge
+						connected={Boolean(githubAccount)}
+						loading={accounts.isLoading}
+					/>
+				) : (
+					<IntegrationUnavailableBadge />
+				)
 			}
 			defaultOpen={false}
 			item={GITHUB_ITEM}
 		>
-			{githubAccount && (
+			{enabled && githubAccount && (
 				<GitHubRepoMappings
 					isLoading={websitesQuery.isLoading}
 					onRemove={(websiteId) => removeRepo.mutate({ websiteId })}
@@ -860,12 +935,14 @@ function RepoSelector({
 
 function McpIntegrationRow({ organizationId }: { organizationId: string }) {
 	const queryClient = useQueryClient();
+	const enabled = isIntegrationEnabled(MCP_ITEM);
 	const [setupOpen, setSetupOpen] = useState(false);
 	const [selectedKey, setSelectedKey] = useState<ApiKeyListItem | null>(null);
 	const [manageOpen, setManageOpen] = useState(false);
 
 	const keysQuery = useQuery({
 		...orpc.apikeys.list.queryOptions({ input: { organizationId } }),
+		enabled,
 	});
 
 	const mcpKeys = ((keysQuery.data ?? []) as ApiKeyListItem[]).filter(
@@ -880,22 +957,26 @@ function McpIntegrationRow({ organizationId }: { organizationId: string }) {
 		return !key.expiresAt || dayjs(key.expiresAt).isAfter(dayjs());
 	});
 
-	const statusBadge = keysQuery.isLoading ? (
-		<Badge size="sm" variant="muted">
-			Checking
-		</Badge>
-	) : activeMcpKeys.length > 0 ? (
-		<Badge size="sm" variant="success">
-			{activeMcpKeys.length} connected
-		</Badge>
-	) : mcpKeys.length > 0 ? (
-		<Badge size="sm" variant="warning">
-			Needs attention
-		</Badge>
+	const statusBadge = enabled ? (
+		keysQuery.isLoading ? (
+			<Badge size="sm" variant="muted">
+				Checking
+			</Badge>
+		) : activeMcpKeys.length > 0 ? (
+			<Badge size="sm" variant="success">
+				{activeMcpKeys.length} connected
+			</Badge>
+		) : mcpKeys.length > 0 ? (
+			<Badge size="sm" variant="warning">
+				Needs attention
+			</Badge>
+		) : (
+			<Badge size="sm" variant="warning">
+				Not connected
+			</Badge>
+		)
 	) : (
-		<Badge size="sm" variant="warning">
-			Not connected
-		</Badge>
+		<IntegrationUnavailableBadge />
 	);
 
 	const openKey = (key: ApiKeyListItem) => {
@@ -907,21 +988,26 @@ function McpIntegrationRow({ organizationId }: { organizationId: string }) {
 		<>
 			<IntegrationListRow
 				action={
-					<Button
-						disabled={keysQuery.isLoading}
-						onClick={() => setSetupOpen(true)}
-						size="sm"
-						variant="secondary"
-					>
-						<PlugIcon className="size-4" />
-						{mcpKeys.length > 0 ? "Add connection" : "Set up MCP"}
-					</Button>
+					enabled ? (
+						<Button
+							className="w-full sm:w-auto"
+							disabled={keysQuery.isLoading}
+							onClick={() => setSetupOpen(true)}
+							size="sm"
+							variant="secondary"
+						>
+							<PlugIcon className="size-4" />
+							{mcpKeys.length > 0 ? "Add connection" : "Set up MCP"}
+						</Button>
+					) : (
+						<IntegrationUnavailableButton />
+					)
 				}
 				badge={statusBadge}
 				defaultOpen={activeMcpKeys.length > 0}
 				item={MCP_ITEM}
 			>
-				<McpConnectionDetails keys={mcpKeys} onManage={openKey} />
+				{enabled && <McpConnectionDetails keys={mcpKeys} onManage={openKey} />}
 			</IntegrationListRow>
 
 			<McpSetupSheet
@@ -962,20 +1048,28 @@ function SlackIntegrationRow({
 	organizationId,
 	uninstallingId,
 }: {
-	integrations: SlackIntegration[];
+	integrations: SlackIntegrationOutput[];
 	isLoading: boolean;
-	onUninstall: (integration: SlackIntegration) => void;
+	onUninstall: (integration: SlackIntegrationOutput) => void;
 	organizationId: string;
 	uninstallingId?: string;
 }) {
+	const enabled = isIntegrationEnabled(SLACK_ITEM);
 	const connected = integrations.some((i) => i.status === "active");
 
 	let action: React.ReactNode;
-	if (isLoading) {
+	if (!enabled) {
+		action = <IntegrationUnavailableButton />;
+	} else if (isLoading) {
 		action = <LoadingButton />;
 	} else if (connected) {
 		action = (
-			<Button disabled size="sm" variant="secondary">
+			<Button
+				className="w-full sm:w-auto"
+				disabled
+				size="sm"
+				variant="secondary"
+			>
 				<CheckCircleIcon className="size-4" />
 				Connected
 			</Button>
@@ -983,7 +1077,10 @@ function SlackIntegrationRow({
 	} else {
 		action = (
 			<a
-				className={buttonVariants({ size: "sm", variant: "secondary" })}
+				className={cn(
+					buttonVariants({ size: "sm", variant: "secondary" }),
+					"w-full sm:w-auto"
+				)}
 				href={slackInstallUrl(organizationId)}
 			>
 				<PlugIcon className="size-4" />
@@ -995,16 +1092,24 @@ function SlackIntegrationRow({
 	return (
 		<IntegrationListRow
 			action={action}
-			badge={<ConnectionBadge connected={connected} loading={isLoading} />}
+			badge={
+				enabled ? (
+					<ConnectionBadge connected={connected} loading={isLoading} />
+				) : (
+					<IntegrationUnavailableBadge />
+				)
+			}
 			defaultOpen={false}
 			item={SLACK_ITEM}
 		>
-			<SlackIntegrationDetails
-				integrations={integrations}
-				isLoading={isLoading}
-				onUninstall={onUninstall}
-				uninstallingIntegrationId={uninstallingId}
-			/>
+			{enabled && (
+				<SlackIntegrationDetails
+					integrations={integrations}
+					isLoading={isLoading}
+					onUninstall={onUninstall}
+					uninstallingIntegrationId={uninstallingId}
+				/>
+			)}
 		</IntegrationListRow>
 	);
 }
@@ -1045,12 +1150,14 @@ function IntegrationListRow({
 	if (!children) {
 		return (
 			<div
-				className="scroll-mt-16 border-border/60 border-b px-5 py-4 last:border-b-0"
+				className="scroll-mt-16 border-border/60 border-b px-4 py-4 last:border-b-0 sm:px-5"
 				id={item.id}
 			>
-				<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-					<div className="flex min-w-0 flex-1 items-center gap-2">{header}</div>
-					<div className="flex shrink-0 items-center gap-2 sm:justify-end">
+				<div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+					<div className="flex w-full min-w-0 flex-1 items-start gap-2 sm:w-auto">
+						{header}
+					</div>
+					<div className="flex w-full shrink-0 items-center gap-2 sm:w-auto sm:justify-end">
 						{action}
 					</div>
 				</div>
@@ -1064,11 +1171,11 @@ function IntegrationListRow({
 			id={item.id}
 		>
 			<Accordion defaultOpen={defaultOpen}>
-				<div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+				<div className="flex flex-col items-start gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
 					<Accordion.Trigger className="h-auto min-w-0 flex-1 bg-transparent px-0 py-0 hover:bg-transparent">
 						{header}
 					</Accordion.Trigger>
-					<div className="flex shrink-0 items-center gap-2 sm:justify-end">
+					<div className="flex w-full shrink-0 items-center gap-2 sm:w-auto sm:justify-end">
 						{action}
 					</div>
 				</div>
@@ -1103,9 +1210,9 @@ function SlackIntegrationDetails({
 	onUninstall,
 	uninstallingIntegrationId,
 }: {
-	integrations: SlackIntegration[];
+	integrations: SlackIntegrationOutput[];
 	isLoading: boolean;
-	onUninstall: (integration: SlackIntegration) => void;
+	onUninstall: (integration: SlackIntegrationOutput) => void;
 	uninstallingIntegrationId?: string;
 }) {
 	if (isLoading) {
@@ -1160,7 +1267,7 @@ function SlackWorkspaceRow({
 	isUninstalling,
 	onUninstall,
 }: {
-	integration: SlackIntegration;
+	integration: SlackIntegrationOutput;
 	isUninstalling: boolean;
 	onUninstall: () => void;
 }) {
