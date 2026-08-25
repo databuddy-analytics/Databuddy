@@ -133,6 +133,7 @@ export default function FlagsPage() {
 							<FlagsList
 								flags={activeFlags as unknown as Flag[]}
 								groups={groupsMap}
+								websiteId={websiteId}
 								stats={statsMap}
 								statsError={flagStatsError}
 								statsLoading={flagStatsLoading}
