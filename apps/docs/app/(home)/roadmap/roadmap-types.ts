@@ -31,14 +31,6 @@ export interface RoadmapItem {
 	title: string;
 }
 
-export interface RoadmapQuarter {
-	endDate: string;
-	id: string;
-	items: RoadmapItem[];
-	name: string; // e.g., "Q1 2024"
-	startDate: string;
-}
-
 export interface RoadmapStats {
 	cancelledItems: number;
 	completedItems: number;
