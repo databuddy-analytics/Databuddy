@@ -99,8 +99,6 @@ function makeReq(
 	});
 }
 
-// ── validateRequest ──
-
 describe("validateRequest", () => {
 	beforeEach(() => {
 		mockGetWebsiteByIdV2.mockReset();
@@ -369,8 +367,6 @@ describe("validateRequest", () => {
 		expect(mockLogBlockedTraffic).toHaveBeenCalled();
 	});
 });
-
-// ── checkForBot ──
 
 describe("checkForBot", () => {
 	beforeEach(() => {

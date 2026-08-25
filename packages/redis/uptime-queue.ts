@@ -17,11 +17,6 @@ const UPTIME_RETRY_OPTIONS = {
 	},
 	removeOnFail: false,
 };
-
-/**
- * A target that is down produces an UptimeData result and completes normally.
- * These retries only cover worker and durable-handoff failures.
- */
 export const UPTIME_JOB_OPTIONS = {
 	...UPTIME_RETRY_OPTIONS,
 	// A failed source job can contain the only durable copy of a completed probe.

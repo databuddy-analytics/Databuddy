@@ -1,7 +1,5 @@
 import { describe, expect, test } from "vitest";
 
-// ── Table-driven test runners ──
-
 type Case<I, O> = [label: string, input: I, expected: O];
 
 export function cases<I, O>(
@@ -34,8 +32,6 @@ export function schemaTable(
 	});
 }
 
-// ── IP generators ──
-
 export function randomIPv4(): string {
 	return Array.from({ length: 4 }, () => Math.floor(Math.random() * 256)).join(
 		"."
@@ -59,8 +55,6 @@ export function randomPublicIPv4(): string {
 	}
 }
 
-// ── String generators ──
-
 export const CONTROL_CHARS = "\x00\x01\x07\x08\x0B\x0C\x0E\x1F\x7F";
 export const XSS_PAYLOADS = [
 	"<script>alert(1)</script>",
@@ -76,8 +70,6 @@ export const XSS_PAYLOADS = [
 export function longString(n: number, char = "a"): string {
 	return char.repeat(n);
 }
-
-// ── Request factory ──
 
 export function req(
 	url = "https://example.com",

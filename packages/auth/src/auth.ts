@@ -891,8 +891,6 @@ export const auth = betterAuth({
 export const websitesApi = {
 	hasPermission: auth.api.hasPermission,
 };
-
-/** Runs a Better Auth request with its Drizzle adapter pinned to one transaction. */
 export async function runWithAuthTransaction<T>(
 	callback: () => Promise<T>
 ): Promise<T> {

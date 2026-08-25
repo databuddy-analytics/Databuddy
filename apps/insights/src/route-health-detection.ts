@@ -318,12 +318,6 @@ function positiveNumber(value: unknown): number {
 function stringValue(value: unknown): string | null {
 	return typeof value === "string" && value.length > 0 ? value : null;
 }
-
-/**
- * Keep a route only when every segment belongs to a fixed static vocabulary.
- * Dynamic values are rejected rather than redacted so neither signal identity
- * nor evidence can accidentally retain a user, identifier, or query value.
- */
 export function canonicalStaticRoute(value: string): string | null {
 	if (value.length === 0 || value.length > MAX_RAW_ROUTE_LENGTH) {
 		return null;
@@ -455,12 +449,6 @@ function queryRouteVitalContinuation(
 		}
 	);
 }
-
-/**
- * Measures whether sessions with a poor vital continued differently from
- * otherwise comparable sessions. It deliberately returns no cohort members
- * and only qualifies a comparison when the matched aggregate is substantial.
- */
 export async function loadRouteVitalContinuation(
 	params: {
 		abortSignal?: AbortSignal;
@@ -758,12 +746,6 @@ async function queryRouteHealthPages(
 	}
 	return rows;
 }
-
-/**
- * Detect high-confidence route regressions from aggregate error and web-vital
- * queries. It deliberately omits arbitrary routes rather than leaking a
- * potentially user-specific path into an investigation subject or evidence.
- */
 export async function detectRouteHealthSignals(
 	params: DetectSignalsParams,
 	today: dayjs.Dayjs = dayjs(),
@@ -862,11 +844,6 @@ export async function detectRouteHealthSignals(
 
 	return signals.sort(compareSignals);
 }
-
-/**
- * Re-read a stored static-route signal without its discovery thresholds so a
- * route case can record recovery. Sample plausibility floors still apply.
- */
 export async function remeasureRouteHealthSignal(
 	params: DetectSignalsParams,
 	prior: InvestigationSignal,

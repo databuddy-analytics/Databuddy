@@ -11,9 +11,7 @@ const TRAFFIC_METRICS = new Set(["visitors", "sessions", "pageviews"]);
 export type CoveragePortfolioReason = keyof typeof PORTFOLIO_LIMIT;
 
 export interface CoveragePortfolioOptions {
-	/** An exact open investigation to remeasure before newly detected work. */
 	dueSignalKey?: string | null;
-	/** Fill from these signals before using lower-priority fallback work. */
 	preferredSignalKeys?: ReadonlySet<string>;
 	reason: CoveragePortfolioReason;
 }
@@ -99,8 +97,6 @@ function rankedCandidates(signals: DetectedSignal[]): Candidate[] {
 	}
 	return candidates;
 }
-
-/** Selects a small deterministic portfolio without mutating detector output. */
 export function planCoveragePortfolio(
 	signals: DetectedSignal[],
 	options: CoveragePortfolioOptions

@@ -69,8 +69,6 @@ import {
 	type EmptyStateProps,
 } from "@databuddy/ui";
 
-// ── Tooltip primitives ──────────────────────────────────────────────────
-
 interface TooltipEntry {
 	color: string;
 	formattedValue?: string;
@@ -245,13 +243,6 @@ function formatTooltipDate(dateStr: string): string {
 	}
 	return parsed.format("MMM D");
 }
-
-// ── Chart types ─────────────────────────────────────────────────────────
-
-/**
- * Series key → color/label map (e.g. `buildChartConfig` in AI chart renderers).
- * Theme variant uses light/dark CSS color strings.
- */
 export type ChartConfig = {
 	[k in string]: {
 		label?: ReactNode;
@@ -304,7 +295,6 @@ export function mergeChartInteractiveFeatures(
 }
 
 export interface RechartsSingleValueTooltipParams {
-	/** Overrides default `formatTooltipDate` for the tooltip subtitle line. */
 	formatLabelAction?: (label: string) => string;
 	formatValue?: (value: number) => string;
 	valueSuffixLabel?: string;
@@ -367,8 +357,6 @@ function readTooltipNumericValue(
 	}
 	return null;
 }
-
-/** Recharts `<Tooltip content={…} />` for single-series charts (`ChartTooltip` + `formatTooltipDate`). */
 export function createRechartsSingleValueTooltip(
 	params: RechartsSingleValueTooltipParams
 ) {
@@ -417,12 +405,10 @@ interface ChartSingleSeriesProps {
 	fallbackClassName?: string;
 	height: number;
 	id: string;
-	/** Recharts margin; defaults to `Chart.zeroMargin`. */
 	margin?: { bottom?: number; left?: number; right?: number; top?: number };
 	partialLastSegment?: boolean;
 	seriesKind?: ChartSeriesKind;
 	tooltip?: RechartsSingleValueTooltipParams | false;
-	/** Passed to `YAxis` `domain` (e.g. mini charts use `dataMin - 5` / `dataMax + 5`). */
 	yDomain?: [number | string, number | string];
 }
 
@@ -552,24 +538,15 @@ interface ChartCartesianAreaProps {
 	dataKey: string;
 	dateKey?: string;
 	fallbackClassName?: string;
-	/** Tooltip title line (formatted date/time). */
 	formatTooltipLabel: (label: string) => string;
 	height: number;
 	id: string;
 	margin?: { bottom?: number; left?: number; right?: number; top?: number };
 	showGrid?: boolean;
 	strokeWidth?: number;
-	/** Legend row label in the tooltip (e.g. “Clicks”). */
 	valueLabel: string;
-	/** X tick labels (e.g. dayjs). */
 	xTickFormatter: (value: string) => string;
 }
-
-/**
- * Single-series area chart with visible axes, optional horizontal grid, and
- * `Chart.Tooltip` multi-row layout—use instead of hand-rolling `AreaChart` +
- * `CartesianGrid` + `XAxis` + `YAxis` for standard dashboard line/area pages.
- */
 function ChartCartesianArea({
 	data,
 	dataKey,
@@ -662,14 +639,11 @@ export interface ChartMultiSeriesDataPoint {
 }
 
 interface ChartMultiSeriesProps {
-	/** Grouped (default) or stacked bars; only applies when `seriesKind` is `bar`. */
 	barLayout?: "grouped" | "stacked";
-	/** `stackId` for stacked bars (default `"stack"`). */
 	barStackId?: string;
 	curveType?: ChartCurveType;
 	data: ChartMultiSeriesDataPoint[];
 	height: number;
-	/** When false (default), shows date ticks on the X axis. Mini charts often hide this. */
 	hideXAxis?: boolean;
 	metrics: Array<MetricConfig & { color: string }>;
 	partialLastSegment?: boolean;
@@ -938,8 +912,6 @@ interface ChartPlotProps {
 	children: ReactNode;
 	className?: string;
 }
-
-/** Chart drawing region (e.g. dotted background + ResponsiveContainer). */
 function ChartPlot({ children, className }: ChartPlotProps) {
 	return (
 		<div
@@ -956,11 +928,6 @@ interface ChartViewportProps {
 	className?: string;
 	height: number;
 }
-
-/**
- * Fixed-height wrapper + `ResponsiveContainer` so Recharts fills the plot region
- * consistently with `Chart.Plot`.
- */
 function ChartViewport({ children, className, height }: ChartViewportProps) {
 	return (
 		<div
@@ -1110,12 +1077,6 @@ function ChartContent<T>({
 }
 
 ChartRoot.displayName = "Chart";
-
-/**
- * Recharts primitives for custom charts. Prefer `Chart.SingleSeries` / `Chart.MultiSeries`
- * when the use case matches; use these for pie, brush, reference lines, dual axes, etc.
- * `Legend` here is Recharts’ legend; `Chart.Legend` is the dashboard metric pills.
- */
 const chartRecharts = {
 	Area,
 	AreaChart,

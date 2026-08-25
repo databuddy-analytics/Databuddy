@@ -1,8 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { createPixelResponse, parsePixelQuery } from "./pixel";
 
-// ── createPixelResponse ──
-
 describe("createPixelResponse", () => {
 	test("returns 200 image/gif with no-cache headers", async () => {
 		const r = createPixelResponse();
@@ -20,8 +18,6 @@ describe("createPixelResponse", () => {
 		);
 	});
 });
-
-// ── parsePixelQuery ──
 
 describe("parsePixelQuery", () => {
 	test("empty query → empty eventData, type=track", () => {

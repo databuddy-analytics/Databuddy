@@ -462,12 +462,6 @@ export function defaultMeasurementRecommendationDeps(
 		},
 	};
 }
-
-/**
- * Detect active websites where conversion measurement is absent. This emits a
- * stable informational signal rather than an anomaly: it deliberately makes
- * no claim about product intent or a completed conversion.
- */
 export async function detectMeasurementRecommendationSignals(
 	params: DetectSignalsParams,
 	today: dayjs.Dayjs = dayjs(),

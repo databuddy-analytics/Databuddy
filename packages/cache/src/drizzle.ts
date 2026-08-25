@@ -12,166 +12,17 @@ export interface RedisCacheClient {
 	smembers(key: string): Promise<string[]>;
 	unlink(key: string): Promise<unknown>;
 }
-
-/**
- * Configuration options for creating a Redis-based Drizzle cache instance.
- *
- * @example
- * ```typescript
- * import { RedisClient } from "bun";
- * import { RedisDrizzleCache } from "@databuddy/cache";
- *
- * const redis = new RedisClient(process.env.REDIS_URL!);
- * const cache = new RedisDrizzleCache({
- *   redis,
- *   defaultTtl: 300, // 5 minutes
- *   strategy: "all",
- *   namespace: "drizzle:db"
- * });
- * ```
- */
 export interface RedisCacheConfig {
-	/**
-	 * Default time-to-live for cached entries in seconds.
-	 * Used when no explicit TTL is provided via CacheConfig.
-	 *
-	 * @default 300 (5 minutes)
-	 *
-	 * @example
-	 * ```typescript
-	 * // Cache entries expire after 10 minutes
-	 * defaultTtl: 600
-	 * ```
-	 */
 	defaultTtl?: number;
-	/**
-	 * Optional namespace prefix for all cache keys.
-	 * Useful for isolating cache entries from different applications or environments.
-	 *
-	 * @default "drizzle"
-	 *
-	 * @example
-	 * ```typescript
-	 * // Cache keys will be prefixed with "myapp:drizzle:..."
-	 * namespace: "myapp:drizzle"
-	 * ```
-	 */
 	namespace?: string;
-	/**
-	 * Cache client instance.
-	 * Can be any cache implementation that supports get, setex, unlink, and del methods.
-	 *
-	 * @example
-	 * ```typescript
-	 * import Redis from "ioredis";
-	 * const redis = new Redis("redis://localhost:6379");
-	 * ```
-	 */
 	redis: RedisCacheClient;
-	/**
-	 * Cache strategy determines when queries are cached.
-	 *
-	 * - `"all"`: All queries are automatically cached
-	 * - `"explicit"`: Only queries explicitly marked with `.$withCache()` are cached (default)
-	 *
-	 * @default "explicit"
-	 *
-	 * @example
-	 * ```typescript
-	 * // Only cache when explicitly requested
-	 * strategy: "explicit"
-	 *
-	 * // Then use in queries:
-	 * const users = await db.select().from(usersTable).$withCache({
-	 *   key: "all-users",
-	 *   ttl: 60
-	 * });
-	 * ```
-	 */
 	strategy?: "explicit" | "all";
 }
-
-/**
- * Redis-based cache implementation for Drizzle ORM.
- *
- * This cache extends Drizzle's base Cache class and uses Redis (via ioredis)
- * to store and retrieve query results. It automatically invalidates cache entries
- * when mutations occur on tracked tables.
- *
- * @example
- * ```typescript
- * import Redis from "ioredis";
- * import { drizzle } from "drizzle-orm/node-postgres";
- * import { RedisDrizzleCache } from "@databuddy/cache";
- * import { users } from "./schema";
- *
- * // Create Redis client
- * const redis = new Redis(process.env.REDIS_URL!);
- *
- * // Create cache instance
- * const cache = new RedisDrizzleCache({
- *   redis,
- *   defaultTtl: 300, // 5 minutes
- *   strategy: "all", // Cache all queries
- *   namespace: "myapp:drizzle"
- * });
- *
- * // Use with Drizzle
- * const db = drizzle(connectionString, {
- *   schema,
- *   cache
- * });
- *
- * // Queries are automatically cached
- * const allUsers = await db.select().from(users);
- *
- * // Mutations automatically invalidate related cache entries
- * await db.update(users).set({ name: "John" }).where(eq(users.id, 1));
- * // Cache entries for 'users' table are now invalidated
- * ```
- *
- * @example
- * ```typescript
- * // Using explicit caching strategy
- * const cache = new RedisDrizzleCache({
- *   redis,
- *   strategy: "explicit"
- * });
- *
- * // Only explicitly marked queries are cached
- * const users = await db
- *   .select()
- *   .from(users)
- *   .$withCache({
- *     key: "all-users",
- *     ttl: 600, // 10 minutes
- *     tables: ["users"]
- *   });
- * ```
- */
 export class RedisDrizzleCache extends Cache {
 	private readonly redis: RedisCacheClient;
 	private readonly defaultTtl: number;
 	private readonly namespace: string;
 	private readonly _strategy: "explicit" | "all";
-
-	/**
-	 * Creates a new RedisDrizzleCache instance.
-	 *
-	 * @param config - Configuration options for the cache
-	 *
-	 * @example
-	 * ```typescript
-	 * import Redis from "ioredis";
-	 * const redis = new Redis("redis://localhost:6379");
-	 * const cache = new RedisDrizzleCache({
-	 *   redis,
-	 *   defaultTtl: 300,
-	 *   strategy: "all",
-	 *   namespace: "drizzle:db"
-	 * });
-	 * ```
-	 */
 	constructor({
 		redis,
 		defaultTtl = 300,
@@ -184,45 +35,9 @@ export class RedisDrizzleCache extends Cache {
 		this.namespace = namespace;
 		this._strategy = strategy;
 	}
-
-	/**
-	 * Returns the cache strategy being used.
-	 *
-	 * @returns The cache strategy: `"explicit"` or `"all"`
-	 *
-	 * @example
-	 * ```typescript
-	 * const cache = new RedisDrizzleCache({ redis, strategy: "all" });
-	 * console.log(cache.strategy()); // "all"
-	 * ```
-	 */
 	override strategy(): "explicit" | "all" {
 		return this._strategy;
 	}
-
-	/**
-	 * Retrieves cached data for a given query key.
-	 *
-	 * This method is called by Drizzle when checking if a query result exists in cache.
-	 * The key is a hash of the query and its parameters.
-	 *
-	 * @param key - The hashed query key to look up in cache
-	 * @returns The cached query result as an array, or `undefined` if not found or on error
-	 *
-	 * @example
-	 * ```typescript
-	 * // This is called automatically by Drizzle
-	 * const cached = await cache.get("abc123def456");
-	 * if (cached) {
-	 *   // Use cached result
-	 * }
-	 * ```
-	 *
-	 * @remarks
-	 * - Returns `undefined` if the key doesn't exist in Redis
-	 * - Returns `undefined` if JSON parsing fails
-	 * - Logs errors to console but doesn't throw
-	 */
 	override async get(key: string): Promise<unknown[] | undefined> {
 		const cacheKey = this.formatKey(key);
 		try {
@@ -240,52 +55,6 @@ export class RedisDrizzleCache extends Cache {
 			return;
 		}
 	}
-
-	/**
-	 * Stores query results in the cache.
-	 *
-	 * This method is called by Drizzle after executing a query to store the result.
-	 * It also tracks which tables are associated with each cache key for invalidation.
-	 *
-	 * @param key - The hashed query key used as the cache key
-	 * @param response - The query result to cache (will be JSON stringified)
-	 * @param tables - Array of table names involved in the query (used for invalidation)
-	 * @param _isTag - Whether this is a tag-based cache entry (unused in this implementation)
-	 * @param config - Optional cache configuration for TTL and expiration
-	 *
-	 * @example
-	 * ```typescript
-	 * // This is called automatically by Drizzle after a query
-	 * await cache.put(
-	 *   "abc123def456",
-	 *   [{ id: 1, name: "John" }],
-	 *   ["users"],
-	 *   false,
-	 *   { ex: 300 } // 5 minutes TTL
-	 * );
-	 * ```
-	 *
-	 * @example
-	 * ```typescript
-	 * // Using different TTL options
-	 * await cache.put(key, data, ["users"], false, {
-	 *   ex: 60,        // Expire in 60 seconds
-	 *   // OR
-	 *   px: 60000,     // Expire in 60000 milliseconds
-	 *   // OR
-	 *   exat: 1735689600, // Expire at Unix timestamp (seconds)
-	 *   // OR
-	 *   pxat: 1735689600000, // Expire at Unix timestamp (milliseconds)
-	 *   // OR
-	 *   keepTtl: true  // Preserve existing TTL if key exists
-	 * });
-	 * ```
-	 *
-	 * @remarks
-	 * - Automatically tracks table-to-key relationships for invalidation
-	 * - Uses `setex` Redis command to set key with expiration
-	 * - Logs errors to console but doesn't throw
-	 */
 	override async put(
 		key: string,
 		response: unknown,
@@ -322,55 +91,6 @@ export class RedisDrizzleCache extends Cache {
 			);
 		}
 	}
-
-	/**
-	 * Invalidates cache entries when mutations (INSERT, UPDATE, DELETE) occur.
-	 *
-	 * This method is called automatically by Drizzle when mutations are executed.
-	 * It finds all cache keys associated with the affected tables and deletes them.
-	 *
-	 * @param params - Mutation parameters containing tags and/or tables
-	 * @param params.tags - Optional tag(s) to invalidate (for tag-based invalidation)
-	 * @param params.tables - Table(s) that were mutated (can be Table objects or strings)
-	 *
-	 * @example
-	 * ```typescript
-	 * // This is called automatically when you update a table
-	 * await db.update(users).set({ name: "Jane" }).where(eq(users.id, 1));
-	 * // Cache automatically calls onMutate with tables: ["users"]
-	 * ```
-	 *
-	 * @example
-	 * ```typescript
-	 * // Invalidating by table name
-	 * await cache.onMutate({
-	 *   tables: ["users", "posts"]
-	 * });
-	 * ```
-	 *
-	 * @example
-	 * ```typescript
-	 * // Invalidating by Table object
-	 * import { users, posts } from "./schema";
-	 * await cache.onMutate({
-	 *   tables: [users, posts]
-	 * });
-	 * ```
-	 *
-	 * @example
-	 * ```typescript
-	 * // Invalidating by tags
-	 * await cache.onMutate({
-	 *   tags: ["user-profile", "dashboard"]
-	 * });
-	 * ```
-	 *
-	 * @remarks
-	 * - All cache keys associated with the specified tables are deleted
-	 * - Table-to-key tracking is cleaned up after invalidation
-	 * - Tag-based invalidation is supported but tags must be tracked separately
-	 * - Operations are performed in parallel for better performance
-	 */
 	override async onMutate(params: MutationOption): Promise<void> {
 		const tagsArray = params.tags
 			? Array.isArray(params.tags)
@@ -424,21 +144,6 @@ export class RedisDrizzleCache extends Cache {
 
 		await Promise.all(deletePromises);
 	}
-
-	/**
-	 * Formats a cache key with the namespace prefix.
-	 *
-	 * @param key - The base cache key (usually a hash)
-	 * @returns The formatted key with namespace prefix
-	 *
-	 * @example
-	 * ```typescript
-	 * // If namespace is "drizzle:db"
-	 * formatKey("abc123") // Returns "drizzle:db:abc123"
-	 * ```
-	 *
-	 * @internal
-	 */
 	private formatKey(key: string): string {
 		return `${this.namespace}:${key}`;
 	}
@@ -446,42 +151,6 @@ export class RedisDrizzleCache extends Cache {
 	private formatDepKey(table: string): string {
 		return `${this.namespace}:dep:${table}`;
 	}
-
-	/**
-	 * Calculates the time-to-live (TTL) in seconds from cache configuration.
-	 *
-	 * Supports multiple TTL formats:
-	 * - `ex`: Expiration time in seconds
-	 * - `px`: Expiration time in milliseconds (converted to seconds)
-	 * - `exat`: Unix timestamp in seconds (converted to relative seconds)
-	 * - `pxat`: Unix timestamp in milliseconds (converted to relative seconds)
-	 *
-	 * @param config - Optional cache configuration object
-	 * @returns TTL in seconds, or defaultTtl if no config provided
-	 *
-	 * @example
-	 * ```typescript
-	 * // Expire in 60 seconds
-	 * calculateTtl({ ex: 60 }) // Returns 60
-	 *
-	 * // Expire in 5 minutes (300000 ms)
-	 * calculateTtl({ px: 300000 }) // Returns 300
-	 *
-	 * // Expire at specific Unix timestamp
-	 * const futureTime = Math.floor(Date.now() / 1000) + 600; // 10 minutes from now
-	 * calculateTtl({ exat: futureTime }) // Returns ~600
-	 *
-	 * // No config, use default
-	 * calculateTtl() // Returns this.defaultTtl (e.g., 300)
-	 * ```
-	 *
-	 * @remarks
-	 * - If multiple TTL options are provided, `ex` takes precedence
-	 * - Negative TTL values are clamped to 0
-	 * - Falls back to `defaultTtl` if no config is provided
-	 *
-	 * @internal
-	 */
 	private calculateTtl(config?: CacheConfig): number {
 		if (config?.ex !== undefined) {
 			return config.ex;

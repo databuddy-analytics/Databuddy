@@ -180,8 +180,6 @@ vi.mock("@lib/producer", () => ({
 	runPromise: noopAsync,
 }));
 
-// ── Import routes after mocks ──
-
 const { basketErrors, buildBasketErrorPayload } = await import(
 	"@lib/structured-errors"
 );
@@ -227,8 +225,6 @@ const trackRoute = new Elysia()
 	})
 	.use(rawTrack);
 
-// ── Helpers ──
-
 const now = Date.now();
 
 function post(
@@ -253,8 +249,6 @@ function get(app: any, path: string) {
 async function json(res: Response) {
 	return res.json() as Promise<Record<string, unknown>>;
 }
-
-// ── POST / (single ingest) ──
 
 describe("POST /", () => {
 	beforeEach(() => {
@@ -320,8 +314,6 @@ describe("POST /", () => {
 	});
 });
 
-// ── POST /vitals ──
-
 describe("POST /vitals", () => {
 	test("valid vitals batch → 200", async () => {
 		const res = await post(basketApp, "/vitals", [
@@ -384,8 +376,6 @@ describe("POST /vitals", () => {
 	});
 });
 
-// ── POST /errors ──
-
 describe("POST /errors", () => {
 	test("valid error batch → 200", async () => {
 		const res = await post(basketApp, "/errors", [
@@ -428,8 +418,6 @@ describe("POST /errors", () => {
 		expect(res.status).toBe(400);
 	});
 });
-
-// ── POST /events (custom events) ──
 
 describe("POST /events", () => {
 	test("valid custom event → 200", async () => {
@@ -519,8 +507,6 @@ describe("POST /events", () => {
 		expect(summaryCall.rejectedPropertyKeys).toEqual(["plan"]);
 	});
 });
-
-// ── POST /batch ──
 
 describe("POST /batch", () => {
 	test("validation quota errors stay out of the global error reporter", async () => {
@@ -706,8 +692,6 @@ describe("POST /batch", () => {
 	});
 });
 
-// ── GET /px.jpg ──
-
 describe("GET /px.jpg", () => {
 	test("returns transparent GIF", async () => {
 		const res = await get(basketApp, "/px.jpg?type=track&name=pageview");
@@ -764,8 +748,6 @@ describe("GET /px.jpg", () => {
 		expect(mockLogger.error).toHaveBeenCalledWith(expect.any(Error));
 	});
 });
-
-// ── POST /track (API key custom events) ──
 
 describe("POST /track", () => {
 	beforeEach(() => {
@@ -1275,8 +1257,6 @@ describe("POST /track", () => {
 	});
 });
 
-// ── GET /health (inline in index.ts, test directly) ──
-
 import { Elysia as ElysiaHealth } from "elysia";
 
 describe("GET /health", () => {
@@ -1297,7 +1277,6 @@ describe("GET /health", () => {
 // ═══════════════════════════════════════════════════════════
 
 describe("response contracts", () => {
-	// ── Success responses ──
 
 	test("POST / track → { status, type }", async () => {
 		const res = await post(basketApp, "/", {
@@ -1380,8 +1359,6 @@ describe("response contracts", () => {
 		);
 		expect(Array.isArray(body.results)).toBe(true);
 	});
-
-	// ── Error responses ──
 
 	test("400 error → { success, status, error, message, code, why, fix }", async () => {
 		const res = await post(basketApp, "/batch", { not: "array" });

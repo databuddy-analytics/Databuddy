@@ -9,8 +9,6 @@ import { ScenariosSection } from "./_components/scenarios-section";
 const TITLE = "Cookie Banner Cost Calculator";
 const DESCRIPTION =
 	"Model unattributed revenue from the cookie-consent measurement gap: traffic, visitor-to-paid, revenue per conversion, and a 40–70% band. Not P&L impact.";
-
-/** Matches defaults: 50k visitors, 55% data loss, 1.5% visitor-to-paid, $50 - ~$248k/yr; ~$11/mo Databuddy at this volume */
 const DEFAULT_OG_PARAMS = "revenue=247500&visitors=50000&cost=11";
 
 interface PageProps {

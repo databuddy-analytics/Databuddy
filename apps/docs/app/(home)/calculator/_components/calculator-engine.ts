@@ -4,8 +4,6 @@ import type { NormalizedPlan } from "@/app/(home)/pricing/_pricing/types";
 import { RAW_PLANS } from "@/app/(home)/pricing/data";
 
 const PLANS: NormalizedPlan[] = normalizePlans(RAW_PLANS);
-
-/** Literature-aligned band: share of visits without measurable consent / analytics visibility */
 export const VISITOR_DATA_LOSS_RANGE_LOW = 0.4;
 export const VISITOR_DATA_LOSS_RANGE_HIGH = 0.7;
 
@@ -50,9 +48,7 @@ export interface CalculatorOutputs {
 	lostConversions: number;
 	lostRevenueMonthly: number;
 	lostRevenueYearly: number;
-	/** Same inputs, upper bound of literature band (visitor data loss) */
 	lostRevenueYearlyRangeHigh: number;
-	/** Same inputs, lower bound of literature band (visitor data loss) */
 	lostRevenueYearlyRangeLow: number;
 	lostVisitors: number;
 }

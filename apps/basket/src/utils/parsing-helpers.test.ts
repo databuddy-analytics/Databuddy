@@ -8,8 +8,6 @@ import {
 	parseTimestamp,
 } from "./parsing-helpers";
 
-// ── parseTimestamp ──
-
 describe("parseTimestamp", () => {
 	test("number → passthrough", () =>
 		expect(parseTimestamp(1_700_000_000)).toBe(1_700_000_000));
@@ -35,8 +33,6 @@ describe("parseTimestamp", () => {
 	});
 });
 
-// ── parseProperties ──
-
 describe("parseProperties", () => {
 	test("object → JSON string", () =>
 		expect(parseProperties({ a: 1 })).toBe('{"a":1}'));
@@ -52,8 +48,6 @@ describe("parseProperties", () => {
 	test("nested object", () =>
 		expect(parseProperties({ a: { b: "c" } })).toBe('{"a":{"b":"c"}}'));
 });
-
-// ── parseEventId ──
 
 describe("parseEventId", () => {
 	const gen = () => "generated-uuid";
@@ -83,8 +77,6 @@ describe("parseEventId", () => {
 	});
 });
 
-// ── batchSchemaItemFailure ──
-
 describe("batchSchemaItemFailure", () => {
 	test("returns structured error with issues", () => {
 		const issues = [
@@ -101,8 +93,6 @@ describe("batchSchemaItemFailure", () => {
 		});
 	});
 });
-
-// ── batchBotIgnoredItem ──
 
 describe("batchBotIgnoredItem", () => {
 	test("returns bot-ignored structure", () => {

@@ -152,7 +152,6 @@ export interface ChartDataRow {
 	sessions?: number;
 	unique_visitors?: number;
 	visitors?: number;
-	/** Stable category for Recharts X-axis; usually rawDate (YYYY-MM-DD or hourly key) */
 	xKey?: string;
 	[key: string]: unknown;
 }

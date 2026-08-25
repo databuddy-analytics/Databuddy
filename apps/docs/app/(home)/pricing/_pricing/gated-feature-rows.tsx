@@ -12,8 +12,6 @@ import {
 import { CheckIcon, XMarkIcon as XIcon } from "@databuddy/ui/icons";
 import Link from "next/link";
 import type { ReactNode } from "react";
-
-/** Docs pricing column ids → shared plan ids (enterprise maps to Scale limits). */
 const TABLE_PLAN_TO_SHARED: Record<string, PlanId> = {
 	free: PLAN_IDS.FREE,
 	hobby: PLAN_IDS.HOBBY,

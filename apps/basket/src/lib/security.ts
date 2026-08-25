@@ -94,8 +94,6 @@ const COUNTRY_CODES: Record<string, string> = {
 let dedupUnavailableUntil = 0;
 
 class DeduplicationDeadlineError extends Error {}
-
-/** @internal */
 export function resetDeduplicationCircuitForTesting(): void {
 	dedupUnavailableUntil = 0;
 }
@@ -229,22 +227,11 @@ function wait(ms: number): Promise<void> {
 }
 
 export interface DuplicateReservation {
-	/** This retry owns a payload whose earlier Kafka acknowledgement was unknown. */
 	readonly ambiguous?: true;
 	readonly deliveredTtl?: number;
 	readonly duplicate: boolean;
 	readonly key?: string;
-	/**
-	 * Redis confirmed that this request did not acquire the reservation. The
-	 * caller must retry instead of publishing alongside its current owner.
-	 * Redis failures also return this state while the short circuit is open.
-	 */
 	readonly retryable?: true;
-	/**
-	 * Present only when this request atomically acquired the pending key. It is
-	 * required to release the key so an older failed request cannot erase a
-	 * newer retry's reservation.
-	 */
 	readonly token?: string;
 }
 
@@ -477,12 +464,6 @@ function parseBatchReservationStates(
 	}
 	return value as BatchDedupReservationState[];
 }
-
-/**
- * Atomically reserves a set of stable delivery IDs in one Redis round trip.
- * A pending owner blocks the whole attempt, while delivered items are skipped
- * and ambiguous items are claimed for a Kafka-only retry.
- */
 export function reserveDuplicateBatch(
 	inputs: DuplicateReservationInput[]
 ): Promise<DuplicateReservation[]> {
@@ -597,14 +578,6 @@ export function reserveDuplicateBatch(
 		}
 	});
 }
-
-/**
- * A Kafka timeout after send is an unknown outcome: the broker may have
- * committed the record even though Basket did not receive the acknowledgement.
- * Preserve that uncertainty per delivery key so a client retry cannot switch
- * the same payload to ClickHouse. The retry remains Kafka-only and reuses its
- * stable delivery identity for downstream idempotency.
- */
 export function markDuplicateReservationAmbiguous(
 	reservation: DuplicateReservation
 ): Promise<void> {
@@ -631,12 +604,6 @@ export function markDuplicateReservationAmbiguous(
 		}
 	});
 }
-
-/**
- * Only a confirmed Kafka or ClickHouse acknowledgement may turn a pending
- * retry guard into a duplicate suppression key. The promotion is conditional
- * on the owner's token so a stale request cannot overwrite a newer reservation.
- */
 export function markDuplicateReservationDelivered(
 	reservation: DuplicateReservation
 ): Promise<void> {

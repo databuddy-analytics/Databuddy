@@ -1,9 +1,4 @@
 import { getRedisCache } from "./redis";
-
-/**
- * Stringifies arguments in the same way as cacheable function
- * to generate consistent cache keys.
- */
 function escapeRedisPattern(value: string): string {
 	return value.replace(/[\\*?[\]]/g, "\\$&");
 }
@@ -35,11 +30,6 @@ function stringify(obj: unknown): string {
 	}
 	return String(obj);
 }
-
-/**
- * Generates a cache key for a cacheable function with the given prefix and arguments.
- * This matches the format used by the cacheable wrapper.
- */
 export function getCacheableKey(prefix: string, ...args: unknown[]): string {
 	return `cacheable:${prefix}:${stringify(args)}`;
 }
@@ -254,10 +244,6 @@ export async function invalidateAgentContextSnapshotsForOwner(
 		return 0;
 	}
 }
-
-/**
- * Invalidates a specific cacheable cache entry by prefix and exact arguments.
- */
 export async function invalidateCacheableKey(
 	prefix: string,
 	...args: unknown[]
@@ -266,14 +252,6 @@ export async function invalidateCacheableKey(
 	const key = getCacheableKey(prefix, ...args);
 	await redis.del(key);
 }
-
-/**
- * Invalidates all cacheable cache entries matching a pattern.
- * Uses Redis SCAN to safely iterate through matching keys.
- *
- * @param pattern - Redis pattern (use * for wildcards, e.g., "cacheable:flag:*")
- * @returns Number of keys deleted
- */
 export async function invalidateCacheablePattern(
 	pattern: string
 ): Promise<number> {
@@ -338,19 +316,6 @@ export function invalidateCacheableTags(
 		)
 	);
 }
-
-/**
- * Invalidates all variations of a cacheable cache entry.
- * Useful when you want to invalidate a cache entry but don't know all possible argument values.
- *
- * @param prefix - The cache prefix (e.g., "flag", "flags-client")
- * @param knownArgs - Known arguments to include in the pattern
- * @returns Number of keys deleted
- *
- * @example
- * // Invalidate all flag caches for a specific key and clientId, regardless of environment
- * await invalidateCacheableWithArgs("flag", ["my-flag-key", "client-123"]);
- */
 export async function invalidateCacheableWithArgs(
 	prefix: string,
 	knownArgs: unknown[]
@@ -401,20 +366,9 @@ export async function invalidateCacheableWithArgs(
 
 	return deletedCount;
 }
-
-/**
- * Invalidates all cacheable cache entries with a specific prefix.
- *
- * @param prefix - The cache prefix (e.g., "flag", "flags-client")
- * @returns Number of keys deleted
- */
 export function invalidateCacheablePrefix(prefix: string): Promise<number> {
 	return invalidateCacheablePattern(`cacheable:${prefix}:*`);
 }
-
-/**
- * Invalidates read-model caches that can return stale website rows or website-derived values.
- */
 export function invalidateWebsiteReadCaches(
 	websiteId: string
 ): Promise<CacheInvalidationResult> {

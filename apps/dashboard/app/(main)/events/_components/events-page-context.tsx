@@ -12,12 +12,6 @@ import {
 import { usePersistentState } from "@databuddy/ui";
 import { useWebsitesLight } from "@/hooks/use-websites";
 import { dayjs } from "@databuddy/ui";
-
-/**
- * "no-website" = events not tied to any website
- * "all" = all events across the organization
- * string = a specific websiteId
- */
 type WebsiteFilterMode = "no-website" | "all" | string;
 
 interface WebsiteEntry {

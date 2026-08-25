@@ -12,8 +12,6 @@ import {
 	shouldAnonymizeVisitorIds,
 } from "./security";
 
-// ── saltAnonymousId (pure — no mocks needed) ──
-
 describe("saltAnonymousId", () => {
 	const salt = "test-salt-abc";
 
@@ -119,8 +117,6 @@ describe("visitor ID anonymization helpers", () => {
 		expect(applyVisitorIdPrivacy("", true, "salt")).toBe("");
 	});
 });
-
-// ── duplicate reservations (needs Redis mock) ──
 
 const { mockRedisSet, mockRedisGet, mockRedisEval, mockLoggerSet, mockCaptureError } =
 	vi.hoisted(() => ({

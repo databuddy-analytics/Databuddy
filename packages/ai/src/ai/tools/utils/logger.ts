@@ -1,10 +1,5 @@
 import { log } from "evlog";
 import { getActiveAiRequestLogger } from "../../../lib/request-logger";
-
-/**
- * Request-scoped logger for AI tools (wide event via evlog).
- * Falls back to global `log` when no request scope is active (same pattern as mergeWideEvent).
- */
 export function createToolLogger(toolName: string) {
 	return {
 		info: (message: string, context?: Record<string, unknown>) => {

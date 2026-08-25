@@ -2,8 +2,6 @@ import { describe, expect, test } from "vitest";
 import { CONTROL_CHARS, longString, XSS_PAYLOADS } from "../test-helpers";
 import { buildTrackEvent, type TrackEventContext } from "./event-service";
 
-// ── Fixtures ──
-
 const NOW = 1_700_000_000_000;
 
 const fullTrackData = {
@@ -64,8 +62,6 @@ const fullCtx: TrackEventContext = {
 	},
 	now: NOW,
 };
-
-// ── Field mapping snapshot ──
 
 describe("buildTrackEvent — field mapping", () => {
 	test("full input → every field mapped correctly", () => {
@@ -201,8 +197,6 @@ describe("buildTrackEvent — field mapping", () => {
 	});
 });
 
-// ── Sanitization boundary ──
-
 describe("buildTrackEvent — sanitization boundary", () => {
 	for (const payload of XSS_PAYLOADS) {
 		test(`XSS in name: ${payload.slice(0, 30)}…`, () => {
@@ -286,8 +280,6 @@ describe("buildTrackEvent — sanitization boundary", () => {
 		expect(result.session_id).not.toContain("<");
 	});
 });
-
-// ── Response contract shapes ──
 
 describe("buildTrackEvent — output shape completeness", () => {
 	const REQUIRED_FIELDS = [

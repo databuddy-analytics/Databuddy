@@ -119,7 +119,6 @@ export interface ProducerEffects {
 }
 
 export interface ProducerDeliveryOptions {
-	/** Prevent an uncertain Kafka retry from switching to ClickHouse. */
 	readonly allowDirectFallback?: boolean;
 }
 

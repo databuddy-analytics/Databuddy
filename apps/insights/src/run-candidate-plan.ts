@@ -126,12 +126,6 @@ export async function loadInsightRunCandidatePlan(
 	}
 	return parseFrozenInvestigationPlan(item.plan, reason);
 }
-
-/**
- * The first worker freezes a small deterministic portfolio. Retries load this
- * exact snapshot so a changing warehouse cannot replace unfinished work with a
- * different candidate halfway through a run.
- */
 export function freezeInsightRunCandidatePlan(
 	identity: InsightRunIdentity,
 	reason: CoveragePortfolioReason,

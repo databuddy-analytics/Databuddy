@@ -16,8 +16,6 @@ import {
 	validateSessionId,
 } from "./validation";
 
-// ── sanitizeString ──
-
 describe("sanitizeString", () => {
 	// non-string → ""
 	for (const input of [null, undefined, 123, true, {}, []]) {
@@ -79,8 +77,6 @@ describe("sanitizeString", () => {
 	});
 });
 
-// ── redactSensitiveQueryParams ──
-
 describe("redactSensitiveQueryParams", () => {
 	const table: [string, string, string][] = [
 		[
@@ -124,8 +120,6 @@ describe("redactSensitiveQueryParams", () => {
 	}
 });
 
-// ── sanitizeUrl ──
-
 describe("sanitizeUrl", () => {
 	test("non-string → ''", () => expect(sanitizeUrl(123)).toBe(""));
 
@@ -145,8 +139,6 @@ describe("sanitizeUrl", () => {
 		expect(sanitizeUrl("/abcdefghij", 5)).toBe("/abcd"));
 });
 
-// ── validateSessionId ──
-
 cases(
 	"validateSessionId",
 	[
@@ -162,8 +154,6 @@ cases(
 	],
 	(input) => validateSessionId(input)
 );
-
-// ── validateNumeric ──
 
 describe("validateNumeric", () => {
 	const table: [string, [unknown, number?, number?], number | null][] = [
@@ -192,8 +182,6 @@ describe("validateNumeric", () => {
 	}
 });
 
-// ── validatePayloadSize ──
-
 describe("validatePayloadSize", () => {
 	test("small object → true", () =>
 		expect(validatePayloadSize({ a: 1 })).toBe(true));
@@ -221,8 +209,6 @@ describe("validatePayloadSize", () => {
 		expect(validatePayloadSize(data)).toBe(false);
 	});
 });
-
-// ── validatePerformanceMetric ──
 
 cases(
 	"validatePerformanceMetric",

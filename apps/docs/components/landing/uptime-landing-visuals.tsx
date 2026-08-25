@@ -6,10 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { feature } from "topojson-client";
 import type { GeometryCollection, Topology } from "topojson-specification";
 import worldTopo from "world-atlas/countries-110m.json";
-
-// ---------------------------------------------------------------------------
 // UptimeRegionsHubDiagram — animated D3 canvas world map with zone dithering
-// ---------------------------------------------------------------------------
 const ZONE_DEFS = [
 	{ ids: new Set([840, 124, 484, 304]) },
 	{ ids: new Set([826, 372, 250, 724, 620, 380, 56, 528, 300, 196]) },
@@ -224,10 +221,7 @@ export function UptimeRegionsHubDiagram() {
 		</div>
 	);
 }
-
-// ---------------------------------------------------------------------------
 // UptimeAlertsStackVisual — focus-aware carousel
-// ---------------------------------------------------------------------------
 const ROW_H = 62;
 const GAP = 8;
 const STRIDE = ROW_H + GAP;
@@ -443,10 +437,7 @@ export function UptimeAlertsStackVisual() {
 		</div>
 	);
 }
-
-// ---------------------------------------------------------------------------
 // UptimeStatusPageMiniVisual
-// ---------------------------------------------------------------------------
 const DEMO_MONITORS = [
 	{
 		name: "Dashboard",
@@ -556,10 +547,7 @@ export function UptimeStatusPageMiniVisual() {
 		</div>
 	);
 }
-
-// ---------------------------------------------------------------------------
 // UptimeIncidentTimelineVisual
-// ---------------------------------------------------------------------------
 const TIMELINE = [
 	{ time: "14:32", label: "Downtime detected", tone: "red" as const },
 	{ time: "14:33", label: "Team alerted via Slack", tone: "amber" as const },

@@ -78,13 +78,6 @@ function isLowerBetter(metric: string): boolean {
 
 const SEVERITY_RANK = { critical: 2, warning: 1, info: 0 } as const;
 const ZERO_COMPLETION_SUBJECT_SUFFIX = ":zero-completions";
-
-/**
- * Conversion definitions are useful context, but an aggregate goal/funnel
- * rate is still a configured measurement rather than a product behavior. Keep
- * that distinction visible to ranking so definition maintenance cannot crowd
- * out route, session, and reliability regressions.
- */
 function isConversionDefinitionSignal(signal: DetectedSignal): boolean {
 	return (
 		signal.metric.startsWith("goal:") || signal.metric.startsWith("funnel:")
@@ -133,9 +126,6 @@ export function isRegression(signal: DetectedSignal): boolean {
 		? signal.direction === "up"
 		: signal.direction === "down";
 }
-
-/** Fresh work merits an agent turn only for a regression, revenue movement, or
- * known measurement blind spot. Due rechecks are retained by observations. */
 export function isInvestigationCandidate(signal: DetectedSignal): boolean {
 	if (
 		signal.severity === "info" &&

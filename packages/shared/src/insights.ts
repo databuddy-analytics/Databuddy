@@ -200,11 +200,6 @@ const legacyDefinitionExecutionSchema = z
 		operation: z.null(),
 	})
 	.strip();
-
-/**
- * Machine-only definition execution. The optional legacy branch lets stored
- * outcomes continue to parse while dropping the duplicated display copy.
- */
 const insightDefinitionExecutionSchema = z.discriminatedUnion("operation", [
 	definitionEditExecutionSchema,
 	definitionDeleteExecutionSchema,
@@ -474,13 +469,6 @@ const investigationNextSchema = z.discriminatedUnion("type", [
 	investigationWatchNextSchema,
 	investigationResolveNextSchema,
 ]);
-
-/**
- * The model gateway uses strict JSON Schema: every object property must be
- * required, while absence is represented explicitly with null. Stored
- * outcomes keep their optional legacy fields above so older records remain
- * readable.
- */
 const agentInsightDefinitionExecutionSchema = z.discriminatedUnion(
 	"operation",
 	[definitionEditExecutionSchema, definitionDeleteExecutionSchema]

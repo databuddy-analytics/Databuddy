@@ -515,11 +515,12 @@ export class BaseTracker {
 		}
 
 		for (const [key, shouldPersist] of Object.entries(TRACKED_PARAMS)) {
-			const val = search.get(key) ?? (shouldPersist ? stored[key] : undefined);
-			if (val) {
-				params[key] = val;
+			const value =
+				search.get(key) ?? (shouldPersist ? stored[key] : undefined);
+			if (value) {
+				params[key] = value;
 				if (shouldPersist) {
-					persist[key] = val;
+					persist[key] = value;
 				}
 			}
 		}

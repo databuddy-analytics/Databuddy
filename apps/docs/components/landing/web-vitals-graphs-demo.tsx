@@ -9,8 +9,6 @@ const STATUS_STROKE = {
 	"needs-improvement": "stroke-amber-400",
 	poor: "stroke-red-400",
 } as const;
-
-/** Ring fill (0–100) and display values aligned with the marketing gauge reference. */
 const GAUGES = [
 	{
 		label: "LCP",

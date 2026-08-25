@@ -9,8 +9,6 @@ import {
 	rethrowOrWrap,
 } from "./structured-errors";
 
-// ── basketErrors factories ──
-
 describe("basketErrors", () => {
 	const errorTable: [keyof typeof basketErrors, number][] = [
 		["trackPayloadTooLarge", 413],
@@ -51,8 +49,6 @@ describe("basketErrors", () => {
 		});
 	}
 });
-
-// ── createIngestSchemaValidationError / isIngestSchemaValidationError ──
 
 describe("IngestSchemaValidationError", () => {
 	test("create → EvlogError with issues", () => {
@@ -97,8 +93,6 @@ describe("deliveryUnavailable", () => {
 		});
 	});
 });
-
-// ── rethrowOrWrap ──
 
 describe("rethrowOrWrap", () => {
 	test("re-throws EvlogError as-is", () => {
@@ -157,8 +151,6 @@ describe("rethrowOrWrap", () => {
 		expect(called).toBe(false);
 	});
 });
-
-// ── buildBasketErrorPayload ──
 
 describe("buildBasketErrorPayload", () => {
 	test("4xx EvlogError → exposes why/fix", () => {

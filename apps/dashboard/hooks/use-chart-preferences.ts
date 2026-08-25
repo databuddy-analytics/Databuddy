@@ -5,10 +5,6 @@ import type {
 import { usePersistentState } from "@databuddy/ui";
 
 const CHART_PREFERENCES_STORAGE_KEY = "databuddy-chart-preferences";
-
-/**
- * Chart location identifiers - where charts appear in the app
- */
 export type ChartLocation =
 	| "overview-stats" // Small stat cards on the overview tab (visitors, pageviews, etc.)
 	| "overview-main" // Large main chart on the overview tab
@@ -85,10 +81,6 @@ const getDefaultPreferences = (): AllPreferences => {
 	}
 	return defaults;
 };
-
-/**
- * Hook to get chart preferences for a specific location
- */
 export function useChartPreferences(location: ChartLocation) {
 	const [storedPreferences] = usePersistentState<AllPreferences>(
 		CHART_PREFERENCES_STORAGE_KEY,
@@ -109,10 +101,6 @@ export function useChartPreferences(location: ChartLocation) {
 		chartStepType: locationPrefs.chartStepType,
 	};
 }
-
-/**
- * Hook to get and update all chart preferences (for settings page)
- */
 export function useAllChartPreferences() {
 	const [storedPreferences, setStoredPreferences] =
 		usePersistentState<AllPreferences>(

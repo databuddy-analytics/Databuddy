@@ -389,8 +389,10 @@ export function MonitorSheet({
 													max={120}
 													min={1}
 													onChange={(e) => {
-														const val = e.target.value;
-														setTimeoutMs(val ? Number(val) * 1000 : null);
+														const seconds = e.target.value;
+														setTimeoutMs(
+															seconds ? Number(seconds) * 1000 : null
+														);
 													}}
 													placeholder="30"
 													suffix="sec"

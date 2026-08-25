@@ -147,8 +147,6 @@ const formatDuration = (seconds: number): string => {
 
 const pct = (num: number, denom: number): number =>
 	denom > 0 ? Math.round((num / denom) * 10_000) / 100 : 0;
-
-/** ClickHouse JSON often returns UInt64 as string; coercing avoids NaN and string concat bugs. */
 function toFiniteNumber(value: unknown, fallback = 0): number {
 	if (typeof value === "number" && Number.isFinite(value)) {
 		return value;
@@ -608,11 +606,6 @@ export const queryLinkVisitorIds = async (
 	);
 	return new Set(rows.map((r) => String(r.vid ?? "")));
 };
-
-/**
- * Cheap detector path: one event stream and one visitor aggregation. It deliberately
- * excludes time series, duration, and error context; those belong to investigation.
- */
 export const processFunnelConversionCounts = async (
 	steps: AnalyticsStep[],
 	filters: Filter[],

@@ -1,8 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { extractHealth, isHealthExtractionEnabled } from "./json-parser";
 
-// ── isHealthExtractionEnabled ───────────────────────────────────────────
-
 describe("isHealthExtractionEnabled", () => {
 	test("returns false for null / undefined", () => {
 		expect(isHealthExtractionEnabled(null)).toBe(false);
@@ -39,8 +37,6 @@ describe("isHealthExtractionEnabled", () => {
 	});
 });
 
-// ── extractHealth – guard rails ─────────────────────────────────────────
-
 describe("extractHealth – guard rails", () => {
 	test("returns null for non-JSON string", () => {
 		expect(extractHealth("<html></html>")).toBeNull();
@@ -65,8 +61,6 @@ describe("extractHealth – guard rails", () => {
 		expect(extractHealth(null)).toBeNull();
 	});
 });
-
-// ── extractHealth – realistic health check payloads ─────────────────────
 
 describe("extractHealth – realistic health check payloads", () => {
 	test("flat health endpoint: { status: 'ok', latency: 12 }", () => {
@@ -137,8 +131,6 @@ describe("extractHealth – realistic health check payloads", () => {
 	});
 });
 
-// ── extractHealth – arrays ──────────────────────────────────────────────
-
 describe("extractHealth – arrays", () => {
 	test("top-level array of service checks", () => {
 		const result = extractHealth(
@@ -167,8 +159,6 @@ describe("extractHealth – arrays", () => {
 	});
 });
 
-// ── extractHealth – deeply nested ───────────────────────────────────────
-
 describe("extractHealth – deeply nested", () => {
 	test("finds health signals through wrapper objects", () => {
 		const result = extractHealth({
@@ -194,8 +184,6 @@ describe("extractHealth – deeply nested", () => {
 	});
 });
 
-// ── extractHealth – input types ─────────────────────────────────────────
-
 describe("extractHealth – input types", () => {
 	test("accepts pre-parsed object", () => {
 		const result = extractHealth({ status: "ok", latency: 1 });
@@ -216,8 +204,6 @@ describe("extractHealth – input types", () => {
 		expect(extractHealth([1, 2, 3])).toBeNull();
 	});
 });
-
-// ── extractHealth – edge cases ──────────────────────────────────────────
 
 describe("extractHealth – edge cases", () => {
 	test("preserves string latency like '12ms'", () => {

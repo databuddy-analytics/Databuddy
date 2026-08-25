@@ -6,8 +6,6 @@ import {
 	RESOLUTION_REGEX,
 } from "../regexes";
 import { profileIdSchema } from "./identity";
-
-/** Date-only analytics inputs must be complete, valid, and ordered. */
 export const analyticsDateRangeSchema = z
 	.object({
 		startDate: z.iso.date().optional(),
@@ -22,8 +20,6 @@ export const analyticsDateRangeSchema = z
 		({ startDate, endDate }) => !(startDate && endDate) || startDate <= endDate,
 		{ message: "endDate must be on or after startDate.", path: ["endDate"] }
 	);
-
-/** Resolves an already-validated explicit range or the inclusive seven-day default. */
 export function resolveAnalyticsDateRange(
 	{ startDate, endDate }: { endDate?: string; startDate?: string },
 	now = new Date()

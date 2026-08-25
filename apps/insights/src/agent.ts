@@ -209,17 +209,10 @@ export interface InsightAgentInput {
 export interface InsightAgentResult {
 	modelId?: string;
 	outcome: InvestigationOutcome;
-	/** The investigator that produced this canonical outcome. */
 	specialist?: InsightSpecialistId;
 	toolCallCount: number;
 	usage?: LanguageModelUsage;
 }
-
-/**
- * A terminal generation failure still represents paid model work. Keep its
- * aggregate usage attached so the caller can meter it before retrying the
- * candidate without treating an invalid response as an investigation.
- */
 export class InsightAgentExecutionError extends Error {
 	readonly modelId: string;
 	readonly toolCallCount: number;
@@ -243,8 +236,6 @@ export class InsightAgentExecutionError extends Error {
 		this.usage = params.usage;
 	}
 }
-
-/** A candidate-local output failure; sibling investigations may still run. */
 export class InsightAgentGenerationError extends InsightAgentExecutionError {
 	constructor(
 		params: ConstructorParameters<typeof InsightAgentExecutionError>[0]

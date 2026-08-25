@@ -1,4 +1,3 @@
-/** Public demo dashboard id (embeddable routes under /demo/:id on the app host). */
 const DATABUDDY_DEMO_EMBED_ID = "OXmNQsViBT-FOS_wZCTHc";
 
 const PREVIEW_DOCS_HOST = "preview.databuddy.cc";
@@ -14,20 +13,11 @@ function normalizeHostname(raw: string | null | undefined): string {
 	const withoutPort = first.split(":")[0]?.trim() ?? "";
 	return withoutPort.toLowerCase();
 }
-
-/** Host for routing (first entry of x-forwarded-host or host), no port. */
 export function hostFromNextHeaders(headerList: Headers): string {
 	const forwarded = headerList.get("x-forwarded-host");
 	const host = forwarded ?? headerList.get("host") ?? "";
 	return normalizeHostname(host);
 }
-
-/**
- * Base URL for the embedded demo iframe (no query).
- * - Local dev → localhost app
- * - Docs on preview.databuddy.cc → staging app (matches preview backend)
- * - Otherwise → production app
- */
 export function getDemoEmbedBaseUrl(
 	hostname: string | null | undefined
 ): string {

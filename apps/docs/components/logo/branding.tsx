@@ -5,12 +5,10 @@ type BrandVariant = "logomark" | "wordmark" | "primary-logo" | "secondary-logo";
 
 export interface BrandingProps {
 	className?: string;
-	/** Height of the primary asset in pixels (width follows the SVG viewBox aspect ratio). */
 	heightPx?: number;
 	imageClassName?: string;
 	priority?: boolean;
 	variant: BrandVariant;
-	/** When `variant` is `logomark`, also show the wordmark asset beside the icon. */
 	wordmark?: boolean;
 }
 
@@ -29,7 +27,6 @@ const BRAND_PATH: Record<BrandVariant, string> = {
 };
 
 interface ThemeBrandImageProps {
-	/** Primary image alt; the dark-mode twin is decorative. */
 	alt: string;
 	basePath: string;
 	className?: string;

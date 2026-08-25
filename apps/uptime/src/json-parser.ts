@@ -114,13 +114,6 @@ function toJsonObject(content: unknown): Record<string, unknown> | null {
 	}
 	return null;
 }
-
-/**
- * Extract health/latency signals from a JSON response body.
- *
- * Accepts a pre-parsed object or a raw JSON string.
- * Returns null when the input isn't JSON or contains no health signals.
- */
 export function extractHealth(content: unknown): HealthSnapshot | null {
 	const json = toJsonObject(content);
 	if (!json) {
@@ -137,11 +130,6 @@ export function extractHealth(content: unknown): HealthSnapshot | null {
 
 	return Object.keys(snapshot).length > 0 ? snapshot : null;
 }
-
-/**
- * Check whether a DB-stored jsonParsingConfig has health extraction enabled.
- * Handles legacy configs that may include extra fields (mode, fields, etc.).
- */
 export function isHealthExtractionEnabled(config: unknown): boolean {
 	if (!isPlainObject(config)) {
 		return false;

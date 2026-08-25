@@ -21,12 +21,6 @@ function isValidPreset(value: unknown): value is DefaultDateRangePreset {
 		DEFAULT_DATE_RANGE_PRESETS.includes(value as DefaultDateRangePreset)
 	);
 }
-
-/**
- * Reads the default date range preset from localStorage synchronously.
- * Used by use-date-filters for the initial default when URL has no params.
- * Returns "30d" during SSR or when storage is unavailable.
- */
 export function getDefaultDateRangePresetSync(): DefaultDateRangePreset {
 	if (typeof window === "undefined") {
 		return "30d";

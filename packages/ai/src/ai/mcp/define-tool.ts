@@ -85,12 +85,6 @@ export interface McpToolMetadata {
 export interface McpToolMetadataInput {
 	access?: McpToolAccessInput;
 }
-
-/**
- * Derive MCP tool access metadata from the API-key scope source of truth.
- * Keep this beside `defineMcpTool` so every tool module gets identical
- * organization-vs-website scope behavior.
- */
 export function metadataForResource(
 	resource: string,
 	permissions: readonly string[]
@@ -113,23 +107,8 @@ export interface McpToolMeta<S extends z.ZodTypeAny = z.ZodTypeAny> {
 	inputSchema: S;
 	metadata?: McpToolMetadataInput;
 	name: string;
-	/**
-	 * Optional Zod schema describing the successful response shape.
-	 * When set, the MCP SDK validates handler output against it and exposes
-	 * it as `structuredContent` (MCP 2025-06-18 Tool Output Schemas), letting
-	 * clients consume native typed data instead of parsing JSON text.
-	 * The schema MUST validate an object — per MCP spec, `structuredContent`
-	 * is an object. Prefer `z.object({...})` or `z.object({}).passthrough()`.
-	 * Root `z.record(...)` schemas are not compatible with the installed MCP SDK.
-	 */
 	outputSchema?: z.ZodType<Record<string, unknown>>;
 	ratelimit?: { limit: number; windowSec: number };
-	/**
-	 * Whether the wrapper should resolve and validate a websiteId from the input.
-	 * - true: required; throw not_found if no selector provided
-	 * - "optional": resolve only if a selector is present
-	 * - false / undefined: skip
-	 */
 	resolveWebsite?: boolean | "optional";
 }
 

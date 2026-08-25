@@ -1,7 +1,3 @@
-/**
- * Annotation types and interfaces for the chart annotations system
- */
-
 type AnnotationType = "point" | "line" | "range";
 
 type ChartType = "metrics";

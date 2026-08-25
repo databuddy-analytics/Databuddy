@@ -27,7 +27,6 @@ export interface InsightSpecialistProfile {
 	matchesDetectedSignal(signal: DetectedSignal): boolean;
 	matchesInvestigationSignal(signal: InvestigationSignal): boolean;
 	portfolioFamily: InsightPortfolioFamily;
-	/** A dedicated investigator may replace the broad read set with this scope. */
 	readTools?: readonly InsightReadToolName[];
 }
 

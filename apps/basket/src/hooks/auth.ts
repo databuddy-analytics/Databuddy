@@ -1,10 +1,3 @@
-/**
- * Website Authentication Hook for Analytics
- *
- * This hook provides authentication for website tracking by validating
- * client IDs and origins against registered websites.
- */
-
 import { db } from "@databuddy/db";
 import type { Website } from "@databuddy/db/schema";
 import { cacheNamespaces } from "@databuddy/redis/cache-invalidation";
@@ -69,10 +62,6 @@ export const resolveApiKeyOwnerId = cacheable(
 		staleTime: 60,
 	}
 );
-
-/**
- * Validates if an origin header matches or is a subdomain of the allowed domain
- */
 function isValidOrigin(originHeader: string, allowedDomain: string): boolean {
 	const trimmedOrigin = originHeader?.trim();
 	if (!trimmedOrigin) {
@@ -102,10 +91,6 @@ function isValidOrigin(originHeader: string, allowedDomain: string): boolean {
 		return false;
 	}
 }
-
-/**
- * Normalizes a domain by removing the protocol, port, and "www." prefix.
- */
 function normalizeDomain(domain: string): string {
 	if (!domain) {
 		return "";

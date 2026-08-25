@@ -116,8 +116,6 @@ export function appendAuditEventInTransaction<
 		createAuditEventPayload(organizationId, input)
 	);
 }
-
-/** Replays a bounded batch of previously durable audit writes. */
 export async function replayAuditOutbox(
 	database: AuditDatabase,
 	limit = 100

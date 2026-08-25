@@ -9,10 +9,6 @@ const TRANSPARENT_PIXEL = Buffer.from(
 	"R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
 	"base64"
 );
-
-/**
- * Returns a 1x1 transparent GIF response
- */
 export function createPixelResponse(
 	options: { retryAfterSeconds?: number; status?: number } = {}
 ): Response {
@@ -30,10 +26,6 @@ export function createPixelResponse(
 		headers,
 	});
 }
-
-/**
- * Parses string values to appropriate types
- */
 function parseValue(value: string): string | number | boolean {
 	if (INTEGER_REGEX.test(value)) {
 		return Number.parseInt(value, 10);
@@ -49,11 +41,6 @@ function parseValue(value: string): string | number | boolean {
 	}
 	return value;
 }
-
-/**
- * Converts pixel query parameters back into event data structure
- * Handles nested keys like "key[subkey]" and JSON-stringified properties
- */
 export function parsePixelQuery(query: Record<string, string>): {
 	eventData: Record<string, unknown>;
 	eventType: string;

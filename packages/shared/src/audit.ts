@@ -50,11 +50,6 @@ function defineAction<
 		targetType,
 	};
 }
-
-/**
- * The complete, intentionally small audit vocabulary for the first product
- * surface. Add actions here before instrumenting a new privileged operation.
- */
 export const auditActions = {
 	AUDIT_LOG_VIEWED: defineAction("audit_log.viewed", "audit_log"),
 	AUDIT_LOG_EVENT_VIEWED: defineAction("audit_log.event_viewed", "audit_log"),

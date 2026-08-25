@@ -40,12 +40,6 @@ interface CacheOptions<
 > {
 	expireInSec: number;
 	prefix?: string;
-	/**
-	 * Maximum milliseconds to wait for the underlying function (e.g. a DB
-	 * query) before rejecting with a "Query timeout" error.  When unset the
-	 * function may hang indefinitely.  Background stale-while-revalidate
-	 * fetches are also bounded by this value.
-	 */
 	queryTimeoutMs?: number;
 	staleTime?: number;
 	staleWhileRevalidate?: boolean;

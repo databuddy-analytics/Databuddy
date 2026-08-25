@@ -67,11 +67,6 @@ export async function ensureWebsiteAccess(
 	}
 	return { domain: website.domain ?? "unknown" };
 }
-
-/**
- * Stable cache key for accessible websites, scoped by principal ID.
- * Does NOT include the apiKey object itself — keeps secrets out of Redis keys.
- */
 function accessibleWebsitesCacheKey(
 	principal: RequestPrincipal
 ): string | null {
@@ -85,12 +80,6 @@ function accessibleWebsitesCacheKey(
 	}
 	return null;
 }
-
-/**
- * Cached version of getAccessibleWebsites keyed by stable principal ID.
- * Falls back to a direct fetch when Redis is unavailable or the principal
- * is anonymous.
- */
 export async function getCachedAccessibleWebsites(
 	principal: RequestPrincipal
 ): Promise<WebsiteSummary[]> {

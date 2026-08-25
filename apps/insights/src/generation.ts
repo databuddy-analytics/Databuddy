@@ -964,13 +964,6 @@ function plannedPortfolio(
 		}
 	).map(toPlannedCandidate);
 }
-
-/**
- * A frozen portfolio is retryable per signal because successful candidates
- * persist observations independently. An invalid structured model result
- * therefore should not suppress unrelated candidates in the same run. Other
- * failures remain fail-fast because they can indicate a broken durable seam.
- */
 async function runPlannedCandidatePortfolio(params: {
 	candidates: PlannedInvestigationCandidate[];
 	completedSignalKeys: ReadonlySet<string>;
@@ -1004,12 +997,6 @@ async function runPlannedCandidatePortfolio(params: {
 		throw firstCandidateFailure;
 	}
 }
-
-/**
- * Read-only harness for proving a full run selects distinct signals before it
- * reaches durable production persistence. Each artifact remains one exact
- * signal and one agent turn.
- */
 export async function investigateWebsitePortfolioWithSources(
 	input: InvestigateWebsiteInput,
 	sources: InvestigationSources,

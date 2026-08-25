@@ -39,8 +39,6 @@ describe("checkAutumnUsage", () => {
 		mockLoggerWarn.mockReset();
 	});
 
-	// ── Enforcement ──
-
 	test("allowed response → allowed", async () => {
 		mockCheck.mockResolvedValue({
 			allowed: true,
@@ -73,8 +71,6 @@ describe("checkAutumnUsage", () => {
 		});
 	});
 
-	// ── Still calls Autumn (metering for paying customers) ──
-
 	test("calls autumn.check with sendEvent: true", async () => {
 		mockCheck.mockResolvedValue({
 			allowed: true,
@@ -106,8 +102,6 @@ describe("checkAutumnUsage", () => {
 			properties: undefined,
 		});
 	});
-
-	// ── Logging ──
 
 	test("logs balance context from Autumn response", async () => {
 		mockCheck.mockResolvedValue({

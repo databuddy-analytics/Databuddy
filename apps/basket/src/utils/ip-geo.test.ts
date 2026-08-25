@@ -11,8 +11,6 @@ const HEX12 = /^[a-f0-9]{12}$/;
 
 afterAll(() => closeGeoIPReader());
 
-// ── anonymizeIp ──
-
 describe("anonymizeIp", () => {
 	test("empty → empty", () => expect(anonymizeIp("")).toBe(""));
 
@@ -42,8 +40,6 @@ describe("anonymizeIp", () => {
 		expect(hashes.size).toBe(1000);
 	});
 });
-
-// ── extractIpFromRequest ──
 
 describe("extractIpFromRequest", () => {
 	const table: [string, Record<string, string>, string][] = [
@@ -88,8 +84,6 @@ describe("extractIpFromRequest", () => {
 		}
 	});
 });
-
-// ── getGeo ──
 
 describe("getGeo", () => {
 	test("empty IP → empty anonymizedIP, no geo", async () => {
