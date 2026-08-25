@@ -40,8 +40,6 @@ import {
 } from "@databuddy/ui";
 import { Accordion, Autocomplete, DeleteDialog } from "@databuddy/ui/client";
 
-type SlackIntegration = SlackIntegrationOutput;
-
 interface IntegrationCatalogItem {
 	accent: string;
 	accentClassName?: string;
@@ -222,7 +220,7 @@ function slackInstallUrl(organizationId: string): string {
 	return url.toString();
 }
 
-function useLinkedAccounts(enabled = true) {
+function useLinkedAccounts(enabled: boolean) {
 	return useQuery({
 		enabled,
 		queryKey: ["linked-accounts"],
@@ -357,10 +355,8 @@ export function IntegrationsSettings({
 	const queryClient = useQueryClient();
 	const searchParams = useSearchParams();
 	const [pendingUninstall, setPendingUninstall] =
-		useState<SlackIntegration | null>(null);
-	const mcpEnabled = isIntegrationEnabled(MCP_ITEM);
+		useState<SlackIntegrationOutput | null>(null);
 	const slackEnabled = isIntegrationEnabled(SLACK_ITEM);
-	const githubEnabled = isIntegrationEnabled(GITHUB_ITEM);
 	const listKey = orpc.integrations.list.key({
 		input: { organizationId: organization.id },
 	});
@@ -394,7 +390,7 @@ export function IntegrationsSettings({
 	});
 
 	const slackIntegrations = (integrationsQuery.data?.slack ??
-		[]) as SlackIntegration[];
+		[]) as SlackIntegrationOutput[];
 
 	return (
 		<div className="flex h-full flex-col">
@@ -416,15 +412,11 @@ export function IntegrationsSettings({
 						</Card.Header>
 
 						<Card.Content className="p-0">
-							<McpIntegrationRow
-								enabled={mcpEnabled}
-								organizationId={organization.id}
-							/>
+							<McpIntegrationRow organizationId={organization.id} />
 
 							<SlackIntegrationRow
 								integrations={slackIntegrations}
 								isLoading={integrationsQuery.isLoading}
-								enabled={slackEnabled}
 								onUninstall={setPendingUninstall}
 								organizationId={organization.id}
 								uninstallingId={
@@ -434,10 +426,7 @@ export function IntegrationsSettings({
 								}
 							/>
 
-							<GitHubIntegrationRow
-								enabled={githubEnabled}
-								organizationId={organization.id}
-							/>
+							<GitHubIntegrationRow organizationId={organization.id} />
 
 							<GSCIntegrationRow />
 
@@ -567,14 +556,9 @@ function GSCIntegrationRow() {
 	);
 }
 
-function GitHubIntegrationRow({
-	enabled,
-	organizationId,
-}: {
-	enabled: boolean;
-	organizationId: string;
-}) {
+function GitHubIntegrationRow({ organizationId }: { organizationId: string }) {
 	const queryClient = useQueryClient();
+	const enabled = isIntegrationEnabled(GITHUB_ITEM);
 	const accounts = useLinkedAccounts(enabled);
 	const githubAccount = accounts.data?.find((a) => a.providerId === "github");
 	const canDisconnect = (accounts.data?.length ?? 0) > 1;
@@ -949,14 +933,9 @@ function RepoSelector({
 	);
 }
 
-function McpIntegrationRow({
-	enabled,
-	organizationId,
-}: {
-	enabled: boolean;
-	organizationId: string;
-}) {
+function McpIntegrationRow({ organizationId }: { organizationId: string }) {
 	const queryClient = useQueryClient();
+	const enabled = isIntegrationEnabled(MCP_ITEM);
 	const [setupOpen, setSetupOpen] = useState(false);
 	const [selectedKey, setSelectedKey] = useState<ApiKeyListItem | null>(null);
 	const [manageOpen, setManageOpen] = useState(false);
@@ -1028,9 +1007,7 @@ function McpIntegrationRow({
 				defaultOpen={activeMcpKeys.length > 0}
 				item={MCP_ITEM}
 			>
-				{enabled ? (
-					<McpConnectionDetails keys={mcpKeys} onManage={openKey} />
-				) : undefined}
+				{enabled && <McpConnectionDetails keys={mcpKeys} onManage={openKey} />}
 			</IntegrationListRow>
 
 			<McpSetupSheet
@@ -1065,20 +1042,19 @@ function McpIntegrationRow({
 }
 
 function SlackIntegrationRow({
-	enabled,
 	integrations,
 	isLoading,
 	onUninstall,
 	organizationId,
 	uninstallingId,
 }: {
-	enabled: boolean;
-	integrations: SlackIntegration[];
+	integrations: SlackIntegrationOutput[];
 	isLoading: boolean;
-	onUninstall: (integration: SlackIntegration) => void;
+	onUninstall: (integration: SlackIntegrationOutput) => void;
 	organizationId: string;
 	uninstallingId?: string;
 }) {
+	const enabled = isIntegrationEnabled(SLACK_ITEM);
 	const connected = integrations.some((i) => i.status === "active");
 
 	let action: React.ReactNode;
@@ -1126,14 +1102,14 @@ function SlackIntegrationRow({
 			defaultOpen={false}
 			item={SLACK_ITEM}
 		>
-			{enabled ? (
+			{enabled && (
 				<SlackIntegrationDetails
 					integrations={integrations}
 					isLoading={isLoading}
 					onUninstall={onUninstall}
 					uninstallingIntegrationId={uninstallingId}
 				/>
-			) : undefined}
+			)}
 		</IntegrationListRow>
 	);
 }
@@ -1234,9 +1210,9 @@ function SlackIntegrationDetails({
 	onUninstall,
 	uninstallingIntegrationId,
 }: {
-	integrations: SlackIntegration[];
+	integrations: SlackIntegrationOutput[];
 	isLoading: boolean;
-	onUninstall: (integration: SlackIntegration) => void;
+	onUninstall: (integration: SlackIntegrationOutput) => void;
 	uninstallingIntegrationId?: string;
 }) {
 	if (isLoading) {
@@ -1291,7 +1267,7 @@ function SlackWorkspaceRow({
 	isUninstalling,
 	onUninstall,
 }: {
-	integration: SlackIntegration;
+	integration: SlackIntegrationOutput;
 	isUninstalling: boolean;
 	onUninstall: () => void;
 }) {
