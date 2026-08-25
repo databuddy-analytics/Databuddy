@@ -13,16 +13,12 @@ type DotmSquare8Props = DotMatrixCommonProps;
 
 const ROWS = MATRIX_SIZE;
 const COLS = MATRIX_SIZE;
-
-/** Steps 0..FILL_LAST: column `c` gains one row from the bottom each tick, delayed by `c` (col 0 full at `ROWS`, last col at `ROWS + COLS - 1`). */
 const FILL_LAST = ROWS + COLS - 1;
 
 const BLINK_STEPS = 4;
 const BLINK_OPACITIES = [0.38, 1, 0.38, 1] as const;
 
 const DRAIN_LAST = FILL_LAST;
-
-/** fillTick 0..FILL_LAST → drainTick 0..DRAIN_LAST → + blink in between */
 const SEQUENCE_LEN = FILL_LAST + 1 + BLINK_STEPS + DRAIN_LAST + 1;
 
 const BASE_OPACITY = 0.08;

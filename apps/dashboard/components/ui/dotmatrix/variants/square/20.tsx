@@ -10,8 +10,6 @@ import { useSteppedCycle } from "../../hooks";
 import type { DotAnimationResolver, DotMatrixCommonProps } from "../../core";
 
 type DotmSquare20Props = DotMatrixCommonProps;
-
-/** Clockwise perimeter: one closed loop you can trace with your eye. */
 const PERIMETER_PATH: readonly number[] = [
   rowMajorIndex(0, 0),
   rowMajorIndex(0, 1),
@@ -39,8 +37,6 @@ const BASE_OPACITY = 0.08;
 const TWIST_INNER_OPACITY = 0.52;
 const SEAM_PULSE_OPACITY = 0.55;
 const IDLE_RING_OPACITY = 0.48;
-
-/** Corner steps on the loop → one cell “inside” the strip at the fold (half-twist cue). */
 const TWIST_INNER_BY_HEAD_STEP: ReadonlyMap<number, number> = new Map([
   [0, rowMajorIndex(1, 1)],
   [4, rowMajorIndex(1, 3)],

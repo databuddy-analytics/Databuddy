@@ -6,7 +6,11 @@ import type { CountryData, LocationData } from "@/types/website";
 import { GlobeIcon } from "@databuddy/ui/icons";
 import { scalePow } from "d3-scale";
 import type { Feature, GeoJsonObject } from "geojson";
-import type { Layer, Map as LeafletMap } from "leaflet";
+import type {
+	Layer,
+	LeafletEventHandlerFnMap,
+	Map as LeafletMap,
+} from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useTheme } from "next-themes";
 import dynamic from "next/dynamic";
@@ -154,7 +158,7 @@ export function MapComponent({
 
 	const handleEachFeature = useCallback(
 		(feature: Feature, layer: Layer) => {
-			layer.on({
+			const handlers: LeafletEventHandlerFnMap = {
 				mouseover: () => {
 					const code = feature.properties?.ISO_A2;
 					setHoveredId(code);
@@ -186,7 +190,9 @@ export function MapComponent({
 						);
 					}
 				},
-			});
+			};
+			layer.on(handlers);
+			layer.once("remove", () => layer.off(handlers));
 		},
 		[countryData?.data]
 	);

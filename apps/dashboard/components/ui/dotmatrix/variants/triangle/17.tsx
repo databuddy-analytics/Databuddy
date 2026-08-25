@@ -28,11 +28,6 @@ const TRIANGLE_CELLS = new Set([
   "4,4",
   "4,6"
 ]);
-
-/**
- * Visits every triangle cell once per lap: up the left rim to the apex, down the right rim,
- * then cuts through (4,4) → center → (4,2) — reads as a crossing “∞” on the silhouette.
- */
 const INFINITY_PATH: ReadonlyArray<readonly [number, number]> = [
   [4, 0],
   [3, 1],

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 import { DotMatrixBase } from "../../core";
 import { useDotMatrixPhases } from "../../hooks";
@@ -14,7 +14,6 @@ type DotmCircular17Props = DotMatrixCommonProps;
 const BASE_OPACITY = 0.07;
 const MID_OPACITY = 0.34;
 const HIGH_OPACITY = 0.95;
-/** Discrete checker frames per loop (must stay integer for `(row + col + t) % 2`). */
 const CHECKER_STEPS = 4;
 
 export function DotmCircular17({
@@ -36,7 +35,9 @@ export function DotmCircular17({
   });
 
   const animPhaseRef = useRef(animPhase);
-  animPhaseRef.current = animPhase;
+  useEffect(() => {
+    animPhaseRef.current = animPhase;
+  }, [animPhase]);
 
   const resolver = useMemo<DotAnimationResolver>(() => {
     return ({ row, col, phase: dmxPhase }) => {

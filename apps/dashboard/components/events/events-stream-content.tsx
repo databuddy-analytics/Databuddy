@@ -231,7 +231,9 @@ export function EventsStreamContent({
 	);
 
 	const pageRef = useRef(page);
-	pageRef.current = page;
+	useEffect(() => {
+		pageRef.current = page;
+	}, [page]);
 
 	const justResetRef = useRef(false);
 	useEffect(() => {
@@ -325,9 +327,9 @@ export function EventsStreamContent({
 		}
 		const values = new Set<string>();
 		for (const event of allEvents) {
-			const val = event.properties[selectedPropertyKey];
-			if (val !== undefined && val !== null) {
-				values.add(String(val));
+			const propertyValue = event.properties[selectedPropertyKey];
+			if (propertyValue !== undefined && propertyValue !== null) {
+				values.add(String(propertyValue));
 			}
 		}
 		return Array.from(values).sort();

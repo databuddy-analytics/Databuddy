@@ -17,10 +17,6 @@ const MATRIX_SIZE = 7;
 const BASE_OPACITY = 0.1;
 const MID_OPACITY = 0.36;
 const HIGH_OPACITY = 0.96;
-/**
- * Inverted-V coordinate: same row is lower on the left/right flanks than in the center column,
- * so a moving front forms a V rising toward the apex (not a flat row band like Row Sweep).
- */
 const WING = 0.52;
 const FRONT_SIGMA = 0.88;
 
@@ -52,12 +48,6 @@ function smoothstep01(edge0: number, edge1: number, x: number): number {
   const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
   return t * t * (3 - 2 * t);
 }
-
-/**
- * Brightness peaks along a V-shaped isopleth: `row - wing * |col - 3|`.
- * The "front" oscillates in that space, so the highlight rides up the two lower legs
- * and meets at the top — convective lift, not a horizontal scanline.
- */
 function opacityForCell(row: number, col: number, phase: number): number {
   const t = phase * Math.PI * 2;
   const v = row - WING * Math.abs(col - 3);

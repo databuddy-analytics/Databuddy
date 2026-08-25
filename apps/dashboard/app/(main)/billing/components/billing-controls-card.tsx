@@ -9,7 +9,6 @@ import {
 } from "@/lib/topup-math";
 import { useMutation } from "@tanstack/react-query";
 import { useCustomer } from "autumn-js/react";
-import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -35,7 +34,7 @@ const ALERT_LIMITS = { threshold: [1, 99] } as const;
 const SPEND_DEFAULTS = { overageLimit: 50 };
 const SPEND_LIMITS = { overageLimit: [1, 10_000] } as const;
 
-const EXPAND_EASE: [number, number, number, number] = [0.32, 0.72, 0, 1];
+const EXPAND_EASE = "cubic-bezier(0.32, 0.72, 0, 1)";
 
 export function BillingControlsCard() {
 	const { data: customer, refetch } = useCustomer();
@@ -367,19 +366,19 @@ function Expand({
 	open: boolean;
 }) {
 	return (
-		<AnimatePresence initial={false}>
-			{open && (
-				<motion.div
-					animate={{ height: "auto", opacity: 1 }}
-					className="overflow-y-clip overflow-x-visible"
-					exit={{ height: 0, opacity: 0 }}
-					initial={{ height: 0, opacity: 0 }}
-					transition={{ duration, ease: EXPAND_EASE }}
-				>
-					{children}
-				</motion.div>
+		<div
+			className={cn(
+				"grid transition-[grid-template-rows,opacity] motion-reduce:transition-none",
+				open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
 			)}
-		</AnimatePresence>
+			inert={!open}
+			style={{
+				transitionDuration: `${duration}s`,
+				transitionTimingFunction: EXPAND_EASE,
+			}}
+		>
+			<div className="overflow-y-clip overflow-x-visible">{children}</div>
+		</div>
 	);
 }
 

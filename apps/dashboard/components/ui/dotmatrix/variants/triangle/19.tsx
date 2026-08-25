@@ -33,8 +33,6 @@ const TRIANGLE_CELLS = new Set([
   "4,4",
   "4,6"
 ]);
-
-/** Wider wedge core (radians) for smoother rotation like Braille ramps. */
 const BEAM_SIGMA = 0.58;
 
 function isWithinTriangleMask(row: number, col: number): boolean {
@@ -63,11 +61,6 @@ function smoothstep01(edge0: number, edge1: number, x: number): number {
   const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
   return t * t * (3 - 2 * t);
 }
-
-/**
- * A soft **rotating wedge** from the heart cell: brightness peaks where polar angle matches the
- * spinning phase — reads as a searchlight pivot, not a cosine product field.
- */
 function opacityForCell(row: number, col: number, phase: number): number {
   if (row === CENTER_ROW && col === CENTER_COL) {
     const hub = 0.5 + 0.5 * Math.sin(phase * Math.PI * 2);

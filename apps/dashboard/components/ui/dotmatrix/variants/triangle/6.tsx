@@ -13,8 +13,6 @@ import type { DotMatrixCommonProps } from "../../core";
 type DotmTriangle6Props = DotMatrixCommonProps;
 
 const MATRIX_SIZE = 7;
-
-/** Unicode / ISO braille dot numbering (same as `DotmSquare9`). */
 const D1 = 0x01;
 const D2 = 0x02;
 const D3 = 0x04;
@@ -25,11 +23,7 @@ const D6 = 0x20;
 const LOW_OPACITY = 0.07;
 const MID_OPACITY = 0.36;
 const HIGH_OPACITY = 0.96;
-
-/** Half-width of the traveling ramp (larger = softer, more “gradient” overlap). */
 const WAVE_HALF = 0.82;
-
-/** Phase splits (must sum to 1): smooth intro wave, blink, fade reset. */
 const INTRO_PHASE = 0.52;
 const BLINK_PHASE = 0.36;
 const RESET_PHASE = 0.12;
@@ -54,8 +48,6 @@ function smoothstep01(edge0: number, edge1: number, x: number): number {
   const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
   return t * t * (3 - 2 * t);
 }
-
-/** Six fills (D1..D6 order) from a single traveling wave front. */
 function waveFills(introT: number): number[] {
   const waveCenter = -WAVE_HALF + introT * (5 + 2 * WAVE_HALF);
   return [0, 1, 2, 3, 4, 5].map((i) =>
@@ -70,8 +62,6 @@ function isWithinTriangleMask(row: number, col: number): boolean {
 
   return TRIANGLE_CELLS.has(`${row},${col}`);
 }
-
-/** Map triangle cell → braille bit (ISO 2×3), or null for accent cells. */
 function brailleBitForTriangle(row: number, col: number): number | null {
   if (row === 2 && col === 2) {
     return D1;

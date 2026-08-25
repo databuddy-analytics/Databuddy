@@ -89,7 +89,9 @@ function useTopBarSlot(name: string, content: ReactNode) {
 	const store = useStore();
 	const id = useId();
 	const contentRef = useRef(content);
-	contentRef.current = content;
+	useEffect(() => {
+		contentRef.current = content;
+	}, [content]);
 
 	useEffect(() => {
 		store.setSlot(name, id, contentRef.current);

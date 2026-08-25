@@ -30,7 +30,9 @@ export function AgentCreditBalance({
 	const prevStatusRef = useRef(status);
 
 	const refetchRef = useRef(refetch);
-	refetchRef.current = refetch;
+	useEffect(() => {
+		refetchRef.current = refetch;
+	}, [refetch]);
 
 	useEffect(() => {
 		const prev = prevStatusRef.current;

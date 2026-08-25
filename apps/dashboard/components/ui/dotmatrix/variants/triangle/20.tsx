@@ -29,8 +29,6 @@ const TRIANGLE_CELLS = new Set([
   "4,4",
   "4,6"
 ]);
-
-/** Same perimeter ring as DotmTriangle1 — center is not on this loop. */
 const PERIMETER_PATH: ReadonlyArray<readonly [number, number]> = [
   [1, 3],
   [2, 2],
@@ -89,10 +87,6 @@ function glowAlongPath(s: number, idx: number | null, L: number): number {
   const g = 1 - smoothstep01(0, TRAIL_SPAN, d);
   return BASE_OPACITY + g * (HIGH_OPACITY - BASE_OPACITY);
 }
-
-/**
- * Two heads chase the perimeter **half a lap apart**, each with its own soft tail — center stays dim.
- */
 function opacityForCell(row: number, col: number, phase: number): number {
   if (row === 3 && col === 3) {
     return CENTER_DIM;

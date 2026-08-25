@@ -30,6 +30,12 @@ export function LiveUserIndicator({ websiteId }: LiveUserIndicatorProps) {
 		}
 
 		prevCountRef.current = count;
+
+		return () => {
+			if (timeoutRef.current) {
+				clearTimeout(timeoutRef.current);
+			}
+		};
 	}, [count]);
 
 	return (

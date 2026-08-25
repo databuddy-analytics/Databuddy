@@ -186,7 +186,10 @@ export function RealtimeMap({ countries }: RealtimeMapProps) {
 		oy: number;
 	} | null>(null);
 	const [tooltip, setTooltip] = useState<TooltipState | null>(null);
-	countriesRef.current = countries;
+
+	useEffect(() => {
+		countriesRef.current = countries;
+	}, [countries]);
 
 	useEffect(() => {
 		const canvas = canvasRef.current;

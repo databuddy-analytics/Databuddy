@@ -29,8 +29,6 @@ const TRIANGLE_CELLS = new Set([
   "4,4",
   "4,6"
 ]);
-
-/** Bottom-to-top within each column, columns 0→6 — only triangle cells appear in the path. */
 const COLUMN_RAKE_PATH: ReadonlyArray<readonly [number, number]> = [
   [4, 0],
   [3, 1],

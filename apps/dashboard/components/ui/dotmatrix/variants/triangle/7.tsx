@@ -38,8 +38,6 @@ function isWithinTriangleMask(row: number, col: number): boolean {
 
   return TRIANGLE_CELLS.has(`${row},${col}`);
 }
-
-/** Sliding diagonal bands: same `row + col` share a phase so stripes read as continuous diagonals. */
 function opacityForCell(row: number, col: number, phase: number): number {
   const diag = row + col;
   const t = phase * Math.PI * 2;
