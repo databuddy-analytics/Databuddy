@@ -18,14 +18,14 @@ git clone https://github.com/databuddy-analytics/Databuddy.git
 cd databuddy
 ```
 
-2. Install dependencies (requires Bun ≥ 1.2.0 — run `bun --version` to check, upgrade at https://bun.sh if needed):
+2. Install dependencies (requires Bun 1.2.0+, check with `bun --version`):
 
 ```bash
 bun install
 ```
 
 > [!NOTE]
-> Bun ≥ 1.2.0 is only the minimum required for `catalog:` protocol support. The repo pins an exact version via the `packageManager` field in `package.json`, so contributors should use that version to avoid install conflicts (check it with `grep packageManager package.json`, or activate it via Corepack with `corepack prepare bun@<version> --activate`).
+> Bun 1.2.0 is the minimum for `catalog:` dependency support. The repo pins an exact version in the `packageManager` field of `package.json`; match it with `bun upgrade` or by installing that version from https://bun.sh.
 
 3. Set up environment variables:
 
