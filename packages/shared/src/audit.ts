@@ -147,7 +147,7 @@ export const auditTechnicalActionNames = [
 	auditActions.RPC_MUTATION.action,
 ] as const;
 
-export const AUDIT_REDACTED_VALUE = "[REDACTED]" as const;
+export const AUDIT_REDACTED_VALUE = "[REDACTED]";
 
 const sensitiveAuditFieldPattern =
 	/(^|[_-])(authorization|cookie|key|password|secret|token)([_-]|$)/i;
@@ -160,18 +160,21 @@ function isSensitiveAuditField(field: string): boolean {
 	return sensitiveAuditFieldPattern.test(normalizedField);
 }
 
-function redactAuditValue(field: string, value: AuditValue | undefined) {
-	if (value === undefined) {
-		return;
-	}
+function redactAuditValue(field: string, value: AuditValue): AuditValue {
 	return isSensitiveAuditField(field) ? AUDIT_REDACTED_VALUE : value;
 }
 
 export function redactAuditChanges(changes?: AuditChanges): AuditChanges {
 	return Object.fromEntries(
 		Object.entries(changes ?? {}).map(([field, change]) => {
-			const before = redactAuditValue(field, change.before);
-			const after = redactAuditValue(field, change.after);
+			const before =
+				change.before === undefined
+					? undefined
+					: redactAuditValue(field, change.before);
+			const after =
+				change.after === undefined
+					? undefined
+					: redactAuditValue(field, change.after);
 			return [
 				field,
 				{
@@ -185,11 +188,13 @@ export function redactAuditChanges(changes?: AuditChanges): AuditChanges {
 
 export function redactAuditMetadata(metadata?: AuditMetadata): AuditMetadata {
 	return Object.fromEntries(
-		Object.entries(metadata ?? {}).map(([field, value]) => [
-			field,
-			redactAuditValue(field, value),
-		])
-	) as AuditMetadata;
+		Object.entries(metadata ?? {}).map(
+			([field, value]): [string, AuditValue] => [
+				field,
+				redactAuditValue(field, value),
+			]
+		)
+	);
 }
 
 export const auditSourceLabels: Record<AuditSource, string> = {

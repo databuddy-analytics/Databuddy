@@ -179,7 +179,7 @@ export async function appendAuditEvent<TAction extends AuditActionDefinition>(
 	emitAuditMirror({
 		action: input.action,
 		actor: input.actor,
-		changes: redactAuditChanges(input.changes),
+		changes: payload.changes,
 		correlationId: input.request?.requestId,
 		organizationId,
 		outcome: input.outcome,
