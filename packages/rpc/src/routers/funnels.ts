@@ -188,7 +188,6 @@ export const funnelsRouter = {
 
 			return cache.withCache({
 				key: `list:${input.websiteId}`,
-				disabled: true, // TODO: Remove this once we have a way to invalidate the cache
 				ttl: CACHE_TTL,
 				tables: ["funnelDefinitions"],
 				queryFn: () =>
@@ -227,10 +226,29 @@ export const funnelsRouter = {
 		})
 		.input(z.object({ id: z.string() }))
 		.output(funnelOutputSchema)
-		.handler(({ context, input }) =>
-			cache.withCache({
+		.handler(async ({ context, input }) => {
+			const [funnelRef] = await context.db
+				.select({ websiteId: funnelDefinitions.websiteId })
+				.from(funnelDefinitions)
+				.where(
+					and(
+						eq(funnelDefinitions.id, input.id),
+						isNull(funnelDefinitions.deletedAt)
+					)
+				)
+				.limit(1);
+
+			if (!funnelRef) {
+				throw rpcError.notFound("funnel", input.id);
+			}
+
+			await withWorkspace(context, {
+				websiteId: funnelRef.websiteId,
+				permissions: ["read"],
+			});
+
+			return cache.withCache({
 				key: `byId:${input.id}`,
-				disabled: true, // TODO: Remove this once we have a way to invalidate the cache
 				ttl: CACHE_TTL,
 				tables: ["funnelDefinitions"],
 				queryFn: async () => {
@@ -249,15 +267,10 @@ export const funnelsRouter = {
 						throw rpcError.notFound("funnel", input.id);
 					}
 
-					await withWorkspace(context, {
-						websiteId: funnel.websiteId,
-						permissions: ["read"],
-					});
-
 					return funnel;
 				},
-			})
-		),
+			});
+		}),
 
 	create: trackedProcedure
 		.route({
@@ -623,7 +636,6 @@ export const funnelsRouter = {
 
 			return cache.withCache({
 				key: cacheKey,
-				disabled: true, // TODO: Remove this once we have a way to invalidate the cache
 				ttl: ANALYTICS_CACHE_TTL,
 				tables: ["funnelDefinitions"],
 				tag: `funnel:${input.funnelId}`,
