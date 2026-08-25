@@ -323,7 +323,7 @@ export function McpSetupSheet({
 			<Sheet.Content className="sm:max-w-xl" side="right">
 				<Sheet.Header>
 					<div className="flex items-start gap-3">
-						<div className="flex size-8 items-center justify-center rounded-md bg-primary/10">
+						<div className="flex size-8 items-center justify-center rounded bg-primary/10">
 							<RobotIcon className="text-primary" size={16} weight="fill" />
 						</div>
 						<div className="min-w-0 flex-1">
@@ -383,7 +383,7 @@ export function McpSetupSheet({
 								</Text>
 							</div>
 
-							<div className="rounded-md border border-border/60">
+							<div className="rounded border border-border/60">
 								<div className="flex items-start gap-3 px-3 py-3">
 									<div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded bg-success/10">
 										<ShieldCheckIcon className="size-4 text-success" />
@@ -518,7 +518,7 @@ export function McpSetupSheet({
 								</Text>
 							</div>
 
-							<div className="flex items-start gap-2 rounded-md border border-warning/30 bg-warning/5 px-3 py-2.5">
+							<div className="flex items-start gap-2 rounded border border-warning/30 bg-warning/5 px-3 py-2.5">
 								<TriangleWarningIcon className="mt-0.5 size-4 shrink-0 text-warning" />
 								<Text tone="muted" variant="caption">
 									The generated key authenticates an external AI client. Keep it
@@ -578,7 +578,7 @@ function ConnectionCreated({
 
 	return (
 		<div className="space-y-5">
-			<div className="rounded-md border border-success/30 bg-success/5 p-3">
+			<div className="rounded border border-success/30 bg-success/5 p-3">
 				<div className="flex items-start gap-2">
 					<CheckCircleIcon
 						className="mt-0.5 size-4 shrink-0 text-success"
@@ -605,7 +605,7 @@ function ConnectionCreated({
 					</div>
 					<CopyButton label="Copy key" value={secret} variant="secondary" />
 				</div>
-				<div className="flex items-start gap-2 rounded-md border border-warning/30 bg-warning/5 p-3">
+				<div className="flex items-start gap-2 rounded border border-warning/30 bg-warning/5 p-3">
 					<KeyIcon className="mt-0.5 size-4 shrink-0 text-warning" />
 					<code className="min-w-0 flex-1 break-all font-mono text-[11px] text-foreground leading-relaxed">
 						{secret}
@@ -623,7 +623,7 @@ function ConnectionCreated({
 					</div>
 					<CopyButton label="Copy config" value={config} variant="secondary" />
 				</div>
-				<div className="relative overflow-hidden rounded-md border border-border/60 bg-secondary/50">
+				<div className="relative overflow-hidden rounded border border-border/60 bg-secondary/50">
 					<pre className="max-h-56 overflow-auto p-3 pr-12 font-mono text-[11px] text-foreground leading-relaxed">
 						<code>{config}</code>
 					</pre>
@@ -636,7 +636,7 @@ function ConnectionCreated({
 				</div>
 			</div>
 
-			<div className="flex items-center justify-between gap-3 rounded-md border border-border/60 px-3 py-2.5">
+			<div className="flex items-center justify-between gap-3 rounded border border-border/60 px-3 py-2.5">
 				<Checkbox
 					checked={useEnvironmentVariable}
 					description={`Set ${MCP_ENV_VAR} in your environment before launching the client.`}
@@ -652,7 +652,7 @@ function ConnectionCreated({
 
 			<div className="space-y-2">
 				<Text variant="label">Test it</Text>
-				<div className="flex items-center gap-2 rounded-md border border-border/60 bg-secondary/30 px-3 py-2.5">
+				<div className="flex items-center gap-2 rounded border border-border/60 bg-secondary/30 px-3 py-2.5">
 					<CodeIcon className="size-4 shrink-0 text-muted-foreground" />
 					<Text className="flex-1" variant="label">
 						List my Databuddy websites.
@@ -668,7 +668,7 @@ function ConnectionCreated({
 				</Text>
 			</div>
 
-			<div className="rounded-md border border-border/60 px-3 py-2.5">
+			<div className="rounded border border-border/60 px-3 py-2.5">
 				<div className="flex items-center gap-2">
 					<GlobeIcon className="size-4 text-muted-foreground" />
 					<Text variant="label">Server endpoint</Text>

@@ -309,6 +309,26 @@ function toAuditActor(user: { id: string; name?: string | null }): AuditActor {
 	};
 }
 
+async function getAuditMemberDetails(member: { id: string; userId: string }) {
+	const user = await db.query.user.findFirst({
+		where: { id: member.userId },
+		columns: { email: true, name: true },
+	});
+	const displayName = user
+		? user.name
+			? `${user.name} <${user.email}>`
+			: user.email
+		: `User ${member.userId}`;
+
+	return {
+		metadata: {
+			affectedUserDisplayName: displayName,
+			affectedUserId: member.userId,
+		},
+		target: { id: member.id, displayName },
+	};
+}
+
 async function recordAuthAudit<TAction extends AuditActionDefinition>(
 	organizationId: string,
 	input: Omit<
@@ -695,11 +715,11 @@ export const auth = betterAuth({
 			organizationHooks: {
 				afterAddMember: async ({ member, organization }) => {
 					await invalidateMemberCaches(member);
+					const memberAudit = await getAuditMemberDetails(member);
 					await recordAuthAudit(organization.id, {
 						action: auditActions.ORGANIZATION_MEMBER_ADDED,
-						target: { id: member.id },
+						...memberAudit,
 						changes: { role: { after: member.role } },
-						metadata: { memberUserId: member.userId },
 					});
 				},
 				afterCreateOrganization: async ({ member, organization, user }) => {
@@ -750,14 +770,14 @@ export const auth = betterAuth({
 				},
 				afterRemoveMember: async ({ member, organization }) => {
 					await invalidateMemberCaches(member);
+					const memberAudit = await getAuditMemberDetails(member);
 					await recordAuthAudit(organization.id, {
 						action: auditActions.ORGANIZATION_MEMBER_REMOVED,
-						target: { id: member.id },
+						...memberAudit,
 						changes: {
 							deleted: { after: true },
 							role: { before: member.role },
 						},
-						metadata: { memberUserId: member.userId },
 					});
 				},
 				afterUpdateMemberRole: async ({
@@ -766,11 +786,11 @@ export const auth = betterAuth({
 					previousRole,
 				}) => {
 					await invalidateMemberCaches(member);
+					const memberAudit = await getAuditMemberDetails(member);
 					await recordAuthAudit(organization.id, {
 						action: auditActions.ORGANIZATION_MEMBER_ROLE_UPDATED,
-						target: { id: member.id },
+						...memberAudit,
 						changes: { role: { before: previousRole, after: member.role } },
-						metadata: { memberUserId: member.userId },
 					});
 				},
 				afterCreateInvitation: async ({
@@ -782,7 +802,10 @@ export const auth = betterAuth({
 						organization.id,
 						{
 							action: auditActions.ORGANIZATION_INVITATION_CREATED,
-							target: { id: invitation.id },
+							target: {
+								id: invitation.id,
+								displayName: invitation.email,
+							},
 							changes: { role: { after: invitation.role } },
 							metadata: { status: invitation.status },
 						},
@@ -794,7 +817,10 @@ export const auth = betterAuth({
 						organization.id,
 						{
 							action: auditActions.ORGANIZATION_INVITATION_ACCEPTED,
-							target: { id: invitation.id },
+							target: {
+								id: invitation.id,
+								displayName: invitation.email,
+							},
 							changes: {
 								status: { before: "pending", after: invitation.status },
 							},
@@ -807,7 +833,10 @@ export const auth = betterAuth({
 						organization.id,
 						{
 							action: auditActions.ORGANIZATION_INVITATION_REJECTED,
-							target: { id: invitation.id },
+							target: {
+								id: invitation.id,
+								displayName: invitation.email,
+							},
 							changes: {
 								status: { before: "pending", after: invitation.status },
 							},
@@ -824,7 +853,10 @@ export const auth = betterAuth({
 						organization.id,
 						{
 							action: auditActions.ORGANIZATION_INVITATION_CANCELLED,
-							target: { id: invitation.id },
+							target: {
+								id: invitation.id,
+								displayName: invitation.email,
+							},
 							changes: {
 								status: { before: "pending", after: invitation.status },
 							},
