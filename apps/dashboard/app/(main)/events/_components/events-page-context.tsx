@@ -18,9 +18,9 @@ import { dayjs } from "@databuddy/ui";
  * "all" = all events across the organization
  * string = a specific websiteId
  */
-export type WebsiteFilterMode = "no-website" | "all" | string;
+type WebsiteFilterMode = "no-website" | "all" | string;
 
-export interface WebsiteEntry {
+interface WebsiteEntry {
 	domain: string;
 	id: string;
 	name: string;
@@ -46,7 +46,7 @@ interface EventsPageContextValue {
 
 const EventsPageContext = createContext<EventsPageContextValue | null>(null);
 
-export const DEFAULT_DATE_RANGE = {
+const DEFAULT_DATE_RANGE = {
 	start_date: dayjs().subtract(30, "day").format("YYYY-MM-DD"),
 	end_date: dayjs().format("YYYY-MM-DD"),
 	granularity: "daily" as const,

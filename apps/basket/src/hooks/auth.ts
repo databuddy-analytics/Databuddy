@@ -14,10 +14,7 @@ import { captureError, record } from "@lib/tracing";
 import { isValidOriginFromSettings } from "@utils/origin-ip-validation";
 import { createError, EvlogError } from "evlog";
 
-export {
-	isValidIpFromSettings,
-	isValidOriginFromSettings,
-} from "@utils/origin-ip-validation";
+export { isValidIpFromSettings } from "@utils/origin-ip-validation";
 
 type WebsiteWithOwner = Website & {
 	ownerId: string | null;
@@ -76,10 +73,7 @@ export const resolveApiKeyOwnerId = cacheable(
 /**
  * Validates if an origin header matches or is a subdomain of the allowed domain
  */
-export function isValidOrigin(
-	originHeader: string,
-	allowedDomain: string
-): boolean {
+function isValidOrigin(originHeader: string, allowedDomain: string): boolean {
 	const trimmedOrigin = originHeader?.trim();
 	if (!trimmedOrigin) {
 		return true;
@@ -112,7 +106,7 @@ export function isValidOrigin(
 /**
  * Normalizes a domain by removing the protocol, port, and "www." prefix.
  */
-export function normalizeDomain(domain: string): string {
+function normalizeDomain(domain: string): string {
 	if (!domain) {
 		return "";
 	}
@@ -153,17 +147,14 @@ export function normalizeDomain(domain: string): string {
 	}
 }
 
-export function isSubdomain(
-	originDomain: string,
-	allowedDomain: string
-): boolean {
+function isSubdomain(originDomain: string, allowedDomain: string): boolean {
 	return (
 		originDomain.endsWith(`.${allowedDomain}`) &&
 		originDomain.length > allowedDomain.length + 1
 	);
 }
 
-export function isValidDomainFormat(domain: string): boolean {
+function isValidDomainFormat(domain: string): boolean {
 	if (
 		!domain ||
 		domain.length > 253 ||

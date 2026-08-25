@@ -195,7 +195,7 @@ const getBillingRecipient = cacheable(
 	}
 );
 
-export async function resolveBillingOrganization(
+async function resolveBillingOrganization(
 	customerId: string,
 	entityId?: string
 ): Promise<BillingOrganizationContext | null> {

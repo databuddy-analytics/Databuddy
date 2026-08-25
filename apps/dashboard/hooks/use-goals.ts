@@ -11,7 +11,7 @@ import { orpc } from "@/lib/orpc";
 
 export type Goal = InferSelectModel<typeof goals>;
 
-export interface GoalAnalyticsData {
+interface GoalAnalyticsData {
 	avg_completion_time: number;
 	avg_completion_time_formatted: string;
 	biggest_dropoff_rate: number;
@@ -233,27 +233,6 @@ export function useGoal(goalId: string, enabled = true) {
 	return useQuery({
 		...orpc.goals.getById.queryOptions({ input: { id: goalId } }),
 		enabled: enabled && !!goalId,
-	});
-}
-
-export function useGoalAnalytics(
-	websiteId: string,
-	goalId: string,
-	dateRange: { start_date: string; end_date: string },
-	filters: GoalFilter[] = [],
-	options: { enabled: boolean } = { enabled: true }
-) {
-	return useQuery({
-		...orpc.goals.getAnalytics.queryOptions({
-			input: {
-				goalId,
-				websiteId,
-				startDate: dateRange?.start_date,
-				endDate: dateRange?.end_date,
-				filters,
-			},
-		}),
-		enabled: options.enabled && !!websiteId && !!goalId,
 	});
 }
 

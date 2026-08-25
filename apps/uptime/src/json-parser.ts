@@ -15,7 +15,7 @@ const LATENCY_KEYS = [
 	"time_ms",
 ] as const;
 
-export interface ServiceHealth {
+interface ServiceHealth {
 	latency?: number | string;
 	status?: string | number | boolean;
 	[key: string]: unknown;

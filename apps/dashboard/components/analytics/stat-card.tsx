@@ -30,7 +30,7 @@ interface Trend {
 	previousPeriod: { start: string; end: string };
 }
 
-export type StatCardDisplayMode = "compact" | "chart" | "text";
+type StatCardDisplayMode = "compact" | "chart" | "text";
 
 interface StatCardProps {
 	chartData?: MiniChartDataPoint[];

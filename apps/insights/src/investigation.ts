@@ -85,7 +85,7 @@ const ZERO_COMPLETION_SUBJECT_SUFFIX = ":zero-completions";
  * that distinction visible to ranking so definition maintenance cannot crowd
  * out route, session, and reliability regressions.
  */
-export function isConversionDefinitionSignal(signal: DetectedSignal): boolean {
+function isConversionDefinitionSignal(signal: DetectedSignal): boolean {
 	return (
 		signal.metric.startsWith("goal:") || signal.metric.startsWith("funnel:")
 	);
@@ -107,7 +107,7 @@ function isFunnelStepSignal(signal: DetectedSignal): boolean {
 	);
 }
 
-export function isDirectSignal(signal: DetectedSignal): boolean {
+function isDirectSignal(signal: DetectedSignal): boolean {
 	return (
 		signal.metric === "revenue" ||
 		signal.metric === "error_count" ||

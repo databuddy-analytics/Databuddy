@@ -1,10 +1,10 @@
 import { DATABUNNY_USAGE } from "@databuddy/shared/billing";
 
-export interface FeatureDisplay {
+interface FeatureDisplay {
 	plural: string;
 	singular: string;
 }
-export interface RawFeature {
+interface RawFeature {
 	display: FeatureDisplay;
 	id: string;
 	name: string;

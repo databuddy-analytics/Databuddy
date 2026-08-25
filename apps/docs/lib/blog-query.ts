@@ -11,7 +11,7 @@ interface FetchError {
 	statusText: string;
 }
 
-export interface MarbleAuthor {
+interface MarbleAuthor {
 	bio?: string | null;
 	id: string;
 	image?: string | null;
@@ -21,14 +21,14 @@ export interface MarbleAuthor {
 	socials?: { platform: string; url: string }[];
 }
 
-export interface MarbleCategory {
+interface MarbleCategory {
 	description?: string | null;
 	id: string;
 	name: string;
 	slug: string;
 }
 
-export interface MarbleTag {
+interface MarbleTag {
 	description?: string | null;
 	id: string;
 	name: string;
@@ -67,18 +67,6 @@ export interface MarblePostList {
 
 export interface MarblePost {
 	post: Post;
-}
-
-interface MarbleTagList {
-	tags: MarbleTag[];
-}
-
-interface MarbleCategoryList {
-	categories: MarbleCategory[];
-}
-
-interface MarbleAuthorList {
-	authors: MarbleAuthor[];
 }
 
 type MarbleRequest =
@@ -200,22 +188,10 @@ export const getPosts = cache(() =>
 	})
 );
 
-export const getTags = cache(() =>
-	fetchFromMarble<MarbleTagList>("tags", { returnStatusOnError: true })
-);
-
 export const getSinglePost = cache((slug: string) =>
 	fetchFromMarble<MarblePost>(`posts/${encodeURIComponent(slug)}`, {
 		returnStatusOnError: true,
 	})
-);
-
-export const getCategories = cache(() =>
-	fetchFromMarble<MarbleCategoryList>("categories")
-);
-
-export const getAuthors = cache(() =>
-	fetchFromMarble<MarbleAuthorList>("authors")
 );
 
 export function isPublished(post: {

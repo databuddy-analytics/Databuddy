@@ -2,9 +2,9 @@ import { chQuery, TABLE_NAMES } from "@databuddy/db/clickhouse";
 
 /** ClickHouse `formatDateTime`: use `%i` for minutes. Since v23.4, `%M` is the full month name (MySQL-style). */
 
-export type AnomalyType = "spike" | "drop";
+type AnomalyType = "spike" | "drop";
 export type AnomalyMetric = "pageviews" | "custom_events" | "errors";
-export type AnomalySeverity = "warning" | "critical";
+type AnomalySeverity = "warning" | "critical";
 
 export interface DetectedAnomaly {
 	baselineMean: number;

@@ -2730,4 +2730,3 @@ export const referrers: Record<string, { type: string; name: string }> = {
 	"statics.teams.cdn.office.net": { type: "unknown", name: "Microsoft Teams" },
 	"appleid.apple.com": { type: "unknown", name: "Apple ID" },
 } as const;
-export default referrers;

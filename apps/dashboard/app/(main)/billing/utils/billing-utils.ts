@@ -1,4 +1,4 @@
-export const EVENT_COST = 0.000_035;
+const EVENT_COST = 0.000_035;
 
 export interface OverageInfo {
 	hasOverage: boolean;

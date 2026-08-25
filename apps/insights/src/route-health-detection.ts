@@ -79,7 +79,7 @@ const STATIC_ROUTE_SEGMENTS = new Set([
 	"welcome",
 ]);
 
-export type RouteVital = keyof typeof INSIGHT_VITALS;
+type RouteVital = keyof typeof INSIGHT_VITALS;
 type RouteHealthQueryType = "errors_by_page" | "vitals_by_page";
 
 const NORMALIZED_ROUTE_SQL =
@@ -273,7 +273,7 @@ export interface RouteHealthQueryInput {
 	type: RouteHealthQueryType;
 }
 
-export type RouteHealthQuery = (
+type RouteHealthQuery = (
 	input: RouteHealthQueryInput,
 	abortSignal?: AbortSignal
 ) => Promise<Record<string, unknown>[]>;

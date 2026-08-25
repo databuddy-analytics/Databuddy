@@ -46,7 +46,7 @@ interface ExportData {
 	webVitals: WebVital[];
 }
 
-export interface ExportMetadata {
+interface ExportMetadata {
 	counts: {
 		events: number;
 		errors: number;
@@ -66,7 +66,7 @@ export interface GenerateExportResult {
 	meta: ExportMetadata;
 }
 
-export interface ValidatedExportDates {
+interface ValidatedExportDates {
 	endDate?: string;
 	startDate?: string;
 }

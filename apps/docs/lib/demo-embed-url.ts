@@ -1,5 +1,5 @@
 /** Public demo dashboard id (embeddable routes under /demo/:id on the app host). */
-export const DATABUDDY_DEMO_EMBED_ID = "OXmNQsViBT-FOS_wZCTHc";
+const DATABUDDY_DEMO_EMBED_ID = "OXmNQsViBT-FOS_wZCTHc";
 
 const PREVIEW_DOCS_HOST = "preview.databuddy.cc";
 const STAGING_APP_ORIGIN = "https://staging.databuddy.cc";

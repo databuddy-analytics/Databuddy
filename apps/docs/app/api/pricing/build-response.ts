@@ -119,5 +119,3 @@ export function buildPricingApiPayload(request: Request) {
 		currency: "USD" as const,
 	};
 }
-
-export type PricingApiPayload = ReturnType<typeof buildPricingApiPayload>;

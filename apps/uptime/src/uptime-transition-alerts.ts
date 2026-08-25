@@ -383,7 +383,7 @@ const sendToAlarm = (
 	});
 };
 
-export const queryPreviousStatus = (siteId: string) =>
+const queryPreviousStatus = (siteId: string) =>
 	Effect.gen(function* () {
 		if (!process.env.CLICKHOUSE_URL) {
 			return Option.none<number>();

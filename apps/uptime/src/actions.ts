@@ -457,13 +457,7 @@ const runUptimeCheck = (
 		} satisfies UptimeData;
 	});
 
-export {
-	ScheduleLookupError,
-	UptimeCheckError,
-	checkCertificate,
-	resolveSchedule,
-	runUptimeCheck,
-};
+export { checkCertificate };
 
 export async function lookupSchedule(
 	id: string

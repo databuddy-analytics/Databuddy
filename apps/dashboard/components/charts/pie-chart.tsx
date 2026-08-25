@@ -24,7 +24,7 @@ interface PieChartDataPoint {
 	value: number;
 }
 
-export type PieChartVariant = "pie" | "donut";
+type PieChartVariant = "pie" | "donut";
 
 interface MiniPieChartProps {
 	className?: string;

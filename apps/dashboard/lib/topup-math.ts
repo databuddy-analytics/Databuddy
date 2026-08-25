@@ -11,7 +11,7 @@ export const TOPUP_TIERS: readonly TopupTier[] = [
 ];
 
 export const TOPUP_MIN_QUANTITY = 10;
-export const TOPUP_MAX_PURCHASE_USD = 5000;
+const TOPUP_MAX_PURCHASE_USD = 5000;
 export const TOPUP_MAX_QUANTITY = maxTopupQuantityForAmount(
 	TOPUP_MAX_PURCHASE_USD
 );
@@ -23,7 +23,7 @@ function tierTop(tier: TopupTier): number {
 	return tier.to === "inf" ? Number.POSITIVE_INFINITY : tier.to;
 }
 
-export function maxTopupQuantityForAmount(
+function maxTopupQuantityForAmount(
 	maxAmount: number,
 	tiers: readonly TopupTier[] = TOPUP_TIERS
 ): number {
@@ -144,7 +144,7 @@ export function nextTierNudge(
 	return { unitsUntilNextTier, nextRate: info.nextRate };
 }
 
-export const TOPUP_SLIDER_BOUNDARIES: readonly number[] = [
+const TOPUP_SLIDER_BOUNDARIES: readonly number[] = [
 	TOPUP_MIN_QUANTITY,
 	100,
 	1000,

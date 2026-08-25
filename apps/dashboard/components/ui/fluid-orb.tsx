@@ -4,7 +4,7 @@ import React, { useEffect, useRef } from 'react'
 
 import { cn } from '@/lib/utils'
 
-export type FluidOrbProps = React.ComponentProps<'div'> & {
+type FluidOrbProps = React.ComponentProps<'div'> & {
   size?: number
   color?: string
 }

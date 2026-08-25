@@ -216,5 +216,3 @@ export function useCustomEventsOverview({
 		todayUsers: todayEvent?.unique_users ?? 0,
 	};
 }
-
-export { getRawData };

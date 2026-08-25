@@ -4,7 +4,7 @@ import type { CSSProperties } from "react";
 
 import { useDotMatrixPhases, usePrefersReducedMotion } from "./hooks";
 import type { DotMatrixPhase } from "./types";
-export type { DotMatrixPhase } from "./types";
+;
 
 export type MatrixPattern = "diamond" | "full" | "outline" | "rose" | "cross" | "rings";
 
@@ -28,7 +28,7 @@ export interface DotMatrixCommonProps {
   minSize?: number;
 }
 
-export interface DotAnimationContext {
+interface DotAnimationContext {
   index: number;
   row: number;
   col: number;
@@ -41,7 +41,7 @@ export interface DotAnimationContext {
   reducedMotion: boolean;
 }
 
-export interface DotAnimationState {
+interface DotAnimationState {
   className?: string;
   style?: CSSProperties;
 }
@@ -57,30 +57,30 @@ const CENTER = Math.floor(MATRIX_SIZE / 2);
 const RANGE = Array.from({ length: MATRIX_SIZE }, (_, index) => index);
 const MAX_RADIUS = Math.hypot(CENTER, CENTER);
 
-export const FULL_INDEXES = RANGE.flatMap((row) => RANGE.map((col) => rowMajorIndex(row, col)));
+const FULL_INDEXES = RANGE.flatMap((row) => RANGE.map((col) => rowMajorIndex(row, col)));
 
-export const DIAMOND_INDEXES = FULL_INDEXES.filter((index) => {
+const DIAMOND_INDEXES = FULL_INDEXES.filter((index) => {
   const { row, col } = indexToCoord(index);
   return Math.abs(row - CENTER) + Math.abs(col - CENTER) <= 2;
 });
 
-export const OUTLINE_INDEXES = FULL_INDEXES.filter((index) => {
+const OUTLINE_INDEXES = FULL_INDEXES.filter((index) => {
   const { row, col } = indexToCoord(index);
   return row === 0 || row === MATRIX_SIZE - 1 || col === 0 || col === MATRIX_SIZE - 1;
 });
 
-export const CROSS_INDEXES = FULL_INDEXES.filter((index) => {
+const CROSS_INDEXES = FULL_INDEXES.filter((index) => {
   const { row, col } = indexToCoord(index);
   return row === CENTER || col === CENTER;
 });
 
-export const RINGS_INDEXES = FULL_INDEXES.filter((index) => {
+const RINGS_INDEXES = FULL_INDEXES.filter((index) => {
   const { row, col } = indexToCoord(index);
   const radius = Math.hypot(row - CENTER, col - CENTER);
   return Math.round(radius) === 1 || Math.round(radius) === 2;
 });
 
-export const ROSE_INDEXES = FULL_INDEXES.filter((index) => {
+const ROSE_INDEXES = FULL_INDEXES.filter((index) => {
   const { row, col } = indexToCoord(index);
   const dx = col - CENTER;
   const dy = row - CENTER;
@@ -99,7 +99,7 @@ const PATTERN_INDEXES: Record<MatrixPattern, number[]> = {
   rings: RINGS_INDEXES
 };
 
-export function getPatternIndexes(pattern: MatrixPattern = "diamond"): number[] {
+function getPatternIndexes(pattern: MatrixPattern = "diamond"): number[] {
   return PATTERN_INDEXES[pattern];
 }
 
@@ -107,43 +107,43 @@ export function rowMajorIndex(row: number, col: number): number {
   return row * MATRIX_SIZE + col;
 }
 
-export function indexToCoord(index: number): { row: number; col: number } {
+function indexToCoord(index: number): { row: number; col: number } {
   return {
     row: Math.floor(index / MATRIX_SIZE),
     col: index % MATRIX_SIZE
   };
 }
 
-export function distanceFromCenter(index: number): number {
+function distanceFromCenter(index: number): number {
   const { row, col } = indexToCoord(index);
   return Math.hypot(row - CENTER, col - CENTER);
 }
 
-export function rowDistance(index: number): number {
+function rowDistance(index: number): number {
   const { row } = indexToCoord(index);
   return Math.abs(row - CENTER);
 }
 
-export function polarAngle(index: number): number {
+function polarAngle(index: number): number {
   const { row, col } = indexToCoord(index);
   return Math.atan2(row - CENTER, col - CENTER);
 }
 
-export function normalizedRadius(index: number): number {
+function normalizedRadius(index: number): number {
   const { row, col } = indexToCoord(index);
   return Math.hypot(row - CENTER, col - CENTER) / MAX_RADIUS;
 }
 
-export function manhattanDistance(index: number): number {
+function manhattanDistance(index: number): number {
   const { row, col } = indexToCoord(index);
   return Math.abs(row - CENTER) + Math.abs(col - CENTER);
 }
 
-export function harmonicPhase(row: number, col: number, a: number, b: number): number {
+function harmonicPhase(row: number, col: number, a: number, b: number): number {
   return Math.sin((row + 1) * a + (col + 1) * b);
 }
 
-export function lissajousOffset(
+function lissajousOffset(
   row: number,
   col: number,
   amplitude = 2.25
@@ -154,7 +154,7 @@ export function lissajousOffset(
   return { x, y, phase };
 }
 
-export function spiralOffset(
+function spiralOffset(
   angle: number,
   radiusNormalizedValue: number,
   amplitude = 2.8
@@ -167,7 +167,7 @@ export function spiralOffset(
   return { x, y, phase };
 }
 
-export function isPrime(value: number): boolean {
+function isPrime(value: number): boolean {
   if (value <= 1) {
     return false;
   }
@@ -220,11 +220,11 @@ function buildSnakeOrderToIndexMap(): number[] {
 
 const SNAKE_ORDER: readonly number[] = buildSnakeOrderToIndexMap();
 
-export function snakePathNormFromIndex(index: number): number {
+function snakePathNormFromIndex(index: number): number {
   return SNAKE_ORDER[index]! / (CELLS - 1);
 }
 
-export function snakePathOrderValue(index: number): number {
+function snakePathOrderValue(index: number): number {
   return SNAKE_ORDER[index]!;
 }
 
@@ -419,20 +419,20 @@ function buildRowWaveSnakeOrderToIndexMap(): number[] {
 const ROW_WAVE_SNAKE_ORDER: readonly number[] = buildRowWaveSnakeOrderToIndexMap();
 const ROW_WAVE_SNAKE_MAX_ORDER = Math.max(...ROW_WAVE_SNAKE_ORDER);
 
-export function rowWaveOrderValue(index: number): number {
+function rowWaveOrderValue(index: number): number {
   return ROW_WAVE_SNAKE_ORDER[index]!;
 }
 
-export function rowWaveNormFromIndex(index: number): number {
+function rowWaveNormFromIndex(index: number): number {
   return ROW_WAVE_SNAKE_MAX_ORDER > 0 ? rowWaveOrderValue(index) / ROW_WAVE_SNAKE_MAX_ORDER : 0;
 }
 
-export function colWaveNormFromIndex(index: number): number {
+function colWaveNormFromIndex(index: number): number {
   const { col } = indexToCoord(index);
   return N > 1 ? col / (N - 1) : 0;
 }
 
-export function concentricRingNormFromIndex(index: number): number {
+function concentricRingNormFromIndex(index: number): number {
   const { row, col } = indexToCoord(index);
   return Math.max(Math.abs(row - C), Math.abs(col - C)) / C;
 }
@@ -752,7 +752,7 @@ export function DotMatrixBase({
 
 type NormFn = (ctx: Pick<DotAnimationContext, "row" | "col" | "index">) => number;
 
-export function createPathWaveResolver(getPathNorm: NormFn): DotAnimationResolver {
+function createPathWaveResolver(getPathNorm: NormFn): DotAnimationResolver {
   return ({ isActive, row, col, index, reducedMotion, phase }) => {
     if (!isActive) {
       return { className: "dmx-inactive" };
@@ -776,7 +776,7 @@ export function createPathWaveResolver(getPathNorm: NormFn): DotAnimationResolve
 
 type PathWaveComponentProps = DotMatrixCommonProps;
 
-export function createPathWaveComponent(displayName: string, getPathNorm: NormFn) {
+function createPathWaveComponent(displayName: string, getPathNorm: NormFn) {
   const resolve = createPathWaveResolver(getPathNorm);
 
   function PathWaveComponent({

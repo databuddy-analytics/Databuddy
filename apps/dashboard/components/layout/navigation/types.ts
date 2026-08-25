@@ -34,7 +34,7 @@ export interface NavigationItem {
 	tag?: string;
 }
 
-export interface NavigationSearchItem {
+interface NavigationSearchItem {
 	disabled?: boolean;
 	external?: boolean;
 	href?: string;
@@ -44,13 +44,6 @@ export interface NavigationSearchItem {
 	searchTags?: string[];
 }
 
-export interface NavigationSection {
-	flag?: string;
-	icon: NavIcon;
-	items: NavigationItem[];
-	title: string;
-}
-
 export interface NavigationGroup {
 	back?: { href: string; label: string };
 	flag?: string;
@@ -58,5 +51,3 @@ export interface NavigationGroup {
 	label: string;
 	pinToBottom?: boolean;
 }
-
-export type NavigationEntry = NavigationSection | NavigationItem;

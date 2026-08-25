@@ -1,11 +1,7 @@
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 
-export type BrandVariant =
-	| "logomark"
-	| "wordmark"
-	| "primary-logo"
-	| "secondary-logo";
+type BrandVariant = "logomark" | "wordmark" | "primary-logo" | "secondary-logo";
 
 export interface BrandingProps {
 	className?: string;

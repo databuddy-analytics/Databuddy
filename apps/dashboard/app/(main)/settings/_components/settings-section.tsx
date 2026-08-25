@@ -1,7 +1,4 @@
-import { useHotkeys } from "react-hotkeys-hook";
 import { cn } from "@/lib/utils";
-import { CircleNotchIcon } from "@databuddy/ui/icons";
-import { Button } from "@databuddy/ui";
 
 interface SettingsSectionProps {
 	children: React.ReactNode;
@@ -29,37 +26,6 @@ export function SettingsSection({
 	);
 }
 
-interface SettingsRowProps {
-	children: React.ReactNode;
-	className?: string;
-	description?: string;
-	label: React.ReactNode;
-}
-
-export function SettingsRow({
-	label,
-	description,
-	children,
-	className,
-}: SettingsRowProps) {
-	return (
-		<div
-			className={cn(
-				"flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between",
-				className
-			)}
-		>
-			<div className="min-w-0 flex-1">
-				<p className="font-medium text-sm">{label}</p>
-				{description && (
-					<p className="text-muted-foreground text-xs">{description}</p>
-				)}
-			</div>
-			<div className="shrink-0">{children}</div>
-		</div>
-	);
-}
-
 interface ComingSoonProps {
 	description: string;
 	icon: React.ReactNode;
@@ -77,60 +43,5 @@ export function ComingSoon({ title, description, icon }: ComingSoonProps) {
 				{description}
 			</p>
 		</div>
-	);
-}
-
-interface UnsavedChangesFooterProps {
-	hasChanges: boolean;
-	isSaving: boolean;
-	message?: string;
-	onDiscard?: () => void;
-	onSave: () => void;
-	saveLabel?: string;
-}
-
-export function UnsavedChangesFooter({
-	hasChanges,
-	isSaving,
-	onSave,
-	onDiscard,
-	saveLabel = "Save Changes",
-	message = "You have unsaved changes",
-}: UnsavedChangesFooterProps) {
-	useHotkeys(
-		"escape",
-		() => {
-			if (hasChanges && !isSaving && onDiscard) {
-				onDiscard();
-			}
-		},
-		{ enabled: hasChanges && !isSaving && Boolean(onDiscard) },
-		[hasChanges, isSaving, onDiscard]
-	);
-
-	if (!(hasChanges || isSaving)) {
-		return null;
-	}
-
-	return (
-		<section className="angled-rectangle-gradient sticky bottom-0 z-10 mt-auto flex items-center justify-between gap-3 border-t bg-secondary px-5 py-4">
-			<p className="text-muted-foreground text-sm">{message}</p>
-			<div className="flex items-center gap-2">
-				{onDiscard && (
-					<Button
-						disabled={isSaving}
-						onClick={onDiscard}
-						size="sm"
-						variant="ghost"
-					>
-						Discard
-					</Button>
-				)}
-				<Button disabled={isSaving} onClick={onSave} size="sm">
-					{isSaving && <CircleNotchIcon className="mr-2 size-4 animate-spin" />}
-					{saveLabel}
-				</Button>
-			</div>
-		</section>
 	);
 }

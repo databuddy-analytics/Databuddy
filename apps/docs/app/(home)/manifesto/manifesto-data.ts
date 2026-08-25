@@ -3,7 +3,7 @@ export type ManifestoBlock =
 	| { type: "callout"; text: string }
 	| { type: "prompts"; items: readonly string[] };
 
-export type ManifestoChapterId =
+type ManifestoChapterId =
 	| "analytics-is-broken"
 	| "context-is-everything"
 	| "privacy-is-the-default"

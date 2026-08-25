@@ -9,7 +9,7 @@ import { usePrefersReducedMotion } from "../../hooks";
 import { useSteppedCycle } from "../../hooks";
 import type { DotAnimationResolver, DotMatrixCommonProps } from "../../core";
 
-export type DotmSquare20Props = DotMatrixCommonProps;
+type DotmSquare20Props = DotMatrixCommonProps;
 
 /** Clockwise perimeter: one closed loop you can trace with your eye. */
 const PERIMETER_PATH: readonly number[] = [

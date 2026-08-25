@@ -492,7 +492,7 @@ function toMiniMapProps(input: MiniMapInput): MiniMapProps {
 	};
 }
 
-export const componentRegistry: ComponentRegistry = {
+const componentRegistry: ComponentRegistry = {
 	"line-chart": {
 		validate: isTimeSeriesInput,
 		transform: toTimeSeriesProps,

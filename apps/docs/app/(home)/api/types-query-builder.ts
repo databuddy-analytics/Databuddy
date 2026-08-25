@@ -1,4 +1,4 @@
-export type QueryFieldType =
+type QueryFieldType =
 	| "string"
 	| "number"
 	| "boolean"
@@ -6,7 +6,7 @@ export type QueryFieldType =
 	| "datetime"
 	| "json";
 
-export interface QueryOutputField {
+interface QueryOutputField {
 	description?: string;
 	example?: string | number | boolean | null;
 	label?: string;
@@ -15,7 +15,7 @@ export interface QueryOutputField {
 	unit?: string;
 }
 
-export type VisualizationType =
+type VisualizationType =
 	| "table"
 	| "timeseries"
 	| "bar"

@@ -7,7 +7,7 @@ export type RoadmapStatus =
 
 export type RoadmapPriority = "critical" | "high" | "medium" | "low";
 
-export type RoadmapCategory =
+type RoadmapCategory =
 	| "analytics"
 	| "AI"
 	| "integrations"

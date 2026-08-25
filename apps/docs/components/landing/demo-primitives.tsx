@@ -8,7 +8,6 @@ import { Button } from "@databuddy/ui";
 import { cn } from "@/lib/utils";
 
 export {
-	CELL_TITLE_CLASS,
 	EASE,
 	TH,
 	TH_RIGHT,

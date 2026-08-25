@@ -191,15 +191,13 @@ export const Navbar = ({ stars, variant = "default" }: NavbarProps) => {
 	);
 };
 
-export { iconBtn as navIconBtn };
-
-export interface NavMenuItem {
+interface NavMenuItem {
 	name: string;
 	path: string;
 	trackId: string;
 }
 
-export const navMenu: NavMenuItem[] = [
+const navMenu: NavMenuItem[] = [
 	{ name: "Docs", path: "/docs", trackId: "docs" },
 	{ name: "Pricing", path: "/pricing", trackId: "pricing" },
 	{ name: "Compare", path: "/compare", trackId: "compare" },

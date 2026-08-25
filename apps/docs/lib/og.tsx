@@ -60,7 +60,7 @@ async function readOgFonts() {
 const LOGOMARK_ASPECT = 997.25 / 1000;
 const WORDMARK_ASPECT = 3529.1 / 722.77;
 
-export function OgLogomark({
+function OgLogomark({
 	height,
 	fill = OG_COLORS.foreground,
 }: {
@@ -86,7 +86,7 @@ export function OgLogomark({
 	);
 }
 
-export function OgWordmark({
+function OgWordmark({
 	height,
 	fill = OG_COLORS.foreground,
 }: {

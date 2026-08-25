@@ -7,7 +7,7 @@ import { useDotMatrixPhases } from "../../hooks";
 import { usePrefersReducedMotion } from "../../hooks";
 import type { DotAnimationResolver, DotMatrixCommonProps } from "../../core";
 
-export type DotmSquare9Props = DotMatrixCommonProps;
+type DotmSquare9Props = DotMatrixCommonProps;
 
 /**
  * Dots 1–6 in Unicode / ISO braille numbering (matches U+2800 + mask):

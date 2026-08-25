@@ -32,14 +32,6 @@ export const CHART_LOCATION_LABELS: Record<ChartLocation, string> = {
 	events: "Events Stats",
 };
 
-export const CHART_LOCATION_DESCRIPTIONS: Record<ChartLocation, string> = {
-	"overview-stats": "Small stat cards showing visitors, pageviews, etc.",
-	"overview-main": "Large main chart on the overview tab",
-	funnels: "Stat cards in the funnel analytics section",
-	"website-list": "Mini charts on the websites list page",
-	events: "Stat cards in the events analytics section",
-};
-
 function isValidChartSeriesKind(value: unknown): value is ChartSeriesKind {
 	return (
 		typeof value === "string" &&

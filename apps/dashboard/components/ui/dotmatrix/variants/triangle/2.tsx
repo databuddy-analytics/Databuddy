@@ -10,7 +10,7 @@ import { usePrefersReducedMotion } from "../../hooks";
 import { useSteppedCycle } from "../../hooks";
 import type { DotMatrixCommonProps } from "../../core";
 
-export type DotmTriangle2Props = DotMatrixCommonProps;
+type DotmTriangle2Props = DotMatrixCommonProps;
 
 const MATRIX_SIZE = 7;
 const STEP_COUNT = 36;

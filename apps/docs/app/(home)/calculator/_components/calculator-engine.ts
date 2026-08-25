@@ -179,16 +179,6 @@ export const SCENARIOS: Scenario[] = SCENARIO_CONFIGS.map((config) => ({
 	outputs: calculateCookieBannerCost(config.inputs),
 }));
 
-export function formatCurrency(value: number): string {
-	if (value >= 1_000_000) {
-		return `$${(value / 1_000_000).toFixed(1)}M`;
-	}
-	if (value >= 1000) {
-		return `$${(value / 1000).toFixed(1)}K`;
-	}
-	return `$${Math.round(value).toLocaleString()}`;
-}
-
 export function formatCurrencyFull(value: number): string {
 	return `$${Math.round(value).toLocaleString()}`;
 }

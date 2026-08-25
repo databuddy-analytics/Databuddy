@@ -1,6 +1,6 @@
 import type { DataFilter } from "@databuddy/db/schema";
 
-export interface ParameterWithDates {
+interface ParameterWithDates {
 	end_date?: string;
 	granularity?: "hourly" | "daily";
 	id?: string;

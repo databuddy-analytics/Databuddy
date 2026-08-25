@@ -7,10 +7,7 @@ type Granularity = "hourly" | "daily" | "weekly" | "monthly";
  * Formats a date to a readable string
  * Shows time if the date is within a 24-hour period or spans less than a day
  */
-export function formatAnnotationDate(
-	date: Date | string,
-	showTime = false
-): string {
+function formatAnnotationDate(date: Date | string, showTime = false): string {
 	const dateObj = dayjs(date);
 	if (showTime) {
 		return dateObj.format("MMM D, h:mm A");
@@ -68,15 +65,6 @@ export function isSingleDayAnnotation(annotation: Annotation): boolean {
  * Gets the display date for chart rendering
  * Matches the format used by formatDateByGranularity
  */
-export function getChartDisplayDate(
-	date: Date | string,
-	granularity: Granularity = "daily"
-): string {
-	const dateObj = dayjs(date);
-	return granularity === "hourly"
-		? dateObj.format("MMM D, h:mm A")
-		: dateObj.format("MMM D");
-}
 
 /**
  * Validates annotation form data
@@ -109,9 +97,6 @@ export function validateAnnotationForm(data: {
 /**
  * Generates a unique annotation ID
  */
-export function generateAnnotationId(): string {
-	return `annotation_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
-}
 
 /**
  * Sanitizes annotation text
@@ -123,9 +108,3 @@ export function sanitizeAnnotationText(text: string): string {
 /**
  * Formats annotation tags for display
  */
-export function formatAnnotationTags(tags: string[] | null): string[] {
-	if (!tags || tags.length === 0) {
-		return [];
-	}
-	return tags.filter((tag) => tag.trim().length > 0);
-}

@@ -11,7 +11,7 @@ import {
 } from "../utils/feature-usage";
 import { getStripeMetadata } from "../utils/stripe-metadata";
 
-export interface Usage {
+interface Usage {
 	features: FeatureUsage[];
 }
 export interface CancelTarget {
@@ -19,10 +19,7 @@ export interface CancelTarget {
 	id: string;
 	name: string;
 }
-
-export type { Customer, Invoice } from "autumn-js";
 export type { CancelFeedback } from "../components/cancel-subscription-dialog";
-export type { CustomerWithPaymentMethod } from "../types/billing";
 
 export function useBilling(refetch?: () => void) {
 	const { attach, updateSubscription, check, openCustomerPortal } =

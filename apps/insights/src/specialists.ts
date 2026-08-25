@@ -3,7 +3,7 @@ import type { DetectedSignal } from "./detection";
 
 export type InsightSpecialistId = "funnel" | "goal" | "reliability" | "general";
 export type InsightPortfolioFamily = InsightSpecialistId;
-export type InsightReadToolName =
+type InsightReadToolName =
 	| "discover_query_types"
 	| "get_data"
 	| "get_funnel_analytics"
@@ -43,12 +43,12 @@ const RELIABILITY_INSTRUCTIONS = `You are the reliability specialist. Establish 
 
 Inspect the affected route, error or vital trend, and relevant session behavior. Use source, configuration, or deploy evidence only when it can establish a concrete repair mechanism.`;
 
-export const isFunnelDetectedSignal = (signal: DetectedSignal) =>
+const isFunnelDetectedSignal = (signal: DetectedSignal) =>
 	signal.metric.startsWith("funnel:") ||
 	(signal.metric === "measurement_coverage" &&
 		signal.subjectKey === "measurement:conversion-coverage");
 
-export const isFunnelInvestigationSignal = (signal: InvestigationSignal) =>
+const isFunnelInvestigationSignal = (signal: InvestigationSignal) =>
 	signal.entity.type === "funnel" ||
 	signal.entity.type === "funnel_step" ||
 	signal.signalKey.startsWith("funnel:") ||

@@ -56,7 +56,7 @@ import {
 
 export type { RecentCustomEvent } from "@/components/events/custom-events";
 
-export interface EventsStreamData {
+interface EventsStreamData {
 	error: Error | null;
 	events: StreamCustomEvent[] | undefined;
 	isError: boolean;

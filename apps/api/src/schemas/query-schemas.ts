@@ -6,14 +6,11 @@ const QUERY_BUILDER_TYPES = Object.keys(QueryBuilders) as Array<
 	keyof typeof QueryBuilders
 >;
 
-export {
-	DatePresets,
-	type DatePreset,
-} from "@databuddy/ai/lib/date-presets";
+export { DatePresets } from "@databuddy/ai/lib/date-presets";
 
-export const DatePresetSchema = t.Enum(DatePresets);
+const DatePresetSchema = t.Enum(DatePresets);
 
-export const FilterSchema = t.Object({
+const FilterSchema = t.Object({
 	field: t.String(),
 	op: t.Enum({
 		eq: "eq",
@@ -31,7 +28,7 @@ export const FilterSchema = t.Object({
 	]),
 });
 
-export const ParameterWithDatesSchema = t.Object({
+const ParameterWithDatesSchema = t.Object({
 	name: t.String(),
 	start_date: t.Optional(t.String()),
 	end_date: t.Optional(t.String()),
@@ -90,7 +87,7 @@ export const CompileRequestSchema = t.Object({
 	offset: t.Optional(t.Number({ minimum: 0 })),
 });
 
-export interface FilterType {
+interface FilterType {
 	field: string;
 	op:
 		| "eq"
@@ -103,7 +100,7 @@ export interface FilterType {
 	value: string | number | Array<string | number>;
 }
 
-export interface ParameterWithDatesType {
+interface ParameterWithDatesType {
 	end_date?: string;
 	granularity?: "hourly" | "daily" | "hour" | "day";
 	id?: string;

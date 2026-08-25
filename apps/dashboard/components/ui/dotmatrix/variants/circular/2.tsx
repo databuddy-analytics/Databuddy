@@ -9,7 +9,7 @@ import { rowMajorIndex } from "../../core";
 import { usePrefersReducedMotion } from "../../hooks";
 import type { DotAnimationResolver, DotMatrixCommonProps } from "../../core";
 
-export type DotmCircular2Props = DotMatrixCommonProps;
+type DotmCircular2Props = DotMatrixCommonProps;
 
 const RING_PATH: readonly number[] = [
   rowMajorIndex(0, 1),

@@ -1,7 +1,6 @@
 import type {
 	RoadmapItem,
 	RoadmapMilestone,
-	RoadmapQuarter,
 	RoadmapStats,
 } from "./roadmap-types";
 
@@ -351,118 +350,7 @@ export const roadmapItems: RoadmapItem[] = [
 	},
 ];
 
-export const roadmapQuarters: RoadmapQuarter[] = [
-	{
-		id: "q4-2024",
-		name: "Q4 2024",
-		startDate: "2024-10-01",
-		endDate: "2024-12-31",
-		items: roadmapItems.filter(
-			(item) =>
-				item.targetDate &&
-				item.targetDate >= "2024-10-01" &&
-				item.targetDate <= "2024-12-31"
-		),
-	},
-	{
-		id: "q1-2025",
-		name: "Q1 2025",
-		startDate: "2025-01-01",
-		endDate: "2025-03-31",
-		items: roadmapItems.filter(
-			(item) =>
-				item.targetDate &&
-				item.targetDate >= "2025-01-01" &&
-				item.targetDate <= "2025-03-31"
-		),
-	},
-	{
-		id: "q2-2025",
-		name: "Q2 2025",
-		startDate: "2025-04-01",
-		endDate: "2025-06-30",
-		items: roadmapItems.filter(
-			(item) =>
-				item.targetDate &&
-				item.targetDate >= "2025-04-01" &&
-				item.targetDate <= "2025-06-30"
-		),
-	},
-	{
-		id: "q3-2025",
-		name: "Q3 2025",
-		startDate: "2025-07-01",
-		endDate: "2025-09-30",
-		items: roadmapItems.filter(
-			(item) =>
-				item.targetDate &&
-				item.targetDate >= "2025-07-01" &&
-				item.targetDate <= "2025-09-30"
-		),
-	},
-	{
-		id: "q4-2025",
-		name: "Q4 2025",
-		startDate: "2025-10-01",
-		endDate: "2025-12-31",
-		items: roadmapItems.filter(
-			(item) =>
-				item.targetDate &&
-				item.targetDate >= "2025-10-01" &&
-				item.targetDate <= "2025-12-31"
-		),
-	},
-	{
-		id: "q1-2026",
-		name: "Q1 2026",
-		startDate: "2026-01-01",
-		endDate: "2026-03-31",
-		items: roadmapItems.filter(
-			(item) =>
-				item.targetDate &&
-				item.targetDate >= "2026-01-01" &&
-				item.targetDate <= "2026-03-31"
-		),
-	},
-	{
-		id: "q2-2026",
-		name: "Q2 2026",
-		startDate: "2026-04-01",
-		endDate: "2026-06-30",
-		items: roadmapItems.filter(
-			(item) =>
-				item.targetDate &&
-				item.targetDate >= "2026-04-01" &&
-				item.targetDate <= "2026-06-30"
-		),
-	},
-	{
-		id: "q3-2026",
-		name: "Q3 2026",
-		startDate: "2026-07-01",
-		endDate: "2026-09-30",
-		items: roadmapItems.filter(
-			(item) =>
-				item.targetDate &&
-				item.targetDate >= "2026-07-01" &&
-				item.targetDate <= "2026-09-30"
-		),
-	},
-	{
-		id: "q4-2026",
-		name: "Q4 2026",
-		startDate: "2026-10-01",
-		endDate: "2026-12-31",
-		items: roadmapItems.filter(
-			(item) =>
-				item.targetDate &&
-				item.targetDate >= "2026-10-01" &&
-				item.targetDate <= "2026-12-31"
-		),
-	},
-];
-
-export const roadmapMilestones: RoadmapMilestone[] = [
+const roadmapMilestones: RoadmapMilestone[] = [
 	{
 		id: "core-platform",
 		title: "Core Platform",

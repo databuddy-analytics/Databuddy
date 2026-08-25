@@ -16,30 +16,6 @@ export function cases<I, O>(
 	});
 }
 
-export function asyncCases<I, O>(
-	name: string,
-	table: Case<I, O>[],
-	fn: (input: I) => Promise<O>
-) {
-	describe(name, () => {
-		for (const [label, input, expected] of table) {
-			test(label, async () => expect(await fn(input)).toEqual(expected));
-		}
-	});
-}
-
-export function truthTable<A, B>(
-	name: string,
-	table: [label: string, a: A, b: B, expected: boolean][],
-	fn: (a: A, b: B) => boolean
-) {
-	describe(name, () => {
-		for (const [label, a, b, expected] of table) {
-			test(label, () => expect(fn(a, b)).toBe(expected));
-		}
-	});
-}
-
 export function schemaTable(
 	name: string,
 	schema: { safeParse: (v: unknown) => { success: boolean } },
@@ -81,14 +57,6 @@ export function randomPublicIPv4(): string {
 		}
 		return `${a}.${b}.${Math.floor(Math.random() * 256)}.${Math.floor(Math.random() * 256)}`;
 	}
-}
-
-export function randomIPv6(): string {
-	return Array.from({ length: 8 }, () =>
-		Math.floor(Math.random() * 0x1_00_00)
-			.toString(16)
-			.padStart(4, "0")
-	).join(":");
 }
 
 // ── String generators ──

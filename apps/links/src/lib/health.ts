@@ -1,4 +1,4 @@
-export type LinkDependencyStatus = "disabled" | "error" | "ok" | "pending";
+type LinkDependencyStatus = "disabled" | "error" | "ok" | "pending";
 
 export interface LinkHealthStatuses {
 	clickhouse: LinkDependencyStatus;

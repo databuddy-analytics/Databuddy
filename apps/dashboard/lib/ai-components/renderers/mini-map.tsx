@@ -34,7 +34,7 @@ const MapComponent = dynamic(
 	}
 );
 
-export interface CountryItem {
+interface CountryItem {
 	country_code?: string;
 	name: string;
 	pageviews?: number;

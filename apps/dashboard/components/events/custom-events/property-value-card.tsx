@@ -6,7 +6,7 @@ import { safePercentage } from "./events-utils";
 import { FunnelIcon, TagIcon } from "@databuddy/ui/icons";
 import { Badge } from "@databuddy/ui";
 
-export interface PropertyValueCardValue {
+interface PropertyValueCardValue {
 	count: number;
 	percentage: number;
 	property_value: string;

@@ -129,7 +129,7 @@ export type TrackEventPayload = {
  */
 export type ProfileTraits = Record<string, string | number | boolean | null>;
 
-export type DatabuddyGlobal = {
+type DatabuddyGlobal = {
 	track: (name: string, props?: Record<string, unknown>) => void;
 	screenView: (props?: Record<string, unknown>) => void;
 	/**

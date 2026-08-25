@@ -3,30 +3,6 @@ import { appendUtmToUrl, type UtmParams } from "./utm-builder";
 
 const HTTP_PROTOCOL_PREFIX = /^https?:\/\//i;
 
-export function formatTarget(targetUrl: string): string {
-	try {
-		const parsed = new URL(targetUrl);
-		return parsed.host + (parsed.pathname === "/" ? "" : parsed.pathname);
-	} catch {
-		return targetUrl;
-	}
-}
-
-export function shortenId(id: string): string {
-	if (id.length <= 8) {
-		return id;
-	}
-	return `${id.slice(0, 3)}…${id.slice(-3)}`;
-}
-
-export function shortenUrl(url: string): string {
-	try {
-		return new URL(url).host;
-	} catch {
-		return url.length <= 12 ? url : `${url.slice(0, 9)}…`;
-	}
-}
-
 export function stripProtocol(url: string | null): string {
 	if (!url) {
 		return "";

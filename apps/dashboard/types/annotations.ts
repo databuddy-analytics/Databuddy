@@ -2,9 +2,9 @@
  * Annotation types and interfaces for the chart annotations system
  */
 
-export type AnnotationType = "point" | "line" | "range";
+type AnnotationType = "point" | "line" | "range";
 
-export type ChartType = "metrics";
+type ChartType = "metrics";
 
 export interface Annotation {
 	annotationType: AnnotationType;
@@ -54,14 +54,6 @@ export interface CreateAnnotationData {
 	yValue?: number;
 }
 
-export interface UpdateAnnotationData {
-	color?: string;
-	id: string;
-	isPublic?: boolean;
-	tags?: string[];
-	text?: string;
-}
-
 export interface AnnotationColor {
 	label: string;
 	value: string;
@@ -71,12 +63,6 @@ export interface AnnotationTag {
 	color: string;
 	label: string;
 	value: string;
-}
-
-export interface ListAnnotationsInput {
-	chartContext: ChartContext;
-	chartType: ChartType;
-	websiteId: string;
 }
 
 export interface AnnotationFormData {

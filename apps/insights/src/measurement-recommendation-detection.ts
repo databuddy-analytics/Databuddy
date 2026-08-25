@@ -48,23 +48,23 @@ const CONVERSION_TERMS = new Set([
 	"trial",
 ]);
 
-export const MEASUREMENT_RECOMMENDATION_SUBJECT_KEY =
+const MEASUREMENT_RECOMMENDATION_SUBJECT_KEY =
 	"measurement:conversion-coverage";
-export const TRACKING_ACTIVITY_SUBJECT_KEY = "measurement:tracking-activity";
+const TRACKING_ACTIVITY_SUBJECT_KEY = "measurement:tracking-activity";
 
-export interface MeasurementDefinitionCoverage {
+interface MeasurementDefinitionCoverage {
 	activeFunnels: number;
 	activeGoals: number;
 	coveredEventTargets: string[];
 	websiteCreatedAt?: Date | null;
 }
 
-export interface ObservedCustomEvent {
+interface ObservedCustomEvent {
 	name: string;
 	uniqueUsers: number;
 }
 
-export interface MeasurementTelemetry {
+interface MeasurementTelemetry {
 	customEventNames: string[];
 	customEventSampled?: boolean;
 	customEventSampleLimit?: number;
@@ -73,7 +73,7 @@ export interface MeasurementTelemetry {
 	sessions: number;
 }
 
-export interface MeasurementActivity {
+interface MeasurementActivity {
 	customEvents: number;
 	pageviews: number;
 	sessions: number;

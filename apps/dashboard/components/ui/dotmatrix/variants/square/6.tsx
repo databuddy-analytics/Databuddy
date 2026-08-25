@@ -7,7 +7,7 @@ import { useDotMatrixPhases } from "../../hooks";
 import { usePrefersReducedMotion } from "../../hooks";
 import type { DotAnimationResolver, DotMatrixCommonProps } from "../../core";
 
-export type DotmSquare6Props = DotMatrixCommonProps;
+type DotmSquare6Props = DotMatrixCommonProps;
 
 const COLUMN_HEIGHT = 5;
 

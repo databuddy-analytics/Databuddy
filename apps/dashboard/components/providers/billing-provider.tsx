@@ -22,7 +22,7 @@ type HookCustomer = NonNullable<ReturnType<typeof useCustomer>["data"]>;
 type HookPlan = NonNullable<ReturnType<typeof useListPlans>["data"]>[number];
 type HookBalance = NonNullable<HookCustomer["balances"]>[string];
 
-export interface FeatureAccess {
+interface FeatureAccess {
 	allowed: boolean;
 	balance: number;
 	limit: number;
@@ -30,7 +30,7 @@ export interface FeatureAccess {
 	usagePercent: number | null;
 }
 
-export interface GatedFeatureAccess {
+interface GatedFeatureAccess {
 	allowed: boolean;
 	minPlan: PlanId | null;
 	upgradeMessage: string | null;

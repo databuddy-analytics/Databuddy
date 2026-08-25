@@ -70,8 +70,6 @@ export const baseErrors = {
 	},
 } as const;
 
-export type BaseErrors = typeof baseErrors;
-
 export const rpcError = {
 	unauthorized: (message?: string) =>
 		new ORPCError("UNAUTHORIZED", { message }),

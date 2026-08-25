@@ -13,7 +13,7 @@ import {
 	SpinnerGapIcon,
 } from "@databuddy/ui/icons";
 import { Avatar, DropdownMenu } from "@databuddy/ui/client";
-import { Text, Tooltip } from "@databuddy/ui";
+import { Text } from "@databuddy/ui";
 import { clearPersistedQueryCache } from "@/lib/query-client";
 
 export interface ProfileButtonUser {
@@ -235,41 +235,5 @@ export function ProfileDropdownContent({
 				{isLoggingOut ? "Signing out…" : "Sign out"}
 			</DropdownMenu.Item>
 		</DropdownMenu.Content>
-	);
-}
-
-export function ProfileButtonClient({
-	user,
-}: {
-	user: ProfileButtonUser | null;
-}) {
-	const [isOpen, setIsOpen] = useState(false);
-
-	if (!user) {
-		return null;
-	}
-
-	return (
-		<DropdownMenu onOpenChange={setIsOpen} open={isOpen}>
-			<Tooltip content={user.email ?? "Account"} side="top">
-				<DropdownMenu.Trigger
-					aria-label="Profile menu"
-					className="flex size-8 items-center justify-center rounded-full transition-opacity duration-(--duration-quick) ease-(--ease-smooth) hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-					render={<button type="button" />}
-				>
-					<Avatar
-						alt={user.name || "User"}
-						className="size-8"
-						fallback={getInitials(user.name, user.email)}
-						src={user.image || undefined}
-					/>
-				</DropdownMenu.Trigger>
-			</Tooltip>
-			<ProfileDropdownContent
-				isOpen={isOpen}
-				onClose={() => setIsOpen(false)}
-				user={user}
-			/>
-		</DropdownMenu>
 	);
 }

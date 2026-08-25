@@ -3,7 +3,7 @@ import { dayjs } from "@databuddy/ui";
 
 const DEFAULT_DATE_RANGE_STORAGE_KEY = "databuddy-default-date-range";
 
-export const DEFAULT_DATE_RANGE_PRESETS = [
+const DEFAULT_DATE_RANGE_PRESETS = [
 	"24h",
 	"7d",
 	"30d",

@@ -39,15 +39,6 @@ export const DEFAULT_ANNOTATION_VALUES = {
 /**
  * Chart annotation styling constants
  */
-export const CHART_ANNOTATION_STYLES = {
-	strokeWidth: 3,
-	strokeDasharray: "5 5",
-	fillOpacity: 0.08,
-	strokeOpacity: 0.6,
-	fontSize: 11,
-	fontWeight: 600,
-	offset: 10,
-} as const;
 
 /**
  * Local storage keys for annotation preferences

@@ -13,7 +13,7 @@ import {
 import { usePrefersReducedMotion } from "../../hooks";
 import type { DotAnimationResolver, DotMatrixCommonProps } from "../../core";
 
-export type DotmSquare4Props = DotMatrixCommonProps;
+type DotmSquare4Props = DotMatrixCommonProps;
 
 const animationResolver: DotAnimationResolver = ({ isActive, index, row, col, reducedMotion, phase }) => {
   if (!isActive) {

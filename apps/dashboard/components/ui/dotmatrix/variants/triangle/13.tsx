@@ -10,7 +10,7 @@ import { useCyclePhase } from "../../hooks";
 import { usePrefersReducedMotion } from "../../hooks";
 import type { DotMatrixCommonProps } from "../../core";
 
-export type DotmTriangle13Props = DotMatrixCommonProps;
+type DotmTriangle13Props = DotMatrixCommonProps;
 
 const MATRIX_SIZE = 7;
 const BASE_OPACITY = 0.13;

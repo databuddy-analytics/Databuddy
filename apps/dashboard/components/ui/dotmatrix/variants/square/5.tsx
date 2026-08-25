@@ -8,7 +8,7 @@ import { diagonalSnakeNormFromIndex, diagonalSnakeOrderValue } from "../../core"
 import { usePrefersReducedMotion } from "../../hooks";
 import type { DotAnimationResolver, DotMatrixCommonProps } from "../../core";
 
-export type DotmSquare5Props = DotMatrixCommonProps;
+type DotmSquare5Props = DotMatrixCommonProps;
 
 const animationResolver: DotAnimationResolver = ({ isActive, index, reducedMotion, phase }) => {
   if (!isActive) {

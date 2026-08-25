@@ -10,7 +10,7 @@ import {
 import { record } from "@lib/tracing";
 import { useLogger } from "evlog/elysia";
 
-export type { ApiKeyRow, ApiScope } from "@databuddy/api-keys/resolve";
+export type { ApiKeyRow } from "@databuddy/api-keys/resolve";
 
 export const hasKeyScope = _hasKeyScope;
 export const hasGlobalAccess = _hasGlobalAccess;

@@ -9,7 +9,7 @@ import { useCyclePhase } from "../../hooks";
 import { usePrefersReducedMotion } from "../../hooks";
 import type { DotAnimationResolver, DotMatrixCommonProps } from "../../core";
 
-export type DotmCircular5Props = DotMatrixCommonProps;
+type DotmCircular5Props = DotMatrixCommonProps;
 
 const BASE_OPACITY = 0.08;
 const BLADE_OPACITY = 0.94;

@@ -28,7 +28,7 @@ type Segment = {
 	start: number;
 };
 
-export type UptimeHeatmapStripVariant = "segments" | "cells";
+type UptimeHeatmapStripVariant = "segments" | "cells";
 
 export interface UptimeHeatmapStripProps {
 	days: UptimeHeatmapDay[];
