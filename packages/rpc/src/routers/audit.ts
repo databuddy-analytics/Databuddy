@@ -13,6 +13,7 @@ import {
 	type AuditEvent,
 	type AuditCursor,
 } from "@databuddy/services/audit";
+import { ratelimit } from "@databuddy/redis/rate-limit";
 import { z } from "zod";
 import { rpcError } from "../errors";
 import { appendRpcAuditEventBestEffort } from "../lib/audit";
@@ -208,6 +209,13 @@ export const auditRouter = {
 				permissions: ["read"],
 				resource: "audit_log",
 			});
+
+			const rate = await ratelimit(`audit:export:${context.user.id}`, 5, 60);
+			if (!rate.success) {
+				throw rpcError.rateLimited(
+					Math.max(1, Math.ceil((rate.reset - Date.now()) / 1000))
+				);
+			}
 
 			const events: AuditEvent[] = [];
 			let snapshotCursor: AuditCursor | undefined;
