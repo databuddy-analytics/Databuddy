@@ -10,7 +10,6 @@
     "test:watch": "TZ=UTC bunx --bun vitest"
   },
   "dependencies": {
-    "@ai-sdk/provider": "^3.0.5",
     "@contextcompany/otel": "^1.0.13",
     "@databuddy/ai": "workspace:*",
     "@databuddy/api-keys": "workspace:*",
@@ -22,7 +21,6 @@
     "@databuddy/notifications": "workspace:*",
     "@databuddy/redis": "workspace:*",
     "@databuddy/rpc": "workspace:*",
-    "@databuddy/sdk": "workspace:*",
     "@databuddy/services": "workspace:*",
     "@databuddy/shared": "workspace:*",
     "@databuddy/validation": "workspace:*",
@@ -37,21 +35,17 @@
     "ai": "^6.0.188",
     "autumn-js": "catalog:",
     "bullmq": "^5.78.0",
-    "dayjs": "^1.11.19",
     "elysia": "catalog:",
     "evlog": "catalog:",
-    "jszip": "^3.10.1",
     "keypal": "0.2.0",
     "lru-cache": "^11.2.7",
     "resend": "^4.0.1",
-    "supermemory": "^4.17.0",
     "svix": "^1.84.1",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@databuddy/test": "workspace:*",
     "@types/bun": "catalog:",
-    "mitata": "^1.0.34",
     "vitest": "^4.1.5"
   },
   "peerDependencies": {
