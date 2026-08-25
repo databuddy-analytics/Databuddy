@@ -4,36 +4,17 @@ import type {
 	SlackPayload,
 } from "../types";
 import { BaseProvider } from "./base";
+import {
+	formatMetadataLabel,
+	isUserFacingMetadata,
+	truncate,
+} from "./payload-utils";
 
 const MAX_HEADER_LENGTH = 150;
 const MAX_MESSAGE_LENGTH = 2900;
 const MAX_FIELD_LENGTH = 1900;
 const MAX_FIELDS_PER_SECTION = 10;
 const MAX_BLOCKS = 50;
-const FIRST_CHARACTER_PATTERN = /^./;
-
-function truncate(value: string, maxLength: number): string {
-	if (value.length <= maxLength) {
-		return value;
-	}
-	return `${value.slice(0, maxLength - 1)}…`;
-}
-
-function isUserFacingMetadata(key: string): boolean {
-	return !(
-		key === "to" ||
-		key === "template" ||
-		key === "zScore" ||
-		key.endsWith("Id")
-	);
-}
-
-function formatMetadataLabel(key: string): string {
-	return key
-		.replaceAll(/([a-z0-9])([A-Z])/g, "$1 $2")
-		.replaceAll(/[_-]+/g, " ")
-		.replace(FIRST_CHARACTER_PATTERN, (character) => character.toUpperCase());
-}
 
 export function buildSlackBlocks(
 	payload: NotificationPayload
