@@ -263,7 +263,7 @@ describe("detectBot", () => {
 		});
 	});
 
-		describe("Generic isBot() fallback — config should still apply", () => {
+	describe("generic isBot() fallback", () => {
 		it("respects trackOnlyCategories for bots only caught by ua-parser-js's generic isBot()", () => {
 			const genericBotUA = "PowerShell/7.1.0";
 
