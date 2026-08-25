@@ -56,9 +56,6 @@ describe("buildDiscordEmbed", () => {
 	});
 
 	test("stops adding fields before the 6000-character aggregate embed limit", () => {
-		// 25 fields at the max 1024-char value each would sum to 25,600 chars,
-		// far past Discord's 6000-char total-embed limit even though each field
-		// individually respects its own per-field caps.
 		const embed = buildDiscordEmbed({
 			title: "Anomaly detected",
 			message: "M".repeat(4096),

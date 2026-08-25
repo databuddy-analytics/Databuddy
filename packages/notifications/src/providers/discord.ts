@@ -17,9 +17,6 @@ const MAX_DESCRIPTION_LENGTH = 4096;
 const MAX_FIELD_NAME_LENGTH = 256;
 const MAX_FIELD_VALUE_LENGTH = 1024;
 const MAX_FIELDS = 25;
-// Discord rejects an embed whose title + description + every field's name and
-// value + footer text sum past 6000 characters, even when each individual
-// piece is within its own per-component limit above.
 const MAX_TOTAL_EMBED_LENGTH = 6000;
 
 const PRIORITY_COLORS: Record<"low" | "high" | "urgent", number> = {
@@ -57,6 +54,9 @@ export function buildDiscordEmbed(payload: NotificationPayload): DiscordEmbed {
 
 			const name = truncate(formatMetadataLabel(key), MAX_FIELD_NAME_LENGTH);
 			const fieldValue = truncate(String(value), MAX_FIELD_VALUE_LENGTH);
+			if (!(name && fieldValue)) {
+				continue;
+			}
 			const fieldLength = name.length + fieldValue.length;
 
 			if (total + fieldLength > MAX_TOTAL_EMBED_LENGTH) {
