@@ -58,6 +58,7 @@ function defineAction<
 export const auditActions = {
 	AUDIT_LOG_VIEWED: defineAction("audit_log.viewed", "audit_log"),
 	AUDIT_LOG_EVENT_VIEWED: defineAction("audit_log.event_viewed", "audit_log"),
+	AUDIT_LOG_EXPORTED: defineAction("audit_log.exported", "audit_log"),
 	RPC_MUTATION: defineAction("rpc.mutation", "organization"),
 	FLAG_CHANGED: defineAction("flag.changed", "flag"),
 	API_KEY_CREATED: defineAction("api_key.created", "api_key"),
@@ -110,6 +111,136 @@ export const auditActions = {
 export type AuditActionDefinition =
 	(typeof auditActions)[keyof typeof auditActions];
 export type AuditActionName = AuditActionDefinition["action"];
+
+export const auditActionLabels = {
+	"api_key.created": "Created API key",
+	"api_key.deleted": "Deleted API key",
+	"api_key.revoked": "Revoked API key",
+	"api_key.rotated": "Rotated API key",
+	"api_key.updated": "Updated API key",
+	"audit_log.event_viewed": "Viewed audit event",
+	"audit_log.exported": "Exported audit log",
+	"audit_log.viewed": "Viewed audit log",
+	"flag.changed": "Changed feature flag",
+	"organization.created": "Created organization",
+	"organization.deleted": "Deleted organization",
+	"organization.invitation_accepted": "Accepted organization invitation",
+	"organization.invitation_cancelled": "Cancelled organization invitation",
+	"organization.invitation_created": "Created organization invitation",
+	"organization.invitation_rejected": "Rejected organization invitation",
+	"organization.member_added": "Added organization member",
+	"organization.member_removed": "Removed organization member",
+	"organization.member_role_updated": "Updated member role",
+	"organization.updated": "Updated organization",
+	"rpc.mutation": "System mutation",
+	"website.created": "Created website",
+	"website.deleted": "Deleted website",
+	"website.settings_updated": "Updated website settings",
+	"website.transferred": "Transferred website",
+	"website.updated": "Updated website",
+	"website.visibility_changed": "Changed website visibility",
+} satisfies Record<AuditActionName, string>;
+
+export const auditTechnicalActionNames = [
+	auditActions.AUDIT_LOG_EVENT_VIEWED.action,
+	auditActions.AUDIT_LOG_VIEWED.action,
+	auditActions.RPC_MUTATION.action,
+] as const;
+
+export const AUDIT_REDACTED_VALUE = "[REDACTED]";
+
+const sensitiveAuditFieldPattern =
+	/(^|[_-])(authorization|cookie|key|password|secret|token)([_-]|$)/i;
+
+function isSensitiveAuditField(field: string): boolean {
+	const normalizedField = field.replace(
+		/[A-Z]/g,
+		(character) => `_${character}`
+	);
+	return sensitiveAuditFieldPattern.test(normalizedField);
+}
+
+function redactAuditValue(field: string, value: AuditValue): AuditValue {
+	return isSensitiveAuditField(field) ? AUDIT_REDACTED_VALUE : value;
+}
+
+export function redactAuditChanges(changes?: AuditChanges): AuditChanges {
+	return Object.fromEntries(
+		Object.entries(changes ?? {}).map(([field, change]) => {
+			const before =
+				change.before === undefined
+					? undefined
+					: redactAuditValue(field, change.before);
+			const after =
+				change.after === undefined
+					? undefined
+					: redactAuditValue(field, change.after);
+			return [
+				field,
+				{
+					...(before === undefined ? {} : { before }),
+					...(after === undefined ? {} : { after }),
+				},
+			];
+		})
+	);
+}
+
+export function redactAuditMetadata(metadata?: AuditMetadata): AuditMetadata {
+	return Object.fromEntries(
+		Object.entries(metadata ?? {}).map(
+			([field, value]): [string, AuditValue] => [
+				field,
+				redactAuditValue(field, value),
+			]
+		)
+	);
+}
+
+export const auditSourceLabels: Record<AuditSource, string> = {
+	better_auth: "Authentication",
+	orpc: "Dashboard",
+	public_api: "Public API",
+	worker: "Background job",
+};
+
+export const auditActorTypeLabels: Record<AuditActorType, string> = {
+	agent: "Agent",
+	api: "API key",
+	system: "System",
+	user: "User",
+};
+
+const auditTargetLabels: Record<string, string> = {
+	audit_log: "Audit log",
+	api_key: "API key",
+	flag: "Feature flag",
+	invitation: "Invitation",
+	member: "Member",
+	organization: "Organization",
+	website: "Website",
+};
+
+function titleCase(value: string): string {
+	return value
+		.replaceAll("_", " ")
+		.replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+export function getAuditActionLabel(action: string): string {
+	if (action in auditActionLabels) {
+		return auditActionLabels[action as AuditActionName];
+	}
+
+	const [resource, verb] = action.split(".");
+	return verb
+		? `${titleCase(verb)} ${titleCase(resource ?? "event")}`
+		: titleCase(action);
+}
+
+export function getAuditTargetLabel(targetType: string): string {
+	return auditTargetLabels[targetType] ?? titleCase(targetType);
+}
 
 export interface AuditMirrorInput<TAction extends AuditActionDefinition> {
 	action: TAction;

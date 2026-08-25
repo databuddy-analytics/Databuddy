@@ -1,0 +1,100 @@
+{
+  "$schema": "./node_modules/knip/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/**/*.ts"],
+      "ignore": ["apps/cron/**"],
+      "ignoreBinaries": ["where", "which", "up"]
+    },
+    "apps/dashboard": {
+      "entry": ["**/*.test.{ts,tsx}"],
+      "ignoreDependencies": ["topojson-specification"]
+    },
+    "apps/docs": {
+      "entry": ["source.config.ts", "content/**/*.mdx", "**/*.test.{ts,tsx}"]
+    },
+    "apps/insights": {
+      "entry": ["**/*.test.{ts,tsx}"]
+    },
+    "apps/links": {
+      "entry": ["**/*.test.{ts,tsx}"]
+    },
+    "apps/slack": {
+      "entry": ["**/*.test.{ts,tsx}"]
+    },
+    "apps/uptime": {
+      "entry": ["**/*.test.{ts,tsx}"]
+    },
+    "apps/video": {
+      "entry": ["remotion.config.ts", "src/index.ts"],
+      "ignoreBinaries": ["out/intelligence-platform.mp4"]
+    },
+    "packages/ai": {
+      "entry": ["**/*.test.{ts,tsx}"]
+    },
+    "packages/api-keys": {
+      "entry": ["**/*.test.{ts,tsx}"]
+    },
+    "packages/db": {
+      "entry": ["**/*.test.{ts,tsx}"]
+    },
+    "packages/devtools": {
+      "entry": ["src/{core,react,vue}/index.ts"]
+    },
+    "packages/email": {
+      "entry": ["**/*.test.{ts,tsx}"]
+    },
+    "packages/encryption": {
+      "entry": ["**/*.test.{ts,tsx}"]
+    },
+    "packages/env": {
+      "entry": ["**/*.test.{ts,tsx}"]
+    },
+    "packages/migrate": {
+      "entry": ["**/*.test.{ts,tsx}"]
+    },
+    "packages/notifications": {
+      "entry": ["**/*.test.{ts,tsx}"]
+    },
+    "packages/nuxt": {
+      "entry": [
+        "src/module.ts",
+        "src/runtime/**/*.ts",
+        "playground/**/*.{ts,vue}"
+      ]
+    },
+    "packages/redis": {
+      "entry": ["**/*.test.{ts,tsx}"]
+    },
+    "packages/rpc": {
+      "entry": ["**/*.test.{ts,tsx}"]
+    },
+    "packages/sdk": {
+      "entry": [
+        "src/{core,node,react,vue}/index.ts",
+        "test-entry.ts",
+        "tests/**/*.test.{ts,tsx}",
+        "tests/**/*.types.ts"
+      ]
+    },
+    "packages/services": {
+      "entry": ["**/*.test.{ts,tsx}"]
+    },
+    "packages/shared": {
+      "entry": ["**/*.test.{ts,tsx}"]
+    },
+    "packages/tracker": {
+      "entry": [
+        "src/{errors,index,vitals}.ts",
+        "test-server.ts",
+        "tests/unit/**/*.test.ts"
+      ]
+    },
+    "packages/ui": {
+      "ignoreDependencies": ["tailwindcss", "tw-animate-css"]
+    },
+    "packages/validation": {
+      "entry": ["**/*.test.{ts,tsx}"]
+    }
+  }
+}

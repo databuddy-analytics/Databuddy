@@ -160,7 +160,15 @@ export function getAnonymousId(urlParams?: URLSearchParams): string | null {
 	if (typeof window === "undefined") {
 		return null;
 	}
-	return urlParams?.get("anonId") || localStorage.getItem("did") || null;
+	const fromParams = urlParams?.get("anonId");
+	if (fromParams) {
+		return fromParams;
+	}
+	try {
+		return localStorage.getItem("did") || null;
+	} catch {
+		return null;
+	}
 }
 
 /** Get current session ID. Priority: URL params → sessionStorage. Resets after 30 min inactivity. */
@@ -168,9 +176,15 @@ export function getSessionId(urlParams?: URLSearchParams): string | null {
 	if (typeof window === "undefined") {
 		return null;
 	}
-	return (
-		urlParams?.get("sessionId") || sessionStorage.getItem("did_session") || null
-	);
+	const fromParams = urlParams?.get("sessionId");
+	if (fromParams) {
+		return fromParams;
+	}
+	try {
+		return sessionStorage.getItem("did_session") || null;
+	} catch {
+		return null;
+	}
 }
 
 /** Get both anonymous ID and session ID in one call. */

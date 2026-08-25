@@ -72,10 +72,7 @@ export async function runMcpAgent(
 			abortSignal: abort.signal,
 		});
 
-		const usage = (result as { usage?: LanguageModelUsage }).usage;
-		if (usage) {
-			await trackPreparedUsage(prepared, usage);
-		}
+		await trackPreparedUsage(prepared, result.totalUsage);
 
 		const answer = result.text ?? "No response generated.";
 		if (options.storeMemory !== false) {

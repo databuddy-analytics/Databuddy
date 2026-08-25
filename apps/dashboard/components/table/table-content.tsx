@@ -40,7 +40,7 @@ const DEFAULT_CELL_STYLE = {
 
 const COMPACT_COLUMN_WIDTHS: Record<string, number> = {
 	clicks: 88,
-	cls: 76,
+	cls: 78,
 	current_time: 108,
 	customers: 100,
 	fcp: 88,

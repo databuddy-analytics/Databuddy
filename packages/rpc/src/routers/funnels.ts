@@ -1,6 +1,10 @@
 import { and, desc, eq, isNull, sql } from "@databuddy/db";
 import { funnelDefinitions } from "@databuddy/db/schema";
 import { GATED_FEATURES } from "@databuddy/shared/types/features";
+import {
+	analyticsDateRangeSchema,
+	resolveAnalyticsDateRange,
+} from "@databuddy/validation";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
@@ -46,13 +50,13 @@ const filterSchema = z.object({
 
 type Filter = z.infer<typeof filterSchema>;
 
-const getDefaultDateRange = () => {
-	const endDate = new Date().toISOString().split("T")[0];
-	const startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-		.toISOString()
-		.split("T")[0];
-	return { startDate, endDate };
-};
+const funnelAnalyticsInputSchema = analyticsDateRangeSchema.safeExtend({
+	funnelId: z.string(),
+	websiteId: z.string(),
+});
+const funnelAnalyticsByLinkInputSchema = funnelAnalyticsInputSchema.safeExtend({
+	linkId: z.string(),
+});
 
 const getEffectiveStartDate = (
 	requestedStartDate: string,
@@ -451,21 +455,11 @@ export const funnelsRouter = {
 			summary: "Get funnel analytics",
 			tags: ["Funnels"],
 		})
-		.input(
-			z.object({
-				funnelId: z.string(),
-				websiteId: z.string(),
-				startDate: z.string().optional(),
-				endDate: z.string().optional(),
-			})
-		)
+		.input(funnelAnalyticsInputSchema)
 		.output(funnelAnalyticsOutputSchema)
 		.use(withWebsiteRead)
 		.handler(async ({ context, input }) => {
-			const { startDate, endDate } =
-				input.startDate && input.endDate
-					? { startDate: input.startDate, endDate: input.endDate }
-					: getDefaultDateRange();
+			const { startDate, endDate } = resolveAnalyticsDateRange(input);
 
 			const [funnel] = await context.db
 				.select()
@@ -520,21 +514,11 @@ export const funnelsRouter = {
 			summary: "Get funnel analytics by referrer",
 			tags: ["Funnels"],
 		})
-		.input(
-			z.object({
-				funnelId: z.string(),
-				websiteId: z.string(),
-				startDate: z.string().optional(),
-				endDate: z.string().optional(),
-			})
-		)
+		.input(funnelAnalyticsInputSchema)
 		.output(funnelAnalyticsByReferrerOutputSchema)
 		.use(withWebsiteRead)
 		.handler(async ({ context, input }) => {
-			const { startDate, endDate } =
-				input.startDate && input.endDate
-					? { startDate: input.startDate, endDate: input.endDate }
-					: getDefaultDateRange();
+			const { startDate, endDate } = resolveAnalyticsDateRange(input);
 
 			const [funnel] = await context.db
 				.select()
@@ -589,22 +573,11 @@ export const funnelsRouter = {
 			summary: "Get funnel analytics by link",
 			tags: ["Funnels"],
 		})
-		.input(
-			z.object({
-				funnelId: z.string(),
-				websiteId: z.string(),
-				linkId: z.string(),
-				startDate: z.string().optional(),
-				endDate: z.string().optional(),
-			})
-		)
+		.input(funnelAnalyticsByLinkInputSchema)
 		.output(funnelAnalyticsOutputSchema)
 		.use(withWebsiteRead)
 		.handler(async ({ context, input }) => {
-			const { startDate, endDate } =
-				input.startDate && input.endDate
-					? { startDate: input.startDate, endDate: input.endDate }
-					: getDefaultDateRange();
+			const { startDate, endDate } = resolveAnalyticsDateRange(input);
 
 			const [funnel] = await context.db
 				.select()

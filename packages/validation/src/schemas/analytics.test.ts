@@ -1,5 +1,36 @@
 import { describe, expect, it } from "bun:test";
-import { analyticsEventSchema } from "./analytics";
+import {
+	analyticsDateRangeSchema,
+	analyticsEventSchema,
+	resolveAnalyticsDateRange,
+} from "./analytics";
+
+describe("analyticsDateRangeSchema", () => {
+	it("preserves an explicit range or uses an inclusive seven-calendar-day default", () => {
+		const now = new Date("2026-04-11T12:00:00.000Z");
+		expect(
+			resolveAnalyticsDateRange(
+				{ startDate: "2026-02-01", endDate: "2026-02-28" },
+				now
+			)
+		).toEqual({ startDate: "2026-02-01", endDate: "2026-02-28" });
+		expect(resolveAnalyticsDateRange({}, now)).toEqual({
+			startDate: "2026-04-05",
+			endDate: "2026-04-11",
+		});
+	});
+
+	it("rejects invalid, partial, and reversed date ranges", () => {
+		for (const range of [
+			{ startDate: "2026-02-30", endDate: "2026-03-01" },
+			{ startDate: "2026-02-01" },
+			{ endDate: "2026-02-01" },
+			{ startDate: "2026-03-02", endDate: "2026-03-01" },
+		]) {
+			expect(analyticsDateRangeSchema.safeParse(range).success).toBe(false);
+		}
+	});
+});
 
 const validEvent = {
 	eventId: "test-id",

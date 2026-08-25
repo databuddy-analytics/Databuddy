@@ -262,6 +262,21 @@ describe("detectBot", () => {
 			expect(custom.action).toBe(BotAction.BLOCK);
 		});
 	});
+
+	describe("generic isBot() fallback", () => {
+		it("respects trackOnlyCategories for bots only caught by ua-parser-js's generic isBot()", () => {
+			const genericBotUA = "PowerShell/7.1.0";
+
+			const result = detectBot(genericBotUA, {
+				trackOnlyCategories: [BotCategory.UNKNOWN_BOT],
+			});
+
+			expect(result.isBot).toBe(true);
+			expect(result.category).toBe(BotCategory.UNKNOWN_BOT);
+			expect(result.reason).toBe("general_bot_pattern");
+			expect(result.action).toBe(BotAction.TRACK_ONLY);
+		});
+	});
 });
 
 describe("matchCategory", () => {

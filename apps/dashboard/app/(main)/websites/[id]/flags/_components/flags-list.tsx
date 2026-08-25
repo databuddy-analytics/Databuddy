@@ -36,6 +36,7 @@ interface FlagsListProps {
 	stats: Map<string, FlagStats>;
 	statsError: boolean;
 	statsLoading: boolean;
+	websiteId: string;
 }
 
 const FLAG_LIST_MIN_WIDTH_CLASS = "min-w-[980px]";
@@ -77,7 +78,7 @@ function GroupsDisplay({ groups }: { groups: TargetGroup[] }) {
 	);
 }
 
-function StatusToggle({ flag }: { flag: Flag }) {
+function StatusToggle({ flag, websiteId }: { flag: Flag; websiteId: string }) {
 	const queryClient = useQueryClient();
 	const isActive = flag.status === "active";
 
@@ -86,7 +87,7 @@ function StatusToggle({ flag }: { flag: Flag }) {
 		onSuccess: () => {
 			queryClient.invalidateQueries({
 				queryKey: orpc.flags.list.key({
-					input: { websiteId: flag.websiteId ?? "" },
+					input: { websiteId },
 				}),
 			});
 		},
@@ -126,10 +127,12 @@ function StatusToggle({ flag }: { flag: Flag }) {
 
 function FlagActions({
 	flag,
+	websiteId,
 	onEdit,
 	onDelete,
 }: {
 	flag: Flag;
+	websiteId: string;
 	onEdit: (flag: Flag) => void;
 	onDelete: (flagId: string) => void;
 }) {
@@ -140,7 +143,7 @@ function FlagActions({
 		onSuccess: () => {
 			queryClient.invalidateQueries({
 				queryKey: orpc.flags.list.key({
-					input: { websiteId: flag.websiteId ?? "" },
+					input: { websiteId },
 				}),
 			});
 		},
@@ -405,6 +408,7 @@ function FlagRow({
 	statsLoading,
 	onEdit,
 	onDelete,
+	websiteId,
 }: {
 	flag: Flag;
 	groups: TargetGroup[];
@@ -416,6 +420,7 @@ function FlagRow({
 	statsLoading: boolean;
 	onEdit: (flag: Flag) => void;
 	onDelete: (flagId: string) => void;
+	websiteId: string;
 }) {
 	const typeConfig =
 		TYPE_CONFIG[flag.type as keyof typeof TYPE_CONFIG] ?? TYPE_CONFIG.boolean;
@@ -517,12 +522,17 @@ function FlagRow({
 						Archived
 					</Badge>
 				) : (
-					<StatusToggle flag={flag} />
+					<StatusToggle flag={flag} websiteId={websiteId} />
 				)}
 			</List.Cell>
 
 			<List.Cell action>
-				<FlagActions flag={flag} onDelete={onDelete} onEdit={onEdit} />
+				<FlagActions
+					flag={flag}
+					onDelete={onDelete}
+					onEdit={onEdit}
+					websiteId={websiteId}
+				/>
 			</List.Cell>
 		</List.Row>
 	);
@@ -531,6 +541,7 @@ function FlagRow({
 export function FlagsList({
 	flags,
 	groups,
+	websiteId,
 	onRetryStats,
 	stats,
 	statsError,
@@ -576,6 +587,7 @@ export function FlagsList({
 					statsLoading={statsLoading}
 					onDelete={onDelete}
 					onEdit={onEdit}
+					websiteId={websiteId}
 				/>
 			))}
 		</List>

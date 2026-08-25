@@ -1,5 +1,11 @@
+import {
+	apiKeyScopeTargetForResource,
+	requiredScopesForResource,
+	type ApiKeyScopeTarget,
+} from "@databuddy/api-keys/scopes";
 import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
 import { getRateLimitHeaders, ratelimit } from "@databuddy/redis/rate-limit";
+import type { ApiScope } from "@databuddy/shared/api-scopes";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { ORPCError } from "@orpc/server";
 import type { z } from "zod";
@@ -18,39 +24,6 @@ const ANSI_RE = /\u001B\[[0-?]*[ -/]*[@-~]/g;
 
 function stripAnsi(text: string): string {
 	return text.replace(ANSI_RE, "");
-}
-
-function coerceMcpInput(input: unknown): unknown {
-	if (!input || typeof input !== "object" || Array.isArray(input)) {
-		return input;
-	}
-	const out: Record<string, unknown> = {};
-	for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
-		if (typeof value === "string") {
-			const trimmed = value.trim();
-			if (trimmed === "true") {
-				out[key] = true;
-				continue;
-			}
-			if (trimmed === "false") {
-				out[key] = false;
-				continue;
-			}
-			if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
-				try {
-					const parsed = JSON.parse(trimmed);
-					if (typeof parsed === "object" && parsed !== null) {
-						out[key] = parsed;
-						continue;
-					}
-				} catch {
-					// intentionally empty
-				}
-			}
-		}
-		out[key] = value;
-	}
-	return out;
 }
 
 export type McpErrorCode =
@@ -91,25 +64,54 @@ export interface McpHandlerContext extends McpRequestContext {
 	websiteId?: string;
 }
 
-type McpToolCapability = "analytics" | "workspace";
 type McpToolMutationKind = "read" | "write";
 
 interface McpToolAccess {
-	confirmation?: "none" | "recommended" | "required";
+	globalScopes: ApiScope[];
 	kind: McpToolMutationKind;
-	scopes?: string[];
+	scopes: ApiScope[];
+}
+
+interface McpToolAccessInput {
+	kind?: McpToolMutationKind;
+	scopes?: ApiScope[];
+	scopeTarget?: ApiKeyScopeTarget;
 }
 
 export interface McpToolMetadata {
 	access: McpToolAccess;
-	capability: McpToolCapability;
-	evlogAction?: string;
+}
+
+export interface McpToolMetadataInput {
+	access?: McpToolAccessInput;
+}
+
+/**
+ * Derive MCP tool access metadata from the API-key scope source of truth.
+ * Keep this beside `defineMcpTool` so every tool module gets identical
+ * organization-vs-website scope behavior.
+ */
+export function metadataForResource(
+	resource: string,
+	permissions: readonly string[]
+): McpToolMetadataInput {
+	return {
+		access: {
+			kind: permissions.every(
+				(permission) => permission === "read" || permission === "view_analytics"
+			)
+				? "read"
+				: "write",
+			scopeTarget: apiKeyScopeTargetForResource(resource),
+			scopes: requiredScopesForResource(resource, permissions),
+		},
+	};
 }
 
 export interface McpToolMeta<S extends z.ZodTypeAny = z.ZodTypeAny> {
 	description: string;
 	inputSchema: S;
-	metadata?: Partial<McpToolMetadata>;
+	metadata?: McpToolMetadataInput;
 	name: string;
 	/**
 	 * Optional Zod schema describing the successful response shape.
@@ -117,7 +119,8 @@ export interface McpToolMeta<S extends z.ZodTypeAny = z.ZodTypeAny> {
 	 * it as `structuredContent` (MCP 2025-06-18 Tool Output Schemas), letting
 	 * clients consume native typed data instead of parsing JSON text.
 	 * The schema MUST validate an object — per MCP spec, `structuredContent`
-	 * is an object. Prefer `z.object({...})` or `z.record(...)`.
+	 * is an object. Prefer `z.object({...})` or `z.object({}).passthrough()`.
+	 * Root `z.record(...)` schemas are not compatible with the installed MCP SDK.
 	 */
 	outputSchema?: z.ZodType<Record<string, unknown>>;
 	ratelimit?: { limit: number; windowSec: number };
@@ -149,14 +152,17 @@ export interface McpToolFactory {
 }
 
 function toErrorResult(err: McpToolError): CallToolResult {
+	const isInternal = err.code === "internal";
 	const errorPayload: Record<string, unknown> = {
 		code: err.code,
-		message: stripAnsi(err.message),
+		message: isInternal
+			? "An internal error occurred. Please try again."
+			: stripAnsi(err.message),
 	};
-	if (err.hint) {
+	if (!isInternal && err.hint) {
 		errorPayload.hint = stripAnsi(err.hint);
 	}
-	if (err.details) {
+	if (!isInternal && err.details) {
 		errorPayload.details = err.details;
 	}
 	return {
@@ -245,7 +251,10 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 		);
 	}
 
-	const metadata = normalizeToolMetadata(meta.metadata);
+	const metadata = normalizeToolMetadata(
+		meta.metadata,
+		Boolean(meta.resolveWebsite)
+	);
 	const hasOutputSchema = meta.outputSchema !== undefined;
 
 	const build = (ctx: McpRequestContext): RegisteredMcpTool => ({
@@ -264,9 +273,7 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 			});
 
 			try {
-				const parseResult = meta.inputSchema.safeParse(
-					coerceMcpInput(rawInput ?? {})
-				);
+				const parseResult = meta.inputSchema.safeParse(rawInput ?? {});
 				if (!parseResult.success) {
 					const issue = parseResult.error.issues[0];
 					const path = issue?.path.join(".") ?? "input";
@@ -328,15 +335,7 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 
 				const result = await handler(input, handlerCtx);
 
-				trackAgentEvent("agent_activity", {
-					action: metadata.evlogAction ?? "tool_completed",
-					source: "mcp",
-					tool: meta.name,
-					success: true,
-					tool_access_kind: metadata.access.kind,
-					tool_capability: metadata.capability,
-					...attribution,
-				});
+				trackMcpToolEvent(metadata, meta.name, true, attribution);
 				mergeWideEvent({
 					mcp_status: "ok",
 					mcp_duration_ms: Date.now() - start,
@@ -358,15 +357,7 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 					captureError(err, { mcp_tool: meta.name });
 				}
 
-				trackAgentEvent("agent_activity", {
-					action: metadata.evlogAction ?? "tool_completed",
-					source: "mcp",
-					tool: meta.name,
-					success: false,
-					tool_access_kind: metadata.access.kind,
-					tool_capability: metadata.capability,
-					...attribution,
-				});
+				trackMcpToolEvent(metadata, meta.name, false, attribution);
 				mergeWideEvent({
 					mcp_status: "error",
 					mcp_error_code: toolError.code,
@@ -381,15 +372,38 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 }
 
 function normalizeToolMetadata(
-	metadata: Partial<McpToolMetadata> | undefined
+	metadata: McpToolMetadataInput | undefined,
+	resolvesWebsite: boolean
 ): McpToolMetadata {
+	const configuredScopes = metadata?.access?.scopes ?? [];
+	const scopes: ApiScope[] = [
+		...(resolvesWebsite ? (["read:data"] as const) : []),
+		...configuredScopes,
+	];
 	return {
 		access: {
-			confirmation: metadata?.access?.confirmation ?? "none",
+			globalScopes:
+				metadata?.access?.scopeTarget === "global" ? configuredScopes : [],
 			kind: metadata?.access?.kind ?? "read",
-			scopes: metadata?.access?.scopes ?? [],
+			scopes: [...new Set(scopes)],
 		},
-		capability: metadata?.capability ?? "analytics",
-		evlogAction: metadata?.evlogAction,
 	};
+}
+
+function trackMcpToolEvent(
+	metadata: McpToolMetadata,
+	tool: string,
+	success: boolean,
+	attribution: ReturnType<typeof getAttribution>
+): void {
+	const kind = metadata.access.kind;
+	trackAgentEvent("agent_activity", {
+		action: kind === "write" ? "tool_mutation" : "tool_completed",
+		source: "mcp",
+		tool,
+		success,
+		tool_access_kind: kind,
+		tool_capability: kind === "write" ? "workspace" : "analytics",
+		...attribution,
+	});
 }

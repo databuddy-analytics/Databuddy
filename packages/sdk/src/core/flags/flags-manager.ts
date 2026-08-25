@@ -857,7 +857,9 @@ export class BrowserFlagsManager extends BaseFlagsManager {
 			// A malformed custom value should not prevent telemetry.
 			valueKey = String(result.value);
 		}
-		const dedupeKey = `${key}:${result.variant ?? ""}:${valueKey}`;
+		const dedupeKey = [key, result.variant ?? "", valueKey]
+			.map((part) => `${part.length}:${part}`)
+			.join("");
 		if (this.trackedFlags.has(dedupeKey)) {
 			return;
 		}

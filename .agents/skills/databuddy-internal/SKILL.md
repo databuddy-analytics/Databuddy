@@ -77,6 +77,7 @@ Keep additions **minimal**: one bullet, a new `rg` hint, or a routing note—eno
 - `packages/sdk`: published analytics SDK for React, Vue, and Node
 - `packages/tracker`: internal tracker script build and release package
 - `packages/encryption`, `packages/notifications`, `packages/cache`, `packages/redis`, `packages/services`, `packages/validation`, `packages/api-keys`: shared infra and domain packages
+- Knip is configured in root `knip.json` (run `bun run knip`); per-workspace test globs are required because the root `test:watch` (`bun test --watch ./apps`) script shadows the Bun plugin's per-workspace script parsing; `apps/cron` is ignored (standalone scripts, no package.json)
 
 Read [codebase-map.md](./references/codebase-map.md) when you need deeper routing guidance.
 
@@ -120,6 +121,7 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 - Keep domain concerns at the owning seam. Routers/UI should call domain/service helpers, not know cache keys, raw Redis patterns, billing internals, or provider-specific lifecycle details.
 - Prefer direct, boring code. Use typed registries and small local helpers when they delete duplication; avoid generic job/facade abstractions, labeled pipelines, or framework-y wrappers unless they clearly reduce code and concepts.
 - Test invariants and contracts, not implementation trivia. Add guard tests for architectural rules only when they prevent repeat classes of bugs.
+- During cleanup, do not add per-consumer tests or test-only modules for schemas already covered at their shared boundary; keep one real end-to-end boundary regression when wiring itself changed.
 
 ## Change Routing
 
@@ -144,6 +146,7 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 - Do not centralize, relocate, or otherwise refactor dashboard E2E API route access gates during cleanup; keep test-only access checks local to each route unless iza explicitly asks for that change.
 - Integration catalog logos: use filled Simple Icons SVG path data (or equivalent filled brand SVG), store the path on each item as `iconPath`, render it through a shared logo tile with `bg-secondary/60`, `border-border/70`, `text-foreground`, and `fill="currentColor"`, then use brand color only as a small accent bar (`accent` or `accentClassName: "bg-foreground/70"` for black/near-black brands). Avoid raw brand-black icons or mixed line/filled icon sets that disappear in dark mode.
 - Organization integrations settings should stay list-first and operational: coming-soon integrations are static rows, Slack is the only expandable row for now, and connected integrations need obvious lifecycle controls such as uninstall/disconnect in the row details.
+- MCP setup UI should mirror the governed write metadata in `packages/ai/src/ai/mcp/tools.ts`: default to `read:data`, then expose explicit action bundles for workspace actions, feature flags, and short links with their required scopes and confirmation behavior.
 - Dashboard UI must use `apps/dashboard/components/ds` primitives exactly; feature code must not use raw form/control elements (`button`, `input`, `select`, `textarea`, native dialogs), Base UI/Radix primitives, or ad hoc styled controls directly. If a variant is missing, add or extend the DS component first. For menu-style folder/status/filter/sort/action pickers, use `components/ds/dropdown-menu.tsx`; use `Select` only when the established pattern is explicitly a select/combobox. Read `apps/dashboard/components/ds/README.md` before creating new dashboard UI.
 - `DropdownMenu.GroupLabel` must be rendered inside `DropdownMenu.Group`; Base UI throws `MenuGroupRootContext is missing` when labels are placed directly under `DropdownMenu.Content`.
 - Traffic Trends chart annotations should use a chart-adjacent annotation rail for dense data; avoid in-plot labels, tall lines, or floating dots that compete with the chart tooltip/data layer.

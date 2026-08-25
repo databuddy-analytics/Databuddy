@@ -208,4 +208,54 @@ describe("buildBatchQueryRequests", () => {
 			{ field: "trait:plan", op: "eq", value: "pro" },
 		]);
 	});
+
+	it("rejects ambiguous or invalid date ranges instead of silently changing them", () => {
+		const plan = buildBatchQueryRequests(
+			[
+				{
+					type: "summary_metrics",
+					preset: "last_7d",
+					from: "2020-01-01",
+					to: "2020-01-02",
+				},
+				{
+					type: "summary_metrics",
+					from: "2026-02-30",
+					to: "2026-03-02",
+				},
+				{
+					type: "summary_metrics",
+					from: "2026-08-02",
+					to: "2026-08-01",
+				},
+			],
+			"website-1",
+			"UTC"
+		);
+
+		expect(plan.requests).toHaveLength(0);
+		expect(plan.invalid.map((item) => item.error)).toEqual([
+			expect.stringContaining("either a preset or explicit dates"),
+			expect.stringContaining("valid YYYY-MM-DD"),
+			expect.stringContaining("must not be after"),
+		]);
+	});
+
+	it("returns an invalid query for a bad timezone instead of throwing", () => {
+		expect(() =>
+			buildBatchQueryRequests(
+				[{ type: "summary_metrics", preset: "last_7d" }],
+				"website-1",
+				"not/a-timezone"
+			)
+		).not.toThrow();
+
+		const plan = buildBatchQueryRequests(
+			[{ type: "summary_metrics", preset: "last_7d" }],
+			"website-1",
+			"not/a-timezone"
+		);
+		expect(plan.requests).toHaveLength(0);
+		expect(plan.invalid[0]?.error).toContain("Invalid timezone");
+	});
 });

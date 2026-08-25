@@ -1,4 +1,5 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from "bun:test";
+import type { ApiKeyRow } from "./resolve";
 
 interface SqlFragment {
 	text: string;
@@ -101,6 +102,7 @@ mock.module("@databuddy/redis", () => ({
 const {
 	API_KEY_LOOKUP_TIMEOUT_MS,
 	API_KEY_STATEMENT_TIMEOUT_MS,
+	hasWebsiteScopeForOrganization,
 	resolveApiKeySecret,
 } = await import("./resolve");
 
@@ -179,5 +181,55 @@ describe("API key database deadline", () => {
 		).resolves.toMatchObject({ outcome: "invalid" });
 		expect(transaction).toHaveBeenCalledTimes(2);
 		expect(findApiKey).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe("website-scoped API keys", () => {
+	test("cannot use a resource entry to cross an organization boundary", () => {
+		const key = {
+			organizationId: "org-a",
+			scopes: [],
+			metadata: { resources: { "website:site-b": ["read:data"] } },
+		} as unknown as ApiKeyRow;
+
+		expect(
+			hasWebsiteScopeForOrganization(
+				key,
+				{ id: "site-b", organizationId: "org-b" },
+				"read:data"
+			)
+		).toBe(false);
+	});
+
+	test("accepts a resource entry for the key's own organization", () => {
+		const key = {
+			organizationId: "org-a",
+			scopes: [],
+			metadata: { resources: { "website:site-a": ["read:data"] } },
+		} as unknown as ApiKeyRow;
+
+		expect(
+			hasWebsiteScopeForOrganization(
+				key,
+				{ id: "site-a", organizationId: "org-a" },
+				"read:data"
+			)
+		).toBe(true);
+	});
+
+	test("preserves global scopes within the key's own organization", () => {
+		const key = {
+			organizationId: "org-a",
+			scopes: ["read:data"],
+			metadata: {},
+		} as unknown as ApiKeyRow;
+
+		expect(
+			hasWebsiteScopeForOrganization(
+				key,
+				{ id: "site-a", organizationId: "org-a" },
+				"read:data"
+			)
+		).toBe(true);
 	});
 });

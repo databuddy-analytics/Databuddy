@@ -11,6 +11,8 @@ type PermissionName =
 	| "cancel"
 	| "manage";
 
+export type ApiKeyScopeTarget = "global" | "website";
+
 const DEFAULT_SCOPE_MAP: Record<PermissionName, ApiScope> = {
 	read: "read:data",
 	view_analytics: "read:data",
@@ -77,4 +79,12 @@ export function requiredScopesForResource(
 	}
 
 	return [...scopes];
+}
+
+/** The metadata namespace where a resource's API-key scopes are evaluated. */
+export function apiKeyScopeTargetForResource(
+	resource: string
+): ApiKeyScopeTarget {
+	// Links belong to an organization, not to an individual website.
+	return resource === "link" ? "global" : "website";
 }
