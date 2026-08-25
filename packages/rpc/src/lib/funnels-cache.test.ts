@@ -71,15 +71,11 @@ describe("invalidateFunnelsCache", () => {
 			});
 
 		expect(await readFunnel()).toEqual({ id: funnelId, name: "v1" });
-		// Cache hit: queryFn must not run again.
 		expect(await readFunnel()).toEqual({ id: funnelId, name: "v1" });
 		expect(calls).toBe(1);
 
 		await invalidateFunnelsCache("website-1", funnelId);
 
-		// Regression guard: invalidateFunnelsCache must target the same key
-		// format the router actually caches under (`byId:<funnelId>`), not a
-		// key that was never written (e.g. `byId:<funnelId>:<websiteId>`).
 		expect(await readFunnel()).toEqual({ id: funnelId, name: "v2" });
 		expect(calls).toBe(2);
 	});

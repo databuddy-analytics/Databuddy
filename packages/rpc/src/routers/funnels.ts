@@ -223,10 +223,6 @@ export const funnelsRouter = {
 		.input(z.object({ id: z.string() }))
 		.output(funnelOutputSchema)
 		.handler(async ({ context, input }) => {
-			// Resolve the owning website and authorize on every request, not just
-			// on a cache miss: `queryFn` below is skipped entirely on a cache hit,
-			// so any permission check placed inside it would be bypassed for
-			// anyone who requests an id already cached by another caller.
 			const [funnelRef] = await context.db
 				.select({ websiteId: funnelDefinitions.websiteId })
 				.from(funnelDefinitions)
