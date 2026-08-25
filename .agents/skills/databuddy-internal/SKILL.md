@@ -120,6 +120,7 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 - Keep domain concerns at the owning seam. Routers/UI should call domain/service helpers, not know cache keys, raw Redis patterns, billing internals, or provider-specific lifecycle details.
 - Prefer direct, boring code. Use typed registries and small local helpers when they delete duplication; avoid generic job/facade abstractions, labeled pipelines, or framework-y wrappers unless they clearly reduce code and concepts.
 - Test invariants and contracts, not implementation trivia. Add guard tests for architectural rules only when they prevent repeat classes of bugs.
+- During cleanup, do not add per-consumer tests or test-only modules for schemas already covered at their shared boundary; keep one real end-to-end boundary regression when wiring itself changed.
 
 ## Change Routing
 

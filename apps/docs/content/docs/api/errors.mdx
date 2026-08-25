@@ -57,13 +57,13 @@ Other API families can define additional codes. Treat `code` as the programmatic
 
 ## Authentication response
 
-Protected endpoints return a discovery hint in addition to the JSON body:
+Protected endpoints return a JSON error when the API key is missing or invalid:
 
 <CodeBlock
   language="http"
   code={`HTTP/1.1 401 Unauthorized
 X-Request-ID: req_abc123def456
-WWW-Authenticate: Bearer resource_metadata="https://api.databuddy.cc/.well-known/oauth-protected-resource"`}
+WWW-Authenticate: Bearer realm="databuddy"`}
 />
 
 ## Rate-limit response

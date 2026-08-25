@@ -4,7 +4,9 @@ import {
 	asc,
 	desc,
 	eq,
+	inArray,
 	lt,
+	not,
 	or,
 	type InferSelectModel,
 } from "@databuddy/db";
@@ -13,7 +15,10 @@ import {
 	auditOutboxEvents,
 	type AuditOutboxPayload,
 } from "@databuddy/db/schema";
-import { emitAuditMirror } from "@databuddy/shared/audit";
+import {
+	auditTechnicalActionNames,
+	emitAuditMirror,
+} from "@databuddy/shared/audit";
 import type {
 	AuditActionDefinition,
 	AuditActor,
@@ -222,10 +227,12 @@ export interface ListAuditEventsInput {
 	action?: string;
 	actorId?: string;
 	cursor?: AuditCursor;
+	includeTechnical?: boolean;
 	limit: number;
 	organizationId: string;
 	outcome?: AuditOutcome;
 	targetId?: string;
+	targetType?: string;
 }
 
 export const MAX_AUDIT_PAGE_SIZE = 100;
@@ -247,6 +254,18 @@ export async function listAuditEvents(
 	}
 	if (input.targetId) {
 		conditions.push(eq(auditEvents.targetId, input.targetId));
+	}
+	if (input.targetType) {
+		conditions.push(eq(auditEvents.targetType, input.targetType));
+	}
+	if (!input.includeTechnical) {
+		const technicalSuccessCondition = and(
+			inArray(auditEvents.action, auditTechnicalActionNames),
+			eq(auditEvents.outcome, "success")
+		);
+		if (technicalSuccessCondition) {
+			conditions.push(not(technicalSuccessCondition));
+		}
 	}
 	if (input.cursor) {
 		const cursorCondition = or(

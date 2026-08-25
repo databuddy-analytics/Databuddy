@@ -2,6 +2,10 @@ import { and, desc, eq, inArray, isNull } from "@databuddy/db";
 import { goals } from "@databuddy/db/schema";
 import { createDrizzleCache, redis } from "@databuddy/redis";
 import { GATED_FEATURES } from "@databuddy/shared/types/features";
+import {
+	analyticsDateRangeSchema,
+	resolveAnalyticsDateRange,
+} from "@databuddy/validation";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
@@ -41,6 +45,17 @@ const filterSchema = z.object({
 });
 
 type Filter = z.infer<typeof filterSchema>;
+
+const goalAnalyticsInputSchema = analyticsDateRangeSchema.safeExtend({
+	filters: z.array(filterSchema).optional(),
+	goalId: z.string(),
+	websiteId: z.string(),
+});
+const bulkGoalAnalyticsInputSchema = analyticsDateRangeSchema.safeExtend({
+	filters: z.array(filterSchema).optional(),
+	goalIds: z.array(z.string()).min(1),
+	websiteId: z.string(),
+});
 
 const goalOutputSchema = z.object({
 	id: z.string(),
@@ -116,14 +131,6 @@ const goalAnalyticsResultSchema = z.discriminatedUnion("ok", [
 ]);
 
 type GoalAnalyticsResult = z.infer<typeof goalAnalyticsResultSchema>;
-
-const getDefaultDateRange = () => {
-	const endDate = new Date().toISOString().split("T")[0];
-	const startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-		.toISOString()
-		.split("T")[0];
-	return { startDate, endDate };
-};
 
 const getEffectiveStartDate = (
 	requestedStartDate: string,
@@ -376,22 +383,11 @@ export const goalsRouter = {
 			description:
 				"Returns conversion analytics for a single goal. Requires website read permission.",
 		})
-		.input(
-			z.object({
-				goalId: z.string(),
-				websiteId: z.string(),
-				startDate: z.string().optional(),
-				endDate: z.string().optional(),
-				filters: z.array(filterSchema).optional(),
-			})
-		)
+		.input(goalAnalyticsInputSchema)
 		.output(goalAnalyticsOutputSchema)
 		.use(withWebsiteRead)
 		.handler(async ({ context, input }) => {
-			const { startDate, endDate } =
-				input.startDate && input.endDate
-					? { startDate: input.startDate, endDate: input.endDate }
-					: getDefaultDateRange();
+			const { startDate, endDate } = resolveAnalyticsDateRange(input);
 
 			const [goal] = await context.db
 				.select()
@@ -463,22 +459,11 @@ export const goalsRouter = {
 			description:
 				"Returns conversion analytics for multiple goals. Requires website read permission.",
 		})
-		.input(
-			z.object({
-				websiteId: z.string(),
-				goalIds: z.array(z.string()).min(1),
-				startDate: z.string().optional(),
-				endDate: z.string().optional(),
-				filters: z.array(filterSchema).optional(),
-			})
-		)
+		.input(bulkGoalAnalyticsInputSchema)
 		.output(z.record(z.string(), goalAnalyticsResultSchema))
 		.use(withWebsiteRead)
 		.handler(async ({ context, input }) => {
-			const { startDate, endDate } =
-				input.startDate && input.endDate
-					? { startDate: input.startDate, endDate: input.endDate }
-					: getDefaultDateRange();
+			const { startDate, endDate } = resolveAnalyticsDateRange(input);
 
 			const goalsList = await context.db
 				.select()

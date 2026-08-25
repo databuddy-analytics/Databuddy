@@ -152,14 +152,17 @@ export interface McpToolFactory {
 }
 
 function toErrorResult(err: McpToolError): CallToolResult {
+	const isInternal = err.code === "internal";
 	const errorPayload: Record<string, unknown> = {
 		code: err.code,
-		message: stripAnsi(err.message),
+		message: isInternal
+			? "An internal error occurred. Please try again."
+			: stripAnsi(err.message),
 	};
-	if (err.hint) {
+	if (!isInternal && err.hint) {
 		errorPayload.hint = stripAnsi(err.hint);
 	}
-	if (err.details) {
+	if (!isInternal && err.details) {
 		errorPayload.details = err.details;
 	}
 	return {

@@ -43,10 +43,12 @@ const auditListInputSchema = z.object({
 	action: z.enum(auditActionNames).optional(),
 	actorId: z.string().min(1).optional(),
 	cursor: z.string().min(1).optional(),
+	includeTechnical: z.boolean().default(false),
 	limit: z.number().int().min(1).max(MAX_AUDIT_PAGE_SIZE).default(50),
 	organizationId: z.string().min(1).optional(),
 	outcome: z.enum(auditOutcomes).optional(),
 	targetId: z.string().min(1).optional(),
+	targetType: z.string().min(1).optional(),
 });
 
 const auditListOutputSchema = z.object({
@@ -99,10 +101,12 @@ export const auditRouter = {
 				action: input.action,
 				actorId: input.actorId,
 				cursor,
+				includeTechnical: input.includeTechnical,
 				limit: input.limit,
 				organizationId,
 				outcome: input.outcome,
 				targetId: input.targetId,
+				targetType: input.targetType,
 			});
 			const events = rows.slice(0, input.limit);
 			const lastEvent = events.at(-1);
