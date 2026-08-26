@@ -60,10 +60,8 @@ describe("sanitizeString", () => {
 		expect(sanitizeString("test\x7Fvalue")).toBe("testvalue");
 	});
 
-	it("strips HTML-sensitive characters", () => {
-		expect(sanitizeString("<script>alert('xss')</script>")).toBe(
-			"scriptalert(xss)/script"
-		);
+	it("strips HTML tags and their contents markers", () => {
+		expect(sanitizeString("<script>alert('xss')</script>")).toBe("alert(xss)");
 	});
 
 	it("truncates to maxLength before filtering", () => {
@@ -158,7 +156,7 @@ describe("validateSessionId", () => {
 describe("validateUtmParameter", () => {
 	it("sanitizes and truncates to 512 characters", () => {
 		expect(validateUtmParameter(" spring_sale ")).toBe("spring_sale");
-		expect(validateUtmParameter("<b>ads</b>")).toBe("bads/b");
+		expect(validateUtmParameter("<b>ads</b>")).toBe("ads");
 		expect(validateUtmParameter("x".repeat(600)).length).toBe(512);
 	});
 
@@ -359,5 +357,16 @@ describe("validateExitIntent", () => {
 		["non-numeric string", "yes"],
 	])("defaults to 0 for %s", (_label, intent) => {
 		expect(validateExitIntent(intent)).toBe(0);
+	});
+});
+
+describe("sanitizeString tag stripping", () => {
+	it.each([
+		["<scr<script>ipt>alert(1)</script>", "iptalert(1)"],
+		["<b>hi</b>", "hi"],
+		["<img src=x onerror=alert(1)>", ""],
+		["plain text", "plain text"],
+	])("strips nested tags from %s", (input, expected) => {
+		expect(sanitizeString(input)).toBe(expected);
 	});
 });

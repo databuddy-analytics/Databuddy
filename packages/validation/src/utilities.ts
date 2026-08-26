@@ -39,6 +39,8 @@ export function parseDurationToSeconds(duration: string): number {
 	return Number.parseInt(match[1], 10) * DURATION_UNIT_SECONDS[match[2]];
 }
 
+const HTML_TAG_REGEX = /<[^>]*>/g;
+
 export function sanitizeString(input: unknown, maxLength?: number): string {
 	if (typeof input !== "string") {
 		return "";
@@ -46,7 +48,7 @@ export function sanitizeString(input: unknown, maxLength?: number): string {
 
 	const actualMaxLength = maxLength ?? 2048;
 
-	return input
+	let result = input
 		.trim()
 		.slice(0, actualMaxLength)
 		.split("")
@@ -60,9 +62,15 @@ export function sanitizeString(input: unknown, maxLength?: number): string {
 				code === 127
 			);
 		})
-		.join("")
-		.replace(/[<>'"&]/g, "")
-		.replace(/\s+/g, " ");
+		.join("");
+
+	let previous: string;
+	do {
+		previous = result;
+		result = result.replace(HTML_TAG_REGEX, "");
+	} while (result !== previous);
+
+	return result.replace(/[<>'"&]/g, "").replace(/\s+/g, " ");
 }
 
 export function validateTimezone(timezone: unknown): string {
