@@ -41,6 +41,31 @@ function firstValue(value: string | string[] | undefined) {
 	return Array.isArray(value) ? value[0] : value;
 }
 
+async function getGithubStars(): Promise<number | null> {
+	try {
+		const response = await fetch(
+			"https://api.github.com/repos/databuddy-analytics/databuddy",
+			{
+				headers: {
+					Accept: "application/vnd.github+json",
+				},
+				next: { revalidate: 3600 },
+			}
+		);
+
+		if (!response.ok) {
+			return null;
+		}
+
+		const data = (await response.json()) as { stargazers_count?: number };
+		return typeof data.stargazers_count === "number"
+			? data.stargazers_count
+			: null;
+	} catch {
+		return null;
+	}
+}
+
 function AgentModeView() {
 	const agent = createAgentJson();
 
@@ -111,6 +136,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
 	const headerList = await headers();
 	const demoEmbedBaseUrl = getDemoEmbedBaseUrl(hostFromNextHeaders(headerList));
+	const stars = await getGithubStars();
 
 	return (
 		<>
@@ -148,7 +174,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 			/>
 			<div className="overflow-hidden">
 				<Section className="overflow-hidden" customPaddings id="hero">
-					<Hero demoEmbedBaseUrl={demoEmbedBaseUrl} />
+					<Hero demoEmbedBaseUrl={demoEmbedBaseUrl} stars={stars} />
 				</Section>
 
 				<Section
