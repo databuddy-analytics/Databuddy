@@ -148,10 +148,9 @@ const sensitiveAuditFieldPattern =
 	/(^|[_-])(authorization|cookie|key|password|secret|token)([_-]|$)/i;
 
 function isSensitiveAuditField(field: string): boolean {
-	const normalizedField = field.replace(
-		/[A-Z]/g,
-		(character) => `_${character}`
-	);
+	const normalizedField = field
+		.replace(/([A-Z]+)([A-Z][a-z])/g, "$1_$2")
+		.replace(/([a-z0-9])([A-Z])/g, "$1_$2");
 	return sensitiveAuditFieldPattern.test(normalizedField);
 }
 
