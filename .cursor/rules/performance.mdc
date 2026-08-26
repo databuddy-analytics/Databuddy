@@ -38,7 +38,7 @@ When you discover a new performance improvement, optimization pattern, or fix a 
 - Skip expensive middleware for routes that don't need it — `applyAuthWideEvent` does a session DB lookup on every request; skip it for anonymous `/public/` routes via URL check in `onBeforeHandle`
 - Use `@elysiajs/server-timing` to profile per-phase durations (CORS, beforeHandle, handle, afterHandle) without manual instrumentation
 - Elysia's JIT compiler is on by default (`precompile: true`) — no extra config needed
-- When a Redis call fails (link cache or cacheable), do not retry the same Redis connection in the same request for non-critical work (e.g. cache backfill after a failed begin-mutation) — the timeout penalty (1.5s per call) compounds across sequential attempts
+- Redis clients fail fast after a failure instead of paying the timeout per call: `cacheable` skips Redis for 30s after a timeout, and `runLinkCacheCommand` rejects immediately for 5s after a failed operation. Sequential deadline penalties (1.5–2s per call) must never compound within one request
 - `runAuditedMutation` audit writes are fire-and-forget after success; `appendAuditEvent` has an outbox fallback so blocking the response on the INSERT is unnecessary latency
 
 ## Database queries

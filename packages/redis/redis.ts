@@ -15,8 +15,11 @@ let shutdownHooksRegistered = false;
 
 const LINK_CACHE_CONNECT_DEADLINE_MS = 1250;
 export const LINK_CACHE_OPERATION_DEADLINE_MS = 1500;
+const LINK_CACHE_FAIL_FAST_WINDOW_MS = 5000;
 const RATE_LIMIT_CONNECT_DEADLINE_MS = 1250;
 export const RATE_LIMIT_OPERATION_DEADLINE_MS = 1500;
+
+let linkCacheFailFastUntil = 0;
 
 function withDeadline<T>(
 	operation: Promise<T>,
@@ -153,6 +156,10 @@ export function runRateLimitCommand<T>(
 async function runLinkCacheRedisCommand<T>(
 	operation: (redis: Redis) => Promise<T>
 ): Promise<T> {
+	if (Date.now() < linkCacheFailFastUntil) {
+		throw new Error("Link cache is failing fast after a recent Redis failure");
+	}
+
 	let instance: Redis | null = null;
 	const command = getLinkCacheRedis().then((redis) => {
 		instance = redis;
@@ -160,12 +167,15 @@ async function runLinkCacheRedisCommand<T>(
 	});
 
 	try {
-		return await withDeadline(
+		const result = await withDeadline(
 			command,
 			LINK_CACHE_OPERATION_DEADLINE_MS,
 			`Link cache operation exceeded ${LINK_CACHE_OPERATION_DEADLINE_MS}ms`
 		);
+		linkCacheFailFastUntil = 0;
+		return result;
 	} catch (error) {
+		linkCacheFailFastUntil = Date.now() + LINK_CACHE_FAIL_FAST_WINDOW_MS;
 		if (instance) {
 			discardLinkCacheRedis(instance);
 		}
@@ -197,6 +207,7 @@ async function runRateLimitRedisCommand<T>(
 }
 
 export async function shutdownRedis() {
+	linkCacheFailFastUntil = 0;
 	const linkCacheInstance = linkCacheRedisInstance;
 	linkCacheRedisInstance = null;
 	linkCacheConnectPromise = null;
