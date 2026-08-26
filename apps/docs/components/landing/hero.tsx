@@ -382,20 +382,34 @@ export default function Hero({
 					</p>
 
 					<div className="z-10 flex flex-wrap items-center gap-2 pt-1.5">
-						{proofChips.map((chip) => (
-							<span
-								className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background/60 px-2.5 py-1 text-muted-foreground text-xs backdrop-blur-sm"
+						{proofChips.map((chip, i) => (
+							<motion.span
+								animate={{ opacity: 1, y: 0 }}
+								className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background/60 px-2.5 py-1 text-muted-foreground text-xs backdrop-blur-sm transition-colors duration-150 hover:border-border hover:text-foreground"
+								initial={{ opacity: 0, y: 6 }}
 								key={chip.label}
+								transition={{
+									delay: 0.15 + i * 0.08,
+									duration: 0.3,
+									ease: "easeOut",
+								}}
 							>
 								<chip.icon className="size-3.5" weight="duotone" />
 								{chip.label}
-							</span>
+							</motion.span>
 						))}
-						<a
-							className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background/60 px-2.5 py-1 text-muted-foreground text-xs backdrop-blur-sm transition-colors hover:text-foreground"
+						<motion.a
+							animate={{ opacity: 1, y: 0 }}
+							className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background/60 px-2.5 py-1 text-muted-foreground text-xs backdrop-blur-sm transition-colors duration-150 hover:border-border hover:text-foreground"
 							href="https://github.com/databuddy-analytics/databuddy"
+							initial={{ opacity: 0, y: 6 }}
 							rel="noopener noreferrer"
 							target="_blank"
+							transition={{
+								delay: 0.15 + proofChips.length * 0.08,
+								duration: 0.3,
+								ease: "easeOut",
+							}}
 						>
 							<StarIcon className="size-3.5 text-amber-500" weight="duotone" />
 							Open source
@@ -404,7 +418,7 @@ export default function Hero({
 									&middot; {stars.toLocaleString()}
 								</span>
 							)}
-						</a>
+						</motion.a>
 					</div>
 
 					<div className="flex flex-wrap items-center gap-3 pt-2">

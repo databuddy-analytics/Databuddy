@@ -3,10 +3,12 @@
 import {
 	ArrowRightIcon,
 	CheckCircleIcon,
+	CheckIcon,
 	PlugIcon,
 	RobotIcon,
 } from "@databuddy/ui/icons";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { SectionBullet } from "../icons/section-bullet";
 import { EASE } from "./demo-constants";
 import { CardChrome, useRevealOnScroll } from "./demo-primitives";
@@ -76,7 +78,7 @@ function InvestigationSlackDemo() {
 							<span className="font-mono text-[10px] text-muted-foreground">
 								Checkout funnel · Mar 3 to Mar 9
 							</span>
-							<span className="ml-auto rounded border border-border/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+							<span className="ml-auto rounded border border-border/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground transition-colors duration-150 hover:border-border hover:text-foreground">
 								Open
 							</span>
 						</div>
@@ -111,7 +113,13 @@ function InvestigationSlackDemo() {
 							v2.14.1
 						</p>
 						<p className="inline-flex items-start gap-1.5 font-mono text-[11px] text-muted-foreground leading-snug">
-							<CheckCircleIcon className="mt-px size-3.5 shrink-0 text-emerald-400" />
+							<CheckCircleIcon
+								className={cn(
+									"mt-px size-3.5 shrink-0 text-emerald-400 transition-all duration-200 ease-out",
+									visible ? "scale-100 opacity-100" : "scale-50 opacity-0"
+								)}
+								style={{ transitionDelay: visible ? "520ms" : "0ms" }}
+							/>
 							<span>
 								<span className="text-emerald-400">Resolved</span> · Verified on
 								recheck: step-two completion is back at baseline.
@@ -124,8 +132,39 @@ function InvestigationSlackDemo() {
 	);
 }
 
+const TERMINAL_QUESTION =
+	"How did the launch land? Set up tracking for the new checkout.";
+const TYPE_CHARS_PER_TICK = 2;
+const TYPE_TICK_MS = 24;
+function useTypewriter(text: string, active: boolean) {
+	const [typed, setTyped] = useState(0);
+
+	useEffect(() => {
+		if (!active) {
+			return;
+		}
+		if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+			setTyped(text.length);
+			return;
+		}
+		const id = window.setInterval(() => {
+			setTyped((count) => {
+				if (count >= text.length) {
+					window.clearInterval(id);
+					return count;
+				}
+				return count + TYPE_CHARS_PER_TICK;
+			});
+		}, TYPE_TICK_MS);
+		return () => window.clearInterval(id);
+	}, [active, text.length]);
+
+	return { text: text.slice(0, typed), done: typed >= text.length };
+}
+
 function McpTerminalDemo() {
 	const { ref, visible } = useRevealOnScroll();
+	const question = useTypewriter(TERMINAL_QUESTION, visible);
 
 	return (
 		<div aria-hidden className="relative mt-3 w-full" ref={ref}>
@@ -140,30 +179,43 @@ function McpTerminalDemo() {
 						your agent
 					</span>
 					<span className="ml-auto inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 font-mono text-[10px] text-emerald-400">
+						<span
+							className={cn(
+								"size-1.5 rounded-full bg-emerald-400",
+								visible && "animate-pulse motion-reduce:animate-none"
+							)}
+						/>
 						databuddy · scoped key
 					</span>
 				</div>
-				<div className="space-y-2.5 px-3 py-3 sm:px-4">
+				<div className="min-h-[172px] space-y-2.5 px-3 py-3 sm:px-4">
 					<p
 						className={cn(
-							"font-medium font-mono text-foreground text-xs transition-all duration-500 sm:text-sm",
-							visible ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
+							"font-medium font-mono text-foreground text-xs transition-opacity duration-300 sm:text-sm",
+							visible ? "opacity-100" : "opacity-0"
 						)}
-						style={{ transitionTimingFunction: EASE }}
 					>
 						<span className="mr-1.5 text-muted-foreground">›</span>
-						How did the launch land? Set up tracking for the new checkout.
+						{question.text}
+						<span
+							className={cn(
+								"ml-0.5 inline-block h-3.5 w-1.5 translate-y-0.5 bg-muted-foreground/70",
+								question.done
+									? "opacity-0"
+									: "animate-pulse motion-reduce:animate-none"
+							)}
+						/>
 					</p>
 					{MCP_TOOL_CALLS.map((call, i) => (
 						<div
 							className={cn(
 								"flex flex-wrap items-center gap-x-2 gap-y-0.5 transition-all duration-500",
-								visible
+								visible && question.done
 									? "translate-y-0 opacity-100"
 									: "translate-y-3 opacity-0"
 							)}
 							key={call.tool}
-							style={revealStyle(visible, 120 + i * 100)}
+							style={revealStyle(visible && question.done, 150 + i * 180)}
 						>
 							<span className="inline-flex items-center gap-1.5 rounded bg-violet-500/10 px-1.5 py-0.5 font-mono text-[11px] text-violet-400">
 								<PlugIcon className="size-3" />
@@ -172,14 +224,28 @@ function McpTerminalDemo() {
 							<span className="font-mono text-[11px] text-muted-foreground">
 								{call.detail}
 							</span>
+							<CheckIcon
+								className={cn(
+									"size-3 text-emerald-400 transition-all duration-200 ease-out",
+									visible && question.done
+										? "scale-100 opacity-100"
+										: "scale-50 opacity-0"
+								)}
+								style={{
+									transitionDelay:
+										visible && question.done ? `${450 + i * 180}ms` : "0ms",
+								}}
+							/>
 						</div>
 					))}
 					<p
 						className={cn(
 							"font-mono text-[11px] text-muted-foreground leading-relaxed transition-all duration-500 sm:text-xs",
-							visible ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
+							visible && question.done
+								? "translate-y-0 opacity-100"
+								: "translate-y-3 opacity-0"
 						)}
-						style={revealStyle(visible, 480)}
+						style={revealStyle(visible && question.done, 850)}
 					>
 						Launch week traffic is up 64% and signup conversion held at 4.1%. I
 						created the checkout funnel and a checkout_completed goal; both are
