@@ -108,6 +108,67 @@ async function investigateFixture(
 }
 
 describe("fixture investigation sources", () => {
+	it("passes a completed sibling ask to later candidates as open work", async () => {
+		const errorSignal: DetectedSignal = {
+			...trafficDrop,
+			baseline: 100,
+			current: 300,
+			deltaPercent: 200,
+			direction: "up",
+			entityId: "SyntaxError: boom",
+			entityLabel: "Script error",
+			label: "Script error",
+			metric: "error_count",
+			severity: "critical",
+			subjectKey: "error:SyntaxError: boom",
+		};
+		const openWorkPerCall: unknown[] = [];
+		const sources = fixtureSources({
+			detectDefinitionSignals: async () => [],
+			detectMetricSignals: async () => [errorSignal, trafficDrop],
+			fetchAnnotations: async () => [],
+			investigateSignal: async (input) => {
+				openWorkPerCall.push(input.otherOpenWork);
+				return {
+					outcome: {
+						evidence: ["The signal was measured in the comparison window."],
+						impact: "300 occurrences were measured this week.",
+						next:
+							openWorkPerCall.length === 1
+								? {
+										question:
+											"Can you connect the repository that owns this page? It unlocks the exact repair.",
+										type: "ask" as const,
+									}
+								: {
+										reason: "Blocked on the open repository-access request.",
+										type: "resolve" as const,
+									},
+						publish: openWorkPerCall.length === 1,
+						rootCause: null,
+						summary: "The signal moved in the comparison window.",
+						title: "300 visitors hit a script loading error",
+					},
+					toolCallCount: 1,
+				};
+			},
+			loadDueInvestigation: async () => null,
+			loadHistory: async () => [],
+			loadObservations: async () => new Map(),
+		});
+
+		await investigateFixture(sources, {}, () => Promise.resolve(true));
+
+		expect(openWorkPerCall).toHaveLength(2);
+		expect(openWorkPerCall[0]).toEqual([]);
+		expect(openWorkPerCall[1]).toMatchObject([
+			{
+				next: { type: "ask" },
+				title: "300 visitors hit a script loading error",
+			},
+		]);
+	});
+
 	it("turns a manual full scan into a bounded portfolio of distinct exact-signal investigations", async () => {
 		const seen: Array<{ related: string[]; signal: string }> = [];
 		const routeError: DetectedSignal = {

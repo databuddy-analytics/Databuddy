@@ -287,6 +287,21 @@ describe("intelligence agent", () => {
 		const result = await runInsightAgent(
 			{
 				appContext: appContext(),
+				customerImpact: {
+					affectedSessions: 34,
+					affectedVisitorIdentifiers: 35,
+					ambiguousProfileSessions: 0,
+					errorOccurrences: 36,
+					identifiedProfiles: 0,
+					identifiedProfilesWithPriorAttributedCompletedPayment: 0,
+					identityCoveragePercent: 0,
+					linkedVisitorIdentifiers: 0,
+					paymentMatchIsLowerBound: true,
+					qualifyingProfilePaymentHistoryObserved: false,
+					routeContinuation: null,
+					scope: "route",
+					unlinkedVisitorIdentifiers: 35,
+				},
 				evidence,
 				githubRepository: null,
 				history: [],
@@ -424,17 +439,17 @@ describe("intelligence agent", () => {
 		);
 	});
 
-	it("keeps an ambiguous documentation funnel as one product decision", async () => {
-		const ambiguousOutcome = {
+	it("turns ambiguous definition questions into unpublished resolves", async () => {
+		const ambiguousAsk = {
 			...agentOutcome,
-			title: "Signup outcome is not measurable",
+			title: "Signup outcome is not measurable this week",
 			summary:
 				"The active journey reaches documentation pages but does not measure account creation.",
 			impact:
 				"573 entrants completed no measured step this week, so account-creation abandonment is unknown.",
 			rootCause: null,
-			findingKind: "measurement_definition",
-			publicationBasis: "decision_safety",
+			findingKind: "measurement_definition" as const,
+			publicationBasis: "decision_safety" as const,
 			evidence: [
 				"The journey covers the homepage, pricing, documentation, and Getting Started pages.",
 				"It had 0 completions from 573 entrants this week versus 4 from 593 previously.",
@@ -449,11 +464,26 @@ describe("intelligence agent", () => {
 				{ index: 1, source: "provided" as const },
 			],
 		};
-		const model = outputModel(ambiguousOutcome);
+		const resolved = {
+			...ambiguousAsk,
+			next: {
+				reason:
+					"The journey measures documentation navigation accurately; no decision is blocked.",
+				type: "resolve" as const,
+			},
+			publish: false,
+			publicationBasis: null,
+		};
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				outputResponse(ambiguousAsk),
+				outputResponse(resolved)
+			),
+		});
 		const result = await runInsightAgent(
 			{
 				appContext: appContext(),
-				evidence: ambiguousOutcome.evidence,
+				evidence: ambiguousAsk.evidence,
 				githubRepository: null,
 				history: [],
 				otherOpenWork: [],
@@ -462,12 +492,14 @@ describe("intelligence agent", () => {
 			{ model, tools: {} }
 		);
 
-		expect(result.outcome.next).toEqual(ambiguousOutcome.next);
-		expect(result.outcome.findingKind).toBe("measurement_definition");
-		expect(result.outcome.publicationBasis).toBe("decision_safety");
-		expect(
-			JSON.stringify(model.doGenerateCalls[0])
-		).toContain("Classify every outcome");
+		expect(result.outcome.next.type).toBe("resolve");
+		expect(result.outcome.publish).toBe(false);
+		expect(JSON.stringify(model.doGenerateCalls[1])).toContain(
+			"executable definition action"
+		);
+		expect(JSON.stringify(model.doGenerateCalls[0])).toContain(
+			"Classify every outcome"
+		);
 	});
 
 	it("accepts a conversion definition edit after purpose and journey evidence", async () => {
@@ -693,6 +725,164 @@ describe("intelligence agent", () => {
 		expect(model.doGenerateCalls).toHaveLength(2);
 		expect(JSON.stringify(model.doGenerateCalls[1])).toContain(
 			"cited a read tool"
+		);
+	});
+
+	it("keeps definition observations without a fix out of the feed", async () => {
+		const observationOnly = {
+			...agentOutcome,
+			findingKind: "measurement_definition" as const,
+			impact: "The funnel cannot support a checkout decision.",
+			next: {
+				reason: "The funnel measures its configured pages accurately.",
+				type: "resolve" as const,
+			},
+			publicationBasis: "decision_safety" as const,
+			rootCause: null,
+			signal: undefined,
+		};
+		const unpublished = {
+			...observationOnly,
+			publish: false,
+			publicationBasis: null,
+		};
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				outputResponse(observationOnly),
+				outputResponse(unpublished)
+			),
+		});
+
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal: funnelSignal,
+			},
+			{ model, tools: {} }
+		);
+
+		expect(result.outcome.publish).toBe(false);
+		expect(JSON.stringify(model.doGenerateCalls[1])).toContain(
+			"executable definition action"
+		);
+	});
+
+	it("keeps low-reach error asks out of teammate interrupts", async () => {
+		const smallReachAsk = {
+			...agentOutcome,
+			findingKind: "reliability_exposure" as const,
+			impact: "20 sessions recorded the error this week.",
+			next: {
+				question:
+					"Can you provide the repository that serves the homepage? It unlocks a repair.",
+				type: "ask" as const,
+			},
+			publicationBasis: "measured_reliability" as const,
+			rootCause: null,
+		};
+		const watchInstead = {
+			...smallReachAsk,
+			next: {
+				reason: "Exposure is below the interrupt threshold; recheck later.",
+				type: "resolve" as const,
+			},
+			publish: false,
+			publicationBasis: null,
+		};
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				outputResponse(smallReachAsk),
+				outputResponse(watchInstead)
+			),
+		});
+
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				customerImpact: {
+					affectedSessions: 20,
+					affectedVisitorIdentifiers: 20,
+					ambiguousProfileSessions: 0,
+					errorOccurrences: 33,
+					identifiedProfiles: 0,
+					identifiedProfilesWithPriorAttributedCompletedPayment: 0,
+					identityCoveragePercent: 0,
+					linkedVisitorIdentifiers: 0,
+					paymentMatchIsLowerBound: true,
+					qualifyingProfilePaymentHistoryObserved: false,
+					routeContinuation: null,
+					scope: "fingerprint",
+					unlinkedVisitorIdentifiers: 20,
+				},
+				evidence,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal: reliabilitySignal,
+			},
+			{ model, tools: {} }
+		);
+
+		expect(result.outcome.next.type).toBe("resolve");
+		expect(JSON.stringify(model.doGenerateCalls[1])).toContain(
+			"below the 25-visitor threshold"
+		);
+	});
+
+	it("rejects a second repository-access ask for the same website", async () => {
+		const repoAsk = {
+			...agentOutcome,
+			next: {
+				question:
+					"Can you connect the repository that owns checkout? It unlocks the exact repair.",
+				type: "ask" as const,
+			},
+			rootCause: null,
+		};
+		const resolved = {
+			...agentOutcome,
+			next: {
+				reason: "Blocked on the open repository-access request.",
+				type: "resolve" as const,
+			},
+			publish: false,
+			publicationBasis: null,
+			rootCause: null,
+		};
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(outputResponse(repoAsk), outputResponse(resolved)),
+		});
+
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [
+					{
+						asOf: "2026-07-11T00:00:00.000Z",
+						next: {
+							question:
+								"Can someone grant Databuddy read access to the web repository?",
+							type: "ask" as const,
+						},
+						title: "263 visitors hit script loading errors",
+					},
+				],
+				signal,
+			},
+			{ model, tools: {} }
+		);
+
+		expect(result.outcome.next.type).toBe("resolve");
+		expect(model.doGenerateCalls).toHaveLength(2);
+		expect(JSON.stringify(model.doGenerateCalls[1])).toContain(
+			"open repository-access request"
 		);
 	});
 

@@ -739,11 +739,23 @@ async function discoverWebsiteSignals(
 	};
 }
 
+type OpenWorkItem = InsightAgentInput["otherOpenWork"][number];
+
+function interruptingOpenWorkItem(
+	asOf: string,
+	outcome: InvestigationOutcome
+): OpenWorkItem | null {
+	return outcome.next.type === "act" || outcome.next.type === "ask"
+		? { asOf, next: outcome.next, title: outcome.title }
+		: null;
+}
+
 async function investigatePlannedCandidate(
 	input: InvestigateWebsiteInput,
 	candidate: PlannedInvestigationCandidate,
 	relatedSignals: InvestigationSignal[],
-	runtime: InvestigationRuntime
+	runtime: InvestigationRuntime,
+	siblingOpenWork: readonly OpenWorkItem[] = []
 ): Promise<WebsiteInvestigationArtifact> {
 	const startedAt = performance.now();
 	const asOf = normalizeAsOf(input.asOf, input.timezone);
@@ -857,7 +869,7 @@ async function investigatePlannedCandidate(
 				? { hasQualifiedRouteVitalContinuation: true as const }
 				: {}),
 			history,
-			otherOpenWork,
+			otherOpenWork: [...otherOpenWork, ...siblingOpenWork],
 			relatedSignals,
 			signal: candidate.signal,
 		});
@@ -997,19 +1009,29 @@ export async function investigateWebsitePortfolioWithSources(
 		];
 	}
 	const artifacts: WebsiteInvestigationArtifact[] = [];
+	const siblingOpenWork: OpenWorkItem[] = [];
 	try {
 		await runPlannedCandidatePortfolio({
 			candidates,
 			completedSignalKeys: new Set(),
 			runCandidate: async (candidate, relatedSignals) => {
-				artifacts.push(
-					await investigatePlannedCandidate(
-						input,
-						candidate,
-						relatedSignals,
-						runtime
-					)
+				const artifact = await investigatePlannedCandidate(
+					input,
+					candidate,
+					relatedSignals,
+					runtime,
+					siblingOpenWork
 				);
+				artifacts.push(artifact);
+				if (artifact.outcome) {
+					const item = interruptingOpenWorkItem(
+						artifact.asOf,
+						artifact.outcome
+					);
+					if (item) {
+						siblingOpenWork.push(item);
+					}
+				}
 			},
 		});
 		return artifacts;
@@ -1214,6 +1236,15 @@ export async function generateWebsiteInsights(
 	const outcomes = existingObservations.map(
 		(observation) => observation.outcome
 	);
+	const siblingOpenWork: OpenWorkItem[] = existingObservations.flatMap(
+		(observation) => {
+			const item = interruptingOpenWorkItem(
+				observation.asOf.toISOString(),
+				observation.outcome
+			);
+			return item ? [item] : [];
+		}
+	);
 	const interruptingInvestigations: WebsiteInvestigation[] =
 		existingObservations.flatMap((observation) =>
 			observation.insightId && isInterruptingInvestigation(observation)
@@ -1311,7 +1342,8 @@ export async function generateWebsiteInsights(
 								onUsage: (usage) => {
 									agentUsage.value = usage;
 								},
-							}
+							},
+							siblingOpenWork
 						);
 						if (!(analysis.outcome && analysis.signal)) {
 							if (noCredits) {
@@ -1349,6 +1381,13 @@ export async function generateWebsiteInsights(
 							publishedSignalKeys.add(candidate.signal.signalKey);
 						}
 						outcomes.push(candidate.outcome);
+						const openWorkItem = interruptingOpenWorkItem(
+							analysis.asOf,
+							candidate.outcome
+						);
+						if (openWorkItem) {
+							siblingOpenWork.push(openWorkItem);
+						}
 						if (saved) {
 							interruptingInvestigations.push(saved);
 							await enqueueInterruptingEffects([saved]);

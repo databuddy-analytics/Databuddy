@@ -227,9 +227,9 @@ Evidence
 
 Outcome
 - act: only for an inspected mechanism with the smallest concrete target and change, measured impact, and a verification condition that proves recovery. Set recheckAt to the earliest defensible time given the measurement window. An existing goal or funnel that is materially unsafe for its established purpose gets an exact edit or delete via next.execution; delete only when inspection shows no independent valid use, and cosmetic renames are not actions.
-- ask: only after exhausting inspectable context, for one external fact that selects between materially different moves; say what it unlocks. When a material reliability problem needs source access, ask for the owning repository rather than guessing a fix; when a repository is supplied, inspect it before asking about ownership.
+- ask: only after exhausting inspectable context, for one external fact that selects between materially different moves; say what it unlocks. When a material reliability problem needs source access, ask for the owning repository rather than guessing a fix; when a repository is supplied, inspect it before asking about ownership. One repository-access request per website: when other open work already asks for repository access, resolve and state that this signal is blocked on that request; still publish that resolve when the exposure itself is a new, material fact.
 - Otherwise resolve. Use history and other open work to avoid repeating an action or question; reissue only when impact worsens or new evidence changes the target or remedy.
-- Classify every outcome: raw errors and vitals are reliability_exposure; user_experience needs a directly measured downstream consequence (for route vitals, only via supplied qualified matched continuation); product_outcome needs a measured business result; measurement_definition or measurement_coverage needs a named decision made unsafe. The signal's own movement is not a downstream consequence.
+- Classify every outcome: raw errors and vitals are reliability_exposure; user_experience needs a directly measured downstream consequence (for route vitals, only via supplied qualified matched continuation); product_outcome needs a measured business result; measurement_definition or measurement_coverage needs a named decision made unsafe. The signal's own movement is not a downstream consequence. A measurement finding publishes only alongside its executable definition fix; a definition observation without a fix resolves unpublished.
 
 Publishing
 - The Insights feed is scarce teammate attention. Publish only a distinct decision, action, or durable understanding; a metric change alone is never enough. Keep unchanged, duplicate, routine, low-volume, and unproven-impact work out of the feed.
@@ -456,6 +456,71 @@ export function validateNumericGrounding(
 	}
 }
 
+const REPOSITORY_ASK_PATTERN =
+	/\b(?:repo\b|repository|github|source(?:[- ]code)? access|read access)/i;
+
+function isRepositoryAsk(next: AgentInvestigationOutcome["next"]): boolean {
+	return next.type === "ask" && REPOSITORY_ASK_PATTERN.test(next.question);
+}
+
+const MEASUREMENT_FINDING_KINDS = new Set([
+	"measurement_definition",
+	"measurement_coverage",
+]);
+
+function validateMeasurementPublish(outcome: AgentInvestigationOutcome) {
+	if (
+		outcome.publish === true &&
+		outcome.findingKind !== undefined &&
+		MEASUREMENT_FINDING_KINDS.has(outcome.findingKind) &&
+		outcome.next.type !== "act"
+	) {
+		throw new Error(
+			"Published measurement findings require an executable definition action. Without a concrete fix, resolve with publish false; a definition observation alone is not feed-worthy."
+		);
+	}
+}
+
+const ERROR_ASK_VISITOR_FLOOR = 25;
+
+function validateErrorAskReach(
+	outcome: AgentInvestigationOutcome,
+	input: Pick<InsightAgentInput, "customerImpact" | "signal">,
+	isError: boolean
+) {
+	if (!isError || outcome.next.type !== "ask") {
+		return;
+	}
+	if (input.signal.cohortMeasurement) {
+		return;
+	}
+	const reach = input.customerImpact?.affectedVisitorIdentifiers ?? 0;
+	if (reach < ERROR_ASK_VISITOR_FLOOR) {
+		throw new Error(
+			`Only ${reach} visitor identifiers are affected, below the ${ERROR_ASK_VISITOR_FLOOR}-visitor threshold for interrupting a teammate. Resolve or record the exposure without asking.`
+		);
+	}
+}
+
+function validateRepositoryAsk(
+	outcome: AgentInvestigationOutcome,
+	otherOpenWork: InsightAgentInput["otherOpenWork"]
+) {
+	if (!isRepositoryAsk(outcome.next)) {
+		return;
+	}
+	const openRepositoryAsk = otherOpenWork.find(
+		(work) =>
+			work.next.type === "ask" &&
+			REPOSITORY_ASK_PATTERN.test(work.next.question)
+	);
+	if (openRepositoryAsk) {
+		throw new Error(
+			`Insights already has an open repository-access request for this website ("${openRepositoryAsk.title}"). Resolve this signal and state that it is blocked on that request instead of asking again.`
+		);
+	}
+}
+
 function validateExecution(
 	outcome: AgentInvestigationOutcome,
 	input: Pick<InsightAgentInput, "evidence" | "signal">,
@@ -483,7 +548,12 @@ function validateAgentOutcome(
 	outcome: AgentInvestigationOutcome,
 	input: Pick<
 		InsightAgentInput,
-		"appContext" | "evidence" | "hasQualifiedRouteVitalContinuation" | "signal"
+		| "appContext"
+		| "customerImpact"
+		| "evidence"
+		| "hasQualifiedRouteVitalContinuation"
+		| "otherOpenWork"
+		| "signal"
 	>,
 	usedToolNames: ReadonlySet<string>
 ): InvestigationOutcome {
@@ -504,12 +574,13 @@ function validateAgentOutcome(
 			evidenceRef.index >= input.evidence.length
 		) {
 			throw new Error(
-				"Insights agent cited supplied evidence that was not available in this investigation"
+				`Insights agent cited supplied evidence index ${evidenceRef.index}, but only indexes 0-${input.evidence.length - 1} exist`
 			);
 		}
 		if (evidenceRef.source === "tool" && !usedToolNames.has(evidenceRef.name)) {
+			const used = [...usedToolNames].sort().join(", ");
 			throw new Error(
-				"Insights agent cited a read tool that was not used in this investigation"
+				`Insights agent cited a read tool ("${evidenceRef.name}") that was not used in this investigation. ${usedToolNames.size > 0 ? `Cite one of the tools actually used (${used}) or a supplied evidence index.` : "No tools were used; cite a supplied evidence index instead."}`
 			);
 		}
 	}
@@ -559,6 +630,9 @@ function validateAgentOutcome(
 			"Qualified route-vital findings can only report reliability exposure or matched user experience"
 		);
 	}
+	validateMeasurementPublish(outcome);
+	validateErrorAskReach(outcome, input, isError);
+	validateRepositoryAsk(outcome, input.otherOpenWork);
 	validateExecution(outcome, input, usedToolNames);
 	if (outcome.next.type === "act") {
 		const recheckAt = outcome.next.recheckAt;
