@@ -12,10 +12,8 @@ describe("createPixelResponse", () => {
 
 		const buf = await r.arrayBuffer();
 		expect(buf.byteLength).toBeGreaterThan(0);
-		// GIF89a magic bytes
-		expect(new Uint8Array(buf).slice(0, 3)).toEqual(
-			new Uint8Array([0x47, 0x49, 0x46])
-		);
+		const gifMagicBytes = new Uint8Array([0x47, 0x49, 0x46]);
+		expect(new Uint8Array(buf).slice(0, 3)).toEqual(gifMagicBytes);
 	});
 });
 
@@ -107,5 +105,26 @@ describe("parsePixelQuery", () => {
 		for (let i = 0; i < 50; i++) {
 			expect(eventData[`field_${i}`]).toBe(i);
 		}
+	});
+
+	test("flat key followed by nested key on the same name does not crash", () => {
+		const { eventData } = parsePixelQuery({ a: "1", "a[b]": "2" });
+		expect(eventData.a).toEqual({ b: 2 });
+	});
+
+	test("nested key deepened on a later param keeps the deepest write", () => {
+		const { eventData } = parsePixelQuery({ "a[b]": "1", "a[b][c]": "2" });
+		expect(eventData.a).toEqual({ b: { c: 2 } });
+	});
+
+	test("__proto__ and constructor paths are dropped without polluting prototypes", () => {
+		const { eventData } = parsePixelQuery({
+			"__proto__[polluted]": "yes",
+			"constructor[prototype][evil]": "1",
+			name: "pageview",
+		});
+		expect(eventData).toEqual({ name: "pageview" });
+		expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+		expect(({} as Record<string, unknown>).evil).toBeUndefined();
 	});
 });

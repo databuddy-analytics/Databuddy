@@ -1,10 +1,11 @@
-// Regex patterns for parsing query parameters
 const NESTED_KEY_REGEX = /^([^[]+)(\[.*\])?$/;
 const BRACKET_EXTRACT_REGEX = /\[([^\]]+)\]/g;
 const INTEGER_REGEX = /^-?\d+$/;
 const FLOAT_REGEX = /^-?\d*\.\d+$/;
 
-// 1x1 transparent GIF pixel (base64)
+const SKIPPED_KEYS = new Set(["sdk_name", "sdk_version", "client_id"]);
+const UNSAFE_KEY_SEGMENTS = new Set(["__proto__", "constructor", "prototype"]);
+
 const TRANSPARENT_PIXEL = Buffer.from(
 	"R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
 	"base64"
@@ -48,12 +49,10 @@ export function parsePixelQuery(query: Record<string, string>): {
 	const result: Record<string, unknown> = {};
 
 	for (const [key, value] of Object.entries(query)) {
-		// Skip SDK metadata
-		if (key === "sdk_name" || key === "sdk_version" || key === "client_id") {
+		if (SKIPPED_KEYS.has(key)) {
 			continue;
 		}
 
-		// Handle JSON-stringified properties
 		if (key === "properties") {
 			try {
 				result.properties = JSON.parse(value);
@@ -64,43 +63,24 @@ export function parsePixelQuery(query: Record<string, string>): {
 		}
 
 		const match = key.match(NESTED_KEY_REGEX);
-		if (!match) {
-			result[key] = parseValue(value);
-			continue;
-		}
-
-		const baseKey = match[1];
-		const nestedPath = match[2];
-
-		if (!nestedPath) {
-			result[baseKey] = parseValue(value);
-			continue;
-		}
-
-		// Extract nested keys from brackets
+		const baseKey = match?.[1] ?? key;
 		const nestedKeys =
-			nestedPath.match(BRACKET_EXTRACT_REGEX)?.map((k) => k.slice(1, -1)) || [];
-
-		if (nestedKeys.length === 0) {
-			result[baseKey] = parseValue(value);
+			match?.[2]?.match(BRACKET_EXTRACT_REGEX)?.map((k) => k.slice(1, -1)) ??
+			[];
+		const path = [baseKey, ...nestedKeys];
+		if (path.some((segment) => UNSAFE_KEY_SEGMENTS.has(segment))) {
 			continue;
 		}
 
-		// Build nested structure
-		if (!result[baseKey]) {
-			result[baseKey] = {};
-		}
-
-		let current = result[baseKey] as Record<string, unknown>;
-		const lastIndex = nestedKeys.length - 1;
-		for (let i = 0; i < lastIndex; i++) {
-			const nestedKey = nestedKeys[i];
-			if (!current[nestedKey]) {
-				current[nestedKey] = {};
+		let current = result;
+		for (const segment of path.slice(0, -1)) {
+			const next = current[segment];
+			if (!next || typeof next !== "object" || Array.isArray(next)) {
+				current[segment] = {};
 			}
-			current = current[nestedKey] as Record<string, unknown>;
+			current = current[segment] as Record<string, unknown>;
 		}
-		current[nestedKeys[lastIndex]] = parseValue(value);
+		current[path.at(-1) ?? baseKey] = parseValue(value);
 	}
 
 	return {
