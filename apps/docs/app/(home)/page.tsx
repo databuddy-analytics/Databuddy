@@ -9,6 +9,7 @@ import FAQ from "@/components/landing/faq";
 import { GridCards } from "@/components/landing/grid-cards";
 import Hero from "@/components/landing/hero";
 import { MidPageCta } from "@/components/landing/mid-page-cta";
+import { PricingPreview } from "@/components/landing/pricing-preview";
 import Section from "@/components/landing/section";
 import Testimonials from "@/components/landing/testimonials";
 import { TrustedBy } from "@/components/landing/trusted-by";
@@ -209,6 +210,12 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 				<Section className="border-border border-b" id="mid-cta">
 					<div className={container}>
 						<MidPageCta />
+					</div>
+				</Section>
+
+				<Section className="border-border border-b py-16 lg:py-24" id="pricing">
+					<div className={container}>
+						<PricingPreview />
 					</div>
 				</Section>
 
