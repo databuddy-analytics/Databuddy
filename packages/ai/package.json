@@ -57,7 +57,7 @@
     "@modelcontextprotocol/sdk": "^1.26.0",
     "@orpc/server": "^1.14.0",
     "@tokenlens/models": "catalog:",
-    "ai": "^6.0.188",
+    "ai": "^7.0.77",
     "dayjs": "^1.11.19",
     "drizzle-orm": "catalog:",
     "evlog": "catalog:",
