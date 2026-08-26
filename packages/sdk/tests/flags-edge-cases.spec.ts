@@ -72,7 +72,7 @@ test.describe("BrowserFlagsManager — edge cases", () => {
 		expect(result.hasRemoteOnly).toBe(true);
 	});
 
-	test("getFlag(key, user): per-call user affects cache key", async ({
+	test("getFlag(key, user): per-call users get isolated cache entries outside the active context", async ({
 		page,
 	}) => {
 		await bulkOnlyRoute(page, (keys) =>
@@ -94,19 +94,27 @@ test.describe("BrowserFlagsManager — edge cases", () => {
 				},
 			});
 
-			await manager.getFlag("shared-flag", { userId: "user-a" });
-			await manager.getFlag("shared-flag", { userId: "user-b" });
-			const mem = manager.getMemoryFlags();
+			const forUserA = await manager.getFlag("shared-flag", {
+				userId: "user-a",
+			});
+			const forUserB = await manager.getFlag("shared-flag", {
+				userId: "user-b",
+			});
+			const activeContextFlags = manager.getMemoryFlags();
 
 			manager.destroy();
 			return {
 				cacheKeysDiffer: kA !== kB,
-				memoryKeys: Object.keys(mem),
+				enabledForUserA: forUserA.enabled,
+				enabledForUserB: forUserB.enabled,
+				activeContextKeys: Object.keys(activeContextFlags),
 			};
 		});
 
 		expect(result.cacheKeysDiffer).toBe(true);
-		expect(result.memoryKeys).toContain("shared-flag");
+		expect(result.enabledForUserA).toBe(true);
+		expect(result.enabledForUserB).toBe(true);
+		expect(result.activeContextKeys).not.toContain("shared-flag");
 	});
 
 	test("in-flight dedup: parallel getFlag same key issues one bulk request", async ({
