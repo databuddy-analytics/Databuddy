@@ -57,9 +57,9 @@ Scopes control what actions an API key can perform:
 |-------|------------|
 | `read:data` | Query analytics data **and list accessible websites** — covers `POST /v1/query`, `POST /v1/query/compile`, and `GET /v1/query/websites` |
 | `track:events` | Send custom events via `POST /track` |
-| `read:links` | Read short links and their analytics |
+| `read:links` | Read short links via the link management routes. Link analytics via `POST /v1/query` with `link_id` instead requires `read:data` on a key with global access |
 | `write:links` | Create, update, and delete short links |
-| `read:monitors` | Read uptime monitors and their analytics |
+| `read:monitors` | Read uptime monitors and their analytics; also unlocks `POST /v1/query` for uptime query types |
 | `write:monitors` | Create, update, pause, resume, and delete uptime monitors |
 | `read:status_pages` | Read status pages, incidents, and monitor visibility |
 | `write:status_pages` | Manage status pages, incidents, and monitor visibility |

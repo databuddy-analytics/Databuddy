@@ -5,7 +5,7 @@ description: Access your analytics data programmatically with Databuddy's REST A
 
 import { Card, Cards, Callout, CodeBlock } from "@/components/docs";
 
-Access your analytics data programmatically with Databuddy's REST API. All endpoints require authentication and are rate-limited for security.
+Access your analytics data programmatically with Databuddy's REST API. Most endpoints require authentication and are rate-limited for security. Public exceptions: `/health`, `GET /v1/query/types`, the public feature-flag routes under `/public/v1/flags/*`, and the `/.well-known/*` discovery routes.
 
 <Callout type="info">
   **Try it live!** Test all these endpoints interactively in our [API Playground](https://api.databuddy.cc/) with real data and see instant responses.
@@ -41,7 +41,7 @@ Access your analytics data programmatically with Databuddy's REST API. All endpo
   code={`curl -X POST -H "x-api-key: dbdy_your_api_key" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "parameters": ["summary", "pages"],
+    "parameters": ["summary_metrics", "top_pages"],
     "preset": "last_30d"
   }' \\
   "https://api.databuddy.cc/v1/query?website_id=web_123"`}
@@ -80,22 +80,29 @@ Query types for `website_id`:
 
 | Type | Description |
 |------|-------------|
-| `summary` | Overall website metrics and KPIs |
-| `pages` | Page views and performance by URL |
-| `traffic` | Traffic sources and referrers |
+| `summary_metrics` | Overall website metrics and KPIs |
+| `top_pages` | Page views and visitors by path |
+| `traffic_sources` | Traffic source breakdown |
+| `top_referrers` | Top referrers |
 | `browser_name` | Browser usage breakdown |
 | `os_name` | Operating system breakdown |
 | `device_types` | Device category (mobile/desktop/tablet) |
-| `countries` | Visitors by country |
-| `cities` | Visitors by city |
-| `errors` | JavaScript errors |
-| `performance` | Web vitals and load times |
-| `sessions` | Session-based analytics |
+| `country` | Visitors by country |
+| `city` | Visitors by city |
+| `recent_errors` | Latest JavaScript errors |
+| `error_summary` | Error counts and impact |
+| `vitals_overview` | Core Web Vitals overview |
+| `page_performance` | Load performance by page |
+| `session_metrics` | Session metrics over time |
+| `session_list` | Individual sessions |
 | `custom_events` | Custom event data |
-| `profiles` | User profile analytics |
+| `profile_list` | User profile analytics |
 | `outbound_links` | External link clicks |
 | `outbound_domains` | External clicks by domain |
-| `engagement` | User engagement metrics |
+| `scroll_depth_summary` | Scroll depth engagement |
+| `interaction_summary` | Interaction engagement |
+
+This is a subset. Use `GET /v1/query/types` for the full list.
 
 ### Link Shortener Analytics
 
@@ -105,8 +112,12 @@ Query types for `link_id`:
 |------|-------------|
 | `link_total_clicks` | Total click count |
 | `link_clicks_by_day` | Daily click breakdown |
+| `link_referrers_by_day` | Daily clicks by referrer |
+| `link_countries_by_day` | Daily clicks by country |
 | `link_top_referrers` | Top traffic sources |
 | `link_top_countries` | Top countries |
+| `link_top_regions` | Top regions |
+| `link_top_cities` | Top cities |
 | `link_top_devices` | Device breakdown |
 | `link_top_browsers` | Browser breakdown |
 

@@ -16,6 +16,8 @@ The Databuddy MCP server lets AI agents (Claude, Cursor, Windsurf, or any MCP-co
 
 The server uses the **Streamable HTTP** transport (JSON-RPC over HTTP). No SSE or WebSocket connection required. Configure clients with the canonical URL above. `/.well-known/mcp` is discovery metadata, not an MCP transport endpoint.
 
+**Transport notes**: The endpoint accepts POST only; other HTTP methods return `405`. Per-tool rate limits apply: `get_data` 30/min, `reply_to_investigation` 20/min, most other tools 60/min.
+
 ## Discovery Manifest
 
 Agents can discover the Databuddy MCP server from either well-known manifest URL:
@@ -23,7 +25,6 @@ Agents can discover the Databuddy MCP server from either well-known manifest URL
 | Manifest | URL |
 |----------|-----|
 | Primary | `https://www.databuddy.cc/.well-known/mcp.json` |
-| Alternate | `https://www.databuddy.cc/.well-known/mcp/manifest.json` |
 | Server card | `https://www.databuddy.cc/.well-known/mcp/server-card.json` |
 | API-hosted server card | `https://api.databuddy.cc/.well-known/mcp/server-card.json` |
 
@@ -116,6 +117,7 @@ Add to your MCP settings (typically `.cursor/mcp.json` or workspace settings):
 | `list_investigations` | List durable investigations and their current status. |
 | `get_investigation` | Read an investigation's evidence, outcome, and reply timeline. |
 | `reply_to_investigation` | Add context and queue the same investigation to continue. |
+| `list_insights` | List published findings, including quiet ones. |
 
 `reply_to_investigation` returns the durable reply status immediately. If it is `queued` or `running`, call `get_investigation` with the same investigation ID until the reply is `succeeded` or `failed`; the new outcome appears in that timeline.
 
