@@ -36,14 +36,15 @@ LCP measures how long it takes for the largest content element to become visible
 
 **Using Databuddy:**
 <CodeBlock 
-  language="javascript"
-  code={`// Databuddy automatically tracks LCP
-  databuddy.track('core_web_vital', {
-    metric: 'LCP',
-    value: lcpValue,
-    element: lcpElement
-  });`}
+  language="tsx"
+  code={`// Enable Web Vitals once; LCP is captured automatically from real users
+<Databuddy
+  clientId={process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID!}
+  trackWebVitals
+/>`}
 />
+
+LCP then appears in your dashboard's Vitals tab, per route, with p50 to p99 percentiles.
 
 **Using JavaScript:**
 <CodeBlock 
@@ -116,15 +117,8 @@ INP measures how quickly a page responds visually to interactions across the vis
 ### How to Measure INP
 
 **Using Databuddy:**
-<CodeBlock 
-  language="javascript"
-  code={`// Databuddy tracks INP when Web Vitals are enabled
-  databuddy.track('core_web_vital', {
-    metric: 'INP',
-    value: inpValue,
-    eventType: eventType
-  });`}
-/>
+
+With `trackWebVitals` enabled, INP is captured automatically using Google's web-vitals library and re-measured on SPA route changes. No extra code is needed; see per-route INP in the Vitals dashboard.
 
 **Using JavaScript:**
 <CodeBlock 
@@ -195,14 +189,8 @@ CLS measures the sum of all individual layout shift scores for every unexpected 
 ### How to Measure CLS
 
 **Using Databuddy:**
-```javascript
-// Databuddy tracks CLS automatically
-databuddy.track('core_web_vital', {
-  metric: 'CLS',
-  value: clsValue,
-  sources: layoutShiftSources
-});
-```
+
+With `trackWebVitals` enabled, CLS is captured automatically for the full page lifespan and re-measured on SPA route changes. No extra code is needed; see per-route CLS in the Vitals dashboard.
 
 **Using JavaScript:**
 ```javascript
