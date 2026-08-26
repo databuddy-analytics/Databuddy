@@ -2,10 +2,13 @@
 
 import { useFlag } from "@databuddy/sdk/react";
 import { FLAG_STATS_WINDOW_DAYS } from "@databuddy/shared/flags";
+import { GATED_FEATURES } from "@databuddy/shared/types/features";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { useParams, usePathname } from "next/navigation";
 import { useCallback, useMemo } from "react";
+import { toast } from "sonner";
+import { usePlanLimitMessage } from "@/components/feature-gate";
 import { PageNavigation } from "@/components/layout/page-navigation";
 import { orpc } from "@/lib/orpc";
 import { isAnalyticsRefreshingAtom } from "@/stores/jotai/filterAtoms";
@@ -57,6 +60,11 @@ export default function FlagsLayout({
 	const archivedFlags = useMemo(
 		() => flags?.filter((f) => f.status === "archived") ?? [],
 		[flags]
+	);
+
+	const planLimitMessage = usePlanLimitMessage(
+		GATED_FEATURES.FEATURE_FLAGS,
+		activeFlags.length
 	);
 
 	const isGroupsPage = pathname?.includes("/groups");
@@ -130,9 +138,13 @@ export default function FlagsLayout({
 						onClick={() => {
 							if (isGroupsPage) {
 								setIsGroupSheetOpen(true);
-							} else {
-								setIsFlagSheetOpen(true);
+								return;
 							}
+							if (planLimitMessage) {
+								toast.info(planLimitMessage);
+								return;
+							}
+							setIsFlagSheetOpen(true);
 						}}
 						size="sm"
 					>
