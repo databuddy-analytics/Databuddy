@@ -235,29 +235,24 @@ const ALERT_ITEMS = [
 		time: "14:32 UTC",
 	},
 	{
-		kind: "warn" as const,
-		text: "Response time > 2s on /api/checkout",
-		time: "14:28 UTC",
-	},
-	{
 		kind: "up" as const,
-		text: "Uptime restored — 3 min total",
+		text: "api.acme.com recovered, down 3 min",
 		time: "14:35 UTC",
 	},
 	{
 		kind: "down" as const,
-		text: "cdn.acme.com returned 503",
+		text: "cdn.acme.com timed out",
 		time: "09:14 UTC",
 	},
 	{
-		kind: "warn" as const,
-		text: "Error rate spike on /api/auth",
-		time: "11:47 UTC",
+		kind: "up" as const,
+		text: "cdn.acme.com back online",
+		time: "09:22 UTC",
 	},
 	{
-		kind: "up" as const,
-		text: "cdn.acme.com — back online",
-		time: "09:22 UTC",
+		kind: "warn" as const,
+		text: "Health check failed: status=degraded",
+		time: "11:47 UTC",
 	},
 	{
 		kind: "down" as const,
@@ -265,19 +260,9 @@ const ALERT_ITEMS = [
 		time: "03:58 UTC",
 	},
 	{
-		kind: "warn" as const,
-		text: "P95 latency > 3s on /checkout",
-		time: "16:01 UTC",
-	},
-	{
 		kind: "up" as const,
-		text: "app.acme.com — back online",
+		text: "app.acme.com back online",
 		time: "04:06 UTC",
-	},
-	{
-		kind: "warn" as const,
-		text: "SSL cert expires in 7 days",
-		time: "08:00 UTC",
 	},
 ];
 
