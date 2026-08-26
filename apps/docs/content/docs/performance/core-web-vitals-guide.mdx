@@ -262,16 +262,8 @@ Since June 2021, Core Web Vitals are official Google ranking factors:
 - **Competitive advantage** - Good vitals can boost rankings
 
 ### SEO Impact Analysis
-```javascript
-// Track Core Web Vitals impact on SEO
-databuddy.track('seo_performance', {
-  lcp: lcpValue,
-  inp: inpValue,
-  cls: clsValue,
-  searchRanking: currentRanking,
-  organicTraffic: trafficData
-});
-```
+
+Databuddy already stores every vital per route, so there is nothing extra to track. Compare the Vitals dashboard against Google Search Console for the same period: routes that moved from Poor to Good LCP or INP are the ones most likely to see ranking and organic traffic recover.
 
 ## Monitoring Core Web Vitals
 
@@ -481,19 +473,8 @@ Track these metrics to measure Core Web Vitals improvement:
 - **Conversion rates** - Goal completions, sales
 
 ### Reporting Dashboard
-```javascript
-// Track performance improvements
-databuddy.track('performance_improvement', {
-  beforeLCP: 3.2,
-  afterLCP: 2.1,
-  beforeINP: 320,
-  afterINP: 180,
-  beforeCLS: 0.25,
-  afterCLS: 0.08,
-  trafficIncrease: '15%',
-  rankingImprovement: 3
-});
-```
+
+The Vitals dashboard compares every metric against the previous period automatically, so before/after reporting needs no custom events: ship the fix, pick the date range that spans it, and the per-route trend shows whether the improvement held.
 
 ## Conclusion
 
