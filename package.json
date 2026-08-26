@@ -13,7 +13,8 @@
     "knip": "^6.22.0",
     "turbo": "^2.9.6",
     "typescript": "^5.9.3",
-    "ultracite": "^7.6.1"
+    "ultracite": "^7.6.1",
+    "@biomejs/biome": "catalog:"
   },
   "engines": {
     "node": ">=20",
@@ -86,11 +87,12 @@
       "drizzle-orm": "1.0.0-rc.1",
       "ua-parser-js": "^2.0.8",
       "evlog": "^2.11.1",
-      "tokenlens": "^2.0.0-alpha.3",
+      "tokenlens": "2.0.0-alpha.3",
       "@remotion/cli": "4.0.502",
       "@remotion/fonts": "4.0.502",
       "@remotion/media": "4.0.502",
-      "remotion": "4.0.502"
+      "remotion": "4.0.502",
+      "@biomejs/biome": "2.5.1"
     }
   },
   "dependencies": {
