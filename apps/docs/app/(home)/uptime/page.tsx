@@ -54,7 +54,7 @@ const FAQ_ITEMS = [
 	{
 		question: "What kind of services can I monitor?",
 		answer:
-			"Any public website, API, or web service. You can also parse JSON health endpoints to monitor specific fields - useful for services that report their own status.",
+			"Any public website, API, or web service. Point a monitor at a page or health endpoint and the check passes or fails on the HTTP response.",
 	},
 	{
 		question: "Is uptime monitoring included in all plans?",
@@ -101,7 +101,7 @@ export default function UptimePage() {
 						<TwoColumnGrid>
 							<GridCell>
 								<h3 className={CELL_TITLE_CLASS}>
-									HTTP checks every 60 seconds, with JSON health parsing.
+									HTTP checks on your sites, as often as every 60 seconds.
 								</h3>
 								<UptimeRegionsHubDiagram />
 							</GridCell>
