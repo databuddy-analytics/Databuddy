@@ -6,7 +6,7 @@ import {
 	profileTraitChanges,
 } from "@databuddy/db/schema";
 import { eq } from "@databuddy/db";
-import { appRouter, type Context } from "@databuddy/rpc";
+import { appRouter } from "@databuddy/rpc";
 import {
 	getTraitDistribution,
 	resolveTraitSegment,
@@ -25,14 +25,10 @@ import {
 	signUp,
 	userContext,
 } from "@databuddy/test";
-import { createProcedureClient } from "@orpc/server";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { call } from "./helpers";
 
 const iit = hasTestDb ? it : it.skip;
-
-function call<T>(procedure: T, ctx: Context) {
-	return createProcedureClient(procedure as any, { context: ctx });
-}
 
 beforeEach(() => reset());
 afterAll(() => cleanup());

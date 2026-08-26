@@ -1,13 +1,7 @@
 import "@databuddy/test/env";
 
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { createProcedureClient } from "@orpc/server";
-import {
-	withWorkspace,
-	withPublicWorkspace,
-	appRouter,
-	type Context,
-} from "@databuddy/rpc";
+import { withWorkspace, withPublicWorkspace, appRouter } from "@databuddy/rpc";
 import {
 	reset,
 	cleanup,
@@ -21,12 +15,9 @@ import {
 	signUp,
 	addToOrganization,
 } from "@databuddy/test";
+import { call } from "./helpers";
 
 const iit = hasTestDb ? it : it.skip;
-
-function call<T>(procedure: T, ctx: Context) {
-	return createProcedureClient(procedure as any, { context: ctx });
-}
 
 beforeEach(() => reset());
 afterAll(() => cleanup());

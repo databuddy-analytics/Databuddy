@@ -128,11 +128,11 @@ vi.mock("./autumn-inbox", () => ({
 
 vi.mock("@databuddy/db", () => ({
 	and: (...conditions: unknown[]) => ({ conditions }),
-		db: {
-			query: {
-				member: {
-			findMany: vi.fn(async () => state.ownedOrganizations),
-				},
+	db: {
+		query: {
+			member: {
+				findMany: vi.fn(async () => state.ownedOrganizations),
+			},
 			organization: { findFirst: vi.fn(async () => null) },
 			user: { findFirst: vi.fn(async () => state.userRow) },
 		},
@@ -140,11 +140,11 @@ vi.mock("@databuddy/db", () => ({
 	eq: (field: unknown, value: unknown) => ({ field, op: "eq", value }),
 	gt: (field: unknown, value: unknown) => ({ field, op: "gt", value }),
 	isNull: (field: unknown) => ({ field, op: "isNull" }),
-		normalizeEmailNotificationSettings: (raw?: {
-			billing?: { usageWarnings?: boolean };
-		}) => ({
-			billing: { usageWarnings: raw?.billing?.usageWarnings ?? true },
-		}),
+	normalizeEmailNotificationSettings: (raw?: {
+		billing?: { usageWarnings?: boolean };
+	}) => ({
+		billing: { usageWarnings: raw?.billing?.usageWarnings ?? true },
+	}),
 	or: (...conditions: unknown[]) => ({ conditions, op: "or" }),
 	sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({
 		strings: Array.from(strings),
@@ -359,13 +359,13 @@ describe("sendAlertEmail", () => {
 			"send",
 			"insert",
 		]);
-			expect(state.send).toHaveBeenCalledWith({
-				from: "alerts@databuddy.cc",
-				to: "member@example.com",
-				subject: "Limit reached",
-				html: "<html />",
-				text: "<html />",
-			});
+		expect(state.send).toHaveBeenCalledWith({
+			from: "alerts@databuddy.cc",
+			to: "member@example.com",
+			subject: "Limit reached",
+			html: "<html />",
+			text: "<html />",
+		});
 		expect(state.inserted).toEqual([
 			expect.objectContaining({
 				alertType: "included",
@@ -826,5 +826,50 @@ describe("Autumn webhook inbox", () => {
 		expect(result).toEqual({ success: true, message: "Email sent" });
 		expect(state.send).toHaveBeenCalledTimes(1);
 		expect(state.storedWebhooks.get("msg-replay")?.status).toBe("completed");
+	});
+
+	it("fails a replay for an unknown webhook id without side effects", async () => {
+		await expect(replayDeferredAutumnWebhook("msg-unknown")).resolves.toEqual({
+			message: "Stored webhook not found",
+			success: false,
+		});
+		expect(state.send).not.toHaveBeenCalled();
+	});
+
+	it("leaves a webhook claimed by another worker queued", async () => {
+		state.storedWebhooks.set("msg-claimed", {
+			attempts: 3,
+			claimToken: "claim-other-worker",
+			id: "msg-claimed",
+			payload: {},
+			status: "processing",
+			type: "balances.limit_reached",
+		});
+
+		await expect(replayDeferredAutumnWebhook("msg-claimed")).resolves.toEqual({
+			disposition: "deferred",
+			message: "Webhook already queued for replay",
+			success: true,
+		});
+		expect(state.send).not.toHaveBeenCalled();
+		expect(state.storedWebhooks.get("msg-claimed")?.status).toBe("processing");
+	});
+
+	it("acknowledges dead-lettered webhooks without reprocessing them", async () => {
+		state.storedWebhooks.set("msg-dead", {
+			attempts: 12,
+			claimToken: null,
+			id: "msg-dead",
+			payload: {},
+			status: "dead_letter",
+			type: "balances.limit_reached",
+		});
+
+		await expect(replayDeferredAutumnWebhook("msg-dead")).resolves.toEqual({
+			disposition: "duplicate",
+			message: "Webhook retained for investigation",
+			success: true,
+		});
+		expect(state.send).not.toHaveBeenCalled();
 	});
 });

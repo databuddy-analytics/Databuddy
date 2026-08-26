@@ -133,6 +133,24 @@ const bulkFlagBodySchema = t.Object({
 	environment: t.Optional(t.String()),
 });
 
+interface TargetGroupJoin {
+	targetGroup: {
+		deletedAt: Date | null;
+		id: string;
+		rules: FlagRule[];
+	} | null;
+}
+
+function resolveTargetGroups(joins: TargetGroupJoin[]): TargetGroupData[] {
+	const resolved: TargetGroupData[] = [];
+	for (const { targetGroup } of joins) {
+		if (targetGroup && !targetGroup.deletedAt) {
+			resolved.push({ id: targetGroup.id, rules: targetGroup.rules });
+		}
+	}
+	return resolved;
+}
+
 const getCachedFlag = cacheable(
 	async (key: string, clientId: string, environment?: string) => {
 		const flag = await db.query.flags.findFirst({
@@ -162,16 +180,9 @@ const getCachedFlag = cacheable(
 			return null;
 		}
 
-		const resolvedTargetGroups: TargetGroupData[] = flag.flagsToTargetGroups
-			.filter((ftg) => ftg.targetGroup && !ftg.targetGroup.deletedAt)
-			.map((ftg) => ({
-				id: ftg.targetGroup.id,
-				rules: ftg.targetGroup.rules,
-			}));
-
 		return {
 			...flag,
-			resolvedTargetGroups,
+			resolvedTargetGroups: resolveTargetGroups(flag.flagsToTargetGroups),
 		};
 	},
 	{
@@ -210,19 +221,10 @@ const getCachedFlagsForClient = cacheable(
 			},
 		});
 
-		return flagsList.map((flag) => {
-			const resolvedTargetGroups: TargetGroupData[] = flag.flagsToTargetGroups
-				.filter((ftg) => ftg.targetGroup && !ftg.targetGroup.deletedAt)
-				.map((ftg) => ({
-					id: ftg.targetGroup.id,
-					rules: ftg.targetGroup.rules,
-				}));
-
-			return {
-				...flag,
-				resolvedTargetGroups,
-			};
-		});
+		return flagsList.map((flag) => ({
+			...flag,
+			resolvedTargetGroups: resolveTargetGroups(flag.flagsToTargetGroups),
+		}));
 	},
 	{
 		expireInSec: 30,
@@ -285,19 +287,10 @@ const getCachedFlagsForUser = cacheable(
 			},
 		});
 
-		return flagsList.map((flag) => {
-			const resolvedTargetGroups: TargetGroupData[] = flag.flagsToTargetGroups
-				.filter((ftg) => ftg.targetGroup && !ftg.targetGroup.deletedAt)
-				.map((ftg) => ({
-					id: ftg.targetGroup.id,
-					rules: ftg.targetGroup.rules,
-				}));
-
-			return {
-				...flag,
-				resolvedTargetGroups,
-			};
-		});
+		return flagsList.map((flag) => ({
+			...flag,
+			resolvedTargetGroups: resolveTargetGroups(flag.flagsToTargetGroups),
+		}));
 	},
 	{
 		expireInSec: 30,
@@ -587,10 +580,6 @@ export function evaluateFlag(
 		};
 	}
 
-	let enabled = Boolean(flag.defaultValue);
-	let value = enabled;
-	let reason = "DEFAULT_VALUE";
-
 	if (flag.type === "rollout") {
 		let identifier: string;
 
@@ -605,24 +594,22 @@ export function evaluateFlag(
 				identifier = context.userId || context.email || "anonymous";
 		}
 
-		const hash = hashString(`${flag.key}:${identifier}`);
-		const percentage = hash % 100;
-		const rolloutPercentage = flag.rolloutPercentage || 0;
-
-		enabled = percentage < rolloutPercentage;
-		value = enabled;
-		reason = enabled ? "ROLLOUT_ENABLED" : "ROLLOUT_DISABLED";
-	} else {
-		enabled = Boolean(flag.defaultValue);
-		value = enabled;
-		reason = "BOOLEAN_DEFAULT";
+		const percentage = hashString(`${flag.key}:${identifier}`) % 100;
+		const enabled = percentage < (flag.rolloutPercentage || 0);
+		return {
+			enabled,
+			value: enabled,
+			payload: enabled ? flag.payload : null,
+			reason: enabled ? "ROLLOUT_ENABLED" : "ROLLOUT_DISABLED",
+		};
 	}
 
+	const enabled = Boolean(flag.defaultValue);
 	return {
 		enabled,
-		value,
+		value: enabled,
 		payload: enabled ? flag.payload : null,
-		reason,
+		reason: "BOOLEAN_DEFAULT",
 	};
 }
 

@@ -23,10 +23,10 @@ import {
 	signUp,
 	userContext,
 } from "@databuddy/test";
-import { createProcedureClient, type AnyProcedure } from "@orpc/server";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import { randomUUIDv7 } from "bun";
 import type { Job } from "bullmq";
+import { call } from "./helpers";
 
 const canRun =
 	hasTestDb &&
@@ -34,10 +34,6 @@ const canRun =
 	readBooleanEnv("UPTIME_ROUTER_INTEGRATION");
 const iit = canRun ? it : it.skip;
 const scheduleIds = new Set<string>();
-
-function call<T extends AnyProcedure>(procedure: T, context: Context) {
-	return createProcedureClient(procedure, { context });
-}
 
 beforeEach(async () => {
 	await reset();

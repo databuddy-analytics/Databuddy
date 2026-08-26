@@ -13,7 +13,6 @@ import {
 	appRouter,
 	createInternalPrincipal,
 	createRPCContext,
-	type Context,
 } from "@databuddy/rpc";
 import {
 	closeInsightsQueue,
@@ -33,9 +32,9 @@ import {
 	signUp,
 	userContext,
 } from "@databuddy/test";
-import { createProcedureClient, type AnyProcedure } from "@orpc/server";
 import { randomUUIDv7 } from "bun";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { call } from "./helpers";
 
 const iit = hasTestDb ? it : it.skip;
 
@@ -65,10 +64,6 @@ function investigationOutcome(nextType: "act" | "watch"): InvestigationOutcome {
 		summary: "Signup conversion needs attention.",
 		title: "Signup conversion changed",
 	};
-}
-
-function call<T extends AnyProcedure>(procedure: T, context: Context) {
-	return createProcedureClient(procedure, { context });
 }
 
 async function seedExecutableGoalAction() {
