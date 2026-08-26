@@ -208,6 +208,37 @@ export const FEATURE_METADATA: Record<FeatureId | GatedFeatureId, FeatureMeta> =
 		},
 	};
 
+export function getPlanDisplayName(planId: PlanId | string | null): string {
+	const plan = normalizePlanId(planId);
+	return plan.charAt(0).toUpperCase() + plan.slice(1);
+}
+
+export function getFeatureUnavailableMessage(
+	feature: GatedFeatureId,
+	nextPlan: PlanId | null
+): string {
+	const featureName = FEATURE_METADATA[feature]?.name ?? "This feature";
+	return nextPlan
+		? `${featureName} is not available on your plan. Upgrade to ${getPlanDisplayName(nextPlan)} to unlock it.`
+		: `${featureName} is not available on your plan.`;
+}
+
+const TRAILING_PLURAL_S = /s$/;
+
+export function getPlanLimitMessage(
+	planId: PlanId | string | null,
+	feature: GatedFeatureId,
+	limit: number,
+	nextPlan: PlanId | null
+): string {
+	const unit = FEATURE_METADATA[feature]?.unit ?? "items";
+	const noun = limit === 1 ? unit.replace(TRAILING_PLURAL_S, "") : unit;
+	const included = `Your ${getPlanDisplayName(planId)} plan includes ${limit} ${noun}.`;
+	return nextPlan
+		? `${included} Delete one or upgrade to ${getPlanDisplayName(nextPlan)} to create more.`
+		: included;
+}
+
 export function isPlanFeatureEnabled(
 	planId: PlanId | string | null,
 	feature: GatedFeatureId

@@ -1,7 +1,9 @@
 import type { GatedFeatureId } from "@databuddy/shared/types/features";
 import {
+	getFeatureUnavailableMessage,
 	getNextPlanForFeature,
 	getPlanFeatureLimit,
+	getPlanLimitMessage,
 	isFeatureAvailable,
 	isWithinLimit,
 } from "@databuddy/shared/types/features";
@@ -13,7 +15,11 @@ function requireFeature(
 ): void {
 	if (!isFeatureAvailable(planId ?? null, feature)) {
 		const nextPlan = getNextPlanForFeature(planId ?? null, feature);
-		throw rpcError.featureUnavailable(feature, nextPlan ?? undefined);
+		throw rpcError.featureUnavailable(
+			feature,
+			nextPlan ?? undefined,
+			getFeatureUnavailableMessage(feature, nextPlan)
+		);
 	}
 }
 
@@ -36,19 +42,22 @@ export function requireUsageWithinLimit(
 		const nextPlan = getNextPlanForFeature(planId ?? null, feature);
 
 		if (limit === false) {
-			throw rpcError.featureUnavailable(feature, nextPlan ?? undefined);
+			throw rpcError.featureUnavailable(
+				feature,
+				nextPlan ?? undefined,
+				getFeatureUnavailableMessage(feature, nextPlan)
+			);
 		}
 		if (limit === "unlimited") {
 			return;
 		}
 
-		throw rpcError.planLimitExceeded(
+		throw rpcError.planLimitExceeded({
+			feature,
 			limit,
-			currentUsage,
-			nextPlan ?? undefined,
-			nextPlan
-				? `Limit of ${limit} reached. Upgrade to ${nextPlan} for more.`
-				: `Limit of ${limit} reached`
-		);
+			current: currentUsage,
+			nextPlan: nextPlan ?? undefined,
+			message: getPlanLimitMessage(planId ?? null, feature, limit, nextPlan),
+		});
 	}
 }
