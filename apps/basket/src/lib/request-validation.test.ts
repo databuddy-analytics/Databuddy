@@ -92,4 +92,16 @@ describe("isValidIpFromSettings", () => {
 			expect(isValidIpFromSettings(ip, allowed)).toBe(expected)
 		);
 	}
+
+	test.each([["", "empty"], ["   ", "whitespace"], ["not-an-ip", "malformed"]])(
+		"denies %s (%s) against a configured allowlist",
+		(ip) => {
+			expect(isValidIpFromSettings(ip, ["203.0.113.5"])).toBe(false);
+		}
+	);
+
+	test("allows any address when no allowlist is configured", () => {
+		expect(isValidIpFromSettings("", [])).toBe(true);
+		expect(isValidIpFromSettings("203.0.113.5", undefined)).toBe(true);
+	});
 });

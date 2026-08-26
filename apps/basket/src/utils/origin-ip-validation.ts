@@ -82,11 +82,11 @@ export function isValidIpFromSettings(
 	ip: string,
 	allowedIps?: string[]
 ): boolean {
-	if (!ip?.trim()) {
-		return true;
-	}
 	if (!allowedIps || allowedIps.length === 0) {
 		return true;
+	}
+	if (!ip?.trim()) {
+		return false;
 	}
 
 	const trimmedIp = ip.trim();
