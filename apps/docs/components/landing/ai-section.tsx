@@ -15,12 +15,6 @@ import { CardChrome, useRevealOnScroll } from "./demo-primitives";
 import { SciFiButton } from "./scifi-btn";
 import { cn } from "@/lib/utils";
 
-const MCP_TOOL_CALLS = [
-	{ tool: "get_data", detail: "traffic and conversions · launch week" },
-	{ tool: "create_funnel", detail: "/checkout → /pay → purchase" },
-	{ tool: "create_goal", detail: "checkout_completed" },
-] as const;
-
 const MCP_CLIENTS = [
 	"Claude Code",
 	"Claude Desktop",
@@ -132,12 +126,43 @@ function InvestigationSlackDemo() {
 	);
 }
 
-const TERMINAL_QUESTION =
-	"How did the launch land? Set up tracking for the new checkout.";
+const TERMINAL_SCENARIOS = [
+	{
+		question: "How did the launch land? Set up tracking for the new checkout.",
+		calls: [
+			{ tool: "get_data", detail: "traffic and conversions · launch week" },
+			{ tool: "create_funnel", detail: "/checkout → /pay → purchase" },
+			{ tool: "create_goal", detail: "checkout_completed" },
+		],
+		answer:
+			"Launch week traffic is up 64% and signup conversion held at 4.1%. I created the checkout funnel and a checkout_completed goal; both are live in your dashboard.",
+	},
+	{
+		question: "Anything I should know before we ship today?",
+		calls: [
+			{
+				tool: "get_investigation",
+				detail: "checkout errors +180% · opened 2h ago",
+			},
+			{ tool: "get_data", detail: "errors by device · past 24h" },
+			{ tool: "reply_to_investigation", detail: "rolled back in v2.14.1" },
+		],
+		answer:
+			"Yes. Databunny opened a case two hours ago: checkout exceptions are up 2.8x since yesterday's deploy, concentrated on iOS Safari. I rolled back address autocomplete and replied to the case.",
+	},
+] as const;
+
 const TYPE_CHARS_PER_TICK = 2;
 const TYPE_TICK_MS = 24;
+const HOLD_MS = 5200;
+const FADE_MS = 350;
+
 function useTypewriter(text: string, active: boolean) {
 	const [typed, setTyped] = useState(0);
+
+	useEffect(() => {
+		setTyped(0);
+	}, [text]);
 
 	useEffect(() => {
 		if (!active) {
@@ -162,9 +187,55 @@ function useTypewriter(text: string, active: boolean) {
 	return { text: text.slice(0, typed), done: typed >= text.length };
 }
 
+function useOnScreen(ref: React.RefObject<HTMLDivElement | null>) {
+	const [onScreen, setOnScreen] = useState(false);
+
+	useEffect(() => {
+		const el = ref.current;
+		if (!el) {
+			return;
+		}
+		const observer = new IntersectionObserver(
+			(entries) => setOnScreen(entries[0]?.isIntersecting ?? false),
+			{ threshold: 0.2 }
+		);
+		observer.observe(el);
+		return () => observer.disconnect();
+	}, [ref]);
+
+	return onScreen;
+}
+
 function McpTerminalDemo() {
 	const { ref, visible } = useRevealOnScroll();
-	const question = useTypewriter(TERMINAL_QUESTION, visible);
+	const onScreen = useOnScreen(ref);
+	const [scenarioIndex, setScenarioIndex] = useState(0);
+	const [fading, setFading] = useState(false);
+	const scenario = TERMINAL_SCENARIOS[scenarioIndex];
+	const question = useTypewriter(scenario.question, visible && onScreen);
+	const showing = visible && question.done && !fading;
+
+	useEffect(() => {
+		if (!(question.done && onScreen) || fading) {
+			return;
+		}
+		if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+			return;
+		}
+		const id = window.setTimeout(() => setFading(true), HOLD_MS);
+		return () => window.clearTimeout(id);
+	}, [question.done, onScreen, fading]);
+
+	useEffect(() => {
+		if (!fading) {
+			return;
+		}
+		const id = window.setTimeout(() => {
+			setScenarioIndex((index) => (index + 1) % TERMINAL_SCENARIOS.length);
+			setFading(false);
+		}, FADE_MS);
+		return () => window.clearTimeout(id);
+	}, [fading]);
 
 	return (
 		<div aria-hidden className="relative mt-3 w-full" ref={ref}>
@@ -188,7 +259,12 @@ function McpTerminalDemo() {
 						databuddy · scoped key
 					</span>
 				</div>
-				<div className="min-h-[172px] space-y-2.5 px-3 py-3 sm:px-4">
+				<div
+					className={cn(
+						"min-h-[190px] space-y-2.5 px-3 py-3 transition-opacity duration-300 sm:px-4",
+						fading ? "opacity-0" : "opacity-100"
+					)}
+				>
 					<p
 						className={cn(
 							"font-medium font-mono text-foreground text-xs transition-opacity duration-300 sm:text-sm",
@@ -206,16 +282,16 @@ function McpTerminalDemo() {
 							)}
 						/>
 					</p>
-					{MCP_TOOL_CALLS.map((call, i) => (
+					{scenario.calls.map((call, i) => (
 						<div
 							className={cn(
 								"flex flex-wrap items-center gap-x-2 gap-y-0.5 transition-all duration-500",
-								visible && question.done
+								showing
 									? "translate-y-0 opacity-100"
 									: "translate-y-3 opacity-0"
 							)}
 							key={call.tool}
-							style={revealStyle(visible && question.done, 150 + i * 180)}
+							style={revealStyle(showing, 150 + i * 180)}
 						>
 							<span className="inline-flex items-center gap-1.5 rounded bg-violet-500/10 px-1.5 py-0.5 font-mono text-[11px] text-violet-400">
 								<PlugIcon className="size-3" />
@@ -227,13 +303,10 @@ function McpTerminalDemo() {
 							<CheckIcon
 								className={cn(
 									"size-3 text-emerald-400 transition-all duration-200 ease-out",
-									visible && question.done
-										? "scale-100 opacity-100"
-										: "scale-50 opacity-0"
+									showing ? "scale-100 opacity-100" : "scale-50 opacity-0"
 								)}
 								style={{
-									transitionDelay:
-										visible && question.done ? `${450 + i * 180}ms` : "0ms",
+									transitionDelay: showing ? `${450 + i * 180}ms` : "0ms",
 								}}
 							/>
 						</div>
@@ -241,15 +314,11 @@ function McpTerminalDemo() {
 					<p
 						className={cn(
 							"font-mono text-[11px] text-muted-foreground leading-relaxed transition-all duration-500 sm:text-xs",
-							visible && question.done
-								? "translate-y-0 opacity-100"
-								: "translate-y-3 opacity-0"
+							showing ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
 						)}
-						style={revealStyle(visible && question.done, 850)}
+						style={revealStyle(showing, 850)}
 					>
-						Launch week traffic is up 64% and signup conversion held at 4.1%. I
-						created the checkout funnel and a checkout_completed goal; both are
-						live in your dashboard.
+						{scenario.answer}
 					</p>
 				</div>
 			</CardChrome>
