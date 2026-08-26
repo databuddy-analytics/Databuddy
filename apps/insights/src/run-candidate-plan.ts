@@ -1,65 +1,22 @@
 import { db } from "@databuddy/db";
 import { insightRunItems } from "@databuddy/db/schema";
-import {
-	insightDatabuddySetupRecommendationSchema,
-	investigationSignalSchema,
-} from "@databuddy/shared/insights";
+import { investigationSignalSchema } from "@databuddy/shared/insights";
 import { z } from "zod";
 import {
 	coveragePortfolioLimit,
 	type CoveragePortfolioReason,
 } from "./coverage-planner";
 import { type InsightRunIdentity, runIdentityCondition } from "./effects";
-import {
-	canonicalMeasurementEventTarget,
-	canonicalMeasurementRouteTarget,
-} from "./measurement-targets";
 
 const frozenPlanReasonSchema = z.enum(["manual", "scheduled"]);
 const emptyPlanStatusSchema = z.enum(["deferred", "no_signals"]);
 
-const measurementCandidateSchema = z
-	.discriminatedUnion("kind", [
-		z
-			.object({
-				basis: z.literal("observed_custom_event"),
-				kind: z.literal("event_goal_candidate"),
-				target: z.string().trim().min(1).max(64),
-				type: z.literal("EVENT"),
-			})
-			.strict(),
-		z
-			.object({
-				basis: z.literal("observed_navigation_proxy"),
-				kind: z.literal("page_navigation_proxy"),
-				target: z.string().trim().min(1).max(120),
-				type: z.literal("PAGE_VIEW"),
-			})
-			.strict(),
-	])
-	.superRefine((candidate, context) => {
-		const canonical =
-			candidate.type === "EVENT"
-				? canonicalMeasurementEventTarget(candidate.target)
-				: canonicalMeasurementRouteTarget(candidate.target);
-		if (canonical !== candidate.target) {
-			context.addIssue({
-				code: "custom",
-				message: "Measurement candidate target must be canonical",
-				path: ["target"],
-			});
-		}
-	});
-
 const plannedCandidateSchema = z
 	.object({
 		evidence: z.array(z.string().max(500)).max(20),
-		measurementCandidate: measurementCandidateSchema.optional(),
-		setupRecommendationCandidate:
-			insightDatabuddySetupRecommendationSchema.optional(),
 		signal: investigationSignalSchema,
 	})
-	.strict();
+	.strip();
 
 const frozenInvestigationPlanSchema = z
 	.object({

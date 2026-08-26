@@ -1,6 +1,5 @@
 import { executeQuery, type Filter } from "@databuddy/ai/query";
 import type {
-	InsightDatabuddySetupRecommendation,
 	InvestigationSignal,
 	MatchedErrorContinuationMeasurement,
 } from "@databuddy/shared/insights";
@@ -17,20 +16,6 @@ import { emitInsightsEvent } from "./lib/evlog-insights";
 
 dayjs.extend(utcPlugin);
 dayjs.extend(timezonePlugin);
-export type MeasurementCandidate =
-	| {
-			basis: "observed_custom_event";
-			kind: "event_goal_candidate";
-			target: string;
-			type: "EVENT";
-	  }
-	| {
-			basis: "observed_navigation_proxy";
-			kind: "page_navigation_proxy";
-			target: string;
-			type: "PAGE_VIEW";
-	  };
-
 export interface DetectedSignal {
 	baseline: number;
 	baselineDates?: string[];
@@ -43,10 +28,8 @@ export interface DetectedSignal {
 	entityId?: string;
 	entityLabel?: string;
 	label: string;
-	measurementCandidate?: MeasurementCandidate;
 	method: "behavior" | "zscore" | "wow";
 	metric: string;
-	setupRecommendationCandidate?: InsightDatabuddySetupRecommendation;
 	severity: "critical" | "warning" | "info";
 	subjectKey?: string;
 }

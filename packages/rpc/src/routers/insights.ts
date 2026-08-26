@@ -1,16 +1,12 @@
 import {
 	and,
-	count,
 	db,
 	desc,
 	eq,
 	inArray,
 	isNull,
-	not,
 	notExists,
-	or,
 	sql,
-	type SQLWrapper,
 } from "@databuddy/db";
 import {
 	analyticsInsights,
@@ -29,7 +25,6 @@ import { ratelimit } from "@databuddy/redis/rate-limit";
 import {
 	historyInsightSchema,
 	insightBriefItemSchema,
-	insightRecommendationItemSchema,
 	insightReplySlackDeliverySchema,
 	insightReplyStatusSchema,
 	insightTimelineItemSchema,
@@ -54,7 +49,6 @@ import {
 import { withWorkspace } from "../procedures/with-workspace";
 
 const INSIGHT_TIMELINE_ROWS_PER_KIND = 50;
-const COMPLETED_RECOMMENDATION_LIMIT = 5;
 
 function isAccessDenied(error: unknown): boolean {
 	return (
@@ -326,7 +320,6 @@ function serializeInsightBrief(
 		id: row.id,
 		impact: outcome.impact,
 		investigationId: row.investigationId ?? null,
-		recommendation: outcome.recommendation ?? null,
 		rootCause: outcome.rootCause,
 		signal,
 		summary: outcome.summary,
@@ -1040,339 +1033,6 @@ export const insightsRouter = {
 			return {
 				hasMore: rows.length > input.limit,
 				insights: page,
-			};
-		}),
-
-	recommendations: protectedProcedure
-		.route({
-			method: "POST",
-			path: "/insights/recommendations",
-			tags: ["Insights"],
-			summary: "List current and completed insight recommendations",
-		})
-		.input(
-			z.object({
-				includeCompleted: z.boolean().default(true),
-				limit: z.number().int().min(1).max(100).default(50),
-				offset: z.number().int().min(0).default(0),
-				organizationId: z.string().min(1),
-				websiteId: z.string().min(1).optional(),
-			})
-		)
-		.output(
-			z.object({
-				completed: z.array(insightRecommendationItemSchema),
-				hasMore: z.boolean(),
-				recommendations: z.array(insightRecommendationItemSchema),
-				total: z.number().int().nonnegative(),
-			})
-		)
-		.handler(async ({ context, input }) => {
-			await authorizeInsightsRead(context, input);
-			const latestRecommendation = (
-				alias: string,
-				recommendationOnly = false
-			) => {
-				const latestBySignal = db
-					.selectDistinctOn(
-						[insightObservations.websiteId, insightObservations.signalKey],
-						{
-							...insightBriefSelection,
-							investigationId: sql<string | null>`${analyticsInsights.id}`.as(
-								"investigation_id"
-							),
-							recheckAt: insightObservations.recheckAt,
-							signalKey: insightObservations.signalKey,
-						}
-					)
-					.from(insightObservations)
-					.innerJoin(websites, eq(insightObservations.websiteId, websites.id))
-					.leftJoin(
-						analyticsInsights,
-						and(
-							eq(insightObservations.insightId, analyticsInsights.id),
-							eq(
-								insightObservations.organizationId,
-								analyticsInsights.organizationId
-							),
-							eq(insightObservations.websiteId, analyticsInsights.websiteId),
-							eq(insightObservations.signalKey, analyticsInsights.subjectKey)
-						)
-					)
-					.where(
-						and(
-							eq(insightObservations.organizationId, input.organizationId),
-							input.websiteId
-								? eq(insightObservations.websiteId, input.websiteId)
-								: undefined,
-							recommendationOnly
-								? sql`${insightObservations.outcome}->>'recommendation' is not null`
-								: undefined,
-							isNull(websites.deletedAt)
-						)
-					)
-					.orderBy(
-						insightObservations.websiteId,
-						insightObservations.signalKey,
-						desc(insightObservations.asOf),
-						desc(insightObservations.createdAt),
-						desc(insightObservations.id)
-					)
-					.as(`${alias}_state`);
-				const recommendation = sql`${latestBySignal.outcome}->'recommendation'`;
-				return db
-					.selectDistinctOn([latestBySignal.websiteId, recommendation], {
-						asOf: latestBySignal.asOf,
-						createdAt: latestBySignal.createdAt,
-						id: latestBySignal.id,
-						investigationId: latestBySignal.investigationId,
-						outcome: latestBySignal.outcome,
-						recheckAt: latestBySignal.recheckAt,
-						signal: latestBySignal.signal,
-						signalKey: latestBySignal.signalKey,
-						websiteDomain: latestBySignal.websiteDomain,
-						websiteId: latestBySignal.websiteId,
-						websiteName: latestBySignal.websiteName,
-					})
-					.from(latestBySignal)
-					.where(sql`${latestBySignal.outcome}->>'recommendation' is not null`)
-					.orderBy(
-						latestBySignal.websiteId,
-						recommendation,
-						desc(latestBySignal.asOf),
-						desc(latestBySignal.createdAt),
-						desc(latestBySignal.id)
-					)
-					.as(alias);
-			};
-
-			const pageSource = latestRecommendation("latest_recommendations");
-			const completedSource = latestRecommendation(
-				"latest_completed_recommendations",
-				true
-			);
-			const recommendationState = (source: typeof pageSource) => {
-				const recommendation = sql`${source.outcome}->'recommendation'`;
-				const recommendationChanges = sql`${recommendation}->'changes'`;
-				const recommendationDraft = sql`${recommendation}->'draft'`;
-				const recommendationKind = sql`${recommendation}->>'kind'`;
-				const recommendationOperation = sql`${recommendation}->>'operation'`;
-				const entityId = sql`${source.signal}->'entity'->>'id'`;
-				const entityType = sql`${source.signal}->'entity'->>'type'`;
-				const isFreshStandaloneRecommendation = or(
-					sql`coalesce(${recommendationKind}, '') not in ('instrumentation', 'databuddy_setup')`,
-					sql`${source.outcome}->'next'->>'type' <> 'resolve'`,
-					sql`${source.recheckAt} > now()`
-				);
-				const noEquivalentGoalDraft = notExists(
-					db
-						.select({ id: goals.id })
-						.from(goals)
-						.where(
-							and(
-								eq(goals.websiteId, source.websiteId),
-								eq(goals.isActive, true),
-								isNull(goals.deletedAt),
-								sql`${goals.type} = ${recommendationDraft}->>'type'`,
-								sql`${goals.target} = ${recommendationDraft}->>'target'`,
-								sql`coalesce(${goals.filters}, '[]'::jsonb) = coalesce(${recommendationDraft}->'filters', '[]'::jsonb)`,
-								sql`${goals.ignoreHistoricData} = CASE ${recommendationDraft}->>'ignoreHistoricData' WHEN 'true' THEN true ELSE false END`
-							)
-						)
-				);
-				const noEquivalentFunnelDraft = notExists(
-					db
-						.select({ id: funnelDefinitions.id })
-						.from(funnelDefinitions)
-						.where(
-							and(
-								eq(funnelDefinitions.websiteId, source.websiteId),
-								eq(funnelDefinitions.isActive, true),
-								isNull(funnelDefinitions.deletedAt),
-								sql`coalesce(${funnelDefinitions.filters}, '[]'::jsonb) = coalesce(${recommendationDraft}->'filters', '[]'::jsonb)`,
-								sql`${funnelDefinitions.ignoreHistoricData} = CASE ${recommendationDraft}->>'ignoreHistoricData' WHEN 'true' THEN true ELSE false END`,
-								sql`(
-									SELECT jsonb_agg(
-										jsonb_build_object(
-											'type', existing_step.value->>'type',
-											'target', existing_step.value->>'target',
-											'conditions', coalesce(nullif(existing_step.value->'conditions', 'null'::jsonb), '{}'::jsonb)
-										)
-										ORDER BY existing_step.ordinality
-									)
-									FROM jsonb_array_elements(${funnelDefinitions.steps}) WITH ORDINALITY AS existing_step(value, ordinality)
-								) = (
-									SELECT jsonb_agg(
-										jsonb_build_object(
-											'type', draft_step.value->>'type',
-											'target', draft_step.value->>'target',
-											'conditions', '{}'::jsonb
-										)
-										ORDER BY draft_step.ordinality
-									)
-									FROM jsonb_array_elements(${recommendationDraft}->'steps') WITH ORDINALITY AS draft_step(value, ordinality)
-								)`
-							)
-						)
-				);
-				const definitionEditApplied = (
-					table: typeof goals | typeof funnelDefinitions,
-					definition: {
-						deletedAt: SQLWrapper;
-						description: SQLWrapper;
-						id: SQLWrapper;
-						name: SQLWrapper;
-						websiteId: SQLWrapper;
-					}
-				) =>
-					sql`exists (
-						select 1 from ${table}
-						where ${definition.websiteId} = ${source.websiteId}
-							and ${definition.id} = ${entityId}
-							and ${definition.deletedAt} is null
-							and (${recommendationChanges}->>'name' is null or ${definition.name} = ${recommendationChanges}->>'name')
-							and (${recommendationChanges}->>'description' is null or ${definition.description} = ${recommendationChanges}->>'description')
-					)`;
-				const definitionDeleted = (
-					table: typeof goals | typeof funnelDefinitions,
-					definition: {
-						deletedAt: SQLWrapper;
-						id: SQLWrapper;
-						websiteId: SQLWrapper;
-					}
-				) =>
-					sql`not exists (
-						select 1 from ${table}
-						where ${definition.websiteId} = ${source.websiteId}
-							and ${definition.id} = ${entityId}
-							and ${definition.deletedAt} is null
-					)`;
-				const goalEditApplied = and(
-					sql`${recommendationOperation} = 'edit'`,
-					sql`${entityType} = 'goal'`,
-					definitionEditApplied(goals, goals)
-				);
-				const funnelEditApplied = and(
-					sql`${recommendationOperation} = 'edit'`,
-					sql`${entityType} = 'funnel'`,
-					definitionEditApplied(funnelDefinitions, funnelDefinitions)
-				);
-				const goalDeleteApplied = and(
-					sql`${recommendationOperation} = 'delete'`,
-					sql`${entityType} = 'goal'`,
-					definitionDeleted(goals, goals)
-				);
-				const funnelDeleteApplied = and(
-					sql`${recommendationOperation} = 'delete'`,
-					sql`${entityType} = 'funnel'`,
-					definitionDeleted(funnelDefinitions, funnelDefinitions)
-				);
-				const isCompletedDefinitionRecommendation = or(
-					goalEditApplied,
-					funnelEditApplied,
-					goalDeleteApplied,
-					funnelDeleteApplied
-				);
-				const hasNativeRecommendation = or(
-					sql`${recommendationOperation} in ('edit', 'delete') and ${entityType} in ('goal', 'funnel')`,
-					sql`${recommendationKind} in ('goal_draft', 'funnel_draft', 'instrumentation', 'databuddy_setup')`
-				);
-				const isCurrentRecommendation = and(
-					or(
-						and(
-							sql`${recommendationKind} = 'goal_draft'`,
-							noEquivalentGoalDraft
-						),
-						and(
-							sql`${recommendationKind} = 'funnel_draft'`,
-							noEquivalentFunnelDraft
-						),
-						and(
-							sql`${recommendationKind} is null or ${recommendationKind} not in ('goal_draft', 'funnel_draft')`,
-							sql`not coalesce(${isCompletedDefinitionRecommendation}, false)`
-						)
-					),
-					isFreshStandaloneRecommendation
-				);
-				const isCompletedRecommendation = or(
-					and(
-						sql`${recommendationKind} = 'goal_draft'`,
-						not(noEquivalentGoalDraft)
-					),
-					and(
-						sql`${recommendationKind} = 'funnel_draft'`,
-						not(noEquivalentFunnelDraft)
-					),
-					isCompletedDefinitionRecommendation
-				);
-
-				return {
-					hasNativeRecommendation,
-					isCompletedRecommendation,
-					isCurrentRecommendation,
-				};
-			};
-			const pageState = recommendationState(pageSource);
-			const completedState = recommendationState(completedSource);
-			const [rows, [summary], completedRows] = await Promise.all([
-				db
-					.select()
-					.from(pageSource)
-					.where(
-						and(
-							sql`${pageSource.outcome}->>'recommendation' is not null`,
-							pageState.hasNativeRecommendation,
-							pageState.isCurrentRecommendation
-						)
-					)
-					.orderBy(
-						desc(pageSource.asOf),
-						desc(pageSource.createdAt),
-						desc(pageSource.id)
-					)
-					.limit(input.limit + 1)
-					.offset(input.offset),
-				db
-					.select({ total: count() })
-					.from(pageSource)
-					.where(
-						and(
-							sql`${pageSource.outcome}->>'recommendation' is not null`,
-							pageState.hasNativeRecommendation,
-							pageState.isCurrentRecommendation
-						)
-					),
-				input.includeCompleted
-					? db
-							.select()
-							.from(completedSource)
-							.where(
-								and(
-									sql`${completedSource.outcome}->>'recommendation' is not null`,
-									completedState.hasNativeRecommendation,
-									completedState.isCompletedRecommendation
-								)
-							)
-							.orderBy(
-								desc(completedSource.asOf),
-								desc(completedSource.createdAt),
-								desc(completedSource.id)
-							)
-							.limit(COMPLETED_RECOMMENDATION_LIMIT)
-					: Promise.resolve([]),
-			]);
-			const toRecommendation = (row: (typeof rows)[number]) => {
-				const insight = serializeInsightBrief(row);
-				return insight?.recommendation
-					? [{ ...insight, recommendation: insight.recommendation }]
-					: [];
-			};
-			const page = rows.slice(0, input.limit).flatMap(toRecommendation);
-			return {
-				completed: completedRows.flatMap(toRecommendation),
-				hasMore: rows.length > input.limit,
-				recommendations: page,
-				total: summary?.total ?? 0,
 			};
 		}),
 

@@ -19,6 +19,7 @@ import type {
 	InvestigationSignal,
 } from "@databuddy/shared/insights";
 import { randomUUIDv7 } from "bun";
+import { normalizedErrorSubject } from "./investigation";
 import { captureInsightsError, emitInsightsEvent } from "./lib/evlog-insights";
 
 const REFRESHED_INSIGHT_COLUMNS = [
@@ -58,7 +59,7 @@ function excludedRefreshSet() {
 }
 
 function dedupeKeyFor(investigation: WebsiteInvestigation): string {
-	return `${investigation.websiteId}|${investigation.signal.signalKey}`;
+	return `${investigation.websiteId}|${normalizedErrorSubject(investigation.signal.signalKey)}`;
 }
 
 interface PriorInsightRow {

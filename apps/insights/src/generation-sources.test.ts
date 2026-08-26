@@ -34,25 +34,6 @@ const revenueIncrease: DetectedSignal = {
 	severity: "info",
 };
 
-const measurementCoverage: DetectedSignal = {
-	baseline: 0,
-	current: 0,
-	deltaPercent: 0,
-	detectedAt: "2026-07-11",
-	direction: "up",
-	label: "Conversion measurement coverage is missing",
-	measurementCandidate: {
-		basis: "observed_custom_event",
-		kind: "event_goal_candidate",
-		target: "signup_completed",
-		type: "EVENT",
-	},
-	method: "wow",
-	metric: "measurement_coverage",
-	severity: "info",
-	subjectKey: "measurement:conversion-coverage",
-};
-
 const emptyUsage = {
 	inputTokenDetails: {
 		cacheReadTokens: 0,
@@ -84,7 +65,6 @@ function fixtureSources(
 	};
 	return {
 		detectDefinitionSignals: unexpected,
-		detectMeasurementRecommendationSignals: async () => [],
 		detectMetricSignals: unexpected,
 		detectRouteHealthSignals: async () => [],
 		fetchAnnotations: unexpected,
@@ -325,12 +305,6 @@ describe("fixture investigation sources", () => {
 			affectedVisitorIdentifiers: 35,
 			identifiedProfilesWithPriorAttributedCompletedPayment: 0,
 		});
-		expect(received?.setupRecommendationCandidate).toEqual({
-			action:
-				"Verify or add Databuddy identify() after authentication so future errors can be tied to signed-in users.",
-			feature: "user_identification",
-			kind: "databuddy_setup",
-		});
 		expect(
 			received?.evidence.some((item) =>
 				item.includes("affected payment status remains unknown")
@@ -502,10 +476,6 @@ describe("fixture investigation sources", () => {
 				calls.push("definition detection");
 				return [];
 			},
-			detectMeasurementRecommendationSignals: async () => {
-				calls.push("measurement recommendation detection");
-				return [measurementCoverage];
-			},
 			loadObservations: async () => {
 				calls.push("observations");
 				return new Map();
@@ -571,10 +541,7 @@ describe("fixture investigation sources", () => {
 			owner: "databuddy-analytics",
 			repo: "app",
 		});
-			expect(receivedRelatedMetrics).toEqual([
-				"measurement:conversion-coverage",
-				"revenue",
-			]);
+			expect(receivedRelatedMetrics).toEqual(["revenue"]);
 		expect(calls.sort()).toEqual(
 			[
 				"agent:visitors",
@@ -582,7 +549,6 @@ describe("fixture investigation sources", () => {
 				"definition detection",
 				"due investigation",
 				"history",
-				"measurement recommendation detection",
 				"metric detection",
 				"observations",
 				"other open work",
@@ -622,75 +588,6 @@ describe("fixture investigation sources", () => {
 		);
 		expect(calls.sort()).toEqual(
 			["definition detection", "metric detection"].sort()
-		);
-	});
-
-	it("propagates a failed measurement recommendation scan", async () => {
-		const sources = fixtureSources({
-			detectDefinitionSignals: async () => [],
-			detectMeasurementRecommendationSignals: async () => {
-				throw new Error("Measurement telemetry unavailable");
-			},
-			detectMetricSignals: async () => [],
-			loadDueInvestigation: async () => null,
-		});
-
-	await expect(investigateFixture(sources)).rejects.toThrow(
-			"Measurement telemetry unavailable"
-		);
-	});
-
-	it("passes the detector's safe measurement candidate to the agent", async () => {
-		let candidate: unknown;
-		let setupCandidate: unknown;
-		const candidateWithTrackingSetup: DetectedSignal = {
-			...measurementCoverage,
-			setupRecommendationCandidate: {
-				action:
-					"Confirm this site is still active; if it is, install or repair the Databuddy tracker before relying on its analytics.",
-				feature: "tracking",
-				kind: "databuddy_setup",
-			},
-		};
-		const sources = fixtureSources({
-			detectDefinitionSignals: async () => [],
-			detectMeasurementRecommendationSignals: async () => [
-				candidateWithTrackingSetup,
-			],
-			detectMetricSignals: async () => [],
-			fetchAnnotations: async () => [],
-			investigateSignal: async (input) => {
-				candidate = input.measurementCandidate;
-				setupCandidate = input.setupRecommendationCandidate;
-				return {
-					outcome: {
-						evidence: ["A completion event was observed."],
-						impact: null,
-						next: {
-							reason: "The measurement draft is ready for review.",
-							type: "resolve",
-						},
-						publish: true,
-						rootCause: null,
-						summary: "Conversion measurement is not configured.",
-						title: "Conversion measurement is missing",
-					},
-					toolCallCount: 0,
-				};
-			},
-			loadDueInvestigation: async () => null,
-			loadHistory: async () => [],
-			loadObservations: async () => new Map(),
-		});
-
-		const artifact = await investigateFixture(sources);
-
-		expect(artifact.signal?.signalKey).toBe(
-			"measurement:conversion-coverage"
-		);
-		expect(candidate).toEqual(measurementCoverage.measurementCandidate);
-		expect(setupCandidate).toEqual(
-			candidateWithTrackingSetup.setupRecommendationCandidate
 		);
 	});
 
@@ -1151,8 +1048,8 @@ describe("fixture investigation sources", () => {
 		});
 	});
 
-	it("manually rechecks cooling measurement and revenue candidates", async () => {
-		for (const candidate of [measurementCoverage, revenueIncrease]) {
+	it("manually rechecks cooling revenue candidates", async () => {
+		for (const candidate of [revenueIncrease]) {
 			const prior = prepareInvestigation(candidate, 7);
 			const outcome: InvestigationOutcome = {
 				evidence: ["The selected signal was measured in the comparison window."],
@@ -1165,8 +1062,6 @@ describe("fixture investigation sources", () => {
 			const investigated: string[] = [];
 			const sources = fixtureSources({
 				detectDefinitionSignals: async () => [],
-				detectMeasurementRecommendationSignals: async () =>
-					candidate.metric === "measurement_coverage" ? [candidate] : [],
 				detectMetricSignals: async () =>
 					candidate.metric === "revenue" ? [candidate] : [],
 				fetchAnnotations: async () => [],

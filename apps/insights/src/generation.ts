@@ -29,7 +29,6 @@ import {
 	type FunnelGoalDetectionDiagnostics,
 	remeasureFunnelGoalSignal,
 } from "./funnel-detection";
-import { detectMeasurementRecommendationSignals } from "./measurement-recommendation-detection";
 import {
 	detectRouteHealthSignals,
 	loadRouteVitalContinuation,
@@ -71,7 +70,6 @@ import {
 } from "./agent";
 import {
 	errorCustomerImpactEvidence,
-	errorIdentitySetupRecommendation,
 	loadErrorCustomerImpact,
 } from "./error-customer-impact";
 import {
@@ -79,12 +77,12 @@ import {
 	loadInsightRunCandidatePlan,
 	type PlannedInvestigationCandidate,
 } from "./run-candidate-plan";
-import { planCoveragePortfolio } from "./coverage-planner";
 import {
+	planCoveragePortfolio,
 	portfolioFamilyForDetectedSignal,
-	resolveInsightSpecialist,
+	portfolioFamilyForInvestigationSignal,
 	type InsightPortfolioFamily,
-} from "./specialists";
+} from "./coverage-planner";
 import type { WebsiteInvestigation } from "./persistence";
 import {
 	isInterruptingInvestigation,
@@ -202,7 +200,7 @@ function coverageForInvestigationSignals(
 ): InvestigationCoverageCounts {
 	const counts = emptyCoverageCounts();
 	for (const signal of signals) {
-		counts[resolveInsightSpecialist(signal).portfolioFamily] += 1;
+		counts[portfolioFamilyForInvestigationSignal(signal)] += 1;
 	}
 	return counts;
 }
@@ -288,7 +286,6 @@ interface InvestigationRuntime {
 
 export interface InvestigationSources {
 	detectDefinitionSignals: typeof detectFunnelGoalSignals;
-	detectMeasurementRecommendationSignals: typeof detectMeasurementRecommendationSignals;
 	detectMetricSignals: typeof detectSignals;
 	detectRouteHealthSignals: typeof detectRouteHealthSignals;
 	fetchAnnotations: (
@@ -454,7 +451,6 @@ export async function refreshInvestigationSignal(params: {
 
 const productionInvestigationSources: InvestigationSources = {
 	detectDefinitionSignals: detectFunnelGoalSignals,
-	detectMeasurementRecommendationSignals,
 	detectMetricSignals: detectSignals,
 	detectRouteHealthSignals,
 	fetchAnnotations: fetchSignalAnnotations,
@@ -494,15 +490,6 @@ function toPlannedCandidate(
 	);
 	return {
 		evidence: investigation.evidence,
-		...(investigation.measurementCandidate
-			? { measurementCandidate: investigation.measurementCandidate }
-			: {}),
-		...(investigation.setupRecommendationCandidate
-			? {
-					setupRecommendationCandidate:
-						investigation.setupRecommendationCandidate,
-				}
-			: {}),
 		signal: investigation.signal,
 	};
 }
@@ -591,14 +578,6 @@ async function discoverWebsiteSignals(
 				diagnostics: definitionDiagnostics,
 			})
 		),
-		detectSource("measurement_recommendations", () =>
-			runtime.sources.detectMeasurementRecommendationSignals(
-				detectParams,
-				asOf,
-				undefined,
-				sourceAbortSignal
-			)
-		),
 		detectSource("route_health", () =>
 			runtime.sources.detectRouteHealthSignals(
 				detectParams,
@@ -615,13 +594,8 @@ async function discoverWebsiteSignals(
 	if (failedDetection?.status === "rejected") {
 		throw discoveryController.signal.reason ?? failedDetection.reason;
 	}
-	const [
-		remeasuredDue,
-		metricSignals,
-		funnelGoalSignals,
-		measurementRecommendationSignals,
-		routeHealthSignals,
-	] = await Promise.all(detectionTasks);
+	const [remeasuredDue, metricSignals, funnelGoalSignals, routeHealthSignals] =
+		await Promise.all(detectionTasks);
 	if (
 		due &&
 		remeasuredDue &&
@@ -642,7 +616,6 @@ async function discoverWebsiteSignals(
 		...(remeasuredDue ? [remeasuredDue] : []),
 		...metricSignals,
 		...funnelGoalSignals,
-		...measurementRecommendationSignals,
 		...routeHealthSignals,
 	]) {
 		const key = signalKeyForDetectedSignal(signal);
@@ -842,10 +815,6 @@ async function investigatePlannedCandidate(
 	if (routeVitalContinuation) {
 		evidence.push(routeVitalContinuationEvidence(routeVitalContinuation));
 	}
-	const setupRecommendationCandidate =
-		errorIdentitySetupRecommendation(customerImpact ?? null) ??
-		candidate.setupRecommendationCandidate ??
-		null;
 	const annotation = annotationEvidence(annotationRows);
 	if (annotation) {
 		evidence = [...evidence, annotation];
@@ -888,10 +857,8 @@ async function investigatePlannedCandidate(
 				? { hasQualifiedRouteVitalContinuation: true as const }
 				: {}),
 			history,
-			measurementCandidate: candidate.measurementCandidate,
 			otherOpenWork,
 			relatedSignals,
-			setupRecommendationCandidate,
 			signal: candidate.signal,
 		});
 	} catch (error) {

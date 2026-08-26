@@ -172,14 +172,6 @@ export const insightDefinitionOperationSchema = z.discriminatedUnion(
 	[definitionEditOperationSchema, definitionDeleteOperationSchema]
 );
 
-const legacyDefinitionRecommendationSchema = z
-	.object({
-		action: definitionActionSchema,
-		changes: z.null(),
-		operation: z.null(),
-	})
-	.strict();
-
 const definitionEditExecutionSchema = z
 	.object({
 		changes: insightDefinitionEditChangesSchema,
@@ -205,138 +197,6 @@ const insightDefinitionExecutionSchema = z.discriminatedUnion("operation", [
 	definitionDeleteExecutionSchema,
 	legacyDefinitionExecutionSchema,
 ]);
-
-const measurementRecommendationActionSchema = z
-	.string()
-	.trim()
-	.min(1)
-	.max(320)
-	.describe("One short, concrete measurement recommendation for a teammate.");
-
-export const insightDatabuddySetupRecommendationSchema = z
-	.object({
-		action: measurementRecommendationActionSchema.describe(
-			"Exact evidence-backed Databuddy setup and the future customer question it unlocks."
-		),
-		feature: z.enum(["tracking", "user_identification"]),
-		kind: z.literal("databuddy_setup"),
-	})
-	.strict();
-
-const measurementGoalFilterSchema = z
-	.object({
-		field: z.string().trim().min(1),
-		operator: z.enum([
-			"equals",
-			"contains",
-			"not_contains",
-			"starts_with",
-			"ends_with",
-			"not_equals",
-			"in",
-			"not_in",
-		]),
-		value: z.union([
-			z.string().trim().min(1),
-			z.array(z.string().trim().min(1)).min(1),
-		]),
-	})
-	.strict();
-
-const measurementFunnelFilterSchema = z
-	.object({
-		field: z.string().trim().min(1),
-		operator: z.enum(["equals", "contains", "not_equals", "in", "not_in"]),
-		value: z.union([
-			z.string().trim().min(1),
-			z.array(z.string().trim().min(1)).min(1),
-		]),
-	})
-	.strict();
-
-const measurementDraftTypeSchema = z.enum(["PAGE_VIEW", "EVENT"]);
-
-export const insightGoalDraftSchema = z
-	.object({
-		description: z.string().trim().min(1).max(500).nullable(),
-		filters: z
-			.array(measurementGoalFilterSchema)
-			.length(0, "Measurement goal drafts cannot include filters."),
-		ignoreHistoricData: z.boolean(),
-		name: z.string().trim().min(1).max(100),
-		target: z.string().trim().min(1).max(500),
-		type: measurementDraftTypeSchema,
-	})
-	.strict();
-
-const insightFunnelDraftStepSchema = z
-	.object({
-		name: z.string().trim().min(1).max(100),
-		target: z.string().trim().min(1).max(500),
-		type: measurementDraftTypeSchema,
-	})
-	.strict();
-
-export const insightFunnelDraftSchema = z
-	.object({
-		description: z.string().trim().min(1).max(500).nullable(),
-		filters: z
-			.array(measurementFunnelFilterSchema)
-			.length(0, "Measurement funnel drafts cannot include filters."),
-		ignoreHistoricData: z.boolean(),
-		name: z.string().trim().min(1).max(100),
-		steps: z.array(insightFunnelDraftStepSchema).min(2).max(10),
-	})
-	.strict();
-
-const insightInstrumentationEventAdviceSchema = z
-	.object({
-		description: z
-			.string()
-			.trim()
-			.min(1)
-			.max(500)
-			.describe(
-				"Plain-language behavior and timing to measure. Do not name event properties, a callback, endpoint, form, or implementation target unless inspected evidence establishes it."
-			),
-		name: z.string().trim().min(1).max(100),
-	})
-	.strict();
-
-export const insightMeasurementRecommendationSchema = z.discriminatedUnion(
-	"kind",
-	[
-		z
-			.object({
-				action: measurementRecommendationActionSchema,
-				draft: insightGoalDraftSchema,
-				kind: z.literal("goal_draft"),
-			})
-			.strict(),
-		z
-			.object({
-				action: measurementRecommendationActionSchema,
-				draft: insightFunnelDraftSchema,
-				kind: z.literal("funnel_draft"),
-			})
-			.strict(),
-		z
-			.object({
-				action: measurementRecommendationActionSchema,
-				events: z
-					.array(insightInstrumentationEventAdviceSchema)
-					.min(1)
-					.max(10)
-					.refine(
-						(events) =>
-							new Set(events.map((event) => event.name)).size === events.length,
-						"Instrumentation recommendations cannot repeat an event name."
-					),
-				kind: z.literal("instrumentation"),
-			})
-			.strict(),
-	]
-);
 
 const agentEvidenceReferenceSchema = z.discriminatedUnion("source", [
 	z
@@ -489,18 +349,6 @@ const agentInvestigationNextSchema = z.discriminatedUnion("type", [
 	investigationResolveNextSchema,
 ]);
 
-export const insightRecommendationSchema = z
-	.union([
-		insightDefinitionOperationSchema,
-		legacyDefinitionRecommendationSchema,
-		insightMeasurementRecommendationSchema,
-		insightDatabuddySetupRecommendationSchema,
-	])
-	.nullable()
-	.describe(
-		"Concrete evidence-backed next step worth suggesting without opening an investigation. Databuddy setup must use a backend-verified setup or instrumentation candidate that names the exact blind spot and future decision it unlocks. Use null when there is no useful next step."
-	);
-
 export const insightFindingKindSchema = z.enum([
 	"user_experience",
 	"product_outcome",
@@ -576,7 +424,6 @@ export const investigationOutcomeSchema = z
 			.describe(
 				"Why a published turn deserves feed attention. Null for unpublished turns. Optional only for legacy stored outcomes."
 			),
-		recommendation: insightRecommendationSchema.optional(),
 		next: investigationNextSchema,
 	})
 	.strip()
@@ -603,19 +450,6 @@ export const investigationOutcomeSchema = z
 				code: "custom",
 				message: "Actions and questions must be published",
 				path: ["publish"],
-			});
-		}
-		if (
-			outcome.recommendation &&
-			(outcome.next.type === "act" || outcome.next.type === "ask") &&
-			(!("kind" in outcome.recommendation) ||
-				outcome.recommendation.kind !== "databuddy_setup")
-		) {
-			context.addIssue({
-				code: "custom",
-				message:
-					"Actions and questions can only carry a backend-verified Databuddy setup recommendation",
-				path: ["recommendation"],
 			});
 		}
 		const hasOutcomeSemantics =
@@ -721,8 +555,32 @@ export const investigationOutcomeSchema = z
 		}
 	});
 
+const RAW_IDENTIFIER_PATTERN =
+	/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\b[a-z0-9]+(?:_[a-z0-9]+)+\b|https?:\/\//i;
+const TITLE_WORD_SEPARATOR = /\s+/;
+
+const agentTitleSchema = z
+	.string()
+	.trim()
+	.max(120)
+	.refine(
+		(title) => {
+			const words = title.split(TITLE_WORD_SEPARATOR).length;
+			return words >= 5 && words <= 12;
+		},
+		{ message: "Titles must be 5-12 words" }
+	)
+	.refine((title) => !RAW_IDENTIFIER_PATTERN.test(title), {
+		message:
+			"Titles must use natural product language, never raw identifiers, event names, or URLs",
+	})
+	.describe(
+		"A 5–12 word news headline stating the verified finding in natural product language. Lead with the affected count and observed problem. Never use raw identifiers, snake_case event names, URLs, or measurement jargon."
+	);
+
 export const agentInvestigationOutcomeSchema = investigationOutcomeSchema
 	.safeExtend({
+		title: agentTitleSchema,
 		evidenceRefs: z
 			.array(agentEvidenceReferenceSchema)
 			.min(1)
@@ -744,7 +602,6 @@ export const agentInvestigationOutcomeSchema = investigationOutcomeSchema
 			.describe(
 				"For published user experience or product outcomes, use measured_impact. For published reliability exposure, use measured_reliability. For published measurement definition or coverage findings, use decision_safety. Use null when publish is false."
 			),
-		recommendation: insightRecommendationSchema,
 	})
 	.superRefine((outcome, context) => {
 		if (outcome.evidenceRefs.length !== outcome.evidence.length) {
@@ -780,7 +637,6 @@ export const insightBriefItemSchema = z.object({
 	id: z.string(),
 	impact: z.string().trim().min(1).nullable(),
 	investigationId: z.string().nullable(),
-	recommendation: insightRecommendationSchema,
 	rootCause: z.string().trim().min(1).nullable(),
 	signal: investigationSignalSchema,
 	summary: z.string().trim().min(1),
@@ -788,10 +644,6 @@ export const insightBriefItemSchema = z.object({
 	websiteDomain: z.string(),
 	websiteId: z.string(),
 	websiteName: z.string().nullable(),
-});
-
-export const insightRecommendationItemSchema = insightBriefItemSchema.extend({
-	recommendation: insightRecommendationSchema.unwrap(),
 });
 
 export const historyInsightSchema = z.object({
@@ -836,19 +688,10 @@ export type InsightSeverity = z.infer<typeof insightSeveritySchema>;
 export type InsightSentiment = z.infer<typeof insightSentimentSchema>;
 export type InsightMetric = z.infer<typeof insightMetricSchema>;
 export type InsightBriefItem = z.infer<typeof insightBriefItemSchema>;
-export type InsightRecommendationItem = z.infer<
-	typeof insightRecommendationItemSchema
->;
 export type InvestigationSignal = z.infer<typeof investigationSignalSchema>;
 export type InvestigationOutcome = z.infer<typeof investigationOutcomeSchema>;
 export type AgentInvestigationOutcome = z.infer<
 	typeof agentInvestigationOutcomeSchema
->;
-export type InsightMeasurementRecommendation = z.infer<
-	typeof insightMeasurementRecommendationSchema
->;
-export type InsightDatabuddySetupRecommendation = z.infer<
-	typeof insightDatabuddySetupRecommendationSchema
 >;
 export type InsightDefinitionEditChanges = z.infer<
 	typeof insightDefinitionEditChangesSchema
@@ -856,7 +699,6 @@ export type InsightDefinitionEditChanges = z.infer<
 export type InsightDefinitionOperation = z.infer<
 	typeof insightDefinitionOperationSchema
 >;
-export type InsightRecommendation = z.infer<typeof insightRecommendationSchema>;
 export type InsightWatchThreshold = z.infer<typeof insightWatchThresholdSchema>;
 export type InsightReplySlackDelivery = z.infer<
 	typeof insightReplySlackDeliverySchema
