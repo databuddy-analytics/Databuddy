@@ -19,7 +19,6 @@ import {
 	type CachedLinkMutationNext,
 	finishCachedLinkMutation,
 	invalidateAgentContextSnapshotsForOwner,
-	setCachedLinkIfAbsent,
 } from "@databuddy/redis";
 import { isDeepLinkTarget } from "@databuddy/shared/constants/deep-link-apps";
 import { randomUUIDv7 } from "bun";
@@ -279,27 +278,6 @@ async function finishLinkCacheMutation(
 		);
 	}
 	return false;
-}
-
-async function backfillLinkCache(
-	slug: string,
-	link: CacheableLink,
-	reason: string
-): Promise<void> {
-	try {
-		if (await setCachedLinkIfAbsent(slug, toCachedLink(link))) {
-			return;
-		}
-		logger.warn(
-			{ linkId: link.id, slug, reason },
-			"Link cache backfill did not replace an existing entry"
-		);
-	} catch (error) {
-		logger.error(
-			{ linkId: link.id, slug, reason, ...getErrorLogFields(error) },
-			"Failed to backfill link cache"
-		);
-	}
 }
 
 async function tombstoneLinkCacheMutations(
@@ -589,7 +567,6 @@ export const linksRouter = {
 			for (const slug of slugsToTry) {
 				const linkId = randomUUIDv7();
 				let cacheMutations: LinkCacheMutation[] | null;
-				let cacheUnavailable = false;
 				try {
 					cacheMutations = await beginLinkCacheMutations([
 						{ id: linkId, mode: "new", slug },
@@ -609,7 +586,6 @@ export const linksRouter = {
 					// slugs. A cache outage must not make random-slug creation
 					// unavailable; redirects read through to PG on cache misses.
 					cacheMutations = [];
-					cacheUnavailable = true;
 				}
 
 				if (!cacheMutations) {
@@ -671,8 +647,6 @@ export const linksRouter = {
 							{ link: toCachedLink(newLink), state: "link" },
 							"create persisted"
 						);
-					} else if (!cacheUnavailable) {
-						backfillLinkCache(slug, newLink, "create bypassed cache lease");
 					}
 					invalidateLinkAgentContext(organizationId);
 
@@ -731,12 +705,6 @@ export const linksRouter = {
 								cacheMutation,
 								{ link: toCachedLink(persistedLink), state: "link" },
 								"create reconciled after ambiguous database error"
-							);
-						} else if (!cacheUnavailable) {
-							backfillLinkCache(
-								slug,
-								persistedLink,
-								"create reconciled after cache bypass"
 							);
 						}
 						invalidateLinkAgentContext(organizationId);
