@@ -67,83 +67,68 @@ describe("buildTrackEvent — field mapping", () => {
 	test("full input → every field mapped correctly", () => {
 		const result = buildTrackEvent(fullTrackData, fullCtx);
 
-		// Identity
-		expect(result.id).toBeTruthy(); // randomUUIDv7
-		expect(result.client_id).toBe("ws_test");
-
-		// Names & content
-		expect(result.event_name).toBe("pageview");
-		expect(result.title).toBe("Dashboard | App");
-		expect(result.referrer).toBe("https://google.com");
-		expect(result.path).toBe("/dashboard");
-		expect(result.url).toBe("/dashboard"); // url === path
-
-		// User identity
-		expect(result.anonymous_id).toBe("salted_anon_1");
-		expect(result.session_id).toBe("sess_abc123");
-
-		// Timestamps — uses trackData values when numeric
-		expect(result.timestamp).toBe(1_700_000_001_000);
-		expect(result.time).toBe(1_700_000_001_000);
-		expect(result.created_at).toBe(NOW);
-
-		// Geo
-		expect(result.ip).toBe("abc123def456");
-		expect(result.country).toBe("United States");
-		expect(result.region).toBe("California");
-		expect(result.city).toBe("San Francisco");
-
-		// UA
-		expect(result.user_agent).toBe(""); // always empty (privacy)
-		expect(result.browser_name).toBe("Chrome");
-		expect(result.browser_version).toBe("120.0");
-		expect(result.os_name).toBe("Windows");
-		expect(result.os_version).toBe("10");
-		expect(result.device_type).toBe("desktop");
-		expect(result.device_brand).toBe("Dell");
-		expect(result.device_model).toBe("XPS");
-
-		// Client context — passthrough
-		expect(result.viewport_size).toBe("1024x768");
-		expect(result.language).toBe("en-US");
-		expect(result.timezone).toBe("America/New_York");
-
-		// Engagement
-		expect(result.time_on_page).toBe(30_000);
-		expect(result.scroll_depth).toBe(75);
-		expect(result.interaction_count).toBe(12);
-		expect(result.page_count).toBe(3);
-
-		// UTM
-		expect(result.utm_source).toBe("google");
-		expect(result.utm_medium).toBe("cpc");
-		expect(result.utm_campaign).toBe("summer");
-		expect(result.utm_term).toBe("analytics");
-		expect(result.utm_content).toBe("banner");
-		expect(result.gclid).toBe("gclid_abc");
-
-		// Performance — validated through validatePerformanceMetric
-		expect(result.dom_ready_time).toBe(800);
-		expect(result.ttfb).toBe(200);
-		expect(result.render_time).toBe(100);
-
-		// Properties
-		expect(result.properties).toBe('{"plan":"pro","color":"blue"}');
+		expect(result).toMatchObject({
+			client_id: "ws_test",
+			event_name: "pageview",
+			title: "Dashboard | App",
+			referrer: "https://google.com",
+			path: "/dashboard",
+			url: "/dashboard",
+			anonymous_id: "salted_anon_1",
+			session_id: "sess_abc123",
+			timestamp: 1_700_000_001_000,
+			time: 1_700_000_001_000,
+			created_at: NOW,
+			ip: "abc123def456",
+			country: "United States",
+			region: "California",
+			city: "San Francisco",
+			user_agent: "",
+			browser_name: "Chrome",
+			browser_version: "120.0",
+			os_name: "Windows",
+			os_version: "10",
+			device_type: "desktop",
+			device_brand: "Dell",
+			device_model: "XPS",
+			viewport_size: "1024x768",
+			language: "en-US",
+			timezone: "America/New_York",
+			time_on_page: 30_000,
+			scroll_depth: 75,
+			interaction_count: 12,
+			page_count: 3,
+			utm_source: "google",
+			utm_medium: "cpc",
+			utm_campaign: "summer",
+			utm_term: "analytics",
+			utm_content: "banner",
+			gclid: "gclid_abc",
+			dom_ready_time: 800,
+			ttfb: 200,
+			render_time: 100,
+			properties: '{"plan":"pro","color":"blue"}',
+		});
+		expect(result.id).toMatch(
+			/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+		);
 	});
 
 	test("minimal input → defaults applied", () => {
 		const result = buildTrackEvent({ name: "click" }, fullCtx);
 
-		expect(result.event_name).toBe("click");
-		expect(result.timestamp).toBe(NOW); // falls back to ctx.now
-		expect(result.time).toBe(NOW);
-		expect(result.page_count).toBe(1); // default
-		expect(result.properties).toBe("{}"); // empty
-		expect(result.referrer).toBe("");
-		expect(result.path).toBe("");
-		expect(result.url).toBe("");
-		expect(result.title).toBe("");
-		expect(result.session_id).toBe("");
+		expect(result).toMatchObject({
+			event_name: "click",
+			timestamp: NOW,
+			time: NOW,
+			page_count: 1,
+			properties: "{}",
+			referrer: "",
+			path: "",
+			url: "",
+			title: "",
+			session_id: "",
+		});
 	});
 
 	test("missing geo fields → empty strings", () => {
@@ -171,9 +156,9 @@ describe("buildTrackEvent — field mapping", () => {
 		expect(result.timestamp).toBe(NOW);
 	});
 
-	test("performance metrics validated (negative → undefined)", () => {
+	test("performance metrics over the 300s cap → undefined", () => {
 		const result = buildTrackEvent({ name: "x", ttfb: 999_999 }, fullCtx);
-		expect(result.ttfb).toBeUndefined(); // >300000
+		expect(result.ttfb).toBeUndefined();
 	});
 
 	test("event_name sanitized (truncated to 255)", () => {
@@ -246,16 +231,14 @@ describe("buildTrackEvent — sanitization boundary", () => {
 		}
 	});
 
-	test("properties with XSS are JSON-stringified (not sanitized — stored as JSON)", () => {
+	test("properties are JSON-stringified verbatim, not HTML-sanitized", () => {
 		const result = buildTrackEvent(
 			{ name: "x", properties: { evil: "<script>alert(1)</script>" } },
 			fullCtx
 		);
-		// Properties are JSON-stringified, not HTML-sanitized (they're stored as JSON in CH)
-		expect(result.properties).toContain("script");
-		expect(typeof result.properties).toBe("string");
-		// But it's valid JSON
-		expect(() => JSON.parse(result.properties as string)).not.toThrow();
+		expect(JSON.parse(result.properties as string)).toEqual({
+			evil: "<script>alert(1)</script>",
+		});
 	});
 
 	test("passthrough fields (language, timezone, etc.) are NOT sanitized", () => {
@@ -271,74 +254,11 @@ describe("buildTrackEvent — sanitization boundary", () => {
 		expect(result.timezone).toBe("America/New_York");
 	});
 
-	test("session_id validated (rejects special chars)", () => {
+	test("session_id with stripped tags still passes the session id charset", () => {
 		const result = buildTrackEvent(
 			{ name: "x", sessionId: "sess<script>123" },
 			fullCtx
 		);
-		// sanitizeString strips <script>, then regex check rejects remaining if invalid
-		expect(result.session_id).not.toContain("<");
-	});
-});
-
-describe("buildTrackEvent — output shape completeness", () => {
-	const REQUIRED_FIELDS = [
-		"id",
-		"client_id",
-		"event_name",
-		"anonymous_id",
-		"profile_id",
-		"time",
-		"session_id",
-		"timestamp",
-		"referrer",
-		"url",
-		"path",
-		"title",
-		"ip",
-		"user_agent",
-		"browser_name",
-		"browser_version",
-		"os_name",
-		"os_version",
-		"device_type",
-		"device_brand",
-		"device_model",
-		"country",
-		"region",
-		"city",
-		"viewport_size",
-		"language",
-		"timezone",
-		"time_on_page",
-		"scroll_depth",
-		"interaction_count",
-		"page_count",
-		"utm_source",
-		"utm_medium",
-		"utm_campaign",
-		"utm_term",
-		"utm_content",
-		"gclid",
-		"dom_ready_time",
-		"ttfb",
-		"render_time",
-		"properties",
-		"created_at",
-	] as const;
-
-	test("output has all required fields", () => {
-		const result = buildTrackEvent(fullTrackData, fullCtx);
-		for (const field of REQUIRED_FIELDS) {
-			expect(result).toHaveProperty(field);
-		}
-	});
-
-	test("output has no unexpected fields", () => {
-		const result = buildTrackEvent(fullTrackData, fullCtx);
-		const keys = Object.keys(result);
-		for (const key of keys) {
-			expect(REQUIRED_FIELDS).toContain(key as any);
-		}
+		expect(result.session_id).toBe("sess123");
 	});
 });

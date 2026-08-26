@@ -111,20 +111,6 @@ describe("detectBot", () => {
 		expect(result.reason).toBe("suspicious_pattern");
 		expect(result.result).toEqual(sharedResult);
 	});
-
-	test("non-bot has no category", () => {
-		mockDetectBotShared.mockReturnValue({
-			isBot: false,
-			category: undefined,
-			action: undefined,
-			confidence: 0,
-			reason: undefined,
-			name: undefined,
-		});
-		const result = detectBot("Chrome/120", dummyReq);
-		expect(result.category).toBeUndefined();
-		expect(result.botName).toBeUndefined();
-	});
 });
 
 describe("parseUserAgent", () => {

@@ -1,5 +1,5 @@
-import { vi, beforeEach, describe, expect, test } from "vitest";
 import { EvlogError } from "evlog";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 import { basketErrors } from "./structured-errors";
 
 const {
@@ -12,30 +12,16 @@ const {
 	mockSend,
 	mockDetectBot,
 	mockLoggerSet,
-	mockLoggerWarn,
-	mockLoggerError,
 } = vi.hoisted(() => ({
-	mockGetWebsiteByIdV2: vi.fn(() =>
-		Promise.resolve({
-			id: "ws_1",
-			domain: "example.com",
-			name: "Example",
-			status: "ACTIVE",
-			ownerId: "user_1",
-			organizationId: "org_1",
-			settings: null,
-		})
-	),
+	mockGetWebsiteByIdV2: vi.fn(),
 	mockIsOriginAllowed: vi.fn(() => true),
 	mockIsValidIpFromSettings: vi.fn(() => true),
 	mockCheckAutumnUsage: vi.fn(() => Promise.resolve({ allowed: true })),
-	mockLogBlockedTraffic: vi.fn(() => {}),
-	mockRunFork: vi.fn(() => {}),
+	mockLogBlockedTraffic: vi.fn(),
+	mockRunFork: vi.fn(),
 	mockSend: vi.fn(() => ({})),
 	mockDetectBot: vi.fn(() => ({ isBot: false })),
-	mockLoggerSet: vi.fn(() => {}),
-	mockLoggerWarn: vi.fn(() => {}),
-	mockLoggerError: vi.fn(() => {}),
+	mockLoggerSet: vi.fn(),
 }));
 
 vi.mock("@hooks/auth", () => ({
@@ -57,14 +43,6 @@ vi.mock("@lib/producer", () => ({
 	send: mockSend,
 }));
 
-vi.mock("ua-parser-js/bot-detection", () => ({
-	isBot: () => false,
-	isAICrawler: () => false,
-	isAIAssistant: () => false,
-}));
-vi.mock("ua-parser-js", () => ({
-	UAParser: class { getResult() { return {}; } },
-}));
 vi.mock("@utils/user-agent", () => ({
 	detectBot: mockDetectBot,
 }));
@@ -72,18 +50,32 @@ vi.mock("@utils/user-agent", () => ({
 vi.mock("evlog/elysia", () => ({
 	useLogger: () => ({
 		set: mockLoggerSet,
-		warn: mockLoggerWarn,
-		error: mockLoggerError,
+		warn: vi.fn(),
+		error: vi.fn(),
 	}),
 }));
 
 vi.mock("@lib/tracing", () => ({
-	record: (_name: string, fn: Function) => Promise.resolve().then(() => fn()),
+	record: (_name: string, fn: () => unknown) =>
+		Promise.resolve().then(() => fn()),
 	captureError: vi.fn(),
 }));
 
-// Import after mocks
-const { validateRequest, checkForBot } = await import("./request-validation");
+const { validateRequest, checkForBot, getWebsiteSecuritySettings } =
+	await import("./request-validation");
+
+function website(overrides: Record<string, unknown> = {}) {
+	return {
+		id: "ws_1",
+		domain: "example.com",
+		name: "Example",
+		status: "ACTIVE",
+		ownerId: "user_1",
+		organizationId: "org_1",
+		settings: null,
+		...overrides,
+	} as never;
+}
 
 function makeReq(
 	url = "https://example.com?client_id=ws_1",
@@ -99,6 +91,47 @@ function makeReq(
 	});
 }
 
+function expectRejection(promise: Promise<unknown>, status: number) {
+	return promise.then(
+		() => {
+			throw new Error(`expected rejection with status ${status}`);
+		},
+		(error) => {
+			expect(error).toBeInstanceOf(EvlogError);
+			expect((error as EvlogError).status).toBe(status);
+			return error as EvlogError;
+		}
+	);
+}
+
+describe("getWebsiteSecuritySettings", () => {
+	test.each([[null], [undefined], ["string"], [42], [["array"]]])(
+		"non-object settings %j → null",
+		(settings) => {
+			expect(getWebsiteSecuritySettings(settings)).toBeNull();
+		}
+	);
+
+	test("keeps only string entries from mixed allowlists", () => {
+		expect(
+			getWebsiteSecuritySettings({
+				allowedOrigins: ["https://a.com", 42, null, "https://b.com"],
+				allowedIps: [true, "10.0.0.1"],
+			})
+		).toEqual({
+			allowedOrigins: ["https://a.com", "https://b.com"],
+			allowedIps: ["10.0.0.1"],
+		});
+	});
+
+	test("missing allowlists stay undefined instead of becoming empty arrays", () => {
+		expect(getWebsiteSecuritySettings({ other: true })).toEqual({
+			allowedOrigins: undefined,
+			allowedIps: undefined,
+		});
+	});
+});
+
 describe("validateRequest", () => {
 	beforeEach(() => {
 		mockGetWebsiteByIdV2.mockReset();
@@ -108,22 +141,13 @@ describe("validateRequest", () => {
 		mockLogBlockedTraffic.mockReset();
 		mockLoggerSet.mockReset();
 
-		// Defaults: everything passes
-		mockGetWebsiteByIdV2.mockResolvedValue({
-			id: "ws_1",
-			domain: "example.com",
-			name: "Example",
-			status: "ACTIVE",
-			ownerId: "user_1",
-			organizationId: "org_1",
-			settings: null,
-		} as any);
+		mockGetWebsiteByIdV2.mockResolvedValue(website());
 		mockCheckAutumnUsage.mockResolvedValue({ allowed: true });
 		mockIsOriginAllowed.mockReturnValue(true);
 		mockIsValidIpFromSettings.mockReturnValue(true);
 	});
 
-	test("happy path → returns ValidatedRequest", async () => {
+	test("valid request resolves the full ingestion identity", async () => {
 		const result = await validateRequest({}, { client_id: "ws_1" }, makeReq());
 		expect(result).toEqual({
 			clientId: "ws_1",
@@ -132,18 +156,19 @@ describe("validateRequest", () => {
 			ownerId: "user_1",
 			organizationId: "org_1",
 		});
+		expect(mockCheckAutumnUsage).toHaveBeenCalledOnce();
 	});
 
-	test("client_id from query string", async () => {
+	test("client_id from query string wins", async () => {
 		const result = await validateRequest(
 			{},
 			{ client_id: "ws_from_query" },
 			makeReq("https://example.com")
 		);
-		expect("clientId" in result && result.clientId).toBe("ws_from_query");
+		expect(result.clientId).toBe("ws_from_query");
 	});
 
-	test("client_id from header fallback", async () => {
+	test("client_id falls back to the databuddy-client-id header", async () => {
 		const result = await validateRequest(
 			{},
 			{},
@@ -151,132 +176,88 @@ describe("validateRequest", () => {
 				"databuddy-client-id": "ws_from_header",
 			})
 		);
-		expect("clientId" in result && result.clientId).toBe("ws_from_header");
+		expect(result.clientId).toBe("ws_from_header");
 	});
 
-	test("missing client_id → throws 400", async () => {
-		try {
-			await validateRequest({}, {}, makeReq("https://example.com"));
-			expect.unreachable("should have thrown");
-		} catch (e) {
-			expect(e).toBeInstanceOf(EvlogError);
-			expect((e as EvlogError).status).toBe(400);
-		}
+	test("missing client_id → 400 and blocked-traffic log", async () => {
+		await expectRejection(
+			validateRequest({}, {}, makeReq("https://example.com")),
+			400
+		);
+		expect(mockLogBlockedTraffic).toHaveBeenCalledWith(
+			expect.any(Request),
+			{},
+			{},
+			"missing_client_id",
+			"Validation Error"
+		);
 	});
 
-	test("payload too large → throws 413", async () => {
-		const huge = "x".repeat(2_000_000);
-		try {
-			await validateRequest(huge, { client_id: "ws_1" }, makeReq());
-			expect.unreachable("should have thrown");
-		} catch (e) {
-			expect(e).toBeInstanceOf(EvlogError);
-			expect((e as EvlogError).status).toBe(413);
-		}
+	test("payload too large → 413", async () => {
+		await expectRejection(
+			validateRequest("x".repeat(2_000_000), { client_id: "ws_1" }, makeReq()),
+			413
+		);
 	});
 
-	test("inactive website → throws 400", async () => {
-		mockGetWebsiteByIdV2.mockResolvedValue({
-			id: "ws_1",
-			domain: "example.com",
-			name: "Example",
-			status: "INACTIVE",
-			ownerId: null,
-			organizationId: null,
-			settings: null,
-		} as any);
-		try {
-			await validateRequest({}, { client_id: "ws_1" }, makeReq());
-			expect.unreachable("should have thrown");
-		} catch (e) {
-			expect(e).toBeInstanceOf(EvlogError);
-			expect((e as EvlogError).status).toBe(400);
-		}
+	test("inactive website → 400", async () => {
+		mockGetWebsiteByIdV2.mockResolvedValue(
+			website({ status: "INACTIVE", ownerId: null, organizationId: null })
+		);
+		await expectRejection(
+			validateRequest({}, { client_id: "ws_1" }, makeReq()),
+			400
+		);
 	});
 
-	test("website not found → throws 400", async () => {
+	test("website not found → 400", async () => {
 		mockGetWebsiteByIdV2.mockResolvedValue(null);
-		try {
-			await validateRequest({}, { client_id: "ws_bad" }, makeReq());
-			expect.unreachable("should have thrown");
-		} catch (e) {
-			expect(e).toBeInstanceOf(EvlogError);
-		}
+		await expectRejection(
+			validateRequest({}, { client_id: "ws_bad" }, makeReq()),
+			400
+		);
 	});
 
-	test("website lookup outage remains retryable instead of becoming an invalid client ID", async () => {
+	test("website lookup outage stays retryable instead of becoming an invalid client ID", async () => {
 		mockGetWebsiteByIdV2.mockRejectedValue(
 			basketErrors.websiteLookupUnavailable()
 		);
-		try {
-			await validateRequest({}, { client_id: "ws_1" }, makeReq());
-			expect.unreachable("should have thrown");
-		} catch (error) {
-			expect(error).toBeInstanceOf(EvlogError);
-			expect((error as EvlogError).status).toBe(503);
-			expect((error as EvlogError).code).toBe(
-				basketErrors.websiteLookupUnavailable.code
-			);
-		}
-	});
-
-	test("billing always allows (no enforcement, just metering)", async () => {
-		mockCheckAutumnUsage.mockResolvedValue({ allowed: true });
-		const result = await validateRequest({}, { client_id: "ws_1" }, makeReq());
-		expect("clientId" in result).toBe(true);
-		expect(mockCheckAutumnUsage).toHaveBeenCalled();
-	});
-
-	test("can skip event usage checks for non-event ingestion", async () => {
-		const result = await validateRequest(
-			{},
-			{ client_id: "ws_1" },
-			makeReq(),
-			{ checkUsage: false }
+		const error = await expectRejection(
+			validateRequest({}, { client_id: "ws_1" }, makeReq()),
+			503
 		);
-		expect("clientId" in result).toBe(true);
+		expect(error.code).toBe(basketErrors.websiteLookupUnavailable.code);
+	});
+
+	test("checkUsage: false skips billing metering", async () => {
+		await validateRequest({}, { client_id: "ws_1" }, makeReq(), {
+			checkUsage: false,
+		});
 		expect(mockCheckAutumnUsage).not.toHaveBeenCalled();
 	});
 
-	test("no ownerId → skips billing check", async () => {
-		mockGetWebsiteByIdV2.mockResolvedValue({
-			id: "ws_1",
-			domain: "example.com",
-			name: "Example",
-			status: "ACTIVE",
-			ownerId: null,
-			organizationId: "org_1",
-			settings: null,
-		} as any);
+	test("website without an owner skips billing metering", async () => {
+		mockGetWebsiteByIdV2.mockResolvedValue(website({ ownerId: null }));
 		await validateRequest({}, { client_id: "ws_1" }, makeReq());
 		expect(mockCheckAutumnUsage).not.toHaveBeenCalled();
 	});
 
-	test("origin mismatch (no settings) → throws 403", async () => {
+	test("origin mismatch → 403", async () => {
 		mockIsOriginAllowed.mockReturnValue(false);
-		try {
-			await validateRequest(
+		await expectRejection(
+			validateRequest(
 				{},
 				{ client_id: "ws_1" },
 				makeReq("https://example.com", { origin: "https://evil.com" })
-			);
-			expect.unreachable("should have thrown");
-		} catch (e) {
-			expect(e).toBeInstanceOf(EvlogError);
-			expect((e as EvlogError).status).toBe(403);
-		}
+			),
+			403
+		);
 	});
 
-	test("isOriginAllowed gets called with website.domain and allowedOrigins", async () => {
-		mockGetWebsiteByIdV2.mockResolvedValue({
-			id: "ws_1",
-			domain: "example.com",
-			name: "Example",
-			status: "ACTIVE",
-			ownerId: "user_1",
-			organizationId: "org_1",
-			settings: { allowedOrigins: ["trusted.com"] },
-		} as any);
+	test("origin check receives website domain and configured allowedOrigins", async () => {
+		mockGetWebsiteByIdV2.mockResolvedValue(
+			website({ settings: { allowedOrigins: ["trusted.com"] } })
+		);
 		await validateRequest(
 			{},
 			{ client_id: "ws_1" },
@@ -289,82 +270,44 @@ describe("validateRequest", () => {
 		);
 	});
 
-	test("missing origin with allowedOrigins set → throws 403 without calling isOriginAllowed", async () => {
-		mockGetWebsiteByIdV2.mockResolvedValue({
-			id: "ws_1",
-			domain: "example.com",
-			name: "Example",
-			status: "ACTIVE",
-			ownerId: "user_1",
-			organizationId: "org_1",
-			settings: { allowedOrigins: ["trusted.com"] },
-		} as any);
-		try {
-			await validateRequest({}, { client_id: "ws_1" }, makeReq());
-			expect.unreachable("should have thrown");
-		} catch (e) {
-			expect(e).toBeInstanceOf(EvlogError);
-			expect((e as EvlogError).status).toBe(403);
-			expect(mockIsOriginAllowed).not.toHaveBeenCalled();
-		}
+	test("missing origin with allowedOrigins configured → 403 before the origin check", async () => {
+		mockGetWebsiteByIdV2.mockResolvedValue(
+			website({ settings: { allowedOrigins: ["trusted.com"] } })
+		);
+		await expectRejection(
+			validateRequest({}, { client_id: "ws_1" }, makeReq()),
+			403
+		);
+		expect(mockIsOriginAllowed).not.toHaveBeenCalled();
 	});
 
-	test("IP not authorized → throws 403", async () => {
-		mockGetWebsiteByIdV2.mockResolvedValue({
-			id: "ws_1",
-			domain: "example.com",
-			name: "Example",
-			status: "ACTIVE",
-			ownerId: "user_1",
-			organizationId: "org_1",
-			settings: { allowedIps: ["10.0.0.1"] },
-		} as any);
+	test("IP outside the allowlist → 403", async () => {
+		mockGetWebsiteByIdV2.mockResolvedValue(
+			website({ settings: { allowedIps: ["10.0.0.1"] } })
+		);
 		mockIsValidIpFromSettings.mockReturnValue(false);
-		try {
-			await validateRequest({}, { client_id: "ws_1" }, makeReq());
-			expect.unreachable("should have thrown");
-		} catch (e) {
-			expect(e).toBeInstanceOf(EvlogError);
-			expect((e as EvlogError).status).toBe(403);
-		}
+		await expectRejection(
+			validateRequest({}, { client_id: "ws_1" }, makeReq()),
+			403
+		);
 	});
 
-	test("IP allowlist rejects missing trusted IP header", async () => {
-		mockGetWebsiteByIdV2.mockResolvedValue({
-			id: "ws_1",
-			domain: "example.com",
-			name: "Example",
-			status: "ACTIVE",
-			ownerId: "user_1",
-			organizationId: "org_1",
-			settings: { allowedIps: ["10.0.0.1"] },
-		} as any);
-		mockIsValidIpFromSettings.mockReturnValue(true);
-
-		try {
-			await validateRequest(
+	test("IP allowlist rejects requests without a trusted IP header", async () => {
+		mockGetWebsiteByIdV2.mockResolvedValue(
+			website({ settings: { allowedIps: ["10.0.0.1"] } })
+		);
+		await expectRejection(
+			validateRequest(
 				{},
 				{ client_id: "ws_1" },
 				makeReq("https://example.com", {
 					"cf-connecting-ip": "",
 					"x-forwarded-for": "10.0.0.1",
 				})
-			);
-			expect.unreachable("should have thrown");
-		} catch (e) {
-			expect(e).toBeInstanceOf(EvlogError);
-			expect((e as EvlogError).status).toBe(403);
-			expect(mockIsValidIpFromSettings).not.toHaveBeenCalled();
-		}
-	});
-
-	test("logs blocked traffic on client_id miss", async () => {
-		try {
-			await validateRequest({}, {}, makeReq("https://example.com"));
-		} catch {
-			/* expected */
-		}
-		expect(mockLogBlockedTraffic).toHaveBeenCalled();
+			),
+			403
+		);
+		expect(mockIsValidIpFromSettings).not.toHaveBeenCalled();
 	});
 });
 
@@ -377,36 +320,26 @@ describe("checkForBot", () => {
 		mockLoggerSet.mockReset();
 	});
 
-	test("not a bot → returns undefined", async () => {
+	test("non-bot traffic passes through untouched", async () => {
 		mockDetectBot.mockReturnValue({ isBot: false });
-		const result = await checkForBot(
-			makeReq(),
-			{},
-			{},
-			"ws_1",
-			"Mozilla/5.0 Chrome/120"
-		);
-		expect(result).toBeUndefined();
+		await expect(
+			checkForBot(makeReq(), {}, {}, "ws_1", "Mozilla/5.0 Chrome/120")
+		).resolves.toBeUndefined();
 	});
 
-	test("bot with allow action → returns undefined", async () => {
+	test("allow-listed bot passes through untouched", async () => {
 		mockDetectBot.mockReturnValue({
 			isBot: true,
 			action: "allow",
 			botName: "Googlebot",
 			category: "Known Bot",
 		});
-		const result = await checkForBot(
-			makeReq(),
-			{},
-			{},
-			"ws_1",
-			"Googlebot/2.1"
-		);
-		expect(result).toBeUndefined();
+		await expect(
+			checkForBot(makeReq(), {}, {}, "ws_1", "Googlebot/2.1")
+		).resolves.toBeUndefined();
 	});
 
-	test("bot with track_only → returns 204 + sends AI traffic span", async () => {
+	test("track_only bot short-circuits with 204 and records an AI traffic span", async () => {
 		mockDetectBot.mockReturnValue({
 			isBot: true,
 			action: "track_only",
@@ -421,36 +354,41 @@ describe("checkForBot", () => {
 			"ws_1",
 			"GPTBot/1.0"
 		);
-		expect(result).toBeDefined();
-		expect(result!.error).toBeDefined();
-		expect(result!.error!.status).toBe(204);
+		expect(result?.error?.status).toBe(204);
 		expect(mockSend).toHaveBeenCalledWith(
 			"analytics-ai-traffic-spans",
 			expect.objectContaining({
 				client_id: "ws_1",
 				bot_name: "GPTBot",
+				bot_type: "ai_crawler",
 				path: "/about",
 				action: "tracked",
 			})
 		);
-		expect(mockRunFork).toHaveBeenCalled();
+		expect(mockRunFork).toHaveBeenCalledOnce();
 	});
 
-	test("track_only: path from body.url fallback", async () => {
-		mockDetectBot.mockReturnValue({
-			isBot: true,
-			action: "track_only",
-			botName: "ClaudeBot",
-			result: { category: "ai_crawler" },
-		});
-		await checkForBot(makeReq(), { url: "/from-url" }, {}, "ws_1", "ClaudeBot");
-		expect(mockSend).toHaveBeenCalledWith(
-			"analytics-ai-traffic-spans",
-			expect.objectContaining({ path: "/from-url" })
-		);
-	});
+	test.each([
+		["body.url", { url: "/from-url" }, {}, "/from-url"],
+		["query.path", {}, { path: "/from-query" }, "/from-query"],
+	])(
+		"track_only path falls back to %s",
+		async (_label, body, query, expected) => {
+			mockDetectBot.mockReturnValue({
+				isBot: true,
+				action: "track_only",
+				botName: "ClaudeBot",
+				result: { category: "ai_crawler" },
+			});
+			await checkForBot(makeReq(), body, query, "ws_1", "ClaudeBot");
+			expect(mockSend).toHaveBeenCalledWith(
+				"analytics-ai-traffic-spans",
+				expect.objectContaining({ path: expected })
+			);
+		}
+	);
 
-	test("track_only: path from referer header fallback", async () => {
+	test("track_only path falls back to the referer header last", async () => {
 		mockDetectBot.mockReturnValue({
 			isBot: true,
 			action: "track_only",
@@ -470,7 +408,7 @@ describe("checkForBot", () => {
 		);
 	});
 
-	test("bot with block action → returns 204 + logs blocked traffic", async () => {
+	test("blocked bot short-circuits with 204 and logs blocked traffic", async () => {
 		mockDetectBot.mockReturnValue({
 			isBot: true,
 			action: "block",
@@ -479,8 +417,7 @@ describe("checkForBot", () => {
 			category: "Known Bot",
 		});
 		const result = await checkForBot(makeReq(), {}, {}, "ws_1", "BadBot/1.0");
-		expect(result).toBeDefined();
-		expect(result!.error!.status).toBe(204);
+		expect(result?.error?.status).toBe(204);
 		expect(mockLogBlockedTraffic).toHaveBeenCalledWith(
 			expect.any(Request),
 			{},
@@ -492,14 +429,22 @@ describe("checkForBot", () => {
 		);
 	});
 
-	test("bot with no action (default block) → returns 204", async () => {
+	test("bot without an explicit action defaults to blocking", async () => {
 		mockDetectBot.mockReturnValue({
 			isBot: true,
 			action: undefined,
 			reason: "unknown_bot",
 		});
 		const result = await checkForBot(makeReq(), {}, {}, "ws_1", "SomeBot");
-		expect(result).toBeDefined();
-		expect(result!.error!.status).toBe(204);
+		expect(result?.error?.status).toBe(204);
+		expect(mockLogBlockedTraffic).toHaveBeenCalledWith(
+			expect.any(Request),
+			{},
+			{},
+			"unknown_bot",
+			"Bot Detection",
+			undefined,
+			"ws_1"
+		);
 	});
 });

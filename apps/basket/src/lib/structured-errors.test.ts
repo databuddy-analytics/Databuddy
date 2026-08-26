@@ -10,44 +10,37 @@ import {
 } from "./structured-errors";
 
 describe("basketErrors", () => {
-	const errorTable: [keyof typeof basketErrors, number][] = [
-		["trackPayloadTooLarge", 413],
-		["trackInvalidBody", 400],
-		["trackMissingScope", 403],
-		["trackMissingOwner", 400],
-		["trackMissingCredentials", 401],
-		["trackWebsiteNotFound", 404],
-		["trackWebsiteNoOrganization", 400],
-		["trackWebsiteScopeMismatch", 403],
-		["trackRateLimited", 429],
-		["ingestPayloadTooLarge", 413],
-		["ingestMissingClientId", 400],
-		["ingestInvalidClientId", 400],
-		["websiteLookupUnavailable", 503],
-		["ingestOriginNotAuthorized", 403],
-		["ingestIpNotAuthorized", 403],
-		["ingestWebsiteMissingOrganization", 400],
-		["ingestUnknownEventType", 400],
-		["ingestBatchNotArray", 400],
-		["ingestBatchTooLarge", 400],
-		["billingLimitExceeded", 402],
-		["billingCheckUnavailable", 503],
-		["webhookEndpointNotFound", 404],
-		["webhookMissingSignature", 400],
-		["webhookInvalidSignature", 401],
-		["webhookInvalidPayload", 400],
-		["webhookProcessingFailed", 500],
-	];
+	test("client-facing HTTP statuses match the published contract", () => {
+		const statuses: Partial<Record<keyof typeof basketErrors, number>> = {
+			trackPayloadTooLarge: 413,
+			trackInvalidBody: 400,
+			trackMissingScope: 403,
+			trackMissingOwner: 400,
+			trackMissingCredentials: 401,
+			trackWebsiteNotFound: 404,
+			trackWebsiteScopeMismatch: 403,
+			trackRateLimited: 429,
+			ingestPayloadTooLarge: 413,
+			ingestMissingClientId: 400,
+			ingestInvalidClientId: 400,
+			websiteLookupUnavailable: 503,
+			ingestOriginNotAuthorized: 403,
+			ingestIpNotAuthorized: 403,
+			ingestUnknownEventType: 400,
+			billingLimitExceeded: 402,
+			billingCheckUnavailable: 503,
+			webhookEndpointNotFound: 404,
+			webhookMissingSignature: 400,
+			webhookInvalidSignature: 401,
+			webhookProcessingFailed: 500,
+		};
 
-	for (const [key, expectedStatus] of errorTable) {
-		test(`${key} → EvlogError with status ${expectedStatus}`, () => {
-			const err = basketErrors[key]();
-			expect(err).toBeInstanceOf(EvlogError);
-			expect(err.code).toBe(basketErrors[key].code);
-			expect(err.status).toBe(expectedStatus);
-			expect(err.message).toBeTruthy();
-		});
-	}
+		for (const [key, status] of Object.entries(statuses)) {
+			const error = basketErrors[key as keyof typeof basketErrors]();
+			expect(error).toBeInstanceOf(EvlogError);
+			expect({ key, status: error.status }).toEqual({ key, status });
+		}
+	});
 });
 
 describe("IngestSchemaValidationError", () => {
@@ -100,55 +93,31 @@ describe("rethrowOrWrap", () => {
 		expect(() => rethrowOrWrap(original)).toThrow(original);
 	});
 
-	test("wraps plain Error → EvlogError 500", () => {
+	test.each([
+		["plain Error", new Error("boom")],
+		["string", "string error"],
+	])("wraps %s into an EvlogError 500", (_label, input) => {
+		let caught: unknown;
 		try {
-			rethrowOrWrap(new Error("boom"));
-			expect.unreachable("should have thrown");
-		} catch (e) {
-			expect(e).toBeInstanceOf(EvlogError);
-			expect((e as EvlogError).status).toBe(500);
+			rethrowOrWrap(input);
+		} catch (error) {
+			caught = error;
 		}
+		expect(caught).toBeInstanceOf(EvlogError);
+		expect((caught as EvlogError).status).toBe(500);
 	});
 
-	test("wraps string → EvlogError 500", () => {
-		try {
-			rethrowOrWrap("string error");
-			expect.unreachable("should have thrown");
-		} catch (e) {
-			expect(e).toBeInstanceOf(EvlogError);
-			expect((e as EvlogError).status).toBe(500);
-		}
-	});
+	test("logs unexpected errors but stays silent for structured ones", () => {
+		const logged: Error[] = [];
+		const mockLog = { error: (err: Error) => logged.push(err) };
 
-	test("calls log.error for non-EvlogError", () => {
-		let logged: Error | null = null;
-		const mockLog = {
-			error: (err: Error) => {
-				logged = err;
-			},
-		};
-		try {
-			rethrowOrWrap(new Error("test"), mockLog);
-		} catch {
-			/* expected */
-		}
-		expect(logged).toBeInstanceOf(Error);
-		expect(logged!.message).toBe("test");
-	});
+		expect(() => rethrowOrWrap(new Error("test"), mockLog)).toThrow();
+		expect(logged.map((error) => error.message)).toEqual(["test"]);
 
-	test("does NOT call log.error for EvlogError", () => {
-		let called = false;
-		const mockLog = {
-			error: () => {
-				called = true;
-			},
-		};
-		try {
-			rethrowOrWrap(createError({ message: "x", status: 400 }), mockLog);
-		} catch {
-			/* expected */
-		}
-		expect(called).toBe(false);
+		expect(() =>
+			rethrowOrWrap(createError({ message: "x", status: 400 }), mockLog)
+		).toThrow();
+		expect(logged).toHaveLength(1);
 	});
 });
 

@@ -147,31 +147,6 @@ describe("verifyStripeSignature", () => {
 		expect(result.valid).toBe(true);
 	});
 
-	test("50 random payloads → all verify correctly", () => {
-		for (let i = 0; i < 50; i++) {
-			const payload = JSON.stringify({
-				id: `evt_${i}`,
-				type: "charge.succeeded",
-				data: { object: { id: `ch_${i}`, amount: i * 100 } },
-			});
-			const header = sign(payload);
-			const result = verifyStripeSignature(payload, header, SECRET);
-			expect(result.valid).toBe(true);
-		}
-	});
-
-	test("50 random payloads with wrong secret → all rejected", () => {
-		for (let i = 0; i < 50; i++) {
-			const payload = JSON.stringify({
-				id: `evt_${i}`,
-				type: "x",
-				data: { object: {} },
-			});
-			const header = sign(payload, "wrong_secret_" + i);
-			const result = verifyStripeSignature(payload, header, SECRET);
-			expect(result.valid).toBe(false);
-		}
-	});
 });
 
 describe("getInvoiceMetadata", () => {

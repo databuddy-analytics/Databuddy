@@ -17,7 +17,6 @@ import {
 } from "./validation";
 
 describe("sanitizeString", () => {
-	// non-string → ""
 	for (const input of [null, undefined, 123, true, {}, []]) {
 		test(`${JSON.stringify(input)} → ""`, () =>
 			expect(sanitizeString(input)).toBe(""));
@@ -36,11 +35,15 @@ describe("sanitizeString", () => {
 		expect(sanitizeString("<b>bold</b> text")).toBe("bold text"));
 
 	test("strips dangerous chars <>'\",&", () => {
-		// Angle brackets in HTML-like patterns are removed by tag stripper,
-		// and bare <, >, ', ", & are removed by char stripper
 		expect(sanitizeString("a'b\"c&d")).toBe("abcd");
 		expect(sanitizeString("hello<world")).toBe("helloworld");
 		expect(sanitizeString("test>value")).toBe("testvalue");
+	});
+
+	test("defeats stacked-tag bypasses that reassemble after one strip pass", () => {
+		const result = sanitizeString("<scr<script>ipt>alert(1)</scr</script>ipt>");
+		expect(result).toBe("iptalert(1)ipt");
+		expect(result.toLowerCase()).not.toContain("<script");
 	});
 
 	test("respects default maxLength (2048)", () => {
@@ -56,7 +59,6 @@ describe("sanitizeString", () => {
 		expect(result).toBe("abcde");
 	});
 
-	// XSS payloads
 	for (const payload of XSS_PAYLOADS) {
 		test(`XSS: ${payload.slice(0, 30)}… → no angle brackets`, () => {
 			const result = sanitizeString(payload);
@@ -65,13 +67,14 @@ describe("sanitizeString", () => {
 		});
 	}
 
-	test("100 random strings with injected control chars", () => {
-		for (let i = 0; i < 100; i++) {
-			const input = `test${String.fromCharCode(Math.floor(Math.random() * 32))}value${i}`;
-			const result = sanitizeString(input);
-			// Should never contain control chars (except \t=9, \n=10, \r=13 which are allowed)
-			for (let c = 0; c <= 8; c++) {
-				expect(result).not.toContain(String.fromCharCode(c));
+	test("strips every disallowed control char while keeping tab/newline/return", () => {
+		for (let code = 0; code <= 31; code++) {
+			const char = String.fromCharCode(code);
+			const result = sanitizeString(`a${char}b`);
+			if (code === 9 || code === 10 || code === 13) {
+				expect(result).toBe("a b");
+			} else {
+				expect(result).toBe("ab");
 			}
 		}
 	});
@@ -106,6 +109,11 @@ describe("redactSensitiveQueryParams", () => {
 			"/cb#access_token=REDACTED&state=xyz",
 		],
 		["plain fragment untouched", "/docs?page=1#install", "/docs?page=1#install"],
+		[
+			"query and fragment redacted independently",
+			"/cb?token=abc&page=2#access_token=xyz&state=ok",
+			"/cb?token=REDACTED&page=2#access_token=REDACTED&state=ok",
+		],
 		[
 			"relative path with otp",
 			"/verify?otp=123456",
@@ -198,8 +206,7 @@ describe("validatePayloadSize", () => {
 		expect(validatePayloadSize(obj)).toBe(false);
 	});
 
-	test("exactly at 1MB limit", () => {
-		// JSON.stringify adds quotes, so account for that
+	test("string whose serialized form is exactly at the 1MB limit", () => {
 		const data = longString(VALIDATION_LIMITS.PAYLOAD_MAX_SIZE - 2);
 		expect(validatePayloadSize(data)).toBe(true);
 	});
