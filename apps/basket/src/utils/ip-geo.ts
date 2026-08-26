@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { isIP } from "node:net";
 import { captureError, mergeWideEvent, record } from "@lib/tracing";
 import type { City } from "@maxmind/geoip2-node";
 import {
@@ -110,13 +111,8 @@ function loadDatabase() {
 
 const ignore = ["127.0.0.1", "::1"];
 
-const ipv4Regex =
-	/^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
-
-const ipv6Regex = /^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/;
-
 function isValidIp(ip: string): boolean {
-	return Boolean(ip && (ipv4Regex.test(ip) || ipv6Regex.test(ip)));
+	return isIP(ip) !== 0;
 }
 
 function getCloudflareCountry(headers: Headers): string | undefined {

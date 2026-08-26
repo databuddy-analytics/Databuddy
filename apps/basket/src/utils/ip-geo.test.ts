@@ -134,4 +134,27 @@ describe("getGeo", () => {
 			closeGeoIPReader();
 		}
 	});
+
+	test("accepts compressed and ipv4-mapped IPv6 addresses", async () => {
+		closeGeoIPReader();
+		const fetchSpy = vi
+			.spyOn(globalThis, "fetch")
+			.mockRejectedValue(new Error("CDN unreachable"));
+		try {
+			for (const ip of [
+				"2a00:1450:4009:81f::200e",
+				"2001:db8::1",
+				"::ffff:8.8.8.8",
+			]) {
+				const r = await getGeo(
+					ip,
+					req("https://x.com", { "cf-ipcountry": "DE" })
+				);
+				expect(r.country).toBe("DE");
+			}
+		} finally {
+			fetchSpy.mockRestore();
+			closeGeoIPReader();
+		}
+	});
 });
