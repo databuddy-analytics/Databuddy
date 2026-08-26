@@ -44,7 +44,7 @@
     "test:stripe-revenue:e2e": "CLICKHOUSE_INTEGRATION_TESTS=true STRIPE_REVENUE_E2E=true bun test src/query/builders/stripe-revenue.e2e.integration.test.ts"
   },
   "dependencies": {
-    "@ai-sdk/provider": "^3.0.5",
+    "@ai-sdk/provider": "^4.0.7",
     "@databuddy/api-keys": "workspace:*",
     "@databuddy/auth": "workspace:*",
     "@databuddy/db": "workspace:*",
