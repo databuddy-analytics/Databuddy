@@ -378,7 +378,7 @@ export function auditEventsToCsv(events: AuditEvent[]): string {
 			.join(",")
 	);
 
-	return [auditCsvColumns.join(","), ...rows].join("\n");
+	return `\uFEFF${[auditCsvColumns.join(","), ...rows].join("\r\n")}`;
 }
 
 export async function getAuditEvent(
