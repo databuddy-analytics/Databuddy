@@ -589,6 +589,7 @@ export const linksRouter = {
 			for (const slug of slugsToTry) {
 				const linkId = randomUUIDv7();
 				let cacheMutations: LinkCacheMutation[] | null;
+				let cacheUnavailable = false;
 				try {
 					cacheMutations = await beginLinkCacheMutations([
 						{ id: linkId, mode: "new", slug },
@@ -608,6 +609,7 @@ export const linksRouter = {
 					// slugs. A cache outage must not make random-slug creation
 					// unavailable; redirects read through to PG on cache misses.
 					cacheMutations = [];
+					cacheUnavailable = true;
 				}
 
 				if (!cacheMutations) {
@@ -669,12 +671,8 @@ export const linksRouter = {
 							{ link: toCachedLink(newLink), state: "link" },
 							"create persisted"
 						);
-					} else {
-						await backfillLinkCache(
-							slug,
-							newLink,
-							"create bypassed cache lease"
-						);
+					} else if (!cacheUnavailable) {
+						backfillLinkCache(slug, newLink, "create bypassed cache lease");
 					}
 					invalidateLinkAgentContext(organizationId);
 
@@ -734,8 +732,8 @@ export const linksRouter = {
 								{ link: toCachedLink(persistedLink), state: "link" },
 								"create reconciled after ambiguous database error"
 							);
-						} else {
-							await backfillLinkCache(
+						} else if (!cacheUnavailable) {
+							backfillLinkCache(
 								slug,
 								persistedLink,
 								"create reconciled after cache bypass"

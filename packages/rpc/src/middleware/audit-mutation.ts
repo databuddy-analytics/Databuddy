@@ -123,10 +123,10 @@ export async function runAuditedMutation<T>(
 
 	try {
 		const result = await fn();
-		await writeMutationAudit(context, path, "success");
+		writeMutationAudit(context, path, "success");
 		return result;
 	} catch (error) {
-		await writeMutationAudit(context, path, getAuditOutcome(error), error);
+		writeMutationAudit(context, path, getAuditOutcome(error), error);
 		throw error;
 	}
 }
