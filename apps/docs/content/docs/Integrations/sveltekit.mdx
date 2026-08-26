@@ -25,6 +25,7 @@ The recommended method for SvelteKit is to add the Databuddy tracking script dir
       code={`<script
   src="https://cdn.databuddy.cc/databuddy.js"
   data-client-id="YOUR_CLIENT_ID"
+  crossorigin="anonymous"
   async
 ></script>`}
     />
@@ -52,6 +53,7 @@ The recommended method for SvelteKit is to add the Databuddy tracking script dir
     <script
       src="https://cdn.databuddy.cc/databuddy.js"
       data-client-id="YOUR_CLIENT_ID"
+      crossorigin="anonymous"
       async
     ></script>
     %sveltekit.head%
@@ -123,13 +125,13 @@ For more control over route tracking, use SvelteKit's navigation lifecycle:
   filename="src/routes/+layout.svelte"
   code={`<script>
   import { afterNavigate } from '$app/navigation';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   
   afterNavigate(() => {
     if (typeof window !== 'undefined' && window.databuddy) {
       window.databuddy.screenView({
-        path: $page.url.pathname,
-        search: $page.url.search
+        path: page.url.pathname,
+        search: page.url.search
       });
     }
   });
@@ -148,6 +150,7 @@ Enable automatic tracking with data attributes by adding this to your script tag
   src="https://cdn.databuddy.cc/databuddy.js"
   data-client-id="YOUR_CLIENT_ID"
   data-track-attributes
+  crossorigin="anonymous"
   async
 ></script>`}
 />
@@ -187,6 +190,7 @@ Enable additional tracking features:
   data-track-interactions
   data-track-web-vitals
   data-track-errors
+  crossorigin="anonymous"
   async
 ></script>`}
 />
@@ -202,14 +206,14 @@ Track form submissions in SvelteKit:
   code={`<script>
   import { enhance } from '$app/forms';
   
-  function handleSubmit() {
+  const handleSubmit = ({ formElement }) => {
     if (typeof window !== 'undefined' && window.databuddy) {
       window.databuddy.track('form_submit', {
         form_type: 'contact',
-        form_id: 'contact-form'
+        form_id: formElement.id || 'contact-form'
       });
     }
-  }
+  };
 </script>
 
 <form method="POST" use:enhance={handleSubmit}>
@@ -249,16 +253,19 @@ Then track on the client side after successful submission:
   code={`<script>
   import { enhance } from '$app/forms';
   
-  function handleResult({ result }) {
-    if (result.type === 'success' && typeof window !== 'undefined' && window.databuddy) {
-      window.databuddy.track('form_submit_success', {
-        form_type: 'contact'
-      });
-    }
-  }
+  const handleSubmit = () => {
+    return async ({ result, update }) => {
+      if (result.type === 'success' && typeof window !== 'undefined' && window.databuddy) {
+        window.databuddy.track('form_submit_success', {
+          form_type: 'contact'
+        });
+      }
+      await update();
+    };
+  };
 </script>
 
-<form method="POST" use:enhance={handleResult}>
+<form method="POST" use:enhance={handleSubmit}>
   <!-- form fields -->
 </form>`}
 />
@@ -342,16 +349,26 @@ DATABUDDY_API_KEY=your-api-key-here
 DATABUDDY_WEBSITE_ID=your-client-id-here`}
 />
 
-Then use them in your code:
+Then use them in your code. In `src/app.html`, public environment variables are available through the `%sveltekit.env.[NAME]%` placeholder:
 
 <CodeBlock
   language="html"
   filename="src/app.html"
   code={`<script
   src="https://cdn.databuddy.cc/databuddy.js"
-  data-client-id="%env.PUBLIC_DATABUDDY_CLIENT_ID%"
+  data-client-id="%sveltekit.env.PUBLIC_DATABUDDY_CLIENT_ID%"
+  crossorigin="anonymous"
   async
 ></script>`}
+/>
+
+Alternatively, import the value from `$env/static/public` in a component:
+
+<CodeBlock
+  language="svelte"
+  code={`<script>
+  import { PUBLIC_DATABUDDY_CLIENT_ID } from '$env/static/public';
+</script>`}
 />
 
 ## Troubleshooting
