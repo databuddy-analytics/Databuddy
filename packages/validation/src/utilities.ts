@@ -23,27 +23,20 @@ export const SAFE_HEADERS = new Set([
 	"x-real-ip",
 ]);
 
+const DURATION_UNIT_SECONDS: Record<string, number> = {
+	s: 1,
+	m: 60,
+	h: 3600,
+	d: 86_400,
+};
+
 export function parseDurationToSeconds(duration: string): number {
 	const match = DURATION_REGEX.exec(duration);
 	if (!match) {
 		throw new Error(`Invalid duration format: ${duration}`);
 	}
 
-	const num = Number.parseInt(match[1], 10);
-	const unit = match[2];
-
-	const multiplier = {
-		s: 1,
-		m: 60,
-		h: 3600,
-		d: 86_400,
-	}[unit];
-
-	if (multiplier === undefined) {
-		throw new Error(`Invalid duration format: ${duration}`);
-	}
-
-	return num * multiplier;
+	return Number.parseInt(match[1], 10) * DURATION_UNIT_SECONDS[match[2]];
 }
 
 export function sanitizeString(input: unknown, maxLength?: number): string {
@@ -93,11 +86,8 @@ export function validateTimezone(timezone: unknown): string {
 }
 
 export function validateTimezoneOffset(offset: unknown): number | null {
-	if (typeof offset === "number") {
-		if (offset >= -12 * 60 && offset <= 14 * 60) {
-			return Math.round(offset);
-		}
-		return null;
+	if (typeof offset === "number" && offset >= -12 * 60 && offset <= 14 * 60) {
+		return Math.round(offset);
 	}
 	return null;
 }
@@ -143,22 +133,21 @@ export function validateNumeric(
 	min = 0,
 	max = Number.MAX_SAFE_INTEGER
 ): number | null {
-	if (
-		typeof value === "number" &&
-		!Number.isNaN(value) &&
-		Number.isFinite(value)
-	) {
-		const rounded = Math.round(value);
-		return rounded >= min && rounded <= max ? rounded : null;
+	let parsed: number;
+	if (typeof value === "number") {
+		parsed = value;
+	} else if (typeof value === "string") {
+		parsed = Number.parseFloat(value);
+	} else {
+		return null;
 	}
-	if (typeof value === "string") {
-		const parsed = Number.parseFloat(value);
-		if (!Number.isNaN(parsed) && Number.isFinite(parsed)) {
-			const rounded = Math.round(parsed);
-			return rounded >= min && rounded <= max ? rounded : null;
-		}
+
+	if (!Number.isFinite(parsed)) {
+		return null;
 	}
-	return null;
+
+	const rounded = Math.round(parsed);
+	return rounded >= min && rounded <= max ? rounded : null;
 }
 
 export function validateUrl(url: unknown): string {
@@ -248,7 +237,7 @@ export function validatePayloadSize(
 }
 
 export function validatePerformanceMetric(value: unknown): number | undefined {
-	return validateNumeric(value, 0, 300_000) as number | undefined;
+	return validateNumeric(value, 0, 300_000) ?? undefined;
 }
 
 export function validateScreenResolution(resolution: unknown): string {

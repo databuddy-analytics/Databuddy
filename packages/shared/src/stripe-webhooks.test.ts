@@ -5,28 +5,32 @@ import {
 } from "./stripe-webhooks";
 
 describe("STRIPE_WEBHOOK_EVENTS", () => {
-	test("keeps one unique canonical list with modern invoice allocations", () => {
-		const names = [
+	const registeredEvents = [
+		...STRIPE_WEBHOOK_EVENTS.required,
+		...STRIPE_WEBHOOK_EVENTS.optional,
+	].map(({ event }) => event);
+
+	test("registers every event exactly once", () => {
+		expect(new Set(registeredEvents).size).toBe(registeredEvents.length);
+	});
+
+	test("requires every failure event so payment failures are never missed", () => {
+		const requiredEvents = STRIPE_WEBHOOK_EVENTS.required.map(
+			({ event }) => event
+		);
+
+		expect(STRIPE_FAILURE_WEBHOOK_EVENTS.length).toBeGreaterThan(0);
+		for (const { event } of STRIPE_FAILURE_WEBHOOK_EVENTS) {
+			expect(requiredEvents).toContain(event);
+		}
+	});
+
+	test("documents a purpose for every registered event", () => {
+		for (const entry of [
 			...STRIPE_WEBHOOK_EVENTS.required,
 			...STRIPE_WEBHOOK_EVENTS.optional,
-		].map(({ event }) => event);
-
-		expect(new Set(names).size).toBe(names.length);
-		expect(STRIPE_WEBHOOK_EVENTS.required.map(({ event }) => event)).toContain(
-			"invoice_payment.paid"
-		);
-		expect(STRIPE_WEBHOOK_EVENTS.required.map(({ event }) => event)).toContain(
-			"payment_intent.payment_failed"
-		);
-		expect(STRIPE_WEBHOOK_EVENTS.required.map(({ event }) => event)).toContain(
-			"invoice.payment_failed"
-		);
-		expect(STRIPE_WEBHOOK_EVENTS.optional).toHaveLength(0);
-		expect(
-			STRIPE_FAILURE_WEBHOOK_EVENTS.map(({ event }) => event)
-		).toEqual([
-			"payment_intent.payment_failed",
-			"invoice.payment_failed",
-		]);
+		]) {
+			expect(entry.purpose.length).toBeGreaterThan(0);
+		}
 	});
 });

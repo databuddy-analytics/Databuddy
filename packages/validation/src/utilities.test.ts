@@ -17,31 +17,42 @@ import {
 	validateTimezone,
 	validateTimezoneOffset,
 	validateUrl,
+	validateUtmParameter,
 	validateViewportSize,
 } from "./utilities";
 
 describe("parseDurationToSeconds", () => {
-	it("parses seconds", () => expect(parseDurationToSeconds("30s")).toBe(30));
-	it("parses minutes", () => expect(parseDurationToSeconds("5m")).toBe(300));
-	it("parses hours", () => expect(parseDurationToSeconds("2h")).toBe(7200));
-	it("parses days", () => expect(parseDurationToSeconds("1d")).toBe(86400));
-	it("throws on invalid format", () => {
-		expect(() => parseDurationToSeconds("abc")).toThrow("Invalid duration");
+	it.each([
+		["30s", 30],
+		["5m", 300],
+		["2h", 7200],
+		["1d", 86_400],
+		["0s", 0],
+	])("parses %s to %d seconds", (duration, seconds) => {
+		expect(parseDurationToSeconds(duration)).toBe(seconds);
 	});
-	it("throws on missing unit", () => {
-		expect(() => parseDurationToSeconds("100")).toThrow("Invalid duration");
-	});
+
+	it.each([["abc"], ["100"], ["5w"], ["-5m"], ["1.5h"], [""]])(
+		"throws on invalid duration %j",
+		(duration) => {
+			expect(() => parseDurationToSeconds(duration)).toThrow("Invalid duration");
+		}
+	);
 });
 
 describe("sanitizeString", () => {
-	it("returns empty for non-strings", () => {
-		expect(sanitizeString(null)).toBe("");
-		expect(sanitizeString(123)).toBe("");
-		expect(sanitizeString(undefined)).toBe("");
+	it.each([
+		["null", null],
+		["number", 123],
+		["undefined", undefined],
+		["object", {}],
+	])("returns empty for %s input", (_label, value) => {
+		expect(sanitizeString(value)).toBe("");
 	});
 
-	it("trims and normalizes whitespace", () => {
+	it("trims and collapses whitespace", () => {
 		expect(sanitizeString("  hello   world  ")).toBe("hello world");
+		expect(sanitizeString("a\tb\nc")).toBe("a b c");
 	});
 
 	it("strips control characters", () => {
@@ -55,289 +66,298 @@ describe("sanitizeString", () => {
 		);
 	});
 
-	it("truncates to maxLength", () => {
+	it("truncates to maxLength before filtering", () => {
 		expect(sanitizeString("abcdefghij", 5)).toBe("abcde");
 	});
 
 	it("defaults to 2048 max length", () => {
-		const long = "a".repeat(3000);
-		expect(sanitizeString(long).length).toBe(2048);
+		expect(sanitizeString("a".repeat(3000)).length).toBe(2048);
 	});
 });
 
 describe("validateTimezone", () => {
-	it("accepts valid timezones", () => {
-		expect(validateTimezone("America/New_York")).toBe("America/New_York");
-		expect(validateTimezone("UTC")).toBe("UTC");
-		expect(validateTimezone("Europe/London")).toBe("Europe/London");
-	});
+	it.each([["America/New_York"], ["UTC"], ["Europe/London"]])(
+		"accepts %s",
+		(timezone) => {
+			expect(validateTimezone(timezone)).toBe(timezone);
+		}
+	);
 
-	it("rejects non-strings", () => {
-		expect(validateTimezone(123)).toBe("");
-		expect(validateTimezone(null)).toBe("");
-	});
-
-	it("rejects invalid formats", () => {
-		expect(validateTimezone("foo bar!@#")).toBe("");
-	});
-
-	it("rejects unrecognized IANA timezone names", () => {
-		expect(validateTimezone("Etc/Unknown")).toBe("");
-		expect(validateTimezone("America/Fakecity")).toBe("");
-	});
-
-	it("rejects SQL injection attempts", () => {
-		expect(validateTimezone("UTC') UNION ALL SELECT 1--")).toBe("");
-		expect(validateTimezone("UTC'; DROP TABLE events;--")).toBe("");
-		expect(validateTimezone("' OR 1=1--")).toBe("");
+	it.each([
+		["number", 123],
+		["null", null],
+		["invalid characters", "foo bar!@#"],
+		["unknown IANA name", "Etc/Unknown"],
+		["fabricated IANA name", "America/Fakecity"],
+		["SQL injection", "UTC') UNION ALL SELECT 1--"],
+		["SQL injection with drop", "UTC'; DROP TABLE events;--"],
+		["SQL tautology", "' OR 1=1--"],
+	])("rejects %s", (_label, timezone) => {
+		expect(validateTimezone(timezone)).toBe("");
 	});
 });
 
 describe("validateTimezoneOffset", () => {
-	it("accepts valid offsets", () => {
-		expect(validateTimezoneOffset(-300)).toBe(-300);
-		expect(validateTimezoneOffset(0)).toBe(0);
-		expect(validateTimezoneOffset(330)).toBe(330);
+	it.each([
+		[-720, -720],
+		[-300, -300],
+		[0, 0],
+		[330, 330],
+		[840, 840],
+		[60.7, 61],
+	])("accepts %d as %d", (offset, expected) => {
+		expect(validateTimezoneOffset(offset)).toBe(expected);
 	});
 
-	it("rounds fractional offsets", () => {
-		expect(validateTimezoneOffset(60.7)).toBe(61);
-	});
-
-	it("rejects out-of-range", () => {
-		expect(validateTimezoneOffset(-1000)).toBeNull();
-		expect(validateTimezoneOffset(1000)).toBeNull();
-	});
-
-	it("rejects non-numbers", () => {
-		expect(validateTimezoneOffset("foo")).toBeNull();
-		expect(validateTimezoneOffset(null)).toBeNull();
+	it.each([
+		["below range", -721],
+		["above range", 841],
+		["far out of range", 1000],
+		["NaN", Number.NaN],
+		["Infinity", Number.POSITIVE_INFINITY],
+		["string", "60"],
+		["null", null],
+	])("rejects %s", (_label, offset) => {
+		expect(validateTimezoneOffset(offset)).toBeNull();
 	});
 });
 
 describe("validateLanguage", () => {
-	it("accepts valid language codes (lowercased)", () => {
-		expect(validateLanguage("en")).toBe("en");
-		expect(validateLanguage("en-US")).toBe("en-us");
-		expect(validateLanguage("zh-Hans")).toBe("zh-hans");
+	it.each([
+		["en", "en"],
+		["en-US", "en-us"],
+		["zh-Hans", "zh-hans"],
+	])("accepts %s lowercased as %s", (language, expected) => {
+		expect(validateLanguage(language)).toBe(expected);
 	});
 
-	it("rejects invalid", () => {
-		expect(validateLanguage("a")).toBe("");
-		expect(validateLanguage(42)).toBe("");
+	it.each([
+		["too short", "a"],
+		["number", 42],
+		["injection", "en;DROP"],
+	])("rejects %s", (_label, language) => {
+		expect(validateLanguage(language)).toBe("");
 	});
 });
 
 describe("validateSessionId", () => {
-	it("accepts alphanumeric with dashes/underscores", () => {
+	it("accepts alphanumeric ids with dashes and underscores", () => {
 		expect(validateSessionId("abc-123_XYZ")).toBe("abc-123_XYZ");
 	});
 
-	it("rejects non-strings", () => {
-		expect(validateSessionId(null)).toBe("");
+	it.each([
+		["null", null],
+		["special characters", "abc;DROP TABLE"],
+		["empty", ""],
+		["whitespace", "abc 123"],
+	])("rejects %s", (_label, sessionId) => {
+		expect(validateSessionId(sessionId)).toBe("");
+	});
+});
+
+describe("validateUtmParameter", () => {
+	it("sanitizes and truncates to 512 characters", () => {
+		expect(validateUtmParameter(" spring_sale ")).toBe("spring_sale");
+		expect(validateUtmParameter("<b>ads</b>")).toBe("bads/b");
+		expect(validateUtmParameter("x".repeat(600)).length).toBe(512);
 	});
 
-	it("rejects special characters", () => {
-		expect(validateSessionId("abc;DROP TABLE")).toBe("");
+	it("returns empty for non-strings", () => {
+		expect(validateUtmParameter(42)).toBe("");
+		expect(validateUtmParameter(null)).toBe("");
 	});
 });
 
 describe("validateNumeric", () => {
-	it("accepts numbers in range", () => {
-		expect(validateNumeric(42)).toBe(42);
+	it.each([
+		["in range", 42, 42],
+		["at min", 0, 0],
+		["rounded float", 3.7, 4],
+		["numeric string", "42", 42],
+		["float string rounded", "3.14", 3],
+	])("accepts %s", (_label, value, expected) => {
+		expect(validateNumeric(value)).toBe(expected);
+	});
+
+	it("enforces inclusive bounds", () => {
 		expect(validateNumeric(0, 0, 100)).toBe(0);
 		expect(validateNumeric(100, 0, 100)).toBe(100);
-	});
-
-	it("rounds floats", () => {
-		expect(validateNumeric(3.7)).toBe(4);
-	});
-
-	it("rejects out of range", () => {
 		expect(validateNumeric(-1, 0, 100)).toBeNull();
 		expect(validateNumeric(101, 0, 100)).toBeNull();
 	});
 
-	it("rejects NaN and Infinity", () => {
-		expect(validateNumeric(Number.NaN)).toBeNull();
-		expect(validateNumeric(Number.POSITIVE_INFINITY)).toBeNull();
+	it("checks bounds after rounding", () => {
+		expect(validateNumeric(100.4, 0, 100)).toBe(100);
+		expect(validateNumeric(100.6, 0, 100)).toBeNull();
 	});
 
-	it("parses numeric strings", () => {
-		expect(validateNumeric("42")).toBe(42);
-		expect(validateNumeric("3.14")).toBe(3);
-	});
-
-	it("rejects non-numeric strings", () => {
-		expect(validateNumeric("abc")).toBeNull();
+	it.each([
+		["NaN", Number.NaN],
+		["Infinity", Number.POSITIVE_INFINITY],
+		["non-numeric string", "abc"],
+		["null", null],
+		["boolean", true],
+	])("rejects %s", (_label, value) => {
+		expect(validateNumeric(value)).toBeNull();
 	});
 });
 
 describe("validateUrl", () => {
-	it("accepts valid http/https URLs", () => {
+	it("accepts and normalizes http/https URLs", () => {
 		expect(validateUrl("https://example.com")).toBe("https://example.com/");
 		expect(validateUrl("http://localhost:3000/path")).toBe(
 			"http://localhost:3000/path"
 		);
 	});
 
-	it("rejects non-http protocols", () => {
-		expect(validateUrl("ftp://example.com")).toBe("");
-		expect(validateUrl("javascript:alert(1)")).toBe("");
-	});
-
-	it("rejects non-strings", () => {
-		expect(validateUrl(null)).toBe("");
-		expect(validateUrl(123)).toBe("");
-	});
-
-	it("rejects invalid URLs", () => {
-		expect(validateUrl("not a url")).toBe("");
+	it.each([
+		["ftp", "ftp://example.com"],
+		["javascript", "javascript:alert(1)"],
+		["null", null],
+		["number", 123],
+		["not a url", "not a url"],
+	])("rejects %s", (_label, url) => {
+		expect(validateUrl(url)).toBe("");
 	});
 });
 
 describe("filterSafeHeaders", () => {
-	it("keeps only safe headers (lowercased keys)", () => {
-		const result = filterSafeHeaders({
-			"User-Agent": "Mozilla/5.0",
-			Authorization: "Bearer secret",
-			Referer: "https://example.com",
-		});
-		expect(result).toEqual({
+	it("keeps only safe headers with lowercased keys", () => {
+		expect(
+			filterSafeHeaders({
+				"User-Agent": "Mozilla/5.0",
+				Authorization: "Bearer secret",
+				Cookie: "session=abc",
+				Referer: "https://example.com",
+			})
+		).toEqual({
 			"user-agent": "Mozilla/5.0",
 			referer: "https://example.com",
 		});
-		expect(result).not.toHaveProperty("authorization");
 	});
 
-	it("handles array values (takes first)", () => {
-		const result = filterSafeHeaders({
-			"X-Forwarded-For": ["1.2.3.4", "5.6.7.8"],
-		});
-		expect(result["x-forwarded-for"]).toBe("1.2.3.4");
+	it("takes the first value of array headers", () => {
+		expect(
+			filterSafeHeaders({ "X-Forwarded-For": ["1.2.3.4", "5.6.7.8"] })
+		).toEqual({ "x-forwarded-for": "1.2.3.4" });
 	});
 
-	it("skips undefined values", () => {
-		const result = filterSafeHeaders({ "user-agent": undefined });
-		expect(result).toEqual({});
+	it("skips undefined and empty values", () => {
+		expect(filterSafeHeaders({ "user-agent": undefined, referer: "" })).toEqual(
+			{}
+		);
 	});
 });
 
 describe("validateProperties", () => {
-	it("validates string, number, boolean, null values", () => {
-		const result = validateProperties({
-			plan: "pro",
-			count: 5,
-			active: true,
-			removed: null,
-		});
-		expect(result).toEqual({ plan: "pro", count: 5, active: true, removed: null });
+	it("keeps string, number, boolean, and null values", () => {
+		expect(
+			validateProperties({ plan: "pro", count: 5, active: true, removed: null })
+		).toEqual({ plan: "pro", count: 5, active: true, removed: null });
 	});
 
 	it("strips non-primitive values", () => {
-		const result = validateProperties({
-			nested: { a: 1 },
-			arr: [1, 2],
-			fn: () => {},
-		});
-		expect(Object.keys(result)).toHaveLength(0);
+		expect(
+			validateProperties({ nested: { a: 1 }, arr: [1, 2], fn: () => 1 })
+		).toEqual({});
 	});
 
 	it("limits to 100 properties", () => {
-		const props: Record<string, string> = {};
-		for (let i = 0; i < 150; i++) props[`key${i}`] = "v";
-		const result = validateProperties(props);
-		expect(Object.keys(result)).toHaveLength(100);
+		const props = Object.fromEntries(
+			Array.from({ length: 150 }, (_, i) => [`key${i}`, "v"])
+		);
+		expect(Object.keys(validateProperties(props))).toHaveLength(100);
 	});
 
-	it("returns empty for non-objects", () => {
-		expect(validateProperties(null)).toEqual({});
-		expect(validateProperties("string")).toEqual({});
-		expect(validateProperties([1, 2])).toEqual({});
+	it.each([
+		["null", null],
+		["string", "string"],
+		["array", [1, 2]],
+	])("returns empty for %s", (_label, value) => {
+		expect(validateProperties(value)).toEqual({});
 	});
 });
 
 describe("validatePayloadSize", () => {
-	it("accepts small payloads", () => {
+	it("accepts payloads within the limit", () => {
 		expect(validatePayloadSize({ key: "value" })).toBe(true);
 	});
 
 	it("rejects oversized payloads", () => {
-		const big = { data: "x".repeat(2_000_000) };
-		expect(validatePayloadSize(big)).toBe(false);
+		expect(validatePayloadSize({ data: "x".repeat(2_000_000) })).toBe(false);
 	});
 
-	it("uses custom max size", () => {
+	it("uses a custom max size", () => {
 		expect(validatePayloadSize({ a: "b" }, 5)).toBe(false);
 	});
 
-	it("returns false for circular references", () => {
-		const obj: Record<string, unknown> = {};
-		obj.self = obj;
-		expect(validatePayloadSize(obj)).toBe(false);
+	it("rejects unserializable payloads", () => {
+		const circular: Record<string, unknown> = {};
+		circular.self = circular;
+		expect(validatePayloadSize(circular)).toBe(false);
 	});
 });
 
-describe("validateScrollDepth", () => {
-	it("accepts 0-100", () => {
+describe("range validators", () => {
+	it("validateScrollDepth accepts 0-100", () => {
 		expect(validateScrollDepth(0)).toBe(0);
-		expect(validateScrollDepth(50)).toBe(50);
 		expect(validateScrollDepth(100)).toBe(100);
-	});
-	it("rejects out of range", () => {
 		expect(validateScrollDepth(-1)).toBeNull();
 		expect(validateScrollDepth(101)).toBeNull();
 	});
+
+	it("validatePageCount accepts 1-10000", () => {
+		expect(validatePageCount(1)).toBe(1);
+		expect(validatePageCount(10_000)).toBe(10_000);
+		expect(validatePageCount(0)).toBeNull();
+		expect(validatePageCount(10_001)).toBeNull();
+	});
+
+	it("validateInteractionCount accepts 0-100000", () => {
+		expect(validateInteractionCount(0)).toBe(0);
+		expect(validateInteractionCount(100_000)).toBe(100_000);
+		expect(validateInteractionCount(100_001)).toBeNull();
+	});
+
+	it("validatePerformanceMetric accepts 0-300000 and hides misses as undefined", () => {
+		expect(validatePerformanceMetric(1500)).toBe(1500);
+		expect(validatePerformanceMetric(300_000)).toBe(300_000);
+		expect(validatePerformanceMetric(-1)).toBeUndefined();
+		expect(validatePerformanceMetric(300_001)).toBeUndefined();
+	});
 });
 
-describe("validateScreenResolution", () => {
-	it("accepts valid formats", () => {
+describe("resolution validators", () => {
+	it("accept WIDTHxHEIGHT strings", () => {
 		expect(validateScreenResolution("1920x1080")).toBe("1920x1080");
-	});
-	it("rejects invalid", () => {
-		expect(validateScreenResolution("not-a-res")).toBe("");
-		expect(validateScreenResolution(123)).toBe("");
-	});
-});
-
-describe("validateViewportSize", () => {
-	it("delegates to validateScreenResolution", () => {
 		expect(validateViewportSize("1200x800")).toBe("1200x800");
 	});
-});
 
-describe("validatePerformanceMetric", () => {
-	it("accepts valid metrics (0-300000)", () => {
-		expect(validatePerformanceMetric(1500)).toBe(1500);
-	});
-	it("rejects negatives", () => {
-		expect(validatePerformanceMetric(-1)).toBeNull();
-	});
-});
-
-describe("validatePageCount", () => {
-	it("accepts 1-10000", () => {
-		expect(validatePageCount(1)).toBe(1);
-		expect(validatePageCount(500)).toBe(500);
-	});
-	it("rejects 0", () => {
-		expect(validatePageCount(0)).toBeNull();
-	});
-});
-
-describe("validateInteractionCount", () => {
-	it("accepts 0-100000", () => {
-		expect(validateInteractionCount(0)).toBe(0);
+	it.each([
+		["free text", "not-a-res"],
+		["number", 123],
+		["missing side", "1920x"],
+		["negative", "-1x100"],
+	])("reject %s", (_label, resolution) => {
+		expect(validateScreenResolution(resolution)).toBe("");
 	});
 });
 
 describe("validateExitIntent", () => {
-	it("returns 0 or 1", () => {
+	it("passes through 0 and 1", () => {
 		expect(validateExitIntent(1)).toBe(1);
 		expect(validateExitIntent(0)).toBe(0);
 	});
-	it("returns 0 for invalid", () => {
-		expect(validateExitIntent(null)).toBe(0);
-		expect(validateExitIntent(5)).toBe(0);
+
+	it("parses numeric strings like other numeric fields", () => {
+		expect(validateExitIntent("1")).toBe(1);
+	});
+
+	it.each([
+		["null", null],
+		["out of range", 5],
+		["non-numeric string", "yes"],
+	])("defaults to 0 for %s", (_label, intent) => {
+		expect(validateExitIntent(intent)).toBe(0);
 	});
 });
