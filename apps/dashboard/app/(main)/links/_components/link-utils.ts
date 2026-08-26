@@ -128,33 +128,3 @@ export function buildLinkPayload({
 		folderId,
 	};
 }
-
-interface RpcError {
-	data?: { code?: string };
-	message?: string;
-}
-
-export function mapLinkApiError(error: unknown, isEditing: boolean): string {
-	const defaultMessage = `Failed to ${isEditing ? "update" : "create"} link.`;
-	const rpcError = error as RpcError;
-
-	if (rpcError?.data?.code) {
-		switch (rpcError.data.code) {
-			case "CONFLICT":
-				return "A link with this slug already exists.";
-			case "FORBIDDEN":
-				return (
-					rpcError.message ||
-					"You do not have permission to perform this action."
-				);
-			case "UNAUTHORIZED":
-				return "You must be logged in to perform this action.";
-			case "BAD_REQUEST":
-				return rpcError.message || "Invalid request. Please check your input.";
-			default:
-				return rpcError.message || defaultMessage;
-		}
-	}
-
-	return rpcError?.message || defaultMessage;
-}

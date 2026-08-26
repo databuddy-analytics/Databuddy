@@ -11,7 +11,6 @@ import { CheckCircleIcon } from "@databuddy/ui/icons";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useState } from "react";
-import { toast } from "sonner";
 import { useFeatureGate } from "@/components/feature-gate";
 import { useAutocompleteData } from "@/hooks/use-autocomplete";
 import {
@@ -120,11 +119,7 @@ function GoalDraftAction({
 			const goal = await createGoal(goalInput);
 			setIsOpen(false);
 			setCreatedGoal({ id: goal.id, name: goal.name });
-		} catch (error) {
-			toast.error(
-				error instanceof Error ? error.message : "Could not create the goal"
-			);
-		}
+		} catch {}
 	};
 
 	if (createdGoal) {
@@ -174,16 +169,9 @@ function FunnelDraftAction({
 	const { createAction, isCreating } = useFunnelActions(websiteId);
 
 	const handleCreate = async (data: CreateFunnelData) => {
-		try {
-			const funnel = await createAction(data);
-			setIsOpen(false);
-			setCreatedFunnel({ id: funnel.id, name: funnel.name });
-		} catch (error) {
-			toast.error(
-				error instanceof Error ? error.message : "Could not create the funnel"
-			);
-			throw error;
-		}
+		const funnel = await createAction(data);
+		setIsOpen(false);
+		setCreatedFunnel({ id: funnel.id, name: funnel.name });
 	};
 
 	if (createdFunnel) {

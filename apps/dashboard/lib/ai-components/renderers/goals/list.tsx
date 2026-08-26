@@ -231,11 +231,7 @@ export function GoalsListRenderer({ title, goals, className }: GoalsListProps) {
 					} as CreateGoalData);
 				}
 				closeDialog();
-			} catch {
-				toast.error(
-					editingGoalId ? "Failed to update goal" : "Failed to create goal"
-				);
-			}
+			} catch {}
 		},
 		[editingGoalId, createGoal, updateGoal, websiteId, closeDialog]
 	);
@@ -247,9 +243,7 @@ export function GoalsListRenderer({ title, goals, className }: GoalsListProps) {
 		try {
 			await deleteGoal(deletingId);
 			setDeletingId(null);
-		} catch {
-			toast.error("Failed to delete goal");
-		}
+		} catch {}
 	}, [deletingId, deleteGoal]);
 
 	const goalForDialog: Goal | null = (editingGoalQuery.data as Goal) ?? null;

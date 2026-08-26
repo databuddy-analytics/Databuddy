@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { insightQueries } from "@/lib/insight-api";
 import { listQueryOutcome } from "@/lib/list-query-outcome";
 import { orpc } from "@/lib/orpc";
+import { mutationErrorToast } from "@/lib/user-facing-error";
 
 export type Goal = InferSelectModel<typeof goals>;
 
@@ -108,6 +109,7 @@ export function useGoalActions(websiteId: string) {
 
 	const createMutation = useMutation({
 		...orpc.goals.create.mutationOptions(),
+		...mutationErrorToast,
 		onSuccess: () => {
 			invalidateAll();
 			toast.success("Goal created successfully");
@@ -116,6 +118,7 @@ export function useGoalActions(websiteId: string) {
 
 	const updateMutation = useMutation({
 		...orpc.goals.update.mutationOptions(),
+		...mutationErrorToast,
 		onSuccess: () => {
 			invalidateAll();
 			toast.success("Goal updated successfully");
@@ -124,6 +127,7 @@ export function useGoalActions(websiteId: string) {
 
 	const deleteMutation = useMutation({
 		...orpc.goals.delete.mutationOptions(),
+		...mutationErrorToast,
 		onSuccess: () => {
 			invalidateAll();
 			toast.success("Goal deleted successfully");
@@ -184,9 +188,6 @@ export function useGoalActions(websiteId: string) {
 		isCreating: createMutation.isPending,
 		isUpdating: updateMutation.isPending,
 		isDeleting: deleteMutation.isPending,
-		createError: createMutation.error,
-		updateError: updateMutation.error,
-		deleteError: deleteMutation.error,
 	};
 }
 

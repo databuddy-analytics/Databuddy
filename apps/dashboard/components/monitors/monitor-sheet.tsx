@@ -187,9 +187,7 @@ export function MonitorSheet({
 			await queryClient.invalidateQueries({
 				queryKey: orpc.alarms.list.key(),
 			});
-		} catch {
-			toast.error("Failed to update alert");
-		}
+		} catch {}
 	};
 
 	useEffect(() => {

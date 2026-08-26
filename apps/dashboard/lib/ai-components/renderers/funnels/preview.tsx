@@ -7,7 +7,6 @@ import {
 	useCallback,
 	useState,
 } from "react";
-import { toast } from "sonner";
 import { EditFunnelDialog } from "@/app/(main)/websites/[id]/funnels/_components/edit-funnel-dialog";
 import { useChat } from "@/contexts/chat-context";
 import { useFunnels } from "@/hooks/use-funnels";
@@ -101,9 +100,7 @@ export function FunnelPreviewRenderer({
 			try {
 				await createAction(data);
 				setIsDialogOpen(false);
-			} catch {
-				toast.error("Failed to create funnel");
-			}
+			} catch {}
 		},
 		[createAction]
 	);

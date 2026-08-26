@@ -7,7 +7,6 @@ import {
 	useCallback,
 	useState,
 } from "react";
-import { toast } from "sonner";
 import { EditGoalDialog } from "@/app/(main)/websites/[id]/goals/_components/edit-goal-dialog";
 import { useChat } from "@/contexts/chat-context";
 import { type CreateGoalData, type Goal, useGoals } from "@/hooks/use-goals";
@@ -111,9 +110,7 @@ export function GoalPreviewRenderer({
 					...data,
 				} as CreateGoalData);
 				setIsDialogOpen(false);
-			} catch {
-				toast.error("Failed to create goal");
-			}
+			} catch {}
 		},
 		[createGoal, websiteId]
 	);

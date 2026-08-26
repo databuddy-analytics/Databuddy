@@ -161,7 +161,6 @@ export function EditFunnelDialog({
 				await onCreate(createData);
 				resetForm();
 			} catch {
-				// The caller surfaces the error; retain the user's draft for correction.
 				return;
 			}
 		} else {

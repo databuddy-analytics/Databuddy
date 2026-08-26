@@ -17,12 +17,7 @@ import {
 	createDeepLinkFormSchema,
 	type DeepLinkFormData,
 } from "./link-form-schema";
-import {
-	ensureProtocol,
-	mapLinkApiError,
-	normalizeUrlInput,
-	stripProtocol,
-} from "./link-utils";
+import { ensureProtocol, normalizeUrlInput, stripProtocol } from "./link-utils";
 import { ArrowLeftIcon } from "@databuddy/ui/icons";
 import { Button, Field, Input } from "@databuddy/ui";
 import { Sheet } from "@databuddy/ui/client";
@@ -90,9 +85,7 @@ function DeepLinkForm({
 			});
 			toast.success("Deep link created");
 			onOpenChange(false);
-		} catch (error: unknown) {
-			toast.error(mapLinkApiError(error, false));
-		}
+		} catch {}
 	};
 
 	const { isValid, isDirty } = form.formState;
