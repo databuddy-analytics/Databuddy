@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Bento from "@/components/bento";
 import { Footer } from "@/components/footer";
+import { AiSection } from "@/components/landing/ai-section";
 import { DemoPreconnectLinks } from "@/components/landing/demo-preconnect-links";
 import { Description } from "@/components/landing/description";
 import FAQ from "@/components/landing/faq";
@@ -190,6 +191,12 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 				<Section className="border-border border-b" id="bento">
 					<div className={container}>
 						<Bento />
+					</div>
+				</Section>
+
+				<Section className="border-border border-b py-16 lg:py-24" id="ai">
+					<div className={container}>
+						<AiSection />
 					</div>
 				</Section>
 
