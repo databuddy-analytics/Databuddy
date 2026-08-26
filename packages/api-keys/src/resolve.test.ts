@@ -102,7 +102,12 @@ mock.module("@databuddy/redis", () => ({
 const {
 	API_KEY_LOOKUP_TIMEOUT_MS,
 	API_KEY_STATEMENT_TIMEOUT_MS,
+	collectScopes,
+	extractSecret,
+	getAccessibleWebsiteIds,
+	hasGlobalAccess,
 	hasWebsiteScopeForOrganization,
+	resolveApiKey,
 	resolveApiKeySecret,
 } = await import("./resolve");
 
@@ -181,6 +186,148 @@ describe("API key database deadline", () => {
 		).resolves.toMatchObject({ outcome: "invalid" });
 		expect(transaction).toHaveBeenCalledTimes(2);
 		expect(findApiKey).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe("secret extraction", () => {
+	test("prefers a valid x-api-key header over authorization", () => {
+		const headers = new Headers({
+			authorization: "Bearer dbdy_from_bearer",
+			"x-api-key": "dbdy_from_header",
+		});
+
+		expect(extractSecret(headers)).toBe("dbdy_from_header");
+	});
+
+	test("falls back to a bearer token when x-api-key is absent or malformed", () => {
+		expect(
+			extractSecret(new Headers({ authorization: "bearer dbdy_from_bearer" }))
+		).toBe("dbdy_from_bearer");
+		expect(
+			extractSecret(
+				new Headers({
+					authorization: "Bearer dbdy_from_bearer",
+					"x-api-key": "not-our-prefix",
+				})
+			)
+		).toBe("dbdy_from_bearer");
+	});
+
+	test.each([
+		["wrong prefix", "sk_live_1234567890"],
+		["too short", "dbdy_1"],
+		["too long", `dbdy_${"x".repeat(200)}`],
+	])("rejects a token with %s", (_label, token) => {
+		expect(extractSecret(new Headers({ "x-api-key": token }))).toBeNull();
+	});
+
+	test("distinguishes a missing credential from a malformed one", async () => {
+		findApiKey.mockClear();
+
+		await expect(resolveApiKey(new Headers())).resolves.toEqual({
+			key: null,
+			outcome: "missing",
+		});
+		await expect(
+			resolveApiKey(new Headers({ "x-api-key": "not-a-key" }))
+		).resolves.toEqual({ key: null, outcome: "invalid" });
+		expect(findApiKey).not.toHaveBeenCalled();
+	});
+});
+
+describe("resolve outcomes", () => {
+	const baseKey = {
+		enabled: true,
+		expiresAt: null as Date | null,
+		id: "key-1",
+		metadata: null,
+		organizationId: "org-1",
+		revokedAt: null as Date | null,
+		scopes: [] as string[],
+	};
+
+	test("returns the key with prefix and start for a live credential", async () => {
+		findApiKey.mockResolvedValueOnce({ ...baseKey });
+
+		const result = await resolveApiKeySecret("dbdy_live_credential");
+
+		expect(result.outcome).toBe("ok");
+		expect(result.key).toMatchObject({ id: "key-1" });
+		expect(result.prefix).toBe("dbdy");
+		expect(result.start).toBe("dbdy_liv");
+	});
+
+	test.each([
+		["disabled", { enabled: false }],
+		["revoked", { revokedAt: new Date("2026-01-01T00:00:00Z") }],
+		["expired", { expiresAt: new Date("2020-01-01T00:00:00Z") }],
+	])("maps a %s key to that outcome without returning it", async (
+		outcome,
+		overrides
+	) => {
+		findApiKey.mockResolvedValueOnce({ ...baseKey, ...overrides });
+
+		await expect(
+			resolveApiKeySecret(`dbdy_${outcome}_credential`)
+		).resolves.toMatchObject({ key: null, outcome });
+	});
+});
+
+describe("scope collection", () => {
+	const keyWith = (overrides: Record<string, unknown>): ApiKeyRow =>
+		({
+			metadata: null,
+			organizationId: "org-1",
+			scopes: [],
+			...overrides,
+		}) as unknown as ApiKeyRow;
+
+	test("merges base, global, and resource scopes without duplicates", () => {
+		const key = keyWith({
+			metadata: {
+				resources: {
+					global: ["read:links"],
+					"website:site-1": ["manage:config", "read:data"],
+				},
+			},
+			scopes: ["read:data"],
+		});
+
+		expect(collectScopes(key, "website:site-1").sort()).toEqual([
+			"manage:config",
+			"read:data",
+			"read:links",
+		]);
+		expect(collectScopes(key).sort()).toEqual(["read:data", "read:links"]);
+	});
+
+	test("lists only website resource entries as accessible website ids", () => {
+		const key = keyWith({
+			metadata: {
+				resources: {
+					global: ["read:data"],
+					"website:site-1": [],
+					"website:site-2": ["read:data"],
+				},
+			},
+		});
+
+		expect(getAccessibleWebsiteIds(key).sort()).toEqual(["site-1", "site-2"]);
+		expect(getAccessibleWebsiteIds(keyWith({}))).toEqual([]);
+		expect(getAccessibleWebsiteIds(null)).toEqual([]);
+	});
+
+	test("grants global access only when global resource scopes exist", () => {
+		expect(
+			hasGlobalAccess(
+				keyWith({ metadata: { resources: { global: ["read:data"] } } })
+			)
+		).toBe(true);
+		expect(
+			hasGlobalAccess(keyWith({ metadata: { resources: { global: [] } } }))
+		).toBe(false);
+		expect(hasGlobalAccess(keyWith({}))).toBe(false);
+		expect(hasGlobalAccess(null)).toBe(false);
 	});
 });
 

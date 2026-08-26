@@ -258,10 +258,8 @@ export async function invalidateCacheablePattern(
 	const redis = getRedisCache();
 	let deletedCount = 0;
 
-	// Use SCAN with MATCH to find keys
 	let cursor = "0";
 	do {
-		// SCAN returns [cursor, keys[]] in ioredis
 		const [nextCursor, keys] = (await redis.scan(
 			cursor,
 			"MATCH",
@@ -323,16 +321,13 @@ export async function invalidateCacheableWithArgs(
 	const redis = getRedisCache();
 	let deletedCount = 0;
 
-	// Exact match: cacheable:prefix:[arg1,arg2]
 	const exactKey = `cacheable:${prefix}:${stringify(knownArgs)}`;
 
-	// With undefined trailing arg: cacheable:prefix:[arg1,arg2,undefined]
 	const undefinedTrailingKey = `cacheable:${prefix}:${stringify([
 		...knownArgs,
 		undefined,
 	])}`;
 
-	// With any trailing args: cacheable:prefix:[arg1,arg2,*]
 	const serializedArgs = stringify(knownArgs);
 	const wildcardPattern =
 		knownArgs.length === 0
@@ -346,7 +341,6 @@ export async function invalidateCacheableWithArgs(
 		deletedCount += result;
 	}
 
-	// Use SCAN for wildcard pattern
 	let cursor = "0";
 	do {
 		const [nextCursor, keys] = (await redis.scan(

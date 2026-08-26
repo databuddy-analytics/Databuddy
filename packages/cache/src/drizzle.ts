@@ -12,6 +12,12 @@ export interface RedisCacheClient {
 	smembers(key: string): Promise<string[]>;
 	unlink(key: string): Promise<unknown>;
 }
+function toArray<T>(value: T | T[] | undefined): T[] {
+	if (!value) {
+		return [];
+	}
+	return Array.isArray(value) ? value : [value];
+}
 export interface RedisCacheConfig {
 	defaultTtl?: number;
 	namespace?: string;
@@ -92,16 +98,8 @@ export class RedisDrizzleCache extends Cache {
 		}
 	}
 	override async onMutate(params: MutationOption): Promise<void> {
-		const tagsArray = params.tags
-			? Array.isArray(params.tags)
-				? params.tags
-				: [params.tags]
-			: [];
-		const tablesArray = params.tables
-			? Array.isArray(params.tables)
-				? params.tables
-				: [params.tables]
-			: [];
+		const tagsArray = toArray(params.tags);
+		const tablesArray = toArray(params.tables);
 
 		const depKeys = tablesArray.map((table) =>
 			this.formatDepKey(
