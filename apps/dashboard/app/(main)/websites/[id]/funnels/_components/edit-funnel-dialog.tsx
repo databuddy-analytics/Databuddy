@@ -2,7 +2,6 @@
 
 import { AutocompleteInput } from "@/components/ui/autocomplete-input";
 import { FilterRow } from "@/components/ui/filter-row";
-import type { InsightMeasurementRecommendation } from "@databuddy/shared/insights";
 import type { AutocompleteData } from "@/hooks/use-autocomplete";
 import { goalFunnelOperatorOptions, useFilters } from "@/hooks/use-filters";
 import { cn } from "@/lib/utils";
@@ -37,15 +36,9 @@ const defaultFilter: FunnelFilter = {
 	value: "",
 } as const;
 
-export type FunnelDraft = Extract<
-	InsightMeasurementRecommendation,
-	{ kind: "funnel_draft" }
->["draft"];
-
 interface EditFunnelDialogProps {
 	autocompleteData?: AutocompleteData;
 	funnel: Funnel | null;
-	initialDraft?: FunnelDraft;
 	isCreating?: boolean;
 	isOpen: boolean;
 	isUpdating: boolean;
@@ -60,7 +53,6 @@ export function EditFunnelDialog({
 	onSubmit,
 	onCreate,
 	funnel,
-	initialDraft,
 	isUpdating,
 	isCreating = false,
 	autocompleteData,
@@ -68,18 +60,12 @@ export function EditFunnelDialog({
 	const [formData, setFormData] = useState<Funnel | null>(null);
 	const initializedFor = useRef<string | null>(null);
 	const isCreateMode = !funnel;
-	const isSuggestedDraft = isCreateMode && Boolean(initialDraft);
 	const formIdentity = useMemo(() => {
 		if (funnel) {
 			return `funnel:${funnel.id}`;
 		}
-		if (initialDraft) {
-			return `draft:${initialDraft.name}:${initialDraft.steps
-				.map((step) => `${step.type}:${step.target}`)
-				.join("|")}`;
-		}
 		return "new";
-	}, [funnel, initialDraft]);
+	}, [funnel]);
 
 	useEffect(() => {
 		if (!isOpen) {
@@ -101,21 +87,6 @@ export function EditFunnelDialog({
 				filters: sanitizedFilters,
 				ignoreHistoricData: funnel.ignoreHistoricData ?? false,
 			});
-		} else if (initialDraft) {
-			setFormData({
-				id: "",
-				name: initialDraft.name,
-				description: initialDraft.description,
-				steps: initialDraft.steps.map((step) => ({ ...step })),
-				filters: initialDraft.filters.map((filter) => ({
-					...filter,
-					operator: filter.operator || "equals",
-				})),
-				ignoreHistoricData: initialDraft.ignoreHistoricData,
-				isActive: true,
-				createdAt: "",
-				updatedAt: "",
-			});
 		} else {
 			setFormData({
 				id: "",
@@ -136,7 +107,7 @@ export function EditFunnelDialog({
 				updatedAt: "",
 			});
 		}
-	}, [formIdentity, funnel, initialDraft, isOpen]);
+	}, [formIdentity, funnel, isOpen]);
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -351,17 +322,11 @@ export function EditFunnelDialog({
 						</div>
 						<div>
 							<Sheet.Title className="text-lg">
-								{isCreateMode
-									? isSuggestedDraft
-										? "Review Funnel Draft"
-										: "New Funnel"
-									: formData.name || "Edit Funnel"}
+								{isCreateMode ? "New Funnel" : formData.name || "Edit Funnel"}
 							</Sheet.Title>
 							<Sheet.Description>
 								{isCreateMode
-									? isSuggestedDraft
-										? "Review and adjust this proposed journey before creating it"
-										: "Track user conversion journeys"
+									? "Track user conversion journeys"
 									: `${formData.steps.length} steps configured`}
 							</Sheet.Description>
 						</div>
