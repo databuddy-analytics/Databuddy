@@ -130,6 +130,7 @@ export function FeatureHero({
 	primaryHref = "https://app.databuddy.cc/register",
 	docsHref = "/docs",
 	badge,
+	footnote = "Free up to 10,000 events/mo. No credit card required.",
 }: {
 	title: string;
 	subtitle: string;
@@ -137,6 +138,7 @@ export function FeatureHero({
 	primaryHref?: string;
 	docsHref?: string;
 	badge?: ReactNode;
+	footnote?: string | null;
 }) {
 	return (
 		<Section className="border-border border-b" id="hero">
@@ -157,6 +159,9 @@ export function FeatureHero({
 							<Link href={docsHref}>Read Docs</Link>
 						</Button>
 					</div>
+					{footnote ? (
+						<p className="text-muted-foreground/60 text-xs">{footnote}</p>
+					) : null}
 				</div>
 			</div>
 		</Section>
