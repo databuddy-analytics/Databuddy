@@ -26,6 +26,8 @@ import { getOrganizationOwnerId } from "@databuddy/rpc/organization";
 import {
 	type GatedFeatureId,
 	GATED_FEATURES,
+	getFeatureUnavailableMessage,
+	getNextPlanForFeature,
 	isFeatureAvailable,
 } from "@databuddy/shared/types/features";
 import {
@@ -473,13 +475,19 @@ async function enforceFeatureGatesForQueryTypes(
 	const ownerId = website.organizationId
 		? await getOrganizationOwnerId(website.organizationId)
 		: null;
-	if (!ownerId) {
-		return null;
-	}
-	const billing = await getBillingOwner(ownerId, website.organizationId);
+	const planId = ownerId
+		? (await getBillingOwner(ownerId, website.organizationId)).planId
+		: null;
+
 	for (const feature of required) {
-		if (!isFeatureAvailable(billing.planId, feature)) {
-			return { error: "This feature is not available on the plan", feature };
+		if (!isFeatureAvailable(planId, feature)) {
+			return {
+				error: getFeatureUnavailableMessage(
+					feature,
+					getNextPlanForFeature(planId, feature)
+				),
+				feature,
+			};
 		}
 	}
 	return null;
