@@ -9,6 +9,7 @@ import {
 	TwoColumnGrid,
 } from "@/components/landing/demo-primitives";
 import { FaqSection } from "@/components/landing/faq-section";
+import { MidPageCta } from "@/components/landing/mid-page-cta";
 import {
 	DeepLinkDemo,
 	LinkFunnelDemo,
@@ -22,14 +23,14 @@ import { StructuredData } from "@/components/structured-data";
 export const metadata: Metadata = {
 	title: "Short Links & Click Analytics",
 	description:
-		"Create branded short links with built-in click analytics, UTM tagging, QR codes, deep linking, and referrer tracking. Every click tracked inside your analytics dashboard.",
+		"Short links with built-in click analytics, UTM tagging, QR codes, deep linking, and referrer tracking. Every click tracked inside your analytics dashboard.",
 	alternates: {
 		canonical: "https://www.databuddy.cc/links",
 	},
 	openGraph: {
 		title: "Short Links & Click Analytics",
 		description:
-			"Create branded short links with built-in click analytics, UTM tagging, QR codes, deep linking, and referrer tracking. Every click tracked inside your analytics dashboard.",
+			"Short links with built-in click analytics, UTM tagging, QR codes, deep linking, and referrer tracking. Every click tracked inside your analytics dashboard.",
 		url: "https://www.databuddy.cc/links",
 		images: ["/og-image.png"],
 	},
@@ -37,14 +38,14 @@ export const metadata: Metadata = {
 
 const FAQ_ITEMS = [
 	{
-		question: "Can I use my own domain for short links?",
-		answer:
-			"Yes. You can connect any custom domain and use it as your link base. All analytics still flow into your Databuddy dashboard.",
-	},
-	{
 		question: "How is this different from Bitly or Dub?",
 		answer:
 			"Databuddy links live inside your analytics stack. Every click is connected to the same dashboard where you track pageviews, errors, and conversions. No separate tool, no data silos.",
+	},
+	{
+		question: "Are click counts accurate?",
+		answer:
+			"Yes. Bots and crawlers are detected and redirected without counting, so your numbers reflect real people. Visitor IPs are hashed with a rotating daily salt and never stored raw.",
 	},
 	{
 		question: "Do links expire?",
@@ -57,9 +58,9 @@ const FAQ_ITEMS = [
 			"Set an iOS URL and an Android URL on any link. When someone clicks on mobile, they go to the right app store or deep into your native app. Desktop users get the web fallback automatically.",
 	},
 	{
-		question: "Are short links included in all plans?",
+		question: "Can I manage links from the API?",
 		answer:
-			"Every plan includes short links. The free plan gives you 50 links. Paid plans scale from there with unlimited links and custom domains.",
+			"Yes. Create, update, and search links with a scoped API key, or let your AI agent do it over MCP. Folders keep campaigns organized either way.",
 	},
 ] as const;
 
@@ -83,9 +84,10 @@ export default function LinksPage() {
 			/>
 			<div className="overflow-x-hidden">
 				<FeatureHero
-					docsHref="/docs"
-					subtitle="Branded short links with click analytics, UTM tagging, deep linking, and referrer tracking. Every click lands in your existing dashboard."
-					title="Short links that feed your analytics."
+					docsHref="/docs/api/links"
+					primaryLabel="Create Your First Link"
+					subtitle="Click analytics, UTM tagging, deep linking, and QR codes, with every click in the same dashboard as your pageviews, errors, and conversions."
+					title="Short links in the dashboard you already use."
 				/>
 
 				<Section className="border-border border-b" id="tracking">
@@ -98,13 +100,13 @@ export default function LinksPage() {
 						<TwoColumnGrid>
 							<GridCell>
 								<h3 className={CELL_TITLE_CLASS}>
-									See which links drive traffic and which ones don't.
+									See which links drive traffic.
 								</h3>
 								<LinksTableDemo />
 							</GridCell>
 							<GridCell>
 								<h3 className={CELL_TITLE_CLASS}>
-									Know exactly where your clicks come from.
+									Know where your clicks come from.
 								</h3>
 								<ReferrerBreakdownDemo />
 							</GridCell>
@@ -112,7 +114,7 @@ export default function LinksPage() {
 						<TwoColumnGrid>
 							<GridCell>
 								<h3 className={CELL_TITLE_CLASS}>
-									Track the full journey from click to conversion.
+									Connect link clicks to your funnels.
 								</h3>
 								<LinkFunnelDemo />
 							</GridCell>
@@ -129,14 +131,14 @@ export default function LinksPage() {
 				<Section className="border-border border-b" id="tools">
 					<div className={container}>
 						<SectionHeader
-							subtitle="UTM parameters, expiration dates, QR codes, and custom domains. Built into every link."
-							title="More than"
-							titleMuted="a URL shortener."
+							subtitle="UTM tagging, expiration dates, QR codes, and per-link social previews. Bots are filtered from your counts, and IPs are hashed, never stored."
+							title="Clean links,"
+							titleMuted="honest numbers."
 						/>
 						<TwoColumnGrid>
 							<GridCell>
 								<h3 className={CELL_TITLE_CLASS}>
-									Tag every link with UTM parameters automatically.
+									Build UTM-tagged destinations behind clean short links.
 								</h3>
 								<UtmBuilderDemo />
 							</GridCell>
@@ -170,6 +172,12 @@ export default function LinksPage() {
 				<Section className="border-border border-b" id="faq">
 					<div className={container}>
 						<FaqSection items={[...FAQ_ITEMS]} />
+					</div>
+				</Section>
+
+				<Section className="border-border border-b" id="cta">
+					<div className={container}>
+						<MidPageCta />
 					</div>
 				</Section>
 
