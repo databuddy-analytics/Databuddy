@@ -56,14 +56,14 @@ export default async function DemoPage() {
 				<div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 md:flex-row md:items-center md:justify-between md:px-6">
 					<div className="max-w-2xl">
 						<div className="mb-2 font-mono text-muted-foreground text-xs uppercase tracking-[0.16em]">
-							Live AI analytics demo
+							Live analytics demo
 						</div>
 						<h1 className="text-balance font-semibold text-2xl text-foreground leading-tight md:text-4xl">
-							Ask why your metrics changed
+							Explore a real Databuddy dashboard
 						</h1>
 						<p className="mt-2 max-w-xl text-muted-foreground text-sm leading-6 md:text-base">
-							Explore real traffic, funnels, errors, vitals, and feature flags.
-							Databuddy turns the dashboard into answers your team can act on.
+							Real traffic from a live site: audience, events, funnels, goals,
+							errors, Web Vitals, and a world map of your visitors.
 						</p>
 					</div>
 

@@ -144,7 +144,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				name: "Automatic investigations (Databunny)",
 				databuddy: true,
-				competitor: true,
+				competitor: false,
 				benefit: "Ask questions in plain English vs navigating complex reports",
 				category: "features",
 			},
@@ -293,7 +293,7 @@ export const competitors: Record<string, ComparisonData> = {
 				name: "Product analytics (user-level)",
 				databuddy: true,
 				competitor: false,
-				benefit: "Track user journeys, retention, and cohorts",
+				benefit: "Track user journeys and user-level activity",
 				category: "features",
 			},
 			{
@@ -318,10 +318,11 @@ export const competitors: Record<string, ComparisonData> = {
 				category: "features",
 			},
 			{
-				name: "Custom dashboards",
+				name: "Error tracking",
 				databuddy: true,
 				competitor: false,
-				benefit: "Build views for your workflow vs a single fixed page",
+				benefit:
+					"JavaScript error tracking with stack traces in the same dashboard",
 				category: "features",
 			},
 			{
@@ -402,7 +403,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				question: "What does Databuddy have that Plausible doesn't?",
 				answer:
-					"Product analytics with user-level tracking, automatic investigations, user identification, feature flags, uptime monitoring, custom dashboards, raw data export, and a free forever plan.",
+					"Product analytics with user-level tracking, automatic investigations, user identification, feature flags, uptime monitoring, error tracking, raw data export, and a free forever plan.",
 			},
 			{
 				question: "Is Databuddy open source?",
@@ -483,7 +484,7 @@ export const competitors: Record<string, ComparisonData> = {
 				category: "features",
 			},
 			{
-				name: "Product analytics (funnels, retention, user journeys)",
+				name: "Product analytics (funnels, user journeys)",
 				databuddy: true,
 				competitor: false,
 				benefit:
@@ -491,10 +492,11 @@ export const competitors: Record<string, ComparisonData> = {
 				category: "features",
 			},
 			{
-				name: "Custom dashboards",
+				name: "Error tracking",
 				databuddy: true,
 				competitor: false,
-				benefit: "Build views for your workflow vs a single fixed page",
+				benefit:
+					"JavaScript error tracking with stack traces in the same dashboard",
 				category: "features",
 			},
 			{
@@ -614,7 +616,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				question: "What does Databuddy have that Fathom doesn't?",
 				answer:
-					"Automatic investigations, product analytics, custom dashboards, funnels and goals, self-hosting, uptime monitoring, and a free forever plan.",
+					"Automatic investigations, product analytics, error tracking, funnels and goals, self-hosting, uptime monitoring, and a free forever plan.",
 			},
 		],
 		pricingTiers: [
@@ -711,10 +713,11 @@ export const competitors: Record<string, ComparisonData> = {
 				category: "privacy",
 			},
 			{
-				name: "Simple setup",
+				name: "Simpler self-hosting",
 				databuddy: true,
 				competitor: false,
-				benefit: "One script tag vs ClickHouse + Kafka + Redis + PostgreSQL",
+				benefit:
+					"One docker-compose file with PostgreSQL, ClickHouse, and Redis - no Kafka required",
 				category: "technical",
 			},
 			{
@@ -775,9 +778,10 @@ export const competitors: Record<string, ComparisonData> = {
 			},
 			{
 				name: "A/B testing",
-				databuddy: false,
+				databuddy: true,
 				competitor: true,
-				benefit: "PostHog includes experiments - Databuddy doesn't yet",
+				benefit:
+					"Both support weighted multivariant flags with sticky bucketing - PostHog adds a full experiment analysis engine",
 				category: "features",
 			},
 			{
@@ -802,7 +806,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				question: "How does Databuddy compare to PostHog's self-hosting?",
 				answer:
-					"PostHog self-hosting requires ClickHouse, Kafka, Redis, and PostgreSQL - a complex infrastructure stack. Databuddy is significantly simpler to self-host.",
+					"Both use PostgreSQL, ClickHouse, and Redis. The difference: Databuddy self-hosts from a single docker-compose file and doesn't need Kafka, so there are fewer moving parts to operate.",
 			},
 			{
 				question: "Does Databuddy have session replay?",
@@ -812,7 +816,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				question: "Why choose Databuddy over PostHog?",
 				answer:
-					"If you need lightweight analytics and AI-assisted analysis without session replay or A/B testing, Databuddy offers a narrower product surface and a tracker of about 12 KB gzip.",
+					"If you need lightweight analytics and AI-assisted analysis without session replay or surveys, Databuddy offers a narrower product surface and a tracker of about 12 KB gzip.",
 			},
 		],
 		pricingTiers: [
@@ -874,7 +878,7 @@ export const competitors: Record<string, ComparisonData> = {
 				name: "Product analytics (user-level)",
 				databuddy: true,
 				competitor: false,
-				benefit: "Track user journeys, retention, and cohorts",
+				benefit: "Track user journeys and user-level activity",
 				category: "features",
 			},
 			{
@@ -906,10 +910,11 @@ export const competitors: Record<string, ComparisonData> = {
 				category: "features",
 			},
 			{
-				name: "Custom dashboards",
+				name: "Error tracking",
 				databuddy: true,
 				competitor: false,
-				benefit: "Build views tailored to your workflow",
+				benefit:
+					"JavaScript error tracking with stack traces in the same dashboard",
 				category: "features",
 			},
 			{
@@ -971,7 +976,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				question: "What does Databuddy have that Umami doesn't?",
 				answer:
-					"AI-assisted analysis with Databunny, product analytics, feature flags, uptime monitoring, custom dashboards, funnels, and scheduled Slack investigations.",
+					"AI-assisted analysis with Databunny, product analytics, feature flags, uptime monitoring, error tracking, funnels, and scheduled Slack investigations.",
 			},
 			{
 				question: "Can Umami identify individual users?",
@@ -1169,8 +1174,8 @@ export const competitors: Record<string, ComparisonData> = {
 				databuddy: "Paid plan",
 			},
 			{
-				pageviews: "Group analytics",
-				competitor: "Enterprise plan only",
+				pageviews: "Feature flags",
+				competitor: "Not available",
 				databuddy: "Included",
 			},
 			{
@@ -1276,9 +1281,10 @@ export const competitors: Record<string, ComparisonData> = {
 			},
 			{
 				name: "Retention analysis",
-				databuddy: true,
+				databuddy: false,
 				competitor: true,
-				benefit: "Both track retention - Amplitude's is best-in-class",
+				benefit:
+					"Amplitude's retention analysis is best-in-class - Databuddy doesn't have retention reports yet",
 				category: "features",
 			},
 			{
@@ -1601,8 +1607,7 @@ export const competitors: Record<string, ComparisonData> = {
 				name: "Short links with analytics",
 				databuddy: true,
 				competitor: false,
-				benefit:
-					"Branded short links with click tracking built into your dashboard",
+				benefit: "Short links with click tracking built into your dashboard",
 				category: "features",
 			},
 			{
@@ -1707,7 +1712,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				pageviews: "Error tracking",
 				competitor: "Not available",
-				databuddy: "Included",
+				databuddy: "Hobby plan and up",
 			},
 			{
 				pageviews: "Feature flags",
@@ -1772,7 +1777,8 @@ export const competitors: Record<string, ComparisonData> = {
 				name: "Simple self-hosting",
 				databuddy: true,
 				competitor: false,
-				benefit: "Modern stack vs PHP + MySQL + cron job configuration",
+				benefit:
+					"One docker-compose file (PostgreSQL, ClickHouse, Redis) vs PHP + MySQL + cron job configuration",
 				category: "technical",
 			},
 			{
@@ -1847,9 +1853,10 @@ export const competitors: Record<string, ComparisonData> = {
 			},
 			{
 				name: "A/B testing",
-				databuddy: false,
+				databuddy: true,
 				competitor: true,
-				benefit: "Matomo offers A/B testing as a premium plugin",
+				benefit:
+					"Databuddy ships weighted multivariant flags with sticky bucketing; Matomo sells A/B testing as a premium plugin",
 				category: "features",
 			},
 		],
@@ -1877,7 +1884,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				question: "What does Matomo have that Databuddy doesn't?",
 				answer:
-					"Matomo offers heatmaps, session recordings, and A/B testing as premium plugins. It also has a larger plugin ecosystem and 18+ years of community development. Databuddy focuses on AI-native analytics with a modern UX.",
+					"Matomo offers heatmaps and session recordings as premium plugins. It also has a larger plugin ecosystem and 18+ years of community development. Databuddy focuses on AI-native analytics with a modern UX.",
 			},
 		],
 		pricingTiers: [

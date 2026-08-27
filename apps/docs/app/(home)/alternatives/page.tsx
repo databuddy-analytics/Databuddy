@@ -102,7 +102,7 @@ export default function AlternativesHubPage() {
 							Ready to try Databuddy?
 						</h3>
 						<p className="mb-5 text-pretty text-muted-foreground text-sm">
-							Start free with 10K monthly pageviews - no credit card.
+							Start free with 10K monthly events - no credit card.
 						</p>
 						<div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
 							<SciFiButton asChild>
