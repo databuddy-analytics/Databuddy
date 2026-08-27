@@ -188,7 +188,7 @@ export async function getGithubTokenForOrg(
 	if (!integration || integration.status !== "active") {
 		return null;
 	}
-	return await getInstallationToken(integration.installationId);
+	return getInstallationToken(integration.installationId);
 }
 
 const installationAccountSchema = z.object({
@@ -317,8 +317,4 @@ export function buildInstallUrl(state: string): string {
 	);
 	url.searchParams.set("state", state);
 	return url.toString();
-}
-
-export function clearInstallationTokenCache(): void {
-	installationTokens.clear();
 }

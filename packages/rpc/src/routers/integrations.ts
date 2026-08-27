@@ -41,6 +41,14 @@ async function getUserProviderToken(
 
 const GITHUB_API = "https://api.github.com";
 
+const githubRepoListSchema = z.array(
+	z.object({
+		full_name: z.string(),
+		private: z.boolean(),
+		default_branch: z.string(),
+	})
+);
+
 function githubRequest(path: string, token: string): Promise<Response> {
 	return fetch(`${GITHUB_API}${path}`, {
 		headers: {
@@ -564,26 +572,20 @@ export const integrationsRouter = {
 			}
 
 			const body = await res.json().catch(() => null);
-			const data = installationToken
-				? (body as { repositories?: unknown } | null)?.repositories
-				: body;
-			if (!Array.isArray(data)) {
+			const parsed = githubRepoListSchema.safeParse(
+				installationToken ? body?.repositories : body
+			);
+			if (!parsed.success) {
 				throw rpcError.badRequest(
 					"GitHub returned an invalid repository list."
 				);
 			}
 
 			return {
-				repos: (
-					data as Array<{
-						full_name: string;
-						private: boolean;
-						default_branch: string;
-					}>
-				).map((r) => ({
-					fullName: r.full_name,
-					private: r.private,
-					defaultBranch: r.default_branch,
+				repos: parsed.data.map((repo) => ({
+					fullName: repo.full_name,
+					private: repo.private,
+					defaultBranch: repo.default_branch,
 				})),
 			};
 		}),
@@ -593,8 +595,14 @@ type SlackIntegrationRow = Omit<SlackIntegrationOutput, "channelBindings">;
 type SlackChannelBindingRow = z.infer<typeof slackChannelBindingOutputSchema>;
 type GithubIntegrationRow = z.infer<typeof githubIntegrationOutputSchema>;
 
-function isMissingGithubSchemaError(error: unknown): boolean {
-	if (error instanceof Error && isMissingGithubSchemaError(error.cause)) {
+function isMissingRelationError(
+	error: unknown,
+	relationPrefix: string
+): boolean {
+	if (
+		error instanceof Error &&
+		isMissingRelationError(error.cause, relationPrefix)
+	) {
 		return true;
 	}
 
@@ -614,33 +622,14 @@ function isMissingGithubSchemaError(error: unknown): boolean {
 	const relation = typeof pgError.relation === "string" ? pgError.relation : "";
 	const message = typeof pgError.message === "string" ? pgError.message : "";
 	return (
-		relation.startsWith("github_") || message.includes("github_integrations")
+		relation.startsWith(relationPrefix) || message.includes(relationPrefix)
 	);
 }
 
+function isMissingGithubSchemaError(error: unknown): boolean {
+	return isMissingRelationError(error, "github_");
+}
+
 function isMissingSlackSchemaError(error: unknown): boolean {
-	if (error instanceof Error && isMissingSlackSchemaError(error.cause)) {
-		return true;
-	}
-
-	if (!(typeof error === "object" && error !== null)) {
-		return false;
-	}
-
-	const pgError = error as {
-		code?: unknown;
-		message?: unknown;
-		relation?: unknown;
-	};
-	if (pgError.code !== "42P01") {
-		return false;
-	}
-
-	const relation = typeof pgError.relation === "string" ? pgError.relation : "";
-	const message = typeof pgError.message === "string" ? pgError.message : "";
-	return (
-		relation.startsWith("slack_") ||
-		message.includes("slack_integrations") ||
-		message.includes("slack_channel_bindings")
-	);
+	return isMissingRelationError(error, "slack_");
 }

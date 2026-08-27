@@ -199,13 +199,15 @@ async function verifyInstallationOwnership(
 	}
 }
 
-interface CallbackQuery {
-	code?: string;
-	error?: string;
-	installation_id?: string;
-	setup_action?: string;
-	state?: string;
-}
+const callbackQuerySchema = t.Object({
+	code: t.Optional(t.String()),
+	error: t.Optional(t.String()),
+	installation_id: t.Optional(t.String()),
+	setup_action: t.Optional(t.String()),
+	state: t.Optional(t.String()),
+});
+
+type CallbackQuery = typeof callbackQuerySchema.static;
 
 async function handleInstallCallback(
 	query: CallbackQuery,
@@ -277,14 +279,6 @@ async function handleInstallCallback(
 		);
 	}
 }
-
-const callbackQuerySchema = t.Object({
-	code: t.Optional(t.String()),
-	error: t.Optional(t.String()),
-	installation_id: t.Optional(t.String()),
-	setup_action: t.Optional(t.String()),
-	state: t.Optional(t.String()),
-});
 
 export const githubIntegrationRoutes = new Elysia({
 	prefix: "/v1/integrations",

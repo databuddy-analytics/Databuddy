@@ -40,28 +40,23 @@ async function organizationIdsForInstallation(
 async function handleInstallationEvent(
 	action: string,
 	installationId: string
-): Promise<"deleted" | "disabled" | "activated" | "ignored"> {
+): Promise<boolean> {
 	const organizationIds = await organizationIdsForInstallation(installationId);
 	if (organizationIds.length === 0) {
-		return "ignored";
+		return false;
 	}
 
 	if (action === "deleted") {
 		await db
 			.delete(githubIntegrations)
 			.where(eq(githubIntegrations.installationId, installationId));
-	} else if (action === "suspend") {
+	} else if (action === "suspend" || action === "unsuspend") {
 		await db
 			.update(githubIntegrations)
-			.set({ status: "disabled" })
-			.where(eq(githubIntegrations.installationId, installationId));
-	} else if (action === "unsuspend") {
-		await db
-			.update(githubIntegrations)
-			.set({ status: "active" })
+			.set({ status: action === "suspend" ? "disabled" : "active" })
 			.where(eq(githubIntegrations.installationId, installationId));
 	} else {
-		return "ignored";
+		return false;
 	}
 
 	await Promise.allSettled(
@@ -70,10 +65,7 @@ async function handleInstallationEvent(
 		)
 	);
 
-	if (action === "deleted") {
-		return "deleted";
-	}
-	return action === "suspend" ? "disabled" : "activated";
+	return true;
 }
 
 export const githubWebhook = new Elysia().post(
@@ -109,21 +101,19 @@ export const githubWebhook = new Elysia().post(
 			return { success: true, handled: false };
 		}
 
-		const parsed = installationEventSchema.safeParse(
-			(() => {
-				try {
-					return JSON.parse(rawBody);
-				} catch {
-					return null;
-				}
-			})()
-		);
+		let payload: unknown = null;
+		try {
+			payload = JSON.parse(rawBody);
+		} catch {
+			payload = null;
+		}
+		const parsed = installationEventSchema.safeParse(payload);
 		if (!parsed.success) {
 			set.status = 400;
 			return { success: false, message: "Invalid event shape" };
 		}
 
-		const outcome = await handleInstallationEvent(
+		const handled = await handleInstallationEvent(
 			parsed.data.action,
 			String(parsed.data.installation.id)
 		);
@@ -132,10 +122,10 @@ export const githubWebhook = new Elysia().post(
 			github_webhook: parsed.data.action,
 			installation_id: parsed.data.installation.id,
 			account: parsed.data.installation.account?.login,
-			outcome,
+			handled,
 		});
 
 		set.status = 202;
-		return { success: true, handled: outcome !== "ignored" };
+		return { success: true, handled };
 	}
 );

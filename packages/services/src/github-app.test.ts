@@ -1,7 +1,6 @@
 import { generateKeyPairSync, createVerify } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, spyOn } from "bun:test";
 import {
-	clearInstallationTokenCache,
 	createAppJwt,
 	GitHubAppConfigError,
 	getInstallationToken,
@@ -38,7 +37,6 @@ function setAppEnv(): void {
 
 beforeEach(() => {
 	savedEnv = Object.fromEntries(ENV_KEYS.map((key) => [key, process.env[key]]));
-	clearInstallationTokenCache();
 });
 
 afterEach(() => {
@@ -131,7 +129,7 @@ describe("getInstallationToken", () => {
 			new Response("nope", { status: 404 })
 		);
 		try {
-			expect(await getInstallationToken("42")).toBeNull();
+			expect(await getInstallationToken("43")).toBeNull();
 		} finally {
 			fetchSpy.mockRestore();
 		}
