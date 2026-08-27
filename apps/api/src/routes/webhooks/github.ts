@@ -5,7 +5,8 @@ import { compare } from "@databuddy/encryption";
 import { invalidateGithubIntegrationCache } from "@databuddy/redis/cache-invalidation";
 import { Elysia } from "elysia";
 import { useLogger } from "evlog/elysia";
-import { z } from "zod";
+// biome-ignore lint/performance/noNamespaceImport: vitest+bun fails to bind zod's named `z` export; namespace import is the reliable form
+import * as z from "zod";
 
 export function verifyGithubSignature(
 	rawBody: string,
