@@ -6,10 +6,8 @@ import {
 	SsrfError,
 	validateUrl,
 } from "@databuddy/shared/ssrf-guard";
-import { CryptoHasher } from "bun";
 import { Data, Effect } from "effect";
 import { UPTIME_ENV } from "./lib/env";
-import { extractHealth } from "./json-parser";
 import { captureError } from "./lib/tracing";
 import type { ActionResult, ScheduleLookupReason, UptimeData } from "./types";
 import { MonitorStatus } from "./types";
@@ -24,10 +22,7 @@ const PROBE_REGION =
 
 interface FetchSuccess {
 	bytes: number;
-	content: string;
-	contentType: string | null;
 	ok: true;
-	parsedJson?: unknown;
 	redirects: number;
 	statusCode: number;
 	total: number;
@@ -46,7 +41,6 @@ export interface ScheduleData {
 	cacheBust: boolean;
 	id: string;
 	isPaused: boolean;
-	jsonParsingConfig: unknown;
 	name: string | null;
 	organizationId: string;
 	timeout: number | null;
@@ -57,7 +51,6 @@ export interface ScheduleData {
 
 export interface CheckOptions {
 	cacheBust?: boolean;
-	extractHealth?: boolean;
 	timeout?: number;
 }
 
@@ -166,8 +159,6 @@ async function pingWebsite(
 				continue;
 			}
 
-			const contentType = res.headers.get("content-type");
-			const isJson = contentType?.includes("application/json");
 			const contentLength = res.headers.get("content-length");
 			if (
 				contentLength &&
@@ -196,20 +187,9 @@ async function pingWebsite(
 				}
 				throw err;
 			}
-			let parsedJson: unknown;
-			let content = bodyText;
-			if (isJson) {
-				try {
-					parsedJson = JSON.parse(bodyText);
-					content = JSON.stringify(parsedJson);
-				} catch {
-					parsedJson = undefined;
-				}
-			}
-
 			const total = performance.now() - start;
 
-			if (res.status >= 500) {
+			if (res.status >= 400) {
 				return {
 					ok: false,
 					statusCode: res.status,
@@ -225,10 +205,7 @@ async function pingWebsite(
 				ttfb: Math.round(ttfb),
 				total: Math.round(total),
 				redirects,
-				bytes: Buffer.byteLength(content, "utf8"),
-				content,
-				contentType,
-				parsedJson,
+				bytes: Buffer.byteLength(bodyText, "utf8"),
 			};
 		}
 
@@ -245,24 +222,69 @@ async function pingWebsite(
 				error: error.message,
 			};
 		}
-		if (error instanceof Error && TIMED_OUT_PATTERN.test(error.message)) {
-			return {
-				ok: false,
-				statusCode: 0,
-				ttfb: 0,
-				total: Math.round(total),
-				error: `Timeout after ${timeout}ms`,
-			};
-		}
 
 		return {
 			ok: false,
 			statusCode: 0,
 			ttfb: 0,
 			total: Math.round(total),
-			error: error instanceof Error ? error.message : "Unknown error",
+			error: classifyFetchError(error, timeout),
 		};
 	}
+}
+
+function errorCode(error: unknown): string | undefined {
+	if (!(error instanceof Error)) {
+		return;
+	}
+	const direct = (error as NodeJS.ErrnoException).code;
+	if (typeof direct === "string") {
+		return direct;
+	}
+	const cause = error.cause;
+	if (cause instanceof Error) {
+		return errorCode(cause);
+	}
+	return;
+}
+
+export function classifyFetchError(error: unknown, timeout: number): string {
+	if (error instanceof Error && TIMED_OUT_PATTERN.test(error.message)) {
+		return `Timeout after ${timeout}ms`;
+	}
+
+	const code = errorCode(error);
+	switch (code) {
+		case "ENOTFOUND":
+		case "EAI_AGAIN":
+		case "DNS_ENOTFOUND":
+			return "DNS lookup failed";
+		case "ECONNREFUSED":
+			return "Connection refused";
+		case "ECONNRESET":
+			return "Connection reset by peer";
+		case "EHOSTUNREACH":
+		case "ENETUNREACH":
+			return "Host unreachable";
+		default:
+			break;
+	}
+	if (code?.startsWith("ERR_TLS") || code?.startsWith("CERT_")) {
+		return `TLS error: ${code}`;
+	}
+
+	if (error instanceof Error) {
+		const cause = error.cause;
+		if (
+			cause instanceof Error &&
+			cause.message &&
+			cause.message !== error.message
+		) {
+			return `${error.message}: ${cause.message}`;
+		}
+		return error.message;
+	}
+	return "Unknown error";
 }
 
 const checkCertificate = (url: string) =>
@@ -323,25 +345,33 @@ const checkCertificate = (url: string) =>
 		}
 	});
 
+const PROBE_IP_FAILURE_RETRY_MS = 5 * 60_000;
 let cachedProbeIp: string | null = null;
+let probeIpFailedAt = Number.NEGATIVE_INFINITY;
 
 const getProbeMetadata = Effect.tryPromise({
 	try: async () => {
-		if (!cachedProbeIp) {
+		const retryFailedLookup =
+			performance.now() - probeIpFailedAt > PROBE_IP_FAILURE_RETRY_MS;
+		if (!cachedProbeIp && retryFailedLookup) {
 			try {
 				const res = await fetch("https://api.ipify.org?format=json", {
 					signal: AbortSignal.timeout(5000),
 				});
 				if (res.ok) {
 					const data = await res.json();
-					cachedProbeIp = typeof data?.ip === "string" ? data.ip : "unknown";
+					if (typeof data?.ip === "string") {
+						cachedProbeIp = data.ip;
+					}
 				}
 			} catch {
 				// Probe metadata is best-effort; uptime checks should continue without it.
 			}
-			cachedProbeIp ??= "unknown";
+			if (!cachedProbeIp) {
+				probeIpFailedAt = performance.now();
+			}
 		}
-		return { ip: cachedProbeIp, region: PROBE_REGION };
+		return { ip: cachedProbeIp ?? "unknown", region: PROBE_REGION };
 	},
 	catch: () => ({ ip: "unknown", region: PROBE_REGION }),
 });
@@ -389,7 +419,6 @@ const resolveSchedule = (id: string) =>
 							domain: schedule.website.domain,
 						}
 					: null,
-				jsonParsingConfig: schedule.jsonParsingConfig,
 				timeout: schedule.timeout,
 				cacheBust: schedule.cacheBust,
 			} satisfies ScheduleData);
@@ -423,11 +452,6 @@ const runUptimeCheck = (
 			{ concurrency: "unbounded" }
 		);
 
-		const health =
-			pingResult.ok && options.extractHealth
-				? extractHealth(pingResult.parsedJson ?? pingResult.content)
-				: null;
-
 		return {
 			site_id: siteId,
 			url: normalizedUrl,
@@ -438,12 +462,9 @@ const runUptimeCheck = (
 			ttfb_ms: pingResult.ttfb,
 			total_ms: pingResult.total,
 			attempt,
-			retries: 0,
+			retries: attempt - 1,
 			failure_streak: 0,
 			response_bytes: pingResult.ok ? pingResult.bytes : 0,
-			content_hash: pingResult.ok
-				? new CryptoHasher("sha256").update(pingResult.content).digest("hex")
-				: "",
 			redirect_count: pingResult.ok ? pingResult.redirects : 0,
 			probe_region: probe.region,
 			probe_ip: probe.ip,
@@ -453,7 +474,6 @@ const runUptimeCheck = (
 			check_type: "http",
 			user_agent: USER_AGENT,
 			error: pingResult.ok ? "" : pingResult.error,
-			json_data: health ? JSON.stringify(health) : undefined,
 		} satisfies UptimeData;
 	});
 

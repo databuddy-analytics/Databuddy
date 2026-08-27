@@ -44,21 +44,6 @@ function normalizeWideEventForAxiom(event: Record<string, unknown>): void {
 		event.error_message = event.error;
 		event.error = undefined;
 	}
-
-	if (event.level !== "error") {
-		return;
-	}
-
-	const err = event.error;
-	if (!err || typeof err !== "object" || Array.isArray(err)) {
-		return;
-	}
-
-	const status = (err as Record<string, unknown>).status;
-	if (typeof status === "number" && status >= 400 && status < 500) {
-		event.level = "warn";
-		event.client_http_error = true;
-	}
 }
 
 function parseDurationMs(duration: unknown): number | undefined {

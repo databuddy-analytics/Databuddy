@@ -1,23 +1,27 @@
 import { beforeEach, describe, expect, it } from "bun:test";
 import type { ScheduleData } from "./actions";
 import type { UptimeData } from "./types";
+import type { PreviousMonitorState } from "./uptime-transition-alerts";
 import {
 	DEFAULT_UPTIME_WORKER_CONCURRENCY,
 	getUptimeWorkerConcurrency,
 	processUptimeCheck,
 	processUptimeDeliveryJob,
 	processUptimeJob,
+	resolveFailureStreak,
 	type UptimeWorkerDeps,
 } from "./worker";
+
+process.env.UPTIME_CHECK_RETRY_DELAY_MS = "0";
 
 const calls = {
 	captureError: [] as Array<{ error: unknown; context: Record<string, unknown> }>,
 	check: [] as Array<{
 		monitorId: string;
 		url: string;
+		attempt: number;
 		timeout: number | undefined;
 		cacheBust: boolean | undefined;
-		extractHealth: boolean | undefined;
 	}>,
 	checkpoint: [] as UptimeData[],
 	delivery: [] as UptimeData[],
@@ -29,13 +33,15 @@ const calls = {
 	send: [] as Array<{ event: unknown; key: string | undefined }>,
 };
 
+type CheckResult =
+	| { success: true; data: UptimeData }
+	| { success: false; error: string };
+
 let lookupResult:
 	| { success: true; data: ScheduleData }
 	| { success: false; error: string; reason?: "not_found" | "malformed" | "transient" };
-let checkResult:
-	| { success: true; data: UptimeData }
-	| { success: false; error: string };
-let previousStatus: number | undefined;
+let checkResults: CheckResult[];
+let previousState: PreviousMonitorState | undefined;
 let reapBehaviour: "ok" | "throw" = "ok";
 
 function schedule(values: Partial<ScheduleData> = {}): ScheduleData {
@@ -49,7 +55,6 @@ function schedule(values: Partial<ScheduleData> = {}): ScheduleData {
 		isPaused: false,
 		timeout: 5000,
 		cacheBust: true,
-		jsonParsingConfig: { enabled: true },
 		...values,
 	};
 }
@@ -58,7 +63,6 @@ function uptimeData(values: Partial<UptimeData> = {}): UptimeData {
 	return {
 		attempt: 1,
 		check_type: "http",
-		content_hash: "hash",
 		event_id: "uptime-event-1",
 		env: "test",
 		error: "",
@@ -87,15 +91,19 @@ function deps(): UptimeWorkerDeps {
 		captureError: (error, context) => {
 			calls.captureError.push({ error, context: context ?? {} });
 		},
-		checkUptime: async (monitorId, url, _attempt, options) => {
+		checkUptime: async (monitorId, url, attempt, options) => {
 			calls.check.push({
 				monitorId,
 				url,
+				attempt,
 				timeout: options.timeout,
 				cacheBust: options.cacheBust,
-				extractHealth: options.extractHealth,
 			});
-			return checkResult;
+			const next = checkResults.length > 1 ? checkResults.shift() : checkResults[0];
+			if (!next) {
+				throw new Error("no check result configured");
+			}
+			return next;
 		},
 		createLogger: (fields) => {
 			calls.loggerFields.push({ ...fields });
@@ -113,12 +121,7 @@ function deps(): UptimeWorkerDeps {
 			calls.delivery.push(data);
 			calls.order.push("enqueue");
 		},
-		getPreviousMonitorStatus: async () => previousStatus,
-		isHealthExtractionEnabled: (config) =>
-			typeof config === "object" &&
-			config !== null &&
-			"enabled" in config &&
-			config.enabled === true,
+		getPreviousMonitorState: async () => previousState,
 		lookupSchedule: async () => lookupResult,
 		reapOrphanScheduler: async (scheduleId: string) => {
 			calls.reaped.push(scheduleId);
@@ -149,8 +152,8 @@ beforeEach(() => {
 	calls.reaped = [];
 	calls.send = [];
 	lookupResult = { success: true, data: schedule() };
-	checkResult = { success: true, data: uptimeData() };
-	previousStatus = 0;
+	checkResults = [{ success: true, data: uptimeData() }];
+	previousState = { status: 0, failureStreak: 1 };
 	reapBehaviour = "ok";
 });
 
@@ -178,7 +181,7 @@ function processUptimeCheckForTest(
 }
 
 describe("getUptimeWorkerConcurrency", () => {
-	it("keeps the high Bun worker default when no override is configured", () => {
+	it("keeps the pool-safe default when no override is configured", () => {
 		expect(getUptimeWorkerConcurrency(undefined)).toBe(
 			DEFAULT_UPTIME_WORKER_CONCURRENCY
 		);
@@ -205,6 +208,8 @@ describe("processUptimeCheck", () => {
 				{
 					name: "surprise",
 					data: { scheduleId: "schedule-1", trigger: "scheduled" },
+					attemptsMade: 0,
+					updateData: async () => {},
 				},
 				deps()
 			)
@@ -218,6 +223,7 @@ describe("processUptimeCheck", () => {
 			{
 				name: "uptime-check",
 				data: { scheduleId: "schedule-1", trigger: "manual" },
+				attemptsMade: 0,
 				updateData: async (data) => {
 					calls.checkpoint.push(data.delivery?.event as UptimeData);
 				},
@@ -239,9 +245,9 @@ describe("processUptimeCheck", () => {
 			{
 				monitorId: "website-1",
 				url: "https://example.com/health",
+				attempt: 1,
 				timeout: 5000,
 				cacheBust: true,
-				extractHealth: true,
 			},
 		]);
 		expect(calls.delivery).toEqual([uptimeData()]);
@@ -278,7 +284,7 @@ describe("processUptimeCheck", () => {
 	});
 
 	it("records -1 when no previous monitor status exists", async () => {
-		previousStatus = undefined;
+		previousState = undefined;
 
 		await processUptimeCheckForTest("schedule-1", "scheduled", deps());
 
@@ -299,9 +305,9 @@ describe("processUptimeCheck", () => {
 			{
 				monitorId: "schedule-only",
 				url: "https://example.com/health",
+				attempt: 1,
 				timeout: undefined,
 				cacheBust: true,
-				extractHealth: true,
 			},
 		]);
 		expect(calls.loggerFields).toContainEqual(
@@ -335,7 +341,7 @@ describe("processUptimeCheck", () => {
 	});
 
 	it("skips missing schedules without throwing", async () => {
-		lookupResult = { success: false, error: "not found" };
+		lookupResult = { success: false, error: "not found", reason: "not_found" };
 
 		await processUptimeCheckForTest("schedule-1", "scheduled", deps());
 
@@ -384,14 +390,16 @@ describe("processUptimeCheck", () => {
 		);
 	});
 
-	it("does NOT reap the scheduler on transient DB failure (fail-open)", async () => {
+	it("throws transient DB lookup failures so BullMQ retries, without reaping", async () => {
 		lookupResult = {
 			success: false,
 			error: "ECONNRESET",
 			reason: "transient",
 		};
 
-		await processUptimeCheckForTest("schedule-1", "scheduled", deps());
+		await expect(
+			processUptimeCheckForTest("schedule-1", "scheduled", deps())
+		).rejects.toThrow("ECONNRESET");
 		await flushMicrotasks();
 
 		expect(calls.reaped).toEqual([]);
@@ -400,10 +408,12 @@ describe("processUptimeCheck", () => {
 		);
 	});
 
-	it("does NOT reap when reason is missing on legacy failures (fail-open)", async () => {
+	it("treats a missing reason as transient: throws and does not reap", async () => {
 		lookupResult = { success: false, error: "boom" };
 
-		await processUptimeCheckForTest("schedule-1", "scheduled", deps());
+		await expect(
+			processUptimeCheckForTest("schedule-1", "scheduled", deps())
+		).rejects.toThrow("boom");
 		await flushMicrotasks();
 
 		expect(calls.reaped).toEqual([]);
@@ -439,7 +449,7 @@ describe("processUptimeCheck", () => {
 	});
 
 	it("throws failed checks so BullMQ retry/backoff can run", async () => {
-		checkResult = { success: false, error: "timeout" };
+		checkResults = [{ success: false, error: "timeout" }];
 
 		await expect(
 			processUptimeCheckForTest("schedule-1", "scheduled", deps())
@@ -451,6 +461,51 @@ describe("processUptimeCheck", () => {
 			})
 		);
 		expect(calls.loggerEmitted).toHaveLength(1);
+	});
+
+	it("retries a down check and delivers the recovered attempt", async () => {
+		checkResults = [
+			{ success: true, data: uptimeData({ status: 0, error: "HTTP 503" }) },
+			{ success: true, data: uptimeData({ attempt: 2, retries: 1 }) },
+		];
+
+		await processUptimeCheckForTest("schedule-1", "scheduled", deps());
+
+		expect(calls.check.map((c) => c.attempt)).toEqual([1, 2]);
+		expect(calls.delivery).toEqual([uptimeData({ attempt: 2, retries: 1 })]);
+		expect(calls.loggerFields).toContainEqual(
+			expect.objectContaining({ outcome: "up", check_retries: 1 })
+		);
+	});
+
+	it("marks down only after exhausting in-process attempts", async () => {
+		checkResults = [
+			{ success: true, data: uptimeData({ status: 0, error: "HTTP 503" }) },
+		];
+		previousState = { status: 1, failureStreak: 0 };
+
+		await processUptimeCheckForTest("schedule-1", "scheduled", deps());
+
+		expect(calls.check.map((c) => c.attempt)).toEqual([1, 2, 3]);
+		expect(calls.delivery).toEqual([
+			uptimeData({ status: 0, error: "HTTP 503", failure_streak: 1 }),
+		]);
+		expect(calls.loggerFields).toContainEqual(
+			expect.objectContaining({ outcome: "down", failure_streak: 1 })
+		);
+	});
+
+	it("continues the failure streak from the previous monitor state", async () => {
+		checkResults = [
+			{ success: true, data: uptimeData({ status: 0, error: "HTTP 503" }) },
+		];
+		previousState = { status: 0, failureStreak: 4 };
+
+		await processUptimeCheckForTest("schedule-1", "scheduled", deps());
+
+		expect(calls.delivery).toEqual([
+			uptimeData({ status: 0, error: "HTTP 503", failure_streak: 5 }),
+		]);
 	});
 
 	it("persists the exact event before enqueueing it for delivery", async () => {
@@ -525,6 +580,7 @@ describe("processUptimeCheck", () => {
 					scheduleId: "schedule-1",
 					trigger: "scheduled",
 				},
+				attemptsMade: 0,
 				updateData: async () => {},
 			},
 			deps()
@@ -545,6 +601,7 @@ describe("processUptimeCheck", () => {
 						scheduleId: "schedule-1",
 						trigger: "scheduled",
 					},
+					attemptsMade: 0,
 					updateData: async () => {},
 				},
 				deps()
@@ -567,6 +624,7 @@ describe("processUptimeCheck", () => {
 					data: { event: uptimeData() },
 					id: "uptime-delivery-uptime-event-1",
 					name: "uptime-event-delivery",
+					attemptsMade: 0,
 				},
 				failingDeps
 			)
@@ -588,12 +646,20 @@ describe("processUptimeCheck", () => {
 				data: { event: uptimeData() },
 				id: "uptime-delivery-uptime-event-1",
 				name: "uptime-event-delivery",
+				attemptsMade: 0,
 			},
 			deps()
 		);
 
 		const { event_id: _eventId, ...event } = uptimeData();
 		expect(calls.send).toEqual([{ event, key: "website-1" }]);
+	});
+
+	it("resolves failure streaks from previous state", () => {
+		expect(resolveFailureStreak(1, { status: 0, failureStreak: 3 })).toBe(0);
+		expect(resolveFailureStreak(0, undefined)).toBe(1);
+		expect(resolveFailureStreak(0, { status: 1, failureStreak: 0 })).toBe(1);
+		expect(resolveFailureStreak(0, { status: 0, failureStreak: 3 })).toBe(4);
 	});
 
 	it("rejects malformed delivery payloads before sending", async () => {
@@ -603,6 +669,7 @@ describe("processUptimeCheck", () => {
 					data: { event: { ...uptimeData(), site_id: 1 } },
 					id: "uptime-delivery-uptime-event-1",
 					name: "uptime-event-delivery",
+					attemptsMade: 0,
 				},
 				deps()
 			)

@@ -6,30 +6,39 @@ export const UPTIME_CHECK_JOB_NAME = "uptime-check";
 export const UPTIME_DELIVERY_QUEUE_NAME = "uptime-event-delivery";
 export const UPTIME_DELIVERY_JOB_NAME = UPTIME_DELIVERY_QUEUE_NAME;
 
-export const UPTIME_JOB_TIMEOUT_MS = 30_000;
-const UPTIME_RETRY_ATTEMPTS = 1_000_000;
-const UPTIME_RETRY_DELAY_MS = 30_000;
-const UPTIME_RETRY_OPTIONS = {
-	attempts: UPTIME_RETRY_ATTEMPTS,
-	backoff: {
-		type: "fixed",
-		delay: UPTIME_RETRY_DELAY_MS,
-	},
-	removeOnFail: false,
-};
+export const UPTIME_WORKER_LOCK_MS = 90_000;
+export const UPTIME_WORKER_STALLED_INTERVAL_MS = 60_000;
+export const UPTIME_WORKER_MAX_STALLED_COUNT = 3;
+
 export const UPTIME_JOB_OPTIONS = {
-	...UPTIME_RETRY_OPTIONS,
+	attempts: 3,
+	backoff: {
+		type: "exponential",
+		delay: 5000,
+	},
 	// A failed source job can contain the only durable copy of a completed probe.
 	removeOnComplete: {
 		age: 24 * 3600,
 		count: 1000,
 	},
+	removeOnFail: {
+		age: 24 * 3600,
+		count: 5000,
+	},
 };
 
 export const UPTIME_DELIVERY_JOB_OPTIONS = {
-	...UPTIME_RETRY_OPTIONS,
+	attempts: 20,
+	backoff: {
+		type: "fixed",
+		delay: 30_000,
+	},
 	// Keep completed IDs long enough for an ambiguous queue add to stay idempotent.
 	removeOnComplete: {
+		age: 7 * 24 * 3600,
+		count: 10_000,
+	},
+	removeOnFail: {
 		age: 7 * 24 * 3600,
 		count: 10_000,
 	},

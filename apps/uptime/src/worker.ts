@@ -6,9 +6,13 @@ import {
 	type UptimeDeliveryJobData,
 	UPTIME_CHECK_JOB_NAME,
 	UPTIME_DELIVERY_JOB_NAME,
+	UPTIME_DELIVERY_JOB_OPTIONS,
 	UPTIME_DELIVERY_QUEUE_NAME,
-	UPTIME_JOB_TIMEOUT_MS,
+	UPTIME_JOB_OPTIONS,
 	UPTIME_QUEUE_NAME,
+	UPTIME_WORKER_LOCK_MS,
+	UPTIME_WORKER_MAX_STALLED_COUNT,
+	UPTIME_WORKER_STALLED_INTERVAL_MS,
 	uptimeDeliveryJobId,
 	uptimeSchedulerId,
 } from "@databuddy/redis";
@@ -22,7 +26,6 @@ import {
 	checkUptime,
 	lookupSchedule,
 } from "./actions";
-import { isHealthExtractionEnabled } from "./json-parser";
 import { sendUptimeEvent } from "./lib/producer";
 import { captureError } from "./lib/tracing";
 import {
@@ -36,7 +39,8 @@ import {
 } from "./types";
 import {
 	fireTransitionAlerts,
-	getPreviousMonitorStatus,
+	getPreviousMonitorState,
+	type PreviousMonitorState,
 } from "./uptime-transition-alerts";
 
 class ScheduleNotFound extends Data.TaggedError("ScheduleNotFound")<{
@@ -84,13 +88,13 @@ export interface UptimeWorkerDeps {
 	fireTransitionAlerts: (options: {
 		schedule: ScheduleData;
 		data: UptimeData;
-		previousStatus?: number;
 	}) => Promise<{
 		transition_kind: "down" | "recovered" | null;
 		alarms_fired: number;
 	}>;
-	getPreviousMonitorStatus: (monitorId: string) => Promise<number | undefined>;
-	isHealthExtractionEnabled: (config: unknown) => boolean;
+	getPreviousMonitorState: (
+		monitorId: string
+	) => Promise<PreviousMonitorState | undefined>;
 	lookupSchedule: (scheduleId: string) => Promise<ActionResult<ScheduleData>>;
 	reapOrphanScheduler: (scheduleId: string) => Promise<void>;
 	sendUptimeEvent: (event: unknown, key?: string) => Promise<void>;
@@ -107,16 +111,25 @@ const uptimeWorkerDeps: UptimeWorkerDeps = {
 			{ jobId: uptimeDeliveryJobId(data.event_id) }
 		);
 	},
-	getPreviousMonitorStatus,
-	isHealthExtractionEnabled,
+	getPreviousMonitorState,
 	lookupSchedule,
 	reapOrphanScheduler: defaultReapOrphanScheduler,
 	sendUptimeEvent,
 	fireTransitionAlerts,
 };
 
-export const DEFAULT_UPTIME_WORKER_CONCURRENCY = 10_000;
-const MAX_STALLED_COUNT = 1_000_000;
+export const DEFAULT_UPTIME_WORKER_CONCURRENCY = 25;
+const CHECK_ATTEMPTS = 3;
+const DEFAULT_CHECK_RETRY_DELAY_MS = 2000;
+
+function checkRetryDelayMs(): number {
+	const value = Number(
+		process.env.UPTIME_CHECK_RETRY_DELAY_MS ?? DEFAULT_CHECK_RETRY_DELAY_MS
+	);
+	return Number.isFinite(value) && value >= 0
+		? value
+		: DEFAULT_CHECK_RETRY_DELAY_MS;
+}
 
 export function getUptimeWorkerConcurrency(
 	value = process.env.UPTIME_WORKER_CONCURRENCY
@@ -182,14 +195,15 @@ const resolveSchedule = (scheduleId: string, deps: UptimeWorkerDeps) =>
 		)
 	);
 
-const runCheck = (
+const runSingleCheck = (
 	monitorId: string,
 	url: string,
+	attempt: number,
 	options: CheckOptions,
 	deps: UptimeWorkerDeps
 ) =>
 	Effect.tryPromise({
-		try: () => deps.checkUptime(monitorId, url, 1, options),
+		try: () => deps.checkUptime(monitorId, url, attempt, options),
 		catch: (cause) => new CheckFailed({ message: String(cause) }),
 	}).pipe(
 		Effect.flatMap((result) =>
@@ -199,10 +213,42 @@ const runCheck = (
 		)
 	);
 
-const fetchPreviousStatus = (monitorId: string, deps: UptimeWorkerDeps) =>
-	Effect.tryPromise(() => deps.getPreviousMonitorStatus(monitorId)).pipe(
+const runCheck = (
+	monitorId: string,
+	url: string,
+	options: CheckOptions,
+	deps: UptimeWorkerDeps
+) =>
+	Effect.gen(function* () {
+		let data = yield* runSingleCheck(monitorId, url, 1, options, deps);
+		for (
+			let attempt = 2;
+			data.status !== MonitorStatus.UP && attempt <= CHECK_ATTEMPTS;
+			attempt++
+		) {
+			yield* Effect.sleep(checkRetryDelayMs());
+			data = yield* runSingleCheck(monitorId, url, attempt, options, deps);
+		}
+		return data;
+	});
+
+const fetchPreviousState = (monitorId: string, deps: UptimeWorkerDeps) =>
+	Effect.tryPromise(() => deps.getPreviousMonitorState(monitorId)).pipe(
 		Effect.orElseSucceed(() => undefined)
 	);
+
+export function resolveFailureStreak(
+	status: number,
+	previous: PreviousMonitorState | undefined
+): number {
+	if (status !== MonitorStatus.DOWN) {
+		return 0;
+	}
+	if (previous?.status === MonitorStatus.DOWN) {
+		return previous.failureStreak + 1;
+	}
+	return 1;
+}
 
 type UptimeEventCheckpoint = (data: UptimeData) => Promise<void>;
 
@@ -226,12 +272,11 @@ const handoffDelivery = (
 const runTransitionAlerts = (
 	schedule: ScheduleData,
 	data: UptimeData,
-	previousStatus: number | undefined,
 	deps: UptimeWorkerDeps,
 	log: RequestLogger
 ) =>
 	Effect.tryPromise({
-		try: () => deps.fireTransitionAlerts({ schedule, data, previousStatus }),
+		try: () => deps.fireTransitionAlerts({ schedule, data }),
 		catch: (cause) => cause,
 	}).pipe(
 		Effect.tap((transition) =>
@@ -245,11 +290,16 @@ const runTransitionAlerts = (
 			})
 		),
 		Effect.catch((error) =>
-			Effect.sync(() =>
+			Effect.sync(() => {
+				deps.captureError(error, {
+					error_step: "transition_alerts",
+					schedule_id: schedule.id,
+				});
 				log.set({
-					email_error: error instanceof Error ? error.message : "unknown",
-				})
-			)
+					transition_alert_error:
+						error instanceof Error ? error.message : "unknown",
+				});
+			})
 		)
 	);
 
@@ -307,9 +357,6 @@ const processCheck = (
 			organization_id: schedule.organizationId,
 			schedule_timeout_ms: schedule.timeout ?? 0,
 			schedule_cache_bust: schedule.cacheBust,
-			schedule_health_extract: deps.isHealthExtractionEnabled(
-				schedule.jsonParsingConfig
-			),
 		});
 
 		if (schedule.isPaused) {
@@ -328,10 +375,9 @@ const processCheck = (
 		const options: CheckOptions = {
 			timeout: schedule.timeout ?? undefined,
 			cacheBust: schedule.cacheBust,
-			extractHealth: deps.isHealthExtractionEnabled(schedule.jsonParsingConfig),
 		};
 
-		const data = yield* timed(
+		const checked = yield* timed(
 			"check_uptime",
 			runCheck(monitorId, schedule.url, options, deps),
 			log
@@ -345,18 +391,25 @@ const processCheck = (
 			})
 		);
 
-		const previousStatus = yield* timed(
+		const previousState = yield* timed(
 			"previous_status",
-			fetchPreviousStatus(monitorId, deps),
+			fetchPreviousState(monitorId, deps),
 			log
 		);
+
+		const data: UptimeData = {
+			...checked,
+			failure_streak: resolveFailureStreak(checked.status, previousState),
+		};
 
 		log.set({
 			event_id: data.event_id,
 			outcome: data.status === MonitorStatus.UP ? "up" : "down",
-			previous_uptime_status:
-				previousStatus === undefined ? -1 : previousStatus,
+			previous_uptime_status: previousState?.status ?? -1,
 			monitor_status: data.status,
+			check_attempt: data.attempt,
+			check_retries: data.retries,
+			failure_streak: data.failure_streak,
 			http_code: data.http_code,
 			total_ms: data.total_ms,
 			ttfb_ms: data.ttfb_ms,
@@ -365,8 +418,6 @@ const processCheck = (
 			ssl_expiry: data.ssl_expiry,
 			response_bytes: data.response_bytes,
 			redirect_count: data.redirect_count,
-			content_changed: data.content_hash !== "",
-			has_json_data: data.json_data !== undefined,
 			error_message: data.error || "",
 		});
 
@@ -397,7 +448,7 @@ const processCheck = (
 
 		yield* timed(
 			"transition_email",
-			runTransitionAlerts(schedule, data, previousStatus, deps, log),
+			runTransitionAlerts(schedule, data, deps, log),
 			log
 		);
 	});
@@ -428,7 +479,8 @@ export async function processUptimeCheck(
 		const error = Cause.squash(exit.cause);
 		if (
 			error instanceof CheckFailed ||
-			error instanceof DeliveryHandoffFailed
+			error instanceof DeliveryHandoffFailed ||
+			(error instanceof ScheduleNotFound && error.reason === "transient")
 		) {
 			throw new Error(error.message);
 		}
@@ -472,7 +524,7 @@ async function replayPersistedUptimeDelivery(
 			await Effect.runPromise(
 				timed(
 					"transition_email",
-					runTransitionAlerts(scheduleExit.value, data, undefined, deps, log),
+					runTransitionAlerts(scheduleExit.value, data, deps, log),
 					log
 				)
 			);
@@ -514,10 +566,6 @@ export async function processUptimeJob(
 		}
 		await replayPersistedUptimeDelivery(job, parsedEvent.data, deps);
 		return;
-	}
-
-	if (typeof job.updateData !== "function") {
-		throw new Error("Uptime job does not support delivery checkpointing");
 	}
 
 	await processUptimeCheck(
@@ -574,15 +622,15 @@ export function startUptimeWorker() {
 		{
 			connection: getBullMQWorkerConnectionOptions(),
 			concurrency: getUptimeWorkerConcurrency(),
-			lockDuration: UPTIME_JOB_TIMEOUT_MS * 3,
-			maxStalledCount: MAX_STALLED_COUNT,
-			stalledInterval: UPTIME_JOB_TIMEOUT_MS * 4,
+			lockDuration: UPTIME_WORKER_LOCK_MS,
+			maxStalledCount: UPTIME_WORKER_MAX_STALLED_COUNT,
+			stalledInterval: UPTIME_WORKER_STALLED_INTERVAL_MS,
 		}
 	);
 
 	worker.on("failed", (job, error) => {
 		const attemptsMade = job?.attemptsMade ?? 0;
-		const maxAttempts = job?.opts?.attempts ?? 1_000_000;
+		const maxAttempts = job?.opts?.attempts ?? UPTIME_JOB_OPTIONS.attempts;
 		const isFinalAttempt = attemptsMade >= maxAttempts;
 		const parsedJobData = job
 			? uptimeCheckJobDataSchema.safeParse(job.data)
@@ -623,10 +671,10 @@ export function startUptimeDeliveryWorker() {
 		(job) => processUptimeDeliveryJob(job),
 		{
 			connection: getBullMQWorkerConnectionOptions(),
-			concurrency: 1,
-			lockDuration: UPTIME_JOB_TIMEOUT_MS * 3,
-			maxStalledCount: MAX_STALLED_COUNT,
-			stalledInterval: UPTIME_JOB_TIMEOUT_MS * 4,
+			concurrency: 4,
+			lockDuration: UPTIME_WORKER_LOCK_MS,
+			maxStalledCount: UPTIME_WORKER_MAX_STALLED_COUNT,
+			stalledInterval: UPTIME_WORKER_STALLED_INTERVAL_MS,
 		}
 	);
 
@@ -643,7 +691,7 @@ export function startUptimeDeliveryWorker() {
 			event_id: parsedEvent?.success ? parsedEvent.data.event_id : "",
 			job_id: job?.id ?? "",
 			attempts_used: job?.attemptsMade ?? 0,
-			attempts_max: job?.opts?.attempts ?? 1_000_000,
+			attempts_max: job?.opts?.attempts ?? UPTIME_DELIVERY_JOB_OPTIONS.attempts,
 		});
 	});
 
