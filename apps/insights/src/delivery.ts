@@ -48,7 +48,6 @@ const slackBlockSchema = z
 
 export const insightSlackEffectPayloadSchema = z.object({
 	blocks: z.array(slackBlockSchema).max(50),
-	/** The effect key may include an insight identity; delivery still needs the channel. */
 	channelId: z.string().min(1).optional(),
 	insightId: z.string().min(1).optional(),
 	text: z.string().min(1),
@@ -126,11 +125,6 @@ export function buildInsightReplyText(
 	];
 	if (outcome.impact) {
 		lines.push(`*Impact:* ${escapeMrkdwn(userVisibleCopy(outcome.impact))}`);
-	}
-	if (outcome.recommendation) {
-		lines.push(
-			`*Recommended:* ${escapeMrkdwn(userVisibleCopy(outcome.recommendation.action))}`
-		);
 	}
 	if (outcome.next.type === "act" && outcome.rootCause) {
 		lines.push(`*Why:* ${escapeMrkdwn(userVisibleCopy(outcome.rootCause))}`);

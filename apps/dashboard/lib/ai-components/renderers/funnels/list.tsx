@@ -3,7 +3,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
-import { toast } from "sonner";
 import { EditFunnelDialog } from "@/app/(main)/websites/[id]/funnels/_components/edit-funnel-dialog";
 import { useFunnels } from "@/hooks/use-funnels";
 import { orpc } from "@/lib/orpc";
@@ -195,9 +194,7 @@ export function FunnelsListRenderer({
 			try {
 				await createAction(data);
 				closeDialog();
-			} catch {
-				toast.error("Failed to create funnel");
-			}
+			} catch {}
 		},
 		[createAction, closeDialog]
 	);
@@ -216,9 +213,7 @@ export function FunnelsListRenderer({
 					ignoreHistoricData: funnel.ignoreHistoricData,
 				});
 				closeDialog();
-			} catch {
-				toast.error("Failed to update funnel");
-			}
+			} catch {}
 		},
 		[editingFunnelId, updateAction, closeDialog]
 	);
@@ -230,9 +225,7 @@ export function FunnelsListRenderer({
 		try {
 			await deleteAction(deletingId);
 			setDeletingId(null);
-		} catch {
-			toast.error("Failed to delete funnel");
-		}
+		} catch {}
 	}, [deletingId, deleteAction]);
 
 	const fetchedFunnel = editingFunnelQuery.data as

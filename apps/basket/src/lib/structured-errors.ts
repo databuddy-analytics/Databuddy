@@ -178,10 +178,7 @@ const BASKET_ERROR_SPEC = {
 	},
 } as const;
 
-export const basketErrorCatalog = defineErrorCatalog(
-	"basket",
-	BASKET_ERROR_SPEC
-);
+const basketErrorCatalog = defineErrorCatalog("basket", BASKET_ERROR_SPEC);
 
 export const CLIENT_ERROR_MESSAGES: ReadonlySet<string> = new Set(
 	Object.values(BASKET_ERROR_SPEC)
@@ -237,11 +234,6 @@ export function createIngestSchemaValidationError(
 	const err = basketErrorCatalog.INVALID_EVENT_SCHEMA();
 	return Object.assign(err, { issues });
 }
-
-/**
- * A request must not report success while its telemetry could not be durably
- * admitted. Callers return this 503 so SDKs and queueing clients retry.
- */
 export function deliveryUnavailable(cause: unknown) {
 	return createError({
 		code: "basket.DELIVERY_UNAVAILABLE",

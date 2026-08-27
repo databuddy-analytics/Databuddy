@@ -1,9 +1,6 @@
 import { createClient, type ResponseJSON } from "@clickhouse/client";
 import type { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
 import { finalizeDeliveryTables } from "./logical-reads";
-/**
- * ClickHouse table names used throughout the application
- */
 export const TABLE_NAMES = {
 	events: "analytics.events",
 	outgoing_links: "analytics.outgoing_links",
@@ -35,11 +32,6 @@ export const FINAL_READ_SETTINGS = {
 export type ClickHouseReadMode = "default" | "restricted";
 
 let clickHouseReadMode: ClickHouseReadMode = "default";
-
-/**
- * A bounded evaluator can use an account that enforces read-only access while
- * forbidding query-setting changes. The caller must restore the prior mode.
- */
 export function setClickHouseReadMode(mode: ClickHouseReadMode): () => void {
 	const previous = clickHouseReadMode;
 	clickHouseReadMode = mode;

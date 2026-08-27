@@ -17,7 +17,7 @@ export interface OutboundDomainRow {
 	unique_users: number;
 }
 
-export interface OutboundLinksSectionData {
+interface OutboundLinksSectionData {
 	outbound_domains: unknown[];
 	outbound_links: unknown[];
 }

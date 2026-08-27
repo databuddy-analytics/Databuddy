@@ -21,6 +21,7 @@ Add Databuddy's privacy-first analytics to your Laravel application by adding th
       code={`<script
   src="https://cdn.databuddy.cc/databuddy.js"
   data-client-id="YOUR_CLIENT_ID"
+  crossorigin="anonymous"
   async
 ></script>`}
     />
@@ -64,6 +65,7 @@ Add Databuddy's privacy-first analytics to your Laravel application by adding th
         <script
             src="https://cdn.databuddy.cc/databuddy.js"
             data-client-id="{{ config('services.databuddy.client_id') }}"
+            crossorigin="anonymous"
             async
         ></script>
     @endif
@@ -85,6 +87,7 @@ Add Databuddy's privacy-first analytics to your Laravel application by adding th
     <script
         src="https://cdn.databuddy.cc/databuddy.js"
         data-client-id="YOUR_CLIENT_ID"
+        crossorigin="anonymous"
         async
     ></script>
 @endif`}
@@ -155,6 +158,7 @@ Enable additional tracking features by adding data attributes to your script tag
         data-track-interactions
         data-track-web-vitals
         data-track-errors
+        crossorigin="anonymous"
         async
     ></script>
 @endif`}
@@ -186,6 +190,7 @@ Enable automatic tracking with data attributes:
     src="https://cdn.databuddy.cc/databuddy.js"
     data-client-id="{{ config('services.databuddy.client_id') }}"
     data-track-attributes
+    crossorigin="anonymous"
     async
 ></script>
 
@@ -218,7 +223,7 @@ function trackButtonClick(buttonId) {
 
 // Track form submissions
 document.addEventListener('DOMContentLoaded', function() {
-    const forms = document.querySelectorAll('form[data-track]');
+    const forms = document.querySelectorAll('form[data-form-type]');
     forms.forEach(function(form) {
         form.addEventListener('submit', function() {
             if (window.databuddy) {
@@ -326,11 +331,11 @@ Track product views and purchases:
 
 ### Form Submissions
 
-Track form submissions:
+Mark the form with `data-form-type` so the submit handler from `resources/js/app.js` (shown above) tracks it. Avoid adding `data-track` to the form itself: that attribute fires a click event for every click inside the form and would duplicate the submit handler.
 
 <CodeBlock
   language="php"
-  code={`<form method="POST" action="{{ route('contact.store') }}" data-track="form_submit" data-form-type="contact">
+  code={`<form method="POST" action="{{ route('contact.store') }}" data-form-type="contact">
     @csrf
     <!-- form fields -->
     <button type="submit">Submit</button>

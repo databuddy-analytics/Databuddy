@@ -8,7 +8,7 @@ import { Callout, Card, Cards, CodeBlock } from "@/components/docs";
 The Databuddy script can be used directly in vanilla JavaScript projects without any framework dependencies. This is perfect for static sites, traditional HTML pages, or any environment where you want minimal overhead.
 
 <Callout type="info">
-  **CDN**: `https://cdn.databuddy.cc/databuddy.js` | **Current size**: about 39 KB minified / 12 KB gzip
+  **CDN**: `https://cdn.databuddy.cc/databuddy.js` | **Current size**: about 40 KB minified / 12 KB gzip
 </Callout>
 
 ## Quick Setup
@@ -55,6 +55,8 @@ Configure the tracker using data attributes on the script tag:
 | `data-batch-size` | `10` | Events per batch when batching enabled |
 | `data-batch-timeout` | `5000` | Batch timeout in ms |
 | `data-sampling-rate` | `1.0` | Sample rate 0.0-1.0 |
+| `data-skip-patterns` | `[]` | JSON array of path patterns to skip entirely |
+| `data-mask-patterns` | `[]` | JSON array of path patterns to anonymize |
 
 ## Tracking Events
 
@@ -141,6 +143,10 @@ Set properties that attach to all future events:
   version: '2.0'
 });`}
 </CodeBlock>
+
+## User Identity
+
+The global tracker also exposes `window.databuddy.identify(profileId, traits)`, `setTraits(traits)`, `clearProfile()`, and `getProfileId()`. See [Identify Users](/docs/sdk/identify-users).
 
 ## Session Management
 
@@ -341,7 +347,7 @@ Use the official CDN URL for best performance:
   {`https://cdn.databuddy.cc/databuddy.js`}
 </CodeBlock>
 
-The script is automatically minified and served compressed. The current bundle is about 39 KB minified and 12 KB gzip; check release notes for future size changes.
+The script is automatically minified and served compressed. The current core bundle is about 40 KB minified and 12 KB gzip; this includes the error and web vitals trackers, which stay inactive unless `data-track-errors` or `data-track-web-vitals` are enabled. Standalone `errors.js` (about 21 KB) and `vitals.js` (about 26 KB) builds are also published on the CDN. Check release notes for future size changes.
 
 ## Related
 

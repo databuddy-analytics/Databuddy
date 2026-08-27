@@ -77,7 +77,7 @@ function resolveQueryType(type: string): string {
 	return QUERY_TYPE_ALIASES[type] ?? type;
 }
 
-export interface InvalidBatchQuery {
+interface InvalidBatchQuery {
 	error: string;
 	inputIndex: number;
 	summary: string;

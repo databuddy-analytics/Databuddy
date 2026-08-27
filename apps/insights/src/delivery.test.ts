@@ -210,22 +210,6 @@ describe("Slack investigation detail", () => {
 			},
 			signal
 		);
-		const recommended = buildInsightReplyText(
-			{
-				...outcome,
-				next: { reason: "The broad goal does not prove a failure.", type: "resolve" },
-				publish: true,
-				recommendation: {
-					action: "Rename Pricing viewers to All billing navigation.",
-					changes: {
-						description: null,
-						name: "All billing navigation",
-					},
-					operation: "edit",
-				},
-			},
-			signal
-		);
 
 		expect(action).toStartWith("*Action ·");
 		expect(action).toContain("&lt;@U123&gt;");
@@ -237,9 +221,6 @@ describe("Slack investigation detail", () => {
 	);
 		expect(structuredWatch).not.toContain("Watch Pricing goal completion");
 		expect(resolved).toStartWith("*Resolved ·");
-		expect(recommended).toContain(
-			"*Recommended:* Rename Pricing viewers to All billing navigation."
-		);
 	});
 
 	it("renders the measured signal, proven cause, and evidence", () => {

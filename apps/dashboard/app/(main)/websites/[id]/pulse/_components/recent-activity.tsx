@@ -78,33 +78,6 @@ function LoadMoreSkeletonRow() {
 	);
 }
 
-function InitialTableSkeleton({ rows }: { rows: number }) {
-	return (
-		<div className="bg-card">
-			<div className="border-b bg-card px-3">
-				<div className="flex h-10 items-center gap-6 border-transparent border-b">
-					<Skeleton className="h-4 w-14 rounded" />
-					<Skeleton className="h-4 w-12 rounded" />
-					<Skeleton className="h-4 w-16 rounded" />
-					<Skeleton className="h-4 w-8 rounded" />
-					<Skeleton className="h-4 w-16 rounded" />
-				</div>
-			</div>
-			<Table>
-				<TableBody>
-					{Array.from({ length: rows }).map((_, i) => (
-						<LoadMoreSkeletonRow key={`sk-${i}`} />
-					))}
-				</TableBody>
-			</Table>
-		</div>
-	);
-}
-
-export function RecentActivityTableSkeleton({ rows = 8 }: { rows?: number }) {
-	return <InitialTableSkeleton rows={rows} />;
-}
-
 export function RecentActivity({
 	checks,
 	hasMore = false,

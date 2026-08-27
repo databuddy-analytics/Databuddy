@@ -12,7 +12,6 @@ interface RangeSelectionPopupProps {
 	onAddAnnotationAction: () => void;
 	onCloseAction: () => void;
 	onZoomAction: (dateRange: { startDate: Date; endDate: Date }) => void;
-	/** When false, only “Zoom to range” is shown (e.g. annotations disabled on chart). Default: true. */
 	showAnnotationAction?: boolean;
 }
 

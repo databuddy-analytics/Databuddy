@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { insightQueries } from "@/lib/insight-api";
 import { listQueryOutcome } from "@/lib/list-query-outcome";
 import { orpc } from "@/lib/orpc";
+import { mutationErrorToast } from "@/lib/user-facing-error";
 import type {
 	CreateFunnelData,
 	FunnelAnalyticsData,
@@ -41,6 +42,7 @@ export function useFunnelActions(websiteId: string) {
 
 	const createMutation = useMutation({
 		...orpc.funnels.create.mutationOptions(),
+		...mutationErrorToast,
 		onSuccess: () => {
 			invalidateAll();
 			toast.success("Funnel created successfully");
@@ -49,6 +51,7 @@ export function useFunnelActions(websiteId: string) {
 
 	const updateMutation = useMutation({
 		...orpc.funnels.update.mutationOptions(),
+		...mutationErrorToast,
 		onSuccess: () => {
 			invalidateAll();
 			toast.success("Funnel updated successfully");
@@ -57,6 +60,7 @@ export function useFunnelActions(websiteId: string) {
 
 	const deleteMutation = useMutation({
 		...orpc.funnels.delete.mutationOptions(),
+		...mutationErrorToast,
 		onSuccess: () => {
 			invalidateAll();
 			toast.success("Funnel deleted successfully");

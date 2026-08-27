@@ -30,19 +30,12 @@ interface PercentileOption {
 }
 
 interface RESGaugeCardProps {
-	/** Additional class names */
 	className?: string;
-	/** Loading state */
 	isLoading?: boolean;
-	/** Current period metrics with p75 values */
 	metrics: MetricInput[];
-	/** Callback when percentile changes */
 	onPercentileChangeAction?: (value: string) => void;
-	/** Percentile options for the selector */
 	percentileOptions?: PercentileOption[];
-	/** Previous period metrics for trend comparison */
 	previousMetrics?: MetricInput[];
-	/** Currently selected percentile */
 	selectedPercentile?: string;
 }
 

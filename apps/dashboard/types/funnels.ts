@@ -32,7 +32,7 @@ export interface CreateFunnelData {
 	steps: FunnelStep[];
 }
 
-export interface StepErrorInsight {
+interface StepErrorInsight {
 	count: number;
 	error_type: string;
 	message: string;
@@ -53,7 +53,7 @@ export interface FunnelStepAnalytics {
 	users: number;
 }
 
-export interface FunnelErrorInsights {
+interface FunnelErrorInsights {
 	available: boolean;
 	dropoffs_with_errors: number;
 	error_correlation_rate: number;

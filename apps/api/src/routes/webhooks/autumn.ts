@@ -195,7 +195,7 @@ const getBillingRecipient = cacheable(
 	}
 );
 
-export async function resolveBillingOrganization(
+async function resolveBillingOrganization(
 	customerId: string,
 	entityId?: string
 ): Promise<BillingOrganizationContext | null> {
@@ -749,6 +749,35 @@ function webhookIdempotencyKey(svixId: string): string {
 	return createHash("sha256").update(svixId).digest("hex");
 }
 
+async function recordRetryAttempt(
+	stored: ClaimedAutumnWebhook,
+	status: "deferred" | "pending",
+	message: string
+): Promise<WebhookResult | null> {
+	const outcome = await recordAutumnWebhookAttempt({
+		attempts: stored.attempts,
+		claimToken: stored.claimToken,
+		errorMessage: message,
+		id: stored.id,
+		status,
+	});
+	if (outcome === "completed") {
+		return {
+			disposition: "duplicate",
+			message: "Webhook already processed",
+			success: true,
+		};
+	}
+	if (outcome === "dead_letter") {
+		return {
+			disposition: "dead_letter",
+			message: "Webhook moved to dead letter",
+			success: true,
+		};
+	}
+	return null;
+}
+
 async function processClaimedAutumnWebhook(
 	stored: ClaimedAutumnWebhook
 ): Promise<WebhookResult> {
@@ -763,82 +792,35 @@ async function processClaimedAutumnWebhook(
 		}
 		result = await dispatch(event, webhookIdempotencyKey(stored.id));
 	} catch (error) {
-		const status = await recordAutumnWebhookAttempt({
-			attempts: stored.attempts,
-			claimToken: stored.claimToken,
-			errorMessage: errorMessage(error),
-			id: stored.id,
-			status: "pending",
-		});
-		if (status === "completed") {
-			return {
-				disposition: "duplicate",
-				message: "Webhook already processed",
-				success: true,
-			};
-		}
-		if (status === "dead_letter") {
-			return {
-				disposition: "dead_letter",
-				message: "Webhook moved to dead letter",
-				success: true,
-			};
+		const settled = await recordRetryAttempt(
+			stored,
+			"pending",
+			errorMessage(error)
+		);
+		if (settled) {
+			return settled;
 		}
 		throw error;
 	}
 
 	if (result.disposition === "deferred") {
-		const status = await recordAutumnWebhookAttempt({
-			attempts: stored.attempts,
-			claimToken: stored.claimToken,
-			errorMessage: result.message,
-			id: stored.id,
-			status: "deferred",
-		});
-		if (status === "completed") {
-			return {
-				disposition: "duplicate",
-				message: "Webhook already processed",
+		const settled = await recordRetryAttempt(
+			stored,
+			"deferred",
+			result.message
+		);
+		return (
+			settled ?? {
+				disposition: "deferred",
+				message: "Webhook stored for replay",
 				success: true,
-			};
-		}
-		if (status === "dead_letter") {
-			return {
-				disposition: "dead_letter",
-				message: "Webhook moved to dead letter",
-				success: true,
-			};
-		}
-		return {
-			disposition: "deferred",
-			message: "Webhook stored for replay",
-			success: true,
-		};
+			}
+		);
 	}
 
 	if (!result.success) {
-		const status = await recordAutumnWebhookAttempt({
-			attempts: stored.attempts,
-			claimToken: stored.claimToken,
-			errorMessage: result.message,
-			id: stored.id,
-			status: "pending",
-		});
-		if (status === "completed") {
-			return {
-				disposition: "duplicate",
-				message: "Webhook already processed",
-				success: true,
-			};
-		}
-		if (status === "dead_letter") {
-			return {
-				disposition: "dead_letter",
-				message: "Webhook moved to dead letter",
-				success: true,
-			};
-		}
-		return result;
+		const settled = await recordRetryAttempt(stored, "pending", result.message);
+		return settled ?? result;
 	}
 
 	await recordAutumnWebhookAttempt({

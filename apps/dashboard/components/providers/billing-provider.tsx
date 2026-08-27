@@ -3,9 +3,12 @@
 import {
 	FEATURE_METADATA,
 	type FeatureId,
+	type FeatureLimit,
 	type GatedFeatureId,
 	getMinimumPlanForFeature,
+	getNextPlanForFeature,
 	getPlanCapabilities as getPlanCapabilitiesForPlan,
+	getPlanFeatureLimit,
 	isPlanFeatureEnabled,
 	PLAN_IDS,
 	type PlanCapabilities,
@@ -22,7 +25,7 @@ type HookCustomer = NonNullable<ReturnType<typeof useCustomer>["data"]>;
 type HookPlan = NonNullable<ReturnType<typeof useListPlans>["data"]>[number];
 type HookBalance = NonNullable<HookCustomer["balances"]>[string];
 
-export interface FeatureAccess {
+interface FeatureAccess {
 	allowed: boolean;
 	balance: number;
 	limit: number;
@@ -30,9 +33,11 @@ export interface FeatureAccess {
 	usagePercent: number | null;
 }
 
-export interface GatedFeatureAccess {
+interface GatedFeatureAccess {
 	allowed: boolean;
+	limit: FeatureLimit;
 	minPlan: PlanId | null;
+	nextPlan: PlanId | null;
 	upgradeMessage: string | null;
 }
 
@@ -86,7 +91,9 @@ const DEMO_BILLING_VALUE: BillingContextValue = {
 	isFeatureEnabled: () => true,
 	getGatedFeatureAccess: () => ({
 		allowed: true,
+		limit: "unlimited",
 		minPlan: null,
+		nextPlan: null,
 		upgradeMessage: null,
 	}),
 	getUpgradeMessage: () => null,
@@ -242,7 +249,9 @@ function AuthenticatedBillingProvider({
 			const allowed = isPlanFeatureEnabled(currentPlanId, feature);
 			return {
 				allowed,
+				limit: getPlanFeatureLimit(currentPlanId, feature),
 				minPlan: getMinimumPlanForFeature(feature),
+				nextPlan: getNextPlanForFeature(currentPlanId, feature),
 				upgradeMessage: allowed
 					? null
 					: (FEATURE_METADATA[feature]?.upgradeMessage ?? null),

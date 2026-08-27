@@ -5,7 +5,7 @@ import { EASE, useRevealOnScroll } from "@/components/landing/demo-primitives";
 const RULES = [
 	{ property: "plan", operator: "is", value: "pro" },
 	{ property: "region", operator: "is one of", value: "US, EU" },
-	{ property: "signup_date", operator: "after", value: "2025-01-01" },
+	{ property: "email", operator: "ends with", value: "@acme.com" },
 ] as const;
 
 export function FFUserTargetingDemo() {
@@ -57,7 +57,7 @@ export function FFUserTargetingDemo() {
 												: "0ms",
 										}}
 									>
-										AND
+										OR
 									</p>
 								) : null}
 							</div>

@@ -65,7 +65,7 @@ function reportError(error: unknown, showToast = true) {
 	});
 }
 
-export function makeQueryClient() {
+function makeQueryClient() {
 	return new QueryClient({
 		defaultOptions: {
 			queries: {

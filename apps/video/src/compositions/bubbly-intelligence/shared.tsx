@@ -27,7 +27,7 @@ const popConfig = {
 	stiffness: 220,
 };
 
-export function popIn(frame: number, fps: number, from = 0) {
+function popIn(frame: number, fps: number, from = 0) {
 	return spring({
 		config: popConfig,
 		fps,

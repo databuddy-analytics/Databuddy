@@ -10,7 +10,7 @@ import { useCyclePhase } from "../../hooks";
 import { usePrefersReducedMotion } from "../../hooks";
 import type { DotMatrixCommonProps } from "../../core";
 
-export type DotmTriangle14Props = DotMatrixCommonProps;
+type DotmTriangle14Props = DotMatrixCommonProps;
 
 const MATRIX_SIZE = 7;
 
@@ -46,11 +46,6 @@ function smoothstep01(edge0: number, edge1: number, x: number): number {
   const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
   return t * t * (3 - 2 * t);
 }
-
-/**
- * A soft vertical “pillar” of brightness sweeps column 0→6; only masked dots respond,
- * so the triangle appears to light one vertical slice at a time (not a cell path).
- */
 function opacityForCell(row: number, col: number, phase: number): number {
   const beamCenter = phase * 7.2 - 0.35;
   const dist = Math.abs(col - beamCenter);

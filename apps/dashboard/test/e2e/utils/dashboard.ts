@@ -39,7 +39,7 @@ export function idFromPath(url: string, segment: "links" | "websites"): string {
 	return match[1];
 }
 
-export function organizationSelector(page: Page): Locator {
+function organizationSelector(page: Page): Locator {
 	return page.getByRole("button", { name: ORGANIZATION_TRIGGER_RE });
 }
 

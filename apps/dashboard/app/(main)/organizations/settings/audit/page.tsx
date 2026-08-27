@@ -66,6 +66,11 @@ type TargetFilter =
 	| "member"
 	| "invitation";
 
+interface AuditFilterOption<T extends string> {
+	label: string;
+	value: T;
+}
+
 const outcomeFilterLabels: Record<OutcomeFilter, string> = {
 	all: "All outcomes",
 	denied: "Denied",
@@ -73,31 +78,37 @@ const outcomeFilterLabels: Record<OutcomeFilter, string> = {
 	success: "Successful",
 };
 
-const dateRangeFilterLabels: Record<DateRangeFilter, string> = {
-	all: "All time",
-	"7d": "Last 7 days",
-	"30d": "Last 30 days",
-	"90d": "Last 90 days",
-};
+const actionFilterOptions: AuditFilterOption<ActionFilter>[] = [
+	{ label: "All actions", value: "all" },
+	...auditActionNames.map((value) => ({
+		label: getAuditActionLabel(value),
+		value,
+	})),
+];
 
-const targetFilterLabels: Record<TargetFilter, string> = {
-	all: "All resources",
-	api_key: "API keys",
-	flag: "Feature flags",
-	website: "Websites",
-	organization: "Organizations",
-	member: "Members",
-	invitation: "Invitations",
-};
+const outcomeFilterOptions: AuditFilterOption<OutcomeFilter>[] = [
+	{ label: outcomeFilterLabels.all, value: "all" },
+	...auditOutcomes.map((value) => ({
+		label: outcomeFilterLabels[value],
+		value,
+	})),
+];
 
-const targetFilterOptions: TargetFilter[] = [
-	"all",
-	"api_key",
-	"flag",
-	"website",
-	"organization",
-	"member",
-	"invitation",
+const targetFilterOptions: AuditFilterOption<TargetFilter>[] = [
+	{ label: "All resources", value: "all" },
+	{ label: "API keys", value: "api_key" },
+	{ label: "Feature flags", value: "flag" },
+	{ label: "Websites", value: "website" },
+	{ label: "Organizations", value: "organization" },
+	{ label: "Members", value: "member" },
+	{ label: "Invitations", value: "invitation" },
+];
+
+const dateRangeFilterOptions: AuditFilterOption<DateRangeFilter>[] = [
+	{ label: "All time", value: "all" },
+	{ label: "Last 7 days", value: "7d" },
+	{ label: "Last 30 days", value: "30d" },
+	{ label: "Last 90 days", value: "90d" },
 ];
 
 const sensitiveAuditFieldPattern = /(^|_)(key|password|secret|token)(_|$)/i;
@@ -112,10 +123,6 @@ function getAuditDateRange(
 	const from = new Date(to);
 	from.setDate(from.getDate() - Number.parseInt(filter, 10));
 	return { from, to };
-}
-
-function getActionFilterLabel(action: ActionFilter): string {
-	return action === "all" ? "All actions" : getAuditActionLabel(action);
 }
 
 function getErrorCode(error: unknown): string | undefined {
@@ -449,6 +456,53 @@ function AuditEventRow({
 	);
 }
 
+function AuditFilterMenu<T extends string>({
+	onChange,
+	options,
+	value,
+}: {
+	onChange: (value: T) => void;
+	options: readonly AuditFilterOption<T>[];
+	value: T;
+}) {
+	const selectedOption = options.find((option) => option.value === value);
+
+	return (
+		<DropdownMenu>
+			<DropdownMenu.Trigger
+				render={
+					<Button size="sm" variant="outline">
+						{selectedOption?.label}
+						<CaretUpDownIcon
+							aria-hidden="true"
+							className="size-3 text-muted-foreground"
+						/>
+					</Button>
+				}
+			/>
+			<DropdownMenu.Content align="start">
+				<DropdownMenu.RadioGroup
+					onValueChange={(nextValue) => {
+						const nextOption = options.find(
+							(option) => option.value === nextValue
+						);
+						if (nextOption) {
+							onChange(nextOption.value);
+						}
+					}}
+					value={value}
+				>
+					{options.map((option) => (
+						<DropdownMenu.RadioItem key={option.value} value={option.value}>
+							{option.label}
+						</DropdownMenu.RadioItem>
+					))}
+				</DropdownMenu.RadioGroup>
+			</DropdownMenu.Content>
+		</DropdownMenu>
+	);
+}
+
 function AuditFilters({
 	actionFilter,
 	dateRangeFilter,
@@ -488,122 +542,26 @@ function AuditFilters({
 						Filter activity
 					</Text>
 				</div>
-				<DropdownMenu>
-					<DropdownMenu.Trigger
-						render={
-							<Button size="sm" variant="outline">
-								{getActionFilterLabel(actionFilter)}
-								<CaretUpDownIcon
-									aria-hidden="true"
-									className="size-3 text-muted-foreground"
-								/>
-							</Button>
-						}
-					/>
-					<DropdownMenu.Content align="start">
-						<DropdownMenu.RadioGroup
-							onValueChange={(value) =>
-								onActionFilterChange(value as ActionFilter)
-							}
-							value={actionFilter}
-						>
-							<DropdownMenu.RadioItem value="all">
-								All actions
-							</DropdownMenu.RadioItem>
-							{auditActionNames.map((action) => (
-								<DropdownMenu.RadioItem key={action} value={action}>
-									{getAuditActionLabel(action)}
-								</DropdownMenu.RadioItem>
-							))}
-						</DropdownMenu.RadioGroup>
-					</DropdownMenu.Content>
-				</DropdownMenu>
-				<DropdownMenu>
-					<DropdownMenu.Trigger
-						render={
-							<Button size="sm" variant="outline">
-								{outcomeFilterLabels[outcomeFilter]}
-								<CaretUpDownIcon
-									aria-hidden="true"
-									className="size-3 text-muted-foreground"
-								/>
-							</Button>
-						}
-					/>
-					<DropdownMenu.Content align="start">
-						<DropdownMenu.RadioGroup
-							onValueChange={(value) =>
-								onOutcomeFilterChange(value as OutcomeFilter)
-							}
-							value={outcomeFilter}
-						>
-							<DropdownMenu.RadioItem value="all">
-								All outcomes
-							</DropdownMenu.RadioItem>
-							{auditOutcomes.map((outcome) => (
-								<DropdownMenu.RadioItem key={outcome} value={outcome}>
-									{outcomeFilterLabels[outcome]}
-								</DropdownMenu.RadioItem>
-							))}
-						</DropdownMenu.RadioGroup>
-					</DropdownMenu.Content>
-				</DropdownMenu>
-				<DropdownMenu>
-					<DropdownMenu.Trigger
-						render={
-							<Button size="sm" variant="outline">
-								{targetFilterLabels[targetFilter]}
-								<CaretUpDownIcon
-									aria-hidden="true"
-									className="size-3 text-muted-foreground"
-								/>
-							</Button>
-						}
-					/>
-					<DropdownMenu.Content align="start">
-						<DropdownMenu.RadioGroup
-							onValueChange={(value) =>
-								onTargetFilterChange(value as TargetFilter)
-							}
-							value={targetFilter}
-						>
-							{targetFilterOptions.map((target) => (
-								<DropdownMenu.RadioItem key={target} value={target}>
-									{targetFilterLabels[target]}
-								</DropdownMenu.RadioItem>
-							))}
-						</DropdownMenu.RadioGroup>
-					</DropdownMenu.Content>
-				</DropdownMenu>
-				<DropdownMenu>
-					<DropdownMenu.Trigger
-						render={
-							<Button size="sm" variant="outline">
-								{dateRangeFilterLabels[dateRangeFilter]}
-								<CaretUpDownIcon
-									aria-hidden="true"
-									className="size-3 text-muted-foreground"
-								/>
-							</Button>
-						}
-					/>
-					<DropdownMenu.Content align="start">
-						<DropdownMenu.RadioGroup
-							onValueChange={(value) =>
-								onDateRangeFilterChange(value as DateRangeFilter)
-							}
-							value={dateRangeFilter}
-						>
-							{(Object.keys(dateRangeFilterLabels) as DateRangeFilter[]).map(
-								(range) => (
-									<DropdownMenu.RadioItem key={range} value={range}>
-										{dateRangeFilterLabels[range]}
-									</DropdownMenu.RadioItem>
-								)
-							)}
-						</DropdownMenu.RadioGroup>
-					</DropdownMenu.Content>
-				</DropdownMenu>
+				<AuditFilterMenu
+					onChange={onActionFilterChange}
+					options={actionFilterOptions}
+					value={actionFilter}
+				/>
+				<AuditFilterMenu
+					onChange={onOutcomeFilterChange}
+					options={outcomeFilterOptions}
+					value={outcomeFilter}
+				/>
+				<AuditFilterMenu
+					onChange={onTargetFilterChange}
+					options={targetFilterOptions}
+					value={targetFilter}
+				/>
+				<AuditFilterMenu
+					onChange={onDateRangeFilterChange}
+					options={dateRangeFilterOptions}
+					value={dateRangeFilter}
+				/>
 				{hasFilters ? (
 					<Button onClick={onClear} size="sm" variant="ghost">
 						Clear filters

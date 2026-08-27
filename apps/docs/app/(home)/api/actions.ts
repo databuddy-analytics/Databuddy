@@ -8,7 +8,7 @@ interface QueryConfig {
 	defaultLimit: number;
 }
 
-export interface QueryConfigWithMeta extends QueryConfig {
+interface QueryConfigWithMeta extends QueryConfig {
 	meta?: QueryBuilderMeta;
 }
 

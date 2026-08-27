@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { uptimeGranularitySchema } from "@databuddy/shared/uptime";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
@@ -22,19 +23,14 @@ const GRANULARITY_OPTIONS = [
 	{ value: "thirty_minutes", label: "30m" },
 	{ value: "hour", label: "1h" },
 	{ value: "six_hours", label: "6h" },
+	{ value: "twelve_hours", label: "12h" },
+	{ value: "day", label: "24h" },
 ] as const;
 
 const createSchema = z.object({
 	name: z.string().optional(),
 	url: z.string().url("Enter a valid URL (e.g. https://example.com)"),
-	granularity: z.enum([
-		"minute",
-		"five_minutes",
-		"ten_minutes",
-		"thirty_minutes",
-		"hour",
-		"six_hours",
-	]),
+	granularity: uptimeGranularitySchema,
 });
 
 type CreateFormData = z.infer<typeof createSchema>;
@@ -123,9 +119,8 @@ export function AddMonitorDialog({
 				url: data.url,
 				name: data.name || undefined,
 				granularity: data.granularity,
-				jsonParsingConfig: { enabled: true },
 			});
-			const scheduleId = result.scheduleId as string;
+			const scheduleId = result.scheduleId;
 			await addMutation.mutateAsync({
 				statusPageId,
 				uptimeScheduleId: scheduleId,

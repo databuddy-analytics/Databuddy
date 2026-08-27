@@ -1,4 +1,3 @@
-/** Elysia `.mount("/api/autumn", …)` strips the prefix, so the inner pathname is `/attach` not `/api/autumn/attach`. Autumn's router matches full paths under `/api/autumn`. */
 const AUTUMN_API_PREFIX = "/api/autumn";
 
 export function withAutumnApiPath(request: Request): Request {

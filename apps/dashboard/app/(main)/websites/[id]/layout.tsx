@@ -310,7 +310,7 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 
 	return (
 		<div className="flex h-full flex-col overflow-hidden">
-			{!hideToolbar && (
+			{!(hideToolbar || showTrackingSetup) && (
 				<>
 					<TopBar.Title>
 						<AnalyticsDateControls

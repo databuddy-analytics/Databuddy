@@ -10,7 +10,7 @@ import { useCyclePhase } from "../../hooks";
 import { usePrefersReducedMotion } from "../../hooks";
 import type { DotMatrixCommonProps } from "../../core";
 
-export type DotmTriangle7Props = DotMatrixCommonProps;
+type DotmTriangle7Props = DotMatrixCommonProps;
 
 const MATRIX_SIZE = 7;
 
@@ -38,8 +38,6 @@ function isWithinTriangleMask(row: number, col: number): boolean {
 
   return TRIANGLE_CELLS.has(`${row},${col}`);
 }
-
-/** Sliding diagonal bands: same `row + col` share a phase so stripes read as continuous diagonals. */
 function opacityForCell(row: number, col: number, phase: number): number {
   const diag = row + col;
   const t = phase * Math.PI * 2;

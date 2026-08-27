@@ -50,8 +50,6 @@ type ElementItem =
 
 interface StructuredDataProps {
 	baseUrl?: string; // default: https://www.databuddy.cc
-
-	/** Mixed, repeatable elements */
 	elements?: ElementItem[];
 	logoUrl?: string; // default: {baseUrl}/logo.png
 

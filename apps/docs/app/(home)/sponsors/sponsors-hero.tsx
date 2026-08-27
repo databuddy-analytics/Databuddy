@@ -2,11 +2,10 @@
 
 type IconWeight = "regular" | "bold" | "fill" | "duotone";
 
-import { StarIcon as HeartIcon, StarIcon } from "@databuddy/ui/icons";
+import { StarIcon as HeartIcon } from "@databuddy/ui/icons";
 import { SciFiCard } from "@/components/scifi-card";
 
 interface SponsorsHeroProps {
-	featuredSponsors: number;
 	totalSponsors: number;
 }
 
@@ -46,10 +45,7 @@ function StatCard({
 	);
 }
 
-export default function SponsorsHero({
-	totalSponsors,
-	featuredSponsors,
-}: SponsorsHeroProps) {
+export default function SponsorsHero({ totalSponsors }: SponsorsHeroProps) {
 	return (
 		<section className="relative w-full pt-24 pb-16 sm:pt-28 sm:pb-20 lg:pt-32 lg:pb-24">
 			<div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -72,18 +68,12 @@ export default function SponsorsHero({
 				</div>
 
 				{/* Stats Grid */}
-				<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:gap-8">
+				<div className="mx-auto max-w-md">
 					<StatCard
 						description="Supporting our mission"
 						icon={HeartIcon}
-						label="Total Sponsors"
+						label="Sponsors"
 						value={totalSponsors}
-					/>
-					<StatCard
-						description="Featured partners"
-						icon={StarIcon}
-						label="Featured Sponsors"
-						value={featuredSponsors}
 					/>
 				</div>
 			</div>

@@ -296,13 +296,16 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 	});
 
 	const isSetup = Boolean(trackingSetupData?.tracking_setup);
+	const hasRecentEvents = (trackingSetupData?.recent_events ?? 0) > 0;
 	const trackingIssue = trackingSetupData?.tracking_issue ?? null;
-	const statusIsHealthy = isSetup && !trackingIssue;
+	const statusIsHealthy = isSetup && hasRecentEvents && !trackingIssue;
 	const statusTitle = trackingIssue
 		? "Tracking Issue Detected"
-		: isSetup
+		: statusIsHealthy
 			? "Tracking Active"
-			: "Awaiting Installation";
+			: isSetup
+				? "Installed, no recent data"
+				: "Awaiting Installation";
 	const statusDescription =
 		trackingIssue?.message ?? trackingSetupData?.status_message;
 
@@ -361,7 +364,9 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 									? "Live"
 									: trackingIssue
 										? "Blocked"
-										: "Pending"}
+										: isSetup
+											? "No recent data"
+											: "Pending"}
 							</Badge>
 						</div>
 						{statusDescription ? (
@@ -408,15 +413,17 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 								</Tabs.Tab>
 							</Tabs.List>
 
+							{/* policy-ignore dashboard/no-raw-interactive-html: pre-existing compact copy chip; @databuddy/ui Button variants don't match this inline badge styling */}
 							<button
-								className="group flex items-center gap-1.5 rounded-md bg-accent px-2.5 py-1.5 font-mono text-xs transition-colors hover:bg-accent-brighter"
+								className="group flex min-w-0 items-center gap-1.5 rounded-md bg-accent px-2.5 py-1.5 font-mono text-xs transition-colors hover:bg-accent-brighter"
 								onClick={() =>
 									handleCopy(websiteId, "client-id", "Client ID copied!")
 								}
+								title={websiteId}
 								type="button"
 							>
 								<span className="text-muted-foreground">ID:</span>
-								<span className="max-w-32 truncate">{websiteId}</span>
+								<span className="min-w-0 truncate">{websiteId}</span>
 								{copiedBlockId === "client-id" ? (
 									<CheckIcon className="size-3 text-success" weight="bold" />
 								) : (

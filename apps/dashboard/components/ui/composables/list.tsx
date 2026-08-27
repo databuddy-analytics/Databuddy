@@ -135,17 +135,11 @@ function ListCell({
 
 interface ListContentBaseProps<T> {
 	children: (items: T[]) => ReactNode;
-	/** Shown when outcome is empty; overrides emptyProps */
 	empty?: ReactNode;
-	/** Passed to EmptyState when outcome is empty (unless `empty` is set) */
 	emptyProps?: EmptyStateProps;
-	/** Shown when outcome is error; overrides errorProps */
 	error?: ReactNode;
-	/** Passed to EmptyState with variant `error` when outcome is error (unless `error` is set) */
 	errorProps?: EmptyStateProps;
-	/** Shown when outcome is loading; defaults to List.DefaultLoading */
 	loading?: ReactNode;
-	/** Wrapper for default EmptyState branches (not applied to custom `empty` / `error` nodes) */
 	stateWrapperClassName?: string;
 }
 

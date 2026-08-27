@@ -128,7 +128,8 @@ export default function ExportPage() {
 					<Card.Header>
 						<Card.Title>Export Format</Card.Title>
 						<Card.Description>
-							Choose a format for your data export
+							Choose a format for the files inside your export. Exports download
+							as a .zip archive containing events, errors, and web vitals.
 						</Card.Description>
 					</Card.Header>
 					<Card.Content>
@@ -214,7 +215,8 @@ export default function ExportPage() {
 								Format:{" "}
 								<Badge className="font-mono" variant="muted">
 									{selectedFormat.toUpperCase()}
-								</Badge>
+								</Badge>{" "}
+								as .zip
 								{useCustomRange && dateRange?.from && dateRange?.to && (
 									<span className="ml-2">
 										{dayjs(dateRange.from).format("MMM D, YYYY")} –{" "}

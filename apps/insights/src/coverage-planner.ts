@@ -1,9 +1,60 @@
+import type { InvestigationSignal } from "@databuddy/shared/insights";
 import type { DetectedSignal } from "./detection";
-import { rankSignals, signalKeyForDetectedSignal } from "./investigation";
 import {
-	portfolioFamilyForDetectedSignal,
-	type InsightPortfolioFamily,
-} from "./specialists";
+	normalizedErrorSubject,
+	rankSignals,
+	signalKeyForDetectedSignal,
+} from "./investigation";
+
+export type InsightPortfolioFamily =
+	| "funnel"
+	| "goal"
+	| "reliability"
+	| "general";
+
+export function portfolioFamilyForDetectedSignal(
+	signal: DetectedSignal
+): InsightPortfolioFamily {
+	if (signal.metric.startsWith("funnel:")) {
+		return "funnel";
+	}
+	if (signal.metric.startsWith("goal:")) {
+		return "goal";
+	}
+	if (
+		signal.metric === "error_count" ||
+		signal.metric === "lcp" ||
+		signal.metric === "inp" ||
+		signal.subjectKey?.startsWith("route:") === true
+	) {
+		return "reliability";
+	}
+	return "general";
+}
+
+export function portfolioFamilyForInvestigationSignal(
+	signal: InvestigationSignal
+): InsightPortfolioFamily {
+	const { signalKey } = signal;
+	if (
+		signal.entity.type === "funnel" ||
+		signal.entity.type === "funnel_step" ||
+		signalKey.startsWith("funnel:")
+	) {
+		return "funnel";
+	}
+	if (signal.entity.type === "goal" || signalKey.startsWith("goal:")) {
+		return "goal";
+	}
+	if (
+		signal.entity.type === "error" ||
+		signal.entity.type === "vital" ||
+		signalKey.startsWith("route:")
+	) {
+		return "reliability";
+	}
+	return "general";
+}
 
 const PORTFOLIO_LIMIT = { manual: 5, scheduled: 2 } as const;
 const TRAFFIC_METRICS = new Set(["visitors", "sessions", "pageviews"]);
@@ -11,9 +62,7 @@ const TRAFFIC_METRICS = new Set(["visitors", "sessions", "pageviews"]);
 export type CoveragePortfolioReason = keyof typeof PORTFOLIO_LIMIT;
 
 export interface CoveragePortfolioOptions {
-	/** An exact open investigation to remeasure before newly detected work. */
 	dueSignalKey?: string | null;
-	/** Fill from these signals before using lower-priority fallback work. */
 	preferredSignalKeys?: ReadonlySet<string>;
 	reason: CoveragePortfolioReason;
 }
@@ -50,7 +99,9 @@ function signalGroup(signal: DetectedSignal): string {
 		signal.metric === "lcp" ||
 		signal.metric === "inp"
 	) {
-		return `health:${signal.entityId ?? signal.subjectKey ?? signal.metric}`;
+		return `health:${normalizedErrorSubject(
+			signal.entityId ?? signal.subjectKey ?? signal.metric
+		)}`;
 	}
 	return signalKeyForDetectedSignal(signal);
 }
@@ -70,8 +121,6 @@ function stableIdentity(signal: DetectedSignal): string {
 		String(signal.deltaPercent),
 		JSON.stringify(signal.baselineDates ?? []),
 		signal.definitionEvidence ?? "",
-		JSON.stringify(signal.measurementCandidate ?? null),
-		JSON.stringify(signal.setupRecommendationCandidate ?? null),
 		signal.detectedAt,
 	].join("\u0000");
 }
@@ -99,8 +148,6 @@ function rankedCandidates(signals: DetectedSignal[]): Candidate[] {
 	}
 	return candidates;
 }
-
-/** Selects a small deterministic portfolio without mutating detector output. */
 export function planCoveragePortfolio(
 	signals: DetectedSignal[],
 	options: CoveragePortfolioOptions

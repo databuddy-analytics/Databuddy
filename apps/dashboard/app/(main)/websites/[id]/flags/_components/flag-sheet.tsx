@@ -13,6 +13,7 @@ import {
 	CodeBlockCopyButton,
 } from "@/components/ai-elements/code-block";
 import { orpc } from "@/lib/orpc";
+import { mutationErrorToast } from "@/lib/user-facing-error";
 import { cn } from "@/lib/utils";
 import { GroupSelector } from "../groups/_components/group-selector";
 import { DependencySelector } from "./dependency-selector";
@@ -209,9 +210,11 @@ export function FlagSheet({
 
 	const createMutation = useMutation({
 		...orpc.flags.create.mutationOptions(),
+		...mutationErrorToast,
 	});
 	const updateMutation = useMutation({
 		...orpc.flags.update.mutationOptions(),
+		...mutationErrorToast,
 	});
 
 	const resetForm = useCallback(() => {
@@ -356,9 +359,7 @@ export function FlagSheet({
 			});
 
 			onCloseAction();
-		} catch (error) {
-			console.error("Flag mutation error:", error);
-		}
+		} catch {}
 	};
 
 	const isLoading = createMutation.isPending || updateMutation.isPending;

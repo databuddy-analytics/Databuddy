@@ -14,14 +14,14 @@ function stringifyEvent(event: unknown): string {
 	);
 }
 
-export class KafkaConnectionError extends Data.TaggedError(
-	"KafkaConnectionError"
-)<{ readonly cause?: Error }> {}
-export class KafkaSendError extends Data.TaggedError("KafkaSendError")<{
+class KafkaConnectionError extends Data.TaggedError("KafkaConnectionError")<{
+	readonly cause?: Error;
+}> {}
+class KafkaSendError extends Data.TaggedError("KafkaSendError")<{
 	readonly topic: string;
 	readonly cause?: Error;
 }> {}
-export class ProducerShuttingDownError extends Data.TaggedError(
+class ProducerShuttingDownError extends Data.TaggedError(
 	"ProducerShuttingDownError"
 )<{
 	readonly eventCount: number;
@@ -33,13 +33,13 @@ export class ProducerUnavailableError extends Data.TaggedError(
 	readonly cause?: Error;
 	readonly retryable: true;
 }> {}
-export class UnknownKafkaTopicError extends Data.TaggedError(
+class UnknownKafkaTopicError extends Data.TaggedError(
 	"UnknownKafkaTopicError"
 )<{
 	readonly retryable: false;
 	readonly topic: string;
 }> {}
-export class ClickHouseFallbackError extends Data.TaggedError(
+class ClickHouseFallbackError extends Data.TaggedError(
 	"ClickHouseFallbackError"
 )<{
 	readonly cause?: Error;
@@ -55,7 +55,7 @@ export class ShutdownDrainError extends Data.TaggedError("ShutdownDrainError")<{
 	readonly retryable: true;
 }> {}
 
-export type ProducerError =
+type ProducerError =
 	| KafkaConnectionError
 	| KafkaSendError
 	| ProducerShuttingDownError
@@ -119,11 +119,10 @@ export interface ProducerEffects {
 }
 
 export interface ProducerDeliveryOptions {
-	/** Prevent an uncertain Kafka retry from switching to ClickHouse. */
 	readonly allowDirectFallback?: boolean;
 }
 
-export interface KafkaResources {
+interface KafkaResources {
 	readonly admin: Admin;
 	readonly producer: Producer;
 }
@@ -976,7 +975,7 @@ export const createProducerEffects = (
 		)
 	);
 
-export function initializeKafka(config: ProducerConfig): KafkaResources | null {
+function initializeKafka(config: ProducerConfig): KafkaResources | null {
 	if (config.selfHost || !config.broker) {
 		return null;
 	}
@@ -1039,7 +1038,7 @@ export function initializeKafka(config: ProducerConfig): KafkaResources | null {
 	};
 }
 
-export interface ProducerStatsSnapshot {
+interface ProducerStatsSnapshot {
 	connected: boolean;
 	connecting: boolean;
 	errors: number;

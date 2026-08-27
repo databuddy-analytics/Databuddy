@@ -1,8 +1,3 @@
-/**
- * Country code mapping utility
- * Maps country names to ISO 3166-1 alpha-2 codes
- */
-
 const COUNTRY_NAME_TO_CODE: Record<string, string> = {
 	Afghanistan: "AF",
 	"Åland Islands": "AX",
@@ -263,12 +258,6 @@ const COUNTRY_NAME_TO_CODE: Record<string, string> = {
 	"South Korea": "KR",
 	"North Korea": "KP",
 };
-
-/**
- * Maps country name to ISO 3166-1 alpha-2 code
- * @param countryName - The country name to map
- * @returns The ISO country code, or the original name if not found
- */
 export function getCountryCode(countryName: string): string {
 	if (!countryName) {
 		return "";
@@ -292,12 +281,6 @@ export function getCountryCode(countryName: string): string {
 
 	return countryName;
 }
-
-/**
- * Maps country code to country name
- * @param countryCode - The ISO country code to map
- * @returns The country name, or the original code if not found
- */
 export function getCountryName(countryCode: string): string {
 	if (!countryCode) {
 		return "";

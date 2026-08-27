@@ -309,11 +309,12 @@ Server flags use the same options as client flags, but `skipStorage` is always `
 
 ## Environment Variables
 
+The browser SDK auto-detects the client ID from `NEXT_PUBLIC_DATABUDDY_CLIENT_ID`, `NUXT_PUBLIC_DATABUDDY_CLIENT_ID`, `VITE_DATABUDDY_CLIENT_ID`, or `REACT_APP_DATABUDDY_CLIENT_ID`. Other variables must be wired in explicitly.
+
 ### Next.js
 
 <CodeBlock language="bash" filename=".env.local">
   {`NEXT_PUBLIC_DATABUDDY_CLIENT_ID=your-client-id
-DATABUDDY_CLIENT_ID=your-client-id
 DATABUDDY_API_KEY=your-api-key`}
 </CodeBlock>
 
@@ -325,10 +326,22 @@ DATABUDDY_API_KEY=your-api-key`}
 
 ### Node.js / Server
 
+The Node client does not read environment variables on its own. Pass them through the constructor:
+
 <CodeBlock language="bash" filename=".env">
   {`DATABUDDY_API_KEY=your-api-key
 DATABUDDY_WEBSITE_ID=your-client-id  # Optional default Client ID
 DATABUDDY_API_URL=https://basket.databuddy.cc  # Optional`}
+</CodeBlock>
+
+<CodeBlock language="tsx">
+  {`import { Databuddy } from "@databuddy/sdk/node";
+
+const client = new Databuddy({
+  apiKey: process.env.DATABUDDY_API_KEY!,
+  websiteId: process.env.DATABUDDY_WEBSITE_ID,
+  apiUrl: process.env.DATABUDDY_API_URL
+});`}
 </CodeBlock>
 
 ## Related

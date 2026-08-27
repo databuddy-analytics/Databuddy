@@ -1,12 +1,12 @@
 // RES uses Lighthouse 10 mobile weights: FCP 15%, LCP 30%, INP 30%, CLS 25%.
-export const RES_WEIGHTS = {
+const RES_WEIGHTS = {
 	FCP: 0.15,
 	LCP: 0.3,
 	INP: 0.3,
 	CLS: 0.25,
 } as const;
 
-export type RESMetric = keyof typeof RES_WEIGHTS;
+type RESMetric = keyof typeof RES_WEIGHTS;
 
 // Google Core Web Vitals good/poor thresholds.
 const METRIC_THRESHOLDS = {
@@ -24,7 +24,7 @@ const SCORE_CURVES = {
 	CLS: { median: 0.1, p10: 0.25 },
 } as const;
 
-export function calculateMetricScore(
+function calculateMetricScore(
 	value: number | null | undefined,
 	metric: RESMetric
 ): number | null {

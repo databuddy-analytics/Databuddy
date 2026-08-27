@@ -86,7 +86,7 @@ export function AnomaliesPageContent({ params }: AnomaliesPageContentProps) {
 				<List.Content
 					emptyProps={{
 						description:
-							"No unusual patterns in the last hour compared to your 7-day baseline. Pageviews, errors, and custom events are checked automatically.",
+							"No unusual patterns in the last hour compared to your 7-day baseline. Pageviews, errors, and custom events are checked when you open this page or press refresh.",
 						icon: <CheckCircleIcon weight="duotone" />,
 						title: "All clear",
 					}}

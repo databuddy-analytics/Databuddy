@@ -52,10 +52,6 @@ ${optionsLine}${integrityLine}    crossorigin="anonymous"
     async
   ></script>`;
 }
-
-/**
- * Generate full NPM code example with import and usage
- */
 export function generateNpmCode(
 	websiteId: string,
 	trackingOptions: TrackingOptions

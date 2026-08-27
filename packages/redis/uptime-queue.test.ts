@@ -126,16 +126,16 @@ describe("uptime queue", () => {
 		expect(first).not.toBe(second);
 	});
 
-	it("keeps source and delivery jobs retryable through infrastructure outages", () => {
+	it("bounds retries and retains failures for inspection instead of forever", () => {
 		expect(UPTIME_JOB_OPTIONS).toMatchObject({
-			attempts: 1_000_000,
-			backoff: { delay: 30_000, type: "fixed" },
-			removeOnFail: false,
+			attempts: 3,
+			backoff: { delay: 5_000, type: "exponential" },
+			removeOnFail: { age: 24 * 3600, count: 5000 },
 		});
 		expect(UPTIME_DELIVERY_JOB_OPTIONS).toMatchObject({
-			attempts: 1_000_000,
+			attempts: 20,
 			backoff: { delay: 30_000, type: "fixed" },
-			removeOnFail: false,
+			removeOnFail: { age: 7 * 24 * 3600, count: 10_000 },
 		});
 	});
 });

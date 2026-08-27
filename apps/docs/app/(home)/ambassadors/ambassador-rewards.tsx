@@ -27,7 +27,7 @@ const rewards: Reward[] = [
 		icon: DiamondIcon,
 		title: "Free Premium Access",
 		description: "Lifetime access to all premium features and analytics",
-		value: "$99/month value",
+		value: "Pro plan access",
 		highlight: true,
 	},
 	{

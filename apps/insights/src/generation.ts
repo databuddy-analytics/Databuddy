@@ -29,7 +29,6 @@ import {
 	type FunnelGoalDetectionDiagnostics,
 	remeasureFunnelGoalSignal,
 } from "./funnel-detection";
-import { detectMeasurementRecommendationSignals } from "./measurement-recommendation-detection";
 import {
 	detectRouteHealthSignals,
 	loadRouteVitalContinuation,
@@ -71,7 +70,6 @@ import {
 } from "./agent";
 import {
 	errorCustomerImpactEvidence,
-	errorIdentitySetupRecommendation,
 	loadErrorCustomerImpact,
 } from "./error-customer-impact";
 import {
@@ -79,12 +77,12 @@ import {
 	loadInsightRunCandidatePlan,
 	type PlannedInvestigationCandidate,
 } from "./run-candidate-plan";
-import { planCoveragePortfolio } from "./coverage-planner";
 import {
+	planCoveragePortfolio,
 	portfolioFamilyForDetectedSignal,
-	resolveInsightSpecialist,
+	portfolioFamilyForInvestigationSignal,
 	type InsightPortfolioFamily,
-} from "./specialists";
+} from "./coverage-planner";
 import type { WebsiteInvestigation } from "./persistence";
 import {
 	isInterruptingInvestigation,
@@ -202,7 +200,7 @@ function coverageForInvestigationSignals(
 ): InvestigationCoverageCounts {
 	const counts = emptyCoverageCounts();
 	for (const signal of signals) {
-		counts[resolveInsightSpecialist(signal).portfolioFamily] += 1;
+		counts[portfolioFamilyForInvestigationSignal(signal)] += 1;
 	}
 	return counts;
 }
@@ -288,7 +286,6 @@ interface InvestigationRuntime {
 
 export interface InvestigationSources {
 	detectDefinitionSignals: typeof detectFunnelGoalSignals;
-	detectMeasurementRecommendationSignals: typeof detectMeasurementRecommendationSignals;
 	detectMetricSignals: typeof detectSignals;
 	detectRouteHealthSignals: typeof detectRouteHealthSignals;
 	fetchAnnotations: (
@@ -454,7 +451,6 @@ export async function refreshInvestigationSignal(params: {
 
 const productionInvestigationSources: InvestigationSources = {
 	detectDefinitionSignals: detectFunnelGoalSignals,
-	detectMeasurementRecommendationSignals,
 	detectMetricSignals: detectSignals,
 	detectRouteHealthSignals,
 	fetchAnnotations: fetchSignalAnnotations,
@@ -494,15 +490,6 @@ function toPlannedCandidate(
 	);
 	return {
 		evidence: investigation.evidence,
-		...(investigation.measurementCandidate
-			? { measurementCandidate: investigation.measurementCandidate }
-			: {}),
-		...(investigation.setupRecommendationCandidate
-			? {
-					setupRecommendationCandidate:
-						investigation.setupRecommendationCandidate,
-				}
-			: {}),
 		signal: investigation.signal,
 	};
 }
@@ -591,14 +578,6 @@ async function discoverWebsiteSignals(
 				diagnostics: definitionDiagnostics,
 			})
 		),
-		detectSource("measurement_recommendations", () =>
-			runtime.sources.detectMeasurementRecommendationSignals(
-				detectParams,
-				asOf,
-				undefined,
-				sourceAbortSignal
-			)
-		),
 		detectSource("route_health", () =>
 			runtime.sources.detectRouteHealthSignals(
 				detectParams,
@@ -615,13 +594,8 @@ async function discoverWebsiteSignals(
 	if (failedDetection?.status === "rejected") {
 		throw discoveryController.signal.reason ?? failedDetection.reason;
 	}
-	const [
-		remeasuredDue,
-		metricSignals,
-		funnelGoalSignals,
-		measurementRecommendationSignals,
-		routeHealthSignals,
-	] = await Promise.all(detectionTasks);
+	const [remeasuredDue, metricSignals, funnelGoalSignals, routeHealthSignals] =
+		await Promise.all(detectionTasks);
 	if (
 		due &&
 		remeasuredDue &&
@@ -642,7 +616,6 @@ async function discoverWebsiteSignals(
 		...(remeasuredDue ? [remeasuredDue] : []),
 		...metricSignals,
 		...funnelGoalSignals,
-		...measurementRecommendationSignals,
 		...routeHealthSignals,
 	]) {
 		const key = signalKeyForDetectedSignal(signal);
@@ -766,11 +739,23 @@ async function discoverWebsiteSignals(
 	};
 }
 
+type OpenWorkItem = InsightAgentInput["otherOpenWork"][number];
+
+function interruptingOpenWorkItem(
+	asOf: string,
+	outcome: InvestigationOutcome
+): OpenWorkItem | null {
+	return outcome.next.type === "act" || outcome.next.type === "ask"
+		? { asOf, next: outcome.next, title: outcome.title }
+		: null;
+}
+
 async function investigatePlannedCandidate(
 	input: InvestigateWebsiteInput,
 	candidate: PlannedInvestigationCandidate,
 	relatedSignals: InvestigationSignal[],
-	runtime: InvestigationRuntime
+	runtime: InvestigationRuntime,
+	siblingOpenWork: readonly OpenWorkItem[] = []
 ): Promise<WebsiteInvestigationArtifact> {
 	const startedAt = performance.now();
 	const asOf = normalizeAsOf(input.asOf, input.timezone);
@@ -842,10 +827,6 @@ async function investigatePlannedCandidate(
 	if (routeVitalContinuation) {
 		evidence.push(routeVitalContinuationEvidence(routeVitalContinuation));
 	}
-	const setupRecommendationCandidate =
-		errorIdentitySetupRecommendation(customerImpact ?? null) ??
-		candidate.setupRecommendationCandidate ??
-		null;
 	const annotation = annotationEvidence(annotationRows);
 	if (annotation) {
 		evidence = [...evidence, annotation];
@@ -888,10 +869,8 @@ async function investigatePlannedCandidate(
 				? { hasQualifiedRouteVitalContinuation: true as const }
 				: {}),
 			history,
-			measurementCandidate: candidate.measurementCandidate,
-			otherOpenWork,
+			otherOpenWork: [...otherOpenWork, ...siblingOpenWork],
 			relatedSignals,
-			setupRecommendationCandidate,
 			signal: candidate.signal,
 		});
 	} catch (error) {
@@ -964,13 +943,6 @@ function plannedPortfolio(
 		}
 	).map(toPlannedCandidate);
 }
-
-/**
- * A frozen portfolio is retryable per signal because successful candidates
- * persist observations independently. An invalid structured model result
- * therefore should not suppress unrelated candidates in the same run. Other
- * failures remain fail-fast because they can indicate a broken durable seam.
- */
 async function runPlannedCandidatePortfolio(params: {
 	candidates: PlannedInvestigationCandidate[];
 	completedSignalKeys: ReadonlySet<string>;
@@ -1004,12 +976,6 @@ async function runPlannedCandidatePortfolio(params: {
 		throw firstCandidateFailure;
 	}
 }
-
-/**
- * Read-only harness for proving a full run selects distinct signals before it
- * reaches durable production persistence. Each artifact remains one exact
- * signal and one agent turn.
- */
 export async function investigateWebsitePortfolioWithSources(
 	input: InvestigateWebsiteInput,
 	sources: InvestigationSources,
@@ -1043,19 +1009,29 @@ export async function investigateWebsitePortfolioWithSources(
 		];
 	}
 	const artifacts: WebsiteInvestigationArtifact[] = [];
+	const siblingOpenWork: OpenWorkItem[] = [];
 	try {
 		await runPlannedCandidatePortfolio({
 			candidates,
 			completedSignalKeys: new Set(),
 			runCandidate: async (candidate, relatedSignals) => {
-				artifacts.push(
-					await investigatePlannedCandidate(
-						input,
-						candidate,
-						relatedSignals,
-						runtime
-					)
+				const artifact = await investigatePlannedCandidate(
+					input,
+					candidate,
+					relatedSignals,
+					runtime,
+					siblingOpenWork
 				);
+				artifacts.push(artifact);
+				if (artifact.outcome) {
+					const item = interruptingOpenWorkItem(
+						artifact.asOf,
+						artifact.outcome
+					);
+					if (item) {
+						siblingOpenWork.push(item);
+					}
+				}
 			},
 		});
 		return artifacts;
@@ -1260,6 +1236,15 @@ export async function generateWebsiteInsights(
 	const outcomes = existingObservations.map(
 		(observation) => observation.outcome
 	);
+	const siblingOpenWork: OpenWorkItem[] = existingObservations.flatMap(
+		(observation) => {
+			const item = interruptingOpenWorkItem(
+				observation.asOf.toISOString(),
+				observation.outcome
+			);
+			return item ? [item] : [];
+		}
+	);
 	const interruptingInvestigations: WebsiteInvestigation[] =
 		existingObservations.flatMap((observation) =>
 			observation.insightId && isInterruptingInvestigation(observation)
@@ -1357,7 +1342,8 @@ export async function generateWebsiteInsights(
 								onUsage: (usage) => {
 									agentUsage.value = usage;
 								},
-							}
+							},
+							siblingOpenWork
 						);
 						if (!(analysis.outcome && analysis.signal)) {
 							if (noCredits) {
@@ -1395,6 +1381,13 @@ export async function generateWebsiteInsights(
 							publishedSignalKeys.add(candidate.signal.signalKey);
 						}
 						outcomes.push(candidate.outcome);
+						const openWorkItem = interruptingOpenWorkItem(
+							analysis.asOf,
+							candidate.outcome
+						);
+						if (openWorkItem) {
+							siblingOpenWork.push(openWorkItem);
+						}
 						if (saved) {
 							interruptingInvestigations.push(saved);
 							await enqueueInterruptingEffects([saved]);

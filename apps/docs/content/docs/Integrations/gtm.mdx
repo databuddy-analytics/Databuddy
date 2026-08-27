@@ -33,7 +33,8 @@ Integrate Databuddy with Google Tag Manager for centralized tag management while
     var el = document.createElement("script");
     el.src = "https://cdn.databuddy.cc/databuddy.js";
     el.async = true;
-    el.setAttribute("data-client-id", "Databuddy Client ID");
+    el.crossOrigin = "anonymous";
+    el.setAttribute("data-client-id", "{{Databuddy Client ID}}");
     el.setAttribute("data-track-attributes", "true");
     el.setAttribute("data-track-errors", "true");
     document.head.appendChild(el);
@@ -73,16 +74,16 @@ Load different Databuddy configurations based on environment:
 ```html
 <script>
   (function() {
-    var isProduction = {{Page Hostname}} === 'yourdomain.com';
+    var isProduction = '{{Page Hostname}}' === 'yourdomain.com';
     var clientId = isProduction ? '{{Databuddy Prod Client ID}}' : '{{Databuddy Dev Client ID}}';
 
     var el = document.createElement("script");
     el.src = "https://cdn.databuddy.cc/databuddy.js";
     el.async = true;
+    el.crossOrigin = "anonymous";
     el.setAttribute("data-client-id", clientId);
     el.setAttribute("data-track-attributes", "true");
     el.setAttribute("data-track-errors", "true");
-    el.setAttribute("data-debug", isProduction ? "false" : "true");
     document.head.appendChild(el);
   })();
 </script>
@@ -96,10 +97,11 @@ Load Databuddy only for specific conditions:
 <script>
   (function() {
     // Only load for non-internal traffic
-    if ({{Internal Traffic}} === 'false') {
+    if ('{{Internal Traffic}}' === 'false') {
       var el = document.createElement("script");
       el.src = "https://cdn.databuddy.cc/databuddy.js";
       el.async = true;
+      el.crossOrigin = "anonymous";
       el.setAttribute("data-client-id", "{{Databuddy Client ID}}");
       el.setAttribute("data-track-attributes", "true");
       el.setAttribute("data-track-errors", "true");
@@ -117,16 +119,16 @@ Create tags for specific events:
 
 **E-commerce Purchase Tag:**
 
+Create Data Layer Variables for the values you need (e.g. `Transaction ID`, `Purchase Revenue`, `Currency`, `Items Count`), then fire this tag on your purchase event trigger:
+
 ```html
 <script>
-  window.dataLayer = window.dataLayer || [];
-
-  if (window.databuddy && {{ecommerce.purchase}}) {
+  if (window.databuddy) {
     databuddy.track('purchase', {
-      transaction_id: {{Transaction ID}},
+      transaction_id: '{{Transaction ID}}',
       value: {{Purchase Revenue}},
-      currency: {{Currency}},
-      items: {{Enhanced Ecommerce Items}}
+      currency: '{{Currency}}',
+      item_count: {{Items Count}}
     });
   }
 </script>
@@ -138,9 +140,9 @@ Create tags for specific events:
 <script>
   if (window.databuddy) {
     databuddy.track('form_submit', {
-      form_id: {{Form ID}},
-      form_name: {{Form Name}},
-      form_location: {{Page Path}}
+      form_id: '{{Form ID}}',
+      form_name: '{{Form Name}}',
+      form_location: '{{Page Path}}'
     });
   }
 </script>
@@ -153,12 +155,12 @@ Send GTM data layer events to Databuddy:
 ```html
 <script>
   if (window.databuddy) {
-    databuddy.track({{Event}}, {
-      category: {{Event Category}},
-      action: {{Event Action}},
-      label: {{Event Label}},
+    databuddy.track('{{Event}}', {
+      category: '{{Event Category}}',
+      action: '{{Event Action}}',
+      label: '{{Event Label}}',
       value: {{Event Value}},
-      custom_parameter: {{Custom Parameter}}
+      custom_parameter: '{{Custom Parameter}}'
     });
   }
 </script>
@@ -170,23 +172,7 @@ The analytics script records pageviews automatically, including SPA navigation. 
 
 ### Scroll Tracking
 
-Set up scroll depth tracking:
-
-1. **Trigger Type**: Scroll Depth
-2. **Vertical Scroll Depths**: 25, 50, 75, 90
-3. **Tag**: Custom HTML with scroll tracking
-
-```html
-<script>
-  if (window.databuddy) {
-    databuddy.track('scroll_depth', {
-      scroll_depth: {{Scroll Depth Threshold}},
-      page_path: {{Page Path}},
-      page_title: {{Page Title}}
-    });
-  }
-</script>
-```
+Databuddy's built-in tracking already covers scroll depth, so you do not need a separate GTM scroll depth tag.
 
 ### Click Tracking
 
@@ -200,9 +186,9 @@ Track specific button clicks:
 <script>
   if (window.databuddy) {
     databuddy.track('button_click', {
-      button_text: {{Click Text}},
-      button_classes: {{Click Classes}},
-      page_path: {{Page Path}}
+      button_text: '{{Click Text}}',
+      button_classes: '{{Click Classes}}',
+      page_path: '{{Page Path}}'
     });
   }
 </script>
@@ -212,19 +198,19 @@ Track specific button clicks:
 
 ### Enhanced E-commerce Setup
 
-Track the complete customer journey:
+Track the complete customer journey. Create Data Layer Variables for the product values your site pushes to the data layer, and fire each tag on the matching data layer event trigger.
 
 **Product View Tag:**
 
 ```html
 <script>
-  if (window.databuddy && {{ecommerce.detail}}) {
+  if (window.databuddy) {
     databuddy.track('product_view', {
-      product_id: {{Product ID}},
-      product_name: {{Product Name}},
-      product_category: {{Product Category}},
+      product_id: '{{Product ID}}',
+      product_name: '{{Product Name}}',
+      product_category: '{{Product Category}}',
       product_price: {{Product Price}},
-      currency: {{Currency}}
+      currency: '{{Currency}}'
     });
   }
 </script>
@@ -234,13 +220,13 @@ Track the complete customer journey:
 
 ```html
 <script>
-  if (window.databuddy && {{ecommerce.add}}) {
+  if (window.databuddy) {
     databuddy.track('add_to_cart', {
-      product_id: {{Product ID}},
-      product_name: {{Product Name}},
+      product_id: '{{Product ID}}',
+      product_name: '{{Product Name}}',
       quantity: {{Quantity}},
       value: {{Item Revenue}},
-      currency: {{Currency}}
+      currency: '{{Currency}}'
     });
   }
 </script>
@@ -250,11 +236,11 @@ Track the complete customer journey:
 
 ```html
 <script>
-  if (window.databuddy && {{ecommerce.checkout}}) {
+  if (window.databuddy) {
     databuddy.track('begin_checkout', {
       value: {{Cart Value}},
-      currency: {{Currency}},
-      items: {{Enhanced Ecommerce Items}}
+      currency: '{{Currency}}',
+      item_count: {{Items Count}}
     });
   }
 </script>
@@ -270,12 +256,13 @@ Respect user privacy choices:
 <script>
   (function() {
     // Check consent status
-    var hasConsent = {{Cookie Consent Status}} === 'granted';
+    var hasConsent = '{{Cookie Consent Status}}' === 'granted';
 
     if (hasConsent) {
       var el = document.createElement("script");
       el.src = "https://cdn.databuddy.cc/databuddy.js";
       el.async = true;
+      el.crossOrigin = "anonymous";
       el.setAttribute("data-client-id", "{{Databuddy Client ID}}");
       el.setAttribute("data-track-attributes", "true");
       el.setAttribute("data-track-errors", "true");
@@ -319,12 +306,12 @@ Enable debug mode for testing:
 
 ```html
 <script>
-  var isDebugMode = {{Debug Mode}} === 'true';
+  var isDebugMode = '{{Debug Mode}}' === 'true';
 
   if (window.databuddy && isDebugMode) {
     console.log('Databuddy Debug Mode Enabled');
     databuddy.track('debug_event', {
-      page: {{Page Path}},
+      page: '{{Page Path}}',
       timestamp: new Date().toISOString()
     });
   }
@@ -348,8 +335,8 @@ Create test variables for debugging:
 ```javascript
 function() {
   return {
-    page_path: {{Page Path}},
-    page_title: {{Page Title}},
+    page_path: '{{Page Path}}',
+    page_title: '{{Page Title}}',
     user_agent: navigator.userAgent,
     timestamp: new Date().toISOString()
   };
@@ -371,6 +358,7 @@ function() {
       var el = document.createElement("script");
       el.src = "https://cdn.databuddy.cc/databuddy.js";
       el.async = true;
+      el.crossOrigin = "anonymous";
       el.setAttribute("data-client-id", "{{Databuddy Client ID}}");
       el.onerror = function () {
         console.warn("Databuddy script failed to load");
@@ -416,7 +404,7 @@ Map GA4 events to Databuddy equivalents:
 | page_view   | screen_view     | Automatic |
 | purchase    | purchase        | Enhanced with privacy features  |
 | add_to_cart | add_to_cart     | Same structure                  |
-| scroll      | scroll_depth    | Custom implementation           |
+| scroll      | scroll_depth    | Covered by built-in tracking    |
 
 ## Troubleshooting
 

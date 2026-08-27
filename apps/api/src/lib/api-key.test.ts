@@ -1,5 +1,41 @@
-import { describe, expect, it } from "vitest";
-import { hasScope, isExpired } from "keypal";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const state = vi.hoisted(() => ({
+	findFirst: vi.fn(async () => state.row),
+	lastUsedWrites: 0,
+	lockReply: "OK" as "OK" | null,
+	redisSet: vi.fn(async () => state.lockReply),
+	row: null as unknown,
+}));
+
+vi.mock("@databuddy/db", () => ({
+	db: {
+		transaction: async (fn: (tx: unknown) => Promise<unknown>) =>
+			fn({
+				execute: async () => undefined,
+				query: { apikey: { findFirst: state.findFirst } },
+			}),
+		update: () => ({
+			set: () => ({
+				where: async () => {
+					state.lastUsedWrites += 1;
+				},
+			}),
+		}),
+	},
+	eq: vi.fn(),
+	sql: () => "",
+}));
+
+vi.mock("@databuddy/db/schema", () => ({ apikey: {} }));
+
+vi.mock("@databuddy/redis", () => ({
+	cacheNamespaces: { apiKeyByHash: "api-key-by-hash" },
+	cacheable: (fn: (...args: never[]) => unknown) =>
+		Object.assign(fn, { invalidate: vi.fn(async () => undefined) }),
+	redis: { set: state.redisSet },
+}));
+
 import {
 	type ApiKeyRow,
 	extractSecret,
@@ -13,158 +49,214 @@ import {
 	hasWebsiteAnyScope,
 	hasWebsiteScope,
 	isApiKeyPresent,
+	resolveApiKey,
+	resolveApiKeySecret,
 	resolveEffectiveScopesForWebsite,
 } from "@databuddy/api-keys/resolve";
 
-const createMockKey = (overrides: Partial<ApiKeyRow> = {}): ApiKeyRow =>
-	({
-		id: "key-123",
-		name: "Test Key",
-		prefix: "dbdy",
-		start: "dbdy_abc",
-		keyHash: "hashed",
-		userId: "user-1",
-		organizationId: null,
-		type: "user",
-		scopes: ["read:data", "write:data"],
+const VALID_SECRET = "dbdy_test123";
+
+function createMockKey(overrides: Partial<ApiKeyRow> = {}): ApiKeyRow {
+	const now = new Date("2026-08-01T00:00:00.000Z");
+	return {
+		createdAt: now,
 		enabled: true,
-		revokedAt: null,
 		expiresAt: null,
+		id: "key-123",
+		keyHash: "hashed",
+		lastUsedAt: null,
+		metadata: {},
+		name: "Test Key",
+		organizationId: null,
+		prefix: "dbdy",
 		rateLimitEnabled: true,
 		rateLimitMax: null,
 		rateLimitTimeWindow: null,
-		metadata: {},
-		createdAt: new Date(),
-		updatedAt: new Date(),
+		revokedAt: null,
+		scopes: ["read:data", "write:data"],
+		start: "dbdy_abc",
+		type: "user",
+		updatedAt: now,
+		userId: "user-1",
 		...overrides,
-	}) as ApiKeyRow;
+	};
+}
+
+beforeEach(() => {
+	state.findFirst.mockClear();
+	state.lastUsedWrites = 0;
+	state.lockReply = "OK";
+	state.redisSet.mockClear();
+	state.row = null;
+});
 
 describe("isApiKeyPresent", () => {
-	it("returns true when x-api-key header is present", () => {
-		const headers = new Headers({ "x-api-key": "dbdy_test123" });
-		expect(isApiKeyPresent(headers)).toBe(true);
-	});
-
-	it("returns true when Bearer token is present", () => {
-		const headers = new Headers({ authorization: "Bearer dbdy_test123" });
-		expect(isApiKeyPresent(headers)).toBe(true);
-	});
-
-	it("returns false when no API key headers", () => {
-		const headers = new Headers({});
-		expect(isApiKeyPresent(headers)).toBe(false);
-	});
-
-	it("returns false for non-Bearer authorization", () => {
-		const headers = new Headers({ authorization: "Basic dXNlcjpwYXNz" });
-		expect(isApiKeyPresent(headers)).toBe(false);
-	});
-
-	it("returns true for lowercase bearer", () => {
-		const headers = new Headers({ authorization: "bearer dbdy_test123" });
-		expect(isApiKeyPresent(headers)).toBe(true);
-	});
-
-	it("returns false for empty x-api-key", () => {
-		const headers = new Headers({ "x-api-key": "" });
-		expect(isApiKeyPresent(headers)).toBe(false);
+	it.each([
+		["x-api-key header", { "x-api-key": VALID_SECRET }, true],
+		["Bearer token", { authorization: `Bearer ${VALID_SECRET}` }, true],
+		["lowercase bearer", { authorization: `bearer ${VALID_SECRET}` }, true],
+		["no headers", {}, false],
+		["Basic authorization", { authorization: "Basic dXNlcjpwYXNz" }, false],
+		["empty x-api-key", { "x-api-key": "" }, false],
+	])("%s -> %s", (_name, headers, expected) => {
+		expect(isApiKeyPresent(new Headers(headers))).toBe(expected);
 	});
 });
 
 describe("extractSecret", () => {
-	it("extracts x-api-key header", () => {
-		const headers = new Headers({ "x-api-key": "dbdy_test123" });
-		expect(extractSecret(headers)).toBe("dbdy_test123");
+	it.each([
+		["x-api-key header", { "x-api-key": VALID_SECRET }, VALID_SECRET],
+		[
+			"Bearer token",
+			{ authorization: `Bearer ${VALID_SECRET}` },
+			VALID_SECRET,
+		],
+		[
+			"x-api-key over Bearer",
+			{
+				authorization: "Bearer dbdy_bearer_token",
+				"x-api-key": "dbdy_xapikey_token",
+			},
+			"dbdy_xapikey_token",
+		],
+		[
+			"whitespace around x-api-key",
+			{ "x-api-key": `  ${VALID_SECRET}  ` },
+			VALID_SECRET,
+		],
+		[
+			"whitespace around Bearer token",
+			{ authorization: `Bearer   ${VALID_SECRET}  ` },
+			VALID_SECRET,
+		],
+		[
+			"case-insensitive Bearer",
+			{ authorization: `BEARER ${VALID_SECRET}` },
+			VALID_SECRET,
+		],
+		["no headers", {}, null],
+		["Basic authorization", { authorization: "Basic dXNlcjpwYXNz" }, null],
+		["whitespace-only x-api-key", { "x-api-key": "   " }, null],
+		["empty Bearer token", { authorization: "Bearer    " }, null],
+		[
+			"Bearer token without dbdy_ prefix",
+			{ authorization: "Bearer invalid_token" },
+			null,
+		],
+		["Bearer token below minimum length", { authorization: "Bearer dbdy_" }, null],
+		[
+			"Bearer token above maximum length",
+			{ authorization: `Bearer dbdy_${"a".repeat(200)}` },
+			null,
+		],
+		["x-api-key without dbdy_ prefix", { "x-api-key": "invalid_token" }, null],
+		["x-api-key below minimum length", { "x-api-key": "dbdy_" }, null],
+		[
+			"x-api-key above maximum length",
+			{ "x-api-key": `dbdy_${"a".repeat(200)}` },
+			null,
+		],
+	])("%s", (_name, headers, expected) => {
+		expect(extractSecret(new Headers(headers))).toBe(expected);
 	});
+});
 
-	it("extracts Bearer token from authorization", () => {
-		const headers = new Headers({ authorization: "Bearer dbdy_test123" });
-		expect(extractSecret(headers)).toBe("dbdy_test123");
-	});
-
-	it("prefers x-api-key over Bearer", () => {
-		const headers = new Headers({
-			"x-api-key": "dbdy_xapikey",
-			authorization: "Bearer dbdy_bearer",
+describe("resolveApiKeySecret", () => {
+	it.each([
+		["wrong prefix", `sk_live_${"a".repeat(20)}`],
+		["below minimum length", "dbdy_a"],
+		["above maximum length", `dbdy_${"a".repeat(200)}`],
+	])("rejects %s without hitting the database", async (_name, secret) => {
+		await expect(resolveApiKeySecret(secret)).resolves.toEqual({
+			key: null,
+			outcome: "invalid",
 		});
-		expect(extractSecret(headers)).toBe("dbdy_xapikey");
+		expect(state.findFirst).not.toHaveBeenCalled();
 	});
 
-	it("returns null when no API key present", () => {
-		const headers = new Headers({});
-		expect(extractSecret(headers)).toBeNull();
+	it("reports unknown secrets as invalid with prefix diagnostics", async () => {
+		const secret = "dbdy_unknown_secret_value";
+
+		await expect(resolveApiKeySecret(secret)).resolves.toEqual({
+			key: null,
+			outcome: "invalid",
+			prefix: "dbdy",
+			start: secret.slice(0, 8),
+		});
+		expect(state.findFirst).toHaveBeenCalledTimes(1);
 	});
 
-	it("returns null for non-Bearer authorization", () => {
-		const headers = new Headers({ authorization: "Basic dXNlcjpwYXNz" });
-		expect(extractSecret(headers)).toBeNull();
+	it.each([
+		["disabled", { enabled: false }],
+		["revoked", { revokedAt: new Date("2026-08-01T00:00:00.000Z") }],
+		["expired", { expiresAt: new Date(Date.now() - 1000) }],
+	])("returns no key for a %s key", async (outcome, overrides) => {
+		state.row = createMockKey(overrides);
+
+		const result = await resolveApiKeySecret(VALID_SECRET);
+
+		expect(result.outcome).toBe(outcome);
+		expect(result.key).toBeNull();
 	});
 
-	it("trims whitespace from x-api-key", () => {
-		const headers = new Headers({ "x-api-key": "  dbdy_test123  " });
-		expect(extractSecret(headers)).toBe("dbdy_test123");
+	it("resolves an enabled key with a future expiration", async () => {
+		state.row = createMockKey({
+			expiresAt: new Date(Date.now() + 86_400_000),
+		});
+
+		const result = await resolveApiKeySecret(VALID_SECRET);
+
+		expect(result.outcome).toBe("ok");
+		expect(result.key?.id).toBe("key-123");
+		expect(result.prefix).toBe("dbdy");
+		expect(result.start).toBe(VALID_SECRET.slice(0, 8));
 	});
 
-	it("trims whitespace from Bearer token", () => {
-		const headers = new Headers({ authorization: "Bearer   dbdy_test123  " });
-		expect(extractSecret(headers)).toBe("dbdy_test123");
+	it("records last-used once per debounce window without blocking resolution", async () => {
+		state.row = createMockKey();
+
+		await resolveApiKeySecret(VALID_SECRET);
+		await vi.waitFor(() => expect(state.lastUsedWrites).toBe(1));
+		expect(state.redisSet).toHaveBeenCalledWith(
+			"api-key:last-used-lock:key-123",
+			"1",
+			"EX",
+			expect.any(Number),
+			"NX"
+		);
+
+		state.lockReply = null;
+		await resolveApiKeySecret(VALID_SECRET);
+		await vi.waitFor(() => expect(state.redisSet).toHaveBeenCalledTimes(2));
+		expect(state.lastUsedWrites).toBe(1);
+	});
+});
+
+describe("resolveApiKey", () => {
+	it("returns missing when no API key headers are present", async () => {
+		await expect(resolveApiKey(new Headers())).resolves.toEqual({
+			key: null,
+			outcome: "missing",
+		});
+		expect(state.findFirst).not.toHaveBeenCalled();
 	});
 
-	it("handles case-insensitive Bearer", () => {
-		const headers = new Headers({ authorization: "bearer dbdy_test123" });
-		expect(extractSecret(headers)).toBe("dbdy_test123");
+	it("returns invalid when a header is present but malformed", async () => {
+		await expect(
+			resolveApiKey(new Headers({ "x-api-key": "invalid_token" }))
+		).resolves.toEqual({ key: null, outcome: "invalid" });
+		expect(state.findFirst).not.toHaveBeenCalled();
 	});
 
-	it("returns null for empty x-api-key after trim", () => {
-		const headers = new Headers({ "x-api-key": "   " });
-		expect(extractSecret(headers)).toBeNull();
-	});
+	it("resolves a well-formed header against the database", async () => {
+		state.row = createMockKey();
 
-	it("handles BEARER in uppercase", () => {
-		const headers = new Headers({ authorization: "BEARER dbdy_test123" });
-		expect(extractSecret(headers)).toBe("dbdy_test123");
-	});
+		const result = await resolveApiKey(
+			new Headers({ "x-api-key": VALID_SECRET })
+		);
 
-	it("rejects Bearer token without dbdy_ prefix", () => {
-		const headers = new Headers({ authorization: "Bearer invalid_token" });
-		expect(extractSecret(headers)).toBeNull();
-	});
-
-	it("rejects Bearer token that is too short", () => {
-		const headers = new Headers({ authorization: "Bearer dbdy_" });
-		expect(extractSecret(headers)).toBeNull();
-	});
-
-	it("rejects Bearer token that is too long", () => {
-		const longToken = "dbdy_" + "a".repeat(200);
-		const headers = new Headers({ authorization: `Bearer ${longToken}` });
-		expect(extractSecret(headers)).toBeNull();
-	});
-
-	it("rejects empty Bearer token", () => {
-		const headers = new Headers({ authorization: "Bearer " });
-		expect(extractSecret(headers)).toBeNull();
-	});
-
-	it("rejects Bearer token with only whitespace", () => {
-		const headers = new Headers({ authorization: "Bearer    " });
-		expect(extractSecret(headers)).toBeNull();
-	});
-
-	it("rejects x-api-key without dbdy_ prefix", () => {
-		const headers = new Headers({ "x-api-key": "invalid_token" });
-		expect(extractSecret(headers)).toBeNull();
-	});
-
-	it("rejects x-api-key that is too short", () => {
-		const headers = new Headers({ "x-api-key": "dbdy_" });
-		expect(extractSecret(headers)).toBeNull();
-	});
-
-	it("rejects x-api-key that is too long", () => {
-		const longToken = "dbdy_" + "a".repeat(200);
-		const headers = new Headers({ "x-api-key": longToken });
-		expect(extractSecret(headers)).toBeNull();
+		expect(result.outcome).toBe("ok");
+		expect(result.key?.id).toBe("key-123");
 	});
 });
 
@@ -173,519 +265,209 @@ describe("getEffectiveScopes", () => {
 		expect(getEffectiveScopes(null)).toEqual([]);
 	});
 
-	it("returns key scopes when no resources", () => {
+	it("returns base scopes when metadata has no resources", () => {
 		const key = createMockKey({ scopes: ["read:data", "write:data"] });
-		const scopes = getEffectiveScopes(key);
-		expect(scopes).toContain("read:data");
-		expect(scopes).toContain("write:data");
-		expect(scopes).toHaveLength(2);
+		expect(getEffectiveScopes(key).sort()).toEqual(["read:data", "write:data"]);
 	});
 
-	it("returns key scopes when resources is empty", () => {
+	it("handles null metadata", () => {
 		const key = createMockKey({
+			metadata: null as unknown as Record<string, unknown>,
 			scopes: ["read:data"],
-			metadata: { resources: {} },
 		});
-		const scopes = getEffectiveScopes(key);
-		expect(scopes).toEqual(["read:data"]);
+		expect(getEffectiveScopes(key)).toEqual(["read:data"]);
 	});
 
-	it("includes global resource scopes", () => {
+	it("combines base, global, and matching resource scopes", () => {
 		const key = createMockKey({
-			scopes: ["read:data"],
-			metadata: { resources: { global: ["admin:apikeys"] } },
-		});
-		const scopes = getEffectiveScopes(key);
-		expect(scopes).toContain("read:data");
-		expect(scopes).toContain("admin:apikeys");
-	});
-
-	it("includes resource-specific scopes when resource matches", () => {
-		const key = createMockKey({
-			scopes: ["read:data"],
-			metadata: {
-				resources: {
-					"website:site-123": ["write:data", "read:analytics"],
-				},
-			},
-		});
-
-		const scopes = getEffectiveScopes(key, "website:site-123");
-		expect(scopes).toContain("read:data");
-		expect(scopes).toContain("write:data");
-		expect(scopes).toContain("read:analytics");
-	});
-
-	it("does not include resource scopes when resource does not match", () => {
-		const key = createMockKey({
-			scopes: ["read:data"],
-			metadata: {
-				resources: {
-					"website:site-123": ["write:data"],
-				},
-			},
-		});
-
-		const scopes = getEffectiveScopes(key, "website:site-456");
-		expect(scopes).toContain("read:data");
-		expect(scopes).not.toContain("write:data");
-	});
-
-	it("combines global and resource-specific scopes", () => {
-		const key = createMockKey({
-			scopes: ["read:data"],
 			metadata: {
 				resources: {
 					global: ["track:events"],
-					"website:site-123": ["write:data"],
+					"website:site-123": ["write:data", "read:analytics"],
 				},
 			},
+			scopes: ["read:data"],
 		});
 
-		const scopes = getEffectiveScopes(key, "website:site-123");
-		expect(scopes).toContain("read:data");
-		expect(scopes).toContain("track:events");
-		expect(scopes).toContain("write:data");
+		expect(getEffectiveScopes(key, "website:site-123").sort()).toEqual([
+			"read:analytics",
+			"read:data",
+			"track:events",
+			"write:data",
+		]);
 	});
 
-	it("deduplicates scopes", () => {
+	it("excludes scopes of non-matching resources", () => {
 		const key = createMockKey({
+			metadata: { resources: { "website:site-123": ["write:data"] } },
 			scopes: ["read:data"],
+		});
+
+		expect(getEffectiveScopes(key, "website:site-456")).toEqual(["read:data"]);
+	});
+
+	it("deduplicates scopes repeated across base and resources", () => {
+		const key = createMockKey({
 			metadata: {
 				resources: {
 					global: ["read:data"],
 					"website:site-123": ["read:data"],
 				},
 			},
-		});
-
-		const scopes = getEffectiveScopes(key, "website:site-123");
-		expect(scopes.filter((s) => s === "read:data")).toHaveLength(1);
-	});
-
-	it("handles key with empty scopes array", () => {
-		const key = createMockKey({
-			scopes: [],
-			metadata: { resources: { global: ["read:data"] } },
-		});
-		const scopes = getEffectiveScopes(key);
-		expect(scopes).toEqual(["read:data"]);
-	});
-
-	it("handles null metadata", () => {
-		const key = createMockKey({
 			scopes: ["read:data"],
-			metadata: null as unknown as Record<string, unknown>,
 		});
-		const scopes = getEffectiveScopes(key);
-		expect(scopes).toEqual(["read:data"]);
+
+		expect(getEffectiveScopes(key, "website:site-123")).toEqual(["read:data"]);
 	});
 });
 
-describe("hasKeyScope", () => {
-	it("returns false for null key", () => {
+describe("scope predicates", () => {
+	it("all predicates deny a null key", () => {
 		expect(hasKeyScope(null, "read:data")).toBe(false);
-	});
-
-	it("returns true when key has scope in base scopes", () => {
-		const key = createMockKey({ scopes: ["read:data", "write:data"] });
-		expect(hasKeyScope(key, "read:data")).toBe(true);
-	});
-
-	it("returns false when key does not have scope", () => {
-		const key = createMockKey({ scopes: ["read:data"] });
-		expect(hasKeyScope(key, "admin:apikeys")).toBe(false);
-	});
-
-	it("checks resource-specific scopes with matching resource", () => {
-		const key = createMockKey({
-			scopes: [],
-			metadata: {
-				resources: { "website:site-123": ["read:analytics"] },
-			},
-		});
-
-		expect(hasKeyScope(key, "read:analytics", "website:site-123")).toBe(true);
-	});
-
-	it("returns false for resource-specific scopes with non-matching resource", () => {
-		const key = createMockKey({
-			scopes: [],
-			metadata: {
-				resources: { "website:site-123": ["read:analytics"] },
-			},
-		});
-
-		expect(hasKeyScope(key, "read:analytics", "website:site-456")).toBe(false);
-	});
-
-	it("checks global scopes even when resource is specified", () => {
-		const key = createMockKey({
-			scopes: ["read:data"],
-			metadata: {},
-		});
-
-		expect(hasKeyScope(key, "read:data", "website:site-123")).toBe(true);
-	});
-});
-
-describe("hasKeyAnyScope", () => {
-	it("returns false for null key", () => {
 		expect(hasKeyAnyScope(null, ["read:data"])).toBe(false);
+		expect(hasKeyAllScopes(null, ["read:data"])).toBe(false);
+		expect(hasWebsiteScope(null, "site-123", "read:data")).toBe(false);
+		expect(hasWebsiteAnyScope(null, "site-123", ["read:data"])).toBe(false);
+		expect(hasWebsiteAllScopes(null, "site-123", ["read:data"])).toBe(false);
+		expect(hasGlobalAccess(null)).toBe(false);
+		expect(resolveEffectiveScopesForWebsite(null, "site-123").size).toBe(0);
+		expect(getAccessibleWebsiteIds(null)).toEqual([]);
 	});
 
-	it("returns true when key has any of the scopes", () => {
+	it("hasKeyScope checks base, resource, and global scopes", () => {
+		const base = createMockKey({ scopes: ["read:data"] });
+		expect(hasKeyScope(base, "read:data")).toBe(true);
+		expect(hasKeyScope(base, "admin:apikeys")).toBe(false);
+		expect(hasKeyScope(base, "read:data", "website:site-123")).toBe(true);
+
+		const scoped = createMockKey({
+			metadata: { resources: { "website:site-123": ["read:analytics"] } },
+			scopes: [],
+		});
+		expect(hasKeyScope(scoped, "read:analytics", "website:site-123")).toBe(
+			true
+		);
+		expect(hasKeyScope(scoped, "read:analytics", "website:site-456")).toBe(
+			false
+		);
+	});
+
+	it("hasKeyAnyScope passes when any scope matches", () => {
 		const key = createMockKey({ scopes: ["read:data"] });
 		expect(hasKeyAnyScope(key, ["read:data", "write:data"])).toBe(true);
+		expect(hasKeyAnyScope(key, ["track:events", "write:data"])).toBe(false);
 	});
 
-	it("returns false when key has none of the scopes", () => {
-		const key = createMockKey({ scopes: ["track:events"] });
-		expect(hasKeyAnyScope(key, ["read:data", "write:data"])).toBe(false);
-	});
-
-	it("checks resource-specific scopes", () => {
+	it("hasKeyAllScopes requires every scope across base and resources", () => {
 		const key = createMockKey({
-			scopes: [],
-			metadata: { resources: { "website:site-123": ["read:analytics"] } },
-		});
-		expect(
-			hasKeyAnyScope(key, ["read:analytics", "write:data"], "website:site-123")
-		).toBe(true);
-	});
-});
-
-describe("hasKeyAllScopes", () => {
-	it("returns false for null key", () => {
-		expect(hasKeyAllScopes(null, ["read:data"])).toBe(false);
-	});
-
-	it("returns true when key has all scopes", () => {
-		const key = createMockKey({ scopes: ["read:data", "write:data"] });
-		expect(hasKeyAllScopes(key, ["read:data", "write:data"])).toBe(true);
-	});
-
-	it("returns false when key is missing a scope", () => {
-		const key = createMockKey({ scopes: ["read:data"] });
-		expect(hasKeyAllScopes(key, ["read:data", "write:data"])).toBe(false);
-	});
-
-	it("combines base and resource scopes", () => {
-		const key = createMockKey({
-			scopes: ["read:data"],
 			metadata: { resources: { "website:site-123": ["write:data"] } },
+			scopes: ["read:data"],
 		});
 		expect(
 			hasKeyAllScopes(key, ["read:data", "write:data"], "website:site-123")
 		).toBe(true);
+		expect(hasKeyAllScopes(key, ["read:data", "write:data"])).toBe(false);
 	});
 });
 
-describe("resolveEffectiveScopesForWebsite", () => {
-	it("returns empty set for null key", () => {
-		const scopes = resolveEffectiveScopesForWebsite(null, "site-123");
-		expect(scopes.size).toBe(0);
-	});
-
-	it("returns scopes for website resource", () => {
+describe("website scope helpers", () => {
+	it("hasWebsiteScope resolves the website resource prefix", () => {
 		const key = createMockKey({
-			scopes: ["read:data"],
-			metadata: {
-				resources: { "website:site-123": ["write:data"] },
-			},
-		});
-
-		const scopes = resolveEffectiveScopesForWebsite(key, "site-123");
-		expect(scopes.has("read:data")).toBe(true);
-		expect(scopes.has("write:data")).toBe(true);
-	});
-
-	it("formats websiteId with website: prefix", () => {
-		const key = createMockKey({
+			metadata: { resources: { "website:site-123": ["read:analytics"] } },
 			scopes: [],
-			metadata: {
-				resources: { "website:my-site": ["read:analytics"] },
-			},
 		});
-
-		const scopes = resolveEffectiveScopesForWebsite(key, "my-site");
-		expect(scopes.has("read:analytics")).toBe(true);
-	});
-
-	it("includes global scopes", () => {
-		const key = createMockKey({
-			scopes: [],
-			metadata: {
-				resources: { global: ["track:events"] },
-			},
-		});
-
-		const scopes = resolveEffectiveScopesForWebsite(key, "site-123");
-		expect(scopes.has("track:events")).toBe(true);
-	});
-});
-
-describe("hasWebsiteScope", () => {
-	it("returns false for null key", () => {
-		expect(hasWebsiteScope(null, "site-123", "read:data")).toBe(false);
-	});
-
-	it("returns true when key has website-specific scope", () => {
-		const key = createMockKey({
-			scopes: [],
-			metadata: {
-				resources: { "website:site-123": ["read:analytics"] },
-			},
-		});
-
 		expect(hasWebsiteScope(key, "site-123", "read:analytics")).toBe(true);
+		expect(hasWebsiteScope(key, "site-456", "read:analytics")).toBe(false);
 	});
 
-	it("returns true when key has scope in base scopes", () => {
-		const key = createMockKey({ scopes: ["read:data"] });
-		expect(hasWebsiteScope(key, "site-123", "read:data")).toBe(true);
-	});
-
-	it("returns true when key has scope in global resources", () => {
-		const key = createMockKey({
-			scopes: [],
-			metadata: { resources: { global: ["track:events"] } },
-		});
-		expect(hasWebsiteScope(key, "site-123", "track:events")).toBe(true);
-	});
-
-	it("returns false when key lacks required scope", () => {
-		const key = createMockKey({ scopes: ["read:data"] });
-		expect(hasWebsiteScope(key, "site-123", "admin:apikeys")).toBe(false);
-	});
-
-	it("returns false when scope exists for different website", () => {
-		const key = createMockKey({
-			scopes: [],
-			metadata: {
-				resources: { "website:site-456": ["read:analytics"] },
-			},
-		});
-
-		expect(hasWebsiteScope(key, "site-123", "read:analytics")).toBe(false);
-	});
-});
-
-describe("hasWebsiteAnyScope", () => {
-	it("returns false for null key", () => {
-		expect(hasWebsiteAnyScope(null, "site-123", ["read:data"])).toBe(false);
-	});
-
-	it("returns true when key has any of the scopes for website", () => {
-		const key = createMockKey({
-			scopes: [],
-			metadata: { resources: { "website:site-123": ["read:analytics"] } },
-		});
+	it("hasWebsiteScope accepts base and global scopes for any website", () => {
 		expect(
-			hasWebsiteAnyScope(key, "site-123", ["read:analytics", "write:data"])
+			hasWebsiteScope(
+				createMockKey({ scopes: ["read:data"] }),
+				"site-123",
+				"read:data"
+			)
+		).toBe(true);
+		expect(
+			hasWebsiteScope(
+				createMockKey({
+					metadata: { resources: { global: ["track:events"] } },
+					scopes: [],
+				}),
+				"site-123",
+				"track:events"
+			)
 		).toBe(true);
 	});
 
-	it("returns false when key has none of the scopes", () => {
-		const key = createMockKey({ scopes: ["track:events"] });
-		expect(
-			hasWebsiteAnyScope(key, "site-123", ["read:analytics", "write:data"])
-		).toBe(false);
-	});
-});
-
-describe("hasWebsiteAllScopes", () => {
-	it("returns false for null key", () => {
-		expect(hasWebsiteAllScopes(null, "site-123", ["read:data"])).toBe(false);
-	});
-
-	it("returns true when key has all scopes for website", () => {
+	it("hasWebsiteAnyScope and hasWebsiteAllScopes evaluate against the website resource", () => {
 		const key = createMockKey({
+			metadata: { resources: { "website:site-123": ["read:analytics"] } },
 			scopes: ["read:data"],
-			metadata: { resources: { "website:site-123": ["write:data"] } },
 		});
 		expect(
-			hasWebsiteAllScopes(key, "site-123", ["read:data", "write:data"])
+			hasWebsiteAnyScope(key, "site-123", ["read:analytics", "write:data"])
 		).toBe(true);
-	});
-
-	it("returns false when key is missing a scope", () => {
-		const key = createMockKey({
-			scopes: [],
-			metadata: { resources: { "website:site-123": ["read:analytics"] } },
-		});
+		expect(hasWebsiteAnyScope(key, "site-456", ["read:analytics"])).toBe(false);
+		expect(
+			hasWebsiteAllScopes(key, "site-123", ["read:data", "read:analytics"])
+		).toBe(true);
 		expect(
 			hasWebsiteAllScopes(key, "site-123", ["read:analytics", "write:data"])
 		).toBe(false);
 	});
-});
 
-describe("key validity simulation (matches getApiKeyFromHeader logic)", () => {
-	const isKeyValid = (key: ApiKeyRow | null): boolean => {
-		if (!key?.enabled || key.revokedAt || isExpired(key.expiresAt)) {
-			return false;
-		}
-		return true;
-	};
-
-	it("returns false for null key", () => {
-		expect(isKeyValid(null)).toBe(false);
-	});
-
-	it("returns false for disabled key", () => {
-		const key = createMockKey({ enabled: false });
-		expect(isKeyValid(key)).toBe(false);
-	});
-
-	it("returns false for revoked key", () => {
-		const key = createMockKey({ revokedAt: new Date() });
-		expect(isKeyValid(key)).toBe(false);
-	});
-
-	it("returns false for expired key", () => {
+	it("resolveEffectiveScopesForWebsite returns the combined scope set", () => {
 		const key = createMockKey({
-			expiresAt: new Date(Date.now() - 1000).toISOString(),
+			metadata: {
+				resources: {
+					global: ["track:events"],
+					"website:site-123": ["write:data"],
+				},
+			},
+			scopes: ["read:data"],
 		});
-		expect(isKeyValid(key)).toBe(false);
-	});
 
-	it("returns true for valid enabled key", () => {
-		const key = createMockKey({
-			enabled: true,
-			revokedAt: null,
-			expiresAt: null,
-		});
-		expect(isKeyValid(key)).toBe(true);
-	});
-
-	it("returns true for key with future expiration", () => {
-		const key = createMockKey({
-			enabled: true,
-			expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
-		});
-		expect(isKeyValid(key)).toBe(true);
-	});
-
-	it("returns false for disabled key even with valid expiration", () => {
-		const key = createMockKey({
-			enabled: false,
-			expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
-		});
-		expect(isKeyValid(key)).toBe(false);
-	});
-
-	it("returns false for revoked key even if enabled", () => {
-		const key = createMockKey({
-			enabled: true,
-			revokedAt: new Date(),
-		});
-		expect(isKeyValid(key)).toBe(false);
+		expect(resolveEffectiveScopesForWebsite(key, "site-123")).toEqual(
+			new Set(["read:data", "track:events", "write:data"])
+		);
 	});
 });
 
 describe("hasGlobalAccess", () => {
-	it("returns false for null key", () => {
-		expect(hasGlobalAccess(null)).toBe(false);
-	});
-
-	it("returns false when no resources", () => {
-		const key = createMockKey({ metadata: {} });
-		expect(hasGlobalAccess(key)).toBe(false);
-	});
-
-	it("returns false when no global resource", () => {
-		const key = createMockKey({
-			metadata: { resources: { "website:site-123": ["read:data"] } },
-		});
-		expect(hasGlobalAccess(key)).toBe(false);
-	});
-
-	it("returns false when global resource is empty", () => {
-		const key = createMockKey({
-			metadata: { resources: { global: [] } },
-		});
-		expect(hasGlobalAccess(key)).toBe(false);
-	});
-
-	it("returns true when global resource has scopes", () => {
-		const key = createMockKey({
-			metadata: { resources: { global: ["read:data"] } },
-		});
-		expect(hasGlobalAccess(key)).toBe(true);
+	it.each([
+		["no resources", {}, false],
+		["only website resources", { resources: { "website:site-123": ["read:data"] } }, false],
+		["empty global resource", { resources: { global: [] } }, false],
+		["populated global resource", { resources: { global: ["read:data"] } }, true],
+	])("%s -> %s", (_name, metadata, expected) => {
+		expect(hasGlobalAccess(createMockKey({ metadata }))).toBe(expected);
 	});
 });
 
 describe("getAccessibleWebsiteIds", () => {
-	it("returns empty array for null key", () => {
-		expect(getAccessibleWebsiteIds(null)).toEqual([]);
+	it("returns empty array when no website resources exist", () => {
+		expect(getAccessibleWebsiteIds(createMockKey({ metadata: {} }))).toEqual(
+			[]
+		);
+		expect(
+			getAccessibleWebsiteIds(
+				createMockKey({ metadata: { resources: { global: ["read:data"] } } })
+			)
+		).toEqual([]);
 	});
 
-	it("returns empty array when no resources", () => {
-		const key = createMockKey({ metadata: {} });
-		expect(getAccessibleWebsiteIds(key)).toEqual([]);
-	});
-
-	it("returns empty array when no website resources", () => {
-		const key = createMockKey({
-			metadata: { resources: { global: ["read:data"] } },
-		});
-		expect(getAccessibleWebsiteIds(key)).toEqual([]);
-	});
-
-	it("returns website ids from resources", () => {
+	it("extracts ids from website resources only", () => {
 		const key = createMockKey({
 			metadata: {
 				resources: {
+					global: ["track:events"],
 					"website:site-1": ["read:data"],
 					"website:site-2": ["write:data"],
-					global: ["track:events"],
 				},
 			},
 		});
-		const ids = getAccessibleWebsiteIds(key);
-		expect(ids).toContain("site-1");
-		expect(ids).toContain("site-2");
-		expect(ids).toHaveLength(2);
-	});
 
-	it("extracts id correctly from website:id format", () => {
-		const key = createMockKey({
-			metadata: {
-				resources: { "website:my-long-id-123": ["read:data"] },
-			},
-		});
-		expect(getAccessibleWebsiteIds(key)).toEqual(["my-long-id-123"]);
-	});
-});
-
-describe("keypal utilities used in implementation", () => {
-	it("hasScope returns true when scope exists", () => {
-		expect(hasScope(["read:data", "write:data"], "read:data")).toBe(true);
-	});
-
-	it("hasScope returns false when scope does not exist", () => {
-		expect(hasScope(["read:data"], "write:data")).toBe(false);
-	});
-
-	it("hasScope handles undefined scopes", () => {
-		expect(hasScope(undefined, "read:data")).toBe(false);
-	});
-
-	it("isExpired returns false for null", () => {
-		expect(isExpired(null)).toBe(false);
-	});
-
-	it("isExpired returns false for undefined", () => {
-		expect(isExpired(undefined)).toBe(false);
-	});
-
-	it("isExpired returns true for past date", () => {
-		const past = new Date(Date.now() - 1000).toISOString();
-		expect(isExpired(past)).toBe(true);
-	});
-
-	it("isExpired returns false for future date", () => {
-		const future = new Date(Date.now() + 100_000).toISOString();
-		expect(isExpired(future)).toBe(false);
+		expect(getAccessibleWebsiteIds(key).sort()).toEqual(["site-1", "site-2"]);
 	});
 });

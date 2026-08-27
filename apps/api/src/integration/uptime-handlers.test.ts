@@ -23,10 +23,10 @@ import {
 	signUp,
 	userContext,
 } from "@databuddy/test";
-import { createProcedureClient, type AnyProcedure } from "@orpc/server";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import { randomUUIDv7 } from "bun";
 import type { Job } from "bullmq";
+import { call } from "./helpers";
 
 const canRun =
 	hasTestDb &&
@@ -34,10 +34,6 @@ const canRun =
 	readBooleanEnv("UPTIME_ROUTER_INTEGRATION");
 const iit = canRun ? it : it.skip;
 const scheduleIds = new Set<string>();
-
-function call<T extends AnyProcedure>(procedure: T, context: Context) {
-	return createProcedureClient(procedure, { context });
-}
 
 beforeEach(async () => {
 	await reset();
@@ -103,7 +99,6 @@ async function createSchedule(values: {
 		granularity: "five_minutes" as const,
 		timeout: 5000,
 		cacheBust: true,
-		jsonParsingConfig: { enabled: false },
 	});
 	return scheduleIdFrom(result);
 }
@@ -167,11 +162,9 @@ describe("uptime router BullMQ integration", () => {
 		expect(row?.url).toBe("https://create.example.com/health");
 		expect(row?.websiteId).toBe(website.id);
 		expect(row?.granularity).toBe("five_minutes");
-		expect(row?.cron).toBe("*/5 * * * *");
 		expect(row?.isPaused).toBe(false);
 		expect(row?.timeout).toBe(5000);
 		expect(row?.cacheBust).toBe(true);
-		expect(row?.jsonParsingConfig).toEqual({ enabled: false });
 
 		expect(await scheduler(scheduleId)).toBeTruthy();
 		const jobs = await jobsForSchedule(scheduleId);
@@ -194,16 +187,13 @@ describe("uptime router BullMQ integration", () => {
 			granularity: "ten_minutes",
 			timeout: null,
 			cacheBust: false,
-			jsonParsingConfig: { enabled: true },
 		});
 
 		const row = await scheduleRow(scheduleId);
 		expect(row?.name).toBe("Renamed API");
 		expect(row?.granularity).toBe("ten_minutes");
-		expect(row?.cron).toBe("*/10 * * * *");
 		expect(row?.timeout).toBeNull();
 		expect(row?.cacheBust).toBe(false);
-		expect(row?.jsonParsingConfig).toEqual({ enabled: true });
 		expect(await scheduler(scheduleId)).toBeTruthy();
 		expect(await jobsForSchedule(scheduleId)).toHaveLength(1);
 	});

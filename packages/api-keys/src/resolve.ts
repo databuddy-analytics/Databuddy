@@ -186,16 +186,9 @@ export async function getApiKeyFromHeader(
 	return result.key;
 }
 
-// ── Scope helpers ──────────────────────────────────────────────
-
 function getMeta(key: ApiKeyRow): KeyMetadata {
 	return (key.metadata as KeyMetadata) ?? {};
 }
-
-/**
- * Collects all effective scopes for an API key, merging top-level scopes
- * with per-resource scopes from metadata.
- */
 export function collectScopes(key: ApiKeyRow, resource?: string): string[] {
 	const scopes = new Set<string>(key.scopes);
 	const resources = getMeta(key).resources;
@@ -257,8 +250,6 @@ export function hasKeyAllScopes(
 	return hasAllScopes(collectScopes(key, resource), scopes);
 }
 
-// ── Website-specific helpers ───────────────────────────────────
-
 export function hasWebsiteScope(
 	key: ApiKeyRow | null,
 	websiteId: string,
@@ -266,12 +257,6 @@ export function hasWebsiteScope(
 ): boolean {
 	return hasKeyScope(key, required, `website:${websiteId}`);
 }
-
-/**
- * Checks a website scope only after binding the website to the key's workspace.
- * Resource metadata is user input, so its `website:<id>` key is not proof of
- * ownership by itself.
- */
 export function hasWebsiteScopeForOrganization(
 	key: ApiKeyRow | null,
 	website: { id: string; organizationId: string | null },

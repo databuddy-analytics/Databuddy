@@ -30,7 +30,7 @@ const DEFAULT_REFERRER_METRICS: ReferrerMetricColumn[] = [
 	{ id: "pageviews", header: "Views" },
 ];
 
-export function getReferrerDisplayValue(row: ReferrerSourceCellData): string {
+function getReferrerDisplayValue(row: ReferrerSourceCellData): string {
 	return row.name || row.source || row.referrer || "Direct";
 }
 

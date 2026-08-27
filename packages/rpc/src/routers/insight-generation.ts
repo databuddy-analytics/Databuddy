@@ -608,11 +608,6 @@ function isAccessDenied(error: unknown): boolean {
 		(error.code === "FORBIDDEN" || error.code === "UNAUTHORIZED")
 	);
 }
-
-/**
- * Readiness remains readable to viewers, but running a review has the same
- * organization-level update requirement as triggerRun.
- */
 function canTriggerInsightGeneration(
 	context: Context,
 	organizationId: string
@@ -653,12 +648,6 @@ async function findActiveInsightRun(
 
 	return active ?? null;
 }
-
-/**
- * A concurrent organization run only becomes this site's review while its
- * own item is still queued or running. A run for another site must not
- * overwrite this site's last terminal result.
- */
 async function findActiveFirstReviewRun(
 	organizationId: string,
 	websiteId: string

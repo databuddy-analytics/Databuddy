@@ -16,7 +16,7 @@ import type {
 	PricingTier,
 } from "@/lib/comparison-config";
 
-export type ComparisonPageType = "compare" | "switch_from" | "alternatives";
+type ComparisonPageType = "compare" | "switch_from" | "alternatives";
 
 interface ComparisonPageViewProps {
 	competitor: CompetitorInfo;

@@ -6,7 +6,7 @@ const linkSlugSchema = z.string().refine(isPublicLinkSlug, {
 		"Slug must be 3-50 characters and use only letters, numbers, hyphens, or underscores",
 });
 
-export const timeSeriesSchema = z
+const timeSeriesSchema = z
 	.object({
 		type: z.string(),
 		title: z.string().optional(),
@@ -15,7 +15,7 @@ export const timeSeriesSchema = z
 	})
 	.passthrough();
 
-export const distributionSchema = z
+const distributionSchema = z
 	.object({
 		type: z.string(),
 		title: z.string().optional(),
@@ -23,7 +23,7 @@ export const distributionSchema = z
 	})
 	.passthrough();
 
-export const dataTableSchema = z
+const dataTableSchema = z
 	.object({
 		type: z.literal("data-table"),
 		title: z.string().optional(),
@@ -48,7 +48,7 @@ const referrerItemSchema = z
 	})
 	.passthrough();
 
-export const referrersListSchema = z
+const referrersListSchema = z
 	.object({
 		type: z.literal("referrers-list"),
 		title: z.string().optional(),
@@ -66,7 +66,7 @@ const countryItemSchema = z
 	})
 	.passthrough();
 
-export const miniMapSchema = z
+const miniMapSchema = z
 	.object({
 		type: z.literal("mini-map"),
 		title: z.string().optional(),
@@ -102,7 +102,7 @@ export const linksListSchema = z
 	})
 	.passthrough();
 
-export const linkPreviewSchema = z
+const linkPreviewSchema = z
 	.object({
 		type: z.literal("link-preview"),
 		mode: z.enum(["create", "update", "delete"]),
@@ -122,7 +122,7 @@ export const linkPreviewSchema = z
 	})
 	.passthrough();
 
-export const feedbackPreviewSchema = z
+const feedbackPreviewSchema = z
 	.object({
 		type: z.literal("feedback-preview"),
 		mode: z.enum(["offer", "sent"]),
@@ -156,7 +156,7 @@ const funnelItemSchema = z
 	})
 	.passthrough();
 
-export const funnelsListSchema = z
+const funnelsListSchema = z
 	.object({
 		type: z.literal("funnels-list"),
 		title: z.string().optional(),
@@ -164,7 +164,7 @@ export const funnelsListSchema = z
 	})
 	.passthrough();
 
-export const funnelPreviewSchema = z
+const funnelPreviewSchema = z
 	.object({
 		type: z.literal("funnel-preview"),
 		mode: z.enum(["create", "update", "delete"]),
@@ -247,7 +247,7 @@ const goalItemSchema = z
 	})
 	.passthrough();
 
-export const goalsListSchema = z
+const goalsListSchema = z
 	.object({
 		type: z.literal("goals-list"),
 		title: z.string().optional(),
@@ -255,7 +255,7 @@ export const goalsListSchema = z
 	})
 	.passthrough();
 
-export const goalPreviewSchema = z
+const goalPreviewSchema = z
 	.object({
 		type: z.literal("goal-preview"),
 		mode: z.enum(["create", "update", "delete"]),
@@ -285,7 +285,7 @@ const annotationItemSchema = z
 	})
 	.passthrough();
 
-export const annotationsListSchema = z
+const annotationsListSchema = z
 	.object({
 		type: z.literal("annotations-list"),
 		title: z.string().optional(),
@@ -293,7 +293,7 @@ export const annotationsListSchema = z
 	})
 	.passthrough();
 
-export const annotationPreviewSchema = z
+const annotationPreviewSchema = z
 	.object({
 		type: z.literal("annotation-preview"),
 		mode: z.enum(["create", "update", "delete"]),
@@ -311,7 +311,7 @@ export const annotationPreviewSchema = z
 	})
 	.passthrough();
 
-export const componentSchemaMap: Record<string, z.ZodTypeAny> = {
+const componentSchemaMap: Record<string, z.ZodTypeAny> = {
 	"line-chart": timeSeriesSchema,
 	"bar-chart": timeSeriesSchema,
 	"area-chart": timeSeriesSchema,

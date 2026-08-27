@@ -22,7 +22,7 @@ import {
 	PlayIcon,
 	TrashIcon,
 } from "@databuddy/ui/icons";
-import { DropdownMenu } from "@databuddy/ui/client";
+import { DeleteDialog, DropdownMenu } from "@databuddy/ui/client";
 import { Badge, Skeleton, dayjs, formatDateOnly } from "@databuddy/ui";
 
 const GRANULARITY_LABELS: Record<string, string> = {
@@ -49,7 +49,6 @@ interface MonitorRowProps {
 		url: string | null;
 		name: string | null;
 		granularity: string;
-		cron: string;
 		isPaused: boolean;
 		createdAt: Date | string;
 		updatedAt: Date | string;
@@ -69,6 +68,7 @@ function MonitorActions({
 }: MonitorRowProps) {
 	const [isPausing, setIsPausing] = useState(false);
 	const [isTransferOpen, setIsTransferOpen] = useState(false);
+	const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
 	const pauseMutation = useMutation({
 		...orpc.uptime.pauseSchedule.mutationOptions(),
@@ -124,6 +124,7 @@ function MonitorActions({
 		try {
 			await deleteMutation.mutateAsync({ scheduleId: schedule.id });
 			toast.success("Monitor deleted");
+			setIsDeleteOpen(false);
 			onDeleteAction();
 		} catch (error) {
 			const errorMessage =
@@ -198,7 +199,7 @@ function MonitorActions({
 					<DropdownMenu.Item
 						className="gap-2 text-destructive focus:text-destructive"
 						disabled={deleteMutation.isPending}
-						onClick={handleDelete}
+						onClick={() => setIsDeleteOpen(true)}
 						variant="destructive"
 					>
 						<TrashIcon className="size-4 fill-destructive" weight="duotone" />
@@ -206,6 +207,15 @@ function MonitorActions({
 					</DropdownMenu.Item>
 				</DropdownMenu.Content>
 			</DropdownMenu>
+
+			<DeleteDialog
+				isDeleting={deleteMutation.isPending}
+				isOpen={isDeleteOpen}
+				itemName={schedule.name ?? schedule.url ?? undefined}
+				onClose={() => setIsDeleteOpen(false)}
+				onConfirm={handleDelete}
+				title="Delete Monitor"
+			/>
 
 			{schedule.organizationId ? (
 				<TransferToOrgDialog

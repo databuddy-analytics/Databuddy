@@ -104,24 +104,23 @@ describe("parseFrozenInvestigationPlan", () => {
 		expect(() => parseFrozenInvestigationPlan(false)).toThrow();
 	});
 
-	it("rejects noncanonical persisted measurement candidates", () => {
-		expect(() =>
-			parseFrozenInvestigationPlan({
-				asOf: "2026-08-01T12:00:00.000Z",
-				candidates: [
-					{
-						...candidate,
-						measurementCandidate: {
-							basis: "observed_navigation_proxy",
-							kind: "page_navigation_proxy",
-							target: "//signup",
-							type: "PAGE_VIEW",
-						},
+	it("strips legacy measurement candidate keys from persisted plans", () => {
+		const plan = parseFrozenInvestigationPlan({
+			asOf: "2026-08-01T12:00:00.000Z",
+			candidates: [
+				{
+					...candidate,
+					measurementCandidate: {
+						basis: "observed_navigation_proxy",
+						kind: "page_navigation_proxy",
+						target: "//signup",
+						type: "PAGE_VIEW",
 					},
-				],
-				reason: "manual",
-			})
-		).toThrow("Measurement candidate target must be canonical");
+				},
+			],
+			reason: "manual",
+		});
+		expect(plan.candidates[0]).not.toHaveProperty("measurementCandidate");
 	});
 
 	it("accepts a typed empty snapshot so retries keep the same discovery result", () => {

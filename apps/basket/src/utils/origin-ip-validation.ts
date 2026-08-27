@@ -78,21 +78,104 @@ export function isValidOriginFromSettings(
 	}
 }
 
+const IPV6_GROUP_REGEX = /^[0-9a-f]{1,4}$/;
+const IPV4_TAIL_REGEX = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+
+function ipv4TailToGroups(tail: string): string[] | null {
+	const match = tail.match(IPV4_TAIL_REGEX);
+	if (!match) {
+		return null;
+	}
+	const octets = match.slice(1, 5).map((part) => Number.parseInt(part, 10));
+	if (octets.some((octet) => octet > 255)) {
+		return null;
+	}
+	const [a, b, c, d] = octets as [number, number, number, number];
+	return [(a * 256 + b).toString(16), (c * 256 + d).toString(16)];
+}
+
+export function normalizeIpv6(ip: string): string | null {
+	const value = ip.trim().toLowerCase();
+	if (!value.includes(":") || value.includes("%")) {
+		return null;
+	}
+
+	const halves = value.split("::");
+	if (halves.length > 2) {
+		return null;
+	}
+
+	const parseSide = (side: string): string[] | null => {
+		if (side === "") {
+			return [];
+		}
+		const groups: string[] = [];
+		for (const group of side.split(":")) {
+			if (IPV6_GROUP_REGEX.test(group)) {
+				groups.push(group);
+				continue;
+			}
+			const ipv4Groups = ipv4TailToGroups(group);
+			if (!ipv4Groups) {
+				return null;
+			}
+			groups.push(...ipv4Groups);
+		}
+		return groups;
+	};
+
+	const head = parseSide(halves[0] ?? "");
+	const tail = halves.length === 2 ? parseSide(halves[1] ?? "") : [];
+	if (!(head && tail)) {
+		return null;
+	}
+
+	if (halves.length === 1) {
+		if (head.length !== 8) {
+			return null;
+		}
+		return head.map((group) => group.padStart(4, "0")).join(":");
+	}
+
+	const missing = 8 - head.length - tail.length;
+	if (missing < 1) {
+		return null;
+	}
+
+	const groups = [
+		...head,
+		...Array.from({ length: missing }, () => "0"),
+		...tail,
+	];
+	return groups.map((group) => group.padStart(4, "0")).join(":");
+}
+
 export function isValidIpFromSettings(
 	ip: string,
 	allowedIps?: string[]
 ): boolean {
-	if (!ip?.trim()) {
-		return true;
-	}
 	if (!allowedIps || allowedIps.length === 0) {
 		return true;
 	}
+	if (!ip?.trim()) {
+		return false;
+	}
 
 	const trimmedIp = ip.trim();
+	const normalizedIpv6 = trimmedIp.includes(":")
+		? normalizeIpv6(trimmedIp)
+		: null;
 
 	for (const allowed of allowedIps) {
 		if (allowed === trimmedIp) {
+			return true;
+		}
+		if (
+			normalizedIpv6 &&
+			allowed.includes(":") &&
+			!allowed.includes("/") &&
+			normalizeIpv6(allowed) === normalizedIpv6
+		) {
 			return true;
 		}
 		if (allowed.includes("/") && isIpInCidrRange(trimmedIp, allowed)) {

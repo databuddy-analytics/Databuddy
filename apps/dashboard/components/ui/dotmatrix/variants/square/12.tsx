@@ -7,7 +7,7 @@ import { useDotMatrixPhases } from "../../hooks";
 import { usePrefersReducedMotion } from "../../hooks";
 import type { DotAnimationResolver, DotMatrixCommonProps } from "../../core";
 
-export type DotmSquare12Props = DotMatrixCommonProps;
+type DotmSquare12Props = DotMatrixCommonProps;
 
 // User-defined origin is cell (2,2) in a 1-based 5x5 grid => (row=1,col=1) in zero-based coords.
 const ORIGIN_ROW = 1;

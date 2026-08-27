@@ -12,7 +12,7 @@ export type NotraPost = Omit<ListPostsPost, "recommendations" | "status"> & {
 	status: "draft" | "published";
 };
 
-export type NotraPagination = Pagination;
+type NotraPagination = Pagination;
 
 export interface NotraPostListResponse {
 	metadata?: {
@@ -20,10 +20,6 @@ export interface NotraPostListResponse {
 	};
 	pagination: NotraPagination;
 	posts: NotraPost[];
-}
-
-export interface NotraPostResponse {
-	post: NotraPost;
 }
 
 interface FetchError {
@@ -114,29 +110,6 @@ export const getChangelogs = cache((page = 1, limit = 100) =>
 		return {
 			posts: response.posts.map(mapNotraPost),
 			pagination: response.pagination,
-		};
-	})
-);
-
-export const getChangelogPost = cache((postId: string) =>
-	fetchFromNotra<NotraPostResponse>(async (client) => {
-		const response = await client.content.getPost(
-			{ postId },
-			{
-				next: { revalidate: NOTRA_REVALIDATE_SECONDS },
-			}
-		);
-
-		if (!response.post) {
-			return {
-				error: true,
-				status: 404,
-				statusText: `Changelog post ${postId} not found`,
-			};
-		}
-
-		return {
-			post: mapNotraPost(response.post),
 		};
 	})
 );

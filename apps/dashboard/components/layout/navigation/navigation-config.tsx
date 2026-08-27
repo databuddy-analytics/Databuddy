@@ -40,7 +40,7 @@ import {
 } from "@databuddy/ui/icons";
 import type { NavigationGroup, NavigationItem } from "./types";
 
-export const createNavItem = (
+const createNavItem = (
 	name: string,
 	icon: NavigationItem["icon"],
 	href: string,

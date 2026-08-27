@@ -9,7 +9,7 @@ import { usePrefersReducedMotion } from "../../hooks";
 import { useSteppedCycle } from "../../hooks";
 import type { DotAnimationResolver, DotMatrixCommonProps } from "../../core";
 
-export type DotmSquare10Props = DotMatrixCommonProps;
+type DotmSquare10Props = DotMatrixCommonProps;
 
 const ROWS = MATRIX_SIZE;
 

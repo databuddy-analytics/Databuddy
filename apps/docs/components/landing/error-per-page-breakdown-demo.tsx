@@ -3,33 +3,11 @@ import { cn } from "@/lib/utils";
 
 type StatusTone = "critical" | "warning" | "good";
 
-const STATUS_STYLES: Record<
-	StatusTone,
-	{ badge: string; text: string; border: string }
-> = {
-	critical: {
-		badge: "bg-red-500/10",
-		text: "text-red-300",
-		border: "border-red-500/35",
-	},
-	warning: {
-		badge: "bg-amber-500/10",
-		text: "text-amber-300",
-		border: "border-amber-500/35",
-	},
-	good: {
-		badge: "bg-emerald-500/10",
-		text: "text-emerald-300",
-		border: "border-emerald-500/35",
-	},
-};
-
 const ROWS: {
 	page: string;
 	errors: string;
 	users: string;
 	rate: string;
-	status: string;
 	tone: StatusTone;
 	highlight?: boolean;
 }[] = [
@@ -37,8 +15,7 @@ const ROWS: {
 		page: "/checkout",
 		errors: "2,431",
 		users: "159",
-		rate: "18.4%",
-		status: "Critical",
+		rate: "15.3",
 		tone: "critical",
 		highlight: true,
 	},
@@ -46,24 +23,21 @@ const ROWS: {
 		page: "/pricing",
 		errors: "412",
 		users: "69",
-		rate: "4.1%",
-		status: "Investigate",
+		rate: "6.0",
 		tone: "warning",
 	},
 	{
 		page: "/login",
 		errors: "188",
 		users: "47",
-		rate: "2.6%",
-		status: "Monitor",
+		rate: "4.0",
 		tone: "warning",
 	},
 	{
 		page: "/blog",
 		errors: "73",
 		users: "29",
-		rate: "0.8%",
-		status: "OK",
+		rate: "2.5",
 		tone: "good",
 	},
 ] as const;
@@ -96,63 +70,45 @@ export function ErrorPerPageBreakdownDemo() {
 									Users
 								</th>
 								<th className={TH_RIGHT} scope="col">
-									Rate
-								</th>
-								<th className={TH_RIGHT} scope="col">
-									Status
+									Per user
 								</th>
 							</tr>
 						</thead>
 						<tbody className="divide-y divide-border/40 bg-background/25">
-							{ROWS.map((row) => {
-								const styles = STATUS_STYLES[row.tone];
-								return (
-									<tr
+							{ROWS.map((row) => (
+								<tr
+									className={cn(
+										"hover:bg-muted/10",
+										row.highlight && "bg-red-950/45 hover:bg-red-950/55"
+									)}
+									key={row.page}
+								>
+									<td
 										className={cn(
-											"hover:bg-muted/10",
-											row.highlight && "bg-red-950/45 hover:bg-red-950/55"
+											"max-w-[120px] truncate px-2 py-2 font-mono text-xs",
+											row.highlight ? "text-red-400" : "text-foreground"
 										)}
-										key={row.page}
 									>
-										<td
-											className={cn(
-												"max-w-[120px] truncate px-2 py-2 font-mono text-xs",
-												row.highlight ? "text-red-400" : "text-foreground"
-											)}
-										>
-											{row.page}
-										</td>
-										<td className="px-2 py-2 text-right font-mono text-muted-foreground text-xs tabular-nums">
-											{row.errors}
-										</td>
-										<td className="px-2 py-2 text-right font-mono text-muted-foreground text-xs tabular-nums">
-											{row.users}
-										</td>
-										<td
-											className={cn(
-												"px-2 py-2 text-right font-mono text-xs tabular-nums",
-												row.tone === "critical" && "text-red-300",
-												row.tone === "warning" && "text-amber-300",
-												row.tone === "good" && "text-emerald-300"
-											)}
-										>
-											{row.rate}
-										</td>
-										<td className="px-2 py-2 text-right">
-											<span
-												className={cn(
-													"inline-flex items-center rounded border px-1.5 py-0.5 font-medium font-mono text-[9px] uppercase tracking-wide",
-													styles.border,
-													styles.badge,
-													styles.text
-												)}
-											>
-												{row.status}
-											</span>
-										</td>
-									</tr>
-								);
-							})}
+										{row.page}
+									</td>
+									<td className="px-2 py-2 text-right font-mono text-muted-foreground text-xs tabular-nums">
+										{row.errors}
+									</td>
+									<td className="px-2 py-2 text-right font-mono text-muted-foreground text-xs tabular-nums">
+										{row.users}
+									</td>
+									<td
+										className={cn(
+											"px-2 py-2 text-right font-mono text-xs tabular-nums",
+											row.tone === "critical" && "text-red-300",
+											row.tone === "warning" && "text-amber-300",
+											row.tone === "good" && "text-emerald-300"
+										)}
+									>
+										{row.rate}
+									</td>
+								</tr>
+							))}
 						</tbody>
 					</table>
 				</div>

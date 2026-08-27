@@ -21,9 +21,7 @@ interface SimpleMetricsChartProps {
 	height?: number;
 	isLoading?: boolean;
 	metrics: MetricConfig[];
-	/** When true, the last segment (incomplete period) uses a dashed stroke, matching the overview traffic trends chart. Applies to area and line, not bar. */
 	partialLastSegment?: boolean;
-	/** Area (default), line, or grouped bar. */
 	seriesKind?: ChartSeriesKind;
 	title?: string;
 }

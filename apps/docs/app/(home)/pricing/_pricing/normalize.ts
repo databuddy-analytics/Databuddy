@@ -1,7 +1,7 @@
 import type { RawItem, RawPlan } from "../data";
 import type { NormalizedPlan } from "./types";
 
-export function getPriceMonthly(items: RawItem[]): number {
+function getPriceMonthly(items: RawItem[]): number {
 	for (const item of items) {
 		if (item.type === "price") {
 			return item.price;
@@ -10,7 +10,7 @@ export function getPriceMonthly(items: RawItem[]): number {
 	return 0;
 }
 
-export function getEventsInfo(items: RawItem[]): {
+function getEventsInfo(items: RawItem[]): {
 	included: number;
 	tiers: Array<{ to: number | "inf"; amount: number }> | null;
 } {
@@ -33,7 +33,7 @@ export function getEventsInfo(items: RawItem[]): {
 	return { included, tiers };
 }
 
-export function getAgentCreditsByInterval(
+function getAgentCreditsByInterval(
 	items: RawItem[],
 	interval: "day" | "month"
 ): number | null {

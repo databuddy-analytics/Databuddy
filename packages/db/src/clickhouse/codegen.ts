@@ -33,9 +33,9 @@ function tsType(rawType: string): string {
 		nullable = true;
 		t = nul[1].trim();
 	}
-	const arr = t.match(ARRAY_PATTERN);
-	if (arr) {
-		return `${tsType(arr[1])}[]`;
+	const arrayMatch = t.match(ARRAY_PATTERN);
+	if (arrayMatch) {
+		return `${tsType(arrayMatch[1])}[]`;
 	}
 	let base: string;
 	if (INT_PATTERN.test(t) || FLOAT_PATTERN.test(t)) {

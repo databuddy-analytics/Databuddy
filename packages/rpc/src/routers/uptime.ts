@@ -6,6 +6,7 @@ import {
 } from "@databuddy/db/schema";
 import { invalidateStatusPageCache } from "@databuddy/redis";
 import {
+	CRON_GRANULARITIES,
 	uptimeGranularitySchema,
 	type UptimeGranularity,
 } from "@databuddy/shared/uptime";
@@ -14,6 +15,7 @@ import { z } from "zod";
 import { rpcError } from "../errors";
 import { logger } from "../lib/logger";
 import { protectedProcedure, trackedProcedure } from "../orpc";
+import { setAuditOrganization } from "../lib/audit";
 import { setTrackProperties } from "../middleware/track-mutation";
 import { authorizeTransfer, withResource } from "../procedures/with-resource";
 import { withWorkspace } from "../procedures/with-workspace";
@@ -26,10 +28,7 @@ import {
 	updateScheduleWithScheduler,
 	type UptimeScheduleUpdate,
 } from "../services/uptime-lifecycle";
-import {
-	CRON_GRANULARITIES,
-	hasUptimeSchedule,
-} from "../services/uptime-scheduler";
+import { hasUptimeSchedule } from "../services/uptime-scheduler";
 
 function parseStoredGranularity(value: string): UptimeGranularity {
 	const parsed = uptimeGranularitySchema.safeParse(value);
@@ -39,18 +38,24 @@ function parseStoredGranularity(value: string): UptimeGranularity {
 	return parsed.data;
 }
 
-async function invalidateStatusPageCachesForSchedule(
+async function statusPageSlugsForSchedule(
 	scheduleId: string
-): Promise<void> {
+): Promise<string[]> {
 	const rows = await db
 		.select({ slug: statusPages.slug })
 		.from(statusPageMonitors)
 		.innerJoin(statusPages, eq(statusPageMonitors.statusPageId, statusPages.id))
 		.where(eq(statusPageMonitors.uptimeScheduleId, scheduleId));
+	return rows.map((row) => row.slug);
+}
 
+async function invalidateStatusPageSlugs(
+	scheduleId: string,
+	slugs: string[]
+): Promise<void> {
 	const results = await Promise.allSettled(
-		rows.map((row) =>
-			Promise.resolve().then(() => invalidateStatusPageCache(row.slug))
+		slugs.map((slug) =>
+			Promise.resolve().then(() => invalidateStatusPageCache(slug))
 		)
 	);
 	const failed = results.filter((result) => result.status === "rejected");
@@ -62,39 +67,48 @@ async function invalidateStatusPageCachesForSchedule(
 	}
 }
 
-const getScheduleOutputSchema = z
-	.object({
-		id: z.string(),
-		websiteId: z.string().nullable(),
-		organizationId: z.string(),
-		url: z.string(),
-		name: z.string().nullable(),
-		granularity: uptimeGranularitySchema,
-		cron: z.string(),
-		isPaused: z.boolean(),
-		timeout: z.number().nullable().optional(),
-		cacheBust: z.boolean(),
-		jsonParsingConfig: z.unknown().nullable(),
-		createdAt: z.union([z.date(), z.string()]),
-		updatedAt: z.union([z.date(), z.string()]),
-		schedulerStatus: z.enum(["active", "missing"]),
-		website: z
-			.object({
-				id: z.string(),
-				name: z.string().nullable(),
-				domain: z.string(),
-			})
-			.loose()
-			.nullable()
-			.optional(),
-	})
-	.loose();
+async function invalidateStatusPageCachesForSchedule(
+	scheduleId: string
+): Promise<void> {
+	await invalidateStatusPageSlugs(
+		scheduleId,
+		await statusPageSlugsForSchedule(scheduleId)
+	);
+}
 
-const scheduleOutputSchema = z.record(z.string(), z.unknown());
+const getScheduleOutputSchema = z.object({
+	id: z.string(),
+	websiteId: z.string().nullable(),
+	organizationId: z.string(),
+	url: z.string(),
+	name: z.string().nullable(),
+	granularity: uptimeGranularitySchema,
+	isPaused: z.boolean(),
+	timeout: z.number().nullable().optional(),
+	cacheBust: z.boolean(),
+	createdAt: z.union([z.date(), z.string()]),
+	updatedAt: z.union([z.date(), z.string()]),
+	schedulerStatus: z.enum(["active", "missing"]),
+	website: z
+		.object({
+			id: z.string(),
+			name: z.string().nullable(),
+			domain: z.string(),
+		})
+		.nullable()
+		.optional(),
+});
 
-const listScheduleItemSchema = getScheduleOutputSchema
-	.omit({ schedulerStatus: true })
-	.loose();
+const scheduleMutationOutputSchema = z.object({
+	scheduleId: z.string(),
+	url: z.string().optional(),
+	name: z.string().nullish(),
+	granularity: uptimeGranularitySchema.optional(),
+});
+
+const listScheduleItemSchema = getScheduleOutputSchema.omit({
+	schedulerStatus: true,
+});
 
 export const uptimeRouter = {
 	getScheduleByWebsiteId: protectedProcedure
@@ -108,7 +122,7 @@ export const uptimeRouter = {
 			spec: (s) => ({ ...s, "x-required-scopes": ["read:monitors"] as const }),
 		})
 		.input(z.object({ websiteId: z.string() }))
-		.output(scheduleOutputSchema.nullable())
+		.output(listScheduleItemSchema.nullable())
 		.handler(async ({ context, input }) => {
 			await withWorkspace(context, {
 				websiteId: input.websiteId,
@@ -218,14 +232,9 @@ export const uptimeRouter = {
 				granularity: uptimeGranularitySchema,
 				timeout: z.number().int().min(1000).max(120_000).optional(),
 				cacheBust: z.boolean().optional(),
-				jsonParsingConfig: z
-					.object({
-						enabled: z.boolean(),
-					})
-					.optional(),
 			})
 		)
-		.output(scheduleOutputSchema)
+		.output(scheduleMutationOutputSchema)
 		.handler(async ({ context, input }) => {
 			setTrackProperties({ granularity: input.granularity });
 			const organizationId =
@@ -237,7 +246,7 @@ export const uptimeRouter = {
 			await withWorkspace(context, {
 				organizationId,
 				resource: "monitor",
-				permissions: ["update"],
+				permissions: ["create"],
 			});
 
 			const existing = await db.query.uptimeSchedules.findFirst({
@@ -263,22 +272,15 @@ export const uptimeRouter = {
 				isPaused: false,
 				timeout: input.timeout ?? null,
 				cacheBust: input.cacheBust ?? false,
-				jsonParsingConfig: input.jsonParsingConfig ?? { enabled: true },
 			});
 
 			logger.info({ scheduleId, url: input.url }, "Schedule created");
-
-			const created = await db.query.uptimeSchedules.findFirst({
-				where: { id: scheduleId },
-			});
 
 			return {
 				scheduleId,
 				url: input.url,
 				name: input.name,
 				granularity: input.granularity,
-				cron: CRON_GRANULARITIES[input.granularity],
-				jsonParsingConfig: created?.jsonParsingConfig ?? null,
 			};
 		}),
 
@@ -298,14 +300,9 @@ export const uptimeRouter = {
 				granularity: uptimeGranularitySchema.optional(),
 				timeout: z.number().int().min(1000).max(120_000).nullish(),
 				cacheBust: z.boolean().optional(),
-				jsonParsingConfig: z
-					.object({
-						enabled: z.boolean(),
-					})
-					.optional(),
 			})
 		)
-		.output(scheduleOutputSchema)
+		.output(scheduleMutationOutputSchema)
 		.handler(async ({ context, input }) => {
 			const existingSchedule = await withResource(context, {
 				resource: "monitor",
@@ -335,10 +332,6 @@ export const uptimeRouter = {
 				updateData.cacheBust = input.cacheBust;
 			}
 
-			if (input.jsonParsingConfig !== undefined) {
-				updateData.jsonParsingConfig = input.jsonParsingConfig;
-			}
-
 			await updateScheduleWithScheduler(
 				input.scheduleId,
 				updateData,
@@ -356,8 +349,6 @@ export const uptimeRouter = {
 				scheduleId: input.scheduleId,
 				name: schedule?.name ?? null,
 				granularity: schedule?.granularity,
-				cron: schedule?.cron,
-				jsonParsingConfig: schedule?.jsonParsingConfig ?? null,
 			};
 		}),
 
@@ -376,11 +367,12 @@ export const uptimeRouter = {
 			await withResource(context, {
 				resource: "monitor",
 				id: input.scheduleId,
-				permissions: ["update"],
+				permissions: ["delete"],
 			});
-			await invalidateStatusPageCachesForSchedule(input.scheduleId);
+			const slugs = await statusPageSlugsForSchedule(input.scheduleId);
 
 			await deleteScheduleWithScheduler(input.scheduleId);
+			await invalidateStatusPageSlugs(input.scheduleId, slugs);
 
 			logger.info({ scheduleId: input.scheduleId }, "Schedule deleted");
 			return { success: true };
@@ -448,6 +440,7 @@ export const uptimeRouter = {
 				id: input.scheduleId,
 				targetOrganizationId: input.targetOrganizationId,
 			});
+			setAuditOrganization(context, schedule.organizationId);
 
 			await db
 				.update(uptimeSchedules)

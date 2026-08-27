@@ -22,17 +22,16 @@ const SECTION_ORDER = [
 	"api",
 	"Integrations",
 	"hooks",
-	"features",
 	"performance",
 	"privacy",
 	"compliance",
 ];
 const SECTION_LABELS: Record<string, string> = {
 	root: "Core",
+	sdk: "SDK",
 	api: "API Reference",
 	Integrations: "Integrations",
 	hooks: "React Hooks",
-	features: "Features",
 	performance: "Performance",
 	privacy: "Privacy",
 	compliance: "Compliance",

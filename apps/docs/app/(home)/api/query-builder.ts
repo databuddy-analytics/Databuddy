@@ -136,41 +136,6 @@ async function executeDynamicQuery(
 	}
 }
 
-export async function executeQuery(
-	startDate: string,
-	endDate: string,
-	queryRequest: DynamicQueryRequest,
-	timezone = "UTC"
-): Promise<DynamicQueryResponse> {
-	try {
-		const result = await executeDynamicQuery(
-			startDate,
-			endDate,
-			queryRequest,
-			timezone
-		);
-
-		if ("batch" in result) {
-			throw new Error("Unexpected batch response for single query");
-		}
-
-		return result;
-	} catch {
-		return {
-			success: false,
-			queryId: queryRequest.id,
-			data: [],
-			meta: {
-				parameters: queryRequest.parameters,
-				total_parameters: queryRequest.parameters.length,
-				page: queryRequest.page || 1,
-				limit: queryRequest.limit || 100,
-				filters_applied: queryRequest.filters?.length || 0,
-			},
-		};
-	}
-}
-
 export async function executeBatchQueries(
 	startDate: string,
 	endDate: string,

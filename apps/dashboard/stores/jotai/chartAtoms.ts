@@ -32,13 +32,6 @@ export const toggleMetricAtom = atom(
 	}
 );
 
-export const visibleMetricsAtom = atom((get) => {
-	const visibility = get(metricVisibilityAtom);
-	return Object.entries(visibility)
-		.filter(([, isVisible]) => isVisible)
-		.map(([metric]) => metric);
-});
-
 export interface RevenueMetricVisibilityState {
 	avg_transaction: boolean;
 	customers: boolean;
@@ -70,5 +63,3 @@ export const toggleRevenueMetricAtom = atom(
 		}));
 	}
 );
-
-export const isRefreshingAtom = atom(false);

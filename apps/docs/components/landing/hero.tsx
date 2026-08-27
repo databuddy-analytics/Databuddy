@@ -11,6 +11,9 @@ import {
 	GaugeIcon,
 	LightbulbFilamentIcon,
 	LightningIcon,
+	LockSimpleIcon,
+	ShieldCheckIcon,
+	StarIcon,
 	TrendUpIcon,
 } from "@databuddy/ui/icons";
 import { motion } from "motion/react";
@@ -149,6 +152,12 @@ const heroInsightByTab = new Map<HeroTabId, (typeof heroInsights)[number]>(
 const tabLabels = new Map<HeroTabId, string>(
 	tabs.map((tab) => [tab.id, tab.label])
 );
+
+const proofChips = [
+	{ icon: LightningIcon, label: "~12 KB script" },
+	{ icon: LockSimpleIcon, label: "Cookieless, no banners" },
+	{ icon: ShieldCheckIcon, label: "GDPR by default" },
+] as const;
 
 type FullscreenElement = HTMLIFrameElement & {
 	webkitRequestFullscreen?: () => Promise<void>;
@@ -299,8 +308,10 @@ function HeroInsightOverlay({ activeTab }: { activeTab: HeroTabId }) {
 
 export default function Hero({
 	demoEmbedBaseUrl,
+	stars,
 }: {
 	demoEmbedBaseUrl: string;
+	stars?: number | null;
 }) {
 	const [activeTab, setActiveTab] = useState<HeroTabId>(tabs[0].id);
 	const [loadedTabIds, setLoadedTabIds] = useState<Set<string>>(
@@ -369,6 +380,46 @@ export default function Hero({
 						surfaces the important answers as investigation cards with evidence
 						and a next step attached.
 					</p>
+
+					<div className="z-10 flex flex-wrap items-center gap-2 pt-1.5">
+						{proofChips.map((chip, i) => (
+							<motion.span
+								animate={{ opacity: 1, y: 0 }}
+								className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background/60 px-2.5 py-1 text-muted-foreground text-xs backdrop-blur-sm transition-colors duration-150 hover:border-border hover:text-foreground"
+								initial={{ opacity: 0, y: 6 }}
+								key={chip.label}
+								transition={{
+									delay: 0.15 + i * 0.08,
+									duration: 0.3,
+									ease: "easeOut",
+								}}
+							>
+								<chip.icon className="size-3.5" weight="duotone" />
+								{chip.label}
+							</motion.span>
+						))}
+						<motion.a
+							animate={{ opacity: 1, y: 0 }}
+							className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background/60 px-2.5 py-1 text-muted-foreground text-xs backdrop-blur-sm transition-colors duration-150 hover:border-border hover:text-foreground"
+							href="https://github.com/databuddy-analytics/databuddy"
+							initial={{ opacity: 0, y: 6 }}
+							rel="noopener noreferrer"
+							target="_blank"
+							transition={{
+								delay: 0.15 + proofChips.length * 0.08,
+								duration: 0.3,
+								ease: "easeOut",
+							}}
+						>
+							<StarIcon className="size-3.5 text-amber-500" weight="duotone" />
+							Open source
+							{typeof stars === "number" && (
+								<span className="tabular-nums">
+									&middot; {stars.toLocaleString()}
+								</span>
+							)}
+						</motion.a>
+					</div>
 
 					<div className="flex flex-wrap items-center gap-3 pt-2">
 						<SciFiButton asChild className="px-6 py-5">

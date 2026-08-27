@@ -185,13 +185,6 @@ export function prepareInsightRun(
 		return params.result;
 	});
 }
-
-/**
- * Persist effects as soon as an individual portfolio candidate is durable.
- * This intentionally does not prepare the whole run: retries still need to
- * finish the remaining frozen candidates before the run receives a terminal
- * result.
- */
 export function enqueueInsightRunEffects(
 	params: InsightRunIdentity & { effects: InsightRunEffectInput[] }
 ): Promise<void> {

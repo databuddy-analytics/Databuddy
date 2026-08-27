@@ -3,30 +3,6 @@ import { appendUtmToUrl, type UtmParams } from "./utm-builder";
 
 const HTTP_PROTOCOL_PREFIX = /^https?:\/\//i;
 
-export function formatTarget(targetUrl: string): string {
-	try {
-		const parsed = new URL(targetUrl);
-		return parsed.host + (parsed.pathname === "/" ? "" : parsed.pathname);
-	} catch {
-		return targetUrl;
-	}
-}
-
-export function shortenId(id: string): string {
-	if (id.length <= 8) {
-		return id;
-	}
-	return `${id.slice(0, 3)}…${id.slice(-3)}`;
-}
-
-export function shortenUrl(url: string): string {
-	try {
-		return new URL(url).host;
-	} catch {
-		return url.length <= 12 ? url : `${url.slice(0, 9)}…`;
-	}
-}
-
 export function stripProtocol(url: string | null): string {
 	if (!url) {
 		return "";
@@ -151,34 +127,4 @@ export function buildLinkPayload({
 		externalId,
 		folderId,
 	};
-}
-
-interface RpcError {
-	data?: { code?: string };
-	message?: string;
-}
-
-export function mapLinkApiError(error: unknown, isEditing: boolean): string {
-	const defaultMessage = `Failed to ${isEditing ? "update" : "create"} link.`;
-	const rpcError = error as RpcError;
-
-	if (rpcError?.data?.code) {
-		switch (rpcError.data.code) {
-			case "CONFLICT":
-				return "A link with this slug already exists.";
-			case "FORBIDDEN":
-				return (
-					rpcError.message ||
-					"You do not have permission to perform this action."
-				);
-			case "UNAUTHORIZED":
-				return "You must be logged in to perform this action.";
-			case "BAD_REQUEST":
-				return rpcError.message || "Invalid request. Please check your input.";
-			default:
-				return rpcError.message || defaultMessage;
-		}
-	}
-
-	return rpcError?.message || defaultMessage;
 }

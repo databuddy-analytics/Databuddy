@@ -28,7 +28,7 @@ const cards = [
 	},
 	{
 		id: 3,
-		title: "About 10 KB gzip",
+		title: "About 12 KB gzip",
 		description:
 			"Your analytics script shouldn't slow your site. Ours is lighter than a single hero image.",
 		icon: LightningIcon,

@@ -34,6 +34,7 @@ import {
 } from "@databuddy/ui/icons";
 import { Select } from "@databuddy/ui/client";
 import { Card, Text, Tooltip } from "@databuddy/ui";
+import { ChartTypeOption } from "./_components/chart-type-option";
 
 const MOCK_CHART_DATA = [
 	{ date: "2024-01-01", value: 186 },
@@ -68,6 +69,16 @@ const STEP_TYPE_OPTIONS: { id: ChartCurveType; name: string }[] = [
 	{ id: "stepAfter", name: "Step After" },
 ];
 
+const CHART_TYPE_ITEMS = CHART_TYPE_OPTIONS.map(({ id, name }) => ({
+	label: name,
+	value: id,
+}));
+
+const STEP_TYPE_ITEMS = STEP_TYPE_OPTIONS.map(({ id, name }) => ({
+	label: name,
+	value: id,
+}));
+
 const DEFAULT_DATE_RANGE_OPTIONS: DefaultDateRangePreset[] = [
 	"24h",
 	"7d",
@@ -84,6 +95,11 @@ const LOCATION_ICONS: Record<ChartLocation, typeof ChartLineIcon> = {
 	"website-list": ChartLineIcon,
 	events: CursorClickIcon,
 };
+
+const CHART_LOCATION_ITEMS = CHART_LOCATIONS.map((value) => ({
+	label: CHART_LOCATION_LABELS[value],
+	value,
+}));
 
 export default function AppearanceSettingsPage() {
 	const { theme, setTheme } = useTheme();
@@ -191,6 +207,7 @@ export default function AppearanceSettingsPage() {
 								</Text>
 								{showGranular && (
 									<Select
+										items={CHART_LOCATION_ITEMS}
 										onValueChange={(v) =>
 											setPreviewLocation(v as ChartLocation)
 										}
@@ -239,6 +256,7 @@ export default function AppearanceSettingsPage() {
 								<Text variant="label">All Charts</Text>
 								<div className="flex items-center gap-2">
 									<Select
+										items={CHART_TYPE_ITEMS}
 										onValueChange={(v) =>
 											updateAllPreferences({
 												chartType: v as ChartSeriesKind,
@@ -250,14 +268,14 @@ export default function AppearanceSettingsPage() {
 										<Select.Content>
 											{CHART_TYPE_OPTIONS.map(({ id, name, icon: OptIcon }) => (
 												<Select.Item key={id} value={id}>
-													<OptIcon className="size-3.5" weight="duotone" />
-													{name}
+													<ChartTypeOption icon={OptIcon} label={name} />
 												</Select.Item>
 											))}
 										</Select.Content>
 									</Select>
 									<Select
 										disabled={isGlobalBar}
+										items={STEP_TYPE_ITEMS}
 										onValueChange={(v) =>
 											updateAllPreferences({
 												chartStepType: v as ChartCurveType,
@@ -355,6 +373,7 @@ export default function AppearanceSettingsPage() {
 												</button>
 												<div className="flex shrink-0 items-center gap-2">
 													<Select
+														items={CHART_TYPE_ITEMS}
 														onValueChange={(v) =>
 															updateLocationPreferences(location, {
 																chartType: v as ChartSeriesKind,
@@ -367,11 +386,10 @@ export default function AppearanceSettingsPage() {
 															{CHART_TYPE_OPTIONS.map(
 																({ id, name, icon: OptIcon }) => (
 																	<Select.Item key={id} value={id}>
-																		<OptIcon
-																			className="size-3.5"
-																			weight="duotone"
+																		<ChartTypeOption
+																			icon={OptIcon}
+																			label={name}
 																		/>
-																		{name}
 																	</Select.Item>
 																)
 															)}
@@ -379,6 +397,7 @@ export default function AppearanceSettingsPage() {
 													</Select>
 													<Select
 														disabled={isBar}
+														items={STEP_TYPE_ITEMS}
 														onValueChange={(v) =>
 															updateLocationPreferences(location, {
 																chartStepType: v as ChartCurveType,

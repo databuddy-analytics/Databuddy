@@ -10,7 +10,7 @@ import { useCyclePhase } from "../../hooks";
 import { usePrefersReducedMotion } from "../../hooks";
 import type { DotMatrixCommonProps } from "../../core";
 
-export type DotmTriangle8Props = DotMatrixCommonProps;
+type DotmTriangle8Props = DotMatrixCommonProps;
 
 const MATRIX_SIZE = 7;
 
@@ -60,11 +60,6 @@ function sectorForCell(row: number, col: number): Sector {
   }
   return "none";
 }
-
-/**
- * Alternating emphasis on the two lower wings (split by the apex column), with the apex and
- * heart dot brightest when energy crosses the middle (both sides briefly equal).
- */
 function opacityForCell(row: number, col: number, phase: number): number {
   const p = 0.5 - 0.5 * Math.cos(phase * Math.PI * 2);
   const leftLift = p * p;

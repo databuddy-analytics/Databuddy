@@ -18,7 +18,6 @@ import { linkFormSchema } from "./link-form-schema";
 import { LinkQrCode } from "./link-qr-code";
 import {
 	buildLinkPayload,
-	mapLinkApiError,
 	normalizeUrlInput,
 	stripProtocol,
 } from "./link-utils";
@@ -174,9 +173,7 @@ function LinkSheetInner({ open, onOpenChange, link, onSave }: LinkSheetProps) {
 				toast.success("Link created");
 			}
 			onOpenChange(false);
-		} catch (error: unknown) {
-			toast.error(mapLinkApiError(error, !!link?.id));
-		}
+		} catch {}
 	};
 
 	const { copyToClipboard } = useCopyToClipboard({

@@ -357,28 +357,3 @@ export const WebsiteCard = memo(
 );
 
 WebsiteCard.displayName = "WebsiteCard";
-
-export function WebsiteCardSkeleton() {
-	return (
-		<Card className="h-full overflow-hidden pt-0">
-			<Card.Header className="dotted-bg gap-0! border-b bg-accent px-0 pt-4 pb-0!">
-				<Skeleton className="h-28 w-full" />
-			</Card.Header>
-			<Card.Content className="space-y-1 px-4 py-3">
-				<div className="flex items-center gap-3">
-					<Skeleton className="size-7 shrink-0 rounded" />
-					<div className="flex min-w-0 flex-1 items-center justify-between gap-2">
-						<div className="min-w-0 space-y-0.5">
-							<Skeleton className="h-4 w-24 rounded" />
-							<Skeleton className="h-3.5 w-32 rounded" />
-						</div>
-						<div className="flex shrink-0 flex-col items-end space-y-0.5">
-							<Skeleton className="h-4 w-10 rounded" />
-							<Skeleton className="h-4 w-12 rounded" />
-						</div>
-					</div>
-				</div>
-			</Card.Content>
-		</Card>
-	);
-}

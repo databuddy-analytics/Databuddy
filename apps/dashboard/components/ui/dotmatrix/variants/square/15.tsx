@@ -8,13 +8,12 @@ import { useCyclePhase } from "../../hooks";
 import { usePrefersReducedMotion } from "../../hooks";
 import type { DotAnimationResolver, DotMatrixCommonProps } from "../../core";
 
-export type DotmSquare15Props = DotMatrixCommonProps;
+type DotmSquare15Props = DotMatrixCommonProps;
 
 const BASE_OPACITY = 0.08;
 const STRAND_OPACITY = 1;
 const BRIDGE_OPACITY = 0.58;
 const NEAR_STRAND_OPACITY = 0.24;
-/** Integer full sin periods per matrix cycle so phase 0 ≡ phase 1 (no wrap glitch). */
 const STRAND_LOOPS = 2;
 
 export function DotmSquare15({

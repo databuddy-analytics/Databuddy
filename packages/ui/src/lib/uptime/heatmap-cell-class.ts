@@ -1,6 +1,5 @@
 export interface UptimeHeatmapCellClassInput {
 	hasData: boolean;
-	/** `true` adds hover:bg-* pairs for interactive heatmap cells */
 	interactive: boolean;
 	isActive: boolean;
 	uptimePercent: number;

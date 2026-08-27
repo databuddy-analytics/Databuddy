@@ -6,7 +6,7 @@ export function escapeMrkdwn(value: string): string {
 		.replace(/\|/g, "&#124;");
 }
 
-export function safeUrlForSlack(url: string): string {
+function safeUrlForSlack(url: string): string {
 	try {
 		const parsed = new URL(url);
 		if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {

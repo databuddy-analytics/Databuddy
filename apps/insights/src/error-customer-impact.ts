@@ -1,10 +1,6 @@
 import { executeQuery, type Filter } from "@databuddy/ai/query";
-import type {
-	InsightDatabuddySetupRecommendation,
-	InvestigationSignal,
-} from "@databuddy/shared/insights";
+import type { InvestigationSignal } from "@databuddy/shared/insights";
 
-const MIN_IDENTITY_SETUP_COHORT = 10;
 const MIN_ERROR_ROUTE_CONTINUATION_COHORT = 30;
 const MIN_ERROR_ROUTE_CONTINUATION_DROP_PERCENTAGE_POINTS = 15;
 const MIN_ERROR_ROUTE_CONTINUATION_EXPOSED_MATCH_RATE = 0.5;
@@ -377,24 +373,6 @@ export async function loadErrorCustomerImpact(
 
 function countLabel(value: number, singular: string): string {
 	return `${value.toLocaleString("en-US")} ${singular}${value === 1 ? "" : "s"}`;
-}
-
-export function errorIdentitySetupRecommendation(
-	impact: ErrorCustomerImpact | null
-): InsightDatabuddySetupRecommendation | null {
-	if (
-		!impact ||
-		impact.affectedVisitorIdentifiers < MIN_IDENTITY_SETUP_COHORT ||
-		impact.linkedVisitorIdentifiers !== 0
-	) {
-		return null;
-	}
-	return {
-		action:
-			"Verify or add Databuddy identify() after authentication so future errors can be tied to signed-in users.",
-		feature: "user_identification",
-		kind: "databuddy_setup",
-	};
 }
 
 export function errorCustomerImpactEvidence(

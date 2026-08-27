@@ -18,6 +18,7 @@ interface ArchivedFlagItemProps {
 	flag: Flag;
 	onDelete: (flagId: string) => void;
 	onEdit: (flag: Flag) => void;
+	websiteId: string;
 }
 
 export function ArchivedFlagItem({
@@ -25,6 +26,7 @@ export function ArchivedFlagItem({
 	onEdit,
 	onDelete,
 	className,
+	websiteId,
 }: ArchivedFlagItemProps) {
 	const queryClient = useQueryClient();
 
@@ -33,7 +35,7 @@ export function ArchivedFlagItem({
 		onSuccess: () => {
 			queryClient.invalidateQueries({
 				queryKey: orpc.flags.list.key({
-					input: { websiteId: flag.websiteId ?? "" },
+					input: { websiteId },
 				}),
 			});
 		},

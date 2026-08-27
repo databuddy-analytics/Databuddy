@@ -11,8 +11,8 @@ import { FaqSection } from "@/components/landing/faq-section";
 import {
 	AgentChatDemo,
 	AnomalyDetectionDemo,
+	CaseFollowUpDemo,
 	InsightCardsDemo,
-	NarrativeSummaryDemo,
 	ProactiveAlertsDemo,
 	SuggestedPromptsDemo,
 } from "@/components/landing/databunny-demo-visuals";
@@ -22,14 +22,14 @@ import { StructuredData } from "@/components/structured-data";
 export const metadata: Metadata = {
 	title: "AI Analytics Agent - Ask Your Data Questions in Plain English",
 	description:
-		"Ask analytics questions in plain English. Run automatic investigations daily or weekly and continue them from Slack.",
+		"Databunny investigates your analytics on its own, delivers evidence-backed findings to Slack, and answers questions in plain English.",
 	alternates: {
 		canonical: "https://www.databuddy.cc/databunny",
 	},
 	openGraph: {
 		title: "AI Analytics Agent - Ask Your Data Questions in Plain English",
 		description:
-			"Ask analytics questions in plain English. Run automatic investigations daily or weekly and continue them from Slack.",
+			"Databunny investigates your analytics on its own, delivers evidence-backed findings to Slack, and answers questions in plain English.",
 		url: "https://www.databuddy.cc/databunny",
 		images: ["/og-image.png"],
 	},
@@ -81,9 +81,57 @@ export default function DatabunnyPage() {
 			<div className="overflow-x-hidden">
 				<FeatureHero
 					docsHref="/docs"
-					subtitle="Type a question for an immediate answer, or schedule daily or weekly investigations that keep evidence, context, and replies together."
-					title="Ask your analytics anything in plain English."
+					subtitle="Databunny investigates your sites on a schedule you set, delivers evidence-backed findings to Slack, and rechecks until the fix is verified. And when you have a question, ask in plain English."
+					title="The analyst that finds problems before you ask."
 				/>
+
+				<Section className="border-border border-b" id="insights">
+					<div className={container}>
+						<SectionHeader
+							subtitle="On a daily or weekly schedule, Databunny checks anomaly baselines across traffic, errors, conversions, events, and performance. Each noteworthy change becomes one evidence-backed investigation with a clear next move."
+							title="Investigations that"
+							titleMuted="find you."
+						/>
+						<TwoColumnGrid>
+							<GridCell>
+								<h3 className={CELL_TITLE_CLASS}>
+									Surface trends, spikes, and drops automatically.
+								</h3>
+								<InsightCardsDemo />
+							</GridCell>
+							<GridCell>
+								<h3 className={CELL_TITLE_CLASS}>
+									Every case is rechecked until the fix is verified.
+								</h3>
+								<CaseFollowUpDemo />
+							</GridCell>
+						</TwoColumnGrid>
+					</div>
+				</Section>
+
+				<Section className="border-border border-b" id="detection">
+					<div className={container}>
+						<SectionHeader
+							subtitle="Actionable investigations go to Slack with impact, evidence, and a next step. Reply in the thread and Databunny continues the same case."
+							title="Findings arrive"
+							titleMuted="where you work."
+						/>
+						<TwoColumnGrid>
+							<GridCell>
+								<h3 className={CELL_TITLE_CLASS}>
+									Detect spikes and drops across pageviews, errors, and events.
+								</h3>
+								<AnomalyDetectionDemo />
+							</GridCell>
+							<GridCell>
+								<h3 className={CELL_TITLE_CLASS}>
+									Actions, questions, and resolutions, delivered to Slack.
+								</h3>
+								<ProactiveAlertsDemo />
+							</GridCell>
+						</TwoColumnGrid>
+					</div>
+				</Section>
 
 				<Section className="border-border border-b" id="agent">
 					<div className={container}>
@@ -104,54 +152,6 @@ export default function DatabunnyPage() {
 									Start from a suggestion or ask your own question.
 								</h3>
 								<SuggestedPromptsDemo />
-							</GridCell>
-						</TwoColumnGrid>
-					</div>
-				</Section>
-
-				<Section className="border-border border-b" id="insights">
-					<div className={container}>
-						<SectionHeader
-							subtitle="Schedule daily or weekly analysis across your organization. Each noteworthy change becomes one evidence-backed investigation with a clear next move."
-							title="Investigations that"
-							titleMuted="find you."
-						/>
-						<TwoColumnGrid>
-							<GridCell>
-								<h3 className={CELL_TITLE_CLASS}>
-									Surface trends, spikes, and drops automatically.
-								</h3>
-								<InsightCardsDemo />
-							</GridCell>
-							<GridCell>
-								<h3 className={CELL_TITLE_CLASS}>
-									Get a weekly summary across all your sites.
-								</h3>
-								<NarrativeSummaryDemo />
-							</GridCell>
-						</TwoColumnGrid>
-					</div>
-				</Section>
-
-				<Section className="border-border border-b" id="detection">
-					<div className={container}>
-						<SectionHeader
-							subtitle="Databunny checks traffic, errors, events, conversions, and performance, then sends actionable investigations to Slack where your team can continue them."
-							title="Catch problems"
-							titleMuted="before users do."
-						/>
-						<TwoColumnGrid>
-							<GridCell>
-								<h3 className={CELL_TITLE_CLASS}>
-									Detect spikes and drops across pageviews, errors, and events.
-								</h3>
-								<AnomalyDetectionDemo />
-							</GridCell>
-							<GridCell>
-								<h3 className={CELL_TITLE_CLASS}>
-									Get notified where you already work.
-								</h3>
-								<ProactiveAlertsDemo />
 							</GridCell>
 						</TwoColumnGrid>
 					</div>

@@ -3,7 +3,6 @@ import { describe, expect, it } from "bun:test";
 import type { InvestigationSignal } from "@databuddy/shared/insights";
 import {
 	 errorCustomerImpactEvidence,
-	 errorIdentitySetupRecommendation,
 	hasMaterialRouteContinuation,
 	loadErrorCustomerImpact,
 	matchedErrorContinuationMeasurement,
@@ -303,31 +302,4 @@ describe("error customer impact", () => {
 		expect(evidence).not.toContain("session_id");
 	});
 
-	it("offers identification only for a material fully unlinked cohort", () => {
-		const impact = parseErrorCustomerImpact({
-			...row,
-			identified_profiles: 0,
-			identified_profiles_with_prior_attributed_completed_payment: 0,
-			identity_coverage_percent: 0,
-			linked_visitor_identifiers: 0,
-			unlinked_visitor_identifiers: 35,
-		});
-		if (!impact) {
-			throw new Error("Expected impact fixture");
-		}
-
-		expect(errorIdentitySetupRecommendation(impact)).toEqual({
-			action:
-				"Verify or add Databuddy identify() after authentication so future errors can be tied to signed-in users.",
-			feature: "user_identification",
-			kind: "databuddy_setup",
-		});
-		expect(
-			errorIdentitySetupRecommendation({
-				...impact,
-				affectedVisitorIdentifiers: 9,
-				unlinkedVisitorIdentifiers: 9,
-			})
-		).toBeNull();
-	});
 });

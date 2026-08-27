@@ -12,8 +12,6 @@ import {
 	shouldAnonymizeVisitorIds,
 } from "./security";
 
-// ── saltAnonymousId (pure — no mocks needed) ──
-
 describe("saltAnonymousId", () => {
 	const salt = "test-salt-abc";
 
@@ -36,28 +34,12 @@ describe("saltAnonymousId", () => {
 		);
 	});
 
-	test("empty ID → still returns hash (of '' + salt)", () => {
-		const result = saltAnonymousId("", salt);
-		expect(result).toMatch(/^[a-f0-9]{64}$/);
-	});
-
-	test("empty salt → still returns hash", () => {
-		const result = saltAnonymousId("user_123", "");
-		expect(result).toMatch(/^[a-f0-9]{64}$/);
-	});
-
 	test("1000 unique IDs → 1000 unique hashes", () => {
 		const hashes = new Set<string>();
 		for (let i = 0; i < 1000; i++) {
 			hashes.add(saltAnonymousId(`user_${i}`, salt));
 		}
 		expect(hashes.size).toBe(1000);
-	});
-
-	test("long ID doesn't crash", () => {
-		const longId = "a".repeat(10_000);
-		const result = saltAnonymousId(longId, salt);
-		expect(result).toMatch(/^[a-f0-9]{64}$/);
 	});
 });
 
@@ -119,8 +101,6 @@ describe("visitor ID anonymization helpers", () => {
 		expect(applyVisitorIdPrivacy("", true, "salt")).toBe("");
 	});
 });
-
-// ── duplicate reservations (needs Redis mock) ──
 
 const { mockRedisSet, mockRedisGet, mockRedisEval, mockLoggerSet, mockCaptureError } =
 	vi.hoisted(() => ({

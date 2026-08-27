@@ -5,11 +5,6 @@ import {
 	memberAc,
 	ownerAc,
 } from "better-auth/plugins/organization/access";
-
-/**
- * Permission statement defining all resources and their actions.
- * This is the single source of truth for all permission types.
- */
 export const statement = {
 	...defaultStatements,
 
@@ -34,10 +29,6 @@ export const statement = {
 
 	audit_log: ["read"],
 } as const;
-
-/**
- * Type helpers for permission checking.
- */
 export type PermissionStatement = typeof statement;
 export type ResourceType = keyof PermissionStatement;
 export type PermissionFor<R extends ResourceType> =

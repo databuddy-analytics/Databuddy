@@ -148,7 +148,9 @@ describe("audit CSV export", () => {
 
 		const csv = auditEventsToCsv([event]);
 
-		expect(csv.split("\n")[0]).toContain("created_at");
+		expect(csv.charCodeAt(0)).toBe(0xfe_ff);
+		expect(csv.split("\r\n")).toHaveLength(2);
+		expect(csv.split("\r\n")[0]).toContain("created_at");
 		expect(csv).toContain('"\'  =Issa, Nassar"');
 		expect(csv).toContain('"Production key"');
 		expect(csv).toContain('"{""apiKey"":{""after"":""[REDACTED]""},""deleted"":{""after"":true}}"');

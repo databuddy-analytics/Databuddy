@@ -4,7 +4,7 @@ const DATABUDDY_HOST_RE = /(?:^|\.)databuddy\.cc$/;
 const allowedApiOrigins = new Set(config.cors.apiOrigins);
 const MCP_PATHS = new Set(["/v1/mcp", "/v1/mcp/", "/mcp", "/mcp/"]);
 
-export function isMcpRequest(request: Request): boolean {
+function isMcpRequest(request: Request): boolean {
 	return MCP_PATHS.has(new URL(request.url).pathname);
 }
 

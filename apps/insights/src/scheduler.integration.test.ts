@@ -481,7 +481,7 @@ describeIntegration("insights scheduler integration", () => {
 					organizationId: org.id,
 					websiteIds: [failedWebsite.id],
 				})
-			).rejects.toThrow("Internal Server Error");
+			).rejects.toThrow("Failed to queue insight generation");
 		} finally {
 			publish.mockRestore();
 		}

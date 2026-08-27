@@ -16,10 +16,8 @@ import type { UptimeGranularity } from "./uptime-scheduler";
 type StoredSchedule = {
 	id: string;
 	cacheBust: boolean;
-	cron: string;
 	granularity: string;
 	isPaused: boolean;
-	jsonParsingConfig: { enabled: boolean } | null;
 	name: string | null;
 	timeout: number | null;
 	updatedAt?: Date;
@@ -45,10 +43,8 @@ function schedule(values: Partial<StoredSchedule> = {}): StoredSchedule {
 	return {
 		id: "schedule-1",
 		cacheBust: false,
-		cron: "* * * * *",
 		granularity: "minute",
 		isPaused: false,
-		jsonParsingConfig: { enabled: true },
 		name: "Before",
 		timeout: 1000,
 		...values,
@@ -58,9 +54,7 @@ function schedule(values: Partial<StoredSchedule> = {}): StoredSchedule {
 function snapshot(row: StoredSchedule): UptimeScheduleSnapshot {
 	return {
 		cacheBust: row.cacheBust,
-		cron: row.cron,
 		granularity: row.granularity,
-		jsonParsingConfig: row.jsonParsingConfig,
 		name: row.name,
 		timeout: row.timeout,
 	};
@@ -93,10 +87,8 @@ function deps(): UptimeLifecycleDeps {
 					schedule({
 						id: values.id,
 						cacheBust: values.cacheBust ?? false,
-						cron: values.cron,
 						granularity: values.granularity,
 						isPaused: values.isPaused ?? false,
-						jsonParsingConfig: values.jsonParsingConfig ?? null,
 						name: values.name ?? null,
 						timeout: values.timeout ?? null,
 					})
@@ -160,7 +152,6 @@ describe("uptime lifecycle drift guards", () => {
 				organizationId: "org-1",
 				url: "https://example.com",
 				granularity: "five_minutes",
-				cron: "*/5 * * * *",
 				isPaused: false,
 				cacheBust: false,
 			},
@@ -184,7 +175,6 @@ describe("uptime lifecycle drift guards", () => {
 					organizationId: "org-1",
 					url: "https://example.com",
 					granularity: "minute",
-					cron: "* * * * *",
 					isPaused: false,
 					cacheBust: false,
 				},
@@ -209,7 +199,6 @@ describe("uptime lifecycle drift guards", () => {
 					organizationId: "org-1",
 					url: "https://example.com",
 					granularity: "minute",
-					cron: "* * * * *",
 					isPaused: false,
 					cacheBust: false,
 				},
@@ -262,7 +251,6 @@ describe("uptime lifecycle drift guards", () => {
 		schedules.set(row.id, row);
 		const values: UptimeScheduleUpdate = {
 			granularity: "ten_minutes",
-			cron: "*/10 * * * *",
 			updatedAt: new Date("2026-04-26T01:00:00.000Z"),
 		};
 
@@ -270,7 +258,6 @@ describe("uptime lifecycle drift guards", () => {
 
 		expect(schedules.get("schedule-1")).toMatchObject({
 			granularity: "ten_minutes",
-			cron: "*/10 * * * *",
 		});
 		expect(calls.upsert).toEqual([
 			{ scheduleId: "schedule-1", granularity: "ten_minutes" },
@@ -288,7 +275,6 @@ describe("uptime lifecycle drift guards", () => {
 				{
 					name: "After",
 					granularity: "hour",
-					cron: "0 * * * *",
 					timeout: 2000,
 					cacheBust: true,
 					updatedAt: new Date("2026-04-26T01:00:00.000Z"),
@@ -302,7 +288,6 @@ describe("uptime lifecycle drift guards", () => {
 		expect(schedules.get("schedule-1")).toMatchObject({
 			name: "Before",
 			granularity: "minute",
-			cron: "* * * * *",
 			timeout: 1000,
 			cacheBust: false,
 		});

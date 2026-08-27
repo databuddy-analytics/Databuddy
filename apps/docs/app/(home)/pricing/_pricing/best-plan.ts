@@ -64,7 +64,7 @@ export function selectBestPlan(
 	return bestPlan;
 }
 
-export function computeEnterpriseThreshold(plans: NormalizedPlan[]): number {
+function computeEnterpriseThreshold(plans: NormalizedPlan[]): number {
 	const sorted = [...plans].sort(
 		(a, b) => a.includedEventsMonthly - b.includedEventsMonthly
 	);

@@ -40,10 +40,7 @@ export default function SponsorsPage() {
 				}}
 			/>
 			<Section className="overflow-hidden" id="sponsors-hero">
-				<SponsorsHero
-					featuredSponsors={sponsorStats.featuredSponsors}
-					totalSponsors={sponsorStats.totalSponsors}
-				/>
+				<SponsorsHero totalSponsors={sponsorStats.totalSponsors} />
 			</Section>
 
 			{/* Current Sponsors Section */}

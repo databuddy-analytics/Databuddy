@@ -20,12 +20,6 @@ function formatDurationSeconds(seconds: number): string {
 
 	return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
 }
-
-/**
- * Formats the measured downtime for a day.
- * Uses actual `downtimeSeconds` (computed from the gap between
- * each down-check and the next check) when available.
- */
 export function formatDailyDowntime(downtimeSeconds: number): string {
 	return formatDurationSeconds(downtimeSeconds);
 }

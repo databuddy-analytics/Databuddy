@@ -34,9 +34,6 @@ import {
 } from "../../websites/[id]/_components/utils/code-generators";
 import { RECOMMENDED_DEFAULTS } from "../../websites/[id]/_components/utils/tracking-defaults";
 
-// TODO: Replace with published skill URL once available
-const SKILL_URL = "https://github.com/databuddy-cc/skill";
-
 async function copyTextToClipboard(value: string): Promise<boolean> {
 	if (!(value && typeof window !== "undefined")) {
 		return false;
@@ -86,7 +83,6 @@ function generateAgentPrompt(websiteId: string): string {
 - Docs: https://www.databuddy.cc/docs/getting-started
 - LLMs.txt: https://www.databuddy.cc/llms.txt
 - Full docs: https://www.databuddy.cc/docs
-- Skill (install for full context): ${SKILL_URL}
 
 ## Installation
 
@@ -170,11 +166,11 @@ Use snake_case event names. Track decisions and milestones (signup_completed, pu
 
 **Ad blockers**: uBlock Origin, Privacy Badger, and similar extensions may block analytics scripts. Test with extensions disabled. For production, consider a custom tracking domain (proxy through your own domain).
 
-**Localhost is ignored by default**: The SDK does not send events from localhost in production builds. During development, events only fire if the dev server is running.
+**Localhost is ignored by default**: Events from localhost are not sent unless the tracker's debug build is used. Deploy or open the site on a non-localhost host to see data.
 
 **Script not loading**: Verify the script tag is in <head> (not <body>), the src URL is correct, and no CSP or network error appears in the console.
 
-**Events not appearing in dashboard**: Data typically appears within 30 seconds. Check the Network tab for failed requests to basket.databuddy.cc. Verify the Client ID matches. Check for console errors.
+**Events not appearing in dashboard**: Data typically appears within a few minutes. Check the Network tab for failed requests to basket.databuddy.cc. Verify the Client ID matches. Check for console errors.
 
 **If another analytics tool is present**: Both can run in parallel. No conflicts. Optionally disable the other tool's page view tracking if Databuddy handles it.`;
 }

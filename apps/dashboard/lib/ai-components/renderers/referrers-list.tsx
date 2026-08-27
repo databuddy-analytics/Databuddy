@@ -7,7 +7,7 @@ import type { BaseComponentProps } from "../types";
 import { GlobeIcon } from "@databuddy/ui/icons";
 import { Card } from "@databuddy/ui";
 
-export interface ReferrerItem {
+interface ReferrerItem {
 	domain?: string;
 	name: string;
 	pageviews?: number;
