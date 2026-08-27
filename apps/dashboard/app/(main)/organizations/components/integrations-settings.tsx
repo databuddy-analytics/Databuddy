@@ -2,7 +2,10 @@
 
 import { authClient } from "@databuddy/auth/client";
 import { publicConfig } from "@databuddy/env/public";
-import type { SlackIntegrationOutput } from "@databuddy/rpc";
+import type {
+	GithubIntegrationOutput,
+	SlackIntegrationOutput,
+} from "@databuddy/rpc";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -37,6 +40,7 @@ import {
 import { Accordion, Autocomplete, DeleteDialog } from "@databuddy/ui/client";
 
 type SlackIntegration = SlackIntegrationOutput;
+type GithubIntegration = GithubIntegrationOutput;
 
 interface IntegrationCatalogItem {
 	accent: string;
@@ -107,8 +111,6 @@ const GITHUB_ITEM: IntegrationCatalogItem = {
 	id: "github",
 	name: "GitHub",
 };
-
-const GITHUB_SCOPES = ["repo"];
 
 const GSC_ITEM: IntegrationCatalogItem = {
 	accent: "#4285F4",
@@ -213,6 +215,12 @@ const COMING_SOON_INTEGRATIONS: IntegrationCatalogItem[] = [
 
 function slackInstallUrl(organizationId: string): string {
 	const url = new URL("/v1/integrations/slack/install", publicConfig.urls.api);
+	url.searchParams.set("organizationId", organizationId);
+	return url.toString();
+}
+
+function githubInstallUrl(organizationId: string): string {
+	const url = new URL("/v1/integrations/github/install", publicConfig.urls.api);
 	url.searchParams.set("organizationId", organizationId);
 	return url.toString();
 }
@@ -332,6 +340,13 @@ export function IntegrationsSettings({
 		if (slackResult === "error") {
 			toast.error(searchParams.get("message") ?? "Slack install failed");
 		}
+		const githubResult = searchParams.get("github");
+		if (githubResult === "connected") {
+			toast.success("GitHub connected");
+		}
+		if (githubResult === "error") {
+			toast.error(searchParams.get("message") ?? "GitHub install failed");
+		}
 	}, [searchParams]);
 
 	const integrationsQuery = useQuery({
@@ -353,6 +368,8 @@ export function IntegrationsSettings({
 
 	const slackIntegrations = (integrationsQuery.data?.slack ??
 		[]) as SlackIntegration[];
+	const githubIntegrationsList = (integrationsQuery.data?.github ??
+		[]) as GithubIntegration[];
 
 	return (
 		<div className="flex h-full flex-col">
@@ -388,7 +405,11 @@ export function IntegrationsSettings({
 								}
 							/>
 
-							<GitHubIntegrationRow organizationId={organization.id} />
+							<GitHubIntegrationRow
+								integrations={githubIntegrationsList}
+								isLoading={integrationsQuery.isLoading}
+								organizationId={organization.id}
+							/>
 
 							<GSCIntegrationRow />
 
@@ -491,35 +512,43 @@ function GSCIntegrationRow() {
 	);
 }
 
-function GitHubIntegrationRow({ organizationId }: { organizationId: string }) {
+function GitHubIntegrationRow({
+	integrations,
+	isLoading,
+	organizationId,
+}: {
+	integrations: GithubIntegration[];
+	isLoading: boolean;
+	organizationId: string;
+}) {
 	const queryClient = useQueryClient();
 	const accounts = useLinkedAccounts();
 	const githubAccount = accounts.data?.find((a) => a.providerId === "github");
-	const canDisconnect = (accounts.data?.length ?? 0) > 1;
+	const activeIntegration = integrations.find((i) => i.status === "active");
+	const connected = Boolean(activeIntegration || githubAccount);
+	const loading = isLoading || accounts.isLoading;
+	const [pendingUninstall, setPendingUninstall] =
+		useState<GithubIntegration | null>(null);
+	const listKey = orpc.integrations.list.key({
+		input: { organizationId },
+	});
 
 	const websitesQuery = useQuery({
 		...orpc.websites.list.queryOptions({
 			input: { organizationId },
 		}),
-		enabled: Boolean(githubAccount),
+		enabled: connected,
 	});
 
-	const connect = useOAuthConnect("github", GITHUB_SCOPES, "GitHub");
-
-	const disconnect = useMutation({
-		mutationFn: async () => {
-			const result = await authClient.unlinkAccount({ providerId: "github" });
-			if (result.error) {
-				throw new Error(result.error.message);
-			}
-			return result;
-		},
+	const uninstall = useMutation({
+		...orpc.integrations.uninstallGitHub.mutationOptions(),
 		onSuccess: async () => {
 			toast.success("GitHub disconnected");
-			await queryClient.invalidateQueries({ queryKey: ["linked-accounts"] });
+			setPendingUninstall(null);
+			await queryClient.invalidateQueries({ queryKey: listKey });
 		},
-		onError: (err) => {
-			toast.error(err.message || "Could not disconnect GitHub");
+		onError: () => {
+			toast.error("Could not disconnect GitHub");
 		},
 	});
 
@@ -549,79 +578,104 @@ function GitHubIntegrationRow({ organizationId }: { organizationId: string }) {
 	});
 
 	let action: React.ReactNode;
-	if (accounts.isLoading) {
+	if (loading) {
 		action = <LoadingButton />;
-	} else if (githubAccount) {
+	} else if (activeIntegration) {
 		action = (
 			<div className="flex items-center gap-2">
-				{canDisconnect && (
-					<Button
-						disabled={disconnect.isPending}
-						loading={disconnect.isPending}
-						onClick={() => disconnect.mutate()}
-						size="sm"
-						variant="ghost"
-					>
-						<TrashIcon className="size-4" />
-						Disconnect
-					</Button>
-				)}
 				<Button
-					disabled={connect.isPending}
-					loading={connect.isPending}
-					onClick={() => connect.mutate()}
+					disabled={uninstall.isPending}
+					loading={uninstall.isPending}
+					onClick={() => setPendingUninstall(activeIntegration)}
 					size="sm"
-					variant="secondary"
+					variant="ghost"
+				>
+					<TrashIcon className="size-4" />
+					Disconnect
+				</Button>
+				<a
+					className={buttonVariants({ size: "sm", variant: "secondary" })}
+					href={githubInstallUrl(organizationId)}
 				>
 					<PlugIcon className="size-4" />
-					Grant access
-				</Button>
+					Manage access
+				</a>
 			</div>
 		);
 	} else {
 		action = (
-			<Button
-				disabled={connect.isPending}
-				loading={connect.isPending}
-				onClick={() => connect.mutate()}
-				size="sm"
-				variant="secondary"
+			<a
+				className={buttonVariants({ size: "sm", variant: "secondary" })}
+				href={githubInstallUrl(organizationId)}
 			>
 				<PlugIcon className="size-4" />
-				Connect
-			</Button>
+				{githubAccount ? "Install GitHub App" : "Connect"}
+			</a>
 		);
 	}
 
 	return (
-		<IntegrationListRow
-			action={action}
-			badge={
-				<ConnectionBadge
-					connected={Boolean(githubAccount)}
-					loading={accounts.isLoading}
-				/>
-			}
-			defaultOpen={false}
-			item={GITHUB_ITEM}
-		>
-			{githubAccount && (
-				<GitHubRepoMappings
-					isLoading={websitesQuery.isLoading}
-					onRemove={(websiteId) => removeRepo.mutate({ websiteId })}
-					onSet={(websiteId, owner, repo) =>
-						setRepo.mutate({ websiteId, owner, repo })
-					}
-					removingId={
-						removeRepo.isPending ? removeRepo.variables?.websiteId : undefined
-					}
-					settingId={
-						setRepo.isPending ? setRepo.variables?.websiteId : undefined
-					}
-					websites={websitesQuery.data ?? []}
+		<>
+			<IntegrationListRow
+				action={action}
+				badge={<ConnectionBadge connected={connected} loading={loading} />}
+				defaultOpen={false}
+				item={GITHUB_ITEM}
+			>
+				{connected && (
+					<div className="space-y-3">
+						{activeIntegration ? (
+							<p className="text-muted-foreground text-xs">
+								Installed on{" "}
+								<span className="font-medium text-foreground">
+									{activeIntegration.accountLogin}
+								</span>{" "}
+								({activeIntegration.accountType})
+							</p>
+						) : (
+							<p className="text-muted-foreground text-xs">
+								Connected through a personal account. Install the GitHub App to
+								share access with your whole organization.
+							</p>
+						)}
+						<GitHubRepoMappings
+							isLoading={websitesQuery.isLoading}
+							onRemove={(websiteId) => removeRepo.mutate({ websiteId })}
+							onSet={(websiteId, owner, repo) =>
+								setRepo.mutate({ websiteId, owner, repo })
+							}
+							organizationId={organizationId}
+							removingId={
+								removeRepo.isPending
+									? removeRepo.variables?.websiteId
+									: undefined
+							}
+							settingId={
+								setRepo.isPending ? setRepo.variables?.websiteId : undefined
+							}
+							websites={websitesQuery.data ?? []}
+						/>
+					</div>
+				)}
+			</IntegrationListRow>
+
+			{pendingUninstall && (
+				<DeleteDialog
+					confirmLabel="Disconnect GitHub"
+					description={`${pendingUninstall.accountLogin} will be disconnected from Databuddy and the GitHub App will be uninstalled.`}
+					isDeleting={uninstall.isPending}
+					isOpen={Boolean(pendingUninstall)}
+					onClose={() => setPendingUninstall(null)}
+					onConfirm={async () => {
+						await uninstall.mutateAsync({
+							integrationId: pendingUninstall.id,
+							organizationId,
+						});
+					}}
+					title="Disconnect GitHub?"
 				/>
 			)}
-		</IntegrationListRow>
+		</>
 	);
 }
 
@@ -629,6 +683,7 @@ function GitHubRepoMappings({
 	isLoading,
 	onRemove,
 	onSet,
+	organizationId,
 	removingId,
 	settingId,
 	websites,
@@ -636,6 +691,7 @@ function GitHubRepoMappings({
 	isLoading: boolean;
 	onRemove: (websiteId: string) => void;
 	onSet: (websiteId: string, owner: string, repo: string) => void;
+	organizationId: string;
 	removingId?: string;
 	settingId?: string;
 	websites: Array<{
@@ -645,7 +701,9 @@ function GitHubRepoMappings({
 	}>;
 }) {
 	const reposQuery = useQuery({
-		...orpc.integrations.listGitHubRepos.queryOptions({ input: {} }),
+		...orpc.integrations.listGitHubRepos.queryOptions({
+			input: { organizationId },
+		}),
 	});
 	const repoNames = (reposQuery.data?.repos ?? []).map((r) => r.fullName);
 
