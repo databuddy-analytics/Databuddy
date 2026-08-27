@@ -914,17 +914,6 @@ export const processGoalAnalytics = async (
 	return buildGoalAnalyticsResult(step.name, completions, totalWebsiteUsers);
 };
 
-/**
- * Counts completions for several independent (non-sequential) goals in one query.
- *
- * Safe only when no filters apply: `buildIdentifiedEventStream` only threads its
- * `filters` argument into the match condition for the step at array index 0, since
- * that's correct for its normal caller (funnel entry filters gating step 1). With
- * an empty filter list that branch never fires, so every step's condition reduces
- * to the same plain target/type match regardless of index — which is what makes it
- * safe to treat each array entry as an independent goal instead of a funnel step.
- * Never pass a non-empty `filters` array through this path.
- */
 export const processGoalsConversionCountsBatch = async (
 	steps: AnalyticsStep[],
 	params: ClickhouseQueryParams,

@@ -49,7 +49,6 @@ describe("processGoalsConversionCountsBatch", () => {
 			}
 		);
 
-		// One query counts all three goals, instead of one query per goal.
 		expect(chQueryMock).toHaveBeenCalledTimes(1);
 		expect(result.get(1)).toBe(42);
 		expect(result.get(2)).toBe(7);
@@ -66,9 +65,6 @@ describe("processGoalsConversionCountsBatch", () => {
 		);
 
 		const [query] = chQueryMock.mock.calls.at(-1) as [string];
-		// The generated step-match condition must not carry any per-index filter
-		// gating (see the correctness note on processGoalsConversionCountsBatch);
-		// there is no "filters" parameter for a caller to pass one through.
 		expect(query).not.toContain("browserFilter");
 		expect(query).not.toContain("customFilter");
 	});
