@@ -199,6 +199,93 @@ async function verifyInstallationOwnership(
 	}
 }
 
+interface CallbackQuery {
+	code?: string;
+	error?: string;
+	installation_id?: string;
+	setup_action?: string;
+	state?: string;
+}
+
+async function handleInstallCallback(
+	query: CallbackQuery,
+	request: Request
+): Promise<Response> {
+	const throttled = await throttleGithubInstall("callback", request, 20);
+	if (throttled) {
+		return throttled;
+	}
+	if (query.error) {
+		useLogger().warn("GitHub install returned an error", {
+			github_app: "callback",
+			provider_error: query.error,
+		});
+		return integrationsRedirect(
+			"error",
+			query.error === "access_denied"
+				? "GitHub wasn't connected because authorization was canceled"
+				: "GitHub authorization failed"
+		);
+	}
+	try {
+		if (query.installation_id && query.state && !query.code) {
+			throw new GitHubInstallError(
+				"GitHub redirected without a user authorization code",
+				"GitHub app must have 'Request user authorization during installation' enabled"
+			);
+		}
+		if (!(query.installation_id && query.state && query.code)) {
+			throw new GitHubInstallError(
+				"GitHub did not return an installation",
+				"GitHub install must be started from the Databuddy dashboard"
+			);
+		}
+		const secret = requireStateSecret();
+		const state = verifyOAuthState(query.state, secret);
+		if (!state) {
+			throw new GitHubInstallError("GitHub install link expired");
+		}
+
+		const session = await auth.api.getSession({ headers: request.headers });
+		if (!session?.user || session.user.id !== state.userId) {
+			throw new GitHubInstallError(
+				"GitHub install must be completed by the same user who started it"
+			);
+		}
+
+		await verifyInstallationOwnership(query.code, query.installation_id);
+
+		const account = await fetchInstallationAccount(query.installation_id);
+		if (!account) {
+			throw new GitHubInstallError(
+				"GitHub installation could not be verified",
+				"Could not verify GitHub installation"
+			);
+		}
+
+		await saveGithubInstallation(state, account);
+
+		return integrationsRedirect("connected");
+	} catch (error) {
+		useLogger().error(
+			error instanceof Error ? error : new Error(String(error)),
+			{ github_app: "callback" }
+		);
+		return integrationsRedirect(
+			"error",
+			publicInstallErrorMessage(error, "Could not finish GitHub install")
+		);
+	}
+}
+
+const callbackQuerySchema = t.Object({
+	code: t.Optional(t.String()),
+	error: t.Optional(t.String()),
+	installation_id: t.Optional(t.String()),
+	setup_action: t.Optional(t.String()),
+	state: t.Optional(t.String()),
+});
+
 export const githubIntegrationRoutes = new Elysia({
 	prefix: "/v1/integrations",
 })
@@ -242,74 +329,11 @@ export const githubIntegrationRoutes = new Elysia({
 	)
 	.get(
 		"/github/callback",
-		async ({ query, request }) => {
-			const throttled = await throttleGithubInstall("callback", request, 20);
-			if (throttled) {
-				return throttled;
-			}
-			if (query.error) {
-				useLogger().warn("GitHub install returned an error", {
-					github_app: "callback",
-					provider_error: query.error,
-				});
-				return integrationsRedirect(
-					"error",
-					query.error === "access_denied"
-						? "GitHub wasn't connected because authorization was canceled"
-						: "GitHub authorization failed"
-				);
-			}
-			try {
-				if (!(query.installation_id && query.state && query.code)) {
-					throw new GitHubInstallError(
-						"GitHub did not return an installation",
-						"GitHub install must be started from the Databuddy dashboard"
-					);
-				}
-				const secret = requireStateSecret();
-				const state = verifyOAuthState(query.state, secret);
-				if (!state) {
-					throw new GitHubInstallError("GitHub install link expired");
-				}
-
-				const session = await auth.api.getSession({ headers: request.headers });
-				if (!session?.user || session.user.id !== state.userId) {
-					throw new GitHubInstallError(
-						"GitHub install must be completed by the same user who started it"
-					);
-				}
-
-				await verifyInstallationOwnership(query.code, query.installation_id);
-
-				const account = await fetchInstallationAccount(query.installation_id);
-				if (!account) {
-					throw new GitHubInstallError(
-						"GitHub installation could not be verified",
-						"Could not verify GitHub installation"
-					);
-				}
-
-				await saveGithubInstallation(state, account);
-
-				return integrationsRedirect("connected");
-			} catch (error) {
-				useLogger().error(
-					error instanceof Error ? error : new Error(String(error)),
-					{ github_app: "callback" }
-				);
-				return integrationsRedirect(
-					"error",
-					publicInstallErrorMessage(error, "Could not finish GitHub install")
-				);
-			}
-		},
-		{
-			query: t.Object({
-				code: t.Optional(t.String()),
-				error: t.Optional(t.String()),
-				installation_id: t.Optional(t.String()),
-				setup_action: t.Optional(t.String()),
-				state: t.Optional(t.String()),
-			}),
-		}
+		({ query, request }) => handleInstallCallback(query, request),
+		{ query: callbackQuerySchema }
+	)
+	.get(
+		"/github/setup",
+		({ query, request }) => handleInstallCallback(query, request),
+		{ query: callbackQuerySchema }
 	);
