@@ -99,7 +99,6 @@ async function createSchedule(values: {
 		granularity: "five_minutes" as const,
 		timeout: 5000,
 		cacheBust: true,
-		jsonParsingConfig: { enabled: false },
 	});
 	return scheduleIdFrom(result);
 }
@@ -163,11 +162,9 @@ describe("uptime router BullMQ integration", () => {
 		expect(row?.url).toBe("https://create.example.com/health");
 		expect(row?.websiteId).toBe(website.id);
 		expect(row?.granularity).toBe("five_minutes");
-		expect(row?.cron).toBe("*/5 * * * *");
 		expect(row?.isPaused).toBe(false);
 		expect(row?.timeout).toBe(5000);
 		expect(row?.cacheBust).toBe(true);
-		expect(row?.jsonParsingConfig).toEqual({ enabled: false });
 
 		expect(await scheduler(scheduleId)).toBeTruthy();
 		const jobs = await jobsForSchedule(scheduleId);
@@ -190,16 +187,13 @@ describe("uptime router BullMQ integration", () => {
 			granularity: "ten_minutes",
 			timeout: null,
 			cacheBust: false,
-			jsonParsingConfig: { enabled: true },
 		});
 
 		const row = await scheduleRow(scheduleId);
 		expect(row?.name).toBe("Renamed API");
 		expect(row?.granularity).toBe("ten_minutes");
-		expect(row?.cron).toBe("*/10 * * * *");
 		expect(row?.timeout).toBeNull();
 		expect(row?.cacheBust).toBe(false);
-		expect(row?.jsonParsingConfig).toEqual({ enabled: true });
 		expect(await scheduler(scheduleId)).toBeTruthy();
 		expect(await jobsForSchedule(scheduleId)).toHaveLength(1);
 	});

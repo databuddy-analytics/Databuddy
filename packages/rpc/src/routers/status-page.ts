@@ -15,10 +15,12 @@ import {
 	cacheable,
 	invalidateStatusPageCache,
 } from "@databuddy/redis";
+import { ratelimit } from "@databuddy/redis/rate-limit";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { parseUptimeGranularity } from "@databuddy/shared/uptime";
 import { rpcError } from "../errors";
+import { setAuditOrganization } from "../lib/audit";
 import { setTrackProperties } from "../middleware/track-mutation";
 import { protectedProcedure, publicProcedure, trackedProcedure } from "../orpc";
 import { authorizeTransfer, withResource } from "../procedures/with-resource";
@@ -174,19 +176,55 @@ const publicStatusPageSitemapEntrySchema = z.object({
 
 type StatusPageOutput = z.infer<typeof statusPageOutputSchema>;
 
-async function listPublicStatusPageSitemapEntries() {
+const PUBLIC_SITEMAP_LIMIT = 1000;
+
+async function _listPublicStatusPageSitemapEntries() {
 	const rows = await db
 		.select({
 			slug: statusPages.slug,
 			updatedAt: statusPages.updatedAt,
 		})
 		.from(statusPages)
-		.orderBy(desc(statusPages.updatedAt));
+		.orderBy(desc(statusPages.updatedAt))
+		.limit(PUBLIC_SITEMAP_LIMIT);
 
 	return rows.map((row) => ({
 		slug: row.slug,
 		updatedAt: row.updatedAt.toISOString(),
 	}));
+}
+
+const listPublicStatusPageSitemapEntries = cacheable(
+	_listPublicStatusPageSitemapEntries,
+	{
+		expireInSec: 300,
+		prefix: cacheNamespaces.statusPage,
+		staleWhileRevalidate: true,
+		staleTime: 60,
+	}
+);
+
+function clientIp(headers: Headers): string {
+	return (
+		headers.get("cf-connecting-ip") ??
+		headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+		"unknown"
+	);
+}
+
+async function enforcePublicRateLimit(
+	headers: Headers,
+	bucket: string,
+	limit: number
+): Promise<void> {
+	const result = await ratelimit(
+		`status-page:${bucket}:${clientIp(headers)}`,
+		limit,
+		60
+	);
+	if (!result.success) {
+		throw rpcError.rateLimited(60);
+	}
 }
 
 interface DailyRow {
@@ -551,7 +589,10 @@ export const statusPageRouter = {
 			spec: (spec) => ({ ...spec, security: [] }),
 		})
 		.output(z.array(publicStatusPageSitemapEntrySchema))
-		.handler(async () => listPublicStatusPageSitemapEntries()),
+		.handler(async ({ context }) => {
+			await enforcePublicRateLimit(context.headers, "sitemap", 10);
+			return listPublicStatusPageSitemapEntries();
+		}),
 
 	getBySlug: publicProcedure
 		.route({
@@ -564,11 +605,15 @@ export const statusPageRouter = {
 		.input(
 			z.object({
 				slug: z.string().min(1),
-				days: z.number().int().min(7).max(90).optional().default(90),
+				days: z
+					.union([z.literal(7), z.literal(30), z.literal(90)])
+					.optional()
+					.default(90),
 			})
 		)
 		.output(statusPageOutputSchema)
-		.handler(async ({ input }) => {
+		.handler(async ({ context, input }) => {
+			await enforcePublicRateLimit(context.headers, "page", 120);
 			const data = await fetchStatusPageData(input.slug, input.days);
 
 			if (!data) {
@@ -706,7 +751,7 @@ export const statusPageRouter = {
 			await withWorkspace(context, {
 				organizationId: input.organizationId,
 				resource: "status_page",
-				permissions: ["update"],
+				permissions: ["create"],
 			});
 
 			const existing = await db.query.statusPages.findFirst({
@@ -834,7 +879,7 @@ export const statusPageRouter = {
 			const statusPage = await withResource(context, {
 				resource: "status_page",
 				id: input.statusPageId,
-				permissions: ["update"],
+				permissions: ["delete"],
 			});
 
 			await db
@@ -873,6 +918,7 @@ export const statusPageRouter = {
 				id: input.statusPageId,
 				targetOrganizationId: input.targetOrganizationId,
 			});
+			setAuditOrganization(context, statusPage.organizationId);
 
 			const pageMonitors = await db.query.statusPageMonitors.findMany({
 				where: { statusPageId: input.statusPageId },

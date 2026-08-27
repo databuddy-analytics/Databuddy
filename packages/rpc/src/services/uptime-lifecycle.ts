@@ -3,11 +3,11 @@ import { uptimeSchedules } from "@databuddy/db/schema";
 import { ratelimit } from "@databuddy/redis/rate-limit";
 import { rpcError } from "../errors";
 import { logger } from "../lib/logger";
+import type { UptimeGranularity } from "@databuddy/shared/uptime";
 import {
 	enqueueUptimeCheck,
 	removeUptimeSchedule,
 	upsertUptimeSchedule,
-	type UptimeGranularity,
 } from "./uptime-scheduler";
 
 type UptimeScheduleInsert = typeof uptimeSchedules.$inferInsert;
@@ -17,7 +17,6 @@ export interface UptimeScheduleUpdate {
 	cacheBust?: boolean;
 	cron?: string;
 	granularity?: UptimeGranularity;
-	jsonParsingConfig?: { enabled: boolean };
 	name?: string | null;
 	timeout?: number | null;
 	updatedAt: Date;
@@ -25,12 +24,7 @@ export interface UptimeScheduleUpdate {
 
 export type UptimeScheduleSnapshot = Pick<
 	UptimeScheduleRow,
-	| "cacheBust"
-	| "cron"
-	| "granularity"
-	| "jsonParsingConfig"
-	| "name"
-	| "timeout"
+	"cacheBust" | "cron" | "granularity" | "name" | "timeout"
 >;
 
 export interface UptimeLifecycleDeps {
@@ -156,7 +150,6 @@ export async function updateScheduleWithScheduler(
 				cron: previous.cron,
 				timeout: previous.timeout,
 				cacheBust: previous.cacheBust,
-				jsonParsingConfig: previous.jsonParsingConfig,
 				updatedAt: deps.now(),
 			})
 			.catch((rollbackError) =>
