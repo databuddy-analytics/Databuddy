@@ -26,11 +26,11 @@ The era of third-party cookies is ending. This comprehensive guide explains cook
 <CodeBlock 
   language="javascript"
   filename="Cookieless Analytics Approach"
-  code={`// Cookieless approach - no persistent identifiers
+  code={`// Cookieless approach - a first-party anonymous ID, no cookies
   databuddy.track('page_view', {
     page: window.location.pathname,
     referrer: document.referrer,
-    // No user ID or persistent tracking
+    // No cookies and no cross-site identifiers
   });`}
 />
 
@@ -46,7 +46,7 @@ The era of third-party cookies is ending. This comprehensive guide explains cook
 **Major Browser Updates:**
 - **Safari**: Blocks third-party cookies by default
 - **Firefox**: Enhanced Tracking Protection enabled
-- **Chrome**: Phasing out third-party cookies by 2024
+- **Chrome**: Restricting third-party cookies, with plans that keep shifting
 - **Edge**: Following Chrome's timeline
 
 ### 3. User Expectations
@@ -183,9 +183,9 @@ Complete cookieless solution with full features:
 **Features:**
 - 100% cookieless by design
 - Real-time analytics
-- GDPR compliant
-- No consent banners required
-- Full feature set (heatmaps, funnels, etc.)
+- Built for GDPR compliance
+- Avoids analytics-specific consent friction in the default anonymous configuration
+- Full feature set (funnels, goals, web vitals, and more)
 
 ### Option 2: Custom Implementation
 Build your own cookieless tracking:
@@ -346,9 +346,9 @@ new PerformanceObserver((entryList) => {
 ## Benefits of Cookieless Analytics
 
 ### 1. Privacy Compliance
-- **No consent banners required**
-- **GDPR/CCPA compliant by design**
-- **Respects user privacy preferences**
+- **Anonymous by default, with identity strictly opt-in**
+- **Built for GDPR and CCPA compliance**
+- **Respects user privacy preferences, including GPC and DNT**
 - **Reduces legal compliance burden**
 
 ### 2. Better Data Quality
@@ -481,7 +481,7 @@ observer.observe({ entryTypes: ['resource'] });
 ### Step 5: Complete Migration
 - Remove cookie-based tracking
 - Update privacy policy
-- Remove consent banners
+- Revisit whether your consent banner is still needed
 - Monitor performance
 
 ## Future of Cookieless Analytics
@@ -507,10 +507,10 @@ Often more accurate due to no ad-blocker interference and consent banner impact.
 Yes, using first-party data and session-based attribution methods.
 
 ### Do I need consent banners with cookieless analytics?
-No, if no personal data is collected, consent banners aren't required under GDPR.
+Anonymous cookieless measurement is the strongest position for running without an analytics consent banner. The answer still depends on your configuration and jurisdiction, and changes if you collect personal data such as identified user profiles.
 
 ### How does cookieless analytics handle returning visitors?
-Uses statistical modeling and behavioral patterns instead of individual tracking.
+A first-party anonymous ID stored in the browser recognizes returning visitors without cookies or cross-site tracking.
 
 ### Can I integrate cookieless analytics with advertising platforms?
 Yes, through server-side integrations and first-party data sharing.

@@ -9,13 +9,13 @@ Databuddy is built with privacy-first principles and enterprise-grade security. 
 
 ## Privacy-First Design
 
-### What We Don't Collect
+### What We Don't Collect by Default
 
-- **No Personal Information** - Names, emails, phone numbers, addresses
+- **No Personal Information** - Names, emails, phone numbers, and addresses are never collected unless you explicitly send them with the opt-in `identify()` API
 - **No Cookies for Tracking** - Only local storage for anonymous IDs
 - **No Cross-Site Tracking** - Each site is isolated
-- **No Fingerprinting** - Respects browser privacy settings
-- **No Raw IP Addresses** - Only used for location (country/region) then discarded
+- **No Cross-Site Fingerprinting** - Device data is used for on-site analytics only, and Global Privacy Control and Do Not Track signals are honored by default
+- **No Raw IP Addresses** - Used for location (country/region), then only a truncated salted hash is retained
 
 ### What We Do Collect
 
@@ -42,10 +42,10 @@ Databuddy is built with privacy-first principles and enterprise-grade security. 
 
 ### Local Data Storage
 
-- **Anonymous ID** - Stored in localStorage and sent with events, then salted and hashed server-side with a daily-rotating salt before storage
+- **Anonymous ID** - Stored in localStorage and sent with events. Depending on your site's `anonymizeVisitorIds` setting, it is salted and hashed server-side with a daily-rotating salt before storage
 - **Session Data** - Temporary sessionStorage, clears on browser close
 - **No Cookies** - We don't use tracking cookies
-- **User Control** - Easy to clear all data
+- **User Control** - Easy to clear all data, and `window.databuddyOptOut()` stops collection entirely
 
 ## Privacy Compliance
 
@@ -53,14 +53,16 @@ Databuddy is built with privacy-first principles and enterprise-grade security. 
 
 **Lawful Basis:** Legitimate interest for website analytics
 
-Databuddy is **compliant by default** - no consent banners or cookie notices required because:
+Databuddy is anonymous by default and avoids analytics-specific consent friction when your configuration and jurisdiction allow cookieless measurement:
 
-- **No Personal Data Collected** - Only anonymous usage statistics
-- **No Cookies Used** - Uses localStorage for anonymous IDs only
-- **No User Identification** - Cannot identify individual users
-- **Automatic Data Anonymization** - All data is anonymous from collection
+- **No Personal Data by Default** - Only anonymous usage statistics unless you opt in to `identify()`
+- **No Cookies Used** - A localStorage anonymous ID only, with no cross-site tracking
+- **Anonymous by Default** - Individual users are not identified unless your site sends identity data
+- **Server-Side Anonymization** - Visitor IDs are salted and hashed where anonymization applies
 
-### No Consent Required
+If you use `identify()` to attach names, emails, or traits to profiles, that data is personal data you control: reflect it in your privacy policy and consent flow. Whether a consent banner is required always depends on your configuration, what you send, and your jurisdiction's rules; when in doubt, ask your counsel.
+
+### Running Without a Cookie Banner
 
 <CodeBlock 
   language="tsx"
@@ -69,25 +71,24 @@ Databuddy is **compliant by default** - no consent banners or cookie notices req
   function App() {
     return (
       <>
-        {/* No consent needed - privacy-first by design */}
+        {/* Anonymous, cookieless measurement */}
         <Databuddy
           clientId="your-client-id"
           trackWebVitals
         />
-
-        {/* No cookie banner needed! */}
       </>
     );
   }`}
 />
 
-**Why No Consent Needed:**
+**Why many sites can run Databuddy without an analytics consent banner:**
 
-- Anonymous data only
-- No cross-site tracking
-- No personal information
-- No behavioral profiling
-- Legitimate interest applies
+- Anonymous data only, no cross-site tracking
+- No personal information in the default configuration
+- No advertising or behavioral profiling
+- Legitimate interest is the typical lawful basis for anonymous audience measurement
+
+This changes if you enable `identify()` or send personal data in event properties: at that point you are processing personal data and your normal consent and privacy-policy obligations apply.
 
 ## Privacy Controls
 
@@ -216,16 +217,16 @@ Allowed IPs:
 
 ### Infrastructure Security
 
-- **Enterprise-Grade Hosting** - SOC 2 compliant infrastructure
-- **DDoS Protection** - Automatic attack mitigation
-- **Regular Security Audits** - Professional penetration testing
-- **Encrypted Storage** - All data encrypted at rest
+- **Encrypted Transport** - All traffic is served over TLS
+- **DDoS Protection** - Automatic attack mitigation at the edge
+- **Application-Layer Encryption** - Identity fields such as names and emails support AES-256-GCM encryption at rest
+- **Open Source** - The full codebase is public and auditable
 
 ## 🛠️ User Privacy Controls (Optional)
 
-### Anonymous Data Only
+### Anonymous by Default
 
-Since Databuddy only collects anonymous data, users don't need to request data deletion - there's no personal data to delete! However, you can still provide opt-out controls if desired.
+In the default configuration Databuddy collects anonymous data only, so there is usually no personal data to delete. If you use `identify()`, the profiles you create are personal data: handle deletion requests for them, and contact support@databuddy.cc if you need help removing profile data. Either way, you can provide opt-out controls.
 
 ### Optional Opt-Out Implementation
 
@@ -270,12 +271,11 @@ The tracker ships built-in opt-out helpers. `window.databuddyOptOut()` stops tra
 
 The anonymous ID itself is stored in localStorage under the `did` key.
 
-### Why Data Deletion Isn't Needed
+### Data Deletion in Practice
 
-- **No Personal Data** - Nothing to identify individual users
-- **Anonymous by Design** - All data is aggregated and anonymous
-- **No User Profiles** - Cannot build profiles of individual users
-- **Automatic Expiry** - Data expires automatically over time
+- **Anonymous by Default** - The default configuration stores no data that identifies individual users, so there is usually nothing to delete
+- **Identified Profiles Are Different** - Profiles created via `identify()` contain personal data; deletion requests for them are honored, and support@databuddy.cc can help
+- **DNT and GPC Honored** - Visitors with Do Not Track or Global Privacy Control enabled are not tracked at all by default
 
 ## 🌐 Global Privacy Settings
 
@@ -336,9 +336,9 @@ The anonymous ID itself is stored in localStorage under the `did` key.
 
         <div>
           <h3>Your Privacy</h3>
-          <p>✅ No personal data is collected</p>
+          <p>✅ Analytics are anonymous by default</p>
           <p>✅ No cookies are used for tracking</p>
-          <p>✅ Cannot identify individual users</p>
+          <p>✅ No cross-site tracking or profiling</p>
           <button onClick={clearLocalData}>Clear local preferences</button>
         </div>
       </div>
@@ -443,7 +443,7 @@ If you have questions about privacy or data handling:
 
 ### Data Requests
 
-**No data requests needed** - Databuddy doesn't collect personal data that can identify users. If you have questions about our data handling:
+In the default anonymous configuration there is typically no personal data to request. For sites using `identify()`, or for any question about our data handling, reach out and we will respond promptly:
 
 - 📧 [privacy@databuddy.cc](mailto:privacy@databuddy.cc)
 
