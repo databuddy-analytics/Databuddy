@@ -27,10 +27,6 @@ interface Schedule {
 	granularity: string;
 	id: string;
 	isPaused: boolean;
-	isPublic: boolean;
-	jsonParsingConfig?: {
-		enabled: boolean;
-	} | null;
 	name?: string | null;
 	url: string;
 }
@@ -44,9 +40,6 @@ export default function PulsePage() {
 		url: string;
 		name?: string | null;
 		granularity: string;
-		jsonParsingConfig?: {
-			enabled: boolean;
-		} | null;
 	} | null>(null);
 	const [isRefreshing, setIsRefreshing] = useState(false);
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -149,7 +142,6 @@ export default function PulsePage() {
 				url: schedule.url,
 				name: schedule.name,
 				granularity: schedule.granularity,
-				jsonParsingConfig: schedule.jsonParsingConfig,
 			});
 			setIsDialogOpen(true);
 		}
@@ -210,8 +202,8 @@ export default function PulsePage() {
 				refetchUptimeData(),
 				refetchHeatmapData(),
 			]);
-		} catch (error) {
-			console.error("Failed to refresh:", error);
+		} catch {
+			toast.error("Failed to refresh monitor data");
 		} finally {
 			setIsRefreshing(false);
 		}

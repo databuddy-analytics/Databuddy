@@ -46,9 +46,6 @@ function MonitorsPageContent() {
 		granularity: string;
 		timeout?: number | null;
 		cacheBust?: boolean;
-		jsonParsingConfig?: {
-			enabled: boolean;
-		} | null;
 	} | null>(null);
 
 	const schedulesQuery = useQuery({
@@ -77,7 +74,6 @@ function MonitorsPageContent() {
 			granularity: schedule.granularity,
 			timeout: schedule.timeout,
 			cacheBust: schedule.cacheBust,
-			jsonParsingConfig: schedule.jsonParsingConfig,
 		});
 		setIsSheetOpen(true);
 	};

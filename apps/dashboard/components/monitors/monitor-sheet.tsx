@@ -3,6 +3,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import {
+	parseUptimeGranularity,
+	type UptimeGranularity,
+} from "@databuddy/shared/uptime";
 import { toast } from "sonner";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { useWebsite } from "@/hooks/use-websites";
@@ -20,21 +24,15 @@ import {
 	Tooltip,
 } from "@databuddy/ui";
 
-type GranularityValue =
-	| "minute"
-	| "five_minutes"
-	| "ten_minutes"
-	| "thirty_minutes"
-	| "hour"
-	| "six_hours";
-
-const granularityOptions: { label: string; value: GranularityValue }[] = [
+const granularityOptions: { label: string; value: UptimeGranularity }[] = [
 	{ value: "minute", label: "1m" },
 	{ value: "five_minutes", label: "5m" },
 	{ value: "ten_minutes", label: "10m" },
 	{ value: "thirty_minutes", label: "30m" },
 	{ value: "hour", label: "1h" },
 	{ value: "six_hours", label: "6h" },
+	{ value: "twelve_hours", label: "12h" },
+	{ value: "day", label: "24h" },
 ];
 
 const DEST_LABELS: Record<string, string> = {
@@ -52,9 +50,6 @@ interface MonitorSheetProps {
 		cacheBust?: boolean;
 		granularity: string;
 		id: string;
-		jsonParsingConfig?: {
-			enabled: boolean;
-		} | null;
 		name?: string | null;
 		timeout?: number | null;
 		url: string;
@@ -141,10 +136,9 @@ export function MonitorSheet({
 	const [name, setName] = useState("");
 	const [url, setUrl] = useState("");
 	const [granularity, setGranularity] =
-		useState<GranularityValue>("ten_minutes");
+		useState<UptimeGranularity>("ten_minutes");
 	const [timeoutMs, setTimeoutMs] = useState<number | null>(null);
 	const [cacheBust, setCacheBust] = useState(false);
-	const [jsonParsingEnabled, setJsonParsingEnabled] = useState(true);
 	const [urlError, setUrlError] = useState<string | null>(null);
 
 	const createMutation = useMutation({
@@ -211,11 +205,10 @@ export function MonitorSheet({
 		setName(initialName);
 		setUrl(initialUrl);
 		setGranularity(
-			(schedule?.granularity as GranularityValue) ?? "ten_minutes"
+			parseUptimeGranularity(schedule?.granularity) ?? "ten_minutes"
 		);
 		setTimeoutMs(schedule?.timeout ?? null);
 		setCacheBust(schedule?.cacheBust ?? false);
-		setJsonParsingEnabled(schedule?.jsonParsingConfig?.enabled ?? true);
 		setUrlError(null);
 	}, [open, schedule, website, isEditing]);
 
@@ -244,8 +237,6 @@ export function MonitorSheet({
 			return;
 		}
 
-		const jsonParsingConfig = { enabled: jsonParsingEnabled };
-
 		try {
 			if (isEditing && schedule) {
 				await updateMutation.mutateAsync({
@@ -254,7 +245,6 @@ export function MonitorSheet({
 					granularity,
 					timeout: timeoutMs,
 					cacheBust,
-					jsonParsingConfig,
 				});
 				toast.success("Monitor updated");
 			} else {
@@ -270,18 +260,16 @@ export function MonitorSheet({
 					granularity,
 					timeout: timeoutMs ?? undefined,
 					cacheBust,
-					jsonParsingConfig,
 				});
 				toast.success("Monitor created");
-				onCreatedAction?.(result.scheduleId as string);
+				onCreatedAction?.(result.scheduleId);
 			}
 			onSaveAction?.();
 			onCloseAction(false);
 		} catch {}
 	};
 
-	const advancedCount =
-		(timeoutMs ? 1 : 0) + (cacheBust ? 1 : 0) + (jsonParsingEnabled ? 0 : 1);
+	const advancedCount = (timeoutMs ? 1 : 0) + (cacheBust ? 1 : 0);
 
 	return (
 		<Sheet onOpenChange={onCloseAction} open={open}>
@@ -392,7 +380,7 @@ export function MonitorSheet({
 															seconds ? Number(seconds) * 1000 : null
 														);
 													}}
-													placeholder="30"
+													placeholder="60"
 													suffix="sec"
 													type="number"
 													value={timeoutMs ? timeoutMs / 1000 : ""}
@@ -406,16 +394,6 @@ export function MonitorSheet({
 												<Switch
 													checked={cacheBust}
 													onCheckedChange={setCacheBust}
-												/>
-											</SettingsRow>
-
-											<SettingsRow
-												description="Parse JSON responses for status and latency"
-												label="Capture service latency"
-											>
-												<Switch
-													checked={jsonParsingEnabled}
-													onCheckedChange={setJsonParsingEnabled}
 												/>
 											</SettingsRow>
 										</div>
