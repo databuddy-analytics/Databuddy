@@ -82,8 +82,8 @@ const config: NextConfig = {
 				destination: "/api/docs/raw/:path*",
 			},
 			{
-				source: "/docs/:path*",
-				destination: "/api/docs/raw/:path*",
+				source: "/docs/:path((?!llms\\.txt$).+)",
+				destination: "/api/docs/raw/:path",
 				has: [
 					{
 						type: "header",

@@ -117,7 +117,7 @@ export function createDeveloperResources(urls: AgentDiscoveryUrls) {
 			title: "Databuddy MCP Server Card",
 			url: resolved.mcpServerCardUrl,
 			description:
-				"MCP server card with tools, authentication, and transport details.",
+				"MCP server card with transports, authentication, and resource details.",
 		},
 		{
 			title: "Databuddy SDK Docs",
@@ -126,10 +126,10 @@ export function createDeveloperResources(urls: AgentDiscoveryUrls) {
 				"React, Vue, Node.js, Nuxt, vanilla JS, and tracker SDK guides.",
 		},
 		{
-			title: "Databuddy Webhooks Docs",
+			title: "Databuddy Events Ingestion API",
 			url: `${resolved.siteUrl}/docs/api/events`,
 			description:
-				"Server-side event tracking and webhook-style ingestion examples.",
+				"Server-side custom event tracking through the Basket API: authentication, payloads, and batching.",
 		},
 		{
 			title: "Databuddy llms.txt",

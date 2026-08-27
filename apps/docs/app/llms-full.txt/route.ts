@@ -10,7 +10,10 @@ export const revalidate = false;
 const HEADER = `# Databuddy Documentation (Full)
 
 > Lightweight web analytics with an asynchronous tracker, GDPR compliant, no cookies required.
-> This file contains the complete documentation corpus for long-context agents.
+> This file contains the highest-priority documentation sections for long-context agents,
+> truncated at a size limit. For the rest, use the scoped indexes at
+> https://www.databuddy.cc/docs/llms.txt, https://www.databuddy.cc/api/llms.txt, and
+> https://www.databuddy.cc/developers/llms.txt.
 
 `;
 const MAX_LLMS_FULL_CHARS = 190_000;
@@ -21,7 +24,6 @@ const SECTION_ORDER = [
 	"api",
 	"Integrations",
 	"hooks",
-	"features",
 	"performance",
 	"privacy",
 	"compliance",
@@ -32,7 +34,6 @@ const SECTION_LABELS: Record<string, string> = {
 	api: "API Reference",
 	Integrations: "Integrations",
 	hooks: "React Hooks",
-	features: "Features",
 	performance: "Performance",
 	privacy: "Privacy",
 	compliance: "Compliance",
