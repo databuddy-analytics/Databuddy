@@ -7,7 +7,7 @@
   "types": "./src/index.ts",
   "scripts": {
     "check-types": "tsc --noEmit",
-    "test": "REDIS_URL=\"${REDIS_URL:-redis://localhost:6379}\" bun test --isolate src/routers src/lib/analytics-utils.integration.test.ts src/lib/funnels-cache.test.ts src/middleware/*.test.ts src/procedures/*.test.ts src/services/insight-schedule.test.ts src/services/uptime-lifecycle.test.ts src/services/uptime-scheduler.test.ts src/utils/*.test.ts",
+    "test": "REDIS_URL=\"${REDIS_URL:-redis://localhost:6379}\" bun test --isolate src/routers src/lib/analytics-utils.integration.test.ts src/lib/analytics-utils-goals-batch.test.ts src/lib/funnels-cache.test.ts src/middleware/*.test.ts src/procedures/*.test.ts src/services/insight-schedule.test.ts src/services/uptime-lifecycle.test.ts src/services/uptime-scheduler.test.ts src/utils/*.test.ts",
     "test:integration": "bun test src/services/uptime-scheduler.integration.test.ts"
   },
   "exports": {
