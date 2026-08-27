@@ -1,12 +1,20 @@
 import { and, desc, eq } from "@databuddy/db";
 import {
 	account,
+	githubIntegrations,
 	slackChannelBindings,
 	slackIntegrations,
 	websites,
 } from "@databuddy/db/schema";
 import type { WebsiteIntegrations } from "@databuddy/db/schema";
-import { invalidateSlackIntegrationCache } from "@databuddy/redis";
+import {
+	invalidateGithubIntegrationCache,
+	invalidateSlackIntegrationCache,
+} from "@databuddy/redis";
+import {
+	deleteInstallation,
+	getGithubTokenForOrg,
+} from "@databuddy/services/github-app";
 import { z } from "zod";
 import { rpcError } from "../errors";
 import type { Context } from "../orpc";
@@ -90,8 +98,18 @@ const slackIntegrationOutputSchema = z.object({
 	channelBindings: z.array(slackChannelBindingOutputSchema),
 });
 
+const githubIntegrationOutputSchema = z.object({
+	id: z.string(),
+	accountLogin: z.string(),
+	accountType: z.string(),
+	status: z.enum(["active", "disabled"]),
+	createdAt: z.coerce.date(),
+	updatedAt: z.coerce.date(),
+});
+
 const listOutputSchema = z.object({
 	slack: z.array(slackIntegrationOutputSchema),
+	github: z.array(githubIntegrationOutputSchema),
 });
 
 const uninstallSlackInputSchema = z.object({
@@ -103,6 +121,9 @@ const successOutputSchema = z.object({ success: z.literal(true) });
 
 export type SlackIntegrationOutput = z.infer<
 	typeof slackIntegrationOutputSchema
+>;
+export type GithubIntegrationOutput = z.infer<
+	typeof githubIntegrationOutputSchema
 >;
 
 export const integrationsRouter = {
@@ -143,9 +164,32 @@ export const integrationsRouter = {
 					.orderBy(desc(slackIntegrations.updatedAt));
 			} catch (error) {
 				if (isMissingSlackSchemaError(error)) {
-					return { slack: [] };
+					slackRows = [];
+				} else {
+					throw error;
 				}
-				throw error;
+			}
+
+			let githubRows: GithubIntegrationRow[];
+			try {
+				githubRows = await context.db
+					.select({
+						id: githubIntegrations.id,
+						accountLogin: githubIntegrations.accountLogin,
+						accountType: githubIntegrations.accountType,
+						status: githubIntegrations.status,
+						createdAt: githubIntegrations.createdAt,
+						updatedAt: githubIntegrations.updatedAt,
+					})
+					.from(githubIntegrations)
+					.where(eq(githubIntegrations.organizationId, input.organizationId))
+					.orderBy(desc(githubIntegrations.updatedAt));
+			} catch (error) {
+				if (isMissingGithubSchemaError(error)) {
+					githubRows = [];
+				} else {
+					throw error;
+				}
 			}
 
 			const slack = await Promise.all(
@@ -177,7 +221,58 @@ export const integrationsRouter = {
 				})
 			);
 
-			return { slack };
+			return { slack, github: githubRows };
+		}),
+
+	uninstallGitHub: trackedProcedure
+		.route({
+			description: "Disconnects a GitHub App installation.",
+			method: "POST",
+			path: "/integrations/uninstallGitHub",
+			summary: "Uninstall GitHub",
+			tags: ["Integrations"],
+		})
+		.input(
+			z.object({
+				organizationId: z.string().min(1),
+				integrationId: z.string().min(1),
+			})
+		)
+		.output(successOutputSchema)
+		.handler(async ({ context, input }) => {
+			await withWorkspace(context, {
+				organizationId: input.organizationId,
+				resource: "organization",
+				permissions: ["update"],
+			});
+
+			const [integration] = await context.db
+				.select({
+					id: githubIntegrations.id,
+					installationId: githubIntegrations.installationId,
+				})
+				.from(githubIntegrations)
+				.where(
+					and(
+						eq(githubIntegrations.id, input.integrationId),
+						eq(githubIntegrations.organizationId, input.organizationId)
+					)
+				)
+				.limit(1);
+
+			if (!integration) {
+				throw rpcError.notFound("GitHub integration", input.integrationId);
+			}
+
+			await context.db
+				.delete(githubIntegrations)
+				.where(eq(githubIntegrations.id, integration.id));
+
+			await invalidateGithubIntegrationCache(input.organizationId);
+
+			await deleteInstallation(integration.installationId).catch(() => false);
+
+			return { success: true };
 		}),
 
 	uninstallSlack: trackedProcedure
@@ -281,11 +376,9 @@ export const integrationsRouter = {
 				resource: "website",
 				permissions: ["update"],
 			});
-			const token = await getUserProviderToken(
-				context.db,
-				context.user.id,
-				"github"
-			);
+			const token =
+				(await getGithubTokenForOrg(website.organizationId)) ??
+				(await getUserProviderToken(context.db, context.user.id, "github"));
 			if (!token) {
 				throw rpcError.badRequest(
 					"Connect GitHub with repository access before linking a repository."
@@ -416,13 +509,14 @@ export const integrationsRouter = {
 
 	listGitHubRepos: sessionProcedure
 		.route({
-			description: "Lists GitHub repos accessible to the current user.",
+			description:
+				"Lists GitHub repos accessible to the organization installation, falling back to the current user's linked account.",
 			method: "POST",
 			path: "/integrations/listGitHubRepos",
 			summary: "List GitHub repos",
 			tags: ["Integrations"],
 		})
-		.input(z.object({}))
+		.input(z.object({ organizationId: z.string().min(1).optional() }))
 		.output(
 			z.object({
 				repos: z.array(
@@ -434,24 +528,33 @@ export const integrationsRouter = {
 				),
 			})
 		)
-		.handler(async ({ context }) => {
-			const token = await getUserProviderToken(
-				context.db,
-				context.user.id,
-				"github"
-			);
+		.handler(async ({ context, input }) => {
+			let installationToken: string | null = null;
+			if (input.organizationId) {
+				await withWorkspace(context, {
+					organizationId: input.organizationId,
+					resource: "organization",
+					permissions: ["read"],
+				});
+				installationToken = await getGithubTokenForOrg(input.organizationId);
+			}
+
+			const token =
+				installationToken ??
+				(await getUserProviderToken(context.db, context.user.id, "github"));
 			if (!token) {
 				throw rpcError.badRequest(
 					"Connect GitHub with repository access before listing repositories."
 				);
 			}
 
+			const path = installationToken
+				? "/installation/repositories?per_page=100"
+				: "/user/repos?sort=pushed&direction=desc&per_page=50";
+
 			let res: Response;
 			try {
-				res = await githubRequest(
-					"/user/repos?sort=pushed&direction=desc&per_page=50",
-					token
-				);
+				res = await githubRequest(path, token);
 			} catch {
 				throw rpcError.badRequest("GitHub could not be reached. Try again.");
 			}
@@ -460,7 +563,10 @@ export const integrationsRouter = {
 				throw githubAccessError(res);
 			}
 
-			const data = await res.json();
+			const body = await res.json().catch(() => null);
+			const data = installationToken
+				? (body as { repositories?: unknown } | null)?.repositories
+				: body;
 			if (!Array.isArray(data)) {
 				throw rpcError.badRequest(
 					"GitHub returned an invalid repository list."
@@ -485,6 +591,32 @@ export const integrationsRouter = {
 
 type SlackIntegrationRow = Omit<SlackIntegrationOutput, "channelBindings">;
 type SlackChannelBindingRow = z.infer<typeof slackChannelBindingOutputSchema>;
+type GithubIntegrationRow = z.infer<typeof githubIntegrationOutputSchema>;
+
+function isMissingGithubSchemaError(error: unknown): boolean {
+	if (error instanceof Error && isMissingGithubSchemaError(error.cause)) {
+		return true;
+	}
+
+	if (!(typeof error === "object" && error !== null)) {
+		return false;
+	}
+
+	const pgError = error as {
+		code?: unknown;
+		message?: unknown;
+		relation?: unknown;
+	};
+	if (pgError.code !== "42P01") {
+		return false;
+	}
+
+	const relation = typeof pgError.relation === "string" ? pgError.relation : "";
+	const message = typeof pgError.message === "string" ? pgError.message : "";
+	return (
+		relation.startsWith("github_") || message.includes("github_integrations")
+	);
+}
 
 function isMissingSlackSchemaError(error: unknown): boolean {
 	if (error instanceof Error && isMissingSlackSchemaError(error.cause)) {
