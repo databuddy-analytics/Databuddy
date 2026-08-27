@@ -1,9 +1,13 @@
-const EVENT_COST = 0.000_035;
+import {
+	calculateGraduatedOverageCost,
+	type PricingTier,
+} from "./feature-usage";
 
 export interface OverageInfo {
 	hasOverage: boolean;
 	includedEvents: number;
 	overageEvents: number;
+	pricingTiers: PricingTier[];
 }
 
 export function calculateOverageCost(
@@ -21,5 +25,10 @@ export function calculateOverageCost(
 	}
 
 	const ratio = eventCount / totalEvents;
-	return overageInfo.overageEvents * ratio * EVENT_COST;
+	return (
+		calculateGraduatedOverageCost(
+			overageInfo.overageEvents,
+			overageInfo.pricingTiers
+		) * ratio
+	);
 }

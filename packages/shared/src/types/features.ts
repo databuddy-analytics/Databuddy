@@ -208,9 +208,22 @@ export const FEATURE_METADATA: Record<FeatureId | GatedFeatureId, FeatureMeta> =
 		},
 	};
 
+const PLAN_DISPLAY_NAMES: Record<string, string> = {
+	[PLAN_IDS.FREE]: "Free",
+	[PLAN_IDS.HOBBY]: "Hobby",
+	[PLAN_IDS.PRO]: "Pro",
+	[PLAN_IDS.SCALE]: LEGACY_SCALE_PLAN.name,
+	[INTELLIGENCE_PLAN_IDS.ANALYST]: "Analyst",
+	[INTELLIGENCE_PLAN_IDS.DATA_TEAM]: "Data Team",
+};
+
 export function getPlanDisplayName(planId: PlanId | string | null): string {
-	const plan = normalizePlanId(planId);
-	return plan.charAt(0).toUpperCase() + plan.slice(1);
+	const raw = (planId ?? "").toLowerCase();
+	return (
+		PLAN_DISPLAY_NAMES[raw] ??
+		PLAN_DISPLAY_NAMES[normalizePlanId(planId)] ??
+		"Free"
+	);
 }
 
 export function getFeatureUnavailableMessage(

@@ -296,13 +296,16 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 	});
 
 	const isSetup = Boolean(trackingSetupData?.tracking_setup);
+	const hasRecentEvents = (trackingSetupData?.recent_events ?? 0) > 0;
 	const trackingIssue = trackingSetupData?.tracking_issue ?? null;
-	const statusIsHealthy = isSetup && !trackingIssue;
+	const statusIsHealthy = isSetup && hasRecentEvents && !trackingIssue;
 	const statusTitle = trackingIssue
 		? "Tracking Issue Detected"
-		: isSetup
+		: statusIsHealthy
 			? "Tracking Active"
-			: "Awaiting Installation";
+			: isSetup
+				? "Installed, no recent data"
+				: "Awaiting Installation";
 	const statusDescription =
 		trackingIssue?.message ?? trackingSetupData?.status_message;
 
@@ -361,7 +364,9 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 									? "Live"
 									: trackingIssue
 										? "Blocked"
-										: "Pending"}
+										: isSetup
+											? "No recent data"
+											: "Pending"}
 							</Badge>
 						</div>
 						{statusDescription ? (
