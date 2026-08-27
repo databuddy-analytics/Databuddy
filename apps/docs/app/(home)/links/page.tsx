@@ -78,7 +78,7 @@ export default function LinksPage() {
 				page={{
 					title: "Short Links & Click Analytics",
 					description:
-						"Create branded short links with built-in click analytics, UTM tagging, QR codes, and deep linking.",
+						"Short links with built-in click analytics, UTM tagging, QR codes, and deep linking.",
 					url: "https://www.databuddy.cc/links",
 				}}
 			/>
