@@ -53,7 +53,7 @@ function requireStateSecret(): string {
 	if (!secret) {
 		throw new GitHubInstallError(
 			"GitHub install is missing BETTER_AUTH_SECRET",
-			"GitHub install is not configured"
+			"GitHub integration is temporarily unavailable"
 		);
 	}
 	return secret;
@@ -174,7 +174,7 @@ function publicInstallErrorMessage(error: unknown, fallback: string): string {
 		return error.publicMessage;
 	}
 	if (error instanceof GitHubAppConfigError) {
-		return "GitHub install is not configured";
+		return "GitHub integration is temporarily unavailable";
 	}
 	return fallback;
 }
@@ -230,8 +230,8 @@ async function handleInstallCallback(
 	try {
 		if (query.installation_id && query.state && !query.code) {
 			throw new GitHubInstallError(
-				"GitHub redirected without a user authorization code",
-				"GitHub app must have 'Request user authorization during installation' enabled"
+				"GitHub redirected without a user authorization code; enable 'Request user authorization during installation' on the GitHub App",
+				"GitHub integration is temporarily unavailable"
 			);
 		}
 		if (!(query.installation_id && query.state && query.code)) {
