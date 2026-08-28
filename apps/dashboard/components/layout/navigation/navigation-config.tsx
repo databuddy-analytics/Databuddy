@@ -36,7 +36,6 @@ import {
 	UserIcon,
 	UserSettingsIcon,
 	Users3Icon as UsersThreeIcon,
-	TriangleWarningIcon as WarningIcon,
 } from "@databuddy/ui/icons";
 import type { NavigationGroup, NavigationItem } from "./types";
 
@@ -158,12 +157,6 @@ export const websiteNavigation: NavigationGroup[] = [
 			createNavItem("Geographic", MapPinIcon, "/map", {
 				rootLevel: false,
 				gatedFeature: GATED_FEATURES.GEOGRAPHIC,
-			}),
-			createNavItem("Anomalies", WarningIcon, "/anomalies", {
-				rootLevel: false,
-				alpha: true,
-				flag: "anomalies",
-				hideFromDemo: true,
 			}),
 			createNavItem("Pulse", PulseIcon, "/pulse", {
 				rootLevel: false,

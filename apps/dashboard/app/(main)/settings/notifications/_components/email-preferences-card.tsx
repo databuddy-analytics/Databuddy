@@ -22,11 +22,6 @@ type TrackingReason =
 	| "ip_not_authorized";
 
 interface EmailSettings {
-	anomalies: {
-		customEventEmails: boolean;
-		errorEmails: boolean;
-		trafficEmails: boolean;
-	};
 	billing: { usageWarnings: boolean };
 	trackingHealth: {
 		cooldownMinutes: number;
@@ -347,35 +342,6 @@ export function EmailPreferencesCard() {
 										save(withSection(settings, "uptime", { recoveryEmails }))
 									}
 									title="Monitor recovery emails"
-								/>
-								<ToggleSetting
-									checked={settings.anomalies.errorEmails}
-									description="Email for error-rate spikes."
-									disabled={disabled}
-									onChange={(errorEmails) =>
-										save(withSection(settings, "anomalies", { errorEmails }))
-									}
-									title="Error anomaly emails"
-								/>
-								<ToggleSetting
-									checked={settings.anomalies.trafficEmails}
-									description="Email for pageview spikes or drops."
-									disabled={disabled}
-									onChange={(trafficEmails) =>
-										save(withSection(settings, "anomalies", { trafficEmails }))
-									}
-									title="Traffic anomaly emails"
-								/>
-								<ToggleSetting
-									checked={settings.anomalies.customEventEmails}
-									description="Email for custom event spikes or drops."
-									disabled={disabled}
-									onChange={(customEventEmails) =>
-										save(
-											withSection(settings, "anomalies", { customEventEmails })
-										)
-									}
-									title="Custom event anomaly emails"
 								/>
 							</SettingCardGroup>
 						</div>
