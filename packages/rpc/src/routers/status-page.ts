@@ -32,7 +32,7 @@ import {
 	normalizeCheckTimestamp,
 	type MonitorFreshness,
 	type MonitorStatus,
-} from "./status-page-health";
+} from "@databuddy/shared/uptime-status";
 
 const UPTIME_TABLE = "uptime.uptime_monitor";
 

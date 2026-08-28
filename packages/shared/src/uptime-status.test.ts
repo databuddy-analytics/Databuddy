@@ -4,7 +4,7 @@ import {
 	deriveMonitorFreshness,
 	deriveMonitorStatus,
 	deriveOverallStatus,
-} from "./status-page-health";
+} from "./uptime-status";
 
 describe("status page health", () => {
 	const now = Date.parse("2026-07-11T12:00:00Z");
