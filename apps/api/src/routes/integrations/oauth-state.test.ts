@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
-	createSlackOAuthState,
-	type SlackOAuthState,
-	verifySlackOAuthState,
-} from "./slack-state";
+	createOAuthState,
+	type OAuthState,
+	verifyOAuthState,
+} from "./oauth-state";
 
 const SECRET = "test-secret-with-enough-entropy";
 const NOW = 1_800_000_000_000;
 
-function makeState(overrides: Partial<SlackOAuthState> = {}): SlackOAuthState {
+function makeState(overrides: Partial<OAuthState> = {}): OAuthState {
 	return {
 		expiresAt: NOW + 60_000,
 		nonce: "state-nonce",
@@ -21,27 +21,27 @@ function makeState(overrides: Partial<SlackOAuthState> = {}): SlackOAuthState {
 describe("Slack OAuth state", () => {
 	it("round-trips a signed state payload", () => {
 		const state = makeState();
-		const encoded = createSlackOAuthState(state, SECRET);
+		const encoded = createOAuthState(state, SECRET);
 
-		expect(verifySlackOAuthState(encoded, SECRET, NOW)).toEqual(state);
+		expect(verifyOAuthState(encoded, SECRET, NOW)).toEqual(state);
 	});
 
 	it("rejects tampered payloads", () => {
-		const encoded = createSlackOAuthState(makeState(), SECRET);
+		const encoded = createOAuthState(makeState(), SECRET);
 		const [payload, signature] = encoded.split(".");
 		const tamperedPayload =
 			payload === "a" ? "b" : `a${payload?.slice(1) ?? ""}`;
 		const tampered = `${tamperedPayload}.${signature}`;
 
-		expect(verifySlackOAuthState(tampered, SECRET, NOW)).toBeNull();
+		expect(verifyOAuthState(tampered, SECRET, NOW)).toBeNull();
 	});
 
 	it("rejects expired state", () => {
-		const encoded = createSlackOAuthState(
+		const encoded = createOAuthState(
 			makeState({ expiresAt: NOW - 1 }),
 			SECRET
 		);
 
-		expect(verifySlackOAuthState(encoded, SECRET, NOW)).toBeNull();
+		expect(verifyOAuthState(encoded, SECRET, NOW)).toBeNull();
 	});
 });
