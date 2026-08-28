@@ -1,3 +1,4 @@
+import { auth } from "@databuddy/auth";
 import { and, desc, eq } from "@databuddy/db";
 import {
 	account,
@@ -26,17 +27,49 @@ import {
 } from "../orpc";
 import { withWorkspace } from "../procedures/with-workspace";
 
+const TOKEN_EXPIRY_SKEW_MS = 60 * 1000;
+
 async function getUserProviderToken(
 	database: Context["db"],
 	userId: string,
 	providerId: string
 ): Promise<string | null> {
 	const [row] = await database
-		.select({ accessToken: account.accessToken })
+		.select({
+			accessToken: account.accessToken,
+			accessTokenExpiresAt: account.accessTokenExpiresAt,
+			providerAccountId: account.accountId,
+			refreshToken: account.refreshToken,
+		})
 		.from(account)
 		.where(and(eq(account.userId, userId), eq(account.providerId, providerId)))
 		.limit(1);
-	return row?.accessToken ?? null;
+	if (!row) {
+		return null;
+	}
+
+	const expired =
+		row.accessTokenExpiresAt !== null &&
+		row.accessTokenExpiresAt.getTime() <= Date.now() + TOKEN_EXPIRY_SKEW_MS;
+	if (row.accessToken && !expired) {
+		return row.accessToken;
+	}
+	if (!row.refreshToken) {
+		return row.accessToken;
+	}
+
+	try {
+		const refreshed = await auth.api.getAccessToken({
+			body: {
+				providerId,
+				accountId: row.providerAccountId,
+				userId,
+			},
+		});
+		return refreshed.accessToken ?? null;
+	} catch {
+		return null;
+	}
 }
 
 const GITHUB_API = "https://api.github.com";
