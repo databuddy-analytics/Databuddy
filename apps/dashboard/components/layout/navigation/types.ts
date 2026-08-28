@@ -18,7 +18,6 @@ export interface NavigationItem {
 	disabled?: boolean;
 	domain?: string;
 	external?: boolean;
-	flag?: string;
 	gatedFeature?: GatedFeatureId;
 	hideFromDemo?: boolean;
 	hideFromSidebar?: boolean;
@@ -46,7 +45,6 @@ interface NavigationSearchItem {
 
 export interface NavigationGroup {
 	back?: { href: string; label: string };
-	flag?: string;
 	items: NavigationItem[];
 	label: string;
 	pinToBottom?: boolean;

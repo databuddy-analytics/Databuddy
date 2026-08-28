@@ -160,7 +160,6 @@ export const websiteNavigation: NavigationGroup[] = [
 			}),
 			createNavItem("Pulse", PulseIcon, "/pulse", {
 				rootLevel: false,
-				flag: "pulse",
 				alpha: true,
 			}),
 		],
@@ -208,7 +207,6 @@ export const websiteNavigation: NavigationGroup[] = [
 			createNavItem("Revenue", CurrencyDollarIcon, "/revenue", {
 				alpha: true,
 				rootLevel: false,
-				flag: "revenue",
 				hideFromDemo: true,
 			}),
 		],
@@ -302,8 +300,7 @@ export const settingsNavigation: NavigationGroup[] = [
 			createNavItem(
 				"Integrations",
 				PlugIcon,
-				"/organizations/settings/integrations",
-				{ flag: "integrations" }
+				"/organizations/settings/integrations"
 			),
 			createNavItem("Members", UserIcon, "/organizations/members"),
 			createNavItem(
