@@ -206,7 +206,7 @@ export const RAW_PLANS: RawPlan[] = [
 	},
 	{
 		id: "intelligence_scale",
-		name: "Data Team",
+		name: "Scale",
 		items: [
 			{
 				type: "price",

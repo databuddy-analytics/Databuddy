@@ -36,6 +36,7 @@ import {
 import { Badge, Button, EmptyState, Text } from "@databuddy/ui";
 
 const DISPLAYED_PLAN_IDS = ["hobby", "pro", "intelligence"] as const;
+const INVITE_ONLY_PLAN_IDS = ["intelligence", "intelligence_scale"] as const;
 const RECOMMENDED_PLAN_ID = "pro";
 
 const PLAN_ICONS: Record<string, typeof CrownIcon> = {
@@ -598,16 +599,29 @@ function PricingCard({
 			</div>
 
 			<div className="p-5 pt-0">
-				<Button
-					className="w-full"
-					disabled={buttonState.disabled}
-					loading={isAttaching}
-					onClick={handleUpgradeClick}
-					size="lg"
-					variant={buttonState.variant}
-				>
-					{buttonState.text}
-				</Button>
+				{(INVITE_ONLY_PLAN_IDS as readonly string[]).includes(plan.id) &&
+				!isActive ? (
+					<Button asChild className="w-full" size="lg" variant="secondary">
+						<a
+							href="https://www.databuddy.cc/contact"
+							rel="noopener noreferrer"
+							target="_blank"
+						>
+							Request access
+						</a>
+					</Button>
+				) : (
+					<Button
+						className="w-full"
+						disabled={buttonState.disabled}
+						loading={isAttaching}
+						onClick={handleUpgradeClick}
+						size="lg"
+						variant={buttonState.variant}
+					>
+						{buttonState.text}
+					</Button>
+				)}
 			</div>
 
 			{preview && (

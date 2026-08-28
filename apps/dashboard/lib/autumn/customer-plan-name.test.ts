@@ -23,6 +23,6 @@ describe("getCustomerPlanName", () => {
 				INTELLIGENCE_PLAN_IDS.DATA_TEAM,
 				"Intelligence_scale"
 			)
-		).toBe("Data Team");
+		).toBe("Scale");
 	});
 });

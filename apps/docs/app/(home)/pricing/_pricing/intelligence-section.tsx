@@ -20,7 +20,7 @@ const INTELLIGENCE_TIERS = [
 	},
 	{
 		id: "intelligence_scale",
-		name: "Data Team",
+		name: "Scale",
 		price: "$799",
 		description:
 			"More investigation capacity for products with higher traffic and faster release cycles.",
@@ -38,13 +38,18 @@ export function IntelligenceSection() {
 	return (
 		<section className="mb-10">
 			<div className="mb-6">
-				<h2 className="font-semibold text-2xl tracking-tight">
-					Intelligence plans
-				</h2>
+				<div className="flex items-center gap-2">
+					<h2 className="font-semibold text-2xl tracking-tight">
+						Intelligence plans
+					</h2>
+					<span className="rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 font-mono text-[11px] text-primary uppercase tracking-wide">
+						Invite only
+					</span>
+				</div>
 				<p className="mt-1 max-w-2xl text-muted-foreground text-sm sm:text-base">
 					Always-on Databunny capacity for teams that want investigations
 					running continuously. Sized by investigation credits, not just event
-					volume.
+					volume. Access is invite only while we onboard teams personally.
 				</p>
 			</div>
 			<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -82,14 +87,12 @@ export function IntelligenceSection() {
 						<div className="mt-6">
 							<SciFiButton asChild>
 								<Link
-									href={`https://app.databuddy.cc/register?plan=${tier.id}`}
+									href="/contact"
 									onClick={() =>
 										trackPricingPlanClick(tier.id, "pricing_intelligence")
 									}
-									rel="noopener noreferrer"
-									target="_blank"
 								>
-									GET STARTED
+									REQUEST ACCESS
 								</Link>
 							</SciFiButton>
 						</div>

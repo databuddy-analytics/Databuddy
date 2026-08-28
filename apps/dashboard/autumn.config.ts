@@ -279,7 +279,7 @@ export const intelligence = plan({
 
 export const intelligence_scale = plan({
 	id: "intelligence_scale",
-	name: "Data Team",
+	name: "Scale",
 	description:
 		"More investigation capacity for products with higher traffic and faster release cycles.",
 	addOn: false,

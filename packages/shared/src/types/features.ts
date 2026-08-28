@@ -214,7 +214,7 @@ const PLAN_DISPLAY_NAMES: Record<string, string> = {
 	[PLAN_IDS.PRO]: "Pro",
 	[PLAN_IDS.SCALE]: LEGACY_SCALE_PLAN.name,
 	[INTELLIGENCE_PLAN_IDS.ANALYST]: "Business",
-	[INTELLIGENCE_PLAN_IDS.DATA_TEAM]: "Data Team",
+	[INTELLIGENCE_PLAN_IDS.DATA_TEAM]: "Scale",
 };
 
 export function getPlanDisplayName(planId: PlanId | string | null): string {

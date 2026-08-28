@@ -3,7 +3,7 @@ import { INTELLIGENCE_PLAN_IDS } from "@databuddy/shared/types/features";
 
 const PLAN_DISPLAY_NAMES: Record<string, string> = {
 	[INTELLIGENCE_PLAN_IDS.ANALYST]: "Business",
-	[INTELLIGENCE_PLAN_IDS.DATA_TEAM]: "Data Team",
+	[INTELLIGENCE_PLAN_IDS.DATA_TEAM]: "Scale",
 	[LEGACY_SCALE_PLAN.id]: LEGACY_SCALE_PLAN.name,
 };
 
