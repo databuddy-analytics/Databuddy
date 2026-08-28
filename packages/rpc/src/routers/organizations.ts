@@ -75,6 +75,10 @@ const emailNotificationSettingsSchema = z.object({
 	}),
 });
 
+export type EmailNotificationSettingsOutput = z.infer<
+	typeof emailNotificationSettingsSchema
+>;
+
 export const organizationsRouter = {
 	updateAvatarSeed: trackedProcedure
 		.route({

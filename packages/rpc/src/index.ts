@@ -21,6 +21,7 @@ export {
 } from "./procedures/with-workspace";
 export { type AppRouter, appRouter } from "./root";
 export type { SlackIntegrationOutput } from "./routers/integrations";
+export type { EmailNotificationSettingsOutput } from "./routers/organizations";
 export type { WebsiteOutput } from "./routers/websites";
 export type { ExportFormat } from "./services/export-service";
 export {

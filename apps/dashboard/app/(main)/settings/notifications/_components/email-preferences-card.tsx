@@ -9,31 +9,15 @@ import {
 	Skeleton,
 	Text,
 } from "@databuddy/ui";
+import type { EmailNotificationSettingsOutput } from "@databuddy/rpc";
 import { Select, Switch, TagsInput } from "@databuddy/ui/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { orpc } from "@/lib/orpc";
 
-type EmailAlertMode = "off" | "critical_only" | "warnings_and_critical";
-type TrackingReason =
-	| "origin_not_authorized"
-	| "origin_missing"
-	| "ip_not_authorized";
-
-interface EmailSettings {
-	billing: { usageWarnings: boolean };
-	trackingHealth: {
-		cooldownMinutes: number;
-		ignoredOrigins: string[];
-		ignoredReasons: TrackingReason[];
-		mode: EmailAlertMode;
-	};
-	uptime: {
-		downEmails: boolean;
-		recoveryEmails: boolean;
-	};
-}
+type EmailSettings = EmailNotificationSettingsOutput;
+type EmailAlertMode = EmailSettings["trackingHealth"]["mode"];
 
 type SettingsSection = Record<string, unknown>;
 
