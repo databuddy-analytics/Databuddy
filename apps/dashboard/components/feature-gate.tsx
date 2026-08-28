@@ -37,7 +37,7 @@ const PLAN_CONFIG: Record<
 	},
 	[PLAN_IDS.PRO]: { name: "Pro", icon: StarIcon, color: "text-primary" },
 	[PLAN_IDS.SCALE]: {
-		name: "Enterprise",
+		name: "Business",
 		icon: CrownIcon,
 		color: "text-brand-amber",
 	},

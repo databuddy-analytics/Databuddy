@@ -44,6 +44,7 @@ export const GATED_FEATURES = {
 	WEB_VITALS: "web_vitals",
 	ERROR_TRACKING: "error_tracking",
 	GEOGRAPHIC: "geographic",
+	INVESTIGATIONS: "investigations",
 } as const;
 
 export type GatedFeatureId =
@@ -65,6 +66,7 @@ export const PLAN_FEATURE_LIMITS: Record<
 		[GATED_FEATURES.WEB_VITALS]: "unlimited",
 		[GATED_FEATURES.ERROR_TRACKING]: false, // Hobby+
 		[GATED_FEATURES.GEOGRAPHIC]: "unlimited",
+		[GATED_FEATURES.INVESTIGATIONS]: false,
 	},
 	[PLAN_IDS.HOBBY]: {
 		[GATED_FEATURES.FUNNELS]: 5, // 5 funnels
@@ -74,6 +76,7 @@ export const PLAN_FEATURE_LIMITS: Record<
 		[GATED_FEATURES.WEB_VITALS]: "unlimited",
 		[GATED_FEATURES.ERROR_TRACKING]: "unlimited",
 		[GATED_FEATURES.GEOGRAPHIC]: "unlimited",
+		[GATED_FEATURES.INVESTIGATIONS]: false,
 	},
 	[PLAN_IDS.PRO]: {
 		[GATED_FEATURES.FUNNELS]: 50, // 50 funnels
@@ -83,6 +86,7 @@ export const PLAN_FEATURE_LIMITS: Record<
 		[GATED_FEATURES.WEB_VITALS]: "unlimited",
 		[GATED_FEATURES.ERROR_TRACKING]: "unlimited",
 		[GATED_FEATURES.GEOGRAPHIC]: "unlimited",
+		[GATED_FEATURES.INVESTIGATIONS]: false,
 	},
 	[PLAN_IDS.SCALE]: {
 		[GATED_FEATURES.FUNNELS]: "unlimited",
@@ -92,6 +96,7 @@ export const PLAN_FEATURE_LIMITS: Record<
 		[GATED_FEATURES.WEB_VITALS]: "unlimited",
 		[GATED_FEATURES.ERROR_TRACKING]: "unlimited",
 		[GATED_FEATURES.GEOGRAPHIC]: "unlimited",
+		[GATED_FEATURES.INVESTIGATIONS]: "unlimited",
 	},
 };
 
@@ -205,6 +210,14 @@ export const FEATURE_METADATA: Record<FeatureId | GatedFeatureId, FeatureMeta> =
 			name: "Geographic",
 			description: "View visitor locations on a map",
 			upgradeMessage: "Geographic is available on all plans",
+		},
+		[GATED_FEATURES.INVESTIGATIONS]: {
+			name: "Automatic Investigations",
+			description:
+				"Databunny investigates your sites on a schedule and delivers findings",
+			upgradeMessage:
+				"Automatic investigations are invite only. Request access to the Business plan.",
+			minPlan: PLAN_IDS.SCALE,
 		},
 	};
 
