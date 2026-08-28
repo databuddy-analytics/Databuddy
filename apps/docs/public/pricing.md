@@ -11,7 +11,8 @@ Machine-readable: [JSON](https://www.databuddy.cc/api/pricing) · static [Markdo
 | Free | $0 | 10,000 | 10 / month | No paid overage — ingestion pauses at the monthly event allowance |
 | Hobby | $9.99/mo | 30,000 | 20 / month + 1 daily bonus | Tiered event overage |
 | Pro | $49.99/mo | 1,000,000 | 350 / month + 5 daily bonus | Tiered event overage |
-| Analyst | $299/mo | 2,000,000 | 1,500 / month | An always-on product investigator; tiered event overage |
+| Business | $299/mo | 2,000,000 | 1,500 / month | An always-on product investigator; tiered event overage |
+| Data Team | $799/mo | 10,000,000 | 5,000 / month | More investigation capacity for higher traffic; tiered event overage |
 | Enterprise | Custom | Custom | Custom | Volume, security, SLAs — [pricing page](https://www.databuddy.cc/pricing) |
 
 ## Events (overage on paid plans)

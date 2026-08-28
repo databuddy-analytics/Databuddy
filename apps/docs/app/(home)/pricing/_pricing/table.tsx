@@ -1,6 +1,7 @@
 import { CheckIcon, XMarkIcon as XIcon } from "@databuddy/ui/icons";
 import Link from "next/link";
 import { SciFiButton } from "@/components/landing/scifi-btn";
+import { INTELLIGENCE_PLAN_TABLE_IDS } from "../data";
 import { GatedFeaturePricingRows } from "./gated-feature-rows";
 import { trackPricingPlanClick } from "./track-pricing";
 import type { NormalizedPlan } from "./types";
@@ -29,7 +30,10 @@ function FeatureX() {
 	);
 }
 
-export function PlansComparisonTable({ plans }: Props) {
+export function PlansComparisonTable({ plans: allPlans }: Props) {
+	const plans = allPlans.filter(
+		(p) => !(INTELLIGENCE_PLAN_TABLE_IDS as readonly string[]).includes(p.id)
+	);
 	return (
 		<section className="mb-10">
 			<div className="group relative overflow-x-auto border border-border bg-card/70 shadow-inner backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:shadow-primary/10">
