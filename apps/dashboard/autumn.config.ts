@@ -230,7 +230,7 @@ export const scale = plan({
  */
 export const intelligence = plan({
 	id: "intelligence",
-	name: "Analyst",
+	name: "Business",
 	description: "An always-on product investigator for founders and engineers.",
 	addOn: false,
 	autoEnable: false,

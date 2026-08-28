@@ -213,7 +213,7 @@ const PLAN_DISPLAY_NAMES: Record<string, string> = {
 	[PLAN_IDS.HOBBY]: "Hobby",
 	[PLAN_IDS.PRO]: "Pro",
 	[PLAN_IDS.SCALE]: LEGACY_SCALE_PLAN.name,
-	[INTELLIGENCE_PLAN_IDS.ANALYST]: "Analyst",
+	[INTELLIGENCE_PLAN_IDS.ANALYST]: "Business",
 	[INTELLIGENCE_PLAN_IDS.DATA_TEAM]: "Data Team",
 };
 

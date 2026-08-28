@@ -17,7 +17,7 @@ describe("getCustomerPlanName", () => {
 	test("presents invitation-only intelligence plan names", () => {
 		expect(
 			getCustomerPlanName(INTELLIGENCE_PLAN_IDS.ANALYST, "Intelligence")
-		).toBe("Analyst");
+		).toBe("Business");
 		expect(
 			getCustomerPlanName(
 				INTELLIGENCE_PLAN_IDS.DATA_TEAM,
