@@ -76,11 +76,26 @@ function getDb(): DB {
 			max: parsePositiveInt(process.env.DB_POOL_MAX, DEFAULT_POOL_MAX),
 			idleTimeoutMillis: 30_000,
 			connectionTimeoutMillis: DEFAULT_CONNECTION_TIMEOUT_MS,
-			statement_timeout: parsePositiveInt(
-				process.env.DB_STATEMENT_TIMEOUT_MS,
-				DEFAULT_STATEMENT_TIMEOUT_MS
-			),
 			application_name: process.env.SERVICE_NAME || "databuddy",
+		});
+		const statementTimeoutMs = parsePositiveInt(
+			process.env.DB_STATEMENT_TIMEOUT_MS,
+			DEFAULT_STATEMENT_TIMEOUT_MS
+		);
+		// Applied per connection instead of as a startup parameter: PlanetScale's
+		// pooler rejects statement_timeout in the startup packet (08P01).
+		_pool.on("connect", (client) => {
+			client
+				.query(`SET statement_timeout = ${statementTimeoutMs}`)
+				.catch((error) => {
+					if (_pgErrorFn) {
+						_pgErrorFn(
+							error instanceof Error ? error : new Error(String(error))
+						);
+						return;
+					}
+					console.error("[db] failed to set statement_timeout", error);
+				});
 		});
 		timePoolQueries(_pool);
 		_pool.on("error", (error) => {
