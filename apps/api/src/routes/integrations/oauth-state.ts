@@ -1,7 +1,7 @@
 import { createHmac } from "node:crypto";
 import { compare } from "@databuddy/encryption";
 
-export interface SlackOAuthState {
+export interface OAuthState {
 	expiresAt: number;
 	nonce: string;
 	organizationId: string;
@@ -13,11 +13,11 @@ function signStatePayload(payload: string, secret: string): string {
 	return Buffer.from(digest).toString("base64url");
 }
 
-function parseStatePayload(value: unknown): SlackOAuthState | null {
+function parseStatePayload(value: unknown): OAuthState | null {
 	if (!value || typeof value !== "object") {
 		return null;
 	}
-	const state = value as Partial<SlackOAuthState>;
+	const state = value as Partial<OAuthState>;
 	if (
 		typeof state.expiresAt !== "number" ||
 		typeof state.nonce !== "string" ||
@@ -44,20 +44,17 @@ function parseStatePayload(value: unknown): SlackOAuthState | null {
 	};
 }
 
-export function createSlackOAuthState(
-	state: SlackOAuthState,
-	secret: string
-): string {
+export function createOAuthState(state: OAuthState, secret: string): string {
 	const payload = Buffer.from(JSON.stringify(state)).toString("base64url");
 	const signature = signStatePayload(payload, secret);
 	return `${payload}.${signature}`;
 }
 
-export function verifySlackOAuthState(
+export function verifyOAuthState(
 	state: string,
 	secret: string,
 	now = Date.now()
-): SlackOAuthState | null {
+): OAuthState | null {
 	const [payload, signature, extra] = state.split(".");
 	if (!(payload && signature) || extra !== undefined) {
 		return null;

@@ -1,6 +1,16 @@
+import { getGithubTokenForOrg } from "@databuddy/services/github-app";
 import { tool, type ToolSet } from "ai";
 import { z } from "zod";
 import { createCachedTokenFn } from "./utils/oauth-token";
+
+function createInstallationFirstTokenFn(
+	organizationId: string,
+	userId?: string
+): () => Promise<string | null> {
+	const legacy = createCachedTokenFn("github", organizationId, userId, "repo");
+	return async () =>
+		(await getGithubTokenForOrg(organizationId).catch(() => null)) ?? legacy();
+}
 
 const GITHUB_API = "https://api.github.com";
 const MAX_RESULTS = 10;
@@ -159,7 +169,7 @@ export function createGitHubTools(
 	const repository = params.repository;
 	const getToken =
 		dependencies.getToken ??
-		createCachedTokenFn("github", params.organizationId, params.userId, "repo");
+		createInstallationFirstTokenFn(params.organizationId, params.userId);
 	const request = dependencies.request ?? githubFetch;
 	const deploymentInput = createRepositorySchema(repository, {
 		environment: z

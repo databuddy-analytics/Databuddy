@@ -35,6 +35,7 @@ import { agent } from "./routes/agent";
 import { discovery } from "./routes/discovery";
 import { health } from "./routes/health";
 import { integrations } from "./routes/integrations";
+import { githubIntegrationRoutes } from "./routes/integrations/github";
 import { mcp } from "./routes/mcp";
 import { publicApi } from "./routes/public";
 import { query } from "./routes/query";
@@ -142,6 +143,7 @@ const app = new Elysia({ precompile: true })
 	.use(query)
 	.use(agent)
 	.use(integrations)
+	.use(githubIntegrationRoutes)
 	.use(mcp)
 	.all("/rpc/*", handleRpcEndpoint, { parse: "none" })
 	.all("/", handleOpenApiReference, { parse: "none" })

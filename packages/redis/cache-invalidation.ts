@@ -47,6 +47,7 @@ export const cacheNamespaces = {
 	flagsClient: "flags-client",
 	flagsDefinitions: "flags-definitions",
 	flagsUser: "flags-user",
+	githubIntegrationByOrg: "github-integration-by-org",
 	mcpInsights: "mcp:insights",
 	memberRole: "rpc:member_role",
 	organizationOwner: "rpc:org_owner",
@@ -390,6 +391,15 @@ export function invalidateStatusPageCache(slug: string): Promise<number> {
 
 export function invalidateSlackIntegrationCache(teamId: string): Promise<void> {
 	return invalidateCacheableKey(SLACK_INTEGRATION_CACHE_PREFIX, teamId);
+}
+
+export function invalidateGithubIntegrationCache(
+	organizationId: string
+): Promise<void> {
+	return invalidateCacheableKey(
+		cacheNamespaces.githubIntegrationByOrg,
+		organizationId
+	);
 }
 
 export function invalidateSlackChannelBindingCache(
