@@ -8,6 +8,7 @@ type DB = NodePgDatabase<typeof relations>;
 
 const DEFAULT_POOL_MAX = 50;
 const DEFAULT_CONNECTION_TIMEOUT_MS = 10_000;
+const DEFAULT_STATEMENT_TIMEOUT_MS = 30_000;
 
 let _pgErrorFn: ((error: Error) => void) | null = null;
 
@@ -75,6 +76,10 @@ function getDb(): DB {
 			max: parsePositiveInt(process.env.DB_POOL_MAX, DEFAULT_POOL_MAX),
 			idleTimeoutMillis: 30_000,
 			connectionTimeoutMillis: DEFAULT_CONNECTION_TIMEOUT_MS,
+			statement_timeout: parsePositiveInt(
+				process.env.DB_STATEMENT_TIMEOUT_MS,
+				DEFAULT_STATEMENT_TIMEOUT_MS
+			),
 			application_name: process.env.SERVICE_NAME || "databuddy",
 		});
 		timePoolQueries(_pool);
