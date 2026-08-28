@@ -15,11 +15,20 @@ let shutdownHooksRegistered = false;
 
 const LINK_CACHE_CONNECT_DEADLINE_MS = 1250;
 export const LINK_CACHE_OPERATION_DEADLINE_MS = 1500;
-const LINK_CACHE_FAIL_FAST_WINDOW_MS = 5000;
+const REDIS_FAIL_FAST_WINDOW_MS = 5000;
 const RATE_LIMIT_CONNECT_DEADLINE_MS = 1250;
 export const RATE_LIMIT_OPERATION_DEADLINE_MS = 1500;
 
 let linkCacheFailFastUntil = 0;
+let rateLimitFailFastUntil = 0;
+
+export function resetLinkCacheFailFast(): void {
+	linkCacheFailFastUntil = 0;
+}
+
+export function resetRateLimitFailFast(): void {
+	rateLimitFailFastUntil = 0;
+}
 
 function withDeadline<T>(
 	operation: Promise<T>,
@@ -178,7 +187,7 @@ async function runLinkCacheRedisCommand<T>(
 		linkCacheFailFastUntil = 0;
 		return result;
 	} catch (error) {
-		linkCacheFailFastUntil = Date.now() + LINK_CACHE_FAIL_FAST_WINDOW_MS;
+		linkCacheFailFastUntil = Date.now() + REDIS_FAIL_FAST_WINDOW_MS;
 		if (instance) {
 			discardLinkCacheRedis(instance);
 		}
@@ -191,6 +200,10 @@ async function runLinkCacheRedisCommand<T>(
 async function runRateLimitRedisCommand<T>(
 	operation: (redis: Redis) => Promise<T>
 ): Promise<T> {
+	if (Date.now() < rateLimitFailFastUntil) {
+		throw new Error("Rate limit is failing fast after a recent Redis failure");
+	}
+
 	let instance: Redis | null = null;
 	const command = getRateLimitRedis().then((redis) => {
 		instance = redis;
@@ -198,12 +211,15 @@ async function runRateLimitRedisCommand<T>(
 	});
 
 	try {
-		return await withDeadline(
+		const result = await withDeadline(
 			command,
 			RATE_LIMIT_OPERATION_DEADLINE_MS,
 			`Rate limit operation exceeded ${RATE_LIMIT_OPERATION_DEADLINE_MS}ms`
 		);
+		rateLimitFailFastUntil = 0;
+		return result;
 	} catch (error) {
+		rateLimitFailFastUntil = Date.now() + REDIS_FAIL_FAST_WINDOW_MS;
 		if (instance) {
 			discardRateLimitRedis(instance);
 		}
@@ -212,7 +228,8 @@ async function runRateLimitRedisCommand<T>(
 }
 
 export async function shutdownRedis() {
-	linkCacheFailFastUntil = 0;
+	resetLinkCacheFailFast();
+	resetRateLimitFailFast();
 	const linkCacheInstance = linkCacheRedisInstance;
 	linkCacheRedisInstance = null;
 	linkCacheConnectPromise = null;

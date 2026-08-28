@@ -14,7 +14,6 @@ type RoadmapCategory =
 	| "developer-experience";
 
 export interface RoadmapItem {
-	assignees?: string[]; // GitHub usernames
 	category: RoadmapCategory;
 	completedDate?: string; // ISO date string
 	description: string;

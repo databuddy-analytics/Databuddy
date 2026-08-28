@@ -176,7 +176,7 @@ function MonitorsPageContent() {
 												Create Monitor
 											</Button>
 										}
-										description="Create your first uptime monitor to start tracking availability and receive alerts when services go down."
+										description="Create your first uptime monitor to start tracking availability. Then link an alert to it to get notified when a service goes down."
 										icon={<HeartbeatIcon weight="duotone" />}
 										title="No monitors yet"
 									/>

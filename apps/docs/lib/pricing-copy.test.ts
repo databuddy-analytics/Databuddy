@@ -27,7 +27,13 @@ describe("public pricing copy", () => {
 			"utf8"
 		);
 
-		for (const planId of ["free", "hobby", "pro"] as const) {
+		for (const planId of [
+			"free",
+			"hobby",
+			"pro",
+			"intelligence",
+			"intelligence_scale",
+		] as const) {
 			expect(markdown).toContain(
 				included(planId, "events", "month")?.toLocaleString() ?? ""
 			);
@@ -41,6 +47,6 @@ describe("public pricing copy", () => {
 		expect(markdown).not.toContain("Databunny usage");
 		expect(markdown).not.toContain("usage units");
 		expect(markdown).toContain("Investigation credits");
-		expect(markdown).not.toContain("Scale");
+		expect(markdown).toContain("Scale");
 	});
 });

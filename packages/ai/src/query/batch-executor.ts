@@ -542,8 +542,9 @@ export async function executeBatch(
 			}
 			return { unionCount: 1, singleCount: 0 };
 		} catch (error) {
-			const batchUnionError =
-				error instanceof Error ? error.message : "Union query failed";
+			const batchUnionError = (
+				error instanceof Error ? error.message : "Union query failed"
+			).slice(0, 300);
 			captureWarning(error, {
 				operation: "batch_union",
 				batch_types: compiledItems.map((g) => g.req.type).join(","),
@@ -555,9 +556,17 @@ export async function executeBatch(
 				batch_union_fallback: 1,
 				batch_union_error: batchUnionError,
 			});
-			for (const { index, req } of compiledItems) {
-				results[index] = await runSingle(req, opts);
-			}
+			const fallbackResults = await mapWithConcurrency(
+				compiledItems,
+				BATCH_GROUP_CONCURRENCY,
+				({ req }) => runSingle(req, opts)
+			);
+			compiledItems.forEach(({ index }, i) => {
+				const fallback = fallbackResults[i];
+				if (fallback) {
+					results[index] = fallback;
+				}
+			});
 			return { unionCount: 0, singleCount: compiledItems.length };
 		}
 	}

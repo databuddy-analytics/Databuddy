@@ -44,7 +44,7 @@ const FAQ_ITEMS = [
 	{
 		question: "How does automatic analysis work?",
 		answer:
-			"Choose a daily or weekly organization schedule. Databunny investigates noteworthy changes, keeps their evidence and history together, and gives you a concrete next step.",
+			"On the invite-only Business and Scale plans, choose a daily or weekly organization schedule. Databunny investigates noteworthy changes, keeps their evidence and history together, and gives you a concrete next step.",
 	},
 	{
 		question: "What becomes an investigation?",
@@ -59,7 +59,7 @@ const FAQ_ITEMS = [
 	{
 		question: "Is Databunny included in all plans?",
 		answer:
-			"Every plan includes investigation credits for Databunny questions and investigations. Free includes 10 credits each month. Simple checks use fewer credits; deeper investigations, replies, and rechecks use more.",
+			"Every plan includes investigation credits for asking Databunny questions; Free includes 10 credits each month. Automatic scheduled investigations are part of the invite-only Business and Scale plans. Simple checks use fewer credits; deeper investigations, replies, and rechecks use more.",
 	},
 ] as const;
 

@@ -5,6 +5,7 @@ import {
 	type FeatureLimit,
 	type GatedFeatureId,
 	HIDDEN_PRICING_FEATURES,
+	normalizePlanId,
 	PLAN_FEATURE_LIMITS,
 	PLAN_IDS,
 	type PlanId,
@@ -34,7 +35,8 @@ import {
 } from "@databuddy/ui/icons";
 import { Badge, Button, EmptyState, Text } from "@databuddy/ui";
 
-const DISPLAYED_PLAN_IDS = ["hobby", "pro", "scale"] as const;
+const DISPLAYED_PLAN_IDS = ["hobby", "pro", "intelligence"] as const;
+const INVITE_ONLY_PLAN_IDS = ["intelligence", "intelligence_scale"] as const;
 const RECOMMENDED_PLAN_ID = "pro";
 
 const PLAN_ICONS: Record<string, typeof CrownIcon> = {
@@ -42,6 +44,7 @@ const PLAN_ICONS: Record<string, typeof CrownIcon> = {
 	hobby: RocketLaunchIcon,
 	pro: StarIcon,
 	scale: CrownIcon,
+	intelligence: CrownIcon,
 	buddy: CrownIcon,
 };
 
@@ -71,23 +74,28 @@ const PLAN_TAGLINES: Record<string, string> = {
 	hobby: "For solo builders and side projects.",
 	pro: "For growing teams shipping production apps.",
 	scale: "For established products at serious scale.",
+	intelligence: "An always-on product investigator for founders and engineers.",
 };
 
 const PLAN_SUPPORT: Record<string, string> = {
 	hobby: "Email support",
 	pro: "Priority email support",
 	scale: "Priority email + Slack",
+	intelligence: "Priority email + Slack",
 	buddy: "Priority email + Slack",
 };
 
 const PLAN_EXTRAS: Record<string, string[]> = {
-	scale: ["White-glove onboarding", "Beta / early access"],
+	intelligence: [
+		"1,500 investigation credits / month",
+		"2M events included / month",
+	],
 	buddy: ["White-glove onboarding", "Beta / early access"],
 };
 
 const PREVIOUS_PLAN_NAME: Record<string, string> = {
 	pro: "Hobby",
-	scale: "Pro",
+	intelligence: "Pro",
 };
 
 function getPlanIcon(planId: string) {
@@ -166,7 +174,7 @@ function getNewFeaturesForPlan(planId: string): Array<{
 	feature: GatedFeatureId;
 	limit: FeatureLimit;
 }> {
-	const plan = planId as PlanId;
+	const plan = normalizePlanId(planId);
 	const planLimits = PLAN_FEATURE_LIMITS[plan];
 	if (!planLimits) {
 		return [];
@@ -591,16 +599,29 @@ function PricingCard({
 			</div>
 
 			<div className="p-5 pt-0">
-				<Button
-					className="w-full"
-					disabled={buttonState.disabled}
-					loading={isAttaching}
-					onClick={handleUpgradeClick}
-					size="lg"
-					variant={buttonState.variant}
-				>
-					{buttonState.text}
-				</Button>
+				{(INVITE_ONLY_PLAN_IDS as readonly string[]).includes(plan.id) &&
+				!isActive ? (
+					<Button asChild className="w-full" size="lg" variant="secondary">
+						<a
+							href="https://www.databuddy.cc/contact"
+							rel="noopener noreferrer"
+							target="_blank"
+						>
+							Request access
+						</a>
+					</Button>
+				) : (
+					<Button
+						className="w-full"
+						disabled={buttonState.disabled}
+						loading={isAttaching}
+						onClick={handleUpgradeClick}
+						size="lg"
+						variant={buttonState.variant}
+					>
+						{buttonState.text}
+					</Button>
+				)}
 			</div>
 
 			{preview && (
