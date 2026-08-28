@@ -8,7 +8,6 @@ import {
 	GitBranchIcon,
 	CircleIcon as PauseCircleIcon,
 	TagIcon,
-	UsersIcon,
 	XCircleIcon,
 } from "@databuddy/ui/icons";
 import { useMemo } from "react";
@@ -335,14 +334,6 @@ export default function RoadmapTimeline({ items }: Props) {
 												{item.category.replace("-", " ")}
 											</span>
 										</div>
-
-										{/* Assignees */}
-										{item.assignees && item.assignees.length > 0 && (
-											<div className="flex items-center gap-1">
-												<UsersIcon className="size-3" />
-												<span>{item.assignees.join(", ")}</span>
-											</div>
-										)}
 									</div>
 
 									{/* Links */}
