@@ -19,7 +19,6 @@ import {
 	type CachedLinkMutationNext,
 	finishCachedLinkMutation,
 	invalidateAgentContextSnapshotsForOwner,
-	setCachedLinkIfAbsent,
 } from "@databuddy/redis";
 import { isDeepLinkTarget } from "@databuddy/shared/constants/deep-link-apps";
 import { randomUUIDv7 } from "bun";
@@ -279,27 +278,6 @@ async function finishLinkCacheMutation(
 		);
 	}
 	return false;
-}
-
-async function backfillLinkCache(
-	slug: string,
-	link: CacheableLink,
-	reason: string
-): Promise<void> {
-	try {
-		if (await setCachedLinkIfAbsent(slug, toCachedLink(link))) {
-			return;
-		}
-		logger.warn(
-			{ linkId: link.id, slug, reason },
-			"Link cache backfill did not replace an existing entry"
-		);
-	} catch (error) {
-		logger.error(
-			{ linkId: link.id, slug, reason, ...getErrorLogFields(error) },
-			"Failed to backfill link cache"
-		);
-	}
 }
 
 async function tombstoneLinkCacheMutations(
@@ -669,12 +647,6 @@ export const linksRouter = {
 							{ link: toCachedLink(newLink), state: "link" },
 							"create persisted"
 						);
-					} else {
-						await backfillLinkCache(
-							slug,
-							newLink,
-							"create bypassed cache lease"
-						);
 					}
 					invalidateLinkAgentContext(organizationId);
 
@@ -733,12 +705,6 @@ export const linksRouter = {
 								cacheMutation,
 								{ link: toCachedLink(persistedLink), state: "link" },
 								"create reconciled after ambiguous database error"
-							);
-						} else {
-							await backfillLinkCache(
-								slug,
-								persistedLink,
-								"create reconciled after cache bypass"
 							);
 						}
 						invalidateLinkAgentContext(organizationId);
