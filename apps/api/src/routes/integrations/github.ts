@@ -248,8 +248,11 @@ async function handleInstallCallback(
 			throw new GitHubInstallError("GitHub install link expired");
 		}
 
-		const session = await auth.api.getSession({ headers: request.headers });
-		if (!session?.user || session.user.id !== state.userId) {
+		const installerId = await requireOrgInstaller(
+			request,
+			state.organizationId
+		);
+		if (installerId !== state.userId) {
 			throw new GitHubInstallError(
 				"GitHub install must be completed by the same user who started it"
 			);

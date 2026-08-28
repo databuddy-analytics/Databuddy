@@ -98,6 +98,7 @@ describe("integrations.uninstallGitHub", () => {
 		)({ organizationId: org.id, integrationId });
 
 		expect(result.success).toBe(true);
+		expect(result.githubUninstalled).toBe(false);
 
 		const remaining = await call(
 			appRouter.integrations.list,

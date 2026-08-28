@@ -246,7 +246,12 @@ export const integrationsRouter = {
 				integrationId: z.string().min(1),
 			})
 		)
-		.output(successOutputSchema)
+		.output(
+			z.object({
+				success: z.literal(true),
+				githubUninstalled: z.boolean(),
+			})
+		)
 		.handler(async ({ context, input }) => {
 			await withWorkspace(context, {
 				organizationId: input.organizationId,
@@ -278,9 +283,11 @@ export const integrationsRouter = {
 
 			await invalidateGithubIntegrationCache(input.organizationId);
 
-			await deleteInstallation(integration.installationId).catch(() => false);
+			const githubUninstalled = await deleteInstallation(
+				integration.installationId
+			).catch(() => false);
 
-			return { success: true };
+			return { success: true, githubUninstalled };
 		}),
 
 	uninstallSlack: trackedProcedure

@@ -542,8 +542,14 @@ function GitHubIntegrationRow({
 
 	const uninstall = useMutation({
 		...orpc.integrations.uninstallGitHub.mutationOptions(),
-		onSuccess: async () => {
-			toast.success("GitHub disconnected");
+		onSuccess: async (data) => {
+			if (data.githubUninstalled) {
+				toast.success("GitHub disconnected");
+			} else {
+				toast.info(
+					"Disconnected from Databuddy. If the app still appears in your GitHub settings, remove it there."
+				);
+			}
 			setPendingUninstall(null);
 			await queryClient.invalidateQueries({ queryKey: listKey });
 		},
