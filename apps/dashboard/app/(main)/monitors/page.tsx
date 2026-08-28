@@ -95,7 +95,7 @@ function MonitorsPageContent() {
 		clearCommandParam();
 	}, [clearCommandParam, handleCreate, searchParams]);
 
-	const monitors = (schedulesQuery.data ?? []) as Monitor[];
+	const monitors = schedulesQuery.data ?? [];
 	const filtered = useFilteredMonitors(monitors, search, sort, statusFilter);
 	const isLoading = schedulesQuery.isLoading;
 	const hasPaused = monitors.some((m) => m.isPaused);

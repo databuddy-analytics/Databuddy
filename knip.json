@@ -25,10 +25,6 @@
     "apps/uptime": {
       "entry": ["**/*.test.{ts,tsx}"]
     },
-    "apps/video": {
-      "entry": ["remotion.config.ts", "src/index.ts"],
-      "ignoreBinaries": ["out/intelligence-platform.mp4"]
-    },
     "packages/ai": {
       "entry": ["**/*.test.{ts,tsx}"]
     },

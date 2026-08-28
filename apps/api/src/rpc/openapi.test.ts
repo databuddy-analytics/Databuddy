@@ -28,7 +28,6 @@ describe("OpenAPI reference config", () => {
 			"websites",
 		]);
 		expect(PUBLIC_OPENAPI_ROUTERS).not.toContain("agentChats");
-		expect(PUBLIC_OPENAPI_ROUTERS).not.toContain("anomalies");
 		expect(PUBLIC_OPENAPI_ROUTERS).not.toContain("insights");
 		expect(PUBLIC_OPENAPI_ROUTERS).not.toContain("integrations");
 		expect(PUBLIC_OPENAPI_ROUTERS).not.toContain("profiles");

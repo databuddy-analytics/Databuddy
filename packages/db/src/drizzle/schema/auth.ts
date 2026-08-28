@@ -56,11 +56,6 @@ export type TrackingAlertBlockReason =
 export type TrackingAlertKind = "blocked_spike" | "tracking_zero";
 
 export interface OrganizationEmailNotificationSettings {
-	anomalies?: {
-		customEventEmails?: boolean;
-		errorEmails?: boolean;
-		trafficEmails?: boolean;
-	};
 	billing?: {
 		usageWarnings?: boolean;
 	};

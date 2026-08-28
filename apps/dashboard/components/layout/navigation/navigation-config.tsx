@@ -36,7 +36,6 @@ import {
 	UserIcon,
 	UserSettingsIcon,
 	Users3Icon as UsersThreeIcon,
-	TriangleWarningIcon as WarningIcon,
 } from "@databuddy/ui/icons";
 import type { NavigationGroup, NavigationItem } from "./types";
 
@@ -159,15 +158,8 @@ export const websiteNavigation: NavigationGroup[] = [
 				rootLevel: false,
 				gatedFeature: GATED_FEATURES.GEOGRAPHIC,
 			}),
-			createNavItem("Anomalies", WarningIcon, "/anomalies", {
-				rootLevel: false,
-				alpha: true,
-				flag: "anomalies",
-				hideFromDemo: true,
-			}),
 			createNavItem("Pulse", PulseIcon, "/pulse", {
 				rootLevel: false,
-				flag: "pulse",
 				alpha: true,
 			}),
 		],
@@ -215,7 +207,6 @@ export const websiteNavigation: NavigationGroup[] = [
 			createNavItem("Revenue", CurrencyDollarIcon, "/revenue", {
 				alpha: true,
 				rootLevel: false,
-				flag: "revenue",
 				hideFromDemo: true,
 			}),
 		],
@@ -309,8 +300,7 @@ export const settingsNavigation: NavigationGroup[] = [
 			createNavItem(
 				"Integrations",
 				PlugIcon,
-				"/organizations/settings/integrations",
-				{ flag: "integrations" }
+				"/organizations/settings/integrations"
 			),
 			createNavItem("Members", UserIcon, "/organizations/members"),
 			createNavItem(

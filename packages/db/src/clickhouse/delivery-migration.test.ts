@@ -15,7 +15,7 @@ describe("delivery deduplication cutover", () => {
 		expect(RUNBOOK.indexOf("LIMIT 1 BY")).toBeLessThan(
 			RUNBOOK.indexOf("EXCHANGE TABLES")
 		);
-		expect(RUNBOOK).toContain(
+		expect(RUNBOOK.replaceAll("\r\n", "\n")).toContain(
 			"complete `ORDER BY` key of each serving table is exactly its tenant plus\nstable row identity"
 		);
 		expect(RUNBOOK).toContain("HAVING mapped_times > 1");

@@ -147,6 +147,14 @@ export function runRateLimitCommand<T>(
 	return runRateLimitRedisCommand(operation);
 }
 
+let _linkCacheTimingFn: ((durationMs: number) => void) | null = null;
+
+export function setLinkCacheTimingFn(
+	fn: ((durationMs: number) => void) | null
+): void {
+	_linkCacheTimingFn = fn;
+}
+
 async function runLinkCacheRedisCommand<T>(
 	operation: (redis: Redis) => Promise<T>
 ): Promise<T> {
@@ -154,6 +162,7 @@ async function runLinkCacheRedisCommand<T>(
 		throw new Error("Link cache is failing fast after a recent Redis failure");
 	}
 
+	const startedAt = performance.now();
 	let instance: Redis | null = null;
 	const command = getLinkCacheRedis().then((redis) => {
 		instance = redis;
@@ -174,6 +183,8 @@ async function runLinkCacheRedisCommand<T>(
 			discardLinkCacheRedis(instance);
 		}
 		throw error;
+	} finally {
+		_linkCacheTimingFn?.(performance.now() - startedAt);
 	}
 }
 

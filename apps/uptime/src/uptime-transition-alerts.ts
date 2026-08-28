@@ -38,7 +38,7 @@ class NotificationSendError extends Data.TaggedError("NotificationSendError")<{
 	cause: unknown;
 }> {}
 
-export interface LinkedAlarm {
+interface LinkedAlarm {
 	destinations: Array<{ type: string; identifier: string; config: unknown }>;
 	id: string;
 }
@@ -50,7 +50,7 @@ interface ClaimedTransition {
 
 type TransitionNotificationPayload = Parameters<NotificationClient["send"]>[0];
 
-export interface TransitionResult {
+interface TransitionResult {
 	alarms_fired: number;
 	transition_kind: "down" | "recovered" | null;
 }
@@ -163,7 +163,7 @@ export function buildTransitionNotificationPayload(input: {
 			: "No HTTP response",
 		error ? `Reason: ${error}` : null,
 	]
-		.filter((value): value is string => value !== null)
+		.filter((value) => value !== null)
 		.join(" · ");
 
 	return {

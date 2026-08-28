@@ -52,7 +52,7 @@ interface MonitorRowProps {
 		isPaused: boolean;
 		createdAt: Date | string;
 		updatedAt: Date | string;
-		website: {
+		website?: {
 			id: string;
 			name: string | null;
 			domain: string;

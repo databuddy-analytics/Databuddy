@@ -33,10 +33,11 @@ beforeAll(async () => {
 	mock.module("../procedures/with-workspace", () => ({
 		withWorkspace: mockWithWorkspace,
 	}));
+	const actualAudit = await import("../lib/audit");
 	mock.module("../lib/audit", () => ({
+		...actualAudit,
 		appendRpcAuditEvent: mockAppendRpcAuditEvent,
 		getAuditActor: () => ({ id: "user-a", type: "user" }),
-		getAuditOrganizationId: () => ORGANIZATION_A,
 		getAuditRequestContext: () => ({}),
 	}));
 

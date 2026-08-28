@@ -10,8 +10,7 @@
     "./types": "./src/types.ts",
     "./client": "./src/client.ts",
     "./providers": "./src/providers/index.ts",
-    "./templates/uptime": "./src/templates/uptime.ts",
-    "./templates/anomaly": "./src/templates/anomaly.ts"
+    "./templates/uptime": "./src/templates/uptime.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit",

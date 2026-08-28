@@ -2,7 +2,7 @@ import type { UptimeGranularity } from "@databuddy/shared/uptime";
 
 export type MonitorStatus = "up" | "down" | "degraded" | "unknown";
 export type MonitorFreshness = "fresh" | "stale" | "unknown";
-export type OverallStatus = "operational" | "degraded" | "outage" | "unknown";
+type OverallStatus = "operational" | "degraded" | "outage" | "unknown";
 
 const GRANULARITY_MS = {
 	minute: 60_000,

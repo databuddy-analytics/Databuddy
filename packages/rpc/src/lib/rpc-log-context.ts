@@ -69,6 +69,10 @@ export function enrichRpcWideEventContext(
 	setOrLog(fields);
 }
 
+export function setRpcAuthTiming(durationMs: number): void {
+	setOrLog({ "timing.auth_ms": Math.round(durationMs) });
+}
+
 export function setRpcProcedureType(procedureType: RpcProcedureType): void {
 	setOrLog({ rpc_procedure_type: procedureType });
 }

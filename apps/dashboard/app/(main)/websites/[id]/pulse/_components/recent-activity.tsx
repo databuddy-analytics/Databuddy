@@ -23,7 +23,9 @@ export interface RecentActivityCheck {
 	http_code: number;
 	probe_ip?: string;
 	probe_region: string;
-	status: number; // 1 = up, 0 = down, 2 = pending
+	ssl_expiry?: string | null;
+	ssl_valid?: number;
+	status: number; // 1 = up, 0 = down
 	timestamp: string;
 	total_ms: number;
 }

@@ -1,11 +1,16 @@
-import { shutdownPostgres } from "@databuddy/db";
-import { closeUptimeQueue } from "@databuddy/redis";
+import { db, shutdownPostgres, sql } from "@databuddy/db";
+import {
+	closeUptimeQueue,
+	getUptimeDeliveryQueue,
+	getUptimeQueue,
+} from "@databuddy/redis";
 import { buildHttpErrorResponse } from "@databuddy/shared/http-error-response";
 import {
 	createDatabuddyEvlogEnv,
 	databuddyEvlogRedaction,
 } from "@databuddy/shared/evlog-redaction";
 import { Elysia } from "elysia";
+import { Kafka } from "kafkajs";
 import { Effect } from "effect";
 import { initLogger, log } from "evlog";
 import { evlog } from "evlog/elysia";
@@ -139,10 +144,36 @@ async function shutdown(signal: string, exitCode = 0) {
 const SCHEDULER_RESYNC_INTERVAL_MS = 15 * 60_000;
 let schedulerResyncTimer: ReturnType<typeof setInterval> | null = null;
 
+async function reportQueueDepths(): Promise<void> {
+	const [checks, delivery] = await Promise.all([
+		getUptimeQueue().getJobCounts("active", "waiting", "delayed", "failed"),
+		getUptimeDeliveryQueue().getJobCounts(
+			"active",
+			"waiting",
+			"delayed",
+			"failed"
+		),
+	]);
+	log.info({
+		queue_depth: true,
+		checks_active: checks.active ?? 0,
+		checks_waiting: checks.waiting ?? 0,
+		checks_delayed: checks.delayed ?? 0,
+		checks_failed: checks.failed ?? 0,
+		delivery_active: delivery.active ?? 0,
+		delivery_waiting: delivery.waiting ?? 0,
+		delivery_delayed: delivery.delayed ?? 0,
+		delivery_failed: delivery.failed ?? 0,
+	});
+}
+
 function startSchedulerResync(): void {
 	schedulerResyncTimer = setInterval(() => {
 		syncSchedulers().catch((error) => {
 			captureError(error, { error_step: "scheduler_resync" });
+		});
+		reportQueueDepths().catch((error) => {
+			captureError(error, { error_step: "queue_depth_report" });
 		});
 	}, SCHEDULER_RESYNC_INTERVAL_MS);
 }
@@ -213,12 +244,6 @@ const probe = (name: string, fn: () => Promise<void>) =>
 	});
 
 const healthCheck = Effect.gen(function* () {
-	const { db, sql } = yield* Effect.promise(() => import("@databuddy/db"));
-	const { getUptimeQueue } = yield* Effect.promise(
-		() => import("@databuddy/redis")
-	);
-	const { Kafka } = yield* Effect.promise(() => import("kafkajs"));
-
 	const [postgres, bullmqRedis, redpanda] = yield* Effect.all(
 		[
 			probe("postgres", () => db.execute(sql`SELECT 1`).then(() => {})),

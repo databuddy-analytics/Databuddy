@@ -11,6 +11,7 @@ import {
 	recordORPCError,
 	setRpcProcedurePath,
 	setRpcProcedureType,
+	setRpcAuthTiming,
 } from "./lib/rpc-log-context";
 import { runTracked } from "./middleware/track-mutation";
 import { runAuditedMutation } from "./middleware/audit-mutation";
@@ -77,12 +78,19 @@ export const createRPCContext = async (
 	opts: { headers: Headers; requestId?: string },
 	preResolved?: PreResolvedAuth
 ) => {
-	const [session, apiKey] = preResolved
-		? [preResolved.session, preResolved.apiKey]
-		: await Promise.all([
-				auth.api.getSession({ headers: opts.headers }),
-				getApiKeyFromHeader(opts.headers),
-			]);
+	let session: PreResolvedAuth["session"];
+	let apiKey: PreResolvedAuth["apiKey"];
+	if (preResolved) {
+		session = preResolved.session;
+		apiKey = preResolved.apiKey;
+	} else {
+		const authStartedAt = performance.now();
+		[session, apiKey] = await Promise.all([
+			auth.api.getSession({ headers: opts.headers }),
+			getApiKeyFromHeader(opts.headers),
+		]);
+		setRpcAuthTiming(performance.now() - authStartedAt);
+	}
 
 	const user = session?.user;
 

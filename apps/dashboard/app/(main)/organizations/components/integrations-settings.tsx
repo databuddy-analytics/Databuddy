@@ -144,8 +144,7 @@ const COMING_SOON_INTEGRATIONS: IntegrationCatalogItem[] = [
 	{
 		accent: "#5865F2",
 		category: "Alerts",
-		description:
-			"Route monitor, anomaly, and agent notifications into Discord.",
+		description: "Route monitor and agent notifications into Discord.",
 		iconPath: SIMPLE_ICONS.discord,
 		id: "discord",
 		name: "Discord",

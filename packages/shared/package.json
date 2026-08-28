@@ -26,6 +26,7 @@
     "./currency": "./src/currency.ts",
     "./tracking-blocks": "./src/tracking-blocks.ts",
     "./uptime": "./src/uptime.ts",
+    "./uptime-status": "./src/uptime-status.ts",
     "./http-error-response": "./src/http-error-response.ts",
     "./insights": "./src/insights.ts",
     "./stripe-webhooks": "./src/stripe-webhooks.ts",

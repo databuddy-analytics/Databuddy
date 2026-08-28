@@ -58,11 +58,6 @@ const ignoredOriginSchema = z
 	});
 
 const emailNotificationSettingsSchema = z.object({
-	anomalies: z.object({
-		customEventEmails: z.boolean(),
-		errorEmails: z.boolean(),
-		trafficEmails: z.boolean(),
-	}),
 	billing: z.object({ usageWarnings: z.boolean() }),
 	trackingHealth: z.object({
 		cooldownMinutes: z
@@ -79,6 +74,10 @@ const emailNotificationSettingsSchema = z.object({
 		recoveryEmails: z.boolean(),
 	}),
 });
+
+export type EmailNotificationSettingsOutput = z.infer<
+	typeof emailNotificationSettingsSchema
+>;
 
 export const organizationsRouter = {
 	updateAvatarSeed: trackedProcedure

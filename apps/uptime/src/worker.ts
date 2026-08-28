@@ -146,12 +146,12 @@ export function getUptimeWorkerConcurrency(
 	return parsed;
 }
 
-export type UptimeWorkerJob = Pick<
+type UptimeWorkerJob = Pick<
 	Job<UptimeCheckJobData>,
 	"attemptsMade" | "data" | "id" | "name" | "updateData"
 >;
 
-export type UptimeDeliveryWorkerJob = Pick<
+type UptimeDeliveryWorkerJob = Pick<
 	Job<UptimeDeliveryJobData>,
 	"attemptsMade" | "data" | "id" | "name"
 >;

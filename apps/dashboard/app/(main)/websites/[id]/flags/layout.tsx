@@ -1,6 +1,5 @@
 "use client";
 
-import { useFlag } from "@databuddy/sdk/react";
 import { FLAG_STATS_WINDOW_DAYS } from "@databuddy/shared/flags";
 import { GATED_FEATURES } from "@databuddy/shared/types/features";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -23,12 +22,11 @@ import {
 	ArchiveIcon,
 	ArrowClockwiseIcon,
 	FlagIcon,
-	InfoIcon,
 	LayoutIcon,
 	PlusIcon,
 	UsersThreeIcon,
 } from "@databuddy/ui/icons";
-import { Badge, Button, Skeleton, Tooltip, useHydrated } from "@databuddy/ui";
+import { Button } from "@databuddy/ui";
 
 export default function FlagsLayout({
 	children,
@@ -70,12 +68,6 @@ export default function FlagsLayout({
 	const isGroupsPage = pathname?.includes("/groups");
 	const isTemplatesPage = pathname?.includes("/templates");
 	const isArchivePage = pathname?.includes("/archive");
-	const { on: isExperimentOn, loading: experimentLoading } =
-		useFlag("experiment-50");
-	const isHydrated = useHydrated();
-
-	const showExperimentBanner =
-		isHydrated && !experimentLoading && flags !== undefined;
 
 	const handleRefresh = useCallback(async () => {
 		setIsRefreshing(true);
@@ -187,58 +179,6 @@ export default function FlagsLayout({
 				]}
 				variant="tabs"
 			/>
-
-			{/* Experiment Flag Banner — defer until hydrated so SDK/flags match SSR */}
-			<div className="flex h-10 items-center border-border border-b bg-accent px-4">
-				{showExperimentBanner ? (
-					<div className="flex items-center gap-3">
-						<div className="flex items-center gap-2">
-							{isExperimentOn ? (
-								<FlagIcon className="size-4 text-destructive" weight="fill" />
-							) : (
-								<FlagIcon className="size-4 text-blue-600" weight="fill" />
-							)}
-							{isExperimentOn ? (
-								<Badge variant="destructive">Red Team</Badge>
-							) : (
-								<Badge
-									className="bg-blue-500/15 text-blue-600 dark:text-blue-400"
-									variant="default"
-								>
-									Blue Team
-								</Badge>
-							)}
-						</div>
-						<Tooltip
-							content={
-								<div className="space-y-2">
-									<p className="font-medium">A/B Test Experiment</p>
-									<p className="text-xs leading-relaxed">
-										Live demo: ~50% of users see Red Team, ~50% see Blue Team.
-									</p>
-								</div>
-							}
-							delay={500}
-						>
-							<button
-								className="flex items-center gap-1.5 text-foreground text-sm hover:text-foreground/80"
-								type="button"
-							>
-								<InfoIcon className="size-4" weight="duotone" />
-								<span className="hidden sm:inline">A/B Test Experiment</span>
-							</button>
-						</Tooltip>
-					</div>
-				) : (
-					<div className="flex items-center gap-3">
-						<div className="flex items-center gap-2">
-							<Skeleton className="size-4 rounded" />
-							<Skeleton className="h-5 w-20 rounded" />
-						</div>
-						<Skeleton className="h-4 w-32 rounded sm:w-40" />
-					</div>
-				)}
-			</div>
 
 			<div className="min-h-0 flex-1 overflow-hidden">{children}</div>
 		</div>
