@@ -1,3 +1,4 @@
+import { type RateLimitResult, ratelimit } from "@databuddy/redis/rate-limit";
 import {
 	and,
 	asc,
@@ -151,6 +152,21 @@ function getTargetDomain(targetUrl: string): string | null {
 	} catch {
 		return null;
 	}
+}
+
+const LINKS_CREATE_ORG_RPM = Number(process.env.LINKS_CREATE_ORG_RPM ?? "300");
+
+function takeCreateBurstSlot(
+	organizationId: string
+): Promise<RateLimitResult> | null {
+	if (!(Number.isFinite(LINKS_CREATE_ORG_RPM) && LINKS_CREATE_ORG_RPM > 0)) {
+		return null;
+	}
+	return ratelimit(
+		`links-create:org:${organizationId}`,
+		LINKS_CREATE_ORG_RPM,
+		60
+	);
 }
 
 async function validateFolderId(
@@ -572,12 +588,16 @@ export const linksRouter = {
 			);
 
 			validateDeepLinkConfiguration(input.deepLinkApp, input.targetUrl);
-			const createdBy = await workspace.getCreatedBy();
-			const resolvedFolderId = await validateFolderId(
-				context.db,
-				input.folderId,
-				organizationId
-			);
+			const [createdBy, resolvedFolderId, burst] = await Promise.all([
+				workspace.getCreatedBy(),
+				validateFolderId(context.db, input.folderId, organizationId),
+				takeCreateBurstSlot(organizationId),
+			]);
+			if (burst && !burst.success) {
+				throw rpcError.rateLimited(
+					Math.max(1, Math.ceil((burst.reset - Date.now()) / 1000))
+				);
+			}
 			const targetDomain =
 				normalizeTargetDomain(input.targetDomain) ??
 				getTargetDomain(input.targetUrl);
@@ -663,19 +683,19 @@ export const linksRouter = {
 						throw rpcError.internal("Failed to create link");
 					}
 
-					if (cacheMutation) {
-						await finishLinkCacheMutation(
-							cacheMutation,
-							{ link: toCachedLink(newLink), state: "link" },
-							"create persisted"
+					const publishCache = cacheMutation
+						? finishLinkCacheMutation(
+								cacheMutation,
+								{ link: toCachedLink(newLink), state: "link" },
+								"create persisted"
+							)
+						: backfillLinkCache(slug, newLink, "create bypassed cache lease");
+					publishCache.catch((error) => {
+						logger.error(
+							{ slug, linkId, ...getErrorLogFields(error) },
+							"Failed to publish created link to cache"
 						);
-					} else {
-						await backfillLinkCache(
-							slug,
-							newLink,
-							"create bypassed cache lease"
-						);
-					}
+					});
 					invalidateLinkAgentContext(organizationId);
 
 					return newLink;
