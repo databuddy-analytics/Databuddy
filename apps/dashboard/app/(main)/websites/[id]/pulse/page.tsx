@@ -23,14 +23,6 @@ import {
 import { DeleteDialog } from "@databuddy/ui/client";
 import { Button, EmptyState, localDayjs } from "@databuddy/ui";
 
-interface Schedule {
-	granularity: string;
-	id: string;
-	isPaused: boolean;
-	name?: string | null;
-	url: string;
-}
-
 export default function PulsePage() {
 	const { id: websiteId } = useParams();
 	const { dateRange } = useDateFilters();
@@ -45,7 +37,7 @@ export default function PulsePage() {
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
 	const {
-		data: rawSchedule,
+		data: schedule,
 		refetch: refetchSchedule,
 		isLoading: isLoadingSchedule,
 	} = useQuery({
@@ -54,8 +46,6 @@ export default function PulsePage() {
 		}),
 		enabled: !!websiteId,
 	});
-
-	const schedule = rawSchedule as Schedule | null | undefined;
 
 	const pauseMutation = useMutation({
 		...orpc.uptime.pauseSchedule.mutationOptions(),

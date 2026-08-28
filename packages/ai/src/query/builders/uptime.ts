@@ -127,6 +127,7 @@ export const UptimeBuilders: Record<string, SimpleQueryConfig> = {
 						probe_region,
 						probe_ip,
 						ssl_valid,
+						ssl_expiry,
 						error
 					FROM ${UPTIME_TABLE}
 					WHERE 
