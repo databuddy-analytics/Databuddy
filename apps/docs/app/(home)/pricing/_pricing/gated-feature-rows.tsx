@@ -16,6 +16,7 @@ const TABLE_PLAN_TO_SHARED: Record<string, PlanId> = {
 	free: PLAN_IDS.FREE,
 	hobby: PLAN_IDS.HOBBY,
 	pro: PLAN_IDS.PRO,
+	intelligence: PLAN_IDS.SCALE,
 	enterprise: PLAN_IDS.SCALE,
 };
 

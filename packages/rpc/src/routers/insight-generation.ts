@@ -33,9 +33,13 @@ import {
 import { ORPCError } from "@orpc/server";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
+import { GATED_FEATURES } from "@databuddy/shared/types/features";
 import { rpcError } from "../errors";
 import { setAuditOrganization } from "../lib/audit";
 import { logger } from "../lib/logger";
+import { requireFeatureWithLimit } from "../types/billing";
+import { getBillingOwner } from "../utils/billing";
+import { getOrganizationOwnerId } from "../utils/organization";
 import { auditedProcedure, type Context, protectedProcedure } from "../orpc";
 import { withWorkspace } from "../procedures/with-workspace";
 import {
@@ -971,6 +975,29 @@ async function insertInsightRunOrFindActive(
 	throw conflict;
 }
 
+async function getOrganizationPlanId(
+	organizationId: string
+): Promise<string | undefined> {
+	const ownerId = await getOrganizationOwnerId(organizationId);
+	if (!ownerId) {
+		return;
+	}
+	const billing = await getBillingOwner(ownerId, organizationId);
+	return billing?.planId;
+}
+
+async function hasInvestigationsAccess(
+	organizationId: string
+): Promise<boolean> {
+	const planId = await getOrganizationPlanId(organizationId);
+	try {
+		requireFeatureWithLimit(planId, GATED_FEATURES.INVESTIGATIONS, 0);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
 export async function queueInsightGenerationRun(
 	input: QueueInsightGenerationRunInput
 ): Promise<QueueInsightGenerationRunResult> {
@@ -983,6 +1010,14 @@ export async function queueInsightGenerationRun(
 	const reason = input.reason ?? "manual";
 
 	if (reason !== "manual" && !runConfig.enabled) {
+		return { queuedItems: 0, status: "disabled" };
+	}
+
+	if (!(await hasInvestigationsAccess(input.organizationId))) {
+		if (reason === "manual") {
+			const planId = await getOrganizationPlanId(input.organizationId);
+			requireFeatureWithLimit(planId, GATED_FEATURES.INVESTIGATIONS, 0);
+		}
 		return { queuedItems: 0, status: "disabled" };
 	}
 
@@ -1182,6 +1217,10 @@ export const insightGenerationRouter = {
 				input,
 				"update"
 			);
+			if (input.enabled === true) {
+				const planId = await getOrganizationPlanId(organizationId);
+				requireFeatureWithLimit(planId, GATED_FEATURES.INVESTIGATIONS, 0);
+			}
 			return mutateConfig(organizationId, (current) =>
 				applyPatch(current, input)
 			);
@@ -1229,6 +1268,10 @@ export const insightGenerationRouter = {
 				throw rpcError.badRequest(
 					"Multiple active Slack connections match this channel"
 				);
+			}
+			{
+				const planId = await getOrganizationPlanId(organizationId);
+				requireFeatureWithLimit(planId, GATED_FEATURES.INVESTIGATIONS, 0);
 			}
 			return mutateConfig(organizationId, (current) => {
 				const filtered = current.deliveries.filter(

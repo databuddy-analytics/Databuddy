@@ -11,9 +11,11 @@ Machine-readable: [JSON](https://www.databuddy.cc/api/pricing) · static [Markdo
 | Free | $0 | 10,000 | 10 / month | No paid overage — ingestion pauses at the monthly event allowance |
 | Hobby | $9.99/mo | 30,000 | 20 / month + 1 daily bonus | Tiered event overage |
 | Pro | $49.99/mo | 1,000,000 | 350 / month + 5 daily bonus | Tiered event overage |
+| Business | $299/mo | 2,000,000 | 1,500 / month | Invite only. An always-on product investigator; tiered event overage |
+| Scale | $799/mo | 10,000,000 | 5,000 / month | Invite only. More investigation capacity for higher traffic; tiered event overage |
 | Enterprise | Custom | Custom | Custom | Volume, security, SLAs — [pricing page](https://www.databuddy.cc/pricing) |
 
-## Events (overage on Hobby & Pro)
+## Events (overage on paid plans)
 
 Overage = events **above** the monthly included amount. Cumulative overage is charged in bands (first band fills, then the next). Hobby and Pro use the same per-event rates, but the exact band boundaries differ slightly between plans.
 
@@ -45,7 +47,7 @@ For exact monthly totals at your event volume, use the calculator on the [pricin
 
 ## Investigation credits
 
-Every cloud plan includes Investigation credits for Databunny questions and investigations. Credits pay for the work Databunny performs, not a fixed number of messages: simple checks use fewer credits, while deeper investigations, replies, and rechecks use more. Hobby and Pro also receive a daily credit bonus that replenishes each day.
+Every cloud plan includes Investigation credits for asking Databunny questions. Credits pay for the work Databunny performs, not a fixed number of messages: simple checks use fewer credits, while deeper investigations, replies, and rechecks use more. Hobby and Pro also receive a daily credit bonus that replenishes each day. Automatic scheduled investigations are exclusive to the invite-only Business and Scale plans.
 
 Additional credits are available: a recurring monthly booster add-on and prepaid top-ups that do not expire.
 

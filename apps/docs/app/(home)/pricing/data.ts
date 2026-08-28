@@ -174,8 +174,75 @@ export const RAW_PLANS: RawPlan[] = [
 		],
 	},
 	{
+		id: "intelligence",
+		name: "Business",
+		items: [
+			{
+				type: "price",
+				interval: "month",
+				price: 299,
+				feature_id: null,
+				feature: null,
+			},
+			{
+				type: "priced_feature",
+				feature_id: "events",
+				feature_type: "single_use",
+				feature: EVENTS_FEATURE,
+				included_usage: 2_000_000,
+				interval: "month",
+				tiers: EVENT_TIERS,
+				usage_model: "pay_per_use",
+			},
+			{
+				type: "feature",
+				feature_id: "agent_credits",
+				feature_type: "single_use",
+				feature: AGENT_CREDITS_FEATURE,
+				included_usage: 1500,
+				interval: "month",
+			},
+		],
+	},
+	{
+		id: "intelligence_scale",
+		name: "Scale",
+		items: [
+			{
+				type: "price",
+				interval: "month",
+				price: 799,
+				feature_id: null,
+				feature: null,
+			},
+			{
+				type: "priced_feature",
+				feature_id: "events",
+				feature_type: "single_use",
+				feature: EVENTS_FEATURE,
+				included_usage: 10_000_000,
+				interval: "month",
+				tiers: EVENT_TIERS,
+				usage_model: "pay_per_use",
+			},
+			{
+				type: "feature",
+				feature_id: "agent_credits",
+				feature_type: "single_use",
+				feature: AGENT_CREDITS_FEATURE,
+				included_usage: 5000,
+				interval: "month",
+			},
+		],
+	},
+	{
 		id: "enterprise",
 		name: "Enterprise",
 		items: [{ type: "enterprise" }],
 	},
 ];
+
+export const INTELLIGENCE_PLAN_TABLE_IDS = [
+	"intelligence",
+	"intelligence_scale",
+] as const;

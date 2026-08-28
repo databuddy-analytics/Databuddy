@@ -4,9 +4,9 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 
 const stats = [
-	{ value: "500+", label: "Websites" },
-	{ value: "2,000+", label: "Developers" },
-	{ value: "10M+", label: "Events / month" },
+	{ value: "1,500+", label: "Websites" },
+	{ value: "3,500+", label: "Developers" },
+	{ value: "5M+", label: "Events / month" },
 ];
 
 const companies = [
