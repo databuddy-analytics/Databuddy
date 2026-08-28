@@ -457,7 +457,7 @@ export default function GeneralSettingsPage() {
 							<p className="font-medium">Warning:</p>
 							<ul className="list-disc space-y-1 pl-4 text-xs">
 								<li>The website and its settings are permanently deleted</li>
-								<li>Its dashboards become inaccessible</li>
+								<li>Its analytics data is permanently deleted</li>
 								<li>Tracking stops within a few minutes</li>
 							</ul>
 						</div>

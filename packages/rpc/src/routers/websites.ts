@@ -1,5 +1,5 @@
 import { db } from "@databuddy/db";
-import { chQuery } from "@databuddy/db/clickhouse";
+import { chQuery, purgeWebsiteAnalyticsData } from "@databuddy/db/clickhouse";
 import { cacheable } from "@databuddy/redis";
 import { auditActions } from "@databuddy/shared/audit";
 import {
@@ -850,6 +850,19 @@ export const websitesRouter = {
 				});
 			} catch (error) {
 				handleServiceError(error);
+			}
+
+			try {
+				await purgeWebsiteAnalyticsData(input.id);
+			} catch (error) {
+				logger.error(
+					{
+						websiteId: input.id,
+						error: String(error),
+						event: "Website Analytics Purge Failed",
+					},
+					`Analytics purge failed for deleted website ${input.id}; data must be purged manually`
+				);
 			}
 
 			logger.warn(
