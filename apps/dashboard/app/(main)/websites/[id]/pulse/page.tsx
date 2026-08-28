@@ -288,7 +288,7 @@ export default function PulsePage() {
 								onClick: handleCreateMonitor,
 							}}
 							className="h-full py-0"
-							description="Track availability and get alerts when the site goes down."
+							description="Track availability, then link an alert to get notified when the site goes down."
 							icon={<HeartbeatIcon weight="duotone" />}
 							title="No monitor yet"
 							variant="minimal"
