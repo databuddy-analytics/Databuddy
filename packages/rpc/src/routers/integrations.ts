@@ -10,7 +10,7 @@ import type { WebsiteIntegrations } from "@databuddy/db/schema";
 import {
 	invalidateGithubIntegrationCache,
 	invalidateSlackIntegrationCache,
-} from "@databuddy/redis";
+} from "@databuddy/redis/cache-invalidation";
 import {
 	deleteInstallation,
 	getGithubTokenForOrg,
