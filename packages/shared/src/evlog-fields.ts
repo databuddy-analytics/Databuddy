@@ -36,4 +36,5 @@ export interface RpcWideEventFields {
 	rpc_router: string;
 	rpc_sdk_name: string;
 	rpc_sdk_version: string;
+	"timing.auth_ms": number;
 }
