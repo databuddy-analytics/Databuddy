@@ -174,6 +174,37 @@ export const RAW_PLANS: RawPlan[] = [
 		],
 	},
 	{
+		id: "intelligence",
+		name: "Analyst",
+		items: [
+			{
+				type: "price",
+				interval: "month",
+				price: 299,
+				feature_id: null,
+				feature: null,
+			},
+			{
+				type: "priced_feature",
+				feature_id: "events",
+				feature_type: "single_use",
+				feature: EVENTS_FEATURE,
+				included_usage: 2_000_000,
+				interval: "month",
+				tiers: EVENT_TIERS,
+				usage_model: "pay_per_use",
+			},
+			{
+				type: "feature",
+				feature_id: "agent_credits",
+				feature_type: "single_use",
+				feature: AGENT_CREDITS_FEATURE,
+				included_usage: 1500,
+				interval: "month",
+			},
+		],
+	},
+	{
 		id: "enterprise",
 		name: "Enterprise",
 		items: [{ type: "enterprise" }],

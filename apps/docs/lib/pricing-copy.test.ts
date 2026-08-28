@@ -27,7 +27,7 @@ describe("public pricing copy", () => {
 			"utf8"
 		);
 
-		for (const planId of ["free", "hobby", "pro"] as const) {
+		for (const planId of ["free", "hobby", "pro", "intelligence"] as const) {
 			expect(markdown).toContain(
 				included(planId, "events", "month")?.toLocaleString() ?? ""
 			);
