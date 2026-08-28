@@ -22,6 +22,7 @@ import {
 import {
 	mutateConfig,
 	queueInsightGenerationRun,
+	setInvestigationsAccessResolver,
 } from "@databuddy/rpc/insight-generation";
 import {
 	closePostgres,
@@ -47,6 +48,8 @@ const describeIntegration = runIntegration ? describe : describe.skip;
 describeIntegration("insights scheduler integration", () => {
 	const organizationIds = new Set<string>();
 
+	setInvestigationsAccessResolver(async () => true);
+
 	beforeEach(async () => {
 		await truncatePostgres();
 	});
@@ -58,6 +61,7 @@ describeIntegration("insights scheduler integration", () => {
 	});
 
 	afterAll(async () => {
+		setInvestigationsAccessResolver(null);
 		await cleanupQueueJobs();
 		await closeInsightsQueue();
 		await shutdownPostgres();
