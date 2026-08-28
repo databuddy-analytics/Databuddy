@@ -64,9 +64,36 @@ const TABLES = [
 	"user",
 ] as const;
 
+const PG_DEADLOCK_CODE = "40P01";
+const TRUNCATE_ATTEMPTS = 3;
+
+function isDeadlock(error: unknown): boolean {
+	let current = error;
+	while (typeof current === "object" && current !== null) {
+		if ("code" in current && current.code === PG_DEADLOCK_CODE) {
+			return true;
+		}
+		current = "cause" in current ? current.cause : null;
+	}
+	return false;
+}
+
 export async function truncatePostgres() {
 	const quoted = TABLES.map((t) => `"${t}"`).join(", ");
-	await db().execute(sql.raw(`TRUNCATE TABLE ${quoted} CASCADE`));
+	// Fire-and-forget writes from the previous test (audit inserts, cache
+	// publishes) can still hold row locks when TRUNCATE CASCADE runs; the
+	// deadlock victim is transient, so retry instead of failing the suite.
+	for (let attempt = 1; ; attempt++) {
+		try {
+			await db().execute(sql.raw(`TRUNCATE TABLE ${quoted} CASCADE`));
+			return;
+		} catch (error) {
+			if (attempt >= TRUNCATE_ATTEMPTS || !isDeadlock(error)) {
+				throw error;
+			}
+			await new Promise((resolve) => setTimeout(resolve, 100 * attempt));
+		}
+	}
 }
 
 export async function closePostgres() {
