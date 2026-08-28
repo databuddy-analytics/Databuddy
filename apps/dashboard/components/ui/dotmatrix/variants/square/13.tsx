@@ -9,7 +9,7 @@ import { usePrefersReducedMotion } from "../../hooks";
 import { useSteppedCycle } from "../../hooks";
 import type { DotAnimationResolver, DotMatrixCommonProps } from "../../core";
 
-export type DotmSquare13Props = DotMatrixCommonProps;
+type DotmSquare13Props = DotMatrixCommonProps;
 
 type FrameCell = "." | "o" | "x";
 

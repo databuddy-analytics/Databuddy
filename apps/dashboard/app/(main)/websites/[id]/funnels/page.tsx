@@ -1,6 +1,6 @@
 "use client";
 
-import { FeatureGate } from "@/components/feature-gate";
+import { FeatureGate, usePlanLimitMessage } from "@/components/feature-gate";
 import { List } from "@/components/ui/composables/list";
 import { insightDefinitionEditChangesSchema } from "@databuddy/shared/insights";
 import { useAutocompleteData } from "@/hooks/use-autocomplete";
@@ -91,6 +91,19 @@ export default function FunnelsPage() {
 		isCreating,
 		isUpdating,
 	} = useFunnels(websiteId, { dateRange });
+
+	const planLimitMessage = usePlanLimitMessage(
+		GATED_FEATURES.FUNNELS,
+		funnels.length
+	);
+
+	const openCreate = () => {
+		if (planLimitMessage) {
+			toast.info(planLimitMessage);
+			return;
+		}
+		setEditing("new");
+	};
 
 	useEffect(() => {
 		const command = searchParams.get("command");
@@ -183,9 +196,7 @@ export default function FunnelsPage() {
 		try {
 			await createAction(data);
 			setEditing(null);
-		} catch (err) {
-			console.error("Failed to create funnel:", err);
-		}
+		} catch {}
 	};
 
 	const handleUpdate = async (funnel: FunnelItemData) => {
@@ -198,9 +209,7 @@ export default function FunnelsPage() {
 				ignoreHistoricData: funnel.ignoreHistoricData,
 			});
 			setEditing(null);
-		} catch (err) {
-			console.error("Failed to update funnel:", err);
-		}
+		} catch {}
 	};
 
 	const handleDelete = async (funnelId: string) => {
@@ -210,9 +219,7 @@ export default function FunnelsPage() {
 				setExpandedId(null);
 			}
 			setDeletingId(null);
-		} catch (err) {
-			console.error("Failed to delete funnel:", err);
-		}
+		} catch {}
 	};
 
 	return (
@@ -234,7 +241,7 @@ export default function FunnelsPage() {
 						/>
 					</Button>
 					{!isDemoRoute && (
-						<Button onClick={() => setEditing("new")} size="sm">
+						<Button onClick={openCreate} size="sm">
 							<PlusIcon className="size-4 shrink-0" />
 							Create Funnel
 						</Button>
@@ -248,7 +255,7 @@ export default function FunnelsPage() {
 								? undefined
 								: {
 										label: "Create a funnel",
-										onClick: () => setEditing("new"),
+										onClick: openCreate,
 									},
 							description:
 								"Define a multi-step journey to see where users drop off.",

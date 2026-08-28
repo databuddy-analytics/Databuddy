@@ -32,6 +32,7 @@ Choose the installation method that works best for your WordPress setup. If you'
           code={`<script
   src="https://cdn.databuddy.cc/databuddy.js"
   data-client-id="YOUR_CLIENT_ID"
+  crossorigin="anonymous"
   async
 ></script>`}
         />
@@ -67,6 +68,7 @@ Choose the installation method that works best for your WordPress setup. If you'
   <script
     src="https://cdn.databuddy.cc/databuddy.js"
     data-client-id="YOUR_CLIENT_ID"
+    crossorigin="anonymous"
     async
   ></script>
   <?php
@@ -103,6 +105,7 @@ add_action('wp_head', 'add_databuddy_analytics');`}
           code={`<script
   src="https://cdn.databuddy.cc/databuddy.js"
   data-client-id="YOUR_CLIENT_ID"
+  crossorigin="anonymous"
   async
 ></script>
 </head>`}
@@ -127,6 +130,7 @@ Enable essential tracking features for most WordPress sites:
   src="https://cdn.databuddy.cc/databuddy.js"
   data-client-id="YOUR_CLIENT_ID"
   data-track-hash-changes
+  crossorigin="anonymous"
   async
 ></script>`}
 />
@@ -145,6 +149,7 @@ For more detailed analytics, enable additional tracking options:
   data-track-interactions
   data-track-web-vitals
   data-track-errors
+  crossorigin="anonymous"
   async
 ></script>`}
 />
@@ -153,18 +158,21 @@ For more detailed analytics, enable additional tracking options:
 
 ### Form Submission Tracking
 
-Track submissions from popular WordPress form plugins using data attributes:
+Track submissions from popular WordPress form plugins with a small submit handler:
 
 <CodeBlock
   language="html"
-  code={`<!-- Contact Form 7 -->
-<input type="hidden" data-track="form_submit" data-form-type="contact">
-
-<!-- Gravity Forms -->
-<input type="hidden" data-track="form_submit" data-form-type="gravity">
-
-<!-- WPForms -->
-<input type="hidden" data-track="form_submit" data-form-type="wpforms">`}
+  code={`<script>
+document.addEventListener('submit', function (event) {
+  var form = event.target.closest('.wpcf7-form, .gform_wrapper form, .wpforms-form');
+  if (form && window.databuddy) {
+    databuddy.track('form_submit', {
+      form_id: form.id || 'unknown',
+      page_path: window.location.pathname
+    });
+  }
+});
+</script>`}
 />
 
 ### Custom Post Type Analytics
@@ -216,12 +224,12 @@ Track premium content engagement:
 
 ### Blog Analytics
 
-Track article engagement and reading patterns:
+Track clicks anywhere inside an article (the `data-track` attribute fires on click, not on view):
 
 <CodeBlock
   language="html"
   code={`<article 
-  data-track="article_view" 
+  data-track="article_click" 
   data-category="tutorials" 
   data-author="author-name"
 >
@@ -250,7 +258,7 @@ Track conversion events and CTA clicks:
 
 If Databuddy isn't tracking:
 
-1. **Check Browser Console**: Open developer tools and look for errors or the "Databuddy initialized" message
+1. **Check the Network Tab**: Open developer tools and confirm the script loads from `cdn.databuddy.cc` and requests are sent to `basket.databuddy.cc`
 2. **Verify Script Placement**: Ensure the script is in the `<head>` or before `</body>`
 3. **Clear Cache**: Clear your WordPress cache (WP Rocket, W3 Total Cache, etc.) and browser cache
 4. **Test in Incognito**: Use incognito/private browsing to avoid cache issues

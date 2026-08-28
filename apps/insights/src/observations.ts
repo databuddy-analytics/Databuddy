@@ -385,6 +385,7 @@ export async function findRunObservations(params: {
 }) {
 	const observations = await db
 		.select({
+			asOf: insightObservations.asOf,
 			insightId: insightObservations.insightId,
 			outcome: insightObservations.outcome,
 			signal: insightObservations.signal,

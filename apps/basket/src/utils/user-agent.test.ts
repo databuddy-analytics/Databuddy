@@ -39,8 +39,6 @@ const { detectBot, parseUserAgent } = await import("./user-agent");
 
 const dummyReq = new Request("https://example.com");
 
-// ── detectBot wrapper — tests the legacy category mapping ──
-
 describe("detectBot", () => {
 	test("not a bot → passes through", () => {
 		mockDetectBotShared.mockReturnValue({
@@ -113,23 +111,7 @@ describe("detectBot", () => {
 		expect(result.reason).toBe("suspicious_pattern");
 		expect(result.result).toEqual(sharedResult);
 	});
-
-	test("non-bot has no category", () => {
-		mockDetectBotShared.mockReturnValue({
-			isBot: false,
-			category: undefined,
-			action: undefined,
-			confidence: 0,
-			reason: undefined,
-			name: undefined,
-		});
-		const result = detectBot("Chrome/120", dummyReq);
-		expect(result.category).toBeUndefined();
-		expect(result.botName).toBeUndefined();
-	});
 });
-
-// ── parseUserAgent wrapper ──
 
 describe("parseUserAgent", () => {
 	test("returns parsed fields from shared function", async () => {

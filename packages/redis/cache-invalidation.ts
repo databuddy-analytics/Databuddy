@@ -1,9 +1,4 @@
 import { getRedisCache } from "./redis";
-
-/**
- * Stringifies arguments in the same way as cacheable function
- * to generate consistent cache keys.
- */
 function escapeRedisPattern(value: string): string {
 	return value.replace(/[\\*?[\]]/g, "\\$&");
 }
@@ -35,11 +30,6 @@ function stringify(obj: unknown): string {
 	}
 	return String(obj);
 }
-
-/**
- * Generates a cache key for a cacheable function with the given prefix and arguments.
- * This matches the format used by the cacheable wrapper.
- */
 export function getCacheableKey(prefix: string, ...args: unknown[]): string {
 	return `cacheable:${prefix}:${stringify(args)}`;
 }
@@ -57,6 +47,7 @@ export const cacheNamespaces = {
 	flagsClient: "flags-client",
 	flagsDefinitions: "flags-definitions",
 	flagsUser: "flags-user",
+	githubIntegrationByOrg: "github-integration-by-org",
 	mcpInsights: "mcp:insights",
 	memberRole: "rpc:member_role",
 	organizationOwner: "rpc:org_owner",
@@ -254,10 +245,6 @@ export async function invalidateAgentContextSnapshotsForOwner(
 		return 0;
 	}
 }
-
-/**
- * Invalidates a specific cacheable cache entry by prefix and exact arguments.
- */
 export async function invalidateCacheableKey(
 	prefix: string,
 	...args: unknown[]
@@ -266,24 +253,14 @@ export async function invalidateCacheableKey(
 	const key = getCacheableKey(prefix, ...args);
 	await redis.del(key);
 }
-
-/**
- * Invalidates all cacheable cache entries matching a pattern.
- * Uses Redis SCAN to safely iterate through matching keys.
- *
- * @param pattern - Redis pattern (use * for wildcards, e.g., "cacheable:flag:*")
- * @returns Number of keys deleted
- */
 export async function invalidateCacheablePattern(
 	pattern: string
 ): Promise<number> {
 	const redis = getRedisCache();
 	let deletedCount = 0;
 
-	// Use SCAN with MATCH to find keys
 	let cursor = "0";
 	do {
-		// SCAN returns [cursor, keys[]] in ioredis
 		const [nextCursor, keys] = (await redis.scan(
 			cursor,
 			"MATCH",
@@ -338,19 +315,6 @@ export function invalidateCacheableTags(
 		)
 	);
 }
-
-/**
- * Invalidates all variations of a cacheable cache entry.
- * Useful when you want to invalidate a cache entry but don't know all possible argument values.
- *
- * @param prefix - The cache prefix (e.g., "flag", "flags-client")
- * @param knownArgs - Known arguments to include in the pattern
- * @returns Number of keys deleted
- *
- * @example
- * // Invalidate all flag caches for a specific key and clientId, regardless of environment
- * await invalidateCacheableWithArgs("flag", ["my-flag-key", "client-123"]);
- */
 export async function invalidateCacheableWithArgs(
 	prefix: string,
 	knownArgs: unknown[]
@@ -358,16 +322,13 @@ export async function invalidateCacheableWithArgs(
 	const redis = getRedisCache();
 	let deletedCount = 0;
 
-	// Exact match: cacheable:prefix:[arg1,arg2]
 	const exactKey = `cacheable:${prefix}:${stringify(knownArgs)}`;
 
-	// With undefined trailing arg: cacheable:prefix:[arg1,arg2,undefined]
 	const undefinedTrailingKey = `cacheable:${prefix}:${stringify([
 		...knownArgs,
 		undefined,
 	])}`;
 
-	// With any trailing args: cacheable:prefix:[arg1,arg2,*]
 	const serializedArgs = stringify(knownArgs);
 	const wildcardPattern =
 		knownArgs.length === 0
@@ -381,7 +342,6 @@ export async function invalidateCacheableWithArgs(
 		deletedCount += result;
 	}
 
-	// Use SCAN for wildcard pattern
 	let cursor = "0";
 	do {
 		const [nextCursor, keys] = (await redis.scan(
@@ -401,20 +361,9 @@ export async function invalidateCacheableWithArgs(
 
 	return deletedCount;
 }
-
-/**
- * Invalidates all cacheable cache entries with a specific prefix.
- *
- * @param prefix - The cache prefix (e.g., "flag", "flags-client")
- * @returns Number of keys deleted
- */
 export function invalidateCacheablePrefix(prefix: string): Promise<number> {
 	return invalidateCacheablePattern(`cacheable:${prefix}:*`);
 }
-
-/**
- * Invalidates read-model caches that can return stale website rows or website-derived values.
- */
 export function invalidateWebsiteReadCaches(
 	websiteId: string
 ): Promise<CacheInvalidationResult> {
@@ -442,6 +391,15 @@ export function invalidateStatusPageCache(slug: string): Promise<number> {
 
 export function invalidateSlackIntegrationCache(teamId: string): Promise<void> {
 	return invalidateCacheableKey(SLACK_INTEGRATION_CACHE_PREFIX, teamId);
+}
+
+export function invalidateGithubIntegrationCache(
+	organizationId: string
+): Promise<void> {
+	return invalidateCacheableKey(
+		cacheNamespaces.githubIntegrationByOrg,
+		organizationId
+	);
 }
 
 export function invalidateSlackChannelBindingCache(

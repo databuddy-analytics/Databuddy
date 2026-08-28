@@ -78,6 +78,7 @@ Navigate to your [Databuddy dashboard](https://app.databuddy.cc) and copy your t
     var script = document.createElement("script");
     script.async = true;
     script.src = "https://cdn.databuddy.cc/databuddy.js";
+    script.crossOrigin = "anonymous";
     script.setAttribute("data-client-id", "YOUR_CLIENT_ID");
     script.setAttribute("data-track-attributes", "true");
     script.setAttribute("data-track-errors", "true");
@@ -106,7 +107,7 @@ Once published, you can verify that Databuddy is working by:
 
 1. Visiting your live Framer site
 2. Opening your browser's developer tools (F12)
-3. Checking the Console tab for a "Databuddy initialized" message
+3. Checking the Network tab for a request to `basket.databuddy.cc`
 4. Visiting your Databuddy dashboard to see real-time analytics
 
 <Callout type="success">
@@ -144,6 +145,7 @@ Enable performance tracking by updating your script configuration:
     var script = document.createElement("script");
     script.async = true;
     script.src = "https://cdn.databuddy.cc/databuddy.js";
+    script.crossOrigin = "anonymous";
     script.setAttribute("data-client-id", "YOUR_CLIENT_ID");
 		script.setAttribute("data-track-web-vitals", "true");
     script.setAttribute("data-track-errors", "true");

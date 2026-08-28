@@ -115,6 +115,10 @@ Feature flags allow you to control feature rollouts and conduct A/B testing with
 
 ## Hooks API
 
+<Callout type="info">
+  **React vs Vue API differences**: In Vue, `useFlag` returns `{ on, loading, state }` as refs; there are no top-level `status`, `value`, or `variant` fields, so read them from `state` (e.g. `flag.state.value.variant`). Vue's `useFlags` returns `{ getFlag, fetchAllFlags, updateUser, refresh, updateConfig, memoryFlags, lastError }`; it has no `isOn`, `getValue`, `fetchFlag`, or `isReady`. The `getValue`, `isOn`, and `variant` examples below are React-only.
+</Callout>
+
 ### `useFlag(key)` - Flag State
 
 The primary hook for checking feature flags. Returns `{ on, loading, status, value, variant }`.
@@ -279,7 +283,7 @@ Run experiments with multiple variants. Each user is consistently assigned to a 
 </Callout>
 
 <Callout type="info">
-  **Variant weights**: If no variant weights are configured, users are split evenly. If you add weights, keep the totals easy to reason about, commonly 100.
+  **Variant weights**: If no variant weights are configured, users are split evenly. If you add weights, they must total exactly 100; the dashboard rejects flags whose weights do not sum to 100.
 </Callout>
 
 **Use cases:**
@@ -390,7 +394,7 @@ Multiple flag requests within 10ms are batched into a single API call.
 </CodeBlock>
 
 ### Visibility API
-Pauses fetching when tab is hidden to save bandwidth and battery.
+Pauses background revalidation when the tab is hidden to save bandwidth and battery. Initial fetches still run.
 
 ### Request Deduplication
 Identical requests are deduplicated automatically.

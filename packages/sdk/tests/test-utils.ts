@@ -55,34 +55,3 @@ export async function waitForSDK(page: Page): Promise<void> {
 		}
 	);
 }
-
-/**
- * Set up standard API route interception for flags endpoints.
- * Returns a callback that resolves with captured request details.
- */
-export function setupFlagsRoutes(
-	page: Page,
-	flagsResponse: Record<string, unknown> = {}
-) {
-	const requests: { url: string; method: string }[] = [];
-
-	return {
-		requests,
-		async init() {
-			await page.route(
-				"**/api.databuddy.cc/public/v1/flags/**",
-				async (route) => {
-					const url = route.request().url();
-					requests.push({ url, method: route.request().method() });
-
-					await route.fulfill({
-						status: 200,
-						contentType: "application/json",
-						body: JSON.stringify({ flags: flagsResponse }),
-						headers: { "Access-Control-Allow-Origin": "*" },
-					});
-				}
-			);
-		},
-	};
-}

@@ -778,5 +778,3 @@ function StaticFeatureItem({ label }: { label: string }) {
 		</li>
 	);
 }
-
-export { FeatureItem as PricingFeatureItem, PricingCard };

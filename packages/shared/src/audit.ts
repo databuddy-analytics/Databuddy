@@ -50,11 +50,6 @@ function defineAction<
 		targetType,
 	};
 }
-
-/**
- * The complete, intentionally small audit vocabulary for the first product
- * surface. Add actions here before instrumenting a new privileged operation.
- */
 export const auditActions = {
 	AUDIT_LOG_VIEWED: defineAction("audit_log.viewed", "audit_log"),
 	AUDIT_LOG_EVENT_VIEWED: defineAction("audit_log.event_viewed", "audit_log"),
@@ -147,31 +142,33 @@ export const auditTechnicalActionNames = [
 	auditActions.RPC_MUTATION.action,
 ] as const;
 
-export const AUDIT_REDACTED_VALUE = "[REDACTED]" as const;
+export const AUDIT_REDACTED_VALUE = "[REDACTED]";
 
 const sensitiveAuditFieldPattern =
 	/(^|[_-])(authorization|cookie|key|password|secret|token)([_-]|$)/i;
 
 function isSensitiveAuditField(field: string): boolean {
-	const normalizedField = field.replace(
-		/[A-Z]/g,
-		(character) => `_${character}`
-	);
+	const normalizedField = field
+		.replace(/([A-Z]+)([A-Z][a-z])/g, "$1_$2")
+		.replace(/([a-z0-9])([A-Z])/g, "$1_$2");
 	return sensitiveAuditFieldPattern.test(normalizedField);
 }
 
-function redactAuditValue(field: string, value: AuditValue | undefined) {
-	if (value === undefined) {
-		return;
-	}
+function redactAuditValue(field: string, value: AuditValue): AuditValue {
 	return isSensitiveAuditField(field) ? AUDIT_REDACTED_VALUE : value;
 }
 
 export function redactAuditChanges(changes?: AuditChanges): AuditChanges {
 	return Object.fromEntries(
 		Object.entries(changes ?? {}).map(([field, change]) => {
-			const before = redactAuditValue(field, change.before);
-			const after = redactAuditValue(field, change.after);
+			const before =
+				change.before === undefined
+					? undefined
+					: redactAuditValue(field, change.before);
+			const after =
+				change.after === undefined
+					? undefined
+					: redactAuditValue(field, change.after);
 			return [
 				field,
 				{
@@ -185,11 +182,13 @@ export function redactAuditChanges(changes?: AuditChanges): AuditChanges {
 
 export function redactAuditMetadata(metadata?: AuditMetadata): AuditMetadata {
 	return Object.fromEntries(
-		Object.entries(metadata ?? {}).map(([field, value]) => [
-			field,
-			redactAuditValue(field, value),
-		])
-	) as AuditMetadata;
+		Object.entries(metadata ?? {}).map(
+			([field, value]): [string, AuditValue] => [
+				field,
+				redactAuditValue(field, value),
+			]
+		)
+	);
 }
 
 export const auditSourceLabels: Record<AuditSource, string> = {

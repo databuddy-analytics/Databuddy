@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Bento from "@/components/bento";
 import { Footer } from "@/components/footer";
+import { AiSection } from "@/components/landing/ai-section";
 import { DemoPreconnectLinks } from "@/components/landing/demo-preconnect-links";
 import { Description } from "@/components/landing/description";
 import FAQ from "@/components/landing/faq";
 import { GridCards } from "@/components/landing/grid-cards";
 import Hero from "@/components/landing/hero";
 import { MidPageCta } from "@/components/landing/mid-page-cta";
+import { PricingPreview } from "@/components/landing/pricing-preview";
 import Section from "@/components/landing/section";
 import Testimonials from "@/components/landing/testimonials";
 import { TrustedBy } from "@/components/landing/trusted-by";
@@ -39,6 +41,31 @@ interface HomePageProps {
 
 function firstValue(value: string | string[] | undefined) {
 	return Array.isArray(value) ? value[0] : value;
+}
+
+async function getGithubStars(): Promise<number | null> {
+	try {
+		const response = await fetch(
+			"https://api.github.com/repos/databuddy-analytics/databuddy",
+			{
+				headers: {
+					Accept: "application/vnd.github+json",
+				},
+				next: { revalidate: 3600 },
+			}
+		);
+
+		if (!response.ok) {
+			return null;
+		}
+
+		const data = (await response.json()) as { stargazers_count?: number };
+		return typeof data.stargazers_count === "number"
+			? data.stargazers_count
+			: null;
+	} catch {
+		return null;
+	}
 }
 
 function AgentModeView() {
@@ -111,6 +138,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
 	const headerList = await headers();
 	const demoEmbedBaseUrl = getDemoEmbedBaseUrl(hostFromNextHeaders(headerList));
+	const stars = await getGithubStars();
 
 	return (
 		<>
@@ -148,7 +176,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 			/>
 			<div className="overflow-hidden">
 				<Section className="overflow-hidden" customPaddings id="hero">
-					<Hero demoEmbedBaseUrl={demoEmbedBaseUrl} />
+					<Hero demoEmbedBaseUrl={demoEmbedBaseUrl} stars={stars} />
 				</Section>
 
 				<Section
@@ -167,6 +195,12 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 					</div>
 				</Section>
 
+				<Section className="border-border border-b py-16 lg:py-24" id="ai">
+					<div className={container}>
+						<AiSection />
+					</div>
+				</Section>
+
 				<Section className="border-border border-b py-16 lg:py-24" id="cards">
 					<div className={container}>
 						<GridCards />
@@ -176,6 +210,12 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 				<Section className="border-border border-b" id="mid-cta">
 					<div className={container}>
 						<MidPageCta />
+					</div>
+				</Section>
+
+				<Section className="border-border border-b py-16 lg:py-24" id="pricing">
+					<div className={container}>
+						<PricingPreview />
 					</div>
 				</Section>
 

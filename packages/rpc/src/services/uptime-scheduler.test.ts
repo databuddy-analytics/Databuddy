@@ -63,7 +63,6 @@ mock.module("../lib/logger", () => ({
 }));
 
 const {
-	CRON_GRANULARITIES,
 	enqueueUptimeCheck,
 	hasUptimeSchedule,
 	removeUptimeSchedule,
@@ -79,19 +78,6 @@ beforeEach(() => {
 });
 
 describe("uptime scheduler service", () => {
-	it("keeps the supported granularities mapped to cron patterns", () => {
-		expect(CRON_GRANULARITIES).toEqual({
-			minute: "* * * * *",
-			five_minutes: "*/5 * * * *",
-			ten_minutes: "*/10 * * * *",
-			thirty_minutes: "*/30 * * * *",
-			hour: "0 * * * *",
-			six_hours: "0 */6 * * *",
-			twelve_hours: "0 */12 * * *",
-			day: "0 0 * * *",
-		});
-	});
-
 	it("upserts a BullMQ job scheduler with cron repeat settings and job template options", async () => {
 		await upsertUptimeSchedule("schedule-1", "five_minutes");
 

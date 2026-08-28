@@ -24,7 +24,6 @@ initLogger({
 	env: createDatabuddyEvlogEnv("uptime"),
 	redact: databuddyEvlogRedaction,
 	drain: uptimeLoggerDrain,
-	sampling: {},
 });
 
 let shuttingDown = false;
@@ -58,7 +57,7 @@ process.on("uncaughtException", (error) => {
 	});
 });
 
-const DRAIN_TIMEOUT_MS = 10_000;
+const DRAIN_TIMEOUT_MS = 30_000;
 
 const drainStep = (step: string, action: () => Promise<void>) =>
 	Effect.tryPromise({
@@ -126,6 +125,9 @@ async function shutdown(signal: string, exitCode = 0) {
 		return;
 	}
 	shuttingDown = true;
+	if (schedulerResyncTimer) {
+		clearInterval(schedulerResyncTimer);
+	}
 	log.info("lifecycle", `${signal} received, shutting down gracefully`);
 	try {
 		await Effect.runPromise(drainAll(uptimeWorker, uptimeDeliveryWorker));
@@ -134,12 +136,24 @@ async function shutdown(signal: string, exitCode = 0) {
 	}
 }
 
+const SCHEDULER_RESYNC_INTERVAL_MS = 15 * 60_000;
+let schedulerResyncTimer: ReturnType<typeof setInterval> | null = null;
+
+function startSchedulerResync(): void {
+	schedulerResyncTimer = setInterval(() => {
+		syncSchedulers().catch((error) => {
+			captureError(error, { error_step: "scheduler_resync" });
+		});
+	}, SCHEDULER_RESYNC_INTERVAL_MS);
+}
+
 (async () => {
 	if (UPTIME_ENV.isProduction) {
 		try {
 			await syncSchedulers();
 			uptimeDeliveryWorker = startUptimeDeliveryWorker();
 			uptimeWorker = startUptimeWorker();
+			startSchedulerResync();
 		} catch (error) {
 			captureError(error, { error_step: "uptime_startup" });
 			log.error({
@@ -164,13 +178,16 @@ type ProbeResult =
 	| { status: "ok"; latency_ms: number }
 	| { status: "error"; latency_ms: number; code: "UNAVAILABLE" };
 
-const probe = (_name: string, fn: () => Promise<void>) =>
+const PROBE_TIMEOUT_MS = 6000;
+
+const probe = (name: string, fn: () => Promise<void>) =>
 	Effect.gen(function* () {
 		const start = performance.now();
 		const result = yield* Effect.tryPromise({
 			try: fn,
 			catch: (cause) => cause,
 		}).pipe(
+			Effect.timeout(PROBE_TIMEOUT_MS),
 			Effect.map(
 				(): ProbeResult => ({
 					status: "ok",
@@ -181,7 +198,7 @@ const probe = (_name: string, fn: () => Promise<void>) =>
 				(err): Effect.Effect<ProbeResult> =>
 					Effect.sync(() => {
 						log.error({
-							health_probe: _name,
+							health_probe: name,
 							error_message: err instanceof Error ? err.message : String(err),
 						});
 						return {
@@ -224,8 +241,8 @@ const healthCheck = Effect.gen(function* () {
 								username: process.env.REDPANDA_USER,
 								password: process.env.REDPANDA_PASSWORD,
 							},
-							ssl: process.env.REDPANDA_SSL === "true",
 						}),
+					...(process.env.REDPANDA_SSL === "true" ? { ssl: true } : {}),
 				});
 				const admin = kafka.admin();
 				try {
@@ -244,6 +261,25 @@ const healthCheck = Effect.gen(function* () {
 		: "degraded";
 	return { status, services };
 });
+
+const HEALTH_CACHE_MS = 10_000;
+let healthCache: {
+	at: number;
+	result: Awaited<ReturnType<typeof runHealthCheck>>;
+} | null = null;
+
+function runHealthCheck() {
+	return Effect.runPromise(healthCheck);
+}
+
+async function memoizedHealthCheck() {
+	if (healthCache && performance.now() - healthCache.at < HEALTH_CACHE_MS) {
+		return healthCache.result;
+	}
+	const result = await runHealthCheck();
+	healthCache = { at: performance.now(), result };
+	return result;
+}
 
 const app = new Elysia()
 	.use(
@@ -271,7 +307,7 @@ const app = new Elysia()
 		return Response.json(payload, { status });
 	})
 	.get("/health/status", async () => {
-		const result = await Effect.runPromise(healthCheck);
+		const result = await memoizedHealthCheck();
 		return Response.json(result, {
 			status: result.status === "ok" ? 200 : 503,
 		});

@@ -5,7 +5,7 @@ export const databuddyFontFamily = "LT Superior";
 
 const fontsHandle = delayRender("Loading Databuddy fonts");
 
-export const fontsReady = Promise.all([
+const fontsReady = Promise.all([
 	loadFont({
 		family: databuddyFontFamily,
 		url: staticFile("lt-superior-regular.woff2"),

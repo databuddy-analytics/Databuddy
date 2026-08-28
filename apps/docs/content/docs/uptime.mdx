@@ -1,0 +1,67 @@
+---
+title: Uptime Monitoring
+description: Monitor your endpoints with HTTP checks, transition-based alerts, and public status pages
+---
+
+import { Callout } from "@/components/docs";
+import { Card, Cards } from "@/components/docs";
+
+Databuddy includes uptime monitoring and public status pages on every plan. Monitor checks do not consume your event quota.
+
+## Monitors
+
+Each monitor performs HTTP checks against a URL at a configurable frequency, from every 60 seconds up to once per day. Every check records:
+
+- **Status** - up or down based on the HTTP response
+- **HTTP status code** - the response code returned
+- **Latency** - time to first byte and total response time
+- **SSL certificate** - validity and expiry date
+- **Redirects and response size** - redirect count and bytes transferred
+
+Monitors support a configurable request timeout (1 to 120 seconds), optional cache busting, and can be paused and resumed at any time.
+
+## Alerts
+
+Alerts fire on status transitions only: when a monitor goes from up to down, and again when it recovers. Repeated failed checks during the same incident do not send repeated alerts, so you get one notification per incident.
+
+Alerts can be delivered to:
+
+- **Slack** - via an incoming webhook URL
+- **Email** - to organization members
+- **Webhook** - any HTTPS endpoint you control
+
+## Status Pages
+
+Publish a public, branded status page for your monitors:
+
+- **Custom slug, logo, and theme** - light, dark, or system
+- **Per-monitor privacy controls** - hide the URL, hide the uptime percentage, or hide latency for any monitor
+- **90-day uptime history** - visitors see uptime bars for the last 90 days
+- **Incidents** - publish incidents manually with a severity (minor, major, critical), a status (investigating, identified, monitoring, resolved), affected monitors, and follow-up updates as the situation evolves
+
+## API Access
+
+Uptime resources are covered by dedicated API key scopes:
+
+- `read:monitors` - read monitors and their check history
+- `write:monitors` - create, update, pause, and delete monitors
+- `read:status_pages` - read status pages and their configuration
+- `write:status_pages` - create, update, and delete status pages and incidents
+
+See [API Keys](/docs/api-keys) for how to create and scope keys.
+
+<Callout type="info">
+  Monitors are available on every plan and their checks do not count toward
+  your monthly event quota.
+</Callout>
+
+## What's Next?
+
+<Cards>
+  <Card title="API Keys" href="/docs/api-keys">
+    Create scoped keys for programmatic monitor management
+  </Card>
+  <Card title="Dashboard Guide" href="/docs/dashboard">
+    Navigate your analytics dashboard and its features
+  </Card>
+</Cards>

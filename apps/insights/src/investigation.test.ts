@@ -1,6 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import type { DetectedSignal } from "./detection";
 import {
+	isInvestigationCandidate,
+	normalizedErrorSubject,
 	prepareInvestigation,
 	rankSignals,
 	signalAnnotationWindow,
@@ -336,5 +338,70 @@ describe("prepareInvestigation", () => {
 			from: baselineDates[0],
 			to: baselineDates.at(-1),
 		});
+	});
+});
+
+describe("normalizedErrorSubject", () => {
+	it("collapses uncaught variants of the same error message", () => {
+		expect(
+			normalizedErrorSubject("error:Uncaught SyntaxError: Unexpected token")
+		).toBe("error:SyntaxError: Unexpected token");
+		expect(normalizedErrorSubject("Uncaught SyntaxError: Unexpected token")).toBe(
+			"SyntaxError: Unexpected token"
+		);
+		expect(normalizedErrorSubject("error:SyntaxError: Unexpected token")).toBe(
+			"error:SyntaxError: Unexpected token"
+		);
+		expect(normalizedErrorSubject("route:inp:/")).toBe("route:inp:/");
+	});
+});
+
+describe("isInvestigationCandidate", () => {
+	it("keeps tiny custom event movements out of investigations", () => {
+		const smallEvent: DetectedSignal = {
+			...baseSignal,
+			baseline: 1,
+			current: 3,
+			deltaPercent: 200,
+			direction: "up",
+			metric: "custom_event_count",
+			subjectKey: "custom_event:onboarding_tracking_copied",
+		};
+
+		expect(isInvestigationCandidate(smallEvent)).toBe(false);
+		expect(
+			isInvestigationCandidate({
+				...smallEvent,
+				baseline: 40,
+				current: 12,
+				deltaPercent: -70,
+				direction: "down",
+			})
+		).toBe(true);
+	});
+});
+
+describe("positive sentiment severity", () => {
+	it("caps positive movements at info severity", () => {
+		const improvement = prepareInvestigation(
+			{
+				...baseSignal,
+				baseline: 3,
+				current: 15,
+				deltaPercent: 400,
+				direction: "up",
+				metric: "custom_event_count",
+				severity: "warning",
+				subjectKey: "custom_event:onboarding_tracking_copied",
+			},
+			7
+		);
+
+		expect(improvement.signal.sentiment).toBe("positive");
+		expect(improvement.signal.severity).toBe("info");
+
+		const regression = prepareInvestigation(baseSignal, 7);
+		expect(regression.signal.sentiment).toBe("negative");
+		expect(regression.signal.severity).toBe("warning");
 	});
 });

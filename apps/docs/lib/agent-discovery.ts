@@ -26,8 +26,6 @@ import {
 } from "@/app/util/constants";
 
 export {
-	AGENT_DISCOVERY_UPDATED,
-	API_SCOPES,
 	createFaqJsonl,
 	createNlwebSseBody,
 	createWebBotAuthDirectory,

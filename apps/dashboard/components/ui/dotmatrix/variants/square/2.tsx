@@ -9,7 +9,7 @@ import { usePrefersReducedMotion } from "../../hooks";
 import { useSteppedCycle } from "../../hooks";
 import type { DotAnimationResolver, DotMatrixCommonProps } from "../../core";
 
-export type DotmSquare2Props = DotMatrixCommonProps;
+type DotmSquare2Props = DotMatrixCommonProps;
 
 const SNAKE_TAIL = [1, 0.82, 0.68, 0.54, 0.42, 0.31, 0.22, 0.14] as const;
 const BASE_OPACITY = 0.08;

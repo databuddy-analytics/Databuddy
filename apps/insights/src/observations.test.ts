@@ -65,7 +65,7 @@ function memory(
 }
 
 describe("eligibleSignalsForInvestigation", () => {
-	it("returns only unseen regressions, revenue movements, and measurement gaps", () => {
+	it("returns only unseen regressions and revenue movements", () => {
 		const first = detected("goal:signup");
 		const second = detected("goal:purchase");
 		const improvement = detected("visitors", {
@@ -82,20 +82,13 @@ describe("eligibleSignalsForInvestigation", () => {
 			direction: "up",
 			severity: "info",
 		});
-		const measurementGap = detected("measurement_coverage", {
-			baseline: 0,
-			current: 0,
-			deltaPercent: 0,
-			direction: "up",
-			severity: "info",
-		});
 		expect(
 			eligibleSignalsForInvestigation(
-				[first, improvement, revenueMovement, measurementGap, second],
+				[first, improvement, revenueMovement, second],
 				new Map(),
 				NOW
 			)
-		).toEqual([first, revenueMovement, measurementGap, second]);
+		).toEqual([first, revenueMovement, second]);
 	});
 
 	it("rotates past a cooling signal to an unseen signal", () => {

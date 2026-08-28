@@ -6,8 +6,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { useParams } from "next/navigation";
 import { Suspense, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { ErrorBoundary } from "@/components/error-boundary";
-import { FeatureGate } from "@/components/feature-gate";
+import { FeatureGate, usePlanLimitMessage } from "@/components/feature-gate";
 import { orpc } from "@/lib/orpc";
 import { isFlagSheetOpenAtom } from "@/stores/jotai/flagsAtoms";
 import { FlagSheet } from "./_components/flag-sheet";
@@ -80,7 +81,16 @@ export default function FlagsPage() {
 		},
 	});
 
+	const planLimitMessage = usePlanLimitMessage(
+		GATED_FEATURES.FEATURE_FLAGS,
+		activeFlags.length
+	);
+
 	const handleCreateFlag = () => {
+		if (planLimitMessage) {
+			toast.info(planLimitMessage);
+			return;
+		}
 		setEditingFlag(null);
 		setIsFlagSheetOpen(true);
 	};
@@ -133,6 +143,7 @@ export default function FlagsPage() {
 							<FlagsList
 								flags={activeFlags as unknown as Flag[]}
 								groups={groupsMap}
+								websiteId={websiteId}
 								stats={statsMap}
 								statsError={flagStatsError}
 								statsLoading={flagStatsLoading}

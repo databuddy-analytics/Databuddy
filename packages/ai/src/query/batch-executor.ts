@@ -128,13 +128,6 @@ const SELECT_KEYWORD = "SELECT";
 const FROM_KEYWORD = "FROM";
 const WORD_BOUNDARY_BEFORE = /[\s(,]/;
 const WORD_BOUNDARY_AFTER = /\s/;
-
-/**
- * Replace string literals, quoted identifiers, and SQL comments with spaces of
- * the same length so byte offsets line up with the original. The result is
- * used only for structural scanning (keyword/paren/comma detection); columns
- * are sliced from the original SQL so identifiers stay intact.
- */
 function maskSqlNoise(sql: string): string {
 	const out = new Array<string>(sql.length);
 	let i = 0;

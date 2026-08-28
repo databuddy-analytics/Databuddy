@@ -4,7 +4,7 @@ import {
 	RightFade,
 } from "@/components/landing/demo-primitives";
 
-const TAGS = ["/checkout", "Mobile Chrome", "EU"] as const;
+const TAGS = ["/checkout", "p75", "vs last week"] as const;
 
 export function WebVitalsAlertCycleDemo() {
 	return (
@@ -25,11 +25,11 @@ export function WebVitalsAlertCycleDemo() {
 									LCP regression
 								</span>
 								<span className="shrink-0 font-mono text-muted-foreground text-sm tabular-nums sm:text-xs">
-									just now
+									Today
 								</span>
 							</div>
 							<p className="font-mono text-muted-foreground text-xs leading-snug sm:text-sm">
-								exceeded 2.5s threshold on /checkout
+								p75 rose past the 2.5s threshold on /checkout
 							</p>
 							<div className="flex flex-wrap gap-1.5 pt-0.5">
 								{TAGS.map((tag) => (
@@ -52,10 +52,10 @@ export function WebVitalsAlertCycleDemo() {
 							className="size-2 shrink-0 rounded-full bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.55)]"
 						/>
 						<span className="min-w-0 flex-1 font-medium font-mono text-amber-400 text-xs sm:text-sm">
-							TTFB exceeding 800ms
+							Poor LCP persisting on /docs
 						</span>
 						<span className="shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums sm:text-xs">
-							18m ago
+							Today
 						</span>
 					</div>
 				</CardChrome>
@@ -67,10 +67,10 @@ export function WebVitalsAlertCycleDemo() {
 							className="size-2 shrink-0 rounded-full bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.55)]"
 						/>
 						<span className="min-w-0 flex-1 font-medium font-mono text-amber-400 text-xs sm:text-sm">
-							INP exceeding 200ms
+							INP up 42% on /signup
 						</span>
 						<span className="shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums sm:text-xs">
-							18m ago
+							Yesterday
 						</span>
 					</div>
 				</CardChrome>

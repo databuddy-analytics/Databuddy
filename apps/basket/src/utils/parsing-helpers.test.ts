@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { z } from "zod";
+import { cases, longString } from "../test-helpers";
 import {
 	batchBotIgnoredItem,
 	batchSchemaItemFailure,
@@ -8,72 +9,61 @@ import {
 	parseTimestamp,
 } from "./parsing-helpers";
 
-// ── parseTimestamp ──
+cases(
+	"parseTimestamp keeps numeric timestamps verbatim",
+	[
+		["positive epoch", 1_700_000_000, 1_700_000_000],
+		["zero", 0, 0],
+		["negative", -1, -1],
+	],
+	(input) => parseTimestamp(input)
+);
 
-describe("parseTimestamp", () => {
-	test("number → passthrough", () =>
-		expect(parseTimestamp(1_700_000_000)).toBe(1_700_000_000));
-	test("0 → 0", () => expect(parseTimestamp(0)).toBe(0));
-	test("negative → passthrough", () => expect(parseTimestamp(-1)).toBe(-1));
-	test("string → Date.now()", () => {
-		const before = Date.now();
-		const result = parseTimestamp("not-a-number");
-		expect(result).toBeGreaterThanOrEqual(before);
-		expect(result).toBeLessThanOrEqual(Date.now());
-	});
-	test("null → Date.now()", () => {
-		const result = parseTimestamp(null);
-		expect(typeof result).toBe("number");
-		expect(result).toBeGreaterThan(0);
-	});
-	test("undefined → Date.now()", () => {
-		const result = parseTimestamp(undefined);
-		expect(typeof result).toBe("number");
-	});
-	test("object → Date.now()", () => {
-		expect(typeof parseTimestamp({})).toBe("number");
-	});
+describe("parseTimestamp replaces non-numeric input with the current time", () => {
+	test.each([["not-a-number"], [null], [undefined], [{}]])(
+		"%j falls back to Date.now()",
+		(input) => {
+			const before = Date.now();
+			const result = parseTimestamp(input);
+			expect(result).toBeGreaterThanOrEqual(before);
+			expect(result).toBeLessThanOrEqual(Date.now());
+		}
+	);
 });
 
-// ── parseProperties ──
-
-describe("parseProperties", () => {
-	test("object → JSON string", () =>
-		expect(parseProperties({ a: 1 })).toBe('{"a":1}'));
-	test("null → '{}'", () => expect(parseProperties(null)).toBe("{}"));
-	test("undefined → '{}'", () => expect(parseProperties(undefined)).toBe("{}"));
-	test("false → '{}'", () => expect(parseProperties(false)).toBe("{}"));
-	test("0 → '{}'", () => expect(parseProperties(0)).toBe("{}"));
-	test("empty string → '{}'", () => expect(parseProperties("")).toBe("{}"));
-	test("non-empty string → JSON string", () =>
-		expect(parseProperties("hello")).toBe('"hello"'));
-	test("array → JSON array", () =>
-		expect(parseProperties([1, 2])).toBe("[1,2]"));
-	test("nested object", () =>
-		expect(parseProperties({ a: { b: "c" } })).toBe('{"a":{"b":"c"}}'));
-});
-
-// ── parseEventId ──
+cases(
+	"parseProperties serializes truthy values and defaults the rest",
+	[
+		["object", { a: 1 }, '{"a":1}'],
+		["nested object", { a: { b: "c" } }, '{"a":{"b":"c"}}'],
+		["array", [1, 2], "[1,2]"],
+		["non-empty string", "hello", '"hello"'],
+		["null", null, "{}"],
+		["undefined", undefined, "{}"],
+		["empty string", "", "{}"],
+	],
+	(input) => parseProperties(input)
+);
 
 describe("parseEventId", () => {
 	const gen = () => "generated-uuid";
 
-	test("valid string → passthrough", () =>
-		expect(parseEventId("evt_123", gen)).toBe("evt_123"));
-	test("empty string → calls generator", () =>
-		expect(parseEventId("", gen)).toBe("generated-uuid"));
-	test("null → calls generator", () =>
-		expect(parseEventId(null, gen)).toBe("generated-uuid"));
-	test("undefined → calls generator", () =>
-		expect(parseEventId(undefined, gen)).toBe("generated-uuid"));
-	test("number → calls generator", () =>
-		expect(parseEventId(123, gen)).toBe("generated-uuid"));
-	test("long string → truncated to event id limit", () => {
-		const long = "a".repeat(600);
-		const result = parseEventId(long, gen);
-		expect(result.length).toBe(512);
+	cases(
+		"keeps client ids and generates for unusable input",
+		[
+			["valid string", "evt_123", "evt_123"],
+			["empty string", "", "generated-uuid"],
+			["null", null, "generated-uuid"],
+			["number", 123, "generated-uuid"],
+		],
+		(input) => parseEventId(input, gen)
+	);
+
+	test("truncated a long id to the event id limit", () => {
+		expect(parseEventId(longString(600), gen).length).toBe(512);
 	});
-	test("generator called only when needed", () => {
+
+	test("did not invoke the generator for a usable id", () => {
 		let called = false;
 		parseEventId("valid", () => {
 			called = true;
@@ -83,15 +73,12 @@ describe("parseEventId", () => {
 	});
 });
 
-// ── batchSchemaItemFailure ──
-
-describe("batchSchemaItemFailure", () => {
-	test("returns structured error with issues", () => {
+describe("batch item failure shapes", () => {
+	test("schema failure flattens issue paths into field names", () => {
 		const issues = [
 			{ message: "bad", path: ["x"], code: "custom" as const },
 		] as z.core.$ZodIssue[];
-		const result = batchSchemaItemFailure(issues, "track", "evt_1");
-		expect(result).toEqual({
+		expect(batchSchemaItemFailure(issues, "track", "evt_1")).toEqual({
 			status: "error",
 			message: "Invalid event schema",
 			code: "INVALID_EVENT_SCHEMA",
@@ -100,16 +87,13 @@ describe("batchSchemaItemFailure", () => {
 			eventId: "evt_1",
 		});
 	});
-});
 
-// ── batchBotIgnoredItem ──
-
-describe("batchBotIgnoredItem", () => {
-	test("returns bot-ignored structure", () => {
-		const result = batchBotIgnoredItem("track");
-		expect(result.status).toBe("error");
-		expect(result.message).toBe("Bot detected");
-		expect(result.eventType).toBe("track");
-		expect(result.error).toBe("ignored");
+	test("bot-ignored item is an error marked as ignored", () => {
+		expect(batchBotIgnoredItem("track")).toEqual({
+			status: "error",
+			message: "Bot detected",
+			eventType: "track",
+			error: "ignored",
+		});
 	});
 });

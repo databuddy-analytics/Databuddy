@@ -8,7 +8,7 @@ import { Card, Cards, Callout, CodeBlock } from "@/components/docs";
 The Databuddy SDK provides framework-specific components, helper functions, server-side tracking, and a vanilla JavaScript library for tracking analytics events. Choose your preferred integration method.
 
 <Callout type="info">
-  **SDK Version**: 2.0.0+ | **Package**: `@databuddy/sdk` | **CDN**: cdn.databuddy.cc
+  **SDK Version**: 2.6.0+ | **Package**: `@databuddy/sdk` | **CDN**: cdn.databuddy.cc
 </Callout>
 
 ## Installation
@@ -72,8 +72,9 @@ The SDK is organized into submodules for tree-shaking:
 | `@databuddy/sdk` | Core tracker helpers (track, flush, etc.) |
 | `@databuddy/sdk/react` | React component and hooks |
 | `@databuddy/sdk/vue` | Vue component and composables |
-| `@databuddy/nuxt` | Nuxt module for Databuddy tracking |
 | `@databuddy/sdk/node` | Node.js server-side SDK |
+
+The Nuxt integration ships as a separate package, [`@databuddy/nuxt`](/docs/sdk/nuxt), not an `@databuddy/sdk` subpath.
 
 ## Example: React/Next.js
 
@@ -131,8 +132,7 @@ await client.flush(); // Important in serverless!`}
 The SDK is fully typed with excellent TypeScript support:
 
 <CodeBlock language="tsx">
-  {`import { track, type DatabuddyTracker } from "@databuddy/sdk";
-import type { DatabuddyConfig } from "@databuddy/sdk/react";
+  {`import { track, type DatabuddyTracker, type DatabuddyConfig } from "@databuddy/sdk";
 import type { CustomEventInput } from "@databuddy/sdk/node";`}
 </CodeBlock>
 

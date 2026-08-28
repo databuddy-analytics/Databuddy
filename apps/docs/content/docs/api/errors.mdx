@@ -25,14 +25,14 @@ Some validation failures also include `details` with the affected field and a su
   language="json"
   code={`{
   "success": false,
-  "error": "Unknown query type: summry. Did you mean 'summary'?",
+  "error": "Unknown query type: summary. Did you mean 'summary_metrics'?",
   "code": "VALIDATION_ERROR",
   "requestId": "req_abc123def456",
   "details": [
     {
       "field": "parameters[0]",
-      "message": "Unknown query type: summry",
-      "suggestion": "Did you mean 'summary'?"
+      "message": "Unknown query type: summary",
+      "suggestion": "Did you mean 'summary_metrics'?"
     }
   ]
 }`}
@@ -52,6 +52,7 @@ These are the stable codes returned by `/v1/query` and its subroutes:
 | `FEATURE_UNAVAILABLE` | 402 | The selected plan does not include the requested query capability | Change plan or remove that query type |
 | `RATE_LIMITED` | 429 | The request limit was reached | Wait for `Retry-After`, then retry |
 | `INTERNAL_SERVER_ERROR` | 500 | An unexpected server error occurred | Retry; if it continues, contact support with the request ID |
+| `SERVICE_UNAVAILABLE` | 503 | API key admission infrastructure is temporarily unavailable | Wait for `Retry-After` (5 seconds), then retry |
 
 Other API families can define additional codes. Treat `code` as the programmatic value and keep a fallback for unfamiliar codes.
 
@@ -94,9 +95,9 @@ A valid multi-parameter query can contain a failure for one parameter while othe
   "success": true,
   "requestId": "req_abc123def456",
   "data": [
-    { "parameter": "summary", "success": true, "data": [] },
+    { "parameter": "summary_metrics", "success": true, "data": [] },
     {
-      "parameter": "pages",
+      "parameter": "top_pages",
       "success": false,
       "error": "Query execution failed",
       "data": []

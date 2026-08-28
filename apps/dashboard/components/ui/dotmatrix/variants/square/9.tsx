@@ -7,22 +7,13 @@ import { useDotMatrixPhases } from "../../hooks";
 import { usePrefersReducedMotion } from "../../hooks";
 import type { DotAnimationResolver, DotMatrixCommonProps } from "../../core";
 
-export type DotmSquare9Props = DotMatrixCommonProps;
-
-/**
- * Dots 1–6 in Unicode / ISO braille numbering (matches U+2800 + mask):
- *   1·4
- *   2·5
- *   3·6
- */
+type DotmSquare9Props = DotMatrixCommonProps;
 const D1 = 0x01;
 const D2 = 0x02;
 const D3 = 0x04;
 const D4 = 0x08;
 const D5 = 0x10;
 const D6 = 0x20;
-
-/** Left column “odd” / right column “even” — classic 2×3 checkerboard. */
 const CHECK_A = D1 | D3 | D5;
 
 const BASE_OPACITY = 0.08;

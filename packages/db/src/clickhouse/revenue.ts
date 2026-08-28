@@ -4,8 +4,6 @@ interface RevenueLatestCteOptions {
 	scope: string;
 	source?: string;
 }
-
-/** Reads canonical provider rows after ClickHouse merges duplicate versions. */
 export function buildRevenueLatestCte({
 	candidateWhere,
 	name = "revenue_latest",

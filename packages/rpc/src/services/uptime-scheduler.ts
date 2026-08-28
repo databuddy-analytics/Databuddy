@@ -5,20 +5,11 @@ import {
 	uptimeImmediateJobId,
 	uptimeSchedulerId,
 } from "@databuddy/redis/uptime-queue";
+import {
+	CRON_GRANULARITIES,
+	type UptimeGranularity,
+} from "@databuddy/shared/uptime";
 import { logger } from "../lib/logger";
-
-export const CRON_GRANULARITIES = {
-	minute: "* * * * *",
-	five_minutes: "*/5 * * * *",
-	ten_minutes: "*/10 * * * *",
-	thirty_minutes: "*/30 * * * *",
-	hour: "0 * * * *",
-	six_hours: "0 */6 * * *",
-	twelve_hours: "0 */12 * * *",
-	day: "0 0 * * *",
-} as const;
-
-export type UptimeGranularity = keyof typeof CRON_GRANULARITIES;
 
 export async function upsertUptimeSchedule(
 	scheduleId: string,

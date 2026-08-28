@@ -204,24 +204,13 @@ describe("specialist shadow scope", () => {
 			detected("funnel:checkout", "funnel:checkout:step:2"),
 			detected("goal:signup"),
 			detected("error_count", "route:error:/checkout"),
-			detected("measurement_coverage", "measurement:conversion-coverage"),
-			detected(
-				"measurement_coverage",
-				"measurement:uncovered-event:signup_completed"
-			),
 			detected("visitors"),
 		];
 
-		expect(filterShadowSignals(signals, "funnel")).toEqual([
-			signals[0],
-			signals[3],
-		]);
-		expect(filterShadowSignals(signals, "goal")).toEqual([
-			signals[1],
-			signals[4],
-		]);
+		expect(filterShadowSignals(signals, "funnel")).toEqual([signals[0]]);
+		expect(filterShadowSignals(signals, "goal")).toEqual([signals[1]]);
 		expect(filterShadowSignals(signals, "reliability")).toEqual([signals[2]]);
-		expect(filterShadowSignals(signals, "general")).toEqual([signals[5]]);
+		expect(filterShadowSignals(signals, "general")).toEqual([signals[3]]);
 		expect(filterShadowSignals(signals, null)).toBe(signals);
 		expect(
 			matchesShadowSpecialist(
@@ -253,11 +242,5 @@ describe("specialist shadow scope", () => {
 				"funnel"
 			)
 		).toBe(false);
-		expect(
-			matchesShadowSpecialist(
-				investigationSignal("measurement:conversion-coverage", "website"),
-				"funnel"
-			)
-		).toBe(true);
 	});
 });

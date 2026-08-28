@@ -149,8 +149,6 @@ export function captureError(
 		});
 	}
 }
-
-/** Log a recovered dependency failure without turning the request into an incident. */
 export function captureWarning(error: Error, attributes?: LogFields): void {
 	try {
 		const requestLog = getRequestLogger();

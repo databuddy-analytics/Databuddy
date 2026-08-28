@@ -16,7 +16,7 @@ export const goalFunnelOperatorOptions = [
 	{ value: "contains", label: "contains" },
 ] as const;
 
-export const operatorLabels: Record<string, string> = {
+const operatorLabels: Record<string, string> = {
 	eq: "=",
 	ne: "≠",
 	contains: "contains",

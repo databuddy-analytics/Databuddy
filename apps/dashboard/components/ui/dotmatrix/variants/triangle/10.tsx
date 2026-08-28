@@ -10,7 +10,7 @@ import { usePrefersReducedMotion } from "../../hooks";
 import { useSteppedCycle } from "../../hooks";
 import type { DotMatrixCommonProps } from "../../core";
 
-export type DotmTriangle10Props = DotMatrixCommonProps;
+type DotmTriangle10Props = DotMatrixCommonProps;
 
 const MATRIX_SIZE = 7;
 const STEP_COUNT = 36;
@@ -29,8 +29,6 @@ const TRIANGLE_CELLS = new Set([
   "4,4",
   "4,6"
 ]);
-
-/** Bottom-to-top within each column, columns 0→6 — only triangle cells appear in the path. */
 const COLUMN_RAKE_PATH: ReadonlyArray<readonly [number, number]> = [
   [4, 0],
   [3, 1],

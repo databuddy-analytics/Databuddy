@@ -24,11 +24,10 @@ import type { FunnelDef, GoalDef } from "./funnel-detection";
 import type { InvestigationAnnotation } from "./investigation";
 import { nextRecheckAt, type LatestInsightObservation } from "./observations";
 import {
-	insightSpecialists,
 	portfolioFamilyForDetectedSignal,
-	resolveInsightSpecialist,
-	type InsightSpecialistId,
-} from "./specialists";
+	portfolioFamilyForInvestigationSignal,
+	type InsightPortfolioFamily,
+} from "./coverage-planner";
 
 dayjs.extend(utcPlugin);
 dayjs.extend(timezonePlugin);
@@ -43,7 +42,13 @@ const MAX_BATCH_SIZE = 3;
 const STATEMENT_TIMEOUT_MS = 60_000;
 const CASE_ATTEMPT_TIMEOUT_MS = 150_000;
 type AsOfMode = "day" | "instant";
-type ShadowSpecialist = InsightSpecialistId;
+const SHADOW_SPECIALISTS = [
+	"funnel",
+	"goal",
+	"reliability",
+	"general",
+] as const;
+type ShadowSpecialist = InsightPortfolioFamily;
 
 interface CliOptions {
 	asOfMode: AsOfMode;
@@ -119,7 +124,7 @@ interface ShadowCase {
 		severity: string;
 		subject: string;
 	};
-	specialist: InsightSpecialistId | null;
+	specialist: InsightPortfolioFamily | null;
 	status: string;
 	toolCallCount: number;
 	trace: Pick<InsightAgentStepTrace, "tools">[];
@@ -322,13 +327,11 @@ function specialistOption(value: string | undefined): ShadowSpecialist | null {
 	if (value === undefined) {
 		return null;
 	}
-	const specialist = insightSpecialists.find((profile) => profile.id === value);
+	const specialist = SHADOW_SPECIALISTS.find((family) => family === value);
 	if (specialist) {
-		return specialist.id;
+		return specialist;
 	}
-	throw new Error(
-		`specialist must be one of ${insightSpecialists.map((profile) => profile.id).join(", ")}`
-	);
+	throw new Error(`specialist must be one of ${SHADOW_SPECIALISTS.join(", ")}`);
 }
 
 function resolveReferenceTime(value: string | undefined): Date {
@@ -468,14 +471,15 @@ export function matchesShadowSpecialist(
 	specialist: ShadowSpecialist | null
 ): boolean {
 	return (
-		specialist === null || resolveInsightSpecialist(signal).id === specialist
+		specialist === null ||
+		portfolioFamilyForInvestigationSignal(signal) === specialist
 	);
 }
 
 function specialistForShadowSignal(
 	signal: InvestigationSignal | null
-): InsightSpecialistId | null {
-	return signal ? resolveInsightSpecialist(signal).id : null;
+): InsightPortfolioFamily | null {
+	return signal ? portfolioFamilyForInvestigationSignal(signal) : null;
 }
 
 function disableExternalEffects(): void {
@@ -769,9 +773,6 @@ function keepsShadowInvestigationOpen(
 	if (outcome.next.type === "act" || outcome.next.type === "ask") {
 		return true;
 	}
-	if (outcome.publish === true && outcome.recommendation != null) {
-		return true;
-	}
 	return (
 		outcome.next.type === "watch" && previous?.hasOpenInvestigation === true
 	);
@@ -803,10 +804,6 @@ async function createSources(params: {
 		{ createModelFromId },
 		{ detectSignals },
 		{ defaultFunnelGoalDeps, detectFunnelGoalSignals },
-		{
-			defaultMeasurementRecommendationDeps,
-			detectMeasurementRecommendationSignals,
-		},
 		{ signalAnnotationWindow },
 		{ loadErrorCustomerImpact },
 		{ createToolkit },
@@ -817,7 +814,6 @@ async function createSources(params: {
 		import("@databuddy/ai/config/models"),
 		import("./detection"),
 		import("./funnel-detection"),
-		import("./measurement-recommendation-detection"),
 		import("./investigation"),
 		import("./error-customer-impact"),
 		import("@databuddy/ai/tools/toolkit"),
@@ -871,25 +867,6 @@ async function createSources(params: {
 			) => base.goalConversion(goal, range, signal),
 		};
 	};
-	const measurementRecommendationDependencies = () => {
-		const base = defaultMeasurementRecommendationDeps(
-			params.site.id,
-			params.asOf,
-			params.site.timezone
-		);
-		return {
-			...base,
-			fetchDefinitionCoverage: async () => ({
-				...(await base.fetchDefinitionCoverage()),
-				activeFunnels: siteFunnels.length,
-				activeGoals: siteGoals.length,
-			}),
-			fetchTelemetry: (
-				range: { from: string; to: string },
-				signal?: AbortSignal
-			) => base.fetchTelemetry(range, signal),
-		};
-	};
 	return {
 		detectDefinitionSignals: async (detectParams, today, _deps, options) => {
 			if (!includesDefinitionWork) {
@@ -903,23 +880,6 @@ async function createSources(params: {
 			);
 			return filterShadowSignals(signals, params.specialist);
 		},
-		detectMeasurementRecommendationSignals: async (
-			detectParams,
-			today,
-			_deps,
-			signal
-		) =>
-			params.historical || !includesDefinitionWork
-				? []
-				: filterShadowSignals(
-						await detectMeasurementRecommendationSignals(
-							detectParams,
-							today,
-							measurementRecommendationDependencies(),
-							signal
-						),
-						params.specialist
-					),
 		detectMetricSignals: async (
 			detectParams,
 			queryFn,
@@ -1481,7 +1441,7 @@ function projectCase(params: {
 	caseId: string;
 	durationMs: number;
 	secrets: string[];
-	specialist?: InsightSpecialistId;
+	specialist?: InsightPortfolioFamily;
 	subjectAlias: string | null;
 	trace: InsightAgentStepTrace[];
 }): ShadowCase {
@@ -1804,7 +1764,7 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 								caseId,
 								durationMs: attempt.durationMs,
 								secrets,
-								specialist: attempt.result.specialist,
+								specialist: specialistForShadowSignal(signal) ?? undefined,
 								subjectAlias,
 								trace: attempt.trace,
 							})

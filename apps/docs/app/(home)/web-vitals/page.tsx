@@ -9,6 +9,7 @@ import {
 	TwoColumnGrid,
 } from "@/components/landing/demo-primitives";
 import { FaqSection } from "@/components/landing/faq-section";
+import { MidPageCta } from "@/components/landing/mid-page-cta";
 import Section from "@/components/landing/section";
 import { WebVitalsAlertCycleDemo } from "@/components/landing/web-vitals-alert-cycle-demo";
 import { WebVitalsBreakdownDemo } from "@/components/landing/web-vitals-breakdown-demo";
@@ -20,14 +21,14 @@ import { StructuredData } from "@/components/structured-data";
 export const metadata: Metadata = {
 	title: "Core Web Vitals Monitoring - Real User Performance Analytics",
 	description:
-		"Monitor LCP, CLS, INP, FCP, and TTFB from real users in production. Percentile breakdowns by page, device, and country. Field data, not lab simulations. Built into your analytics.",
+		"Monitor LCP, CLS, INP, FCP, and TTFB from real users in production. Percentile breakdowns by page, browser, and country. Field data, not lab simulations. Built into your analytics.",
 	alternates: {
 		canonical: "https://www.databuddy.cc/web-vitals",
 	},
 	openGraph: {
 		title: "Core Web Vitals Monitoring - Real User Performance Analytics",
 		description:
-			"Monitor LCP, CLS, INP, FCP, and TTFB from real users in production. Percentile breakdowns by page, device, and country. Field data, not lab simulations. Built into your analytics.",
+			"Monitor LCP, CLS, INP, FCP, and TTFB from real users in production. Percentile breakdowns by page, browser, and country. Field data, not lab simulations. Built into your analytics.",
 		url: "https://www.databuddy.cc/web-vitals",
 		images: ["/og-image.png"],
 	},
@@ -47,7 +48,7 @@ const FAQ_ITEMS = [
 	{
 		question: "How does Databuddy measure INP?",
 		answer:
-			"Interaction to Next Paint is captured using the PerformanceObserver API, the same method used by Chrome. It measures responsiveness for all interactions - clicks, taps, and keyboard input.",
+			"Interaction to Next Paint is captured with Google's own web-vitals library, the same measurement Chrome uses. It covers all interactions - clicks, taps, and keyboard input.",
 	},
 	{
 		question: "Can I see which specific pages are failing?",
@@ -57,7 +58,7 @@ const FAQ_ITEMS = [
 	{
 		question: "Is web vitals monitoring included in all plans?",
 		answer:
-			"Web vitals are collected automatically on every plan - there's nothing to turn on. The free plan includes 7 days of history; paid plans extend that to 30 or 90 days.",
+			"Yes, web vitals are included on every plan. Enable them with a single prop on the tracker (trackWebVitals) and data starts flowing from your next visitor.",
 	},
 ] as const;
 
@@ -75,35 +76,35 @@ export default function WebVitalsPage() {
 				page={{
 					title: "Core Web Vitals Monitoring - Real User Performance Analytics",
 					description:
-						"Monitor LCP, CLS, INP, FCP, and TTFB from real users in production. Percentile breakdowns by page, device, and country.",
+						"Monitor LCP, CLS, INP, FCP, and TTFB from real users in production. Percentile breakdowns by page, browser, and country.",
 					url: "https://www.databuddy.cc/web-vitals",
 				}}
 			/>
 			<div className="overflow-x-hidden">
 				<FeatureHero
 					docsHref="/docs/performance/core-web-vitals-guide"
-					subtitle="LCP, INP, CLS, FCP, and TTFB from real users in production. Sliced by page, device, and country. No lab simulations."
+					subtitle="LCP, INP, CLS, FCP, and TTFB from real users in production. Sliced by page, browser, and country. No lab simulations."
 					title="Core Web Vitals, tracked from real users."
 				/>
 
 				<Section className="border-border border-b" id="breakdown">
 					<div className={container}>
 						<SectionHeader
-							subtitle="Every vital, sliced by page, device, and percentile, so you fix the right thing, not just the average."
+							subtitle="Every vital, sliced by page, browser, and percentile, so you fix the right thing, not just the average."
 							title="Every vital,"
-							titleMuted="by page and device."
+							titleMuted="by page and browser."
 						/>
 
 						<TwoColumnGrid>
 							<GridCell>
 								<h3 className={CELL_TITLE_CLASS}>
-									Every vital, measured from real users.
+									Re-measured on every SPA route change.
 								</h3>
 								<WebVitalsGraphsDemo />
 							</GridCell>
 							<GridCell>
 								<h3 className={CELL_TITLE_CLASS}>
-									Find out which environments are making users wait.
+									See which browsers are making users wait.
 								</h3>
 								<WebVitalsBreakdownDemo compact variant="browser" />
 							</GridCell>
@@ -129,15 +130,15 @@ export default function WebVitalsPage() {
 				<Section className="border-border border-b" id="monitoring">
 					<div className={container}>
 						<SectionHeader
-							subtitle="Get alerted when a vital degrades. Track frequency over time to confirm your fix actually held."
-							title="Alerts when"
-							titleMuted="a metric degrades."
+							subtitle="Databunny compares this week to last on every route and only flags LCP or INP regressions with enough samples to matter. Findings land in Slack."
+							title="A daily check,"
+							titleMuted="not a noisy pager."
 						/>
 
 						<TwoColumnGrid>
 							<GridCell>
 								<h3 className={CELL_TITLE_CLASS}>
-									Know the moment something breaks.
+									Get a finding when a route regresses.
 								</h3>
 								<WebVitalsAlertCycleDemo />
 							</GridCell>
@@ -154,6 +155,12 @@ export default function WebVitalsPage() {
 				<Section className="border-border border-b" id="faq">
 					<div className={container}>
 						<FaqSection items={[...FAQ_ITEMS]} />
+					</div>
+				</Section>
+
+				<Section className="border-border border-b" id="cta">
+					<div className={container}>
+						<MidPageCta />
 					</div>
 				</Section>
 

@@ -7,23 +7,14 @@ import { cn } from "@/lib/utils";
 type GaugeRating = "good" | "needs-improvement" | "poor";
 
 interface GaugeChartProps {
-	/** Format the center label value */
 	formatValue?: (value: number) => string;
-	/** Maximum value for the gauge (100% fill) */
 	max: number;
-	/** Rating determines the color */
 	rating: GaugeRating;
-	/** Size of the chart in pixels */
 	size?: number;
-	/** Starting angle in degrees (-90 = top, 0 = right, 90 = bottom) */
 	startAngle?: number;
-	/** Sweep angle in degrees (360 = full circle) */
 	sweepAngle?: number;
-	/** Number of tick marks */
 	tickCount?: number;
-	/** Optional unit to display below the value */
 	unit?: string;
-	/** Current value to display */
 	value: number;
 }
 

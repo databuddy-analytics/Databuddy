@@ -98,6 +98,7 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 	const [activeTab, setActiveTab] = useState(tabs?.[0]?.id || "");
 
 	const { fullScreen, setFullScreen, hasMounted, modalRef } = useFullScreen();
+	const portalTarget = typeof document === "undefined" ? null : document.body;
 
 	const currentTabData = tabs?.find((tab) => tab.id === activeTab);
 	const tableData = currentTabData?.data || data || [];
@@ -175,6 +176,7 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 
 			{hasMounted &&
 				fullScreen &&
+				portalTarget &&
 				ReactDOM.createPortal(
 					<div
 						className="fixed inset-0 z-50 flex items-center justify-center"
@@ -209,7 +211,7 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 							/>
 						</div>
 					</div>,
-					document.body
+					portalTarget
 				)}
 		</>
 	);

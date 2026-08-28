@@ -438,8 +438,6 @@ const breakdownShellClass =
 
 const breakdownMaskClass =
 	"pointer-events-none absolute inset-0 z-0 rounded border border-border/50 [-webkit-mask-image:linear-gradient(to_bottom,black_0%,black_60%,transparent_100%)] [mask-image:linear-gradient(to_bottom,black_0%,black_60%,transparent_100%)]";
-
-/** Short bottom fade — matches browser + page breakdown + percentile demos. */
 const breakdownFadeClass =
 	"pointer-events-none absolute inset-x-0 bottom-0 z-10 h-24 bg-linear-to-t from-background/100 via-background/50 to-transparent";
 

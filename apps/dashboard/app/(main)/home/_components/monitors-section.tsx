@@ -214,10 +214,8 @@ export function MonitorsSection({
 		);
 	}
 
-	const hasIssues = activeMonitors < totalMonitors;
-
 	return (
-		<Card className={hasIssues ? "border-amber-500/30" : ""}>
+		<Card>
 			<Card.Header className="flex-row items-center justify-between gap-3">
 				<div className="flex items-center gap-2">
 					<HeartbeatIcon className="size-4 text-primary" weight="duotone" />

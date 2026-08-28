@@ -99,9 +99,7 @@ describeIntegration("uptime scheduler BullMQ integration", () => {
 					queue.removeJobScheduler((s as { key: string }).key)
 				)
 			);
-		} catch {
-			// best-effort: a failed sweep should not block test startup
-		}
+		} catch {}
 	}
 
 	async function cleanupTestState(): Promise<void> {
@@ -134,9 +132,7 @@ describeIntegration("uptime scheduler BullMQ integration", () => {
 					.filter((job) => isTestScheduleId(job.data?.scheduleId))
 					.map((job) => job.remove())
 			);
-		} catch {
-			// cleanup is best-effort — don't let it fail the test
-		}
+		} catch {}
 	}
 
 	async function assertQueueIsSafeForWorker(): Promise<void> {

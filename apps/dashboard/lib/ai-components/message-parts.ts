@@ -2,7 +2,7 @@ import { parseContentSegments } from "./parser";
 import { validateComponentJSON } from "./schemas";
 import type { RawComponentInput } from "./types";
 
-export const AI_COMPONENT_DATA_PART_NAME = "aiComponent";
+const AI_COMPONENT_DATA_PART_NAME = "aiComponent";
 export const AI_COMPONENT_DATA_PART_TYPE = `data-${AI_COMPONENT_DATA_PART_NAME}`;
 
 interface MessageLike {
@@ -16,7 +16,7 @@ interface TextPartLike {
 	[key: string]: unknown;
 }
 
-export interface AIComponentDataPart {
+interface AIComponentDataPart {
 	data: RawComponentInput;
 	id?: string;
 	type: typeof AI_COMPONENT_DATA_PART_TYPE;
@@ -107,7 +107,7 @@ function expandTextPart(part: TextPartLike): unknown[] | null {
 	return expanded.length > 0 ? expanded : null;
 }
 
-export function normalizeAIComponentMessageParts<TMessage extends MessageLike>(
+function normalizeAIComponentMessageParts<TMessage extends MessageLike>(
 	message: TMessage
 ): TMessage {
 	if (message.role !== "assistant") {

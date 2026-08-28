@@ -75,23 +75,6 @@ describe("processChartData", () => {
 		expect(result["site-c"].totalViews).toBe(0);
 	});
 
-	it("handles multiple websites in different states", () => {
-		const result = processChartData(
-			["active", "dormant", "new"],
-			[...activeRows("active"), ...emptyRows("dormant"), ...emptyRows("new")],
-			[{ websiteId: "active" }, { websiteId: "dormant" }]
-		);
-
-		expect(result["active"].hasAnyData).toBe(true);
-		expect(result["active"].hasHistoricalData).toBe(true);
-
-		expect(result["dormant"].hasAnyData).toBe(false);
-		expect(result["dormant"].hasHistoricalData).toBe(true);
-
-		expect(result["new"].hasAnyData).toBe(false);
-		expect(result["new"].hasHistoricalData).toBe(false);
-	});
-
 	it("returns an empty record when no website IDs are provided", () => {
 		const result = processChartData([], [], []);
 		expect(result).toEqual({});

@@ -8,6 +8,7 @@ export function captureError(
 	log.error({
 		service: "uptime",
 		error_message: err.message,
+		...(err.stack ? { error_stack: err.stack } : {}),
 		...(attributes ?? {}),
 	});
 }

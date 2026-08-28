@@ -1,6 +1,6 @@
 const AUTUMN_BALANCE_TIMEOUT_MS = 10_000;
 
-export class AutumnBalanceUpdateError extends Error {
+class AutumnBalanceUpdateError extends Error {
 	readonly definitiveFailure: boolean;
 
 	constructor(message: string, definitiveFailure: boolean) {

@@ -31,6 +31,7 @@ import {
 	PencilIcon,
 	PlayIcon,
 	TrashIcon,
+	WarningIcon,
 } from "@databuddy/ui/icons";
 import { DeleteDialog } from "@databuddy/ui/client";
 import {
@@ -67,12 +68,9 @@ const granularityLabels: Record<string, string> = {
 
 interface ScheduleData {
 	cacheBust: boolean;
-	cron: string;
 	granularity: string;
 	id: string;
 	isPaused: boolean;
-	isPublic: boolean;
-	jsonParsingConfig?: { enabled: boolean } | null;
 	name: string | null;
 	organizationId: string;
 	schedulerStatus: string;
@@ -92,9 +90,6 @@ function resolveStatus(check: RecentActivityCheck | undefined) {
 	}
 	if (check.status === 1) {
 		return "up" as const;
-	}
-	if (check.status === 2) {
-		return "unknown" as const;
 	}
 	if (check.http_code > 0 && check.http_code < 500) {
 		return "degraded" as const;
@@ -158,7 +153,6 @@ export default function MonitorDetailsPage() {
 		granularity: string;
 		timeout?: number | null;
 		cacheBust?: boolean;
-		jsonParsingConfig?: { enabled: boolean } | null;
 	} | null>(null);
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 	const [isPausing, setIsPausing] = useState(false);
@@ -401,9 +395,6 @@ export default function MonitorDetailsPage() {
 			granularity: schedule.granularity,
 			timeout: schedule.timeout,
 			cacheBust: schedule.cacheBust,
-			jsonParsingConfig: schedule.jsonParsingConfig as {
-				enabled: boolean;
-			} | null,
 		});
 		setIsSheetOpen(true);
 	};
@@ -637,6 +628,13 @@ export default function MonitorDetailsPage() {
 					) : (
 						<Skeleton className="h-3.5 w-16 rounded" />
 					)}
+
+					{schedule.schedulerStatus === "missing" && !schedule.isPaused ? (
+						<span className="flex items-center gap-1.5 font-medium text-warning">
+							<WarningIcon className="size-3.5" weight="duotone" />
+							Scheduler inactive
+						</span>
+					) : null}
 
 					<span className="flex items-center gap-1.5">
 						<span className="text-muted-foreground">Frequency</span>

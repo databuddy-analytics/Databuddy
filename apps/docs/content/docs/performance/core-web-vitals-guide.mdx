@@ -36,14 +36,15 @@ LCP measures how long it takes for the largest content element to become visible
 
 **Using Databuddy:**
 <CodeBlock 
-  language="javascript"
-  code={`// Databuddy automatically tracks LCP
-  databuddy.track('core_web_vital', {
-    metric: 'LCP',
-    value: lcpValue,
-    element: lcpElement
-  });`}
+  language="tsx"
+  code={`// Enable Web Vitals once; LCP is captured automatically from real users
+<Databuddy
+  clientId={process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID!}
+  trackWebVitals
+/>`}
 />
+
+LCP then appears in your dashboard's Vitals tab, per route, with p50 to p99 percentiles.
 
 **Using JavaScript:**
 <CodeBlock 
@@ -116,15 +117,8 @@ INP measures how quickly a page responds visually to interactions across the vis
 ### How to Measure INP
 
 **Using Databuddy:**
-<CodeBlock 
-  language="javascript"
-  code={`// Databuddy tracks INP when Web Vitals are enabled
-  databuddy.track('core_web_vital', {
-    metric: 'INP',
-    value: inpValue,
-    eventType: eventType
-  });`}
-/>
+
+With `trackWebVitals` enabled, INP is captured automatically using Google's web-vitals library and re-measured on SPA route changes. No extra code is needed; see per-route INP in the Vitals dashboard.
 
 **Using JavaScript:**
 <CodeBlock 
@@ -195,14 +189,8 @@ CLS measures the sum of all individual layout shift scores for every unexpected 
 ### How to Measure CLS
 
 **Using Databuddy:**
-```javascript
-// Databuddy tracks CLS automatically
-databuddy.track('core_web_vital', {
-  metric: 'CLS',
-  value: clsValue,
-  sources: layoutShiftSources
-});
-```
+
+With `trackWebVitals` enabled, CLS is captured automatically for the full page lifespan and re-measured on SPA route changes. No extra code is needed; see per-route CLS in the Vitals dashboard.
 
 **Using JavaScript:**
 ```javascript
@@ -274,16 +262,8 @@ Since June 2021, Core Web Vitals are official Google ranking factors:
 - **Competitive advantage** - Good vitals can boost rankings
 
 ### SEO Impact Analysis
-```javascript
-// Track Core Web Vitals impact on SEO
-databuddy.track('seo_performance', {
-  lcp: lcpValue,
-  inp: inpValue,
-  cls: clsValue,
-  searchRanking: currentRanking,
-  organicTraffic: trafficData
-});
-```
+
+Databuddy already stores every vital per route, so there is nothing extra to track. Compare the Vitals dashboard against Google Search Console for the same period: routes that moved from Poor to Good LCP or INP are the ones most likely to see ranking and organic traffic recover.
 
 ## Monitoring Core Web Vitals
 
@@ -493,19 +473,8 @@ Track these metrics to measure Core Web Vitals improvement:
 - **Conversion rates** - Goal completions, sales
 
 ### Reporting Dashboard
-```javascript
-// Track performance improvements
-databuddy.track('performance_improvement', {
-  beforeLCP: 3.2,
-  afterLCP: 2.1,
-  beforeINP: 320,
-  afterINP: 180,
-  beforeCLS: 0.25,
-  afterCLS: 0.08,
-  trafficIncrease: '15%',
-  rankingImprovement: 3
-});
-```
+
+The Vitals dashboard compares every metric against the previous period automatically, so before/after reporting needs no custom events: ship the fix, pick the date range that spans it, and the per-route trend shows whether the improvement held.
 
 ## Conclusion
 

@@ -3,16 +3,12 @@ import type { NotificationPayload, NotificationPriority } from "../types";
 export type UptimeNotificationKind = "down" | "recovered";
 
 export interface UptimeNotificationInput {
-	/** Check time as Unix ms (UTC formatting is applied in the builder) */
 	checkedAt: number;
-	/** Error detail when the check failed; use empty string when none */
 	error: string;
 	httpCode: number;
 	kind: UptimeNotificationKind;
 	probeRegion?: string;
-	/** Display name for the monitored site or service */
 	siteLabel: string;
-	/** SSL certificate expiry as Unix ms, if known */
 	sslExpiryMs?: number;
 	sslValid?: boolean;
 	totalMs?: number;
@@ -115,11 +111,6 @@ function titleForInput(input: UptimeNotificationInput): string {
 	}
 	return `Health check passed: ${input.siteLabel}`;
 }
-
-/**
- * Builds a {@link NotificationPayload} for uptime down/recovered alerts with
- * consistent title, body, priority, and structured metadata for routing and webhooks.
- */
 export function buildUptimeNotificationPayload(
 	input: UptimeNotificationInput
 ): NotificationPayload {

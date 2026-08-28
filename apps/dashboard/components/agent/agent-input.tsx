@@ -78,7 +78,9 @@ export function AgentInput() {
 	const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 	const replayFrameRef = useRef<number | null>(null);
 	const inputSyncRef = useRef(input);
-	inputSyncRef.current = input;
+	useEffect(() => {
+		inputSyncRef.current = input;
+	}, [input]);
 
 	const cancelPlaceholderReplay = useCallback(() => {
 		if (replayFrameRef.current === null) {

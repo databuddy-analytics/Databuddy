@@ -3,6 +3,7 @@ import { Elysia } from "elysia";
 import { describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
+	findFirst: vi.fn(async () => null as unknown),
 	flags: [
 		{
 			defaultValue: true,
@@ -18,6 +19,7 @@ const state = vi.hoisted(() => ({
 			variants: null,
 		},
 	],
+	rateLimited: false,
 }));
 
 vi.mock("@databuddy/db", async (importOriginal) => ({
@@ -25,6 +27,7 @@ vi.mock("@databuddy/db", async (importOriginal) => ({
 	db: {
 		query: {
 			flags: {
+				findFirst: state.findFirst,
 				findMany: vi.fn(async () => state.flags),
 			},
 		},
@@ -37,8 +40,13 @@ vi.mock("@databuddy/redis", async (importOriginal) => ({
 }));
 
 vi.mock("@databuddy/redis/rate-limit", () => ({
-	getRateLimitHeaders: () => ({}),
-	ratelimit: async () => ({ success: true }),
+	getRateLimitHeaders: () => ({ "x-ratelimit-remaining": "0" }),
+	ratelimit: async () => ({
+		limit: 600,
+		remaining: state.rateLimited ? 0 : 599,
+		reset: Date.now() + 60_000,
+		success: !state.rateLimited,
+	}),
 }));
 
 const { flagsRoute } = await import("./flags");
@@ -110,5 +118,70 @@ describe("public bulk flags boundary", () => {
 			keys: [key],
 		});
 		expect(postResponse.status).toBe(422);
+	});
+
+	it("rejects requests without a usable clientId", async () => {
+		const missing = await request("/v1/flags/bulk");
+		expect(missing.status).toBe(422);
+
+		const blank = await request("/v1/flags/bulk?clientId=");
+		expect(blank.status).toBe(400);
+		expect(await blank.json()).toMatchObject({
+			count: 0,
+			error: "Missing required clientId parameter",
+		});
+	});
+});
+
+describe("public flag evaluation boundary", () => {
+	it("rejects evaluation without a usable clientId or key", async () => {
+		const missingParams = await request("/v1/flags/evaluate?key=&clientId=");
+		expect(missingParams.status).toBe(400);
+		expect(await missingParams.json()).toMatchObject({
+			enabled: false,
+			reason: "MISSING_REQUIRED_PARAMS",
+		});
+
+		const missingClientId = await request("/v1/flags/evaluate?key=some-flag");
+		expect(missingClientId.status).toBe(422);
+	});
+
+	it("caches missing flags so repeated misses skip the database", async () => {
+		const path = "/v1/flags/evaluate?key=absent-flag&clientId=neg_cache_site";
+
+		const first = await request(path);
+		const second = await request(path);
+
+		expect(first.status).toBe(200);
+		expect(await first.json()).toMatchObject({
+			enabled: false,
+			reason: "FLAG_NOT_FOUND",
+		});
+		expect(await second.json()).toMatchObject({ reason: "FLAG_NOT_FOUND" });
+		expect(state.findFirst).toHaveBeenCalledTimes(1);
+	});
+
+	it("returns 429 with rate limit headers when the per-client budget is exhausted", async () => {
+		state.rateLimited = true;
+		try {
+			const evaluate = await request(
+				"/v1/flags/evaluate?key=some-flag&clientId=limited_site"
+			);
+			expect(evaluate.status).toBe(429);
+			expect(evaluate.headers.get("x-ratelimit-remaining")).toBe("0");
+			expect(await evaluate.json()).toMatchObject({
+				enabled: false,
+				reason: "RATE_LIMITED",
+			});
+
+			const bulk = await request("/v1/flags/bulk?clientId=limited_site");
+			expect(bulk.status).toBe(429);
+			expect(await bulk.json()).toMatchObject({
+				count: 0,
+				reason: "RATE_LIMITED",
+			});
+		} finally {
+			state.rateLimited = false;
+		}
 	});
 });

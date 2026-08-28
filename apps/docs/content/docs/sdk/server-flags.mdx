@@ -20,7 +20,7 @@ The Databuddy Node SDK includes a server-side feature flags manager optimized fo
 ## Quick Start
 
 <CodeBlock language="tsx">
-  {`import { createServerFlagsManager } from "@databuddy/sdk/node";
+  {`import { createServerFlagsManager, FlagsRequestError } from "@databuddy/sdk/node";
 
 const flags = createServerFlagsManager({
   clientId: process.env.DATABUDDY_CLIENT_ID!,
@@ -35,9 +35,15 @@ const flags = createServerFlagsManager({
 await flags.waitForInit();
 
 // Check a flag
-const result = await flags.getFlag("new-feature");
-if (result.enabled) {
-  // Show new feature
+try {
+  const result = await flags.getFlag("new-feature");
+  if (result.enabled) {
+    // Show new feature
+  }
+} catch (error) {
+  if (error instanceof FlagsRequestError) {
+    // Request failed with no cached result; fall back to your default
+  }
 }`}
 </CodeBlock>
 
@@ -164,6 +170,36 @@ Get a typed value from cache:
 <CodeBlock language="tsx">
   {`const maxItems = flags.getValue("max-items", 10);
 const theme = flags.getValue<"light" | "dark">("theme", "light");`}
+</CodeBlock>
+
+## Error Handling
+
+`getFlag()` throws a `FlagsRequestError` when the flags request fails and there is no cached result for that key. Once a flag has resolved at least once, later failures do not throw: the cached result is returned and revalidation retries in the background. Always wrap first-evaluation paths in try/catch and decide on a fallback.
+
+<CodeBlock language="tsx">
+  {`import { createServerFlagsManager, FlagsRequestError } from "@databuddy/sdk/node";
+
+const flags = createServerFlagsManager({
+  clientId: process.env.DATABUDDY_CLIENT_ID!
+});
+
+async function isFeatureEnabled(key: string): Promise<boolean> {
+  try {
+    const result = await flags.getFlag(key);
+    return result.enabled;
+  } catch (error) {
+    if (error instanceof FlagsRequestError) {
+      console.error("Flag request failed", {
+        code: error.code,          // "HTTP_ERROR" | "INVALID_RESPONSE" | "NETWORK_ERROR"
+        status: error.status,
+        retryable: error.retryable,
+        requestId: error.requestId
+      });
+      return false; // Your safe default
+    }
+    throw error;
+  }
+}`}
 </CodeBlock>
 
 ## Usage Patterns
@@ -353,9 +389,9 @@ The server manager uses stale-while-revalidate caching:
 <CodeBlock language="tsx">
   {`const flags = createServerFlagsManager({
   clientId: process.env.DATABUDDY_CLIENT_ID!,
-  cacheTtl: 60_000,      // Cache valid for 1 minute
+  cacheTtl: 60_000,      // Unresolved entries expire after 1 minute
   staleTime: 30_000,     // Revalidate after 30 seconds
-  maxCacheSize: 5000     // Evict old entries above this size
+  maxCacheSize: 5000     // Evict oldest entries above this size
 });
 
 // First call: fetches from API
@@ -364,14 +400,11 @@ const result1 = await flags.getFlag("my-feature");
 // Within 30s: returns cached value (fresh)
 const result2 = await flags.getFlag("my-feature");
 
-// After 30s but within 60s: returns cached, revalidates in background
-const result3 = await flags.getFlag("my-feature");
-
-// After 60s: fetches from API
-const result4 = await flags.getFlag("my-feature");`}
+// After 30s: returns cached value, revalidates in background
+const result3 = await flags.getFlag("my-feature");`}
 </CodeBlock>
 
-Expired entries are pruned during cache writes and reads. Long-lived shared managers should keep the default `maxCacheSize` or set a limit that matches their traffic shape, especially when passing per-request users.
+Once a flag has resolved, expiry never forces a blocking refetch: `getFlag()` keeps returning the cached result and refreshes it in the background when it is stale. Only entries that never resolved are pruned after `cacheTtl` passes; resolved entries are evicted only by the `maxCacheSize` cap, which drops the oldest entries first. Long-lived shared managers should keep the default `maxCacheSize` or set a limit that matches their traffic shape, especially when passing per-request users.
 
 ## Request Batching
 
@@ -483,10 +516,8 @@ const result = await flags.getFlag("my-feature", { userId });`}
   {`import {
   createServerFlagsManager,
   ServerFlagsManager,
-  type FlagsConfig,
-  type FlagResult,
-  type FlagState,
-  type UserContext
+  FlagsRequestError,
+  type FlagsRequestFailure
 } from "@databuddy/sdk/node";`}
 </CodeBlock>
 

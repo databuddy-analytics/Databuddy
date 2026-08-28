@@ -1,13 +1,6 @@
 import { isIP } from "node:net";
 
 const DEFAULT_TRUSTED_IP_HEADER = "cf-connecting-ip";
-
-/**
- * Returns a client IP only when deployment traffic is forced through a proxy
- * that overwrites the configured header. Without that explicit boundary, all
- * forwarding headers are client-controlled and must not enter rate limits or
- * audit records.
- */
 export function getTrustedClientIp(
 	headers: Pick<Headers, "get">
 ): string | undefined {

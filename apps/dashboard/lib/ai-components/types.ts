@@ -22,11 +22,6 @@ export interface ComponentDefinition<
 
 export type ComponentRegistry = Record<string, ComponentDefinition<any, any>>;
 
-export interface ParsedContent {
-	components: RawComponentInput[];
-	text: string;
-}
-
 export type ContentSegment =
 	| { type: "text"; content: string }
 	| { type: "component"; content: RawComponentInput }
@@ -228,7 +223,7 @@ export interface DataTableInput {
 	type: "data-table";
 }
 
-export interface ReferrerItem {
+interface ReferrerItem {
 	domain?: string;
 	name: string;
 	pageviews?: number;
@@ -243,7 +238,7 @@ export interface ReferrersListInput {
 	type: "referrers-list";
 }
 
-export interface CountryItem {
+interface CountryItem {
 	country_code?: string;
 	name: string;
 	pageviews?: number;

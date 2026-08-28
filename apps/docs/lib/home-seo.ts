@@ -26,7 +26,7 @@ export const homeFaqItems: LandingFaqItem[] = [
 	{
 		question: "Do I need cookie consent banners?",
 		answer:
-			"No. Databuddy uses no cookies and does not track individual users. You can remove consent banners entirely and remain compliant with GDPR, CCPA, and ePrivacy regulations.",
+			"Databuddy uses no cookies and is anonymous by default; individual user profiles exist only if you opt in with the identify API. In the default configuration, many sites can run without an analytics consent banner under GDPR, CCPA, and ePrivacy, depending on jurisdiction and what you send.",
 	},
 	{
 		question: "What is included in the free plan?",

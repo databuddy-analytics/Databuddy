@@ -1,4 +1,5 @@
 import {
+	getCacheableKey,
 	getCacheableTagIndexKey,
 	invalidateCacheablePattern,
 	invalidateCacheableTag,
@@ -40,12 +41,6 @@ interface CacheOptions<
 > {
 	expireInSec: number;
 	prefix?: string;
-	/**
-	 * Maximum milliseconds to wait for the underlying function (e.g. a DB
-	 * query) before rejecting with a "Query timeout" error.  When unset the
-	 * function may hang indefinitely.  Background stale-while-revalidate
-	 * fetches are also bounded by this value.
-	 */
 	queryTimeoutMs?: number;
 	staleTime?: number;
 	staleWhileRevalidate?: boolean;
@@ -105,34 +100,6 @@ function withTimeout<T>(
 			timer = setTimeout(() => reject(new Error(message)), ms);
 		}),
 	]).finally(() => clearTimeout(timer));
-}
-
-function stringify(obj: unknown): string {
-	if (obj === null) {
-		return "null";
-	}
-	if (obj === undefined) {
-		return "undefined";
-	}
-	if (typeof obj === "boolean") {
-		return obj ? "true" : "false";
-	}
-	if (typeof obj === "number" || typeof obj === "string") {
-		return String(obj);
-	}
-	if (typeof obj === "function") {
-		return obj.toString();
-	}
-	if (Array.isArray(obj)) {
-		return `[${obj.map(stringify).join(",")}]`;
-	}
-	if (typeof obj === "object") {
-		return Object.entries(obj)
-			.sort(([a], [b]) => a.localeCompare(b))
-			.map(([k, v]) => `${k}:${stringify(v)}`)
-			.join(":");
-	}
-	return String(obj);
 }
 
 async function resolveCacheTags<
@@ -224,20 +191,15 @@ function triggerBackgroundRevalidation<
 			? fn()
 			: withTimeout(fn(), queryTimeoutMs, "Query timeout"));
 		if (fresh != null && redisAvailable) {
-			try {
-				const serialized = JSON.stringify(fresh);
-				await writeCacheEntry(
-					prefix,
-					key,
-					serialized,
-					fresh,
-					args,
-					expireInSec,
-					tags
-				).catch(() => {});
-			} catch {
-				// JSON.stringify failed
-			}
+			await writeCacheEntry(
+				prefix,
+				key,
+				JSON.stringify(fresh),
+				fresh,
+				args,
+				expireInSec,
+				tags
+			);
 		}
 	})()
 		.catch(() => {})
@@ -260,7 +222,7 @@ export function cacheable<
 
 	const cachePrefix = `cacheable:${prefix}`;
 	const getKey = (...args: Parameters<T>) =>
-		`${cachePrefix}:${stringify(args)}`;
+		getCacheableKey(prefix, ...(args as unknown[]));
 
 	const cachedFn = async (
 		...args: Parameters<T>
@@ -314,7 +276,7 @@ export function cacheable<
 			try {
 				return deserialize(cached) as Awaited<ReturnType<T>>;
 			} catch {
-				// Corrupted cache data — fall through to cache miss
+				// Corrupted cache data falls through to a cache miss
 			}
 		}
 

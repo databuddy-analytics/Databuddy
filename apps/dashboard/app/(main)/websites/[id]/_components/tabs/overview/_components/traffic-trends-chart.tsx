@@ -304,12 +304,10 @@ function TrafficTrendsRechartsPlot({
 	};
 
 	const handleMouseUp = (e: { activeLabel?: number | string }) => {
-		setIsDragging((wasDragging) => {
-			if (wasDragging) {
-				setTimeout(() => setSuppressTooltip(false), 150);
-			}
-			return false;
-		});
+		if (isDragging) {
+			setTimeout(() => setSuppressTooltip(false), 150);
+		}
+		setIsDragging(false);
 
 		if (!(e?.activeLabel && refAreaLeft)) {
 			setRefAreaLeft(null);

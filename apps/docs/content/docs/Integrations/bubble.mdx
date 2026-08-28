@@ -23,6 +23,7 @@ Bubble allows you to add custom code, including JavaScript snippets, to the head
       code={`<script
   src="https://cdn.databuddy.cc/databuddy.js"
   data-client-id="YOUR_CLIENT_ID"
+  crossorigin="anonymous"
   async
 ></script>`}
     />
@@ -55,9 +56,8 @@ Bubble allows you to add custom code, including JavaScript snippets, to the head
 <Callout type="info">
   **Page View Tracking in Bubble Apps**: Bubble applications often behave like Single Page Applications (SPAs) for navigation between "pages" (which are often groups shown/hidden on a single actual HTML page). Databuddy automatically detects URL changes in SPAs.
 
-  - If your Bubble app uses actual URL route changes for different views, Databuddy should track these automatically
-  - If navigation primarily involves showing/hiding groups without URL changes, Databuddy will only track the initial page load. For more granular tracking of "virtual" page views in such cases, you would need to use custom event tracking
-  - If URL changes occur but are not automatically tracked, you can trigger `window.databuddy.screenView()` manually using a Bubble workflow action that runs JavaScript when a "page" (group) becomes visible
+  - If your Bubble app uses actual URL route changes for different views, Databuddy tracks these automatically
+  - If navigation primarily involves showing/hiding groups without URL changes, Databuddy will only track the initial page load. Track those "virtual" views as custom events instead: fire `window.databuddy.track('screen_viewed', { screen: 'dashboard' })` from a Bubble workflow action that runs JavaScript when a "page" (group) becomes visible
 </Callout>
 
 ## Custom Event Tracking in Bubble
@@ -127,11 +127,11 @@ Enable additional tracking features by adding data attributes to your script tag
   code={`<script
   src="https://cdn.databuddy.cc/databuddy.js"
   data-client-id="YOUR_CLIENT_ID"
-  data-track-attributes
   data-track-outgoing-links
   data-track-interactions
   data-track-web-vitals
   data-track-errors
+  crossorigin="anonymous"
   async
 ></script>`}
 />
@@ -172,16 +172,14 @@ if (typeof window !== 'undefined' && window.databuddy) {
 
 ### Tracking Virtual Page Views
 
-Track "virtual" page views when groups are shown/hidden:
+Bubble group swaps do not change the URL, so they cannot be tracked as page views. Track them as custom events instead:
 
 <CodeBlock
   language="javascript"
   code={`// In Bubble's Run JavaScript action (triggered when a group/page becomes visible)
 if (typeof window !== 'undefined' && window.databuddy) {
-  window.databuddy.screenView({
-    screen_name: 'dashboard',
-    screen_class: 'Bubble',
-    path: window.location.pathname
+  window.databuddy.track('screen_viewed', {
+    screen: 'dashboard'
   });
 }`}
 />
@@ -204,29 +202,9 @@ if (typeof window !== 'undefined' && window.databuddy) {
 }`}
 />
 
-## Using Data Attributes
+## Why Not Data Attributes?
 
-Enable automatic tracking with data attributes by adding `data-track-attributes` to your script tag. Then add `data-track` attributes directly to elements in your Bubble app:
-
-<CodeBlock
-  language="html"
-  code={`<!-- Enable data-track attributes in script tag -->
-<script
-  src="https://cdn.databuddy.cc/databuddy.js"
-  data-client-id="YOUR_CLIENT_ID"
-  data-track-attributes
-  async
-></script>
-
-<!-- Then use in your Bubble app elements -->
-<button data-track="cta_click" data-button-type="primary">
-  Get Started
-</button>
-
-<a href="/pricing" data-track="pricing_link_click" data-link-location="header">
-  View Pricing
-</a>`}
-/>
+Databuddy supports automatic tracking via `data-track` attributes, but Bubble does not let you set custom attributes on its native elements. Use workflow-triggered "Run JavaScript" actions calling `window.databuddy.track()` instead, as shown above.
 
 ## Troubleshooting
 
@@ -249,9 +227,8 @@ Enable automatic tracking with data attributes by adding `data-track-attributes`
 ### Virtual Page Views Not Tracked
 
 - Bubble apps often use show/hide groups instead of URL changes
-- Use `window.databuddy.screenView()` manually when groups become visible
+- Track these as custom events with `window.databuddy.track('screen_viewed', { screen: '...' })`
 - Create workflows that trigger on group visibility changes
-- Track these as custom events if automatic tracking doesn't work
 
 ### Dynamic Data Not Passing
 

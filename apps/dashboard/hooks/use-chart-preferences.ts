@@ -5,10 +5,6 @@ import type {
 import { usePersistentState } from "@databuddy/ui";
 
 const CHART_PREFERENCES_STORAGE_KEY = "databuddy-chart-preferences";
-
-/**
- * Chart location identifiers - where charts appear in the app
- */
 export type ChartLocation =
 	| "overview-stats" // Small stat cards on the overview tab (visitors, pageviews, etc.)
 	| "overview-main" // Large main chart on the overview tab
@@ -30,14 +26,6 @@ export const CHART_LOCATION_LABELS: Record<ChartLocation, string> = {
 	funnels: "Funnel Stats",
 	"website-list": "Website List",
 	events: "Events Stats",
-};
-
-export const CHART_LOCATION_DESCRIPTIONS: Record<ChartLocation, string> = {
-	"overview-stats": "Small stat cards showing visitors, pageviews, etc.",
-	"overview-main": "Large main chart on the overview tab",
-	funnels: "Stat cards in the funnel analytics section",
-	"website-list": "Mini charts on the websites list page",
-	events: "Stat cards in the events analytics section",
 };
 
 function isValidChartSeriesKind(value: unknown): value is ChartSeriesKind {
@@ -93,10 +81,6 @@ const getDefaultPreferences = (): AllPreferences => {
 	}
 	return defaults;
 };
-
-/**
- * Hook to get chart preferences for a specific location
- */
 export function useChartPreferences(location: ChartLocation) {
 	const [storedPreferences] = usePersistentState<AllPreferences>(
 		CHART_PREFERENCES_STORAGE_KEY,
@@ -117,10 +101,6 @@ export function useChartPreferences(location: ChartLocation) {
 		chartStepType: locationPrefs.chartStepType,
 	};
 }
-
-/**
- * Hook to get and update all chart preferences (for settings page)
- */
 export function useAllChartPreferences() {
 	const [storedPreferences, setStoredPreferences] =
 		usePersistentState<AllPreferences>(

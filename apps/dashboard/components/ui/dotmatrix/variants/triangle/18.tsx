@@ -10,7 +10,7 @@ import { useCyclePhase } from "../../hooks";
 import { usePrefersReducedMotion } from "../../hooks";
 import type { DotMatrixCommonProps } from "../../core";
 
-export type DotmTriangle18Props = DotMatrixCommonProps;
+type DotmTriangle18Props = DotMatrixCommonProps;
 
 const MATRIX_SIZE = 7;
 
@@ -46,11 +46,6 @@ function smoothstep01(edge0: number, edge1: number, x: number): number {
   const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
   return t * t * (3 - 2 * t);
 }
-
-/**
- * Heart cell stays dim while the outer shell breathes in sync — inverted emphasis vs center-led
- * corona loaders.
- */
 function opacityForCell(row: number, col: number, phase: number): number {
   if (row === 3 && col === 3) {
     return CORE_DIM;

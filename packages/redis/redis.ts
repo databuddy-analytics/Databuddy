@@ -141,12 +141,6 @@ export function runLinkCacheCommand<T>(
 ): Promise<T> {
 	return runLinkCacheRedisCommand(operation);
 }
-
-/**
- * Execute admission-control work on its own bounded, no-offline-queue Redis
- * connection. Rate limiting is fail-open, so it must neither inherit the
- * shared client's retry window nor head-of-line block link cache mutations.
- */
 export function runRateLimitCommand<T>(
 	operation: (redis: Redis) => Promise<T>
 ): Promise<T> {

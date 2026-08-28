@@ -71,7 +71,7 @@ const PRESET_RANGES: PresetRange[] = [
 		label: "Last 90 days",
 		getValue: () => ({
 			from: dayjs().subtract(89, "day").startOf("day").toDate(),
-			to: dayjs().subtract(1, "month").endOf("month").toDate(),
+			to: dayjs().endOf("day").toDate(),
 		}),
 	},
 ];

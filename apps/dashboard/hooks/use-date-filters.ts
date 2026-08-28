@@ -5,10 +5,13 @@ import {
 	getDefaultDatesFromPreset,
 } from "@/hooks/use-default-date-range";
 import { dayjs } from "@databuddy/ui";
-import type {
-	DateRangeState,
-	TimeGranularity,
-} from "@/stores/jotai/filterAtoms";
+
+export interface DateRangeState {
+	endDate: Date;
+	startDate: Date;
+}
+
+export type TimeGranularity = "daily" | "hourly";
 
 const MAX_HOURLY_DAYS = 7;
 const AUTO_HOURLY_DAYS = 2;

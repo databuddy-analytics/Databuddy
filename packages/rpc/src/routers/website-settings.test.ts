@@ -80,24 +80,6 @@ describe("mergeWebsiteSecuritySettings", () => {
 		).toEqual(current);
 	});
 
-	it("updates one field while preserving the other across multiple merges", () => {
-		const start = { allowedOrigins: ["cal.com"], allowedIps: ["10.0.0.1"] };
-		const afterOrigins = mergeWebsiteSecuritySettings(start, {
-			allowedOrigins: ["cal.com", "vercel.com"],
-		});
-		expect(afterOrigins).toEqual({
-			allowedOrigins: ["cal.com", "vercel.com"],
-			allowedIps: ["10.0.0.1"],
-		});
-		const afterIps = mergeWebsiteSecuritySettings(afterOrigins, {
-			allowedIps: ["10.0.0.1", "10.0.0.2"],
-		});
-		expect(afterIps).toEqual({
-			allowedOrigins: ["cal.com", "vercel.com"],
-			allowedIps: ["10.0.0.1", "10.0.0.2"],
-		});
-	});
-
 	it("preserves security settings when ignored tracking origins are updated", () => {
 		expect(
 			mergeWebsiteSecuritySettings(

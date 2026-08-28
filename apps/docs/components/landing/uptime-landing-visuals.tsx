@@ -6,10 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { feature } from "topojson-client";
 import type { GeometryCollection, Topology } from "topojson-specification";
 import worldTopo from "world-atlas/countries-110m.json";
-
-// ---------------------------------------------------------------------------
 // UptimeRegionsHubDiagram — animated D3 canvas world map with zone dithering
-// ---------------------------------------------------------------------------
 const ZONE_DEFS = [
 	{ ids: new Set([840, 124, 484, 304]) },
 	{ ids: new Set([826, 372, 250, 724, 620, 380, 56, 528, 300, 196]) },
@@ -224,10 +221,7 @@ export function UptimeRegionsHubDiagram() {
 		</div>
 	);
 }
-
-// ---------------------------------------------------------------------------
 // UptimeAlertsStackVisual — focus-aware carousel
-// ---------------------------------------------------------------------------
 const ROW_H = 62;
 const GAP = 8;
 const STRIDE = ROW_H + GAP;
@@ -241,29 +235,24 @@ const ALERT_ITEMS = [
 		time: "14:32 UTC",
 	},
 	{
-		kind: "warn" as const,
-		text: "Response time > 2s on /api/checkout",
-		time: "14:28 UTC",
-	},
-	{
 		kind: "up" as const,
-		text: "Uptime restored — 3 min total",
+		text: "api.acme.com recovered, down 3 min",
 		time: "14:35 UTC",
 	},
 	{
 		kind: "down" as const,
-		text: "cdn.acme.com returned 503",
+		text: "cdn.acme.com timed out",
 		time: "09:14 UTC",
 	},
 	{
-		kind: "warn" as const,
-		text: "Error rate spike on /api/auth",
-		time: "11:47 UTC",
+		kind: "up" as const,
+		text: "cdn.acme.com back online",
+		time: "09:22 UTC",
 	},
 	{
-		kind: "up" as const,
-		text: "cdn.acme.com — back online",
-		time: "09:22 UTC",
+		kind: "warn" as const,
+		text: "Health check failed: status=degraded",
+		time: "11:47 UTC",
 	},
 	{
 		kind: "down" as const,
@@ -271,19 +260,9 @@ const ALERT_ITEMS = [
 		time: "03:58 UTC",
 	},
 	{
-		kind: "warn" as const,
-		text: "P95 latency > 3s on /checkout",
-		time: "16:01 UTC",
-	},
-	{
 		kind: "up" as const,
-		text: "app.acme.com — back online",
+		text: "app.acme.com back online",
 		time: "04:06 UTC",
-	},
-	{
-		kind: "warn" as const,
-		text: "SSL cert expires in 7 days",
-		time: "08:00 UTC",
 	},
 ];
 
@@ -443,10 +422,7 @@ export function UptimeAlertsStackVisual() {
 		</div>
 	);
 }
-
-// ---------------------------------------------------------------------------
 // UptimeStatusPageMiniVisual
-// ---------------------------------------------------------------------------
 const DEMO_MONITORS = [
 	{
 		name: "Dashboard",
@@ -556,10 +532,7 @@ export function UptimeStatusPageMiniVisual() {
 		</div>
 	);
 }
-
-// ---------------------------------------------------------------------------
 // UptimeIncidentTimelineVisual
-// ---------------------------------------------------------------------------
 const TIMELINE = [
 	{ time: "14:32", label: "Downtime detected", tone: "red" as const },
 	{ time: "14:33", label: "Team alerted via Slack", tone: "amber" as const },

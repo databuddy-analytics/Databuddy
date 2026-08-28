@@ -30,7 +30,9 @@ export function AgentCreditBalance({
 	const prevStatusRef = useRef(status);
 
 	const refetchRef = useRef(refetch);
-	refetchRef.current = refetch;
+	useEffect(() => {
+		refetchRef.current = refetch;
+	}, [refetch]);
 
 	useEffect(() => {
 		const prev = prevStatusRef.current;
@@ -87,7 +89,7 @@ export function AgentCreditBalance({
 			content={
 				isEmpty
 					? "Your investigation credit balance is empty. Open billing to add credits or change plans."
-					: `${balance.toLocaleString()} of ${limit.toLocaleString()} investigation credits remain this month. Deeper investigations, replies, and rechecks use more.`
+					: `${balance.toLocaleString()} of ${limit.toLocaleString()} investigation credits remaining. Deeper investigations, replies, and rechecks use more.`
 			}
 		>
 			<motion.div

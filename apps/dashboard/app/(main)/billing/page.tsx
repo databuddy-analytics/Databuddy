@@ -25,6 +25,7 @@ import { UsageRow } from "./components/usage-row";
 import { useBilling, useBillingData } from "./hooks/use-billing";
 import type { CustomerWithPaymentMethod } from "./types/billing";
 import type { OverageInfo } from "./utils/billing-utils";
+import type { PricingTier } from "./utils/feature-usage";
 import {
 	ArrowSquareOutIcon,
 	CalendarIcon,
@@ -69,19 +70,22 @@ function getDefaultDateRange() {
 function calculateOverageInfo(
 	balance: number,
 	includedUsage: number,
-	unlimited: boolean
+	unlimited: boolean,
+	pricingTiers: PricingTier[]
 ): OverageInfo {
 	if (unlimited || balance >= 0) {
 		return {
 			hasOverage: false,
 			overageEvents: 0,
 			includedEvents: includedUsage,
+			pricingTiers,
 		};
 	}
 	return {
 		hasOverage: true,
 		overageEvents: Math.abs(balance),
 		includedEvents: includedUsage,
+		pricingTiers,
 	};
 }
 
@@ -283,12 +287,19 @@ export default function BillingPage() {
 		if (!orgUsage) {
 			return null;
 		}
+		const eventsFeature = usage?.features.find(
+			(feature) => feature.id === "events"
+		);
+		if (!eventsFeature?.hasPricedOverage) {
+			return null;
+		}
 		return calculateOverageInfo(
 			orgUsage.balance ?? 0,
 			orgUsage.includedUsage ?? 0,
-			orgUsage.unlimited
+			orgUsage.unlimited,
+			eventsFeature.pricingTiers
 		);
-	}, [orgUsage]);
+	}, [orgUsage, usage?.features]);
 	const {
 		onCancelClick,
 		onCancelConfirm,

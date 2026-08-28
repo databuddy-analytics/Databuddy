@@ -1,4 +1,3 @@
-/** True when `text/markdown` beats `text/html` on the Accept header. */
 export function acceptMarkdownOverHtml(accept: string): boolean {
 	const q = new Map<string, number>();
 	for (const part of accept.split(",")) {

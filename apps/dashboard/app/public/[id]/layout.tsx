@@ -15,8 +15,6 @@ import { PlanetIcon } from "@databuddy/ui/icons";
 
 const poweredByLabelClass =
 	"shrink-0 text-balance font-medium text-muted-foreground text-sm";
-
-/** Header Powered by row: wraps cleanly on narrow viewports. */
 const brandAttributionLinkClass =
 	"flex min-w-0 flex-wrap items-center gap-3 rounded transition-opacity hover:opacity-90";
 

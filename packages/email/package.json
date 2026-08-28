@@ -5,8 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/emails/index.ts",
-    "./*": "./src/emails/*.tsx",
-    "./config": "./config.ts"
+    "./*": "./src/emails/*.tsx"
   },
   "scripts": {
     "dev": "email dev --dir src/emails --port 3001",

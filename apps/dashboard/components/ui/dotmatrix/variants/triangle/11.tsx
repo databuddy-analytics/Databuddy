@@ -10,7 +10,7 @@ import { useCyclePhase } from "../../hooks";
 import { usePrefersReducedMotion } from "../../hooks";
 import type { DotMatrixCommonProps } from "../../core";
 
-export type DotmTriangle11Props = DotMatrixCommonProps;
+type DotmTriangle11Props = DotMatrixCommonProps;
 
 const MATRIX_SIZE = 7;
 
@@ -53,11 +53,6 @@ function smoothstep01(edge0: number, edge1: number, x: number): number {
   const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
   return t * t * (3 - 2 * t);
 }
-
-/**
- * Bright bands move down the triangle by tier: phase keys on Manhattan distance from the apex,
- * not the heart cell — reads as stacked horizontal “shelves” lighting in sequence.
- */
 function opacityForCell(row: number, col: number, phase: number): number {
   const tier = manhattanFromApex(row, col);
   const maxTier = 6;

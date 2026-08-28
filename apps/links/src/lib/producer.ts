@@ -18,12 +18,6 @@ let nextReconnectAt = 0;
 let lastConnectErrorLogAt = 0;
 let lastFallbackErrorLogAt = 0;
 let shuttingDown = false;
-
-/**
- * Immutable wire payload for a short-link click. The generated ID stays with
- * the record through Kafka and consumer retries, letting downstream queries
- * collapse pipeline replays without relying on a relational outbox.
- */
 export interface LinkVisitEvent {
 	browser_name: string | null;
 	city: string | null;

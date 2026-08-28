@@ -112,6 +112,7 @@ export default function ArchivePage() {
 									key={flag.id}
 									onDelete={handleDeleteFlagRequest}
 									onEdit={handleEditFlag}
+									websiteId={websiteId}
 								/>
 							))}
 						</div>

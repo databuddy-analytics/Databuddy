@@ -33,11 +33,6 @@ dayjs.extend(timezonePlugin);
 const CONVERSION_WOW_THRESHOLD = 20;
 const MIN_ENTRANTS = 30;
 const MIN_COMPLETIONS = 10;
-/**
- * A zero-completion condition is stronger than an ordinary rate movement, but
- * it must still have enough traffic in both windows to distinguish a real
- * configured-conversion failure from a sparse goal or funnel.
- */
 const ZERO_COMPLETION_MIN_ENTRANTS = 50;
 const DEFINITION_QUERY_CONCURRENCY = 2;
 const DEFINITION_QUERY_TIMEOUT_MS = 45_000;
@@ -437,12 +432,6 @@ function preferredEquivalentFunnel(
 		left.id.localeCompare(right.id)
 	);
 }
-
-/**
- * This is intentionally a conservative subset of query equivalence. Keep one
- * only when the configured business meaning is compatible; competing
- * descriptions remain separate because their decisions may differ.
- */
 function canonicalFunnelDefinitions(
 	funnels: FunnelDef[],
 	previousFrom: string,
@@ -599,8 +588,6 @@ function handleDefinitionFailure(
 	});
 	return null;
 }
-
-/** Measures one stored goal or funnel subject without anomaly thresholds. */
 export async function remeasureFunnelGoalSignal(
 	params: DetectSignalsParams,
 	prior: InvestigationSignal,

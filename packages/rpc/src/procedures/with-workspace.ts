@@ -16,8 +16,6 @@ import { getMemberRole, getOrganizationOwnerId } from "../utils/organization";
 
 type Website = NonNullable<Awaited<ReturnType<typeof getWebsiteById>>>;
 
-export type WorkspaceTier = "authed" | "demo";
-
 export type Permissions<R extends ResourceType> = readonly [
 	PermissionFor<R>,
 	...PermissionFor<R>[],
@@ -87,7 +85,7 @@ export interface AuthedWorkspace {
 
 export type AuthedWorkspaceWithPlan = AuthedWorkspace & { plan: PlanId };
 
-export interface DemoWorkspace {
+interface DemoWorkspace {
 	organizationId: string;
 	role: null;
 	tier: "demo";
@@ -95,11 +93,9 @@ export interface DemoWorkspace {
 	website: Website;
 }
 
-export type DemoWorkspaceWithPlan = DemoWorkspace & { plan: PlanId };
+type DemoWorkspaceWithPlan = DemoWorkspace & { plan: PlanId };
 
 export type Workspace = AuthedWorkspace | DemoWorkspace;
-
-export type WorkspaceWithPlan = AuthedWorkspaceWithPlan | DemoWorkspaceWithPlan;
 
 export type PublicWorkspace =
 	| (AuthedWorkspace & { website: Website })

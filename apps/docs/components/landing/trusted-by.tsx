@@ -222,5 +222,3 @@ export function TrustedBy() {
 		</div>
 	);
 }
-
-export default TrustedBy;

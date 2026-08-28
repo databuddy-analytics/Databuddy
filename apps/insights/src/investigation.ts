@@ -1,22 +1,19 @@
 import { createHash } from "node:crypto";
 import {
 	investigationSignalSchema,
-	type InsightDatabuddySetupRecommendation,
 	type InsightMetric,
 	type InvestigationSignal,
 } from "@databuddy/shared/insights";
 import dayjs from "dayjs";
 import timezonePlugin from "dayjs/plugin/timezone";
 import utcPlugin from "dayjs/plugin/utc";
-import type { DetectedSignal, MeasurementCandidate } from "./detection";
+import type { DetectedSignal } from "./detection";
 
 dayjs.extend(utcPlugin);
 dayjs.extend(timezonePlugin);
 
 interface InvestigationInput {
 	evidence: string[];
-	measurementCandidate?: MeasurementCandidate;
-	setupRecommendationCandidate?: InsightDatabuddySetupRecommendation;
 	signal: InvestigationSignal;
 }
 
@@ -55,6 +52,17 @@ export function signalKeyForDetectedSignal(
 	return boundedKey(signal.subjectKey ?? signal.metric);
 }
 
+const UNCAUGHT_PREFIX = /^(?:uncaught\s+)+/i;
+
+export function normalizedErrorSubject(value: string): string {
+	const prefixed = value.startsWith("error:");
+	const message = (prefixed ? value.slice("error:".length) : value)
+		.replace(UNCAUGHT_PREFIX, "")
+		.replace(/\s+/g, " ")
+		.trim();
+	return prefixed ? boundedKey(`error:${message}`) : message;
+}
+
 function metricFormat(metric: string): InsightMetric["format"] {
 	if (
 		metric === "bounce_rate" ||
@@ -78,14 +86,7 @@ function isLowerBetter(metric: string): boolean {
 
 const SEVERITY_RANK = { critical: 2, warning: 1, info: 0 } as const;
 const ZERO_COMPLETION_SUBJECT_SUFFIX = ":zero-completions";
-
-/**
- * Conversion definitions are useful context, but an aggregate goal/funnel
- * rate is still a configured measurement rather than a product behavior. Keep
- * that distinction visible to ranking so definition maintenance cannot crowd
- * out route, session, and reliability regressions.
- */
-export function isConversionDefinitionSignal(signal: DetectedSignal): boolean {
+function isConversionDefinitionSignal(signal: DetectedSignal): boolean {
 	return (
 		signal.metric.startsWith("goal:") || signal.metric.startsWith("funnel:")
 	);
@@ -107,7 +108,7 @@ function isFunnelStepSignal(signal: DetectedSignal): boolean {
 	);
 }
 
-export function isDirectSignal(signal: DetectedSignal): boolean {
+function isDirectSignal(signal: DetectedSignal): boolean {
 	return (
 		signal.metric === "revenue" ||
 		signal.metric === "error_count" ||
@@ -133,9 +134,8 @@ export function isRegression(signal: DetectedSignal): boolean {
 		? signal.direction === "up"
 		: signal.direction === "down";
 }
+const SMALL_COUNT_FLOOR = 10;
 
-/** Fresh work merits an agent turn only for a regression, revenue movement, or
- * known measurement blind spot. Due rechecks are retained by observations. */
 export function isInvestigationCandidate(signal: DetectedSignal): boolean {
 	if (
 		signal.severity === "info" &&
@@ -144,11 +144,13 @@ export function isInvestigationCandidate(signal: DetectedSignal): boolean {
 		// Weak top-level traffic is useful context, not an agent turn by itself.
 		return false;
 	}
-	return (
-		isRegression(signal) ||
-		signal.metric === "measurement_coverage" ||
-		signal.metric === "revenue"
-	);
+	if (
+		signal.metric === "custom_event_count" &&
+		Math.max(signal.current, signal.baseline) < SMALL_COUNT_FLOOR
+	) {
+		return false;
+	}
+	return isRegression(signal) || signal.metric === "revenue";
 }
 
 function signalBucket(signal: DetectedSignal): number {
@@ -305,7 +307,7 @@ export function prepareInvestigation(
 			format: metricFormat(candidate.metric),
 		},
 		changePercent: candidate.deltaPercent,
-		severity: candidate.severity,
+		severity: sentiment === "positive" ? "info" : candidate.severity,
 		sentiment,
 		period: {
 			current: { from: window.currentFrom, to: window.currentTo },
@@ -338,12 +340,6 @@ export function prepareInvestigation(
 
 	return {
 		evidence,
-		...(candidate.measurementCandidate
-			? { measurementCandidate: candidate.measurementCandidate }
-			: {}),
-		...(candidate.setupRecommendationCandidate
-			? { setupRecommendationCandidate: candidate.setupRecommendationCandidate }
-			: {}),
 		signal: investigationSignalSchema.parse(signal),
 	};
 }

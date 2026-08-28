@@ -13,6 +13,7 @@ import {
 	type AuditEvent,
 	type AuditCursor,
 } from "@databuddy/services/audit";
+import { ratelimit } from "@databuddy/redis/rate-limit";
 import { z } from "zod";
 import { rpcError } from "../errors";
 import { appendRpcAuditEventBestEffort } from "../lib/audit";
@@ -52,6 +53,25 @@ const auditFiltersSchema = z.object({
 	targetType: z.string().min(1).optional(),
 	to: z.coerce.date().optional(),
 });
+
+type AuditFilters = z.infer<typeof auditFiltersSchema>;
+
+function getAuditEventFilters(
+	input: AuditFilters,
+	organizationId: string
+): Omit<AuditFilters, "organizationId"> & { organizationId: string } {
+	return {
+		action: input.action,
+		actorId: input.actorId,
+		from: input.from,
+		includeTechnical: input.includeTechnical,
+		organizationId,
+		outcome: input.outcome,
+		targetId: input.targetId,
+		targetType: input.targetType,
+		to: input.to,
+	};
+}
 
 const auditListInputSchema = auditFiltersSchema.extend({
 	cursor: z.string().min(1).optional(),
@@ -151,17 +171,9 @@ export const auditRouter = {
 			}
 
 			const rows = await listAuditEvents(context.db, {
-				action: input.action,
-				actorId: input.actorId,
+				...getAuditEventFilters(input, organizationId),
 				cursor,
-				from: input.from,
-				includeTechnical: input.includeTechnical,
 				limit: input.limit,
-				organizationId,
-				outcome: input.outcome,
-				targetId: input.targetId,
-				targetType: input.targetType,
-				to: input.to,
 			});
 			const events = rows.slice(0, input.limit);
 			const lastEvent = events.at(-1);
@@ -198,24 +210,34 @@ export const auditRouter = {
 				resource: "audit_log",
 			});
 
+			const rate = await ratelimit(`audit:export:${context.user.id}`, 5, 60);
+			if (!rate.success) {
+				throw rpcError.rateLimited(
+					Math.max(1, Math.ceil((rate.reset - Date.now()) / 1000))
+				);
+			}
+
 			const events: AuditEvent[] = [];
+			let snapshotCursor: AuditCursor | undefined;
 			let cursor: AuditCursor | undefined;
 			let truncated = false;
 
 			while (events.length < MAX_AUDIT_EXPORT_ROWS) {
 				const rows = await listAuditEvents(context.db, {
-					action: input.action,
-					actorId: input.actorId,
+					...getAuditEventFilters(input, organizationId),
+					before: snapshotCursor,
 					cursor,
-					from: input.from,
-					includeTechnical: input.includeTechnical,
 					limit: MAX_AUDIT_PAGE_SIZE,
-					organizationId,
-					outcome: input.outcome,
-					targetId: input.targetId,
-					targetType: input.targetType,
-					to: input.to,
 				});
+				if (!snapshotCursor) {
+					const firstEvent = rows[0];
+					if (firstEvent) {
+						snapshotCursor = {
+							createdAt: firstEvent.createdAt,
+							id: firstEvent.id,
+						};
+					}
+				}
 				const {
 					hasMore,
 					page,

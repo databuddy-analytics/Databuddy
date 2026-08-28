@@ -10,7 +10,7 @@ import { useCyclePhase } from "../../hooks";
 import { usePrefersReducedMotion } from "../../hooks";
 import type { DotMatrixCommonProps } from "../../core";
 
-export type DotmTriangle13Props = DotMatrixCommonProps;
+type DotmTriangle13Props = DotMatrixCommonProps;
 
 const MATRIX_SIZE = 7;
 const BASE_OPACITY = 0.13;
@@ -28,8 +28,6 @@ const TRIANGLE_CELLS = new Set([
   "4,4",
   "4,6"
 ]);
-
-/** Row serpent: base row left→right, row 3 right→left, mid rows alternate — reads as a zigzag zip. */
 const SERPENT_PATH: ReadonlyArray<readonly [number, number]> = [
   [4, 0],
   [4, 2],
@@ -44,7 +42,6 @@ const SERPENT_PATH: ReadonlyArray<readonly [number, number]> = [
 ];
 
 const PATH_LEN = SERPENT_PATH.length;
-/** Soft tail length in path units (Braille-style ramp, not discrete steps). */
 const TRAIL_SPAN = 4.25;
 
 function isWithinTriangleMask(row: number, col: number): boolean {

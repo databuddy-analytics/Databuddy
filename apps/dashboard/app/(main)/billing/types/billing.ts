@@ -1,11 +1,11 @@
-export interface PaymentMethodCard {
+interface PaymentMethodCard {
 	brand?: string;
 	expMonth?: number;
 	expYear?: number;
 	last4?: string;
 }
 
-export interface PaymentMethodBillingDetails {
+interface PaymentMethodBillingDetails {
 	address?: {
 		city?: string;
 		country?: string;
@@ -18,7 +18,7 @@ export interface PaymentMethodBillingDetails {
 	name?: string;
 }
 
-export interface PaymentMethod {
+interface PaymentMethod {
 	billingDetails?: PaymentMethodBillingDetails;
 	card?: PaymentMethodCard;
 	id?: string;

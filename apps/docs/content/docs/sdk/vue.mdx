@@ -58,7 +58,7 @@ The `Databuddy` component injects the tracking script and configures analytics.
 
 | Prop | Default | Description |
 |------|---------|-------------|
-| `track-web-vitals` | `false` | Core Web Vitals (LCP, INP, CLS, TTFB) |
+| `track-web-vitals` | `false` | FCP, LCP, INP, CLS, TTFB, and FPS |
 | `track-errors` | `false` | JavaScript errors and unhandled rejections |
 | `track-outgoing-links` | `false` | Clicks on external links |
 | `track-interactions` | `false` | Button clicks and form submissions |
@@ -140,18 +140,30 @@ function handleClick() {
 
 ## Feature Flags
 
-Vue has built-in feature flag support:
+Install the flags plugin in your app entry, then use the `useFlag` composable:
+
+<CodeBlock language="ts" filename="main.ts">
+  {`import { createApp } from "vue";
+import { createFlagsPlugin } from "@databuddy/sdk/vue";
+import App from "./App.vue";
+
+createApp(App)
+  .use(createFlagsPlugin({
+    clientId: import.meta.env.VITE_DATABUDDY_CLIENT_ID
+  }))
+  .mount("#app");`}
+</CodeBlock>
 
 <CodeBlock language="html">
   {`<script setup>
 import { useFlag } from "@databuddy/sdk/vue";
 
-const darkMode = useFlag("dark-mode");
+const { on: darkMode, loading } = useFlag("dark-mode");
 </script>
 
 <template>
-  <div :class="{ dark: darkMode.on }">
-    <template v-if="darkMode.loading">
+  <div :class="{ dark: darkMode }">
+    <template v-if="loading">
       <Skeleton />
     </template>
     <template v-else>
@@ -160,6 +172,8 @@ const darkMode = useFlag("dark-mode");
   </div>
 </template>`}
 </CodeBlock>
+
+`useFlag` returns `{ on, loading, state }` as refs. Destructured refs unwrap automatically in templates; in script code, read `darkMode.value` and `loading.value`.
 
 See [Feature Flags](/docs/sdk/feature-flags) for complete Vue flag documentation.
 

@@ -3,7 +3,7 @@ export type ManifestoBlock =
 	| { type: "callout"; text: string }
 	| { type: "prompts"; items: readonly string[] };
 
-export type ManifestoChapterId =
+type ManifestoChapterId =
 	| "analytics-is-broken"
 	| "context-is-everything"
 	| "privacy-is-the-default"
@@ -95,7 +95,7 @@ export const manifestoSections: readonly ManifestoChapter[] = [
 			},
 			{
 				type: "paragraph",
-				text: "Databuddy\u2019s tracking script is 30KB. No cookies. No fingerprints. No personal identifiers. No consent banners scaring away 30\u201340% of your visitors before they even see your product. You install it, and it works. Your users never know it\u2019s there, because it never asks them for anything.",
+				text: "Databuddy\u2019s tracking script is about 12 KB gzipped. No cookies. No fingerprints. No personal identifiers. No consent banners scaring away 30\u201340% of your visitors before they even see your product. You install it, and it works. Your users never know it\u2019s there, because it never asks them for anything.",
 			},
 			{
 				type: "paragraph",

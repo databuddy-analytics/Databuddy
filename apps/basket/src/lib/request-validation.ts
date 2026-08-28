@@ -34,6 +34,12 @@ interface WebsiteSecuritySettings {
 	allowedOrigins?: string[];
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+	return value && typeof value === "object" && !Array.isArray(value)
+		? (value as Record<string, unknown>)
+		: {};
+}
+
 export function getWebsiteSecuritySettings(
 	settings: unknown
 ): WebsiteSecuritySettings | null {
@@ -75,10 +81,7 @@ export function validateRequest(
 			throw basketErrors.ingestPayloadTooLarge();
 		}
 
-		const queryRecord =
-			query && typeof query === "object" && !Array.isArray(query)
-				? (query as Record<string, unknown>)
-				: {};
+		const queryRecord = asRecord(query);
 
 		let clientId = sanitizeString(
 			queryRecord.client_id,
@@ -252,14 +255,8 @@ export function checkForBot(
 ): Promise<{ error?: Response } | undefined> {
 	return record("checkForBot", () => {
 		const log = useLogger();
-		const bodyRecord =
-			body && typeof body === "object" && !Array.isArray(body)
-				? (body as Record<string, unknown>)
-				: {};
-		const queryRecord =
-			query && typeof query === "object" && !Array.isArray(query)
-				? (query as Record<string, unknown>)
-				: {};
+		const bodyRecord = asRecord(body);
+		const queryRecord = asRecord(query);
 
 		const botCheck = detectBot(userAgent, request);
 

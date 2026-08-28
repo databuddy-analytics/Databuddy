@@ -62,6 +62,12 @@ export const PUBLIC_QUERY_TYPES = new Set<string>([
 	"region",
 	"city",
 
+	// Public audience tab
+	"timezone",
+	"language",
+	"browser_versions",
+	"screen_resolution",
+
 	// Public product analytics tabs
 	"custom_events",
 	"custom_event_properties",

@@ -1,7 +1,7 @@
 import "@databuddy/test/env";
 
 import { flags, targetGroups } from "@databuddy/db/schema";
-import { appRouter, type Context } from "@databuddy/rpc";
+import { appRouter } from "@databuddy/rpc";
 import {
 	addToOrganization,
 	apiKeyContext,
@@ -16,15 +16,11 @@ import {
 	signUp,
 	userContext,
 } from "@databuddy/test";
-import { createProcedureClient } from "@orpc/server";
 import { randomUUIDv7 } from "bun";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { call } from "./helpers";
 
 const iit = hasTestDb ? it : it.skip;
-
-function call<T>(procedure: T, ctx: Context) {
-	return createProcedureClient(procedure as any, { context: ctx });
-}
 
 async function setupOwnedSite(siteOverrides?: { isPublic?: boolean }) {
 	const user = await signUp();

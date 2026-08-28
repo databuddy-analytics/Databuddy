@@ -1,10 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
 import { useHydrated } from "./use-hydrated";
-
-/**
- * Custom hook for persisting state to localStorage with SSR compatibility.
- * Prevents hydration mismatches by using default values during SSR.
- */
 export function usePersistentState<T>(
 	key: string,
 	defaultValue: T
@@ -67,11 +62,6 @@ export function usePersistentState<T>(
 
 	return [state, setPersistentState];
 }
-
-/**
- * Specialized hook for accordion states in the sidebar navigation.
- * Manages multiple accordion sections with their expanded/collapsed states.
- */
 export function useAccordionStates(storageKey = "sidebar-accordion-states") {
 	const [accordionStates, setAccordionStates] = usePersistentState<
 		Record<string, boolean>

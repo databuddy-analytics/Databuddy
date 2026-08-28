@@ -8,12 +8,12 @@ export interface DateRange {
 	timezone?: string;
 }
 
-export interface BaseTabProps {
+interface BaseTabProps {
 	dateRange: DateRange;
 	websiteId: string;
 }
 
-export type WebsiteData = ReturnType<typeof useWebsite>["data"];
+type WebsiteData = ReturnType<typeof useWebsite>["data"];
 
 export type FullTabProps = BaseTabProps & {
 	websiteData: WebsiteData;

@@ -273,5 +273,3 @@ export function LinksSearchBarSkeleton() {
 		</div>
 	);
 }
-
-export { LinkRow as LinkItem };

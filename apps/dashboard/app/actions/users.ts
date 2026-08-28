@@ -2,7 +2,7 @@
 
 import { auth } from "@databuddy/auth";
 import { and, db, eq } from "@databuddy/db";
-import { account, user } from "@databuddy/db/schema";
+import { account } from "@databuddy/db/schema";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { cache } from "react";
@@ -18,62 +18,10 @@ const getUser = cache(async () => {
 	return session.user;
 });
 
-const profileUpdateSchema = z.object({
-	firstName: z
-		.string()
-		.min(1, "First name is required")
-		.max(50, "First name cannot exceed 50 characters"),
-	lastName: z
-		.string()
-		.min(1, "Last name is required")
-		.max(50, "Last name cannot exceed 50 characters"),
-	image: z.url("Please enter a valid image URL").optional(),
-});
-
 const passwordSchema = z
 	.string()
 	.min(8, "Password must be at least 8 characters")
 	.max(128, "Password cannot exceed 128 characters");
-
-export async function updateUserProfile(formData: FormData) {
-	const currentUser = await getUser();
-	if (!currentUser) {
-		return { error: "Unauthorized" };
-	}
-
-	try {
-		const firstName = formData.get("firstName");
-		const lastName = formData.get("lastName");
-		const image = formData.get("image");
-
-		const validatedData = profileUpdateSchema.parse({
-			firstName,
-			lastName,
-			image: image || undefined,
-		});
-
-		const _updated = await db
-			.update(user)
-			.set({
-				firstName: validatedData.firstName,
-				lastName: validatedData.lastName,
-				image: validatedData.image,
-				name: `${validatedData.firstName} ${validatedData.lastName}`,
-			})
-			.where(eq(user.id, currentUser.id))
-			.returning();
-
-		revalidatePath("/settings");
-		return { success: true };
-	} catch (error) {
-		console.error("Profile update error:", error);
-
-		if (error instanceof z.ZodError) {
-			return { error: error.message };
-		}
-		return { error: "Failed to update profile" };
-	}
-}
 
 export async function setPasswordForOAuthUser(newPassword: string) {
 	const currentUser = await getUser();

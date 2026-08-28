@@ -12,8 +12,6 @@ import { trackEventSchema } from "./track-event-schema";
 
 const now = Date.now();
 
-// ── trackEventSchema ──
-
 schemaTable(
 	"trackEventSchema",
 	trackEventSchema,
@@ -59,8 +57,6 @@ schemaTable(
 		["null", null],
 	]
 );
-
-// ── analyticsEventSchema ──
 
 const validAnalyticsEvent = {
 	eventId: "evt_123",
@@ -137,8 +133,6 @@ schemaTable(
 	]
 );
 
-// ── outgoingLinkSchema ──
-
 const validOutgoingLink = {
 	eventId: "evt_link_1",
 	href: "https://external.com/page",
@@ -168,8 +162,6 @@ schemaTable(
 		["href too long", { eventId: "x", href: "a".repeat(2049) }],
 	]
 );
-
-// ── batchedVitalsSchema ──
 
 const validVital = {
 	timestamp: now,
@@ -216,8 +208,6 @@ schemaTable(
 	]
 );
 
-// ── batchedErrorsSchema ──
-
 const validError = {
 	timestamp: now,
 	path: "https://example.com/page",
@@ -254,8 +244,6 @@ schemaTable(
 		["not an array", validError],
 	]
 );
-
-// ── batchedCustomEventSpansSchema ──
 
 const validCustomEvent = {
 	timestamp: now,

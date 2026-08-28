@@ -14,7 +14,7 @@ import {
 } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { FeatureGate } from "@/components/feature-gate";
+import { FeatureGate, usePlanLimitMessage } from "@/components/feature-gate";
 import { List } from "@/components/ui/composables/list";
 import { useAutocompleteData } from "@/hooks/use-autocomplete";
 import { useDateFilters } from "@/hooks/use-date-filters";
@@ -91,6 +91,19 @@ export default function GoalsPage() {
 		isCreating,
 		isUpdating,
 	} = useGoals(websiteId);
+
+	const planLimitMessage = usePlanLimitMessage(
+		GATED_FEATURES.GOALS,
+		goals.length
+	);
+
+	const openCreate = () => {
+		if (planLimitMessage) {
+			toast.info(planLimitMessage);
+			return;
+		}
+		setEditingGoal(null);
+	};
 
 	useEffect(() => {
 		const command = searchParams.get("command");
@@ -198,24 +211,14 @@ export default function GoalsPage() {
 				} as CreateGoalData);
 			}
 			setEditingGoal(undefined);
-		} catch (error) {
-			console.error("Failed to save goal:", error);
-			toast.error(
-				error instanceof Error ? error.message : "Could not save goal"
-			);
-		}
+		} catch {}
 	};
 
 	const handleDeleteGoal = async (goalId: string) => {
 		try {
 			await deleteGoal(goalId);
 			setDeletingGoalId(null);
-		} catch (error) {
-			console.error("Failed to delete goal:", error);
-			toast.error(
-				error instanceof Error ? error.message : "Could not delete goal"
-			);
-		}
+		} catch {}
 	};
 
 	const deletingGoal = goals.find((goal) => goal.id === deletingGoalId) ?? null;
@@ -239,7 +242,7 @@ export default function GoalsPage() {
 						/>
 					</Button>
 					{!isDemoRoute && (
-						<Button onClick={() => setEditingGoal(null)} size="sm">
+						<Button onClick={openCreate} size="sm">
 							<PlusIcon className="size-4 shrink-0" />
 							Create Goal
 						</Button>
@@ -253,7 +256,7 @@ export default function GoalsPage() {
 								? undefined
 								: {
 										label: "Create a goal",
-										onClick: () => setEditingGoal(null),
+										onClick: openCreate,
 									},
 							description:
 								"Track single-step conversions like signups, purchases, or activation events.",

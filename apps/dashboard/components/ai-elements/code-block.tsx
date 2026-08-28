@@ -49,7 +49,7 @@ const lineNumberTransformer: ShikiTransformer = {
 	},
 };
 
-export async function highlightCode(
+async function highlightCode(
 	code: string,
 	language: BundledLanguage,
 	showLineNumbers = false

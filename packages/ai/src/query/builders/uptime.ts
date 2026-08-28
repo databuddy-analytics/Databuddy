@@ -8,7 +8,7 @@ import type { SimpleQueryConfig } from "../types";
  * - site_id: Website identifier
  * - url: Monitored URL
  * - timestamp: Check timestamp
- * - status: 1 = up, 0 = down, 2 = pending (retry logic - excluded from uptime)
+ * - status: 1 = up, 0 = down
  * - http_code: HTTP response code
  * - ttfb_ms: Time to first byte (ms)
  * - total_ms: Total response time (ms)
@@ -20,43 +20,6 @@ import type { SimpleQueryConfig } from "../types";
 const UPTIME_TABLE = "uptime.uptime_monitor";
 
 export const UptimeBuilders: Record<string, SimpleQueryConfig> = {
-	uptime_overview: {
-		meta: {
-			description:
-				"Uptime monitoring overview with availability percentage and response times.",
-			category: "Uptime",
-			tags: ["uptime", "overview", "monitoring"],
-		},
-		customSql: (ctx) => {
-			const { websiteId, startDate, endDate } = ctx;
-			return {
-				sql: `
-				SELECT
-					toUInt64(countIf(status = 1) + countIf(status = 0)) as total_checks,
-					if((countIf(status = 1) + countIf(status = 0)) = 0, 0, round((countIf(status = 1) / (countIf(status = 1) + countIf(status = 0))) * 100, 2)) as uptime_percentage,
-					avg(total_ms) as avg_response_time,
-					quantileTDigest(0.50)(total_ms) as p50_response_time,
-					quantileTDigest(0.75)(total_ms) as p75_response_time,
-					quantileTDigest(0.95)(total_ms) as p95_response_time,
-					quantileTDigest(0.99)(total_ms) as p99_response_time,
-					max(total_ms) as max_response_time,
-					min(total_ms) as min_response_time,
-					avg(ttfb_ms) as avg_ttfb,
-					any(ssl_expiry) as ssl_expiry,
-					min(ssl_valid) as ssl_valid
-				FROM ${UPTIME_TABLE}
-				WHERE 
-					site_id = {websiteId:String}
-					AND timestamp >= toDateTime({startDate:String})
-					AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-			`,
-				params: { websiteId, startDate, endDate },
-			};
-		},
-		timeField: "timestamp",
-		customizable: false,
-	},
-
 	uptime_time_series: {
 		meta: {
 			description: "Uptime check results plotted over time.",
@@ -140,36 +103,6 @@ export const UptimeBuilders: Record<string, SimpleQueryConfig> = {
 		},
 		timeField: "timestamp",
 		customizable: true,
-	},
-
-	uptime_status_breakdown: {
-		meta: {
-			description: "Distribution of uptime check results by status code.",
-			category: "Uptime",
-			tags: ["uptime", "status", "distribution"],
-		},
-		customSql: (ctx) => {
-			const { websiteId, startDate, endDate } = ctx;
-			return {
-				sql: `
-				SELECT
-					status,
-					http_code,
-					COUNT(*) as count,
-					round((COUNT(*) / sum(COUNT(*)) OVER ()) * 100, 2) as percentage
-				FROM ${UPTIME_TABLE}
-				WHERE 
-					site_id = {websiteId:String}
-					AND timestamp >= toDateTime({startDate:String})
-					AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-				GROUP BY status, http_code
-				ORDER BY count DESC
-			`,
-				params: { websiteId, startDate, endDate },
-			};
-		},
-		timeField: "timestamp",
-		customizable: false,
 	},
 
 	uptime_recent_checks: {
@@ -256,70 +189,5 @@ export const UptimeBuilders: Record<string, SimpleQueryConfig> = {
 		},
 		timeField: "timestamp",
 		customizable: true,
-	},
-
-	uptime_ssl_status: {
-		meta: {
-			description: "SSL certificate status and expiry information.",
-			category: "Uptime",
-			tags: ["uptime", "ssl", "certificate"],
-		},
-		customSql: (ctx) => {
-			const { websiteId, startDate, endDate } = ctx;
-			return {
-				sql: `
-				SELECT
-					latest_ssl_expiry as ssl_expiry,
-					latest_ssl_valid as ssl_valid,
-					invalid_ssl_checks
-				FROM (
-					SELECT
-						argMax(ssl_expiry, timestamp) as latest_ssl_expiry,
-						argMax(ssl_valid, timestamp) as latest_ssl_valid,
-						countIf(ssl_valid = 0) as invalid_ssl_checks
-					FROM ${UPTIME_TABLE}
-					WHERE 
-						site_id = {websiteId:String}
-						AND timestamp >= toDateTime({startDate:String})
-						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-					GROUP BY site_id
-				)
-			`,
-				params: { websiteId, startDate, endDate },
-			};
-		},
-		timeField: "timestamp",
-		customizable: false,
-	},
-
-	uptime_by_region: {
-		meta: {
-			description:
-				"Uptime and response times broken down by monitoring region.",
-			category: "Uptime",
-			tags: ["uptime", "regions", "geography"],
-		},
-		customSql: (ctx) => {
-			const { websiteId, startDate, endDate } = ctx;
-			return {
-				sql: `
-				SELECT
-					probe_region as region,
-					if((countIf(status = 1) + countIf(status = 0)) = 0, 0, round((countIf(status = 1) / (countIf(status = 1) + countIf(status = 0))) * 100, 2)) as uptime_percentage,
-					avg(total_ms) as avg_response_time,
-					quantileTDigest(0.95)(total_ms) as p95_response_time
-				FROM ${UPTIME_TABLE}
-				WHERE 
-					site_id = {websiteId:String}
-					AND timestamp >= toDateTime({startDate:String})
-					AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-				GROUP BY probe_region
-				ORDER BY uptime_percentage DESC
-			`,
-				params: { websiteId, startDate, endDate },
-			};
-		},
-		timeField: "timestamp",
-		customizable: false,
 	},
 };

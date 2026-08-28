@@ -126,6 +126,7 @@ vi.mock("@databuddy/redis", () => ({
 		failed: 0,
 	})),
 	invalidateSlackChannelBindingCache: vi.fn(async () => undefined),
+	invalidateGithubIntegrationCache: vi.fn(async () => undefined),
 	invalidateSlackIntegrationCache: vi.fn(async () => undefined),
 	invalidateStatusPageCache: vi.fn(async () => 0),
 	invalidateUserPreferencesCache: vi.fn(async () => undefined),

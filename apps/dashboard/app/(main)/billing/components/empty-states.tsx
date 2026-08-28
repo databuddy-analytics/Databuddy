@@ -1,29 +1,7 @@
 "use client";
 
-import {
-	ArrowClockwiseIcon,
-	TrendUpIcon,
-	WarningCircleIcon,
-} from "@databuddy/ui/icons";
+import { ArrowClockwiseIcon, WarningCircleIcon } from "@databuddy/ui/icons";
 import { Button } from "@databuddy/ui";
-
-export function EmptyUsageState() {
-	return (
-		<div className="flex flex-col items-center justify-center py-16 text-center">
-			<div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-secondary">
-				<TrendUpIcon
-					className="text-secondary-foreground"
-					size={24}
-					weight="duotone"
-				/>
-			</div>
-			<p className="font-semibold">No usage data yet</p>
-			<p className="mt-1 max-w-xs text-muted-foreground text-sm">
-				Start using features to see your consumption stats here
-			</p>
-		</div>
-	);
-}
 
 interface ErrorStateProps {
 	error: Error | unknown;

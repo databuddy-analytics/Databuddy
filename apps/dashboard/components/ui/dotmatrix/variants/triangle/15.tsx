@@ -10,7 +10,7 @@ import { useCyclePhase } from "../../hooks";
 import { usePrefersReducedMotion } from "../../hooks";
 import type { DotMatrixCommonProps } from "../../core";
 
-export type DotmTriangle15Props = DotMatrixCommonProps;
+type DotmTriangle15Props = DotMatrixCommonProps;
 
 const MATRIX_SIZE = 7;
 
@@ -30,8 +30,6 @@ const TRIANGLE_CELLS = new Set([
   "4,4",
   "4,6"
 ]);
-
-/** Apex and the two base corners — the three natural vertices of the silhouette. */
 const HUBS: ReadonlyArray<readonly [number, number]> = [
   [1, 3],
   [4, 0],
@@ -62,11 +60,6 @@ function falloffFromHub(row: number, col: number, hub: readonly [number, number]
   const d = manhattan(row, col, hub[0], hub[1]);
   return 1 - smoothstep01(0, 5.4, d);
 }
-
-/**
- * Energy orbits the three triangle vertices (apex → left base → right base) on a continuous phase,
- * with soft Manhattan falloff — no lattice mod groups.
- */
 function opacityForCell(row: number, col: number, phase: number): number {
   const t = phase * Math.PI * 2;
   const sharp = 4;

@@ -21,15 +21,3 @@ export function GithubNavMark({ className }: GithubNavMarkProps) {
 		</svg>
 	);
 }
-
-export interface GithubStarsBadgeProps {
-	stars: number;
-}
-
-export function GithubStarsBadge({ stars }: GithubStarsBadgeProps) {
-	return (
-		<span className="font-medium text-white text-xs" title="GitHub stars">
-			{stars.toLocaleString()} ★
-		</span>
-	);
-}

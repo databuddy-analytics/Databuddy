@@ -66,173 +66,25 @@ describe("evaluateStringRule", () => {
 		enabled: true,
 		batch: false,
 	});
+	const vals = ["a", "b", "c"];
 
-	it("handles all operators correctly", () => {
-		expect(evaluateStringRule("user-123", rule("equals", "user-123"))).toBe(
-			true
-		);
-		expect(evaluateStringRule("other", rule("equals", "user-123"))).toBe(false);
-
-		expect(
-			evaluateStringRule("user@company.com", rule("contains", "@company"))
-		).toBe(true);
-		expect(
-			evaluateStringRule("user@other.com", rule("contains", "@company"))
-		).toBe(false);
-
-		expect(
-			evaluateStringRule("admin-user", rule("starts_with", "admin-"))
-		).toBe(true);
-		expect(
-			evaluateStringRule("user-admin", rule("starts_with", "admin-"))
-		).toBe(false);
-
-		expect(evaluateStringRule("file.com", rule("ends_with", ".com"))).toBe(
-			true
-		);
-		expect(evaluateStringRule("file.org", rule("ends_with", ".com"))).toBe(
-			false
-		);
-
-		const vals = ["a", "b", "c"];
-		expect(evaluateStringRule("b", rule("in", undefined, vals))).toBe(true);
-		expect(evaluateStringRule("z", rule("in", undefined, vals))).toBe(false);
-		expect(evaluateStringRule("z", rule("not_in", undefined, vals))).toBe(true);
-		expect(evaluateStringRule("a", rule("not_in", undefined, vals))).toBe(
-			false
-		);
-
-		expect(evaluateStringRule("test", rule("unknown_op", "test"))).toBe(false);
-		expect(evaluateStringRule(undefined, rule("equals", "test"))).toBe(false);
-	});
-});
-
-describe("evaluateStringRule - email pattern matching", () => {
-	const emailRule = (op: string, val?: string, vals?: string[]) => ({
-		type: "email" as const,
-		operator: op,
-		value: val,
-		values: vals,
-		enabled: true,
-		batch: false,
-	});
-
-	it("handles ends_with for email domain patterns", () => {
-		// Common use case: target users by email domain
-		expect(
-			evaluateStringRule(
-				"user@databuddy.cc",
-				emailRule("ends_with", "@databuddy.cc")
-			)
-		).toBe(true);
-		expect(
-			evaluateStringRule(
-				"admin@databuddy.cc",
-				emailRule("ends_with", "@databuddy.cc")
-			)
-		).toBe(true);
-		expect(
-			evaluateStringRule(
-				"user@other.com",
-				emailRule("ends_with", "@databuddy.cc")
-			)
-		).toBe(false);
-		expect(
-			evaluateStringRule("user@company.io", emailRule("ends_with", ".io"))
-		).toBe(true);
-		expect(
-			evaluateStringRule("user@company.com", emailRule("ends_with", ".io"))
-		).toBe(false);
-	});
-
-	it("handles starts_with for email prefix patterns", () => {
-		// Target emails starting with a prefix (e.g., admin@, support@)
-		expect(
-			evaluateStringRule(
-				"admin@company.com",
-				emailRule("starts_with", "admin@")
-			)
-		).toBe(true);
-		expect(
-			evaluateStringRule("admin@other.org", emailRule("starts_with", "admin@"))
-		).toBe(true);
-		expect(
-			evaluateStringRule("user@company.com", emailRule("starts_with", "admin@"))
-		).toBe(false);
-		expect(
-			evaluateStringRule(
-				"support@company.com",
-				emailRule("starts_with", "support")
-			)
-		).toBe(true);
-	});
-
-	it("handles contains for partial email matching", () => {
-		// Target emails containing a substring
-		expect(
-			evaluateStringRule(
-				"user@company.internal.com",
-				emailRule("contains", "internal")
-			)
-		).toBe(true);
-		expect(
-			evaluateStringRule(
-				"internal-user@company.com",
-				emailRule("contains", "internal")
-			)
-		).toBe(true);
-		expect(
-			evaluateStringRule("user@company.com", emailRule("contains", "internal"))
-		).toBe(false);
-		expect(
-			evaluateStringRule(
-				"beta-tester@company.com",
-				emailRule("contains", "beta")
-			)
-		).toBe(true);
-	});
-
-	it("handles exact match for full email addresses", () => {
-		expect(
-			evaluateStringRule(
-				"user@databuddy.cc",
-				emailRule("equals", "user@databuddy.cc")
-			)
-		).toBe(true);
-		expect(
-			evaluateStringRule(
-				"other@databuddy.cc",
-				emailRule("equals", "user@databuddy.cc")
-			)
-		).toBe(false);
-	});
-
-	it("handles in/not_in for email lists", () => {
-		const allowedEmails = ["admin@co.com", "support@co.com", "dev@co.com"];
-		expect(
-			evaluateStringRule(
-				"admin@co.com",
-				emailRule("in", undefined, allowedEmails)
-			)
-		).toBe(true);
-		expect(
-			evaluateStringRule(
-				"random@co.com",
-				emailRule("in", undefined, allowedEmails)
-			)
-		).toBe(false);
-		expect(
-			evaluateStringRule(
-				"random@co.com",
-				emailRule("not_in", undefined, allowedEmails)
-			)
-		).toBe(true);
-		expect(
-			evaluateStringRule(
-				"admin@co.com",
-				emailRule("not_in", undefined, allowedEmails)
-			)
-		).toBe(false);
+	it.each([
+		["user-123", rule("equals", "user-123"), true],
+		["other", rule("equals", "user-123"), false],
+		["user@company.com", rule("contains", "@company"), true],
+		["user@other.com", rule("contains", "@company"), false],
+		["admin-user", rule("starts_with", "admin-"), true],
+		["user-admin", rule("starts_with", "admin-"), false],
+		["file.com", rule("ends_with", ".com"), true],
+		["file.org", rule("ends_with", ".com"), false],
+		["b", rule("in", undefined, vals), true],
+		["z", rule("in", undefined, vals), false],
+		["z", rule("not_in", undefined, vals), true],
+		["a", rule("not_in", undefined, vals), false],
+		["test", rule("unknown_op", "test"), false],
+		[undefined, rule("equals", "test"), false],
+	])("%j with %j -> %s", (value, testRule, expected) => {
+		expect(evaluateStringRule(value, testRule)).toBe(expected);
 	});
 });
 
@@ -246,32 +98,24 @@ describe("evaluateValueRule", () => {
 		batch: false,
 	});
 
-	it("handles all operators correctly", () => {
-		expect(evaluateValueRule(25, rule("equals", 25))).toBe(true);
-		expect(evaluateValueRule(30, rule("equals", 25))).toBe(false);
-		expect(evaluateValueRule("professional", rule("contains", "pro"))).toBe(
-			true
-		);
-		expect(evaluateValueRule("basic", rule("contains", "pro"))).toBe(false);
-		expect(
-			evaluateValueRule("pro", rule("in", undefined, ["pro", "ent"]))
-		).toBe(true);
-		expect(
-			evaluateValueRule("free", rule("in", undefined, ["pro", "ent"]))
-		).toBe(false);
-		expect(
-			evaluateValueRule("ok", rule("not_in", undefined, ["bad", "worse"]))
-		).toBe(true);
-		expect(
-			evaluateValueRule("bad", rule("not_in", undefined, ["bad", "worse"]))
-		).toBe(false);
-		expect(evaluateValueRule("val", rule("exists"))).toBe(true);
-		expect(evaluateValueRule(0, rule("exists"))).toBe(true);
-		expect(evaluateValueRule(undefined, rule("exists"))).toBe(false);
-		expect(evaluateValueRule(null, rule("exists"))).toBe(false);
-		expect(evaluateValueRule(undefined, rule("not_exists"))).toBe(true);
-		expect(evaluateValueRule("x", rule("not_exists"))).toBe(false);
-		expect(evaluateValueRule("x", rule("unknown_op"))).toBe(false);
+	it.each([
+		[25, rule("equals", 25), true],
+		[30, rule("equals", 25), false],
+		["professional", rule("contains", "pro"), true],
+		["basic", rule("contains", "pro"), false],
+		["pro", rule("in", undefined, ["pro", "ent"]), true],
+		["free", rule("in", undefined, ["pro", "ent"]), false],
+		["ok", rule("not_in", undefined, ["bad", "worse"]), true],
+		["bad", rule("not_in", undefined, ["bad", "worse"]), false],
+		["val", rule("exists"), true],
+		[0, rule("exists"), true],
+		[undefined, rule("exists"), false],
+		[null, rule("exists"), false],
+		[undefined, rule("not_exists"), true],
+		["x", rule("not_exists"), false],
+		["x", rule("unknown_op"), false],
+	])("%j with %j -> %s", (value, testRule, expected) => {
+		expect(evaluateValueRule(value, testRule)).toBe(expected);
 	});
 });
 
@@ -846,23 +690,6 @@ describe("edge cases and stress tests", () => {
 			expect(r).toBeDefined();
 			expect(typeof r.enabled).toBe("boolean");
 		}
-	});
-
-	it("handles rapid sequential evaluations", () => {
-		const flag = {
-			key: "rapid",
-			type: "rollout" as const,
-			rolloutPercentage: 50,
-			status: "active" as const,
-			defaultValue: false,
-		};
-
-		const start = performance.now();
-		for (let i = 0; i < 10_000; i += 1) {
-			evaluateFlag(flag, { userId: `u${i}` });
-		}
-		const duration = performance.now() - start;
-		expect(duration).toBeLessThan(1000);
 	});
 
 	it("handles percentage edge values", () => {

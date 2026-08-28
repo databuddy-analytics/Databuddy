@@ -1,11 +1,3 @@
-export type IsAny<T> = 0 extends 1 & NoInfer<T> ? true : false;
-export type IsOptional<T> =
-	IsAny<T> extends true
-		? true
-		: Extract<T, undefined> extends never
-			? false
-			: true;
-
 declare global {
 	interface Window {
 		__NEXT_DATA__?: { env?: Record<string, string> };

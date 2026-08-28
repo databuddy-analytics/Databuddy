@@ -27,7 +27,7 @@ function capitalize(s: string) {
 	return s[0]!.toUpperCase() + s.slice(1);
 }
 
-export const DOT_MATRIX_LOADER_NAMES = SHAPES.flatMap((shape) =>
+const DOT_MATRIX_LOADER_NAMES = SHAPES.flatMap((shape) =>
 	Array.from({ length: VARIANT_COUNT }, (_, i) => buildLoaderName(shape, i + 1))
 );
 

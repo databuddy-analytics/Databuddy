@@ -301,27 +301,30 @@ export function InsightCardsDemo() {
 const PROACTIVE_ALERTS = [
 	{
 		icon: TriangleWarningIcon,
-		title: "Anomaly detected: /api/auth error spike",
-		description: "Error rate jumped from 0.2% to 4.1% in the last 30 minutes",
-		time: "2m ago",
+		title: "Action: /api/auth errors spike after deploy",
+		description:
+			"Exceptions rose 4.2x versus baseline. Next: roll back the session refactor, then verify recovery",
+		time: "Today",
 		tone: "danger" as const,
 		channel: "Slack #alerts",
 	},
 	{
 		icon: LightbulbIcon,
-		title: "Weekly investigation: your best-performing page",
-		description: "/blog/launch-post drove 42% of new signups this week",
-		time: "6h ago",
+		title: "Question: did the pricing experiment ship?",
+		description:
+			"Signup conversion moved with no matching deploy or annotation. One answer unblocks the case",
+		time: "Today",
 		tone: "info" as const,
 		channel: "Slack #insights",
 	},
 	{
 		icon: TrendUpIcon,
-		title: "Goal reached: 1,000 daily active users",
-		description: "You hit your DAU target for the first time today",
-		time: "1d ago",
+		title: "Resolved: signup funnel recovered",
+		description:
+			"Verified on recheck: completion is back at baseline after the copy fix",
+		time: "Yesterday",
 		tone: "success" as const,
-		channel: "Slack #growth",
+		channel: "Slack #alerts",
 	},
 ] as const;
 
@@ -439,7 +442,7 @@ const ANOMALY_ITEMS: AnomalyItem[] = [
 		current: "847",
 		baseline: "92",
 		change: "+820%",
-		period: "Apr 28, 2:00 – 3:30 PM",
+		period: "Apr 28 vs weekday baseline",
 	},
 	{
 		metric: "Pageviews",
@@ -450,7 +453,7 @@ const ANOMALY_ITEMS: AnomalyItem[] = [
 		current: "1,204",
 		baseline: "4,820",
 		change: "-75%",
-		period: "Apr 27, 8:00 – 11:00 PM",
+		period: "Apr 27 vs prior Sundays",
 	},
 	{
 		metric: "Custom events",
@@ -461,7 +464,7 @@ const ANOMALY_ITEMS: AnomalyItem[] = [
 		current: "3,412",
 		baseline: "890",
 		change: "+283%",
-		period: "Apr 27, 1:00 – 4:00 PM",
+		period: "Apr 27 vs prior week",
 	},
 ];
 
@@ -559,40 +562,73 @@ export function AnomalyDetectionDemo() {
 	);
 }
 
-export function NarrativeSummaryDemo() {
+const CASE_TIMELINE = [
+	{
+		label: "Opened",
+		time: "Mon",
+		text: "Checkout exceptions rose 2.8x after Tuesday's deploy, concentrated on iOS Safari.",
+		tone: "danger" as const,
+	},
+	{
+		label: "Reply",
+		time: "Mon",
+		text: "alex: Rolled back address autocomplete in v2.14.1.",
+		tone: "info" as const,
+	},
+	{
+		label: "Verified",
+		time: "Tue",
+		text: "Recheck passed: step-two completion is back at baseline. Case resolved.",
+		tone: "success" as const,
+	},
+] as const;
+
+const CASE_TONE = {
+	danger: "bg-red-500/15 text-red-400",
+	info: "bg-blue-500/15 text-blue-400",
+	success: "bg-emerald-500/15 text-emerald-400",
+} as const;
+
+export function CaseFollowUpDemo() {
 	const { ref, visible } = useRevealOnScroll();
 
 	return (
 		<div aria-hidden className="relative mt-3 w-full overflow-hidden" ref={ref}>
-			<CardChrome
-				className={cn(
-					"p-4 transition-all duration-600 sm:p-5",
-					visible ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
-				)}
-			>
-				<div className="flex items-start gap-3">
-					<span className="flex size-8 shrink-0 items-center justify-center rounded bg-amber-500/10">
-						<LightbulbIcon className="size-4 text-amber-400" />
-					</span>
-					<div className="min-w-0 flex-1 space-y-2">
-						<div className="flex items-center justify-between">
-							<span className="font-medium text-foreground text-xs sm:text-sm">
-								This week across your sites
-							</span>
-							<span className="font-mono text-[10px] text-muted-foreground">
-								Updated 2h ago
-							</span>
+			<div className="space-y-2 sm:space-y-2.5">
+				{CASE_TIMELINE.map((step, i) => (
+					<CardChrome
+						className={cn(
+							"p-3 transition-all duration-500 sm:p-3.5",
+							visible ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
+						)}
+						key={step.label}
+					>
+						<div
+							style={{
+								transitionDelay: visible ? `${i * 100}ms` : "0ms",
+								transitionTimingFunction: EASE,
+							}}
+						>
+							<div className="flex items-start gap-2.5">
+								<span
+									className={cn(
+										"rounded-full px-2 py-0.5 font-mono text-[10px]",
+										CASE_TONE[step.tone]
+									)}
+								>
+									{step.label}
+								</span>
+								<p className="min-w-0 flex-1 font-mono text-[11px] text-muted-foreground leading-snug sm:text-xs">
+									{step.text}
+								</p>
+								<span className="shrink-0 font-medium text-[11px] text-muted-foreground tabular-nums">
+									{step.time}
+								</span>
+							</div>
 						</div>
-						<p className="font-mono text-[11px] text-muted-foreground leading-relaxed sm:text-xs">
-							Traffic is up 23% week-over-week, led by organic search. Your
-							/pricing page is converting 2.4x better than last month after the
-							copy change. Error rates are stable except for a brief spike on
-							/checkout Tuesday afternoon (resolved). Mobile bounce rate is
-							trending down for the third week.
-						</p>
-					</div>
-				</div>
-			</CardChrome>
+					</CardChrome>
+				))}
+			</div>
 		</div>
 	);
 }

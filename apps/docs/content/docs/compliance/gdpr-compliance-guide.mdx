@@ -1,5 +1,5 @@
 ---
-title: "GDPR Compliance for Web Analytics: Complete Guide 2024"
+title: "GDPR Compliance for Web Analytics: Complete Guide"
 description: "Everything you need to know about GDPR compliance for web analytics. Learn about consent requirements, data processing, and how to stay compliant while tracking website visitors."
 icon: "Shield"
 ---
@@ -94,11 +94,11 @@ For web analytics, **consent** is typically the only viable legal basis.
 ### Option 2: Privacy-First Analytics
 
 **Characteristics:**
-- No personal data collection
+- No personal data collection by default
 - No cookies required
-- Anonymous tracking only
-- No consent banners needed
-- GDPR compliant by design
+- Anonymous tracking in the default configuration
+- Avoids analytics-specific consent friction where configuration and jurisdiction allow
+- Built for GDPR compliance
 
 **Benefits:**
 - 100% data collection
@@ -111,18 +111,17 @@ For web analytics, **consent** is typically the only viable legal basis.
 
 ### Privacy by Design
 
-**No Personal Data Collection:**
-- No IP address storage
-- No user fingerprinting
-- No cross-site tracking
-- Anonymous aggregation only
+**No Personal Data Collection by Default:**
+- No raw IP address storage (only a truncated salted hash is retained)
+- No cross-site tracking or advertising profiles
+- Anonymous aggregation for reporting
+- Identity is opt-in: personal data enters the system only if you use `identify()`
 
 **Technical Safeguards:**
-- Data hashing at collection
-- Automatic data anonymization
-- No persistent identifiers
-- Edge processing for privacy
-- Minimal data retention
+- Salted hashing of visitor identifiers where anonymization applies
+- A single first-party localStorage ID, no third-party identifiers
+- Global Privacy Control and Do Not Track honored by default
+- Application-layer encryption support for identity fields
 
 ### Data Processing Transparency
 
@@ -134,11 +133,11 @@ For web analytics, **consent** is typically the only viable legal basis.
 - Session duration
 - Custom events
 
-**What We Don't Collect:**
-- IP addresses
-- Personal identifiers
+**What We Don't Collect by Default:**
+- Raw IP addresses
+- Names, emails, or other personal identifiers (unless you opt in with `identify()`)
 - Cross-site data
-- Fingerprinted User Profiles
+- Advertising or behavioral profiles
 
 ### Data Subject Rights
 
@@ -153,11 +152,10 @@ Under GDPR, users have these rights:
 7. **Right to object** - Opt-out of processing
 
 **Databuddy's Approach:**
-Since we don't collect personal data, most rights don't apply. For any requests, we provide:
-- Clear data processing information
-- Easy contact for questions
-- Prompt response to requests
-- Data export capabilities
+In the default anonymous configuration, most of these rights have little data to act on. When you identify users, the profiles you create are personal data and these rights apply in full. For any request:
+- Clear data processing information is published in our [Data Policy](/data-policy)
+- Contact [privacy@databuddy.cc](mailto:privacy@databuddy.cc) and we respond promptly
+- Profile data created via `identify()` can be corrected or deleted on request
 
 ## Implementation Guide
 
@@ -196,11 +194,12 @@ Since we don't collect personal data, most rights don't apply. For any requests,
 <CodeBlock 
   language="html"
   filename="Privacy-First Implementation"
-  code={`<!-- No consent required -->
+  code={`<!-- Anonymous, cookieless measurement -->
 <script
-  src="https://cdn.databuddy.cc/sdk.js" 
+  src="https://cdn.databuddy.cc/databuddy.js" 
   data-client-id="your-client-id"
-  ></script>`}
+  crossorigin="anonymous"
+  async></script>`}
 />
 
 ### Step 3: Update Privacy Policy
@@ -335,7 +334,7 @@ We use Databuddy for website analytics to understand how visitors use our site.
 ## Frequently Asked Questions
 
 ### Do I need a consent banner with Databuddy?
-No, because Databuddy doesn't collect personal data, no consent banner is required under GDPR.
+In the default configuration Databuddy collects only anonymous data, which is the strongest position for running without an analytics consent banner. Whether one is required depends on your configuration, what you send, and your jurisdiction; if you enable `identify()` or send personal data in events, treat it like any other personal-data processing.
 
 ### Is server-side tracking GDPR compliant?
 It depends on what data you collect. Server-side tracking can still process personal data like IP addresses.
@@ -347,13 +346,13 @@ It's challenging. You'd need explicit consent, proper data processing agreements
 Databuddy's privacy-first approach helps with most privacy regulations, not just GDPR.
 
 ### How do I handle data subject requests?
-Since Databuddy doesn't collect personal data, most data subject rights don't apply. We provide clear information about our data practices. See our [Data Policy](/data-policy) for detailed information about how data flows through our system.
+For anonymous default tracking there is usually no personal data to act on. If you identify users, requests about those profiles apply in full: contact [privacy@databuddy.cc](mailto:privacy@databuddy.cc) and see our [Data Policy](/data-policy) for how data flows through the system.
 
 ## Conclusion
 
 GDPR compliance for web analytics doesn't have to be complicated. By choosing privacy-first analytics like Databuddy, you can:
 
-- ✅ Ensure full GDPR compliance
+- ✅ Start from a GDPR-compliant anonymous default
 - ✅ Collect 100% of your data
 - ✅ Provide better user experience
 - ✅ Future-proof your analytics
@@ -365,4 +364,4 @@ Ready to simplify your GDPR compliance? [Start your free trial →](https://app.
 
 *This guide is for informational purposes only and does not constitute legal advice. Consult with a qualified attorney for specific legal guidance.*
 
-*Last updated: December 2024* 
+*Last updated: August 2026* 

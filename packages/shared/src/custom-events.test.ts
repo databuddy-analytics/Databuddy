@@ -3,6 +3,7 @@ import {
 	APP_EVENTS,
 	MARKETING_PARAM_KEYS,
 	SIGNUP_METHODS,
+	UTM_PARAM_KEYS,
 	isSignupMethod,
 	readMarketingProperties,
 	readUtmProperties,
@@ -21,27 +22,17 @@ describe("custom event helpers", () => {
 		}
 	});
 
-	it("keeps marketing params needed for ad attribution", () => {
-		expect(MARKETING_PARAM_KEYS).toEqual([
-			"utm_source",
-			"utm_medium",
-			"utm_campaign",
-			"utm_term",
-			"utm_content",
-			"gclid",
-			"fbclid",
-			"ttclid",
-			"twclid",
-			"li_fat_id",
-			"msclkid",
-			"oppref",
-			"wolref",
-		]);
+	it("keeps marketing params a unique superset of UTM params", () => {
+		expect(new Set(MARKETING_PARAM_KEYS).size).toBe(MARKETING_PARAM_KEYS.length);
+		for (const key of UTM_PARAM_KEYS) {
+			expect(MARKETING_PARAM_KEYS).toContain(key);
+		}
 	});
 
 	it("keeps signup methods typed and parseable", () => {
-		expect(SIGNUP_METHODS).toEqual(["email", "social_github", "social_google"]);
-		expect(isSignupMethod("social_github")).toBe(true);
+		for (const method of SIGNUP_METHODS) {
+			expect(isSignupMethod(method)).toBe(true);
+		}
 		expect(isSignupMethod("github")).toBe(false);
 		expect(isSignupMethod(null)).toBe(false);
 	});

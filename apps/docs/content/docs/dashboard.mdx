@@ -36,7 +36,6 @@ The overview tab gives you a high-level view of your website's performance with 
     - **Load Time** - Average page load time
     - **TTFB** - Time to First Byte
     - **Core Web Vitals** - LCP, FCP, CLS when available
-    - **Performance Score** - Overall site performance rating
   </Card>
 </Cards>
 
@@ -47,9 +46,9 @@ The overview tab gives you a high-level view of your website's performance with 
 
 Choose from predefined time periods:
 
-- **Last 24 hours** - Real-time insights
-- **Last 7 days** - Weekly trends
-- **Last 30 days** - Monthly overview
+- **Today** and **Yesterday** - Real-time insights
+- **Last 7 days** and **Last 14 days** - Weekly trends
+- **Last 30 days**, **This month**, and **Last month** - Monthly overview
 - **Last 90 days** - Quarterly analysis
 
 </Tab>
@@ -66,8 +65,8 @@ Select any date range for specific analysis:
 </Tabs>
 
 <Callout type="info">
-  **Comparison Mode**: Use the comparison toggle to compare your selected period
-  with the previous period of the same length.
+  **Comparison Mode**: Your selected period is automatically compared with the
+  previous period of the same length.
 </Callout>
 
 ### Data Granularity
@@ -92,26 +91,6 @@ View your metrics at different granularities based on your time range:
 - Day-by-day analysis
 - Identify weekly patterns
 - Track daily performance trends
-
-</Accordion>
-
-<Accordion title="Weekly Granularity">
-
-**Best for**: Quarterly views
-
-- Week-over-week comparisons
-- Seasonal trend analysis
-- Long-term pattern recognition
-
-</Accordion>
-
-<Accordion title="Monthly Granularity">
-
-**Best for**: Yearly views
-
-- Month-by-month growth tracking
-- Annual performance reviews
-- Strategic planning insights
 
 </Accordion>
 </Accordions>
@@ -481,9 +460,6 @@ Slice and dice your data for specific insights:
 <Accordion title="Time-based Filters">
 
 - **Date range selection** - Custom time periods
-- **Time of day filtering** - Specific hours
-- **Day of week analysis** - Weekday vs weekend patterns
-- **Month/quarter comparisons** - Seasonal trends
 
 </Accordion>
 
@@ -501,7 +477,6 @@ Slice and dice your data for specific insights:
 - **Page path filtering** - Specific pages or sections
 - **Event filtering** - Specific custom events
 - **Property filtering** - Event property values
-- **Performance filtering** - Fast vs slow pages
 
 </Accordion>
 </Accordions>
@@ -612,13 +587,13 @@ Monitor your website's technical health and user experience:
 Monitor and resolve issues affecting your users:
 
 <Callout type="tip" title="Enabling Error Data Collection">
-  To populate the error tracking sections of the dashboard, ensure you have
-  `trackErrors={true}` enabled in your [SDK
-  configuration](/docs/sdk/configuration). This will automatically
-  capture unhandled JavaScript errors and promise rejections. For more detailed
-  context on specific handled errors, you can manually send error events using
-  `db.track('error', {/* custom properties */})` as described in the [Tracker
-  Helpers](/docs/sdk/tracker) guide.
+  Error tracking requires the Hobby plan or higher. To populate the error
+  tracking sections of the dashboard, ensure you have `trackErrors={true}`
+  enabled in your [SDK configuration](/docs/sdk/configuration). This will
+  automatically capture unhandled JavaScript errors and promise rejections. For
+  more detailed context on specific handled errors, you can manually send error
+  events using `db.track('error', {/* custom properties */})` as described in
+  the [Tracker Helpers](/docs/sdk/tracker) guide.
 </Callout>
 
 ### JavaScript Error Analytics
@@ -640,10 +615,8 @@ Monitor and resolve issues affecting your users:
 
 **Error Types:**
 
-- **JavaScript errors** - Runtime exceptions
-- **Network errors** - Failed API calls
-- **Browser compatibility** - Feature support issues
-- **Resource errors** - Missing images, stylesheets
+- **Unhandled JavaScript errors** - Runtime exceptions with stack, page, and session context
+- **Unhandled promise rejections** - Async failures with the same context
 
 </Accordion>
 
@@ -699,22 +672,23 @@ Get your data where you need it:
 ### Export Options
 
 <Cards>
-  <Card title="CSV Export">
-    Download raw data for analysis in spreadsheets or other tools.
+  <Card title="Data Export">
+    Download your data as JSON or CSV via Website Settings > Data Export.
   </Card>
 
 <Card title="API Access">
   Programmatic access to your analytics data via REST API.
 </Card>
 
-<Card title="Investigations in Slack">
-  Send actionable investigations to the Slack channels configured for your organization after each daily or weekly run. Replies continue the same investigation.
-</Card>
-
-  <Card title="Webhooks">
-    Real-time data streaming to your applications.
+  <Card title="Investigations in Slack">
+    Send actionable investigations to the Slack channels configured for your organization after each daily or weekly run. Replies continue the same investigation.
   </Card>
 </Cards>
+
+<Callout type="info">
+  Uptime monitor alerts can be delivered to a webhook destination, but there is
+  no outbound webhook streaming for analytics data.
+</Callout>
 
 ## Getting the Most from Your Dashboard
 

@@ -15,6 +15,7 @@ import { FFInstantRolloutsDemo } from "@/components/landing/ff-instant-rollouts-
 import { FFPercentageRolloutsDemo } from "@/components/landing/ff-percentage-rollouts-demo";
 import { FFTemplatesMiniGridDemo } from "@/components/landing/ff-templates-mini-grid-demo";
 import { FFUserTargetingDemo } from "@/components/landing/ff-user-targeting-demo";
+import { MidPageCta } from "@/components/landing/mid-page-cta";
 import Section from "@/components/landing/section";
 import { StructuredData } from "@/components/structured-data";
 
@@ -38,27 +39,27 @@ const FAQ_ITEMS = [
 	{
 		question: "Will feature flags slow down my app?",
 		answer:
-			"No. Flags load once and are cached locally, so your users never see a delay. Pages render just as fast with flags as without - there's no visible performance impact.",
+			"No. Flags are cached locally with request batching, so after the first load your users never see a delay. There is no separate SDK to ship either; flags ride in the same script as your analytics.",
 	},
 	{
 		question: "Can I roll out a feature to just one team or customer first?",
 		answer:
-			"Yes. You can release to specific users, entire organizations, or teams before opening it up to everyone. This means you can validate with your biggest customer before a wider launch.",
+			"Yes. Target specific users by ID, email, or any property you pass, and bucket percentage rollouts by user, organization, or team so a whole workspace flips together.",
 	},
 	{
 		question: "What happens if something goes wrong after a release?",
 		answer:
-			"One click and the feature is off - no deploy, no rollback, no downtime. Your users see the previous experience immediately while you fix the issue.",
+			"One click and the feature is off - no deploy, no rollback, no downtime. Server caches are purged instantly and clients pick up the change within about a minute.",
 	},
 	{
 		question: "Can I run A/B tests to see which version performs better?",
 		answer:
-			"Yes. Create multiple variants, split traffic by percentage, and each user consistently sees the same version across sessions. You can measure which variant drives better outcomes and scale the winner.",
+			"Yes. Create multiple variants, split traffic by weight, and each user consistently sees the same variant across sessions. Every evaluation is tracked with its variant, so you can segment any metric by variant in your analytics.",
 	},
 	{
 		question: "Are feature flags included in all plans?",
 		answer:
-			"Every plan includes feature flags - the free plan gives you 3 flags to start, and paid plans scale from there. No add-ons or hidden costs.",
+			"Every plan includes feature flags - the free plan gives you 3 flags to start, and paid plans scale from there. Flag evaluations never count toward your event quota.",
 	},
 ] as const;
 
@@ -83,21 +84,24 @@ export default function FeatureFlagsPage() {
 			<div className="overflow-x-hidden">
 				<FeatureHero
 					docsHref="/docs/sdk/feature-flags"
-					subtitle="Boolean toggles, percentage rollouts, and A/B experiments - controlled from your dashboard, no deploys needed. Built into Databuddy."
-					title="Ship features safely and roll back in one click."
+					footnote="3 flags free. Evaluations never count toward your event quota."
+					subtitle="Boolean toggles, percentage rollouts, and A/B experiments in the same script as your analytics. No second SDK, no second vendor, no deploys to flip a flag."
+					title="Feature flags, minus the second SDK."
 				/>
 
 				<Section className="border-border border-b" id="how-it-works">
 					<div className={container}>
 						<SectionHeader
-							subtitle="Create a flag, set your rules, and ship. Changes take effect immediately. No code changes, no CI pipeline, no waiting."
+							subtitle="Create a flag, set your rules, and ship. Changes reach clients without a deploy. No redeploys, no CI pipeline, no waiting."
 							title="One dashboard,"
 							titleMuted="zero deploys."
 						/>
 
 						<TwoColumnGrid>
 							<GridCell>
-								<h3 className={CELL_TITLE_CLASS}>Every flag, one place.</h3>
+								<h3 className={CELL_TITLE_CLASS}>
+									Every flag, with a full audit trail of changes.
+								</h3>
 								<FFCompactFlagsDashboardDemo />
 							</GridCell>
 							<GridCell>
@@ -113,9 +117,9 @@ export default function FeatureFlagsPage() {
 				<Section className="border-border border-b" id="capabilities">
 					<div className={container}>
 						<SectionHeader
-							subtitle="From kill switches to multivariant experiments, everything you need to ship with confidence."
-							title="Deploy once,"
-							titleMuted="control everything."
+							subtitle="Kill switches, gradual ramps, flag dependencies, and reusable target groups. Every change is logged with who made it and what it was before."
+							title="From kill switch"
+							titleMuted="to experiment."
 						/>
 
 						<TwoColumnGrid>
@@ -136,13 +140,13 @@ export default function FeatureFlagsPage() {
 						<TwoColumnGrid>
 							<GridCell>
 								<h3 className={CELL_TITLE_CLASS}>
-									Run experiments with consistent assignments.
+									Same user, same variant, every session.
 								</h3>
 								<FFAbTestingDemo />
 							</GridCell>
 							<GridCell>
 								<h3 className={CELL_TITLE_CLASS}>
-									Target by user, team, plan, or any property.
+									Target by user ID, email, or any property.
 								</h3>
 								<FFUserTargetingDemo />
 							</GridCell>
@@ -153,6 +157,12 @@ export default function FeatureFlagsPage() {
 				<Section className="border-border border-b" id="faq">
 					<div className={container}>
 						<FaqSection items={[...FAQ_ITEMS]} />
+					</div>
+				</Section>
+
+				<Section className="border-border border-b" id="cta">
+					<div className={container}>
+						<MidPageCta />
 					</div>
 				</Section>
 

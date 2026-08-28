@@ -170,12 +170,6 @@ export class WebsiteService {
 			return [];
 		}
 	}
-
-	/**
-	 * Invalidates read caches after a caller commits a website write in its own
-	 * database transaction. Keeping cache I/O outside that transaction prevents
-	 * rolled-back data from becoming visible through Redis.
-	 */
 	async invalidateCachesAfterMutation(input: {
 		after?: Website;
 		before?: Website;

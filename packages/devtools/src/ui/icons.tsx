@@ -52,7 +52,7 @@ export function InboxIcon(props: SvgProps) {
 	);
 }
 
-export function ActivityIcon(props: SvgProps) {
+function ActivityIcon(props: SvgProps) {
 	return (
 		<svg {...stroke} {...props}>
 			<path d="M3 12h4l3-9 4 18 3-9h4" />
@@ -68,7 +68,7 @@ export function FlagIcon(props: SvgProps) {
 	);
 }
 
-export function UserIcon(props: SvgProps) {
+function UserIcon(props: SvgProps) {
 	return (
 		<svg {...stroke} {...props}>
 			<circle cx="12" cy="8" r="4" />
@@ -77,7 +77,7 @@ export function UserIcon(props: SvgProps) {
 	);
 }
 
-export function StethoscopeIcon(props: SvgProps) {
+function StethoscopeIcon(props: SvgProps) {
 	return (
 		<svg {...stroke} {...props}>
 			<path d="M6 3v6a4 4 0 0 0 8 0V3" />

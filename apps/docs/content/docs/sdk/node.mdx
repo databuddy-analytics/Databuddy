@@ -104,6 +104,7 @@ export async function handler(event) {
     maxQueueSize?: number;        // Default: 1000
     enableDeduplication?: boolean; // Default: true
     maxDeduplicationCacheSize?: number; // Default: 10000
+    requestTimeoutMs?: number;    // Default: 10000ms request deadline
     middleware?: Middleware[];     // Transform or drop events before send
   }`}
 </CodeBlock>
@@ -147,6 +148,13 @@ Track custom events with optional properties, session IDs, and anonymous IDs:
   success: boolean;
   eventId?: string;
   error?: string;
+  delivery?: "delivered" | "queued" | "skipped";
+  code?: string;         // e.g. "NETWORK_ERROR", "VALIDATION_ERROR", "QUEUE_FULL"
+  why?: string;
+  fix?: string;
+  requestId?: string;
+  retryable?: boolean;
+  statusCode?: number;
 }`}
 </CodeBlock>
 
@@ -174,6 +182,23 @@ Send multiple events in a single batch (max 100 events):
   }
 ]);`}
 </CodeBlock>
+
+### `identify(input)`
+
+Link your user's stable ID to their tracked activity and set profile traits:
+
+<CodeBlock language="tsx">
+  {`await client.identify({
+  profileId: 'user-123',
+  anonymousId: 'anon_...',  // Optional: link pre-login device activity
+  traits: {
+    email: 'jane@example.com',
+    plan: 'pro'
+  }
+});`}
+</CodeBlock>
+
+`profileId` is required. `websiteId` comes from the config default or can be passed per call. Pass the client's raw `anonymousId` (from the web SDK's `getAnonymousId()`) to connect pre-login events from that device. Requires an API key with the `track:events` scope for the target website. Identify calls send immediately and are not batched. See [Identify Users](/docs/sdk/identify-users) for concepts and trait rules.
 
 ### `flush()`
 
@@ -529,6 +554,10 @@ export const handler = async (event: any) => {
 </CodeBlock>
 
 ### Cloudflare Workers
+
+<Callout type="info">
+  The Node SDK imports `node:crypto`, so Cloudflare Workers require the `nodejs_compat` compatibility flag in your `wrangler.toml`.
+</Callout>
 
 <CodeBlock language="tsx">
   {`import { Databuddy } from '@databuddy/sdk/node';

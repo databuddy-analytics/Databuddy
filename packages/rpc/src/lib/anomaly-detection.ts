@@ -1,10 +1,8 @@
 import { chQuery, TABLE_NAMES } from "@databuddy/db/clickhouse";
 
-/** ClickHouse `formatDateTime`: use `%i` for minutes. Since v23.4, `%M` is the full month name (MySQL-style). */
-
-export type AnomalyType = "spike" | "drop";
+type AnomalyType = "spike" | "drop";
 export type AnomalyMetric = "pageviews" | "custom_events" | "errors";
-export type AnomalySeverity = "warning" | "critical";
+type AnomalySeverity = "warning" | "critical";
 
 export interface DetectedAnomaly {
 	baselineMean: number;
@@ -25,7 +23,6 @@ export interface AnomalyDetectionConfig {
 	baselineDays: number;
 	criticalThreshold: number;
 	minimumBaselineCount: number;
-	/** Percentage change threshold used when stddev is 0 (default 200 = 3x the mean) */
 	percentChangeFallback: number;
 	warningThreshold: number;
 }
@@ -147,11 +144,6 @@ async function fetchHourlyBaseline(
 		baselineDays: config.baselineDays,
 	});
 }
-
-/**
- * Fetches the last 3 completed hours + the current in-progress hour.
- * This catches spikes that are happening right now, not just finished ones.
- */
 async function fetchRecentHours(
 	clientId: string,
 	metric: AnomalyMetric

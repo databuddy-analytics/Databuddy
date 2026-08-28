@@ -14,7 +14,7 @@ Add Databuddy's privacy-first analytics to your Shopify store to track customer 
 Add Databuddy directly to your Shopify theme:
 
 1. Go to **Online Store** > **Themes**
-2. Click **Actions** > **Edit code** on your active theme
+2. Click the **...** button on your active theme, then **Edit code**
 3. Open `theme.liquid` in the Layout folder
 4. Add your Databuddy script before the closing `</head>` tag:
 
@@ -24,6 +24,7 @@ Add Databuddy directly to your Shopify theme:
   data-client-id="YOUR_CLIENT_ID"
   data-track-attributes
   data-track-outgoing-links
+  crossorigin="anonymous"
   async
 ></script>
 ```
@@ -40,6 +41,7 @@ If you're using Google Tag Manager:
   (function() {
     var script = document.createElement('script');
     script.src = 'https://cdn.databuddy.cc/databuddy.js';
+    script.crossOrigin = 'anonymous';
     script.setAttribute('data-client-id', 'YOUR_CLIENT_ID');
     script.setAttribute('data-track-attributes', 'true');
     script.async = true;
@@ -112,37 +114,29 @@ Add to your product form or use data attributes:
 
 ### Track Purchases
 
-Add to your `thank-you.liquid` or checkout success page:
+Scripts added to `theme.liquid` do not run on checkout or the thank-you page, so the storefront snippet above cannot see purchases. Checkout events require Shopify's [Web Pixels API](https://shopify.dev/docs/api/web-pixels-api).
 
-```html
-{% if first_time_accessed %}
-<script>
-  window.addEventListener('load', function() {
-    if (window.databuddy) {
-      databuddy.track('purchase', {
-        transaction_id: '{{ order.order_number }}',
-        value: {{ order.total_price | divided_by: 100.0 }},
-        currency: '{{ order.currency }}',
-        tax: {{ order.tax_price | divided_by: 100.0 }},
-        shipping: {{ order.shipping_price | divided_by: 100.0 }},
-        coupon: '{{ order.discount_codes.first.code }}',
-        items: [
-          {% for line_item in order.line_items %}
-          {
-            item_id: '{{ line_item.product_id }}',
-            item_name: '{{ line_item.title | escape }}',
-            item_category: '{{ line_item.product.type | escape }}',
-            item_variant: '{{ line_item.variant.title | escape }}',
-            quantity: {{ line_item.quantity }},
-            price: {{ line_item.price | divided_by: 100.0 }}
-          }{% unless forloop.last %},{% endunless %}
-          {% endfor %}
-        ]
-      });
-    }
+Create a custom pixel under **Settings** > **Customer events** > **Add custom pixel** and send the event to Databuddy's HTTP API:
+
+```javascript
+analytics.subscribe('checkout_completed', (event) => {
+  const checkout = event.data.checkout;
+
+  fetch('https://basket.databuddy.cc/track', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: 'purchase',
+      websiteId: 'YOUR_CLIENT_ID',
+      properties: {
+        transaction_id: checkout.order?.id,
+        value: checkout.totalPrice?.amount,
+        currency: checkout.currencyCode,
+        item_count: checkout.lineItems.length
+      }
+    })
   });
-</script>
-{% endif %}
+});
 ```
 
 ## Customer Behavior Tracking
@@ -304,6 +298,7 @@ Load Databuddy after critical resources:
     // Load Databuddy after page is fully loaded
     var script = document.createElement('script');
     script.src = 'https://cdn.databuddy.cc/databuddy.js';
+    script.crossOrigin = 'anonymous';
     script.setAttribute('data-client-id', 'YOUR_CLIENT_ID');
     script.async = true;
     document.head.appendChild(script);
@@ -321,6 +316,7 @@ Optimize for mobile users:
   data-client-id="YOUR_CLIENT_ID"
   data-track-attributes
   data-sampling-rate="0.1"
+  crossorigin="anonymous"
   async
 ></script>
 ```
@@ -329,20 +325,7 @@ Optimize for mobile users:
 
 ### GDPR Compliance
 
-Databuddy is GDPR compliant by default, but you can add additional privacy controls:
-
-```html
-<!-- Show only for EU users -->
-{% if localization.country.iso_code == 'EU' %}
-<script>
-  // Initialize Databuddy with privacy mode
-  window.databuddyConfig = {
-    privacy_mode: true,
-    minimal_tracking: true
-  };
-</script>
-{% endif %}
-```
+Databuddy is GDPR compliant by default: it uses no cookies and anonymizes visitors, so no extra privacy configuration is needed.
 
 ### Cookie Consent Integration
 
@@ -353,6 +336,7 @@ If using a cookie consent banner:
 function initializeDatabuddy() {
   var script = document.createElement('script');
   script.src = 'https://cdn.databuddy.cc/databuddy.js';
+  script.crossOrigin = 'anonymous';
   script.setAttribute('data-client-id', 'YOUR_CLIENT_ID');
   script.async = true;
   document.head.appendChild(script);
@@ -380,19 +364,6 @@ Test your implementation:
 2. Check browser console for any JavaScript errors
 3. Verify events in your Databuddy dashboard
 4. Test on mobile devices
-
-### Debug Mode
-
-Enable debug mode for development:
-
-```html
-<script
-  src="https://cdn.databuddy.cc/databuddy.js"
-  data-client-id="YOUR_CLIENT_ID"
-  data-debug
-  async
-></script>
-```
 
 ## Related Integrations
 

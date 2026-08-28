@@ -309,15 +309,24 @@ function toAuditActor(user: { id: string; name?: string | null }): AuditActor {
 	};
 }
 
-async function getAuditMemberDisplayName(userId: string): Promise<string> {
+async function getAuditMemberDetails(member: { id: string; userId: string }) {
 	const user = await db.query.user.findFirst({
-		where: { id: userId },
+		where: { id: member.userId },
 		columns: { email: true, name: true },
 	});
-	if (!user) {
-		return `User ${userId}`;
-	}
-	return user.name ? `${user.name} <${user.email}>` : user.email;
+	const displayName = user
+		? user.name
+			? `${user.name} <${user.email}>`
+			: user.email
+		: `User ${member.userId}`;
+
+	return {
+		metadata: {
+			affectedUserDisplayName: displayName,
+			affectedUserId: member.userId,
+		},
+		target: { id: member.id, displayName },
+	};
 }
 
 async function recordAuthAudit<TAction extends AuditActionDefinition>(
@@ -706,17 +715,11 @@ export const auth = betterAuth({
 			organizationHooks: {
 				afterAddMember: async ({ member, organization }) => {
 					await invalidateMemberCaches(member);
-					const memberDisplayName = await getAuditMemberDisplayName(
-						member.userId
-					);
+					const memberAudit = await getAuditMemberDetails(member);
 					await recordAuthAudit(organization.id, {
 						action: auditActions.ORGANIZATION_MEMBER_ADDED,
-						target: { id: member.id, displayName: memberDisplayName },
+						...memberAudit,
 						changes: { role: { after: member.role } },
-						metadata: {
-							affectedUserDisplayName: memberDisplayName,
-							affectedUserId: member.userId,
-						},
 					});
 				},
 				afterCreateOrganization: async ({ member, organization, user }) => {
@@ -767,19 +770,13 @@ export const auth = betterAuth({
 				},
 				afterRemoveMember: async ({ member, organization }) => {
 					await invalidateMemberCaches(member);
-					const memberDisplayName = await getAuditMemberDisplayName(
-						member.userId
-					);
+					const memberAudit = await getAuditMemberDetails(member);
 					await recordAuthAudit(organization.id, {
 						action: auditActions.ORGANIZATION_MEMBER_REMOVED,
-						target: { id: member.id, displayName: memberDisplayName },
+						...memberAudit,
 						changes: {
 							deleted: { after: true },
 							role: { before: member.role },
-						},
-						metadata: {
-							affectedUserDisplayName: memberDisplayName,
-							affectedUserId: member.userId,
 						},
 					});
 				},
@@ -789,17 +786,11 @@ export const auth = betterAuth({
 					previousRole,
 				}) => {
 					await invalidateMemberCaches(member);
-					const memberDisplayName = await getAuditMemberDisplayName(
-						member.userId
-					);
+					const memberAudit = await getAuditMemberDetails(member);
 					await recordAuthAudit(organization.id, {
 						action: auditActions.ORGANIZATION_MEMBER_ROLE_UPDATED,
-						target: { id: member.id, displayName: memberDisplayName },
+						...memberAudit,
 						changes: { role: { before: previousRole, after: member.role } },
-						metadata: {
-							affectedUserDisplayName: memberDisplayName,
-							affectedUserId: member.userId,
-						},
 					});
 				},
 				afterCreateInvitation: async ({
@@ -900,8 +891,6 @@ export const auth = betterAuth({
 export const websitesApi = {
 	hasPermission: auth.api.hasPermission,
 };
-
-/** Runs a Better Auth request with its Drizzle adapter pinned to one transaction. */
 export async function runWithAuthTransaction<T>(
 	callback: () => Promise<T>
 ): Promise<T> {

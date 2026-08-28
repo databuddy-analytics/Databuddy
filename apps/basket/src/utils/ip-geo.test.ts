@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, test } from "vitest";
+import { afterAll, describe, expect, test, vi } from "vitest";
 import { randomIPv4, randomPublicIPv4, req } from "../test-helpers";
 import {
 	anonymizeIp,
@@ -10,8 +10,6 @@ import {
 const HEX12 = /^[a-f0-9]{12}$/;
 
 afterAll(() => closeGeoIPReader());
-
-// ── anonymizeIp ──
 
 describe("anonymizeIp", () => {
 	test("empty → empty", () => expect(anonymizeIp("")).toBe(""));
@@ -42,8 +40,6 @@ describe("anonymizeIp", () => {
 		expect(hashes.size).toBe(1000);
 	});
 });
-
-// ── extractIpFromRequest ──
 
 describe("extractIpFromRequest", () => {
 	const table: [string, Record<string, string>, string][] = [
@@ -89,8 +85,6 @@ describe("extractIpFromRequest", () => {
 	});
 });
 
-// ── getGeo ──
-
 describe("getGeo", () => {
 	test("empty IP → empty anonymizedIP, no geo", async () => {
 		const r = await getGeo("");
@@ -116,48 +110,51 @@ describe("getGeo", () => {
 		}
 	});
 
-	test("200 random public IPs → valid structure", {
-		timeout: 60_000,
-	}, async () => {
-		const probe = await Promise.race([
-			getGeo("8.8.8.8"),
-			new Promise<null>((r) => setTimeout(() => r(null), 30_000)),
-		]);
-		if (!(probe && probe.anonymizedIP)) {
-			console.log("Skipping: GeoIP CDN unreachable");
-			return;
-		}
+	test("falls back to the Cloudflare country header when MaxMind is unavailable", async () => {
+		closeGeoIPReader();
+		const fetchSpy = vi
+			.spyOn(globalThis, "fetch")
+			.mockRejectedValue(new Error("CDN unreachable"));
+		try {
+			const withHeader = await getGeo(
+				randomPublicIPv4(),
+				req("https://x.com", { "cf-ipcountry": "US" })
+			);
+			expect(withHeader.country).toBe("US");
+			expect(withHeader.region).toBeUndefined();
+			expect(withHeader.city).toBeUndefined();
 
-		const results = await Promise.all(
-			Array.from({ length: 200 }, () => getGeo(randomPublicIPv4()))
-		);
-		for (const r of results) {
-			expect(typeof r.anonymizedIP).toBe("string");
-			if (r.country !== undefined) {
-				expect(typeof r.country).toBe("string");
-			}
-			if (r.region !== undefined) {
-				expect(typeof r.region).toBe("string");
-			}
-			if (r.city !== undefined) {
-				expect(typeof r.city).toBe("string");
-			}
+			const badHeader = await getGeo(
+				randomPublicIPv4(),
+				req("https://x.com", { "cf-ipcountry": "USA" })
+			);
+			expect(badHeader.country).toBeUndefined();
+		} finally {
+			fetchSpy.mockRestore();
+			closeGeoIPReader();
 		}
 	});
 
-	test("same IP → consistent results", async () => {
-		const ip = randomPublicIPv4();
-		const [a, b] = await Promise.all([getGeo(ip), getGeo(ip)]);
-		expect(a.anonymizedIP).toBe(b.anonymizedIP);
-		expect(a.country).toBe(b.country);
-	});
-
-	test("Cloudflare country fallback", async () => {
-		const r = await getGeo(
-			"not-valid-ip",
-			req("https://x.com", { "cf-ipcountry": "US" })
-		);
-		// Should either return CF country or undefined (depends on reader state)
-		expect(typeof r.anonymizedIP).toBe("string");
+	test("accepts compressed and ipv4-mapped IPv6 addresses", async () => {
+		closeGeoIPReader();
+		const fetchSpy = vi
+			.spyOn(globalThis, "fetch")
+			.mockRejectedValue(new Error("CDN unreachable"));
+		try {
+			for (const ip of [
+				"2a00:1450:4009:81f::200e",
+				"2001:db8::1",
+				"::ffff:8.8.8.8",
+			]) {
+				const r = await getGeo(
+					ip,
+					req("https://x.com", { "cf-ipcountry": "DE" })
+				);
+				expect(r.country).toBe("DE");
+			}
+		} finally {
+			fetchSpy.mockRestore();
+			closeGeoIPReader();
+		}
 	});
 });

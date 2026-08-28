@@ -1,6 +1,5 @@
 import { executeQuery, type Filter } from "@databuddy/ai/query";
 import type {
-	InsightDatabuddySetupRecommendation,
 	InvestigationSignal,
 	MatchedErrorContinuationMeasurement,
 } from "@databuddy/shared/insights";
@@ -17,26 +16,6 @@ import { emitInsightsEvent } from "./lib/evlog-insights";
 
 dayjs.extend(utcPlugin);
 dayjs.extend(timezonePlugin);
-
-/**
- * A bounded, canonical telemetry target that an investigation agent may use
- * when proposing measurement setup. It deliberately excludes raw paths,
- * query strings, and dynamic identifiers.
- */
-export type MeasurementCandidate =
-	| {
-			basis: "observed_custom_event";
-			kind: "event_goal_candidate";
-			target: string;
-			type: "EVENT";
-	  }
-	| {
-			basis: "observed_navigation_proxy";
-			kind: "page_navigation_proxy";
-			target: string;
-			type: "PAGE_VIEW";
-	  };
-
 export interface DetectedSignal {
 	baseline: number;
 	baselineDates?: string[];
@@ -49,10 +28,8 @@ export interface DetectedSignal {
 	entityId?: string;
 	entityLabel?: string;
 	label: string;
-	measurementCandidate?: MeasurementCandidate;
 	method: "behavior" | "zscore" | "wow";
 	metric: string;
-	setupRecommendationCandidate?: InsightDatabuddySetupRecommendation;
 	severity: "critical" | "warning" | "info";
 	subjectKey?: string;
 }
@@ -395,12 +372,6 @@ interface ErrorBehaviorCandidate {
 	fingerprint: string;
 	previousRow: Record<string, unknown> | undefined;
 }
-
-/**
- * Every run covers the two largest error cohorts, then rotates one remaining
- * fingerprint weekly. This keeps a bounded query cost without allowing the
- * highest-reach errors to disappear behind a full rotating sample.
- */
 function errorBehaviorCandidates(params: {
 	currentByFingerprint: Map<string, Record<string, unknown>>;
 	detectedAt: string;
@@ -612,12 +583,6 @@ export function assignSeverity(
 }
 
 export type QueryFn = typeof executeQuery;
-
-/**
- * Measures the same stored subject over the newest complete comparison window.
- * Unlike detection, this deliberately has no anomaly threshold: an open case
- * must still get a recovery measurement after its spike or drop disappears.
- */
 export async function remeasureMetricSignal(
 	params: DetectSignalsParams,
 	prior: InvestigationSignal,

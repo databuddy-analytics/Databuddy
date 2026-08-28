@@ -4,6 +4,7 @@ import {
 	FEATURE_METADATA,
 	type GatedFeatureId,
 	getMinimumPlanForFeature,
+	getPlanLimitMessage,
 	PLAN_IDS,
 } from "@databuddy/shared/types/features";
 import Link from "next/link";
@@ -169,6 +170,21 @@ export function FeatureGate({
 			</Card>
 		</div>
 	);
+}
+
+export function usePlanLimitMessage(
+	feature: GatedFeatureId,
+	currentUsage: number
+): string | null {
+	const { getGatedFeatureAccess, currentPlanId, isLoading } =
+		useBillingContext();
+	const { limit, nextPlan } = getGatedFeatureAccess(feature);
+
+	if (isLoading || typeof limit !== "number" || currentUsage < limit) {
+		return null;
+	}
+
+	return getPlanLimitMessage(currentPlanId, feature, limit, nextPlan);
 }
 
 export function useFeatureGate(feature: GatedFeatureId) {

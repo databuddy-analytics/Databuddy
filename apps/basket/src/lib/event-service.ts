@@ -137,12 +137,6 @@ function directEventIdentity(eventId: unknown, generateFn: () => string) {
 		generateFn();
 	return { sourceEventId, storedEventId };
 }
-
-/**
- * ClickHouse stores analytics ids as UUIDs, while public client event ids can
- * be arbitrary strings. Derive a valid, stable UUID so the same client retry
- * preserves its physical identity without accepting arbitrary input as UUID.
- */
 export function stableAnalyticsEventId(
 	clientId: string,
 	eventType: "outgoing_link" | "track",
