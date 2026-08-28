@@ -263,7 +263,7 @@ export default function NotificationsSettingsPage() {
 											New Alert
 										</Button>
 									}
-									description="Create alerts with Slack, email, or webhook destinations. Attach them to monitors and anomaly rules from their settings."
+									description="Create alerts with Slack, email, or webhook destinations. Attach them to monitors from their settings."
 									icon={<BellIcon weight="duotone" />}
 									title="No alerts yet"
 								/>

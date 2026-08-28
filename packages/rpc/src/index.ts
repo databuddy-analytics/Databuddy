@@ -24,6 +24,7 @@ export type {
 	GithubIntegrationOutput,
 	SlackIntegrationOutput,
 } from "./routers/integrations";
+export type { EmailNotificationSettingsOutput } from "./routers/organizations";
 export type { WebsiteOutput } from "./routers/websites";
 export type { ExportFormat } from "./services/export-service";
 export {
