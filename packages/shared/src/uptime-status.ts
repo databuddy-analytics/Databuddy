@@ -1,4 +1,4 @@
-import type { UptimeGranularity } from "@databuddy/shared/uptime";
+import type { UptimeGranularity } from "./uptime";
 
 export type MonitorStatus = "up" | "down" | "degraded" | "unknown";
 export type MonitorFreshness = "fresh" | "stale" | "unknown";

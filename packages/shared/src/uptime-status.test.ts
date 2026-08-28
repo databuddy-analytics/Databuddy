@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { parseUptimeGranularity } from "@databuddy/shared/uptime";
+import { parseUptimeGranularity } from "./uptime";
 import {
 	deriveMonitorFreshness,
 	deriveMonitorStatus,
