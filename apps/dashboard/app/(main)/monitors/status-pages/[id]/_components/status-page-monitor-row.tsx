@@ -83,11 +83,6 @@ export function StatusPageMonitorRow({
 		});
 	};
 
-	const stopNav = (e: React.MouseEvent) => {
-		e.preventDefault();
-		e.stopPropagation();
-	};
-
 	const handleToggle = async (key: ToggleKey, value: boolean) => {
 		const previous = queryClient.getQueryData(queryKey);
 		optimisticUpdate({ [key]: value });
@@ -148,13 +143,17 @@ export function StatusPageMonitorRow({
 	};
 
 	return (
-		<Link
+		<div
 			className={cn(
-				"group flex items-center gap-4 px-5 py-3 transition-colors hover:bg-interactive-hover",
+				"group relative flex items-center gap-4 px-5 py-3 transition-colors hover:bg-interactive-hover",
 				isPaused && "opacity-50"
 			)}
-			href={`/monitors/${schedule.id}`}
 		>
+			<Link
+				aria-label={`Open ${resolvedName} monitor`}
+				className="absolute inset-0"
+				href={`/monitors/${schedule.id}`}
+			/>
 			<div
 				className={cn(
 					"flex size-8 shrink-0 items-center justify-center rounded-lg border border-border/60",
@@ -168,10 +167,7 @@ export function StatusPageMonitorRow({
 
 			<div className="min-w-0 flex-1">
 				{isEditing ? (
-					<fieldset
-						className="flex items-center gap-1 border-none p-0"
-						onClickCapture={stopNav}
-					>
+					<fieldset className="relative flex items-center gap-1 border-none p-0">
 						<Input
 							autoFocus
 							className="h-7 min-w-0 flex-1"
@@ -220,11 +216,8 @@ export function StatusPageMonitorRow({
 						</div>
 						<Button
 							aria-label="Rename monitor"
-							className="size-6 shrink-0 opacity-0 group-hover:opacity-100"
-							onClick={(e) => {
-								e.preventDefault();
-								startEditing();
-							}}
+							className="relative size-6 shrink-0 opacity-0 group-hover:opacity-100"
+							onClick={startEditing}
 							size="sm"
 							variant="ghost"
 						>
@@ -237,10 +230,7 @@ export function StatusPageMonitorRow({
 				</p>
 			</div>
 
-			<div
-				className="hidden items-center gap-5 lg:flex"
-				onClickCapture={stopNav}
-			>
+			<div className="relative hidden items-center gap-5 lg:flex">
 				<div className="flex items-center gap-2">
 					<Switch
 						checked={monitor.hideUrl}
@@ -284,17 +274,13 @@ export function StatusPageMonitorRow({
 
 			<Button
 				aria-label="Remove monitor"
-				className="shrink-0 text-destructive opacity-0 hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
-				onClick={(e) => {
-					e.preventDefault();
-					e.stopPropagation();
-					onRemoveRequestAction(monitor.id);
-				}}
+				className="relative shrink-0 text-destructive opacity-0 hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+				onClick={() => onRemoveRequestAction(monitor.id)}
 				size="sm"
 				variant="ghost"
 			>
 				<TrashIcon className="size-4" weight="duotone" />
 			</Button>
-		</Link>
+		</div>
 	);
 }
