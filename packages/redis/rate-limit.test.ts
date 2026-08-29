@@ -44,7 +44,8 @@ mock.module("./redis", () => ({
 	) => operation(mockRedisClient),
 }));
 
-const { getRateLimitHeaders, ratelimit } = await import("./rate-limit");
+const { getRateLimitHeaders, ratelimit, resetDegradedRateLimitWindows } =
+	await import("./rate-limit");
 
 afterAll(() => {
 	mock.restore();
@@ -53,6 +54,7 @@ afterAll(() => {
 beforeEach(() => {
 	sortedSets.clear();
 	mockRedisClient.eval.mockClear();
+	resetDegradedRateLimitWindows();
 });
 
 describe("ratelimit", () => {
@@ -105,6 +107,28 @@ describe("ratelimit", () => {
 			remaining: 4,
 		});
 		expect(sortedSets.has("rl:user-2")).toBe(false);
+	});
+
+	it("keeps enforcing the limit in-memory while redis stays down", async () => {
+		for (let i = 0; i < 4; i++) {
+			mockRedisClient.eval.mockImplementationOnce(async () => {
+				throw new Error("redis down");
+			});
+		}
+
+		const first = await ratelimit("user-3", 2, 60);
+		const second = await ratelimit("user-3", 2, 60);
+		const third = await ratelimit("user-3", 2, 60);
+		const otherKey = await ratelimit("user-4", 2, 60);
+
+		expect(first).toMatchObject({ degraded: true, success: true });
+		expect(second).toMatchObject({ degraded: true, success: true });
+		expect(third).toMatchObject({
+			degraded: true,
+			success: false,
+			remaining: 0,
+		});
+		expect(otherKey).toMatchObject({ degraded: true, success: true });
 	});
 });
 
