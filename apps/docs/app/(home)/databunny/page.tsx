@@ -44,7 +44,7 @@ const FAQ_ITEMS = [
 	{
 		question: "How does automatic analysis work?",
 		answer:
-			"On the invite-only Business and Scale plans, choose a daily or weekly organization schedule. Databunny investigates noteworthy changes, keeps their evidence and history together, and gives you a concrete next step.",
+			"On the invite-only Business and Scale plans, choose a daily or weekly schedule for your organization. Databunny investigates noteworthy changes, keeps the evidence and history together, and gives you a concrete next step.",
 	},
 	{
 		question: "What becomes an investigation?",
@@ -81,7 +81,7 @@ export default function DatabunnyPage() {
 			<div className="overflow-x-hidden">
 				<FeatureHero
 					docsHref="/docs"
-					subtitle="Databunny investigates your sites on a schedule you set, delivers evidence-backed findings to Slack, and rechecks until the fix is verified. And when you have a question, ask in plain English."
+					subtitle="Databunny investigates your sites on a schedule you set, delivers evidence-backed findings to Slack, and rechecks until the fix is verified. When you have a question, ask in plain English."
 					title="The analyst that finds problems before you ask."
 				/>
 

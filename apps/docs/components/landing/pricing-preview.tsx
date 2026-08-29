@@ -24,7 +24,7 @@ export function PricingPreview() {
 				</h2>
 				<p className="mt-3 max-w-2xl text-pretty text-muted-foreground text-sm sm:px-0 sm:text-base lg:text-lg">
 					Every feature on every plan. Slide to your event volume and see the
-					number, no sales call and no feature gates.
+					number. No sales call, no feature gates.
 				</p>
 			</div>
 
