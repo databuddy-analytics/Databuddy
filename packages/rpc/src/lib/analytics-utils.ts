@@ -283,33 +283,6 @@ const customEventRows = (projection: string): string => `SELECT ${projection}
 		AND owner_id != {websiteId:String}
 		AND ${buildTimeRangeWhere("timestamp")}`;
 
-const IDENTITY_DELTA_WINDOW_MINUTES = 30;
-
-const identityPairDeltaArms = (
-	keyColumn: "anonymous_id" | "session_id"
-): string => `
-	UNION ALL
-	SELECT ${keyColumn}, time AS identity_time, profile_id
-	FROM analytics.events
-	WHERE ${buildBaseWhere("time")}
-		AND profile_id != '' AND ${keyColumn} != ''
-		AND time > now64(3) - INTERVAL ${IDENTITY_DELTA_WINDOW_MINUTES} MINUTE
-	UNION ALL
-	SELECT ifNull(${keyColumn}, '') AS ${keyColumn}, timestamp AS identity_time, profile_id
-	FROM analytics.custom_events
-	WHERE owner_id = {websiteId:String}
-		AND ${buildTimeRangeWhere("timestamp")}
-		AND profile_id != '' AND ifNull(${keyColumn}, '') != ''
-		AND timestamp > now64(3) - INTERVAL ${IDENTITY_DELTA_WINDOW_MINUTES} MINUTE
-	UNION ALL
-	SELECT ifNull(${keyColumn}, '') AS ${keyColumn}, timestamp AS identity_time, profile_id
-	FROM analytics.custom_events
-	WHERE website_id = {websiteId:String}
-		AND owner_id != {websiteId:String}
-		AND ${buildTimeRangeWhere("timestamp")}
-		AND profile_id != '' AND ifNull(${keyColumn}, '') != ''
-		AND timestamp > now64(3) - INTERVAL ${IDENTITY_DELTA_WINDOW_MINUTES} MINUTE`;
-
 const identityPairMapCte = (
 	table: string,
 	keyColumn: "anonymous_id" | "session_id"
@@ -318,7 +291,7 @@ const identityPairMapCte = (
 	FROM ${table}
 	WHERE client_id = {websiteId:String}
 		AND identity_time >= parseDateTimeBestEffort({startDate:String})
-		AND identity_time <= parseDateTimeBestEffort({endDate:String})${identityPairDeltaArms(keyColumn)}
+		AND identity_time <= parseDateTimeBestEffort({endDate:String})
 )`;
 
 const sessionMetaCte = (source: string): string => `session_meta AS (
