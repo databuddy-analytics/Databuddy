@@ -104,21 +104,15 @@ export const createRPCContext = async (
 		if (billingResolved) {
 			return billingCache;
 		}
-		billingResolved = true;
-
-		try {
-			if (user) {
-				billingCache = await getBillingOwner(user.id, organizationId);
-			} else if (apiKey?.organizationId) {
-				const ownerId = await getOrganizationOwnerId(apiKey.organizationId);
-				if (ownerId) {
-					billingCache = await getBillingOwner(ownerId, apiKey.organizationId);
-				}
+		if (user) {
+			billingCache = await getBillingOwner(user.id, organizationId);
+		} else if (apiKey?.organizationId) {
+			const ownerId = await getOrganizationOwnerId(apiKey.organizationId);
+			if (ownerId) {
+				billingCache = await getBillingOwner(ownerId, apiKey.organizationId);
 			}
-		} catch {
-			billingCache = undefined;
 		}
-
+		billingResolved = true;
 		return billingCache;
 	};
 
