@@ -46,6 +46,7 @@
     "db:studio": "dotenv -- turbo run db:studio",
     "clickhouse:init": "dotenv -- turbo run clickhouse:init",
     "clickhouse:dql:init": "dotenv -- bun packages/db/src/clickhouse/dql.ts",
+    "ch:verify": "dotenv -- bun packages/db/src/clickhouse/verify.ts",
     "db:push": "dotenv -- turbo run db:push",
     "db:migrate": "dotenv -- turbo run db:migrate",
     "db:deploy": "dotenv -- turbo run db:deploy",
