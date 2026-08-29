@@ -1,54 +1,15 @@
 import { checkBotId } from "botid/server";
 import { type NextRequest, NextResponse } from "next/server";
-import { enforceFormRateLimit } from "@/lib/rate-limit";
-import { escapeMrkdwn } from "@/lib/slack-format";
-
-const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL || "";
-const SLACK_TIMEOUT_MS = 10_000;
+import { z } from "zod";
+import { enforceFormRateLimit, getClientIp } from "@/lib/rate-limit";
+import {
+	createSlackField,
+	escapeMrkdwn,
+	postSlackBlocks,
+} from "@/lib/slack-format";
 
 const MIN_NAME_LENGTH = 2;
 const MIN_WHY_AMBASSADOR_LENGTH = 10;
-
-interface AmbassadorFormData {
-	audience?: string;
-	email: string;
-	experience?: string;
-	name: string;
-	referralSource?: string;
-	website?: string;
-	whyAmbassador: string;
-	xHandle?: string;
-}
-
-type ValidationResult =
-	| { valid: true; data: AmbassadorFormData }
-	| { valid: false; errors: string[] };
-
-function getClientIP(request: NextRequest): string {
-	const cfConnectingIP = request.headers.get("cf-connecting-ip");
-	if (cfConnectingIP) {
-		return cfConnectingIP.trim();
-	}
-
-	const forwarded = request.headers.get("x-forwarded-for");
-	if (forwarded) {
-		const firstIP = forwarded.split(",")[0]?.trim();
-		if (firstIP) {
-			return firstIP;
-		}
-	}
-
-	const realIP = request.headers.get("x-real-ip");
-	if (realIP) {
-		return realIP.trim();
-	}
-
-	return "unknown";
-}
-
-function isValidEmail(email: string): boolean {
-	return email.includes("@") && email.length > 3;
-}
 
 function isValidURL(url: string): boolean {
 	try {
@@ -63,90 +24,44 @@ function isValidXHandle(handle: string): boolean {
 	return !(handle.includes("@") || handle.includes("http"));
 }
 
-function validateFormData(data: unknown): ValidationResult {
-	if (!data || typeof data !== "object") {
-		return { valid: false, errors: ["Invalid form data"] };
-	}
+const optionalTrimmed = z
+	.string()
+	.trim()
+	.optional()
+	.transform((value) => value || undefined);
 
-	const formData = data as Record<string, unknown>;
-	const errors: string[] = [];
-
-	const name = formData.name;
-	if (
-		!name ||
-		typeof name !== "string" ||
-		name.trim().length < MIN_NAME_LENGTH
-	) {
-		errors.push("Name is required and must be at least 2 characters");
-	}
-
-	const email = formData.email;
-	if (!email || typeof email !== "string" || !isValidEmail(email)) {
-		errors.push("Valid email is required");
-	}
-
-	const whyAmbassador = formData.whyAmbassador;
-	if (
-		!whyAmbassador ||
-		typeof whyAmbassador !== "string" ||
-		whyAmbassador.trim().length < MIN_WHY_AMBASSADOR_LENGTH
-	) {
-		errors.push(
+const ambassadorSchema = z.object({
+	name: z
+		.string("Name is required and must be at least 2 characters")
+		.trim()
+		.min(MIN_NAME_LENGTH, "Name is required and must be at least 2 characters"),
+	email: z
+		.string("Valid email is required")
+		.trim()
+		.pipe(z.email("Valid email is required")),
+	whyAmbassador: z
+		.string(
 			"Please explain why you want to be an ambassador (minimum 10 characters)"
-		);
-	}
+		)
+		.trim()
+		.min(
+			MIN_WHY_AMBASSADOR_LENGTH,
+			"Please explain why you want to be an ambassador (minimum 10 characters)"
+		),
+	xHandle: optionalTrimmed.refine(
+		(value) => !value || isValidXHandle(value),
+		"X handle should not include @ or URLs"
+	),
+	website: optionalTrimmed.refine(
+		(value) => !value || isValidURL(value),
+		"Website must be a valid URL"
+	),
+	experience: optionalTrimmed,
+	audience: optionalTrimmed,
+	referralSource: optionalTrimmed,
+});
 
-	const xHandle = formData.xHandle;
-	if (
-		xHandle &&
-		typeof xHandle === "string" &&
-		xHandle.length > 0 &&
-		!isValidXHandle(xHandle)
-	) {
-		errors.push("X handle should not include @ or URLs");
-	}
-
-	const website = formData.website;
-	if (
-		website &&
-		typeof website === "string" &&
-		website.length > 0 &&
-		!isValidURL(website)
-	) {
-		errors.push("Website must be a valid URL");
-	}
-
-	if (errors.length > 0) {
-		return { valid: false, errors };
-	}
-
-	return {
-		valid: true,
-		data: {
-			name: String(name).trim(),
-			email: String(email).trim(),
-			xHandle: xHandle ? String(xHandle).trim() : undefined,
-			website: website ? String(website).trim() : undefined,
-			whyAmbassador: String(whyAmbassador).trim(),
-			experience: formData.experience
-				? String(formData.experience).trim()
-				: undefined,
-			audience: formData.audience
-				? String(formData.audience).trim()
-				: undefined,
-			referralSource: formData.referralSource
-				? String(formData.referralSource).trim()
-				: undefined,
-		},
-	};
-}
-
-function createSlackField(label: string, value: string) {
-	return {
-		type: "mrkdwn" as const,
-		text: `*${label}:*\n${escapeMrkdwn(value)}`,
-	};
-}
+type AmbassadorFormData = z.infer<typeof ambassadorSchema>;
 
 function buildSlackBlocks(data: AmbassadorFormData, ip: string): unknown[] {
 	const fields = [
@@ -199,33 +114,6 @@ function buildSlackBlocks(data: AmbassadorFormData, ip: string): unknown[] {
 	return blocks;
 }
 
-async function sendToSlack(
-	data: AmbassadorFormData,
-	ip: string
-): Promise<void> {
-	if (!SLACK_WEBHOOK_URL) {
-		return;
-	}
-
-	const blocks = buildSlackBlocks(data, ip);
-	const controller = new AbortController();
-	const timeoutId = setTimeout(() => controller.abort(), SLACK_TIMEOUT_MS);
-
-	try {
-		const response = await fetch(SLACK_WEBHOOK_URL, {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ blocks }),
-			signal: controller.signal,
-		});
-		if (!response.ok) {
-			throw new Error(`Slack webhook failed with status ${response.status}`);
-		}
-	} finally {
-		clearTimeout(timeoutId);
-	}
-}
-
 export async function POST(request: NextRequest) {
 	const verification = await checkBotId();
 	if (verification.isBot) {
@@ -241,8 +129,6 @@ export async function POST(request: NextRequest) {
 		return rateLimited;
 	}
 
-	const clientIP = getClientIP(request);
-
 	try {
 		let formData: unknown;
 		try {
@@ -254,18 +140,23 @@ export async function POST(request: NextRequest) {
 			);
 		}
 
-		const validation = validateFormData(formData);
+		const validation = ambassadorSchema.safeParse(formData);
 
-		if (!validation.valid) {
+		if (!validation.success) {
 			return NextResponse.json(
-				{ error: "Validation failed", details: validation.errors },
+				{
+					error: "Validation failed",
+					details: validation.error.issues.map((issue) => issue.message),
+				},
 				{ status: 400 }
 			);
 		}
 
 		const ambassadorData = validation.data;
 
-		await sendToSlack(ambassadorData, clientIP);
+		await postSlackBlocks(
+			buildSlackBlocks(ambassadorData, getClientIp(request.headers))
+		);
 
 		return NextResponse.json({
 			success: true,

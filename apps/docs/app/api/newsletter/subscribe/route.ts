@@ -1,8 +1,15 @@
 import { checkBotId } from "botid/server";
 import { type NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
+import { z } from "zod";
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const subscribeSchema = z.object({
+	email: z
+		.string("Please enter a valid email address")
+		.trim()
+		.toLowerCase()
+		.pipe(z.email("Please enter a valid email address")),
+});
 
 export async function POST(request: NextRequest) {
 	try {
@@ -11,9 +18,9 @@ export async function POST(request: NextRequest) {
 			return NextResponse.json({ error: "Access denied" }, { status: 403 });
 		}
 
-		let body: Record<string, unknown>;
+		let body: unknown;
 		try {
-			body = (await request.json()) as Record<string, unknown>;
+			body = await request.json();
 		} catch {
 			return NextResponse.json(
 				{ error: "Invalid request body" },
@@ -21,15 +28,14 @@ export async function POST(request: NextRequest) {
 			);
 		}
 
-		const email =
-			typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-
-		if (!(email && EMAIL_REGEX.test(email))) {
+		const parsed = subscribeSchema.safeParse(body);
+		if (!parsed.success) {
 			return NextResponse.json(
 				{ error: "Please enter a valid email address" },
 				{ status: 400 }
 			);
 		}
+		const { email } = parsed.data;
 
 		const apiKey = process.env.RESEND_API_KEY;
 		const audienceId = process.env.RESEND_AUDIENCE_ID;
@@ -49,7 +55,7 @@ export async function POST(request: NextRequest) {
 		});
 
 		return NextResponse.json({ success: true });
-	} catch (error: unknown) {
+	} catch (error) {
 		const message =
 			error instanceof Error ? error.message : "Something went wrong";
 
