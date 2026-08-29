@@ -11,11 +11,17 @@ import { z } from "zod";
 import { rpcError } from "../errors";
 import {
 	type AnalyticsStep,
+	buildGoalAnalyticsResult,
 	getTotalWebsiteUsers,
 	processGoalAnalytics,
+	processGoalsConversionCountsBatch,
 } from "../lib/analytics-utils";
-import { logger } from "../lib/logger";
 import { invalidateGoalsCache } from "../lib/goals-cache";
+import {
+	getEffectiveStartDate,
+	groupGoalsForBulkAnalytics,
+} from "../lib/goals-bulk-analytics-grouping";
+import { logger } from "../lib/logger";
 import { setTrackProperties } from "../middleware/track-mutation";
 import { publicProcedure, trackedProcedure } from "../orpc";
 import {
@@ -27,6 +33,7 @@ import { requireFeatureWithLimit } from "../types/billing";
 import { queueDefinitionChangeRechecks } from "./insights";
 
 const ANALYTICS_CACHE_TTL = 180;
+const BATCH_CHUNK_SIZE = 255;
 const cache = createDrizzleCache({ redis, namespace: "goals" });
 
 const filterSchema = z.object({
@@ -131,21 +138,6 @@ const goalAnalyticsResultSchema = z.discriminatedUnion("ok", [
 ]);
 
 type GoalAnalyticsResult = z.infer<typeof goalAnalyticsResultSchema>;
-
-const getEffectiveStartDate = (
-	requestedStartDate: string,
-	createdAt: Date | null,
-	ignoreHistoricData: boolean
-): string => {
-	if (!(ignoreHistoricData && createdAt)) {
-		return requestedStartDate;
-	}
-
-	const createdDate = new Date(createdAt).toISOString().split("T")[0];
-	return new Date(requestedStartDate) > new Date(createdDate)
-		? requestedStartDate
-		: createdDate;
-};
 
 const getAnalyticsStepType = (type: "CUSTOM" | "EVENT" | "PAGE_VIEW") =>
 	type === "PAGE_VIEW" ? "PAGE_VIEW" : "EVENT";
@@ -478,68 +470,125 @@ export const goalsRouter = {
 				.orderBy(desc(goals.createdAt));
 
 			const requestFilters = input.filters ?? [];
-			const results = await Promise.all(
-				goalsList.map(async (goal): Promise<[string, GoalAnalyticsResult]> => {
-					const effectiveStartDate = getEffectiveStartDate(
-						startDate,
-						goal.createdAt,
-						goal.ignoreHistoricData
-					);
-
-					const steps: AnalyticsStep[] = [
-						{
-							step_number: 1,
-							type: getAnalyticsStepType(goal.type),
-							target: goal.target,
-							name: goal.name,
-						},
-					];
-
-					const filters = (goal.filters as Filter[]) || [];
-					const combinedFilters = [...requestFilters, ...filters];
-
-					try {
-						const totalUsers = await getTotalWebsiteUsers(
-							input.websiteId,
-							effectiveStartDate,
-							endDate,
-							combinedFilters
-						);
-						const analytics = await processGoalAnalytics(
-							steps,
-							combinedFilters,
-							{
-								websiteId: input.websiteId,
-								startDate: effectiveStartDate,
-								endDate: `${endDate} 23:59:59`,
-							},
-							totalUsers
-						);
-						return [goal.id, { ok: true, data: analytics }];
-					} catch (error) {
-						logger.error(
-							{
-								error,
-								goalId: goal.id,
-								websiteId: input.websiteId,
-							},
-							"Failed to process goal analytics"
-						);
-						return [
-							goal.id,
-							{
-								ok: false,
-								error: "Failed to process goal analytics",
-							},
-						];
-					}
-				})
-			);
+			type Goal = (typeof goalsList)[number];
 
 			const analyticsByGoal: Record<string, GoalAnalyticsResult> = {};
-			for (const [goalId, result] of results) {
-				analyticsByGoal[goalId] = result;
-			}
+
+			const runGoalIndividually = async (
+				goal: Goal,
+				combinedFilters: Filter[]
+			) => {
+				const effectiveStartDate = getEffectiveStartDate(
+					startDate,
+					goal.createdAt,
+					goal.ignoreHistoricData
+				);
+				const steps: AnalyticsStep[] = [
+					{
+						step_number: 1,
+						type: getAnalyticsStepType(goal.type),
+						target: goal.target,
+						name: goal.name,
+					},
+				];
+
+				try {
+					const totalUsers = await getTotalWebsiteUsers(
+						input.websiteId,
+						effectiveStartDate,
+						endDate,
+						combinedFilters
+					);
+					const analytics = await processGoalAnalytics(
+						steps,
+						combinedFilters,
+						{
+							websiteId: input.websiteId,
+							startDate: effectiveStartDate,
+							endDate: `${endDate} 23:59:59`,
+						},
+						totalUsers
+					);
+					analyticsByGoal[goal.id] = { ok: true, data: analytics };
+				} catch (error) {
+					logger.error(
+						{ error, goalId: goal.id, websiteId: input.websiteId },
+						"Failed to process goal analytics"
+					);
+					analyticsByGoal[goal.id] = {
+						ok: false,
+						error: "Failed to process goal analytics",
+					};
+				}
+			};
+
+			const { batchChunks, individualGoals } = groupGoalsForBulkAnalytics(
+				goalsList,
+				requestFilters,
+				startDate,
+				BATCH_CHUNK_SIZE
+			);
+
+			await Promise.all([
+				...batchChunks.map(
+					async ({ effectiveStartDate, goals: chunkGoals }) => {
+						try {
+							const [totalUsers, completionsByStep] = await Promise.all([
+								getTotalWebsiteUsers(
+									input.websiteId,
+									effectiveStartDate,
+									endDate,
+									[]
+								),
+								processGoalsConversionCountsBatch(
+									chunkGoals.map(
+										(goal, index): AnalyticsStep => ({
+											step_number: index + 1,
+											type: getAnalyticsStepType(goal.type),
+											target: goal.target,
+											name: goal.name,
+										})
+									),
+									{
+										websiteId: input.websiteId,
+										startDate: effectiveStartDate,
+										endDate: `${endDate} 23:59:59`,
+									}
+								),
+							]);
+
+							chunkGoals.forEach((goal, index) => {
+								const completions = completionsByStep.get(index + 1) ?? 0;
+								analyticsByGoal[goal.id] = {
+									ok: true,
+									data: buildGoalAnalyticsResult(
+										goal.name,
+										completions,
+										totalUsers
+									),
+								};
+							});
+						} catch (error) {
+							logger.error(
+								{
+									error,
+									websiteId: input.websiteId,
+									effectiveStartDate,
+									goalIds: chunkGoals.map((goal) => goal.id),
+								},
+								"Batched goal analytics query failed; falling back to per-goal queries"
+							);
+							await Promise.all(
+								chunkGoals.map((goal) => runGoalIndividually(goal, []))
+							);
+						}
+					}
+				),
+				...individualGoals.map(({ goal, combinedFilters }) =>
+					runGoalIndividually(goal, combinedFilters)
+				),
+			]);
+
 			return analyticsByGoal;
 		}),
 };

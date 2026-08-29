@@ -855,6 +855,44 @@ ORDER BY step_num, date`;
 	};
 };
 
+export const buildGoalAnalyticsResult = (
+	stepName: string,
+	completions: number,
+	totalWebsiteUsers: number
+): FunnelAnalytics => ({
+	overall_conversion_rate: pct(completions, totalWebsiteUsers),
+	total_users_entered: totalWebsiteUsers,
+	total_users_completed: completions,
+	avg_completion_time: 0,
+	avg_completion_time_formatted: "—",
+	biggest_dropoff_step: 1,
+	biggest_dropoff_rate: 0,
+	duration_available: false,
+	steps_analytics: [
+		{
+			step_number: 1,
+			step_name: stepName,
+			users: completions,
+			total_users: totalWebsiteUsers,
+			conversion_rate: pct(completions, totalWebsiteUsers),
+			dropoffs: 0,
+			dropoff_rate: 0,
+			avg_time_to_complete: 0,
+			error_context_available: false,
+			error_count: 0,
+			error_rate: 0,
+			top_errors: [],
+		},
+	],
+	error_insights: {
+		available: false,
+		total_errors: 0,
+		sessions_with_errors: 0,
+		dropoffs_with_errors: 0,
+		error_correlation_rate: 0,
+	},
+});
+
 export const processGoalAnalytics = async (
 	steps: AnalyticsStep[],
 	filters: Filter[],
@@ -873,39 +911,37 @@ export const processGoalAnalytics = async (
 		abortSignal
 	);
 
-	return {
-		overall_conversion_rate: pct(completions, totalWebsiteUsers),
-		total_users_entered: totalWebsiteUsers,
-		total_users_completed: completions,
-		avg_completion_time: 0,
-		avg_completion_time_formatted: "—",
-		biggest_dropoff_step: 1,
-		biggest_dropoff_rate: 0,
-		duration_available: false,
-		steps_analytics: [
-			{
-				step_number: 1,
-				step_name: step.name,
-				users: completions,
-				total_users: totalWebsiteUsers,
-				conversion_rate: pct(completions, totalWebsiteUsers),
-				dropoffs: 0,
-				dropoff_rate: 0,
-				avg_time_to_complete: 0,
-				error_context_available: false,
-				error_count: 0,
-				error_rate: 0,
-				top_errors: [],
-			},
-		],
-		error_insights: {
-			available: false,
-			total_errors: 0,
-			sessions_with_errors: 0,
-			dropoffs_with_errors: 0,
-			error_correlation_rate: 0,
-		},
-	};
+	return buildGoalAnalyticsResult(step.name, completions, totalWebsiteUsers);
+};
+
+export const processGoalsConversionCountsBatch = async (
+	steps: AnalyticsStep[],
+	params: ClickhouseQueryParams,
+	abortSignal?: AbortSignal
+): Promise<Map<number, number>> => {
+	if (steps.length === 0) {
+		return new Map();
+	}
+
+	const query = `WITH ${visitorIdentityCtes},
+${buildIdentifiedEventStream(steps, [], params)}
+SELECT toUInt8(step) AS step_num, uniqExact(vid) AS completions
+FROM events
+GROUP BY step_num`;
+	const rows = await chQuery<{ step_num: number; completions: number }>(
+		query,
+		params,
+		{ abort_signal: abortSignal }
+	);
+
+	const result = new Map<number, number>();
+	for (const row of rows) {
+		result.set(
+			toFiniteNumber(row.step_num, 0),
+			toFiniteNumber(row.completions, 0)
+		);
+	}
+	return result;
 };
 
 // Referrer analytics — step matching in ClickHouse, referrer grouping in JS
