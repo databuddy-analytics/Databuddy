@@ -5,6 +5,7 @@ import {
 	createApiCatalog as createSharedApiCatalog,
 	createAuthMarkdown as createSharedAuthMarkdown,
 	createDeveloperResources,
+	createFeedbackMarkdown as createSharedFeedbackMarkdown,
 	createIndexMarkdown as createSharedIndexMarkdown,
 	createMcpManifest as createSharedMcpManifest,
 	createMcpServerCard as createSharedMcpServerCard,
@@ -109,6 +110,10 @@ export function createIndexMarkdown() {
 
 export function createAuthMarkdown() {
 	return createSharedAuthMarkdown(discoveryUrls);
+}
+
+export function createFeedbackMarkdown() {
+	return createSharedFeedbackMarkdown(discoveryUrls);
 }
 
 export function createScopedLlmsText(area: "api" | "developers" | "docs") {

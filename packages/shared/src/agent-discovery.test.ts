@@ -3,6 +3,8 @@ import { API_SCOPES } from "./api-scopes";
 import {
 	type AgentDiscoveryUrls,
 	createAgentJson,
+	createDeveloperResources,
+	createFeedbackMarkdown,
 	createMcpManifest,
 	createMcpServerCard,
 	parseNlwebAskBody,
@@ -48,6 +50,23 @@ describe("agent discovery builders", () => {
 
 		expect(createMcpManifest(urls).transports).toEqual(expected);
 		expect(createMcpServerCard(urls).transports).toEqual(expected);
+	});
+
+	it("advertises feedback.md with a working submit endpoint", () => {
+		const feedback = createFeedbackMarkdown(urls);
+
+		expect(feedback).toContain(
+			"https://www.databuddy.cc/api/feedback/submit"
+		);
+		expect(feedback).toContain("support@databuddy.cc");
+		expect(createAgentJson(urls).endpoints.feedback_md).toBe(
+			"https://www.databuddy.cc/feedback.md"
+		);
+		expect(
+			createDeveloperResources(urls).some(
+				(resource) => resource.url === "https://www.databuddy.cc/feedback.md"
+			)
+		).toBe(true);
 	});
 
 	it("parses NLWeb ask bodies without casts", () => {
