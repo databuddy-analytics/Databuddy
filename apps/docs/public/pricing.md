@@ -47,7 +47,7 @@ For exact monthly totals at your event volume, use the calculator on the [pricin
 
 ## Investigation credits
 
-Every cloud plan includes Investigation credits for asking Databunny questions. Credits pay for the work Databunny performs, not a fixed number of messages: simple checks use fewer credits, while deeper investigations, replies, and rechecks use more. Hobby and Pro also receive a daily credit bonus that replenishes each day. Automatic scheduled investigations are exclusive to the invite-only Business and Scale plans.
+Every cloud plan includes Investigation credits for asking Databunny questions. Credits pay for the work Databunny performs, not a fixed number of messages: simple checks use fewer credits, while deeper investigations, replies, and rechecks use more. Hobby and Pro also receive a credit bonus that replenishes each day. Automatic scheduled investigations are exclusive to the invite-only Business and Scale plans.
 
 Additional credits are available: a recurring monthly booster add-on and prepaid top-ups that do not expire.
 

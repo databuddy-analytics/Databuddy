@@ -38,7 +38,7 @@ const FAQ_ITEMS = [
 	{
 		question: "What is the difference between lab data and field data?",
 		answer:
-			"Lab data (like Lighthouse) runs in a controlled environment. Field data - what Databuddy collects - comes from real users on real devices and connections. Google uses field data for rankings, so field data is what matters.",
+			"Lab data (like Lighthouse) runs in a controlled environment. Field data - what Databuddy collects - comes from real users on real devices and connections. Google uses field data for rankings, so that's what matters.",
 	},
 	{
 		question: "Which percentile does Google use to score my site?",

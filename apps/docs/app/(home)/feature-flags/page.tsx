@@ -92,7 +92,7 @@ export default function FeatureFlagsPage() {
 				<Section className="border-border border-b" id="how-it-works">
 					<div className={container}>
 						<SectionHeader
-							subtitle="Create a flag, set your rules, and ship. Changes reach clients without a deploy. No redeploys, no CI pipeline, no waiting."
+							subtitle="Create a flag, set your rules, and ship. Changes reach clients without a deploy. No CI pipeline, no waiting."
 							title="One dashboard,"
 							titleMuted="zero deploys."
 						/>

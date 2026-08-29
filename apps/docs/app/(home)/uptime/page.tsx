@@ -39,7 +39,7 @@ const FAQ_ITEMS = [
 	{
 		question: "How quickly will I know if my site goes down?",
 		answer:
-			"Checks run as frequently as every 60 seconds, and an alert fires as soon as a check sees the status change from up to down.",
+			"Checks run as often as every 60 seconds, and an alert fires on the first check that sees your site go from up to down.",
 	},
 	{
 		question: "Can my customers see the status page?",

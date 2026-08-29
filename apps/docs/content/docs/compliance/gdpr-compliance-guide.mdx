@@ -96,7 +96,7 @@ For web analytics, **consent** is typically the only viable legal basis.
 **Characteristics:**
 - No personal data collection by default
 - No cookies required
-- Anonymous tracking in the default configuration
+- Anonymous tracking by default
 - Avoids analytics-specific consent friction where configuration and jurisdiction allow
 - Built for GDPR compliance
 
@@ -334,7 +334,7 @@ We use Databuddy for website analytics to understand how visitors use our site.
 ## Frequently Asked Questions
 
 ### Do I need a consent banner with Databuddy?
-In the default configuration Databuddy collects only anonymous data, which is the strongest position for running without an analytics consent banner. Whether one is required depends on your configuration, what you send, and your jurisdiction; if you enable `identify()` or send personal data in events, treat it like any other personal-data processing.
+By default, Databuddy collects only anonymous data, which is the strongest position for running without an analytics consent banner. Whether one is required depends on your configuration, what you send, and your jurisdiction. If you enable `identify()` or send personal data in events, treat it like any other personal-data processing.
 
 ### Is server-side tracking GDPR compliant?
 It depends on what data you collect. Server-side tracking can still process personal data like IP addresses.
@@ -346,7 +346,7 @@ It's challenging. You'd need explicit consent, proper data processing agreements
 Databuddy's privacy-first approach helps with most privacy regulations, not just GDPR.
 
 ### How do I handle data subject requests?
-For anonymous default tracking there is usually no personal data to act on. If you identify users, requests about those profiles apply in full: contact [privacy@databuddy.cc](mailto:privacy@databuddy.cc) and see our [Data Policy](/data-policy) for how data flows through the system.
+For anonymous default tracking there is usually no personal data to act on. If you identify users, data subject rights apply in full to those profiles: contact [privacy@databuddy.cc](mailto:privacy@databuddy.cc) and see our [Data Policy](/data-policy) for how data flows through the system.
 
 ## Conclusion
 

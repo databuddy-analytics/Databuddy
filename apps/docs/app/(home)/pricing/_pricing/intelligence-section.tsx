@@ -47,9 +47,9 @@ export function IntelligenceSection() {
 					</span>
 				</div>
 				<p className="mt-1 max-w-2xl text-muted-foreground text-sm sm:text-base">
-					Always-on Databunny capacity for teams that want investigations
-					running continuously. Sized by investigation credits, not just event
-					volume. Access is invite only while we onboard teams personally.
+					Databunny capacity for teams that want investigations running
+					continuously. Sized by investigation credits, not just event volume.
+					Access is invite only while we onboard teams personally.
 				</p>
 			</div>
 			<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

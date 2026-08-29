@@ -85,7 +85,7 @@ export const competitors: Record<string, ComparisonData> = {
 				databuddy: true,
 				competitor: false,
 				benefit:
-					"Avoid analytics-specific consent friction when your configuration and jurisdiction allow cookieless measurement",
+					"Skip analytics consent banners where your setup and jurisdiction allow cookieless measurement",
 				category: "privacy",
 			},
 			{
@@ -806,7 +806,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				question: "How does Databuddy compare to PostHog's self-hosting?",
 				answer:
-					"Both use PostgreSQL, ClickHouse, and Redis. The difference: Databuddy self-hosts from a single docker-compose file and doesn't need Kafka, so there are fewer moving parts to operate.",
+					"Both use PostgreSQL, ClickHouse, and Redis. Databuddy self-hosts from a single docker-compose file and doesn't need Kafka, so there are fewer moving parts.",
 			},
 			{
 				question: "Does Databuddy have session replay?",

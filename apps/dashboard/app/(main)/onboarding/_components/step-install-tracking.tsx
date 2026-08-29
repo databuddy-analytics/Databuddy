@@ -166,7 +166,7 @@ Use snake_case event names. Track decisions and milestones (signup_completed, pu
 
 **Ad blockers**: uBlock Origin, Privacy Badger, and similar extensions may block analytics scripts. Test with extensions disabled. For production, consider a custom tracking domain (proxy through your own domain).
 
-**Localhost is ignored by default**: Events from localhost are not sent unless the tracker's debug build is used. Deploy or open the site on a non-localhost host to see data.
+**Localhost is ignored by default**: Events from localhost are not sent unless you use the tracker's debug build. Deploy or open the site on a non-localhost host to see data.
 
 **Script not loading**: Verify the script tag is in <head> (not <body>), the src URL is correct, and no CSP or network error appears in the console.
 
