@@ -1,0 +1,51 @@
+name: Promote Gate
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  staging-soak:
+    name: Staging Soak Gate
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 15
+    steps:
+      - name: Pass through for non-staging heads
+        if: github.head_ref != 'staging'
+        run: echo "Head branch is not staging; soak gate not applicable."
+
+      - name: Wait for staging deploys on the promoted SHA
+        if: github.head_ref == 'staging'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          required=("Databuddy - API Staging" "Databuddy - Staging Basket")
+          for attempt in $(seq 1 24); do
+            statuses=$(gh api "repos/${{ github.repository }}/commits/$SHA/status" --jq '.statuses[] | "\(.context)=\(.state)"')
+            ok=0
+            for ctx in "${required[@]}"; do
+              state=$(printf '%s\n' "$statuses" | grep -F "$ctx=" | tail -1 | cut -d= -f2)
+              if [ "$state" = "failure" ] || [ "$state" = "error" ]; then
+                echo "Staging deploy failed for: $ctx"; exit 1
+              fi
+              [ "$state" = "success" ] && ok=$((ok+1))
+            done
+            if [ "$ok" -eq "${#required[@]}" ]; then
+              echo "All staging deploys green for $SHA"; exit 0
+            fi
+            echo "Waiting for staging deploys ($ok/${#required[@]} green, attempt $attempt/24)"
+            sleep 30
+          done
+          echo "Staging deploys did not go green within 12 minutes"; exit 1
+
+      - name: Probe staging service health
+        if: github.head_ref == 'staging'
+        run: |
+          for url in "https://staging-api.databuddy.cc/health/status" "https://staging-basket.databuddy.cc/health/status"; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "$url")
+            echo "$url -> $code"
+            if [ "$code" != "200" ]; then
+              echo "Staging service unhealthy; refusing to promote"; exit 1
+            fi
+          done

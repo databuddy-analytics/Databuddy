@@ -986,9 +986,24 @@ async function getOrganizationPlanId(
 	return billing?.planId;
 }
 
+type InvestigationsAccessResolver = (
+	organizationId: string
+) => Promise<boolean>;
+
+let _investigationsAccessResolver: InvestigationsAccessResolver | null = null;
+
+export function setInvestigationsAccessResolver(
+	resolver: InvestigationsAccessResolver | null
+): void {
+	_investigationsAccessResolver = resolver;
+}
+
 async function hasInvestigationsAccess(
 	organizationId: string
 ): Promise<boolean> {
+	if (_investigationsAccessResolver) {
+		return await _investigationsAccessResolver(organizationId);
+	}
 	const planId = await getOrganizationPlanId(organizationId);
 	try {
 		requireFeatureWithLimit(planId, GATED_FEATURES.INVESTIGATIONS, 0);

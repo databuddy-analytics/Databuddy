@@ -15,8 +15,20 @@ let shutdownHooksRegistered = false;
 
 const LINK_CACHE_CONNECT_DEADLINE_MS = 1250;
 export const LINK_CACHE_OPERATION_DEADLINE_MS = 1500;
+const REDIS_FAIL_FAST_WINDOW_MS = 5000;
 const RATE_LIMIT_CONNECT_DEADLINE_MS = 1250;
 export const RATE_LIMIT_OPERATION_DEADLINE_MS = 1500;
+
+let linkCacheFailFastUntil = 0;
+let rateLimitFailFastUntil = 0;
+
+export function resetLinkCacheFailFast(): void {
+	linkCacheFailFastUntil = 0;
+}
+
+export function resetRateLimitFailFast(): void {
+	rateLimitFailFastUntil = 0;
+}
 
 function withDeadline<T>(
 	operation: Promise<T>,
@@ -144,9 +156,22 @@ export function runRateLimitCommand<T>(
 	return runRateLimitRedisCommand(operation);
 }
 
+let _linkCacheTimingFn: ((durationMs: number) => void) | null = null;
+
+export function setLinkCacheTimingFn(
+	fn: ((durationMs: number) => void) | null
+): void {
+	_linkCacheTimingFn = fn;
+}
+
 async function runLinkCacheRedisCommand<T>(
 	operation: (redis: Redis) => Promise<T>
 ): Promise<T> {
+	if (Date.now() < linkCacheFailFastUntil) {
+		throw new Error("Link cache is failing fast after a recent Redis failure");
+	}
+
+	const startedAt = performance.now();
 	let instance: Redis | null = null;
 	const command = getLinkCacheRedis().then((redis) => {
 		instance = redis;
@@ -154,22 +179,31 @@ async function runLinkCacheRedisCommand<T>(
 	});
 
 	try {
-		return await withDeadline(
+		const result = await withDeadline(
 			command,
 			LINK_CACHE_OPERATION_DEADLINE_MS,
 			`Link cache operation exceeded ${LINK_CACHE_OPERATION_DEADLINE_MS}ms`
 		);
+		linkCacheFailFastUntil = 0;
+		return result;
 	} catch (error) {
+		linkCacheFailFastUntil = Date.now() + REDIS_FAIL_FAST_WINDOW_MS;
 		if (instance) {
 			discardLinkCacheRedis(instance);
 		}
 		throw error;
+	} finally {
+		_linkCacheTimingFn?.(performance.now() - startedAt);
 	}
 }
 
 async function runRateLimitRedisCommand<T>(
 	operation: (redis: Redis) => Promise<T>
 ): Promise<T> {
+	if (Date.now() < rateLimitFailFastUntil) {
+		throw new Error("Rate limit is failing fast after a recent Redis failure");
+	}
+
 	let instance: Redis | null = null;
 	const command = getRateLimitRedis().then((redis) => {
 		instance = redis;
@@ -177,12 +211,15 @@ async function runRateLimitRedisCommand<T>(
 	});
 
 	try {
-		return await withDeadline(
+		const result = await withDeadline(
 			command,
 			RATE_LIMIT_OPERATION_DEADLINE_MS,
 			`Rate limit operation exceeded ${RATE_LIMIT_OPERATION_DEADLINE_MS}ms`
 		);
+		rateLimitFailFastUntil = 0;
+		return result;
 	} catch (error) {
+		rateLimitFailFastUntil = Date.now() + REDIS_FAIL_FAST_WINDOW_MS;
 		if (instance) {
 			discardRateLimitRedis(instance);
 		}
@@ -191,6 +228,8 @@ async function runRateLimitRedisCommand<T>(
 }
 
 export async function shutdownRedis() {
+	resetLinkCacheFailFast();
+	resetRateLimitFailFast();
 	const linkCacheInstance = linkCacheRedisInstance;
 	linkCacheRedisInstance = null;
 	linkCacheConnectPromise = null;

@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from "bun:test";
+import { afterAll, describe, expect, it, mock } from "bun:test";
 import {
 	createLinkCacheRedisConnectionOptions,
 	createRateLimitRedisConnectionOptions,
@@ -8,7 +8,9 @@ import {
 
 process.env.REDIS_URL = "redis://test-host:6379";
 
-const { getRedisCache, shutdownRedis } = await import("./redis");
+const { getRedisCache, runLinkCacheCommand, runRateLimitCommand, shutdownRedis } = await import(
+	"./redis"
+);
 
 describe("redis", () => {
 	describe("connection options", () => {
@@ -87,6 +89,68 @@ describe("redis", () => {
 			const second = getRedisCache();
 			expect(second).not.toBe(first);
 			second.disconnect();
+		});
+	});
+
+	describe("link cache fail-fast", () => {
+		afterAll(async () => {
+			await shutdownRedis();
+		});
+
+		it("rejects immediately after a recent failure without running the operation", async () => {
+			await expect(
+				runLinkCacheCommand(async () => "unreachable")
+			).rejects.toThrow();
+
+			const operation = mock(async () => "value");
+			const startedAt = performance.now();
+			await expect(runLinkCacheCommand(operation)).rejects.toThrow(
+				"failing fast"
+			);
+			expect(performance.now() - startedAt).toBeLessThan(100);
+			expect(operation).not.toHaveBeenCalled();
+		});
+
+		it("probes again after shutdown resets the fail-fast window", async () => {
+			await shutdownRedis();
+			const error = await runLinkCacheCommand(async () => "value").catch(
+				(caught: Error) => caught
+			);
+			expect(error).toBeInstanceOf(Error);
+			expect(error.message).not.toContain("failing fast");
+		});
+	});
+
+	describe("rate limit fail-fast", () => {
+		afterAll(async () => {
+			await shutdownRedis();
+		});
+
+		it("rejects immediately after a recent failure without running the operation", async () => {
+			await expect(
+				runRateLimitCommand(async () => "unreachable")
+			).rejects.toThrow();
+
+			const operation = mock(async () => "value");
+			const startedAt = performance.now();
+			await expect(runRateLimitCommand(operation)).rejects.toThrow(
+				"failing fast"
+			);
+			expect(performance.now() - startedAt).toBeLessThan(100);
+			expect(operation).not.toHaveBeenCalled();
+		});
+
+		it("tracks its window independently of the link cache", async () => {
+			await shutdownRedis();
+			await expect(
+				runRateLimitCommand(async () => "unreachable")
+			).rejects.toThrow();
+
+			const linkCacheError = await runLinkCacheCommand(
+				async () => "value"
+			).catch((caught: Error) => caught);
+			expect(linkCacheError).toBeInstanceOf(Error);
+			expect(linkCacheError.message).not.toContain("failing fast");
 		});
 	});
 });
