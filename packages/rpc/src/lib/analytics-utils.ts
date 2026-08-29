@@ -1,4 +1,10 @@
-import { chQuery } from "@databuddy/db/clickhouse";
+import {
+	chQuery,
+	canonicalVisitorExpression,
+	identityJoins,
+	identityPairMapCte,
+	sessionMetaCte,
+} from "@databuddy/db/clickhouse";
 import { goalFunnelFilterFieldSet } from "@databuddy/shared/analytics-filters";
 import { parseReferrer } from "@databuddy/shared/utils/referrer";
 
@@ -283,27 +289,6 @@ const customEventRows = (projection: string): string => `SELECT ${projection}
 		AND owner_id != {websiteId:String}
 		AND ${buildTimeRangeWhere("timestamp")}`;
 
-const identityPairMapCte = (
-	table: string,
-	keyColumn: "anonymous_id" | "session_id"
-): string => `(
-	SELECT ${keyColumn}, identity_time, profile_id
-	FROM ${table}
-	WHERE client_id = {websiteId:String}
-		AND identity_time >= parseDateTimeBestEffort({startDate:String})
-		AND identity_time <= parseDateTimeBestEffort({endDate:String})
-)`;
-
-const sessionMetaCte = (source: string): string => `session_meta AS (
-	SELECT
-		session_id,
-		argMinIf(profile_id, identity_time, profile_id != '') AS first_profile,
-		argMaxIf(anonymous_id, identity_time, anonymous_id != '') AS mapped_anonymous_id
-	FROM ${source}
-	WHERE session_id != ''
-	GROUP BY session_id
-)`;
-
 const directSessionMetaCtes = `identity_source_rows AS (
 	SELECT profile_id, anonymous_id, session_id, time AS identity_time
 	FROM analytics.events
@@ -317,46 +302,8 @@ const directSessionMetaCtes = `identity_source_rows AS (
 ),
 ${sessionMetaCte("identity_source_rows")}`;
 
-const visitorIdentityCtes = `identity_pairs_anon AS ${identityPairMapCte(
-	"analytics.identity_anon_pairs",
-	"anonymous_id"
-)},
-identity_pairs_session AS ${identityPairMapCte(
-	"analytics.identity_session_pairs",
-	"session_id"
-)}`;
-
-// ASOF joins resolve "latest identify at or before the row" natively; the
-// arrayLast lambda ladder this replaces cost ~95us per row because coalesce
-// evaluates every branch eagerly.
-const identityJoins = (
-	source: string,
-	identityTime = `${source}.identity_time`
-): string => `
-	ASOF LEFT JOIN identity_pairs_anon direct_profile
-		ON ${source}.anonymous_id = direct_profile.anonymous_id
-		AND direct_profile.identity_time <= ${identityTime}
-	ASOF LEFT JOIN identity_pairs_session session_pairs
-		ON ${source}.session_id = session_pairs.session_id
-		AND session_pairs.identity_time <= ${identityTime}
-	LEFT JOIN session_meta session_identity
-		ON ${source}.session_id = session_identity.session_id
-	ASOF LEFT JOIN identity_pairs_anon session_profile
-		ON session_identity.mapped_anonymous_id = session_profile.anonymous_id
-		AND session_profile.identity_time <= ${identityTime}`;
-
-// Keep the initial identify backfill (a session's first identify labels its
-// pre-identify prefix), but apply later profile changes forward only.
-const canonicalVisitorExpression = (source: string): string => `coalesce(
-	nullIf(${source}.profile_id, ''),
-	nullIf(session_pairs.profile_id, ''),
-	nullIf(session_identity.first_profile, ''),
-	nullIf(direct_profile.profile_id, ''),
-	nullIf(session_profile.profile_id, ''),
-	nullIf(${source}.anonymous_id, ''),
-	nullIf(session_identity.mapped_anonymous_id, ''),
-	''
-)`;
+const visitorIdentityCtes = `identity_pairs_anon AS ${identityPairMapCte("anonymous_id")},
+identity_pairs_session AS ${identityPairMapCte("session_id")}`;
 
 const pathOnlyExpression = (field = "path") =>
 	`if(startsWith(${field}, 'http://') OR startsWith(${field}, 'https://'), path(${field}), ${field})`;
