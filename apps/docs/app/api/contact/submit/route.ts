@@ -25,6 +25,7 @@ interface ContactFormData {
 	email: string;
 	fullName: string;
 	phone?: string;
+	topic?: string;
 	website: string;
 }
 
@@ -129,6 +130,8 @@ function validateFormData(data: unknown): ValidationResult {
 			? normalizedWebsite
 			: `https://${normalizedWebsite}`;
 
+	const topic = (data as Record<string, unknown>).topic;
+
 	return {
 		valid: true,
 		data: {
@@ -139,6 +142,10 @@ function validateFormData(data: unknown): ValidationResult {
 			phone:
 				phone && typeof phone === "string" && phone.trim().length > 0
 					? phone.trim()
+					: undefined,
+			topic:
+				typeof topic === "string" && topic.trim().length > 0
+					? topic.trim().slice(0, 120)
 					: undefined,
 		},
 	};
@@ -161,6 +168,7 @@ function getPhoneCountry(phone: string): string {
 
 function buildSlackBlocks(data: ContactFormData, ip: string): unknown[] {
 	const lines = [
+		data.topic ? `*Topic:* ${escapeMrkdwn(data.topic)}` : "",
 		`*Name:* ${escapeMrkdwn(data.fullName)}`,
 		`*Business:* ${escapeMrkdwn(data.businessName)}`,
 		`*Website:* ${mrkdwnLink(data.website, data.website)}`,

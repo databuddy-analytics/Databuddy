@@ -87,7 +87,7 @@ export function IntelligenceSection() {
 						<div className="mt-6">
 							<SciFiButton asChild>
 								<Link
-									href="/contact"
+									href={`/contact?topic=intelligence-${tier.id === "intelligence" ? "business" : "scale"}`}
 									onClick={() =>
 										trackPricingPlanClick(tier.id, "pricing_intelligence")
 									}

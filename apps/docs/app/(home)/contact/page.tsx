@@ -3,6 +3,7 @@ import { Footer } from "@/components/footer";
 import Section from "@/components/landing/section";
 
 import { StructuredData } from "@/components/structured-data";
+import { Suspense } from "react";
 import ContactForm from "./contact-form";
 import ContactHero from "./contact-hero";
 
@@ -38,7 +39,9 @@ export default function ContactPage() {
 							<ContactHero />
 						</div>
 						<div className="lg:col-span-2">
-							<ContactForm />
+							<Suspense fallback={null}>
+								<ContactForm />
+							</Suspense>
 						</div>
 					</div>
 				</div>

@@ -4,7 +4,7 @@ import { track } from "@databuddy/sdk";
 import { getTrackingIds } from "@databuddy/sdk/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { PaperPlaneIcon, SpinnerIcon } from "@databuddy/ui/icons";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { isValidPhoneNumber } from "react-phone-number-input";
@@ -97,8 +97,16 @@ function FormField({
 	);
 }
 
+const TOPIC_LABELS: Record<string, string> = {
+	"intelligence-business": "Business plan access request",
+	"intelligence-scale": "Scale plan access request",
+};
+
 export default function ContactForm() {
 	const router = useRouter();
+	const searchParams = useSearchParams();
+	const topicParam = searchParams.get("topic") ?? "";
+	const topicLabel = TOPIC_LABELS[topicParam];
 	const [isSubmitting, setIsSubmitting] = useState(false);
 
 	const {
@@ -130,6 +138,7 @@ export default function ContactForm() {
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
 					...data,
+					...(topicLabel ? { topic: topicLabel } : {}),
 					anonId,
 					sessionId,
 				}),
@@ -205,6 +214,12 @@ export default function ContactForm() {
 				className="space-y-4"
 				onSubmit={handleSubmit(submitForm)}
 			>
+				{topicLabel ? (
+					<div className="rounded border border-primary/40 bg-primary/10 px-3 py-2 text-sm">
+						{topicLabel}: tell us about your product and we will reach out about
+						access.
+					</div>
+				) : null}
 				<FormField
 					error={errors.fullName?.message}
 					id="full-name"
