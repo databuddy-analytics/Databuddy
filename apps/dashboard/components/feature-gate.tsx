@@ -5,11 +5,13 @@ import {
 	type GatedFeatureId,
 	getMinimumPlanForFeature,
 	getPlanLimitMessage,
+	INTELLIGENCE_PLAN_IDS,
 	PLAN_IDS,
 } from "@databuddy/shared/types/features";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useBillingContext } from "@/components/providers/billing-provider";
+import { getCustomerPlanName } from "@/lib/autumn/customer-plan-name";
 import { cn } from "@/lib/utils";
 import {
 	ArrowRightIcon,
@@ -38,6 +40,16 @@ const PLAN_CONFIG: Record<
 	[PLAN_IDS.PRO]: { name: "Pro", icon: StarIcon, color: "text-primary" },
 	[PLAN_IDS.SCALE]: {
 		name: "Business",
+		icon: CrownIcon,
+		color: "text-brand-amber",
+	},
+	[INTELLIGENCE_PLAN_IDS.ANALYST]: {
+		name: "Business",
+		icon: CrownIcon,
+		color: "text-brand-amber",
+	},
+	[INTELLIGENCE_PLAN_IDS.DATA_TEAM]: {
+		name: "Scale",
 		icon: CrownIcon,
 		color: "text-brand-amber",
 	},
@@ -80,6 +92,10 @@ export function FeatureGate({
 	const planConfig = PLAN_CONFIG[requiredPlan] ?? PLAN_CONFIG[PLAN_IDS.PRO];
 	const currentConfig =
 		PLAN_CONFIG[currentPlanId ?? PLAN_IDS.FREE] ?? PLAN_CONFIG[PLAN_IDS.FREE];
+	const currentPlanName = getCustomerPlanName(
+		currentPlanId,
+		currentConfig.name
+	);
 	const PlanIcon = planConfig.icon;
 	const CurrentIcon = currentConfig.icon;
 
@@ -127,7 +143,7 @@ export function FeatureGate({
 								weight="duotone"
 							/>
 							<span className="font-medium text-foreground text-sm">
-								{currentConfig.name}
+								{currentPlanName}
 							</span>
 						</div>
 					</div>
@@ -185,30 +201,4 @@ export function usePlanLimitMessage(
 	}
 
 	return getPlanLimitMessage(currentPlanId, feature, limit, nextPlan);
-}
-
-export function useFeatureGate(feature: GatedFeatureId) {
-	const {
-		isFeatureEnabled,
-		getGatedFeatureAccess,
-		isLoading,
-		canUserUpgrade,
-		isOrganizationBilling,
-	} = useBillingContext();
-
-	const access = getGatedFeatureAccess(feature);
-	const metadata = FEATURE_METADATA[feature];
-	const minPlan =
-		getMinimumPlanForFeature(feature) ?? metadata?.minPlan ?? null;
-	const planConfig = minPlan ? PLAN_CONFIG[minPlan] : null;
-
-	return {
-		isEnabled: isFeatureEnabled(feature),
-		isLoading,
-		...access,
-		planName: planConfig?.name ?? null,
-		featureName: metadata?.name ?? feature,
-		canUserUpgrade,
-		isOrganizationBilling,
-	};
 }

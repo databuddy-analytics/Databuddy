@@ -1,3 +1,7 @@
+import {
+	INTELLIGENCE_CONTACT_TOPICS,
+	INTELLIGENCE_PLAN_IDS,
+} from "@databuddy/shared/types/features";
 import { CheckIcon } from "@databuddy/ui/icons";
 import Link from "next/link";
 import { SciFiButton } from "@/components/landing/scifi-btn";
@@ -5,9 +9,9 @@ import { trackPricingPlanClick } from "./track-pricing";
 
 const INTELLIGENCE_TIERS = [
 	{
-		id: "intelligence",
+		id: INTELLIGENCE_PLAN_IDS.ANALYST,
 		name: "Business",
-		contactTopic: "intelligence-business",
+		contactTopic: INTELLIGENCE_CONTACT_TOPICS[INTELLIGENCE_PLAN_IDS.ANALYST],
 		price: "$299",
 		description:
 			"An always-on product investigator for founders and engineers.",
@@ -20,9 +24,9 @@ const INTELLIGENCE_TIERS = [
 		],
 	},
 	{
-		id: "intelligence_scale",
+		id: INTELLIGENCE_PLAN_IDS.DATA_TEAM,
 		name: "Scale",
-		contactTopic: "intelligence-scale",
+		contactTopic: INTELLIGENCE_CONTACT_TOPICS[INTELLIGENCE_PLAN_IDS.DATA_TEAM],
 		price: "$799",
 		description:
 			"More investigation capacity for products with higher traffic and faster release cycles.",

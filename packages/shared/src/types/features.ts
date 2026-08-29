@@ -17,6 +17,11 @@ export const INTELLIGENCE_PLAN_IDS = {
 export type IntelligencePlanId =
 	(typeof INTELLIGENCE_PLAN_IDS)[keyof typeof INTELLIGENCE_PLAN_IDS];
 
+export const INTELLIGENCE_CONTACT_TOPICS = {
+	[INTELLIGENCE_PLAN_IDS.ANALYST]: "intelligence-business",
+	[INTELLIGENCE_PLAN_IDS.DATA_TEAM]: "intelligence-scale",
+} as const satisfies Record<IntelligencePlanId, string>;
+
 const PLAN_CAPABILITY_ALIASES: Record<IntelligencePlanId, PlanId> = {
 	[INTELLIGENCE_PLAN_IDS.ANALYST]: PLAN_IDS.SCALE,
 	[INTELLIGENCE_PLAN_IDS.DATA_TEAM]: PLAN_IDS.SCALE,
