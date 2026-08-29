@@ -94,7 +94,7 @@ function formatWebsiteLabel(
 		: websiteDomain;
 }
 
-export function buildFallbackText(
+function buildFallbackText(
 	websiteName: string | null | undefined,
 	websiteDomain: string,
 	insight: SlackInvestigation
@@ -226,7 +226,7 @@ function formatMetricValue(value: number, format?: string): string {
 	}
 }
 
-export function buildThreadBlocks(insight: SlackInvestigation): SlackBlock[] {
+function buildThreadBlocks(insight: SlackInvestigation): SlackBlock[] {
 	const metric = insight.signal.metric;
 	const current = formatMetricValue(metric.current, metric.format);
 	const lines = [

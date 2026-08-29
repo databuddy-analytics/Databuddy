@@ -597,10 +597,10 @@ export async function remeasureFunnelGoalSignal(
 ): Promise<DetectedSignal | null> {
 	const goalMatch = GOAL_SIGNAL_KEY.exec(prior.signalKey);
 	const funnelMatch = FUNNEL_SIGNAL_KEY.exec(prior.signalKey);
-	if (!(goalMatch || funnelMatch)) {
+	const definitionId = goalMatch?.[1] ?? funnelMatch?.[1];
+	if (!definitionId) {
 		return null;
 	}
-	const definitionId = goalMatch?.[1] ?? funnelMatch?.[1] ?? "unknown";
 	const definitionType = goalMatch ? "goal" : "funnel";
 	const isZeroCompletionGoal = goalMatch?.[2] === ZERO_COMPLETION_SUFFIX;
 	const isZeroCompletionFunnel = funnelMatch?.[3] === ZERO_COMPLETION_SUFFIX;

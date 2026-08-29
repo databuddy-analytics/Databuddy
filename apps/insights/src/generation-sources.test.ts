@@ -7,7 +7,6 @@ import {
 	type InvestigationCoverage,
 	type InvestigationSources,
 	investigateWebsitePortfolioWithSources,
-	resolveInvestigationAsOf,
 } from "./generation";
 import { prepareInvestigation } from "./investigation";
 
@@ -498,12 +497,6 @@ describe("fixture investigation sources", () => {
 		).rejects.toThrow("Annotation storage unavailable");
 		expect(annotationCalls).toEqual(["visitors"]);
 		expect(attempted).toEqual([]);
-	});
-
-	it("resolves a date-only run to one exact instant in the website timezone", () => {
-		expect(resolveInvestigationAsOf("2026-07-12", "Asia/Hebron")).toEqual(
-			new Date("2026-07-11T21:00:00.000Z")
-		);
 	});
 
 	it("runs the production investigation path using only required sources", async () => {

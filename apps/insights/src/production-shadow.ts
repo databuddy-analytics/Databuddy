@@ -1306,7 +1306,7 @@ function sanitizeOutcome(
 		: null;
 }
 
-export function metricFamily(key: string): string {
+function metricFamily(key: string): string {
 	if (key.startsWith("goal:")) {
 		return "goal";
 	}

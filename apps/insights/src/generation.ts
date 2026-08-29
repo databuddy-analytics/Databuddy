@@ -366,13 +366,6 @@ function normalizeAsOf(asOf: Date | string, timezone: string): dayjs.Dayjs {
 	return value;
 }
 
-export function resolveInvestigationAsOf(
-	asOf: Date | string,
-	timezone: string
-): Date {
-	return normalizeAsOf(asOf, timezone).toDate();
-}
-
 function emptyInvestigationArtifact(params: {
 	asOf: dayjs.Dayjs;
 	status: "deferred" | "no_signals";
@@ -1233,6 +1226,22 @@ export async function generateWebsiteInsights(
 			.filter((observation) => observation.outcome.publish)
 			.map((observation) => observation.signal.signalKey)
 	);
+	const emitExecutionCoverage = (
+		phase: "execution" | "partial_failure"
+	): void => {
+		emitInvestigationCoverage({
+			coverage: portfolioExecutionCoverage(
+				plan?.candidates ?? [],
+				completedSignalKeys,
+				publishedSignalKeys
+			),
+			organizationId: input.organizationId,
+			phase,
+			runId: input.runId,
+			stages: ["selected", "completed", "published"],
+			websiteId: site.id,
+		});
+	};
 	const outcomes = existingObservations.map(
 		(observation) => observation.outcome
 	);
@@ -1431,35 +1440,13 @@ export async function generateWebsiteInsights(
 			}
 		}
 	} catch (error) {
-		emitInvestigationCoverage({
-			coverage: portfolioExecutionCoverage(
-				plan?.candidates ?? [],
-				completedSignalKeys,
-				publishedSignalKeys
-			),
-			organizationId: input.organizationId,
-			phase: "partial_failure",
-			runId: input.runId,
-			stages: ["selected", "completed", "published"],
-			websiteId: site.id,
-		});
+		emitExecutionCoverage("partial_failure");
 		await drainPendingEffectsAfterFailure();
 		throw error;
 	}
 
 	if (billingCheckError) {
-		emitInvestigationCoverage({
-			coverage: portfolioExecutionCoverage(
-				plan?.candidates ?? [],
-				completedSignalKeys,
-				publishedSignalKeys
-			),
-			organizationId: input.organizationId,
-			phase: "partial_failure",
-			runId: input.runId,
-			stages: ["selected", "completed", "published"],
-			websiteId: site.id,
-		});
+		emitExecutionCoverage("partial_failure");
 		throw billingCheckError;
 	}
 	const succeeded = outcomes.length > 0;
@@ -1486,18 +1473,7 @@ export async function generateWebsiteInsights(
 		effects: [],
 		result,
 	});
-	emitInvestigationCoverage({
-		coverage: portfolioExecutionCoverage(
-			plan?.candidates ?? [],
-			completedSignalKeys,
-			publishedSignalKeys
-		),
-		organizationId: input.organizationId,
-		phase: "execution",
-		runId: input.runId,
-		stages: ["selected", "completed", "published"],
-		websiteId: site.id,
-	});
+	emitExecutionCoverage("execution");
 	try {
 		await drainInsightRunEffects(runIdentity, input.finalAttempt);
 	} catch (error) {

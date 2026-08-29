@@ -18,7 +18,6 @@ import {
 	type InsightRunItem,
 } from "@databuddy/db/schema";
 import {
-	summarizeInsightRunItemErrors,
 	syncInsightRunStatus,
 	type InsightRunStatusSummary,
 } from "@databuddy/rpc/insight-generation";
@@ -198,8 +197,6 @@ export async function finalizeCompletedPreparedItem(
 		.returning({ id: insightRunItems.id });
 	return updated.length === 1;
 }
-
-export const summarizeItemErrors = summarizeInsightRunItemErrors;
 
 export async function syncRunStatus(
 	runId: string
