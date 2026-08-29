@@ -50,7 +50,12 @@ export async function GET(
 					ETag: `"${createHash("sha256").update(body).digest("hex").slice(0, 16)}"`,
 				},
 			});
-		} catch {}
+		} catch (error) {
+			const code = (error as NodeJS.ErrnoException).code;
+			if (code !== "ENOENT" && code !== "ENOTDIR") {
+				console.error("docs/raw failed", filePath, error);
+			}
+		}
 	}
 
 	return new Response("Not found", { status: 404 });

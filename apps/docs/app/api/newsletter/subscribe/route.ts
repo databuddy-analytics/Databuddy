@@ -2,6 +2,7 @@ import { checkBotId } from "botid/server";
 import { type NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 import { z } from "zod";
+import { enforceFormRateLimit } from "@/lib/rate-limit";
 
 const subscribeSchema = z.object({
 	email: z
@@ -16,6 +17,15 @@ export async function POST(request: NextRequest) {
 		const verification = await checkBotId();
 		if (verification.isBot) {
 			return NextResponse.json({ error: "Access denied" }, { status: 403 });
+		}
+
+		const rateLimited = await enforceFormRateLimit(request, {
+			key: "newsletter",
+			max: 5,
+			windowSec: 600,
+		});
+		if (rateLimited) {
+			return rateLimited;
 		}
 
 		let body: unknown;
@@ -49,24 +59,28 @@ export async function POST(request: NextRequest) {
 		}
 
 		const resend = new Resend(apiKey);
-		await resend.contacts.create({
+		const { error } = await resend.contacts.create({
 			email,
 			audienceId,
 		});
+		if (error && error.statusCode !== 409) {
+			console.error("newsletter/subscribe failed", error);
+			return NextResponse.json(
+				{ error: "Newsletter signup failed. Please try again later." },
+				{ status: 502 }
+			);
+		}
 
 		return NextResponse.json({ success: true });
 	} catch (error) {
-		const message =
-			error instanceof Error ? error.message : "Something went wrong";
-
-		if (message.includes("already exists")) {
-			return NextResponse.json({ success: true });
-		}
-
 		console.error("newsletter/subscribe failed", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }
 		);
 	}
+}
+
+export function GET() {
+	return NextResponse.json({ error: "Method not allowed" }, { status: 405 });
 }
