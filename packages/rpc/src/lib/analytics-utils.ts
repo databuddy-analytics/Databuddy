@@ -118,7 +118,6 @@ interface ReferrerRow {
 	vid: string;
 }
 
-// Helpers
 const ESCAPE_BACKSLASH_REGEX = /\\/g;
 const ESCAPE_LIKE_WILDCARDS_REGEX = /[%_]/g;
 const escapeClickhouseString = (value: string): string =>
@@ -268,7 +267,6 @@ const buildFilterSQL = (
 	return parts.length > 0 ? ` AND ${parts.join(" AND ")}` : "";
 };
 
-// Query building
 const buildTimeRangeWhere = (timeColumn: string) =>
 	`${timeColumn} >= parseDateTimeBestEffort({startDate:String})
 		AND ${timeColumn} <= parseDateTimeBestEffort({endDate:String})`;
@@ -580,15 +578,6 @@ FROM visitor_progress
 ARRAY JOIN range(1, ${steps.length + 1}) AS step_number
 GROUP BY step_number
 ORDER BY step_number`;
-	if (process.env.DEBUG_FUNNEL_SQL) {
-		console.error(
-			"SQL_START\n" +
-				query +
-				"\nSQL_END\nPARAMS_START\n" +
-				JSON.stringify(params) +
-				"\nPARAMS_END"
-		);
-	}
 	const rows = await chQuery<{ step_num: number; users: number }>(
 		query,
 		params,
@@ -616,7 +605,7 @@ ORDER BY step_number`;
 	};
 };
 
-export const processGoalConversionCount = async (
+const processGoalConversionCount = async (
 	step: AnalyticsStep,
 	filters: Filter[],
 	params: ClickhouseQueryParams,
@@ -631,7 +620,6 @@ SELECT uniqExact(vid) AS completions FROM events`;
 	return toFiniteNumber(row?.completions, 0);
 };
 
-// Main funnel analytics — step matching, timing, and aggregation happen in ClickHouse
 export const processFunnelAnalytics = async (
 	steps: AnalyticsStep[],
 	filters: Filter[],
@@ -864,7 +852,6 @@ export const processGoalAnalytics = async (
 	};
 };
 
-// Referrer analytics — step matching in ClickHouse, referrer grouping in JS
 export const processFunnelAnalyticsByReferrer = async (
 	steps: AnalyticsStep[],
 	filters: Filter[],
@@ -932,7 +919,6 @@ HAVING max_step >= 1`;
 	};
 };
 
-// Get total unique visitors for a website in date range
 export const getTotalWebsiteUsers = async (
 	websiteId: string,
 	startDate: string,

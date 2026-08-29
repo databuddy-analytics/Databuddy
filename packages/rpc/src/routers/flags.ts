@@ -1,3 +1,4 @@
+import { successOutputSchema } from "../lib/schemas";
 import {
 	and,
 	eq,
@@ -311,8 +312,6 @@ const flagStatsOutputSchema = z.object({
 	key: z.string(),
 	lastEvaluatedAt: z.coerce.date().nullable(),
 });
-
-const successOutputSchema = z.object({ success: z.literal(true) });
 
 export const flagsRouter = {
 	list: publicProcedure
@@ -637,7 +636,6 @@ export const flagsRouter = {
 				)
 				.limit(1);
 
-			// Check if any dependency is inactive - if so, force this flag to be inactive
 			const hasInactiveDependency = dependencyFlags.some(
 				(depFlag) => depFlag.status !== "active"
 			);
@@ -650,7 +648,6 @@ export const flagsRouter = {
 					);
 				}
 
-				// Use transaction to ensure flag restore + target group associations are atomic
 				const restoredFlag = await withTransaction(async (tx) => {
 					const [restored] = await tx
 						.update(flags)
@@ -676,7 +673,6 @@ export const flagsRouter = {
 						.where(eq(flags.id, existingFlag[0].id))
 						.returning();
 
-					// Update target group associations within the same transaction
 					await tx
 						.delete(flagsToTargetGroups)
 						.where(eq(flagsToTargetGroups.flagId, existingFlag[0].id));
@@ -743,7 +739,6 @@ export const flagsRouter = {
 					})
 					.returning();
 
-				// Insert target group associations within the same transaction
 				if (input.targetGroupIds && input.targetGroupIds.length > 0) {
 					const ids = input.targetGroupIds;
 					const validGroups = await tx.query.targetGroups.findMany({
@@ -935,7 +930,6 @@ export const flagsRouter = {
 					.where(and(eq(flags.id, id), notDeleted(flags)))
 					.returning();
 
-				// Update target group associations if provided
 				if (targetGroupIds !== undefined) {
 					// Validate that all target groups exist and belong to the same website
 					if (targetGroupIds.length > 0) {

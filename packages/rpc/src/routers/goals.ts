@@ -1,3 +1,4 @@
+import { successOutputSchema } from "../lib/schemas";
 import { and, desc, eq, inArray, isNull } from "@databuddy/db";
 import { goals } from "@databuddy/db/schema";
 import { createDrizzleCache, redis } from "@databuddy/redis";
@@ -72,8 +73,6 @@ const goalOutputSchema = z.object({
 	updatedAt: z.coerce.date(),
 	deletedAt: z.nullable(z.coerce.date()),
 });
-
-const successOutputSchema = z.object({ success: z.literal(true) });
 
 const stepErrorInsightOutputSchema = z.object({
 	message: z.string(),

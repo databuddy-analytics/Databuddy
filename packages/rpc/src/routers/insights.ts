@@ -694,7 +694,7 @@ function definitionActionError(
 		: rpcError.conflict("This definition action is no longer available");
 }
 
-export async function applyInsightAction(input: {
+async function applyInsightAction(input: {
 	context: Context;
 	insightId: string;
 }): Promise<{ reply: z.infer<typeof insightTimelineReplySchema> }> {

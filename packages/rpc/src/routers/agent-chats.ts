@@ -1,3 +1,4 @@
+import { successOutputSchema } from "../lib/schemas";
 import { and, desc, eq } from "@databuddy/db";
 import { agentChats } from "@databuddy/db/schema";
 import { getActiveStream } from "@databuddy/redis/stream-buffer";
@@ -21,8 +22,6 @@ const chatDetailSchema = chatListItemSchema.extend({
 	messages: z.array(z.unknown()),
 	activeStreamId: z.string().nullable(),
 });
-
-const successOutputSchema = z.object({ success: z.literal(true) });
 
 const MAX_LIST = 100;
 
