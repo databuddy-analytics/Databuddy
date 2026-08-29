@@ -8,6 +8,8 @@ export const CLIENT_ID_PURGE_TABLES = [
 	"analytics.blocked_traffic",
 	"analytics.ai_traffic_spans",
 	"analytics.daily_pageviews",
+	"analytics.identity_anon_pairs",
+	"analytics.identity_session_pairs",
 ] as const;
 
 export const WEBSITE_ID_PURGE_TABLES = ["analytics.custom_events"] as const;
