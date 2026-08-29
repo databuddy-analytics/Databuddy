@@ -63,6 +63,31 @@ export const agent_credits = feature({
 	],
 });
 
+const EVENT_OVERAGE_TIERS = [
+	{ to: 2_000_000, amount: 0.000_035 },
+	{ to: 10_000_000, amount: 0.000_03 },
+	{ to: 50_000_000, amount: 0.000_02 },
+	{ to: 250_000_000, amount: 0.000_015 },
+	{ to: "inf" as const, amount: 0.000_01 },
+];
+
+function eventsOverageItem(included: number) {
+	return item({
+		featureId: events.id,
+		included,
+		price: {
+			tiers: EVENT_OVERAGE_TIERS.map((tier) => ({
+				to: tier.to,
+				amount: tier.amount,
+			})),
+			tierBehaviour: "graduated",
+			billingUnits: 1,
+			billingMethod: "usage_based",
+			interval: "month",
+		},
+	});
+}
+
 export const free = plan({
 	id: "free",
 	name: "Free",
@@ -140,23 +165,7 @@ export const pro = plan({
 		interval: "month",
 	},
 	items: [
-		item({
-			featureId: events.id,
-			included: 1_000_000,
-			price: {
-				tiers: [
-					{ to: 2_000_000, amount: 0.000_035 },
-					{ to: 10_000_000, amount: 0.000_03 },
-					{ to: 50_000_000, amount: 0.000_02 },
-					{ to: 250_000_000, amount: 0.000_015 },
-					{ to: "inf", amount: 0.000_01 },
-				],
-				tierBehaviour: "graduated",
-				billingUnits: 1,
-				billingMethod: "usage_based",
-				interval: "month",
-			},
-		}),
+		eventsOverageItem(1_000_000),
 		item({
 			featureId: agent_credits.id,
 			included: 350,
@@ -223,8 +232,8 @@ export const scale = plan({
  * Monthly plan grants reset; paid credits_topup balances persist and can be
  * replenished automatically with the existing billing controls.
  *
- * These are invitation-only beta plans for now, so they stay out of the
- * self-serve pricing table and public pricing docs. Keep them in the default
+ * These are invitation-only beta plans for now, so checkout stays contact-only
+ * on the billing picker and public pricing docs. Keep them in the default
  * group so an attached beta plan replaces Free, Hobby, Pro, or legacy Scale
  * instead of stacking as a second base subscription.
  */
@@ -239,23 +248,7 @@ export const intelligence = plan({
 		interval: "month",
 	},
 	items: [
-		item({
-			featureId: events.id,
-			included: 2_000_000,
-			price: {
-				tiers: [
-					{ to: 2_000_000, amount: 0.000_035 },
-					{ to: 10_000_000, amount: 0.000_03 },
-					{ to: 50_000_000, amount: 0.000_02 },
-					{ to: 250_000_000, amount: 0.000_015 },
-					{ to: "inf", amount: 0.000_01 },
-				],
-				tierBehaviour: "graduated",
-				billingUnits: 1,
-				billingMethod: "usage_based",
-				interval: "month",
-			},
-		}),
+		eventsOverageItem(2_000_000),
 		item({
 			featureId: agent_credits.id,
 			included: 1500,
@@ -289,23 +282,7 @@ export const intelligence_scale = plan({
 		interval: "month",
 	},
 	items: [
-		item({
-			featureId: events.id,
-			included: 10_000_000,
-			price: {
-				tiers: [
-					{ to: 2_000_000, amount: 0.000_035 },
-					{ to: 10_000_000, amount: 0.000_03 },
-					{ to: 50_000_000, amount: 0.000_02 },
-					{ to: 250_000_000, amount: 0.000_015 },
-					{ to: "inf", amount: 0.000_01 },
-				],
-				tierBehaviour: "graduated",
-				billingUnits: 1,
-				billingMethod: "usage_based",
-				interval: "month",
-			},
-		}),
+		eventsOverageItem(10_000_000),
 		item({
 			featureId: agent_credits.id,
 			included: 5000,
@@ -327,6 +304,11 @@ export const intelligence_scale = plan({
 	],
 });
 
+/*
+ * Pulse plans are frozen — keep them in the catalog for any remaining
+ * subscribers, but do not sell, restyle, or add features. New uptime
+ * customers use Free / Hobby / Pro.
+ */
 export const pulse_hobby = plan({
 	id: "pulse_hobby",
 	name: "Pulse Hobby",
@@ -370,10 +352,11 @@ export const pulse_pro = plan({
 });
 
 /*
- * Credit booster. Recurring add-on that grants 200 credits each month
- * on top of the base plan. Because these credits are paid for, they
- * roll over up to 400 and never expire until burned — unlike the
- * plan grants which reset monthly with no rollover.
+ * Credit booster. Recurring add-on for analytics plans only — Intelligence
+ * plans already include on-plan prepaid top-up. Grants 200 credits each
+ * month on top of the base plan. Because these credits are paid for, they
+ * roll over up to 400 and never expire until burned — unlike the plan
+ * grants which reset monthly with no rollover.
  */
 export const credits_booster = plan({
 	id: "credits_booster",
