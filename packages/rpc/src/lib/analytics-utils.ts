@@ -298,63 +298,53 @@ const visitorIdentityCtes = `visitor_identity_rows AS (
 		ifNull(session_id, '') AS session_id,
 		timestamp AS identity_time`)}
 ),
-visitor_profiles_by_anonymous AS (
-	SELECT
-		anonymous_id,
-		arraySort(groupArray((identity_time, profile_id))) AS profile_history
+identity_pairs_anon AS (
+	SELECT anonymous_id, identity_time, profile_id
 	FROM visitor_identity_rows
 	WHERE anonymous_id != '' AND profile_id != ''
-	GROUP BY anonymous_id
 ),
-visitor_identity_by_session AS (
+identity_pairs_session AS (
+	SELECT session_id, identity_time, profile_id
+	FROM visitor_identity_rows
+	WHERE session_id != '' AND profile_id != ''
+),
+session_meta AS (
 	SELECT
 		session_id,
-		arraySort(groupArrayIf((identity_time, profile_id), profile_id != '')) AS profile_history,
+		argMinIf(profile_id, identity_time, profile_id != '') AS first_profile,
 		argMaxIf(anonymous_id, identity_time, anonymous_id != '') AS mapped_anonymous_id
 	FROM visitor_identity_rows
 	WHERE session_id != ''
 	GROUP BY session_id
 )`;
 
-const identityJoins = (source: string): string => `
-	LEFT JOIN visitor_profiles_by_anonymous direct_profile
+// ASOF joins resolve "latest identify at or before the row" natively; the
+// arrayLast lambda ladder this replaces cost ~95us per row because coalesce
+// evaluates every branch eagerly.
+const identityJoins = (
+	source: string,
+	identityTime = `${source}.identity_time`
+): string => `
+	ASOF LEFT JOIN identity_pairs_anon direct_profile
 		ON ${source}.anonymous_id = direct_profile.anonymous_id
-	LEFT JOIN visitor_identity_by_session session_identity
+		AND direct_profile.identity_time <= ${identityTime}
+	ASOF LEFT JOIN identity_pairs_session session_pairs
+		ON ${source}.session_id = session_pairs.session_id
+		AND session_pairs.identity_time <= ${identityTime}
+	LEFT JOIN session_meta session_identity
 		ON ${source}.session_id = session_identity.session_id
-	LEFT JOIN visitor_profiles_by_anonymous session_profile
-		ON session_identity.mapped_anonymous_id = session_profile.anonymous_id`;
+	ASOF LEFT JOIN identity_pairs_anon session_profile
+		ON session_identity.mapped_anonymous_id = session_profile.anonymous_id
+		AND session_profile.identity_time <= ${identityTime}`;
 
-const profileAtRowTime = (
-	source: string,
-	profileSource: string,
-	identityTime = `${source}.identity_time`
-): string =>
-	`tupleElement(
-	arrayLast(
-		identity -> tupleElement(identity, 1) <= ${identityTime},
-		${profileSource}.profile_history
-	),
-	2
-)`;
-
-// Keep the initial identify backfill, but apply later profile changes forward only.
-const sessionProfileAtRowTime = (
-	source: string,
-	identityTime = `${source}.identity_time`
-): string => `coalesce(
-	nullIf(${profileAtRowTime(source, "session_identity", identityTime)}, ''),
-	nullIf(tupleElement(arrayElement(session_identity.profile_history, 1), 2), ''),
-	''
-)`;
-
-const canonicalVisitorExpression = (
-	source: string,
-	identityTime?: string
-): string => `coalesce(
+// Keep the initial identify backfill (a session's first identify labels its
+// pre-identify prefix), but apply later profile changes forward only.
+const canonicalVisitorExpression = (source: string): string => `coalesce(
 	nullIf(${source}.profile_id, ''),
-	nullIf(${sessionProfileAtRowTime(source, identityTime)}, ''),
-	nullIf(${profileAtRowTime(source, "direct_profile", identityTime)}, ''),
-	nullIf(${profileAtRowTime(source, "session_profile", identityTime)}, ''),
+	nullIf(session_pairs.profile_id, ''),
+	nullIf(session_identity.first_profile, ''),
+	nullIf(direct_profile.profile_id, ''),
+	nullIf(session_profile.profile_id, ''),
 	nullIf(${source}.anonymous_id, ''),
 	nullIf(session_identity.mapped_anonymous_id, ''),
 	''
@@ -593,11 +583,11 @@ export const queryLinkVisitorIds = async (
 	params: ClickhouseQueryParams
 ): Promise<Set<string>> => {
 	const refParams = { ...params, linkRefPattern: `%ref=${linkId}%` };
-	const eventVisitor = canonicalVisitorExpression("event", "event.time");
+	const eventVisitor = canonicalVisitorExpression("event");
 	const rows = await chQuery<{ vid: string }>(
 		`WITH ${visitorIdentityCtes}
 		 SELECT DISTINCT ${eventVisitor} as vid
-		 FROM analytics.events event${identityJoins("event")}
+		 FROM analytics.events event${identityJoins("event", "event.time")}
 		 WHERE event.client_id = {websiteId:String}
 			AND ${buildTimeRangeWhere("event.time")}
 			AND event.url LIKE {linkRefPattern:String}
@@ -633,6 +623,15 @@ FROM visitor_progress
 ARRAY JOIN range(1, ${steps.length + 1}) AS step_number
 GROUP BY step_number
 ORDER BY step_number`;
+	if (process.env.DEBUG_FUNNEL_SQL) {
+		console.error(
+			"SQL_START\n" +
+				query +
+				"\nSQL_END\nPARAMS_START\n" +
+				JSON.stringify(params) +
+				"\nPARAMS_END"
+		);
+	}
 	const rows = await chQuery<{ step_num: number; users: number }>(
 		query,
 		params,
@@ -993,11 +992,11 @@ export const getTotalWebsiteUsers = async (
 		(filter) => filter.field !== "event_name"
 	);
 	const filterSQL = buildFilterSQL(denominatorFilters, params, "event");
-	const eventVisitor = canonicalVisitorExpression("event", "event.time");
+	const eventVisitor = canonicalVisitorExpression("event");
 	const [result] = await chQuery<{ count: number }>(
 		`WITH ${visitorIdentityCtes}
 		 SELECT COUNT(DISTINCT ${eventVisitor}) as count
-		 FROM analytics.events event${identityJoins("event")}
+		 FROM analytics.events event${identityJoins("event", "event.time")}
 		 WHERE event.client_id = {websiteId:String}
 			AND event.time >= parseDateTimeBestEffort({startDate:String})
 			AND event.time <= parseDateTimeBestEffort({endDate:String})
