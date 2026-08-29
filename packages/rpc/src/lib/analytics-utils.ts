@@ -283,12 +283,56 @@ const customEventRows = (projection: string): string => `SELECT ${projection}
 		AND owner_id != {websiteId:String}
 		AND ${buildTimeRangeWhere("timestamp")}`;
 
-const visitorIdentityCtes = `visitor_identity_rows AS (
+const IDENTITY_DELTA_WINDOW_MINUTES = 30;
+
+const identityPairDeltaArms = (
+	keyColumn: "anonymous_id" | "session_id"
+): string => `
+	UNION ALL
+	SELECT ${keyColumn}, time AS identity_time, profile_id
+	FROM analytics.events
+	WHERE ${buildBaseWhere("time")}
+		AND profile_id != '' AND ${keyColumn} != ''
+		AND time > now64(3) - INTERVAL ${IDENTITY_DELTA_WINDOW_MINUTES} MINUTE
+	UNION ALL
+	SELECT ifNull(${keyColumn}, '') AS ${keyColumn}, timestamp AS identity_time, profile_id
+	FROM analytics.custom_events
+	WHERE owner_id = {websiteId:String}
+		AND ${buildTimeRangeWhere("timestamp")}
+		AND profile_id != '' AND ifNull(${keyColumn}, '') != ''
+		AND timestamp > now64(3) - INTERVAL ${IDENTITY_DELTA_WINDOW_MINUTES} MINUTE
+	UNION ALL
+	SELECT ifNull(${keyColumn}, '') AS ${keyColumn}, timestamp AS identity_time, profile_id
+	FROM analytics.custom_events
+	WHERE website_id = {websiteId:String}
+		AND owner_id != {websiteId:String}
+		AND ${buildTimeRangeWhere("timestamp")}
+		AND profile_id != '' AND ifNull(${keyColumn}, '') != ''
+		AND timestamp > now64(3) - INTERVAL ${IDENTITY_DELTA_WINDOW_MINUTES} MINUTE`;
+
+const identityPairMapCte = (
+	table: string,
+	keyColumn: "anonymous_id" | "session_id"
+): string => `(
+	SELECT ${keyColumn}, identity_time, profile_id
+	FROM ${table}
+	WHERE client_id = {websiteId:String}
+		AND identity_time >= parseDateTimeBestEffort({startDate:String})
+		AND identity_time <= parseDateTimeBestEffort({endDate:String})${identityPairDeltaArms(keyColumn)}
+)`;
+
+const sessionMetaCte = (source: string): string => `session_meta AS (
 	SELECT
-		profile_id,
-		anonymous_id,
 		session_id,
-		time AS identity_time
+		argMinIf(profile_id, identity_time, profile_id != '') AS first_profile,
+		argMaxIf(anonymous_id, identity_time, anonymous_id != '') AS mapped_anonymous_id
+	FROM ${source}
+	WHERE session_id != ''
+	GROUP BY session_id
+)`;
+
+const directSessionMetaCtes = `identity_source_rows AS (
+	SELECT profile_id, anonymous_id, session_id, time AS identity_time
 	FROM analytics.events
 	WHERE ${buildBaseWhere("time")}
 	UNION ALL
@@ -298,25 +342,16 @@ const visitorIdentityCtes = `visitor_identity_rows AS (
 		ifNull(session_id, '') AS session_id,
 		timestamp AS identity_time`)}
 ),
-identity_pairs_anon AS (
-	SELECT anonymous_id, identity_time, profile_id
-	FROM visitor_identity_rows
-	WHERE anonymous_id != '' AND profile_id != ''
-),
-identity_pairs_session AS (
-	SELECT session_id, identity_time, profile_id
-	FROM visitor_identity_rows
-	WHERE session_id != '' AND profile_id != ''
-),
-session_meta AS (
-	SELECT
-		session_id,
-		argMinIf(profile_id, identity_time, profile_id != '') AS first_profile,
-		argMaxIf(anonymous_id, identity_time, anonymous_id != '') AS mapped_anonymous_id
-	FROM visitor_identity_rows
-	WHERE session_id != ''
-	GROUP BY session_id
-)`;
+${sessionMetaCte("identity_source_rows")}`;
+
+const visitorIdentityCtes = `identity_pairs_anon AS ${identityPairMapCte(
+	"analytics.identity_anon_pairs",
+	"anonymous_id"
+)},
+identity_pairs_session AS ${identityPairMapCte(
+	"analytics.identity_session_pairs",
+	"session_id"
+)}`;
 
 // ASOF joins resolve "latest identify at or before the row" natively; the
 // arrayLast lambda ladder this replaces cost ~95us per row because coalesce
@@ -484,6 +519,7 @@ function buildIdentifiedEventStream(
 		CAST(NULL, 'Nullable(String)') AS user_agent,
 		CAST(NULL, 'Nullable(String)') AS viewport_size`)}
 ),
+${sessionMetaCte("analytics_rows")},
 identified_rows AS (
 	SELECT
 		source_row.source_kind AS source_kind,
@@ -585,7 +621,8 @@ export const queryLinkVisitorIds = async (
 	const refParams = { ...params, linkRefPattern: `%ref=${linkId}%` };
 	const eventVisitor = canonicalVisitorExpression("event");
 	const rows = await chQuery<{ vid: string }>(
-		`WITH ${visitorIdentityCtes}
+		`WITH ${visitorIdentityCtes},
+${directSessionMetaCtes}
 		 SELECT DISTINCT ${eventVisitor} as vid
 		 FROM analytics.events event${identityJoins("event", "event.time")}
 		 WHERE event.client_id = {websiteId:String}
@@ -994,7 +1031,8 @@ export const getTotalWebsiteUsers = async (
 	const filterSQL = buildFilterSQL(denominatorFilters, params, "event");
 	const eventVisitor = canonicalVisitorExpression("event");
 	const [result] = await chQuery<{ count: number }>(
-		`WITH ${visitorIdentityCtes}
+		`WITH ${visitorIdentityCtes},
+${directSessionMetaCtes}
 		 SELECT COUNT(DISTINCT ${eventVisitor}) as count
 		 FROM analytics.events event${identityJoins("event", "event.time")}
 		 WHERE event.client_id = {websiteId:String}

@@ -243,6 +243,34 @@ export interface EventsInsert {
 	profile_id?: string;
 }
 
+export interface IdentityAnonPairsRow {
+	client_id: string;
+	anonymous_id: string;
+	identity_time: string;
+	profile_id: string;
+}
+
+export interface IdentityAnonPairsInsert {
+	client_id: string;
+	anonymous_id: string;
+	identity_time: number | string;
+	profile_id: string;
+}
+
+export interface IdentitySessionPairsRow {
+	client_id: string;
+	session_id: string;
+	identity_time: string;
+	profile_id: string;
+}
+
+export interface IdentitySessionPairsInsert {
+	client_id: string;
+	session_id: string;
+	identity_time: number | string;
+	profile_id: string;
+}
+
 export interface LinkVisitsRow {
 	id: string;
 	link_id: string;
@@ -416,6 +444,8 @@ export interface ClickHouseTables {
 	daily_pageviews: DailyPageviewsRow;
 	error_spans: ErrorSpansRow;
 	events: EventsRow;
+	identity_anon_pairs: IdentityAnonPairsRow;
+	identity_session_pairs: IdentitySessionPairsRow;
 	link_visits: LinkVisitsRow;
 	outgoing_links: OutgoingLinksRow;
 	revenue: RevenueRow;
@@ -430,6 +460,8 @@ export const TABLE_COLUMNS = {
 	"analytics.daily_pageviews": ["client_id", "date", "pageviews"],
 	"analytics.error_spans": ["client_id", "anonymous_id", "session_id", "timestamp", "path", "message", "filename", "lineno", "colno", "stack", "error_type", "delivery_id"],
 	"analytics.events": ["id", "client_id", "event_name", "anonymous_id", "time", "session_id", "referrer", "url", "path", "title", "ip", "user_agent", "browser_name", "browser_version", "os_name", "os_version", "device_type", "device_brand", "device_model", "viewport_size", "language", "timezone", "time_on_page", "country", "region", "city", "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "gclid", "dom_ready_time", "ttfb", "request_time", "render_time", "scroll_depth", "interaction_count", "page_count", "properties", "created_at", "timestamp", "profile_id"],
+	"analytics.identity_anon_pairs": ["client_id", "anonymous_id", "identity_time", "profile_id"],
+	"analytics.identity_session_pairs": ["client_id", "session_id", "identity_time", "profile_id"],
 	"analytics.link_visits": ["id", "link_id", "timestamp", "referrer", "user_agent", "ip_hash", "country", "region", "city", "browser_name", "device_type"],
 	"analytics.outgoing_links": ["id", "client_id", "anonymous_id", "session_id", "href", "text", "properties", "timestamp"],
 	"analytics.revenue": ["owner_id", "website_id", "transaction_id", "provider", "type", "status", "amount", "original_amount", "original_currency", "currency", "anonymous_id", "session_id", "customer_id", "product_id", "product_name", "metadata", "created", "synced_at", "profile_id"],
