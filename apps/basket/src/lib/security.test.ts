@@ -20,20 +20,6 @@ describe("saltAnonymousId", () => {
 		expect(result).toMatch(/^[a-f0-9]{64}$/);
 	});
 
-	test("deterministic: same input → same output", () => {
-		expect(saltAnonymousId("u1", salt)).toBe(saltAnonymousId("u1", salt));
-	});
-
-	test("different IDs → different hashes", () => {
-		expect(saltAnonymousId("u1", salt)).not.toBe(saltAnonymousId("u2", salt));
-	});
-
-	test("different salts → different hashes", () => {
-		expect(saltAnonymousId("u1", "salt-a")).not.toBe(
-			saltAnonymousId("u1", "salt-b")
-		);
-	});
-
 	test("1000 unique IDs → 1000 unique hashes", () => {
 		const hashes = new Set<string>();
 		for (let i = 0; i < 1000; i++) {

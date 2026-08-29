@@ -3,6 +3,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, setDefaultTimeout
 setDefaultTimeout(15_000);
 import { Worker, type Job } from "bullmq";
 import type { UptimeCheckJobData } from "@databuddy/redis";
+import type { UptimeGranularity } from "@databuddy/shared/uptime";
 
 async function waitFor(
 	condition: () => boolean | Promise<boolean>,
@@ -220,6 +221,29 @@ describeIntegration("uptime scheduler BullMQ integration", () => {
 
 		expect(await service.hasUptimeSchedule(scheduleId)).toBe(true);
 		expect(await jobsForSchedule(scheduleId)).toHaveLength(1);
+	});
+
+	it("stores the expected cron pattern for each granularity", async () => {
+		const cronPatternCases: [UptimeGranularity, string][] = [
+			["minute", "* * * * *"],
+			["five_minutes", "*/5 * * * *"],
+			["ten_minutes", "*/10 * * * *"],
+			["thirty_minutes", "*/30 * * * *"],
+			["hour", "0 * * * *"],
+			["six_hours", "0 */6 * * *"],
+			["twelve_hours", "0 */12 * * *"],
+			["day", "0 0 * * *"],
+		];
+		const scheduleId = makeScheduleId("scheduler-cron-pattern");
+		const queue = redis.getUptimeQueue();
+
+		for (const [granularity, pattern] of cronPatternCases) {
+			await service.upsertUptimeSchedule(scheduleId, granularity);
+			const scheduler = await queue.getJobScheduler(
+				redis.uptimeSchedulerId(scheduleId)
+			);
+			expect(scheduler?.pattern).toBe(pattern);
+		}
 	});
 
 	it("removes scheduler state", async () => {

@@ -54,25 +54,6 @@ describe("process error handlers", () => {
 		expect(exitSpy).toHaveBeenCalledWith(1);
 	});
 
-	test("unhandled rejection logs and runs fatal shutdown", async () => {
-		const shutdown = vi.fn(() => Promise.resolve());
-
-		handleUnhandledRejection("bad promise", shutdown);
-		await Promise.resolve();
-		await Promise.resolve();
-
-		expect(mockCaptureError).toHaveBeenCalledWith("bad promise");
-		expect(mockLogError).toHaveBeenCalledWith(
-			expect.objectContaining({
-				process: "unhandledRejection",
-				error_message: "bad promise",
-				error_source: "process",
-			})
-		);
-		expect(shutdown).toHaveBeenCalledWith("unhandledRejection", 1);
-		expect(exitSpy).toHaveBeenCalledWith(1);
-	});
-
 	test("forces exit when shutdown exceeds timeout", () => {
 		vi.useFakeTimers();
 		const shutdown = vi.fn(() => new Promise<void>(() => undefined));

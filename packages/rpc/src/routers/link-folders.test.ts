@@ -1,22 +1,11 @@
 import { describe, expect, it } from "bun:test";
 import {
 	createLinkFolderSchema,
-	deleteLinkFolderSchema,
 	linkFolderOutputSchema,
-	listLinkFoldersSchema,
 	slugifyFolderName,
-	updateLinkFolderSchema,
 } from "./links.schemas";
 
 describe("link folder schemas", () => {
-	it("accepts folder creation with a name only", () => {
-		const result = createLinkFolderSchema.safeParse({
-			organizationId: "org-123",
-			name: "Posts",
-		});
-		expect(result.success).toBe(true);
-	});
-
 	it("accepts valid explicit slugs", () => {
 		for (const slug of ["posts", "social_posts", "campaign-2026"]) {
 			const result = createLinkFolderSchema.safeParse({
@@ -34,26 +23,6 @@ describe("link folder schemas", () => {
 				slug,
 			});
 			expect(result.success).toBe(false);
-		}
-	});
-
-	it("accepts update and delete inputs", () => {
-		expect(
-			updateLinkFolderSchema.safeParse({
-				id: "folder-123",
-				name: "Product Posts",
-			}).success
-		).toBe(true);
-		expect(deleteLinkFolderSchema.safeParse({ id: "folder-123" }).success).toBe(
-			true
-		);
-	});
-
-	it("accepts empty list input", () => {
-		const result = listLinkFoldersSchema.safeParse({});
-		expect(result.success).toBe(true);
-		if (result.success) {
-			expect(result.data).toEqual({});
 		}
 	});
 

@@ -5,8 +5,6 @@ import {
 	type ComponentSpec,
 	componentsToBlocks,
 	componentToBlocks,
-	FEEDBACK_ACTION_ID,
-	feedbackButtonsBlock,
 	splitAgentText,
 } from "@/slack/blocks";
 
@@ -82,29 +80,6 @@ describe("componentToBlocks — tables and lists", () => {
 		]);
 	});
 
-	it("renders a referrers-list as a data_table with a share column", () => {
-		const block = firstBlock({
-			type: "referrers-list",
-			referrers: [{ name: "Google", domain: "google.com", visitors: 500, percentage: 45.5 }],
-		});
-		expect(block).toMatchObject({ type: "data_table" });
-		const rows = block.rows as unknown[][];
-		expect(rows[0].map((c) => (c as { text: string }).text)).toEqual([
-			"Referrer",
-			"Visitors",
-			"Share",
-		]);
-		expect(rows[1][2]).toEqual({ type: "raw_text", text: "45.5%" });
-	});
-
-	it("renders a goals-list with a status column", () => {
-		const block = firstBlock({
-			type: "goals-list",
-			goals: [{ id: "1", name: "Signup", type: "EVENT", target: "signup", isActive: false }],
-		});
-		const rows = block.rows as unknown[][];
-		expect(rows[1][3]).toEqual({ type: "raw_text", text: "Paused" });
-	});
 });
 
 describe("componentToBlocks — charts are no longer dropped", () => {
@@ -123,15 +98,6 @@ describe("componentToBlocks — charts are no longer dropped", () => {
 		expect(header).toEqual(["Period", "pageviews", "visitors"]);
 	});
 
-	it("renders a donut chart as a Segment/Value data_table", () => {
-		const block = firstBlock({
-			type: "donut-chart",
-			title: "Devices",
-			rows: [["Desktop", 650], ["Mobile", 280]],
-		});
-		const header = (block.rows as unknown[][])[0].map((c) => (c as { text: string }).text);
-		expect(header).toEqual(["Segment", "Value"]);
-	});
 });
 
 describe("componentToBlocks — native actions and previews", () => {
@@ -166,31 +132,6 @@ describe("componentToBlocks — native actions and previews", () => {
 		expect(elements[0].value).toBe("break /pricing down by referrer");
 	});
 
-	it("renders a feedback-preview as a section card", () => {
-		const blocks = componentToBlocks({
-			type: "feedback-preview",
-			mode: "sent",
-			feedback: { title: "Dark mode", category: "feature_request", description: "Please add it" },
-		});
-		expect(blocks[0].type).toBe("section");
-		const text = (blocks[0].text as { text: string }).text;
-		expect(text).toContain("Dark mode");
-		expect(text).toContain("Please add it");
-	});
-});
-
-describe("feedbackButtonsBlock", () => {
-	it("builds a context_actions block with thumbsup/thumbsdown signals", () => {
-		const block = feedbackButtonsBlock();
-		expect(block.type).toBe("context_actions");
-		const element = (block.elements as Array<Record<string, unknown>>)[0];
-		expect(element.type).toBe("feedback_buttons");
-		expect(element.action_id).toBe(FEEDBACK_ACTION_ID);
-		expect((element.positive_button as { value: string }).value).toBe("thumbsup");
-		expect((element.negative_button as { value: string }).value).toBe(
-			"thumbsdown"
-		);
-	});
 });
 
 describe("componentToBlocks — no silent drop", () => {

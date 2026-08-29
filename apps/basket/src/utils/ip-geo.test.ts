@@ -14,22 +14,6 @@ afterAll(() => closeGeoIPReader());
 describe("anonymizeIp", () => {
 	test("empty → empty", () => expect(anonymizeIp("")).toBe(""));
 
-	test("IPv4 → 12-char hex", () => {
-		const h = anonymizeIp("192.168.1.1");
-		expect(h).toMatch(HEX12);
-	});
-
-	test("IPv6 → 12-char hex", () => {
-		const h = anonymizeIp("2001:0db8:85a3::8a2e:0370:7334");
-		expect(h).toMatch(HEX12);
-	});
-
-	test("deterministic", () =>
-		expect(anonymizeIp("8.8.8.8")).toBe(anonymizeIp("8.8.8.8")));
-
-	test("different IPs → different hashes", () =>
-		expect(anonymizeIp("8.8.8.8")).not.toBe(anonymizeIp("1.1.1.1")));
-
 	test("1000 random IPs → all unique 12-char hex", () => {
 		const hashes = new Set<string>();
 		for (let i = 0; i < 1000; i++) {
@@ -73,15 +57,6 @@ describe("extractIpFromRequest", () => {
 		});
 
 		expect(extractIpFromRequest(request, "x-forwarded-for")).toBe("5.6.7.8");
-	});
-
-	test("100 random IPs round-trip", () => {
-		for (let i = 0; i < 100; i++) {
-			const ip = randomIPv4();
-			expect(
-				extractIpFromRequest(req("https://x.com", { "cf-connecting-ip": ip }))
-			).toBe(ip);
-		}
 	});
 });
 

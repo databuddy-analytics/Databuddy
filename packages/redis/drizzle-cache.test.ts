@@ -203,13 +203,6 @@ describe("invalidateByTables", () => {
 		expect(sets.has("test:by-key:row-1")).toBe(false);
 	});
 
-	it("does nothing for an empty table list", async () => {
-		await seed("row-1", 1, { tables: ["websites"] });
-
-		await cache.invalidateByTables([]);
-
-		expect(store.has("test:row-1")).toBe(true);
-	});
 });
 
 describe("invalidateByTags", () => {

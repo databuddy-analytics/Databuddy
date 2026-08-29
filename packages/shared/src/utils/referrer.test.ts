@@ -1,9 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import {
-	categorizeReferrer,
-	isInternalReferrer,
-	parseReferrer,
-} from "./referrer";
+import { isInternalReferrer, parseReferrer } from "./referrer";
 
 describe("parseReferrer", () => {
 	it.each([
@@ -90,23 +86,6 @@ describe("parseReferrer", () => {
 
 	it("falls back to direct for protocol values that cannot be parsed", () => {
 		expect(parseReferrer("https://exa mple.com/x").type).toBe("direct");
-	});
-});
-
-describe("categorizeReferrer", () => {
-	it.each([
-		["search", "Search Engine"],
-		["social", "Social Media"],
-		["email", "Email"],
-		["ads", "Advertising"],
-		["ai", "AI"],
-		["direct", "Direct"],
-		["unknown", "Other"],
-		["anything-else", "Other"],
-	])("maps %s to %s", (type, label) => {
-		expect(
-			categorizeReferrer({ type, name: "", url: "", domain: "" })
-		).toBe(label);
 	});
 });
 

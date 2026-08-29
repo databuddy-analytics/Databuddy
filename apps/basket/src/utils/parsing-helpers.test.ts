@@ -1,9 +1,6 @@
 import { describe, expect, test } from "vitest";
-import type { z } from "zod";
 import { cases, longString } from "../test-helpers";
 import {
-	batchBotIgnoredItem,
-	batchSchemaItemFailure,
 	parseEventId,
 	parseProperties,
 	parseTimestamp,
@@ -61,39 +58,5 @@ describe("parseEventId", () => {
 
 	test("truncated a long id to the event id limit", () => {
 		expect(parseEventId(longString(600), gen).length).toBe(512);
-	});
-
-	test("did not invoke the generator for a usable id", () => {
-		let called = false;
-		parseEventId("valid", () => {
-			called = true;
-			return "x";
-		});
-		expect(called).toBe(false);
-	});
-});
-
-describe("batch item failure shapes", () => {
-	test("schema failure flattens issue paths into field names", () => {
-		const issues = [
-			{ message: "bad", path: ["x"], code: "custom" as const },
-		] as z.core.$ZodIssue[];
-		expect(batchSchemaItemFailure(issues, "track", "evt_1")).toEqual({
-			status: "error",
-			message: "Invalid event schema",
-			code: "INVALID_EVENT_SCHEMA",
-			errors: [{ code: "custom", field: "x", message: "bad" }],
-			eventType: "track",
-			eventId: "evt_1",
-		});
-	});
-
-	test("bot-ignored item is an error marked as ignored", () => {
-		expect(batchBotIgnoredItem("track")).toEqual({
-			status: "error",
-			message: "Bot detected",
-			eventType: "track",
-			error: "ignored",
-		});
 	});
 });

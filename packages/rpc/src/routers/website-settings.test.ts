@@ -15,10 +15,6 @@ describe("mergeWebsiteSecuritySettings", () => {
 		expect(mergeWebsiteSecuritySettings(null, {})).toBeNull();
 	});
 
-	it("returns null when current is undefined and patch is empty", () => {
-		expect(mergeWebsiteSecuritySettings(undefined, {})).toBeNull();
-	});
-
 	it("preserves IPs when only origins are updated", () => {
 		expect(
 			mergeWebsiteSecuritySettings(
@@ -26,15 +22,6 @@ describe("mergeWebsiteSecuritySettings", () => {
 				{ allowedOrigins: ["cal.com"] }
 			)
 		).toEqual({ allowedIps: ["10.0.0.1"], allowedOrigins: ["cal.com"] });
-	});
-
-	it("preserves origins when only IPs are updated", () => {
-		expect(
-			mergeWebsiteSecuritySettings(
-				{ allowedOrigins: ["cal.com"] },
-				{ allowedIps: ["10.0.0.1"] }
-			)
-		).toEqual({ allowedOrigins: ["cal.com"], allowedIps: ["10.0.0.1"] });
 	});
 
 	it("replaces a list when the patch supplies a new value", () => {

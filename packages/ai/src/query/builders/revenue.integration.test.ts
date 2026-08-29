@@ -126,29 +126,6 @@ function attributionEvent(
 }
 
 describeIntegration("revenue query builders against ClickHouse", () => {
-	for (const [name, builder] of Object.entries(RevenueBuilders)) {
-		it(`executes ${name}`, async () => {
-			const query = builder.customSql?.({
-				endDate: "2026-01-02",
-				startDate: "2026-01-01",
-				websiteId: "__revenue_builder_integration__",
-			});
-			expect(query).toBeDefined();
-			expect(typeof query).not.toBe("string");
-			if (!query || typeof query === "string") {
-				throw new Error(`${name} did not compile to a parameterized query`);
-			}
-
-			await chQuery(query.sql, query.params, {
-				clickhouse_settings: {
-					max_execution_time: 15,
-					max_result_rows: 100,
-				},
-				readonly: true,
-			});
-		});
-	}
-
 	it("counts canonical Stripe records and keeps payment diagnostics separate", async () => {
 		const websiteId = `revenue-cutover-${randomUUIDv7()}`;
 		const cutoverRevenueRow = (

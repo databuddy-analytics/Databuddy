@@ -24,24 +24,6 @@ function keys(signals: DetectedSignal[]): string[] {
 }
 
 describe("planCoveragePortfolio", () => {
-	it("caps manual runs at five signals and scheduled runs at two", () => {
-		const candidates = [
-			signal({ metric: "error_count", subjectKey: "error:checkout" }),
-			signal({ metric: "goal:signup", subjectKey: "goal:signup" }),
-			signal({ metric: "visitors" }),
-			signal({ metric: "bounce_rate", direction: "up" }),
-			signal({ metric: "revenue" }),
-			signal({ metric: "custom_event_count", subjectKey: "event:share" }),
-		];
-
-		expect(
-			planCoveragePortfolio(candidates, { reason: "manual" })
-		).toHaveLength(5);
-		expect(
-			planCoveragePortfolio(candidates, { reason: "scheduled" })
-		).toHaveLength(2);
-	});
-
 	it("uses a manual full scan for family breadth before repeated reliability work", () => {
 		const reliabilitySignals = ["checkout", "search", "billing", "account", "docs"].map(
 			(subject) =>

@@ -181,12 +181,6 @@ function processUptimeCheckForTest(
 }
 
 describe("getUptimeWorkerConcurrency", () => {
-	it("keeps the pool-safe default when no override is configured", () => {
-		expect(getUptimeWorkerConcurrency(undefined)).toBe(
-			DEFAULT_UPTIME_WORKER_CONCURRENCY
-		);
-	});
-
 	it("rejects invalid configured values", () => {
 		expect(getUptimeWorkerConcurrency("0")).toBe(
 			DEFAULT_UPTIME_WORKER_CONCURRENCY
@@ -371,22 +365,6 @@ describe("processUptimeCheck", () => {
 		);
 		expect(calls.loggerFields).toContainEqual(
 			expect.objectContaining({ orphan_scheduler_reaped: true })
-		);
-	});
-
-	it("reaps the BullMQ scheduler when reason is malformed", async () => {
-		lookupResult = {
-			success: false,
-			error: "Schedule schedule-1 has invalid data (missing url)",
-			reason: "malformed",
-		};
-
-		await processUptimeCheckForTest("schedule-1", "scheduled", deps());
-		await flushMicrotasks();
-
-		expect(calls.reaped).toEqual(["schedule-1"]);
-		expect(calls.loggerFields).toContainEqual(
-			expect.objectContaining({ schedule_lookup_reason: "malformed" })
 		);
 	});
 

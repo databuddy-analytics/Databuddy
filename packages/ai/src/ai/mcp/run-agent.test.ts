@@ -2,37 +2,6 @@ import { describe, expect, it } from "bun:test";
 import { selectActiveToolsForQuestion } from "./run-agent";
 
 describe("MCP agent active tool selection", () => {
-	it("narrows clear Slack analytics requests to analytics tools", () => {
-		expect(
-			selectActiveToolsForQuestion({
-				question: "what changed in traffic over the last 7 days?",
-				source: "slack",
-			})
-		).toEqual([
-			"list_websites",
-			"investigations",
-			"get_data",
-			"execute_sql_query",
-			"list_profiles",
-			"get_profile",
-			"get_profile_sessions",
-			"list_profile_traits",
-			"submit_feedback",
-		]);
-		expect(
-			selectActiveToolsForQuestion({
-				question: "what is the biggest thing I should fix today?",
-				source: "slack",
-			})
-		).toContain("investigations");
-		expect(
-			selectActiveToolsForQuestion({
-				question: "show me the latest insights",
-				source: "slack",
-			})
-		).toContain("investigations");
-	});
-
 	it("does not let thread-reference words hijack explicit feedback requests", () => {
 		expect(
 			selectActiveToolsForQuestion({

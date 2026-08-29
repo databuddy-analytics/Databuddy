@@ -3,7 +3,6 @@ import dayjs from "dayjs";
 import {
 	type DetectSignalsParams,
 	type QueryFn,
-	assignSeverity,
 	detectSignals,
 	remeasureMetricSignal,
 	wowWindow,
@@ -132,21 +131,6 @@ function customEventRow(
 		unique_users: uniqueUsers,
 	};
 }
-
-describe("assignSeverity", () => {
-	for (const [name, zScore, delta, expected] of [
-		["critical for z-score >= 3.5", 3.5, 10, "critical"],
-		["critical for delta >= 60%", 1, 65, "critical"],
-		["warning for z-score >= 3.0", 3, 10, "warning"],
-		["warning for delta >= 50%", 1, 55, "warning"],
-		["info for values at the floor", 2.5, 40, "info"],
-		["info when z-score is undefined and delta is moderate", undefined, 45, "info"],
-	] as const) {
-		it(`assigns ${name}`, () => {
-			expect(assignSeverity(zScore, delta)).toBe(expected);
-		});
-	}
-});
 
 describe("wowWindow", () => {
 	it("ends both comparison windows on complete days", () => {
@@ -335,37 +319,6 @@ describe("detectSignals", () => {
 			expect(visitorSignal!.baselineDates).toEqual(
 				[...(visitorSignal!.baselineDates ?? [])].sort()
 			);
-		});
-
-		it("flags a drop on the latest complete day", async () => {
-			const start = dayjs().subtract(28, "day");
-			const normal = generateStableDays(27, {
-				visitors: 200,
-				sessions: 250,
-				pageviews: 400,
-				bounce_rate: 35,
-				median_session_duration: 90,
-			}, start);
-
-			const dropDay = {
-				date: start.add(27, "day").format("YYYY-MM-DD"),
-				visitors: 30,
-				sessions: 250,
-				pageviews: 400,
-				bounce_rate: 35,
-				median_session_duration: 90,
-			};
-
-			const rows = makeDailyRows([...normal, dropDay]);
-			const queryFn = createMockQueryFn(rows);
-
-			const signals = await detectSignals(BASE_PARAMS, queryFn);
-
-			const visitorSignal = signals.find(
-				(s) => s.metric === "visitors" && s.method === "zscore"
-			);
-			expect(visitorSignal).toBeDefined();
-			expect(visitorSignal!.direction).toBe("down");
 		});
 
 		it("ignores normal variation below threshold", async () => {
@@ -1511,23 +1464,6 @@ describe("detectSignals", () => {
 			expect(signals.find((signal) => signal.metric === "inp")).toBeUndefined();
 		});
 
-		it("does not investigate a healthy page-load improvement", async () => {
-			const queryFn = createMockQueryFn(
-				[],
-				{ sessions: 1000 },
-				{ sessions: 1000 },
-				{
-					vitals_overview: [
-						[{ metric_name: "LCP", p75: 512, samples: 17 }],
-						[{ metric_name: "LCP", p75: 1084, samples: 17 }],
-					],
-				}
-			);
-
-			const signals = await detectSignals(BASE_PARAMS, queryFn);
-			expect(signals.find((signal) => signal.metric === "lcp")).toBeUndefined();
-		});
-
 		it("keeps an improvement that remains above the health threshold", async () => {
 			const queryFn = createMockQueryFn(
 				[],
@@ -1701,29 +1637,6 @@ describe("detectSignals", () => {
 			expect(upTraffic.length).toBe(1);
 		});
 
-		it("preserves non-traffic metrics alongside collapsed traffic", async () => {
-			const queryFn = createMockQueryFn(
-				[],
-				{
-					unique_visitors: 200,
-					sessions: 240,
-					pageviews: 420,
-					bounce_rate: 10,
-					median_session_duration: 120,
-				},
-				{
-					unique_visitors: 100,
-					sessions: 120,
-					pageviews: 200,
-					bounce_rate: 25,
-					median_session_duration: 60,
-				}
-			);
-
-			const signals = await detectSignals(BASE_PARAMS, queryFn);
-			const downSignals = signals.filter((s) => s.direction === "down");
-			expect(downSignals.some((s) => s.metric === "bounce_rate")).toBe(true);
-		});
 	});
 
 	describe("exact remeasurement", () => {

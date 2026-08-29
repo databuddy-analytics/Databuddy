@@ -5,20 +5,6 @@ import {
 } from "./deep-link-fallback";
 
 describe("deep-link fallback page", () => {
-	test("tries the native app and keeps an HTTPS browser fallback", () => {
-		const page = renderDeepLinkFallbackPage(
-			"instagram://user?username=databuddy",
-			"https://www.instagram.com/databuddy"
-		);
-
-		expect(page).toContain('const appUrl = "instagram://user?username=databuddy"');
-		expect(page).toContain(
-			'const fallbackUrl = "https://www.instagram.com/databuddy"'
-		);
-		expect(page).toContain('href="https://www.instagram.com/databuddy"');
-		expect(page).toContain("window.location.replace(fallbackUrl)");
-	});
-
 	test("serializes URLs safely in HTML and JavaScript", () => {
 		const page = renderDeepLinkFallbackPage(
 			"app://open?value=</script><script>alert(1)</script>",

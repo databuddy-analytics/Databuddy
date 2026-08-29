@@ -55,18 +55,6 @@ export function randomPublicIPv4(): string {
 	}
 }
 
-export const CONTROL_CHARS = "\x00\x01\x07\x08\x0B\x0C\x0E\x1F\x7F";
-export const XSS_PAYLOADS = [
-	"<script>alert(1)</script>",
-	'<img onerror="alert(1)" src=x>',
-	"javascript:alert(1)",
-	'"><svg onload=alert(1)>',
-	"' OR 1=1 --",
-	// biome-ignore lint/suspicious/noTemplateCurlyInString: intentional XSS payload
-	"${7*7}",
-	"{{constructor.constructor('return this')()}}",
-];
-
 export function longString(n: number, char = "a"): string {
 	return char.repeat(n);
 }

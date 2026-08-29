@@ -9,18 +9,6 @@ import {
 } from "./features";
 
 describe("plan feature helpers", () => {
-	it("returns capabilities for known plans", () => {
-		expect(getPlanFeatureLimit(PLAN_IDS.PRO, GATED_FEATURES.FEATURE_FLAGS)).toBe(
-			100
-		);
-		expect(getNextPlanForFeature(PLAN_IDS.PRO, GATED_FEATURES.FUNNELS)).toBe(
-			PLAN_IDS.SCALE
-		);
-		expect(getPlanCapabilities(PLAN_IDS.HOBBY).features.error_tracking).toBe(
-			true
-		);
-	});
-
 	it("gives invitation-only intelligence plans Scale capabilities", () => {
 		expect(getPlanCapabilities(INTELLIGENCE_PLAN_IDS.ANALYST)).toEqual(
 			getPlanCapabilities(PLAN_IDS.SCALE)

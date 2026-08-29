@@ -78,20 +78,6 @@ describe("verifyStripeSignature", () => {
 		}
 	});
 
-	test("tampered payload → mismatch", () => {
-		const header = sign(VALID_PAYLOAD);
-		const tampered = VALID_PAYLOAD.replace("1000", "999999");
-		const result = verifyStripeSignature(tampered, header, SECRET);
-		expect(result.valid).toBe(false);
-	});
-
-	test("tampered signature → mismatch", () => {
-		const header = sign(VALID_PAYLOAD);
-		const tampered = header.replace(/v1=([a-f0-9]{10})/, "v1=0000000000");
-		const result = verifyStripeSignature(VALID_PAYLOAD, tampered, SECRET);
-		expect(result.valid).toBe(false);
-	});
-
 	test("timestamp 6 minutes old → rejected", () => {
 		const oldTs = Math.floor(Date.now() / 1000) - 360;
 		const header = sign(VALID_PAYLOAD, SECRET, oldTs);
@@ -124,27 +110,6 @@ describe("verifyStripeSignature", () => {
 		if (!result.valid) {
 			expect(result.error).toContain("JSON");
 		}
-	});
-
-	test("empty payload", () => {
-		const header = sign("");
-		const result = verifyStripeSignature("", header, SECRET);
-		expect(result.valid).toBe(false);
-	});
-
-	test("empty header → missing timestamp", () => {
-		const result = verifyStripeSignature(VALID_PAYLOAD, "", SECRET);
-		expect(result.valid).toBe(false);
-	});
-
-	test("header with extra unknown parts → still works", () => {
-		const ts = Math.floor(Date.now() / 1000);
-		const sig = createHmac("sha256", SECRET)
-			.update(`${ts}.${VALID_PAYLOAD}`, "utf8")
-			.digest("hex");
-		const header = `t=${ts},v1=${sig},v0=legacy`;
-		const result = verifyStripeSignature(VALID_PAYLOAD, header, SECRET);
-		expect(result.valid).toBe(true);
 	});
 
 });

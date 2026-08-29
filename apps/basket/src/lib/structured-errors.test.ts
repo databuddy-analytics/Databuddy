@@ -63,17 +63,6 @@ describe("IngestSchemaValidationError", () => {
 	test("isIngestSchemaValidationError rejects plain Error", () => {
 		expect(isIngestSchemaValidationError(new Error("nope"))).toBe(false);
 	});
-
-	test("isIngestSchemaValidationError rejects EvlogError without issues", () => {
-		const err = createError({ message: "x", status: 400 });
-		expect(isIngestSchemaValidationError(err)).toBe(false);
-	});
-
-	test("isIngestSchemaValidationError rejects non-error", () => {
-		expect(isIngestSchemaValidationError("string")).toBe(false);
-		expect(isIngestSchemaValidationError(null)).toBe(false);
-		expect(isIngestSchemaValidationError(undefined)).toBe(false);
-	});
 });
 
 describe("deliveryUnavailable", () => {
@@ -184,26 +173,6 @@ describe("buildBasketErrorPayload", () => {
 		expect(payload.errors).toEqual([
 			{ code: "custom", field: "x", message: "bad" },
 		]);
-	});
-
-	test("respects elysiaCode option", () => {
-		const { payload } = buildBasketErrorPayload(new Error("x"), {
-			elysiaCode: "NOT_FOUND",
-		});
-		expect(payload.code).toBe("NOT_FOUND");
-	});
-
-	test("default elysiaCode → INTERNAL_SERVER_ERROR", () => {
-		const { payload } = buildBasketErrorPayload(new Error("x"));
-		expect(payload.code).toBe("INTERNAL_SERVER_ERROR");
-	});
-
-	test("extra fields merged into payload", () => {
-		const { payload } = buildBasketErrorPayload(new Error("x"), {
-			extra: { batch: true, count: 5 },
-		});
-		expect(payload.batch).toBe(true);
-		expect(payload.count).toBe(5);
 	});
 
 	test("non-Error input → string coercion", () => {

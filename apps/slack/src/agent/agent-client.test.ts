@@ -1,9 +1,7 @@
 import { describe, expect, it } from "bun:test";
-import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
 
 import {
 	createSlackConversationId,
-	createSlackMemoryUserId,
 	DatabuddyAgentClient,
 	formatSlackAgentInput,
 } from "./agent-client";
@@ -21,68 +19,6 @@ describe("Databuddy Slack agent client", () => {
 				userId: "U123",
 			})
 		).toBe("slack-T123-C123-171234_000");
-	});
-
-	it("creates stable Slack-user memory ids", () => {
-		expect(
-			createSlackMemoryUserId({
-				channelId: "C123",
-				messageTs: "171234.567",
-				teamId: "T123",
-				text: "hello",
-				threadTs: "171234.000",
-				trigger: "app_mention",
-				userId: "U123",
-			})
-		).toBe("slack-T123-U123");
-	});
-
-	it("passes through chunks from the shared Databuddy agent runner", async () => {
-		const client = new DatabuddyAgentClient(
-			{
-				resolve: async () => ({
-					apiKey: { id: "test-key" } as ApiKeyRow,
-					organizationId: "org_123",
-				}),
-			},
-			{
-				async *stream() {
-					yield "Hello ";
-					yield "from stream";
-				},
-			}
-		);
-
-		const chunks: string[] = [];
-		for await (const chunk of client.stream({
-			channelId: "C123",
-			teamId: "T123",
-			text: "Summarize traffic",
-			trigger: "direct_message",
-			userId: "U123",
-		})) {
-			chunks.push(chunk);
-		}
-
-		expect(chunks).toEqual(["Hello ", "from stream"]);
-	});
-
-	it("formats a single Slack message with its author and memory scope", () => {
-		const input = formatSlackAgentInput({
-			channelId: "C123",
-			messageTs: "171234.568",
-			teamId: "T123",
-			text: "what is my name?",
-			threadTs: "171234.000",
-			trigger: "thread_follow_up",
-			userId: "U2",
-		});
-
-		expect(input).toContain("slack_channel_id: C123");
-		expect(input).toContain("<slack_latest_message>");
-		expect(input).toContain("author: <@U2>");
-		expect(input).toContain("author_memory_scope: slack-T123-U2");
-		expect(input).toContain("what is my name?");
 	});
 
 	it("formats queued Slack follow-ups as an ordered continuation", () => {

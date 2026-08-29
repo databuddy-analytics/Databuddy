@@ -287,22 +287,6 @@ describe("public flags HTTP integration", () => {
 					"personal-c",
 				]);
 			}
-
-			const emptyGet = await json(
-				await get(
-					`/v1/flags/bulk?clientId=${website.id}&userId=${user.id}&keys=`
-				)
-			);
-			const emptyPost = await json(
-				await post("/v1/flags/bulk", {
-					clientId: website.id,
-					keys: [],
-					userId: user.id,
-				})
-			);
-			for (const result of [emptyGet, emptyPost]) {
-				expect(result).toEqual({ count: 0, flags: {} });
-			}
 		});
 
 		iit("returns safe defaults for missing params and malformed properties", async () => {

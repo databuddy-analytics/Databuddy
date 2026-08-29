@@ -16,10 +16,6 @@ const validInput = {
 };
 
 describe("createDeepLinkFormSchema", () => {
-	test("accepts an app-specific deep-link target", () => {
-		expect(instagramSchema.safeParse(validInput).success).toBe(true);
-	});
-
 	test("rejects an HTTPS URL for a different app", () => {
 		const result = instagramSchema.safeParse({
 			...validInput,

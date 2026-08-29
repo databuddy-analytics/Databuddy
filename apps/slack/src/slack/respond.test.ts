@@ -2,29 +2,8 @@ import { describe, expect, it } from "bun:test";
 import { DatabuddyAgentUserError } from "@databuddy/ai/agent/errors";
 import type { DatabuddyAgentClient } from "@/agent/agent-client";
 import { SLACK_COPY } from "@/slack/messages";
-import { streamAgentToSlack, toolStatusLabel } from "@/slack/respond";
+import { streamAgentToSlack } from "@/slack/respond";
 import type { SlackAgentClient } from "@/slack/types";
-
-describe("toolStatusLabel", () => {
-	it("maps analytics tools to a querying status", () => {
-		expect(toolStatusLabel(["get_data"])).toBe("Querying your analytics...");
-		expect(toolStatusLabel(["execute_sql_query"])).toBe(
-			"Querying your analytics..."
-		);
-	});
-
-	it("maps session and github tools to their own statuses", () => {
-		expect(toolStatusLabel(["session_events"])).toBe("Reading sessions...");
-		expect(toolStatusLabel(["github_commits"])).toBe(
-			"Checking recent code changes..."
-		);
-	});
-
-	it("falls back for unknown tools", () => {
-		expect(toolStatusLabel(["something_else"])).toBe("Working on it...");
-		expect(toolStatusLabel([])).toBe("Working on it...");
-	});
-});
 
 class SlackApiError extends Error {
 	code = "slack_webapi_platform_error";

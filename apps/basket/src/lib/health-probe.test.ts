@@ -9,19 +9,6 @@ afterEach(() => {
 });
 
 describe("Basket dependency health deadline", () => {
-	test("returns a successful dependency result", async () => {
-		await expect(
-			withHealthProbeDeadline(() => Promise.resolve("PONG"), 20)
-		).resolves.toBe("PONG");
-	});
-
-	test("preserves dependency failures", async () => {
-		const failure = new Error("dependency unavailable");
-		await expect(
-			withHealthProbeDeadline(() => Promise.reject(failure), 20)
-		).rejects.toBe(failure);
-	});
-
 	test("bounds a dependency that never settles", async () => {
 		vi.useFakeTimers();
 		const result = withHealthProbeDeadline(

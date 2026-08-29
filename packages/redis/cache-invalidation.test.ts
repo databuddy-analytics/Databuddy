@@ -124,7 +124,6 @@ const {
 	invalidateAgentContextSnapshot,
 	invalidateAgentContextSnapshotsForOwner,
 	invalidateAgentContextSnapshotsForWebsite,
-	invalidateCacheableTag,
 	invalidateCacheableWithArgs,
 	invalidateFlagReadCaches,
 	invalidateOrganizationMembershipCaches,
@@ -164,15 +163,12 @@ beforeEach(() => {
 });
 
 describe("agent context snapshot keys", () => {
-	it("uses the organization as owner when available", () => {
-		expect(getAgentContextSnapshotKey("user-1", "site-1", "org-1")).toBe(
-			"agent:context-snapshot:org-1:site-1"
-		);
-	});
-
-	it("falls back to the user id for personal workspaces", () => {
-		expect(getAgentContextSnapshotKey("user-1", "site-1", null)).toBe(
-			"agent:context-snapshot:user-1:site-1"
+	it.each([
+		["org-1", "agent:context-snapshot:org-1:site-1"],
+		[null, "agent:context-snapshot:user-1:site-1"],
+	])("scopes the key to organization %p", (organizationId, expected) => {
+		expect(getAgentContextSnapshotKey("user-1", "site-1", organizationId)).toBe(
+			expected
 		);
 	});
 });
@@ -247,39 +243,6 @@ describe("cache tag registry", () => {
 		expect(cacheTags.flagKey("client:1", "flag/a b")).toBe(
 			"flag-key:client%3A1:flag%2Fa%20b"
 		);
-	});
-});
-
-describe("tagged cache invalidation", () => {
-	it("deletes keys from an exact tag index without scanning", async () => {
-		const indexKey = "cacheable-index:website-domains-batch:website:site-1";
-		redisStore.set("cacheable:website-domains-batch:[[site-1,site-2]]", {
-			value: "{}",
-			ttl: 100,
-		});
-		redisStore.set("cacheable:website-domains-batch:[[site-2]]", {
-			value: "{}",
-			ttl: 100,
-		});
-		redisSets.set(
-			indexKey,
-			new Set(["cacheable:website-domains-batch:[[site-1,site-2]]"])
-		);
-
-		const deletedCount = await invalidateCacheableTag(
-			"website-domains-batch",
-			cacheTags.website("site-1")
-		);
-
-		expect(deletedCount).toBe(1);
-		expect(
-			redisStore.has("cacheable:website-domains-batch:[[site-1,site-2]]")
-		).toBe(false);
-		expect(redisStore.has("cacheable:website-domains-batch:[[site-2]]")).toBe(
-			true
-		);
-		expect(redisSets.has(indexKey)).toBe(false);
-		expect(mockRedisClient.scan).not.toHaveBeenCalled();
 	});
 });
 

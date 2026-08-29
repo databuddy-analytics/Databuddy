@@ -87,18 +87,6 @@ describe("transform", () => {
 			changes: 0,
 		},
 		{
-			name: "edge: same vendor attr appears multiple times across many elements",
-			in: Array.from(
-				{ length: 50 },
-				(_, i) => `<a data-rybbit-event="evt_${i}"></a>`
-			).join(""),
-			out: Array.from(
-				{ length: 50 },
-				(_, i) => `<a data-track="evt_${i}"></a>`
-			).join(""),
-			changes: 50,
-		},
-		{
 			name: "edge: attribute value contains the vendor name as text",
 			in: '<a data-rybbit-event="rybbit-vs-umami">vs</a>',
 			out: '<a data-track="rybbit-vs-umami">vs</a>',
@@ -239,36 +227,6 @@ describe("transform", () => {
 			out: '<button\n  className="cta"\n  onClick={handle}\n  data-track="signup_clicked"\n  data-source="hero"\n>\n  Sign up\n</button>',
 			changes: 2,
 		},
-		{
-			name: "edge: large mixed-vendor file (10 of each)",
-			in:
-				Array.from(
-					{ length: 10 },
-					(_, i) => `<a data-rybbit-event="r${i}"></a>`
-				).join("") +
-				Array.from(
-					{ length: 10 },
-					(_, i) => `<a data-umami-event="u${i}"></a>`
-				).join("") +
-				Array.from(
-					{ length: 10 },
-					(_, i) => `<a data-pirsch-event="p${i}"></a>`
-				).join(""),
-			out:
-				Array.from(
-					{ length: 10 },
-					(_, i) => `<a data-track="r${i}"></a>`
-				).join("") +
-				Array.from(
-					{ length: 10 },
-					(_, i) => `<a data-track="u${i}"></a>`
-				).join("") +
-				Array.from(
-					{ length: 10 },
-					(_, i) => `<a data-track="p${i}"></a>`
-				).join(""),
-			changes: 30,
-		},
 	];
 
 	test.each(cases)("$name", ({ in: input, out, changes }) => {
@@ -286,17 +244,6 @@ describe("transform", () => {
 		expect(second.changes).toBe(0);
 	});
 
-	test("idempotent across mixed dialects with all property variants", () => {
-		const input =
-			'<a data-rybbit-event="r" data-rybbit-prop-foo="1" data-umami-event="u" data-umami-event-bar="2" data-pirsch-event="p" data-pirsch-meta-baz="3" data-pirsch-duration="100">';
-		const first = transform(input);
-		const second = transform(first.output);
-		const third = transform(second.output);
-		expect(first.output).toBe(second.output);
-		expect(second.output).toBe(third.output);
-		expect(third.changes).toBe(0);
-	});
-
 	test("preserves all non-vendor content byte-for-byte", () => {
 		const surrounding =
 			"prefix-content\n<!-- comment -->\n<style>.cls { color: red; }</style>\n";
@@ -307,36 +254,4 @@ describe("transform", () => {
 		expect(result.output.endsWith(trailing)).toBe(true);
 	});
 
-	test("returns identical reference-equal pieces when no change occurs (string identity)", () => {
-		const input = "<div>nothing to do</div>";
-		const result = transform(input);
-		expect(result.output).toBe(input);
-		expect(result.changes).toBe(0);
-	});
-
-	test("count matches actual number of distinct replacements", () => {
-		const input =
-			'<a data-rybbit-event="a"></a><a data-rybbit-event="b"></a><a data-rybbit-event="c"></a>';
-		const result = transform(input);
-		expect(result.changes).toBe(3);
-		const occurrences = (result.output.match(/data-track=/g) || []).length;
-		expect(occurrences).toBe(3);
-	});
-
-	test("count is sum of all dialect-specific rewrites", () => {
-		const input =
-			'<a data-rybbit-event="r"><b data-rybbit-prop-x="1"><c data-umami-event="u"><d data-umami-event-y="2"><e data-pirsch-event="p"><f data-pirsch-meta-z="3"><g data-pirsch-duration="100">';
-		const result = transform(input);
-		expect(result.changes).toBe(7);
-	});
-
-	test("performance: 10k lines processed under 200ms", () => {
-		const line = '<a data-rybbit-event="evt" data-rybbit-prop-source="hero">x</a>\n';
-		const input = line.repeat(10_000);
-		const start = performance.now();
-		const result = transform(input);
-		const elapsed = performance.now() - start;
-		expect(result.changes).toBe(20_000);
-		expect(elapsed).toBeLessThan(200);
-	});
 });

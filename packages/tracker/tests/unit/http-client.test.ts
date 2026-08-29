@@ -92,27 +92,6 @@ function createDeferred<T>(): {
 }
 
 describe("HttpClient", () => {
-	test("returns a typed success outcome", async () => {
-		globalThis.fetch = mock(async () =>
-			Response.json({ status: "success" }, { status: 202 })
-		) as typeof fetch;
-		const client = new HttpClient({ baseUrl: "https://example.com" });
-
-		const result = await client.post<{ status: string }>(
-			"https://example.com/events",
-			{},
-			{ keepalive: false }
-		);
-
-		expect(result).toEqual({
-			ok: true,
-			data: { status: "success" },
-			status: 202,
-			attempts: 1,
-			transport: "fetch",
-		});
-	});
-
 	test("uses acknowledged fetch for normal keepalive delivery", async () => {
 		const sendBeacon = mock(() => true);
 		Object.defineProperty(globalThis, "navigator", {

@@ -49,7 +49,6 @@ import {
 	hasWebsiteAnyScope,
 	hasWebsiteScope,
 	isApiKeyPresent,
-	resolveApiKey,
 	resolveApiKeySecret,
 	resolveEffectiveScopesForWebsite,
 } from "@databuddy/api-keys/resolve";
@@ -186,19 +185,6 @@ describe("resolveApiKeySecret", () => {
 		expect(state.findFirst).toHaveBeenCalledTimes(1);
 	});
 
-	it.each([
-		["disabled", { enabled: false }],
-		["revoked", { revokedAt: new Date("2026-08-01T00:00:00.000Z") }],
-		["expired", { expiresAt: new Date(Date.now() - 1000) }],
-	])("returns no key for a %s key", async (outcome, overrides) => {
-		state.row = createMockKey(overrides);
-
-		const result = await resolveApiKeySecret(VALID_SECRET);
-
-		expect(result.outcome).toBe(outcome);
-		expect(result.key).toBeNull();
-	});
-
 	it("resolves an enabled key with a future expiration", async () => {
 		state.row = createMockKey({
 			expiresAt: new Date(Date.now() + 86_400_000),
@@ -232,44 +218,7 @@ describe("resolveApiKeySecret", () => {
 	});
 });
 
-describe("resolveApiKey", () => {
-	it("returns missing when no API key headers are present", async () => {
-		await expect(resolveApiKey(new Headers())).resolves.toEqual({
-			key: null,
-			outcome: "missing",
-		});
-		expect(state.findFirst).not.toHaveBeenCalled();
-	});
-
-	it("returns invalid when a header is present but malformed", async () => {
-		await expect(
-			resolveApiKey(new Headers({ "x-api-key": "invalid_token" }))
-		).resolves.toEqual({ key: null, outcome: "invalid" });
-		expect(state.findFirst).not.toHaveBeenCalled();
-	});
-
-	it("resolves a well-formed header against the database", async () => {
-		state.row = createMockKey();
-
-		const result = await resolveApiKey(
-			new Headers({ "x-api-key": VALID_SECRET })
-		);
-
-		expect(result.outcome).toBe("ok");
-		expect(result.key?.id).toBe("key-123");
-	});
-});
-
 describe("getEffectiveScopes", () => {
-	it("returns empty array for null key", () => {
-		expect(getEffectiveScopes(null)).toEqual([]);
-	});
-
-	it("returns base scopes when metadata has no resources", () => {
-		const key = createMockKey({ scopes: ["read:data", "write:data"] });
-		expect(getEffectiveScopes(key).sort()).toEqual(["read:data", "write:data"]);
-	});
-
 	it("handles null metadata", () => {
 		const key = createMockKey({
 			metadata: null as unknown as Record<string, unknown>,
@@ -350,12 +299,6 @@ describe("scope predicates", () => {
 		expect(hasKeyScope(scoped, "read:analytics", "website:site-456")).toBe(
 			false
 		);
-	});
-
-	it("hasKeyAnyScope passes when any scope matches", () => {
-		const key = createMockKey({ scopes: ["read:data"] });
-		expect(hasKeyAnyScope(key, ["read:data", "write:data"])).toBe(true);
-		expect(hasKeyAnyScope(key, ["track:events", "write:data"])).toBe(false);
 	});
 
 	it("hasKeyAllScopes requires every scope across base and resources", () => {

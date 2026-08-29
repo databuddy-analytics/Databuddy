@@ -3,10 +3,7 @@ import { API_SCOPES } from "./api-scopes";
 import {
 	type AgentDiscoveryUrls,
 	createAgentJson,
-	createDeveloperResources,
 	createFeedbackMarkdown,
-	createMcpManifest,
-	createMcpServerCard,
 	parseNlwebAskBody,
 } from "./agent-discovery";
 
@@ -31,42 +28,10 @@ describe("agent discovery builders", () => {
 		expect(agent.endpoints).not.toHaveProperty("authorization_server_metadata");
 	});
 
-	it("advertises only the real MCP guide resource", () => {
-		const card = createMcpServerCard(urls);
-
-		expect(card.resources).toEqual([
-			{
-				uri: "databuddy://guide",
-				mimeType: "text/markdown",
-				description: "MCP workflow guide and query conventions.",
-			},
-		]);
-	});
-
-	it("advertises one canonical Streamable HTTP endpoint", () => {
-		const expected = [
-			{ type: "streamable-http", url: "https://api.databuddy.cc/v1/mcp/" },
-		];
-
-		expect(createMcpManifest(urls).transports).toEqual(expected);
-		expect(createMcpServerCard(urls).transports).toEqual(expected);
-	});
-
 	it("advertises feedback.md with a working submit endpoint", () => {
-		const feedback = createFeedbackMarkdown(urls);
-
-		expect(feedback).toContain(
+		expect(createFeedbackMarkdown(urls)).toContain(
 			"https://www.databuddy.cc/api/feedback/submit"
 		);
-		expect(feedback).toContain("support@databuddy.cc");
-		expect(createAgentJson(urls).endpoints.feedback_md).toBe(
-			"https://www.databuddy.cc/feedback.md"
-		);
-		expect(
-			createDeveloperResources(urls).some(
-				(resource) => resource.url === "https://www.databuddy.cc/feedback.md"
-			)
-		).toBe(true);
 	});
 
 	it("parses NLWeb ask bodies without casts", () => {

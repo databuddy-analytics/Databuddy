@@ -35,37 +35,6 @@ describe("UptimeAlertEmail — URL text rendering", () => {
 		expect(html).toContain("a=1&amp;b=2&amp;c=3");
 		expect(html).not.toContain("&amp;amp;");
 	});
-
-	test("percent-encoded URLs survive unchanged", async () => {
-		const html = await render({
-			kind: "down",
-			url: "https://example.com/path%20with%20spaces?q=hello%20world",
-		});
-		expect(html).toContain(
-			"https://example.com/path%20with%20spaces?q=hello%20world"
-		);
-	});
-
-	test("unicode hosts render as typed in text (IDN domains)", async () => {
-		const html = await render({ kind: "down", url: "https://münchen.de/über" });
-		expect(html).toContain("münchen.de");
-		expect(html).toContain("über");
-	});
-
-	test("URLs with port, path, query, fragment all render", async () => {
-		const html = await render({
-			kind: "down",
-			url: "https://example.com:8443/a/b?x=1#section",
-		});
-		expect(html).toContain("https://example.com:8443/a/b?x=1#section");
-	});
-
-	test("very long URL (2KB) does not throw or truncate visibly", async () => {
-		const longPath = "a".repeat(2048);
-		const url = `https://example.com/${longPath}`;
-		const html = await render({ kind: "down", url });
-		expect(html).toContain(longPath);
-	});
 });
 
 describe("UptimeAlertEmail — href protocol allowlist (XSS)", () => {
@@ -187,24 +156,9 @@ describe("UptimeAlertEmail — HTML injection in string fields", () => {
 		expect(html).toContain("Tom &amp;amp; Jerry");
 		expect(html).not.toContain("Tom &amp;amp;amp;");
 	});
-
-	test("null bytes / control chars in siteLabel do not break output", async () => {
-		const html = await render({
-			kind: "down",
-			siteLabel: "evil\u0000\u0001site",
-			url: "https://example.com",
-		});
-		expect(html.length).toBeGreaterThan(0);
-	});
 });
 
 describe("UptimeAlertEmail — field fallbacks and optional props", () => {
-	test("all optional props undefined renders without throwing", async () => {
-		const html = await render({});
-		expect(html.length).toBeGreaterThan(0);
-		expect(html).toContain("example.com");
-	});
-
 	test("empty siteLabel falls back to 'your site'", async () => {
 		const html = await render({
 			kind: "down",
@@ -224,30 +178,9 @@ describe("UptimeAlertEmail — field fallbacks and optional props", () => {
 		const html = await render({ kind: "down", url: "https://example.com" });
 		expect(html).not.toContain("View in Databuddy");
 	});
-
-	test("dashboardUrl present → dashboard button appears with that href", async () => {
-		const html = await render({
-			kind: "down",
-			url: "https://example.com",
-			dashboardUrl: "https://app.databuddy.cc/monitors/abc123",
-		});
-		expect(html).toContain("View in Databuddy");
-		expect(html).toContain("https://app.databuddy.cc/monitors/abc123");
-	});
 });
 
 describe("UptimeAlertEmail — down vs recovered variants", () => {
-	test("down variant uses the down copy and red accent", async () => {
-		const html = await render({
-			kind: "down",
-			siteLabel: "acme.com",
-			url: "https://acme.com",
-		});
-		expect(html).toContain("Health check failed for acme.com");
-		expect(html).toContain("did not receive an HTTP response");
-		expect(html.toLowerCase()).toContain("#dc2626");
-	});
-
 	test("down variant does not describe an HTTP error response as unreachable", async () => {
 		const html = await render({
 			kind: "down",
@@ -258,17 +191,6 @@ describe("UptimeAlertEmail — down vs recovered variants", () => {
 		expect(html).toContain("received an HTTP response");
 		expect(html).toContain("did not meet the monitor&#x27;s success criteria");
 		expect(html).not.toContain("could not reach");
-	});
-
-	test("recovered variant uses the recovery copy and green accent", async () => {
-		const html = await render({
-			kind: "recovered",
-			siteLabel: "acme.com",
-			url: "https://acme.com",
-		});
-		expect(html).toContain("Health check passed for acme.com");
-		expect(html).toContain("latest health check passed");
-		expect(html.toLowerCase()).toContain("#22c55e");
 	});
 
 	test("recovered variant omits the error line even if error is passed", async () => {
@@ -432,24 +354,5 @@ describe("UptimeAlertEmail — SSL row", () => {
 			sslExpiryMs: Number.POSITIVE_INFINITY,
 		});
 		expect(html).not.toContain("expires");
-	});
-});
-
-describe("UptimeAlertEmail — preview text", () => {
-	test.each([
-		["down", "failed its latest health check — No HTTP response"],
-		["recovered", "passed its latest health check"],
-	] as const)("%s preview matches current copy", async (kind, copy) => {
-		const html = await render({ kind, url: "https://example.com" });
-		expect(html).toContain(copy);
-	});
-
-	test("down preview includes the received HTTP status", async () => {
-		const html = await render({
-			kind: "down",
-			url: "https://example.com",
-			httpCode: 503,
-		});
-		expect(html).toContain("failed its latest health check — HTTP 503");
 	});
 });

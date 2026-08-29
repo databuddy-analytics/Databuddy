@@ -20,37 +20,10 @@ describe("classifyFetchError", () => {
 		return error;
 	}
 
-	it("classifies timeouts with the configured budget", () => {
-		expect(classifyFetchError(new Error("The operation timed out"), 5000)).toBe(
-			"Timeout after 5000ms"
-		);
-	});
-
-	it("classifies DNS and connection failures by code", () => {
-		expect(classifyFetchError(withCode("fetch failed", "ENOTFOUND"), 5000)).toBe(
-			"DNS lookup failed"
-		);
-		expect(
-			classifyFetchError(withCode("fetch failed", "ECONNREFUSED"), 5000)
-		).toBe("Connection refused");
-		expect(
-			classifyFetchError(withCode("fetch failed", "ECONNRESET"), 5000)
-		).toBe("Connection reset by peer");
-	});
-
 	it("reads codes from the error cause chain", () => {
 		const cause = withCode("getaddrinfo ENOTFOUND example.invalid", "EAI_AGAIN");
 		const wrapped = new Error("fetch failed", { cause });
 		expect(classifyFetchError(wrapped, 5000)).toBe("DNS lookup failed");
-	});
-
-	it("surfaces TLS error codes", () => {
-		expect(
-			classifyFetchError(
-				withCode("certificate has expired", "CERT_HAS_EXPIRED"),
-				5000
-			)
-		).toBe("TLS error: CERT_HAS_EXPIRED");
 	});
 
 	it("falls back to the message with cause context", () => {

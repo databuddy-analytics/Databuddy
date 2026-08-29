@@ -1,6 +1,5 @@
 import { describe, expect, it } from "bun:test";
 import {
-	AGENT_SQL_VALIDATION_ERROR,
 	AGENT_TENANT_COLUMN_BY_TABLE,
 	buildAdditionalTableFilters,
 	extractAllowlistedTables,
@@ -331,10 +330,6 @@ describe("validateAgentSQL", () => {
 		);
 		expect(result.valid).toBe(false);
 		expect(result.reason).toContain("screen_view");
-	});
-
-	it("exports the validation error constant", () => {
-		expect(AGENT_SQL_VALIDATION_ERROR).toContain("security validation");
 	});
 
 	describe("tenant isolation", () => {

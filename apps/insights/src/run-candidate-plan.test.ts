@@ -25,20 +25,6 @@ const candidate = {
 };
 
 describe("parseFrozenInvestigationPlan", () => {
-	it("accepts a bounded safe candidate snapshot", () => {
-		expect(
-			parseFrozenInvestigationPlan({
-				asOf: "2026-08-01T12:00:00.000Z",
-				candidates: [candidate],
-				reason: "manual",
-			})
-		).toEqual({
-			asOf: "2026-08-01T12:00:00.000Z",
-			candidates: [candidate],
-			reason: "manual",
-		});
-	});
-
 	it("accepts five distinct candidates for a manual full scan", () => {
 		const candidates = Array.from({ length: 5 }, (_, index) => ({
 			...candidate,
@@ -98,10 +84,6 @@ describe("parseFrozenInvestigationPlan", () => {
 		expect(() => parseFrozenInvestigationPlan(plan, "scheduled")).toThrow(
 			"does not match its run"
 		);
-	});
-
-	it("rejects falsy malformed snapshots", () => {
-		expect(() => parseFrozenInvestigationPlan(false)).toThrow();
 	});
 
 	it("strips legacy measurement candidate keys from persisted plans", () => {

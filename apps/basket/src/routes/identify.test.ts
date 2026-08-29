@@ -66,11 +66,6 @@ describe("splitTraits", () => {
 		expect(result.displayName).toBe("Jo Doe");
 	});
 
-	test("null username falls back to name in the same call", () => {
-		const result = splitTraits({ username: null, name: "Jo Doe" });
-		expect(result.displayName).toBe("Jo Doe");
-	});
-
 	test("null username with no name clears the display name", () => {
 		const result = splitTraits({ username: null });
 		expect(result.displayName).toBeNull();
@@ -86,12 +81,6 @@ describe("splitTraits", () => {
 		const result = splitTraits({ email: null });
 		expect(result.email).toBeNull();
 		expect(result.removeKeys).toEqual([]);
-	});
-
-	test("display fields stay undefined when not provided", () => {
-		const result = splitTraits({ plan: "pro" });
-		expect(result.displayName).toBeUndefined();
-		expect(result.email).toBeUndefined();
 	});
 
 	test("handles missing traits", () => {

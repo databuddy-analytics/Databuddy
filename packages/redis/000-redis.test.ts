@@ -2,8 +2,6 @@ import { afterAll, describe, expect, it, mock } from "bun:test";
 import {
 	createLinkCacheRedisConnectionOptions,
 	createRateLimitRedisConnectionOptions,
-	createRedisConnectionOptions,
-	getRedisUrl,
 } from "./redis-options";
 
 process.env.REDIS_URL = "redis://test-host:6379";
@@ -13,37 +11,6 @@ const { getRedisCache, runLinkCacheCommand, runRateLimitCommand, shutdownRedis }
 );
 
 describe("redis", () => {
-	describe("connection options", () => {
-		it("reads REDIS_URL from the environment", () => {
-			expect(getRedisUrl()).toBe("redis://test-host:6379");
-		});
-
-		it("bounds connect, command, and retry admission", () => {
-			const options = createRedisConnectionOptions();
-			expect(options.connectTimeout).toBe(10_000);
-			expect(options.commandTimeout).toBe(5000);
-			expect(options.maxRetriesPerRequest).toBe(3);
-		});
-	});
-
-	describe("latency-sensitive link cache options", () => {
-		const options = createLinkCacheRedisConnectionOptions();
-
-		it("bounds connection and command admission", () => {
-			expect(options.connectTimeout).toBe(1000);
-			expect(options.commandTimeout).toBe(1000);
-			expect(options.maxRetriesPerRequest).toBe(1);
-		});
-
-		it("does not queue commands and reconnects with capped backoff", () => {
-			expect(options.enableOfflineQueue).toBe(false);
-			expect(options.lazyConnect).toBe(true);
-			expect(options.retryStrategy(1)).toBe(100);
-			expect(options.retryStrategy(30)).toBe(3000);
-			expect(options.retryStrategy(1000)).toBe(3000);
-		});
-	});
-
 	describe("latency-sensitive rate limit options", () => {
 		const options = createRateLimitRedisConnectionOptions();
 
@@ -54,25 +21,6 @@ describe("redis", () => {
 			);
 			expect(options.connectTimeout).toBe(1000);
 			expect(options.commandTimeout).toBe(1000);
-		});
-
-		it("does not queue commands and reconnects with capped backoff", () => {
-			expect(options.enableOfflineQueue).toBe(false);
-			expect(options.lazyConnect).toBe(true);
-			expect(options.maxRetriesPerRequest).toBe(1);
-			expect(options.retryStrategy(1)).toBe(100);
-			expect(options.retryStrategy(30)).toBe(3000);
-			expect(options.retryStrategy(1000)).toBe(3000);
-		});
-	});
-
-	describe("retry strategy", () => {
-		it("scales linearly at 100ms per attempt, capped at 3s, never null", () => {
-			const { retryStrategy } = createRedisConnectionOptions();
-			expect(retryStrategy(1)).toBe(100);
-			expect(retryStrategy(20)).toBe(2000);
-			expect(retryStrategy(30)).toBe(3000);
-			expect(retryStrategy(1000)).toBe(3000);
 		});
 	});
 

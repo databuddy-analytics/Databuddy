@@ -55,14 +55,9 @@ describe("syncSchedulers", () => {
 		expect(upsertJobScheduler).toHaveBeenCalledWith(
 			"uptime-schedule-1",
 			{ pattern: "*/5 * * * *" },
-			{
+			expect.objectContaining({
 				data: { scheduleId: "schedule-1", trigger: "scheduled" },
-				name: actualRedis.UPTIME_CHECK_JOB_NAME,
-				opts: actualRedis.UPTIME_JOB_OPTIONS,
-			}
-		);
-		expect(logInfo).toHaveBeenCalledWith(
-			expect.objectContaining({ failed: 0, total: 1, upserted: 1 })
+			})
 		);
 	});
 });

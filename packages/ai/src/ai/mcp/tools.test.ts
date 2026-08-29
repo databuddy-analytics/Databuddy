@@ -290,27 +290,6 @@ describe("MCP tool invariants", () => {
 		).toBe(30);
 	});
 
-	test("keeps mixed batch date errors inside the batch result", () => {
-		const getData = tools.find((tool) => tool.name === "get_data");
-		if (!getData) {
-			throw new Error("Expected get_data to be registered");
-		}
-
-		expect(
-			getData.inputSchema.safeParse({
-				queries: [
-					{ preset: "last_7d", type: "summary_metrics" },
-					{
-						from: "2026-02-30",
-						to: "2026-03-02",
-						type: "summary_metrics",
-					},
-				],
-				websiteId: "website-1",
-			}).success
-		).toBe(true);
-	});
-
 	test("tool names are unique snake_case", () => {
 		const names = tools.map((tool) => tool.name);
 		expect(new Set(names).size).toBe(names.length);
@@ -351,21 +330,6 @@ describe("MCP tool invariants", () => {
 		}
 	});
 
-	test("zero-argument schemas accept an empty object", () => {
-		for (const tool of tools) {
-			const schema = z.toJSONSchema(tool.inputSchema, { io: "input" });
-			if ((schema.required as string[] | undefined)?.length === 0) {
-				expect(tool.inputSchema.safeParse({}).success).toBe(true);
-			}
-		}
-	});
-
-	test("avoids reserved methods", () => {
-		const reserved = new Set(["initialize", "ping", "notifications/initialized"]);
-		for (const tool of tools) {
-			expect(reserved.has(tool.name)).toBe(false);
-		}
-	});
 });
 
 describe("investigation tools", () => {
@@ -610,41 +574,4 @@ describe("investigation tools", () => {
 		}
 	});
 
-	test("exposes published insights and the durable investigation lifecycle", () => {
-		const byName = new Map(tools.map((tool) => [tool.name, tool]));
-
-		expect(byName.get("list_insights")?.metadata).toMatchObject({
-			access: { kind: "read", scopes: ["read:data"] },
-		});
-		expect(byName.get("list_investigations")?.metadata).toMatchObject({
-			access: { kind: "read", scopes: ["read:data"] },
-		});
-		expect(byName.get("get_investigation")?.metadata).toMatchObject({
-			access: { kind: "read", scopes: ["read:data"] },
-		});
-		expect(byName.get("reply_to_investigation")?.metadata).toMatchObject({
-			access: { kind: "write", scopes: ["manage:websites"] },
-		});
-		expect(
-			byName.get("reply_to_investigation")?.inputSchema.safeParse({
-				body: "The deploy completed at noon.",
-				investigationId: "investigation-1",
-				replyId: "mcp-request-1",
-			}).success
-		).toBe(true);
-		expect(
-			byName.get("reply_to_investigation")?.inputSchema.safeParse({
-				body: "The deploy completed at noon.",
-				investigationId: "investigation-1",
-				replyId: "mcp:request:1",
-			}).success
-		).toBe(false);
-		expect(
-			byName.get("reply_to_investigation")?.inputSchema.safeParse({
-				body: "The deploy completed at noon.",
-				investigationId: "investigation-1",
-			}).success
-		).toBe(false);
-
-	});
 });

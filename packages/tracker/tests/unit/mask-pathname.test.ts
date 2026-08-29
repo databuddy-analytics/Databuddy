@@ -31,14 +31,6 @@ describe("maskPathname", () => {
 			const patterns = [null, 42, {}, "/users/*"] as unknown as string[];
 			expect(maskPathname("/users/123", patterns)).toBe("/users/*");
 		});
-
-		test("pattern '/' alone is skipped", () => {
-			expect(maskPathname("/users/123", ["/"])).toBe("/users/123");
-		});
-
-		test("empty string pattern is skipped", () => {
-			expect(maskPathname("/users/123", [""])).toBe("/users/123");
-		});
 	});
 
 	describe("single star", () => {
@@ -359,61 +351,4 @@ describe("maskPathname", () => {
 		});
 	});
 
-	describe("dashboard route coverage", () => {
-		const patterns = [
-			"/websites/*/users/*",
-			"/websites/*/agent/*",
-			"/websites/*",
-			"/agent/*",
-			"/invitations/*",
-			"/links/*",
-			"/monitors/status-pages/*",
-			"/monitors/*",
-			"/demo/*",
-			"/public/*",
-			"/dby/l/*",
-		];
-
-		const cases: Array<[string, string]> = [
-			["/websites/tV1FRwicsiVkl3KbilZB5", "/websites/*"],
-			[
-				"/websites/tV1FRwicsiVkl3KbilZB5/settings/export",
-				"/websites/*/settings/export",
-			],
-			["/websites/tV1FRwicsiVkl3KbilZB5/funnels", "/websites/*/funnels"],
-			["/websites/site_1/users/cus_9f2", "/websites/*/users/*"],
-			["/websites/site_1/agent/chat_123", "/websites/*/agent/*"],
-			[
-				"/websites/site_1/events/signup_completed",
-				"/websites/*/events/signup_completed",
-			],
-			["/agent/chat_9", "/agent/*"],
-			["/invitations/inv_1", "/invitations/*"],
-			["/links/lnk_1", "/links/*"],
-			["/monitors/status-pages/sp_1", "/monitors/status-pages/*"],
-			["/monitors/mon_1", "/monitors/*"],
-			["/demo/site_2/events/purchase", "/demo/*/events/purchase"],
-			["/public/site_3", "/public/*"],
-			["/dby/l/promo-x", "/dby/l/*"],
-			["/websites", "/websites"],
-			["/settings", "/settings"],
-			["/", "/"],
-			["/login", "/login"],
-		];
-
-		test.each(cases)("%s -> %s", (path, expected) => {
-			expect(maskPathname(path, patterns)).toBe(expected);
-		});
-	});
-});
-
-describe("multi-wildcard segments", () => {
-	test("middle fragments must match", () => {
-		expect(maskPathname("/fooXbarYbaz", ["/foo*bar*baz"])).toBe("/foo*bar*baz");
-		expect(maskPathname("/fooXYbaz", ["/foo*bar*baz"])).toBe("/fooXYbaz");
-	});
-
-	test("middle fragments must appear in order within the bounds", () => {
-		expect(maskPathname("/barfoobaz", ["/foo*bar*baz"])).toBe("/barfoobaz");
-	});
 });

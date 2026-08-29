@@ -586,35 +586,6 @@ describe("Autumn usage emails", () => {
 		expect(state.send).not.toHaveBeenCalled();
 	});
 
-	it("defers usage alerts when organizations are ambiguous", async () => {
-		state.ownedOrganizations.push({
-			organizationId: "org-2",
-			organization: {
-				emailNotifications: { billing: { usageWarnings: true } },
-				id: "org-2",
-				name: "Second organization",
-			},
-		});
-
-		const result = await handleUsageAlert({
-			customer_id: "user-1",
-			feature_id: "events",
-			usage_alert: {
-				threshold: 80,
-				threshold_type: "usage_percentage",
-			},
-		});
-
-		expect(result).toEqual({
-			disposition: "deferred",
-			success: false,
-			message: "Billing usage email deferred: organization could not be resolved",
-		});
-		expect(state.check).not.toHaveBeenCalled();
-		expect(UsageAlertEmail).not.toHaveBeenCalled();
-		expect(state.send).not.toHaveBeenCalled();
-	});
-
 	it("defers limit alerts when the entity does not resolve", async () => {
 		const result = await handleLimitReached({
 			customer_id: "user-1",

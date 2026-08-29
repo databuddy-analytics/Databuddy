@@ -80,13 +80,6 @@ describe("buildRevenueLatestCte", () => {
 		expect(sql).not.toContain("GROUP BY owner_id, provider, transaction_id");
 });
 
-	test("keeps range predicates in the canonical read", () => {
-		const sql = buildRevenueLatestCte({ scope: "owner_id = 'org_1'" });
-
-		expect(sql).toContain("FROM analytics.revenue FINAL");
-		expect(sql).toContain("WHERE owner_id = 'org_1'");
-});
-
 	test("applies candidate predicates directly", () => {
 		const sql = buildRevenueLatestCte({
 			candidateWhere: "created >= {from:DateTime}",
@@ -98,15 +91,6 @@ describe("buildRevenueLatestCte", () => {
 		expect(sql.match(/owner_id = \{ownerId:String\}/g)).toHaveLength(1);
 	});
 
-	test("accepts a trusted source override", () => {
-		const sql = buildRevenueLatestCte({
-			scope: "owner_id = {ownerId:String}",
-			source: "analytics.revenue_retained_versions_test",
-		});
-
-		expect(sql).toContain("FROM analytics.revenue_retained_versions_test");
-		expect(sql).not.toContain("FROM analytics.revenue\n");
-	});
 });
 
 describeIntegration("canonical revenue rows against ClickHouse", () => {

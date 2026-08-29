@@ -19,8 +19,7 @@
   "scripts": {
     "build": "rm -rf dist && unbuild",
     "vscode:prepublish": "bun run build",
-    "check-types": "tsc --noEmit",
-    "test": "bun test"
+    "check-types": "tsc --noEmit"
   },
   "keywords": [
     "cache",

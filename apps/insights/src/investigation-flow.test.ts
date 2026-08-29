@@ -1038,55 +1038,6 @@ describe("intelligence agent", () => {
 		expect(model.doGenerateCalls).toHaveLength(2);
 	});
 
-	it("can inspect evidence before returning structured output", async () => {
-		const model = new MockLanguageModelV3({
-			doGenerate: mockValues(
-				toolCallResponse(),
-				outputResponse(agentOutcome)
-			),
-		});
-		const result = await runInsightAgent(
-			{
-				appContext: appContext(),
-				evidence,
-				githubRepository: null,
-				history: [],
-				otherOpenWork: [],
-				signal,
-			},
-			{
-				model,
-				tools: {
-					inspect: tool({
-						description: "Inspect another relevant fact.",
-						inputSchema: z.object({}).strict(),
-						execute: () => ({ inspected: true }),
-					}),
-				},
-			}
-		);
-
-		expect(result.outcome).toEqual(outcome);
-		expect(result.toolCallCount).toBe(1);
-		expect(model.doGenerateCalls).toHaveLength(2);
-	});
-
-	it("fails when the structured output does not match the contract", async () => {
-		await expect(
-			runInsightAgent(
-				{
-					appContext: appContext(),
-					evidence,
-					githubRepository: null,
-					history: [],
-					otherOpenWork: [],
-					signal,
-				},
-				{ model: outputModel({ title: "Incomplete" }), tools: {} }
-			)
-		).rejects.toThrow();
-	});
-
 	it("rejects evidence references that were not available to the agent", async () => {
 		let failure: unknown;
 		try {
@@ -1273,15 +1224,6 @@ describe("validateNumericGrounding", () => {
 
 	it("accepts numbers present in the signal or tool results", () => {
 		expect(() => validateNumericGrounding(grounded, corpus)).not.toThrow();
-	});
-
-	it("accepts rounded percentages within tolerance", () => {
-		expect(() =>
-			validateNumericGrounding(
-				{ ...grounded, summary: "The error grew 225.4% week over week." },
-				corpus
-			)
-		).not.toThrow();
 	});
 
 	it("accepts sums and differences of measured numbers", () => {

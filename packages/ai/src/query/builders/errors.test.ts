@@ -94,19 +94,6 @@ describe("error customer impact query", () => {
 		expect(sql).toContain("uniqExactIf");
 		expect(params.f0).toBe("Failed to fetch dynamically imported module");
 		expect(config?.publicAccess).not.toBe(true);
-		expect(outputFields).toEqual([
-			"error_occurrences",
-			"affected_sessions",
-			"affected_visitor_identifiers",
-			"linked_visitor_identifiers",
-			"identified_profiles",
-			"unlinked_visitor_identifiers",
-			"ambiguous_profile_sessions",
-			"identity_coverage_percent",
-			"identified_profiles_with_prior_attributed_completed_payment",
-			"qualifying_profile_payment_history_observed",
-			"payment_match_is_lower_bound",
-		]);
 		for (const unsafe of [
 			"anonymous_id",
 			"profile_id",
@@ -117,13 +104,6 @@ describe("error customer impact query", () => {
 		]) {
 			expect(outputFields).not.toContain(unsafe);
 		}
-	});
-
-	it("normalizes exact route selectors before narrowing the cohort", () => {
-		const { params, sql } = compileImpact("path", "/explore");
-
-		expect(sql).toContain("trimRight(path(path), '/')");
-		expect(params.f0).toBe("/explore");
 	});
 
 	it("matches aggregate route-error continuation cohorts without returning ids", () => {

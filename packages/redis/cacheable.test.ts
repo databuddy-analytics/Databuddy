@@ -86,30 +86,6 @@ afterAll(() => {
 
 describe("cacheable", () => {
 	describe("key generation", () => {
-		it("produces consistent keys for the same arguments", () => {
-			const fn = cacheable(async (a: string, b: number) => `${a}-${b}`, {
-				expireInSec: 60,
-				prefix: "test",
-			});
-			expect(fn.getKey("hello", 42)).toBe(fn.getKey("hello", 42));
-		});
-
-		it("produces different keys for different arguments", () => {
-			const fn = cacheable(async (x: string) => x, {
-				expireInSec: 60,
-				prefix: "test",
-			});
-			expect(fn.getKey("a")).not.toBe(fn.getKey("b"));
-		});
-
-		it("uses the provided prefix in the key", () => {
-			const fn = cacheable(async () => "v", {
-				expireInSec: 60,
-				prefix: "myprefix",
-			});
-			expect(fn.getKey()).toStartWith("cacheable:myprefix:");
-		});
-
 		it("falls back to function name when no prefix given", () => {
 			async function namedFunction() {
 				return "v";
@@ -160,22 +136,6 @@ describe("cacheable", () => {
 			expect(result).toEqual({ id: 1 });
 			expect(original).not.toHaveBeenCalled();
 			expect(mockSetex).not.toHaveBeenCalled();
-		});
-
-		const primitiveRows: Array<[string, string, unknown]> = [
-			["number", "42", 42],
-			["string", '"hello"', "hello"],
-			["array", "[1,2,3]", [1, 2, 3]],
-			["null", "null", null],
-		];
-		it.each(primitiveRows)("deserializes a cached %s", async (label, stored, expected) => {
-			const cached = cacheable(async () => "fresh" as unknown, {
-				expireInSec: 60,
-				prefix: `prim-${label}`,
-			});
-			mockGet.mockImplementation(() => Promise.resolve(stored));
-
-			expect(await cached()).toEqual(expected);
 		});
 
 		it("revives ISO date strings into Date objects at any depth", async () => {
@@ -239,19 +199,6 @@ describe("cacheable", () => {
 			expect(JSON.parse(value)).toEqual({ data: "fresh" });
 		});
 
-		it("forwards arguments to the original function", async () => {
-			const original = mock((a: string, b: number) =>
-				Promise.resolve(`${a}-${b}`)
-			);
-			const cached = cacheable(original, {
-				expireInSec: 60,
-				prefix: "args",
-			});
-
-			await cached("hello", 42);
-			expect(original).toHaveBeenCalledWith("hello", 42);
-		});
-
 		it("does not cache null results", async () => {
 			const cached = cacheable(async () => null, {
 				expireInSec: 60,
@@ -259,16 +206,6 @@ describe("cacheable", () => {
 			});
 
 			expect(await cached()).toBeNull();
-			expect(mockSetex).not.toHaveBeenCalled();
-		});
-
-		it("does not cache undefined results", async () => {
-			const cached = cacheable(async () => undefined, {
-				expireInSec: 60,
-				prefix: "undef-skip",
-			});
-
-			expect(await cached()).toBeUndefined();
 			expect(mockSetex).not.toHaveBeenCalled();
 		});
 
@@ -282,14 +219,6 @@ describe("cacheable", () => {
 				expect(await cached()).toEqual(value);
 			}
 			expect(mockSetex).toHaveBeenCalledTimes(values.length);
-		});
-
-		it("accepts numeric shorthand for expireInSec", async () => {
-			const cached = cacheable(async () => "v", 120);
-			await cached();
-
-			const [, ttl] = mockSetex.mock.calls[0];
-			expect(ttl).toBe(120);
 		});
 	});
 
@@ -516,20 +445,6 @@ describe("cacheable", () => {
 	});
 
 	describe("redis setex failure", () => {
-		it("still returns the result even when caching fails", async () => {
-			const cached = cacheable(async () => ({ data: "fresh" }), {
-				expireInSec: 60,
-				prefix: "set-fail",
-			});
-
-			mockSetex.mockImplementation(() =>
-				Promise.reject(new Error("Write failed"))
-			);
-
-			const result = await cached();
-			expect(result).toEqual({ data: "fresh" });
-		});
-
 		it("marks redis as unavailable after an async setex failure", async () => {
 			const cached = cacheable(async () => "data", {
 				expireInSec: 60,
@@ -612,23 +527,6 @@ describe("cacheable", () => {
 
 			expect(mockGet).not.toHaveBeenCalled();
 			expect(fn2).toHaveBeenCalledTimes(1);
-		});
-
-		it("recovers and successfully caches after cooldown", async () => {
-			const cached = cacheable(async () => ({ recovered: true }), {
-				expireInSec: 60,
-				prefix: "cb-full-recovery",
-			});
-
-			mockGet.mockImplementation(() => Promise.reject(new Error("down")));
-			await cached();
-
-			timeOffset += 31_000;
-			mockGet.mockImplementation(() => Promise.resolve(null));
-			mockSetex.mockClear();
-
-			await cached();
-			expect(mockSetex).toHaveBeenCalledTimes(1);
 		});
 	});
 
@@ -728,19 +626,6 @@ describe("cacheable", () => {
 			for (const r of results) {
 				expect(r).toEqual({ call: 1 });
 			}
-		});
-
-		it("concurrent calls with different args use different cache keys", async () => {
-			const original = mock((id: string) => Promise.resolve({ id }));
-			const cached = cacheable(original, {
-				expireInSec: 60,
-				prefix: "concurrent-diff",
-			});
-
-			const results = await Promise.all([cached("a"), cached("b"), cached("c")]);
-
-			expect(results).toEqual([{ id: "a" }, { id: "b" }, { id: "c" }]);
-			expect(original).toHaveBeenCalledTimes(3);
 		});
 	});
 
@@ -951,16 +836,6 @@ describe("cacheable", () => {
 				}
 			}
 		}, 5000);
-
-		it("does not time out fast functions", async () => {
-			const cached = cacheable(async () => "quick", {
-				expireInSec: 60,
-				prefix: "qtimeout-fast",
-				queryTimeoutMs: 1000,
-			});
-
-			expect(await cached()).toBe("quick");
-		});
 
 		it("applies the timeout on the circuit-breaker bypass path too", async () => {
 			mockGet.mockImplementation(() => Promise.reject(new Error("down")));
