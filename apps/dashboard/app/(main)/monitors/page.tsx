@@ -114,7 +114,7 @@ function MonitorsPageContent() {
 									{isLoading
 										? "Loading monitors\u2026"
 										: monitors.length === 0
-											? "Track availability and receive alerts"
+											? "Track availability and get alerts"
 											: `${monitors.length} monitor${monitors.length === 1 ? "" : "s"}`}
 								</Card.Description>
 							</div>
@@ -176,7 +176,7 @@ function MonitorsPageContent() {
 												Create Monitor
 											</Button>
 										}
-										description="Create your first uptime monitor to start tracking availability. Then link an alert to it to get notified when a service goes down."
+										description="Create your first uptime monitor to track availability, then link an alert to get notified when services go down."
 										icon={<HeartbeatIcon weight="duotone" />}
 										title="No monitors yet"
 									/>
