@@ -100,7 +100,7 @@ jobs:
           restore-keys: ${{ runner.os }}-bun-
       - run: bun install --frozen-lockfile --ignore-scripts
       - name: Build dashboard runtime packages
-        run: bunx turbo run build --filter @databuddy/cache --filter @databuddy/devtools --filter @databuddy/sdk
+        run: bunx turbo run build --filter @databuddy/devtools --filter @databuddy/sdk
       - name: Install dashboard Playwright browser
         run: |
           bun run --cwd apps/dashboard playwright --version

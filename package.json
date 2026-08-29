@@ -53,7 +53,7 @@
     "db:seed": "dotenv -- sh -c 'cd packages/db && bun run db:seed \"$@\"' --",
     "email:dev": "dotenv -- sh -c 'cd packages/email && bun run dev'",
     "email:segments": "dotenv -- sh -c 'cd packages/db && bun run email:segments \"$@\"' --",
-    "sdk:build": "turbo run build --filter @databuddy/sdk --filter @databuddy/cache",
+    "sdk:build": "turbo run build --filter @databuddy/sdk",
     "dev:dashboard": "dotenv -- turbo run dev --env-mode=loose --filter @databuddy/dashboard --filter @databuddy/api --filter @databuddy/insights",
     "dev:insights": "dotenv -- turbo run dev --env-mode=loose --filter @databuddy/insights",
     "dev:slack": "dotenv -- turbo dev --env-mode=loose --filter @databuddy/slack",
