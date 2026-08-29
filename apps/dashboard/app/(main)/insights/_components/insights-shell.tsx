@@ -18,6 +18,7 @@ import {
 	MagnifyingGlassIcon,
 } from "@databuddy/ui/icons";
 import { InvestigationSettings } from "./investigation-settings";
+import { InvestigationsAccessNotice } from "./investigations-access-notice";
 import { isActiveRun } from "../_lib/insight-run";
 
 const INSIGHTS_LIST_ROUTES = new Set(["/insights", "/insights/investigations"]);
@@ -154,6 +155,8 @@ function InsightsListShell({ children }: { children: ReactNode }) {
 				]}
 				variant="tabs"
 			/>
+
+			<InvestigationsAccessNotice organizationId={organizationId} />
 
 			{hasNoWebsites ? (
 				<EmptyState

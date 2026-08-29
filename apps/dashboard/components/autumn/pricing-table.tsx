@@ -603,7 +603,7 @@ function PricingCard({
 				!isActive ? (
 					<Button asChild className="w-full" size="lg" variant="secondary">
 						<a
-							href="https://www.databuddy.cc/contact"
+							href={`https://www.databuddy.cc/contact?topic=intelligence-${plan.id === "intelligence" ? "business" : "scale"}`}
 							rel="noopener noreferrer"
 							target="_blank"
 						>
