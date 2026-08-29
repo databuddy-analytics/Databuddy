@@ -561,12 +561,12 @@ export async function executeBatch(
 				BATCH_GROUP_CONCURRENCY,
 				({ req }) => runSingle(req, opts)
 			);
-			compiledItems.forEach(({ index }, i) => {
+			for (const [i, { index }] of compiledItems.entries()) {
 				const fallback = fallbackResults[i];
 				if (fallback) {
 					results[index] = fallback;
 				}
-			});
+			}
 			return { unionCount: 0, singleCount: compiledItems.length };
 		}
 	}

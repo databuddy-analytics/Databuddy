@@ -2,7 +2,11 @@ import { db, shutdownPostgres } from "../src/index";
 import { sql } from "drizzle-orm";
 
 const result = await db.execute(sql`SHOW statement_timeout`);
-const rows = (result as { rows?: Record<string, unknown>[] }).rows ?? [];
+interface StatementTimeoutRow {
+	statement_timeout?: string;
+}
+
+const rows = (result as { rows?: StatementTimeoutRow[] }).rows ?? [];
 const timeout = rows[0]?.statement_timeout;
 if (!timeout || timeout === "0") {
 	console.error(
