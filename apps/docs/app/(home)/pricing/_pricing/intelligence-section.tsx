@@ -7,6 +7,7 @@ const INTELLIGENCE_TIERS = [
 	{
 		id: "intelligence",
 		name: "Business",
+		contactTopic: "intelligence-business",
 		price: "$299",
 		description:
 			"An always-on product investigator for founders and engineers.",
@@ -21,6 +22,7 @@ const INTELLIGENCE_TIERS = [
 	{
 		id: "intelligence_scale",
 		name: "Scale",
+		contactTopic: "intelligence-scale",
 		price: "$799",
 		description:
 			"More investigation capacity for products with higher traffic and faster release cycles.",
@@ -87,7 +89,7 @@ export function IntelligenceSection() {
 						<div className="mt-6">
 							<SciFiButton asChild>
 								<Link
-									href={`/contact?topic=intelligence-${tier.id === "intelligence" ? "business" : "scale"}`}
+									href={`/contact?topic=${tier.contactTopic}`}
 									onClick={() =>
 										trackPricingPlanClick(tier.id, "pricing_intelligence")
 									}
