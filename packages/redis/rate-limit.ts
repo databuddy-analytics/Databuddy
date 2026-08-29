@@ -9,34 +9,6 @@ export interface RateLimitResult {
 	success: boolean;
 }
 
-const DEGRADED_MAX_TRACKED_KEYS = 10_000;
-const degradedHitWindows = new Map<string, number[]>();
-
-function admitDegraded(
-	key: string,
-	limit: number,
-	now: number,
-	windowMs: number
-): { success: boolean; count: number } {
-	if (degradedHitWindows.size > DEGRADED_MAX_TRACKED_KEYS) {
-		degradedHitWindows.clear();
-	}
-	const cutoff = now - windowMs;
-	const hits = (degradedHitWindows.get(key) ?? []).filter(
-		(timestamp) => timestamp > cutoff
-	);
-	const success = hits.length < limit;
-	if (success) {
-		hits.push(now);
-	}
-	degradedHitWindows.set(key, hits);
-	return { success, count: hits.length };
-}
-
-export function resetDegradedRateLimitWindows(): void {
-	degradedHitWindows.clear();
-}
-
 export async function ratelimit(
 	identifier: string,
 	limit: number,
@@ -83,12 +55,11 @@ return { success, count }`,
 			reset: now + windowMs,
 		};
 	} catch {
-		const fallback = admitDegraded(key, limit, now, windowMs);
 		return {
 			degraded: true,
-			success: fallback.success,
+			success: true,
 			limit,
-			remaining: Math.max(0, limit - fallback.count),
+			remaining: limit - 1,
 			reset: now + windowMs,
 		};
 	}
