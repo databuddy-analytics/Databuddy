@@ -134,4 +134,29 @@ export const db = new Proxy({} as DB, {
 	get(_, prop) {
 		return Reflect.get(getDb(), prop);
 	},
+	set(_, prop, value) {
+		return Reflect.set(getDb(), prop, value);
+	},
+	has(_, prop) {
+		return Reflect.has(getDb(), prop);
+	},
+	getOwnPropertyDescriptor(_, prop) {
+		const descriptor = Reflect.getOwnPropertyDescriptor(getDb(), prop);
+		if (descriptor) {
+			descriptor.configurable = true;
+		}
+		return descriptor;
+	},
+	defineProperty(_, prop, descriptor) {
+		return Reflect.defineProperty(getDb(), prop, descriptor);
+	},
+	deleteProperty(_, prop) {
+		return Reflect.deleteProperty(getDb(), prop);
+	},
+	ownKeys() {
+		return Reflect.ownKeys(getDb());
+	},
+	getPrototypeOf() {
+		return Reflect.getPrototypeOf(getDb());
+	},
 });

@@ -3,15 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@databuddy/ui";
-import {
-	pageFromPathname,
-	trackDemoOpened,
-	trackSignupCta,
-} from "@/lib/track-cta";
+import { flush, track } from "@databuddy/sdk";
 
 export function MidPageCta() {
 	const pathname = usePathname();
-	const page = pageFromPathname(pathname);
+	const page = pathname?.split("/").filter(Boolean)[0] ?? "home";
 
 	return (
 		<div className="flex flex-col items-center gap-4 text-center">
@@ -25,7 +21,10 @@ export function MidPageCta() {
 				<Button asChild>
 					<a
 						href="https://app.databuddy.cc/register"
-						onClick={() => trackSignupCta(page, "closing_cta")}
+						onClick={() => {
+							track("signup_cta_clicked", { page, placement: "closing_cta" });
+							flush();
+						}}
 					>
 						Start free
 					</a>
@@ -33,7 +32,10 @@ export function MidPageCta() {
 				<Button asChild variant="secondary">
 					<Link
 						href="/demo"
-						onClick={() => trackDemoOpened(page, "closing_cta")}
+						onClick={() => {
+							track("demo_opened", { page, placement: "closing_cta" });
+							flush();
+						}}
 					>
 						Live demo
 					</Link>

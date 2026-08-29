@@ -20,7 +20,7 @@ import { motion } from "motion/react";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { trackDemoOpened, trackSignupCta } from "@/lib/track-cta";
+import { flush, track } from "@databuddy/sdk";
 import BackgroundFlow from "./backgroundFlow";
 import { SciFiButton } from "./scifi-btn";
 
@@ -426,7 +426,13 @@ export default function Hero({
 						<SciFiButton asChild className="px-6 py-5">
 							<a
 								href="https://app.databuddy.cc/register"
-								onClick={() => trackSignupCta("home", "hero")}
+								onClick={() => {
+									track("signup_cta_clicked", {
+										page: "home",
+										placement: "hero",
+									});
+									flush();
+								}}
 							>
 								Start analyzing for free
 							</a>
@@ -435,7 +441,10 @@ export default function Hero({
 						<SciFiButton asChild className="px-6 py-5">
 							<Link
 								href="/demo"
-								onClick={() => trackDemoOpened("home", "hero")}
+								onClick={() => {
+									track("demo_opened", { page: "home", placement: "hero" });
+									flush();
+								}}
 							>
 								Live demo
 							</Link>
