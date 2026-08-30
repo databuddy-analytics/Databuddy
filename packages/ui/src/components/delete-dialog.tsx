@@ -38,7 +38,11 @@ export function DeleteDialog({
 	const handleConfirm = async () => {
 		const result = onConfirm();
 		if (result && typeof result === "object" && "then" in result) {
-			await result;
+			try {
+				await result;
+			} catch {
+				return;
+			}
 			onClose();
 			return;
 		}
