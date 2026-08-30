@@ -20,15 +20,22 @@ import { Sheet } from "@databuddy/ui/client";
 const URL_REGEX = /^https?:\/\/.+/;
 
 const statusPageFormSchema = z.object({
-	name: z.string().min(1, "Name is required"),
+	name: z
+		.string()
+		.min(1, "Name is required")
+		.max(120, "Name must be 120 characters or fewer"),
 	slug: z
 		.string()
 		.min(1, "Slug is required")
+		.max(100, "Slug must be 100 characters or fewer")
 		.regex(
 			/^[a-z0-9-]+$/,
 			"Slug must only contain lowercase letters, numbers, and dashes"
 		),
-	description: z.string().optional(),
+	description: z
+		.string()
+		.max(500, "Description must be 500 characters or fewer")
+		.optional(),
 	logoUrl: z
 		.string()
 		.refine((v) => v === "" || URL_REGEX.test(v), "Must be a valid URL"),

@@ -442,6 +442,19 @@ export const uptimeRouter = {
 			});
 			setAuditOrganization(context, schedule.organizationId);
 
+			if (schedule.websiteId) {
+				throw rpcError.badRequest(
+					"This monitor is linked to a website. Transfer the website instead."
+				);
+			}
+
+			const attachedSlugs = await statusPageSlugsForSchedule(input.scheduleId);
+			if (attachedSlugs.length > 0) {
+				throw rpcError.badRequest(
+					`This monitor is used by status pages (${attachedSlugs.slice(0, 3).join(", ")}). Remove it from them first, or transfer the status page instead.`
+				);
+			}
+
 			await db
 				.update(uptimeSchedules)
 				.set({

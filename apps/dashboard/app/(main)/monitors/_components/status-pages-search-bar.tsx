@@ -68,7 +68,7 @@ export function StatusPagesSearchBar({
 				)}
 			</div>
 
-			{hasEmpty && (
+			{(hasEmpty || statusFilter !== "all") && (
 				<DropdownMenu>
 					<DropdownMenu.Trigger
 						className={`inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs transition-colors hover:bg-interactive-hover hover:text-foreground ${statusFilter === "all" ? "text-muted-foreground" : "text-foreground"}`}

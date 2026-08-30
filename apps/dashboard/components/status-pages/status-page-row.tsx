@@ -85,7 +85,7 @@ function StatusPageActions({
 			<DropdownMenu>
 				<DropdownMenu.Trigger
 					aria-label="Status page actions"
-					className="inline-flex size-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-interactive-hover hover:text-foreground group-hover:opacity-100 data-[state=open]:opacity-100"
+					className="inline-flex size-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-interactive-hover hover:text-foreground group-hover:opacity-100 data-popup-open:opacity-100"
 					data-dropdown-trigger
 				>
 					<DotsThreeIcon className="size-4" weight="bold" />
@@ -155,13 +155,19 @@ function StatusPageActions({
 				title="Transfer Status Page"
 				warning="The status page and its configuration will be transferred to {orgName}."
 			>
-				<div className="flex items-center justify-between rounded border p-3">
-					<Field.Label
-						className="cursor-pointer text-sm"
-						htmlFor="include-monitors-row"
-					>
-						Include all linked monitors
-					</Field.Label>
+				<div className="flex items-center justify-between gap-3 rounded border p-3">
+					<div className="min-w-0">
+						<Field.Label
+							className="cursor-pointer text-sm"
+							htmlFor="include-monitors-row"
+						>
+							Include all linked monitors
+						</Field.Label>
+						<p className="text-muted-foreground text-xs">
+							If off, monitors are removed from this page and stay in the
+							current organization.
+						</p>
+					</div>
 					<Switch
 						checked={includeMonitors}
 						id="include-monitors-row"
@@ -183,11 +189,7 @@ export function StatusPageRow({
 
 	const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
 		const target = e.target as HTMLElement;
-		if (
-			target.closest("[data-dropdown-trigger]") ||
-			target.closest("[data-radix-popper-content-wrapper]") ||
-			target.closest("a[target='_blank']")
-		) {
+		if (target.closest("[data-dropdown-trigger]")) {
 			e.preventDefault();
 		}
 	};

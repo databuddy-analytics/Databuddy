@@ -1,4 +1,13 @@
-import { and, db, desc, eq, inArray, withTransaction } from "@databuddy/db";
+import {
+	and,
+	db,
+	desc,
+	eq,
+	inArray,
+	isUniqueViolationFor,
+	ne,
+	withTransaction,
+} from "@databuddy/db";
 import { chQuery } from "@databuddy/db/clickhouse";
 import {
 	incidentAffectedMonitors,
@@ -199,6 +208,7 @@ const listPublicStatusPageSitemapEntries = cacheable(
 	{
 		expireInSec: 300,
 		prefix: cacheNamespaces.statusPage,
+		reviveDates: false,
 		staleWhileRevalidate: true,
 		staleTime: 60,
 	}
@@ -225,6 +235,36 @@ async function enforcePublicRateLimit(
 	if (!result.success) {
 		throw rpcError.rateLimited(60);
 	}
+}
+
+const httpUrl = z
+	.string()
+	.max(2048)
+	.url()
+	.refine(
+		(value) => value.startsWith("https://") || value.startsWith("http://"),
+		"URL must start with http:// or https://"
+	);
+
+const statusPageSlug = z
+	.string()
+	.min(1)
+	.max(100)
+	.regex(
+		/^[a-z0-9-]+$/,
+		"Slug must only contain lowercase letters, numbers, and dashes"
+	);
+
+function isSlugConflict(error: unknown): boolean {
+	return isUniqueViolationFor(error, "status_pages_slug_unique");
+}
+
+function describeSchedules(
+	schedules: Array<{ id: string; name: string | null; url: string | null }>
+): string {
+	const names = schedules.slice(0, 3).map((s) => s.name || s.url || s.id);
+	const extra = schedules.length - names.length;
+	return extra > 0 ? `${names.join(", ")} and ${extra} more` : names.join(", ");
 }
 
 interface DailyRow {
@@ -348,7 +388,8 @@ async function _fetchStatusPageData(
 				eq(uptimeSchedules.isPaused, false)
 			)
 		)
-		.where(eq(statusPages.slug, slug));
+		.where(eq(statusPages.slug, slug))
+		.orderBy(statusPageMonitors.order, statusPageMonitors.id);
 
 	if (rows.length === 0) {
 		return null;
@@ -575,6 +616,7 @@ async function _fetchStatusPageData(
 const fetchStatusPageData = cacheable(_fetchStatusPageData, {
 	expireInSec: 60,
 	prefix: cacheNamespaces.statusPage,
+	reviveDates: false,
 	staleWhileRevalidate: true,
 	staleTime: 30,
 });
@@ -736,13 +778,13 @@ export const statusPageRouter = {
 		.input(
 			z.object({
 				organizationId: z.string(),
-				name: z.string(),
-				slug: z.string(),
-				description: z.string().optional(),
-				logoUrl: z.string().url().nullish(),
-				faviconUrl: z.string().url().nullish(),
-				websiteUrl: z.string().url().nullish(),
-				supportUrl: z.string().url().nullish(),
+				name: z.string().min(1).max(120),
+				slug: statusPageSlug,
+				description: z.string().max(500).optional(),
+				logoUrl: httpUrl.nullish(),
+				faviconUrl: httpUrl.nullish(),
+				websiteUrl: httpUrl.nullish(),
+				supportUrl: httpUrl.nullish(),
 				theme: z.enum(["system", "light", "dark"]).optional(),
 			})
 		)
@@ -764,18 +806,25 @@ export const statusPageRouter = {
 
 			const id = randomUUIDv7();
 
-			await db.insert(statusPages).values({
-				id,
-				organizationId: input.organizationId,
-				name: input.name,
-				slug: input.slug,
-				description: input.description,
-				logoUrl: input.logoUrl ?? null,
-				faviconUrl: input.faviconUrl ?? null,
-				websiteUrl: input.websiteUrl ?? null,
-				supportUrl: input.supportUrl ?? null,
-				theme: input.theme ?? "system",
-			});
+			try {
+				await db.insert(statusPages).values({
+					id,
+					organizationId: input.organizationId,
+					name: input.name,
+					slug: input.slug,
+					description: input.description,
+					logoUrl: input.logoUrl ?? null,
+					faviconUrl: input.faviconUrl ?? null,
+					websiteUrl: input.websiteUrl ?? null,
+					supportUrl: input.supportUrl ?? null,
+					theme: input.theme ?? "system",
+				});
+			} catch (error) {
+				if (isSlugConflict(error)) {
+					throw rpcError.badRequest("Slug is already taken");
+				}
+				throw error;
+			}
 
 			return db.query.statusPages.findFirst({
 				where: { id },
@@ -798,13 +847,13 @@ export const statusPageRouter = {
 		.input(
 			z.object({
 				statusPageId: z.string(),
-				name: z.string().optional(),
-				slug: z.string().optional(),
-				description: z.string().optional(),
-				logoUrl: z.string().url().nullish(),
-				faviconUrl: z.string().url().nullish(),
-				websiteUrl: z.string().url().nullish(),
-				supportUrl: z.string().url().nullish(),
+				name: z.string().min(1).max(120).optional(),
+				slug: statusPageSlug.optional(),
+				description: z.string().max(500).optional(),
+				logoUrl: httpUrl.nullish(),
+				faviconUrl: httpUrl.nullish(),
+				websiteUrl: httpUrl.nullish(),
+				supportUrl: httpUrl.nullish(),
 				theme: z.enum(["system", "light", "dark"]).optional(),
 			})
 		)
@@ -825,28 +874,35 @@ export const statusPageRouter = {
 				}
 			}
 
-			await db
-				.update(statusPages)
-				.set({
-					...(input.name && { name: input.name }),
-					...(input.slug && { slug: input.slug }),
-					...(input.description !== undefined && {
-						description: input.description,
-					}),
-					...(input.logoUrl !== undefined && { logoUrl: input.logoUrl }),
-					...(input.faviconUrl !== undefined && {
-						faviconUrl: input.faviconUrl,
-					}),
-					...(input.websiteUrl !== undefined && {
-						websiteUrl: input.websiteUrl,
-					}),
-					...(input.supportUrl !== undefined && {
-						supportUrl: input.supportUrl,
-					}),
-					...(input.theme !== undefined && { theme: input.theme }),
-					updatedAt: new Date(),
-				})
-				.where(eq(statusPages.id, input.statusPageId));
+			try {
+				await db
+					.update(statusPages)
+					.set({
+						...(input.name && { name: input.name }),
+						...(input.slug && { slug: input.slug }),
+						...(input.description !== undefined && {
+							description: input.description,
+						}),
+						...(input.logoUrl !== undefined && { logoUrl: input.logoUrl }),
+						...(input.faviconUrl !== undefined && {
+							faviconUrl: input.faviconUrl,
+						}),
+						...(input.websiteUrl !== undefined && {
+							websiteUrl: input.websiteUrl,
+						}),
+						...(input.supportUrl !== undefined && {
+							supportUrl: input.supportUrl,
+						}),
+						...(input.theme !== undefined && { theme: input.theme }),
+						updatedAt: new Date(),
+					})
+					.where(eq(statusPages.id, input.statusPageId));
+			} catch (error) {
+				if (isSlugConflict(error)) {
+					throw rpcError.badRequest("Slug is already taken");
+				}
+				throw error;
+			}
 
 			await invalidateStatusPageCache(statusPage.slug);
 			if (input.slug && input.slug !== statusPage.slug) {
@@ -920,12 +976,67 @@ export const statusPageRouter = {
 			});
 			setAuditOrganization(context, statusPage.organizationId);
 
-			const pageMonitors = await db.query.statusPageMonitors.findMany({
-				where: { statusPageId: input.statusPageId },
-				columns: { uptimeScheduleId: true },
-			});
-
 			await withTransaction(async (tx) => {
+				const pageMonitors = await tx
+					.select({ uptimeScheduleId: statusPageMonitors.uptimeScheduleId })
+					.from(statusPageMonitors)
+					.where(eq(statusPageMonitors.statusPageId, input.statusPageId));
+				const scheduleIds = pageMonitors.map((m) => m.uptimeScheduleId);
+
+				if (input.includeMonitors && scheduleIds.length > 0) {
+					const schedules = await tx
+						.select({
+							id: uptimeSchedules.id,
+							name: uptimeSchedules.name,
+							url: uptimeSchedules.url,
+							websiteId: uptimeSchedules.websiteId,
+						})
+						.from(uptimeSchedules)
+						.where(inArray(uptimeSchedules.id, scheduleIds));
+
+					const websiteBound = schedules.filter((s) => s.websiteId !== null);
+					if (websiteBound.length > 0) {
+						throw rpcError.badRequest(
+							`Cannot transfer website-linked monitors: ${describeSchedules(websiteBound)}. Transfer the website instead, or remove these monitors from the page first.`
+						);
+					}
+
+					const sharedRows = await tx
+						.selectDistinct({
+							uptimeScheduleId: statusPageMonitors.uptimeScheduleId,
+						})
+						.from(statusPageMonitors)
+						.where(
+							and(
+								inArray(statusPageMonitors.uptimeScheduleId, scheduleIds),
+								ne(statusPageMonitors.statusPageId, input.statusPageId)
+							)
+						);
+					if (sharedRows.length > 0) {
+						const sharedIds = new Set(
+							sharedRows.map((r) => r.uptimeScheduleId)
+						);
+						const shared = schedules.filter((s) => sharedIds.has(s.id));
+						throw rpcError.badRequest(
+							`Cannot transfer monitors used by other status pages: ${describeSchedules(shared)}. Remove them from the other pages first, or transfer without monitors.`
+						);
+					}
+
+					await tx
+						.update(uptimeSchedules)
+						.set({
+							organizationId: input.targetOrganizationId,
+							updatedAt: new Date(),
+						})
+						.where(inArray(uptimeSchedules.id, scheduleIds));
+				}
+
+				if (!input.includeMonitors && scheduleIds.length > 0) {
+					await tx
+						.delete(statusPageMonitors)
+						.where(eq(statusPageMonitors.statusPageId, input.statusPageId));
+				}
+
 				await tx
 					.update(statusPages)
 					.set({
@@ -933,20 +1044,6 @@ export const statusPageRouter = {
 						updatedAt: new Date(),
 					})
 					.where(eq(statusPages.id, input.statusPageId));
-
-				if (input.includeMonitors) {
-					const monitorIds = pageMonitors.map((m) => m.uptimeScheduleId);
-
-					if (monitorIds.length > 0) {
-						await tx
-							.update(uptimeSchedules)
-							.set({
-								organizationId: input.targetOrganizationId,
-								updatedAt: new Date(),
-							})
-							.where(inArray(uptimeSchedules.id, monitorIds));
-					}
-				}
 			});
 
 			await invalidateStatusPageCache(statusPage.slug);
@@ -1077,11 +1174,11 @@ export const statusPageRouter = {
 		.input(
 			z.object({
 				monitorId: z.string(),
-				displayName: z.string().nullable().optional(),
+				displayName: z.string().max(120).nullable().optional(),
 				hideUrl: z.boolean().optional(),
 				hideUptimePercentage: z.boolean().optional(),
 				hideLatency: z.boolean().optional(),
-				order: z.number().optional(),
+				order: z.number().int().min(0).max(100_000).optional(),
 			})
 		)
 		.handler(async ({ context, input }) => {
@@ -1143,9 +1240,9 @@ export const statusPageRouter = {
 		.input(
 			z.object({
 				statusPageId: z.string(),
-				title: z.string().min(1),
+				title: z.string().min(1).max(200),
 				severity: incidentSeverity.optional().default("minor"),
-				message: z.string().min(1),
+				message: z.string().min(1).max(5000),
 				affectedMonitors: z
 					.array(
 						z.object({
@@ -1239,7 +1336,7 @@ export const statusPageRouter = {
 			z.object({
 				incidentId: z.string(),
 				status: incidentStatus,
-				message: z.string().min(1),
+				message: z.string().min(1).max(5000),
 			})
 		)
 		.handler(async ({ context, input }) => {
@@ -1271,7 +1368,7 @@ export const statusPageRouter = {
 					.update(incidents)
 					.set({
 						status: input.status,
-						...(input.status === "resolved" ? { resolvedAt: new Date() } : {}),
+						resolvedAt: input.status === "resolved" ? new Date() : null,
 					})
 					.where(eq(incidents.id, input.incidentId));
 			});
