@@ -218,6 +218,25 @@ describe("cacheable", () => {
 			expect(result.dateOnly).toBe("2024-01-15");
 			expect(result.sentence).toBe("shipped on 2024-01-15T10:30:00.000Z sharp");
 		});
+
+		it("keeps ISO date strings as strings when reviveDates is false", async () => {
+			const data = {
+				createdAt: "2024-01-15T10:30:00.000Z",
+				monitors: [{ lastCheckedAt: "2024-06-01T08:00:00.000Z" }],
+			};
+			const cached = cacheable(async () => data, {
+				expireInSec: 60,
+				prefix: "no-revive",
+				reviveDates: false,
+			});
+
+			mockGet.mockImplementation(() => Promise.resolve(JSON.stringify(data)));
+
+			const result = await cached();
+			expect(result).toEqual(data);
+			expect(typeof result.createdAt).toBe("string");
+			expect(typeof result.monitors[0].lastCheckedAt).toBe("string");
+		});
 	});
 
 	describe("cache miss", () => {

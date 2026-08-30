@@ -42,6 +42,14 @@ interface CacheOptions<
 	expireInSec: number;
 	prefix?: string;
 	queryTimeoutMs?: number;
+	/**
+	 * Revive ISO-8601 timestamp strings into Date objects on cache hits.
+	 * Set to false when the cached value is validated against a schema that
+	 * expects strings (e.g. an oRPC output schema); otherwise cache hits return
+	 * Dates where the cache miss returned strings.
+	 * @default true
+	 */
+	reviveDates?: boolean;
 	staleTime?: number;
 	staleWhileRevalidate?: boolean;
 	tags?: CacheTagger<T>;
@@ -58,7 +66,10 @@ export type CacheableFunction<
 	invalidateWithArgs: (knownArgs: unknown[]) => Promise<number>;
 };
 
-function deserialize(data: string): unknown {
+function deserialize(data: string, reviveDates: boolean): unknown {
+	if (!reviveDates) {
+		return JSON.parse(data);
+	}
 	return JSON.parse(data, (_, value) => {
 		if (typeof value === "string" && DATE_REGEX.test(value)) {
 			return new Date(value);
@@ -216,6 +227,7 @@ export function cacheable<
 		prefix = fn.name,
 		staleWhileRevalidate = false,
 		staleTime = 0,
+		reviveDates = true,
 		tags,
 		queryTimeoutMs,
 	} = typeof options === "number" ? { expireInSec: options } : options;
@@ -274,7 +286,7 @@ export function cacheable<
 			}
 
 			try {
-				return deserialize(cached) as Awaited<ReturnType<T>>;
+				return deserialize(cached, reviveDates) as Awaited<ReturnType<T>>;
 			} catch {
 				// Corrupted cache data falls through to a cache miss
 			}
