@@ -192,3 +192,57 @@ describe("statusPage.transfer", () => {
 		expect(await getPageMonitors(pageA)).toHaveLength(1);
 	});
 });
+
+describe("uptime.transfer", () => {
+	iit("moves a detached monitor", async () => {
+		const { user, source, target } = await setupOrgs();
+		const scheduleId = await insertSchedule(source.id);
+
+		const result = await call(
+			appRouter.uptime.transfer,
+			userContext(user, source.id)
+		)({
+			scheduleId,
+			targetOrganizationId: target.id,
+		});
+
+		expect(result.success).toBe(true);
+		expect(await getScheduleOrg(scheduleId)).toBe(target.id);
+	});
+
+	iit("rejects moving a website-linked monitor", async () => {
+		const { user, source, target } = await setupOrgs();
+		const website = await insertWebsite({ organizationId: source.id });
+		const scheduleId = await insertSchedule(source.id, {
+			websiteId: website.id,
+		});
+
+		await expectCode(
+			call(appRouter.uptime.transfer, userContext(user, source.id))({
+				scheduleId,
+				targetOrganizationId: target.id,
+			}),
+			"BAD_REQUEST"
+		);
+
+		expect(await getScheduleOrg(scheduleId)).toBe(source.id);
+	});
+
+	iit("rejects moving a monitor attached to a status page", async () => {
+		const { user, source, target } = await setupOrgs();
+		const pageId = await insertStatusPage(source.id);
+		const scheduleId = await insertSchedule(source.id);
+		await attachMonitor(pageId, scheduleId);
+
+		await expectCode(
+			call(appRouter.uptime.transfer, userContext(user, source.id))({
+				scheduleId,
+				targetOrganizationId: target.id,
+			}),
+			"BAD_REQUEST"
+		);
+
+		expect(await getScheduleOrg(scheduleId)).toBe(source.id);
+		expect(await getPageMonitors(pageId)).toHaveLength(1);
+	});
+});
