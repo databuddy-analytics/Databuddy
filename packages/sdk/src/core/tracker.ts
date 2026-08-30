@@ -18,6 +18,10 @@ const PENDING_LIMIT = 100;
 const PENDING_POLL_MS = 150;
 const PENDING_TIMEOUT_MS = 15_000;
 
+// Must match the tracker's inactivity window: it rotates `did_session` once
+// the timestamp is older than this, so a stale id is no longer current.
+const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
+
 const pendingCalls: Array<() => void> = [];
 let pendingPoll: ReturnType<typeof setInterval> | undefined;
 let pendingSince = 0;
@@ -183,9 +187,24 @@ export function getSessionId(urlParams?: URLSearchParams): string | null {
 	}
 	try {
 		const activeIds = getTracker()?.getTrackingIds?.();
-		return activeIds
-			? activeIds.sessionId
-			: sessionStorage.getItem("did_session") || null;
+		if (activeIds) {
+			return activeIds.sessionId;
+		}
+		const storedId = sessionStorage.getItem("did_session");
+		if (!storedId) {
+			return null;
+		}
+		const storedAt = Number.parseInt(
+			sessionStorage.getItem("did_session_timestamp") ?? "",
+			10
+		);
+		if (
+			!Number.isFinite(storedAt) ||
+			Date.now() - storedAt >= SESSION_TIMEOUT_MS
+		) {
+			return null;
+		}
+		return storedId;
 	} catch {
 		return null;
 	}
