@@ -171,6 +171,7 @@ export function StatusPageMonitorRow({
 						<Input
 							autoFocus
 							className="h-7 min-w-0 flex-1"
+							maxLength={120}
 							onBlur={saveDisplayName}
 							onChange={(e) => setEditValue(e.target.value)}
 							onKeyDown={handleKeyDown}

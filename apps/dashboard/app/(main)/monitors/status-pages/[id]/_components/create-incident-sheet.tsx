@@ -31,9 +31,15 @@ const impactOptions = [
 ];
 
 const incidentFormSchema = z.object({
-	title: z.string().min(1, "Title is required"),
+	title: z
+		.string()
+		.min(1, "Title is required")
+		.max(200, "Title must be 200 characters or fewer"),
 	severity: z.enum(["minor", "major", "critical"]),
-	message: z.string().min(1, "Initial update is required"),
+	message: z
+		.string()
+		.min(1, "Initial update is required")
+		.max(5000, "Message must be 5000 characters or fewer"),
 });
 
 type IncidentFormData = z.infer<typeof incidentFormSchema>;

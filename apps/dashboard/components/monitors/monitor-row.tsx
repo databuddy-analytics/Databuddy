@@ -186,7 +186,7 @@ function MonitorActions({
 						)}
 						{schedule.isPaused ? "Resume" : "Pause"}
 					</DropdownMenu.Item>
-					{schedule.organizationId ? (
+					{schedule.organizationId && !schedule.websiteId ? (
 						<DropdownMenu.Item
 							className="gap-2"
 							onClick={() => setIsTransferOpen(true)}
