@@ -1,6 +1,6 @@
 {
   "name": "@databuddy/dashboard",
-  "version": "0.1.1-beta.0",
+  "version": "0.1.1-beta.1",
   "private": true,
   "scripts": {
     "dev": "dotenv -e ../../.env -- next dev -p 3000",

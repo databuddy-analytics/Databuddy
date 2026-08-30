@@ -23,7 +23,17 @@
     "@databuddy/shared": "0.0.1",
     "@databuddy/tracker": "0.0.1",
     "@databuddy/ui": "0.0.0",
-    "@databuddy/validation": "0.1.0"
+    "@databuddy/validation": "0.1.0",
+    "@databuddy/insights": "1.0.0",
+    "@databuddy/slack": "0.1.0",
+    "@databuddy/status": "0.1.0",
+    "@databuddy/encryption": "0.1.0",
+    "@databuddy/migrate": "0.1.0",
+    "@databuddy/nuxt": "2.4.20",
+    "@databuddy/test": "1.0.0"
   },
-  "changesets": ["devtools-initial-beta"]
+  "changesets": [
+    "devtools-initial-beta",
+    "sdk-storage-error-fix"
+  ]
 }

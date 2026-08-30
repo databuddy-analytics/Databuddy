@@ -1,5 +1,12 @@
 # @databuddy/dashboard
 
+## 0.1.1-beta.1
+
+### Patch Changes
+
+- Updated dependencies [5bdf92c]
+  - @databuddy/sdk@2.6.1-beta.0
+
 ## 0.1.1-beta.0
 
 ### Patch Changes
