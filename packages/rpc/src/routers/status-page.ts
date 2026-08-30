@@ -208,6 +208,7 @@ const listPublicStatusPageSitemapEntries = cacheable(
 	{
 		expireInSec: 300,
 		prefix: cacheNamespaces.statusPage,
+		reviveDates: false,
 		staleWhileRevalidate: true,
 		staleTime: 60,
 	}
@@ -615,6 +616,7 @@ async function _fetchStatusPageData(
 const fetchStatusPageData = cacheable(_fetchStatusPageData, {
 	expireInSec: 60,
 	prefix: cacheNamespaces.statusPage,
+	reviveDates: false,
 	staleWhileRevalidate: true,
 	staleTime: 30,
 });
