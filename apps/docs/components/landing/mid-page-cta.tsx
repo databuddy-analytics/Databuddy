@@ -1,7 +1,14 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Button } from "@databuddy/ui";
+import { flush, track } from "@databuddy/sdk";
 
 export function MidPageCta() {
+	const pathname = usePathname();
+	const page = pathname?.split("/").filter(Boolean)[0] ?? "home";
+
 	return (
 		<div className="flex flex-col items-center gap-4 text-center">
 			<h2 className="text-balance font-semibold text-2xl sm:text-3xl">
@@ -12,10 +19,26 @@ export function MidPageCta() {
 			</p>
 			<div className="flex items-center gap-3 pt-1">
 				<Button asChild>
-					<a href="https://app.databuddy.cc/register">Start free</a>
+					<a
+						href="https://app.databuddy.cc/register"
+						onClick={() => {
+							track("signup_cta_clicked", { page, placement: "closing_cta" });
+							flush();
+						}}
+					>
+						Start free
+					</a>
 				</Button>
 				<Button asChild variant="secondary">
-					<Link href="/demo">Live demo</Link>
+					<Link
+						href="/demo"
+						onClick={() => {
+							track("demo_opened", { page, placement: "closing_cta" });
+							flush();
+						}}
+					>
+						Live demo
+					</Link>
 				</Button>
 			</div>
 		</div>

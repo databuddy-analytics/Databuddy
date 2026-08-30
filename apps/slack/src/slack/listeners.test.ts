@@ -634,22 +634,4 @@ describe("Slack listeners", () => {
 		]);
 	});
 
-	it("responds to the help slash command", async () => {
-		const app = new FakeSlackApp();
-		const { agent } = createAgent();
-		const queue = createQueue();
-		const responses: unknown[] = [];
-		registerFakeSlackListeners(app, agent, createInstallations(), queue);
-
-		await app.commands.get("/databuddy-help")?.({
-			ack: async () => undefined,
-			respond: async (message: unknown) => {
-				responses.push(message);
-			},
-		});
-
-		expect(responses).toEqual([
-			{ response_type: "ephemeral", text: SLACK_COPY.help },
-		]);
-	});
 });

@@ -365,9 +365,9 @@ export default function SecurityPage() {
 							<Card.Title>Allowed Origins</Card.Title>
 							<Card.Description>
 								Browser requests are validated against your registered domain
-								using their Origin header; requests without an Origin header are
+								using the Origin header. Requests without an Origin header are
 								accepted unless you configure the allowed origins and IP rules
-								below. Add additional origins for third-party integrations like{" "}
+								below. Add origins for third-party integrations like{" "}
 								<code className="rounded bg-secondary px-1 py-0.5 font-mono text-[11px]">
 									cal.com
 								</code>{" "}
@@ -448,7 +448,7 @@ export default function SecurityPage() {
 					</Card>
 
 					<NoticeBanner
-						description="Browser requests are validated against your registered domain by Origin; requests without an Origin header are accepted unless you configure the allowed origins and IP rules above. Add origins for third-party integrations like Cal.com or embedded widgets."
+						description="Browser requests are validated against your registered domain using the Origin header. Requests without one are accepted unless you configure the allowed origins and IP rules above. Add origins for third-party integrations like Cal.com or embedded widgets."
 						icon={<LockIcon />}
 					/>
 				</div>

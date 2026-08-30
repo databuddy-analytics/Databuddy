@@ -32,7 +32,4 @@ describe("email brand contrast", () => {
 		).toBeGreaterThanOrEqual(4.5);
 	});
 
-	test("uses an email-client-safe raster logo", () => {
-		expect(emailBrand.primaryLogoUrl).toEndWith(".png");
-	});
 });

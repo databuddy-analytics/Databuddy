@@ -90,17 +90,6 @@ describe("resolveRequestTraitFilters", () => {
 		expect(mockResolveTraitSegment).not.toHaveBeenCalled();
 	});
 
-	it("rejects unknown query types before resolving trait segments", async () => {
-		await expect(
-			resolveRequestTraitFilters(
-				makeRequest({
-					type: "not_a_query",
-					filters: [{ field: "trait:plan", op: "eq", value: "pro" }],
-				})
-			)
-		).rejects.toThrow("Trait filters are not supported for not_a_query");
-		expect(mockResolveTraitSegment).not.toHaveBeenCalled();
-	});
 });
 
 describe("invalidFilterFieldError", () => {

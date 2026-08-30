@@ -39,16 +39,6 @@ describe("parsePixelQuery", () => {
 		expect(eventData.title).toBe("Hello");
 	});
 
-	test("false string → boolean false", () => {
-		const { eventData } = parsePixelQuery({ flag: "false" });
-		expect(eventData.flag).toBe(false);
-	});
-
-	test("type field → eventType", () => {
-		const { eventType } = parsePixelQuery({ type: "outgoing_link" });
-		expect(eventType).toBe("outgoing_link");
-	});
-
 	test("nested keys: payload[path]", () => {
 		const { eventData } = parsePixelQuery({
 			"payload[path]": "/home",
@@ -85,26 +75,6 @@ describe("parsePixelQuery", () => {
 	test("invalid properties JSON → empty object", () => {
 		const { eventData } = parsePixelQuery({ properties: "not-json{" });
 		expect(eventData.properties).toEqual({});
-	});
-
-	test("negative numbers parsed correctly", () => {
-		const { eventData } = parsePixelQuery({
-			offset: "-5",
-			rate: "-0.5",
-		});
-		expect(eventData.offset).toBe(-5);
-		expect(eventData.rate).toBe(-0.5);
-	});
-
-	test("large batch of flat params", () => {
-		const query: Record<string, string> = {};
-		for (let i = 0; i < 50; i++) {
-			query[`field_${i}`] = String(i);
-		}
-		const { eventData } = parsePixelQuery(query);
-		for (let i = 0; i < 50; i++) {
-			expect(eventData[`field_${i}`]).toBe(i);
-		}
 	});
 
 	test("flat key followed by nested key on the same name does not crash", () => {

@@ -26,7 +26,7 @@ export const homeFaqItems: LandingFaqItem[] = [
 	{
 		question: "Do I need cookie consent banners?",
 		answer:
-			"Databuddy uses no cookies and is anonymous by default; individual user profiles exist only if you opt in with the identify API. In the default configuration, many sites can run without an analytics consent banner under GDPR, CCPA, and ePrivacy, depending on jurisdiction and what you send.",
+			"Databuddy uses no cookies and is anonymous by default; individual user profiles exist only if you opt in with the identify API. By default, many sites can run without an analytics consent banner under GDPR, CCPA, and ePrivacy, depending on your jurisdiction and what you send.",
 	},
 	{
 		question: "What is included in the free plan?",
@@ -41,7 +41,7 @@ export const homeFaqItems: LandingFaqItem[] = [
 	{
 		question: "Can I migrate from Google Analytics, PostHog, or Plausible?",
 		answer:
-			"Yes. Add Databuddy alongside your current tool, compare the data for as long as you need, and remove the old script when you are satisfied with the results.",
+			"Yes. Add Databuddy alongside your current tool, compare the data for as long as you need, and remove the old script when you're satisfied.",
 	},
 	{
 		question: "What happens if I outgrow the free plan?",
@@ -51,7 +51,7 @@ export const homeFaqItems: LandingFaqItem[] = [
 	{
 		question: "Will the script slow down my site?",
 		answer:
-			"The tracker is about 12 KB gzipped and loads asynchronously. Its effect depends on your site and configuration, so measure it in your own performance budget instead of assuming any script has zero impact.",
+			"The tracker is about 12 KB gzipped and loads asynchronously. Real impact depends on your site and setup, so measure it in your own performance budget.",
 	},
 	{
 		question: "Is my data safe? Can I self-host?",

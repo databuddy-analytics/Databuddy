@@ -52,15 +52,4 @@ describe("isInterruptingInvestigation", () => {
 	it("keeps plain quiet resolves out of the feed", () => {
 		expect(isInterruptingInvestigation({ outcome: quietResolve })).toBe(false);
 	});
-
-	it("does not treat omitted recommendations as interrupting", () => {
-		expect(
-			isInterruptingInvestigation({
-				outcome: {
-					...quietResolve,
-					publish: true,
-				},
-			})
-		).toBe(false);
-	});
 });

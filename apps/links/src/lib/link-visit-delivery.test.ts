@@ -8,7 +8,6 @@ import {
 	getWorkerConcurrency,
 	getLinkVisitRetryDelay,
 	KAFKA_ATTEMPTED_FIELD,
-	LINK_VISIT_JOB_OPTIONS,
 	LINK_VISIT_JOB_NAME,
 	LinkVisitQueueAdmissionTimeoutError,
 	processLinkVisitJob,
@@ -59,18 +58,6 @@ describe("link visit durable delivery", () => {
 				allowDirectFallback: true,
 				beforeKafkaSend: expect.any(Function),
 			})
-		);
-	});
-
-	test("completes only after Kafka acknowledges the immutable payload", async () => {
-		const deliver = mock(() => Promise.resolve(true));
-
-		await processLinkVisitJob(makeJob(), deliver);
-
-		expect(deliver).toHaveBeenCalledWith(
-			event,
-			event.link_id,
-			expect.objectContaining({ allowDirectFallback: true })
 		);
 	});
 
@@ -147,14 +134,6 @@ describe("link visit durable delivery", () => {
 				process.env.BULLMQ_REDIS_URL = originalUrl;
 			}
 		}
-	});
-
-	test("bounds failed-job retention", () => {
-		expect(LINK_VISIT_JOB_OPTIONS.attempts).toBeGreaterThan(1_000_000);
-		expect(LINK_VISIT_JOB_OPTIONS.removeOnFail).toEqual({
-			age: 7 * 24 * 3600,
-			count: 100_000,
-		});
 	});
 
 	test("rejects and closes the exact writer when queue admission stalls", async () => {

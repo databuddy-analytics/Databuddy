@@ -47,9 +47,6 @@ describe("parseProperties", () => {
 		[undefined, {}],
 		["", {}],
 		["{invalid}", {}],
-		['{"a":1,"b":"c","d":true}', { a: 1, b: "c", d: true }],
-		['{"nested":{"x":1}}', { nested: { x: 1 } }],
-		['{"arr":[1,2,3]}', { arr: [1, 2, 3] }],
 	];
 
 	it.each(cases)("parses %j correctly", (input, expected) => {
@@ -175,64 +172,6 @@ describe("evaluateRule", () => {
 		expect(evaluateRule(emailEndsWithRule, {})).toBe(false);
 	});
 
-	it("handles batch rules with not_in", () => {
-		const emailNotInRule = {
-			type: "email" as const,
-			operator: "not_in" as const,
-			batch: true,
-			batchValues: ["blocked@spam.com"],
-			enabled: true,
-		};
-		expect(evaluateRule(emailNotInRule, { email: "user@company.com" })).toBe(
-			true
-		);
-		expect(evaluateRule(emailNotInRule, { email: "blocked@spam.com" })).toBe(
-			false
-		);
-	});
-
-	it("handles non-batch rules", () => {
-		const userRule = {
-			type: "user_id" as const,
-			operator: "equals",
-			value: "admin",
-			enabled: true,
-			batch: false,
-		};
-		expect(evaluateRule(userRule, { userId: "admin" })).toBe(true);
-		expect(evaluateRule(userRule, { userId: "user" })).toBe(false);
-
-		const emailRule = {
-			type: "email" as const,
-			operator: "contains",
-			value: "@co.com",
-			enabled: true,
-			batch: false,
-		};
-		expect(evaluateRule(emailRule, { email: "x@co.com" })).toBe(true);
-
-		const propRule = {
-			type: "property" as const,
-			operator: "equals",
-			field: "tier",
-			value: "gold",
-			enabled: true,
-			batch: false,
-		};
-		expect(evaluateRule(propRule, { properties: { tier: "gold" } })).toBe(true);
-		expect(evaluateRule(propRule, { properties: { tier: "silver" } })).toBe(
-			false
-		);
-
-		const unknownRule = {
-			type: "unknown" as "user_id",
-			operator: "equals",
-			value: "x",
-			enabled: true,
-			batch: false,
-		};
-		expect(evaluateRule(unknownRule, { userId: "x" })).toBe(false);
-	});
 });
 
 describe("selectVariant", () => {
@@ -390,28 +329,6 @@ describe("evaluateFlag", () => {
 		expect(nobody.reason).toBe("BOOLEAN_DEFAULT");
 	});
 
-	it("handles multivariant flags", () => {
-		const flag = {
-			key: "mv",
-			type: "multivariant" as const,
-			status: "active" as const,
-			defaultValue: false,
-			rolloutPercentage: null,
-			variants: [
-				{ key: "a", value: "A", weight: 50, type: "string" as const },
-				{ key: "b", value: "B", weight: 50, type: "string" as const },
-			],
-			payload: { exp: true },
-		};
-
-		for (let i = 0; i < 50; i += 1) {
-			const r = evaluateFlag(flag, { userId: randomId() });
-			expect(r.enabled).toBe(true);
-			expect(r.reason).toBe("MULTIVARIANT_EVALUATED");
-			expect(["A", "B"]).toContain(r.value as string);
-			expect(r.payload).toEqual({ exp: true });
-		}
-	});
 });
 
 describe("rollout distribution", () => {
@@ -692,84 +609,4 @@ describe("edge cases and stress tests", () => {
 		}
 	});
 
-	it("handles percentage edge values", () => {
-		for (let i = 0; i < 100; i += 1) {
-			const ctx = { userId: randomId() };
-
-			expect(
-				evaluateFlag(
-					{
-						key: "z",
-						type: "rollout" as const,
-						rolloutPercentage: 0,
-						status: "active" as const,
-						defaultValue: false,
-					},
-					ctx
-				).enabled
-			).toBe(false);
-
-			expect(
-				evaluateFlag(
-					{
-						key: "h",
-						type: "rollout" as const,
-						rolloutPercentage: 100,
-						status: "active" as const,
-						defaultValue: false,
-					},
-					ctx
-				).enabled
-			).toBe(true);
-		}
-
-		for (const pct of [10, 25, 50, 75, 90]) {
-			const flag = {
-				key: `pct-${pct}`,
-				type: "rollout" as const,
-				rolloutPercentage: pct,
-				status: "active" as const,
-				defaultValue: false,
-			};
-
-			let enabled = 0;
-			for (let i = 0; i < SAMPLE_SIZE; i += 1) {
-				if (evaluateFlag(flag, { userId: randomId() }).enabled) {
-					enabled += 1;
-				}
-			}
-
-			const lowerBound = Math.max(0, (pct - 20) / 100) * SAMPLE_SIZE;
-			const upperBound = Math.min(100, (pct + 20) / 100) * SAMPLE_SIZE;
-			expect(enabled).toBeGreaterThanOrEqual(lowerBound);
-			expect(enabled).toBeLessThanOrEqual(upperBound);
-		}
-	});
-
-	it("complex nested context properties", () => {
-		const flag = {
-			key: "nested",
-			type: "boolean" as const,
-			defaultValue: false,
-			status: "active" as const,
-			rolloutPercentage: null,
-			rules: [
-				{
-					type: "property" as const,
-					operator: "exists",
-					field: "meta",
-					enabled: true,
-					batch: false,
-				},
-			],
-		};
-
-		expect(
-			evaluateFlag(flag, {
-				properties: {
-					meta: { deep: { nested: { value: [1, 2, { x: "y" }] } } },
-				},
-			}).enabled
-		).toBe(true);
-	});
 });

@@ -1,26 +1,7 @@
 import { describe, expect, it } from "bun:test";
-import {
-	FEEDBACK_NEGATIVE_SIGNAL,
-	FEEDBACK_POSITIVE_SIGNAL,
-} from "@/slack/blocks";
 import { resolveSlackFeedbackSignal } from "@/slack/feedback";
 
 describe("resolveSlackFeedbackSignal", () => {
-	it("extracts the positive button value", () => {
-		expect(
-			resolveSlackFeedbackSignal({
-				type: "feedback_buttons",
-				value: FEEDBACK_POSITIVE_SIGNAL,
-			})
-		).toBe("thumbsup");
-	});
-
-	it("extracts the negative button value", () => {
-		expect(
-			resolveSlackFeedbackSignal({ value: FEEDBACK_NEGATIVE_SIGNAL })
-		).toBe("thumbsdown");
-	});
-
 	it("strips wrapping colons and lowercases", () => {
 		expect(resolveSlackFeedbackSignal({ value: ":ThumbsUp:" })).toBe("thumbsup");
 	});

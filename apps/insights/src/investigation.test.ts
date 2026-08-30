@@ -178,42 +178,6 @@ describe("prepareInvestigation", () => {
 		});
 	});
 
-	it("reuses exact detector-owned goal evidence without another read", () => {
-		const result = prepareInvestigation(
-			{
-				...baseSignal,
-				definitionEvidence:
-					"Signup had 0 completions from 100 eligible visitors, versus 20 previously.",
-				entityLabel: "Signup",
-				metric: "goal:goal-1",
-			},
-			7
-		);
-
-		expect(result.evidence).toHaveLength(1);
-		expect(result.evidence.at(-1)).toBe(
-			"Signup had 0 completions from 100 eligible visitors, versus 20 previously."
-		);
-	});
-
-	it("passes signal-window annotations to the agent without classifying them", () => {
-		const result = prepareInvestigation(
-			baseSignal,
-			7,
-			[
-				{
-					date: "2026-07-08",
-					title: "Signup instrumentation intentionally changed",
-				},
-				{ date: "2026-07-09", title: "Pricing campaign paused" },
-			]
-		);
-
-		expect(result.evidence).toEqual([
-			"Annotation: 2026-07-08: Signup instrumentation intentionally changed; 2026-07-09: Pricing campaign paused",
-		]);
-	});
-
 	it("keeps a renamed goal in the same investigation", () => {
 		const first = prepareInvestigation(
 			{

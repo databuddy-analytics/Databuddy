@@ -33,6 +33,13 @@ All tables use the `Replicated*MergeTree` engine family with `{shard}` /
 `{replica}` macros, matching the production cluster. Single-node deployments
 need ClickHouse Keeper enabled (a one-node Keeper is fine).
 
+> **Status:** the `ReplacingMergeTree` delivery cutover described below has
+> not been applied to production. The reference schemas in this tree mirror the
+> live cluster (plain `MergeTree` engines, time-based sorting keys); the
+> delivery design is retained here and in `../migrations/` for the planned
+> cutover. The `final` read setting is a no-op on engines without FINAL
+> support, so readers are compatible with both states.
+
 The Basket/Vector delivery tables use `ReplicatedReplacingMergeTree` with a
 stable row identity and an `ingested_at` version. Background merges reclaim
 duplicate storage asynchronously; the shared ClickHouse readers add `FINAL`

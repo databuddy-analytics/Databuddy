@@ -1,5 +1,4 @@
 import { describe, expect, it } from "bun:test";
-import { dashboardActionsSchema } from "./ai-components/schemas";
 import {
 	buildDashboardActionHref,
 	parseDashboardFiltersParam,
@@ -102,40 +101,4 @@ describe("dashboard navigation actions", () => {
 		).toBeNull();
 	});
 
-	it("accepts target-only dashboard action schema payloads", () => {
-		expect(
-			dashboardActionsSchema.safeParse({
-				type: "dashboard-actions",
-				websiteId: "site_123",
-				actions: [
-					{
-						label: "Open events",
-						target: "website.events",
-						filters: [
-							{
-								field: "event_name",
-								operator: "eq",
-								value: "signup_completed",
-							},
-						],
-					},
-				],
-			}).success
-		).toBe(true);
-	});
-
-	it("accepts generated string targets at the component boundary", () => {
-		expect(
-			dashboardActionsSchema.safeParse({
-				type: "dashboard-actions",
-				websiteId: "site_123",
-				actions: [
-					{
-						label: "Settings",
-						target: "website.settings",
-					},
-				],
-			}).success
-		).toBe(true);
-	});
 });

@@ -1,3 +1,4 @@
+import { successOutputSchema } from "../lib/schemas";
 import { db } from "@databuddy/db";
 import { chQuery, purgeWebsiteAnalyticsData } from "@databuddy/db/clickhouse";
 import { cacheable } from "@databuddy/redis";
@@ -356,8 +357,6 @@ const listWithChartsOutputSchema = z.object({
 	chartData: z.record(z.string(), processedMiniChartDataSchema),
 	activeUsers: z.record(z.string(), z.number()),
 });
-
-const successOutputSchema = z.object({ success: z.literal(true) });
 
 const trackingIssueOutputSchema = z.object({
 	count: z.number(),

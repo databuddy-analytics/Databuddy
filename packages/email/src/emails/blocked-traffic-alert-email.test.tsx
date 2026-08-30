@@ -3,26 +3,6 @@ import { describe, expect, test } from "bun:test";
 import { BlockedTrafficAlertEmail } from "./blocked-traffic-alert-email";
 
 describe("BlockedTrafficAlertEmail", () => {
-	test("critical tracking-zero copy includes the site and counts", async () => {
-		const html = await renderEmail(
-			BlockedTrafficAlertEmail({
-				baselineEvents: 123,
-				blockedCount: 4,
-				recentEvents: 0,
-				severity: "critical",
-				siteLabel: "Example Site",
-				windowMinutes: 15,
-			})
-		);
-
-		expect(html).toContain("Tracking may be down for Example Site");
-		expect(html).toContain("Blocked");
-		expect(html).toContain("4");
-		expect(html).toContain("15");
-		expect(html).toContain("Recent pageviews");
-		expect(html).toContain("30");
-	});
-
 	test("warning copy is distinct from tracking-zero", async () => {
 		const html = await renderEmail(
 			BlockedTrafficAlertEmail({

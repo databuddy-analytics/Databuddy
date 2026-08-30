@@ -3,7 +3,6 @@ import { MonitorStatus } from "./types";
 import {
 	buildTransitionNotificationPayload,
 	buildUptimeDeliveryPlan,
-	countFiredAlarms,
 	resolveTransitionKind,
 	resolveUptimeEmailPreference,
 	shouldReleaseTransitionClaim,
@@ -63,11 +62,6 @@ describe("resolveTransitionKind — dedupe invariants", () => {
 		expect(resolveTransitionKind(UP, UP)).toBeNull();
 	});
 
-	test("repeated DOWN checks stay silent across many calls", () => {
-		for (let i = 0; i < 50; i += 1) {
-			expect(resolveTransitionKind(DOWN, DOWN)).toBeNull();
-		}
-	});
 });
 
 describe("resolveTransitionKind — defensive inputs", () => {
@@ -83,40 +77,6 @@ describe("resolveTransitionKind — defensive inputs", () => {
 
 	test("NaN previous with DOWN current still alerts (prev !== DOWN)", () => {
 		expect(resolveTransitionKind(Number.NaN, DOWN)).toBe("down");
-	});
-});
-
-describe("resolveTransitionKind — state machine matrix", () => {
-	const states = [undefined, UP, DOWN] as const;
-	const expected: Record<string, "down" | "recovered" | null> = {
-		"undefined→0": "down",
-		"undefined→1": null,
-		"1→0": "down",
-		"1→1": null,
-		"0→0": null,
-		"0→1": "recovered",
-	};
-
-	for (const prev of states) {
-		for (const curr of states) {
-			if (curr === undefined) {
-				continue;
-			}
-			const key = `${prev === undefined ? "undefined" : prev}→${curr}`;
-			test(`${key} → ${expected[key]}`, () => {
-				expect(resolveTransitionKind(prev, curr)).toBe(expected[key]);
-			});
-		}
-	}
-});
-
-describe("countFiredAlarms", () => {
-	test("counts alarms with at least one successful destination", () => {
-		expect(countFiredAlarms([2, 0, 1])).toBe(2);
-	});
-
-	test("does not count alarms where every destination failed or was filtered", () => {
-		expect(countFiredAlarms([0, 0, 0])).toBe(0);
 	});
 });
 

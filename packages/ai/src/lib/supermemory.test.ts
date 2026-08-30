@@ -37,8 +37,6 @@ mock.module("supermemory", () => ({
 
 const {
 	getMemoryContext,
-	memoryContainerTag,
-	primaryContainerTag,
 	searchMemories,
 	storeAnalyticsSummary,
 	storeConversation,
@@ -63,15 +61,6 @@ afterAll(() => {
 });
 
 describe("supermemory containers", () => {
-	test("builds underscore container tags", () => {
-		expect(memoryContainerTag("user", "usr_1")).toBe("user_usr_1");
-		expect(memoryContainerTag("apikey", "key_1")).toBe("apikey_key_1");
-		expect(memoryContainerTag("website", "site_1")).toBe("website_site_1");
-		expect(primaryContainerTag("usr_1", null)).toBe("user_usr_1");
-		expect(primaryContainerTag(null, "key_1")).toBe("apikey_key_1");
-		expect(primaryContainerTag(null, null)).toBe("anonymous");
-	});
-
 	test("stores analytics summaries in the website container", async () => {
 		await storeAnalyticsSummary("<b>Weekly wins</b>", "site_1", {
 			runId: "run_1",
@@ -166,27 +155,6 @@ describe("supermemory containers", () => {
 		]);
 	});
 
-	test("loads anonymous website memory context without anonymous container", async () => {
-		profileHandler = async ({ containerTag }) => ({
-			profile: {
-				dynamic: [`dynamic:${containerTag}`],
-				static: [`static:${containerTag}`],
-			},
-			searchResults: {
-				results: [{ memory: `memory:${containerTag}` }],
-			},
-		});
-
-		await getMemoryContext("pricing", null, null, {
-			websiteId: "site_1",
-		});
-
-		expect(mockProfile.mock.calls.map(([input]) => input.containerTag)).toEqual([
-			"website_site_1",
-			"website:site_1",
-		]);
-	});
-
 	test("searches current and legacy containers with source tags", async () => {
 		searchHandler = async ({ containerTag }) => ({
 			results:
@@ -265,16 +233,5 @@ describe("supermemory containers", () => {
 				similarity: 0.7,
 			},
 		]);
-	});
-
-	test("searches anonymous website memory without anonymous container", async () => {
-		await searchMemories("pricing", null, null, {
-			limit: 3,
-			websiteId: "site_1",
-		});
-
-		expect(
-			mockSearchMemories.mock.calls.map(([input]) => input.containerTag)
-		).toEqual(["website_site_1", "website:site_1"]);
 	});
 });

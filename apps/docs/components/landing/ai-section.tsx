@@ -340,8 +340,8 @@ export function AiSection() {
 				</h2>
 				<p className="mt-3 max-w-2xl text-pretty text-muted-foreground text-sm sm:px-0 sm:text-base lg:text-lg">
 					Databunny investigates your traffic, errors, funnels, and vitals on
-					its own, and only interrupts you when there is a decision to make.
-					Your own agents get the same access over MCP.
+					its own, and only interrupts you when there's a decision to make. Your
+					own agents get the same access over MCP.
 				</p>
 			</div>
 
@@ -349,7 +349,7 @@ export function AiSection() {
 				<div className="flex flex-col">
 					<span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground uppercase tracking-widest">
 						<RobotIcon className="size-3.5 text-violet-400" weight="duotone" />
-						Proactive
+						Proactive · Invite only
 					</span>
 					<h3 className="mt-2 font-semibold text-foreground text-lg sm:text-xl">
 						Databunny investigates on its own

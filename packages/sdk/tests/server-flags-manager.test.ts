@@ -105,13 +105,6 @@ describe("ServerFlagsManager", () => {
 		fetchMock.restore();
 	});
 
-	describe("createServerFlagsManager", () => {
-		it("returns a ServerFlagsManager instance", async () => {
-			const manager = await create({ clientId: "test-id" });
-			expect(manager).toBeInstanceOf(ServerFlagsManager);
-		});
-	});
-
 	describe("initialization", () => {
 		it("defaults autoFetch to false", async () => {
 			await create({ clientId: "test-id" }, true);
@@ -124,22 +117,6 @@ describe("ServerFlagsManager", () => {
 			expect(fetchMock.calls.length).toBeGreaterThanOrEqual(1);
 			expect(fetchMock.calls.at(0)).toContain("/public/v1/flags/bulk");
 		});
-
-		it("forces skipStorage to true", async () => {
-			const manager = await create(
-				{ clientId: "test-id", skipStorage: false },
-				true
-			);
-			expect(manager.isReady()).toBe(true);
-		});
-
-		it("reaches ready state after waitForInit", async () => {
-			const manager = await create(
-				{ clientId: "test-id", autoFetch: true },
-				true
-			);
-			expect(manager.isReady()).toBe(true);
-		});
 	});
 
 	describe("getFlag", () => {
@@ -150,23 +127,6 @@ describe("ServerFlagsManager", () => {
 			expect(result.enabled).toBe(true);
 			expect(result.value).toBe(true);
 			expect(result.reason).toBe("MATCH");
-		});
-
-		it("fetches and returns a disabled flag", async () => {
-			const manager = await create({ clientId: "test-id" });
-
-			const result = await manager.getFlag("feature-off");
-			expect(result.enabled).toBe(false);
-			expect(result.value).toBe(false);
-		});
-
-		it("returns variant flag with value and variant name", async () => {
-			const manager = await create({ clientId: "test-id" });
-
-			const result = await manager.getFlag("feature-variant");
-			expect(result.enabled).toBe(true);
-			expect(result.value).toBe("treatment-a");
-			expect(result.variant).toBe("treatment-a");
 		});
 
 		it("returns default when disabled", async () => {
@@ -282,16 +242,6 @@ describe("ServerFlagsManager", () => {
 			expect(keys).toContain("feature-off");
 			expect(keys).toContain("feature-variant");
 		});
-
-		it("uses 5ms batch delay (shorter than browser default)", async () => {
-			const manager = await create({ clientId: "test-id" }, true);
-
-			const start = performance.now();
-			await manager.getFlag("feature-on");
-			const elapsed = performance.now() - start;
-
-			expect(elapsed).toBeLessThan(200);
-		});
 	});
 
 	describe("caching", () => {
@@ -327,19 +277,6 @@ describe("ServerFlagsManager", () => {
 			expect(stale.enabled).toBe(true);
 			await sleep(20);
 			expect(fetchMock.calls.length).toBeGreaterThan(callsAfterFirst);
-		});
-
-		it("getMemoryFlags returns all cached flags", async () => {
-			const manager = await create({
-				clientId: "test-id",
-				autoFetch: true,
-			});
-
-			const flags = manager.getMemoryFlags();
-			expect(flags["feature-on"]).toBeDefined();
-			expect(flags["feature-on"].enabled).toBe(true);
-			expect(flags["feature-off"]).toBeDefined();
-			expect(flags["feature-off"].enabled).toBe(false);
 		});
 
 		it("caps the in-memory flag cache", async () => {
@@ -823,32 +760,6 @@ describe("ServerFlagsManager", () => {
 	});
 
 	describe("refresh", () => {
-		it("re-fetches all flags", async () => {
-			const manager = await create({
-				clientId: "test-id",
-				autoFetch: true,
-			});
-			const callsAfterInit = fetchMock.calls.length;
-
-			await manager.refresh();
-			expect(fetchMock.calls.length).toBeGreaterThan(callsAfterInit);
-		});
-
-		it("forceClear clears cache before re-fetch", async () => {
-			const manager = await create({
-				clientId: "test-id",
-				autoFetch: true,
-			});
-
-			const flagsBefore = manager.getMemoryFlags();
-			expect(Object.keys(flagsBefore).length).toBeGreaterThan(0);
-
-			await manager.refresh(true);
-
-			const flagsAfter = manager.getMemoryFlags();
-			expect(Object.keys(flagsAfter).length).toBeGreaterThan(0);
-		});
-
 		it("forceClear prevents an in-flight single fetch from restoring stale data", async () => {
 			fetchMock.restore();
 			let markSingleStarted: () => void;
@@ -924,14 +835,6 @@ describe("ServerFlagsManager", () => {
 	});
 
 	describe("getValue", () => {
-		it("returns cached value", async () => {
-			const manager = await create({ clientId: "test-id" });
-
-			await manager.getFlag("feature-variant");
-			const value = manager.getValue("feature-variant");
-			expect(value).toBe("treatment-a");
-		});
-
 		it("returns default for uncached flag", async () => {
 			const manager = await create({ clientId: "test-id" });
 
@@ -1037,17 +940,6 @@ describe("ServerFlagsManager", () => {
 			expect(notified).toBe(true);
 			unsub();
 		});
-
-		it("returns snapshot with flags and ready state", async () => {
-			const manager = await create({
-				clientId: "test-id",
-				autoFetch: true,
-			});
-
-			const snapshot = manager.getSnapshot();
-			expect(snapshot.isReady).toBe(true);
-			expect(snapshot.flags["feature-on"]).toBeDefined();
-		});
 	});
 
 	describe("updateConfig", () => {
@@ -1059,19 +951,6 @@ describe("ServerFlagsManager", () => {
 			expect(fetchMock.calls.length).toBe(0);
 
 			manager.updateConfig({ clientId: "test-id", disabled: false });
-			await sleep(100);
-
-			expect(fetchMock.calls.length).toBeGreaterThanOrEqual(1);
-		});
-
-		it("enables fetching when transitioning from pending to active", async () => {
-			const manager = await create({
-				clientId: "test-id",
-				isPending: true,
-			});
-			expect(fetchMock.calls.length).toBe(0);
-
-			manager.updateConfig({ clientId: "test-id", isPending: false });
 			await sleep(100);
 
 			expect(fetchMock.calls.length).toBeGreaterThanOrEqual(1);

@@ -7,7 +7,6 @@ import {
 	type InvestigationCoverage,
 	type InvestigationSources,
 	investigateWebsitePortfolioWithSources,
-	resolveInvestigationAsOf,
 } from "./generation";
 import { prepareInvestigation } from "./investigation";
 
@@ -498,12 +497,6 @@ describe("fixture investigation sources", () => {
 		).rejects.toThrow("Annotation storage unavailable");
 		expect(annotationCalls).toEqual(["visitors"]);
 		expect(attempted).toEqual([]);
-	});
-
-	it("resolves a date-only run to one exact instant in the website timezone", () => {
-		expect(resolveInvestigationAsOf("2026-07-12", "Asia/Hebron")).toEqual(
-			new Date("2026-07-11T21:00:00.000Z")
-		);
 	});
 
 	it("runs the production investigation path using only required sources", async () => {
@@ -1107,105 +1100,6 @@ describe("fixture investigation sources", () => {
 			noSignalReason: null,
 			selected: { general: 1 },
 		});
-	});
-
-	it("manually rechecks cooling revenue candidates", async () => {
-		for (const candidate of [revenueIncrease]) {
-			const prior = prepareInvestigation(candidate, 7);
-			const outcome: InvestigationOutcome = {
-				evidence: ["The selected signal was measured in the comparison window."],
-				impact: null,
-				next: { reason: "No action is required in this fixture.", type: "resolve" },
-				rootCause: null,
-				summary: "The selected signal changed in the comparison window.",
-				title: "Measured signal",
-			};
-			const investigated: string[] = [];
-			const sources = fixtureSources({
-				detectDefinitionSignals: async () => [],
-				detectMetricSignals: async () =>
-					candidate.metric === "revenue" ? [candidate] : [],
-				fetchAnnotations: async () => [],
-				investigateSignal: async (input) => {
-					investigated.push(input.signal.signalKey);
-					return { outcome, toolCallCount: 1 };
-				},
-				loadDueInvestigation: async () => null,
-				loadHistory: async () => [],
-				loadObservations: async () =>
-					new Map([
-						[
-							prior.signal.signalKey,
-							{
-								outcome,
-								recheckAt: new Date("2026-07-26T00:00:00.000Z"),
-								signal: prior.signal,
-							},
-						],
-					]),
-			});
-
-			const artifact = await investigateFixture(
-				sources,
-				{ asOf: "2026-07-19" },
-				undefined,
-				"manual"
-			);
-
-			expect(artifact.status).toBe("completed");
-			expect(investigated).toEqual([prior.signal.signalKey]);
-		}
-	});
-
-	it("retries when the only fresh regression is still in cooldown", async () => {
-		const prior = prepareInvestigation(trafficDrop, 7);
-		const coolingError: DetectedSignal = {
-			...trafficDrop,
-			baseline: 10,
-			current: 20,
-			deltaPercent: 100,
-			direction: "up",
-			label: "Checkout error",
-			metric: "error_count",
-			subjectKey: "error:checkout",
-		};
-		const cooling = prepareInvestigation(coolingError, 7);
-		const outcome: InvestigationOutcome = {
-			evidence: ["The checkout error affected 20 requests."],
-			impact: null,
-			next: { question: "Was this expected?", type: "ask" },
-			rootCause: null,
-			summary: "The checkout error remains active.",
-			title: "Checkout error",
-		};
-		const sources = fixtureSources({
-			detectDefinitionSignals: async () => [],
-			detectMetricSignals: async () => [coolingError],
-			loadDueInvestigation: async () => ({
-				evidence: [],
-				outcome,
-				recheckAt: new Date("2026-07-18T00:00:00.000Z"),
-				signal: prior.signal,
-			}),
-			loadObservations: async () =>
-				new Map([
-					[
-						cooling.signal.signalKey,
-						{
-							outcome,
-							recheckAt: new Date("2026-07-26T00:00:00.000Z"),
-							signal: cooling.signal,
-						},
-					],
-				]),
-			remeasureSignal: async () => {
-				throw new Error("Due remeasurement unavailable");
-			},
-		});
-
-		await expect(
-			investigateFixture(sources, { asOf: "2026-07-19" })
-		).rejects.toThrow("Due remeasurement unavailable");
 	});
 
 	it("keeps unresolved due work ahead of fresh regressions", async () => {

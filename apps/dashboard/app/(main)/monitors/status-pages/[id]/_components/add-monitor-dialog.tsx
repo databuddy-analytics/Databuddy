@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -53,6 +53,7 @@ export function AddMonitorDialog({
 	const { activeOrganizationId, activeOrganization } =
 		useOrganizationsContext();
 	const resolvedOrgId = activeOrganization?.id ?? activeOrganizationId ?? "";
+	const queryClient = useQueryClient();
 
 	const [mode, setMode] = useState<Mode>("existing");
 	const [selectedScheduleId, setSelectedScheduleId] = useState("");
@@ -113,6 +114,7 @@ export function AddMonitorDialog({
 	};
 
 	const handleCreate = async (data: CreateFormData) => {
+		let scheduleId: string;
 		try {
 			const result = await createMutation.mutateAsync({
 				organizationId: resolvedOrgId,
@@ -120,7 +122,15 @@ export function AddMonitorDialog({
 				name: data.name || undefined,
 				granularity: data.granularity,
 			});
-			const scheduleId = result.scheduleId;
+			scheduleId = result.scheduleId;
+		} catch (error) {
+			const msg =
+				error instanceof Error ? error.message : "Failed to create monitor";
+			toast.error(msg);
+			return;
+		}
+
+		try {
 			await addMutation.mutateAsync({
 				statusPageId,
 				uptimeScheduleId: scheduleId,
@@ -128,10 +138,15 @@ export function AddMonitorDialog({
 			toast.success("Monitor created and added to status page");
 			onCompleteAction();
 			handleClose(false);
-		} catch (error) {
-			const msg =
-				error instanceof Error ? error.message : "Failed to create monitor";
-			toast.error(msg);
+		} catch {
+			queryClient.invalidateQueries({
+				queryKey: orpc.uptime.listSchedules.key(),
+			});
+			setMode("existing");
+			setSelectedScheduleId(scheduleId);
+			toast.error(
+				"Monitor created, but adding it to the page failed. Try adding it again."
+			);
 		}
 	};
 

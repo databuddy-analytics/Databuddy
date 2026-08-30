@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { FeatureGate } from "@/components/feature-gate";
+import { useBillingContext } from "@/components/providers/billing-provider";
 import { orpc } from "@/lib/orpc";
 import {
 	Button,
@@ -108,6 +109,9 @@ export function InvestigationSettings({
 		},
 	});
 
+	const { isFeatureEnabled, isLoading: billingLoading } = useBillingContext();
+	const canInvestigate =
+		billingLoading || isFeatureEnabled(GATED_FEATURES.INVESTIGATIONS);
 	const configReady = Boolean(organizationId && configQuery.isSuccess && form);
 	const analysisPending = isAnalyzing || triggerMutation.isPending;
 	const isBusy = !configReady || saveMutation.isPending || analysisPending;
@@ -210,7 +214,7 @@ export function InvestigationSettings({
 
 				<Sheet.Footer className="flex items-center justify-between gap-3">
 					<Button
-						disabled={isBusy}
+						disabled={isBusy || !canInvestigate}
 						onClick={() => {
 							if (!(form && organizationId)) {
 								return;

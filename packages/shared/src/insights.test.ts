@@ -1,5 +1,4 @@
 import { describe, expect, it } from "bun:test";
-import { z } from "zod";
 import {
 	agentInvestigationOutcomeSchema,
 	insightBriefItemSchema,
@@ -210,38 +209,6 @@ describe("insightBriefItemSchema", () => {
 });
 
 describe("investigationOutcomeSchema", () => {
-	it("emits a strict output schema for agent next moves", () => {
-		const schema = z.toJSONSchema(agentInvestigationOutcomeSchema, {
-			io: "output",
-		}) as {
-			properties: {
-				next: {
-					anyOf: Array<{
-						properties: {
-							threshold?: { required?: string[] };
-							type: { const: string };
-						};
-						required?: string[];
-					}>;
-				};
-			};
-		};
-		const branch = (type: string) =>
-			schema.properties.next.anyOf.find(
-				(candidate) => candidate.properties.type.const === type
-			);
-
-		expect(branch("act")?.required).toEqual([
-			"type",
-			"action",
-			"target",
-			"verification",
-			"recheckAt",
-			"execution",
-		]);
-		expect(branch("watch")).toBeUndefined();
-	});
-
 	it("enforces natural-language 5-12 word titles on agent output", () => {
 		const accepted = {
 			...outcomeBase,

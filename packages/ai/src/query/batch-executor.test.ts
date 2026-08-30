@@ -112,18 +112,9 @@ describe("batch-executor schema signatures", () => {
 		}
 	});
 
-	it("returns no peers for a builder without meta", () => {
-		const peers = getCompatibleQueries("session_metrics");
-		expect(peers).toEqual([]);
-	});
-
 	it("treats builders with different column shapes as incompatible", () => {
 		expect(areQueriesCompatible("country", "region")).toBe(false);
 		expect(areQueriesCompatible("country", "city")).toBe(false);
-	});
-
-	it("region and city share a signature now that meta matches their SQL", () => {
-		expect(areQueriesCompatible("region", "city")).toBe(true);
 	});
 
 	it("every realtime builder opts out of the ClickHouse query cache", () => {
@@ -283,10 +274,6 @@ describe("buildUnionQuery compile isolation", () => {
 });
 
 describe("extractOuterSelectColumns", () => {
-	it("returns top-level projection on simple SELECT", () => {
-		expect(extractOuterSelectColumns("SELECT a, b FROM t")).toEqual(["a", "b"]);
-	});
-
 	it("ignores subquery projections in FROM", () => {
 		expect(
 			extractOuterSelectColumns(

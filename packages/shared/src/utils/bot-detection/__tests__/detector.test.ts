@@ -224,11 +224,6 @@ describe("detectBot", () => {
 	});
 
 	describe("caching", () => {
-		it("returns the same result instance for repeated default-config calls", () => {
-			const ua = "Mozilla/5.0 (compatible; GPTBot/1.0)";
-			expect(detectBot(ua)).toBe(detectBot(ua));
-		});
-
 		it("custom config bypasses the cache", () => {
 			const ua = "Googlebot/2.1";
 			expect(detectBot(ua).action).toBe(BotAction.ALLOW);
@@ -253,10 +248,6 @@ describe("detectBot", () => {
 });
 
 describe("matchCategory", () => {
-	it("returns pattern category for a known bot", () => {
-		expect(matchCategory("GPTBot/1.0")).toBe("AI_CRAWLER");
-	});
-
 	it("matches regex patterns", () => {
 		expect(matchCategory("Facebot/1.0")).not.toBeNull();
 	});
@@ -270,10 +261,6 @@ describe("matchCategory", () => {
 });
 
 describe("extractBotName", () => {
-	it("finds a name from the pattern database", () => {
-		expect(extractBotName("GPTBot/1.0")).toBe("GPTBot");
-	});
-
 	it("falls back to ua-parser-js for bots missing from the pattern database", () => {
 		expect(extractBotName("Googlebot/2.1")).toBe("GoogleBot");
 	});

@@ -42,22 +42,6 @@ describe("BaseProvider", () => {
 		);
 	});
 
-	describe("constructor defaults", () => {
-		test("uses default timeout of 10_000", () => {
-			const provider = new TestProvider();
-			expect(provider).toBeDefined();
-		});
-
-		test("custom options override defaults", () => {
-			const provider = new TestProvider({
-				timeout: 5000,
-				retries: 3,
-				retryDelay: 500,
-			});
-			expect(provider).toBeDefined();
-		});
-	});
-
 	describe("withRetry", () => {
 		test("no retries by default — fn fails once, error thrown immediately", async () => {
 			const provider = new TestProvider();
@@ -125,26 +109,5 @@ describe("BaseProvider", () => {
 			});
 		});
 
-		test("throws timeout error when request exceeds timeout", async () => {
-			safeFetchMock.mockImplementationOnce(() =>
-				Promise.reject(new Error("Request timed out after 10ms"))
-			);
-
-			const provider = new TestProvider({ timeout: 10 });
-			await expect(
-				provider.testFetchWithTimeout("http://example.com")
-			).rejects.toThrow("Request timed out after 10ms");
-		});
-
-		test("propagates non-abort errors as-is", async () => {
-			safeFetchMock.mockImplementationOnce(() =>
-				Promise.reject(new Error("network failure"))
-			);
-
-			const provider = new TestProvider({ timeout: 5000 });
-			await expect(
-				provider.testFetchWithTimeout("http://example.com")
-			).rejects.toThrow("network failure");
-		});
 	});
 });

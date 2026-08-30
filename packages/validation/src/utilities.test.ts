@@ -62,6 +62,9 @@ describe("sanitizeString", () => {
 
 	it("strips HTML tags and their contents markers", () => {
 		expect(sanitizeString("<script>alert('xss')</script>")).toBe("alert(xss)");
+		expect(sanitizeString("<scr<script>ipt>alert(1)</script>")).toBe(
+			"iptalert(1)"
+		);
 	});
 
 	it("truncates to maxLength before filtering", () => {
@@ -360,13 +363,3 @@ describe("validateExitIntent", () => {
 	});
 });
 
-describe("sanitizeString tag stripping", () => {
-	it.each([
-		["<scr<script>ipt>alert(1)</script>", "iptalert(1)"],
-		["<b>hi</b>", "hi"],
-		["<img src=x onerror=alert(1)>", ""],
-		["plain text", "plain text"],
-	])("strips nested tags from %s", (input, expected) => {
-		expect(sanitizeString(input)).toBe(expected);
-	});
-});

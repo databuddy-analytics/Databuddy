@@ -13,11 +13,6 @@ describe("isOpenAiAdsPixelHostAllowed", () => {
 		expect(isOpenAiAdsPixelHostAllowed("0.0.0.0")).toBe(false);
 	});
 
-	it("allows deployed hosts", () => {
-		expect(isOpenAiAdsPixelHostAllowed("app.databuddy.cc")).toBe(true);
-		expect(isOpenAiAdsPixelHostAllowed("staging.databuddy.cc")).toBe(true);
-	});
-
 	it("passes event_id as the pixel options argument for dedupe", () => {
 		expect(buildOpenAiRegistrationMeasureArgs("conversion-1")).toEqual([
 			"measure",

@@ -1,15 +1,14 @@
 import { db, sql } from "@databuddy/db";
 import { cacheNamespaces, cacheable } from "@databuddy/redis";
 
-export const ORGANIZATION_LOOKUP_TIMEOUT_MS = 5000;
-export const ORGANIZATION_STATEMENT_TIMEOUT_MS = ORGANIZATION_LOOKUP_TIMEOUT_MS;
+const ORGANIZATION_LOOKUP_TIMEOUT_MS = 5000;
 
 function withOrganizationStatementTimeout<T>(
 	query: (tx: Parameters<Parameters<typeof db.transaction>[0]>[0]) => Promise<T>
 ): Promise<T> {
 	return db.transaction(async (tx) => {
 		await tx.execute(
-			sql`SELECT set_config('statement_timeout', ${String(ORGANIZATION_STATEMENT_TIMEOUT_MS)}, true)`
+			sql`SELECT set_config('statement_timeout', ${String(ORGANIZATION_LOOKUP_TIMEOUT_MS)}, true)`
 		);
 		return query(tx);
 	});

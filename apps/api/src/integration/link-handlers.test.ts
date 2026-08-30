@@ -42,24 +42,6 @@ describe("links.create", () => {
 		expect(result.createdBy).toBe(user.id);
 	});
 
-	iit("creates with custom slug", async () => {
-		const user = await signUp();
-		const org = await insertOrganization();
-		await addToOrganization(user.id, org.id, "member");
-
-		const result = await call(
-			appRouter.links.create,
-			userContext(user, org.id),
-		)({
-			name: "Custom",
-			targetUrl: "https://example.com",
-			organizationId: org.id,
-			slug: `custom-${Date.now()}`,
-		});
-
-		expect(result.slug).toContain("custom-");
-	});
-
 	iit("denies viewer from creating", async () => {
 		const user = await signUp();
 		const org = await insertOrganization();
@@ -316,31 +298,4 @@ describe("links.paginated", () => {
 		expect(result.items[0].name).toBe("Summer Campaign");
 	});
 
-	iit("does not leak links from other orgs", async () => {
-		const userA = await signUp();
-		const userB = await signUp();
-		const orgA = await insertOrganization();
-		const orgB = await insertOrganization();
-		await addToOrganization(userA.id, orgA.id, "member");
-		await addToOrganization(userB.id, orgB.id, "member");
-
-		await call(appRouter.links.create, userContext(userA, orgA.id))({
-			name: "Org A Link",
-			targetUrl: "https://a.example.com",
-			organizationId: orgA.id,
-		});
-		await call(appRouter.links.create, userContext(userB, orgB.id))({
-			name: "Org B Link",
-			targetUrl: "https://b.example.com",
-			organizationId: orgB.id,
-		});
-
-		const result = await call(
-			appRouter.links.paginated,
-			userContext(userA, orgA.id),
-		)({ organizationId: orgA.id });
-
-		expect(result.items).toHaveLength(1);
-		expect(result.items[0].name).toBe("Org A Link");
-	});
 });

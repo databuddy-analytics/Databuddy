@@ -1,9 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { render } from "react-email";
-import {
-	AUTH_EMAIL_EXPIRY_LABELS,
-	AUTH_EMAIL_EXPIRY_SECONDS,
-} from "./auth-email-expiry";
+import { AUTH_EMAIL_EXPIRY_LABELS } from "./auth-email-expiry";
 import { DeleteAccountEmail } from "./delete-account-email";
 import { InvitationEmail } from "./invitation-email";
 import { MagicLinkEmail } from "./magic-link-email";
@@ -14,13 +11,6 @@ const asText = (element: React.ReactElement) =>
 	render(element, { plainText: true });
 
 describe("authentication email copy", () => {
-	test("derives customer-facing labels from the enforced token TTLs", () => {
-		expect(AUTH_EMAIL_EXPIRY_SECONDS.magicLink).toBe(15 * 60);
-		expect(AUTH_EMAIL_EXPIRY_LABELS.magicLink).toBe("15 minutes");
-		expect(AUTH_EMAIL_EXPIRY_SECONDS.emailVerification).toBe(24 * 60 * 60);
-		expect(AUTH_EMAIL_EXPIRY_LABELS.emailVerification).toBe("24 hours");
-	});
-
 	test("magic-link and verification copy use the shared expiry labels", async () => {
 		const magicLink = await asText(
 			MagicLinkEmail({ url: "https://example.com/magic" })

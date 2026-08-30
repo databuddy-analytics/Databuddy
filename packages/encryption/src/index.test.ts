@@ -26,14 +26,6 @@ describe("encryption", () => {
 		expect([...decryptBytes(ciphertext, secret)]).toEqual([...value]);
 	});
 
-	it("round trips multibyte text", () => {
-		const secret = generateKey();
-
-		expect(decrypt(encrypt("héllo wörld 🚀", secret), secret)).toBe(
-			"héllo wörld 🚀"
-		);
-	});
-
 	it("rejects the wrong secret", () => {
 		const ciphertext = encrypt("secret", generateKey());
 

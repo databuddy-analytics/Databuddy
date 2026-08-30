@@ -1,7 +1,8 @@
 "use server";
 
-import { getRateLimitHeaders, ratelimit } from "@databuddy/redis/rate-limit";
+import { ratelimit } from "@databuddy/redis/rate-limit";
 import { headers } from "next/headers";
+import { getClientIp } from "@/lib/rate-limit";
 import type {
 	BatchQueryResponse,
 	DynamicQueryRequest,
@@ -43,21 +44,10 @@ function clampDates(
 	};
 }
 
-async function getClientIp(): Promise<string> {
-	const hdrs = await headers();
-	return (
-		hdrs.get("cf-connecting-ip") ||
-		hdrs.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-		hdrs.get("x-real-ip") ||
-		"unknown"
-	);
-}
-
 async function enforceDemoRateLimit(): Promise<void> {
-	const ip = await getClientIp();
+	const ip = getClientIp(await headers());
 	const rl = await ratelimit(`docs:query-demo:${ip}`, 20, 60);
 	if (!rl.success) {
-		getRateLimitHeaders(rl);
 		throw new DemoRateLimitError();
 	}
 }

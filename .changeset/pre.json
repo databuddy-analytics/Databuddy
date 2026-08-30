@@ -11,7 +11,6 @@
     "@databuddy/ai": "0.0.1",
     "@databuddy/api-keys": "1.0.0",
     "@databuddy/auth": "0.0.1",
-    "@databuddy/cache": "0.0.120",
     "@databuddy/db": "1.0.0",
     "@databuddy/devtools": "0.0.0",
     "@databuddy/email": "0.0.0",

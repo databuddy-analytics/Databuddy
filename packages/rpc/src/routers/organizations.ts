@@ -448,7 +448,6 @@ export const organizationsRouter = {
 					}
 				: {};
 
-			// No customer ID means we can't look up billing
 			if (!customerId) {
 				return {
 					planId: "free",

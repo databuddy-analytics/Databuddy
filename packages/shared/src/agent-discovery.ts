@@ -16,6 +16,8 @@ export interface AgentDiscoveryUrls {
 	authMdUrl?: string;
 	basketUrl: string;
 	dashboardUrl: string;
+	feedbackMdUrl?: string;
+	feedbackSubmitUrl?: string;
 	mcpManifestUrl: string;
 	mcpServerCardUrl?: string;
 	mcpServerUrl: string;
@@ -31,6 +33,9 @@ function discoveryUrls(urls: AgentDiscoveryUrls) {
 		apiCatalogUrl:
 			urls.apiCatalogUrl ?? `${urls.siteUrl}/.well-known/api-catalog`,
 		authMdUrl: urls.authMdUrl ?? `${urls.siteUrl}/auth.md`,
+		feedbackMdUrl: urls.feedbackMdUrl ?? `${urls.siteUrl}/feedback.md`,
+		feedbackSubmitUrl:
+			urls.feedbackSubmitUrl ?? `${urls.siteUrl}/api/feedback/submit`,
 		agentJsonUrl: urls.agentJsonUrl ?? `${urls.siteUrl}/.well-known/agent.json`,
 		a2aAgentCardUrl:
 			urls.a2aAgentCardUrl ?? `${urls.siteUrl}/.well-known/agent-card.json`,
@@ -143,6 +148,12 @@ export function createDeveloperResources(urls: AgentDiscoveryUrls) {
 			description:
 				"Official SKILL.md source for agents that integrate Databuddy SDK, API, and MCP workflows.",
 		},
+		{
+			title: "Databuddy feedback.md",
+			url: resolved.feedbackMdUrl,
+			description:
+				"Where agents send feedback about the product, docs, API, SDK, or MCP server. No authentication required.",
+		},
 	] as const;
 }
 
@@ -211,6 +222,7 @@ export function createMcpManifest(urls: AgentDiscoveryUrls) {
 			llms_txt: `${resolved.siteUrl}/llms.txt`,
 			llms_full_txt: `${resolved.siteUrl}/llms-full.txt`,
 			auth_md: resolved.authMdUrl,
+			feedback_md: resolved.feedbackMdUrl,
 			agent_json: resolved.agentJsonUrl,
 			a2a_agent_card: resolved.a2aAgentCardUrl,
 			mcp_server_card: resolved.mcpServerCardUrl,
@@ -289,6 +301,7 @@ export function createAgentJson(urls: AgentDiscoveryUrls) {
 			mcp_manifest: resolved.mcpManifestUrl,
 			mcp_server_card: resolved.mcpServerCardUrl,
 			auth_md: resolved.authMdUrl,
+			feedback_md: resolved.feedbackMdUrl,
 			llms_txt: `${resolved.siteUrl}/llms.txt`,
 			llms_full_txt: `${resolved.siteUrl}/llms-full.txt`,
 			skill_md: `${resolved.siteUrl}/skill.md`,
@@ -607,6 +620,67 @@ Revoke credentials from ${resolved.dashboardUrl}/organizations/settings#api-keys
 ## Supported Scopes
 
 ${API_SCOPES.map((scope) => `- \`${scope}\``).join("\n")}
+`;
+}
+
+export const FEEDBACK_CATEGORIES = [
+	"product",
+	"docs",
+	"api",
+	"sdk",
+	"mcp",
+	"other",
+] as const;
+
+export function createFeedbackMarkdown(urls: AgentDiscoveryUrls) {
+	const resolved = discoveryUrls(urls);
+
+	return `# feedback.md
+
+This file tells AI agents where to send feedback about Databuddy: the product, the docs, the REST API, the SDK, the MCP server, or the page you are reading right now. Humans are welcome too.
+
+## Where to send it
+
+In order of preference:
+
+1. HTTP POST to \`${resolved.feedbackSubmitUrl}\`. No authentication required.
+
+\`\`\`bash
+curl -X POST ${resolved.feedbackSubmitUrl} \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "message": "The MCP setup guide shows a config block that fails to parse in Claude Code.",
+    "page": "${resolved.siteUrl}/docs/api/mcp",
+    "category": "docs",
+    "agent": "claude-code"
+  }'
+\`\`\`
+
+2. Email fallback: support@databuddy.cc.
+
+## What we want to hear about
+
+- Product: ${resolved.siteUrl}
+- Docs: ${resolved.siteUrl}/docs (markdown twins available at \`.md\` URLs)
+- REST API: ${resolved.apiUrl} (OpenAPI at ${resolved.openapiSpecUrl})
+- MCP server: ${resolved.mcpServerUrl}
+- SDK: \`@databuddy/sdk\`
+
+Broken examples, stale or wrong docs, confusing error messages, missing endpoints, rate limits that got in your way, or anything that made your task harder than it should have been.
+
+## What to include
+
+- \`message\` (required): what went wrong or what could be better. Plain text, 10 to 4000 characters.
+- \`page\` (optional): the URL you were reading or calling when you hit the issue.
+- \`category\` (optional): one of ${FEEDBACK_CATEGORIES.map((category) => `\`${category}\``).join(", ")}.
+- \`agent\` (optional): who you are, e.g. \`claude-code\`, \`cursor\`, \`openclaw\`.
+- \`contact\` (optional): an email or URL if your operator wants a reply.
+
+Only \`message\` is validated. Invalid optional fields are dropped, never rejected, and unknown fields are ignored. Do not include secrets, API keys, or personal data.
+
+## What happens next
+
+Feedback goes straight to the team's Slack and we read all of it. If you include \`contact\`, a human may follow up; otherwise expect no response. Submissions are rate limited per IP, so batch related observations into one message.
 `;
 }
 

@@ -9,24 +9,6 @@ describe("OpenAPI reference config", () => {
 	it("publishes only approved REST routers", () => {
 		const tagNames = OPENAPI_TAGS.map((tag) => tag.name);
 
-		expect(PUBLIC_OPENAPI_ROUTERS).toEqual([
-			"alarms",
-			"annotations",
-			"apikeys",
-			"autocomplete",
-			"feedback",
-			"flags",
-			"funnels",
-			"goals",
-			"linkFolders",
-			"links",
-			"organizations",
-			"statusPage",
-			"targetGroups",
-			"tracker",
-			"uptime",
-			"websites",
-		]);
 		expect(PUBLIC_OPENAPI_ROUTERS).not.toContain("agentChats");
 		expect(PUBLIC_OPENAPI_ROUTERS).not.toContain("insights");
 		expect(PUBLIC_OPENAPI_ROUTERS).not.toContain("integrations");

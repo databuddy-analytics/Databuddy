@@ -20,6 +20,7 @@ import { motion } from "motion/react";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { flush, track } from "@databuddy/sdk";
 import BackgroundFlow from "./backgroundFlow";
 import { SciFiButton } from "./scifi-btn";
 
@@ -423,13 +424,30 @@ export default function Hero({
 
 					<div className="flex flex-wrap items-center gap-3 pt-2">
 						<SciFiButton asChild className="px-6 py-5">
-							<a href="https://app.databuddy.cc/register">
+							<a
+								href="https://app.databuddy.cc/register"
+								onClick={() => {
+									track("signup_cta_clicked", {
+										page: "home",
+										placement: "hero",
+									});
+									flush();
+								}}
+							>
 								Start analyzing for free
 							</a>
 						</SciFiButton>
 
 						<SciFiButton asChild className="px-6 py-5">
-							<Link href="/demo">Live demo</Link>
+							<Link
+								href="/demo"
+								onClick={() => {
+									track("demo_opened", { page: "home", placement: "hero" });
+									flush();
+								}}
+							>
+								Live demo
+							</Link>
 						</SciFiButton>
 					</div>
 

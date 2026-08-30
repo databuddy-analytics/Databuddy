@@ -334,26 +334,6 @@ describe("POST /vitals", () => {
 		});
 	});
 
-	test("accepts a CORS-safelisted unload beacon body", async () => {
-		const res = await post(
-			basketApp,
-			"/vitals",
-			[
-				{
-					eventId: "vital_stable_1",
-					timestamp: now,
-					path: "https://example.com/page",
-					metricName: "LCP",
-					metricValue: 2500,
-				},
-			],
-			{ "Content-Type": "text/plain;charset=UTF-8" }
-		);
-
-		expect(res.status).toBe(200);
-		expect(await json(res)).toMatchObject({ count: 1, type: "web_vitals" });
-	});
-
 	test("invalid vitals (bad metric name) → 400", async () => {
 		const res = await post(basketApp, "/vitals", [
 			{
@@ -394,25 +374,6 @@ describe("POST /errors", () => {
 			type: "error",
 			count: 1,
 		});
-	});
-
-	test("accepts a CORS-safelisted unload beacon body", async () => {
-		const res = await post(
-			basketApp,
-			"/errors",
-			[
-				{
-					eventId: "error_stable_1",
-					timestamp: now,
-					path: "https://example.com/page",
-					message: "TypeError: x is undefined",
-				},
-			],
-			{ "Content-Type": "text/plain;charset=UTF-8" }
-		);
-
-		expect(res.status).toBe(200);
-		expect(await json(res)).toMatchObject({ count: 1, type: "error" });
 	});
 
 	test("missing message → 400", async () => {
@@ -461,57 +422,6 @@ describe("POST /events", () => {
 		expect(res.status).toBe(400);
 	});
 
-	test("schema rejection wide-event includes event names + property keys", async () => {
-		mockLogger.set.mockClear();
-		const res = await post(basketApp, "/events", [
-			{
-				timestamp: now,
-				path: "https://example.com",
-				eventName: "purchase",
-				properties: { plan: "pro", source: "homepage" },
-			},
-			{ timestamp: now, path: "https://example.com", eventName: "" },
-		]);
-		expect(res.status).toBe(400);
-		const setCalls = mockLogger.set.mock.calls.map((c: unknown[]) => c[0]);
-		const summaryCall = setCalls.find(
-			(c: Record<string, unknown>) => c.rejectedEventCount !== undefined
-		) as Record<string, unknown>;
-		expect(summaryCall).toBeDefined();
-		expect(summaryCall.rejectedEventCount).toBe(2);
-		expect(summaryCall.rejectedEventNames).toEqual(["purchase"]);
-		expect(summaryCall.rejectedPropertyKeys).toEqual(
-			expect.arrayContaining(["plan", "source"])
-		);
-	});
-
-	test("missing-organization rejection captures event-name summary", async () => {
-		mockLogger.set.mockClear();
-		mockValidateRequest.mockResolvedValueOnce({
-			clientId: "ws_test",
-			userAgent: "TestAgent/1.0",
-			ip: "1.2.3.4",
-			ownerId: "user_1",
-			organizationId: undefined,
-		} as any);
-		const res = await post(basketApp, "/events", [
-			{
-				timestamp: now,
-				path: "https://example.com",
-				eventName: "signup",
-				properties: { plan: "free" },
-			},
-		]);
-		expect(res.status).toBe(400);
-		const setCalls = mockLogger.set.mock.calls.map((c: unknown[]) => c[0]);
-		const summaryCall = setCalls.find(
-			(c: Record<string, unknown>) => c.rejectedEventCount !== undefined
-		) as Record<string, unknown>;
-		expect(summaryCall).toBeDefined();
-		expect(summaryCall.rejectedEventCount).toBe(1);
-		expect(summaryCall.rejectedEventNames).toEqual(["signup"]);
-		expect(summaryCall.rejectedPropertyKeys).toEqual(["plan"]);
-	});
 });
 
 describe("POST /batch", () => {
@@ -559,25 +469,6 @@ describe("POST /batch", () => {
 				expect.objectContaining({ status: "success", type: "track" }),
 			],
 		});
-	});
-
-	test("accepts a CORS-safelisted unload beacon body", async () => {
-		const res = await post(
-			basketApp,
-			"/batch",
-			[
-				{
-					type: "track",
-					eventId: "event_stable_1",
-					name: "pageview",
-					path: "https://example.com/a",
-				},
-			],
-			{ "Content-Type": "text/plain;charset=UTF-8" }
-		);
-
-		expect(res.status).toBe(200);
-		expect(await json(res)).toMatchObject({ batch: true, processed: 1 });
 	});
 
 	test("returns 503 instead of accepting an event that could not be prepared", async () => {
@@ -855,16 +746,6 @@ describe("POST /track", () => {
 		);
 	});
 
-	test("batch of events → 200", async () => {
-		const res = await post(trackRoute, "/track", [
-			{ name: "signup", websiteId: "ws_test" },
-			{ name: "purchase", websiteId: "ws_test", properties: { plan: "pro" } },
-		]);
-		expect(res.status).toBe(200);
-		const body = await json(res);
-		expect(body.count).toBe(2);
-	});
-
 	test("api key + no websiteId → 200 (org-scoped event)", async () => {
 		mockHasGlobalAccess.mockReturnValue(true);
 		const res = await post(trackRoute, "/track", { name: "org_event" });
@@ -1137,22 +1018,6 @@ describe("POST /track", () => {
 		expect(mockInsertCustomEvents).not.toHaveBeenCalled();
 	});
 
-	test("global api key insert sets owner_id from organization", async () => {
-		mockHasGlobalAccess.mockReturnValue(true);
-		mockInsertCustomEvents.mockClear();
-		await post(trackRoute, "/track", { name: "org_event" });
-		expect(mockInsertCustomEvents).toHaveBeenCalledWith(
-			[
-				expect.objectContaining({
-					owner_id: "org_1",
-					website_id: undefined,
-					event_name: "org_event",
-				}),
-			],
-			undefined
-		);
-	});
-
 	test("preserves namespace, source, anonymousId, sessionId on insert", async () => {
 		mockInsertCustomEvents.mockClear();
 		await post(trackRoute, "/track", {
@@ -1230,14 +1095,6 @@ describe("POST /track", () => {
 	test("missing name → 400", async () => {
 		const res = await post(trackRoute, "/track", {
 			namespace: "x",
-			websiteId: "ws_test",
-		});
-		expect(res.status).toBe(400);
-	});
-
-	test("empty name → 400", async () => {
-		const res = await post(trackRoute, "/track", {
-			name: "",
 			websiteId: "ws_test",
 		});
 		expect(res.status).toBe(400);

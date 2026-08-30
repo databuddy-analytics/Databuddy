@@ -1,17 +1,19 @@
-import { db, shutdownPostgres } from "../src/index";
 import { sql } from "drizzle-orm";
+import { db, shutdownPostgres } from "../src/index";
 
 const result = await db.execute(sql`SHOW statement_timeout`);
-const rows = (result as { rows?: Record<string, unknown>[] }).rows ?? [];
-const timeout = rows[0]?.statement_timeout;
+const rows = Array.isArray(result) ? result : result.rows;
+const rawTimeout = rows?.[0]?.statement_timeout;
+const timeout = typeof rawTimeout === "string" ? rawTimeout : undefined;
+
 if (!timeout || timeout === "0") {
-	console.error(
-		`pooler-compat: statement_timeout not applied (got ${String(timeout)})`
+	process.stderr.write(
+		`pooler-compat: statement_timeout not applied (got ${String(rawTimeout)})\n`
 	);
 	process.exit(1);
 }
-console.log(
-	`pooler-compat: connected through pooler, statement_timeout=${String(timeout)}`
+process.stdout.write(
+	`pooler-compat: connected through pooler, statement_timeout=${timeout}\n`
 );
 await shutdownPostgres();
 process.exit(0);

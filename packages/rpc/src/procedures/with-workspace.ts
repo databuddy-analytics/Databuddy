@@ -8,7 +8,7 @@ import {
 } from "@databuddy/auth/permissions";
 import { db } from "@databuddy/db";
 import { cacheNamespaces, cacheable } from "@databuddy/redis";
-import type { PlanId } from "@databuddy/shared/types/features";
+import { normalizePlanId, type PlanId } from "@databuddy/shared/types/features";
 import { z } from "zod";
 import { rpcError } from "../errors";
 import { type Context, os } from "../orpc";
@@ -124,7 +124,7 @@ const getWebsiteById = cacheable(
 
 async function getPlanId(context: Context): Promise<PlanId> {
 	const billing = await context.getBilling();
-	return (billing?.planId ?? "free") as PlanId;
+	return normalizePlanId(billing?.planId ?? null);
 }
 
 function requirePlan(plan: PlanId, requiredPlans: PlanId[] | undefined): void {

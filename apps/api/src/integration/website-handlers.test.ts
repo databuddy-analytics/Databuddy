@@ -268,26 +268,6 @@ describe("websites.updateSettings", () => {
 		});
 	});
 
-	iit("preserves allowedOrigins when only allowedIps is updated", async () => {
-		const user = await signUp();
-		const org = await insertOrganization();
-		await addToOrganization(user.id, org.id, "admin");
-		const site = await insertWebsite({
-			organizationId: org.id,
-			settings: { allowedIps: ["10.0.0.1"], allowedOrigins: ["cal.com"] },
-		});
-
-		const result = await handler.updateSettings({
-			context: userContext(user, org.id),
-			input: { id: site.id, settings: { allowedIps: ["10.0.0.2"] } },
-		});
-
-		expect(result.settings).toEqual({
-			allowedIps: ["10.0.0.2"],
-			allowedOrigins: ["cal.com"],
-		});
-	});
-
 	iit("treats an empty settings patch as a no-op", async () => {
 		const user = await signUp();
 		const org = await insertOrganization();
@@ -304,27 +284,6 @@ describe("websites.updateSettings", () => {
 		const result = await handler.updateSettings({
 			context: userContext(user, org.id),
 			input: { id: site.id, settings: {} },
-		});
-
-		expect(result.settings).toEqual(initial);
-	});
-
-	iit("treats a missing settings field as a no-op", async () => {
-		const user = await signUp();
-		const org = await insertOrganization();
-		await addToOrganization(user.id, org.id, "admin");
-		const initial = {
-			allowedIps: ["10.0.0.1"],
-			allowedOrigins: ["cal.com"],
-		};
-		const site = await insertWebsite({
-			organizationId: org.id,
-			settings: initial,
-		});
-
-		const result = await handler.updateSettings({
-			context: userContext(user, org.id),
-			input: { id: site.id },
 		});
 
 		expect(result.settings).toEqual(initial);

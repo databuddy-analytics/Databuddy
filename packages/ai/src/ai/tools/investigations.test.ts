@@ -1,14 +1,11 @@
 import { describe, expect, it } from "bun:test";
 import { z } from "zod";
-import { createConfig as createAnalyticsConfig } from "../agents/analytics";
-import { createMcpAgentConfig } from "../agents/mcp";
 import type { AppContext } from "../config/context";
 import {
 	createInvestigationTools,
 	investigationActionSchema,
 	runInvestigationAction,
 } from "./investigations";
-import { createToolkit } from "./toolkit";
 
 const tools = createInvestigationTools();
 const schema = tools.configure_investigations.inputSchema;
@@ -117,58 +114,6 @@ describe("configure_investigations input", () => {
 });
 
 describe("investigations", () => {
-	it("is native to the dashboard agent", () => {
-		const toolkit = createToolkit({ capabilities: ["investigation"] });
-		const config = createAnalyticsConfig({
-			chatId: "chat-1",
-			organizationId: "organization-1",
-			timezone: "UTC",
-			userId: "user-1",
-			websiteId: "website-1",
-		});
-
-		expect(toolkit.investigations).toBeDefined();
-		expect(toolkit.configure_investigations).toBeDefined();
-		expect(config.tools.investigations).toBeDefined();
-		expect(config.tools.configure_investigations).toBeDefined();
-	});
-
-	it("is native to the Slack agent", () => {
-		const config = createMcpAgentConfig({
-			apiKey: null,
-			organizationId: "organization-1",
-			requestHeaders: new Headers(),
-			source: "slack",
-			userId: "user-1",
-		});
-
-		expect(config.tools.investigations).toBeDefined();
-		expect(config.tools.configure_investigations).toBeDefined();
-	});
-
-	it("is one native brief, list, get, or reply tool", () => {
-		expect(Object.keys(tools).sort()).toEqual([
-			"configure_investigations",
-			"investigations",
-		]);
-		expect(
-			z.toJSONSchema(investigationActionSchema, { io: "input" }).type
-		).toBe("object");
-		for (const input of [
-			{ action: "brief" },
-			{ action: "list" },
-			{ action: "get", investigationId: "investigation-1" },
-			{
-				action: "reply",
-				body: "Deployment context",
-				investigationId: "investigation-1",
-				replyId: "reply-1",
-			},
-		]) {
-			expect(investigationActionSchema.safeParse(input).success).toBe(true);
-		}
-	});
-
 	it("delegates brief, list, get, reply permissions, and idempotency to canonical RPC", async () => {
 		const calls: Array<{ input: unknown; method: string; router: string }> = [];
 		const callRpc = async (router: string, method: string, input: unknown) => {

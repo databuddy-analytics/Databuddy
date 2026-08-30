@@ -1,3 +1,4 @@
+import { successOutputSchema } from "../lib/schemas";
 import { and, desc, eq, inArray, isNull } from "@databuddy/db";
 import { goals } from "@databuddy/db/schema";
 import { createDrizzleCache, redis } from "@databuddy/redis";
@@ -72,8 +73,6 @@ const goalOutputSchema = z.object({
 	updatedAt: z.coerce.date(),
 	deletedAt: z.nullable(z.coerce.date()),
 });
-
-const successOutputSchema = z.object({ success: z.literal(true) });
 
 const stepErrorInsightOutputSchema = z.object({
 	message: z.string(),
@@ -478,6 +477,24 @@ export const goalsRouter = {
 				.orderBy(desc(goals.createdAt));
 
 			const requestFilters = input.filters ?? [];
+			const totalUsersCache = new Map<string, Promise<number>>();
+			const memoizedTotalUsers = (
+				effectiveStartDate: string,
+				filters: Filter[]
+			): Promise<number> => {
+				const key = `${effectiveStartDate}|${JSON.stringify(filters)}`;
+				let pending = totalUsersCache.get(key);
+				if (!pending) {
+					pending = getTotalWebsiteUsers(
+						input.websiteId,
+						effectiveStartDate,
+						endDate,
+						filters
+					);
+					totalUsersCache.set(key, pending);
+				}
+				return pending;
+			};
 			const results = await Promise.all(
 				goalsList.map(async (goal): Promise<[string, GoalAnalyticsResult]> => {
 					const effectiveStartDate = getEffectiveStartDate(
@@ -499,10 +516,8 @@ export const goalsRouter = {
 					const combinedFilters = [...requestFilters, ...filters];
 
 					try {
-						const totalUsers = await getTotalWebsiteUsers(
-							input.websiteId,
+						const totalUsers = await memoizedTotalUsers(
 							effectiveStartDate,
-							endDate,
 							combinedFilters
 						);
 						const analytics = await processGoalAnalytics(

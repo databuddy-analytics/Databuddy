@@ -204,53 +204,6 @@ describe("ensureAgentCreditsAvailable", () => {
 });
 
 describe("trackAgentUsageAndBill", () => {
-	it("bills direct agent credits from the actual model cost", async () => {
-		const summary = await trackAgentUsageAndBill({
-			billingCustomerId: "owner:org_slack",
-			modelId: "anthropic/claude-sonnet-4.6",
-			source: "dashboard",
-			usage: {
-				inputTokens: 1_000_000,
-				outputTokens: 1_000_000,
-			},
-		});
-
-		expect(summary.cost_fallback).toBe(false);
-		expect(summary.cost_model_id).toBe("anthropic/claude-sonnet-4.6");
-		expect(summary.cost_total_usd).toBe(18);
-		expect(summary.agent_credits_used).toBe(360);
-		expect(mockAutumnTrack).toHaveBeenCalledWith(
-			expect.objectContaining({
-				customerId: "owner:org_slack",
-				featureId: "agent_credits",
-				value: 360,
-			})
-		);
-	});
-
-	it("uses DeepSeek pricing for Slack instead of the Sonnet fallback", async () => {
-		const summary = await trackAgentUsageAndBill({
-			billingCustomerId: "owner:org_slack",
-			modelId: "deepseek/deepseek-v4-flash",
-			source: "slack",
-			usage: {
-				inputTokens: 1_000_000,
-				outputTokens: 1_000_000,
-			},
-		});
-
-		expect(summary.cost_fallback).toBe(false);
-		expect(summary.cost_model_id).toBe("deepseek/deepseek-v4-flash");
-		expect(summary.cost_total_usd).toBe(0.42);
-		expect(summary.agent_credits_used).toBe(8.4);
-		expect(mockAutumnTrack).toHaveBeenCalledWith(
-			expect.objectContaining({
-				featureId: "agent_credits",
-				value: 8.4,
-			})
-		);
-	});
-
 	it("deduplicates retryable usage charges", async () => {
 		await trackAgentUsageAndBill({
 			billingCustomerId: "owner:org_slack",

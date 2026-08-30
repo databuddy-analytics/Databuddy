@@ -986,27 +986,18 @@ async function getOrganizationPlanId(
 	return billing?.planId;
 }
 
-type InvestigationsAccessResolver = (
+async function requireInvestigationsAccess(
 	organizationId: string
-) => Promise<boolean>;
-
-let _investigationsAccessResolver: InvestigationsAccessResolver | null = null;
-
-export function setInvestigationsAccessResolver(
-	resolver: InvestigationsAccessResolver | null
-): void {
-	_investigationsAccessResolver = resolver;
+): Promise<void> {
+	const planId = await getOrganizationPlanId(organizationId);
+	requireFeatureWithLimit(planId, GATED_FEATURES.INVESTIGATIONS, 0);
 }
 
 async function hasInvestigationsAccess(
 	organizationId: string
 ): Promise<boolean> {
-	if (_investigationsAccessResolver) {
-		return await _investigationsAccessResolver(organizationId);
-	}
-	const planId = await getOrganizationPlanId(organizationId);
 	try {
-		requireFeatureWithLimit(planId, GATED_FEATURES.INVESTIGATIONS, 0);
+		await requireInvestigationsAccess(organizationId);
 		return true;
 	} catch {
 		return false;
@@ -1028,11 +1019,9 @@ export async function queueInsightGenerationRun(
 		return { queuedItems: 0, status: "disabled" };
 	}
 
-	if (!(await hasInvestigationsAccess(input.organizationId))) {
-		if (reason === "manual") {
-			const planId = await getOrganizationPlanId(input.organizationId);
-			requireFeatureWithLimit(planId, GATED_FEATURES.INVESTIGATIONS, 0);
-		}
+	if (reason === "manual") {
+		await requireInvestigationsAccess(input.organizationId);
+	} else if (!(await hasInvestigationsAccess(input.organizationId))) {
 		return { queuedItems: 0, status: "disabled" };
 	}
 
@@ -1233,8 +1222,7 @@ export const insightGenerationRouter = {
 				"update"
 			);
 			if (input.enabled === true) {
-				const planId = await getOrganizationPlanId(organizationId);
-				requireFeatureWithLimit(planId, GATED_FEATURES.INVESTIGATIONS, 0);
+				await requireInvestigationsAccess(organizationId);
 			}
 			return mutateConfig(organizationId, (current) =>
 				applyPatch(current, input)
@@ -1284,10 +1272,7 @@ export const insightGenerationRouter = {
 					"Multiple active Slack connections match this channel"
 				);
 			}
-			{
-				const planId = await getOrganizationPlanId(organizationId);
-				requireFeatureWithLimit(planId, GATED_FEATURES.INVESTIGATIONS, 0);
-			}
+			await requireInvestigationsAccess(organizationId);
 			return mutateConfig(organizationId, (current) => {
 				const filtered = current.deliveries.filter(
 					(delivery) =>

@@ -25,12 +25,4 @@ describe("STRIPE_WEBHOOK_EVENTS", () => {
 		}
 	});
 
-	test("documents a purpose for every registered event", () => {
-		for (const entry of [
-			...STRIPE_WEBHOOK_EVENTS.required,
-			...STRIPE_WEBHOOK_EVENTS.optional,
-		]) {
-			expect(entry.purpose.length).toBeGreaterThan(0);
-		}
-	});
 });

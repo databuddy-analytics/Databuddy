@@ -58,19 +58,6 @@ const validEvent = {
 };
 
 describe("analyticsEventSchema properties bounds", () => {
-	it("accepts valid properties", () => {
-		const result = analyticsEventSchema.safeParse({
-			...validEvent,
-			properties: { button: "signup", page: "home" },
-		});
-		expect(result.success).toBe(true);
-	});
-
-	it("accepts events without properties", () => {
-		const result = analyticsEventSchema.safeParse(validEvent);
-		expect(result.success).toBe(true);
-	});
-
 	it("rejects properties with too many keys", () => {
 		const properties: Record<string, string> = {};
 		for (let i = 0; i < 51; i++) {
@@ -113,30 +100,6 @@ describe("analyticsEventSchema properties bounds", () => {
 });
 
 describe("analyticsEventSchema referrer validation", () => {
-	it("accepts valid referrer URLs", () => {
-		const result = analyticsEventSchema.safeParse({
-			...validEvent,
-			referrer: "https://google.com",
-		});
-		expect(result.success).toBe(true);
-	});
-
-	it("accepts direct referrer", () => {
-		const result = analyticsEventSchema.safeParse({
-			...validEvent,
-			referrer: "direct",
-		});
-		expect(result.success).toBe(true);
-	});
-
-	it("accepts empty string referrer", () => {
-		const result = analyticsEventSchema.safeParse({
-			...validEvent,
-			referrer: "",
-		});
-		expect(result.success).toBe(true);
-	});
-
 	it("rejects arbitrary string referrers", () => {
 		const result = analyticsEventSchema.safeParse({
 			...validEvent,

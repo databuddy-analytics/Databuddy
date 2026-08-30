@@ -6,6 +6,7 @@ import {
 	describe,
 	expect,
 	it,
+	mock,
 	spyOn,
 } from "bun:test";
 import { db as appDb, shutdownPostgres } from "@databuddy/db";
@@ -19,11 +20,6 @@ import {
 	getInsightsQueue,
 	type InsightsGenerateWebsiteJobData,
 } from "@databuddy/redis";
-import {
-	mutateConfig,
-	queueInsightGenerationRun,
-	setInvestigationsAccessResolver,
-} from "@databuddy/rpc/insight-generation";
 import {
 	closePostgres,
 	db,
@@ -41,14 +37,33 @@ import {
 	retryConfigSoon,
 } from "./scheduler";
 
+const actualBilling = await import("@databuddy/rpc/billing");
+mock.module("@databuddy/rpc/billing", () => ({
+	...actualBilling,
+	getBillingOwner: async () => ({
+		canUserUpgrade: true,
+		customerId: "test-owner",
+		isOrganization: true,
+		planId: "scale",
+	}),
+}));
+
+const actualOrganization = await import("@databuddy/rpc/organization");
+mock.module("@databuddy/rpc/organization", () => ({
+	...actualOrganization,
+	getOrganizationOwnerId: async () => "test-owner",
+}));
+
+const { mutateConfig, queueInsightGenerationRun } = await import(
+	"@databuddy/rpc/insight-generation"
+);
+
 const runIntegration =
 	process.env.INSIGHTS_INTEGRATION_TESTS === "true" && hasTestDb;
 const describeIntegration = runIntegration ? describe : describe.skip;
 
 describeIntegration("insights scheduler integration", () => {
 	const organizationIds = new Set<string>();
-
-	setInvestigationsAccessResolver(async () => true);
 
 	beforeEach(async () => {
 		await truncatePostgres();
@@ -61,7 +76,7 @@ describeIntegration("insights scheduler integration", () => {
 	});
 
 	afterAll(async () => {
-		setInvestigationsAccessResolver(null);
+		mock.restore();
 		await cleanupQueueJobs();
 		await closeInsightsQueue();
 		await shutdownPostgres();

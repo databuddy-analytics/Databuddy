@@ -5,6 +5,7 @@ import {
 	type FeatureLimit,
 	type GatedFeatureId,
 	HIDDEN_PRICING_FEATURES,
+	INTELLIGENCE_CONTACT_TOPICS,
 	normalizePlanId,
 	PLAN_FEATURE_LIMITS,
 	PLAN_IDS,
@@ -36,7 +37,8 @@ import {
 import { Badge, Button, EmptyState, Text } from "@databuddy/ui";
 
 const DISPLAYED_PLAN_IDS = ["hobby", "pro", "intelligence"] as const;
-const INVITE_ONLY_PLAN_IDS = ["intelligence", "intelligence_scale"] as const;
+const CONTACT_TOPICS: Record<string, string | undefined> =
+	INTELLIGENCE_CONTACT_TOPICS;
 const RECOMMENDED_PLAN_ID = "pro";
 
 const PLAN_ICONS: Record<string, typeof CrownIcon> = {
@@ -149,18 +151,6 @@ function getButtonState(
 			};
 		case "downgrade":
 			return { text: "Downgrade", variant: "secondary", disabled: false };
-		case "purchase":
-			return {
-				text: "Get started",
-				variant: isRecommendedTier ? "primary" : "secondary",
-				disabled: false,
-			};
-		case "activate":
-			return {
-				text: "Get started",
-				variant: isRecommendedTier ? "primary" : "secondary",
-				disabled: false,
-			};
 		default:
 			return {
 				text: "Get started",
@@ -430,7 +420,7 @@ function PricingCard({
 			try {
 				await attachAction?.();
 			} catch {
-				// no-op
+				// attachAction toasts its own error and rethrows for the dialog path.
 			}
 			setIsAttaching(false);
 			return;
@@ -599,11 +589,10 @@ function PricingCard({
 			</div>
 
 			<div className="p-5 pt-0">
-				{(INVITE_ONLY_PLAN_IDS as readonly string[]).includes(plan.id) &&
-				!isActive ? (
+				{CONTACT_TOPICS[plan.id] && !isActive ? (
 					<Button asChild className="w-full" size="lg" variant="secondary">
 						<a
-							href="https://www.databuddy.cc/contact"
+							href={`https://www.databuddy.cc/contact?topic=${CONTACT_TOPICS[plan.id]}`}
 							rel="noopener noreferrer"
 							target="_blank"
 						>

@@ -1,3 +1,4 @@
+import { successOutputSchema } from "../lib/schemas";
 import { and, desc, eq, isNull, sql } from "@databuddy/db";
 import { funnelDefinitions } from "@databuddy/db/schema";
 import { GATED_FEATURES } from "@databuddy/shared/types/features";
@@ -145,8 +146,6 @@ const funnelOutputSchema = z.object({
 	updatedAt: z.coerce.date(),
 	websiteId: z.string(),
 });
-
-const successOutputSchema = z.object({ success: z.literal(true) });
 
 const stepErrorInsightOutputSchema = z.object({
 	message: z.string(),

@@ -47,6 +47,6 @@ describe("public pricing copy", () => {
 		expect(markdown).not.toContain("Databunny usage");
 		expect(markdown).not.toContain("usage units");
 		expect(markdown).toContain("Investigation credits");
-		expect(markdown).toContain("Scale");
+		expect(markdown).toContain("Invite only");
 	});
 });

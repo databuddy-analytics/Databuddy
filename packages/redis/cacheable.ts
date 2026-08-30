@@ -42,6 +42,8 @@ interface CacheOptions<
 	expireInSec: number;
 	prefix?: string;
 	queryTimeoutMs?: number;
+	/** Turn ISO timestamp strings into Dates on cache hits. Default true. */
+	reviveDates?: boolean;
 	staleTime?: number;
 	staleWhileRevalidate?: boolean;
 	tags?: CacheTagger<T>;
@@ -58,13 +60,10 @@ export type CacheableFunction<
 	invalidateWithArgs: (knownArgs: unknown[]) => Promise<number>;
 };
 
-function deserialize(data: string): unknown {
-	return JSON.parse(data, (_, value) => {
-		if (typeof value === "string" && DATE_REGEX.test(value)) {
-			return new Date(value);
-		}
-		return value;
-	});
+function reviveIsoDates(_key: string, value: unknown): unknown {
+	return typeof value === "string" && DATE_REGEX.test(value)
+		? new Date(value)
+		: value;
 }
 
 function shouldSkipRedis(): boolean {
@@ -216,6 +215,7 @@ export function cacheable<
 		prefix = fn.name,
 		staleWhileRevalidate = false,
 		staleTime = 0,
+		reviveDates = true,
 		tags,
 		queryTimeoutMs,
 	} = typeof options === "number" ? { expireInSec: options } : options;
@@ -274,7 +274,10 @@ export function cacheable<
 			}
 
 			try {
-				return deserialize(cached) as Awaited<ReturnType<T>>;
+				return JSON.parse(
+					cached,
+					reviveDates ? reviveIsoDates : undefined
+				) as Awaited<ReturnType<T>>;
 			} catch {
 				// Corrupted cache data falls through to a cache miss
 			}

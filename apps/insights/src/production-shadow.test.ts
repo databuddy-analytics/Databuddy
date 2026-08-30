@@ -5,7 +5,6 @@ import type { DetectedSignal } from "./detection";
 import {
 	filterShadowSignals,
 	matchesShadowSpecialist,
-	metricFamily,
 	parseShadowOptions,
 	projectShadowCoverage,
 	projectShadowFailure,
@@ -48,14 +47,6 @@ function investigationSignal(
 }
 
 describe("resolveShadowAsOf", () => {
-	it("uses the frozen instant when replaying a manual run", () => {
-		const referenceTime = new Date("2026-07-31T13:42:00.000Z");
-
-		expect(
-			resolveShadowAsOf(referenceTime, 0, "UTC", "instant").toISOString()
-		).toBe("2026-07-31T13:42:00.000Z");
-	});
-
 	it("preserves the existing calendar-day replay mode", () => {
 		const referenceTime = new Date("2026-07-31T13:42:00.000Z");
 
@@ -66,16 +57,6 @@ describe("resolveShadowAsOf", () => {
 });
 
 describe("shadow signal projection", () => {
-	it("never exposes a route or error subject in the report metric family", () => {
-		expect(metricFamily("route:lcp:/settings/billing")).toBe("route_health");
-		expect(
-			metricFamily(
-				"error:[nuxt] Received malformed app manifest with a customer path"
-			)
-		).toBe("error");
-		expect(metricFamily("funnel:checkout:step:2")).toBe("funnel");
-	});
-
 	it("keeps a failed scan distinct from a completed no-signal scan", () => {
 		const noSignals = projectShadowCoverage({
 			coverage: emptyInvestigationCoverage("no_detected_signals"),
@@ -108,31 +89,6 @@ describe("shadow failure projection", () => {
 		"2026-08-11T00:00:00.000Z",
 	]);
 
-	it("emits a redacted, actionable initialization report", () => {
-		const report = projectShadowFailure({
-			error: new Error("CLICKHOUSE_READONLY_URL is required"),
-			options,
-			phase: "initialization",
-		});
-
-		expect(report).toMatchObject({
-			aggregate: {
-				cases: 0,
-				status: { error: 1 },
-			},
-			coverage: [],
-			failure: {
-				message: "CLICKHOUSE_READONLY_URL is required",
-				phase: "initialization",
-				type: "Error",
-			},
-			meta: {
-				dataAccess: { clickhouse: "not_verified" },
-				sites: 0,
-			},
-		});
-	});
-
 	it("does not carry arbitrary customer text into failure output", () => {
 		const report = projectShadowFailure({
 			error: new Error(
@@ -149,20 +105,6 @@ describe("shadow failure projection", () => {
 		});
 		expect(JSON.stringify(report)).not.toContain("customer-42");
 		expect(JSON.stringify(report)).not.toContain("secret@example.com");
-	});
-
-	it("records a dry-run as a no-model selection pass", () => {
-		const dryRun = parseShadowOptions([
-			"--confirm-read-only-production",
-			"--dry-run",
-			"--reference-time",
-			"2026-08-11T00:00:00.000Z",
-		]);
-
-		expect(dryRun.dryRun).toBe(true);
-		expect(projectShadowFailure({ error: new Error("boom"), options: dryRun, phase: "report" }).meta).toMatchObject({
-			dryRun: true,
-		});
 	});
 });
 

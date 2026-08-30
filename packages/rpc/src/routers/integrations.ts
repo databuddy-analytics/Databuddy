@@ -1,3 +1,4 @@
+import { successOutputSchema } from "../lib/schemas";
 import { auth } from "@databuddy/auth";
 import { and, desc, eq } from "@databuddy/db";
 import {
@@ -157,8 +158,6 @@ const uninstallSlackInputSchema = z.object({
 	organizationId: z.string().min(1),
 	integrationId: z.string().min(1),
 });
-
-const successOutputSchema = z.object({ success: z.literal(true) });
 
 export type SlackIntegrationOutput = z.infer<
 	typeof slackIntegrationOutputSchema

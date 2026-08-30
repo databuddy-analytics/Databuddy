@@ -171,13 +171,24 @@ const INCIDENT_STATUS_CONFIG: Record<
 	resolved: { label: "Resolved", Icon: CheckCircleIcon },
 };
 
+const INCIDENT_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
+	month: "short",
+	day: "numeric",
+	hour: "numeric",
+	minute: "2-digit",
+	timeZone: "UTC",
+	timeZoneName: "short",
+});
+
+const FOOTER_TIME_FORMATTER = new Intl.DateTimeFormat("en-US", {
+	hour: "numeric",
+	minute: "2-digit",
+	timeZone: "UTC",
+	timeZoneName: "short",
+});
+
 function formatIncidentDate(iso: string): string {
-	return new Date(iso).toLocaleDateString("en-US", {
-		month: "short",
-		day: "numeric",
-		hour: "numeric",
-		minute: "2-digit",
-	});
+	return INCIDENT_DATE_FORMATTER.format(new Date(iso));
 }
 
 function StatusIncidentList({
@@ -323,11 +334,7 @@ function StatusFooter({
 			</span>
 			{timestamp && (
 				<span className="tabular-nums">
-					Updated{" "}
-					{new Date(timestamp).toLocaleTimeString("en-US", {
-						hour: "numeric",
-						minute: "2-digit",
-					})}
+					Updated {FOOTER_TIME_FORMATTER.format(new Date(timestamp))}
 				</span>
 			)}
 		</div>

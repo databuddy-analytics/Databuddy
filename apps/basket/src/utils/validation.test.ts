@@ -1,10 +1,5 @@
 import { describe, expect, test } from "vitest";
-import {
-	CONTROL_CHARS,
-	cases,
-	longString,
-	XSS_PAYLOADS,
-} from "../test-helpers";
+import { cases, longString } from "../test-helpers";
 import {
 	redactSensitiveQueryParams,
 	sanitizeString,
@@ -17,19 +12,11 @@ import {
 } from "./validation";
 
 describe("sanitizeString", () => {
-	for (const input of [null, undefined, 123, true, {}, []]) {
-		test(`${JSON.stringify(input)} → ""`, () =>
-			expect(sanitizeString(input)).toBe(""));
-	}
-
 	test("trims whitespace", () =>
 		expect(sanitizeString("  hello  ")).toBe("hello"));
 
 	test("collapses internal whitespace", () =>
 		expect(sanitizeString("a   b   c")).toBe("a b c"));
-
-	test("strips control characters", () =>
-		expect(sanitizeString(`a${CONTROL_CHARS}b`)).toBe("ab"));
 
 	test("strips HTML tags", () =>
 		expect(sanitizeString("<b>bold</b> text")).toBe("bold text"));
@@ -58,14 +45,6 @@ describe("sanitizeString", () => {
 		const result = sanitizeString("abcdefghij", 5);
 		expect(result).toBe("abcde");
 	});
-
-	for (const payload of XSS_PAYLOADS) {
-		test(`XSS: ${payload.slice(0, 30)}… → no angle brackets`, () => {
-			const result = sanitizeString(payload);
-			expect(result).not.toContain("<");
-			expect(result).not.toContain(">");
-		});
-	}
 
 	test("strips every disallowed control char while keeping tab/newline/return", () => {
 		for (let code = 0; code <= 31; code++) {

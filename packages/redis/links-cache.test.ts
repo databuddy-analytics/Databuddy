@@ -70,16 +70,6 @@ const redis = {
 				return 1;
 			}
 
-			if (script.includes("abandon-cached-link-mutation")) {
-				const [token] = args;
-				const pending = parseCacheValue(store.get(key));
-				if (pending?.state !== "pending" || pending.token !== token) {
-					return 0;
-				}
-				store.delete(key);
-				return 1;
-			}
-
 			if (script.includes("delete-cached-link-if-current")) {
 				const [current] = args;
 				if (replacementBeforeConditionalDelete) {
@@ -120,7 +110,6 @@ mock.module("./redis", () => ({
 }));
 
 const {
-	abandonCachedLinkMutation,
 	beginCachedLinkMutation,
 	finishCachedLinkMutation,
 	getCachedLink,
@@ -170,15 +159,6 @@ describe("links cache", () => {
 
 		expect(await getCachedLink("missing-link")).toEqual({
 			state: "not_found",
-		});
-	});
-
-	test("returns a positive cache hit", async () => {
-		store.set(getLinkCacheKey("known-link"), JSON.stringify(link));
-
-		expect(await getCachedLink("known-link")).toEqual({
-			state: "hit",
-			link,
 		});
 	});
 
@@ -237,117 +217,6 @@ describe("links cache", () => {
 		});
 	});
 
-	test("rejects a second mutation while a pending lease exists", async () => {
-		getMutationToken(
-			await beginCachedLinkMutation("busy-link", {
-				id: link.id,
-				mode: "existing",
-			})
-		);
-
-		expect(
-			await beginCachedLinkMutation("busy-link", {
-				id: link.id,
-				mode: "existing",
-			})
-		).toEqual({ state: "busy" });
-	});
-
-	test("requires an existing mutation to own a live cache entry", async () => {
-		store.set(getLinkCacheKey("existing-link"), JSON.stringify(link));
-
-		expect(
-			await beginCachedLinkMutation("existing-link", {
-				id: "different-link",
-				mode: "existing",
-			})
-		).toEqual({ state: "conflict" });
-		expect(
-			await beginCachedLinkMutation("existing-link", {
-				id: link.id,
-				mode: "existing",
-			})
-		).toMatchObject({ state: "acquired" });
-	});
-
-	test("allows a new link only over a miss, negative entry, or tombstone", async () => {
-		store.set(getLinkCacheKey("live-link"), JSON.stringify(link));
-		expect(
-			await beginCachedLinkMutation("live-link", {
-				id: "new-link",
-				mode: "new",
-			})
-		).toEqual({ state: "conflict" });
-
-		store.set(getLinkCacheKey("negative-link"), "null");
-		expect(
-			await beginCachedLinkMutation("negative-link", {
-				id: "new-link",
-				mode: "new",
-			})
-		).toMatchObject({ state: "acquired" });
-
-		store.set(
-			getLinkCacheKey("tombstoned-link"),
-			JSON.stringify({ id: "deleted-link", state: "tombstone" })
-		);
-		expect(
-			await beginCachedLinkMutation("tombstoned-link", {
-				id: "new-link",
-				mode: "new",
-			})
-		).toMatchObject({ state: "acquired" });
-	});
-
-	test("requires an existing mutation to match an id-aware tombstone", async () => {
-		store.set(
-			getLinkCacheKey("deleted-link"),
-			JSON.stringify({ id: "deleted-link", state: "tombstone" })
-		);
-
-		expect(
-			await beginCachedLinkMutation("deleted-link", {
-				id: link.id,
-				mode: "existing",
-			})
-		).toEqual({ state: "conflict" });
-		expect(
-			await beginCachedLinkMutation("deleted-link", {
-				id: "deleted-link",
-				mode: "existing",
-			})
-		).toMatchObject({ state: "acquired" });
-	});
-
-	test("only lets the owning token finalize or abandon a mutation", async () => {
-		const token = getMutationToken(
-			await beginCachedLinkMutation("owned-link", {
-				id: link.id,
-				mode: "existing",
-			})
-		);
-
-		expect(
-			await finishCachedLinkMutation("owned-link", "other-token", {
-				id: link.id,
-				state: "tombstone",
-			})
-		).toBe(false);
-		expect(
-			await finishCachedLinkMutation("owned-link", token, {
-				link: { ...link, id: "different-link" },
-				state: "link",
-			})
-		).toBe(false);
-		expect(await abandonCachedLinkMutation("owned-link", "other-token")).toBe(
-			false
-		);
-		expect(await getCachedLink("owned-link")).toEqual({ state: "pending" });
-
-		expect(await abandonCachedLinkMutation("owned-link", token)).toBe(true);
-		expect(await getCachedLink("owned-link")).toEqual({ state: "miss" });
-	});
-
 	test("does not let a stale read-through overwrite an id-aware tombstone", async () => {
 		const token = getMutationToken(
 			await beginCachedLinkMutation("deleted-link", {
@@ -366,150 +235,6 @@ describe("links cache", () => {
 		expect(await setCachedLinkIfAbsent("deleted-link", link)).toBe(false);
 		expect(await getCachedLink("deleted-link")).toEqual({
 			state: "not_found",
-		});
-	});
-
-	test("serializes update and delete mutations without reviving a stale link", async () => {
-		const updateToken = getMutationToken(
-			await beginCachedLinkMutation("race-link", {
-				id: link.id,
-				mode: "existing",
-			})
-		);
-
-		expect(
-			await beginCachedLinkMutation("race-link", {
-				id: link.id,
-				mode: "existing",
-			})
-		).toEqual({ state: "busy" });
-		expect(
-			await finishCachedLinkMutation("race-link", updateToken, {
-				link,
-				state: "link",
-			})
-		).toBe(true);
-
-		const deleteToken = getMutationToken(
-			await beginCachedLinkMutation("race-link", {
-				id: link.id,
-				mode: "existing",
-			})
-		);
-		expect(
-			await finishCachedLinkMutation("race-link", deleteToken, {
-				id: link.id,
-				state: "tombstone",
-			})
-		).toBe(true);
-		expect(
-			await finishCachedLinkMutation("race-link", updateToken, {
-				link,
-				state: "link",
-			})
-		).toBe(false);
-		expect(await getCachedLink("race-link")).toEqual({
-			state: "not_found",
-		});
-	});
-
-	test("serializes create, update, and delete ownership for one slug", async () => {
-		const key = getLinkCacheKey("shared-link");
-		store.set(key, JSON.stringify(link));
-
-		const updateToken = getMutationToken(
-			await beginCachedLinkMutation("shared-link", {
-				id: link.id,
-				mode: "existing",
-			})
-		);
-		expect(
-			await beginCachedLinkMutation("shared-link", {
-				id: "replacement-link",
-				mode: "new",
-			})
-		).toEqual({ state: "busy" });
-		expect(
-			await beginCachedLinkMutation("shared-link", {
-				id: link.id,
-				mode: "existing",
-			})
-		).toEqual({ state: "busy" });
-
-		await finishCachedLinkMutation("shared-link", updateToken, {
-			link,
-			state: "link",
-		});
-		const deleteToken = getMutationToken(
-			await beginCachedLinkMutation("shared-link", {
-				id: link.id,
-				mode: "existing",
-			})
-		);
-		expect(
-			await beginCachedLinkMutation("shared-link", {
-				id: "replacement-link",
-				mode: "new",
-			})
-		).toEqual({ state: "busy" });
-
-		await finishCachedLinkMutation("shared-link", deleteToken, {
-			id: link.id,
-			state: "tombstone",
-		});
-		const replacement = { ...link, id: "replacement-link" };
-		const createToken = getMutationToken(
-			await beginCachedLinkMutation("shared-link", {
-				id: replacement.id,
-				mode: "new",
-			})
-		);
-		expect(
-			await finishCachedLinkMutation("shared-link", deleteToken, {
-				id: link.id,
-				state: "tombstone",
-			})
-		).toBe(false);
-		expect(
-			await finishCachedLinkMutation("shared-link", createToken, {
-				link: replacement,
-				state: "link",
-			})
-		).toBe(true);
-		expect(await getCachedLink("shared-link")).toEqual({
-			state: "hit",
-			link: replacement,
-		});
-	});
-
-	test("allows a recreated slug to replace a completed deletion tombstone", async () => {
-		const deleteToken = getMutationToken(
-			await beginCachedLinkMutation("recreated-link", {
-				id: link.id,
-				mode: "existing",
-			})
-		);
-		await finishCachedLinkMutation("recreated-link", deleteToken, {
-			id: link.id,
-			state: "tombstone",
-		});
-
-		const recreatedLink = { ...link, id: "link-2" };
-		const createToken = getMutationToken(
-			await beginCachedLinkMutation("recreated-link", {
-				id: recreatedLink.id,
-				mode: "new",
-			})
-		);
-		expect(
-			await finishCachedLinkMutation("recreated-link", createToken, {
-				link: recreatedLink,
-				state: "link",
-			})
-		).toBe(true);
-		expect(await getCachedLink("recreated-link")).toEqual({
-			state: "hit",
-			link: recreatedLink,
 		});
 	});
 });

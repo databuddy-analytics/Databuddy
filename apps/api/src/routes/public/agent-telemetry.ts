@@ -40,8 +40,6 @@ function toInstallIssues(
 	}));
 }
 
-// Cache website existence checks — returns true/false, caches both (negative cache).
-// 5 min TTL, stale-while-revalidate after 2 min.
 const checkWebsiteExists = cacheable(
 	async function checkWebsiteExists(websiteId: string): Promise<boolean> {
 		const row = await db.query.websites.findFirst({
@@ -118,7 +116,6 @@ export const agentTelemetryRoute = new Elysia({
 			};
 		}
 
-		// Verify websiteId exists (cached, including negative results)
 		const exists = await checkWebsiteExists(body.websiteId);
 		if (!exists) {
 			mergeWideEvent({ agent_telemetry_rejected: "invalid_website" });

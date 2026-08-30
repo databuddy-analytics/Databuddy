@@ -1,28 +1,11 @@
 import { describe, expect, it } from "bun:test";
 import {
 	areSecuritySettingsEqual,
-	createSecuritySettingsPayload,
 	normalizeSecurityTag,
 	readSecuritySettings,
 } from "./security-settings";
 
 describe("security settings helpers", () => {
-	it("keeps empty arrays in the mutation payload so removals serialize", () => {
-		expect(
-			createSecuritySettingsPayload({
-				allowedIps: [],
-				allowedOrigins: [],
-				ignoredTrackingOrigins: [],
-				trackingIssueWarningsDisabled: false,
-			})
-		).toEqual({
-			allowedIps: [],
-			allowedOrigins: [],
-			ignoredTrackingOrigins: [],
-			trackingIssueWarningsDisabled: false,
-		});
-	});
-
 	it("reads only string lists from stored website settings", () => {
 		expect(
 			readSecuritySettings({

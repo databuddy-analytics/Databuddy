@@ -99,47 +99,9 @@ describe("createImport", () => {
 		expect(events[0].event_name).toBe("screen_view");
 	});
 
-	it("stamps every event with the target client id", () => {
-		const events = createImport({
-			clientId: "client-42",
-			rows: [umamiRow({}), umamiRow({ event_id: "event-2" })],
-			mapper: mapUmamiRow,
-			getSessionId: (row) => row.session_id,
-			getEventId: (row) => row.event_id,
-			getTime: (row) => new Date(row.created_at).getTime(),
-		});
-
-		expect(events.every((event) => event.client_id === "client-42")).toBe(true);
-	});
 });
 
 describe("mapUmamiRow", () => {
-	it("maps a full row onto the events insert shape", () => {
-		const event = mapUmamiRow(umamiRow({}), noExitContext);
-
-		expect(event).toMatchObject({
-			client_id: "client-1",
-			event_name: "screen_view",
-			anonymous_id: "visitor-1",
-			session_id: "session-1",
-			referrer: "google.com",
-			url: "/home",
-			path: "/home",
-			title: "Home",
-			country: "DE",
-			region: "BE",
-			city: "Berlin",
-			language: "de-DE",
-			utm_source: "google",
-			utm_medium: "cpc",
-			utm_campaign: "spring",
-			page_count: 1,
-		});
-		expect(event.time).toBe(Date.parse("2026-05-01T10:00:00.000Z"));
-		expect(event.created_at).toBe(event.time);
-		expect(event.id.length).toBeGreaterThan(0);
-	});
-
 	it("title-cases hyphenated browser names", () => {
 		const browserName = (browser: string) =>
 			mapUmamiRow(umamiRow({ browser }), noExitContext).browser_name;

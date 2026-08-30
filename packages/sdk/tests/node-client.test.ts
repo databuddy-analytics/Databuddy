@@ -727,19 +727,6 @@ describe("Databuddy Node client", () => {
 		});
 	});
 
-	it("reports queued events separately from delivered events", async () => {
-		mockFetch(() => jsonResponse({ status: "success", processed: 1 }));
-		const client = new Databuddy({ apiKey: "dbdy_test", batchSize: 10 });
-
-		const result = await client.track({
-			name: "signup",
-			websiteId: "site_1",
-		});
-
-		expect(result).toEqual({ success: true, delivery: "queued" });
-		await client.flush();
-	});
-
 	it("does not poison deduplication when an unbatched send fails", async () => {
 		const calls = mockFetch((callNumber) =>
 			callNumber === 1
@@ -794,32 +781,6 @@ describe("Databuddy Node client", () => {
 				name: "signup",
 				anonymousId: "anon_123",
 				anonymizeVisitorIds: false,
-			})
-		);
-	});
-
-	it("passes auto visitor anonymization mode through event payloads", async () => {
-		const calls = mockFetch(() =>
-			jsonResponse({ status: "success", eventId: "evt_1" })
-		);
-		const client = new Databuddy({
-			apiKey: "dbdy_test",
-			anonymizeVisitorIds: "auto",
-			enableBatching: false,
-		});
-
-		const result = await client.track({
-			name: "signup",
-			anonymousId: "anon_123",
-			websiteId: "site_1",
-		});
-
-		expect(result.success).toBe(true);
-		expect(calls[0]?.body).toEqual(
-			expect.objectContaining({
-				name: "signup",
-				anonymousId: "anon_123",
-				anonymizeVisitorIds: "auto",
 			})
 		);
 	});

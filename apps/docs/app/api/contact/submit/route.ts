@@ -2,11 +2,9 @@ import { Databuddy } from "@databuddy/sdk/node";
 import { checkBotId } from "botid/server";
 import { isValidPhoneNumber, parsePhoneNumber } from "libphonenumber-js";
 import { type NextRequest, NextResponse } from "next/server";
-import { enforceFormRateLimit } from "@/lib/rate-limit";
-import { escapeMrkdwn, mrkdwnLink } from "@/lib/slack-format";
-
-const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL || "";
-const SLACK_TIMEOUT_MS = 10_000;
+import { z } from "zod";
+import { enforceFormRateLimit, getClientIp } from "@/lib/rate-limit";
+import { escapeMrkdwn, mrkdwnLink, postSlackBlocks } from "@/lib/slack-format";
 
 const databuddyApiKey = process.env.DATABUDDY_API_KEY;
 const databuddy = databuddyApiKey
@@ -17,46 +15,7 @@ const databuddy = databuddyApiKey
 	: null;
 
 const MIN_NAME_LENGTH = 2;
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const URL_TLD_REGEX = /\.[a-z]{2,}$/i;
-
-interface ContactFormData {
-	businessName: string;
-	email: string;
-	fullName: string;
-	phone?: string;
-	website: string;
-}
-
-type ValidationResult =
-	| { valid: true; data: ContactFormData }
-	| { valid: false; errors: string[] };
-
-function getClientIP(request: NextRequest): string {
-	const cfConnectingIP = request.headers.get("cf-connecting-ip");
-	if (cfConnectingIP) {
-		return cfConnectingIP.trim();
-	}
-
-	const forwarded = request.headers.get("x-forwarded-for");
-	if (forwarded) {
-		const firstIP = forwarded.split(",")[0]?.trim();
-		if (firstIP) {
-			return firstIP;
-		}
-	}
-
-	const realIP = request.headers.get("x-real-ip");
-	if (realIP) {
-		return realIP.trim();
-	}
-
-	return "unknown";
-}
-
-function isValidEmail(email: string): boolean {
-	return EMAIL_REGEX.test(email);
-}
 
 function isValidUrl(value: string): boolean {
 	const url =
@@ -71,78 +30,55 @@ function isValidUrl(value: string): boolean {
 	}
 }
 
-function validateFormData(data: unknown): ValidationResult {
-	if (!data || typeof data !== "object") {
-		return { valid: false, errors: ["Invalid form data"] };
-	}
-
-	const formData = data as Record<string, unknown>;
-	const errors: string[] = [];
-
-	const fullName = formData.fullName;
-	if (
-		!fullName ||
-		typeof fullName !== "string" ||
-		fullName.trim().length < MIN_NAME_LENGTH
-	) {
-		errors.push("Full name is required and must be at least 2 characters");
-	}
-
-	const businessName = formData.businessName;
-	if (
-		!businessName ||
-		typeof businessName !== "string" ||
-		businessName.trim().length < MIN_NAME_LENGTH
-	) {
-		errors.push(
+const contactSchema = z.object({
+	fullName: z
+		.string("Full name is required and must be at least 2 characters")
+		.trim()
+		.min(
+			MIN_NAME_LENGTH,
+			"Full name is required and must be at least 2 characters"
+		),
+	businessName: z
+		.string(
 			"Business or website name is required and must be at least 2 characters"
-		);
-	}
+		)
+		.trim()
+		.min(
+			MIN_NAME_LENGTH,
+			"Business or website name is required and must be at least 2 characters"
+		),
+	website: z
+		.string("Valid website URL is required")
+		.trim()
+		.refine(isValidUrl, "Valid website URL is required")
+		.transform((value) =>
+			value.startsWith("http") || value.startsWith("//")
+				? value
+				: `https://${value}`
+		),
+	email: z
+		.string("Valid email is required")
+		.trim()
+		.pipe(z.email("Valid email is required")),
+	phone: z
+		.string()
+		.trim()
+		.optional()
+		.transform((value) => value || undefined)
+		.refine(
+			(value) => !value || isValidPhoneNumber(value),
+			"Please enter a valid phone number"
+		),
+	topic: z
+		.string()
+		.trim()
+		.optional()
+		.transform((value) => (value ? value.slice(0, 120) : undefined)),
+	anonId: z.string().optional().catch(undefined),
+	sessionId: z.string().optional().catch(undefined),
+});
 
-	const website = formData.website;
-	if (!website || typeof website !== "string" || !isValidUrl(website.trim())) {
-		errors.push("Valid website URL is required");
-	}
-
-	const email = formData.email;
-	if (!email || typeof email !== "string" || !isValidEmail(email.trim())) {
-		errors.push("Valid email is required");
-	}
-
-	const phone = formData.phone;
-	if (
-		phone &&
-		typeof phone === "string" &&
-		phone.trim().length > 0 &&
-		!isValidPhoneNumber(phone.trim())
-	) {
-		errors.push("Please enter a valid phone number");
-	}
-
-	if (errors.length > 0) {
-		return { valid: false, errors };
-	}
-
-	const normalizedWebsite = String(website).trim();
-	const websiteUrl =
-		normalizedWebsite.startsWith("http") || normalizedWebsite.startsWith("//")
-			? normalizedWebsite
-			: `https://${normalizedWebsite}`;
-
-	return {
-		valid: true,
-		data: {
-			fullName: String(fullName).trim(),
-			businessName: String(businessName).trim(),
-			website: websiteUrl,
-			email: String(email).trim(),
-			phone:
-				phone && typeof phone === "string" && phone.trim().length > 0
-					? phone.trim()
-					: undefined,
-		},
-	};
-}
+type ContactFormData = z.infer<typeof contactSchema>;
 
 const regionNames = new Intl.DisplayNames(["en"], { type: "region" });
 
@@ -161,6 +97,7 @@ function getPhoneCountry(phone: string): string {
 
 function buildSlackBlocks(data: ContactFormData, ip: string): unknown[] {
 	const lines = [
+		data.topic ? `*Topic:* ${escapeMrkdwn(data.topic)}` : "",
 		`*Name:* ${escapeMrkdwn(data.fullName)}`,
 		`*Business:* ${escapeMrkdwn(data.businessName)}`,
 		`*Website:* ${mrkdwnLink(data.website, data.website)}`,
@@ -191,30 +128,6 @@ function buildSlackBlocks(data: ContactFormData, ip: string): unknown[] {
 	];
 }
 
-async function sendToSlack(data: ContactFormData, ip: string): Promise<void> {
-	if (!SLACK_WEBHOOK_URL) {
-		return;
-	}
-
-	const blocks = buildSlackBlocks(data, ip);
-	const controller = new AbortController();
-	const timeoutId = setTimeout(() => controller.abort(), SLACK_TIMEOUT_MS);
-
-	try {
-		const response = await fetch(SLACK_WEBHOOK_URL, {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ blocks }),
-			signal: controller.signal,
-		});
-		if (!response.ok) {
-			throw new Error(`Slack webhook failed with status ${response.status}`);
-		}
-	} finally {
-		clearTimeout(timeoutId);
-	}
-}
-
 export async function POST(request: NextRequest) {
 	const verification = await checkBotId();
 	if (verification.isBot) {
@@ -230,7 +143,7 @@ export async function POST(request: NextRequest) {
 		return rateLimited;
 	}
 
-	const clientIP = getClientIP(request);
+	const clientIP = getClientIp(request.headers);
 
 	try {
 		let formData: unknown;
@@ -243,30 +156,28 @@ export async function POST(request: NextRequest) {
 			);
 		}
 
-		const body = formData as Record<string, unknown>;
+		const validation = contactSchema.safeParse(formData);
 
-		const validation = validateFormData(formData);
-
-		if (!validation.valid) {
+		if (!validation.success) {
 			return NextResponse.json(
-				{ error: "Validation failed", details: validation.errors },
+				{
+					error: "Validation failed",
+					details: validation.error.issues.map((issue) => issue.message),
+				},
 				{ status: 400 }
 			);
 		}
 
 		const contactData = validation.data;
-		const anonId = typeof body.anonId === "string" ? body.anonId : undefined;
-		const sessionId =
-			typeof body.sessionId === "string" ? body.sessionId : undefined;
 
 		await Promise.all([
-			sendToSlack(contactData, clientIP),
+			postSlackBlocks(buildSlackBlocks(contactData, clientIP)),
 			databuddy
 				? databuddy
 						.track({
 							name: "contact_form_submitted",
-							anonymousId: anonId,
-							sessionId,
+							anonymousId: contactData.anonId,
+							sessionId: contactData.sessionId,
 							properties: {
 								fullName: contactData.fullName,
 								businessName: contactData.businessName,

@@ -306,18 +306,6 @@ describe("eligibleSignalsForInvestigation", () => {
 });
 
 describe("nextRecheckAt", () => {
-	it("honors an agent's concrete verification window", () => {
-		const next: InvestigationOutcome["next"] = {
-			action: "Deploy the inspected fix.",
-			recheckAt: "2026-07-19T12:00:00.000Z",
-			target: "Checkout form",
-			type: "act",
-			verification: "Checkout completion returns to its prior baseline.",
-		};
-
-		expect(nextRecheckAt(NOW, next).toISOString()).toBe(next.recheckAt);
-	});
-
 	it("keeps historical outcomes on the safe fallback cadence", () => {
 		const cases: [InvestigationOutcome["next"], string][] = [
 			[

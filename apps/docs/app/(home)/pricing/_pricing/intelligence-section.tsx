@@ -1,3 +1,7 @@
+import {
+	INTELLIGENCE_CONTACT_TOPICS,
+	INTELLIGENCE_PLAN_IDS,
+} from "@databuddy/shared/types/features";
 import { CheckIcon } from "@databuddy/ui/icons";
 import Link from "next/link";
 import { SciFiButton } from "@/components/landing/scifi-btn";
@@ -5,8 +9,9 @@ import { trackPricingPlanClick } from "./track-pricing";
 
 const INTELLIGENCE_TIERS = [
 	{
-		id: "intelligence",
+		id: INTELLIGENCE_PLAN_IDS.ANALYST,
 		name: "Business",
+		contactTopic: INTELLIGENCE_CONTACT_TOPICS[INTELLIGENCE_PLAN_IDS.ANALYST],
 		price: "$299",
 		description:
 			"An always-on product investigator for founders and engineers.",
@@ -19,8 +24,9 @@ const INTELLIGENCE_TIERS = [
 		],
 	},
 	{
-		id: "intelligence_scale",
+		id: INTELLIGENCE_PLAN_IDS.DATA_TEAM,
 		name: "Scale",
+		contactTopic: INTELLIGENCE_CONTACT_TOPICS[INTELLIGENCE_PLAN_IDS.DATA_TEAM],
 		price: "$799",
 		description:
 			"More investigation capacity for products with higher traffic and faster release cycles.",
@@ -47,9 +53,9 @@ export function IntelligenceSection() {
 					</span>
 				</div>
 				<p className="mt-1 max-w-2xl text-muted-foreground text-sm sm:text-base">
-					Always-on Databunny capacity for teams that want investigations
-					running continuously. Sized by investigation credits, not just event
-					volume. Access is invite only while we onboard teams personally.
+					Databunny capacity for teams that want investigations running
+					continuously. Sized by investigation credits, not just event volume.
+					Access is invite only while we onboard teams personally.
 				</p>
 			</div>
 			<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -87,7 +93,7 @@ export function IntelligenceSection() {
 						<div className="mt-6">
 							<SciFiButton asChild>
 								<Link
-									href="/contact"
+									href={`/contact?topic=${tier.contactTopic}`}
 									onClick={() =>
 										trackPricingPlanClick(tier.id, "pricing_intelligence")
 									}

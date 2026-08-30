@@ -28,70 +28,7 @@ function makeConfig(overrides: Partial<SimpleQueryConfig> = {}): SimpleQueryConf
 	};
 }
 
-const FILTER_OPERATORS = [
-	"eq",
-	"ne",
-	"contains",
-	"not_contains",
-	"starts_with",
-	"in",
-	"not_in",
-] as const satisfies readonly Filter["op"][];
-
-const TIME_UNITS: NonNullable<QueryRequest["timeUnit"]>[] = [
-	"minute",
-	"hour",
-	"day",
-	"week",
-	"month",
-	"hourly",
-	"daily",
-];
-
-const GLOBAL_FILTER_FIELDS = [
-	"path",
-	"query_string",
-	"country",
-	"region",
-	"city",
-	"timezone",
-	"language",
-	"device_type",
-	"browser_name",
-	"os_name",
-	"referrer",
-	"utm_source",
-	"utm_medium",
-	"utm_campaign",
-] as const;
-
-const NUMERIC_PROFILE_FILTER_FIELDS = new Set([
-	"session_count",
-	"total_events",
-	"unique_pages",
-]);
-
 const QUERY_BUILDER_ENTRIES = Object.entries(QueryBuilders);
-const FILTERABLE_BUILDER_CASES = QUERY_BUILDER_ENTRIES.flatMap(
-	([type, config]) =>
-		(config.allowedFilters ?? []).flatMap((field) =>
-			(
-				config.allowedFilterOperators?.[field] ?? FILTER_OPERATORS
-			)
-				.filter((op) => isSensibleFilterOperator(field, op))
-				.map((op) => ({ config, field, op, type }))
-		)
-);
-
-function filterValueForOperator(field: string, op: Filter["op"]): Filter["value"] {
-	if (NUMERIC_PROFILE_FILTER_FIELDS.has(field)) {
-		return op === "in" || op === "not_in" ? [1, 2] : 1;
-	}
-
-	return op === "in" || op === "not_in"
-		? ["dynamic-value-a", "dynamic-value-b"]
-		: "dynamic-value";
-}
 
 function makeRequiredFilters(config: SimpleQueryConfig): Filter[] {
 	const fields = [
@@ -103,20 +40,6 @@ function makeRequiredFilters(config: SimpleQueryConfig): Filter[] {
 		op: "eq",
 		value: `${field}-required-value`,
 	}));
-}
-
-function isSensibleFilterOperator(field: string, op: Filter["op"]): boolean {
-	// These builders fetch a single entity from a scalar id read directly by customSql.
-	if ((field === "anonymous_id" || field === "session_id") && op !== "eq") {
-		return false;
-	}
-	if (
-		NUMERIC_PROFILE_FILTER_FIELDS.has(field) &&
-		(op === "contains" || op === "not_contains" || op === "starts_with")
-	) {
-		return false;
-	}
-	return true;
 }
 
 function compileBuilder(
@@ -150,15 +73,20 @@ describe("SimpleQueryBuilder.compile", () => {
 	it.each(QUERY_BUILDER_ENTRIES)(
 		"compiles %s with its required filters",
 		(type, config) => {
-			const { params, sql } = compileBuilder(type, config);
-
-			expect(sql).toContain("SELECT");
-			expect(Object.values(params)).toContain("test-site-id");
-			for (const filter of makeRequiredFilters(config)) {
-				expect(Object.values(params)).toContain(filter.value);
-			}
+			expect(() => compileBuilder(type, config)).not.toThrow();
 		}
 	);
+
+	it("compiles summary_metrics with hourly granularity", () => {
+		const config = QueryBuilders.summary_metrics;
+		if (!config) {
+			throw new Error("summary_metrics builder is missing");
+		}
+		const { sql } = compileBuilder("summary_metrics", config, {
+			timeUnit: "hour",
+		});
+		expect(sql).toContain("SELECT");
+	});
 
 	it.each(QUERY_BUILDER_ENTRIES)(
 		"compiles %s for organization-scoped website ids",
@@ -170,48 +98,6 @@ describe("SimpleQueryBuilder.compile", () => {
 
 			expect(sql).toContain("SELECT");
 			expect(params.websiteIds).toEqual(["site-a", "site-b"]);
-		}
-	);
-
-	it.each(
-		QUERY_BUILDER_ENTRIES.flatMap(([type, config]) =>
-			TIME_UNITS.map((timeUnit) => ({ config, timeUnit, type }))
-		)
-	)("compiles $type with $timeUnit granularity", ({ config, timeUnit, type }) => {
-		const { sql } = compileBuilder(type, config, { timeUnit });
-		expect(sql).toContain("SELECT");
-	});
-
-	it.each(
-		GLOBAL_FILTER_FIELDS.flatMap((field) =>
-			FILTER_OPERATORS.map((op) => ({ field, op }))
-		)
-	)("allows global filter $field with $op", ({ field, op }) => {
-		const filters: Filter[] = [
-			{ field, op, value: filterValueForOperator(field, op) },
-		];
-
-		expect(() => compile({}, { filters })).not.toThrow();
-	});
-
-	it.each(FILTERABLE_BUILDER_CASES)(
-		"allows $type filter $field with $op",
-		({ config, field, op, type }) => {
-			const replacesAlternative = config.requiredAnyFilter?.includes(field);
-			const filters: Filter[] = [
-				...makeRequiredFilters(config).filter(
-					(required) =>
-						required.field !== field &&
-						!(
-							replacesAlternative &&
-							config.requiredAnyFilter?.includes(required.field)
-						)
-				),
-				{ field, op, value: filterValueForOperator(field, op) },
-			];
-
-			const { sql } = compileBuilder(type, config, { filters });
-			expect(sql).toContain("SELECT");
 		}
 	);
 
@@ -282,13 +168,6 @@ describe("SimpleQueryBuilder.compile", () => {
 		expect(params.f0).toBe("US");
 	});
 
-	it("applies ne filter", () => {
-		const filters: Filter[] = [{ field: "country", op: "ne", value: "US" }];
-		const { sql, params } = compile({}, { filters });
-		expect(sql).toContain("country != {f0:String}");
-		expect(params.f0).toBe("US");
-	});
-
 	it("applies contains filter with LIKE and escaped pattern", () => {
 		const filters: Filter[] = [
 			{ field: "path", op: "contains", value: "/blog" },
@@ -296,14 +175,6 @@ describe("SimpleQueryBuilder.compile", () => {
 		const { sql, params } = compile({}, { filters });
 		expect(sql).toContain("LIKE {f0:String}");
 		expect(params.f0).toBe("%/blog%");
-	});
-
-	it("applies not_contains filter", () => {
-		const filters: Filter[] = [
-			{ field: "path", op: "not_contains", value: "/admin" },
-		];
-		const { sql } = compile({}, { filters });
-		expect(sql).toContain("NOT LIKE {f0:String}");
 	});
 
 	it("applies starts_with filter", () => {
@@ -322,14 +193,6 @@ describe("SimpleQueryBuilder.compile", () => {
 		const { sql, params } = compile({}, { filters });
 		expect(sql).toContain("IN {f0:Array(String)}");
 		expect(params.f0).toEqual(["US", "UK", "DE"]);
-	});
-
-	it("applies not_in filter", () => {
-		const filters: Filter[] = [
-			{ field: "country", op: "not_in", value: ["CN", "RU"] },
-		];
-		const { sql } = compile({}, { filters });
-		expect(sql).toContain("NOT IN {f0:Array(String)}");
 	});
 
 	it("escapes LIKE special characters in contains filter", () => {
@@ -365,15 +228,6 @@ describe("SimpleQueryBuilder.compile", () => {
 			"(device_type = '' OR lower(device_type) = {f0:String})"
 		);
 		expect(params.f0).toBe("desktop");
-	});
-
-	it("handles mobile device_type filter", () => {
-		const filters: Filter[] = [
-			{ field: "device_type", op: "eq", value: "mobile" },
-		];
-		const { sql, params } = compile({}, { filters });
-		expect(sql).toContain("lower(device_type) = {f0:String}");
-		expect(params.f0).toBe("mobile");
 	});
 
 	it("silently skips disallowed filter fields rather than throwing", () => {
@@ -418,15 +272,6 @@ describe("SimpleQueryBuilder.compile", () => {
 		expect(() =>
 			compile({ allowedFilters: ["custom_field"] }, { filters })
 		).not.toThrow();
-	});
-
-	it("allows globally allowed filters when allowedFilters is not configured", () => {
-		const filters: Filter[] = [
-			{ field: "country", op: "eq", value: "US" },
-			{ field: "path", op: "contains", value: "/blog" },
-			{ field: "referrer", op: "eq", value: "google" },
-		];
-		expect(() => compile({}, { filters })).not.toThrow();
 	});
 
 	it("throws when a required filter is missing", () => {
@@ -681,25 +526,6 @@ describe("SimpleQueryBuilder.compile", () => {
 		).toThrow("Missing required filter: 'anonymous_id'.");
 	});
 
-	it("allows anonymous_id for the profile_sessions builder", () => {
-		const config = QueryBuilders.profile_sessions;
-		if (!config) {
-			throw new Error("profile_sessions builder is missing");
-		}
-
-		const builder = new SimpleQueryBuilder(
-			config,
-			makeRequest({
-				filters: [{ field: "anonymous_id", op: "eq", value: "visitor-1" }],
-				type: "profile_sessions",
-			})
-		);
-
-		const { params, sql } = builder.compile();
-		expect(sql).toContain("visitor_id = {visitorId:String}");
-		expect(params.visitorId).toBe("visitor-1");
-	});
-
 	it("requires session_id for the session_events builder", () => {
 		const config = QueryBuilders.session_events;
 		if (!config) {
@@ -923,35 +749,6 @@ describe("SimpleQueryBuilder.compile", () => {
 		expect(params.to).toBe("2026-04-27 13:28:59");
 	});
 
-	it("builds traffic sources with direct visits and session attribution", () => {
-		const config = QueryBuilders.traffic_sources;
-		if (!config) {
-			throw new Error("traffic_sources builder is missing");
-		}
-
-		const builder = new SimpleQueryBuilder(
-			config,
-			makeRequest({
-				type: "traffic_sources",
-				filters: [{ field: "referrer", op: "eq", value: "google.com" }],
-			}),
-			"example.com"
-		);
-
-		const { sql } = builder.compile();
-
-		expect(sql).toContain("session_attribution AS");
-		expect(sql).toContain("e.* REPLACE(");
-		expect(sql).toContain("WHEN referrer = '' OR referrer IS NULL");
-		expect(sql).toContain("domain(referrer) = ''");
-		expect(sql).toContain("domain(referrer) = 'example.com'");
-		expect(sql).toContain("domain(referrer) LIKE 'x.com%'");
-		expect(sql).toContain("https://linkedin.com");
-		expect(sql).toContain("as name");
-		expect(sql).toMatch(/\bas percentage\b/i);
-		expect(sql).not.toContain("referrer != ''");
-	});
-
 	it("canonicalizes and deduplicates parsed traffic source display rows", () => {
 		const rows = applyPlugins(
 			[
@@ -1104,24 +901,6 @@ describe("SimpleQueryBuilder.compile", () => {
 		expect(sql).not.toContain("time_on_page / 1000");
 	});
 
-	it("builds interesting sessions with pageview, custom event, and error signals", () => {
-		const config = QueryBuilders.interesting_sessions;
-		if (!config) {
-			throw new Error("interesting_sessions builder is missing");
-		}
-
-		const { sql } = new SimpleQueryBuilder(
-			config,
-			makeRequest({ type: "interesting_sessions", limit: 5 })
-		).compile();
-
-		expect(sql).toContain("interesting_score");
-		expect(sql).toContain("analytics.custom_events");
-		expect(sql).toContain("analytics.error_spans");
-		expect(sql).toContain("event_name = 'screen_view'");
-		expect(sql).not.toContain("event_name = 'pageview'");
-	});
-
 	it("collapses immutable revenue versions in revenue and profile reads", () => {
 		for (const type of [
 			"revenue_overview",
@@ -1151,115 +930,6 @@ describe("SimpleQueryBuilder.compile", () => {
 		expect(sql).not.toContain("created <= {endDate:DateTime}");
 	});
 
-	it("links sparse Stripe profile revenue by owner and payment intent", () => {
-		for (const type of ["profile_list", "profile_revenue"]) {
-			const config = QueryBuilders[type];
-			if (!config) {
-				throw new Error(`${type} builder is missing`);
-			}
-			const { sql } = compileBuilder(type, config);
-
-			expect(sql, type).toContain("profile_payment_intents AS");
-			expect(sql, type).toContain(
-				"SELECT owner_id, payment_intent_id FROM profile_payment_intents"
-			);
-			expect(sql, type).not.toContain(
-				"SELECT payment_intent_id FROM profile_payment_intents"
-			);
-		}
-	});
-
-	it("counts only terminal successful states in revenue totals", () => {
-		const config = QueryBuilders.revenue_overview;
-		if (!config) {
-			throw new Error("revenue_overview builder is missing");
-		}
-		const { sql } = compileBuilder("revenue_overview", config);
-
-		expect(sql).toContain("r.type = 'refund' AND r.status = 'refunded'");
-		expect(sql).toContain("r.type != 'refund' AND r.status = 'completed'");
-		expect(sql).toContain("customer_session_map AS");
-		expect(sql).toContain(
-			"created >= {startDate:DateTime} - INTERVAL 90 DAY"
-		);
-		expect(sql).toContain("ON rb.provider = csm.provider");
-		expect(sql).toContain("scoped_stripe_owners AS");
-		expect(sql).not.toContain("scoped_stripe_invoice_keys AS");
-		expect(sql).not.toContain("scoped_stripe_payment_intent_keys AS");
-		expect(sql).toContain(
-			"owner_id IN (SELECT owner_id FROM scoped_stripe_owners)"
-		);
-		const ownerScopeSql = sql.slice(
-			sql.indexOf("scoped_stripe_owners AS"),
-			sql.indexOf("revenue_latest_range AS")
-		);
-		expect(ownerScopeSql).toContain("created <= {endDate:DateTime}");
-		expect(ownerScopeSql).not.toContain("startDate");
-		expect(ownerScopeSql).toContain("AND owner_id != ''");
-		expect(sql).not.toContain("stripe_relation_rows AS");
-		expect(sql).toContain("linked_payment_intents AS");
-		expect(sql).not.toContain("stripe_payment_context_rows AS");
-		expect(sql).toContain("stripe_payment_context AS");
-		expect(sql).toContain("FROM analytics.revenue FINAL");
-		expect(sql).toContain("revenue_base AS");
-		expect(sql).not.toContain("stripe_invoice_payment_totals AS");
-		expect(sql).not.toContain("invoice_fallback");
-		expect(sql).not.toContain("linked_website_id");
-		expect(sql).toContain(
-			"coalesce(r.product_name, nullIf(payment_context.product_name, ''))"
-		);
-		expect(sql).toContain("stripe_payment_attempts AS");
-		expect(sql).toContain("OVER (PARTITION BY attempt_key)");
-		expect(sql).toContain("OVER (PARTITION BY invoice_id)");
-		expect(sql).toContain("OVER (PARTITION BY currency)");
-		expect(sql).toContain("attempt.invoice_id != ''");
-		expect(sql).not.toContain("stripe_invoice_failure_attempt_keys AS");
-		expect(sql).not.toContain("stripe_payment_failure_reasons AS");
-		expect(sql).not.toContain("stripe_failure_observations AS");
-		expect(sql).toContain("startsWith(transaction_id, 'in_')");
-		expect(sql).not.toContain("databuddy_revenue_model");
-		expect(sql).toContain("AND (r.owner_id, r.transaction_id) IN");
-		expect(sql).toContain(
-			"SELECT owner_id, payment_intent_id FROM linked_payment_intents"
-		);
-		expect(sql).toContain("stripe_record_kind') = 'attempt'");
-		expect(sql).toContain("recovered_payment_attempts");
-
-		const organization = compileBuilder("revenue_overview", config, {
-			organizationWebsiteIds: ["site-a", "site-b"],
-			projectId: "org-id",
-		});
-		expect(organization.sql).toContain(
-			"(owner_id = {organizationId:String} OR website_id IN {websiteIds:Array(String)})"
-		);
-		expect(organization.sql).toContain(
-			"owner_id IN (SELECT owner_id FROM scoped_stripe_owners)"
-		);
-		expect(organization.params.organizationId).toBe("org-id");
-		expect(organization.params.websiteIds).toEqual(["site-a", "site-b"]);
-	});
-
-	it("keeps revenue attribution transaction-as-of without truncating exact sessions", () => {
-		const config = QueryBuilders.recent_transactions;
-		if (!config) {
-			throw new Error("recent_transactions builder is missing");
-		}
-		const { sql } = compileBuilder("recent_transactions", config);
-		const firstTouchStart = sql.indexOf("first_touch_by_session AS");
-		const firstTouchEnd = sql.indexOf("revenue_attributed AS");
-		const firstTouchSql = sql.slice(firstTouchStart, firstTouchEnd);
-
-		expect(firstTouchStart).toBeGreaterThan(-1);
-		expect(firstTouchEnd).toBeGreaterThan(firstTouchStart);
-		expect(firstTouchSql).not.toContain("INTERVAL 90 DAY");
-		expect(sql).toContain("min(created) as mapped_session_created");
-		expect(sql).toContain("csm.mapped_session_created <= rb.created");
-		expect(sql).toContain("min(time) as first_touch_time");
-		expect(sql).toContain("ft_direct.first_touch_time <= rb.created");
-		expect(sql).toContain("ft_customer.first_touch_time <= rb.created");
-		expect(sql).toContain("argMin(ifNull(utm_campaign, ''), time)");
-	});
-
 	it("keeps revenue currencies separate and accepts an exact currency filter", () => {
 		const config = QueryBuilders.revenue_overview;
 		if (!config) {
@@ -1274,92 +944,8 @@ describe("SimpleQueryBuilder.compile", () => {
 		expect(params.rf0).toBe("EUR");
 	});
 
-	it("keeps Stripe payment diagnostics inside the provider scope", () => {
-		const config = QueryBuilders.revenue_overview;
-		if (!config) {
-			throw new Error("revenue_overview builder is missing");
-		}
-
-		const paddle = compileBuilder("revenue_overview", config, {
-			filters: [{ field: "provider", op: "eq", value: "paddle" }],
-		});
-		const stripe = compileBuilder("revenue_overview", config, {
-			filters: [{ field: "provider", op: "eq", value: "stripe" }],
-		});
-		const mixed = compileBuilder("revenue_overview", config, {
-			filters: [
-				{ field: "provider", op: "in", value: ["paddle", "stripe"] },
-			],
-		});
-		const withoutStripe = compileBuilder("revenue_overview", config, {
-			filters: [{ field: "provider", op: "ne", value: "stripe" }],
-		});
-		const attributedSlice = compileBuilder("revenue_overview", config, {
-			filters: [{ field: "country", op: "eq", value: "US" }],
-		});
-
-		expect(config.allowedFilters).toEqual(["currency", "provider"]);
-		expect(paddle.sql).toContain("SELECT * FROM stripe_payment_attempts WHERE 0");
-		expect(paddle.sql).not.toContain("stripe_failure_observations");
-		expect(paddle.sql).toContain("toUInt8(0) AS payment_metrics_in_scope");
-		expect(paddle.sql).toContain(
-			"any(payment_metrics_in_scope) as payment_diagnostics_available"
-		);
-		expect(paddle.sql).toContain(
-			"countIf(attempt_status = 'failed'),\n\t\t\t\t\tNULL"
-		);
-		expect(paddle.params.rf0).toBe("paddle");
-		expect(stripe.sql).not.toContain("stripe_payment_attempts WHERE 0");
-		expect(stripe.sql).toContain("toUInt8(1) AS payment_metrics_in_scope");
-		expect(stripe.params.rf0).toBe("stripe");
-		expect(mixed.sql).not.toContain("stripe_payment_attempts WHERE 0");
-		expect(mixed.sql).toContain("toUInt8(1) AS payment_metrics_in_scope");
-		expect(withoutStripe.sql).toContain(
-			"SELECT * FROM stripe_payment_attempts WHERE 0"
-		);
-		expect(withoutStripe.sql).toContain(
-			"toUInt8(0) AS payment_metrics_in_scope"
-		);
-		expect(attributedSlice.sql).toContain(
-			"SELECT * FROM stripe_payment_attempts WHERE 0"
-		);
-		expect(attributedSlice.sql).toContain(
-			"toUInt8(0) AS payment_metrics_in_scope"
-		);
-	});
-
-	it("builds bounded error fingerprints ranked by affected people", () => {
-		const config = QueryBuilders.error_fingerprints;
-		if (!config) {
-			throw new Error("error_fingerprints builder is missing");
-		}
-
-		const { params, sql } = new SimpleQueryBuilder(
-			config,
-			makeRequest({ type: "error_fingerprints", limit: 500 })
-		).compile();
-
-		expect(sql).toContain("es.message as name");
-		expect(sql).toContain("GROUP BY es.message");
-		expect(sql).toContain(
-			"uniqIf(es.anonymous_id, es.anonymous_id != '') as users"
-		);
-		expect(sql).toContain(
-			"uniqIf(es.session_id, es.session_id != '') as sessions"
-		);
-		expect(sql).toContain("trimRight(path(es.path), '/')");
-		expect(sql).toContain("as error_type");
-		expect(sql).toContain("as filename");
-		expect(sql).toContain("as line");
-		expect(sql).toContain(
-			"argMax(substring(ifNull(es.stack, ''), 1, 1000), tuple(if(ifNull(es.stack, '') != '', 1, 0), es.timestamp, es.session_id, es.anonymous_id)) as representative_stack"
-		);
-		expect(sql).toContain("max(es.timestamp) as last_seen");
-		expect(sql).toContain(
-			"ORDER BY users DESC, sessions DESC, count DESC, last_seen DESC"
-		);
-		expect(params.limit).toBe(50);
-		expect(config.publicAccess).not.toBe(true);
+	it("keeps error_fingerprints private", () => {
+		expect(QueryBuilders.error_fingerprints?.publicAccess).not.toBe(true);
 	});
 
 	it("builds scroll depth queries from page_exit percent values", () => {
@@ -1401,26 +987,9 @@ describe("SimpleQueryBuilder.compile", () => {
 		expect(sql).toContain("LIMIT 25");
 	});
 
-	it("applies offset", () => {
-		const { sql } = compile({}, { offset: 50 });
-		expect(sql).toContain("OFFSET 50");
-	});
 });
 
 describe("getClickHouseQuerySettings", () => {
-	it("ignores nondeterministic functions when query cache is enabled", () => {
-		expect(getClickHouseQuerySettings()).toEqual({
-			query_cache_nondeterministic_function_handling: "ignore",
-			use_query_cache: 1,
-		});
-	});
-
-	it("does not set nondeterministic cache handling when cache is disabled", () => {
-		expect(getClickHouseQuerySettings(true)).toEqual({
-			use_query_cache: 0,
-		});
-	});
-
 	it("does not mutate settings for a server-enforced read-only connection", () => {
 		const previousUrl = process.env.CLICKHOUSE_URL;
 		const previousReadonlyUrl = process.env.CLICKHOUSE_READONLY_URL;

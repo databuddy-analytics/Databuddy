@@ -567,7 +567,7 @@ function weeklySessionVolume(
 	return (sessions / Math.max(1, windowDays)) * 7;
 }
 
-export function assignSeverity(
+function assignSeverity(
 	zScore: number | undefined,
 	deltaPercent: number
 ): "critical" | "warning" | "info" {

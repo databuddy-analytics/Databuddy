@@ -1,10 +1,13 @@
 import { checkBotId } from "botid/server";
 import { type NextRequest, NextResponse } from "next/server";
-import { enforceFormRateLimit } from "@/lib/rate-limit";
-import { escapeMrkdwn, mrkdwnLink } from "@/lib/slack-format";
-
-const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL || "";
-const SLACK_TIMEOUT_MS = 10_000;
+import { z } from "zod";
+import { enforceFormRateLimit, getClientIp } from "@/lib/rate-limit";
+import {
+	createSlackField,
+	escapeMrkdwn,
+	mrkdwnLink,
+	postSlackBlocks,
+} from "@/lib/slack-format";
 
 const MIN_NAME_LENGTH = 2;
 
@@ -19,45 +22,6 @@ const ACCELERATOR_LABELS: Record<string, string> = {
 	other: "Other",
 };
 
-interface OssFormData {
-	accelerator: string;
-	email: string;
-	name: string;
-	notes?: string;
-	projectName: string;
-	repoUrl: string;
-}
-
-type ValidationResult =
-	| { valid: true; data: OssFormData }
-	| { valid: false; errors: string[] };
-
-function getClientIP(request: NextRequest): string {
-	const cfConnectingIP = request.headers.get("cf-connecting-ip");
-	if (cfConnectingIP) {
-		return cfConnectingIP.trim();
-	}
-
-	const forwarded = request.headers.get("x-forwarded-for");
-	if (forwarded) {
-		const firstIP = forwarded.split(",")[0]?.trim();
-		if (firstIP) {
-			return firstIP;
-		}
-	}
-
-	const realIP = request.headers.get("x-real-ip");
-	if (realIP) {
-		return realIP.trim();
-	}
-
-	return "unknown";
-}
-
-function isValidEmail(email: string): boolean {
-	return email.includes("@") && email.length > 3;
-}
-
 function isGitHubRepoUrl(value: string): boolean {
 	try {
 		const url = new URL(value);
@@ -71,75 +35,36 @@ function isGitHubRepoUrl(value: string): boolean {
 	}
 }
 
-function validateFormData(data: unknown): ValidationResult {
-	if (!data || typeof data !== "object") {
-		return { valid: false, errors: ["Invalid form data"] };
-	}
+const ossSchema = z.object({
+	name: z
+		.string("Name is required")
+		.trim()
+		.min(MIN_NAME_LENGTH, "Name is required"),
+	email: z
+		.string("Valid email is required")
+		.trim()
+		.pipe(z.email("Valid email is required")),
+	projectName: z
+		.string("Project name is required")
+		.trim()
+		.min(1, "Project name is required"),
+	repoUrl: z
+		.string("A valid github.com repository URL is required")
+		.trim()
+		.refine(isGitHubRepoUrl, "A valid github.com repository URL is required"),
+	accelerator: z
+		.unknown()
+		.transform((value) =>
+			typeof value === "string" && value in ACCELERATOR_LABELS ? value : "none"
+		),
+	notes: z
+		.string()
+		.trim()
+		.optional()
+		.transform((value) => value || undefined),
+});
 
-	const formData = data as Record<string, unknown>;
-	const errors: string[] = [];
-
-	const name = formData.name;
-	if (
-		!name ||
-		typeof name !== "string" ||
-		name.trim().length < MIN_NAME_LENGTH
-	) {
-		errors.push("Name is required");
-	}
-
-	const email = formData.email;
-	if (!email || typeof email !== "string" || !isValidEmail(email)) {
-		errors.push("Valid email is required");
-	}
-
-	const projectName = formData.projectName;
-	if (
-		!projectName ||
-		typeof projectName !== "string" ||
-		projectName.trim().length === 0
-	) {
-		errors.push("Project name is required");
-	}
-
-	const repoUrl = formData.repoUrl;
-	if (
-		!repoUrl ||
-		typeof repoUrl !== "string" ||
-		!isGitHubRepoUrl(repoUrl.trim())
-	) {
-		errors.push("A valid github.com repository URL is required");
-	}
-
-	const accelerator = formData.accelerator;
-	const acceleratorKey =
-		typeof accelerator === "string" && accelerator in ACCELERATOR_LABELS
-			? accelerator
-			: "none";
-
-	if (errors.length > 0) {
-		return { valid: false, errors };
-	}
-
-	return {
-		valid: true,
-		data: {
-			name: String(name).trim(),
-			email: String(email).trim(),
-			projectName: String(projectName).trim(),
-			repoUrl: String(repoUrl).trim(),
-			accelerator: acceleratorKey,
-			notes: formData.notes ? String(formData.notes).trim() : undefined,
-		},
-	};
-}
-
-function createSlackField(label: string, value: string) {
-	return {
-		type: "mrkdwn" as const,
-		text: `*${label}:*\n${escapeMrkdwn(value)}`,
-	};
-}
+type OssFormData = z.infer<typeof ossSchema>;
 
 function buildSlackBlocks(data: OssFormData, ip: string): unknown[] {
 	const fields = [
@@ -188,30 +113,6 @@ function buildSlackBlocks(data: OssFormData, ip: string): unknown[] {
 	return blocks;
 }
 
-async function sendToSlack(data: OssFormData, ip: string): Promise<void> {
-	if (!SLACK_WEBHOOK_URL) {
-		return;
-	}
-
-	const blocks = buildSlackBlocks(data, ip);
-	const controller = new AbortController();
-	const timeoutId = setTimeout(() => controller.abort(), SLACK_TIMEOUT_MS);
-
-	try {
-		const response = await fetch(SLACK_WEBHOOK_URL, {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ blocks }),
-			signal: controller.signal,
-		});
-		if (!response.ok) {
-			throw new Error(`Slack webhook failed with status ${response.status}`);
-		}
-	} finally {
-		clearTimeout(timeoutId);
-	}
-}
-
 export async function POST(request: NextRequest) {
 	const verification = await checkBotId();
 	if (verification.isBot) {
@@ -227,8 +128,6 @@ export async function POST(request: NextRequest) {
 		return rateLimited;
 	}
 
-	const clientIP = getClientIP(request);
-
 	try {
 		let formData: unknown;
 		try {
@@ -240,16 +139,21 @@ export async function POST(request: NextRequest) {
 			);
 		}
 
-		const validation = validateFormData(formData);
+		const validation = ossSchema.safeParse(formData);
 
-		if (!validation.valid) {
+		if (!validation.success) {
 			return NextResponse.json(
-				{ error: "Validation failed", details: validation.errors },
+				{
+					error: "Validation failed",
+					details: validation.error.issues.map((issue) => issue.message),
+				},
 				{ status: 400 }
 			);
 		}
 
-		await sendToSlack(validation.data, clientIP);
+		await postSlackBlocks(
+			buildSlackBlocks(validation.data, getClientIp(request.headers))
+		);
 
 		return NextResponse.json({
 			success: true,

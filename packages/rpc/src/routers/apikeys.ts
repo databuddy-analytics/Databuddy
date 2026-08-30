@@ -1,3 +1,4 @@
+import { successOutputSchema } from "../lib/schemas";
 import {
 	type ApiKeyRow,
 	collectScopes,
@@ -135,8 +136,6 @@ const apiKeyCreateOutputSchema = z.object({
 	prefix: z.string(),
 	start: z.string(),
 });
-
-const successOutputSchema = z.object({ success: z.literal(true) });
 
 const verifyValidOutputSchema = z.object({
 	valid: z.literal(true),
@@ -739,7 +738,6 @@ export const apikeysRouter = {
 		)
 		.output(verifyOutputSchema)
 		.handler(async ({ context, input }) => {
-			// Use keys.extractKey() for header extraction
 			const secret = input.secret ?? keys.extractKey(context.headers);
 			if (!secret) {
 				return {
@@ -783,7 +781,6 @@ export const apikeysRouter = {
 
 			const scopes = collectScopes(key, input.resource);
 
-			// Use keypal's scope checking
 			if (input.requiredScopes?.length) {
 				const check = input.mode === "all" ? hasAllScopes : hasAnyScope;
 				if (!check(scopes, input.requiredScopes)) {

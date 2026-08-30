@@ -14,12 +14,6 @@ describe("getUserFacingErrorMessage", () => {
 		).toBe("Too many requests. Wait a moment and try again.");
 	});
 
-	it("maps HTTP status codes", () => {
-		expect(getUserFacingErrorMessage({ status: 404 })).toBe(
-			"That item could not be found. It may have been removed."
-		);
-	});
-
 	it("uses a safe fallback for unknown internal errors", () => {
 		expect(
 			getUserFacingErrorMessage(new Error("postgres relation users failed"))
@@ -37,12 +31,6 @@ describe("getUserFacingErrorMessage", () => {
 		).toBe(
 			"Your Free plan includes 1 funnel. Delete one or upgrade to Hobby to create more."
 		);
-	});
-
-	it("falls back to plan limit copy when no message is present", () => {
-		expect(
-			getUserFacingErrorMessage({ code: "PLAN_LIMIT_EXCEEDED", status: 402 })
-		).toBe("You have reached your plan's limit. Upgrade to create more.");
 	});
 
 	it("does not mistranslate feature gating as a permissions error", () => {

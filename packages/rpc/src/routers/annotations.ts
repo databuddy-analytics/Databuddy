@@ -1,3 +1,4 @@
+import { successOutputSchema } from "../lib/schemas";
 import { and, desc, eq, isNull, or, type SQL } from "@databuddy/db";
 import { annotations } from "@databuddy/db/schema";
 import {
@@ -65,8 +66,6 @@ const annotationOutputSchema = z.object({
 	xValue: z.coerce.date(),
 	yValue: z.number().nullable(),
 });
-
-const successOutputSchema = z.object({ success: z.literal(true) });
 
 interface AnnotationWithCreator {
 	createdBy?: unknown;

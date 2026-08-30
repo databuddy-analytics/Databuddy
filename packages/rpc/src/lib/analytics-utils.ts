@@ -1,4 +1,10 @@
-import { chQuery } from "@databuddy/db/clickhouse";
+import {
+	chQuery,
+	canonicalVisitorExpression,
+	identityJoins,
+	identityPairMapCte,
+	sessionMetaCte,
+} from "@databuddy/db/clickhouse";
 import { goalFunnelFilterFieldSet } from "@databuddy/shared/analytics-filters";
 import { parseReferrer } from "@databuddy/shared/utils/referrer";
 
@@ -112,7 +118,6 @@ interface ReferrerRow {
 	vid: string;
 }
 
-// Helpers
 const ESCAPE_BACKSLASH_REGEX = /\\/g;
 const ESCAPE_LIKE_WILDCARDS_REGEX = /[%_]/g;
 const escapeClickhouseString = (value: string): string =>
@@ -262,7 +267,6 @@ const buildFilterSQL = (
 	return parts.length > 0 ? ` AND ${parts.join(" AND ")}` : "";
 };
 
-// Query building
 const buildTimeRangeWhere = (timeColumn: string) =>
 	`${timeColumn} >= parseDateTimeBestEffort({startDate:String})
 		AND ${timeColumn} <= parseDateTimeBestEffort({endDate:String})`;
@@ -283,12 +287,8 @@ const customEventRows = (projection: string): string => `SELECT ${projection}
 		AND owner_id != {websiteId:String}
 		AND ${buildTimeRangeWhere("timestamp")}`;
 
-const visitorIdentityCtes = `visitor_identity_rows AS (
-	SELECT
-		profile_id,
-		anonymous_id,
-		session_id,
-		time AS identity_time
+const directSessionMetaCtes = `identity_source_rows AS (
+	SELECT profile_id, anonymous_id, session_id, time AS identity_time
 	FROM analytics.events
 	WHERE ${buildBaseWhere("time")}
 	UNION ALL
@@ -298,67 +298,10 @@ const visitorIdentityCtes = `visitor_identity_rows AS (
 		ifNull(session_id, '') AS session_id,
 		timestamp AS identity_time`)}
 ),
-visitor_profiles_by_anonymous AS (
-	SELECT
-		anonymous_id,
-		arraySort(groupArray((identity_time, profile_id))) AS profile_history
-	FROM visitor_identity_rows
-	WHERE anonymous_id != '' AND profile_id != ''
-	GROUP BY anonymous_id
-),
-visitor_identity_by_session AS (
-	SELECT
-		session_id,
-		arraySort(groupArrayIf((identity_time, profile_id), profile_id != '')) AS profile_history,
-		argMaxIf(anonymous_id, identity_time, anonymous_id != '') AS mapped_anonymous_id
-	FROM visitor_identity_rows
-	WHERE session_id != ''
-	GROUP BY session_id
-)`;
+${sessionMetaCte("identity_source_rows")}`;
 
-const identityJoins = (source: string): string => `
-	LEFT JOIN visitor_profiles_by_anonymous direct_profile
-		ON ${source}.anonymous_id = direct_profile.anonymous_id
-	LEFT JOIN visitor_identity_by_session session_identity
-		ON ${source}.session_id = session_identity.session_id
-	LEFT JOIN visitor_profiles_by_anonymous session_profile
-		ON session_identity.mapped_anonymous_id = session_profile.anonymous_id`;
-
-const profileAtRowTime = (
-	source: string,
-	profileSource: string,
-	identityTime = `${source}.identity_time`
-): string =>
-	`tupleElement(
-	arrayLast(
-		identity -> tupleElement(identity, 1) <= ${identityTime},
-		${profileSource}.profile_history
-	),
-	2
-)`;
-
-// Keep the initial identify backfill, but apply later profile changes forward only.
-const sessionProfileAtRowTime = (
-	source: string,
-	identityTime = `${source}.identity_time`
-): string => `coalesce(
-	nullIf(${profileAtRowTime(source, "session_identity", identityTime)}, ''),
-	nullIf(tupleElement(arrayElement(session_identity.profile_history, 1), 2), ''),
-	''
-)`;
-
-const canonicalVisitorExpression = (
-	source: string,
-	identityTime?: string
-): string => `coalesce(
-	nullIf(${source}.profile_id, ''),
-	nullIf(${sessionProfileAtRowTime(source, identityTime)}, ''),
-	nullIf(${profileAtRowTime(source, "direct_profile", identityTime)}, ''),
-	nullIf(${profileAtRowTime(source, "session_profile", identityTime)}, ''),
-	nullIf(${source}.anonymous_id, ''),
-	nullIf(session_identity.mapped_anonymous_id, ''),
-	''
-)`;
+const visitorIdentityCtes = `identity_pairs_anon AS ${identityPairMapCte("anonymous_id")},
+identity_pairs_session AS ${identityPairMapCte("session_id")}`;
 
 const pathOnlyExpression = (field = "path") =>
 	`if(startsWith(${field}, 'http://') OR startsWith(${field}, 'https://'), path(${field}), ${field})`;
@@ -494,6 +437,7 @@ function buildIdentifiedEventStream(
 		CAST(NULL, 'Nullable(String)') AS user_agent,
 		CAST(NULL, 'Nullable(String)') AS viewport_size`)}
 ),
+${sessionMetaCte("analytics_rows")},
 identified_rows AS (
 	SELECT
 		source_row.source_kind AS source_kind,
@@ -593,11 +537,12 @@ export const queryLinkVisitorIds = async (
 	params: ClickhouseQueryParams
 ): Promise<Set<string>> => {
 	const refParams = { ...params, linkRefPattern: `%ref=${linkId}%` };
-	const eventVisitor = canonicalVisitorExpression("event", "event.time");
+	const eventVisitor = canonicalVisitorExpression("event");
 	const rows = await chQuery<{ vid: string }>(
-		`WITH ${visitorIdentityCtes}
+		`WITH ${visitorIdentityCtes},
+${directSessionMetaCtes}
 		 SELECT DISTINCT ${eventVisitor} as vid
-		 FROM analytics.events event${identityJoins("event")}
+		 FROM analytics.events event${identityJoins("event", "event.time")}
 		 WHERE event.client_id = {websiteId:String}
 			AND ${buildTimeRangeWhere("event.time")}
 			AND event.url LIKE {linkRefPattern:String}
@@ -660,7 +605,7 @@ ORDER BY step_number`;
 	};
 };
 
-export const processGoalConversionCount = async (
+const processGoalConversionCount = async (
 	step: AnalyticsStep,
 	filters: Filter[],
 	params: ClickhouseQueryParams,
@@ -675,7 +620,6 @@ SELECT uniqExact(vid) AS completions FROM events`;
 	return toFiniteNumber(row?.completions, 0);
 };
 
-// Main funnel analytics — step matching, timing, and aggregation happen in ClickHouse
 export const processFunnelAnalytics = async (
 	steps: AnalyticsStep[],
 	filters: Filter[],
@@ -908,7 +852,6 @@ export const processGoalAnalytics = async (
 	};
 };
 
-// Referrer analytics — step matching in ClickHouse, referrer grouping in JS
 export const processFunnelAnalyticsByReferrer = async (
 	steps: AnalyticsStep[],
 	filters: Filter[],
@@ -976,7 +919,6 @@ HAVING max_step >= 1`;
 	};
 };
 
-// Get total unique visitors for a website in date range
 export const getTotalWebsiteUsers = async (
 	websiteId: string,
 	startDate: string,
@@ -993,11 +935,12 @@ export const getTotalWebsiteUsers = async (
 		(filter) => filter.field !== "event_name"
 	);
 	const filterSQL = buildFilterSQL(denominatorFilters, params, "event");
-	const eventVisitor = canonicalVisitorExpression("event", "event.time");
+	const eventVisitor = canonicalVisitorExpression("event");
 	const [result] = await chQuery<{ count: number }>(
-		`WITH ${visitorIdentityCtes}
+		`WITH ${visitorIdentityCtes},
+${directSessionMetaCtes}
 		 SELECT COUNT(DISTINCT ${eventVisitor}) as count
-		 FROM analytics.events event${identityJoins("event")}
+		 FROM analytics.events event${identityJoins("event", "event.time")}
 		 WHERE event.client_id = {websiteId:String}
 			AND event.time >= parseDateTimeBestEffort({startDate:String})
 			AND event.time <= parseDateTimeBestEffort({endDate:String})
