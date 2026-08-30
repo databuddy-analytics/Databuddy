@@ -227,6 +227,34 @@ async function enforcePublicRateLimit(
 	}
 }
 
+const httpUrl = z
+	.string()
+	.max(2048)
+	.url()
+	.refine(
+		(value) => value.startsWith("https://") || value.startsWith("http://"),
+		"URL must start with http:// or https://"
+	);
+
+const statusPageSlug = z
+	.string()
+	.min(1)
+	.max(100)
+	.regex(
+		/^[a-z0-9-]+$/,
+		"Slug must only contain lowercase letters, numbers, and dashes"
+	);
+
+function isUniqueViolation(error: unknown): boolean {
+	if (!error || typeof error !== "object") {
+		return false;
+	}
+	if ("code" in error && error.code === "23505") {
+		return true;
+	}
+	return "cause" in error ? isUniqueViolation(error.cause) : false;
+}
+
 interface DailyRow {
 	avg_response_time: number;
 	date: string;
@@ -348,7 +376,8 @@ async function _fetchStatusPageData(
 				eq(uptimeSchedules.isPaused, false)
 			)
 		)
-		.where(eq(statusPages.slug, slug));
+		.where(eq(statusPages.slug, slug))
+		.orderBy(statusPageMonitors.order, statusPageMonitors.id);
 
 	if (rows.length === 0) {
 		return null;
@@ -736,13 +765,13 @@ export const statusPageRouter = {
 		.input(
 			z.object({
 				organizationId: z.string(),
-				name: z.string(),
-				slug: z.string(),
-				description: z.string().optional(),
-				logoUrl: z.string().url().nullish(),
-				faviconUrl: z.string().url().nullish(),
-				websiteUrl: z.string().url().nullish(),
-				supportUrl: z.string().url().nullish(),
+				name: z.string().min(1).max(120),
+				slug: statusPageSlug,
+				description: z.string().max(500).optional(),
+				logoUrl: httpUrl.nullish(),
+				faviconUrl: httpUrl.nullish(),
+				websiteUrl: httpUrl.nullish(),
+				supportUrl: httpUrl.nullish(),
 				theme: z.enum(["system", "light", "dark"]).optional(),
 			})
 		)
@@ -764,18 +793,25 @@ export const statusPageRouter = {
 
 			const id = randomUUIDv7();
 
-			await db.insert(statusPages).values({
-				id,
-				organizationId: input.organizationId,
-				name: input.name,
-				slug: input.slug,
-				description: input.description,
-				logoUrl: input.logoUrl ?? null,
-				faviconUrl: input.faviconUrl ?? null,
-				websiteUrl: input.websiteUrl ?? null,
-				supportUrl: input.supportUrl ?? null,
-				theme: input.theme ?? "system",
-			});
+			try {
+				await db.insert(statusPages).values({
+					id,
+					organizationId: input.organizationId,
+					name: input.name,
+					slug: input.slug,
+					description: input.description,
+					logoUrl: input.logoUrl ?? null,
+					faviconUrl: input.faviconUrl ?? null,
+					websiteUrl: input.websiteUrl ?? null,
+					supportUrl: input.supportUrl ?? null,
+					theme: input.theme ?? "system",
+				});
+			} catch (error) {
+				if (isUniqueViolation(error)) {
+					throw rpcError.badRequest("Slug is already taken");
+				}
+				throw error;
+			}
 
 			return db.query.statusPages.findFirst({
 				where: { id },
@@ -798,13 +834,13 @@ export const statusPageRouter = {
 		.input(
 			z.object({
 				statusPageId: z.string(),
-				name: z.string().optional(),
-				slug: z.string().optional(),
-				description: z.string().optional(),
-				logoUrl: z.string().url().nullish(),
-				faviconUrl: z.string().url().nullish(),
-				websiteUrl: z.string().url().nullish(),
-				supportUrl: z.string().url().nullish(),
+				name: z.string().min(1).max(120).optional(),
+				slug: statusPageSlug.optional(),
+				description: z.string().max(500).optional(),
+				logoUrl: httpUrl.nullish(),
+				faviconUrl: httpUrl.nullish(),
+				websiteUrl: httpUrl.nullish(),
+				supportUrl: httpUrl.nullish(),
 				theme: z.enum(["system", "light", "dark"]).optional(),
 			})
 		)
@@ -825,28 +861,35 @@ export const statusPageRouter = {
 				}
 			}
 
-			await db
-				.update(statusPages)
-				.set({
-					...(input.name && { name: input.name }),
-					...(input.slug && { slug: input.slug }),
-					...(input.description !== undefined && {
-						description: input.description,
-					}),
-					...(input.logoUrl !== undefined && { logoUrl: input.logoUrl }),
-					...(input.faviconUrl !== undefined && {
-						faviconUrl: input.faviconUrl,
-					}),
-					...(input.websiteUrl !== undefined && {
-						websiteUrl: input.websiteUrl,
-					}),
-					...(input.supportUrl !== undefined && {
-						supportUrl: input.supportUrl,
-					}),
-					...(input.theme !== undefined && { theme: input.theme }),
-					updatedAt: new Date(),
-				})
-				.where(eq(statusPages.id, input.statusPageId));
+			try {
+				await db
+					.update(statusPages)
+					.set({
+						...(input.name && { name: input.name }),
+						...(input.slug && { slug: input.slug }),
+						...(input.description !== undefined && {
+							description: input.description,
+						}),
+						...(input.logoUrl !== undefined && { logoUrl: input.logoUrl }),
+						...(input.faviconUrl !== undefined && {
+							faviconUrl: input.faviconUrl,
+						}),
+						...(input.websiteUrl !== undefined && {
+							websiteUrl: input.websiteUrl,
+						}),
+						...(input.supportUrl !== undefined && {
+							supportUrl: input.supportUrl,
+						}),
+						...(input.theme !== undefined && { theme: input.theme }),
+						updatedAt: new Date(),
+					})
+					.where(eq(statusPages.id, input.statusPageId));
+			} catch (error) {
+				if (isUniqueViolation(error)) {
+					throw rpcError.badRequest("Slug is already taken");
+				}
+				throw error;
+			}
 
 			await invalidateStatusPageCache(statusPage.slug);
 			if (input.slug && input.slug !== statusPage.slug) {
@@ -1077,11 +1120,11 @@ export const statusPageRouter = {
 		.input(
 			z.object({
 				monitorId: z.string(),
-				displayName: z.string().nullable().optional(),
+				displayName: z.string().max(120).nullable().optional(),
 				hideUrl: z.boolean().optional(),
 				hideUptimePercentage: z.boolean().optional(),
 				hideLatency: z.boolean().optional(),
-				order: z.number().optional(),
+				order: z.number().int().min(0).max(100_000).optional(),
 			})
 		)
 		.handler(async ({ context, input }) => {
@@ -1143,9 +1186,9 @@ export const statusPageRouter = {
 		.input(
 			z.object({
 				statusPageId: z.string(),
-				title: z.string().min(1),
+				title: z.string().min(1).max(200),
 				severity: incidentSeverity.optional().default("minor"),
-				message: z.string().min(1),
+				message: z.string().min(1).max(5000),
 				affectedMonitors: z
 					.array(
 						z.object({
@@ -1239,7 +1282,7 @@ export const statusPageRouter = {
 			z.object({
 				incidentId: z.string(),
 				status: incidentStatus,
-				message: z.string().min(1),
+				message: z.string().min(1).max(5000),
 			})
 		)
 		.handler(async ({ context, input }) => {
@@ -1271,7 +1314,7 @@ export const statusPageRouter = {
 					.update(incidents)
 					.set({
 						status: input.status,
-						...(input.status === "resolved" ? { resolvedAt: new Date() } : {}),
+						resolvedAt: input.status === "resolved" ? new Date() : null,
 					})
 					.where(eq(incidents.id, input.incidentId));
 			});
