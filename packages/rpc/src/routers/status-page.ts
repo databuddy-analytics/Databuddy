@@ -1,4 +1,13 @@
-import { and, db, desc, eq, inArray, withTransaction } from "@databuddy/db";
+import {
+	and,
+	db,
+	desc,
+	eq,
+	inArray,
+	isUniqueViolationFor,
+	ne,
+	withTransaction,
+} from "@databuddy/db";
 import { chQuery } from "@databuddy/db/clickhouse";
 import {
 	incidentAffectedMonitors,
@@ -245,14 +254,16 @@ const statusPageSlug = z
 		"Slug must only contain lowercase letters, numbers, and dashes"
 	);
 
-function isUniqueViolation(error: unknown): boolean {
-	if (!error || typeof error !== "object") {
-		return false;
-	}
-	if ("code" in error && error.code === "23505") {
-		return true;
-	}
-	return "cause" in error ? isUniqueViolation(error.cause) : false;
+function isSlugConflict(error: unknown): boolean {
+	return isUniqueViolationFor(error, "status_pages_slug_unique");
+}
+
+function describeSchedules(
+	schedules: Array<{ id: string; name: string | null; url: string | null }>
+): string {
+	const names = schedules.slice(0, 3).map((s) => s.name || s.url || s.id);
+	const extra = schedules.length - names.length;
+	return extra > 0 ? `${names.join(", ")} and ${extra} more` : names.join(", ");
 }
 
 interface DailyRow {
@@ -807,7 +818,7 @@ export const statusPageRouter = {
 					theme: input.theme ?? "system",
 				});
 			} catch (error) {
-				if (isUniqueViolation(error)) {
+				if (isSlugConflict(error)) {
 					throw rpcError.badRequest("Slug is already taken");
 				}
 				throw error;
@@ -885,7 +896,7 @@ export const statusPageRouter = {
 					})
 					.where(eq(statusPages.id, input.statusPageId));
 			} catch (error) {
-				if (isUniqueViolation(error)) {
+				if (isSlugConflict(error)) {
 					throw rpcError.badRequest("Slug is already taken");
 				}
 				throw error;
@@ -963,12 +974,67 @@ export const statusPageRouter = {
 			});
 			setAuditOrganization(context, statusPage.organizationId);
 
-			const pageMonitors = await db.query.statusPageMonitors.findMany({
-				where: { statusPageId: input.statusPageId },
-				columns: { uptimeScheduleId: true },
-			});
-
 			await withTransaction(async (tx) => {
+				const pageMonitors = await tx
+					.select({ uptimeScheduleId: statusPageMonitors.uptimeScheduleId })
+					.from(statusPageMonitors)
+					.where(eq(statusPageMonitors.statusPageId, input.statusPageId));
+				const scheduleIds = pageMonitors.map((m) => m.uptimeScheduleId);
+
+				if (input.includeMonitors && scheduleIds.length > 0) {
+					const schedules = await tx
+						.select({
+							id: uptimeSchedules.id,
+							name: uptimeSchedules.name,
+							url: uptimeSchedules.url,
+							websiteId: uptimeSchedules.websiteId,
+						})
+						.from(uptimeSchedules)
+						.where(inArray(uptimeSchedules.id, scheduleIds));
+
+					const websiteBound = schedules.filter((s) => s.websiteId !== null);
+					if (websiteBound.length > 0) {
+						throw rpcError.badRequest(
+							`Cannot transfer website-linked monitors: ${describeSchedules(websiteBound)}. Transfer the website instead, or remove these monitors from the page first.`
+						);
+					}
+
+					const sharedRows = await tx
+						.selectDistinct({
+							uptimeScheduleId: statusPageMonitors.uptimeScheduleId,
+						})
+						.from(statusPageMonitors)
+						.where(
+							and(
+								inArray(statusPageMonitors.uptimeScheduleId, scheduleIds),
+								ne(statusPageMonitors.statusPageId, input.statusPageId)
+							)
+						);
+					if (sharedRows.length > 0) {
+						const sharedIds = new Set(
+							sharedRows.map((r) => r.uptimeScheduleId)
+						);
+						const shared = schedules.filter((s) => sharedIds.has(s.id));
+						throw rpcError.badRequest(
+							`Cannot transfer monitors used by other status pages: ${describeSchedules(shared)}. Remove them from the other pages first, or transfer without monitors.`
+						);
+					}
+
+					await tx
+						.update(uptimeSchedules)
+						.set({
+							organizationId: input.targetOrganizationId,
+							updatedAt: new Date(),
+						})
+						.where(inArray(uptimeSchedules.id, scheduleIds));
+				}
+
+				if (!input.includeMonitors && scheduleIds.length > 0) {
+					await tx
+						.delete(statusPageMonitors)
+						.where(eq(statusPageMonitors.statusPageId, input.statusPageId));
+				}
+
 				await tx
 					.update(statusPages)
 					.set({
@@ -976,20 +1042,6 @@ export const statusPageRouter = {
 						updatedAt: new Date(),
 					})
 					.where(eq(statusPages.id, input.statusPageId));
-
-				if (input.includeMonitors) {
-					const monitorIds = pageMonitors.map((m) => m.uptimeScheduleId);
-
-					if (monitorIds.length > 0) {
-						await tx
-							.update(uptimeSchedules)
-							.set({
-								organizationId: input.targetOrganizationId,
-								updatedAt: new Date(),
-							})
-							.where(inArray(uptimeSchedules.id, monitorIds));
-					}
-				}
 			});
 
 			await invalidateStatusPageCache(statusPage.slug);

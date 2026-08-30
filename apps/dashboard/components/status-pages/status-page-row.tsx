@@ -155,13 +155,19 @@ function StatusPageActions({
 				title="Transfer Status Page"
 				warning="The status page and its configuration will be transferred to {orgName}."
 			>
-				<div className="flex items-center justify-between rounded border p-3">
-					<Field.Label
-						className="cursor-pointer text-sm"
-						htmlFor="include-monitors-row"
-					>
-						Include all linked monitors
-					</Field.Label>
+				<div className="flex items-center justify-between gap-3 rounded border p-3">
+					<div className="min-w-0">
+						<Field.Label
+							className="cursor-pointer text-sm"
+							htmlFor="include-monitors-row"
+						>
+							Include all linked monitors
+						</Field.Label>
+						<p className="text-muted-foreground text-xs">
+							If off, monitors are removed from this page and stay in the
+							current organization.
+						</p>
+					</div>
 					<Switch
 						checked={includeMonitors}
 						id="include-monitors-row"
