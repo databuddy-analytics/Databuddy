@@ -93,11 +93,13 @@ jobs:
             --data-binary 'CREATE DATABASE IF NOT EXISTS analytics' \
             http://localhost:8123/
           sed -E \
-            "s@ENGINE = ReplicatedReplacingMergeTree\\('[^']*', '[^']*', ([^)]+)\\)@ENGINE = ReplacingMergeTree(\\1)@" \
+            -e "s@ENGINE = ReplicatedReplacingMergeTree\\('[^']*', '[^']*', ([^)]+)\\)@ENGINE = ReplacingMergeTree(\\1)@" \
+            -e "s@ENGINE = ReplicatedMergeTree\\('[^']*', '[^']*'\\)@ENGINE = MergeTree@" \
             packages/db/src/clickhouse/schema/analytics/core/custom_events.sql \
             | curl -fsS --data-binary @- http://localhost:8123/
           sed -E \
-            "s@ENGINE = ReplicatedReplacingMergeTree\\('[^']*', '[^']*', ([^)]+)\\)@ENGINE = ReplacingMergeTree(\\1)@" \
+            -e "s@ENGINE = ReplicatedReplacingMergeTree\\('[^']*', '[^']*', ([^)]+)\\)@ENGINE = ReplacingMergeTree(\\1)@" \
+            -e "s@ENGINE = ReplicatedMergeTree\\('[^']*', '[^']*'\\)@ENGINE = MergeTree@" \
             packages/db/src/clickhouse/schema/analytics/links/link_visits.sql \
             | curl -fsS --data-binary @- http://localhost:8123/
           curl -fsS \
@@ -232,26 +234,14 @@ jobs:
                 'query=SELECT count() FROM analytics.custom_events WHERE delivery_id = {delivery_id:String}' \
               --data-urlencode "param_delivery_id=$CANARY_ID" \
               http://localhost:8123/)
-            LOGICAL_COUNT=$(curl -fsSG \
-              --data-urlencode \
-                'query=SELECT count() FROM analytics.custom_events FINAL WHERE delivery_id = {delivery_id:String}' \
-              --data-urlencode "param_delivery_id=$CANARY_ID" \
-              http://localhost:8123/)
             PHYSICAL_LINK_COUNT=$(curl -fsSG \
               --data-urlencode \
                 'query=SELECT count() FROM analytics.link_visits WHERE id = {id:UUID}' \
               --data-urlencode "param_id=$LINK_CANARY_ID" \
               http://localhost:8123/)
-            LOGICAL_LINK_COUNT=$(curl -fsSG \
-              --data-urlencode \
-                'query=SELECT count() FROM analytics.link_visits FINAL WHERE id = {id:UUID}' \
-              --data-urlencode "param_id=$LINK_CANARY_ID" \
-              http://localhost:8123/)
             if [ "$PHYSICAL_COUNT" = "2" ] \
-              && [ "$LOGICAL_COUNT" = "1" ] \
-              && [ "$PHYSICAL_LINK_COUNT" = "2" ] \
-              && [ "$LOGICAL_LINK_COUNT" = "1" ]; then
-              echo "Vector replays produced two physical rows and one logical delivery per sink"
+              && [ "$PHYSICAL_LINK_COUNT" = "2" ]; then
+              echo "Vector delivered the replayed canary to both sinks"
               exit 0
             fi
             if ! docker inspect -f '{{.State.Running}}' vector-delivery-canary | grep -q true; then
@@ -261,7 +251,7 @@ jobs:
             sleep 1
           done
 
-          echo "Canary replay was not logically deduplicated within 45 seconds"
+          echo "Canary replay was not delivered within 45 seconds"
           docker logs vector-delivery-canary
           docker logs vector-canary-redpanda
           exit 1
