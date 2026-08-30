@@ -219,12 +219,52 @@ test.describe("SDK Functions", () => {
 			expect(result).toBeNull();
 		});
 
-		test("returns did_session from sessionStorage", async ({ page }) => {
+		test("returns did_session when the session is fresh", async ({ page }) => {
 			const result = await page.evaluate(() => {
 				sessionStorage.setItem("did_session", "sess-456");
+				sessionStorage.setItem(
+					"did_session_timestamp",
+					Date.now().toString()
+				);
 				return window.__SDK__.getSessionId();
 			});
 			expect(result).toBe("sess-456");
+		});
+
+		test("returns null when did_session has no timestamp", async ({ page }) => {
+			const result = await page.evaluate(() => {
+				sessionStorage.setItem("did_session", "sess-no-timestamp");
+				return window.__SDK__.getSessionId();
+			});
+			expect(result).toBeNull();
+		});
+
+		test("returns null when the session is older than 30 minutes", async ({
+			page,
+		}) => {
+			const result = await page.evaluate(() => {
+				sessionStorage.setItem("did_session", "sess-expired");
+				sessionStorage.setItem(
+					"did_session_timestamp",
+					(Date.now() - 31 * 60 * 1000).toString()
+				);
+				return window.__SDK__.getSessionId();
+			});
+			expect(result).toBeNull();
+		});
+
+		test("returns the session at exactly the 30 minute boundary as expired", async ({
+			page,
+		}) => {
+			const result = await page.evaluate(() => {
+				sessionStorage.setItem("did_session", "sess-boundary");
+				sessionStorage.setItem(
+					"did_session_timestamp",
+					(Date.now() - 30 * 60 * 1000).toString()
+				);
+				return window.__SDK__.getSessionId();
+			});
+			expect(result).toBeNull();
 		});
 
 		test("prioritizes URL param over sessionStorage", async ({ page }) => {
@@ -242,6 +282,10 @@ test.describe("SDK Functions", () => {
 			const result = await page.evaluate(() => {
 				localStorage.setItem("did", "anon-x");
 				sessionStorage.setItem("did_session", "sess-y");
+				sessionStorage.setItem(
+					"did_session_timestamp",
+					Date.now().toString()
+				);
 				return window.__SDK__.getTrackingIds();
 			});
 			expect(result.anonId).toBe("anon-x");
@@ -260,6 +304,10 @@ test.describe("SDK Functions", () => {
 			const result = await page.evaluate(() => {
 				localStorage.setItem("did", "anon-a");
 				sessionStorage.setItem("did_session", "sess-b");
+				sessionStorage.setItem(
+					"did_session_timestamp",
+					Date.now().toString()
+				);
 				return window.__SDK__.getTrackingParams();
 			});
 
@@ -342,6 +390,10 @@ test.describe("SDK Functions", () => {
 		}) => {
 			const result = await page.evaluate(() => {
 				sessionStorage.setItem("did_session", "sess-ok");
+				sessionStorage.setItem(
+					"did_session_timestamp",
+					Date.now().toString()
+				);
 				const { getItem } = Storage.prototype;
 				localStorage.getItem = () => {
 					throw new DOMException("Access denied", "SecurityError");
