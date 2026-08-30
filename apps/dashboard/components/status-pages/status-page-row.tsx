@@ -85,7 +85,7 @@ function StatusPageActions({
 			<DropdownMenu>
 				<DropdownMenu.Trigger
 					aria-label="Status page actions"
-					className="inline-flex size-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-interactive-hover hover:text-foreground group-hover:opacity-100 data-[state=open]:opacity-100"
+					className="inline-flex size-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-interactive-hover hover:text-foreground group-hover:opacity-100 data-popup-open:opacity-100"
 					data-dropdown-trigger
 				>
 					<DotsThreeIcon className="size-4" weight="bold" />
@@ -183,11 +183,7 @@ export function StatusPageRow({
 
 	const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
 		const target = e.target as HTMLElement;
-		if (
-			target.closest("[data-dropdown-trigger]") ||
-			target.closest("[data-radix-popper-content-wrapper]") ||
-			target.closest("a[target='_blank']")
-		) {
+		if (target.closest("[data-dropdown-trigger]")) {
 			e.preventDefault();
 		}
 	};

@@ -65,6 +65,11 @@ export default function StatusPageDetailsPage() {
 			toast.success("Monitor removed");
 			setMonitorToRemove(null);
 		},
+		onError: (error) => {
+			toast.error(
+				error instanceof Error ? error.message : "Failed to remove monitor"
+			);
+		},
 	});
 
 	const statusPage = statusPageQuery.data;
