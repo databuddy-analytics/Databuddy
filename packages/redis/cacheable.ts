@@ -60,16 +60,10 @@ export type CacheableFunction<
 	invalidateWithArgs: (knownArgs: unknown[]) => Promise<number>;
 };
 
-function deserialize(data: string, reviveDates: boolean): unknown {
-	if (!reviveDates) {
-		return JSON.parse(data);
-	}
-	return JSON.parse(data, (_, value) => {
-		if (typeof value === "string" && DATE_REGEX.test(value)) {
-			return new Date(value);
-		}
-		return value;
-	});
+function reviveIsoDates(_key: string, value: unknown): unknown {
+	return typeof value === "string" && DATE_REGEX.test(value)
+		? new Date(value)
+		: value;
 }
 
 function shouldSkipRedis(): boolean {
@@ -280,7 +274,10 @@ export function cacheable<
 			}
 
 			try {
-				return deserialize(cached, reviveDates) as Awaited<ReturnType<T>>;
+				return JSON.parse(
+					cached,
+					reviveDates ? reviveIsoDates : undefined
+				) as Awaited<ReturnType<T>>;
 			} catch {
 				// Corrupted cache data falls through to a cache miss
 			}
