@@ -199,7 +199,6 @@ const listPublicStatusPageSitemapEntries = cacheable(
 	{
 		expireInSec: 300,
 		prefix: cacheNamespaces.statusPage,
-		// Output is validated as ISO strings; cache hits must not revive Dates.
 		reviveDates: false,
 		staleWhileRevalidate: true,
 		staleTime: 60,
@@ -577,8 +576,6 @@ async function _fetchStatusPageData(
 const fetchStatusPageData = cacheable(_fetchStatusPageData, {
 	expireInSec: 60,
 	prefix: cacheNamespaces.statusPage,
-	// Output is validated as ISO strings (lastCheckedAt, incident timestamps);
-	// cache hits must not revive them into Date objects.
 	reviveDates: false,
 	staleWhileRevalidate: true,
 	staleTime: 30,

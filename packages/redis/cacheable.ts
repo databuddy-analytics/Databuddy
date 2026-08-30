@@ -42,13 +42,7 @@ interface CacheOptions<
 	expireInSec: number;
 	prefix?: string;
 	queryTimeoutMs?: number;
-	/**
-	 * Revive ISO-8601 timestamp strings into Date objects on cache hits.
-	 * Set to false when the cached value is validated against a schema that
-	 * expects strings (e.g. an oRPC output schema); otherwise cache hits return
-	 * Dates where the cache miss returned strings.
-	 * @default true
-	 */
+	/** Turn ISO timestamp strings into Dates on cache hits. Default true. */
 	reviveDates?: boolean;
 	staleTime?: number;
 	staleWhileRevalidate?: boolean;
