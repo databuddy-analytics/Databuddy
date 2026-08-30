@@ -71,6 +71,11 @@ function StatusPagesListPageContent() {
 			toast.success("Status page deleted");
 			setStatusPageToDelete(null);
 		},
+		onError: (error) => {
+			toast.error(
+				error instanceof Error ? error.message : "Failed to delete status page"
+			);
+		},
 	});
 
 	const clearCommandParam = useCallback(() => {
@@ -119,7 +124,7 @@ function StatusPagesListPageContent() {
 		sort,
 		statusFilter
 	);
-	const isLoading = statusPagesQuery.isLoading;
+	const isLoading = statusPagesQuery.isLoading || !resolvedOrgId;
 	const hasEmpty = statusPages.some((p) => p.monitorCount === 0);
 	const hasPages = statusPages.length > 0;
 	const noResults = !isLoading && hasPages && filtered.length === 0;
@@ -225,7 +230,11 @@ function StatusPagesListPageContent() {
 									{noResults ? (
 										<div className="px-5 py-12">
 											<EmptyState
-												description={`No status pages match \u201c${search}\u201d`}
+												description={
+													search
+														? `No status pages match \u201c${search}\u201d`
+														: "No status pages match the current filter"
+												}
 												icon={<MagnifyingGlassIcon weight="duotone" />}
 												title="No results"
 												variant="minimal"

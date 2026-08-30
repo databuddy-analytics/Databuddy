@@ -61,32 +61,33 @@ export function IncidentsTab({
 			toast.success("Incident deleted");
 			setDeleteTarget(null);
 		},
+		onError: (error) => {
+			toast.error(
+				error instanceof Error ? error.message : "Failed to delete incident"
+			);
+		},
 	});
-
-	if (incidentsQuery.isLoading) {
-		return (
-			<div className="divide-y">
-				{Array.from({ length: 2 }).map((_, i) => (
-					<div
-						className="flex items-center gap-4 px-5 py-3"
-						key={`inc-skel-${i + 1}`}
-					>
-						<Skeleton className="size-8 shrink-0 rounded-lg" />
-						<div className="min-w-0 flex-1 space-y-1.5">
-							<Skeleton className="h-4 w-48" />
-							<Skeleton className="h-3 w-72" />
-						</div>
-					</div>
-				))}
-			</div>
-		);
-	}
 
 	const incidents = incidentsQuery.data ?? [];
 
 	return (
 		<>
-			{incidents.length === 0 ? (
+			{incidentsQuery.isLoading ? (
+				<div className="divide-y">
+					{Array.from({ length: 2 }).map((_, i) => (
+						<div
+							className="flex items-center gap-4 px-5 py-3"
+							key={`inc-skel-${i + 1}`}
+						>
+							<Skeleton className="size-8 shrink-0 rounded-lg" />
+							<div className="min-w-0 flex-1 space-y-1.5">
+								<Skeleton className="h-4 w-48" />
+								<Skeleton className="h-3 w-72" />
+							</div>
+						</div>
+					))}
+				</div>
+			) : incidents.length === 0 ? (
 				<div className="px-5 py-12">
 					<EmptyState
 						action={

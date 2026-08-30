@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 import { serializeJsonLd } from "@databuddy/shared/json-ld";
 import { ThemeProvider } from "next-themes";
 import { DATABUDDY_UPTIME_URL, getStatusPageUrl } from "@/lib/status-url";
@@ -15,21 +16,34 @@ interface StatusPageProps {
 
 const DAYS = 90;
 
-async function getStatusData(slug: string) {
-	try {
-		return await rpcClient.statusPage.getBySlug({ slug, days: DAYS });
-	} catch (error) {
-		if (
-			error &&
-			typeof error === "object" &&
-			"code" in error &&
-			error.code === "NOT_FOUND"
-		) {
-			return null;
-		}
-		throw error;
-	}
+const MAX_FETCH_ATTEMPTS = 3;
+
+function isNotFoundError(error: unknown): boolean {
+	return (
+		!!error &&
+		typeof error === "object" &&
+		"code" in error &&
+		error.code === "NOT_FOUND"
+	);
 }
+
+const getStatusData = cache(async (slug: string) => {
+	let lastError: unknown;
+	for (let attempt = 0; attempt < MAX_FETCH_ATTEMPTS; attempt++) {
+		if (attempt > 0) {
+			await new Promise((resolve) => setTimeout(resolve, attempt * 500));
+		}
+		try {
+			return await rpcClient.statusPage.getBySlug({ slug, days: DAYS });
+		} catch (error) {
+			if (isNotFoundError(error)) {
+				return null;
+			}
+			lastError = error;
+		}
+	}
+	throw lastError;
+});
 
 function slugify(text: string): string {
 	return text
