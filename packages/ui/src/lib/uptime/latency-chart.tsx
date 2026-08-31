@@ -1,7 +1,7 @@
 "use client";
 
-import { AnimatePresence, motion } from "motion/react";
-import { useId, useMemo } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { useId, useMemo, useRef } from "react";
 import {
 	Area,
 	AreaChart,
@@ -31,6 +31,8 @@ interface LatencyChartProps {
 
 const CHART_HEIGHT_PX = 140;
 const CHART_BLOCK_MIN_PX = CHART_HEIGHT_PX;
+const EXPO_OUT: [number, number, number, number] = [0.16, 1, 0.3, 1];
+const DURATION_BASE_S = 0.2;
 
 const METRICS = [
 	{
@@ -227,14 +229,20 @@ export function LatencyChart({
 	storageKey,
 }: LatencyChartProps) {
 	const [isOpen, setIsOpen] = usePersistentState(storageKey, false);
+	const hasInteractedRef = useRef(false);
+	const reduceMotion = useReducedMotion();
 	const chartData = useMemo(() => toChartData(data), [data]);
 	const summary = useMemo(() => computeSummary(chartData), [chartData]);
+	const shouldAnimate = hasInteractedRef.current && !reduceMotion;
 
 	return (
 		<div className="text-foreground">
 			<button
-				className="mt-1.5 flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-left outline-none transition-colors hover:bg-background/60 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
-				onClick={() => setIsOpen((prev) => !prev)}
+				className="mt-1.5 flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-left outline-none transition-colors duration-(--duration-quick) ease-(--ease-smooth) hover:bg-background/60 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
+				onClick={() => {
+					hasInteractedRef.current = true;
+					setIsOpen((prev) => !prev);
+				}}
 				type="button"
 			>
 				<span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-background/70 text-muted-foreground ring-1 ring-border/60">
@@ -262,7 +270,7 @@ export function LatencyChart({
 
 				<CaretDownIcon
 					className={cn(
-						"size-3 shrink-0 text-muted-foreground transition-transform duration-150",
+						"size-3 shrink-0 text-muted-foreground transition-transform duration-(--duration-base) ease-(--expo-out)",
 						isOpen && "rotate-180"
 					)}
 					weight="fill"
@@ -276,7 +284,10 @@ export function LatencyChart({
 						className="overflow-hidden"
 						exit={{ height: 0, opacity: 0 }}
 						initial={{ height: 0, opacity: 0 }}
-						transition={{ duration: 0.2, ease: "easeOut" }}
+						transition={{
+							duration: shouldAnimate ? DURATION_BASE_S : 0,
+							ease: EXPO_OUT,
+						}}
 					>
 						<div className="px-2 pt-1 pb-2">
 							<div
@@ -423,6 +434,7 @@ function LatencyAreaChart({ data }: { data: ChartDataPoint[] }) {
 								connectNulls
 								dataKey={m.key}
 								dot={false}
+								isAnimationActive={false}
 								fill={`url(#${gradientId(m.key)})`}
 								key={m.key}
 								name={m.label}

@@ -43,7 +43,7 @@ export interface UptimeHeatmapStripProps {
 
 const TOOLTIP_WIDTH = 224;
 const TOOLTIP_GUTTER = 12;
-const TOOLTIP_HIDE_MS = 120;
+const TOOLTIP_HIDE_MS = 150;
 const TOOLTIP_Z_INDEX = 2_147_483_647;
 
 const SEGMENT_COLORS: Record<UptimeSeverity, string> = {
@@ -173,15 +173,17 @@ function formatLongDate(date: Date): string {
 }
 
 function getTooltipTransform(state: TooltipState, isVisible: boolean) {
+	const position = `translate3d(${state.left}px, ${state.top}px, 0)`;
+
 	if (state.above) {
 		return isVisible
-			? "translate(-50%, -100%) scale(1)"
-			: "translate(-50%, calc(-100% + 4px)) scale(0.96)";
+			? `${position} translate(-50%, -100%) scale(1)`
+			: `${position} translate(-50%, calc(-100% + 4px)) scale(0.96)`;
 	}
 
 	return isVisible
-		? "translate(-50%, 0) scale(1)"
-		: "translate(-50%, 4px) scale(0.96)";
+		? `${position} translate(-50%, 0) scale(1)`
+		: `${position} translate(-50%, 4px) scale(0.96)`;
 }
 
 function SegmentTooltip({
@@ -206,19 +208,17 @@ function SegmentTooltip({
 
 	return (
 		<div
-			className="pointer-events-none fixed w-56 overflow-hidden rounded-xl border border-border/80 bg-popover text-popover-foreground opacity-0 shadow-[0_24px_80px_-36px_rgba(0,0,0,0.72)] transition-[left,top,opacity,transform] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none"
+			className="pointer-events-none fixed top-0 left-0 w-56 overflow-hidden rounded-xl border border-border/80 bg-popover text-popover-foreground opacity-0 shadow-[0_24px_80px_-36px_rgba(0,0,0,0.72)] transition-[opacity,transform] duration-(--duration-quick) ease-(--ease-smooth) motion-reduce:transition-none"
 			role="tooltip"
 			style={{
-				left: state.left,
 				opacity: isVisible ? 1 : 0,
-				top: state.top,
 				transform: getTooltipTransform(state, isVisible),
 				transformOrigin: state.above ? "bottom center" : "top center",
 				zIndex: TOOLTIP_Z_INDEX,
 			}}
 		>
 			<div
-				className="border-border/60 border-b px-3.5 py-3 text-popover-foreground transition-colors duration-200"
+				className="border-border/60 border-b px-3.5 py-3 text-popover-foreground transition-colors duration-(--duration-quick) ease-(--ease-smooth)"
 				style={{
 					background: meta.background,
 				}}
@@ -422,7 +422,7 @@ function SegmentedUptimeStrip({
 				}}
 			>
 				<div
-					className="pointer-events-none absolute inset-y-0 transition-[left,opacity] duration-100 ease-[cubic-bezier(0.2,0,0,1)]"
+					className="pointer-events-none absolute inset-y-0 transition-[left,opacity] duration-(--duration-quick) ease-(--ease-smooth)"
 					style={{
 						background:
 							"var(--status-bar-active-overlay, color-mix(in oklab, var(--foreground) 22%, transparent))",
@@ -542,7 +542,7 @@ function CellUptimeStrip({
 				{days.map((day) => (
 					<div
 						className={cn(
-							"h-full flex-1 rounded-sm transition-colors",
+							"h-full flex-1 rounded-sm transition-colors duration-(--duration-quick) ease-(--ease-smooth)",
 							getUptimeHeatmapCellClass({
 								uptimePercent: day.uptime,
 								hasData: day.hasData,
@@ -571,7 +571,7 @@ function CellUptimeStrip({
 				{days.map((day, i) => (
 					<div
 						className={cn(
-							"h-full flex-1 rounded-sm transition-colors",
+							"h-full flex-1 rounded-sm transition-colors duration-(--duration-quick) ease-(--ease-smooth)",
 							getUptimeHeatmapCellClass({
 								uptimePercent: day.uptime,
 								hasData: day.hasData,
@@ -587,7 +587,7 @@ function CellUptimeStrip({
 
 			{activeDay && (
 				<div
-					className="pointer-events-none absolute bottom-full mb-2"
+					className="pointer-events-none absolute bottom-full mb-2 transition-opacity duration-(--duration-instant) ease-(--ease-smooth) starting:opacity-0 motion-reduce:transition-none"
 					style={{
 						left: pos.x,
 						transform: "translateX(-50%)",
