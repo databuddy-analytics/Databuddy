@@ -70,11 +70,11 @@ describe("canonical visitor resolution", () => {
 		const order = [
 			"row.profile_id",
 			"session_pairs.profile_id",
-			"session_identity.first_profile",
+			"row.first_profile",
 			"direct_profile.profile_id",
 			"session_profile.profile_id",
 			"row.anonymous_id",
-			"session_identity.mapped_anonymous_id",
+			"row.mapped_anonymous_id",
 		];
 		const positions = order.map((needle) => expr.indexOf(needle));
 		for (const position of positions) {
@@ -87,7 +87,10 @@ describe("canonical visitor resolution", () => {
 		const joins = identityJoins("row");
 		expect(joins.match(/ASOF LEFT JOIN/g)?.length).toBe(3);
 		expect(joins.match(/identity_time <= row\.identity_time/g)?.length).toBe(3);
-		expect(joins).toContain("LEFT JOIN session_meta session_identity");
+		expect(joins).not.toContain("session_meta");
+		expect(joins).toContain(
+			"ON row.mapped_anonymous_id = session_profile.anonymous_id"
+		);
 		expect(joins).not.toContain("arrayLast");
 		expect(identityJoins("e", "e.time")).toContain("identity_time <= e.time");
 	});
@@ -104,7 +107,25 @@ describe("canonical visitor resolution", () => {
 
 	it("session meta keeps the first-identify backfill and latest-device mapping", () => {
 		const cte = sessionMetaCte("rows");
-		expect(cte).toContain("argMinIf(profile_id, identity_time, profile_id != '') AS first_profile");
-		expect(cte).toContain("argMaxIf(anonymous_id, identity_time, anonymous_id != '') AS mapped_anonymous_id");
+		expect(cte).toContain(
+			"argMinIf(profile_id, identity_time, profile_id != '') OVER (PARTITION BY session_id)"
+		);
+		expect(cte).toContain(
+			"argMaxIf(anonymous_id, identity_time, anonymous_id != '') OVER (PARTITION BY session_id)"
+		);
+		expect(cte).toContain("AS first_profile");
+		expect(cte).toContain("AS mapped_anonymous_id");
+	});
+
+	it("computes session identity in one pass without a second scan", () => {
+		const cte = sessionMetaCte("rows");
+		expect(cte).toContain("FROM rows");
+		expect(cte).not.toContain("GROUP BY");
+		expect(cte.match(/FROM /g)?.length).toBe(1);
+	});
+
+	it("never groups rows that carry no session together", () => {
+		const cte = sessionMetaCte("rows");
+		expect(cte.match(/if\(session_id != ''/g)?.length).toBe(2);
 	});
 });
