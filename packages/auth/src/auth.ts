@@ -1,5 +1,4 @@
 import { createHmac, randomUUID } from "node:crypto";
-import { redisStorage } from "@better-auth/redis-storage";
 import {
 	defineRequestState,
 	runWithTransaction,
@@ -33,7 +32,6 @@ import {
 import { billingMode, config, readBooleanEnv } from "@databuddy/env/app";
 import { SlackProvider } from "@databuddy/notifications";
 import {
-	getRedisCache,
 	invalidateOrganizationMembershipCaches,
 	ratelimit,
 } from "@databuddy/redis";
@@ -77,6 +75,7 @@ import { maskEmail } from "evlog/better-auth";
 import { Resend } from "resend";
 import { ac, admin, member, owner, viewer } from "./permissions";
 import { getAuthAuditContext, runWithAuthAuditContext } from "./audit-context";
+import { createAuthSecondaryStorage } from "./auth-redis-storage";
 
 function generateOrgSlug(name: string): string {
 	const base = name
@@ -799,10 +798,7 @@ export const baseAuthOptions = {
 		schema,
 		transaction: true,
 	}),
-	secondaryStorage: redisStorage({
-		client: getRedisCache(),
-		keyPrefix: "ba:",
-	}),
+	secondaryStorage: createAuthSecondaryStorage(),
 	session: {
 		storeSessionInDatabase: true,
 	},

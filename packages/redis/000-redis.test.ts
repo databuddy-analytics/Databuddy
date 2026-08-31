@@ -8,6 +8,7 @@ process.env.REDIS_URL = "redis://test-host:6379";
 
 const {
 	getRedisCache,
+	runAuthCacheCommand,
 	runLinkCacheCommand,
 	runRateLimitCommand,
 	shutdownRedis,
@@ -96,6 +97,42 @@ describe("redis", () => {
 			await expect(
 				runRateLimitCommand(async () => "unreachable")
 			).rejects.toThrow();
+
+			const linkCacheError = await runLinkCacheCommand(
+				async () => "value"
+			).catch((caught: Error) => caught);
+			expect(linkCacheError).toBeInstanceOf(Error);
+			expect(linkCacheError.message).not.toContain("failing fast");
+		});
+	});
+	describe("auth cache fail-fast", () => {
+		afterAll(async () => {
+			await shutdownRedis();
+		});
+
+		it("rejects immediately after a recent failure without running the operation", async () => {
+			await expect(
+				runAuthCacheCommand(async () => {
+					throw new Error("redis down");
+				})
+			).rejects.toThrow("redis down");
+
+			const operation = mock(async () => "value");
+			const startedAt = performance.now();
+			await expect(runAuthCacheCommand(operation)).rejects.toThrow(
+				"failing fast"
+			);
+			expect(performance.now() - startedAt).toBeLessThan(100);
+			expect(operation).not.toHaveBeenCalled();
+		});
+
+		it("tracks its window independently of the link cache", async () => {
+			await shutdownRedis();
+			await expect(
+				runAuthCacheCommand(async () => {
+					throw new Error("redis down");
+				})
+			).rejects.toThrow("redis down");
 
 			const linkCacheError = await runLinkCacheCommand(
 				async () => "value"
