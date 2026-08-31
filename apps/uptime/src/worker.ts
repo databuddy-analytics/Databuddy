@@ -26,6 +26,11 @@ import {
 	checkUptime,
 	lookupSchedule,
 } from "./actions";
+import {
+	type MonitorState,
+	type MonitorStateLookup,
+	writeMonitorState,
+} from "./lib/monitor-state";
 import { sendUptimeEvent } from "./lib/producer";
 import { captureError } from "./lib/tracing";
 import {
@@ -40,7 +45,6 @@ import {
 import {
 	fireTransitionAlerts,
 	getPreviousMonitorState,
-	type PreviousMonitorState,
 } from "./uptime-transition-alerts";
 
 class ScheduleNotFound extends Data.TaggedError("ScheduleNotFound")<{
@@ -92,12 +96,11 @@ export interface UptimeWorkerDeps {
 		transition_kind: "down" | "recovered" | null;
 		alarms_fired: number;
 	}>;
-	getPreviousMonitorState: (
-		monitorId: string
-	) => Promise<PreviousMonitorState | undefined>;
+	getPreviousMonitorState: (monitorId: string) => Promise<MonitorStateLookup>;
 	lookupSchedule: (scheduleId: string) => Promise<ActionResult<ScheduleData>>;
 	reapOrphanScheduler: (scheduleId: string) => Promise<void>;
 	sendUptimeEvent: (event: unknown, key?: string) => Promise<void>;
+	setMonitorState: (monitorId: string, state: MonitorState) => Promise<void>;
 }
 
 const uptimeWorkerDeps: UptimeWorkerDeps = {
@@ -115,6 +118,7 @@ const uptimeWorkerDeps: UptimeWorkerDeps = {
 	lookupSchedule,
 	reapOrphanScheduler: defaultReapOrphanScheduler,
 	sendUptimeEvent,
+	setMonitorState: writeMonitorState,
 	fireTransitionAlerts,
 };
 
@@ -234,21 +238,42 @@ const runCheck = (
 
 const fetchPreviousState = (monitorId: string, deps: UptimeWorkerDeps) =>
 	Effect.tryPromise(() => deps.getPreviousMonitorState(monitorId)).pipe(
-		Effect.orElseSucceed(() => undefined)
+		Effect.orElseSucceed(() => ({ kind: "unavailable" }) as MonitorStateLookup)
 	);
 
 export function resolveFailureStreak(
 	status: number,
-	previous: PreviousMonitorState | undefined
+	previous: MonitorStateLookup
 ): number {
 	if (status !== MonitorStatus.DOWN) {
 		return 0;
 	}
-	if (previous?.status === MonitorStatus.DOWN) {
-		return previous.failureStreak + 1;
+	if (previous.kind === "found") {
+		return previous.state.status === MonitorStatus.DOWN
+			? previous.state.failureStreak + 1
+			: 1;
 	}
 	return 1;
 }
+
+const persistMonitorState = (
+	monitorId: string,
+	data: UptimeData,
+	deps: UptimeWorkerDeps
+) =>
+	Effect.tryPromise(() =>
+		deps
+			.setMonitorState(monitorId, {
+				failureStreak: data.failure_streak,
+				status: data.status,
+			})
+			.catch((cause: unknown) => {
+				deps.captureError(cause, {
+					error_step: "monitor_state_persist",
+					event_id: data.event_id,
+				});
+			})
+	).pipe(Effect.orElseSucceed(() => undefined));
 
 type UptimeEventCheckpoint = (data: UptimeData) => Promise<void>;
 
@@ -402,10 +427,18 @@ const processCheck = (
 			failure_streak: resolveFailureStreak(checked.status, previousState),
 		};
 
+		yield* timed(
+			"monitor_state_persist",
+			persistMonitorState(monitorId, data, deps),
+			log
+		);
+
 		log.set({
 			event_id: data.event_id,
 			outcome: data.status === MonitorStatus.UP ? "up" : "down",
-			previous_uptime_status: previousState?.status ?? -1,
+			previous_state_source: previousState.kind,
+			previous_uptime_status:
+				previousState.kind === "found" ? previousState.state.status : -1,
 			monitor_status: data.status,
 			check_attempt: data.attempt,
 			check_retries: data.retries,

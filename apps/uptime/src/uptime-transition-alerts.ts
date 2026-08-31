@@ -12,9 +12,14 @@ import {
 	NotificationClient,
 	buildAlarmNotificationTargets,
 } from "@databuddy/notifications";
-import { Data, Effect, Option } from "effect";
+import { Data, Effect } from "effect";
 import type { ScheduleData } from "./actions";
 import { UPTIME_ENV } from "./lib/env";
+import {
+	type MonitorState,
+	type MonitorStateLookup,
+	readMonitorState,
+} from "./lib/monitor-state";
 import { captureError } from "./lib/tracing";
 import { MonitorStatus, type UptimeData } from "./types";
 
@@ -389,15 +394,12 @@ const sendToAlarm = (
 	});
 };
 
-export interface PreviousMonitorState {
-	failureStreak: number;
-	status: number;
-}
+export type PreviousMonitorState = MonitorState;
 
 const queryPreviousState = (siteId: string) =>
 	Effect.gen(function* () {
 		if (!process.env.CLICKHOUSE_URL) {
-			return Option.none<PreviousMonitorState>();
+			return { kind: "missing" } as MonitorStateLookup;
 		}
 
 		const rows = yield* Effect.tryPromise({
@@ -406,6 +408,7 @@ const queryPreviousState = (siteId: string) =>
 					`SELECT status, failure_streak
        FROM uptime.uptime_monitor
        WHERE site_id = {siteId:String}
+         AND timestamp > now() - INTERVAL 30 DAY
        ORDER BY timestamp DESC
        LIMIT 1`,
 					{ siteId }
@@ -414,17 +417,24 @@ const queryPreviousState = (siteId: string) =>
 		}).pipe(
 			Effect.catchTag("PreviousStateQueryError", (e) => {
 				captureError(e.cause, { error_step: "previous_monitor_state" });
-				return Effect.succeed<{ failure_streak: number; status: number }[]>([]);
+				return Effect.succeed(null);
 			})
 		);
 
+		if (rows === null) {
+			return { kind: "unavailable" } as MonitorStateLookup;
+		}
+
 		const first = rows[0];
 		return first
-			? Option.some({
-					failureStreak: first.failure_streak,
-					status: first.status,
-				})
-			: Option.none<PreviousMonitorState>();
+			? ({
+					kind: "found",
+					state: {
+						failureStreak: first.failure_streak,
+						status: first.status,
+					},
+				} as MonitorStateLookup)
+			: ({ kind: "missing" } as MonitorStateLookup);
 	});
 
 const handleTransition = (options: {
@@ -532,9 +542,18 @@ const handleTransition = (options: {
 
 export async function getPreviousMonitorState(
 	siteId: string
-): Promise<PreviousMonitorState | undefined> {
-	const option = await Effect.runPromise(queryPreviousState(siteId));
-	return Option.getOrUndefined(option);
+): Promise<MonitorStateLookup> {
+	const cached = await readMonitorState(siteId);
+	if (cached.kind === "found") {
+		return cached;
+	}
+
+	const stored = await Effect.runPromise(queryPreviousState(siteId));
+	if (stored.kind !== "missing") {
+		return stored;
+	}
+
+	return cached.kind === "unavailable" ? cached : { kind: "missing" };
 }
 
 export function fireTransitionAlerts(options: {
