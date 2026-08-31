@@ -421,6 +421,8 @@ async function insertClickHouseChunks(
 						format: "JSONEachRow",
 						abort_signal: controller.signal,
 						clickhouse_settings: {
+							async_insert: 1,
+							wait_for_async_insert: 1,
 							insert_deduplication_token: deduplicationToken,
 						},
 						query_id: `basket-${deduplicationToken}`,

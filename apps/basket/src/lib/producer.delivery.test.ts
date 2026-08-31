@@ -91,6 +91,8 @@ describe("producer delivery guarantees", () => {
 		expect(insert).toHaveBeenCalledWith(
 			expect.objectContaining({
 				clickhouse_settings: {
+					async_insert: 1,
+					wait_for_async_insert: 1,
 					insert_deduplication_token: expect.stringMatching(/^[\da-f]{64}$/),
 				},
 				format: "JSONEachRow",
