@@ -11,7 +11,7 @@ FROM oven/bun:1.3.14-slim AS builder
 WORKDIR /app
 
 COPY --from=pruner /app/out/json/ .
-RUN bun install --ignore-scripts
+RUN bun install --frozen-lockfile --ignore-scripts
 
 COPY --from=pruner /app/out/full/ .
 COPY --from=pruner /app/tsconfig ./tsconfig

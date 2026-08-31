@@ -11,7 +11,7 @@ FROM oven/bun:1.3.14-slim AS builder
 WORKDIR /app
 
 COPY --from=pruner /app/out/json/ .
-RUN bun install --ignore-scripts
+RUN bun install --frozen-lockfile --ignore-scripts
 
 COPY --from=pruner /app/out/full/ .
 COPY turbo.json turbo.json
@@ -35,7 +35,7 @@ FROM oven/bun:1.3.14-slim AS smoke
 WORKDIR /app
 
 COPY --from=builder /app/server server
-COPY --from=builder /app/apps/uptime/scripts/smoke.ts smoke.ts
+COPY --from=pruner /app/scripts/smoke-health.ts smoke.ts
 
 # Boots the compiled binary and drives /health/status through the Effect
 # runtime. Catches minification breakage (the `z0.async is not a function`
@@ -47,7 +47,7 @@ RUN (APP_ENV=smoke PORT=4100 \
 	./server &) && \
 	ok=""; \
 	for attempt in $(seq 1 40); do \
-	if bun smoke.ts; then ok=1; break; fi; \
+	if bun smoke.ts http://127.0.0.1:4100/health/status; then ok=1; break; fi; \
 	sleep 0.5; \
 	done; \
 	[ -n "$ok" ]
