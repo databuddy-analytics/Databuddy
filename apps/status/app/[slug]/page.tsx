@@ -73,6 +73,7 @@ export async function generateMetadata({
 		`Live uptime, incident history, and service health for ${data.organization.name}.`;
 	const url = getStatusPageUrl(slug);
 	const faviconUrl = data.statusPage.faviconUrl;
+	const isIndexable = data.monitors.length > 0;
 
 	return {
 		title,
@@ -104,11 +105,11 @@ export async function generateMetadata({
 			siteName: data.organization.name,
 		},
 		robots: {
-			index: true,
-			follow: true,
+			index: isIndexable,
+			follow: isIndexable,
 			googleBot: {
-				index: true,
-				follow: true,
+				index: isIndexable,
+				follow: isIndexable,
 				"max-image-preview": "large",
 				"max-snippet": -1,
 				"max-video-preview": -1,

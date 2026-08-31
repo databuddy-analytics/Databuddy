@@ -189,11 +189,20 @@ const PUBLIC_SITEMAP_LIMIT = 1000;
 
 async function _listPublicStatusPageSitemapEntries() {
 	const rows = await db
-		.select({
+		.selectDistinct({
 			slug: statusPages.slug,
 			updatedAt: statusPages.updatedAt,
 		})
 		.from(statusPages)
+		.innerJoin(
+			statusPageMonitors,
+			eq(statusPageMonitors.statusPageId, statusPages.id)
+		)
+		.innerJoin(
+			uptimeSchedules,
+			eq(uptimeSchedules.id, statusPageMonitors.uptimeScheduleId)
+		)
+		.where(eq(uptimeSchedules.isPaused, false))
 		.orderBy(desc(statusPages.updatedAt))
 		.limit(PUBLIC_SITEMAP_LIMIT);
 
@@ -445,40 +454,64 @@ async function _fetchStatusPageData(
 	const ninetyDaysAgoDate = new Date();
 	ninetyDaysAgoDate.setDate(ninetyDaysAgoDate.getDate() - 90);
 
-	const [websiteRows, allDailyData, allRecentChecks, recentIncidents] =
-		await Promise.all([
-			websiteIds.length > 0
-				? db
-						.select({
-							id: websites.id,
-							domain: websites.domain,
-							name: websites.name,
-						})
-						.from(websites)
-						.where(inArray(websites.id, websiteIds))
-				: Promise.resolve([]),
-			siteIds.length > 0
-				? chQuery<DailyRow>(DAILY_UPTIME_SQL, { siteIds, startDate, endDate })
-				: Promise.resolve([]),
-			siteIds.length > 0
-				? chQuery<LatestCheckRow>(LATEST_CHECK_SQL, { siteIds })
-				: Promise.resolve([]),
-			db.query.incidents.findMany({
-				where: {
-					statusPageId: rows[0].statusPageId,
-					createdAt: { gte: ninetyDaysAgoDate },
-				},
-				orderBy: { createdAt: "desc" },
-				limit: 50,
-				with: {
-					updates: {
-						orderBy: { createdAt: "desc" },
-						limit: 20,
-					},
-					affectedMonitors: true,
-				},
-			}),
-		]);
+	const incidentRelations = {
+		updates: {
+			orderBy: { createdAt: "desc" },
+			limit: 20,
+		},
+		affectedMonitors: true,
+	} as const;
+
+	const [
+		websiteRows,
+		allDailyData,
+		allRecentChecks,
+		windowedIncidents,
+		unresolvedIncidents,
+	] = await Promise.all([
+		websiteIds.length > 0
+			? db
+					.select({
+						id: websites.id,
+						domain: websites.domain,
+						name: websites.name,
+					})
+					.from(websites)
+					.where(inArray(websites.id, websiteIds))
+			: Promise.resolve([]),
+		siteIds.length > 0
+			? chQuery<DailyRow>(DAILY_UPTIME_SQL, { siteIds, startDate, endDate })
+			: Promise.resolve([]),
+		siteIds.length > 0
+			? chQuery<LatestCheckRow>(LATEST_CHECK_SQL, { siteIds })
+			: Promise.resolve([]),
+		db.query.incidents.findMany({
+			where: {
+				statusPageId: rows[0].statusPageId,
+				createdAt: { gte: ninetyDaysAgoDate },
+			},
+			orderBy: { createdAt: "desc" },
+			limit: 50,
+			with: incidentRelations,
+		}),
+		db.query.incidents.findMany({
+			where: {
+				statusPageId: rows[0].statusPageId,
+				status: { ne: "resolved" },
+			},
+			orderBy: { createdAt: "desc" },
+			limit: 50,
+			with: incidentRelations,
+		}),
+	]);
+
+	const recentIncidents = [
+		...new Map(
+			[...unresolvedIncidents, ...windowedIncidents].map(
+				(incident) => [incident.id, incident] as const
+			)
+		).values(),
+	].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
 	const websiteMap = new Map(websiteRows.map((w) => [w.id, w] as const));
 
@@ -1364,12 +1397,14 @@ export const statusPageRouter = {
 					message: input.message,
 				});
 
+				const resolvedAt =
+					input.status === "resolved"
+						? (incident.resolvedAt ?? new Date())
+						: null;
+
 				await tx
 					.update(incidents)
-					.set({
-						status: input.status,
-						resolvedAt: input.status === "resolved" ? new Date() : null,
-					})
+					.set({ status: input.status, resolvedAt })
 					.where(eq(incidents.id, input.incidentId));
 			});
 
