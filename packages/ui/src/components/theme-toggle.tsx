@@ -4,7 +4,7 @@ import { useTheme } from "next-themes";
 import { Button } from "./button";
 import { Tooltip } from "./tooltip";
 import { cn } from "../lib/utils";
-import { MonitorIcon, MoonIcon, SunIcon } from "./icons/nucleo";
+import { MonitorIcon, MoonIcon, SunIcon } from "./icons";
 
 const CYCLE = ["system", "light", "dark"] as const;
 

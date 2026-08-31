@@ -14,7 +14,7 @@ import {
 import { Skeleton } from "../../components/skeleton";
 import { cn } from "../utils";
 import { usePersistentState } from "../../hooks/use-persistent-state";
-import { CaretDownIcon, ChartActivityIcon } from "../../components/icons/nucleo";
+import { CaretDownIcon, ChartActivityIcon } from "../../components/icons";
 
 interface LatencyDataPoint {
 	avg_response_time?: number;
@@ -129,7 +129,9 @@ function getMetricLabel(dataKey: unknown) {
 		return "";
 	}
 
-	return METRICS.find((metric) => metric.key === dataKey)?.label ?? String(dataKey);
+	return (
+		METRICS.find((metric) => metric.key === dataKey)?.label ?? String(dataKey)
+	);
 }
 
 function getSummaryValue(
@@ -190,17 +192,15 @@ function LatencyTooltipContent({
 	label?: unknown;
 	payload?: readonly LatencyTooltipEntry[];
 }) {
-	if (!active || !payload?.length) {
+	if (!(active && payload?.length)) {
 		return null;
 	}
 
 	return (
 		<div className="min-w-44 overflow-hidden rounded-xl border border-border/80 bg-popover text-popover-foreground shadow-[0_24px_80px_-36px_rgba(0,0,0,0.72)]">
 			<div className="border-border/60 border-b bg-muted/45 px-3 py-2.5">
-				<div className="font-semibold text-xs leading-[1.2]">
-					Response Time
-				</div>
-				<div className="mt-1 text-muted-foreground text-[11px] tabular-nums leading-[1.2]">
+				<div className="font-semibold text-xs leading-[1.2]">Response Time</div>
+				<div className="mt-1 text-[11px] text-muted-foreground tabular-nums leading-[1.2]">
 					{formatTickDate(String(label ?? ""), granularity)}
 				</div>
 			</div>
@@ -268,9 +268,9 @@ export function LatencyChart({
 							value={getSummaryValue(summary, metric.key)}
 						/>
 					))}
-					{!(isLoading || summary.avg != null || summary.p95 != null) ? (
+					{isLoading || summary.avg != null || summary.p95 != null ? null : (
 						<span className="text-muted-foreground text-xs">No data</span>
-					) : null}
+					)}
 				</span>
 
 				<CaretDownIcon
@@ -412,14 +412,14 @@ function LatencyAreaChart({ data }: { data: ChartDataPoint[] }) {
 						/>
 
 						<Tooltip
-							content={({ active, payload, label }) =>
+							content={({ active, payload, label }) => (
 								<LatencyTooltipContent
 									active={active}
 									granularity={granularity}
 									label={label}
 									payload={payload}
 								/>
-							}
+							)}
 							cursor={{
 								stroke: "var(--border)",
 								strokeWidth: 1,
@@ -451,7 +451,6 @@ function LatencyAreaChart({ data }: { data: ChartDataPoint[] }) {
 					</AreaChart>
 				</ResponsiveContainer>
 			</div>
-
 		</div>
 	);
 }

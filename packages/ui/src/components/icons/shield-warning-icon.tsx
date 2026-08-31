@@ -1,0 +1,25 @@
+import { NucleoIcon, type NucleoIconProps } from "./nucleo-icon";
+
+export const ShieldWarningIcon = ({ ref, ...props }: NucleoIconProps) => (
+	<NucleoIcon ref={ref} {...props}>
+		<path
+			clipRule="evenodd"
+			d="M8.16963 1.22703C8.33372 1.16922 8.67031 1.05063 9.00028 1.05075C9.1795 1.05082 9.36084 1.079 9.53357 1.13368L14.7836 2.81368C15.5071 3.04612 16 3.71943 16 4.48V11C16 12.8725 14.6025 14.2314 13.2749 15.1143C12.1533 15.8602 10.9062 16.4082 9.63302 16.8379C9.57968 16.8559 9.49355 16.8849 9.40738 16.9058C9.09216 16.9819 8.76807 16.9684 8.46011 16.8683C7.80803 16.6572 6.25089 16.1022 4.84192 15.1909C3.47441 14.3064 2 12.9239 2 11V4.48C2 3.71932 2.49139 3.04506 3.21675 2.81358C4.86562 2.28594 6.53686 1.80232 8.16963 1.22703Z"
+			data-color="color-2"
+			fill="currentColor"
+			fillOpacity="0.4"
+			fillRule="evenodd"
+		/>{" "}
+		<path
+			clipRule="evenodd"
+			d="M9 5C9.41421 5 9.75 5.33579 9.75 5.75V9C9.75 9.41421 9.41421 9.75 9 9.75C8.58579 9.75 8.25 9.41421 8.25 9V5.75C8.25 5.33579 8.58579 5 9 5Z"
+			fill="currentColor"
+			fillRule="evenodd"
+		/>{" "}
+		<path
+			d="M9 13C8.449 13 8 12.551 8 12C8 11.449 8.449 11 9 11C9.551 11 10 11.449 10 12C10 12.551 9.551 13 9 13Z"
+			fill="currentColor"
+		/>
+	</NucleoIcon>
+);
+ShieldWarningIcon.displayName = "ShieldWarningIcon";
