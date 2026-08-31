@@ -1,4 +1,5 @@
-import { Avatar, ThemeToggle } from "@databuddy/ui/client";
+import { Avatar } from "@databuddy/ui/client/avatar";
+import { ThemeToggle } from "@databuddy/ui/client/theme-toggle";
 import { LifebuoyIcon } from "@databuddy/ui/icons";
 
 interface StatusNavbarProps {

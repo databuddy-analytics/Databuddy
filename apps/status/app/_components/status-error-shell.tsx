@@ -1,14 +1,14 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { Button } from "@databuddy/ui";
+import { DATABUDDY_UPTIME_URL, DATABUDDY_URL } from "@/lib/status-url";
+import { Branding } from "./branding";
 import {
 	ArrowClockwiseIcon,
 	ArrowRightIcon,
 	WarningCircleIcon,
-} from "@databuddy/ui/icons";
-import { Button } from "@databuddy/ui";
-import { DATABUDDY_UPTIME_URL, DATABUDDY_URL } from "@/lib/status-url";
-import { Branding } from "./branding";
+} from "./error-icons";
 
 const PARTICLES = [
 	{

@@ -50,6 +50,10 @@
       "types": "./src/client.ts",
       "import": "./src/client.ts"
     },
+    "./client/*": {
+      "types": "./src/components/*.tsx",
+      "import": "./src/components/*.tsx"
+    },
     "./icons": {
       "types": "./src/components/icons/index.ts",
       "import": "./src/components/icons/index.ts"
