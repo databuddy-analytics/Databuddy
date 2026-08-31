@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { redisStorage } from "@better-auth/redis-storage";
 import { sso } from "@better-auth/sso";
 import {
 	getCurrentAdapter,
@@ -54,8 +53,9 @@ import {
 } from "better-auth/plugins";
 import { log } from "evlog";
 import { Resend } from "resend";
-import { ac, admin, member, owner, viewer } from "./permissions";
 import { getAuthAuditContext } from "./audit-context";
+import { createAuthSecondaryStorage } from "./auth-redis-storage";
+import { ac, admin, member, owner, viewer } from "./permissions";
 
 function generateOrgSlug(name: string): string {
 	const base = name
@@ -387,10 +387,7 @@ export const auth = betterAuth({
 		schema,
 		transaction: true,
 	}),
-	secondaryStorage: redisStorage({
-		client: getRedisCache(),
-		keyPrefix: "ba:",
-	}),
+	secondaryStorage: createAuthSecondaryStorage(),
 	session: {
 		storeSessionInDatabase: true,
 		cookieCache: {
