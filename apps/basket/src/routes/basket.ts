@@ -148,7 +148,28 @@ async function processOutgoingLinkData(
 	};
 }
 
+export const ERRORS_BODY_MAX_BYTES = 128 * 1024;
+
+const OVERSIZED_ERRORS_BODY = Symbol("basket.oversized_errors_body");
+
+function markOversizedErrorsBody({
+	path,
+	request,
+}: {
+	path: string;
+	request: Request;
+}) {
+	if (path !== "/errors" && path !== "/errors/") {
+		return;
+	}
+	if (Number(request.headers.get("content-length")) > ERRORS_BODY_MAX_BYTES) {
+		return OVERSIZED_ERRORS_BODY;
+	}
+	return;
+}
+
 const app = new Elysia()
+	.onParse(markOversizedErrorsBody)
 	.onParse(parseCorsSafeJson)
 	.get("/px.jpg", async ({ query, request }) => {
 		const log = useLogger();
@@ -281,6 +302,11 @@ const app = new Elysia()
 		log.set({ route: "errors" });
 
 		try {
+			if (body === OVERSIZED_ERRORS_BODY) {
+				log.set({ rejected: "payload_too_large" });
+				throw basketErrors.ingestErrorsBodyTooLarge();
+			}
+
 			const { clientId, userAgent } = await validateRequest(
 				body,
 				query,

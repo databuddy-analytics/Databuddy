@@ -1,9 +1,15 @@
-import { IridescenceBackground } from "@/components/bits/iridescence-background";
+"use client";
+
+import dynamic from "next/dynamic";
 import { Logo } from "@/components/layout/logo";
 import Link from "next/link";
 import { Suspense } from "react";
 import { CaretLeftIcon } from "@databuddy/ui/icons";
 import { Button, Spinner, Text } from "@databuddy/ui";
+
+const Iridescence = dynamic(() => import("@/components/bits/iridescence"), {
+	ssr: false,
+});
 
 export default function AuthLayout({
 	children,
@@ -15,7 +21,12 @@ export default function AuthLayout({
 			<div className="flex h-full max-h-[900px] w-full max-w-[1200px] overflow-hidden rounded-2xl border shadow-sm">
 				<div className="relative hidden flex-col items-start justify-between overflow-hidden rounded-l-2xl p-12 md:flex md:w-1/2">
 					<div className="absolute inset-0 bg-black">
-						<IridescenceBackground />
+						<Iridescence
+							amplitude={0.1}
+							color={[0.1, 0.1, 0.1]}
+							mouseReact={false}
+							speed={0.5}
+						/>
 					</div>
 					<Link className="relative z-10" href="https://www.databuddy.cc">
 						<Button

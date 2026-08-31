@@ -26,6 +26,7 @@
     "elysia": "catalog:",
     "evlog": "catalog:",
     "kafkajs": "^2.2.4",
+    "lru-cache": "^11.5.2",
     "zod": "catalog:"
   },
   "devDependencies": {

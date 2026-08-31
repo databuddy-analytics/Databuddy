@@ -186,6 +186,7 @@ vi.mock("@lib/producer", () => ({
 const { basketErrors, buildBasketErrorPayload } = await import(
 	"@lib/structured-errors"
 );
+const { ERRORS_BODY_MAX_BYTES } = await import("../routes/basket");
 const { createError, EvlogError } = await import("evlog");
 const { Elysia } = await import("elysia");
 const mockGlobalErrorHandler = vi.fn();
@@ -384,6 +385,61 @@ describe("POST /errors", () => {
 			{ timestamp: now, path: "https://example.com" },
 		]);
 		expect(res.status).toBe(400);
+	});
+
+	test("body over the size cap → 413 without parsing or validating", async () => {
+		mockValidateRequest.mockClear();
+		mockInsertErrorSpans.mockClear();
+
+		const spans = Array.from({ length: 50 }, () => ({
+			timestamp: now,
+			path: "https://example.com/page",
+			message: "x".repeat(4000),
+		}));
+		const serialized = JSON.stringify(spans);
+		expect(serialized.length).toBeGreaterThan(ERRORS_BODY_MAX_BYTES);
+
+		const request = new Request("http://localhost/errors", {
+			method: "POST",
+			body: serialized,
+			headers: {
+				"Content-Type": "application/json",
+				"content-length": String(serialized.length),
+			},
+		});
+		const res = await basketApp.handle(request);
+
+		expect(res.status).toBe(413);
+		expect(request.bodyUsed).toBe(false);
+		expect(await json(res)).toMatchObject({
+			code: basketErrors.ingestErrorsBodyTooLarge.code,
+			retryable: false,
+		});
+		expect(mockValidateRequest).not.toHaveBeenCalled();
+		expect(mockInsertErrorSpans).not.toHaveBeenCalled();
+	});
+
+	test("body under the size cap → 200", async () => {
+		const spans = [
+			{
+				timestamp: now,
+				path: "https://example.com/page",
+				message: "TypeError: x is undefined",
+			},
+		];
+		const serialized = JSON.stringify(spans);
+		expect(serialized.length).toBeLessThan(ERRORS_BODY_MAX_BYTES);
+
+		const res = await post(basketApp, "/errors", spans, {
+			"content-length": String(serialized.length),
+		});
+
+		expect(res.status).toBe(200);
+		expect(await json(res)).toEqual({
+			status: "success",
+			type: "error",
+			count: 1,
+		});
 	});
 });
 
