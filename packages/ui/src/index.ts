@@ -38,6 +38,7 @@ export {
 	formatTime,
 	formatDateTime,
 	formatDateOnly,
+	formatUtcDateOnly,
 	localDayjs,
 } from "./lib/time";
 export { guessTimezone } from "./lib/dayjs";

@@ -82,7 +82,7 @@ export function UptimeHeatmap({
 					<UptimeHeatmapStrip
 						days={heatmapData}
 						emptyLabel="No data recorded"
-						getDateLabel={(d) => dayjs(d).format("MMM D, YYYY")}
+						getDateLabel={(d) => dayjs.utc(d).format("MMM D, YYYY")}
 						interactive
 						isActive
 					/>

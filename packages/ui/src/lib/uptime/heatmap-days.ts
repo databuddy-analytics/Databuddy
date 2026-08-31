@@ -1,4 +1,4 @@
-import { localDayjs } from "../time";
+import dayjs from "../dayjs";
 
 export interface UptimeHeatmapDay {
 	date: Date;
@@ -23,7 +23,7 @@ export function buildUptimeHeatmapDays(
 	const dataByDate = new Map(data.map((d) => [d.date.slice(0, 10), d]));
 
 	const result: UptimeHeatmapDay[] = [];
-	const today = localDayjs().endOf("day");
+	const today = dayjs.utc().startOf("day");
 
 	for (let i = days - 1; i >= 0; i--) {
 		const date = today.subtract(i, "day");

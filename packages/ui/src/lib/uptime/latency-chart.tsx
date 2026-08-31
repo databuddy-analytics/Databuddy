@@ -114,9 +114,14 @@ function formatTickDate(
 		return d.toLocaleString("en-US", {
 			hour: "numeric",
 			minute: "2-digit",
+			timeZone: "UTC",
 		});
 	}
-	return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+	return d.toLocaleDateString("en-US", {
+		month: "short",
+		day: "numeric",
+		timeZone: "UTC",
+	});
 }
 
 function getMetricLabel(dataKey: unknown) {

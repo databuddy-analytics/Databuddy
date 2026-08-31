@@ -51,6 +51,16 @@ export function formatDateOnly(
 	return formatLocalTime(date, "MMM D, YYYY");
 }
 
+export function formatUtcDateOnly(
+	date: string | Date | dayjs.Dayjs | undefined | null
+): string {
+	if (!date) {
+		return "";
+	}
+	const utcTime = dayjs.utc(date);
+	return utcTime.isValid() ? utcTime.format("MMM D, YYYY") : "";
+}
+
 export function localDayjs(date?: string | Date | dayjs.Dayjs): dayjs.Dayjs {
 	if (!date) {
 		return dayjs().tz(localTz);

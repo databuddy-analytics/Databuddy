@@ -165,11 +165,12 @@ function getOrdinalSuffix(day: number) {
 }
 
 function formatLongDate(date: Date): string {
-	const day = date.getDate();
+	const day = date.getUTCDate();
 
 	return `${date.toLocaleDateString("en-US", {
 		month: "long",
-	})} ${day}${getOrdinalSuffix(day)} ${date.getFullYear()}`;
+		timeZone: "UTC",
+	})} ${day}${getOrdinalSuffix(day)} ${date.getUTCFullYear()}`;
 }
 
 function getTooltipTransform(state: TooltipState, isVisible: boolean) {
