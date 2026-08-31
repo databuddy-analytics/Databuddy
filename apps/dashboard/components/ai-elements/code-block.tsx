@@ -5,20 +5,31 @@ import {
 	createContext,
 	type HTMLAttributes,
 	useContext,
-	useEffect,
-	useRef,
+	useMemo,
 	useState,
 } from "react";
-import { type BundledLanguage, codeToHtml, type ShikiTransformer } from "shiki";
+import { createHighlighterCoreSync, type ShikiTransformer } from "shiki/core";
+import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
+import tsx from "shiki/langs/tsx.mjs";
+import oneDarkPro from "shiki/themes/one-dark-pro.mjs";
+import oneLight from "shiki/themes/one-light.mjs";
 import { cn } from "@/lib/utils";
 import { CheckIcon, CopyIcon } from "@databuddy/ui/icons";
 import { Button } from "@databuddy/ui";
 
+type CodeBlockLanguage = "tsx";
+
 type CodeBlockProps = HTMLAttributes<HTMLDivElement> & {
 	code: string;
-	language: BundledLanguage;
+	language: CodeBlockLanguage;
 	showLineNumbers?: boolean;
 };
+
+const highlighter = createHighlighterCoreSync({
+	engine: createJavaScriptRegexEngine(),
+	langs: [tsx],
+	themes: [oneLight, oneDarkPro],
+});
 
 interface CodeBlockContextType {
 	code: string;
@@ -49,27 +60,27 @@ const lineNumberTransformer: ShikiTransformer = {
 	},
 };
 
-async function highlightCode(
+function highlightCode(
 	code: string,
-	language: BundledLanguage,
-	showLineNumbers = false
+	language: CodeBlockLanguage,
+	showLineNumbers: boolean
 ) {
 	const transformers: ShikiTransformer[] = showLineNumbers
 		? [lineNumberTransformer]
 		: [];
 
-	return await Promise.all([
-		codeToHtml(code, {
-			lang: language,
-			theme: "one-light",
-			transformers,
-		}),
-		codeToHtml(code, {
+	return {
+		dark: highlighter.codeToHtml(code, {
 			lang: language,
 			theme: "one-dark-pro",
 			transformers,
 		}),
-	]);
+		light: highlighter.codeToHtml(code, {
+			lang: language,
+			theme: "one-light",
+			transformers,
+		}),
+	};
 }
 
 export const CodeBlock = ({
@@ -80,24 +91,10 @@ export const CodeBlock = ({
 	children,
 	...props
 }: CodeBlockProps) => {
-	const [html, setHtml] = useState<string>("");
-	const [darkHtml, setDarkHtml] = useState<string>("");
-	const activeRef = useRef(true);
-
-	useEffect(() => {
-		activeRef.current = true;
-
-		highlightCode(code, language, showLineNumbers).then(([light, dark]) => {
-			if (activeRef.current) {
-				setHtml(light);
-				setDarkHtml(dark);
-			}
-		});
-
-		return () => {
-			activeRef.current = false;
-		};
-	}, [code, language, showLineNumbers]);
+	const { light, dark } = useMemo(
+		() => highlightCode(code, language, showLineNumbers),
+		[code, language, showLineNumbers]
+	);
 
 	return (
 		<CodeBlockContext.Provider value={{ code }}>
@@ -111,11 +108,11 @@ export const CodeBlock = ({
 				<div className="relative">
 					<div
 						className="overflow-hidden dark:hidden [&>pre]:m-0 [&>pre]:bg-background! [&>pre]:p-4 [&>pre]:text-foreground! [&>pre]:text-sm [&_code]:font-mono [&_code]:text-sm"
-						dangerouslySetInnerHTML={{ __html: html }}
+						dangerouslySetInnerHTML={{ __html: light }}
 					/>
 					<div
 						className="hidden overflow-hidden dark:block [&>pre]:m-0 [&>pre]:bg-background! [&>pre]:p-4 [&>pre]:text-foreground! [&>pre]:text-sm [&_code]:font-mono [&_code]:text-sm"
-						dangerouslySetInnerHTML={{ __html: darkHtml }}
+						dangerouslySetInnerHTML={{ __html: dark }}
 					/>
 					{children && (
 						<div className="absolute top-2 right-2 flex items-center gap-2">
