@@ -44,7 +44,7 @@ const uaCache = new LRUCache<
 	{ browser: string | null; device: string | null }
 >({ max: 500, ttl: 300_000 });
 
-function ms(since: number): number {
+function elapsedMs(since: number): number {
 	return Math.round(performance.now() - since);
 }
 
@@ -76,7 +76,7 @@ function hashIp(ip: string): string {
 		.digest("hex");
 }
 
-function checkBot(ua: string | null): { isBot: boolean; isSocial: boolean } {
+function classifyBot(ua: string | null): { isBot: boolean; isSocial: boolean } {
 	if (!ua) {
 		return { isBot: false, isSocial: false };
 	}
@@ -96,7 +96,7 @@ function checkBot(ua: string | null): { isBot: boolean; isSocial: boolean } {
 	return entry;
 }
 
-function parseUA(ua: string | null): {
+function parseUserAgent(ua: string | null): {
 	browser: string | null;
 	device: string | null;
 } {
@@ -169,12 +169,21 @@ function generateETag(link: CachedLink, targetUrl: string): string {
 	return etag;
 }
 
+type LookupSource =
+	| "db"
+	| "db_miss"
+	| "db_pending"
+	| "db_pending_miss"
+	| "db_unavailable"
+	| "rate_limited"
+	| "redis"
+	| "redis_not_found";
+
 interface LookupResult {
 	cacheHit: boolean;
 	db_ms: number;
-	dbUnavailable?: boolean;
 	link: CachedLink | null;
-	lookup_source: string;
+	lookup_source: LookupSource;
 	rateLimitHeaders: Record<string, string> | null;
 	redis_ms: number;
 }
@@ -198,7 +207,7 @@ async function lookupLink(slug: string, ipHash: string): Promise<LookupResult> {
 		cacheHit: true,
 		lookup_source: "redis",
 		rateLimitHeaders: null,
-		redis_ms: ms(t0),
+		redis_ms: elapsedMs(t0),
 		db_ms: 0,
 	};
 
@@ -251,14 +260,9 @@ async function lookupLink(slug: string, ipHash: string): Promise<LookupResult> {
 		});
 	} catch (error) {
 		captureError(error, { error_step: "db_lookup" });
-		return {
-			...base,
-			lookup_source: "db_unavailable",
-			dbUnavailable: true,
-			db_ms: ms(t1),
-		};
+		return { ...base, lookup_source: "db_unavailable", db_ms: elapsedMs(t1) };
 	}
-	base.db_ms = ms(t1);
+	base.db_ms = elapsedMs(t1);
 
 	if (!row) {
 		if (!mutationPending) {
@@ -311,7 +315,7 @@ async function recordClick(
 	const t0 = performance.now();
 
 	const userAgent = readUserAgent(request);
-	const ua = parseUA(userAgent);
+	const ua = parseUserAgent(userAgent);
 
 	const tGeo = performance.now();
 	const geo = await record("link.click.geo", () => getGeo(ip, request)).catch(
@@ -320,7 +324,7 @@ async function recordClick(
 			return { city: null, country: null, region: null };
 		}
 	);
-	const geo_ms = ms(tGeo);
+	const geo_ms = elapsedMs(tGeo);
 
 	const event: LinkVisitEvent = {
 		browser_name: ua.browser,
@@ -358,7 +362,7 @@ async function recordClick(
 		...(ua.device ? { click_device: ua.device } : {}),
 		...(geo.country ? { click_country: geo.country } : {}),
 		"timing.click.geo": geo_ms,
-		"timing.click": ms(t0),
+		"timing.click": elapsedMs(t0),
 	});
 }
 
@@ -398,30 +402,25 @@ export const redirectRoute = new Elysia().get(
 		}
 		const ip = extractIp(request);
 		const ipHash = hashIp(ip);
-		const ev: Record<string, string | number | boolean> = { link_slug: slug };
+		const wideEvent: Record<string, string | number | boolean> = {
+			link_slug: slug,
+		};
 
 		function emit(result: string) {
-			ev.redirect_result = result;
-			ev.total_ms = ms(t0);
-			ev["timing.redirect.total"] = ev.total_ms;
-			mergeWideEvent(ev);
+			wideEvent.redirect_result = result;
+			wideEvent.total_ms = elapsedMs(t0);
+			wideEvent["timing.redirect.total"] = wideEvent.total_ms;
+			mergeWideEvent(wideEvent);
 		}
 
 		const tLookup = performance.now();
-		const {
-			link,
-			cacheHit,
-			lookup_source,
-			rateLimitHeaders,
-			dbUnavailable,
-			redis_ms,
-			db_ms,
-		} = await record("redirect.lookup", () => lookupLink(slug, ipHash));
-		ev.lookup_ms = ms(tLookup);
-		ev.lookup_source = lookup_source;
-		ev.cache_hit = cacheHit;
-		ev.redis_ms = redis_ms;
-		ev.db_ms = db_ms;
+		const { link, cacheHit, lookup_source, rateLimitHeaders, redis_ms, db_ms } =
+			await record("redirect.lookup", () => lookupLink(slug, ipHash));
+		wideEvent.lookup_ms = elapsedMs(tLookup);
+		wideEvent.lookup_source = lookup_source;
+		wideEvent.cache_hit = cacheHit;
+		wideEvent.redis_ms = redis_ms;
+		wideEvent.db_ms = db_ms;
 
 		if (rateLimitHeaders) {
 			emit("rate_limited");
@@ -438,7 +437,7 @@ export const redirectRoute = new Elysia().get(
 			);
 		}
 
-		if (dbUnavailable) {
+		if (lookup_source === "db_unavailable") {
 			emit("lookup_unavailable");
 			return retryResponse(
 				"Link lookup is temporarily unavailable. Please retry.",
@@ -452,7 +451,7 @@ export const redirectRoute = new Elysia().get(
 			return redirect(NOT_FOUND_URL, 302);
 		}
 
-		ev.link_id = link.id;
+		wideEvent.link_id = link.id;
 
 		if (link.expiresAt && new Date(link.expiresAt) < new Date()) {
 			emit("expired");
@@ -467,9 +466,9 @@ export const redirectRoute = new Elysia().get(
 
 		const userAgent = readUserAgent(request);
 		const targetUrl = getTargetUrl(link, userAgent);
-		const bot = checkBot(userAgent);
-		ev.is_bot = bot.isBot;
-		ev.is_social_bot = bot.isSocial;
+		const bot = classifyBot(userAgent);
+		wideEvent.is_bot = bot.isBot;
+		wideEvent.is_social_bot = bot.isSocial;
 
 		if (bot.isSocial) {
 			emit("og_preview");
