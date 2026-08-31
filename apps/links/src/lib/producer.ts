@@ -11,6 +11,7 @@ const kafkaConnectionTimeoutMs = 5000;
 const kafkaRequestTimeoutMs = 10_000;
 const fallbackTimeoutMs = 10_000;
 const dependencyErrorLogIntervalMs = 300_000;
+const ASYNC_INSERT_BUSY_TIMEOUT_MS = 50;
 
 let producer: Producer | null = null;
 let connectPromise: Promise<boolean> | null = null;
@@ -209,6 +210,7 @@ async function persistLinkVisitDirectly(
 				clickhouse_settings: {
 					async_insert: 1,
 					wait_for_async_insert: 1,
+					async_insert_busy_timeout_ms: ASYNC_INSERT_BUSY_TIMEOUT_MS,
 				},
 			}),
 			new Promise<never>((_resolve, reject) => {

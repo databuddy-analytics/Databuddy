@@ -8,6 +8,8 @@ import { Data, Deferred, Effect, Layer, ManagedRuntime, Ref } from "effect";
 import { createError, log } from "evlog";
 import { type Admin, CompressionTypes, Kafka, type Producer } from "kafkajs";
 
+const ASYNC_INSERT_BUSY_TIMEOUT_MS = 50;
+
 function stringifyEvent(event: unknown): string {
 	return JSON.stringify(event, (_key, value) =>
 		value === undefined ? null : value
@@ -423,6 +425,7 @@ async function insertClickHouseChunks(
 						clickhouse_settings: {
 							async_insert: 1,
 							wait_for_async_insert: 1,
+							async_insert_busy_timeout_ms: ASYNC_INSERT_BUSY_TIMEOUT_MS,
 							insert_deduplication_token: deduplicationToken,
 						},
 						query_id: `basket-${deduplicationToken}`,

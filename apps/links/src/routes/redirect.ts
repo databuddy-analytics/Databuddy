@@ -49,6 +49,20 @@ function ms(since: number): number {
 	return Math.round(performance.now() - since);
 }
 
+// Unique oversized user agents defeat the caches below and make every miss pay
+// a full pattern scan, so bound the input before it reaches detection.
+const MAX_USER_AGENT_LENGTH = 512;
+
+function readUserAgent(request: Request): string | null {
+	const raw = request.headers.get("user-agent");
+	if (!raw) {
+		return null;
+	}
+	return raw.length > MAX_USER_AGENT_LENGTH
+		? raw.slice(0, MAX_USER_AGENT_LENGTH)
+		: raw;
+}
+
 let dailySalt = new Date().toISOString().slice(0, 10);
 let saltUpdatedAt = Date.now();
 
@@ -297,7 +311,7 @@ async function recordClick(
 ): Promise<void> {
 	const t0 = performance.now();
 
-	const userAgent = request.headers.get("user-agent");
+	const userAgent = readUserAgent(request);
 	const ua = parseUA(userAgent);
 
 	const tGeo = performance.now();
@@ -445,7 +459,7 @@ export const redirectRoute = new Elysia().get(
 			);
 		}
 
-		const userAgent = request.headers.get("user-agent");
+		const userAgent = readUserAgent(request);
 		const targetUrl = getTargetUrl(link, userAgent);
 		const bot = checkBot(userAgent);
 		ev.is_bot = bot.isBot;
