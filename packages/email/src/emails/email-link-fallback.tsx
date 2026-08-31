@@ -1,4 +1,4 @@
-import { Link, Section, Text } from "react-email";
+import { Link, Section, Text } from "@react-email/components";
 import { emailBrand } from "./email-brand";
 
 interface EmailLinkFallbackProps {

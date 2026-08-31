@@ -1,6 +1,6 @@
 /** biome-ignore-all lint/performance/useTopLevelRegex: it's a test file */
 import { describe, expect, test } from "bun:test";
-import { render as renderEmail } from "react-email";
+import { render as renderEmail } from "@react-email/render";
 import { UptimeAlertEmail } from "./uptime-alert-email";
 
 type Props = Parameters<typeof UptimeAlertEmail>[0];
