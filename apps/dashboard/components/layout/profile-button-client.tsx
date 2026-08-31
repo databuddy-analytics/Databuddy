@@ -45,7 +45,7 @@ interface DeviceSession {
 	};
 }
 
-const PRESERVED_QUERY_KEYS = [["auth", "session"], ["device-sessions"]];
+const PRESERVED_QUERY_KEYS = [["device-sessions"]];
 
 export function getInitials(
 	name: string | null | undefined,

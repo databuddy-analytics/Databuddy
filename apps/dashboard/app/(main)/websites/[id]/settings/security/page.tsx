@@ -275,6 +275,11 @@ export default function SecurityPage() {
 		...orpc.websites.updateSettings.mutationOptions(),
 		onSuccess: (updatedWebsite: Website) => {
 			updateWebsiteCache(queryClient, updatedWebsite);
+			queryClient.invalidateQueries({
+				queryKey: orpc.websites.isTrackingSetup.key({
+					input: { websiteId },
+				}),
+			});
 		},
 	});
 

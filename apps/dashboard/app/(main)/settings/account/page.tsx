@@ -427,7 +427,6 @@ export default function AccountSettingsPage() {
 		},
 		onSuccess: () => {
 			toast.success("Profile updated successfully");
-			queryClient.invalidateQueries({ queryKey: ["auth", "session"] });
 		},
 	});
 
@@ -816,7 +815,6 @@ export default function AccountSettingsPage() {
 				isEnabled={user?.twoFactorEnabled ?? false}
 				onOpenChange={setShowTwoFactorDialog}
 				onSuccess={() => {
-					queryClient.invalidateQueries({ queryKey: ["auth", "session"] });
 					queryClient.invalidateQueries({ queryKey: ["user-accounts"] });
 				}}
 				open={showTwoFactorDialog}
