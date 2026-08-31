@@ -17,9 +17,7 @@ import {
 } from "@databuddy/ui/icons";
 import { Button, EmptyState, Skeleton } from "@databuddy/ui";
 
-type IconComponent = React.ForwardRefExoticComponent<
-	React.SVGProps<SVGSVGElement> & React.RefAttributes<SVGSVGElement>
->;
+type IconComponent = React.ComponentType<React.SVGProps<SVGSVGElement>>;
 
 interface HeaderActionButton {
 	action: () => void;
