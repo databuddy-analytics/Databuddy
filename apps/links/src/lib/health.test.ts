@@ -3,7 +3,6 @@ import { calculateLinkReadiness } from "./health";
 
 const healthy = {
 	clickhouse: "ok",
-	deliveryQueue: "ok",
 	postgres: "ok",
 	redis: "ok",
 	redpanda: "ok",
@@ -29,12 +28,6 @@ describe("Links readiness", () => {
 				clickhouse: "error",
 				redpanda: "error",
 			})
-		).toEqual({ httpStatus: 503, status: "unavailable" });
-	});
-
-	test("requires the durable queue admission path", () => {
-		expect(
-			calculateLinkReadiness({ ...healthy, deliveryQueue: "error" })
 		).toEqual({ httpStatus: 503, status: "unavailable" });
 	});
 

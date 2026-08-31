@@ -34,6 +34,7 @@ class MockKafka {
 mock.module("./logging", () => ({
 	captureError,
 	captureWarning,
+	emitServiceEvent: mock(() => {}),
 	mergeWideEvent,
 	record: async <T>(_name: string, run: () => Promise<T> | T) => run(),
 	setAttributes,
@@ -215,57 +216,6 @@ describe("sendLinkVisit", () => {
 			operation: "kafka_connect",
 		});
 		expect(clickHouseInsert).toHaveBeenCalledTimes(1);
-	});
-
-	test("disposes a failed producer without falling back after an ambiguous send", async () => {
-		process.env.REDPANDA_BROKER = "redpanda.test:9092";
-		const sendError = new Error("send failed");
-		nextProducer = makeProducer({
-			send: () => Promise.reject(sendError),
-		});
-		const { sendLinkVisit } = await loadProducer();
-
-		const result = await sendLinkVisit(event, event.link_id);
-		const retry = await sendLinkVisit(
-			{ ...event, id: "retry-after-ambiguous-send" },
-			event.link_id,
-			{ allowDirectFallback: false }
-		);
-		const unrelated = await sendLinkVisit(
-			{ ...event, id: "unrelated-event" },
-			event.link_id
-		);
-
-		expect(nextProducer.disconnect).toHaveBeenCalledTimes(1);
-		expect(result).toBe(false);
-		expect(retry).toBe(false);
-		expect(unrelated).toBe(true);
-		expect(clickHouseInsert).toHaveBeenCalledTimes(1);
-		expect(captureError).toHaveBeenCalledWith(sendError, {
-			kafka_topic: "analytics-link-visits",
-			operation: "kafka_send",
-		});
-	});
-
-	test("does not classify a failed job-marker write as a Kafka send", async () => {
-		process.env.REDPANDA_BROKER = "redpanda.test:9092";
-		nextProducer = makeProducer();
-		const { disconnectProducer, sendLinkVisit } = await loadProducer();
-		const markerError = new Error("BullMQ marker unavailable");
-
-		await expect(
-			sendLinkVisit(event, event.link_id, {
-				beforeKafkaSend: () => Promise.reject(markerError),
-			})
-		).rejects.toBe(markerError);
-
-		expect(nextProducer.send).not.toHaveBeenCalled();
-		expect(nextProducer.disconnect).not.toHaveBeenCalled();
-		expect(captureError).not.toHaveBeenCalledWith(
-			markerError,
-			expect.objectContaining({ operation: "kafka_send" })
-		);
-		await disconnectProducer();
 	});
 
 	test("propagates disconnect failures to shutdown", async () => {

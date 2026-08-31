@@ -27,8 +27,7 @@ import {
 	record,
 } from "../lib/logging";
 import { createDeepLinkFallbackResponse } from "../lib/deep-link-fallback";
-import { enqueueLinkVisit } from "../lib/link-visit-delivery";
-import type { LinkVisitEvent } from "../lib/producer";
+import { type LinkVisitEvent, sendLinkVisit } from "../lib/producer";
 import { extractIp, getGeo } from "../utils/geo";
 
 const EXPIRED_URL = `${config.urls.dashboard}/dby/expired`;
@@ -336,18 +335,25 @@ async function recordClick(
 		timestamp: new Date().toISOString().replace("T", " ").replace("Z", ""),
 		user_agent: userAgent,
 	};
-	enqueueLinkVisit(event).catch((error) => {
+	const reportClickLost = (reason: string) =>
 		emitServiceEvent("error", {
 			links: "click_lost",
 			link_id: link.id,
 			link_visit_id: event.id,
-			error_message: error instanceof Error ? error.message : String(error),
+			error_message: reason,
 		});
-	});
+	sendLinkVisit(event)
+		.then((delivered) => {
+			if (!delivered) {
+				reportClickLost("no delivery sink accepted the link visit");
+			}
+		})
+		.catch((error) => {
+			reportClickLost(error instanceof Error ? error.message : String(error));
+		});
 
 	mergeWideEvent({
 		click_recorded: true,
-		click_delivery: "queued",
 		...(ua.browser ? { click_browser: ua.browser } : {}),
 		...(ua.device ? { click_device: ua.device } : {}),
 		...(geo.country ? { click_country: geo.country } : {}),

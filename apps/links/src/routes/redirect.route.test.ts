@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { Elysia } from "elysia";
-import * as actualLinkVisitDelivery from "../lib/link-visit-delivery";
 
 const dbSelect = mock(() => ({
 	from: () => ({
@@ -12,13 +11,12 @@ const dbSelect = mock(() => ({
 const getCachedLink = mock();
 const ratelimit = mock();
 const resolveDeepLink = mock();
-const enqueueLinkVisit = mock();
+const sendLinkVisit = mock();
 const captureError = mock(() => {});
 const captureWarning = mock(() => {});
 const emitServiceEvent = mock(() => {});
 const setCachedLinkIfAbsent = mock(async () => true);
 const setCachedLinkNotFoundIfAbsent = mock(async () => true);
-const linkVisitDeliveryModule = { ...actualLinkVisitDelivery };
 
 mock.module("@databuddy/env/app", () => ({
 	config: { urls: { dashboard: "https://dashboard.test" } },
@@ -86,9 +84,8 @@ mock.module("../lib/logging", () => ({
 	setAttributes: mock(() => {}),
 }));
 
-mock.module("../lib/link-visit-delivery", () => ({
-	...linkVisitDeliveryModule,
-	enqueueLinkVisit,
+mock.module("../lib/producer", () => ({
+	sendLinkVisit,
 }));
 
 mock.module("../utils/geo", () => ({
@@ -118,7 +115,7 @@ beforeEach(() => {
 	getCachedLink.mockClear();
 	ratelimit.mockClear();
 	resolveDeepLink.mockClear();
-	enqueueLinkVisit.mockClear();
+	sendLinkVisit.mockClear();
 	captureError.mockClear();
 	captureWarning.mockClear();
 	emitServiceEvent.mockClear();
@@ -139,7 +136,7 @@ beforeEach(() => {
 		success: true,
 	});
 	resolveDeepLink.mockReturnValue(null);
-	enqueueLinkVisit.mockResolvedValue(undefined);
+	sendLinkVisit.mockResolvedValue(true);
 });
 
 describe("redirect route", () => {
@@ -252,7 +249,7 @@ describe("redirect route", () => {
 		expect(body).toContain("instagram://user?username=databuddy");
 		expect(body).toContain("https://www.instagram.com/databuddy");
 		expect(body).not.toContain("javascript:alert(1)");
-		expect(enqueueLinkVisit).toHaveBeenCalledWith(
+		expect(sendLinkVisit).toHaveBeenCalledWith(
 			expect.objectContaining({ link_id: "deep-link-1" })
 		);
 	});
@@ -275,15 +272,34 @@ describe("redirect route", () => {
 		expect(response.headers.get("location")).toBe(
 			"https://dashboard.test/dby/expired"
 		);
-		expect(enqueueLinkVisit).not.toHaveBeenCalled();
+		expect(sendLinkVisit).not.toHaveBeenCalled();
 	});
 
-	test("redirects even when the durable queue rejects a click", async () => {
+	test("redirects and reports a lost click when no sink accepts", async () => {
+		getCachedLink.mockResolvedValue({
+			link: { ...baseLink, id: "unsunk-link" },
+			state: "hit",
+		});
+		sendLinkVisit.mockResolvedValueOnce(false);
+
+		const response = await app.handle(
+			new Request("http://links.test/unsunk")
+		);
+
+		expect(response.status).toBe(302);
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(emitServiceEvent).toHaveBeenCalledWith(
+			"error",
+			expect.objectContaining({ links: "click_lost", link_id: "unsunk-link" })
+		);
+	});
+
+	test("redirects even when delivery fails", async () => {
 		getCachedLink.mockResolvedValue({
 			link: { ...baseLink, id: "durable-link-1" },
 			state: "hit",
 		});
-		enqueueLinkVisit.mockRejectedValueOnce(new Error("queue unavailable"));
+		sendLinkVisit.mockRejectedValueOnce(new Error("redpanda unavailable"));
 
 		const response = await app.handle(
 			new Request("http://links.test/durable-link")
@@ -312,7 +328,7 @@ describe("redirect route", () => {
 		);
 
 		expect(response.status).toBe(302);
-		expect(enqueueLinkVisit).toHaveBeenCalledWith(
+		expect(sendLinkVisit).toHaveBeenCalledWith(
 			expect.objectContaining({
 				id: expect.any(String),
 				link_id: "durable-link-2",

@@ -10,11 +10,6 @@ import { Elysia, redirect } from "elysia";
 import { createError, initLogger, log } from "evlog";
 import { evlog } from "evlog/elysia";
 import { drain, enrich, flushDrain } from "./lib/logging";
-import {
-	checkLinkVisitQueueHealth,
-	closeLinkVisitDelivery,
-	startLinkVisitDeliveryWorker,
-} from "./lib/link-visit-delivery";
 import { calculateLinkReadiness } from "./lib/health";
 import {
 	disconnectProducer,
@@ -38,7 +33,6 @@ initLogger({
 const rootRedirectUrl =
 	process.env.LINKS_ROOT_REDIRECT_URL || "https://databuddy.cc";
 preloadGeoDatabase();
-startLinkVisitDeliveryWorker();
 
 async function warmProducerConnectionOnStartup() {
 	try {
@@ -175,37 +169,33 @@ const app = new Elysia()
 				state,
 			};
 		});
-		const [postgres, clickhouse, cache, deliveryQueue, redpanda] =
-			await Promise.all([
-				ping("postgres", async () => {
-					await db
-						.execute(sql`SELECT "deep_link_app" FROM "links" LIMIT 0`)
-						.then(() => {});
-				}),
-				ping("clickhouse", async (signal) => {
-					const { success } = await clickHouse.ping({
-						abort_signal: signal,
-						select: false,
-					});
-					if (!success) {
-						throw new Error("ping failed");
-					}
-				}),
-				ping("redis", () => redis.ping().then(() => {})),
-				ping("link_visit_queue", () => checkLinkVisitQueueHealth()),
-				redpandaProbe,
-			]);
+		const [postgres, clickhouse, cache, redpanda] = await Promise.all([
+			ping("postgres", async () => {
+				await db
+					.execute(sql`SELECT "deep_link_app" FROM "links" LIMIT 0`)
+					.then(() => {});
+			}),
+			ping("clickhouse", async (signal) => {
+				const { success } = await clickHouse.ping({
+					abort_signal: signal,
+					select: false,
+				});
+				if (!success) {
+					throw new Error("ping failed");
+				}
+			}),
+			ping("redis", () => redis.ping().then(() => {})),
+			redpandaProbe,
+		]);
 
 		const services = {
 			postgres,
 			clickhouse,
 			redis: cache,
-			link_visit_queue: deliveryQueue,
 			redpanda,
 		};
 		const readiness = calculateLinkReadiness({
 			clickhouse: clickhouse.status,
-			deliveryQueue: deliveryQueue.status,
 			postgres: postgres.status,
 			redis: cache.status,
 			redpanda: redpanda.status,
@@ -278,16 +268,6 @@ async function shutdown(signal: string) {
 	try {
 		await withTimeout(
 			(async () => {
-				// Stop admission/processing before disconnecting their dependencies.
-				const queueFailure = await runCleanupStep(
-					"linkVisitDeliveryClose",
-					closeLinkVisitDelivery,
-					6000
-				);
-				if (queueFailure) {
-					failures.push(queueFailure);
-				}
-
 				const producerFailure = await runCleanupStep(
 					"redpandaDisconnect",
 					disconnectProducer,
