@@ -690,8 +690,10 @@ function PaymentMethodRow({
 	}
 
 	const last4 = card.last4 || "****";
-	const expMonth = card.expMonth?.toString().padStart(2, "0") || "00";
-	const expYear = card.expYear?.toString().slice(-2) || "00";
+	const expiry =
+		card.exp_month && card.exp_year
+			? `${card.exp_month.toString().padStart(2, "0")}/${card.exp_year.toString().slice(-2)}`
+			: null;
 	const brand =
 		(card.brand || "card").charAt(0).toUpperCase() +
 		(card.brand || "card").slice(1);
@@ -710,9 +712,11 @@ function PaymentMethodRow({
 					<Text variant="label">
 						{brand} ending in {last4}
 					</Text>
-					<Text tone="muted" variant="caption">
-						Expires {expMonth}/{expYear}
-					</Text>
+					{expiry && (
+						<Text tone="muted" variant="caption">
+							Expires {expiry}
+						</Text>
+					)}
 				</div>
 			</div>
 		</div>
