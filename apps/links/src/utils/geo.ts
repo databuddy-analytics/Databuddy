@@ -11,7 +11,7 @@ import { LRUCache } from "lru-cache";
 import { isIP } from "node:net";
 import {
 	captureError,
-	emitStartupEvent,
+	emitServiceEvent,
 	record,
 	setAttributes,
 } from "../lib/logging";
@@ -72,7 +72,7 @@ function loadDatabase(): Promise<void> {
 
 			reader = Reader.openBuffer(buffer) as GeoIPReader;
 			setAttributes({ geo_db_loaded: true });
-			emitStartupEvent({
+			emitServiceEvent("info", {
 				links: "geoip_db_loaded",
 				geo_db_size_bytes: buffer.length,
 				geo_db_load_ms: Math.round(performance.now() - loadStart),

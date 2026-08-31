@@ -15,6 +15,9 @@ const resolveDeepLink = mock();
 const enqueueLinkVisit = mock();
 const captureError = mock(() => {});
 const captureWarning = mock(() => {});
+const emitServiceEvent = mock(() => {});
+const setCachedLinkIfAbsent = mock(async () => true);
+const setCachedLinkNotFoundIfAbsent = mock(async () => true);
 const linkVisitDeliveryModule = { ...actualLinkVisitDelivery };
 
 mock.module("@databuddy/env/app", () => ({
@@ -58,8 +61,8 @@ mock.module("@databuddy/redis", () => ({
 		"X-RateLimit-Remaining": String(result.remaining),
 	}),
 	ratelimit,
-	setCachedLinkIfAbsent: mock(async () => true),
-	setCachedLinkNotFoundIfAbsent: mock(async () => true),
+	setCachedLinkIfAbsent,
+	setCachedLinkNotFoundIfAbsent,
 }));
 
 mock.module("@databuddy/shared/bot-detection", () => ({
@@ -77,6 +80,7 @@ mock.module("@databuddy/shared/constants/deep-link-apps", () => ({
 mock.module("../lib/logging", () => ({
 	captureError,
 	captureWarning,
+	emitServiceEvent,
 	mergeWideEvent: mock(() => {}),
 	record: async <T>(_name: string, run: () => Promise<T> | T) => run(),
 	setAttributes: mock(() => {}),
@@ -117,6 +121,16 @@ beforeEach(() => {
 	enqueueLinkVisit.mockClear();
 	captureError.mockClear();
 	captureWarning.mockClear();
+	emitServiceEvent.mockClear();
+	setCachedLinkIfAbsent.mockClear();
+	setCachedLinkNotFoundIfAbsent.mockClear();
+	dbSelect.mockImplementation(() => ({
+		from: () => ({
+			where: () => ({
+				limit: async () => [],
+			}),
+		}),
+	}));
 	getCachedLink.mockResolvedValue({ state: "miss" });
 	ratelimit.mockResolvedValue({
 		limit: 60,
@@ -159,17 +173,39 @@ describe("redirect route", () => {
 		expect(dbSelect).not.toHaveBeenCalled();
 	});
 
-	test("retries a pending cache mutation without querying Postgres", async () => {
+	test("serves a link under mutation from Postgres without cache writes", async () => {
 		getCachedLink.mockResolvedValue({ state: "pending" });
+		dbSelect.mockImplementation(() => ({
+			from: () => ({
+				where: () => ({
+					limit: async () => [{ ...baseLink, expiresAt: null }],
+				}),
+			}),
+		}));
 
 		const response = await app.handle(
 			new Request("http://links.test/updating-link")
 		);
 
+		expect(response.status).toBe(302);
+		expect(response.headers.get("location")).toBe("https://example.com");
+		expect(dbSelect).toHaveBeenCalledTimes(1);
+		expect(setCachedLinkIfAbsent).not.toHaveBeenCalled();
+		expect(setCachedLinkNotFoundIfAbsent).not.toHaveBeenCalled();
+	});
+
+	test("returns a retryable 503 when Postgres is unavailable on a cache miss", async () => {
+		dbSelect.mockImplementation(() => {
+			throw new Error("connection refused");
+		});
+
+		const response = await app.handle(
+			new Request("http://links.test/cold-link")
+		);
+
 		expect(response.status).toBe(503);
-		expect(response.headers.get("retry-after")).toBe("1");
-		expect(dbSelect).not.toHaveBeenCalled();
-		expect(ratelimit).not.toHaveBeenCalled();
+		expect(response.headers.get("retry-after")).toBe("5");
+		expect(captureError).toHaveBeenCalled();
 	});
 
 	test("limits cache misses before querying Postgres", async () => {
@@ -242,7 +278,7 @@ describe("redirect route", () => {
 		expect(enqueueLinkVisit).not.toHaveBeenCalled();
 	});
 
-	test("does not redirect when the durable queue rejects a click", async () => {
+	test("redirects even when the durable queue rejects a click", async () => {
 		getCachedLink.mockResolvedValue({
 			link: { ...baseLink, id: "durable-link-1" },
 			state: "hit",
@@ -253,12 +289,19 @@ describe("redirect route", () => {
 			new Request("http://links.test/durable-link")
 		);
 
-		expect(response.status).toBe(503);
-		expect(response.headers.get("retry-after")).toBe("5");
-		expect(response.headers.get("location")).toBeNull();
+		expect(response.status).toBe(302);
+		expect(response.headers.get("location")).toBe("https://example.com");
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(emitServiceEvent).toHaveBeenCalledWith(
+			"error",
+			expect.objectContaining({
+				links: "click_lost",
+				link_id: "durable-link-1",
+			})
+		);
 	});
 
-	test("waits for durable queue admission before redirecting", async () => {
+	test("queues the click before redirecting", async () => {
 		getCachedLink.mockResolvedValue({
 			link: { ...baseLink, id: "durable-link-2" },
 			state: "hit",

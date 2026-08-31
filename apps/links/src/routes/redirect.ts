@@ -22,6 +22,7 @@ import { UAParser } from "ua-parser-js";
 import {
 	captureError,
 	captureWarning,
+	emitServiceEvent,
 	mergeWideEvent,
 	record,
 } from "../lib/logging";
@@ -155,101 +156,108 @@ function generateETag(link: CachedLink, targetUrl: string): string {
 	return etag;
 }
 
-async function lookupLink(slug: string, ipHash: string) {
+interface LookupResult {
+	cacheHit: boolean;
+	db_ms: number;
+	dbUnavailable?: boolean;
+	link: CachedLink | null;
+	lookup_source: string;
+	rateLimitHeaders: Record<string, string> | null;
+	redis_ms: number;
+}
+
+function warnCacheStep(err: unknown, error_step: string): void {
+	captureWarning(err instanceof Error ? err : new Error(String(err)), {
+		error_step,
+	});
+}
+
+async function lookupLink(slug: string, ipHash: string): Promise<LookupResult> {
 	const t0 = performance.now();
 	const cached = await record("link.cache.get", () =>
 		getCachedLink(slug).catch((err) => {
-			captureWarning(err instanceof Error ? err : new Error(String(err)), {
-				error_step: "cache_get",
-			});
+			warnCacheStep(err, "cache_get");
 			return { state: "miss" as const };
 		})
 	);
-	const redis_ms = ms(t0);
+	const base: LookupResult = {
+		link: null,
+		cacheHit: true,
+		lookup_source: "redis",
+		rateLimitHeaders: null,
+		redis_ms: ms(t0),
+		db_ms: 0,
+	};
 
 	if (cached.state === "hit") {
-		return {
-			link: cached.link,
-			cacheHit: true,
-			lookup_source: "redis",
-			rateLimitHeaders: null,
-			redis_ms,
-			db_ms: 0,
-		};
+		return { ...base, link: cached.link };
 	}
 	if (cached.state === "not_found") {
-		return {
-			link: null,
-			cacheHit: true,
-			lookup_source: "redis_not_found",
-			rateLimitHeaders: null,
-			redis_ms,
-			db_ms: 0,
-		};
+		return { ...base, lookup_source: "redis_not_found" };
 	}
-	if (cached.state === "pending") {
-		return {
-			link: null,
-			cacheHit: true,
-			lookup_source: "redis_pending",
-			rateLimitHeaders: null,
-			redis_ms,
-			db_ms: 0,
-		};
-	}
+
+	// A pending mutation lease means the cache cannot be trusted or written, but
+	// Postgres still can be read; serving either side of the in-flight update
+	// beats failing the redirect.
+	const mutationPending = cached.state === "pending";
+	base.cacheHit = false;
 
 	const limit = await record("link.cache_miss.rate_limit", () =>
 		ratelimit(`link-cache-miss:${ipHash}`, 60, 60)
 	);
 	if (!limit.success) {
 		return {
-			link: null,
-			cacheHit: false,
+			...base,
 			lookup_source: "rate_limited",
 			rateLimitHeaders: getRateLimitHeaders(limit),
-			redis_ms,
-			db_ms: 0,
 		};
 	}
 
 	const t1 = performance.now();
-	const row = await record("link.db.find", async () => {
-		const rows = await db
-			.select({
-				id: links.id,
-				targetUrl: links.targetUrl,
-				expiresAt: links.expiresAt,
-				expiredRedirectUrl: links.expiredRedirectUrl,
-				ogTitle: links.ogTitle,
-				ogDescription: links.ogDescription,
-				ogImageUrl: links.ogImageUrl,
-				ogVideoUrl: links.ogVideoUrl,
-				iosUrl: links.iosUrl,
-				androidUrl: links.androidUrl,
-				deepLinkApp: links.deepLinkApp,
-			})
-			.from(links)
-			.where(and(eq(links.slug, slug), isNull(links.deletedAt)))
-			.limit(1);
-		return rows[0] ?? null;
-	});
-	const db_ms = ms(t1);
+	let row: (Omit<CachedLink, "expiresAt"> & { expiresAt: Date | null }) | null;
+	try {
+		row = await record("link.db.find", async () => {
+			const rows = await db
+				.select({
+					id: links.id,
+					targetUrl: links.targetUrl,
+					expiresAt: links.expiresAt,
+					expiredRedirectUrl: links.expiredRedirectUrl,
+					ogTitle: links.ogTitle,
+					ogDescription: links.ogDescription,
+					ogImageUrl: links.ogImageUrl,
+					ogVideoUrl: links.ogVideoUrl,
+					iosUrl: links.iosUrl,
+					androidUrl: links.androidUrl,
+					deepLinkApp: links.deepLinkApp,
+				})
+				.from(links)
+				.where(and(eq(links.slug, slug), isNull(links.deletedAt)))
+				.limit(1);
+			return rows[0] ?? null;
+		});
+	} catch (error) {
+		captureError(error, { error_step: "db_lookup" });
+		return {
+			...base,
+			lookup_source: "db_unavailable",
+			dbUnavailable: true,
+			db_ms: ms(t1),
+		};
+	}
+	base.db_ms = ms(t1);
 
 	if (!row) {
-		await record("link.cache.set_not_found", () =>
-			setCachedLinkNotFoundIfAbsent(slug).catch((err) => {
-				captureWarning(err instanceof Error ? err : new Error(String(err)), {
-					error_step: "cache_set_not_found",
-				});
-			})
-		);
+		if (!mutationPending) {
+			await record("link.cache.set_not_found", () =>
+				setCachedLinkNotFoundIfAbsent(slug).catch((err) =>
+					warnCacheStep(err, "cache_set_not_found")
+				)
+			);
+		}
 		return {
-			link: null,
-			cacheHit: false,
-			lookup_source: "db_miss",
-			rateLimitHeaders: null,
-			redis_ms,
-			db_ms,
+			...base,
+			lookup_source: mutationPending ? "db_pending_miss" : "db_miss",
 		};
 	}
 
@@ -267,20 +275,17 @@ async function lookupLink(slug: string, ipHash: string) {
 		deepLinkApp: row.deepLinkApp,
 	};
 
-	await record("link.cache.set", () =>
-		setCachedLinkIfAbsent(slug, link).catch((err) => {
-			captureWarning(err instanceof Error ? err : new Error(String(err)), {
-				error_step: "cache_backfill",
-			});
-		})
-	);
+	if (!mutationPending) {
+		await record("link.cache.set", () =>
+			setCachedLinkIfAbsent(slug, link).catch((err) =>
+				warnCacheStep(err, "cache_backfill")
+			)
+		);
+	}
 	return {
+		...base,
 		link,
-		cacheHit: false,
-		lookup_source: "db",
-		rateLimitHeaders: null,
-		redis_ms,
-		db_ms,
+		lookup_source: mutationPending ? "db_pending" : "db",
 	};
 }
 
@@ -317,18 +322,22 @@ async function recordClick(
 		timestamp: new Date().toISOString().replace("T", " ").replace("Z", ""),
 		user_agent: userAgent,
 	};
-	const tDelivery = performance.now();
-	await record("link.click.queue", () => enqueueLinkVisit(event));
-	const delivery_ms = ms(tDelivery);
+	enqueueLinkVisit(event).catch((error) => {
+		emitServiceEvent("error", {
+			links: "click_lost",
+			link_id: link.id,
+			link_visit_id: event.id,
+			error_message: error instanceof Error ? error.message : String(error),
+		});
+	});
 
 	mergeWideEvent({
 		click_recorded: true,
-		click_reason: "queue_admitted",
+		click_delivery: "queued",
 		...(ua.browser ? { click_browser: ua.browser } : {}),
 		...(ua.device ? { click_device: ua.device } : {}),
 		...(geo.country ? { click_country: geo.country } : {}),
 		"timing.click.geo": geo_ms,
-		"timing.click.delivery": delivery_ms,
 		"timing.click": ms(t0),
 	});
 }
@@ -340,7 +349,7 @@ const IGNORED_SLUGS = new Set([
 	".well-known",
 ]);
 function retryResponse(error: string, retryAfter: string): Response {
-	// policy-ignore http/no-custom-json-error-response: These edge retry paths must preserve Retry-After when a cache mutation or click admission is unavailable.
+	// policy-ignore http/no-custom-json-error-response: This edge retry path must preserve Retry-After when the link store is unavailable.
 	return Response.json(
 		{ error },
 		{
@@ -379,8 +388,15 @@ export const redirectRoute = new Elysia().get(
 		}
 
 		const tLookup = performance.now();
-		const { link, cacheHit, lookup_source, rateLimitHeaders, redis_ms, db_ms } =
-			await record("redirect.lookup", () => lookupLink(slug, ipHash));
+		const {
+			link,
+			cacheHit,
+			lookup_source,
+			rateLimitHeaders,
+			dbUnavailable,
+			redis_ms,
+			db_ms,
+		} = await record("redirect.lookup", () => lookupLink(slug, ipHash));
 		ev.lookup_ms = ms(tLookup);
 		ev.lookup_source = lookup_source;
 		ev.cache_hit = cacheHit;
@@ -402,9 +418,12 @@ export const redirectRoute = new Elysia().get(
 			);
 		}
 
-		if (lookup_source === "redis_pending") {
-			emit("mutation_pending");
-			return retryResponse("This link is being updated. Please retry.", "1");
+		if (dbUnavailable) {
+			emit("lookup_unavailable");
+			return retryResponse(
+				"Link lookup is temporarily unavailable. Please retry.",
+				"5"
+			);
 		}
 
 		if (!link) {
@@ -469,19 +488,7 @@ export const redirectRoute = new Elysia().get(
 			response = redirect(targetUrl, 302);
 		}
 
-		try {
-			await recordClick(link, ipHash, ip, request);
-		} catch (error) {
-			captureError(error, {
-				error_step: "click_admission",
-				link_id: link.id,
-			});
-			emit("analytics_unavailable");
-			return retryResponse(
-				"Click tracking is temporarily unavailable. Please retry.",
-				"5"
-			);
-		}
+		await recordClick(link, ipHash, ip, request);
 
 		emit(result);
 		if (etag) {
