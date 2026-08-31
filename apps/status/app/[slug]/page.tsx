@@ -238,7 +238,7 @@ export default async function StatusPage({ params }: StatusPageProps) {
 						<p className="text-[11px] text-muted-foreground/50 tracking-wide">
 							Powered by{" "}
 							<a
-								className="text-muted-foreground/70 transition-colors hover:text-foreground"
+								className="text-muted-foreground/70 transition-colors duration-(--duration-quick) ease-(--ease-smooth) hover:text-foreground"
 								href="https://www.databuddy.cc"
 								rel="noopener noreferrer dofollow"
 								target="_blank"

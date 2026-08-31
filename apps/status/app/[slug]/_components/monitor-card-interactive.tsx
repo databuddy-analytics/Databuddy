@@ -83,14 +83,14 @@ export function MonitorCardInteractive({
 			<button
 				aria-controls={panelId}
 				aria-expanded={isOpen}
-				className="relative z-20 flex w-full cursor-pointer select-none items-start gap-2 overflow-hidden rounded-t-xl rounded-b-none bg-card p-3 text-left outline-none transition-colors hover:bg-muted/30 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset sm:gap-3 sm:p-4"
+				className="relative z-20 flex w-full cursor-pointer select-none items-start gap-2 overflow-hidden rounded-t-xl rounded-b-none bg-card p-3 text-left outline-none transition-colors duration-(--duration-quick) ease-(--ease-smooth) hover:bg-muted/30 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset sm:gap-3 sm:p-4"
 				onClick={() => setIsOpen((open) => !open)}
 				type="button"
 			>
 				<div className="shrink-0 p-1">
 					<CaretDownIcon
 						className={cn(
-							"size-3 -rotate-90 text-muted-foreground transition-transform duration-200 ease-out",
+							"size-3 -rotate-90 text-muted-foreground transition-transform duration-(--duration-base) ease-(--expo-out)",
 							isOpen && "rotate-0"
 						)}
 					/>
@@ -127,10 +127,10 @@ export function MonitorCardInteractive({
 			<div
 				aria-hidden={!isOpen}
 				className={cn(
-					"grid bg-muted/30 transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none",
+					"grid border-t bg-muted/30 transition-[grid-template-rows,opacity,border-color] duration-(--duration-base) ease-(--expo-out) motion-reduce:transition-none",
 					isOpen
-						? "grid-rows-[1fr] border-border/60 border-t opacity-100"
-						: "grid-rows-[0fr] opacity-0"
+						? "grid-rows-[1fr] border-border/60 opacity-100"
+						: "grid-rows-[0fr] border-transparent opacity-0"
 				)}
 				id={panelId}
 				inert={isOpen ? undefined : true}
