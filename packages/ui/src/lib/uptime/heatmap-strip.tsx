@@ -15,18 +15,18 @@ type UptimeSeverity =
 	| "partial"
 	| "major";
 
-type TooltipState = {
+interface TooltipState {
 	above: boolean;
 	index: number;
 	left: number;
 	top: number;
-};
+}
 
-type Segment = {
+interface Segment {
 	length: number;
 	severity: UptimeSeverity;
 	start: number;
-};
+}
 
 type UptimeHeatmapStripVariant = "segments" | "cells";
 
@@ -328,7 +328,10 @@ function SegmentedUptimeStrip({
 	const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const [tooltip, setTooltip] = useState<TooltipState | null>(null);
 	const [isTooltipVisible, setIsTooltipVisible] = useState(false);
-	const segments = useMemo(() => buildSegments(days, isActive), [days, isActive]);
+	const segments = useMemo(
+		() => buildSegments(days, isActive),
+		[days, isActive]
+	);
 	const activeDay = tooltip ? days[tooltip.index] : null;
 	const gridStyle = {
 		gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))`,
@@ -478,19 +481,19 @@ function SegmentedUptimeStrip({
 					))}
 				</div>
 			</fieldset>
-			{typeof document !== "undefined" && activeDay && tooltip ? (
-				createPortal(
-					<SegmentTooltip
-						day={activeDay}
-						emptyLabel={emptyLabel}
-						isActive={isActive}
-						isVisible={isTooltipVisible}
-						showData={showData}
-						state={tooltip}
-					/>,
-					document.body
-				)
-			) : null}
+			{typeof document !== "undefined" && activeDay && tooltip
+				? createPortal(
+						<SegmentTooltip
+							day={activeDay}
+							emptyLabel={emptyLabel}
+							isActive={isActive}
+							isVisible={isTooltipVisible}
+							showData={showData}
+							state={tooltip}
+						/>,
+						document.body
+					)
+				: null}
 		</>
 	);
 }
@@ -588,7 +591,7 @@ function CellUptimeStrip({
 
 			{activeDay && (
 				<div
-					className="pointer-events-none absolute bottom-full mb-2 transition-opacity duration-(--duration-instant) ease-(--ease-smooth) starting:opacity-0 motion-reduce:transition-none"
+					className="pointer-events-none absolute bottom-full mb-2 starting:opacity-0 transition-opacity duration-(--duration-instant) ease-(--ease-smooth) motion-reduce:transition-none"
 					style={{
 						left: pos.x,
 						transform: "translateX(-50%)",
@@ -597,7 +600,9 @@ function CellUptimeStrip({
 				>
 					<div className="rounded-lg border border-border/60 bg-popover px-3 py-2.5 text-popover-foreground text-sm shadow-md">
 						<UptimeHeatmapDayTooltipBody
-							dateLabel={getDateLabel?.(activeDay.date) ?? formatLongDate(activeDay.date)}
+							dateLabel={
+								getDateLabel?.(activeDay.date) ?? formatLongDate(activeDay.date)
+							}
 							downtimeSeconds={activeDay.downtimeSeconds}
 							emptyLabel={emptyLabel}
 							hasData={showData}
