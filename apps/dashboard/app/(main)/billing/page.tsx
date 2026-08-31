@@ -51,6 +51,10 @@ const PLANS_WITHOUT_SELF_SERVE_UPGRADES = new Set([
 	"scale",
 	...Object.values(INTELLIGENCE_PLAN_IDS),
 ]);
+const INTELLIGENCE_PLAN_ID_SET = new Set<string>(
+	Object.values(INTELLIGENCE_PLAN_IDS)
+);
+const CREDITS_BOOSTER_PLAN_ID = "credits_booster";
 
 interface OrgUsageData {
 	balance?: number | null;
@@ -312,8 +316,23 @@ export default function BillingPage() {
 
 	const addOns = useMemo(() => {
 		const allAddOns = plans?.filter((p) => p.addOn) ?? [];
-		return allAddOns.filter((p) => !isSSOPlan(p) && p.id !== TOPUP_PRODUCT_ID);
-	}, [plans]);
+		const basePlanId = customer?.subscriptions?.find((subscription) => {
+			const plan = plans?.find((entry) => entry.id === subscription.planId);
+			return plan && !plan.addOn;
+		})?.planId;
+		const onIntelligencePlan =
+			basePlanId != null && INTELLIGENCE_PLAN_ID_SET.has(basePlanId);
+
+		return allAddOns.filter((plan) => {
+			if (isSSOPlan(plan) || plan.id === TOPUP_PRODUCT_ID) {
+				return false;
+			}
+			if (onIntelligencePlan && plan.id === CREDITS_BOOSTER_PLAN_ID) {
+				return false;
+			}
+			return true;
+		});
+	}, [customer?.subscriptions, plans]);
 
 	const { currentPlan, currentSubscription, usageStats, statusDetails } =
 		useMemo(() => {
