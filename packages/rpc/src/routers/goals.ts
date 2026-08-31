@@ -15,7 +15,7 @@ import {
 	getTotalWebsiteUsers,
 	processGoalAnalytics,
 } from "../lib/analytics-utils";
-import { getErrorLogFields } from "../lib/error-log-fields";
+import { getErrorLogFields } from "@databuddy/shared/evlog-fields";
 import { logger } from "../lib/logger";
 import { invalidateGoalsCache } from "../lib/goals-cache";
 import { setTrackProperties } from "../middleware/track-mutation";

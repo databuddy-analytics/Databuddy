@@ -1,7 +1,7 @@
 import { replayAuditOutbox } from "@databuddy/services/audit";
 import { db } from "@databuddy/db";
 import { log } from "evlog";
-import { getErrorLogFields } from "@/lib/error-log-fields";
+import { getErrorLogFields } from "@databuddy/shared/evlog-fields";
 
 const REPLAY_INTERVAL_MS = 60_000;
 

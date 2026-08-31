@@ -25,7 +25,7 @@ import { randomUUIDv7 } from "bun";
 import { customAlphabet } from "nanoid";
 import { z } from "zod";
 import { rpcError } from "../errors";
-import { getErrorLogFields } from "../lib/error-log-fields";
+import { getErrorLogFields } from "@databuddy/shared/evlog-fields";
 import { logger } from "../lib/logger";
 import { setTrackProperties } from "../middleware/track-mutation";
 import { type Context, protectedProcedure, trackedProcedure } from "../orpc";
