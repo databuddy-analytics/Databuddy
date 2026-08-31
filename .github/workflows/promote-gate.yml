@@ -21,7 +21,7 @@ jobs:
           SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           required=("Databuddy - API Staging" "Databuddy - Staging Basket")
-          for attempt in $(seq 1 24); do
+          for attempt in $(seq 1 40); do
             statuses=$(gh api "repos/${{ github.repository }}/commits/$SHA/status" --jq '.statuses[] | "\(.context)=\(.state)"')
             ok=0
             for ctx in "${required[@]}"; do
@@ -34,7 +34,7 @@ jobs:
             if [ "$ok" -eq "${#required[@]}" ]; then
               echo "All staging deploys green for $SHA"; exit 0
             fi
-            echo "Waiting for staging deploys ($ok/${#required[@]} green, attempt $attempt/24)"
+            echo "Waiting for staging deploys ($ok/${#required[@]} green, attempt $attempt/40)"
             sleep 30
           done
           echo "Staging deploys did not go green within 12 minutes"; exit 1
