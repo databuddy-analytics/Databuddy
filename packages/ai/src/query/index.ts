@@ -116,6 +116,7 @@ export {
 	executeBatch,
 	getCompatibleQueries,
 	getSchemaGroups,
+	truncateQueryErrorForLog,
 } from "./batch-executor";
 export * from "./builders";
 export * from "./expressions";

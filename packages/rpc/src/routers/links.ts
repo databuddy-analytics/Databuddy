@@ -25,6 +25,7 @@ import { randomUUIDv7 } from "bun";
 import { customAlphabet } from "nanoid";
 import { z } from "zod";
 import { rpcError } from "../errors";
+import { getErrorLogFields } from "@databuddy/shared/evlog-fields";
 import { logger } from "../lib/logger";
 import { setTrackProperties } from "../middleware/track-mutation";
 import { type Context, protectedProcedure, trackedProcedure } from "../orpc";
@@ -57,10 +58,14 @@ type CacheableLink = Pick<
 >;
 interface LinkCacheMutation {
 	id: string;
+	organizationId: string;
 	slug: string;
 	token: string;
 }
-type LinkCacheMutationRequest = Pick<LinkCacheMutation, "id" | "slug"> & {
+type LinkCacheMutationRequest = Pick<
+	LinkCacheMutation,
+	"id" | "organizationId" | "slug"
+> & {
 	mode: "existing" | "new";
 };
 
@@ -189,20 +194,6 @@ function toCachedLink(link: CacheableLink): CachedLink {
 	};
 }
 
-function getErrorLogFields(error: unknown): {
-	error_message: string;
-	error_stack?: string;
-} {
-	if (error instanceof Error) {
-		return {
-			error_message: error.message,
-			...(error.stack ? { error_stack: error.stack } : {}),
-		};
-	}
-
-	return { error_message: String(error) };
-}
-
 function invalidateLinkAgentContext(organizationId: string): void {
 	// The helper absorbs expected Redis failures; retain this guard for future errors.
 	invalidateAgentContextSnapshotsForOwner(organizationId).catch((error) => {
@@ -218,18 +209,24 @@ async function abandonLinkCacheMutations(
 	reason: string
 ): Promise<void> {
 	await Promise.all(
-		mutations.map(async ({ id, slug, token }) => {
+		mutations.map(async ({ id, organizationId, slug, token }) => {
 			try {
 				if (await abandonCachedLinkMutation(slug, token)) {
 					return;
 				}
 				logger.warn(
-					{ linkId: id, slug },
+					{ linkId: id, organizationId, slug },
 					"Lost link cache mutation lease while abandoning mutation"
 				);
 			} catch (error) {
 				logger.error(
-					{ linkId: id, slug, reason, ...getErrorLogFields(error) },
+					{
+						linkId: id,
+						organizationId,
+						slug,
+						reason,
+						...getErrorLogFields(error),
+					},
 					"Failed to abandon link cache mutation"
 				);
 			}
@@ -242,18 +239,18 @@ async function finishLinkCacheMutation(
 	next: CachedLinkMutationNext,
 	reason: string
 ): Promise<boolean> {
-	const { id, slug, token } = mutation;
+	const { id, organizationId, slug, token } = mutation;
 	try {
 		if (await finishCachedLinkMutation(slug, token, next)) {
 			return true;
 		}
 		logger.warn(
-			{ linkId: id, slug, reason },
+			{ linkId: id, organizationId, slug, reason },
 			"Lost link cache mutation lease before cache finalization"
 		);
 	} catch (error) {
 		logger.error(
-			{ linkId: id, slug, reason, ...getErrorLogFields(error) },
+			{ linkId: id, organizationId, slug, reason, ...getErrorLogFields(error) },
 			"Failed to finalize link cache mutation"
 		);
 	}
@@ -265,7 +262,7 @@ async function finishLinkCacheMutation(
 		await abandonCachedLinkMutation(slug, token);
 	} catch (error) {
 		logger.error(
-			{ linkId: id, slug, reason, ...getErrorLogFields(error) },
+			{ linkId: id, organizationId, slug, reason, ...getErrorLogFields(error) },
 			"Failed to release link cache mutation after finalization failure"
 		);
 	}
@@ -274,7 +271,7 @@ async function finishLinkCacheMutation(
 
 async function backfillLinkCache(
 	slug: string,
-	link: CacheableLink,
+	link: CacheableLink & { organizationId: string },
 	reason: string
 ): Promise<void> {
 	try {
@@ -282,12 +279,23 @@ async function backfillLinkCache(
 			return;
 		}
 		logger.warn(
-			{ linkId: link.id, slug, reason },
+			{
+				linkId: link.id,
+				organizationId: link.organizationId,
+				slug,
+				reason,
+			},
 			"Link cache backfill did not replace an existing entry"
 		);
 	} catch (error) {
 		logger.error(
-			{ linkId: link.id, slug, reason, ...getErrorLogFields(error) },
+			{
+				linkId: link.id,
+				organizationId: link.organizationId,
+				slug,
+				reason,
+				...getErrorLogFields(error),
+			},
 			"Failed to backfill link cache"
 		);
 	}
@@ -326,6 +334,7 @@ async function beginLinkCacheMutations(
 			}
 			mutations.push({
 				id: request.id,
+				organizationId: request.organizationId,
 				slug: request.slug,
 				token: started.token,
 			});
@@ -586,7 +595,7 @@ export const linksRouter = {
 					let started: LinkCacheMutation[] | null;
 					try {
 						started = await beginLinkCacheMutations([
-							{ id: linkId, mode: "new", slug },
+							{ id: linkId, mode: "new", organizationId, slug },
 						]);
 					} catch (error) {
 						logger.error(
@@ -794,12 +803,18 @@ export const linksRouter = {
 					: normalizeTargetDomain(targetDomain);
 
 			const cacheMutationRequests: LinkCacheMutationRequest[] = [
-				{ id: link.id, mode: "existing", slug: oldSlug },
+				{
+					id: link.id,
+					mode: "existing",
+					organizationId: link.organizationId,
+					slug: oldSlug,
+				},
 			];
 			if (nextSlug !== oldSlug) {
 				cacheMutationRequests.push({
 					id: link.id,
 					mode: "new",
+					organizationId: link.organizationId,
 					slug: nextSlug,
 				});
 			}
@@ -959,7 +974,12 @@ export const linksRouter = {
 			let cacheMutations: LinkCacheMutation[] | null;
 			try {
 				cacheMutations = await beginLinkCacheMutations([
-					{ id: link.id, mode: "existing", slug: link.slug },
+					{
+						id: link.id,
+						mode: "existing",
+						organizationId: link.organizationId,
+						slug: link.slug,
+					},
 				]);
 			} catch (error) {
 				logger.error(

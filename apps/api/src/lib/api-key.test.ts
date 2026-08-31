@@ -10,11 +10,7 @@ const state = vi.hoisted(() => ({
 
 vi.mock("@databuddy/db", () => ({
 	db: {
-		transaction: async (fn: (tx: unknown) => Promise<unknown>) =>
-			fn({
-				execute: async () => undefined,
-				query: { apikey: { findFirst: state.findFirst } },
-			}),
+		query: { apikey: { findFirst: state.findFirst } },
 		update: () => ({
 			set: () => ({
 				where: async () => {
@@ -24,7 +20,6 @@ vi.mock("@databuddy/db", () => ({
 		}),
 	},
 	eq: vi.fn(),
-	sql: () => "",
 }));
 
 vi.mock("@databuddy/db/schema", () => ({ apikey: {} }));

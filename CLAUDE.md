@@ -86,8 +86,11 @@ packages/
   rpc/         # ORPC router — type-safe API layer between dashboard and api
   auth/        # Better-Auth integration + permission system
   sdk/         # Public analytics SDK (React, Vue, Node.js)
-  cache/       # Redis-backed Drizzle caching layer
-  redis/       # Redis client, pub/sub, BullMQ job queues
+  sdk-swift/   # Swift analytics SDK
+  nuxt/        # Nuxt module for the SDK
+  ui/          # Design system components (@databuddy/ui)
+  ai/          # AI agent, query builders, MCP tools
+  redis/       # Redis client, cacheable() caching, pub/sub, BullMQ queues, rate limiting
   shared/      # Shared types, utilities, constants
   validation/  # Zod schemas
   services/    # Business logic services
@@ -98,8 +101,9 @@ packages/
   env/         # Environment configuration (type-safe env vars)
   devtools/    # Browser devtools extension
   encryption/  # Encryption utilities
-  evals/       # AI eval framework
   api-keys/    # API key management and scopes
+  test/        # Shared integration test infra (factories, contexts, assertions)
+  migrate/     # Migrates competitor tracker attributes (Umami, Pirsch, Rybbit) to Databuddy
 ```
 
 ### Data Flow
@@ -117,7 +121,7 @@ Dashboard (Next.js) ←→ ORPC (rpc package) ←→ API (Elysia) → PostgreSQL
 
 **Database Layer (`packages/db`)**: Single source of truth for all schemas. Uses Drizzle ORM for PostgreSQL (relational data: users, websites, settings) and a ClickHouse client for analytics data (events, sessions, pageviews). Schema changes use `db:push` for development; `db:migrate` for production migrations.
 
-**Caching (`packages/cache`)**: Redis cache sits in front of Drizzle queries. Cache keys and TTLs are defined alongside queries.
+**Caching (`packages/redis`)**: `cacheable()` wraps repeated lookups with positive + negative caching, single-flight dedup, stale-while-revalidate, and Redis fallback. Pass `reviveDates: false` when the cached value carries ISO-string timestamps validated by `z.string()` output schemas.
 
 **Auth (`packages/auth`)**: Better-Auth handles sessions. The package also contains the permission system used across all apps.
 

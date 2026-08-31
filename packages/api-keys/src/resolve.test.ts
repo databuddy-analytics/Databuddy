@@ -1,52 +1,30 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from "bun:test";
 import type { ApiKeyRow } from "./resolve";
 
-interface SqlFragment {
-	text: string;
-	values: unknown[];
-}
-
 const calls: string[] = [];
 const findApiKey = mock((_input?: unknown): Promise<unknown> =>
 	Promise.resolve(null)
 );
-const execute = mock(async (_query: SqlFragment) => {
-	calls.push("statement-timeout");
-});
 const redisSet = mock((): Promise<string | null> => Promise.resolve("OK"));
-const tx = {
-	execute,
-	query: {
-		apikey: {
-			findFirst: (...args: unknown[]) => {
-				calls.push("lookup");
-				return findApiKey(args[0]);
-			},
-		},
-	},
-};
-const transaction = mock(
-	async (work: (value: typeof tx) => Promise<unknown>): Promise<unknown> => {
-		calls.push("transaction");
-		return work(tx);
-	}
-);
 
 let configuredQueryTimeoutMs: number | undefined;
 let queryTimeoutOverrideMs: number | undefined;
 
 mock.module("@databuddy/db", () => ({
 	db: {
-		transaction,
+		query: {
+			apikey: {
+				findFirst: (...args: unknown[]) => {
+					calls.push("lookup");
+					return findApiKey(args[0]);
+				},
+			},
+		},
 		update: () => ({
 			set: () => ({ where: () => Promise.resolve() }),
 		}),
 	},
 	eq: (left: unknown, right: unknown) => [left, right],
-	sql: (strings: TemplateStringsArray, ...values: unknown[]): SqlFragment => ({
-		text: strings.join("?"),
-		values,
-	}),
 }));
 
 mock.module("@databuddy/db/schema", () => ({
@@ -101,7 +79,6 @@ mock.module("@databuddy/redis", () => ({
 
 const {
 	API_KEY_LOOKUP_TIMEOUT_MS,
-	API_KEY_STATEMENT_TIMEOUT_MS,
 	collectScopes,
 	extractSecret,
 	getAccessibleWebsiteIds,
@@ -114,10 +91,8 @@ const {
 describe("API key database deadline", () => {
 	beforeEach(() => {
 		calls.length = 0;
-		execute.mockClear();
 		findApiKey.mockReset();
 		findApiKey.mockResolvedValue(null);
-		transaction.mockClear();
 		queryTimeoutOverrideMs = undefined;
 	});
 
@@ -125,24 +100,15 @@ describe("API key database deadline", () => {
 		mock.restore();
 	});
 
-	test("sets a transaction-local PostgreSQL statement timeout before lookup", async () => {
+	test("resolves the key with a single lookup query", async () => {
 		await expect(
 			resolveApiKeySecret("dbdy_valid_test_key")
 		).resolves.toMatchObject({ outcome: "invalid" });
 
-		expect(API_KEY_STATEMENT_TIMEOUT_MS).toBe(5000);
 		expect(API_KEY_LOOKUP_TIMEOUT_MS).toBe(5000);
 		expect(configuredQueryTimeoutMs).toBe(API_KEY_LOOKUP_TIMEOUT_MS);
-		expect(calls).toEqual(["transaction", "statement-timeout", "lookup"]);
-		expect(transaction).toHaveBeenCalledTimes(1);
-		expect(execute).toHaveBeenCalledTimes(1);
-
-		const statement = execute.mock.calls[0]?.[0];
-		expect(statement?.text).toContain("set_config('statement_timeout'");
-		expect(statement?.text).toContain(", true)");
-		expect(statement?.values).toEqual([
-			String(API_KEY_STATEMENT_TIMEOUT_MS),
-		]);
+		expect(calls).toEqual(["lookup"]);
+		expect(findApiKey).toHaveBeenCalledTimes(1);
 	});
 
 	test("releases the shared lookup after PostgreSQL cancels the statement", async () => {
@@ -168,24 +134,21 @@ describe("API key database deadline", () => {
 		expect(findApiKey).toHaveBeenCalledTimes(2);
 	});
 
-	test("bounds pool acquisition before the transaction callback starts and retries", async () => {
+	test("bounds a stalled lookup with the query timeout and retries", async () => {
 		queryTimeoutOverrideMs = 10;
-		transaction.mockImplementationOnce(
+		findApiKey.mockImplementationOnce(
 			() => new Promise<never>(() => undefined)
 		);
 
 		await expect(
 			resolveApiKeySecret("dbdy_waiting_for_pool")
 		).rejects.toThrow("Query timeout");
-		expect(transaction).toHaveBeenCalledTimes(1);
-		expect(execute).not.toHaveBeenCalled();
-		expect(findApiKey).not.toHaveBeenCalled();
+		expect(findApiKey).toHaveBeenCalledTimes(1);
 
 		await expect(
 			resolveApiKeySecret("dbdy_waiting_for_pool")
 		).resolves.toMatchObject({ outcome: "invalid" });
-		expect(transaction).toHaveBeenCalledTimes(2);
-		expect(findApiKey).toHaveBeenCalledTimes(1);
+		expect(findApiKey).toHaveBeenCalledTimes(2);
 	});
 });
 

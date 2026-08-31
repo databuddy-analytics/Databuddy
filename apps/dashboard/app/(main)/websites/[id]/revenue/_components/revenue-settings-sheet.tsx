@@ -94,10 +94,7 @@ export function RevenueSettingsSheet({
 		isError: isConfigError,
 		isLoading,
 		refetch: refetchConfig,
-	} = useQuery({
-		queryKey: ["revenue-config", websiteId],
-		queryFn: () => orpc.revenue.get.call({ websiteId }),
-	});
+	} = useQuery(orpc.revenue.get.queryOptions({ input: { websiteId } }));
 	const savedCurrency = normalizeCurrencyCode(config?.currency);
 	const configuredCurrency =
 		typeof config?.currency === "string"
@@ -126,7 +123,7 @@ export function RevenueSettingsSheet({
 		},
 		onSuccess: () => {
 			queryClient.invalidateQueries({
-				queryKey: ["revenue-config", websiteId],
+				queryKey: orpc.revenue.get.key({ input: { websiteId } }),
 			});
 			toast.success("Webhook URLs generated");
 		},
@@ -141,7 +138,7 @@ export function RevenueSettingsSheet({
 		}) => orpc.revenue.upsert.call({ websiteId, ...data }),
 		onSuccess: () => {
 			queryClient.invalidateQueries({
-				queryKey: ["revenue-config", websiteId],
+				queryKey: orpc.revenue.get.key({ input: { websiteId } }),
 			});
 			setStripeSecret("");
 			setPaddleSecret("");
@@ -155,7 +152,7 @@ export function RevenueSettingsSheet({
 		mutationFn: () => orpc.revenue.regenerateHash.call({ websiteId }),
 		onSuccess: () => {
 			queryClient.invalidateQueries({
-				queryKey: ["revenue-config", websiteId],
+				queryKey: orpc.revenue.get.key({ input: { websiteId } }),
 			});
 			toast.success("Webhook URLs regenerated");
 		},

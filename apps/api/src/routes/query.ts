@@ -35,6 +35,7 @@ import {
 	compileQuery,
 	executeBatch,
 	isFilterFieldAllowed,
+	truncateQueryErrorForLog,
 } from "@databuddy/ai/query";
 import {
 	canReadQueryTypesPublicly,
@@ -1087,7 +1088,7 @@ async function executeDynamicQuery(
 			const result = results[i];
 			if (param) {
 				if (result?.error) {
-					captureError(new Error(result.error), {
+					captureError(new Error(truncateQueryErrorForLog(result.error)), {
 						query_type: param.request.type,
 						route: "v1/query",
 						step: "execute_batch",

@@ -140,7 +140,16 @@ export function validateRequest(
 
 		log.set({ website: { domain: website.domain, status: website.status } });
 
-		if (website.ownerId && options.checkUsage !== false) {
+		const userAgent =
+			sanitizeString(
+				request.headers.get("user-agent"),
+				VALIDATION_LIMITS.STRING_MAX_LENGTH
+			) || "";
+
+		const botCheck = detectBot(userAgent, request);
+		const isBlockedBot = botCheck.isBot && botCheck.action !== "allow";
+
+		if (website.ownerId && options.checkUsage !== false && !isBlockedBot) {
 			await checkAutumnUsage(website.ownerId, "events", {
 				website_domain: website.domain,
 				website_id: website.id,
@@ -229,12 +238,6 @@ export function validateRequest(
 				throw basketErrors.ingestIpNotAuthorized();
 			}
 		}
-
-		const userAgent =
-			sanitizeString(
-				request.headers.get("user-agent"),
-				VALIDATION_LIMITS.STRING_MAX_LENGTH
-			) || "";
 
 		return {
 			clientId,

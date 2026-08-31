@@ -56,7 +56,10 @@ const {
 				organizationId: "org_1",
 			})
 		),
-		mockCheckForBot: vi.fn(() => Promise.resolve(undefined)),
+		mockCheckForBot: vi.fn(
+			(): Promise<{ error?: Response } | undefined> =>
+				Promise.resolve(undefined)
+		),
 		mockInsertTrackEvent: vi.fn(() => Promise.resolve()),
 		mockInsertOutgoingLink: vi.fn(() => Promise.resolve()),
 		mockInsertTrackEventsBatch: vi.fn(() => Promise.resolve()),
@@ -688,6 +691,23 @@ describe("POST /track", () => {
 			organizationId: "org_1",
 		});
 		mockResolveApiKeyOwnerId.mockResolvedValue("user_1");
+	});
+
+	test("bot user agent short-circuits before the billing check", async () => {
+		mockCheckForBot.mockClear();
+		mockCheckForBot.mockResolvedValueOnce({
+			error: new Response(null, { status: 204 }),
+		});
+		const res = await post(
+			trackRoute,
+			"/track",
+			{ name: "signup", websiteId: "ws_test" },
+			{ "User-Agent": "GPTBot/1.0" }
+		);
+		expect(res.status).toBe(204);
+		expect(mockCheckForBot).toHaveBeenCalledOnce();
+		expect(mockCheckAutumnUsage).not.toHaveBeenCalled();
+		expect(mockInsertCustomEvents).not.toHaveBeenCalled();
 	});
 
 	test("single event → 200 with the exact success body", async () => {

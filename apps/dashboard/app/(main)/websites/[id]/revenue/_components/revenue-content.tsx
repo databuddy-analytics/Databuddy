@@ -104,10 +104,7 @@ export function RevenueContent({ websiteId }: RevenueContentProps) {
 		isError: isConfigError,
 		isLoading: isConfigLoading,
 		refetch: refetchConfig,
-	} = useQuery({
-		queryKey: ["revenue-config", websiteId],
-		queryFn: () => orpc.revenue.get.call({ websiteId }),
-	});
+	} = useQuery(orpc.revenue.get.queryOptions({ input: { websiteId } }));
 	const currency = normalizeCurrencyCode(config?.currency);
 	const revenueQueryEnabled = !isConfigLoading && currency !== null;
 	const displayCurrency = currency ?? "";

@@ -34,12 +34,25 @@ const devFsDrain = useLocalEvlogFiles
 	? createFsDrain({ dir: devFsLogsDir, pretty: false })
 	: null;
 
+function isClientHttpStatus(value: unknown): boolean {
+	const status = typeof value === "string" ? Number(value) : value;
+	return typeof status === "number" && status >= 400 && status < 500;
+}
+
+function readErrorObjectMessage(error: unknown): unknown {
+	return error && typeof error === "object" && !Array.isArray(error)
+		? (error as { message?: unknown }).message
+		: undefined;
+}
+
 function isBasketClientHttpError(event: Record<string, unknown>): boolean {
-	const status = event.http_status;
-	if (typeof status === "number" && status >= 400 && status < 500) {
+	if (
+		isClientHttpStatus(event.http_status) ||
+		isClientHttpStatus(event.status)
+	) {
 		return true;
 	}
-	const message = event.error_message;
+	const message = event.error_message ?? readErrorObjectMessage(event.error);
 	return typeof message === "string" && CLIENT_ERROR_MESSAGES.has(message);
 }
 

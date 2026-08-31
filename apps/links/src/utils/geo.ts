@@ -9,7 +9,12 @@ import {
 import { log } from "evlog";
 import { LRUCache } from "lru-cache";
 import { isIP } from "node:net";
-import { captureError, record, setAttributes } from "../lib/logging";
+import {
+	captureError,
+	emitStartupEvent,
+	record,
+	setAttributes,
+} from "../lib/logging";
 
 interface GeoIPReader extends Reader {
 	city(ip: string): City;
@@ -23,7 +28,8 @@ interface GeoResult {
 
 const DEFAULT_GEOIP_DB_URL = "https://cdn.databuddy.cc/mmdb/GeoLite2-City.mmdb";
 const GEOIP_DB_URL = process.env.GEOIP_DB_URL || DEFAULT_GEOIP_DB_URL;
-const GEOIP_FETCH_TIMEOUT_MS = 5000;
+const GEOIP_FETCH_TIMEOUT_MS = 60_000;
+const GEOIP_RETRY_BACKOFF_MS = 10_000;
 const EMPTY_GEO: GeoResult = { country: null, region: null, city: null };
 
 let reader: GeoIPReader | null = null;
@@ -43,6 +49,7 @@ function loadDatabase(): Promise<void> {
 	}
 
 	loadPromise = (async () => {
+		const loadStart = performance.now();
 		const controller = new AbortController();
 		const timeout = setTimeout(
 			() => controller.abort(),
@@ -65,6 +72,11 @@ function loadDatabase(): Promise<void> {
 
 			reader = Reader.openBuffer(buffer) as GeoIPReader;
 			setAttributes({ geo_db_loaded: true });
+			emitStartupEvent({
+				links: "geoip_db_loaded",
+				geo_db_size_bytes: buffer.length,
+				geo_db_load_ms: Math.round(performance.now() - loadStart),
+			});
 		} catch (err) {
 			captureError(err, { operation: "geo_load_database" });
 			reader = null;
@@ -129,9 +141,17 @@ function getCloudflareGeo(request?: Request): GeoResult | null {
 }
 
 export function preloadGeoDatabase(): void {
-	loadDatabase().catch((err) =>
-		captureError(err, { operation: "geo_preload_database" })
-	);
+	loadDatabase()
+		.then(async () => {
+			if (reader) {
+				return;
+			}
+			await new Promise((resolve) =>
+				setTimeout(resolve, GEOIP_RETRY_BACKOFF_MS)
+			);
+			await loadDatabase();
+		})
+		.catch((err) => captureError(err, { operation: "geo_preload_database" }));
 }
 
 export async function getGeo(

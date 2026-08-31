@@ -14,7 +14,14 @@ refuse that combination (each refresh would swap the table on one replica
 only). Incremental row-level MVs match the existing `daily_pageviews_mv`
 doctrine and capture test-fixture inserts synchronously.
 
-Applied to production 2026-08-29 (tables, MVs, then backfill):
+Applied to production 2026-08-29 (tables, MVs, then backfill). On 2026-08-31
+all six objects were found absent from the cluster (every funnels query failed
+with `Unknown table expression identifier 'analytics.identity_anon_pairs'`
+once the dependent code reached production); the cause of the disappearance is
+unknown because `system.query_log` is disabled. Re-applied 2026-08-31 with
+`ON CLUSTER databuddy_cluster` on every CREATE so all three replicas hold the
+objects, then backfilled (~2.14M rows per pair table). Any future apply must
+use `ON CLUSTER`:
 
 ```sql
 INSERT INTO analytics.identity_anon_pairs SELECT client_id, anonymous_id, time, profile_id FROM analytics.events WHERE profile_id != '' AND anonymous_id != '';

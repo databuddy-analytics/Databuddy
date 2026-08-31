@@ -15,7 +15,11 @@ import {
 	batchDynamicQueryKeys,
 	dynamicQueryKeys,
 } from "@/hooks/use-dynamic-query";
-import { updateWebsiteCache, useWebsite } from "@/hooks/use-websites";
+import {
+	getWebsiteByIdKey,
+	updateWebsiteCache,
+	useWebsite,
+} from "@/hooks/use-websites";
 import {
 	DASHBOARD_FILTERS_QUERY_PARAM,
 	parseDashboardFiltersParam,
@@ -187,7 +191,9 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 		onSuccess: (updatedWebsite) => {
 			updateWebsiteCache(queryClient, updatedWebsite);
 			queryClient.invalidateQueries({
-				queryKey: ["websites", "isTrackingSetup", websiteId],
+				queryKey: orpc.websites.isTrackingSetup.key({
+					input: { websiteId },
+				}),
 			});
 		},
 	});
@@ -236,7 +242,10 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 			{
 				loading: "Allowing tracking origin...",
 				success: `${trackingIssue.originHost} can now send analytics`,
-				error: "Failed to allow tracking origin",
+				error: (error: unknown) =>
+					error instanceof Error && error.message
+						? error.message
+						: "Failed to allow tracking origin",
 			}
 		);
 	}, [
@@ -263,7 +272,10 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 			{
 				loading: "Ignoring tracking origin...",
 				success: `${trackingIssue.originHost} warning hidden`,
-				error: "Failed to ignore tracking origin",
+				error: (error: unknown) =>
+					error instanceof Error && error.message
+						? error.message
+						: "Failed to ignore tracking origin",
 			}
 		);
 	}, [
@@ -277,9 +289,13 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 		setIsRefreshing(true);
 		try {
 			await Promise.all([
-				queryClient.invalidateQueries({ queryKey: ["websites", id] }),
 				queryClient.invalidateQueries({
-					queryKey: ["websites", "isTrackingSetup", id],
+					queryKey: getWebsiteByIdKey(websiteId),
+				}),
+				queryClient.invalidateQueries({
+					queryKey: orpc.websites.isTrackingSetup.key({
+						input: { websiteId },
+					}),
 				}),
 				queryClient.invalidateQueries({
 					queryKey: dynamicQueryKeys.byWebsite(websiteId),
