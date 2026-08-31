@@ -573,8 +573,14 @@ function validateAgentOutcome(
 			evidenceRef.source === "provided" &&
 			evidenceRef.index >= input.evidence.length
 		) {
+			const availableRange =
+				input.evidence.length === 0
+					? "no supplied evidence exists"
+					: input.evidence.length === 1
+						? "only index 0 exists"
+						: `only indexes 0-${input.evidence.length - 1} exist`;
 			throw new Error(
-				`Insights agent cited supplied evidence index ${evidenceRef.index}, but only indexes 0-${input.evidence.length - 1} exist`
+				`Insights agent cited supplied evidence index ${evidenceRef.index}, but ${availableRange}`
 			);
 		}
 		if (evidenceRef.source === "tool" && !usedToolNames.has(evidenceRef.name)) {
