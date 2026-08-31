@@ -22,6 +22,13 @@ interface BatchOptions {
 }
 
 const BATCH_GROUP_CONCURRENCY = 3;
+const LOGGED_QUERY_ERROR_MAX_LENGTH = 200;
+
+export function truncateQueryErrorForLog(text: string): string {
+	return text.length > LOGGED_QUERY_ERROR_MAX_LENGTH
+		? text.slice(0, LOGGED_QUERY_ERROR_MAX_LENGTH)
+		: text;
+}
 
 async function mapWithConcurrency<T, R>(
 	items: T[],
@@ -338,7 +345,7 @@ async function runSingle(
 			}
 
 			const error = e instanceof Error ? e.message : "Query failed";
-			mergeWideEvent({ query_error: error });
+			mergeWideEvent({ query_error: truncateQueryErrorForLog(error) });
 			return { type: req.type, data: [], error };
 		}
 	}
@@ -450,7 +457,7 @@ export async function executeBatch(
 				return await resolveRequestTraitFilters(req);
 			} catch (e) {
 				const error = e instanceof Error ? e.message : "Trait filter failed";
-				mergeWideEvent({ query_error: error });
+				mergeWideEvent({ query_error: truncateQueryErrorForLog(error) });
 				traitFailures.set(index, { type: req.type, data: [], error });
 				return req;
 			}
@@ -492,7 +499,7 @@ export async function executeBatch(
 			opts
 		);
 		for (const failure of failures) {
-			mergeWideEvent({ query_error: failure.error });
+			mergeWideEvent({ query_error: truncateQueryErrorForLog(failure.error) });
 			results[failure.index] = {
 				type: failure.type,
 				data: [],
