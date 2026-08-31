@@ -38,6 +38,18 @@ class NotificationSendError extends Data.TaggedError("NotificationSendError")<{
 	cause: unknown;
 }> {}
 
+class PreviousStateQueryError extends Data.TaggedError(
+	"PreviousStateQueryError"
+)<{
+	cause: unknown;
+}> {}
+
+class EmailSettingsLookupError extends Data.TaggedError(
+	"EmailSettingsLookupError"
+)<{
+	cause: unknown;
+}> {}
+
 interface LinkedAlarm {
 	destinations: Array<{ type: string; identifier: string; config: unknown }>;
 	id: string;
@@ -388,22 +400,22 @@ const queryPreviousState = (siteId: string) =>
 			return Option.none<PreviousMonitorState>();
 		}
 
-		const rows = yield* Effect.tryPromise(() =>
-			chQuery<{ failure_streak: number; status: number }>(
-				`SELECT status, failure_streak
+		const rows = yield* Effect.tryPromise({
+			try: () =>
+				chQuery<{ failure_streak: number; status: number }>(
+					`SELECT status, failure_streak
        FROM uptime.uptime_monitor
        WHERE site_id = {siteId:String}
        ORDER BY timestamp DESC
        LIMIT 1`,
-				{ siteId }
-			)
-		).pipe(
-			Effect.catch((error) =>
-				Effect.sync(() => {
-					captureError(error, { error_step: "previous_monitor_state" });
-					return [] as { failure_streak: number; status: number }[];
-				})
-			)
+					{ siteId }
+				),
+			catch: (cause) => new PreviousStateQueryError({ cause }),
+		}).pipe(
+			Effect.catchTag("PreviousStateQueryError", (e) => {
+				captureError(e.cause, { error_step: "previous_monitor_state" });
+				return Effect.succeed<{ failure_streak: number; status: number }[]>([]);
+			})
 		);
 
 		const first = rows[0];
@@ -470,11 +482,12 @@ const handleTransition = (options: {
 			return { alarms_fired: 0, transition_kind: kind };
 		}
 
-		const emailSettings = yield* Effect.tryPromise(() =>
-			getOrganizationEmailSettings(options.schedule.organizationId)
-		).pipe(
-			Effect.catch((error) => {
-				captureError(error, {
+		const emailSettings = yield* Effect.tryPromise({
+			try: () => getOrganizationEmailSettings(options.schedule.organizationId),
+			catch: (cause) => new EmailSettingsLookupError({ cause }),
+		}).pipe(
+			Effect.catchTag("EmailSettingsLookupError", (e) => {
+				captureError(e.cause, {
 					error_step: "organization_email_settings",
 					organization_id: options.schedule.organizationId,
 				});
