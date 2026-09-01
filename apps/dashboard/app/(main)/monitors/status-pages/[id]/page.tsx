@@ -10,6 +10,7 @@ import { PageNavigation } from "@/components/layout/page-navigation";
 import { TransferToOrgDialog } from "@/components/transfer-to-org-dialog";
 import { getStatusPageUrl } from "@/lib/app-url";
 import { orpc } from "@/lib/orpc";
+import { StatusPageSheet } from "@/components/status-pages/status-page-sheet";
 import { cn } from "@/lib/utils";
 import { AddMonitorDialog } from "./_components/add-monitor-dialog";
 import { IncidentsTab } from "./_components/incidents-tab";
@@ -20,6 +21,7 @@ import {
 import {
 	ArrowClockwiseIcon,
 	ArrowSquareOutIcon,
+	GearIcon,
 	HeartbeatIcon,
 	OpenExternalIcon as BrowserIcon,
 	PlusIcon,
@@ -45,6 +47,7 @@ export default function StatusPageDetailsPage() {
 	const [activeTab, setActiveTab] = useState<Tab>("monitors");
 	const [isDialogOpen, setIsDialogOpen] = useState(false);
 	const [isIncidentSheetOpen, setIsIncidentSheetOpen] = useState(false);
+	const [isEditOpen, setIsEditOpen] = useState(false);
 	const [isTransferOpen, setIsTransferOpen] = useState(false);
 	const [includeMonitors, setIncludeMonitors] = useState(true);
 	const [monitorToRemove, setMonitorToRemove] = useState<string | null>(null);
@@ -196,7 +199,7 @@ export default function StatusPageDetailsPage() {
 				/>
 
 				<div className="flex-1 overflow-y-auto">
-					<div className="mx-auto max-w-2xl space-y-6 p-5">
+					<div className="space-y-6 p-5">
 						<Card>
 							<Card.Header className="flex-row items-start justify-between gap-4">
 								<div>
@@ -241,6 +244,14 @@ export default function StatusPageDetailsPage() {
 															"animate-spin"
 													)}
 												/>
+											</Button>
+											<Button
+												onClick={() => setIsEditOpen(true)}
+												size="sm"
+												variant="secondary"
+											>
+												<GearIcon className="size-3.5" />
+												<span className="hidden sm:inline">Edit</span>
 											</Button>
 											<Button
 												onClick={() => setIsTransferOpen(true)}
@@ -324,6 +335,15 @@ export default function StatusPageDetailsPage() {
 						</Card>
 					</div>
 				</div>
+
+				{statusPage ? (
+					<StatusPageSheet
+						onCloseAction={setIsEditOpen}
+						onSaveAction={() => statusPageQuery.refetch()}
+						open={isEditOpen}
+						statusPage={statusPage}
+					/>
+				) : null}
 
 				<AddMonitorDialog
 					existingMonitorIds={

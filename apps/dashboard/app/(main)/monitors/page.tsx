@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
+import { TopBar } from "@/components/layout/top-bar";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { MonitorRow } from "@/components/monitors/monitor-row";
 import { MonitorSheet } from "@/components/monitors/monitor-sheet";
@@ -104,44 +105,30 @@ function MonitorsPageContent() {
 
 	return (
 		<ErrorBoundary>
+			<TopBar.Actions>
+				<Button
+					aria-label="Refresh monitors"
+					disabled={schedulesQuery.isLoading || schedulesQuery.isFetching}
+					onClick={() => schedulesQuery.refetch()}
+					size="sm"
+					variant="secondary"
+				>
+					<ArrowClockwiseIcon
+						className={cn(
+							"size-4 shrink-0",
+							(schedulesQuery.isLoading || schedulesQuery.isFetching) &&
+								"animate-spin"
+						)}
+					/>
+				</Button>
+				<Button onClick={handleCreate} size="sm">
+					<PlusIcon className="size-4 shrink-0" />
+					Create Monitor
+				</Button>
+			</TopBar.Actions>
 			<div className="flex-1 overflow-y-auto">
-				<div className="mx-auto max-w-2xl space-y-6 p-5">
+				<div className="space-y-6 p-5">
 					<Card>
-						<Card.Header className="flex-row items-start justify-between gap-4">
-							<div>
-								<Card.Title>Monitors</Card.Title>
-								<Card.Description>
-									{isLoading
-										? "Loading monitors\u2026"
-										: monitors.length === 0
-											? "Track availability and get alerts"
-											: `${monitors.length} monitor${monitors.length === 1 ? "" : "s"}`}
-								</Card.Description>
-							</div>
-							<div className="flex items-center gap-2">
-								<Button
-									aria-label="Refresh monitors"
-									disabled={
-										schedulesQuery.isLoading || schedulesQuery.isFetching
-									}
-									onClick={() => schedulesQuery.refetch()}
-									size="sm"
-									variant="ghost"
-								>
-									<ArrowClockwiseIcon
-										className={cn(
-											"size-3.5",
-											(schedulesQuery.isLoading || schedulesQuery.isFetching) &&
-												"animate-spin"
-										)}
-									/>
-								</Button>
-								<Button onClick={handleCreate} size="sm">
-									<PlusIcon className="size-3.5" />
-									Create Monitor
-								</Button>
-							</div>
-						</Card.Header>
 						<Card.Content className="p-0">
 							{isLoading && (
 								<div className="divide-y">

@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { TopBar } from "@/components/layout/top-bar";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import {
@@ -20,7 +21,7 @@ import {
 	PlusIcon,
 } from "@databuddy/ui/icons";
 import { DeleteDialog } from "@databuddy/ui/client";
-import { Badge, Button, Card, EmptyState, Skeleton } from "@databuddy/ui";
+import { Button, Card, EmptyState, Skeleton } from "@databuddy/ui";
 import { StatusPagesSearchBar } from "../_components/status-pages-search-bar";
 import {
 	type SortOption,
@@ -131,48 +132,30 @@ function StatusPagesListPageContent() {
 
 	return (
 		<ErrorBoundary>
+			<TopBar.Actions>
+				<Button
+					aria-label="Refresh status pages"
+					disabled={statusPagesQuery.isLoading || statusPagesQuery.isFetching}
+					onClick={() => statusPagesQuery.refetch()}
+					size="sm"
+					variant="secondary"
+				>
+					<ArrowClockwiseIcon
+						className={cn(
+							"size-4 shrink-0",
+							(statusPagesQuery.isLoading || statusPagesQuery.isFetching) &&
+								"animate-spin"
+						)}
+					/>
+				</Button>
+				<Button onClick={handleCreate} size="sm">
+					<PlusIcon className="size-4 shrink-0" />
+					Create Status Page
+				</Button>
+			</TopBar.Actions>
 			<div className="flex-1 overflow-y-auto">
-				<div className="mx-auto max-w-2xl space-y-6 p-5">
+				<div className="space-y-6 p-5">
 					<Card>
-						<Card.Header className="flex-row items-start justify-between gap-4">
-							<div>
-								<div className="flex items-center gap-2">
-									<Card.Title>Status Pages</Card.Title>
-									<Badge variant="muted">Beta</Badge>
-								</div>
-								<Card.Description>
-									{isLoading
-										? "Loading status pages\u2026"
-										: statusPages.length === 0
-											? "Create and manage public status pages. Free while in beta."
-											: `${statusPages.length} status page${statusPages.length === 1 ? "" : "s"} \u00b7 Free while in beta`}
-								</Card.Description>
-							</div>
-							<div className="flex items-center gap-2">
-								<Button
-									aria-label="Refresh status pages"
-									disabled={
-										statusPagesQuery.isLoading || statusPagesQuery.isFetching
-									}
-									onClick={() => statusPagesQuery.refetch()}
-									size="sm"
-									variant="ghost"
-								>
-									<ArrowClockwiseIcon
-										className={cn(
-											"size-3.5",
-											(statusPagesQuery.isLoading ||
-												statusPagesQuery.isFetching) &&
-												"animate-spin"
-										)}
-									/>
-								</Button>
-								<Button onClick={handleCreate} size="sm">
-									<PlusIcon className="size-3.5" />
-									Create Status Page
-								</Button>
-							</div>
-						</Card.Header>
 						<Card.Content className="p-0">
 							{isLoading && (
 								<div className="divide-y">
