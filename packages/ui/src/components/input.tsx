@@ -1,34 +1,29 @@
 "use client";
 
-import {
-	forwardRef,
-	type InputHTMLAttributes,
-	type ReactNode,
-} from "react";
+import type { InputHTMLAttributes, ReactNode, Ref } from "react";
 import { cn } from "../lib/utils";
 import { useFieldContext } from "./field";
 
 type InputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "prefix"> & {
 	prefix?: ReactNode;
+	ref?: Ref<HTMLInputElement>;
 	showFocusIndicator?: boolean;
 	suffix?: ReactNode;
 	variant?: "default" | "ghost";
 	wrapperClassName?: string;
 };
 
-export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
-	{
-		className,
-		id,
-		prefix,
-		showFocusIndicator: _showFocusIndicator = true,
-		suffix,
-		variant = "default",
-		wrapperClassName,
-		...rest
-	},
-	ref
-) {
+export function Input({
+	className,
+	id,
+	prefix,
+	ref,
+	showFocusIndicator: _showFocusIndicator = true,
+	suffix,
+	variant = "default",
+	wrapperClassName,
+	...rest
+}: InputProps) {
 	const field = useFieldContext();
 
 	const ariaDescribedBy =
@@ -99,4 +94,4 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
 			{...rest}
 		/>
 	);
-});
+}

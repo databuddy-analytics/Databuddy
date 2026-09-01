@@ -1,6 +1,12 @@
 "use client";
 
-import { type HTMLAttributes, type ReactNode, createContext, use, useState } from "react";
+import {
+	type HTMLAttributes,
+	type ReactNode,
+	createContext,
+	use,
+	useState,
+} from "react";
 import { cn } from "../lib/utils";
 import { Button } from "./button";
 
@@ -14,7 +20,7 @@ function SettingCardGroup({ className, ...rest }: SettingCardGroupProps) {
 	return (
 		<div
 			className={cn(
-				"overflow-hidden rounded-xl border border-border/60 divide-y divide-border/60",
+				"divide-y divide-border/60 overflow-hidden rounded-xl border border-border/60",
 				className
 			)}
 			{...rest}
@@ -41,36 +47,35 @@ function SettingCard({
 }: SettingCardProps) {
 	const [expanded, setExpanded] = useState(false);
 
+	const heading = (
+		<>
+			{icon && (
+				<div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted">
+					{icon}
+				</div>
+			)}
+			<div className="min-w-0 flex-1">
+				<p className="font-medium text-[13px] text-foreground">{title}</p>
+				<p className="text-muted-foreground text-xs">{description}</p>
+			</div>
+		</>
+	);
+
 	return (
 		<div className={cn("w-full", className)}>
-			<div
-				className={cn(
-					"flex flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between",
-					expandable && "cursor-pointer"
+			<div className="flex flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+				{expandable ? (
+					<button
+						aria-expanded={expanded}
+						className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left"
+						onClick={() => setExpanded((p) => !p)}
+						type="button"
+					>
+						{heading}
+					</button>
+				) : (
+					<div className="flex min-w-0 items-center gap-3">{heading}</div>
 				)}
-				onClick={expandable ? () => setExpanded((p) => !p) : undefined}
-				onKeyDown={
-					expandable
-						? (e) => {
-								if (e.key === "Enter") {
-									e.preventDefault();
-									setExpanded((p) => !p);
-								}
-							}
-						: undefined
-				}
-			>
-				<div className="flex items-center gap-3 min-w-0">
-					{icon && (
-						<div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted">
-							{icon}
-						</div>
-					)}
-					<div className="min-w-0 flex-1">
-						<p className="font-medium text-foreground text-[13px]">{title}</p>
-						<p className="text-muted-foreground text-xs">{description}</p>
-					</div>
-				</div>
 				{children && <div className="shrink-0">{children}</div>}
 			</div>
 			{expandable && (
@@ -81,7 +86,7 @@ function SettingCard({
 					)}
 				>
 					<div className="overflow-hidden">
-						<div className="border-t border-border/60 px-4 py-4">
+						<div className="border-border/60 border-t px-4 py-4">
 							{expandable}
 						</div>
 					</div>
@@ -93,7 +98,11 @@ function SettingCard({
 
 const ZONE_STYLES: Record<
 	ZoneVariant,
-	{ border: string; heading: string; button: { tone: "destructive"; variant?: "primary" | "secondary" } }
+	{
+		border: string;
+		heading: string;
+		button: { tone: "destructive"; variant?: "primary" | "secondary" };
+	}
 > = {
 	destructive: {
 		border: "border-destructive/30 divide-destructive/30",
@@ -114,7 +123,12 @@ interface SettingsZoneProps {
 	variant: ZoneVariant;
 }
 
-function SettingsZone({ children, className, title, variant }: SettingsZoneProps) {
+function SettingsZone({
+	children,
+	className,
+	title,
+	variant,
+}: SettingsZoneProps) {
 	const styles = ZONE_STYLES[variant];
 	return (
 		<ZoneContext value={variant}>
@@ -124,7 +138,7 @@ function SettingsZone({ children, className, title, variant }: SettingsZoneProps
 				</h3>
 				<div
 					className={cn(
-						"overflow-hidden rounded-xl border divide-y",
+						"divide-y overflow-hidden rounded-xl border",
 						styles.border
 					)}
 				>
