@@ -1,6 +1,9 @@
 "use client";
 
-import type { PointerEvent as ReactPointerEvent } from "react";
+import type {
+	KeyboardEvent as ReactKeyboardEvent,
+	PointerEvent as ReactPointerEvent,
+} from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "../utils";
@@ -291,6 +294,29 @@ function getTooltipPlacement({
 	};
 }
 
+function getRangeSummary(days: UptimeHeatmapDay[], isActive: boolean): string {
+	if (days.length === 0) {
+		return "No uptime history available.";
+	}
+
+	const counts = new Map<UptimeSeverity, number>();
+	for (const day of days) {
+		const severity = getSeverity(day, isActive);
+		counts.set(severity, (counts.get(severity) ?? 0) + 1);
+	}
+
+	const parts = (
+		["major", "partial", "degraded", "operational", "empty"] as const
+	)
+		.filter((severity) => counts.get(severity))
+		.map((severity) => {
+			const count = counts.get(severity) as number;
+			return `${count} ${count === 1 ? "day" : "days"} ${SEVERITY_META[severity].label.toLowerCase()}`;
+		});
+
+	return `Uptime history for the last ${days.length} days, oldest first: ${parts.join(", ")}. Use the arrow keys to review each day.`;
+}
+
 function getSegmentDayLabel(
 	day: UptimeHeatmapDay,
 	emptyLabel: string,
@@ -317,8 +343,10 @@ export function UptimeHeatmapStrip({
 	const gridRef = useRef<HTMLFieldSetElement>(null);
 	const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const rectRef = useRef<DOMRect | null>(null);
+	const dayRefs = useRef<(HTMLButtonElement | null)[]>([]);
 	const [tooltip, setTooltip] = useState<TooltipState | null>(null);
 	const [isTooltipVisible, setIsTooltipVisible] = useState(false);
+	const [focusedIndex, setFocusedIndex] = useState(0);
 	const segments = useMemo(
 		() => buildSegments(days, isActive),
 		[days, isActive]
@@ -326,6 +354,10 @@ export function UptimeHeatmapStrip({
 	const dayLabels = useMemo(
 		() => days.map((day) => getSegmentDayLabel(day, emptyLabel, isActive)),
 		[days, emptyLabel, isActive]
+	);
+	const rangeSummary = useMemo(
+		() => getRangeSummary(days, isActive),
+		[days, isActive]
 	);
 	const activeDay = tooltip ? days[tooltip.index] : null;
 	const gridStyle = useMemo(
@@ -394,6 +426,7 @@ export function UptimeHeatmapStrip({
 
 	const handleDayFocus = useCallback(
 		(index: number) => {
+			setFocusedIndex(index);
 			const rect = measureGrid();
 
 			if (!(rect && days.length > 0)) {
@@ -403,6 +436,26 @@ export function UptimeHeatmapStrip({
 			showTooltipAt(index, rect);
 		},
 		[days.length, measureGrid, showTooltipAt]
+	);
+
+	const handleDayKeyDown = useCallback(
+		(event: ReactKeyboardEvent<HTMLButtonElement>) => {
+			const lastIndex = days.length - 1;
+			const nextIndex = {
+				ArrowRight: Math.min(focusedIndex + 1, lastIndex),
+				ArrowLeft: Math.max(focusedIndex - 1, 0),
+				Home: 0,
+				End: lastIndex,
+			}[event.key];
+
+			if (nextIndex === undefined) {
+				return;
+			}
+
+			event.preventDefault();
+			dayRefs.current[nextIndex]?.focus();
+		},
+		[days.length, focusedIndex]
 	);
 
 	useEffect(
@@ -461,7 +514,7 @@ export function UptimeHeatmapStrip({
 	return (
 		<>
 			<fieldset
-				aria-label={`${days.length} day uptime history`}
+				aria-label={rangeSummary}
 				className={cn("relative grid", gridClassName)}
 				onPointerEnter={measureGrid}
 				onPointerLeave={hideTooltip}
@@ -481,6 +534,11 @@ export function UptimeHeatmapStrip({
 							key={day.dateStr}
 							onBlur={hideTooltip}
 							onFocus={() => handleDayFocus(index)}
+							onKeyDown={handleDayKeyDown}
+							ref={(node) => {
+								dayRefs.current[index] = node;
+							}}
+							tabIndex={index === focusedIndex ? 0 : -1}
 							type="button"
 						/>
 					))}
