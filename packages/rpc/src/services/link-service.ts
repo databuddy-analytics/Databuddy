@@ -384,7 +384,7 @@ export class LinkService {
 		} else if (input.createdBy) {
 			createdBy = input.createdBy;
 		} else {
-			throw new Error("createdBy or getCreatedBy required");
+throw rpcError.internal("createdBy or getCreatedBy required");
 		}
 
 		const slugsToTry = input.slug
