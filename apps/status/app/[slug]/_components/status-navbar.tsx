@@ -1,6 +1,7 @@
 import { Avatar } from "@databuddy/ui/client/avatar";
 import { ThemeToggle } from "@databuddy/ui/client/theme-toggle";
 import { LifebuoyIcon } from "@databuddy/ui/icons";
+import { DATABUDDY_UPTIME_URL } from "@/lib/status-url";
 
 interface StatusNavbarProps {
 	logoUrl?: string | null;
@@ -55,6 +56,14 @@ export function StatusNavbar({
 							<span className="hidden sm:inline">Support</span>
 						</a>
 					) : null}
+					<a
+						className="flex h-8 items-center rounded-md bg-primary px-3 font-medium text-primary-foreground text-xs transition-colors duration-(--duration-quick) ease-(--ease-smooth) hover:bg-primary/90"
+						href={DATABUDDY_UPTIME_URL}
+						rel="noopener noreferrer"
+						target="_blank"
+					>
+						Get your own
+					</a>
 					<ThemeToggle className="flex" />
 				</div>
 			</nav>

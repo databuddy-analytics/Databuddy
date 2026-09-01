@@ -235,11 +235,11 @@ export default async function StatusPage({ params }: StatusPageProps) {
 				</main>
 
 				<footer className="shrink-0 border-border/50 border-t bg-background">
-					<div className="mx-auto flex max-w-[822px] items-center justify-center px-4 py-4 sm:px-6">
-						<p className="text-[11px] text-muted-foreground/50 tracking-wide">
+					<div className="mx-auto flex max-w-[822px] items-center justify-center px-4 py-6 sm:px-6">
+						<p className="text-muted-foreground text-sm">
 							Powered by{" "}
 							<a
-								className="text-muted-foreground/70 transition-colors duration-(--duration-quick) ease-(--ease-smooth) hover:text-foreground"
+								className="font-semibold text-foreground underline-offset-4 transition-colors duration-(--duration-quick) ease-(--ease-smooth) hover:underline"
 								href="https://www.databuddy.cc"
 								rel="noopener noreferrer dofollow"
 								target="_blank"
