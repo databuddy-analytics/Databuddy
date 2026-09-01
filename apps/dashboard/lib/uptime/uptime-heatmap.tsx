@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo } from "react";
-import { dayjs } from "@databuddy/ui";
 import {
 	buildUptimeHeatmapDays,
 	UptimeHeatmapStrip,
@@ -82,7 +81,6 @@ export function UptimeHeatmap({
 					<UptimeHeatmapStrip
 						days={heatmapData}
 						emptyLabel="No data recorded"
-						getDateLabel={(d) => dayjs.utc(d).format("MMM D, YYYY")}
 						interactive
 						isActive
 					/>

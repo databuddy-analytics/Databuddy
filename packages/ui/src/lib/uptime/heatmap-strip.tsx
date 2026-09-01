@@ -4,8 +4,6 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "../utils";
-import { getUptimeHeatmapCellClass } from "./heatmap-cell-class";
-import { UptimeHeatmapDayTooltipBody } from "./heatmap-day-tooltip";
 import type { UptimeHeatmapDay } from "./heatmap-days";
 
 type UptimeSeverity =
@@ -28,17 +26,13 @@ interface Segment {
 	start: number;
 }
 
-type UptimeHeatmapStripVariant = "segments" | "cells";
-
 export interface UptimeHeatmapStripProps {
 	days: UptimeHeatmapDay[];
 	emptyLabel: string;
-	getDateLabel?: (date: Date) => string;
 	interactive: boolean;
 	isActive: boolean;
 	stripClassName?: string;
 	tooltipHasData?: (day: UptimeHeatmapDay) => boolean;
-	variant?: UptimeHeatmapStripVariant;
 }
 
 const TOOLTIP_WIDTH = 224;
@@ -316,7 +310,7 @@ function getSegmentDayLabel(
 	return `${formatLongDate(day.date)}, ${severity}, ${uptime}${downtime}`;
 }
 
-function SegmentedUptimeStrip({
+export function UptimeHeatmapStrip({
 	days,
 	interactive,
 	isActive,
@@ -496,132 +490,4 @@ function SegmentedUptimeStrip({
 				: null}
 		</>
 	);
-}
-
-function CellUptimeStrip({
-	days,
-	interactive,
-	isActive,
-	stripClassName,
-	emptyLabel,
-	getDateLabel,
-	tooltipHasData,
-}: UptimeHeatmapStripProps) {
-	const [activeDay, setActiveDay] = useState<UptimeHeatmapDay | null>(null);
-	const [pos, setPos] = useState({ x: 0, y: 0 });
-	const stripRef = useRef<HTMLDivElement>(null);
-	const className = stripClassName ?? "flex h-8 w-full gap-px sm:gap-[2px]";
-
-	const handlePointerMove = useCallback(
-		(e: React.PointerEvent<HTMLDivElement>) => {
-			const target =
-				(e.target as HTMLElement).closest<HTMLElement>("[data-idx]") ??
-				(e.target as HTMLElement);
-			const idx = target.dataset.idx;
-			if (idx == null) {
-				return;
-			}
-			const day = days[Number(idx)];
-			if (!day) {
-				return;
-			}
-			setActiveDay(day);
-			const rect = stripRef.current?.getBoundingClientRect();
-			if (rect) {
-				const targetRect = target.getBoundingClientRect();
-				setPos({
-					x: targetRect.left + targetRect.width / 2 - rect.left,
-					y: 0,
-				});
-			}
-		},
-		[days]
-	);
-
-	const handlePointerLeave = useCallback(() => setActiveDay(null), []);
-
-	if (!interactive) {
-		return (
-			<div className={className}>
-				{days.map((day) => (
-					<div
-						className={cn(
-							"h-full flex-1 rounded-sm transition-colors duration-(--duration-quick) ease-(--ease-smooth)",
-							getUptimeHeatmapCellClass({
-								uptimePercent: day.uptime,
-								hasData: day.hasData,
-								isActive,
-								interactive: false,
-							})
-						)}
-						key={day.dateStr}
-					/>
-				))}
-			</div>
-		);
-	}
-
-	const showData = activeDay
-		? (tooltipHasData?.(activeDay) ?? activeDay.hasData)
-		: false;
-
-	return (
-		<div className="relative" ref={stripRef}>
-			<div
-				className={className}
-				onPointerLeave={handlePointerLeave}
-				onPointerMove={handlePointerMove}
-			>
-				{days.map((day, i) => (
-					<div
-						className={cn(
-							"h-full flex-1 rounded-sm transition-colors duration-(--duration-quick) ease-(--ease-smooth)",
-							getUptimeHeatmapCellClass({
-								uptimePercent: day.uptime,
-								hasData: day.hasData,
-								isActive,
-								interactive: true,
-							})
-						)}
-						data-idx={i}
-						key={day.dateStr}
-					/>
-				))}
-			</div>
-
-			{activeDay && (
-				<div
-					className="pointer-events-none absolute bottom-full mb-2 starting:opacity-0 transition-opacity duration-(--duration-instant) ease-(--ease-smooth) motion-reduce:transition-none"
-					style={{
-						left: pos.x,
-						transform: "translateX(-50%)",
-						zIndex: TOOLTIP_Z_INDEX,
-					}}
-				>
-					<div className="rounded-lg border border-border/60 bg-popover px-3 py-2.5 text-popover-foreground text-sm shadow-md">
-						<UptimeHeatmapDayTooltipBody
-							dateLabel={
-								getDateLabel?.(activeDay.date) ?? formatLongDate(activeDay.date)
-							}
-							downtimeSeconds={activeDay.downtimeSeconds}
-							emptyLabel={emptyLabel}
-							hasData={showData}
-							uptimePercent={activeDay.uptime}
-						/>
-					</div>
-				</div>
-			)}
-		</div>
-	);
-}
-
-export function UptimeHeatmapStrip({
-	variant = "segments",
-	...props
-}: UptimeHeatmapStripProps) {
-	if (variant === "cells") {
-		return <CellUptimeStrip {...props} />;
-	}
-
-	return <SegmentedUptimeStrip {...props} />;
 }

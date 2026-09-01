@@ -23,7 +23,7 @@ import {
 	TrashIcon,
 } from "@databuddy/ui/icons";
 import { DeleteDialog, DropdownMenu } from "@databuddy/ui/client";
-import { Badge, Skeleton, dayjs, formatUtcDateOnly } from "@databuddy/ui";
+import { Badge, Skeleton, dayjs } from "@databuddy/ui";
 
 const GRANULARITY_LABELS: Record<string, string> = {
 	minute: "1 min",
@@ -329,7 +329,6 @@ function MiniHeatmap({
 			<UptimeHeatmapStrip
 				days={heatmapData}
 				emptyLabel="No data"
-				getDateLabel={(d) => formatUtcDateOnly(d)}
 				interactive={false}
 				isActive={isActive}
 				stripClassName="grid h-1.5 w-32 gap-x-px lg:w-44"

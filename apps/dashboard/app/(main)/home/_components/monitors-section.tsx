@@ -8,13 +8,7 @@ import { buildUptimeHeatmapDays } from "@databuddy/ui/uptime";
 import { UptimeHeatmapStrip } from "@databuddy/ui/uptime";
 import { cn } from "@/lib/utils";
 import { HeartbeatIcon, PlusIcon } from "@databuddy/ui/icons";
-import {
-	Button,
-	Card,
-	Skeleton,
-	dayjs,
-	formatUtcDateOnly,
-} from "@databuddy/ui";
+import { Button, Card, Skeleton, dayjs } from "@databuddy/ui";
 
 interface MonitorsSectionProps {
 	activeMonitors: number;
@@ -44,7 +38,6 @@ function HomeMonitorHeatmap({
 		<UptimeHeatmapStrip
 			days={heatmapData}
 			emptyLabel="No data"
-			getDateLabel={(d) => formatUtcDateOnly(d)}
 			interactive={false}
 			isActive={isActive}
 			stripClassName="mt-1.5 grid h-1.5 w-full gap-x-px"
