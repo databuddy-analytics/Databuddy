@@ -6,7 +6,7 @@ COPY package.json bun.lock turbo.json ./
 COPY packages ./packages
 COPY apps ./apps
 
-RUN bun install --frozen-lockfile --ignore-scripts
+RUN bun install --ignore-scripts
 
 ENV NODE_ENV=production
 
