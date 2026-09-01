@@ -2,6 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
+import { useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -18,6 +19,56 @@ import {
 import { Sheet } from "@databuddy/ui/client";
 
 const URL_REGEX = /^https?:\/\/.+/;
+
+const UPLOAD_ACCEPT =
+	"image/png,image/jpeg,image/webp,image/svg+xml,image/x-icon";
+
+const ASSET_FIELDS = {
+	logo: { label: "Logo", field: "logoUrl" },
+	favicon: { label: "Favicon", field: "faviconUrl" },
+} as const;
+
+type AssetKind = keyof typeof ASSET_FIELDS;
+
+function AssetUploadButton({
+	busy,
+	onPickAction,
+	uploading,
+}: {
+	busy: boolean;
+	onPickAction: (file: File) => void;
+	uploading: boolean;
+}) {
+	const inputRef = useRef<HTMLInputElement>(null);
+
+	return (
+		<>
+			{/* policy-ignore dashboard/no-raw-interactive-html: a hidden native file input is the only way to open the OS file picker; @databuddy/ui has no file input component */}
+			<input
+				accept={UPLOAD_ACCEPT}
+				className="hidden"
+				onChange={(event) => {
+					const file = event.target.files?.[0];
+					event.target.value = "";
+					if (file) {
+						onPickAction(file);
+					}
+				}}
+				ref={inputRef}
+				type="file"
+			/>
+			<Button
+				disabled={busy}
+				onClick={() => inputRef.current?.click()}
+				size="sm"
+				type="button"
+				variant="secondary"
+			>
+				{uploading ? "Uploading" : "Upload"}
+			</Button>
+		</>
+	);
+}
 
 const statusPageFormSchema = z.object({
 	name: z
@@ -90,6 +141,55 @@ export function StatusPageSheet({
 		resolver: zodResolver(statusPageFormSchema),
 		defaultValues: buildDefaults(statusPage),
 	});
+
+	const uploadUrlMutation = useMutation({
+		...orpc.statusPage.createAssetUploadUrl.mutationOptions(),
+	});
+	const [uploading, setUploading] = useState<AssetKind | null>(null);
+
+	const uploadAsset = async (asset: AssetKind, file: File) => {
+		const organizationId =
+			activeOrganization?.id ?? activeOrganizationId ?? null;
+
+		if (!organizationId) {
+			toast.error("No active organization selected");
+			return;
+		}
+
+		const { label, field } = ASSET_FIELDS[asset];
+
+		setUploading(asset);
+		try {
+			const { publicUrl, uploadUrl } = await uploadUrlMutation.mutateAsync({
+				asset,
+				contentLength: file.size,
+				contentType: file.type,
+				organizationId,
+			});
+
+			const response = await fetch(uploadUrl, {
+				body: file,
+				headers: { "Content-Type": file.type },
+				method: "PUT",
+			});
+
+			if (!response.ok) {
+				throw new Error(`Upload failed with status ${response.status}`);
+			}
+
+			form.setValue(field, publicUrl, {
+				shouldDirty: true,
+				shouldValidate: true,
+			});
+			toast.success(`${label} uploaded`);
+		} catch (error) {
+			toast.error(
+				error instanceof Error ? error.message : "Upload failed, try again"
+			);
+		} finally {
+			setUploading(null);
+		}
+	};
 
 	const createMutation = useMutation({
 		...orpc.statusPage.create.mutationOptions(),
@@ -232,13 +332,21 @@ export function StatusPageSheet({
 								name="logoUrl"
 								render={({ field, fieldState }) => (
 									<Field error={!!fieldState.error}>
-										<Field.Label>Logo URL</Field.Label>
-										<Input
-											placeholder="https://example.com/logo.svg"
-											{...field}
-										/>
+										<Field.Label>Logo</Field.Label>
+										<div className="flex items-center gap-2">
+											<Input
+												placeholder="https://example.com/logo.svg"
+												{...field}
+											/>
+											<AssetUploadButton
+												busy={uploading !== null}
+												onPickAction={(file) => uploadAsset("logo", file)}
+												uploading={uploading === "logo"}
+											/>
+										</div>
 										<Field.Description>
-											Displayed in the navbar and page header
+											Displayed in the navbar and page header. Upload a file or
+											paste an https URL.
 										</Field.Description>
 										{fieldState.error && (
 											<Field.Error>{fieldState.error.message}</Field.Error>
@@ -252,11 +360,18 @@ export function StatusPageSheet({
 								name="faviconUrl"
 								render={({ field, fieldState }) => (
 									<Field error={!!fieldState.error}>
-										<Field.Label>Favicon URL</Field.Label>
-										<Input
-											placeholder="https://example.com/favicon.ico"
-											{...field}
-										/>
+										<Field.Label>Favicon</Field.Label>
+										<div className="flex items-center gap-2">
+											<Input
+												placeholder="https://example.com/favicon.ico"
+												{...field}
+											/>
+											<AssetUploadButton
+												busy={uploading !== null}
+												onPickAction={(file) => uploadAsset("favicon", file)}
+												uploading={uploading === "favicon"}
+											/>
+										</div>
 										{fieldState.error && (
 											<Field.Error>{fieldState.error.message}</Field.Error>
 										)}

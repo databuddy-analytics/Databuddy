@@ -27,6 +27,13 @@ import {
 import { ratelimit } from "@databuddy/redis/rate-limit";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
+import {
+	createAssetUpload,
+	isUploadContentType,
+	MAX_UPLOAD_BYTES,
+	UPLOAD_CONTENT_TYPES,
+	type UploadContentType,
+} from "@databuddy/services/storage";
 import { parseUptimeGranularity } from "@databuddy/shared/uptime";
 import { rpcError } from "../errors";
 import { setAuditOrganization } from "../lib/audit";
@@ -251,8 +258,8 @@ const httpUrl = z
 	.max(2048)
 	.url()
 	.refine(
-		(value) => value.startsWith("https://") || value.startsWith("http://"),
-		"URL must start with http:// or https://"
+		(value) => value.startsWith("https://"),
+		"URL must start with https://"
 	);
 
 const statusPageSlug = z
@@ -794,6 +801,44 @@ export const statusPageRouter = {
 				...page,
 				monitors,
 			};
+		}),
+
+	createAssetUploadUrl: trackedProcedure
+		.route({
+			description:
+				"Returns a short-lived presigned URL for uploading a status page logo or favicon. Requires write:status_pages scope.",
+			method: "POST",
+			path: "/statusPage/createAssetUploadUrl",
+			summary: "Create an asset upload URL",
+			tags: ["StatusPage"],
+			spec: (s) => ({
+				...s,
+				"x-required-scopes": ["write:status_pages"] as const,
+			}),
+		})
+		.input(
+			z.object({
+				asset: z.enum(["logo", "favicon"]),
+				contentLength: z.number().int().positive().max(MAX_UPLOAD_BYTES),
+				contentType: z.string().refine(isUploadContentType, {
+					message: `Content type must be one of ${UPLOAD_CONTENT_TYPES.join(", ")}`,
+				}),
+				organizationId: z.string(),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			setTrackProperties({ asset: input.asset });
+			await withWorkspace(context, {
+				organizationId: input.organizationId,
+				resource: "status_page",
+				permissions: ["update"],
+			});
+
+			return createAssetUpload({
+				asset: input.asset,
+				contentType: input.contentType as UploadContentType,
+				organizationId: input.organizationId,
+			});
 		}),
 
 	create: trackedProcedure
