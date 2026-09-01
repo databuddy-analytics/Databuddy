@@ -264,24 +264,20 @@ function getHoveredIndex(rect: DOMRect, pointerX: number, itemCount: number) {
 function getTooltipPlacement({
 	index,
 	itemCount,
-	pointerX,
 	rect,
 	viewportHeight,
 	viewportWidth,
 }: {
-	index?: number;
+	index: number;
 	itemCount: number;
-	pointerX?: number;
 	rect: DOMRect;
 	viewportHeight: number;
 	viewportWidth: number;
 }): TooltipState {
-	const resolvedIndex =
-		index ?? getHoveredIndex(rect, pointerX ?? rect.left, itemCount);
 	const cellWidth = rect.width / itemCount;
 	const tooltipHalfWidth = TOOLTIP_WIDTH / 2;
 	const left = clamp(
-		rect.left + (resolvedIndex + 0.5) * cellWidth,
+		rect.left + (index + 0.5) * cellWidth,
 		tooltipHalfWidth + TOOLTIP_GUTTER,
 		viewportWidth - tooltipHalfWidth - TOOLTIP_GUTTER
 	);
@@ -289,7 +285,7 @@ function getTooltipPlacement({
 
 	return {
 		above,
-		index: resolvedIndex,
+		index,
 		left,
 		top: above ? rect.top - 10 : rect.bottom + 10,
 	};
@@ -320,16 +316,24 @@ export function UptimeHeatmapStrip({
 }: UptimeHeatmapStripProps) {
 	const gridRef = useRef<HTMLFieldSetElement>(null);
 	const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const rectRef = useRef<DOMRect | null>(null);
 	const [tooltip, setTooltip] = useState<TooltipState | null>(null);
 	const [isTooltipVisible, setIsTooltipVisible] = useState(false);
 	const segments = useMemo(
 		() => buildSegments(days, isActive),
 		[days, isActive]
 	);
+	const dayLabels = useMemo(
+		() => days.map((day) => getSegmentDayLabel(day, emptyLabel, isActive)),
+		[days, emptyLabel, isActive]
+	);
 	const activeDay = tooltip ? days[tooltip.index] : null;
-	const gridStyle = {
-		gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))`,
-	};
+	const gridStyle = useMemo(
+		() => ({
+			gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))`,
+		}),
+		[days.length]
+	);
 	const gridClassName =
 		stripClassName ??
 		"relative -my-3 grid cursor-pointer gap-x-px border-0 px-0 py-3 sm:gap-x-[2px]";
@@ -343,56 +347,62 @@ export function UptimeHeatmapStrip({
 
 	const hideTooltip = useCallback(() => {
 		clearHideTimer();
+		rectRef.current = null;
 		setIsTooltipVisible(false);
 		hideTimerRef.current = setTimeout(() => {
 			setTooltip(null);
 		}, TOOLTIP_HIDE_MS);
 	}, [clearHideTimer]);
 
-	const handlePointerMove = useCallback(
-		(event: ReactPointerEvent<HTMLFieldSetElement>) => {
-			const grid = gridRef.current;
+	const measureGrid = useCallback(() => {
+		const grid = gridRef.current;
+		rectRef.current = grid ? grid.getBoundingClientRect() : null;
+		return rectRef.current;
+	}, []);
 
-			if (!(grid && days.length > 0)) {
-				return;
-			}
-
+	const showTooltipAt = useCallback(
+		(index: number, rect: DOMRect) => {
 			clearHideTimer();
-			setTooltip(
-				getTooltipPlacement({
-					itemCount: days.length,
-					pointerX: event.clientX,
-					rect: grid.getBoundingClientRect(),
-					viewportHeight: window.innerHeight,
-					viewportWidth: window.innerWidth,
-				})
+			setTooltip((previous) =>
+				previous?.index === index
+					? previous
+					: getTooltipPlacement({
+							index,
+							itemCount: days.length,
+							rect,
+							viewportHeight: window.innerHeight,
+							viewportWidth: window.innerWidth,
+						})
 			);
 			setIsTooltipVisible(true);
 		},
 		[clearHideTimer, days.length]
 	);
 
-	const handleDayFocus = useCallback(
-		(index: number) => {
-			const grid = gridRef.current;
+	const handlePointerMove = useCallback(
+		(event: ReactPointerEvent<HTMLFieldSetElement>) => {
+			const rect = rectRef.current ?? measureGrid();
 
-			if (!(grid && days.length > 0)) {
+			if (!(rect && days.length > 0)) {
 				return;
 			}
 
-			clearHideTimer();
-			setTooltip(
-				getTooltipPlacement({
-					index,
-					itemCount: days.length,
-					rect: grid.getBoundingClientRect(),
-					viewportHeight: window.innerHeight,
-					viewportWidth: window.innerWidth,
-				})
-			);
-			setIsTooltipVisible(true);
+			showTooltipAt(getHoveredIndex(rect, event.clientX, days.length), rect);
 		},
-		[clearHideTimer, days.length]
+		[days.length, measureGrid, showTooltipAt]
+	);
+
+	const handleDayFocus = useCallback(
+		(index: number) => {
+			const rect = measureGrid();
+
+			if (!(rect && days.length > 0)) {
+				return;
+			}
+
+			showTooltipAt(index, rect);
+		},
+		[days.length, measureGrid, showTooltipAt]
 	);
 
 	useEffect(
@@ -453,6 +463,7 @@ export function UptimeHeatmapStrip({
 			<fieldset
 				aria-label={`${days.length} day uptime history`}
 				className={cn("relative grid", gridClassName)}
+				onPointerEnter={measureGrid}
 				onPointerLeave={hideTooltip}
 				onPointerMove={handlePointerMove}
 				ref={gridRef}
@@ -465,7 +476,7 @@ export function UptimeHeatmapStrip({
 				>
 					{days.map((day, index) => (
 						<button
-							aria-label={getSegmentDayLabel(day, emptyLabel, isActive)}
+							aria-label={dayLabels[index]}
 							className="h-full rounded-full bg-transparent outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
 							key={day.dateStr}
 							onBlur={hideTooltip}
