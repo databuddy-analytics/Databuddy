@@ -35,6 +35,7 @@ const mockBegin = mock(async () => ({ state: "acquired", token: "tok-1" }));
 const mockFinish = mock(async () => true);
 const mockAbandon = mock(async () => true);
 const mockSetIfAbsent = mock(async () => true);
+const mockSetIfAbsentOrNotFound = mock(async () => true);
 const mockInvalidate = mock(async () => undefined);
 const mockLoggerError = mock(() => undefined);
 const mockLoggerWarn = mock(() => undefined);
@@ -45,6 +46,7 @@ mock.module("@databuddy/redis", () => ({
 	finishCachedLinkMutation: mockFinish,
 	invalidateAgentContextSnapshotsForOwner: mockInvalidate,
 	setCachedLinkIfAbsent: mockSetIfAbsent,
+	setCachedLinkIfAbsentOrNotFound: mockSetIfAbsentOrNotFound,
 }));
 
 mock.module("../lib/logger", () => ({
@@ -157,6 +159,7 @@ beforeEach(() => {
 	mockFinish.mockClear();
 	mockAbandon.mockClear();
 	mockSetIfAbsent.mockClear();
+	mockSetIfAbsentOrNotFound.mockClear();
 	mockInvalidate.mockClear();
 	mockLoggerError.mockClear();
 	mockLoggerWarn.mockClear();
@@ -164,6 +167,7 @@ beforeEach(() => {
 	mockFinish.mockImplementation(async () => true);
 	mockAbandon.mockImplementation(async () => true);
 	mockSetIfAbsent.mockImplementation(async () => true);
+	mockSetIfAbsentOrNotFound.mockImplementation(async () => true);
 	mockInvalidate.mockImplementation(async () => undefined);
 });
 
@@ -309,7 +313,7 @@ describe("LinkService", () => {
 
 		// wait a tick for fire-and-forget backfill
 		await new Promise((r) => setTimeout(r, 10));
-		expect(mockSetIfAbsent).toHaveBeenCalledTimes(1);
+		expect(mockSetIfAbsentOrNotFound).toHaveBeenCalledTimes(1);
 		expect(mockFinish).not.toHaveBeenCalled();
 	});
 });

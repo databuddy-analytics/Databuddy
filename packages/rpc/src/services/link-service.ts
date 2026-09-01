@@ -7,7 +7,7 @@ import {
 	type CachedLinkMutationNext,
 	finishCachedLinkMutation as redisFinish,
 	invalidateAgentContextSnapshotsForOwner,
-	setCachedLinkIfAbsent as redisSetIfAbsent,
+	setCachedLinkIfAbsentOrNotFound as redisSetIfAbsentOrNotFound,
 } from "@databuddy/redis";
 import { isDeepLinkTarget } from "@databuddy/shared/constants/deep-link-apps";
 import { getErrorLogFields } from "@databuddy/shared/evlog-fields";
@@ -256,7 +256,7 @@ export class LinkService {
 		reason: string
 	): Promise<void> {
 		try {
-			if (await redisSetIfAbsent(slug, toCachedLink(link))) {
+			if (await redisSetIfAbsentOrNotFound(slug, toCachedLink(link))) {
 				return;
 			}
 			logger.warn(
@@ -348,7 +348,8 @@ export class LinkService {
 
 	async create(input: {
 		organizationId: string;
-		createdBy: string;
+		createdBy?: string;
+		getCreatedBy?: () => Promise<string>;
 		name: string;
 		targetUrl: string;
 		slug?: string;
@@ -377,6 +378,14 @@ export class LinkService {
 		const targetDomain =
 			normalizeTargetDomain(input.targetDomain) ??
 			getTargetDomain(input.targetUrl);
+		let createdBy: string;
+		if (input.getCreatedBy) {
+			createdBy = await input.getCreatedBy();
+		} else if (input.createdBy) {
+			createdBy = input.createdBy;
+		} else {
+			throw new Error("createdBy or getCreatedBy required");
+		}
 
 		const slugsToTry = input.slug
 			? [input.slug]
@@ -422,7 +431,7 @@ export class LinkService {
 						id: linkId,
 						slug,
 						organizationId: input.organizationId,
-						createdBy: input.createdBy,
+						createdBy,
 						folderId: resolvedFolderId,
 						name: input.name,
 						targetUrl: input.targetUrl,
@@ -502,6 +511,10 @@ export class LinkService {
 						{ slug, linkId, ...getErrorLogFields(reconciliationError) },
 						"Failed to reconcile uncertain link create"
 					);
+					await this.abandonLinkCacheMutations(
+						cacheMutations,
+						"create reconciled with error"
+					);
 					throw rpcError.serviceUnavailable(
 						1,
 						"Link creation outcome is still being reconciled"
@@ -527,6 +540,10 @@ export class LinkService {
 				logger.error(
 					{ slug, linkId, ...getErrorLogFields(error) },
 					"Link create failed with an uncertain persistence outcome"
+				);
+				await this.abandonLinkCacheMutations(
+					cacheMutations,
+					"create failed with uncertain persistence outcome"
 				);
 				throw rpcError.serviceUnavailable(
 					1,
@@ -731,6 +748,10 @@ export class LinkService {
 				{ linkId: link.id, oldSlug, nextSlug, ...getErrorLogFields(error) },
 				"Link update failed with an uncertain persistence outcome"
 			);
+			await this.abandonLinkCacheMutations(
+				cacheMutations,
+				"update failed with uncertain persistence outcome"
+			);
 			throw rpcError.serviceUnavailable(
 				1,
 				"Link update outcome is still being reconciled"
@@ -797,6 +818,10 @@ export class LinkService {
 			logger.error(
 				{ slug: link.slug, linkId: link.id, ...getErrorLogFields(error) },
 				"Link delete failed with an uncertain persistence outcome"
+			);
+			await this.abandonLinkCacheMutations(
+				cacheMutations,
+				"delete failed with uncertain persistence outcome"
 			);
 			throw rpcError.serviceUnavailable(
 				1,

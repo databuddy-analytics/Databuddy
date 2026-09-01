@@ -237,11 +237,10 @@ export const linksRouter = {
 				organizationId,
 				"create"
 			);
-			const createdBy = await workspace.getCreatedBy();
 			const service = createLinkService(context);
 			return service.create({
 				organizationId,
-				createdBy,
+				getCreatedBy: () => workspace.getCreatedBy(),
 				name: input.name,
 				targetUrl: input.targetUrl,
 				slug: input.slug,
