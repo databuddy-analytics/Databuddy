@@ -121,10 +121,7 @@ export default function SwitchFromHubPage() {
 								href="/demo"
 							>
 								View Live Demo
-								<ArrowRightIcon
-									className="size-3.5 transition-transform group-hover:translate-x-0.5"
-									weight="fill"
-								/>
+								<ArrowRightIcon className="size-3.5 transition-transform group-hover:translate-x-0.5" />
 							</Link>
 						</div>
 					</div>

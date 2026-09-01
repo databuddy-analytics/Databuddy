@@ -148,10 +148,7 @@ export default async function ChangelogPage() {
 					) : (
 						<div className="flex items-center justify-center px-5 py-20 sm:px-6 lg:px-8">
 							<div className="text-center">
-								<RocketLaunchIcon
-									className="mx-auto mb-4 h-12 w-12 text-muted-foreground/40"
-									weight="duotone"
-								/>
+								<RocketLaunchIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground/40" />
 								<h3 className="mb-2 font-medium text-foreground text-lg tracking-tight">
 									No releases yet
 								</h3>

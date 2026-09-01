@@ -220,10 +220,7 @@ export default function AmbassadorForm() {
 					className="rounded border border-green-500/50 bg-green-500/5 p-8 backdrop-blur-sm"
 					cornerColor="bg-green-500"
 				>
-					<CheckIcon
-						className="mx-auto mb-4 h-12 w-12 text-green-500"
-						weight="duotone"
-					/>
+					<CheckIcon className="mx-auto mb-4 h-12 w-12 text-green-500" />
 					<h3 className="mb-2 font-semibold text-foreground text-xl">
 						Application Submitted!
 					</h3>
@@ -405,7 +402,7 @@ export default function AmbassadorForm() {
 								</>
 							) : (
 								<>
-									<PaperPlaneIcon className="size-4" weight="duotone" />
+									<PaperPlaneIcon className="size-4" />
 									Submit Application
 								</>
 							)}

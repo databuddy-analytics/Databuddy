@@ -52,7 +52,7 @@ export function PricingSection({
 								tier.databuddy === "Included" ||
 								tier.databuddy === "Not needed" ? (
 									<span className="inline-flex items-center gap-1 text-primary">
-										<CheckIcon className="size-3.5" weight="bold" />
+										<CheckIcon className="size-3.5" />
 										{tier.databuddy}
 									</span>
 								) : (

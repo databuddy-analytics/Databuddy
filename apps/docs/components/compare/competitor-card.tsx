@@ -55,10 +55,7 @@ export function CompetitorCard({
 			<div className="mb-5 space-y-2">
 				{advantages.slice(0, 3).map((feature) => (
 					<div className="flex items-center gap-2" key={feature.name}>
-						<CheckIcon
-							className="size-3.5 shrink-0 text-primary"
-							weight="bold"
-						/>
+						<CheckIcon className="size-3.5 shrink-0 text-primary" />
 						<span className="text-muted-foreground text-xs">
 							{feature.name}
 						</span>
@@ -73,10 +70,7 @@ export function CompetitorCard({
 
 			<div className="flex items-center justify-between rounded border border-border/50 bg-muted/20 px-4 py-2.5 font-medium text-foreground text-sm transition-colors group-hover:bg-muted/40">
 				<span>{ctaLabel ?? "View comparison"}</span>
-				<ArrowRightIcon
-					className="size-3.5 transition-transform group-hover:translate-x-0.5"
-					weight="fill"
-				/>
+				<ArrowRightIcon className="size-3.5 transition-transform group-hover:translate-x-0.5" />
 			</div>
 		</Link>
 	);

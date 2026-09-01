@@ -122,7 +122,7 @@ function TestimonialCardContent({
 			aria-hidden
 			className="text-muted-foreground duration-300 group-hover:text-foreground"
 		>
-			<XLogoIcon className="size-4 sm:h-5 sm:w-5" weight="duotone" />
+			<XLogoIcon className="size-4 sm:h-5 sm:w-5" />
 		</span>
 	) : null;
 

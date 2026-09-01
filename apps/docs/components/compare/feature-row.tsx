@@ -16,16 +16,16 @@ export function FeatureRow({
 				</span>
 				<span className="flex justify-center">
 					{feature.databuddy ? (
-						<CheckIcon className="size-4 text-primary" weight="bold" />
+						<CheckIcon className="size-4 text-primary" />
 					) : (
-						<XIcon className="size-4 text-muted-foreground/50" weight="bold" />
+						<XIcon className="size-4 text-muted-foreground/50" />
 					)}
 				</span>
 				<span className="flex justify-center">
 					{feature.competitor ? (
-						<CheckIcon className="size-4 text-muted-foreground" weight="bold" />
+						<CheckIcon className="size-4 text-muted-foreground" />
 					) : (
-						<XIcon className="size-4 text-muted-foreground/50" weight="bold" />
+						<XIcon className="size-4 text-muted-foreground/50" />
 					)}
 				</span>
 				<span className="text-muted-foreground text-sm">{feature.benefit}</span>
@@ -43,26 +43,17 @@ export function FeatureRow({
 				<div className="flex shrink-0 items-center gap-3 pt-0.5">
 					<div className="flex flex-col items-center gap-0.5">
 						{feature.databuddy ? (
-							<CheckIcon className="size-4 text-primary" weight="bold" />
+							<CheckIcon className="size-4 text-primary" />
 						) : (
-							<XIcon
-								className="size-4 text-muted-foreground/50"
-								weight="bold"
-							/>
+							<XIcon className="size-4 text-muted-foreground/50" />
 						)}
 						<span className="text-[10px] text-muted-foreground">DB</span>
 					</div>
 					<div className="flex flex-col items-center gap-0.5">
 						{feature.competitor ? (
-							<CheckIcon
-								className="size-4 text-muted-foreground"
-								weight="bold"
-							/>
+							<CheckIcon className="size-4 text-muted-foreground" />
 						) : (
-							<XIcon
-								className="size-4 text-muted-foreground/50"
-								weight="bold"
-							/>
+							<XIcon className="size-4 text-muted-foreground/50" />
 						)}
 						<span className="text-[10px] text-muted-foreground">
 							{competitorName.split(" ").at(0)}

@@ -39,7 +39,7 @@ export function PricingPreview() {
 					href="/pricing"
 				>
 					See the full plan comparison
-					<ArrowRightIcon className="size-3.5" weight="fill" />
+					<ArrowRightIcon className="size-3.5" />
 				</Link>
 			</div>
 		</div>

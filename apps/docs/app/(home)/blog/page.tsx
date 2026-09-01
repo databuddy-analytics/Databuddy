@@ -80,14 +80,14 @@ function BlogPostCard({ post }: { post: Post }) {
 					<div className="mb-3 flex items-center gap-3 text-muted-foreground text-xs">
 						{post.category && (
 							<div className="flex items-center gap-1">
-								<TagIcon className="size-3" weight="duotone" />
+								<TagIcon className="size-3" />
 								<span className="rounded bg-primary/10 px-2 py-1 font-medium text-primary">
 									{post.category.name}
 								</span>
 							</div>
 						)}
 						<div className="flex items-center gap-1">
-							<ClockIcon className="size-3" weight="duotone" />
+							<ClockIcon className="size-3" />
 							<span>{getReadingTime(post.content)}</span>
 						</div>
 					</div>
@@ -125,10 +125,7 @@ function BlogPostCard({ post }: { post: Post }) {
 					<div className="mt-auto flex items-center justify-between border-border/30 border-t pt-4">
 						{/* Authors */}
 						<div className="flex items-center gap-2">
-							<UserIcon
-								className="size-4 text-muted-foreground"
-								weight="duotone"
-							/>
+							<UserIcon className="size-4 text-muted-foreground" />
 							<div className="flex -space-x-2">
 								{post.authors.slice(0, 2).map((author) => (
 									<Avatar
@@ -152,7 +149,7 @@ function BlogPostCard({ post }: { post: Post }) {
 
 						{/* Date */}
 						<div className="flex items-center gap-1 text-muted-foreground text-xs">
-							<CalendarIcon className="size-3" weight="duotone" />
+							<CalendarIcon className="size-3" />
 							<span>{formatDate(post.publishedAt)}</span>
 						</div>
 					</div>
@@ -224,10 +221,7 @@ export default async function BlogPage() {
 						<div className="mx-auto max-w-lg">
 							<SciFiCard>
 								<div className="rounded border border-border bg-card/50 p-8 text-center backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 sm:p-12">
-									<TagIcon
-										className="mx-auto mb-4 h-12 w-12 text-muted-foreground duration-300 group-hover:text-foreground sm:h-16 sm:w-16"
-										weight="duotone"
-									/>
+									<TagIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground duration-300 group-hover:text-foreground sm:h-16 sm:w-16" />
 									<h1 className="mb-3 text-balance font-semibold text-2xl leading-tight tracking-tight sm:text-3xl md:text-4xl">
 										No Posts Yet
 									</h1>

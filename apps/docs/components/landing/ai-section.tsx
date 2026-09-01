@@ -348,7 +348,7 @@ export function AiSection() {
 			<div className="grid grid-cols-1 gap-8 lg:grid-cols-2 lg:gap-12">
 				<div className="flex flex-col">
 					<span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground uppercase tracking-widest">
-						<RobotIcon className="size-3.5 text-violet-400" weight="duotone" />
+						<RobotIcon className="size-3.5 text-violet-400" />
 						Proactive · Invite only
 					</span>
 					<h3 className="mt-2 font-semibold text-foreground text-lg sm:text-xl">
@@ -367,14 +367,14 @@ export function AiSection() {
 							href="/databunny"
 						>
 							Meet Databunny
-							<ArrowRightIcon className="size-3.5" weight="fill" />
+							<ArrowRightIcon className="size-3.5" />
 						</Link>
 					</div>
 				</div>
 
 				<div className="flex flex-col">
 					<span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground uppercase tracking-widest">
-						<PlugIcon className="size-3.5 text-violet-400" weight="duotone" />
+						<PlugIcon className="size-3.5 text-violet-400" />
 						MCP
 					</span>
 					<h3 className="mt-2 font-semibold text-foreground text-lg sm:text-xl">
@@ -406,7 +406,7 @@ export function AiSection() {
 							href="/docs/api"
 						>
 							API reference
-							<ArrowRightIcon className="size-3.5" weight="fill" />
+							<ArrowRightIcon className="size-3.5" />
 						</Link>
 					</div>
 				</div>

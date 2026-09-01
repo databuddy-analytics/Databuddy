@@ -322,12 +322,12 @@ function CopyButton({ text }: { text: string }) {
 		>
 			{copied ? (
 				<span className="inline-flex items-center gap-1.5">
-					<CheckCircleIcon className="size-4" weight="duotone" />
+					<CheckCircleIcon className="size-4" />
 					<span className="font-medium text-sm">Copied!</span>
 				</span>
 			) : (
 				<span className="inline-flex items-center gap-1.5">
-					<CopyIcon className="size-4" weight="duotone" />
+					<CopyIcon className="size-4" />
 					<span className="font-medium text-sm">Copy</span>
 				</span>
 			)}

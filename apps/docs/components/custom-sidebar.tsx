@@ -99,10 +99,7 @@ function CustomSidebarContent({
 							onClick={onSearchAction}
 							type="button"
 						>
-							<MagnifyingGlassIcon
-								className="size-4 shrink-0"
-								weight="duotone"
-							/>
+							<MagnifyingGlassIcon className="size-4 shrink-0" />
 							<span className="min-w-0 flex-1 truncate">
 								Search documentation&hellip;
 							</span>
@@ -162,14 +159,11 @@ function SidebarSectionBlock({
 				onClick={onToggle}
 				type="button"
 			>
-				<Icon className="size-4 shrink-0" weight="duotone" />
+				<Icon className="size-4 shrink-0" />
 				<span className="min-w-0 flex-1 truncate">{section.title}</span>
 				{section.isNew ? <NewBadge /> : null}
 				<motion.div animate={{ rotate: isOpen ? 180 : 0 }} className="shrink-0">
-					<CaretDownIcon
-						className="size-3.5 text-sidebar-foreground/35"
-						weight="duotone"
-					/>
+					<CaretDownIcon className="size-3.5 text-sidebar-foreground/35" />
 				</motion.div>
 			</button>
 
@@ -229,17 +223,14 @@ function DocSidebarItem({
 					onClick={() => onNestedToggle(item.title)}
 					type="button"
 				>
-					{Icon ? <Icon className="size-4 shrink-0" weight="duotone" /> : null}
+					{Icon ? <Icon className="size-4 shrink-0" /> : null}
 					<span className="min-w-0 flex-1 truncate">{item.title}</span>
 					{item.isNew ? <NewBadge /> : null}
 					<motion.div
 						animate={{ rotate: isOpen ? 90 : 0 }}
 						className="shrink-0"
 					>
-						<CaretDownIcon
-							className="size-3 text-sidebar-foreground/35"
-							weight="duotone"
-						/>
+						<CaretDownIcon className="size-3 text-sidebar-foreground/35" />
 					</motion.div>
 				</button>
 
@@ -288,7 +279,7 @@ function SidebarLink({
 			startWith="/docs"
 			title={item.title}
 		>
-			{Icon ? <Icon className="size-4 shrink-0" weight="duotone" /> : null}
+			{Icon ? <Icon className="size-4 shrink-0" /> : null}
 			<span className="min-w-0 flex-1 truncate">{item.title}</span>
 			{item.isNew ? <NewBadge /> : null}
 		</AsideLink>

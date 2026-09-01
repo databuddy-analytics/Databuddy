@@ -201,17 +201,14 @@ function HeroInsightOverlay({ activeTab }: { activeTab: HeroTabId }) {
 							tone.text
 						)}
 					>
-						<Icon className="size-4" weight="duotone" />
+						<Icon className="size-4" />
 					</span>
 					<div className="min-w-0 flex-1">
 						<div className="flex items-start justify-between gap-2">
 							<p className="line-clamp-2 font-medium text-foreground text-sm leading-snug">
 								{insight.headline}
 							</p>
-							<CaretDownIcon
-								className="mt-0.5 size-3 shrink-0 rotate-180 text-muted-foreground"
-								weight="fill"
-							/>
+							<CaretDownIcon className="mt-0.5 size-3 shrink-0 rotate-180 text-muted-foreground" />
 						</div>
 						<div className="mt-0.5 flex items-center gap-1.5 text-xs">
 							<span className="rounded bg-accent px-1.5 py-0.5 text-[10px] text-muted-foreground">
@@ -248,10 +245,7 @@ function HeroInsightOverlay({ activeTab }: { activeTab: HeroTabId }) {
 						initial={{ opacity: 0, y: 5 }}
 						transition={{ delay: 0.22, duration: 0.22, ease: "easeOut" }}
 					>
-						<LightbulbFilamentIcon
-							className="mt-0.5 size-4 shrink-0 text-amber-500"
-							weight="duotone"
-						/>
+						<LightbulbFilamentIcon className="mt-0.5 size-4 shrink-0 text-amber-500" />
 						<div className="min-w-0">
 							<p className="font-medium text-[11px] text-foreground uppercase">
 								Do this next
@@ -298,7 +292,7 @@ function HeroInsightOverlay({ activeTab }: { activeTab: HeroTabId }) {
 							href="/databunny"
 						>
 							Ask agent
-							<ArrowRightIcon className="ml-1 size-3" weight="fill" />
+							<ArrowRightIcon className="ml-1 size-3" />
 						</Link>
 					</motion.div>
 				</div>
@@ -395,7 +389,7 @@ export default function Hero({
 									ease: "easeOut",
 								}}
 							>
-								<chip.icon className="size-3.5" weight="duotone" />
+								<chip.icon className="size-3.5" />
 								{chip.label}
 							</motion.span>
 						))}
@@ -412,7 +406,7 @@ export default function Hero({
 								ease: "easeOut",
 							}}
 						>
-							<StarIcon className="size-3.5 text-amber-500" weight="duotone" />
+							<StarIcon className="size-3.5 text-amber-500" />
 							Open source
 							{typeof stars === "number" && (
 								<span className="tabular-nums">
