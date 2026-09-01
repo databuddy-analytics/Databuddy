@@ -308,7 +308,6 @@ async function lookupLink(slug: string, ipHash: string): Promise<LookupResult> {
 
 async function recordClick(
 	link: CachedLink,
-	ipHash: string,
 	ip: string,
 	request: Request
 ): Promise<void> {
@@ -332,7 +331,6 @@ async function recordClick(
 		country: geo.country,
 		device_type: ua.device,
 		id: randomUUID(),
-		ip_hash: ipHash,
 		link_id: link.id,
 		referrer: request.headers.get("referer"),
 		region: geo.region,
@@ -507,7 +505,7 @@ export const redirectRoute = new Elysia().get(
 			response = redirect(targetUrl, 302);
 		}
 
-		await recordClick(link, ipHash, ip, request);
+		await recordClick(link, ip, request);
 
 		emit(result);
 		if (etag) {

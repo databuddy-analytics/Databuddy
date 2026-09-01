@@ -25,7 +25,6 @@ export interface LinkVisitEvent {
 	country: string | null;
 	device_type: string | null;
 	id: string;
-	ip_hash: string;
 	link_id: string;
 	referrer: string | null;
 	region: string | null;

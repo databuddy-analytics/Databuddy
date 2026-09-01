@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { isIP } from "node:net";
 import { captureError, mergeWideEvent, record } from "@lib/tracing";
 import type { City } from "@maxmind/geoip2-node";
@@ -8,12 +7,6 @@ import {
 	Reader,
 } from "@maxmind/geoip2-node";
 import { createError, EvlogError, log } from "evlog";
-
-if (!process.env.IP_HASH_SALT && process.env.NODE_ENV === "production") {
-	throw new Error(
-		"IP_HASH_SALT must be set in production. The fallback salt is public in the open-source repo, so leaving it unset lets anyone reverse 'anonymized' IPs via a precomputed table."
-	);
-}
 
 interface GeoIPReader extends Reader {
 	city(ip: string): City;
@@ -164,17 +157,6 @@ function lookupGeoLocation(ip: string): Promise<{
 	});
 }
 
-export function anonymizeIp(ip: string): string {
-	if (!ip) {
-		return "";
-	}
-
-	const salt = process.env.IP_HASH_SALT || "databuddy-ip-salt";
-	const hash = createHash("sha256");
-	hash.update(`${ip}${salt}`);
-	return hash.digest("hex").slice(0, 12);
-}
-
 export function getGeo(ip: string, request?: Request) {
 	return record("getGeo", async () => {
 		if (!ip || ignore.includes(ip) || !isValidIp(ip)) {
@@ -182,7 +164,6 @@ export function getGeo(ip: string, request?: Request) {
 				geo: { skipped: true, reason: "invalid_or_local_ip" },
 			});
 			return {
-				anonymizedIP: anonymizeIp(ip),
 				country: undefined,
 				region: undefined,
 				city: undefined,
@@ -201,7 +182,6 @@ export function getGeo(ip: string, request?: Request) {
 					},
 				});
 				return {
-					anonymizedIP: anonymizeIp(ip),
 					country: cfCountry,
 					region: undefined,
 					city: undefined,
@@ -221,7 +201,6 @@ export function getGeo(ip: string, request?: Request) {
 		});
 
 		return {
-			anonymizedIP: anonymizeIp(ip),
 			country: geo.country,
 			region: geo.region,
 			city: geo.city,
