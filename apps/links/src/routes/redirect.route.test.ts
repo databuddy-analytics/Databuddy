@@ -185,7 +185,7 @@ describe("redirect route", () => {
 		);
 
 		expect(response.status).toBe(302);
-		expect(response.headers.get("location")).toBe("https://example.com");
+		expect(response.headers.get("location")).toBe("https://example.com/");
 		expect(dbSelect).toHaveBeenCalledTimes(1);
 		expect(setCachedLinkIfAbsent).not.toHaveBeenCalled();
 		expect(setCachedLinkNotFoundIfAbsent).not.toHaveBeenCalled();
@@ -306,7 +306,7 @@ describe("redirect route", () => {
 		);
 
 		expect(response.status).toBe(302);
-		expect(response.headers.get("location")).toBe("https://example.com");
+		expect(response.headers.get("location")).toBe("https://example.com/");
 		await new Promise((resolve) => setTimeout(resolve, 0));
 		expect(emitServiceEvent).toHaveBeenCalledWith(
 			"error",
