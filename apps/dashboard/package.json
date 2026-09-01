@@ -65,7 +65,7 @@
     "leaflet": "^1.9.4",
     "motion": "^12.38.0",
     "nanoid": "^5.1.7",
-    "next": "^16.2.6",
+    "next": "catalog:",
     "next-themes": "^0.4.6",
     "nuqs": "^2.8.9",
     "ogl": "^1.0.11",
