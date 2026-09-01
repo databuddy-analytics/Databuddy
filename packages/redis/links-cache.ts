@@ -339,8 +339,7 @@ if not ok or type(decoded) ~= "table" then
 	return 1
 end
 if decoded.state == "tombstone" then
-	redis.call("SET", KEYS[1], ARGV[1], "EX", ARGV[2])
-	return 1
+	return 0
 end
 if decoded.state == "pending" then
 	return 0

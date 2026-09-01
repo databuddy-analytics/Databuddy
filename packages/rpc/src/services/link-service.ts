@@ -511,10 +511,6 @@ export class LinkService {
 						{ slug, linkId, ...getErrorLogFields(reconciliationError) },
 						"Failed to reconcile uncertain link create"
 					);
-					await this.abandonLinkCacheMutations(
-						cacheMutations,
-						"create reconciled with error"
-					);
 					throw rpcError.serviceUnavailable(
 						1,
 						"Link creation outcome is still being reconciled"
@@ -540,10 +536,6 @@ export class LinkService {
 				logger.error(
 					{ slug, linkId, ...getErrorLogFields(error) },
 					"Link create failed with an uncertain persistence outcome"
-				);
-				await this.abandonLinkCacheMutations(
-					cacheMutations,
-					"create failed with uncertain persistence outcome"
 				);
 				throw rpcError.serviceUnavailable(
 					1,
@@ -748,10 +740,6 @@ export class LinkService {
 				{ linkId: link.id, oldSlug, nextSlug, ...getErrorLogFields(error) },
 				"Link update failed with an uncertain persistence outcome"
 			);
-			await this.abandonLinkCacheMutations(
-				cacheMutations,
-				"update failed with uncertain persistence outcome"
-			);
 			throw rpcError.serviceUnavailable(
 				1,
 				"Link update outcome is still being reconciled"
@@ -818,10 +806,6 @@ export class LinkService {
 			logger.error(
 				{ slug: link.slug, linkId: link.id, ...getErrorLogFields(error) },
 				"Link delete failed with an uncertain persistence outcome"
-			);
-			await this.abandonLinkCacheMutations(
-				cacheMutations,
-				"delete failed with uncertain persistence outcome"
 			);
 			throw rpcError.serviceUnavailable(
 				1,
