@@ -7,15 +7,58 @@ import { usePersistentState } from "../../hooks/use-persistent-state";
 import { cn } from "../utils";
 import {
 	CHART_BLOCK_MIN_PX,
-	computeSummary,
+	type ChartDataPoint,
 	formatMs,
-	getSummaryValue,
-	type LatencyDataPoint,
 	METRICS,
-	toChartData,
 } from "./latency-chart-data";
 
 const LatencyAreaChart = lazy(() => import("./latency-area-chart"));
+
+interface LatencyDataPoint {
+	avg_response_time?: number;
+	date: string;
+	p95_response_time?: number;
+}
+
+function toChartData(data: LatencyDataPoint[]): ChartDataPoint[] {
+	return data
+		.filter((d) => d.avg_response_time != null || d.p95_response_time != null)
+		.map((d) => ({
+			date: d.date,
+			avg_response_time:
+				d.avg_response_time == null
+					? null
+					: Math.round(d.avg_response_time * 100) / 100,
+			p95_response_time:
+				d.p95_response_time == null
+					? null
+					: Math.round(d.p95_response_time * 100) / 100,
+		}));
+}
+
+function computeSummary(chartData: ChartDataPoint[]) {
+	if (chartData.length === 0) {
+		return { avg: null, p95: null };
+	}
+	const latest = chartData.at(-1);
+	const avgValues = chartData
+		.map((d) => d.avg_response_time)
+		.filter((v): v is number => v != null);
+	return {
+		avg:
+			avgValues.length > 0
+				? avgValues.reduce((a, b) => a + b, 0) / avgValues.length
+				: null,
+		p95: latest?.p95_response_time ?? null,
+	};
+}
+
+function getSummaryValue(
+	summary: { avg: number | null; p95: number | null },
+	key: (typeof METRICS)[number]["key"]
+) {
+	return key === "avg_response_time" ? summary.avg : summary.p95;
+}
 
 interface LatencyChartProps {
 	data: LatencyDataPoint[];

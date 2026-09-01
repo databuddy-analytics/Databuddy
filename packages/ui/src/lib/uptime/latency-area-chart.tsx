@@ -12,14 +12,53 @@ import {
 } from "recharts";
 import {
 	CHART_BLOCK_MIN_PX,
-	CHART_HEIGHT_PX,
 	type ChartDataPoint,
-	detectGranularity,
 	formatMs,
-	formatTickDate,
-	getMetricLabel,
 	METRICS,
 } from "./latency-chart-data";
+
+const CHART_HEIGHT_PX = CHART_BLOCK_MIN_PX;
+
+function detectGranularity(data: ChartDataPoint[]): "hourly" | "daily" {
+	if (data.length < 2) {
+		return "daily";
+	}
+	const first = new Date(data.at(0)?.date ?? "").getTime();
+	const second = new Date(data.at(1)?.date ?? "").getTime();
+	return (second - first) / (1000 * 60 * 60) < 20 ? "hourly" : "daily";
+}
+
+function formatTickDate(
+	dateStr: string,
+	granularity: "hourly" | "daily"
+): string {
+	const d = new Date(dateStr);
+	if (Number.isNaN(d.getTime())) {
+		return dateStr;
+	}
+	if (granularity === "hourly") {
+		return d.toLocaleString("en-US", {
+			hour: "numeric",
+			minute: "2-digit",
+			timeZone: "UTC",
+		});
+	}
+	return d.toLocaleDateString("en-US", {
+		month: "short",
+		day: "numeric",
+		timeZone: "UTC",
+	});
+}
+
+function getMetricLabel(dataKey: unknown) {
+	if (typeof dataKey !== "string" && typeof dataKey !== "number") {
+		return "";
+	}
+
+	return (
+		METRICS.find((metric) => metric.key === dataKey)?.label ?? String(dataKey)
+	);
+}
 
 const AXIS_TICK = {
 	fontSize: 10,
