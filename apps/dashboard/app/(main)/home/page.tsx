@@ -223,7 +223,7 @@ export default function HomePage() {
 								onClick: () => setDialogOpen(true),
 							}}
 							description="Start tracking your website analytics by adding your first website."
-							icon={<GlobeIcon weight="duotone" />}
+							icon={<GlobeIcon />}
 							title="No websites yet"
 							variant="minimal"
 						/>

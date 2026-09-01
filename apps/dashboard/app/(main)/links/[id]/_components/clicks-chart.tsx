@@ -45,7 +45,7 @@ export function ClicksChart({
 					>
 						<EmptyState
 							description="Click data will appear here as visitors interact with your link"
-							icon={<ChartLineIcon className="size-6" weight="duotone" />}
+							icon={<ChartLineIcon className="size-6" />}
 							title="No click data available"
 						/>
 					</div>

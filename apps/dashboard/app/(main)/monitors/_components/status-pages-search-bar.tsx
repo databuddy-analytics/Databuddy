@@ -45,10 +45,7 @@ export function StatusPagesSearchBar({
 	return (
 		<div className="flex w-full items-center gap-1.5">
 			<div className="relative flex-1">
-				<MagnifyingGlassIcon
-					className="absolute top-1/2 left-2.5 z-10 size-3.5 -translate-y-1/2 text-muted-foreground"
-					weight="bold"
-				/>
+				<MagnifyingGlassIcon className="absolute top-1/2 left-2.5 z-10 size-3.5 -translate-y-1/2 text-muted-foreground" />
 				<Input
 					className="h-7 pr-7 pl-8"
 					onChange={(e) => onSearchQueryChangeAction(e.target.value)}
@@ -73,10 +70,7 @@ export function StatusPagesSearchBar({
 					<DropdownMenu.Trigger
 						className={`inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs transition-colors hover:bg-interactive-hover hover:text-foreground ${statusFilter === "all" ? "text-muted-foreground" : "text-foreground"}`}
 					>
-						<FunnelIcon
-							size={14}
-							weight={statusFilter === "all" ? "bold" : "fill"}
-						/>
+						<FunnelIcon size={14} />
 						<span className="hidden sm:inline">
 							{STATUS_LABELS[statusFilter]}
 						</span>
@@ -106,7 +100,7 @@ export function StatusPagesSearchBar({
 
 			<DropdownMenu>
 				<DropdownMenu.Trigger className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-2 text-muted-foreground text-xs transition-colors hover:bg-interactive-hover hover:text-foreground">
-					<SortAscendingIcon size={14} weight="bold" />
+					<SortAscendingIcon size={14} />
 					<span className="hidden sm:inline">{SORT_LABELS[sortBy]}</span>
 				</DropdownMenu.Trigger>
 				<DropdownMenu.Content align="end" className="w-36">

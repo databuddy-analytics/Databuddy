@@ -387,7 +387,6 @@ function FirstReview({
 					<CircleNotchIcon
 						aria-hidden
 						className="size-5 animate-spin text-primary"
-						weight="duotone"
 					/>
 					<div>
 						<p className="font-medium text-sm">Checking your first review</p>
@@ -407,11 +406,7 @@ function FirstReview({
 				className="border-destructive/30"
 			>
 				<Card.Content className="flex flex-wrap items-center gap-3 py-5">
-					<WarningCircleIcon
-						aria-hidden
-						className="size-5 text-destructive"
-						weight="duotone"
-					/>
+					<WarningCircleIcon aria-hidden className="size-5 text-destructive" />
 					<div className="min-w-0 flex-1">
 						<p className="font-medium text-sm">
 							Couldn't check your first review
@@ -477,7 +472,7 @@ function FirstReview({
 			<Button asChild size="sm">
 				<Link href={`/websites/${websiteId}/settings/tracking`}>
 					Open tracking setup
-					<ArrowRightIcon className="size-3" weight="bold" />
+					<ArrowRightIcon className="size-3" />
 				</Link>
 			</Button>
 		);
@@ -489,12 +484,12 @@ function FirstReview({
 		) : canUseCredits ? (
 			<Button onClick={onRun} size="sm">
 				{state === "ready" ? "Run first review" : "Retry first review"}
-				<ArrowRightIcon className="size-3" weight="bold" />
+				<ArrowRightIcon className="size-3" />
 			</Button>
 		) : (
 			<Button asChild size="sm">
 				<Link href="/billing#topup">
-					<CoinsIcon className="size-3.5" weight="duotone" />
+					<CoinsIcon className="size-3.5" />
 					Add investigation credits
 				</Link>
 			</Button>
@@ -556,9 +551,7 @@ const FIRST_REVIEW_STATUSES = {
 		badgeVariant: "warning",
 		description:
 			"No recent page activity has reached Databuddy, so there is nothing to review yet.",
-		icon: (
-			<WarningCircleIcon className="size-5 text-warning" weight="duotone" />
-		),
+		icon: <WarningCircleIcon className="size-5 text-warning" />,
 		title: "Connect tracking before your first review",
 	},
 	collecting_baseline: {
@@ -566,7 +559,7 @@ const FIRST_REVIEW_STATUSES = {
 		badgeLabel: "Collecting baseline",
 		badgeVariant: "muted",
 		description: "",
-		icon: <ClockIcon className="size-5 text-warning" weight="duotone" />,
+		icon: <ClockIcon className="size-5 text-warning" />,
 		title: "Tracking is working; your first trend review is next",
 	},
 	ready: {
@@ -575,7 +568,7 @@ const FIRST_REVIEW_STATUSES = {
 		badgeVariant: "success",
 		description:
 			"Run one review of this site. You will see a specific finding—or a clear no-finding result.",
-		icon: <LightbulbIcon className="size-5 text-success" weight="duotone" />,
+		icon: <LightbulbIcon className="size-5 text-success" />,
 		title: "Your first review is ready",
 	},
 	running: {
@@ -583,12 +576,7 @@ const FIRST_REVIEW_STATUSES = {
 		badgeLabel: "Review in progress",
 		badgeVariant: "primary",
 		description: "Checking this site for a decision-worthy finding.",
-		icon: (
-			<CircleNotchIcon
-				className="size-5 animate-spin text-primary"
-				weight="duotone"
-			/>
-		),
+		icon: <CircleNotchIcon className="size-5 animate-spin text-primary" />,
 		title: "Looking for one thing worth acting on",
 	},
 	waiting_for_organization_run: {
@@ -597,7 +585,7 @@ const FIRST_REVIEW_STATUSES = {
 		badgeVariant: "warning",
 		description:
 			"Databuddy runs one organization analysis at a time. Start this review when it finishes.",
-		icon: <ClockIcon className="size-5 text-warning" weight="duotone" />,
+		icon: <ClockIcon className="size-5 text-warning" />,
 		title: "Another site is being reviewed",
 	},
 	needs_credits: {
@@ -606,7 +594,7 @@ const FIRST_REVIEW_STATUSES = {
 		badgeVariant: "warning",
 		description:
 			"No investigation credits were available for the last attempt. Add credits, then retry.",
-		icon: <CoinsIcon className="size-5 text-warning" weight="duotone" />,
+		icon: <CoinsIcon className="size-5 text-warning" />,
 		title: "Your first review is waiting for credits",
 	},
 	deferred: {
@@ -615,7 +603,7 @@ const FIRST_REVIEW_STATUSES = {
 		badgeVariant: "warning",
 		description:
 			"Databuddy found a change, but needs another comparison window before it can make a recommendation.",
-		icon: <ClockIcon className="size-5 text-warning" weight="duotone" />,
+		icon: <ClockIcon className="size-5 text-warning" />,
 		title: "This needs more evidence",
 	},
 	no_findings: {
@@ -623,7 +611,7 @@ const FIRST_REVIEW_STATUSES = {
 		badgeLabel: "First review complete",
 		badgeVariant: "success",
 		description: "",
-		icon: <CheckCircleIcon className="size-5 text-success" weight="duotone" />,
+		icon: <CheckCircleIcon className="size-5 text-success" />,
 		title: "",
 	},
 	needs_attention: {
@@ -632,9 +620,7 @@ const FIRST_REVIEW_STATUSES = {
 		badgeVariant: "destructive",
 		description:
 			"The last attempt did not finish. Retrying runs this site only.",
-		icon: (
-			<WarningCircleIcon className="size-5 text-destructive" weight="duotone" />
-		),
+		icon: <WarningCircleIcon className="size-5 text-destructive" />,
 		title: "Your first review needs another try",
 	},
 	reviewed: {
@@ -642,7 +628,7 @@ const FIRST_REVIEW_STATUSES = {
 		badgeLabel: "First review complete",
 		badgeVariant: "success",
 		description: "",
-		icon: <CheckCircleIcon className="size-5 text-success" weight="duotone" />,
+		icon: <CheckCircleIcon className="size-5 text-success" />,
 		title: "",
 	},
 } as const satisfies Record<
@@ -724,7 +710,7 @@ function InsightBrief({
 						variant: "secondary",
 					}}
 					description="Databuddy couldn't load recent insights."
-					icon={<LightbulbIcon weight="duotone" />}
+					icon={<LightbulbIcon />}
 					title="Couldn't load insights"
 					variant="error"
 				/>
@@ -738,7 +724,7 @@ function InsightBrief({
 						emptyDescription ??
 						"Noteworthy changes, improvements, and recoveries will appear here."
 					}
-					icon={<LightbulbIcon weight="duotone" />}
+					icon={<LightbulbIcon />}
 					title={emptyTitle ?? "No insights yet"}
 					variant="minimal"
 				/>
@@ -807,7 +793,7 @@ function InsightBriefRow({ insight }: { insight: BriefInsight }) {
 					!(positive || negative) && "bg-primary/10 text-primary"
 				)}
 			>
-				<Icon aria-hidden className="size-4" weight="duotone" />
+				<Icon aria-hidden className="size-4" />
 			</span>
 			<div className="min-w-0 flex-1">
 				<div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
@@ -898,7 +884,7 @@ function InsightBriefRow({ insight }: { insight: BriefInsight }) {
 							href={`/insights/${insight.investigationId}`}
 						>
 							Review & respond
-							<ArrowRightIcon className="size-3" weight="bold" />
+							<ArrowRightIcon className="size-3" />
 						</Link>
 					</Button>
 				) : null}

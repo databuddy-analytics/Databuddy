@@ -432,11 +432,7 @@ export default function BillingPage() {
 						<div className="flex items-center justify-between gap-3">
 							<div className="flex items-center gap-3">
 								<div className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-secondary">
-									<CrownIcon
-										className="text-accent-foreground"
-										size={16}
-										weight="duotone"
-									/>
+									<CrownIcon className="text-accent-foreground" size={16} />
 								</div>
 								<div>
 									<Text variant="label">{currentPlanDisplayName}</Text>
@@ -539,11 +535,7 @@ export default function BillingPage() {
 					<Card>
 						<Card.Header>
 							<Card.Title className="flex items-center gap-2">
-								<PuzzlePieceIcon
-									className="text-muted-foreground"
-									size={14}
-									weight="duotone"
-								/>
+								<PuzzlePieceIcon className="text-muted-foreground" size={14} />
 								Enterprise Add-ons
 							</Card.Title>
 							<Card.Description>
@@ -612,7 +604,7 @@ export default function BillingPage() {
 						<Card.Content className="py-8">
 							<EmptyState
 								description="Start using features to see your consumption stats here"
-								icon={<TrendUpIcon weight="duotone" />}
+								icon={<TrendUpIcon />}
 								title="No usage data yet"
 							/>
 						</Card.Content>
@@ -676,11 +668,7 @@ function PaymentMethodRow({
 		return (
 			<div className="flex items-center gap-3">
 				<div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-dashed bg-secondary">
-					<CreditCardIcon
-						className="text-muted-foreground"
-						size={16}
-						weight="duotone"
-					/>
+					<CreditCardIcon className="text-muted-foreground" size={16} />
 				</div>
 				<Text tone="muted" variant="caption">
 					No payment method on file
@@ -702,11 +690,7 @@ function PaymentMethodRow({
 		<div className="flex items-center justify-between gap-3">
 			<div className="flex items-center gap-3">
 				<div className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-secondary">
-					<CreditCardIcon
-						className="text-accent-foreground"
-						size={16}
-						weight="duotone"
-					/>
+					<CreditCardIcon className="text-accent-foreground" size={16} />
 				</div>
 				<div>
 					<Text variant="label">

@@ -186,17 +186,9 @@ export function ExpirationPicker({
 						variant="outline"
 					>
 						{value ? (
-							<CalendarIcon
-								aria-hidden="true"
-								className="size-4 shrink-0"
-								weight="duotone"
-							/>
+							<CalendarIcon aria-hidden="true" className="size-4 shrink-0" />
 						) : (
-							<InfinityIcon
-								aria-hidden="true"
-								className="size-4 shrink-0"
-								weight="duotone"
-							/>
+							<InfinityIcon aria-hidden="true" className="size-4 shrink-0" />
 						)}
 						<span className="truncate">{formatDisplay(currentDate)}</span>
 					</Button>
@@ -255,7 +247,6 @@ export function ExpirationPicker({
 								<ClockIcon
 									aria-hidden="true"
 									className="size-4 text-muted-foreground"
-									weight="duotone"
 								/>
 								<label className="text-sm" htmlFor="expiration-time">
 									Time
@@ -358,11 +349,7 @@ export function ExpirationPicker({
 								onClick={showCustom}
 								type="button"
 							>
-								<CalendarIcon
-									aria-hidden="true"
-									className="size-4"
-									weight="duotone"
-								/>
+								<CalendarIcon aria-hidden="true" className="size-4" />
 								<span>Custom date & time</span>
 								{activePreset === "custom" && (
 									<CheckIcon aria-hidden="true" className="ml-auto size-3.5" />
@@ -379,11 +366,7 @@ export function ExpirationPicker({
 								onClick={clearExpiration}
 								type="button"
 							>
-								<InfinityIcon
-									aria-hidden="true"
-									className="size-4"
-									weight="duotone"
-								/>
+								<InfinityIcon aria-hidden="true" className="size-4" />
 								<span>Never expires</span>
 								{!value && (
 									<CheckIcon aria-hidden="true" className="ml-auto size-3.5" />

@@ -157,7 +157,7 @@ export function OrganizationProvider({
 						onClick: () => setShowCreateDialog(true),
 					}}
 					description="This feature requires an active organization."
-					icon={<BuildingsIcon size={16} weight="duotone" />}
+					icon={<BuildingsIcon size={16} />}
 					title="No organization selected"
 					variant="minimal"
 				/>

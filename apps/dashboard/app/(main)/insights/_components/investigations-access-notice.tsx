@@ -30,10 +30,7 @@ export function InvestigationsAccessNotice({
 
 	return (
 		<div className="flex flex-wrap items-center gap-3 border-b bg-accent/40 px-4 py-2.5">
-			<LockSimpleIcon
-				className="size-4 shrink-0 text-muted-foreground"
-				weight="duotone"
-			/>
+			<LockSimpleIcon className="size-4 shrink-0 text-muted-foreground" />
 			<p className="min-w-0 flex-1 text-muted-foreground text-sm">
 				Automatic investigations are now invite only, so your scheduled runs are
 				paused. Existing findings stay available and Databunny chat still works

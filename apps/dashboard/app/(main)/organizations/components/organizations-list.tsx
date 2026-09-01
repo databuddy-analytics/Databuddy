@@ -38,7 +38,7 @@ function EmptyState() {
 		<>
 			<div className="flex h-full flex-col items-center justify-center p-8 text-center">
 				<div className="mb-4 flex size-16 items-center justify-center rounded-full bg-primary/10">
-					<BuildingsIcon className="text-primary" size={28} weight="duotone" />
+					<BuildingsIcon className="text-primary" size={28} />
 				</div>
 				<h3 className="mb-1 font-semibold text-lg">No organizations yet</h3>
 				<p className="mb-6 max-w-sm text-muted-foreground text-sm">
@@ -104,7 +104,7 @@ function OrganizationRow({
 
 			{isActive && (
 				<Badge variant="success">
-					<CheckCircleIcon className="mr-1" size={12} weight="fill" />
+					<CheckCircleIcon className="mr-1" size={12} />
 					Active
 				</Badge>
 			)}
@@ -112,7 +112,6 @@ function OrganizationRow({
 			<CaretRightIcon
 				className="text-accent-foreground transition-all group-hover:translate-x-0.5"
 				size={16}
-				weight="bold"
 			/>
 		</button>
 	);

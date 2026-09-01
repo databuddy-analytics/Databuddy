@@ -79,7 +79,7 @@ export function TopupCard() {
 		<Card className="scroll-mt-6" id="topup">
 			<Card.Header>
 				<Card.Title className="flex items-center gap-2">
-					<CoinsIcon className="text-primary" size={14} weight="duotone" />
+					<CoinsIcon className="text-primary" size={14} />
 					Add investigation credits
 				</Card.Title>
 				<Card.Description>
@@ -152,7 +152,6 @@ export function TopupCard() {
 						<CaretDownIcon
 							className={cn("transition-transform", showTiers && "rotate-180")}
 							size={10}
-							weight="bold"
 						/>
 						{showTiers ? "Hide pricing details" : "How pricing works"}
 					</Button>
@@ -243,11 +242,7 @@ function NudgeSlot({ blendedRate, nudge, quantity, savings }: NudgeSlotProps) {
 		<div className="flex min-h-[44px] items-start gap-2 rounded border border-primary/30 bg-primary/5 p-3">
 			{isCloseToNextTier && nudge ? (
 				<>
-					<TrendDownIcon
-						className="mt-0.5 shrink-0 text-primary"
-						size={14}
-						weight="duotone"
-					/>
+					<TrendDownIcon className="mt-0.5 shrink-0 text-primary" size={14} />
 					<Text variant="caption">
 						Just{" "}
 						<span className="font-medium text-foreground tabular-nums">
@@ -262,11 +257,7 @@ function NudgeSlot({ blendedRate, nudge, quantity, savings }: NudgeSlotProps) {
 				</>
 			) : showSavings ? (
 				<>
-					<TrendDownIcon
-						className="mt-0.5 shrink-0 text-primary"
-						size={14}
-						weight="duotone"
-					/>
+					<TrendDownIcon className="mt-0.5 shrink-0 text-primary" size={14} />
 					<Text variant="caption">
 						You're saving{" "}
 						<span className="font-medium text-foreground tabular-nums">
@@ -281,11 +272,7 @@ function NudgeSlot({ blendedRate, nudge, quantity, savings }: NudgeSlotProps) {
 				</>
 			) : belowFirstDiscount ? (
 				<>
-					<TrendDownIcon
-						className="mt-0.5 shrink-0 text-primary"
-						size={14}
-						weight="duotone"
-					/>
+					<TrendDownIcon className="mt-0.5 shrink-0 text-primary" size={14} />
 					<Text variant="caption">
 						After the first{" "}
 						<span className="font-medium text-foreground tabular-nums">

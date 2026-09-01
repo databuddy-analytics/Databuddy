@@ -106,10 +106,7 @@ export function CreateOrganizationDialog({
 				<Sheet.Header>
 					<div className="flex items-center gap-4">
 						<div className="flex h-11 w-11 items-center justify-center rounded border bg-secondary-brighter">
-							<BuildingsIcon
-								className="size-[22px] text-accent-foreground"
-								weight="fill"
-							/>
+							<BuildingsIcon className="size-[22px] text-accent-foreground" />
 						</div>
 						<div>
 							<Sheet.Title className="text-lg">

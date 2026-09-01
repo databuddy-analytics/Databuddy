@@ -186,7 +186,7 @@ export const ErrorTrendsChart = ({
 						size="sm"
 						variant="secondary"
 					>
-						<ArrowCounterClockwiseIcon className="size-3" weight="bold" />
+						<ArrowCounterClockwiseIcon className="size-3" />
 						Reset
 					</Button>
 				)}

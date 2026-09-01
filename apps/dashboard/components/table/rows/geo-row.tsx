@@ -33,12 +33,7 @@ export function createGeoColumns({ type }: GeoRowProps): ColumnDef<GeoEntry>[] {
 					if (countryCode && countryCode !== "Unknown") {
 						return <CountryFlag country={countryCode} size={18} />;
 					}
-					return (
-						<MapPinIcon
-							className="size-[18px] text-muted-foreground"
-							weight="duotone"
-						/>
-					);
+					return <MapPinIcon className="size-[18px] text-muted-foreground" />;
 				};
 
 				const formatName = () => {

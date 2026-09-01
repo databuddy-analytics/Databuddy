@@ -279,12 +279,9 @@ export default function GeneralSettingsPage() {
 									variant={copiedId ? "primary" : "ghost"}
 								>
 									{copiedId ? (
-										<CheckIcon className="size-4 shrink-0" weight="bold" />
+										<CheckIcon className="size-4 shrink-0" />
 									) : (
-										<ClipboardIcon
-											className="size-4 shrink-0"
-											weight="duotone"
-										/>
+										<ClipboardIcon className="size-4 shrink-0" />
 									)}
 									{copiedId ? "Copied" : "Copy"}
 								</Button>
@@ -353,7 +350,7 @@ export default function GeneralSettingsPage() {
 									variant="ghost"
 								>
 									{copiedLink ? (
-										<CheckIcon className="size-4 text-success" weight="bold" />
+										<CheckIcon className="size-4 text-success" />
 									) : (
 										<ClipboardIcon className="size-4" />
 									)}
@@ -396,7 +393,7 @@ export default function GeneralSettingsPage() {
 								variant="secondary"
 							>
 								Transfer
-								<ArrowRightIcon className="size-4 shrink-0" weight="bold" />
+								<ArrowRightIcon className="size-4 shrink-0" />
 							</Button>
 						</Card.Header>
 					</Card>

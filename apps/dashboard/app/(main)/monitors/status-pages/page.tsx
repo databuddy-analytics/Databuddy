@@ -208,7 +208,7 @@ function StatusPagesListPageContent() {
 											</Button>
 										}
 										description="Create a public status page to keep your users informed about system availability."
-										icon={<BrowserIcon weight="duotone" />}
+										icon={<BrowserIcon />}
 										title="No status pages yet"
 									/>
 								</div>
@@ -235,7 +235,7 @@ function StatusPagesListPageContent() {
 														? `No status pages match \u201c${search}\u201d`
 														: "No status pages match the current filter"
 												}
-												icon={<MagnifyingGlassIcon weight="duotone" />}
+												icon={<MagnifyingGlassIcon />}
 												title="No results"
 												variant="minimal"
 											/>

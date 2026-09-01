@@ -259,7 +259,7 @@ export default function FunnelsPage() {
 									},
 							description:
 								"Define a multi-step journey to see where users drop off.",
-							icon: <FunnelIcon className="size-6" weight="duotone" />,
+							icon: <FunnelIcon className="size-6" />,
 							title: "No funnels yet",
 						}}
 						errorProps={{
@@ -267,7 +267,7 @@ export default function FunnelsPage() {
 							description:
 								error?.message ??
 								"Something went wrong while loading funnel data.",
-							icon: <FunnelIcon className="size-6" weight="duotone" />,
+							icon: <FunnelIcon className="size-6" />,
 							title: "Failed to load funnels",
 						}}
 						loading={<FunnelsListSkeleton />}

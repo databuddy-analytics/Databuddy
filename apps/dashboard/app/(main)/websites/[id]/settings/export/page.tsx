@@ -159,10 +159,7 @@ export default function ExportPage() {
 													{format.label}
 												</span>
 												{isSelected && (
-													<CheckIcon
-														className="size-4 text-primary"
-														weight="bold"
-													/>
+													<CheckIcon className="size-4 text-primary" />
 												)}
 											</div>
 											<p className="text-muted-foreground text-xs">

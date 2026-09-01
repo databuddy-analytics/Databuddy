@@ -76,10 +76,7 @@ export const UsageRow = memo(function UsageRowComponent({
 			<div className="flex items-start justify-between gap-4">
 				<div>
 					<div className="flex items-center gap-2">
-						<Icon
-							className="size-4 shrink-0 text-muted-foreground"
-							weight="duotone"
-						/>
+						<Icon className="size-4 shrink-0 text-muted-foreground" />
 						<Text variant="label">{feature.name}</Text>
 						{feature.hasExtraCredits && (
 							<Badge size="sm" variant="default">
@@ -162,10 +159,7 @@ function BilledOverageRow({
 			<div className="flex items-start justify-between gap-4">
 				<div>
 					<div className="flex items-center gap-2">
-						<Icon
-							className="size-4 shrink-0 text-muted-foreground"
-							weight="duotone"
-						/>
+						<Icon className="size-4 shrink-0 text-muted-foreground" />
 						<Text variant="label">{feature.name}</Text>
 						<Badge size="sm" variant="destructive">
 							Overage

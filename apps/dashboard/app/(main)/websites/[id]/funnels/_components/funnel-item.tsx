@@ -134,7 +134,6 @@ export function FunnelItem({
 									"size-4 transition-transform duration-200",
 									isExpanded && "rotate-90"
 								)}
-								weight="fill"
 							/>
 						</span>
 					</span>
@@ -205,14 +204,14 @@ export function FunnelItem({
 								className="inline-flex size-8 items-center justify-center gap-1.5 rounded-md bg-transparent p-0 font-medium text-muted-foreground opacity-50 transition-all duration-(--duration-quick) ease-(--ease-smooth) hover:bg-interactive-hover hover:text-foreground hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:pointer-events-none disabled:opacity-50 data-[state=open]:opacity-100"
 								data-dropdown-trigger
 							>
-								<DotsThreeIcon className="size-5" weight="bold" />
+								<DotsThreeIcon className="size-5" />
 							</DropdownMenu.Trigger>
 							<DropdownMenu.Content align="end" className="w-40">
 								<DropdownMenu.Item
 									className="gap-2"
 									onClick={() => onEdit(funnel)}
 								>
-									<PencilSimpleIcon className="size-4" weight="duotone" />
+									<PencilSimpleIcon className="size-4" />
 									Edit
 								</DropdownMenu.Item>
 								<DropdownMenu.Separator />
@@ -221,10 +220,7 @@ export function FunnelItem({
 									onClick={() => onDelete(funnel.id)}
 									variant="destructive"
 								>
-									<TrashIcon
-										className="size-4 fill-destructive"
-										weight="duotone"
-									/>
+									<TrashIcon className="size-4 fill-destructive" />
 									Delete
 								</DropdownMenu.Item>
 							</DropdownMenu.Content>

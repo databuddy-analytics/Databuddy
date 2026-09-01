@@ -162,7 +162,7 @@ export function StatusPageMonitorRow({
 						: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
 				)}
 			>
-				<HeartbeatIcon className="size-4" weight="duotone" />
+				<HeartbeatIcon className="size-4" />
 			</div>
 
 			<div className="min-w-0 flex-1">
@@ -222,7 +222,7 @@ export function StatusPageMonitorRow({
 							size="sm"
 							variant="ghost"
 						>
-							<PencilSimpleIcon className="size-3.5" weight="duotone" />
+							<PencilSimpleIcon className="size-3.5" />
 						</Button>
 					</div>
 				)}
@@ -280,7 +280,7 @@ export function StatusPageMonitorRow({
 				size="sm"
 				variant="ghost"
 			>
-				<TrashIcon className="size-4" weight="duotone" />
+				<TrashIcon className="size-4" />
 			</Button>
 		</div>
 	);

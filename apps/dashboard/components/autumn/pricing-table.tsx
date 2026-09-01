@@ -347,15 +347,15 @@ export default function PricingTable({
 
 				<div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-muted-foreground text-xs">
 					<span className="inline-flex items-center gap-1.5">
-						<ShieldCheckIcon className="size-3.5" weight="duotone" />
+						<ShieldCheckIcon className="size-3.5" />
 						Cancel anytime
 					</span>
 					<span className="inline-flex items-center gap-1.5">
-						<LockKeyIcon className="size-3.5" weight="duotone" />
+						<LockKeyIcon className="size-3.5" />
 						Secure Stripe checkout
 					</span>
 					<span className="inline-flex items-center gap-1.5">
-						<ReceiptIcon className="size-3.5" weight="duotone" />
+						<ReceiptIcon className="size-3.5" />
 						No hidden fees
 					</span>
 					<a
@@ -364,7 +364,7 @@ export default function PricingTable({
 						rel="noreferrer"
 						target="_blank"
 					>
-						<TreeIcon className="size-3.5" weight="duotone" />
+						<TreeIcon className="size-3.5" />
 						1% goes to carbon removal
 					</a>
 				</div>
@@ -493,7 +493,6 @@ function PricingCard({
 							"size-4",
 							isRecommended ? "text-primary" : "text-accent-foreground"
 						)}
-						weight="duotone"
 					/>
 				</div>
 				<div className="min-w-0 flex-1">
@@ -718,10 +717,7 @@ function FeatureItem({ group }: { group: FeatureItemDisplay[] }) {
 
 	return (
 		<li className="flex items-start gap-2 text-sm">
-			<CheckIcon
-				className="mt-[3px] size-4 shrink-0 text-success"
-				weight="bold"
-			/>
+			<CheckIcon className="mt-[3px] size-4 shrink-0 text-success" />
 			<div className="min-w-0 flex-1">
 				<span className="text-foreground">{primary.display?.primaryText}</span>
 				{combinedSecondary && (
@@ -761,10 +757,7 @@ function GatedFeatureItem({
 
 	return (
 		<li className="flex items-start gap-2 text-sm">
-			<CheckIcon
-				className="mt-[3px] size-4 shrink-0 text-success"
-				weight="bold"
-			/>
+			<CheckIcon className="mt-[3px] size-4 shrink-0 text-success" />
 			<div className="min-w-0 flex-1">
 				<span className="text-foreground">{name}</span>
 				{limitText && (
@@ -780,10 +773,7 @@ function GatedFeatureItem({
 function StaticFeatureItem({ label }: { label: string }) {
 	return (
 		<li className="flex items-start gap-2 text-sm">
-			<CheckIcon
-				className="mt-[3px] size-4 shrink-0 text-success"
-				weight="bold"
-			/>
+			<CheckIcon className="mt-[3px] size-4 shrink-0 text-success" />
 			<span className="text-foreground">{label}</span>
 		</li>
 	);

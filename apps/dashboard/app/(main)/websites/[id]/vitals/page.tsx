@@ -557,10 +557,7 @@ export default function VitalsPage() {
 
 				{!isLoading && overviewData.length === 0 && (
 					<div className="rounded border bg-card p-8 text-center">
-						<HeartbeatIcon
-							className="mx-auto size-12 text-muted-foreground/40"
-							weight="duotone"
-						/>
+						<HeartbeatIcon className="mx-auto size-12 text-muted-foreground/40" />
 						<h3 className="mt-4 font-medium text-foreground">
 							No Web Vitals yet
 						</h3>

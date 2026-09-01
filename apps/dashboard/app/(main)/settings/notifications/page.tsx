@@ -264,7 +264,7 @@ export default function NotificationsSettingsPage() {
 										</Button>
 									}
 									description="Create alerts with Slack, email, or webhook destinations. Attach them to monitors from their settings."
-									icon={<BellIcon weight="duotone" />}
+									icon={<BellIcon />}
 									title="No alerts yet"
 								/>
 							</div>
@@ -290,7 +290,6 @@ export default function NotificationsSettingsPage() {
 													<BellIcon
 														className="text-muted-foreground"
 														size={20}
-														weight="duotone"
 													/>
 												</div>
 												<div className="min-w-0 flex-1">
@@ -363,23 +362,20 @@ export default function NotificationsSettingsPage() {
 														aria-label="Alert actions"
 														className="inline-flex size-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-interactive-hover hover:text-foreground group-hover:opacity-100"
 													>
-														<DotsThreeIcon className="size-4" weight="bold" />
+														<DotsThreeIcon className="size-4" />
 													</DropdownMenu.Trigger>
 													<DropdownMenu.Content>
 														<DropdownMenu.Item
 															onClick={() => handleEdit(alarm)}
 														>
-															<PencilIcon className="size-4" weight="duotone" />
+															<PencilIcon className="size-4" />
 															Edit
 														</DropdownMenu.Item>
 														<DropdownMenu.Item
 															disabled={isTesting}
 															onClick={() => handleTest(alarm)}
 														>
-															<TestTubeIcon
-																className="size-4"
-																weight="duotone"
-															/>
+															<TestTubeIcon className="size-4" />
 															{isTesting ? "Sending…" : "Send test"}
 														</DropdownMenu.Item>
 														<DropdownMenu.Separator />
@@ -387,7 +383,7 @@ export default function NotificationsSettingsPage() {
 															onClick={() => setDeletingAlarm(alarm)}
 															variant="destructive"
 														>
-															<TrashIcon className="size-4" weight="duotone" />
+															<TrashIcon className="size-4" />
 															Delete
 														</DropdownMenu.Item>
 													</DropdownMenu.Content>

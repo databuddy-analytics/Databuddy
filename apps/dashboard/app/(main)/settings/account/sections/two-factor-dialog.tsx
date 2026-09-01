@@ -341,10 +341,7 @@ export function TwoFactorDialog({
 									onClick={() => setShowSecret(!showSecret)}
 									type="button"
 								>
-									<DeviceMobileIcon
-										className="size-4 text-muted-foreground"
-										weight="duotone"
-									/>
+									<DeviceMobileIcon className="size-4 text-muted-foreground" />
 									<span className="flex-1 text-muted-foreground">
 										Can't scan? Enter code manually
 									</span>

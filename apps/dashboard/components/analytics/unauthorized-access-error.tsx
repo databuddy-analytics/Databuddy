@@ -15,7 +15,6 @@ export function UnauthorizedAccessError() {
 						<WarningIcon
 							className="size-6 text-red-600 dark:text-red-400"
 							size={24}
-							weight="fill"
 						/>
 					</div>
 					<div>

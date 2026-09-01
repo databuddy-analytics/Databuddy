@@ -15,7 +15,7 @@ export default function PaymentSuccess() {
 					aria-hidden="true"
 					className="flex size-12 items-center justify-center rounded bg-green-500/10"
 				>
-					<CheckCircleIcon className="size-6 text-green-500" weight="duotone" />
+					<CheckCircleIcon className="size-6 text-success" />
 				</div>
 
 				<div className="mt-6 space-y-2">

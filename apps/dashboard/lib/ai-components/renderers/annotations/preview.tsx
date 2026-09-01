@@ -124,7 +124,6 @@ export function AnnotationPreviewRenderer({
 								annotation.color ? "" : "text-muted-foreground"
 							)}
 							style={annotation.color ? { color: annotation.color } : undefined}
-							weight="duotone"
 						/>
 					</div>
 					<p className="font-medium text-sm">{config.title}</p>
@@ -142,10 +141,7 @@ export function AnnotationPreviewRenderer({
 						<div>
 							<p className="mb-1.5 text-muted-foreground text-xs">Date</p>
 							<div className="flex items-center gap-2 rounded bg-muted px-2 py-1.5 hover:bg-interactive-hover">
-								<CalendarIcon
-									className="size-4 shrink-0 text-muted-foreground"
-									weight="duotone"
-								/>
+								<CalendarIcon className="size-4 shrink-0 text-muted-foreground" />
 								<span className="min-w-0 flex-1 text-sm">{dateDisplay}</span>
 							</div>
 						</div>
@@ -205,7 +201,7 @@ export function AnnotationPreviewRenderer({
 							tone={config.tone}
 							type="button"
 						>
-							<config.ButtonIcon className="size-3.5" weight="bold" />
+							<config.ButtonIcon className="size-3.5" />
 							{config.confirmLabel}
 						</Button>
 					</div>

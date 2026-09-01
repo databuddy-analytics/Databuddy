@@ -267,13 +267,13 @@ export function WebsiteErrorState({
 							onClick={() => router.back()}
 							variant="secondary"
 						>
-							<ArrowLeftIcon className="mr-2 size-4" weight="duotone" />
+							<ArrowLeftIcon className="mr-2 size-4" />
 							Go Back
 						</Button>
 					)}
 					<Button asChild className={canGoBack ? "flex-1" : "w-full"}>
 						<Link href={isPublicView ? "/" : "/websites"}>
-							<HouseIcon className="mr-2 size-4" weight="duotone" />
+							<HouseIcon className="mr-2 size-4" />
 							{isPublicView ? "Go to homepage" : "Back to websites"}
 						</Link>
 					</Button>
@@ -309,7 +309,7 @@ export function WebsiteErrorState({
 								onClick={() => router.push("/websites")}
 								size="lg"
 							>
-								<ArrowLeftIcon className="mr-2 size-4" weight="duotone" />
+								<ArrowLeftIcon className="mr-2 size-4" />
 								Back to Websites
 							</Button>
 							{type === "unauthorized" && (
@@ -372,7 +372,6 @@ export function WebsiteErrorState({
 									"text-orange-500 dark:text-orange-400",
 								type === "unknown" && "text-destructive"
 							)}
-							weight="fill"
 						/>
 					</div>
 
@@ -391,10 +390,10 @@ export function WebsiteErrorState({
 							onClick={() => setOpen(true)}
 							variant="secondary"
 						>
-							<MagnifyingGlassIcon className="mr-2 size-4" weight="duotone" />
+							<MagnifyingGlassIcon className="mr-2 size-4" />
 							Search pages, settings...
 							<kbd className="ml-auto hidden items-center gap-1 rounded border bg-background px-1.5 py-0.5 font-mono text-muted-foreground text-xs sm:flex">
-								<CommandIcon className="size-3" weight="bold" />
+								<CommandIcon className="size-3" />
 								<span>K</span>
 							</kbd>
 						</Button>
@@ -421,10 +420,7 @@ export function WebsiteErrorState({
 									>
 										<div className="dotted-bg flex items-center gap-3 border-b bg-accent px-4 py-3">
 											<div className="flex size-8 shrink-0 items-center justify-center rounded bg-background">
-												<MagnifyingGlassIcon
-													className="size-4 text-muted-foreground"
-													weight="duotone"
-												/>
+												<MagnifyingGlassIcon className="size-4 text-muted-foreground" />
 											</div>
 											<CommandPrimitive.Input
 												className="h-8 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
@@ -433,17 +429,14 @@ export function WebsiteErrorState({
 												value={search}
 											/>
 											<kbd className="hidden items-center gap-1 rounded border bg-background px-1.5 py-0.5 font-mono text-muted-foreground text-xs sm:flex">
-												<CommandIcon className="size-3" weight="bold" />
+												<CommandIcon className="size-3" />
 												<span>K</span>
 											</kbd>
 										</div>
 
 										<CommandPrimitive.List className="max-h-80 scroll-py-2 overflow-y-auto p-2">
 											<CommandPrimitive.Empty className="flex flex-col items-center justify-center gap-2 py-12 text-center">
-												<MagnifyingGlassIcon
-													className="size-8 text-muted-foreground/50"
-													weight="duotone"
-												/>
+												<MagnifyingGlassIcon className="size-8 text-muted-foreground/50" />
 												<div>
 													<p className="font-medium text-muted-foreground text-sm">
 														No results found

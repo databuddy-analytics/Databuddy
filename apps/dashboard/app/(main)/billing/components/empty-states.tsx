@@ -15,11 +15,7 @@ export function ErrorState({ error, onRetry }: ErrorStateProps) {
 	return (
 		<div className="flex h-full flex-col items-center justify-center p-8">
 			<div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10">
-				<WarningCircleIcon
-					className="text-destructive"
-					size={24}
-					weight="duotone"
-				/>
+				<WarningCircleIcon className="text-destructive" size={24} />
 			</div>
 			<p className="font-semibold">Something went wrong</p>
 			<p className="mt-1 mb-4 max-w-xs text-center text-muted-foreground text-sm">

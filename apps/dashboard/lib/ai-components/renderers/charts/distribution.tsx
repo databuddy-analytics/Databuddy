@@ -78,10 +78,7 @@ export function DistributionRenderer({
 			<div className="flex flex-col gap-1">
 				<div className="flex items-center gap-2.5 rounded-md bg-background px-2.5 py-2">
 					<div className="flex size-6 items-center justify-center rounded bg-accent">
-						<ChartPieIcon
-							className="size-3.5 text-muted-foreground"
-							weight="duotone"
-						/>
+						<ChartPieIcon className="size-3.5 text-muted-foreground" />
 					</div>
 					<p className="min-w-0 flex-1 truncate font-medium text-sm">
 						{title ?? "Distribution"}

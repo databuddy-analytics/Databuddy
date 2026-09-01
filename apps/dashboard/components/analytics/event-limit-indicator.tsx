@@ -57,7 +57,6 @@ export function EventLimitIndicator() {
 						"size-4 shrink-0",
 						isDestructive ? "text-destructive" : "text-warning"
 					)}
-					weight="fill"
 				/>
 				{isOverage ? (
 					<p className="font-medium text-destructive text-xs">

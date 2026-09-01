@@ -92,10 +92,7 @@ export function RangeSelectionPopup({
 						onClick={handleZoom}
 						type="button"
 					>
-						<MagnifyingGlassPlusIcon
-							className="size-3.5 text-muted-foreground"
-							weight="duotone"
-						/>
+						<MagnifyingGlassPlusIcon className="size-3.5 text-muted-foreground" />
 						<span className="flex-1 text-foreground text-xs">
 							Zoom to range
 						</span>
@@ -109,10 +106,7 @@ export function RangeSelectionPopup({
 							onClick={onAddAnnotationAction}
 							type="button"
 						>
-							<NoteIcon
-								className="size-3.5 text-muted-foreground"
-								weight="duotone"
-							/>
+							<NoteIcon className="size-3.5 text-muted-foreground" />
 							<span className="flex-1 text-foreground text-xs">
 								Add annotation…
 							</span>

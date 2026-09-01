@@ -134,7 +134,7 @@ export default function FlagsPage() {
 										onClick: handleCreateFlag,
 									}}
 									description="Flags let you roll out features gradually or run A/B tests."
-									icon={<FlagIcon weight="duotone" />}
+									icon={<FlagIcon />}
 									title="No feature flags yet"
 									variant="minimal"
 								/>

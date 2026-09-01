@@ -142,7 +142,7 @@ export default function StatusPageDetailsPage() {
 						onClick: () => statusPageQuery.refetch(),
 					}}
 					description="Something went wrong while loading the status page."
-					icon={<BrowserIcon weight="duotone" />}
+					icon={<BrowserIcon />}
 					title="Failed to load"
 					variant="error"
 				/>
@@ -163,7 +163,7 @@ export default function StatusPageDetailsPage() {
 						</Button>
 					}
 					description="Add an existing monitor or create a new one to display on this status page."
-					icon={<HeartbeatIcon weight="duotone" />}
+					icon={<HeartbeatIcon />}
 					title="No monitors added"
 				/>
 			</div>
@@ -247,10 +247,7 @@ export default function StatusPageDetailsPage() {
 												size="sm"
 												variant="secondary"
 											>
-												<ArrowSquareOutIcon
-													className="size-3.5"
-													weight="duotone"
-												/>
+												<ArrowSquareOutIcon className="size-3.5" />
 												<span className="hidden sm:inline">Transfer</span>
 											</Button>
 											{activeTab === "monitors" ? (
@@ -289,10 +286,7 @@ export default function StatusPageDetailsPage() {
 									onClick={() => setActiveTab("monitors")}
 									type="button"
 								>
-									<HeartbeatIcon
-										className="size-4"
-										weight={activeTab === "monitors" ? "fill" : "duotone"}
-									/>
+									<HeartbeatIcon className="size-4" />
 									Monitors
 									{activeTab === "monitors" && (
 										<div className="absolute inset-x-0 bottom-0 h-0.5 bg-brand-purple" />
@@ -308,10 +302,7 @@ export default function StatusPageDetailsPage() {
 									onClick={() => setActiveTab("incidents")}
 									type="button"
 								>
-									<SirenIcon
-										className="size-4"
-										weight={activeTab === "incidents" ? "fill" : "duotone"}
-									/>
+									<SirenIcon className="size-4" />
 									Incidents
 									{activeTab === "incidents" && (
 										<div className="absolute inset-x-0 bottom-0 h-0.5 bg-brand-purple" />

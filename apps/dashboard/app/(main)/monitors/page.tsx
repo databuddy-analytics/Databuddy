@@ -177,7 +177,7 @@ function MonitorsPageContent() {
 											</Button>
 										}
 										description="Create your first uptime monitor to track availability, then link an alert to get notified when services go down."
-										icon={<HeartbeatIcon weight="duotone" />}
+										icon={<HeartbeatIcon />}
 										title="No monitors yet"
 									/>
 								</div>
@@ -200,7 +200,7 @@ function MonitorsPageContent() {
 										<div className="px-5 py-12">
 											<EmptyState
 												description={`No monitors match \u201c${search}\u201d`}
-												icon={<MagnifyingGlassIcon weight="duotone" />}
+												icon={<MagnifyingGlassIcon />}
 												title="No results"
 												variant="minimal"
 											/>

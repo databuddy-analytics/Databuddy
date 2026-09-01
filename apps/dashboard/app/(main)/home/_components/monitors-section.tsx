@@ -128,7 +128,7 @@ function MonitorRow({
 							: "bg-muted text-muted-foreground"
 					)}
 				>
-					<HeartbeatIcon className="size-4" weight="duotone" />
+					<HeartbeatIcon className="size-4" />
 				</div>
 				<div className="min-w-0 flex-1">
 					<p className="truncate font-medium text-foreground text-sm">
@@ -167,10 +167,7 @@ function MonitorsEmptyState({ onAdd }: { onAdd: () => void }) {
 	return (
 		<div className="flex items-center gap-3 px-5 py-4">
 			<div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted">
-				<HeartbeatIcon
-					className="size-5 text-muted-foreground"
-					weight="duotone"
-				/>
+				<HeartbeatIcon className="size-5 text-muted-foreground" />
 			</div>
 			<div className="min-w-0 flex-1">
 				<p className="font-medium text-foreground text-sm">No monitors yet</p>
@@ -209,7 +206,7 @@ export function MonitorsSection({
 		return (
 			<Card>
 				<Card.Header className="flex-row items-center gap-3">
-					<HeartbeatIcon className="size-4 text-primary" weight="duotone" />
+					<HeartbeatIcon className="size-4 text-primary" />
 					<Skeleton className="h-4 w-20" />
 				</Card.Header>
 				<div className="divide-y">
@@ -224,7 +221,7 @@ export function MonitorsSection({
 		<Card>
 			<Card.Header className="flex-row items-center justify-between gap-3">
 				<div className="flex items-center gap-2">
-					<HeartbeatIcon className="size-4 text-primary" weight="duotone" />
+					<HeartbeatIcon className="size-4 text-primary" />
 					<Card.Title className="text-sm">Monitors</Card.Title>
 				</div>
 				{totalMonitors > 0 ? (

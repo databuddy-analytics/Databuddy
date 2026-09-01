@@ -103,7 +103,7 @@ export function FiltersSection() {
 				<div className="flex items-center justify-between gap-3 border-b bg-secondary/50 px-4 py-2">
 					<div className="flex items-center gap-2">
 						<div className="rounded bg-primary/10 p-1">
-							<PencilIcon className="size-3 text-primary" weight="duotone" />
+							<PencilIcon className="size-3 text-primary" />
 						</div>
 						<span className="text-muted-foreground text-xs">
 							Editing{" "}
@@ -158,7 +158,7 @@ export function FiltersSection() {
 									onClick={() => handleRemoveFilter(index)}
 									type="button"
 								>
-									<XIcon className="size-3" weight="bold" />
+									<XIcon className="size-3" />
 								</button>
 							</fieldset>
 						);
@@ -177,7 +177,7 @@ export function FiltersSection() {
 								size="sm"
 								variant="secondary"
 							>
-								<FloppyDiskIcon className="size-3.5" weight="duotone" />
+								<FloppyDiskIcon className="size-3.5" />
 								Save
 							</Button>
 							<Button

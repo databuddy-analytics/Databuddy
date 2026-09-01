@@ -217,10 +217,7 @@ export function CreateIncidentSheet({
 													type="button"
 												>
 													{selected ? (
-														<CheckCircleIcon
-															className="size-4 shrink-0 text-foreground"
-															weight="fill"
-														/>
+														<CheckCircleIcon className="size-4 shrink-0 text-foreground" />
 													) : (
 														<div className="size-4 shrink-0 rounded-full border border-border" />
 													)}
