@@ -26,4 +26,3 @@ export const PlugIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-PlugIcon.displayName = "PlugIcon";

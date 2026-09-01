@@ -12,4 +12,3 @@ export const HouseIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-HouseIcon.displayName = "HouseIcon";

@@ -18,4 +18,3 @@ export const FloppyDiskIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-FloppyDiskIcon.displayName = "FloppyDiskIcon";

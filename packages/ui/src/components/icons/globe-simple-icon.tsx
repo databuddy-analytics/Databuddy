@@ -22,4 +22,3 @@ export const GlobeSimpleIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-GlobeSimpleIcon.displayName = "GlobeSimpleIcon";

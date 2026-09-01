@@ -14,4 +14,3 @@ export const MinusCircleIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-MinusCircleIcon.displayName = "MinusCircleIcon";

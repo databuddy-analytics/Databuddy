@@ -22,4 +22,3 @@ export const ArrowSquareOutIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-ArrowSquareOutIcon.displayName = "ArrowSquareOutIcon";

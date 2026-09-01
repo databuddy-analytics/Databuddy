@@ -14,4 +14,3 @@ export const PowerIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-PowerIcon.displayName = "PowerIcon";

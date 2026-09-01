@@ -28,4 +28,3 @@ export const PresentationChartIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-PresentationChartIcon.displayName = "PresentationChartIcon";

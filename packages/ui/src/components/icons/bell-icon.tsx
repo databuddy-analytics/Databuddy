@@ -16,4 +16,3 @@ export const BellIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-BellIcon.displayName = "BellIcon";

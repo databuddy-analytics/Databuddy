@@ -22,4 +22,3 @@ export const TimerIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-TimerIcon.displayName = "TimerIcon";

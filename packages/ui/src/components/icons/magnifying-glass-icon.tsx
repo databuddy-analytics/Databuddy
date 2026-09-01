@@ -16,4 +16,3 @@ export const MagnifyingGlassIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-MagnifyingGlassIcon.displayName = "MagnifyingGlassIcon";

@@ -32,4 +32,3 @@ export const OfficeIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-OfficeIcon.displayName = "OfficeIcon";

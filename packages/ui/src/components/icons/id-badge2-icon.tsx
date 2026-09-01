@@ -34,4 +34,3 @@ export const IdBadge2Icon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-IdBadge2Icon.displayName = "IdBadge2Icon";

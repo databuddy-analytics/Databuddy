@@ -17,4 +17,3 @@ export const ArrowsCounterClockwiseIcon = ({
 		/>
 	</NucleoIcon>
 );
-ArrowsCounterClockwiseIcon.displayName = "ArrowsCounterClockwiseIcon";

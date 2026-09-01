@@ -32,4 +32,3 @@ export const BuildingsIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-BuildingsIcon.displayName = "BuildingsIcon";

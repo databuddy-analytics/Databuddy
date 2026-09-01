@@ -14,4 +14,3 @@ export const BookOpenIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-BookOpenIcon.displayName = "BookOpenIcon";

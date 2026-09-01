@@ -18,4 +18,3 @@ export const TranslateIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-TranslateIcon.displayName = "TranslateIcon";

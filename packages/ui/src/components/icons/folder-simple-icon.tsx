@@ -14,4 +14,3 @@ export const FolderSimpleIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-FolderSimpleIcon.displayName = "FolderSimpleIcon";

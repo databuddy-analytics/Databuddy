@@ -10,4 +10,3 @@ export const CommandIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-CommandIcon.displayName = "CommandIcon";

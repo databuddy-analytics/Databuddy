@@ -22,4 +22,3 @@ export const MsgContentIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-MsgContentIcon.displayName = "MsgContentIcon";

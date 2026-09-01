@@ -18,4 +18,3 @@ export const ChartLineUpIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-ChartLineUpIcon.displayName = "ChartLineUpIcon";

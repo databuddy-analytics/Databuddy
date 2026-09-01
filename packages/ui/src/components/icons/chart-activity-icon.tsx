@@ -10,4 +10,3 @@ export const ChartActivityIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-ChartActivityIcon.displayName = "ChartActivityIcon";

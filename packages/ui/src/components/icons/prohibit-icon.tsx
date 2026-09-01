@@ -14,4 +14,3 @@ export const ProhibitIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-ProhibitIcon.displayName = "ProhibitIcon";

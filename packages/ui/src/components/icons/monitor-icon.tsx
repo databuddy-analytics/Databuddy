@@ -17,4 +17,3 @@ export const MonitorIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-MonitorIcon.displayName = "MonitorIcon";

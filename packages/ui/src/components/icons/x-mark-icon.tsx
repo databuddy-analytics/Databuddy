@@ -14,4 +14,3 @@ export const XMarkIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-XMarkIcon.displayName = "XMarkIcon";

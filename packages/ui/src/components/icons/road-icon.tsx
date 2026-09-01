@@ -30,4 +30,3 @@ export const RoadIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-RoadIcon.displayName = "RoadIcon";

@@ -34,4 +34,3 @@ export const ListIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-ListIcon.displayName = "ListIcon";

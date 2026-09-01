@@ -10,4 +10,3 @@ export const CaretLeftIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-CaretLeftIcon.displayName = "CaretLeftIcon";

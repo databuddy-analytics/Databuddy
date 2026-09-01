@@ -22,4 +22,3 @@ export const OpenExternalIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-OpenExternalIcon.displayName = "OpenExternalIcon";

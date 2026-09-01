@@ -14,4 +14,3 @@ export const DownloadSimpleIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-DownloadSimpleIcon.displayName = "DownloadSimpleIcon";

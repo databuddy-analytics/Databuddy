@@ -10,4 +10,3 @@ export const PulseIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-PulseIcon.displayName = "PulseIcon";

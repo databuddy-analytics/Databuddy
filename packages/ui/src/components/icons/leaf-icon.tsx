@@ -14,4 +14,3 @@ export const LeafIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-LeafIcon.displayName = "LeafIcon";

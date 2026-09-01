@@ -36,4 +36,3 @@ export const DesktopIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-DesktopIcon.displayName = "DesktopIcon";

@@ -18,4 +18,3 @@ export const KeyIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-KeyIcon.displayName = "KeyIcon";

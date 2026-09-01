@@ -43,4 +43,3 @@ export const SpinnerIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-SpinnerIcon.displayName = "SpinnerIcon";

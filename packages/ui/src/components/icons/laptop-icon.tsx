@@ -16,4 +16,3 @@ export const LaptopIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-LaptopIcon.displayName = "LaptopIcon";

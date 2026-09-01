@@ -14,4 +14,3 @@ export const SidebarLeftIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-SidebarLeftIcon.displayName = "SidebarLeftIcon";

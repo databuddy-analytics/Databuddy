@@ -18,4 +18,3 @@ export const WarningIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-WarningIcon.displayName = "WarningIcon";

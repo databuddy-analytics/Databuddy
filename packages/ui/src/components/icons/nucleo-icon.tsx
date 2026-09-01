@@ -3,12 +3,10 @@ import type React from "react";
 export type NucleoIconProps = React.SVGProps<SVGSVGElement> & {
 	size?: number | string;
 	title?: string;
-	weight?: string;
 };
 
 export const NucleoIcon = ({
 	size = 18,
-	weight: _weight,
 	children,
 	title,
 	ref,
@@ -29,4 +27,3 @@ export const NucleoIcon = ({
 		{children}
 	</svg>
 );
-NucleoIcon.displayName = "NucleoIcon";

@@ -18,4 +18,3 @@ export const DotsThreeIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-DotsThreeIcon.displayName = "DotsThreeIcon";

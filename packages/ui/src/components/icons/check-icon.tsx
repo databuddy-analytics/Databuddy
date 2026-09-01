@@ -8,4 +8,3 @@ export const CheckIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-CheckIcon.displayName = "CheckIcon";

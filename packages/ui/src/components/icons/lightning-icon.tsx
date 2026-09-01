@@ -12,4 +12,3 @@ export const LightningIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-LightningIcon.displayName = "LightningIcon";

@@ -14,4 +14,3 @@ export const CopyIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-CopyIcon.displayName = "CopyIcon";

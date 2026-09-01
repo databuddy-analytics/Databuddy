@@ -26,4 +26,3 @@ export const MapPinIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-MapPinIcon.displayName = "MapPinIcon";

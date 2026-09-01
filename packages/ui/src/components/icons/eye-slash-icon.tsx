@@ -24,4 +24,3 @@ export const EyeSlashIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-EyeSlashIcon.displayName = "EyeSlashIcon";

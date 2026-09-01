@@ -14,4 +14,3 @@ export const CheckCircleIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-CheckCircleIcon.displayName = "CheckCircleIcon";

@@ -43,4 +43,3 @@ export const SpinnerGapIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-SpinnerGapIcon.displayName = "SpinnerGapIcon";

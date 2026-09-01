@@ -16,4 +16,3 @@ export const MicrophoneIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-MicrophoneIcon.displayName = "MicrophoneIcon";

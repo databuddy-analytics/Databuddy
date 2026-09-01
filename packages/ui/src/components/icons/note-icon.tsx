@@ -30,4 +30,3 @@ export const NoteIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-NoteIcon.displayName = "NoteIcon";

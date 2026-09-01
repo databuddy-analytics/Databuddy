@@ -10,4 +10,3 @@ export const BookmarkIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-BookmarkIcon.displayName = "BookmarkIcon";

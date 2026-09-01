@@ -12,4 +12,3 @@ export const CircleIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-CircleIcon.displayName = "CircleIcon";

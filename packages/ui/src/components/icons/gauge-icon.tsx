@@ -22,4 +22,3 @@ export const GaugeIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-GaugeIcon.displayName = "GaugeIcon";

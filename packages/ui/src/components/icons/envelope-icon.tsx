@@ -18,4 +18,3 @@ export const EnvelopeIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-EnvelopeIcon.displayName = "EnvelopeIcon";

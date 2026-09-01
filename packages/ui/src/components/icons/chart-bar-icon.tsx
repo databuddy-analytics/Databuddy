@@ -31,4 +31,3 @@ export const ChartBarIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-ChartBarIcon.displayName = "ChartBarIcon";

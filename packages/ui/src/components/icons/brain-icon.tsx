@@ -14,4 +14,3 @@ export const BrainIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-BrainIcon.displayName = "BrainIcon";

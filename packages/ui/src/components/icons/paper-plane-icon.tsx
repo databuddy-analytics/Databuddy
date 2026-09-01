@@ -20,4 +20,3 @@ export const PaperPlaneIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-PaperPlaneIcon.displayName = "PaperPlaneIcon";

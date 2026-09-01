@@ -10,4 +10,3 @@ export const CursorIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-CursorIcon.displayName = "CursorIcon";

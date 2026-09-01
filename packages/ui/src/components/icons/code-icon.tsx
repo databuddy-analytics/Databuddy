@@ -18,4 +18,3 @@ export const CodeIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-CodeIcon.displayName = "CodeIcon";

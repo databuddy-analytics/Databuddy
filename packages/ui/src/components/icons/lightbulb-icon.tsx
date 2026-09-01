@@ -14,4 +14,3 @@ export const LightbulbIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-LightbulbIcon.displayName = "LightbulbIcon";

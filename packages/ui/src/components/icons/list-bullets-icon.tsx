@@ -36,4 +36,3 @@ export const ListBulletsIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-ListBulletsIcon.displayName = "ListBulletsIcon";

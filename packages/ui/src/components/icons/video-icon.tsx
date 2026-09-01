@@ -18,4 +18,3 @@ export const VideoIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-VideoIcon.displayName = "VideoIcon";

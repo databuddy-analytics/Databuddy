@@ -24,4 +24,3 @@ export const VolumeUpIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-VolumeUpIcon.displayName = "VolumeUpIcon";

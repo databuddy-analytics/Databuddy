@@ -20,4 +20,3 @@ export const TestTubeIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-TestTubeIcon.displayName = "TestTubeIcon";

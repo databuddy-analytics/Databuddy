@@ -36,4 +36,3 @@ export const LifebuoyIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-LifebuoyIcon.displayName = "LifebuoyIcon";

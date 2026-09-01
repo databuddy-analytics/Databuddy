@@ -16,4 +16,3 @@ export const ArchiveIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-ArchiveIcon.displayName = "ArchiveIcon";

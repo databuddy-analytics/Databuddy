@@ -28,4 +28,3 @@ export const CoinsIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-CoinsIcon.displayName = "CoinsIcon";

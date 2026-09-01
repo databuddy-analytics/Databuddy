@@ -37,4 +37,3 @@ export const QrCodeIcon = ({ ref, ...props }: NucleoIconProps) => (
 		<path d="M14.5 10H11V11.5H14.5V10Z" fill="currentColor" />
 	</NucleoIcon>
 );
-QrCodeIcon.displayName = "QrCodeIcon";

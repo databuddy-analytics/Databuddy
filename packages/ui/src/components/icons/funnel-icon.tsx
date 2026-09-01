@@ -10,4 +10,3 @@ export const FunnelIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-FunnelIcon.displayName = "FunnelIcon";

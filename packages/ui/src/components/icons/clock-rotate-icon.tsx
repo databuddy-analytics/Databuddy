@@ -14,4 +14,3 @@ export const ClockRotateIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-ClockRotateIcon.displayName = "ClockRotateIcon";

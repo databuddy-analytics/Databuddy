@@ -32,4 +32,3 @@ export const FileTextIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-FileTextIcon.displayName = "FileTextIcon";

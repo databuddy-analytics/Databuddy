@@ -44,4 +44,3 @@ export const DotsNineIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-DotsNineIcon.displayName = "DotsNineIcon";

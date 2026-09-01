@@ -14,4 +14,3 @@ export const ChartPieIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-ChartPieIcon.displayName = "ChartPieIcon";

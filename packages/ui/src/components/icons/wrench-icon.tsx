@@ -10,4 +10,3 @@ export const WrenchIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-WrenchIcon.displayName = "WrenchIcon";

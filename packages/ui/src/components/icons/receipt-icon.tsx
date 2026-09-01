@@ -46,4 +46,3 @@ export const ReceiptIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-ReceiptIcon.displayName = "ReceiptIcon";

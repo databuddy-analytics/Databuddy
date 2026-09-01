@@ -8,4 +8,3 @@ export const MinusIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-MinusIcon.displayName = "MinusIcon";

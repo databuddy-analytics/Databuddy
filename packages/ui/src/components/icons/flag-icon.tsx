@@ -16,4 +16,3 @@ export const FlagIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-FlagIcon.displayName = "FlagIcon";

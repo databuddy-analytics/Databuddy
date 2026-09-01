@@ -18,4 +18,3 @@ export const PauseIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-PauseIcon.displayName = "PauseIcon";

@@ -32,4 +32,3 @@ export const CursorClickIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-CursorClickIcon.displayName = "CursorClickIcon";

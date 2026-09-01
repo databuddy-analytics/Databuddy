@@ -42,4 +42,3 @@ export const BugIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-BugIcon.displayName = "BugIcon";

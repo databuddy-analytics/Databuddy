@@ -14,4 +14,3 @@ export const PlusIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-PlusIcon.displayName = "PlusIcon";

@@ -26,4 +26,3 @@ export const CurrencyDollarIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-CurrencyDollarIcon.displayName = "CurrencyDollarIcon";

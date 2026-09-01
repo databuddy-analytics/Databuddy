@@ -14,4 +14,3 @@ export const ThumbsUpIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-ThumbsUpIcon.displayName = "ThumbsUpIcon";

@@ -46,4 +46,3 @@ export const WaveformLinesIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-WaveformLinesIcon.displayName = "WaveformLinesIcon";

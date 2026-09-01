@@ -52,4 +52,3 @@ export const CircleNotchIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-CircleNotchIcon.displayName = "CircleNotchIcon";

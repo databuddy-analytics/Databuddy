@@ -16,4 +16,3 @@ export const HeartPulseIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-HeartPulseIcon.displayName = "HeartPulseIcon";

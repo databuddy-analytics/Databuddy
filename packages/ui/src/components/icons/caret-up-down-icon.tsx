@@ -9,4 +9,3 @@ export const CaretUpDownIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-CaretUpDownIcon.displayName = "CaretUpDownIcon";

@@ -20,4 +20,3 @@ export const ImageIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-ImageIcon.displayName = "ImageIcon";

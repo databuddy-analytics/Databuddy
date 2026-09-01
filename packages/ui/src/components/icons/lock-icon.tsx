@@ -22,4 +22,3 @@ export const LockIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-LockIcon.displayName = "LockIcon";

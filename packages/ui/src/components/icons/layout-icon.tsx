@@ -24,4 +24,3 @@ export const LayoutIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-LayoutIcon.displayName = "LayoutIcon";

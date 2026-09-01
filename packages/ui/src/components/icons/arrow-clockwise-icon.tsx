@@ -14,4 +14,3 @@ export const ArrowClockwiseIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-ArrowClockwiseIcon.displayName = "ArrowClockwiseIcon";

@@ -14,4 +14,3 @@ export const ArrowsOutSimpleIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-ArrowsOutSimpleIcon.displayName = "ArrowsOutSimpleIcon";

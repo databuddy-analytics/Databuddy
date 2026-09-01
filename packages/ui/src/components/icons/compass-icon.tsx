@@ -18,4 +18,3 @@ export const CompassIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-CompassIcon.displayName = "CompassIcon";

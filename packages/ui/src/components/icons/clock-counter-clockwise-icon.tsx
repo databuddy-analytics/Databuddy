@@ -23,4 +23,3 @@ export const ClockCounterClockwiseIcon = ({
 		/>
 	</NucleoIcon>
 );
-ClockCounterClockwiseIcon.displayName = "ClockCounterClockwiseIcon";

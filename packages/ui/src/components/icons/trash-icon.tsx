@@ -14,4 +14,3 @@ export const TrashIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-TrashIcon.displayName = "TrashIcon";

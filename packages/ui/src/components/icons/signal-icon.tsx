@@ -40,4 +40,3 @@ export const SignalIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-SignalIcon.displayName = "SignalIcon";

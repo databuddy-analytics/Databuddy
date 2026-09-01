@@ -10,4 +10,3 @@ export const StarIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-StarIcon.displayName = "StarIcon";

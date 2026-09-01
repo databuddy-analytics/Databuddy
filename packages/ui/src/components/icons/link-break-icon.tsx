@@ -42,4 +42,3 @@ export const LinkBreakIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-LinkBreakIcon.displayName = "LinkBreakIcon";

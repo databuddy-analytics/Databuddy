@@ -14,4 +14,3 @@ export const DeviceMobileIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-DeviceMobileIcon.displayName = "DeviceMobileIcon";

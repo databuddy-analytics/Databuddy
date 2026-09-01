@@ -24,4 +24,3 @@ export const GameControllerIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-GameControllerIcon.displayName = "GameControllerIcon";

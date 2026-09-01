@@ -14,4 +14,3 @@ export const StackIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-StackIcon.displayName = "StackIcon";

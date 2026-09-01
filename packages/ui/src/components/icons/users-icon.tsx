@@ -26,4 +26,3 @@ export const UsersIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-UsersIcon.displayName = "UsersIcon";

@@ -14,4 +14,3 @@ export const TrendDownIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-TrendDownIcon.displayName = "TrendDownIcon";

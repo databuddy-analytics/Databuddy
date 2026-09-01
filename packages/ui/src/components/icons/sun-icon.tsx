@@ -58,4 +58,3 @@ export const SunIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-SunIcon.displayName = "SunIcon";

@@ -18,4 +18,3 @@ export const TelevisionIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-TelevisionIcon.displayName = "TelevisionIcon";

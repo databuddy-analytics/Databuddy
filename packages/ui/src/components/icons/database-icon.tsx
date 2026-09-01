@@ -20,4 +20,3 @@ export const DatabaseIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-DatabaseIcon.displayName = "DatabaseIcon";

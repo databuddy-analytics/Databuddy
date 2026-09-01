@@ -18,4 +18,3 @@ export const CalendarIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-CalendarIcon.displayName = "CalendarIcon";

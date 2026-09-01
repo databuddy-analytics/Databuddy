@@ -22,4 +22,3 @@ export const PencilSimpleIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-PencilSimpleIcon.displayName = "PencilSimpleIcon";

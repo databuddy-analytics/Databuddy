@@ -19,4 +19,3 @@ export const TableIcon = ({ ref, ...props }: NucleoIconProps) => (
 		<path d="M5 2L5 16L6.5 16L6.5 2L5 2Z" fill="currentColor" />
 	</NucleoIcon>
 );
-TableIcon.displayName = "TableIcon";

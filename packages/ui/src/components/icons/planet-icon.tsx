@@ -24,4 +24,3 @@ export const PlanetIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-PlanetIcon.displayName = "PlanetIcon";

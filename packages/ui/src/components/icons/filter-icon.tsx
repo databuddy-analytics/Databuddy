@@ -10,4 +10,3 @@ export const FilterIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-FilterIcon.displayName = "FilterIcon";

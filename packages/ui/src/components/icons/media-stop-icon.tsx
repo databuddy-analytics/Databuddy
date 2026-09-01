@@ -12,4 +12,3 @@ export const MediaStopIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-MediaStopIcon.displayName = "MediaStopIcon";

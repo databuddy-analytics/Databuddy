@@ -16,4 +16,3 @@ export const LightbulbFilamentIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-LightbulbFilamentIcon.displayName = "LightbulbFilamentIcon";

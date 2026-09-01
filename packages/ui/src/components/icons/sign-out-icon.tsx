@@ -14,4 +14,3 @@ export const SignOutIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-SignOutIcon.displayName = "SignOutIcon";

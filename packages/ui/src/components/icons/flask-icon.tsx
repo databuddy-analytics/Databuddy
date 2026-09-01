@@ -20,4 +20,3 @@ export const FlaskIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-FlaskIcon.displayName = "FlaskIcon";

@@ -26,4 +26,3 @@ export const WandSparkleIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-WandSparkleIcon.displayName = "WandSparkleIcon";

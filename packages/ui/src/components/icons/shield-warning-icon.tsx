@@ -22,4 +22,3 @@ export const ShieldWarningIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-ShieldWarningIcon.displayName = "ShieldWarningIcon";

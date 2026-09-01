@@ -18,4 +18,3 @@ export const QuestionIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-QuestionIcon.displayName = "QuestionIcon";

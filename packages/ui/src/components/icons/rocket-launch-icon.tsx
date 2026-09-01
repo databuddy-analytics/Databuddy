@@ -30,4 +30,3 @@ export const RocketLaunchIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-RocketLaunchIcon.displayName = "RocketLaunchIcon";

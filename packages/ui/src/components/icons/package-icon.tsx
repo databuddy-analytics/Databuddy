@@ -28,4 +28,3 @@ export const PackageIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-PackageIcon.displayName = "PackageIcon";

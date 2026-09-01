@@ -14,4 +14,3 @@ export const ArrowDownIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-ArrowDownIcon.displayName = "ArrowDownIcon";

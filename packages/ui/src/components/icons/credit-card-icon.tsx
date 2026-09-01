@@ -23,4 +23,3 @@ export const CreditCardIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-CreditCardIcon.displayName = "CreditCardIcon";

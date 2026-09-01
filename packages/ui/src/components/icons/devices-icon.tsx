@@ -26,4 +26,3 @@ export const DevicesIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-DevicesIcon.displayName = "DevicesIcon";

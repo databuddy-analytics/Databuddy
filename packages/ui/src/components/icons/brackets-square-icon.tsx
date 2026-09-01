@@ -18,4 +18,3 @@ export const BracketsSquareIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-BracketsSquareIcon.displayName = "BracketsSquareIcon";

@@ -46,4 +46,3 @@ export const SignalOffIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-SignalOffIcon.displayName = "SignalOffIcon";

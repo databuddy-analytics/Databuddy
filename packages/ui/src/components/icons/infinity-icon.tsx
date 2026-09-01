@@ -18,4 +18,3 @@ export const InfinityIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-InfinityIcon.displayName = "InfinityIcon";

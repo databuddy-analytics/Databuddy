@@ -18,4 +18,3 @@ export const ClockIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-ClockIcon.displayName = "ClockIcon";

@@ -24,4 +24,3 @@ export const ShareNetworkIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-ShareNetworkIcon.displayName = "ShareNetworkIcon";

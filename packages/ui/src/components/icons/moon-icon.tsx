@@ -12,4 +12,3 @@ export const MoonIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-MoonIcon.displayName = "MoonIcon";

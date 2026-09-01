@@ -30,4 +30,3 @@ export const CrownIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-CrownIcon.displayName = "CrownIcon";

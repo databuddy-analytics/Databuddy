@@ -24,4 +24,3 @@ export const GitBranchIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-GitBranchIcon.displayName = "GitBranchIcon";

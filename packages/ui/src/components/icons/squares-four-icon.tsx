@@ -14,4 +14,3 @@ export const SquaresFourIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-SquaresFourIcon.displayName = "SquaresFourIcon";

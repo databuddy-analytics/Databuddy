@@ -54,4 +54,3 @@ export const SirenIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-SirenIcon.displayName = "SirenIcon";

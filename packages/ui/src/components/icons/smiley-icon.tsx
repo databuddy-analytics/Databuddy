@@ -22,4 +22,3 @@ export const SmileyIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-SmileyIcon.displayName = "SmileyIcon";

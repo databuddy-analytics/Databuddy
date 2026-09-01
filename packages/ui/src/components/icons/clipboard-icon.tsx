@@ -16,4 +16,3 @@ export const ClipboardIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-ClipboardIcon.displayName = "ClipboardIcon";

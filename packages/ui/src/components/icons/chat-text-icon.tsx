@@ -22,4 +22,3 @@ export const ChatTextIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-ChatTextIcon.displayName = "ChatTextIcon";

@@ -18,4 +18,3 @@ export const ShieldCheckIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-ShieldCheckIcon.displayName = "ShieldCheckIcon";

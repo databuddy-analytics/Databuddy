@@ -14,4 +14,3 @@ export const TagIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-TagIcon.displayName = "TagIcon";

@@ -14,4 +14,3 @@ export const Grid2x2Icon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-Grid2x2Icon.displayName = "Grid2x2Icon";

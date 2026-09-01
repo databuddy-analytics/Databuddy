@@ -40,4 +40,3 @@ export const RobotIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-RobotIcon.displayName = "RobotIcon";

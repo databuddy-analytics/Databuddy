@@ -33,4 +33,3 @@ export const CalendarDotsIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-CalendarDotsIcon.displayName = "CalendarDotsIcon";

@@ -32,4 +32,3 @@ export const FileDownloadIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-FileDownloadIcon.displayName = "FileDownloadIcon";

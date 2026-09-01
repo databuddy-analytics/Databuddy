@@ -12,4 +12,3 @@ export const PaperclipIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-PaperclipIcon.displayName = "PaperclipIcon";

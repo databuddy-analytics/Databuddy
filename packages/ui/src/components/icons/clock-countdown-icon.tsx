@@ -22,4 +22,3 @@ export const ClockCountdownIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-ClockCountdownIcon.displayName = "ClockCountdownIcon";

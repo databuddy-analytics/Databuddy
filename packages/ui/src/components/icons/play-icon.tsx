@@ -10,4 +10,3 @@ export const PlayIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-PlayIcon.displayName = "PlayIcon";

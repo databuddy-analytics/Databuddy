@@ -14,4 +14,3 @@ export const GearIcon = ({ ref, ...props }: NucleoIconProps) => (
 		/>
 	</NucleoIcon>
 );
-GearIcon.displayName = "GearIcon";
