@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it } from "bun:test";
 import type { ScheduleData } from "./actions";
 import type { UptimeData } from "./types";
-import type { MonitorState, MonitorStateLookup } from "./lib/monitor-state";
+import type {
+	MonitorState,
+	MonitorStateLookup,
+} from "./uptime-transition-alerts";
 import {
 	DEFAULT_UPTIME_WORKER_CONCURRENCY,
 	getUptimeWorkerConcurrency,

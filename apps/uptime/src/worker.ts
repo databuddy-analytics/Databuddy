@@ -26,11 +26,6 @@ import {
 	checkUptime,
 	lookupSchedule,
 } from "./actions";
-import {
-	type MonitorState,
-	type MonitorStateLookup,
-	writeMonitorState,
-} from "./lib/monitor-state";
 import { sendUptimeEvent } from "./lib/producer";
 import { captureError } from "./lib/tracing";
 import {
@@ -45,6 +40,9 @@ import {
 import {
 	fireTransitionAlerts,
 	getPreviousMonitorState,
+	type MonitorState,
+	type MonitorStateLookup,
+	writeMonitorState,
 } from "./uptime-transition-alerts";
 
 class ScheduleNotFound extends Data.TaggedError("ScheduleNotFound")<{
