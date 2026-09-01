@@ -40,7 +40,7 @@ function HomeMonitorHeatmap({
 			emptyLabel="No data"
 			interactive={false}
 			isActive={isActive}
-			stripClassName="mt-1.5 grid h-1.5 w-full gap-x-px"
+			stripClassName="mt-1.5 grid h-3 w-full gap-x-px"
 			tooltipHasData={(day) => day.hasData && isActive}
 		/>
 	);

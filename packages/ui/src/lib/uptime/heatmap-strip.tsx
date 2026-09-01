@@ -51,6 +51,14 @@ const SEGMENT_COLORS: Record<UptimeSeverity, string> = {
 	major: "#ff2b3c",
 };
 
+const SEGMENT_HEIGHTS: Record<UptimeSeverity, string> = {
+	empty: "h-1.5",
+	operational: "h-1.5",
+	degraded: "h-2",
+	partial: "h-2.5",
+	major: "h-3",
+};
+
 function tintStatusColor(color: string, amount: number) {
 	return `color-mix(in oklab, var(--popover) ${100 - amount}%, ${color} ${amount}%)`;
 }
@@ -475,7 +483,10 @@ export function UptimeHeatmapStrip({
 		return (
 			<div
 				aria-hidden
-				className="relative h-1.5 overflow-hidden rounded-full"
+				className={cn(
+					"relative overflow-hidden rounded-full",
+					SEGMENT_HEIGHTS[segment.severity]
+				)}
 				key={`${segment.start}-${segment.length}-${segment.severity}`}
 				style={{
 					background: SEGMENT_COLORS[segment.severity],
@@ -501,7 +512,10 @@ export function UptimeHeatmapStrip({
 
 	if (!interactive) {
 		return (
-			<div className={cn("grid gap-x-px", gridClassName)} style={gridStyle}>
+			<div
+				className={cn("grid items-end gap-x-px", gridClassName)}
+				style={gridStyle}
+			>
 				{segmentNodes}
 			</div>
 		);
@@ -515,7 +529,7 @@ export function UptimeHeatmapStrip({
 		<>
 			<fieldset
 				aria-label={rangeSummary}
-				className={cn("relative grid", gridClassName)}
+				className={cn("relative grid items-end", gridClassName)}
 				onPointerEnter={measureGrid}
 				onPointerLeave={hideTooltip}
 				onPointerMove={handlePointerMove}

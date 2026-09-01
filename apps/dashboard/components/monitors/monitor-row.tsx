@@ -331,7 +331,7 @@ function MiniHeatmap({
 				emptyLabel="No data"
 				interactive={false}
 				isActive={isActive}
-				stripClassName="grid h-1.5 w-32 gap-x-px lg:w-44"
+				stripClassName="grid h-3 w-32 gap-x-px lg:w-44"
 			/>
 			<span
 				className={cn(
