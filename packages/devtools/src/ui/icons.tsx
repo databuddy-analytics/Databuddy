@@ -13,7 +13,7 @@ const stroke: SvgProps = {
 
 export function CloseIcon(props: SvgProps) {
 	return (
-		<svg {...stroke} {...props}>
+		<svg aria-hidden="true" {...stroke} {...props}>
 			<path d="M18 6 6 18M6 6l12 12" />
 		</svg>
 	);
@@ -21,7 +21,7 @@ export function CloseIcon(props: SvgProps) {
 
 export function TrashIcon(props: SvgProps) {
 	return (
-		<svg {...stroke} {...props}>
+		<svg aria-hidden="true" {...stroke} {...props}>
 			<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
 		</svg>
 	);
@@ -29,7 +29,7 @@ export function TrashIcon(props: SvgProps) {
 
 export function PlayIcon(props: SvgProps) {
 	return (
-		<svg {...stroke} {...props}>
+		<svg aria-hidden="true" {...stroke} {...props}>
 			<path d="m6 4 14 8-14 8V4z" />
 		</svg>
 	);
@@ -37,7 +37,7 @@ export function PlayIcon(props: SvgProps) {
 
 export function PlusIcon(props: SvgProps) {
 	return (
-		<svg {...stroke} {...props}>
+		<svg aria-hidden="true" {...stroke} {...props}>
 			<path d="M12 5v14M5 12h14" />
 		</svg>
 	);
@@ -45,16 +45,16 @@ export function PlusIcon(props: SvgProps) {
 
 export function InboxIcon(props: SvgProps) {
 	return (
-		<svg {...stroke} {...props}>
+		<svg aria-hidden="true" {...stroke} {...props}>
 			<path d="M22 12h-6l-2 3h-4l-2-3H2" />
 			<path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11Z" />
 		</svg>
 	);
 }
 
-function ActivityIcon(props: SvgProps) {
+function _ActivityIcon(props: SvgProps) {
 	return (
-		<svg {...stroke} {...props}>
+		<svg aria-hidden="true" {...stroke} {...props}>
 			<path d="M3 12h4l3-9 4 18 3-9h4" />
 		</svg>
 	);
@@ -62,24 +62,24 @@ function ActivityIcon(props: SvgProps) {
 
 export function FlagIcon(props: SvgProps) {
 	return (
-		<svg {...stroke} {...props}>
+		<svg aria-hidden="true" {...stroke} {...props}>
 			<path d="M4 21V4M4 4h12l-2 4 2 4H4" />
 		</svg>
 	);
 }
 
-function UserIcon(props: SvgProps) {
+function _UserIcon(props: SvgProps) {
 	return (
-		<svg {...stroke} {...props}>
+		<svg aria-hidden="true" {...stroke} {...props}>
 			<circle cx="12" cy="8" r="4" />
 			<path d="M4 21a8 8 0 0 1 16 0" />
 		</svg>
 	);
 }
 
-function StethoscopeIcon(props: SvgProps) {
+function _StethoscopeIcon(props: SvgProps) {
 	return (
-		<svg {...stroke} {...props}>
+		<svg aria-hidden="true" {...stroke} {...props}>
 			<path d="M6 3v6a4 4 0 0 0 8 0V3" />
 			<path d="M10 17a4 4 0 0 0 8 0v-2" />
 			<circle cx="18" cy="13" r="2" />
@@ -89,7 +89,7 @@ function StethoscopeIcon(props: SvgProps) {
 
 export function RefreshIcon(props: SvgProps) {
 	return (
-		<svg {...stroke} {...props}>
+		<svg aria-hidden="true" {...stroke} {...props}>
 			<path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
 			<path d="M21 3v5h-5" />
 			<path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
@@ -100,7 +100,7 @@ export function RefreshIcon(props: SvgProps) {
 
 export function CopyIcon(props: SvgProps) {
 	return (
-		<svg {...stroke} {...props}>
+		<svg aria-hidden="true" {...stroke} {...props}>
 			<rect x="9" y="9" width="13" height="13" rx="2" />
 			<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
 		</svg>
@@ -109,7 +109,7 @@ export function CopyIcon(props: SvgProps) {
 
 export function CheckIcon(props: SvgProps) {
 	return (
-		<svg {...stroke} {...props}>
+		<svg aria-hidden="true" {...stroke} {...props}>
 			<path d="m5 12 5 5L20 7" />
 		</svg>
 	);
@@ -117,7 +117,7 @@ export function CheckIcon(props: SvgProps) {
 
 export function WarnIcon(props: SvgProps) {
 	return (
-		<svg {...stroke} {...props}>
+		<svg aria-hidden="true" {...stroke} {...props}>
 			<path d="M12 3 2 21h20L12 3z" />
 			<path d="M12 9v5M12 18h.01" />
 		</svg>
@@ -126,7 +126,7 @@ export function WarnIcon(props: SvgProps) {
 
 export function FailIcon(props: SvgProps) {
 	return (
-		<svg {...stroke} {...props}>
+		<svg aria-hidden="true" {...stroke} {...props}>
 			<circle cx="12" cy="12" r="9" />
 			<path d="m9 9 6 6M15 9l-6 6" />
 		</svg>
@@ -135,7 +135,7 @@ export function FailIcon(props: SvgProps) {
 
 export function InfoIcon(props: SvgProps) {
 	return (
-		<svg {...stroke} {...props}>
+		<svg aria-hidden="true" {...stroke} {...props}>
 			<circle cx="12" cy="12" r="9" />
 			<path d="M12 8h.01M11 12h1v4h1" />
 		</svg>
@@ -144,7 +144,7 @@ export function InfoIcon(props: SvgProps) {
 
 export function ChevronIcon(props: SvgProps) {
 	return (
-		<svg {...stroke} {...props}>
+		<svg aria-hidden="true" {...stroke} {...props}>
 			<path d="m9 6 6 6-6 6" />
 		</svg>
 	);
