@@ -99,15 +99,8 @@
     "@types/topojson-client": "^3.1.5",
     "atmn": "^1.1.8",
     "babel-plugin-react-compiler": "^19.1.0-rc.1-rc-af1b7da-20250421",
-    "husky": "^9.1.7",
-    "lint-staged": "^16.4.0",
     "tailwindcss": "^4.2.2",
     "typescript": "^5.9.3",
     "ultracite": "catalog:"
-  },
-  "lint-staged": {
-    "*.{js,jsx,ts,tsx,json,jsonc,css,scss}": [
-      "bunx ultracite fix"
-    ]
   }
 }
