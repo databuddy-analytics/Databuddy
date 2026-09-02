@@ -125,7 +125,7 @@ function LatencyTooltipContent({
 	);
 }
 
-export function LatencyAreaChart({ data }: { data: ChartDataPoint[] }) {
+function LatencyAreaChart({ data }: { data: ChartDataPoint[] }) {
 	const chartId = useId().replaceAll(":", "");
 	const granularity = useMemo(() => detectGranularity(data), [data]);
 	const gradientId = (key: (typeof METRICS)[number]["key"]) =>

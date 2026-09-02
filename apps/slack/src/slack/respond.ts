@@ -303,7 +303,7 @@ const TOOL_STATUS_LABELS: [RegExp, string][] = [
 	[/investigation|insight/, "Reviewing investigations..."],
 ];
 
-export function toolStatusLabel(toolNames: string[]): string {
+function toolStatusLabel(toolNames: string[]): string {
 	for (const name of toolNames) {
 		const match = TOOL_STATUS_LABELS.find(([pattern]) => pattern.test(name));
 		if (match) {

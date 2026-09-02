@@ -93,7 +93,7 @@ export function resolveTransitionKind(
 	return null;
 }
 
-export function countFiredAlarms(deliveryCounts: number[]): number {
+function countFiredAlarms(deliveryCounts: number[]): number {
 	return deliveryCounts.filter((count) => count > 0).length;
 }
 
