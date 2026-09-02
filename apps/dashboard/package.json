@@ -19,7 +19,7 @@
     "test:e2e:core": "playwright test --grep @core"
   },
   "dependencies": {
-    "@ai-sdk/react": "^3.0.118",
+    "@ai-sdk/react": "^4.0.87",
     "@base-ui-components/react": "^1.0.0-rc.0",
     "@databuddy/api-keys": "workspace:*",
     "@databuddy/auth": "workspace:*",
