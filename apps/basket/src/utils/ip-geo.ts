@@ -13,17 +13,21 @@ interface GeoIPReader extends Reader {
 }
 
 const CDN_URL = "https://cdn.databuddy.cc/mmdb/GeoLite2-City.mmdb";
+const GEOIP_FETCH_TIMEOUT_MS = 60_000;
+const GEOIP_RETRY_AFTER_MS = 10_000;
 
 let reader: GeoIPReader | null = null;
 let isLoading = false;
 let loadPromise: Promise<void> | null = null;
-let loadError: Error | null = null;
+let retryLoadAfter = 0;
 let dbBuffer: Buffer | null = null;
 
 function loadDatabaseFromCdn(): Promise<Buffer> {
 	return record("loadDatabaseFromCdn", async () => {
 		try {
-			const response = await fetch(CDN_URL);
+			const response = await fetch(CDN_URL, {
+				signal: AbortSignal.timeout(GEOIP_FETCH_TIMEOUT_MS),
+			});
 			if (!response.ok) {
 				throw createError({
 					code: "basket.GEOIP_DOWNLOAD_FAILED",
@@ -72,8 +76,8 @@ function loadDatabaseFromCdn(): Promise<Buffer> {
 }
 
 function loadDatabase() {
-	if (loadError) {
-		throw loadError;
+	if (Date.now() < retryLoadAfter) {
+		return;
 	}
 
 	if (isLoading && loadPromise) {
@@ -91,7 +95,7 @@ function loadDatabase() {
 			reader = Reader.openBuffer(dbBuffer) as GeoIPReader;
 		} catch (error) {
 			captureError(error, { message: "Failed to load GeoIP database" });
-			loadError = error as Error;
+			retryLoadAfter = Date.now() + GEOIP_RETRY_AFTER_MS;
 			reader = null;
 			dbBuffer = null;
 		} finally {
@@ -122,7 +126,7 @@ function lookupGeoLocation(ip: string): Promise<{
 	city: string | undefined;
 }> {
 	return record("lookupGeoLocation", async () => {
-		if (!(reader || isLoading || loadError)) {
+		if (!(reader || isLoading)) {
 			try {
 				await loadDatabase();
 			} catch (error) {
@@ -255,6 +259,6 @@ export function closeGeoIPReader(): void {
 		dbBuffer = null;
 	}
 	loadPromise = null;
-	loadError = null;
+	retryLoadAfter = 0;
 	isLoading = false;
 }
