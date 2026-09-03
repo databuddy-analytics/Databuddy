@@ -181,7 +181,11 @@ async function markOversizedErrorsBody({
 	while (!chunk.done) {
 		seenBytes += chunk.value.byteLength;
 		if (seenBytes > ERRORS_BODY_MAX_BYTES) {
-			reader.cancel();
+			// Not awaited on purpose: clone() tees the body, and waiting for one
+			// branch to cancel while the other is never read deadlocks the request.
+			reader.cancel().catch(() => {
+				// The request is already rejected; a failed cancel changes nothing.
+			});
 			return OVERSIZED_ERRORS_BODY;
 		}
 		chunk = await reader.read();
