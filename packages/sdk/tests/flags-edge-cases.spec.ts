@@ -448,6 +448,49 @@ test.describe("BrowserFlagsManager — edge cases", () => {
 		expect(requests).toBe(1);
 	});
 
+	test("waits the server's Retry-After instead of the default backoff", async ({
+		page,
+	}) => {
+		let requests = 0;
+		await page.route("**/api.databuddy.cc/public/v1/flags/**", (route) => {
+			requests++;
+			return route.fulfill({
+				status: 429,
+				headers: {
+					"retry-after": "1",
+					"access-control-allow-origin": "*",
+					"access-control-expose-headers": "Retry-After",
+				},
+				contentType: "application/json",
+				body: JSON.stringify({ flags: {}, count: 0, reason: "RATE_LIMITED" }),
+			});
+		});
+
+		await page.goto("/test");
+		await waitForSDK(page);
+
+		await page.evaluate(async () => {
+			const SDK = window.__SDK__;
+			const manager = new SDK.BrowserFlagsManager({
+				config: { clientId: "retry-after", autoFetch: false },
+			});
+			const attempt = async () => {
+				try {
+					await manager.getFlag("some-flag");
+				} catch {
+					/* expected */
+				}
+			};
+			await attempt();
+			await attempt();
+			await new Promise((resolve) => setTimeout(resolve, 1200));
+			await attempt();
+			manager.destroy();
+		});
+
+		expect(requests).toBe(2);
+	});
+
 	test("retries again once the failure backoff expires", async ({ page }) => {
 		let requests = 0;
 		await page.route("**/api.databuddy.cc/public/v1/flags/**", (route) => {

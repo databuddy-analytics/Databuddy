@@ -57,14 +57,18 @@ function resolved(
 
 function failed(
 	promise: Promise<FlagResult>,
-	failureCount: number
+	failureCount: number,
+	error: unknown
 ): CacheEntry {
+	const requested =
+		error instanceof FlagsRequestError ? error.retryAfterMs : undefined;
 	const retryAt =
 		Date.now() +
-		Math.min(
-			FAILURE_BACKOFF_BASE_MS * 2 ** (failureCount - 1),
-			FAILURE_BACKOFF_MAX_MS
-		);
+		(requested ??
+			Math.min(
+				FAILURE_BACKOFF_BASE_MS * 2 ** (failureCount - 1),
+				FAILURE_BACKOFF_MAX_MS
+			));
 	return {
 		promise,
 		refreshing: false,
@@ -407,7 +411,7 @@ export abstract class BaseFlagsManager implements FlagsManager {
 			}
 			this.captureError(err);
 			if (!this.cache.get(cacheKey)?.result) {
-				this.setCache(cacheKey, failed(promise, priorFailures + 1));
+				this.setCache(cacheKey, failed(promise, priorFailures + 1, err));
 			}
 			throw err;
 		}
