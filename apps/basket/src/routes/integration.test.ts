@@ -441,6 +441,35 @@ describe("POST /errors", () => {
 		expect(mockInsertErrorSpans).not.toHaveBeenCalled();
 	});
 
+	test("a chunked body stops being read once it passes the cap", async () => {
+		const chunk = new TextEncoder().encode("x".repeat(16 * 1024));
+		const ceiling = ERRORS_BODY_MAX_BYTES * 8;
+		let produced = 0;
+		const body = new ReadableStream({
+			pull(controller) {
+				if (produced >= ceiling) {
+					controller.close();
+					return;
+				}
+				produced += chunk.byteLength;
+				controller.enqueue(chunk);
+			},
+		});
+
+		const request = new Request("http://localhost/errors", {
+			method: "POST",
+			body,
+			duplex: "half",
+			headers: { "Content-Type": "application/json" },
+		} as RequestInit);
+
+		const res = await basketApp.handle(request);
+
+		expect(res.status).toBe(413);
+		expect(produced).toBeLessThanOrEqual(ERRORS_BODY_MAX_BYTES * 2);
+		expect(mockInsertErrorSpans).not.toHaveBeenCalled();
+	});
+
 	test("body under the size cap → 200", async () => {
 		const spans = [
 			{
