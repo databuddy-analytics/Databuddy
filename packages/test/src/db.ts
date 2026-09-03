@@ -1,3 +1,4 @@
+import { setPgTimingFn } from "@databuddy/db";
 import { relations } from "@databuddy/db/schema/relations";
 import { sql } from "drizzle-orm";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
@@ -93,6 +94,21 @@ export async function truncatePostgres() {
 			}
 			await new Promise((resolve) => setTimeout(resolve, 100 * attempt));
 		}
+	}
+}
+
+export async function countPgQueries<T>(
+	run: () => Promise<T>
+): Promise<{ queries: number; result: T }> {
+	let queries = 0;
+	setPgTimingFn(() => {
+		queries += 1;
+	});
+	try {
+		const result = await run();
+		return { queries, result };
+	} finally {
+		setPgTimingFn(() => undefined);
 	}
 }
 

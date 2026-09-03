@@ -5,6 +5,7 @@ import { appRouter } from "@databuddy/rpc";
 import {
 	reset,
 	cleanup,
+	countPgQueries,
 	hasTestDb,
 	userContext,
 	apiKeyContext,
@@ -21,6 +22,25 @@ beforeEach(() => reset());
 afterAll(() => cleanup());
 
 describe("links.create", () => {
+	iit("stays within its postgres round-trip budget", async () => {
+		const user = await signUp();
+		const org = await insertOrganization();
+		await addToOrganization(user.id, org.id, "member");
+
+		const { queries } = await countPgQueries(() =>
+			call(
+				appRouter.links.create,
+				userContext(user, org.id)
+			)({
+				name: "Budgeted",
+				targetUrl: "https://example.com",
+				organizationId: org.id,
+			})
+		);
+
+		expect(queries).toBeLessThanOrEqual(2);
+	});
+
 	iit("creates a link for a member", async () => {
 		const user = await signUp();
 		const org = await insertOrganization();
