@@ -18,7 +18,7 @@
     "@databuddy/shared": "workspace:*",
     "@react-email/components": "^1.0.12",
     "@react-email/render": "^2.1.0",
-    "@types/node": "^26.0.0",
+    "@types/node": "^26.4.0",
     "react": "catalog:",
     "react-dom": "catalog:"
   },
