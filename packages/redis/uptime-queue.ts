@@ -6,10 +6,6 @@ export const UPTIME_CHECK_JOB_NAME = "uptime-check";
 export const UPTIME_DELIVERY_QUEUE_NAME = "uptime-event-delivery";
 export const UPTIME_DELIVERY_JOB_NAME = UPTIME_DELIVERY_QUEUE_NAME;
 
-// BullMQ appends a full stack trace per attempt; without a cap the 20-attempt
-// delivery queue stores twenty of them per job for the whole removeOnFail window.
-const RETAINED_STACK_TRACES = 3;
-
 export const UPTIME_WORKER_LOCK_MS = 90_000;
 export const UPTIME_WORKER_STALLED_INTERVAL_MS = 60_000;
 export const UPTIME_WORKER_MAX_STALLED_COUNT = 3;
@@ -20,7 +16,7 @@ export const UPTIME_JOB_OPTIONS = {
 		type: "exponential",
 		delay: 5000,
 	},
-	stackTraceLimit: RETAINED_STACK_TRACES,
+	stackTraceLimit: 3,
 	// A failed source job can contain the only durable copy of a completed probe.
 	removeOnComplete: {
 		age: 24 * 3600,
@@ -38,7 +34,7 @@ export const UPTIME_DELIVERY_JOB_OPTIONS = {
 		type: "fixed",
 		delay: 30_000,
 	},
-	stackTraceLimit: RETAINED_STACK_TRACES,
+	stackTraceLimit: 3,
 	// Keep completed IDs long enough for an ambiguous queue add to stay idempotent.
 	removeOnComplete: {
 		age: 7 * 24 * 3600,

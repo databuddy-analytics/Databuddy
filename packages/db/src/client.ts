@@ -50,8 +50,6 @@ function timeQueries(target: Queryable): void {
 	};
 }
 
-// Transactions run on a client from pool.connect(), which never passes through
-// pool.query — instrument both or every query inside db.transaction() is uncounted.
 function timePoolQueries(pool: Pool): void {
 	timeQueries(pool as unknown as Queryable);
 	const originalConnect = pool.connect.bind(pool) as (

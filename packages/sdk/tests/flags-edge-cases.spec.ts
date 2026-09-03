@@ -445,7 +445,7 @@ test.describe("BrowserFlagsManager — edge cases", () => {
 		});
 
 		expect(rejections).toBe(40);
-		expect(requests).toBeLessThanOrEqual(2);
+		expect(requests).toBe(1);
 	});
 
 	test("retries again once the failure backoff expires", async ({ page }) => {

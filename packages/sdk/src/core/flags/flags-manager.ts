@@ -55,17 +55,16 @@ function resolved(
 	};
 }
 
-// Holds the rejection for a backoff window so repeated getFlag calls replay it
-// instead of each issuing a fresh request. validEntry drops it once it expires.
 function failed(
 	promise: Promise<FlagResult>,
 	failureCount: number
 ): CacheEntry {
-	const cooldown = Math.min(
-		FAILURE_BACKOFF_BASE_MS * 2 ** (failureCount - 1),
-		FAILURE_BACKOFF_MAX_MS
-	);
-	const retryAt = Date.now() + cooldown;
+	const retryAt =
+		Date.now() +
+		Math.min(
+			FAILURE_BACKOFF_BASE_MS * 2 ** (failureCount - 1),
+			FAILURE_BACKOFF_MAX_MS
+		);
 	return {
 		promise,
 		refreshing: false,

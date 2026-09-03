@@ -53,6 +53,13 @@ export interface ErrorLogFields {
 const PG_SQLSTATE = /^[\dA-Z]{5}$/;
 const MAX_CAUSE_DEPTH = 4;
 
+const PG_DETAIL_FIELDS = [
+	["error_pg_constraint", "constraint"],
+	["error_pg_detail", "detail"],
+	["error_pg_hint", "hint"],
+	["error_pg_table", "table"],
+] as const satisfies readonly (readonly [keyof ErrorLogFields, string])[];
+
 function findPostgresError(
 	error: unknown,
 	depth = 0
@@ -71,37 +78,30 @@ function findPostgresError(
 	return findPostgresError(candidate.cause, depth + 1);
 }
 
-function optionalString(
-	value: unknown,
-	key: string
-): Record<string, string> | undefined {
-	return typeof value === "string" && value ? { [key]: value } : undefined;
-}
-
 export function getErrorLogFields(error: unknown): ErrorLogFields {
 	if (!(error instanceof Error)) {
 		return { error_message: String(error) };
 	}
 
-	const fields: ErrorLogFields = {
-		error_message: error.message,
-		...(error.stack ? { error_stack: error.stack } : {}),
-		...(error.cause instanceof Error
-			? { error_cause_message: error.cause.message }
-			: {}),
-	};
+	const fields: ErrorLogFields = { error_message: error.message };
+	if (error.stack) {
+		fields.error_stack = error.stack;
+	}
+	if (error.cause instanceof Error) {
+		fields.error_cause_message = error.cause.message;
+	}
 
 	const pg = findPostgresError(error.cause);
 	if (!pg) {
 		return fields;
 	}
 
-	return {
-		...fields,
-		error_pg_code: pg.code as string,
-		...optionalString(pg.detail, "error_pg_detail"),
-		...optionalString(pg.hint, "error_pg_hint"),
-		...optionalString(pg.constraint, "error_pg_constraint"),
-		...optionalString(pg.table, "error_pg_table"),
-	};
+	fields.error_pg_code = pg.code as string;
+	for (const [field, key] of PG_DETAIL_FIELDS) {
+		const value = pg[key];
+		if (typeof value === "string" && value) {
+			fields[field] = value;
+		}
+	}
+	return fields;
 }

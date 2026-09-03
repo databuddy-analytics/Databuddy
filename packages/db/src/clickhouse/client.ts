@@ -142,8 +142,6 @@ export const clickHouse: ClickHouseClient = Object.assign(
 	Object.create(Object.getPrototypeOf(baseClient)),
 	baseClient,
 	{
-		// Timing sits inside the retry so each attempt is counted once and the
-		// backoff sleep is not reported as ClickHouse query time.
 		insert: (
 			...args: Parameters<ClickHouseClient["insert"]>
 		): ReturnType<ClickHouseClient["insert"]> =>
