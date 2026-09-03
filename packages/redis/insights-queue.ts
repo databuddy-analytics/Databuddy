@@ -10,12 +10,17 @@ export const INSIGHTS_RESUME_JOB_NAME = "insights-resume";
 
 export const INSIGHTS_JOB_TIMEOUT_MS = 120_000;
 
+// BullMQ appends a full stack trace per attempt; without a cap a retried job
+// stores one for every attempt and keeps them for the whole removeOnFail window.
+const RETAINED_STACK_TRACES = 3;
+
 export const INSIGHTS_JOB_OPTIONS = {
 	attempts: 3,
 	backoff: {
 		type: "exponential",
 		delay: 5000,
 	},
+	stackTraceLimit: RETAINED_STACK_TRACES,
 	removeOnComplete: {
 		age: 24 * 3600,
 		count: 1000,
