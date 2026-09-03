@@ -22,11 +22,20 @@ export function setPgTimingFn(fn: (durationMs: number) => void) {
 	_pgTimingFn = fn;
 }
 
-function timePoolQueries(pool: Pool): void {
-	const originalQuery = pool.query.bind(pool) as (
-		...args: unknown[]
-	) => unknown;
-	pool.query = ((...args: unknown[]) => {
+const TIMED = Symbol("pgTimed");
+
+interface Queryable {
+	query: (...args: unknown[]) => unknown;
+}
+
+function timeQueries(target: Queryable): void {
+	const taggable = target as Queryable & { [TIMED]?: boolean };
+	if (taggable[TIMED]) {
+		return;
+	}
+	taggable[TIMED] = true;
+	const originalQuery = target.query.bind(target);
+	target.query = (...args: unknown[]) => {
 		const timingFn = _pgTimingFn;
 		if (!timingFn) {
 			return originalQuery(...args);
@@ -38,7 +47,26 @@ function timePoolQueries(pool: Pool): void {
 			result.then(record, record);
 		}
 		return result;
-	}) as Pool["query"];
+	};
+}
+
+// Transactions run on a client from pool.connect(), which never passes through
+// pool.query — instrument both or every query inside db.transaction() is uncounted.
+function timePoolQueries(pool: Pool): void {
+	timeQueries(pool as unknown as Queryable);
+	const originalConnect = pool.connect.bind(pool) as (
+		...args: unknown[]
+	) => unknown;
+	pool.connect = ((...args: unknown[]) => {
+		const result = originalConnect(...args);
+		if (result instanceof Promise) {
+			return result.then((client: unknown) => {
+				timeQueries(client as Queryable);
+				return client;
+			});
+		}
+		return result;
+	}) as Pool["connect"];
 }
 
 function connectionStringForNodePg(connectionString: string): string {
