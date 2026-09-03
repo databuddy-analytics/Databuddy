@@ -1,4 +1,5 @@
 import { isIP } from "node:net";
+import { getTrustedClientIp } from "@databuddy/shared/utils/trusted-client-ip";
 import { captureError, mergeWideEvent, record } from "@lib/tracing";
 import type { City } from "@maxmind/geoip2-node";
 import {
@@ -6,7 +7,7 @@ import {
 	BadMethodCallError,
 	Reader,
 } from "@maxmind/geoip2-node";
-import { createError, EvlogError, log } from "evlog";
+import { createError, EvlogError } from "evlog";
 
 interface GeoIPReader extends Reader {
 	city(ip: string): City;
@@ -208,20 +209,9 @@ export function getGeo(ip: string, request?: Request) {
 	});
 }
 
-const TRUSTED_IP_HEADER = process.env.TRUSTED_IP_HEADER || "cf-connecting-ip";
-const IP_HEADER_VERIFIED =
-	process.env.IP_HEADER_VERIFIED?.toLowerCase() === "true";
-
-if (!process.env.IP_HEADER_VERIFIED && process.env.NODE_ENV === "production") {
-	log.warn({
-		message:
-			"IP_HEADER_VERIFIED is not set — client-supplied IP headers are spoofable. Set IP_HEADER_VERIFIED=true only when traffic is forced through a trusted proxy that overwrites this header.",
-	});
-}
-
 export function extractIpFromRequest(
 	request: Request,
-	trustedHeader = TRUSTED_IP_HEADER
+	trustedHeader = "cf-connecting-ip"
 ): string {
 	const headerName = trustedHeader.toLowerCase();
 	const trusted = request.headers.get(headerName);
@@ -239,10 +229,7 @@ export function extractIpFromRequest(
 }
 
 export function extractTrustedClientIp(request: Request): string | null {
-	if (!IP_HEADER_VERIFIED) {
-		return null;
-	}
-	return extractIpFromRequest(request) || null;
+	return getTrustedClientIp(request.headers) ?? null;
 }
 
 export async function getVisitorCountryForAutoMode(
