@@ -85,15 +85,13 @@ export default function LinkStatsLayout({ children }: LinkStatsLayoutProps) {
 		[setDateRangeAction]
 	);
 
-	const getGranularityButtonClass = (type: "daily" | "hourly") => {
-		const isActive = currentGranularity === type;
-		const baseClass =
-			"h-full w-24 cursor-pointer touch-manipulation rounded-none px-0 text-sm";
-		const activeClass = isActive
-			? "font-medium bg-accent hover:bg-accent! text-accent-foreground"
-			: "text-muted-foreground";
-		return `${baseClass} ${activeClass}`.trim();
-	};
+	const getGranularityButtonClass = (type: "daily" | "hourly") =>
+		cn(
+			"h-full w-24 cursor-pointer touch-manipulation rounded-none px-0 text-sm",
+			currentGranularity === type
+				? "bg-accent font-medium text-accent-foreground hover:bg-accent!"
+				: "text-muted-foreground"
+		);
 
 	const isQuickRangeActive = useCallback(
 		(range: QuickRange) => {
