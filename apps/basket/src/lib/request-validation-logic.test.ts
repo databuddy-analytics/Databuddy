@@ -309,7 +309,11 @@ describe("validateRequest", () => {
 				403
 			);
 		} finally {
-			process.env.SELFHOST = previous;
+			if (previous === undefined) {
+				delete process.env.SELFHOST;
+			} else {
+				process.env.SELFHOST = previous;
+			}
 		}
 	});
 
