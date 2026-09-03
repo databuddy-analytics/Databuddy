@@ -172,7 +172,7 @@ async function markOversizedErrorsBody({
 			: undefined;
 	}
 	const body = await request.clone().text();
-	return body.length > ERRORS_BODY_MAX_BYTES
+	return Buffer.byteLength(body) > ERRORS_BODY_MAX_BYTES
 		? OVERSIZED_ERRORS_BODY
 		: undefined;
 }

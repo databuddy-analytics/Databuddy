@@ -301,10 +301,10 @@ export abstract class BaseFlagsManager implements FlagsManager {
 				if (!this.requestGenerationIsCurrent(requestGeneration)) {
 					return;
 				}
-				this.lastError = null;
 				if (this.cache.get(cacheKey)?.promise !== promise) {
 					return;
 				}
+				this.lastError = null;
 				this.setCache(cacheKey, resolved(result, ttl, stale));
 				this.emit();
 				this.onCacheUpdated();
@@ -395,8 +395,8 @@ export abstract class BaseFlagsManager implements FlagsManager {
 			if (!this.requestGenerationIsCurrent(requestGeneration)) {
 				return this.getFlag(key, user);
 			}
-			this.lastError = null;
 			if (this.cache.get(cacheKey)?.promise === promise) {
+				this.lastError = null;
 				this.setCache(cacheKey, resolved(result, ttl, stale));
 			}
 			this.emit();
