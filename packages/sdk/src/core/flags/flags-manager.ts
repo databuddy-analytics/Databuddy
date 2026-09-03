@@ -28,8 +28,12 @@ const OVERRIDES_KEY = "databuddy:flag-overrides:v1";
 const DEFAULT_API = "https://api.databuddy.cc";
 const DEFAULT_MAX_CACHE_SIZE = 5000;
 
+const FAILURE_BACKOFF_BASE_MS = 5000;
+const FAILURE_BACKOFF_MAX_MS = 60_000;
+
 interface CacheEntry {
 	expiresAt: number;
+	failureCount?: number;
 	promise: Promise<FlagResult>;
 	refreshing: boolean;
 	result: FlagResult | null;
@@ -48,6 +52,27 @@ function resolved(
 		result,
 		expiresAt: now + ttl,
 		staleAt: now + staleTime,
+	};
+}
+
+// Holds the rejection for a backoff window so repeated getFlag calls replay it
+// instead of each issuing a fresh request. validEntry drops it once it expires.
+function failed(
+	promise: Promise<FlagResult>,
+	failureCount: number
+): CacheEntry {
+	const cooldown = Math.min(
+		FAILURE_BACKOFF_BASE_MS * 2 ** (failureCount - 1),
+		FAILURE_BACKOFF_MAX_MS
+	);
+	const retryAt = Date.now() + cooldown;
+	return {
+		promise,
+		refreshing: false,
+		result: null,
+		failureCount,
+		expiresAt: retryAt,
+		staleAt: retryAt,
 	};
 }
 
@@ -318,6 +343,7 @@ export abstract class BaseFlagsManager implements FlagsManager {
 			this.config.environment,
 			this.config.clientId
 		);
+		const priorFailures = this.cache.get(cacheKey)?.failureCount ?? 0;
 		const entry = this.validEntry(cacheKey);
 
 		if (entry) {
@@ -382,7 +408,7 @@ export abstract class BaseFlagsManager implements FlagsManager {
 			}
 			this.captureError(err);
 			if (!this.cache.get(cacheKey)?.result) {
-				this.cache.delete(cacheKey);
+				this.setCache(cacheKey, failed(promise, priorFailures + 1));
 			}
 			throw err;
 		}
