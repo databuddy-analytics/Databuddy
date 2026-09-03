@@ -140,9 +140,8 @@
         "autumn-js": "catalog:",
         "better-auth": "^1.5.5",
         "class-variance-authority": "^0.7.1",
-        "clsx": "^2.1.1",
         "cmdk": "^1.1.1",
-        "cnfast": "^0.0.8",
+        "cn": "^0.2.4",
         "d3-scale": "^4.0.2",
         "flag-icons": "^7.5.0",
         "geist": "^1.7.0",
@@ -213,7 +212,7 @@
         "@usenotra/sdk": "^1.2.2",
         "botid": "^1.5.11",
         "class-variance-authority": "^0.7.1",
-        "cnfast": "^0.0.8",
+        "cn": "^0.2.4",
         "d3-geo": "^3.1.1",
         "fast-glob": "^3.3.3",
         "fumadocs-core": "15.5.0",
@@ -688,7 +687,7 @@
         "@radix-ui/react-slot": "^1.2.4",
         "class-variance-authority": "^0.7.1",
         "cmdk": "^1.1.1",
-        "cnfast": "^0.0.8",
+        "cn": "^0.2.4",
         "dayjs": "^1.11.20",
         "input-otp": "^1.4.2",
         "motion": "^12.38.0",
@@ -707,8 +706,8 @@
         "unbuild": "^3.6.1",
       },
       "peerDependencies": {
-        "react": ">=18",
-        "react-dom": ">=18",
+        "react": ">=19",
+        "react-dom": ">=19",
       },
     },
     "packages/validation": {
@@ -2457,7 +2456,7 @@
 
     "cmdk": ["cmdk@1.1.1", "", { "dependencies": { "@radix-ui/react-compose-refs": "^1.1.1", "@radix-ui/react-dialog": "^1.1.6", "@radix-ui/react-id": "^1.1.0", "@radix-ui/react-primitive": "^2.0.2" }, "peerDependencies": { "react": "^18 || ^19 || ^19.0.0-rc", "react-dom": "^18 || ^19 || ^19.0.0-rc" } }, "sha512-Vsv7kFaXm+ptHDMZ7izaRsP70GgrW9NBNGswt9OZaVBLlE0SNpDq8eu/VGXyF9r7M0azK3Wy7OlYXsuyYLFzHg=="],
 
-    "cnfast": ["cnfast@0.0.8", "", { "bin": { "cnfast": "bin/cli.js" } }, "sha512-EjXKMfGfdwtV4AcNSQ6AwQaVzpC1B7IxeiwA3FlhTXz+YFlMKVi4c1JX9tgD2QOlahQXjB8KUXrBaYG+3v871Q=="],
+    "cn": ["cn@0.2.4", "", { "bin": { "cn": "bin/cn.mjs" } }, "sha512-SzQvoh5FwizWtQg9+JueKdjWhlfCZMdu5DqNHm9q1wUlRVmKb9WXlepR9bTTbPwzEOyX1ujJ6lcCppmn3bNUCg=="],
 
     "code-excerpt": ["code-excerpt@4.0.0", "", { "dependencies": { "convert-to-spaces": "^2.0.1" } }, "sha512-xxodCmBen3iy2i0WtAK8FlFNrRzjUqjRsMfho58xT/wvZU1YTM3fCnRjcy1gJPMepaRlgm/0e6w8SpWHpn3/cA=="],
 
