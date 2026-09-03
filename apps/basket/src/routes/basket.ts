@@ -171,10 +171,22 @@ async function markOversizedErrorsBody({
 			? OVERSIZED_ERRORS_BODY
 			: undefined;
 	}
-	const body = await request.clone().text();
-	return Buffer.byteLength(body) > ERRORS_BODY_MAX_BYTES
-		? OVERSIZED_ERRORS_BODY
-		: undefined;
+	const stream = request.clone().body;
+	if (!stream) {
+		return;
+	}
+	const reader = stream.getReader();
+	let seenBytes = 0;
+	let chunk = await reader.read();
+	while (!chunk.done) {
+		seenBytes += chunk.value.byteLength;
+		if (seenBytes > ERRORS_BODY_MAX_BYTES) {
+			reader.cancel();
+			return OVERSIZED_ERRORS_BODY;
+		}
+		chunk = await reader.read();
+	}
+	return;
 }
 
 const app = new Elysia()
