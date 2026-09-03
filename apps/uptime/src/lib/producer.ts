@@ -1,3 +1,4 @@
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import { CompressionTypes, Kafka, type Producer } from "kafkajs";
 import { captureError } from "./tracing";
 
@@ -17,7 +18,7 @@ const connectProducer = (): Promise<Producer> => {
 		...(username && password
 			? { sasl: { mechanism: "scram-sha-256", username, password } }
 			: {}),
-		...(process.env.REDPANDA_SSL === "true" ? { ssl: true } : {}),
+		...(readBooleanEnv("REDPANDA_SSL") ? { ssl: true } : {}),
 	});
 
 	const producer = kafka.producer({
