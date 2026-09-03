@@ -1,8 +1,9 @@
-import { expect, test } from "@playwright/test";
 import {
 	MOCK_FLAG_DISABLED,
 	MOCK_FLAG_ENABLED,
+	expect,
 	getFlagRequestKeys,
+	test,
 	waitForSDK,
 } from "./test-utils";
 

@@ -1,8 +1,9 @@
-import { expect, test } from "@playwright/test";
 import {
 	MOCK_FLAG_DISABLED,
 	MOCK_FLAG_ENABLED,
+	expect,
 	getFlagRequestKeys,
+	test,
 	waitForSDK,
 } from "./test-utils";
 
@@ -20,6 +21,9 @@ const MANAGER_ITERATIONS = (() => {
 test.describe.configure({ mode: "parallel" });
 
 test.describe("Fuzz — BrowserFlagsManager (many async getFlag tries)", () => {
+	// One bulk fetch per unique key in the 50-key pool, regardless of iteration count.
+	test.use({ requestBudget: 60 });
+
 	test.beforeEach(async ({ page }) => {
 		await page.route(
 			"**/api.databuddy.cc/public/v1/flags/**",

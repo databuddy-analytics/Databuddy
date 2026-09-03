@@ -1,5 +1,8 @@
-import { expect, test } from "@playwright/test";
-import { waitForSDK } from "./test-utils";
+import {
+	expect,
+	test,
+	waitForSDK,
+} from "./test-utils";
 
 test.describe("BrowserFlagStorage", () => {
 	test.beforeEach(async ({ page }) => {
