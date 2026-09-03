@@ -621,26 +621,18 @@ interface ElysiaSet {
 async function enforcePublicFlagRateLimit(
 	request: Request,
 	clientId: string | undefined,
-	userId: string | undefined,
 	set: ElysiaSet
 ): Promise<boolean> {
 	const ip = getClientIp(request.headers);
-	const visitor = ip || userId || "";
 	const rl = await ratelimit(
-		`flags:eval:${clientId || "anon"}:${visitor || "shared"}`,
+		`flags:eval:${clientId || "anon"}:${ip ?? "shared"}`,
 		PUBLIC_EVAL_RATE_PER_MINUTE,
 		60
 	);
 
-	let rateLimitScope: "ip" | "shared" | "user" = "shared";
-	if (ip) {
-		rateLimitScope = "ip";
-	} else if (userId) {
-		rateLimitScope = "user";
-	}
 	mergeWideEvent({
 		flag_client_id: clientId || "",
-		flag_rate_limit_scope: rateLimitScope,
+		flag_rate_limit_scope: ip ? "ip" : "shared",
 		flag_rate_limited: !rl.success,
 	});
 
@@ -784,14 +776,7 @@ async function evaluateBulkFlags(
 	set: ElysiaSet,
 	request: Request
 ) {
-	if (
-		!(await enforcePublicFlagRateLimit(
-			request,
-			input.clientId,
-			input.userId,
-			set
-		))
-	) {
+	if (!(await enforcePublicFlagRateLimit(request, input.clientId, set))) {
 		return { flags: {}, count: 0, reason: "RATE_LIMITED" };
 	}
 
@@ -932,14 +917,7 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 	.get(
 		"/evaluate",
 		async function evaluateFlagEndpoint({ query, set, request }) {
-			if (
-				!(await enforcePublicFlagRateLimit(
-					request,
-					query.clientId,
-					query.userId,
-					set
-				))
-			) {
+			if (!(await enforcePublicFlagRateLimit(request, query.clientId, set))) {
 				return {
 					enabled: false,
 					value: false,
