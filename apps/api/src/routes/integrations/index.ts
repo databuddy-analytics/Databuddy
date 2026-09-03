@@ -1,3 +1,4 @@
+import { getClientIp } from "@databuddy/shared/utils/client-ip";
 import { auth } from "@databuddy/auth";
 import { and, db, eq } from "@databuddy/db";
 import { member, slackIntegrations } from "@databuddy/db/schema";
@@ -371,21 +372,12 @@ async function saveSlackInstallationOnce({
 	await invalidateSlackIntegrationCache(teamId);
 }
 
-function principalFromRequest(request: Request): string {
-	return (
-		request.headers.get("cf-connecting-ip") ||
-		request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-		request.headers.get("x-real-ip") ||
-		"unknown"
-	);
-}
-
 async function throttleSlackOAuth(
 	action: "install" | "callback",
 	request: Request,
 	max: number
 ): Promise<Response | null> {
-	const ip = principalFromRequest(request);
+	const ip = getClientIp(request.headers) ?? "unknown";
 	const rl = await ratelimit(`slack-oauth:${action}:${ip}`, max, 60);
 	if (rl.success) {
 		return null;

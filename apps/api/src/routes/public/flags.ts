@@ -28,7 +28,7 @@ import { getRateLimitHeaders, ratelimit } from "@databuddy/redis/rate-limit";
 import { invalidateFlagCache } from "@databuddy/rpc/flags";
 import { appendAuditEvent } from "@databuddy/services/audit";
 import { auditActions } from "@databuddy/shared/audit";
-import { getTrustedClientIp } from "@databuddy/shared/utils/trusted-client-ip";
+import { getClientIp } from "@databuddy/shared/utils/client-ip";
 import { randomUUIDv7 } from "bun";
 import { getRequestId } from "@/http/request-id";
 import { Elysia, t } from "elysia";
@@ -624,7 +624,7 @@ async function enforcePublicFlagRateLimit(
 	userId: string | undefined,
 	set: ElysiaSet
 ): Promise<boolean> {
-	const ip = getTrustedClientIp(request.headers);
+	const ip = getClientIp(request.headers);
 	const visitor = ip || userId || "";
 	const rl = await ratelimit(
 		`flags:eval:${clientId || "anon"}:${visitor || "shared"}`,
@@ -730,7 +730,7 @@ async function recordPublicFlagAudit(input: {
 			outcome: input.action,
 			reason: input.reason,
 			request: {
-				ip: getTrustedClientIp(input.request.headers),
+				ip: getClientIp(input.request.headers),
 				requestId: getRequestId(input.request),
 				userAgent: input.request.headers.get("user-agent") ?? undefined,
 			},

@@ -1,5 +1,5 @@
 import { cacheable } from "@databuddy/redis";
-import { getTrustedClientIp } from "@databuddy/shared/utils/trusted-client-ip";
+import { getClientIp } from "@databuddy/shared/utils/client-ip";
 import type { City } from "@maxmind/geoip2-node";
 import {
 	AddressNotFoundError,
@@ -201,5 +201,5 @@ export async function getGeo(
 }
 
 export function extractIp(request: Request): string {
-	return getTrustedClientIp(request.headers) ?? "unknown";
+	return getClientIp(request.headers) ?? "unknown";
 }

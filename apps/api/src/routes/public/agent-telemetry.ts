@@ -1,3 +1,4 @@
+import { getClientIp } from "@databuddy/shared/utils/client-ip";
 import { captureError, mergeWideEvent } from "@databuddy/ai/lib/tracing";
 import { db } from "@databuddy/db";
 import {
@@ -84,11 +85,7 @@ export const agentTelemetryRoute = new Elysia({
 			mergeWideEvent({ agent_telemetry_duration_ms: body.durationMs });
 		}
 
-		const clientIp =
-			request.headers.get("cf-connecting-ip") ||
-			request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-			request.headers.get("x-real-ip") ||
-			"unknown";
+		const clientIp = getClientIp(request.headers) ?? "unknown";
 		const ipRl = await ratelimit(`agent-telemetry:ip:${clientIp}`, 30, 3600);
 		if (!ipRl.success) {
 			mergeWideEvent({ agent_telemetry_rejected: "rate_limit_ip" });

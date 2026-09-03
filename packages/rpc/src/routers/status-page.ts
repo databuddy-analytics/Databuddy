@@ -1,3 +1,4 @@
+import { getClientIp } from "@databuddy/shared/utils/client-ip";
 import {
 	and,
 	db,
@@ -230,21 +231,13 @@ const listPublicStatusPageSitemapEntries = cacheable(
 	}
 );
 
-function clientIp(headers: Headers): string {
-	return (
-		headers.get("cf-connecting-ip") ??
-		headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-		"unknown"
-	);
-}
-
 async function enforcePublicRateLimit(
 	headers: Headers,
 	bucket: string,
 	limit: number
 ): Promise<void> {
 	const result = await ratelimit(
-		`status-page:${bucket}:${clientIp(headers)}`,
+		`status-page:${bucket}:${getClientIp(headers) ?? "unknown"}`,
 		limit,
 		60
 	);

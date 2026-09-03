@@ -1,3 +1,4 @@
+import { getClientIp } from "@databuddy/shared/utils/client-ip";
 import { auth } from "@databuddy/auth";
 import {
 	API_KEY_AUTH_CHALLENGE,
@@ -330,15 +331,6 @@ type ProjectAccessResult =
 			status?: number;
 	  };
 
-function clientIpForQuery(request: Request): string {
-	return (
-		request.headers.get("cf-connecting-ip") ||
-		request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-		request.headers.get("x-real-ip") ||
-		"unknown"
-	);
-}
-
 async function enforceQueryRateLimit(
 	ctx: AuthContext,
 	endpoint: "compile" | "execute",
@@ -354,7 +346,7 @@ async function enforceQueryRateLimit(
 		? `apikey:${ctx.apiKey.id}`
 		: ctx.user
 			? `user:${ctx.user.id}`
-			: `anon:${clientIpForQuery(request)}`;
+			: `anon:${getClientIp(request.headers) ?? "unknown"}`;
 	const effectiveLimit = ctx.isAuthenticated ? limit : Math.min(limit, 60);
 	const rl = await ratelimit(
 		`query:${endpoint}:${principal}`,

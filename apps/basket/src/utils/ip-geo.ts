@@ -1,5 +1,4 @@
 import { isIP } from "node:net";
-import { getTrustedClientIp } from "@databuddy/shared/utils/trusted-client-ip";
 import { captureError, mergeWideEvent, record } from "@lib/tracing";
 import type { City } from "@maxmind/geoip2-node";
 import {
@@ -229,7 +228,7 @@ export function extractIpFromRequest(
 }
 
 export function extractTrustedClientIp(request: Request): string | null {
-	return getTrustedClientIp(request.headers) ?? null;
+	return request.headers.get("cf-connecting-ip")?.trim() || null;
 }
 
 export async function getVisitorCountryForAutoMode(
