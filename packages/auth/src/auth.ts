@@ -24,7 +24,7 @@ import {
 	VerificationEmail,
 } from "@databuddy/email";
 import { config } from "@databuddy/env/app";
-import { readBooleanEnv } from "@databuddy/env/boolean";
+import { readBooleanEnv } from "@databuddy/env/app";
 import { SlackProvider } from "@databuddy/notifications";
 import {
 	getRedisCache,

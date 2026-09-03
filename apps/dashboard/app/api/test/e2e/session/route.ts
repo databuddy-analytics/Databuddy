@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { auth } from "@databuddy/auth";
 import { and, db, eq } from "@databuddy/db";
-import { readBooleanEnv } from "@databuddy/env/boolean";
+import { readBooleanEnv } from "@databuddy/env/app";
 import {
 	member,
 	organization,

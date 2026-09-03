@@ -1,6 +1,6 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readBooleanEnv } from "@databuddy/env/boolean";
+import { readBooleanEnv } from "@databuddy/env/app";
 import { createDatabuddyEvlogEnv } from "@databuddy/shared/evlog-redaction";
 import type { DrainContext, EnrichContext, WideEvent } from "evlog";
 import { log } from "evlog";

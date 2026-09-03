@@ -1,7 +1,7 @@
 import "@databuddy/test/env";
 
 import { flags, uptimeSchedules } from "@databuddy/db/schema";
-import { readBooleanEnv } from "@databuddy/env/boolean";
+import { readBooleanEnv } from "@databuddy/env/app";
 import {
 	closeUptimeQueue,
 	getUptimeQueue,

@@ -20,7 +20,7 @@ import {
 	TraitFilterError,
 } from "@databuddy/services/identity";
 import { validateTimezone } from "@databuddy/validation";
-import { readBooleanEnv } from "@databuddy/env/boolean";
+import { readBooleanEnv } from "@databuddy/env/app";
 import { getRateLimitHeaders, ratelimit } from "@databuddy/redis/rate-limit";
 import { getBillingOwner } from "@databuddy/rpc/billing";
 import { getOrganizationOwnerId } from "@databuddy/rpc/organization";
