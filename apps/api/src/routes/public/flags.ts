@@ -380,7 +380,7 @@ export function evaluateValueRule(value: unknown, rule: FlagRule): boolean {
 	}
 }
 
-function getContextValue(
+function ruleTargetValue(
 	rule: FlagRule,
 	context: UserContext
 ): string | undefined {
@@ -398,7 +398,7 @@ function getContextValue(
 
 export function evaluateRule(rule: FlagRule, context: UserContext): boolean {
 	if (rule.batch && rule.batchValues?.length) {
-		const contextValue = getContextValue(rule, context);
+		const contextValue = ruleTargetValue(rule, context);
 
 		if (rule.operator === "in" || rule.operator === "not_in") {
 			const isInList = contextValue
@@ -486,14 +486,12 @@ export function selectVariant(
 	return { value: lastVariant.value, variant: lastVariant.key };
 }
 
-function dependencyFailure(): FlagResult {
-	return {
-		enabled: false,
-		value: false,
-		payload: null,
-		reason: "DEPENDENCY_NOT_SATISFIED",
-	};
-}
+const DEPENDENCY_NOT_SATISFIED: FlagResult = Object.freeze({
+	enabled: false,
+	value: false,
+	payload: null,
+	reason: "DEPENDENCY_NOT_SATISFIED",
+});
 
 function dependenciesSatisfiedFromList(
 	flag: EvaluableFlag,
@@ -615,15 +613,6 @@ export function evaluateFlag(
 
 const PUBLIC_EVAL_RATE_PER_MINUTE = 600;
 
-function clientIpForFlags(request: Request): string {
-	return (
-		request.headers.get("cf-connecting-ip") ||
-		request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-		request.headers.get("x-real-ip") ||
-		""
-	);
-}
-
 interface ElysiaSet {
 	headers: Record<string, unknown>;
 	status?: unknown;
@@ -635,7 +624,7 @@ async function enforcePublicFlagRateLimit(
 	userId: string | undefined,
 	set: ElysiaSet
 ): Promise<boolean> {
-	const ip = clientIpForFlags(request);
+	const ip = getTrustedClientIp(request.headers);
 	const visitor = ip || userId || "";
 	const rl = await ratelimit(
 		`flags:eval:${clientId || "anon"}:${visitor || "shared"}`,
@@ -771,7 +760,7 @@ function invalidateMemCacheForClient(clientId: string) {
 	}
 }
 
-function resolveScope(
+function resolveFlagOwnership(
 	apiKey: ApiKeyRow,
 	clientId: string
 ): { organizationId: string | null; websiteId: string | null } {
@@ -891,7 +880,7 @@ async function evaluateBulkFlags(
 		for (const flag of flagsToEvaluate) {
 			results[flag.key] = dependenciesSatisfiedFromList(flag, allFlags)
 				? evaluateFlag(flag, context)
-				: dependencyFailure();
+				: DEPENDENCY_NOT_SATISFIED;
 		}
 
 		const count = Object.keys(results).length;
@@ -1017,7 +1006,7 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 					query.environment
 				))
 					? evaluateFlag(flag, context)
-					: dependencyFailure();
+					: DEPENDENCY_NOT_SATISFIED;
 				mergeWideEvent({
 					flag_found: true,
 					flag_type: flag.type,
@@ -1189,7 +1178,7 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 					return { error: "Forbidden" };
 				}
 
-				const scope = resolveScope(auth.apiKey, body.clientId);
+				const scope = resolveFlagOwnership(auth.apiKey, body.clientId);
 				if (!(scope.websiteId || scope.organizationId)) {
 					await recordPublicFlagAudit({
 						action: "denied",
