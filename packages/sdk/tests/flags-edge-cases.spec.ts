@@ -501,7 +501,7 @@ test.describe("BrowserFlagsManager — edge cases", () => {
 		await page.goto("/test");
 		await waitForSDK(page);
 
-		const observed = await page.evaluate(async () => {
+		await page.evaluate(async () => {
 			const SDK = window.__SDK__;
 			const manager = new SDK.BrowserFlagsManager({
 				config: { clientId: "backoff-recovery", autoFetch: false },
@@ -518,10 +518,8 @@ test.describe("BrowserFlagsManager — edge cases", () => {
 			await new Promise((resolve) => setTimeout(resolve, 5100));
 			await attempt();
 			manager.destroy();
-			return true;
 		});
 
-		expect(observed).toBe(true);
 		expect(requests).toBe(2);
 	});
 });

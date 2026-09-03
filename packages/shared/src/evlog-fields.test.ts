@@ -56,6 +56,13 @@ describe("getErrorLogFields", () => {
 		expect(fields.error_pg_detail).toContain("already exists");
 	});
 
+	test("reads a postgres error passed directly, not only a wrapped one", () => {
+		const fields = getErrorLogFields(postgresError());
+
+		expect(fields.error_pg_code).toBe("42703");
+		expect(fields.error_pg_hint).toContain("Perhaps you meant");
+	});
+
 	test("finds a postgres error nested several causes deep", () => {
 		const fields = getErrorLogFields(
 			new Error("outer", {

@@ -91,7 +91,7 @@ export function getErrorLogFields(error: unknown): ErrorLogFields {
 		fields.error_cause_message = error.cause.message;
 	}
 
-	const pg = findPostgresError(error.cause);
+	const pg = findPostgresError(error);
 	if (!pg) {
 		return fields;
 	}

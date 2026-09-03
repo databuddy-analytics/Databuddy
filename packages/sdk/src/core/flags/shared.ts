@@ -165,7 +165,7 @@ function parseRetryAfter(header: string | null): { retryAfterMs?: number } {
 	const ms = Number.isFinite(seconds)
 		? seconds * 1000
 		: Date.parse(header) - Date.now();
-	if (!Number.isFinite(ms) || ms <= 0) {
+	if (!Number.isFinite(ms) || ms < 0) {
 		return {};
 	}
 	return { retryAfterMs: Math.min(ms, MAX_RETRY_AFTER_MS) };
