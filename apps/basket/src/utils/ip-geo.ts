@@ -1,3 +1,4 @@
+import { readBooleanEnv } from "@databuddy/env/app";
 import { isIP } from "node:net";
 import { captureError, mergeWideEvent, record } from "@lib/tracing";
 import type { City } from "@maxmind/geoip2-node";
@@ -233,6 +234,13 @@ export function extractIpFromRequest(
 
 export function extractTrustedClientIp(request: Request): string | null {
 	return request.headers.get("cf-connecting-ip")?.trim() || null;
+}
+
+// Self-host deployments may answer directly, where a caller can set
+// cf-connecting-ip themselves, so an ip allowlist must refuse rather than
+// trust it.
+export function extractAllowlistClientIp(request: Request): string | null {
+	return readBooleanEnv("SELFHOST") ? null : extractTrustedClientIp(request);
 }
 
 export async function getVisitorCountryForAutoMode(
