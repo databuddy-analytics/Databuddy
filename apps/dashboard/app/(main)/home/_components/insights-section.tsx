@@ -39,7 +39,7 @@ function EmptyState() {
 function ErrorState({ onRetryAction }: { onRetryAction: () => void }) {
 	return (
 		<div className="flex items-center gap-3 px-5 py-5">
-			<div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-red-500/10">
+			<div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-destructive/10">
 				<WarningCircleIcon className="size-5 text-destructive" />
 			</div>
 			<div className="min-w-0 flex-1">

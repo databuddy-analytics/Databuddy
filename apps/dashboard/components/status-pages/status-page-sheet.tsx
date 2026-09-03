@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -141,6 +141,12 @@ export function StatusPageSheet({
 		resolver: zodResolver(statusPageFormSchema),
 		defaultValues: buildDefaults(statusPage),
 	});
+
+	useEffect(() => {
+		if (open) {
+			form.reset(buildDefaults(statusPage));
+		}
+	}, [open, statusPage, form]);
 
 	const uploadUrlMutation = useMutation({
 		...orpc.statusPage.createAssetUploadUrl.mutationOptions(),

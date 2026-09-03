@@ -246,6 +246,7 @@ export default function StatusPageDetailsPage() {
 												/>
 											</Button>
 											<Button
+												aria-label="Edit status page"
 												onClick={() => setIsEditOpen(true)}
 												size="sm"
 												variant="secondary"
@@ -254,6 +255,7 @@ export default function StatusPageDetailsPage() {
 												<span className="hidden sm:inline">Edit</span>
 											</Button>
 											<Button
+												aria-label="Transfer status page"
 												onClick={() => setIsTransferOpen(true)}
 												size="sm"
 												variant="secondary"

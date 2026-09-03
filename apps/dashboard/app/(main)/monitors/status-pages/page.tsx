@@ -132,6 +132,9 @@ function StatusPagesListPageContent() {
 
 	return (
 		<ErrorBoundary>
+			<TopBar.Title>
+				<h1 className="font-semibold text-sm">Status Pages</h1>
+			</TopBar.Title>
 			<TopBar.Actions>
 				<Button
 					aria-label="Refresh status pages"
