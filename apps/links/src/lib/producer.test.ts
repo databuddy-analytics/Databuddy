@@ -85,7 +85,6 @@ const event = {
 beforeEach(() => {
 	delete process.env.REDPANDA_BROKER;
 	delete process.env.REDPANDA_PASSWORD;
-	delete process.env.REDPANDA_SSL;
 	delete process.env.REDPANDA_USER;
 	setAttributes.mockClear();
 	captureError.mockClear();
@@ -144,7 +143,6 @@ describe("sendLinkVisit", () => {
 
 	test("uses native Kafka timeouts and enables TLS without SASL", async () => {
 		process.env.REDPANDA_BROKER = "redpanda.test:9092";
-		process.env.REDPANDA_SSL = "true";
 		nextProducer = makeProducer();
 		const { disconnectProducer, sendLinkVisit } = await loadProducer();
 

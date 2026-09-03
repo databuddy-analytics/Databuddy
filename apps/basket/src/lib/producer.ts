@@ -1019,7 +1019,7 @@ function initializeKafka(config: ProducerConfig): KafkaResources | null {
 					password: config.password,
 				},
 			}),
-		ssl: readBooleanEnv("REDPANDA_SSL"),
+		ssl: true,
 	});
 
 	return {

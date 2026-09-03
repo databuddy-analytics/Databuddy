@@ -1,4 +1,3 @@
-import { readBooleanEnv } from "@databuddy/env/boolean";
 import { db, shutdownPostgres, sql } from "@databuddy/db";
 import {
 	closeUptimeQueue,
@@ -268,7 +267,7 @@ const healthCheck = Effect.gen(function* () {
 								password: process.env.REDPANDA_PASSWORD,
 							},
 						}),
-					...(readBooleanEnv("REDPANDA_SSL") ? { ssl: true } : {}),
+					ssl: true,
 				});
 				const admin = kafka.admin();
 				try {

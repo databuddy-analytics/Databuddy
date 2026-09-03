@@ -1,4 +1,3 @@
-import { readBooleanEnv } from "@databuddy/env/boolean";
 import { clickHouse, TABLE_NAMES } from "@databuddy/db/clickhouse";
 import { CompressionTypes, Kafka, type Producer } from "kafkajs";
 import { captureError, setAttributes } from "./logging";
@@ -111,7 +110,7 @@ function connect(reportFailure = true): Promise<boolean> {
 				...(username && password
 					? { sasl: { mechanism: "scram-sha-256", username, password } }
 					: {}),
-				...(readBooleanEnv("REDPANDA_SSL") ? { ssl: true } : {}),
+				ssl: true,
 			});
 
 			candidate = kafka.producer({

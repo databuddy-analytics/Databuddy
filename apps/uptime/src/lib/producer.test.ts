@@ -30,7 +30,6 @@ const { disconnectProducer, sendUptimeEvent } = await import("./producer");
 const environmentKeys = [
 	"REDPANDA_BROKER",
 	"REDPANDA_PASSWORD",
-	"REDPANDA_SSL",
 	"REDPANDA_USER",
 ] as const;
 const originalEnvironment = new Map(
@@ -58,7 +57,6 @@ beforeEach(async () => {
 	captureError.mockClear();
 	process.env.REDPANDA_BROKER = "redpanda.test:9092";
 	delete process.env.REDPANDA_PASSWORD;
-	delete process.env.REDPANDA_SSL;
 	delete process.env.REDPANDA_USER;
 });
 
@@ -143,8 +141,7 @@ describe("sendUptimeEvent", () => {
 		expect(kafkaConfigs).toEqual([]);
 	});
 
-	test("uses TLS when configured without SASL credentials", async () => {
-		process.env.REDPANDA_SSL = "true";
+	test("always uses TLS, including without SASL credentials", async () => {
 		const producer = createProducer();
 		producers.push(producer);
 
