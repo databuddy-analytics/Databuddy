@@ -302,6 +302,9 @@ export abstract class BaseFlagsManager implements FlagsManager {
 					return;
 				}
 				this.lastError = null;
+				if (this.cache.get(cacheKey)?.promise !== promise) {
+					return;
+				}
 				this.setCache(cacheKey, resolved(result, ttl, stale));
 				this.emit();
 				this.onCacheUpdated();
@@ -393,7 +396,9 @@ export abstract class BaseFlagsManager implements FlagsManager {
 				return this.getFlag(key, user);
 			}
 			this.lastError = null;
-			this.setCache(cacheKey, resolved(result, ttl, stale));
+			if (this.cache.get(cacheKey)?.promise === promise) {
+				this.setCache(cacheKey, resolved(result, ttl, stale));
+			}
 			this.emit();
 			this.onCacheUpdated();
 			this.onFlagEvaluated(key, result);
@@ -410,7 +415,7 @@ export abstract class BaseFlagsManager implements FlagsManager {
 				return this.getFlag(key, user);
 			}
 			this.captureError(err);
-			if (!this.cache.get(cacheKey)?.result) {
+			if (this.cache.get(cacheKey)?.promise === promise) {
 				this.setCache(cacheKey, failed(promise, priorFailures + 1, err));
 			}
 			throw err;

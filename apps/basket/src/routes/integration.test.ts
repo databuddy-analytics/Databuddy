@@ -419,6 +419,28 @@ describe("POST /errors", () => {
 		expect(mockInsertErrorSpans).not.toHaveBeenCalled();
 	});
 
+	test("oversized body without content-length is still rejected", async () => {
+		const spans = Array.from({ length: 40 }, () => ({
+			timestamp: now,
+			path: "https://example.com/page",
+			message: "x".repeat(4000),
+		}));
+		const serialized = JSON.stringify(spans);
+		expect(serialized.length).toBeGreaterThan(ERRORS_BODY_MAX_BYTES);
+
+		const request = new Request("http://localhost/errors", {
+			method: "POST",
+			body: serialized,
+			headers: { "Content-Type": "application/json" },
+		});
+		request.headers.delete("content-length");
+
+		const res = await basketApp.handle(request);
+
+		expect(res.status).toBe(413);
+		expect(mockInsertErrorSpans).not.toHaveBeenCalled();
+	});
+
 	test("body under the size cap → 200", async () => {
 		const spans = [
 			{

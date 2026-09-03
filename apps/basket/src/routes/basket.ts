@@ -152,7 +152,7 @@ export const ERRORS_BODY_MAX_BYTES = 128 * 1024;
 
 const OVERSIZED_ERRORS_BODY = Symbol("basket.oversized_errors_body");
 
-function markOversizedErrorsBody({
+async function markOversizedErrorsBody({
 	path,
 	request,
 }: {
@@ -162,10 +162,19 @@ function markOversizedErrorsBody({
 	if (path !== "/errors" && path !== "/errors/") {
 		return;
 	}
-	if (Number(request.headers.get("content-length")) > ERRORS_BODY_MAX_BYTES) {
-		return OVERSIZED_ERRORS_BODY;
+	const declaredBytes = Number.parseInt(
+		request.headers.get("content-length") ?? "",
+		10
+	);
+	if (Number.isFinite(declaredBytes)) {
+		return declaredBytes > ERRORS_BODY_MAX_BYTES
+			? OVERSIZED_ERRORS_BODY
+			: undefined;
 	}
-	return;
+	const body = await request.clone().text();
+	return body.length > ERRORS_BODY_MAX_BYTES
+		? OVERSIZED_ERRORS_BODY
+		: undefined;
 }
 
 const app = new Elysia()
