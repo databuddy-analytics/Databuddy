@@ -173,7 +173,8 @@ jobs:
               anonymous_id: "ci-anonymous",
               session_id: "ci-session",
               source: "ci",
-              profile_id: ""
+              profile_id: "",
+              delivery_id: $canary_id
             }')
           LINK_CANARY_PAYLOAD=$(jq -cn \
             --arg id "$LINK_CANARY_ID" \
