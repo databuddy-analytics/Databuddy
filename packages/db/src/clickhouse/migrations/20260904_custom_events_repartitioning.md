@@ -550,11 +550,15 @@ that unused warehouse field.
    a second time. Verify the legacy table shape and a controlled canary before
    resuming writers.
 
-While the legacy table is active, the current reference DDL intentionally
-disagrees with the live schema. Do not treat `ch:verify` drift as a reason to
-drop either table. Resolve the incident with the verified backup or plan a new
-forward migration before returning to this release.
+Recovery leaves `analytics.custom_events` on the legacy schema and
+`analytics.custom_events_v2` on the final schema. Do not drop either table or
+expect `ch:verify` to pass while the legacy table is canonical.
 
-After the observation window and explicit approval, drop the backup table and
+To return to this release, freeze and drain writers again, verify the two
+tables still have equal row multisets, drop the views, exchange the tables
+forward, and recreate the views from section 5. This makes
+`analytics.custom_events` final-schema again and leaves
+`analytics.custom_events_v2` as the retained legacy table. After the
+observation window and explicit approval, drop that retained legacy table and
 run `bun run ch:verify`. The verifier should then report no custom-events
 drift.
