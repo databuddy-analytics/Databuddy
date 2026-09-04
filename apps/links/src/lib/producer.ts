@@ -16,6 +16,7 @@ const ASYNC_INSERT_BUSY_TIMEOUT_MS = 50;
 let producer: Producer | null = null;
 let connectPromise: Promise<boolean> | null = null;
 let nextReconnectAt = 0;
+let kafkaConnectFailed = false;
 let lastConnectErrorLogAt = 0;
 let lastFallbackErrorLogAt = 0;
 let shuttingDown = false;
@@ -131,6 +132,7 @@ function connect(reportFailure = true): Promise<boolean> {
 			}
 			producer = candidate;
 			nextReconnectAt = 0;
+			kafkaConnectFailed = false;
 			setAttributes({ kafka_connected: true });
 			return true;
 		} catch (error) {
@@ -149,6 +151,7 @@ function connect(reportFailure = true): Promise<boolean> {
 			producer = null;
 			nextReconnectAt = Date.now() + reconnectCooldownMs;
 			setAttributes({ kafka_connected: false });
+			kafkaConnectFailed = true;
 			return false;
 		} finally {
 			connectPromise = null;
@@ -181,12 +184,19 @@ export function getProducerHealthState(): ProducerHealthState {
 	return "idle";
 }
 
+export function didKafkaConnectFail(): boolean {
+	return kafkaConnectFailed;
+}
+
 export async function warmProducerConnection(): Promise<void> {
 	await connect();
 }
 
 export async function refreshProducerConnection(): Promise<void> {
-	await connect(false);
+	const connected = await connect(false);
+	if (!connected) {
+		throw new Error("Kafka health probe failed");
+	}
 }
 
 async function persistLinkVisitDirectly(
