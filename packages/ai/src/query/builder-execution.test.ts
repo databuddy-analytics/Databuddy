@@ -20,6 +20,28 @@ import type {
 
 const TEST_CLICKHOUSE_URL = "http://default:@127.0.0.1:8123";
 
+type ProfileSessionEventSource =
+	| "analytics"
+	| "custom"
+	| "error"
+	| "outgoing_link";
+
+type ProfileSessionEventTuple = [
+	id: string,
+	time: string,
+	eventName: string,
+	path: string,
+	properties: string | null,
+	source: ProfileSessionEventSource,
+];
+
+type ProfileSessionWebVitalTuple = [
+	metricName: string,
+	metricValue: number,
+	time: string,
+	path: string,
+];
+
 // Bun's fetch rejects userinfo in URLs, so the probe goes credential-free;
 // the ClickHouse client parses TEST_CLICKHOUSE_URL itself and is unaffected.
 const isClickHouseUp = await fetch("http://127.0.0.1:8123/?query=SELECT+1", {
@@ -573,17 +595,18 @@ describeIntegration("profile query identity against ClickHouse", () => {
 			websiteId: customAliasWebsiteId,
 		}));
 		const rows = await chQuery<{
-			events: unknown[];
+			events: ProfileSessionEventTuple[];
 			session_id: string;
-			web_vitals: unknown[];
+			web_vitals: ProfileSessionWebVitalTuple[];
 		}>(query.sql, query.params);
 
 		expect(rows).toHaveLength(1);
 		expect(rows[0]?.session_id).toBe(customAliasSessionId);
 		expect(
-			rows[0]?.events.map((event) =>
-				Array.isArray(event) ? [event[2], event[5]] : event
-			)
+			rows[0]?.events.map(([, , eventName, , , source]) => [
+				eventName,
+				source,
+			])
 		).toEqual(
 			expect.arrayContaining([
 				["identify_alias", "custom"],
@@ -593,9 +616,7 @@ describeIntegration("profile query identity against ClickHouse", () => {
 		);
 		expect(rows[0]?.web_vitals).toHaveLength(1);
 		const [vital] = rows[0]?.web_vitals ?? [];
-		expect(Array.isArray(vital) ? vital.slice(0, 2) : undefined).toEqual([
-			"LCP",
-			1234,
-		]);
+		expect(vital?.[0]).toBe("LCP");
+		expect(vital?.[1]).toBe(1234);
 	});
 });
