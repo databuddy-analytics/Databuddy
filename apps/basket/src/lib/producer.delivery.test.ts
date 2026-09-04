@@ -174,13 +174,13 @@ describe("producer delivery guarantees", () => {
 		);
 	});
 
-	test("omits custom-event delivery identities from direct fallback rows", async () => {
+	test("strips legacy custom-event delivery identities from direct fallback rows", async () => {
 		const insert = vi.fn(() => Promise.resolve());
 		const effects = await makeEffects(insert);
 		const customEvent = {
-			client_id: "ws_1",
 			delivery_id: "stable-delivery-id",
 			event_name: "checkout_completed",
+			owner_id: "org_1",
 			timestamp: 1,
 		};
 
@@ -204,8 +204,8 @@ describe("producer delivery guarantees", () => {
 				table: "analytics.custom_events",
 				values: [
 					{
-						client_id: "ws_1",
 						event_name: "checkout_completed",
+						owner_id: "org_1",
 						timestamp: 1,
 					},
 				],
@@ -221,7 +221,7 @@ describe("producer delivery guarantees", () => {
 		expect(tokenAt(1)).toBe(tokenAt(0));
 	});
 
-	test("partitions span retries by their persisted delivery identity", async () => {
+	test("partitions custom-event retries by their side-channel delivery identity", async () => {
 		const insert = vi.fn(() => Promise.resolve());
 		const kafka = {
 			connect: vi.fn(() => Promise.resolve()),
@@ -236,14 +236,18 @@ describe("producer delivery guarantees", () => {
 			},
 			kafka
 		);
-		const span = {
-			client_id: "ws_1",
-			delivery_id: "stable-delivery-id",
+		const customEvent = {
+			owner_id: "org_1",
+			event_name: "checkout_completed",
 			timestamp: 1,
 		};
 
 		await Effect.runPromise(
-			effects.sendMany("analytics-events", [span], ["stable-delivery-id"])
+			effects.sendMany(
+				"analytics-custom-events",
+				[customEvent],
+				["stable-delivery-id"]
+			)
 		);
 
 		expect(kafka.send).toHaveBeenCalledWith(
@@ -251,10 +255,10 @@ describe("producer delivery guarantees", () => {
 				messages: [
 					{
 						key: "stable-delivery-id",
-						value: JSON.stringify(span),
+						value: JSON.stringify(customEvent),
 					},
 				],
-				topic: "analytics-events",
+				topic: "analytics-custom-events",
 			})
 		);
 		expect(insert).not.toHaveBeenCalled();

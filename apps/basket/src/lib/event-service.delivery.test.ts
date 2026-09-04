@@ -418,7 +418,7 @@ describe("event-service producer handoff", () => {
 		expect(expectedDeliveryId).toMatch(/^[\da-f]{64}$/);
 	});
 
-	test("persists stable delivery identities on vital and custom span rows", async () => {
+	test("persists stable delivery identities on vital span rows", async () => {
 		const vital = {
 			eventId: "evt_vital_1",
 			metricName: "LCP" as const,
@@ -444,7 +444,9 @@ describe("event-service producer handoff", () => {
 			[vitalDeliveryId],
 			{ allowDirectFallback: true }
 		);
+	});
 
+	test("keeps custom event delivery identities out of payload rows", async () => {
 		const customEvent = {
 			event_id: "evt_custom_1",
 			event_name: "checkout_completed",
@@ -464,13 +466,16 @@ describe("event-service producer handoff", () => {
 			"analytics-custom-events",
 			[
 				expect.objectContaining({
-					delivery_id: customDeliveryId,
 					event_name: "checkout_completed",
 				}),
 			],
 			[customDeliveryId],
 			{ allowDirectFallback: true }
 		);
+		const customPayload = mockSendBatch.mock.calls[
+			mockSendBatch.mock.calls.length - 1
+		]?.[1] as Array<Record<string, unknown>>;
+		expect(customPayload[0]).not.toHaveProperty("delivery_id");
 	});
 
 	test("prefers a source event id over generated span fields", () => {

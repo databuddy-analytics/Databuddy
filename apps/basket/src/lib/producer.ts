@@ -843,7 +843,7 @@ function makeProducerEffects(
 		}
 		return sendViaKafka(
 			topic,
-			events.map((event) => {
+			events.map((event, index) => {
 				const identity = event as {
 					client_id?: string;
 					delivery_id?: string;
@@ -851,7 +851,11 @@ function makeProducerEffects(
 				};
 				return {
 					value: stringifyEvent(event),
-					key: identity.delivery_id || identity.client_id || identity.event_id,
+					key:
+						deliveryIds?.[index] ||
+						identity.delivery_id ||
+						identity.client_id ||
+						identity.event_id,
 				};
 			}),
 			events,

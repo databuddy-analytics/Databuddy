@@ -26,13 +26,14 @@ after `delivery_id` is removed.
    The final reference DDL is
    `../schema/analytics/core/custom_events.sql`.
 3. Confirm every custom-event writer is known. Before the exchange, roll out
-   the Basket build that omits `delivery_id` from direct custom-event fallback
-   inserts to every writer; it is compatible with the legacy table too. Basket
-   is the normal producer, but every direct ClickHouse fallback must be paused
-   during the migration.
+   the Basket build that omits `delivery_id` from every serialized custom-event
+   payload while retaining the stable identifier internally for retry
+   reservations, Kafka keying, and direct-fallback deduplication. It is
+   compatible with the legacy table too. Basket is the normal producer, but
+   every direct ClickHouse fallback must be paused during the migration.
 4. Confirm Vector's custom-event sink keeps `skip_unknown_fields: true`.
-   Basket retains `delivery_id` in Kafka as its delivery key, while its direct
-   ClickHouse fallback omits that field before inserting into the table.
+   It accepts any pre-rollout Kafka records or old-writer payloads that still
+   carry the removed warehouse field while they drain.
 5. Inventory dependent materialized views. This table has exactly these two
    identity-map insert triggers:
 
