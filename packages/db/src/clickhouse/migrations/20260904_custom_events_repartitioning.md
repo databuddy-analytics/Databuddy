@@ -25,19 +25,14 @@ after `delivery_id` is removed.
    source shape above and that `analytics.custom_events_v2` does not exist.
    The final reference DDL is
    `../schema/analytics/core/custom_events.sql`.
-3. Confirm every custom-event writer is known. Basket is the normal producer,
-   but direct ClickHouse fallbacks must be paused too.
-4. Confirm Vector's custom-event sink keeps `skip_unknown_fields: true` and
-   that the direct writer setting is enabled:
-
-   ```sql
-   SELECT name, value
-   FROM system.settings
-   WHERE name = 'input_format_skip_unknown_fields';
-   ```
-
-   The result must be `1`: Basket continues to use `delivery_id` as a Kafka
-   key even though the target table no longer stores it.
+3. Confirm every custom-event writer is known. Before the exchange, roll out
+   the Basket build that omits `delivery_id` from direct custom-event fallback
+   inserts to every writer; it is compatible with the legacy table too. Basket
+   is the normal producer, but every direct ClickHouse fallback must be paused
+   during the migration.
+4. Confirm Vector's custom-event sink keeps `skip_unknown_fields: true`.
+   Basket retains `delivery_id` in Kafka as its delivery key, while its direct
+   ClickHouse fallback omits that field before inserting into the table.
 5. Inventory dependent materialized views. This table has exactly these two
    identity-map insert triggers:
 
@@ -355,8 +350,209 @@ agreed observation window.
 
 An immediate rollback is safe only before writers resume: drop the two views,
 reverse the `EXCHANGE TABLES`, and recreate the old views. After new writes
-begin, do not blindly exchange back because new rows no longer carry
-`delivery_id`; use a separate data-preserving recovery plan instead.
+begin, do not blindly exchange back because new rows are absent from the
+retained legacy table.
+
+## 7. Data-preserving recovery after writers resume
+
+This is an incident-recovery procedure, not a normal rollback. It scans both
+tables to recover every analytical row written after cutover, including late
+client timestamps and duplicate rows. It cannot recover the deliberately
+discarded `delivery_id` values; the legacy table assigns its empty default for
+that unused warehouse field.
+
+1. Freeze and drain writers exactly as in step 2. Keep the current identity-map
+   views attached while draining so they consume every final post-cutover row.
+2. On one designated replica per shard, first prove that the retained legacy
+   table contains no row copy that is absent from the current table. A nonzero
+   result means the tables did not share the expected frozen starting point;
+   stop and recover from the verified backup instead.
+
+   ```sql
+   SELECT count() AS legacy_only_row_groups
+   FROM
+   (
+       SELECT
+           owner_id,
+           website_id,
+           timestamp,
+           event_name,
+           namespace,
+           path,
+           properties,
+           anonymous_id,
+           session_id,
+           source,
+           profile_id
+       FROM
+       (
+           SELECT
+               toString(owner_id) AS owner_id,
+               CAST(website_id, 'Nullable(String)') AS website_id,
+               timestamp,
+               event_name,
+               namespace,
+               path,
+               properties,
+               anonymous_id,
+               session_id,
+               source,
+               profile_id,
+               toInt8(1) AS direction
+           FROM analytics.custom_events
+
+           UNION ALL
+
+           SELECT
+               toString(owner_id) AS owner_id,
+               CAST(website_id, 'Nullable(String)') AS website_id,
+               timestamp,
+               event_name,
+               namespace,
+               path,
+               properties,
+               anonymous_id,
+               session_id,
+               source,
+               profile_id,
+               toInt8(-1) AS direction
+           FROM analytics.custom_events_v2
+       )
+       GROUP BY
+           owner_id,
+           website_id,
+           timestamp,
+           event_name,
+           namespace,
+           path,
+           properties,
+           anonymous_id,
+           session_id,
+           source,
+           profile_id
+       HAVING sum(direction) < 0
+   );
+   ```
+
+   The result must be zero on every shard.
+3. Still on one designated replica per shard, copy the complete row-multiset
+   delta into the legacy table. The explicit column list intentionally lets its
+   `delivery_id` default apply. Set and record one unique
+   `insert_deduplication_token` per shard in the same session before running
+   the insert. Do not run this with `ON CLUSTER`.
+
+   ```sql
+   SET insert_deduplication_token = 'custom-events-recovery-<incident>-<shard>';
+
+   INSERT INTO analytics.custom_events_v2
+   (
+       owner_id,
+       website_id,
+       timestamp,
+       event_name,
+       namespace,
+       path,
+       properties,
+       anonymous_id,
+       session_id,
+       source,
+       profile_id
+   )
+   SELECT
+       owner_id,
+       website_id,
+       timestamp,
+       event_name,
+       namespace,
+       path,
+       properties,
+       anonymous_id,
+       session_id,
+       source,
+       profile_id
+   FROM
+   (
+       SELECT
+           owner_id,
+           website_id,
+           timestamp,
+           event_name,
+           namespace,
+           path,
+           properties,
+           anonymous_id,
+           session_id,
+           source,
+           profile_id,
+           sum(direction) AS extra_rows
+       FROM
+       (
+           SELECT
+               toString(owner_id) AS owner_id,
+               CAST(website_id, 'Nullable(String)') AS website_id,
+               timestamp,
+               event_name,
+               namespace,
+               path,
+               properties,
+               anonymous_id,
+               session_id,
+               source,
+               profile_id,
+               toInt8(1) AS direction
+           FROM analytics.custom_events
+
+           UNION ALL
+
+           SELECT
+               toString(owner_id) AS owner_id,
+               CAST(website_id, 'Nullable(String)') AS website_id,
+               timestamp,
+               event_name,
+               namespace,
+               path,
+               properties,
+               anonymous_id,
+               session_id,
+               source,
+               profile_id,
+               toInt8(-1) AS direction
+           FROM analytics.custom_events_v2
+       )
+       GROUP BY
+           owner_id,
+           website_id,
+           timestamp,
+           event_name,
+           namespace,
+           path,
+           properties,
+           anonymous_id,
+           session_id,
+           source,
+           profile_id
+       HAVING sum(direction) > 0
+   )
+   ARRAY JOIN range(toUInt64(extra_rows));
+   ```
+
+4. Wait for the backup table's replica queues to drain, then re-run the
+   multiset comparison from step 2 in both directions. Every shard must report
+   zero mismatched row groups. If the insert acknowledgement was uncertain,
+   recompute this delta before doing anything else; repeat the exact insert only
+   when the delta is unchanged, using the same recorded token. The active views
+   source `analytics.custom_events`, not the backup table, so this copy does not
+   replay identity pairs.
+5. Drop the two views, reverse the `EXCHANGE TABLES`, and run the two
+   `CREATE MATERIALIZED VIEW` statements from section 5 again. The pair tables
+   already contain the drained post-cutover identities, so do not backfill them
+   a second time. Verify the legacy table shape and a controlled canary before
+   resuming writers.
+
+While the legacy table is active, the current reference DDL intentionally
+disagrees with the live schema. Do not treat `ch:verify` drift as a reason to
+drop either table. Resolve the incident with the verified backup or plan a new
+forward migration before returning to this release.
 
 After the observation window and explicit approval, drop the backup table and
 run `bun run ch:verify`. The verifier should then report no custom-events

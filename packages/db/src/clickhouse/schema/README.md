@@ -39,6 +39,11 @@ need ClickHouse Keeper enabled (a one-node Keeper is fine).
 > delivery design is retained here and in `../migrations/` for the planned
 > cutover. The `final` read setting is a no-op on engines without FINAL
 > support, so readers are compatible with both states.
+>
+> `analytics.custom_events` is excluded from that planned cutover. It remains a
+> plain `ReplicatedMergeTree` without warehouse `delivery_id`; use the
+> [custom-events repartitioning runbook](../migrations/20260904_custom_events_repartitioning.md)
+> rather than the older delivery-deduplication guide for that table.
 
 The Basket/Vector delivery tables use `ReplicatedReplacingMergeTree` with a
 stable row identity and an `ingested_at` version. Background merges reclaim
@@ -60,8 +65,8 @@ it is required for unbounded validation and for joins whose logical versions
 can span partitions, but it is not a substitute for the producer timestamp
 invariant on partition-pruned reads.
 
-Custom events, error spans, and web-vital spans may contain historical rows
-created before `delivery_id` existed. Their materialized `delivery_key` gives
+Error spans and web-vital spans may contain historical rows created before
+`delivery_id` existed. Their materialized `delivery_key` gives
 every empty legacy ID a unique key while mapping every non-empty delivery ID to
 a stable key. This prevents a migration from collapsing unrelated legacy rows.
 

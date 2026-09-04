@@ -5,6 +5,11 @@ one-shot SQL file: creating the new replicated tables is safe while the final
 name exchange requires a short, explicit ingestion pause. Do not run this
 against production as part of `clickhouse:init`.
 
+> **Custom events are excluded.** Their delivery-ID cutover was superseded by
+> the [2026-09-04 custom-events repartitioning](./20260904_custom_events_repartitioning.md).
+> Do not create a `custom_events_delivery_v2` table, mirror, backfill, validate,
+> or exchange custom events from this guide.
+
 The migration covers every Basket/Vector table with a stable row identity:
 
 | Table | Logical identity |
@@ -12,12 +17,11 @@ The migration covers every Basket/Vector table with a stable row identity:
 | `analytics.events` | `(client_id, id)` |
 | `analytics.link_visits` | `(link_id, id)` |
 | `analytics.outgoing_links` | `(client_id, id)` |
-| `analytics.custom_events` | `(owner_id, delivery_id)` |
 | `analytics.error_spans` | `(client_id, delivery_id)` |
 | `analytics.web_vitals_spans` | `(client_id, delivery_id)` |
 | `analytics.daily_pageviews` | `(client_id, id)` derived from `events.id` |
 
-The three `delivery_id` tables use a materialized `delivery_key`. A non-empty
+The two remaining `delivery_id` tables use a materialized `delivery_key`. A non-empty
 delivery ID maps to a stable key. An empty legacy ID maps to a fresh UUID, so
 historical rows without an identity are preserved instead of being collapsed
 together. `ingested_at` is the `ReplacingMergeTree` version.
@@ -56,8 +60,8 @@ when the base event is later replaced.
    lag to reach zero, so pre-deployment messages without delivery IDs cannot
    race the shadow backfill. Publish controlled retries for every source topic
    and confirm the mapped analytics timestamp is identical across attempts. In
-   particular, compare `time` for `events` and `timestamp` for the other five
-   source tables. Confirm newly inserted custom/error/vital rows have non-empty
+   particular, compare `time` for `events` and `timestamp` for the other four
+   source tables. Confirm newly inserted error/vital rows have non-empty
    delivery IDs. Old empty IDs already stored in ClickHouse are allowed. Stop
    if one stable identity can receive two mapped analytics timestamps.
 5. Confirm `analytics` uses the `Atomic` or `Replicated` database engine and
@@ -85,7 +89,7 @@ partitions and produce incorrect partition-pruned time-window reads.
 
 ## 1. Create shadow tables
 
-On every replica, create these seven tables from the corresponding reference DDL
+On every replica, create these six tables from the corresponding reference DDL
 in `../schema`. Change only the table name; keep the `_delivery_v2` Keeper path
 already present in each reference definition.
 
@@ -93,7 +97,6 @@ already present in each reference definition.
 | --- | --- |
 | `analytics/core/events.sql` | `analytics.events_delivery_v2` |
 | `analytics/links/link_visits.sql` | `analytics.link_visits_delivery_v2` |
-| `analytics/core/custom_events.sql` | `analytics.custom_events_delivery_v2` |
 | `analytics/errors/error_spans.sql` | `analytics.error_spans_delivery_v2` |
 | `analytics/web-vitals/web_vitals_spans.sql` | `analytics.web_vitals_spans_delivery_v2` |
 | `analytics/links/outgoing_links.sql` | `analytics.outgoing_links_delivery_v2` |
@@ -131,10 +134,6 @@ AS SELECT *, now64(6) AS ingested_at FROM analytics.outgoing_links;
 CREATE MATERIALIZED VIEW analytics.link_visits_delivery_mirror_mv
 TO analytics.link_visits_delivery_v2
 AS SELECT *, now64(6) AS ingested_at FROM analytics.link_visits;
-
-CREATE MATERIALIZED VIEW analytics.custom_events_delivery_mirror_mv
-TO analytics.custom_events_delivery_v2
-AS SELECT *, now64(6) AS ingested_at FROM analytics.custom_events;
 
 CREATE MATERIALIZED VIEW analytics.error_spans_delivery_mirror_mv
 TO analytics.error_spans_delivery_v2
@@ -221,31 +220,11 @@ FROM
 ) AS canonical;
 ```
 
-For the three delivery-ID tables, canonicalize only non-empty identities.
+For the two delivery-ID tables, canonicalize only non-empty identities.
 Insert empty legacy IDs separately so the target materializes a fresh unique
 `delivery_key` for every legacy row.
 
 ```sql
-INSERT INTO analytics.custom_events_delivery_v2
-SELECT
-    canonical.*,
-    toDateTime64({backfill_version:String}, 6, 'UTC') AS ingested_at
-FROM
-(
-    SELECT *
-    FROM analytics.custom_events
-    WHERE notEmpty(delivery_id)
-    ORDER BY owner_id, delivery_id, timestamp, _part, _part_offset
-    LIMIT 1 BY owner_id, delivery_id
-) AS canonical;
-
-INSERT INTO analytics.custom_events_delivery_v2
-SELECT
-    *,
-    toDateTime64({backfill_version:String}, 6, 'UTC') AS ingested_at
-FROM analytics.custom_events
-WHERE empty(delivery_id);
-
 INSERT INTO analytics.error_spans_delivery_v2
 SELECT
     canonical.*,
@@ -311,12 +290,6 @@ FROM analytics.events;
 
 SELECT
     countIf(empty(delivery_id))
-        + uniqExactIf((owner_id, delivery_id), notEmpty(delivery_id)) AS expected,
-    (SELECT count() FROM analytics.custom_events_delivery_v2 FINAL) AS actual
-FROM analytics.custom_events;
-
-SELECT
-    countIf(empty(delivery_id))
         + uniqExactIf((client_id, delivery_id), notEmpty(delivery_id)) AS expected,
     (SELECT count() FROM analytics.error_spans_delivery_v2 FINAL) AS actual
 FROM analytics.error_spans;
@@ -375,9 +348,8 @@ HAVING mapped_times > 1;
 ```
 
 Repeat that shape for every identity in the table at the top of this runbook.
-For custom events, error spans, and web vitals, restrict the identity-set and
-duplicate checks to `notEmpty(delivery_id)` and compare empty-ID row counts
-separately.
+For error spans and web vitals, restrict the identity-set and duplicate checks
+to `notEmpty(delivery_id)` and compare empty-ID row counts separately.
 
 While ingestion is live these checks are advisory because source and shadow
 snapshots are not atomic. Investigate any persistent mismatch before scheduling
@@ -398,17 +370,16 @@ authorize the exchange.
 ## 5. Pause producers, drain Kafka, and freeze the sources
 
 1. Pause Basket, Links, and every other producer of `analytics-events`,
-   `analytics-custom-events`, `analytics-error-spans`,
-   `analytics-vitals-spans`, `analytics-outgoing-links`, and
-   `analytics-link-visits`. Confirm there are no direct ClickHouse writers
-   outside this list before continuing.
+   `analytics-error-spans`, `analytics-vitals-spans`,
+   `analytics-outgoing-links`, and `analytics-link-visits`. Confirm there are
+   no direct ClickHouse writers outside this list before continuing.
 2. Leave Vector running until consumer lag is zero for every partition of all
-   six topics. Zero producer traffic is not sufficient; the consumer queues
+   five topics. Zero producer traffic is not sufficient; the consumer queues
    must be empty.
 3. Stop Vector only after lag is zero. Verify the source-table row counts and
    maximum part modification times remain unchanged across two checks.
-4. Wait for all seven source and shadow replica queues to reach zero on every
-   replica. Do not drop the mirrors before this point.
+4. Wait for the source and shadow replica queues for all six table pairs to
+   reach zero on every replica. Do not drop the mirrors before this point.
 5. Drop the old aggregate view and all transient mirror views on the cluster.
    The source and shadow tables are now frozen.
 
@@ -417,7 +388,6 @@ DROP TABLE analytics.daily_pageviews_mv ON CLUSTER databuddy_cluster SYNC;
 DROP TABLE analytics.events_delivery_mirror_mv ON CLUSTER databuddy_cluster SYNC;
 DROP TABLE analytics.link_visits_delivery_mirror_mv ON CLUSTER databuddy_cluster SYNC;
 DROP TABLE analytics.outgoing_links_delivery_mirror_mv ON CLUSTER databuddy_cluster SYNC;
-DROP TABLE analytics.custom_events_delivery_mirror_mv ON CLUSTER databuddy_cluster SYNC;
 DROP TABLE analytics.error_spans_delivery_mirror_mv ON CLUSTER databuddy_cluster SYNC;
 DROP TABLE analytics.web_vitals_spans_delivery_mirror_mv ON CLUSTER databuddy_cluster SYNC;
 DROP TABLE analytics.daily_pageviews_delivery_mirror_mv ON CLUSTER databuddy_cluster SYNC;
@@ -448,7 +418,6 @@ keeps the old table under the `_delivery_v2` name for rollback.
 EXCHANGE TABLES analytics.events AND analytics.events_delivery_v2 ON CLUSTER databuddy_cluster;
 EXCHANGE TABLES analytics.link_visits AND analytics.link_visits_delivery_v2 ON CLUSTER databuddy_cluster;
 EXCHANGE TABLES analytics.outgoing_links AND analytics.outgoing_links_delivery_v2 ON CLUSTER databuddy_cluster;
-EXCHANGE TABLES analytics.custom_events AND analytics.custom_events_delivery_v2 ON CLUSTER databuddy_cluster;
 EXCHANGE TABLES analytics.error_spans AND analytics.error_spans_delivery_v2 ON CLUSTER databuddy_cluster;
 EXCHANGE TABLES analytics.web_vitals_spans AND analytics.web_vitals_spans_delivery_v2 ON CLUSTER databuddy_cluster;
 EXCHANGE TABLES analytics.daily_pageviews AND analytics.daily_pageviews_delivery_v2 ON CLUSTER databuddy_cluster;
@@ -463,13 +432,13 @@ producers.
 
 The `_delivery_v2` names now contain the old tables. Keep them only for the
 agreed rollback window. They will appear as expected temporary extras in
-`ch:verify`. After the observation window, drop those seven backups on the
+`ch:verify`. After the observation window, drop those six backups on the
 cluster and run `bun run ch:verify`; all managed objects must then match.
 
 ## Rollback
 
 Pause and drain ingestion again, drop the new `daily_pageviews_mv`, and run the
-same seven `EXCHANGE TABLES` statements to restore the old tables. Recreate the
+same six `EXCHANGE TABLES` statements to restore the old tables. Recreate the
 old aggregate view definition (`countIf(event_name = 'screen_view') GROUP BY
 client_id, date`) before resuming. Do not drop either side until the rollback
 window and backup verification are complete.
