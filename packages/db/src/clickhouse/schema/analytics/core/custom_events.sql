@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS analytics.custom_events
 	INDEX idx_source source TYPE bloom_filter(0.01) GRANULARITY 1,
 	INDEX idx_profile_id profile_id TYPE bloom_filter(0.01) GRANULARITY 1
 )
-ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/analytics_custom_events', '{replica}')
+ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/analytics_custom_events_v2_nodeliv', '{replica}')
 PARTITION BY toYYYYMM(timestamp)
 ORDER BY (owner_id, event_name, timestamp)
 SETTINGS index_granularity = 8192
