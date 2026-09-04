@@ -538,12 +538,12 @@ that unused warehouse field.
    ```
 
 4. Wait for the backup table's replica queues to drain, then re-run the
-   multiset comparison from step 2 in both directions. Every shard must report
-   zero mismatched row groups. If the insert acknowledgement was uncertain,
-   recompute this delta before doing anything else; repeat the exact insert only
-   when the delta is unchanged, using the same recorded token. The active views
-   source `analytics.custom_events`, not the backup table, so this copy does not
-   replay identity pairs.
+   complete row-multiset comparison from section 4 in both directions. Every
+   shard must report zero mismatched row groups. If the insert acknowledgement
+   was uncertain, recompute this delta before doing anything else; repeat the
+   exact insert only when the delta is unchanged, using the same recorded token.
+   The active views source `analytics.custom_events`, not the backup table, so
+   this copy does not replay identity pairs.
 5. Drop the two views, reverse the `EXCHANGE TABLES`, and run the two
    `CREATE MATERIALIZED VIEW` statements from section 5 again. The pair tables
    already contain the drained post-cutover identities, so do not backfill them
@@ -554,11 +554,118 @@ Recovery leaves `analytics.custom_events` on the legacy schema and
 `analytics.custom_events_v2` on the final schema. Do not drop either table or
 expect `ch:verify` to pass while the legacy table is canonical.
 
-To return to this release, freeze and drain writers again, verify the two
-tables still have equal row multisets, drop the views, exchange the tables
-forward, and recreate the views from section 5. This makes
-`analytics.custom_events` final-schema again and leaves
-`analytics.custom_events_v2` as the retained legacy table. After the
+To return to this release after writers have resumed on the legacy table,
+freeze and drain writers again. The legacy canonical table may now contain
+new rows that the final-schema table does not. On one designated replica per
+shard, copy that complete row-multiset delta into
+`analytics.custom_events_v2`, using a new token for this return migration:
+
+```sql
+SET insert_deduplication_token = 'custom-events-return-<incident>-<shard>';
+
+INSERT INTO analytics.custom_events_v2
+(
+    owner_id,
+    website_id,
+    timestamp,
+    event_name,
+    namespace,
+    path,
+    properties,
+    anonymous_id,
+    session_id,
+    source,
+    profile_id
+)
+SELECT
+    owner_id,
+    website_id,
+    timestamp,
+    event_name,
+    namespace,
+    path,
+    properties,
+    anonymous_id,
+    session_id,
+    source,
+    profile_id
+FROM
+(
+    SELECT
+        owner_id,
+        website_id,
+        timestamp,
+        event_name,
+        namespace,
+        path,
+        properties,
+        anonymous_id,
+        session_id,
+        source,
+        profile_id,
+        sum(direction) AS extra_rows
+    FROM
+    (
+        SELECT
+            toString(owner_id) AS owner_id,
+            CAST(website_id, 'Nullable(String)') AS website_id,
+            timestamp,
+            event_name,
+            namespace,
+            path,
+            properties,
+            anonymous_id,
+            session_id,
+            source,
+            profile_id,
+            toInt8(1) AS direction
+        FROM analytics.custom_events
+
+        UNION ALL
+
+        SELECT
+            toString(owner_id) AS owner_id,
+            CAST(website_id, 'Nullable(String)') AS website_id,
+            timestamp,
+            event_name,
+            namespace,
+            path,
+            properties,
+            anonymous_id,
+            session_id,
+            source,
+            profile_id,
+            toInt8(-1) AS direction
+        FROM analytics.custom_events_v2
+    )
+    GROUP BY
+        owner_id,
+        website_id,
+        timestamp,
+        event_name,
+        namespace,
+        path,
+        properties,
+        anonymous_id,
+        session_id,
+        source,
+        profile_id
+    HAVING sum(direction) > 0
+)
+ARRAY JOIN range(toUInt64(extra_rows));
+```
+
+Wait for both replica queues to drain, then run the complete row-multiset
+comparison from section 4 in both directions. Every shard must report zero
+mismatched row groups. If the insert acknowledgement was uncertain, wait for
+the original insert to finish and the target queues to drain, then recompute
+the delta. If it is empty, do nothing. Retry the exact original insert with
+the same token only when the delta is unchanged; if it changed or was partial,
+use a fresh token for the remaining delta before validating again.
+
+Only then drop the views, exchange the tables forward, and recreate the views
+from section 5. This makes `analytics.custom_events` final-schema again and
+leaves `analytics.custom_events_v2` as the retained legacy table. After the
 observation window and explicit approval, drop that retained legacy table and
 run `bun run ch:verify`. The verifier should then report no custom-events
 drift.
