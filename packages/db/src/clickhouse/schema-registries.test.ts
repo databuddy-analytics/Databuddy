@@ -47,7 +47,6 @@ describe("hand-maintained registries stay in sync with the generated DDL columns
 
 	it("id-less span tables expose a persisted delivery identity", () => {
 		for (const table of [
-			"analytics.custom_events",
 			"analytics.error_spans",
 			"analytics.web_vitals_spans",
 		]) {

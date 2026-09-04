@@ -91,7 +91,6 @@ export interface CustomEventsRow {
 	session_id: string | null;
 	source: string | null;
 	profile_id: string;
-	delivery_id: string;
 }
 
 export interface CustomEventsInsert {
@@ -106,7 +105,6 @@ export interface CustomEventsInsert {
 	session_id?: string | null;
 	source?: string | null;
 	profile_id?: string;
-	delivery_id?: string;
 }
 
 export interface DailyPageviewsRow {
@@ -456,7 +454,7 @@ export interface ClickHouseTables {
 export const TABLE_COLUMNS = {
 	"analytics.ai_traffic_spans": ["client_id", "timestamp", "bot_type", "bot_name", "user_agent", "path", "referrer"],
 	"analytics.blocked_traffic": ["id", "client_id", "timestamp", "path", "url", "referrer", "method", "origin", "ip", "user_agent", "accept_header", "language", "block_reason", "block_category", "bot_name", "country", "region", "browser_name", "browser_version", "os_name", "os_version", "device_type", "payload_size", "created_at"],
-	"analytics.custom_events": ["owner_id", "website_id", "timestamp", "event_name", "namespace", "path", "properties", "anonymous_id", "session_id", "source", "profile_id", "delivery_id"],
+	"analytics.custom_events": ["owner_id", "website_id", "timestamp", "event_name", "namespace", "path", "properties", "anonymous_id", "session_id", "source", "profile_id"],
 	"analytics.daily_pageviews": ["client_id", "date", "pageviews"],
 	"analytics.error_spans": ["client_id", "anonymous_id", "session_id", "timestamp", "path", "message", "filename", "lineno", "colno", "stack", "error_type", "delivery_id"],
 	"analytics.events": ["id", "client_id", "event_name", "anonymous_id", "time", "session_id", "referrer", "url", "path", "title", "ip", "user_agent", "browser_name", "browser_version", "os_name", "os_version", "device_type", "device_brand", "device_model", "viewport_size", "language", "timezone", "time_on_page", "country", "region", "city", "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "gclid", "dom_ready_time", "ttfb", "request_time", "render_time", "scroll_depth", "interaction_count", "page_count", "properties", "created_at", "timestamp", "profile_id"],
