@@ -264,6 +264,40 @@ describe("producer delivery guarantees", () => {
 		expect(insert).not.toHaveBeenCalled();
 	});
 
+	test("keeps non-custom Kafka partition keys derived from event payloads", async () => {
+		const insert = vi.fn(() => Promise.resolve());
+		const kafka = {
+			connect: vi.fn(() => Promise.resolve()),
+			disconnect: vi.fn(() => Promise.resolve()),
+			send: vi.fn(() => Promise.resolve([])),
+		} as unknown as Producer;
+		const effects = await makeEffects(
+			insert,
+			{
+				broker: "redpanda.test:9092",
+				selfHost: false,
+			},
+			kafka
+		);
+		const trackEvent = event("event_1");
+
+		await Effect.runPromise(
+			effects.sendMany("analytics-events", [trackEvent], ["stable-delivery-id"])
+		);
+
+		expect(kafka.send).toHaveBeenCalledWith(
+			expect.objectContaining({
+				messages: [
+					{
+						key: "ws_1",
+						value: JSON.stringify(trackEvent),
+					},
+				],
+				topic: "analytics-events",
+			})
+		);
+	});
+
 	test("returns a retryable error instead of acknowledging a failed direct fallback", async () => {
 		const effects = await makeEffects(() => Promise.reject(new Error("offline")));
 

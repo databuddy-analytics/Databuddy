@@ -852,7 +852,9 @@ function makeProducerEffects(
 				return {
 					value: stringifyEvent(event),
 					key:
-						deliveryIds?.[index] ||
+						(topic === "analytics-custom-events"
+							? deliveryIds?.[index]
+							: undefined) ||
 						identity.delivery_id ||
 						identity.client_id ||
 						identity.event_id,
