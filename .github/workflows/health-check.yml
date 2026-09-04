@@ -161,7 +161,7 @@ jobs:
           CANARY_ID="ci-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-0}"
           LINK_CANARY_ID="11111111-1111-4111-8111-111111111111"
           CANARY_PAYLOAD=$(jq -cn \
-            --arg delivery_id "$CANARY_ID" \
+            --arg canary_id "$CANARY_ID" \
             '{
               owner_id: "ci-owner",
               website_id: "ci-website",
@@ -169,12 +169,11 @@ jobs:
               event_name: "vector_delivery_canary",
               namespace: "ci",
               path: "/ci/vector-canary",
-              properties: "{}",
+              properties: ({ canary_id: $canary_id } | tojson),
               anonymous_id: "ci-anonymous",
               session_id: "ci-session",
               source: "ci",
-              profile_id: "",
-              delivery_id: $delivery_id
+              profile_id: ""
             }')
           LINK_CANARY_PAYLOAD=$(jq -cn \
             --arg id "$LINK_CANARY_ID" \
@@ -202,8 +201,8 @@ jobs:
           for i in {1..30}; do
             FIRST_COUNT=$(curl -fsSG \
               --data-urlencode \
-                'query=SELECT count() FROM analytics.custom_events WHERE delivery_id = {delivery_id:String}' \
-              --data-urlencode "param_delivery_id=$CANARY_ID" \
+                "query=SELECT count() FROM analytics.custom_events WHERE owner_id = 'ci-owner' AND event_name = 'vector_delivery_canary' AND JSONExtractString(properties, 'canary_id') = {canary_id:String}" \
+              --data-urlencode "param_canary_id=$CANARY_ID" \
               http://localhost:8123/)
             FIRST_LINK_COUNT=$(curl -fsSG \
               --data-urlencode \
@@ -231,8 +230,8 @@ jobs:
           for i in {1..45}; do
             PHYSICAL_COUNT=$(curl -fsSG \
               --data-urlencode \
-                'query=SELECT count() FROM analytics.custom_events WHERE delivery_id = {delivery_id:String}' \
-              --data-urlencode "param_delivery_id=$CANARY_ID" \
+                "query=SELECT count() FROM analytics.custom_events WHERE owner_id = 'ci-owner' AND event_name = 'vector_delivery_canary' AND JSONExtractString(properties, 'canary_id') = {canary_id:String}" \
+              --data-urlencode "param_canary_id=$CANARY_ID" \
               http://localhost:8123/)
             PHYSICAL_LINK_COUNT=$(curl -fsSG \
               --data-urlencode \
