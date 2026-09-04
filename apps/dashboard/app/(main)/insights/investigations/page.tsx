@@ -75,7 +75,7 @@ function InvestigationList({
 						variant: "secondary",
 					}}
 					description="Databuddy couldn't load recent investigations."
-					icon={<LightbulbIcon weight="duotone" />}
+					icon={<LightbulbIcon />}
 					title="Couldn't load investigations"
 					variant="error"
 				/>
@@ -88,7 +88,7 @@ function InvestigationList({
 			<div className="px-5 py-12">
 				<EmptyState
 					description="Databuddy starts an investigation when it finds a question or fix worth following through."
-					icon={<LightbulbIcon weight="duotone" />}
+					icon={<LightbulbIcon />}
 					title="Nothing needs your input"
 					variant="minimal"
 				/>

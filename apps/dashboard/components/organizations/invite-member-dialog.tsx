@@ -55,10 +55,7 @@ export function InviteMemberDialog({
 				<Dialog.Header>
 					<div className="flex items-center gap-2">
 						<div className="flex size-7 items-center justify-center rounded-md bg-primary/10">
-							<UserPlusIcon
-								className="size-3.5 text-primary"
-								weight="duotone"
-							/>
+							<UserPlusIcon className="size-3.5 text-primary" />
 						</div>
 						<div>
 							<Dialog.Title>Invite Member</Dialog.Title>

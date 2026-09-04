@@ -37,7 +37,7 @@ async function _logBlockedTrafficAsync(
 			parseUserAgent(userAgent),
 		]);
 		const now = Date.now();
-		const { anonymizedIP, country, region } = geo;
+		const { country, region } = geo;
 		const { browserName, browserVersion, osName, osVersion, deviceType } = ua;
 
 		const blockedEvent: BlockedTrafficInsert = {
@@ -60,7 +60,7 @@ async function _logBlockedTrafficAsync(
 				VALIDATION_LIMITS.STRING_MAX_LENGTH
 			),
 
-			ip: anonymizedIP || ip,
+			ip: "",
 			user_agent: userAgent || "",
 			accept_header: sanitizeString(
 				request.headers.get("accept"),

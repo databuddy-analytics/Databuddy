@@ -10,6 +10,7 @@ export interface FlagsRequestFailure {
 	code: "HTTP_ERROR" | "INVALID_RESPONSE" | "NETWORK_ERROR";
 	message: string;
 	requestId?: string;
+	retryAfterMs?: number;
 	retryable: boolean;
 	status: number | null;
 }

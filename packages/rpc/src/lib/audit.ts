@@ -3,7 +3,7 @@ import type {
 	AuditActor,
 	AuditRequestContext,
 } from "@databuddy/shared/audit";
-import { getTrustedClientIp } from "@databuddy/shared/utils/trusted-client-ip";
+import { getClientIp } from "@databuddy/shared/utils/client-ip";
 import {
 	appendAuditEvent,
 	appendAuditEventInTransaction,
@@ -37,7 +37,7 @@ export function getAuditActor(context: Context): AuditActor {
 
 export function getAuditRequestContext(context: Context): AuditRequestContext {
 	return {
-		ip: getTrustedClientIp(context.headers),
+		ip: getClientIp(context.headers),
 		requestId:
 			context.requestId ?? context.headers.get("x-request-id") ?? undefined,
 		userAgent: context.headers.get("user-agent") ?? undefined,

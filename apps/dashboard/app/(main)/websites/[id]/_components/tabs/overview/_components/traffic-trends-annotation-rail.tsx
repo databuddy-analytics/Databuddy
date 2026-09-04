@@ -435,7 +435,7 @@ export function TrafficTrendsAnnotationRail({
 						side="top"
 					>
 						<span className="inline-flex size-5 items-center justify-center rounded border bg-card text-muted-foreground">
-							<NoteIcon className="size-3" weight="duotone" />
+							<NoteIcon className="size-3" />
 						</span>
 					</UiTooltip>
 				</div>

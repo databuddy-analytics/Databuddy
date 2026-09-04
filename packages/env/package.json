@@ -8,10 +8,6 @@
       "types": "./src/app.ts",
       "default": "./src/app.ts"
     },
-    "./boolean": {
-      "types": "./src/boolean.ts",
-      "default": "./src/boolean.ts"
-    },
     "./public": {
       "types": "./src/public.ts",
       "default": "./src/public.ts"

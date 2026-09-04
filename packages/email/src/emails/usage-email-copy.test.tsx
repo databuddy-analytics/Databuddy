@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { DATABUNNY_USAGE } from "@databuddy/shared/billing";
-import { render } from "react-email";
+import { render } from "@react-email/render";
 import { UsageAlertEmail } from "./usage-alert-email";
 import {
 	formatResetDate,

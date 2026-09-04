@@ -79,6 +79,7 @@ function Form({
 
 	return (
 		<SubmitHintProvider value>
+			{/* biome-ignore lint/a11y/noNoninteractiveElementInteractions: onKeyDown adds cmd+enter submit, it does not replace native form semantics */}
 			<form
 				className={cn("flex flex-1 flex-col overflow-hidden", className)}
 				{...rest}

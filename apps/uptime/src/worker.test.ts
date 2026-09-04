@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it } from "bun:test";
 import type { ScheduleData } from "./actions";
 import type { UptimeData } from "./types";
-import type { PreviousMonitorState } from "./uptime-transition-alerts";
+import type {
+	MonitorState,
+	MonitorStateLookup,
+} from "./uptime-transition-alerts";
 import {
 	DEFAULT_UPTIME_WORKER_CONCURRENCY,
 	getUptimeWorkerConcurrency,
@@ -28,6 +31,7 @@ const calls = {
 	email: [] as Array<{ schedule: ScheduleData; data: UptimeData }>,
 	loggerFields: [] as Array<Record<string, unknown>>,
 	loggerEmitted: [] as Array<boolean>,
+	monitorState: [] as Array<{ monitorId: string; state: MonitorState }>,
 	order: [] as string[],
 	reaped: [] as string[],
 	send: [] as Array<{ event: unknown; key: string | undefined }>,
@@ -41,7 +45,7 @@ let lookupResult:
 	| { success: true; data: ScheduleData }
 	| { success: false; error: string; reason?: "not_found" | "malformed" | "transient" };
 let checkResults: CheckResult[];
-let previousState: PreviousMonitorState | undefined;
+let previousState: MonitorStateLookup;
 let reapBehaviour: "ok" | "throw" = "ok";
 
 function schedule(values: Partial<ScheduleData> = {}): ScheduleData {
@@ -122,6 +126,9 @@ function deps(): UptimeWorkerDeps {
 			calls.order.push("enqueue");
 		},
 		getPreviousMonitorState: async () => previousState,
+		setMonitorState: async (monitorId, state) => {
+			calls.monitorState.push({ monitorId, state });
+		},
 		lookupSchedule: async () => lookupResult,
 		reapOrphanScheduler: async (scheduleId: string) => {
 			calls.reaped.push(scheduleId);
@@ -148,12 +155,13 @@ beforeEach(() => {
 	calls.email = [];
 	calls.loggerFields = [];
 	calls.loggerEmitted = [];
+	calls.monitorState = [];
 	calls.order = [];
 	calls.reaped = [];
 	calls.send = [];
 	lookupResult = { success: true, data: schedule() };
 	checkResults = [{ success: true, data: uptimeData() }];
-	previousState = { status: 0, failureStreak: 1 };
+	previousState = { kind: "found", state: { status: 0, failureStreak: 1 } };
 	reapBehaviour = "ok";
 });
 
@@ -278,7 +286,7 @@ describe("processUptimeCheck", () => {
 	});
 
 	it("records -1 when no previous monitor status exists", async () => {
-		previousState = undefined;
+		previousState = { kind: "missing" };
 
 		await processUptimeCheckForTest("schedule-1", "scheduled", deps());
 
@@ -460,7 +468,7 @@ describe("processUptimeCheck", () => {
 		checkResults = [
 			{ success: true, data: uptimeData({ status: 0, error: "HTTP 503" }) },
 		];
-		previousState = { status: 1, failureStreak: 0 };
+		previousState = { kind: "found", state: { status: 1, failureStreak: 0 } };
 
 		await processUptimeCheckForTest("schedule-1", "scheduled", deps());
 
@@ -477,13 +485,39 @@ describe("processUptimeCheck", () => {
 		checkResults = [
 			{ success: true, data: uptimeData({ status: 0, error: "HTTP 503" }) },
 		];
-		previousState = { status: 0, failureStreak: 4 };
+		previousState = { kind: "found", state: { status: 0, failureStreak: 4 } };
 
 		await processUptimeCheckForTest("schedule-1", "scheduled", deps());
 
 		expect(calls.delivery).toEqual([
 			uptimeData({ status: 0, error: "HTTP 503", failure_streak: 5 }),
 		]);
+	});
+
+	it("persists the resolved streak as the next previous state", async () => {
+		checkResults = [
+			{ success: true, data: uptimeData({ status: 0, error: "HTTP 503" }) },
+		];
+		previousState = { kind: "found", state: { status: 0, failureStreak: 4 } };
+
+		await processUptimeCheckForTest("schedule-1", "scheduled", deps());
+
+		expect(calls.monitorState).toEqual([
+			{ monitorId: "website-1", state: { status: 0, failureStreak: 5 } },
+		]);
+	});
+
+	it("does not reset the streak when the previous state is unavailable", async () => {
+		checkResults = [
+			{ success: true, data: uptimeData({ status: 0, error: "HTTP 503" }) },
+		];
+		previousState = { kind: "unavailable" };
+
+		await processUptimeCheckForTest("schedule-1", "scheduled", deps());
+
+		expect(calls.loggerFields).toContainEqual(
+			expect.objectContaining({ previous_state_source: "unavailable" })
+		);
 	});
 
 	it("persists the exact event before enqueueing it for delivery", async () => {
@@ -634,10 +668,26 @@ describe("processUptimeCheck", () => {
 	});
 
 	it("resolves failure streaks from previous state", () => {
-		expect(resolveFailureStreak(1, { status: 0, failureStreak: 3 })).toBe(0);
-		expect(resolveFailureStreak(0, undefined)).toBe(1);
-		expect(resolveFailureStreak(0, { status: 1, failureStreak: 0 })).toBe(1);
-		expect(resolveFailureStreak(0, { status: 0, failureStreak: 3 })).toBe(4);
+		expect(
+			resolveFailureStreak(1, {
+				kind: "found",
+				state: { status: 0, failureStreak: 3 },
+			})
+		).toBe(0);
+		expect(resolveFailureStreak(0, { kind: "missing" })).toBe(1);
+		expect(resolveFailureStreak(0, { kind: "unavailable" })).toBe(1);
+		expect(
+			resolveFailureStreak(0, {
+				kind: "found",
+				state: { status: 1, failureStreak: 0 },
+			})
+		).toBe(1);
+		expect(
+			resolveFailureStreak(0, {
+				kind: "found",
+				state: { status: 0, failureStreak: 3 },
+			})
+		).toBe(4);
 	});
 
 	it("rejects malformed delivery payloads before sending", async () => {

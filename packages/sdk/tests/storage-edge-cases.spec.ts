@@ -1,5 +1,9 @@
-import { expect, test } from "@playwright/test";
-import { MOCK_FLAG_ENABLED, waitForSDK } from "./test-utils";
+import {
+	MOCK_FLAG_ENABLED,
+	expect,
+	test,
+	waitForSDK,
+} from "./test-utils";
 
 test.describe("BrowserFlagStorage — edge cases", () => {
 	test.beforeEach(async ({ page }) => {

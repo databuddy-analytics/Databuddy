@@ -1,6 +1,6 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readBooleanEnv } from "@databuddy/env/boolean";
+import { readBooleanEnv } from "@databuddy/env/app";
 import { createDatabuddyEvlogEnv } from "@databuddy/shared/evlog-redaction";
 import type { DrainContext, EnrichContext, WideEvent } from "evlog";
 import { log } from "evlog";
@@ -86,10 +86,13 @@ export async function flushDrain(): Promise<void> {
 
 const startupEnv = createDatabuddyEvlogEnv("links");
 
-export function emitStartupEvent(fields: LogFields): void {
+export function emitServiceEvent(
+	level: "error" | "info",
+	fields: LogFields
+): void {
 	const event: WideEvent = {
 		timestamp: new Date().toISOString(),
-		level: "info",
+		level,
 		service: startupEnv.service,
 		environment: startupEnv.environment,
 		...(startupEnv.region ? { region: startupEnv.region } : {}),

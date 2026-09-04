@@ -1,5 +1,7 @@
-import { Avatar, ThemeToggle } from "@databuddy/ui/client";
+import { Avatar } from "@databuddy/ui/client/avatar";
+import { ThemeToggle } from "@databuddy/ui/client/theme-toggle";
 import { LifebuoyIcon } from "@databuddy/ui/icons";
+import { DATABUDDY_UPTIME_URL } from "@/lib/status-url";
 
 interface StatusNavbarProps {
 	logoUrl?: string | null;
@@ -31,7 +33,7 @@ export function StatusNavbar({
 			<nav className="mx-auto flex h-14 max-w-[822px] items-center justify-between px-4 sm:px-6">
 				{websiteUrl ? (
 					<a
-						className="min-w-0 transition-opacity hover:opacity-70"
+						className="min-w-0 transition-opacity duration-(--duration-quick) ease-(--ease-smooth) hover:opacity-70"
 						href={websiteUrl}
 						rel="noopener noreferrer"
 						target="_blank"
@@ -45,7 +47,7 @@ export function StatusNavbar({
 				<div className="flex items-center gap-1.5">
 					{supportUrl ? (
 						<a
-							className="flex h-8 items-center gap-1.5 rounded-md border border-border/60 bg-secondary/40 px-2.5 text-muted-foreground text-xs transition-colors hover:bg-secondary hover:text-foreground"
+							className="flex h-8 items-center gap-1.5 rounded-md border border-border/60 bg-secondary/40 px-2.5 text-muted-foreground text-xs transition-colors duration-(--duration-quick) ease-(--ease-smooth) hover:bg-secondary hover:text-foreground"
 							href={supportUrl}
 							rel="noopener noreferrer"
 							target="_blank"
@@ -54,6 +56,14 @@ export function StatusNavbar({
 							<span className="hidden sm:inline">Support</span>
 						</a>
 					) : null}
+					<a
+						className="flex h-8 items-center rounded-md bg-primary px-3 font-medium text-primary-foreground text-xs transition-colors duration-(--duration-quick) ease-(--ease-smooth) hover:bg-primary/90"
+						href={DATABUDDY_UPTIME_URL}
+						rel="noopener noreferrer"
+						target="_blank"
+					>
+						Get your own
+					</a>
 					<ThemeToggle className="flex" />
 				</div>
 			</nav>

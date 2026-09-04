@@ -6,20 +6,24 @@ import {
 	Autocomplete as BaseAutocomplete,
 	type AutocompleteRootProps,
 } from "@base-ui-components/react/autocomplete";
-import {
-	forwardRef,
-	type ComponentPropsWithoutRef,
-	type ComponentPropsWithRef,
+import type {
+	ComponentPropsWithoutRef,
+	ComponentPropsWithRef,
+	Ref,
 } from "react";
 
 function Root<T>(props: AutocompleteRootProps<T> & { items?: readonly T[] }) {
 	return <BaseAutocomplete.Root {...props} />;
 }
 
-const Input = forwardRef<
-	HTMLInputElement,
-	ComponentPropsWithRef<typeof BaseAutocomplete.Input>
->(({ className, id, ...rest }, ref) => {
+const Input = ({
+	className,
+	id,
+	ref,
+	...rest
+}: ComponentPropsWithRef<typeof BaseAutocomplete.Input> & {
+	ref?: Ref<HTMLInputElement>;
+}) => {
 	const field = useFieldContext();
 	return (
 		<BaseAutocomplete.Input
@@ -46,7 +50,7 @@ const Input = forwardRef<
 			{...rest}
 		/>
 	);
-});
+};
 Input.displayName = "Autocomplete.Input";
 
 type ContentProps = ComponentPropsWithoutRef<typeof BaseAutocomplete.Popup> & {

@@ -124,7 +124,7 @@ export function createSlackConversationId(run: SlackAgentRun): string {
 	);
 }
 
-export function createSlackMemoryUserId(run: SlackAgentRun): string {
+function createSlackMemoryUserId(run: SlackAgentRun): string {
 	return safeId(["slack", run.teamId ?? "team", run.userId].join("-"));
 }
 

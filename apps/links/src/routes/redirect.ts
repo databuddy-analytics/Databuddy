@@ -22,12 +22,12 @@ import { UAParser } from "ua-parser-js";
 import {
 	captureError,
 	captureWarning,
+	emitServiceEvent,
 	mergeWideEvent,
 	record,
 } from "../lib/logging";
 import { createDeepLinkFallbackResponse } from "../lib/deep-link-fallback";
-import { enqueueLinkVisit } from "../lib/link-visit-delivery";
-import type { LinkVisitEvent } from "../lib/producer";
+import { type LinkVisitEvent, sendLinkVisit } from "../lib/producer";
 import { extractIp, getGeo } from "../utils/geo";
 
 const EXPIRED_URL = `${config.urls.dashboard}/dby/expired`;
@@ -44,8 +44,22 @@ const uaCache = new LRUCache<
 	{ browser: string | null; device: string | null }
 >({ max: 500, ttl: 300_000 });
 
-function ms(since: number): number {
+function elapsedMs(since: number): number {
 	return Math.round(performance.now() - since);
+}
+
+// Unique oversized user agents defeat the caches below and make every miss pay
+// a full pattern scan, so bound the input before it reaches detection.
+const MAX_USER_AGENT_LENGTH = 512;
+
+function readUserAgent(request: Request): string | null {
+	const raw = request.headers.get("user-agent");
+	if (!raw) {
+		return null;
+	}
+	return raw.length > MAX_USER_AGENT_LENGTH
+		? raw.slice(0, MAX_USER_AGENT_LENGTH)
+		: raw;
 }
 
 let dailySalt = new Date().toISOString().slice(0, 10);
@@ -62,7 +76,7 @@ function hashIp(ip: string): string {
 		.digest("hex");
 }
 
-function checkBot(ua: string | null): { isBot: boolean; isSocial: boolean } {
+function classifyBot(ua: string | null): { isBot: boolean; isSocial: boolean } {
 	if (!ua) {
 		return { isBot: false, isSocial: false };
 	}
@@ -82,7 +96,7 @@ function checkBot(ua: string | null): { isBot: boolean; isSocial: boolean } {
 	return entry;
 }
 
-function parseUA(ua: string | null): {
+function parseUserAgent(ua: string | null): {
 	browser: string | null;
 	device: string | null;
 } {
@@ -155,101 +169,112 @@ function generateETag(link: CachedLink, targetUrl: string): string {
 	return etag;
 }
 
-async function lookupLink(slug: string, ipHash: string) {
+type LookupSource =
+	| "db"
+	| "db_miss"
+	| "db_pending"
+	| "db_pending_miss"
+	| "db_unavailable"
+	| "rate_limited"
+	| "redis"
+	| "redis_not_found";
+
+interface LookupResult {
+	cacheHit: boolean;
+	db_ms: number;
+	link: CachedLink | null;
+	lookup_source: LookupSource;
+	rateLimitHeaders: Record<string, string> | null;
+	redis_ms: number;
+}
+
+function warnCacheStep(err: unknown, error_step: string): void {
+	captureWarning(err instanceof Error ? err : new Error(String(err)), {
+		error_step,
+	});
+}
+
+async function lookupLink(slug: string, ipHash: string): Promise<LookupResult> {
 	const t0 = performance.now();
 	const cached = await record("link.cache.get", () =>
 		getCachedLink(slug).catch((err) => {
-			captureWarning(err instanceof Error ? err : new Error(String(err)), {
-				error_step: "cache_get",
-			});
+			warnCacheStep(err, "cache_get");
 			return { state: "miss" as const };
 		})
 	);
-	const redis_ms = ms(t0);
+	const base: LookupResult = {
+		link: null,
+		cacheHit: true,
+		lookup_source: "redis",
+		rateLimitHeaders: null,
+		redis_ms: elapsedMs(t0),
+		db_ms: 0,
+	};
 
 	if (cached.state === "hit") {
-		return {
-			link: cached.link,
-			cacheHit: true,
-			lookup_source: "redis",
-			rateLimitHeaders: null,
-			redis_ms,
-			db_ms: 0,
-		};
+		return { ...base, link: cached.link };
 	}
 	if (cached.state === "not_found") {
-		return {
-			link: null,
-			cacheHit: true,
-			lookup_source: "redis_not_found",
-			rateLimitHeaders: null,
-			redis_ms,
-			db_ms: 0,
-		};
+		return { ...base, lookup_source: "redis_not_found" };
 	}
-	if (cached.state === "pending") {
-		return {
-			link: null,
-			cacheHit: true,
-			lookup_source: "redis_pending",
-			rateLimitHeaders: null,
-			redis_ms,
-			db_ms: 0,
-		};
-	}
+
+	// A pending mutation lease means the cache cannot be trusted or written, but
+	// Postgres still can be read; serving either side of the in-flight update
+	// beats failing the redirect.
+	const mutationPending = cached.state === "pending";
+	base.cacheHit = false;
 
 	const limit = await record("link.cache_miss.rate_limit", () =>
 		ratelimit(`link-cache-miss:${ipHash}`, 60, 60)
 	);
 	if (!limit.success) {
 		return {
-			link: null,
-			cacheHit: false,
+			...base,
 			lookup_source: "rate_limited",
 			rateLimitHeaders: getRateLimitHeaders(limit),
-			redis_ms,
-			db_ms: 0,
 		};
 	}
 
 	const t1 = performance.now();
-	const row = await record("link.db.find", async () => {
-		const rows = await db
-			.select({
-				id: links.id,
-				targetUrl: links.targetUrl,
-				expiresAt: links.expiresAt,
-				expiredRedirectUrl: links.expiredRedirectUrl,
-				ogTitle: links.ogTitle,
-				ogDescription: links.ogDescription,
-				ogImageUrl: links.ogImageUrl,
-				ogVideoUrl: links.ogVideoUrl,
-				iosUrl: links.iosUrl,
-				androidUrl: links.androidUrl,
-				deepLinkApp: links.deepLinkApp,
-			})
-			.from(links)
-			.where(and(eq(links.slug, slug), isNull(links.deletedAt)))
-			.limit(1);
-		return rows[0] ?? null;
-	});
-	const db_ms = ms(t1);
+	let row: (Omit<CachedLink, "expiresAt"> & { expiresAt: Date | null }) | null;
+	try {
+		row = await record("link.db.find", async () => {
+			const rows = await db
+				.select({
+					id: links.id,
+					targetUrl: links.targetUrl,
+					expiresAt: links.expiresAt,
+					expiredRedirectUrl: links.expiredRedirectUrl,
+					ogTitle: links.ogTitle,
+					ogDescription: links.ogDescription,
+					ogImageUrl: links.ogImageUrl,
+					ogVideoUrl: links.ogVideoUrl,
+					iosUrl: links.iosUrl,
+					androidUrl: links.androidUrl,
+					deepLinkApp: links.deepLinkApp,
+				})
+				.from(links)
+				.where(and(eq(links.slug, slug), isNull(links.deletedAt)))
+				.limit(1);
+			return rows[0] ?? null;
+		});
+	} catch (error) {
+		captureError(error, { error_step: "db_lookup" });
+		return { ...base, lookup_source: "db_unavailable", db_ms: elapsedMs(t1) };
+	}
+	base.db_ms = elapsedMs(t1);
 
 	if (!row) {
-		await record("link.cache.set_not_found", () =>
-			setCachedLinkNotFoundIfAbsent(slug).catch((err) => {
-				captureWarning(err instanceof Error ? err : new Error(String(err)), {
-					error_step: "cache_set_not_found",
-				});
-			})
-		);
+		if (!mutationPending) {
+			await record("link.cache.set_not_found", () =>
+				setCachedLinkNotFoundIfAbsent(slug).catch((err) =>
+					warnCacheStep(err, "cache_set_not_found")
+				)
+			);
+		}
 		return {
-			link: null,
-			cacheHit: false,
-			lookup_source: "db_miss",
-			rateLimitHeaders: null,
-			redis_ms,
-			db_ms,
+			...base,
+			lookup_source: mutationPending ? "db_pending_miss" : "db_miss",
 		};
 	}
 
@@ -267,33 +292,29 @@ async function lookupLink(slug: string, ipHash: string) {
 		deepLinkApp: row.deepLinkApp,
 	};
 
-	await record("link.cache.set", () =>
-		setCachedLinkIfAbsent(slug, link).catch((err) => {
-			captureWarning(err instanceof Error ? err : new Error(String(err)), {
-				error_step: "cache_backfill",
-			});
-		})
-	);
+	if (!mutationPending) {
+		await record("link.cache.set", () =>
+			setCachedLinkIfAbsent(slug, link).catch((err) =>
+				warnCacheStep(err, "cache_backfill")
+			)
+		);
+	}
 	return {
+		...base,
 		link,
-		cacheHit: false,
-		lookup_source: "db",
-		rateLimitHeaders: null,
-		redis_ms,
-		db_ms,
+		lookup_source: mutationPending ? "db_pending" : "db",
 	};
 }
 
 async function recordClick(
 	link: CachedLink,
-	ipHash: string,
 	ip: string,
 	request: Request
 ): Promise<void> {
 	const t0 = performance.now();
 
-	const userAgent = request.headers.get("user-agent");
-	const ua = parseUA(userAgent);
+	const userAgent = readUserAgent(request);
+	const ua = parseUserAgent(userAgent);
 
 	const tGeo = performance.now();
 	const geo = await record("link.click.geo", () => getGeo(ip, request)).catch(
@@ -302,7 +323,7 @@ async function recordClick(
 			return { city: null, country: null, region: null };
 		}
 	);
-	const geo_ms = ms(tGeo);
+	const geo_ms = elapsedMs(tGeo);
 
 	const event: LinkVisitEvent = {
 		browser_name: ua.browser,
@@ -310,26 +331,36 @@ async function recordClick(
 		country: geo.country,
 		device_type: ua.device,
 		id: randomUUID(),
-		ip_hash: ipHash,
 		link_id: link.id,
 		referrer: request.headers.get("referer"),
 		region: geo.region,
 		timestamp: new Date().toISOString().replace("T", " ").replace("Z", ""),
 		user_agent: userAgent,
 	};
-	const tDelivery = performance.now();
-	await record("link.click.queue", () => enqueueLinkVisit(event));
-	const delivery_ms = ms(tDelivery);
+	const reportClickLost = (reason: string) =>
+		emitServiceEvent("error", {
+			links: "click_lost",
+			link_id: link.id,
+			link_visit_id: event.id,
+			error_message: reason,
+		});
+	sendLinkVisit(event)
+		.then((delivered) => {
+			if (!delivered) {
+				reportClickLost("no delivery sink accepted the link visit");
+			}
+		})
+		.catch((error) => {
+			reportClickLost(error instanceof Error ? error.message : String(error));
+		});
 
 	mergeWideEvent({
 		click_recorded: true,
-		click_reason: "queue_admitted",
 		...(ua.browser ? { click_browser: ua.browser } : {}),
 		...(ua.device ? { click_device: ua.device } : {}),
 		...(geo.country ? { click_country: geo.country } : {}),
 		"timing.click.geo": geo_ms,
-		"timing.click.delivery": delivery_ms,
-		"timing.click": ms(t0),
+		"timing.click": elapsedMs(t0),
 	});
 }
 
@@ -340,7 +371,7 @@ const IGNORED_SLUGS = new Set([
 	".well-known",
 ]);
 function retryResponse(error: string, retryAfter: string): Response {
-	// policy-ignore http/no-custom-json-error-response: These edge retry paths must preserve Retry-After when a cache mutation or click admission is unavailable.
+	// policy-ignore http/no-custom-json-error-response: This edge retry path must preserve Retry-After when the link store is unavailable.
 	return Response.json(
 		{ error },
 		{
@@ -369,23 +400,25 @@ export const redirectRoute = new Elysia().get(
 		}
 		const ip = extractIp(request);
 		const ipHash = hashIp(ip);
-		const ev: Record<string, string | number | boolean> = { link_slug: slug };
+		const wideEvent: Record<string, string | number | boolean> = {
+			link_slug: slug,
+		};
 
 		function emit(result: string) {
-			ev.redirect_result = result;
-			ev.total_ms = ms(t0);
-			ev["timing.redirect.total"] = ev.total_ms;
-			mergeWideEvent(ev);
+			wideEvent.redirect_result = result;
+			wideEvent.total_ms = elapsedMs(t0);
+			wideEvent["timing.redirect.total"] = wideEvent.total_ms;
+			mergeWideEvent(wideEvent);
 		}
 
 		const tLookup = performance.now();
 		const { link, cacheHit, lookup_source, rateLimitHeaders, redis_ms, db_ms } =
 			await record("redirect.lookup", () => lookupLink(slug, ipHash));
-		ev.lookup_ms = ms(tLookup);
-		ev.lookup_source = lookup_source;
-		ev.cache_hit = cacheHit;
-		ev.redis_ms = redis_ms;
-		ev.db_ms = db_ms;
+		wideEvent.lookup_ms = elapsedMs(tLookup);
+		wideEvent.lookup_source = lookup_source;
+		wideEvent.cache_hit = cacheHit;
+		wideEvent.redis_ms = redis_ms;
+		wideEvent.db_ms = db_ms;
 
 		if (rateLimitHeaders) {
 			emit("rate_limited");
@@ -402,9 +435,12 @@ export const redirectRoute = new Elysia().get(
 			);
 		}
 
-		if (lookup_source === "redis_pending") {
-			emit("mutation_pending");
-			return retryResponse("This link is being updated. Please retry.", "1");
+		if (lookup_source === "db_unavailable") {
+			emit("lookup_unavailable");
+			return retryResponse(
+				"Link lookup is temporarily unavailable. Please retry.",
+				"5"
+			);
 		}
 
 		if (!link) {
@@ -413,7 +449,7 @@ export const redirectRoute = new Elysia().get(
 			return redirect(NOT_FOUND_URL, 302);
 		}
 
-		ev.link_id = link.id;
+		wideEvent.link_id = link.id;
 
 		if (link.expiresAt && new Date(link.expiresAt) < new Date()) {
 			emit("expired");
@@ -426,11 +462,11 @@ export const redirectRoute = new Elysia().get(
 			);
 		}
 
-		const userAgent = request.headers.get("user-agent");
+		const userAgent = readUserAgent(request);
 		const targetUrl = getTargetUrl(link, userAgent);
-		const bot = checkBot(userAgent);
-		ev.is_bot = bot.isBot;
-		ev.is_social_bot = bot.isSocial;
+		const bot = classifyBot(userAgent);
+		wideEvent.is_bot = bot.isBot;
+		wideEvent.is_social_bot = bot.isSocial;
 
 		if (bot.isSocial) {
 			emit("og_preview");
@@ -469,19 +505,7 @@ export const redirectRoute = new Elysia().get(
 			response = redirect(targetUrl, 302);
 		}
 
-		try {
-			await recordClick(link, ipHash, ip, request);
-		} catch (error) {
-			captureError(error, {
-				error_step: "click_admission",
-				link_id: link.id,
-			});
-			emit("analytics_unavailable");
-			return retryResponse(
-				"Click tracking is temporarily unavailable. Please retry.",
-				"5"
-			);
-		}
+		await recordClick(link, ip, request);
 
 		emit(result);
 		if (etag) {

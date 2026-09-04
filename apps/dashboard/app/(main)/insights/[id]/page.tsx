@@ -128,7 +128,7 @@ export default function InsightDetailPage() {
 								? "This investigation is unavailable, or it belongs to a workspace you can't access."
 								: "This investigation no longer exists."
 						}
-						icon={<LightbulbIcon weight="duotone" />}
+						icon={<LightbulbIcon />}
 						className="min-h-[50dvh]"
 						title="Investigation not available"
 						variant="minimal"
@@ -281,7 +281,6 @@ function CaseActivity({
 							: `Show ${items.length - 1} earlier update${items.length === 2 ? "" : "s"}`}
 						<CaretDownIcon
 							className={historyExpanded ? "rotate-180" : undefined}
-							weight="bold"
 						/>
 					</Button>
 				</div>
@@ -326,11 +325,11 @@ function TimelineEntry({
 				<header className="flex min-w-0 items-center gap-2 text-xs">
 					{item.kind === "reply" ? (
 						<span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-secondary text-muted-foreground">
-							<UserIcon className="size-3" weight="duotone" />
+							<UserIcon className="size-3" />
 						</span>
 					) : (
 						<span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-							<RobotIcon className="size-3" weight="duotone" />
+							<RobotIcon className="size-3" />
 						</span>
 					)}
 					<div className="flex min-w-0 items-center gap-2">
@@ -519,7 +518,6 @@ function Evidence({
 					<CaretDownIcon
 						aria-hidden
 						className={expanded ? "rotate-180" : undefined}
-						weight="bold"
 					/>
 				</Button>
 				{sourceHref ? (
@@ -729,7 +727,7 @@ function ReplyComposer({
 						size="sm"
 						type="submit"
 					>
-						<PaperPlaneIcon className="size-3.5" weight="bold" />
+						<PaperPlaneIcon className="size-3.5" />
 						Check latest context
 					</Button>
 				</div>

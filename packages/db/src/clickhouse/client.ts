@@ -145,8 +145,8 @@ export const clickHouse: ClickHouseClient = Object.assign(
 		insert: (
 			...args: Parameters<ClickHouseClient["insert"]>
 		): ReturnType<ClickHouseClient["insert"]> =>
-			withChTiming(() =>
-				withInsertRetry(() => baseClient.insert(...args))
+			withInsertRetry(() =>
+				withChTiming(() => baseClient.insert(...args))
 			) as ReturnType<ClickHouseClient["insert"]>,
 		query: (
 			...args: Parameters<ClickHouseClient["query"]>

@@ -115,11 +115,7 @@ export function RecentActivity({
 								<TableCell className="h-auto py-14 text-center" colSpan={5}>
 									<div className="mx-auto flex max-w-sm flex-col items-center gap-3 px-4">
 										<div className="flex size-11 items-center justify-center rounded border bg-muted/50 text-muted-foreground">
-											<ClockCounterClockwiseIcon
-												aria-hidden
-												size={22}
-												weight="duotone"
-											/>
+											<ClockCounterClockwiseIcon aria-hidden size={22} />
 										</div>
 										<div className="space-y-1">
 											<p className="text-balance font-medium text-foreground text-sm">
@@ -144,7 +140,6 @@ export function RecentActivity({
 														aria-hidden
 														className="mt-0.5 shrink-0 text-emerald-500 sm:mt-0"
 														size={18}
-														weight="fill"
 													/>
 												),
 												pending: (
@@ -152,7 +147,6 @@ export function RecentActivity({
 														aria-hidden
 														className="mt-0.5 shrink-0 text-amber-500 sm:mt-0"
 														size={18}
-														weight="fill"
 													/>
 												),
 												degraded: (
@@ -160,7 +154,6 @@ export function RecentActivity({
 														aria-hidden
 														className="mt-0.5 shrink-0 text-amber-500 sm:mt-0"
 														size={18}
-														weight="fill"
 													/>
 												),
 												down: (
@@ -168,7 +161,6 @@ export function RecentActivity({
 														aria-hidden
 														className="mt-0.5 shrink-0 text-red-500 sm:mt-0"
 														size={18}
-														weight="fill"
 													/>
 												),
 											};

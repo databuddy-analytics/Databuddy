@@ -71,11 +71,8 @@ function Form({
 
 	return (
 		<SubmitHintProvider value>
-			<form
-				className={className}
-				{...rest}
-				onKeyDown={handleKeyDown}
-			>
+			{/* biome-ignore lint/a11y/noNoninteractiveElementInteractions: form-level key handler is the correct scope for a Cmd+Enter submit shortcut; events bubble from the focused control */}
+			<form className={className} {...rest} onKeyDown={handleKeyDown}>
 				{children}
 			</form>
 		</SubmitHintProvider>

@@ -173,7 +173,7 @@ export function AddMonitorDialog({
 							onClick={() => setMode("existing")}
 							type="button"
 						>
-							<ListIcon className="size-4" weight="duotone" />
+							<ListIcon className="size-4" />
 							Existing
 						</button>
 						<button
@@ -214,10 +214,7 @@ export function AddMonitorDialog({
 								>
 									{availableSchedules.length === 0 ? (
 										<div className="flex flex-col items-center gap-2 px-4 py-6 text-center">
-											<HeartbeatIcon
-												className="size-8 text-muted-foreground/40"
-												weight="duotone"
-											/>
+											<HeartbeatIcon className="size-8 text-muted-foreground/40" />
 											<p className="text-muted-foreground text-sm">
 												No available monitors.
 											</p>

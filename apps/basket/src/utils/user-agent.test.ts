@@ -1,4 +1,4 @@
-import { vi, describe, expect, test } from "vitest";
+import { vi, beforeEach, describe, expect, test } from "vitest";
 
 const { mockDetectBotShared, mockParseUserAgentShared } = vi.hoisted(() => ({
 	mockDetectBotShared: vi.fn(() => ({
@@ -9,7 +9,7 @@ const { mockDetectBotShared, mockParseUserAgentShared } = vi.hoisted(() => ({
 		reason: undefined,
 		name: undefined,
 	})),
-	mockParseUserAgentShared: vi.fn(() => ({
+	mockParseUserAgentShared: vi.fn((_userAgent: string) => ({
 		browserName: "Chrome",
 		browserVersion: "120.0",
 		osName: "Windows",
@@ -73,5 +73,40 @@ describe("parseUserAgent", () => {
 		const result = await parseUserAgent("broken-ua");
 		expect(result.browserName).toBeUndefined();
 		expect(result.osName).toBeUndefined();
+	});
+});
+
+describe("parseUserAgent memoization", () => {
+	beforeEach(() => {
+		mockParseUserAgentShared.mockReset();
+		mockParseUserAgentShared.mockImplementation(() => ({
+			browserName: "Firefox",
+			browserVersion: "121.0",
+			osName: "macOS",
+			osVersion: "15",
+			deviceType: "desktop",
+			deviceBrand: undefined,
+			deviceModel: undefined,
+		}));
+	});
+
+	test("repeat user agent → parses once and returns the memoized value", async () => {
+		const userAgent = "MemoAgent/1.0";
+		const first = await parseUserAgent(userAgent);
+		const second = await parseUserAgent(userAgent);
+
+		expect(mockParseUserAgentShared).toHaveBeenCalledTimes(1);
+		expect(second).toBe(first);
+		expect(second.browserName).toBe("Firefox");
+	});
+
+	test("oversized user agents share one capped cache entry", async () => {
+		const prefix = `Oversized/${"A".repeat(600)}`;
+		const first = await parseUserAgent(`${prefix}-one`);
+		const second = await parseUserAgent(`${prefix}-two`);
+
+		expect(mockParseUserAgentShared).toHaveBeenCalledTimes(1);
+		expect(mockParseUserAgentShared.mock.calls[0][0]).toHaveLength(512);
+		expect(second).toBe(first);
 	});
 });

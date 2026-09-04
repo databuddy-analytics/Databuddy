@@ -292,6 +292,31 @@ describe("validateRequest", () => {
 		);
 	});
 
+	test("IP allowlist refuses a self-host deployment's spoofable header", async () => {
+		const previous = process.env.SELFHOST;
+		process.env.SELFHOST = "true";
+		mockGetWebsiteByIdV2.mockResolvedValue(
+			website({ settings: { allowedIps: ["10.0.0.1"] } })
+		);
+		mockIsValidIpFromSettings.mockReturnValue(true);
+		try {
+			await expectRejection(
+				validateRequest(
+					{},
+					{ client_id: "ws_1" },
+					makeReq("https://example.com", { "cf-connecting-ip": "10.0.0.1" })
+				),
+				403
+			);
+		} finally {
+			if (previous === undefined) {
+				delete process.env.SELFHOST;
+			} else {
+				process.env.SELFHOST = previous;
+			}
+		}
+	});
+
 	test("IP allowlist rejects requests without a trusted IP header", async () => {
 		mockGetWebsiteByIdV2.mockResolvedValue(
 			website({ settings: { allowedIps: ["10.0.0.1"] } })

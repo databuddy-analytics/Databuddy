@@ -1,19 +1,7 @@
 "use client";
 
-import dynamic from "next/dynamic";
-import { LatencyChartChunkPlaceholder } from "@databuddy/ui/uptime";
+import { LatencyChart } from "@databuddy/ui/uptime";
 import { UptimeHistory } from "./uptime-history";
-
-const LatencyChart = dynamic(
-	() =>
-		import("@databuddy/ui/uptime").then((m) => ({
-			default: m.LatencyChart,
-		})),
-	{
-		ssr: false,
-		loading: () => <LatencyChartChunkPlaceholder />,
-	}
-);
 
 export type MonitorDailyData = Array<{
 	avg_response_time?: number;

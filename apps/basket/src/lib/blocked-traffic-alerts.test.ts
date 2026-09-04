@@ -157,3 +157,4 @@ describe("blocked traffic alert rules", () => {
 		expect(requireBlockedTrafficEmailApiKey("test-key")).toBe("test-key");
 	});
 });
+

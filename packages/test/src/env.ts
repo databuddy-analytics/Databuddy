@@ -1,4 +1,4 @@
-import { readBooleanEnv } from "@databuddy/env/boolean";
+import { readBooleanEnv } from "@databuddy/env/app";
 
 const useCiUrls = readBooleanEnv("CI");
 const defaultDatabaseUrl =

@@ -3,7 +3,8 @@ import { checkBotId } from "botid/server";
 import { isValidPhoneNumber, parsePhoneNumber } from "libphonenumber-js";
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { enforceFormRateLimit, getClientIp } from "@/lib/rate-limit";
+import { enforceFormRateLimit } from "@/lib/rate-limit";
+import { getClientIp } from "@databuddy/shared/utils/client-ip";
 import { escapeMrkdwn, mrkdwnLink, postSlackBlocks } from "@/lib/slack-format";
 
 const databuddyApiKey = process.env.DATABUDDY_API_KEY;
@@ -143,7 +144,7 @@ export async function POST(request: NextRequest) {
 		return rateLimited;
 	}
 
-	const clientIP = getClientIp(request.headers);
+	const clientIP = getClientIp(request.headers) ?? "unknown";
 
 	try {
 		let formData: unknown;

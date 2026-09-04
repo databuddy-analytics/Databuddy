@@ -203,7 +203,7 @@ function LinksPageContent() {
 									size="sm"
 									variant="secondary"
 								>
-									<ArchiveIcon className="size-3.5" weight="duotone" />
+									<ArchiveIcon className="size-3.5" />
 									Folder
 								</Button>
 								<DropdownMenu>
@@ -216,14 +216,14 @@ function LinksPageContent() {
 									</DropdownMenu.Trigger>
 									<DropdownMenu.Content align="end" className="w-44">
 										<DropdownMenu.Item className="gap-2" onClick={openCreate}>
-											<LinkSimpleIcon className="size-4" weight="duotone" />
+											<LinkSimpleIcon className="size-4" />
 											Short Link
 										</DropdownMenu.Item>
 										<DropdownMenu.Item
 											className="gap-2"
 											onClick={() => setActiveDialog({ type: "deep-link" })}
 										>
-											<RocketIcon className="size-4" weight="duotone" />
+											<RocketIcon className="size-4" />
 											Deep Link
 										</DropdownMenu.Item>
 									</DropdownMenu.Content>
@@ -264,7 +264,7 @@ function LinksPageContent() {
 														? `No links match “${debouncedSearch}”`
 														: "No links match the current filters"
 												}
-												icon={<MagnifyingGlassIcon weight="duotone" />}
+												icon={<MagnifyingGlassIcon />}
 												title="No results"
 												variant="minimal"
 											/>
@@ -291,7 +291,7 @@ function LinksPageContent() {
 											onClick: () => refetch(),
 										}}
 										description="There was an issue fetching your links. Please try again."
-										icon={<LinkIcon weight="duotone" />}
+										icon={<LinkIcon />}
 										title="Error loading links"
 										variant="error"
 									/>

@@ -1,6 +1,9 @@
-import { expect, test } from "@playwright/test";
 import { getStressIterations } from "./fuzz-helpers";
-import { waitForSDK } from "./test-utils";
+import {
+	expect,
+	test,
+	waitForSDK,
+} from "./test-utils";
 
 test.describe.configure({ mode: "parallel" });
 

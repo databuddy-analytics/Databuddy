@@ -82,10 +82,7 @@ export function IntelligenceSection() {
 									className="flex items-start gap-2 text-foreground text-sm"
 									key={feature}
 								>
-									<CheckIcon
-										className="mt-0.5 size-4 shrink-0 text-primary"
-										weight="bold"
-									/>
+									<CheckIcon className="mt-0.5 size-4 shrink-0 text-primary" />
 									{feature}
 								</li>
 							))}

@@ -6,5 +6,6 @@ CREATE TABLE IF NOT EXISTS analytics.identity_anon_pairs
 	`profile_id` String
 )
 ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/analytics_identity_anon_pairs', '{replica}')
-ORDER BY (client_id, anonymous_id, identity_time)
+PARTITION BY toYYYYMM(identity_time)
+ORDER BY (client_id, identity_time, anonymous_id)
 SETTINGS index_granularity = 8192

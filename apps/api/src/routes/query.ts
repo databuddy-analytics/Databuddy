@@ -1,3 +1,4 @@
+import { getClientIp } from "@databuddy/shared/utils/client-ip";
 import { auth } from "@databuddy/auth";
 import {
 	API_KEY_AUTH_CHALLENGE,
@@ -19,7 +20,7 @@ import {
 	TraitFilterError,
 } from "@databuddy/services/identity";
 import { validateTimezone } from "@databuddy/validation";
-import { readBooleanEnv } from "@databuddy/env/boolean";
+import { readBooleanEnv } from "@databuddy/env/app";
 import { getRateLimitHeaders, ratelimit } from "@databuddy/redis/rate-limit";
 import { getBillingOwner } from "@databuddy/rpc/billing";
 import { getOrganizationOwnerId } from "@databuddy/rpc/organization";
@@ -330,15 +331,6 @@ type ProjectAccessResult =
 			status?: number;
 	  };
 
-function clientIpForQuery(request: Request): string {
-	return (
-		request.headers.get("cf-connecting-ip") ||
-		request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-		request.headers.get("x-real-ip") ||
-		"unknown"
-	);
-}
-
 async function enforceQueryRateLimit(
 	ctx: AuthContext,
 	endpoint: "compile" | "execute",
@@ -354,7 +346,7 @@ async function enforceQueryRateLimit(
 		? `apikey:${ctx.apiKey.id}`
 		: ctx.user
 			? `user:${ctx.user.id}`
-			: `anon:${clientIpForQuery(request)}`;
+			: `anon:${getClientIp(request.headers) ?? "unknown"}`;
 	const effectiveLimit = ctx.isAuthenticated ? limit : Math.min(limit, 60);
 	const rl = await ratelimit(
 		`query:${endpoint}:${principal}`,

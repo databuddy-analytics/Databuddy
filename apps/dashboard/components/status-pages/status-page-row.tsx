@@ -88,7 +88,7 @@ function StatusPageActions({
 					className="inline-flex size-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-interactive-hover hover:text-foreground group-hover:opacity-100 data-popup-open:opacity-100"
 					data-dropdown-trigger
 				>
-					<DotsThreeIcon className="size-4" weight="bold" />
+					<DotsThreeIcon className="size-4" />
 				</DropdownMenu.Trigger>
 				<DropdownMenu.Content align="end" className="w-52">
 					<DropdownMenu.Item
@@ -99,18 +99,18 @@ function StatusPageActions({
 							/>
 						}
 					>
-						<PencilSimpleIcon className="size-4" weight="duotone" />
+						<PencilSimpleIcon className="size-4" />
 						Manage Monitors
 					</DropdownMenu.Item>
 					<DropdownMenu.Item className="gap-2" onClick={onEditAction}>
-						<PencilSimpleIcon className="size-4" weight="duotone" />
+						<PencilSimpleIcon className="size-4" />
 						Edit Details
 					</DropdownMenu.Item>
 					<DropdownMenu.Item
 						className="gap-2"
 						onClick={() => copyToClipboard(url)}
 					>
-						<CopyIcon className="size-4" weight="duotone" />
+						<CopyIcon className="size-4" />
 						Copy URL
 					</DropdownMenu.Item>
 					<DropdownMenu.Item
@@ -123,14 +123,14 @@ function StatusPageActions({
 							/>
 						}
 					>
-						<ArrowSquareOutIcon className="size-4" weight="duotone" />
+						<ArrowSquareOutIcon className="size-4" />
 						View Page
 					</DropdownMenu.Item>
 					<DropdownMenu.Item
 						className="gap-2"
 						onClick={() => setIsTransferOpen(true)}
 					>
-						<ArrowSquareOutIcon className="size-4" weight="duotone" />
+						<ArrowSquareOutIcon className="size-4" />
 						Transfer to Organization
 					</DropdownMenu.Item>
 					<DropdownMenu.Separator />
@@ -139,7 +139,7 @@ function StatusPageActions({
 						onClick={onDeleteAction}
 						variant="destructive"
 					>
-						<TrashIcon className="size-4 fill-destructive" weight="duotone" />
+						<TrashIcon className="size-4 fill-destructive" />
 						Delete
 					</DropdownMenu.Item>
 				</DropdownMenu.Content>
@@ -209,7 +209,7 @@ export function StatusPageRow({
 							: "bg-secondary text-muted-foreground"
 					)}
 				>
-					<BrowserIcon className="size-5" weight="duotone" />
+					<BrowserIcon className="size-5" />
 				</div>
 				<div className="min-w-0 flex-1">
 					<div className="flex items-center gap-2">

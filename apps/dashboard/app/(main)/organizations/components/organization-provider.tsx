@@ -17,9 +17,7 @@ import {
 } from "@databuddy/ui/icons";
 import { Button, EmptyState, Skeleton } from "@databuddy/ui";
 
-type IconComponent = React.ForwardRefExoticComponent<
-	React.SVGProps<SVGSVGElement> & React.RefAttributes<SVGSVGElement>
->;
+type IconComponent = React.ComponentType<React.SVGProps<SVGSVGElement>>;
 
 interface HeaderActionButton {
 	action: () => void;
@@ -159,7 +157,7 @@ export function OrganizationProvider({
 						onClick: () => setShowCreateDialog(true),
 					}}
 					description="This feature requires an active organization."
-					icon={<BuildingsIcon size={16} weight="duotone" />}
+					icon={<BuildingsIcon size={16} />}
 					title="No organization selected"
 					variant="minimal"
 				/>

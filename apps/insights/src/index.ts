@@ -2,7 +2,7 @@ import { setAiRequestLoggerProvider } from "@databuddy/ai/lib/request-logger";
 import { isAiGatewayConfigured } from "@databuddy/ai/config/models";
 import { db, shutdownPostgres, sql } from "@databuddy/db";
 import { clickHouse } from "@databuddy/db/clickhouse";
-import { readBooleanEnv } from "@databuddy/env/boolean";
+import { readBooleanEnv } from "@databuddy/env/app";
 import {
 	closeInsightsQueue,
 	getBullMQWorkerConnectionOptions,

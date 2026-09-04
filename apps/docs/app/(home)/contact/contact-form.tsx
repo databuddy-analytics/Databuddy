@@ -326,7 +326,7 @@ export default function ContactForm() {
 							</>
 						) : (
 							<>
-								<PaperPlaneIcon className="size-4" weight="duotone" />
+								<PaperPlaneIcon className="size-4" />
 								Send Message
 							</>
 						)}

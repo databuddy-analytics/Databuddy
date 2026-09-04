@@ -56,7 +56,7 @@ const nextConfig: NextConfig = {
 		],
 	},
 	transpilePackages: [],
-	output: "standalone",
+	output: process.env.VERCEL ? undefined : "standalone",
 	async headers() {
 		const securityHeaders = [
 			{

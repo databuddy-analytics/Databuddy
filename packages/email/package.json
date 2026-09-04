@@ -16,14 +16,16 @@
   "main": "./src/emails/index.ts",
   "dependencies": {
     "@databuddy/shared": "workspace:*",
+    "@react-email/components": "^1.0.12",
+    "@react-email/render": "^2.1.0",
     "@types/node": "^26.0.0",
     "react": "catalog:",
-    "react-dom": "catalog:",
-    "react-email": "^6.0.0"
+    "react-dom": "catalog:"
   },
   "devDependencies": {
     "@react-email/ui": "^6.0.0",
     "@types/react": "catalog:",
-    "@types/react-dom": "catalog:"
+    "@types/react-dom": "catalog:",
+    "react-email": "^6.9.3"
   }
 }

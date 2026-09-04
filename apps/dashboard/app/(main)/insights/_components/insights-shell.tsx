@@ -167,7 +167,7 @@ function InsightsListShell({ children }: { children: ReactNode }) {
 						},
 					}}
 					description="Add a website to start receiving insights across your organization."
-					icon={<GlobeIcon weight="duotone" />}
+					icon={<GlobeIcon />}
 					title="No websites yet"
 					variant="minimal"
 				/>

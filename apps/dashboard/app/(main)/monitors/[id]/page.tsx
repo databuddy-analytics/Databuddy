@@ -602,7 +602,6 @@ export default function MonitorDetailsPage() {
 							"size-4 shrink-0",
 							manualCheckMutation.isPending && "animate-spin"
 						)}
-						weight="fill"
 					/>
 					Check Now
 				</Button>
@@ -617,12 +616,12 @@ export default function MonitorDetailsPage() {
 				>
 					{schedule.isPaused ? (
 						<>
-							<PlayIcon className="size-4 shrink-0" weight="fill" />
+							<PlayIcon className="size-4 shrink-0" />
 							Resume
 						</>
 					) : (
 						<>
-							<PauseIcon className="size-4 shrink-0" weight="fill" />
+							<PauseIcon className="size-4 shrink-0" />
 							Pause
 						</>
 					)}
@@ -634,7 +633,7 @@ export default function MonitorDetailsPage() {
 					type="button"
 					variant="secondary"
 				>
-					<PencilIcon className="size-4 shrink-0" weight="duotone" />
+					<PencilIcon className="size-4 shrink-0" />
 					<span className="hidden sm:inline">Configure</span>
 				</Button>
 				<Button
@@ -644,7 +643,7 @@ export default function MonitorDetailsPage() {
 					type="button"
 					variant="secondary"
 				>
-					<ArrowSquareOutIcon className="size-4 shrink-0" weight="duotone" />
+					<ArrowSquareOutIcon className="size-4 shrink-0" />
 					<span className="hidden sm:inline">Transfer</span>
 				</Button>
 				<Button
@@ -655,7 +654,7 @@ export default function MonitorDetailsPage() {
 					type="button"
 					variant="secondary"
 				>
-					<TrashIcon className="size-4 shrink-0" weight="duotone" />
+					<TrashIcon className="size-4 shrink-0" />
 					<span className="hidden sm:inline">Delete</span>
 				</Button>
 			</TopBar.Actions>
@@ -673,7 +672,7 @@ export default function MonitorDetailsPage() {
 
 					{schedule.schedulerStatus === "missing" && !schedule.isPaused ? (
 						<span className="flex items-center gap-1.5 font-medium text-warning">
-							<WarningIcon className="size-3.5" weight="duotone" />
+							<WarningIcon className="size-3.5" />
 							Scheduler inactive
 						</span>
 					) : null}
@@ -705,11 +704,7 @@ export default function MonitorDetailsPage() {
 							className="flex items-center gap-1.5 text-primary hover:underline"
 							href={`/websites/${schedule.websiteId}/pulse`}
 						>
-							<GlobeIcon
-								aria-hidden
-								className="size-4 shrink-0"
-								weight="duotone"
-							/>
+							<GlobeIcon aria-hidden className="size-4 shrink-0" />
 							<span className="truncate font-medium">
 								{schedule.website.name || schedule.website.domain}
 							</span>

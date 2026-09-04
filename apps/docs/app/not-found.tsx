@@ -62,7 +62,7 @@ export default async function NotFound() {
 										className="inline-flex items-center justify-center gap-2"
 										href="/"
 									>
-										<HouseIcon className="size-4" weight="duotone" />
+										<HouseIcon className="size-4" />
 										Go home
 									</Link>
 								</SciFiButton>

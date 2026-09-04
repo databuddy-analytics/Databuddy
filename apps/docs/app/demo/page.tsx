@@ -22,10 +22,7 @@ export default async function DemoPage() {
 					className="group flex items-center gap-2 rounded border border-border bg-card/90 px-4 py-2 font-medium text-sm shadow-lg backdrop-blur-sm hover:bg-card"
 					href="/"
 				>
-					<ArrowLeftIcon
-						className="size-4 text-foreground transition-transform group-hover:-translate-x-0.5"
-						weight="fill"
-					/>
+					<ArrowLeftIcon className="size-4 text-foreground transition-transform group-hover:-translate-x-0.5" />
 					<span className="text-foreground">Back to Home</span>
 				</Link>
 
@@ -44,10 +41,7 @@ export default async function DemoPage() {
 						target="_blank"
 					>
 						<span>Get Started Free</span>
-						<ArrowLeftIcon
-							className="size-4 rotate-180 transition-transform group-hover:translate-x-0.5"
-							weight="fill"
-						/>
+						<ArrowLeftIcon className="size-4 rotate-180 transition-transform group-hover:translate-x-0.5" />
 					</Link>
 				</div>
 			</div>
@@ -75,10 +69,7 @@ export default async function DemoPage() {
 							target="_blank"
 						>
 							Create free account
-							<ArrowLeftIcon
-								className="size-4 rotate-180 transition-transform"
-								weight="fill"
-							/>
+							<ArrowLeftIcon className="size-4 rotate-180 transition-transform" />
 						</Link>
 					</div>
 				</div>

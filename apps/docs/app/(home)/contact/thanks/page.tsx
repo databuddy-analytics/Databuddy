@@ -35,10 +35,7 @@ export default function ContactThanksPage() {
 						cornerColor="bg-green-500"
 					>
 						<div className="text-center">
-							<CheckIcon
-								className="mx-auto mb-4 size-12 text-green-500"
-								weight="duotone"
-							/>
+							<CheckIcon className="mx-auto mb-4 size-12 text-green-500" />
 							<h1 className="mb-2 font-semibold text-foreground text-xl sm:text-2xl">
 								Message Sent!
 							</h1>

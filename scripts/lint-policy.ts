@@ -583,11 +583,14 @@ function runGit(args: string[]) {
 	);
 }
 
+const GIT_OUTPUT_MAX_BYTES = 512 * 1024 * 1024;
+
 function tryRunGit(args: string[]) {
 	try {
 		return execFileSync("git", args, {
 			cwd: process.cwd(),
 			encoding: "utf8",
+			maxBuffer: GIT_OUTPUT_MAX_BYTES,
 			stdio: ["ignore", "pipe", "pipe"],
 		});
 	} catch {

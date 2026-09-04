@@ -71,10 +71,7 @@ export function AgentErrorMessage({
 
 	return (
 		<div className="flex items-center gap-2 py-1.5 text-xs" role="alert">
-			<WarningIcon
-				className="size-3.5 shrink-0 text-destructive"
-				weight="fill"
-			/>
+			<WarningIcon className="size-3.5 shrink-0 text-destructive" />
 			<span className="min-w-0 flex-1 truncate text-muted-foreground">
 				{message}
 			</span>
@@ -90,7 +87,6 @@ export function AgentErrorMessage({
 			>
 				<ArrowClockwiseIcon
 					className={cn("size-3.5", isRetrying && "animate-spin")}
-					weight="bold"
 				/>
 				<span>Try again</span>
 			</Button>

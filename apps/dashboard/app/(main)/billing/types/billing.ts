@@ -1,7 +1,7 @@
 interface PaymentMethodCard {
 	brand?: string;
-	expMonth?: number;
-	expYear?: number;
+	exp_month?: number;
+	exp_year?: number;
 	last4?: string;
 }
 
@@ -11,7 +11,7 @@ interface PaymentMethodBillingDetails {
 		country?: string;
 		line1?: string;
 		line2?: string;
-		postalCode?: string;
+		postal_code?: string;
 		state?: string;
 	};
 	email?: string;
@@ -19,7 +19,7 @@ interface PaymentMethodBillingDetails {
 }
 
 interface PaymentMethod {
-	billingDetails?: PaymentMethodBillingDetails;
+	billing_details?: PaymentMethodBillingDetails;
 	card?: PaymentMethodCard;
 	id?: string;
 	type?: string;
@@ -27,5 +27,5 @@ interface PaymentMethod {
 
 export interface CustomerWithPaymentMethod {
 	name?: string | null;
-	paymentMethod?: PaymentMethod;
+	paymentMethod?: PaymentMethod | null;
 }

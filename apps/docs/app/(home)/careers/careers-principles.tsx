@@ -74,10 +74,7 @@ export default function CareersPrinciples() {
 				{principles.map((principle) => (
 					<SciFiCard key={principle.title} variant="foreground">
 						<div className="relative h-full rounded border border-border bg-card/50 p-6 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
-							<principle.icon
-								className="mb-4 size-7 text-muted-foreground duration-300 group-hover:text-foreground"
-								weight="duotone"
-							/>
+							<principle.icon className="mb-4 size-7 text-muted-foreground duration-300 group-hover:text-foreground" />
 							<h3 className="mb-2 font-semibold text-foreground text-lg">
 								{principle.title}
 							</h3>

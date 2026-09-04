@@ -3,7 +3,7 @@ import {
 	runWithAuthAuditContext,
 	runWithAuthTransaction,
 } from "@databuddy/auth";
-import { getTrustedClientIp } from "@databuddy/shared/utils/trusted-client-ip";
+import { getClientIp } from "@databuddy/shared/utils/client-ip";
 import { toNextJsHandler } from "better-auth/next-js";
 
 const handlers = toNextJsHandler(auth.handler);
@@ -44,7 +44,7 @@ async function withAuditContext<T>(
 			operation: `auth${pathname}`,
 			request: {
 				requestId: request.headers.get("x-request-id") ?? undefined,
-				ip: getTrustedClientIp(request.headers),
+				ip: getClientIp(request.headers),
 				userAgent: request.headers.get("user-agent") ?? undefined,
 			},
 		},

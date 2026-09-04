@@ -17,7 +17,7 @@ const connectProducer = (): Promise<Producer> => {
 		...(username && password
 			? { sasl: { mechanism: "scram-sha-256", username, password } }
 			: {}),
-		...(process.env.REDPANDA_SSL === "true" ? { ssl: true } : {}),
+		ssl: true,
 	});
 
 	const producer = kafka.producer({

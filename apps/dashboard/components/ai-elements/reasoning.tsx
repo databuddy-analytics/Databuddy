@@ -182,7 +182,6 @@ export const ReasoningTrigger = memo(
 								"size-3.5 shrink-0 opacity-60 transition-transform",
 								isOpen ? "rotate-180" : "rotate-0"
 							)}
-							weight="fill"
 						/>
 					</>
 				)}

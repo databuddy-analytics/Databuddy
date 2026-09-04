@@ -1,7 +1,6 @@
 import { afterAll, describe, expect, test, vi } from "vitest";
 import { randomIPv4, randomPublicIPv4, req } from "../test-helpers";
 import {
-	anonymizeIp,
 	closeGeoIPReader,
 	extractIpFromRequest,
 	getGeo,
@@ -10,20 +9,6 @@ import {
 const HEX12 = /^[a-f0-9]{12}$/;
 
 afterAll(() => closeGeoIPReader());
-
-describe("anonymizeIp", () => {
-	test("empty → empty", () => expect(anonymizeIp("")).toBe(""));
-
-	test("1000 random IPs → all unique 12-char hex", () => {
-		const hashes = new Set<string>();
-		for (let i = 0; i < 1000; i++) {
-			const h = anonymizeIp(randomIPv4());
-			expect(h).toMatch(HEX12);
-			hashes.add(h);
-		}
-		expect(hashes.size).toBe(1000);
-	});
-});
 
 describe("extractIpFromRequest", () => {
 	const table: [string, Record<string, string>, string][] = [
@@ -61,16 +46,14 @@ describe("extractIpFromRequest", () => {
 });
 
 describe("getGeo", () => {
-	test("empty IP → empty anonymizedIP, no geo", async () => {
+	test("empty IP → no geo", async () => {
 		const r = await getGeo("");
-		expect(r.anonymizedIP).toBe("");
 		expect(r.country).toBeUndefined();
 	});
 
 	for (const ip of ["127.0.0.1", "::1"]) {
 		test(`${ip} → no geo data`, async () => {
 			const r = await getGeo(ip);
-			expect(r.anonymizedIP).toBeTruthy();
 			expect(r.country).toBeUndefined();
 			expect(r.region).toBeUndefined();
 			expect(r.city).toBeUndefined();

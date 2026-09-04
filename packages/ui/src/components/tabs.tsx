@@ -18,8 +18,8 @@ function List({
 	return (
 		<BaseTabs.List
 			className={cn(
-				"relative inline-flex h-9 w-fit items-center gap-0.5 border-b border-accent-foreground/10",
-				className,
+				"relative inline-flex h-9 w-fit items-center gap-0.5 border-accent-foreground/10 border-b",
+				className
 			)}
 			{...rest}
 		/>
@@ -39,10 +39,10 @@ function Tab({
 				"data-active:text-foreground",
 				"after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:scale-x-0 after:rounded-full after:bg-primary after:transition-transform after:duration-(--duration-quick) after:ease-(--ease-smooth)",
 				"data-active:after:scale-x-100",
-				"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:rounded-sm",
+				"focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
 				"disabled:pointer-events-none disabled:opacity-50",
 				"[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
-				className,
+				className
 			)}
 			{...rest}
 		/>
@@ -71,7 +71,7 @@ function Indicator({
 				"absolute bottom-0 h-0.5 rounded-full bg-primary",
 				"transition-[width,transform] duration-(--duration-quick) ease-(--ease-smooth)",
 				"motion-reduce:transition-none",
-				className,
+				className
 			)}
 			{...rest}
 		/>

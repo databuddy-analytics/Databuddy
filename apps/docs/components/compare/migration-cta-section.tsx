@@ -35,10 +35,7 @@ export function MigrationCtaSection({
 				href={guideHref}
 			>
 				{guideLabel}
-				<ArrowRightIcon
-					className="size-4 transition-transform group-hover:translate-x-0.5"
-					weight="fill"
-				/>
+				<ArrowRightIcon className="size-4 transition-transform group-hover:translate-x-0.5" />
 			</Link>
 		</section>
 	);

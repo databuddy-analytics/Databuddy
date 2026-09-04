@@ -211,18 +211,18 @@ export default function PulsePage() {
 			>
 				{schedule.isPaused ? (
 					<>
-						<PlayIcon size={16} weight="fill" />
+						<PlayIcon size={16} />
 						Resume
 					</>
 				) : (
 					<>
-						<PauseIcon size={16} weight="fill" />
+						<PauseIcon size={16} />
 						Pause
 					</>
 				)}
 			</Button>
 			<Button onClick={handleEditMonitor} size="sm" variant="secondary">
-				<PencilIcon size={16} weight="duotone" />
+				<PencilIcon size={16} />
 				Configure
 			</Button>
 			<Button
@@ -231,7 +231,7 @@ export default function PulsePage() {
 				size="sm"
 				variant="secondary"
 			>
-				<TrashIcon size={16} weight="duotone" />
+				<TrashIcon size={16} />
 				Delete
 			</Button>
 		</>
@@ -289,7 +289,7 @@ export default function PulsePage() {
 							}}
 							className="h-full py-0"
 							description="Track availability, then link an alert to get notified when the site goes down."
-							icon={<HeartbeatIcon weight="duotone" />}
+							icon={<HeartbeatIcon />}
 							title="No monitor yet"
 							variant="minimal"
 						/>

@@ -45,10 +45,7 @@ function OpeningCard({ opening }: { opening: CareerOpening }) {
 			<article className="relative rounded border border-primary/50 bg-primary/5 p-6 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 sm:p-8">
 				<div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
 					<div className="flex items-start gap-3">
-						<Icon
-							className="mt-0.5 size-8 shrink-0 text-primary"
-							weight="duotone"
-						/>
+						<Icon className="mt-0.5 size-8 shrink-0 text-primary" />
 						<div>
 							<h3 className="text-balance font-semibold text-foreground text-xl sm:text-2xl">
 								{opening.title}

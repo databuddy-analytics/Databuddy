@@ -70,11 +70,7 @@ export function BillingControlsCard() {
 		<Card>
 			<Card.Header>
 				<Card.Title className="flex items-center gap-2">
-					<GearIcon
-						className="text-muted-foreground"
-						size={14}
-						weight="duotone"
-					/>
+					<GearIcon className="text-muted-foreground" size={14} />
 					Billing controls
 				</Card.Title>
 				<Card.Description>
@@ -90,7 +86,7 @@ export function BillingControlsCard() {
 					}}
 					defaults={TOPUP_DEFAULTS}
 					description="Add investigation credits automatically when the organization's balance runs low."
-					icon={<InfinityIcon size={16} weight="duotone" />}
+					icon={<InfinityIcon size={16} />}
 					initial={topup}
 					limits={TOPUP_LIMITS}
 					messages={{
@@ -142,7 +138,7 @@ export function BillingControlsCard() {
 					}}
 					defaults={ALERT_DEFAULTS}
 					description="Get an email when your monthly event usage crosses a threshold — no more surprises."
-					icon={<BellIcon size={16} weight="duotone" />}
+					icon={<BellIcon size={16} />}
 					initial={alert}
 					limits={ALERT_LIMITS}
 					messages={{
@@ -178,7 +174,7 @@ export function BillingControlsCard() {
 					}}
 					defaults={SPEND_DEFAULTS}
 					description="Cap monthly investigation credit spending. Automatic refills stop when the cap is reached."
-					icon={<ShieldCheckIcon size={16} weight="duotone" />}
+					icon={<ShieldCheckIcon size={16} />}
 					initial={spend}
 					limits={SPEND_LIMITS}
 					messages={{

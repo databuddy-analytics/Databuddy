@@ -129,7 +129,7 @@ export function InvestigationSettings({
 						{analysisPending ? (
 							<Spinner size="sm" />
 						) : (
-							<GearIcon className="size-4" weight="duotone" />
+							<GearIcon className="size-4" />
 						)}
 						<span className="hidden sm:inline">
 							{analysisPending ? "Analyzing…" : "Analysis"}
@@ -161,7 +161,7 @@ export function InvestigationSettings({
 									variant: "secondary",
 								}}
 								description="Databuddy couldn't load analysis settings for this organization."
-								icon={<GearIcon weight="duotone" />}
+								icon={<GearIcon />}
 								title="Couldn't load settings"
 								variant="error"
 							/>

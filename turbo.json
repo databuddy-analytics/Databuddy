@@ -44,11 +44,12 @@
     "REDPANDA_USER",
     "RESEND_API_KEY",
     "RESEND_AUDIENCE_ID",
+    "SERVICE_NAME",
     "SLACK_CLIENT_ID",
     "SLACK_CLIENT_SECRET",
-    "SERVICE_NAME",
     "TCC_API_KEY",
-    "UPTIME_ROUTER_INTEGRATION"
+    "UPTIME_ROUTER_INTEGRATION",
+    "VERCEL"
   ],
   "tasks": {
     "build": {

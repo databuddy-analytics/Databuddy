@@ -117,10 +117,7 @@ export default async function PostPage({
 					<div className="relative z-10 mx-auto w-full max-w-lg text-center">
 						<SciFiCard>
 							<div className="relative rounded border border-border bg-card/50 p-8 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 sm:p-12">
-								<WarningCircleIcon
-									className="mx-auto mb-4 h-12 w-12 text-muted-foreground duration-300 group-hover:text-foreground sm:h-16 sm:w-16"
-									weight="duotone"
-								/>
+								<WarningCircleIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground duration-300 group-hover:text-foreground sm:h-16 sm:w-16" />
 								<h1 className="mb-3 text-balance font-semibold text-2xl leading-tight tracking-tight sm:text-3xl md:text-4xl">
 									Post Not Found
 								</h1>
@@ -131,7 +128,7 @@ export default async function PostPage({
 								<div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
 									<SciFiButton asChild className="flex-1 sm:flex-initial">
 										<Link aria-label="Back to blog" href="/blog">
-											<ArrowLeftIcon className="size-4" weight="fill" />
+											<ArrowLeftIcon className="size-4" />
 											Back to Blog
 										</Link>
 									</SciFiButton>
@@ -191,7 +188,7 @@ export default async function PostPage({
 						className="inline-flex items-center gap-2 text-muted-foreground text-xs hover:text-foreground"
 						href="/blog"
 					>
-						<ArrowLeftIcon className="h-3.5 w-3.5" weight="fill" />
+						<ArrowLeftIcon className="h-3.5 w-3.5" />
 						Back to blog
 					</Link>
 				</div>
@@ -202,7 +199,7 @@ export default async function PostPage({
 
 				<div className="mb-4 flex flex-wrap items-center gap-4 text-muted-foreground text-xs sm:text-sm">
 					<div className="flex items-center gap-2">
-						<UserIcon className="size-4" weight="duotone" />
+						<UserIcon className="size-4" />
 						<div className="flex -space-x-2">
 							{post.authors.slice(0, 3).map((author) => (
 								<Avatar
@@ -233,11 +230,11 @@ export default async function PostPage({
 						)}
 					</div>
 					<div className="flex items-center gap-2">
-						<CalendarIcon className="size-4" weight="duotone" />
+						<CalendarIcon className="size-4" />
 						<span>{formatDate(post.publishedAt)}</span>
 					</div>
 					<div className="flex items-center gap-2">
-						<ClockIcon className="size-4" weight="duotone" />
+						<ClockIcon className="size-4" />
 						<span>{readingTime}</span>
 					</div>
 				</div>

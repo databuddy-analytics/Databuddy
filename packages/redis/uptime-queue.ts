@@ -16,6 +16,7 @@ export const UPTIME_JOB_OPTIONS = {
 		type: "exponential",
 		delay: 5000,
 	},
+	stackTraceLimit: 3,
 	// A failed source job can contain the only durable copy of a completed probe.
 	removeOnComplete: {
 		age: 24 * 3600,
@@ -33,6 +34,7 @@ export const UPTIME_DELIVERY_JOB_OPTIONS = {
 		type: "fixed",
 		delay: 30_000,
 	},
+	stackTraceLimit: 3,
 	// Keep completed IDs long enough for an ambiguous queue add to stay idempotent.
 	removeOnComplete: {
 		age: 7 * 24 * 3600,

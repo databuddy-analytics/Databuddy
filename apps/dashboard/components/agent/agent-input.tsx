@@ -746,10 +746,7 @@ function PendingPill({
 
 	return (
 		<div className="mb-2 flex items-center gap-2 rounded border border-border/60 bg-muted/40 px-2.5 py-1.5 text-xs">
-			<ClockCountdownIcon
-				className="size-3.5 shrink-0 text-muted-foreground"
-				weight="duotone"
-			/>
+			<ClockCountdownIcon className="size-3.5 shrink-0 text-muted-foreground" />
 			<span className="shrink-0 font-medium text-muted-foreground">
 				{count === 1 ? "1 queued" : `${count} queued`}
 			</span>

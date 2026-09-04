@@ -19,7 +19,7 @@ export function TemplatesList({
 			<div className="flex flex-1 items-center justify-center py-16">
 				<EmptyState
 					description="Ready-made flag setups will appear here."
-					icon={<LayoutIcon weight="duotone" />}
+					icon={<LayoutIcon />}
 					title="No templates available"
 					variant="minimal"
 				/>

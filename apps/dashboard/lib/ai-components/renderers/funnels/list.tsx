@@ -63,7 +63,7 @@ function FunnelRow({
 				variant="ghost"
 			>
 				<span className="h-max shrink-0 rounded border border-transparent bg-accent p-1.5 text-primary transition-colors group-hover/funnel-row:bg-primary/10">
-					<FunnelIcon className="size-3.5" weight="duotone" />
+					<FunnelIcon className="size-3.5" />
 				</span>
 
 				<span className="min-w-0 flex-1">
@@ -123,11 +123,11 @@ function FunnelRow({
 					aria-label="Actions"
 					className="inline-flex size-7 shrink-0 items-center justify-center gap-1.5 rounded-md bg-secondary p-0 font-medium text-muted-foreground opacity-70 transition-all duration-(--duration-quick) ease-(--ease-smooth) hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:pointer-events-none disabled:opacity-50 group-hover/funnel-row:bg-interactive-hover group-hover/funnel-row:text-foreground data-[state=open]:opacity-100"
 				>
-					<DotsThreeIcon className="size-4" weight="bold" />
+					<DotsThreeIcon className="size-4" />
 				</DropdownMenu.Trigger>
 				<DropdownMenu.Content align="end" className="w-40">
 					<DropdownMenu.Item className="gap-2" onClick={onEdit}>
-						<PencilSimpleIcon className="size-4" weight="duotone" />
+						<PencilSimpleIcon className="size-4" />
 						Edit
 					</DropdownMenu.Item>
 					<DropdownMenu.Separator />
@@ -136,7 +136,7 @@ function FunnelRow({
 						onClick={onDelete}
 						variant="destructive"
 					>
-						<TrashIcon className="size-4" weight="duotone" />
+						<TrashIcon className="size-4" />
 						Delete
 					</DropdownMenu.Item>
 				</DropdownMenu.Content>
@@ -275,10 +275,7 @@ export function FunnelsListRenderer({
 			>
 				<div className="rounded-md bg-background px-3 py-8">
 					<div className="flex flex-col items-center justify-center gap-2 text-center">
-						<FunnelIcon
-							className="size-8 text-muted-foreground/40"
-							weight="duotone"
-						/>
+						<FunnelIcon className="size-8 text-muted-foreground/40" />
 						<p className="font-medium text-sm">No funnels found</p>
 						<p className="text-muted-foreground text-xs">
 							Create your first conversion funnel
@@ -319,10 +316,7 @@ export function FunnelsListRenderer({
 					{title ? (
 						<div className="flex items-center gap-2.5 rounded-md bg-background px-2 py-2">
 							<div className="flex size-6 items-center justify-center rounded bg-accent">
-								<FunnelIcon
-									className="size-3.5 text-muted-foreground"
-									weight="duotone"
-								/>
+								<FunnelIcon className="size-3.5 text-muted-foreground" />
 							</div>
 							<p className="font-medium text-sm">{title}</p>
 							<div className="ml-auto flex items-center gap-2">

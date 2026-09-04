@@ -47,10 +47,7 @@ export function PropertyValueCard({
 		>
 			<div className="flex min-h-11 items-center justify-between gap-3 border-border/60 border-b bg-muted/30 px-3 py-2.5">
 				<div className="flex min-w-0 items-center gap-2">
-					<TagIcon
-						className="size-3.5 shrink-0 text-muted-foreground"
-						weight="duotone"
-					/>
+					<TagIcon className="size-3.5 shrink-0 text-muted-foreground" />
 					<span className="truncate font-medium text-[13px] text-foreground">
 						{title}
 					</span>
@@ -100,7 +97,6 @@ export function PropertyValueCard({
 									<FunnelIcon
 										aria-hidden="true"
 										className="size-3.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus:opacity-100"
-										weight="duotone"
 									/>
 								)}
 							</div>

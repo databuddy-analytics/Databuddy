@@ -37,13 +37,7 @@ export default function WebsiteDetailsPage() {
 						</Link>
 					}
 					description="The website you are looking for does not exist or you do not have access."
-					icon={
-						<WarningIcon
-							aria-hidden="true"
-							className="size-12"
-							weight="duotone"
-						/>
-					}
+					icon={<WarningIcon aria-hidden="true" className="size-12" />}
 					title="Website not found"
 				/>
 			</div>

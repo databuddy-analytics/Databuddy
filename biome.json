@@ -11,7 +11,7 @@
       "!**/*.svg",
       "!**/*.test.ts",
       "!**/*.spec.ts",
-      "!**/ui/**/*.tsx",
+      "!**/components/ui/**/*.tsx",
       "!.fablize",
       "!apps/dashboard/public/subdivisions.json"
     ]
@@ -24,6 +24,16 @@
     "globals": ["chrome"]
   },
   "overrides": [
+    {
+      "includes": ["packages/ui/src/components/icons/**/*.tsx"],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "noSvgWithoutTitle": "off"
+          }
+        }
+      }
+    },
     {
       "includes": ["apps/basket/**/*.ts", "apps/api/**/*.ts"],
       "linter": {

@@ -57,7 +57,7 @@ export function StepExplore({
 		<div className="space-y-6">
 			<div className="flex items-center gap-3">
 				<div className="flex size-10 items-center justify-center rounded-lg bg-primary/10">
-					<RocketLaunchIcon className="size-5 text-primary" weight="duotone" />
+					<RocketLaunchIcon className="size-5 text-primary" />
 				</div>
 				<div>
 					<h2 className="text-balance font-semibold text-lg">
@@ -75,7 +75,7 @@ export function StepExplore({
 
 			<div className="flex items-center gap-2">
 				<Badge size="sm" variant="success">
-					<CheckCircleIcon className="size-3" weight="duotone" />
+					<CheckCircleIcon className="size-3" />
 					{hasVerifiedTracking ? "Tracking verified" : "Setup complete"}
 				</Badge>
 				<p className="text-muted-foreground text-xs">
@@ -92,10 +92,7 @@ export function StepExplore({
 						onClick={onEnterProduct}
 					>
 						<div className="flex size-8 shrink-0 items-center justify-center rounded bg-accent">
-							<feature.icon
-								className="size-4 text-muted-foreground"
-								weight="duotone"
-							/>
+							<feature.icon className="size-4 text-muted-foreground" />
 						</div>
 						<div className="min-w-0 flex-1">
 							<p className="font-medium text-sm">{feature.title}</p>

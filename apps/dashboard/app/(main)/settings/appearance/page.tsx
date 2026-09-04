@@ -148,10 +148,7 @@ export default function AppearanceSettingsPage() {
 										onClick={() => setTheme(id)}
 										type="button"
 									>
-										<Icon
-											className="size-3.5"
-											weight={isActive ? "duotone" : "regular"}
-										/>
+										<Icon className="size-3.5" />
 										<Text variant="label">{name}</Text>
 									</button>
 								);
@@ -357,10 +354,7 @@ export default function AppearanceSettingsPage() {
 													onClick={() => setPreviewLocation(location)}
 													type="button"
 												>
-													<LocationIcon
-														className="size-4 shrink-0 text-muted-foreground"
-														weight="duotone"
-													/>
+													<LocationIcon className="size-4 shrink-0 text-muted-foreground" />
 													<Text
 														className={cn(
 															"truncate text-left",

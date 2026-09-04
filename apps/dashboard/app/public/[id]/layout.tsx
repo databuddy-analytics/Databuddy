@@ -72,11 +72,7 @@ export default function PublicWebsiteLayout({
 								className="size-5"
 								domain={websiteData?.domain || ""}
 								fallbackIcon={
-									<PlanetIcon
-										className="text-sidebar-ring"
-										size={20}
-										weight="duotone"
-									/>
+									<PlanetIcon className="text-sidebar-ring" size={20} />
 								}
 								size={20}
 							/>

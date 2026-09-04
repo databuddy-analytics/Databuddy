@@ -244,7 +244,7 @@ function RegisterPageContent() {
 				size="lg"
 				variant="ghost"
 			>
-				<CaretLeftIcon className="size-3" weight="bold" />
+				<CaretLeftIcon className="size-3" />
 				<span className="hidden sm:inline">Back to registration</span>
 				<span className="sm:hidden">Back</span>
 			</Button>

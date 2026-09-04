@@ -47,7 +47,7 @@ export default function DPAPage() {
 				{/* Header */}
 				<div className="mb-12 text-center">
 					<div className="mb-5 inline-flex items-center justify-center rounded border border-accent bg-accent/50 p-3">
-						<FileTextIcon className="size-7 text-primary" weight="duotone" />
+						<FileTextIcon className="size-7 text-primary" />
 					</div>
 					<h1 className="mb-4 font-bold text-4xl md:text-5xl">
 						Data Processing Agreement
@@ -82,7 +82,7 @@ export default function DPAPage() {
 				{/* DPA highlight */}
 				<div className="mb-8 rounded border border-accent bg-accent/50 p-6">
 					<h2 className="mb-3 flex items-center font-bold text-primary text-xl">
-						<ShieldCheckIcon className="mr-2 size-5" weight="duotone" />
+						<ShieldCheckIcon className="mr-2 size-5" />
 						GDPR Article 28 Compliance
 					</h2>
 					<p className="mb-4 text-muted-foreground">
@@ -93,15 +93,15 @@ export default function DPAPage() {
 					</p>
 					<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
 						<div className="flex items-center text-primary">
-							<LockKeyIcon className="mr-2 size-4" weight="duotone" />
+							<LockKeyIcon className="mr-2 size-4" />
 							<span className="text-sm">EU Data Processing</span>
 						</div>
 						<div className="flex items-center text-primary">
-							<ShieldIcon className="mr-2 size-4" weight="duotone" />
+							<ShieldIcon className="mr-2 size-4" />
 							<span className="text-sm">GDPR Compliant</span>
 						</div>
 						<div className="flex items-center text-primary">
-							<CheckCircleIcon className="mr-2 size-4" weight="duotone" />
+							<CheckCircleIcon className="mr-2 size-4" />
 							<span className="text-sm">Automatic Agreement</span>
 						</div>
 					</div>
@@ -327,7 +327,7 @@ export default function DPAPage() {
 						</p>
 						<div className="mt-4 mb-6 rounded border bg-muted/50 p-5">
 							<p className="mb-3 flex items-center text-primary">
-								<EnvelopeIcon className="mr-2 size-5" weight="duotone" />
+								<EnvelopeIcon className="mr-2 size-5" />
 								<a
 									className="hover:underline"
 									href="mailto:privacy@databuddy.cc"

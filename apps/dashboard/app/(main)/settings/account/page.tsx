@@ -325,10 +325,7 @@ function DeleteAccountDialog({
 				</Dialog.Header>
 				<Dialog.Body className="space-y-4">
 					<div className="flex items-start gap-3 rounded-lg border border-destructive/20 bg-destructive/5 p-3">
-						<WarningCircleIcon
-							className="mt-0.5 size-5 shrink-0 text-destructive"
-							weight="duotone"
-						/>
+						<WarningCircleIcon className="mt-0.5 size-5 shrink-0 text-destructive" />
 						<Text tone="muted" variant="caption">
 							You will lose access to all organizations you own. Transfer
 							ownership before deleting your account if needed.
@@ -669,10 +666,7 @@ export default function AccountSettingsPage() {
 												{index > 0 && <Divider className="mb-3" />}
 												<div className="flex items-start justify-between gap-3">
 													<div className="flex min-w-0 items-start gap-3">
-														<ProviderIcon
-															className="size-4 text-muted-foreground"
-															weight="duotone"
-														/>
+														<ProviderIcon className="size-4 text-muted-foreground" />
 														<div className="min-w-0">
 															<Text variant="label">{config.name}</Text>
 															<Text tone="muted" variant="caption">

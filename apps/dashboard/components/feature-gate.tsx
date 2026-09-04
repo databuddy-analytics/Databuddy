@@ -104,10 +104,7 @@ export function FeatureGate({
 			<Card className="w-full max-w-md overflow-hidden pt-0">
 				<Card.Header className="dotted-bg flex flex-col items-center gap-4 border-b bg-accent py-8">
 					<div className="flex size-14 items-center justify-center rounded border bg-card">
-						<LockSimpleIcon
-							className="size-7 text-muted-foreground"
-							weight="duotone"
-						/>
+						<LockSimpleIcon className="size-7 text-muted-foreground" />
 					</div>
 					<div className="text-center">
 						<h2 className="font-semibold text-lg">
@@ -125,10 +122,7 @@ export function FeatureGate({
 					<div className="flex items-center justify-between rounded border bg-accent/50 px-3 py-2.5">
 						<span className="text-muted-foreground text-sm">Required plan</span>
 						<div className="flex items-center gap-1.5">
-							<PlanIcon
-								className={cn("size-4", planConfig.color)}
-								weight="duotone"
-							/>
+							<PlanIcon className={cn("size-4", planConfig.color)} />
 							<span className={cn("font-semibold text-sm", planConfig.color)}>
 								{planConfig.name}
 							</span>
@@ -138,10 +132,7 @@ export function FeatureGate({
 					<div className="flex items-center justify-between rounded border px-3 py-2.5">
 						<span className="text-muted-foreground text-sm">Your plan</span>
 						<div className="flex items-center gap-1.5">
-							<CurrentIcon
-								className={cn("size-4", currentConfig.color)}
-								weight="duotone"
-							/>
+							<CurrentIcon className={cn("size-4", currentConfig.color)} />
 							<span className="font-medium text-foreground text-sm">
 								{currentPlanName}
 							</span>
@@ -151,7 +142,7 @@ export function FeatureGate({
 					{canUserUpgrade ? (
 						<Button asChild className="group w-full gap-2" size="lg">
 							<Link href="/billing/plans">
-								<RocketLaunchIcon className="size-5" weight="duotone" />
+								<RocketLaunchIcon className="size-5" />
 								Upgrade to {planConfig.name}
 								<ArrowRightIcon className="size-4 transition-transform group-hover:translate-x-0.5" />
 							</Link>

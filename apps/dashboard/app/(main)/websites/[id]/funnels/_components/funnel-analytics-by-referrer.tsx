@@ -58,7 +58,7 @@ function SourceCard({
 							isSelected ? "text-chart-2" : "text-muted-foreground"
 						)}
 					>
-						<GlobeIcon className="size-5" weight="duotone" />
+						<GlobeIcon className="size-5" />
 					</div>
 				) : (
 					<FaviconImage
@@ -70,7 +70,6 @@ function SourceCard({
 									"size-5",
 									isSelected ? "text-chart-2" : "text-muted-foreground"
 								)}
-								weight="duotone"
 							/>
 						}
 						size={20}
@@ -88,7 +87,7 @@ function SourceCard({
 
 			<div className="flex items-center justify-between gap-2">
 				<div className="flex items-center gap-1 text-muted-foreground text-xs">
-					<UsersIcon className="size-3" weight="fill" />
+					<UsersIcon className="size-3" />
 					<span className="tabular-nums">{users.toLocaleString()}</span>
 				</div>
 				{conversionRate !== undefined && (
@@ -98,7 +97,7 @@ function SourceCard({
 							isSelected ? "text-chart-2" : "text-success"
 						)}
 					>
-						<TargetIcon className="size-3" weight="fill" />
+						<TargetIcon className="size-3" />
 						<span className="tabular-nums">{conversionRate.toFixed(0)}%</span>
 					</div>
 				)}
@@ -259,7 +258,7 @@ export function FunnelAnalyticsByReferrer({
 	if (error) {
 		return (
 			<div className="flex items-center gap-2 rounded border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm">
-				<WarningCircleIcon className="size-4 text-destructive" weight="fill" />
+				<WarningCircleIcon className="size-4 text-destructive" />
 				<span className="text-destructive">Failed to load traffic sources</span>
 			</div>
 		);

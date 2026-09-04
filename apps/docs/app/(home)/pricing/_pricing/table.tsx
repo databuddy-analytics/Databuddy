@@ -17,7 +17,7 @@ function planComparisonTdClass(planId: string): string {
 function FeatureCheck() {
 	return (
 		<span className="inline-flex items-center justify-center">
-			<CheckIcon className="size-4 text-primary" weight="bold" />
+			<CheckIcon className="size-4 text-primary" />
 		</span>
 	);
 }
@@ -25,7 +25,7 @@ function FeatureCheck() {
 function FeatureX() {
 	return (
 		<span className="inline-flex items-center justify-center">
-			<XIcon className="size-4 text-muted-foreground" weight="bold" />
+			<XIcon className="size-4 text-muted-foreground" />
 		</span>
 	);
 }

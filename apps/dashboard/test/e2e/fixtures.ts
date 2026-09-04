@@ -1,4 +1,4 @@
-import { readBooleanEnv } from "@databuddy/env/boolean";
+import { readBooleanEnv } from "@databuddy/env/app";
 import { test as base } from "@playwright/test";
 
 interface E2EAnalyticsSeed {

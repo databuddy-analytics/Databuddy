@@ -6,5 +6,6 @@ CREATE TABLE IF NOT EXISTS analytics.identity_session_pairs
 	`profile_id` String
 )
 ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/analytics_identity_session_pairs', '{replica}')
-ORDER BY (client_id, session_id, identity_time)
+PARTITION BY toYYYYMM(identity_time)
+ORDER BY (client_id, identity_time, session_id)
 SETTINGS index_granularity = 8192

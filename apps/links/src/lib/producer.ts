@@ -11,6 +11,7 @@ const kafkaConnectionTimeoutMs = 5000;
 const kafkaRequestTimeoutMs = 10_000;
 const fallbackTimeoutMs = 10_000;
 const dependencyErrorLogIntervalMs = 300_000;
+const ASYNC_INSERT_BUSY_TIMEOUT_MS = 50;
 
 let producer: Producer | null = null;
 let connectPromise: Promise<boolean> | null = null;
@@ -24,7 +25,6 @@ export interface LinkVisitEvent {
 	country: string | null;
 	device_type: string | null;
 	id: string;
-	ip_hash: string;
 	link_id: string;
 	referrer: string | null;
 	region: string | null;
@@ -110,7 +110,7 @@ function connect(reportFailure = true): Promise<boolean> {
 				...(username && password
 					? { sasl: { mechanism: "scram-sha-256", username, password } }
 					: {}),
-				...(process.env.REDPANDA_SSL === "true" ? { ssl: true } : {}),
+				ssl: true,
 			});
 
 			candidate = kafka.producer({
@@ -189,11 +189,6 @@ export async function refreshProducerConnection(): Promise<void> {
 	await connect(false);
 }
 
-export interface LinkVisitDeliveryOptions {
-	allowDirectFallback?: boolean;
-	beforeKafkaSend?: () => Promise<void>;
-}
-
 async function persistLinkVisitDirectly(
 	event: LinkVisitEvent
 ): Promise<boolean> {
@@ -209,6 +204,7 @@ async function persistLinkVisitDirectly(
 				clickhouse_settings: {
 					async_insert: 1,
 					wait_for_async_insert: 1,
+					async_insert_busy_timeout_ms: ASYNC_INSERT_BUSY_TIMEOUT_MS,
 				},
 			}),
 			new Promise<never>((_resolve, reject) => {
@@ -244,8 +240,7 @@ async function persistLinkVisitDirectly(
 
 export async function sendLinkVisit(
 	event: LinkVisitEvent,
-	key?: string,
-	options: LinkVisitDeliveryOptions = {}
+	key?: string
 ): Promise<boolean> {
 	const eventKey = key ?? event.link_id;
 	setAttributes({
@@ -261,21 +256,10 @@ export async function sendLinkVisit(
 			kafka_connected: false,
 			kafka_send_skipped: true,
 		});
-		if (options.allowDirectFallback === false) {
-			setAttributes({ clickhouse_fallback_blocked_by_ambiguous_send: true });
-			return false;
-		}
-		// No Kafka write was attempted, so direct persistence is not ambiguous.
-		// The BullMQ job remains active until this insert is acknowledged.
 		return persistLinkVisitDirectly(event);
 	}
 
 	setAttributes({ kafka_connected: true });
-	if (options.beforeKafkaSend) {
-		// Persist the BullMQ job's per-event ambiguity marker before Kafka sees
-		// the record. A Redis failure here means no Kafka send was attempted.
-		await options.beforeKafkaSend();
-	}
 	try {
 		await activeProducer.send({
 			topic: TOPIC,

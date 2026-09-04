@@ -295,10 +295,7 @@ function TransferPageContent() {
 							</div>
 
 							<div className="flex justify-center">
-								<ArrowRightIcon
-									className="size-4 rotate-90 text-muted-foreground"
-									weight="bold"
-								/>
+								<ArrowRightIcon className="size-4 rotate-90 text-muted-foreground" />
 							</div>
 
 							<div className="flex items-center gap-2.5 rounded border border-primary/30 bg-primary/5 p-2.5">
@@ -342,7 +339,7 @@ function TransferPageContent() {
 							Cancel
 						</Button>
 						<Button loading={isTransferring} onClick={handleTransfer}>
-							<ArrowSquareOutIcon className="size-4" weight="fill" />
+							<ArrowSquareOutIcon className="size-4" />
 							Confirm Transfer
 						</Button>
 					</Dialog.Footer>

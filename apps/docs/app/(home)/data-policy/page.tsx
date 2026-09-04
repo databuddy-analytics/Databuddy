@@ -50,7 +50,7 @@ export default function DataPolicyPage() {
 				{/* Header */}
 				<div className="mb-12 text-center">
 					<div className="mb-5 inline-flex items-center justify-center rounded border border-accent bg-accent/50 p-3">
-						<DatabaseIcon className="size-7 text-primary" weight="duotone" />
+						<DatabaseIcon className="size-7 text-primary" />
 					</div>
 					<h1 className="mb-4 font-bold text-4xl md:text-5xl">Data Policy</h1>
 					<p className="mb-4 text-muted-foreground">
@@ -81,7 +81,7 @@ export default function DataPolicyPage() {
 				{/* Privacy-first highlight */}
 				<div className="mb-8 rounded border border-accent bg-accent/50 p-6">
 					<h2 className="mb-3 flex items-center font-bold text-primary text-xl">
-						<ShieldCheckIcon className="mr-2 size-5" weight="duotone" />
+						<ShieldCheckIcon className="mr-2 size-5" />
 						Privacy-First Design
 					</h2>
 					<p className="mb-4 text-muted-foreground">
@@ -92,15 +92,15 @@ export default function DataPolicyPage() {
 					</p>
 					<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
 						<div className="flex items-center text-primary">
-							<LockKeyIcon className="mr-2 size-4" weight="duotone" />
+							<LockKeyIcon className="mr-2 size-4" />
 							<span className="text-sm">No Cookies</span>
 						</div>
 						<div className="flex items-center text-primary">
-							<GlobeIcon className="mr-2 size-4" weight="duotone" />
+							<GlobeIcon className="mr-2 size-4" />
 							<span className="text-sm">No Cross-Site Tracking</span>
 						</div>
 						<div className="flex items-center text-primary">
-							<ShieldIcon className="mr-2 size-4" weight="duotone" />
+							<ShieldIcon className="mr-2 size-4" />
 							<span className="text-sm">Can't Identify Visitors</span>
 						</div>
 					</div>
@@ -110,10 +110,7 @@ export default function DataPolicyPage() {
 				<div className="prose prose-lg dark:prose-invert max-w-none">
 					<section className="mb-8">
 						<h2 className="mb-4 flex items-center font-bold text-2xl">
-							<FlowArrowIcon
-								className="mr-2 size-6 text-primary"
-								weight="duotone"
-							/>
+							<FlowArrowIcon className="mr-2 size-6 text-primary" />
 							Our Tracking Script
 						</h2>
 						<p className="mb-4">
@@ -219,10 +216,7 @@ export default function DataPolicyPage() {
 
 					<section className="mb-8">
 						<h2 className="mb-4 flex items-center font-bold text-2xl">
-							<ShieldCheckIcon
-								className="mr-2 size-6 text-primary"
-								weight="duotone"
-							/>
+							<ShieldCheckIcon className="mr-2 size-6 text-primary" />
 							Security and Protection
 						</h2>
 						<p className="mb-4">
@@ -247,7 +241,7 @@ export default function DataPolicyPage() {
 
 					<section className="mb-8">
 						<h2 className="mb-4 flex items-center font-bold text-2xl">
-							<HashIcon className="mr-2 size-6 text-primary" weight="duotone" />
+							<HashIcon className="mr-2 size-6 text-primary" />
 							What We Collect
 						</h2>
 						<p className="mb-4">
@@ -301,10 +295,7 @@ export default function DataPolicyPage() {
 
 					<section className="mb-8">
 						<h2 className="mb-4 flex items-center font-bold text-2xl">
-							<DatabaseIcon
-								className="mr-2 size-6 text-primary"
-								weight="duotone"
-							/>
+							<DatabaseIcon className="mr-2 size-6 text-primary" />
 							Storage and Retention
 						</h2>
 						<p className="mb-4">
@@ -390,10 +381,7 @@ export default function DataPolicyPage() {
 
 					<section className="mb-8">
 						<h2 className="mb-4 flex items-center font-bold text-2xl">
-							<GlobeIcon
-								className="mr-2 size-6 text-primary"
-								weight="duotone"
-							/>
+							<GlobeIcon className="mr-2 size-6 text-primary" />
 							Subprocessors
 						</h2>
 						<p className="mb-4">
@@ -474,10 +462,7 @@ export default function DataPolicyPage() {
 
 					<section className="mb-8">
 						<h2 className="mb-4 flex items-center font-bold text-2xl">
-							<ClockIcon
-								className="mr-2 size-6 text-primary"
-								weight="duotone"
-							/>
+							<ClockIcon className="mr-2 size-6 text-primary" />
 							Why You Can Trust Us
 						</h2>
 						<p className="mb-4">
@@ -506,7 +491,7 @@ export default function DataPolicyPage() {
 						</p>
 						<div className="mt-4 mb-6 rounded border bg-muted/50 p-5">
 							<p className="mb-3 flex items-center text-primary">
-								<EnvelopeIcon className="mr-2 size-5" weight="duotone" />
+								<EnvelopeIcon className="mr-2 size-5" />
 								<a
 									className="hover:underline"
 									href="mailto:privacy@databuddy.cc"

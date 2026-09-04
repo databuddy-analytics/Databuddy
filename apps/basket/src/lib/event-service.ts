@@ -36,7 +36,6 @@ export interface TrackEventContext {
 	clientId: string;
 	eventId: string;
 	geo: {
-		anonymizedIP: string;
 		country?: string;
 		region?: string;
 		city?: string;
@@ -182,7 +181,7 @@ export function buildTrackEvent(
 		url: sanitizeUrl(trackData.path, VALIDATION_LIMITS.STRING_MAX_LENGTH),
 		path: sanitizeUrl(trackData.path, VALIDATION_LIMITS.STRING_MAX_LENGTH),
 		title: sanitizeString(trackData.title, VALIDATION_LIMITS.STRING_MAX_LENGTH),
-		ip: ctx.geo.anonymizedIP || "",
+		ip: "",
 		user_agent: "",
 		browser_name: ctx.ua.browserName || "",
 		browser_version: ctx.ua.browserVersion || "",

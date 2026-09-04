@@ -1,6 +1,6 @@
 import { getRateLimitHeaders, ratelimit } from "@databuddy/redis/rate-limit";
 import { safeFetch, SsrfError } from "@databuddy/shared/ssrf-guard";
-import { getTrustedClientIp } from "@databuddy/shared/utils/trusted-client-ip";
+import { getClientIp } from "@databuddy/shared/utils/client-ip";
 import { type NextRequest, NextResponse } from "next/server";
 
 const ALLOWED_CONTENT_TYPES = [
@@ -17,7 +17,7 @@ const TIMEOUT_MESSAGE_PATTERN = /timed out/;
 export async function GET(request: NextRequest) {
 	// Without a configured trusted proxy, unverified traffic shares one bucket
 	// instead of letting client-controlled forwarding headers bypass the limit.
-	const clientIp = getTrustedClientIp(request.headers) ?? "unverified";
+	const clientIp = getClientIp(request.headers) ?? "unverified";
 	const rl = await ratelimit(`image-proxy:${clientIp}`, 30, 60);
 	if (!rl.success) {
 		return NextResponse.json(

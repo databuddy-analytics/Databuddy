@@ -267,7 +267,7 @@ const healthCheck = Effect.gen(function* () {
 								password: process.env.REDPANDA_PASSWORD,
 							},
 						}),
-					...(process.env.REDPANDA_SSL === "true" ? { ssl: true } : {}),
+					ssl: true,
 				});
 				const admin = kafka.admin();
 				try {

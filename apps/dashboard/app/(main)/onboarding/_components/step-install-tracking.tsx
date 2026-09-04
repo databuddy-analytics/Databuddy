@@ -296,12 +296,9 @@ function CodeBlock({
 					variant="ghost"
 				>
 					{copied ? (
-						<CheckIcon className="size-3.5 text-emerald-400" weight="bold" />
+						<CheckIcon className="size-3.5 text-success" />
 					) : (
-						<ClipboardIcon
-							className="size-3.5 text-white/70"
-							weight="duotone"
-						/>
+						<ClipboardIcon className="size-3.5 text-white/70" />
 					)}
 				</Button>
 			</div>
@@ -396,7 +393,7 @@ export function StepInstallTracking({
 		<div className="space-y-6">
 			<div className="flex items-center gap-3">
 				<div className="flex size-10 items-center justify-center rounded bg-primary/10">
-					<CodeIcon className="size-5 text-primary" weight="duotone" />
+					<CodeIcon className="size-5 text-primary" />
 				</div>
 				<div>
 					<h2 className="text-balance font-semibold text-lg">
@@ -421,17 +418,11 @@ export function StepInstallTracking({
 				<Card.Content className="flex items-center justify-between p-3">
 					<div className="flex items-center gap-3">
 						{isTrackingSetupError ? (
-							<WarningCircleIcon
-								className="size-5 text-destructive"
-								weight="duotone"
-							/>
+							<WarningCircleIcon className="size-5 text-destructive" />
 						) : isSetup ? (
-							<PulseIcon className="size-5 text-success" weight="duotone" />
+							<PulseIcon className="size-5 text-success" />
 						) : (
-							<WarningCircleIcon
-								className="size-5 text-warning"
-								weight="duotone"
-							/>
+							<WarningCircleIcon className="size-5 text-warning" />
 						)}
 						<div className="flex items-center gap-2">
 							<span className="font-medium text-sm">
@@ -470,7 +461,6 @@ export function StepInstallTracking({
 					>
 						<ArrowClockwiseIcon
 							className={cn("size-3.5", isRefreshing && "animate-spin")}
-							weight="bold"
 						/>
 						{isRefreshing || isTrackingSetupLoading
 							? "Checking..."
@@ -484,15 +474,15 @@ export function StepInstallTracking({
 			<Tabs className="w-full" defaultValue="ai">
 				<Tabs.List>
 					<Tabs.Tab value="ai">
-						<RobotIcon className="size-3.5" weight="duotone" />
+						<RobotIcon className="size-3.5" />
 						Install with AI
 					</Tabs.Tab>
 					<Tabs.Tab value="npm">
-						<PackageIcon className="size-3.5" weight="duotone" />
+						<PackageIcon className="size-3.5" />
 						SDK Package
 					</Tabs.Tab>
 					<Tabs.Tab value="script">
-						<CodeIcon className="size-3.5" weight="duotone" />
+						<CodeIcon className="size-3.5" />
 						Script Tag
 					</Tabs.Tab>
 				</Tabs.List>
@@ -542,13 +532,9 @@ export function StepInstallTracking({
 										<CheckIcon
 											className="size-4"
 											style={{ color: tool.color }}
-											weight="bold"
 										/>
 									) : (
-										<ClipboardIcon
-											className="size-4 text-muted-foreground opacity-0 group-hover:opacity-100"
-											weight="duotone"
-										/>
+										<ClipboardIcon className="size-4 text-muted-foreground opacity-0 group-hover:opacity-100" />
 									)}
 								</div>
 							</button>
@@ -623,12 +609,9 @@ export function StepInstallTracking({
 				>
 					<span className="truncate">{websiteId}</span>
 					{copiedBlockId === "client-id" ? (
-						<CheckIcon className="size-3 text-success" weight="bold" />
+						<CheckIcon className="size-3 text-success" />
 					) : (
-						<ClipboardIcon
-							className="size-3 opacity-50 group-hover:opacity-100"
-							weight="duotone"
-						/>
+						<ClipboardIcon className="size-3 opacity-50 group-hover:opacity-100" />
 					)}
 				</button>
 			</div>

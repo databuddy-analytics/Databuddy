@@ -22,11 +22,7 @@ export function NavbarMobileMenuButton({
 			onClick={onToggleAction}
 			type="button"
 		>
-			{isOpen ? (
-				<XIcon className="size-4" weight="bold" />
-			) : (
-				<ListIcon className="size-4" weight="bold" />
-			)}
+			{isOpen ? <XIcon className="size-4" /> : <ListIcon className="size-4" />}
 		</button>
 	);
 }

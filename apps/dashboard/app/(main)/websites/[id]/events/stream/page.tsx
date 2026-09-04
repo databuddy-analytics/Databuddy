@@ -69,7 +69,7 @@ export default function EventsStreamPage() {
 					title="Filter by this event"
 					type="button"
 				>
-					<FunnelIcon className="size-3.5" weight="duotone" />
+					<FunnelIcon className="size-3.5" />
 				</button>
 			</div>
 		),

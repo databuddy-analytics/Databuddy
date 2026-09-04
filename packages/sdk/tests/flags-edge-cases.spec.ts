@@ -1,8 +1,9 @@
-import { expect, test } from "@playwright/test";
 import {
 	MOCK_FLAG_DISABLED,
 	MOCK_FLAG_ENABLED,
+	expect,
 	getFlagRequestKeys,
+	test,
 	waitForSDK,
 } from "./test-utils";
 
@@ -408,5 +409,117 @@ test.describe("BrowserFlagsManager — edge cases", () => {
 		});
 
 		expect(result.rejected).toBe(true);
+	});
+
+	test("a rate-limited endpoint does not trigger one request per getFlag", async ({
+		page,
+	}) => {
+		let requests = 0;
+		await page.route("**/api.databuddy.cc/public/v1/flags/**", (route) => {
+			requests++;
+			return route.fulfill({
+				status: 429,
+				contentType: "application/json",
+				body: JSON.stringify({ flags: {}, count: 0, reason: "RATE_LIMITED" }),
+			});
+		});
+
+		await page.goto("/test");
+		await waitForSDK(page);
+
+		const rejections = await page.evaluate(async () => {
+			const SDK = window.__SDK__;
+			const manager = new SDK.BrowserFlagsManager({
+				config: { clientId: "rate-limited", autoFetch: false },
+			});
+			let count = 0;
+			for (let i = 0; i < 40; i++) {
+				try {
+					await manager.getFlag("some-flag");
+				} catch {
+					count++;
+				}
+			}
+			manager.destroy();
+			return count;
+		});
+
+		expect(rejections).toBe(40);
+		expect(requests).toBe(1);
+	});
+
+	test("waits the server's Retry-After instead of the default backoff", async ({
+		page,
+	}) => {
+		let requests = 0;
+		await page.route("**/api.databuddy.cc/public/v1/flags/**", (route) => {
+			requests++;
+			return route.fulfill({
+				status: 429,
+				headers: {
+					"retry-after": "1",
+					"access-control-allow-origin": "*",
+					"access-control-expose-headers": "Retry-After",
+				},
+				contentType: "application/json",
+				body: JSON.stringify({ flags: {}, count: 0, reason: "RATE_LIMITED" }),
+			});
+		});
+
+		await page.goto("/test");
+		await waitForSDK(page);
+
+		await page.evaluate(async () => {
+			const SDK = window.__SDK__;
+			const manager = new SDK.BrowserFlagsManager({
+				config: { clientId: "retry-after", autoFetch: false },
+			});
+			const attempt = async () => {
+				try {
+					await manager.getFlag("some-flag");
+				} catch {
+					/* expected */
+				}
+			};
+			await attempt();
+			await attempt();
+			await new Promise((resolve) => setTimeout(resolve, 1200));
+			await attempt();
+			manager.destroy();
+		});
+
+		expect(requests).toBe(2);
+	});
+
+	test("retries again once the failure backoff expires", async ({ page }) => {
+		let requests = 0;
+		await page.route("**/api.databuddy.cc/public/v1/flags/**", (route) => {
+			requests++;
+			return route.fulfill({ status: 500, body: "Internal Server Error" });
+		});
+
+		await page.goto("/test");
+		await waitForSDK(page);
+
+		await page.evaluate(async () => {
+			const SDK = window.__SDK__;
+			const manager = new SDK.BrowserFlagsManager({
+				config: { clientId: "backoff-recovery", autoFetch: false },
+			});
+			const attempt = async () => {
+				try {
+					await manager.getFlag("some-flag");
+				} catch {
+					/* expected */
+				}
+			};
+			await attempt();
+			await attempt();
+			await new Promise((resolve) => setTimeout(resolve, 5100));
+			await attempt();
+			manager.destroy();
+		});
+
+		expect(requests).toBe(2);
 	});
 });

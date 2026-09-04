@@ -253,6 +253,23 @@ export function TopBar() {
 	);
 }
 
+export function MobileTopBarActions() {
+	const actionsContent = useStoreSlot("actions");
+	const [hasMounted, setHasMounted] = useState(false);
+
+	useEffect(() => {
+		setHasMounted(true);
+	}, []);
+
+	if (!(hasMounted && actionsContent)) {
+		return null;
+	}
+
+	return (
+		<div className="flex min-w-0 items-center gap-1.5">{actionsContent}</div>
+	);
+}
+
 TopBar.Title = TopBarTitle;
 TopBar.Actions = TopBarActions;
 TopBar.Breadcrumbs = TopBarBreadcrumbs;

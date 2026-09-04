@@ -1,12 +1,14 @@
 import { createHash } from "node:crypto";
 import type { ClickHouseClient } from "@clickhouse/client";
 import { clickHouse, TABLE_NAMES } from "@databuddy/db/clickhouse";
-import { readBooleanEnv } from "@databuddy/env/boolean";
+import { readBooleanEnv } from "@databuddy/env/app";
 import { captureError, record } from "@lib/tracing";
 import { PRODUCER_DRAIN_TIMEOUT_MS } from "@lib/shutdown-budget";
 import { Data, Deferred, Effect, Layer, ManagedRuntime, Ref } from "effect";
 import { createError, log } from "evlog";
 import { type Admin, CompressionTypes, Kafka, type Producer } from "kafkajs";
+
+const ASYNC_INSERT_BUSY_TIMEOUT_MS = 50;
 
 function stringifyEvent(event: unknown): string {
 	return JSON.stringify(event, (_key, value) =>
@@ -423,6 +425,7 @@ async function insertClickHouseChunks(
 						clickhouse_settings: {
 							async_insert: 1,
 							wait_for_async_insert: 1,
+							async_insert_busy_timeout_ms: ASYNC_INSERT_BUSY_TIMEOUT_MS,
 							insert_deduplication_token: deduplicationToken,
 						},
 						query_id: `basket-${deduplicationToken}`,
@@ -1016,7 +1019,7 @@ function initializeKafka(config: ProducerConfig): KafkaResources | null {
 					password: config.password,
 				},
 			}),
-		ssl: process.env.REDPANDA_SSL === "true",
+		ssl: true,
 	});
 
 	return {

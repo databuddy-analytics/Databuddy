@@ -52,14 +52,11 @@
     "@types/geojson": "^7946.0.16",
     "@types/leaflet": "^1.9.21",
     "ai": "^6.0.188",
-    "atmn": "^1.1.8",
     "autumn-js": "catalog:",
-    "babel-plugin-react-compiler": "^19.1.0-rc.1-rc-af1b7da-20250421",
     "better-auth": "^1.5.5",
     "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
-    "cnfast": "^0.0.8",
+    "cn": "^0.2.4",
     "d3-scale": "^4.0.2",
     "flag-icons": "^7.5.0",
     "geist": "^1.7.0",
@@ -67,12 +64,11 @@
     "leaflet": "^1.9.4",
     "motion": "^12.38.0",
     "nanoid": "^5.1.7",
-    "next": "^16.2.6",
+    "next": "catalog:",
     "next-themes": "^0.4.6",
     "nuqs": "^2.8.9",
     "ogl": "^1.0.11",
     "pg": "^8.20.0",
-    "qrcode.react": "^4.2.0",
     "radix-ui": "^1.4.3",
     "react": "catalog:",
     "react-day-picker": "^10.0.1",
@@ -100,15 +96,10 @@
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@types/topojson-client": "^3.1.5",
-    "husky": "^9.1.7",
-    "lint-staged": "^16.4.0",
+    "atmn": "^1.1.8",
+    "babel-plugin-react-compiler": "^19.1.0-rc.1-rc-af1b7da-20250421",
     "tailwindcss": "^4.2.2",
     "typescript": "^5.9.3",
     "ultracite": "catalog:"
-  },
-  "lint-staged": {
-    "*.{js,jsx,ts,tsx,json,jsonc,css,scss}": [
-      "bunx ultracite fix"
-    ]
   }
 }

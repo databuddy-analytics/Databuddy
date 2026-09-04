@@ -488,8 +488,8 @@ export function componentsToBlocks(components: ComponentSpec[]): Block[] {
 }
 
 export const FEEDBACK_ACTION_ID = "agent_feedback";
-export const FEEDBACK_POSITIVE_SIGNAL = "thumbsup";
-export const FEEDBACK_NEGATIVE_SIGNAL = "thumbsdown";
+const FEEDBACK_POSITIVE_SIGNAL = "thumbsup";
+const FEEDBACK_NEGATIVE_SIGNAL = "thumbsdown";
 
 export function feedbackButtonsBlock(): Block {
 	return {

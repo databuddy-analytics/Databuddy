@@ -89,10 +89,7 @@ export default function HistoryPage() {
 					<Card.Content className="p-0">
 						{sortedInvoices.length === 0 ? (
 							<div className="px-5 py-8">
-								<EmptyState
-									icon={<ReceiptIcon weight="duotone" />}
-									title="No invoices yet"
-								/>
+								<EmptyState icon={<ReceiptIcon />} title="No invoices yet" />
 							</div>
 						) : (
 							<>
@@ -190,14 +187,13 @@ const InvoiceRow = memo(function InvoiceRowComponent({
 						className={cn(
 							"size-3.5",
 							status.variant === "success"
-								? "text-green-600 dark:text-green-400"
+								? "text-success"
 								: status.variant === "warning"
 									? "text-amber-600 dark:text-amber-400"
 									: status.variant === "destructive"
 										? "text-red-600 dark:text-red-400"
 										: "text-muted-foreground"
 						)}
-						weight="duotone"
 					/>
 				</div>
 				<div className="min-w-0">
@@ -263,10 +259,7 @@ function SubscriptionItem({
 				)}
 			>
 				{isActive ? (
-					<CheckCircleIcon
-						className="size-3.5 text-green-600 dark:text-green-400"
-						weight="fill"
-					/>
+					<CheckCircleIcon className="size-3.5 text-success" />
 				) : (
 					<ClockIcon className="size-3.5 text-muted-foreground" />
 				)}

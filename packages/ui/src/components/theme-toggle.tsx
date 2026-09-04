@@ -4,7 +4,7 @@ import { useTheme } from "next-themes";
 import { Button } from "./button";
 import { Tooltip } from "./tooltip";
 import { cn } from "../lib/utils";
-import { MonitorIcon, MoonIcon, SunIcon } from "./icons/nucleo";
+import { MonitorIcon, MoonIcon, SunIcon } from "./icons";
 
 const CYCLE = ["system", "light", "dark"] as const;
 
@@ -45,21 +45,21 @@ export function ThemeToggle({ className, tooltip = false }: ThemeToggleProps) {
 		>
 			<SunIcon
 				className={cn(
-					"size-4 shrink-0",
+					"size-4 shrink-0 transition-transform duration-(--duration-quick) ease-(--ease-smooth) motion-reduce:transition-none",
 					current === "light" ? "scale-100" : "scale-0"
 				)}
 				suppressHydrationWarning
 			/>
 			<MoonIcon
 				className={cn(
-					"absolute size-4 shrink-0",
+					"absolute size-4 shrink-0 transition-transform duration-(--duration-quick) ease-(--ease-smooth) motion-reduce:transition-none",
 					current === "dark" ? "scale-100" : "scale-0"
 				)}
 				suppressHydrationWarning
 			/>
 			<MonitorIcon
 				className={cn(
-					"absolute size-4 shrink-0",
+					"absolute size-4 shrink-0 transition-transform duration-(--duration-quick) ease-(--ease-smooth) motion-reduce:transition-none",
 					current === "system" ? "scale-100" : "scale-0"
 				)}
 				suppressHydrationWarning

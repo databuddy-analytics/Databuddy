@@ -25,7 +25,7 @@ export function GroupsList({
 						onClick: onCreateGroupAction,
 					}}
 					description="Reusable sets of users you can target from any flag."
-					icon={<UsersThreeIcon weight="duotone" />}
+					icon={<UsersThreeIcon />}
 					title="No target groups yet"
 					variant="minimal"
 				/>
