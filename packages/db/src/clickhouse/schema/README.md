@@ -41,9 +41,7 @@ need ClickHouse Keeper enabled (a one-node Keeper is fine).
 > support, so readers are compatible with both states.
 >
 > `analytics.custom_events` is excluded from that planned cutover. It remains a
-> plain `ReplicatedMergeTree` without warehouse `delivery_id`; use the
-> [custom-events repartitioning runbook](../migrations/20260904_custom_events_repartitioning.md)
-> rather than the older delivery-deduplication guide for that table.
+> plain `ReplicatedMergeTree` without a warehouse `delivery_id`.
 
 The Basket/Vector delivery tables use `ReplicatedReplacingMergeTree` with a
 stable row identity and an `ingested_at` version. Background merges reclaim

@@ -5,8 +5,8 @@ one-shot SQL file: creating the new replicated tables is safe while the final
 name exchange requires a short, explicit ingestion pause. Do not run this
 against production as part of `clickhouse:init`.
 
-> **Custom events are excluded.** Their delivery-ID cutover was superseded by
-> the [2026-09-04 custom-events repartitioning](./20260904_custom_events_repartitioning.md).
+> **Custom events are excluded.** They use a plain `ReplicatedMergeTree`
+> without a warehouse `delivery_id`.
 > Do not create a `custom_events_delivery_v2` table, mirror, backfill, validate,
 > or exchange custom events from this guide.
 
@@ -21,10 +21,10 @@ The migration covers every Basket/Vector table with a stable row identity:
 | `analytics.web_vitals_spans` | `(client_id, delivery_id)` |
 | `analytics.daily_pageviews` | `(client_id, id)` derived from `events.id` |
 
-The two remaining `delivery_id` tables use a materialized `delivery_key`. A non-empty
-delivery ID maps to a stable key. An empty legacy ID maps to a fresh UUID, so
-historical rows without an identity are preserved instead of being collapsed
-together. `ingested_at` is the `ReplacingMergeTree` version.
+The two remaining `delivery_id` tables use a materialized `delivery_key`. A
+non-empty delivery ID maps to a stable key. An empty legacy ID maps to a fresh
+UUID, so historical rows without an identity are preserved instead of being
+collapsed together. `ingested_at` is the `ReplacingMergeTree` version.
 
 The complete `ORDER BY` key of each serving table is exactly its tenant plus
 stable row identity. Timestamps, dates, routes, event names, and metric names
