@@ -35,7 +35,10 @@ vi.mock("@lib/tracing", () => ({
 
 const { createProducerEffects } = await import("./producer");
 
-const topicMap = { "analytics-events": "analytics.events" };
+const topicMap = {
+	"analytics-custom-events": "analytics.custom_events",
+	"analytics-events": "analytics.events",
+};
 
 const baseConfig: ProducerConfig = {
 	broker: undefined,
@@ -169,6 +172,53 @@ describe("producer delivery guarantees", () => {
 			2,
 			expect.objectContaining({ values: [retriedSpan] })
 		);
+	});
+
+	test("omits custom-event delivery identities from direct fallback rows", async () => {
+		const insert = vi.fn(() => Promise.resolve());
+		const effects = await makeEffects(insert);
+		const customEvent = {
+			client_id: "ws_1",
+			delivery_id: "stable-delivery-id",
+			event_name: "checkout_completed",
+			timestamp: 1,
+		};
+
+		await Effect.runPromise(
+			effects.sendMany(
+				"analytics-custom-events",
+				[customEvent],
+				["stable-delivery-id"]
+			)
+		);
+		await Effect.runPromise(
+			effects.sendMany(
+				"analytics-custom-events",
+				[{ ...customEvent, timestamp: 2 }],
+				["stable-delivery-id"]
+			)
+		);
+
+		expect(insert).toHaveBeenCalledWith(
+			expect.objectContaining({
+				table: "analytics.custom_events",
+				values: [
+					{
+						client_id: "ws_1",
+						event_name: "checkout_completed",
+						timestamp: 1,
+					},
+				],
+			})
+		);
+		expect(customEvent).toHaveProperty("delivery_id", "stable-delivery-id");
+		const tokenAt = (call: number) =>
+			(
+				insert.mock.calls[call]?.[0] as {
+					clickhouse_settings?: { insert_deduplication_token?: string };
+				}
+			).clickhouse_settings?.insert_deduplication_token;
+		expect(tokenAt(1)).toBe(tokenAt(0));
 	});
 
 	test("partitions span retries by their persisted delivery identity", async () => {

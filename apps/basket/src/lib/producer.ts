@@ -385,6 +385,28 @@ function clickHouseInsertDeduplicationToken(
 	return hash.digest("hex");
 }
 
+function directFallbackValues(table: string, events: unknown[]): unknown[] {
+	if (table !== TABLE_NAMES.custom_events) {
+		return events;
+	}
+
+	return events.map((event) => {
+		if (
+			!event ||
+			typeof event !== "object" ||
+			!Object.hasOwn(event, "delivery_id")
+		) {
+			return event;
+		}
+
+		const { delivery_id: _deliveryId, ...customEvent } = event as Record<
+			string,
+			unknown
+		>;
+		return customEvent;
+	});
+}
+
 async function insertClickHouseChunks(
 	ch: ClickHouseClient,
 	table: string,
@@ -411,6 +433,7 @@ async function insertClickHouseChunks(
 			(async () => {
 				for (let i = 0; i < events.length; i += chunkSize) {
 					const values = events.slice(i, i + chunkSize);
+					const fallbackValues = directFallbackValues(table, values);
 					const chunkDeliveryIds = deliveryIds?.slice(i, i + chunkSize);
 					const deduplicationToken = clickHouseInsertDeduplicationToken(
 						table,
@@ -419,7 +442,7 @@ async function insertClickHouseChunks(
 					);
 					await ch.insert({
 						table,
-						values,
+						values: fallbackValues,
 						format: "JSONEachRow",
 						abort_signal: controller.signal,
 						clickhouse_settings: {
