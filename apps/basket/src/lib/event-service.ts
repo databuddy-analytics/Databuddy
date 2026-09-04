@@ -713,12 +713,22 @@ export function insertCustomEvents(
 				: undefined,
 		}));
 
-		await deliverSpanBatch(
+		const deliveryIds = events.map((event, index) =>
+			stableBatchDeliveryId(
+				events[0]?.owner_id ?? "",
+				"custom_event",
+				event,
+				index
+			)
+		);
+		await deliverItems(
 			"custom_event",
 			"analytics-custom-events",
-			events[0]?.owner_id ?? "",
-			events,
-			spans
+			spans.map((event, index) => ({
+				deliveryId: deliveryIds[index] as string,
+				event,
+				sourceEventId: deliveryIds[index] as string,
+			}))
 		);
 	});
 }

@@ -353,6 +353,30 @@ function profileActivityCte(
             )
           )`
 		: `AND ${canonicalVisitorExpression("ce")} = {visitorId:String}`;
+	const visitorIdsCte = limitToVisitor
+		? `visitor_ids AS (
+        SELECT anonymous_id
+        FROM target_anonymous_ids
+
+        UNION DISTINCT
+
+        SELECT {visitorId:String} as anonymous_id
+      )`
+		: `visitor_ids AS (
+        SELECT DISTINCT anonymous_id
+        FROM profile_events
+        WHERE visitor_id = {visitorId:String} AND anonymous_id != ''
+
+        UNION DISTINCT
+
+        SELECT DISTINCT ifNull(anonymous_id, '')
+        FROM profile_custom_events
+        WHERE visitor_id = {visitorId:String} AND ifNull(anonymous_id, '') != ''
+
+        UNION DISTINCT
+
+        SELECT {visitorId:String} as anonymous_id
+      )`;
 
 	return `
       ${identityCtes},
@@ -404,21 +428,7 @@ function profileActivityCte(
           AND ce.timestamp <= toDateTime({endDate:String})
           ${customVisitorCondition}
       ),
-      visitor_ids AS (
-        SELECT DISTINCT anonymous_id
-        FROM profile_events
-        WHERE visitor_id = {visitorId:String} AND anonymous_id != ''
-
-        UNION DISTINCT
-
-        SELECT DISTINCT ifNull(anonymous_id, '')
-        FROM profile_custom_events
-        WHERE visitor_id = {visitorId:String} AND ifNull(anonymous_id, '') != ''
-
-        UNION DISTINCT
-
-        SELECT {visitorId:String} as anonymous_id
-      ),
+      ${visitorIdsCte},
       profile_activity AS (
         SELECT
           session_id,

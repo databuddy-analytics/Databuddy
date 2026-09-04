@@ -194,7 +194,12 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 - Production `DATABASE_URL` may already target PgBouncer; inspect both the process pool and PgBouncer queues before attributing API timeouts to PostgreSQL.
 - `pg.Pool` already grows lazily from zero to its configured `max`; do not replace it with one `Client` to address acquisition timeouts, because that serializes queries. Keep a bounded pool, tune its acquisition timeout, and monitor `waitingCount`.
 - ClickHouse helpers and schema: `packages/db/src/clickhouse/*`
+- `ch:check` is package-scoped; run `cd packages/db && bun run ch:check`, not the root script runner.
 - After schema changes, use the repo db scripts rather than ad hoc commands
+- A shipped ClickHouse table change needs a tracked forward migration alongside
+  its reference DDL: bootstrap `CREATE ... IF NOT EXISTS` does not migrate
+  deployed tables, and Keeper-path or sort-key changes need a shadow-table
+  exchange.
 - Do not add ClickHouse migration files for delivery hardening; keep relay identity in the worker/queue unless **iza** explicitly requests persistent warehouse identity.
 - For data-cleanup investigations, inspect and describe the existing mutation path first; do not add a persistent purge script unless **iza** explicitly requests one.
 
