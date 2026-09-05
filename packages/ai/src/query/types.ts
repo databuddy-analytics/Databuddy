@@ -35,6 +35,8 @@ export type VisualizationType =
 
 export interface QueryBuilderMeta {
 	category?: string;
+	/** Effective ordering inside custom SQL; null means no ordering. */
+	default_order?: string | null;
 	default_visualization?: VisualizationType;
 	deprecated?: boolean;
 	description: string;
