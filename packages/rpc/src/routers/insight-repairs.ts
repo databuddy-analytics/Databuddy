@@ -41,7 +41,8 @@ export function insightRepairError(
 		const goal = parsed.data;
 		if (
 			(changes.target ?? goal.target) === goal.target &&
-			(changes.type ?? goal.type) === goal.type &&
+			((changes.type ?? goal.type) === "PAGE_VIEW") ===
+				(goal.type === "PAGE_VIEW") &&
 			isDeepStrictEqual(
 				changes.filters ?? goal.filters ?? [],
 				goal.filters ?? []

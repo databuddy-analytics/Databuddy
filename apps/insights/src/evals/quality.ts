@@ -1,6 +1,6 @@
 import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { parseArgs } from "node:util";
+import { isDeepStrictEqual, parseArgs } from "node:util";
 import { createModelFromId } from "@databuddy/ai/config/models";
 import { tool, wrapLanguageModel, type ToolSet } from "ai";
 import { z } from "zod";
@@ -259,42 +259,49 @@ export const qualityCases: QualityCase[] = [
 				: ["Did not produce an executable target repair"],
 	},
 
-	{
-		id: "wrong-definition-subject",
-		input: input({
-			signal: {
-				...defaultSignal,
-				signalKey: "goal:workspace-goal",
-				entity: { type: "goal", id: goal.id, label: goal.name },
-				metric: {
-					label: "Workspace visits",
-					current: 0,
-					previous: 164,
-					format: "number",
+	...["wrong-definition-subject", "failed-definition-read"].map(
+		(id): QualityCase => ({
+			id,
+			input: input({
+				signal: {
+					...defaultSignal,
+					signalKey: "goal:workspace-goal",
+					entity: { type: "goal", id: goal.id, label: goal.name },
+					metric: {
+						label: "Workspace visits",
+						current: 0,
+						previous: 164,
+						format: "number",
+					},
 				},
-			},
-			evidence: [
-				"Business meaning: counts visits to the workspace after login. Inspect the exact saved goal before proposing a repair.",
-			],
-		}),
-		tools: {
-			...goalTools,
-			list_goals: readTool("Read saved goals with their exact ids.", {
-				goals: [{ ...goal, id: "other-goal-with-same-name" }],
+				evidence: [
+					"Business meaning: counts visits to the workspace after login. Inspect the exact saved goal before proposing a repair.",
+				],
 			}),
-		},
-		check: ({ outcome }) => [
-			...(outcome.next.type === "resolve"
-				? []
-				: ["Created work without inspecting the signal's exact definition"]),
-			...(outcome.publish
-				? ["Published a diagnosis for an unverified definition subject"]
-				: []),
-			...(outcome.rootCause === null
-				? []
-				: ["Claimed a cause without verifying the signal's exact definition"]),
-		],
-	},
+			tools: {
+				...goalTools,
+				list_goals: readTool(
+					"Read saved goals with their exact ids.",
+					id === "failed-definition-read"
+						? { success: false, error: "Definition lookup unavailable" }
+						: { goals: [{ ...goal, id: "other-goal-with-same-name" }] }
+				),
+			},
+			check: ({ outcome }) => [
+				...(outcome.next.type === "resolve"
+					? []
+					: ["Created work without inspecting the signal's exact definition"]),
+				...(outcome.publish
+					? ["Published a diagnosis for an unverified definition subject"]
+					: []),
+				...(outcome.rootCause === null
+					? []
+					: [
+							"Claimed a cause without verifying the signal's exact definition",
+						]),
+			],
+		})
+	),
 	{
 		id: "already-correct-goal",
 		input: input({
@@ -386,12 +393,19 @@ export const qualityCases: QualityCase[] = [
 			) {
 				return ["Missed the verified executable funnel repair"];
 			}
-			const step = outcome.next.execution.changes.steps?.[1];
-			return step?.target === "account_completed" &&
-				step.conditions?.plan === "paid"
+			const changes = outcome.next.execution.changes;
+			return isDeepStrictEqual(changes.steps, [
+				{ name: "Landing", type: "PAGE_VIEW", target: "/start" },
+				{
+					name: "Account created",
+					type: "EVENT",
+					target: "account_completed",
+					conditions: { plan: "paid" },
+				},
+			]) && isDeepStrictEqual(changes.filters ?? [], [])
 				? []
 				: [
-						"Did not preserve the step conditions while repairing the final event",
+						"Changed unrelated steps, conditions, or filters while repairing the final event",
 					];
 		},
 	},

@@ -666,7 +666,11 @@ describe("intelligence agent", () => {
 		);
 	});
 
-	it("keeps a missing definition private instead of inventing a coverage diagnosis", async () => {
+	it.each([
+		"missing",
+		"failed",
+		"thrown",
+	])("keeps a %s definition private instead of inventing a coverage diagnosis", async (variant) => {
 		const diagnosis = {
 			...executableDefinitionOutcome,
 			findingKind: "measurement_coverage" as const,
@@ -709,9 +713,20 @@ describe("intelligence agent", () => {
 					list_funnels: tool({
 						description: "Read saved journeys.",
 						inputSchema: z.object({}),
-						execute: () => ({
-							funnels: [{ ...inspectedFunnel, id: "another-funnel" }],
-						}),
+						execute: () => {
+							if (variant === "thrown") {
+								throw new Error("Definition lookup unavailable");
+							}
+							if (variant === "failed") {
+								return {
+									success: false,
+									error: "Definition lookup unavailable",
+								};
+							}
+							return {
+								funnels: [{ ...inspectedFunnel, id: "another-funnel" }],
+							};
+						},
 					}),
 				},
 			}
@@ -1829,7 +1844,7 @@ describe("intelligence agent", () => {
 					},
 				}
 			)
-		).rejects.toThrow("require an inspected funnel definition");
+		).rejects.toThrow("exact current funnel definition was not inspected");
 	});
 
 	it("keeps related evidence usable for non-website investigations", async () => {

@@ -561,7 +561,8 @@ function validateDefinitionOutcome(
 	outcome: AgentInvestigationOutcome,
 	input: Pick<InsightAgentInput, "evidence" | "signal">,
 	usedToolNames: ReadonlySet<string>,
-	results: StepResult<ToolSet>["toolResults"]
+	results: StepResult<ToolSet>["toolResults"],
+	attemptedToolNames: ReadonlySet<string>
 ) {
 	const entity = input.signal.entity;
 	let current: unknown;
@@ -593,7 +594,7 @@ function validateDefinitionOutcome(
 			current
 		);
 		if (
-			usedToolNames.has(listTool) &&
+			attemptedToolNames.has(listTool) &&
 			inspectionError &&
 			(outcome.publish ||
 				outcome.rootCause !== null ||
@@ -739,7 +740,8 @@ function validateAgentOutcome(
 		| "signal"
 	>,
 	usedToolNames: ReadonlySet<string>,
-	results: StepResult<ToolSet>["toolResults"]
+	results: StepResult<ToolSet>["toolResults"],
+	attemptedToolNames: ReadonlySet<string>
 ): InvestigationOutcome {
 	const asOf = new Date(input.appContext.currentDateTime);
 	const { signalKey } = input.signal;
@@ -825,7 +827,13 @@ function validateAgentOutcome(
 	validateMeasurementPublish(outcome);
 	validateErrorAskReach(outcome, input, isError);
 	validateRepositoryAsk(outcome, input.otherOpenWork);
-	validateDefinitionOutcome(outcome, input, usedToolNames, results);
+	validateDefinitionOutcome(
+		outcome,
+		input,
+		usedToolNames,
+		results,
+		attemptedToolNames
+	);
 	if (outcome.next.type === "act") {
 		const recheckAt = outcome.next.recheckAt;
 		if (!recheckAt || new Date(recheckAt).getTime() <= asOf.getTime()) {
@@ -1039,6 +1047,9 @@ export async function runInsightAgent(
 				const usedToolNames = new Set(
 					successfulResults.map((result) => result.toolName)
 				);
+				const attemptedToolNames = new Set(
+					steps.flatMap((step) => step.toolCalls.map((call) => call.toolName))
+				);
 				const citedEvidence = resolveEvidenceReferences(
 					result.output,
 					input,
@@ -1048,7 +1059,8 @@ export async function runInsightAgent(
 					result.output,
 					input,
 					usedToolNames,
-					results
+					results,
+					attemptedToolNames
 				);
 				const serialize = (value: unknown) =>
 					JSON.stringify(value, (_key, item) =>
