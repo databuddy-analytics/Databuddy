@@ -1322,7 +1322,7 @@ describe("intelligence agent", () => {
 		expect(prompt.match(/It was restarted this morning\./g)).toHaveLength(1);
 	});
 
-    it("publishes a measured coverage gap with no extra evidence or executable repair", async () => {
+    it("publishes a measured coverage gap without an executable repair", async () => {
         const coverage = {
             ...agentOutcome, title: "Site activity coverage stopped during the comparison week",
             summary: "Recorded visitors fell from 1000 to 300.",
@@ -1333,7 +1333,8 @@ describe("intelligence agent", () => {
             evidenceRefs: [{ source: "signal" as const }],
             next: { type: "resolve" as const, reason: "Coverage is uncertain; the cause has not been established." },
         };
-        const result = await runInsightAgent({ appContext: appContext(), evidence: [],
+        const result = await runInsightAgent({ appContext: appContext(),
+            evidence: ["Independent origin logs show requests continued while collection dropped; this period cannot support traffic comparisons."],
             signal, githubRepository: null, history: [], otherOpenWork: [],
         }, { model: outputModel(coverage), tools: {} });
         expect(result.outcome).toMatchObject({ publish: true, next: { type: "resolve" }, rootCause: null });
@@ -1379,6 +1380,23 @@ describe("intelligence agent", () => {
                 get_funnel_analytics: tool({ description: "Read analytics.", inputSchema: z.object({}), execute: () => ({ completions: 10 }) }),
             },
         })).rejects.toThrow("require an inspected funnel definition");
+    });
+
+    it("does not publish a bare traffic signal as verified product loss", async () => {
+        const bare = { ...agentOutcome, rootCause: null, evidence: ["Visitors fell from 1000 to 300."],
+            evidenceRefs: [{ source: "signal" as const }],
+            next: { type: "resolve" as const, reason: "The cause is unknown." } };
+        await expect(runInsightAgent({ appContext: appContext(), evidence: [], signal,
+            githubRepository: null, history: [], otherOpenWork: [],
+        }, { model: outputModel(bare), tools: {} })).rejects.toThrow("not a verified product loss");
+    });
+
+    it("keeps a prior count out of a measurement-repair headline", async () => {
+        await expect(runInsightAgent({ appContext: appContext(), evidence, signal: funnelSignal,
+            githubRepository: null, history: [], otherOpenWork: [],
+        }, { model: outputModel({ ...executableDefinitionOutcome,
+            title: "300 visits missed after the route change" }), tools: {} }))
+            .rejects.toThrow("headline must name the mismatch");
     });
 
 	it("requires an organization before exposing investigation tools", async () => {

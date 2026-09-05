@@ -655,7 +655,7 @@ const agentTitleSchema = z
 			"Titles must use natural product language, never raw identifiers, event names, or URLs",
 	})
 	.describe(
-		"A 5–12 word news headline stating the verified finding in natural product language. Lead with the affected count and observed problem. Never use raw identifiers, snake_case event names, URLs, or measurement jargon."
+		"A 5–12 word headline stating the verified finding in natural product language. For directly measured reliability or user impact, an affected count can lead. For measurement_definition, name the incorrect target or purpose mismatch without a numeric count; keep counts with their periods in evidence. For measurement_coverage, name the observed blind spot, never a presumed product loss. Never use raw identifiers, snake_case event names, or URLs."
 	);
 
 export const agentInvestigationOutcomeSchema = investigationOutcomeSchema

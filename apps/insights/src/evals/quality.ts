@@ -116,10 +116,14 @@ export const qualityCases: QualityCase[] = [
 		id: "empty-evidence-signal",
 		input: input(),
 		tools: {},
-		check: ({ outcome }) =>
-			outcome.rootCause === null
+		check: ({ outcome }) => [
+			...(outcome.rootCause === null
 				? []
-				: ["Invented a cause from the signal alone"],
+				: ["Invented a cause from the signal alone"]),
+			...(outcome.publish
+				? ["Published unverified traffic loss from the signal alone"]
+				: []),
+		],
 	},
 	{
 		id: "coverage-without-definition",
@@ -198,7 +202,11 @@ export const qualityCases: QualityCase[] = [
 			outcome.next.execution?.operation === "edit" &&
 			"target" in outcome.next.execution.changes &&
 			outcome.next.execution.changes.target === "/workspace"
-				? []
+				? outcome.title.includes("164")
+					? [
+							"Used a prior-period count as current missed activity in a repair headline",
+						]
+					: []
 				: ["Did not produce an executable target repair"],
 	},
 	{
@@ -344,7 +352,18 @@ async function evaluate(
 				return Promise.resolve(params);
 			},
 			wrapGenerate: async ({ doGenerate }) => {
-				const response = await doGenerate();
+				const response = await Promise.resolve(doGenerate()).catch(
+					(error: unknown) => {
+						emit("model.error", {
+							message: error instanceof Error ? error.message : String(error),
+							statusCode:
+								error && typeof error === "object" && "statusCode" in error
+									? error.statusCode
+									: null,
+						});
+						throw error;
+					}
+				);
 				emit("model.response", {
 					content: response.content.filter((item) => item.type !== "reasoning"),
 					finishReason: response.finishReason,
@@ -425,6 +444,7 @@ if (import.meta.main) {
 			out: { type: "string" },
 			runs: { type: "string", default: "2" },
 			agent: { type: "string" },
+			cases: { type: "string" },
 			model: { type: "string", default: "openai/gpt-5.6-terra" },
 		},
 	});
@@ -442,12 +462,23 @@ if (import.meta.main) {
 	const agent: typeof runInsightAgent = values.agent
 		? (await import(resolve(values.agent))).runInsightAgent
 		: runInsightAgent;
+	const selectedIds = values.cases?.split(",");
+	const selectedCases = selectedIds
+		? qualityCases.filter((fixture) => selectedIds.includes(fixture.id))
+		: qualityCases;
+	if (
+		selectedIds?.some(
+			(id) => !qualityCases.some((fixture) => fixture.id === id)
+		)
+	) {
+		throw new Error("Unknown case ID in --cases");
+	}
 	const results: Awaited<ReturnType<typeof evaluate>>[] = [];
 	for (let iteration = 1; iteration <= runs; iteration++) {
 		// Bounded batches keep provider pressure low and preserve independent case traces.
-		for (let index = 0; index < qualityCases.length; index += 2) {
+		for (let index = 0; index < selectedCases.length; index += 2) {
 			const batch = await Promise.all(
-				qualityCases
+				selectedCases
 					.slice(index, index + 2)
 					.map((fixture) =>
 						evaluate(agent, fixture, directory, iteration, values.model)
