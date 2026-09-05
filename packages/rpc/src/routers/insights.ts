@@ -31,13 +31,16 @@ import {
 	insightTimelineReplySchema,
 	parseInvestigationOutcome,
 	parseInvestigationSignal,
+	insightDefinitionEditError,
 } from "@databuddy/shared/insights";
+import { isDeepStrictEqual } from "node:util";
 import { ORPCError } from "@orpc/server";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
 import { invalidateGoalsCache } from "../lib/goals-cache";
 import { invalidateFunnelsCache } from "../lib/funnels-cache";
+import { requireFunnelSteps, toAnalyticsSteps } from "./funnel-steps";
 import { logger } from "../lib/logger";
 import { setAuditOrganization } from "../lib/audit";
 import {
@@ -678,10 +681,7 @@ function sameDefinitionExecution(
 	if (left.operation === "delete" || right.operation === "delete") {
 		return true;
 	}
-	return (
-		left.changes.name === right.changes.name &&
-		left.changes.description === right.changes.description
-	);
+	return isDeepStrictEqual(left.changes, right.changes);
 }
 
 function definitionActionError(
@@ -836,12 +836,21 @@ async function applyInsightAction(input: {
 		}
 
 		const completedAt = new Date();
+		if (action.operation === "edit") {
+			const error = insightDefinitionEditError(entityType, action.changes);
+			if (error) {
+				throw rpcError.badRequest(error);
+			}
+		}
 		if (entityType === "goal") {
 			const [goal] = await tx
 				.select({
 					description: goals.description,
 					id: goals.id,
 					name: goals.name,
+					target: goals.target,
+					type: goals.type,
+					filters: goals.filters,
 					updatedAt: goals.updatedAt,
 				})
 				.from(goals)
@@ -873,11 +882,41 @@ async function applyInsightAction(input: {
 					})
 					.where(eq(goals.id, goal.id));
 			} else {
+				const changes = {
+					description: action.changes.description ?? goal.description,
+					name: action.changes.name ?? goal.name,
+					target: action.changes.target ?? goal.target,
+					type: action.changes.type ?? goal.type,
+					filters: action.changes.filters ?? goal.filters,
+				};
+				const changesMeasurement =
+					changes.target !== goal.target ||
+					changes.type !== goal.type ||
+					!isDeepStrictEqual(changes.filters ?? [], goal.filters ?? []);
+				const includesMeasurement =
+					action.changes.target != null ||
+					action.changes.type != null ||
+					action.changes.filters != null;
+				if (includesMeasurement && !changesMeasurement) {
+					throw rpcError.badRequest(
+						"This repair does not change what the goal measures."
+					);
+				}
+				if (
+					changes.description === goal.description &&
+					changes.name === goal.name &&
+					changes.target === goal.target &&
+					changes.type === goal.type &&
+					isDeepStrictEqual(changes.filters ?? [], goal.filters ?? [])
+				) {
+					throw rpcError.badRequest(
+						"This action does not change the goal definition."
+					);
+				}
 				await tx
 					.update(goals)
 					.set({
-						description: action.changes.description ?? goal.description,
-						name: action.changes.name ?? goal.name,
+						...changes,
 						updatedAt: completedAt,
 					})
 					.where(eq(goals.id, goal.id));
@@ -888,6 +927,8 @@ async function applyInsightAction(input: {
 					description: funnelDefinitions.description,
 					id: funnelDefinitions.id,
 					name: funnelDefinitions.name,
+					steps: funnelDefinitions.steps,
+					filters: funnelDefinitions.filters,
 					updatedAt: funnelDefinitions.updatedAt,
 				})
 				.from(funnelDefinitions)
@@ -919,11 +960,60 @@ async function applyInsightAction(input: {
 					})
 					.where(eq(funnelDefinitions.id, funnel.id));
 			} else {
+				const changes = {
+					description: action.changes.description ?? funnel.description,
+					name: action.changes.name ?? funnel.name,
+					steps: action.changes.steps ?? funnel.steps,
+					filters: action.changes.filters ?? funnel.filters,
+				};
+				const currentSteps = requireFunnelSteps(funnel.steps);
+				const replacementSteps = requireFunnelSteps(changes.steps);
+				// Conditions are stored but not evaluated by funnel analytics. Never
+				// silently discard them or present changing them as a repair.
+				if (
+					[...currentSteps, ...replacementSteps].some(
+						(step) => Object.keys(step.conditions ?? {}).length > 0
+					) &&
+					!isDeepStrictEqual(
+						currentSteps.map((step) => step.conditions ?? {}),
+						replacementSteps.map((step) => step.conditions ?? {})
+					)
+				) {
+					throw rpcError.badRequest(
+						"Automatic funnel repairs must preserve existing step conditions and cannot add conditions that analytics does not evaluate."
+					);
+				}
+				const changesMeasurement = !(
+					isDeepStrictEqual(
+						toAnalyticsSteps(replacementSteps).map(
+							({ name: _name, ...step }) => step
+						),
+						toAnalyticsSteps(currentSteps).map(
+							({ name: _name, ...step }) => step
+						)
+					) && isDeepStrictEqual(changes.filters ?? [], funnel.filters ?? [])
+				);
+				const includesMeasurement =
+					action.changes.steps != null || action.changes.filters != null;
+				if (includesMeasurement && !changesMeasurement) {
+					throw rpcError.badRequest(
+						"This repair does not change what the funnel measures."
+					);
+				}
+				if (
+					changes.description === funnel.description &&
+					changes.name === funnel.name &&
+					isDeepStrictEqual(changes.steps, funnel.steps) &&
+					isDeepStrictEqual(changes.filters ?? [], funnel.filters ?? [])
+				) {
+					throw rpcError.badRequest(
+						"This action does not change the funnel definition."
+					);
+				}
 				await tx
 					.update(funnelDefinitions)
 					.set({
-						description: action.changes.description ?? funnel.description,
-						name: action.changes.name ?? funnel.name,
+						...changes,
 						updatedAt: completedAt,
 					})
 					.where(eq(funnelDefinitions.id, funnel.id));

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import {
 	agentInvestigationOutcomeSchema,
+	describeInsightDefinitionAction,
+	insightDefinitionEditError,
 	insightBriefItemSchema,
 	insightDefinitionOperationSchema,
 	investigationOutcomeSchema,
@@ -113,7 +115,9 @@ describe("investigationSignalSchema", () => {
 			baselineDates,
 		};
 
-		expect(investigationSignalSchema.safeParse(zscoreSignal).success).toBe(true);
+		expect(investigationSignalSchema.safeParse(zscoreSignal).success).toBe(
+			true
+		);
 		expect(
 			investigationSignalSchema.safeParse({
 				...zscoreSignal,
@@ -125,7 +129,8 @@ describe("investigationSignalSchema", () => {
 
 const outcomeBase = {
 	title: "Checkout recovered after the handler rollback",
-	summary: "Checkout failures ended after the latest handler change was rolled back.",
+	summary:
+		"Checkout failures ended after the latest handler change was rolled back.",
 	impact: "The failure blocked 18 checkout attempts before the rollback.",
 	rootCause: null,
 	evidence: ["Checkout submissions resumed after the handler rollback."],
@@ -142,6 +147,56 @@ const agentFields = {
 };
 
 describe("insightDefinitionOperationSchema", () => {
+	it("accepts a minimal goal target patch without redundant metadata fields", () => {
+		expect(
+			insightDefinitionOperationSchema.parse({
+				operation: "edit",
+				action: "Repair the workspace goal target.",
+				changes: { target: "/workspace" },
+			}).changes
+		).toEqual({ target: "/workspace" });
+	});
+
+	it("describes the executable patch instead of a conflicting model action", () => {
+		const operation = insightDefinitionOperationSchema.parse({
+			operation: "edit",
+			action: "Delete the goal.",
+			changes: {
+				name: null,
+				description: null,
+				target: "/workspace",
+				type: "PAGE_VIEW",
+				filters: [],
+			},
+		});
+		expect(
+			describeInsightDefinitionAction("Reached workspace", operation)
+		).toBe(
+			'For Reached workspace, set target to "/workspace"; set type to PAGE_VIEW; set filters to none.'
+		);
+		if (operation.operation !== "edit") throw new Error("Expected an edit");
+		expect(insightDefinitionEditError("goal", operation.changes)).toBeNull();
+		expect(insightDefinitionEditError("funnel", operation.changes)).toContain(
+			"replace steps"
+		);
+	});
+
+	it("rejects unsupported filter fields in executable patches", () => {
+		expect(
+			insightDefinitionOperationSchema.safeParse({
+				operation: "edit",
+				action: "Change the cohort.",
+				changes: {
+					name: null,
+					description: null,
+					filters: [
+						{ field: "unknown_column", operator: "equals", value: "mobile" },
+					],
+				},
+			}).success
+		).toBe(false);
+	});
+
 	it("accepts an exact funnel rename", () => {
 		const execution = {
 			action: "Rename Sign-Up Flow to Homepage-to-Getting Started Journey.",
@@ -152,7 +207,9 @@ describe("insightDefinitionOperationSchema", () => {
 			operation: "edit" as const,
 		};
 
-		expect(insightDefinitionOperationSchema.parse(execution)).toEqual(execution);
+		expect(insightDefinitionOperationSchema.parse(execution)).toEqual(
+			execution
+		);
 	});
 
 	it("rejects an empty edit and display-only operations", () => {
@@ -162,7 +219,9 @@ describe("insightDefinitionOperationSchema", () => {
 			operation: "edit" as const,
 		};
 
-		expect(insightDefinitionOperationSchema.safeParse(base).success).toBe(false);
+		expect(insightDefinitionOperationSchema.safeParse(base).success).toBe(
+			false
+		);
 		expect(
 			insightDefinitionOperationSchema.safeParse({
 				action: "Review the funnel definition.",
@@ -205,7 +264,6 @@ describe("insightBriefItemSchema", () => {
 			}).success
 		).toBe(false);
 	});
-
 });
 
 describe("investigationOutcomeSchema", () => {
@@ -405,16 +463,16 @@ describe("investigationOutcomeSchema", () => {
 		);
 		expect(
 			agentInvestigationOutcomeSchema.safeParse({
-			...candidate,
-			next: {
-				...action,
-				execution: {
-					...action.execution,
-					changes: { description: null, name: null },
+				...candidate,
+				next: {
+					...action,
+					execution: {
+						...action.execution,
+						changes: { description: null, name: null },
+					},
 				},
-			},
-		}).success
-	).toBe(false);
+			}).success
+		).toBe(false);
 		const legacyAction = agentInvestigationOutcomeSchema.safeParse({
 			...candidate,
 			next: {
@@ -455,9 +513,7 @@ describe("investigationOutcomeSchema", () => {
 			publicationBasis: null,
 		};
 
-		expect(investigationOutcomeSchema.safeParse(candidate).success).toBe(
-			true
-		);
+		expect(investigationOutcomeSchema.safeParse(candidate).success).toBe(true);
 		expect(
 			agentInvestigationOutcomeSchema.safeParse({
 				...candidate,
@@ -466,18 +522,19 @@ describe("investigationOutcomeSchema", () => {
 	});
 
 	it("accepts concise output with measured or unknown impact", () => {
-		expect(investigationOutcomeSchema.safeParse(outcomeBase).success).toBe(true);
+		expect(investigationOutcomeSchema.safeParse(outcomeBase).success).toBe(
+			true
+		);
 		expect(
 			investigationOutcomeSchema.safeParse({ ...outcomeBase, impact: null })
 				.success
 		).toBe(true);
-			expect(
-				investigationOutcomeSchema.safeParse({
-					...outcomeBase,
-					impact: null,
-					rootCause:
-						"The handler change dropped valid checkout submissions.",
-					next: {
+		expect(
+			investigationOutcomeSchema.safeParse({
+				...outcomeBase,
+				impact: null,
+				rootCause: "The handler change dropped valid checkout submissions.",
+				next: {
 					action: "Roll back the checkout handler.",
 					target: "Checkout handler",
 					type: "act",
