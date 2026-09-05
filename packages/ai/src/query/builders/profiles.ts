@@ -57,7 +57,7 @@ const PROFILE_IDENTITY_CTES = `
           timestamp AS identity_time
         FROM ${Analytics.custom_events}
         WHERE
-          (owner_id = {websiteId:String} OR website_id = {websiteId:String})
+          website_id = {websiteId:String}
           AND profile_id != ''
           AND timestamp >= toDateTime({startDate:String})
           AND timestamp <= toDateTime({endDate:String})
@@ -103,7 +103,7 @@ const PROFILE_TARGET_IDENTITY_CTES = `
           timestamp AS identity_time
         FROM ${Analytics.custom_events}
         WHERE
-          (owner_id = {websiteId:String} OR website_id = {websiteId:String})
+          website_id = {websiteId:String}
           AND (profile_id = {visitorId:String} OR anonymous_id = {visitorId:String})
           AND timestamp >= toDateTime({startDate:String})
           AND timestamp <= toDateTime({endDate:String})
@@ -141,7 +141,7 @@ const PROFILE_TARGET_IDENTITY_CTES = `
             ifNull(ce.profile_id, '') AS profile_id
           FROM ${Analytics.custom_events} ce
           WHERE
-            (ce.owner_id = {websiteId:String} OR ce.website_id = {websiteId:String})
+            ce.website_id = {websiteId:String}
             AND ce.profile_id != ''
             AND ifNull(ce.session_id, '') IN (
               SELECT session_id
@@ -423,7 +423,7 @@ function profileActivityCte(
         FROM ${Analytics.custom_events} ce
         ${customEventJoins}
         WHERE
-          (ce.owner_id = {websiteId:String} OR ce.website_id = {websiteId:String})
+          ce.website_id = {websiteId:String}
           AND ce.timestamp >= toDateTime({startDate:String})
           AND ce.timestamp <= toDateTime({endDate:String})
           ${customVisitorCondition}
@@ -645,7 +645,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
       FROM ${Analytics.custom_events} ce
       ${identityJoins("ce")}
       WHERE
-        (ce.owner_id = {websiteId:String} OR ce.website_id = {websiteId:String})
+        ce.website_id = {websiteId:String}
         AND ce.timestamp >= toDateTime({startDate:String})
         AND ce.timestamp <= toDateTime({endDate:String})
     ),
@@ -685,7 +685,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
         COUNT(*) as custom_event_count,
         uniq(event_name) as unique_event_names
       FROM profile_custom_events
-      WHERE (owner_id = {websiteId:String} OR website_id = {websiteId:String})
+      WHERE website_id = {websiteId:String}
         AND visitor_id IN (SELECT visitor_id FROM visitor_profiles)
       GROUP BY visitor_id
     ),
