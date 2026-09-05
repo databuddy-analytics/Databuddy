@@ -84,14 +84,17 @@ function connect(reportFailure = true): Promise<boolean> {
 		return Promise.resolve(false);
 	}
 
-	if (reportFailure) {
-		shouldReportFailure = true;
-	}
-
 	const now = Date.now();
 	if (now < nextReconnectAt) {
 		setAttributes({ kafka_reconnect_suppressed: true });
 		return Promise.resolve(false);
+	}
+
+	// Set only after the cooldown early return: that return path skips the
+	// finally that resets the flag, so setting it earlier would leak a stale
+	// reportFailure=true into the next real connect attempt.
+	if (reportFailure) {
+		shouldReportFailure = true;
 	}
 
 	if (connectPromise) {
