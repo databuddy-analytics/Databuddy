@@ -888,6 +888,19 @@ async function applyInsightAction(input: {
 					type: action.changes.type ?? goal.type,
 					filters: action.changes.filters ?? goal.filters,
 				};
+				const changesMeasurement =
+					changes.target !== goal.target ||
+					changes.type !== goal.type ||
+					!isDeepStrictEqual(changes.filters ?? [], goal.filters ?? []);
+				const includesMeasurement =
+					action.changes.target != null ||
+					action.changes.type != null ||
+					action.changes.filters != null;
+				if (includesMeasurement && !changesMeasurement) {
+					throw rpcError.badRequest(
+						"This repair does not change what the goal measures."
+					);
+				}
 				if (
 					changes.description === goal.description &&
 					changes.name === goal.name &&
@@ -952,6 +965,17 @@ async function applyInsightAction(input: {
 					steps: action.changes.steps ?? funnel.steps,
 					filters: action.changes.filters ?? funnel.filters,
 				};
+				const changesMeasurement = !(
+					isDeepStrictEqual(changes.steps, funnel.steps) &&
+					isDeepStrictEqual(changes.filters ?? [], funnel.filters ?? [])
+				);
+				const includesMeasurement =
+					action.changes.steps != null || action.changes.filters != null;
+				if (includesMeasurement && !changesMeasurement) {
+					throw rpcError.badRequest(
+						"This repair does not change what the funnel measures."
+					);
+				}
 				if (
 					changes.description === funnel.description &&
 					changes.name === funnel.name &&

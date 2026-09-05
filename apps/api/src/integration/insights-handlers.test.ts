@@ -409,6 +409,16 @@ describe("insight investigation timeline", () => {
         expect(await db().select().from(insightReplies)).toHaveLength(0);
     });
 
+    iit("rejects a cosmetic rename disguised by repeating the current goal target", async () => {
+        const { goalId, insightId, member, organization } = await seedExecutableGoalAction({
+            name: "Workspace reached", description: null, target: "nav_clicked",
+        });
+        await expectCode(call(appRouter.insights.applyAction, userContext(member, organization.id))({ insightId }), "BAD_REQUEST");
+        const [goal] = await db().select().from(goals).where(eq(goals.id, goalId));
+        expect(goal?.name).toBe("Clicked Nav");
+        expect(await db().select().from(insightReplies)).toHaveLength(0);
+    });
+
     iit("rejects funnel steps applied to a goal without changing it", async () => {
         const { goalId, insightId, member, organization } = await seedExecutableGoalAction({
             name: "Should not change", description: null,
