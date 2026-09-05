@@ -1813,6 +1813,7 @@ describe("intelligence agent", () => {
 		expect(feedback).toContain("evidence[0] cites the number 88");
 		expect(feedback).toContain("Correct evidenceRefs[0]");
 		expect(feedback).toContain("Preserve facts supported by inspected results");
+		expect(model.doGenerateCalls).toHaveLength(3);
 		expect(result.outcome.evidence).toEqual(discovered.evidence);
 		expect(reads).toBe(1);
 	});

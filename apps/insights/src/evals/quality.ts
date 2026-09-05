@@ -15,8 +15,8 @@ const ABSENCE_CLAIM =
 	/\b(?:does not exist|no longer exists|retired route|absent from the site|nonexistent route|(?:route|path|page) (?:is |was |has been )?(?:missing|removed|deleted|retired|unavailable)|(?:missing|removed|deleted|retired) (?:route|path|page))\b/i;
 
 const STEADY_ARRIVALS =
-	/\b(?:visits|arrivals)\s+(?:(?:were|are|stayed|remained)\s+)?(?:unchanged|steady|stable)\b|\b(?:unchanged|steady|stable)\s+(?:new-user\s+)?(?:visits|arrivals)\b|\b1[,.]?200\b/i;
-const SOURCE_COMPARISON = [/\bGoogle\b/i, /\b20\b/, /\b100\b/];
+	/\b(?:visits|arrivals)\s+(?:(?:were|are|stayed|remained)\s+)?(?:unchanged|steady|stable)\b|\b(?:unchanged|steady|stable)\s+(?:new-user\s+)?(?:visits|arrivals)\b|\b(?:visits|arrivals)\s+(?:(?:were|are|stayed|remained)\s+)?(?:at\s+)?1[,.]?200\s+(?:(?:in|across|for)\s+)?(?:both|each)\b/i;
+const SOURCE_COHORT = /\bgoogle(?:\.com)?\b/i;
 const WORD_SEPARATOR = /\s+/;
 
 // Entirely synthetic. No analytics clients, customer fixtures, writes, or delivery tools.
@@ -127,6 +127,7 @@ interface QualityCase {
 	) => string[];
 	id: string;
 	input: InsightAgentInput;
+	reviewRequired?: string;
 	tools: ToolSet;
 }
 export const qualityCases: QualityCase[] = [
@@ -596,6 +597,8 @@ export const qualityCases: QualityCase[] = [
 	),
 	{
 		id: "signup-source-comparison",
+		reviewRequired:
+			"Check the actual brief against both tool results: Google completions fell from 100 to 20 with 600 entrants in each window; direct completions stayed at 80. Verify direction, period, and cohort attribution. Mentioning Google alone does not pass this usefulness review; equivalent measured rates are valid.",
 		input: input({
 			signal: {
 				...defaultSignal,
@@ -708,10 +711,9 @@ export const qualityCases: QualityCase[] = [
 					: [
 							"Stopped at the overall decline without inspecting both available source comparisons",
 						]),
-				...(outcome.publish &&
-				SOURCE_COMPARISON.every((pattern) => pattern.test(visible))
+				...(outcome.publish && SOURCE_COHORT.test(visible)
 					? []
-					: ["Did not surface the measured Google completion decline"]),
+					: ["Omitted the source cohort from the published brief"]),
 				...(outcome.rootCause === null
 					? []
 					: ["Confused a source cohort with a causal mechanism"]),
@@ -838,7 +840,11 @@ async function evaluate(
 					]
 				: []),
 		];
-		emit("case.result", { ...result, failures });
+		emit("case.result", {
+			...result,
+			failures,
+			reviewRequired: fixture.reviewRequired ?? null,
+		});
 		return {
 			id,
 			completed: true,
@@ -846,6 +852,7 @@ async function evaluate(
 			durationMs: performance.now() - started,
 			calls: calls.length,
 			briefWordCount,
+			reviewRequired: fixture.reviewRequired ?? null,
 			...result,
 		};
 	} catch (error) {
@@ -857,6 +864,7 @@ async function evaluate(
 			failures: [message],
 			durationMs: performance.now() - started,
 			calls: calls.length,
+			reviewRequired: fixture.reviewRequired ?? null,
 		};
 	}
 }
@@ -915,7 +923,7 @@ if (import.meta.main) {
 			);
 			for (const result of batch) {
 				process.stdout.write(
-					`${result.id}: ${result.completed && result.failures.length === 0 ? "PASS" : "FAIL"} ${result.failures.join("; ")}\n`
+					`${result.id}: ${result.completed && result.failures.length === 0 ? (result.reviewRequired ? "REVIEW REQUIRED" : "PASS") : "FAIL"} ${result.failures.join("; ")}${result.reviewRequired ? `\nReview: ${result.reviewRequired}` : ""}\n`
 				);
 			}
 		}

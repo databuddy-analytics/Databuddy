@@ -4,6 +4,7 @@ import type { InsightDefinitionEditChanges } from "@databuddy/shared/insights";
 import { qualityCases } from "./quality";
 
 it.each([
+	{ comparison: "There were 1,200 visits.", retained: false },
 	{
 		comparison: "New-user visits were unchanged across both weeks.",
 		retained: true,
