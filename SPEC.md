@@ -78,7 +78,7 @@ Every completed turn reports:
 - **summary:** what happened;
 - **impact:** who or what is affected, with measured scope when available;
 - **root cause:** the known mechanism, or `unknown`;
-- **evidence:** the few facts that support or contradict it;
+- **evidence:** one or two concise entries that support or contradict it, each citing its supplied signal, provided context, or exact successful tool result; failed queries are limitations, and a partial table cannot establish absence;
 - **publish:** whether this turn adds a new customer-relevant fact to Insights;
 - **recommendation:** an optional useful next step that does not create a case; goal edits include the exact proposed name or description so the existing editor can review and apply them. A recommendation may also carry an evidence-backed goal or funnel draft, or explain the tracking needed before one is useful. Drafts open in the normal editable setup flow and are never created automatically;
 - **next:** exactly one outcome.

@@ -253,6 +253,20 @@ const insightDefinitionExecutionSchema = z.discriminatedUnion("operation", [
 
 const agentEvidenceReferenceSchema = z.discriminatedUnion("source", [
 	z
+		.strictObject({ source: z.literal("customer_impact") })
+		.describe("The supplied customerImpact measurements, only when present."),
+	z
+		.strictObject({
+			source: z.literal("related_signal"),
+			index: z.number().int().nonnegative(),
+		})
+		.describe("A zero-based index in the supplied relatedSignals array."),
+	z
+		.strictObject({ source: z.literal("signal") })
+		.describe(
+			"The supplied signal measurement, including its exact comparison windows and metric delta. Always available, even when evidence is empty."
+		),
+	z
 		.object({
 			index: z
 				.number()
@@ -269,8 +283,21 @@ const agentEvidenceReferenceSchema = z.discriminatedUnion("source", [
 				.trim()
 				.min(1)
 				.max(100)
-				.describe("Exact name of a read tool used during this investigation."),
+				.describe("Exact name of the read tool that returned the cited fact."),
 			source: z.literal("tool"),
+			toolCallId: z
+				.string()
+				.min(1)
+				.describe(
+					"Exact tool call ID from this investigation; cite a successful result, not merely a tool name."
+				),
+			resultKey: z
+				.string()
+				.min(1)
+				.nullable()
+				.describe(
+					"For get_data, the exact key under results (including any website or # suffix). For other tools, null."
+				),
 		})
 		.strict(),
 ]);
