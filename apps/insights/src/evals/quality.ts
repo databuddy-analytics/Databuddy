@@ -394,8 +394,17 @@ export const qualityCases: QualityCase[] = [
 				return ["Missed the verified executable funnel repair"];
 			}
 			const changes = outcome.next.execution.changes;
-			return isDeepStrictEqual(changes.steps, [
-				{ name: "Landing", type: "PAGE_VIEW", target: "/start" },
+			const steps = changes.steps?.map((step) => ({
+				...step,
+				conditions: step.conditions ?? {},
+			}));
+			return isDeepStrictEqual(steps, [
+				{
+					name: "Landing",
+					type: "PAGE_VIEW",
+					target: "/start",
+					conditions: {},
+				},
 				{
 					name: "Account created",
 					type: "EVENT",
