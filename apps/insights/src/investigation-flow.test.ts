@@ -1761,6 +1761,63 @@ describe("intelligence agent", () => {
 		).rejects.toThrow(expected);
 	});
 
+	it("repairs the citation without dropping a measured discovery or repeating its read", async () => {
+		const discovered = {
+			...agentOutcome,
+			evidence: ["88 visitors reached checkout."],
+			evidenceRefs: [{ source: "provided" as const, index: 0 }],
+		};
+		const corrected = {
+			...discovered,
+			evidenceRefs: [
+				{
+					source: "tool" as const,
+					name: "inspect",
+					toolCallId: "inspect-1",
+					resultKey: null,
+				},
+			],
+		};
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				toolCallResponse(),
+				outputResponse(discovered),
+				outputResponse(corrected)
+			),
+		});
+		let reads = 0;
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence,
+				signal,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+			},
+			{
+				model,
+				tools: {
+					inspect: tool({
+						description: "Inspect checkout reach.",
+						inputSchema: z.object({}),
+						execute: () => {
+							reads += 1;
+							return { visitors: 88 };
+						},
+					}),
+				},
+			}
+		);
+		const feedback = JSON.stringify(model.doGenerateCalls[2]?.prompt);
+		expect(feedback).toContain("evidence[0] cites the number 88");
+		expect(feedback).toContain("Correct evidenceRefs[0]");
+		expect(feedback).toContain("Preserve facts supported by inspected results");
+		expect(model.doGenerateCalls).toHaveLength(3);
+		expect(result.outcome.evidence).toEqual(discovered.evidence);
+		expect(reads).toBe(1);
+	});
+
 	it("requires a number to occur in its cited subquery, not an unrelated result", async () => {
 		const cited = {
 			...agentOutcome,
