@@ -128,14 +128,14 @@ export const insightDefinitionEditChangesSchema = z
 			.trim()
 			.min(1)
 			.max(500)
-			.nullable()
+			.nullish()
 			.describe("Exact replacement description; null to leave unchanged."),
 		name: z
 			.string()
 			.trim()
 			.min(1)
 			.max(100)
-			.nullable()
+			.nullish()
 			.describe("Exact replacement name; null to leave unchanged."),
 		target: z
 			.string()

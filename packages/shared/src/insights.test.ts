@@ -144,6 +144,11 @@ const agentFields = {
 };
 
 describe("insightDefinitionOperationSchema", () => {
+    it("accepts a minimal goal target patch without redundant metadata fields", () => {
+        expect(insightDefinitionOperationSchema.parse({ operation: "edit", action: "Repair the workspace goal target.",
+            changes: { target: "/workspace" } }).changes).toEqual({ target: "/workspace" });
+    });
+
     it("describes the executable patch instead of a conflicting model action", () => {
         const operation = insightDefinitionOperationSchema.parse({
             operation: "edit", action: "Delete the goal.",

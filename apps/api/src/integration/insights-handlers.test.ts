@@ -389,7 +389,7 @@ describe("insight investigation timeline", () => {
 
 	iit("repairs a goal target, type and cohort, then queues its recheck", async () => {
         const changes: InsightDefinitionEditChanges = {
-            name: null, description: null, target: "/workspace", type: "PAGE_VIEW",
+            target: "/workspace", type: "PAGE_VIEW",
             filters: [{ field: "device_type", operator: "equals", value: "mobile" }],
         };
         const { goalId, insightId, member, organization } = await seedExecutableGoalAction(changes);
