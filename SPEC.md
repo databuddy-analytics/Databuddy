@@ -78,7 +78,7 @@ Every completed turn reports:
 - **summary:** what happened;
 - **impact:** who or what is affected, with measured scope when available;
 - **root cause:** the known mechanism, or `unknown`;
-- **evidence:** the few facts that support or contradict it;
+- **evidence:** one or two concise entries that support or contradict it, each citing its supplied signal, provided context, or exact successful tool result; failed queries are limitations, and a partial table cannot establish absence;
 - **publish:** whether this turn adds a new customer-relevant fact to Insights;
 - **recommendation:** an optional useful next step that does not create a case; goal edits include the exact proposed name or description so the existing editor can review and apply them. A recommendation may also carry an evidence-backed goal or funnel draft, or explain the tracking needed before one is useful. Drafts open in the normal editable setup flow and are never created automatically;
 - **next:** exactly one outcome.
@@ -117,7 +117,7 @@ Only the outer boundary is deterministic: authorization, tenant scope, patch val
 
 Reject output that merely restates a percentage, invents a cause, asks for data Databuddy can read, gives a generic recommendation, or creates duplicate work.
 
-Summary, impact, cause, and evidence each contribute a different fact. Routine or unchanged rechecks remain in internal history with `publish: false`.
+Summary, impact, cause, and evidence each contribute a different fact. Routine or unchanged rechecks remain in internal history with `publish: false`. Raw website traffic is not a verified product outcome: it can publish only a measurement-coverage finding with cited collection or implementation evidence. Uncited context, goal listings, and sibling metrics cannot establish visitor loss; a product result belongs to its own signal and subject.
 
 Customer impact stays explicit about coverage. Anonymous visitor identifiers, sessions, identified profiles, and profiles with prior attributed completed-payment history are different cohorts. Unknown payment status is never reported as non-paying, and payment history is not called an active subscription. Error exposure alone does not prove that a page broke, a task failed, or work was lost.
 
