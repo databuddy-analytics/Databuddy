@@ -242,7 +242,7 @@ Outcome
 - Classify every outcome: raw errors and vitals are reliability_exposure; user_experience needs a directly measured downstream consequence (for route vitals, only via supplied qualified matched continuation); product_outcome needs a measured business result; measurement_definition or measurement_coverage needs a named decision made unsafe. The signal's own movement is not a downstream consequence. A measurement_definition finding publishes only alongside its executable definition fix. A measurement_coverage finding can publish without an executable fix when measured coverage identifies a specific decision that is now unsafe; state the blind spot without claiming that customer activity stopped. It can resolve as a useful discovery or ask for one necessary external fact.
 
 Publishing
-- A website traffic change with no supporting context or successful read remains unpublished: recording alone cannot distinguish traffic loss from a collection gap. For a measurement-definition headline, name the mismatch and put period-specific counts in the evidence instead of estimating affected visits.
+- A raw website traffic change is not a verified product outcome. It may publish only as measurement_coverage with cited collection or implementation evidence. Uncited context, analytics counts, goal/funnel listings, and sibling metrics do not establish visitor loss. A verified sibling product result belongs to its own signal and subject. For a measurement-definition headline, name the mismatch and put period-specific counts in the evidence instead of estimating affected visits.
 - The Insights feed is scarce teammate attention. Decide feed publication separately from opening an investigation. Publish a distinct decision, action, or durable understanding. A verified material product result can be a useful discovery with next.resolve and rootCause null; an unavailable repair is not a reason to hide it. Explain which established outcome changed and the measured scope, not merely a percentage. Keep unchanged, duplicate, routine, low-volume, and unproven-impact work out of the feed.
 - When a reported action is complete, remeasure the exact signal against its verification condition and publish only whether it passed, failed, or remains inconclusive. An improvement that remains unhealthy is not recovery.
 
@@ -430,23 +430,21 @@ function numericTokens(text: string): number[] {
 			""
 		);
 	const merged = withoutDates.replace(/(\d),(?=\d{3}\b)/g, "$1");
-	const matches =
-		merged.match(/(?<![\w.])\d+(?:\.\d+)?(?:e[+-]?\d+)?[kmb]?(?!\w|\.\d)/gi) ??
-		[];
-	return matches
-		.map((token) => {
-			const suffix = token.at(-1)?.toLowerCase();
-			const multiplier =
-				suffix === "k"
-					? 1000
-					: suffix === "m"
-						? 1_000_000
-						: suffix === "b"
-							? 1_000_000_000
-							: 1;
-			return Number(multiplier === 1 ? token : token.slice(0, -1)) * multiplier;
-		})
-		.filter((value) => Number.isFinite(value));
+	const matches = merged.matchAll(
+		/(?<![\w.])(\d+(?:\.\d+)?(?:e[+-]?\d+)?)([a-zµ]+)?(?!\w|\.\d)/gi
+	);
+	return Array.from(matches, (match) => {
+		const suffix = match[2]?.toLowerCase();
+		const multiplier =
+			suffix === "k"
+				? 1000
+				: suffix === "m"
+					? 1_000_000
+					: suffix === "b"
+						? 1_000_000_000
+						: 1;
+		return Number(match[1]) * multiplier;
+	}).filter((value) => Number.isFinite(value));
 }
 
 function corpusNumericTokens(text: string): number[] {
@@ -761,15 +759,21 @@ function validateAgentOutcome(
 		outcome.publish &&
 		!isError &&
 		!isVital &&
-		input.signal.entity.type === "website" &&
-		input.evidence.length === 0 &&
-		usedToolNames.size === 0 &&
-		!input.customerImpact &&
-		!outcome.evidenceRefs.some((ref) => ref.source === "related_signal")
+		input.signal.entity.type === "website"
 	) {
-		throw new Error(
-			"A website traffic signal without supporting context is not a verified product loss. Resolve with publish false until collection or product context establishes what changed."
+		const citedContext = outcome.evidenceRefs.some(
+			(ref) =>
+				ref.source === "provided" ||
+				(ref.source === "tool" &&
+					["scrape_page", "github_read_file", "github_commit_diff"].includes(
+						ref.name
+					))
 		);
+		if (outcome.findingKind !== "measurement_coverage" || !citedContext) {
+			throw new Error(
+				"A website traffic signal is not a verified product loss. Only publish a measurement-coverage finding with cited collection or implementation evidence. A goal lookup, analytics count, or sibling product signal cannot establish lost visitors. Investigate a product result under its own subject."
+			);
+		}
 	}
 	if (
 		outcome.findingKind === "measurement_definition" &&

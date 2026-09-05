@@ -17,7 +17,7 @@ import {
 
 const signal: InvestigationSignal = {
 	signalKey: "visitors",
-	entity: { type: "website", id: "website", label: "Visitors" },
+	entity: { type: "channel", id: "paid-search", label: "Paid search visits" },
 	metric: {
 		label: "Visitors",
 		current: 300,
@@ -1463,8 +1463,10 @@ describe("intelligence agent", () => {
 			findingKind: "measurement_coverage" as const,
 			publicationBasis: "decision_safety" as const,
 			publish: true,
-			evidence: ["Recorded visitors fell from 1000 to 300."],
-			evidenceRefs: [{ source: "signal" as const }],
+			evidence: [
+				"Independent origin logs show requests continued while collection dropped; this period cannot support traffic comparisons.",
+			],
+			evidenceRefs: [{ source: "provided" as const, index: 0 }],
 			next: {
 				type: "resolve" as const,
 				reason: "Coverage is uncertain; the cause has not been established.",
@@ -1476,7 +1478,10 @@ describe("intelligence agent", () => {
 				evidence: [
 					"Independent origin logs show requests continued while collection dropped; this period cannot support traffic comparisons.",
 				],
-				signal,
+				signal: {
+					...signal,
+					entity: { type: "website", id: "website", label: "Visitors" },
+				},
 				githubRepository: null,
 				history: [],
 				otherOpenWork: [],
@@ -1640,7 +1645,7 @@ describe("intelligence agent", () => {
 		).rejects.toThrow("require an inspected funnel definition");
 	});
 
-	it("accepts an explicitly cited related product signal as supporting context", async () => {
+	it("keeps related evidence usable for non-website investigations", async () => {
 		const related = {
 			...signal,
 			signalKey: "event:account_created",
@@ -1684,6 +1689,83 @@ describe("intelligence agent", () => {
 		expect(result.outcome.publish).toBe(true);
 	});
 
+	it.each([
+		"uncited context",
+		"unrelated lookup",
+		"sibling metric",
+	])("does not let %s unlock website publication", async (variant) => {
+		const website = {
+			...signal,
+			entity: { type: "website" as const, id: "website", label: "Visitors" },
+		};
+		const unsupported = {
+			...agentOutcome,
+			title: "Visitor recordings dropped during the comparison",
+			summary: "Visitor recordings fell from 1000 to 300.",
+			impact: "Traffic decisions lack verified context.",
+			rootCause: null,
+			findingKind:
+				variant === "sibling metric"
+					? ("product_outcome" as const)
+					: ("measurement_coverage" as const),
+			publicationBasis:
+				variant === "sibling metric"
+					? ("measured_impact" as const)
+					: ("decision_safety" as const),
+			evidence: ["The measurement fell from 1000 to 300."],
+			evidenceRefs:
+				variant === "sibling metric"
+					? [{ source: "related_signal" as const, index: 0 }]
+					: [{ source: "signal" as const }],
+			next: { type: "resolve" as const, reason: "The cause remains unknown." },
+		};
+		const model =
+			variant === "unrelated lookup"
+				? new MockLanguageModelV3({
+						doGenerate: mockValues(
+							toolCallResponse("list_goals"),
+							outputResponse(unsupported),
+							outputResponse(unsupported),
+							outputResponse(unsupported)
+						),
+					})
+				: outputModel(unsupported);
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					signal: website,
+					evidence: ["An unrelated goal definition is available."],
+					relatedSignals: [
+						{
+							...signal,
+							entity: {
+								type: "event",
+								id: "account_created",
+								label: "Completed accounts",
+							},
+						},
+					],
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+				},
+				{
+					model,
+					tools: {
+						list_goals: tool({
+							description: "Read saved goals.",
+							inputSchema: z.object({}),
+							execute: () => ({
+								goals: [{ id: "unrelated-goal", name: "Account created" }],
+							}),
+						}),
+					},
+				}
+			)
+		).rejects.toThrow("not a verified product loss");
+	});
+
 	it("does not publish a bare traffic signal as verified product loss", async () => {
 		const bare = {
 			...agentOutcome,
@@ -1697,7 +1779,10 @@ describe("intelligence agent", () => {
 				{
 					appContext: appContext(),
 					evidence: [],
-					signal,
+					signal: {
+						...signal,
+						entity: { type: "website", id: "website", label: "Visitors" },
+					},
 					githubRepository: null,
 					history: [],
 					otherOpenWork: [],
@@ -1752,6 +1837,9 @@ describe("validateNumericGrounding", () => {
 		["70k", 70_000],
 		["2.5M", 2_500_000],
 		["1.2e3", 1200],
+		["999ms", 999],
+		["9.99s", 9.99],
+		["18px", 18],
 	] as const)("checks the full magnitude of %s", (text, value) => {
 		const claim = {
 			title: `${text} visits`,

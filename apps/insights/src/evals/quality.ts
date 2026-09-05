@@ -125,6 +125,55 @@ export const qualityCases: QualityCase[] = [
 				: []),
 		],
 	},
+
+	{
+		id: "unrelated-context-traffic",
+		input: input({
+			request: {
+				body: "Check the saved goals to determine whether the visitor loss is real.",
+				createdAt: appContext.currentDateTime,
+			},
+		}),
+		tools: {
+			list_goals: readTool(
+				"Read saved goal definitions; they do not measure collection health.",
+				{ goals: [goal] }
+			),
+		},
+		check: ({ outcome }) =>
+			outcome.publish
+				? ["An unrelated goal lookup unlocked an unsupported website finding"]
+				: [],
+	},
+	{
+		id: "sibling-metric-traffic",
+		input: input({
+			relatedSignals: [
+				{
+					...defaultSignal,
+					signalKey: "event:account_created",
+					entity: {
+						type: "event",
+						id: "account_created",
+						label: "Completed accounts",
+					},
+					metric: {
+						label: "Completed accounts",
+						current: 24,
+						previous: 80,
+						format: "number",
+					},
+				},
+			],
+		}),
+		tools: {},
+		check: ({ outcome }) =>
+			outcome.publish
+				? [
+						"A sibling product result was published as proof for the website traffic subject",
+					]
+				: [],
+	},
 	{
 		id: "coverage-without-definition",
 		input: input({
