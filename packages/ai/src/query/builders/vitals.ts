@@ -48,10 +48,7 @@ interface VitalsByDimensionConfig {
 function vitalsByDimension(config: VitalsByDimensionConfig): CustomSqlFn {
 	const metrics = config.metrics ?? VITALS_P50_METRICS;
 	const needsSd = config.needsSessionDimensions ?? true;
-	const sdText = `${config.selectName} ${config.groupBy ?? ""} ${config.extraWhere ?? ""}`;
-	const sdDims = (
-		["browser_name", "country", "region", "city"] as const
-	).filter((d) => sdText.includes(`sd.${d}`));
+	const staticSdText = `${config.selectName} ${config.groupBy ?? ""} ${config.extraWhere ?? ""}`;
 	return ({
 		websiteId,
 		startDate,
@@ -62,6 +59,12 @@ function vitalsByDimension(config: VitalsByDimensionConfig): CustomSqlFn {
 	}) => {
 		const effectiveLimit = limit ?? config.defaultLimit;
 		const filterClause = appendFilterClause(filterConditions);
+		// Runtime filters may reference a session dimension bare (country = ?) or
+		// qualified (sd.country), so scan them too before pruning the CTE.
+		const sdText = `${staticSdText} ${filterConditions?.join(" ") ?? ""}`;
+		const sdDims = (
+			["browser_name", "country", "region", "city"] as const
+		).filter((d) => sdText.includes(d));
 		const withCte = needsSd ? `WITH ${sessionDimensionsCte(sdDims)}` : "";
 		const joinSd = needsSd
 			? "INNER JOIN session_dimensions sd ON wv.session_id = sd.session_id AND wv.client_id = sd.client_id"
