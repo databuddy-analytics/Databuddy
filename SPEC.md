@@ -110,6 +110,8 @@ The agent may inspect code without write credentials. For a code action it retur
 
 Only the outer boundary is deterministic: authorization, tenant scope, patch validation, approvals, idempotency, and delivery. Investigation strategy is not.
 
+Goal and funnel repairs must match the signal's exact definition ID in the latest successful inspection. Proposal validation and Apply share the measurement-change checks: reject no-ops and preserve stored funnel step conditions. If inspection cannot verify that subject, resolve privately without a claimed cause; a same-named definition cannot justify a repair, coverage diagnosis, or customer question.
+
 ## Quality bars
 
 - An insight is useful when it teaches the teammate something specific they would otherwise need to discover.

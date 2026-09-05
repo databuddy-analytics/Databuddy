@@ -119,6 +119,16 @@ const agentOutcome = {
 	],
 };
 
+const inspectedFunnel = {
+	id: "checkout",
+	name: "Checkout journey",
+	filters: [],
+	steps: [
+		{ name: "Landing", target: "/", type: "PAGE_VIEW" as const },
+		{ name: "Documentation", target: "/docs", type: "PAGE_VIEW" as const },
+	],
+};
+
 const executableDefinitionOutcome = {
 	...agentOutcome,
 	findingKind: "measurement_definition" as const,
@@ -535,7 +545,7 @@ describe("intelligence agent", () => {
 					}),
 					list_funnels: tool({
 						description: "Inspect funnel definitions.",
-						execute: () => ({ data: [{ id: "checkout" }] }),
+						execute: () => ({ funnels: [inspectedFunnel] }),
 						inputSchema: z.object({}).strict(),
 					}),
 				},
@@ -584,13 +594,205 @@ describe("intelligence agent", () => {
 					tools: {
 						list_funnels: tool({
 							description: "Inspect definitions.",
-							execute: () => ({ data: [{ id: "checkout" }] }),
+							execute: () => ({ funnels: [inspectedFunnel] }),
 							inputSchema: z.object({}).strict(),
 						}),
 					},
 				}
 			)
-		).rejects.toThrow("A name or description change alone is not a repair");
+		).rejects.toThrow("does not change what the funnel measures");
+	});
+
+	it.each([
+		"different subject",
+		"already repaired",
+		"missing conditions",
+	])("rejects an unsafe proposal before publication: %s", async (variant) => {
+		const current =
+			variant === "different subject"
+				? { ...inspectedFunnel, id: "another-funnel" }
+				: variant === "already repaired"
+					? {
+							...inspectedFunnel,
+							steps: executableDefinitionOutcome.next.execution.changes.steps,
+						}
+					: {
+							...inspectedFunnel,
+							steps: inspectedFunnel.steps.map((step) => ({
+								...step,
+								conditions: { plan: "paid" },
+							})),
+						};
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				toolCallsResponse(["list_funnels", "get_funnel_analytics"]),
+				outputResponse(executableDefinitionOutcome),
+				outputResponse(executableDefinitionOutcome),
+				outputResponse(executableDefinitionOutcome)
+			),
+		});
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence: [...evidence, "Business meaning: Tracks account creation."],
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+					signal: funnelSignal,
+				},
+				{
+					model,
+					tools: {
+						list_funnels: tool({
+							description: "Read complete definitions.",
+							inputSchema: z.object({}),
+							execute: () => ({ funnels: [current] }),
+						}),
+						get_funnel_analytics: tool({
+							description: "Read journey context.",
+							inputSchema: z.object({}),
+							execute: () => ({ completions: 10 }),
+						}),
+					},
+				}
+			)
+		).rejects.toThrow(
+			variant === "different subject"
+				? "exact current funnel"
+				: variant === "already repaired"
+					? "does not change"
+					: "preserve existing step conditions"
+		);
+	});
+
+	it.each([
+		"missing",
+		"failed",
+		"thrown",
+	])("keeps a %s definition private instead of inventing a coverage diagnosis", async (variant) => {
+		const diagnosis = {
+			...executableDefinitionOutcome,
+			findingKind: "measurement_coverage" as const,
+			next: {
+				type: "resolve" as const,
+				reason: "The saved journey cannot support account creation decisions.",
+			},
+		};
+		const unresolved = {
+			...diagnosis,
+			publish: false,
+			publicationBasis: null,
+			impact: null,
+			rootCause: null,
+			next: {
+				type: "resolve" as const,
+				reason:
+					"The inspected definitions do not contain this journey's exact id.",
+			},
+		};
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				toolCallsResponse(["list_funnels"]),
+				outputResponse(diagnosis),
+				outputResponse(unresolved)
+			),
+		});
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal: funnelSignal,
+			},
+			{
+				model,
+				tools: {
+					list_funnels: tool({
+						description: "Read saved journeys.",
+						inputSchema: z.object({}),
+						execute: () => {
+							if (variant === "thrown") {
+								throw new Error("Definition lookup unavailable");
+							}
+							if (variant === "failed") {
+								return {
+									success: false,
+									error: "Definition lookup unavailable",
+								};
+							}
+							return {
+								funnels: [{ ...inspectedFunnel, id: "another-funnel" }],
+							};
+						},
+					}),
+				},
+			}
+		);
+		expect(result.outcome.publish).toBe(false);
+		expect(result.outcome.rootCause).toBeNull();
+		expect(result.outcome.next.type).toBe("resolve");
+		expect(JSON.stringify(model.doGenerateCalls[2]?.prompt)).toContain(
+			"resolve privately with rootCause null"
+		);
+	});
+
+	it("corrects a no-op proposal using the inspected definition without repeating reads", async () => {
+		const noOp = {
+			...executableDefinitionOutcome,
+			next: {
+				...executableDefinitionOutcome.next,
+				execution: {
+					operation: "edit" as const,
+					changes: { steps: inspectedFunnel.steps },
+				},
+			},
+		};
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				toolCallsResponse(["list_funnels", "get_funnel_analytics"]),
+				outputResponse(noOp),
+				outputResponse(executableDefinitionOutcome)
+			),
+		});
+		let reads = 0;
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence: [...evidence, "Business meaning: Tracks account creation."],
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal: funnelSignal,
+			},
+			{
+				model,
+				tools: {
+					list_funnels: tool({
+						description: "Read complete definitions.",
+						inputSchema: z.object({}),
+						execute: () => {
+							reads++;
+							return { funnels: [inspectedFunnel] };
+						},
+					}),
+					get_funnel_analytics: tool({
+						description: "Read journey context.",
+						inputSchema: z.object({}),
+						execute: () => ({ completions: 10 }),
+					}),
+				},
+			}
+		);
+		expect(reads).toBe(1);
+		expect(result.outcome.next).toMatchObject({
+			execution: executableDefinitionOutcome.next.execution,
+		});
+		expect(JSON.stringify(model.doGenerateCalls[2]?.prompt)).toContain(
+			"does not change what the funnel measures"
+		);
 	});
 
 	it("rejects a definition edit without an inspected definition", async () => {
@@ -1642,7 +1844,7 @@ describe("intelligence agent", () => {
 					},
 				}
 			)
-		).rejects.toThrow("require an inspected funnel definition");
+		).rejects.toThrow("exact current funnel definition was not inspected");
 	});
 
 	it("keeps related evidence usable for non-website investigations", async () => {

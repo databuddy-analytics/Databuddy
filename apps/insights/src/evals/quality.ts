@@ -1,6 +1,6 @@
 import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { parseArgs } from "node:util";
+import { isDeepStrictEqual, parseArgs } from "node:util";
 import { createModelFromId } from "@databuddy/ai/config/models";
 import { tool, wrapLanguageModel, type ToolSet } from "ai";
 import { z } from "zod";
@@ -257,6 +257,166 @@ export const qualityCases: QualityCase[] = [
 						]
 					: []
 				: ["Did not produce an executable target repair"],
+	},
+
+	...["wrong-definition-subject", "failed-definition-read"].map(
+		(id): QualityCase => ({
+			id,
+			input: input({
+				signal: {
+					...defaultSignal,
+					signalKey: "goal:workspace-goal",
+					entity: { type: "goal", id: goal.id, label: goal.name },
+					metric: {
+						label: "Workspace visits",
+						current: 0,
+						previous: 164,
+						format: "number",
+					},
+				},
+				evidence: [
+					"Business meaning: counts visits to the workspace after login. Inspect the exact saved goal before proposing a repair.",
+				],
+			}),
+			tools: {
+				...goalTools,
+				list_goals: readTool(
+					"Read saved goals with their exact ids.",
+					id === "failed-definition-read"
+						? { success: false, error: "Definition lookup unavailable" }
+						: { goals: [{ ...goal, id: "other-goal-with-same-name" }] }
+				),
+			},
+			check: ({ outcome }) => [
+				...(outcome.next.type === "resolve"
+					? []
+					: ["Created work without inspecting the signal's exact definition"]),
+				...(outcome.publish
+					? ["Published a diagnosis for an unverified definition subject"]
+					: []),
+				...(outcome.rootCause === null
+					? []
+					: [
+							"Claimed a cause without verifying the signal's exact definition",
+						]),
+			],
+		})
+	),
+	{
+		id: "already-correct-goal",
+		input: input({
+			signal: {
+				...defaultSignal,
+				signalKey: "goal:workspace-goal",
+				entity: { type: "goal", id: goal.id, label: goal.name },
+				metric: {
+					label: "Workspace visits",
+					current: 0,
+					previous: 164,
+					format: "number",
+				},
+			},
+			evidence: [
+				"Business meaning: counts visits to the workspace after login. The signal was detected before the current definition was inspected.",
+			],
+		}),
+		tools: {
+			...goalTools,
+			list_goals: readTool("Inspect the exact current goal definition.", {
+				goals: [{ ...goal, target: "/workspace" }],
+			}),
+			scrape_page: readTool("Inspect the current workspace route.", {
+				content:
+					"Authenticated visitors reach /workspace. Tracking is present. This is the correct destination for the saved workspace goal; no code or definition mismatch has been established.",
+			}),
+		},
+		check: ({ outcome }) =>
+			outcome.next.type === "act"
+				? [
+						"Proposed another repair although the inspected definition already measures the correct route",
+					]
+				: [],
+	},
+	{
+		id: "funnel-conditions-repair",
+		input: input({
+			signal: {
+				...defaultSignal,
+				signalKey: "funnel:account-journey",
+				entity: {
+					type: "funnel",
+					id: "account-journey",
+					label: "Account creation journey",
+				},
+				metric: {
+					label: "Completed journeys",
+					current: 0,
+					previous: 164,
+					format: "number",
+				},
+			},
+			evidence: [
+				"Business meaning: tracks landing-page visitors who finish creating an account. Inspect the final emitted event and the complete saved definition.",
+			],
+		}),
+		tools: {
+			list_funnels: readTool("Read complete saved funnel definitions.", {
+				funnels: [
+					{
+						id: "account-journey",
+						name: "Account creation journey",
+						filters: [],
+						steps: [
+							{ name: "Landing", type: "PAGE_VIEW", target: "/start" },
+							{
+								name: "Account created",
+								type: "EVENT",
+								target: "account_started",
+								conditions: { plan: "paid" },
+							},
+						],
+					},
+				],
+			}),
+			scrape_page: readTool(
+				"Inspect the current account creation emitter and workflow.",
+				{
+					content:
+						"The successful account-creation handler now emits account_completed. account_started was retired. The first step /start remains correct. Replace only the final event target. Stored step conditions must be preserved; analytics does not currently evaluate those conditions, so this does not establish a paid-only cohort.",
+				}
+			),
+		},
+		check: ({ outcome }) => {
+			if (
+				outcome.next.type !== "act" ||
+				outcome.next.execution?.operation !== "edit"
+			) {
+				return ["Missed the verified executable funnel repair"];
+			}
+			const changes = outcome.next.execution.changes;
+			const steps = changes.steps?.map((step) => ({
+				...step,
+				conditions: step.conditions ?? {},
+			}));
+			return isDeepStrictEqual(steps, [
+				{
+					name: "Landing",
+					type: "PAGE_VIEW",
+					target: "/start",
+					conditions: {},
+				},
+				{
+					name: "Account created",
+					type: "EVENT",
+					target: "account_completed",
+					conditions: { plan: "paid" },
+				},
+			]) && isDeepStrictEqual(changes.filters ?? [], [])
+				? []
+				: [
+						"Changed unrelated steps, conditions, or filters while repairing the final event",
+					];
+		},
 	},
 	{
 		id: "partial-table-not-absence",

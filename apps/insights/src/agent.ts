@@ -5,10 +5,10 @@ import {
 	isAiGatewayConfigured,
 } from "@databuddy/ai/config/models";
 import { getAILogger } from "@databuddy/ai/lib/ai-logger";
+import { insightRepairError } from "@databuddy/rpc/insight-repairs";
 import {
 	agentInvestigationOutcomeSchema,
 	describeInsightDefinitionAction,
-	insightDefinitionEditError,
 	investigationOutcomeSchema,
 	type AgentInvestigationOutcome,
 	type InsightDefinitionOperation,
@@ -236,7 +236,7 @@ Evidence
 - A supplied route-continuation comparison measures later different-page views within ten minutes among matched sessions: state it as an association, never causation, bounce, conversion, or revenue. Payment matches are lower bounds for attributed completed payments, never active subscriptions.
 
 Outcome
-- act: only for an inspected mechanism with the smallest concrete target and change, measured impact, and a verification condition that proves recovery. Set recheckAt to the earliest defensible time given the measurement window. An existing goal or funnel that is materially unsafe for its established purpose gets an exact edit or delete via next.execution; delete only when inspection shows no independent valid use, and cosmetic renames are not actions. For edits, put the actual goal target/type/filters or complete ordered funnel steps/filters in execution.changes; name and description alone cannot repair what is measured. Preserve existing step conditions. The displayed action is generated from this patch.
+- act: only for an inspected mechanism with the smallest concrete target and change, measured impact, and a verification condition that proves recovery. Set recheckAt to the earliest defensible time given the measurement window. An existing goal or funnel that is materially unsafe for its established purpose gets an exact edit or delete via next.execution; delete only when inspection shows no independent valid use, and cosmetic renames are not actions. For edits, put the actual goal target/type/filters or complete ordered funnel steps/filters in execution.changes; name and description alone cannot repair what is measured. Preserve existing step conditions. The displayed action is generated from this patch. Match the listed definition by the signal entity id, not its label. Compare the proposed measurement fields against that exact current definition; an already-correct target or renamed step is not a repair. Validation checks the proposal against the latest successful definition read before publication. If that read cannot verify the exact subject, resolve privately with rootCause null; a missing or unreadable definition does not establish a reporting gap or intentional deletion.
 - ask: for errors, capabilities.canAskAboutError must be true (qualified matched impact or at least the supplied minimum visitor reach). Below that floor, resolve without a question. Otherwise only after exhausting inspectable context, for one external fact that selects between materially different moves; say what it unlocks. When a material reliability problem needs source access, ask for the owning repository rather than guessing a fix; when a repository is supplied, inspect it before asking about ownership. One repository-access request per website: when other open work already asks for repository access, resolve and state that this signal is blocked on that request; still publish that resolve when the exposure itself is a new, material fact.
 - Otherwise resolve. Use history and other open work to avoid repeating an action or question; reissue only when impact worsens or new evidence changes the target or remedy.
 - Classify every outcome: raw errors and vitals are reliability_exposure; user_experience needs a directly measured downstream consequence (for route vitals, only via supplied qualified matched continuation); product_outcome needs a measured business result; measurement_definition or measurement_coverage needs a named decision made unsafe. The signal's own movement is not a downstream consequence. A measurement_definition finding publishes only alongside its executable definition fix. A measurement_coverage finding can publish without an executable fix when measured coverage identifies a specific decision that is now unsafe; state the blind spot without claiming that customer activity stopped. It can resolve as a useful discovery or ask for one necessary external fact.
@@ -370,7 +370,8 @@ function hasUsedTool(
 function validateDefinitionRecommendation(
 	definition: InsightDefinitionOperation,
 	input: Pick<InsightAgentInput, "evidence" | "signal">,
-	usedToolNames: ReadonlySet<string>
+	usedToolNames: ReadonlySet<string>,
+	current: unknown
 ) {
 	const entityType = input.signal.entity.type;
 	if (entityType !== "goal" && entityType !== "funnel") {
@@ -385,22 +386,16 @@ function validateDefinitionRecommendation(
 			`Insights ${entityType} definition changes require an inspected ${entityType} definition`
 		);
 	}
+	const inspectionError = insightRepairError(
+		{ id: input.signal.entity.id, type: entityType },
+		current,
+		definition.operation === "edit" ? definition.changes : undefined
+	);
+	if (inspectionError) {
+		throw new Error(inspectionError);
+	}
 	if (definition.operation === "delete") {
 		return;
-	}
-	const error = insightDefinitionEditError(entityType, definition.changes);
-	if (error) {
-		throw new Error(error);
-	}
-	if (
-		definition.changes.target == null &&
-		definition.changes.type == null &&
-		definition.changes.steps == null &&
-		definition.changes.filters == null
-	) {
-		throw new Error(
-			"Executable repairs must change the measured target, type, steps, or filters. A name or description change alone is not a repair."
-		);
 	}
 	const hasConfiguredPurpose = input.evidence.some((item) =>
 		item.includes("Business meaning:")
@@ -562,11 +557,54 @@ function validateRepositoryAsk(
 	}
 }
 
-function validateExecution(
+function validateDefinitionOutcome(
 	outcome: AgentInvestigationOutcome,
 	input: Pick<InsightAgentInput, "evidence" | "signal">,
-	usedToolNames: ReadonlySet<string>
+	usedToolNames: ReadonlySet<string>,
+	results: StepResult<ToolSet>["toolResults"],
+	attemptedToolNames: ReadonlySet<string>
 ) {
+	const entity = input.signal.entity;
+	let current: unknown;
+	if (entity.type === "goal" || entity.type === "funnel") {
+		const listTool = entity.type === "goal" ? "list_goals" : "list_funnels";
+		const key = entity.type === "goal" ? "goals" : "funnels";
+		// Use the latest successful snapshot, never a same-named definition.
+		for (const result of results) {
+			if (result.toolName !== listTool || !isSuccessfulRead(result.output)) {
+				continue;
+			}
+			const output = result.output;
+			const entries =
+				output && typeof output === "object"
+					? Object.entries(output).find(([name]) => name === key)?.[1]
+					: undefined;
+			current = Array.isArray(entries)
+				? entries.find(
+						(entry: unknown) =>
+							entry &&
+							typeof entry === "object" &&
+							"id" in entry &&
+							entry.id === entity.id
+					)
+				: undefined;
+		}
+		const inspectionError = insightRepairError(
+			{ id: entity.id, type: entity.type },
+			current
+		);
+		if (
+			attemptedToolNames.has(listTool) &&
+			inspectionError &&
+			(outcome.publish ||
+				outcome.rootCause !== null ||
+				outcome.next.type !== "resolve")
+		) {
+			throw new Error(
+				`${inspectionError} Until the exact subject is verified, resolve privately with rootCause null. Do not turn a missing or unreadable definition into a coverage diagnosis, deletion claim, or customer question.`
+			);
+		}
+	}
 	const execution: InsightDefinitionOperation | null =
 		outcome.next.type === "act" && outcome.next.execution !== null
 			? { action: outcome.next.action, ...outcome.next.execution }
@@ -582,7 +620,7 @@ function validateExecution(
 			"Insights executable definition changes require a published measurement-definition finding"
 		);
 	}
-	validateDefinitionRecommendation(execution, input, usedToolNames);
+	validateDefinitionRecommendation(execution, input, usedToolNames, current);
 }
 
 function isSuccessfulRead(output: unknown): boolean {
@@ -701,7 +739,9 @@ function validateAgentOutcome(
 		| "relatedSignals"
 		| "signal"
 	>,
-	usedToolNames: ReadonlySet<string>
+	usedToolNames: ReadonlySet<string>,
+	results: StepResult<ToolSet>["toolResults"],
+	attemptedToolNames: ReadonlySet<string>
 ): InvestigationOutcome {
 	const asOf = new Date(input.appContext.currentDateTime);
 	const { signalKey } = input.signal;
@@ -787,7 +827,13 @@ function validateAgentOutcome(
 	validateMeasurementPublish(outcome);
 	validateErrorAskReach(outcome, input, isError);
 	validateRepositoryAsk(outcome, input.otherOpenWork);
-	validateExecution(outcome, input, usedToolNames);
+	validateDefinitionOutcome(
+		outcome,
+		input,
+		usedToolNames,
+		results,
+		attemptedToolNames
+	);
 	if (outcome.next.type === "act") {
 		const recheckAt = outcome.next.recheckAt;
 		if (!recheckAt || new Date(recheckAt).getTime() <= asOf.getTime()) {
@@ -1001,12 +1047,21 @@ export async function runInsightAgent(
 				const usedToolNames = new Set(
 					successfulResults.map((result) => result.toolName)
 				);
+				const attemptedToolNames = new Set(
+					steps.flatMap((step) => step.toolCalls.map((call) => call.toolName))
+				);
 				const citedEvidence = resolveEvidenceReferences(
 					result.output,
 					input,
 					results
 				);
-				outcome = validateAgentOutcome(result.output, input, usedToolNames);
+				outcome = validateAgentOutcome(
+					result.output,
+					input,
+					usedToolNames,
+					results,
+					attemptedToolNames
+				);
 				const serialize = (value: unknown) =>
 					JSON.stringify(value, (_key, item) =>
 						typeof item === "bigint" ? item.toString() : item

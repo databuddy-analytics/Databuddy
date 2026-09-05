@@ -439,6 +439,28 @@ describe("insight investigation timeline", () => {
 	});
 
 	iit(
+		"rejects an equivalent event goal type without queuing a recheck",
+		async () => {
+			const { goalId, insightId, member, organization } =
+				await seedExecutableGoalAction({ type: "CUSTOM" });
+			await expectCode(
+				call(
+					appRouter.insights.applyAction,
+					userContext(member, organization.id)
+				)({ insightId }),
+				"BAD_REQUEST"
+			);
+			const [goal] = await db()
+				.select()
+				.from(goals)
+				.where(eq(goals.id, goalId));
+			expect(goal?.type).toBe("EVENT");
+			expect(await db().select().from(insightReplies)).toHaveLength(0);
+		}
+	);
+
+
+	iit(
 		"rejects a cosmetic rename disguised by repeating the current goal target",
 		async () => {
 			const { goalId, insightId, member, organization } =
