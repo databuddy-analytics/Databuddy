@@ -40,6 +40,7 @@ import { z } from "zod";
 import { rpcError } from "../errors";
 import { invalidateGoalsCache } from "../lib/goals-cache";
 import { invalidateFunnelsCache } from "../lib/funnels-cache";
+import { requireFunnelSteps, toAnalyticsSteps } from "./funnel-steps";
 import { logger } from "../lib/logger";
 import { setAuditOrganization } from "../lib/audit";
 import {
@@ -965,9 +966,32 @@ async function applyInsightAction(input: {
 					steps: action.changes.steps ?? funnel.steps,
 					filters: action.changes.filters ?? funnel.filters,
 				};
+				const currentSteps = requireFunnelSteps(funnel.steps);
+				const replacementSteps = requireFunnelSteps(changes.steps);
+				// Conditions are stored but not evaluated by funnel analytics. Never
+				// silently discard them or present changing them as a repair.
+				if (
+					[...currentSteps, ...replacementSteps].some(
+						(step) => Object.keys(step.conditions ?? {}).length > 0
+					) &&
+					!isDeepStrictEqual(
+						currentSteps.map((step) => step.conditions ?? {}),
+						replacementSteps.map((step) => step.conditions ?? {})
+					)
+				) {
+					throw rpcError.badRequest(
+						"Automatic funnel repairs must preserve existing step conditions and cannot add conditions that analytics does not evaluate."
+					);
+				}
 				const changesMeasurement = !(
-					isDeepStrictEqual(changes.steps, funnel.steps) &&
-					isDeepStrictEqual(changes.filters ?? [], funnel.filters ?? [])
+					isDeepStrictEqual(
+						toAnalyticsSteps(replacementSteps).map(
+							({ name: _name, ...step }) => step
+						),
+						toAnalyticsSteps(currentSteps).map(
+							({ name: _name, ...step }) => step
+						)
+					) && isDeepStrictEqual(changes.filters ?? [], funnel.filters ?? [])
 				);
 				const includesMeasurement =
 					action.changes.steps != null || action.changes.filters != null;

@@ -165,7 +165,7 @@ export const insightDefinitionEditChangesSchema = z
 			.max(20)
 			.nullish()
 			.describe(
-				"Complete ordered replacement steps for a funnel, preserving any existing conditions. Not valid for goals."
+				"Complete ordered replacement steps for a funnel. Preserve existing conditions at their positions; do not add or change conditions, which analytics does not evaluate. Renaming steps alone does not repair measurement. Not valid for goals."
 			),
 		filters: z
 			.array(

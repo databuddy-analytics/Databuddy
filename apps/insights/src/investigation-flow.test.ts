@@ -138,7 +138,11 @@ const executableDefinitionOutcome = {
 				name: "Account creation journey",
 				steps: [
 					{ name: "Landing", target: "/", type: "PAGE_VIEW" as const },
-					{ name: "Account created", target: "account_created", type: "EVENT" as const },
+					{
+						name: "Account created",
+						target: "account_created",
+						type: "EVENT" as const,
+					},
 				],
 			},
 			operation: "edit" as const,
@@ -351,7 +355,8 @@ describe("intelligence agent", () => {
 		const exposureOutcome = {
 			...measuredOutcome,
 			findingKind: "reliability_exposure" as const,
-			impact: "Sign-in page loads reached 7.2 seconds in the comparison window.",
+			impact:
+				"Sign-in page loads reached 7.2 seconds in the comparison window.",
 			publicationBasis: "measured_reliability" as const,
 			title: "Sign-in page loads were slow",
 		};
@@ -439,9 +444,7 @@ describe("intelligence agent", () => {
 			{ ...input, hasQualifiedRouteVitalContinuation: true },
 			{ model: measurementModel, tools: {} }
 		);
-		expect(measurementResult.outcome.findingKind).toBe(
-			"reliability_exposure"
-		);
+		expect(measurementResult.outcome.findingKind).toBe("reliability_exposure");
 	});
 
 	it("turns ambiguous definition questions into unpublished resolves", async () => {
@@ -540,35 +543,55 @@ describe("intelligence agent", () => {
 		);
 
 		expect(result.outcome.next).toEqual({
-            ...executableDefinitionOutcome.next,
-            action: describeInsightDefinitionAction(funnelSignal.entity.label, {
-                ...executableDefinitionOutcome.next.execution,
-                action: executableDefinitionOutcome.next.action,
-            }),
-        });
+			...executableDefinitionOutcome.next,
+			action: describeInsightDefinitionAction(funnelSignal.entity.label, {
+				...executableDefinitionOutcome.next.execution,
+				action: executableDefinitionOutcome.next.action,
+			}),
+		});
 	});
 
 	it("rejects a cosmetic rename presented as a measurement repair", async () => {
-        const cosmetic = {
-            ...executableDefinitionOutcome,
-            next: { ...executableDefinitionOutcome.next, execution: {
-                operation: "edit" as const,
-                changes: { name: "Account creation journey", description: null },
-            } },
-        };
-        await expect(runInsightAgent({
-            appContext: appContext(), evidence, githubRepository: null,
-            history: [], otherOpenWork: [], signal: funnelSignal,
-        }, {
-            model: new MockLanguageModelV3({ doGenerate: mockValues(
-                toolCallsResponse(["list_funnels"]), outputResponse(cosmetic),
-                outputResponse(cosmetic), outputResponse(cosmetic),
-            ) }),
-            tools: { list_funnels: tool({ description: "Inspect definitions.",
-                execute: () => ({ data: [{ id: "checkout" }] }),
-                inputSchema: z.object({}).strict() }) },
-        })).rejects.toThrow("A name or description change alone is not a repair");
-    });
+		const cosmetic = {
+			...executableDefinitionOutcome,
+			next: {
+				...executableDefinitionOutcome.next,
+				execution: {
+					operation: "edit" as const,
+					changes: { name: "Account creation journey", description: null },
+				},
+			},
+		};
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+					signal: funnelSignal,
+				},
+				{
+					model: new MockLanguageModelV3({
+						doGenerate: mockValues(
+							toolCallsResponse(["list_funnels"]),
+							outputResponse(cosmetic),
+							outputResponse(cosmetic),
+							outputResponse(cosmetic)
+						),
+					}),
+					tools: {
+						list_funnels: tool({
+							description: "Inspect definitions.",
+							execute: () => ({ data: [{ id: "checkout" }] }),
+							inputSchema: z.object({}).strict(),
+						}),
+					},
+				}
+			)
+		).rejects.toThrow("A name or description change alone is not a repair");
+	});
 
 	it("rejects a definition edit without an inspected definition", async () => {
 		await expect(
@@ -1194,8 +1217,7 @@ describe("intelligence agent", () => {
 					{
 						asOf: "2026-07-12T00:30:00.000Z",
 						next: {
-							question:
-								"Connect the repository that owns the checkout flow.",
+							question: "Connect the repository that owns the checkout flow.",
 							type: "ask",
 						},
 						title: "Checkout repository access",
