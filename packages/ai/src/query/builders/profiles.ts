@@ -969,7 +969,8 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
       GROUP BY e.session_id
     ),
     all_events AS (
-      SELECT
+      SELECT * FROM (
+        SELECT
         toString(e.id) as id,
         e.session_id,
         e.time,
@@ -987,7 +988,6 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
           ELSE 'analytics'
         END as source
 	      FROM profile_events e
-	      INNER JOIN user_sessions us ON e.session_id = us.session_id
 	      WHERE e.visitor_id = {visitorId:String}
 
       UNION ALL
@@ -1009,7 +1009,6 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
         END as properties,
         'custom' as source
 	      FROM profile_custom_events ce
-	      INNER JOIN user_sessions us ON ifNull(ce.session_id, '') = us.session_id
 	      WHERE ce.visitor_id = {visitorId:String}
 
       UNION ALL
@@ -1033,7 +1032,6 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
         )) as properties,
         'error' as source
       FROM ${Analytics.error_spans} es
-      INNER JOIN user_sessions us ON es.session_id = us.session_id
       WHERE
         es.client_id = {websiteId:String}
         AND es.anonymous_id IN (SELECT anonymous_id FROM visitor_ids)
@@ -1054,12 +1052,13 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
         )) as properties,
         'outgoing_link' as source
       FROM ${Analytics.outgoing_links} ol
-      INNER JOIN user_sessions us ON ol.session_id = us.session_id
       WHERE
         ol.client_id = {websiteId:String}
         AND ol.anonymous_id IN (SELECT anonymous_id FROM visitor_ids)
         AND ol.timestamp >= toDateTime({startDate:String})
         AND ol.timestamp <= toDateTime({endDate:String})
+      ) ae
+      WHERE ae.session_id IN (SELECT session_id FROM user_sessions)
     ),
     session_events AS (
       SELECT
