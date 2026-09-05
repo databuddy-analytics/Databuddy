@@ -11,7 +11,11 @@ import {
 } from "../../query";
 import { shiftDate, todayInTimeZone } from "../../query/date-utils";
 import type { QueryRequest } from "../../query/types";
-import { getAppContext, resolveToolWebsite, toolDateRangeError } from "./utils";
+import {
+	getAppContext,
+	resolveToolWebsite,
+	toolDateRangeError,
+} from "./utils/context";
 
 type QueryType = Extract<keyof typeof QueryBuilders, string>;
 const QUERY_TYPES = Object.keys(QueryBuilders) as [QueryType, ...QueryType[]];
@@ -30,7 +34,7 @@ const queryItemSchema = z.object({
 	timeUnit: z.enum(["minute", "hour", "day", "week", "month"]).optional(),
 	filters: z
 		.array(
-			z.object({
+			z.strictObject({
 				field: z
 					.string()
 					.describe(
@@ -50,13 +54,16 @@ const queryItemSchema = z.object({
 					z.number(),
 					z.array(z.union([z.string(), z.number()])),
 				]),
-				target: z.string().optional(),
-				having: z.boolean().optional(),
 			})
 		)
 		.optional(),
 	groupBy: z.array(z.string()).optional(),
-	orderBy: z.string().optional(),
+	orderBy: z
+		.string()
+		.optional()
+		.describe(
+			"Omit to use the builder's default order. Otherwise use an output column followed by ASC or DESC, e.g. 'errors DESC'; never use names such as count_desc. discover_query_types lists output fields and default order."
+		),
 	limit: z.number().min(1).max(1000).optional(),
 	timezone: z.string().optional(),
 });
@@ -66,9 +73,12 @@ type QueryItem = z.infer<typeof queryItemSchema>;
 interface QueryItemResult {
 	data: unknown[];
 	error?: string;
+	filters?: QueryItem["filters"];
+	from?: string;
 	returnedRows?: number;
 	rowCount: number;
 	summary?: string;
+	to?: string;
 	truncated?: boolean;
 	type: string;
 	websiteId?: string;
@@ -145,7 +155,7 @@ function resolveDates(
 
 export const getDataTool = tool({
 	description:
-		"Run analytics query builders for explicit data questions. Batch 1-10 queries per call. Use preset (last_7d/last_30d/...) or from+to dates. Each query may target a specific website via websiteId; omit to use the workspace default. When truncated is true, data contains only returnedRows examples from rowCount query rows; never aggregate or generalize that sample.",
+		"Run analytics query builders for explicit data questions. Batch 1-10 queries per call. Use preset (last_7d/last_30d/...) or from+to dates. Each query may target a specific website via websiteId; omit to use the workspace default. Filters select rows: never supply target or having. discover_query_types lists allowed and required filters. Results include at most 20 rows; rowCount is the number of query rows, not the whole population. Query limits may exclude more rows even when truncated is false. Never infer absence, totals, or completeness from a ranked list; query the exact subject or use an aggregate builder.",
 	inputSchema: z.object({
 		queries: z
 			.array(queryItemSchema)
@@ -196,7 +206,7 @@ export const getDataTool = tool({
 					from,
 					to,
 					timeUnit: item.timeUnit,
-					filters: item.filters as QueryRequest["filters"],
+					filters: item.filters,
 					groupBy: item.groupBy,
 					orderBy: item.orderBy,
 					limit: item.limit,
@@ -214,6 +224,9 @@ export const getDataTool = tool({
 					return {
 						type: item.type,
 						websiteId,
+						filters: item.filters ?? [],
+						from,
+						to,
 						summary: buildResultSummary(
 							item.type,
 							from,
