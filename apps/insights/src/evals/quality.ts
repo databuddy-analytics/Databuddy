@@ -2,6 +2,7 @@ import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { isDeepStrictEqual, parseArgs } from "node:util";
 import { createModelFromId } from "@databuddy/ai/config/models";
+import { createToolkit } from "@databuddy/ai/tools/toolkit";
 import { tool, wrapLanguageModel, type ToolSet } from "ai";
 import { z } from "zod";
 import {
@@ -12,6 +13,11 @@ import {
 
 const ABSENCE_CLAIM =
 	/\b(?:does not exist|no longer exists|retired route|absent from the site|nonexistent route|(?:route|path|page) (?:is |was |has been )?(?:missing|removed|deleted|retired|unavailable)|(?:missing|removed|deleted|retired) (?:route|path|page))\b/i;
+
+const STEADY_ARRIVALS =
+	/\b(?:visits|arrivals)\s+(?:(?:were|are|stayed|remained)\s+)?(?:unchanged|steady|stable)\b|\b(?:unchanged|steady|stable)\s+(?:new-user\s+)?(?:visits|arrivals)\b|\b1[,.]?200\b/i;
+const SOURCE_COMPARISON = [/\bGoogle\b/i, /\b20\b/, /\b100\b/];
+const WORD_SEPARATOR = /\s+/;
 
 // Entirely synthetic. No analytics clients, customer fixtures, writes, or delivery tools.
 const period = {
@@ -100,6 +106,18 @@ const goalTools: ToolSet = {
 			},
 		}),
 	}),
+};
+
+const analyticsTools = createToolkit({ capabilities: ["analytics"] });
+const signupFunnel = {
+	id: "signup-journey",
+	name: "Account creation journey",
+	description: "Tracks landing visitors who finish creating an account.",
+	filters: [],
+	steps: [
+		{ name: "Landing", type: "PAGE_VIEW", target: "/" },
+		{ name: "Account created", type: "EVENT", target: "signup_completed" },
+	],
 };
 interface QualityCase {
 	// Observable expectations, independent of exact wording.
@@ -190,43 +208,70 @@ export const qualityCases: QualityCase[] = [
 				: ["Misclassified missing collection as customer activity"]),
 		],
 	},
-	{
-		id: "useful-signup-decline",
-		input: input({
-			signal: {
-				...defaultSignal,
-				signalKey: "event:signup_completed",
-				entity: {
-					type: "event",
-					id: "signup_completed",
-					label: "Completed account creation",
+	...["useful-signup-decline", "useful-decline-missing-connector"].map(
+		(id): QualityCase => ({
+			id,
+			input: input({
+				signal: {
+					...defaultSignal,
+					signalKey: "event:signup_completed",
+					entity: {
+						type: "event",
+						id: "signup_completed",
+						label: "Completed account creation",
+					},
+					metric: {
+						label: "Completed account creations",
+						current: 24,
+						previous: 80,
+						format: "number",
+					},
+					changePercent: -70,
 				},
-				metric: {
-					label: "Completed account creations",
-					current: 24,
-					previous: 80,
-					format: "number",
-				},
-				changePercent: -70,
-			},
-			evidence: [
-				"Business meaning: the inspected signup_completed emitter runs only after a successful account creation; the emitter and collection coverage are unchanged across both windows. Completed accounts fell from 80 to 24.",
-				"New-user visits stayed at 1200 in both windows. No causal source or campaign change has been established, and there is no justified repair or external question yet.",
+				evidence: [
+					"Business meaning: the inspected signup_completed emitter runs only after a successful account creation; the emitter and collection coverage are unchanged across both windows. Completed accounts fell from 80 to 24.",
+					"New-user visits stayed at 1200 in both windows. No causal source or campaign change has been established, and there is no justified repair or external question yet.",
+				],
+			}),
+			tools:
+				id === "useful-decline-missing-connector"
+					? {
+							search_console: readTool(
+								"Inspect acquisition search performance.",
+								{
+									error:
+										"No Google account connected. Search Console is unavailable.",
+								}
+							),
+						}
+					: {},
+			check: ({ outcome }) => [
+				...(STEADY_ARRIVALS.test(
+					[
+						outcome.title,
+						outcome.summary,
+						outcome.impact,
+						...outcome.evidence,
+					].join(" ")
+				)
+					? []
+					: [
+							"Omitted the steady-arrivals comparison that distinguishes completion loss from reduced reach",
+						]),
+				...(outcome.publish
+					? []
+					: [
+							"Hid a material verified product result because no repair was available",
+						]),
+				...(outcome.next.type === "resolve"
+					? []
+					: [
+							"Manufactured work without an established remedy or missing fact",
+						]),
+				...(outcome.rootCause === null ? [] : ["Invented a causal mechanism"]),
 			],
-		}),
-		tools: {},
-		check: ({ outcome }) => [
-			...(outcome.publish
-				? []
-				: [
-						"Hid a material verified product result because no repair was available",
-					]),
-			...(outcome.next.type === "resolve"
-				? []
-				: ["Manufactured work without an established remedy or missing fact"]),
-			...(outcome.rootCause === null ? [] : ["Invented a causal mechanism"]),
-		],
-	},
+		})
+	),
 	{
 		id: "executable-goal-target",
 		input: input({
@@ -485,43 +530,198 @@ export const qualityCases: QualityCase[] = [
 				: []),
 		],
 	},
+	...["missing-connector", "missing-connector-with-page-context"].map(
+		(id): QualityCase => ({
+			id,
+			input: input({
+				signal: {
+					...defaultSignal,
+					signalKey: "channel:organic",
+					entity: {
+						type: "channel",
+						id: "organic",
+						label: "Organic search visits",
+					},
+					metric: {
+						label: "Organic search visits",
+						current: 300,
+						previous: 600,
+						format: "number",
+					},
+					changePercent: -50,
+				},
+				evidence: [
+					"Organic visits fell from 600 to 300. Other channels are unchanged; signup volume is unchanged. No search ranking, impression or index coverage data has been supplied.",
+				],
+			}),
+			tools: {
+				...(id === "missing-connector-with-page-context"
+					? {
+							scrape_page: readTool(
+								"Inspect the website and its public tracking configuration.",
+								{
+									content:
+										"The public landing page loads the analytics script. No missing tracking bootstrap or collection outage was observed. This page does not contain search rankings, impressions, or index coverage data.",
+								}
+							),
+						}
+					: {}),
+				search_console: readTool(
+					"Inspect search queries, impressions, and ranking positions.",
+					{
+						error:
+							"No Google account connected. Search Console is unavailable.",
+					}
+				),
+			},
+			check: ({ outcome }, calls) => [
+				...(outcome.publish
+					? [
+							"Published missing diagnostic access as a useful discovery despite unchanged signup volume",
+						]
+					: []),
+				...(outcome.next.type === "resolve"
+					? []
+					: [
+							"Created customer work without a measured consequence or concrete remedy",
+						]),
+				...(outcome.rootCause === null
+					? []
+					: ["Inferred a cause from an unavailable connector"]),
+				...(calls.filter((call) => call.name === "search_console").length > 1
+					? ["Repeated an unavailable connector"]
+					: []),
+			],
+		})
+	),
 	{
-		id: "missing-connector",
+		id: "signup-source-comparison",
 		input: input({
 			signal: {
 				...defaultSignal,
-				signalKey: "channel:organic",
+				signalKey: "funnel:signup-journey",
 				entity: {
-					type: "channel",
-					id: "organic",
-					label: "Organic search visits",
+					id: signupFunnel.id,
+					label: signupFunnel.name,
+					type: "funnel",
 				},
 				metric: {
-					label: "Organic search visits",
-					current: 300,
-					previous: 600,
+					label: "Completed accounts",
+					current: 100,
+					previous: 180,
 					format: "number",
 				},
-				changePercent: -50,
+				changePercent: -44.4,
 			},
 			evidence: [
-				"Organic visits fell from 600 to 300. Other channels are unchanged; signup volume is unchanged. No search ranking, impression or index coverage data has been supplied.",
+				"Business meaning: the funnel ends at signup_completed, emitted only after successful account creation. Collection and the definition are unchanged across both windows. There were 1000 entrants in each window. No code or campaign cause is established.",
 			],
 		}),
 		tools: {
-			search_console: readTool(
-				"Inspect search queries, impressions, and ranking positions.",
-				{ error: "No Google account connected. Search Console is unavailable." }
-			),
+			list_funnels: {
+				...analyticsTools.list_funnels,
+				execute: () => ({ funnels: [signupFunnel], count: 1 }),
+			},
+			get_funnel_analytics_by_referrer: {
+				...analyticsTools.get_funnel_analytics_by_referrer,
+				execute: (value: unknown) => {
+					// The production input schema validates the call; these checks select only the synthetic windows.
+					const query = z
+						.object({
+							funnelId: z.literal(signupFunnel.id),
+							startDate: z.string(),
+							endDate: z.string(),
+							websiteId: z.literal(appContext.websiteId).optional(),
+						})
+						.safeParse(value);
+					if (!query.success) {
+						return {
+							error: "Use the exact funnel and an explicit comparison window.",
+						};
+					}
+					const current =
+						query.data.startDate === period.current.from &&
+						query.data.endDate === period.current.to;
+					const previous =
+						query.data.startDate === period.previous.from &&
+						query.data.endDate === period.previous.to;
+					const combined =
+						query.data.startDate === period.previous.from &&
+						query.data.endDate === period.current.to;
+					if (!(current || previous || combined)) {
+						return { error: "No synthetic data exists for this window." };
+					}
+					return {
+						referrer_analytics: [
+							{
+								referrer: "google.com",
+								referrer_parsed: {
+									name: "Google",
+									type: "search",
+									domain: "google.com",
+								},
+								total_users: combined ? 1200 : 600,
+								completed_users: combined ? 120 : current ? 20 : 100,
+								conversion_rate: combined ? 10 : current ? 3.3 : 16.7,
+							},
+							{
+								referrer: "direct",
+								referrer_parsed: { name: "Direct", type: "direct", domain: "" },
+								total_users: combined ? 800 : 400,
+								completed_users: combined ? 160 : 80,
+								conversion_rate: 20,
+							},
+						],
+					};
+				},
+			},
 		},
-		check: ({ outcome }, calls) => [
-			...(outcome.rootCause === null
-				? []
-				: ["Inferred a cause from an unavailable connector"]),
-			...(calls.filter((call) => call.name === "search_console").length > 1
-				? ["Repeated an unavailable connector"]
-				: []),
-		],
+		check: ({ outcome }, calls) => {
+			const reads = calls.filter(
+				(call) => call.name === "get_funnel_analytics_by_referrer"
+			);
+			const windows = [period.current, period.previous];
+			const readBoth = windows.every((window) =>
+				reads.some((call) => {
+					const query = call.input;
+					return (
+						query &&
+						typeof query === "object" &&
+						"startDate" in query &&
+						"endDate" in query &&
+						"funnelId" in query &&
+						query.funnelId === signupFunnel.id &&
+						query.startDate === window.from &&
+						query.endDate === window.to
+					);
+				})
+			);
+			const visible = [
+				outcome.title,
+				outcome.summary,
+				outcome.impact,
+				...outcome.evidence,
+			].join(" ");
+			return [
+				...(readBoth
+					? []
+					: [
+							"Stopped at the overall decline without inspecting both available source comparisons",
+						]),
+				...(outcome.publish &&
+				SOURCE_COMPARISON.every((pattern) => pattern.test(visible))
+					? []
+					: ["Did not surface the measured Google completion decline"]),
+				...(outcome.rootCause === null
+					? []
+					: ["Confused a source cohort with a causal mechanism"]),
+				...(outcome.next.type === "resolve"
+					? []
+					: [
+							"Invented a remedy or question when only the affected source was established",
+						]),
+			];
+		},
 	},
 ];
 
@@ -620,7 +820,24 @@ async function evaluate(
 				});
 			},
 		});
-		const failures = fixture.check(result, calls);
+		const brief = [
+			result.outcome.title,
+			result.outcome.summary,
+			result.outcome.impact ?? "",
+			result.outcome.rootCause ?? "",
+			...result.outcome.evidence,
+		]
+			.join(" ")
+			.trim();
+		const briefWordCount = brief.split(WORD_SEPARATOR).length;
+		const failures = [
+			...fixture.check(result, calls),
+			...(result.outcome.publish && briefWordCount > 60
+				? [
+						`Published brief uses ${briefWordCount} words; the product budget is 60`,
+					]
+				: []),
+		];
 		emit("case.result", { ...result, failures });
 		return {
 			id,
@@ -628,6 +845,7 @@ async function evaluate(
 			failures,
 			durationMs: performance.now() - started,
 			calls: calls.length,
+			briefWordCount,
 			...result,
 		};
 	} catch (error) {
