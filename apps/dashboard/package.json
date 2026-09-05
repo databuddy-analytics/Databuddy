@@ -51,7 +51,7 @@
     "@types/d3-scale": "^4.0.9",
     "@types/geojson": "^7946.0.16",
     "@types/leaflet": "^1.9.21",
-    "ai": "^6.0.188",
+    "ai": "^7.0.90",
     "autumn-js": "catalog:",
     "better-auth": "^1.5.5",
     "class-variance-authority": "^0.7.1",
