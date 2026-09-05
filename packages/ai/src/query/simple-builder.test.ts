@@ -320,17 +320,42 @@ describe("SimpleQueryBuilder.compile", () => {
 		expect(params.f0).toBe("US");
 	});
 
-	it("skips target-scoped filters from the outer WHERE clause", () => {
+	it("rejects a filter targeting a missing CTE instead of returning broader data", () => {
 		const filters: Filter[] = [
 			{ field: "country", op: "eq", value: "US" },
 			{ field: "path", op: "eq", value: "/checkout", target: "my_cte" },
 		];
 
-		const { sql } = compile({}, { filters });
+		expect(() => compile({}, { filters })).toThrow(
+			"Filter target 'my_cte' is not permitted"
+		);
+	});
 
-		const whereClause = whereClauseOf(sql);
-		expect(whereClause).toContain("country = {f0:String}");
-		expect(whereClause).not.toMatch(/\bpath\b/);
+	it("applies a configured CTE selector inside that CTE", () => {
+		const { sql, params } = compile(
+			{ with: [{ name: "selected", table: "analytics.events", fields: ["country"] }], from: "selected", groupBy: ["country"] },
+			{ filters: [{ field: "country", op: "eq", value: "US", target: "selected" }] }
+		);
+		expect(sql).toContain("country = {f");
+		expect(sql.indexOf("country = {f")).toBeLessThan(sql.lastIndexOf("FROM selected"));
+		expect(Object.values(params)).toContain("US");
+	});
+
+	it.each(["custom_events_by_path", "error_frequency", "errors_by_page"])(
+		"rejects an invented target in %s before compiling unfiltered SQL",
+		(type) => {
+			const config = QueryBuilders[type];
+			if (!config) throw new Error("Missing builder");
+			expect(() => compileBuilder(type, config, {
+				filters: [{ field: type === "custom_events_by_path" ? "event_name" : "message", op: "eq", value: "synthetic-event", target: "event" }],
+			})).toThrow("Filter target 'event' is not permitted");
+		}
+	);
+
+	it("does not silently discard a HAVING selector in custom SQL", () => {
+		expect(() => compileBuilder("custom_events_by_path", QueryBuilders.custom_events_by_path, {
+			filters: [{field: "total_events", op: "eq", value: 10, having: true}],
+		})).toThrow("Having filters are not supported");
 	});
 
 	it("allows a configured required filter when present", () => {

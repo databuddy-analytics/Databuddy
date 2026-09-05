@@ -670,6 +670,23 @@ export class SimpleQueryBuilder {
 	}
 
 	compile(): CompiledQuery {
+		for (const filter of this.request.filters ?? []) {
+			if (
+				filter.target &&
+				(this.config.customSql ||
+					filter.having ||
+					!this.config.with?.some((cte) => cte.name === filter.target))
+			) {
+				throw new Error(
+					`Filter target '${filter.target}' is not permitted for ${this.request.type}. Omit target to filter the selected rows; target is only supported for a configured CTE.`
+				);
+			}
+			if (filter.having && this.config.customSql) {
+				throw new Error(
+					`Having filters are not supported for ${this.request.type}. Use a row filter instead.`
+				);
+			}
+		}
 		this.validateRequiredFilters();
 
 		if (this.config.customSql) {

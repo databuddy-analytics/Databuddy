@@ -90,6 +90,16 @@ describe("resolveRequestTraitFilters", () => {
 		expect(mockResolveTraitSegment).not.toHaveBeenCalled();
 	});
 
+	it.each([{ target: "event" }, { having: true }])(
+		"rejects scoped trait selectors before resolving a different cohort: %o",
+		async (scope) => {
+			await expect(resolveRequestTraitFilters(makeRequest({
+				filters: [{field: "trait:plan", op: "eq", value: "pro", ...scope}],
+			}))).rejects.toThrow("Trait filters must select rows");
+			expect(mockResolveTraitSegment).not.toHaveBeenCalled();
+		}
+	);
+
 });
 
 describe("invalidFilterFieldError", () => {
@@ -149,6 +159,9 @@ describe("publicQueryErrorMessage", () => {
 		expect(
 			publicQueryErrorMessage("Missing required filter: 'session_id'.")
 		).toBe("Missing required filter: 'session_id'.");
+		expect(publicQueryErrorMessage("Filter target 'event' is not permitted for error_frequency.")).toBe("Filter target 'event' is not permitted for error_frequency.");
+		expect(publicQueryErrorMessage("Having filters are not supported for custom_events_by_path.")).toBe("Having filters are not supported for custom_events_by_path.");
+		expect(publicQueryErrorMessage("error_route_continuation_comparison requires one scalar message or path equality filter")).toBe("error_route_continuation_comparison requires one scalar message or path equality filter");
 	});
 
 	it("hides raw backend and compiler errors", () => {

@@ -53,6 +53,7 @@ Keep additions **minimal**: one bullet, a new `rg` hint, or a routing note—eno
 - Replies beneath delivered Slack investigations must resolve the delivery and enter the existing durable reply/resume path; never route them through generic Slack chat or relevance scoring.
 - One-off insight previews must preserve the real signal entity and use customer-facing product output. Never hand-write Slack copy from eval metadata or expose evaluation and suppression mechanics.
 - Agent ClickHouse SQL must use the canonical analytics.events schema: `client_id`, `time`, `path`, `event_name`, and pageviews as `event_name = 'screen_view'`; never `website_id`, `created_at`, `page_path`, `event_type`, or `pageview`.
+- Agent `get_data` filters select rows; do not expose SQL CTE `target` or `having` as generic event/error scopes. Query discovery supplies accepted selectors, and result row counts describe the query output rather than a complete population.
 - Slack agent expected stops such as exhausted Databunny credits should throw `DatabuddyAgentUserError` from `@databuddy/ai/agent/errors`; Slack surfaces those messages directly and reserves the generic reconnect copy for real infrastructure failures.
 - Slack Docker builds use `bun build --compile --bytecode`; keep `apps/slack/src/index.ts` bootstrapping inside an async `main()` instead of top-level `await`, which can fail during compile even when typecheck passes.
 - Insights Docker builds also use `bun build --compile --bytecode`; keep `apps/insights/src/index.ts` startup work inside async functions instead of top-level `await`.
@@ -74,6 +75,7 @@ Keep additions **minimal**: one bullet, a new `rg` hint, or a routing note—eno
 - `packages/auth`: Better Auth setup, permissions, organization access
 - `packages/env`: shared URL, public, and boolean environment helpers
 - `packages/shared`: shared types, flags, analytics schemas, utilities
+- Analytics query builders live in `packages/ai/src/query`; there is no standalone `packages/query` directory. Tests are excluded from root Biome checks, so format changed test blocks explicitly.
 - `packages/sdk`: published analytics SDK for React, Vue, and Node
 - `packages/tracker`: internal tracker script build and release package
 - `packages/encryption`, `packages/notifications`, `packages/cache`, `packages/redis`, `packages/services`, `packages/validation`, `packages/api-keys`: shared infra and domain packages

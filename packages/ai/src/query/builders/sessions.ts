@@ -11,6 +11,13 @@ function inclusiveEndDate(endDate: string): string {
 export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 	session_metrics: {
 		meta: {
+			default_order: null,
+			output_fields: [
+				{ name: "total_sessions", type: "number", unit: "sessions" },
+				{ name: "avg_session_duration", type: "number", unit: "seconds" },
+				{ name: "bounce_rate", type: "number", unit: "percent" },
+				{ name: "total_events", type: "number", unit: "events" },
+			],
 			description:
 				"Aggregate session statistics including total sessions, avg duration, and pages per session.",
 			category: "Sessions",
