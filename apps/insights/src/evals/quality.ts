@@ -11,7 +11,7 @@ import {
 } from "../agent";
 
 const ABSENCE_CLAIM =
-	/\b(?:does not exist|retired route|absent from the site|nonexistent route)\b/i;
+	/\b(?:does not exist|no longer exists|retired route|absent from the site|nonexistent route|(?:route|path|page) (?:is |was |has been )?(?:missing|removed|deleted|retired|unavailable)|(?:missing|removed|deleted|retired) (?:route|path|page))\b/i;
 
 // Entirely synthetic. No analytics clients, customer fixtures, writes, or delivery tools.
 const period = {
@@ -260,22 +260,19 @@ export const qualityCases: QualityCase[] = [
 				}),
 			}),
 		},
-		check: ({ outcome }, calls) => [
+		check: ({ outcome }) => [
+			...(outcome.rootCause === null
+				? []
+				: ["Invented a cause for an unchanged zero-volume goal"]),
 			...(outcome.next.type === "act"
 				? [
 						"Changed or deleted a definition without an established replacement or invalid use",
 					]
 				: []),
-			...(ABSENCE_CLAIM.test(JSON.stringify(outcome)) &&
-			!calls.some(
-				(call) =>
-					call.name === "get_data" &&
-					call.input &&
-					typeof call.input === "object" &&
-					"path" in call.input &&
-					call.input.path === "/start"
-			)
-				? ["Claimed absence without an exact target read"]
+			...(ABSENCE_CLAIM.test(JSON.stringify(outcome))
+				? [
+						"Claimed route absence; neither a partial table nor zero measured visits proves the route is absent",
+					]
 				: []),
 		],
 	},

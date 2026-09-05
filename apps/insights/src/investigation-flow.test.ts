@@ -692,82 +692,196 @@ describe("intelligence agent", () => {
 		);
 	});
 
-    it("keeps tools available after an empty response before any reads", async () => {
-        const model = new MockLanguageModelV3({ doGenerate: mockValues(
-            { content: [], finishReason: { unified: "stop" as const, raw: undefined }, usage, warnings: [] },
-            toolCallResponse(), outputResponse(agentOutcome),
-        ) });
-        let reads = 0;
-        const result = await runInsightAgent({ appContext: appContext(), evidence,
-            signal, githubRepository: null, history: [], otherOpenWork: [],
-        }, { model, tools: { inspect: tool({ description: "Inspect evidence.", inputSchema: z.object({}),
-            execute: () => { reads++; return { fact: evidence[0] }; } }) } });
-        expect(reads).toBe(1);
-        expect(result.outcome).toEqual(outcome);
-        expect(model.doGenerateCalls[1]?.tools?.map((item) => item.name)).toContain("inspect");
-    });
+	it("keeps tools available after an empty response before any reads", async () => {
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				{
+					content: [],
+					finishReason: { unified: "stop" as const, raw: undefined },
+					usage,
+					warnings: [],
+				},
+				toolCallResponse(),
+				outputResponse(agentOutcome)
+			),
+		});
+		let reads = 0;
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence,
+				signal,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+			},
+			{
+				model,
+				tools: {
+					inspect: tool({
+						description: "Inspect evidence.",
+						inputSchema: z.object({}),
+						execute: () => {
+							reads++;
+							return { fact: evidence[0] };
+						},
+					}),
+				},
+			}
+		);
+		expect(reads).toBe(1);
+		expect(result.outcome).toEqual(outcome);
+		expect(model.doGenerateCalls[1]?.tools?.map((item) => item.name)).toContain(
+			"inspect"
+		);
+	});
 
-    it("bounds repeated empty provider responses and preserves their usage", async () => {
-        const model = new MockLanguageModelV3({ doGenerate: () => Promise.resolve({
-            content: [], finishReason: { unified: "stop" as const, raw: undefined }, usage, warnings: [],
-        }) });
-        let failure: unknown;
-        try {
-            await runInsightAgent({ appContext: appContext(), evidence,
-                signal, githubRepository: null, history: [], otherOpenWork: [],
-            }, { model, tools: {} });
-        } catch (error) { failure = error; }
-        expect(failure).toBeInstanceOf(InsightAgentGenerationError);
-        expect(model.doGenerateCalls.length).toBeLessThanOrEqual(11);
-        if (!(failure instanceof InsightAgentGenerationError)) throw failure;
-        expect(failure.usage.inputTokens).toBe(model.doGenerateCalls.length);
-    });
+	it("bounds repeated empty provider responses and preserves their usage", async () => {
+		const model = new MockLanguageModelV3({
+			doGenerate: () =>
+				Promise.resolve({
+					content: [],
+					finishReason: { unified: "stop" as const, raw: undefined },
+					usage,
+					warnings: [],
+				}),
+		});
+		let failure: unknown;
+		try {
+			await runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					signal,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+				},
+				{ model, tools: {} }
+			);
+		} catch (error) {
+			failure = error;
+		}
+		expect(failure).toBeInstanceOf(InsightAgentGenerationError);
+		expect(model.doGenerateCalls.length).toBeLessThanOrEqual(11);
+		if (!(failure instanceof InsightAgentGenerationError)) throw failure;
+		expect(failure.usage.inputTokens).toBe(model.doGenerateCalls.length);
+	});
 
-    it("allows empty provider turns within the overall budget without losing inspection", async () => {
-        const empty = { content: [], finishReason: { unified: "stop" as const, raw: undefined }, usage, warnings: [] };
-        const model = new MockLanguageModelV3({ doGenerate: mockValues(empty, empty,
-            toolCallResponse(), empty, outputResponse(agentOutcome)) });
-        const result = await runInsightAgent({ appContext: appContext(), evidence,
-            signal, githubRepository: null, history: [], otherOpenWork: [],
-        }, { model, tools: { inspect: tool({ description: "Read synthetic evidence.",
-            inputSchema: z.object({}), execute: () => ({ fact: evidence[0] }) }) } });
-        expect(result.outcome).toEqual(outcome);
-        expect(result.toolCallCount).toBe(1);
-        expect(model.doGenerateCalls).toHaveLength(5);
-    });
+	it("allows empty provider turns within the overall budget without losing inspection", async () => {
+		const empty = {
+			content: [],
+			finishReason: { unified: "stop" as const, raw: undefined },
+			usage,
+			warnings: [],
+		};
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				empty,
+				empty,
+				toolCallResponse(),
+				empty,
+				outputResponse(agentOutcome)
+			),
+		});
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence,
+				signal,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+			},
+			{
+				model,
+				tools: {
+					inspect: tool({
+						description: "Read synthetic evidence.",
+						inputSchema: z.object({}),
+						execute: () => ({ fact: evidence[0] }),
+					}),
+				},
+			}
+		);
+		expect(result.outcome).toEqual(outcome);
+		expect(result.toolCallCount).toBe(1);
+		expect(model.doGenerateCalls).toHaveLength(5);
+	});
 
-    it("can inspect missing context after a malformed response follows a read", async () => {
-        const calls: string[] = [];
-        const model = new MockLanguageModelV3({ doGenerate: mockValues(
-            toolCallResponse("inspect"), outputResponse("malformed"),
-            toolCallResponse("read_context"), outputResponse(agentOutcome),
-        ) });
-        const tools = Object.fromEntries(["inspect", "read_context"].map((name) => [name,
-            tool({ description: "Read synthetic context.", inputSchema: z.object({}),
-                execute: () => { calls.push(name); return { fact: evidence[0] }; } }),
-        ]));
-        const result = await runInsightAgent({ appContext: appContext(), evidence,
-            signal, githubRepository: null, history: [], otherOpenWork: [],
-        }, { model, tools });
-        expect(calls).toEqual(["inspect", "read_context"]);
-        expect(result.outcome).toEqual(outcome);
-    });
+	it("can inspect missing context after a malformed response follows a read", async () => {
+		const calls: string[] = [];
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				toolCallResponse("inspect"),
+				outputResponse("malformed"),
+				toolCallResponse("read_context"),
+				outputResponse(agentOutcome)
+			),
+		});
+		const tools = Object.fromEntries(
+			["inspect", "read_context"].map((name) => [
+				name,
+				tool({
+					description: "Read synthetic context.",
+					inputSchema: z.object({}),
+					execute: () => {
+						calls.push(name);
+						return { fact: evidence[0] };
+					},
+				}),
+			])
+		);
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence,
+				signal,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+			},
+			{ model, tools }
+		);
+		expect(calls).toEqual(["inspect", "read_context"]);
+		expect(result.outcome).toEqual(outcome);
+	});
 
-    it("finishes from existing evidence when the overall read budget is exhausted", async () => {
-        let calls = 0;
-        const model = new MockLanguageModelV3({ doGenerate: () => {
-            calls++;
-            return Promise.resolve(calls <= 8 ? toolCallResponse() : outputResponse(agentOutcome));
-        } });
-        const result = await runInsightAgent({ appContext: appContext(), evidence,
-            signal, githubRepository: null, history: [], otherOpenWork: [],
-        }, { model, tools: { inspect: tool({ description: "Read synthetic context.",
-            inputSchema: z.object({}), execute: () => ({ fact: evidence[0] }) }) } });
-        expect(result.toolCallCount).toBe(8);
-        expect(calls).toBe(9);
-        expect(model.doGenerateCalls[8]?.tools).toBeUndefined();
-        expect(result.outcome).toEqual(outcome);
-    });
+	it("finishes from existing evidence when the overall read budget is exhausted", async () => {
+		let calls = 0;
+		const model = new MockLanguageModelV3({
+			doGenerate: () => {
+				calls++;
+				return Promise.resolve(
+					calls <= 8 ? toolCallResponse() : outputResponse(agentOutcome)
+				);
+			},
+		});
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence,
+				signal,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+			},
+			{
+				model,
+				tools: {
+					inspect: tool({
+						description: "Read synthetic context.",
+						inputSchema: z.object({}),
+						execute: () => ({ fact: evidence[0] }),
+					}),
+				},
+			}
+		);
+		expect(result.toolCallCount).toBe(8);
+		expect(calls).toBe(9);
+		expect(model.doGenerateCalls[8]?.tools).toBeUndefined();
+		expect(result.outcome).toEqual(outcome);
+	});
 
 	it("continues an output retry without repeating inspected reads", async () => {
 		let inspectCalls = 0;
@@ -783,7 +897,12 @@ describe("intelligence agent", () => {
 				outputResponse({
 					...agentOutcome,
 					evidenceRefs: [
-						{ name: "inspect", source: "tool" as const, toolCallId: "inspect-1", resultKey: null },
+						{
+							name: "inspect",
+							source: "tool" as const,
+							toolCallId: "inspect-1",
+							resultKey: null,
+						},
 						{ index: 1, source: "provided" as const },
 					],
 				})
@@ -808,7 +927,7 @@ describe("intelligence agent", () => {
 							inspectCalls += 1;
 							return {
 								fact: evidence[0],
-                                inspected: true,
+								inspected: true,
 								inspectedAt: new Date("2026-07-12T00:00:00.000Z"),
 							};
 						},
@@ -821,7 +940,9 @@ describe("intelligence agent", () => {
 		expect(result.outcome).toEqual(outcome);
 		expect(inspectCalls).toBe(1);
 		expect(model.doGenerateCalls).toHaveLength(3);
-		expect(model.doGenerateCalls[2]?.tools?.map((item) => item.name)).toContain("inspect");
+		expect(model.doGenerateCalls[2]?.tools?.map((item) => item.name)).toContain(
+			"inspect"
+		);
 		expect(JSON.stringify(model.doGenerateCalls[2])).toContain(
 			"prior final response was not valid structured output"
 		);
@@ -831,7 +952,12 @@ describe("intelligence agent", () => {
 		const invalidOutcome = {
 			...agentOutcome,
 			evidenceRefs: [
-				{ name: "unused_tool", source: "tool" as const, toolCallId: "unused", resultKey: null },
+				{
+					name: "unused_tool",
+					source: "tool" as const,
+					toolCallId: "unused",
+					resultKey: null,
+				},
 				{ index: 1, source: "provided" as const },
 			],
 		};
@@ -1222,7 +1348,12 @@ describe("intelligence agent", () => {
 					model: outputModel({
 						...agentOutcome,
 						evidenceRefs: [
-							{ name: "get_data", source: "tool", toolCallId: "unused", resultKey: null },
+							{
+								name: "get_data",
+								source: "tool",
+								toolCallId: "unused",
+								resultKey: null,
+							},
 							{ index: 1, source: "provided" },
 						],
 					}),
@@ -1322,82 +1453,281 @@ describe("intelligence agent", () => {
 		expect(prompt.match(/It was restarted this morning\./g)).toHaveLength(1);
 	});
 
-    it("publishes a measured coverage gap without an executable repair", async () => {
-        const coverage = {
-            ...agentOutcome, title: "Site activity coverage stopped during the comparison week",
-            summary: "Recorded visitors fell from 1000 to 300.",
-            impact: "The coverage gap makes the traffic comparison unsafe.",
-            rootCause: null, findingKind: "measurement_coverage" as const,
-            publicationBasis: "decision_safety" as const, publish: true,
-            evidence: ["Recorded visitors fell from 1000 to 300."],
-            evidenceRefs: [{ source: "signal" as const }],
-            next: { type: "resolve" as const, reason: "Coverage is uncertain; the cause has not been established." },
-        };
-        const result = await runInsightAgent({ appContext: appContext(),
-            evidence: ["Independent origin logs show requests continued while collection dropped; this period cannot support traffic comparisons."],
-            signal, githubRepository: null, history: [], otherOpenWork: [],
-        }, { model: outputModel(coverage), tools: {} });
-        expect(result.outcome).toMatchObject({ publish: true, next: { type: "resolve" }, rootCause: null });
-    });
+	it("publishes a measured coverage gap without an executable repair", async () => {
+		const coverage = {
+			...agentOutcome,
+			title: "Site activity coverage stopped during the comparison week",
+			summary: "Recorded visitors fell from 1000 to 300.",
+			impact: "The coverage gap makes the traffic comparison unsafe.",
+			rootCause: null,
+			findingKind: "measurement_coverage" as const,
+			publicationBasis: "decision_safety" as const,
+			publish: true,
+			evidence: ["Recorded visitors fell from 1000 to 300."],
+			evidenceRefs: [{ source: "signal" as const }],
+			next: {
+				type: "resolve" as const,
+				reason: "Coverage is uncertain; the cause has not been established.",
+			},
+		};
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence: [
+					"Independent origin logs show requests continued while collection dropped; this period cannot support traffic comparisons.",
+				],
+				signal,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+			},
+			{ model: outputModel(coverage), tools: {} }
+		);
+		expect(result.outcome).toMatchObject({
+			publish: true,
+			next: { type: "resolve" },
+			rootCause: null,
+		});
+	});
 
-    it.each([
-        { resultKey: "bad", output: { results: { bad: { error: "Invalid selector", data: [] }, good: { data: [{ visitors: 88 }] } } }, expected: "failed read" },
-        { resultKey: "missing", output: { results: { good: { data: [{ visitors: 88 }] } } }, expected: "exact resultKey" },
-    ])("rejects a missing or failed subquery citation: $resultKey", async ({ resultKey, output, expected }) => {
-        const cited = { ...agentOutcome, evidence: ["88 visitors reached checkout."],
-            evidenceRefs: [{ source: "tool" as const, name: "get_data", toolCallId: "get_data-1", resultKey }] };
-        await expect(runInsightAgent({ appContext: appContext(), evidence, signal,
-            githubRepository: null, history: [], otherOpenWork: [],
-        }, {
-            model: new MockLanguageModelV3({ doGenerate: mockValues(toolCallResponse("get_data"),
-                outputResponse(cited), outputResponse(cited), outputResponse(cited)) }),
-            tools: { get_data: tool({ description: "Query synthetic data.",
-                inputSchema: z.object({}), execute: () => output }) },
-        })).rejects.toThrow(expected);
-    });
+	it.each([
+		{
+			resultKey: "bad",
+			output: {
+				results: {
+					bad: { error: "Invalid selector", data: [] },
+					good: { data: [{ visitors: 88 }] },
+				},
+			},
+			expected: "failed read",
+		},
+		{
+			resultKey: "missing",
+			output: { results: { good: { data: [{ visitors: 88 }] } } },
+			expected: "exact resultKey",
+		},
+	])("rejects a missing or failed subquery citation: $resultKey", async ({
+		resultKey,
+		output,
+		expected,
+	}) => {
+		const cited = {
+			...agentOutcome,
+			evidence: ["88 visitors reached checkout."],
+			evidenceRefs: [
+				{
+					source: "tool" as const,
+					name: "get_data",
+					toolCallId: "get_data-1",
+					resultKey,
+				},
+			],
+		};
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					signal,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+				},
+				{
+					model: new MockLanguageModelV3({
+						doGenerate: mockValues(
+							toolCallResponse("get_data"),
+							outputResponse(cited),
+							outputResponse(cited),
+							outputResponse(cited)
+						),
+					}),
+					tools: {
+						get_data: tool({
+							description: "Query synthetic data.",
+							inputSchema: z.object({}),
+							execute: () => output,
+						}),
+					},
+				}
+			)
+		).rejects.toThrow(expected);
+	});
 
-    it("requires a number to occur in its cited subquery, not an unrelated result", async () => {
-        const cited = { ...agentOutcome, evidence: ["88 visitors reached checkout."],
-            evidenceRefs: [{ source: "tool" as const, name: "get_data", toolCallId: "get_data-1", resultKey: "checkout" }] };
-        await expect(runInsightAgent({ appContext: appContext(), evidence, signal,
-            githubRepository: null, history: [], otherOpenWork: [],
-        }, {
-            model: new MockLanguageModelV3({ doGenerate: mockValues(toolCallResponse("get_data"),
-                outputResponse(cited), outputResponse(cited), outputResponse(cited)) }),
-            tools: { get_data: tool({ description: "Query synthetic data.", inputSchema: z.object({}),
-                execute: () => ({ results: { checkout: { data: [{ visitors: 44 }] }, homepage: { data: [{ visitors: 88 }] } } }) }) },
-        })).rejects.toThrow("number 88");
-    });
+	it("requires a number to occur in its cited subquery, not an unrelated result", async () => {
+		const cited = {
+			...agentOutcome,
+			evidence: ["88 visitors reached checkout."],
+			evidenceRefs: [
+				{
+					source: "tool" as const,
+					name: "get_data",
+					toolCallId: "get_data-1",
+					resultKey: "checkout",
+				},
+			],
+		};
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					signal,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+				},
+				{
+					model: new MockLanguageModelV3({
+						doGenerate: mockValues(
+							toolCallResponse("get_data"),
+							outputResponse(cited),
+							outputResponse(cited),
+							outputResponse(cited)
+						),
+					}),
+					tools: {
+						get_data: tool({
+							description: "Query synthetic data.",
+							inputSchema: z.object({}),
+							execute: () => ({
+								results: {
+									checkout: { data: [{ visitors: 44 }] },
+									homepage: { data: [{ visitors: 88 }] },
+								},
+							}),
+						}),
+					},
+				}
+			)
+		).rejects.toThrow("number 88");
+	});
 
-    it("does not accept a failed definition lookup as an inspected definition", async () => {
-        await expect(runInsightAgent({ appContext: appContext(), evidence,
-            signal: funnelSignal, githubRepository: null, history: [], otherOpenWork: [],
-        }, {
-            model: new MockLanguageModelV3({ doGenerate: mockValues(toolCallsResponse(["list_funnels", "get_funnel_analytics"]),
-                outputResponse(executableDefinitionOutcome), outputResponse(executableDefinitionOutcome), outputResponse(executableDefinitionOutcome)) }),
-            tools: {
-                list_funnels: tool({ description: "Read definition.", inputSchema: z.object({}), execute: () => ({ error: "Unavailable" }) }),
-                get_funnel_analytics: tool({ description: "Read analytics.", inputSchema: z.object({}), execute: () => ({ completions: 10 }) }),
-            },
-        })).rejects.toThrow("require an inspected funnel definition");
-    });
+	it("does not accept a failed definition lookup as an inspected definition", async () => {
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					signal: funnelSignal,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+				},
+				{
+					model: new MockLanguageModelV3({
+						doGenerate: mockValues(
+							toolCallsResponse(["list_funnels", "get_funnel_analytics"]),
+							outputResponse(executableDefinitionOutcome),
+							outputResponse(executableDefinitionOutcome),
+							outputResponse(executableDefinitionOutcome)
+						),
+					}),
+					tools: {
+						list_funnels: tool({
+							description: "Read definition.",
+							inputSchema: z.object({}),
+							execute: () => ({ error: "Unavailable" }),
+						}),
+						get_funnel_analytics: tool({
+							description: "Read analytics.",
+							inputSchema: z.object({}),
+							execute: () => ({ completions: 10 }),
+						}),
+					},
+				}
+			)
+		).rejects.toThrow("require an inspected funnel definition");
+	});
 
-    it("does not publish a bare traffic signal as verified product loss", async () => {
-        const bare = { ...agentOutcome, rootCause: null, evidence: ["Visitors fell from 1000 to 300."],
-            evidenceRefs: [{ source: "signal" as const }],
-            next: { type: "resolve" as const, reason: "The cause is unknown." } };
-        await expect(runInsightAgent({ appContext: appContext(), evidence: [], signal,
-            githubRepository: null, history: [], otherOpenWork: [],
-        }, { model: outputModel(bare), tools: {} })).rejects.toThrow("not a verified product loss");
-    });
+	it("accepts an explicitly cited related product signal as supporting context", async () => {
+		const related = {
+			...signal,
+			signalKey: "event:account_created",
+			entity: {
+				type: "event" as const,
+				id: "account_created",
+				label: "Completed accounts",
+			},
+			metric: {
+				label: "Completed accounts",
+				current: 24,
+				previous: 80,
+				format: "number" as const,
+			},
+		};
+		const supported = {
+			...agentOutcome,
+			title: "Completed accounts declined during the comparison",
+			summary: "Completed accounts fell from 80 to 24.",
+			impact: "Fewer completed accounts reached the product.",
+			rootCause: null,
+			evidence: ["Completed accounts fell from 80 to 24."],
+			evidenceRefs: [{ source: "related_signal" as const, index: 0 }],
+			next: {
+				type: "resolve" as const,
+				reason: "The product decline is measured; its cause remains unknown.",
+			},
+		};
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence: [],
+				signal,
+				relatedSignals: [related],
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+			},
+			{ model: outputModel(supported), tools: {} }
+		);
+		expect(result.outcome.publish).toBe(true);
+	});
 
-    it("keeps a prior count out of a measurement-repair headline", async () => {
-        await expect(runInsightAgent({ appContext: appContext(), evidence, signal: funnelSignal,
-            githubRepository: null, history: [], otherOpenWork: [],
-        }, { model: outputModel({ ...executableDefinitionOutcome,
-            title: "300 visits missed after the route change" }), tools: {} }))
-            .rejects.toThrow("headline must name the mismatch");
-    });
+	it("does not publish a bare traffic signal as verified product loss", async () => {
+		const bare = {
+			...agentOutcome,
+			rootCause: null,
+			evidence: ["Visitors fell from 1000 to 300."],
+			evidenceRefs: [{ source: "signal" as const }],
+			next: { type: "resolve" as const, reason: "The cause is unknown." },
+		};
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence: [],
+					signal,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+				},
+				{ model: outputModel(bare), tools: {} }
+			)
+		).rejects.toThrow("not a verified product loss");
+	});
+
+	it("keeps a prior count out of a measurement-repair headline", async () => {
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					signal: funnelSignal,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+				},
+				{
+					model: outputModel({
+						...executableDefinitionOutcome,
+						title: "300 visits missed after the route change",
+					}),
+					tools: {},
+				}
+			)
+		).rejects.toThrow("headline must name the mismatch");
+	});
 
 	it("requires an organization before exposing investigation tools", async () => {
 		await expect(
@@ -1417,6 +1747,25 @@ describe("intelligence agent", () => {
 });
 
 describe("validateNumericGrounding", () => {
+	it.each([
+		["1.2k", 1200],
+		["70k", 70_000],
+		["2.5M", 2_500_000],
+		["1.2e3", 1200],
+	] as const)("checks the full magnitude of %s", (text, value) => {
+		const claim = {
+			title: `${text} visits`,
+			summary: "",
+			impact: null,
+			evidence: [],
+		};
+		expect(() =>
+			validateNumericGrounding(claim, JSON.stringify({ value }))
+		).not.toThrow();
+		expect(() =>
+			validateNumericGrounding(claim, JSON.stringify({ value: 1 }))
+		).toThrow(`number ${value}`);
+	});
 	const grounded = {
 		evidence: [
 			"680 occurrences affected 263 visitor identifiers, up from 209 previously.",
@@ -1454,21 +1803,32 @@ describe("validateNumericGrounding", () => {
 		).toThrow("does not appear in the supplied signal");
 	});
 
-    it.each([3, 27, 1999, 2026])("checks unsupported count %i without a size exemption", (count) => {
-        expect(() => validateNumericGrounding({ ...grounded,
-            impact: `${count} visitors could not continue.` }, corpus)).toThrow(`number ${count}`);
-    });
-    it("checks factual numbers in the root cause", () => {
-        expect(() => validateNumericGrounding({ ...grounded,
-            rootCause: "The rollout removed 17 handlers." }, corpus)).toThrow("number 17");
-    });
+	it.each([
+		3, 27, 1999, 2026,
+	])("checks unsupported count %i without a size exemption", (count) => {
+		expect(() =>
+			validateNumericGrounding(
+				{ ...grounded, impact: `${count} visitors could not continue.` },
+				corpus
+			)
+		).toThrow(`number ${count}`);
+	});
+	it("checks factual numbers in the root cause", () => {
+		expect(() =>
+			validateNumericGrounding(
+				{ ...grounded, rootCause: "The rollout removed 17 handlers." },
+				corpus
+			)
+		).toThrow("number 17");
+	});
 
 	it("recognizes dates without exempting small counts", () => {
 		expect(() =>
 			validateNumericGrounding(
 				{
 					...grounded,
-					summary: "Between August 19–25, 2026 and August 29–September 4, three journeys completed.",
+					summary:
+						"Between August 19–25, 2026 and August 29–September 4, three journeys completed.",
 				},
 				corpus
 			)

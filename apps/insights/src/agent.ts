@@ -430,8 +430,23 @@ function numericTokens(text: string): number[] {
 			""
 		);
 	const merged = withoutDates.replace(/(\d),(?=\d{3}\b)/g, "$1");
-	const matches = merged.match(/\b\d+(?:\.\d+)?\b/g) ?? [];
-	return matches.map(Number).filter((value) => Number.isFinite(value));
+	const matches =
+		merged.match(/(?<![\w.])\d+(?:\.\d+)?(?:e[+-]?\d+)?[kmb]?(?!\w|\.\d)/gi) ??
+		[];
+	return matches
+		.map((token) => {
+			const suffix = token.at(-1)?.toLowerCase();
+			const multiplier =
+				suffix === "k"
+					? 1000
+					: suffix === "m"
+						? 1_000_000
+						: suffix === "b"
+							? 1_000_000_000
+							: 1;
+			return Number(multiplier === 1 ? token : token.slice(0, -1)) * multiplier;
+		})
+		.filter((value) => Number.isFinite(value));
 }
 
 function corpusNumericTokens(text: string): number[] {
@@ -685,6 +700,7 @@ function validateAgentOutcome(
 		| "evidence"
 		| "hasQualifiedRouteVitalContinuation"
 		| "otherOpenWork"
+		| "relatedSignals"
 		| "signal"
 	>,
 	usedToolNames: ReadonlySet<string>
@@ -748,7 +764,8 @@ function validateAgentOutcome(
 		input.signal.entity.type === "website" &&
 		input.evidence.length === 0 &&
 		usedToolNames.size === 0 &&
-		!input.customerImpact
+		!input.customerImpact &&
+		!outcome.evidenceRefs.some((ref) => ref.source === "related_signal")
 	) {
 		throw new Error(
 			"A website traffic signal without supporting context is not a verified product loss. Resolve with publish false until collection or product context establishes what changed."
