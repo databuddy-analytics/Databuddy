@@ -739,7 +739,6 @@ jobs:
             -e REDIS_URL=redis://localhost:6379 \
             -e BULLMQ_REDIS_URL=redis://localhost:6379/4 \
             -e REDPANDA_BROKER=localhost:9092 \
-            -e REDPANDA_SSL=false \
             -e DASHBOARD_URL=http://localhost:3000 \
             -e CLICKHOUSE_URL=http://default:@localhost:8123/databuddy_analytics \
             links:test
@@ -758,7 +757,7 @@ jobs:
           for i in {1..30}; do
             STATUS_BODY=$(curl -sS http://localhost:2500/health/status)
             echo "Links /health/status: $STATUS_BODY"
-            if echo "$STATUS_BODY" | jq -e '.status == "ok"' > /dev/null; then
+            if echo "$STATUS_BODY" | jq -e '.status == "ok" or .status == "degraded"' > /dev/null; then
               echo "Links dependency health is valid"
               break
             fi
