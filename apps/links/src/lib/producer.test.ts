@@ -427,4 +427,68 @@ describe("health probe failures (issue #719)", () => {
 		await expect(send).resolves.toBe(true);
 		expect(clickHouseInsert).toHaveBeenCalledTimes(1);
 	});
+
+	test("disables SSL when REDPANDA_SSL is false", async () => {
+		process.env.REDPANDA_BROKER = "redpanda.test:9092";
+		process.env.REDPANDA_SSL = "false";
+		nextProducer = makeProducer();
+		const { disconnectProducer, sendLinkVisit } = await loadProducer();
+
+		await sendLinkVisit(event, event.link_id);
+
+		expect(kafkaConfigs).toEqual([
+			expect.objectContaining({
+				brokers: ["redpanda.test:9092"],
+				ssl: false,
+			}),
+		]);
+		await disconnectProducer();
+	});
+
+	test("reports connection dependency error when sendLinkVisit joins health-owned attempt", async () => {
+		process.env.REDPANDA_BROKER = "redpanda.test:9092";
+		let releaseConnect!: (error: Error) => void;
+		const connectErr = new Error("connection failed");
+		nextProducer = makeProducer({
+			connect: () =>
+				new Promise<void>((_resolve, reject) => {
+					releaseConnect = reject;
+				}),
+		});
+		const { refreshProducerConnection, sendLinkVisit } =
+			await loadProducer();
+
+		const health = refreshProducerConnection();
+		await Bun.sleep(0);
+		const send = sendLinkVisit(event, event.link_id);
+		await Bun.sleep(0);
+		releaseConnect(connectErr);
+
+		await expect(health).rejects.toThrow("Kafka health probe failed");
+		await expect(send).resolves.toBe(true);
+		expect(captureError).toHaveBeenCalledWith(connectErr, {
+			operation: "kafka_connect",
+		});
+	});
+
+	test("does not fail disconnectProducer if a pending connection fails during shutdown", async () => {
+		process.env.REDPANDA_BROKER = "redpanda.test:9092";
+		let releaseConnect!: (error: Error) => void;
+		nextProducer = makeProducer({
+			connect: () =>
+				new Promise<void>((_resolve, reject) => {
+					releaseConnect = reject;
+				}),
+		});
+		const { disconnectProducer, warmProducerConnection } =
+			await loadProducer();
+
+		const warmup = warmProducerConnection();
+		await Bun.sleep(0);
+		const shutdown = disconnectProducer();
+		releaseConnect(new Error("connection rejected during shutdown"));
+
+		await warmup;
+		await expect(shutdown).resolves.toBeUndefined();
+	});
 });

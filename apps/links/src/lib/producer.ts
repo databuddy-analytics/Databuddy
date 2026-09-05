@@ -70,6 +70,8 @@ function captureDependencyError(
 	captureError(error, context);
 }
 
+let shouldReportFailure = false;
+
 function connect(reportFailure = true): Promise<boolean> {
 	if (shuttingDown) {
 		return Promise.resolve(false);
@@ -82,6 +84,10 @@ function connect(reportFailure = true): Promise<boolean> {
 		return Promise.resolve(false);
 	}
 
+	if (reportFailure) {
+		shouldReportFailure = true;
+	}
+
 	const now = Date.now();
 	if (now < nextReconnectAt) {
 		setAttributes({ kafka_reconnect_suppressed: true });
@@ -91,6 +97,12 @@ function connect(reportFailure = true): Promise<boolean> {
 	if (connectPromise) {
 		return connectPromise;
 	}
+
+	const useSsl =
+		process.env.REDPANDA_SSL === "false" ||
+		process.env.REDPANDA_SSL_ENABLED === "false"
+			? false
+			: true;
 
 	connectPromise = (async () => {
 		let candidate: Producer | null = null;
@@ -111,7 +123,7 @@ function connect(reportFailure = true): Promise<boolean> {
 				...(username && password
 					? { sasl: { mechanism: "scram-sha-256", username, password } }
 					: {}),
-				ssl: true,
+				ssl: useSsl,
 			});
 
 			candidate = kafka.producer({
@@ -136,7 +148,7 @@ function connect(reportFailure = true): Promise<boolean> {
 			setAttributes({ kafka_connected: true });
 			return true;
 		} catch (error) {
-			if (reportFailure) {
+			if (shouldReportFailure) {
 				captureDependencyError(
 					error,
 					{ operation: "kafka_connect" },
@@ -155,6 +167,7 @@ function connect(reportFailure = true): Promise<boolean> {
 			return false;
 		} finally {
 			connectPromise = null;
+			shouldReportFailure = false;
 		}
 	})();
 
@@ -259,7 +272,13 @@ export async function sendLinkVisit(
 		kafka_message_key: eventKey ?? "unknown",
 	});
 
-	const kafkaReady = await connect();
+	let kafkaReady = false;
+	try {
+		kafkaReady = await connect();
+	} catch (error) {
+		kafkaReady = false;
+	}
+
 	const activeProducer = producer;
 	if (!(kafkaReady && activeProducer)) {
 		setAttributes({
@@ -304,7 +323,11 @@ export async function sendLinkVisit(
 export async function disconnectProducer(): Promise<void> {
 	shuttingDown = true;
 	if (connectPromise) {
-		await connectPromise;
+		try {
+			await connectPromise;
+		} catch {
+			// Expected health/connect probe rejection during shutdown should not fail disconnectProducer
+		}
 	}
 	const activeProducer = producer;
 	producer = null;
