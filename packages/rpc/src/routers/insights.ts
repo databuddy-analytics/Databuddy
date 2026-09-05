@@ -31,7 +31,9 @@ import {
 	insightTimelineReplySchema,
 	parseInvestigationOutcome,
 	parseInvestigationSignal,
+	insightDefinitionEditError,
 } from "@databuddy/shared/insights";
+import { isDeepStrictEqual } from "node:util";
 import { ORPCError } from "@orpc/server";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
@@ -678,10 +680,7 @@ function sameDefinitionExecution(
 	if (left.operation === "delete" || right.operation === "delete") {
 		return true;
 	}
-	return (
-		left.changes.name === right.changes.name &&
-		left.changes.description === right.changes.description
-	);
+	return isDeepStrictEqual(left.changes, right.changes);
 }
 
 function definitionActionError(
@@ -836,12 +835,21 @@ async function applyInsightAction(input: {
 		}
 
 		const completedAt = new Date();
+		if (action.operation === "edit") {
+			const error = insightDefinitionEditError(entityType, action.changes);
+			if (error) {
+				throw rpcError.badRequest(error);
+			}
+		}
 		if (entityType === "goal") {
 			const [goal] = await tx
 				.select({
 					description: goals.description,
 					id: goals.id,
 					name: goals.name,
+					target: goals.target,
+					type: goals.type,
+					filters: goals.filters,
 					updatedAt: goals.updatedAt,
 				})
 				.from(goals)
@@ -873,11 +881,28 @@ async function applyInsightAction(input: {
 					})
 					.where(eq(goals.id, goal.id));
 			} else {
+				const changes = {
+					description: action.changes.description ?? goal.description,
+					name: action.changes.name ?? goal.name,
+					target: action.changes.target ?? goal.target,
+					type: action.changes.type ?? goal.type,
+					filters: action.changes.filters ?? goal.filters,
+				};
+				if (
+					changes.description === goal.description &&
+					changes.name === goal.name &&
+					changes.target === goal.target &&
+					changes.type === goal.type &&
+					isDeepStrictEqual(changes.filters ?? [], goal.filters ?? [])
+				) {
+					throw rpcError.badRequest(
+						"This action does not change the goal definition."
+					);
+				}
 				await tx
 					.update(goals)
 					.set({
-						description: action.changes.description ?? goal.description,
-						name: action.changes.name ?? goal.name,
+						...changes,
 						updatedAt: completedAt,
 					})
 					.where(eq(goals.id, goal.id));
@@ -888,6 +913,8 @@ async function applyInsightAction(input: {
 					description: funnelDefinitions.description,
 					id: funnelDefinitions.id,
 					name: funnelDefinitions.name,
+					steps: funnelDefinitions.steps,
+					filters: funnelDefinitions.filters,
 					updatedAt: funnelDefinitions.updatedAt,
 				})
 				.from(funnelDefinitions)
@@ -919,11 +946,26 @@ async function applyInsightAction(input: {
 					})
 					.where(eq(funnelDefinitions.id, funnel.id));
 			} else {
+				const changes = {
+					description: action.changes.description ?? funnel.description,
+					name: action.changes.name ?? funnel.name,
+					steps: action.changes.steps ?? funnel.steps,
+					filters: action.changes.filters ?? funnel.filters,
+				};
+				if (
+					changes.description === funnel.description &&
+					changes.name === funnel.name &&
+					isDeepStrictEqual(changes.steps, funnel.steps) &&
+					isDeepStrictEqual(changes.filters ?? [], funnel.filters ?? [])
+				) {
+					throw rpcError.badRequest(
+						"This action does not change the funnel definition."
+					);
+				}
 				await tx
 					.update(funnelDefinitions)
 					.set({
-						description: action.changes.description ?? funnel.description,
-						name: action.changes.name ?? funnel.name,
+						...changes,
 						updatedAt: completedAt,
 					})
 					.where(eq(funnelDefinitions.id, funnel.id));

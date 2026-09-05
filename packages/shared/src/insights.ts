@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { goalFunnelFilterFields } from "./analytics-filters";
 
 export const weekOverWeekPeriodSchema = z
 	.object({
@@ -136,9 +137,61 @@ export const insightDefinitionEditChangesSchema = z
 			.max(100)
 			.nullable()
 			.describe("Exact replacement name; null to leave unchanged."),
+		target: z
+			.string()
+			.trim()
+			.min(1)
+			.max(2000)
+			.nullish()
+			.describe(
+				"Exact replacement page path or event name for a goal; omit or null to leave unchanged. Not valid for funnels."
+			),
+		type: z
+			.enum(["PAGE_VIEW", "EVENT", "CUSTOM"])
+			.nullish()
+			.describe(
+				"Replacement goal type; omit or null to leave unchanged. Not valid for funnels."
+			),
+		steps: z
+			.array(
+				z.strictObject({
+					name: z.string().trim().min(1).max(100),
+					target: z.string().trim().min(1).max(2000),
+					type: z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]),
+					conditions: z.record(z.string(), z.unknown()).optional(),
+				})
+			)
+			.min(2)
+			.max(20)
+			.nullish()
+			.describe(
+				"Complete ordered replacement steps for a funnel, preserving any existing conditions. Not valid for goals."
+			),
+		filters: z
+			.array(
+				z.strictObject({
+					field: z.enum(goalFunnelFilterFields.map((field) => field.value)),
+					operator: z.enum([
+						"equals",
+						"contains",
+						"not_contains",
+						"starts_with",
+						"ends_with",
+						"not_equals",
+						"in",
+						"not_in",
+					]),
+					value: z.union([z.string(), z.array(z.string())]),
+				})
+			)
+			.max(20)
+			.nullish()
+			.describe(
+				"Complete replacement filters; [] clears filters, omit or null leaves them unchanged."
+			),
 	})
 	.strict()
-	.refine((changes) => changes.description !== null || changes.name !== null, {
+	.refine((changes) => Object.values(changes).some((value) => value != null), {
 		message: "Definition edits require at least one changed field",
 	});
 
@@ -699,6 +752,53 @@ export type InsightDefinitionEditChanges = z.infer<
 export type InsightDefinitionOperation = z.infer<
 	typeof insightDefinitionOperationSchema
 >;
+
+export function describeInsightDefinitionAction(
+	label: string,
+	operation: InsightDefinitionOperation
+): string {
+	if (operation.operation === "delete") {
+		return `Delete ${label}.`;
+	}
+	const changes = operation.changes;
+	const edits: string[] = [];
+	if (changes.target != null) {
+		edits.push(`set target to ${JSON.stringify(changes.target)}`);
+	}
+	if (changes.type != null) {
+		edits.push(`set type to ${changes.type}`);
+	}
+	if (changes.steps != null) {
+		edits.push(
+			`replace steps with ${changes.steps.map((step) => `${step.name} (${step.type}: ${step.target})`).join(" → ")}`
+		);
+	}
+	if (changes.filters != null) {
+		edits.push(
+			`set filters to ${changes.filters.length ? changes.filters.map((filter) => `${filter.field} ${filter.operator} ${JSON.stringify(filter.value)}`).join(" AND ") : "none"}`
+		);
+	}
+	if (changes.name != null) {
+		edits.push(`rename to ${JSON.stringify(changes.name)}`);
+	}
+	if (changes.description != null) {
+		edits.push(`set description to ${JSON.stringify(changes.description)}`);
+	}
+	return `For ${label}, ${edits.join("; ")}.`;
+}
+
+export function insightDefinitionEditError(
+	entity: "goal" | "funnel",
+	changes: InsightDefinitionEditChanges
+): string | null {
+	if (entity === "goal" && changes.steps != null) {
+		return "Goal edits cannot replace funnel steps.";
+	}
+	if (entity === "funnel" && (changes.target != null || changes.type != null)) {
+		return "Funnel edits must replace steps, not a goal target or type.";
+	}
+	return null;
+}
 export type InsightWatchThreshold = z.infer<typeof insightWatchThresholdSchema>;
 export type InsightReplySlackDelivery = z.infer<
 	typeof insightReplySlackDeliverySchema

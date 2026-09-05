@@ -1,5 +1,6 @@
 import "@databuddy/test/env";
 import { describe, expect, it } from "bun:test";
+import { describeInsightDefinitionAction } from "@databuddy/shared/insights";
 import type {
 	InvestigationOutcome,
 	InvestigationSignal,
@@ -135,6 +136,10 @@ const executableDefinitionOutcome = {
 			changes: {
 				description: "Tracks visitors who complete account creation.",
 				name: "Account creation journey",
+				steps: [
+					{ name: "Landing", target: "/", type: "PAGE_VIEW" as const },
+					{ name: "Account created", target: "account_created", type: "EVENT" as const },
+				],
 			},
 			operation: "edit" as const,
 		},
@@ -534,8 +539,36 @@ describe("intelligence agent", () => {
 			}
 		);
 
-		expect(result.outcome.next).toEqual(executableDefinitionOutcome.next);
+		expect(result.outcome.next).toEqual({
+            ...executableDefinitionOutcome.next,
+            action: describeInsightDefinitionAction(funnelSignal.entity.label, {
+                ...executableDefinitionOutcome.next.execution,
+                action: executableDefinitionOutcome.next.action,
+            }),
+        });
 	});
+
+	it("rejects a cosmetic rename presented as a measurement repair", async () => {
+        const cosmetic = {
+            ...executableDefinitionOutcome,
+            next: { ...executableDefinitionOutcome.next, execution: {
+                operation: "edit" as const,
+                changes: { name: "Account creation journey", description: null },
+            } },
+        };
+        await expect(runInsightAgent({
+            appContext: appContext(), evidence, githubRepository: null,
+            history: [], otherOpenWork: [], signal: funnelSignal,
+        }, {
+            model: new MockLanguageModelV3({ doGenerate: mockValues(
+                toolCallsResponse(["list_funnels"]), outputResponse(cosmetic),
+                outputResponse(cosmetic), outputResponse(cosmetic),
+            ) }),
+            tools: { list_funnels: tool({ description: "Inspect definitions.",
+                execute: () => ({ data: [{ id: "checkout" }] }),
+                inputSchema: z.object({}).strict() }) },
+        })).rejects.toThrow("A name or description change alone is not a repair");
+    });
 
 	it("rejects a definition edit without an inspected definition", async () => {
 		await expect(

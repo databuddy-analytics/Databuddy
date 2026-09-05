@@ -1,6 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import {
 	agentInvestigationOutcomeSchema,
+	describeInsightDefinitionAction,
+	insightDefinitionEditError,
 	insightBriefItemSchema,
 	insightDefinitionOperationSchema,
 	investigationOutcomeSchema,
@@ -142,6 +144,27 @@ const agentFields = {
 };
 
 describe("insightDefinitionOperationSchema", () => {
+    it("describes the executable patch instead of a conflicting model action", () => {
+        const operation = insightDefinitionOperationSchema.parse({
+            operation: "edit", action: "Delete the goal.",
+            changes: { name: null, description: null, target: "/workspace", type: "PAGE_VIEW", filters: [] },
+        });
+        expect(describeInsightDefinitionAction("Reached workspace", operation))
+            .toBe('For Reached workspace, set target to "/workspace"; set type to PAGE_VIEW; set filters to none.');
+        if (operation.operation !== "edit") throw new Error("Expected an edit");
+        expect(insightDefinitionEditError("goal", operation.changes)).toBeNull();
+        expect(insightDefinitionEditError("funnel", operation.changes)).toContain("replace steps");
+    });
+
+    it("rejects unsupported filter fields in executable patches", () => {
+        expect(insightDefinitionOperationSchema.safeParse({
+            operation: "edit", action: "Change the cohort.",
+            changes: { name: null, description: null, filters: [
+                { field: "unknown_column", operator: "equals", value: "mobile" },
+            ] },
+        }).success).toBe(false);
+    });
+
 	it("accepts an exact funnel rename", () => {
 		const execution = {
 			action: "Rename Sign-Up Flow to Homepage-to-Getting Started Journey.",

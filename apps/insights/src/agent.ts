@@ -7,6 +7,8 @@ import {
 import { getAILogger } from "@databuddy/ai/lib/ai-logger";
 import {
 	agentInvestigationOutcomeSchema,
+	describeInsightDefinitionAction,
+	insightDefinitionEditError,
 	investigationOutcomeSchema,
 	type AgentInvestigationOutcome,
 	type InsightDefinitionOperation,
@@ -226,7 +228,7 @@ Evidence
 - A supplied route-continuation comparison measures later different-page views within ten minutes among matched sessions: state it as an association, never causation, bounce, conversion, or revenue. Payment matches are lower bounds for attributed completed payments, never active subscriptions.
 
 Outcome
-- act: only for an inspected mechanism with the smallest concrete target and change, measured impact, and a verification condition that proves recovery. Set recheckAt to the earliest defensible time given the measurement window. An existing goal or funnel that is materially unsafe for its established purpose gets an exact edit or delete via next.execution; delete only when inspection shows no independent valid use, and cosmetic renames are not actions.
+- act: only for an inspected mechanism with the smallest concrete target and change, measured impact, and a verification condition that proves recovery. Set recheckAt to the earliest defensible time given the measurement window. An existing goal or funnel that is materially unsafe for its established purpose gets an exact edit or delete via next.execution; delete only when inspection shows no independent valid use, and cosmetic renames are not actions. For edits, put the actual goal target/type/filters or complete ordered funnel steps/filters in execution.changes; name and description alone cannot repair what is measured. Preserve existing step conditions. The displayed action is generated from this patch.
 - ask: only after exhausting inspectable context, for one external fact that selects between materially different moves; say what it unlocks. When a material reliability problem needs source access, ask for the owning repository rather than guessing a fix; when a repository is supplied, inspect it before asking about ownership. One repository-access request per website: when other open work already asks for repository access, resolve and state that this signal is blocked on that request; still publish that resolve when the exposure itself is a new, material fact.
 - Otherwise resolve. Use history and other open work to avoid repeating an action or question; reissue only when impact worsens or new evidence changes the target or remedy.
 - Classify every outcome: raw errors and vitals are reliability_exposure; user_experience needs a directly measured downstream consequence (for route vitals, only via supplied qualified matched continuation); product_outcome needs a measured business result; measurement_definition or measurement_coverage needs a named decision made unsafe. The signal's own movement is not a downstream consequence. A measurement finding publishes only alongside its executable definition fix; a definition observation without a fix resolves unpublished.
@@ -361,6 +363,20 @@ function validateDefinitionRecommendation(
 	if (definition.operation === "delete") {
 		return;
 	}
+	const error = insightDefinitionEditError(entityType, definition.changes);
+	if (error) {
+		throw new Error(error);
+	}
+	if (
+		definition.changes.target == null &&
+		definition.changes.type == null &&
+		definition.changes.steps == null &&
+		definition.changes.filters == null
+	) {
+		throw new Error(
+			"Executable repairs must change the measured target, type, steps, or filters. A name or description change alone is not a repair."
+		);
+	}
 	const hasConfiguredPurpose = input.evidence.some((item) =>
 		item.includes("Business meaning:")
 	);
@@ -371,7 +387,7 @@ function validateDefinitionRecommendation(
 		)
 	) {
 		throw new Error(
-			"Insights definition edits require an inspected purpose before changing a name or description"
+			"Insights definition edits require an inspected purpose before changing what a goal or funnel measures"
 		);
 	}
 	if (!hasUsedTool(usedToolNames, DEFINITION_CONTEXT_TOOLS)) {
@@ -650,6 +666,15 @@ function validateAgentOutcome(
 	}
 
 	let next: unknown = outcome.next;
+	if (outcome.next.type === "act" && outcome.next.execution !== null) {
+		next = {
+			...outcome.next,
+			action: describeInsightDefinitionAction(input.signal.entity.label, {
+				...outcome.next.execution,
+				action: outcome.next.action,
+			}),
+		};
+	}
 	if (outcome.next.type === "act" && outcome.next.execution === null) {
 		const { execution: _execution, ...persistedNext } = outcome.next;
 		next = persistedNext;

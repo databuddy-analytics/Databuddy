@@ -19,7 +19,7 @@ import {
 	getInsightsQueue,
 	insightsResumeJobId,
 } from "@databuddy/redis";
-import type { InvestigationOutcome } from "@databuddy/shared/insights";
+import type { InsightDefinitionEditChanges, InvestigationOutcome } from "@databuddy/shared/insights";
 import {
 	addToOrganization,
 	cleanup,
@@ -66,7 +66,10 @@ function investigationOutcome(nextType: "act" | "watch"): InvestigationOutcome {
 	};
 }
 
-async function seedExecutableGoalAction() {
+async function seedExecutableGoalAction(changes: InsightDefinitionEditChanges = {
+    description: "Counts navigation activity across the site.",
+    name: "Navigation clicks",
+}) {
 	const member = await signUp();
 	const organization = await insertOrganization();
 	await addToOrganization(member.id, organization.id, "member");
@@ -105,10 +108,7 @@ async function seedExecutableGoalAction() {
 			next: {
 				action: "Rename Clicked Nav to Navigation clicks.",
 				execution: {
-					changes: {
-						description: "Counts navigation activity across the site.",
-						name: "Navigation clicks",
-					},
+					changes,
 					operation: "edit",
 				},
 				target: "Goal: Clicked Nav",
@@ -387,6 +387,40 @@ describe("insight investigation timeline", () => {
 		).toEqual({ replyId: applied.reply.id });
 	});
 
+	iit("repairs a goal target, type and cohort, then queues its recheck", async () => {
+        const changes: InsightDefinitionEditChanges = {
+            name: null, description: null, target: "/workspace", type: "PAGE_VIEW",
+            filters: [{ field: "device_type", operator: "equals", value: "mobile" }],
+        };
+        const { goalId, insightId, member, organization } = await seedExecutableGoalAction(changes);
+        const applied = await call(appRouter.insights.applyAction, userContext(member, organization.id))({ insightId });
+        const [goal] = await db().select().from(goals).where(eq(goals.id, goalId));
+        expect(goal).toMatchObject({ target: changes.target, type: changes.type,
+            filters: changes.filters, name: "Clicked Nav", description: "A narrow description." });
+        expect((await getInsightsQueue().getJob(insightsResumeJobId(applied.reply.id)))?.data)
+            .toEqual({ replyId: applied.reply.id });
+    });
+
+    iit("rejects an unchanged goal patch without queuing a recheck", async () => {
+        const { insightId, member, organization } = await seedExecutableGoalAction({
+            name: "Clicked Nav", description: "A narrow description.", target: "nav_clicked", filters: [],
+        });
+        await expectCode(call(appRouter.insights.applyAction, userContext(member, organization.id))({ insightId }), "BAD_REQUEST");
+        expect(await db().select().from(insightReplies)).toHaveLength(0);
+    });
+
+    iit("rejects funnel steps applied to a goal without changing it", async () => {
+        const { goalId, insightId, member, organization } = await seedExecutableGoalAction({
+            name: "Should not change", description: null,
+            steps: [{ name: "Start", target: "/", type: "PAGE_VIEW" },
+                { name: "End", target: "/workspace", type: "PAGE_VIEW" }],
+        });
+        await expectCode(call(appRouter.insights.applyAction, userContext(member, organization.id))({ insightId }), "BAD_REQUEST");
+        const [goal] = await db().select().from(goals).where(eq(goals.id, goalId));
+        expect(goal?.name).toBe("Clicked Nav");
+        expect(await db().select().from(insightReplies)).toHaveLength(0);
+    });
+
 	iit("does not apply a goal action after its definition changes", async () => {
 		const { goalId, insightId, member, organization } =
 			await seedExecutableGoalAction();
@@ -431,6 +465,12 @@ describe("insight investigation timeline", () => {
 					changes: {
 						description: "Tracks visitors who complete account creation.",
 						name: "Account creation journey",
+                        filters: [],
+                        steps: [
+                            { name: "Landing", target: "/start", type: "PAGE_VIEW" },
+                            { name: "Account created", target: "signup_completed", type: "EVENT",
+                                conditions: { plan: "paid" } },
+                        ],
 					},
 					operation: "edit",
 				},
@@ -501,6 +541,8 @@ describe("insight investigation timeline", () => {
 				.select({
 					description: funnelDefinitions.description,
 					name: funnelDefinitions.name,
+                    steps: funnelDefinitions.steps,
+                    filters: funnelDefinitions.filters,
 				})
 				.from(funnelDefinitions)
 				.where(eq(funnelDefinitions.id, funnelId))
@@ -508,6 +550,12 @@ describe("insight investigation timeline", () => {
 			{
 				description: "Tracks visitors who complete account creation.",
 				name: "Account creation journey",
+                filters: [],
+                steps: [
+                    { name: "Landing", target: "/start", type: "PAGE_VIEW" },
+                    { name: "Account created", target: "signup_completed", type: "EVENT",
+                        conditions: { plan: "paid" } },
+                ],
 			},
 		]);
 		expect(
