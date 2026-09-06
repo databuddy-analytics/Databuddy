@@ -224,6 +224,7 @@ export interface InsightAgentInput {
 				kind: "reply";
 		  }
 	)[];
+	investigationObjective?: string;
 	otherOpenWork: {
 		asOf: string;
 		next: InterruptingNext;
@@ -282,6 +283,7 @@ Subject
 - The signal is a detection snapshot. Reuse its counts when the measured definition, population and dates still match. If current configuration or a successful read conflicts, reconcile with an exact native measurement; a definition listing alone cannot validate old counts. Compare the same definition, filters and metric over the intended complete windows. A clipped window is partial: never call it unchanged or recovered against a full window. Prefer current measured evidence over a stale signal; if the conflict is the only finding, resolve privately with rootCause null. Retain narrower measured cohort comparisons and useful findings even when their cause is unknown.
 
 Evidence
+- The optional investigationObjective is a machine-selected question, not a human request or citable measurement. Use it to choose useful diagnostic work; verify its premise with source data.
 - Cite each evidence sentence to its actual source: source signal for the supplied signal; source provided with a valid zero-based evidence index; source history with the index of a prior action for its saved verification condition only (not historical or current measurements); source customer_impact for supplied customerImpact; source related_signal with its array index; or source tool with its exact name, toolCallId, and get_data resultKey (null for other tools). Use an array of source references per evidence entry, including every contributing period, population, and inspected mechanism. One concise comparison can cite several sources without repeating its facts. An exact verification read also supports the saved condition and code verdict returned with it. Correct a mismatched citation without discarding a supported discovery. Never cite a failed read as evidence. An empty evidence array does not invalidate the supplied signal.
 - Tool availability is not proof of a connected integration. If a connector reports missing access, stop trying that connector. Preserve an independently verified product or reliability finding, with an unknown cause when necessary. Missing diagnostic access is not evidence that tracking failed, and does not itself deserve a coverage notice or a connection request.
 - get_data can return a partial table. returnedRows is what you saw; rowCount is query rows, not visitors or all matching entities. A path missing from a top-N table is not absent. Use an exact filtered lookup or a dedicated aggregate before making absence, total, or exhaustive claims. Omit orderBy unless discovery documents the field and use only declared row filters.
@@ -848,6 +850,20 @@ function verificationFor(
 		return;
 	}
 	const check = prior.outcome.next.check;
+	// A source case cannot recover on whole-funnel counts, including legacy checks.
+	if (
+		input.signal.signalKey.startsWith(
+			`funnel:${input.signal.entity.id}:referrer:`
+		)
+	) {
+		return {
+			check,
+			status: "inconclusive",
+			measured: null,
+			entrants: null,
+			source: null,
+		};
+	}
 	const result = [...results].reverse().find(
 		(item) =>
 			item.toolName === `get_${input.signal.entity.type}_analytics` &&
@@ -995,9 +1011,22 @@ function validateAgentOutcome(
 	}
 	if (
 		outcome.publish &&
+		signalKey.startsWith("attribution_rate:") &&
+		!hasNativeRevenueEvidence
+	) {
+		throw new Error(
+			"Attribution findings require native attributed_revenue and total_revenue evidence for this exact currency and complete comparison windows. A provided detector snapshot cannot confirm coverage."
+		);
+	}
+	if (
+		outcome.publish &&
 		!isError &&
 		!isVital &&
-		(!hasNativeRevenueEvidence || outcome.findingKind !== "product_outcome") &&
+		(!hasNativeRevenueEvidence ||
+			outcome.findingKind !==
+				(signalKey.startsWith("attribution_rate:")
+					? "measurement_coverage"
+					: "product_outcome")) &&
 		input.signal.entity.type === "website"
 	) {
 		const citedContext = outcome.evidenceRefs
@@ -1049,6 +1078,14 @@ function validateAgentOutcome(
 		);
 	}
 	const check = outcome.next.check;
+	if (
+		check &&
+		signalKey.startsWith(`funnel:${input.signal.entity.id}:referrer:`)
+	) {
+		throw new Error(
+			"Verification checks require the exact affected population. Aggregate funnel counts cannot verify a referrer case; omit check until referrer-specific verification is available."
+		);
+	}
 	if (
 		check &&
 		(!["goal", "funnel"].includes(input.signal.entity.type) ||
@@ -1231,6 +1268,7 @@ export async function runInsightAgent(
 			name: input.appContext.websiteName ?? null,
 		},
 		repository: input.githubRepository,
+		investigationObjective: input.investigationObjective,
 		evidence: input.evidence,
 		history: input.history.map((item) =>
 			item.kind === "investigation"
@@ -1366,8 +1404,16 @@ export async function runInsightAgent(
 						candidate.evidence.some(
 							(item) =>
 								typeof item !== "string" &&
-								item.fields.includes("total_revenue") &&
-								input.signal.signalKey === `revenue:${item.currency}`
+								((item.fields.includes("total_revenue") &&
+									input.signal.signalKey === `revenue:${item.currency}`) ||
+									(item.fields.includes("refund_amount") &&
+										item.fields.includes("refund_count") &&
+										input.signal.signalKey ===
+											`refund_amount:${item.currency}`) ||
+									(item.fields.includes("attributed_revenue") &&
+										item.fields.includes("total_revenue") &&
+										input.signal.signalKey ===
+											`attribution_rate:${item.currency}`))
 						)
 					);
 					const serialize = (value: unknown) =>

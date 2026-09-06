@@ -14,6 +14,7 @@ const emptyPlanStatusSchema = z.enum(["deferred", "no_signals"]);
 const plannedCandidateSchema = z
 	.object({
 		evidence: z.array(z.string().max(500)).max(20),
+		investigationObjective: z.string().max(500).optional(),
 		signal: investigationSignalSchema,
 	})
 	.strip();
