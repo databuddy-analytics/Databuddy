@@ -18,7 +18,7 @@
     "@databuddy/redis": "workspace:*",
     "@databuddy/rpc": "workspace:*",
     "@databuddy/shared": "workspace:*",
-    "@slack/bolt": "^4.7.2",
+    "@slack/bolt": "^5.0.0",
     "@slack/web-api": "7.17.0",
     "evlog": "catalog:"
   },
