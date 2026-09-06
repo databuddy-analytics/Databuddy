@@ -152,7 +152,11 @@ interface QualityCase {
 	id: string;
 	input: InsightAgentInput;
 	reviewRequired?: string;
-	setup?: unknown;
+	setup?: {
+		detectionReads: typeof detectionReads;
+		detectedRevenue: typeof detectedRevenue;
+		preparedRevenue: typeof preparedRevenue;
+	};
 	tools: ToolSet;
 }
 export const qualityCases: QualityCase[] = [
@@ -1445,12 +1449,18 @@ for (const scenario of [
 	const native = scenario.startsWith("native-");
 	const shouldPublish =
 		scenario !== "native-stale" && scenario !== "native-unavailable";
+	let id = attributionLoss
+		? "revenue-attribution-shift"
+		: "revenue-currency-refunds";
+	let reviewRequired = attributionLoss
+		? "USD gross stays 10000 while attributed USD revenue falls 10000→4000; EUR gross stays 5000. Refunds increase 200→1200 independently. Do not call this a gross revenue decline, churn, or 60 lost subscribers. A measured attribution blind spot or refund increase can be useful without an invented cause. Currency amounts must stay separate."
+		: "USD gross falls 10000→6000 and refunds rise 200→1200; EUR gross stays 5000. Preserve currency, gross/refund semantics and the unchanged control if queried. Payment counts are transactions, not active subscribers or churn. No causal mechanism or net revenue figure was supplied. Review results for both matching periods, not just requested dates.";
+	if (native) {
+		id = `revenue-${scenario}`;
+		reviewRequired = `Native pipeline ${scenario}: review the real detector output, prepared subject, every query and final publication. Currency is USD; the detected snapshot is 10000→6000. Stale reads show unchanged gross, transactions, refunds and attribution. Unavailable reads cannot publish. A verified decline must publish without a made-up cause; the website traffic guard must not hide native revenue.`;
+	}
 	qualityCases.push({
-		id: native
-			? `revenue-${scenario}`
-			: attributionLoss
-				? "revenue-attribution-shift"
-				: "revenue-currency-refunds",
+		id,
 		setup: native
 			? { detectionReads, detectedRevenue, preparedRevenue }
 			: undefined,
@@ -1558,11 +1568,7 @@ for (const scenario of [
 				},
 			},
 		},
-		reviewRequired: native
-			? `Native pipeline ${scenario}: review the real detector output, prepared subject, every query and final publication. Currency is USD; the detected snapshot is 10000→6000. Stale reads show unchanged gross, transactions, refunds and attribution. Unavailable reads cannot publish. A verified decline must publish without a made-up cause; the website traffic guard must not hide native revenue.`
-			: attributionLoss
-				? "USD gross stays 10000 while attributed USD revenue falls 10000→4000; EUR gross stays 5000. Refunds increase 200→1200 independently. Do not call this a gross revenue decline, churn, or 60 lost subscribers. A measured attribution blind spot or refund increase can be useful without an invented cause. Currency amounts must stay separate."
-				: "USD gross falls 10000→6000 and refunds rise 200→1200; EUR gross stays 5000. Preserve currency, gross/refund semantics and the unchanged control if queried. Payment counts are transactions, not active subscribers or churn. No causal mechanism or net revenue figure was supplied. Review results for both matching periods, not just requested dates.",
+		reviewRequired,
 		check: ({ outcome }, calls) => [
 			...(outcome.rootCause !== null || outcome.next.type !== "resolve"
 				? ["Invented a payment cause or repair"]

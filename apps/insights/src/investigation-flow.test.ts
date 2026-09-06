@@ -2688,7 +2688,7 @@ describe("structured revenue evidence", () => {
 	const input = { appContext: appContext(), signal };
 
 	it.each([
-		["revenue", ["total_revenue"], true],
+		["revenue", ["total_revenue"], false],
 		["revenue:USD", ["total_revenue"], true],
 		["revenue:EUR", ["total_revenue"], false],
 		["visitors", ["total_revenue"], false],

@@ -1359,8 +1359,7 @@ export async function runInsightAgent(
 							(item) =>
 								typeof item !== "string" &&
 								item.fields.includes("total_revenue") &&
-								(input.signal.signalKey === "revenue" ||
-									input.signal.signalKey === `revenue:${item.currency}`)
+								input.signal.signalKey === `revenue:${item.currency}`
 						)
 					);
 					const serialize = (value: unknown) =>
