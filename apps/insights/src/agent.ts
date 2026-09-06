@@ -76,6 +76,14 @@ function aggregateUsage(usages: LanguageModelUsage[]): LanguageModelUsage {
 	};
 }
 
+type JsonValue =
+	| string
+	| number
+	| boolean
+	| null
+	| JsonValue[]
+	| { [key: string]: JsonValue };
+
 type InterruptingNext = Extract<
 	InvestigationOutcome["next"],
 	{ type: "act" | "ask" }
@@ -380,13 +388,13 @@ function numericTokens(text: string): number[] {
 }
 
 function corpusNumericTokens(text: string): number[] {
-	let value: unknown;
+	let value: JsonValue;
 	try {
-		value = JSON.parse(text);
+		value = JSON.parse(text) as JsonValue;
 	} catch {
 		return numericTokens(text);
 	}
-	const pending: unknown[] = [value];
+	const pending: JsonValue[] = [value];
 	const numbers: number[] = [];
 	while (pending.length > 0) {
 		const item = pending.pop();
