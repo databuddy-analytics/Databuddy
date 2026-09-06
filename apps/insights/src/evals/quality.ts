@@ -1143,7 +1143,13 @@ for (const scenario of [
 	"short-window",
 	"unavailable",
 ] as const) {
-	const current = scenario === "decline" ? 24 : scenario === "zero" ? 0 : 164;
+	let current = 164;
+	if (scenario === "decline") {
+		current = 24;
+	}
+	if (scenario === "zero") {
+		current = 0;
+	}
 	const filters =
 		scenario === "filtered"
 			? [{ field: "country", operator: "equals", value: "US" }]
