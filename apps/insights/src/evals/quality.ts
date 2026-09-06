@@ -1298,7 +1298,12 @@ qualityCases.push({
 	tools: {
 		list_funnels: {
 			...analyticsTools.list_funnels,
-			execute: () => ({ funnels: [activationFunnel], count: 1 }),
+			execute: (value: unknown) => {
+				z.object({
+					websiteId: z.literal(appContext.websiteId).optional(),
+				}).parse(value);
+				return { funnels: [activationFunnel], count: 1 };
+			},
 		},
 		get_funnel_analytics_by_referrer: {
 			...analyticsTools.get_funnel_analytics_by_referrer,
@@ -1456,8 +1461,9 @@ for (const attributionLoss of [false, true]) {
 								subscription_revenue: gross,
 								subscription_count: payments,
 								unique_customers: payments,
-								attributed_revenue: previous ? gross : 4000,
-								attributed_transactions: previous ? payments : 40,
+								attributed_revenue: attributionLoss && !previous ? 4000 : gross,
+								attributed_transactions:
+									attributionLoss && !previous ? 40 : payments,
 								payment_diagnostics_available: 0,
 							},
 							{
@@ -1565,12 +1571,21 @@ qualityCases.push({
 	tools: { discover_query_types: analyticsTools.discover_query_types },
 	reviewRequired:
 		"Native discovery currently exposes no acquisition-cohort retention builder. The agent must not turn weekly activity into retention/churn, invent a query, or claim a 40% retention decline. Keep the unsupported claim private and identify the missing cohort denominator and complete follow-up window. Discovery is real and read-only; no analytics client is called.",
-	check: ({ outcome }) => [
+	check: ({ outcome }, calls) => [
 		...(outcome.publish ||
 		outcome.rootCause !== null ||
 		outcome.next.type !== "resolve"
 			? ["Published retention or created work from unmatched weekly activity"]
 			: []),
+		...(calls.some(
+			(call) =>
+				call.name === "discover_query_types" &&
+				z
+					.object({ types: z.array(z.unknown()), matchCount: z.number() })
+					.safeParse(call.output).success
+		)
+			? []
+			: ["Skipped the requested cohort capability inspection"]),
 	],
 });
 

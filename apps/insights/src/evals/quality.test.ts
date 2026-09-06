@@ -215,10 +215,26 @@ it.each([
 	expect(fixture.check(result, [{ ...call, input: {} }])).toHaveLength(1);
 });
 
-it("keeps revenue currencies, gross totals and refunds separate for exact windows", async () => {
-	const read = qualityCases.find(
-		(entry) => entry.id === "revenue-currency-refunds"
-	)?.tools.get_data;
+it.each([
+	{
+		id: "revenue-currency-refunds",
+		gross: 6000,
+		attributed: 6000,
+		attributedTransactions: 60,
+	},
+	{
+		id: "revenue-attribution-shift",
+		gross: 10000,
+		attributed: 4000,
+		attributedTransactions: 40,
+	},
+])("keeps revenue currencies, gross totals, attribution and refunds separate: $id", async ({
+	id,
+	gross,
+	attributed,
+	attributedTransactions,
+}) => {
+	const read = qualityCases.find((entry) => entry.id === id)?.tools.get_data;
 	if (!read?.execute) throw new Error("Missing revenue fixture");
 	const query = {
 		type: "revenue_overview",
@@ -236,7 +252,13 @@ it("keeps revenue currencies, gross totals and refunds separate for exact window
 				from: query.from,
 				to: query.to,
 				data: [
-					{ currency: "USD", total_revenue: 6000, refund_amount: 1200 },
+					{
+						currency: "USD",
+						total_revenue: gross,
+						refund_amount: 1200,
+						attributed_revenue: attributed,
+						attributed_transactions: attributedTransactions,
+					},
 					{ currency: "EUR", total_revenue: 5000, refund_amount: 0 },
 				],
 			},
@@ -253,6 +275,19 @@ it("keeps revenue currencies, gross totals and refunds separate for exact window
 	expect(() =>
 		read.execute?.(
 			{ queries: [{ ...query, websiteId: "another-site" }] },
+			{ toolCallId: "wrong-site", messages: [] }
+		)
+	).toThrow();
+});
+
+it("rejects an activation definition lookup for another website", () => {
+	const read = qualityCases.find(
+		(entry) => entry.id === "activation-source-comparison"
+	)?.tools.list_funnels;
+	if (!read?.execute) throw new Error("Missing activation fixture");
+	expect(() =>
+		read.execute?.(
+			{ websiteId: "another-site" },
 			{ toolCallId: "wrong-site", messages: [] }
 		)
 	).toThrow();
