@@ -1221,22 +1221,27 @@ for (const scenario of [
 			...(outcome.rootCause === null
 				? []
 				: ["Invented a cause for conflicting measurements"]),
-			...(calls.some(
-				(call) =>
-					call.name === "get_goal_analytics" &&
-					isDeepStrictEqual(call.input, {
-						startDate: period.current.from,
-						endDate: period.current.to,
-						goalId: goal.id,
-						...(call.input &&
-						typeof call.input === "object" &&
-						"websiteId" in call.input
-							? { websiteId: appContext.websiteId }
-							: {}),
-					})
-			)
-				? []
-				: ["Did not remeasure the exact current goal"]),
+			...[
+				period.current,
+				...(scenario === "filtered" ? [period.previous] : []),
+			].flatMap((window) =>
+				calls.some(
+					(call) =>
+						call.name === "get_goal_analytics" &&
+						isDeepStrictEqual(call.input, {
+							startDate: window.from,
+							endDate: window.to,
+							goalId: goal.id,
+							...(call.input &&
+							typeof call.input === "object" &&
+							"websiteId" in call.input
+								? { websiteId: appContext.websiteId }
+								: {}),
+						})
+				)
+					? []
+					: [`Did not remeasure the exact goal for ${window.from}–${window.to}`]
+			),
 			...(scenario === "decline" || scenario === "zero"
 				? outcome.publish
 					? []
