@@ -650,6 +650,19 @@ describe("intelligence agent", () => {
 		const result = await run;
 		expect(result.outcome.next).toEqual({
 			...proposal.next,
+			...(scenario === "valid"
+				? {
+						check: {
+							...check,
+							definition: {
+								steps: proposal.next.execution.changes.steps.map(
+									({ type, target }) => ({ type, target })
+								),
+								filters: [],
+							},
+						},
+					}
+				: {}),
 			action: describeInsightDefinitionAction(funnelSignal.entity.label, {
 				...executableDefinitionOutcome.next.execution,
 				action: executableDefinitionOutcome.next.action,
@@ -904,9 +917,7 @@ describe("intelligence agent", () => {
 				},
 				{ model: outputModel(executableDefinitionOutcome), tools: {} }
 			)
-		).rejects.toThrow(
-			"Insights funnel definition changes require an inspected funnel definition"
-		);
+		).rejects.toThrow("exact current funnel definition was not inspected");
 	});
 
 	it("rejects a definition edit outside a goal or funnel signal", async () => {
@@ -1608,8 +1619,14 @@ describe("intelligence agent", () => {
 	});
 
 	it.each([
+		"effective-window",
+		"changed-definition",
+		"missing-metadata",
+		"wrong-measured-site",
+		"wrong-measured-id",
 		"passed",
 		"passed-explicit",
+		"passed-domain",
 		"failed-rate",
 		"failed",
 		"wrong-subject",
@@ -1625,6 +1642,13 @@ describe("intelligence agent", () => {
 		"newer-resolution",
 	] as const)("binds verification to the exact measurement: %s", async (scenario) => {
 		const check = {
+			definition: {
+				steps: inspectedFunnel.steps.map(({ target, type }) => ({
+					type,
+					target,
+				})),
+				filters: [],
+			},
 			metric:
 				scenario === "failed-rate"
 					? ("overall_conversion_rate" as const)
@@ -1639,12 +1663,13 @@ describe("intelligence agent", () => {
 				evidenceRef: { source: "signal" as const },
 			},
 		};
-		const status =
-			scenario === "passed" || scenario === "passed-explicit"
-				? "passed"
-				: scenario === "failed" || scenario === "failed-rate"
-					? "failed"
-					: "inconclusive";
+		const status = ["passed", "passed-explicit", "passed-domain"].includes(
+			scenario
+		)
+			? "passed"
+			: scenario === "failed" || scenario === "failed-rate"
+				? "failed"
+				: "inconclusive";
 		const completed = scenario === "failed" ? 40 : 120;
 		const query = {
 			funnelId: scenario === "wrong-subject" ? "another-funnel" : "checkout",
@@ -1652,6 +1677,7 @@ describe("intelligence agent", () => {
 			endDate: scenario === "wrong-end" ? "2026-07-12" : check.endDate,
 			...(scenario === "passed-explicit" ? { websiteId: "site-1" } : {}),
 			...(scenario === "wrong-website" ? { websiteId: "another-site" } : {}),
+			...(scenario === "passed-domain" ? { websiteId: "example.com" } : {}),
 			...(scenario === "extra-filter" ? { filter: "paid-only" } : {}),
 		};
 		const candidate = {
@@ -1714,6 +1740,40 @@ describe("intelligence agent", () => {
 					get_funnel_analytics: tool({
 						inputSchema: z.object({}).passthrough(),
 						execute: () => ({
+							...(scenario === "missing-metadata"
+								? {}
+								: {
+										measurement: {
+											websiteId:
+												scenario === "wrong-measured-site" ||
+												scenario === "wrong-website"
+													? "another-site"
+													: "site-1",
+											definitionId:
+												scenario === "wrong-measured-id"
+													? "another-funnel"
+													: "checkout",
+											startDate:
+												scenario === "effective-window"
+													? "2026-07-07"
+													: check.startDate,
+											endDate: check.endDate,
+											definition: {
+												...check.definition,
+												...(scenario === "changed-definition"
+													? {
+															filters: [
+																{
+																	field: "country",
+																	operator: "equals",
+																	value: "US",
+																},
+															],
+														}
+													: {}),
+											},
+										},
+									}),
 							total_users_entered: scenario === "small-sample" ? 80 : 200,
 							total_users_completed:
 								scenario === "small-sample"
@@ -2037,6 +2097,61 @@ describe("intelligence agent", () => {
 	it.each([
 		false,
 		true,
+	])("defers a grounded finish batched with an unseen read (finish first: %s)", async (finishFirst) => {
+		const read = toolCallResponse().content;
+		const finish = outputResponse(agentOutcome).content;
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				{
+					...toolCallResponse(),
+					content: finishFirst ? [...finish, ...read] : [...read, ...finish],
+				},
+				outputResponse(agentOutcome)
+			),
+		});
+		let reads = 0;
+		let inputHooks = 0;
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence,
+				signal,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+			},
+			{
+				model,
+				tools: {
+					inspect: tool({
+						inputSchema: z.object({}),
+						onInputAvailable: () => {
+							inputHooks++;
+						},
+						toModelOutput: ({ output }) => ({
+							type: "text",
+							value: JSON.stringify(output),
+						}),
+						execute: () => {
+							reads++;
+							return { fact: evidence[0] };
+						},
+					}),
+				},
+			}
+		);
+		expect(reads).toBe(1);
+		expect(inputHooks).toBe(1);
+		expect(model.doGenerateCalls).toHaveLength(2);
+		expect(JSON.stringify(model.doGenerateCalls[1]?.prompt)).toContain(
+			"Finish after receiving"
+		);
+		expect(result.outcome).toEqual(outcome);
+	});
+
+	it.each([
+		false,
+		true,
 	])("repairs a citation without repeating its read (premature finish: %s)", async (premature) => {
 		const discovered = {
 			...agentOutcome,
@@ -2103,10 +2218,10 @@ describe("intelligence agent", () => {
 		);
 		if (premature) {
 			expect(feedback).toContain(
-				"result that does not exist: inspect/inspect-1"
+				"Finish after receiving this step's reads"
 			);
 			expect(feedback).toContain(
-				"use its result next turn without repeating it"
+				"Use those results next turn without repeating the reads"
 			);
 		} else {
 			expect(feedback).toContain("evidence[0] cites the number 88");

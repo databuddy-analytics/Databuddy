@@ -887,9 +887,17 @@ for (const repaired of [false, true]) {
 						};
 					}
 					return {
-						goalId: goal.id,
-						startDate: query.startDate,
-						endDate: query.endDate,
+						measurement: {
+							websiteId: appContext.websiteId,
+							definitionId: goal.id,
+							startDate: query.startDate,
+							endDate: query.endDate,
+							definition: {
+								type: goal.type,
+								target: "/workspace",
+								filters: [],
+							},
+						},
 						total_users_completed: repaired ? 120 : 40,
 						total_users_entered: 200,
 						overall_conversion_rate: repaired ? 60 : 20,
@@ -948,6 +956,8 @@ for (const scenario of [
 	"failed",
 	"small-sample",
 	"unfinished-window",
+	"population-drift",
+	"truncated-window",
 ] as const) {
 	const original = qualityCases.find(
 		(fixture) =>
@@ -962,6 +972,11 @@ for (const scenario of [
 		);
 	}
 	const check = {
+		definition: {
+			type: "PAGE_VIEW" as const,
+			target: "/workspace",
+			filters: [],
+		},
 		metric: "total_users_completed" as const,
 		startDate: period.current.from,
 		endDate: period.current.to,
@@ -1011,9 +1026,67 @@ for (const scenario of [
 					: item
 			),
 		},
+		tools: {
+			...original.tools,
+			get_goal_analytics: {
+				...original.tools.get_goal_analytics,
+				execute: async (query, options) => {
+					const output = await original.tools.get_goal_analytics.execute?.(
+						query,
+						options
+					);
+					if (
+						!output ||
+						typeof output !== "object" ||
+						!("measurement" in output)
+					) {
+						return output;
+					}
+					const measurement = z
+						.object({
+							startDate: z.string(),
+							definition: z.object({
+								type: z.string(),
+								target: z.string(),
+								filters: z.array(z.unknown()),
+							}),
+						})
+						.passthrough()
+						.parse(output.measurement);
+					return {
+						...output,
+						measurement: {
+							...measurement,
+							...(scenario === "truncated-window"
+								? { startDate: "2026-09-01" }
+								: {}),
+							...(scenario === "population-drift"
+								? {
+										definition: {
+											...measurement.definition,
+											filters: [
+												{
+													field: "referrer",
+													operator: "equals",
+													value: "google.com",
+												},
+											],
+										},
+									}
+								: {}),
+						},
+					};
+				},
+			},
+		},
 		reviewRequired: `Expected ${status}. Check that the customer copy agrees with the code verdict and preserves the reason, exact dates, measured count and threshold. A small sample or unfinished window cannot prove recovery.`,
 		check: (result, calls) => [
-			...original.check(result, calls),
+			...original.check(result, calls).filter(
+				(failure) =>
+					// A new population mismatch can justify a different repair.
+					scenario !== "population-drift" ||
+					failure !== "Repeated the already-applied definition repair"
+			),
 			...(result.outcome.verification?.status === status
 				? []
 				: [`Expected persisted verification status ${status}`]),

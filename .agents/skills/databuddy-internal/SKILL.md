@@ -77,6 +77,7 @@ Keep additions **minimal**: one bullet, a new `rg` hint, or a routing note—eno
 - `packages/env`: shared URL, public, and boolean environment helpers
 - `packages/shared`: shared types, flags, analytics schemas, utilities
 - Analytics query builders live in `packages/ai/src/query`; there is no standalone `packages/query` directory. Tests are excluded from root Biome checks, so format changed test blocks explicitly.
+- `apps/insights` uses the ES2022 TypeScript library; Bun supporting `findLast` or newer Set methods does not make those APIs typecheck here. Check the package TS library before choosing newer built-ins.
 - `packages/sdk`: published analytics SDK for React, Vue, and Node
 - `packages/tracker`: internal tracker script build and release package
 - `packages/encryption`, `packages/notifications`, `packages/cache`, `packages/redis`, `packages/services`, `packages/validation`, `packages/api-keys`: shared infra and domain packages

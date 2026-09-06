@@ -338,8 +338,43 @@ export const insightWatchThresholdSchema = z
 	})
 	.strict();
 
+// Canonical fields actually used by goal/funnel analytics. Labels and unevaluated
+// funnel step conditions do not change the measured population.
+const measurementFiltersSchema = z
+	.array(
+		z.object({
+			field: z.string(),
+			operator: z.string(),
+			value: z.union([z.string(), z.array(z.string())]),
+		})
+	)
+	.default([]);
+export const insightMeasurementSchema = z.object({
+	websiteId: z.string(),
+	definitionId: z.string(),
+	startDate: z.iso.date(),
+	endDate: z.iso.date(),
+	definition: z.union([
+		z.object({
+			type: z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]),
+			target: z.string(),
+			filters: measurementFiltersSchema,
+		}),
+		z.object({
+			steps: z.array(
+				z.object({
+					type: z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]),
+					target: z.string(),
+				})
+			),
+			filters: measurementFiltersSchema,
+		}),
+	]),
+});
+
 const insightVerificationCheckSchema = z
 	.object({
+		definition: insightMeasurementSchema.shape.definition.optional(),
 		metric: z.enum(["total_users_completed", "overall_conversion_rate"]),
 		startDate: z.iso.date(),
 		endDate: z.iso.date(),
@@ -445,6 +480,14 @@ const agentInsightDefinitionExecutionSchema = z.discriminatedUnion(
 
 const agentInvestigationNextSchema = z.discriminatedUnion("type", [
 	investigationActNextSchema.extend({
+		check: z
+			.object(insightVerificationCheckSchema.shape)
+			.omit({ definition: true })
+			.nullable()
+			.optional()
+			.describe(
+				"Save a structured check when its metric, future dates and healthy threshold are known. Databuddy binds the expected definition; do not repeat it."
+			),
 		recheckAt: z.iso
 			.datetime()
 			.describe("Exact ISO 8601 time to remeasure the verification condition."),

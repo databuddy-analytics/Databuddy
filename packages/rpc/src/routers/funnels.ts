@@ -1,3 +1,4 @@
+import { insightMeasurementSchema } from "@databuddy/shared/insights";
 import { successOutputSchema } from "../lib/schemas";
 import { and, desc, eq, isNull, sql } from "@databuddy/db";
 import { funnelDefinitions } from "@databuddy/db/schema";
@@ -108,6 +109,13 @@ async function loadFunnelAnalyticsQuery(
 	);
 
 	return {
+		measurement: insightMeasurementSchema.parse({
+			websiteId: input.websiteId,
+			definitionId: funnel.id,
+			startDate: effectiveStartDate,
+			endDate,
+			definition: { ...funnel, filters: funnel.filters ?? [] },
+		}),
 		effectiveStartDate,
 		endDate,
 		filters: (funnel.filters as Filter[]) || [],
@@ -501,19 +509,24 @@ export const funnelsRouter = {
 			tags: ["Funnels"],
 		})
 		.input(funnelAnalyticsInputSchema)
-		.output(funnelAnalyticsOutputSchema)
+		.output(
+			funnelAnalyticsOutputSchema.extend({
+				measurement: insightMeasurementSchema,
+			})
+		)
 		.use(withWebsiteRead)
 		.handler(async ({ context, input }) => {
-			const { effectiveStartDate, endDate, filters, queryParams, steps } =
+			const { filters, queryParams, steps, measurement } =
 				await loadFunnelAnalyticsQuery(context.db, input);
 
-			return funnelCache.withCache({
-				key: `analytics:${input.funnelId}:${effectiveStartDate}:${endDate}`,
+			const analytics = await funnelCache.withCache({
+				key: `analytics:${JSON.stringify(measurement)}`,
 				ttl: ANALYTICS_CACHE_TTL,
 				tables: ["funnelDefinitions"],
 				tag: `funnel:${input.funnelId}`,
 				queryFn: () => processFunnelAnalytics(steps, filters, queryParams),
 			});
+			return { ...analytics, measurement };
 		}),
 
 	getAnalyticsByReferrer: publicProcedure

@@ -75,8 +75,7 @@ Tools are discoverable. There is no fixed first query, query family, receipt cho
 
 Every completed turn reports:
 
-- **summary:** what happened;
-- The summary includes who or what is affected, with measured scope when available; legacy impact paragraphs remain readable.
+- **summary:** what happened and who or what is affected, with measured scope when available; legacy impact paragraphs remain readable;
 - **root cause:** the known mechanism, or `unknown`;
 - **evidence:** one or two concise entries that support or contradict it, each citing all contributing supplied signals, provided context, prior verification conditions, or exact successful tool results; failed queries are limitations, and a partial table cannot establish absence;
 - **publish:** whether this turn adds a new customer-relevant fact to Insights;
@@ -89,7 +88,7 @@ The next outcome is one of:
 - `ask` — one self-contained question that says what the answer unlocks;
 - `resolve` — why no investigation needs to remain open, even if a recommendation remains.
 
-Goal and funnel actions may save a structured verification check when the metric, dates, sample and grounded threshold are known. Existing analytics tools measure the exact definition and inclusive UTC period; code determines whether that check passed, failed or remains inconclusive and writes the verification summary. It does not infer a check from legacy prose. A passed check verifies that condition, not an unmeasured downstream result. Other investigation strategy and next moves remain agent-owned.
+Goal and funnel actions may save a structured verification check when the metric, dates, sample and grounded threshold are known. Databuddy binds the expected population to the inspected definition plus the proposed edit. Existing analytics tools return their actual definition, filters and inclusive UTC period; changed populations, shortened windows, unfinished periods and insufficient samples are inconclusive. Code determines whether that check passed, failed or remains inconclusive and writes the verification summary. It does not infer a check from legacy prose. A passed check verifies that condition, not an unmeasured downstream result. Other investigation strategy and next moves remain agent-owned.
 
 Outcomes may be updated repeatedly. They are operational state, not prose templates.
 
@@ -123,7 +122,7 @@ Reject output that merely restates a percentage, invents a cause, asks for data 
 
 Summary, cause, and evidence each contribute a different fact. Routine or unchanged rechecks remain in internal history with `publish: false`. Raw website traffic is not a verified product outcome: it can publish only a measurement-coverage finding with cited collection or implementation evidence. Uncited context, goal listings, and sibling metrics cannot establish visitor loss; a product result belongs to its own signal and subject.
 
-Missing diagnostic access alone is not a coverage finding. Publish a measured missing population or inspected tracking defect when it makes a specific decision unsafe; keep an unsupported explanation or unavailable connector in private history. Preserve independently verified product results and outages even when their cause is unknown. Briefs should fit 60 words across the title, summary, impact, cause, and evidence, with each fact stated once.
+Missing diagnostic access alone is not a coverage finding. Publish a measured missing population or inspected tracking defect when it makes a specific decision unsafe; keep an unsupported explanation or unavailable connector in private history. Preserve independently verified product results and outages even when their cause is unknown. Briefs should fit 60 words across the title, summary, cause, and evidence (including impact for legacy records), with each fact stated once.
 
 Customer impact stays explicit about coverage. Anonymous visitor identifiers, sessions, identified profiles, and profiles with prior attributed completed-payment history are different cohorts. Unknown payment status is never reported as non-paying, and payment history is not called an active subscription. Error exposure alone does not prove that a page broke, a task failed, or work was lost.
 
