@@ -122,6 +122,7 @@ const agentOutcome = {
 const inspectedFunnel = {
 	id: "checkout",
 	name: "Checkout journey",
+	description: null,
 	filters: [],
 	steps: [
 		{ name: "Landing", target: "/", type: "PAGE_VIEW" as const },
@@ -709,8 +710,13 @@ describe("intelligence agent", () => {
 			return;
 		}
 		const result = await run;
+		const expectedExecution = {
+			...proposal.next.execution,
+			changes: native ? { steps: proposal.next.execution.changes.steps } : proposal.next.execution.changes,
+		};
 		expect(result.outcome.next).toEqual({
 			...proposal.next,
+			execution: expectedExecution,
 			...(scenario !== "legacy"
 				? {
 						check: {
@@ -725,10 +731,87 @@ describe("intelligence agent", () => {
 					}
 				: {}),
 			action: describeInsightDefinitionAction(funnelSignal.entity.label, {
-				...proposal.next.execution,
+				...expectedExecution,
 				action: executableDefinitionOutcome.next.action,
 			}),
 		});
+	});
+
+	it.each([
+		false,
+		true,
+	])("strips unchanged repair fields while retaining a real filter removal: %s", async (filtered) => {
+		const changes = {
+			name: inspectedFunnel.name,
+			description: null,
+			filters: [],
+			steps: executableDefinitionOutcome.next.execution.changes.steps,
+		};
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence: [
+					...evidence,
+					"Business meaning: Tracks account creation across all countries.",
+				],
+				signal: funnelSignal,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+			},
+			{
+				model: new MockLanguageModelV3({
+					doGenerate: mockValues(
+						toolCallsResponse(["list_funnels", "scrape_page"]),
+						outputResponse({
+							...executableDefinitionOutcome,
+							next: {
+								...executableDefinitionOutcome.next,
+								execution: { operation: "edit", changes },
+							},
+						})
+					),
+				}),
+				tools: {
+					scrape_page: tool({
+						inputSchema: z.object({}),
+						execute: () => ({
+							content:
+								"Successful account creation emits account_created for visitors in all countries.",
+						}),
+					}),
+					list_funnels: tool({
+						inputSchema: z.object({}),
+						execute: () => ({
+							funnels: [
+								{
+									...inspectedFunnel,
+									filters: filtered
+										? [{ field: "country", operator: "equals", value: "US" }]
+										: [],
+								},
+							],
+						}),
+					}),
+				},
+			}
+		);
+		const execution = {
+			operation: "edit" as const,
+			changes: {
+				steps: changes.steps,
+				...(filtered ? { filters: [] } : {}),
+			},
+		};
+		expect(result.outcome.next).toMatchObject({
+			execution,
+			action: describeInsightDefinitionAction(funnelSignal.entity.label, {
+				...execution,
+				action: executableDefinitionOutcome.next.action,
+			}),
+		});
+		if (result.outcome.next.type !== "act") throw new Error("Expected repair");
+		expect(result.outcome.next.execution).toEqual(execution);
 	});
 
 	it("rejects a cosmetic rename presented as a measurement repair", async () => {
