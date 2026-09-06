@@ -455,7 +455,7 @@ export const investigationOutcomeSchema = z
 			.trim()
 			.min(1)
 			.describe(
-				"A 5–12 word news headline stating the verified finding. For a directly measured user experience, lead with the affected visitor or customer count and observed problem. For a measurement definition or coverage finding, name the mismatch or blind spot, never an implied user failure. Never translate occurrences, sessions, entrants, or performance samples into people, or use a raw identifier, generic config label, schema label, arrow relationship, or measurement language as the title."
+				"A short news headline stating the verified finding. For a directly measured user experience, lead with the affected visitor or customer count and observed problem. For a measurement definition or coverage finding, name the mismatch or blind spot, never an implied user failure. Never translate occurrences, sessions, entrants, or performance samples into people, or use a raw identifier, generic config label, schema label, arrow relationship, or measurement language as the title."
 			),
 		summary: z
 			.string()
@@ -637,25 +637,18 @@ export const investigationOutcomeSchema = z
 
 const RAW_IDENTIFIER_PATTERN =
 	/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\b[a-z0-9]+(?:_[a-z0-9]+)+\b|https?:\/\//i;
-const TITLE_WORD_SEPARATOR = /\s+/;
 
 const agentTitleSchema = z
 	.string()
 	.trim()
+	.min(1)
 	.max(120)
-	.refine(
-		(title) => {
-			const words = title.split(TITLE_WORD_SEPARATOR).length;
-			return words >= 5 && words <= 12;
-		},
-		{ message: "Titles must be 5-12 words" }
-	)
 	.refine((title) => !RAW_IDENTIFIER_PATTERN.test(title), {
 		message:
 			"Titles must use natural product language, never raw identifiers, event names, or URLs",
 	})
 	.describe(
-		"A 5–12 word headline stating the verified finding in natural product language. For directly measured reliability or user impact, an affected count can lead. For measurement_definition, name the incorrect target or purpose mismatch without a numeric count; keep counts with their periods in evidence. For measurement_coverage, name the observed blind spot, never a presumed product loss. Never use raw identifiers, snake_case event names, or URLs."
+		"A short headline stating the verified finding in natural product language. For directly measured reliability or user impact, an affected count can lead. For measurement_definition, name the incorrect target or purpose mismatch without a numeric count; keep counts with their periods in evidence. For measurement_coverage, name the observed blind spot, never a presumed product loss. Never use raw identifiers, snake_case event names, or URLs."
 	);
 
 export const agentInvestigationOutcomeSchema = investigationOutcomeSchema

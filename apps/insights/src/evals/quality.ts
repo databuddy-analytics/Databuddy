@@ -15,7 +15,7 @@ const ABSENCE_CLAIM =
 	/\b(?:does not exist|no longer exists|retired route|absent from the site|nonexistent route|(?:route|path|page) (?:is |was |has been )?(?:missing|removed|deleted|retired|unavailable)|(?:missing|removed|deleted|retired) (?:route|path|page))\b/i;
 
 const STEADY_ARRIVALS =
-	/\b(?:visits|arrivals)\s+(?:(?:were|are|stayed|remained)\s+)?(?:unchanged|steady|stable)\b|\b(?:unchanged|steady|stable)\s+(?:new-user\s+)?(?:visits|arrivals)\b|\b(?:visits|arrivals)\s+(?:(?:were|are|stayed|remained)\s+)?(?:at\s+)?1[,.]?200\s+(?:(?:in|across|for)\s+)?(?:both|each)\b/i;
+	/\b(?:visits|arrivals)\s+(?:(?:were|are|stayed|remained|held)\s+)?(?:unchanged|steady|stable)\b|\b(?:unchanged|steady|stable)\s+(?:new-user\s+)?(?:visits|arrivals)\b|\b(?:visits|arrivals)\s+(?:(?:were|are|stayed|remained|held)\s+)?(?:at\s+)?1[,.]?200\s+(?:(?:in|across|for)\s+)?(?:both|each)\b/i;
 const SOURCE_COHORT = /\bgoogle(?:\.com)?\b/i;
 const WORD_SEPARATOR = /\s+/;
 

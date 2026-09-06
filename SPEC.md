@@ -69,7 +69,7 @@ The agent receives:
 - project instructions and durable corrections;
 - human replies and open actions or PRs.
 
-Tools are discoverable. There is no fixed first query, query family, receipt choreography, or two-read limit.
+Tools are discoverable. There is no fixed first query, query family, receipt choreography, or two-read limit. Each investigation uses one tool loop with at most eight model turns, including a reserved final turn. It ends through `finish_investigation`, which validates the outcome and returns any repair error in the same conversation; at most three finish attempts are allowed. Successful reads include exact citation references. The agent does not restart the conversation to repair output.
 
 ## Outcome contract
 

@@ -267,7 +267,7 @@ describe("insightBriefItemSchema", () => {
 });
 
 describe("investigationOutcomeSchema", () => {
-	it("enforces natural-language 5-12 word titles on agent output", () => {
+	it("accepts concise titles while rejecting empty titles and raw identifiers", () => {
 		const accepted = {
 			...outcomeBase,
 			...agentFields,
@@ -279,7 +279,9 @@ describe("investigationOutcomeSchema", () => {
 		expect(withTitle("263 visitors hit a Facebook script syntax error")).toBe(
 			true
 		);
-		expect(withTitle("Signup conversion improved")).toBe(false);
+		expect(withTitle("Signup conversion improved")).toBe(true);
+		expect(withTitle(" ")).toBe(false);
+		expect(withTitle("a".repeat(121))).toBe(false);
 		expect(
 			withTitle(
 				"The signup_completed event stopped firing after the last deploy"
