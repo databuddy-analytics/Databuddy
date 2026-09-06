@@ -1135,6 +1135,130 @@ for (const scenario of [
 	});
 }
 
+for (const scenario of [
+	"unchanged",
+	"decline",
+	"zero",
+	"filtered",
+	"short-window",
+	"unavailable",
+] as const) {
+	let current = 164;
+	if (scenario === "decline") {
+		current = 24;
+	}
+	if (scenario === "zero") {
+		current = 0;
+	}
+	const filters =
+		scenario === "filtered"
+			? [{ field: "country", operator: "equals", value: "US" }]
+			: [];
+	const definition = { ...goal, target: "/workspace", filters };
+	qualityCases.push({
+		id: `current-goal-${scenario}`,
+		input: input({
+			signal: {
+				...defaultSignal,
+				signalKey: `goal:${goal.id}`,
+				entity: { type: "goal", id: goal.id, label: goal.name },
+				metric: {
+					label: "Workspace visits",
+					current: 0,
+					previous: 164,
+					format: "number",
+				},
+			},
+			evidence: [
+				"Business meaning: counts visits to the workspace after login. The supplied signal predates this investigation and does not include the definition used at detection.",
+			],
+		}),
+		tools: {
+			list_goals: {
+				...analyticsTools.list_goals,
+				execute: () => ({ goals: [definition] }),
+			},
+			scrape_page: readTool("Inspect the workspace route and tracking.", {
+				content:
+					"Authenticated visitors reach /workspace. Tracking is present. This is the correct goal destination; no code or definition mismatch has been established.",
+			}),
+			get_goal_analytics: {
+				...analyticsTools.get_goal_analytics,
+				execute: (query) => {
+					const previous =
+						query.startDate === period.previous.from &&
+						query.endDate === period.previous.to;
+					if (
+						scenario === "unavailable" ||
+						query.goalId !== goal.id ||
+						!(
+							previous ||
+							(query.startDate === period.current.from &&
+								query.endDate === period.current.to)
+						)
+					) {
+						return {
+							error: "The requested exact goal measurement is unavailable.",
+						};
+					}
+					return {
+						measurement: insightMeasurementSchema.parse({
+							websiteId: appContext.websiteId,
+							definitionId: goal.id,
+							startDate:
+								!previous && scenario === "short-window"
+									? "2026-09-01"
+									: query.startDate,
+							endDate: query.endDate,
+							definition,
+						}),
+						total_users_entered: 200,
+						total_users_completed: previous ? 164 : current,
+						overall_conversion_rate: (previous ? 164 : current) / 2,
+					};
+				},
+			},
+		},
+		reviewRequired: `Current goal scenario ${scenario}: verify every final count against its exact date range and population, explain conflicts with the stale signal, and do not invent a repair. Native current completions are ${current}; prior completions are 164. The 200 entrants are eligible website visitors, not login attempts. A filtered population needs a matching comparison; a shortened window or unavailable read cannot establish full-window recovery.`,
+		check: ({ outcome }, calls) => [
+			...(outcome.next.type === "resolve"
+				? []
+				: ["Created work without an inspected mechanism"]),
+			...(outcome.rootCause === null
+				? []
+				: ["Invented a cause for conflicting measurements"]),
+			...[
+				period.current,
+				...(scenario === "filtered" ? [period.previous] : []),
+			].flatMap((window) =>
+				calls.some(
+					(call) =>
+						call.name === "get_goal_analytics" &&
+						isDeepStrictEqual(call.input, {
+							startDate: window.from,
+							endDate: window.to,
+							goalId: goal.id,
+							...(call.input &&
+							typeof call.input === "object" &&
+							"websiteId" in call.input
+								? { websiteId: appContext.websiteId }
+								: {}),
+						})
+				)
+					? []
+					: [`Did not remeasure the exact goal for ${window.from}–${window.to}`]
+			),
+			...(scenario === "decline" || scenario === "zero"
+				? outcome.publish
+					? []
+					: ["Hid the independently measured product decline"]
+				: outcome.publish
+					? ["Published an unverified or unchanged product decline"]
+					: []),
+		],
+	});
+}
+
 async function evaluate(
 	agent: typeof runInsightAgent,
 	fixture: QualityCase,

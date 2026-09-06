@@ -120,6 +120,8 @@ Goal and funnel repairs must match the signal's exact definition ID in the lates
 
 Reject output that merely restates a percentage, invents a cause, asks for data Databuddy can read, gives a generic recommendation, or creates duplicate work.
 
+A detected signal is a snapshot. Conflicting current evidence must be reconciled against the same definition, population and measured dates; a current definition listing alone cannot validate old counts. Unresolved measurement conflicts remain private without an invented cause.
+
 Summary, cause, and evidence each contribute a different fact. Routine or unchanged rechecks remain in internal history with `publish: false`. Raw website traffic is not a verified product outcome: it can publish only a measurement-coverage finding with cited collection or implementation evidence. Uncited context, goal listings, and sibling metrics cannot establish visitor loss; a product result belongs to its own signal and subject.
 
 Missing diagnostic access alone is not a coverage finding. Publish a measured missing population or inspected tracking defect when it makes a specific decision unsafe; keep an unsupported explanation or unavailable connector in private history. Preserve independently verified product results and outages even when their cause is unknown. Briefs should fit 60 words across the title, summary, cause, and evidence (including impact for legacy records), with each fact stated once.

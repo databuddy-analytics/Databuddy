@@ -65,7 +65,7 @@ export function createGoalTools() {
 
 	const getGoalAnalyticsTool = tool({
 		description:
-			"Goal analytics for a chosen date range: conversion rate, users entered, and users completed. Do not repeat an exact measurement already supplied by the caller.",
+			"Goal conversion with the actual definition and measured dates: completed visitors match the goal; entrants are all website visitors matching its filters, not goal attempts. Reuse supplied measurements when their definition and window are verified; remeasure stale or conflicting context.",
 		inputSchema: goalAnalyticsInputSchema,
 		execute: async (
 			{ goalId, websiteId: inputWebsiteId, startDate, endDate },
