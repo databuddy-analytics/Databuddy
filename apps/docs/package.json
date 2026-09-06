@@ -65,7 +65,7 @@
     "@tailwindcss/postcss": "^4.2.2",
     "@types/d3-geo": "^3.1.0",
     "@types/mdx": "^2.0.13",
-    "@types/node": "26.0.0",
+    "@types/node": "26.4.0",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@types/topojson-client": "^3.1.5",
