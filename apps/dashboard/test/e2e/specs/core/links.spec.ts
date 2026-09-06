@@ -50,11 +50,18 @@ test(
 			targetUrl: `other-${targetUrl}`,
 		});
 		await expect(secondaryRow).toBeVisible();
-		// Assert the unfiled group exists, not its count: the count is global to the
-		// account, and other specs create unfiled links in the same worker.
-		await expect(
-			authenticatedPage.getByRole("button", { name: /Unfiled/ })
-		).toBeVisible();
+
+		await authenticatedPage.getByRole("button", { name: "All folders" }).click();
+		await authenticatedPage
+			.getByRole("menuitemradio", { name: "Unfiled" })
+			.click();
+		await expect(linkRow(authenticatedPage, secondaryName)).toBeVisible();
+		await expect(linkRow(authenticatedPage, primaryName)).toBeHidden();
+		await authenticatedPage.getByRole("button", { name: "Unfiled" }).click();
+		await authenticatedPage
+			.getByRole("menuitemradio", { name: "All folders" })
+			.click();
+		await expect(linkRow(authenticatedPage, primaryName)).toBeVisible();
 
 		await authenticatedPage
 			.getByRole("textbox", { name: "Search links" })

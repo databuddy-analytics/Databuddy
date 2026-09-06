@@ -40,19 +40,15 @@ test(
 			authenticatedPage.getByRole("textbox", { name: "Domain" })
 		).toHaveValue(domain);
 
-		await authenticatedPage.getByRole("button", { name: "Edit" }).first().click();
-		await expect(
-			authenticatedPage.getByRole("heading", { name: "Edit Website" })
-		).toBeVisible();
-		await authenticatedPage
-			.getByRole("textbox", { name: "Name" })
-			.fill(updatedName);
-		await authenticatedPage.getByRole("button", { name: "Save changes" }).click();
-		await expect(
-			authenticatedPage.getByRole("heading", { name: "Edit Website" })
-		).toBeHidden();
+		const nameInput = authenticatedPage.getByRole("textbox", { name: "Name" });
+		await nameInput.fill(updatedName);
+		const saveChanges = authenticatedPage.getByRole("button", {
+			name: "Save Changes",
+		});
+		await saveChanges.click();
+		await expect(saveChanges).toBeHidden();
 		await authenticatedPage.reload();
-		await expect(authenticatedPage.getByText(updatedName)).toBeVisible();
+		await expect(nameInput).toHaveValue(updatedName);
 
 		await authenticatedPage
 			.getByRole("button", { exact: true, name: "Delete" })
