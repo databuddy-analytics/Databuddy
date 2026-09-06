@@ -1581,6 +1581,12 @@ qualityCases.push({
 			(call) =>
 				call.name === "discover_query_types" &&
 				z
+					.object({
+						category: z.enum(["Audience", "Profiles", "Engagement"]).optional(),
+						search: z.enum(["", "cohort", "retention"]).optional(),
+					})
+					.safeParse(call.input).success &&
+				z
 					.object({ types: z.array(z.unknown()), matchCount: z.number() })
 					.safeParse(call.output).success
 		)

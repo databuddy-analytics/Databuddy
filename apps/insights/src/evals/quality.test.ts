@@ -292,3 +292,44 @@ it("rejects an activation definition lookup for another website", () => {
 		)
 	).toThrow();
 });
+
+it.each([
+	{
+		input: { category: "Revenue", search: "revenue_overview" },
+		accepted: false,
+	},
+	{ input: { category: "Audience", search: "language" }, accepted: false },
+	{ input: { category: "Audience", search: "retention" }, accepted: true },
+	{ input: { search: "" }, accepted: true },
+])("requires relevant cohort capability inspection: $input", ({
+	input,
+	accepted,
+}) => {
+	const fixture = qualityCases.find(
+		(entry) => entry.id === "retention-cohort-unavailable"
+	);
+	if (!fixture) throw new Error("Missing retention fixture");
+	const failures = fixture.check(
+		{
+			toolCallCount: 1,
+			outcome: {
+				title: "Weekly activity cannot measure cohort retention",
+				summary: "Cohort denominators and mature follow-up are missing.",
+				rootCause: null,
+				evidence: [],
+				findingKind: "measurement_coverage",
+				publish: false,
+				publicationBasis: null,
+				next: { type: "resolve", reason: "No cohort read is available." },
+			},
+		},
+		[
+			{
+				name: "discover_query_types",
+				input,
+				output: { types: [], matchCount: 0 },
+			},
+		]
+	);
+	expect(failures).toHaveLength(accepted ? 0 : 1);
+});
