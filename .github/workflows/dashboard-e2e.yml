@@ -106,12 +106,7 @@ jobs:
           bun run --cwd apps/dashboard playwright --version
           bun run --cwd apps/dashboard playwright install --with-deps chromium
       - name: Run dashboard E2E
-        run: |
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            bun run --cwd apps/dashboard test:e2e:local:pr
-          else
-            bun run --cwd apps/dashboard test:e2e:local
-          fi
+        run: bun run --cwd apps/dashboard test:e2e:local
       - name: Upload Playwright artifacts
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
