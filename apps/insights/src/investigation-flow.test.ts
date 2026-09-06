@@ -186,12 +186,7 @@ function appContext() {
 }
 
 function outputResponse(value: unknown) {
-	return {
-		content: [{ type: "text" as const, text: JSON.stringify(value) }],
-		finishReason: { unified: "stop" as const, raw: undefined },
-		usage,
-		warnings: [],
-	};
+	return toolCallResponse("finish_investigation", JSON.stringify(value));
 }
 
 function toolCallResponse(toolName = "inspect", input = "{}") {
@@ -267,9 +262,74 @@ describe("intelligence agent", () => {
 		expect(result).toMatchObject({ outcome, toolCallCount: 0 });
 		const call = model.doGenerateCalls[0];
 		expect(call?.tools?.map((item) => item.name).sort()).toEqual([
+			"finish_investigation",
 			"get_data",
 			"get_goal_analytics",
 		]);
+	});
+
+	it.each([
+		{ name: "inspect", output: { visitors: 300n }, keys: [null] },
+		{ name: "inspect", output: { error: "Read failed" }, keys: [] },
+		{
+			name: "get_data",
+			output: {
+				results: {
+					pages: { data: [{ visitors: 300 }] },
+					broken: { error: "Read failed" },
+				},
+			},
+			keys: ["pages"],
+		},
+	])("provides exact usable citation references for $name: $keys", async ({
+		name,
+		output,
+		keys,
+	}) => {
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				toolCallResponse(name),
+				outputResponse({ ...agentOutcome, title: "Search campaign is paused" })
+			),
+		});
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence,
+				signal,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+			},
+			{
+				model,
+				tools: {
+					[name]: tool({ inputSchema: z.object({}), execute: () => output }),
+				},
+			}
+		);
+		const messages = model.doGenerateCalls[1]?.prompt;
+		const read = messages
+			?.flatMap((message) => (message.role === "tool" ? message.content : []))
+			.find((part) => part.type === "tool-result");
+		if (read?.output.type !== "text")
+			throw new Error("Missing model-visible read");
+		expect(JSON.parse(read.output.value)).toEqual({
+			result: JSON.parse(
+				JSON.stringify(output, (_key, value) =>
+					typeof value === "bigint" ? value.toString() : value
+				)
+			),
+			sources: keys.map((resultKey) => ({
+				source: "tool",
+				name,
+				toolCallId: `${name}-1`,
+				resultKey,
+			})),
+		});
+		expect(result.outcome.title).toBe("Search campaign is paused");
+		expect(result.toolCallCount).toBe(1);
+		expect(model.doGenerateCalls).toHaveLength(2);
 	});
 
 	it("forces published raw-error findings into reliability exposure", async () => {
@@ -835,7 +895,7 @@ describe("intelligence agent", () => {
 		const model = new MockLanguageModelV3({
 			doGenerate: mockValues(
 				{
-					content: [{ type: "text" as const, text: "not-json" }],
+					...toolCallResponse("finish_investigation", "not-json"),
 					finishReason: { unified: "stop" as const, raw: undefined },
 					usage,
 					warnings: [],
@@ -861,7 +921,7 @@ describe("intelligence agent", () => {
 		expect(result.usage?.outputTokens).toBe(2);
 		expect(model.doGenerateCalls).toHaveLength(2);
 		expect(JSON.stringify(model.doGenerateCalls[1])).toContain(
-			"prior final response was not valid structured output"
+			"finish_investigation"
 		);
 	});
 
@@ -894,55 +954,14 @@ describe("intelligence agent", () => {
 		);
 	});
 
-	it("keeps tools available after an empty response before any reads", async () => {
-		const model = new MockLanguageModelV3({
-			doGenerate: mockValues(
-				{
-					content: [],
-					finishReason: { unified: "stop" as const, raw: undefined },
-					usage,
-					warnings: [],
-				},
-				toolCallResponse(),
-				outputResponse(agentOutcome)
-			),
-		});
-		let reads = 0;
-		const result = await runInsightAgent(
-			{
-				appContext: appContext(),
-				evidence,
-				signal,
-				githubRepository: null,
-				history: [],
-				otherOpenWork: [],
-			},
-			{
-				model,
-				tools: {
-					inspect: tool({
-						description: "Inspect evidence.",
-						inputSchema: z.object({}),
-						execute: () => {
-							reads++;
-							return { fact: evidence[0] };
-						},
-					}),
-				},
-			}
-		);
-		expect(reads).toBe(1);
-		expect(result.outcome).toEqual(outcome);
-		expect(model.doGenerateCalls[1]?.tools?.map((item) => item.name)).toContain(
-			"inspect"
-		);
-	});
-
-	it("bounds repeated empty provider responses and preserves their usage", async () => {
+	it.each([
+		"",
+		"I cannot complete this investigation.",
+	])("stops a provider turn without a tool call and preserves usage: %s", async (text) => {
 		const model = new MockLanguageModelV3({
 			doGenerate: () =>
 				Promise.resolve({
-					content: [],
+					content: text ? [{ type: "text" as const, text }] : [],
 					finishReason: { unified: "stop" as const, raw: undefined },
 					usage,
 					warnings: [],
@@ -965,50 +984,9 @@ describe("intelligence agent", () => {
 			failure = error;
 		}
 		expect(failure).toBeInstanceOf(InsightAgentGenerationError);
-		expect(model.doGenerateCalls.length).toBeLessThanOrEqual(11);
+		expect(model.doGenerateCalls).toHaveLength(1);
 		if (!(failure instanceof InsightAgentGenerationError)) throw failure;
 		expect(failure.usage.inputTokens).toBe(model.doGenerateCalls.length);
-	});
-
-	it("allows empty provider turns within the overall budget without losing inspection", async () => {
-		const empty = {
-			content: [],
-			finishReason: { unified: "stop" as const, raw: undefined },
-			usage,
-			warnings: [],
-		};
-		const model = new MockLanguageModelV3({
-			doGenerate: mockValues(
-				empty,
-				empty,
-				toolCallResponse(),
-				empty,
-				outputResponse(agentOutcome)
-			),
-		});
-		const result = await runInsightAgent(
-			{
-				appContext: appContext(),
-				evidence,
-				signal,
-				githubRepository: null,
-				history: [],
-				otherOpenWork: [],
-			},
-			{
-				model,
-				tools: {
-					inspect: tool({
-						description: "Read synthetic evidence.",
-						inputSchema: z.object({}),
-						execute: () => ({ fact: evidence[0] }),
-					}),
-				},
-			}
-		);
-		expect(result.outcome).toEqual(outcome);
-		expect(result.toolCallCount).toBe(1);
-		expect(model.doGenerateCalls).toHaveLength(5);
 	});
 
 	it("can inspect missing context after a malformed response follows a read", async () => {
@@ -1055,7 +1033,7 @@ describe("intelligence agent", () => {
 			doGenerate: () => {
 				calls++;
 				return Promise.resolve(
-					calls <= 8 ? toolCallResponse() : outputResponse(agentOutcome)
+					calls <= 7 ? toolCallResponse() : outputResponse(agentOutcome)
 				);
 			},
 		});
@@ -1079,9 +1057,11 @@ describe("intelligence agent", () => {
 				},
 			}
 		);
-		expect(result.toolCallCount).toBe(8);
-		expect(calls).toBe(9);
-		expect(model.doGenerateCalls[8]?.tools).toBeUndefined();
+		expect(result.toolCallCount).toBe(7);
+		expect(calls).toBe(8);
+		expect(model.doGenerateCalls[7]?.tools?.map((entry) => entry.name)).toEqual(
+			["finish_investigation"]
+		);
 		expect(result.outcome).toEqual(outcome);
 	});
 
@@ -1091,7 +1071,7 @@ describe("intelligence agent", () => {
 			doGenerate: mockValues(
 				toolCallResponse(),
 				{
-					content: [{ type: "text" as const, text: "not-json" }],
+					...toolCallResponse("finish_investigation", "not-json"),
 					finishReason: { unified: "stop" as const, raw: undefined },
 					usage,
 					warnings: [],
@@ -1146,7 +1126,7 @@ describe("intelligence agent", () => {
 			"inspect"
 		);
 		expect(JSON.stringify(model.doGenerateCalls[2])).toContain(
-			"prior final response was not valid structured output"
+			"finish_investigation"
 		);
 	});
 
@@ -1379,11 +1359,11 @@ describe("intelligence agent", () => {
 		expect(JSON.stringify(model.doGenerateCalls[1])).toContain("impact");
 	});
 
-	it("retries when the structured response reaches the output limit", async () => {
+	it("repairs a truncated finish call inside the same tool loop", async () => {
 		const model = new MockLanguageModelV3({
 			doGenerate: mockValues(
 				{
-					content: [{ type: "text" as const, text: '{"title":"cut off' }],
+					...toolCallResponse("finish_investigation", '{"title":"cut off'),
 					finishReason: { unified: "length" as const, raw: undefined },
 					usage,
 					warnings: [],
@@ -1409,9 +1389,9 @@ describe("intelligence agent", () => {
 		expect(model.doGenerateCalls).toHaveLength(2);
 	});
 
-	it("reports aggregate usage when all structured output attempts fail", async () => {
+	it("bounds rejected finish calls and retains their aggregate usage", async () => {
 		const malformed = {
-			content: [{ type: "text" as const, text: "not-json" }],
+			...toolCallResponse("finish_investigation", "not-json"),
 			finishReason: { unified: "stop" as const, raw: undefined },
 			usage,
 			warnings: [],
@@ -1761,7 +1741,10 @@ describe("intelligence agent", () => {
 		).rejects.toThrow(expected);
 	});
 
-	it("repairs the citation without dropping a measured discovery or repeating its read", async () => {
+	it.each([
+		false,
+		true,
+	])("repairs a citation without repeating its read (premature finish: %s)", async (premature) => {
 		const discovered = {
 			...agentOutcome,
 			evidence: ["88 visitors reached checkout."],
@@ -1780,9 +1763,22 @@ describe("intelligence agent", () => {
 		};
 		const model = new MockLanguageModelV3({
 			doGenerate: mockValues(
-				toolCallResponse(),
-				outputResponse(discovered),
-				outputResponse(corrected)
+				...(premature
+					? [
+							{
+								...toolCallResponse(),
+								content: [
+									...toolCallResponse().content,
+									...outputResponse(corrected).content,
+								],
+							},
+							outputResponse(corrected),
+						]
+					: [
+							toolCallResponse(),
+							outputResponse(discovered),
+							outputResponse(corrected),
+						])
 			),
 		});
 		let reads = 0;
@@ -1809,11 +1805,24 @@ describe("intelligence agent", () => {
 				},
 			}
 		);
-		const feedback = JSON.stringify(model.doGenerateCalls[2]?.prompt);
-		expect(feedback).toContain("evidence[0] cites the number 88");
-		expect(feedback).toContain("Correct evidenceRefs[0]");
-		expect(feedback).toContain("Preserve facts supported by inspected results");
-		expect(model.doGenerateCalls).toHaveLength(3);
+		const feedback = JSON.stringify(
+			model.doGenerateCalls[premature ? 1 : 2]?.prompt
+		);
+		if (premature) {
+			expect(feedback).toContain(
+				"result that does not exist: inspect/inspect-1"
+			);
+			expect(feedback).toContain(
+				"use its result next turn without repeating it"
+			);
+		} else {
+			expect(feedback).toContain("evidence[0] cites the number 88");
+			expect(feedback).toContain("Correct evidenceRefs[0]");
+			expect(feedback).toContain(
+				"Preserve facts supported by inspected results"
+			);
+		}
+		expect(model.doGenerateCalls).toHaveLength(premature ? 2 : 3);
 		expect(result.outcome.evidence).toEqual(discovered.evidence);
 		expect(reads).toBe(1);
 	});

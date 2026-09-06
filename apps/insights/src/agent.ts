@@ -18,12 +18,9 @@ import {
 import {
 	type LanguageModel,
 	type LanguageModelUsage,
-	type ModelMessage,
-	modelMessageSchema,
-	NoObjectGeneratedError,
-	Output,
 	type StepResult,
 	stepCountIs,
+	tool,
 	type ToolLoopAgentOnStepFinishCallback,
 	type ToolSet,
 	ToolLoopAgent,
@@ -32,7 +29,7 @@ import type { ErrorCustomerImpact } from "./error-customer-impact";
 
 const MAX_STEPS = 8;
 const TIMEOUT_MS = 2 * 60_000;
-const STRUCTURED_OUTPUT_ATTEMPTS = 3;
+const MAX_FINISH_ATTEMPTS = 3;
 const INSIGHTS_MODEL_ID = "openai/gpt-5.6-terra";
 const INSIGHTS_MODEL = createModelFromId(INSIGHTS_MODEL_ID);
 
@@ -77,69 +74,6 @@ function aggregateUsage(usages: LanguageModelUsage[]): LanguageModelUsage {
 		reasoningTokens: sum(usages.map((usage) => usage.reasoningTokens)),
 		totalTokens: sum(usages.map((usage) => usage.totalTokens)),
 	};
-}
-
-function schemaIssuePaths(value: unknown, depth = 0): string[] {
-	if (depth > 3 || value === null || typeof value !== "object") {
-		return [];
-	}
-	const record = value as { cause?: unknown; issues?: unknown };
-	if (!Array.isArray(record.issues)) {
-		return schemaIssuePaths(record.cause, depth + 1);
-	}
-	const paths = new Set<string>();
-	for (const issue of record.issues) {
-		if (issue === null || typeof issue !== "object") {
-			continue;
-		}
-		const path = (issue as { path?: unknown }).path;
-		if (!Array.isArray(path)) {
-			continue;
-		}
-		const message =
-			"message" in issue && typeof issue.message === "string"
-				? issue.message.slice(0, 240)
-				: "";
-		const issuePath = path
-			.filter(
-				(segment): segment is string | number =>
-					typeof segment === "string" || typeof segment === "number"
-			)
-			.join(".");
-		if (issuePath) {
-			paths.add(message ? `${issuePath}: ${message}` : issuePath);
-		}
-	}
-	return [...paths].slice(0, 4);
-}
-
-function outputRetryInstruction(error: NoObjectGeneratedError): string {
-	const paths = schemaIssuePaths(error.cause);
-	return paths.length > 0
-		? `The prior final response failed schema validation at ${paths.join(", ")}. Correct those fields and return one complete object matching the required schema.`
-		: "The prior final response was not valid structured output. Return exactly one complete object matching the required schema.";
-}
-
-function outputFailureCause(error: NoObjectGeneratedError): Error {
-	const paths = schemaIssuePaths(error.cause);
-	return paths.length > 0
-		? new Error(`${error.message} Invalid fields: ${paths.join(", ")}.`, {
-				cause: error,
-			})
-		: error;
-}
-
-function replayableResponseMessages(messages: ModelMessage[]): ModelMessage[] {
-	const serialized = JSON.stringify(messages, (_key, value) =>
-		typeof value === "bigint" ? value.toString() : value
-	);
-	const parsed = modelMessageSchema.array().safeParse(JSON.parse(serialized));
-	if (!parsed.success) {
-		throw new Error(
-			"Insights agent response cannot be replayed for a structured-output retry"
-		);
-	}
-	return parsed.data;
 }
 
 type InterruptingNext = Extract<
@@ -219,7 +153,7 @@ export class InsightAgentGenerationError extends InsightAgentExecutionError {
 	}
 }
 
-const INSTRUCTIONS = `Investigate one exact Databuddy signal until a teammate has a clear next move or a useful new fact. Validators enforce the output contract; a rejected response comes back with the reason, so correct it and return one complete object.
+const INSTRUCTIONS = `Investigate one exact Databuddy signal until a teammate has a clear next move or a useful new fact. Finish by calling finish_investigation in a separate turn after receiving the needed read results. Its validation errors identify what to correct within this same investigation. Do not finish with ordinary text.
 
 Subject
 - Name the exact subject: signal.entity.label for named goals, funnels, pages, events, and campaigns; otherwise the most specific inspected path, segment, or fingerprint. A fingerprint cohort can span routes, so never narrow the headline or repair request to one representative path.
@@ -699,7 +633,7 @@ function resolveEvidenceReferences(
 		);
 		if (!result) {
 			throw new Error(
-				`Insights agent cited a read tool result that does not exist: ${ref.name}/${ref.toolCallId}. Cite an exact successful call or source signal.`
+				`Insights agent cited a read tool result that does not exist: ${ref.name}/${ref.toolCallId}. Cite a completed successful call or source signal. If a read was sent alongside this finish call, use its result next turn without repeating it.`
 			);
 		}
 		let output = result.output;
@@ -906,30 +840,46 @@ export async function runInsightAgent(
 		list_websites: _listWebsites,
 		...investigationTools
 	} = availableTools;
-	const createAgent = (remainingSteps: number) => {
-		const finalOnly = remainingSteps <= 1;
-		return new ToolLoopAgent({
-			model: options.model ?? getAILogger().wrap(INSIGHTS_MODEL),
-			instructions,
-			tools: finalOnly ? undefined : investigationTools,
-			...(finalOnly ? { toolChoice: "none" as const } : {}),
-			output: Output.object({
-				description: "One complete, evidence-backed investigation outcome.",
-				name: "investigation_outcome",
-				schema: agentInvestigationOutcomeSchema,
-			}),
-			stopWhen: stepCountIs(Math.max(1, remainingSteps)),
-			maxRetries: AI_MODEL_MAX_RETRIES,
-			maxOutputTokens: 3200,
-			prepareStep: ({ stepNumber }) =>
-				stepNumber === remainingSteps - 1 ? { toolChoice: "none" } : {},
-			experimental_context: input.appContext,
-			experimental_telemetry: {
-				isEnabled: !options.model,
-				functionId: "databuddy.insights.investigate",
+	for (const [name, definition] of Object.entries(investigationTools)) {
+		if (definition.toModelOutput) {
+			continue;
+		}
+		investigationTools[name] = {
+			...definition,
+			toModelOutput: ({
+				toolCallId,
+				output,
+			}: {
+				toolCallId: string;
+				output: unknown;
+			}) => {
+				const candidates: [string | null, unknown][] =
+					name === "get_data"
+						? output &&
+							typeof output === "object" &&
+							"results" in output &&
+							output.results &&
+							typeof output.results === "object"
+							? Object.entries(output.results)
+							: []
+						: [[null, output]];
+				const sources = candidates
+					.filter(([, value]) => isSuccessfulRead(value))
+					.map(([resultKey]) => ({
+						source: "tool",
+						name,
+						toolCallId,
+						resultKey,
+					}));
+				return {
+					type: "text" as const,
+					value: JSON.stringify({ sources, result: output }, (_key, value) =>
+						typeof value === "bigint" ? value.toString() : value
+					),
+				};
 			},
-		});
-	};
+		};
+	}
 	const prompt = {
 		asOf: input.appContext.currentDateTime,
 		capabilities: {
@@ -972,198 +922,150 @@ export async function runInsightAgent(
 		relatedSignals: (input.relatedSignals ?? []).map(promptSignal),
 		signal: promptSignal(input.signal),
 	};
-	const deadline = Date.now() + TIMEOUT_MS;
-	const usages: LanguageModelUsage[] = [];
-	const inspectedSteps: StepResult<ToolSet>[] = [];
-	const priorResponses: ModelMessage[] = [];
+	const steps: StepResult<ToolSet>[] = [];
+	let outcome: InvestigationOutcome | undefined;
 	let toolCallCount = 0;
 	let modelId = resolveModelId(options.model);
-	let outputRetry: string | undefined;
-	let invalidOutputs = 0;
-	// Empty provider turns consume the overall step budget, not the malformed-output allowance.
-	for (
-		let attempt = 0;
-		attempt < MAX_STEPS + STRUCTURED_OUTPUT_ATTEMPTS;
-		attempt += 1
-	) {
-		const usageCount = usages.length;
-		let attemptMessages: ModelMessage[] = [];
-		const preserveAttemptMessages = () => {
-			priorResponses.push(...replayableResponseMessages(attemptMessages));
-		};
-		try {
-			const promptJson = JSON.stringify(prompt);
-			const continueFromPriorSteps = priorResponses.length > 0;
-			const result = await createAgent(
-				MAX_STEPS - inspectedSteps.length
-			).generate({
-				abortSignal: options.abortSignal,
-				onStepFinish: async (step) => {
-					inspectedSteps.push(step);
-					attemptMessages = step.response.messages;
-					usages.push(step.usage);
-					toolCallCount += step.toolCalls.length;
-					await options.onStepFinish?.(step);
-				},
-				...(continueFromPriorSteps
-					? {
-							messages: [
-								{ content: promptJson, role: "user" },
-								...priorResponses,
-								{
-									content:
-										outputRetry ??
-										"Reuse inspected results; do not repeat successful reads. Return one complete object matching the required schema.",
-									role: "user",
-								},
-							],
-						}
-					: { prompt: promptJson }),
-				timeout: { totalMs: Math.max(1, deadline - Date.now()) },
-			});
-			modelId = result.response.modelId;
-			if (
-				(result.finishReason === "length" ||
-					result.finishReason === "tool-calls") &&
-				invalidOutputs < STRUCTURED_OUTPUT_ATTEMPTS - 1 &&
-				Date.now() < deadline
-			) {
-				invalidOutputs += 1;
-				preserveAttemptMessages();
-				outputRetry =
-					result.finishReason === "length"
-						? "The prior final response was cut off. Return one shorter, complete object matching the required schema."
-						: "The read budget is exhausted. Use the inspected evidence and return one complete outcome; state remaining uncertainty without inventing missing facts.";
-				continue;
-			}
-			if (result.finishReason !== "stop") {
-				throw new InsightAgentGenerationError({
-					cause: new Error(
-						`Insights agent stopped before structured output (${result.finishReason})`
-					),
-					modelId,
-					toolCallCount,
-					usage: aggregateUsage(usages),
-				});
-			}
-			let outcome: InvestigationOutcome;
-			try {
-				const steps = inspectedSteps.length > 0 ? inspectedSteps : result.steps;
-				const results = steps.flatMap((step) => step.toolResults);
-				const successfulResults = results.filter(
-					(result) => successfulReadOutputs(result).length > 0
-				);
-				const usedToolNames = new Set(
-					successfulResults.map((result) => result.toolName)
-				);
-				const attemptedToolNames = new Set(
-					steps.flatMap((step) => step.toolCalls.map((call) => call.toolName))
-				);
-				const citedEvidence = resolveEvidenceReferences(
-					result.output,
-					input,
-					results
-				);
-				outcome = validateAgentOutcome(
-					result.output,
-					input,
-					usedToolNames,
-					results,
-					attemptedToolNames
-				);
-				const serialize = (value: unknown) =>
-					JSON.stringify(value, (_key, item) =>
-						typeof item === "bigint" ? item.toString() : item
+	const agent = new ToolLoopAgent<never, ToolSet>({
+		model: options.model ?? getAILogger().wrap(INSIGHTS_MODEL),
+		instructions,
+		tools: {
+			...investigationTools,
+			finish_investigation: tool({
+				description:
+					"Submit the evidence-backed outcome and finish. Call after the necessary reads. If validation fails, correct the cited error using existing results.",
+				inputSchema: agentInvestigationOutcomeSchema,
+				execute: (proposed) => {
+					if (outcome) {
+						throw new Error(
+							"This investigation already has an accepted outcome."
+						);
+					}
+					const results = steps.flatMap((step) => step.toolResults);
+					const successfulResults = results.filter(
+						(result) => successfulReadOutputs(result).length > 0
 					);
-				validateNumericGrounding(
-					result.output,
-					serialize({
-						signal: promptSignal(input.signal),
-						evidence: input.evidence,
-						customerImpact: input.customerImpact,
-						relatedSignals: (input.relatedSignals ?? []).map(promptSignal),
-						results: successfulResults.flatMap(successfulReadOutputs),
-					})
-				);
-				for (const [index, source] of citedEvidence.entries()) {
+					const usedToolNames = new Set(
+						successfulResults.map((result) => result.toolName)
+					);
+					const attemptedToolNames = new Set(
+						steps.flatMap((step) => step.toolCalls.map((call) => call.toolName))
+					);
+					const citedEvidence = resolveEvidenceReferences(
+						proposed,
+						input,
+						results
+					);
+					const validated = validateAgentOutcome(
+						proposed,
+						input,
+						usedToolNames,
+						results,
+						attemptedToolNames
+					);
+					const serialize = (value: unknown) =>
+						JSON.stringify(value, (_key, item) =>
+							typeof item === "bigint" ? item.toString() : item
+						);
 					validateNumericGrounding(
-						{
-							title: "",
-							summary: "",
-							impact: null,
-							evidence: [result.output.evidence[index]],
-						},
-						serialize(source),
-						index
+						proposed,
+						serialize({
+							signal: promptSignal(input.signal),
+							evidence: input.evidence,
+							customerImpact: input.customerImpact,
+							relatedSignals: (input.relatedSignals ?? []).map(promptSignal),
+							results: successfulResults.flatMap(successfulReadOutputs),
+						})
 					);
-				}
-			} catch (error) {
-				const generationError = new InsightAgentGenerationError({
-					cause: error,
-					modelId,
-					toolCallCount,
-					usage: aggregateUsage(usages),
-				});
-				invalidOutputs += 1;
-				if (
-					invalidOutputs < STRUCTURED_OUTPUT_ATTEMPTS &&
-					Date.now() < deadline
-				) {
-					preserveAttemptMessages();
-					outputRetry = `The prior final response failed validation: ${generationError.message}. Correct that error and return one complete object matching the required schema.`;
-					continue;
-				}
-				throw generationError;
-			}
-			return {
-				modelId: result.response.modelId,
-				outcome,
+					for (const [index, source] of citedEvidence.entries()) {
+						validateNumericGrounding(
+							{
+								title: "",
+								summary: "",
+								impact: null,
+								evidence: [proposed.evidence[index]],
+							},
+							serialize(source),
+							index
+						);
+					}
+					outcome = validated;
+					return { accepted: true };
+				},
+			}),
+		},
+		toolChoice: "required",
+		stopWhen: [
+			stepCountIs(MAX_STEPS),
+			() => Boolean(outcome),
+			() =>
+				steps
+					.flatMap((step) => step.toolCalls)
+					.filter((call) => call.toolName === "finish_investigation").length >=
+				MAX_FINISH_ATTEMPTS,
+		],
+		prepareStep: ({ stepNumber }) =>
+			stepNumber === MAX_STEPS - 1
+				? {
+						activeTools: ["finish_investigation"],
+						toolChoice: { type: "tool", toolName: "finish_investigation" },
+					}
+				: {},
+		maxRetries: AI_MODEL_MAX_RETRIES,
+		maxOutputTokens: 3200,
+		experimental_context: input.appContext,
+		experimental_telemetry: {
+			isEnabled: !options.model,
+			functionId: "databuddy.insights.investigate",
+		},
+	});
+	try {
+		const result = await agent.generate({
+			prompt: JSON.stringify(prompt),
+			abortSignal: options.abortSignal,
+			timeout: { totalMs: TIMEOUT_MS },
+			onStepFinish: async (step) => {
+				steps.push(step);
+				modelId = step.response.modelId;
+				toolCallCount += step.toolCalls.filter(
+					(call) => call.toolName !== "finish_investigation"
+				).length;
+				await options.onStepFinish?.(step);
+			},
+		});
+		if (!outcome) {
+			const rejected = result.steps
+				.at(-1)
+				?.content.find(
+					(part) =>
+						part.type === "tool-error" &&
+						part.toolName === "finish_investigation"
+				);
+			throw new InsightAgentGenerationError({
+				cause:
+					rejected?.type === "tool-error"
+						? rejected.error
+						: new Error(
+								`Insights agent ended without an accepted outcome (${result.finishReason})`
+							),
+				modelId,
 				toolCallCount,
-				usage: aggregateUsage(usages),
-			};
-		} catch (error) {
-			if (NoObjectGeneratedError.isInstance(error)) {
-				if (usages.length === usageCount && error.usage) {
-					usages.push(error.usage);
-				}
-				modelId = error.response?.modelId ?? modelId;
-				if (error.text?.trim() || inspectedSteps.length >= MAX_STEPS) {
-					invalidOutputs += 1;
-				}
-				if (
-					invalidOutputs < STRUCTURED_OUTPUT_ATTEMPTS &&
-					error.finishReason !== "content-filter" &&
-					Date.now() < deadline
-				) {
-					preserveAttemptMessages();
-					outputRetry = outputRetryInstruction(error);
-					continue;
-				}
-				throw new InsightAgentGenerationError({
-					cause: outputFailureCause(error),
-					modelId,
-					toolCallCount,
-					usage: aggregateUsage(usages),
-				});
-			}
-			if (error instanceof InsightAgentExecutionError) {
-				throw error;
-			}
-			if (usages.length > 0) {
-				throw new InsightAgentExecutionError({
-					cause: error,
-					modelId,
-					toolCallCount,
-					usage: aggregateUsage(usages),
-				});
-			}
+				usage: result.totalUsage,
+			});
+		}
+		return { modelId, outcome, toolCallCount, usage: result.totalUsage };
+	} catch (error) {
+		if (error instanceof InsightAgentExecutionError) {
 			throw error;
 		}
+		if (steps.length > 0) {
+			throw new InsightAgentExecutionError({
+				cause: error,
+				modelId,
+				toolCallCount,
+				usage: aggregateUsage(steps.map((step) => step.usage)),
+			});
+		}
+		throw error;
 	}
-	throw new InsightAgentGenerationError({
-		cause: new Error("Insights agent exhausted structured output attempts"),
-		modelId,
-		toolCallCount,
-		usage: aggregateUsage(usages),
-	});
 }
