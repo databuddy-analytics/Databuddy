@@ -933,7 +933,6 @@ if (import.meta.main) {
 			}
 		}
 	}
-	if (results.some((result) => result.failures.length > 0)) {
-		process.exitCode = 1;
-	}
+	// Results and traces are flushed; imported, unused client pools must not keep this CLI alive.
+	process.exit(results.some((result) => result.failures.length > 0) ? 1 : 0);
 }
