@@ -34,6 +34,11 @@ import {
 	insightDefinitionEditError,
 } from "@databuddy/shared/insights";
 import { isDeepStrictEqual } from "node:util";
+
+// Goal and funnel filters are conjunctive, so reordering them does not change
+// what the definition measures. Compare them order-insensitively.
+const canonicalFilters = (filters: unknown[] | null | undefined): string[] =>
+	[...(filters ?? [])].map((filter) => JSON.stringify(filter)).sort();
 import { ORPCError } from "@orpc/server";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
@@ -908,7 +913,10 @@ async function applyInsightAction(input: {
 					changes.name === goal.name &&
 					changes.target === goal.target &&
 					changes.type === goal.type &&
-					isDeepStrictEqual(changes.filters ?? [], goal.filters ?? [])
+					isDeepStrictEqual(
+						canonicalFilters(changes.filters),
+						canonicalFilters(goal.filters)
+					)
 				) {
 					throw rpcError.badRequest(
 						"This action does not change the goal definition."
@@ -981,7 +989,10 @@ async function applyInsightAction(input: {
 					changes.description === funnel.description &&
 					changes.name === funnel.name &&
 					isDeepStrictEqual(changes.steps, funnel.steps) &&
-					isDeepStrictEqual(changes.filters ?? [], funnel.filters ?? [])
+					isDeepStrictEqual(
+						canonicalFilters(changes.filters),
+						canonicalFilters(funnel.filters)
+					)
 				) {
 					throw rpcError.badRequest(
 						"This action does not change the funnel definition."

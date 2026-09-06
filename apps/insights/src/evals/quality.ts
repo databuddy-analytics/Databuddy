@@ -270,6 +270,11 @@ export const qualityCases: QualityCase[] = [
 							"Manufactured work without an established remedy or missing fact",
 						]),
 				...(outcome.rootCause === null ? [] : ["Invented a causal mechanism"]),
+				...(outcome.findingKind === "product_outcome"
+					? []
+					: [
+							"Misclassified a measured business result instead of reporting it as a product outcome",
+						]),
 			],
 		})
 	),

@@ -811,9 +811,12 @@ function validateAgentOutcome(
 			(ref) =>
 				ref.source === "provided" ||
 				(ref.source === "tool" &&
-					["scrape_page", "github_read_file", "github_commit_diff"].includes(
-						ref.name
-					))
+					[
+						"scrape_page",
+						"github_read_file",
+						"github_search_code",
+						"github_commit_diff",
+					].includes(ref.name))
 		);
 		if (outcome.findingKind !== "measurement_coverage" || !citedContext) {
 			throw new Error(

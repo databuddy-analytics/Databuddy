@@ -6,8 +6,6 @@ import {
 } from "./trait-filters";
 import type { QueryRequest } from "./types";
 
-const mockResolveTraitSegment = vi.fn();
-
 vi.mock("@databuddy/services/identity", () => {
 	class TraitFilterError extends Error {}
 
@@ -15,9 +13,16 @@ vi.mock("@databuddy/services/identity", () => {
 		TraitFilterError,
 		isTraitFilterField: (field: string) =>
 			field.startsWith("trait:") && field.length > "trait:".length,
-		resolveTraitSegment: mockResolveTraitSegment,
+		// Created inside the factory so this works under both vitest and bun:test,
+		// which hoist vi.mock but differ on vi.hoisted support.
+		resolveTraitSegment: vi.fn(),
 	};
 });
+
+const { resolveTraitSegment } = await import("@databuddy/services/identity");
+const mockResolveTraitSegment = resolveTraitSegment as unknown as ReturnType<
+	typeof vi.fn
+>;
 
 function makeRequest(overrides: Partial<QueryRequest> = {}): QueryRequest {
 	return {
