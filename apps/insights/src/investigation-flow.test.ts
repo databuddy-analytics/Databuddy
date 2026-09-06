@@ -2687,6 +2687,92 @@ describe("structured revenue evidence", () => {
 	};
 	const input = { appContext: appContext(), signal };
 
+	it.each([
+		["revenue", ["total_revenue"], "product_outcome", false],
+		["revenue:USD", ["total_revenue"], "product_outcome", true],
+		["revenue:EUR", ["total_revenue"], "product_outcome", false],
+		["visitors", ["total_revenue"], "product_outcome", false],
+		["revenue:USD", ["refund_amount"], "product_outcome", false],
+		["revenue:USD", null, "product_outcome", false],
+		["revenue:USD", ["total_revenue"], "measurement_coverage", false],
+		["revenue:USD", ["total_revenue"], "user_experience", false],
+	] as const)("requires subject and field-bound currency evidence: %s / %j", async (signalKey, fields, findingKind, accepted) => {
+		const proposal = {
+			findingKind,
+			title: "USD gross revenue fell",
+			summary: "Gross settlements declined.",
+			rootCause: null,
+			evidence: fields
+				? [{ currency: "USD", fields: [...fields] }]
+				: ["Gross revenue declined."],
+			evidenceRefs: fields
+				? [
+						["current", "previous"].map((resultKey) => ({
+							source: "tool",
+							name: "get_data",
+							toolCallId: "get_data-1",
+							resultKey,
+						})),
+					]
+				: [{ source: "signal" }],
+			publish: true,
+			publicationBasis:
+				findingKind === "measurement_coverage"
+					? "decision_safety"
+					: "measured_impact",
+			next: { type: "resolve", reason: "No inspected cause is established." },
+		};
+		const run = runInsightAgent(
+			{
+				...input,
+				signal: {
+					...signal,
+					signalKey,
+					entity: {
+						type: "website",
+						id: "website",
+						label: "USD gross revenue",
+					},
+					metric: {
+						label: "Gross revenue",
+						current: 6000,
+						previous: 10000,
+						format: "number",
+					},
+				},
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				evidence: [],
+			},
+			{
+				model: new MockLanguageModelV3({
+					doGenerate: mockValues(
+						toolCallResponse("get_data"),
+						outputResponse(proposal)
+					),
+				}),
+				tools: {
+					get_data: tool({
+						description: "Native revenue measurement",
+						inputSchema: z.object({}),
+						execute: () => ({
+							results: {
+								current: {
+									...readings[0],
+									data: [{ ...readings[0].data[0], total_revenue: 6000 }],
+								},
+								previous: readings[1],
+							},
+						}),
+					}),
+				},
+			}
+		);
+		if (accepted) expect((await run).outcome.publish).toBe(true);
+		else await expect(run).rejects.toThrow("not a verified product loss");
+	});
+
 	it("binds metrics to their labels and computes a refund delta absent from the source", () => {
 		expect(renderRevenueEvidence(selection, readings, input)).toBe(
 			"USD, 2026-06-28–2026-07-04 → 2026-07-05–2026-07-11 UTC: Gross Revenue: 10,000 → 10,000; Settled Transactions: 100 → 100; Refund Amount: 200 → 1,200 (+1,000)."

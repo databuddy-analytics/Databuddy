@@ -11,6 +11,9 @@ import { createToolkit } from "@databuddy/ai/tools/toolkit";
 import { insightMeasurementSchema } from "@databuddy/shared/insights";
 import { tool, wrapLanguageModel, type ToolSet } from "ai";
 import { z } from "zod";
+import dayjs from "dayjs";
+import { detectSignals, type QueryFn } from "../detection";
+import { prepareInvestigation } from "../investigation";
 import { resolveSync } from "bun";
 import {
 	runInsightAgent,
@@ -149,6 +152,7 @@ interface QualityCase {
 	id: string;
 	input: InsightAgentInput;
 	reviewRequired?: string;
+	setup?: Awaited<ReturnType<typeof nativeRevenueSetup>>;
 	tools: ToolSet;
 }
 export const qualityCases: QualityCase[] = [
@@ -1372,37 +1376,133 @@ qualityCases.push({
 	],
 });
 
-for (const attributionLoss of [false, true]) {
+function revenueRows(previous: boolean, attributionLoss = false) {
+	const gross = previous || attributionLoss ? 10_000 : 6000;
+	const payments = previous || attributionLoss ? 100 : 60;
+	return [
+		{
+			currency: "USD",
+			total_revenue: gross,
+			total_transactions: payments,
+			refund_amount: previous ? 200 : 1200,
+			refund_count: previous ? 2 : 12,
+			subscription_revenue: gross,
+			subscription_count: payments,
+			unique_customers: payments,
+			attributed_revenue: attributionLoss && !previous ? 4000 : gross,
+			attributed_transactions: attributionLoss && !previous ? 40 : payments,
+			payment_diagnostics_available: 0,
+		},
+		{
+			currency: "EUR",
+			total_revenue: 5000,
+			total_transactions: 50,
+			refund_amount: 0,
+			refund_count: 0,
+			subscription_revenue: 5000,
+			subscription_count: 50,
+			unique_customers: 50,
+			attributed_revenue: 5000,
+			attributed_transactions: 50,
+			payment_diagnostics_available: 0,
+		},
+	];
+}
+
+async function nativeRevenueSetup() {
+	const detectionReads: {
+		request: Parameters<QueryFn>[0];
+		rows: Record<string, unknown>[];
+	}[] = [];
+	const nativeRevenueQuery: QueryFn = (request) => {
+		const rows =
+			request.type === "revenue_overview"
+				? revenueRows(request.from === period.previous.from)
+				: [];
+		detectionReads.push({ request, rows });
+		return Promise.resolve(rows);
+	};
+	const detectedRevenue = await detectSignals(
+		{ websiteId: appContext.websiteId, timezone: "UTC", lookbackDays: 7 },
+		nativeRevenueQuery,
+		dayjs.utc(appContext.currentDateTime)
+	);
+	const revenueSignal = detectedRevenue.find(
+		(signal) => signal.metric === "revenue"
+	);
+	if (!revenueSignal) {
+		throw new Error(
+			"Native detector did not emit the synthetic revenue decline"
+		);
+	}
+	return {
+		detectionReads,
+		detectedRevenue,
+		preparedRevenue: prepareInvestigation(revenueSignal, 7),
+	};
+}
+
+const revenueSetup = import.meta.main ? await nativeRevenueSetup() : null;
+
+for (const scenario of [
+	"payments",
+	"attribution",
+	"native-decline",
+	"native-stale",
+	"native-unavailable",
+] as const) {
+	const attributionLoss = scenario === "attribution";
+	const native = scenario.startsWith("native-");
+	if (native && !revenueSetup) {
+		continue;
+	}
+	const shouldPublish =
+		scenario !== "native-stale" && scenario !== "native-unavailable";
+	let id = attributionLoss
+		? "revenue-attribution-shift"
+		: "revenue-currency-refunds";
+	let reviewRequired = attributionLoss
+		? "USD gross stays 10000 while attributed USD revenue falls 10000→4000; EUR gross stays 5000. Refunds increase 200→1200 independently. Do not call this a gross revenue decline, churn, or 60 lost subscribers. A measured attribution blind spot or refund increase can be useful without an invented cause. Currency amounts must stay separate."
+		: "USD gross falls 10000→6000 and refunds rise 200→1200; EUR gross stays 5000. Preserve currency, gross/refund semantics and the unchanged control if queried. Payment counts are transactions, not active subscribers or churn. No causal mechanism or net revenue figure was supplied. Review results for both matching periods, not just requested dates.";
+	if (native) {
+		id = `revenue-${scenario}`;
+		reviewRequired = `Native pipeline ${scenario}: review the real detector output, prepared subject, every query and final publication. Currency is USD; the detected snapshot is 10000→6000. Stale reads show unchanged gross, transactions, refunds and attribution. Unavailable reads cannot publish. A verified decline must publish without a made-up cause; the website traffic guard must not hide native revenue.`;
+	}
 	qualityCases.push({
-		id: attributionLoss
-			? "revenue-attribution-shift"
-			: "revenue-currency-refunds",
-		input: input({
-			signal: {
-				...defaultSignal,
-				signalKey: "event:completed-payments",
-				entity: {
-					type: "event",
-					id: "completed-payments",
-					label: "Completed payments",
-				},
-				metric: {
-					label: "Completed payments",
-					current: attributionLoss ? 100 : 60,
-					previous: 100,
-					format: "number",
-				},
-				changePercent: attributionLoss ? 0 : -40,
-			},
-			evidence: [
-				"Business meaning: completed payments are settled transaction records, not active subscriptions. Revenue collection and provider coverage are unchanged. The event counts payments in USD. Inspect revenue_overview for both complete signal windows to explain the paid outcome; amounts use major currency units. Refund totals are separate from gross revenue. No customer cohort or subscription lifecycle history is supplied.",
-			],
-		}),
+		id,
+		setup: native ? (revenueSetup ?? undefined) : undefined,
+		input:
+			native && revenueSetup
+				? input(revenueSetup.preparedRevenue)
+				: input({
+						signal: {
+							...defaultSignal,
+							signalKey: "event:completed-payments",
+							entity: {
+								type: "event",
+								id: "completed-payments",
+								label: "Completed payments",
+							},
+							metric: {
+								label: "Completed payments",
+								current: attributionLoss ? 100 : 60,
+								previous: 100,
+								format: "number",
+							},
+							changePercent: attributionLoss ? 0 : -40,
+						},
+						evidence: [
+							"Business meaning: completed payments are settled transaction records, not active subscriptions. Revenue collection and provider coverage are unchanged. The event counts payments in USD. Inspect revenue_overview for both complete signal windows to explain the paid outcome; amounts use major currency units. Refund totals are separate from gross revenue. No customer cohort or subscription lifecycle history is supplied.",
+						],
+					}),
 		tools: {
 			discover_query_types: analyticsTools.discover_query_types,
 			get_data: {
 				...analyticsTools.get_data,
 				execute: (value: unknown) => {
+					if (scenario === "native-unavailable") {
+						return { error: "Current revenue measurement is unavailable." };
+					}
 					const { queries } = z
 						.object({
 							queries: z.array(
@@ -1450,37 +1550,10 @@ for (const attributionLoss of [false, true]) {
 							};
 							continue;
 						}
-						const gross = previous || attributionLoss ? 10_000 : 6000;
-						const payments = previous || attributionLoss ? 100 : 60;
-						const data = [
-							{
-								currency: "USD",
-								total_revenue: gross,
-								total_transactions: payments,
-								refund_amount: previous ? 200 : 1200,
-								refund_count: previous ? 2 : 12,
-								subscription_revenue: gross,
-								subscription_count: payments,
-								unique_customers: payments,
-								attributed_revenue: attributionLoss && !previous ? 4000 : gross,
-								attributed_transactions:
-									attributionLoss && !previous ? 40 : payments,
-								payment_diagnostics_available: 0,
-							},
-							{
-								currency: "EUR",
-								total_revenue: 5000,
-								total_transactions: 50,
-								refund_amount: 0,
-								refund_count: 0,
-								subscription_revenue: 5000,
-								subscription_count: 50,
-								unique_customers: 50,
-								attributed_revenue: 5000,
-								attributed_transactions: 50,
-								payment_diagnostics_available: 0,
-							},
-						].filter(
+						const data = revenueRows(
+							previous || scenario === "native-stale",
+							attributionLoss
+						).filter(
 							(row) =>
 								query.filters?.every(
 									(filter) => row.currency === filter.value
@@ -1503,17 +1576,22 @@ for (const attributionLoss of [false, true]) {
 				},
 			},
 		},
-		reviewRequired: attributionLoss
-			? "USD gross stays 10000 while attributed USD revenue falls 10000→4000; EUR gross stays 5000. Refunds increase 200→1200 independently. Do not call this a gross revenue decline, churn, or 60 lost subscribers. A measured attribution blind spot or refund increase can be useful without an invented cause. Currency amounts must stay separate."
-			: "USD gross falls 10000→6000 and refunds rise 200→1200; EUR gross stays 5000. Preserve currency, gross/refund semantics and the unchanged control if queried. Payment counts are transactions, not active subscribers or churn. No causal mechanism or net revenue figure was supplied. Review results for both matching periods, not just requested dates.",
+		reviewRequired,
 		check: ({ outcome }, calls) => [
 			...(outcome.rootCause !== null || outcome.next.type !== "resolve"
 				? ["Invented a payment cause or repair"]
 				: []),
-			...(outcome.publish
+			...(outcome.publish === shouldPublish
 				? []
-				: ["Hid a measured paid-outcome or attribution finding"]),
-			...[period.current, period.previous].flatMap((window) =>
+				: [
+						shouldPublish
+							? "Hid a measured paid-outcome or attribution finding"
+							: "Published an unchanged or unavailable revenue measurement",
+					]),
+			...(scenario === "native-unavailable"
+				? []
+				: [period.current, period.previous]
+			).flatMap((window) =>
 				calls.some(
 					(call) =>
 						call.name === "get_data" &&
@@ -1691,6 +1769,9 @@ async function evaluate(
 		])
 	);
 	const started = performance.now();
+	if (fixture.setup) {
+		emit("case.setup", fixture.setup);
+	}
 	emit("case.input", fixture.input);
 	try {
 		const result = await agent(fixture.input, {
@@ -1796,6 +1877,8 @@ if (import.meta.main) {
 			resolveSync("@databuddy/shared/insights", dirname(agentPath)),
 		],
 		["quality.ts", import.meta.path],
+		["detection.ts", resolve(import.meta.dir, "../detection.ts")],
+		["investigation.ts", resolve(import.meta.dir, "../investigation.ts")],
 	]) {
 		copyFileSync(path, resolve(directory, name));
 	}

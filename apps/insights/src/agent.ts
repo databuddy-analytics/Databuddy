@@ -930,7 +930,8 @@ function validateAgentOutcome(
 	>,
 	usedToolNames: ReadonlySet<string>,
 	results: StepResult<ToolSet>["toolResults"],
-	attemptedToolNames: ReadonlySet<string>
+	attemptedToolNames: ReadonlySet<string>,
+	hasNativeRevenueEvidence: boolean
 ): InvestigationOutcome {
 	const asOf = new Date(input.appContext.currentDateTime);
 	const { signalKey } = input.signal;
@@ -988,6 +989,7 @@ function validateAgentOutcome(
 		outcome.publish &&
 		!isError &&
 		!isVital &&
+		(!hasNativeRevenueEvidence || outcome.findingKind !== "product_outcome") &&
 		input.signal.entity.type === "website"
 	) {
 		const citedContext = outcome.evidenceRefs
@@ -1352,7 +1354,13 @@ export async function runInsightAgent(
 						input,
 						usedToolNames,
 						results,
-						attemptedToolNames
+						attemptedToolNames,
+						candidate.evidence.some(
+							(item) =>
+								typeof item !== "string" &&
+								item.fields.includes("total_revenue") &&
+								input.signal.signalKey === `revenue:${item.currency}`
+						)
 					);
 					const serialize = (value: unknown) =>
 						JSON.stringify(value, (_key, item) =>
