@@ -40,11 +40,10 @@ export const discoverQueryTypesTool = tool({
 			),
 		search: z
 			.string()
-			.min(2)
 			.max(60)
 			.optional()
 			.describe(
-				"Optional substring match against name, description, and tags (case-insensitive). Useful when you know the dimension ('device', 'utm', 'cron') but not the type name."
+				"One literal keyword or exact builder name, e.g. revenue_overview or retention. Use an empty string to list the category. Full questions are not semantic searches; a missing narrow match does not prove the category lacks the capability."
 			),
 	}),
 	execute: ({ category, search }) => {
