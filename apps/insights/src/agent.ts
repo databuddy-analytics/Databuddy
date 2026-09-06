@@ -11,6 +11,7 @@ import { insightRepairError } from "@databuddy/rpc/insight-repairs";
 import {
 	agentInvestigationOutcomeSchema,
 	describeInsightDefinitionAction,
+	insightDefinitionEditChangesSchema,
 	investigationOutcomeSchema,
 	insightMeasurementSchema,
 	insightVerificationDefinitionSchema,
@@ -171,7 +172,7 @@ Evidence
 - A supplied route-continuation comparison measures later different-page views within ten minutes among matched sessions: state it as an association, never causation, bounce, conversion, or revenue. Payment matches are lower bounds for attributed completed payments, never active subscriptions.
 
 Outcome
-- act: only for an inspected mechanism with the smallest concrete target and change, measured business impact or reliability exposure, and a verification condition that proves recovery. Set recheckAt to the earliest defensible time given the measurement window. For a goal/funnel repair with known future dates, include next.check for that definition’s completed users or conversion percent, inclusive UTC dates, representative minimum entrants and an evidence-backed healthy baseline or configured target. More than zero alone is not recovery. Use null if dates or a suitable metric/population are unknown, or the definition is deleted. An existing goal or funnel that is materially unsafe for its established purpose gets an exact edit or delete via next.execution; delete only when inspection shows no independent valid use, and cosmetic renames are not actions. For edits, put the actual goal target/type/filters or complete ordered funnel steps/filters in execution.changes; name and description alone cannot repair what is measured. Preserve existing step conditions. The displayed action is generated from this patch. Match the listed definition by the signal entity id, not its label. Compare the proposed measurement fields against that exact current definition; an already-correct target or renamed step is not a repair. Validation checks the proposal against the latest successful definition read before publication. If that read cannot verify the exact subject, resolve privately with rootCause null; a missing or unreadable definition does not establish a reporting gap or intentional deletion.
+- act: only for an inspected mechanism with the smallest concrete target and change, measured business impact, reliability exposure or a verified measurement blind spot, and a verification condition that proves recovery. Use execution null for a manual repair supported by inspected evidence, even without a connected repository. Set recheckAt to the earliest defensible time given the measurement window. For a goal/funnel repair with known future dates, include next.check for that definition’s completed users or conversion percent, inclusive UTC dates, representative minimum entrants and an evidence-backed healthy baseline or configured target. More than zero alone is not recovery. Use null if dates or a suitable metric/population are unknown, or the definition is deleted. An existing goal or funnel that is materially unsafe for its established purpose gets an exact edit or delete via next.execution; delete only when inspection shows no independent valid use, and cosmetic renames are not actions. For edits, put the actual goal target/type/filters or complete ordered funnel steps/filters in execution.changes; name and description alone cannot repair what is measured. Preserve existing step conditions. The displayed action is generated from this patch. Match the listed definition by the signal entity id, not its label. Compare the proposed measurement fields against that exact current definition; an already-correct target or renamed step is not a repair. Validation checks the proposal against the latest successful definition read before publication. If that read cannot verify the exact subject, resolve privately with rootCause null; a missing or unreadable definition does not establish a reporting gap or intentional deletion.
 - ask: for errors, capabilities.canAskAboutError must be true (qualified matched impact or at least the supplied minimum visitor reach). Below that floor, resolve without a question. Otherwise only after exhausting inspectable context, for one external fact that selects between materially different moves; say what it unlocks. When a material reliability problem needs source access, ask for the owning repository rather than guessing a fix; when a repository is supplied, inspect it before asking about ownership. One repository-access request per website: when other open work already asks for repository access, resolve and state that this signal is blocked on that request; still publish that resolve when the exposure itself is a new, material fact.
 - Otherwise resolve. Use history and other open work to avoid repeating an action or question; reissue only when impact worsens or new evidence changes the target or remedy.
 - Classify every outcome: raw errors and vitals are reliability_exposure; user_experience needs a directly measured downstream consequence (for route vitals, only via supplied qualified matched continuation); product_outcome needs a measured business result; measurement_definition or measurement_coverage needs a named decision made unsafe. The signal's own movement is not a downstream consequence. A measurement_definition finding publishes only alongside its executable definition fix. A measurement_coverage finding can publish without an executable fix when measured coverage identifies a specific decision that is now unsafe; state the blind spot without claiming that customer activity stopped. It can resolve as a useful discovery or ask for one necessary external fact.
@@ -180,12 +181,10 @@ Publishing
 - A raw website traffic change is not a verified product outcome. It may publish only as measurement_coverage with cited collection or implementation evidence. Uncited context, analytics counts, goal/funnel listings, and sibling metrics do not establish visitor loss. A verified sibling product result belongs to its own signal and subject. For a measurement-definition headline, name the mismatch and put period-specific counts in the evidence instead of estimating affected visits.
 - The Insights feed is scarce teammate attention. Decide feed publication separately from opening an investigation. Publish a distinct decision, action, or durable understanding. A verified material product result can be a useful discovery with next.resolve and rootCause null; an unavailable repair is not a reason to hide it. Explain which established outcome changed and the measured scope, not merely a percentage. Keep unchanged, duplicate, routine, low-volume, and unproven-impact work out of the feed.
 - Distinguish an observed collection gap from an inability to explain a metric. Publish measurement_coverage only for a measured missing population or inspected tracking defect that makes a specific decision unsafe. An unavailable connector, absent diagnostic data, or an untested explanation is an investigation limit; resolve privately when that is the only new finding. A successful unrelated read does not turn that limit into a discovery. Still publish an independently verified outage or material product result.
-- When a reported action is complete, remeasure its saved verification window and report whether the condition passed, failed, or remains inconclusive. Use the reported deployment time, not the reply timestamp, to select that window. An improvement that remains unhealthy is not recovery. When verification.read is supplied, use its exact query. Code computes the verdict and writes the summary, so omit that field when the finish schema omits it; keep the rest of the finding consistent. Missing, incomplete or undersampled measurements are inconclusive. A passed condition does not establish that a deployment preceded it or caused the improvement.
+- When a reported action is complete, remeasure its saved verification window and report whether the condition passed, failed, or remains inconclusive. Use the reported deployment time, not the reply timestamp, to select that window. An improvement that remains unhealthy is not recovery. When verification.read is supplied, use its exact query. Classify a measured goal or funnel recovery result as product_outcome; reserve measurement_definition for a newly inspected mismatch that needs a repair. Code computes the verdict and writes the summary, so omit that field when the finish schema omits it; keep the rest of the finding consistent. Missing, incomplete or undersampled measurements are inconclusive. A passed condition does not establish that a deployment preceded it or caused the improvement.
 
 Writing
-- Write a finding, its supporting comparison, and an optional next move. Keep title, summary, rootCause, and evidence under 60 words combined; aim for 40–50. Title names the finding; summary states its consequence in roughly twelve words; rootCause describes the inspected failing operation, not a later operation that never ran; evidence supplies the measured scope and comparison. State each fact once. Never infer failed tasks or lost customers from error exposure or missing telemetry.
-- Use one evidence entry by default, at most two when the second adds a distinct fact or contradiction; each can cite multiple sources. Cite inspected code without repeating the mechanism already stated in rootCause. Preserve the contrast that changes the interpretation, such as steady arrivals alongside fewer completions, and any cohort or attribution qualifications. Prefer before/after counts over restating the same change as both a percentage and an absolute loss.
-- Omit investigation narration and generic decision-safety language. For a definition repair, name the mismatch once and the decision it blocks once. Say what can no longer be measured, rather than declaring a decision "unsafe". Source citations need not repeat the causal explanation already in rootCause.
+- Keep title, summary, rootCause and evidence under 60 words combined; aim for 40–50. Title names the finding; summary adds a distinct consequence; rootCause names only the inspected failing operation; evidence supplies the before/after comparison and measured scope. State each fact once. Cite inspected code alongside the comparison without repeating its mechanism in the evidence text. Use one evidence entry, or two for a distinct comparison or contradiction. Preserve the affected cohort, denominator, period and stable control when they change the interpretation. Describe recorded behavior; eligible website visitors are not goal attempts, and missing telemetry or error exposure cannot prove failed tasks. Prefer the matched cohort and unchanged control over restating the definition. For repairs, say which behavior cannot be measured instead of calling reporting or decisions "unsafe". Omit investigation narration and repeated descriptions of the same change.
 - Never call occurrences, sessions, entrants, or samples "people"; distinguish visitors, identified profiles, and customers with attributed payment history. Translate raw event names into behavior; if behavior is unknown, say "this event." Never expose raw user, session, order, payment, or request identifiers.
 - Report only numbers you were given or measured. Keep whole counts as integers; use at most one decimal place for rates and durations. Use the supplied metricDelta for a change in native units; do not add unrelated counts or turn a tool row count into a customer count.
 
@@ -908,62 +907,59 @@ function validateAgentOutcome(
 		results,
 		attemptedToolNames
 	);
-	if (outcome.next.type === "act") {
-		const recheckAt = outcome.next.recheckAt;
-		if (!recheckAt || new Date(recheckAt).getTime() <= asOf.getTime()) {
-			throw new Error(
-				"Insights agent scheduled a recheck before this investigation"
-			);
-		}
-		const check = outcome.next.check;
-		if (
-			check &&
-			(!["goal", "funnel"].includes(input.signal.entity.type) ||
-				outcome.next.execution?.operation === "delete" ||
-				Date.parse(check.startDate) < asOf.getTime() ||
-				Date.parse(check.endDate) + 86_400_000 > Date.parse(recheckAt) ||
-				(check.metric === "overall_conversion_rate" &&
-					check.threshold.value > 100))
-		) {
-			throw new Error(
-				"Verification checks require a retained goal or funnel, a future full UTC window ending before recheckAt, and a threshold in the metric's native unit."
-			);
-		}
+	if (outcome.next.type !== "act") {
+		return investigationOutcomeSchema.parse(outcome);
 	}
-
-	let next: InvestigationOutcome["next"] = outcome.next;
-	if (outcome.next.type === "act" && outcome.next.execution !== null) {
+	const { execution, ...action } = outcome.next;
+	const recheckAt = outcome.next.recheckAt;
+	if (!recheckAt || new Date(recheckAt).getTime() <= asOf.getTime()) {
+		throw new Error(
+			"Insights agent scheduled a recheck before this investigation"
+		);
+	}
+	const check = outcome.next.check;
+	if (
+		check &&
+		(!["goal", "funnel"].includes(input.signal.entity.type) ||
+			outcome.next.execution?.operation === "delete" ||
+			Date.parse(check.startDate) < asOf.getTime() ||
+			Date.parse(check.endDate) + 86_400_000 > Date.parse(recheckAt) ||
+			(check.metric === "overall_conversion_rate" &&
+				check.threshold.value > 100))
+	) {
+		throw new Error(
+			"Verification checks require a retained goal or funnel, a future full UTC window ending before recheckAt, and a threshold in the metric's native unit."
+		);
+	}
+	if (execution?.operation === "edit") {
+		const current = z.record(z.string(), z.unknown()).parse(definition);
+		execution.changes = insightDefinitionEditChangesSchema.parse(
+			Object.fromEntries(
+				Object.entries(execution.changes).filter(
+					([key, value]) =>
+						value != null && !isDeepStrictEqual(value, current[key])
+				)
+			)
+		);
+	}
+	let next: InvestigationOutcome["next"] = action;
+	if (execution) {
 		next = {
-			...outcome.next,
+			...action,
+			execution,
 			action: describeInsightDefinitionAction(input.signal.entity.label, {
-				...outcome.next.execution,
-				action: outcome.next.action,
+				...execution,
+				action: action.action,
 			}),
 		};
 	}
-	if (outcome.next.type === "act" && outcome.next.execution === null) {
-		const { execution: _execution, ...persistedNext } = outcome.next;
-		next = persistedNext;
-	}
-	if (next.type === "act" && next.check) {
-		const current = insightVerificationDefinitionSchema.parse(definition);
-		const changes =
-			next.execution?.operation === "edit"
-				? Object.fromEntries(
-						Object.entries(next.execution.changes).filter(
-							([, value]) => value != null
-						)
-					)
-				: {};
-		next = {
-			...next,
-			check: {
-				...next.check,
-				definition: insightVerificationDefinitionSchema.parse({
-					...current,
-					...changes,
-				}),
-			},
+	if (next.check) {
+		next.check = {
+			...next.check,
+			definition: insightVerificationDefinitionSchema.parse({
+				...insightVerificationDefinitionSchema.parse(definition),
+				...(execution?.operation === "edit" ? execution.changes : {}),
+			}),
 		};
 	}
 	return investigationOutcomeSchema.parse({ ...outcome, next });
