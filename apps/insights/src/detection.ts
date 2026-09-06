@@ -1,4 +1,5 @@
 import { executeQuery, type Filter } from "@databuddy/ai/query";
+import { normalizeCurrencyCode } from "@databuddy/shared/currency";
 import type {
 	InvestigationSignal,
 	MatchedErrorContinuationMeasurement,
@@ -269,6 +270,25 @@ export function makeWowSignal(
 		deltaPercent: round2(pct),
 		severity: assignSeverity(undefined, pct),
 		detectedAt,
+	};
+}
+
+function makeRevenueSignal(
+	currency: string,
+	current: Record<string, unknown>,
+	previous: Record<string, unknown>,
+	detectedAt: string
+): DetectedSignal {
+	return {
+		...makeWowSignal(
+			"revenue",
+			`${currency} gross revenue`,
+			numberField(current, "total_revenue"),
+			numberField(previous, "total_revenue"),
+			detectedAt
+		),
+		subjectKey: `revenue:${currency}`,
+		definitionEvidence: `Business meaning: gross settled revenue in ${currency}, excluding refunds. The snapshot alone is not publication evidence: confirm with revenue_overview for this currency across both complete signal windows.`,
 	};
 }
 
@@ -720,19 +740,26 @@ export async function remeasureMetricSignal(
 		);
 	}
 
-	if (prior.signalKey === "revenue") {
-		const pair = await readPair("revenue", "revenue_overview");
+	if (prior.signalKey.startsWith("revenue:")) {
+		const currency = prior.signalKey.slice("revenue:".length);
+		if (normalizeCurrencyCode(currency) !== currency) {
+			return null;
+		}
+		const pair = await readPair("revenue", "revenue_overview", [
+			{ field: "currency", op: "eq", value: currency },
+		]);
 		if (!pair.value) {
 			return null;
 		}
 		const [currentRows, previousRows] = pair.value;
-		return makeWowSignal(
-			"revenue",
-			prior.metric.label,
-			numberField(currentRows[0], "total_revenue"),
-			numberField(previousRows[0], "total_revenue"),
-			currentTo
+		const current = mapRowsByStringField(currentRows, "currency").get(currency);
+		const previous = mapRowsByStringField(previousRows, "currency").get(
+			currency
 		);
+		// An absent currency is not a measured zero; unscoped legacy signals are inconclusive.
+		return current && previous
+			? makeRevenueSignal(currency, current, previous, currentTo)
+			: null;
 	}
 
 	const vital = prior.signalKey === "lcp" ? VITALS.LCP : VITALS.INP;
@@ -1313,24 +1340,29 @@ async function detectWow(
 		);
 	}
 
-	const revNow = numberField(currentRevenue[0], "total_revenue");
-	const revPrev = numberField(previousRevenue[0], "total_revenue");
-	const revenueTransactions = Math.max(
-		numberField(currentRevenue[0], "total_transactions"),
-		numberField(previousRevenue[0], "total_transactions")
-	);
-	const meaningfulRevenueChange =
-		Math.abs(revNow - revPrev) >= REVENUE_MIN_ABSOLUTE_CHANGE ||
-		revenueTransactions >= REVENUE_MIN_TRANSACTIONS;
-	if ((revNow > 0 || revPrev > 0) && meaningfulRevenueChange) {
-		const pct = revPrev === 0 ? 100 : safeDeltaPercent(revNow, revPrev);
+	const previousCurrencies = mapRowsByStringField(previousRevenue, "currency");
+	for (const [currency, current] of mapRowsByStringField(
+		currentRevenue,
+		"currency"
+	)) {
+		const previous = previousCurrencies.get(currency);
+		if (!previous || normalizeCurrencyCode(currency) !== currency) {
+			continue;
+		}
+		const signal = makeRevenueSignal(currency, current, previous, currentTo);
+		const transactions = Math.max(
+			numberField(current, "total_transactions"),
+			numberField(previous, "total_transactions")
+		);
 		if (
-			Math.abs(pct) >= WOW_REVENUE_THRESHOLD ||
-			(revPrev === 0 && revNow > 0)
+			(signal.current > 0 || signal.baseline > 0) &&
+			(Math.abs(signal.current - signal.baseline) >=
+				REVENUE_MIN_ABSOLUTE_CHANGE ||
+				transactions >= REVENUE_MIN_TRANSACTIONS) &&
+			Math.abs(safeDeltaPercent(signal.current, signal.baseline)) >=
+				WOW_REVENUE_THRESHOLD
 		) {
-			signals.push(
-				makeWowSignal("revenue", "Revenue", revNow, revPrev, currentTo)
-			);
+			signals.push(signal);
 		}
 	}
 
