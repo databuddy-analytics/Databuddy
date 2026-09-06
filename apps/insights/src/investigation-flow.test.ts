@@ -2712,6 +2712,38 @@ describe("structured revenue evidence", () => {
 		).toThrow();
 	});
 
+	it("accepts later recheck windows while preserving their actual dates", () => {
+		const later = readings.map((reading, index) => ({
+			...reading,
+			from: index === 0 ? "2026-07-12" : "2026-07-05",
+			to: index === 0 ? "2026-07-18" : "2026-07-11",
+		}));
+		expect(
+			renderRevenueEvidence(selection, later, {
+				appContext: {
+					...input.appContext,
+					currentDateTime: "2026-07-19T00:00:00Z",
+				},
+			})
+		).toContain("2026-07-05–2026-07-11 → 2026-07-12–2026-07-18 UTC");
+		expect(() =>
+			renderRevenueEvidence(
+				selection,
+				later.map((reading) => ({
+					...reading,
+					from: reading.to,
+					to: reading.from,
+				})),
+				{
+					appContext: {
+						...input.appContext,
+						currentDateTime: "2026-07-19T00:00:00Z",
+					},
+				}
+			)
+		).toThrow();
+	});
+
 	it("keeps a stable currency control distinct from the changing currency", () => {
 		const both = readings.map((reading) => ({
 			...reading,
@@ -2806,6 +2838,23 @@ describe("structured revenue evidence", () => {
 		expect(() =>
 			renderRevenueEvidence(selection, [readings[0]], input)
 		).toThrow();
+	});
+
+	it("names unavailable diagnostics without fabricating a zero or losing supported metrics", () => {
+		const partial = readings.map((reading) => ({
+			...reading,
+			data: [{ ...reading.data[0], failed_payment_attempts: null }],
+		}));
+		expect(() =>
+			renderRevenueEvidence(
+				{ currency: "USD", fields: ["failed_payment_attempts"] },
+				partial,
+				input
+			)
+		).toThrow("failed_payment_attempts is unavailable");
+		expect(renderRevenueEvidence(selection, partial, input)).toContain(
+			"Refund Amount: 200 → 1,200 (+1,000)"
+		);
 	});
 
 	it("rejects repeated periods and unmeasured fields", () => {

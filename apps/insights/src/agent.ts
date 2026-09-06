@@ -55,7 +55,7 @@ const revenueEvidenceSchema = z
 			.max(4),
 	})
 	.describe(
-		"For revenue_overview, select complementary fields: gross revenue, settled transactions, refunds, and attributed revenue when it differs from gross. Omit redundant subtotals and diagnostic availability flags. One entry per currency; use a second for a useful currency control. Cite both complete signal windows in each evidenceRefs entry. Code supplies labels, values, periods and deltas; preserve supported comparisons when correcting format."
+		"For revenue_overview, select complementary fields: gross revenue, settled transactions, refunds, and attributed revenue when it differs from gross. Select only fields with a non-null value in every cited period. Omit redundant subtotals and diagnostic availability flags. One entry per currency; use a second for a useful currency control. Cite both complete comparison windows in each evidenceRefs entry. Code supplies labels, values, periods and deltas; preserve supported comparisons when correcting format."
 	);
 const finishSchema = z.object(agentInvestigationOutcomeSchema.shape).extend({
 	evidence: z
@@ -66,13 +66,16 @@ const finishSchema = z.object(agentInvestigationOutcomeSchema.shape).extend({
 			])
 		)
 		.min(1)
-		.max(2),
+		.max(2)
+		.describe(
+			"Every revenue_overview entry, including unchanged controls, must be {currency, fields}. Use text only for other sources. Keep only comparisons that change the interpretation."
+		),
 });
 
 export function renderRevenueEvidence(
 	selection: z.infer<typeof revenueEvidenceSchema>,
 	sources: unknown,
-	input: Pick<InsightAgentInput, "appContext" | "signal">
+	input: Pick<InsightAgentInput, "appContext">
 ): string {
 	const readings = z
 		.array(
@@ -107,9 +110,7 @@ export function renderRevenueEvidence(
 	}).format(new Date(input.appContext.currentDateTime));
 	const rows = readings.map((reading, index) => {
 		if (
-			!Object.values(input.signal.period).some(
-				(period) => period.from === reading.from && period.to === reading.to
-			) ||
+			reading.from > reading.to ||
 			reading.to >= today ||
 			Date.parse(reading.to) - Date.parse(reading.from) !==
 				Date.parse(first.to) - Date.parse(first.from) ||
@@ -120,7 +121,7 @@ export function renderRevenueEvidence(
 			(index > 0 && reading.from <= first.to)
 		) {
 			throw new Error(
-				"Revenue comparisons require the exact signal windows, the same timezone and filters, and distinct non-overlapping periods."
+				"Revenue comparisons require complete equal-duration windows with the same timezone and filters, and distinct non-overlapping periods."
 			);
 		}
 		const matching = reading.data.filter(
@@ -145,7 +146,10 @@ export function renderRevenueEvidence(
 			z
 				.union([z.number(), z.string().trim().min(1)])
 				.pipe(z.coerce.number<string | number>().finite())
-				.parse(row[name])
+				.parse(row[name], {
+					error: () =>
+						`${name} is unavailable for a cited ${selection.currency} period. Omit this field; preserve other supported comparisons. Unavailable is not zero.`,
+				})
 		);
 		const delta = values[1] - values[0];
 		return `${field.label ?? name.replaceAll("_", " ")}${field.unit ? ` (${field.unit})` : ""}: ${values.map((value) => format.format(value)).join(" → ")}${delta === 0 ? "" : ` (${delta > 0 ? "+" : ""}${format.format(delta)}${field.unit === "%" ? " pp" : ""})`}`;
