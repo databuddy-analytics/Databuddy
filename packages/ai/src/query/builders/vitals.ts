@@ -1,30 +1,7 @@
+import { sessionDimensionsCte } from "../expressions";
 import { Analytics } from "../../types/tables";
 import { appendFilterClause } from "../simple-builder";
 import type { CustomSqlFn, SimpleQueryConfig } from "../types";
-
-const SD_DIMENSION_COLUMNS = {
-	browser_name:
-		"argMinIf(browser_name, time, ifNull(browser_name, '') != '') as browser_name",
-	country: "argMinIf(country, time, ifNull(country, '') != '') as country",
-	region: "argMinIf(region, time, ifNull(region, '') != '') as region",
-	city: "argMinIf(city, time, ifNull(city, '') != '') as city",
-} as const;
-
-const sessionDimensionsCte = (dims: readonly string[]) => `
-	session_dimensions AS (
-		SELECT
-			session_id,
-			client_id${dims.length ? `,\n\t\t\t${dims.map((d) => SD_DIMENSION_COLUMNS[d as keyof typeof SD_DIMENSION_COLUMNS]).join(",\n\t\t\t")}` : ""}
-		FROM ${Analytics.events}
-		WHERE
-			client_id = {websiteId:String}
-			AND time >= toDateTime({startDate:String})
-			AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-			AND session_id != ''
-			AND event_name = 'screen_view'
-		GROUP BY session_id, client_id
-	)
-`;
 
 const VITALS_P50_METRICS = `
 	uniq(wv.anonymous_id) as visitors,

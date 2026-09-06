@@ -1,26 +1,10 @@
 import { Expressions } from "../expressions";
+import { sessionDimensionsCte } from "../expressions";
 import { Analytics } from "../../types/tables";
 import type { SimpleQueryConfig } from "../types";
 
 const WEB_VITALS_SESSION_DIMENSIONS_CTE = `
-	session_dimensions AS (
-		SELECT
-			session_id,
-			client_id,
-			argMinIf(browser_name, time, ifNull(browser_name, '') != '') as browser_name,
-			argMinIf(country, time, ifNull(country, '') != '') as country,
-			argMinIf(region, time, ifNull(region, '') != '') as region,
-			argMinIf(os_name, time, ifNull(os_name, '') != '') as os_name,
-			argMinIf(device_type, time, ifNull(device_type, '') != '') as device_type
-		FROM ${Analytics.events}
-		WHERE
-			client_id = {websiteId:String}
-			AND time >= toDateTime({startDate:String})
-			AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-			AND session_id != ''
-			AND event_name = 'screen_view'
-		GROUP BY session_id, client_id
-	)
+${sessionDimensionsCte(["browser_name", "country", "region", "os_name", "device_type"])}
 `;
 
 const WEB_VITALS_METRICS = `
