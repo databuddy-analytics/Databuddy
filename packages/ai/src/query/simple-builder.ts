@@ -1162,6 +1162,7 @@ export class SimpleQueryBuilder {
 		const rawData = await chQuery<Record<string, unknown>>(sql, params, {
 			abort_signal: abortSignal,
 			clickhouse_settings: getClickHouseQuerySettings(this.config.noCache),
+			label: this.request.type,
 		});
 		return applyPlugins(rawData, this.config, this.websiteDomain);
 	}
