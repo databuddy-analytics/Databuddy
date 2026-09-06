@@ -1,3 +1,4 @@
+import { analyticsCohortSchema } from "@databuddy/shared/analytics-filters";
 import { tool } from "ai";
 import { analyticsDateRangeSchema } from "@databuddy/validation";
 import { z } from "zod";
@@ -13,6 +14,7 @@ const logger = createToolLogger("Funnels Tools");
 const funnelAnalyticsInputSchema = analyticsDateRangeSchema.safeExtend({
 	funnelId: z.string(),
 	websiteId: z.string().optional(),
+	cohort: analyticsCohortSchema.optional(),
 });
 
 export function createFunnelTools() {
@@ -45,10 +47,10 @@ export function createFunnelTools() {
 
 	const getFunnelAnalyticsTool = tool({
 		description:
-			"Funnel definition, measured dates and distinct visitor counts: entrants match the first step; completions reach every ordered step. These are visitors, not projects, occurrences or attempts. Reuse matching verified measurements; remeasure stale or conflicting context.",
+			"Funnel definition, measured dates and distinct visitor counts: entrants match the first step; completions reach every ordered step. These are visitors, not projects, occurrences or attempts. Optional cohort measures browser, device, country or campaign segments without editing the saved definition. Compare cohorts and periods with parallel calls. Reuse matching verified measurements; remeasure stale or conflicting context.",
 		inputSchema: funnelAnalyticsInputSchema,
 		execute: async (
-			{ funnelId, websiteId: inputWebsiteId, startDate, endDate },
+			{ funnelId, websiteId: inputWebsiteId, startDate, endDate, cohort },
 			options
 		) => {
 			const context = getAppContext(options);
@@ -57,7 +59,7 @@ export function createFunnelTools() {
 				return await callRPCProcedure(
 					"funnels",
 					"getAnalytics",
-					{ funnelId, websiteId, startDate, endDate },
+					{ funnelId, websiteId, startDate, endDate, cohort },
 					context
 				);
 			} catch (error) {
@@ -80,7 +82,7 @@ export function createFunnelTools() {
 			"Distinct visitors entering the first funnel step and completing its ordered steps, grouped by referrer/source. Counts are visitors, not projects or attempts. Accepts one date range; compare periods with separate calls.",
 		inputSchema: funnelAnalyticsInputSchema,
 		execute: async (
-			{ funnelId, websiteId: inputWebsiteId, startDate, endDate },
+			{ funnelId, websiteId: inputWebsiteId, startDate, endDate, cohort },
 			options
 		) => {
 			const context = getAppContext(options);
@@ -89,7 +91,7 @@ export function createFunnelTools() {
 				return await callRPCProcedure(
 					"funnels",
 					"getAnalyticsByReferrer",
-					{ funnelId, websiteId, startDate, endDate },
+					{ funnelId, websiteId, startDate, endDate, cohort },
 					context
 				);
 			} catch (error) {

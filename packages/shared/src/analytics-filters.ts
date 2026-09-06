@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 export const goalFunnelFilterFields = [
 	{ value: "event_name", label: "Event Name" },
 	{ value: "path", label: "Page Path" },
@@ -23,3 +25,33 @@ export type GoalFunnelFilterField =
 export const goalFunnelFilterFieldSet: ReadonlySet<string> = new Set(
 	goalFunnelFilterFields.map((f) => f.value)
 );
+
+/** Read-only segmentation, restricted to context rather than funnel step selectors. */
+export const analyticsCohortSchema = z
+	.strictObject({
+		filters: z
+			.array(
+				z.strictObject({
+					field: z.enum([
+						"browser_name",
+						"device_type",
+						"os_name",
+						"country",
+						"referrer",
+						"utm_source",
+						"utm_medium",
+						"utm_campaign",
+					]),
+					operator: z.enum(["equals", "not_equals", "in", "not_in"]),
+					value: z.union([
+						z.string().min(1),
+						z.array(z.string().min(1)).min(1).max(50),
+					]),
+				})
+			)
+			.min(1)
+			.max(8),
+	})
+	.describe(
+		"Read-only cohort. Funnel filters select first-step visitors; subsequent ordered steps may have different context. Goal filters select page-view visitors and matching completions. Saved filters are ANDed. These are visitors, not attempts."
+	);
