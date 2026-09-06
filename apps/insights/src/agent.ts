@@ -989,7 +989,7 @@ function validateAgentOutcome(
 		outcome.publish &&
 		!isError &&
 		!isVital &&
-		!hasNativeRevenueEvidence &&
+		(!hasNativeRevenueEvidence || outcome.findingKind !== "product_outcome") &&
 		input.signal.entity.type === "website"
 	) {
 		const citedContext = outcome.evidenceRefs

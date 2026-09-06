@@ -2688,15 +2688,17 @@ describe("structured revenue evidence", () => {
 	const input = { appContext: appContext(), signal };
 
 	it.each([
-		["revenue", ["total_revenue"], false],
-		["revenue:USD", ["total_revenue"], true],
-		["revenue:EUR", ["total_revenue"], false],
-		["visitors", ["total_revenue"], false],
-		["revenue:USD", ["refund_amount"], false],
-		["revenue:USD", null, false],
-	] as const)("requires subject and field-bound currency evidence: %s / %j", async (signalKey, fields, accepted) => {
+		["revenue", ["total_revenue"], "product_outcome", false],
+		["revenue:USD", ["total_revenue"], "product_outcome", true],
+		["revenue:EUR", ["total_revenue"], "product_outcome", false],
+		["visitors", ["total_revenue"], "product_outcome", false],
+		["revenue:USD", ["refund_amount"], "product_outcome", false],
+		["revenue:USD", null, "product_outcome", false],
+		["revenue:USD", ["total_revenue"], "measurement_coverage", false],
+		["revenue:USD", ["total_revenue"], "user_experience", false],
+	] as const)("requires subject and field-bound currency evidence: %s / %j", async (signalKey, fields, findingKind, accepted) => {
 		const proposal = {
-			findingKind: "product_outcome",
+			findingKind,
 			title: "USD gross revenue fell",
 			summary: "Gross settlements declined.",
 			rootCause: null,
@@ -2714,7 +2716,10 @@ describe("structured revenue evidence", () => {
 					]
 				: [{ source: "signal" }],
 			publish: true,
-			publicationBasis: "measured_impact",
+			publicationBasis:
+				findingKind === "measurement_coverage"
+					? "decision_safety"
+					: "measured_impact",
 			next: { type: "resolve", reason: "No inspected cause is established." },
 		};
 		const run = runInsightAgent(

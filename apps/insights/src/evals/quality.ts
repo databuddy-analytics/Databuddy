@@ -152,11 +152,7 @@ interface QualityCase {
 	id: string;
 	input: InsightAgentInput;
 	reviewRequired?: string;
-	setup?: {
-		detectionReads: typeof detectionReads;
-		detectedRevenue: typeof detectedRevenue;
-		preparedRevenue: typeof preparedRevenue;
-	};
+	setup?: Awaited<ReturnType<typeof nativeRevenueSetup>>;
 	tools: ToolSet;
 }
 export const qualityCases: QualityCase[] = [
@@ -1413,30 +1409,40 @@ function revenueRows(previous: boolean, attributionLoss = false) {
 	];
 }
 
-const detectionReads: {
-	request: Parameters<QueryFn>[0];
-	rows: Record<string, unknown>[];
-}[] = [];
-const nativeRevenueQuery: QueryFn = (request) => {
-	const rows =
-		request.type === "revenue_overview"
-			? revenueRows(request.from === period.previous.from)
-			: [];
-	detectionReads.push({ request, rows });
-	return Promise.resolve(rows);
-};
-const detectedRevenue = await detectSignals(
-	{ websiteId: appContext.websiteId, timezone: "UTC", lookbackDays: 7 },
-	nativeRevenueQuery,
-	dayjs.utc(appContext.currentDateTime)
-);
-const revenueSignal = detectedRevenue.find(
-	(signal) => signal.metric === "revenue"
-);
-if (!revenueSignal) {
-	throw new Error("Native detector did not emit the synthetic revenue decline");
+async function nativeRevenueSetup() {
+	const detectionReads: {
+		request: Parameters<QueryFn>[0];
+		rows: Record<string, unknown>[];
+	}[] = [];
+	const nativeRevenueQuery: QueryFn = (request) => {
+		const rows =
+			request.type === "revenue_overview"
+				? revenueRows(request.from === period.previous.from)
+				: [];
+		detectionReads.push({ request, rows });
+		return Promise.resolve(rows);
+	};
+	const detectedRevenue = await detectSignals(
+		{ websiteId: appContext.websiteId, timezone: "UTC", lookbackDays: 7 },
+		nativeRevenueQuery,
+		dayjs.utc(appContext.currentDateTime)
+	);
+	const revenueSignal = detectedRevenue.find(
+		(signal) => signal.metric === "revenue"
+	);
+	if (!revenueSignal) {
+		throw new Error(
+			"Native detector did not emit the synthetic revenue decline"
+		);
+	}
+	return {
+		detectionReads,
+		detectedRevenue,
+		preparedRevenue: prepareInvestigation(revenueSignal, 7),
+	};
 }
-const preparedRevenue = prepareInvestigation(revenueSignal, 7);
+
+const revenueSetup = import.meta.main ? await nativeRevenueSetup() : null;
 
 for (const scenario of [
 	"payments",
@@ -1447,6 +1453,9 @@ for (const scenario of [
 ] as const) {
 	const attributionLoss = scenario === "attribution";
 	const native = scenario.startsWith("native-");
+	if (native && !revenueSetup) {
+		continue;
+	}
 	const shouldPublish =
 		scenario !== "native-stale" && scenario !== "native-unavailable";
 	let id = attributionLoss
@@ -1461,32 +1470,31 @@ for (const scenario of [
 	}
 	qualityCases.push({
 		id,
-		setup: native
-			? { detectionReads, detectedRevenue, preparedRevenue }
-			: undefined,
-		input: native
-			? input(preparedRevenue)
-			: input({
-					signal: {
-						...defaultSignal,
-						signalKey: "event:completed-payments",
-						entity: {
-							type: "event",
-							id: "completed-payments",
-							label: "Completed payments",
+		setup: native ? (revenueSetup ?? undefined) : undefined,
+		input:
+			native && revenueSetup
+				? input(revenueSetup.preparedRevenue)
+				: input({
+						signal: {
+							...defaultSignal,
+							signalKey: "event:completed-payments",
+							entity: {
+								type: "event",
+								id: "completed-payments",
+								label: "Completed payments",
+							},
+							metric: {
+								label: "Completed payments",
+								current: attributionLoss ? 100 : 60,
+								previous: 100,
+								format: "number",
+							},
+							changePercent: attributionLoss ? 0 : -40,
 						},
-						metric: {
-							label: "Completed payments",
-							current: attributionLoss ? 100 : 60,
-							previous: 100,
-							format: "number",
-						},
-						changePercent: attributionLoss ? 0 : -40,
-					},
-					evidence: [
-						"Business meaning: completed payments are settled transaction records, not active subscriptions. Revenue collection and provider coverage are unchanged. The event counts payments in USD. Inspect revenue_overview for both complete signal windows to explain the paid outcome; amounts use major currency units. Refund totals are separate from gross revenue. No customer cohort or subscription lifecycle history is supplied.",
-					],
-				}),
+						evidence: [
+							"Business meaning: completed payments are settled transaction records, not active subscriptions. Revenue collection and provider coverage are unchanged. The event counts payments in USD. Inspect revenue_overview for both complete signal windows to explain the paid outcome; amounts use major currency units. Refund totals are separate from gross revenue. No customer cohort or subscription lifecycle history is supplied.",
+						],
+					}),
 		tools: {
 			discover_query_types: analyticsTools.discover_query_types,
 			get_data: {
