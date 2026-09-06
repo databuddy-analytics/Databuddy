@@ -78,6 +78,7 @@ interface QueryItemResult {
 	returnedRows?: number;
 	rowCount: number;
 	summary?: string;
+	timezone?: string;
 	to?: string;
 	truncated?: boolean;
 	type: string;
@@ -227,6 +228,7 @@ export const getDataTool = tool({
 						filters: item.filters ?? [],
 						from,
 						to,
+						timezone,
 						summary: buildResultSummary(
 							item.type,
 							from,

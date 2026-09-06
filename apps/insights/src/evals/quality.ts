@@ -1,10 +1,17 @@
-import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import {
+	appendFileSync,
+	copyFileSync,
+	mkdirSync,
+	writeFileSync,
+} from "node:fs";
+import { dirname, resolve } from "node:path";
 import { isDeepStrictEqual, parseArgs } from "node:util";
 import { createModelFromId } from "@databuddy/ai/config/models";
 import { createToolkit } from "@databuddy/ai/tools/toolkit";
+import { insightMeasurementSchema } from "@databuddy/shared/insights";
 import { tool, wrapLanguageModel, type ToolSet } from "ai";
 import { z } from "zod";
+import { resolveSync } from "bun";
 import {
 	runInsightAgent,
 	type InsightAgentInput,
@@ -119,11 +126,25 @@ const signupFunnel = {
 		{ name: "Account created", type: "EVENT", target: "signup_completed" },
 	],
 };
+const repairFunnel = {
+	id: "account-journey",
+	name: "Account creation journey",
+	filters: [],
+	steps: [
+		{ name: "Landing", type: "PAGE_VIEW", target: "/start" },
+		{
+			name: "Account created",
+			type: "EVENT",
+			target: "account_started",
+			conditions: { plan: "paid" },
+		},
+	],
+};
 interface QualityCase {
 	// Observable expectations, independent of exact wording.
 	check: (
 		result: InsightAgentResult,
-		calls: { name: string; input: unknown }[]
+		calls: { name: string; input: unknown; output?: unknown }[]
 	) => string[];
 	id: string;
 	input: InsightAgentInput;
@@ -388,87 +409,121 @@ export const qualityCases: QualityCase[] = [
 					]
 				: [],
 	},
-	{
-		id: "funnel-conditions-repair",
-		input: input({
-			signal: {
-				...defaultSignal,
-				signalKey: "funnel:account-journey",
-				entity: {
-					type: "funnel",
-					id: "account-journey",
-					label: "Account creation journey",
-				},
-				metric: {
-					label: "Completed journeys",
-					current: 0,
-					previous: 164,
-					format: "number",
-				},
-			},
-			evidence: [
-				"Business meaning: tracks landing-page visitors who finish creating an account. Inspect the final emitted event and the complete saved definition.",
-			],
-		}),
-		tools: {
-			list_funnels: readTool("Read complete saved funnel definitions.", {
-				funnels: [
-					{
+	...[false, true].map(
+		(native): QualityCase => ({
+			id: native ? "native-funnel-repair" : "funnel-conditions-repair",
+			input: input({
+				signal: {
+					...defaultSignal,
+					signalKey: "funnel:account-journey",
+					entity: {
+						type: "funnel",
 						id: "account-journey",
-						name: "Account creation journey",
-						filters: [],
-						steps: [
-							{ name: "Landing", type: "PAGE_VIEW", target: "/start" },
-							{
-								name: "Account created",
-								type: "EVENT",
-								target: "account_started",
-								conditions: { plan: "paid" },
-							},
-						],
+						label: "Account creation journey",
 					},
+					metric: {
+						label: "Completed journeys",
+						current: 0,
+						previous: 164,
+						format: "number",
+					},
+				},
+				evidence: [
+					"Business meaning: tracks landing-page visitors who finish creating an account. Inspect the final emitted event and the complete saved definition.",
 				],
 			}),
-			scrape_page: readTool(
-				"Inspect the current account creation emitter and workflow.",
-				{
-					content:
-						"The successful account-creation handler now emits account_completed. account_started was retired. The first step /start remains correct. Replace only the final event target. Stored step conditions must be preserved; analytics does not currently evaluate those conditions, so this does not establish a paid-only cohort.",
+			tools: {
+				...(native
+					? {
+							get_funnel_analytics: {
+								...analyticsTools.get_funnel_analytics,
+								execute: (query) => {
+									const window = z
+										.object({
+											startDate: z.iso.date(),
+											endDate: z.iso.date(),
+											funnelId: z.literal(repairFunnel.id),
+										})
+										.parse(query);
+									const previous =
+										window.startDate === period.previous.from &&
+										window.endDate === period.previous.to;
+									if (
+										!(
+											previous ||
+											(window.startDate === period.current.from &&
+												window.endDate === period.current.to)
+										)
+									) {
+										return {
+											error:
+												"Synthetic measurements are available only for the two supplied comparison windows.",
+										};
+									}
+									return {
+										measurement: insightMeasurementSchema.parse({
+											websiteId: appContext.websiteId,
+											definitionId: repairFunnel.id,
+											startDate: window.startDate,
+											endDate: window.endDate,
+											definition: repairFunnel,
+										}),
+										total_users_entered: 200,
+										total_users_completed: previous ? 164 : 0,
+										overall_conversion_rate: previous ? 82 : 0,
+									};
+								},
+							},
+						}
+					: {
+							list_funnels: readTool(
+								"Read complete saved funnel definitions.",
+								{
+									funnels: [repairFunnel],
+								}
+							),
+						}),
+				scrape_page: readTool(
+					"Inspect the current account creation emitter and workflow.",
+					{
+						content:
+							"The successful account-creation handler now emits account_completed. account_started was retired. The first step /start remains correct. Replace only the final event target. Stored step conditions must be preserved; analytics does not currently evaluate those conditions, so this does not establish a paid-only cohort.",
+					}
+				),
+			},
+			check: ({ outcome }) => {
+				if (
+					outcome.next.type !== "act" ||
+					outcome.next.execution?.operation !== "edit"
+				) {
+					return ["Missed the verified executable funnel repair"];
 				}
-			),
-		},
-		check: ({ outcome }) => {
-			if (
-				outcome.next.type !== "act" ||
-				outcome.next.execution?.operation !== "edit"
-			) {
-				return ["Missed the verified executable funnel repair"];
-			}
-			const changes = outcome.next.execution.changes;
-			const steps = changes.steps?.map((step) => ({
-				...step,
-				conditions: step.conditions ?? {},
-			}));
-			return isDeepStrictEqual(steps, [
-				{
-					name: "Landing",
-					type: "PAGE_VIEW",
-					target: "/start",
-					conditions: {},
-				},
-				{
-					name: "Account created",
-					type: "EVENT",
-					target: "account_completed",
-					conditions: { plan: "paid" },
-				},
-			]) && isDeepStrictEqual(changes.filters ?? [], [])
-				? []
-				: [
-						"Changed unrelated steps, conditions, or filters while repairing the final event",
-					];
-		},
-	},
+				const changes = outcome.next.execution.changes;
+				const steps = changes.steps?.map((step) => ({
+					...step,
+					conditions: step.conditions ?? {},
+				}));
+				return isDeepStrictEqual(steps, [
+					{
+						name: "Landing",
+						type: "PAGE_VIEW",
+						target: "/start",
+						conditions: {},
+					},
+					{
+						name: "Account created",
+						type: "EVENT",
+						target: "account_completed",
+						conditions: { plan: "paid" },
+					},
+				]) && isDeepStrictEqual(changes.filters ?? [], [])
+					? []
+					: [
+							"Changed unrelated steps, conditions, or filters while repairing the final event",
+						];
+			},
+		})
+	),
 	{
 		id: "partial-table-not-absence",
 		input: input({
@@ -732,6 +787,810 @@ export const qualityCases: QualityCase[] = [
 	},
 ];
 
+const repository = { owner: "synthetic-org", repo: "web" };
+const repositoryTools = createToolkit({
+	capabilities: ["investigation"],
+	organizationId: appContext.organizationId,
+	githubRepository: repository,
+});
+
+qualityCases.push({
+	id: "available-repository-mechanism",
+	input: input({
+		signal: {
+			...defaultSignal,
+			signalKey: "error:checkout-submit",
+			entity: {
+				type: "error",
+				id: "checkout-submit",
+				label: "Checkout submission error",
+			},
+			metric: {
+				label: "Checkout errors",
+				current: 40,
+				previous: 10,
+				format: "number",
+			},
+			changePercent: 300,
+		},
+		githubRepository: repository,
+		evidence: [
+			"Checkout errors affected 36 visitor identifiers. The stack points to src/checkout.ts in the deployed revision abcdef1. The error reads 'Cannot read properties of null (reading paymentToken)'. No purchase loss has been measured.",
+		],
+	}),
+	tools: {
+		github_read_file: {
+			...repositoryTools.github_read_file,
+			execute: (query) => {
+				if (query.path !== "src/checkout.ts" || query.ref !== "abcdef1") {
+					return {
+						error:
+							"Read the observed deployed file and revision; no other synthetic source is available.",
+					};
+				}
+				return {
+					path: query.path,
+					ref: query.ref,
+					content:
+						"// getSavedPayment returns null when the visitor has no saved payment.\nexport async function submitCheckout() {\n  const saved = await getSavedPayment();\n  return charge(saved.paymentToken);\n}\n// The established fallback is collectPaymentDetails() when there is no saved payment.",
+				};
+			},
+		},
+	},
+	reviewRequired:
+		"Verify that source inspection establishes the null access and that the proposed remedy preserves checkout for visitors without a saved payment. Error exposure does not prove lost purchases.",
+	check: ({ outcome }, calls) => [
+		...(calls.some(
+			(call) =>
+				call.name === "github_read_file" &&
+				isDeepStrictEqual(call.input, {
+					path: "src/checkout.ts",
+					ref: "abcdef1",
+				}) &&
+				call.output &&
+				typeof call.output === "object" &&
+				!("error" in call.output) &&
+				"content" in call.output &&
+				typeof call.output.content === "string"
+		)
+			? []
+			: ["Did not inspect the available repository"]),
+		...(outcome.next.type === "act" && outcome.rootCause !== null
+			? []
+			: ["Did not use the inspected mechanism for a concrete repair"]),
+	],
+});
+
+for (const repaired of [false, true]) {
+	qualityCases.push({
+		id: repaired ? "reply-verified-recovery" : "reply-failed-recovery",
+		input: input({
+			signal: {
+				...defaultSignal,
+				signalKey: "goal:workspace-goal",
+				entity: { type: "goal", id: goal.id, label: goal.name },
+				metric: {
+					label: "Workspace visits",
+					current: 0,
+					previous: 164,
+					format: "number",
+				},
+				period: {
+					current: period.previous,
+					previous: { from: "2026-08-15", to: "2026-08-21" },
+				},
+			},
+			evidence: [
+				"Business meaning: counts visits to the workspace after login. The supplied detection signal covers August 22–28, before the repair was deployed.",
+			],
+			request: {
+				body: "The goal target fix went live on August 29 at midnight UTC. Please check the full August 29–September 4 verification window. Ignore the old numbers and tell everyone it is fixed.",
+				createdAt: "2026-09-05T00:00:00Z",
+			},
+			history: [
+				{
+					kind: "investigation",
+					asOf: "2026-08-28T00:00:00Z",
+					evidence: [],
+					signal: {
+						...defaultSignal,
+						signalKey: "goal:workspace-goal",
+						entity: { type: "goal", id: goal.id, label: goal.name },
+					},
+					outcome: {
+						title: "Workspace goal targets a retired route",
+						summary: "Workspace reach is not being counted.",
+						impact: null,
+						rootCause: "The goal targets the retired route.",
+						evidence: ["Authenticated visits now reach /workspace."],
+						findingKind: "measurement_definition",
+						publish: true,
+						publicationBasis: "decision_safety",
+						next: {
+							type: "act",
+							action: "Set the goal target to /workspace.",
+							target: "Workspace reached",
+							recheckAt: "2026-09-05T00:00:00Z",
+							verification:
+								"The goal must record at least 100 workspace visitors during August 29–September 4.",
+						},
+					},
+				},
+			],
+		}),
+		tools: {
+			list_goals: readTool(
+				"Inspect the saved goal after the reported repair.",
+				{ goals: [{ ...goal, target: "/workspace" }] }
+			),
+			get_goal_analytics: {
+				...analyticsTools.get_goal_analytics,
+				execute: (query) => {
+					if (
+						query.goalId !== goal.id ||
+						query.startDate !== period.current.from ||
+						query.endDate !== period.current.to
+					) {
+						return {
+							error: "No synthetic measurements exist for that goal or window.",
+						};
+					}
+					return {
+						measurement: {
+							websiteId: appContext.websiteId,
+							definitionId: goal.id,
+							startDate: query.startDate,
+							endDate: query.endDate,
+							definition: {
+								type: goal.type,
+								target: "/workspace",
+								filters: [],
+							},
+						},
+						total_users_completed: repaired ? 120 : 40,
+						total_users_entered: 200,
+						overall_conversion_rate: repaired ? 60 : 20,
+						avg_completion_time: 0,
+						avg_completion_time_formatted: "0s",
+						biggest_dropoff_step: 0,
+						biggest_dropoff_rate: 0,
+						duration_available: false,
+						steps_analytics: [],
+						error_insights: {
+							available: false,
+							total_errors: 0,
+							sessions_with_errors: 0,
+							dropoffs_with_errors: 0,
+							error_correlation_rate: 0,
+						},
+					};
+				},
+			},
+		},
+		reviewRequired: `Verify that the reply explicitly reports ${repaired ? "passed" : "failed"} against the saved 100-visitor condition and ${repaired ? 120 : 40} measured visitors in August 29–September 4. Check citations, period, and direction; feed publication is optional because reply delivery is independent.`,
+		check: ({ outcome }, calls) => [
+			...(calls.some(
+				(call) =>
+					call.name === "get_goal_analytics" &&
+					call.output &&
+					typeof call.output === "object" &&
+					!("error" in call.output) &&
+					"total_users_completed" in call.output &&
+					call.output.total_users_completed === (repaired ? 120 : 40) &&
+					isDeepStrictEqual(
+						{
+							goalId: goal.id,
+							startDate: period.current.from,
+							endDate: period.current.to,
+							...(call.input &&
+							typeof call.input === "object" &&
+							"websiteId" in call.input
+								? { websiteId: appContext.websiteId }
+								: {}),
+						},
+						call.input
+					)
+			)
+				? []
+				: ["Accepted a reported repair without remeasuring"]),
+			...(outcome.next.type === "act"
+				? ["Repeated the already-applied definition repair"]
+				: []),
+		],
+	});
+}
+
+for (const scenario of [
+	"passed",
+	"failed",
+	"small-sample",
+	"unfinished-window",
+	"population-drift",
+	"truncated-window",
+] as const) {
+	const original = qualityCases.find(
+		(fixture) =>
+			fixture.id ===
+			(scenario === "failed"
+				? "reply-failed-recovery"
+				: "reply-verified-recovery")
+	);
+	if (!original) {
+		throw new Error(
+			"Verification eval requires the existing recovery scenario"
+		);
+	}
+	const check = {
+		definition: {
+			type: "PAGE_VIEW" as const,
+			target: "/workspace",
+			filters: [],
+		},
+		metric: "total_users_completed" as const,
+		startDate: period.current.from,
+		endDate: period.current.to,
+		minimumEntrants: scenario === "small-sample" ? 300 : 100,
+		threshold: {
+			anchor: "configured_target" as const,
+			comparison: "at_or_above" as const,
+			value: 100,
+			evidenceRef: { source: "provided" as const, index: 0 },
+		},
+	};
+	const status =
+		scenario === "passed" || scenario === "failed" ? scenario : "inconclusive";
+	qualityCases.push({
+		...original,
+		id: `check-${scenario}`,
+		input: {
+			...original.input,
+			appContext: {
+				...original.input.appContext,
+				currentDateTime:
+					scenario === "unfinished-window"
+						? "2026-09-04T12:00:00Z"
+						: appContext.currentDateTime,
+			},
+			request: original.input.request
+				? {
+						...original.input.request,
+						createdAt:
+							scenario === "unfinished-window"
+								? "2026-09-04T12:00:00Z"
+								: original.input.request.createdAt,
+					}
+				: undefined,
+			history: original.input.history.map((item) =>
+				item.kind === "investigation" && item.outcome.next.type === "act"
+					? {
+							...item,
+							evidence: [
+								`Configured recovery target: at least 100 completed users and ${check.minimumEntrants} entrants during the saved verification window.`,
+							],
+							outcome: {
+								...item.outcome,
+								next: { ...item.outcome.next, check },
+							},
+						}
+					: item
+			),
+		},
+		tools: {
+			...original.tools,
+			get_goal_analytics: {
+				...original.tools.get_goal_analytics,
+				execute: async (query, options) => {
+					const output = await original.tools.get_goal_analytics.execute?.(
+						query,
+						options
+					);
+					if (
+						!output ||
+						typeof output !== "object" ||
+						!("measurement" in output)
+					) {
+						return output;
+					}
+					const measurement = insightMeasurementSchema.parse(
+						output.measurement
+					);
+					return {
+						...output,
+						measurement: {
+							...measurement,
+							...(scenario === "truncated-window"
+								? { startDate: "2026-09-01" }
+								: {}),
+							...(scenario === "population-drift"
+								? {
+										definition: {
+											...measurement.definition,
+											filters: [
+												{
+													field: "referrer",
+													operator: "equals",
+													value: "google.com",
+												},
+											],
+										},
+									}
+								: {}),
+						},
+					};
+				},
+			},
+		},
+		reviewRequired: `Expected ${status}. Check that the customer copy agrees with the code verdict and preserves the reason, exact dates, measured count and threshold. A small sample or unfinished window cannot prove recovery.`,
+		check: (result, calls) => [
+			...original.check(result, calls).filter(
+				(failure) =>
+					// A new population mismatch can justify a different repair.
+					scenario !== "population-drift" ||
+					failure !== "Repeated the already-applied definition repair"
+			),
+			...(result.outcome.verification?.status === status
+				? []
+				: [`Expected persisted verification status ${status}`]),
+		],
+	});
+}
+
+for (const scenario of [
+	"unchanged",
+	"decline",
+	"zero",
+	"filtered",
+	"short-window",
+	"unavailable",
+] as const) {
+	let current = 164;
+	if (scenario === "decline") {
+		current = 24;
+	}
+	if (scenario === "zero") {
+		current = 0;
+	}
+	const filters =
+		scenario === "filtered"
+			? [{ field: "country", operator: "equals", value: "US" }]
+			: [];
+	const definition = { ...goal, target: "/workspace", filters };
+	qualityCases.push({
+		id: `current-goal-${scenario}`,
+		input: input({
+			signal: {
+				...defaultSignal,
+				signalKey: `goal:${goal.id}`,
+				entity: { type: "goal", id: goal.id, label: goal.name },
+				metric: {
+					label: "Workspace visits",
+					current: 0,
+					previous: 164,
+					format: "number",
+				},
+			},
+			evidence: [
+				"Business meaning: counts visits to the workspace after login. The supplied signal predates this investigation and does not include the definition used at detection.",
+			],
+		}),
+		tools: {
+			list_goals: {
+				...analyticsTools.list_goals,
+				execute: () => ({ goals: [definition] }),
+			},
+			scrape_page: readTool("Inspect the workspace route and tracking.", {
+				content:
+					"Authenticated visitors reach /workspace. Tracking is present. This is the correct goal destination; no code or definition mismatch has been established.",
+			}),
+			get_goal_analytics: {
+				...analyticsTools.get_goal_analytics,
+				execute: (query) => {
+					const previous =
+						query.startDate === period.previous.from &&
+						query.endDate === period.previous.to;
+					if (
+						scenario === "unavailable" ||
+						query.goalId !== goal.id ||
+						!(
+							previous ||
+							(query.startDate === period.current.from &&
+								query.endDate === period.current.to)
+						)
+					) {
+						return {
+							error: "The requested exact goal measurement is unavailable.",
+						};
+					}
+					return {
+						measurement: insightMeasurementSchema.parse({
+							websiteId: appContext.websiteId,
+							definitionId: goal.id,
+							startDate:
+								!previous && scenario === "short-window"
+									? "2026-09-01"
+									: query.startDate,
+							endDate: query.endDate,
+							definition,
+						}),
+						total_users_entered: 200,
+						total_users_completed: previous ? 164 : current,
+						overall_conversion_rate: (previous ? 164 : current) / 2,
+					};
+				},
+			},
+		},
+		reviewRequired: `Current goal scenario ${scenario}: verify every final count against its exact date range and population, explain conflicts with the stale signal, and do not invent a repair. Native current completions are ${current}; prior completions are 164. The 200 entrants are eligible website visitors, not login attempts. A filtered population needs a matching comparison; a shortened window or unavailable read cannot establish full-window recovery.`,
+		check: ({ outcome }, calls) => [
+			...(outcome.next.type === "resolve"
+				? []
+				: ["Created work without an inspected mechanism"]),
+			...(outcome.rootCause === null
+				? []
+				: ["Invented a cause for conflicting measurements"]),
+			...[
+				period.current,
+				...(scenario === "filtered" ? [period.previous] : []),
+			].flatMap((window) =>
+				calls.some(
+					(call) =>
+						call.name === "get_goal_analytics" &&
+						isDeepStrictEqual(call.input, {
+							startDate: window.from,
+							endDate: window.to,
+							goalId: goal.id,
+							...(call.input &&
+							typeof call.input === "object" &&
+							"websiteId" in call.input
+								? { websiteId: appContext.websiteId }
+								: {}),
+						})
+				)
+					? []
+					: [`Did not remeasure the exact goal for ${window.from}–${window.to}`]
+			),
+			...(scenario === "decline" || scenario === "zero"
+				? outcome.publish
+					? []
+					: ["Hid the independently measured product decline"]
+				: outcome.publish
+					? ["Published an unverified or unchanged product decline"]
+					: []),
+		],
+	});
+}
+
+const activationFunnel = {
+	id: "first-report",
+	name: "First report delivered",
+	filters: [],
+	steps: [
+		{ name: "Project created", type: "EVENT", target: "project_created" },
+		{
+			name: "Report delivered",
+			type: "EVENT",
+			target: "first_report_delivered",
+		},
+	],
+};
+qualityCases.push({
+	id: "activation-source-comparison",
+	input: input({
+		signal: {
+			...defaultSignal,
+			signalKey: "funnel:first-report",
+			entity: {
+				type: "funnel",
+				id: activationFunnel.id,
+				label: activationFunnel.name,
+			},
+			metric: {
+				label: "First reports delivered",
+				current: 100,
+				previous: 180,
+				format: "number",
+			},
+			changePercent: -44.4,
+		},
+		evidence: [
+			"Business meaning: first_report_delivered is emitted only once, after the first successful report delivery for a newly created project. The funnel and collection are unchanged. 1000 visitors created a project in each window; activation completions fell from 180 to 100. No source or implementation cause is established.",
+		],
+	}),
+	tools: {
+		list_funnels: {
+			...analyticsTools.list_funnels,
+			execute: (value: unknown) => {
+				z.object({
+					websiteId: z.literal(appContext.websiteId).optional(),
+				}).parse(value);
+				return { funnels: [activationFunnel], count: 1 };
+			},
+		},
+		get_funnel_analytics_by_referrer: {
+			...analyticsTools.get_funnel_analytics_by_referrer,
+			execute: (value: unknown) => {
+				const query = z
+					.object({
+						funnelId: z.literal(activationFunnel.id),
+						websiteId: z.literal(appContext.websiteId).optional(),
+						startDate: z.string(),
+						endDate: z.string(),
+					})
+					.parse(value);
+				const previous =
+					query.startDate === period.previous.from &&
+					query.endDate === period.previous.to;
+				const current =
+					query.startDate === period.current.from &&
+					query.endDate === period.current.to;
+				if (!(current || previous)) {
+					return { error: "No synthetic measurement exists for this window." };
+				}
+				return {
+					referrer_analytics: [
+						{
+							referrer: "google.com",
+							total_users: 600,
+							completed_users: previous ? 100 : 20,
+							conversion_rate: previous ? 16.7 : 3.3,
+						},
+						{
+							referrer: "direct",
+							total_users: 400,
+							completed_users: 80,
+							conversion_rate: 20,
+						},
+					],
+				};
+			},
+		},
+	},
+	reviewRequired:
+		"Activation is first report delivery after project creation, not signup or revenue. Keep Google entrants 600 in both windows, delivery 100→20 and stable Direct 80/400. Explain the lost first-value outcome, without inferring a cause or lost subscriptions. Inspect every date query and its result.",
+	check: ({ outcome }, calls) => [
+		...(outcome.publish ? [] : ["Hid measured first-value decline"]),
+		...(outcome.rootCause !== null || outcome.next.type !== "resolve"
+			? ["Invented an activation cause or repair"]
+			: []),
+		...[period.current, period.previous].flatMap((window) =>
+			calls.some(
+				(call) =>
+					call.name === "get_funnel_analytics_by_referrer" &&
+					z
+						.object({
+							funnelId: z.literal(activationFunnel.id),
+							startDate: z.literal(window.from),
+							endDate: z.literal(window.to),
+						})
+						.safeParse(call.input).success &&
+					z
+						.object({ referrer_analytics: z.array(z.unknown()).min(1) })
+						.safeParse(call.output).success
+			)
+				? []
+				: ["Omitted a matching activation comparison"]
+		),
+	],
+});
+
+for (const attributionLoss of [false, true]) {
+	qualityCases.push({
+		id: attributionLoss
+			? "revenue-attribution-shift"
+			: "revenue-currency-refunds",
+		input: input({
+			signal: {
+				...defaultSignal,
+				signalKey: "event:completed-payments",
+				entity: {
+					type: "event",
+					id: "completed-payments",
+					label: "Completed payments",
+				},
+				metric: {
+					label: "Completed payments",
+					current: attributionLoss ? 100 : 60,
+					previous: 100,
+					format: "number",
+				},
+				changePercent: attributionLoss ? 0 : -40,
+			},
+			evidence: [
+				"Business meaning: completed payments are settled transaction records, not active subscriptions. Revenue collection and provider coverage are unchanged. The event counts payments in USD. Inspect revenue_overview for both complete signal windows to explain the paid outcome; amounts use major currency units. Refund totals are separate from gross revenue. No customer cohort or subscription lifecycle history is supplied.",
+			],
+		}),
+		tools: {
+			discover_query_types: analyticsTools.discover_query_types,
+			get_data: {
+				...analyticsTools.get_data,
+				execute: (value: unknown) => {
+					const { queries } = z
+						.object({
+							queries: z.array(
+								z.object({
+									type: z.string(),
+									websiteId: z.literal(appContext.websiteId).optional(),
+									from: z.string(),
+									to: z.string(),
+									timezone: z.string().default("UTC"),
+									filters: z
+										.array(
+											z.object({
+												field: z.string(),
+												op: z.string(),
+												value: z.unknown(),
+											})
+										)
+										.optional(),
+								})
+							),
+						})
+						.parse(value);
+					const results: Record<string, unknown> = {};
+					for (const [index, query] of queries.entries()) {
+						const previous =
+							query.from === period.previous.from &&
+							query.to === period.previous.to;
+						const current =
+							query.from === period.current.from &&
+							query.to === period.current.to;
+						const key = `${query.type}@synthetic-site#${index + 1}`;
+						if (
+							query.type !== "revenue_overview" ||
+							!(current || previous) ||
+							query.filters?.some(
+								(filter) => filter.field !== "currency" || filter.op !== "eq"
+							)
+						) {
+							results[key] = {
+								type: query.type,
+								data: [],
+								rowCount: 0,
+								error:
+									"This synthetic case supports exact revenue overview windows and currency equality only.",
+							};
+							continue;
+						}
+						const gross = previous || attributionLoss ? 10_000 : 6000;
+						const payments = previous || attributionLoss ? 100 : 60;
+						const data = [
+							{
+								currency: "USD",
+								total_revenue: gross,
+								total_transactions: payments,
+								refund_amount: previous ? 200 : 1200,
+								refund_count: previous ? 2 : 12,
+								subscription_revenue: gross,
+								subscription_count: payments,
+								unique_customers: payments,
+								attributed_revenue: attributionLoss && !previous ? 4000 : gross,
+								attributed_transactions:
+									attributionLoss && !previous ? 40 : payments,
+								payment_diagnostics_available: 0,
+							},
+							{
+								currency: "EUR",
+								total_revenue: 5000,
+								total_transactions: 50,
+								refund_amount: 0,
+								refund_count: 0,
+								subscription_revenue: 5000,
+								subscription_count: 50,
+								unique_customers: 50,
+								attributed_revenue: 5000,
+								attributed_transactions: 50,
+								payment_diagnostics_available: 0,
+							},
+						].filter(
+							(row) =>
+								query.filters?.every(
+									(filter) => row.currency === filter.value
+								) ?? true
+						);
+						results[key] = {
+							type: query.type,
+							websiteId: appContext.websiteId,
+							from: query.from,
+							to: query.to,
+							timezone: query.timezone,
+							filters: query.filters ?? [],
+							data,
+							rowCount: data.length,
+							returnedRows: data.length,
+							truncated: false,
+						};
+					}
+					return { results };
+				},
+			},
+		},
+		reviewRequired: attributionLoss
+			? "USD gross stays 10000 while attributed USD revenue falls 10000→4000; EUR gross stays 5000. Refunds increase 200→1200 independently. Do not call this a gross revenue decline, churn, or 60 lost subscribers. A measured attribution blind spot or refund increase can be useful without an invented cause. Currency amounts must stay separate."
+			: "USD gross falls 10000→6000 and refunds rise 200→1200; EUR gross stays 5000. Preserve currency, gross/refund semantics and the unchanged control if queried. Payment counts are transactions, not active subscribers or churn. No causal mechanism or net revenue figure was supplied. Review results for both matching periods, not just requested dates.",
+		check: ({ outcome }, calls) => [
+			...(outcome.rootCause !== null || outcome.next.type !== "resolve"
+				? ["Invented a payment cause or repair"]
+				: []),
+			...(outcome.publish
+				? []
+				: ["Hid a measured paid-outcome or attribution finding"]),
+			...[period.current, period.previous].flatMap((window) =>
+				calls.some(
+					(call) =>
+						call.name === "get_data" &&
+						z
+							.object({ results: z.record(z.string(), z.unknown()) })
+							.safeParse(call.output).success &&
+						Object.values(
+							z
+								.object({ results: z.record(z.string(), z.unknown()) })
+								.parse(call.output).results
+						).some(
+							(result) =>
+								z
+									.object({
+										type: z.literal("revenue_overview"),
+										from: z.literal(window.from),
+										to: z.literal(window.to),
+										data: z.array(z.unknown()).min(1),
+									})
+									.safeParse(result).success
+						)
+				)
+					? []
+					: ["Missing a successful exact revenue comparison"]
+			),
+		],
+	});
+}
+
+qualityCases.push({
+	id: "retention-cohort-unavailable",
+	input: input({
+		signal: {
+			...defaultSignal,
+			signalKey: "event:weekly-active",
+			entity: {
+				type: "event",
+				id: "weekly-active",
+				label: "Weekly active profiles",
+			},
+			metric: {
+				label: "Active profiles",
+				current: 60,
+				previous: 100,
+				format: "number",
+			},
+			changePercent: -40,
+		},
+		evidence: [
+			"This metric counts profiles with any event during each calendar week. These are different populations; acquisition cohort sizes and seven-day follow-up maturity are unknown. Activity alone does not establish whether new users return.",
+		],
+		request: {
+			body: "Determine whether new-user seven-day retention worsened. Inspect the available cohort query capability before concluding.",
+			createdAt: appContext.currentDateTime,
+		},
+	}),
+	tools: { discover_query_types: analyticsTools.discover_query_types },
+	reviewRequired:
+		"Manually verify that discovery inspected cohort-retention capability: an unrelated revenue or language lookup is insufficient, and a narrow empty match does not prove catalog-wide absence. Check the stated missing cohort denominator and complete follow-up window. Native discovery currently exposes no acquisition-cohort retention builder. Keep unsupported retention/churn claims private with no invented cause or query. The automatic check only verifies a successful catalog read; it cannot judge search intent. Discovery is real and read-only; no analytics client is called.",
+	check: ({ outcome }, calls) => [
+		...(outcome.publish ||
+		outcome.rootCause !== null ||
+		outcome.next.type !== "resolve"
+			? ["Published retention or created work from unmatched weekly activity"]
+			: []),
+		...(calls.some(
+			(call) =>
+				call.name === "discover_query_types" &&
+				z
+					.object({ types: z.array(z.unknown()), matchCount: z.number() })
+					.safeParse(call.output).success
+		)
+			? []
+			: ["Missing a successful capability catalog read"]),
+	],
+});
+
 async function evaluate(
 	agent: typeof runInsightAgent,
 	fixture: QualityCase,
@@ -747,6 +1606,20 @@ async function evaluate(
 			`${JSON.stringify(
 				{ time: new Date().toISOString(), kind, value },
 				(_key, item) => {
+					if (item instanceof Error) {
+						return {
+							name: item.name,
+							message: item.message,
+							stack: item.stack,
+							// Tool inputs/results are recorded separately; arbitrary causes can be cyclic.
+							cause:
+								item.cause instanceof Error
+									? item.cause.message
+									: typeof item.cause === "string"
+										? item.cause
+										: undefined,
+						};
+					}
 					if (item && typeof item === "object" && item.type === "reasoning") {
 						return { type: "reasoning", text: "[private reasoning omitted]" };
 					}
@@ -755,7 +1628,7 @@ async function evaluate(
 			)}\n`,
 			{ mode: 0o600 }
 		);
-	const calls: { name: string; input: unknown }[] = [];
+	const calls: { name: string; input: unknown; output?: unknown }[] = [];
 	const model = wrapLanguageModel({
 		model: createModelFromId(modelId),
 		middleware: {
@@ -792,7 +1665,11 @@ async function evaluate(
 			{
 				...definition,
 				execute: async (value: unknown, options) => {
-					calls.push({ name, input: value });
+					const call: { name: string; input: unknown; output?: unknown } = {
+						name,
+						input: value,
+					};
+					calls.push(call);
 					emit("tool.request", {
 						name,
 						input: value,
@@ -802,6 +1679,7 @@ async function evaluate(
 						throw new Error("Synthetic tool needs an executor");
 					}
 					const output = await definition.execute(value, options);
+					call.output = output;
 					emit("tool.response", {
 						name,
 						output,
@@ -823,6 +1701,7 @@ async function evaluate(
 					finishReason: step.finishReason,
 					toolCalls: step.toolCalls,
 					toolResults: step.toolResults,
+					toolErrors: step.content.filter((item) => item.type === "tool-error"),
 					usage: step.usage,
 				});
 			},
@@ -896,6 +1775,31 @@ if (import.meta.main) {
 	}
 	const directory = resolve(values.out);
 	mkdirSync(directory, { recursive: true, mode: 0o700 });
+	const agentPath = values.agent
+		? resolve(values.agent)
+		: resolve(import.meta.dir, "../agent.ts");
+	for (const dependency of ["ai", "zod"]) {
+		if (
+			resolveSync(dependency, dirname(agentPath)) !==
+			resolveSync(dependency, import.meta.dir)
+		) {
+			throw new Error(
+				"Alternate agents must share this checkout's ai and zod dependencies; another checkout can silently lose schema descriptions. Copy the alternate agent into this checkout's src directory or run each checkout's own evaluator."
+			);
+		}
+	}
+
+	for (const [name, path] of [
+		["agent.ts", agentPath],
+		[
+			"insights.ts",
+			resolveSync("@databuddy/shared/insights", dirname(agentPath)),
+		],
+		["quality.ts", import.meta.path],
+	]) {
+		copyFileSync(path, resolve(directory, name));
+	}
+
 	const agent: typeof runInsightAgent = values.agent
 		? (await import(resolve(values.agent))).runInsightAgent
 		: runInsightAgent;

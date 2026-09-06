@@ -61,27 +61,18 @@ export function insightRepairError(
 	}
 	const funnel = parsed.data;
 	const steps = changes.steps ?? funnel.steps;
-	const beforeConditions = funnel.steps.map((step) => step.conditions ?? {});
-	const afterConditions = steps.map((step) => step.conditions ?? {});
-	const sharedLength = Math.min(
-		beforeConditions.length,
-		afterConditions.length
-	);
-	const hasConditions = (conditions: Record<string, unknown>) =>
-		Object.keys(conditions).length > 0;
-	// Conditions must be untouched wherever a step already existed. Steps added
-	// or removed beyond that are only allowed when they carry no conditions, so
-	// a condition-free step can be appended or dropped without tripping this.
-	if (
-		!isDeepStrictEqual(
-			beforeConditions.slice(0, sharedLength),
-			afterConditions.slice(0, sharedLength)
-		) ||
-		afterConditions.slice(sharedLength).some(hasConditions) ||
-		beforeConditions.slice(sharedLength).some(hasConditions)
+	for (
+		let index = 0;
+		index < Math.max(funnel.steps.length, steps.length);
+		index++
 	) {
-		return "Automatic funnel repairs must preserve existing step conditions and cannot add conditions that analytics does not evaluate.";
+		const before = funnel.steps[index]?.conditions ?? {};
+		const after = steps[index]?.conditions ?? {};
+		if (!isDeepStrictEqual(before, after)) {
+			return "Automatic funnel repairs must preserve existing step conditions and cannot add conditions that analytics does not evaluate.";
+		}
 	}
+
 	if (
 		isDeepStrictEqual(
 			toAnalyticsSteps(steps).map(({ name: _name, ...step }) => step),

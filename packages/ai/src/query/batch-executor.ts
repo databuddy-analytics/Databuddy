@@ -527,6 +527,7 @@ export async function executeBatch(
 			const rawRows = await chQuery(sql, params, {
 				abort_signal: opts?.abortSignal,
 				clickhouse_settings: getClickHouseQuerySettings(groupNoCache),
+				label: `batch:${[...new Set(compiledItems.map(({ req }) => req.type))].sort().join("+")}`,
 			});
 
 			mergeWideEvent({

@@ -1,3 +1,4 @@
+import { Expressions } from "../expressions";
 import { Analytics } from "../../types/tables";
 import { appendFilterClause } from "../simple-builder";
 import type { SimpleQueryConfig } from "../types";
@@ -6,15 +7,13 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 	top_pages: {
 		table: Analytics.events,
 		fields: [
-			"decodeURLComponent(CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END) as name",
+			`decodeURLComponent(${Expressions.path.normalized}) as name`,
 			"COUNT(*) as pageviews",
 			"uniq(anonymous_id) as visitors",
 		],
 		percentageOf: { of: "visitors" },
 		where: ["event_name = 'screen_view'"],
-		groupBy: [
-			"decodeURLComponent(CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END)",
-		],
+		groupBy: [`decodeURLComponent(${Expressions.path.normalized})`],
 		orderBy: "visitors DESC",
 		limit: 100,
 		timeField: "time",
@@ -153,7 +152,7 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
             session_entry AS (
                 SELECT
                     session_id,
-                    argMin(CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END, time) as entry_page,
+                    argMin(${Expressions.path.normalized}, time) as entry_page,
                     argMin(anonymous_id, time) as visitor_id
                 FROM analytics.events
                 WHERE client_id = {websiteId:String}
@@ -268,7 +267,7 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
             session_exit AS (
                 SELECT
                     session_id,
-                    argMax(CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END, time) as exit_page,
+                    argMax(${Expressions.path.normalized}, time) as exit_page,
                     argMax(anonymous_id, time) as visitor_id
                 FROM analytics.events
                 WHERE client_id = {websiteId:String}
@@ -319,14 +318,12 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 		},
 		table: Analytics.events,
 		fields: [
-			"decodeURLComponent(CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END) as name",
+			`decodeURLComponent(${Expressions.path.normalized}) as name`,
 			"COUNT(*) as pageviews",
 			"uniq(anonymous_id) as visitors",
 		],
 		where: ["event_name = 'screen_view'"],
-		groupBy: [
-			"decodeURLComponent(CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END)",
-		],
+		groupBy: [`decodeURLComponent(${Expressions.path.normalized})`],
 		orderBy: "visitors DESC",
 		limit: 100,
 		timeField: "time",
@@ -408,7 +405,7 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 				: `
             per_page AS (
                 SELECT
-                    decodeURLComponent(CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END) as name,
+                    decodeURLComponent(${Expressions.path.normalized}) as name,
                     COUNT(*) as sessions_with_time,
                     uniq(anonymous_id) as visitors,
                     quantileTDigest(0.5)(time_on_page) as median_raw

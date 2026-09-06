@@ -152,3 +152,143 @@ it.each([
 	}
 	expect(check(changes)).toHaveLength(1);
 });
+
+it.each([
+	{
+		id: "available-repository-mechanism",
+		name: "github_read_file",
+		input: { path: "src/checkout.ts", ref: "abcdef1" },
+	},
+	{
+		id: "reply-failed-recovery",
+		name: "get_goal_analytics",
+		input: {
+			goalId: "workspace-goal",
+			startDate: "2026-08-29",
+			endDate: "2026-09-04",
+		},
+	},
+	{
+		id: "reply-verified-recovery",
+		name: "get_goal_analytics",
+		input: {
+			goalId: "workspace-goal",
+			startDate: "2026-08-29",
+			endDate: "2026-09-04",
+		},
+	},
+])("requires a successful exact read for $id", async (sample) => {
+	const fixture = qualityCases.find((entry) => entry.id === sample.id);
+	const read = fixture?.tools[sample.name];
+	if (!(fixture && read?.execute)) throw new Error("Missing context fixture");
+	const result = {
+		toolCallCount: 1,
+		outcome: {
+			title: "Reviewed finding",
+			summary: "A verified result.",
+			impact: null,
+			rootCause: "Inspected null access.",
+			evidence: ["Measured result."],
+			next:
+				sample.name === "github_read_file"
+					? {
+							type: "act" as const,
+							action: "Guard null access.",
+							target: "Checkout",
+							verification: "The path succeeds.",
+						}
+					: { type: "resolve" as const, reason: "Verification checked." },
+		},
+	};
+	const output = await read.execute(sample.input, {
+		toolCallId: "read",
+		messages: [],
+	});
+	const call = { name: sample.name, input: sample.input, output };
+	expect(fixture.check(result, [call])).toEqual([]);
+	expect(
+		fixture.check(result, [{ ...call, output: { error: "Unavailable" } }])
+	).toHaveLength(1);
+	expect(fixture.check(result, [{ ...call, output: undefined }])).toHaveLength(
+		1
+	);
+	expect(fixture.check(result, [{ ...call, input: {} }])).toHaveLength(1);
+});
+
+it.each([
+	{
+		id: "revenue-currency-refunds",
+		gross: 6000,
+		attributed: 6000,
+		attributedTransactions: 60,
+	},
+	{
+		id: "revenue-attribution-shift",
+		gross: 10000,
+		attributed: 4000,
+		attributedTransactions: 40,
+	},
+])("keeps revenue currencies, gross totals, attribution and refunds separate: $id", async ({
+	id,
+	gross,
+	attributed,
+	attributedTransactions,
+}) => {
+	const read = qualityCases.find((entry) => entry.id === id)?.tools.get_data;
+	if (!read?.execute) throw new Error("Missing revenue fixture");
+	const query = {
+		type: "revenue_overview",
+		websiteId: "synthetic-site",
+		from: "2026-08-29",
+		to: "2026-09-04",
+	};
+	const output = await read.execute(
+		{ queries: [query, { ...query, from: "2026-08-22", to: "2026-08-28" }] },
+		{ toolCallId: "revenue", messages: [] }
+	);
+	expect(output).toMatchObject({
+		results: {
+			"revenue_overview@synthetic-site#1": {
+				from: query.from,
+				to: query.to,
+				data: [
+					{
+						currency: "USD",
+						total_revenue: gross,
+						refund_amount: 1200,
+						attributed_revenue: attributed,
+						attributed_transactions: attributedTransactions,
+					},
+					{ currency: "EUR", total_revenue: 5000, refund_amount: 0 },
+				],
+			},
+			"revenue_overview@synthetic-site#2": {
+				from: "2026-08-22",
+				to: "2026-08-28",
+				data: [
+					{ currency: "USD", total_revenue: 10000, refund_amount: 200 },
+					{ currency: "EUR", total_revenue: 5000, refund_amount: 0 },
+				],
+			},
+		},
+	});
+	expect(() =>
+		read.execute?.(
+			{ queries: [{ ...query, websiteId: "another-site" }] },
+			{ toolCallId: "wrong-site", messages: [] }
+		)
+	).toThrow();
+});
+
+it("rejects an activation definition lookup for another website", () => {
+	const read = qualityCases.find(
+		(entry) => entry.id === "activation-source-comparison"
+	)?.tools.list_funnels;
+	if (!read?.execute) throw new Error("Missing activation fixture");
+	expect(() =>
+		read.execute?.(
+			{ websiteId: "another-site" },
+			{ toolCallId: "wrong-site", messages: [] }
+		)
+	).toThrow();
+});

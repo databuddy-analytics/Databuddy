@@ -162,6 +162,9 @@ export const clickHouse: ClickHouseClient = Object.assign(
 export interface ChQueryOptions {
 	abort_signal?: AbortSignal;
 	clickhouse_settings?: Record<string, string | number>;
+	// Tags the query in system.query_log via log_comment, so slow shapes can be
+	// grouped by their origin instead of reverse-engineered from SQL text.
+	label?: string;
 	readonly?: boolean;
 }
 
@@ -225,6 +228,9 @@ async function chQueryWithMeta<T>(
 				...(clickHouseReadMode === "default" ? { readonly: "2" } : {}),
 			}
 		: { ...(options?.clickhouse_settings ?? {}), ...finalSettings };
+	if (options?.label) {
+		settings.log_comment = options.label;
+	}
 	assertCacheCompatibleSettings(settings);
 	const timeoutSignal = AbortSignal.timeout(CH_QUERY_MAX_MS);
 	const abortSignal = options?.abort_signal

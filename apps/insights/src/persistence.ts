@@ -1,14 +1,4 @@
-import {
-	and,
-	db,
-	desc,
-	eq,
-	getTableColumns,
-	isNotNull,
-	lte,
-	or,
-	sql,
-} from "@databuddy/db";
+import { and, db, desc, eq, isNotNull, lte, or, sql } from "@databuddy/db";
 import { analyticsInsights, insightObservations } from "@databuddy/db/schema";
 import {
 	invalidateAgentContextSnapshotsForWebsite,
@@ -21,16 +11,6 @@ import type {
 import { randomUUIDv7 } from "bun";
 import { normalizedErrorSubject } from "./investigation";
 import { captureInsightsError, emitInsightsEvent } from "./lib/evlog-insights";
-
-const REFRESHED_INSIGHT_COLUMNS = [
-	"title",
-	"description",
-	"severity",
-	"sentiment",
-	"changePercent",
-	"subjectKey",
-	"timezone",
-] as const satisfies readonly (keyof typeof analyticsInsights.$inferInsert)[];
 
 export interface WebsiteInvestigation {
 	id: string;
@@ -46,16 +26,6 @@ export function isInterruptingInvestigation(
 ): boolean {
 	const next = investigation.outcome.next.type;
 	return next === "act" || next === "ask";
-}
-
-function excludedRefreshSet() {
-	const columns = getTableColumns(analyticsInsights);
-	return Object.fromEntries(
-		REFRESHED_INSIGHT_COLUMNS.map((key) => [
-			key,
-			sql.raw(`excluded.${columns[key].name}`),
-		])
-	);
 }
 
 function dedupeKeyFor(investigation: WebsiteInvestigation): string {
@@ -101,12 +71,24 @@ async function fetchPriorInsight(
 
 export function caseValues(
 	investigation: Pick<WebsiteInvestigation, "outcome" | "signal">,
-	timezone: string
+	timezone: string,
+	at: Date
 ) {
 	const { outcome, signal } = investigation;
 	return {
 		changePercent: signal.changePercent,
 		description: outcome.summary,
+		createdAt: at,
+		resolvedAt: outcome.next.type === "resolve" ? at : null,
+		resolvedReason:
+			outcome.next.type === "resolve" &&
+			(!outcome.verification || outcome.verification.status === "passed")
+				? ("recovered" as const)
+				: null,
+		status:
+			outcome.next.type === "resolve"
+				? ("resolved" as const)
+				: ("open" as const),
 		sentiment: signal.sentiment,
 		severity: signal.severity,
 		subjectKey: signal.signalKey,
@@ -141,31 +123,21 @@ export async function persistInvestigation(params: {
 		(investigation.outcome.next.type === "watch" ||
 			investigation.outcome.next.type === "resolve");
 	const shouldPersistCase = interrupting || quietContinuation;
-	const open = investigation.outcome.next.type !== "resolve";
-	const resolvedAt = open ? null : persistedAt;
-	const resolvedReason = open ? null : ("recovered" as const);
-	const status: "open" | "resolved" = open ? "open" : "resolved";
-
-	function caseRow(value: WebsiteInvestigation, dedupeKey: string) {
-		return {
-			id: value.id,
-			organizationId: params.organizationId,
-			websiteId: value.websiteId,
-			dedupeKey,
-			...caseValues(value, params.timezone),
-			createdAt: persistedAt,
-			resolvedAt,
-			resolvedReason,
-			status,
-		};
-	}
+	const projection = caseValues(investigation, params.timezone, persistedAt);
+	const row = {
+		...projection,
+		id: investigation.id,
+		organizationId: params.organizationId,
+		websiteId: investigation.websiteId,
+		dedupeKey: key,
+	};
 
 	const persisted = await db.transaction(async (tx) => {
 		const rows = shouldPersistCase
 			? prior && (prior.dedupeKey !== key || !interrupting)
 				? await tx
 						.update(analyticsInsights)
-						.set(caseRow(investigation, key))
+						.set(row)
 						.where(
 							and(
 								eq(analyticsInsights.id, prior.id),
@@ -178,7 +150,7 @@ export async function persistInvestigation(params: {
 						.returning({ id: analyticsInsights.id })
 				: await tx
 						.insert(analyticsInsights)
-						.values(caseRow(investigation, key))
+						.values(row)
 						.onConflictDoUpdate({
 							target: [
 								analyticsInsights.organizationId,
@@ -186,13 +158,7 @@ export async function persistInvestigation(params: {
 							],
 							targetWhere: isNotNull(analyticsInsights.dedupeKey),
 							setWhere: lte(analyticsInsights.createdAt, params.notNewerThan),
-							set: {
-								createdAt: persistedAt,
-								status,
-								resolvedAt,
-								resolvedReason,
-								...excludedRefreshSet(),
-							},
+							set: projection,
 						})
 						.returning({ id: analyticsInsights.id })
 			: [];

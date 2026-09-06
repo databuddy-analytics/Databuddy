@@ -273,19 +273,15 @@ export async function resumeInsightReply(
 		const shouldUpdateInvestigation =
 			current.status === "open" || next === "act" || next === "ask";
 		if (shouldUpdateInvestigation) {
-			const open = next !== "resolve";
 			await tx
 				.update(analyticsInsights)
-				.set({
-					...caseValues(
+				.set(
+					caseValues(
 						{ outcome: result.outcome, signal: currentMeasurement.signal },
-						trigger.timezone
-					),
-					createdAt: committedAt,
-					resolvedAt: open ? null : committedAt,
-					resolvedReason: open ? null : "recovered",
-					status: open ? "open" : "resolved",
-				})
+						trigger.timezone,
+						committedAt
+					)
+				)
 				.where(eq(analyticsInsights.id, current.id));
 		}
 

@@ -253,6 +253,14 @@ const insightDefinitionExecutionSchema = z.discriminatedUnion("operation", [
 
 const agentEvidenceReferenceSchema = z.discriminatedUnion("source", [
 	z
+		.strictObject({
+			source: z.literal("history"),
+			index: z.number().int().nonnegative(),
+		})
+		.describe(
+			"A zero-based index of an investigation in history for this exact signal. Cites only the prior action’s saved verification condition, never historical measurements, current measurements, or a human reply."
+		),
+	z
 		.strictObject({ source: z.literal("customer_impact") })
 		.describe("The supplied customerImpact measurements, only when present."),
 	z
@@ -330,6 +338,69 @@ export const insightWatchThresholdSchema = z
 	})
 	.strict();
 
+// Bind only fields that analytics evaluates. The read snapshot also retains the
+// complete funnel steps so repair validation can preserve names and conditions.
+const measurementFiltersSchema = z
+	.array(
+		insightDefinitionEditChangesSchema.shape.filters.unwrap().unwrap().element
+	)
+	.default([]);
+export const insightVerificationDefinitionSchema = z.union([
+	z.object({
+		type: z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]),
+		target: z.string(),
+		filters: measurementFiltersSchema,
+	}),
+	z.object({
+		steps: z
+			.array(
+				z.object({
+					type: z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]),
+					target: z.string(),
+				})
+			)
+			.min(2),
+		filters: measurementFiltersSchema,
+	}),
+]);
+export const insightMeasurementSchema = z.object({
+	websiteId: z.string(),
+	definitionId: z.string(),
+	startDate: z.iso.date(),
+	endDate: z.iso.date(),
+	definition: z.union([
+		insightVerificationDefinitionSchema.options[0],
+		insightVerificationDefinitionSchema.options[1].extend({
+			steps: z
+				.array(
+					insightVerificationDefinitionSchema.options[1].shape.steps.element.extend(
+						{
+							name: z.string().min(1),
+							conditions: z.record(z.string(), z.unknown()).optional(),
+						}
+					)
+				)
+				.min(2),
+		}),
+	]),
+});
+
+const insightVerificationCheckSchema = z
+	.object({
+		definition: insightVerificationDefinitionSchema.optional(),
+		metric: z.enum(["total_users_completed", "overall_conversion_rate"]),
+		startDate: z.iso.date(),
+		endDate: z.iso.date(),
+		minimumEntrants: z.number().int().positive(),
+		threshold: insightWatchThresholdSchema.extend({
+			evidenceRef: agentEvidenceReferenceSchema,
+		}),
+	})
+	.strict()
+	.refine((check) => check.startDate <= check.endDate, {
+		message: "Verification dates must be ordered",
+	});
+
 const investigationActNextSchema = z.object({
 	type: z.literal("act"),
 	action: z
@@ -349,6 +420,12 @@ const investigationActNextSchema = z.object({
 		.trim()
 		.min(1)
 		.describe("One short measured condition that proves the repair worked."),
+	check: insightVerificationCheckSchema
+		.nullable()
+		.optional()
+		.describe(
+			"For a goal or funnel repair with known verification dates, bind the condition to that exact definition's analytics: completed users or conversion percent, inclusive UTC dates, minimum entrants, and an evidence-backed threshold. Null when the dates are unknown, the definition is deleted, or another metric/cohort is needed; never invent a check."
+		),
 	recheckAt: z.iso
 		.datetime()
 		.optional()
@@ -416,6 +493,14 @@ const agentInsightDefinitionExecutionSchema = z.discriminatedUnion(
 
 const agentInvestigationNextSchema = z.discriminatedUnion("type", [
 	investigationActNextSchema.extend({
+		check: z
+			.object(insightVerificationCheckSchema.shape)
+			.omit({ definition: true })
+			.nullable()
+			.optional()
+			.describe(
+				"Save a structured check when its metric, future dates and healthy threshold are known. Databuddy binds the expected definition; do not repeat it."
+			),
 		recheckAt: z.iso
 			.datetime()
 			.describe("Exact ISO 8601 time to remeasure the verification condition."),
@@ -445,6 +530,15 @@ export const insightPublicationBasisSchema = z.enum([
 
 export const investigationOutcomeSchema = z
 	.object({
+		verification: z
+			.object({
+				check: insightVerificationCheckSchema,
+				status: z.enum(["passed", "failed", "inconclusive"]),
+				measured: z.number().finite().nullable(),
+				entrants: z.number().int().nonnegative().nullable(),
+				source: agentEvidenceReferenceSchema.nullable(),
+			})
+			.optional(),
 		findingKind: insightFindingKindSchema
 			.optional()
 			.describe(
@@ -462,23 +556,17 @@ export const investigationOutcomeSchema = z
 			.trim()
 			.min(1)
 			.describe(
-				"One short sentence stating what happened, where, and when. Prefer the verified problem or experience over the percentage change; keep comparison detail in evidence when an affected cohort is known. Do not repeat the title, impact, root cause, or evidence."
+				"In roughly twelve words, state the consequence for the affected journey or decision. Keep measured comparisons in evidence and the inspected mechanism in rootCause; do not repeat them here."
 			),
-		impact: z
-			.string()
-			.trim()
-			.min(1)
-			.nullable()
-			.describe(
-				"One short, directly measured user, reliability, business, or decision consequence. State affected scope and notable verified cohorts when available. Error exposure does not prove a broken page, failed task, lost work, or blocked conversion. For a broken definition, say the decision it cannot support. Null when no consequence was measured."
-			),
+		// Retain stored briefs; new investigations include the consequence in summary.
+		impact: z.string().trim().min(1).nullable().default(null),
 		rootCause: z
 			.string()
 			.trim()
 			.min(1)
 			.nullable()
 			.describe(
-				"One short, inspected causal mechanism. Use null for unknown, suspected, or merely correlated explanations. Error text, a runtime stack, bundle location, route, browser document line, timing, or annotation is not a source-code mechanism."
+				"One short, inspected causal mechanism describing the actual failing operation. Use null for unknown, suspected, or merely correlated explanations. Error text, a runtime stack, bundle location, route, browser document line, timing, or annotation is not a source-code mechanism."
 			),
 		evidence: z
 			.array(
@@ -508,13 +596,6 @@ export const investigationOutcomeSchema = z
 	})
 	.strip()
 	.superRefine((outcome, context) => {
-		if (outcome.next.type === "act" && outcome.impact === null) {
-			context.addIssue({
-				code: "custom",
-				message: "Actions require measured impact",
-				path: ["impact"],
-			});
-		}
 		if (outcome.next.type === "act" && outcome.rootCause === null) {
 			context.addIssue({
 				code: "custom",
@@ -618,21 +699,6 @@ export const investigationOutcomeSchema = z
 				path: ["publicationBasis"],
 			});
 		}
-		if (
-			(outcome.findingKind === "user_experience" ||
-				outcome.publicationBasis === "measured_impact" ||
-				isPublishedMeasurementFinding ||
-				isPublishedMeasuredFinding ||
-				isPublishedReliabilityFinding) &&
-			outcome.impact === null
-		) {
-			context.addIssue({
-				code: "custom",
-				message:
-					"Measured experience and published decision findings require impact",
-				path: ["impact"],
-			});
-		}
 	});
 
 const RAW_IDENTIFIER_PATTERN =
@@ -648,18 +714,25 @@ const agentTitleSchema = z
 			"Titles must use natural product language, never raw identifiers, event names, or URLs",
 	})
 	.describe(
-		"A short headline stating the verified finding in natural product language. For directly measured reliability or user impact, an affected count can lead. For measurement_definition, name the incorrect target or purpose mismatch without a numeric count; keep counts with their periods in evidence. For measurement_coverage, name the observed blind spot, never a presumed product loss. Never use raw identifiers, snake_case event names, or URLs."
+		"A short headline stating the verified finding in natural product language. For directly measured reliability or user impact, an affected count can lead. With structured revenue evidence, use a qualitative headline and keep all quantities in the generated evidence. For measurement_definition, name the incorrect target or purpose mismatch without a numeric count; keep counts with their periods in evidence. For measurement_coverage, name the observed blind spot, never a presumed product loss. Never use raw identifiers, snake_case event names, or URLs."
 	);
 
-export const agentInvestigationOutcomeSchema = investigationOutcomeSchema
-	.safeExtend({
+export const agentInvestigationOutcomeSchema = z
+	.object(investigationOutcomeSchema.shape)
+	.omit({ impact: true, verification: true })
+	.extend({
 		title: agentTitleSchema,
 		evidenceRefs: z
-			.array(agentEvidenceReferenceSchema)
+			.array(
+				z.union([
+					agentEvidenceReferenceSchema,
+					z.array(agentEvidenceReferenceSchema).min(1).max(4),
+				])
+			)
 			.min(1)
 			.max(2)
 			.describe(
-				"One source reference for each evidence item, in the same order."
+				"Sources for each evidence item, in the same order. Use an array when a concise comparison needs multiple sources."
 			),
 		next: agentInvestigationNextSchema,
 		publish: z
@@ -677,6 +750,12 @@ export const agentInvestigationOutcomeSchema = investigationOutcomeSchema
 			),
 	})
 	.superRefine((outcome, context) => {
+		const stored = investigationOutcomeSchema.safeParse(outcome);
+		if (!stored.success) {
+			for (const issue of stored.error.issues) {
+				context.addIssue({ ...issue });
+			}
+		}
 		if (outcome.evidenceRefs.length !== outcome.evidence.length) {
 			context.addIssue({
 				code: "custom",

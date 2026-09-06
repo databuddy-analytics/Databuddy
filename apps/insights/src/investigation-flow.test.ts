@@ -12,6 +12,7 @@ import {
 	InsightAgentExecutionError,
 	InsightAgentGenerationError,
 	runInsightAgent,
+	renderRevenueEvidence,
 	validateNumericGrounding,
 } from "./agent";
 
@@ -85,7 +86,7 @@ const evidence = [
 const outcome: InvestigationOutcome = {
 	title: "Paid search campaign is paused",
 	summary: "Most of the visitor loss followed campaign cmp_search_1 pausing.",
-	impact: "The site lost 700 visitors in the comparison window.",
+	impact: null,
 	rootCause: "Campaign cmp_search_1 was paused before the comparison window.",
 	evidence: [
 		"Visitors fell from 1,000 to 300.",
@@ -122,6 +123,7 @@ const agentOutcome = {
 const inspectedFunnel = {
 	id: "checkout",
 	name: "Checkout journey",
+	description: null,
 	filters: [],
 	steps: [
 		{ name: "Landing", target: "/", type: "PAGE_VIEW" as const },
@@ -575,13 +577,66 @@ describe("intelligence agent", () => {
 		expect(JSON.stringify(model.doGenerateCalls[1])).toContain(
 			"executable definition action"
 		);
-		expect(JSON.stringify(model.doGenerateCalls[0])).toContain(
-			"Classify every outcome"
-		);
 	});
 
-	it("accepts a conversion definition edit after purpose and journey evidence", async () => {
-		const result = await runInsightAgent(
+	it.each([
+		"legacy",
+		"valid",
+		"native-only",
+		"native-after-list",
+		"native-lost-conditions",
+		"uninspected-check",
+		"unanchored",
+		"past-window",
+		"wrong-units",
+	] as const)("validates a definition repair and saved verification: %s", async (scenario) => {
+		const native = scenario.startsWith("native");
+		const current = {
+			...inspectedFunnel,
+			steps: inspectedFunnel.steps.map((step) => ({
+				...step,
+				...(native ? { conditions: { plan: "paid" } } : {}),
+			})),
+		};
+		const check = {
+			metric: "overall_conversion_rate" as const,
+			startDate: scenario === "past-window" ? "2026-07-01" : "2026-07-13",
+			endDate: "2026-07-14",
+			minimumEntrants: 100,
+			threshold: {
+				anchor: "prior_baseline" as const,
+				comparison: "at_or_above" as const,
+				value:
+					scenario === "unanchored"
+						? 99
+						: scenario === "wrong-units"
+							? 120
+							: 20,
+				evidenceRef: { source: "signal" as const },
+			},
+		};
+		const proposal = {
+			...executableDefinitionOutcome,
+			next: {
+				...executableDefinitionOutcome.next,
+				...(scenario === "legacy" ? {} : { check }),
+				...(native && scenario !== "native-lost-conditions"
+					? {
+							execution: {
+								...executableDefinitionOutcome.next.execution,
+								changes: {
+									...executableDefinitionOutcome.next.execution.changes,
+									steps:
+										executableDefinitionOutcome.next.execution.changes.steps.map(
+											(step) => ({ ...step, conditions: { plan: "paid" } })
+										),
+								},
+							},
+						}
+					: {}),
+			},
+		};
+		const run = runInsightAgent(
 			{
 				appContext: appContext(),
 				evidence: [...evidence, "Business meaning: Tracks account creation."],
@@ -593,14 +648,41 @@ describe("intelligence agent", () => {
 			{
 				model: new MockLanguageModelV3({
 					doGenerate: mockValues(
-						toolCallsResponse(["list_funnels", "get_funnel_analytics"]),
-						outputResponse(executableDefinitionOutcome)
+						...(scenario === "uninspected-check"
+							? []
+							: scenario === "native-only"
+							? [toolCallsResponse(["get_funnel_analytics"])]
+							: scenario === "native-after-list"
+								? [
+										toolCallsResponse(["list_funnels"]),
+										toolCallsResponse(["get_funnel_analytics"]),
+									]
+								: [
+										toolCallsResponse(["list_funnels", "get_funnel_analytics"]),
+									]),
+						outputResponse(proposal),
+						outputResponse(proposal),
+						outputResponse(proposal)
 					),
 				}),
 				tools: {
 					get_funnel_analytics: tool({
 						description: "Inspect funnel journey analytics.",
-						execute: () => ({ completions: 10, entrants: 100 }),
+						execute: () => ({
+							completions: 10,
+							entrants: 100,
+							...(native
+								? {
+										measurement: {
+											websiteId: "site-1",
+											definitionId: "checkout",
+											startDate: "2026-07-05",
+											endDate: "2026-07-11",
+											definition: current,
+										},
+									}
+								: {}),
+						}),
 						inputSchema: z.object({}).strict(),
 					}),
 					list_funnels: tool({
@@ -612,13 +694,125 @@ describe("intelligence agent", () => {
 			}
 		);
 
+		if (
+			!["legacy", "valid", "native-only", "native-after-list"].includes(
+				scenario
+			)
+		) {
+			await expect(run).rejects.toThrow(
+				scenario === "uninspected-check"
+					? "Until the exact subject is verified"
+					: scenario === "native-lost-conditions"
+					? "preserve existing step conditions"
+					: scenario === "unanchored"
+						? "99"
+						: "Verification checks require"
+			);
+			return;
+		}
+		const result = await run;
+		const expectedExecution = {
+			...proposal.next.execution,
+			changes: native ? { steps: proposal.next.execution.changes.steps } : proposal.next.execution.changes,
+		};
 		expect(result.outcome.next).toEqual({
-			...executableDefinitionOutcome.next,
+			...proposal.next,
+			execution: expectedExecution,
+			...(scenario !== "legacy"
+				? {
+						check: {
+							...check,
+							definition: {
+								steps: proposal.next.execution.changes.steps.map(
+									({ type, target }) => ({ type, target })
+								),
+								filters: [],
+							},
+						},
+					}
+				: {}),
 			action: describeInsightDefinitionAction(funnelSignal.entity.label, {
-				...executableDefinitionOutcome.next.execution,
+				...expectedExecution,
 				action: executableDefinitionOutcome.next.action,
 			}),
 		});
+	});
+
+	it.each([
+		false,
+		true,
+	])("strips unchanged repair fields while retaining a real filter removal: %s", async (filtered) => {
+		const changes = {
+			name: inspectedFunnel.name,
+			description: null,
+			filters: [],
+			steps: executableDefinitionOutcome.next.execution.changes.steps,
+		};
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence: [
+					...evidence,
+					"Business meaning: Tracks account creation across all countries.",
+				],
+				signal: funnelSignal,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+			},
+			{
+				model: new MockLanguageModelV3({
+					doGenerate: mockValues(
+						toolCallsResponse(["list_funnels", "scrape_page"]),
+						outputResponse({
+							...executableDefinitionOutcome,
+							next: {
+								...executableDefinitionOutcome.next,
+								execution: { operation: "edit", changes },
+							},
+						})
+					),
+				}),
+				tools: {
+					scrape_page: tool({
+						inputSchema: z.object({}),
+						execute: () => ({
+							content:
+								"Successful account creation emits account_created for visitors in all countries.",
+						}),
+					}),
+					list_funnels: tool({
+						inputSchema: z.object({}),
+						execute: () => ({
+							funnels: [
+								{
+									...inspectedFunnel,
+									filters: filtered
+										? [{ field: "country", operator: "equals", value: "US" }]
+										: [],
+								},
+							],
+						}),
+					}),
+				},
+			}
+		);
+		const execution = {
+			operation: "edit" as const,
+			changes: {
+				steps: changes.steps,
+				...(filtered ? { filters: [] } : {}),
+			},
+		};
+		expect(result.outcome.next).toMatchObject({
+			execution,
+			action: describeInsightDefinitionAction(funnelSignal.entity.label, {
+				...execution,
+				action: executableDefinitionOutcome.next.action,
+			}),
+		});
+		if (result.outcome.next.type !== "act") throw new Error("Expected repair");
+		expect(result.outcome.next.execution).toEqual(execution);
 	});
 
 	it("rejects a cosmetic rename presented as a measurement repair", async () => {
@@ -868,9 +1062,7 @@ describe("intelligence agent", () => {
 				},
 				{ model: outputModel(executableDefinitionOutcome), tools: {} }
 			)
-		).rejects.toThrow(
-			"Insights funnel definition changes require an inspected funnel definition"
-		);
+		).rejects.toThrow("exact current funnel definition was not inspected");
 	});
 
 	it("rejects a definition edit outside a goal or funnel signal", async () => {
@@ -1328,12 +1520,11 @@ describe("intelligence agent", () => {
 		);
 	});
 
-	it("retries a published measurement finding without a decision impact", async () => {
+	it("retries a published measurement finding with the wrong publication basis", async () => {
 		const invalidOutcome = {
 			...agentOutcome,
 			findingKind: "measurement_definition" as const,
-			impact: null,
-			publicationBasis: "decision_safety" as const,
+			publicationBasis: "measured_impact" as const,
 		};
 		const model = new MockLanguageModelV3({
 			doGenerate: mockValues(
@@ -1356,7 +1547,9 @@ describe("intelligence agent", () => {
 
 		expect(result.outcome).toEqual(outcome);
 		expect(model.doGenerateCalls).toHaveLength(2);
-		expect(JSON.stringify(model.doGenerateCalls[1])).toContain("impact");
+		expect(JSON.stringify(model.doGenerateCalls[1])).toContain(
+			"publicationBasis"
+		);
 	});
 
 	it("repairs a truncated finish call inside the same tool loop", async () => {
@@ -1570,6 +1763,202 @@ describe("intelligence agent", () => {
 		).rejects.toThrow("scheduled a recheck");
 	});
 
+	it.each([
+		"effective-window",
+		"changed-definition",
+		"missing-metadata",
+		"wrong-measured-site",
+		"wrong-measured-id",
+		"passed",
+		"passed-explicit",
+		"passed-domain",
+		"passed-cosmetic",
+		"failed-rate",
+		"failed",
+		"wrong-subject",
+		"wrong-website",
+		"wrong-start",
+		"wrong-end",
+		"extra-filter",
+		"small-sample",
+		"unfinished-window",
+		"failed-read",
+		"invalid-count",
+		"no-read",
+		"newer-resolution",
+	] as const)("binds verification to the exact measurement: %s", async (scenario) => {
+		const check = {
+			definition: {
+				steps: inspectedFunnel.steps.map(({ target, type }) => ({
+					type,
+					target,
+				})),
+				filters: [],
+			},
+			metric:
+				scenario === "failed-rate"
+					? ("overall_conversion_rate" as const)
+					: ("total_users_completed" as const),
+			startDate: "2026-07-05",
+			endDate: "2026-07-11",
+			minimumEntrants: 100,
+			threshold: {
+				anchor: "prior_baseline" as const,
+				comparison: "at_or_above" as const,
+				value: scenario === "failed-rate" ? 80 : 100,
+				evidenceRef: { source: "signal" as const },
+			},
+		};
+		const status = [
+			"passed",
+			"passed-explicit",
+			"passed-domain",
+			"passed-cosmetic",
+		].includes(scenario)
+			? "passed"
+			: scenario === "failed" || scenario === "failed-rate"
+				? "failed"
+				: "inconclusive";
+		const completed = scenario === "failed" ? 40 : 120;
+		const query = {
+			funnelId: scenario === "wrong-subject" ? "another-funnel" : "checkout",
+			startDate: scenario === "wrong-start" ? "2026-07-04" : check.startDate,
+			endDate: scenario === "wrong-end" ? "2026-07-12" : check.endDate,
+			...(scenario === "passed-explicit" ? { websiteId: "site-1" } : {}),
+			...(scenario === "wrong-website" ? { websiteId: "another-site" } : {}),
+			...(scenario === "passed-domain" ? { websiteId: "example.com" } : {}),
+			...(scenario === "extra-filter" ? { filter: "paid-only" } : {}),
+		};
+		const candidate = {
+			...agentOutcome,
+			title: "Checkout repair verification",
+			summary: "Recovery definitely passed.",
+			rootCause: null,
+			evidence: ["The saved condition concerns checkout."],
+			evidenceRefs: [{ source: "signal" as const }],
+			publish: false,
+			publicationBasis: null,
+			next: { type: "resolve" as const, reason: "Verification completed." },
+			verificationStatus: status,
+			...(scenario === "passed"
+				? { publish: true, publicationBasis: "measured_impact" as const }
+				: {}),
+		};
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				...(scenario === "no-read"
+					? []
+					: [toolCallResponse("get_funnel_analytics", JSON.stringify(query))]),
+				outputResponse(candidate)
+			),
+		});
+		const previous = {
+			asOf: "2026-07-01T00:00:00Z",
+			evidence: [],
+			kind: "investigation" as const,
+			signal: funnelSignal,
+			outcome: { ...outcome, next: { ...agentOutcome.next, check } },
+		};
+		const result = await runInsightAgent(
+			{
+				appContext: {
+					...appContext(),
+					...(scenario === "passed-explicit" ? { websiteId: undefined } : {}),
+					...(scenario === "unfinished-window"
+						? { currentDateTime: "2026-07-11T12:00:00Z" }
+						: {}),
+				},
+				evidence: [],
+				githubRepository: null,
+				otherOpenWork: [],
+				signal: funnelSignal,
+				history:
+					scenario === "newer-resolution"
+						? [
+								previous,
+								{
+									...previous,
+									outcome: {
+										...outcome,
+										next: { type: "resolve", reason: "This case was closed." },
+									},
+								},
+							]
+						: [previous],
+			},
+			{
+				model,
+				tools: {
+					get_funnel_analytics: tool({
+						inputSchema: z.object({}).passthrough(),
+						execute: () => ({
+							...(scenario === "missing-metadata"
+								? {}
+								: {
+										measurement: {
+											websiteId:
+												scenario === "wrong-measured-site" ||
+												scenario === "wrong-website"
+													? "another-site"
+													: "site-1",
+											definitionId:
+												scenario === "wrong-measured-id"
+													? "another-funnel"
+													: "checkout",
+											startDate:
+												scenario === "effective-window"
+													? "2026-07-07"
+													: check.startDate,
+											endDate: check.endDate,
+											definition: {
+												...check.definition,
+												steps: inspectedFunnel.steps.map((step) => ({
+													...step,
+													...(scenario === "passed-cosmetic"
+														? { name: "Renamed" }
+														: {}),
+												})),
+												...(scenario === "changed-definition"
+													? {
+															filters: [
+																{
+																	field: "country",
+																	operator: "equals",
+																	value: "US",
+																},
+															],
+														}
+													: {}),
+											},
+										},
+									}),
+							total_users_entered: scenario === "small-sample" ? 80 : 200,
+							total_users_completed:
+								scenario === "small-sample"
+									? 60
+									: scenario === "invalid-count"
+										? 250
+										: completed,
+							overall_conversion_rate: 60,
+							...(scenario === "failed-read" ? { error: "Unavailable" } : {}),
+						}),
+					}),
+				},
+			}
+		);
+		if (scenario === "newer-resolution") {
+			expect(result.outcome.verification).toBeUndefined();
+			return;
+		}
+		expect(result.outcome.verification?.status).toBe(status);
+		expect(result.toolCallCount).toBe(scenario === "no-read" ? 0 : 1);
+		expect(model.doGenerateCalls).toHaveLength(scenario === "no-read" ? 1 : 2);
+		expect(result.outcome.summary).not.toBe("Recovery definitely passed.");
+		expect(result.outcome.summary).toContain(
+			status === "inconclusive" ? "unverified" : status
+		);
+	});
+
 	it("replays prior outcomes and new human context", async () => {
 		const model = outputModel();
 		const priorEvidence = [
@@ -1633,6 +2022,128 @@ describe("intelligence agent", () => {
 			"Connect the repository that owns the checkout flow."
 		);
 		expect(prompt.match(/It was restarted this morning\./g)).toHaveLength(1);
+	});
+
+	it.each([
+		"valid",
+		"uncited-count",
+		"missing-source",
+	] as const)("validates every source in a combined claim: %s", async (scenario) => {
+		const candidate = {
+			...agentOutcome,
+			evidence: [
+				`Visitors fell from 1000 to 300; ${scenario === "uncited-count" ? 42 : 41} sessions used checkout.`,
+			],
+			evidenceRefs: [
+				[
+					{ source: "signal" as const },
+					{
+						source: "provided" as const,
+						index: scenario === "missing-source" ? 1 : 0,
+					},
+				],
+			],
+			rootCause: null,
+			next: { type: "resolve" as const, reason: "The comparison is measured." },
+		};
+		const run = runInsightAgent(
+			{
+				appContext: appContext(),
+				signal,
+				evidence: ["41 sessions used checkout."],
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+			},
+			{ model: outputModel(candidate), tools: {} }
+		);
+		if (scenario === "valid") {
+			expect((await run).outcome.evidence).toEqual(candidate.evidence);
+			return;
+		}
+		await expect(run).rejects.toThrow(
+			scenario === "uncited-count" ? "42" : "evidence index 1"
+		);
+	});
+
+	it.each([
+		"investigation",
+		"reply",
+		"other-subject",
+		"missing",
+		"stale-measurement",
+	] as const)("validates historical verification citations: %s", async (kind) => {
+		const prior = {
+			kind: "investigation" as const,
+			asOf: "2026-07-01T00:00:00Z",
+			evidence: [],
+			signal:
+				kind === "other-subject"
+					? { ...signal, entity: { ...signal.entity, id: "another-channel" } }
+					: signal,
+			outcome: {
+				...outcome,
+				evidence: ["999 visits were measured in an earlier period."],
+				next: {
+					...outcome.next,
+					type: "act" as const,
+					action: "Resume campaign.",
+					target: "Campaign",
+					verification: "At least 137 visits in the verification window.",
+				},
+			},
+		};
+		const history =
+			kind === "missing"
+				? []
+				: kind === "reply"
+					? [
+							{
+								kind: "reply" as const,
+								author: "Ari",
+								body: "137 visits happened.",
+								createdAt: "2026-07-01T00:00:00Z",
+							},
+						]
+					: [prior];
+		const candidate = {
+			...agentOutcome,
+			title: "Campaign verification condition",
+			summary: "The saved condition defines the next measurement.",
+			rootCause: null,
+			evidence: [
+				kind === "stale-measurement"
+					? "999 current visits."
+					: "The saved condition requires at least 137 visits.",
+			],
+			evidenceRefs: [{ source: "history" as const, index: 0 }],
+			publish: false,
+			publicationBasis: null,
+			next: {
+				type: "resolve" as const,
+				reason: "This is a saved condition, not evidence of recovery.",
+			},
+		};
+		const run = runInsightAgent(
+			{
+				appContext: appContext(),
+				signal,
+				history,
+				evidence: [],
+				githubRepository: null,
+				otherOpenWork: [],
+			},
+			{ model: outputModel(candidate), tools: {} }
+		);
+		if (kind === "investigation") {
+			expect((await run).outcome.evidence).toEqual(candidate.evidence);
+		} else if (kind === "stale-measurement") {
+			await expect(run).rejects.toThrow("number 999");
+		} else {
+			await expect(run).rejects.toThrow(
+				"cited history must be an investigation for this exact signal"
+			);
+		}
 	});
 
 	it("publishes a measured coverage gap without an executable repair", async () => {
@@ -1744,6 +2255,61 @@ describe("intelligence agent", () => {
 	it.each([
 		false,
 		true,
+	])("defers a grounded finish batched with an unseen read (finish first: %s)", async (finishFirst) => {
+		const read = toolCallResponse().content;
+		const finish = outputResponse(agentOutcome).content;
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				{
+					...toolCallResponse(),
+					content: finishFirst ? [...finish, ...read] : [...read, ...finish],
+				},
+				outputResponse(agentOutcome)
+			),
+		});
+		let reads = 0;
+		let inputHooks = 0;
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence,
+				signal,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+			},
+			{
+				model,
+				tools: {
+					inspect: tool({
+						inputSchema: z.object({}),
+						onInputAvailable: () => {
+							inputHooks++;
+						},
+						toModelOutput: ({ output }) => ({
+							type: "text",
+							value: JSON.stringify(output),
+						}),
+						execute: () => {
+							reads++;
+							return { fact: evidence[0] };
+						},
+					}),
+				},
+			}
+		);
+		expect(reads).toBe(1);
+		expect(inputHooks).toBe(1);
+		expect(model.doGenerateCalls).toHaveLength(2);
+		expect(JSON.stringify(model.doGenerateCalls[1]?.prompt)).toContain(
+			"Finish after receiving"
+		);
+		expect(result.outcome).toEqual(outcome);
+	});
+
+	it.each([
+		false,
+		true,
 	])("repairs a citation without repeating its read (premature finish: %s)", async (premature) => {
 		const discovered = {
 			...agentOutcome,
@@ -1809,11 +2375,9 @@ describe("intelligence agent", () => {
 			model.doGenerateCalls[premature ? 1 : 2]?.prompt
 		);
 		if (premature) {
+			expect(feedback).toContain("Finish after receiving this step's reads");
 			expect(feedback).toContain(
-				"result that does not exist: inspect/inspect-1"
-			);
-			expect(feedback).toContain(
-				"use its result next turn without repeating it"
+				"Use those results next turn without repeating the reads"
 			);
 		} else {
 			expect(feedback).toContain("evidence[0] cites the number 88");
@@ -2099,7 +2663,345 @@ describe("intelligence agent", () => {
 	});
 });
 
+describe("structured revenue evidence", () => {
+	const readings = [signal.period.current, signal.period.previous].map(
+		(period, index) => ({
+			type: "revenue_overview",
+			websiteId: "site-1",
+			...period,
+			timezone: "UTC",
+			filters: [],
+			data: [
+				{
+					currency: "USD",
+					total_revenue: "10000",
+					total_transactions: 100,
+					refund_amount: index === 0 ? "1200" : "200",
+				},
+			],
+		})
+	);
+	const selection = {
+		currency: "USD",
+		fields: ["total_revenue", "total_transactions", "refund_amount"],
+	};
+	const input = { appContext: appContext(), signal };
+
+	it("binds metrics to their labels and computes a refund delta absent from the source", () => {
+		expect(renderRevenueEvidence(selection, readings, input)).toBe(
+			"USD, 2026-06-28–2026-07-04 → 2026-07-05–2026-07-11 UTC: Gross Revenue: 10,000 → 10,000; Settled Transactions: 100 → 100; Refund Amount: 200 → 1,200 (+1,000)."
+		);
+	});
+
+	it.each([
+		{ websiteId: "another-site" },
+		{ from: "2026-07-06" },
+		{ timezone: "America/New_York" },
+		{ filters: [{ field: "country", op: "eq", value: "US" }] },
+		{ data: [{ currency: "EUR", total_revenue: 10000 }] },
+		{ data: [{ currency: "USD", total_revenue: null }] },
+		{ data: [{ currency: "USD", total_revenue: "" }] },
+		{ data: [readings[0].data[0], readings[0].data[0]] },
+	])("rejects incompatible or ambiguous revenue measurements: %j", (changed) => {
+		expect(() =>
+			renderRevenueEvidence(
+				selection,
+				[{ ...readings[0], ...changed }, readings[1]],
+				input
+			)
+		).toThrow();
+	});
+
+	it("accepts later recheck windows while preserving their actual dates", () => {
+		const later = readings.map((reading, index) => ({
+			...reading,
+			from: index === 0 ? "2026-07-12" : "2026-07-05",
+			to: index === 0 ? "2026-07-18" : "2026-07-11",
+		}));
+		expect(
+			renderRevenueEvidence(selection, later, {
+				appContext: {
+					...input.appContext,
+					currentDateTime: "2026-07-19T00:00:00Z",
+				},
+			})
+		).toContain("2026-07-05–2026-07-11 → 2026-07-12–2026-07-18 UTC");
+		expect(() =>
+			renderRevenueEvidence(
+				selection,
+				later.map((reading) => ({
+					...reading,
+					from: reading.to,
+					to: reading.from,
+				})),
+				{
+					appContext: {
+						...input.appContext,
+						currentDateTime: "2026-07-19T00:00:00Z",
+					},
+				}
+			)
+		).toThrow();
+	});
+
+	it("keeps a stable currency control distinct from the changing currency", () => {
+		const both = readings.map((reading) => ({
+			...reading,
+			data: [...reading.data, { currency: "EUR", total_revenue: 5000 }],
+		}));
+		expect(renderRevenueEvidence(selection, both, input)).toContain(
+			"Refund Amount: 200 → 1,200 (+1,000)"
+		);
+		expect(
+			renderRevenueEvidence(
+				{ currency: "EUR", fields: ["total_revenue"] },
+				both,
+				input
+			)
+		).toContain(
+			"EUR, 2026-06-28–2026-07-04 → 2026-07-05–2026-07-11 UTC: Gross Revenue: 5,000 → 5,000."
+		);
+		expect(() =>
+			renderRevenueEvidence(
+				selection,
+				readings.map((reading) => ({ ...reading, websiteId: undefined })),
+				{
+					...input,
+					appContext: {
+						...input.appContext,
+						websiteId: undefined,
+						defaultWebsiteId: undefined,
+					},
+				}
+			)
+		).toThrow();
+	});
+
+	it("uses the source timezone to require a complete window", () => {
+		const timezone = "America/New_York";
+		const local = readings.map((reading) => ({ ...reading, timezone }));
+		const context = {
+			...input,
+			appContext: {
+				...input.appContext,
+				timezone,
+				currentDateTime: "2026-07-12T00:01:00Z",
+			},
+		};
+		expect(() => renderRevenueEvidence(selection, local, context)).toThrow();
+		expect(
+			renderRevenueEvidence(selection, local, {
+				...context,
+				appContext: {
+					...context.appContext,
+					currentDateTime: "2026-07-12T04:00:00Z",
+				},
+			})
+		).toContain(timezone);
+		expect(() =>
+			renderRevenueEvidence(
+				selection,
+				readings.map((reading) => ({ ...reading, timezone: "invalid-zone" })),
+				{
+					...input,
+					appContext: { ...input.appContext, timezone: "invalid-zone" },
+				}
+			)
+		).toThrow();
+	});
+
+	it("preserves a filtered population and native rate units", () => {
+		const filtered = readings.map((reading) => ({
+			...reading,
+			filters: [{ field: "country", op: "eq", value: "US" }],
+			data: [
+				{
+					currency: "USD",
+					payment_failure_rate: reading === readings[0] ? 12 : 2,
+				},
+			],
+		}));
+		expect(
+			renderRevenueEvidence(
+				{ currency: "USD", fields: ["payment_failure_rate"] },
+				filtered,
+				input
+			)
+		).toContain("USD (filtered population)");
+		expect(
+			renderRevenueEvidence(
+				{ currency: "USD", fields: ["payment_failure_rate"] },
+				filtered,
+				input
+			)
+		).toContain("Payment Failure Rate (%): 2 → 12 (+10 pp)");
+		expect(() =>
+			renderRevenueEvidence(selection, [readings[0]], input)
+		).toThrow();
+	});
+
+	it("names unavailable diagnostics without fabricating a zero or losing supported metrics", () => {
+		const partial = readings.map((reading) => ({
+			...reading,
+			data: [{ ...reading.data[0], failed_payment_attempts: null }],
+		}));
+		expect(() =>
+			renderRevenueEvidence(
+				{ currency: "USD", fields: ["failed_payment_attempts"] },
+				partial,
+				input
+			)
+		).toThrow("failed_payment_attempts is unavailable");
+		expect(renderRevenueEvidence(selection, partial, input)).toContain(
+			"Refund Amount: 200 → 1,200 (+1,000)"
+		);
+	});
+
+	it.each([
+		"payment_diagnostics_available",
+		"observed_failure_event_types",
+		"required_failure_event_types",
+	])("excludes the internal diagnostic field %s", (field) => {
+		expect(() =>
+			renderRevenueEvidence(
+				{ currency: "USD", fields: [field] },
+				readings.map((reading) => ({
+					...reading,
+					data: [{ ...reading.data[0], [field]: 1 }],
+				})),
+				input
+			)
+		).toThrow("declared numeric field");
+	});
+
+	it("rejects repeated periods and unmeasured fields", () => {
+		expect(() =>
+			renderRevenueEvidence(selection, [readings[0], readings[0]], input)
+		).toThrow();
+		expect(() =>
+			renderRevenueEvidence(
+				{ ...selection, fields: ["active_subscribers"] },
+				readings,
+				input
+			)
+		).toThrow();
+		expect(() =>
+			renderRevenueEvidence(selection, readings, {
+				...input,
+				appContext: {
+					...input.appContext,
+					currentDateTime: "2026-07-10T00:00:00Z",
+				},
+			})
+		).toThrow();
+	});
+
+	it("rejects relabeled numeric prose and accepts field-bound evidence in the same loop", async () => {
+		const proposal = {
+			findingKind: "product_outcome",
+			title: "Paid search visits had higher refunds",
+			summary: "More settled revenue was refunded.",
+			rootCause: null,
+			evidence: [
+				"Gross Revenue and settled transactions were 100 each period.",
+			],
+			evidenceRefs: [
+				["current", "previous"].map((resultKey) => ({
+					source: "tool",
+					name: "get_data",
+					toolCallId: "get_data-1",
+					resultKey,
+				})),
+			],
+			publish: true,
+			publicationBasis: "measured_impact",
+			next: { type: "resolve", reason: "No inspected cause is established." },
+		};
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				toolCallResponse("get_data"),
+				outputResponse(proposal),
+				outputResponse({ ...proposal, evidence: [selection] })
+			),
+		});
+		const result = await runInsightAgent(
+			{
+				...input,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				evidence: [],
+			},
+			{
+				model,
+				tools: {
+					get_data: tool({
+						description: "Native revenue measurement fixture",
+						inputSchema: z.object({}),
+						execute: () => ({
+							results: { current: readings[0], previous: readings[1] },
+						}),
+					}),
+				},
+			}
+		);
+		expect(result.outcome.evidence).toEqual([
+			renderRevenueEvidence(selection, readings, input),
+		]);
+		expect(JSON.stringify(model.doGenerateCalls[2])).toContain(
+			"code binds every value to its field"
+		);
+		expect(result.toolCallCount).toBe(1);
+	});
+});
+
 describe("validateNumericGrounding", () => {
+	it("does not strip a count preceding a month name", () => {
+		const claim = {
+			title: "August activity",
+			summary: "12 August completions",
+			evidence: [],
+		};
+		expect(() =>
+			validateNumericGrounding(claim, "There were 40 completions.")
+		).toThrow("number 12");
+		expect(() =>
+			validateNumericGrounding(claim, "There were 12 completions.")
+		).not.toThrow();
+	});
+
+	it.each(["0", "zero"])("grounds %s against a spelled-out zero", (count) => {
+		const claim = { title: `${count} events`, summary: "", evidence: [] };
+		expect(() =>
+			validateNumericGrounding(claim, "The collector recorded zero events.")
+		).not.toThrow();
+		expect(() =>
+			validateNumericGrounding(claim, "The collector recorded 18 events.", 0)
+		).toThrow("evidence[0] cites the number 0");
+	});
+
+	it.each([
+		"29 Aug–4 Sep",
+		"29–31 August, 2026",
+		"August 29–September 4",
+		"2026-08-29",
+	])("does not treat %s as a count", (date) => {
+		const claim = {
+			title: "Collection gap",
+			summary: `${date}: 2200 origin responses, zero events.`,
+			evidence: [],
+		};
+		expect(() =>
+			validateNumericGrounding(claim, "2200 origin responses; zero events.")
+		).not.toThrow();
+		expect(() =>
+			validateNumericGrounding(
+				{ ...claim, evidence: ["29 visitors"] },
+				"2200 origin responses; zero events."
+			)
+		).toThrow("number 29");
+	});
+
 	it.each([
 		["1.2k", 1200],
 		["70k", 70_000],
@@ -2169,6 +3071,32 @@ describe("validateNumericGrounding", () => {
 			)
 		).toThrow(`number ${count}`);
 	});
+	it.each([
+		"2026-08-29–09-04",
+		"2026-08-22–28",
+	])("recognizes abbreviated ISO date ranges without dropping counts: %s", (period) => {
+		expect(() =>
+			validateNumericGrounding(
+				{
+					title: "",
+					summary: "",
+					evidence: [`20 completions during ${period}.`],
+				},
+				'{"completed":20}'
+			)
+		).not.toThrow();
+		expect(() =>
+			validateNumericGrounding(
+				{
+					title: "",
+					summary: "",
+					evidence: [`21 completions during ${period}.`],
+				},
+				'{"completed":20}'
+			)
+		).toThrow("21");
+	});
+
 	it("checks factual numbers in the root cause", () => {
 		expect(() =>
 			validateNumericGrounding(

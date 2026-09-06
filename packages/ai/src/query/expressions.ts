@@ -137,3 +137,35 @@ export function compileConfigField(field: ConfigFieldType): string {
 	}
 	return `${field.expression} as ${field.alias}`;
 }
+
+const SESSION_DIMENSION_COLUMNS = {
+	browser_name:
+		"argMinIf(browser_name, time, ifNull(browser_name, '') != '') as browser_name",
+	city: "argMinIf(city, time, ifNull(city, '') != '') as city",
+	country: "argMinIf(country, time, ifNull(country, '') != '') as country",
+	device_type:
+		"argMinIf(device_type, time, ifNull(device_type, '') != '') as device_type",
+	os_name: "argMinIf(os_name, time, ifNull(os_name, '') != '') as os_name",
+	region: "argMinIf(region, time, ifNull(region, '') != '') as region",
+} as const;
+
+export type SessionDimension = keyof typeof SESSION_DIMENSION_COLUMNS;
+
+/** First-seen session attributes from screen_view events, for the requested dimensions only. */
+export const sessionDimensionsCte = (
+	dimensions: readonly SessionDimension[]
+): string => `
+	session_dimensions AS (
+		SELECT
+			session_id,
+			client_id${dimensions.length ? `,\n\t\t\t${dimensions.map((d) => SESSION_DIMENSION_COLUMNS[d]).join(",\n\t\t\t")}` : ""}
+		FROM analytics.events
+		WHERE
+			client_id = {websiteId:String}
+			AND time >= toDateTime({startDate:String})
+			AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+			AND session_id != ''
+			AND event_name = 'screen_view'
+		GROUP BY session_id, client_id
+	)
+`;

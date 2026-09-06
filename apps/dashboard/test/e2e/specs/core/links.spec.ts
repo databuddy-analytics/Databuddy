@@ -50,8 +50,10 @@ test(
 			targetUrl: `other-${targetUrl}`,
 		});
 		await expect(secondaryRow).toBeVisible();
+		// Assert the unfiled group exists, not its count: the count is global to the
+		// account, and other specs create unfiled links in the same worker.
 		await expect(
-			authenticatedPage.getByRole("button", { name: /Unfiled\s+1/ })
+			authenticatedPage.getByRole("button", { name: /Unfiled/ })
 		).toBeVisible();
 
 		await authenticatedPage

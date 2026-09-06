@@ -45,7 +45,7 @@ export function createFunnelTools() {
 
 	const getFunnelAnalyticsTool = tool({
 		description:
-			"Funnel step conversion and drop-offs for a chosen date range. Do not repeat an exact overall measurement already supplied by the caller.",
+			"Funnel step conversion and drop-offs with the actual definition and measured dates. Reuse supplied measurements when their definition and window are verified; remeasure stale or conflicting context.",
 		inputSchema: funnelAnalyticsInputSchema,
 		execute: async (
 			{ funnelId, websiteId: inputWebsiteId, startDate, endDate },
