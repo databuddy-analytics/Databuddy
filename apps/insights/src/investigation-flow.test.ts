@@ -12,6 +12,7 @@ import {
 	InsightAgentExecutionError,
 	InsightAgentGenerationError,
 	runInsightAgent,
+	renderRevenueEvidence,
 	validateNumericGrounding,
 } from "./agent";
 
@@ -2659,6 +2660,298 @@ describe("intelligence agent", () => {
 				{ model: new MockLanguageModelV3(), tools: {} }
 			)
 		).rejects.toThrow();
+	});
+});
+
+describe("structured revenue evidence", () => {
+	const readings = [signal.period.current, signal.period.previous].map(
+		(period, index) => ({
+			type: "revenue_overview",
+			websiteId: "site-1",
+			...period,
+			timezone: "UTC",
+			filters: [],
+			data: [
+				{
+					currency: "USD",
+					total_revenue: "10000",
+					total_transactions: 100,
+					refund_amount: index === 0 ? "1200" : "200",
+				},
+			],
+		})
+	);
+	const selection = {
+		currency: "USD",
+		fields: ["total_revenue", "total_transactions", "refund_amount"],
+	};
+	const input = { appContext: appContext(), signal };
+
+	it("binds metrics to their labels and computes a refund delta absent from the source", () => {
+		expect(renderRevenueEvidence(selection, readings, input)).toBe(
+			"USD, 2026-06-28–2026-07-04 → 2026-07-05–2026-07-11 UTC: Gross Revenue: 10,000 → 10,000; Settled Transactions: 100 → 100; Refund Amount: 200 → 1,200 (+1,000)."
+		);
+	});
+
+	it.each([
+		{ websiteId: "another-site" },
+		{ from: "2026-07-06" },
+		{ timezone: "America/New_York" },
+		{ filters: [{ field: "country", op: "eq", value: "US" }] },
+		{ data: [{ currency: "EUR", total_revenue: 10000 }] },
+		{ data: [{ currency: "USD", total_revenue: null }] },
+		{ data: [{ currency: "USD", total_revenue: "" }] },
+		{ data: [readings[0].data[0], readings[0].data[0]] },
+	])("rejects incompatible or ambiguous revenue measurements: %j", (changed) => {
+		expect(() =>
+			renderRevenueEvidence(
+				selection,
+				[{ ...readings[0], ...changed }, readings[1]],
+				input
+			)
+		).toThrow();
+	});
+
+	it("accepts later recheck windows while preserving their actual dates", () => {
+		const later = readings.map((reading, index) => ({
+			...reading,
+			from: index === 0 ? "2026-07-12" : "2026-07-05",
+			to: index === 0 ? "2026-07-18" : "2026-07-11",
+		}));
+		expect(
+			renderRevenueEvidence(selection, later, {
+				appContext: {
+					...input.appContext,
+					currentDateTime: "2026-07-19T00:00:00Z",
+				},
+			})
+		).toContain("2026-07-05–2026-07-11 → 2026-07-12–2026-07-18 UTC");
+		expect(() =>
+			renderRevenueEvidence(
+				selection,
+				later.map((reading) => ({
+					...reading,
+					from: reading.to,
+					to: reading.from,
+				})),
+				{
+					appContext: {
+						...input.appContext,
+						currentDateTime: "2026-07-19T00:00:00Z",
+					},
+				}
+			)
+		).toThrow();
+	});
+
+	it("keeps a stable currency control distinct from the changing currency", () => {
+		const both = readings.map((reading) => ({
+			...reading,
+			data: [...reading.data, { currency: "EUR", total_revenue: 5000 }],
+		}));
+		expect(renderRevenueEvidence(selection, both, input)).toContain(
+			"Refund Amount: 200 → 1,200 (+1,000)"
+		);
+		expect(
+			renderRevenueEvidence(
+				{ currency: "EUR", fields: ["total_revenue"] },
+				both,
+				input
+			)
+		).toContain(
+			"EUR, 2026-06-28–2026-07-04 → 2026-07-05–2026-07-11 UTC: Gross Revenue: 5,000 → 5,000."
+		);
+		expect(() =>
+			renderRevenueEvidence(
+				selection,
+				readings.map((reading) => ({ ...reading, websiteId: undefined })),
+				{
+					...input,
+					appContext: {
+						...input.appContext,
+						websiteId: undefined,
+						defaultWebsiteId: undefined,
+					},
+				}
+			)
+		).toThrow();
+	});
+
+	it("uses the source timezone to require a complete window", () => {
+		const timezone = "America/New_York";
+		const local = readings.map((reading) => ({ ...reading, timezone }));
+		const context = {
+			...input,
+			appContext: {
+				...input.appContext,
+				timezone,
+				currentDateTime: "2026-07-12T00:01:00Z",
+			},
+		};
+		expect(() => renderRevenueEvidence(selection, local, context)).toThrow();
+		expect(
+			renderRevenueEvidence(selection, local, {
+				...context,
+				appContext: {
+					...context.appContext,
+					currentDateTime: "2026-07-12T04:00:00Z",
+				},
+			})
+		).toContain(timezone);
+		expect(() =>
+			renderRevenueEvidence(
+				selection,
+				readings.map((reading) => ({ ...reading, timezone: "invalid-zone" })),
+				{
+					...input,
+					appContext: { ...input.appContext, timezone: "invalid-zone" },
+				}
+			)
+		).toThrow();
+	});
+
+	it("preserves a filtered population and native rate units", () => {
+		const filtered = readings.map((reading) => ({
+			...reading,
+			filters: [{ field: "country", op: "eq", value: "US" }],
+			data: [
+				{
+					currency: "USD",
+					payment_failure_rate: reading === readings[0] ? 12 : 2,
+				},
+			],
+		}));
+		expect(
+			renderRevenueEvidence(
+				{ currency: "USD", fields: ["payment_failure_rate"] },
+				filtered,
+				input
+			)
+		).toContain("USD (filtered population)");
+		expect(
+			renderRevenueEvidence(
+				{ currency: "USD", fields: ["payment_failure_rate"] },
+				filtered,
+				input
+			)
+		).toContain("Payment Failure Rate (%): 2 → 12 (+10 pp)");
+		expect(() =>
+			renderRevenueEvidence(selection, [readings[0]], input)
+		).toThrow();
+	});
+
+	it("names unavailable diagnostics without fabricating a zero or losing supported metrics", () => {
+		const partial = readings.map((reading) => ({
+			...reading,
+			data: [{ ...reading.data[0], failed_payment_attempts: null }],
+		}));
+		expect(() =>
+			renderRevenueEvidence(
+				{ currency: "USD", fields: ["failed_payment_attempts"] },
+				partial,
+				input
+			)
+		).toThrow("failed_payment_attempts is unavailable");
+		expect(renderRevenueEvidence(selection, partial, input)).toContain(
+			"Refund Amount: 200 → 1,200 (+1,000)"
+		);
+	});
+
+	it.each([
+		"payment_diagnostics_available",
+		"observed_failure_event_types",
+		"required_failure_event_types",
+	])("excludes the internal diagnostic field %s", (field) => {
+		expect(() =>
+			renderRevenueEvidence(
+				{ currency: "USD", fields: [field] },
+				readings.map((reading) => ({
+					...reading,
+					data: [{ ...reading.data[0], [field]: 1 }],
+				})),
+				input
+			)
+		).toThrow("declared numeric field");
+	});
+
+	it("rejects repeated periods and unmeasured fields", () => {
+		expect(() =>
+			renderRevenueEvidence(selection, [readings[0], readings[0]], input)
+		).toThrow();
+		expect(() =>
+			renderRevenueEvidence(
+				{ ...selection, fields: ["active_subscribers"] },
+				readings,
+				input
+			)
+		).toThrow();
+		expect(() =>
+			renderRevenueEvidence(selection, readings, {
+				...input,
+				appContext: {
+					...input.appContext,
+					currentDateTime: "2026-07-10T00:00:00Z",
+				},
+			})
+		).toThrow();
+	});
+
+	it("rejects relabeled numeric prose and accepts field-bound evidence in the same loop", async () => {
+		const proposal = {
+			findingKind: "product_outcome",
+			title: "Paid search visits had higher refunds",
+			summary: "More settled revenue was refunded.",
+			rootCause: null,
+			evidence: [
+				"Gross Revenue and settled transactions were 100 each period.",
+			],
+			evidenceRefs: [
+				["current", "previous"].map((resultKey) => ({
+					source: "tool",
+					name: "get_data",
+					toolCallId: "get_data-1",
+					resultKey,
+				})),
+			],
+			publish: true,
+			publicationBasis: "measured_impact",
+			next: { type: "resolve", reason: "No inspected cause is established." },
+		};
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				toolCallResponse("get_data"),
+				outputResponse(proposal),
+				outputResponse({ ...proposal, evidence: [selection] })
+			),
+		});
+		const result = await runInsightAgent(
+			{
+				...input,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				evidence: [],
+			},
+			{
+				model,
+				tools: {
+					get_data: tool({
+						description: "Native revenue measurement fixture",
+						inputSchema: z.object({}),
+						execute: () => ({
+							results: { current: readings[0], previous: readings[1] },
+						}),
+					}),
+				},
+			}
+		);
+		expect(result.outcome.evidence).toEqual([
+			renderRevenueEvidence(selection, readings, input),
+		]);
+		expect(JSON.stringify(model.doGenerateCalls[2])).toContain(
+			"code binds every value to its field"
+		);
+		expect(result.toolCallCount).toBe(1);
 	});
 });
 
