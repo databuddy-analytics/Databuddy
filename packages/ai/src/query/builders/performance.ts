@@ -1,3 +1,4 @@
+import { Expressions } from "../expressions";
 import { Analytics } from "../../types/tables";
 import type { SimpleQueryConfig } from "../types";
 
@@ -70,7 +71,7 @@ export const PerformanceBuilders: Record<string, SimpleQueryConfig> = {
 			return {
 				sql: `
 					SELECT 
-						decodeURLComponent(CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END) as name,
+						decodeURLComponent(${Expressions.path.normalized}) as name,
 						uniq(anonymous_id) as visitors,
 						avgIf(metric_value, metric_name = 'FCP' AND metric_value > 0) as avg_fcp,
 						quantileTDigestIf(0.50)(metric_value, metric_name = 'FCP' AND metric_value > 0) as p50_fcp,
