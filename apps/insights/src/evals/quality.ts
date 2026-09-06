@@ -933,6 +933,8 @@ if (import.meta.main) {
 			}
 		}
 	}
-	// Results and traces are flushed; imported, unused client pools must not keep this CLI alive.
-	process.exit(results.some((result) => result.failures.length > 0) ? 1 : 0);
+	// Flush the piped summary before exiting unused imported client pools.
+	process.stdout.write("", () => {
+		process.exit(results.some((result) => result.failures.length > 0) ? 1 : 0);
+	});
 }
