@@ -2,15 +2,19 @@ import { Analytics } from "../../types/tables";
 import { appendFilterClause } from "../simple-builder";
 import type { CustomSqlFn, SimpleQueryConfig } from "../types";
 
-const VITALS_SESSION_DIMENSIONS_CTE = `
+const SD_DIMENSION_COLUMNS = {
+	browser_name:
+		"argMinIf(browser_name, time, ifNull(browser_name, '') != '') as browser_name",
+	country: "argMinIf(country, time, ifNull(country, '') != '') as country",
+	region: "argMinIf(region, time, ifNull(region, '') != '') as region",
+	city: "argMinIf(city, time, ifNull(city, '') != '') as city",
+} as const;
+
+const sessionDimensionsCte = (dims: readonly string[]) => `
 	session_dimensions AS (
 		SELECT
 			session_id,
-			client_id,
-			argMinIf(browser_name, time, ifNull(browser_name, '') != '') as browser_name,
-			argMinIf(country, time, ifNull(country, '') != '') as country,
-			argMinIf(region, time, ifNull(region, '') != '') as region,
-			argMinIf(city, time, ifNull(city, '') != '') as city
+			client_id${dims.length ? `,\n\t\t\t${dims.map((d) => SD_DIMENSION_COLUMNS[d as keyof typeof SD_DIMENSION_COLUMNS]).join(",\n\t\t\t")}` : ""}
 		FROM ${Analytics.events}
 		WHERE
 			client_id = {websiteId:String}
@@ -44,6 +48,7 @@ interface VitalsByDimensionConfig {
 function vitalsByDimension(config: VitalsByDimensionConfig): CustomSqlFn {
 	const metrics = config.metrics ?? VITALS_P50_METRICS;
 	const needsSd = config.needsSessionDimensions ?? true;
+	const staticSdText = `${config.selectName} ${config.groupBy ?? ""} ${config.extraWhere ?? ""}`;
 	return ({
 		websiteId,
 		startDate,
@@ -54,7 +59,13 @@ function vitalsByDimension(config: VitalsByDimensionConfig): CustomSqlFn {
 	}) => {
 		const effectiveLimit = limit ?? config.defaultLimit;
 		const filterClause = appendFilterClause(filterConditions);
-		const withCte = needsSd ? `WITH ${VITALS_SESSION_DIMENSIONS_CTE}` : "";
+		// Runtime filters may reference a session dimension bare (country = ?) or
+		// qualified (sd.country), so scan them too before pruning the CTE.
+		const sdText = `${staticSdText} ${filterConditions?.join(" ") ?? ""}`;
+		const sdDims = (
+			["browser_name", "country", "region", "city"] as const
+		).filter((d) => sdText.includes(d));
+		const withCte = needsSd ? `WITH ${sessionDimensionsCte(sdDims)}` : "";
 		const joinSd = needsSd
 			? "INNER JOIN session_dimensions sd ON wv.session_id = sd.session_id AND wv.client_id = sd.client_id"
 			: "";

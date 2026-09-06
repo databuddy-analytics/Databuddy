@@ -19,7 +19,7 @@ import {
 	getInsightsQueue,
 	insightsResumeJobId,
 } from "@databuddy/redis";
-import type { InvestigationOutcome } from "@databuddy/shared/insights";
+import type { InsightDefinitionEditChanges, InvestigationOutcome } from "@databuddy/shared/insights";
 import {
 	addToOrganization,
 	cleanup,
@@ -66,7 +66,10 @@ function investigationOutcome(nextType: "act" | "watch"): InvestigationOutcome {
 	};
 }
 
-async function seedExecutableGoalAction() {
+async function seedExecutableGoalAction(changes: InsightDefinitionEditChanges = {
+	description: "Counts navigation activity across the site.",
+	name: "Navigation clicks",
+}) {
 	const member = await signUp();
 	const organization = await insertOrganization();
 	await addToOrganization(member.id, organization.id, "member");
@@ -105,10 +108,7 @@ async function seedExecutableGoalAction() {
 			next: {
 				action: "Rename Clicked Nav to Navigation clicks.",
 				execution: {
-					changes: {
-						description: "Counts navigation activity across the site.",
-						name: "Navigation clicks",
-					},
+					changes,
 					operation: "edit",
 				},
 				target: "Goal: Clicked Nav",
@@ -387,6 +387,132 @@ describe("insight investigation timeline", () => {
 		).toEqual({ replyId: applied.reply.id });
 	});
 
+	iit(
+		"repairs a goal target, type and cohort, then queues its recheck",
+		async () => {
+			const changes: InsightDefinitionEditChanges = {
+				target: "/workspace",
+				type: "PAGE_VIEW",
+				filters: [
+					{ field: "device_type", operator: "equals", value: "mobile" },
+				],
+			};
+			const { goalId, insightId, member, organization } =
+				await seedExecutableGoalAction(changes);
+			const applied = await call(
+				appRouter.insights.applyAction,
+				userContext(member, organization.id)
+			)({ insightId });
+			const [goal] = await db()
+				.select()
+				.from(goals)
+				.where(eq(goals.id, goalId));
+			expect(goal).toMatchObject({
+				target: changes.target,
+				type: changes.type,
+				filters: changes.filters,
+				name: "Clicked Nav",
+				description: "A narrow description.",
+			});
+			expect(
+				(await getInsightsQueue().getJob(insightsResumeJobId(applied.reply.id)))
+					?.data
+			).toEqual({ replyId: applied.reply.id });
+		}
+	);
+
+	iit("rejects an unchanged goal patch without queuing a recheck", async () => {
+		const { insightId, member, organization } = await seedExecutableGoalAction({
+			name: "Clicked Nav",
+			description: "A narrow description.",
+			target: "nav_clicked",
+			filters: [],
+		});
+		await expectCode(
+			call(
+				appRouter.insights.applyAction,
+				userContext(member, organization.id)
+			)({ insightId }),
+			"BAD_REQUEST"
+		);
+		expect(await db().select().from(insightReplies)).toHaveLength(0);
+	});
+
+	iit(
+		"rejects an equivalent event goal type without queuing a recheck",
+		async () => {
+			const { goalId, insightId, member, organization } =
+				await seedExecutableGoalAction({ type: "CUSTOM" });
+			await expectCode(
+				call(
+					appRouter.insights.applyAction,
+					userContext(member, organization.id)
+				)({ insightId }),
+				"BAD_REQUEST"
+			);
+			const [goal] = await db()
+				.select()
+				.from(goals)
+				.where(eq(goals.id, goalId));
+			expect(goal?.type).toBe("EVENT");
+			expect(await db().select().from(insightReplies)).toHaveLength(0);
+		}
+	);
+
+
+	iit(
+		"rejects a cosmetic rename disguised by repeating the current goal target",
+		async () => {
+			const { goalId, insightId, member, organization } =
+				await seedExecutableGoalAction({
+					name: "Workspace reached",
+					description: null,
+					target: "nav_clicked",
+				});
+			await expectCode(
+				call(
+					appRouter.insights.applyAction,
+					userContext(member, organization.id)
+				)({ insightId }),
+				"BAD_REQUEST"
+			);
+			const [goal] = await db()
+				.select()
+				.from(goals)
+				.where(eq(goals.id, goalId));
+			expect(goal?.name).toBe("Clicked Nav");
+			expect(await db().select().from(insightReplies)).toHaveLength(0);
+		}
+	);
+
+	iit(
+		"rejects funnel steps applied to a goal without changing it",
+		async () => {
+			const { goalId, insightId, member, organization } =
+				await seedExecutableGoalAction({
+					name: "Should not change",
+					description: null,
+					steps: [
+						{ name: "Start", target: "/", type: "PAGE_VIEW" },
+						{ name: "End", target: "/workspace", type: "PAGE_VIEW" },
+					],
+				});
+			await expectCode(
+				call(
+					appRouter.insights.applyAction,
+					userContext(member, organization.id)
+				)({ insightId }),
+				"BAD_REQUEST"
+			);
+			const [goal] = await db()
+				.select()
+				.from(goals)
+				.where(eq(goals.id, goalId));
+			expect(goal?.name).toBe("Clicked Nav");
+			expect(await db().select().from(insightReplies)).toHaveLength(0);
+		}
+	);
+
 	iit("does not apply a goal action after its definition changes", async () => {
 		const { goalId, insightId, member, organization } =
 			await seedExecutableGoalAction();
@@ -415,106 +541,232 @@ describe("insight investigation timeline", () => {
 		expect(await db().select().from(insightReplies)).toHaveLength(0);
 	});
 
-	iit("applies an executable funnel action and queues verification together", async () => {
-		const member = await signUp();
-		const organization = await insertOrganization();
-		await addToOrganization(member.id, organization.id, "member");
-		const website = await insertWebsite({ organizationId: organization.id });
-		const funnelId = randomUUIDv7();
-		const insightId = randomUUIDv7();
-		const subjectKey = `funnel:${funnelId}`;
-		const outcome: InvestigationOutcome = {
-			...investigationOutcome("act"),
-			next: {
-				action: "Rename Documentation journey to Account creation journey.",
-				execution: {
-					changes: {
-						description: "Tracks visitors who complete account creation.",
-						name: "Account creation journey",
+	iit(
+		"applies an executable funnel action and queues verification together",
+		async () => {
+			const member = await signUp();
+			const organization = await insertOrganization();
+			await addToOrganization(member.id, organization.id, "member");
+			const website = await insertWebsite({ organizationId: organization.id });
+			const funnelId = randomUUIDv7();
+			const insightId = randomUUIDv7();
+			const subjectKey = `funnel:${funnelId}`;
+			const outcome: InvestigationOutcome = {
+				...investigationOutcome("act"),
+				next: {
+					action: "Rename Documentation journey to Account creation journey.",
+					execution: {
+						changes: {
+							description: "Tracks visitors who complete account creation.",
+							name: "Account creation journey",
+							filters: [],
+							steps: [
+								{ name: "Landing", target: "/start", type: "PAGE_VIEW" },
+								{
+									name: "Account created",
+									target: "signup_completed",
+									type: "EVENT",
+									conditions: { plan: "paid" },
+								},
+							],
+						},
+						operation: "edit",
 					},
-					operation: "edit",
+					target: "Funnel: Documentation journey",
+					type: "act",
+					verification:
+						"The funnel definition describes account creation and keeps its verified steps.",
 				},
-				target: "Funnel: Documentation journey",
-				type: "act",
-				verification:
-					"The funnel definition describes account creation and keeps its verified steps.",
-			},
-			rootCause:
-				"The saved funnel label conflicts with its configured account-creation purpose.",
-		};
-		const actionSignal = {
-			...signal(subjectKey),
-			entity: {
-				id: funnelId,
-				label: "Documentation journey",
-				type: "funnel" as const,
-			},
-		};
-
-		await db().insert(funnelDefinitions).values({
-			createdBy: member.id,
-			description: "A vague journey.",
-			id: funnelId,
-			name: "Documentation journey",
-			steps: [
-				{ name: "Landing", target: "/", type: "PAGE_VIEW" },
-				{
-					name: "Account created",
-					target: "account_created",
-					type: "EVENT",
+				rootCause:
+					"The saved funnel label conflicts with its configured account-creation purpose.",
+			};
+			const actionSignal = {
+				...signal(subjectKey),
+				entity: {
+					id: funnelId,
+					label: "Documentation journey",
+					type: "funnel" as const,
 				},
-			],
-			websiteId: website.id,
-		});
-		await db().insert(analyticsInsights).values(
-			insightRow({
-				id: insightId,
-				organizationId: organization.id,
-				subjectKey,
-				websiteId: website.id,
-			})
-		);
-		await db().insert(insightObservations).values({
-			asOf: new Date("2026-01-10T00:00:00.000Z"),
-			id: randomUUIDv7(),
-			insightId,
-			organizationId: organization.id,
-			outcome,
-			recheckAt: new Date("2026-01-17T00:00:00.000Z"),
-			signal: actionSignal,
-			signalKey: subjectKey,
-			websiteId: website.id,
-		});
+			};
 
-		const applied = await call(
-			appRouter.insights.applyAction,
-			userContext(member, organization.id)
-		)({ insightId });
-
-		expect(applied.reply).toMatchObject({
-			body: "Databuddy applied the funnel action. Recheck its verification condition against current data.",
-			kind: "reply",
-			status: "queued",
-		});
-		expect(
 			await db()
-				.select({
-					description: funnelDefinitions.description,
-					name: funnelDefinitions.name,
-				})
+				.insert(funnelDefinitions)
+				.values({
+					createdBy: member.id,
+					description: "A vague journey.",
+					id: funnelId,
+					name: "Documentation journey",
+					steps: [
+						{ name: "Landing", target: "/", type: "PAGE_VIEW" },
+						{
+							name: "Account created",
+							target: "account_created",
+							type: "EVENT",
+							conditions: { plan: "paid" },
+						},
+					],
+					websiteId: website.id,
+				});
+			await db()
+				.insert(analyticsInsights)
+				.values(
+					insightRow({
+						id: insightId,
+						organizationId: organization.id,
+						subjectKey,
+						websiteId: website.id,
+					})
+				);
+			await db()
+				.insert(insightObservations)
+				.values({
+					asOf: new Date("2026-01-10T00:00:00.000Z"),
+					id: randomUUIDv7(),
+					insightId,
+					organizationId: organization.id,
+					outcome,
+					recheckAt: new Date("2026-01-17T00:00:00.000Z"),
+					signal: actionSignal,
+					signalKey: subjectKey,
+					websiteId: website.id,
+				});
+
+			const applied = await call(
+				appRouter.insights.applyAction,
+				userContext(member, organization.id)
+			)({ insightId });
+
+			expect(applied.reply).toMatchObject({
+				body: "Databuddy applied the funnel action. Recheck its verification condition against current data.",
+				kind: "reply",
+				status: "queued",
+			});
+			expect(
+				await db()
+					.select({
+						description: funnelDefinitions.description,
+						name: funnelDefinitions.name,
+						steps: funnelDefinitions.steps,
+						filters: funnelDefinitions.filters,
+					})
+					.from(funnelDefinitions)
+					.where(eq(funnelDefinitions.id, funnelId))
+			).toEqual([
+				{
+					description: "Tracks visitors who complete account creation.",
+					name: "Account creation journey",
+					filters: [],
+					steps: [
+						{ name: "Landing", target: "/start", type: "PAGE_VIEW" },
+						{
+							name: "Account created",
+							target: "signup_completed",
+							type: "EVENT",
+							conditions: { plan: "paid" },
+						},
+					],
+				},
+			]);
+			expect(
+				(await getInsightsQueue().getJob(insightsResumeJobId(applied.reply.id)))
+					?.data
+			).toEqual({ replyId: applied.reply.id });
+		}
+	);
+
+	iit.each(["dropped conditions", "changed conditions", "renamed steps"])(
+		"rejects a funnel repair with %s",
+		async (variant) => {
+			const member = await signUp();
+			const organization = await insertOrganization();
+			await addToOrganization(member.id, organization.id, "member");
+			const website = await insertWebsite({ organizationId: organization.id });
+			const funnelId = randomUUIDv7();
+			const insightId = randomUUIDv7();
+			const subjectKey = `funnel:${funnelId}`;
+			const steps = [
+				{ name: "Start", type: "PAGE_VIEW" as const, target: "/start" },
+				{
+					name: "Finish",
+					type: "EVENT" as const,
+					target: "account_created",
+					conditions: { plan: "paid" },
+				},
+			];
+			const replacement =
+				variant === "renamed steps"
+					? steps.map((step) => ({ ...step, name: `${step.name} renamed` }))
+					: [
+							steps[0],
+							{
+								name: "Finish",
+								type: "EVENT" as const,
+								target: "signup_completed",
+								...(variant === "changed conditions"
+									? { conditions: { plan: "free" } }
+									: {}),
+							},
+						];
+			await db()
+				.insert(funnelDefinitions)
+				.values({
+					id: funnelId,
+					websiteId: website.id,
+					createdBy: member.id,
+					name: "Account journey",
+					steps,
+					updatedAt: new Date("2026-01-01T00:00:00Z"),
+				});
+			await db()
+				.insert(analyticsInsights)
+				.values(
+					insightRow({
+						id: insightId,
+						organizationId: organization.id,
+						subjectKey,
+						websiteId: website.id,
+					})
+				);
+			await db()
+				.insert(insightObservations)
+				.values({
+					id: randomUUIDv7(),
+					insightId,
+					organizationId: organization.id,
+					websiteId: website.id,
+					signalKey: subjectKey,
+					asOf: new Date("2026-01-10T00:00:00Z"),
+					recheckAt: new Date("2026-01-17T00:00:00Z"),
+					signal: {
+						...signal(subjectKey),
+						entity: { type: "funnel", id: funnelId, label: "Account journey" },
+					},
+					outcome: {
+						...investigationOutcome("act"),
+						next: {
+							type: "act",
+							action: "Repair the account journey.",
+							target: "Account journey",
+							verification: "Matching account counts recover.",
+							execution: { operation: "edit", changes: { steps: replacement } },
+						},
+					},
+				});
+			await expectCode(
+				call(
+					appRouter.insights.applyAction,
+					userContext(member, organization.id)
+				)({ insightId }),
+				"BAD_REQUEST"
+			);
+			const [unchanged] = await db()
+				.select()
 				.from(funnelDefinitions)
-				.where(eq(funnelDefinitions.id, funnelId))
-		).toEqual([
-			{
-				description: "Tracks visitors who complete account creation.",
-				name: "Account creation journey",
-			},
-		]);
-		expect(
-			(await getInsightsQueue().getJob(insightsResumeJobId(applied.reply.id)))
-				?.data
-		).toEqual({ replyId: applied.reply.id });
-	});
+				.where(eq(funnelDefinitions.id, funnelId));
+			expect(unchanged?.steps).toEqual(steps);
+			expect(await db().select().from(insightReplies)).toHaveLength(0);
+		}
+	);
 
 	iit("remeasures an open goal investigation after a teammate edits its definition", async () => {
 		const member = await signUp();

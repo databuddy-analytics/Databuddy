@@ -69,7 +69,7 @@ The agent receives:
 - project instructions and durable corrections;
 - human replies and open actions or PRs.
 
-Tools are discoverable. There is no fixed first query, query family, receipt choreography, or two-read limit.
+Tools are discoverable. There is no fixed first query, query family, receipt choreography, or two-read limit. Each investigation uses one tool loop with at most eight model turns, including a reserved final turn. It ends through `finish_investigation`, which validates the outcome and returns any repair error in the same conversation; at most three finish attempts are allowed. Successful reads include exact citation references. The agent does not restart the conversation to repair output.
 
 ## Outcome contract
 
@@ -78,7 +78,7 @@ Every completed turn reports:
 - **summary:** what happened;
 - **impact:** who or what is affected, with measured scope when available;
 - **root cause:** the known mechanism, or `unknown`;
-- **evidence:** the few facts that support or contradict it;
+- **evidence:** one or two concise entries that support or contradict it, each citing its supplied signal, provided context, or exact successful tool result; failed queries are limitations, and a partial table cannot establish absence;
 - **publish:** whether this turn adds a new customer-relevant fact to Insights;
 - **recommendation:** an optional useful next step that does not create a case; goal edits include the exact proposed name or description so the existing editor can review and apply them. A recommendation may also carry an evidence-backed goal or funnel draft, or explain the tracking needed before one is useful. Drafts open in the normal editable setup flow and are never created automatically;
 - **next:** exactly one outcome.
@@ -110,6 +110,8 @@ The agent may inspect code without write credentials. For a code action it retur
 
 Only the outer boundary is deterministic: authorization, tenant scope, patch validation, approvals, idempotency, and delivery. Investigation strategy is not.
 
+Goal and funnel repairs must match the signal's exact definition ID in the latest successful inspection. Proposal validation and Apply share the measurement-change checks: reject no-ops and preserve stored funnel step conditions. If inspection cannot verify that subject, resolve privately without a claimed cause; a same-named definition cannot justify a repair, coverage diagnosis, or customer question.
+
 ## Quality bars
 
 - An insight is useful when it teaches the teammate something specific they would otherwise need to discover.
@@ -117,7 +119,9 @@ Only the outer boundary is deterministic: authorization, tenant scope, patch val
 
 Reject output that merely restates a percentage, invents a cause, asks for data Databuddy can read, gives a generic recommendation, or creates duplicate work.
 
-Summary, impact, cause, and evidence each contribute a different fact. Routine or unchanged rechecks remain in internal history with `publish: false`.
+Summary, impact, cause, and evidence each contribute a different fact. Routine or unchanged rechecks remain in internal history with `publish: false`. Raw website traffic is not a verified product outcome: it can publish only a measurement-coverage finding with cited collection or implementation evidence. Uncited context, goal listings, and sibling metrics cannot establish visitor loss; a product result belongs to its own signal and subject.
+
+Missing diagnostic access alone is not a coverage finding. Publish a measured missing population or inspected tracking defect when it makes a specific decision unsafe; keep an unsupported explanation or unavailable connector in private history. Preserve independently verified product results and outages even when their cause is unknown. Briefs should fit 60 words across the title, summary, impact, cause, and evidence, with each fact stated once.
 
 Customer impact stays explicit about coverage. Anonymous visitor identifiers, sessions, identified profiles, and profiles with prior attributed completed-payment history are different cohorts. Unknown payment status is never reported as non-paying, and payment history is not called an active subscription. Error exposure alone does not prove that a page broke, a task failed, or work was lost.
 

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { goalFunnelFilterFields } from "./analytics-filters";
 
 export const weekOverWeekPeriodSchema = z
 	.object({
@@ -127,18 +128,70 @@ export const insightDefinitionEditChangesSchema = z
 			.trim()
 			.min(1)
 			.max(500)
-			.nullable()
+			.nullish()
 			.describe("Exact replacement description; null to leave unchanged."),
 		name: z
 			.string()
 			.trim()
 			.min(1)
 			.max(100)
-			.nullable()
+			.nullish()
 			.describe("Exact replacement name; null to leave unchanged."),
+		target: z
+			.string()
+			.trim()
+			.min(1)
+			.max(2000)
+			.nullish()
+			.describe(
+				"Exact replacement page path or event name for a goal; omit or null to leave unchanged. Not valid for funnels."
+			),
+		type: z
+			.enum(["PAGE_VIEW", "EVENT", "CUSTOM"])
+			.nullish()
+			.describe(
+				"Replacement goal type; omit or null to leave unchanged. Not valid for funnels."
+			),
+		steps: z
+			.array(
+				z.strictObject({
+					name: z.string().trim().min(1).max(100),
+					target: z.string().trim().min(1).max(2000),
+					type: z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]),
+					conditions: z.record(z.string(), z.unknown()).optional(),
+				})
+			)
+			.min(2)
+			.max(20)
+			.nullish()
+			.describe(
+				"Complete ordered replacement steps for a funnel. Preserve existing conditions at their positions; do not add or change conditions, which analytics does not evaluate. Renaming steps alone does not repair measurement. Not valid for goals."
+			),
+		filters: z
+			.array(
+				z.strictObject({
+					field: z.enum(goalFunnelFilterFields.map((field) => field.value)),
+					operator: z.enum([
+						"equals",
+						"contains",
+						"not_contains",
+						"starts_with",
+						"ends_with",
+						"not_equals",
+						"in",
+						"not_in",
+					]),
+					value: z.union([z.string(), z.array(z.string())]),
+				})
+			)
+			.max(20)
+			.nullish()
+			.describe(
+				"Complete replacement filters; [] clears filters, omit or null leaves them unchanged."
+			),
 	})
 	.strict()
-	.refine((changes) => changes.description !== null || changes.name !== null, {
+	.refine((changes) => Object.values(changes).some((value) => value != null), {
 		message: "Definition edits require at least one changed field",
 	});
 
@@ -200,6 +253,20 @@ const insightDefinitionExecutionSchema = z.discriminatedUnion("operation", [
 
 const agentEvidenceReferenceSchema = z.discriminatedUnion("source", [
 	z
+		.strictObject({ source: z.literal("customer_impact") })
+		.describe("The supplied customerImpact measurements, only when present."),
+	z
+		.strictObject({
+			source: z.literal("related_signal"),
+			index: z.number().int().nonnegative(),
+		})
+		.describe("A zero-based index in the supplied relatedSignals array."),
+	z
+		.strictObject({ source: z.literal("signal") })
+		.describe(
+			"The supplied signal measurement, including its exact comparison windows and metric delta. Always available, even when evidence is empty."
+		),
+	z
 		.object({
 			index: z
 				.number()
@@ -216,8 +283,21 @@ const agentEvidenceReferenceSchema = z.discriminatedUnion("source", [
 				.trim()
 				.min(1)
 				.max(100)
-				.describe("Exact name of a read tool used during this investigation."),
+				.describe("Exact name of the read tool that returned the cited fact."),
 			source: z.literal("tool"),
+			toolCallId: z
+				.string()
+				.min(1)
+				.describe(
+					"Exact tool call ID from this investigation; cite a successful result, not merely a tool name."
+				),
+			resultKey: z
+				.string()
+				.min(1)
+				.nullable()
+				.describe(
+					"For get_data, the exact key under results (including any website or # suffix). For other tools, null."
+				),
 		})
 		.strict(),
 ]);
@@ -375,7 +455,7 @@ export const investigationOutcomeSchema = z
 			.trim()
 			.min(1)
 			.describe(
-				"A 5–12 word news headline stating the verified finding. For a directly measured user experience, lead with the affected visitor or customer count and observed problem. For a measurement definition or coverage finding, name the mismatch or blind spot, never an implied user failure. Never translate occurrences, sessions, entrants, or performance samples into people, or use a raw identifier, generic config label, schema label, arrow relationship, or measurement language as the title."
+				"A short news headline stating the verified finding. For a directly measured user experience, lead with the affected visitor or customer count and observed problem. For a measurement definition or coverage finding, name the mismatch or blind spot, never an implied user failure. Never translate occurrences, sessions, entrants, or performance samples into people, or use a raw identifier, generic config label, schema label, arrow relationship, or measurement language as the title."
 			),
 		summary: z
 			.string()
@@ -557,25 +637,18 @@ export const investigationOutcomeSchema = z
 
 const RAW_IDENTIFIER_PATTERN =
 	/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\b[a-z0-9]+(?:_[a-z0-9]+)+\b|https?:\/\//i;
-const TITLE_WORD_SEPARATOR = /\s+/;
 
 const agentTitleSchema = z
 	.string()
 	.trim()
+	.min(1)
 	.max(120)
-	.refine(
-		(title) => {
-			const words = title.split(TITLE_WORD_SEPARATOR).length;
-			return words >= 5 && words <= 12;
-		},
-		{ message: "Titles must be 5-12 words" }
-	)
 	.refine((title) => !RAW_IDENTIFIER_PATTERN.test(title), {
 		message:
 			"Titles must use natural product language, never raw identifiers, event names, or URLs",
 	})
 	.describe(
-		"A 5–12 word news headline stating the verified finding in natural product language. Lead with the affected count and observed problem. Never use raw identifiers, snake_case event names, URLs, or measurement jargon."
+		"A short headline stating the verified finding in natural product language. For directly measured reliability or user impact, an affected count can lead. For measurement_definition, name the incorrect target or purpose mismatch without a numeric count; keep counts with their periods in evidence. For measurement_coverage, name the observed blind spot, never a presumed product loss. Never use raw identifiers, snake_case event names, or URLs."
 	);
 
 export const agentInvestigationOutcomeSchema = investigationOutcomeSchema
@@ -699,6 +772,53 @@ export type InsightDefinitionEditChanges = z.infer<
 export type InsightDefinitionOperation = z.infer<
 	typeof insightDefinitionOperationSchema
 >;
+
+export function describeInsightDefinitionAction(
+	label: string,
+	operation: InsightDefinitionOperation
+): string {
+	if (operation.operation === "delete") {
+		return `Delete ${label}.`;
+	}
+	const changes = operation.changes;
+	const edits: string[] = [];
+	if (changes.target != null) {
+		edits.push(`set target to ${JSON.stringify(changes.target)}`);
+	}
+	if (changes.type != null) {
+		edits.push(`set type to ${changes.type}`);
+	}
+	if (changes.steps != null) {
+		edits.push(
+			`replace steps with ${changes.steps.map((step) => `${step.name} (${step.type}: ${step.target})`).join(" → ")}`
+		);
+	}
+	if (changes.filters != null) {
+		edits.push(
+			`set filters to ${changes.filters.length ? changes.filters.map((filter) => `${filter.field} ${filter.operator} ${JSON.stringify(filter.value)}`).join(" AND ") : "none"}`
+		);
+	}
+	if (changes.name != null) {
+		edits.push(`rename to ${JSON.stringify(changes.name)}`);
+	}
+	if (changes.description != null) {
+		edits.push(`set description to ${JSON.stringify(changes.description)}`);
+	}
+	return `For ${label}, ${edits.join("; ")}.`;
+}
+
+export function insightDefinitionEditError(
+	entity: "goal" | "funnel",
+	changes: InsightDefinitionEditChanges
+): string | null {
+	if (entity === "goal" && changes.steps != null) {
+		return "Goal edits cannot replace funnel steps.";
+	}
+	if (entity === "funnel" && (changes.target != null || changes.type != null)) {
+		return "Funnel edits must replace steps, not a goal target or type.";
+	}
+	return null;
+}
 export type InsightWatchThreshold = z.infer<typeof insightWatchThresholdSchema>;
 export type InsightReplySlackDelivery = z.infer<
 	typeof insightReplySlackDeliverySchema

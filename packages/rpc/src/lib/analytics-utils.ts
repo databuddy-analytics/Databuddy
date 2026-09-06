@@ -404,7 +404,7 @@ function buildIdentifiedEventStream(
 			step.type === "PAGE_VIEW"
 				? `row.source_kind = 1
 					AND row.event_name = 'screen_view'
-					AND ${normalizedPathExpression("row.path")} = {${targetKey}:String}`
+					AND row.normalized_path = {${targetKey}:String}`
 				: `row.event_name = {${targetKey}:String}`;
 		let matches = baseMatch;
 		if (index === 0 && filters.length > 0) {
@@ -479,6 +479,7 @@ identified_rows AS (
 context_rows AS (
 	SELECT
 		context.*,
+		${normalizedPathExpression("context.path")} AS normalized_path,
 		if(
 			context.session_id != '',
 			context.last_matching_session_context_ms,

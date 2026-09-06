@@ -1,0 +1,19 @@
+# Investigation quality evals
+
+Run from the repository root with `AI_GATEWAY_API_KEY` configured:
+
+```sh
+bun apps/insights/src/evals/quality.ts --out /tmp/insights-quality --runs 2
+```
+
+Use `--agent /absolute/path/to/another/checkout/apps/insights/src/agent.ts` to compare an existing checkout against the same fixtures. `--model` selects a gateway model; it defaults to the production investigation model. Keep baseline and candidate output directories separate. Use `--cases partial-table-not-absence,missing-connector` for a targeted rerun; preserve the original failed result as well.
+
+The scenarios are synthetic, with bounded concurrency of two. The supplied read tools return synthetic fixtures and never access analytics, mutate definitions, or deliver notifications. The runner records prompts, observable model responses, tool calls/results, retries, usage, outcomes, and rubric failures in local JSONL files. Private reasoning content is omitted. `results.json` is updated after each batch. A failed check makes the process exit nonzero.
+
+The checks cover signal-only evidence, a verified collection gap, a useful product decline without a remedy, executable goal repair, partial tables, and an unavailable connector. They also check unrelated website context, sibling metrics, exact definition IDs, failed definition reads, already-correct goals, and complete funnel repairs with preserved conditions. They test agent behavior with simplified reads; query compilation and transactional Apply behavior have separate tests. Review the actual outputs as well: passing these small fixtures does not establish customer usefulness, causal accuracy, or production reliability. Use synthetic data only in this suite.
+
+Usefulness checks require missing-access-only notices to remain private, retain a verified decline despite unavailable diagnostics, and retain its steady-arrival comparison. The source-comparison case reuses the production funnel tool input contracts with synthetic per-period and combined responses; the agent must inspect the two periods separately to locate the decline. Published briefs are measured against a 60-word budget across title, summary, impact, cause, and evidence; action details are excluded. Review brevity alongside retained information, not as a substitute for usefulness.
+
+Source interpretation requires manual review against the tool results. The automatic checks detect missing period reads and an omitted source cohort; a source-name or number match cannot establish a correct comparison. The runner records `reviewRequired` and prints `REVIEW REQUIRED` for a mechanically valid source case. A zero exit status means no automatic check failed; it does not complete that review. Verify direction, cohort, and period attribution, accepting equivalent measured rates. The 60-word budget is a quality target, not a runtime publication gate.
+
+The agent uses one native tool loop, ending with `finish_investigation` in a separate turn after receiving its reads. It cannot cite a read sent in the same batch, because the model has not seen that result; the validation error asks it to use the completed result next turn without repeating the read. Schema and evidence validation failures return as tool errors in the same conversation. The total budget is eight model turns, with the last reserved for finishing, and at most three finish attempts. An empty or text-only provider response fails the run without starting another conversation. Read results supply exact citation references to copy; failed reads supply none. The reported read-call count excludes the finish tool; JSONL model requests and step events record all turns and finish attempts. Compare both counts when evaluating efficiency.

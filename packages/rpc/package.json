@@ -18,6 +18,7 @@
     "./flags": "./src/utils/flags.ts",
     "./funnel-steps": "./src/routers/funnel-steps.ts",
     "./insight-generation": "./src/routers/insight-generation.ts",
+    "./insight-repairs": "./src/routers/insight-repairs.ts",
     "./insights": "./src/routers/insights.ts",
     "./insight-schedule": "./src/services/insight-schedule.ts",
     "./log-context": "./src/lib/rpc-log-context.ts",
