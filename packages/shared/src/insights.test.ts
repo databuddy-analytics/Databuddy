@@ -338,7 +338,7 @@ describe("investigationOutcomeSchema", () => {
 				impact: null,
 				publicationBasis: "decision_safety",
 			}).success
-		).toBe(false);
+		).toBe(true);
 		expect(
 			agentInvestigationOutcomeSchema.safeParse({
 				...published,
@@ -360,7 +360,7 @@ describe("investigationOutcomeSchema", () => {
 				findingKind: "user_experience",
 				impact: null,
 			}).success
-		).toBe(false);
+		).toBe(true);
 		expect(
 			agentInvestigationOutcomeSchema.safeParse({
 				...published,
@@ -543,7 +543,7 @@ describe("investigationOutcomeSchema", () => {
 					verification: "Checkout attempts succeed again.",
 				},
 			}).success
-		).toBe(false);
+		).toBe(true);
 		expect(
 			investigationOutcomeSchema.safeParse({
 				...outcomeBase,
@@ -565,6 +565,19 @@ describe("investigationOutcomeSchema", () => {
 				},
 			}).success
 		).toBe(true);
+	});
+
+	it("generates one finding paragraph while retaining legacy stored impact", () => {
+		const generated = agentInvestigationOutcomeSchema.parse({
+			...outcomeBase,
+			...agentFields,
+			publish: true,
+		});
+		expect(generated).not.toHaveProperty("impact");
+		expect(investigationOutcomeSchema.parse(generated).impact).toBeNull();
+		expect(investigationOutcomeSchema.parse(outcomeBase).impact).toBe(
+			outcomeBase.impact
+		);
 	});
 
 	it("requires concise evidence", () => {

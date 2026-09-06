@@ -85,7 +85,7 @@ const evidence = [
 const outcome: InvestigationOutcome = {
 	title: "Paid search campaign is paused",
 	summary: "Most of the visitor loss followed campaign cmp_search_1 pausing.",
-	impact: "The site lost 700 visitors in the comparison window.",
+	impact: null,
 	rootCause: "Campaign cmp_search_1 was paused before the comparison window.",
 	evidence: [
 		"Visitors fell from 1,000 to 300.",
@@ -1328,12 +1328,11 @@ describe("intelligence agent", () => {
 		);
 	});
 
-	it("retries a published measurement finding without a decision impact", async () => {
+	it("retries a published measurement finding with the wrong publication basis", async () => {
 		const invalidOutcome = {
 			...agentOutcome,
 			findingKind: "measurement_definition" as const,
-			impact: null,
-			publicationBasis: "decision_safety" as const,
+			publicationBasis: "measured_impact" as const,
 		};
 		const model = new MockLanguageModelV3({
 			doGenerate: mockValues(
@@ -1356,7 +1355,9 @@ describe("intelligence agent", () => {
 
 		expect(result.outcome).toEqual(outcome);
 		expect(model.doGenerateCalls).toHaveLength(2);
-		expect(JSON.stringify(model.doGenerateCalls[1])).toContain("impact");
+		expect(JSON.stringify(model.doGenerateCalls[1])).toContain(
+			"publicationBasis"
+		);
 	});
 
 	it("repairs a truncated finish call inside the same tool loop", async () => {
@@ -2100,6 +2101,38 @@ describe("intelligence agent", () => {
 });
 
 describe("validateNumericGrounding", () => {
+	it.each(["0", "zero"])("grounds %s against a spelled-out zero", (count) => {
+		const claim = { title: `${count} events`, summary: "", evidence: [] };
+		expect(() =>
+			validateNumericGrounding(claim, "The collector recorded zero events.")
+		).not.toThrow();
+		expect(() =>
+			validateNumericGrounding(claim, "The collector recorded 18 events.", 0)
+		).toThrow("evidence[0] cites the number 0");
+	});
+
+	it.each([
+		"29 Aug–4 Sep",
+		"29–31 August, 2026",
+		"August 29–September 4",
+		"2026-08-29",
+	])("does not treat %s as a count", (date) => {
+		const claim = {
+			title: "Collection gap",
+			summary: `${date}: 2200 origin responses, zero events.`,
+			evidence: [],
+		};
+		expect(() =>
+			validateNumericGrounding(claim, "2200 origin responses; zero events.")
+		).not.toThrow();
+		expect(() =>
+			validateNumericGrounding(
+				{ ...claim, evidence: ["29 visitors"] },
+				"2200 origin responses; zero events."
+			)
+		).toThrow("number 29");
+	});
+
 	it.each([
 		["1.2k", 1200],
 		["70k", 70_000],
