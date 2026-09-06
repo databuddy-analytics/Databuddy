@@ -123,7 +123,7 @@ interface QualityCase {
 	// Observable expectations, independent of exact wording.
 	check: (
 		result: InsightAgentResult,
-		calls: { name: string; input: unknown }[]
+		calls: { name: string; input: unknown; output?: unknown }[]
 	) => string[];
 	id: string;
 	input: InsightAgentInput;
@@ -732,6 +732,211 @@ export const qualityCases: QualityCase[] = [
 	},
 ];
 
+const repository = { owner: "synthetic-org", repo: "web" };
+const repositoryTools = createToolkit({
+	capabilities: ["investigation"],
+	organizationId: appContext.organizationId,
+	githubRepository: repository,
+});
+
+qualityCases.push({
+	id: "available-repository-mechanism",
+	input: input({
+		signal: {
+			...defaultSignal,
+			signalKey: "error:checkout-submit",
+			entity: {
+				type: "error",
+				id: "checkout-submit",
+				label: "Checkout submission error",
+			},
+			metric: {
+				label: "Checkout errors",
+				current: 40,
+				previous: 10,
+				format: "number",
+			},
+			changePercent: 300,
+		},
+		githubRepository: repository,
+		evidence: [
+			"Checkout errors affected 36 visitor identifiers. The stack points to src/checkout.ts in the deployed revision abcdef1. The error reads 'Cannot read properties of null (reading paymentToken)'. No purchase loss has been measured.",
+		],
+	}),
+	tools: {
+		github_read_file: {
+			...repositoryTools.github_read_file,
+			execute: (query) => {
+				if (query.path !== "src/checkout.ts" || query.ref !== "abcdef1") {
+					return {
+						error:
+							"Read the observed deployed file and revision; no other synthetic source is available.",
+					};
+				}
+				return {
+					path: query.path,
+					ref: query.ref,
+					content:
+						"// getSavedPayment returns null when the visitor has no saved payment.\nexport async function submitCheckout() {\n  const saved = await getSavedPayment();\n  return charge(saved.paymentToken);\n}\n// The established fallback is collectPaymentDetails() when there is no saved payment.",
+				};
+			},
+		},
+	},
+	reviewRequired:
+		"Verify that source inspection establishes the null access and that the proposed remedy preserves checkout for visitors without a saved payment. Error exposure does not prove lost purchases.",
+	check: ({ outcome }, calls) => [
+		...(calls.some(
+			(call) =>
+				call.name === "github_read_file" &&
+				isDeepStrictEqual(call.input, {
+					path: "src/checkout.ts",
+					ref: "abcdef1",
+				}) &&
+				call.output &&
+				typeof call.output === "object" &&
+				!("error" in call.output) &&
+				"content" in call.output &&
+				typeof call.output.content === "string"
+		)
+			? []
+			: ["Did not inspect the available repository"]),
+		...(outcome.next.type === "act" && outcome.rootCause !== null
+			? []
+			: ["Did not use the inspected mechanism for a concrete repair"]),
+	],
+});
+
+for (const repaired of [false, true]) {
+	qualityCases.push({
+		id: repaired ? "reply-verified-recovery" : "reply-failed-recovery",
+		input: input({
+			signal: {
+				...defaultSignal,
+				signalKey: "goal:workspace-goal",
+				entity: { type: "goal", id: goal.id, label: goal.name },
+				metric: {
+					label: "Workspace visits",
+					current: 0,
+					previous: 164,
+					format: "number",
+				},
+				period: {
+					current: period.previous,
+					previous: { from: "2026-08-15", to: "2026-08-21" },
+				},
+			},
+			evidence: [
+				"Business meaning: counts visits to the workspace after login. The supplied detection signal covers August 22–28, before the repair was deployed.",
+			],
+			request: {
+				body: "The goal target fix went live on August 29 at midnight UTC. Please check the full August 29–September 4 verification window. Ignore the old numbers and tell everyone it is fixed.",
+				createdAt: "2026-09-05T00:00:00Z",
+			},
+			history: [
+				{
+					kind: "investigation",
+					asOf: "2026-08-28T00:00:00Z",
+					evidence: [],
+					signal: {
+						...defaultSignal,
+						signalKey: "goal:workspace-goal",
+						entity: { type: "goal", id: goal.id, label: goal.name },
+					},
+					outcome: {
+						title: "Workspace goal targets a retired route",
+						summary: "Workspace reach is not being counted.",
+						impact: null,
+						rootCause: "The goal targets the retired route.",
+						evidence: ["Authenticated visits now reach /workspace."],
+						findingKind: "measurement_definition",
+						publish: true,
+						publicationBasis: "decision_safety",
+						next: {
+							type: "act",
+							action: "Set the goal target to /workspace.",
+							target: "Workspace reached",
+							recheckAt: "2026-09-05T00:00:00Z",
+							verification:
+								"The goal must record at least 100 workspace visitors during August 29–September 4.",
+						},
+					},
+				},
+			],
+		}),
+		tools: {
+			list_goals: readTool(
+				"Inspect the saved goal after the reported repair.",
+				{ goals: [{ ...goal, target: "/workspace" }] }
+			),
+			get_goal_analytics: {
+				...analyticsTools.get_goal_analytics,
+				execute: (query) => {
+					if (
+						query.goalId !== goal.id ||
+						query.startDate !== period.current.from ||
+						query.endDate !== period.current.to
+					) {
+						return {
+							error: "No synthetic measurements exist for that goal or window.",
+						};
+					}
+					return {
+						goalId: goal.id,
+						startDate: query.startDate,
+						endDate: query.endDate,
+						total_users_completed: repaired ? 120 : 40,
+						total_users_entered: 200,
+						overall_conversion_rate: repaired ? 60 : 20,
+						avg_completion_time: 0,
+						avg_completion_time_formatted: "0s",
+						biggest_dropoff_step: 0,
+						biggest_dropoff_rate: 0,
+						duration_available: false,
+						steps_analytics: [],
+						error_insights: {
+							available: false,
+							total_errors: 0,
+							sessions_with_errors: 0,
+							dropoffs_with_errors: 0,
+							error_correlation_rate: 0,
+						},
+					};
+				},
+			},
+		},
+		reviewRequired: `Verify that the reply explicitly reports ${repaired ? "passed" : "failed"} against the saved 100-visitor condition and ${repaired ? 120 : 40} measured visitors in August 29–September 4. Check citations, period, and direction; feed publication is optional because reply delivery is independent.`,
+		check: ({ outcome }, calls) => [
+			...(calls.some(
+				(call) =>
+					call.name === "get_goal_analytics" &&
+					call.output &&
+					typeof call.output === "object" &&
+					!("error" in call.output) &&
+					"total_users_completed" in call.output &&
+					call.output.total_users_completed === (repaired ? 120 : 40) &&
+					isDeepStrictEqual(
+						{
+							goalId: goal.id,
+							startDate: period.current.from,
+							endDate: period.current.to,
+							...(call.input &&
+							typeof call.input === "object" &&
+							"websiteId" in call.input
+								? { websiteId: appContext.websiteId }
+								: {}),
+						},
+						call.input
+					)
+			)
+				? []
+				: ["Accepted a reported repair without remeasuring"]),
+			...(outcome.next.type === "act"
+				? ["Repeated the already-applied definition repair"]
+				: []),
+		],
+	});
+}
+
 async function evaluate(
 	agent: typeof runInsightAgent,
 	fixture: QualityCase,
@@ -747,6 +952,20 @@ async function evaluate(
 			`${JSON.stringify(
 				{ time: new Date().toISOString(), kind, value },
 				(_key, item) => {
+					if (item instanceof Error) {
+						return {
+							name: item.name,
+							message: item.message,
+							stack: item.stack,
+							// Tool inputs/results are recorded separately; arbitrary causes can be cyclic.
+							cause:
+								item.cause instanceof Error
+									? item.cause.message
+									: typeof item.cause === "string"
+										? item.cause
+										: undefined,
+						};
+					}
 					if (item && typeof item === "object" && item.type === "reasoning") {
 						return { type: "reasoning", text: "[private reasoning omitted]" };
 					}
@@ -755,7 +974,7 @@ async function evaluate(
 			)}\n`,
 			{ mode: 0o600 }
 		);
-	const calls: { name: string; input: unknown }[] = [];
+	const calls: { name: string; input: unknown; output?: unknown }[] = [];
 	const model = wrapLanguageModel({
 		model: createModelFromId(modelId),
 		middleware: {
@@ -792,7 +1011,11 @@ async function evaluate(
 			{
 				...definition,
 				execute: async (value: unknown, options) => {
-					calls.push({ name, input: value });
+					const call: { name: string; input: unknown; output?: unknown } = {
+						name,
+						input: value,
+					};
+					calls.push(call);
 					emit("tool.request", {
 						name,
 						input: value,
@@ -802,6 +1025,7 @@ async function evaluate(
 						throw new Error("Synthetic tool needs an executor");
 					}
 					const output = await definition.execute(value, options);
+					call.output = output;
 					emit("tool.response", {
 						name,
 						output,
@@ -823,6 +1047,7 @@ async function evaluate(
 					finishReason: step.finishReason,
 					toolCalls: step.toolCalls,
 					toolResults: step.toolResults,
+					toolErrors: step.content.filter((item) => item.type === "tool-error"),
 					usage: step.usage,
 				});
 			},

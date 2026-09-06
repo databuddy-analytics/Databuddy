@@ -253,6 +253,14 @@ const insightDefinitionExecutionSchema = z.discriminatedUnion("operation", [
 
 const agentEvidenceReferenceSchema = z.discriminatedUnion("source", [
 	z
+		.strictObject({
+			source: z.literal("history"),
+			index: z.number().int().nonnegative(),
+		})
+		.describe(
+			"A zero-based index of an investigation in history for this exact signal. Cites only the prior action’s saved verification condition, never historical measurements, current measurements, or a human reply."
+		),
+	z
 		.strictObject({ source: z.literal("customer_impact") })
 		.describe("The supplied customerImpact measurements, only when present."),
 	z
@@ -462,23 +470,17 @@ export const investigationOutcomeSchema = z
 			.trim()
 			.min(1)
 			.describe(
-				"One short sentence stating what happened, where, and when. Prefer the verified problem or experience over the percentage change; keep comparison detail in evidence when an affected cohort is known. Do not repeat the title, impact, root cause, or evidence."
+				"In roughly twelve words, state the consequence for the affected journey or decision. Keep measured comparisons in evidence and the inspected mechanism in rootCause; do not repeat them here."
 			),
-		impact: z
-			.string()
-			.trim()
-			.min(1)
-			.nullable()
-			.describe(
-				"One short, directly measured user, reliability, business, or decision consequence. State affected scope and notable verified cohorts when available. Error exposure does not prove a broken page, failed task, lost work, or blocked conversion. For a broken definition, say the decision it cannot support. Null when no consequence was measured."
-			),
+		// Retain stored briefs; new investigations include the consequence in summary.
+		impact: z.string().trim().min(1).nullable().default(null),
 		rootCause: z
 			.string()
 			.trim()
 			.min(1)
 			.nullable()
 			.describe(
-				"One short, inspected causal mechanism. Use null for unknown, suspected, or merely correlated explanations. Error text, a runtime stack, bundle location, route, browser document line, timing, or annotation is not a source-code mechanism."
+				"One short, inspected causal mechanism describing the actual failing operation. Use null for unknown, suspected, or merely correlated explanations. Error text, a runtime stack, bundle location, route, browser document line, timing, or annotation is not a source-code mechanism."
 			),
 		evidence: z
 			.array(
@@ -508,13 +510,6 @@ export const investigationOutcomeSchema = z
 	})
 	.strip()
 	.superRefine((outcome, context) => {
-		if (outcome.next.type === "act" && outcome.impact === null) {
-			context.addIssue({
-				code: "custom",
-				message: "Actions require measured impact",
-				path: ["impact"],
-			});
-		}
 		if (outcome.next.type === "act" && outcome.rootCause === null) {
 			context.addIssue({
 				code: "custom",
@@ -618,21 +613,6 @@ export const investigationOutcomeSchema = z
 				path: ["publicationBasis"],
 			});
 		}
-		if (
-			(outcome.findingKind === "user_experience" ||
-				outcome.publicationBasis === "measured_impact" ||
-				isPublishedMeasurementFinding ||
-				isPublishedMeasuredFinding ||
-				isPublishedReliabilityFinding) &&
-			outcome.impact === null
-		) {
-			context.addIssue({
-				code: "custom",
-				message:
-					"Measured experience and published decision findings require impact",
-				path: ["impact"],
-			});
-		}
 	});
 
 const RAW_IDENTIFIER_PATTERN =
@@ -651,8 +631,10 @@ const agentTitleSchema = z
 		"A short headline stating the verified finding in natural product language. For directly measured reliability or user impact, an affected count can lead. For measurement_definition, name the incorrect target or purpose mismatch without a numeric count; keep counts with their periods in evidence. For measurement_coverage, name the observed blind spot, never a presumed product loss. Never use raw identifiers, snake_case event names, or URLs."
 	);
 
-export const agentInvestigationOutcomeSchema = investigationOutcomeSchema
-	.safeExtend({
+export const agentInvestigationOutcomeSchema = z
+	.object(investigationOutcomeSchema.shape)
+	.omit({ impact: true })
+	.extend({
 		title: agentTitleSchema,
 		evidenceRefs: z
 			.array(agentEvidenceReferenceSchema)
@@ -677,6 +659,12 @@ export const agentInvestigationOutcomeSchema = investigationOutcomeSchema
 			),
 	})
 	.superRefine((outcome, context) => {
+		const stored = investigationOutcomeSchema.safeParse(outcome);
+		if (!stored.success) {
+			for (const issue of stored.error.issues) {
+				context.addIssue({ ...issue });
+			}
+		}
 		if (outcome.evidenceRefs.length !== outcome.evidence.length) {
 			context.addIssue({
 				code: "custom",

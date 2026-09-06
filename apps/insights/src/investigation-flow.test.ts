@@ -85,7 +85,7 @@ const evidence = [
 const outcome: InvestigationOutcome = {
 	title: "Paid search campaign is paused",
 	summary: "Most of the visitor loss followed campaign cmp_search_1 pausing.",
-	impact: "The site lost 700 visitors in the comparison window.",
+	impact: null,
 	rootCause: "Campaign cmp_search_1 was paused before the comparison window.",
 	evidence: [
 		"Visitors fell from 1,000 to 300.",
@@ -1328,12 +1328,11 @@ describe("intelligence agent", () => {
 		);
 	});
 
-	it("retries a published measurement finding without a decision impact", async () => {
+	it("retries a published measurement finding with the wrong publication basis", async () => {
 		const invalidOutcome = {
 			...agentOutcome,
 			findingKind: "measurement_definition" as const,
-			impact: null,
-			publicationBasis: "decision_safety" as const,
+			publicationBasis: "measured_impact" as const,
 		};
 		const model = new MockLanguageModelV3({
 			doGenerate: mockValues(
@@ -1356,7 +1355,9 @@ describe("intelligence agent", () => {
 
 		expect(result.outcome).toEqual(outcome);
 		expect(model.doGenerateCalls).toHaveLength(2);
-		expect(JSON.stringify(model.doGenerateCalls[1])).toContain("impact");
+		expect(JSON.stringify(model.doGenerateCalls[1])).toContain(
+			"publicationBasis"
+		);
 	});
 
 	it("repairs a truncated finish call inside the same tool loop", async () => {
@@ -1633,6 +1634,86 @@ describe("intelligence agent", () => {
 			"Connect the repository that owns the checkout flow."
 		);
 		expect(prompt.match(/It was restarted this morning\./g)).toHaveLength(1);
+	});
+
+	it.each([
+		"investigation",
+		"reply",
+		"other-subject",
+		"missing",
+		"stale-measurement",
+	] as const)("validates historical verification citations: %s", async (kind) => {
+		const prior = {
+			kind: "investigation" as const,
+			asOf: "2026-07-01T00:00:00Z",
+			evidence: [],
+			signal:
+				kind === "other-subject"
+					? { ...signal, entity: { ...signal.entity, id: "another-channel" } }
+					: signal,
+			outcome: {
+				...outcome,
+				evidence: ["999 visits were measured in an earlier period."],
+				next: {
+					...outcome.next,
+					type: "act" as const,
+					action: "Resume campaign.",
+					target: "Campaign",
+					verification: "At least 137 visits in the verification window.",
+				},
+			},
+		};
+		const history =
+			kind === "missing"
+				? []
+				: kind === "reply"
+					? [
+							{
+								kind: "reply" as const,
+								author: "Ari",
+								body: "137 visits happened.",
+								createdAt: "2026-07-01T00:00:00Z",
+							},
+						]
+					: [prior];
+		const candidate = {
+			...agentOutcome,
+			title: "Campaign verification condition",
+			summary: "The saved condition defines the next measurement.",
+			rootCause: null,
+			evidence: [
+				kind === "stale-measurement"
+					? "999 current visits."
+					: "The saved condition requires at least 137 visits.",
+			],
+			evidenceRefs: [{ source: "history" as const, index: 0 }],
+			publish: false,
+			publicationBasis: null,
+			next: {
+				type: "resolve" as const,
+				reason: "This is a saved condition, not evidence of recovery.",
+			},
+		};
+		const run = runInsightAgent(
+			{
+				appContext: appContext(),
+				signal,
+				history,
+				evidence: [],
+				githubRepository: null,
+				otherOpenWork: [],
+			},
+			{ model: outputModel(candidate), tools: {} }
+		);
+		if (kind === "investigation") {
+			expect((await run).outcome.evidence).toEqual(candidate.evidence);
+		} else if (kind === "stale-measurement") {
+			await expect(run).rejects.toThrow("number 999");
+		} else {
+			await expect(run).rejects.toThrow(
+				"cited history must be an investigation for this exact signal"
+			);
+		}
 	});
 
 	it("publishes a measured coverage gap without an executable repair", async () => {
@@ -2100,6 +2181,52 @@ describe("intelligence agent", () => {
 });
 
 describe("validateNumericGrounding", () => {
+	it("does not strip a count preceding a month name", () => {
+		const claim = {
+			title: "August activity",
+			summary: "12 August completions",
+			evidence: [],
+		};
+		expect(() =>
+			validateNumericGrounding(claim, "There were 40 completions.")
+		).toThrow("number 12");
+		expect(() =>
+			validateNumericGrounding(claim, "There were 12 completions.")
+		).not.toThrow();
+	});
+
+	it.each(["0", "zero"])("grounds %s against a spelled-out zero", (count) => {
+		const claim = { title: `${count} events`, summary: "", evidence: [] };
+		expect(() =>
+			validateNumericGrounding(claim, "The collector recorded zero events.")
+		).not.toThrow();
+		expect(() =>
+			validateNumericGrounding(claim, "The collector recorded 18 events.", 0)
+		).toThrow("evidence[0] cites the number 0");
+	});
+
+	it.each([
+		"29 Aug–4 Sep",
+		"29–31 August, 2026",
+		"August 29–September 4",
+		"2026-08-29",
+	])("does not treat %s as a count", (date) => {
+		const claim = {
+			title: "Collection gap",
+			summary: `${date}: 2200 origin responses, zero events.`,
+			evidence: [],
+		};
+		expect(() =>
+			validateNumericGrounding(claim, "2200 origin responses; zero events.")
+		).not.toThrow();
+		expect(() =>
+			validateNumericGrounding(
+				{ ...claim, evidence: ["29 visitors"] },
+				"2200 origin responses; zero events."
+			)
+		).toThrow("number 29");
+	});
+
 	it.each([
 		["1.2k", 1200],
 		["70k", 70_000],
