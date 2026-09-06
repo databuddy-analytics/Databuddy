@@ -1,3 +1,4 @@
+import { analyticsCohortSchema } from "@databuddy/shared/analytics-filters";
 import { tool } from "ai";
 import { analyticsDateRangeSchema } from "@databuddy/validation";
 import { z } from "zod";
@@ -19,6 +20,7 @@ const goalFilterSchema = z.object({
 const goalAnalyticsInputSchema = analyticsDateRangeSchema.safeExtend({
 	goalId: z.string(),
 	websiteId: z.string().optional(),
+	cohort: analyticsCohortSchema.optional(),
 });
 const createGoalInputSchema = z.object({
 	websiteId: z.string(),
@@ -65,10 +67,10 @@ export function createGoalTools() {
 
 	const getGoalAnalyticsTool = tool({
 		description:
-			"Goal definition, measured dates and distinct visitor counts. total_users_entered: website page-view visitors matching filters except event_name. total_users_completed: visitors matching the goal. overall_conversion_rate: completed / entered percent, not login or attempt success. Reuse matching verified measurements; remeasure stale or conflicting context.",
+			"Goal definition, measured dates and distinct visitor counts. total_users_entered: website page-view visitors matching filters except event_name. total_users_completed: visitors matching the goal. overall_conversion_rate: completed / entered percent, not login or attempt success. Optional cohort measures browser, device, country or campaign segments without editing the saved definition. Compare cohorts and periods with parallel calls. Reuse matching verified measurements; remeasure stale or conflicting context.",
 		inputSchema: goalAnalyticsInputSchema,
 		execute: async (
-			{ goalId, websiteId: inputWebsiteId, startDate, endDate },
+			{ goalId, websiteId: inputWebsiteId, startDate, endDate, cohort },
 			options
 		) => {
 			const context = getAppContext(options);
@@ -77,7 +79,7 @@ export function createGoalTools() {
 				return await callRPCProcedure(
 					"goals",
 					"getAnalytics",
-					{ goalId, websiteId, startDate, endDate },
+					{ goalId, websiteId, startDate, endDate, cohort },
 					context
 				);
 			} catch (error) {

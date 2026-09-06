@@ -1,3 +1,4 @@
+import { analyticsCohortSchema } from "@databuddy/shared/analytics-filters";
 import { insightMeasurementSchema } from "@databuddy/shared/insights";
 import { successOutputSchema } from "../lib/schemas";
 import { and, desc, eq, inArray, isNull } from "@databuddy/db";
@@ -50,6 +51,7 @@ const filterSchema = z.object({
 type Filter = z.infer<typeof filterSchema>;
 
 const goalAnalyticsInputSchema = analyticsDateRangeSchema.safeExtend({
+	cohort: analyticsCohortSchema.optional(),
 	filters: z.array(filterSchema).optional(),
 	goalId: z.string(),
 	websiteId: z.string(),
@@ -388,6 +390,8 @@ export const goalsRouter = {
 		.output(
 			goalAnalyticsOutputSchema.extend({
 				measurement: insightMeasurementSchema,
+				savedDefinition: insightMeasurementSchema.shape.definition,
+				cohort: analyticsCohortSchema.optional(),
 			})
 		)
 		.use(withWebsiteRead)
@@ -418,6 +422,7 @@ export const goalsRouter = {
 
 			const combinedFilters = [
 				...(input.filters ?? []),
+				...(input.cohort?.filters ?? []),
 				...((goal.filters as Filter[]) || []),
 			];
 			const measurement = insightMeasurementSchema.parse({
@@ -460,7 +465,15 @@ export const goalsRouter = {
 					);
 				},
 			});
-			return { ...analytics, measurement };
+			return {
+				...analytics,
+				measurement,
+				cohort: input.cohort,
+				savedDefinition: insightMeasurementSchema.shape.definition.parse({
+					...goal,
+					filters: goal.filters ?? [],
+				}),
+			};
 		}),
 
 	bulkAnalytics: publicProcedure

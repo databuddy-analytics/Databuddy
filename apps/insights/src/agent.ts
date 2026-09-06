@@ -617,7 +617,11 @@ function validateDefinitionOutcome(
 				isSuccessfulRead(result.output)
 			) {
 				const parsed = z
-					.object({ measurement: insightMeasurementSchema })
+					.object({
+						measurement: insightMeasurementSchema,
+						savedDefinition:
+							insightMeasurementSchema.shape.definition.optional(),
+					})
 					.safeParse(result.output);
 				if (
 					parsed.success &&
@@ -625,7 +629,11 @@ function validateDefinitionOutcome(
 					parsed.data.measurement.websiteId ===
 						(input.appContext.websiteId ?? input.appContext.defaultWebsiteId)
 				) {
-					current = { id: entity.id, ...parsed.data.measurement.definition };
+					current = {
+						id: entity.id,
+						...(parsed.data.savedDefinition ??
+							parsed.data.measurement.definition),
+					};
 				}
 			}
 			if (result.toolName !== listTool || !isSuccessfulRead(result.output)) {

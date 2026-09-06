@@ -584,6 +584,7 @@ describe("intelligence agent", () => {
 		"valid",
 		"native-only",
 		"native-after-list",
+		"native-cohort",
 		"native-lost-conditions",
 		"uninspected-check",
 		"unanchored",
@@ -650,16 +651,19 @@ describe("intelligence agent", () => {
 					doGenerate: mockValues(
 						...(scenario === "uninspected-check"
 							? []
-							: scenario === "native-only"
-							? [toolCallsResponse(["get_funnel_analytics"])]
-							: scenario === "native-after-list"
-								? [
-										toolCallsResponse(["list_funnels"]),
-										toolCallsResponse(["get_funnel_analytics"]),
-									]
-								: [
-										toolCallsResponse(["list_funnels", "get_funnel_analytics"]),
-									]),
+							: scenario === "native-only" || scenario === "native-cohort"
+								? [toolCallsResponse(["get_funnel_analytics"])]
+								: scenario === "native-after-list"
+									? [
+											toolCallsResponse(["list_funnels"]),
+											toolCallsResponse(["get_funnel_analytics"]),
+										]
+									: [
+											toolCallsResponse([
+												"list_funnels",
+												"get_funnel_analytics",
+											]),
+										]),
 						outputResponse(proposal),
 						outputResponse(proposal),
 						outputResponse(proposal)
@@ -673,12 +677,27 @@ describe("intelligence agent", () => {
 							entrants: 100,
 							...(native
 								? {
+										...(scenario === "native-cohort"
+											? { savedDefinition: current }
+											: {}),
 										measurement: {
 											websiteId: "site-1",
 											definitionId: "checkout",
 											startDate: "2026-07-05",
 											endDate: "2026-07-11",
-											definition: current,
+											definition:
+												scenario === "native-cohort"
+													? {
+															...current,
+															filters: [
+																{
+																	field: "browser_name",
+																	operator: "equals",
+																	value: "Safari",
+																},
+															],
+														}
+													: current,
 										},
 									}
 								: {}),
@@ -695,25 +714,31 @@ describe("intelligence agent", () => {
 		);
 
 		if (
-			!["legacy", "valid", "native-only", "native-after-list"].includes(
-				scenario
-			)
+			![
+				"legacy",
+				"valid",
+				"native-only",
+				"native-after-list",
+				"native-cohort",
+			].includes(scenario)
 		) {
 			await expect(run).rejects.toThrow(
 				scenario === "uninspected-check"
 					? "Until the exact subject is verified"
 					: scenario === "native-lost-conditions"
-					? "preserve existing step conditions"
-					: scenario === "unanchored"
-						? "99"
-						: "Verification checks require"
+						? "preserve existing step conditions"
+						: scenario === "unanchored"
+							? "99"
+							: "Verification checks require"
 			);
 			return;
 		}
 		const result = await run;
 		const expectedExecution = {
 			...proposal.next.execution,
-			changes: native ? { steps: proposal.next.execution.changes.steps } : proposal.next.execution.changes,
+			changes: native
+				? { steps: proposal.next.execution.changes.steps }
+				: proposal.next.execution.changes,
 		};
 		expect(result.outcome.next).toEqual({
 			...proposal.next,

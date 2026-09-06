@@ -46,6 +46,11 @@ const goalQuery = mock(
 		..._args: Parameters<typeof processGoalAnalytics>
 	): Promise<Awaited<ReturnType<typeof processGoalAnalytics>>> => metrics
 );
+const referrerQuery = mock(
+	async (..._args: Parameters<typeof processFunnelAnalytics>) => ({
+		referrer_analytics: [],
+	})
+);
 const entrants = mock(
 	async (..._args: Parameters<typeof getTotalWebsiteUsers>) => 200
 );
@@ -78,7 +83,7 @@ beforeAll(async () => {
 		processGoalAnalytics: goalQuery,
 		processFunnelAnalytics: query,
 		getTotalWebsiteUsers: entrants,
-		processFunnelAnalyticsByReferrer: query,
+		processFunnelAnalyticsByReferrer: referrerQuery,
 		queryLinkVisitorIds: async () => [],
 	}));
 	mock.module("../middleware/track-mutation", () => ({
@@ -99,6 +104,7 @@ beforeEach(() => {
 	query.mockClear();
 	goalQuery.mockClear();
 	entrants.mockClear();
+	referrerQuery.mockClear();
 });
 
 const savedFilter = { field: "country", operator: "equals", value: "US" };
@@ -218,3 +224,136 @@ for (const kind of ["goal", "funnel"] as const) {
 		expect(measuredQuery).toHaveBeenCalledTimes(4);
 	});
 }
+
+for (const kind of ["goal", "funnel"] as const) {
+	test(`${kind} cohort read preserves saved definition, clips dates and separates cached cohorts`, async () => {
+		const row = definition();
+		const cohort = {
+			filters: [
+				{
+					field: "browser_name" as const,
+					operator: "equals" as const,
+					value: "Safari",
+				},
+			],
+		};
+		const measuredQuery = kind === "goal" ? goalQuery : query;
+		const read = () =>
+			kind === "goal"
+				? createProcedureClient(goalsRouter.getAnalytics, {
+						context: context(row, kind),
+					})({ ...period, goalId: row.id, cohort })
+				: createProcedureClient(funnelsRouter.getAnalytics, {
+						context: context(row, kind),
+					})({ ...period, funnelId: row.id, cohort });
+		const result = await read();
+		expect(result.cohort).toEqual(cohort);
+		expect(result.savedDefinition.filters).toEqual([savedFilter]);
+		expect(result.measurement.definition.filters).toContainEqual(
+			cohort.filters[0]
+		);
+		expect(result.measurement.startDate).toBe("2026-09-01");
+		if ("steps" in result.savedDefinition)
+			expect(result.savedDefinition.steps).toEqual(row.steps);
+		await read();
+		expect(measuredQuery).toHaveBeenCalledTimes(1);
+		cohort.filters[0]!.value = "Chrome";
+		await read();
+		expect(measuredQuery).toHaveBeenCalledTimes(2);
+		expect(row.filters).toEqual([savedFilter]);
+	});
+}
+
+// Synthetic added world: event marginals cannot establish ordered funnel completion.
+// This validates the RPC/cache/read contract, not ClickHouse numerical execution.
+test("browser cohort comparison exposes Safari loss and retains unchanged Chrome control", async () => {
+	const row = definition();
+	row.ignoreHistoricData = false;
+	query.mockImplementation(async (_steps, filters, params) => {
+		const browser = filters.find((f) => f.field === "browser_name")?.value;
+		const previous = params.startDate === "2026-08-22";
+		const completed =
+			browser === "Safari"
+				? previous
+					? 100
+					: 20
+				: browser === "Chrome"
+					? 80
+					: previous
+						? 180
+						: 100;
+		return {
+			...metrics,
+			total_users_entered: browser ? 500 : 1000,
+			total_users_completed: completed,
+			overall_conversion_rate: (completed / (browser ? 500 : 1000)) * 100,
+		};
+	});
+	const read = createProcedureClient(funnelsRouter.getAnalytics, {
+		context: context(row, "funnel"),
+	});
+	const output = [];
+	for (const browser of ["Safari", "Chrome"] as const) {
+		for (const window of [
+			{ startDate: "2026-08-22", endDate: "2026-08-28" },
+			{ startDate: "2026-08-29", endDate: "2026-09-04" },
+		]) {
+			const input = {
+				...window,
+				websiteId: "site-a",
+				funnelId: row.id,
+				cohort: {
+					filters: [
+						{
+							field: "browser_name" as const,
+							operator: "equals" as const,
+							value: browser,
+						},
+					],
+				},
+			};
+			const result = await read(input);
+			output.push({ input, result });
+		}
+	}
+	expect(output.map((v) => v.result.total_users_completed)).toEqual([
+		100, 20, 80, 80,
+	]);
+	expect(output.every((v) => v.result.total_users_entered === 500)).toBe(true);
+	expect(
+		output.every((v) => v.result.savedDefinition.filters.length === 1)
+	).toBe(true);
+});
+
+test("referrer cohorts return actual dates and saved definition with independently cached measurements", async () => {
+	const row = definition();
+	const cohort = {
+		filters: [
+			{
+				field: "browser_name" as const,
+				operator: "equals" as const,
+				value: "Safari",
+			},
+		],
+	};
+	const read = createProcedureClient(funnelsRouter.getAnalyticsByReferrer, {
+		context: context(row, "funnel"),
+	});
+	const input = { ...period, funnelId: row.id, cohort };
+	const result = await read(input);
+	expect(result.measurement.startDate).toBe("2026-09-01");
+	expect(result.measurement.definition.filters).toEqual([
+		savedFilter,
+		...cohort.filters,
+	]);
+	expect(result.savedDefinition.filters).toEqual([savedFilter]);
+	expect(result.cohort).toEqual(cohort);
+	await read(input);
+	expect(referrerQuery).toHaveBeenCalledTimes(1);
+	cohort.filters[0]!.value = "Chrome";
+	await read(input);
+	expect(referrerQuery).toHaveBeenCalledTimes(2);
+	row.steps[1]!.target = "/activated";
+	await read(input);
+	expect(referrerQuery).toHaveBeenCalledTimes(3);
+});
