@@ -96,19 +96,6 @@ jobs:
           - arch: arm64
             os: linux/arm64
             runner: blacksmith-4vcpu-ubuntu-2404-arm
-        include:
-          - service: api
-            description: "Databuddy API service - analytics backend"
-          - service: basket
-            description: "Databuddy Basket service - event ingestion"
-          - service: dashboard
-            description: "Databuddy Dashboard service - web analytics UI"
-          - service: insights
-            description: "Databuddy Insights service - queued insight generation"
-          - service: links
-            description: "Databuddy Links service - URL shortening and tracking"
-          - service: uptime
-            description: "Databuddy Uptime service - availability monitoring"
 
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -140,6 +127,22 @@ jobs:
             echo "tag=edge" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Resolve service description
+        id: description
+        env:
+          SERVICE: ${{ matrix.service }}
+        run: |
+          case "$SERVICE" in
+            api) text="Databuddy API service - analytics backend" ;;
+            basket) text="Databuddy Basket service - event ingestion" ;;
+            dashboard) text="Databuddy Dashboard service - web analytics UI" ;;
+            insights) text="Databuddy Insights service - queued insight generation" ;;
+            links) text="Databuddy Links service - URL shortening and tracking" ;;
+            uptime) text="Databuddy Uptime service - availability monitoring" ;;
+            *) echo "Unknown service $SERVICE" >&2; exit 1 ;;
+          esac
+          echo "text=$text" >> "$GITHUB_OUTPUT"
+
       - name: Extract metadata (labels)
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
@@ -147,7 +150,7 @@ jobs:
           images: ${{ env.IMAGE_PREFIX }}-${{ matrix.service }}
           labels: |
             org.opencontainers.image.title=databuddy-${{ matrix.service }}
-            org.opencontainers.image.description=${{ matrix.description }}
+            org.opencontainers.image.description=${{ steps.description.outputs.text }}
             org.opencontainers.image.vendor=Databuddy Analytics
             org.opencontainers.image.licenses=AGPL-3.0
 
