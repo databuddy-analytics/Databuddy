@@ -1570,7 +1570,7 @@ qualityCases.push({
 	}),
 	tools: { discover_query_types: analyticsTools.discover_query_types },
 	reviewRequired:
-		"Native discovery currently exposes no acquisition-cohort retention builder. The agent must not turn weekly activity into retention/churn, invent a query, or claim a 40% retention decline. Keep the unsupported claim private and identify the missing cohort denominator and complete follow-up window. Discovery is real and read-only; no analytics client is called.",
+		"Manually verify that discovery inspected cohort-retention capability: an unrelated revenue or language lookup is insufficient, and a narrow empty match does not prove catalog-wide absence. Check the stated missing cohort denominator and complete follow-up window. Native discovery currently exposes no acquisition-cohort retention builder. Keep unsupported retention/churn claims private with no invented cause or query. The automatic check only verifies a successful catalog read; it cannot judge search intent. Discovery is real and read-only; no analytics client is called.",
 	check: ({ outcome }, calls) => [
 		...(outcome.publish ||
 		outcome.rootCause !== null ||
@@ -1581,17 +1581,11 @@ qualityCases.push({
 			(call) =>
 				call.name === "discover_query_types" &&
 				z
-					.object({
-						category: z.enum(["Audience", "Profiles", "Engagement"]).optional(),
-						search: z.enum(["", "cohort", "retention"]).optional(),
-					})
-					.safeParse(call.input).success &&
-				z
 					.object({ types: z.array(z.unknown()), matchCount: z.number() })
 					.safeParse(call.output).success
 		)
 			? []
-			: ["Skipped the requested cohort capability inspection"]),
+			: ["Missing a successful capability catalog read"]),
 	],
 });
 
