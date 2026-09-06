@@ -246,7 +246,8 @@ export function defaultFunnelGoalDeps(
 			const result = await processFunnelAnalyticsByReferrer(
 				toAnalyticsSteps(funnel.steps),
 				funnel.filters ?? [],
-				{ websiteId, startDate: range.from, endDate: `${range.to} 23:59:59` }
+				{ websiteId, startDate: range.from, endDate: `${range.to} 23:59:59` },
+				abortSignal
 			);
 			abortSignal?.throwIfAborted();
 			return result.referrer_analytics;
@@ -1122,28 +1123,46 @@ export async function detectFunnelGoalSignals(
 	if (options.diagnostics) {
 		options.diagnostics.referrerCoverage = coverage;
 	}
-	for (const funnel of probeFunnels) {
-		overallSignal.throwIfAborted();
-		coverage.probedFunnels += 1;
-		coverage.unprobedFunnels -= 1;
-		const cohorts = await withDefinitionDeadline(
-			(signal) =>
-				detectFunnelReferrers(funnel, activeDeps, current, previous, signal),
-			Math.max(1, Math.min(definitionTimeoutMs, deadlineAt - Date.now())),
-			overallSignal
-		).catch((error: unknown) => {
-			// Optional source failure is not incomplete core definition coverage.
-			// Only a real parent/scan abort cancels otherwise valid investigations.
+	const probeController = new AbortController();
+	const probeSignal = AbortSignal.any([
+		overallSignal,
+		probeController.signal,
+		AbortSignal.timeout(
+			Math.max(1, Math.min(definitionTimeoutMs, deadlineAt - Date.now()))
+		),
+	]);
+	const probes = await Promise.all(
+		probeFunnels.map(async (funnel) => {
 			overallSignal.throwIfAborted();
-			coverage.failedProbes += 1;
-			emitInsightsEvent("warn", "detection.funnel_referrer.probe_failed", {
-				website_id: params.websiteId,
-				definition_id: funnel.id,
-				error_type:
-					error instanceof Error ? error.constructor.name : typeof error,
+			coverage.probedFunnels += 1;
+			coverage.unprobedFunnels -= 1;
+			return await raceWithAbort(
+				() =>
+					detectFunnelReferrers(
+						funnel,
+						activeDeps,
+						current,
+						previous,
+						probeSignal
+					),
+				probeSignal
+			).catch((error: unknown) => {
+				// Optional source failure is not incomplete core definition coverage.
+				// Only a real parent/scan abort cancels otherwise valid investigations.
+				overallSignal.throwIfAborted();
+				coverage.failedProbes += 1;
+				emitInsightsEvent("warn", "detection.funnel_referrer.probe_failed", {
+					website_id: params.websiteId,
+					definition_id: funnel.id,
+					error_type:
+						error instanceof Error ? error.constructor.name : typeof error,
+				});
+				return [];
 			});
-			return [];
-		});
+		})
+	).finally(() => probeController.abort());
+	// Promise.all preserves definition order even when reads finish out of order.
+	for (const cohorts of probes) {
 		const decline = cohorts.find((signal) => signal.direction === "down");
 		const improvement = cohorts.find((signal) => signal.direction === "up");
 		if (decline) {
