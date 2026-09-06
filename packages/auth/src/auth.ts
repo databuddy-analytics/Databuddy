@@ -1,10 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { redisStorage } from "@better-auth/redis-storage";
 import { sso } from "@better-auth/sso";
-import {
-	getCurrentAdapter,
-	runWithTransaction,
-} from "@better-auth/core/context";
+import { runWithTransaction } from "@better-auth/core/context";
 import { and, db, eq, like } from "@databuddy/db";
 // biome-ignore lint/performance/noNamespaceImport: Better Auth's Drizzle adapter expects a schema object map.
 import * as schema from "@databuddy/db/schema";
@@ -32,9 +29,9 @@ import {
 	ratelimit,
 } from "@databuddy/redis";
 import {
+	appendAuditEvent,
 	appendAuditEventInTransaction,
 	type AppendAuditEventInput,
-	createAuditEventPayload,
 } from "@databuddy/services/audit";
 import {
 	auditActions,
@@ -338,19 +335,12 @@ async function recordAuthAudit<TAction extends AuditActionDefinition>(
 	fallbackActor?: AuditActor
 ): Promise<void> {
 	const context = getAuthAuditContext();
-	const adapter = await getCurrentAdapter(
-		(await auth.$context).adapter as Parameters<typeof getCurrentAdapter>[0]
-	);
-	await adapter.create({
-		model: "auditEvents",
-		data: createAuditEventPayload(organizationId, {
-			...input,
-			actor: context?.actor ?? fallbackActor ?? betterAuthSystemActor,
-			operation: context?.operation,
-			request: context?.request,
-			source: "better_auth",
-		}),
-		forceAllowId: true,
+	await appendAuditEvent(db, organizationId, {
+		...input,
+		actor: context?.actor ?? fallbackActor ?? betterAuthSystemActor,
+		operation: context?.operation,
+		request: context?.request,
+		source: "better_auth",
 	});
 }
 
