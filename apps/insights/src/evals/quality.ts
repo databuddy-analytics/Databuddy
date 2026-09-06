@@ -1213,7 +1213,7 @@ for (const scenario of [
 				},
 			},
 		},
-		reviewRequired: `Current goal scenario ${scenario}: verify every final count against its exact date range and population, explain conflicts with the stale signal, and do not invent a repair. Native current completions are ${current}; prior completions are 164. A filtered population needs a matching comparison; a shortened window or unavailable read cannot establish full-window recovery.`,
+		reviewRequired: `Current goal scenario ${scenario}: verify every final count against its exact date range and population, explain conflicts with the stale signal, and do not invent a repair. Native current completions are ${current}; prior completions are 164. The 200 entrants are eligible website visitors, not login attempts. A filtered population needs a matching comparison; a shortened window or unavailable read cannot establish full-window recovery.`,
 		check: ({ outcome }, calls) => [
 			...(outcome.next.type === "resolve"
 				? []
