@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { z } from "zod";
 import { discoverQueryTypesTool } from "./discover-query-types";
 
 test("discovery exposes custom error context and its effective ordering", async () => {
@@ -47,5 +48,24 @@ test("discovery distinguishes an unordered aggregate from undocumented custom SQ
 				outputFields: null,
 			}),
 		],
+	});
+});
+
+test("accepts an empty keyword to inspect a category after a missing match", async () => {
+	const schema = discoverQueryTypesTool.inputSchema;
+	if (!(schema instanceof z.ZodType))
+		throw new Error("Expected native Zod tool schema");
+	const query = schema.parse({ category: "Revenue", search: "" });
+	const result = await discoverQueryTypesTool.execute?.(query, {
+		toolCallId: "category",
+		messages: [],
+	});
+	expect(result).toMatchObject({
+		types: expect.arrayContaining([
+			expect.objectContaining({
+				name: "revenue_overview",
+				category: "Revenue",
+			}),
+		]),
 	});
 });

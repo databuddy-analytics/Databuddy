@@ -214,3 +214,46 @@ it.each([
 	);
 	expect(fixture.check(result, [{ ...call, input: {} }])).toHaveLength(1);
 });
+
+it("keeps revenue currencies, gross totals and refunds separate for exact windows", async () => {
+	const read = qualityCases.find(
+		(entry) => entry.id === "revenue-currency-refunds"
+	)?.tools.get_data;
+	if (!read?.execute) throw new Error("Missing revenue fixture");
+	const query = {
+		type: "revenue_overview",
+		websiteId: "synthetic-site",
+		from: "2026-08-29",
+		to: "2026-09-04",
+	};
+	const output = await read.execute(
+		{ queries: [query, { ...query, from: "2026-08-22", to: "2026-08-28" }] },
+		{ toolCallId: "revenue", messages: [] }
+	);
+	expect(output).toMatchObject({
+		results: {
+			"revenue_overview@synthetic-site#1": {
+				from: query.from,
+				to: query.to,
+				data: [
+					{ currency: "USD", total_revenue: 6000, refund_amount: 1200 },
+					{ currency: "EUR", total_revenue: 5000, refund_amount: 0 },
+				],
+			},
+			"revenue_overview@synthetic-site#2": {
+				from: "2026-08-22",
+				to: "2026-08-28",
+				data: [
+					{ currency: "USD", total_revenue: 10000, refund_amount: 200 },
+					{ currency: "EUR", total_revenue: 5000, refund_amount: 0 },
+				],
+			},
+		},
+	});
+	expect(() =>
+		read.execute?.(
+			{ queries: [{ ...query, websiteId: "another-site" }] },
+			{ toolCallId: "wrong-site", messages: [] }
+		)
+	).toThrow();
+});

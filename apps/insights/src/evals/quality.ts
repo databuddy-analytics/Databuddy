@@ -1259,6 +1259,321 @@ for (const scenario of [
 	});
 }
 
+const activationFunnel = {
+	id: "first-report",
+	name: "First report delivered",
+	filters: [],
+	steps: [
+		{ name: "Project created", type: "EVENT", target: "project_created" },
+		{
+			name: "Report delivered",
+			type: "EVENT",
+			target: "first_report_delivered",
+		},
+	],
+};
+qualityCases.push({
+	id: "activation-source-comparison",
+	input: input({
+		signal: {
+			...defaultSignal,
+			signalKey: "funnel:first-report",
+			entity: {
+				type: "funnel",
+				id: activationFunnel.id,
+				label: activationFunnel.name,
+			},
+			metric: {
+				label: "First reports delivered",
+				current: 100,
+				previous: 180,
+				format: "number",
+			},
+			changePercent: -44.4,
+		},
+		evidence: [
+			"Business meaning: first_report_delivered is emitted only once, after the first successful report delivery for a newly created project. The funnel and collection are unchanged. 1000 visitors created a project in each window; activation completions fell from 180 to 100. No source or implementation cause is established.",
+		],
+	}),
+	tools: {
+		list_funnels: {
+			...analyticsTools.list_funnels,
+			execute: () => ({ funnels: [activationFunnel], count: 1 }),
+		},
+		get_funnel_analytics_by_referrer: {
+			...analyticsTools.get_funnel_analytics_by_referrer,
+			execute: (value: unknown) => {
+				const query = z
+					.object({
+						funnelId: z.literal(activationFunnel.id),
+						websiteId: z.literal(appContext.websiteId).optional(),
+						startDate: z.string(),
+						endDate: z.string(),
+					})
+					.parse(value);
+				const previous =
+					query.startDate === period.previous.from &&
+					query.endDate === period.previous.to;
+				const current =
+					query.startDate === period.current.from &&
+					query.endDate === period.current.to;
+				if (!(current || previous)) {
+					return { error: "No synthetic measurement exists for this window." };
+				}
+				return {
+					referrer_analytics: [
+						{
+							referrer: "google.com",
+							total_users: 600,
+							completed_users: previous ? 100 : 20,
+							conversion_rate: previous ? 16.7 : 3.3,
+						},
+						{
+							referrer: "direct",
+							total_users: 400,
+							completed_users: 80,
+							conversion_rate: 20,
+						},
+					],
+				};
+			},
+		},
+	},
+	reviewRequired:
+		"Activation is first report delivery after project creation, not signup or revenue. Keep Google entrants 600 in both windows, delivery 100→20 and stable Direct 80/400. Explain the lost first-value outcome, without inferring a cause or lost subscriptions. Inspect every date query and its result.",
+	check: ({ outcome }, calls) => [
+		...(outcome.publish ? [] : ["Hid measured first-value decline"]),
+		...(outcome.rootCause !== null || outcome.next.type !== "resolve"
+			? ["Invented an activation cause or repair"]
+			: []),
+		...[period.current, period.previous].flatMap((window) =>
+			calls.some(
+				(call) =>
+					call.name === "get_funnel_analytics_by_referrer" &&
+					z
+						.object({
+							funnelId: z.literal(activationFunnel.id),
+							startDate: z.literal(window.from),
+							endDate: z.literal(window.to),
+						})
+						.safeParse(call.input).success &&
+					z
+						.object({ referrer_analytics: z.array(z.unknown()).min(1) })
+						.safeParse(call.output).success
+			)
+				? []
+				: ["Omitted a matching activation comparison"]
+		),
+	],
+});
+
+for (const attributionLoss of [false, true]) {
+	qualityCases.push({
+		id: attributionLoss
+			? "revenue-attribution-shift"
+			: "revenue-currency-refunds",
+		input: input({
+			signal: {
+				...defaultSignal,
+				signalKey: "event:completed-payments",
+				entity: {
+					type: "event",
+					id: "completed-payments",
+					label: "Completed payments",
+				},
+				metric: {
+					label: "Completed payments",
+					current: attributionLoss ? 100 : 60,
+					previous: 100,
+					format: "number",
+				},
+				changePercent: attributionLoss ? 0 : -40,
+			},
+			evidence: [
+				"Business meaning: completed payments are settled transaction records, not active subscriptions. Revenue collection and provider coverage are unchanged. The event counts payments in USD. Inspect revenue_overview for both complete signal windows to explain the paid outcome; amounts use major currency units. Refund totals are separate from gross revenue. No customer cohort or subscription lifecycle history is supplied.",
+			],
+		}),
+		tools: {
+			discover_query_types: analyticsTools.discover_query_types,
+			get_data: {
+				...analyticsTools.get_data,
+				execute: (value: unknown) => {
+					const { queries } = z
+						.object({
+							queries: z.array(
+								z.object({
+									type: z.string(),
+									websiteId: z.literal(appContext.websiteId).optional(),
+									from: z.string(),
+									to: z.string(),
+									filters: z
+										.array(
+											z.object({
+												field: z.string(),
+												op: z.string(),
+												value: z.unknown(),
+											})
+										)
+										.optional(),
+								})
+							),
+						})
+						.parse(value);
+					const results: Record<string, unknown> = {};
+					for (const [index, query] of queries.entries()) {
+						const previous =
+							query.from === period.previous.from &&
+							query.to === period.previous.to;
+						const current =
+							query.from === period.current.from &&
+							query.to === period.current.to;
+						const key = `${query.type}@synthetic-site#${index + 1}`;
+						if (
+							query.type !== "revenue_overview" ||
+							!(current || previous) ||
+							query.filters?.some(
+								(filter) => filter.field !== "currency" || filter.op !== "eq"
+							)
+						) {
+							results[key] = {
+								type: query.type,
+								data: [],
+								rowCount: 0,
+								error:
+									"This synthetic case supports exact revenue overview windows and currency equality only.",
+							};
+							continue;
+						}
+						const gross = previous || attributionLoss ? 10_000 : 6000;
+						const payments = previous || attributionLoss ? 100 : 60;
+						const data = [
+							{
+								currency: "USD",
+								total_revenue: gross,
+								total_transactions: payments,
+								refund_amount: previous ? 200 : 1200,
+								refund_count: previous ? 2 : 12,
+								subscription_revenue: gross,
+								subscription_count: payments,
+								unique_customers: payments,
+								attributed_revenue: previous ? gross : 4000,
+								attributed_transactions: previous ? payments : 40,
+								payment_diagnostics_available: 0,
+							},
+							{
+								currency: "EUR",
+								total_revenue: 5000,
+								total_transactions: 50,
+								refund_amount: 0,
+								refund_count: 0,
+								subscription_revenue: 5000,
+								subscription_count: 50,
+								unique_customers: 50,
+								attributed_revenue: 5000,
+								attributed_transactions: 50,
+								payment_diagnostics_available: 0,
+							},
+						].filter(
+							(row) =>
+								query.filters?.every(
+									(filter) => row.currency === filter.value
+								) ?? true
+						);
+						results[key] = {
+							type: query.type,
+							websiteId: appContext.websiteId,
+							from: query.from,
+							to: query.to,
+							filters: query.filters ?? [],
+							data,
+							rowCount: data.length,
+							returnedRows: data.length,
+							truncated: false,
+						};
+					}
+					return { results };
+				},
+			},
+		},
+		reviewRequired: attributionLoss
+			? "USD gross stays 10000 while attributed USD revenue falls 10000→4000; EUR gross stays 5000. Refunds increase 200→1200 independently. Do not call this a gross revenue decline, churn, or 60 lost subscribers. A measured attribution blind spot or refund increase can be useful without an invented cause. Currency amounts must stay separate."
+			: "USD gross falls 10000→6000 and refunds rise 200→1200; EUR gross stays 5000. Preserve currency, gross/refund semantics and the unchanged control if queried. Payment counts are transactions, not active subscribers or churn. No causal mechanism or net revenue figure was supplied. Review results for both matching periods, not just requested dates.",
+		check: ({ outcome }, calls) => [
+			...(outcome.rootCause !== null || outcome.next.type !== "resolve"
+				? ["Invented a payment cause or repair"]
+				: []),
+			...(outcome.publish
+				? []
+				: ["Hid a measured paid-outcome or attribution finding"]),
+			...[period.current, period.previous].flatMap((window) =>
+				calls.some(
+					(call) =>
+						call.name === "get_data" &&
+						z
+							.object({ results: z.record(z.string(), z.unknown()) })
+							.safeParse(call.output).success &&
+						Object.values(
+							z
+								.object({ results: z.record(z.string(), z.unknown()) })
+								.parse(call.output).results
+						).some(
+							(result) =>
+								z
+									.object({
+										type: z.literal("revenue_overview"),
+										from: z.literal(window.from),
+										to: z.literal(window.to),
+										data: z.array(z.unknown()).min(1),
+									})
+									.safeParse(result).success
+						)
+				)
+					? []
+					: ["Missing a successful exact revenue comparison"]
+			),
+		],
+	});
+}
+
+qualityCases.push({
+	id: "retention-cohort-unavailable",
+	input: input({
+		signal: {
+			...defaultSignal,
+			signalKey: "event:weekly-active",
+			entity: {
+				type: "event",
+				id: "weekly-active",
+				label: "Weekly active profiles",
+			},
+			metric: {
+				label: "Active profiles",
+				current: 60,
+				previous: 100,
+				format: "number",
+			},
+			changePercent: -40,
+		},
+		evidence: [
+			"This metric counts profiles with any event during each calendar week. These are different populations; acquisition cohort sizes and seven-day follow-up maturity are unknown. Activity alone does not establish whether new users return.",
+		],
+		request: {
+			body: "Determine whether new-user seven-day retention worsened. Inspect the available cohort query capability before concluding.",
+			createdAt: appContext.currentDateTime,
+		},
+	}),
+	tools: { discover_query_types: analyticsTools.discover_query_types },
+	reviewRequired:
+		"Native discovery currently exposes no acquisition-cohort retention builder. The agent must not turn weekly activity into retention/churn, invent a query, or claim a 40% retention decline. Keep the unsupported claim private and identify the missing cohort denominator and complete follow-up window. Discovery is real and read-only; no analytics client is called.",
+	check: ({ outcome }) => [
+		...(outcome.publish ||
+		outcome.rootCause !== null ||
+		outcome.next.type !== "resolve"
+			? ["Published retention or created work from unmatched weekly activity"]
+			: []),
+	],
+});
+
 async function evaluate(
 	agent: typeof runInsightAgent,
 	fixture: QualityCase,
@@ -1446,6 +1761,17 @@ if (import.meta.main) {
 	const agentPath = values.agent
 		? resolve(values.agent)
 		: resolve(import.meta.dir, "../agent.ts");
+	for (const dependency of ["ai", "zod"]) {
+		if (
+			resolveSync(dependency, dirname(agentPath)) !==
+			resolveSync(dependency, import.meta.dir)
+		) {
+			throw new Error(
+				"Alternate agents must share this checkout's ai and zod dependencies; another checkout can silently lose schema descriptions. Copy the alternate agent into this checkout's src directory or run each checkout's own evaluator."
+			);
+		}
+	}
+
 	for (const [name, path] of [
 		["agent.ts", agentPath],
 		[
