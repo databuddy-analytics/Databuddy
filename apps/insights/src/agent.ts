@@ -1027,11 +1027,7 @@ export async function runInsightAgent(
 				toolCallId,
 				output,
 				input: query,
-			}: {
-				toolCallId: string;
-				output: unknown;
-				input: unknown;
-			}) => {
+			}: Parameters<NonNullable<ToolSet[string]["toModelOutput"]>>[0]) => {
 				const candidates: [string | null, unknown][] =
 					name === "get_data"
 						? output &&

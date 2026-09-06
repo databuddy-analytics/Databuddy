@@ -8,6 +8,7 @@ import { dirname, resolve } from "node:path";
 import { isDeepStrictEqual, parseArgs } from "node:util";
 import { createModelFromId } from "@databuddy/ai/config/models";
 import { createToolkit } from "@databuddy/ai/tools/toolkit";
+import { insightMeasurementSchema } from "@databuddy/shared/insights";
 import { tool, wrapLanguageModel, type ToolSet } from "ai";
 import { z } from "zod";
 import { resolveSync } from "bun";
@@ -1042,17 +1043,9 @@ for (const scenario of [
 					) {
 						return output;
 					}
-					const measurement = z
-						.object({
-							startDate: z.string(),
-							definition: z.object({
-								type: z.string(),
-								target: z.string(),
-								filters: z.array(z.unknown()),
-							}),
-						})
-						.passthrough()
-						.parse(output.measurement);
+					const measurement = insightMeasurementSchema.parse(
+						output.measurement
+					);
 					return {
 						...output,
 						measurement: {
