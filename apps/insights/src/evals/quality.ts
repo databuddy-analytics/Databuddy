@@ -892,15 +892,30 @@ for (const repaired of [false, true]) {
 				},
 			},
 		},
-		reviewRequired: `Verify that the agent checks the saved 100-visit condition against ${repaired ? 120 : 40} measured visits, rather than believing the reply or publishing the stale decline.`,
+		reviewRequired: `Verify that the reply explicitly reports ${repaired ? "passed" : "failed"} against the saved 100-visitor condition and ${repaired ? 120 : 40} measured visitors in August 29–September 4. Check citations, period, and direction; feed publication is optional because reply delivery is independent.`,
 		check: ({ outcome }, calls) => [
-			...(calls.some((call) => call.name === "get_goal_analytics")
+			...(calls.some(
+				(call) =>
+					call.name === "get_goal_analytics" &&
+					isDeepStrictEqual(
+						{
+							goalId: goal.id,
+							startDate: period.current.from,
+							endDate: period.current.to,
+							...(call.input &&
+							typeof call.input === "object" &&
+							"websiteId" in call.input
+								? { websiteId: appContext.websiteId }
+								: {}),
+						},
+						call.input
+					)
+			)
 				? []
 				: ["Accepted a reported repair without remeasuring"]),
 			...(outcome.next.type === "act"
 				? ["Repeated the already-applied definition repair"]
 				: []),
-			...(outcome.publish ? [] : ["Did not report the verification result"]),
 		],
 	});
 }

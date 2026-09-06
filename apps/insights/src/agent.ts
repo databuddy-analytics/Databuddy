@@ -168,7 +168,7 @@ Subject
 - The supplied signal owns its metric, dates, cohort, and comparison window; do not re-query them except to verify a reported repair against its saved condition. It is the starting point, not the default final headline. When inspected comparisons locate the change in a narrower cohort, carry that cohort and its measured comparison into the final brief instead of repeating only the aggregate signal. Do not discard a useful discovery just because its cause remains unknown.
 
 Evidence
-- Cite each evidence sentence to its actual source: source signal for the supplied signal; source provided with a valid zero-based evidence index; source customer_impact for supplied customerImpact; source related_signal with its array index; or source tool with its exact name, toolCallId, and get_data resultKey (null for other tools). Each entry has one source. For a comparison discovered in separate tool calls, use one evidence entry per period and cite that period's call; summarize the comparison in the brief. Correct a mismatched citation without discarding a supported discovery. Never cite a failed read as evidence. An empty evidence array does not invalidate the supplied signal.
+- Cite each evidence sentence to its actual source: source signal for the supplied signal; source provided with a valid zero-based evidence index; source history with the index of a prior investigation outcome for the saved verification condition (not a current measurement); source customer_impact for supplied customerImpact; source related_signal with its array index; or source tool with its exact name, toolCallId, and get_data resultKey (null for other tools). Each entry has one source. For a comparison discovered in separate tool calls, use one evidence entry per period and cite that period's call; summarize the comparison in the brief. Correct a mismatched citation without discarding a supported discovery. Never cite a failed read as evidence. An empty evidence array does not invalidate the supplied signal.
 - Tool availability is not proof of a connected integration. If a connector reports missing access, stop trying that connector. Preserve an independently verified product or reliability finding, with an unknown cause when necessary. Missing diagnostic access is not evidence that tracking failed, and does not itself deserve a coverage notice or a connection request.
 - get_data can return a partial table. returnedRows is what you saw; rowCount is query rows, not visitors or all matching entities. A path missing from a top-N table is not absent. Use an exact filtered lookup or a dedicated aggregate before making absence, total, or exhaustive claims. Omit orderBy unless discovery documents the field and use only declared row filters.
 - Use read tools to test competing explanations. Batch independent reads, never repeat an identical call, and stop when one decision is supported.
@@ -191,7 +191,7 @@ Publishing
 - When a reported action is complete, remeasure its saved verification window and report whether the condition passed, failed, or remains inconclusive. Use the reported deployment time, not the reply timestamp, to select that window. An improvement that remains unhealthy is not recovery.
 
 Writing
-- Write a finding, its supporting comparison, and an optional next move. Keep title, summary, rootCause, and evidence under 60 words combined; aim for 40–50. Title names the finding; summary states its consequence in roughly twelve words; rootCause names the inspected mechanism in roughly eight words; evidence supplies the measured scope and comparison. State each fact once. Never infer failed tasks or lost customers from error exposure or missing telemetry.
+- Write a finding, its supporting comparison, and an optional next move. Keep title, summary, rootCause, and evidence under 60 words combined; aim for 40–50. Title names the finding; summary states its consequence in roughly twelve words; rootCause describes the inspected failing operation, not a later operation that never ran; evidence supplies the measured scope and comparison. State each fact once. Never infer failed tasks or lost customers from error exposure or missing telemetry.
 - Use one evidence entry per source, at most two. Preserve the contrast that changes the interpretation, such as steady arrivals alongside fewer completions, and any cohort or attribution qualifications. Prefer before/after counts over restating the same change as both a percentage and an absolute loss.
 - Omit investigation narration and generic decision-safety language. For a definition repair, name the mismatch once and the decision it blocks once. Say what can no longer be measured, rather than declaring a decision "unsafe". Source citations need not repeat the causal explanation already in rootCause.
 - Never call occurrences, sessions, entrants, or samples "people"; distinguish visitors, identified profiles, and customers with attributed payment history. Translate raw event names into behavior; if behavior is unknown, say "this event." Never expose raw user, session, order, payment, or request identifiers.
@@ -207,7 +207,7 @@ const REPLY_INSTRUCTIONS =
 const FUNNEL_INSTRUCTIONS = `This signal concerns a funnel. Establish its exact steps and filters and compare entrants with completions. For a changed outcome, locate where the change concentrates using relevant available step or cohort comparisons. Report the narrower measured finding when it explains the aggregate movement; repeating only the total after reading a useful breakdown is incomplete. Stable entrants distinguish worse completion from reduced reach, but do not establish a cause. Treat a non-empty saved description or supplied \`Business meaning:\` as the funnel's purpose. For unchanged zero completion, assess the preceding-step cohort before treating it as a product decision.`;
 
 const GOAL_INSTRUCTIONS =
-	"This signal concerns a named goal. Inspect the exact saved definition and the behavior it measures. Read further only to distinguish competing explanations or locate a changed product outcome. If the definition cannot be verified, stop: unrelated route counts cannot establish a repair.";
+	"This signal concerns a named goal. Review it as a product outcome, not a naming or configuration task. Inspect the exact saved definition and the behavior it measures. Read further only to distinguish competing explanations or locate a changed product outcome. If the definition cannot be verified, stop: unrelated route counts cannot establish a repair.";
 
 const RELIABILITY_INSTRUCTIONS =
 	"This signal concerns reliability. Establish the exact failing or slow surface, its measured reach, and the closest directly measured consequence. Use source, configuration, or deploy evidence only when it can establish a concrete repair mechanism.";
@@ -279,7 +279,7 @@ function promptSignal(signal: InvestigationSignal) {
 	};
 }
 
-const DEFINITION_CONTEXT_TOOLS = new Set([
+const DEFINITION_CONTEXT_TOOLS = [
 	"get_data",
 	"get_funnel_analytics",
 	"get_funnel_analytics_by_referrer",
@@ -289,27 +289,15 @@ const DEFINITION_CONTEXT_TOOLS = new Set([
 	"github_read_file",
 	"github_search_code",
 	"scrape_page",
-]);
+];
 
-const DEFINITION_PURPOSE_TOOLS = new Set([
+const DEFINITION_PURPOSE_TOOLS = [
 	"github_commit_diff",
 	"github_commits",
 	"github_read_file",
 	"github_search_code",
 	"scrape_page",
-]);
-
-function hasUsedTool(
-	usedToolNames: ReadonlySet<string>,
-	tools: ReadonlySet<string>
-): boolean {
-	for (const toolName of tools) {
-		if (usedToolNames.has(toolName)) {
-			return true;
-		}
-	}
-	return false;
-}
+];
 
 function validateDefinitionRecommendation(
 	definition: InsightDefinitionOperation,
@@ -347,14 +335,14 @@ function validateDefinitionRecommendation(
 	if (
 		!(
 			hasConfiguredPurpose ||
-			hasUsedTool(usedToolNames, DEFINITION_PURPOSE_TOOLS)
+			DEFINITION_PURPOSE_TOOLS.some((name) => usedToolNames.has(name))
 		)
 	) {
 		throw new Error(
 			"Insights definition edits require an inspected purpose before changing what a goal or funnel measures"
 		);
 	}
-	if (!hasUsedTool(usedToolNames, DEFINITION_CONTEXT_TOOLS)) {
+	if (!DEFINITION_CONTEXT_TOOLS.some((name) => usedToolNames.has(name))) {
 		throw new Error(
 			"Insights definition edits require inspected journey or source evidence"
 		);
@@ -612,11 +600,25 @@ function resolveEvidenceReferences(
 	outcome: AgentInvestigationOutcome,
 	input: Pick<
 		InsightAgentInput,
-		"evidence" | "signal" | "customerImpact" | "relatedSignals"
+		"evidence" | "signal" | "customerImpact" | "relatedSignals" | "history"
 	>,
 	results: StepResult<ToolSet>["toolResults"]
 ): unknown[] {
 	return outcome.evidenceRefs.map((ref) => {
+		if (ref.source === "history") {
+			const prior = input.history[ref.index];
+			if (
+				prior?.kind !== "investigation" ||
+				prior.signal.signalKey !== input.signal.signalKey ||
+				prior.signal.entity.id !== input.signal.entity.id ||
+				prior.signal.entity.type !== input.signal.entity.type
+			) {
+				throw new Error(
+					"The cited history must be an investigation for this exact signal, not a human reply or another subject."
+				);
+			}
+			return prior.outcome;
+		}
 		if (ref.source === "signal") {
 			return promptSignal(input.signal);
 		}
@@ -988,6 +990,7 @@ export async function runInsightAgent(
 							customerImpact: input.customerImpact,
 							relatedSignals: (input.relatedSignals ?? []).map(promptSignal),
 							results: successfulResults.flatMap(successfulReadOutputs),
+							citedEvidence,
 						})
 					);
 					for (const [index, source] of citedEvidence.entries()) {

@@ -1636,6 +1636,78 @@ describe("intelligence agent", () => {
 		expect(prompt.match(/It was restarted this morning\./g)).toHaveLength(1);
 	});
 
+	it.each([
+		"investigation",
+		"reply",
+		"other-subject",
+		"missing",
+	] as const)("validates historical verification citations: %s", async (kind) => {
+		const prior = {
+			kind: "investigation" as const,
+			asOf: "2026-07-01T00:00:00Z",
+			evidence: [],
+			signal:
+				kind === "other-subject"
+					? { ...signal, entity: { ...signal.entity, id: "another-channel" } }
+					: signal,
+			outcome: {
+				...outcome,
+				next: {
+					...outcome.next,
+					type: "act" as const,
+					action: "Resume campaign.",
+					target: "Campaign",
+					verification: "At least 137 visits in the verification window.",
+				},
+			},
+		};
+		const history =
+			kind === "missing"
+				? []
+				: kind === "reply"
+					? [
+							{
+								kind: "reply" as const,
+								author: "Ari",
+								body: "137 visits happened.",
+								createdAt: "2026-07-01T00:00:00Z",
+							},
+						]
+					: [prior];
+		const candidate = {
+			...agentOutcome,
+			title: "Campaign verification condition",
+			summary: "The saved condition defines the next measurement.",
+			rootCause: null,
+			evidence: ["The saved condition requires at least 137 visits."],
+			evidenceRefs: [{ source: "history" as const, index: 0 }],
+			publish: false,
+			publicationBasis: null,
+			next: {
+				type: "resolve" as const,
+				reason: "This is a saved condition, not evidence of recovery.",
+			},
+		};
+		const run = runInsightAgent(
+			{
+				appContext: appContext(),
+				signal,
+				history,
+				evidence: [],
+				githubRepository: null,
+				otherOpenWork: [],
+			},
+			{ model: outputModel(candidate), tools: {} }
+		);
+		if (kind === "investigation") {
+			expect((await run).outcome.evidence).toEqual(candidate.evidence);
+		} else {
+			await expect(run).rejects.toThrow(
+				"cited history must be an investigation for this exact signal"
+			);
+		}
+	});
+
 	it("publishes a measured coverage gap without an executable repair", async () => {
 		const coverage = {
 			...agentOutcome,

@@ -253,6 +253,14 @@ const insightDefinitionExecutionSchema = z.discriminatedUnion("operation", [
 
 const agentEvidenceReferenceSchema = z.discriminatedUnion("source", [
 	z
+		.strictObject({
+			source: z.literal("history"),
+			index: z.number().int().nonnegative(),
+		})
+		.describe(
+			"A zero-based index of an investigation in history for this exact signal. Cites its historical outcome, including the saved verification condition; never a current measurement or a human reply."
+		),
+	z
 		.strictObject({ source: z.literal("customer_impact") })
 		.describe("The supplied customerImpact measurements, only when present."),
 	z
@@ -472,7 +480,7 @@ export const investigationOutcomeSchema = z
 			.min(1)
 			.nullable()
 			.describe(
-				"An inspected causal mechanism in roughly eight words. Use null for unknown, suspected, or merely correlated explanations. Error text, a runtime stack, bundle location, route, browser document line, timing, or annotation is not a source-code mechanism."
+				"One short, inspected causal mechanism describing the actual failing operation. Use null for unknown, suspected, or merely correlated explanations. Error text, a runtime stack, bundle location, route, browser document line, timing, or annotation is not a source-code mechanism."
 			),
 		evidence: z
 			.array(
