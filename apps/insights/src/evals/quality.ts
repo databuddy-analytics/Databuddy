@@ -1,10 +1,17 @@
-import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import {
+	appendFileSync,
+	copyFileSync,
+	mkdirSync,
+	writeFileSync,
+} from "node:fs";
+import { dirname, resolve } from "node:path";
 import { isDeepStrictEqual, parseArgs } from "node:util";
 import { createModelFromId } from "@databuddy/ai/config/models";
 import { createToolkit } from "@databuddy/ai/tools/toolkit";
+import { insightMeasurementSchema } from "@databuddy/shared/insights";
 import { tool, wrapLanguageModel, type ToolSet } from "ai";
 import { z } from "zod";
+import { resolveSync } from "bun";
 import {
 	runInsightAgent,
 	type InsightAgentInput,
@@ -117,6 +124,20 @@ const signupFunnel = {
 	steps: [
 		{ name: "Landing", type: "PAGE_VIEW", target: "/" },
 		{ name: "Account created", type: "EVENT", target: "signup_completed" },
+	],
+};
+const repairFunnel = {
+	id: "account-journey",
+	name: "Account creation journey",
+	filters: [],
+	steps: [
+		{ name: "Landing", type: "PAGE_VIEW", target: "/start" },
+		{
+			name: "Account created",
+			type: "EVENT",
+			target: "account_started",
+			conditions: { plan: "paid" },
+		},
 	],
 };
 interface QualityCase {
@@ -388,87 +409,121 @@ export const qualityCases: QualityCase[] = [
 					]
 				: [],
 	},
-	{
-		id: "funnel-conditions-repair",
-		input: input({
-			signal: {
-				...defaultSignal,
-				signalKey: "funnel:account-journey",
-				entity: {
-					type: "funnel",
-					id: "account-journey",
-					label: "Account creation journey",
-				},
-				metric: {
-					label: "Completed journeys",
-					current: 0,
-					previous: 164,
-					format: "number",
-				},
-			},
-			evidence: [
-				"Business meaning: tracks landing-page visitors who finish creating an account. Inspect the final emitted event and the complete saved definition.",
-			],
-		}),
-		tools: {
-			list_funnels: readTool("Read complete saved funnel definitions.", {
-				funnels: [
-					{
+	...[false, true].map(
+		(native): QualityCase => ({
+			id: native ? "native-funnel-repair" : "funnel-conditions-repair",
+			input: input({
+				signal: {
+					...defaultSignal,
+					signalKey: "funnel:account-journey",
+					entity: {
+						type: "funnel",
 						id: "account-journey",
-						name: "Account creation journey",
-						filters: [],
-						steps: [
-							{ name: "Landing", type: "PAGE_VIEW", target: "/start" },
-							{
-								name: "Account created",
-								type: "EVENT",
-								target: "account_started",
-								conditions: { plan: "paid" },
-							},
-						],
+						label: "Account creation journey",
 					},
+					metric: {
+						label: "Completed journeys",
+						current: 0,
+						previous: 164,
+						format: "number",
+					},
+				},
+				evidence: [
+					"Business meaning: tracks landing-page visitors who finish creating an account. Inspect the final emitted event and the complete saved definition.",
 				],
 			}),
-			scrape_page: readTool(
-				"Inspect the current account creation emitter and workflow.",
-				{
-					content:
-						"The successful account-creation handler now emits account_completed. account_started was retired. The first step /start remains correct. Replace only the final event target. Stored step conditions must be preserved; analytics does not currently evaluate those conditions, so this does not establish a paid-only cohort.",
+			tools: {
+				...(native
+					? {
+							get_funnel_analytics: {
+								...analyticsTools.get_funnel_analytics,
+								execute: (query) => {
+									const window = z
+										.object({
+											startDate: z.iso.date(),
+											endDate: z.iso.date(),
+											funnelId: z.literal(repairFunnel.id),
+										})
+										.parse(query);
+									const previous =
+										window.startDate === period.previous.from &&
+										window.endDate === period.previous.to;
+									if (
+										!(
+											previous ||
+											(window.startDate === period.current.from &&
+												window.endDate === period.current.to)
+										)
+									) {
+										return {
+											error:
+												"Synthetic measurements are available only for the two supplied comparison windows.",
+										};
+									}
+									return {
+										measurement: insightMeasurementSchema.parse({
+											websiteId: appContext.websiteId,
+											definitionId: repairFunnel.id,
+											startDate: window.startDate,
+											endDate: window.endDate,
+											definition: repairFunnel,
+										}),
+										total_users_entered: 200,
+										total_users_completed: previous ? 164 : 0,
+										overall_conversion_rate: previous ? 82 : 0,
+									};
+								},
+							},
+						}
+					: {
+							list_funnels: readTool(
+								"Read complete saved funnel definitions.",
+								{
+									funnels: [repairFunnel],
+								}
+							),
+						}),
+				scrape_page: readTool(
+					"Inspect the current account creation emitter and workflow.",
+					{
+						content:
+							"The successful account-creation handler now emits account_completed. account_started was retired. The first step /start remains correct. Replace only the final event target. Stored step conditions must be preserved; analytics does not currently evaluate those conditions, so this does not establish a paid-only cohort.",
+					}
+				),
+			},
+			check: ({ outcome }) => {
+				if (
+					outcome.next.type !== "act" ||
+					outcome.next.execution?.operation !== "edit"
+				) {
+					return ["Missed the verified executable funnel repair"];
 				}
-			),
-		},
-		check: ({ outcome }) => {
-			if (
-				outcome.next.type !== "act" ||
-				outcome.next.execution?.operation !== "edit"
-			) {
-				return ["Missed the verified executable funnel repair"];
-			}
-			const changes = outcome.next.execution.changes;
-			const steps = changes.steps?.map((step) => ({
-				...step,
-				conditions: step.conditions ?? {},
-			}));
-			return isDeepStrictEqual(steps, [
-				{
-					name: "Landing",
-					type: "PAGE_VIEW",
-					target: "/start",
-					conditions: {},
-				},
-				{
-					name: "Account created",
-					type: "EVENT",
-					target: "account_completed",
-					conditions: { plan: "paid" },
-				},
-			]) && isDeepStrictEqual(changes.filters ?? [], [])
-				? []
-				: [
-						"Changed unrelated steps, conditions, or filters while repairing the final event",
-					];
-		},
-	},
+				const changes = outcome.next.execution.changes;
+				const steps = changes.steps?.map((step) => ({
+					...step,
+					conditions: step.conditions ?? {},
+				}));
+				return isDeepStrictEqual(steps, [
+					{
+						name: "Landing",
+						type: "PAGE_VIEW",
+						target: "/start",
+						conditions: {},
+					},
+					{
+						name: "Account created",
+						type: "EVENT",
+						target: "account_completed",
+						conditions: { plan: "paid" },
+					},
+				]) && isDeepStrictEqual(changes.filters ?? [], [])
+					? []
+					: [
+							"Changed unrelated steps, conditions, or filters while repairing the final event",
+						];
+			},
+		})
+	),
 	{
 		id: "partial-table-not-absence",
 		input: input({
@@ -881,9 +936,17 @@ for (const repaired of [false, true]) {
 						};
 					}
 					return {
-						goalId: goal.id,
-						startDate: query.startDate,
-						endDate: query.endDate,
+						measurement: {
+							websiteId: appContext.websiteId,
+							definitionId: goal.id,
+							startDate: query.startDate,
+							endDate: query.endDate,
+							definition: {
+								type: goal.type,
+								target: "/workspace",
+								filters: [],
+							},
+						},
 						total_users_completed: repaired ? 120 : 40,
 						total_users_entered: 200,
 						overall_conversion_rate: repaired ? 60 : 20,
@@ -933,6 +996,141 @@ for (const repaired of [false, true]) {
 			...(outcome.next.type === "act"
 				? ["Repeated the already-applied definition repair"]
 				: []),
+		],
+	});
+}
+
+for (const scenario of [
+	"passed",
+	"failed",
+	"small-sample",
+	"unfinished-window",
+	"population-drift",
+	"truncated-window",
+] as const) {
+	const original = qualityCases.find(
+		(fixture) =>
+			fixture.id ===
+			(scenario === "failed"
+				? "reply-failed-recovery"
+				: "reply-verified-recovery")
+	);
+	if (!original) {
+		throw new Error(
+			"Verification eval requires the existing recovery scenario"
+		);
+	}
+	const check = {
+		definition: {
+			type: "PAGE_VIEW" as const,
+			target: "/workspace",
+			filters: [],
+		},
+		metric: "total_users_completed" as const,
+		startDate: period.current.from,
+		endDate: period.current.to,
+		minimumEntrants: scenario === "small-sample" ? 300 : 100,
+		threshold: {
+			anchor: "configured_target" as const,
+			comparison: "at_or_above" as const,
+			value: 100,
+			evidenceRef: { source: "provided" as const, index: 0 },
+		},
+	};
+	const status =
+		scenario === "passed" || scenario === "failed" ? scenario : "inconclusive";
+	qualityCases.push({
+		...original,
+		id: `check-${scenario}`,
+		input: {
+			...original.input,
+			appContext: {
+				...original.input.appContext,
+				currentDateTime:
+					scenario === "unfinished-window"
+						? "2026-09-04T12:00:00Z"
+						: appContext.currentDateTime,
+			},
+			request: original.input.request
+				? {
+						...original.input.request,
+						createdAt:
+							scenario === "unfinished-window"
+								? "2026-09-04T12:00:00Z"
+								: original.input.request.createdAt,
+					}
+				: undefined,
+			history: original.input.history.map((item) =>
+				item.kind === "investigation" && item.outcome.next.type === "act"
+					? {
+							...item,
+							evidence: [
+								`Configured recovery target: at least 100 completed users and ${check.minimumEntrants} entrants during the saved verification window.`,
+							],
+							outcome: {
+								...item.outcome,
+								next: { ...item.outcome.next, check },
+							},
+						}
+					: item
+			),
+		},
+		tools: {
+			...original.tools,
+			get_goal_analytics: {
+				...original.tools.get_goal_analytics,
+				execute: async (query, options) => {
+					const output = await original.tools.get_goal_analytics.execute?.(
+						query,
+						options
+					);
+					if (
+						!output ||
+						typeof output !== "object" ||
+						!("measurement" in output)
+					) {
+						return output;
+					}
+					const measurement = insightMeasurementSchema.parse(
+						output.measurement
+					);
+					return {
+						...output,
+						measurement: {
+							...measurement,
+							...(scenario === "truncated-window"
+								? { startDate: "2026-09-01" }
+								: {}),
+							...(scenario === "population-drift"
+								? {
+										definition: {
+											...measurement.definition,
+											filters: [
+												{
+													field: "referrer",
+													operator: "equals",
+													value: "google.com",
+												},
+											],
+										},
+									}
+								: {}),
+						},
+					};
+				},
+			},
+		},
+		reviewRequired: `Expected ${status}. Check that the customer copy agrees with the code verdict and preserves the reason, exact dates, measured count and threshold. A small sample or unfinished window cannot prove recovery.`,
+		check: (result, calls) => [
+			...original.check(result, calls).filter(
+				(failure) =>
+					// A new population mismatch can justify a different repair.
+					scenario !== "population-drift" ||
+					failure !== "Repeated the already-applied definition repair"
+			),
+			...(result.outcome.verification?.status === status
+				? []
+				: [`Expected persisted verification status ${status}`]),
 		],
 	});
 }
@@ -1121,6 +1319,20 @@ if (import.meta.main) {
 	}
 	const directory = resolve(values.out);
 	mkdirSync(directory, { recursive: true, mode: 0o700 });
+	const agentPath = values.agent
+		? resolve(values.agent)
+		: resolve(import.meta.dir, "../agent.ts");
+	for (const [name, path] of [
+		["agent.ts", agentPath],
+		[
+			"insights.ts",
+			resolveSync("@databuddy/shared/insights", dirname(agentPath)),
+		],
+		["quality.ts", import.meta.path],
+	]) {
+		copyFileSync(path, resolve(directory, name));
+	}
+
 	const agent: typeof runInsightAgent = values.agent
 		? (await import(resolve(values.agent))).runInsightAgent
 		: runInsightAgent;

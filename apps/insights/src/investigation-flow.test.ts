@@ -575,13 +575,66 @@ describe("intelligence agent", () => {
 		expect(JSON.stringify(model.doGenerateCalls[1])).toContain(
 			"executable definition action"
 		);
-		expect(JSON.stringify(model.doGenerateCalls[0])).toContain(
-			"Classify every outcome"
-		);
 	});
 
-	it("accepts a conversion definition edit after purpose and journey evidence", async () => {
-		const result = await runInsightAgent(
+	it.each([
+		"legacy",
+		"valid",
+		"native-only",
+		"native-after-list",
+		"native-lost-conditions",
+		"uninspected-check",
+		"unanchored",
+		"past-window",
+		"wrong-units",
+	] as const)("validates a definition repair and saved verification: %s", async (scenario) => {
+		const native = scenario.startsWith("native");
+		const current = {
+			...inspectedFunnel,
+			steps: inspectedFunnel.steps.map((step) => ({
+				...step,
+				...(native ? { conditions: { plan: "paid" } } : {}),
+			})),
+		};
+		const check = {
+			metric: "overall_conversion_rate" as const,
+			startDate: scenario === "past-window" ? "2026-07-01" : "2026-07-13",
+			endDate: "2026-07-14",
+			minimumEntrants: 100,
+			threshold: {
+				anchor: "prior_baseline" as const,
+				comparison: "at_or_above" as const,
+				value:
+					scenario === "unanchored"
+						? 99
+						: scenario === "wrong-units"
+							? 120
+							: 20,
+				evidenceRef: { source: "signal" as const },
+			},
+		};
+		const proposal = {
+			...executableDefinitionOutcome,
+			next: {
+				...executableDefinitionOutcome.next,
+				...(scenario === "legacy" ? {} : { check }),
+				...(native && scenario !== "native-lost-conditions"
+					? {
+							execution: {
+								...executableDefinitionOutcome.next.execution,
+								changes: {
+									...executableDefinitionOutcome.next.execution.changes,
+									steps:
+										executableDefinitionOutcome.next.execution.changes.steps.map(
+											(step) => ({ ...step, conditions: { plan: "paid" } })
+										),
+								},
+							},
+						}
+					: {}),
+			},
+		};
+		const run = runInsightAgent(
 			{
 				appContext: appContext(),
 				evidence: [...evidence, "Business meaning: Tracks account creation."],
@@ -593,14 +646,41 @@ describe("intelligence agent", () => {
 			{
 				model: new MockLanguageModelV3({
 					doGenerate: mockValues(
-						toolCallsResponse(["list_funnels", "get_funnel_analytics"]),
-						outputResponse(executableDefinitionOutcome)
+						...(scenario === "uninspected-check"
+							? []
+							: scenario === "native-only"
+							? [toolCallsResponse(["get_funnel_analytics"])]
+							: scenario === "native-after-list"
+								? [
+										toolCallsResponse(["list_funnels"]),
+										toolCallsResponse(["get_funnel_analytics"]),
+									]
+								: [
+										toolCallsResponse(["list_funnels", "get_funnel_analytics"]),
+									]),
+						outputResponse(proposal),
+						outputResponse(proposal),
+						outputResponse(proposal)
 					),
 				}),
 				tools: {
 					get_funnel_analytics: tool({
 						description: "Inspect funnel journey analytics.",
-						execute: () => ({ completions: 10, entrants: 100 }),
+						execute: () => ({
+							completions: 10,
+							entrants: 100,
+							...(native
+								? {
+										measurement: {
+											websiteId: "site-1",
+											definitionId: "checkout",
+											startDate: "2026-07-05",
+											endDate: "2026-07-11",
+											definition: current,
+										},
+									}
+								: {}),
+						}),
 						inputSchema: z.object({}).strict(),
 					}),
 					list_funnels: tool({
@@ -612,10 +692,40 @@ describe("intelligence agent", () => {
 			}
 		);
 
+		if (
+			!["legacy", "valid", "native-only", "native-after-list"].includes(
+				scenario
+			)
+		) {
+			await expect(run).rejects.toThrow(
+				scenario === "uninspected-check"
+					? "Until the exact subject is verified"
+					: scenario === "native-lost-conditions"
+					? "preserve existing step conditions"
+					: scenario === "unanchored"
+						? "99"
+						: "Verification checks require"
+			);
+			return;
+		}
+		const result = await run;
 		expect(result.outcome.next).toEqual({
-			...executableDefinitionOutcome.next,
+			...proposal.next,
+			...(scenario !== "legacy"
+				? {
+						check: {
+							...check,
+							definition: {
+								steps: proposal.next.execution.changes.steps.map(
+									({ type, target }) => ({ type, target })
+								),
+								filters: [],
+							},
+						},
+					}
+				: {}),
 			action: describeInsightDefinitionAction(funnelSignal.entity.label, {
-				...executableDefinitionOutcome.next.execution,
+				...proposal.next.execution,
 				action: executableDefinitionOutcome.next.action,
 			}),
 		});
@@ -868,9 +978,7 @@ describe("intelligence agent", () => {
 				},
 				{ model: outputModel(executableDefinitionOutcome), tools: {} }
 			)
-		).rejects.toThrow(
-			"Insights funnel definition changes require an inspected funnel definition"
-		);
+		).rejects.toThrow("exact current funnel definition was not inspected");
 	});
 
 	it("rejects a definition edit outside a goal or funnel signal", async () => {
@@ -1571,6 +1679,202 @@ describe("intelligence agent", () => {
 		).rejects.toThrow("scheduled a recheck");
 	});
 
+	it.each([
+		"effective-window",
+		"changed-definition",
+		"missing-metadata",
+		"wrong-measured-site",
+		"wrong-measured-id",
+		"passed",
+		"passed-explicit",
+		"passed-domain",
+		"passed-cosmetic",
+		"failed-rate",
+		"failed",
+		"wrong-subject",
+		"wrong-website",
+		"wrong-start",
+		"wrong-end",
+		"extra-filter",
+		"small-sample",
+		"unfinished-window",
+		"failed-read",
+		"invalid-count",
+		"no-read",
+		"newer-resolution",
+	] as const)("binds verification to the exact measurement: %s", async (scenario) => {
+		const check = {
+			definition: {
+				steps: inspectedFunnel.steps.map(({ target, type }) => ({
+					type,
+					target,
+				})),
+				filters: [],
+			},
+			metric:
+				scenario === "failed-rate"
+					? ("overall_conversion_rate" as const)
+					: ("total_users_completed" as const),
+			startDate: "2026-07-05",
+			endDate: "2026-07-11",
+			minimumEntrants: 100,
+			threshold: {
+				anchor: "prior_baseline" as const,
+				comparison: "at_or_above" as const,
+				value: scenario === "failed-rate" ? 80 : 100,
+				evidenceRef: { source: "signal" as const },
+			},
+		};
+		const status = [
+			"passed",
+			"passed-explicit",
+			"passed-domain",
+			"passed-cosmetic",
+		].includes(scenario)
+			? "passed"
+			: scenario === "failed" || scenario === "failed-rate"
+				? "failed"
+				: "inconclusive";
+		const completed = scenario === "failed" ? 40 : 120;
+		const query = {
+			funnelId: scenario === "wrong-subject" ? "another-funnel" : "checkout",
+			startDate: scenario === "wrong-start" ? "2026-07-04" : check.startDate,
+			endDate: scenario === "wrong-end" ? "2026-07-12" : check.endDate,
+			...(scenario === "passed-explicit" ? { websiteId: "site-1" } : {}),
+			...(scenario === "wrong-website" ? { websiteId: "another-site" } : {}),
+			...(scenario === "passed-domain" ? { websiteId: "example.com" } : {}),
+			...(scenario === "extra-filter" ? { filter: "paid-only" } : {}),
+		};
+		const candidate = {
+			...agentOutcome,
+			title: "Checkout repair verification",
+			summary: "Recovery definitely passed.",
+			rootCause: null,
+			evidence: ["The saved condition concerns checkout."],
+			evidenceRefs: [{ source: "signal" as const }],
+			publish: false,
+			publicationBasis: null,
+			next: { type: "resolve" as const, reason: "Verification completed." },
+			verificationStatus: status,
+			...(scenario === "passed"
+				? { publish: true, publicationBasis: "measured_impact" as const }
+				: {}),
+		};
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				...(scenario === "no-read"
+					? []
+					: [toolCallResponse("get_funnel_analytics", JSON.stringify(query))]),
+				outputResponse(candidate)
+			),
+		});
+		const previous = {
+			asOf: "2026-07-01T00:00:00Z",
+			evidence: [],
+			kind: "investigation" as const,
+			signal: funnelSignal,
+			outcome: { ...outcome, next: { ...agentOutcome.next, check } },
+		};
+		const result = await runInsightAgent(
+			{
+				appContext: {
+					...appContext(),
+					...(scenario === "passed-explicit" ? { websiteId: undefined } : {}),
+					...(scenario === "unfinished-window"
+						? { currentDateTime: "2026-07-11T12:00:00Z" }
+						: {}),
+				},
+				evidence: [],
+				githubRepository: null,
+				otherOpenWork: [],
+				signal: funnelSignal,
+				history:
+					scenario === "newer-resolution"
+						? [
+								previous,
+								{
+									...previous,
+									outcome: {
+										...outcome,
+										next: { type: "resolve", reason: "This case was closed." },
+									},
+								},
+							]
+						: [previous],
+			},
+			{
+				model,
+				tools: {
+					get_funnel_analytics: tool({
+						inputSchema: z.object({}).passthrough(),
+						execute: () => ({
+							...(scenario === "missing-metadata"
+								? {}
+								: {
+										measurement: {
+											websiteId:
+												scenario === "wrong-measured-site" ||
+												scenario === "wrong-website"
+													? "another-site"
+													: "site-1",
+											definitionId:
+												scenario === "wrong-measured-id"
+													? "another-funnel"
+													: "checkout",
+											startDate:
+												scenario === "effective-window"
+													? "2026-07-07"
+													: check.startDate,
+											endDate: check.endDate,
+											definition: {
+												...check.definition,
+												steps: inspectedFunnel.steps.map((step) => ({
+													...step,
+													...(scenario === "passed-cosmetic"
+														? { name: "Renamed" }
+														: {}),
+												})),
+												...(scenario === "changed-definition"
+													? {
+															filters: [
+																{
+																	field: "country",
+																	operator: "equals",
+																	value: "US",
+																},
+															],
+														}
+													: {}),
+											},
+										},
+									}),
+							total_users_entered: scenario === "small-sample" ? 80 : 200,
+							total_users_completed:
+								scenario === "small-sample"
+									? 60
+									: scenario === "invalid-count"
+										? 250
+										: completed,
+							overall_conversion_rate: 60,
+							...(scenario === "failed-read" ? { error: "Unavailable" } : {}),
+						}),
+					}),
+				},
+			}
+		);
+		if (scenario === "newer-resolution") {
+			expect(result.outcome.verification).toBeUndefined();
+			return;
+		}
+		expect(result.outcome.verification?.status).toBe(status);
+		expect(result.toolCallCount).toBe(scenario === "no-read" ? 0 : 1);
+		expect(model.doGenerateCalls).toHaveLength(scenario === "no-read" ? 1 : 2);
+		expect(result.outcome.summary).not.toBe("Recovery definitely passed.");
+		expect(result.outcome.summary).toContain(
+			status === "inconclusive" ? "unverified" : status
+		);
+	});
+
 	it("replays prior outcomes and new human context", async () => {
 		const model = outputModel();
 		const priorEvidence = [
@@ -1634,6 +1938,48 @@ describe("intelligence agent", () => {
 			"Connect the repository that owns the checkout flow."
 		);
 		expect(prompt.match(/It was restarted this morning\./g)).toHaveLength(1);
+	});
+
+	it.each([
+		"valid",
+		"uncited-count",
+		"missing-source",
+	] as const)("validates every source in a combined claim: %s", async (scenario) => {
+		const candidate = {
+			...agentOutcome,
+			evidence: [
+				`Visitors fell from 1000 to 300; ${scenario === "uncited-count" ? 42 : 41} sessions used checkout.`,
+			],
+			evidenceRefs: [
+				[
+					{ source: "signal" as const },
+					{
+						source: "provided" as const,
+						index: scenario === "missing-source" ? 1 : 0,
+					},
+				],
+			],
+			rootCause: null,
+			next: { type: "resolve" as const, reason: "The comparison is measured." },
+		};
+		const run = runInsightAgent(
+			{
+				appContext: appContext(),
+				signal,
+				evidence: ["41 sessions used checkout."],
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+			},
+			{ model: outputModel(candidate), tools: {} }
+		);
+		if (scenario === "valid") {
+			expect((await run).outcome.evidence).toEqual(candidate.evidence);
+			return;
+		}
+		await expect(run).rejects.toThrow(
+			scenario === "uncited-count" ? "42" : "evidence index 1"
+		);
 	});
 
 	it.each([
@@ -1825,6 +2171,61 @@ describe("intelligence agent", () => {
 	it.each([
 		false,
 		true,
+	])("defers a grounded finish batched with an unseen read (finish first: %s)", async (finishFirst) => {
+		const read = toolCallResponse().content;
+		const finish = outputResponse(agentOutcome).content;
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				{
+					...toolCallResponse(),
+					content: finishFirst ? [...finish, ...read] : [...read, ...finish],
+				},
+				outputResponse(agentOutcome)
+			),
+		});
+		let reads = 0;
+		let inputHooks = 0;
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence,
+				signal,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+			},
+			{
+				model,
+				tools: {
+					inspect: tool({
+						inputSchema: z.object({}),
+						onInputAvailable: () => {
+							inputHooks++;
+						},
+						toModelOutput: ({ output }) => ({
+							type: "text",
+							value: JSON.stringify(output),
+						}),
+						execute: () => {
+							reads++;
+							return { fact: evidence[0] };
+						},
+					}),
+				},
+			}
+		);
+		expect(reads).toBe(1);
+		expect(inputHooks).toBe(1);
+		expect(model.doGenerateCalls).toHaveLength(2);
+		expect(JSON.stringify(model.doGenerateCalls[1]?.prompt)).toContain(
+			"Finish after receiving"
+		);
+		expect(result.outcome).toEqual(outcome);
+	});
+
+	it.each([
+		false,
+		true,
 	])("repairs a citation without repeating its read (premature finish: %s)", async (premature) => {
 		const discovered = {
 			...agentOutcome,
@@ -1890,11 +2291,9 @@ describe("intelligence agent", () => {
 			model.doGenerateCalls[premature ? 1 : 2]?.prompt
 		);
 		if (premature) {
+			expect(feedback).toContain("Finish after receiving this step's reads");
 			expect(feedback).toContain(
-				"result that does not exist: inspect/inspect-1"
-			);
-			expect(feedback).toContain(
-				"use its result next turn without repeating it"
+				"Use those results next turn without repeating the reads"
 			);
 		} else {
 			expect(feedback).toContain("evidence[0] cites the number 88");
@@ -2296,6 +2695,32 @@ describe("validateNumericGrounding", () => {
 			)
 		).toThrow(`number ${count}`);
 	});
+	it.each([
+		"2026-08-29–09-04",
+		"2026-08-22–28",
+	])("recognizes abbreviated ISO date ranges without dropping counts: %s", (period) => {
+		expect(() =>
+			validateNumericGrounding(
+				{
+					title: "",
+					summary: "",
+					evidence: [`20 completions during ${period}.`],
+				},
+				'{"completed":20}'
+			)
+		).not.toThrow();
+		expect(() =>
+			validateNumericGrounding(
+				{
+					title: "",
+					summary: "",
+					evidence: [`21 completions during ${period}.`],
+				},
+				'{"completed":20}'
+			)
+		).toThrow("21");
+	});
+
 	it("checks factual numbers in the root cause", () => {
 		expect(() =>
 			validateNumericGrounding(

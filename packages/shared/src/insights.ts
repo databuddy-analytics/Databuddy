@@ -338,6 +338,69 @@ export const insightWatchThresholdSchema = z
 	})
 	.strict();
 
+// Bind only fields that analytics evaluates. The read snapshot also retains the
+// complete funnel steps so repair validation can preserve names and conditions.
+const measurementFiltersSchema = z
+	.array(
+		insightDefinitionEditChangesSchema.shape.filters.unwrap().unwrap().element
+	)
+	.default([]);
+export const insightVerificationDefinitionSchema = z.union([
+	z.object({
+		type: z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]),
+		target: z.string(),
+		filters: measurementFiltersSchema,
+	}),
+	z.object({
+		steps: z
+			.array(
+				z.object({
+					type: z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]),
+					target: z.string(),
+				})
+			)
+			.min(2),
+		filters: measurementFiltersSchema,
+	}),
+]);
+export const insightMeasurementSchema = z.object({
+	websiteId: z.string(),
+	definitionId: z.string(),
+	startDate: z.iso.date(),
+	endDate: z.iso.date(),
+	definition: z.union([
+		insightVerificationDefinitionSchema.options[0],
+		insightVerificationDefinitionSchema.options[1].extend({
+			steps: z
+				.array(
+					insightVerificationDefinitionSchema.options[1].shape.steps.element.extend(
+						{
+							name: z.string().min(1),
+							conditions: z.record(z.string(), z.unknown()).optional(),
+						}
+					)
+				)
+				.min(2),
+		}),
+	]),
+});
+
+const insightVerificationCheckSchema = z
+	.object({
+		definition: insightVerificationDefinitionSchema.optional(),
+		metric: z.enum(["total_users_completed", "overall_conversion_rate"]),
+		startDate: z.iso.date(),
+		endDate: z.iso.date(),
+		minimumEntrants: z.number().int().positive(),
+		threshold: insightWatchThresholdSchema.extend({
+			evidenceRef: agentEvidenceReferenceSchema,
+		}),
+	})
+	.strict()
+	.refine((check) => check.startDate <= check.endDate, {
+		message: "Verification dates must be ordered",
+	});
+
 const investigationActNextSchema = z.object({
 	type: z.literal("act"),
 	action: z
@@ -357,6 +420,12 @@ const investigationActNextSchema = z.object({
 		.trim()
 		.min(1)
 		.describe("One short measured condition that proves the repair worked."),
+	check: insightVerificationCheckSchema
+		.nullable()
+		.optional()
+		.describe(
+			"For a goal or funnel repair with known verification dates, bind the condition to that exact definition's analytics: completed users or conversion percent, inclusive UTC dates, minimum entrants, and an evidence-backed threshold. Null when the dates are unknown, the definition is deleted, or another metric/cohort is needed; never invent a check."
+		),
 	recheckAt: z.iso
 		.datetime()
 		.optional()
@@ -424,6 +493,14 @@ const agentInsightDefinitionExecutionSchema = z.discriminatedUnion(
 
 const agentInvestigationNextSchema = z.discriminatedUnion("type", [
 	investigationActNextSchema.extend({
+		check: z
+			.object(insightVerificationCheckSchema.shape)
+			.omit({ definition: true })
+			.nullable()
+			.optional()
+			.describe(
+				"Save a structured check when its metric, future dates and healthy threshold are known. Databuddy binds the expected definition; do not repeat it."
+			),
 		recheckAt: z.iso
 			.datetime()
 			.describe("Exact ISO 8601 time to remeasure the verification condition."),
@@ -453,6 +530,15 @@ export const insightPublicationBasisSchema = z.enum([
 
 export const investigationOutcomeSchema = z
 	.object({
+		verification: z
+			.object({
+				check: insightVerificationCheckSchema,
+				status: z.enum(["passed", "failed", "inconclusive"]),
+				measured: z.number().finite().nullable(),
+				entrants: z.number().int().nonnegative().nullable(),
+				source: agentEvidenceReferenceSchema.nullable(),
+			})
+			.optional(),
 		findingKind: insightFindingKindSchema
 			.optional()
 			.describe(
@@ -633,15 +719,20 @@ const agentTitleSchema = z
 
 export const agentInvestigationOutcomeSchema = z
 	.object(investigationOutcomeSchema.shape)
-	.omit({ impact: true })
+	.omit({ impact: true, verification: true })
 	.extend({
 		title: agentTitleSchema,
 		evidenceRefs: z
-			.array(agentEvidenceReferenceSchema)
+			.array(
+				z.union([
+					agentEvidenceReferenceSchema,
+					z.array(agentEvidenceReferenceSchema).min(1).max(4),
+				])
+			)
 			.min(1)
 			.max(2)
 			.describe(
-				"One source reference for each evidence item, in the same order."
+				"Sources for each evidence item, in the same order. Use an array when a concise comparison needs multiple sources."
 			),
 		next: agentInvestigationNextSchema,
 		publish: z
