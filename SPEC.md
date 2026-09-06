@@ -76,9 +76,9 @@ Tools are discoverable. There is no fixed first query, query family, receipt cho
 Every completed turn reports:
 
 - **summary:** what happened;
-- **impact:** who or what is affected, with measured scope when available;
+- The summary includes who or what is affected, with measured scope when available; legacy impact paragraphs remain readable.
 - **root cause:** the known mechanism, or `unknown`;
-- **evidence:** one or two concise entries that support or contradict it, each citing its supplied signal, provided context, or exact successful tool result; failed queries are limitations, and a partial table cannot establish absence;
+- **evidence:** one or two concise entries that support or contradict it, each citing all contributing supplied signals, provided context, prior verification conditions, or exact successful tool results; failed queries are limitations, and a partial table cannot establish absence;
 - **publish:** whether this turn adds a new customer-relevant fact to Insights;
 - **recommendation:** an optional useful next step that does not create a case; goal edits include the exact proposed name or description so the existing editor can review and apply them. A recommendation may also carry an evidence-backed goal or funnel draft, or explain the tracking needed before one is useful. Drafts open in the normal editable setup flow and are never created automatically;
 - **next:** exactly one outcome.
@@ -88,6 +88,8 @@ The next outcome is one of:
 - `act` — exact change, target, and verification condition;
 - `ask` — one self-contained question that says what the answer unlocks;
 - `resolve` — why no investigation needs to remain open, even if a recommendation remains.
+
+Goal and funnel actions may save a structured verification check when the metric, dates, sample and grounded threshold are known. Existing analytics tools measure the exact definition and inclusive UTC period; code determines whether that check passed, failed or remains inconclusive and writes the verification summary. It does not infer a check from legacy prose. A passed check verifies that condition, not an unmeasured downstream result. Other investigation strategy and next moves remain agent-owned.
 
 Outcomes may be updated repeatedly. They are operational state, not prose templates.
 
@@ -119,7 +121,7 @@ Goal and funnel repairs must match the signal's exact definition ID in the lates
 
 Reject output that merely restates a percentage, invents a cause, asks for data Databuddy can read, gives a generic recommendation, or creates duplicate work.
 
-Summary, impact, cause, and evidence each contribute a different fact. Routine or unchanged rechecks remain in internal history with `publish: false`. Raw website traffic is not a verified product outcome: it can publish only a measurement-coverage finding with cited collection or implementation evidence. Uncited context, goal listings, and sibling metrics cannot establish visitor loss; a product result belongs to its own signal and subject.
+Summary, cause, and evidence each contribute a different fact. Routine or unchanged rechecks remain in internal history with `publish: false`. Raw website traffic is not a verified product outcome: it can publish only a measurement-coverage finding with cited collection or implementation evidence. Uncited context, goal listings, and sibling metrics cannot establish visitor loss; a product result belongs to its own signal and subject.
 
 Missing diagnostic access alone is not a coverage finding. Publish a measured missing population or inspected tracking defect when it makes a specific decision unsafe; keep an unsupported explanation or unavailable connector in private history. Preserve independently verified product results and outages even when their cause is unknown. Briefs should fit 60 words across the title, summary, impact, cause, and evidence, with each fact stated once.
 

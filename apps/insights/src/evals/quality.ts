@@ -1,10 +1,16 @@
-import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import {
+	appendFileSync,
+	copyFileSync,
+	mkdirSync,
+	writeFileSync,
+} from "node:fs";
+import { dirname, resolve } from "node:path";
 import { isDeepStrictEqual, parseArgs } from "node:util";
 import { createModelFromId } from "@databuddy/ai/config/models";
 import { createToolkit } from "@databuddy/ai/tools/toolkit";
 import { tool, wrapLanguageModel, type ToolSet } from "ai";
 import { z } from "zod";
+import { resolveSync } from "bun";
 import {
 	runInsightAgent,
 	type InsightAgentInput,
@@ -937,6 +943,84 @@ for (const repaired of [false, true]) {
 	});
 }
 
+for (const scenario of [
+	"passed",
+	"failed",
+	"small-sample",
+	"unfinished-window",
+] as const) {
+	const original = qualityCases.find(
+		(fixture) =>
+			fixture.id ===
+			(scenario === "failed"
+				? "reply-failed-recovery"
+				: "reply-verified-recovery")
+	);
+	if (!original) {
+		throw new Error(
+			"Verification eval requires the existing recovery scenario"
+		);
+	}
+	const check = {
+		metric: "total_users_completed" as const,
+		startDate: period.current.from,
+		endDate: period.current.to,
+		minimumEntrants: scenario === "small-sample" ? 300 : 100,
+		threshold: {
+			anchor: "configured_target" as const,
+			comparison: "at_or_above" as const,
+			value: 100,
+			evidenceRef: { source: "provided" as const, index: 0 },
+		},
+	};
+	const status =
+		scenario === "passed" || scenario === "failed" ? scenario : "inconclusive";
+	qualityCases.push({
+		...original,
+		id: `check-${scenario}`,
+		input: {
+			...original.input,
+			appContext: {
+				...original.input.appContext,
+				currentDateTime:
+					scenario === "unfinished-window"
+						? "2026-09-04T12:00:00Z"
+						: appContext.currentDateTime,
+			},
+			request: original.input.request
+				? {
+						...original.input.request,
+						createdAt:
+							scenario === "unfinished-window"
+								? "2026-09-04T12:00:00Z"
+								: original.input.request.createdAt,
+					}
+				: undefined,
+			history: original.input.history.map((item) =>
+				item.kind === "investigation" && item.outcome.next.type === "act"
+					? {
+							...item,
+							evidence: [
+								`Configured recovery target: at least 100 completed users and ${check.minimumEntrants} entrants during the saved verification window.`,
+							],
+							outcome: {
+								...item.outcome,
+								next: { ...item.outcome.next, check },
+							},
+						}
+					: item
+			),
+		},
+		reviewRequired: `Expected ${status}. Check that the customer copy agrees with the code verdict and preserves the reason, exact dates, measured count and threshold. A small sample or unfinished window cannot prove recovery.`,
+		check: (result, calls) => [
+			...original.check(result, calls),
+			...(result.outcome.verification?.status === status
+				? []
+				: [`Expected persisted verification status ${status}`]),
+		],
+	});
+}
+
 async function evaluate(
 	agent: typeof runInsightAgent,
 	fixture: QualityCase,
@@ -1121,6 +1205,20 @@ if (import.meta.main) {
 	}
 	const directory = resolve(values.out);
 	mkdirSync(directory, { recursive: true, mode: 0o700 });
+	const agentPath = values.agent
+		? resolve(values.agent)
+		: resolve(import.meta.dir, "../agent.ts");
+	for (const [name, path] of [
+		["agent.ts", agentPath],
+		[
+			"insights.ts",
+			resolveSync("@databuddy/shared/insights", dirname(agentPath)),
+		],
+		["quality.ts", import.meta.path],
+	]) {
+		copyFileSync(path, resolve(directory, name));
+	}
+
 	const agent: typeof runInsightAgent = values.agent
 		? (await import(resolve(values.agent))).runInsightAgent
 		: runInsightAgent;
