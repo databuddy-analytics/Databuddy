@@ -2689,7 +2689,7 @@ describe("structured revenue evidence", () => {
 
 	it("binds metrics to their labels and computes a refund delta absent from the source", () => {
 		expect(renderRevenueEvidence(selection, readings, input)).toBe(
-			"USD, 2026-06-28–2026-07-04 → 2026-07-05–2026-07-11 UTC: Gross revenue: 10,000 → 10,000; Settled transactions: 100 → 100; Refund Amount: 200 → 1,200 (+1,000)."
+			"USD, 2026-06-28–2026-07-04 → 2026-07-05–2026-07-11 UTC: Gross Revenue: 10,000 → 10,000; Settled Transactions: 100 → 100; Refund Amount: 200 → 1,200 (+1,000)."
 		);
 	});
 
@@ -2759,7 +2759,7 @@ describe("structured revenue evidence", () => {
 				input
 			)
 		).toContain(
-			"EUR, 2026-06-28–2026-07-04 → 2026-07-05–2026-07-11 UTC: Gross revenue: 5,000 → 5,000."
+			"EUR, 2026-06-28–2026-07-04 → 2026-07-05–2026-07-11 UTC: Gross Revenue: 5,000 → 5,000."
 		);
 		expect(() =>
 			renderRevenueEvidence(
@@ -2857,6 +2857,23 @@ describe("structured revenue evidence", () => {
 		);
 	});
 
+	it.each([
+		"payment_diagnostics_available",
+		"observed_failure_event_types",
+		"required_failure_event_types",
+	])("excludes the internal diagnostic field %s", (field) => {
+		expect(() =>
+			renderRevenueEvidence(
+				{ currency: "USD", fields: [field] },
+				readings.map((reading) => ({
+					...reading,
+					data: [{ ...reading.data[0], [field]: 1 }],
+				})),
+				input
+			)
+		).toThrow("declared numeric field");
+	});
+
 	it("rejects repeated periods and unmeasured fields", () => {
 		expect(() =>
 			renderRevenueEvidence(selection, [readings[0], readings[0]], input)
@@ -2886,7 +2903,7 @@ describe("structured revenue evidence", () => {
 			summary: "More settled revenue was refunded.",
 			rootCause: null,
 			evidence: [
-				"Gross revenue and settled transactions were 100 each period.",
+				"Gross Revenue and settled transactions were 100 each period.",
 			],
 			evidenceRefs: [
 				["current", "previous"].map((resultKey) => ({

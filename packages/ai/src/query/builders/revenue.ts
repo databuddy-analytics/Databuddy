@@ -622,11 +622,11 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 			tags: ["revenue", "overview", "summary"],
 			output_fields: [
 				{ name: "currency", type: "string", label: "Currency" },
-				{ name: "total_revenue", type: "number", label: "Gross revenue" },
+				{ name: "total_revenue", type: "number", label: "Gross Revenue" },
 				{
 					name: "total_transactions",
 					type: "number",
-					label: "Settled transactions",
+					label: "Settled Transactions",
 				},
 				{ name: "refund_amount", type: "number", label: "Refund Amount" },
 				{ name: "refund_count", type: "number", label: "Refund Count" },
@@ -638,7 +638,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 				{
 					name: "subscription_count",
 					type: "number",
-					label: "Subscription transactions",
+					label: "Subscription Transactions",
 				},
 				{ name: "sale_revenue", type: "number", label: "Sale Revenue" },
 				{ name: "sale_count", type: "number", label: "Sale Count" },

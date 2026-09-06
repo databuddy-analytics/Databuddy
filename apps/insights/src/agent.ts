@@ -39,18 +39,22 @@ const MAX_FINISH_ATTEMPTS = 3;
 const INSIGHTS_MODEL_ID = "openai/gpt-5.6-terra";
 const INSIGHTS_MODEL = createModelFromId(INSIGHTS_MODEL_ID);
 
-const revenueFields = QueryBuilders.revenue_overview.meta?.output_fields ?? [];
+const revenueFields = (
+	QueryBuilders.revenue_overview.meta?.output_fields ?? []
+).filter(
+	(field) =>
+		field.type === "number" &&
+		![
+			"payment_diagnostics_available",
+			"observed_failure_event_types",
+			"required_failure_event_types",
+		].includes(field.name)
+);
 const revenueEvidenceSchema = z
 	.strictObject({
 		currency: z.string().regex(/^[A-Z]{3}$/),
 		fields: z
-			.array(
-				z.enum(
-					revenueFields
-						.filter((field) => field.type === "number")
-						.map((field) => field.name)
-				)
-			)
+			.array(z.enum(revenueFields.map((field) => field.name)))
 			.min(1)
 			.max(4),
 	})
@@ -136,9 +140,7 @@ export function renderRevenueEvidence(
 	});
 	const format = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
 	const facts = [...new Set(selection.fields)].map((name) => {
-		const field = revenueFields.find(
-			(entry) => entry.name === name && entry.type === "number"
-		);
+		const field = revenueFields.find((entry) => entry.name === name);
 		if (!field) {
 			throw new Error("Revenue evidence must select a declared numeric field.");
 		}
