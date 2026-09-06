@@ -21,7 +21,7 @@ const windows = [
 	{ startDate: "2026-08-22", endDate: "2026-08-28 23:59:59" },
 	{ startDate: "2026-08-29", endDate: "2026-09-04 23:59:59" },
 ] as const;
-const steps: AnalyticsStep[] = [
+const steps = [
 	{
 		step_number: 1,
 		name: "Project created",
@@ -34,7 +34,7 @@ const steps: AnalyticsStep[] = [
 		type: "EVENT",
 		target: "first_report_delivered",
 	},
-];
+] satisfies [AnalyticsStep, AnalyticsStep];
 const savedFilter = { field: "country", operator: "equals", value: "US" };
 function filters(browser: string) {
 	return [
@@ -60,20 +60,20 @@ suite("native cohort SQL against disposable ClickHouse", () => {
 		for (const site of [websiteId, otherWebsiteId])
 			for (const [period, window] of windows.entries())
 				for (const browser of ["Safari", "Chrome"]) {
-					const completions =
-						site === otherWebsiteId
-							? 500
-							: browser === "Chrome"
-								? 80
-								: period === 0
-									? 100
-									: 20;
+					let completions = 20;
+					if (site === otherWebsiteId) {
+						completions = 500;
+					} else if (browser === "Chrome") {
+						completions = 80;
+					} else if (period === 0) {
+						completions = 100;
+					}
 					for (let i = 0; i < 550; i++) {
 						// Deliberately collide anonymous/session/profile IDs across the two tenants.
 						const identity = `${prefix}-${period}-${browser}-${i}`;
-						const anonymous = `${identity}-anon`,
-							session = `${identity}-session`,
-							profile = i % 3 === 0 ? `${identity}-profile` : "";
+						const anonymous = `${identity}-anon`;
+						const session = `${identity}-session`;
+						const profile = i % 3 === 0 ? `${identity}-profile` : "";
 						const country = i < 500 ? "US" : "CA";
 						events.push({
 							id: randomUUIDv7(),
@@ -164,7 +164,8 @@ suite("native cohort SQL against disposable ClickHouse", () => {
 		["Chrome", [80, 80]],
 	] as const)
 		it(`${browser}: ordered completions and stable entrants in both exact windows`, async () => {
-			for (const [period, window] of windows.entries()) {
+			for (const period of [0, 1] as const) {
+				const window = windows[period];
 				const result = await processFunnelAnalytics(
 					steps,
 					filters(browser),
@@ -172,7 +173,7 @@ suite("native cohort SQL against disposable ClickHouse", () => {
 				);
 				expect(result.total_users_entered).toBe(500);
 				expect(result.total_users_completed).toBe(expected[period]);
-				expect(result.overall_conversion_rate).toBe(expected[period]! / 5);
+				expect(result.overall_conversion_rate).toBe(expected[period] / 5);
 				expect(result.steps_analytics.map((step) => step.users)).toEqual([
 					500,
 					expected[period],
@@ -198,6 +199,13 @@ suite("native cohort SQL against disposable ClickHouse", () => {
 		);
 		expect(result.total_users_entered).toBe(550);
 		expect(result.total_users_completed).toBe(70);
+		const withSavedCountry = await processFunnelAnalytics(
+			steps,
+			[savedFilter, ...cohort],
+			params(windows[1])
+		);
+		expect(withSavedCountry.total_users_entered).toBe(500);
+		expect(withSavedCountry.total_users_completed).toBe(20);
 	});
 	it("other tenant's colliding identities and completions cannot inflate this tenant", async () => {
 		const other = await processFunnelAnalytics(
@@ -241,14 +249,42 @@ suite("native cohort SQL against disposable ClickHouse", () => {
 		]);
 	});
 	it("supports union and exclusion cohort selectors without changing the denominator", async () => {
-		const union = await processFunnelAnalytics(steps, [savedFilter, {field:"browser_name",operator:"in",value:["Safari","Chrome"]}], params(windows[1]));
-		expect([union.total_users_entered,union.total_users_completed]).toEqual([1000,100]);
-		const excluded = await processFunnelAnalytics(steps, [savedFilter, {field:"browser_name",operator:"not_in",value:["Safari"]}], params(windows[1]));
-		expect([excluded.total_users_entered,excluded.total_users_completed]).toEqual([500,80]);
+		const union = await processFunnelAnalytics(
+			steps,
+			[
+				savedFilter,
+				{ field: "browser_name", operator: "in", value: ["Safari", "Chrome"] },
+			],
+			params(windows[1])
+		);
+		expect([union.total_users_entered, union.total_users_completed]).toEqual([
+			1000, 100,
+		]);
+		const excluded = await processFunnelAnalytics(
+			steps,
+			[
+				savedFilter,
+				{ field: "browser_name", operator: "not_in", value: ["Safari"] },
+			],
+			params(windows[1])
+		);
+		expect([
+			excluded.total_users_entered,
+			excluded.total_users_completed,
+		]).toEqual([500, 80]);
 	});
 	it("native referrer analytics respects the same entry browser and saved filters", async () => {
-		const result = await processFunnelAnalyticsByReferrer(steps, filters("Safari"), params(windows[1]));
-		expect(result.referrer_analytics.map(row=>[row.total_users,row.completed_users])).toEqual([[500,20]]);
+		const result = await processFunnelAnalyticsByReferrer(
+			steps,
+			filters("Safari"),
+			params(windows[1])
+		);
+		expect(
+			result.referrer_analytics.map((row) => [
+				row.total_users,
+				row.completed_users,
+			])
+		).toEqual([[500, 20]]);
 	});
 	it("deep and detector counts agree for the exact cohort", async () => {
 		const result = await processFunnelConversionCounts(
@@ -269,7 +305,7 @@ suite("native cohort SQL against disposable ClickHouse", () => {
 			filters("Safari")
 		);
 		const result = await processGoalAnalytics(
-			[{ ...steps[1]!, step_number: 1 }],
+			[{ ...steps[1], step_number: 1 }],
 			filters("Safari"),
 			params(window),
 			entrants

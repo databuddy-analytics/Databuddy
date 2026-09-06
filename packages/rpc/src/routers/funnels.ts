@@ -63,6 +63,7 @@ const funnelAnalyticsInputSchema = analyticsDateRangeSchema.safeExtend({
 	websiteId: z.string(),
 });
 const funnelAnalyticsByLinkInputSchema = funnelAnalyticsInputSchema.safeExtend({
+	cohort: z.undefined(),
 	linkId: z.string(),
 });
 
@@ -624,7 +625,7 @@ export const funnelsRouter = {
 			}
 
 			return funnelCache.withCache({
-				key: `analyticsByLink:${input.funnelId}:${input.linkId}:${effectiveStartDate}:${endDate}:${JSON.stringify(filters)}`,
+				key: `analyticsByLink:${input.funnelId}:${input.linkId}:${effectiveStartDate}:${endDate}`,
 				ttl: ANALYTICS_CACHE_TTL,
 				tables: ["funnelDefinitions"],
 				tag: `funnel:${input.funnelId}`,

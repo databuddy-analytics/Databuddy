@@ -1,4 +1,4 @@
-import { beforeAll, beforeEach, expect, mock, test } from "bun:test";
+import { beforeAll, beforeEach, expect, mock, spyOn, test } from "bun:test";
 import { createProcedureClient, os } from "@orpc/server";
 import type { Context } from "../orpc";
 import type {
@@ -101,7 +101,8 @@ beforeAll(async () => {
 
 beforeEach(() => {
 	cache.clear();
-	query.mockClear();
+	query.mockReset();
+	query.mockImplementation(async () => metrics);
 	goalQuery.mockClear();
 	entrants.mockClear();
 	referrerQuery.mockClear();
@@ -228,15 +229,12 @@ for (const kind of ["goal", "funnel"] as const) {
 for (const kind of ["goal", "funnel"] as const) {
 	test(`${kind} cohort read preserves saved definition, clips dates and separates cached cohorts`, async () => {
 		const row = definition();
-		const cohort = {
-			filters: [
-				{
-					field: "browser_name" as const,
-					operator: "equals" as const,
-					value: "Safari",
-				},
-			],
+		const browserFilter = {
+			field: "browser_name" as const,
+			operator: "equals" as const,
+			value: "Safari",
 		};
+		const cohort = { filters: [browserFilter] };
 		const measuredQuery = kind === "goal" ? goalQuery : query;
 		const read = () =>
 			kind === "goal"
@@ -257,7 +255,7 @@ for (const kind of ["goal", "funnel"] as const) {
 			expect(result.savedDefinition.steps).toEqual(row.steps);
 		await read();
 		expect(measuredQuery).toHaveBeenCalledTimes(1);
-		cohort.filters[0]!.value = "Chrome";
+		browserFilter.value = "Chrome";
 		await read();
 		expect(measuredQuery).toHaveBeenCalledTimes(2);
 		expect(row.filters).toEqual([savedFilter]);
@@ -272,16 +270,12 @@ test("browser cohort comparison exposes Safari loss and retains unchanged Chrome
 	query.mockImplementation(async (_steps, filters, params) => {
 		const browser = filters.find((f) => f.field === "browser_name")?.value;
 		const previous = params.startDate === "2026-08-22";
-		const completed =
-			browser === "Safari"
-				? previous
-					? 100
-					: 20
-				: browser === "Chrome"
-					? 80
-					: previous
-						? 180
-						: 100;
+		let completed = previous ? 180 : 100;
+		if (browser === "Safari") {
+			completed = previous ? 100 : 20;
+		} else if (browser === "Chrome") {
+			completed = 80;
+		}
 		return {
 			...metrics,
 			total_users_entered: browser ? 500 : 1000,
@@ -325,17 +319,51 @@ test("browser cohort comparison exposes Safari loss and retains unchanged Chrome
 	).toBe(true);
 });
 
+test("funnel reads restore default measurements after a cohort-specific mock", async () => {
+	const row = definition();
+	const read = createProcedureClient(funnelsRouter.getAnalytics, {
+		context: context(row, "funnel"),
+	});
+	const result = await read({ ...period, funnelId: row.id });
+	expect(result).toMatchObject(metrics);
+});
+
+test("link analytics rejects a cohort before querying definitions or analytics", async () => {
+	const row = definition();
+	const requestContext = context(row, "funnel");
+	const select = spyOn(requestContext.db, "select");
+	const read = createProcedureClient(funnelsRouter.getAnalyticsByLink, {
+		context: requestContext,
+	});
+	try {
+		await expect(
+			read({
+				...period,
+				funnelId: row.id,
+				linkId: "link-a",
+				// @ts-expect-error Deliberately exercise the unsupported cohort boundary.
+				cohort: {
+					filters: [
+						{ field: "browser_name", operator: "equals", value: "Safari" },
+					],
+				},
+			})
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		expect(select).not.toHaveBeenCalled();
+		expect(query).not.toHaveBeenCalled();
+	} finally {
+		select.mockRestore();
+	}
+});
+
 test("referrer cohorts return actual dates and saved definition with independently cached measurements", async () => {
 	const row = definition();
-	const cohort = {
-		filters: [
-			{
-				field: "browser_name" as const,
-				operator: "equals" as const,
-				value: "Safari",
-			},
-		],
+	const browserFilter = {
+		field: "browser_name" as const,
+		operator: "equals" as const,
+		value: "Safari",
 	};
+	const cohort = { filters: [browserFilter] };
 	const read = createProcedureClient(funnelsRouter.getAnalyticsByReferrer, {
 		context: context(row, "funnel"),
 	});
@@ -350,10 +378,12 @@ test("referrer cohorts return actual dates and saved definition with independent
 	expect(result.cohort).toEqual(cohort);
 	await read(input);
 	expect(referrerQuery).toHaveBeenCalledTimes(1);
-	cohort.filters[0]!.value = "Chrome";
+	browserFilter.value = "Chrome";
 	await read(input);
 	expect(referrerQuery).toHaveBeenCalledTimes(2);
-	row.steps[1]!.target = "/activated";
+	const signupStep = row.steps[1];
+	if (!signupStep) throw new Error("Missing signup step");
+	signupStep.target = "/activated";
 	await read(input);
 	expect(referrerQuery).toHaveBeenCalledTimes(3);
 });
