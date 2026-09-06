@@ -126,6 +126,20 @@ const signupFunnel = {
 		{ name: "Account created", type: "EVENT", target: "signup_completed" },
 	],
 };
+const repairFunnel = {
+	id: "account-journey",
+	name: "Account creation journey",
+	filters: [],
+	steps: [
+		{ name: "Landing", type: "PAGE_VIEW", target: "/start" },
+		{
+			name: "Account created",
+			type: "EVENT",
+			target: "account_started",
+			conditions: { plan: "paid" },
+		},
+	],
+};
 interface QualityCase {
 	// Observable expectations, independent of exact wording.
 	check: (
@@ -395,87 +409,121 @@ export const qualityCases: QualityCase[] = [
 					]
 				: [],
 	},
-	{
-		id: "funnel-conditions-repair",
-		input: input({
-			signal: {
-				...defaultSignal,
-				signalKey: "funnel:account-journey",
-				entity: {
-					type: "funnel",
-					id: "account-journey",
-					label: "Account creation journey",
-				},
-				metric: {
-					label: "Completed journeys",
-					current: 0,
-					previous: 164,
-					format: "number",
-				},
-			},
-			evidence: [
-				"Business meaning: tracks landing-page visitors who finish creating an account. Inspect the final emitted event and the complete saved definition.",
-			],
-		}),
-		tools: {
-			list_funnels: readTool("Read complete saved funnel definitions.", {
-				funnels: [
-					{
+	...[false, true].map(
+		(native): QualityCase => ({
+			id: native ? "native-funnel-repair" : "funnel-conditions-repair",
+			input: input({
+				signal: {
+					...defaultSignal,
+					signalKey: "funnel:account-journey",
+					entity: {
+						type: "funnel",
 						id: "account-journey",
-						name: "Account creation journey",
-						filters: [],
-						steps: [
-							{ name: "Landing", type: "PAGE_VIEW", target: "/start" },
-							{
-								name: "Account created",
-								type: "EVENT",
-								target: "account_started",
-								conditions: { plan: "paid" },
-							},
-						],
+						label: "Account creation journey",
 					},
+					metric: {
+						label: "Completed journeys",
+						current: 0,
+						previous: 164,
+						format: "number",
+					},
+				},
+				evidence: [
+					"Business meaning: tracks landing-page visitors who finish creating an account. Inspect the final emitted event and the complete saved definition.",
 				],
 			}),
-			scrape_page: readTool(
-				"Inspect the current account creation emitter and workflow.",
-				{
-					content:
-						"The successful account-creation handler now emits account_completed. account_started was retired. The first step /start remains correct. Replace only the final event target. Stored step conditions must be preserved; analytics does not currently evaluate those conditions, so this does not establish a paid-only cohort.",
+			tools: {
+				...(native
+					? {
+							get_funnel_analytics: {
+								...analyticsTools.get_funnel_analytics,
+								execute: (query) => {
+									const window = z
+										.object({
+											startDate: z.iso.date(),
+											endDate: z.iso.date(),
+											funnelId: z.literal(repairFunnel.id),
+										})
+										.parse(query);
+									const previous =
+										window.startDate === period.previous.from &&
+										window.endDate === period.previous.to;
+									if (
+										!(
+											previous ||
+											(window.startDate === period.current.from &&
+												window.endDate === period.current.to)
+										)
+									) {
+										return {
+											error:
+												"Synthetic measurements are available only for the two supplied comparison windows.",
+										};
+									}
+									return {
+										measurement: insightMeasurementSchema.parse({
+											websiteId: appContext.websiteId,
+											definitionId: repairFunnel.id,
+											startDate: window.startDate,
+											endDate: window.endDate,
+											definition: repairFunnel,
+										}),
+										total_users_entered: 200,
+										total_users_completed: previous ? 164 : 0,
+										overall_conversion_rate: previous ? 82 : 0,
+									};
+								},
+							},
+						}
+					: {
+							list_funnels: readTool(
+								"Read complete saved funnel definitions.",
+								{
+									funnels: [repairFunnel],
+								}
+							),
+						}),
+				scrape_page: readTool(
+					"Inspect the current account creation emitter and workflow.",
+					{
+						content:
+							"The successful account-creation handler now emits account_completed. account_started was retired. The first step /start remains correct. Replace only the final event target. Stored step conditions must be preserved; analytics does not currently evaluate those conditions, so this does not establish a paid-only cohort.",
+					}
+				),
+			},
+			check: ({ outcome }) => {
+				if (
+					outcome.next.type !== "act" ||
+					outcome.next.execution?.operation !== "edit"
+				) {
+					return ["Missed the verified executable funnel repair"];
 				}
-			),
-		},
-		check: ({ outcome }) => {
-			if (
-				outcome.next.type !== "act" ||
-				outcome.next.execution?.operation !== "edit"
-			) {
-				return ["Missed the verified executable funnel repair"];
-			}
-			const changes = outcome.next.execution.changes;
-			const steps = changes.steps?.map((step) => ({
-				...step,
-				conditions: step.conditions ?? {},
-			}));
-			return isDeepStrictEqual(steps, [
-				{
-					name: "Landing",
-					type: "PAGE_VIEW",
-					target: "/start",
-					conditions: {},
-				},
-				{
-					name: "Account created",
-					type: "EVENT",
-					target: "account_completed",
-					conditions: { plan: "paid" },
-				},
-			]) && isDeepStrictEqual(changes.filters ?? [], [])
-				? []
-				: [
-						"Changed unrelated steps, conditions, or filters while repairing the final event",
-					];
-		},
-	},
+				const changes = outcome.next.execution.changes;
+				const steps = changes.steps?.map((step) => ({
+					...step,
+					conditions: step.conditions ?? {},
+				}));
+				return isDeepStrictEqual(steps, [
+					{
+						name: "Landing",
+						type: "PAGE_VIEW",
+						target: "/start",
+						conditions: {},
+					},
+					{
+						name: "Account created",
+						type: "EVENT",
+						target: "account_completed",
+						conditions: { plan: "paid" },
+					},
+				]) && isDeepStrictEqual(changes.filters ?? [], [])
+					? []
+					: [
+							"Changed unrelated steps, conditions, or filters while repairing the final event",
+						];
+			},
+		})
+	),
 	{
 		id: "partial-table-not-absence",
 		input: input({

@@ -13,6 +13,7 @@ import {
 	describeInsightDefinitionAction,
 	investigationOutcomeSchema,
 	insightMeasurementSchema,
+	insightVerificationDefinitionSchema,
 	type AgentInvestigationOutcome,
 	type InsightDefinitionOperation,
 	type InvestigationOutcome,
@@ -537,7 +538,8 @@ function validateDefinitionOutcome(
 		);
 		if (
 			(attemptedToolNames.has(listTool) ||
-				attemptedToolNames.has(`get_${entity.type}_analytics`)) &&
+				attemptedToolNames.has(`get_${entity.type}_analytics`) ||
+				(outcome.next.type === "act" && outcome.next.check)) &&
 			inspectionError &&
 			(outcome.publish ||
 				outcome.rootCause !== null ||
@@ -760,7 +762,9 @@ function verificationFor(
 		measurement.data.measurement.endDate !== check.endDate ||
 		!isDeepStrictEqual(
 			check.definition,
-			measurement.data.measurement.definition
+			insightVerificationDefinitionSchema.parse(
+				measurement.data.measurement.definition
+			)
 		)
 	) {
 		return verification;
@@ -942,7 +946,7 @@ function validateAgentOutcome(
 		next = persistedNext;
 	}
 	if (next.type === "act" && next.check) {
-		const current = insightMeasurementSchema.shape.definition.parse(definition);
+		const current = insightVerificationDefinitionSchema.parse(definition);
 		const changes =
 			next.execution?.operation === "edit"
 				? Object.fromEntries(
@@ -955,7 +959,7 @@ function validateAgentOutcome(
 			...next,
 			check: {
 				...next.check,
-				definition: insightMeasurementSchema.shape.definition.parse({
+				definition: insightVerificationDefinitionSchema.parse({
 					...current,
 					...changes,
 				}),

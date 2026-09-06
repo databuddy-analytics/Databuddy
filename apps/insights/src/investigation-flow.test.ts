@@ -580,10 +580,22 @@ describe("intelligence agent", () => {
 	it.each([
 		"legacy",
 		"valid",
+		"native-only",
+		"native-after-list",
+		"native-lost-conditions",
+		"uninspected-check",
 		"unanchored",
 		"past-window",
 		"wrong-units",
 	] as const)("validates a definition repair and saved verification: %s", async (scenario) => {
+		const native = scenario.startsWith("native");
+		const current = {
+			...inspectedFunnel,
+			steps: inspectedFunnel.steps.map((step) => ({
+				...step,
+				...(native ? { conditions: { plan: "paid" } } : {}),
+			})),
+		};
 		const check = {
 			metric: "overall_conversion_rate" as const,
 			startDate: scenario === "past-window" ? "2026-07-01" : "2026-07-13",
@@ -606,6 +618,20 @@ describe("intelligence agent", () => {
 			next: {
 				...executableDefinitionOutcome.next,
 				...(scenario === "legacy" ? {} : { check }),
+				...(native && scenario !== "native-lost-conditions"
+					? {
+							execution: {
+								...executableDefinitionOutcome.next.execution,
+								changes: {
+									...executableDefinitionOutcome.next.execution.changes,
+									steps:
+										executableDefinitionOutcome.next.execution.changes.steps.map(
+											(step) => ({ ...step, conditions: { plan: "paid" } })
+										),
+								},
+							},
+						}
+					: {}),
 			},
 		};
 		const run = runInsightAgent(
@@ -620,7 +646,18 @@ describe("intelligence agent", () => {
 			{
 				model: new MockLanguageModelV3({
 					doGenerate: mockValues(
-						toolCallsResponse(["list_funnels", "get_funnel_analytics"]),
+						...(scenario === "uninspected-check"
+							? []
+							: scenario === "native-only"
+							? [toolCallsResponse(["get_funnel_analytics"])]
+							: scenario === "native-after-list"
+								? [
+										toolCallsResponse(["list_funnels"]),
+										toolCallsResponse(["get_funnel_analytics"]),
+									]
+								: [
+										toolCallsResponse(["list_funnels", "get_funnel_analytics"]),
+									]),
 						outputResponse(proposal),
 						outputResponse(proposal),
 						outputResponse(proposal)
@@ -629,7 +666,21 @@ describe("intelligence agent", () => {
 				tools: {
 					get_funnel_analytics: tool({
 						description: "Inspect funnel journey analytics.",
-						execute: () => ({ completions: 10, entrants: 100 }),
+						execute: () => ({
+							completions: 10,
+							entrants: 100,
+							...(native
+								? {
+										measurement: {
+											websiteId: "site-1",
+											definitionId: "checkout",
+											startDate: "2026-07-05",
+											endDate: "2026-07-11",
+											definition: current,
+										},
+									}
+								: {}),
+						}),
 						inputSchema: z.object({}).strict(),
 					}),
 					list_funnels: tool({
@@ -641,16 +692,26 @@ describe("intelligence agent", () => {
 			}
 		);
 
-		if (scenario !== "legacy" && scenario !== "valid") {
+		if (
+			!["legacy", "valid", "native-only", "native-after-list"].includes(
+				scenario
+			)
+		) {
 			await expect(run).rejects.toThrow(
-				scenario === "unanchored" ? "99" : "Verification checks require"
+				scenario === "uninspected-check"
+					? "Until the exact subject is verified"
+					: scenario === "native-lost-conditions"
+					? "preserve existing step conditions"
+					: scenario === "unanchored"
+						? "99"
+						: "Verification checks require"
 			);
 			return;
 		}
 		const result = await run;
 		expect(result.outcome.next).toEqual({
 			...proposal.next,
-			...(scenario === "valid"
+			...(scenario !== "legacy"
 				? {
 						check: {
 							...check,
@@ -664,7 +725,7 @@ describe("intelligence agent", () => {
 					}
 				: {}),
 			action: describeInsightDefinitionAction(funnelSignal.entity.label, {
-				...executableDefinitionOutcome.next.execution,
+				...proposal.next.execution,
 				action: executableDefinitionOutcome.next.action,
 			}),
 		});
@@ -1627,6 +1688,7 @@ describe("intelligence agent", () => {
 		"passed",
 		"passed-explicit",
 		"passed-domain",
+		"passed-cosmetic",
 		"failed-rate",
 		"failed",
 		"wrong-subject",
@@ -1663,9 +1725,12 @@ describe("intelligence agent", () => {
 				evidenceRef: { source: "signal" as const },
 			},
 		};
-		const status = ["passed", "passed-explicit", "passed-domain"].includes(
-			scenario
-		)
+		const status = [
+			"passed",
+			"passed-explicit",
+			"passed-domain",
+			"passed-cosmetic",
+		].includes(scenario)
 			? "passed"
 			: scenario === "failed" || scenario === "failed-rate"
 				? "failed"
@@ -1691,6 +1756,9 @@ describe("intelligence agent", () => {
 			publicationBasis: null,
 			next: { type: "resolve" as const, reason: "Verification completed." },
 			verificationStatus: status,
+			...(scenario === "passed"
+				? { publish: true, publicationBasis: "measured_impact" as const }
+				: {}),
 		};
 		const model = new MockLanguageModelV3({
 			doGenerate: mockValues(
@@ -1760,6 +1828,12 @@ describe("intelligence agent", () => {
 											endDate: check.endDate,
 											definition: {
 												...check.definition,
+												steps: inspectedFunnel.steps.map((step) => ({
+													...step,
+													...(scenario === "passed-cosmetic"
+														? { name: "Renamed" }
+														: {}),
+												})),
 												...(scenario === "changed-definition"
 													? {
 															filters: [
@@ -2217,9 +2291,7 @@ describe("intelligence agent", () => {
 			model.doGenerateCalls[premature ? 1 : 2]?.prompt
 		);
 		if (premature) {
-			expect(feedback).toContain(
-				"Finish after receiving this step's reads"
-			);
+			expect(feedback).toContain("Finish after receiving this step's reads");
 			expect(feedback).toContain(
 				"Use those results next turn without repeating the reads"
 			);

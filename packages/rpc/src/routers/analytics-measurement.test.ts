@@ -1,7 +1,11 @@
 import { beforeAll, beforeEach, expect, mock, test } from "bun:test";
 import { createProcedureClient, os } from "@orpc/server";
 import type { Context } from "../orpc";
-import type { processFunnelAnalytics } from "../lib/analytics-utils";
+import type {
+	processFunnelAnalytics,
+	processGoalAnalytics,
+	getTotalWebsiteUsers,
+} from "../lib/analytics-utils";
 
 const procedure = os.$context<Context>();
 const pass = procedure.middleware(({ next }) => next());
@@ -37,7 +41,14 @@ const metrics: Awaited<ReturnType<typeof processFunnelAnalytics>> = {
 const query = mock(
 	async (..._args: Parameters<typeof processFunnelAnalytics>) => metrics
 );
-const entrants = mock(async (..._args: unknown[]) => 200);
+const goalQuery = mock(
+	async (
+		..._args: Parameters<typeof processGoalAnalytics>
+	): Promise<Awaited<ReturnType<typeof processGoalAnalytics>>> => metrics
+);
+const entrants = mock(
+	async (..._args: Parameters<typeof getTotalWebsiteUsers>) => 200
+);
 let goalsRouter: typeof import("./goals").goalsRouter;
 let funnelsRouter: typeof import("./funnels").funnelsRouter;
 
@@ -64,7 +75,7 @@ beforeAll(async () => {
 		invalidateFunnelsCache: async () => undefined,
 	}));
 	mock.module("../lib/analytics-utils", () => ({
-		processGoalAnalytics: query,
+		processGoalAnalytics: goalQuery,
 		processFunnelAnalytics: query,
 		getTotalWebsiteUsers: entrants,
 		processFunnelAnalyticsByReferrer: query,
@@ -86,12 +97,13 @@ beforeAll(async () => {
 beforeEach(() => {
 	cache.clear();
 	query.mockClear();
+	goalQuery.mockClear();
 	entrants.mockClear();
 });
 
 const savedFilter = { field: "country", operator: "equals", value: "US" };
 const requestFilter = {
-	field: "device",
+	field: "device_type",
 	operator: "equals" as const,
 	value: "mobile",
 };
@@ -112,7 +124,12 @@ function definition() {
 		filters: [savedFilter],
 		steps: [
 			{ type: "PAGE_VIEW", target: "/", name: "Landing" },
-			{ type: "PAGE_VIEW", target: "/workspace", name: "Signup" },
+			{
+				type: "PAGE_VIEW",
+				target: "/workspace",
+				name: "Signup",
+				conditions: { plan: "paid" },
+			},
 		],
 	};
 }
@@ -132,8 +149,9 @@ function context(
 }
 
 for (const kind of ["goal", "funnel"] as const) {
-	test(`${kind} returns the actual clipped query window and excludes cosmetic fields`, async () => {
+	test(`${kind} returns the actual clipped query window and complete measured definition`, async () => {
 		const row = definition();
+		const measuredQuery = kind === "goal" ? goalQuery : query;
 		const result =
 			kind === "goal"
 				? await createProcedureClient(goalsRouter.getAnalytics, {
@@ -153,16 +171,17 @@ for (const kind of ["goal", "funnel"] as const) {
 				kind === "goal"
 					? { type: row.type, target: row.target, filters }
 					: {
-							steps: row.steps.map(({ type, target }) => ({ type, target })),
+							steps: row.steps,
 							filters,
 						},
 		});
-		expect(query.mock.calls[0]?.[1]).toEqual(filters);
-		expect(query.mock.calls[0]?.[2]).toEqual({
+		expect(measuredQuery.mock.calls[0]?.[1]).toEqual(filters);
+		expect(measuredQuery.mock.calls[0]?.[2]).toEqual({
 			websiteId: period.websiteId,
 			startDate: "2026-09-01",
 			endDate: `${period.endDate} 23:59:59`,
 		});
+		if (kind === "goal") expect(goalQuery.mock.calls[0]?.[3]).toBe(200);
 		if (kind === "goal")
 			expect(entrants.mock.calls[0]).toEqual([
 				period.websiteId,
@@ -174,6 +193,7 @@ for (const kind of ["goal", "funnel"] as const) {
 
 	test(`${kind} cannot attach a changed definition to cached old measurements`, async () => {
 		const row = definition();
+		const measuredQuery = kind === "goal" ? goalQuery : query;
 		const read = () =>
 			kind === "goal"
 				? createProcedureClient(goalsRouter.getAnalytics, {
@@ -184,17 +204,17 @@ for (const kind of ["goal", "funnel"] as const) {
 					})({ ...period, funnelId: row.id });
 		await read();
 		await read();
-		expect(query).toHaveBeenCalledTimes(1);
+		expect(measuredQuery).toHaveBeenCalledTimes(1);
 		row.target = "/activated";
 		row.steps[1]!.target = "/activated";
 		await read();
-		expect(query).toHaveBeenCalledTimes(2);
+		expect(measuredQuery).toHaveBeenCalledTimes(2);
 		row.filters = [];
 		await read();
-		expect(query).toHaveBeenCalledTimes(3);
+		expect(measuredQuery).toHaveBeenCalledTimes(3);
 		row.ignoreHistoricData = false;
 		const result = await read();
 		expect(result.measurement.startDate).toBe(period.startDate);
-		expect(query).toHaveBeenCalledTimes(4);
+		expect(measuredQuery).toHaveBeenCalledTimes(4);
 	});
 }

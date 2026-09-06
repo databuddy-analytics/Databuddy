@@ -338,43 +338,56 @@ export const insightWatchThresholdSchema = z
 	})
 	.strict();
 
-// Canonical fields actually used by goal/funnel analytics. Labels and unevaluated
-// funnel step conditions do not change the measured population.
+// Bind only fields that analytics evaluates. The read snapshot also retains the
+// complete funnel steps so repair validation can preserve names and conditions.
 const measurementFiltersSchema = z
 	.array(
-		z.object({
-			field: z.string(),
-			operator: z.string(),
-			value: z.union([z.string(), z.array(z.string())]),
-		})
+		insightDefinitionEditChangesSchema.shape.filters.unwrap().unwrap().element
 	)
 	.default([]);
+export const insightVerificationDefinitionSchema = z.union([
+	z.object({
+		type: z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]),
+		target: z.string(),
+		filters: measurementFiltersSchema,
+	}),
+	z.object({
+		steps: z
+			.array(
+				z.object({
+					type: z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]),
+					target: z.string(),
+				})
+			)
+			.min(2),
+		filters: measurementFiltersSchema,
+	}),
+]);
 export const insightMeasurementSchema = z.object({
 	websiteId: z.string(),
 	definitionId: z.string(),
 	startDate: z.iso.date(),
 	endDate: z.iso.date(),
 	definition: z.union([
-		z.object({
-			type: z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]),
-			target: z.string(),
-			filters: measurementFiltersSchema,
-		}),
-		z.object({
-			steps: z.array(
-				z.object({
-					type: z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]),
-					target: z.string(),
-				})
-			),
-			filters: measurementFiltersSchema,
+		insightVerificationDefinitionSchema.options[0],
+		insightVerificationDefinitionSchema.options[1].extend({
+			steps: z
+				.array(
+					insightVerificationDefinitionSchema.options[1].shape.steps.element.extend(
+						{
+							name: z.string().min(1),
+							conditions: z.record(z.string(), z.unknown()).optional(),
+						}
+					)
+				)
+				.min(2),
 		}),
 	]),
 });
 
 const insightVerificationCheckSchema = z
 	.object({
-		definition: insightMeasurementSchema.shape.definition.optional(),
+		definition: insightVerificationDefinitionSchema.optional(),
 		metric: z.enum(["total_users_completed", "overall_conversion_rate"]),
 		startDate: z.iso.date(),
 		endDate: z.iso.date(),
