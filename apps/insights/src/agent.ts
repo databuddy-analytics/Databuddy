@@ -937,7 +937,9 @@ function validateAgentOutcome(
 			Object.fromEntries(
 				Object.entries(execution.changes).filter(
 					([key, value]) =>
-						value != null && !isDeepStrictEqual(value, current[key])
+						value != null &&
+						key in current &&
+						!isDeepStrictEqual(value, current[key])
 				)
 			)
 		);

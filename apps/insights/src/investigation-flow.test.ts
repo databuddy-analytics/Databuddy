@@ -122,6 +122,7 @@ const agentOutcome = {
 const inspectedFunnel = {
 	id: "checkout",
 	name: "Checkout journey",
+	description: null,
 	filters: [],
 	steps: [
 		{ name: "Landing", target: "/", type: "PAGE_VIEW" as const },
@@ -709,8 +710,13 @@ describe("intelligence agent", () => {
 			return;
 		}
 		const result = await run;
+		const expectedExecution = {
+			...proposal.next.execution,
+			changes: native ? { steps: proposal.next.execution.changes.steps } : proposal.next.execution.changes,
+		};
 		expect(result.outcome.next).toEqual({
 			...proposal.next,
+			execution: expectedExecution,
 			...(scenario !== "legacy"
 				? {
 						check: {
@@ -725,7 +731,7 @@ describe("intelligence agent", () => {
 					}
 				: {}),
 			action: describeInsightDefinitionAction(funnelSignal.entity.label, {
-				...proposal.next.execution,
+				...expectedExecution,
 				action: executableDefinitionOutcome.next.action,
 			}),
 		});
