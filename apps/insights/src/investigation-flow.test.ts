@@ -584,6 +584,7 @@ describe("intelligence agent", () => {
 		"valid",
 		"native-only",
 		"native-after-list",
+		"native-cohort",
 		"native-lost-conditions",
 		"uninspected-check",
 		"unanchored",
@@ -598,6 +599,12 @@ describe("intelligence agent", () => {
 				...(native ? { conditions: { plan: "paid" } } : {}),
 			})),
 		};
+		let thresholdValue = 20;
+		if (scenario === "unanchored") {
+			thresholdValue = 99;
+		} else if (scenario === "wrong-units") {
+			thresholdValue = 120;
+		}
 		const check = {
 			metric: "overall_conversion_rate" as const,
 			startDate: scenario === "past-window" ? "2026-07-01" : "2026-07-13",
@@ -606,12 +613,7 @@ describe("intelligence agent", () => {
 			threshold: {
 				anchor: "prior_baseline" as const,
 				comparison: "at_or_above" as const,
-				value:
-					scenario === "unanchored"
-						? 99
-						: scenario === "wrong-units"
-							? 120
-							: 20,
+				value: thresholdValue,
 				evidenceRef: { source: "signal" as const },
 			},
 		};
@@ -636,6 +638,42 @@ describe("intelligence agent", () => {
 					: {}),
 			},
 		};
+		const inspectionResponses: ReturnType<typeof toolCallsResponse>[] = [];
+		if (scenario === "native-only" || scenario === "native-cohort") {
+			inspectionResponses.push(toolCallsResponse(["get_funnel_analytics"]));
+		} else if (scenario === "native-after-list") {
+			inspectionResponses.push(
+				toolCallsResponse(["list_funnels"]),
+				toolCallsResponse(["get_funnel_analytics"])
+			);
+		} else if (scenario !== "uninspected-check") {
+			inspectionResponses.push(
+				toolCallsResponse(["list_funnels", "get_funnel_analytics"])
+			);
+		}
+		const savedDefinition =
+			scenario === "native-cohort" ? { savedDefinition: current } : {};
+		const measuredDefinition =
+			scenario === "native-cohort"
+				? {
+						...current,
+						filters: [
+							{ field: "browser_name", operator: "equals", value: "Safari" },
+						],
+					}
+				: current;
+		const nativeMeasurement = native
+			? {
+					...savedDefinition,
+					measurement: {
+						websiteId: "site-1",
+						definitionId: "checkout",
+						startDate: "2026-07-05",
+						endDate: "2026-07-11",
+						definition: measuredDefinition,
+					},
+				}
+			: {};
 		const run = runInsightAgent(
 			{
 				appContext: appContext(),
@@ -648,18 +686,7 @@ describe("intelligence agent", () => {
 			{
 				model: new MockLanguageModelV3({
 					doGenerate: mockValues(
-						...(scenario === "uninspected-check"
-							? []
-							: scenario === "native-only"
-							? [toolCallsResponse(["get_funnel_analytics"])]
-							: scenario === "native-after-list"
-								? [
-										toolCallsResponse(["list_funnels"]),
-										toolCallsResponse(["get_funnel_analytics"]),
-									]
-								: [
-										toolCallsResponse(["list_funnels", "get_funnel_analytics"]),
-									]),
+						...inspectionResponses,
 						outputResponse(proposal),
 						outputResponse(proposal),
 						outputResponse(proposal)
@@ -671,17 +698,7 @@ describe("intelligence agent", () => {
 						execute: () => ({
 							completions: 10,
 							entrants: 100,
-							...(native
-								? {
-										measurement: {
-											websiteId: "site-1",
-											definitionId: "checkout",
-											startDate: "2026-07-05",
-											endDate: "2026-07-11",
-											definition: current,
-										},
-									}
-								: {}),
+							...nativeMeasurement,
 						}),
 						inputSchema: z.object({}).strict(),
 					}),
@@ -695,25 +712,31 @@ describe("intelligence agent", () => {
 		);
 
 		if (
-			!["legacy", "valid", "native-only", "native-after-list"].includes(
-				scenario
-			)
+			![
+				"legacy",
+				"valid",
+				"native-only",
+				"native-after-list",
+				"native-cohort",
+			].includes(scenario)
 		) {
-			await expect(run).rejects.toThrow(
-				scenario === "uninspected-check"
-					? "Until the exact subject is verified"
-					: scenario === "native-lost-conditions"
-					? "preserve existing step conditions"
-					: scenario === "unanchored"
-						? "99"
-						: "Verification checks require"
-			);
+			let expectedError = "Verification checks require";
+			if (scenario === "uninspected-check") {
+				expectedError = "Until the exact subject is verified";
+			} else if (scenario === "native-lost-conditions") {
+				expectedError = "preserve existing step conditions";
+			} else if (scenario === "unanchored") {
+				expectedError = "99";
+			}
+			await expect(run).rejects.toThrow(expectedError);
 			return;
 		}
 		const result = await run;
 		const expectedExecution = {
 			...proposal.next.execution,
-			changes: native ? { steps: proposal.next.execution.changes.steps } : proposal.next.execution.changes,
+			changes: native
+				? { steps: proposal.next.execution.changes.steps }
+				: proposal.next.execution.changes,
 		};
 		expect(result.outcome.next).toEqual({
 			...proposal.next,
