@@ -1411,6 +1411,7 @@ for (const attributionLoss of [false, true]) {
 									websiteId: z.literal(appContext.websiteId).optional(),
 									from: z.string(),
 									to: z.string(),
+									timezone: z.string().default("UTC"),
 									filters: z
 										.array(
 											z.object({
@@ -1490,6 +1491,7 @@ for (const attributionLoss of [false, true]) {
 							websiteId: appContext.websiteId,
 							from: query.from,
 							to: query.to,
+							timezone: query.timezone,
 							filters: query.filters ?? [],
 							data,
 							rowCount: data.length,

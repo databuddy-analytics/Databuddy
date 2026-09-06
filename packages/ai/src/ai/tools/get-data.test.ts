@@ -94,6 +94,7 @@ describe("analytics tool contract", () => {
 			results: {
 				custom_events_by_path: {
 					websiteId: "site-test",
+					timezone: "UTC",
 					from: "2026-08-29",
 					to: "2026-09-04",
 					filters: [

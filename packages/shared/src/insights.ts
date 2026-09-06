@@ -714,7 +714,7 @@ const agentTitleSchema = z
 			"Titles must use natural product language, never raw identifiers, event names, or URLs",
 	})
 	.describe(
-		"A short headline stating the verified finding in natural product language. For directly measured reliability or user impact, an affected count can lead. For measurement_definition, name the incorrect target or purpose mismatch without a numeric count; keep counts with their periods in evidence. For measurement_coverage, name the observed blind spot, never a presumed product loss. Never use raw identifiers, snake_case event names, or URLs."
+		"A short headline stating the verified finding in natural product language. For directly measured reliability or user impact, an affected count can lead. With structured revenue evidence, use a qualitative headline and keep all quantities in the generated evidence. For measurement_definition, name the incorrect target or purpose mismatch without a numeric count; keep counts with their periods in evidence. For measurement_coverage, name the observed blind spot, never a presumed product loss. Never use raw identifiers, snake_case event names, or URLs."
 	);
 
 export const agentInvestigationOutcomeSchema = z

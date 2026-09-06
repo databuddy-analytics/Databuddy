@@ -71,6 +71,8 @@ The agent receives:
 
 Tools are discoverable. There is no fixed first query, query family, receipt choreography, or two-read limit. Each investigation uses one tool loop with at most eight model turns, including a reserved final turn. It ends through `finish_investigation`, which validates the outcome and returns any repair error in the same conversation; at most three finish attempts are allowed. Successful reads include exact citation references. The agent does not restart the conversation to repair output.
 
+Native `revenue_overview` evidence selects a currency and metric fields from exact successful result references. Code renders labels, values, units, dates and differences for the complete current/prior signal windows with the same website, timezone and filters. The stored evidence remains text. This binds those numeric comparisons; other sources retain numeric grounding checks and every finding still needs semantic quality review.
+
 ## Outcome contract
 
 Every completed turn reports:
