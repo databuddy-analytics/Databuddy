@@ -45,7 +45,7 @@ export function createFunnelTools() {
 
 	const getFunnelAnalyticsTool = tool({
 		description:
-			"Funnel step conversion and drop-offs with the actual definition and measured dates. Reuse supplied measurements when their definition and window are verified; remeasure stale or conflicting context.",
+			"Funnel definition, measured dates and distinct visitor counts: entrants match the first step; completions reach every ordered step. These are visitors, not projects, occurrences or attempts. Reuse matching verified measurements; remeasure stale or conflicting context.",
 		inputSchema: funnelAnalyticsInputSchema,
 		execute: async (
 			{ funnelId, websiteId: inputWebsiteId, startDate, endDate },
@@ -77,7 +77,7 @@ export function createFunnelTools() {
 
 	const getFunnelAnalyticsByReferrerTool = tool({
 		description:
-			"Funnel analytics broken down by referrer/source. Shows which sources convert best.",
+			"Distinct visitors entering the first funnel step and completing its ordered steps, grouped by referrer/source. Counts are visitors, not projects or attempts. Accepts one date range; compare periods with separate calls.",
 		inputSchema: funnelAnalyticsInputSchema,
 		execute: async (
 			{ funnelId, websiteId: inputWebsiteId, startDate, endDate },
