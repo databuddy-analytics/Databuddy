@@ -1741,7 +1741,10 @@ describe("intelligence agent", () => {
 		).rejects.toThrow(expected);
 	});
 
-	it("repairs the citation without dropping a measured discovery or repeating its read", async () => {
+	it.each([
+		false,
+		true,
+	])("repairs a citation without repeating its read (premature finish: %s)", async (premature) => {
 		const discovered = {
 			...agentOutcome,
 			evidence: ["88 visitors reached checkout."],
@@ -1760,9 +1763,22 @@ describe("intelligence agent", () => {
 		};
 		const model = new MockLanguageModelV3({
 			doGenerate: mockValues(
-				toolCallResponse(),
-				outputResponse(discovered),
-				outputResponse(corrected)
+				...(premature
+					? [
+							{
+								...toolCallResponse(),
+								content: [
+									...toolCallResponse().content,
+									...outputResponse(corrected).content,
+								],
+							},
+							outputResponse(corrected),
+						]
+					: [
+							toolCallResponse(),
+							outputResponse(discovered),
+							outputResponse(corrected),
+						])
 			),
 		});
 		let reads = 0;
@@ -1789,11 +1805,24 @@ describe("intelligence agent", () => {
 				},
 			}
 		);
-		const feedback = JSON.stringify(model.doGenerateCalls[2]?.prompt);
-		expect(feedback).toContain("evidence[0] cites the number 88");
-		expect(feedback).toContain("Correct evidenceRefs[0]");
-		expect(feedback).toContain("Preserve facts supported by inspected results");
-		expect(model.doGenerateCalls).toHaveLength(3);
+		const feedback = JSON.stringify(
+			model.doGenerateCalls[premature ? 1 : 2]?.prompt
+		);
+		if (premature) {
+			expect(feedback).toContain(
+				"result that does not exist: inspect/inspect-1"
+			);
+			expect(feedback).toContain(
+				"use its result next turn without repeating it"
+			);
+		} else {
+			expect(feedback).toContain("evidence[0] cites the number 88");
+			expect(feedback).toContain("Correct evidenceRefs[0]");
+			expect(feedback).toContain(
+				"Preserve facts supported by inspected results"
+			);
+		}
+		expect(model.doGenerateCalls).toHaveLength(premature ? 2 : 3);
 		expect(result.outcome.evidence).toEqual(discovered.evidence);
 		expect(reads).toBe(1);
 	});

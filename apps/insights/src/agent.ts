@@ -153,7 +153,7 @@ export class InsightAgentGenerationError extends InsightAgentExecutionError {
 	}
 }
 
-const INSTRUCTIONS = `Investigate one exact Databuddy signal until a teammate has a clear next move or a useful new fact. Finish by calling finish_investigation once, after the needed reads. Its validation errors identify what to correct within this same investigation. Do not finish with ordinary text.
+const INSTRUCTIONS = `Investigate one exact Databuddy signal until a teammate has a clear next move or a useful new fact. Finish by calling finish_investigation in a separate turn after receiving the needed read results. Its validation errors identify what to correct within this same investigation. Do not finish with ordinary text.
 
 Subject
 - Name the exact subject: signal.entity.label for named goals, funnels, pages, events, and campaigns; otherwise the most specific inspected path, segment, or fingerprint. A fingerprint cohort can span routes, so never narrow the headline or repair request to one representative path.
@@ -633,7 +633,7 @@ function resolveEvidenceReferences(
 		);
 		if (!result) {
 			throw new Error(
-				`Insights agent cited a read tool result that does not exist: ${ref.name}/${ref.toolCallId}. Cite an exact successful call or source signal.`
+				`Insights agent cited a read tool result that does not exist: ${ref.name}/${ref.toolCallId}. Cite a completed successful call or source signal. If a read was sent alongside this finish call, use its result next turn without repeating it.`
 			);
 		}
 		let output = result.output;
