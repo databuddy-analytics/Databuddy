@@ -123,7 +123,7 @@ interface QualityCase {
 	// Observable expectations, independent of exact wording.
 	check: (
 		result: InsightAgentResult,
-		calls: { name: string; input: unknown }[]
+		calls: { name: string; input: unknown; output?: unknown }[]
 	) => string[];
 	id: string;
 	input: InsightAgentInput;
@@ -785,7 +785,19 @@ qualityCases.push({
 	reviewRequired:
 		"Verify that source inspection establishes the null access and that the proposed remedy preserves checkout for visitors without a saved payment. Error exposure does not prove lost purchases.",
 	check: ({ outcome }, calls) => [
-		...(calls.some((call) => call.name === "github_read_file")
+		...(calls.some(
+			(call) =>
+				call.name === "github_read_file" &&
+				isDeepStrictEqual(call.input, {
+					path: "src/checkout.ts",
+					ref: "abcdef1",
+				}) &&
+				call.output &&
+				typeof call.output === "object" &&
+				!("error" in call.output) &&
+				"content" in call.output &&
+				typeof call.output.content === "string"
+		)
 			? []
 			: ["Did not inspect the available repository"]),
 		...(outcome.next.type === "act" && outcome.rootCause !== null
@@ -897,6 +909,11 @@ for (const repaired of [false, true]) {
 			...(calls.some(
 				(call) =>
 					call.name === "get_goal_analytics" &&
+					call.output &&
+					typeof call.output === "object" &&
+					!("error" in call.output) &&
+					"total_users_completed" in call.output &&
+					call.output.total_users_completed === (repaired ? 120 : 40) &&
 					isDeepStrictEqual(
 						{
 							goalId: goal.id,
@@ -939,7 +956,14 @@ async function evaluate(
 						return {
 							name: item.name,
 							message: item.message,
-							cause: item.cause,
+							stack: item.stack,
+							// Tool inputs/results are recorded separately; arbitrary causes can be cyclic.
+							cause:
+								item.cause instanceof Error
+									? item.cause.message
+									: typeof item.cause === "string"
+										? item.cause
+										: undefined,
 						};
 					}
 					if (item && typeof item === "object" && item.type === "reasoning") {
@@ -950,7 +974,7 @@ async function evaluate(
 			)}\n`,
 			{ mode: 0o600 }
 		);
-	const calls: { name: string; input: unknown }[] = [];
+	const calls: { name: string; input: unknown; output?: unknown }[] = [];
 	const model = wrapLanguageModel({
 		model: createModelFromId(modelId),
 		middleware: {
@@ -987,7 +1011,11 @@ async function evaluate(
 			{
 				...definition,
 				execute: async (value: unknown, options) => {
-					calls.push({ name, input: value });
+					const call: { name: string; input: unknown; output?: unknown } = {
+						name,
+						input: value,
+					};
+					calls.push(call);
 					emit("tool.request", {
 						name,
 						input: value,
@@ -997,6 +1025,7 @@ async function evaluate(
 						throw new Error("Synthetic tool needs an executor");
 					}
 					const output = await definition.execute(value, options);
+					call.output = output;
 					emit("tool.response", {
 						name,
 						output,

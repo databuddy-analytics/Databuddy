@@ -20,4 +20,4 @@ The agent uses one native tool loop, ending with `finish_investigation` in a sep
 
 New model outputs omit the separate impact paragraph; the finding summary states the consequence. Stored legacy impact remains readable and new stored outcomes default it to null. Review each executed JSONL, including failed/intermediate drafts, before claiming an improvement. Keep the exact source revisions and fixture versions with the comparison; changing a fixture is not an agent improvement.
 
-A repair reply does not have to publish a new feed item: dashboard/Slack reply delivery is independent of `publish`. Review its actual verdict against the saved condition and the fresh measurement. Historical investigation outcomes have their own citation reference; reply text is not accepted as a historical measurement source.
+A repair reply does not have to publish a new feed item: dashboard/Slack reply delivery is independent of `publish`. Review its actual verdict against the saved condition and the fresh measurement. Prior actions have a citation reference restricted to their saved verification condition; reply text is not accepted as a historical measurement source.

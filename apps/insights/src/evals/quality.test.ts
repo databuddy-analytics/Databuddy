@@ -152,3 +152,65 @@ it.each([
 	}
 	expect(check(changes)).toHaveLength(1);
 });
+
+it.each([
+	{
+		id: "available-repository-mechanism",
+		name: "github_read_file",
+		input: { path: "src/checkout.ts", ref: "abcdef1" },
+	},
+	{
+		id: "reply-failed-recovery",
+		name: "get_goal_analytics",
+		input: {
+			goalId: "workspace-goal",
+			startDate: "2026-08-29",
+			endDate: "2026-09-04",
+		},
+	},
+	{
+		id: "reply-verified-recovery",
+		name: "get_goal_analytics",
+		input: {
+			goalId: "workspace-goal",
+			startDate: "2026-08-29",
+			endDate: "2026-09-04",
+		},
+	},
+])("requires a successful exact read for $id", async (sample) => {
+	const fixture = qualityCases.find((entry) => entry.id === sample.id);
+	const read = fixture?.tools[sample.name];
+	if (!(fixture && read?.execute)) throw new Error("Missing context fixture");
+	const result = {
+		toolCallCount: 1,
+		outcome: {
+			title: "Reviewed finding",
+			summary: "A verified result.",
+			impact: null,
+			rootCause: "Inspected null access.",
+			evidence: ["Measured result."],
+			next:
+				sample.name === "github_read_file"
+					? {
+							type: "act" as const,
+							action: "Guard null access.",
+							target: "Checkout",
+							verification: "The path succeeds.",
+						}
+					: { type: "resolve" as const, reason: "Verification checked." },
+		},
+	};
+	const output = await read.execute(sample.input, {
+		toolCallId: "read",
+		messages: [],
+	});
+	const call = { name: sample.name, input: sample.input, output };
+	expect(fixture.check(result, [call])).toEqual([]);
+	expect(
+		fixture.check(result, [{ ...call, output: { error: "Unavailable" } }])
+	).toHaveLength(1);
+	expect(fixture.check(result, [{ ...call, output: undefined }])).toHaveLength(
+		1
+	);
+	expect(fixture.check(result, [{ ...call, input: {} }])).toHaveLength(1);
+});

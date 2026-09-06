@@ -1641,6 +1641,7 @@ describe("intelligence agent", () => {
 		"reply",
 		"other-subject",
 		"missing",
+		"stale-measurement",
 	] as const)("validates historical verification citations: %s", async (kind) => {
 		const prior = {
 			kind: "investigation" as const,
@@ -1652,6 +1653,7 @@ describe("intelligence agent", () => {
 					: signal,
 			outcome: {
 				...outcome,
+				evidence: ["999 visits were measured in an earlier period."],
 				next: {
 					...outcome.next,
 					type: "act" as const,
@@ -1679,7 +1681,11 @@ describe("intelligence agent", () => {
 			title: "Campaign verification condition",
 			summary: "The saved condition defines the next measurement.",
 			rootCause: null,
-			evidence: ["The saved condition requires at least 137 visits."],
+			evidence: [
+				kind === "stale-measurement"
+					? "999 current visits."
+					: "The saved condition requires at least 137 visits.",
+			],
 			evidenceRefs: [{ source: "history" as const, index: 0 }],
 			publish: false,
 			publicationBasis: null,
@@ -1701,6 +1707,8 @@ describe("intelligence agent", () => {
 		);
 		if (kind === "investigation") {
 			expect((await run).outcome.evidence).toEqual(candidate.evidence);
+		} else if (kind === "stale-measurement") {
+			await expect(run).rejects.toThrow("number 999");
 		} else {
 			await expect(run).rejects.toThrow(
 				"cited history must be an investigation for this exact signal"
@@ -2173,6 +2181,20 @@ describe("intelligence agent", () => {
 });
 
 describe("validateNumericGrounding", () => {
+	it("does not strip a count preceding a month name", () => {
+		const claim = {
+			title: "August activity",
+			summary: "12 August completions",
+			evidence: [],
+		};
+		expect(() =>
+			validateNumericGrounding(claim, "There were 40 completions.")
+		).toThrow("number 12");
+		expect(() =>
+			validateNumericGrounding(claim, "There were 12 completions.")
+		).not.toThrow();
+	});
+
 	it.each(["0", "zero"])("grounds %s against a spelled-out zero", (count) => {
 		const claim = { title: `${count} events`, summary: "", evidence: [] };
 		expect(() =>

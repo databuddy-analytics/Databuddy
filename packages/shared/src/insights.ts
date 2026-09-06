@@ -258,7 +258,7 @@ const agentEvidenceReferenceSchema = z.discriminatedUnion("source", [
 			index: z.number().int().nonnegative(),
 		})
 		.describe(
-			"A zero-based index of an investigation in history for this exact signal. Cites its historical outcome, including the saved verification condition; never a current measurement or a human reply."
+			"A zero-based index of an investigation in history for this exact signal. Cites only the prior action’s saved verification condition, never historical measurements, current measurements, or a human reply."
 		),
 	z
 		.strictObject({ source: z.literal("customer_impact") })

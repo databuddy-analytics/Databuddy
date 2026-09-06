@@ -168,7 +168,7 @@ Subject
 - The supplied signal owns its metric, dates, cohort, and comparison window; do not re-query them except to verify a reported repair against its saved condition. It is the starting point, not the default final headline. When inspected comparisons locate the change in a narrower cohort, carry that cohort and its measured comparison into the final brief instead of repeating only the aggregate signal. Do not discard a useful discovery just because its cause remains unknown.
 
 Evidence
-- Cite each evidence sentence to its actual source: source signal for the supplied signal; source provided with a valid zero-based evidence index; source history with the index of a prior investigation outcome for the saved verification condition (not a current measurement); source customer_impact for supplied customerImpact; source related_signal with its array index; or source tool with its exact name, toolCallId, and get_data resultKey (null for other tools). Each entry has one source. For a comparison discovered in separate tool calls, use one evidence entry per period and cite that period's call; summarize the comparison in the brief. Correct a mismatched citation without discarding a supported discovery. Never cite a failed read as evidence. An empty evidence array does not invalidate the supplied signal.
+- Cite each evidence sentence to its actual source: source signal for the supplied signal; source provided with a valid zero-based evidence index; source history with the index of a prior action for its saved verification condition only (not historical or current measurements); source customer_impact for supplied customerImpact; source related_signal with its array index; or source tool with its exact name, toolCallId, and get_data resultKey (null for other tools). Each entry has one source. For a comparison discovered in separate tool calls, use one evidence entry per period and cite that period's call; summarize the comparison in the brief. Correct a mismatched citation without discarding a supported discovery. Never cite a failed read as evidence. An empty evidence array does not invalidate the supplied signal.
 - Tool availability is not proof of a connected integration. If a connector reports missing access, stop trying that connector. Preserve an independently verified product or reliability finding, with an unknown cause when necessary. Missing diagnostic access is not evidence that tracking failed, and does not itself deserve a coverage notice or a connection request.
 - get_data can return a partial table. returnedRows is what you saw; rowCount is query rows, not visitors or all matching entities. A path missing from a top-N table is not absent. Use an exact filtered lookup or a dedicated aggregate before making absence, total, or exhaustive claims. Omit orderBy unless discovery documents the field and use only declared row filters.
 - Use read tools to test competing explanations. Batch independent reads, never repeat an identical call, and stop when one decision is supported.
@@ -349,6 +349,14 @@ function validateDefinitionRecommendation(
 	}
 }
 
+const MONTH_NAME =
+	"(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)";
+// Bare "12 August completions" is ambiguous: keep the count for grounding.
+const DAY_FIRST_DATE_RANGE = new RegExp(
+	String.raw`\b(?:\d{1,2}\s*(?:to|through|[–—-])\s*\d{1,2} ${MONTH_NAME}|\d{1,2} ${MONTH_NAME}\s*(?:to|through|[–—-])\s*\d{1,2} ${MONTH_NAME})(?:,? \d{4})?\b`,
+	"gi"
+);
+
 function numericTokens(text: string): number[] {
 	const withoutDates = text
 		.replace(/\b\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)?\b/g, "")
@@ -356,10 +364,7 @@ function numericTokens(text: string): number[] {
 			/\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?) \d{1,2}(?:\s*(?:to|through|[–—-])\s*(?:(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?) )?\d{1,2})?(?:,? \d{4})?\b/gi,
 			""
 		)
-		.replace(
-			/\b\d{1,2}(?:\s*(?:to|through|[–—-])\s*\d{1,2})? (?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)(?:,? \d{4})?\b/gi,
-			""
-		);
+		.replace(DAY_FIRST_DATE_RANGE, "");
 	const merged = withoutDates
 		.replace(/\bzero\b/gi, "0")
 		.replace(/(\d),(?=\d{3}\b)/g, "$1");
@@ -609,6 +614,7 @@ function resolveEvidenceReferences(
 			const prior = input.history[ref.index];
 			if (
 				prior?.kind !== "investigation" ||
+				prior.outcome.next.type !== "act" ||
 				prior.signal.signalKey !== input.signal.signalKey ||
 				prior.signal.entity.id !== input.signal.entity.id ||
 				prior.signal.entity.type !== input.signal.entity.type
@@ -617,7 +623,7 @@ function resolveEvidenceReferences(
 					"The cited history must be an investigation for this exact signal, not a human reply or another subject."
 				);
 			}
-			return prior.outcome;
+			return prior.outcome.next.verification;
 		}
 		if (ref.source === "signal") {
 			return promptSignal(input.signal);
