@@ -241,6 +241,12 @@ describe("native unidentified payment-description discovery", () => {
 		).toMatchObject({ current: 15000, baseline: 30000 });
 	});
 	it("does not fabricate label meaning or accept invalid, ambiguous and unidentified source fields", async () => {
+		for (const name of ["Unknown", " Unknown ", "\tUnknown\n", " "]) {
+			expect(
+				(await signals([receipt(name, 15000)], [receipt(name, 30000)]))
+					.descriptions
+			).toEqual([]);
+		}
 		for (const override of [
 			{ product_id: "catalog-team" },
 			{ product_id: undefined },

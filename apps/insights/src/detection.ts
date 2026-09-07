@@ -334,7 +334,7 @@ const productRevenueRowSchema = z.object({
 	product_id: z.union([z.null(), z.literal("")]),
 	name: z
 		.string()
-		.refine((value) => value.trim().length > 0 && value !== "Unknown"),
+		.refine((value) => value.trim().length > 0 && value.trim() !== "Unknown"),
 	revenue: commercialNumberSchema.pipe(z.number().nonnegative()),
 	transactions: commercialNumberSchema.pipe(z.number().int().nonnegative()),
 });
