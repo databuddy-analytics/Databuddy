@@ -644,7 +644,7 @@ function makeCustomEventSignal(
 	signal.definitionEvidence = `Event "${name}" occurred ${current.data.total_events} times across ${current.data.unique_users} recorded visitor identifiers and ${current.data.unique_sessions} sessions, compared with ${previous.data.total_events} occurrences across ${previous.data.unique_users} recorded visitor identifiers and ${previous.data.unique_sessions} sessions previously.`;
 	if (metric === "custom_event_reach") {
 		signal.investigationObjective =
-			"Explain why steady or rising event volume no longer demonstrates the same recorded reach. Inspect emitted behavior or identity coverage to distinguish repeated activity from an instrumentation change. Missing identifiers do not prove lost users; event names and occurrence counts do not establish business outcomes or conversion rates.";
+			"Explain the measured recorded-participation change alongside occurrence volume. Nonzero unique_users still measures recorded visitor identifiers; unavailable emitter context does not invalidate it or establish instrumentation failure. Claim identity-coverage loss only with evidence of missing identifiers, not fewer identifiers. Leave causes unknown without inspected support. Event names alone do not establish behavior, business outcomes or conversion rates; recorded identifiers are not people.";
 	}
 	return signal;
 }

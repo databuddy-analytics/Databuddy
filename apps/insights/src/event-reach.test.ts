@@ -94,7 +94,7 @@ describe("custom-event reach without configured conversions", () => {
 			"1000 occurrences across 400 recorded visitor identifiers"
 		);
 		expect(prepared.investigationObjective).toContain(
-			"Missing identifiers do not prove lost users"
+			"Nonzero unique_users still measures recorded visitor identifiers"
 		);
 		const eventReads = requests.filter(
 			(request) => request.type === "custom_events"
@@ -146,7 +146,7 @@ describe("custom-event reach without configured conversions", () => {
 						type: "event",
 					});
 					expect(input.investigationObjective).toContain(
-						"instrumentation change"
+						"unavailable emitter context does not invalidate it"
 					);
 					// The stub tests publication plumbing, not model judgment or source proof.
 					return {
