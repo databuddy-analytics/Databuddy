@@ -2,6 +2,93 @@ import { Analytics } from "../../types/tables";
 import { Expressions } from "../expressions";
 import type { SimpleQueryConfig } from "../types";
 
+const UTM_BASE_FILTERS = [
+	"path",
+	"query_string",
+	"country",
+	"device_type",
+	"browser_name",
+	"os_name",
+	"referrer",
+	"utm_source",
+	"utm_medium",
+	"utm_campaign",
+];
+
+function utmDimension(options: {
+	column: string;
+	title: string;
+	label: string;
+	noun: string;
+	description: string;
+	tags: string[];
+	requireNotNull?: boolean;
+	sessionAttribution?: boolean;
+}): SimpleQueryConfig {
+	const { column, title, label, noun, description, tags } = options;
+	return {
+		meta: {
+			title,
+			description,
+			category: "Acquisition",
+			tags,
+			output_fields: [
+				{
+					name: "name",
+					type: "string",
+					label,
+					description: `The UTM ${noun} parameter value`,
+				},
+				{
+					name: "pageviews",
+					type: "number",
+					label: "Pageviews",
+					description: `Total pageviews from this ${noun}`,
+				},
+				{
+					name: "visitors",
+					type: "number",
+					label: "Visitors",
+					description: `Unique visitors from this ${noun}`,
+				},
+				{
+					name: "percentage",
+					type: "number",
+					label: "Traffic %",
+					description: "Percentage of total UTM traffic",
+					unit: "%",
+				},
+			],
+			default_visualization: "table",
+			supports_granularity: ["hour", "day"],
+			version: "1.0",
+		},
+		table: Analytics.events,
+		fields: [
+			`${column} as name`,
+			"COUNT(*) as pageviews",
+			"uniq(anonymous_id) as visitors",
+		],
+		percentageOf: { of: "visitors" },
+		where: [
+			`${column} != ''`,
+			...(options.requireNotNull ? [`${column} IS NOT NULL`] : []),
+			"event_name = 'screen_view'",
+		],
+		groupBy: [column],
+		orderBy: "visitors DESC",
+		limit: 100,
+		timeField: "time",
+		allowedFilters: UTM_BASE_FILTERS.includes(column)
+			? UTM_BASE_FILTERS
+			: [...UTM_BASE_FILTERS, column],
+		customizable: true,
+		...(options.sessionAttribution
+			? { plugins: { sessionAttribution: true } }
+			: {}),
+	};
+}
+
 export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 	// SQL output only; parseReferrers plugin adds referrer/source/domain/referrer_type/parsed_referrer at runtime.
 	top_referrers: {
@@ -81,318 +168,60 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		},
 	},
 
-	utm_sources: {
-		meta: {
-			title: "UTM Sources",
-			description:
-				"Traffic breakdown by UTM source parameters from your marketing campaigns and tracked links.",
-			category: "Acquisition",
-			tags: ["utm", "campaigns", "marketing", "sources"],
-			output_fields: [
-				{
-					name: "name",
-					type: "string",
-					label: "UTM Source",
-					description: "The UTM source parameter value",
-				},
-				{
-					name: "pageviews",
-					type: "number",
-					label: "Pageviews",
-					description: "Total pageviews from this source",
-				},
-				{
-					name: "visitors",
-					type: "number",
-					label: "Visitors",
-					description: "Unique visitors from this source",
-				},
-				{
-					name: "percentage",
-					type: "number",
-					label: "Traffic %",
-					description: "Percentage of total UTM traffic",
-					unit: "%",
-				},
-			],
-			default_visualization: "table",
-			supports_granularity: ["hour", "day"],
-			version: "1.0",
-		},
-		table: Analytics.events,
-		fields: [
-			"utm_source as name",
-			"COUNT(*) as pageviews",
-			"uniq(anonymous_id) as visitors",
-		],
-		percentageOf: { of: "visitors" },
-		where: ["utm_source != ''", "event_name = 'screen_view'"],
-		groupBy: ["utm_source"],
-		orderBy: "visitors DESC",
-		limit: 100,
-		timeField: "time",
-		allowedFilters: [
-			"path",
-			"query_string",
-			"country",
-			"device_type",
-			"browser_name",
-			"os_name",
-			"referrer",
-			"utm_source",
-			"utm_medium",
-			"utm_campaign",
-		],
-		customizable: true,
-		plugins: {
-			sessionAttribution: true,
-		},
-	},
+	utm_sources: utmDimension({
+		column: "utm_source",
+		title: "UTM Sources",
+		label: "UTM Source",
+		noun: "source",
+		description:
+			"Traffic breakdown by UTM source parameters from your marketing campaigns and tracked links.",
+		tags: ["utm", "campaigns", "marketing", "sources"],
+		sessionAttribution: true,
+	}),
 
-	utm_mediums: {
-		meta: {
-			description:
-				"Traffic breakdown by UTM medium parameters (e.g. cpc, email, social).",
-			category: "Acquisition",
-			tags: ["utm", "medium", "acquisition"],
-		},
-		table: Analytics.events,
-		fields: [
-			"utm_medium as name",
-			"COUNT(*) as pageviews",
-			"uniq(anonymous_id) as visitors",
-		],
-		percentageOf: { of: "visitors" },
-		where: ["utm_medium != ''", "event_name = 'screen_view'"],
-		groupBy: ["utm_medium"],
-		orderBy: "visitors DESC",
-		limit: 100,
-		timeField: "time",
-		allowedFilters: [
-			"path",
-			"query_string",
-			"country",
-			"device_type",
-			"browser_name",
-			"os_name",
-			"referrer",
-			"utm_source",
-			"utm_medium",
-			"utm_campaign",
-		],
-		customizable: true,
-		plugins: {
-			sessionAttribution: true,
-		},
-	},
+	utm_mediums: utmDimension({
+		column: "utm_medium",
+		title: "UTM Mediums",
+		label: "UTM Medium",
+		noun: "medium",
+		description:
+			"Traffic breakdown by UTM medium parameters (e.g. cpc, email, social).",
+		tags: ["utm", "medium", "acquisition"],
+		sessionAttribution: true,
+	}),
 
-	utm_campaigns: {
-		meta: {
-			title: "UTM Campaigns",
-			description:
-				"Performance breakdown by UTM campaign parameters to track individual marketing campaign effectiveness.",
-			category: "Acquisition",
-			tags: ["utm", "campaigns", "marketing", "performance"],
-			output_fields: [
-				{
-					name: "name",
-					type: "string",
-					label: "Campaign Name",
-					description: "The UTM campaign parameter value",
-				},
-				{
-					name: "pageviews",
-					type: "number",
-					label: "Pageviews",
-					description: "Total pageviews from this campaign",
-				},
-				{
-					name: "visitors",
-					type: "number",
-					label: "Visitors",
-					description: "Unique visitors from this campaign",
-				},
-				{
-					name: "percentage",
-					type: "number",
-					label: "Traffic %",
-					description: "Percentage of total campaign traffic",
-					unit: "%",
-				},
-			],
-			default_visualization: "table",
-			supports_granularity: ["hour", "day"],
-			version: "1.0",
-		},
-		table: Analytics.events,
-		fields: [
-			"utm_campaign as name",
-			"COUNT(*) as pageviews",
-			"uniq(anonymous_id) as visitors",
-		],
-		percentageOf: { of: "visitors" },
-		where: ["utm_campaign != ''", "event_name = 'screen_view'"],
-		groupBy: ["utm_campaign"],
-		orderBy: "visitors DESC",
-		limit: 100,
-		timeField: "time",
-		allowedFilters: [
-			"path",
-			"query_string",
-			"country",
-			"device_type",
-			"browser_name",
-			"os_name",
-			"referrer",
-			"utm_source",
-			"utm_medium",
-			"utm_campaign",
-		],
-		customizable: true,
-		plugins: {
-			sessionAttribution: true,
-		},
-	},
+	utm_campaigns: utmDimension({
+		column: "utm_campaign",
+		title: "UTM Campaigns",
+		label: "Campaign Name",
+		noun: "campaign",
+		description:
+			"Performance breakdown by UTM campaign parameters to track individual marketing campaign effectiveness.",
+		tags: ["utm", "campaigns", "marketing", "performance"],
+		sessionAttribution: true,
+	}),
 
-	utm_terms: {
-		meta: {
-			title: "UTM Terms",
-			description:
-				"Traffic breakdown by UTM term parameters, typically used for keyword tracking in paid campaigns.",
-			category: "Acquisition",
-			tags: ["utm", "campaigns", "keywords", "terms"],
-			output_fields: [
-				{
-					name: "name",
-					type: "string",
-					label: "UTM Term",
-					description: "The UTM term parameter value",
-				},
-				{
-					name: "pageviews",
-					type: "number",
-					label: "Pageviews",
-					description: "Total pageviews from this term",
-				},
-				{
-					name: "visitors",
-					type: "number",
-					label: "Visitors",
-					description: "Unique visitors from this term",
-				},
-				{
-					name: "percentage",
-					type: "number",
-					label: "Traffic %",
-					description: "Percentage of total UTM traffic",
-					unit: "%",
-				},
-			],
-			default_visualization: "table",
-			supports_granularity: ["hour", "day"],
-			version: "1.0",
-		},
-		table: Analytics.events,
-		fields: [
-			"utm_term as name",
-			"COUNT(*) as pageviews",
-			"uniq(anonymous_id) as visitors",
-		],
-		percentageOf: { of: "visitors" },
-		where: [
-			"utm_term != ''",
-			"utm_term IS NOT NULL",
-			"event_name = 'screen_view'",
-		],
-		groupBy: ["utm_term"],
-		orderBy: "visitors DESC",
-		limit: 100,
-		timeField: "time",
-		allowedFilters: [
-			"path",
-			"query_string",
-			"country",
-			"device_type",
-			"browser_name",
-			"os_name",
-			"referrer",
-			"utm_source",
-			"utm_medium",
-			"utm_campaign",
-			"utm_term",
-		],
-		customizable: true,
-	},
+	utm_terms: utmDimension({
+		column: "utm_term",
+		title: "UTM Terms",
+		label: "UTM Term",
+		noun: "term",
+		description:
+			"Traffic breakdown by UTM term parameters, typically used for keyword tracking in paid campaigns.",
+		tags: ["utm", "campaigns", "keywords", "terms"],
+		requireNotNull: true,
+	}),
 
-	utm_content: {
-		meta: {
-			title: "UTM Content",
-			description:
-				"Traffic breakdown by UTM content parameters, used to differentiate similar content or links within the same campaign.",
-			category: "Acquisition",
-			tags: ["utm", "campaigns", "content", "creative"],
-			output_fields: [
-				{
-					name: "name",
-					type: "string",
-					label: "UTM Content",
-					description: "The UTM content parameter value",
-				},
-				{
-					name: "pageviews",
-					type: "number",
-					label: "Pageviews",
-					description: "Total pageviews from this content",
-				},
-				{
-					name: "visitors",
-					type: "number",
-					label: "Visitors",
-					description: "Unique visitors from this content",
-				},
-				{
-					name: "percentage",
-					type: "number",
-					label: "Traffic %",
-					description: "Percentage of total UTM traffic",
-					unit: "%",
-				},
-			],
-			default_visualization: "table",
-			supports_granularity: ["hour", "day"],
-			version: "1.0",
-		},
-		table: Analytics.events,
-		fields: [
-			"utm_content as name",
-			"COUNT(*) as pageviews",
-			"uniq(anonymous_id) as visitors",
-		],
-		percentageOf: { of: "visitors" },
-		where: [
-			"utm_content != ''",
-			"utm_content IS NOT NULL",
-			"event_name = 'screen_view'",
-		],
-		groupBy: ["utm_content"],
-		orderBy: "visitors DESC",
-		limit: 100,
-		timeField: "time",
-		allowedFilters: [
-			"path",
-			"query_string",
-			"country",
-			"device_type",
-			"browser_name",
-			"os_name",
-			"referrer",
-			"utm_source",
-			"utm_medium",
-			"utm_campaign",
-			"utm_content",
-		],
-		customizable: true,
-	},
+	utm_content: utmDimension({
+		column: "utm_content",
+		title: "UTM Content",
+		label: "UTM Content",
+		noun: "content",
+		description:
+			"Traffic breakdown by UTM content parameters, used to differentiate similar content or links within the same campaign.",
+		tags: ["utm", "campaigns", "content", "creative"],
+		requireNotNull: true,
+	}),
 
 	// SQL output only; parseReferrers plugin adds referrer/source/domain/referrer_type/parsed_referrer at runtime.
 	traffic_sources: {
