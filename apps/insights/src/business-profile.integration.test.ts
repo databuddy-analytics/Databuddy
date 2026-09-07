@@ -278,14 +278,51 @@ integration(
 			expect((await request.json()).metadata.websiteId).toBe(scope.websiteId);
 			readPage.mockClear();
 			const warmModel = model();
-			transport.mockResolvedValue(
-				Response.json({ id: "synthetic-document", status: "queued" })
-			);
+			let submitted: { content: string } | undefined;
+			transport.mockImplementation(async (input, init) => {
+				const request = new Request(input, init);
+				if (request.method === "POST") {
+					submitted = await request.json();
+					return Response.json({ id: "synthetic-document", status: "queued" });
+				}
+				return Response.json({ content: submitted?.content, status: "done" });
+			});
 			expect((await load(warmModel)).sources).toEqual(cold.sources);
 			const indexed = await stored();
 			expect(indexed.indexedRevision).toBe(indexed.revision);
 			expect(readPage).not.toHaveBeenCalled();
 			expect(warmModel.doGenerateCalls).toHaveLength(0);
+		});
+		it.each(["stale", "failed", "processing"])("does not acknowledge a %s Supermemory read and retries without model work", async (failure) => {
+			const original = await load();
+			const record = await stored();
+			provider.mockReturnValue(native);
+			let storedContent: string | undefined;
+			let recovered = false;
+			transport.mockImplementation(async (input, init) => {
+				const request = new Request(input, init);
+				if (request.method === "POST") {
+					storedContent = (await request.json()).content;
+					return Response.json({ id: "synthetic-document", status: "queued" });
+				}
+				return Response.json({
+					content: !recovered && failure === "stale" ? "Previous business brief" : storedContent,
+					status: !recovered && failure === "failed" ? "failed" : !recovered && failure === "processing" ? "extracting" : "done",
+					// Native de-duplication can retain old metadata for identical content.
+					metadata: { revision: record.revision - 1 },
+				});
+			});
+			const warm = model();
+			expect((await load(warm)).sources).toEqual(original.sources);
+			expect((await stored()).indexedRevision).toBeNull();
+			expect(transport).toHaveBeenCalledTimes(2);
+			recovered = true;
+			await load(warm);
+			expect((await stored()).indexedRevision).toBe(record.revision);
+			expect(transport).toHaveBeenCalledTimes(4);
+			await load(warm);
+			expect(transport).toHaveBeenCalledTimes(4);
+			expect(warm.doGenerateCalls).toHaveLength(0);
 		});
 		it("rejects an invalid model quotation while retaining the complete original pages", async () => {
 			const result = await load(model("A promise absent from every source."));

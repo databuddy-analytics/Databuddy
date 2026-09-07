@@ -199,37 +199,52 @@ async function syncBrief(
 				if (current?.revision !== record.revision) {
 					return false;
 				}
-				const result = await client.documents.add(
-					{
-						customId: `${businessContainerTag(scope)}_brief`,
-						containerTags: [businessContainerTag(scope)],
-						content: JSON.stringify({
-							brief: record.profile.brief,
-							sources: record.profile.sources.map(
-								({ id, kind, url, observedAt, author }) => ({
-									id,
-									kind,
-									url,
-									observedAt,
-									author,
-								})
-							),
-						}),
-						metadata: {
-							...canonicalBusinessScope(scope),
-							kind: "business_profile",
-							version: 1,
-							revision: record.revision,
-						},
+				const payload = {
+					customId: `${businessContainerTag(scope)}_brief`,
+					containerTags: [businessContainerTag(scope)],
+					content: JSON.stringify({
+						brief: record.profile.brief,
+						sources: record.profile.sources.map(
+							({ id, kind, url, observedAt, author }) => ({
+								id,
+								kind,
+								url,
+								observedAt,
+								author,
+							})
+						),
+					}),
+					metadata: {
+						...canonicalBusinessScope(scope),
+						kind: "business_profile",
+						version: 1,
+						revision: record.revision,
 					},
-					{ timeout: 4000, maxRetries: 0, signal }
-				);
+				};
+				const request = {
+					timeout: 4000,
+					maxRetries: 0,
+					signal: AbortSignal.any([
+						AbortSignal.timeout(4000),
+						...(signal ? [signal] : []),
+					]),
+				};
+				const result = await client.documents.add(payload, request);
 				if (
 					!result.id ||
 					result.status === "failed" ||
 					result.status === "error"
 				) {
 					throw new Error("Business brief index was not acknowledged");
+				}
+				// An add can acknowledge the previous document while it is processing.
+				// Verify submitted content so the next warm run retries stale writes.
+				// Identical content may retain older provider revision metadata.
+				const indexed = await client.documents.get(payload.customId, request);
+				if (indexed.content !== payload.content || indexed.status !== "done") {
+					throw new Error(
+						"Business brief content is not yet stored in the index"
+					);
 				}
 				return true;
 			}

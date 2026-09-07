@@ -84,6 +84,11 @@ indexing delays or outages. Public copy establishes what the business says, not
 internal event semantics inferred from a name or verified customer behavior. Explicit
 team corrections, guesses and historical metrics stay distinct from current evidence.
 
+An index acknowledgement requires a completed Supermemory document whose content
+exactly matches the submitted brief. Add and verification share a four-second network
+deadline; pending or stale content retries on a later warm load without model work.
+Identical content may retain older provider revision metadata.
+
 A cold profile reads the homepage and a bounded same-site map in parallel, chooses up
 to seven additional pages in one model call, and builds an optional brief in one more.
 Valid exact quotations orient the investigation; original page text remains available
