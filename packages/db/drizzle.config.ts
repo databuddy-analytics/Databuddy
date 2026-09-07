@@ -9,6 +9,7 @@ export default defineConfig({
 		"./src/drizzle/schema/api-keys.ts",
 		"./src/drizzle/schema/auth.ts",
 		"./src/drizzle/schema/billing.ts",
+		"./src/drizzle/schema/business-context.ts",
 		"./src/drizzle/schema/feedback.ts",
 		"./src/drizzle/schema/flags.ts",
 		"./src/drizzle/schema/identity.ts",

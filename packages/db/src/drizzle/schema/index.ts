@@ -4,6 +4,7 @@ export * from "./audit";
 export * from "./api-keys";
 export * from "./auth";
 export * from "./billing";
+export * from "./business-context";
 export * from "./feedback";
 export * from "./flags";
 export * from "./identity";
