@@ -1,9 +1,10 @@
-import { beforeAll, describe, expect, it } from "bun:test";
-import { chCommand } from "@databuddy/db/clickhouse";
+import { beforeAll, describe, expect, it, spyOn } from "bun:test";
+import { chCommand, clickHouse } from "@databuddy/db/clickhouse";
 import { randomUUIDv7 } from "bun";
 import {
 	getTotalWebsiteUsers,
 	processFunnelAnalytics,
+	processFunnelAnalyticsByReferrer,
 	processFunnelConversionCounts,
 	processGoalAnalytics,
 	queryLinkVisitorIds,
@@ -359,4 +360,54 @@ describeIntegration("goal and funnel visitor identity", () => {
 			expect(result.total_users_completed).toBe(expected);
 		});
 	}
+});
+
+describe("referrer query cancellation boundary", () => {
+	it.each([
+		false,
+		true,
+	])("forwards cancellation to the actual ClickHouse query (preaborted=%s)", async (preaborted) => {
+		const controller = new AbortController();
+		const reason = new Error("referrer read canceled");
+		let querySignal: AbortSignal | undefined;
+		const query = spyOn(clickHouse, "query").mockImplementation((options) => {
+			querySignal = options.abort_signal;
+			expect(options.query_params?.websiteId).toBe("synthetic-referrer-site");
+			expect(options.query_params?.startDate).toBe(startDate);
+			expect(options.query_params?.endDate).toBe(endDate);
+			return new Promise<never>((_resolve, reject) => {
+				querySignal?.addEventListener(
+					"abort",
+					() => reject(querySignal?.reason),
+					{ once: true }
+				);
+			});
+		});
+		try {
+			if (preaborted) controller.abort(reason);
+			const result = processFunnelAnalyticsByReferrer(
+				[
+					{
+						name: "Start",
+						step_number: 1,
+						target: "/start",
+						type: "PAGE_VIEW",
+					},
+				],
+				[],
+				queryParams("synthetic-referrer-site"),
+				controller.signal
+			);
+			if (!preaborted) {
+				expect(query).toHaveBeenCalledTimes(1);
+				expect(querySignal?.aborted).toBe(false);
+				controller.abort(reason);
+			}
+			await expect(result).rejects.toBe(reason);
+			expect(query).toHaveBeenCalledTimes(preaborted ? 0 : 1);
+			if (!preaborted) expect(querySignal?.reason).toBe(reason);
+		} finally {
+			query.mockRestore();
+		}
+	});
 });

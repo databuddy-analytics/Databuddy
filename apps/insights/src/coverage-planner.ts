@@ -81,6 +81,9 @@ export function coveragePortfolioLimit(
 }
 
 function signalGroup(signal: DetectedSignal): string {
+	if (signal.subjectKey?.includes(":referrer:")) {
+		return signal.subjectKey;
+	}
 	if (signal.subjectKey?.startsWith("route:") && signal.entityId) {
 		return `route-health:${signal.entityId}`;
 	}

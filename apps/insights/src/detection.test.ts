@@ -1559,6 +1559,165 @@ describe("detectSignals", () => {
 	});
 
 	describe("revenue detection", () => {
+		it("matches unchanged currencies regardless of row order", async () => {
+			const usd = {
+				currency: "USD",
+				total_revenue: 10000,
+				total_transactions: 100,
+			};
+			const eur = {
+				currency: "EUR",
+				total_revenue: 15000,
+				total_transactions: 100,
+			};
+			const signals = await detectSignals(
+				BASE_PARAMS,
+				createMockQueryFn(
+					[],
+					{},
+					{},
+					{
+						revenue_overview: [
+							[eur, usd],
+							[usd, eur],
+						],
+					}
+				)
+			);
+			expect(signals.filter((signal) => signal.metric === "revenue")).toEqual([]);
+		});
+		it("keeps separate currency identities through preparation and exact remeasurement", async () => {
+			const params = { ...BASE_PARAMS, lookbackDays: 7 };
+			const today = dayjs.utc("2026-09-05");
+			const before = [
+				{ currency: "USD", total_revenue: 10000, total_transactions: 100 },
+				{ currency: "EUR", total_revenue: 15000, total_transactions: 100 },
+			];
+			const after = [
+				{ ...before[1], total_revenue: 6000 },
+				{ ...before[0], total_revenue: 6000 },
+			];
+			const signals = (
+				await detectSignals(
+					params,
+					createMockQueryFn([], {}, {}, { revenue_overview: [after, before] }),
+					today
+				)
+			).filter((signal) => signal.metric === "revenue");
+			expect(signals.map((signal) => signal.subjectKey).sort()).toEqual([
+				"revenue:EUR",
+				"revenue:USD",
+			]);
+			for (const candidate of signals) {
+				const prepared = prepareInvestigation(candidate, 7);
+				expect(prepared.signal.signalKey).toBe(candidate.subjectKey);
+				expect(prepared.signal.entity.label).toBe(candidate.label);
+				expect(prepared.evidence.join(" ")).toContain("gross settled revenue");
+				const calls: Parameters<QueryFn>[0][] = [];
+				const response = createMockQueryFn(
+					[],
+					{},
+					{},
+					{ revenue_overview: [after, before] }
+				);
+				const query: QueryFn = (request, ...args) => {
+					calls.push(request);
+					return response(request, ...args);
+				};
+				const measured = await remeasureMetricSignal(
+					params,
+					prepared.signal,
+					query,
+					today
+				);
+				expect(measured).toMatchObject({
+					subjectKey: candidate.subjectKey,
+					current: 6000,
+					baseline: candidate.baseline,
+				});
+				expect(calls.map(({ from, to }) => ({ from, to }))).toEqual([
+					{ from: "2026-08-29", to: "2026-09-04" },
+					{ from: "2026-08-22", to: "2026-08-28" },
+				]);
+				expect(calls.map((call) => call.filters)).toEqual(
+					Array.from({ length: 2 }, () => [
+						{
+							field: "currency",
+							op: "eq",
+							value: prepared.signal.signalKey.slice(8),
+						},
+					])
+				);
+			}
+		});
+		it.each([
+			"missing current",
+			"missing previous",
+			"missing identity",
+			"invalid identity",
+		])("does not invent a zero for %s", async (scenario) => {
+			const row = {
+				currency: "USD",
+				total_revenue: 10000,
+				total_transactions: 100,
+			};
+			const before = scenario === "missing previous" ? [] : [row];
+			const after =
+				scenario === "missing current"
+					? []
+					: [
+							{
+								...row,
+								currency:
+									scenario === "missing identity"
+										? undefined
+										: scenario === "invalid identity"
+											? "not-currency"
+											: "USD",
+								total_revenue: 1000,
+							},
+						];
+			const signals = await detectSignals(
+				BASE_PARAMS,
+				createMockQueryFn([], {}, {}, { revenue_overview: [after, before] })
+			);
+			expect(signals.filter((signal) => signal.metric === "revenue")).toEqual([]);
+		});
+		it.each([
+			"revenue",
+			"revenue:USD",
+			"revenue:invalid",
+		])("leaves unbound or missing-currency rechecks inconclusive: %s", async (signalKey) => {
+			const signal = prepareInvestigation(
+				{
+					metric: "revenue",
+					label: "USD revenue",
+					current: 6000,
+					baseline: 10000,
+					deltaPercent: -40,
+					direction: "down",
+					method: "wow",
+					severity: "warning",
+					detectedAt: "2026-09-04",
+				},
+				7
+			).signal;
+			const query = createMockQueryFn(
+				[],
+				{},
+				{},
+				{
+					revenue_overview: [
+						[{ currency: "EUR", total_revenue: 5000 }],
+						[{ currency: "USD", total_revenue: 10000 }],
+					],
+				}
+			);
+			expect(
+				await remeasureMetricSignal(BASE_PARAMS, { ...signal, signalKey }, query)
+			).toBeNull();
+		});
+
 		for (const { name, current, previous, expected } of [
 			{
 				name: "flags new revenue appearing",
@@ -1595,7 +1754,10 @@ describe("detectSignals", () => {
 				const signals = await detectSignals(
 					BASE_PARAMS,
 					createMockQueryFn([], {}, {}, {
-						revenue_overview: [current, previous],
+						revenue_overview: [
+							{ currency: "USD", ...current },
+							{ currency: "USD", ...previous },
+						],
 					})
 				);
 				const revenue = signals.find((signal) => signal.metric === "revenue");
@@ -1927,4 +2089,214 @@ describe("detectSignals", () => {
 			]);
 		});
 	});
+});
+
+describe("independent commercial discovery", () => {
+	const previous = {
+		currency: "USD",
+		total_revenue: 40_000,
+		total_transactions: 400,
+		refund_amount: -500,
+		refund_count: 5,
+		attributed_revenue: 38_000,
+	};
+	const changed = {
+		...previous,
+		refund_amount: -2500,
+		refund_count: 25,
+		attributed_revenue: 20_000,
+	};
+	const keys = ["attribution_rate:USD", "refund_amount:USD"];
+	for (const [name, current, before, expected] of [
+		[
+			"flat gross does not hide refunds or attribution",
+			changed,
+			previous,
+			keys,
+		],
+		[
+			"material refund amounts are independent of unchanged refund counts",
+			{
+				...changed,
+				refund_count: 5,
+				attributed_revenue: previous.attributed_revenue,
+			},
+			previous,
+			["refund_amount:USD"],
+		],
+		[
+			"positive refund magnitudes retain compatibility",
+			{ ...changed, refund_amount: 2500 },
+			{ ...previous, refund_amount: 500 },
+			keys,
+		],
+		[
+			"invalid optional refunds do not suppress valid attribution",
+			{ ...changed, refund_amount: Number.POSITIVE_INFINITY },
+			previous,
+			["attribution_rate:USD"],
+		],
+		[
+			"invalid optional attribution does not suppress valid refunds",
+			{ ...changed, attributed_revenue: "not measured" },
+			previous,
+			["refund_amount:USD"],
+		],
+		[
+			"negative counts cannot create a refund finding",
+			{ ...changed, refund_count: -25 },
+			previous,
+			["attribution_rate:USD"],
+		],
+		[
+			"invalid gross suppresses ratios and relative materiality",
+			{ ...changed, total_revenue: Number.NaN },
+			previous,
+			[],
+		],
+		["unchanged commercial activity stays quiet", previous, previous, []],
+		[
+			"sparse settlements do not establish a commercial alert",
+			{ ...changed, total_transactions: 3 },
+			{ ...previous, total_transactions: 3 },
+			[],
+		],
+		[
+			"missing refund counts preserve the independent attribution alert",
+			{ ...changed, refund_count: null },
+			previous,
+			["attribution_rate:USD"],
+		],
+		[
+			"missing attribution preserves the independent refund alert",
+			{ ...changed, attributed_revenue: null },
+			previous,
+			["refund_amount:USD"],
+		],
+		[
+			"absent measurements are not zero",
+			{
+				...changed,
+				refund_amount: null,
+				refund_count: null,
+				attributed_revenue: null,
+			},
+			previous,
+			[],
+		],
+		[
+			"small refund movement stays quiet",
+			{ ...previous, refund_amount: -520 },
+			previous,
+			[],
+		],
+		[
+			"invalid attribution cannot become a coverage alert",
+			{ ...changed, attributed_revenue: 50_000 },
+			previous,
+			["refund_amount:USD"],
+		],
+	] as const) {
+		it(name, async () => {
+			const signals = await detectSignals(
+				{ ...BASE_PARAMS, lookbackDays: 7 },
+				createMockQueryFn(
+					[],
+					{ sessions: 0 },
+					{ sessions: 0 },
+					{ revenue_overview: [current, before] }
+				),
+				dayjs("2026-09-07")
+			);
+			expect(signals.map((signal) => signal.subjectKey).sort()).toEqual(
+				expected
+			);
+		});
+	}
+	it("matches currency rows and native numeric strings without inventing website traffic", async () => {
+		const strings = (row: Record<string, unknown>) =>
+			Object.fromEntries(
+				Object.entries(row).map(([key, value]) => [
+					key,
+					typeof value === "number" ? String(value) : value,
+				])
+			);
+		const euro = {
+			...previous,
+			currency: "EUR",
+			total_revenue: 100_000,
+			attributed_revenue: 90_000,
+		};
+		const signals = await detectSignals(
+			{ ...BASE_PARAMS, lookbackDays: 7 },
+			createMockQueryFn(
+				[],
+				{ sessions: 0 },
+				{ sessions: 0 },
+				{
+					revenue_overview: [
+						[euro, strings(changed)],
+						[strings(previous), euro],
+					],
+				}
+			),
+			dayjs("2026-09-07")
+		);
+		expect(signals.map((signal) => signal.subjectKey).sort()).toEqual(keys);
+		const prepared = signals.map((signal) => prepareInvestigation(signal, 7));
+		expect(prepared.every((item) => item.investigationObjective)).toBe(true);
+		expect(
+			prepared.every((item) =>
+				item.evidence.every(
+					(value) => !value.includes("Machine-selected investigation objective")
+				)
+			)
+		).toBe(true);
+	});
+	for (const [
+		name,
+		current,
+		before,
+		currentMagnitude,
+		previousMagnitude,
+		sentiment,
+	] of [
+		["worsening", changed, previous, 2500, 500, "negative"],
+		["improving", previous, changed, 500, 2500, "positive"],
+		["unchanged recheck", previous, previous, 500, 500, "neutral"],
+	] as const) {
+		it(`signed refund ${name} preserves amount, identity and sentiment on recheck`, async () => {
+			const params = { ...BASE_PARAMS, lookbackDays: 7 };
+			const detected = await detectSignals(
+				params,
+				createMockQueryFn(
+					[],
+					{},
+					{},
+					{ revenue_overview: [changed, previous] }
+				),
+				dayjs("2026-09-07")
+			);
+			const refund = detected.find(
+				(signal) => signal.subjectKey === "refund_amount:USD"
+			);
+			if (!refund) throw new Error("Missing signed refund candidate");
+			const prior = prepareInvestigation(refund, 7).signal;
+			expect(prior.sentiment).toBe("negative");
+			expect(prior.metric.current).toBe(2500);
+			const measured = await remeasureMetricSignal(
+				params,
+				prior,
+				createMockQueryFn([], {}, {}, { revenue_overview: [current, before] }),
+				dayjs("2026-09-08")
+			);
+			if (!measured) throw new Error("Missing exact refund remeasurement");
+			expect(measured.subjectKey).toBe("refund_amount:USD");
+			expect(measured.current).toBe(currentMagnitude);
+			expect(measured.baseline).toBe(previousMagnitude);
+			expect(prepareInvestigation(measured, 7).signal.sentiment).toBe(
+				sentiment
+			);
+		});
+	}
 });

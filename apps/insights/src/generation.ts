@@ -483,6 +483,7 @@ function toPlannedCandidate(
 	);
 	return {
 		evidence: investigation.evidence,
+		investigationObjective: investigation.investigationObjective,
 		signal: investigation.signal,
 	};
 }
@@ -863,6 +864,7 @@ async function investigatePlannedCandidate(
 				: {}),
 			history,
 			otherOpenWork: [...otherOpenWork, ...siblingOpenWork],
+			investigationObjective: candidate.investigationObjective,
 			relatedSignals,
 			signal: candidate.signal,
 		});
