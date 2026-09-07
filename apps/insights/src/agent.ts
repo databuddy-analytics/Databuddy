@@ -32,6 +32,7 @@ import {
 	ToolLoopAgent,
 } from "ai";
 import type { ErrorCustomerImpact } from "./error-customer-impact";
+import { signalKeyForDetectedSignal } from "./investigation";
 
 const MAX_STEPS = 8;
 const TIMEOUT_MS = 2 * 60_000;
@@ -59,7 +60,7 @@ const revenueEvidenceSchema = z
 			.max(4),
 	})
 	.describe(
-		"For revenue_overview, select complementary fields: gross revenue, settled transactions, refunds, and attributed revenue when it differs from gross. Select only fields with a non-null value in every cited period. Omit redundant subtotals and diagnostic availability flags. One entry per currency; use a second for a useful currency control. Cite both complete comparison windows in each evidenceRefs entry. Code supplies labels, values, periods and deltas; preserve supported comparisons when correcting format."
+		"For revenue_overview, select complementary fields: gross revenue, settled transactions, refunds, and attributed revenue when it differs from gross. Select only fields with a non-null value in every cited period. Omit redundant subtotals and diagnostic availability flags. One entry per measured population; a payment-description comparison uses a second entry for the whole-currency control. Cite both complete comparison windows in each evidenceRefs entry. Code supplies labels, values, periods and deltas; preserve supported comparisons when correcting format."
 	);
 const finishSchema = z.object(agentInvestigationOutcomeSchema.shape).extend({
 	evidence: z
@@ -72,19 +73,30 @@ const finishSchema = z.object(agentInvestigationOutcomeSchema.shape).extend({
 		.min(1)
 		.max(2)
 		.describe(
-			"Every revenue_overview entry, including unchanged controls, must be {currency, fields}. Use text only for other sources. Keep only comparisons that change the interpretation."
+			"Every revenue_overview entry, including unchanged controls, must be {currency, fields}. Receipt-description and whole-currency entries cite separate result pairs. Use text only for other sources. Keep only comparisons that change the interpretation."
 		),
+});
+
+const revenueReadingSchema = z.object({
+	type: z.literal("revenue_overview"),
+	websiteId: z.string().min(1),
+	from: z.iso.date(),
+	to: z.iso.date(),
+	timezone: z.string(),
+	filters: z.array(
+		z.object({ field: z.string(), op: z.string(), value: z.unknown() })
+	),
+	data: z.array(z.record(z.string(), z.unknown())),
 });
 
 export function renderRevenueEvidence(
 	selection: z.infer<typeof revenueEvidenceSchema>,
 	sources: unknown,
 	input: Pick<InsightAgentInput, "appContext">
-): string {
+) {
 	const readings = z
 		.array(
-			z.object({
-				type: z.literal("revenue_overview"),
+			revenueReadingSchema.extend({
 				websiteId: z.literal(
 					z
 						.string()
@@ -93,13 +105,7 @@ export function renderRevenueEvidence(
 							input.appContext.websiteId ?? input.appContext.defaultWebsiteId
 						)
 				),
-				from: z.iso.date(),
-				to: z.iso.date(),
 				timezone: z.literal(input.appContext.timezone ?? "UTC"),
-				filters: z.array(
-					z.object({ field: z.string(), op: z.string(), value: z.unknown() })
-				),
-				data: z.array(z.record(z.string(), z.unknown())),
 			})
 		)
 		.length(2)
@@ -156,7 +162,85 @@ export function renderRevenueEvidence(
 		const delta = values[1] - values[0];
 		return `${field.label ?? name.replaceAll("_", " ")}${field.unit ? ` (${field.unit})` : ""}: ${values.map((value) => format.format(value)).join(" → ")}${delta === 0 ? "" : ` (${delta > 0 ? "+" : ""}${format.format(delta)}${field.unit === "%" ? " pp" : ""})`}`;
 	});
-	return `${selection.currency}${first.filters.some((filter) => filter.field !== "currency") ? " (filtered population)" : ""}, ${readings.map((reading) => `${reading.from}–${reading.to}`).join(" → ")} ${first.timezone}: ${facts.join("; ")}.`;
+	const description = first.filters.find(
+		(filter) => filter.field === "product_name" && filter.op === "eq"
+	);
+	const provider = first.filters.find(
+		(filter) => filter.field === "provider" && filter.op === "eq"
+	);
+	const unidentified = first.filters.some(
+		(filter) =>
+			filter.field === "product_id" && filter.op === "eq" && filter.value === ""
+	);
+	const population = description
+		? ` (${provider ? `${String(provider.value)} ` : ""}receipts described ${String(description.value)}${unidentified ? " with no product ID" : ""})`
+		: first.filters.some((filter) => filter.field !== "currency")
+			? " (filtered population)"
+			: "";
+	return {
+		...selection,
+		readings,
+		rows,
+		text: `${selection.currency}${population}, ${readings.map((reading) => `${reading.from}–${reading.to}`).join(" → ")} ${first.timezone}: ${facts.join("; ")}.`,
+	};
+}
+
+function hasProductRevenueEvidence(
+	signal: InvestigationSignal,
+	evidence: ReturnType<typeof renderRevenueEvidence>[]
+): boolean {
+	const [, currency, provider, selector] = signal.signalKey.split(":");
+	if (
+		selector !== "product_name" ||
+		signalKeyForDetectedSignal({
+			metric: "product_revenue",
+			subjectKey: `product_revenue:${currency}:${provider}:product_name:${encodeURIComponent(signal.entity.id)}`,
+		}) !== signal.signalKey
+	) {
+		return false;
+	}
+	const wholeFilters = [{ field: "currency", op: "eq", value: currency }];
+	const productFilters = [
+		...wholeFilters,
+		{ field: "provider", op: "eq", value: provider },
+		{ field: "product_name", op: "eq", value: signal.entity.id },
+		{ field: "product_id", op: "eq", value: "" },
+	].sort((a, b) => a.field.localeCompare(b.field));
+	// Reuse the renderer's validated native rows, dates, currency and finite values.
+	const matching = evidence.filter(
+		(entry) =>
+			entry.currency === currency &&
+			entry.fields.includes("total_revenue") &&
+			entry.readings.every((reading, index) => {
+				const period =
+					index === 0 ? signal.period.previous : signal.period.current;
+				return reading.from === period.from && reading.to === period.to;
+			})
+	);
+	const product = matching.find((entry) =>
+		entry.readings.every((reading) =>
+			isDeepStrictEqual(
+				[...reading.filters].sort((a, b) => a.field.localeCompare(b.field)),
+				productFilters
+			)
+		)
+	);
+	const whole = matching.find((entry) =>
+		entry.readings.every(
+			(reading) =>
+				reading.filters.length === 0 ||
+				isDeepStrictEqual(reading.filters, wholeFilters)
+		)
+	);
+	return Boolean(
+		product &&
+			whole &&
+			product.rows.every((row, index) => {
+				const amount = Number(row.total_revenue);
+				const total = Number(whole.rows[index].total_revenue);
+				return amount >= 0 && total > 0 && amount <= total;
+			})
+	);
 }
 
 function aggregateUsage(usages: LanguageModelUsage[]): LanguageModelUsage {
@@ -1015,6 +1099,15 @@ function validateAgentOutcome(
 	}
 	if (
 		outcome.publish &&
+		signalKey.startsWith("product_revenue:") &&
+		!hasNativeRevenueEvidence
+	) {
+		throw new Error(
+			"Receipt-description findings require gross revenue evidence for this exact currency, provider and product_name with product_id=empty string, plus whole-currency controls, each from both complete signal windows. Use separate revenue_overview pairs; a snapshot or limited table cannot replace them."
+		);
+	}
+	if (
+		outcome.publish &&
 		signalKey.startsWith("attribution_rate:") &&
 		!hasNativeRevenueEvidence
 	) {
@@ -1346,6 +1439,7 @@ export async function runInsightAgent(
 						input,
 						results
 					);
+					const nativeRevenue: ReturnType<typeof renderRevenueEvidence>[] = [];
 					const evidence = candidate.evidence.map((item, index) => {
 						if (typeof item !== "string") {
 							const references = candidate.evidenceRefs[index];
@@ -1358,7 +1452,13 @@ export async function runInsightAgent(
 									"Structured revenue evidence requires exact successful get_data result references."
 								);
 							}
-							return renderRevenueEvidence(item, citedEvidence[index], input);
+							const native = renderRevenueEvidence(
+								item,
+								citedEvidence[index],
+								input
+							);
+							nativeRevenue.push(native);
+							return native.text;
 						}
 						if (
 							citedEvidence[index].some(
@@ -1418,20 +1518,21 @@ export async function runInsightAgent(
 						usedToolNames,
 						results,
 						attemptedToolNames,
-						candidate.evidence.some(
-							(item) =>
-								typeof item !== "string" &&
-								((item.fields.includes("total_revenue") &&
-									input.signal.signalKey === `revenue:${item.currency}`) ||
-									(item.fields.includes("refund_amount") &&
-										item.fields.includes("refund_count") &&
-										input.signal.signalKey ===
-											`refund_amount:${item.currency}`) ||
-									(item.fields.includes("attributed_revenue") &&
-										item.fields.includes("total_revenue") &&
-										input.signal.signalKey ===
-											`attribution_rate:${item.currency}`))
-						)
+						input.signal.signalKey.startsWith("product_revenue:")
+							? hasProductRevenueEvidence(input.signal, nativeRevenue)
+							: nativeRevenue.some(
+									(item) =>
+										(item.fields.includes("total_revenue") &&
+											input.signal.signalKey === `revenue:${item.currency}`) ||
+										(item.fields.includes("refund_amount") &&
+											item.fields.includes("refund_count") &&
+											input.signal.signalKey ===
+												`refund_amount:${item.currency}`) ||
+										(item.fields.includes("attributed_revenue") &&
+											item.fields.includes("total_revenue") &&
+											input.signal.signalKey ===
+												`attribution_rate:${item.currency}`)
+								)
 					);
 					const serialize = (value: unknown) =>
 						JSON.stringify(value, (_key, item) =>

@@ -969,6 +969,49 @@ describe("SimpleQueryBuilder.compile", () => {
 		expect(params.rf0).toBe("EUR");
 	});
 
+	it("preserves named product groups and compiles an exact unidentified payment description", () => {
+		const filters = [
+			{ field: "currency", op: "eq" as const, value: "USD" },
+			{ field: "provider", op: "eq" as const, value: "stripe" },
+			{ field: "product_name", op: "eq" as const, value: "Team" },
+			{ field: "product_id", op: "eq" as const, value: "" },
+		];
+		const product = compileBuilder(
+			"revenue_by_product",
+			QueryBuilders.revenue_by_product,
+			{ limit: 20, filters }
+		);
+		expect(product.sql).toContain(
+			"GROUP BY revenue_provider, product_name, product_id, currency"
+		);
+		expect(product.sql).toContain("coalesce(product_name, 'Unknown') as name");
+		expect(product.sql).not.toContain("argMax(product_name, created)");
+		expect(product.sql).toContain("sumIf(amount, type != 'refund') as revenue");
+		expect(product.sql).toContain(
+			"currency = {rf0:String} AND revenue_provider = {rf1:String} AND product_name = {rf2:String} AND ifNull(product_id, '') = {rf3:String}"
+		);
+		expect(product.params).toMatchObject({
+			rf0: "USD",
+			rf1: "stripe",
+			rf2: "Team",
+			rf3: "",
+			limit: 20,
+		});
+		const overview = compileBuilder(
+			"revenue_overview",
+			QueryBuilders.revenue_overview,
+			{ filters }
+		);
+		expect(overview.sql).toContain(
+			"AND product_name = {rf2:String} AND ifNull(product_id, '') = {rf3:String}"
+		);
+		expect(overview.sql).toContain("toUInt8(0) AS payment_metrics_in_scope");
+		expect(overview.sql).toContain(
+			"FROM stripe_payment_attempts WHERE currency = {rf0:String} AND 0"
+		);
+		expect(overview.params.rf3).toBe("");
+	});
+
 	it("keeps error_fingerprints private", () => {
 		expect(QueryBuilders.error_fingerprints?.publicAccess).not.toBe(true);
 	});

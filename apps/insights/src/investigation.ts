@@ -160,7 +160,12 @@ export function isInvestigationCandidate(signal: DetectedSignal): boolean {
 	}
 	return (
 		isRegression(signal) ||
-		["revenue", "refund_amount", "attribution_rate"].includes(signal.metric) ||
+		[
+			"revenue",
+			"product_revenue",
+			"refund_amount",
+			"attribution_rate",
+		].includes(signal.metric) ||
 		(isConversionDefinitionSignal(signal) &&
 			signal.current - signal.baseline >= 10 &&
 			signal.deltaPercent >= 30)
@@ -245,6 +250,13 @@ function entity(signal: DetectedSignal): InvestigationSignal["entity"] {
 			// their entity must stay the configured definition so goal actions and
 			// funnel links continue to resolve the real ID.
 			id: boundedKey(idParts[0]?.trim() || rawId),
+			label: (signal.entityLabel ?? signal.label).slice(0, 120),
+		};
+	}
+	if (prefix === "product_revenue" && signal.entityId) {
+		return {
+			type: "website",
+			id: signal.entityId,
 			label: (signal.entityLabel ?? signal.label).slice(0, 120),
 		};
 	}
