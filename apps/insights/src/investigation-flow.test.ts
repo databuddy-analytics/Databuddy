@@ -3125,6 +3125,164 @@ describe("structured revenue evidence", () => {
 			await expect(run).rejects.toThrow("Attribution findings require native");
 	});
 
+	it.each([
+		"valid",
+		"missing-control",
+		"snapshot",
+		"wrong-product",
+		"wrong-provider",
+		"wrong-currency",
+		"filtered-control",
+		"wrong-period",
+		"missing-row",
+		"null-amount",
+		"exceeds-control",
+		"private",
+	] as const)("binds product publication to exact native subject and whole controls: %s", async (variant) => {
+		const productSignal: InvestigationSignal = {
+			...signal,
+			signalKey: "product_revenue:USD:stripe:team",
+			entity: { type: "website", id: "team", label: "Team" },
+			metric: {
+				label: "Team USD gross revenue",
+				current: 15000,
+				previous: 30000,
+				format: "number",
+			},
+		};
+		const productReadings = readings.map((reading, index) => ({
+			...reading,
+			...(variant === "wrong-period"
+				? {
+						from: index === 0 ? "2026-06-14" : "2026-06-07",
+						to: index === 0 ? "2026-06-20" : "2026-06-13",
+					}
+				: {}),
+			filters: [
+				{
+					field: "currency",
+					op: "eq",
+					value: variant === "wrong-currency" ? "EUR" : "USD",
+				},
+				{
+					field: "provider",
+					op: "eq",
+					value: variant === "wrong-provider" ? "paddle" : "stripe",
+				},
+				{
+					field: "product_id",
+					op: "eq",
+					value: variant === "wrong-product" ? "solo" : "team",
+				},
+			],
+			data:
+				variant === "missing-row"
+					? []
+					: [
+							{
+								currency: "USD",
+								total_revenue:
+									variant === "null-amount"
+										? null
+										: variant === "exceeds-control"
+											? 50000
+											: index === 0
+												? 15000
+												: 30000,
+							},
+						],
+		}));
+		const wholeReadings = readings.map((reading) => ({
+			...reading,
+			filters:
+				variant === "filtered-control"
+					? [{ field: "country", op: "eq", value: "US" }]
+					: [],
+			data: [{ currency: "USD", total_revenue: 40000 }],
+		}));
+		const pairs = [productReadings, wholeReadings];
+		const snapshot = variant === "snapshot" || variant === "private";
+		const proposal = {
+			findingKind: snapshot ? "measurement_coverage" : "product_outcome",
+			title: "Team receipts fell behind the stable total",
+			summary: "Other products offset the decline in Team receipts.",
+			rootCause: null,
+			evidence: snapshot
+				? ["Team receipts fell behind stable gross."]
+				: [
+						{ currency: "USD", fields: ["total_revenue"] },
+						...(variant === "missing-control"
+							? []
+							: [{ currency: "USD", fields: ["total_revenue"] }]),
+					],
+			evidenceRefs: snapshot
+				? [{ source: "provided", index: 0 }]
+				: [0, ...(variant === "missing-control" ? [] : [1])].map((pair) =>
+						[0, 1].map((period) => ({
+							source: "tool",
+							name: "get_data",
+							toolCallId: "get_data-1",
+							resultKey: `${pair}-${period}`,
+						}))
+					),
+			publish: variant !== "private",
+			publicationBasis:
+				variant === "private"
+					? null
+					: snapshot
+						? "decision_safety"
+						: "measured_impact",
+			next: {
+				type: "resolve",
+				reason: "An inspected cause is not established.",
+			},
+		};
+		const run = runInsightAgent(
+			{
+				...input,
+				signal: productSignal,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				evidence: ["Team receipts fell behind stable gross."],
+			},
+			{
+				model: new MockLanguageModelV3({
+					doGenerate: snapshot
+						? outputResponse(proposal)
+						: mockValues(
+								toolCallResponse("get_data"),
+								outputResponse(proposal)
+							),
+				}),
+				tools: {
+					get_data: tool({
+						description: "Native revenue measurement",
+						inputSchema: z.object({}),
+						execute: () => ({
+							results: Object.fromEntries(
+								pairs.flatMap((pair, pairIndex) =>
+									pair.map((reading, period) => [
+										`${pairIndex}-${period}`,
+										reading,
+									])
+								)
+							),
+						}),
+					}),
+				},
+			}
+		);
+		if (variant === "valid") {
+			const result = await run;
+			expect(result.outcome.publish).toBe(true);
+			expect(result.outcome.evidence[0]).toContain("stripe product team");
+			expect(result.outcome.evidence[1]).toContain("40,000 → 40,000");
+		} else if (variant === "private")
+			expect((await run).outcome.publish).toBe(false);
+		else await expect(run).rejects.toThrow();
+	});
+
 	it("binds metrics to their labels and computes a refund delta absent from the source", () => {
 		expect(renderRevenueEvidence(selection, readings, input)).toBe(
 			"USD, 2026-06-28–2026-07-04 → 2026-07-05–2026-07-11 UTC: Gross Revenue: 10,000 → 10,000; Settled Transactions: 100 → 100; Refund Amount: 200 → 1,200 (+1,000)."

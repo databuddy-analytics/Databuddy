@@ -81,6 +81,9 @@ export function coveragePortfolioLimit(
 }
 
 function signalGroup(signal: DetectedSignal): string {
+	if (signal.subjectKey?.startsWith("product_revenue:")) {
+		return signal.subjectKey.split(":").slice(0, 2).join(":");
+	}
 	if (signal.subjectKey?.includes(":referrer:")) {
 		return signal.subjectKey;
 	}
