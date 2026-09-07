@@ -590,6 +590,7 @@ describe("intelligence agent", () => {
 		"unanchored",
 		"past-window",
 		"wrong-units",
+		"referrer-check",
 	] as const)("validates a definition repair and saved verification: %s", async (scenario) => {
 		const native = scenario.startsWith("native");
 		const current = {
@@ -681,7 +682,13 @@ describe("intelligence agent", () => {
 				githubRepository: null,
 				history: [],
 				otherOpenWork: [],
-				signal: funnelSignal,
+				signal:
+					scenario === "referrer-check"
+						? {
+								...funnelSignal,
+								signalKey: "funnel:checkout:referrer:paid.example",
+							}
+						: funnelSignal,
 			},
 			{
 				model: new MockLanguageModelV3({
@@ -1809,6 +1816,8 @@ describe("intelligence agent", () => {
 		"invalid-count",
 		"no-read",
 		"newer-resolution",
+		"referrer-rate",
+		"referrer-count",
 	] as const)("binds verification to the exact measurement: %s", async (scenario) => {
 		const check = {
 			definition: {
@@ -1819,7 +1828,7 @@ describe("intelligence agent", () => {
 				filters: [],
 			},
 			metric:
-				scenario === "failed-rate"
+				scenario === "failed-rate" || scenario === "referrer-rate"
 					? ("overall_conversion_rate" as const)
 					: ("total_users_completed" as const),
 			startDate: "2026-07-05",
@@ -1828,7 +1837,12 @@ describe("intelligence agent", () => {
 			threshold: {
 				anchor: "prior_baseline" as const,
 				comparison: "at_or_above" as const,
-				value: scenario === "failed-rate" ? 80 : 100,
+				value:
+					scenario === "failed-rate"
+						? 80
+						: scenario === "referrer-rate"
+							? 40
+							: 100,
 				evidenceRef: { source: "signal" as const },
 			},
 		};
@@ -1879,7 +1893,12 @@ describe("intelligence agent", () => {
 			asOf: "2026-07-01T00:00:00Z",
 			evidence: [],
 			kind: "investigation" as const,
-			signal: funnelSignal,
+			signal: scenario.startsWith("referrer-")
+				? {
+						...funnelSignal,
+						signalKey: "funnel:checkout:referrer:paid.example",
+					}
+				: funnelSignal,
 			outcome: { ...outcome, next: { ...agentOutcome.next, check } },
 		};
 		const result = await runInsightAgent(
@@ -1894,7 +1913,12 @@ describe("intelligence agent", () => {
 				evidence: [],
 				githubRepository: null,
 				otherOpenWork: [],
-				signal: funnelSignal,
+				signal: scenario.startsWith("referrer-")
+					? {
+							...funnelSignal,
+							signalKey: "funnel:checkout:referrer:paid.example",
+						}
+					: funnelSignal,
 				history:
 					scenario === "newer-resolution"
 						? [
@@ -2700,6 +2724,8 @@ describe("structured revenue evidence", () => {
 					total_revenue: "10000",
 					total_transactions: 100,
 					refund_amount: index === 0 ? "1200" : "200",
+					refund_count: index === 0 ? 12 : 2,
+					attributed_revenue: index === 0 ? 3000 : 9000,
 				},
 			],
 		})
@@ -2711,6 +2737,44 @@ describe("structured revenue evidence", () => {
 	const input = { appContext: appContext(), signal };
 
 	it.each([
+		[
+			"refund_amount:USD",
+			["refund_amount", "refund_count"],
+			"product_outcome",
+			true,
+		],
+		[
+			"refund_amount:EUR",
+			["refund_amount", "refund_count"],
+			"product_outcome",
+			false,
+		],
+		["refund_amount:USD", ["total_revenue"], "product_outcome", false],
+		["refund_amount:USD", ["refund_amount"], "product_outcome", false],
+		[
+			"attribution_rate:USD",
+			["attributed_revenue", "total_revenue"],
+			"measurement_coverage",
+			true,
+		],
+		[
+			"attribution_rate:USD",
+			["attributed_revenue", "total_revenue"],
+			"product_outcome",
+			false,
+		],
+		[
+			"attribution_rate:EUR",
+			["attributed_revenue", "total_revenue"],
+			"measurement_coverage",
+			false,
+		],
+		[
+			"attribution_rate:USD",
+			["attributed_revenue"],
+			"measurement_coverage",
+			false,
+		],
 		["revenue", ["total_revenue"], "product_outcome", false],
 		["revenue:USD", ["total_revenue"], "product_outcome", true],
 		["revenue:EUR", ["total_revenue"], "product_outcome", false],
@@ -2793,7 +2857,116 @@ describe("structured revenue evidence", () => {
 			}
 		);
 		if (accepted) expect((await run).outcome.publish).toBe(true);
-		else await expect(run).rejects.toThrow("not a verified product loss");
+		else
+			await expect(run).rejects.toThrow(
+				signalKey.startsWith("attribution_rate:") &&
+					(signalKey !== "attribution_rate:USD" ||
+						!fields?.some((field) => field === "total_revenue"))
+					? "Attribution findings require native"
+					: "not a verified product loss"
+			);
+	});
+
+	it.each([
+		"snapshot-only",
+		"wrong-currency",
+		"missing-denominator",
+		"private",
+	] as const)("requires native attribution proof despite provided evidence: %s", async (variant) => {
+		const snapshot =
+			"USD attributed settled revenue: 9000 of 10000 gross → 3000 of 10000 gross.";
+		const hasRead =
+			variant === "wrong-currency" || variant === "missing-denominator";
+		const proposal = {
+			findingKind: "measurement_coverage",
+			title: "Revenue attribution coverage declined",
+			summary: "Channel comparisons have incomplete coverage.",
+			rootCause: null,
+			evidence: [
+				snapshot,
+				...(hasRead
+					? [
+							{
+								currency: variant === "wrong-currency" ? "EUR" : "USD",
+								fields:
+									variant === "missing-denominator"
+										? ["attributed_revenue"]
+										: ["attributed_revenue", "total_revenue"],
+							},
+						]
+					: []),
+			],
+			evidenceRefs: [
+				[{ source: "provided", index: 0 }],
+				...(hasRead
+					? [
+							["current", "previous"].map((resultKey) => ({
+								source: "tool",
+								name: "get_data",
+								toolCallId: "get_data-1",
+								resultKey,
+							})),
+						]
+					: []),
+			],
+			publish: variant !== "private",
+			publicationBasis: variant === "private" ? null : "decision_safety",
+			next: { type: "resolve", reason: "No cause has been established." },
+		};
+		const run = runInsightAgent(
+			{
+				...input,
+				signal: {
+					...signal,
+					signalKey: "attribution_rate:USD",
+					entity: {
+						type: "website",
+						id: "website",
+						label: "USD revenue attribution",
+					},
+				},
+				evidence: [snapshot],
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+			},
+			{
+				model: new MockLanguageModelV3({
+					doGenerate: mockValues(
+						...(hasRead ? [toolCallResponse("get_data")] : []),
+						outputResponse(proposal),
+						outputResponse(proposal),
+						outputResponse(proposal)
+					),
+				}),
+				tools: hasRead
+					? {
+							get_data: tool({
+								description: "Native revenue measurement",
+								inputSchema: z.object({}),
+								execute: () => ({
+									results: Object.fromEntries(
+										["current", "previous"].map((key, i) => [
+											key,
+											{
+												...readings[i],
+												data: readings[i].data.map((row) => ({
+													...row,
+													currency:
+														variant === "wrong-currency" ? "EUR" : "USD",
+												})),
+											},
+										])
+									),
+								}),
+							}),
+						}
+					: {},
+			}
+		);
+		if (variant === "private") expect((await run).outcome.publish).toBe(false);
+		else
+			await expect(run).rejects.toThrow("Attribution findings require native");
 	});
 
 	it("binds metrics to their labels and computes a refund delta absent from the source", () => {

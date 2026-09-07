@@ -14,7 +14,11 @@ const logger = createToolLogger("Funnels Tools");
 const funnelAnalyticsInputSchema = analyticsDateRangeSchema.safeExtend({
 	funnelId: z.string(),
 	websiteId: z.string().optional(),
-	cohort: analyticsCohortSchema.optional(),
+	cohort: analyticsCohortSchema
+		.nullish()
+		.describe(
+			"Additional cohort filters, or null to measure the saved definition without extra filtering."
+		),
 });
 
 export function createFunnelTools() {
@@ -59,7 +63,13 @@ export function createFunnelTools() {
 				return await callRPCProcedure(
 					"funnels",
 					"getAnalytics",
-					{ funnelId, websiteId, startDate, endDate, cohort },
+					{
+						funnelId,
+						websiteId,
+						startDate,
+						endDate,
+						cohort: cohort ?? undefined,
+					},
 					context
 				);
 			} catch (error) {
@@ -91,7 +101,13 @@ export function createFunnelTools() {
 				return await callRPCProcedure(
 					"funnels",
 					"getAnalyticsByReferrer",
-					{ funnelId, websiteId, startDate, endDate, cohort },
+					{
+						funnelId,
+						websiteId,
+						startDate,
+						endDate,
+						cohort: cohort ?? undefined,
+					},
 					context
 				);
 			} catch (error) {

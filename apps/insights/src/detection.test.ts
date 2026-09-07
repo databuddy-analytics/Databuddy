@@ -2090,3 +2090,213 @@ describe("detectSignals", () => {
 		});
 	});
 });
+
+describe("independent commercial discovery", () => {
+	const previous = {
+		currency: "USD",
+		total_revenue: 40_000,
+		total_transactions: 400,
+		refund_amount: -500,
+		refund_count: 5,
+		attributed_revenue: 38_000,
+	};
+	const changed = {
+		...previous,
+		refund_amount: -2500,
+		refund_count: 25,
+		attributed_revenue: 20_000,
+	};
+	const keys = ["attribution_rate:USD", "refund_amount:USD"];
+	for (const [name, current, before, expected] of [
+		[
+			"flat gross does not hide refunds or attribution",
+			changed,
+			previous,
+			keys,
+		],
+		[
+			"material refund amounts are independent of unchanged refund counts",
+			{
+				...changed,
+				refund_count: 5,
+				attributed_revenue: previous.attributed_revenue,
+			},
+			previous,
+			["refund_amount:USD"],
+		],
+		[
+			"positive refund magnitudes retain compatibility",
+			{ ...changed, refund_amount: 2500 },
+			{ ...previous, refund_amount: 500 },
+			keys,
+		],
+		[
+			"invalid optional refunds do not suppress valid attribution",
+			{ ...changed, refund_amount: Number.POSITIVE_INFINITY },
+			previous,
+			["attribution_rate:USD"],
+		],
+		[
+			"invalid optional attribution does not suppress valid refunds",
+			{ ...changed, attributed_revenue: "not measured" },
+			previous,
+			["refund_amount:USD"],
+		],
+		[
+			"negative counts cannot create a refund finding",
+			{ ...changed, refund_count: -25 },
+			previous,
+			["attribution_rate:USD"],
+		],
+		[
+			"invalid gross suppresses ratios and relative materiality",
+			{ ...changed, total_revenue: Number.NaN },
+			previous,
+			[],
+		],
+		["unchanged commercial activity stays quiet", previous, previous, []],
+		[
+			"sparse settlements do not establish a commercial alert",
+			{ ...changed, total_transactions: 3 },
+			{ ...previous, total_transactions: 3 },
+			[],
+		],
+		[
+			"missing refund counts preserve the independent attribution alert",
+			{ ...changed, refund_count: null },
+			previous,
+			["attribution_rate:USD"],
+		],
+		[
+			"missing attribution preserves the independent refund alert",
+			{ ...changed, attributed_revenue: null },
+			previous,
+			["refund_amount:USD"],
+		],
+		[
+			"absent measurements are not zero",
+			{
+				...changed,
+				refund_amount: null,
+				refund_count: null,
+				attributed_revenue: null,
+			},
+			previous,
+			[],
+		],
+		[
+			"small refund movement stays quiet",
+			{ ...previous, refund_amount: -520 },
+			previous,
+			[],
+		],
+		[
+			"invalid attribution cannot become a coverage alert",
+			{ ...changed, attributed_revenue: 50_000 },
+			previous,
+			["refund_amount:USD"],
+		],
+	] as const) {
+		it(name, async () => {
+			const signals = await detectSignals(
+				{ ...BASE_PARAMS, lookbackDays: 7 },
+				createMockQueryFn(
+					[],
+					{ sessions: 0 },
+					{ sessions: 0 },
+					{ revenue_overview: [current, before] }
+				),
+				dayjs("2026-09-07")
+			);
+			expect(signals.map((signal) => signal.subjectKey).sort()).toEqual(
+				expected
+			);
+		});
+	}
+	it("matches currency rows and native numeric strings without inventing website traffic", async () => {
+		const strings = (row: Record<string, unknown>) =>
+			Object.fromEntries(
+				Object.entries(row).map(([key, value]) => [
+					key,
+					typeof value === "number" ? String(value) : value,
+				])
+			);
+		const euro = {
+			...previous,
+			currency: "EUR",
+			total_revenue: 100_000,
+			attributed_revenue: 90_000,
+		};
+		const signals = await detectSignals(
+			{ ...BASE_PARAMS, lookbackDays: 7 },
+			createMockQueryFn(
+				[],
+				{ sessions: 0 },
+				{ sessions: 0 },
+				{
+					revenue_overview: [
+						[euro, strings(changed)],
+						[strings(previous), euro],
+					],
+				}
+			),
+			dayjs("2026-09-07")
+		);
+		expect(signals.map((signal) => signal.subjectKey).sort()).toEqual(keys);
+		const prepared = signals.map((signal) => prepareInvestigation(signal, 7));
+		expect(prepared.every((item) => item.investigationObjective)).toBe(true);
+		expect(
+			prepared.every((item) =>
+				item.evidence.every(
+					(value) => !value.includes("Machine-selected investigation objective")
+				)
+			)
+		).toBe(true);
+	});
+	for (const [
+		name,
+		current,
+		before,
+		currentMagnitude,
+		previousMagnitude,
+		sentiment,
+	] of [
+		["worsening", changed, previous, 2500, 500, "negative"],
+		["improving", previous, changed, 500, 2500, "positive"],
+		["unchanged recheck", previous, previous, 500, 500, "neutral"],
+	] as const) {
+		it(`signed refund ${name} preserves amount, identity and sentiment on recheck`, async () => {
+			const params = { ...BASE_PARAMS, lookbackDays: 7 };
+			const detected = await detectSignals(
+				params,
+				createMockQueryFn(
+					[],
+					{},
+					{},
+					{ revenue_overview: [changed, previous] }
+				),
+				dayjs("2026-09-07")
+			);
+			const refund = detected.find(
+				(signal) => signal.subjectKey === "refund_amount:USD"
+			);
+			if (!refund) throw new Error("Missing signed refund candidate");
+			const prior = prepareInvestigation(refund, 7).signal;
+			expect(prior.sentiment).toBe("negative");
+			expect(prior.metric.current).toBe(2500);
+			const measured = await remeasureMetricSignal(
+				params,
+				prior,
+				createMockQueryFn([], {}, {}, { revenue_overview: [current, before] }),
+				dayjs("2026-09-08")
+			);
+			if (!measured) throw new Error("Missing exact refund remeasurement");
+			expect(measured.subjectKey).toBe("refund_amount:USD");
+			expect(measured.current).toBe(currentMagnitude);
+			expect(measured.baseline).toBe(previousMagnitude);
+			expect(prepareInvestigation(measured, 7).signal.sentiment).toBe(
+				sentiment
+			);
+		});
+	}
+});

@@ -37,7 +37,6 @@ export const analyticsCohortSchema = z
 						"device_type",
 						"os_name",
 						"country",
-						"referrer",
 						"utm_source",
 						"utm_medium",
 						"utm_campaign",
@@ -53,5 +52,5 @@ export const analyticsCohortSchema = z
 			.max(8),
 	})
 	.describe(
-		"Read-only cohort. Funnel filters select first-step visitors; subsequent ordered steps may have different context. Goal filters select page-view visitors and matching completions. Saved filters are ANDed. These are visitors, not attempts."
+		"Read-only cohort. Funnel filters select first-step visitors; subsequent ordered steps may have different context. Goal filters select page-view visitors and matching completions. Saved filters are ANDed. Use the referrer breakdown tool to compare source groups. These are visitors, not attempts."
 	);

@@ -866,7 +866,8 @@ export const processGoalAnalytics = async (
 export const processFunnelAnalyticsByReferrer = async (
 	steps: AnalyticsStep[],
 	filters: Filter[],
-	params: ClickhouseQueryParams
+	params: ClickhouseQueryParams,
+	abortSignal?: AbortSignal
 ): Promise<{ referrer_analytics: ReferrerAnalytics[] }> => {
 	const totalSteps = steps.length;
 	if (totalSteps === 0) {
@@ -887,7 +888,9 @@ FROM step_events
 GROUP BY vid
 HAVING max_step >= 1`;
 
-	const rows = await chQuery<ReferrerRow>(fullQuery, params);
+	const rows = await chQuery<ReferrerRow>(fullQuery, params, {
+		abort_signal: abortSignal,
+	});
 
 	const groups = new Map<
 		string,

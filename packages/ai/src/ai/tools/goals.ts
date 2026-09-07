@@ -20,7 +20,11 @@ const goalFilterSchema = z.object({
 const goalAnalyticsInputSchema = analyticsDateRangeSchema.safeExtend({
 	goalId: z.string(),
 	websiteId: z.string().optional(),
-	cohort: analyticsCohortSchema.optional(),
+	cohort: analyticsCohortSchema
+		.nullish()
+		.describe(
+			"Additional cohort filters, or null to measure the saved definition without extra filtering."
+		),
 });
 const createGoalInputSchema = z.object({
 	websiteId: z.string(),
@@ -79,7 +83,13 @@ export function createGoalTools() {
 				return await callRPCProcedure(
 					"goals",
 					"getAnalytics",
-					{ goalId, websiteId, startDate, endDate, cohort },
+					{
+						goalId,
+						websiteId,
+						startDate,
+						endDate,
+						cohort: cohort ?? undefined,
+					},
 					context
 				);
 			} catch (error) {

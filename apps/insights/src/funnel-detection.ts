@@ -9,6 +9,7 @@ import {
 	type AnalyticsStep,
 	getTotalWebsiteUsers,
 	processFunnelAnalytics,
+	processFunnelAnalyticsByReferrer,
 	processGoalAnalytics,
 } from "@databuddy/rpc/analytics-utils";
 import type {
@@ -39,7 +40,7 @@ const DEFINITION_QUERY_TIMEOUT_MS = 45_000;
 const DEFINITION_SCAN_TIMEOUT_MS = 180_000;
 const ZERO_COMPLETION_SUFFIX = "zero-completions";
 const FUNNEL_SIGNAL_KEY =
-	/^funnel:([^:]+)(?::step:(\d+)|:(zero-completions))?$/;
+	/^funnel:([^:]+)(?::step:(\d+)|:(zero-completions)|:referrer:([^:]+))?$/;
 const GOAL_SIGNAL_KEY = /^goal:([^:]+)(?::(zero-completions))?$/;
 
 export interface FunnelDef {
@@ -84,6 +85,13 @@ export interface FunnelGoalDeps {
 		range: PeriodRange,
 		abortSignal?: AbortSignal
 	) => Promise<ConversionResult>;
+	funnelReferrers?: (
+		funnel: FunnelDef,
+		range: PeriodRange,
+		abortSignal?: AbortSignal
+	) => Promise<
+		{ referrer: string; total_users: number; completed_users: number }[]
+	>;
 	goalConversion: (
 		goal: GoalDef,
 		range: PeriodRange,
@@ -93,6 +101,12 @@ export interface FunnelGoalDeps {
 
 export interface FunnelGoalDetectionDiagnostics {
 	failedDefinitions: number;
+	referrerCoverage?: {
+		eligibleFunnels: number;
+		failedProbes: number;
+		probedFunnels: number;
+		unprobedFunnels: number;
+	};
 }
 
 interface GoalConversionDependencies {
@@ -227,6 +241,17 @@ export function defaultFunnelGoalDeps(
 					)
 				)
 				.orderBy(goals.createdAt),
+		funnelReferrers: async (funnel, range, abortSignal) => {
+			abortSignal?.throwIfAborted();
+			const result = await processFunnelAnalyticsByReferrer(
+				toAnalyticsSteps(funnel.steps),
+				funnel.filters ?? [],
+				{ websiteId, startDate: range.from, endDate: `${range.to} 23:59:59` },
+				abortSignal
+			);
+			abortSignal?.throwIfAborted();
+			return result.referrer_analytics;
+		},
 		funnelConversion: async (funnel, range, abortSignal) => {
 			const analytics = await processFunnelAnalytics(
 				toAnalyticsSteps(funnel.steps),
@@ -675,6 +700,26 @@ export async function remeasureFunnelGoalSignal(
 				`Funnel "${funnel.name}" no longer contains ${prior.entity.label}.`
 			);
 		}
+		if (funnelMatch?.[4]) {
+			if (
+				inactiveDefinitionEvidence(funnel, "funnel") ||
+				!definitionPredatesComparison(funnel, previous.from, params.timezone)
+			) {
+				return null;
+			}
+			return (
+				(
+					await detectFunnelReferrers(
+						funnel,
+						activeDeps,
+						current,
+						previous,
+						abortSignal,
+						decodeURIComponent(funnelMatch[4])
+					)
+				)[0] ?? null
+			);
+		}
 		const [cur, prev] = await Promise.all([
 			activeDeps.funnelConversion(funnel, current, abortSignal),
 			activeDeps.funnelConversion(funnel, previous, abortSignal),
@@ -848,6 +893,94 @@ async function detectStoredDefinitionSignal(
 	return detected;
 }
 
+async function detectFunnelReferrers(
+	funnel: FunnelDef,
+	deps: FunnelGoalDeps,
+	current: PeriodRange,
+	previous: PeriodRange,
+	signal?: AbortSignal,
+	exactReferrer?: string
+): Promise<DetectedSignal[]> {
+	if (!deps.funnelReferrers) {
+		return [];
+	}
+	const [cur, prev] = await Promise.all([
+		deps.funnelReferrers(funnel, current, signal),
+		deps.funnelReferrers(funnel, previous, signal),
+	]);
+	// Ambiguous or missing groups are unknown, never zero-filled or merged.
+	if (
+		new Set(cur.map((row) => row.referrer)).size !== cur.length ||
+		new Set(prev.map((row) => row.referrer)).size !== prev.length
+	) {
+		return [];
+	}
+	const previousBySource = new Map(prev.map((row) => [row.referrer, row]));
+	const found: DetectedSignal[] = [];
+	for (const row of cur) {
+		const before = previousBySource.get(row.referrer);
+		if (
+			!(before && row.referrer) ||
+			(exactReferrer !== undefined && exactReferrer !== row.referrer)
+		) {
+			continue;
+		}
+		if (
+			[row, before].some(
+				(value) =>
+					!(
+						Number.isSafeInteger(value.total_users) &&
+						Number.isSafeInteger(value.completed_users)
+					) ||
+					value.total_users < 100 ||
+					value.completed_users < 0 ||
+					value.completed_users > value.total_users
+			)
+		) {
+			continue;
+		}
+		const currentRate = row.completed_users / row.total_users;
+		const previousRate = before.completed_users / before.total_users;
+		const difference = Math.abs(currentRate - previousRate);
+		const error = Math.sqrt(
+			(currentRate * (1 - currentRate)) / row.total_users +
+				(previousRate * (1 - previousRate)) / before.total_users
+		);
+		if (
+			exactReferrer === undefined &&
+			(difference < 0.1 ||
+				difference < 3 * error ||
+				difference * Math.min(row.total_users, before.total_users) < 30)
+		) {
+			continue;
+		}
+		const subjectKey = `funnel:${funnel.id}:referrer:${encodeURIComponent(row.referrer)}`;
+		if (subjectKey.length > 160) {
+			continue; // Keep remeasurement identities lossless.
+		}
+		found.push({
+			...makeWowSignal(
+				`funnel:${funnel.id}`,
+				`Funnel "${funnel.name}" completion from ${row.referrer}`,
+				currentRate * 100,
+				previousRate * 100,
+				current.to,
+				{ round: true }
+			),
+			subjectKey,
+			investigationObjective:
+				"Explain the within-referrer completion change even when aggregate funnel completion is stable. Compare both source cohorts and their arrival mix; distinguish an activation regression from a positive opportunity without inventing acquisition cost or causality.",
+			entityLabel: funnel.name,
+			definitionEvidence: `Funnel "${funnel.name}"; entry referrer ${JSON.stringify(row.referrer)}: ${before.completed_users}/${before.total_users} → ${row.completed_users}/${row.total_users} completed visitors. Definition and filters are unchanged. These are source cohorts, not randomized groups; no acquisition cost, revenue or causal mechanism is established. Referrer groups omit single visitors; unreturned sources are unknown. Inspect get_funnel_analytics_by_referrer for both windows.`,
+		});
+	}
+	return found.sort(
+		(a, b) =>
+			Math.abs(b.current - b.baseline) - Math.abs(a.current - a.baseline) ||
+			(a.subjectKey ?? "").localeCompare(b.subjectKey ?? "")
+	);
+}
+
 export async function detectFunnelGoalSignals(
 	params: DetectSignalsParams,
 	today: dayjs.Dayjs = params.timezone ? dayjs().tz(params.timezone) : dayjs(),
@@ -970,6 +1103,76 @@ export async function detectFunnelGoalSignals(
 			}
 		}
 	}
+
+	// A stable aggregate must not prevent source discovery. Bound extra reads to
+	// three unchanged definitions, two complete windows each, under the scan deadline.
+	const eligibleProbeFunnels = canonicalFunnels.filter(
+		(funnel) =>
+			definitionPredatesComparison(funnel, previous.from, params.timezone) &&
+			!signals.some((signal) => signal.metric === `funnel:${funnel.id}`)
+	);
+	const probeFunnels = activeDeps.funnelReferrers
+		? eligibleProbeFunnels.slice(0, 3)
+		: [];
+	const coverage = {
+		eligibleFunnels: eligibleProbeFunnels.length,
+		failedProbes: 0,
+		probedFunnels: 0,
+		unprobedFunnels: eligibleProbeFunnels.length,
+	};
+	if (options.diagnostics) {
+		options.diagnostics.referrerCoverage = coverage;
+	}
+	const probeController = new AbortController();
+	const probeSignal = AbortSignal.any([
+		overallSignal,
+		probeController.signal,
+		AbortSignal.timeout(
+			Math.max(1, Math.min(definitionTimeoutMs, deadlineAt - Date.now()))
+		),
+	]);
+	const probes = await Promise.all(
+		probeFunnels.map(async (funnel) => {
+			overallSignal.throwIfAborted();
+			coverage.probedFunnels += 1;
+			coverage.unprobedFunnels -= 1;
+			return await raceWithAbort(
+				() =>
+					detectFunnelReferrers(
+						funnel,
+						activeDeps,
+						current,
+						previous,
+						probeSignal
+					),
+				probeSignal
+			).catch((error: unknown) => {
+				// Optional source failure is not incomplete core definition coverage.
+				// Only a real parent/scan abort cancels otherwise valid investigations.
+				overallSignal.throwIfAborted();
+				coverage.failedProbes += 1;
+				emitInsightsEvent("warn", "detection.funnel_referrer.probe_failed", {
+					website_id: params.websiteId,
+					definition_id: funnel.id,
+					error_type:
+						error instanceof Error ? error.constructor.name : typeof error,
+				});
+				return [];
+			});
+		})
+	).finally(() => probeController.abort());
+	// Promise.all preserves definition order even when reads finish out of order.
+	for (const cohorts of probes) {
+		const decline = cohorts.find((signal) => signal.direction === "down");
+		const improvement = cohorts.find((signal) => signal.direction === "up");
+		if (decline) {
+			signals.push(decline);
+		}
+		if (improvement) {
+			signals.push(improvement);
+		}
+	}
 	overallSignal.throwIfAborted();
+	emitInsightsEvent("info", "detection.funnel_referrer.coverage", coverage);
 	return signals;
 }

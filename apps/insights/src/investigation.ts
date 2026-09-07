@@ -14,6 +14,7 @@ dayjs.extend(timezonePlugin);
 
 interface InvestigationInput {
 	evidence: string[];
+	investigationObjective?: string;
 	signal: InvestigationSignal;
 }
 
@@ -66,6 +67,7 @@ export function normalizedErrorSubject(value: string): string {
 function metricFormat(metric: string): InsightMetric["format"] {
 	if (
 		metric === "bounce_rate" ||
+		metric === "attribution_rate" ||
 		metric.startsWith("funnel:") ||
 		metric.startsWith("goal:")
 	) {
@@ -81,7 +83,9 @@ function metricFormat(metric: string): InsightMetric["format"] {
 }
 
 function isLowerBetter(metric: string): boolean {
-	return ["bounce_rate", "error_count", "lcp", "inp"].includes(metric);
+	return ["bounce_rate", "error_count", "lcp", "inp", "refund_amount"].includes(
+		metric
+	);
 }
 
 const SEVERITY_RANK = { critical: 2, warning: 1, info: 0 } as const;
@@ -111,6 +115,9 @@ function isFunnelStepSignal(signal: DetectedSignal): boolean {
 function isDirectSignal(signal: DetectedSignal): boolean {
 	return (
 		signal.metric === "revenue" ||
+		signal.metric === "refund_amount" ||
+		signal.metric === "attribution_rate" ||
+		signal.subjectKey?.includes(":referrer:") === true ||
 		signal.metric === "error_count" ||
 		signal.metric === "custom_event_count" ||
 		signal.metric === "lcp" ||
@@ -150,7 +157,13 @@ export function isInvestigationCandidate(signal: DetectedSignal): boolean {
 	) {
 		return false;
 	}
-	return isRegression(signal) || signal.metric === "revenue";
+	return (
+		isRegression(signal) ||
+		["revenue", "refund_amount", "attribution_rate"].includes(signal.metric) ||
+		(isConversionDefinitionSignal(signal) &&
+			signal.current - signal.baseline >= 10 &&
+			signal.deltaPercent >= 30)
+	);
 }
 
 function signalBucket(signal: DetectedSignal): number {
@@ -340,6 +353,7 @@ export function prepareInvestigation(
 
 	return {
 		evidence,
+		investigationObjective: candidate.investigationObjective,
 		signal: investigationSignalSchema.parse(signal),
 	};
 }
