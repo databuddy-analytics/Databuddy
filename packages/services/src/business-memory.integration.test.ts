@@ -10,7 +10,7 @@ import {
 	spyOn,
 } from "bun:test";
 import { db, eq, shutdownPostgres, sql } from "@databuddy/db";
-import { websites } from "@databuddy/db/schema";
+import { websiteBusinessContexts, websites } from "@databuddy/db/schema";
 import {
 	businessContainerTag,
 	BusinessMemoryRetirementError,
@@ -60,6 +60,13 @@ integration("business memory lifecycle against isolated PostgreSQL", () => {
 			"isPublic" boolean NOT NULL DEFAULT false, "createdAt" timestamptz NOT NULL DEFAULT now(),
 			"updatedAt" timestamptz NOT NULL DEFAULT now(), "deletedAt" timestamptz,
 			organization_id text NOT NULL REFERENCES organization(id) ON DELETE CASCADE, integrations jsonb, settings jsonb
+		)`);
+		await db.execute(sql`CREATE TABLE IF NOT EXISTS website_business_contexts (
+			website_id text PRIMARY KEY REFERENCES websites(id) ON DELETE CASCADE,
+			organization_id text NOT NULL REFERENCES organization(id) ON DELETE CASCADE,
+			domain text NOT NULL, started_at text NOT NULL, revision integer NOT NULL CHECK (revision >= 1),
+			profile jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now(),
+			refresh_after timestamptz NOT NULL, indexed_revision integer
 		)`);
 		fetchMock = spyOn(globalThis, "fetch").mockImplementation(
 			async (input, init) => {
@@ -153,7 +160,27 @@ integration("business memory lifecycle against isolated PostgreSQL", () => {
 			{ initialize: true }
 		);
 		if (!scope) throw new Error("Synthetic scope was not initialized");
+		await db.insert(websiteBusinessContexts).values({
+			websiteId,
+			organizationId: org,
+			domain: scope.domain,
+			startedAt: scope.startedAt,
+			revision: 1,
+			profile: {
+				capturedAt: scope.startedAt,
+				sources: [],
+				brief: null,
+				issues: [],
+			},
+			refreshAfter: new Date(),
+		});
 		return scope;
+	}
+	function retained(scope: BusinessScope) {
+		return db
+			.select()
+			.from(websiteBusinessContexts)
+			.where(eq(websiteBusinessContexts.websiteId, scope.websiteId));
 	}
 	async function waitForBlockedTransaction() {
 		const deadline = Date.now() + 2000;
@@ -240,8 +267,13 @@ integration("business memory lifecycle against isolated PostgreSQL", () => {
 			service.updateInTransaction(tx, scope.websiteId, { settings: null })
 		);
 		expect(await getWebsiteBusinessScope(scope)).toEqual(scope);
-		const [cleared] = await db.select({ settings: websites.settings }).from(websites).where(eq(websites.id, scope.websiteId));
-		expect(cleared?.settings).toEqual({ businessContextStartedAt: scope.startedAt });
+		const [cleared] = await db
+			.select({ settings: websites.settings })
+			.from(websites)
+			.where(eq(websites.id, scope.websiteId));
+		expect(cleared?.settings).toEqual({
+			businessContextStartedAt: scope.startedAt,
+		});
 		await db.transaction((tx) =>
 			service.updateInTransaction(tx, scope.websiteId, {
 				domain: "www.reports.example.com",
@@ -288,6 +320,71 @@ integration("business memory lifecycle against isolated PostgreSQL", () => {
 			await db.execute(sql`DELETE FROM organization WHERE id=${target}`);
 		}
 	});
+	it("keeps durable pages for ordinary edits and clears them atomically on transfer", async () => {
+		const scope = await fixture();
+		await service.updateById(scope.websiteId, {
+			name: "Renamed",
+			domain: "www.reports.example.com",
+		});
+		expect(await retained(scope)).toHaveLength(1);
+		const target = `synthetic-${randomUUID()}`;
+		await db.execute(sql`INSERT INTO organization(id) VALUES (${target})`);
+		try {
+			await db.transaction(async (tx) => {
+				await service.updateInTransaction(tx, scope.websiteId, {
+					organizationId: target,
+				});
+				expect(
+					await tx
+						.select()
+						.from(websiteBusinessContexts)
+						.where(eq(websiteBusinessContexts.websiteId, scope.websiteId))
+				).toHaveLength(0);
+				// Another connection sees the original context until this transaction commits.
+				expect(await retained(scope)).toHaveLength(1);
+			});
+			expect(await retained(scope)).toHaveLength(0);
+		} finally {
+			await db.delete(websites).where(eq(websites.organizationId, target));
+			await db.execute(sql`DELETE FROM organization WHERE id=${target}`);
+		}
+	});
+
+	it("clears durable pages on domain change and soft deletion inside the mutation", async () => {
+		for (const updates of [
+			{ domain: "other.example.com" },
+			{ deletedAt: new Date() },
+		]) {
+			const scope = await fixture();
+			await db.transaction(async (tx) => {
+				await service.updateInTransaction(tx, scope.websiteId, updates);
+				expect(
+					await tx
+						.select()
+						.from(websiteBusinessContexts)
+						.where(eq(websiteBusinessContexts.websiteId, scope.websiteId))
+				).toHaveLength(0);
+			});
+			expect(await retained(scope)).toHaveLength(0);
+		}
+	});
+
+	it("rolls back durable-page invalidation when transfer retirement fails", async () => {
+		const scope = await fixture();
+		const target = `synthetic-${randomUUID()}`;
+		await db.execute(sql`INSERT INTO organization(id) VALUES (${target})`);
+		partial = true;
+		try {
+			await expect(
+				service.updateById(scope.websiteId, { organizationId: target })
+			).rejects.toBeInstanceOf(BusinessMemoryRetirementError);
+			expect(await getWebsiteBusinessScope(scope)).toEqual(scope);
+			expect(await retained(scope)).toHaveLength(1);
+		} finally {
+			await db.execute(sql`DELETE FROM organization WHERE id=${target}`);
+		}
+	});
+
 	it("deletion waits for a native write, then retires the acknowledged document before deleting", async () => {
 		const scope = await fixture();
 		hold = "write";
@@ -309,6 +406,7 @@ integration("business memory lifecycle against isolated PostgreSQL", () => {
 		]);
 		expect(documents.size).toBe(0);
 		expect(await getWebsiteBusinessScope(scope)).toBeNull();
+		expect(await retained(scope)).toHaveLength(0);
 	}, 10_000);
 
 	it("a late write waiting behind deletion rechecks the row and never reaches Supermemory", async () => {
@@ -371,10 +469,14 @@ integration("business memory lifecycle against isolated PostgreSQL", () => {
 		await writing;
 		await deleting;
 		expect(documents.size).toBe(0);
-		expect(events.filter((event) => event === "retire:acknowledged")).toHaveLength(2);
+		expect(
+			events.filter((event) => event === "retire:acknowledged")
+		).toHaveLength(2);
 		expect(await getWebsiteBusinessScope(first)).toBeNull();
 		expect(await getWebsiteBusinessScope(second)).toBeNull();
-		const remaining = await db.execute(sql`SELECT id FROM organization WHERE id=${org}`);
+		const remaining = await db.execute(
+			sql`SELECT id FROM organization WHERE id=${org}`
+		);
 		expect(remaining.rows).toHaveLength(0);
 	}, 10_000);
 
@@ -387,11 +489,17 @@ integration("business memory lifecycle against isolated PostgreSQL", () => {
 			() => "unexpected write",
 			(error) => error.message
 		);
-		const creating = db.insert(websites).values({
-			id: `synthetic-${randomUUID()}`,
-			organizationId: org,
-			domain: "new.example.com",
-		}).then(() => "unexpected creation", () => "rejected");
+		const creating = db
+			.insert(websites)
+			.values({
+				id: `synthetic-${randomUUID()}`,
+				organizationId: org,
+				domain: "new.example.com",
+			})
+			.then(
+				() => "unexpected creation",
+				() => "rejected"
+			);
 		await waitForBlockedTransaction();
 		release?.();
 		await deleting;
@@ -406,9 +514,13 @@ integration("business memory lifecycle against isolated PostgreSQL", () => {
 			documents.set(businessContainerTag(scope), 1);
 			partial = failure === "partial";
 			unavailable = failure === "unavailable";
-			await expect(deleteOrganizationWithBusinessMemory(org)).rejects.toBeInstanceOf(BusinessMemoryRetirementError);
+			await expect(
+				deleteOrganizationWithBusinessMemory(org)
+			).rejects.toBeInstanceOf(BusinessMemoryRetirementError);
 			expect(await getWebsiteBusinessScope(scope)).toEqual(scope);
-			const remaining = await db.execute(sql`SELECT id FROM organization WHERE id=${org}`);
+			const remaining = await db.execute(
+				sql`SELECT id FROM organization WHERE id=${org}`
+			);
 			expect(remaining.rows).toHaveLength(1);
 			partial = false;
 			unavailable = false;
@@ -419,7 +531,13 @@ integration("business memory lifecycle against isolated PostgreSQL", () => {
 	it("a rejected website mutation leaves the memory index intact", async () => {
 		const scope = await fixture();
 		documents.set(businessContainerTag(scope), 1);
-		await expect(db.transaction((tx) => service.updateInTransaction(tx, scope.websiteId, { organizationId: "synthetic-missing-organization" }))).rejects.toThrow();
+		await expect(
+			db.transaction((tx) =>
+				service.updateInTransaction(tx, scope.websiteId, {
+					organizationId: "synthetic-missing-organization",
+				})
+			)
+		).rejects.toThrow();
 		expect(events).toEqual([]);
 		expect(documents.get(businessContainerTag(scope))).toBe(1);
 		expect(await getWebsiteBusinessScope(scope)).toEqual(scope);

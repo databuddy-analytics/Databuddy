@@ -12,7 +12,15 @@ import {
 } from "@databuddy/ai/config/models";
 import { getAILogger } from "@databuddy/ai/lib/ai-logger";
 import { QueryBuilders } from "@databuddy/ai/query/builders";
+import {
+	type WebsitePageResult,
+	websitePageSchema,
+} from "@databuddy/ai/tools/scrape-page";
 import { insightRepairError } from "@databuddy/rpc/insight-repairs";
+import {
+	type BusinessScope,
+	getWebsiteBusinessScope,
+} from "@databuddy/services/business-memory";
 import {
 	agentInvestigationOutcomeSchema,
 	describeInsightDefinitionAction,
@@ -36,7 +44,9 @@ import {
 	ToolLoopAgent,
 } from "ai";
 import type { ErrorCustomerImpact } from "./error-customer-impact";
+import { rememberBusinessPages } from "./business-profile";
 import { signalKeyForDetectedSignal } from "./investigation";
+import { emitInsightsEvent } from "./lib/evlog-insights";
 
 const MAX_STEPS = 8;
 const TIMEOUT_MS = 2 * 60_000;
@@ -324,6 +334,8 @@ export interface InsightAgentInput {
 		body: string;
 		createdAt: string;
 	};
+	/** Authorizes native source retention while analytics tools remain in dry-run. */
+	retainBusinessPages?: boolean;
 	signal: InvestigationSignal;
 }
 
@@ -1267,6 +1279,27 @@ export async function runInsightAgent(
 	if (!organizationId) {
 		throw new Error("An organization is required for investigation tools");
 	}
+	const websiteId =
+		input.appContext.websiteId ?? input.appContext.defaultWebsiteId;
+	// Bind reads to the existing epoch before tools run. Never recapture a newer
+	// scope after a page read; the persistence helper rechecks this exact scope.
+	const businessScope: (BusinessScope & { startedAt: string }) | null =
+		options.model === undefined &&
+		options.tools === undefined &&
+		(input.appContext.mutationMode !== "dry-run" ||
+			input.retainBusinessPages === true) &&
+		websiteId
+			? await getWebsiteBusinessScope({ organizationId, websiteId }).catch(
+					() => {
+						emitInsightsEvent("error", "business_context.page_scope_failed", {
+							organization_id: organizationId,
+							website_id: websiteId,
+						});
+						return null;
+					}
+				)
+			: null;
+	const pages: Extract<WebsitePageResult, { success: true }>[] = [];
 	const isDefinition = ["goal", "funnel"].includes(input.signal.entity.type);
 	const finishInputSchema = isDefinition
 		? finishSchema
@@ -1402,6 +1435,7 @@ export async function runInsightAgent(
 		...(businessContext
 			? {
 					businessContext: {
+						brief: businessContext.brief,
 						capturedAt: businessContext.capturedAt,
 						status: businessContext.status,
 						issues: businessContext.issues,
@@ -1655,6 +1689,17 @@ export async function runInsightAgent(
 			timeout: { totalMs: TIMEOUT_MS },
 			onStepFinish: async (step) => {
 				steps.push(step);
+				if (businessScope) {
+					for (const result of step.toolResults) {
+						if (result.toolName !== "scrape_page") {
+							continue;
+						}
+						const page = websitePageSchema.safeParse(result.output);
+						if (page.success) {
+							pages.push(page.data);
+						}
+					}
+				}
 				modelId = step.response.modelId;
 				toolCallCount += step.toolCalls.filter(
 					(call) => call.toolName !== "finish_investigation"
@@ -1696,5 +1741,15 @@ export async function runInsightAgent(
 			});
 		}
 		throw error;
+	} finally {
+		if (businessScope && pages.length > 0) {
+			await rememberBusinessPages(businessScope, pages).catch(() => {
+				emitInsightsEvent("error", "business_context.page_retention_failed", {
+					organization_id: organizationId,
+					website_id: businessScope.websiteId,
+					page_count: pages.length,
+				});
+			});
+		}
 	}
 }
