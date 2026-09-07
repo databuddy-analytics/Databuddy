@@ -520,6 +520,14 @@ export async function appendInvestigationReply(
 
 	const author = replyAuthor(context, authorName);
 	const stored = await db.transaction(async (tx) => {
+		// Match persistence and deletion: website first, then investigation rows.
+		const businessScope = await getWebsiteBusinessScope(insight, {
+			database: tx,
+			initialize: true,
+		});
+		if (!businessScope) {
+			throw rpcError.notFound("website", insight.websiteId);
+		}
 		const insightCase = and(
 			eq(analyticsInsights.organizationId, insight.organizationId),
 			eq(analyticsInsights.websiteId, insight.websiteId),
@@ -614,13 +622,6 @@ export async function appendInvestigationReply(
 			);
 		}
 
-		const businessScope = await getWebsiteBusinessScope(insight, {
-			database: tx,
-			initialize: true,
-		});
-		if (!businessScope) {
-			throw rpcError.notFound("website", insight.websiteId);
-		}
 		const createdAt = new Date(
 			Math.max(Date.now(), Date.parse(businessScope.startedAt))
 		);

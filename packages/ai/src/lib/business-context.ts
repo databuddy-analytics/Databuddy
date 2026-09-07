@@ -16,21 +16,25 @@ const MAX_CONTEXT_CHARACTERS = 16_000;
 export type { BusinessScope } from "@databuddy/services/business-memory";
 export { businessContainerTag } from "@databuddy/services/business-memory";
 
+const timestamp = z.iso
+	.datetime({ offset: true })
+	.refine((value) => Number.isFinite(Date.parse(value)));
+
 export const businessSourceSchema = z.object({
 	id: z.string().min(1).max(500),
 	kind: z.enum(["website", "team_reply"]),
 	content: z.string().min(1).max(4000),
-	observedAt: z.iso.datetime({ offset: true }),
+	observedAt: timestamp,
 	url: z.url().max(2048).optional(),
 	internalLinks: z.array(z.string().max(300)).max(10).optional(),
 	subjectKey: z.string().max(500).optional(),
 	author: z.string().max(200).optional(),
-	expiresAt: z.iso.datetime({ offset: true }).optional(),
+	expiresAt: timestamp.optional(),
 });
 export type BusinessSource = z.infer<typeof businessSourceSchema>;
 
 export const businessContextSchema = z.object({
-	capturedAt: z.iso.datetime({ offset: true }),
+	capturedAt: timestamp,
 	status: z.enum(["ready", "partial", "unavailable", "disabled"]),
 	sources: z.array(businessSourceSchema).max(16),
 	issues: z.array(z.string().max(200)).max(20),
@@ -46,7 +50,7 @@ const metadataSchema = businessSourceSchema
 		domain: z.string().min(1),
 		sourceId: z.string().min(1).max(500),
 		originalText: z.string().min(1).max(4000).optional(),
-		startedAt: z.iso.datetime({ offset: true }).optional(),
+		startedAt: timestamp.optional(),
 	});
 
 const storedSourceSchema = z.object({
@@ -322,9 +326,7 @@ async function recordSources(
 					{ containerTag, documents },
 					{ timeout: REQUEST_TIMEOUT, maxRetries: 0, signal: abortSignal }
 				);
-			const result = scope.startedAt
-				? await withBusinessMemoryWrite(scope, async () => await write())
-				: await write();
+			const result = await withBusinessMemoryWrite(scope, write);
 			if (
 				result.failed !== 0 ||
 				result.success !== documents.length ||

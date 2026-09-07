@@ -14,6 +14,7 @@ import { websites } from "@databuddy/db/schema";
 import {
 	businessContainerTag,
 	BusinessMemoryRetirementError,
+	deleteOrganizationWithBusinessMemory,
 	getMemoryClient,
 	getWebsiteBusinessScope,
 	withBusinessMemoryWrite,
@@ -58,7 +59,7 @@ integration("business memory lifecycle against isolated PostgreSQL", () => {
 			id text PRIMARY KEY, domain text NOT NULL, name text, status text NOT NULL DEFAULT 'ACTIVE',
 			"isPublic" boolean NOT NULL DEFAULT false, "createdAt" timestamptz NOT NULL DEFAULT now(),
 			"updatedAt" timestamptz NOT NULL DEFAULT now(), "deletedAt" timestamptz,
-			organization_id text NOT NULL REFERENCES organization(id), integrations jsonb, settings jsonb
+			organization_id text NOT NULL REFERENCES organization(id) ON DELETE CASCADE, integrations jsonb, settings jsonb
 		)`);
 		fetchMock = spyOn(globalThis, "fetch").mockImplementation(
 			async (input, init) => {
@@ -239,6 +240,8 @@ integration("business memory lifecycle against isolated PostgreSQL", () => {
 			service.updateInTransaction(tx, scope.websiteId, { settings: null })
 		);
 		expect(await getWebsiteBusinessScope(scope)).toEqual(scope);
+		const [cleared] = await db.select({ settings: websites.settings }).from(websites).where(eq(websites.id, scope.websiteId));
+		expect(cleared?.settings).toEqual({ businessContextStartedAt: scope.startedAt });
 		await db.transaction((tx) =>
 			service.updateInTransaction(tx, scope.websiteId, {
 				domain: "www.reports.example.com",
@@ -352,5 +355,73 @@ integration("business memory lifecycle against isolated PostgreSQL", () => {
 				expect(documents.has(businessContainerTag(scope))).toBe(false);
 			}
 		}
+	});
+
+	it("organization deletion waits for a writer and retires every website before the cascade", async () => {
+		const first = await fixture();
+		const second = await fixture();
+		documents.set(businessContainerTag(second), 1);
+		hold = "write";
+		const writing = write(first);
+		await entered;
+		const deleting = deleteOrganizationWithBusinessMemory(org);
+		await waitForBlockedTransaction();
+		expect(events).toEqual(["write:entered"]);
+		release?.();
+		await writing;
+		await deleting;
+		expect(documents.size).toBe(0);
+		expect(events.filter((event) => event === "retire:acknowledged")).toHaveLength(2);
+		expect(await getWebsiteBusinessScope(first)).toBeNull();
+		expect(await getWebsiteBusinessScope(second)).toBeNull();
+		const remaining = await db.execute(sql`SELECT id FROM organization WHERE id=${org}`);
+		expect(remaining.rows).toHaveLength(0);
+	}, 10_000);
+
+	it("organization deletion blocks late writes and new website references until the cascade commits", async () => {
+		const scope = await fixture();
+		hold = "retire";
+		const deleting = deleteOrganizationWithBusinessMemory(org);
+		await entered;
+		const writing = write(scope).then(
+			() => "unexpected write",
+			(error) => error.message
+		);
+		const creating = db.insert(websites).values({
+			id: `synthetic-${randomUUID()}`,
+			organizationId: org,
+			domain: "new.example.com",
+		}).then(() => "unexpected creation", () => "rejected");
+		await waitForBlockedTransaction();
+		release?.();
+		await deleting;
+		expect(await writing).toContain("scope changed or was deleted");
+		expect(await creating).toBe("rejected");
+		expect(events).not.toContain("write:entered");
+	}, 10_000);
+
+	it("failed organization retirement retains scopes and organization for a retry", async () => {
+		for (const failure of ["partial", "unavailable"] as const) {
+			const scope = await fixture();
+			documents.set(businessContainerTag(scope), 1);
+			partial = failure === "partial";
+			unavailable = failure === "unavailable";
+			await expect(deleteOrganizationWithBusinessMemory(org)).rejects.toBeInstanceOf(BusinessMemoryRetirementError);
+			expect(await getWebsiteBusinessScope(scope)).toEqual(scope);
+			const remaining = await db.execute(sql`SELECT id FROM organization WHERE id=${org}`);
+			expect(remaining.rows).toHaveLength(1);
+			partial = false;
+			unavailable = false;
+		}
+		await deleteOrganizationWithBusinessMemory(org);
+		expect(documents.size).toBe(0);
+	});
+	it("a rejected website mutation leaves the memory index intact", async () => {
+		const scope = await fixture();
+		documents.set(businessContainerTag(scope), 1);
+		await expect(db.transaction((tx) => service.updateInTransaction(tx, scope.websiteId, { organizationId: "synthetic-missing-organization" }))).rejects.toThrow();
+		expect(events).toEqual([]);
+		expect(documents.get(businessContainerTag(scope))).toBe(1);
+		expect(await getWebsiteBusinessScope(scope)).toEqual(scope);
 	});
 });

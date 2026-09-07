@@ -41,6 +41,9 @@ export function canonicalBusinessScope(scope: BusinessScope): BusinessScope {
 	if (domain.startsWith("www.")) {
 		domain = domain.slice(4);
 	}
+	if (!domain) {
+		throw new Error("A nonempty website hostname is required");
+	}
 	return {
 		organizationId: scope.organizationId,
 		websiteId: scope.websiteId,
@@ -185,5 +188,49 @@ export async function withBusinessMemoryWrite<T>(
 		}
 		// The caller's native request is bounded to four seconds. Fetch pages first.
 		return await operation();
+	});
+}
+
+/** Called only after organization-delete authorization, before auth's cascade. */
+export async function deleteOrganizationWithBusinessMemory(
+	organizationId: string,
+	database?: Pick<typeof db, "transaction">
+): Promise<void> {
+	const { db, eq, sql } = await import("@databuddy/db");
+	const { organization, websites } = await import("@databuddy/db/schema");
+	await (database ?? db).transaction(async (tx) => {
+		await tx.execute(sql`SET LOCAL lock_timeout = '4s'`);
+		// Block new website ownership references while collecting and deleting scopes.
+		const [org] = await tx
+			.select({ id: organization.id })
+			.from(organization)
+			.where(eq(organization.id, organizationId))
+			.for("update");
+		if (!org) {
+			return;
+		}
+		const sites = await tx
+			.select({
+				id: websites.id,
+				domain: websites.domain,
+				settings: websites.settings,
+			})
+			.from(websites)
+			.where(eq(websites.organizationId, organizationId))
+			.orderBy(websites.id)
+			.for("update");
+		// Validate the cascade before remote deletion. The transaction still owns
+		// the row locks, and provider failure rolls this SQL deletion back.
+		await tx.delete(organization).where(eq(organization.id, organizationId));
+		for (const site of sites) {
+			if (site.settings?.businessContextStartedAt) {
+				await retireBusinessMemory({
+					organizationId,
+					websiteId: site.id,
+					domain: site.domain,
+					startedAt: site.settings.businessContextStartedAt,
+				});
+			}
+		}
 	});
 }

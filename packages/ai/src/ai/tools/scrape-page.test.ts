@@ -356,6 +356,7 @@ describe("readWebsitePage", () => {
 			await readWebsitePage({ domain: "example.com" }, memoryCache())
 		).toMatchObject({ success: true, fetchedAt });
 		for (const cachedAt of [
+			"2026-09-07T00:00:00+99:99",
 			undefined,
 			new Date(Date.now() - 86_400_000).toISOString(),
 		]) {

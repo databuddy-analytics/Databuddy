@@ -45,6 +45,7 @@ describe("business memory identity and native retirement", () => {
 	});
 	it("rejects ambiguous domains and invalid epochs before persistence", () => {
 		for (const domain of [
+			".",
 			"reports.example.com@other.test",
 			"reports.example.com/path",
 			"reports.example.com:8443",

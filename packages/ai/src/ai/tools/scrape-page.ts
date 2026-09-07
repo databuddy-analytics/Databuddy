@@ -286,6 +286,7 @@ export async function readWebsitePage(
 		const fetchedAt = meta.cachedAt ?? new Date().toISOString();
 		const age = Date.now() - Date.parse(fetchedAt);
 		if (
+			!Number.isFinite(age) ||
 			(meta.cacheState === "hit" && !meta.cachedAt) ||
 			(input.freshAfter &&
 				Date.parse(fetchedAt) < input.freshAfter.getTime()) ||

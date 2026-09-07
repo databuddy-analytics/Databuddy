@@ -293,13 +293,16 @@ export class WebsiteService {
 				scope.domain !== nextScope.domain;
 			let startedAt = scope.startedAt;
 			if (scopeChanged && startedAt) {
-				await retireBusinessMemory(scope);
 				startedAt = new Date(
 					Math.max(Date.now(), Date.parse(startedAt) + 1)
 				).toISOString();
 			}
 			if (scopeChanged || updates.settings !== undefined) {
-				const settings = { ...(updates.settings ?? before.settings) };
+				const settings = {
+					...(updates.settings === undefined
+						? before.settings
+						: updates.settings),
+				};
 				settings.businessContextStartedAt = startedAt;
 				normalizedUpdates.settings = settings;
 			}
@@ -311,6 +314,9 @@ export class WebsiteService {
 
 			if (!updated) {
 				throw new WebsiteNotFoundError();
+			}
+			if (scopeChanged && scope.startedAt) {
+				await retireBusinessMemory(scope);
 			}
 
 			return updated;
@@ -402,9 +408,6 @@ export class WebsiteService {
 			if (!before) {
 				throw new WebsiteNotFoundError();
 			}
-			if (before.settings?.businessContextStartedAt) {
-				await retireBusinessMemory(websiteBusinessScope(before));
-			}
 			const [deleted] = await database
 				.delete(websites)
 				.where(eq(websites.id, id))
@@ -412,6 +415,9 @@ export class WebsiteService {
 
 			if (!deleted) {
 				throw new WebsiteNotFoundError();
+			}
+			if (before.settings?.businessContextStartedAt) {
+				await retireBusinessMemory(websiteBusinessScope(before));
 			}
 
 			return deleted;

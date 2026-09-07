@@ -83,7 +83,11 @@ exposes links plus site-scoped search for further inspection. Coverage is limite
 the pages actually read. Context snapshots retain source dates and are frozen with the
 run, separately from its analytics cutoff. Organization, website, canonical domain,
 and a scope start date bind shared memory. Routine edits preserve that scope; deletion
-and real scope changes retire its documents. Legacy replies without an original scope
+and real scope changes retire its documents. Authorized organization deletion retires
+all website scopes before the database cascade, holding ownership and website locks
+through deletion; failed retirement keeps the organization available for retry.
+Reply acceptance and outcome persistence acquire website locks before investigation
+locks. Legacy replies without an original scope
 remain history rather than being relabeled as current business facts. Scope changes
 during execution reject the old outcome before persistence.
 
