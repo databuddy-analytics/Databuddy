@@ -387,6 +387,56 @@ integration("durable business profiles against isolated PostgreSQL", () => {
 			.where(eq(websiteBusinessContexts.websiteId, scope.websiteId));
 		expect(await loadBusinessProfileRecord(scope, asOf)).toBeNull();
 	});
+	it("rejects foreign and invalid website URLs on writes and canonical reads", async () => {
+		const before = await save();
+		for (const url of [
+			"https://foreign.example.com/",
+			"ftp://reports.example.com/",
+			"https://reports.example.com:8443/",
+			"https://user:password@reports.example.com/",
+			undefined,
+		]) {
+			const invalid = {
+				...profile,
+				sources: profile.sources.map((source) => ({ ...source, url })),
+			};
+			expect(
+				await saveBusinessProfileRecord(scope, invalid, {
+					expectedRevision: before.revision,
+					refreshAfter,
+				})
+			).toBeNull();
+			expect(await loadBusinessProfileRecord(scope, asOf)).toEqual(before);
+			// Simulate invalid legacy/imported JSON bypassing the service boundary.
+			await db
+				.update(websiteBusinessContexts)
+				.set({ profile: invalid })
+				.where(eq(websiteBusinessContexts.websiteId, scope.websiteId));
+			expect(await loadBusinessProfileRecord(scope, asOf)).toBeNull();
+			await db
+				.update(websiteBusinessContexts)
+				.set({ profile })
+				.where(eq(websiteBusinessContexts.websiteId, scope.websiteId));
+		}
+		const malformed = {
+			...profile,
+			sources: profile.sources.map((source) => ({
+				...source,
+				url: "not a URL",
+			})),
+		};
+		await expect(
+			saveBusinessProfileRecord(scope, malformed, {
+				expectedRevision: before.revision,
+				refreshAfter,
+			})
+		).rejects.toThrow();
+		await db
+			.update(websiteBusinessContexts)
+			.set({ profile: malformed })
+			.where(eq(websiteBusinessContexts.websiteId, scope.websiteId));
+		expect(await loadBusinessProfileRecord(scope, asOf)).toBeNull();
+	});
 	it("does not expose malformed stored JSON or captures preceding the epoch", async () => {
 		await save();
 		await db
