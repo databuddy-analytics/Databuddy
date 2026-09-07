@@ -131,6 +131,8 @@ integration("durable business profiles against isolated PostgreSQL", () => {
 	) {
 		const deadline = Date.now() + 2000;
 		while (Date.now() < deadline) {
+			// Activity snapshots are cached within a transaction, including an empty poll.
+			await tx.execute(sql`SELECT pg_stat_clear_snapshot()`);
 			const result =
 				await tx.execute(sql`SELECT count(*)::int AS waiting FROM pg_stat_activity
 				WHERE datname = current_database() AND wait_event_type = 'Lock'
@@ -237,7 +239,7 @@ integration("durable business profiles against isolated PostgreSQL", () => {
 		await save();
 		let writing: ReturnType<typeof saveBusinessProfileRecord> | undefined;
 		const startedAt = "2026-09-02T00:00:00.000Z";
-		await db.transaction(async (tx) => {
+		try { await db.transaction(async (tx) => {
 			await tx
 				.update(websites)
 				.set({ settings: { businessContextStartedAt: startedAt } })
@@ -247,7 +249,10 @@ integration("durable business profiles against isolated PostgreSQL", () => {
 				refreshAfter,
 			});
 			await waitForWriter(tx);
-		});
+		}); } finally {
+			// A failed barrier must not race fixture cleanup against the second session.
+			await Promise.allSettled(writing ? [writing] : []);
+		}
 		expect(await writing).toBeNull();
 		expect(await loadBusinessProfileRecord(scope, asOf)).toBeNull();
 		expect(await markBusinessProfileIndexed(scope, 1)).toBeNull();
@@ -309,14 +314,18 @@ integration("durable business profiles against isolated PostgreSQL", () => {
 	it("rechecks deletion after waiting and the website FK cascades the document", async () => {
 		await save();
 		let writing: ReturnType<typeof saveBusinessProfileRecord> | undefined;
-		await db.transaction(async (tx) => {
+		try { await db.transaction(async (tx) => {
 			await tx.delete(websites).where(eq(websites.id, scope.websiteId));
+			// Prime an empty activity snapshot before the other session starts waiting.
+			await tx.execute(sql`SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock'`);
 			writing = saveBusinessProfileRecord(scope, profile, {
 				expectedRevision: 1,
 				refreshAfter,
 			});
 			await waitForWriter(tx);
-		});
+		}); } finally {
+			await Promise.allSettled(writing ? [writing] : []);
+		}
 		expect(await writing).toBeNull();
 		expect(
 			await db
