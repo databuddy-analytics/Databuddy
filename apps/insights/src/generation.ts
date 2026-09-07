@@ -1,3 +1,14 @@
+import {
+	type BusinessContext,
+	type BusinessScope,
+	mergeBusinessContext,
+} from "@databuddy/ai/lib/business-context";
+import {
+	loadCurrentBusinessScope,
+	loadWebsiteBusinessProfile,
+	recallWebsiteBusinessContext,
+	unavailableBusinessContext,
+} from "./business-context";
 import type { AppContext } from "@databuddy/ai/config/context";
 import {
 	ensureAgentCreditsAvailable,
@@ -7,6 +18,7 @@ import {
 } from "@databuddy/ai/agents/execution";
 import { and, between, db, eq, gt, isNull, lte, or } from "@databuddy/db";
 import { annotations, websites } from "@databuddy/db/schema";
+import { canonicalBusinessScope } from "@databuddy/services/business-memory";
 import type { InsightGenerationReason } from "@databuddy/redis";
 import { createServiceAuth } from "@databuddy/rpc";
 import type {
@@ -295,6 +307,7 @@ export interface InvestigationSources {
 		timezone: string
 	) => Promise<InvestigationAnnotation[]>;
 	investigateSignal: (input: InsightAgentInput) => Promise<InsightAgentResult>;
+	loadBusinessProfile?: typeof loadWebsiteBusinessProfile;
 	loadDueInvestigation: (params: {
 		asOf: Date;
 		organizationId: string;
@@ -310,6 +323,7 @@ export interface InvestigationSources {
 	}) => Promise<Map<string, LatestInsightObservation>>;
 	loadOtherOpenWork: typeof loadOtherOpenWork;
 	loadRouteVitalContinuation: typeof loadRouteVitalContinuation;
+	recallBusinessContext?: typeof recallWebsiteBusinessContext;
 	remeasureSignal: (
 		params: DetectSignalsParams,
 		prior: InvestigationSignal,
@@ -443,6 +457,8 @@ export async function refreshInvestigationSignal(params: {
 }
 
 const productionInvestigationSources: InvestigationSources = {
+	loadBusinessProfile: loadWebsiteBusinessProfile,
+	recallBusinessContext: recallWebsiteBusinessContext,
 	detectDefinitionSignals: detectFunnelGoalSignals,
 	detectMetricSignals: detectSignals,
 	detectRouteHealthSignals,
@@ -856,6 +872,9 @@ async function investigatePlannedCandidate(
 	try {
 		investigationResult = await runtime.sources.investigateSignal({
 			appContext,
+			...(candidate.businessContext
+				? { businessContext: candidate.businessContext }
+				: {}),
 			customerImpact,
 			evidence,
 			githubRepository: input.githubRepository ?? null,
@@ -938,6 +957,82 @@ function plannedPortfolio(
 		}
 	).map(toPlannedCandidate);
 }
+export async function prepareCandidateBusinessContexts(
+	input: InvestigateWebsiteInput,
+	candidates: PlannedInvestigationCandidate[],
+	sources: Pick<
+		InvestigationSources,
+		"loadBusinessProfile" | "recallBusinessContext"
+	>,
+	allowRefresh: boolean,
+	scope: BusinessScope | null = {
+		organizationId: input.organizationId,
+		websiteId: input.websiteId,
+		domain: input.domain,
+	}
+): Promise<PlannedInvestigationCandidate[]> {
+	if (candidates.length === 0) {
+		return candidates;
+	}
+	const asOf = allowRefresh
+		? new Date()
+		: normalizeAsOf(input.asOf, input.timezone).toDate();
+	if (!scope) {
+		return candidates.map((candidate) => ({
+			...candidate,
+			businessContext: {
+				capturedAt: asOf.toISOString(),
+				status: "unavailable",
+				sources: [],
+				issues: ["Current website business scope could not be established."],
+			},
+		}));
+	}
+	const disabled: BusinessContext = {
+		capturedAt: asOf.toISOString(),
+		status: "disabled",
+		sources: [],
+		issues: [],
+	};
+	const profile = sources.loadBusinessProfile
+		? await sources
+				.loadBusinessProfile({ scope, asOf, allowRefresh })
+				.catch((error) => unavailableBusinessContext(error, scope, asOf))
+		: disabled;
+	// Fresh production context has its own capture time. Keep plan.asOf for
+	// analytics windows; historical injected sources retain their frozen cutoff.
+	const recalledAt = allowRefresh ? new Date() : asOf;
+	return await Promise.all(
+		candidates.map(async (candidate) => {
+			const related = sources.recallBusinessContext
+				? await sources
+						.recallBusinessContext({
+							scope,
+							allowWrite: allowRefresh,
+							asOf: recalledAt,
+							subjectKey: candidate.signal.signalKey,
+							query: [
+								candidate.signal.signalKey,
+								candidate.signal.entity.type,
+								candidate.signal.entity.id,
+								candidate.signal.entity.label,
+								candidate.investigationObjective,
+							]
+								.filter(Boolean)
+								.join("\n"),
+						})
+						.catch((error) =>
+							unavailableBusinessContext(error, scope, recalledAt)
+						)
+				: disabled;
+			return {
+				...candidate,
+				businessContext: mergeBusinessContext(profile, related),
+			};
+		})
+	);
+}
+
 async function runPlannedCandidatePortfolio(params: {
 	candidates: PlannedInvestigationCandidate[];
 	completedSignalKeys: ReadonlySet<string>;
@@ -990,7 +1085,12 @@ export async function investigateWebsitePortfolioWithSources(
 		onCoverage?.(discovered.coverage);
 		return [discovered.artifact];
 	}
-	const candidates = plannedPortfolio(discovered.value, reason);
+	const candidates = await prepareCandidateBusinessContexts(
+		input,
+		plannedPortfolio(discovered.value, reason),
+		sources,
+		false
+	);
 	if (candidates.length === 0) {
 		onCoverage?.({
 			...discovered.value.coverage,
@@ -1071,6 +1171,7 @@ export async function generateWebsiteInsights(
 			name: websites.name,
 			domain: websites.domain,
 			integrations: websites.integrations,
+			settings: websites.settings,
 		})
 		.from(websites)
 		.where(
@@ -1115,7 +1216,18 @@ export async function generateWebsiteInsights(
 		userId: input.requestedByUserId ?? undefined,
 		websiteId: site.id,
 	};
-	let plan = await loadInsightRunCandidatePlan(runIdentity, input.reason);
+	let businessScope = canonicalBusinessScope({
+		organizationId: input.organizationId,
+		websiteId: site.id,
+		domain: site.domain,
+		startedAt: site.settings?.businessContextStartedAt,
+	});
+	let plan = await loadInsightRunCandidatePlan(
+		runIdentity,
+		input.reason,
+		businessScope
+	);
+
 	if (!plan && existingObservations.length > 0) {
 		// A run created before candidate portfolios existed can contain at most
 		// one observation. Freeze that completed legacy work explicitly rather
@@ -1181,12 +1293,21 @@ export async function generateWebsiteInsights(
 				stages: ["detected", "eligible"],
 				websiteId: site.id,
 			});
-			const selectedCandidates = plannedPortfolio(
-				discovered.value,
-				input.reason
+			const selected = plannedPortfolio(discovered.value, input.reason);
+			const currentScope = selected.length
+				? await loadCurrentBusinessScope(businessScope, true)
+				: null;
+			businessScope = currentScope ?? businessScope;
+			const selectedCandidates = await prepareCandidateBusinessContexts(
+				investigationInput,
+				selected,
+				productionInvestigationSources,
+				true,
+				currentScope
 			);
 			plan = await freezeInsightRunCandidatePlan(runIdentity, input.reason, {
 				asOf: discovered.value.asOf.toISOString(),
+				businessScope,
 				candidates: selectedCandidates,
 				...(selectedCandidates.length === 0
 					? { emptyStatus: "no_signals" as const }
@@ -1309,6 +1430,14 @@ export async function generateWebsiteInsights(
 					if (noCredits) {
 						return;
 					}
+					if (
+						plan.businessScope?.startedAt &&
+						!(await loadCurrentBusinessScope(plan.businessScope))
+					) {
+						throw new Error(
+							"Frozen investigation business scope changed; start a new run"
+						);
+					}
 					const usageIdempotencyKey = `insights:${input.runId}:${site.id}:${randomUUIDv7()}`;
 					const agentUsage: {
 						value: Required<
@@ -1379,6 +1508,7 @@ export async function generateWebsiteInsights(
 						};
 						const asOf = new Date(analysis.asOf);
 						const saved = await persistInvestigation({
+							businessScope: plan.businessScope ?? businessScope,
 							evidence: analysis.evidence,
 							investigation: candidate,
 							notNewerThan: asOf,

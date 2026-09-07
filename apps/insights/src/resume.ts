@@ -1,3 +1,14 @@
+import {
+	type BusinessContext,
+	mergeBusinessContext,
+} from "@databuddy/ai/lib/business-context";
+import {
+	assertBusinessScopeCurrent,
+	loadCurrentBusinessScope,
+	loadWebsiteBusinessProfile,
+	recallWebsiteBusinessContext,
+	unavailableBusinessContext,
+} from "./business-context";
 import type { AppContext } from "@databuddy/ai/config/context";
 import {
 	ensureAgentCreditsAvailable,
@@ -93,7 +104,12 @@ export async function resumeInsightReply(
 	replyId: string,
 	investigate: Investigate = runInsightAgent,
 	deliverSlackReply: typeof deliverInsightSlackReply = deliverInsightSlackReply,
-	refresh: Refresh = refreshInvestigationSignal
+	refresh: Refresh = refreshInvestigationSignal,
+	business = {
+		loadCurrentBusinessScope,
+		loadBusinessProfile: loadWebsiteBusinessProfile,
+		recallBusinessContext: recallWebsiteBusinessContext,
+	}
 ): Promise<"skipped" | "succeeded"> {
 	const [trigger] = await db
 		.select({
@@ -115,7 +131,13 @@ export async function resumeInsightReply(
 			analyticsInsights,
 			eq(insightReplies.insightId, analyticsInsights.id)
 		)
-		.innerJoin(websites, eq(analyticsInsights.websiteId, websites.id))
+		.innerJoin(
+			websites,
+			and(
+				eq(analyticsInsights.websiteId, websites.id),
+				eq(analyticsInsights.organizationId, websites.organizationId)
+			)
+		)
 		.where(and(eq(insightReplies.id, replyId), isNull(websites.deletedAt)))
 		.limit(1);
 
@@ -162,6 +184,43 @@ export async function resumeInsightReply(
 	}
 
 	const startedAt = new Date();
+	const scope = {
+		organizationId: trigger.organizationId,
+		websiteId: trigger.websiteId,
+		domain: trigger.websiteDomain,
+	};
+	// Capture and reconcile persisted team statements before billing, current
+	// measurement, or model success. Unacknowledged writes retain the PG fallback.
+	const currentScope = await business.loadCurrentBusinessScope(scope, true);
+	let businessContext: BusinessContext;
+	if (currentScope) {
+		const profile = await business
+			.loadBusinessProfile({
+				scope: currentScope,
+				asOf: startedAt,
+				allowRefresh: true,
+			})
+			.catch((error) => unavailableBusinessContext(error, scope, startedAt));
+		const recalledAt = new Date();
+		businessContext = mergeBusinessContext(
+			profile,
+			await business
+				.recallBusinessContext({
+					scope: currentScope,
+					allowWrite: true,
+					asOf: recalledAt,
+					subjectKey: trigger.subjectKey,
+					query: `${trigger.subjectKey}\n${trigger.body}`,
+				})
+				.catch((error) => unavailableBusinessContext(error, scope, recalledAt))
+		);
+	} else {
+		businessContext = unavailableBusinessContext(
+			new Error("Current website business scope could not be established"),
+			scope,
+			startedAt
+		);
+	}
 	const [history, otherOpenWork] = await Promise.all([
 		loadInvestigationHistory({
 			beforeReply: { createdAt: trigger.createdAt, id: replyId },
@@ -221,6 +280,7 @@ export async function resumeInsightReply(
 
 	const result = await investigate({
 		appContext,
+		...{ businessContext },
 		evidence: currentMeasurement.evidence,
 		githubRepository: trigger.integrations?.github ?? null,
 		history,
@@ -232,6 +292,7 @@ export async function resumeInsightReply(
 		signal: currentMeasurement.signal,
 	});
 	const committed = await db.transaction(async (tx) => {
+		await assertBusinessScopeCurrent(currentScope ?? scope, tx);
 		const [locked] = await tx
 			.select({ status: insightReplies.status })
 			.from(insightReplies)

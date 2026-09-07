@@ -17,6 +17,7 @@
     "@databuddy/env": "workspace:*",
     "@databuddy/redis": "workspace:*",
     "@databuddy/rpc": "workspace:*",
+    "@databuddy/services": "workspace:*",
     "@databuddy/shared": "workspace:*",
     "ai": "^6.0.188",
     "bullmq": "^5.78.0",

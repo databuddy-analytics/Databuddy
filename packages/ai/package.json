@@ -19,6 +19,7 @@
     "./lib/ai-logger": "./src/lib/ai-logger.ts",
     "./lib/databuddy": "./src/lib/databuddy.ts",
     "./lib/date-presets": "./src/lib/date-presets.ts",
+    "./lib/business-context": "./src/lib/business-context.ts",
     "./lib/supermemory": "./src/lib/supermemory.ts",
     "./lib/request-logger": "./src/lib/request-logger.ts",
     "./lib/tracing": "./src/lib/tracing.ts",

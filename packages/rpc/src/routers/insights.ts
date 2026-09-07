@@ -22,6 +22,7 @@ import {
 	insightsResumeJobId,
 } from "@databuddy/redis";
 import { ratelimit } from "@databuddy/redis/rate-limit";
+import { getWebsiteBusinessScope } from "@databuddy/services/business-memory";
 import {
 	historyInsightSchema,
 	insightBriefItemSchema,
@@ -518,7 +519,6 @@ export async function appendInvestigationReply(
 	setAuditOrganization(context, insight.organizationId);
 
 	const author = replyAuthor(context, authorName);
-	const createdAt = new Date();
 	const stored = await db.transaction(async (tx) => {
 		const insightCase = and(
 			eq(analyticsInsights.organizationId, insight.organizationId),
@@ -614,6 +614,16 @@ export async function appendInvestigationReply(
 			);
 		}
 
+		const businessScope = await getWebsiteBusinessScope(insight, {
+			database: tx,
+			initialize: true,
+		});
+		if (!businessScope) {
+			throw rpcError.notFound("website", insight.websiteId);
+		}
+		const createdAt = new Date(
+			Math.max(Date.now(), Date.parse(businessScope.startedAt))
+		);
 		await tx.insert(insightReplies).values({
 			...author,
 			body: parsed.body,
