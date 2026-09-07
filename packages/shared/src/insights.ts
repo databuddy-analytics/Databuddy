@@ -343,15 +343,17 @@ export const insightWatchThresholdSchema = z
 
 // Bind only fields that analytics evaluates. The read snapshot also retains the
 // complete funnel steps so repair validation can preserve names and conditions.
+const evaluatedFilterSchema = z.object({ field: z.string() });
 const measurementFiltersSchema = z
 	.preprocess(
 		(value) =>
 			Array.isArray(value)
-				? value.filter((filter) =>
-						goalFunnelFilterFieldSet.has(
-							(filter as { field?: unknown } | null)?.field as string
-						)
-					)
+				? value.filter((filter) => {
+						const parsed = evaluatedFilterSchema.safeParse(filter);
+						return (
+							parsed.success && goalFunnelFilterFieldSet.has(parsed.data.field)
+						);
+					})
 				: value,
 		z.array(
 			insightDefinitionEditChangesSchema.shape.filters.unwrap().unwrap().element
