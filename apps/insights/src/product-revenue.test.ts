@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { investigationOutcomeSchema } from "@databuddy/shared/insights";
 import dayjs from "dayjs";
 import {
 	detectSignals,
@@ -148,16 +149,21 @@ describe("native unidentified payment-description discovery", () => {
 				{
 					signal: prepared.signal,
 					recheckAt: new Date("2026-10-07T12:00:00Z"),
-					outcome: {
+					outcome: investigationOutcomeSchema.parse({
 						title: "Team-described receipts fell",
 						summary: "Other receipts offset the change.",
-						evidence: [],
+						evidence: [
+							"Team-described receipts fell from 30000 to 15000 while whole USD gross stayed 40000.",
+						],
+						publish: true,
+						findingKind: "product_outcome",
+						publicationBasis: "measured_impact",
 						rootCause: null,
 						next: {
 							type: "resolve" as const,
 							reason: "The cause is unmeasured.",
 						},
-					},
+					}),
 				},
 			],
 		]);

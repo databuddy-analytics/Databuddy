@@ -167,7 +167,7 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 					"refund",
 					-50,
 					"refund",
-					"completed",
+					"refunded",
 					"{}",
 					"2026-08-02 12:00:00",
 					{ product_id: null, product_name: "Refund" }

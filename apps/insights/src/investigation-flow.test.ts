@@ -3283,7 +3283,7 @@ describe("structured revenue evidence", () => {
 			const result = await run;
 			expect(result.outcome.publish).toBe(true);
 			expect(result.outcome.evidence[0]).toContain(
-				"stripe receipts described Team"
+				"stripe receipts described Team with no product ID"
 			);
 			expect(result.outcome.evidence[1]).toContain("40,000 → 40,000");
 		} else if (variant === "private")
@@ -3294,6 +3294,18 @@ describe("structured revenue evidence", () => {
 	it("binds metrics to their labels and computes a refund delta absent from the source", () => {
 		expect(renderRevenueEvidence(selection, readings, input).text).toBe(
 			"USD, 2026-06-28–2026-07-04 → 2026-07-05–2026-07-11 UTC: Gross Revenue: 10,000 → 10,000; Settled Transactions: 100 → 100; Refund Amount: 200 → 1,200 (+1,000)."
+		);
+	});
+	it("does not describe an unrestricted receipt-name population as unidentified", () => {
+		const named = readings.map((reading) => ({
+			...reading,
+			filters: [{ field: "product_name", op: "eq", value: "Team" }],
+		}));
+		expect(renderRevenueEvidence(selection, named, input).text).toContain(
+			"receipts described Team)"
+		);
+		expect(renderRevenueEvidence(selection, named, input).text).not.toContain(
+			"no product ID"
 		);
 	});
 

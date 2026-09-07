@@ -168,8 +168,12 @@ export function renderRevenueEvidence(
 	const provider = first.filters.find(
 		(filter) => filter.field === "provider" && filter.op === "eq"
 	);
+	const unidentified = first.filters.some(
+		(filter) =>
+			filter.field === "product_id" && filter.op === "eq" && filter.value === ""
+	);
 	const population = description
-		? ` (${provider ? `${String(provider.value)} ` : ""}receipts described ${String(description.value)})`
+		? ` (${provider ? `${String(provider.value)} ` : ""}receipts described ${String(description.value)}${unidentified ? " with no product ID" : ""})`
 		: first.filters.some((filter) => filter.field !== "currency")
 			? " (filtered population)"
 			: "";
