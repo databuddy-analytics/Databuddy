@@ -983,8 +983,8 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 			(limit) => ({
 				select: `SELECT
 				coalesce(product_name, 'Unknown') as name,
-				revenue_provider as provider,
-				product_id,${REVENUE_METRICS}`,
+				product_id,
+				revenue_provider as provider,${REVENUE_METRICS}`,
 				groupBy: "revenue_provider, product_name, product_id, currency",
 				orderBy: "revenue DESC",
 				limit,
