@@ -72,7 +72,6 @@ vi.mock("../../lib/supermemory", () => ({
 	sanitizeMemoryContent: vi.fn((content: string) => content),
 	saveCuratedMemory: vi.fn(async () => ({ id: "memory-1" })),
 	searchMemories: vi.fn(async () => []),
-	storeAnalyticsSummary: vi.fn(async () => undefined),
 	storeConversation: vi.fn(async () => undefined),
 }));
 

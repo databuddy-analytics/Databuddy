@@ -7,6 +7,11 @@ import {
 } from "@databuddy/db/schema";
 import { invalidateWebsiteReadCaches } from "@databuddy/redis/cache-invalidation";
 import { WebsiteCache } from "./website-cache";
+import {
+	BusinessMemoryRetirementError,
+	canonicalBusinessScope,
+	retireBusinessMemory,
+} from "./business-memory";
 
 export type { Website } from "@databuddy/db/schema";
 
@@ -21,7 +26,10 @@ export type UpdateWebsiteInput = Partial<
 	Omit<WebsiteInsert, "id" | "createdAt">
 >;
 
-type WebsiteMutationDatabase = Pick<typeof db, "delete" | "insert" | "update">;
+type WebsiteMutationDatabase = Pick<
+	typeof db,
+	"delete" | "insert" | "select" | "update"
+>;
 
 export class DuplicateDomainError extends Error {
 	constructor(domain: string) {
@@ -46,6 +54,15 @@ export class ValidationError extends Error {
 
 export const buildWebsiteFilter = (organizationId: string) =>
 	eq(websites.organizationId, organizationId);
+
+function websiteBusinessScope(website: Website) {
+	return canonicalBusinessScope({
+		organizationId: website.organizationId,
+		websiteId: website.id,
+		domain: website.domain,
+		startedAt: website.settings?.businessContextStartedAt,
+	});
+}
 
 export class WebsiteService {
 	private readonly database: typeof db;
@@ -255,6 +272,40 @@ export class WebsiteService {
 		}
 
 		try {
+			const [before] = await database
+				.select()
+				.from(websites)
+				.where(eq(websites.id, id))
+				.limit(1)
+				.for("update");
+			if (!before) {
+				throw new WebsiteNotFoundError();
+			}
+			const scope = websiteBusinessScope(before);
+			const nextScope = canonicalBusinessScope({
+				...scope,
+				organizationId:
+					normalizedUpdates.organizationId ?? scope.organizationId,
+				domain: normalizedUpdates.domain ?? scope.domain,
+			});
+			const scopeChanged =
+				scope.organizationId !== nextScope.organizationId ||
+				scope.domain !== nextScope.domain;
+			let startedAt = scope.startedAt;
+			if (scopeChanged && startedAt) {
+				startedAt = new Date(
+					Math.max(Date.now(), Date.parse(startedAt) + 1)
+				).toISOString();
+			}
+			if (scopeChanged || updates.settings !== undefined) {
+				const settings = {
+					...(updates.settings === undefined
+						? before.settings
+						: updates.settings),
+				};
+				settings.businessContextStartedAt = startedAt;
+				normalizedUpdates.settings = settings;
+			}
 			const [updated] = await database
 				.update(websites)
 				.set({ ...normalizedUpdates, updatedAt: new Date() })
@@ -264,13 +315,19 @@ export class WebsiteService {
 			if (!updated) {
 				throw new WebsiteNotFoundError();
 			}
+			if (scopeChanged && scope.startedAt) {
+				await retireBusinessMemory(scope);
+			}
 
 			return updated;
 		} catch (error) {
 			if (isUniqueViolationFor(error, "websites_org_domain_unique")) {
 				throw new DuplicateDomainError(normalizedUpdates.domain ?? "");
 			}
-			if (error instanceof WebsiteNotFoundError) {
+			if (
+				error instanceof WebsiteNotFoundError ||
+				error instanceof BusinessMemoryRetirementError
+			) {
 				throw error;
 			}
 			console.error("WebsiteService.updateById failed:", {
@@ -298,7 +355,9 @@ export class WebsiteService {
 			throw new WebsiteNotFoundError();
 		}
 
-		const updated = await this.updateInTransaction(this.database, id, updates);
+		const updated = await this.database.transaction((tx) =>
+			this.updateInTransaction(tx, id, updates)
+		);
 
 		await this.cache?.deleteWebsiteById(id);
 		await this.cache?.setWebsite(updated);
@@ -340,6 +399,15 @@ export class WebsiteService {
 		id: string
 	): Promise<Website> {
 		try {
+			const [before] = await database
+				.select()
+				.from(websites)
+				.where(eq(websites.id, id))
+				.limit(1)
+				.for("update");
+			if (!before) {
+				throw new WebsiteNotFoundError();
+			}
 			const [deleted] = await database
 				.delete(websites)
 				.where(eq(websites.id, id))
@@ -348,10 +416,16 @@ export class WebsiteService {
 			if (!deleted) {
 				throw new WebsiteNotFoundError();
 			}
+			if (before.settings?.businessContextStartedAt) {
+				await retireBusinessMemory(websiteBusinessScope(before));
+			}
 
 			return deleted;
 		} catch (error) {
-			if (error instanceof WebsiteNotFoundError) {
+			if (
+				error instanceof WebsiteNotFoundError ||
+				error instanceof BusinessMemoryRetirementError
+			) {
 				throw error;
 			}
 			console.error("WebsiteService.deleteById failed:", {
@@ -362,7 +436,9 @@ export class WebsiteService {
 	}
 
 	async deleteById(id: string): Promise<void> {
-		const deleted = await this.deleteInTransaction(this.database, id);
+		const deleted = await this.database.transaction((tx) =>
+			this.deleteInTransaction(tx, id)
+		);
 		await this.cache?.deleteWebsiteById(id);
 		await this.cache?.deleteWebsiteByDomain(
 			deleted.domain,

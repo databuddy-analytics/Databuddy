@@ -69,6 +69,28 @@ The agent receives:
 - project instructions and durable corrections;
 - human replies and open actions or PRs.
 
+Business context is a sourced brief shared across a website's investigations. Supermemory
+stores bounded page excerpts and the original text of authorized team replies. A scan
+loads its public profile once and recalls relevant explanations for each subject;
+recent and exact-subject PostgreSQL replies remain available during indexing delays or
+outages. Recalled meaning takes priority over unrelated recent conversation. Public
+copy explains the offering and audience; it does not establish completed behavior from
+an event name. Explicit team corrections, guesses, and historical metrics remain
+distinct from current measured evidence.
+
+Public excerpts expire after seven days; a missing profile reads the homepage and
+exposes links plus site-scoped search for further inspection. Coverage is limited to
+the pages actually read. Context snapshots retain source dates and are frozen with the
+run, separately from its analytics cutoff. Organization, website, canonical domain,
+and a scope start date bind shared memory. Routine edits preserve that scope; deletion
+and real scope changes retire its documents. Authorized organization deletion retires
+all website scopes before the database cascade, holding ownership and website locks
+through deletion; failed retirement keeps the organization available for retry.
+Reply acceptance and outcome persistence acquire website locks before investigation
+locks. Legacy replies without an original scope
+remain history rather than being relabeled as current business facts. Scope changes
+during execution reject the old outcome before persistence.
+
 Tools are discoverable. There is no fixed first query, query family, receipt choreography, or two-read limit. Each investigation uses one tool loop with at most eight model turns, including a reserved final turn. It ends through `finish_investigation`, which validates the outcome and returns any repair error in the same conversation; at most three finish attempts are allowed. Successful reads include exact citation references. The agent does not restart the conversation to repair output.
 
 Native `revenue_overview` evidence selects a currency and metric fields from exact successful result references. Code renders labels, values, units, dates and differences for complete equal-duration comparison windows with the same website, timezone and filters, including fresh windows on a later recheck. The stored evidence remains text. This binds those numeric comparisons; other sources retain numeric grounding checks and every finding still needs semantic quality review.

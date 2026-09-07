@@ -1,20 +1,9 @@
-import Supermemory from "supermemory";
+import { getMemoryClient } from "@databuddy/services/business-memory";
+export { getMemoryClient } from "@databuddy/services/business-memory";
 import { stripHtmlTags } from "./sanitize";
 
 const apiKey = process.env.SUPERMEMORY_API_KEY;
 const MAX_MEMORY_LENGTH = 2000;
-
-let _client: Supermemory | null = null;
-
-function getClient(): Supermemory | null {
-	if (!apiKey) {
-		return null;
-	}
-	if (!_client) {
-		_client = new Supermemory({ apiKey });
-	}
-	return _client;
-}
 
 export function isMemoryEnabled(): boolean {
 	return Boolean(apiKey);
@@ -127,7 +116,7 @@ export async function getMemoryContext(
 	apiKeyId: string | null,
 	options?: { websiteId?: string; threshold?: number }
 ): Promise<MemoryContext> {
-	const client = getClient();
+	const client = getMemoryClient();
 	if (!client) {
 		return { staticProfile: [], dynamicProfile: [], relevantMemories: [] };
 	}
@@ -182,7 +171,7 @@ export function storeConversation(
 		domain?: string;
 	}
 ): void {
-	const client = getClient();
+	const client = getMemoryClient();
 	if (!client) {
 		return;
 	}
@@ -213,32 +202,6 @@ export function storeConversation(
 		.catch(() => {});
 }
 
-export function storeAnalyticsSummary(
-	summary: string,
-	websiteId: string,
-	metadata?: Record<string, string>
-): Promise<void> {
-	const client = getClient();
-	if (!client) {
-		return Promise.resolve();
-	}
-
-	return client
-		.add({
-			content: sanitizeMemoryContent(summary),
-			containerTag: memoryContainerTag("website", websiteId),
-			metadata: {
-				source: "databuddy",
-				type: "analytics_summary",
-				websiteId,
-				...metadata,
-			},
-			entityContext:
-				"Weekly analytics summary for a website. Extract trends, anomalies, and key metrics.",
-		})
-		.then(() => undefined);
-}
-
 export function saveCuratedMemory(
 	content: string,
 	userId: string | null,
@@ -248,7 +211,7 @@ export function saveCuratedMemory(
 		websiteId?: string;
 	}
 ): void {
-	const client = getClient();
+	const client = getMemoryClient();
 	if (!client) {
 		return;
 	}
@@ -284,7 +247,7 @@ export async function searchMemories(
 		websiteId?: string;
 	}
 ): Promise<MemorySearchResult[]> {
-	const client = getClient();
+	const client = getMemoryClient();
 	if (!client) {
 		return [];
 	}
@@ -370,7 +333,7 @@ export async function forgetMemory(
 	containerTag: string,
 	memoryContent: string
 ): Promise<{ success: boolean }> {
-	const client = getClient();
+	const client = getMemoryClient();
 	if (!client) {
 		return { success: false };
 	}
