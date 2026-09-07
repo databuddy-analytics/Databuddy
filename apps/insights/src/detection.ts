@@ -599,17 +599,11 @@ async function detectErrorBehaviorSignals(params: {
 const customEventCount = z
 	.union([z.number(), z.string().trim().min(1).pipe(z.coerce.number())])
 	.pipe(z.number().int().nonnegative());
-const customEventCounts = z
-	.object({
-		total_events: customEventCount,
-		unique_users: customEventCount,
-		unique_sessions: customEventCount,
-	})
-	.refine(
-		(row) =>
-			row.unique_users <= row.total_events &&
-			row.unique_sessions <= row.total_events
-	);
+const customEventCounts = z.object({
+	total_events: customEventCount,
+	unique_users: customEventCount,
+	unique_sessions: customEventCount,
+});
 
 function makeCustomEventSignal(
 	name: string,

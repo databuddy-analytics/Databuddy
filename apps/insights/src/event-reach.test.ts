@@ -217,7 +217,6 @@ describe("custom-event reach without configured conversions", () => {
 			1000,
 		],
 		["negative reach", { ...baseline, unique_users: -1 }, baseline, 1000],
-		["impossible reach", { ...baseline, unique_users: 1001 }, baseline, 1000],
 		["fractional reach", { ...baseline, unique_users: 1.5 }, baseline, 1000],
 	] as const) {
 		it(`keeps ${label} out of the new reach path`, async () => {
@@ -229,6 +228,49 @@ describe("custom-event reach without configured conversions", () => {
 			expect(
 				signals.filter((signal) => signal.metric === "custom_event_reach")
 			).toEqual([]);
+		});
+	}
+
+	for (const occurrences of [100_000, 300_000]) {
+		it(`retains detection and rechecks with approximate native reach and ${occurrences} occurrences`, async () => {
+			// Native uniq estimates above its exact range may exceed COUNT(*).
+			const previous = {
+				name: eventName,
+				total_events: 300_000,
+				unique_users: 300_600,
+				unique_sessions: 300_300,
+			};
+			const current = {
+				name: eventName,
+				total_events: occurrences,
+				unique_users: 100_200,
+				unique_sessions: 100_100,
+			};
+			const query = eventQuery(current, previous);
+			const signals = await detectSignals(params, query, today);
+			const metric =
+				occurrences === 100_000 ? "custom_event_count" : "custom_event_reach";
+			const signal = signals[0];
+			expect(signals).toHaveLength(1);
+			expect(signal).toMatchObject({
+				metric,
+				current: occurrences === 100_000 ? 100_000 : 100_200,
+				baseline: occurrences === 100_000 ? 300_000 : 300_600,
+			});
+			if (!signal) throw new Error("Missing event change");
+			expect(
+				await remeasureMetricSignal(
+					params,
+					prepareInvestigation(signal, 7).signal,
+					query,
+					today
+				)
+			).toMatchObject({
+				metric,
+				current: signal.current,
+				baseline: signal.baseline,
+				subjectKey: signal.subjectKey,
+			});
 		});
 	}
 
