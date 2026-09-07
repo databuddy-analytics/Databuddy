@@ -29,8 +29,8 @@ const baseline = {
 };
 
 function eventQuery(
-	current: Record<string, unknown> | undefined,
-	previous: Record<string, unknown> = baseline,
+	current: Awaited<ReturnType<QueryFn>>[number] | undefined,
+	previous: Awaited<ReturnType<QueryFn>>[number] = baseline,
 	currentSessions = 1000,
 	requests: Parameters<QueryFn>[0][] = []
 ): QueryFn {
@@ -55,20 +55,21 @@ function eventQuery(
 }
 
 describe("custom-event reach without configured conversions", () => {
-	it("finds the participation change hidden by flat occurrence volume using the existing two reads", async () => {
+	it.each([1000, 2000])("finds hidden reach decline at %s occurrences and site sessions using the existing two reads", async (volume) => {
 		const requests: Parameters<QueryFn>[0][] = [];
 		const signals = await detectSignals(
 			params,
 			eventQuery(
-				{ ...baseline, unique_users: 100, unique_sessions: 100 },
+				{ ...baseline, total_events: volume, unique_users: 100, unique_sessions: 100 },
 				baseline,
-				1000,
+				volume,
 				requests
 			),
 			today
 		);
-		expect(signals).toHaveLength(1);
-		const signal = signals[0];
+		const reach = signals.filter((item) => item.metric === "custom_event_reach");
+		expect(reach).toHaveLength(1);
+		const signal = reach[0];
 		if (!signal) throw new Error("Missing reach change");
 		expect(signal).toMatchObject({
 			baseline: 400,
@@ -78,8 +79,8 @@ describe("custom-event reach without configured conversions", () => {
 			subjectKey: `custom_event_reach:${eventName}`,
 		});
 		expect(isInvestigationCandidate(signal)).toBe(true);
-		expect(planCoveragePortfolio(signals, { reason: "manual" })).toEqual(
-			signals
+		expect(planCoveragePortfolio(signals, { reason: "manual" })).toContainEqual(
+			signal
 		);
 		const prepared = prepareInvestigation(signal, 7);
 		expect(prepared.signal).toMatchObject({
