@@ -232,7 +232,7 @@ function outputModel(value: unknown = agentOutcome) {
 }
 
 describe("intelligence agent", () => {
-	it("returns the model's structured outcome directly", async () => {
+	it("preserves manual repairs while omitting definition-only choices", async () => {
 		const model = outputModel();
 		const availableRead = tool({
 			description: "Test read",
@@ -268,6 +268,26 @@ describe("intelligence agent", () => {
 			"get_data",
 			"get_goal_analytics",
 		]);
+		expect(
+			call?.tools?.find((item) => item.name === "finish_investigation")
+		).toMatchObject({
+			inputSchema: {
+				properties: {
+					next: {
+						anyOf: [
+							{
+								properties: {
+									check: { type: "null" },
+									execution: { type: "null" },
+								},
+							},
+							{ properties: { type: { const: "ask" } } },
+							{ properties: { type: { const: "resolve" } } },
+						],
+					},
+				},
+			},
+		});
 	});
 
 	it.each([
@@ -577,6 +597,115 @@ describe("intelligence agent", () => {
 		expect(JSON.stringify(model.doGenerateCalls[1])).toContain(
 			"executable definition action"
 		);
+	});
+
+	it("retains an exact goal repair and saved verification check", async () => {
+		const goal = {
+			id: "signup",
+			name: "Account creation",
+			type: "PAGE_VIEW",
+			target: "/docs",
+			filters: [],
+		};
+		const next = {
+			type: "act" as const,
+			action: "Measure completed account creation.",
+			target: "Account creation goal",
+			verification:
+				"Account creation conversion returns to its healthy baseline.",
+			recheckAt: "2026-07-15T00:00:00.000Z",
+			execution: {
+				operation: "edit" as const,
+				changes: { target: "/account-created" },
+			},
+			check: {
+				metric: "overall_conversion_rate" as const,
+				startDate: "2026-07-13",
+				endDate: "2026-07-14",
+				minimumEntrants: 100,
+				threshold: {
+					anchor: "prior_baseline" as const,
+					comparison: "at_or_above" as const,
+					value: 20,
+					evidenceRef: { source: "signal" as const },
+				},
+			},
+		};
+		const proposal = {
+			...executableDefinitionOutcome,
+			title: "Account creation goal measures documentation",
+			summary:
+				"Completed account creation cannot be measured by the saved goal.",
+			rootCause:
+				"The saved goal targets documentation instead of the account-created page.",
+			evidence: [
+				"Account creation ends at /account-created; the saved goal targets /docs.",
+			],
+			evidenceRefs: [
+				[
+					{ source: "provided", index: 0 },
+					{
+						source: "tool",
+						name: "list_goals",
+						toolCallId: "list_goals-1",
+						resultKey: null,
+					},
+				],
+			],
+			next,
+		};
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence: [
+					"Business meaning: Account creation completes at /account-created.",
+				],
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal: {
+					...funnelSignal,
+					signalKey: "goal:signup",
+					entity: { type: "goal", id: "signup", label: "Account creation" },
+				},
+			},
+			{
+				model: new MockLanguageModelV3({
+					doGenerate: mockValues(
+						toolCallsResponse(["list_goals", "scrape_page"]),
+						outputResponse(proposal)
+					),
+				}),
+				tools: {
+					scrape_page: tool({
+						inputSchema: z.object({}),
+						execute: () => ({
+							content:
+								"Successful account creation redirects to /account-created.",
+						}),
+					}),
+					list_goals: tool({
+						inputSchema: z.object({}),
+						execute: () => ({ goals: [goal] }),
+					}),
+				},
+			}
+		);
+		expect(result.outcome.next).toMatchObject({
+			...next,
+			action: describeInsightDefinitionAction(goal.name, {
+				...next.execution,
+				action: next.action,
+			}),
+			check: {
+				...next.check,
+				definition: {
+					type: "PAGE_VIEW",
+					target: "/account-created",
+					filters: [],
+				},
+			},
+		});
 	});
 
 	it.each([
@@ -1095,7 +1224,29 @@ describe("intelligence agent", () => {
 		).rejects.toThrow("exact current funnel definition was not inspected");
 	});
 
-	it("rejects a definition edit outside a goal or funnel signal", async () => {
+	it.each([
+		"execution",
+		"check",
+	] as const)("rejects a non-definition %s at the tool boundary", async (field) => {
+		const next =
+			field === "execution"
+				? executableDefinitionOutcome.next
+				: {
+						...agentOutcome.next,
+						check: {
+							metric: "overall_conversion_rate",
+							startDate: "2026-07-13",
+							endDate: "2026-07-14",
+							minimumEntrants: 100,
+							threshold: {
+								anchor: "prior_baseline",
+								comparison: "at_or_above",
+								value: 20,
+								evidenceRef: { source: "signal" },
+							},
+						},
+					};
+		const model = outputModel({ ...agentOutcome, next });
 		await expect(
 			runInsightAgent(
 				{
@@ -1106,11 +1257,16 @@ describe("intelligence agent", () => {
 					otherOpenWork: [],
 					signal,
 				},
-				{ model: outputModel(executableDefinitionOutcome), tools: {} }
+				{ model, tools: {} }
 			)
-		).rejects.toThrow(
-			"Insights definition recommendations require an existing goal or funnel signal"
-		);
+		).rejects.toBeInstanceOf(InsightAgentGenerationError);
+		const error = model.doGenerateCalls[1]?.prompt
+			.flatMap((message) => (message.role === "tool" ? message.content : []))
+			.find((part) => part.type === "tool-result");
+		if (error?.output.type !== "error-text")
+			throw new Error("Missing validation error");
+		expect(error.output.value).toContain("expected null");
+		expect(error.output.value).toContain(field);
 	});
 
 	it("retries one malformed final object without losing its usage", async () => {
@@ -1172,7 +1328,7 @@ describe("intelligence agent", () => {
 
 		expect(result.outcome).toEqual(outcome);
 		expect(JSON.stringify(model.doGenerateCalls[1])).toContain(
-			"next.execution"
+			"expected null, received undefined"
 		);
 	});
 
