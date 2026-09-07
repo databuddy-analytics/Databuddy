@@ -39,7 +39,7 @@ const pathSchema = z
 			!(path.startsWith("//") || path.includes("\\") || SCHEME.test(path)),
 		"Use a path on the target website"
 	);
-const pageSchema = z.object({
+export const websitePageSchema = z.object({
 	success: z.literal(true),
 	url: z.url(),
 	requestedUrl: z.url(),
@@ -56,7 +56,7 @@ const pageSchema = z.object({
 	cached: z.boolean().optional(),
 });
 export type WebsitePageResult =
-	| z.infer<typeof pageSchema>
+	| z.infer<typeof websitePageSchema>
 	| { success: false; error: string };
 
 const scrapeSchema = z.object({
@@ -149,7 +149,7 @@ async function cachedPage(
 			cache.read(`scrape:${domain}:${url.pathname}${url.search}`),
 			aborted,
 		]);
-		const parsed = pageSchema.safeParse(raw ? JSON.parse(raw) : null);
+		const parsed = websitePageSchema.safeParse(raw ? JSON.parse(raw) : null);
 		if (!parsed.success) {
 			return null; // Legacy entries without fetch dates must be refreshed.
 		}
@@ -250,6 +250,7 @@ export async function readWebsitePage(
 				url: url.href,
 				formats: ["markdown", "links"],
 				onlyMainContent: true,
+				excludeTags: ["iframe"],
 				maxAge: 0,
 				timeout: TIMEOUT_MS,
 			}),
@@ -309,7 +310,7 @@ export async function readWebsitePage(
 				break;
 			}
 		}
-		const result: z.infer<typeof pageSchema> = {
+		const result: z.infer<typeof websitePageSchema> = {
 			success: true,
 			url: url.href,
 			requestedUrl: url.href,
@@ -340,6 +341,69 @@ export async function readWebsitePage(
 			error: signal.aborted
 				? "Page read cancelled or timed out"
 				: "Page read failed",
+		};
+	}
+}
+
+// Sitemap discovery broadens the candidate list without adding an agent loop.
+// Links are hints only: every selected page still passes the native reader.
+export async function discoverWebsitePages(input: {
+	domain: string;
+	abortSignal?: AbortSignal;
+}): Promise<{ paths: string[]; issue?: string }> {
+	const domain = domainSchema.safeParse(input.domain);
+	const apiKey = process.env.FIRECRAWL_API_KEY;
+	if (!(domain.success && apiKey)) {
+		return { paths: [], issue: "Website discovery is unavailable." };
+	}
+	const signal = AbortSignal.any([
+		AbortSignal.timeout(TIMEOUT_MS),
+		...(input.abortSignal ? [input.abortSignal] : []),
+	]);
+	try {
+		const response = await fetch("https://api.firecrawl.dev/v2/map", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				Authorization: `Bearer ${apiKey}`,
+			},
+			body: JSON.stringify({
+				url: `https://${domain.data}/`,
+				sitemap: "include",
+				includeSubdomains: false,
+				ignoreQueryParameters: true,
+				limit: 200,
+				timeout: TIMEOUT_MS,
+			}),
+			signal,
+			redirect: "error",
+		});
+		if (!response.ok) {
+			return {
+				paths: [],
+				issue: `Website discovery failed (${response.status}).`,
+			};
+		}
+		const result = z
+			.object({
+				success: z.literal(true),
+				links: z.array(z.object({ url: z.string() })),
+			})
+			.parse(await response.json());
+		const paths = new Set<string>();
+		for (const item of result.links.slice(0, 200)) {
+			const url = siteUrl(item.url, domain.data);
+			if (url && !url.search && url.pathname.length <= 300) {
+				paths.add(url.pathname);
+			}
+		}
+		return { paths: [...paths] };
+	} catch {
+		// The homepage's own links remain a usable fallback after a bounded failure.
+		return {
+			paths: [],
+			issue:
+				"Website discovery failed or timed out; only homepage links were available.",
 		};
 	}
 }

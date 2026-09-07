@@ -229,7 +229,7 @@ if (process.env.INSIGHTS_RETENTION_TEST_CHILD !== "true") {
 						throw new Error("Synthetic observer failure");
 					},
 				})
-			).rejects.toThrow("Synthetic observer failure");
+			).resolves.toBeDefined();
 			expect(remember.mock.calls).toEqual([[scope, [page]]]);
 		});
 

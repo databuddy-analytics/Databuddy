@@ -100,12 +100,10 @@ integration(
 		beforeAll(() => {
 			const url = new URL(connection ?? "");
 			if (
-				url.hostname !== "127.0.0.1" ||
-				url.port !== "16545" ||
-				url.pathname !== "/business_profile_eval"
+				!["127.0.0.1", "localhost"].includes(url.hostname) || !["/business_profile_eval", "/databuddy_test"].includes(url.pathname)
 			) {
 				throw new Error(
-					"Use the isolated localhost:16545/business_profile_eval database"
+					"Use an explicitly isolated loopback business_profile_eval or databuddy_test database"
 				);
 			}
 			previousUrl = process.env.DATABASE_URL;
@@ -333,7 +331,12 @@ integration(
 				const winner = await stored();
 				resume();
 				const result = await first;
-				expect((await stored()).revision).toBe(winner.revision);
+				expect((await stored()).revision).toBeGreaterThan(winner.revision);
+                expect(result.sources.map(source=>source.url).sort()).toEqual([page().finalUrl,page("/pricing").finalUrl,deeper.finalUrl].sort());
+                readPage.mockClear();
+                const warm=await load();
+                expect(warm.sources.map(source=>source.url).sort()).toEqual(result.sources.map(source=>source.url).sort());
+                expect(readPage).not.toHaveBeenCalled();
 				expect(
 					result.sources.some((source) => source.content === deeper.content)
 				).toBe(true);
@@ -441,6 +444,24 @@ integration(
 			expect(warm.doGenerateCalls).toHaveLength(0);
 			expect(readPage).not.toHaveBeenCalled();
 		});
+        it("keeps a newly fetched homepage when a later redirect alias returns older cached content", async()=>{
+            const fresh=page();
+            const old={...page("/pricing","Old product terms."),finalUrl:fresh.finalUrl,fetchedAt:new Date(Date.now()-86400000).toISOString()};
+            readPage.mockImplementation(async(input)=>input.path==="/"?fresh:old);
+            const result=await load();
+            expect(result.sources).toHaveLength(1);
+            expect(result.sources[0]?.content).toBe(fresh.content);
+            expect(result.sources[0]?.observedAt).toBe(fresh.fetchedAt);
+        });
+        it.each([false,true])("retains the newest same-URL observation regardless of flush order: %s",async(reverse)=>{
+            readPage.mockImplementation(async(input)=>({...page(input.path),fetchedAt:new Date(Date.now()-86400000).toISOString()}));
+            await load();
+            const fresh={...page("/pricing","Current pricing terms."),fetchedAt:new Date(Date.now()-100).toISOString()};
+            const old={...fresh,content:"Old pricing terms.",fetchedAt:new Date(Date.now()-200).toISOString()};
+            await rememberBusinessPages(scope,reverse?[old,fresh]:[fresh,old]);
+            const record=await stored();
+            expect(record.profile.sources.find(source=>source.url===fresh.finalUrl)?.content).toBe(fresh.content);
+        });
 		it("deduplicates redirect aliases before compiling and saving original sources", async () => {
 			readPage.mockImplementation(async (input) => ({
 				...page(input.path),

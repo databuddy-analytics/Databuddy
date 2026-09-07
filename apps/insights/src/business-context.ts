@@ -1,8 +1,8 @@
+import { loadDurableBusinessProfile } from "./business-profile";
 import {
 	type BusinessContext,
 	type BusinessScope,
 	type BusinessSource,
-	loadBusinessProfile,
 	mergeBusinessContext,
 	recallBusinessContext,
 	recordBusinessReplies,
@@ -33,7 +33,7 @@ import {
 } from "@databuddy/services/business-memory";
 import { captureInsightsError, emitInsightsEvent } from "./lib/evlog-insights";
 
-type ProfileInput = Parameters<typeof loadBusinessProfile>[0];
+type ProfileInput = Parameters<typeof loadDurableBusinessProfile>[0];
 type RecallInput = Parameters<typeof recallBusinessContext>[0] & {
 	allowWrite?: boolean;
 	subjectKey: string;
@@ -185,7 +185,7 @@ async function currentScope(
 const productionSources = {
 	currentScope,
 	readReplies: readPersistedBusinessReplies,
-	loadProfile: loadBusinessProfile,
+	loadProfile: loadDurableBusinessProfile,
 	recall: recallBusinessContext,
 	record: recordBusinessReplies,
 };
@@ -216,7 +216,8 @@ async function reconcileReplies(
 		allowWrite: boolean;
 	},
 	context: BusinessContext,
-	sources: typeof productionSources
+	sources: typeof productionSources,
+	prefetchedReplies?: BusinessSource[]
 ): Promise<BusinessContext> {
 	try {
 		if (
@@ -231,7 +232,7 @@ async function reconcileReplies(
 				issue_count: context.issues.length,
 			});
 		}
-		const replies = await sources.readReplies(input);
+		const replies = prefetchedReplies ?? (await sources.readReplies(input));
 		// Reauthorize immediately before any external reply write. A refresh
 		// or concurrent transfer must not move old replies into a new scope.
 		const current = await sources.currentScope(input.scope);
@@ -309,21 +310,23 @@ export async function loadWebsiteBusinessProfile(
 		if (!(await sources.currentScope(input.scope))) {
 			throw new Error("Website scope changed or was deleted");
 		}
+		const replies = await sources.readReplies(input);
 		const context = await sources
-			.loadProfile(input)
+			.loadProfile({ ...input, replies })
 			.catch((error) =>
 				unavailableBusinessContext(error, input.scope, input.asOf)
 			);
 		return await reconcileReplies(
 			{
 				...input,
-				// Shared profile lists only public records. Repair team indexing
-				// from exact-subject recall, never from every recent shared reply.
+				// Repair individual reply indexing during exact-subject recall.
+				// The durable shared profile already includes recent team context.
 				allowWrite: false,
 				asOf: input.allowRefresh ? new Date() : input.asOf,
 			},
 			context,
-			sources
+			sources,
+			replies
 		);
 	} catch (error) {
 		return unavailableBusinessContext(error, input.scope, input.asOf);

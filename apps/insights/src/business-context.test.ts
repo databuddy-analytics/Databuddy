@@ -316,13 +316,13 @@ describe("website business context reconciliation", () => {
 		).toEqual(statuses[0]!);
 		expect(
 			result.sources.filter((source) => source.id.startsWith("status-"))
-		).toHaveLength(7);
+		).toHaveLength(8);
 		expect(
 			result.sources.reduce(
 				(length, source) => length + source.content.length,
 				0
 			)
-		).toBeLessThanOrEqual(16_000);
+		).toBeLessThanOrEqual(64_000);
 	});
 
 	it("takes the website lock and rejects post-model scope changes before an outcome write", async () => {

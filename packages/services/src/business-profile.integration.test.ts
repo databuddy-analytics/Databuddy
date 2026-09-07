@@ -62,9 +62,7 @@ integration("durable business profiles against isolated PostgreSQL", () => {
 	beforeAll(() => {
 		const parsed = new URL(url ?? "");
 		if (
-			parsed.hostname !== "127.0.0.1" ||
-			parsed.port !== "16545" ||
-			parsed.pathname !== "/business_profile_eval"
+			!["127.0.0.1", "localhost"].includes(parsed.hostname) || !["/business_profile_eval", "/databuddy_test"].includes(parsed.pathname)
 		)
 			throw new Error(
 				"Use an explicitly isolated loopback PostgreSQL test database"

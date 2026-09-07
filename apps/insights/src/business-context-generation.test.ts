@@ -301,10 +301,10 @@ describe("freezing investigation business context", () => {
 		expect(records).toContainEqual(profile.sources[0]!);
 		expect(
 			records.filter((source) => source.subjectKey === "goal:unrelated")
-		).toHaveLength(7);
+		).toHaveLength(8);
 		expect(
 			records.reduce((length, source) => length + source.content.length, 0)
-		).toBeLessThanOrEqual(16_000);
+		).toBeLessThanOrEqual(64_000);
 		expect({ lists, searches, batches }).toEqual({
 			lists: 1,
 			searches: 1,

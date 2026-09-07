@@ -17,14 +17,35 @@ import {
 type Scope = BusinessScope & { startedAt: string };
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-function datesMatchScope(scope: Scope, profile: BusinessProfile): boolean {
+function profileMatchesScope(scope: Scope, profile: BusinessProfile): boolean {
 	const started = Date.parse(scope.startedAt);
 	const captured = Date.parse(profile.capturedAt);
 	return (
 		captured >= started &&
 		profile.sources.every((source) => {
 			const observed = Date.parse(source.observedAt);
-			return observed >= started && observed <= captured;
+			if (
+				observed < started ||
+				observed > captured ||
+				(source.expiresAt && Date.parse(source.expiresAt) <= observed)
+			) {
+				return false;
+			}
+			if (source.kind === "team_reply") {
+				return source.content.length <= 4000;
+			}
+			if (!source.url) {
+				return false;
+			}
+			const url = new URL(source.url);
+			return (
+				(url.protocol === "https:" || url.protocol === "http:") &&
+				!url.username &&
+				!url.password &&
+				!url.port &&
+				canonicalBusinessScope({ ...scope, domain: url.hostname }).domain ===
+					scope.domain
+			);
 		})
 	);
 }
@@ -64,7 +85,7 @@ async function lockWebsite(tx: Transaction, scope: Scope): Promise<boolean> {
 export async function loadBusinessProfileRecord(
 	input: Scope,
 	asOf: Date,
-	database = db
+	database: Pick<typeof db, "select"> = db
 ): Promise<BusinessProfileRecord | null> {
 	const scope = canonicalScope(input);
 	const [result] = await database
@@ -100,7 +121,7 @@ export async function loadBusinessProfileRecord(
 	if (
 		!(
 			parsed.success &&
-			datesMatchScope(scope, parsed.data) &&
+			profileMatchesScope(scope, parsed.data) &&
 			Date.parse(parsed.data.capturedAt) <= asOf.getTime()
 		)
 	) {
@@ -117,7 +138,7 @@ export async function saveBusinessProfileRecord(
 ): Promise<BusinessProfileRecord | null> {
 	const scope = canonicalScope(input);
 	const parsed = businessProfileSchema.parse(profile);
-	if (!datesMatchScope(scope, parsed)) {
+	if (!profileMatchesScope(scope, parsed)) {
 		return null;
 	}
 	return await database.transaction(async (tx) => {

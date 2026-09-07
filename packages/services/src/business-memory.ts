@@ -154,7 +154,9 @@ export async function retireBusinessMemory(
 
 export async function withBusinessMemoryWrite<T>(
 	scope: BusinessScope,
-	operation: () => Promise<T>,
+	operation: (
+		transaction: Parameters<Parameters<typeof db.transaction>[0]>[0]
+	) => Promise<T>,
 	database?: Pick<typeof db, "transaction">
 ): Promise<T> {
 	if (!scope.startedAt) {
@@ -187,7 +189,7 @@ export async function withBusinessMemoryWrite<T>(
 			throw new Error("Business memory scope changed or was deleted");
 		}
 		// The caller's native request is bounded to four seconds. Fetch pages first.
-		return await operation();
+		return await operation(tx);
 	});
 }
 

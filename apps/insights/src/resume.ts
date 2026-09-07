@@ -268,6 +268,7 @@ export async function resumeInsightReply(
 
 	const result = await investigate({
 		appContext,
+		retainBusinessPages: investigate === runInsightAgent,
 		...{ businessContext },
 		evidence: currentMeasurement.evidence,
 		githubRepository: trigger.integrations?.github ?? null,

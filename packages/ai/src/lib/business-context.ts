@@ -1,3 +1,4 @@
+import { loadBusinessProfileRecord } from "@databuddy/services/business-profile";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import type Supermemory from "supermemory";
@@ -11,35 +12,26 @@ import {
 
 const PUBLIC_CONTEXT_TTL = 7 * 24 * 60 * 60 * 1000;
 const REQUEST_TIMEOUT = 4000;
-const MAX_CONTEXT_CHARACTERS = 16_000;
-
-export type { BusinessScope } from "@databuddy/services/business-memory";
-export { businessContainerTag } from "@databuddy/services/business-memory";
-
+const MAX_CONTEXT_CHARACTERS = 64_000;
 const timestamp = z.iso
 	.datetime({ offset: true })
 	.refine((value) => Number.isFinite(Date.parse(value)));
 
-export const businessSourceSchema = z.object({
-	id: z.string().min(1).max(500),
-	kind: z.enum(["website", "team_reply"]),
-	content: z.string().min(1).max(4000),
-	observedAt: timestamp,
-	url: z.url().max(2048).optional(),
-	internalLinks: z.array(z.string().max(300)).max(10).optional(),
-	subjectKey: z.string().max(500).optional(),
-	author: z.string().max(200).optional(),
-	expiresAt: timestamp.optional(),
-});
-export type BusinessSource = z.infer<typeof businessSourceSchema>;
+export type { BusinessScope } from "@databuddy/services/business-memory";
+export { businessContainerTag } from "@databuddy/services/business-memory";
 
-export const businessContextSchema = z.object({
-	capturedAt: timestamp,
-	status: z.enum(["ready", "partial", "unavailable", "disabled"]),
-	sources: z.array(businessSourceSchema).max(16),
-	issues: z.array(z.string().max(200)).max(20),
-});
-export type BusinessContext = z.infer<typeof businessContextSchema>;
+import {
+	businessSourceSchema,
+	type BusinessSource,
+	type BusinessContext,
+	type BusinessProfile,
+} from "@databuddy/shared/business-context";
+export {
+	businessSourceSchema,
+	businessContextSchema,
+	type BusinessSource,
+	type BusinessContext,
+} from "@databuddy/shared/business-context";
 
 const metadataSchema = businessSourceSchema
 	.omit({ id: true, content: true })
@@ -181,6 +173,13 @@ export function mergeBusinessContext(
 	if (selected.length < sources.size) {
 		issues.push("Context is bounded; additional source records were omitted.");
 	}
+	const brief = [...contexts].reverse().find((item) => item.brief)?.brief;
+	const facts = brief?.facts.filter((fact) =>
+		selected.some(
+			(source) =>
+				source.id === fact.sourceId && source.content.includes(fact.quote)
+		)
+	);
 	const available = contexts.some(
 		(item) => item.status === "ready" || item.status === "partial"
 	);
@@ -199,6 +198,7 @@ export function mergeBusinessContext(
 					? "unavailable"
 					: "disabled",
 		sources: selected,
+		...(brief && facts?.length ? { brief: { ...brief, facts } } : {}),
 		issues: issues.slice(0, 20),
 	};
 }
@@ -211,7 +211,7 @@ interface ReadOptions {
 }
 
 async function readBusinessMemory(
-	options: ReadOptions & { query?: string }
+	options: ReadOptions & { query: string }
 ): Promise<BusinessContext> {
 	const client = options.client ?? getMemoryClient();
 	if (!client) {
@@ -228,39 +228,67 @@ async function readBusinessMemory(
 		signal: options.abortSignal,
 	};
 	try {
-		const documents = options.query
-			? (
-					await client.search.documents(
-						{
-							q: options.query.slice(0, 1000),
-							containerTags: [businessContainerTag(scope)],
-							filters: filters(scope),
-							includeFullDocs: true,
-							limit: 5,
-							rewriteQuery: false,
-						},
-						request
-					)
-				).results
-			: (
-					await client.documents.list(
-						{
-							containerTags: [businessContainerTag(scope)],
-							filters: {
-								AND: [...filters(scope).AND, { key: "kind", value: "website" }],
+		const documents = (
+			await client.search.documents(
+				{
+					q: options.query.slice(0, 1000),
+					containerTags: [businessContainerTag(scope)],
+					filters: {
+						AND: [
+							...filters(scope).AND,
+							{
+								OR: [
+									{ key: "kind", value: "team_reply" },
+									{ key: "kind", value: "business_profile" },
+								],
 							},
-							includeContent: true,
-							limit: 5,
-							sort: "createdAt",
-							order: "desc",
-						},
-						request
-					)
-				).memories;
+						],
+					},
+					includeFullDocs: true,
+					limit: 5,
+					rewriteQuery: false,
+				},
+				request
+			)
+		).results;
 		const result = context(options.asOf, "ready");
 		for (const document of documents) {
+			const profileHint = z
+				.object({
+					kind: z.literal("business_profile"),
+					organizationId: z.string(),
+					websiteId: z.string(),
+					domain: z.string(),
+					startedAt: z.string(),
+					revision: z.number().int().positive(),
+				})
+				.safeParse(document.metadata);
+			if (profileHint.success && scope.startedAt) {
+				const hint = profileHint.data;
+				if (
+					hint.organizationId === scope.organizationId &&
+					hint.websiteId === scope.websiteId &&
+					hint.domain === scope.domain &&
+					hint.startedAt === scope.startedAt
+				) {
+					const current = await loadBusinessProfileRecord(
+						{ ...scope, startedAt: scope.startedAt },
+						options.asOf
+					);
+					if (current) {
+						const canonical = profileBusinessContext(
+							current.profile,
+							options.asOf
+						);
+						result.sources.push(...canonical.sources);
+						result.brief = canonical.brief;
+						result.issues.push(...canonical.issues);
+					}
+				}
+				continue;
+			}
 			const source = sourceFromDocument(document, scope, options.asOf);
-			if (source && (options.query || source.kind === "website")) {
+			if (source) {
 				result.sources.push(source);
 			}
 		}
@@ -371,71 +399,26 @@ export function recordBusinessReplies(options: {
 	);
 }
 
-export async function loadBusinessProfile(
-	options: ReadOptions & { allowRefresh: boolean }
-): Promise<BusinessContext> {
-	const stored = await readBusinessMemory(options);
-	if (stored.sources.some((source) => source.kind === "website")) {
-		stored.issues.push(
-			"Website context is limited to the listed page excerpts."
-		);
-	}
-	if (
-		!options.allowRefresh ||
-		stored.sources.some((source) => source.kind === "website")
-	) {
-		return stored;
-	}
-	const { readWebsitePage } = await import("../ai/tools/scrape-page");
-	const page = await readWebsitePage({
-		domain: options.scope.domain,
-		path: "/",
-		freshAfter: options.scope.startedAt
-			? new Date(options.scope.startedAt)
-			: undefined,
-		abortSignal: options.abortSignal,
+// Keep the brief alongside its sources. Compression can omit a deciding condition;
+// the investigation must still be able to read the original evidence in one turn.
+export function profileBusinessContext(
+	profile: BusinessProfile,
+	asOf: Date
+): BusinessContext {
+	const sources = profile.sources.filter(
+		(source) =>
+			Date.parse(source.observedAt) <= asOf.getTime() &&
+			(!source.expiresAt || Date.parse(source.expiresAt) > asOf.getTime())
+	);
+	return mergeBusinessContext({
+		capturedAt: profile.capturedAt,
+		status: profile.issues.length
+			? "partial"
+			: sources.length
+				? "ready"
+				: "unavailable",
+		sources,
+		issues: profile.issues,
+		...(profile.brief ? { brief: profile.brief } : {}),
 	});
-	if (!page.success) {
-		return mergeBusinessContext(
-			stored,
-			context(
-				new Date(),
-				"unavailable",
-				"Business website could not be read; coverage is incomplete."
-			)
-		);
-	}
-	const source: BusinessSource = {
-		id: `page_${digest(page.finalUrl)}_${page.fetchedAt}`,
-		kind: "website",
-		content: [page.title, page.description, page.content]
-			.filter(Boolean)
-			.join("\n")
-			.slice(0, 4000),
-		observedAt: page.fetchedAt,
-		expiresAt: new Date(
-			Date.parse(page.fetchedAt) + PUBLIC_CONTEXT_TTL
-		).toISOString(),
-		url: page.finalUrl,
-		internalLinks: page.internalLinks
-			.filter((link) => link.length <= 300)
-			.slice(0, 10),
-	};
-	const saved = await recordSources(
-		options.scope,
-		[source],
-		options.abortSignal,
-		options.client
-	);
-	const fresh = context(new Date(), "ready");
-	fresh.sources.push(source);
-	fresh.issues.push(
-		"Website coverage includes the homepage only; linked pages have not been reviewed."
-	);
-	if (saved.status !== "saved") {
-		fresh.issues.push(
-			"Website context is available for this run but was not saved to business memory."
-		);
-	}
-	return mergeBusinessContext(stored, fresh);
 }
