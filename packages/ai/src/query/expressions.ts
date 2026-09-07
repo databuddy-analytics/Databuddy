@@ -1,3 +1,4 @@
+import { Analytics } from "../types/tables";
 import type {
 	AliasedExpression,
 	Granularity,
@@ -161,7 +162,7 @@ export const sessionDimensionsCte = (
 		SELECT
 			session_id,
 			client_id${dimensions.length ? `,\n\t\t\t${dimensions.map((d) => SESSION_DIMENSION_COLUMNS[d]).join(",\n\t\t\t")}` : ""}
-		FROM analytics.events
+		FROM ${Analytics.events}
 		WHERE
 			client_id = {websiteId:String}
 			AND time >= toDateTime({startDate:String})

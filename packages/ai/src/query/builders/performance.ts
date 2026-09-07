@@ -1,5 +1,4 @@
-import { Expressions } from "../expressions";
-import { sessionDimensionsCte } from "../expressions";
+import { Expressions, sessionDimensionsCte } from "../expressions";
 import { Analytics } from "../../types/tables";
 import type { SimpleQueryConfig } from "../types";
 
