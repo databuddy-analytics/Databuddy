@@ -321,6 +321,47 @@ export async function setCachedLinkIfAbsent(
 	);
 	return result === "OK";
 }
+
+const SET_CACHED_LINK_IF_ABSENT_OR_NOT_FOUND_SCRIPT = `
+-- set-cached-link-if-absent-or-not-found
+local current = redis.call("GET", KEYS[1])
+if current == false then
+	redis.call("SET", KEYS[1], ARGV[1], "EX", ARGV[2])
+	return 1
+end
+if current == "null" then
+	redis.call("SET", KEYS[1], ARGV[1], "EX", ARGV[2])
+	return 1
+end
+local ok, decoded = pcall(cjson.decode, current)
+if not ok or type(decoded) ~= "table" then
+	redis.call("SET", KEYS[1], ARGV[1], "EX", ARGV[2])
+	return 1
+end
+if decoded.state == "tombstone" then
+	return 0
+end
+if decoded.state == "pending" then
+	return 0
+end
+return 0
+`;
+
+export async function setCachedLinkIfAbsentOrNotFound(
+	slug: string,
+	link: CachedLink
+): Promise<boolean> {
+	const result = (await runLinkCacheCommand((redis) =>
+		redis.eval(
+			SET_CACHED_LINK_IF_ABSENT_OR_NOT_FOUND_SCRIPT,
+			1,
+			getLinkCacheKey(slug),
+			JSON.stringify(link),
+			String(LINKS_CACHE_TTL)
+		)
+	)) as number;
+	return result === 1;
+}
 export async function setCachedLinkNotFoundIfAbsent(
 	slug: string
 ): Promise<boolean> {
