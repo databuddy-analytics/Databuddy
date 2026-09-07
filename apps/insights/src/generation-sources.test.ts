@@ -2,7 +2,7 @@ import "@databuddy/test/env";
 import { describe, expect, it } from "bun:test";
 import type { InvestigationOutcome } from "@databuddy/shared/insights";
 import { InsightAgentGenerationError } from "./agent";
-import type { DetectedSignal } from "./detection";
+import { detectSignals, type DetectedSignal } from "./detection";
 import {
 	detectFunnelGoalSignals,
 	type FunnelDef,
@@ -1203,6 +1203,85 @@ describe("fixture investigation sources", () => {
 });
 
 describe("native definition detection in portfolio generation", () => {
+	it.each([
+		false,
+		true,
+	])("keeps optional product failure separate from core revenue failure=%s", async (coreFails) => {
+		const seen: string[] = [];
+		let productReads = 0;
+		const sources = fixtureSources({
+			detectMetricSignals: async (
+				params,
+				_query,
+				today,
+				abortSignal,
+				diagnostics
+			) =>
+				detectSignals(
+					params,
+					async (request) => {
+						if (request.type === "revenue_by_product") {
+							productReads += 1;
+							throw new DOMException(
+								"optional product breakdown aborted",
+								"AbortError"
+							);
+						}
+						if (request.type !== "revenue_overview") return [];
+						if (coreFails) throw new Error("core revenue unavailable");
+						return [
+							{
+								currency: "USD",
+								total_revenue: 40000,
+								total_transactions: 400,
+								refund_amount: request.from === "2026-07-05" ? -2500 : -500,
+								refund_count: request.from === "2026-07-05" ? 25 : 5,
+							},
+						];
+					},
+					today,
+					abortSignal,
+					diagnostics
+				),
+			detectDefinitionSignals: async () => [],
+			loadDueInvestigation: async () => null,
+			loadHistory: async () => [],
+			loadObservations: async () => new Map(),
+			fetchAnnotations: async () => [],
+			investigateSignal: async (input) => {
+				seen.push(input.signal.signalKey);
+				return {
+					outcome: {
+						title: "Refund amounts increased",
+						summary: "Refunds changed behind steady receipts.",
+						rootCause: null,
+						evidence: ["Refunds increased in the measured comparison."],
+						publish: false,
+						next: {
+							type: "resolve",
+							reason: "Synthetic generation-boundary control.",
+						},
+					},
+					toolCallCount: 0,
+				};
+			},
+		});
+		const run = investigateFixture(sources, {}, undefined, "scheduled");
+		if (coreFails) {
+			await expect(run).rejects.toThrow(
+				"1 metric families and 0 conversion definitions failed"
+			);
+			expect(seen).toEqual([]);
+		} else {
+			expect(await run).toMatchObject({
+				status: "completed",
+				signal: { signalKey: "refund_amount:USD" },
+			});
+			expect(seen).toEqual(["refund_amount:USD"]);
+			expect(productReads).toBe(2);
+		}
+	});
+
 	it.each([
 		false,
 		true,

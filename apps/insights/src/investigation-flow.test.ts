@@ -232,7 +232,7 @@ function outputModel(value: unknown = agentOutcome) {
 }
 
 describe("intelligence agent", () => {
-	it("returns the model's structured outcome directly", async () => {
+	it("preserves manual repairs while omitting definition-only choices", async () => {
 		const model = outputModel();
 		const availableRead = tool({
 			description: "Test read",
@@ -268,6 +268,26 @@ describe("intelligence agent", () => {
 			"get_data",
 			"get_goal_analytics",
 		]);
+		expect(
+			call?.tools?.find((item) => item.name === "finish_investigation")
+		).toMatchObject({
+			inputSchema: {
+				properties: {
+					next: {
+						anyOf: [
+							{
+								properties: {
+									check: { type: "null" },
+									execution: { type: "null" },
+								},
+							},
+							{ properties: { type: { const: "ask" } } },
+							{ properties: { type: { const: "resolve" } } },
+						],
+					},
+				},
+			},
+		});
 	});
 
 	it.each([
@@ -577,6 +597,115 @@ describe("intelligence agent", () => {
 		expect(JSON.stringify(model.doGenerateCalls[1])).toContain(
 			"executable definition action"
 		);
+	});
+
+	it("retains an exact goal repair and saved verification check", async () => {
+		const goal = {
+			id: "signup",
+			name: "Account creation",
+			type: "PAGE_VIEW",
+			target: "/docs",
+			filters: [],
+		};
+		const next = {
+			type: "act" as const,
+			action: "Measure completed account creation.",
+			target: "Account creation goal",
+			verification:
+				"Account creation conversion returns to its healthy baseline.",
+			recheckAt: "2026-07-15T00:00:00.000Z",
+			execution: {
+				operation: "edit" as const,
+				changes: { target: "/account-created" },
+			},
+			check: {
+				metric: "overall_conversion_rate" as const,
+				startDate: "2026-07-13",
+				endDate: "2026-07-14",
+				minimumEntrants: 100,
+				threshold: {
+					anchor: "prior_baseline" as const,
+					comparison: "at_or_above" as const,
+					value: 20,
+					evidenceRef: { source: "signal" as const },
+				},
+			},
+		};
+		const proposal = {
+			...executableDefinitionOutcome,
+			title: "Account creation goal measures documentation",
+			summary:
+				"Completed account creation cannot be measured by the saved goal.",
+			rootCause:
+				"The saved goal targets documentation instead of the account-created page.",
+			evidence: [
+				"Account creation ends at /account-created; the saved goal targets /docs.",
+			],
+			evidenceRefs: [
+				[
+					{ source: "provided", index: 0 },
+					{
+						source: "tool",
+						name: "list_goals",
+						toolCallId: "list_goals-1",
+						resultKey: null,
+					},
+				],
+			],
+			next,
+		};
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence: [
+					"Business meaning: Account creation completes at /account-created.",
+				],
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal: {
+					...funnelSignal,
+					signalKey: "goal:signup",
+					entity: { type: "goal", id: "signup", label: "Account creation" },
+				},
+			},
+			{
+				model: new MockLanguageModelV3({
+					doGenerate: mockValues(
+						toolCallsResponse(["list_goals", "scrape_page"]),
+						outputResponse(proposal)
+					),
+				}),
+				tools: {
+					scrape_page: tool({
+						inputSchema: z.object({}),
+						execute: () => ({
+							content:
+								"Successful account creation redirects to /account-created.",
+						}),
+					}),
+					list_goals: tool({
+						inputSchema: z.object({}),
+						execute: () => ({ goals: [goal] }),
+					}),
+				},
+			}
+		);
+		expect(result.outcome.next).toMatchObject({
+			...next,
+			action: describeInsightDefinitionAction(goal.name, {
+				...next.execution,
+				action: next.action,
+			}),
+			check: {
+				...next.check,
+				definition: {
+					type: "PAGE_VIEW",
+					target: "/account-created",
+					filters: [],
+				},
+			},
+		});
 	});
 
 	it.each([
@@ -1095,7 +1224,29 @@ describe("intelligence agent", () => {
 		).rejects.toThrow("exact current funnel definition was not inspected");
 	});
 
-	it("rejects a definition edit outside a goal or funnel signal", async () => {
+	it.each([
+		"execution",
+		"check",
+	] as const)("rejects a non-definition %s at the tool boundary", async (field) => {
+		const next =
+			field === "execution"
+				? executableDefinitionOutcome.next
+				: {
+						...agentOutcome.next,
+						check: {
+							metric: "overall_conversion_rate",
+							startDate: "2026-07-13",
+							endDate: "2026-07-14",
+							minimumEntrants: 100,
+							threshold: {
+								anchor: "prior_baseline",
+								comparison: "at_or_above",
+								value: 20,
+								evidenceRef: { source: "signal" },
+							},
+						},
+					};
+		const model = outputModel({ ...agentOutcome, next });
 		await expect(
 			runInsightAgent(
 				{
@@ -1106,11 +1257,16 @@ describe("intelligence agent", () => {
 					otherOpenWork: [],
 					signal,
 				},
-				{ model: outputModel(executableDefinitionOutcome), tools: {} }
+				{ model, tools: {} }
 			)
-		).rejects.toThrow(
-			"Insights definition recommendations require an existing goal or funnel signal"
-		);
+		).rejects.toBeInstanceOf(InsightAgentGenerationError);
+		const error = model.doGenerateCalls[1]?.prompt
+			.flatMap((message) => (message.role === "tool" ? message.content : []))
+			.find((part) => part.type === "tool-result");
+		if (error?.output.type !== "error-text")
+			throw new Error("Missing validation error");
+		expect(error.output.value).toContain("expected null");
+		expect(error.output.value).toContain(field);
 	});
 
 	it("retries one malformed final object without losing its usage", async () => {
@@ -1172,7 +1328,7 @@ describe("intelligence agent", () => {
 
 		expect(result.outcome).toEqual(outcome);
 		expect(JSON.stringify(model.doGenerateCalls[1])).toContain(
-			"next.execution"
+			"expected null, received undefined"
 		);
 	});
 
@@ -2969,9 +3125,187 @@ describe("structured revenue evidence", () => {
 			await expect(run).rejects.toThrow("Attribution findings require native");
 	});
 
+	it.each([
+		"valid",
+		"missing-control",
+		"identified-population",
+		"snapshot",
+		"wrong-product",
+		"wrong-provider",
+		"wrong-currency",
+		"filtered-control",
+		"wrong-period",
+		"missing-row",
+		"null-amount",
+		"exceeds-control",
+		"private",
+	] as const)("binds product publication to exact native subject and whole controls: %s", async (variant) => {
+		const productSignal: InvestigationSignal = {
+			...signal,
+			signalKey: "product_revenue:USD:stripe:product_name:Team",
+			entity: { type: "website", id: "Team", label: "Team" },
+			metric: {
+				label: "Team USD receipts",
+				current: 15000,
+				previous: 30000,
+				format: "number",
+			},
+		};
+		const productReadings = readings.map((reading, index) => ({
+			...reading,
+			...(variant === "wrong-period"
+				? {
+						from: index === 0 ? "2026-06-14" : "2026-06-07",
+						to: index === 0 ? "2026-06-20" : "2026-06-13",
+					}
+				: {}),
+			filters: [
+				{
+					field: "currency",
+					op: "eq",
+					value: variant === "wrong-currency" ? "EUR" : "USD",
+				},
+				{
+					field: "provider",
+					op: "eq",
+					value: variant === "wrong-provider" ? "paddle" : "stripe",
+				},
+				{
+					field: "product_name",
+					op: "eq",
+					value: variant === "wrong-product" ? "Solo" : "Team",
+				},
+				{
+					field: "product_id",
+					op: "eq",
+					value: variant === "identified-population" ? "identified-team" : "",
+				},
+			],
+			data:
+				variant === "missing-row"
+					? []
+					: [
+							{
+								currency: "USD",
+								total_revenue:
+									variant === "null-amount"
+										? null
+										: variant === "exceeds-control"
+											? 50000
+											: index === 0
+												? 15000
+												: 30000,
+							},
+						],
+		}));
+		const wholeReadings = readings.map((reading) => ({
+			...reading,
+			filters:
+				variant === "filtered-control"
+					? [{ field: "country", op: "eq", value: "US" }]
+					: [],
+			data: [{ currency: "USD", total_revenue: 40000 }],
+		}));
+		const pairs = [productReadings, wholeReadings];
+		const snapshot = variant === "snapshot" || variant === "private";
+		const proposal = {
+			findingKind: snapshot ? "measurement_coverage" : "product_outcome",
+			title: "Team receipts fell behind the stable total",
+			summary: "Other products offset the decline in Team receipts.",
+			rootCause: null,
+			evidence: snapshot
+				? ["Team receipts fell behind stable gross."]
+				: [
+						{ currency: "USD", fields: ["total_revenue"] },
+						...(variant === "missing-control"
+							? []
+							: [{ currency: "USD", fields: ["total_revenue"] }]),
+					],
+			evidenceRefs: snapshot
+				? [{ source: "provided", index: 0 }]
+				: [0, ...(variant === "missing-control" ? [] : [1])].map((pair) =>
+						[0, 1].map((period) => ({
+							source: "tool",
+							name: "get_data",
+							toolCallId: "get_data-1",
+							resultKey: `${pair}-${period}`,
+						}))
+					),
+			publish: variant !== "private",
+			publicationBasis:
+				variant === "private"
+					? null
+					: snapshot
+						? "decision_safety"
+						: "measured_impact",
+			next: {
+				type: "resolve",
+				reason: "An inspected cause is not established.",
+			},
+		};
+		const run = runInsightAgent(
+			{
+				...input,
+				signal: productSignal,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				evidence: ["Team receipts fell behind stable gross."],
+			},
+			{
+				model: new MockLanguageModelV3({
+					doGenerate: snapshot
+						? outputResponse(proposal)
+						: mockValues(
+								toolCallResponse("get_data"),
+								outputResponse(proposal)
+							),
+				}),
+				tools: {
+					get_data: tool({
+						description: "Native revenue measurement",
+						inputSchema: z.object({}),
+						execute: () => ({
+							results: Object.fromEntries(
+								pairs.flatMap((pair, pairIndex) =>
+									pair.map((reading, period) => [
+										`${pairIndex}-${period}`,
+										reading,
+									])
+								)
+							),
+						}),
+					}),
+				},
+			}
+		);
+		if (variant === "valid") {
+			const result = await run;
+			expect(result.outcome.publish).toBe(true);
+			expect(result.outcome.evidence[0]).toContain(
+				"stripe receipts described Team with no product ID"
+			);
+			expect(result.outcome.evidence[1]).toContain("40,000 → 40,000");
+		} else if (variant === "private")
+			expect((await run).outcome.publish).toBe(false);
+		else await expect(run).rejects.toThrow();
+	});
+
 	it("binds metrics to their labels and computes a refund delta absent from the source", () => {
-		expect(renderRevenueEvidence(selection, readings, input)).toBe(
+		expect(renderRevenueEvidence(selection, readings, input).text).toBe(
 			"USD, 2026-06-28–2026-07-04 → 2026-07-05–2026-07-11 UTC: Gross Revenue: 10,000 → 10,000; Settled Transactions: 100 → 100; Refund Amount: 200 → 1,200 (+1,000)."
+		);
+	});
+	it("does not describe an unrestricted receipt-name population as unidentified", () => {
+		const named = readings.map((reading) => ({
+			...reading,
+			filters: [{ field: "product_name", op: "eq", value: "Team" }],
+		}));
+		expect(renderRevenueEvidence(selection, named, input).text).toContain(
+			"receipts described Team)"
+		);
+		expect(renderRevenueEvidence(selection, named, input).text).not.toContain(
+			"no product ID"
 		);
 	});
 
@@ -2990,7 +3324,7 @@ describe("structured revenue evidence", () => {
 				selection,
 				[{ ...readings[0], ...changed }, readings[1]],
 				input
-			)
+			).text
 		).toThrow();
 	});
 
@@ -3006,7 +3340,7 @@ describe("structured revenue evidence", () => {
 					...input.appContext,
 					currentDateTime: "2026-07-19T00:00:00Z",
 				},
-			})
+			}).text
 		).toContain("2026-07-05–2026-07-11 → 2026-07-12–2026-07-18 UTC");
 		expect(() =>
 			renderRevenueEvidence(
@@ -3022,7 +3356,7 @@ describe("structured revenue evidence", () => {
 						currentDateTime: "2026-07-19T00:00:00Z",
 					},
 				}
-			)
+			).text
 		).toThrow();
 	});
 
@@ -3031,7 +3365,7 @@ describe("structured revenue evidence", () => {
 			...reading,
 			data: [...reading.data, { currency: "EUR", total_revenue: 5000 }],
 		}));
-		expect(renderRevenueEvidence(selection, both, input)).toContain(
+		expect(renderRevenueEvidence(selection, both, input).text).toContain(
 			"Refund Amount: 200 → 1,200 (+1,000)"
 		);
 		expect(
@@ -3039,7 +3373,7 @@ describe("structured revenue evidence", () => {
 				{ currency: "EUR", fields: ["total_revenue"] },
 				both,
 				input
-			)
+			).text
 		).toContain(
 			"EUR, 2026-06-28–2026-07-04 → 2026-07-05–2026-07-11 UTC: Gross Revenue: 5,000 → 5,000."
 		);
@@ -3055,7 +3389,7 @@ describe("structured revenue evidence", () => {
 						defaultWebsiteId: undefined,
 					},
 				}
-			)
+			).text
 		).toThrow();
 	});
 
@@ -3070,7 +3404,7 @@ describe("structured revenue evidence", () => {
 				currentDateTime: "2026-07-12T00:01:00Z",
 			},
 		};
-		expect(() => renderRevenueEvidence(selection, local, context)).toThrow();
+		expect(() => renderRevenueEvidence(selection, local, context).text).toThrow();
 		expect(
 			renderRevenueEvidence(selection, local, {
 				...context,
@@ -3078,7 +3412,7 @@ describe("structured revenue evidence", () => {
 					...context.appContext,
 					currentDateTime: "2026-07-12T04:00:00Z",
 				},
-			})
+			}).text
 		).toContain(timezone);
 		expect(() =>
 			renderRevenueEvidence(
@@ -3088,7 +3422,7 @@ describe("structured revenue evidence", () => {
 					...input,
 					appContext: { ...input.appContext, timezone: "invalid-zone" },
 				}
-			)
+			).text
 		).toThrow();
 	});
 
@@ -3108,17 +3442,17 @@ describe("structured revenue evidence", () => {
 				{ currency: "USD", fields: ["payment_failure_rate"] },
 				filtered,
 				input
-			)
+			).text
 		).toContain("USD (filtered population)");
 		expect(
 			renderRevenueEvidence(
 				{ currency: "USD", fields: ["payment_failure_rate"] },
 				filtered,
 				input
-			)
+			).text
 		).toContain("Payment Failure Rate (%): 2 → 12 (+10 pp)");
 		expect(() =>
-			renderRevenueEvidence(selection, [readings[0]], input)
+			renderRevenueEvidence(selection, [readings[0]], input).text
 		).toThrow();
 	});
 
@@ -3132,9 +3466,9 @@ describe("structured revenue evidence", () => {
 				{ currency: "USD", fields: ["failed_payment_attempts"] },
 				partial,
 				input
-			)
+			).text
 		).toThrow("failed_payment_attempts is unavailable");
-		expect(renderRevenueEvidence(selection, partial, input)).toContain(
+		expect(renderRevenueEvidence(selection, partial, input).text).toContain(
 			"Refund Amount: 200 → 1,200 (+1,000)"
 		);
 	});
@@ -3152,20 +3486,20 @@ describe("structured revenue evidence", () => {
 					data: [{ ...reading.data[0], [field]: 1 }],
 				})),
 				input
-			)
+			).text
 		).toThrow("declared numeric field");
 	});
 
 	it("rejects repeated periods and unmeasured fields", () => {
 		expect(() =>
-			renderRevenueEvidence(selection, [readings[0], readings[0]], input)
+			renderRevenueEvidence(selection, [readings[0], readings[0]], input).text
 		).toThrow();
 		expect(() =>
 			renderRevenueEvidence(
 				{ ...selection, fields: ["active_subscribers"] },
 				readings,
 				input
-			)
+			).text
 		).toThrow();
 		expect(() =>
 			renderRevenueEvidence(selection, readings, {
@@ -3174,7 +3508,7 @@ describe("structured revenue evidence", () => {
 					...input.appContext,
 					currentDateTime: "2026-07-10T00:00:00Z",
 				},
-			})
+			}).text
 		).toThrow();
 	});
 
@@ -3228,7 +3562,7 @@ describe("structured revenue evidence", () => {
 			}
 		);
 		expect(result.outcome.evidence).toEqual([
-			renderRevenueEvidence(selection, readings, input),
+			renderRevenueEvidence(selection, readings, input).text,
 		]);
 		expect(JSON.stringify(model.doGenerateCalls[2])).toContain(
 			"code binds every value to its field"
