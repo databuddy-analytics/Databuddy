@@ -229,6 +229,39 @@ integration(
             expect(input.sources.length).toBeLessThan(sources.length);
             expect(input.sources.every(source=>source.content.length===12000)).toBe(true);
         });
+		it("preserves newer saved corrections when a caller prefetched stale replies", async () => {
+			await load();
+			const original = await stored();
+			const older = {
+				id: "reply-older", kind: "team_reply" as const,
+				content: "We count report requests.",
+				observedAt: new Date(Date.now() - 2000).toISOString(),
+			};
+			const correction = {
+				...older, id: "reply-newer",
+				content: "Correction: this measures preparation, before download.",
+				observedAt: new Date(Date.now() - 1000).toISOString(),
+			};
+			const profile: BusinessProfile = {
+				...original.profile, capturedAt: new Date().toISOString(),
+				sources: [...original.profile.sources, correction, older],
+				brief: { facts: [{ topic: "event_semantics", sourceId: correction.id, quote: correction.content }], unknowns: [] },
+			};
+			const saved = await saveBusinessProfileRecord(scope, profile, {
+				expectedRevision: original.revision, refreshAfter: original.refreshAfter,
+			});
+			for (const replies of [[older], [], [{ ...correction, content: "Stale text must not replace the persisted original." }]]) {
+				const warmModel = model();
+				const context = await loadDurableBusinessProfile(
+					{ scope, asOf: new Date(), allowRefresh: true, replies },
+					{ model: warmModel, readPage },
+				);
+				expect(context.sources).toContainEqual(correction);
+				expect(context.brief).toEqual(profile.brief);
+				expect(warmModel.doGenerateCalls).toHaveLength(0);
+				expect((await stored()).revision).toBe(saved?.revision);
+			}
+		});
 		it("keeps PostgreSQL sources available when native Supermemory rejects indexing", async () => {
 			provider.mockReturnValue(native);
 			transport.mockResolvedValue(

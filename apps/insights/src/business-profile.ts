@@ -283,13 +283,26 @@ export async function loadDurableBusinessProfile(
 					],
 				};
 	}
-	const replies = (input.replies ?? [])
+	// Replies are immutable originals. A caller can prefetch before another worker
+	// saves a newer correction, so merge the current revision before claiming it.
+	const replies = [
+		...new Map(
+			[...(input.replies ?? []), ...(record?.profile.sources ?? [])]
+				.filter((source) => source.kind === "team_reply")
+				.map((source) => [source.id, source])
+		).values(),
+	]
 		.filter(
 			(source) =>
 				source.kind === "team_reply" &&
 				Date.parse(source.observedAt) <= asOf.getTime() &&
 				(!scope.startedAt ||
 					Date.parse(source.observedAt) >= Date.parse(scope.startedAt))
+		)
+		.sort(
+			(left, right) =>
+				Date.parse(right.observedAt) - Date.parse(left.observedAt) ||
+				right.id.localeCompare(left.id)
 		)
 		.slice(0, 8);
 	const sameReplies =
