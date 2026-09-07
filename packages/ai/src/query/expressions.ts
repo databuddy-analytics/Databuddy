@@ -108,6 +108,8 @@ export const SESSION_ATTRIBUTION_FIELDS = [
 	"utm_source",
 	"utm_medium",
 	"utm_campaign",
+	"utm_term",
+	"utm_content",
 	"country",
 	"device_type",
 	"browser_name",

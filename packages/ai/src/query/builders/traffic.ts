@@ -22,8 +22,6 @@ function utmDimension(options: {
 	noun: string;
 	description: string;
 	tags: string[];
-	requireNotNull?: boolean;
-	sessionAttribution?: boolean;
 }): SimpleQueryConfig {
 	const { column, title, label, noun, description, tags } = options;
 	return {
@@ -70,11 +68,7 @@ function utmDimension(options: {
 			"uniq(anonymous_id) as visitors",
 		],
 		percentageOf: { of: "visitors" },
-		where: [
-			`${column} != ''`,
-			...(options.requireNotNull ? [`${column} IS NOT NULL`] : []),
-			"event_name = 'screen_view'",
-		],
+		where: [`${column} != ''`, "event_name = 'screen_view'"],
 		groupBy: [column],
 		orderBy: "visitors DESC",
 		limit: 100,
@@ -83,9 +77,7 @@ function utmDimension(options: {
 			? UTM_BASE_FILTERS
 			: [...UTM_BASE_FILTERS, column],
 		customizable: true,
-		...(options.sessionAttribution
-			? { plugins: { sessionAttribution: true } }
-			: {}),
+		plugins: { sessionAttribution: true },
 	};
 }
 
@@ -176,7 +168,6 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		description:
 			"Traffic breakdown by UTM source parameters from your marketing campaigns and tracked links.",
 		tags: ["utm", "campaigns", "marketing", "sources"],
-		sessionAttribution: true,
 	}),
 
 	utm_mediums: utmDimension({
@@ -187,7 +178,6 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		description:
 			"Traffic breakdown by UTM medium parameters (e.g. cpc, email, social).",
 		tags: ["utm", "medium", "acquisition"],
-		sessionAttribution: true,
 	}),
 
 	utm_campaigns: utmDimension({
@@ -198,7 +188,6 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		description:
 			"Performance breakdown by UTM campaign parameters to track individual marketing campaign effectiveness.",
 		tags: ["utm", "campaigns", "marketing", "performance"],
-		sessionAttribution: true,
 	}),
 
 	utm_terms: utmDimension({
@@ -209,7 +198,6 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		description:
 			"Traffic breakdown by UTM term parameters, typically used for keyword tracking in paid campaigns.",
 		tags: ["utm", "campaigns", "keywords", "terms"],
-		requireNotNull: true,
 	}),
 
 	utm_content: utmDimension({
@@ -220,7 +208,6 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		description:
 			"Traffic breakdown by UTM content parameters, used to differentiate similar content or links within the same campaign.",
 		tags: ["utm", "campaigns", "content", "creative"],
-		requireNotNull: true,
 	}),
 
 	// SQL output only; parseReferrers plugin adds referrer/source/domain/referrer_type/parsed_referrer at runtime.
