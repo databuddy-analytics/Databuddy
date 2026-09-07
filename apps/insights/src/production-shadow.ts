@@ -1313,7 +1313,10 @@ function metricFamily(key: string): string {
 	if (key.startsWith("funnel:")) {
 		return "funnel";
 	}
-	if (key.startsWith("custom_event:")) {
+	if (
+		key.startsWith("custom_event:") ||
+		key.startsWith("custom_event_reach:")
+	) {
 		return "custom_event";
 	}
 	if (key.startsWith("error:")) {

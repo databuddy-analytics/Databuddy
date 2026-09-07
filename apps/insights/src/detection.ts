@@ -223,6 +223,7 @@ const METRIC_FILTERS: Record<string, SignalFilter> = {
 	bounce_rate: (s) =>
 		Math.abs(s.current - s.baseline) >= FILTER_BOUNCE_MIN_DELTA,
 	custom_event_count: () => true,
+	custom_event_reach: () => true,
 	error_count: (s) =>
 		Math.abs(s.current - s.baseline) >= FILTER_ERROR_MIN_DELTA &&
 		Math.max(s.current, s.baseline) >= FILTER_ERROR_MIN_PEAK,
@@ -595,26 +596,50 @@ async function detectErrorBehaviorSignals(params: {
 	return signals;
 }
 
+const customEventCount = z
+	.union([z.number(), z.string().trim().min(1).pipe(z.coerce.number())])
+	.pipe(z.number().int().nonnegative());
+const customEventCounts = z.object({
+	total_events: customEventCount,
+	unique_users: customEventCount,
+	unique_sessions: customEventCount,
+});
+
 function makeCustomEventSignal(
 	name: string,
 	currentRow: Record<string, unknown> | undefined,
 	previousRow: Record<string, unknown> | undefined,
 	detectedAt: string,
-	subjectKey = `custom_event:${name}`
-): DetectedSignal {
-	const current = numberField(currentRow, "total_events");
-	const previous = numberField(previousRow, "total_events");
-	const currentUsers = numberField(currentRow, "unique_users");
-	const previousUsers = numberField(previousRow, "unique_users");
-	const currentSessions = numberField(currentRow, "unique_sessions");
-	const previousSessions = numberField(previousRow, "unique_sessions");
+	metric: "custom_event_count" | "custom_event_reach" = "custom_event_count",
+	subjectKey = `${metric === "custom_event_count" ? "custom_event" : metric}:${name}`
+): DetectedSignal | null {
+	const empty = { total_events: 0, unique_users: 0, unique_sessions: 0 };
+	const current = customEventCounts.safeParse(currentRow ?? empty);
+	const previous = customEventCounts.safeParse(previousRow ?? empty);
+	if (!(current.success && previous.success)) {
+		return null;
+	}
+	const field =
+		metric === "custom_event_reach" ? "unique_users" : "total_events";
 	const signal = capLowReachSeverity(
-		makeWowSignal("custom_event_count", name, current, previous, detectedAt),
-		Math.max(previousUsers, previousSessions)
+		makeWowSignal(
+			metric,
+			metric === "custom_event_reach" ? `${name} recorded visitors` : name,
+			current.data[field],
+			previous.data[field],
+			detectedAt
+		),
+		Math.max(previous.data.unique_users, previous.data.unique_sessions)
 	);
+
 	signal.subjectKey = subjectKey;
 	signal.entityId = name;
-	signal.definitionEvidence = `Event "${name}" occurred ${current} times across ${currentUsers} users and ${currentSessions} sessions, compared with ${previous} occurrences across ${previousUsers} users and ${previousSessions} sessions previously.`;
+	signal.entityLabel = name;
+	signal.definitionEvidence = `Event "${name}" occurred ${current.data.total_events} times across ${current.data.unique_users} recorded visitor identifiers and ${current.data.unique_sessions} sessions, compared with ${previous.data.total_events} occurrences across ${previous.data.unique_users} recorded visitor identifiers and ${previous.data.unique_sessions} sessions previously.`;
+	if (metric === "custom_event_reach") {
+		signal.investigationObjective =
+			"Explain the measured recorded-participation change alongside occurrence volume. Nonzero unique_users still measures recorded visitor identifiers; unavailable emitter context does not invalidate it or establish instrumentation failure. Claim identity-coverage loss only with evidence of missing identifiers, not fewer identifiers. Leave causes unknown without inspected support. Event names alone do not establish behavior, business outcomes or conversion rates; recorded identifiers are not people.";
+	}
 	return signal;
 }
 
@@ -840,7 +865,10 @@ export async function remeasureMetricSignal(
 		return countSignal();
 	}
 
-	if (prior.signalKey.startsWith("custom_event:")) {
+	if (
+		prior.signalKey.startsWith("custom_event:") ||
+		prior.signalKey.startsWith("custom_event_reach:")
+	) {
 		const name = prior.entity.id;
 		const pair = await readPair("custom_events", "custom_events", [
 			{ field: "event_name", op: "eq", value: name },
@@ -854,6 +882,9 @@ export async function remeasureMetricSignal(
 			currentRows[0],
 			previousRows[0],
 			currentTo,
+			prior.signalKey.startsWith("custom_event_reach:")
+				? "custom_event_reach"
+				: "custom_event_count",
 			prior.signalKey
 		);
 	}
@@ -1446,6 +1477,22 @@ async function detectWow(
 		const currentRow = currentByName.get(name);
 		const current = numberField(currentRow, "total_events");
 		const previous = numberField(previousRow, "total_events");
+		if (current >= previous && currentSessions >= previousSessions) {
+			const reach = makeCustomEventSignal(
+				name,
+				currentRow,
+				previousRow,
+				currentTo,
+				"custom_event_reach"
+			);
+			if (
+				reach &&
+				reach.baseline >= SIGNIFICANT_AFFECTED_USERS &&
+				reach.deltaPercent <= -CUSTOM_EVENT_DROP_THRESHOLD
+			) {
+				signals.push(reach);
+			}
+		}
 		const previousReach = Math.max(
 			numberField(previousRow, "unique_users"),
 			numberField(previousRow, "unique_sessions")
@@ -1465,9 +1512,15 @@ async function detectWow(
 		) {
 			continue;
 		}
-		signals.push(
-			makeCustomEventSignal(name, currentRow, previousRow, currentTo)
+		const event = makeCustomEventSignal(
+			name,
+			currentRow,
+			previousRow,
+			currentTo
 		);
+		if (event) {
+			signals.push(event);
+		}
 	}
 
 	const previousCurrencies = mapRowsByStringField(previousRevenue, "currency");
