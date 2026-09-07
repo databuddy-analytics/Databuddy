@@ -476,7 +476,7 @@ const investigationResolveNextSchema = z.object({
 		.trim()
 		.min(1)
 		.describe(
-			"Short reason no investigation needs to remain open. Put the customer-facing consequence and any supported next check in summary; this field is not shown in the Insights brief."
+			"One short, teammate-facing reason no investigation needs to remain open; a non-interrupting recommendation may still exist."
 		),
 });
 
@@ -556,7 +556,7 @@ export const investigationOutcomeSchema = z
 			.trim()
 			.min(1)
 			.describe(
-				"One or two short sentences: what does this finding change for a teammate's decision, and what measured limitation matters? Include a specific next check only when inspected evidence supports it; do not invent work. Keep comparisons in evidence and mechanisms in rootCause. With structured revenue evidence, keep this qualitative."
+				"In roughly twelve words, state the consequence for the affected journey or decision. Keep measured comparisons in evidence and the inspected mechanism in rootCause; do not repeat them here."
 			),
 		// Retain stored briefs; new investigations include the consequence in summary.
 		impact: z.string().trim().min(1).nullable().default(null),
