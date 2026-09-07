@@ -3128,6 +3128,7 @@ describe("structured revenue evidence", () => {
 	it.each([
 		"valid",
 		"missing-control",
+		"identified-population",
 		"snapshot",
 		"wrong-product",
 		"wrong-provider",
@@ -3141,10 +3142,10 @@ describe("structured revenue evidence", () => {
 	] as const)("binds product publication to exact native subject and whole controls: %s", async (variant) => {
 		const productSignal: InvestigationSignal = {
 			...signal,
-			signalKey: "product_revenue:USD:stripe:team",
-			entity: { type: "website", id: "team", label: "Team" },
+			signalKey: "product_revenue:USD:stripe:product_name:Team",
+			entity: { type: "website", id: "Team", label: "Team" },
 			metric: {
-				label: "Team USD gross revenue",
+				label: "Team USD receipts",
 				current: 15000,
 				previous: 30000,
 				format: "number",
@@ -3170,9 +3171,14 @@ describe("structured revenue evidence", () => {
 					value: variant === "wrong-provider" ? "paddle" : "stripe",
 				},
 				{
+					field: "product_name",
+					op: "eq",
+					value: variant === "wrong-product" ? "Solo" : "Team",
+				},
+				{
 					field: "product_id",
 					op: "eq",
-					value: variant === "wrong-product" ? "solo" : "team",
+					value: variant === "identified-population" ? "identified-team" : "",
 				},
 			],
 			data:
@@ -3276,7 +3282,9 @@ describe("structured revenue evidence", () => {
 		if (variant === "valid") {
 			const result = await run;
 			expect(result.outcome.publish).toBe(true);
-			expect(result.outcome.evidence[0]).toContain("stripe product team");
+			expect(result.outcome.evidence[0]).toContain(
+				"stripe receipts described Team"
+			);
 			expect(result.outcome.evidence[1]).toContain("40,000 → 40,000");
 		} else if (variant === "private")
 			expect((await run).outcome.publish).toBe(false);
@@ -3284,7 +3292,7 @@ describe("structured revenue evidence", () => {
 	});
 
 	it("binds metrics to their labels and computes a refund delta absent from the source", () => {
-		expect(renderRevenueEvidence(selection, readings, input)).toBe(
+		expect(renderRevenueEvidence(selection, readings, input).text).toBe(
 			"USD, 2026-06-28–2026-07-04 → 2026-07-05–2026-07-11 UTC: Gross Revenue: 10,000 → 10,000; Settled Transactions: 100 → 100; Refund Amount: 200 → 1,200 (+1,000)."
 		);
 	});
@@ -3304,7 +3312,7 @@ describe("structured revenue evidence", () => {
 				selection,
 				[{ ...readings[0], ...changed }, readings[1]],
 				input
-			)
+			).text
 		).toThrow();
 	});
 
@@ -3320,7 +3328,7 @@ describe("structured revenue evidence", () => {
 					...input.appContext,
 					currentDateTime: "2026-07-19T00:00:00Z",
 				},
-			})
+			}).text
 		).toContain("2026-07-05–2026-07-11 → 2026-07-12–2026-07-18 UTC");
 		expect(() =>
 			renderRevenueEvidence(
@@ -3336,7 +3344,7 @@ describe("structured revenue evidence", () => {
 						currentDateTime: "2026-07-19T00:00:00Z",
 					},
 				}
-			)
+			).text
 		).toThrow();
 	});
 
@@ -3345,7 +3353,7 @@ describe("structured revenue evidence", () => {
 			...reading,
 			data: [...reading.data, { currency: "EUR", total_revenue: 5000 }],
 		}));
-		expect(renderRevenueEvidence(selection, both, input)).toContain(
+		expect(renderRevenueEvidence(selection, both, input).text).toContain(
 			"Refund Amount: 200 → 1,200 (+1,000)"
 		);
 		expect(
@@ -3353,7 +3361,7 @@ describe("structured revenue evidence", () => {
 				{ currency: "EUR", fields: ["total_revenue"] },
 				both,
 				input
-			)
+			).text
 		).toContain(
 			"EUR, 2026-06-28–2026-07-04 → 2026-07-05–2026-07-11 UTC: Gross Revenue: 5,000 → 5,000."
 		);
@@ -3369,7 +3377,7 @@ describe("structured revenue evidence", () => {
 						defaultWebsiteId: undefined,
 					},
 				}
-			)
+			).text
 		).toThrow();
 	});
 
@@ -3384,7 +3392,7 @@ describe("structured revenue evidence", () => {
 				currentDateTime: "2026-07-12T00:01:00Z",
 			},
 		};
-		expect(() => renderRevenueEvidence(selection, local, context)).toThrow();
+		expect(() => renderRevenueEvidence(selection, local, context).text).toThrow();
 		expect(
 			renderRevenueEvidence(selection, local, {
 				...context,
@@ -3392,7 +3400,7 @@ describe("structured revenue evidence", () => {
 					...context.appContext,
 					currentDateTime: "2026-07-12T04:00:00Z",
 				},
-			})
+			}).text
 		).toContain(timezone);
 		expect(() =>
 			renderRevenueEvidence(
@@ -3402,7 +3410,7 @@ describe("structured revenue evidence", () => {
 					...input,
 					appContext: { ...input.appContext, timezone: "invalid-zone" },
 				}
-			)
+			).text
 		).toThrow();
 	});
 
@@ -3422,17 +3430,17 @@ describe("structured revenue evidence", () => {
 				{ currency: "USD", fields: ["payment_failure_rate"] },
 				filtered,
 				input
-			)
+			).text
 		).toContain("USD (filtered population)");
 		expect(
 			renderRevenueEvidence(
 				{ currency: "USD", fields: ["payment_failure_rate"] },
 				filtered,
 				input
-			)
+			).text
 		).toContain("Payment Failure Rate (%): 2 → 12 (+10 pp)");
 		expect(() =>
-			renderRevenueEvidence(selection, [readings[0]], input)
+			renderRevenueEvidence(selection, [readings[0]], input).text
 		).toThrow();
 	});
 
@@ -3446,9 +3454,9 @@ describe("structured revenue evidence", () => {
 				{ currency: "USD", fields: ["failed_payment_attempts"] },
 				partial,
 				input
-			)
+			).text
 		).toThrow("failed_payment_attempts is unavailable");
-		expect(renderRevenueEvidence(selection, partial, input)).toContain(
+		expect(renderRevenueEvidence(selection, partial, input).text).toContain(
 			"Refund Amount: 200 → 1,200 (+1,000)"
 		);
 	});
@@ -3466,20 +3474,20 @@ describe("structured revenue evidence", () => {
 					data: [{ ...reading.data[0], [field]: 1 }],
 				})),
 				input
-			)
+			).text
 		).toThrow("declared numeric field");
 	});
 
 	it("rejects repeated periods and unmeasured fields", () => {
 		expect(() =>
-			renderRevenueEvidence(selection, [readings[0], readings[0]], input)
+			renderRevenueEvidence(selection, [readings[0], readings[0]], input).text
 		).toThrow();
 		expect(() =>
 			renderRevenueEvidence(
 				{ ...selection, fields: ["active_subscribers"] },
 				readings,
 				input
-			)
+			).text
 		).toThrow();
 		expect(() =>
 			renderRevenueEvidence(selection, readings, {
@@ -3488,7 +3496,7 @@ describe("structured revenue evidence", () => {
 					...input.appContext,
 					currentDateTime: "2026-07-10T00:00:00Z",
 				},
-			})
+			}).text
 		).toThrow();
 	});
 
@@ -3542,7 +3550,7 @@ describe("structured revenue evidence", () => {
 			}
 		);
 		expect(result.outcome.evidence).toEqual([
-			renderRevenueEvidence(selection, readings, input),
+			renderRevenueEvidence(selection, readings, input).text,
 		]);
 		expect(JSON.stringify(model.doGenerateCalls[2])).toContain(
 			"code binds every value to its field"

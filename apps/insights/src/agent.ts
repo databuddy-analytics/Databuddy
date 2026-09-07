@@ -60,7 +60,7 @@ const revenueEvidenceSchema = z
 			.max(4),
 	})
 	.describe(
-		"For revenue_overview, select complementary fields: gross revenue, settled transactions, refunds, and attributed revenue when it differs from gross. Select only fields with a non-null value in every cited period. Omit redundant subtotals and diagnostic availability flags. One entry per measured population; a product comparison uses a second entry for the whole-currency control. Cite both complete comparison windows in each evidenceRefs entry. Code supplies labels, values, periods and deltas; preserve supported comparisons when correcting format."
+		"For revenue_overview, select complementary fields: gross revenue, settled transactions, refunds, and attributed revenue when it differs from gross. Select only fields with a non-null value in every cited period. Omit redundant subtotals and diagnostic availability flags. One entry per measured population; a payment-description comparison uses a second entry for the whole-currency control. Cite both complete comparison windows in each evidenceRefs entry. Code supplies labels, values, periods and deltas; preserve supported comparisons when correcting format."
 	);
 const finishSchema = z.object(agentInvestigationOutcomeSchema.shape).extend({
 	evidence: z
@@ -73,7 +73,7 @@ const finishSchema = z.object(agentInvestigationOutcomeSchema.shape).extend({
 		.min(1)
 		.max(2)
 		.describe(
-			"Every revenue_overview entry, including unchanged controls, must be {currency, fields}. Product and whole-currency entries cite separate result pairs. Use text only for other sources. Keep only comparisons that change the interpretation."
+			"Every revenue_overview entry, including unchanged controls, must be {currency, fields}. Receipt-description and whole-currency entries cite separate result pairs. Use text only for other sources. Keep only comparisons that change the interpretation."
 		),
 });
 
@@ -93,7 +93,7 @@ export function renderRevenueEvidence(
 	selection: z.infer<typeof revenueEvidenceSchema>,
 	sources: unknown,
 	input: Pick<InsightAgentInput, "appContext">
-): string {
+) {
 	const readings = z
 		.array(
 			revenueReadingSchema.extend({
@@ -162,30 +162,35 @@ export function renderRevenueEvidence(
 		const delta = values[1] - values[0];
 		return `${field.label ?? name.replaceAll("_", " ")}${field.unit ? ` (${field.unit})` : ""}: ${values.map((value) => format.format(value)).join(" → ")}${delta === 0 ? "" : ` (${delta > 0 ? "+" : ""}${format.format(delta)}${field.unit === "%" ? " pp" : ""})`}`;
 	});
-	const product = first.filters.find(
-		(filter) => filter.field === "product_id" && filter.op === "eq"
+	const description = first.filters.find(
+		(filter) => filter.field === "product_name" && filter.op === "eq"
 	);
 	const provider = first.filters.find(
 		(filter) => filter.field === "provider" && filter.op === "eq"
 	);
-	const population = product
-		? ` (${provider ? `${String(provider.value)} ` : ""}product ${String(product.value)})`
+	const population = description
+		? ` (${provider ? `${String(provider.value)} ` : ""}receipts described ${String(description.value)})`
 		: first.filters.some((filter) => filter.field !== "currency")
 			? " (filtered population)"
 			: "";
-	return `${selection.currency}${population}, ${readings.map((reading) => `${reading.from}–${reading.to}`).join(" → ")} ${first.timezone}: ${facts.join("; ")}.`;
+	return {
+		...selection,
+		readings,
+		rows,
+		text: `${selection.currency}${population}, ${readings.map((reading) => `${reading.from}–${reading.to}`).join(" → ")} ${first.timezone}: ${facts.join("; ")}.`,
+	};
 }
 
 function hasProductRevenueEvidence(
 	signal: InvestigationSignal,
-	evidence: z.infer<typeof finishSchema>["evidence"],
-	sources: unknown[][]
+	evidence: ReturnType<typeof renderRevenueEvidence>[]
 ): boolean {
-	const [, currency, provider] = signal.signalKey.split(":");
+	const [, currency, provider, selector] = signal.signalKey.split(":");
 	if (
+		selector !== "product_name" ||
 		signalKeyForDetectedSignal({
 			metric: "product_revenue",
-			subjectKey: `product_revenue:${currency}:${provider}:${encodeURIComponent(signal.entity.id)}`,
+			subjectKey: `product_revenue:${currency}:${provider}:product_name:${encodeURIComponent(signal.entity.id)}`,
 		}) !== signal.signalKey
 	) {
 		return false;
@@ -194,74 +199,42 @@ function hasProductRevenueEvidence(
 	const productFilters = [
 		...wholeFilters,
 		{ field: "provider", op: "eq", value: provider },
-		{ field: "product_id", op: "eq", value: signal.entity.id },
+		{ field: "product_name", op: "eq", value: signal.entity.id },
+		{ field: "product_id", op: "eq", value: "" },
 	].sort((a, b) => a.field.localeCompare(b.field));
-	let product: z.infer<typeof revenueReadingSchema>[] | undefined;
-	let whole: z.infer<typeof revenueReadingSchema>[] | undefined;
-	for (const [index, entry] of evidence.entries()) {
-		if (
-			typeof entry === "string" ||
-			entry.currency !== currency ||
-			!entry.fields.includes("total_revenue")
-		) {
-			continue;
-		}
-		const parsed = revenueReadingSchema
-			.array()
-			.length(2)
-			.safeParse(sources[index]);
-		if (!parsed.success) {
-			continue;
-		}
-		const pair = parsed.data.sort((a, b) => a.from.localeCompare(b.from));
-		if (
-			!pair.every((reading, position) => {
+	// Reuse the renderer's validated native rows, dates, currency and finite values.
+	const matching = evidence.filter(
+		(entry) =>
+			entry.currency === currency &&
+			entry.fields.includes("total_revenue") &&
+			entry.readings.every((reading, index) => {
 				const period =
-					position === 0 ? signal.period.previous : signal.period.current;
+					index === 0 ? signal.period.previous : signal.period.current;
 				return reading.from === period.from && reading.to === period.to;
 			})
-		) {
-			continue;
-		}
-		if (
-			pair.every((reading) =>
-				isDeepStrictEqual(
-					[...reading.filters].sort((a, b) => a.field.localeCompare(b.field)),
-					productFilters
-				)
+	);
+	const product = matching.find((entry) =>
+		entry.readings.every((reading) =>
+			isDeepStrictEqual(
+				[...reading.filters].sort((a, b) => a.field.localeCompare(b.field)),
+				productFilters
 			)
-		) {
-			product = pair;
-		}
-		if (
-			pair.every(
-				(reading) =>
-					reading.filters.length === 0 ||
-					isDeepStrictEqual(reading.filters, wholeFilters)
-			)
-		) {
-			whole = pair;
-		}
-	}
+		)
+	);
+	const whole = matching.find((entry) =>
+		entry.readings.every(
+			(reading) =>
+				reading.filters.length === 0 ||
+				isDeepStrictEqual(reading.filters, wholeFilters)
+		)
+	);
 	return Boolean(
 		product &&
 			whole &&
-			product.every((reading, index) => {
-				// renderRevenueEvidence already validates finite amounts and one currency row.
-				const amount = Number(
-					reading.data.find((row) => row.currency === currency)?.total_revenue
-				);
-				const total = Number(
-					whole[index].data.find((row) => row.currency === currency)
-						?.total_revenue
-				);
-				return (
-					Number.isFinite(amount) &&
-					Number.isFinite(total) &&
-					amount >= 0 &&
-					total > 0 &&
-					amount <= total
-				);
+			product.rows.every((row, index) => {
+				const amount = Number(row.total_revenue);
+				const total = Number(whole.rows[index].total_revenue);
+				return amount >= 0 && total > 0 && amount <= total;
 			})
 	);
 }
@@ -1126,7 +1099,7 @@ function validateAgentOutcome(
 		!hasNativeRevenueEvidence
 	) {
 		throw new Error(
-			"Product revenue findings require gross revenue evidence for this exact currency, provider and product_id, plus whole-currency gross controls, each from both complete signal windows. Use separate revenue_overview result pairs; a detector snapshot or limited product table cannot replace them."
+			"Receipt-description findings require gross revenue evidence for this exact currency, provider and product_name with product_id=empty string, plus whole-currency controls, each from both complete signal windows. Use separate revenue_overview pairs; a snapshot or limited table cannot replace them."
 		);
 	}
 	if (
@@ -1462,6 +1435,7 @@ export async function runInsightAgent(
 						input,
 						results
 					);
+					const nativeRevenue: ReturnType<typeof renderRevenueEvidence>[] = [];
 					const evidence = candidate.evidence.map((item, index) => {
 						if (typeof item !== "string") {
 							const references = candidate.evidenceRefs[index];
@@ -1474,7 +1448,13 @@ export async function runInsightAgent(
 									"Structured revenue evidence requires exact successful get_data result references."
 								);
 							}
-							return renderRevenueEvidence(item, citedEvidence[index], input);
+							const native = renderRevenueEvidence(
+								item,
+								citedEvidence[index],
+								input
+							);
+							nativeRevenue.push(native);
+							return native.text;
 						}
 						if (
 							citedEvidence[index].some(
@@ -1535,24 +1515,19 @@ export async function runInsightAgent(
 						results,
 						attemptedToolNames,
 						input.signal.signalKey.startsWith("product_revenue:")
-							? hasProductRevenueEvidence(
-									input.signal,
-									candidate.evidence,
-									citedEvidence
-								)
-							: candidate.evidence.some(
+							? hasProductRevenueEvidence(input.signal, nativeRevenue)
+							: nativeRevenue.some(
 									(item) =>
-										typeof item !== "string" &&
-										((item.fields.includes("total_revenue") &&
+										(item.fields.includes("total_revenue") &&
 											input.signal.signalKey === `revenue:${item.currency}`) ||
-											(item.fields.includes("refund_amount") &&
-												item.fields.includes("refund_count") &&
-												input.signal.signalKey ===
-													`refund_amount:${item.currency}`) ||
-											(item.fields.includes("attributed_revenue") &&
-												item.fields.includes("total_revenue") &&
-												input.signal.signalKey ===
-													`attribution_rate:${item.currency}`))
+										(item.fields.includes("refund_amount") &&
+											item.fields.includes("refund_count") &&
+											input.signal.signalKey ===
+												`refund_amount:${item.currency}`) ||
+										(item.fields.includes("attributed_revenue") &&
+											item.fields.includes("total_revenue") &&
+											input.signal.signalKey ===
+												`attribution_rate:${item.currency}`)
 								)
 					);
 					const serialize = (value: unknown) =>

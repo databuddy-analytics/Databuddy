@@ -126,53 +126,62 @@ function attributionEvent(
 }
 
 describeIntegration("revenue query builders against ClickHouse", () => {
-	it("collapses product renames without mixing providers and keeps absent products unknown", async () => {
-		const websiteId = `revenue-product-${randomUUIDv7()}`;
+	it("preserves null-ID payment descriptions and excludes identified receipts with the same label", async () => {
+		const websiteId = `revenue-descriptions-${randomUUIDv7()}`;
 		await clickHouse.insert({
 			table: "analytics.revenue",
 			format: "JSONEachRow",
 			values: [
 				revenueRow(
 					websiteId,
-					"team-old",
+					"team-a",
 					100,
 					"sale",
 					"completed",
 					"{}",
 					"2026-08-01 12:00:00",
-					{ product_id: "team", product_name: "Team" }
+					{ product_id: null, product_name: "Team" }
 				),
 				revenueRow(
 					websiteId,
-					"team-new",
+					"team-b",
 					200,
 					"sale",
 					"completed",
 					"{}",
 					"2026-08-02 12:00:00",
-					{ product_id: "team", product_name: "Team Plus" }
+					{ product_id: null, product_name: "Team" }
 				),
 				revenueRow(
 					websiteId,
-					"team-refund",
+					"solo",
+					400,
+					"sale",
+					"completed",
+					"{}",
+					"2026-08-02 12:00:00",
+					{ product_id: null, product_name: "Solo" }
+				),
+				revenueRow(
+					websiteId,
+					"refund",
 					-50,
 					"refund",
 					"completed",
 					"{}",
 					"2026-08-02 12:00:00",
-					{ product_id: "team", product_name: "Team Plus" }
+					{ product_id: null, product_name: "Refund" }
 				),
 				revenueRow(
 					websiteId,
-					"other-provider",
+					"identified",
 					700,
 					"sale",
 					"completed",
 					"{}",
 					"2026-08-02 12:00:00",
-					{ provider: "paddle", product_id: "team", product_name: "Team" }
+					{ product_id: "identified-team", product_name: "Team" }
 				),
-				revenueRow(websiteId, "unknown", 20, "sale", "completed"),
 			],
 		});
 		const query = new SimpleQueryBuilder(RevenueBuilders.revenue_by_product, {
@@ -182,33 +191,48 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 			to: "2026-08-03",
 			limit: 20,
 		}).compile();
-		const products = await chQuery<Record<string, unknown>>(
+		const groups = await chQuery<Record<string, unknown>>(
 			query.sql,
 			query.params
 		);
-		expect(products.filter((row) => row.product_id === "team")).toEqual(
+		expect(groups).toHaveLength(4);
+		expect(groups).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
 					provider: "stripe",
-					product_id: "team",
-					name: "Team Plus",
+					product_id: null,
+					name: "Team",
 					revenue: 300,
 					transactions: 2,
 				}),
 				expect.objectContaining({
-					provider: "paddle",
-					product_id: "team",
+					provider: "stripe",
+					product_id: null,
+					name: "Solo",
+					revenue: 400,
+					transactions: 1,
+				}),
+				expect.objectContaining({
+					provider: "stripe",
+					product_id: null,
+					name: "Refund",
+					revenue: 0,
+					transactions: 0,
+				}),
+				expect.objectContaining({
+					provider: "stripe",
+					product_id: "identified-team",
 					name: "Team",
 					revenue: 700,
 					transactions: 1,
 				}),
 			])
 		);
-		expect(products.filter((row) => row.product_id === "team")).toHaveLength(2);
 		const filters: Filter[] = [
 			{ field: "currency", op: "eq", value: "USD" },
 			{ field: "provider", op: "eq", value: "stripe" },
-			{ field: "product_id", op: "eq", value: "team" },
+			{ field: "product_name", op: "eq", value: "Team" },
+			{ field: "product_id", op: "eq", value: "" },
 		];
 		const [measured] = await revenueOverview(
 			websiteId,
@@ -217,12 +241,16 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 			filters
 		);
 		expect(Number(measured.total_revenue)).toBe(300);
-		expect(Number(measured.refund_amount)).toBe(-50);
+		expect(Number(measured.refund_amount)).toBe(0);
 		expect(Number(measured.payment_diagnostics_available)).toBe(0);
+		const [all] = await revenueOverview(websiteId, "2026-08-01", "2026-08-03");
+		expect(Number(all.total_revenue)).toBe(1400);
+		expect(Number(all.refund_amount)).toBe(-50);
 		expect(
 			await revenueOverview(websiteId, "2026-08-01", "2026-08-03", [
 				...filters.slice(0, 2),
-				{ field: "product_id", op: "eq", value: "absent" },
+				{ field: "product_name", op: "eq", value: "absent" },
+				filters[3],
 			])
 		).toEqual([]);
 	}, 15_000);

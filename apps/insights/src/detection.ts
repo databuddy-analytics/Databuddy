@@ -15,7 +15,7 @@ import {
 	type RouteContinuationComparison,
 } from "./error-customer-impact";
 import { emitInsightsEvent } from "./lib/evlog-insights";
-import { signalKeyForDetectedSignal } from "./investigation";
+import { rankSignals, signalKeyForDetectedSignal } from "./investigation";
 
 dayjs.extend(utcPlugin);
 dayjs.extend(timezonePlugin);
@@ -300,7 +300,7 @@ function makeRevenueSignal(
 		),
 		subjectKey: `revenue:${currency}`,
 		investigationObjective:
-			"Find which measured products account for the gross revenue change and what decision that concentration changes. Inspect an available revenue_by_product breakdown; separate missing product coverage from an unchanged product. Do not infer profit, acquisition ROI or subscription churn.",
+			"Find which measured receipt groups account for the gross revenue change and what decision that concentration changes. Inspect revenue_by_product; its names can be payment or invoice descriptions, not verified catalog products. Separate missing coverage from an unchanged group. Do not infer profit, acquisition ROI or subscription churn.",
 		definitionEvidence: `Business meaning: gross settled revenue in ${currency}, excluding refunds. The snapshot alone is not publication evidence: confirm with revenue_overview for this currency across both complete signal windows.`,
 	};
 }
@@ -331,8 +331,10 @@ const commercialOverviewSchema = z.object({
 const productRevenueRowSchema = z.object({
 	currency: z.string().regex(/^[A-Z]{3}$/),
 	provider: z.string().regex(/^[a-z][a-z0-9_-]{0,31}$/),
-	product_id: z.string().min(1),
-	name: z.string(),
+	product_id: z.union([z.null(), z.literal("")]),
+	name: z
+		.string()
+		.refine((value) => value.trim().length > 0 && value !== "Unknown"),
 	revenue: commercialNumberSchema.pipe(z.number().nonnegative()),
 	transactions: commercialNumberSchema.pipe(z.number().int().nonnegative()),
 });
@@ -346,7 +348,7 @@ function productRevenueRows(rows: Record<string, unknown>[]) {
 			continue;
 		}
 		const product = parsed.data;
-		const key = `product_revenue:${product.currency}:${product.provider}:${encodeURIComponent(product.product_id)}`;
+		const key = `product_revenue:${product.currency}:${product.provider}:product_name:${encodeURIComponent(product.name)}`;
 		if (products.has(key)) {
 			ambiguous.add(key);
 		}
@@ -396,22 +398,21 @@ function makeProductRevenueSignal(
 	) {
 		return null;
 	}
-	const label =
-		current.name.trim() || previous.name.trim() || current.product_id;
+	const label = current.name.trim();
 	return {
 		...makeWowSignal(
 			"product_revenue",
-			`${label} ${current.currency} gross revenue`,
+			`${label} ${current.currency} receipts`,
 			current.revenue,
 			previous.revenue,
 			detectedAt
 		),
-		subjectKey: `product_revenue:${current.currency}:${current.provider}:${encodeURIComponent(current.product_id)}`,
-		entityId: current.product_id,
+		subjectKey: `product_revenue:${current.currency}:${current.provider}:product_name:${encodeURIComponent(current.name)}`,
+		entityId: current.name,
 		entityLabel: label,
 		investigationObjective:
-			"Explain this product's gross revenue shift against the whole-currency control, including what offsets or concentrates it. Confirm revenue_overview in both windows with currency, provider and product_id filters, plus currency-only whole controls. Do not infer churn, profit, causality or an absent product from a limited breakdown.",
-		definitionEvidence: `${current.provider} product_id=${current.product_id}, ${current.currency} gross settled revenue excluding refunds: ${previous.revenue} across ${previous.transactions} transactions → ${current.revenue} across ${current.transactions}. Whole-currency gross: ${p.total_revenue} → ${c.total_revenue}; product share: ${round2(previousShare)}% → ${round2(currentShare)}%. Remaining gross: ${p.total_revenue - previous.revenue} → ${c.total_revenue - current.revenue}. Confirm product and whole controls with native revenue_overview; the snapshot alone cannot support publication.`,
+			"Explain the gross receipts change for this recorded payment description against whole-currency revenue. Confirm revenue_overview in both windows with currency, provider, product_name=signal.entity.id and product_id=empty string, plus currency-only controls. These are payment descriptions, not verified catalog products. Do not infer churn, causality or an absent description from a limited table.",
+		definitionEvidence: `${current.provider} receipts described ${JSON.stringify(current.name)} with no product ID, ${current.currency} gross settled revenue excluding refunds: ${previous.revenue} across ${previous.transactions} transactions → ${current.revenue} across ${current.transactions}. Whole-currency gross: ${p.total_revenue} → ${c.total_revenue}; receipt-description share: ${round2(previousShare)}% → ${round2(currentShare)}%. Remaining gross: ${p.total_revenue - previous.revenue} → ${c.total_revenue - current.revenue}. Confirm description and whole controls with native revenue_overview; the snapshot alone cannot support publication.`,
 	};
 }
 
@@ -978,14 +979,15 @@ export async function remeasureMetricSignal(
 	}
 
 	if (prior.signalKey.startsWith("product_revenue:")) {
-		const [, currency, provider] = prior.signalKey.split(":");
+		const [, currency, provider, selector] = prior.signalKey.split(":");
 		if (
 			normalizeCurrencyCode(currency) !== currency ||
+			selector !== "product_name" ||
 			!provider ||
 			!prior.entity.id ||
 			signalKeyForDetectedSignal({
 				metric: "product_revenue",
-				subjectKey: `product_revenue:${currency}:${provider}:${encodeURIComponent(prior.entity.id)}`,
+				subjectKey: `product_revenue:${currency}:${provider}:product_name:${encodeURIComponent(prior.entity.id)}`,
 			}) !== prior.signalKey
 		) {
 			return null;
@@ -996,40 +998,28 @@ export async function remeasureMetricSignal(
 			value: currency,
 		} as const;
 		const [product, whole] = await Promise.all([
-			readPair("revenue", "revenue_overview", [
+			readPair("revenue", "revenue_by_product", [
 				currencyFilter,
 				{ field: "provider", op: "eq", value: provider },
-				{ field: "product_id", op: "eq", value: prior.entity.id },
+				{ field: "product_name", op: "eq", value: prior.entity.id },
+				{ field: "product_id", op: "eq", value: "" },
 			]),
 			readPair("revenue", "revenue_overview", [currencyFilter]),
 		]);
 		if (!(product.value && whole.value)) {
 			return null;
 		}
-		const productRows = product.value.map((rows) =>
-			rows.filter((row) => row.currency === currency)
+		const key = `product_revenue:${currency}:${provider}:product_name:${encodeURIComponent(prior.entity.id)}`;
+		const [current, previous] = product.value.map((rows) =>
+			productRevenueRows(rows).get(key)
 		);
 		const wholeRows = whole.value.map((rows) =>
 			rows.filter((row) => row.currency === currency)
 		);
-		if ([...productRows, ...wholeRows].some((rows) => rows.length !== 1)) {
-			return null;
-		}
-		const readings = productRows.map(([row]) =>
-			productRevenueRowSchema.safeParse({
-				currency,
-				provider,
-				product_id: prior.entity.id,
-				name: prior.entity.label,
-				revenue: row.total_revenue,
-				transactions: row.total_transactions,
-			})
-		);
-		const [current, previous] = readings;
-		return current.success && previous.success
+		return current && previous && wholeRows.every((rows) => rows.length === 1)
 			? makeProductRevenueSignal(
-					current.data,
-					previous.data,
+					current,
+					previous,
 					wholeRows[0][0],
 					wholeRows[1][0],
 					currentTo,
@@ -1433,7 +1423,8 @@ async function detectWow(
 		type: string,
 		from: string,
 		to: string,
-		options: { filters?: Filter[]; limit?: number } = {}
+		options: { filters?: Filter[]; limit?: number } = {},
+		signal = abortSignal
 	) {
 		return queryFn(
 			{
@@ -1446,7 +1437,7 @@ async function detectWow(
 			},
 			undefined,
 			timezone,
-			abortSignal
+			signal
 		);
 	}
 
@@ -1701,7 +1692,6 @@ async function detectWow(
 	}
 
 	// Two bounded discovery reads; a missing top-table row never becomes zero.
-	let productRevenueFailed = false;
 	if (
 		currentRevenue.some(
 			(row) =>
@@ -1714,20 +1704,37 @@ async function detectWow(
 				) >= 20
 		)
 	) {
-		const products = await readDetectorPair({
-			abortSignal,
-			current: () =>
-				query("revenue_by_product", currentFrom, currentTo, { limit: 20 }),
-			family: "revenue",
-			previous: () =>
-				query("revenue_by_product", previousFrom, previousTo, { limit: 20 }),
-			websiteId,
-		});
-		productRevenueFailed = products.failed;
-		if (products.value) {
-			const [currentRows, previousRows] =
-				products.value.map(productRevenueRows);
+		const probeSignal = AbortSignal.any([
+			...(abortSignal ? [abortSignal] : []),
+			AbortSignal.timeout(3000),
+		]);
+		const [currentProbe, previousProbe] = await Promise.allSettled([
+			query(
+				"revenue_by_product",
+				currentFrom,
+				currentTo,
+				{ limit: 20 },
+				probeSignal
+			),
+			query(
+				"revenue_by_product",
+				previousFrom,
+				previousTo,
+				{ limit: 20 },
+				probeSignal
+			),
+		]);
+		abortSignal?.throwIfAborted();
+		if (
+			currentProbe.status === "fulfilled" &&
+			previousProbe.status === "fulfilled"
+		) {
+			const [currentRows, previousRows] = [
+				currentProbe.value,
+				previousProbe.value,
+			].map(productRevenueRows);
 			const currentWhole = mapRowsByStringField(currentRevenue, "currency");
+			const movements: DetectedSignal[] = [];
 			for (const [key, current] of currentRows) {
 				const previous = previousRows.get(key);
 				if (!previous) {
@@ -1741,9 +1748,27 @@ async function detectWow(
 					currentTo
 				);
 				if (productSignal) {
-					signals.push(productSignal);
+					movements.push(productSignal);
 				}
 			}
+			// Keep the same covered movement on an identical next run, rather than rotating to its offset.
+			const coveredCurrencies = new Map<string, DetectedSignal>();
+			movements.sort((a, b) =>
+				(a.subjectKey ?? "").localeCompare(b.subjectKey ?? "")
+			);
+			for (const movement of rankSignals(movements).reverse()) {
+				coveredCurrencies.set(
+					movement.subjectKey?.split(":")[1] ?? "",
+					movement
+				);
+			}
+			signals.push(...coveredCurrencies.values());
+		} else {
+			emitInsightsEvent(
+				"warn",
+				"generation.detection.optional_product_unavailable",
+				{ website_id: websiteId }
+			);
 		}
 	}
 
@@ -1799,9 +1824,7 @@ async function detectWow(
 	return {
 		failedFamilies:
 			[summary, errors, revenue, vitals].filter((result) => result.failed)
-				.length +
-			(customEventsFailed ? 1 : 0) +
-			(productRevenueFailed ? 1 : 0),
+				.length + (customEventsFailed ? 1 : 0),
 		signals,
 		weeklySessions:
 			(Math.max(

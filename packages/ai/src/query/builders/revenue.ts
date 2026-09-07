@@ -21,13 +21,19 @@ const REVENUE_FILTER_COLUMNS: Record<string, string> = {
 	referrer: "referrer_domain",
 	path: "entry_path",
 	provider: "revenue_provider",
-	product_id: "product_id",
+	product_id: "ifNull(product_id, '')",
+	product_name: "product_name",
 	type: "type",
 	currency: "currency",
 };
 
 const REVENUE_ALLOWED_FILTERS = ["currency", "provider", "type"];
-const REVENUE_OVERVIEW_ALLOWED_FILTERS = ["currency", "provider", "product_id"];
+const REVENUE_OVERVIEW_ALLOWED_FILTERS = [
+	"currency",
+	"provider",
+	"product_id",
+	"product_name",
+];
 
 function fixedValueMatchesFilter(value: string, filter: Filter): boolean {
 	const values = (
@@ -957,7 +963,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 		meta: {
 			title: "Revenue by Product",
 			description:
-				"Gross settled revenue by stable product ID and provider, excluding refunds. Product names are the latest observed label; a limited table cannot establish absence.",
+				"Gross settled revenue grouped by recorded name, ID and provider, excluding refunds. Names may be payment descriptions rather than catalog products; a limited table cannot establish absence.",
 			category: "Revenue",
 			tags: ["revenue", "product"],
 			output_fields: [
@@ -976,10 +982,10 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 		customSql: makeRevenueBuilder(
 			(limit) => ({
 				select: `SELECT
-				coalesce(argMax(product_name, created), 'Unknown') as name,
+				coalesce(product_name, 'Unknown') as name,
 				revenue_provider as provider,
 				product_id,${REVENUE_METRICS}`,
-				groupBy: "revenue_provider, product_id, currency",
+				groupBy: "revenue_provider, product_name, product_id, currency",
 				orderBy: "revenue DESC",
 				limit,
 			}),
@@ -1357,7 +1363,7 @@ export const RevenueBuilders: Record<string, SimpleQueryConfig> =
 					name === "revenue_overview"
 						? REVENUE_OVERVIEW_ALLOWED_FILTERS
 						: name === "revenue_by_product"
-							? [...REVENUE_ALLOWED_FILTERS, "product_id"]
+							? [...REVENUE_ALLOWED_FILTERS, "product_id", "product_name"]
 							: REVENUE_ALLOWED_FILTERS,
 			},
 		])
