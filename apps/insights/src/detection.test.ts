@@ -2096,13 +2096,13 @@ describe("independent commercial discovery", () => {
 		currency: "USD",
 		total_revenue: 40_000,
 		total_transactions: 400,
-		refund_amount: 500,
+		refund_amount: -500,
 		refund_count: 5,
 		attributed_revenue: 38_000,
 	};
 	const changed = {
 		...previous,
-		refund_amount: 2500,
+		refund_amount: -2500,
 		refund_count: 25,
 		attributed_revenue: 20_000,
 	};
@@ -2113,6 +2113,46 @@ describe("independent commercial discovery", () => {
 			changed,
 			previous,
 			keys,
+		],
+		[
+			"material refund amounts are independent of unchanged refund counts",
+			{
+				...changed,
+				refund_count: 5,
+				attributed_revenue: previous.attributed_revenue,
+			},
+			previous,
+			["refund_amount:USD"],
+		],
+		[
+			"positive refund magnitudes retain compatibility",
+			{ ...changed, refund_amount: 2500 },
+			{ ...previous, refund_amount: 500 },
+			keys,
+		],
+		[
+			"invalid optional refunds do not suppress valid attribution",
+			{ ...changed, refund_amount: Number.POSITIVE_INFINITY },
+			previous,
+			["attribution_rate:USD"],
+		],
+		[
+			"invalid optional attribution does not suppress valid refunds",
+			{ ...changed, attributed_revenue: "not measured" },
+			previous,
+			["refund_amount:USD"],
+		],
+		[
+			"negative counts cannot create a refund finding",
+			{ ...changed, refund_count: -25 },
+			previous,
+			["attribution_rate:USD"],
+		],
+		[
+			"invalid gross suppresses ratios and relative materiality",
+			{ ...changed, total_revenue: Number.NaN },
+			previous,
+			[],
 		],
 		["unchanged commercial activity stays quiet", previous, previous, []],
 		[
@@ -2146,7 +2186,7 @@ describe("independent commercial discovery", () => {
 		],
 		[
 			"small refund movement stays quiet",
-			{ ...previous, refund_amount: 520 },
+			{ ...previous, refund_amount: -520 },
 			previous,
 			[],
 		],
@@ -2213,4 +2253,50 @@ describe("independent commercial discovery", () => {
 			)
 		).toBe(true);
 	});
+	for (const [
+		name,
+		current,
+		before,
+		currentMagnitude,
+		previousMagnitude,
+		sentiment,
+	] of [
+		["worsening", changed, previous, 2500, 500, "negative"],
+		["improving", previous, changed, 500, 2500, "positive"],
+		["unchanged recheck", previous, previous, 500, 500, "neutral"],
+	] as const) {
+		it(`signed refund ${name} preserves amount, identity and sentiment on recheck`, async () => {
+			const params = { ...BASE_PARAMS, lookbackDays: 7 };
+			const detected = await detectSignals(
+				params,
+				createMockQueryFn(
+					[],
+					{},
+					{},
+					{ revenue_overview: [changed, previous] }
+				),
+				dayjs("2026-09-07")
+			);
+			const refund = detected.find(
+				(signal) => signal.subjectKey === "refund_amount:USD"
+			);
+			if (!refund) throw new Error("Missing signed refund candidate");
+			const prior = prepareInvestigation(refund, 7).signal;
+			expect(prior.sentiment).toBe("negative");
+			expect(prior.metric.current).toBe(2500);
+			const measured = await remeasureMetricSignal(
+				params,
+				prior,
+				createMockQueryFn([], {}, {}, { revenue_overview: [current, before] }),
+				dayjs("2026-09-08")
+			);
+			if (!measured) throw new Error("Missing exact refund remeasurement");
+			expect(measured.subjectKey).toBe("refund_amount:USD");
+			expect(measured.current).toBe(currentMagnitude);
+			expect(measured.baseline).toBe(previousMagnitude);
+			expect(prepareInvestigation(measured, 7).signal.sentiment).toBe(
+				sentiment
+			);
+		});
+	}
 });

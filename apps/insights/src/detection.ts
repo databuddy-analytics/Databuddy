@@ -282,13 +282,18 @@ function makeRevenueSignal(
 	current: Record<string, unknown>,
 	previous: Record<string, unknown>,
 	detectedAt: string
-): DetectedSignal {
+): DetectedSignal | null {
+	const c = commercialNumberSchema.safeParse(current.total_revenue);
+	const p = commercialNumberSchema.safeParse(previous.total_revenue);
+	if (!(c.success && p.success) || c.data < 0 || p.data < 0) {
+		return null;
+	}
 	return {
 		...makeWowSignal(
 			"revenue",
 			`${currency} gross revenue`,
-			numberField(current, "total_revenue"),
-			numberField(previous, "total_revenue"),
+			c.data,
+			p.data,
 			detectedAt
 		),
 		subjectKey: `revenue:${currency}`,
@@ -300,13 +305,25 @@ function makeRevenueSignal(
 
 const commercialNumberSchema = z
 	.union([z.number(), z.string().trim().min(1)])
-	.pipe(z.coerce.number<string | number>().finite().nonnegative());
+	.pipe(z.coerce.number<string | number>().finite());
 const commercialOverviewSchema = z.object({
-	total_revenue: commercialNumberSchema,
-	total_transactions: commercialNumberSchema.pipe(z.number().int()),
-	refund_amount: commercialNumberSchema.nullish(),
-	refund_count: commercialNumberSchema.pipe(z.number().int()).nullish(),
-	attributed_revenue: commercialNumberSchema.nullish(),
+	total_revenue: commercialNumberSchema.pipe(z.number().nonnegative()),
+	total_transactions: commercialNumberSchema.pipe(
+		z.number().int().nonnegative()
+	),
+	// The native ledger sums refunds as negative amounts; discovery compares money returned.
+	refund_amount: commercialNumberSchema
+		.transform(Math.abs)
+		.nullish()
+		.catch(null),
+	refund_count: commercialNumberSchema
+		.pipe(z.number().int().nonnegative())
+		.nullish()
+		.catch(null),
+	attributed_revenue: commercialNumberSchema
+		.pipe(z.number().nonnegative())
+		.nullish()
+		.catch(null),
 });
 
 function commercialSignals(
@@ -336,7 +353,6 @@ function commercialSignals(
 			!applyThreshold ||
 			(sampled &&
 				Math.max(c.refund_count, p.refund_count) >= 5 &&
-				Math.abs(c.refund_count - p.refund_count) >= 5 &&
 				delta >= Math.max(c.total_revenue, p.total_revenue) * 0.02 &&
 				Math.abs(safeDeltaPercent(c.refund_amount, p.refund_amount)) >= 30)
 		) {
@@ -1470,6 +1486,7 @@ async function detectWow(
 			numberField(previous, "total_transactions")
 		);
 		if (
+			signal &&
 			(signal.current > 0 || signal.baseline > 0) &&
 			(Math.abs(signal.current - signal.baseline) >=
 				REVENUE_MIN_ABSOLUTE_CHANGE ||
