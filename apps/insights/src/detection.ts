@@ -411,7 +411,7 @@ function makeProductRevenueSignal(
 		entityId: current.name,
 		entityLabel: label,
 		investigationObjective:
-			"Explain the gross receipts change for this recorded payment description against whole-currency revenue. Confirm revenue_overview in both windows with currency, provider, product_name=signal.entity.id and product_id=empty string, plus currency-only controls. These are payment descriptions, not verified catalog products. Do not infer churn, causality or an absent description from a limited table.",
+			"Find material changes in the composition of settled receipts, even when total revenue is flat. A verified material receipt-description shift is a measured business result and can publish with resolve when no cause or repair is known. Confirm revenue_overview for both windows: currency, provider, product_name=signal.entity.id and product_id=empty string, plus a separate currency-only whole control. These are payment descriptions, not verified catalog products. Do not infer churn, causality or absence from a limited table.",
 		definitionEvidence: `${current.provider} receipts described ${JSON.stringify(current.name)} with no product ID, ${current.currency} gross settled revenue excluding refunds: ${previous.revenue} across ${previous.transactions} transactions → ${current.revenue} across ${current.transactions}. Whole-currency gross: ${p.total_revenue} → ${c.total_revenue}; receipt-description share: ${round2(previousShare)}% → ${round2(currentShare)}%. Remaining gross: ${p.total_revenue - previous.revenue} → ${c.total_revenue - current.revenue}. Confirm description and whole controls with native revenue_overview; the snapshot alone cannot support publication.`,
 	};
 }
