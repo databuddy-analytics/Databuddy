@@ -741,7 +741,7 @@ export const agentInvestigationOutcomeSchema = z
 				"True only when this turn adds a new customer-relevant fact worth showing in Insights."
 			),
 		findingKind: insightFindingKindSchema.describe(
-			"Classify this as user_experience only for a directly measured downstream user experience; product_outcome for a measured business or journey result; reliability_exposure for directly measured error or performance exposure without a measured downstream outcome; measurement_definition for a named definition that measures something other than its stated purpose; or measurement_coverage for missing telemetry/setup. Published user experience and product outcomes require measured impact, reliability exposure requires measured reliability, and published measurement findings require decision safety."
+			"Classify this as user_experience only for a directly measured downstream user experience; product_outcome for a measured business or journey result, or a material measured usage change of a behavior whose purpose is established by inspected code or explicit owner context, even when its cause is unknown (event names and raw traffic alone do not establish purpose); reliability_exposure for directly measured error or performance exposure without a measured downstream outcome; measurement_definition for a named definition that measures something other than its stated purpose; or measurement_coverage for missing telemetry/setup. Published user experience and product outcomes require measured impact, reliability exposure requires measured reliability, and published measurement findings require decision safety."
 		),
 		publicationBasis: insightPublicationBasisSchema
 			.nullable()
