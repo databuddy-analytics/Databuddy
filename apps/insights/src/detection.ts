@@ -231,6 +231,7 @@ const METRIC_FILTERS: Record<string, SignalFilter> = {
 	inp: () => true,
 	lcp: () => true,
 	revenue: () => true,
+	product_revenue: () => true,
 	refund_amount: () => true,
 	attribution_rate: () => true,
 	session_duration: (s) =>
