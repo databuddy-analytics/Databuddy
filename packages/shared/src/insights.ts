@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { goalFunnelFilterFields } from "./analytics-filters";
+import {
+	goalFunnelFilterFields,
+	goalFunnelFilterFieldSet,
+} from "./analytics-filters";
 
 export const weekOverWeekPeriodSchema = z
 	.object({
@@ -341,8 +344,18 @@ export const insightWatchThresholdSchema = z
 // Bind only fields that analytics evaluates. The read snapshot also retains the
 // complete funnel steps so repair validation can preserve names and conditions.
 const measurementFiltersSchema = z
-	.array(
-		insightDefinitionEditChangesSchema.shape.filters.unwrap().unwrap().element
+	.preprocess(
+		(value) =>
+			Array.isArray(value)
+				? value.filter((filter) =>
+						goalFunnelFilterFieldSet.has(
+							(filter as { field?: unknown } | null)?.field as string
+						)
+					)
+				: value,
+		z.array(
+			insightDefinitionEditChangesSchema.shape.filters.unwrap().unwrap().element
+		)
 	)
 	.default([]);
 export const insightVerificationDefinitionSchema = z.union([
