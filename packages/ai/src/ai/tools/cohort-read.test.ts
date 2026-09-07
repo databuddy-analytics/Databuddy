@@ -69,6 +69,7 @@ test("cohort rejects tenant and step selectors", () => {
 		"owner_id",
 		"path",
 		"event_name",
+		"referrer",
 		"browser_name OR 1=1",
 	])
 		expect(
