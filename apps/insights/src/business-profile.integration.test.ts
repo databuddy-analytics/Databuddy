@@ -22,6 +22,7 @@ import type { WebsitePageResult } from "@databuddy/ai/tools/scrape-page";
 import { MockLanguageModelV3 } from "ai/test";
 import {
 	loadDurableBusinessProfile,
+ compileBusinessBrief,
 	rememberBusinessPages,
 } from "./business-profile";
 
@@ -206,6 +207,28 @@ integration(
 			expect(transport).not.toHaveBeenCalled();
 			expect((await stored()).revision).toBe(before.revision);
 		});
+        it("serves the previous usable brief while another worker recompiles",async()=>{
+            await load();const original=await stored();
+            await saveBusinessProfileRecord(scope,original.profile,{expectedRevision:original.revision,refreshAfter:new Date(0)});
+            let release=()=>{};let entered=()=>{};
+            const gate=new Promise<void>(resolve=>{release=resolve;});
+            const started=new Promise<void>(resolve=>{entered=resolve;});
+            const refreshModel=model();const generate=refreshModel.doGenerate;
+            refreshModel.doGenerate=async(input)=>{entered();await gate;return generate(input);};
+            const pending=load(refreshModel);
+            try{await started;const concurrent=await load();expect(concurrent.brief).toEqual(original.profile.brief);expect(concurrent.sources).toEqual(original.profile.sources);}
+            finally{release();await pending;}
+        });
+        it("bounds the compiler's original source input without truncating individual qualifications",async()=>{
+            const sources=Array.from({length:8},(_,i)=>({id:`large-${i}`,kind:"website" as const,url:`https://reports.example.com/${i}`,content:"Original business context. ".repeat(500).slice(0,12000),observedAt:new Date().toISOString()}));
+            const compiled=model("Original business context.");await compileBusinessBrief(sources,{model:compiled});
+            const user=compiled.doGenerateCalls[0]?.prompt.find(message=>message.role==="user");
+            const part=user?.content.find(part=>part.type==="text");if(!part)throw new Error("Missing compiler input");
+            const input: {sources:BusinessProfile["sources"]}=JSON.parse(part.text);
+            expect(input.sources.reduce((n,source)=>n+source.content.length,0)).toBeLessThanOrEqual(64000);
+            expect(input.sources.length).toBeLessThan(sources.length);
+            expect(input.sources.every(source=>source.content.length===12000)).toBe(true);
+        });
 		it("keeps PostgreSQL sources available when native Supermemory rejects indexing", async () => {
 			provider.mockReturnValue(native);
 			transport.mockResolvedValue(
