@@ -1,7 +1,4 @@
-import {
-	type BusinessContext,
-	mergeBusinessContext,
-} from "@databuddy/ai/lib/business-context";
+import { mergeBusinessContext } from "@databuddy/ai/lib/business-context";
 import {
 	assertBusinessScopeCurrent,
 	loadCurrentBusinessScope,
@@ -192,35 +189,26 @@ export async function resumeInsightReply(
 	// Capture and reconcile persisted team statements before billing, current
 	// measurement, or model success. Unacknowledged writes retain the PG fallback.
 	const currentScope = await business.loadCurrentBusinessScope(scope, true);
-	let businessContext: BusinessContext;
-	if (currentScope) {
-		const profile = await business
-			.loadBusinessProfile({
+	const profile = await business
+		.loadBusinessProfile({
+			scope: currentScope,
+			asOf: startedAt,
+			allowRefresh: true,
+		})
+		.catch((error) => unavailableBusinessContext(error, scope, startedAt));
+	const recalledAt = new Date();
+	const businessContext = mergeBusinessContext(
+		profile,
+		await business
+			.recallBusinessContext({
 				scope: currentScope,
-				asOf: startedAt,
-				allowRefresh: true,
+				allowWrite: true,
+				asOf: recalledAt,
+				subjectKey: trigger.subjectKey,
+				query: `${trigger.subjectKey}\n${trigger.body}`,
 			})
-			.catch((error) => unavailableBusinessContext(error, scope, startedAt));
-		const recalledAt = new Date();
-		businessContext = mergeBusinessContext(
-			profile,
-			await business
-				.recallBusinessContext({
-					scope: currentScope,
-					allowWrite: true,
-					asOf: recalledAt,
-					subjectKey: trigger.subjectKey,
-					query: `${trigger.subjectKey}\n${trigger.body}`,
-				})
-				.catch((error) => unavailableBusinessContext(error, scope, recalledAt))
-		);
-	} else {
-		businessContext = unavailableBusinessContext(
-			new Error("Current website business scope could not be established"),
-			scope,
-			startedAt
-		);
-	}
+			.catch((error) => unavailableBusinessContext(error, scope, recalledAt))
+	);
 	const [history, otherOpenWork] = await Promise.all([
 		loadInvestigationHistory({
 			beforeReply: { createdAt: trigger.createdAt, id: replyId },
@@ -292,7 +280,7 @@ export async function resumeInsightReply(
 		signal: currentMeasurement.signal,
 	});
 	const committed = await db.transaction(async (tx) => {
-		await assertBusinessScopeCurrent(currentScope ?? scope, tx);
+		await assertBusinessScopeCurrent(currentScope, tx);
 		const [locked] = await tx
 			.select({ status: insightReplies.status })
 			.from(insightReplies)

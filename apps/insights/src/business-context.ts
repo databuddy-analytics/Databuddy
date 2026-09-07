@@ -123,24 +123,21 @@ export async function readPersistedBusinessReplies(input: {
 export async function loadCurrentBusinessScope(
 	scope: BusinessScope,
 	initialize = false
-): Promise<BusinessScope | null> {
-	try {
-		const current = await getWebsiteBusinessScope(scope, { initialize });
-		if (
-			!current ||
-			canonicalBusinessScope(scope).domain !== current.domain ||
-			(scope.startedAt &&
-				businessContainerTag(scope) !== businessContainerTag(current))
-		) {
-			throw new Error(
-				"Website business scope changed, is uninitialized or was deleted"
-			);
-		}
-		return current;
-	} catch (error) {
-		unavailableBusinessContext(error, scope, new Date());
-		return null;
+): Promise<BusinessScope> {
+	// Native scope is required for live persistence; optional memory failures
+	// are handled separately by the profile and recall boundaries below.
+	const current = await getWebsiteBusinessScope(scope, { initialize });
+	if (
+		!current ||
+		canonicalBusinessScope(scope).domain !== current.domain ||
+		(scope.startedAt &&
+			businessContainerTag(scope) !== businessContainerTag(current))
+	) {
+		throw new Error(
+			"Website business scope changed, is uninitialized or was deleted"
+		);
 	}
+	return current;
 }
 
 // Call inside the outcome transaction, after the model finishes. Taking the

@@ -1,5 +1,5 @@
 import "@databuddy/test/env";
-import { afterAll, beforeEach, describe, expect, it } from "bun:test";
+import { afterAll, beforeEach, describe, expect, it, spyOn } from "bun:test";
 import {
 	analyticsInsights,
 	insightObservations,
@@ -17,6 +17,7 @@ import {
 	truncatePostgres,
 } from "@databuddy/test";
 import { eq } from "drizzle-orm";
+import * as memory from "@databuddy/services/business-memory";
 import { randomUUIDv7 } from "bun";
 import {
 	loadCurrentBusinessScope,
@@ -284,7 +285,10 @@ integration("persisted business reply scope", () => {
 			.where(eq(websites.id, first.id));
 		expect(await readPersistedBusinessReplies({ scope, asOf })).toEqual([]);
 	});
-	it("rejects a frozen generation retry after epoch rotation without changing the plan or saving outcomes", async () => {
+	it.each([
+		"rotation",
+		"lookup failure",
+	])("rejects a frozen generation retry after scope %s without changing the plan or saving outcomes", async (failure) => {
 		const { org, website, scope } = await scopeFixture();
 		const runId = randomUUIDv7();
 		const itemId = randomUUIDv7();
@@ -324,25 +328,40 @@ integration("persisted business reply scope", () => {
 			status: "running",
 			candidatePlan: plan,
 		});
-		await db()
-			.update(websites)
-			.set({
-				settings: { businessContextStartedAt: "2026-09-06T00:00:00.000Z" },
-			})
-			.where(eq(websites.id, website.id));
-		await expect(
-			generateWebsiteInsights({
-				finalAttempt: false,
-				itemId,
-				organizationId: org.id,
-				queueJobId,
-				reason: "manual",
-				requestedByUserId: null,
-				runId,
-				timezone: "UTC",
-				websiteId: website.id,
-			})
-		).rejects.toThrow("start a new run");
+		const lookup = spyOn(memory, "getWebsiteBusinessScope");
+		try {
+			if (failure === "lookup failure") {
+				lookup.mockRejectedValue(
+					new Error("Native scope database unavailable")
+				);
+			} else {
+				await db()
+					.update(websites)
+					.set({
+						settings: { businessContextStartedAt: "2026-09-06T00:00:00.000Z" },
+					})
+					.where(eq(websites.id, website.id));
+			}
+			await expect(
+				generateWebsiteInsights({
+					finalAttempt: false,
+					itemId,
+					organizationId: org.id,
+					queueJobId,
+					reason: "manual",
+					requestedByUserId: null,
+					runId,
+					timezone: "UTC",
+					websiteId: website.id,
+				})
+			).rejects.toThrow(
+				failure === "rotation"
+					? "start a new run"
+					: "Native scope database unavailable"
+			);
+		} finally {
+			lookup.mockRestore();
+		}
 		expect(
 			await db()
 				.select({ id: insightObservations.id })
@@ -418,7 +437,11 @@ integration("persisted business reply scope", () => {
 		).toHaveLength(1);
 	});
 
-	it("rejects a reply outcome when its mock model changes the real scope, with zero outcome commits or deliveries", async () => {
+	it.each([
+		"rotation",
+		"lookup failure",
+		"provider failure",
+	])("handles reply scope %s without allowing an unbound outcome", async (failure) => {
 		const { org, website, scope } = await scopeFixture();
 		const insightId = randomUUIDv7();
 		const replyId = randomUUIDv7();
@@ -470,6 +493,9 @@ integration("persisted business reply scope", () => {
 		}): Promise<BusinessContext> => {
 			reads += 1;
 			expect(params.scope).toEqual(scope);
+			if (failure === "provider failure") {
+				throw new Error("Optional memory unavailable");
+			}
 			return {
 				capturedAt: params.asOf.toISOString(),
 				status: "ready",
@@ -479,12 +505,21 @@ integration("persisted business reply scope", () => {
 		};
 		const billingKey = process.env.AUTUMN_SECRET_KEY;
 		delete process.env.AUTUMN_SECRET_KEY;
+		const lookup = spyOn(memory, "getWebsiteBusinessScope");
+		if (failure === "lookup failure") {
+			lookup.mockRejectedValue(new Error("Native scope database unavailable"));
+		}
 		try {
-			await expect(
-				resumeInsightReply(
-					replyId,
-					async (input) => {
-						models += 1;
+			const resumed = resumeInsightReply(
+				replyId,
+				async (input) => {
+					models += 1;
+					if (failure === "provider failure") {
+						expect(input.businessContext).toMatchObject({
+							status: "unavailable",
+							sources: [],
+						});
+					} else {
 						expect(input).toMatchObject({
 							businessContext: {
 								sources: [
@@ -506,41 +541,58 @@ integration("persisted business reply scope", () => {
 								},
 							})
 							.where(eq(websites.id, website.id));
-						return {
-							outcome: { ...outcome, title: "Stale reply must not commit" },
-							toolCallCount: 0,
-						};
-					},
-					async () => {
-						deliveries += 1;
-					},
-					async () => prepared,
-					{
-						loadCurrentBusinessScope,
-						loadBusinessProfile: source,
-						recallBusinessContext: source,
 					}
-				)
-			).rejects.toThrow("scope changed");
+					return {
+						outcome: { ...outcome, title: "Reply result" },
+						toolCallCount: 0,
+					};
+				},
+				async () => {
+					deliveries += 1;
+				},
+				async () => prepared,
+				{
+					loadCurrentBusinessScope,
+					loadBusinessProfile: source,
+					recallBusinessContext: source,
+				}
+			);
+			if (failure === "provider failure") {
+				expect(await resumed).toBe("succeeded");
+			} else {
+				await expect(resumed).rejects.toThrow(
+					failure === "rotation"
+						? "scope changed"
+						: "Native scope database unavailable"
+				);
+			}
 		} finally {
+			lookup.mockRestore();
 			if (billingKey === undefined) delete process.env.AUTUMN_SECRET_KEY;
 			else process.env.AUTUMN_SECRET_KEY = billingKey;
 		}
 		expect({ models, reads, deliveries }).toEqual({
-			models: 1,
-			reads: 2,
+			models: failure === "lookup failure" ? 0 : 1,
+			reads: failure === "lookup failure" ? 0 : 2,
 			deliveries: 0,
 		});
 		expect(
 			await db()
 				.select({ title: analyticsInsights.title })
 				.from(analyticsInsights)
-		).toEqual([{ title: outcome.title }]);
+		).toEqual([
+			{
+				title: failure === "provider failure" ? "Reply result" : outcome.title,
+			},
+		]);
 		expect(
 			await db()
 				.select({ id: insightObservations.id })
 				.from(insightObservations)
-		).toHaveLength(1);
+		).toHaveLength(failure === "provider failure" ? 2 : 1);
+		if (failure === "provider failure") {
+			return;
+		}
 		await recordInsightReplyFailure(replyId, false);
 		expect(
 			await db()

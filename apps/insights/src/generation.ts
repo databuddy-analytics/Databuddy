@@ -1430,13 +1430,8 @@ export async function generateWebsiteInsights(
 					if (noCredits) {
 						return;
 					}
-					if (
-						plan.businessScope?.startedAt &&
-						!(await loadCurrentBusinessScope(plan.businessScope))
-					) {
-						throw new Error(
-							"Frozen investigation business scope changed; start a new run"
-						);
+					if (plan.businessScope?.startedAt) {
+						await loadCurrentBusinessScope(plan.businessScope);
 					}
 					const usageIdempotencyKey = `insights:${input.runId}:${site.id}:${randomUUIDv7()}`;
 					const agentUsage: {

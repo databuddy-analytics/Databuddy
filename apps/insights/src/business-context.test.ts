@@ -1,10 +1,12 @@
 import "@databuddy/test/env";
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, spyOn } from "bun:test";
 import type {
 	BusinessContext,
 	BusinessSource,
 } from "@databuddy/ai/lib/business-context";
+import * as memory from "@databuddy/services/business-memory";
 import {
+	loadCurrentBusinessScope,
 	assertBusinessScopeCurrent,
 	loadWebsiteBusinessProfile,
 	recallWebsiteBusinessContext,
@@ -70,6 +72,43 @@ function dependencies(
 }
 
 describe("website business context reconciliation", () => {
+	it("propagates native lookup failures instead of returning an unbound live scope", async () => {
+		const failure = new Error("Native scope database unavailable");
+		const lookup = spyOn(memory, "getWebsiteBusinessScope").mockRejectedValue(
+			failure
+		);
+		try {
+			await expect(
+				loadCurrentBusinessScope({ ...scope, startedAt: undefined }, true)
+			).rejects.toBe(failure);
+			await expect(loadCurrentBusinessScope(scope)).rejects.toBe(failure);
+		} finally {
+			lookup.mockRestore();
+		}
+	});
+
+	it("rejects missing or changed native scopes and binds successful initialization", async () => {
+		const lookup = spyOn(memory, "getWebsiteBusinessScope");
+		try {
+			for (const changed of [
+				null,
+				{ ...scope, domain: "other.example" },
+				{ ...scope, startedAt: "2026-09-05T11:00:00.000Z" },
+			]) {
+				lookup.mockResolvedValue(changed);
+				await expect(loadCurrentBusinessScope(scope)).rejects.toThrow(
+					"scope changed"
+				);
+			}
+			lookup.mockResolvedValue(scope);
+			expect(
+				await loadCurrentBusinessScope({ ...scope, startedAt: undefined }, true)
+			).toEqual(scope);
+		} finally {
+			lookup.mockRestore();
+		}
+	});
+
 	it("awaits acknowledgment and stores the persisted statement verbatim during exact recall", async () => {
 		let release: (() => void) | undefined;
 		const acknowledged = new Promise<void>((resolve) => {

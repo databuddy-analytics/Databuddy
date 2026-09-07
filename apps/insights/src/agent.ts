@@ -1045,6 +1045,7 @@ function validateAgentOutcome(
 		| "relatedSignals"
 		| "signal"
 	>,
+	providedEvidenceCount: number,
 	usedToolNames: ReadonlySet<string>,
 	results: StepResult<ToolSet>["toolResults"],
 	attemptedToolNames: ReadonlySet<string>,
@@ -1131,19 +1132,18 @@ function validateAgentOutcome(
 					: "product_outcome")) &&
 		input.signal.entity.type === "website"
 	) {
-		const citedContext = outcome.evidenceRefs
-			.flat()
-			.some(
-				(ref) =>
-					ref.source === "provided" ||
-					(ref.source === "tool" &&
-						[
-							"scrape_page",
-							"github_read_file",
-							"github_search_code",
-							"github_commit_diff",
-						].includes(ref.name))
-			);
+		const citedContext = outcome.evidenceRefs.flat().some(
+			(ref) =>
+				// Appended business background remains citable, but cannot prove collection.
+				(ref.source === "provided" && ref.index < providedEvidenceCount) ||
+				(ref.source === "tool" &&
+					[
+						"scrape_page",
+						"github_read_file",
+						"github_search_code",
+						"github_commit_diff",
+					].includes(ref.name))
+		);
 		if (outcome.findingKind !== "measurement_coverage" || !citedContext) {
 			throw new Error(
 				"A website traffic signal is not a verified product loss. Only publish a measurement-coverage finding with cited collection or implementation evidence. A goal lookup, analytics count, or sibling product signal cannot establish lost visitors. Investigate a product result under its own subject."
@@ -1549,6 +1549,7 @@ export async function runInsightAgent(
 					const validated = validateAgentOutcome(
 						proposed,
 						input,
+						originalInput.evidence.length,
 						usedToolNames,
 						results,
 						attemptedToolNames,
