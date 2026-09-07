@@ -275,53 +275,75 @@ integration(
 			if (!call) throw new Error("Expected a native SDK transport request");
 			const request = new Request(call[0], call[1]);
 			expect(new URL(request.url).hostname).toBe("api.supermemory.ai");
-			expect((await request.json()).metadata.websiteId).toBe(scope.websiteId);
+			expect(request.method).toBe("GET");
 			readPage.mockClear();
 			const warmModel = model();
-			let submitted: { content: string } | undefined;
+			let content: string | undefined;
 			transport.mockImplementation(async (input, init) => {
 				const request = new Request(input, init);
 				if (request.method === "POST") {
-					submitted = await request.json();
+					content = (await request.json()).content;
 					return Response.json({ id: "synthetic-document", status: "queued" });
 				}
-				return Response.json({ content: submitted?.content, status: "done" });
+				return content ? Response.json({ content, status: "done" }) : Response.json({ error: "Missing" }, { status: 404 });
 			});
 			expect((await load(warmModel)).sources).toEqual(cold.sources);
+			expect((await stored()).indexedRevision).toBeNull();
+			await load(warmModel);
 			const indexed = await stored();
 			expect(indexed.indexedRevision).toBe(indexed.revision);
 			expect(readPage).not.toHaveBeenCalled();
 			expect(warmModel.doGenerateCalls).toHaveLength(0);
 		});
-		it.each(["stale", "failed", "processing"])("does not acknowledge a %s Supermemory read and retries without model work", async (failure) => {
+		it.each(["stale", "failed", "processing"])("does not acknowledge a %s Supermemory document and recovers without model work", async (failure) => {
 			const original = await load();
 			const record = await stored();
 			provider.mockReturnValue(native);
-			let storedContent: string | undefined;
-			let recovered = false;
+			let remote: {content: string; status: string} | null = null;
+			let submitted = "";
+			const writes: string[] = [];
 			transport.mockImplementation(async (input, init) => {
 				const request = new Request(input, init);
-				if (request.method === "POST") {
-					storedContent = (await request.json()).content;
-					return Response.json({ id: "synthetic-document", status: "queued" });
-				}
-				return Response.json({
-					content: !recovered && failure === "stale" ? "Previous business brief" : storedContent,
-					status: !recovered && failure === "failed" ? "failed" : !recovered && failure === "processing" ? "extracting" : "done",
-					// Native de-duplication can retain old metadata for identical content.
-					metadata: { revision: record.revision - 1 },
-				});
+				if (request.method === "GET") return remote ? Response.json({...remote, metadata: {revision: record.revision-1}}) : Response.json({error:"Missing"},{status:404});
+				submitted = (await request.json()).content;
+				remote = { content: submitted, status: "extracting" };
+				writes.push(request.method);
+				return Response.json({id:"synthetic-document",status:"queued"});
 			});
-			const warm = model();
+			const warm=model();
+			await load(warm);
+			remote={content:failure==="stale"?"Previous business brief":submitted,status:failure==="failed"?"failed":failure==="processing"?"extracting":"done"};
 			expect((await load(warm)).sources).toEqual(original.sources);
 			expect((await stored()).indexedRevision).toBeNull();
-			expect(transport).toHaveBeenCalledTimes(2);
-			recovered = true;
+			expect(writes).toEqual(failure==="processing"?["POST"]:["POST","PATCH"]);
+			remote={content:submitted,status:"done"};
 			await load(warm);
 			expect((await stored()).indexedRevision).toBe(record.revision);
-			expect(transport).toHaveBeenCalledTimes(4);
+			const count=transport.mock.calls.length;
 			await load(warm);
-			expect(transport).toHaveBeenCalledTimes(4);
+			expect(transport).toHaveBeenCalledTimes(count);
+			expect(warm.doGenerateCalls).toHaveLength(0);
+		});
+		it("creates a missing document, replaces changed content, and never restarts matching ingestion", async () => {
+			await load();
+			provider.mockReturnValue(native);
+			let remote: { content: string; status: string } | null = null;
+			const methods: string[] = [];
+			transport.mockImplementation(async (input, init) => {
+				const request = new Request(input, init);methods.push(request.method);
+				if(request.method==="GET")return remote?Response.json(remote):Response.json({error:"Missing"},{status:404});
+				remote={content:(await request.json()).content,status:"done"};
+				return Response.json({id:"synthetic-document",status:"queued"});
+			});
+			const warm=model();await load(warm);expect(methods).toEqual(["GET","POST"]);
+			expect((await stored()).indexedRevision).toBeNull();
+			await load(warm);expect(methods).toEqual(["GET","POST","GET"]);
+			const previous=await stored();
+			if(!previous.profile.brief)throw new Error("Expected a brief");
+			await saveBusinessProfileRecord(scope,{...previous.profile,capturedAt:new Date().toISOString(),brief:{...previous.profile.brief,unknowns:[{topic:"priorities",question:"Which outcome matters most?"}]}},{expectedRevision:previous.revision,refreshAfter:previous.refreshAfter});
+			await load(warm);expect(methods).toEqual(["GET","POST","GET","GET","PATCH"]);
+			expect((await stored()).indexedRevision).toBeNull();
+			await load(warm);const current=await stored();expect(current.indexedRevision).toBe(current.revision);
 			expect(warm.doGenerateCalls).toHaveLength(0);
 		});
 		it("rejects an invalid model quotation while retaining the complete original pages", async () => {

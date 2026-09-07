@@ -85,9 +85,11 @@ internal event semantics inferred from a name or verified customer behavior. Exp
 team corrections, guesses and historical metrics stay distinct from current evidence.
 
 An index acknowledgement requires a completed Supermemory document whose content
-exactly matches the submitted brief. Add and verification share a four-second network
-deadline; pending or stale content retries on a later warm load without model work.
-Identical content may retain older provider revision metadata.
+exactly matches the submitted brief. A read and optional write share a four-second
+network deadline. Missing documents are created; changed completed documents are
+replaced through the native update API. Pending ingestion is allowed to finish;
+a later warm read verifies it without restarting it or doing model work. Identical
+content may retain older provider revision metadata.
 
 A cold profile reads the homepage and a bounded same-site map in parallel, chooses up
 to seven additional pages in one model call, and builds an optional brief in one more.

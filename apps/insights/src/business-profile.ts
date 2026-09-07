@@ -229,24 +229,42 @@ async function syncBrief(
 						...(signal ? [signal] : []),
 					]),
 				};
-				const result = await client.documents.add(payload, request);
+				const indexed = await client.documents
+					.get(payload.customId, request)
+					.catch((error: unknown) => {
+						if (
+							error instanceof Error &&
+							"status" in error &&
+							error.status === 404
+						) {
+							return null;
+						}
+						throw error;
+					});
+				if (indexed?.status === "done" && indexed.content === payload.content) {
+					return true;
+				}
+				// Let in-flight ingestion finish before replacing it. A later warm read
+				// verifies completion without restarting an already matching document.
+				if (
+					indexed &&
+					indexed.status !== "done" &&
+					indexed.status !== "failed"
+				) {
+					return false;
+				}
+				// Repeated adds can append old content; update the one existing brief.
+				const result = indexed
+					? await client.documents.update(payload.customId, payload, request)
+					: await client.documents.add(payload, request);
 				if (
 					!result.id ||
 					result.status === "failed" ||
 					result.status === "error"
 				) {
-					throw new Error("Business brief index was not acknowledged");
+					throw new Error("Business brief index write was not accepted");
 				}
-				// An add can acknowledge the previous document while it is processing.
-				// Verify submitted content so the next warm run retries stale writes.
-				// Identical content may retain older provider revision metadata.
-				const indexed = await client.documents.get(payload.customId, request);
-				if (indexed.content !== payload.content || indexed.status !== "done") {
-					throw new Error(
-						"Business brief content is not yet stored in the index"
-					);
-				}
-				return true;
+				return false;
 			}
 		);
 		if (acknowledged) {
