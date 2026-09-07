@@ -114,3 +114,89 @@ test("model JSON schema exposes the read capability", () => {
 	expect(JSON.stringify(schema)).toContain('"browser_name"');
 	expect(JSON.stringify(schema)).toContain('"cohort"');
 });
+
+test("model can explicitly request unfiltered analytics without inventing a cohort", async () => {
+	const invoke = spyOn(rpc, "callRPCProcedure").mockResolvedValue({
+		synthetic: true,
+	});
+	const dates = { startDate: "2026-08-22", endDate: "2026-08-28" };
+	const funnelTools = createFunnelTools();
+	try {
+		for (const [definition, id] of [
+			[funnelTools.get_funnel_analytics, { funnelId: "synthetic-funnel" }],
+			[
+				funnelTools.get_funnel_analytics_by_referrer,
+				{ funnelId: "synthetic-funnel" },
+			],
+			[createGoalTools().get_goal_analytics, { goalId: "synthetic-goal" }],
+		] as const) {
+			const schema = asSchema(definition.inputSchema);
+			// Strict model providers need an explicit empty alternative for objects.
+			expect(JSON.stringify(schema.jsonSchema)).toContain('"type":"null"');
+			for (const cohort of [null, undefined]) {
+				const input = { ...id, ...dates, cohort };
+				if (!schema.validate) throw new Error("Missing schema validator");
+				expect((await schema.validate(input)).success).toBe(true);
+			}
+		}
+		if (
+			!funnelTools.get_funnel_analytics.execute ||
+			!funnelTools.get_funnel_analytics_by_referrer.execute
+		)
+			throw new Error("Missing executor");
+		const goal = createGoalTools().get_goal_analytics;
+		if (!goal.execute) throw new Error("Missing executor");
+		await funnelTools.get_funnel_analytics.execute(
+			{ funnelId: "synthetic-funnel", ...dates, cohort: null },
+			options
+		);
+		await funnelTools.get_funnel_analytics_by_referrer.execute(
+			{ funnelId: "synthetic-funnel", ...dates, cohort: null },
+			options
+		);
+		await goal.execute(
+			{ goalId: "synthetic-goal", ...dates, cohort: null },
+			options
+		);
+		expect(
+			invoke.mock.calls.map(([router, method, input]) => ({
+				router,
+				method,
+				input,
+			}))
+		).toEqual([
+			{
+				router: "funnels",
+				method: "getAnalytics",
+				input: {
+					funnelId: "synthetic-funnel",
+					websiteId: "synthetic-site",
+					...dates,
+					cohort: undefined,
+				},
+			},
+			{
+				router: "funnels",
+				method: "getAnalyticsByReferrer",
+				input: {
+					funnelId: "synthetic-funnel",
+					websiteId: "synthetic-site",
+					...dates,
+					cohort: undefined,
+				},
+			},
+			{
+				router: "goals",
+				method: "getAnalytics",
+				input: {
+					goalId: "synthetic-goal",
+					websiteId: "synthetic-site",
+					...dates,
+					cohort: undefined,
+				},
+			},
+		]);
+	} finally {
+		invoke.mockRestore();
+	}
+});
