@@ -2,12 +2,18 @@
 
 import {
 	BUSINESS_CONTEXT_LIMIT,
+	BUSINESS_CONTEXT_TEAM_FIELD_LIMIT,
 	type BusinessBrief,
+	type BusinessContextEdit,
+	type BusinessTeamContext,
+	type OrganizationBusinessProfile,
 	type BusinessContextSettings,
 	businessContextIsGenerating,
+	formatBusinessTeamContext,
 } from "@databuddy/shared/organization-business-context";
 import { Button, Card, Field, Textarea, dayjs } from "@databuddy/ui";
-import { Dialog, DropdownMenu } from "@databuddy/ui/client";
+import { Accordion, Dialog, DropdownMenu } from "@databuddy/ui/client";
+import { diffWordsWithSpace } from "diff";
 import {
 	ArrowSquareOutIcon,
 	CaretDownIcon,
@@ -17,21 +23,96 @@ import {
 } from "@databuddy/ui/icons";
 import { useEffect, useRef, useState } from "react";
 import { TopBar } from "@/components/layout/top-bar";
+import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
+import { useBusinessContextDraft } from "./use-business-context-draft";
 
-interface EditableBrief {
-	content: string;
-	generationId?: string;
-	revision: number;
-}
+const emptyTeamContext: BusinessTeamContext = {
+	priority: "",
+	successDefinition: "",
+	exclusions: "",
+};
+const teamFields = [
+	{
+		key: "priority",
+		label: "Current priority",
+		placeholder: "What business outcome matters most right now?",
+	},
+	{
+		key: "successDefinition",
+		label: "How you define success",
+		placeholder:
+			"Which events or actions mean a customer has reached that outcome?",
+	},
+	{
+		key: "exclusions",
+		label: "Things to exclude or account for",
+		placeholder:
+			"Internal traffic, test accounts, seasonality, or other constraints.",
+	},
+] as const;
+
+type Review =
+	| { kind: "generation" | "conflict" }
+	| {
+			kind: "history";
+			profile: OrganizationBusinessProfile;
+			baseRevision: number;
+	  };
 
 interface BusinessContextEditorProps {
+	onCancel: (generationId: string) => Promise<void>;
 	onGenerate: (websiteId: string) => Promise<void>;
-	onSave: (draft: {
-		content: string;
-		revision: number;
-		generationId?: string;
-	}) => Promise<void>;
+	onRestore: (restoreRevision: number, revision: number) => Promise<void>;
+	onSave: (draft: BusinessContextEdit) => Promise<void>;
 	settings: BusinessContextSettings;
+	storageKey: string;
+}
+
+function BriefChanges({ before, after }: { before: string; after: string }) {
+	const changes = diffWordsWithSpace(before, after, { timeout: 50 });
+	if (!changes) {
+		return (
+			<div className="grid gap-5 sm:grid-cols-2">
+				<div>
+					<p className="mb-2 font-medium">Current text</p>
+					<p className="whitespace-pre-wrap break-words">{before || "Empty"}</p>
+				</div>
+				<div>
+					<p className="mb-2 font-medium">Selected version</p>
+					<p className="whitespace-pre-wrap break-words">{after || "Empty"}</p>
+				</div>
+			</div>
+		);
+	}
+	let offset = 0;
+	return (
+		<div className="space-y-3">
+			<p className="text-muted-foreground text-xs">
+				Additions are underlined. Removed text is struck through.
+			</p>
+			<p className="whitespace-pre-wrap break-words text-xs leading-6">
+				{changes.map((change) => {
+					const key = `${offset}:${change.added ? "add" : change.removed ? "remove" : "keep"}`;
+					offset += change.value.length;
+					if (change.added) {
+						return (
+							<ins className="bg-success/10 text-success" key={key}>
+								{change.value}
+							</ins>
+						);
+					}
+					if (change.removed) {
+						return (
+							<del className="bg-destructive/10 text-destructive" key={key}>
+								{change.value}
+							</del>
+						);
+					}
+					return <span key={key}>{change.value}</span>;
+				})}
+			</p>
+		</div>
+	);
 }
 
 function Sources({ sources }: { sources: BusinessBrief["sources"] }) {
@@ -83,20 +164,32 @@ export function BusinessContextEditor({
 	settings,
 	onGenerate,
 	onSave,
+	onCancel,
+	onRestore,
+	storageKey,
 }: BusinessContextEditorProps) {
 	const { profile, generation, canEdit, websites } = settings;
-	const [draft, setDraft] = useState<EditableBrief | null>(null);
-	const [dismissedGenerationId, setDismissedGenerationId] = useState<string>();
+	const {
+		draft,
+		updateDraft: setDraft,
+		clearDraft: clearSubmittedDraft,
+		ready,
+		recoverable,
+	} = useBusinessContextDraft(storageKey, canEdit);
 	const [websiteId, setWebsiteId] = useState<string>();
 	const [isSaving, setIsSaving] = useState(false);
 	const [isRequesting, setIsRequesting] = useState(false);
 	const [error, setError] = useState<string>();
 	const [notice, setNotice] = useState("");
-	const [review, setReview] = useState<"generation" | "conflict" | null>(null);
+	const [settledGenerationId, setSettledGenerationId] = useState<string>();
+	const [review, setReview] = useState<Review | null>(null);
 	const editorRef = useRef<HTMLTextAreaElement>(null);
+	const reviewTitleRef = useRef<HTMLHeadingElement>(null);
 	const savingRef = useRef(false);
 	const revision = profile?.revision ?? 0;
 	const content = draft?.content ?? profile?.content ?? "";
+	const teamContext =
+		draft?.teamContext ?? profile?.teamContext ?? emptyTeamContext;
 	const generationWebsite = websites.find(
 		(site) =>
 			site.id === generation?.websiteId && site.domain === generation.domain
@@ -111,15 +204,18 @@ export function BusinessContextEditor({
 	);
 	const dirty =
 		draft !== null &&
-		(content.trim() !== (profile?.content ?? "") || Boolean(draftGeneration));
+		(content.trim() !== (profile?.content ?? "") ||
+			Boolean(draftGeneration) ||
+			formatBusinessTeamContext(teamContext) !==
+				formatBusinessTeamContext(profile?.teamContext));
 	const conflict = dirty && draft.revision !== revision;
 	const activeGeneration = businessContextIsGenerating(settings);
 	const generating = isRequesting || activeGeneration;
 	const readyGeneration =
 		generation?.status === "ready" &&
+		generation.id !== settledGenerationId &&
 		generationWebsite &&
-		generation.draft &&
-		generation.id !== dismissedGenerationId
+		generation.draft
 			? generation
 			: null;
 	const pendingDraft =
@@ -134,16 +230,28 @@ export function BusinessContextEditor({
 		websites.find((site) => site.id === profile?.sourceWebsiteId) ??
 		websites[0];
 	const tooLong = content.trim().length > BUSINESS_CONTEXT_LIMIT;
+	const teamTooLong = Object.values(teamContext).some(
+		(value) => value.trim().length > BUSINESS_CONTEXT_TEAM_FIELD_LIMIT
+	);
 	const saveDisabled =
-		!(canEdit && dirty) || conflict || tooLong || isSaving || review !== null;
+		!(ready && canEdit && dirty) ||
+		conflict ||
+		tooLong ||
+		teamTooLong ||
+		isSaving ||
+		review !== null;
+	const reviewedProfile = review?.kind === "history" ? review.profile : profile;
+	const reviewText =
+		review?.kind === "generation"
+			? (pendingDraft?.draft?.content ?? "")
+			: (reviewedProfile?.content ?? "");
+	const reviewTeam =
+		review?.kind === "generation" ? teamContext : reviewedProfile?.teamContext;
 
 	useEffect(() => {
-		if (!canEdit) {
-			setDraft(null);
-			setReview(null);
-			return;
-		}
 		if (
+			!(ready && canEdit) ||
+			draft ||
 			isSaving ||
 			!readyGeneration?.draft ||
 			readyGeneration.baseRevision !== revision
@@ -152,26 +260,29 @@ export function BusinessContextEditor({
 		}
 		// A result may arrive between keystrokes. Only an untouched editor can adopt it automatically.
 		const generatedDraft = readyGeneration.draft;
-		setDraft(
-			(current) =>
-				current ?? {
-					content: generatedDraft.content,
-					revision,
-					generationId: readyGeneration.id,
-				}
-		);
-	}, [canEdit, isSaving, readyGeneration, revision]);
+		setDraft({
+			content: generatedDraft.content,
+			revision,
+			generationId: readyGeneration.id,
+			teamContext: profile?.teamContext,
+		});
+	}, [
+		ready,
+		canEdit,
+		draft,
+		isSaving,
+		readyGeneration,
+		revision,
+		profile?.teamContext,
+		setDraft,
+	]);
 
-	function discard() {
-		setDismissedGenerationId(generation?.id);
-		setDraft(null);
-		setError(undefined);
-		setNotice("");
-		setReview(null);
-	}
-
-	async function save() {
-		if (saveDisabled || !draft || savingRef.current) {
+	async function change(
+		action: () => Promise<void>,
+		message: string,
+		clearDraft = true
+	) {
+		if (savingRef.current || !canEdit) {
 			return;
 		}
 		savingRef.current = true;
@@ -179,24 +290,53 @@ export function BusinessContextEditor({
 		setError(undefined);
 		setNotice("");
 		try {
-			await onSave({
-				content: content.trim(),
-				revision: draft.revision,
-				...(draft.generationId ? { generationId: draft.generationId } : {}),
-			});
-			setDismissedGenerationId(generation?.id);
-			setDraft(null);
-			setNotice("Changes saved");
+			// The query cache notifies React asynchronously. Block the old result
+			// while its successful cancellation/save response reaches this render.
+			await action();
+			setSettledGenerationId(generation?.id);
+			if (clearDraft) {
+				clearSubmittedDraft(draft);
+			}
+			setNotice(message);
+			setReview(null);
 		} catch (cause) {
 			setError(
-				cause instanceof Error
-					? cause.message
-					: "Couldn't save the brief. Your edits are still here."
+				getUserFacingErrorMessage(
+					cause,
+					"Couldn't save this change. Your edits are still here."
+				)
 			);
 		} finally {
 			savingRef.current = false;
 			setIsSaving(false);
 		}
+	}
+
+	function discard() {
+		return change(async () => {
+			if (generation) {
+				await onCancel(generation.id);
+			}
+			if (draftGeneration && draftGeneration.id !== generation?.id) {
+				await onCancel(draftGeneration.id);
+			}
+		}, "");
+	}
+
+	async function save() {
+		if (saveDisabled || !draft || savingRef.current) {
+			return;
+		}
+		await change(
+			() =>
+				onSave({
+					content: content.trim(),
+					revision: draft.revision,
+					teamContext,
+					...(draftGeneration ? { generationId: draftGeneration.id } : {}),
+				}),
+			"Changes saved"
+		);
 	}
 
 	async function generate() {
@@ -210,9 +350,10 @@ export function BusinessContextEditor({
 			await onGenerate(selectedWebsite.id);
 		} catch (cause) {
 			setError(
-				cause instanceof Error
-					? cause.message
-					: "Couldn't start a draft. Please try again."
+				getUserFacingErrorMessage(
+					cause,
+					"Couldn't start a draft. Please try again."
+				)
 			);
 		} finally {
 			setIsRequesting(false);
@@ -261,7 +402,8 @@ export function BusinessContextEditor({
 				<Card.Header>
 					<Card.Title>Business context</Card.Title>
 					<Card.Description>
-						What you do, who you serve, and what matters to your business
+						What you do and who you serve. Applies to every website in this
+						organization.
 					</Card.Description>
 				</Card.Header>
 				<Card.Content className="space-y-5">
@@ -324,6 +466,22 @@ export function BusinessContextEditor({
 											: "Generate with AI"}
 								</Button>
 							)}
+							{activeGeneration && generation && (
+								<Button
+									disabled={isSaving}
+									onClick={() =>
+										change(
+											() => onCancel(generation.id),
+											"Generation cancelled",
+											false
+										)
+									}
+									size="sm"
+									variant="ghost"
+								>
+									Cancel
+								</Button>
+							)}
 						</div>
 					)}
 					<div
@@ -333,7 +491,9 @@ export function BusinessContextEditor({
 						{generating && (
 							<p>
 								{canEdit
-									? "Reading your website and preparing a draft. You can keep writing."
+									? generation?.status === "queued"
+										? "Waiting to start. You can keep writing."
+										: "Reading your website and preparing a draft. You can keep writing. Saving ends this generation."
 									: "An updated brief is being prepared."}
 							</p>
 						)}
@@ -342,7 +502,7 @@ export function BusinessContextEditor({
 								<p>An AI draft is ready. Your current text has been kept.</p>
 								<Button
 									disabled={isSaving}
-									onClick={() => setReview("generation")}
+									onClick={() => setReview({ kind: "generation" })}
 									size="sm"
 									variant="secondary"
 								>
@@ -371,7 +531,7 @@ export function BusinessContextEditor({
 							maxRows={12}
 							onChange={(event) => {
 								setDraft({
-									...(draft ?? { revision }),
+									...(draft ?? { revision, teamContext }),
 									content: event.target.value,
 								});
 								setNotice("");
@@ -381,7 +541,7 @@ export function BusinessContextEditor({
 									? "Describe your product, customers, business model, and priorities. Include what your key events mean and anything the agent should account for."
 									: "No business brief has been saved yet."
 							}
-							readOnly={!canEdit || isSaving}
+							readOnly={!(ready && canEdit) || isSaving}
 							ref={editorRef}
 							value={content}
 						/>
@@ -392,6 +552,51 @@ export function BusinessContextEditor({
 							</Field.Error>
 						)}
 					</Field>
+					<Accordion>
+						<Accordion.Trigger>What matters to your team</Accordion.Trigger>
+						<Accordion.Content className="space-y-4 pt-4">
+							<p className="text-muted-foreground text-xs">
+								Optional context your website cannot explain. Kept when AI
+								regenerates the brief.
+							</p>
+							{teamFields.map(({ key, label, placeholder }) => (
+								<Field
+									key={key}
+									error={
+										teamContext[key].trim().length >
+										BUSINESS_CONTEXT_TEAM_FIELD_LIMIT
+									}
+								>
+									<Field.Label>{label}</Field.Label>
+									<Textarea
+										value={teamContext[key]}
+										placeholder={placeholder}
+										minRows={2}
+										maxRows={6}
+										readOnly={!(ready && canEdit) || isSaving}
+										onChange={(event) => {
+											setDraft({
+												...(draft ?? { content, revision }),
+												teamContext: {
+													...teamContext,
+													[key]: event.target.value,
+												},
+											});
+											setNotice("");
+										}}
+									/>
+									{teamContext[key].trim().length >
+										BUSINESS_CONTEXT_TEAM_FIELD_LIMIT && (
+										<Field.Error>
+											Keep this under{" "}
+											{BUSINESS_CONTEXT_TEAM_FIELD_LIMIT.toLocaleString()}{" "}
+											characters.
+										</Field.Error>
+									)}
+								</Field>
+							))}
+						</Accordion.Content>
+					</Accordion>
 					{conflict && canEdit && (
 						<div
 							className="flex flex-wrap items-center justify-between gap-2"
@@ -401,7 +606,7 @@ export function BusinessContextEditor({
 								A newer brief was saved. Review it before saving your edits.
 							</p>
 							<Button
-								onClick={() => setReview("conflict")}
+								onClick={() => setReview({ kind: "conflict" })}
 								size="sm"
 								variant="secondary"
 							>
@@ -409,18 +614,22 @@ export function BusinessContextEditor({
 							</Button>
 						</div>
 					)}
-					{error && (
+					{error && !conflict && (
 						<p className="text-destructive text-xs" role="alert">
 							{error}
 						</p>
 					)}
 				</Card.Content>
-				<Card.Footer className="justify-start">
+				<Card.Footer className="justify-between">
 					<p className="text-muted-foreground text-xs">
 						{draftGeneration ? (
 							"AI draft · Not saved"
 						) : dirty ? (
-							"Unsaved changes"
+							recoverable ? (
+								"Unsaved changes · Kept in this tab"
+							) : (
+								"Unsaved changes · Save before closing this tab"
+							)
 						) : profile ? (
 							<time
 								dateTime={profile.updatedAt}
@@ -434,6 +643,37 @@ export function BusinessContextEditor({
 							"No saved brief yet"
 						)}
 					</p>
+					{Boolean(settings.history?.length) && (
+						<DropdownMenu>
+							<DropdownMenu.Trigger
+								render={<Button size="sm" variant="ghost" />}
+							>
+								History
+							</DropdownMenu.Trigger>
+							<DropdownMenu.Content align="end">
+								<DropdownMenu.Group>
+									<DropdownMenu.GroupLabel>
+										Previous saved versions
+									</DropdownMenu.GroupLabel>
+									{settings.history?.toReversed().map((previous) => (
+										<DropdownMenu.Item
+											key={previous.revision}
+											onClick={() =>
+												setReview({
+													kind: "history",
+													profile: previous,
+													baseRevision: revision,
+												})
+											}
+										>
+											Version {previous.revision} ·{" "}
+											{dayjs(previous.updatedAt).format("MMM D, h:mm A")}
+										</DropdownMenu.Item>
+									))}
+								</DropdownMenu.Group>
+							</DropdownMenu.Content>
+						</DropdownMenu>
+					)}
 				</Card.Footer>
 			</Card>
 			<Sources
@@ -447,26 +687,39 @@ export function BusinessContextEditor({
 				}}
 				open={review !== null}
 			>
-				<Dialog.Content className="max-w-2xl">
+				<Dialog.Content className="max-w-2xl" initialFocus={reviewTitleRef}>
 					<Dialog.Header>
-						<Dialog.Title>
-							{review === "generation"
+						<Dialog.Title
+							render={(props) => (
+								<h2 {...props} ref={reviewTitleRef} tabIndex={-1}>
+									{props.children}
+								</h2>
+							)}
+						>
+							{review?.kind === "generation"
 								? "Review AI draft"
-								: "Review the latest saved brief"}
+								: review?.kind === "history"
+									? `Review version ${review.profile.revision}`
+									: "Review the latest saved brief"}
 						</Dialog.Title>
 						<Dialog.Description>
-							{review === "generation"
+							{review?.kind === "generation"
 								? "Using this draft replaces your local text. You can edit it before saving."
-								: "Your edits are still in the editor. Choose which version to keep working on."}
+								: review?.kind === "history"
+									? "Restoring replaces the saved brief and your current edits. Your current saved version stays in history."
+									: "Your edits are still in the editor. Choose which version to keep working on."}
 						</Dialog.Description>
 					</Dialog.Header>
 					<Dialog.Body className="max-h-[60vh] space-y-4 overflow-y-auto">
-						<p className="whitespace-pre-wrap break-words text-sm leading-7">
-							{review === "generation"
-								? pendingDraft?.draft?.content
-								: profile?.content || "The saved brief is empty."}
-						</p>
-						{review === "generation" &&
+						<BriefChanges
+							before={[content, formatBusinessTeamContext(teamContext)]
+								.filter(Boolean)
+								.join("\n\n")}
+							after={[reviewText, formatBusinessTeamContext(reviewTeam)]
+								.filter(Boolean)
+								.join("\n\n")}
+						/>
+						{review?.kind === "generation" &&
 							pendingDraft?.baseRevision !== revision && (
 								<p className="text-muted-foreground text-xs">
 									This draft was generated before the latest saved update. Check
@@ -475,20 +728,50 @@ export function BusinessContextEditor({
 							)}
 						<Sources
 							sources={
-								(review === "generation"
+								(review?.kind === "generation"
 									? pendingDraft?.draft?.sources
-									: profile?.sources) ?? []
+									: reviewedProfile?.sources) ?? []
 							}
 						/>
 					</Dialog.Body>
 					<Dialog.Footer>
-						{review === "generation" ? (
+						{error && (
+							<p className="text-destructive text-xs" role="alert">
+								{error}
+							</p>
+						)}
+						{review?.kind === "history" ? (
 							<>
 								<Button
-									onClick={() => {
-										setDismissedGenerationId(generation?.id);
-										setReview(null);
-									}}
+									size="sm"
+									variant="ghost"
+									disabled={isSaving}
+									onClick={() => setReview(null)}
+								>
+									Keep current version
+								</Button>
+								<Button
+									size="sm"
+									disabled={!canEdit || isSaving}
+									onClick={() =>
+										change(
+											() =>
+												onRestore(review.profile.revision, review.baseRevision),
+											"Version restored"
+										)
+									}
+								>
+									Restore this version
+								</Button>
+							</>
+						) : review?.kind === "generation" ? (
+							<>
+								<Button
+									disabled={isSaving}
+									onClick={() =>
+										pendingDraft &&
+										change(() => onCancel(pendingDraft.id), "", false)
+									}
 									size="sm"
 									variant="ghost"
 								>
@@ -504,6 +787,7 @@ export function BusinessContextEditor({
 											content: pendingDraft.draft.content,
 											revision,
 											generationId: pendingDraft.id,
+											teamContext,
 										});
 										setReview(null);
 										editorRef.current?.focus();
@@ -515,15 +799,18 @@ export function BusinessContextEditor({
 							</>
 						) : (
 							<>
-								<Button onClick={discard} size="sm" variant="ghost">
+								<Button
+									onClick={discard}
+									disabled={isSaving}
+									size="sm"
+									variant="ghost"
+								>
 									Use saved version
 								</Button>
 								<Button
 									disabled={!canEdit || isSaving}
 									onClick={() => {
-										setDraft((current) =>
-											current ? { ...current, revision } : null
-										);
+										setDraft(draft ? { ...draft, revision } : null);
 										setError(undefined);
 										setReview(null);
 									}}

@@ -210,15 +210,15 @@ integration("business context source locking and provenance", () => {
 		expect(
 			(await save(`${draft.content} Trial started is our signup event.`, 2))
 				.profile?.origin
-		).toBe("team");
+		).toBe("mixed");
 	});
 
 	test("accepted regeneration keeps inherited nonempty team assertions", async () => {
 		await save("Trial started is our signup event.");
 		const content = `${draft.content} Trial started is our signup event.`;
 		const generationId = await ready(content);
-		expect((await save(content, 1, generationId)).profile?.origin).toBe("team");
-		expect((await save(content, 2)).profile?.origin).toBe("team");
+		expect((await save(content, 1, generationId)).profile?.origin).toBe("mixed");
+		expect((await save(content, 2)).profile?.origin).toBe("mixed");
 	});
 
 	test("retaining the first AI draft preserves its sources and website provenance", async () => {
@@ -261,11 +261,11 @@ integration("business context source locking and provenance", () => {
 		);
 	});
 
-	test("editing a first generated draft gives it team provenance", async () => {
+	test("editing a generated draft preserves mixed provenance", async () => {
 		const generationId = await ready();
 		expect(
 			(await save("Our team sells annual contracts.", 0, generationId)).profile
 				?.origin
-		).toBe("team");
+		).toBe("mixed");
 	});
 });

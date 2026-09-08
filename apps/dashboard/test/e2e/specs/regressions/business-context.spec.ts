@@ -7,6 +7,41 @@ const savedContent =
 const generatedContent =
 	"Example helps independent studios fill classes. Customers subscribe monthly.";
 
+test("recovers unfinished brief and team inputs across navigation and reload, then restores a saved version", { tag: "@regression" }, async ({ authenticatedPage: page }) => {
+	await page.goto(path);
+	const editor = page.getByRole("textbox", { name: "Business brief" });
+	await expect(editor).toBeEditable();
+	const original = await editor.inputValue();
+	const unfinished = `Recover this draft ${crypto.randomUUID()}`;
+	await editor.fill(unfinished);
+	await page.getByRole("button", { name: "What matters to your team" }).click();
+	const priority = page.getByRole("textbox", { name: "Current priority" });
+	await priority.fill("Improve production activation");
+	await page.goto("/organizations/settings");
+	await page.goto(path);
+	await expect(editor).toHaveValue(unfinished);
+	await page.reload();
+	await expect(editor).toHaveValue(unfinished);
+	await page.getByRole("button", { name: "What matters to your team" }).click();
+	await expect(priority).toHaveValue("Improve production activation");
+	await page.getByRole("button", { name: "Save changes" }).click();
+	await expect(page.getByText("Changes saved", { exact: true })).toBeVisible();
+	await editor.fill("A later saved revision");
+	await priority.fill("A different priority");
+	await page.getByRole("button", { name: "Save changes" }).click();
+	await expect(page.getByText("Changes saved", { exact: true })).toBeVisible();
+	await page.getByRole("button", { name: "History", exact: true }).click();
+	await page.getByRole("menuitem").filter({ hasText: /^Version/ }).first().click();
+	await expect(page.getByRole("heading", { name: /^Review version/ })).toBeFocused();
+	await page.getByRole("button", { name: "Restore this version" }).click();
+	await expect(page.getByText("Version restored", { exact: true })).toBeVisible();
+	await expect(editor).toHaveValue(unfinished);
+	await expect(priority).toHaveValue("Improve production activation");
+	await page.reload();
+	await expect(editor).toHaveValue(unfinished);
+	expect(unfinished).not.toBe(original);
+});
+
 test("persists a manually edited business brief through the real API", {
 	tag: "@regression",
 }, async ({ authenticatedPage: page }) => {
@@ -66,7 +101,7 @@ test("keeps typing when AI finishes and saves only the reviewed draft", {
 			current = {
 				...current,
 				generation: {
-					id: "example-generation",
+					id: "11111111-1111-4111-8111-111111111111",
 					websiteId: "example-site",
 					domain: "example.com",
 					requestedBy: "example-admin",
@@ -82,6 +117,7 @@ test("keeps typing when AI finishes and saves only the reviewed draft", {
 			saved = route.request().postDataJSON().json;
 			current = {
 				...current,
+				generation: null,
 				profile: {
 					...current.profile!,
 					content: route.request().postDataJSON().json.content,
@@ -97,7 +133,7 @@ test("keeps typing when AI finishes and saves only the reviewed draft", {
 	await page.getByRole("button", { name: "Regenerate with AI" }).click();
 	await expect(
 		page.getByText(
-			"Reading your website and preparing a draft. You can keep writing."
+			"Reading your website and preparing a draft. You can keep writing. Saving ends this generation."
 		)
 	).toBeVisible();
 	await editor.fill("My unfinished edits");
@@ -114,7 +150,8 @@ test("keeps typing when AI finishes and saves only the reviewed draft", {
 	).toBeVisible();
 	await expect(editor).toHaveValue("My unfinished edits");
 	await page.getByRole("button", { name: "Review AI draft" }).click();
-	await expect(page.getByRole("dialog")).toContainText(generatedContent);
+	await expect(page.getByRole("dialog")).toContainText("Customers subscribe monthly.");
+	await expect(page.getByRole("heading", { name: "Review AI draft" })).toBeFocused();
 	await page.getByRole("button", { name: "Use AI draft" }).click();
 	await expect(editor).toHaveValue(generatedContent);
 	expect(saved).toBeUndefined();
@@ -124,7 +161,7 @@ test("keeps typing when AI finishes and saves only the reviewed draft", {
 	expect(saved).toMatchObject({
 		content: `${generatedContent}\nFocus on paid signups.`,
 		revision: 1,
-		generationId: "example-generation",
+		generationId: "11111111-1111-4111-8111-111111111111",
 	});
 	await expect(page.getByRole("button", { name: "Save changes" })).toBeHidden();
 });
@@ -132,10 +169,10 @@ test("keeps typing when AI finishes and saves only the reviewed draft", {
 test("discards an AI draft without restoring it on the next refresh", {
 	tag: "@regression",
 }, async ({ authenticatedPage: page }) => {
-	const current: BusinessContextSettings = {
+	let current: BusinessContextSettings = {
 		...settings(),
 		generation: {
-			id: "example-generation",
+			id: "11111111-1111-4111-8111-111111111111",
 			websiteId: "example-site",
 			domain: "example.com",
 			requestedBy: "example-admin",
@@ -146,32 +183,16 @@ test("discards an AI draft without restoring it on the next refresh", {
 			error: null,
 		},
 	};
-	await page.route("**/rpc/businessContext/get", (route) =>
-		route.fulfill({ json: { json: current } })
-	);
+	await page.route("**/rpc/businessContext/**", async (route) => {
+        if (new URL(route.request().url()).pathname.endsWith("/cancel")) current = { ...current, generation: null };
+        await route.fulfill({ json: { json: current } });
+    });
 	await page.goto(path);
 	const editor = page.getByRole("textbox", { name: "Business brief" });
 	await expect(editor).toHaveValue(generatedContent);
 	await page.getByRole("button", { name: "Discard changes" }).click();
 	await expect(editor).toHaveValue(savedContent);
-	// Restore visibility to exercise the normal query refetch without remounting the editor.
-	await Promise.all([
-		page.waitForResponse((response) =>
-			response.url().endsWith("/rpc/businessContext/get")
-		),
-		page.evaluate(() => {
-			Object.defineProperty(document, "visibilityState", {
-				configurable: true,
-				value: "hidden",
-			});
-			window.dispatchEvent(new Event("visibilitychange"));
-			Object.defineProperty(document, "visibilityState", {
-				configurable: true,
-				value: "visible",
-			});
-			window.dispatchEvent(new Event("visibilitychange"));
-		}),
-	]);
+	await page.reload();
 	await expect(
 		page.getByRole("button", { name: "Review AI draft" })
 	).toBeHidden();
@@ -231,7 +252,7 @@ test("preserves edits on a revision conflict and requires reviewing the new brie
 	).toBeDisabled();
 	await page.getByRole("button", { name: "Review update" }).click();
 	await expect(page.getByRole("dialog")).toContainText(
-		"A teammate's newer brief."
+		"teammate's newer brief."
 	);
 	await page.getByRole("button", { name: "Keep my edits" }).click();
 	await page.getByRole("button", { name: "Save changes" }).click();
@@ -318,4 +339,89 @@ test("can save retained text after regenerating and declining the replacement", 
 		revision: 1,
 		generationId: "first-generation",
 	});
+});
+
+test("a late save cannot clear a newer draft written after navigation", { tag: "@regression" }, async ({ authenticatedPage: page }) => {
+    let current = settings();
+    let release: () => void = () => {};
+    const pending = new Promise<void>((resolve) => { release = resolve; });
+    await page.route("**/rpc/businessContext/**", async (route) => {
+        if (new URL(route.request().url()).pathname.endsWith("/save")) {
+            const input = route.request().postDataJSON().json;
+            await pending;
+            current = { ...current, profile: { ...current.profile!, content: input.content, revision: 2 } };
+        }
+        await route.fulfill({ json: { json: current } });
+    });
+    await page.goto(path);
+    const editor = page.getByRole("textbox", { name: "Business brief" });
+    await editor.fill("Save A");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await page.getByRole("link", { name: "General", exact: true }).click();
+    await expect(page).toHaveURL(/organizations\/settings$/);
+    await expect(editor).toBeHidden();
+    await page.getByRole("link", { name: "Business Context", exact: true }).click();
+    await expect(editor).toBeEditable();
+    await editor.fill("Newer draft B");
+    const response = page.waitForResponse((item) => item.url().endsWith("/businessContext/save"));
+    release();
+    await response;
+    await expect(editor).toHaveValue("Newer draft B");
+    await page.reload();
+    await expect(editor).toHaveValue("Newer draft B");
+    await expect(page.getByRole("button", { name: "Review update" })).toBeVisible();
+});
+
+test("failed browser storage keeps newer text and discarded tombstones across in-app navigation", { tag: "@regression" }, async ({ authenticatedPage: page }) => {
+    await page.route("**/rpc/businessContext/get", (route) => route.fulfill({ json: { json: settings() } }));
+    await page.goto(path);
+    const editor = page.getByRole("textbox", { name: "Business brief" });
+    await editor.fill("Old persisted draft");
+    await page.evaluate(() => {
+        for (const method of ["setItem", "removeItem"] as const) {
+            const original = Storage.prototype[method];
+            Storage.prototype[method] = function(key: string, value = "") {
+                if (key.startsWith("business-context-draft:")) throw new DOMException("Synthetic quota failure", "QuotaExceededError");
+                return original.call(this, key, value);
+            };
+        }
+    });
+    await editor.fill("Newer memory draft");
+    await page.getByRole("link", { name: "General", exact: true }).click();
+    await expect(page).toHaveURL(/organizations\/settings$/);
+    await expect(editor).toBeHidden();
+    await page.getByRole("link", { name: "Business Context", exact: true }).click();
+    await expect(editor).toHaveValue("Newer memory draft");
+    await page.getByRole("button", { name: "Discard changes" }).click();
+    await page.getByRole("link", { name: "General", exact: true }).click();
+    await expect(page).toHaveURL(/organizations\/settings$/);
+    await expect(editor).toBeHidden();
+    await page.getByRole("link", { name: "Business Context", exact: true }).click();
+    await expect(editor).toHaveValue(savedContent);
+});
+
+test("choosing a saved version dismisses an available AI draft", { tag: "@regression" }, async ({ authenticatedPage: page }) => {
+    let current = settings();
+    await page.route("**/rpc/businessContext/**", async (route) => {
+        const method = new URL(route.request().url()).pathname.split("/").at(-1);
+        if (method === "save") {
+            current = { ...current, profile: { ...current.profile!, content: "Teammate's saved choice", revision: 2 }, generation: {
+                id: "11111111-1111-4111-8111-111111111111", websiteId: "example-site", domain: "example.com", requestedBy: "example-admin", requestedAt: new Date().toISOString(), baseRevision: 2, status: "ready", draft: { content: generatedContent, sources: [] }, error: null
+            } };
+            await route.fulfill({ status: 409, json: { json: { defined: false, code: "CONFLICT", status: 409, message: "Review newer saved context" } } });
+            return;
+        }
+        if (method === "cancel") current = { ...current, generation: null };
+        await route.fulfill({ json: { json: current } });
+    });
+    await page.goto(path);
+    const editor = page.getByRole("textbox", { name: "Business brief" });
+    await editor.fill("My edits");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await page.getByRole("button", { name: "Review update" }).click();
+    await page.getByRole("button", { name: "Use saved version" }).click();
+    await expect(editor).toHaveValue("Teammate's saved choice");
+    await page.reload();
+    await expect(editor).toHaveValue("Teammate's saved choice");
+    await expect(page.getByRole("button", { name: "Review AI draft" })).toBeHidden();
 });

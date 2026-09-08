@@ -1,6 +1,7 @@
 "use client";
 
 import { businessContextIsGenerating } from "@databuddy/shared/organization-business-context";
+import { useSession } from "@databuddy/auth/client";
 import { Button, Card, Skeleton } from "@databuddy/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { TopBar } from "@/components/layout/top-bar";
@@ -39,6 +40,7 @@ export function BusinessContextSettings({
 	organizationId: string;
 }) {
 	const queryClient = useQueryClient();
+	const { data: session } = useSession();
 	const queryOptions = orpc.businessContext.get.queryOptions({
 		input: { organizationId },
 	});
@@ -49,8 +51,23 @@ export function BusinessContextSettings({
 		refetchInterval: ({ state }) =>
 			state.data && businessContextIsGenerating(state.data) ? 2000 : false,
 	});
-	const save = useMutation(orpc.businessContext.save.mutationOptions());
-	const generate = useMutation(orpc.businessContext.generate.mutationOptions());
+	const mutationMeta = { suppressGlobalErrorToast: true };
+	const save = useMutation({
+		...orpc.businessContext.save.mutationOptions(),
+		meta: mutationMeta,
+	});
+	const generate = useMutation({
+		...orpc.businessContext.generate.mutationOptions(),
+		meta: mutationMeta,
+	});
+	const cancel = useMutation({
+		...orpc.businessContext.cancel.mutationOptions(),
+		meta: mutationMeta,
+	});
+	const restore = useMutation({
+		...orpc.businessContext.restore.mutationOptions(),
+		meta: mutationMeta,
+	});
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
@@ -83,9 +100,39 @@ export function BusinessContextSettings({
 							</Button>
 						</div>
 					)}
-					{query.data && (
+					{query.data && session?.user && (
 						<BusinessContextEditor
+							key={`${session.user.id}:${organizationId}`}
+							storageKey={`business-context-draft:${session.user.id}:${organizationId}`}
 							settings={query.data}
+							onCancel={async (generationId) => {
+								const result = await cancel.mutateAsync({
+									organizationId,
+									generationId,
+								});
+								await queryClient.cancelQueries({
+									queryKey: queryOptions.queryKey,
+								});
+								queryClient.setQueryData(queryOptions.queryKey, result);
+							}}
+							onRestore={async (restoreRevision, revision) => {
+								try {
+									const result = await restore.mutateAsync({
+										organizationId,
+										restoreRevision,
+										revision,
+									});
+									await queryClient.cancelQueries({
+										queryKey: queryOptions.queryKey,
+									});
+									queryClient.setQueryData(queryOptions.queryKey, result);
+								} catch (error) {
+									await queryClient.invalidateQueries({
+										queryKey: queryOptions.queryKey,
+									});
+									throw error;
+								}
+							}}
 							onGenerate={async (websiteId) => {
 								const result = await generate.mutateAsync({
 									organizationId,

@@ -10,6 +10,9 @@ let conflict = false;
 let state: OrganizationBusinessContext;
 const reads = mock(async () => state);
 const saves = mock(async () => state);
+const cancels = mock(async () => state);
+const restores = mock(async () => state);
+const audits = mock(async (..._args: unknown[]) => undefined);
 const queued = mock(async () => {
 	if (queueFails) throw new Error("Synthetic queue unavailable");
 	return { id: "synthetic-job" };
@@ -46,6 +49,8 @@ beforeAll(async () => {
 	mock.module("@databuddy/services/organization-business-context", () => ({
 		...service,
 		readOrganizationBusinessContext: reads,
+		cancelBusinessContextGeneration: cancels,
+		restoreOrganizationBusinessProfile: restores,
 		saveOrganizationBusinessProfile: async () => {
 			if (conflict)
 				throw new service.BusinessContextError(
@@ -89,13 +94,8 @@ beforeAll(async () => {
 			return { role, organizationId: "org-one" };
 		},
 	}));
-	mock.module("../middleware/audit-mutation", () => ({
-		runAuditedMutation: (
-			_path: string,
-			_context: unknown,
-			next: () => Promise<unknown>
-		) => next(),
-	}));
+	const auditService = await import("@databuddy/services/audit");
+    mock.module("@databuddy/services/audit", () => ({ ...auditService, appendAuditEvent: audits }));
 	({ businessContextRouter: router } = await import("./business-context"));
 });
 
@@ -106,12 +106,16 @@ beforeEach(() => {
 	conflict = false;
 	reads.mockClear();
 	saves.mockClear();
+	cancels.mockClear();
+	restores.mockClear();
+	audits.mockClear();
 	queued.mockClear();
 });
 
 function context(): Context {
 	return {
 		db: {},
+	headers: new Headers(),
 		organizationId: "org-one",
 		user: {
 			id: "owner-one",
@@ -123,7 +127,7 @@ function context(): Context {
 }
 
 test("reading is permission-scoped and never generates or saves", async () => {
-	const read = createProcedureClient(router.get, { context: context() });
+	const read = createProcedureClient(router.get, { path: ["businessContext", "get"], context: context() });
 	const result = await read({ organizationId: "org-one" });
 	expect(result.websites[0]?.name).toBe("example.com");
 	expect(result.canEdit).toBe(true);
@@ -139,20 +143,20 @@ test("members can read but cannot edit or generate", async () => {
 	role = "member";
 	expect(
 		(
-			await createProcedureClient(router.get, { context: context() })({
+			await createProcedureClient(router.get, { path: ["businessContext", "get"], context: context() })({
 				organizationId: "org-one",
 			})
 		).canEdit
 	).toBe(false);
 	await expect(
-		createProcedureClient(router.save, { context: context() })({
+		createProcedureClient(router.save, { path: ["businessContext", "save"], context: context() })({
 			organizationId: "org-one",
 			revision: 0,
 			content: "Attempted edit",
 		})
 	).rejects.toMatchObject({ code: "FORBIDDEN" });
 	await expect(
-		createProcedureClient(router.generate, { context: context() })({
+		createProcedureClient(router.generate, { path: ["businessContext", "generate"], context: context() })({
 			organizationId: "org-one",
 			websiteId: "site-one",
 		})
@@ -164,7 +168,7 @@ test("members can read but cannot edit or generate", async () => {
 test("unauthenticated requests cannot read business context", async () => {
 	const anonymous = { ...context(), user: null, session: null };
 	await expect(
-		createProcedureClient(router.get, { context: anonymous })({
+		createProcedureClient(router.get, { path: ["businessContext", "get"], context: anonymous })({
 			organizationId: "org-one",
 		})
 	).rejects.toMatchObject({ code: "UNAUTHORIZED" });
@@ -174,7 +178,7 @@ test("unauthenticated requests cannot read business context", async () => {
 test("save conflicts preserve their recoverable 409 response", async () => {
 	conflict = true;
 	await expect(
-		createProcedureClient(router.save, { context: context() })({
+		createProcedureClient(router.save, { path: ["businessContext", "save"], context: context() })({
 			organizationId: "org-one",
 			revision: 1,
 			content: "My draft",
@@ -187,7 +191,7 @@ test("save conflicts preserve their recoverable 409 response", async () => {
 });
 
 test("generation uses a stable job ID and a single attempt", async () => {
-	await createProcedureClient(router.generate, { context: context() })({
+	await createProcedureClient(router.generate, { path: ["businessContext", "generate"], context: context() })({
 		organizationId: "org-one",
 		websiteId: "site-one",
 	});
@@ -201,11 +205,37 @@ test("generation uses a stable job ID and a single attempt", async () => {
 test("queue failures become an actionable generation failure", async () => {
 	queueFails = true;
 	await expect(
-		createProcedureClient(router.generate, { context: context() })({
+		createProcedureClient(router.generate, { path: ["businessContext", "generate"], context: context() })({
 			organizationId: "org-one",
 			websiteId: "site-one",
 		})
 	).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
 	expect(state.generation?.status).toBe("failed");
 	expect(state.profile).toBeNull();
+});
+
+
+test("save and restore record the actor, target organization and outcome without brief text", async () => {
+    const owner = { ...context(), organizationId: "different-active-org" };
+    await createProcedureClient(router.save, { path: ["businessContext", "save"], context: owner })({ organizationId: "org-one", revision: 0, content: "Private team definitions" });
+    expect(audits.mock.calls.at(-1)).toMatchObject([{}, "org-one", {
+        action: { action: "business_context.updated" }, actor: { type: "user", id: "owner-one" }, outcome: "success", operation: "businessContext.save"
+    }]);
+    expect(JSON.stringify(audits.mock.calls)).not.toContain("Private team definitions");
+    await createProcedureClient(router.restore, { path: ["businessContext", "restore"], context: owner })({ organizationId: "org-one", revision: 2, restoreRevision: 1 });
+    expect(audits.mock.calls.at(-1)?.[2]).toMatchObject({ action: { action: "business_context.restored" }, outcome: "success" });
+});
+
+test("denied writes and revision conflicts are audited with the authorized organization", async () => {
+    role = "member";
+    const member = { ...context(), organizationId: "different-active-org" };
+    await expect(createProcedureClient(router.cancel, { path: ["businessContext", "cancel"], context: member })({ organizationId: "org-one", generationId: generation.id })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(createProcedureClient(router.restore, { path: ["businessContext", "restore"], context: member })({ organizationId: "org-one", revision: 2, restoreRevision: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(cancels).not.toHaveBeenCalled();
+    expect(restores).not.toHaveBeenCalled();
+    expect(audits.mock.calls.at(-1)).toMatchObject([{}, "org-one", { outcome: "denied", reason: "FORBIDDEN" }]);
+    role = "owner";
+    conflict = true;
+    await expect(createProcedureClient(router.save, { path: ["businessContext", "save"], context: context() })({ organizationId: "org-one", revision: 1, content: "Private conflicting draft" })).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(audits.mock.calls.at(-1)?.[2]).toMatchObject({ outcome: "failure", reason: "CONFLICT" });
 });

@@ -5,6 +5,9 @@ import { isAuditedMutationPath } from "./audit-mutation";
 describe("isAuditedMutationPath", () => {
 	test("recognizes privileged mutation verbs across routers", () => {
 		expect(isAuditedMutationPath("flags.create")).toBe(true);
+		expect(isAuditedMutationPath("businessContext.save")).toBe(true);
+		expect(isAuditedMutationPath("businessContext.restore")).toBe(true);
+		expect(isAuditedMutationPath("businessContext.cancel")).toBe(true);
 		expect(isAuditedMutationPath("statusPage.createIncident")).toBe(true);
 		expect(isAuditedMutationPath("organizations.updateEmailNotificationSettings")).toBe(true);
 	});

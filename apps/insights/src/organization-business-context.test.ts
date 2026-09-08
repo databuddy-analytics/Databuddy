@@ -322,7 +322,7 @@ describe("organization business context worker", () => {
 			"Saving that summary unchanged does not establish internal event semantics"
 		);
 		expect(instructions?.content).toContain(
-			"origin=team indicates actual team edits"
+			"origin=team or mixed may contain actual team edits"
 		);
 		expect(f.state.profile).toEqual({ ...profile, origin, sources });
 		expect(f.model.doGenerateCalls).toHaveLength(2);
