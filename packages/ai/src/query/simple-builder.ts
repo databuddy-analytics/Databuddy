@@ -16,8 +16,10 @@ import type {
 	CompiledQuery,
 	ConfigField,
 	CTEDefinition,
+	CustomSqlContext,
 	Filter,
 	Granularity,
+	QueryHelpers,
 	QueryRequest,
 	SimpleQueryConfig,
 	TimeBucketConfig,
@@ -669,7 +671,7 @@ export class SimpleQueryBuilder {
 		return { sql: finalSql, params: finalParams };
 	}
 
-	compile(): CompiledQuery {
+	compile(preparedKeys?: string[]): CompiledQuery {
 		for (const filter of this.request.filters ?? []) {
 			if (
 				filter.target &&
@@ -715,28 +717,23 @@ export class SimpleQueryBuilder {
 					}
 				: undefined;
 
-			const result = this.config.customSql({
-				websiteId: this.request.projectId,
-				startDate: normalizeClickHouseDateTime(this.request.from),
-				endDate: normalizeClickHouseDateTime(this.request.to),
-				filters: this.request.filters,
-				granularity: this.request.timeUnit,
-				limit: this.request.limit,
-				offset: this.request.offset,
-				timezone: this.request.timezone,
-				filterConditions: whereClause,
-				filterParams: whereClauseParams,
-				helpers,
-				orderBy: this.request.orderBy,
-			});
+			const result = this.config.customSql(
+				this.customSqlContext(
+					whereClause,
+					whereClauseParams,
+					helpers,
+					preparedKeys
+				)
+			);
 
 			if (typeof result === "string") {
 				return this.finalizeCompiledQuery(result, {});
 			}
-			return this.finalizeCompiledQuery(
-				result.sql,
-				result.params as Record<string, Filter["value"]>
-			);
+			const params = result.params as Record<string, Filter["value"]>;
+			if (preparedKeys) {
+				params.preparedKeys = preparedKeys;
+			}
+			return this.finalizeCompiledQuery(result.sql, params);
 		}
 
 		return this.buildStandardQuery();
@@ -1157,8 +1154,55 @@ export class SimpleQueryBuilder {
 		return this.request.offset ? ` OFFSET ${this.request.offset}` : "";
 	}
 
+	private customSqlContext(
+		filterConditions: string[],
+		filterParams: Record<string, Filter["value"]>,
+		helpers: QueryHelpers | undefined,
+		preparedKeys?: string[]
+	): CustomSqlContext {
+		return {
+			websiteId: this.request.projectId,
+			startDate: normalizeClickHouseDateTime(this.request.from),
+			endDate: normalizeClickHouseDateTime(this.request.to),
+			filters: this.request.filters,
+			granularity: this.request.timeUnit,
+			limit: this.request.limit,
+			offset: this.request.offset,
+			timezone: this.request.timezone,
+			filterConditions,
+			filterParams,
+			helpers,
+			orderBy: this.request.orderBy,
+			preparedKeys,
+		};
+	}
+
+	private async resolvePreparedKeys(
+		abortSignal?: AbortSignal
+	): Promise<string[] | undefined> {
+		if (!this.config.prepareSql) {
+			return;
+		}
+		const filterParams: Record<string, Filter["value"]> = {};
+		const filterConditions = this.buildWhereClauseFromFilters(filterParams);
+		const stage = this.config.prepareSql(
+			this.customSqlContext(filterConditions, filterParams, undefined)
+		);
+		const rows = await chQuery<Record<string, unknown>>(
+			stage.sql,
+			stage.params,
+			{
+				abort_signal: abortSignal,
+				clickhouse_settings: getClickHouseQuerySettings(this.config.noCache),
+				label: `${this.request.type}:prepare`,
+			}
+		);
+		return rows.map((row) => String(row[stage.column] ?? ""));
+	}
+
 	async execute(abortSignal?: AbortSignal): Promise<Record<string, unknown>[]> {
-		const { sql, params } = this.compile();
+		const preparedKeys = await this.resolvePreparedKeys(abortSignal);
+		const { sql, params } = this.compile(preparedKeys);
 		const rawData = await chQuery<Record<string, unknown>>(sql, params, {
 			abort_signal: abortSignal,
 			clickhouse_settings: getClickHouseQuerySettings(this.config.noCache),
