@@ -1,3 +1,5 @@
+import type { BusinessScope } from "@databuddy/ai/lib/business-context";
+import { assertBusinessScopeCurrent } from "./business-context";
 import { and, db, desc, eq, isNotNull, lte, or, sql } from "@databuddy/db";
 import { analyticsInsights, insightObservations } from "@databuddy/db/schema";
 import {
@@ -98,6 +100,7 @@ export function caseValues(
 }
 
 export async function persistInvestigation(params: {
+	businessScope?: BusinessScope;
 	evidence?: string[];
 	investigation: WebsiteInvestigation;
 	notNewerThan: Date;
@@ -133,6 +136,9 @@ export async function persistInvestigation(params: {
 	};
 
 	const persisted = await db.transaction(async (tx) => {
+		if (params.businessScope) {
+			await assertBusinessScopeCurrent(params.businessScope, tx);
+		}
 		const rows = shouldPersistCase
 			? prior && (prior.dedupeKey !== key || !interrupting)
 				? await tx

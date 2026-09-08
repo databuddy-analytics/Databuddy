@@ -34,6 +34,10 @@ import {
 	type AppendAuditEventInput,
 } from "@databuddy/services/audit";
 import {
+	BusinessMemoryRetirementError,
+	deleteOrganizationWithBusinessMemory,
+} from "@databuddy/services/business-memory";
+import {
 	auditActions,
 	type AuditActionDefinition,
 	type AuditActor,
@@ -711,6 +715,19 @@ export const auth = betterAuth({
 				viewer,
 			},
 			organizationHooks: {
+				beforeDeleteOrganization: async ({ organization }) => {
+					try {
+						await deleteOrganizationWithBusinessMemory(organization.id);
+					} catch (error) {
+						if (!(error instanceof BusinessMemoryRetirementError)) {
+							throw error;
+						}
+						throw new APIError("SERVICE_UNAVAILABLE", {
+							message:
+								"Business memory could not be removed. Retry deleting the organization.",
+						});
+					}
+				},
 				afterAddMember: async ({ member, organization }) => {
 					await invalidateMemberCaches(member);
 					const memberAudit = await getAuditMemberDetails(member);

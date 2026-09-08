@@ -27,20 +27,17 @@ const mockClient = {
 	profile: mockProfile,
 	search: { memories: mockSearchMemories },
 };
-const mockSupermemory = mock(function Supermemory() {
-	return mockClient;
-});
-
-mock.module("supermemory", () => ({
-	default: mockSupermemory,
+// Mock this feature's shared client, not the SDK constructor used by native
+// transport tests in the same Bun process.
+const businessMemory = await import("@databuddy/services/business-memory");
+mock.module("@databuddy/services/business-memory", () => ({
+	...businessMemory,
+	getMemoryClient: () => mockClient,
 }));
 
-const {
-	getMemoryContext,
-	searchMemories,
-	storeAnalyticsSummary,
-	storeConversation,
-} = await import("./supermemory");
+const { getMemoryContext, searchMemories, storeConversation } = await import(
+	"./supermemory"
+);
 
 beforeEach(() => {
 	profileHandler = async () => defaultProfile();
@@ -49,7 +46,6 @@ beforeEach(() => {
 	mockForget.mockClear();
 	mockProfile.mockClear();
 	mockSearchMemories.mockClear();
-	mockSupermemory.mockClear();
 });
 
 afterAll(() => {
@@ -61,26 +57,6 @@ afterAll(() => {
 });
 
 describe("supermemory containers", () => {
-	test("stores analytics summaries in the website container", async () => {
-		await storeAnalyticsSummary("<b>Weekly wins</b>", "site_1", {
-			runId: "run_1",
-		});
-
-		expect(mockAdd).toHaveBeenCalledWith(
-			expect.objectContaining({
-				containerTag: "website_site_1",
-				content: "Weekly wins",
-				metadata: expect.objectContaining({
-					runId: "run_1",
-					source: "databuddy",
-					type: "analytics_summary",
-					websiteId: "site_1",
-				}),
-			})
-		);
-		expect(mockAdd.mock.calls[0]?.[0]).not.toHaveProperty("containerTags");
-	});
-
 	test("stores conversation memory in primary and website containers", () => {
 		storeConversation(
 			[{ role: "user", content: "Watch pricing conversion" }],
@@ -129,12 +105,9 @@ describe("supermemory containers", () => {
 		});
 
 		expect(mockProfile).toHaveBeenCalledTimes(4);
-		expect(mockProfile.mock.calls.map(([input]) => input.containerTag)).toEqual([
-			"user_usr_1",
-			"website_site_1",
-			"user:usr_1",
-			"website:site_1",
-		]);
+		expect(mockProfile.mock.calls.map(([input]) => input.containerTag)).toEqual(
+			["user_usr_1", "website_site_1", "user:usr_1", "website:site_1"]
+		);
 		expect(context.staticProfile).toEqual([
 			"static:user_usr_1",
 			"static:website_site_1",

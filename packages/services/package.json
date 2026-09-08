@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "type": "module",
   "exports": {
+    "./business-memory": "./src/business-memory.ts",
     "./billing-lifecycle": "./src/billing-lifecycle.ts",
     "./audit": "./src/audit.ts",
     "./feedback": "./src/feedback.ts",
@@ -21,6 +22,7 @@
     "@databuddy/encryption": "workspace:*",
     "@databuddy/redis": "workspace:*",
     "@databuddy/shared": "workspace:*",
+    "supermemory": "^4.17.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

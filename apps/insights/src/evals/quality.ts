@@ -1588,6 +1588,9 @@ for (const scenario of [
 							? "Hid a measured paid-outcome or attribution finding"
 							: "Published an unchanged or unavailable revenue measurement",
 					]),
+			...(native && outcome.publish && outcome.findingKind !== "product_outcome"
+				? ["Published a native revenue decline as the wrong finding kind"]
+				: []),
 			...(scenario === "native-unavailable"
 				? []
 				: [period.current, period.previous]

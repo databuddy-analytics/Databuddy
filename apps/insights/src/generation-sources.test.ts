@@ -127,12 +127,31 @@ describe("fixture investigation sources", () => {
 			severity: "critical",
 			subjectKey: "error:SyntaxError: boom",
 		};
+		const businessContext = {
+			capturedAt: "2026-07-12T00:00:00.000Z",
+			status: "ready" as const,
+			issues: [],
+			sources: [
+				{
+					id: "context-example",
+					kind: "team_reply" as const,
+					content: "Report preparation is not a completed download.",
+					observedAt: "2026-07-11T12:00:00.000Z",
+				},
+			],
+		};
+		let profileReads = 0;
 		const openWorkPerCall: unknown[] = [];
 		const sources = fixtureSources({
 			detectDefinitionSignals: async () => [],
+			loadBusinessProfile: async () => {
+				profileReads += 1;
+				return businessContext;
+			},
 			detectMetricSignals: async () => [errorSignal, trafficDrop],
 			fetchAnnotations: async () => [],
 			investigateSignal: async (input) => {
+				expect(input).toMatchObject({ businessContext });
 				openWorkPerCall.push(input.otherOpenWork);
 				return {
 					outcome: {
@@ -164,6 +183,7 @@ describe("fixture investigation sources", () => {
 
 		await investigateFixture(sources, {}, () => Promise.resolve(true));
 
+		expect(profileReads).toBe(1);
 		expect(openWorkPerCall).toHaveLength(2);
 		expect(openWorkPerCall[0]).toEqual([]);
 		expect(openWorkPerCall[1]).toMatchObject([

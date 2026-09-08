@@ -2392,6 +2392,84 @@ describe("intelligence agent", () => {
 	});
 
 	it.each([
+		{ providedCount: 0, citeBusiness: true, publish: true },
+		{ providedCount: 1, citeBusiness: true, publish: true },
+		{ providedCount: 2, citeBusiness: true, publish: true },
+		{ providedCount: 0, citeBusiness: true, publish: false },
+		{ providedCount: 1, citeBusiness: false, publish: true },
+		{ providedCount: 2, citeBusiness: false, publish: true },
+	])("keeps business citations separate from supplied collection evidence: %j", async ({
+		providedCount,
+		citeBusiness,
+		publish,
+	}) => {
+		const collection =
+			"Independent origin logs show requests continued while collection dropped; this period cannot support traffic comparisons.";
+		const background = "Example produces downloadable reports.";
+		const coverage = {
+			...agentOutcome,
+			title: "Site activity coverage stopped during the comparison week",
+			summary: "Recorded visitors fell from 1000 to 300.",
+			impact: "The coverage gap makes the traffic comparison unsafe.",
+			rootCause: null,
+			findingKind: "measurement_coverage" as const,
+			publicationBasis: publish ? ("decision_safety" as const) : null,
+			publish,
+			evidence: [citeBusiness ? background : collection],
+			evidenceRefs: [
+				{
+					source: "provided" as const,
+					index: citeBusiness ? providedCount : providedCount - 1,
+				},
+			],
+			next: {
+				type: "resolve" as const,
+				reason: "Coverage is uncertain; the cause has not been established.",
+			},
+		};
+		const run = runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence: Array.from({ length: providedCount }, () => collection),
+				businessContext: {
+					capturedAt: "2026-07-12T00:00:00.000Z",
+					status: "ready",
+					issues: [],
+					sources: [
+						{
+							id: "business-profile",
+							kind: "website",
+							content: background,
+							url: "https://example.com/",
+							observedAt: "2026-07-11T00:00:00.000Z",
+						},
+					],
+				},
+				signal: {
+					...signal,
+					entity: { type: "website", id: "website", label: "Visitors" },
+				},
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+			},
+			{ model: outputModel(coverage), tools: {} }
+		);
+		if (citeBusiness && publish) {
+			await expect(run).rejects.toThrow(
+				"cited collection or implementation evidence"
+			);
+			return;
+		}
+		expect((await run).outcome).toMatchObject({
+			publish,
+			evidence: coverage.evidence,
+			next: { type: "resolve" },
+			rootCause: null,
+		});
+	});
+
+	it.each([
 		{
 			resultKey: "bad",
 			output: {
