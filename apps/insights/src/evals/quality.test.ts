@@ -419,6 +419,12 @@ it.each([
 			messages: [],
 		});
 		const widened = !query.category && query.search !== "language";
+		if (!query.category && !query.search) {
+			expect(JSON.stringify(output)).not.toContain('"outputFields"');
+		}
+		if (available && !query.category && query.search === "revenue") {
+			expect(JSON.stringify(output)).toContain('"outputFields"');
+		}
 		expect(
 			fixture.check(result, [
 				{ name: "discover_query_types", input: query, output },

@@ -1926,7 +1926,15 @@ for (const available of [true, false]) {
 					);
 					return {
 						categories: ["Audience", "Profiles"],
-						types,
+						types:
+							category || needle
+								? types
+								: types.map(({ name, category, description, tags }) => ({
+										name,
+										category,
+										description,
+										tags,
+									})),
 						matchCount: types.length,
 					};
 				},
