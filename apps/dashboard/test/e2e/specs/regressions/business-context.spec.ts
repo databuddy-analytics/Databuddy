@@ -14,13 +14,20 @@ test("persists a manually edited business brief through the real API", {
 	await page.goto(path);
 	const editor = page.getByRole("textbox", { name: "Business brief" });
 	await expect(editor).toBeEditable();
+	const saveRequests: string[] = [];
+	page.on("request", (request) => {
+		if (request.url().includes("/rpc/businessContext/save")) {
+			saveRequests.push(request.url());
+		}
+	});
 	await editor.fill(brief);
 	const saved = page.waitForResponse((response) =>
 		response.url().includes("/rpc/businessContext/save")
 	);
-	await page.getByRole("button", { name: /^Save changes/ }).click();
+	await editor.press("ControlOrMeta+s");
 	expect((await saved).ok()).toBe(true);
 	await expect(page.getByText("Changes saved", { exact: true })).toBeVisible();
+	expect(saveRequests).toHaveLength(1);
 	await page.reload();
 	await expect(editor).toHaveValue(brief);
 	await expect(page.getByRole("button", { name: /^Save changes/ })).toHaveCount(

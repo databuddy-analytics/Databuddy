@@ -132,6 +132,7 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 ### Dashboard work
 
 - Start in `apps/dashboard`
+- Organization settings should match `organizations/components/general-settings.tsx`: the same `max-w-2xl` column, shared `Card` headers/content, compact fields, and `TopBar.Actions` for Save. Compare actual neighboring pages visually before claiming design consistency; shared inputs alone are not enough.
 - The Feature Flags list is a dense data table; keep flag identity metadata clean and place activity telemetry in a dedicated labeled column with its accuracy caveat in the Activity header tooltip.
 - Keep large page-owned settings sheets and dialogs in adjacent feature files; route components should own page data and layout rather than embedding unrelated form lifecycles.
 - For dashboard navigation audits, check all route surfaces: `components/layout/navigation/navigation-config.tsx`, `components/ui/command-search.tsx`, and local `PageNavigation` layouts under `app/**/layout.tsx` before calling a page orphaned.
