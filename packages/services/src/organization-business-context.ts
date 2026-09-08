@@ -5,10 +5,13 @@ import {
 	BUSINESS_CONTEXT_GENERATION_TIMEOUT,
 	BUSINESS_CONTEXT_DRAFT_HISTORY_LIMIT,
 	businessBriefSchema,
+	businessTeamContextSchema,
 	businessContextIsGenerating,
 	organizationBusinessContextSchema,
 	type BusinessBrief,
+	type BusinessTeamContext,
 	type OrganizationBusinessContext,
+	type OrganizationBusinessProfile,
 } from "@databuddy/shared/organization-business-context";
 import { z } from "zod";
 
@@ -204,12 +207,13 @@ export async function saveOrganizationBusinessProfile(input: {
 	content: string;
 	updatedBy: string;
 	generationId?: string;
+	teamContext?: BusinessTeamContext;
 }): Promise<OrganizationBusinessContext> {
 	return await update(input.organizationId, async (current, tx) => {
 		if ((current.profile?.revision ?? 0) !== input.revision) {
 			throw new BusinessContextError(
 				"CONFLICT",
-				"Business context changed since you opened it. Reload the saved version before saving your changes."
+				"A newer brief was saved. Review the update before saving your edits."
 			);
 		}
 		const generated = input.generationId
@@ -225,7 +229,7 @@ export async function saveOrganizationBusinessProfile(input: {
 		) {
 			throw new BusinessContextError(
 				"CONFLICT",
-				"The generated draft has changed. Reload before saving."
+				"This AI draft is no longer available. Your edits are still here; save them as your own text."
 			);
 		}
 		if (generated) {
@@ -248,29 +252,106 @@ export async function saveOrganizationBusinessProfile(input: {
 				);
 			}
 		}
-		const brief = businessBriefSchema.parse({
-			content: input.content,
-			sources: generated?.draft?.sources ?? current.profile?.sources ?? [],
-		});
-		let origin: "team" | "website" = "team";
-		if (generated?.draft?.content === brief.content) {
+		const content = input.content.trim();
+		const unchangedDraft = generated?.draft?.content === content;
+		const unchangedSaved = !generated && current.profile?.content === content;
+		// A small edit does not verify every inherited website claim. Manual changes
+		// also invalidate the old page citations; prior versions retain their sources.
+		let origin: OrganizationBusinessProfile["origin"] = "team";
+		if (unchangedDraft) {
 			origin =
-				current.profile?.origin === "team" && current.profile.content
-					? "team"
+				current.profile?.content && current.profile.origin !== "website"
+					? "mixed"
 					: "website";
-		} else if (!generated && current.profile?.content === brief.content) {
+		} else if (unchangedSaved && current.profile) {
 			origin = current.profile.origin;
+		} else if (
+			generated ||
+			(current.profile && current.profile.origin !== "team")
+		) {
+			origin = "mixed";
 		}
+		const brief = businessBriefSchema.parse({
+			content,
+			sources: unchangedDraft
+				? (generated?.draft?.sources ?? [])
+				: unchangedSaved
+					? (current.profile?.sources ?? [])
+					: [],
+		});
 		return {
+			history: profileHistory(current),
 			profile: {
 				...brief,
 				origin,
 				revision: input.revision + 1,
 				updatedAt: new Date().toISOString(),
 				updatedBy: input.updatedBy,
-				sourceWebsiteId:
-					generated?.websiteId ?? current.profile?.sourceWebsiteId ?? null,
+				teamContext: input.teamContext
+					? businessTeamContextSchema.parse(input.teamContext)
+					: current.profile?.teamContext,
+				sourceWebsiteId: unchangedDraft
+					? (generated?.websiteId ?? null)
+					: unchangedSaved
+						? (current.profile?.sourceWebsiteId ?? null)
+						: null,
 			},
+			generation: null,
+		};
+	});
+}
+
+function profileHistory(current: OrganizationBusinessContext) {
+	return [
+		...(current.history ?? []),
+		...(current.profile ? [current.profile] : []),
+	].slice(-BUSINESS_CONTEXT_DRAFT_HISTORY_LIMIT);
+}
+
+export async function cancelBusinessContextGeneration(input: {
+	organizationId: string;
+	generationId: string;
+}): Promise<OrganizationBusinessContext> {
+	return await update(input.organizationId, (current) => ({
+		...current,
+		generation:
+			current.generation?.id === input.generationId ? null : current.generation,
+		previousDrafts: current.previousDrafts?.filter(
+			(draft) => draft.id !== input.generationId
+		),
+	}));
+}
+
+export async function restoreOrganizationBusinessProfile(input: {
+	organizationId: string;
+	revision: number;
+	restoreRevision: number;
+	updatedBy: string;
+}): Promise<OrganizationBusinessContext> {
+	return await update(input.organizationId, (current) => {
+		if ((current.profile?.revision ?? 0) !== input.revision) {
+			throw new BusinessContextError(
+				"CONFLICT",
+				"A newer brief was saved. Review the update before restoring this version."
+			);
+		}
+		const previous = current.history?.find(
+			(profile) => profile.revision === input.restoreRevision
+		);
+		if (!previous) {
+			throw new BusinessContextError(
+				"NOT_FOUND",
+				"This version is no longer available."
+			);
+		}
+		return {
+			profile: {
+				...previous,
+				revision: input.revision + 1,
+				updatedAt: new Date().toISOString(),
+				updatedBy: input.updatedBy,
+			},
+			history: profileHistory(current),
 			generation: null,
 		};
 	});

@@ -1,3 +1,8 @@
+import {
+	businessSourceSchema,
+	type BusinessContext,
+	type BusinessSource,
+} from "@databuddy/shared/insights";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import type Supermemory from "supermemory";
@@ -11,7 +16,7 @@ import {
 
 const PUBLIC_CONTEXT_TTL = 7 * 24 * 60 * 60 * 1000;
 const REQUEST_TIMEOUT = 4000;
-const MAX_CONTEXT_CHARACTERS = 16_000;
+const MAX_CONTEXT_CHARACTERS = 24_000;
 
 export type { BusinessScope } from "@databuddy/services/business-memory";
 export { businessContainerTag } from "@databuddy/services/business-memory";
@@ -20,34 +25,15 @@ const timestamp = z.iso
 	.datetime({ offset: true })
 	.refine((value) => Number.isFinite(Date.parse(value)));
 
-export const businessSourceSchema = z.object({
-	id: z.string().min(1).max(500),
-	kind: z.enum(["website", "team_reply", "organization_profile"]),
-	content: z.string().min(1).max(4000),
-	observedAt: timestamp,
-	url: z.url().max(2048).optional(),
-	references: z
-		.array(z.object({ url: z.url().max(2048), title: z.string().max(512) }))
-		.max(8)
-		.optional(),
-	internalLinks: z.array(z.string().max(300)).max(10).optional(),
-	subjectKey: z.string().max(500).optional(),
-	author: z.string().max(200).optional(),
-	origin: z.enum(["team", "website"]).optional(),
-	expiresAt: timestamp.optional(),
-});
-export type BusinessSource = z.infer<typeof businessSourceSchema>;
-
-export const businessContextSchema = z.object({
-	capturedAt: timestamp,
-	status: z.enum(["ready", "partial", "unavailable", "disabled"]),
-	sources: z.array(businessSourceSchema).max(16),
-	issues: z.array(z.string().max(200)).max(20),
-});
-export type BusinessContext = z.infer<typeof businessContextSchema>;
+export {
+	businessContextSchema,
+	businessSourceSchema,
+	type BusinessContext,
+	type BusinessSource,
+} from "@databuddy/shared/insights";
 
 const metadataSchema = businessSourceSchema
-	.omit({ id: true, content: true, references: true })
+	.omit({ id: true, content: true, references: true, profileVersion: true })
 	.extend({
 		version: z.literal(1),
 		organizationId: z.string().min(1),
@@ -193,12 +179,22 @@ export function mergeBusinessContext(
 				...ordinary.filter((source) => source.kind !== "team_reply"),
 			]
 		: ordinary;
+	// Keep the usual 16k budget; a complete saved brief plus team fields may
+	// need more room. Leave one source of space for a direct team correction.
+	const characterLimit = Math.min(
+		MAX_CONTEXT_CHARACTERS,
+		Math.max(
+			16_000,
+			profiles.reduce((total, source) => total + source.content.length, 0) +
+				4000
+		)
+	);
 	const selected: BusinessSource[] = [];
 	let characters = 0;
 	for (const source of prioritized) {
 		if (
 			selected.length === 16 ||
-			characters + source.content.length > MAX_CONTEXT_CHARACTERS
+			characters + source.content.length > characterLimit
 		) {
 			continue;
 		}
@@ -332,9 +328,9 @@ async function recordSources(
 			.max(20)
 			.parse(sources)
 			.map((value) => {
-				// Organization references are supplied from SQL, never mirrored as memory metadata.
+				// Organization provenance is supplied from SQL, never mirrored as memory metadata.
 				const { id, content, ...source } = businessSourceSchema
-					.omit({ references: true })
+					.omit({ references: true, profileVersion: true })
 					.parse(value);
 				return {
 					content:

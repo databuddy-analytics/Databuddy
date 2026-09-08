@@ -1,4 +1,5 @@
 import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
+import type { WebsiteSummary } from "../../lib/accessible-websites";
 import {
 	ANTHROPIC_CACHE_1H,
 	createModelFromId,
@@ -12,6 +13,7 @@ import { stopAtMaxSteps } from "./stop-conditions";
 import type { AgentConfig } from "./types";
 
 export function createMcpAgentConfig(context: {
+	accessibleWebsites?: WebsiteSummary[];
 	billingCustomerId?: string | null;
 	requestHeaders: Headers;
 	apiKey: unknown;
@@ -69,6 +71,7 @@ export function createMcpAgentConfig(context: {
 		stopWhen: stopAtMaxSteps,
 		temperature: 0.1,
 		experimental_context: {
+			accessibleWebsites: context.accessibleWebsites,
 			apiKey,
 			billingCustomerId: context.billingCustomerId,
 			chatId,

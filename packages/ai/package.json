@@ -20,6 +20,7 @@
     "./lib/databuddy": "./src/lib/databuddy.ts",
     "./lib/date-presets": "./src/lib/date-presets.ts",
     "./lib/business-context": "./src/lib/business-context.ts",
+    "./lib/organization-business-context": "./src/lib/organization-business-context.ts",
     "./lib/supermemory": "./src/lib/supermemory.ts",
     "./lib/request-logger": "./src/lib/request-logger.ts",
     "./lib/tracing": "./src/lib/tracing.ts",
@@ -41,7 +42,7 @@
   ],
   "scripts": {
     "check-types": "tsc --noEmit",
-    "test": "bun test",
+    "test": "bun test --isolate",
     "test:stripe-revenue:e2e": "CLICKHOUSE_INTEGRATION_TESTS=true STRIPE_REVENUE_E2E=true bun test src/query/builders/stripe-revenue.e2e.integration.test.ts"
   },
   "dependencies": {

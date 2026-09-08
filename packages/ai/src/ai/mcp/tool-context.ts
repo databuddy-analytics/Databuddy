@@ -11,8 +11,8 @@ import { websitesApi } from "@databuddy/auth";
 import { getRedisCache } from "@databuddy/redis";
 import type { AppContext } from "../config/context";
 import { getCachedWebsite, validateWebsite } from "../../lib/website-utils";
+import { matchesWebsiteDomain } from "../../lib/website-domain";
 
-const PROTOCOL_RE = /^https?:\/\//;
 const ACCESSIBLE_WEBSITES_TTL_SEC = 30;
 const ACCESSIBLE_WEBSITES_KEY_PREFIX = "mcp:accessible_websites:v2:";
 
@@ -31,13 +31,17 @@ export interface RequestPrincipal {
 export async function ensureWebsiteAccess(
 	websiteId: string,
 	headers: Headers,
-	apiKey: ApiKeyRow | null
+	apiKey: ApiKeyRow | null,
+	organizationId?: string | null
 ): Promise<{ domain: string } | Error> {
 	const validation = await validateWebsite(websiteId);
 	if (!(validation.success && validation.website)) {
 		return new Error(validation.error ?? "Website not found");
 	}
 	const { website } = validation;
+	if (organizationId && website.organizationId !== organizationId) {
+		return new Error("Website is not in this organization");
+	}
 
 	if (apiKey) {
 		const hasWebsiteAccess = hasWebsiteScopeForOrganization(
@@ -131,9 +135,11 @@ export async function resolveWebsiteId(
 
 	const list = await getCachedAccessibleWebsites(principal);
 
-	if (input.websiteDomain) {
-		const domain = input.websiteDomain.toLowerCase().replace(PROTOCOL_RE, "");
-		const match = list.find((w) => w.domain?.toLowerCase() === domain);
+	const domain = input.websiteDomain;
+	if (domain) {
+		const match = list.find((website) =>
+			matchesWebsiteDomain(website.domain, domain)
+		);
 		if (match) {
 			return match.id;
 		}

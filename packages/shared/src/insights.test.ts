@@ -267,6 +267,62 @@ describe("insightBriefItemSchema", () => {
 });
 
 describe("investigationOutcomeSchema", () => {
+	it.each(["team", "website", "mixed"])("round trips %s context without letting the model author provenance", (origin) => {
+		const snapshot = {
+			capturedAt: "2026-09-08T12:00:00Z",
+			status: "partial",
+			issues: ["Context is bounded; additional source records were omitted."],
+			sources: [
+				{
+					id: "organization-profile:example-org:0",
+					kind: "organization_profile",
+					content:
+						"Report preparation starts a draft, not a completed download.",
+					origin,
+					observedAt: "2026-09-08T11:00:00Z",
+					profileVersion: { revision: 3, updatedAt: "2026-09-08T11:00:00Z" },
+					references: [
+						{ title: "Report guide", url: "https://example.com/reports" },
+					],
+				},
+			],
+		};
+		const persisted = JSON.parse(
+			JSON.stringify({ ...outcomeBase, contextSnapshot: snapshot })
+		);
+		expect(parseInvestigationOutcome(persisted)?.contextSnapshot).toEqual(
+			snapshot
+		);
+		expect(parseInvestigationOutcome(outcomeBase)).not.toHaveProperty(
+			"contextSnapshot"
+		);
+		const authored = agentInvestigationOutcomeSchema.parse({
+			...outcomeBase,
+			...agentFields,
+			publish: true,
+			contextSnapshot: snapshot,
+		});
+		expect(authored).not.toHaveProperty("contextSnapshot");
+		expect(agentInvestigationOutcomeSchema.shape).not.toHaveProperty(
+			"contextSnapshot"
+		);
+		const invalid = {
+			...snapshot,
+			sources: [
+				{
+					...snapshot.sources[0],
+					profileVersion: { revision: 0, updatedAt: "invalid" },
+				},
+			],
+		};
+		expect(
+			investigationOutcomeSchema.safeParse({
+				...outcomeBase,
+				contextSnapshot: invalid,
+			}).success
+		).toBe(false);
+	});
+
 	it("accepts concise titles while rejecting empty titles and raw identifiers", () => {
 		const accepted = {
 			...outcomeBase,

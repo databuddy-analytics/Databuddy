@@ -34,6 +34,29 @@ afterEach(() => {
 	else process.env.AUTUMN_SECRET_KEY = secret;
 });
 
+function clock() {
+	const started = Date.now();
+	let elapsed = 0;
+	const timers: { at: number; controller: AbortController }[] = [];
+	spyOn(Date, "now").mockImplementation(() => started + elapsed);
+	spyOn(performance, "now").mockImplementation(() => elapsed);
+	spyOn(AbortSignal, "timeout").mockImplementation((ms) => {
+		const controller = new AbortController();
+		timers.push({ at: elapsed + ms, controller });
+		return controller.signal;
+	});
+	return (ms: number) => {
+		elapsed += ms;
+		for (const timer of timers) {
+			if (timer.at <= elapsed) {
+				timer.controller.abort(
+					new DOMException("Test deadline", "TimeoutError")
+				);
+			}
+		}
+	};
+}
+
 function fixture(
 	outputs: unknown[] = [
 		{ paths: ["/pricing"] },
@@ -157,12 +180,12 @@ function fixture(
 	const errors = spyOn(logs, "captureInsightsError").mockImplementation(
 		() => {}
 	);
-	spyOn(logs, "emitInsightsEvent").mockImplementation(() => {});
+	const events = spyOn(logs, "emitInsightsEvent").mockImplementation(() => {});
 	setAiRequestLoggerProvider(logs.getActiveInsightsLog);
+	const logger = logs.createInsightsEventLog({ test: true });
 	const run = () =>
-		logs.withInsightsLogContext(
-			logs.createInsightsEventLog({ test: true }),
-			() => generateOrganizationBusinessContext(input)
+		logs.withInsightsLogContext(logger, () =>
+			generateOrganizationBusinessContext(input)
 		);
 	return {
 		get state() {
@@ -183,6 +206,8 @@ function fixture(
 		billed,
 		model,
 		errors,
+		events,
+		logger,
 	};
 }
 
@@ -225,6 +250,26 @@ describe("organization business context worker", () => {
 		expect(JSON.stringify(synthesis)).toContain("savedContext");
 		expect(JSON.stringify(synthesis)).toContain(manual);
 		expect(f.bill).toHaveBeenCalledTimes(2);
+		expect(f.logger.getContext().ai).toMatchObject({
+			calls: 2,
+			inputTokens: 400,
+			outputTokens: 200,
+			totalTokens: 600,
+		});
+		expect(
+			f.events.mock.calls
+				.filter(
+					([, event]) => event === "organization_business_context.model_call"
+				)
+				.map(([, , fields]) => ({
+					phase: fields?.phase,
+					input: fields?.input_tokens,
+					output: fields?.output_tokens,
+				}))
+		).toEqual([
+			{ phase: "selection", input: 200, output: 100 },
+			{ phase: "synthesis", input: 200, output: 100 },
+		]);
 		expect(
 			new Set(f.bill.mock.calls.map(([call]) => call.idempotencyKey)).size
 		).toBe(2);
@@ -277,7 +322,7 @@ describe("organization business context worker", () => {
 			"Saving that summary unchanged does not establish internal event semantics"
 		);
 		expect(instructions?.content).toContain(
-			"origin=team indicates actual team edits"
+			"origin=team or mixed may contain actual team edits"
 		);
 		expect(f.state.profile).toEqual({ ...profile, origin, sources });
 		expect(f.model.doGenerateCalls).toHaveLength(2);
@@ -324,6 +369,11 @@ describe("organization business context worker", () => {
 		expect(f.state.generation?.status).toBe("failed");
 		expect(f.state.profile?.content).toBe(manual);
 		expect(f.bill).toHaveBeenCalledTimes(2);
+		expect(f.logger.getContext().ai).toMatchObject({
+			calls: 2,
+			inputTokens: 400,
+			outputTokens: 200,
+		});
 	});
 
 	it.each([
@@ -331,6 +381,7 @@ describe("organization business context worker", () => {
 		"expired",
 		"ready",
 		"failed",
+		"cancelled",
 	])("does no work for %s generation", async (condition) => {
 		const f = fixture();
 		const generation = f.state.generation;
@@ -342,10 +393,99 @@ describe("organization business context worker", () => {
 			).toISOString();
 		if (condition === "ready" || condition === "failed")
 			generation.status = condition;
+		if (condition === "cancelled") f.state.generation = null;
 		await f.run();
 		expect(f.site).not.toHaveBeenCalled();
 		expect(f.mark).not.toHaveBeenCalled();
 		expect(f.model.doGenerateCalls).toHaveLength(0);
+	});
+
+	it.each([
+		"saved",
+		"cancelled",
+		"superseded",
+		"failed",
+		"ready",
+	] as const)("stops after selection is %s, accounting for the consumed call", async (condition) => {
+		const f = fixture();
+		const generate = f.model.doGenerate;
+		f.model.doGenerate = async (options) => {
+			const result = await generate(options);
+			if (!f.state.profile || !f.state.generation)
+				throw new Error("Missing fixture");
+			if (condition === "saved") {
+				f.state.profile = {
+					...f.state.profile,
+					content: "New team correction",
+					revision: 4,
+				};
+				f.state.generation = null;
+			}
+			if (condition === "cancelled") f.state.generation = null;
+			if (condition === "superseded" && f.state.generation)
+				f.state.generation = { ...f.state.generation, id: "new-generation" };
+			if (
+				(condition === "failed" || condition === "ready") &&
+				f.state.generation
+			)
+				f.state.generation.status = condition;
+			return result;
+		};
+		await f.run();
+		expect(f.model.doGenerateCalls).toHaveLength(1);
+		expect(f.bill).toHaveBeenCalledTimes(1);
+		expect(f.read.mock.calls.map(([call]) => call.path)).toEqual(["/"]);
+		expect(f.mark).toHaveBeenCalledTimes(1);
+		expect(f.errors).not.toHaveBeenCalled();
+		expect(f.logger.getContext().ai).toMatchObject({
+			calls: 1,
+			inputTokens: 200,
+			outputTokens: 100,
+		});
+		expect(f.state.profile?.content).toBe(
+			condition === "saved" ? "New team correction" : manual
+		);
+	});
+
+	it.each([
+		"credits",
+		"homepage",
+		"discovery",
+		"selected-page",
+	] as const)("checks cancellation after %s before starting more reads or model calls", async (phase) => {
+		const f = fixture();
+		if (phase === "credits") {
+			f.credits.mockImplementation(async () => {
+				f.state.generation = null;
+				return true;
+			});
+		}
+		if (phase === "discovery") {
+			f.search.mockImplementation(async () => {
+				f.state.generation = null;
+				return { success: true, results: [] };
+			});
+		}
+		const read = f.read.getMockImplementation();
+		if (!read) throw new Error("Missing page fixture");
+		f.read.mockImplementation(async (...args) => {
+			const result = await read(...args);
+			if (
+				(phase === "homepage" && args[0].path === "/") ||
+				(phase === "selected-page" && args[0].path === "/pricing")
+			)
+				f.state.generation = null;
+			return result;
+		});
+		await f.run();
+		expect(f.model.doGenerateCalls).toHaveLength(
+			phase === "selected-page" ? 1 : 0
+		);
+		expect(f.bill).toHaveBeenCalledTimes(phase === "selected-page" ? 1 : 0);
+		if (phase === "credits") expect(f.read).not.toHaveBeenCalled();
+		if (phase === "homepage") expect(f.search).not.toHaveBeenCalled();
+		expect(f.state.generation).toBeNull();
+		expect(f.errors).not.toHaveBeenCalled();
 	});
 
 	it("does not read a deleted, transferred, or renamed source website", async () => {
@@ -473,18 +613,130 @@ describe("organization business context worker", () => {
 		expect(f.model.doGenerateCalls).toHaveLength(0);
 	});
 
-	it("bounds a hanging source read and preserves saved content on timeout", async () => {
+	it.each([
+		0, 170_000,
+	])("bounds a hanging source read with %i ms queue age", async (age) => {
 		const f = fixture();
-		const timeout = AbortSignal.timeout;
-		spyOn(AbortSignal, "timeout").mockImplementation((ms) =>
-			timeout(ms === 115_000 ? 5 : ms)
-		);
-		f.read.mockImplementation(() => new Promise(() => {}));
+		const advance = clock();
+		if (!f.state.generation) throw new Error("Missing fixture generation");
+		f.state.generation.requestedAt = new Date(Date.now() - age).toISOString();
+		f.read.mockImplementation(({ abortSignal }) => {
+			advance(age ? 5000 : 115_000);
+			expect(abortSignal?.aborted).toBe(true);
+			return new Promise(() => {});
+		});
 		await f.run();
 		expect(f.state.generation?.status).toBe("failed");
 		expect(f.state.generation?.error).toContain("too long");
 		expect(f.state.profile?.content).toBe(manual);
 		expect(f.model.doGenerateCalls).toHaveLength(0);
+	});
+
+	it("does not start work when only the persistence reserve remains", async () => {
+		const f = fixture();
+		clock();
+		if (!f.state.generation) throw new Error("Missing fixture generation");
+		f.state.generation.requestedAt = new Date(
+			Date.now() - 175_000
+		).toISOString();
+		await f.run();
+		expect(f.state.generation?.status).toBe("failed");
+		expect(f.state.generation?.error).toContain("too long");
+		expect(f.site).not.toHaveBeenCalled();
+		expect(f.read).not.toHaveBeenCalled();
+		expect(f.bill).not.toHaveBeenCalled();
+	});
+
+	it("stops before synthesis when selection uses the remaining request budget", async () => {
+		const f = fixture();
+		const advance = clock();
+		if (!f.state.generation) throw new Error("Missing fixture generation");
+		f.state.generation.requestedAt = new Date(
+			Date.now() - 170_000
+		).toISOString();
+		f.bill.mockImplementation(async (call) => {
+			advance(5000);
+			return f.billed(call);
+		});
+		await f.run();
+		expect(f.model.doGenerateCalls).toHaveLength(1);
+		expect(f.bill).toHaveBeenCalledTimes(1);
+		expect(f.read.mock.calls.map(([call]) => call.path)).toEqual(["/"]);
+		expect(f.state.generation?.status).toBe("failed");
+		expect(f.state.generation?.error).toContain("too long");
+		expect(f.state.generation?.draft).toBeNull();
+		expect(f.logger.getContext().ai).toMatchObject({
+			calls: 1,
+			inputTokens: 200,
+			outputTokens: 100,
+		});
+	});
+
+	it("bounds the model by the request deadline after queue and source reads", async () => {
+		const f = fixture();
+		const advance = clock();
+		if (!f.state.generation) throw new Error("Missing fixture generation");
+		f.state.generation.requestedAt = new Date(
+			Date.now() - 170_000
+		).toISOString();
+		const read = f.read.getMockImplementation();
+		if (!read) throw new Error("Missing page fixture");
+		f.read.mockImplementation(async (...args) => {
+			advance(2000);
+			return await read(...args);
+		});
+		const generate = f.model.doGenerate;
+		f.model.doGenerate = async (options) => {
+			const result = await generate(options);
+			advance(2999);
+			expect(options.abortSignal?.aborted).toBe(false);
+			advance(1);
+			expect(options.abortSignal?.aborted).toBe(true);
+			options.abortSignal?.throwIfAborted();
+			return result;
+		};
+		await f.run();
+		expect(f.model.doGenerateCalls).toHaveLength(1);
+		expect(f.state.generation?.status).toBe("failed");
+		expect(f.state.generation?.error).toContain("too long");
+		expect(f.bill).not.toHaveBeenCalled();
+	});
+
+	it("finishes consumed-call billing and persists within the reserve before request expiry", async () => {
+		const f = fixture();
+		const advance = clock();
+		if (!f.state.generation) throw new Error("Missing fixture generation");
+		f.state.generation.requestedAt = new Date(
+			Date.now() - 170_000
+		).toISOString();
+		const expiry = Date.now() + 10_000;
+		const generate = f.model.doGenerate;
+		f.model.doGenerate = async (options) => {
+			advance(2000);
+			expect(options.abortSignal?.aborted).toBe(false);
+			return await generate(options);
+		};
+		f.bill.mockImplementation(async (call) => {
+			if (f.model.doGenerateCalls.length === 2) advance(4000);
+			return f.billed(call);
+		});
+		const mark = f.mark.getMockImplementation();
+		if (!mark) throw new Error("Missing persistence fixture");
+		f.mark.mockImplementation(async (change) => {
+			if (change.status === "ready") {
+				expect(Date.now()).toBe(expiry - 2000);
+				advance(1000);
+			}
+			return await mark(change);
+		});
+		await f.run();
+		expect(f.model.doGenerateCalls).toHaveLength(2);
+		expect(f.model.doGenerateCalls[1]?.abortSignal?.aborted).toBe(true);
+		expect(f.bill).toHaveBeenCalledTimes(2);
+		expect(f.state.generation?.status).toBe("ready");
+		expect(Date.now()).toBeLessThan(expiry);
+		expect(f.state.profile?.content).toBe(manual);
+		expect(f.errors).not.toHaveBeenCalled();
 	});
 
 	it("preserves saved manual text and the internal cause when the model fails", async () => {
