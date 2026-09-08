@@ -120,7 +120,7 @@ export interface CustomSqlContext {
 	limit?: number;
 	offset?: number;
 	orderBy?: string;
-	preparedKeys?: string[];
+	preparedKeys?: Record<string, string[]>;
 	startDate: string;
 	timezone?: string;
 	websiteId: string;
@@ -136,10 +136,11 @@ export type CustomSqlFn = (
  * it once per reference. Builders declaring this never join a batched UNION.
  */
 export type PrepareSqlFn = (ctx: CustomSqlContext) => {
+	as: string;
 	column: string;
-	sql: string;
 	params: Record<string, unknown>;
-};
+	sql: string;
+}[];
 
 export interface PercentageOf {
 	as?: string;

@@ -595,8 +595,8 @@ function profileListQueries(ctx: CustomSqlContext) {
 		: "";
 
 	const profileSort = resolveProfileSort(orderBy);
-	const selectedVisitors = ctx.preparedKeys
-		? "IN {preparedKeys:Array(String)}"
+	const selectedVisitors = ctx.preparedKeys?.pageVisitorIds
+		? "IN {pageVisitorIds:Array(String)}"
 		: "IN (SELECT visitor_id FROM visitor_profiles)";
 	const profileRevenueKeyPredicate = `${CUSTOM_EVENTS_VISITOR_KEY} ${selectedVisitors}`;
 
@@ -688,6 +688,7 @@ function profileListQueries(ctx: CustomSqlContext) {
 
 	return {
 		ids: {
+			as: "pageVisitorIds",
 			column: "visitor_id",
 			params,
 			sql: `${head}
@@ -763,7 +764,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 		},
 		allowedFilters: PROFILE_LIST_ALLOWED_FILTERS,
 		customSql: (ctx) => profileListQueries(ctx).full,
-		prepareSql: (ctx) => profileListQueries(ctx).ids,
+		prepareSql: (ctx) => [profileListQueries(ctx).ids],
 	},
 
 	profile_detail: {
