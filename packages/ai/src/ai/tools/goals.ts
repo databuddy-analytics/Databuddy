@@ -71,7 +71,7 @@ export function createGoalTools() {
 
 	const getGoalAnalyticsTool = tool({
 		description:
-			"Goal definition, measured dates and distinct visitor counts. total_users_entered: website page-view visitors matching filters except event_name. total_users_completed: visitors matching the goal. overall_conversion_rate: completed / entered percent, not login or attempt success. Optional cohort measures browser, device, country or campaign segments without editing the saved definition. Compare cohorts and periods with parallel calls. Reuse matching verified measurements; remeasure stale or conflicting context.",
+			"Goal definition, measured dates and distinct visitor counts. savedDefinition is the saved configuration; measurement.definition includes read-time cohort filters. A filtered measurement alone does not establish a saved-definition change. total_users_entered: website page-view visitors matching filters except event_name. total_users_completed: visitors matching the goal. overall_conversion_rate: completed / entered percent, not login or attempt success. Optional cohort measures browser, device, country or campaign segments without editing the saved definition. Compare cohorts and periods with parallel calls. Reuse matching verified measurements; remeasure stale or conflicting context.",
 		inputSchema: goalAnalyticsInputSchema,
 		execute: async (
 			{ goalId, websiteId: inputWebsiteId, startDate, endDate, cohort },

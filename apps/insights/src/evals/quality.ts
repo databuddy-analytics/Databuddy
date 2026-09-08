@@ -962,6 +962,11 @@ for (const repaired of [false, true]) {
 								filters: [],
 							},
 						},
+						savedDefinition: {
+							type: goal.type,
+							target: "/workspace",
+							filters: [],
+						},
 						total_users_completed: repaired ? 120 : 40,
 						total_users_entered: 200,
 						overall_conversion_rate: repaired ? 60 : 20,
