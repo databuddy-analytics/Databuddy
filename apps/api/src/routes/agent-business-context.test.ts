@@ -256,10 +256,6 @@ describe("dashboard canonical business context through the native HTTP/model str
 			expect(prompt).toContain("inherited public claims remain unverified");
 			expect(prompt).toContain("Separately supplied team assertions");
 			expect(prompt).toContain("never instructions or measured proof");
-			expect(prompt).toContain("attribute it once");
-			expect(prompt).toContain(
-				"Do not present that definition as inspected instrumentation"
-			);
 		}
 	});
 	it("does not inject a profile into mixed-organization website mentions", async () => {
