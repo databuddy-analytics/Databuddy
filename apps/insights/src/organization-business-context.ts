@@ -86,8 +86,18 @@ export async function generateOrganizationBusinessContext(
 ): Promise<void> {
 	const input = generationSchema.parse(payload);
 	const started = performance.now();
-	// Reserve five seconds to persist a friendly failure within the 120s job budget.
-	const signal = AbortSignal.timeout(115_000);
+	let deadline = Date.now() + 120_000;
+	const remaining = (reserve = 0) =>
+		Math.max(
+			0,
+			Math.floor(
+				Math.min(
+					deadline - Date.now(),
+					120_000 - (performance.now() - started)
+				) - reserve
+			)
+		);
+	let signal = AbortSignal.timeout(115_000);
 	const fields = {
 		organization_id: input.organizationId,
 		generation_id: input.generationId,
@@ -110,6 +120,35 @@ export async function generateOrganizationBusinessContext(
 		) {
 			return;
 		}
+		deadline = Math.min(
+			deadline,
+			Date.parse(generation.requestedAt) + BUSINESS_CONTEXT_GENERATION_TIMEOUT
+		);
+		// Queue age counts against the same deadline as the service. Reserve five
+		// seconds for consumed-call billing and persistence, including a friendly failure.
+		signal = AbortSignal.any([signal, AbortSignal.timeout(remaining(5000))]);
+		const settlement = AbortSignal.timeout(remaining());
+		const available = () => {
+			signal.throwIfAborted();
+			const ms = remaining(5000);
+			if (ms <= 0) {
+				throw new DOMException("Generation deadline reached", "TimeoutError");
+			}
+			return ms;
+		};
+		const current = async () => {
+			available();
+			const latest = await bounded(
+				readOrganizationBusinessContext(input.organizationId),
+				signal
+			);
+			available();
+			return (
+				latest.generation?.id === input.generationId &&
+				latest.generation.status === "running"
+			);
+		};
+		available();
 		const site = await bounded(
 			db.query.websites.findFirst({
 				where: {
@@ -190,7 +229,7 @@ export async function generateOrganizationBusinessContext(
 							usage,
 							idempotencyKey,
 						}),
-						signal
+						settlement
 					);
 					if (logger.getContext().agent_usage_billing_error) {
 						throw new Error("Business context usage billing failed", {
@@ -233,9 +272,15 @@ export async function generateOrganizationBusinessContext(
 			});
 			return result;
 		};
+		if (!(await current())) {
+			return;
+		}
 		const home = await read("/");
 		if (!home) {
 			throw new Error("No readable business homepage");
+		}
+		if (!(await current())) {
+			return;
 		}
 		// Reuse the existing same-site search tool; discovery snippets are never evidence.
 		const search = createScrapeTools().search_website;
@@ -297,13 +342,14 @@ export async function generateOrganizationBusinessContext(
 		// AI SDK telemetry callbacks swallow thrown errors; check billing explicitly
 		// after each call, before another read or making the draft available.
 		let billingFailure: Error | undefined;
+		const model = getAILogger().wrap(createModelFromId(MODEL));
 		const options = (phase: string) => {
 			const key = `org-business-context:${input.generationId}:${phase}:${randomUUID()}`;
 			return {
-				model: getAILogger().wrap(createModelFromId(MODEL)),
+				model,
 				maxRetries: 0,
 				abortSignal: signal,
-				timeout: { totalMs: 45_000 },
+				timeout: { totalMs: Math.min(45_000, available()) },
 				onStepFinish: async (step: { usage: LanguageModelUsage }) => {
 					emitInsightsEvent(
 						"info",
@@ -325,6 +371,9 @@ export async function generateOrganizationBusinessContext(
 			};
 		};
 		if (paths.length) {
+			if (!(await current())) {
+				return;
+			}
 			const selected = await bounded(
 				generateText({
 					...options("selection"),
@@ -339,10 +388,13 @@ export async function generateOrganizationBusinessContext(
 						paths,
 					}),
 				}),
-				signal
+				settlement
 			);
 			if (billingFailure) {
 				throw billingFailure;
+			}
+			if (!(await current())) {
+				return;
 			}
 			const chosen = z.array(z.enum(paths)).max(6).parse(selected.output.paths);
 			const results = await Promise.all([...new Set(chosen)].map(read));
@@ -368,6 +420,9 @@ export async function generateOrganizationBusinessContext(
 				.min(1)
 				.max(7),
 		});
+		if (!(await current())) {
+			return;
+		}
 		const compiled = await bounded(
 			generateText({
 				...options("synthesis"),
@@ -394,7 +449,7 @@ export async function generateOrganizationBusinessContext(
 					})),
 				}),
 			}),
-			signal
+			settlement
 		);
 		if (billingFailure) {
 			throw billingFailure;
@@ -409,10 +464,9 @@ export async function generateOrganizationBusinessContext(
 					title: page.title ?? page.finalUrl,
 				})),
 		});
-		signal.throwIfAborted();
 		const ready = await bounded(
 			markBusinessContextGeneration({ ...input, status: "ready", draft }),
-			signal
+			settlement
 		);
 		if (
 			ready.generation?.id !== input.generationId ||
@@ -431,16 +485,17 @@ export async function generateOrganizationBusinessContext(
 			"organization_business_context.generation_failed",
 			fields
 		);
-		const remaining = Math.max(1, 120_000 - (performance.now() - started));
 		await bounded(
 			markBusinessContextGeneration({
 				...input,
 				status: "failed",
-				error: signal.aborted
-					? "Generation took too long. Try again; your saved context is unchanged."
-					: failure,
+				error:
+					signal.aborted ||
+					(error instanceof Error && error.name === "TimeoutError")
+						? "Generation took too long. Try again; your saved context is unchanged."
+						: failure,
 			}),
-			AbortSignal.timeout(Math.floor(remaining))
+			AbortSignal.timeout(Math.max(1, remaining()))
 		);
 	}
 }
