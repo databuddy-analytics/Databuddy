@@ -1,10 +1,12 @@
 import "@databuddy/test/env";
 import { describe, expect, it, spyOn } from "bun:test";
-import type {
-	BusinessContext,
-	BusinessSource,
+import {
+	businessContextSchema,
+	type BusinessContext,
+	type BusinessSource,
 } from "@databuddy/ai/lib/business-context";
 import * as memory from "@databuddy/services/business-memory";
+import type { OrganizationBusinessProfile } from "@databuddy/shared/organization-business-context";
 import {
 	loadCurrentBusinessScope,
 	assertBusinessScopeCurrent,
@@ -159,8 +161,12 @@ describe("website business context reconciliation", () => {
 			);
 			expect(result.sources).toContainEqual(page);
 			expect(
-				result.sources.some((source) => source.kind === "team_reply")
-			).toBe(true);
+				result.sources.filter((source) => source.kind === "team_reply")
+			).toEqual(replies.slice(0, 15));
+			expect(result.status).toBe("partial");
+			expect(result.issues).toContain(
+				"Context is bounded; additional source records were omitted."
+			);
 		}
 		expect(writes).toBe(0);
 	});
@@ -404,5 +410,318 @@ describe("website business context reconciliation", () => {
 		expect(shared.sources).toEqual([statement]);
 		expect(recalled.sources).toEqual([statement]);
 		expect(writes).toBe(0);
+	});
+});
+
+describe("saved organization business context", () => {
+	const profile: OrganizationBusinessProfile = {
+		content: "Report preparation starts a draft; it does not deliver a report.",
+		origin: "team",
+		sources: [],
+		revision: 3,
+		updatedAt: "2026-09-05T11:00:00.000Z",
+		updatedBy: "example-editor",
+		sourceWebsiteId: null,
+	};
+	const input = { scope, asOf, allowRefresh: false };
+
+	it("keeps the complete 12k saved profile and canonical correction ahead of a full homepage", async () => {
+		const content = "A".repeat(4000) + "B".repeat(4000) + "C".repeat(4000);
+		const result = await loadWebsiteBusinessProfile(
+			input,
+			dependencies({
+				loadProfile: async () =>
+					context([{ ...page, content: "P".repeat(4000) }]),
+				readOrganization: async () => ({
+					profile: { ...profile, content },
+					generation: null,
+				}),
+			})
+		);
+		expect(result.sources.map((source) => source.kind)).toEqual([
+			"organization_profile",
+			"organization_profile",
+			"organization_profile",
+			"team_reply",
+		]);
+		expect(
+			result.sources
+				.slice(0, 3)
+				.map((source) => source.content)
+				.join("")
+		).toBe(content);
+		expect(result.sources).toContainEqual(statement);
+		expect(result.sources.some((source) => source.id === page.id)).toBe(false);
+		expect(
+			result.sources.reduce(
+				(length, source) => length + source.content.length,
+				0
+			)
+		).toBe(12_000 + statement.content.length);
+		expect(businessContextSchema.safeParse(result).success).toBe(true);
+		expect(result.status).toBe("partial");
+		expect(result.issues).toContain(
+			"Context is bounded; additional source records were omitted."
+		);
+	});
+
+	it.each([
+		{ name: "deleted scope", current: null },
+		{
+			name: "organization transfer",
+			current: { ...scope, organizationId: "other" },
+		},
+		{ name: "changed domain", current: { ...scope, domain: "other.example" } },
+		{
+			name: "new epoch",
+			current: { ...scope, startedAt: "2026-09-05T11:00:00.000Z" },
+		},
+		{
+			name: "failed lookup",
+			current: new Error("Synthetic scope recheck unavailable"),
+		},
+	])("withholds all context and skips organization reading after reconciliation finds $name", async ({
+		current,
+	}) => {
+		let checks = 0;
+		let profileReads = 0;
+		let replyReads = 0;
+		let organizationReads = 0;
+		let writes = 0;
+		const result = await loadWebsiteBusinessProfile(
+			input,
+			dependencies({
+				currentScope: async () => {
+					checks += 1;
+					if (checks === 1) {
+						return scope;
+					}
+					if (current instanceof Error) {
+						throw current;
+					}
+					return current;
+				},
+				loadProfile: async () => {
+					profileReads += 1;
+					return context([page]);
+				},
+				readReplies: async () => {
+					replyReads += 1;
+					return [statement];
+				},
+				readOrganization: async () => {
+					organizationReads += 1;
+					return { profile, generation: null };
+				},
+				record: async () => {
+					writes += 1;
+					return { status: "saved", ids: [] };
+				},
+			})
+		);
+		expect(checks).toBe(2);
+		expect(profileReads).toBe(1);
+		expect(replyReads).toBe(1);
+		expect(organizationReads).toBe(0);
+		expect(writes).toBe(0);
+		expect(result.sources).toEqual([]);
+		expect(result.status).toBe("unavailable");
+		expect(result.issues.length).toBeGreaterThan(0);
+	});
+
+	it.each([
+		"throws",
+		"returns unavailable",
+	])("keeps saved organization context and canonical replies when the public page loader %s", async (failure) => {
+		let checks = 0;
+		const reads: string[] = [];
+		const result = await loadWebsiteBusinessProfile(
+			input,
+			dependencies({
+				currentScope: async () => {
+					checks += 1;
+					return scope;
+				},
+				loadProfile: async () => {
+					if (failure === "throws") {
+						throw new Error("Synthetic public page unavailable");
+					}
+					return {
+						...context(),
+						status: "unavailable",
+						issues: ["Synthetic public page unavailable"],
+					};
+				},
+				readOrganization: async (organizationId) => {
+					reads.push(organizationId);
+					return { profile, generation: null };
+				},
+			})
+		);
+		expect(checks).toBe(3);
+		expect(reads).toEqual([scope.organizationId]);
+		expect(result.sources).toHaveLength(2);
+		expect(result.sources[0]).toMatchObject({
+			kind: "organization_profile",
+			content: profile.content,
+			origin: profile.origin,
+			observedAt: profile.updatedAt,
+		});
+		expect(result.sources).toContainEqual(statement);
+		expect(result.status).toBe("partial");
+		expect(result.issues.length).toBeGreaterThan(0);
+	});
+
+	it.each([
+		"team",
+		"website",
+	] as const)("preserves all 12k saved characters and %s provenance through the loader", async (origin) => {
+		const content =
+			"A".repeat(3999) + "1" + "B".repeat(3999) + "2" + "C".repeat(3999) + "3";
+		const references = Array.from({ length: 8 }, (_, index) => ({
+			url: `https://example.com/docs/report-${index}?source=business-profile`,
+			title: `Report definition ${index + 1}`,
+		}));
+		const reads: string[] = [];
+		let writes = 0;
+		const result = await loadWebsiteBusinessProfile(
+			input,
+			dependencies({
+				readOrganization: async (organizationId) => {
+					reads.push(organizationId);
+					return {
+						profile: { ...profile, content, origin, sources: references },
+						generation: null,
+					};
+				},
+				record: async () => {
+					writes += 1;
+					return { status: "saved", ids: [] };
+				},
+			})
+		);
+		const chunks = result.sources.filter(
+			(source) => source.kind === "organization_profile"
+		);
+		expect(reads).toEqual([scope.organizationId]);
+		expect(writes).toBe(0);
+		expect(businessContextSchema.parse(result)).toEqual(result);
+		expect(chunks.map((source) => source.content.length)).toEqual([
+			4000, 4000, 4000,
+		]);
+		expect(chunks.map((source) => source.content).join("")).toBe(content);
+		expect(new Set(chunks.map((source) => source.id)).size).toBe(3);
+		expect(chunks[0]?.references).toEqual(references);
+		expect(chunks.slice(1).map((source) => source.references)).toEqual([
+			undefined,
+			undefined,
+		]);
+		for (const source of chunks) {
+			expect(source).toMatchObject({ origin, observedAt: profile.updatedAt });
+		}
+		expect(result.sources).toContainEqual(page);
+		expect(result.sources).toContainEqual(statement);
+	});
+
+	it.each([
+		null,
+		profile,
+	])("does not consume a ready unsaved draft alongside saved profile %j", async (saved) => {
+		const draftContent = "Unsaved proposal: report preparation means delivery.";
+		const result = await loadWebsiteBusinessProfile(
+			input,
+			dependencies({
+				readOrganization: async () => ({
+					profile: saved,
+					generation: {
+						id: "example-generation",
+						websiteId: scope.websiteId,
+						domain: scope.domain,
+						requestedBy: "example-editor",
+						requestedAt: asOf.toISOString(),
+						baseRevision: saved?.revision ?? 0,
+						status: "ready",
+						draft: { content: draftContent, sources: [] },
+						error: null,
+					},
+				}),
+			})
+		);
+		expect(
+			result.sources
+				.filter((source) => source.kind === "organization_profile")
+				.map((source) => source.content)
+		).toEqual(saved ? [saved.content] : []);
+		expect(
+			result.sources.some((source) => source.content.includes(draftContent))
+		).toBe(false);
+		expect(result.sources).toContainEqual(page);
+		expect(result.sources).toContainEqual(statement);
+	});
+
+	it.each([
+		{ updatedAt: "2026-09-05T12:00:00.001Z", included: false },
+		{ updatedAt: "2026-09-05T12:00:00.000Z", included: true },
+	])("respects the historical cutoff for saved revision $updatedAt", async ({
+		updatedAt,
+		included,
+	}) => {
+		const result = await loadWebsiteBusinessProfile(
+			input,
+			dependencies({
+				readOrganization: async () => ({
+					profile: { ...profile, updatedAt },
+					generation: null,
+				}),
+			})
+		);
+		expect(
+			result.sources.some((source) => source.kind === "organization_profile")
+		).toBe(included);
+		expect(result.sources).toContainEqual(page);
+		expect(result.sources).toContainEqual(statement);
+	});
+
+	it("preserves the homepage and canonical team reply when organization reading fails", async () => {
+		const result = await loadWebsiteBusinessProfile(
+			input,
+			dependencies({
+				readOrganization: async () => {
+					throw new Error("Synthetic organization context unavailable");
+				},
+			})
+		);
+		expect(result.status).toBe("partial");
+		expect(result.sources).toHaveLength(2);
+		expect(result.sources).toContainEqual(page);
+		expect(result.sources).toContainEqual(statement);
+		expect(result.issues.length).toBeGreaterThan(0);
+	});
+
+	it.each([
+		null,
+		{ ...scope, organizationId: "other" },
+		{ ...scope, domain: "other.example" },
+		{ ...scope, startedAt: "2026-09-05T11:00:00.000Z" },
+		new Error("Synthetic final scope lookup unavailable"),
+	])("withholds private context when the scope changes during organization retrieval: %j", async (changed) => {
+		let loaded = false;
+		const result = await loadWebsiteBusinessProfile(
+			input,
+			dependencies({
+				currentScope: async () => {
+					if (!loaded) return scope;
+					if (changed instanceof Error) throw changed;
+					return changed;
+				},
+				readOrganization: async () => {
+					loaded = true;
+					return { profile, generation: null };
+				},
+			})
+		);
+		expect(loaded).toBe(true);
+		expect(result.status).toBe("unavailable");
+		expect(result.sources).toHaveLength(0);
 	});
 });

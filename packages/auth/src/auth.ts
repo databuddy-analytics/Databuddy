@@ -715,6 +715,22 @@ export const auth = betterAuth({
 				viewer,
 			},
 			organizationHooks: {
+				beforeCreateOrganization: ({ organization }) => {
+					if (organization.metadata !== undefined) {
+						throw new APIError("BAD_REQUEST", {
+							message: "Organization metadata is managed by the server.",
+						});
+					}
+					return Promise.resolve();
+				},
+				beforeUpdateOrganization: ({ organization }) => {
+					if (organization.metadata !== undefined) {
+						throw new APIError("BAD_REQUEST", {
+							message: "Organization metadata is managed by the server.",
+						});
+					}
+					return Promise.resolve();
+				},
 				beforeDeleteOrganization: async ({ organization }) => {
 					try {
 						await deleteOrganizationWithBusinessMemory(organization.id);

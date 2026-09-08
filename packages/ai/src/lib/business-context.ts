@@ -22,13 +22,18 @@ const timestamp = z.iso
 
 export const businessSourceSchema = z.object({
 	id: z.string().min(1).max(500),
-	kind: z.enum(["website", "team_reply"]),
+	kind: z.enum(["website", "team_reply", "organization_profile"]),
 	content: z.string().min(1).max(4000),
 	observedAt: timestamp,
 	url: z.url().max(2048).optional(),
+	references: z
+		.array(z.object({ url: z.url().max(2048), title: z.string().max(512) }))
+		.max(8)
+		.optional(),
 	internalLinks: z.array(z.string().max(300)).max(10).optional(),
 	subjectKey: z.string().max(500).optional(),
 	author: z.string().max(200).optional(),
+	origin: z.enum(["team", "website"]).optional(),
 	expiresAt: timestamp.optional(),
 });
 export type BusinessSource = z.infer<typeof businessSourceSchema>;
@@ -42,7 +47,7 @@ export const businessContextSchema = z.object({
 export type BusinessContext = z.infer<typeof businessContextSchema>;
 
 const metadataSchema = businessSourceSchema
-	.omit({ id: true, content: true })
+	.omit({ id: true, content: true, references: true })
 	.extend({
 		version: z.literal(1),
 		organizationId: z.string().min(1),
@@ -86,6 +91,11 @@ function sourceFromDocument(
 ): BusinessSource | null {
 	const parsed = storedSourceSchema.safeParse(document);
 	if (!parsed.success) {
+		return null;
+	}
+	// Organization settings come from their canonical PostgreSQL record, never
+	// a recalled document that could contain an old revision or another scope.
+	if (parsed.data.metadata.kind === "organization_profile") {
 		return null;
 	}
 	const {
@@ -164,11 +174,29 @@ export function mergeBusinessContext(
 		pages.find(
 			(source) => source.url && new URL(source.url).pathname === "/"
 		) ?? pages[0];
-	const selected: BusinessSource[] = homepage ? [homepage] : [];
-	let characters = homepage?.content.length ?? 0;
-	for (const source of ordered) {
+	const profiles = ordered.filter(
+		(source) => source.kind === "organization_profile"
+	);
+	const ordinary = [
+		...(homepage ? [homepage] : []),
+		...ordered.filter(
+			(source) =>
+				source.kind !== "organization_profile" && source.id !== homepage?.id
+		),
+	];
+	// A saved brief already supplies the overview. Preserve corrections before
+	// spending its remaining budget on pages. Otherwise keep the homepage.
+	const prioritized = profiles.length
+		? [
+				...profiles,
+				...ordinary.filter((source) => source.kind === "team_reply"),
+				...ordinary.filter((source) => source.kind !== "team_reply"),
+			]
+		: ordinary;
+	const selected: BusinessSource[] = [];
+	let characters = 0;
+	for (const source of prioritized) {
 		if (
-			source.id === homepage?.id ||
 			selected.length === 16 ||
 			characters + source.content.length > MAX_CONTEXT_CHARACTERS
 		) {
@@ -304,7 +332,10 @@ async function recordSources(
 			.max(20)
 			.parse(sources)
 			.map((value) => {
-				const { id, content, ...source } = businessSourceSchema.parse(value);
+				// Organization references are supplied from SQL, never mirrored as memory metadata.
+				const { id, content, ...source } = businessSourceSchema
+					.omit({ references: true })
+					.parse(value);
 				return {
 					content:
 						source.kind === "team_reply"

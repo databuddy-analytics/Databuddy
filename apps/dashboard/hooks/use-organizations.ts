@@ -13,14 +13,12 @@ export type OrganizationRole = "owner" | "admin" | "member";
 
 interface CreateOrganizationData {
 	logo?: string;
-	metadata?: Record<string, unknown>;
 	name: string;
 	slug?: string;
 }
 
 interface UpdateOrganizationData {
 	logo?: string;
-	metadata?: Record<string, unknown>;
 	name?: string;
 	slug?: string;
 }
@@ -99,7 +97,6 @@ export function useOrganizations() {
 						slug:
 							orgInput.slug || orgInput.name.toLowerCase().replace(/\s+/g, "-"),
 						logo: orgInput.logo,
-						metadata: orgInput.metadata,
 					});
 				if (apiError) {
 					throw new Error(apiError.message || "Failed to create organization");
@@ -131,7 +128,6 @@ export function useOrganizations() {
 							name: updateData.name,
 							slug: updateData.slug,
 							logo: updateData.logo,
-							metadata: updateData.metadata,
 						},
 					});
 				if (apiError) {

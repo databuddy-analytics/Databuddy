@@ -11,7 +11,8 @@
     "./github-app": "./src/github-app.ts",
     "./identity": "./src/identity.ts",
     "./websites": "./src/websites.ts",
-    "./storage": "./src/storage.ts"
+    "./storage": "./src/storage.ts",
+    "./organization-business-context": "./src/organization-business-context.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit",
