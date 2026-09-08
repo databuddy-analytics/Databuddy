@@ -464,11 +464,30 @@ export const auth = betterAuth({
 		session: {
 			create: {
 				before: async (sessionData) => {
-					if (sessionData.activeOrganizationId) {
-						return { data: sessionData };
-					}
-
+					let base = sessionData;
 					try {
+						if (sessionData.activeOrganizationId) {
+							const activeMembership = await db.query.member.findFirst({
+								where: {
+									userId: sessionData.userId,
+									organizationId: sessionData.activeOrganizationId,
+								},
+								columns: { organizationId: true },
+							});
+							if (activeMembership) {
+								return { data: sessionData };
+							}
+							log.warn({
+								service: "auth",
+								auth_hook: "session.create.before",
+								auth_user_id: sessionData.userId,
+								auth_org_id: sessionData.activeOrganizationId,
+								message:
+									"Cleared active organization the user is not a member of",
+							});
+							base = { ...sessionData, activeOrganizationId: null };
+						}
+
 						const userOrg = await db.query.member.findFirst({
 							where: { userId: sessionData.userId },
 							columns: { organizationId: true },
@@ -477,7 +496,7 @@ export const auth = betterAuth({
 						if (userOrg) {
 							return {
 								data: {
-									...sessionData,
+									...base,
 									activeOrganizationId: userOrg.organizationId,
 								},
 							};
@@ -488,7 +507,7 @@ export const auth = betterAuth({
 							columns: { id: true, name: true, email: true },
 						});
 						if (!user) {
-							return { data: sessionData };
+							return { data: base };
 						}
 
 						const orgId = await provisionDefaultOrg({
@@ -504,7 +523,7 @@ export const auth = betterAuth({
 							message: "Provisioned default org for orphaned account",
 						});
 						return {
-							data: { ...sessionData, activeOrganizationId: orgId },
+							data: { ...base, activeOrganizationId: orgId },
 						};
 					} catch (error) {
 						log.error({
@@ -515,7 +534,7 @@ export const auth = betterAuth({
 						});
 					}
 
-					return { data: sessionData };
+					return { data: base };
 				},
 			},
 		},
