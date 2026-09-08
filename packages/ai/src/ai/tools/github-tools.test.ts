@@ -517,10 +517,8 @@ describe("GitHub bounded file evidence", () => {
 	});
 
 	test("rejects a continuation paused in auth when another first read changes identity", async () => {
-		let releaseToken!: (value: string) => void;
-		const pendingToken = new Promise<string>((resolve) => {
-			releaseToken = resolve;
-		});
+		const { promise: pendingToken, resolve: releaseToken } =
+			Promise.withResolvers<string>();
 		let tokens = 0;
 		let requests = 0;
 		let sha = oldSha;
