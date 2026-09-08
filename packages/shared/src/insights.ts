@@ -4,6 +4,45 @@ import {
 	goalFunnelFilterFieldSet,
 } from "./analytics-filters";
 
+// Shared by the model input, frozen run plan and durable outcome. Keep a single
+// bounded source contract so persistence cannot silently strip provenance.
+const businessContextTimestamp = z.iso
+	.datetime({ offset: true })
+	.refine((value) => Number.isFinite(Date.parse(value)));
+
+export const businessSourceSchema = z.object({
+	id: z.string().min(1).max(500),
+	kind: z.enum(["website", "team_reply", "organization_profile"]),
+	content: z.string().min(1).max(4000),
+	observedAt: businessContextTimestamp,
+	url: z.url().max(2048).optional(),
+	references: z
+		.array(z.object({ url: z.url().max(2048), title: z.string().max(512) }))
+		.max(8)
+		.optional(),
+	internalLinks: z.array(z.string().max(300)).max(10).optional(),
+	subjectKey: z.string().max(500).optional(),
+	author: z.string().max(200).optional(),
+	origin: z.enum(["team", "website", "mixed"]).optional(),
+	expiresAt: businessContextTimestamp.optional(),
+	// Version of the canonical profile supplied with this source, not claim attribution.
+	profileVersion: z
+		.object({
+			revision: z.number().int().positive(),
+			updatedAt: businessContextTimestamp,
+		})
+		.optional(),
+});
+export type BusinessSource = z.infer<typeof businessSourceSchema>;
+
+export const businessContextSchema = z.object({
+	capturedAt: businessContextTimestamp,
+	status: z.enum(["ready", "partial", "unavailable", "disabled"]),
+	sources: z.array(businessSourceSchema).max(16),
+	issues: z.array(z.string().max(200)).max(20),
+});
+export type BusinessContext = z.infer<typeof businessContextSchema>;
+
 export const weekOverWeekPeriodSchema = z
 	.object({
 		current: z
@@ -583,6 +622,8 @@ export const investigationOutcomeSchema = z
 			.describe(
 				"One short, inspected causal mechanism describing the actual failing operation. Use null for unknown, suspected, or merely correlated explanations. Error text, a runtime stack, bundle location, route, browser document line, timing, or annotation is not a source-code mechanism."
 			),
+		// Supplied background only; does not establish which facts influenced a claim.
+		contextSnapshot: businessContextSchema.optional(),
 		evidence: z
 			.array(
 				z
@@ -734,7 +775,7 @@ const agentTitleSchema = z
 
 export const agentInvestigationOutcomeSchema = z
 	.object(investigationOutcomeSchema.shape)
-	.omit({ impact: true, verification: true })
+	.omit({ impact: true, verification: true, contextSnapshot: true })
 	.extend({
 		title: agentTitleSchema,
 		evidenceRefs: z

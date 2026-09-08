@@ -21,6 +21,8 @@ import * as memory from "@databuddy/services/business-memory";
 import { randomUUIDv7 } from "bun";
 import {
 	loadCurrentBusinessScope,
+	organizationProfileContext,
+	withBusinessContextSnapshot,
 	readPersistedBusinessReplies,
 } from "./business-context";
 
@@ -28,7 +30,9 @@ import type {
 	BusinessContext,
 	BusinessScope,
 } from "@databuddy/ai/lib/business-context";
+import { parseInvestigationOutcome } from "@databuddy/shared/insights";
 import type { InvestigationOutcome } from "@databuddy/shared/insights";
+import type { OrganizationBusinessProfile } from "@databuddy/shared/organization-business-context";
 import { generateWebsiteInsights } from "./generation";
 import { prepareInvestigation } from "./investigation";
 import { persistInvestigation } from "./persistence";
@@ -95,6 +99,140 @@ integration("persisted business reply scope", () => {
 	});
 	afterAll(async () => {
 		await closePostgres();
+	});
+
+	it("persists the original revision and appends the newly supplied revision on resume", async () => {
+		const { org, website, scope } = await scopeFixture();
+		const saved: OrganizationBusinessProfile = {
+			content: "Report preparation starts a draft.",
+			origin: "mixed",
+			teamContext: { priority: "Report preparation", successDefinition: "A draft is prepared", exclusions: "Employee traffic" },
+			revision: 3,
+			updatedAt: "2026-09-04T00:00:00.000Z",
+			updatedBy: "example-editor",
+			sourceWebsiteId: null,
+			sources: [{ title: "Report guide", url: "https://example.com/reports" }],
+		};
+		const capturedAt = new Date("2026-09-05T12:00:00.000Z");
+		const firstContext = organizationProfileContext(saved, org.id, capturedAt);
+		const original = withBusinessContextSnapshot(outcome, firstContext);
+		const runId = randomUUIDv7();
+		await db()
+			.insert(insightRuns)
+			.values({ id: runId, organizationId: org.id, status: "running" });
+		const investigation = await persistInvestigation({
+			businessScope: scope,
+			organizationId: org.id,
+			runId,
+			timezone: "UTC",
+			notNewerThan: capturedAt,
+			recheckAt: new Date("2026-09-08T12:00:00.000Z"),
+			investigation: {
+				id: randomUUIDv7(),
+				outcome: original,
+				signal: prepared.signal,
+				websiteDomain: website.domain,
+				websiteId: website.id,
+				websiteName: website.name,
+			},
+		});
+		if (!investigation) throw new Error("Expected a durable investigation");
+		const replyId = randomUUIDv7();
+		await db().insert(insightReplies).values({
+			id: replyId,
+			insightId: investigation.id,
+			authorName: "Example teammate",
+			body: "Please check the revised business priority.",
+			status: "queued",
+		});
+		saved.revision = 4;
+		saved.content = "Completed downloads are the current priority.";
+		saved.teamContext = { priority: "Completed downloads", successDefinition: "A download completes", exclusions: "Employee traffic" };
+		saved.updatedAt = "2026-09-06T00:00:00.000Z";
+		let supplied: BusinessContext | undefined;
+		let models = 0;
+		const billingKey = process.env.AUTUMN_SECRET_KEY;
+		Reflect.deleteProperty(process.env, "AUTUMN_SECRET_KEY");
+		try {
+			expect(
+				await resumeInsightReply(
+					replyId,
+					async (input) => {
+						models += 1;
+						supplied = input.businessContext;
+						expect(supplied?.sources[0]?.profileVersion?.revision).toBe(4);
+						// A save during the model turn must not rewrite the supplied snapshot.
+						saved.revision = 5;
+						saved.content = "Later priority, never supplied to this turn.";
+						saved.teamContext = { priority: "Later priority", successDefinition: "", exclusions: "" };
+						return {
+							outcome: { ...original, title: "Revised priority checked" },
+							toolCallCount: 0,
+						};
+					},
+					async () => {},
+					async () => prepared,
+					{
+						loadCurrentBusinessScope,
+						loadBusinessProfile: async (input) => {
+							expect(input.scope).toEqual(scope);
+							return organizationProfileContext(
+								saved,
+								input.scope.organizationId,
+								input.asOf
+							);
+						},
+						recallBusinessContext: async (input) => ({
+							capturedAt: input.asOf.toISOString(),
+							status: "disabled",
+							sources: [],
+							issues: [],
+						}),
+					}
+				)
+			).toBe("succeeded");
+			// Completed retries do not load the newly edited profile or append a turn.
+			expect(
+				await resumeInsightReply(replyId, async () => {
+					throw new Error("A completed reply must not run the model again");
+				})
+			).toBe("succeeded");
+		} finally {
+			if (billingKey === undefined) Reflect.deleteProperty(process.env, "AUTUMN_SECRET_KEY");
+			else process.env.AUTUMN_SECRET_KEY = billingKey;
+		}
+		const rows = await db()
+			.select({ outcome: insightObservations.outcome })
+			.from(insightObservations)
+			.where(eq(insightObservations.insightId, investigation.id))
+			.orderBy(insightObservations.asOf);
+		expect(rows).toHaveLength(2);
+		expect(models).toBe(1);
+		expect(
+			parseInvestigationOutcome(rows[0]?.outcome)?.contextSnapshot
+		).toEqual(firstContext);
+		expect(
+			parseInvestigationOutcome(rows[1]?.outcome)?.contextSnapshot
+		).toEqual(supplied);
+		expect(
+			parseInvestigationOutcome(rows[1]?.outcome)?.contextSnapshot?.sources[1]
+		).toMatchObject({
+			origin: "mixed",
+			content: "Completed downloads are the current priority.",
+			profileVersion: { revision: 4, updatedAt: "2026-09-06T00:00:00.000Z" },
+			references: [
+				{ title: "Report guide", url: "https://example.com/reports" },
+			],
+		});
+		const persistedTeam = parseInvestigationOutcome(rows[1]?.outcome)?.contextSnapshot?.sources[0];
+		expect(persistedTeam).toMatchObject({
+			origin: "team",
+			author: "Team priorities and definitions",
+			profileVersion: { revision: 4, updatedAt: "2026-09-06T00:00:00.000Z" },
+		});
+		expect(persistedTeam?.content).toContain("Completed downloads");
+		expect(persistedTeam?.content).toContain("A download completes");
+		expect(persistedTeam?.content).not.toContain("Later priority");
 	});
 
 	it("bounds recent replies but can recover exact-subject context while excluding other scopes and unsafe dates", async () => {
@@ -520,15 +658,10 @@ integration("persisted business reply scope", () => {
 							sources: [],
 						});
 					} else {
-						expect(input).toMatchObject({
-							businessContext: {
-								sources: [
-									expect.objectContaining({
-										id: replyId,
-										content: "Preparation is not download completion.",
-									}),
-								],
-							},
+						expect(input.businessContext?.sources).toHaveLength(1);
+						expect(input.businessContext?.sources[0]).toMatchObject({
+							id: replyId,
+							content: "Preparation is not download completion.",
 						});
 						// This completes inside the model callback: there is no website lock
 						// held across the model. Commit must notice the actual DB epoch change.

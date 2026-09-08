@@ -37,6 +37,10 @@ import {
 	formatBusinessTeamContext,
 	type OrganizationBusinessProfile,
 } from "@databuddy/shared/organization-business-context";
+import {
+	businessContextSchema,
+	type InvestigationOutcome,
+} from "@databuddy/shared/insights";
 
 type ProfileInput = Parameters<typeof loadBusinessProfile>[0];
 type RecallInput = Parameters<typeof recallBusinessContext>[0] & {
@@ -384,6 +388,10 @@ export function organizationProfileContext(
 				observedAt: profile.updatedAt,
 				author: "Team priorities and definitions",
 				origin: "team",
+				profileVersion: {
+					revision: profile.revision,
+					updatedAt: profile.updatedAt,
+				},
 			});
 		}
 		// Keep the source contract and the complete editable document; no semantic
@@ -399,6 +407,10 @@ export function organizationProfileContext(
 						? "Edited website background"
 						: "Organization settings",
 				origin: profile.origin,
+				profileVersion: {
+					revision: profile.revision,
+					updatedAt: profile.updatedAt,
+				},
 				...(offset === 0 ? { references: profile.sources } : {}),
 			});
 		}
@@ -432,4 +444,16 @@ export async function recallWebsiteBusinessContext(
 	} catch (error) {
 		return unavailableBusinessContext(error, input.scope, input.asOf);
 	}
+}
+
+// Attach only the bounded context supplied for this turn. Parsing copies the
+// snapshot and strips extra fields; model-authored or prior snapshots cannot win.
+export function withBusinessContextSnapshot(
+	outcome: InvestigationOutcome,
+	context: BusinessContext | undefined
+): InvestigationOutcome {
+	const { contextSnapshot: _previous, ...result } = outcome;
+	return context
+		? { ...result, contextSnapshot: businessContextSchema.parse(context) }
+		: result;
 }

@@ -5,6 +5,7 @@ import {
 	loadWebsiteBusinessProfile,
 	recallWebsiteBusinessContext,
 	unavailableBusinessContext,
+	withBusinessContextSnapshot,
 } from "./business-context";
 import type { AppContext } from "@databuddy/ai/config/context";
 import {
@@ -279,6 +280,7 @@ export async function resumeInsightReply(
 		},
 		signal: currentMeasurement.signal,
 	});
+	const outcome = withBusinessContextSnapshot(result.outcome, businessContext);
 	const committed = await db.transaction(async (tx) => {
 		await assertBusinessScopeCurrent(currentScope, tx);
 		const [locked] = await tx
@@ -318,7 +320,7 @@ export async function resumeInsightReply(
 			throw new Error("The investigation changed while the reply was running");
 		}
 
-		const next = result.outcome.next.type;
+		const next = outcome.next.type;
 		const shouldUpdateInvestigation =
 			current.status === "open" || next === "act" || next === "ask";
 		if (shouldUpdateInvestigation) {
@@ -326,7 +328,7 @@ export async function resumeInsightReply(
 				.update(analyticsInsights)
 				.set(
 					caseValues(
-						{ outcome: result.outcome, signal: currentMeasurement.signal },
+						{ outcome, signal: currentMeasurement.signal },
 						trigger.timezone,
 						committedAt
 					)
@@ -341,8 +343,8 @@ export async function resumeInsightReply(
 			id: observationId,
 			insightId: current.id,
 			organizationId: trigger.organizationId,
-			outcome: result.outcome,
-			recheckAt: nextRecheckAt(committedAt, result.outcome.next),
+			outcome,
+			recheckAt: nextRecheckAt(committedAt, outcome.next),
 			runId: null,
 			signal: currentMeasurement.signal,
 			signalKey: currentMeasurement.signal.signalKey,
