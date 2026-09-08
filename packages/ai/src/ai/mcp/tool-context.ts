@@ -31,13 +31,17 @@ export interface RequestPrincipal {
 export async function ensureWebsiteAccess(
 	websiteId: string,
 	headers: Headers,
-	apiKey: ApiKeyRow | null
+	apiKey: ApiKeyRow | null,
+	organizationId?: string | null
 ): Promise<{ domain: string } | Error> {
 	const validation = await validateWebsite(websiteId);
 	if (!(validation.success && validation.website)) {
 		return new Error(validation.error ?? "Website not found");
 	}
 	const { website } = validation;
+	if (organizationId && website.organizationId !== organizationId) {
+		return new Error("Website is not in this organization");
+	}
 
 	if (apiKey) {
 		const hasWebsiteAccess = hasWebsiteScopeForOrganization(

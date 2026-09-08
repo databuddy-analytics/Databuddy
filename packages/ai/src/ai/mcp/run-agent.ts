@@ -5,10 +5,13 @@ import {
 	storeConversation,
 } from "../../lib/supermemory";
 import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
+import { auth } from "@databuddy/auth";
 import type { LanguageModelUsage, StepResult, ToolSet } from "ai";
 import { ToolLoopAgent } from "ai";
 import { DatabuddyAgentUserError } from "../../agent/errors";
 import { getAILogger } from "../../lib/ai-logger";
+import { getAccessibleWebsites } from "../../lib/accessible-websites";
+import { loadOrganizationBusinessContext } from "../../lib/organization-business-context";
 import { mergeWideEvent } from "../../lib/tracing";
 import {
 	ensureAgentCreditsAvailable,
@@ -245,7 +248,33 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 	const sessionId = options.conversationId ?? crypto.randomUUID();
 	const mcpUserId = options.userId ?? options.apiKey?.userId ?? null;
 	const memoryUserId = options.memoryUserId ?? mcpUserId;
-	const organizationId = options.apiKey?.organizationId ?? null;
+	const session =
+		!options.apiKey && mcpUserId
+			? await auth.api.getSession({ headers: options.requestHeaders })
+			: null;
+	const organizationId = options.apiKey
+		? options.apiKey.organizationId
+		: session?.user.id === mcpUserId
+			? (session?.session.activeOrganizationId ?? null)
+			: null;
+	const accessibleWebsites = await getAccessibleWebsites({
+		apiKey: options.apiKey,
+		organizationId,
+		user: session?.user.id === mcpUserId ? session.user : null,
+	});
+	// A caller-supplied site must not bind another organization's brief or tools.
+	if (
+		(options.websiteId &&
+			!accessibleWebsites.some((site) => site.id === options.websiteId)) ||
+		(options.websiteDomain &&
+			!accessibleWebsites.some(
+				(site) =>
+					site.domain === options.websiteDomain &&
+					(!options.websiteId || site.id === options.websiteId)
+			))
+	) {
+		throw new Error("Website is not accessible in this organization");
+	}
 	const source = options.source ?? "mcp";
 	const selectedModelId =
 		options.modelOverride ?? getDefaultAgentModelId(source);
@@ -275,7 +304,7 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 		});
 	}
 
-	const [config, memoryCtx] = await Promise.all([
+	const [config, memoryCtx, businessContext] = await Promise.all([
 		Promise.resolve(
 			createMcpAgentConfig({
 				billingCustomerId,
@@ -288,6 +317,7 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 				memoryUserId,
 				mutationMode: options.mutationMode,
 				organizationId,
+				accessibleWebsites,
 				slackContext: options.slackContext,
 				source,
 				websiteDomain: options.websiteDomain,
@@ -304,6 +334,12 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 					websiteId: options.websiteId ?? undefined,
 				})
 			: Promise.resolve(null),
+		loadOrganizationBusinessContext({
+			organizationId,
+			accessibleWebsites,
+			websiteIds: options.websiteId ? [options.websiteId] : [],
+			abortSignal: options.abortSignal,
+		}),
 	]);
 
 	const memoryBlock = memoryCtx ? formatMemoryForPrompt(memoryCtx) : "";
@@ -347,8 +383,11 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 		},
 	});
 
-	const questionContent = memoryBlock
-		? `<context>\n${memoryBlock}\n</context>\n\n${options.question}`
+	const contextBlock = [businessContext, memoryBlock]
+		.filter(Boolean)
+		.join("\n\n");
+	const questionContent = contextBlock
+		? `<context>\n${contextBlock}\n</context>\n\n${options.question}`
 		: options.question;
 
 	const messages =
