@@ -847,10 +847,12 @@ qualityCases.push({
 		...(calls.some(
 			(call) =>
 				call.name === "github_read_file" &&
-				isDeepStrictEqual(call.input, {
-					path: "src/checkout.ts",
-					ref: "abcdef1",
-				}) &&
+				z
+					.object({
+						path: z.literal("src/checkout.ts"),
+						ref: z.literal("abcdef1"),
+					})
+					.safeParse(call.input).success &&
 				call.output &&
 				typeof call.output === "object" &&
 				!("error" in call.output) &&
@@ -981,19 +983,16 @@ for (const repaired of [false, true]) {
 					!("error" in call.output) &&
 					"total_users_completed" in call.output &&
 					call.output.total_users_completed === (repaired ? 120 : 40) &&
-					isDeepStrictEqual(
-						{
-							goalId: goal.id,
-							startDate: period.current.from,
-							endDate: period.current.to,
-							...(call.input &&
-							typeof call.input === "object" &&
-							"websiteId" in call.input
-								? { websiteId: appContext.websiteId }
-								: {}),
-						},
-						call.input
-					)
+					z
+						.object({
+							goalId: z.literal(goal.id),
+							startDate: z.literal(period.current.from),
+							endDate: z.literal(period.current.to),
+							websiteId: z.literal(appContext.websiteId).optional(),
+							cohort: z.null().optional(),
+						})
+						.strict()
+						.safeParse(call.input).success
 			)
 				? []
 				: ["Accepted a reported repair without remeasuring"]),

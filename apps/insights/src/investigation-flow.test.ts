@@ -1957,6 +1957,7 @@ describe("intelligence agent", () => {
 		"wrong-measured-id",
 		"passed",
 		"passed-explicit",
+		"passed-null-cohort",
 		"passed-domain",
 		"passed-cosmetic",
 		"failed-rate",
@@ -1966,6 +1967,7 @@ describe("intelligence agent", () => {
 		"wrong-start",
 		"wrong-end",
 		"extra-filter",
+		"extra-cohort",
 		"small-sample",
 		"unfinished-window",
 		"failed-read",
@@ -2005,6 +2007,7 @@ describe("intelligence agent", () => {
 		const status = [
 			"passed",
 			"passed-explicit",
+			"passed-null-cohort",
 			"passed-domain",
 			"passed-cosmetic",
 		].includes(scenario)
@@ -2021,6 +2024,16 @@ describe("intelligence agent", () => {
 			...(scenario === "wrong-website" ? { websiteId: "another-site" } : {}),
 			...(scenario === "passed-domain" ? { websiteId: "example.com" } : {}),
 			...(scenario === "extra-filter" ? { filter: "paid-only" } : {}),
+			...(scenario === "passed-null-cohort" ? { cohort: null } : {}),
+			...(scenario === "extra-cohort"
+				? {
+						cohort: {
+							filters: [
+								{ field: "browser_name", operator: "equals", value: "Chrome" },
+							],
+						},
+					}
+				: {}),
 		};
 		const candidate = {
 			...agentOutcome,
