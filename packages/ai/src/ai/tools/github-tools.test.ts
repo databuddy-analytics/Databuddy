@@ -516,6 +516,46 @@ describe("GitHub bounded file evidence", () => {
 		expect(await pending).toHaveProperty("error");
 	});
 
+	test("rejects a continuation paused in auth when another first read changes identity", async () => {
+		let releaseToken!: (value: string) => void;
+		const pendingToken = new Promise<string>((resolve) => {
+			releaseToken = resolve;
+		});
+		let tokens = 0;
+		let requests = 0;
+		let sha = oldSha;
+		const tools = createGitHubTools(
+			{ organizationId: "org_1", repository },
+			{
+				getToken: async () =>
+					++tokens === 2 ? pendingToken : "fixture-token",
+				request: async () => {
+					requests++;
+					return {
+						encoding: "base64",
+						content: Buffer.from(
+							sha === oldSha ? oldContent : newContent
+						).toString("base64"),
+						sha,
+					};
+				},
+			}
+		);
+		await read(tools, {});
+		const pending = read(tools, { offset: 15_000 });
+		expect(tokens).toBe(2);
+		expect(requests).toBe(1);
+		sha = newSha;
+		await read(tools, { offset: 0 });
+		releaseToken("fixture-token");
+		const rejected = await pending;
+		expect(rejected).toHaveProperty("error");
+		expect(rejected).not.toHaveProperty("content");
+		expect(
+			resultSchema.parse(await read(tools, { offset: 15_000 })).content
+		).toContain("recentPageviews");
+	});
+
 	test("bounds windows, preserves UTF-16 offsets and handles EOF", async () => {
 		const text = "a😀\r\nbé";
 		const tools = fileTools(text);
