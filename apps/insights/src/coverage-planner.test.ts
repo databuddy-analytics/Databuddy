@@ -277,3 +277,47 @@ describe("planCoveragePortfolio", () => {
 	});
 
 });
+
+describe("business preference constraints", () => {
+	it("retains manual family breadth before spending remaining slots on repeated preferred work", () => {
+		const goals = Array.from({ length: 5 }, (_, index) =>
+			signal({ metric: `goal:${index}`, subjectKey: `goal:${index}` })
+		);
+		const funnel = signal({
+			metric: "funnel:checkout",
+			subjectKey: "funnel:checkout",
+		});
+		const error = signal({
+			metric: "error_count",
+			subjectKey: "error:checkout",
+			direction: "up",
+			baseline: 10,
+			current: 100,
+			severity: "critical",
+		});
+		const traffic = signal({ metric: "visitors" });
+		const plan = planCoveragePortfolio([...goals, funnel, error, traffic], {
+			reason: "manual",
+			selectedSignalKeys: keys(goals),
+		});
+		expect(plan).toHaveLength(5);
+		expect(plan).toContain(error);
+		expect(plan).toContain(funnel);
+		expect(plan).toContain(traffic);
+		expect(plan.filter((item) => item.metric.startsWith("goal:"))).toHaveLength(
+			2
+		);
+	});
+
+	it("keeps one correlated subject, the due case first, and the scheduled limit", () => {
+		const due = signal({ metric: "goal:due", subjectKey: "goal:due" });
+		const visitors = signal({ metric: "visitors" });
+		const sessions = signal({ metric: "sessions" });
+		const plan = planCoveragePortfolio([due, visitors, sessions], {
+			reason: "scheduled",
+			dueSignalKey: signalKeyForDetectedSignal(due),
+			selectedSignalKeys: keys([sessions, visitors]),
+		});
+		expect(keys(plan)).toEqual(keys([due, sessions]));
+	});
+});

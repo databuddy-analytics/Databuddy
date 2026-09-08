@@ -133,6 +133,75 @@ describeIntegration("insights idempotency integration", () => {
 		);
 	});
 
+	it("keeps the selected business objective and sources when a retry proposes different work", async () => {
+		const { identity } = await runItemFixture();
+		const asOf = "2026-08-01T12:00:00.000Z";
+		const businessScope = {
+			organizationId: identity.organizationId,
+			websiteId: identity.websiteId,
+			domain: "example.com",
+			startedAt: "2026-07-01T00:00:00.000Z",
+		};
+		const candidate = prepareInvestigation(
+			{
+				baseline: 100,
+				current: 70,
+				deltaPercent: -30,
+				detectedAt: "2026-07-31",
+				direction: "down",
+				label: "Report delivered",
+				method: "wow",
+				metric: "goal:report-delivery",
+				severity: "warning",
+			},
+			7
+		);
+		const proposed = {
+			asOf,
+			businessScope,
+			candidates: [
+				{
+					...candidate,
+					investigationObjective:
+						"The team defines accepted report delivery; check its decline.",
+					businessContext: {
+						capturedAt: asOf,
+						status: "ready" as const,
+						issues: [],
+						sources: [
+							{
+								id: "example-reply",
+								kind: "team_reply" as const,
+								observedAt: asOf,
+								content: "report_delivered fires after recipient acceptance.",
+							},
+						],
+					},
+				},
+			],
+		};
+		const frozen = await freezeInsightRunCandidatePlan(
+			identity,
+			"manual",
+			proposed
+		);
+		const retry = await freezeInsightRunCandidatePlan(identity, "manual", {
+			...proposed,
+			candidates: [
+				{
+					...candidate,
+					signal: { ...candidate.signal, signalKey: "visitors" },
+					investigationObjective:
+						"Later context suggests checking traffic instead.",
+				},
+			],
+		});
+		expect(retry).toEqual(frozen);
+		expect(
+			await loadInsightRunCandidatePlan(identity, "manual", businessScope)
+		).toEqual(frozen);
+	});
+
 	it("does not overwrite a reply committed after scheduled analysis began", async () => {
 		const org = await insertOrganization();
 		const website = await insertWebsite({ organizationId: org.id });

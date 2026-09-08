@@ -1,6 +1,7 @@
 import {
 	type BusinessContext,
 	type BusinessScope,
+	businessContextSchema,
 	mergeBusinessContext,
 } from "@databuddy/ai/lib/business-context";
 import {
@@ -91,10 +92,16 @@ import {
 } from "./run-candidate-plan";
 import {
 	planCoveragePortfolio,
+	coveragePortfolioLimit,
+	type CoveragePortfolioOptions,
 	portfolioFamilyForDetectedSignal,
 	portfolioFamilyForInvestigationSignal,
 	type InsightPortfolioFamily,
 } from "./coverage-planner";
+import {
+	chooseInvestigationSignals,
+	investigationSelectionSchema,
+} from "./business-aware-selection";
 import type { WebsiteInvestigation } from "./persistence";
 import {
 	isInterruptingInvestigation,
@@ -330,6 +337,7 @@ export interface InvestigationSources {
 		today: dayjs.Dayjs,
 		abortSignal?: AbortSignal
 	) => Promise<DetectedSignal | null>;
+	selectCandidates?: typeof chooseInvestigationSignals;
 }
 
 export function remeasureStoredSignal(
@@ -936,41 +944,24 @@ async function investigatePlannedCandidate(
 	};
 }
 
-function plannedPortfolio(
-	discovery: WebsiteSignalDiscovery,
-	reason: InsightGenerationReason
-): PlannedInvestigationCandidate[] {
-	const manual = reason === "manual";
-	const eligibleSignalKeys = new Set(
-		discovery.automaticEligibleSignals.map(signalKeyForDetectedSignal)
-	);
-	return planCoveragePortfolio(
-		discovery.eligibleSignals.filter(
-			(signal) =>
-				isInvestigationCandidate(signal) ||
-				signalKeyForDetectedSignal(signal) === discovery.dueSignalKey
-		),
-		{
-			dueSignalKey: discovery.dueSignalKey,
-			preferredSignalKeys: manual ? eligibleSignalKeys : undefined,
-			reason,
-		}
-	).map(toPlannedCandidate);
-}
-export async function prepareCandidateBusinessContexts(
+export async function planInvestigationsWithBusinessContext(
 	input: InvestigateWebsiteInput,
-	candidates: PlannedInvestigationCandidate[],
+	signals: DetectedSignal[],
 	sources: Pick<
 		InvestigationSources,
-		"loadBusinessProfile" | "recallBusinessContext"
+		"loadBusinessProfile" | "recallBusinessContext" | "selectCandidates"
 	>,
 	allowRefresh: boolean,
 	scope: BusinessScope | null = {
 		organizationId: input.organizationId,
 		websiteId: input.websiteId,
 		domain: input.domain,
-	}
+	},
+	options: CoveragePortfolioOptions = { reason: "manual" }
 ): Promise<PlannedInvestigationCandidate[]> {
+	let candidates = planCoveragePortfolio(signals, options).map(
+		toPlannedCandidate
+	);
 	if (candidates.length === 0) {
 		return candidates;
 	}
@@ -997,8 +988,78 @@ export async function prepareCandidateBusinessContexts(
 	const profile = sources.loadBusinessProfile
 		? await sources
 				.loadBusinessProfile({ scope, asOf, allowRefresh })
+				.then((context) => businessContextSchema.parse(context))
 				.catch((error) => unavailableBusinessContext(error, scope, asOf))
 		: disabled;
+	// The shared profile already contains bounded, scoped PostgreSQL team replies.
+	// Only selected subjects incur recall, analytics enrichment and investigation loops.
+	const protectedCount = candidates.filter(
+		(candidate) =>
+			candidate.signal.signalKey === options.dueSignalKey ||
+			(candidate.signal.severity === "critical" &&
+				candidate.signal.sentiment === "negative" &&
+				portfolioFamilyForInvestigationSignal(candidate.signal) ===
+					"reliability")
+	).length;
+	if (
+		sources.selectCandidates &&
+		profile.sources.length > 0 &&
+		(profile.status === "ready" || profile.status === "partial") &&
+		signals.length > 1 &&
+		protectedCount < coveragePortfolioLimit(options.reason)
+	) {
+		const started = performance.now();
+		try {
+			const result = await sources.selectCandidates({
+				businessContext: profile,
+				limit: coveragePortfolioLimit(options.reason),
+				candidates: signals.map((signal) => ({
+					signal: toPlannedCandidate(signal).signal,
+					definition: signal.definitionEvidence,
+					investigationObjective: signal.investigationObjective,
+				})),
+			});
+			if (result) {
+				const { selections } = investigationSelectionSchema(
+					signals.map(signalKeyForDetectedSignal),
+					coveragePortfolioLimit(options.reason)
+				).parse(result.output);
+				const objectives = new Map(
+					selections.map((item) => [item.signalKey, item.objective])
+				);
+				const fallbackCount = candidates.length;
+				candidates = planCoveragePortfolio(signals, {
+					...options,
+					selectedSignalKeys: [...objectives.keys()],
+				}).map((signal) => ({
+					...toPlannedCandidate(signal),
+					investigationObjective:
+						objectives.get(signalKeyForDetectedSignal(signal)) ??
+						signal.investigationObjective,
+				}));
+				emitInsightsEvent("info", "generation.candidate_portfolio.selected", {
+					organization_id: input.organizationId,
+					website_id: input.websiteId,
+					duration_ms: Math.round(performance.now() - started),
+					selection_model_calls: 1,
+					selection_input_tokens: result.usage.inputTokens,
+					selection_output_tokens: result.usage.outputTokens,
+					candidate_count: candidates.length,
+					investigations_avoided: fallbackCount - candidates.length,
+				});
+			}
+		} catch (error) {
+			captureInsightsError(
+				error,
+				"generation.candidate_portfolio.selection_fallback",
+				{
+					organization_id: input.organizationId,
+					website_id: input.websiteId,
+				}
+			);
+		}
+	}
+
 	// Fresh production context has its own capture time. Keep plan.asOf for
 	// analytics windows; historical injected sources retain their frozen cutoff.
 	const recalledAt = allowRefresh ? new Date() : asOf;
@@ -1021,6 +1082,7 @@ export async function prepareCandidateBusinessContexts(
 								.filter(Boolean)
 								.join("\n"),
 						})
+						.then((context) => businessContextSchema.parse(context))
 						.catch((error) =>
 							unavailableBusinessContext(error, scope, recalledAt)
 						)
@@ -1085,11 +1147,24 @@ export async function investigateWebsitePortfolioWithSources(
 		onCoverage?.(discovered.coverage);
 		return [discovered.artifact];
 	}
-	const candidates = await prepareCandidateBusinessContexts(
+	const candidates = await planInvestigationsWithBusinessContext(
 		input,
-		plannedPortfolio(discovered.value, reason),
+		discovered.value.eligibleSignals,
 		sources,
-		false
+		false,
+		undefined,
+		{
+			reason,
+			dueSignalKey: discovered.value.dueSignalKey,
+			preferredSignalKeys:
+				reason === "manual"
+					? new Set(
+							discovered.value.automaticEligibleSignals.map(
+								signalKeyForDetectedSignal
+							)
+						)
+					: undefined,
+		}
 	);
 	if (candidates.length === 0) {
 		onCoverage?.({
@@ -1222,6 +1297,53 @@ export async function generateWebsiteInsights(
 		domain: site.domain,
 		startedAt: site.settings?.businessContextStartedAt,
 	});
+	let billingCheckError: unknown;
+	let billingCustomerId: string | null = null;
+	let noCredits = false;
+	const canRunAgent = async () => {
+		if (!isAgentBillingConfigured()) {
+			return true;
+		}
+		try {
+			billingCustomerId = await resolveAgentBillingCustomerId({
+				organizationId: input.organizationId,
+				userId: input.requestedByUserId,
+			});
+			noCredits = !(await ensureAgentCreditsAvailable(billingCustomerId));
+			return !noCredits;
+		} catch (error) {
+			billingCheckError = error;
+			noCredits = false;
+			captureInsightsError(error, "generation.billing_check.failed", {
+				organization_id: input.organizationId,
+				website_id: site.id,
+				run_id: input.runId,
+			});
+			return false;
+		}
+	};
+	const billUsage = (
+		usage: Required<Pick<InsightAgentResult, "modelId" | "usage">>,
+		signalKey: string,
+		idempotencyKey: string
+	) =>
+		trackAgentUsageAndBill({
+			billingCustomerId,
+			chatId: `insights:${input.organizationId}:${site.id}:${signalKey}`,
+			idempotencyKey,
+			modelId: usage.modelId,
+			usage: usage.usage,
+			organizationId: input.organizationId,
+			source: "insights",
+			userId: input.requestedByUserId,
+			websiteId: site.id,
+		}).catch((error) =>
+			captureInsightsError(error, "generation.billing.failed", {
+				organization_id: input.organizationId,
+				run_id: input.runId,
+				website_id: site.id,
+			})
+		);
 	let plan = await loadInsightRunCandidatePlan(
 		runIdentity,
 		input.reason,
@@ -1293,17 +1415,44 @@ export async function generateWebsiteInsights(
 				stages: ["detected", "eligible"],
 				websiteId: site.id,
 			});
-			const selected = plannedPortfolio(discovered.value, input.reason);
-			const currentScope = selected.length
+			const currentScope = discovered.value.eligibleSignals.length
 				? await loadCurrentBusinessScope(businessScope, true)
 				: null;
 			businessScope = currentScope ?? businessScope;
-			const selectedCandidates = await prepareCandidateBusinessContexts(
+			const selectedCandidates = await planInvestigationsWithBusinessContext(
 				investigationInput,
-				selected,
-				productionInvestigationSources,
+				discovered.value.eligibleSignals,
+				{
+					...productionInvestigationSources,
+					selectCandidates: async (selectionInput) => {
+						if (!(await canRunAgent())) {
+							return null;
+						}
+						const result = await chooseInvestigationSignals(selectionInput);
+						if (result) {
+							await billUsage(
+								result,
+								"selection",
+								`insights:${input.runId}:${site.id}:selection:${randomUUIDv7()}`
+							);
+						}
+						return result;
+					},
+				},
 				true,
-				currentScope
+				currentScope,
+				{
+					reason: input.reason,
+					dueSignalKey: discovered.value.dueSignalKey,
+					preferredSignalKeys:
+						input.reason === "manual"
+							? new Set(
+									discovered.value.automaticEligibleSignals.map(
+										signalKeyForDetectedSignal
+									)
+								)
+							: undefined,
+				}
 			);
 			plan = await freezeInsightRunCandidatePlan(runIdentity, input.reason, {
 				asOf: discovered.value.asOf.toISOString(),
@@ -1338,9 +1487,6 @@ export async function generateWebsiteInsights(
 		});
 	}
 	const emptyStatus = plan?.emptyStatus ?? null;
-	let billingCheckError: unknown;
-	let billingCustomerId: string | null = null;
-	let noCredits = false;
 	const completedSignalKeys = new Set(
 		existingObservations.map((observation) => observation.signal.signalKey)
 	);
@@ -1445,33 +1591,7 @@ export async function generateWebsiteInsights(
 							plannedCandidate,
 							relatedSignals,
 							{
-								canRunAgent: async () => {
-									if (!isAgentBillingConfigured()) {
-										return true;
-									}
-									try {
-										billingCustomerId = await resolveAgentBillingCustomerId({
-											organizationId: input.organizationId,
-											userId: input.requestedByUserId,
-										});
-										noCredits =
-											!(await ensureAgentCreditsAvailable(billingCustomerId));
-										return !noCredits;
-									} catch (error) {
-										billingCheckError = error;
-										noCredits = false;
-										captureInsightsError(
-											error,
-											"generation.billing_check.failed",
-											{
-												organization_id: input.organizationId,
-												website_id: site.id,
-												run_id: input.runId,
-											}
-										);
-										return false;
-									}
-								},
+								canRunAgent,
 								mode: "production",
 								sources: productionInvestigationSources,
 								onUsage: (usage) => {
@@ -1531,25 +1651,11 @@ export async function generateWebsiteInsights(
 					} finally {
 						const billableUsage = agentUsage.value;
 						if (billableUsage) {
-							try {
-								await trackAgentUsageAndBill({
-									billingCustomerId,
-									chatId: `insights:${input.organizationId}:${site.id}:${plannedCandidate.signal.signalKey}`,
-									idempotencyKey: usageIdempotencyKey,
-									modelId: billableUsage.modelId,
-									organizationId: input.organizationId,
-									source: "insights",
-									usage: billableUsage.usage,
-									userId: input.requestedByUserId,
-									websiteId: site.id,
-								});
-							} catch (error) {
-								captureInsightsError(error, "generation.billing.failed", {
-									organization_id: input.organizationId,
-									run_id: input.runId,
-									website_id: site.id,
-								});
-							}
+							await billUsage(
+								billableUsage,
+								plannedCandidate.signal.signalKey,
+								usageIdempotencyKey
+							);
 						}
 					}
 				},
