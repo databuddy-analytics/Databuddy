@@ -46,7 +46,6 @@ export const PerformanceBuilders: Record<string, SimpleQueryConfig> = {
 			tags: ["vitals", "performance", "page"],
 			output_fields: WEB_VITALS_BREAKDOWN_FIELDS,
 			default_visualization: "table",
-			version: "1.0",
 		},
 		customSql: (ctx) => {
 			const { websiteId, startDate, endDate } = ctx;
@@ -92,7 +91,6 @@ export const PerformanceBuilders: Record<string, SimpleQueryConfig> = {
 			tags: ["vitals", "performance", "browser"],
 			output_fields: WEB_VITALS_BREAKDOWN_FIELDS,
 			default_visualization: "table",
-			version: "1.0",
 		},
 		customSql: (ctx) => {
 			const { websiteId, startDate, endDate } = ctx;
@@ -129,7 +127,6 @@ export const PerformanceBuilders: Record<string, SimpleQueryConfig> = {
 			tags: ["vitals", "performance", "country", "geo"],
 			output_fields: WEB_VITALS_BREAKDOWN_FIELDS,
 			default_visualization: "table",
-			version: "1.0",
 		},
 		customSql: (ctx) => {
 			const { websiteId, startDate, endDate } = ctx;
@@ -167,7 +164,6 @@ export const PerformanceBuilders: Record<string, SimpleQueryConfig> = {
 			tags: ["vitals", "performance", "os"],
 			output_fields: WEB_VITALS_BREAKDOWN_FIELDS,
 			default_visualization: "table",
-			version: "1.0",
 		},
 		customSql: (ctx) => {
 			const { websiteId, startDate, endDate } = ctx;
@@ -205,7 +201,6 @@ export const PerformanceBuilders: Record<string, SimpleQueryConfig> = {
 			tags: ["vitals", "performance", "device", "mobile", "desktop"],
 			output_fields: WEB_VITALS_BREAKDOWN_FIELDS,
 			default_visualization: "table",
-			version: "1.0",
 		},
 		customSql: (ctx) => {
 			const { websiteId, startDate, endDate } = ctx;
@@ -242,7 +237,6 @@ export const PerformanceBuilders: Record<string, SimpleQueryConfig> = {
 			tags: ["vitals", "performance", "region", "geo"],
 			output_fields: WEB_VITALS_BREAKDOWN_FIELDS,
 			default_visualization: "table",
-			version: "1.0",
 		},
 		customSql: (ctx) => {
 			const { websiteId, startDate, endDate } = ctx;
@@ -294,7 +288,6 @@ export const PerformanceBuilders: Record<string, SimpleQueryConfig> = {
 			],
 			default_visualization: "timeseries",
 			supports_granularity: ["hour", "day"],
-			version: "1.0",
 		},
 		customSql: (ctx) => {
 			const { websiteId, startDate, endDate } = ctx;

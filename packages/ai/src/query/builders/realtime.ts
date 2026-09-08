@@ -31,7 +31,6 @@ export const RealtimeBuilders: Record<string, SimpleQueryConfig> = {
 			],
 			default_visualization: "table",
 			supports_granularity: [],
-			version: "1.0",
 		},
 		table: Analytics.events,
 		fields: ["path", "count() as pageviews", "uniq(anonymous_id) as visitors"],
@@ -73,7 +72,6 @@ export const RealtimeBuilders: Record<string, SimpleQueryConfig> = {
 			],
 			default_visualization: "table",
 			supports_granularity: [],
-			version: "1.0",
 		},
 		customSql: (ctx) => {
 			const { websiteId } = ctx;
@@ -130,7 +128,6 @@ export const RealtimeBuilders: Record<string, SimpleQueryConfig> = {
 			],
 			default_visualization: "table",
 			supports_granularity: [],
-			version: "1.0",
 		},
 		table: Analytics.events,
 		fields: ["country as name", "uniq(anonymous_id) as visitors"],
@@ -178,7 +175,6 @@ export const RealtimeBuilders: Record<string, SimpleQueryConfig> = {
 			],
 			default_visualization: "table",
 			supports_granularity: [],
-			version: "1.0",
 		},
 		table: Analytics.events,
 		fields: ["city", "country", "uniq(anonymous_id) as visitors"],
@@ -237,7 +233,6 @@ export const RealtimeBuilders: Record<string, SimpleQueryConfig> = {
 			],
 			default_visualization: "table",
 			supports_granularity: [],
-			version: "1.0",
 		},
 		table: Analytics.events,
 		fields: [
@@ -303,7 +298,6 @@ export const RealtimeBuilders: Record<string, SimpleQueryConfig> = {
 			],
 			default_visualization: "table",
 			supports_granularity: [],
-			version: "1.0",
 		},
 		customSql: (ctx) => {
 			const { websiteId } = ctx;
@@ -367,7 +361,6 @@ export const RealtimeBuilders: Record<string, SimpleQueryConfig> = {
 			],
 			default_visualization: "timeseries",
 			supports_granularity: [],
-			version: "1.0",
 		},
 		customSql: (ctx) => {
 			const { websiteId } = ctx;

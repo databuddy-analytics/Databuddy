@@ -38,15 +38,11 @@ export interface QueryBuilderMeta {
 	/** Effective ordering inside custom SQL; null means no ordering. */
 	default_order?: string | null;
 	default_visualization?: VisualizationType;
-	deprecated?: boolean;
 	description: string;
-	docs_url?: string;
-	output_example?: Record<string, string | number | boolean | null>[];
 	output_fields?: QueryOutputField[];
 	supports_granularity?: ("hour" | "day" | "week" | "month")[];
 	tags?: string[];
 	title?: string;
-	version?: string;
 }
 
 // `contains` wraps values as %v%; `starts_with` appends %. Both map to LIKE.
