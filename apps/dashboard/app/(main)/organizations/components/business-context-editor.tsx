@@ -172,6 +172,7 @@ export function BusinessContextEditor({
 	const {
 		draft,
 		updateDraft: setDraft,
+		clearDraft: clearSubmittedDraft,
 		ready,
 		recoverable,
 	} = useBusinessContextDraft(storageKey, canEdit);
@@ -180,6 +181,7 @@ export function BusinessContextEditor({
 	const [isRequesting, setIsRequesting] = useState(false);
 	const [error, setError] = useState<string>();
 	const [notice, setNotice] = useState("");
+	const [settledGenerationId, setSettledGenerationId] = useState<string>();
 	const [review, setReview] = useState<Review | null>(null);
 	const editorRef = useRef<HTMLTextAreaElement>(null);
 	const reviewTitleRef = useRef<HTMLHeadingElement>(null);
@@ -210,7 +212,10 @@ export function BusinessContextEditor({
 	const activeGeneration = businessContextIsGenerating(settings);
 	const generating = isRequesting || activeGeneration;
 	const readyGeneration =
-		generation?.status === "ready" && generationWebsite && generation.draft
+		generation?.status === "ready" &&
+		generation.id !== settledGenerationId &&
+		generationWebsite &&
+		generation.draft
 			? generation
 			: null;
 	const pendingDraft =
@@ -285,9 +290,12 @@ export function BusinessContextEditor({
 		setError(undefined);
 		setNotice("");
 		try {
+			// The query cache notifies React asynchronously. Block the old result
+			// while its successful cancellation/save response reaches this render.
 			await action();
+			setSettledGenerationId(generation?.id);
 			if (clearDraft) {
-				setDraft(null);
+				clearSubmittedDraft(draft);
 			}
 			setNotice(message);
 			setReview(null);
@@ -792,11 +800,8 @@ export function BusinessContextEditor({
 						) : (
 							<>
 								<Button
-									onClick={() => {
-										setDraft(null);
-										setError(undefined);
-										setReview(null);
-									}}
+									onClick={discard}
+									disabled={isSaving}
 									size="sm"
 									variant="ghost"
 								>

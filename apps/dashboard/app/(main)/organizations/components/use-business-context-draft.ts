@@ -18,7 +18,10 @@ const recoverySchema = businessContextEditSchema.extend({
 		})
 		.optional(),
 });
-const tabDrafts = new Map<string, BusinessContextEdit>();
+const tabDrafts = new Map<
+	string,
+	{ draft: BusinessContextEdit | null; recoverable: boolean }
+>();
 
 export function useBusinessContextDraft(key: string, canEdit: boolean) {
 	const [draft, setDraft] = useState<BusinessContextEdit | null>(null);
@@ -27,7 +30,7 @@ export function useBusinessContextDraft(key: string, canEdit: boolean) {
 
 	useEffect(() => {
 		if (!canEdit) {
-			tabDrafts.delete(key);
+			tabDrafts.set(key, { draft: null, recoverable: true });
 			try {
 				sessionStorage.removeItem(key);
 			} catch {
@@ -37,30 +40,33 @@ export function useBusinessContextDraft(key: string, canEdit: boolean) {
 			setReady(true);
 			return;
 		}
-		let restored = tabDrafts.get(key) ?? null;
-		try {
-			const raw = sessionStorage.getItem(key);
-			if (raw) {
-				const result = recoverySchema.safeParse(JSON.parse(raw));
-				if (result.success) {
-					restored = result.data;
+		let entry = tabDrafts.get(key);
+		if (!entry) {
+			entry = { draft: null, recoverable: true };
+			try {
+				const raw = sessionStorage.getItem(key);
+				if (raw) {
+					const result = recoverySchema.safeParse(JSON.parse(raw));
+					if (result.success) {
+						entry.draft = result.data;
+					}
 				}
+			} catch {
+				entry.recoverable = false;
 			}
-		} catch {
-			setRecoverable(false);
+			tabDrafts.set(key, entry);
 		}
-		setDraft(restored);
+		// Memory is newer than storage after a failed write; null is a tombstone.
+		setDraft(entry.draft);
+		setRecoverable(entry.recoverable);
 		setReady(true);
 	}, [key, canEdit]);
 
 	const updateDraft = useCallback(
 		(next: BusinessContextEdit | null) => {
 			setDraft(next);
-			if (next) {
-				tabDrafts.set(key, next);
-			} else {
-				tabDrafts.delete(key);
-			}
+			const entry = { draft: next, recoverable: true };
+			tabDrafts.set(key, entry);
 			try {
 				if (next) {
 					sessionStorage.setItem(key, JSON.stringify(next));
@@ -69,10 +75,21 @@ export function useBusinessContextDraft(key: string, canEdit: boolean) {
 				}
 				setRecoverable(true);
 			} catch {
+				entry.recoverable = false;
 				setRecoverable(false);
 			}
 		},
 		[key]
+	);
+
+	const clearDraft = useCallback(
+		(submitted: BusinessContextEdit | null) => {
+			// A save may finish after unmount. Never erase a newer remounted draft.
+			if ((tabDrafts.get(key)?.draft ?? null) === submitted) {
+				updateDraft(null);
+			}
+		},
+		[key, updateDraft]
 	);
 
 	useEffect(() => {
@@ -86,5 +103,5 @@ export function useBusinessContextDraft(key: string, canEdit: boolean) {
 		return () => window.removeEventListener("beforeunload", protect);
 	}, [draft, recoverable]);
 
-	return { draft, updateDraft, ready, recoverable };
+	return { draft, updateDraft, clearDraft, ready, recoverable };
 }

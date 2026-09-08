@@ -117,6 +117,7 @@ test("keeps typing when AI finishes and saves only the reviewed draft", {
 			saved = route.request().postDataJSON().json;
 			current = {
 				...current,
+				generation: null,
 				profile: {
 					...current.profile!,
 					content: route.request().postDataJSON().json.content,
@@ -338,4 +339,89 @@ test("can save retained text after regenerating and declining the replacement", 
 		revision: 1,
 		generationId: "first-generation",
 	});
+});
+
+test("a late save cannot clear a newer draft written after navigation", { tag: "@regression" }, async ({ authenticatedPage: page }) => {
+    let current = settings();
+    let release: () => void = () => {};
+    const pending = new Promise<void>((resolve) => { release = resolve; });
+    await page.route("**/rpc/businessContext/**", async (route) => {
+        if (new URL(route.request().url()).pathname.endsWith("/save")) {
+            const input = route.request().postDataJSON().json;
+            await pending;
+            current = { ...current, profile: { ...current.profile!, content: input.content, revision: 2 } };
+        }
+        await route.fulfill({ json: { json: current } });
+    });
+    await page.goto(path);
+    const editor = page.getByRole("textbox", { name: "Business brief" });
+    await editor.fill("Save A");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await page.getByRole("link", { name: "General", exact: true }).click();
+    await expect(page).toHaveURL(/organizations\/settings$/);
+    await expect(editor).toBeHidden();
+    await page.getByRole("link", { name: "Business Context", exact: true }).click();
+    await expect(editor).toBeEditable();
+    await editor.fill("Newer draft B");
+    const response = page.waitForResponse((item) => item.url().endsWith("/businessContext/save"));
+    release();
+    await response;
+    await expect(editor).toHaveValue("Newer draft B");
+    await page.reload();
+    await expect(editor).toHaveValue("Newer draft B");
+    await expect(page.getByRole("button", { name: "Review update" })).toBeVisible();
+});
+
+test("failed browser storage keeps newer text and discarded tombstones across in-app navigation", { tag: "@regression" }, async ({ authenticatedPage: page }) => {
+    await page.route("**/rpc/businessContext/get", (route) => route.fulfill({ json: { json: settings() } }));
+    await page.goto(path);
+    const editor = page.getByRole("textbox", { name: "Business brief" });
+    await editor.fill("Old persisted draft");
+    await page.evaluate(() => {
+        for (const method of ["setItem", "removeItem"] as const) {
+            const original = Storage.prototype[method];
+            Storage.prototype[method] = function(key: string, value = "") {
+                if (key.startsWith("business-context-draft:")) throw new DOMException("Synthetic quota failure", "QuotaExceededError");
+                return original.call(this, key, value);
+            };
+        }
+    });
+    await editor.fill("Newer memory draft");
+    await page.getByRole("link", { name: "General", exact: true }).click();
+    await expect(page).toHaveURL(/organizations\/settings$/);
+    await expect(editor).toBeHidden();
+    await page.getByRole("link", { name: "Business Context", exact: true }).click();
+    await expect(editor).toHaveValue("Newer memory draft");
+    await page.getByRole("button", { name: "Discard changes" }).click();
+    await page.getByRole("link", { name: "General", exact: true }).click();
+    await expect(page).toHaveURL(/organizations\/settings$/);
+    await expect(editor).toBeHidden();
+    await page.getByRole("link", { name: "Business Context", exact: true }).click();
+    await expect(editor).toHaveValue(savedContent);
+});
+
+test("choosing a saved version dismisses an available AI draft", { tag: "@regression" }, async ({ authenticatedPage: page }) => {
+    let current = settings();
+    await page.route("**/rpc/businessContext/**", async (route) => {
+        const method = new URL(route.request().url()).pathname.split("/").at(-1);
+        if (method === "save") {
+            current = { ...current, profile: { ...current.profile!, content: "Teammate's saved choice", revision: 2 }, generation: {
+                id: "11111111-1111-4111-8111-111111111111", websiteId: "example-site", domain: "example.com", requestedBy: "example-admin", requestedAt: new Date().toISOString(), baseRevision: 2, status: "ready", draft: { content: generatedContent, sources: [] }, error: null
+            } };
+            await route.fulfill({ status: 409, json: { json: { defined: false, code: "CONFLICT", status: 409, message: "Review newer saved context" } } });
+            return;
+        }
+        if (method === "cancel") current = { ...current, generation: null };
+        await route.fulfill({ json: { json: current } });
+    });
+    await page.goto(path);
+    const editor = page.getByRole("textbox", { name: "Business brief" });
+    await editor.fill("My edits");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await page.getByRole("button", { name: "Review update" }).click();
+    await page.getByRole("button", { name: "Use saved version" }).click();
+    await expect(editor).toHaveValue("Teammate's saved choice");
+    await page.reload();
+    await expect(editor).toHaveValue("Teammate's saved choice");
+    await expect(page.getByRole("button", { name: "Review AI draft" })).toBeHidden();
 });

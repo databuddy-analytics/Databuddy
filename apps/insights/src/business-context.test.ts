@@ -639,6 +639,18 @@ describe("saved organization business context", () => {
             if (content) expect(sources[1]?.origin).toBe("mixed");
         }
     });
+
+    it("retains the complete maximum brief and all three maximum team inputs", async () => {
+        const content = "B".repeat(11990) + " END BRIEF";
+        const teamContext = { priority: "P".repeat(2000), successDefinition: "D".repeat(2000), exclusions: "E".repeat(2000) };
+        const result = await loadWebsiteBusinessProfile(input, dependencies({ readOrganization: async () => ({ profile: { ...profile, content, teamContext }, generation: null }) }));
+        const sources = result.sources.filter((source) => source.kind === "organization_profile");
+        const supplied = sources.map((source) => source.content).join("");
+        expect(supplied).toContain(content);
+        expect(supplied).toContain(teamContext.priority);
+        expect(supplied).toContain(teamContext.successDefinition);
+        expect(supplied).toContain(teamContext.exclusions);
+    });
 	it.each([
 		null,
 		profile,

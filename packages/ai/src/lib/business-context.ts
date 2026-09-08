@@ -11,7 +11,7 @@ import {
 
 const PUBLIC_CONTEXT_TTL = 7 * 24 * 60 * 60 * 1000;
 const REQUEST_TIMEOUT = 4000;
-const MAX_CONTEXT_CHARACTERS = 16_000;
+const MAX_CONTEXT_CHARACTERS = 24_000;
 
 export type { BusinessScope } from "@databuddy/services/business-memory";
 export { businessContainerTag } from "@databuddy/services/business-memory";
@@ -193,12 +193,22 @@ export function mergeBusinessContext(
 				...ordinary.filter((source) => source.kind !== "team_reply"),
 			]
 		: ordinary;
+	// Keep the usual 16k budget; a complete saved brief plus team fields may
+	// need more room. Leave one source of space for a direct team correction.
+	const characterLimit = Math.min(
+		MAX_CONTEXT_CHARACTERS,
+		Math.max(
+			16_000,
+			profiles.reduce((total, source) => total + source.content.length, 0) +
+				4000
+		)
+	);
 	const selected: BusinessSource[] = [];
 	let characters = 0;
 	for (const source of prioritized) {
 		if (
 			selected.length === 16 ||
-			characters + source.content.length > MAX_CONTEXT_CHARACTERS
+			characters + source.content.length > characterLimit
 		) {
 			continue;
 		}
