@@ -671,7 +671,7 @@ export class SimpleQueryBuilder {
 		return { sql: finalSql, params: finalParams };
 	}
 
-	compile(preparedKeys?: string[]): CompiledQuery {
+	compile(preparedKeys?: Record<string, string[]>): CompiledQuery {
 		for (const filter of this.request.filters ?? []) {
 			if (
 				filter.target &&
@@ -731,7 +731,7 @@ export class SimpleQueryBuilder {
 			}
 			const params = result.params as Record<string, Filter["value"]>;
 			if (preparedKeys) {
-				params.preparedKeys = preparedKeys;
+				Object.assign(params, preparedKeys);
 			}
 			return this.finalizeCompiledQuery(result.sql, params);
 		}
@@ -1158,7 +1158,7 @@ export class SimpleQueryBuilder {
 		filterConditions: string[],
 		filterParams: Record<string, Filter["value"]>,
 		helpers: QueryHelpers | undefined,
-		preparedKeys?: string[]
+		preparedKeys?: Record<string, string[]>
 	): CustomSqlContext {
 		return {
 			websiteId: this.request.projectId,
@@ -1179,25 +1179,35 @@ export class SimpleQueryBuilder {
 
 	private async resolvePreparedKeys(
 		abortSignal?: AbortSignal
-	): Promise<string[] | undefined> {
+	): Promise<Record<string, string[]> | undefined> {
 		if (!this.config.prepareSql) {
 			return;
 		}
 		const filterParams: Record<string, Filter["value"]> = {};
 		const filterConditions = this.buildWhereClauseFromFilters(filterParams);
-		const stage = this.config.prepareSql(
+		const stages = this.config.prepareSql(
 			this.customSqlContext(filterConditions, filterParams, undefined)
 		);
-		const rows = await chQuery<Record<string, unknown>>(
-			stage.sql,
-			stage.params,
-			{
-				abort_signal: abortSignal,
-				clickhouse_settings: getClickHouseQuerySettings(this.config.noCache),
-				label: `${this.request.type}:prepare`,
-			}
+		const resolved = await Promise.all(
+			stages.map(async (stage) => {
+				const rows = await chQuery<Record<string, unknown>>(
+					stage.sql,
+					stage.params,
+					{
+						abort_signal: abortSignal,
+						clickhouse_settings: getClickHouseQuerySettings(
+							this.config.noCache
+						),
+						label: `${this.request.type}:prepare`,
+					}
+				);
+				return [
+					stage.as,
+					rows.map((row) => String(row[stage.column] ?? "")),
+				] as const;
+			})
 		);
-		return rows.map((row) => String(row[stage.column] ?? ""));
+		return Object.fromEntries(resolved);
 	}
 
 	async execute(abortSignal?: AbortSignal): Promise<Record<string, unknown>[]> {

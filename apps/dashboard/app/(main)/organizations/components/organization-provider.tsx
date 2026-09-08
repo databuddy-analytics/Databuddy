@@ -11,6 +11,7 @@ import {
 	EnvelopeIcon,
 	GearIcon,
 	GlobeIcon,
+	LightbulbIcon,
 	PlugIcon,
 	UsersIcon,
 	ShieldCheckIcon,
@@ -62,6 +63,12 @@ const PAGE_INFO_MAP: Record<string, PageInfo> = {
 		title: "Integrations",
 		description: "Connect external tools to this organization",
 		icon: PlugIcon,
+		requiresOrg: true,
+	},
+	"/organizations/settings/business-context": {
+		title: "Business Context",
+		description: "Give your agent a shared understanding of your business",
+		icon: LightbulbIcon,
 		requiresOrg: true,
 	},
 	"/organizations/settings/audit": {

@@ -298,6 +298,14 @@ export const settingsNavigation: NavigationGroup[] = [
 				],
 			}),
 			createNavItem(
+				"Business Context",
+				LightbulbIcon,
+				"/organizations/settings/business-context",
+				{
+					searchTags: ["business brief", "company profile", "AI context"],
+				}
+			),
+			createNavItem(
 				"Integrations",
 				PlugIcon,
 				"/organizations/settings/integrations"

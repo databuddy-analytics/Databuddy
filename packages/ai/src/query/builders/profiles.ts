@@ -318,10 +318,57 @@ function buildProfileAggregateFilter(
 	};
 }
 
+function profileIdentityPrepareStages(ctx: CustomSqlContext) {
+	const visitorId = ctx.filters?.find((f) => f.field === "anonymous_id")?.value;
+	if (typeof visitorId !== "string" || !visitorId) {
+		return [];
+	}
+	const params = {
+		websiteId: ctx.websiteId,
+		startDate: ctx.startDate,
+		endDate: `${ctx.endDate} 23:59:59`,
+		visitorId,
+	};
+	const identity = `WITH ${PROFILE_TARGET_IDENTITY_CTES}`;
+	return [
+		{
+			as: "targetAnonIds",
+			column: "anonymous_id",
+			params,
+			sql: `${identity} SELECT anonymous_id FROM target_anonymous_ids`,
+		},
+		{
+			as: "targetSessionIds",
+			column: "session_id",
+			params,
+			sql: `${identity} SELECT session_id FROM target_session_ids`,
+		},
+		{
+			as: "targetVisitorIds",
+			column: "anonymous_id",
+			params,
+			sql: `${identity}
+      SELECT anonymous_id FROM target_anonymous_ids
+      UNION DISTINCT
+      SELECT {visitorId:String} AS anonymous_id`,
+		},
+	];
+}
+
 function profileActivityCte(
 	identityCtes: string,
-	limitToVisitor = false
+	limitToVisitor = false,
+	prepared?: Record<string, string[]>
 ): string {
+	const anonSet = prepared?.targetAnonIds
+		? "{targetAnonIds:Array(String)}"
+		: "(SELECT anonymous_id FROM target_anonymous_ids)";
+	const sessionSet = prepared?.targetSessionIds
+		? "{targetSessionIds:Array(String)}"
+		: "(SELECT session_id FROM target_session_ids)";
+	const visitorSet = prepared?.targetVisitorIds
+		? "{targetVisitorIds:Array(String)}"
+		: "(SELECT anonymous_id FROM visitor_ids)";
 	const eventVisitorExpression = limitToVisitor
 		? "{visitorId:String}"
 		: canonicalVisitorExpression("e");
@@ -335,12 +382,12 @@ function profileActivityCte(
             e.profile_id = {visitorId:String}
             OR (
               ifNull(e.profile_id, '') = ''
-              AND e.anonymous_id IN (SELECT anonymous_id FROM target_anonymous_ids)
+              AND e.anonymous_id IN ${anonSet}
             )
             OR (
               ifNull(e.profile_id, '') = ''
               AND ifNull(e.anonymous_id, '') = ''
-              AND e.session_id IN (SELECT session_id FROM target_session_ids)
+              AND e.session_id IN ${sessionSet}
             )
           )`
 		: `AND ${canonicalVisitorExpression("e")} = {visitorId:String}`;
@@ -349,12 +396,12 @@ function profileActivityCte(
             ifNull(ce.profile_id, '') = {visitorId:String}
             OR (
               ifNull(ce.profile_id, '') = ''
-              AND ifNull(ce.anonymous_id, '') IN (SELECT anonymous_id FROM target_anonymous_ids)
+              AND ifNull(ce.anonymous_id, '') IN ${anonSet}
             )
             OR (
               ifNull(ce.profile_id, '') = ''
               AND ifNull(ce.anonymous_id, '') = ''
-              AND ifNull(ce.session_id, '') IN (SELECT session_id FROM target_session_ids)
+              AND ifNull(ce.session_id, '') IN ${sessionSet}
             )
           )`
 		: `AND ${canonicalVisitorExpression("ce")} = {visitorId:String}`;
@@ -459,7 +506,7 @@ function profileActivityCte(
         FROM ${Analytics.error_spans}
         WHERE
           client_id = {websiteId:String}
-          AND anonymous_id IN (SELECT anonymous_id FROM visitor_ids)
+          AND anonymous_id IN ${visitorSet}
           AND timestamp >= toDateTime({startDate:String})
           AND timestamp <= toDateTime({endDate:String})
 
@@ -471,7 +518,7 @@ function profileActivityCte(
         FROM ${Analytics.web_vitals_spans}
         WHERE
           client_id = {websiteId:String}
-          AND anonymous_id IN (SELECT anonymous_id FROM visitor_ids)
+          AND anonymous_id IN ${visitorSet}
           AND timestamp >= toDateTime({startDate:String})
           AND timestamp <= toDateTime({endDate:String})
 
@@ -483,7 +530,7 @@ function profileActivityCte(
         FROM ${Analytics.outgoing_links}
         WHERE
           client_id = {websiteId:String}
-          AND anonymous_id IN (SELECT anonymous_id FROM visitor_ids)
+          AND anonymous_id IN ${visitorSet}
           AND timestamp >= toDateTime({startDate:String})
           AND timestamp <= toDateTime({endDate:String})
       )`;
@@ -595,8 +642,8 @@ function profileListQueries(ctx: CustomSqlContext) {
 		: "";
 
 	const profileSort = resolveProfileSort(orderBy);
-	const selectedVisitors = ctx.preparedKeys
-		? "IN {preparedKeys:Array(String)}"
+	const selectedVisitors = ctx.preparedKeys?.pageVisitorIds
+		? "IN {pageVisitorIds:Array(String)}"
 		: "IN (SELECT visitor_id FROM visitor_profiles)";
 	const profileRevenueKeyPredicate = `${CUSTOM_EVENTS_VISITOR_KEY} ${selectedVisitors}`;
 
@@ -688,6 +735,7 @@ function profileListQueries(ctx: CustomSqlContext) {
 
 	return {
 		ids: {
+			as: "pageVisitorIds",
 			column: "visitor_id",
 			params,
 			sql: `${head}
@@ -763,7 +811,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 		},
 		allowedFilters: PROFILE_LIST_ALLOWED_FILTERS,
 		customSql: (ctx) => profileListQueries(ctx).full,
-		prepareSql: (ctx) => profileListQueries(ctx).ids,
+		prepareSql: (ctx) => [profileListQueries(ctx).ids],
 	},
 
 	profile_detail: {
@@ -787,7 +835,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 
 			return {
 				sql: `
-	    WITH ${profileActivityCte(PROFILE_TARGET_IDENTITY_CTES, true)},
+	    WITH ${profileActivityCte(PROFILE_TARGET_IDENTITY_CTES, true, ctx.preparedKeys)},
     activity_stats AS (
       SELECT
         {visitorId:String} as visitor_id,
@@ -945,11 +993,15 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 		},
 		allowedFilters: ["anonymous_id"],
 		requiredFilters: ["anonymous_id"],
+		prepareSql: profileIdentityPrepareStages,
 		customSql: (ctx) => {
 			const { websiteId, startDate, endDate, filters } = ctx;
 			const limit = ctx.limit ?? 100;
 			const offset = ctx.offset ?? 0;
 			const visitorId = filters?.find((f) => f.field === "anonymous_id")?.value;
+			const visitorSet = ctx.preparedKeys?.targetVisitorIds
+				? "{targetVisitorIds:Array(String)}"
+				: "(SELECT anonymous_id FROM visitor_ids)";
 
 			if (!visitorId || typeof visitorId !== "string") {
 				throw new Error(
@@ -959,7 +1011,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 
 			return {
 				sql: `
-	    WITH ${profileActivityCte(PROFILE_TARGET_IDENTITY_CTES, true)},
+	    WITH ${profileActivityCte(PROFILE_TARGET_IDENTITY_CTES, true, ctx.preparedKeys)},
     user_sessions AS (
       SELECT
         session_id,
@@ -1056,7 +1108,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
       FROM ${Analytics.error_spans} es
       WHERE
         es.client_id = {websiteId:String}
-        AND es.anonymous_id IN (SELECT anonymous_id FROM visitor_ids)
+        AND es.anonymous_id IN ${visitorSet}
         AND es.timestamp >= toDateTime({startDate:String})
         AND es.timestamp <= toDateTime({endDate:String})
 
@@ -1076,7 +1128,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
       FROM ${Analytics.outgoing_links} ol
       WHERE
         ol.client_id = {websiteId:String}
-        AND ol.anonymous_id IN (SELECT anonymous_id FROM visitor_ids)
+        AND ol.anonymous_id IN ${visitorSet}
         AND ol.timestamp >= toDateTime({startDate:String})
         AND ol.timestamp <= toDateTime({endDate:String})
       ) ae
@@ -1109,7 +1161,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
         INNER JOIN user_sessions us ON wv.session_id = us.session_id
         WHERE
           wv.client_id = {websiteId:String}
-          AND wv.anonymous_id IN (SELECT anonymous_id FROM visitor_ids)
+          AND wv.anonymous_id IN ${visitorSet}
           AND wv.timestamp >= toDateTime({startDate:String})
           AND wv.timestamp <= toDateTime({endDate:String})
         ORDER BY wv.timestamp ASC

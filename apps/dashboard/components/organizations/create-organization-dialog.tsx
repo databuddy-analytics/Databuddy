@@ -87,7 +87,6 @@ export function CreateOrganizationDialog({
 			{
 				name: name.trim(),
 				slug: slug.trim(),
-				metadata: {},
 			},
 			{
 				onSuccess: (organization) => {
