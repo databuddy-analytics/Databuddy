@@ -317,9 +317,30 @@ afterAll(async () => {
 });
 
 describe("canonical profile evidence",()=>{
+ it("drops the whole combined claim when its qualifying source expires",()=>{
+  const terms={...page,id:"terms",content:"Self-service plans are available.",url:"https://reports.example.com/pricing"};
+  const restriction={...page,id:"restriction",content:"Continuous investigations require an invitation.",url:"https://reports.example.com/access",expiresAt:asOf.toISOString()};
+  const brief={facts:[{topic:"business_model" as const,claim:"Core plans are self-service; continuous investigations require an invitation.",evidence:[{sourceId:terms.id,quote:terms.content},{sourceId:restriction.id,quote:restriction.content}]}],unknowns:[]};
+  const context=profileBusinessContext({capturedAt:asOf.toISOString(),sources:[terms,restriction],brief,issues:[]},asOf);
+  expect(context.sources).toEqual([terms]);
+  expect(context.brief).toBeUndefined();
+  expect(context.status).toBe("partial");
+  expect(context.issues).toContain("Brief claims with missing or changed supporting passages were omitted.");
+ });
+ it("keeps a supported explanation with all original citations and refuses rewritten evidence",()=>{
+  const offering={...page,content:"Reports for small teams."};
+  const terms={...page,id:"terms",content:"Access requires an invitation.",url:"https://reports.example.com/pricing"};
+  const fact={topic:"offering" as const,claim:"Small teams can use the reporting product after receiving an invitation.",evidence:[{sourceId:offering.id,quote:offering.content},{sourceId:terms.id,quote:terms.content}]};
+  const profile={capturedAt:asOf.toISOString(),sources:[offering,terms],brief:{facts:[fact],unknowns:[]},issues:[]};
+  const context=profileBusinessContext(profile,asOf);
+  expect(context.brief?.facts).toEqual([fact]);
+  expect(context.sources).toEqual([offering,terms]);
+  const unsupported={...fact,evidence:[fact.evidence[0]!,{sourceId:terms.id,quote:"Access is self-service."}]};
+  expect(profileBusinessContext({...profile,brief:{...profile.brief,facts:[unsupported]}},asOf).brief).toBeUndefined();
+ });
  it("keeps decision-changing qualifications beyond a compact brief and drops expired quotations",()=>{
   const full={...page,content:"General product description. ".repeat(220)+"Includes a daily allowance; this is not a hard usage cap."};
-  const profile={capturedAt:asOf.toISOString(),sources:[full],brief:{facts:[{topic:"business_model" as const,sourceId:full.id,quote:"Includes a daily allowance; this is not a hard usage cap."}],unknowns:[]},issues:[]};
+  const profile={capturedAt:asOf.toISOString(),sources:[full],brief:{facts:[{topic:"business_model" as const,claim:"A daily allowance is included, not a hard cap.",evidence:[{sourceId:full.id,quote:"Includes a daily allowance; this is not a hard usage cap."}]}],unknowns:[]},issues:[]};
   expect(profileBusinessContext(profile,asOf).sources[0]?.content).toBe(full.content);
   const expired=profileBusinessContext({...profile,sources:[{...full,expiresAt:asOf.toISOString()}]},asOf);
   expect(expired.sources).toEqual([]);expect(expired.brief).toBeUndefined();

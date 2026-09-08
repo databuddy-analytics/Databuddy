@@ -57,17 +57,18 @@ function model(quote?: string) {
 			const user = input.prompt.find((message) => message.role === "user");
 			const text = user?.content.find((part) => part.type === "text");
 			if (!text) throw new Error("Expected a structured-output source prompt");
-			const prompt: { sources?: BusinessProfile["sources"] } = JSON.parse(
+			const prompt: { sources?: { id: string; passages: { id: number; text: string }[] }[] } = JSON.parse(
 				text.text
 			);
 			const source = prompt.sources?.at(-1);
+			const passage = source?.passages.find((item) => !quote || item.text.includes(quote));
 			const output = source
 				? {
 						facts: [
 							{
 								topic: "offering",
-								sourceId: source.id,
-								quote: quote ?? source.content,
+								claim: "The supplied source describes reports for small teams.",
+								evidence: [passage?.id ?? 999999],
 							},
 						],
 						unknowns: [],
@@ -224,11 +225,19 @@ integration(
             const compiled=model("Original business context.");await compileBusinessBrief(sources,{model:compiled});
             const user=compiled.doGenerateCalls[0]?.prompt.find(message=>message.role==="user");
             const part=user?.content.find(part=>part.type==="text");if(!part)throw new Error("Missing compiler input");
-            const input: {sources:BusinessProfile["sources"]}=JSON.parse(part.text);
-            expect(input.sources.reduce((n,source)=>n+source.content.length,0)).toBeLessThanOrEqual(64000);
+            const input: {sources:{id:string;passages:{id:number;text:string}[]}[]}=JSON.parse(part.text);
+            expect(input.sources.reduce((n,source)=>n+source.passages.reduce((n,passage)=>n+passage.text.length,0),0)).toBeLessThanOrEqual(64000);
             expect(input.sources.length).toBeLessThan(sources.length);
-            expect(input.sources.every(source=>source.content.length===12000)).toBe(true);
+            expect(input.sources.every(source=>source.passages.map(passage=>passage.text).join("")===sources.find(original=>original.id===source.id)?.content)).toBe(true);
         });
+		it("attaches original Markdown and newlines from passage IDs without model rewriting", async () => {
+			const content = "Use **opaque IDs**, never emails.\nThe client must clear identity on logout.";
+			const source = { id: "identity", kind: "website" as const, url: "https://reports.example.com/identity", observedAt: new Date().toISOString(), content };
+			const brief = await compileBusinessBrief([source], { model: model() });
+			expect(brief?.facts[0]?.evidence).toEqual([{ sourceId: source.id, quote: content }]);
+			await expect(compileBusinessBrief([source], { model: model("Unknown passage") })).rejects.toThrow();
+			expect(await compileBusinessBrief([], { model: model() })).toBeNull();
+		});
 		it("preserves newer saved corrections when a caller prefetched stale replies", async () => {
 			await load();
 			const original = await stored();
@@ -245,7 +254,7 @@ integration(
 			const profile: BusinessProfile = {
 				...original.profile, capturedAt: new Date().toISOString(),
 				sources: [...original.profile.sources, correction, older],
-				brief: { facts: [{ topic: "event_semantics", sourceId: correction.id, quote: correction.content }], unknowns: [] },
+				brief: { facts: [{ topic: "event_semantics", claim: "The team corrected the event to mean report preparation, before download.", evidence: [{sourceId: correction.id, quote: correction.content}] }], unknowns: [] },
 			};
 			const saved = await saveBusinessProfileRecord(scope, profile, {
 				expectedRevision: original.revision, refreshAfter: original.refreshAfter,
@@ -346,7 +355,7 @@ integration(
 			await load(warm);const current=await stored();expect(current.indexedRevision).toBe(current.revision);
 			expect(warm.doGenerateCalls).toHaveLength(0);
 		});
-		it("rejects an invalid model quotation while retaining the complete original pages", async () => {
+		it("rejects an invalid model citation while retaining the complete original pages", async () => {
 			const result = await load(model("A promise absent from every source."));
 			const record = await stored();
 			expect(record.profile.brief).toBeNull();

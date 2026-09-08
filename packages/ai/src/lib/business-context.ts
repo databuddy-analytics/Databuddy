@@ -175,11 +175,19 @@ export function mergeBusinessContext(
 	}
 	const brief = [...contexts].reverse().find((item) => item.brief)?.brief;
 	const facts = brief?.facts.filter((fact) =>
-		selected.some(
-			(source) =>
-				source.id === fact.sourceId && source.content.includes(fact.quote)
+		fact.evidence.every((citation) =>
+			selected.some(
+				(source) =>
+					source.id === citation.sourceId &&
+					source.content.includes(citation.quote)
+			)
 		)
 	);
+	if (brief && facts?.length !== brief.facts.length) {
+		issues.push(
+			"Brief claims with missing or changed supporting passages were omitted."
+		);
+	}
 	const available = contexts.some(
 		(item) => item.status === "ready" || item.status === "partial"
 	);

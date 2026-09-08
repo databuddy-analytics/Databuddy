@@ -84,6 +84,15 @@ indexing delays or outages. Public copy establishes what the business says, not
 internal event semantics inferred from a name or verified customer behavior. Explicit
 team corrections, guesses and historical metrics stay distinct from current evidence.
 
+The brief explains the offering, customer, commercial access and path to value in
+concise claims, each backed by exact passages kept separately from the explanation.
+The model selects numbered passages; code attaches their original text without
+asking the model to copy quotations or running a citation-repair loop.
+Claims may combine sources, but every citation must remain available and exact;
+losing a qualification removes the whole claim. Original sources remain available
+for verification. Brief-only decision quality is evaluated separately from the full
+source packet; passing with originals does not establish useful compression.
+
 An index acknowledgement requires a completed Supermemory document whose content
 exactly matches the submitted brief. A read and optional write share a four-second
 network deadline. Missing documents are created; changed completed documents are

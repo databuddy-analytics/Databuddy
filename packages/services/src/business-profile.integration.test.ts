@@ -43,8 +43,8 @@ const profile: BusinessProfile = {
 		facts: [
 			{
 				topic: "offering",
-				sourceId: "public-homepage",
-				quote: "Reports for small teams.",
+				claim: "The product provides reports for small teams.",
+				evidence: [{ sourceId: "public-homepage", quote: "Reports for small teams." }],
 			},
 		],
 		unknowns: [],
@@ -360,8 +360,11 @@ integration("durable business profiles against isolated PostgreSQL", () => {
 				facts: [
 					{
 						topic: "offering" as const,
-						sourceId: "public-homepage",
-						quote: "An invented promise.",
+						claim: "An invented promise.",
+						evidence: [
+							{ sourceId: "public-homepage", quote: "Reports for small teams." },
+							{ sourceId: "public-homepage", quote: "An invented promise." },
+						],
 					},
 				],
 				unknowns: [],

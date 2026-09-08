@@ -30,18 +30,32 @@ export const businessBriefSchema = z.object({
 		.array(
 			z.object({
 				topic: businessTopicSchema,
-				sourceId: z.string().min(1).max(500),
-				quote: z
+				claim: z
 					.string()
 					.min(1)
-					.max(800)
+					.max(1000)
 					.describe(
-						"Exact contiguous quotation from this source, including any qualification that changes its meaning."
+						"Concise business explanation supported by every cited passage. Preserve access, measurement and identity qualifications."
 					),
+				evidence: z
+					.array(
+						z.object({
+							sourceId: z.string().min(1).max(500),
+							quote: z
+								.string()
+								.min(1)
+								.max(800)
+								.describe(
+									"Exact contiguous supporting passage, including its qualifications."
+								),
+						})
+					)
+					.min(1)
+					.max(6),
 			})
 		)
 		.min(1)
-		.max(20),
+		.max(12),
 	unknowns: z
 		.array(
 			z.object({
@@ -83,10 +97,14 @@ export const businessProfileSchema = z
 			});
 		}
 		for (const [index, fact] of (profile.brief?.facts ?? []).entries()) {
-			if (!sources.get(fact.sourceId)?.content.includes(fact.quote)) {
+			if (
+				!fact.evidence.every((citation) =>
+					sources.get(citation.sourceId)?.content.includes(citation.quote)
+				)
+			) {
 				context.addIssue({
 					code: "custom",
-					message: "Brief quotations must occur in the attributed source",
+					message: "Every brief citation must occur in its attributed source",
 					path: ["brief", "facts", index],
 				});
 			}
