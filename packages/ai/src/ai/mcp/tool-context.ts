@@ -11,8 +11,8 @@ import { websitesApi } from "@databuddy/auth";
 import { getRedisCache } from "@databuddy/redis";
 import type { AppContext } from "../config/context";
 import { getCachedWebsite, validateWebsite } from "../../lib/website-utils";
+import { matchesWebsiteDomain } from "../../lib/website-domain";
 
-const PROTOCOL_RE = /^https?:\/\//;
 const ACCESSIBLE_WEBSITES_TTL_SEC = 30;
 const ACCESSIBLE_WEBSITES_KEY_PREFIX = "mcp:accessible_websites:v2:";
 
@@ -135,9 +135,11 @@ export async function resolveWebsiteId(
 
 	const list = await getCachedAccessibleWebsites(principal);
 
-	if (input.websiteDomain) {
-		const domain = input.websiteDomain.toLowerCase().replace(PROTOCOL_RE, "");
-		const match = list.find((w) => w.domain?.toLowerCase() === domain);
+	const domain = input.websiteDomain;
+	if (domain) {
+		const match = list.find((website) =>
+			matchesWebsiteDomain(website.domain, domain)
+		);
 		if (match) {
 			return match.id;
 		}
