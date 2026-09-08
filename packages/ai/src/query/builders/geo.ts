@@ -38,7 +38,6 @@ export const GeoBuilders: Record<string, SimpleQueryConfig> = {
 			],
 			default_visualization: "table",
 			supports_granularity: ["hour", "day"],
-			version: "1.0",
 		},
 		table: Analytics.events,
 		fields: [
@@ -98,7 +97,6 @@ export const GeoBuilders: Record<string, SimpleQueryConfig> = {
 			],
 			default_visualization: "table",
 			supports_granularity: ["hour", "day"],
-			version: "1.0",
 		},
 		table: Analytics.events,
 		fields: [
@@ -201,7 +199,6 @@ export const GeoBuilders: Record<string, SimpleQueryConfig> = {
 			],
 			default_visualization: "table",
 			supports_granularity: ["hour", "day"],
-			version: "1.0",
 		},
 		table: Analytics.events,
 		fields: [

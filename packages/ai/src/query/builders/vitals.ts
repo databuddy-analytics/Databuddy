@@ -114,7 +114,6 @@ export const VitalsBuilders: Record<string, SimpleQueryConfig> = {
 				{ name: "samples", type: "number", label: "Samples" },
 			],
 			default_visualization: "metric",
-			version: "1.0",
 		},
 		customSql: (ctx) => {
 			const { websiteId, startDate, endDate } = ctx;
@@ -171,7 +170,6 @@ export const VitalsBuilders: Record<string, SimpleQueryConfig> = {
 			],
 			default_visualization: "timeseries",
 			supports_granularity: ["hour", "day"],
-			version: "1.0",
 		},
 		customSql: (ctx) => {
 			const { websiteId, startDate, endDate } = ctx;
@@ -219,7 +217,6 @@ export const VitalsBuilders: Record<string, SimpleQueryConfig> = {
 				{ name: "samples", type: "number", label: "Samples" },
 			],
 			default_visualization: "table",
-			version: "1.0",
 		},
 		customSql: vitalsByDimension({
 			selectName: `decodeURLComponent(
@@ -245,7 +242,6 @@ export const VitalsBuilders: Record<string, SimpleQueryConfig> = {
 			tags: ["vitals", "performance", "country", "geo"],
 			output_fields: VITALS_P50_FIELDS,
 			default_visualization: "table",
-			version: "1.0",
 		},
 		customSql: vitalsByDimension({
 			selectName: "sd.country as name",
@@ -266,7 +262,6 @@ export const VitalsBuilders: Record<string, SimpleQueryConfig> = {
 			tags: ["vitals", "performance", "browser"],
 			output_fields: VITALS_P50_FIELDS,
 			default_visualization: "table",
-			version: "1.0",
 		},
 		customSql: vitalsByDimension({
 			selectName: "sd.browser_name as name",
@@ -286,7 +281,6 @@ export const VitalsBuilders: Record<string, SimpleQueryConfig> = {
 			tags: ["vitals", "performance", "region", "geo"],
 			output_fields: VITALS_P50_FIELDS,
 			default_visualization: "table",
-			version: "1.0",
 		},
 		customSql: vitalsByDimension({
 			selectName:
@@ -308,7 +302,6 @@ export const VitalsBuilders: Record<string, SimpleQueryConfig> = {
 			tags: ["vitals", "performance", "city", "geo"],
 			output_fields: VITALS_P50_FIELDS,
 			default_visualization: "table",
-			version: "1.0",
 		},
 		customSql: vitalsByDimension({
 			selectName:

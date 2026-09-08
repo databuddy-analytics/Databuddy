@@ -740,7 +740,6 @@ export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 			description: "Overview of errors with calculated error rate",
 			category: "Errors",
 			tags: ["errors", "summary", "overview"],
-			version: "1.0",
 		},
 		customSql: (ctx) => {
 			const { websiteId, startDate, endDate, filterConditions, filterParams } =

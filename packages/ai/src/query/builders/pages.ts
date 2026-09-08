@@ -72,13 +72,8 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 					example: 12.5,
 				},
 			],
-			output_example: [
-				{ name: "/home", pageviews: 1234, visitors: 456, percentage: 12.5 },
-				{ name: "/about", pageviews: 987, visitors: 321, percentage: 10.2 },
-			],
 			default_visualization: "table",
 			supports_granularity: ["hour", "day"],
-			version: "1.0",
 		},
 	},
 
@@ -491,25 +486,8 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 					example: 15.8,
 				},
 			],
-			output_example: [
-				{
-					name: "/home",
-					sessions_with_time: 245,
-					visitors: 189,
-					median_time_on_page: 32.5,
-					percentage: 15.8,
-				},
-				{
-					name: "/about",
-					sessions_with_time: 156,
-					visitors: 134,
-					median_time_on_page: 54.2,
-					percentage: 10.1,
-				},
-			],
 			default_visualization: "table",
 			supports_granularity: ["hour", "day"],
-			version: "1.0",
 		},
 	},
 };
