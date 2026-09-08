@@ -118,7 +118,8 @@ Critical schema footguns: website id column is client_id (not website_id); times
 				const access = await ensureWebsiteAccess(
 					args.websiteId,
 					ctx.requestHeaders,
-					ctx.apiKey
+					ctx.apiKey,
+					ctx.organizationId
 				);
 				if (access instanceof Error) {
 					throw new Error(access.message);
@@ -166,7 +167,8 @@ Critical schema footguns: website id column is client_id (not website_id); times
 				const access = await ensureWebsiteAccess(
 					args.websiteId,
 					ctx.requestHeaders,
-					ctx.apiKey
+					ctx.apiKey,
+					ctx.organizationId
 				);
 				if (access instanceof Error) {
 					throw new Error(access.message);
@@ -199,7 +201,8 @@ Critical schema footguns: website id column is client_id (not website_id); times
 				const access = await ensureWebsiteAccess(
 					websiteId,
 					ctx.requestHeaders,
-					ctx.apiKey
+					ctx.apiKey,
+					ctx.organizationId
 				);
 				if (access instanceof Error) {
 					throw access;
