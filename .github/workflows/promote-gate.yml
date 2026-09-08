@@ -8,7 +8,7 @@ jobs:
   staging-soak:
     name: Staging Soak Gate
     runs-on: blacksmith-2vcpu-ubuntu-2404
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - name: Pass through for non-staging heads
         if: github.head_ref != 'staging'
@@ -21,7 +21,8 @@ jobs:
           SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           required=("Databuddy - API Staging" "Databuddy - Staging Basket")
-          for attempt in $(seq 1 40); do
+          attempts=50
+          for attempt in $(seq 1 "$attempts"); do
             statuses=$(gh api "repos/${{ github.repository }}/commits/$SHA/status" --jq '.statuses[] | "\(.context)=\(.state)"')
             ok=0
             for ctx in "${required[@]}"; do
@@ -34,10 +35,10 @@ jobs:
             if [ "$ok" -eq "${#required[@]}" ]; then
               echo "All staging deploys green for $SHA"; exit 0
             fi
-            echo "Waiting for staging deploys ($ok/${#required[@]} green, attempt $attempt/40)"
+            echo "Waiting for staging deploys ($ok/${#required[@]} green, attempt $attempt/$attempts)"
             sleep 30
           done
-          echo "Staging deploys did not go green within 12 minutes"; exit 1
+          echo "Staging deploys did not go green within 25 minutes"; exit 1
 
       - name: Probe staging service health
         if: github.head_ref == 'staging'

@@ -8,7 +8,8 @@ import {
 	loadWebsiteBusinessProfile,
 	recallWebsiteBusinessContext,
 } from "./business-context";
-import { prepareCandidateBusinessContexts } from "./generation";
+import { planInvestigationsWithBusinessContext } from "./generation";
+import type { DetectedSignal } from "./detection";
 import { prepareInvestigation } from "./investigation";
 import { parseFrozenInvestigationPlan } from "./run-candidate-plan";
 
@@ -25,13 +26,9 @@ const businessScope = {
 	domain: input.domain,
 	startedAt: "2026-07-01T00:00:00.000Z",
 };
-const candidates = [
-	"report_prepared",
-	"workspace_created",
-	"checkout_opened",
-].map((event) =>
-	prepareInvestigation(
-		{
+const signals = ["checkout_opened", "report_prepared", "workspace_created"].map(
+	(event) =>
+		({
 			baseline: 100,
 			current: 20,
 			deltaPercent: -80,
@@ -44,10 +41,9 @@ const candidates = [
 			subjectKey: `custom_event_reach:${event}`,
 			entityId: event,
 			entityLabel: event,
-		},
-		7
-	)
+		}) satisfies DetectedSignal
 );
+const candidates = signals.map((signal) => prepareInvestigation(signal, 7));
 const profile: BusinessContext = {
 	capturedAt: input.asOf,
 	status: "ready",
@@ -67,9 +63,9 @@ describe("freezing investigation business context", () => {
 	it("loads shared context once and recalls each exact subject before freezing", async () => {
 		let profileReads = 0;
 		const recalled: string[] = [];
-		const prepared = await prepareCandidateBusinessContexts(
+		const prepared = await planInvestigationsWithBusinessContext(
 			input,
-			candidates,
+			signals,
 			{
 				loadBusinessProfile: async (params) => {
 					profileReads += 1;
@@ -134,9 +130,9 @@ describe("freezing investigation business context", () => {
 	it("keeps fresh production context time separate from the frozen measurement time", async () => {
 		let capturedAt = "";
 		const before = Date.now();
-		const prepared = await prepareCandidateBusinessContexts(
+		const prepared = await planInvestigationsWithBusinessContext(
 			input,
-			candidates.slice(0, 1),
+			signals.slice(0, 1),
 			{
 				loadBusinessProfile: async (params) => {
 					expect(params.allowRefresh).toBe(true);
@@ -169,7 +165,7 @@ describe("freezing investigation business context", () => {
 	it("does no context work for an empty scan and no live fallback for uninjected shadow context", async () => {
 		let reads = 0;
 		expect(
-			await prepareCandidateBusinessContexts(
+			await planInvestigationsWithBusinessContext(
 				input,
 				[],
 				{
@@ -186,9 +182,9 @@ describe("freezing investigation business context", () => {
 			)
 		).toEqual([]);
 		expect(reads).toBe(0);
-		const prepared = await prepareCandidateBusinessContexts(
+		const prepared = await planInvestigationsWithBusinessContext(
 			input,
-			candidates,
+			signals,
 			{},
 			false
 		);
@@ -205,9 +201,9 @@ describe("freezing investigation business context", () => {
 	});
 
 	it("retains shared context and sibling results when optional subject recall fails", async () => {
-		const prepared = await prepareCandidateBusinessContexts(
+		const prepared = await planInvestigationsWithBusinessContext(
 			input,
-			candidates,
+			signals,
 			{
 				loadBusinessProfile: async () => profile,
 				recallBusinessContext: async (params) => {
@@ -288,9 +284,9 @@ describe("freezing investigation business context", () => {
 					return { status: "saved", ids: [exact.id] };
 				},
 			};
-		const prepared = await prepareCandidateBusinessContexts(
+		const prepared = await planInvestigationsWithBusinessContext(
 			input,
-			candidates.slice(0, 1),
+			signals.slice(0, 1),
 			{
 				loadBusinessProfile: (params) =>
 					loadWebsiteBusinessProfile(params, deps),
@@ -316,9 +312,9 @@ describe("freezing investigation business context", () => {
 		});
 		// A current production pass repairs only the missing exact statement,
 		// not the eight recent shared replies whose IDs came from PostgreSQL.
-		await prepareCandidateBusinessContexts(
+		await planInvestigationsWithBusinessContext(
 			input,
-			candidates.slice(0, 1),
+			signals.slice(0, 1),
 			{
 				loadBusinessProfile: (params) =>
 					loadWebsiteBusinessProfile(params, deps),
@@ -337,9 +333,9 @@ describe("freezing investigation business context", () => {
 
 	it("does no provider work when production scope resolution fails", async () => {
 		let reads = 0;
-		const prepared = await prepareCandidateBusinessContexts(
+		const prepared = await planInvestigationsWithBusinessContext(
 			input,
-			candidates,
+			signals,
 			{
 				loadBusinessProfile: async () => {
 					reads += 1;
@@ -374,7 +370,7 @@ describe("freezing investigation business context", () => {
 						...candidates[0],
 						businessContext: {
 							...profile,
-							sources: [{ ...profile.sources[0], content: "x".repeat(4001) }],
+							sources: [{ ...profile.sources[0], content: "" }],
 						},
 					},
 				],
