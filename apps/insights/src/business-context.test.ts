@@ -575,6 +575,7 @@ describe("saved organization business context", () => {
 	it.each([
 		"team",
 		"website",
+		"mixed",
 	] as const)("preserves all 12k saved characters and %s provenance through the loader", async (origin) => {
 		const content =
 			"A".repeat(3999) + "1" + "B".repeat(3999) + "2" + "C".repeat(3999) + "3";
@@ -623,6 +624,21 @@ describe("saved organization business context", () => {
 		expect(result.sources).toContainEqual(statement);
 	});
 
+
+    it("supplies team-only priorities and definitions before bounded public background", async () => {
+        const teamContext = { priority: "Prioritize activation", successDefinition: "Activation requires a production event", exclusions: "Exclude employee traffic" };
+        for (const content of ["", "Public background ".repeat(650)]) {
+            const result = await loadWebsiteBusinessProfile(input, dependencies({
+                readOrganization: async () => ({ profile: { ...profile, content, origin: "mixed", teamContext }, generation: null }),
+            }));
+            expect(businessContextSchema.parse(result)).toEqual(result);
+            const sources = result.sources.filter((source) => source.kind === "organization_profile");
+            expect(sources[0]).toMatchObject({ origin: "team" });
+            expect(sources[0]?.content).toContain(teamContext.successDefinition);
+            expect(sources[0]?.content).toContain(teamContext.exclusions);
+            if (content) expect(sources[1]?.origin).toBe("mixed");
+        }
+    });
 	it.each([
 		null,
 		profile,

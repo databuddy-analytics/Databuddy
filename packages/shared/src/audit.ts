@@ -72,6 +72,14 @@ export const auditActions = {
 	WEBSITE_TRANSFERRED: defineAction("website.transferred", "website"),
 	ORGANIZATION_CREATED: defineAction("organization.created", "organization"),
 	ORGANIZATION_UPDATED: defineAction("organization.updated", "organization"),
+	BUSINESS_CONTEXT_UPDATED: defineAction(
+		"business_context.updated",
+		"organization"
+	),
+	BUSINESS_CONTEXT_RESTORED: defineAction(
+		"business_context.restored",
+		"organization"
+	),
 	ORGANIZATION_DELETED: defineAction("organization.deleted", "organization"),
 	ORGANIZATION_MEMBER_ADDED: defineAction(
 		"organization.member_added",
@@ -108,6 +116,8 @@ export type AuditActionDefinition =
 export type AuditActionName = AuditActionDefinition["action"];
 
 export const auditActionLabels = {
+	"business_context.updated": "Updated business context",
+	"business_context.restored": "Restored business context",
 	"api_key.created": "Created API key",
 	"api_key.deleted": "Deleted API key",
 	"api_key.revoked": "Revoked API key",

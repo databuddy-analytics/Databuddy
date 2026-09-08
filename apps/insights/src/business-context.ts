@@ -33,7 +33,10 @@ import {
 } from "@databuddy/services/business-memory";
 import { captureInsightsError, emitInsightsEvent } from "./lib/evlog-insights";
 import { readOrganizationBusinessContext } from "@databuddy/services/organization-business-context";
-import type { OrganizationBusinessProfile } from "@databuddy/shared/organization-business-context";
+import {
+	formatBusinessTeamContext,
+	type OrganizationBusinessProfile,
+} from "@databuddy/shared/organization-business-context";
 
 type ProfileInput = Parameters<typeof loadBusinessProfile>[0];
 type RecallInput = Parameters<typeof recallBusinessContext>[0] & {
@@ -371,7 +374,18 @@ export function organizationProfileContext(
 	asOf: Date
 ): BusinessContext {
 	const sources: BusinessSource[] = [];
-	if (profile?.content && Date.parse(profile.updatedAt) <= asOf.getTime()) {
+	if (profile && Date.parse(profile.updatedAt) <= asOf.getTime()) {
+		const teamContext = formatBusinessTeamContext(profile.teamContext);
+		for (let offset = 0; offset < teamContext.length; offset += 4000) {
+			sources.push({
+				id: `organization-team-context:${organizationId}:${offset / 4000}`,
+				kind: "organization_profile",
+				content: teamContext.slice(offset, offset + 4000),
+				observedAt: profile.updatedAt,
+				author: "Team priorities and definitions",
+				origin: "team",
+			});
+		}
 		// Keep the source contract and the complete editable document; no semantic
 		// summarization between the saved text and the investigator's input.
 		for (let offset = 0; offset < profile.content.length; offset += 4000) {
@@ -380,7 +394,10 @@ export function organizationProfileContext(
 				kind: "organization_profile",
 				content: profile.content.slice(offset, offset + 4000),
 				observedAt: profile.updatedAt,
-				author: "Organization settings",
+				author:
+					profile.origin === "mixed"
+						? "Edited website background"
+						: "Organization settings",
 				origin: profile.origin,
 				...(offset === 0 ? { references: profile.sources } : {}),
 			});

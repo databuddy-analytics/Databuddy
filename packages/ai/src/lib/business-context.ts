@@ -33,7 +33,7 @@ export const businessSourceSchema = z.object({
 	internalLinks: z.array(z.string().max(300)).max(10).optional(),
 	subjectKey: z.string().max(500).optional(),
 	author: z.string().max(200).optional(),
-	origin: z.enum(["team", "website"]).optional(),
+	origin: z.enum(["team", "website", "mixed"]).optional(),
 	expiresAt: timestamp.optional(),
 });
 export type BusinessSource = z.infer<typeof businessSourceSchema>;

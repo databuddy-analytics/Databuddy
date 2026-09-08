@@ -12,6 +12,8 @@ import { db, eq, shutdownPostgres } from "@databuddy/db";
 import { organization, websites } from "@databuddy/db/schema";
 import {
 	beginBusinessContextGeneration,
+	cancelBusinessContextGeneration,
+	restoreOrganizationBusinessProfile,
 	markBusinessContextGeneration,
 	readOrganizationBusinessContext,
 	saveOrganizationBusinessProfile,
@@ -83,6 +85,58 @@ integration("organization business context in isolated PostgreSQL", () => {
 		content: "A synthetic reporting service for small teams.",
 		sources: [{ url: "https://reports.example.com/", title: "Reports" }],
 	};
+	const teamContext = {
+		priority: "Increase activation",
+		successDefinition: "Activation means SDK installed and first production event",
+		exclusions: "Exclude employee and test traffic",
+	};
+
+	test("team-only context survives public regeneration without becoming public evidence", async () => {
+		await saveOrganizationBusinessProfile({ organizationId: org, revision: 0, content: "", teamContext, updatedBy: "owner" });
+		const generationId = (await generate()).generation!.id;
+		await markBusinessContextGeneration({ organizationId: org, generationId, status: "ready", draft });
+		const saved = await save(draft.content, 1, generationId);
+		expect(saved.profile?.teamContext).toEqual(teamContext);
+		expect(saved.profile?.origin).toBe("website");
+		expect(saved.history?.[0]?.teamContext).toEqual(teamContext);
+	});
+
+	test("history restores text, team inputs and sources together using a new revision", async () => {
+		const generationId = (await generate()).generation!.id;
+		await markBusinessContextGeneration({ organizationId: org, generationId, status: "ready", draft });
+		await saveOrganizationBusinessProfile({ organizationId: org, revision: 0, content: draft.content, generationId, teamContext, updatedBy: "first-owner" });
+		const edited = await saveOrganizationBusinessProfile({ organizationId: org, revision: 1, content: "Entirely rewritten", teamContext: { priority: "", successDefinition: "", exclusions: "" }, updatedBy: "second-owner" });
+		expect(edited.profile).toMatchObject({ origin: "mixed", sources: [], sourceWebsiteId: null });
+		const restored = await restoreOrganizationBusinessProfile({ organizationId: org, revision: 2, restoreRevision: 1, updatedBy: "restoring-owner" });
+		expect(restored.profile).toMatchObject({ ...draft, teamContext, origin: "website", sourceWebsiteId: websiteId, revision: 3, updatedBy: "restoring-owner" });
+		expect(restored.history?.map((item) => item.revision)).toEqual([1, 2]);
+		await expect(restoreOrganizationBusinessProfile({ organizationId: org, revision: 2, restoreRevision: 1, updatedBy: "stale-owner" })).rejects.toMatchObject({ code: "CONFLICT" });
+		expect((await readOrganizationBusinessContext(org)).profile?.revision).toBe(3);
+		await expect(restoreOrganizationBusinessProfile({ organizationId: other, revision: 0, restoreRevision: 1, updatedBy: "other-owner" })).rejects.toMatchObject({ code: "NOT_FOUND" });
+	});
+
+	test("saved history retains only five previous versions", async () => {
+		for (let revision = 0; revision < 8; revision++) await save(`Version ${revision + 1}`, revision);
+		const saved = await readOrganizationBusinessContext(org);
+		expect(saved.history?.map((item) => item.revision)).toEqual([3, 4, 5, 6, 7]);
+		await expect(restoreOrganizationBusinessProfile({ organizationId: org, revision: 8, restoreRevision: 1, updatedBy: "owner" })).rejects.toMatchObject({ code: "NOT_FOUND" });
+	});
+
+	test("cancel is durable, rejects late publication and cannot cancel a newer generation", async () => {
+		const old = (await generate()).generation!.id;
+		await cancelBusinessContextGeneration({ organizationId: org, generationId: old });
+		await markBusinessContextGeneration({ organizationId: org, generationId: old, status: "ready", draft });
+		expect((await readOrganizationBusinessContext(org)).generation).toBeNull();
+		const fresh = (await generate()).generation!.id;
+		await cancelBusinessContextGeneration({ organizationId: org, generationId: old });
+		expect((await readOrganizationBusinessContext(org)).generation?.id).toBe(fresh);
+		await markBusinessContextGeneration({ organizationId: org, generationId: fresh, status: "ready", draft });
+		const newer = (await generate()).generation!.id;
+		await cancelBusinessContextGeneration({ organizationId: org, generationId: fresh });
+		const state = await readOrganizationBusinessContext(org);
+		expect(state.previousDrafts).toEqual([]);
+		expect(state.generation?.id).toBe(newer);
+	});
 
 	test("manual content is durable and preserves unrelated organization metadata", async () => {
 		const content =
@@ -123,7 +177,7 @@ integration("organization business context in isolated PostgreSQL", () => {
 		await save("Edited AI draft", 1, generationId);
 		const saved = await readOrganizationBusinessContext(org);
 		expect(saved.profile?.content).toBe("Edited AI draft");
-		expect(saved.profile?.sources).toEqual(draft.sources);
+		expect(saved.profile?.sources).toEqual([]);
 		expect(saved.generation).toBeNull();
 	});
 
