@@ -52,11 +52,12 @@ mock.module("@databuddy/auth", () => ({
 	auth: { api: { getSession: async () => session } },
 }));
 let allowed = true;
+let sites = [site];
 const accessible = mock(async (auth: AccessibleWebsitesAuth) =>
 	allowed &&
 	auth.organizationId === "org-synthetic" &&
 	(auth.apiKey || auth.user)
-		? [site]
+		? sites
 		: []
 );
 mock.module("../../lib/accessible-websites", () => ({
@@ -173,9 +174,74 @@ beforeEach(() => {
 	model.doStreamCalls.length = 0;
 	session = null;
 	allowed = true;
+	sites = [site];
 });
 
 describe("canonical business context at the native shared-agent model boundary", () => {
+	it.each([
+		["Reports.Example.com", "reports.example.com"],
+		["reports.example.com", "REPORTS.EXAMPLE.COM"],
+		["Reports.Example.com", "http://reports.example.com"],
+		["reports.example.com", "HTTPS://REPORTS.EXAMPLE.COM"],
+		["WWW.Example.com", "https://www.example.com"],
+		["Reports.Example.com:8443", "HtTpS://reports.example.com:8443"],
+	])("accepts stored %s selected as %s through ask, stream and trace", async (
+		domain,
+		websiteDomain
+	) => {
+		sites = [{ ...site, domain }];
+		for (const websiteId of [undefined, site.id]) {
+			const input = { ...options, websiteId, websiteDomain };
+			await askDatabuddyAgent(input);
+			await traceDatabuddyAgent(input);
+			for await (const _chunk of streamDatabuddyAgent(input)) {
+				/* consume native stream */
+			}
+		}
+		const calls = [...model.doGenerateCalls, ...model.doStreamCalls];
+		expect(calls).toHaveLength(6);
+		for (const call of calls) {
+			expect(JSON.stringify(call.prompt)).toContain(meaning);
+		}
+		expect(read).toHaveBeenCalledTimes(6);
+		expect(read.mock.calls.every(([id]) => id === "org-synthetic")).toBe(true);
+	});
+	it("retains the selected ID when accessible sites share a normalized domain", async () => {
+		sites = [
+			{ ...site, id: "earlier-site", domain: "REPORTS.EXAMPLE.COM" },
+			{ ...site, domain: "Reports.Example.com" },
+		];
+		await askDatabuddyAgent({
+			...options,
+			websiteId: site.id,
+			websiteDomain: "https://reports.example.com",
+		});
+		expect(JSON.stringify(model.doGenerateCalls[0].prompt)).toContain(meaning);
+		expect(read).toHaveBeenCalledTimes(1);
+	});
+	it("rejects unsupported domain rewrites and mismatched accessible IDs before profile or model access", async () => {
+		sites = [
+			site,
+			{ ...site, id: "other-allowed-site", domain: "other.example.com" },
+		];
+		for (const websiteDomain of [
+			"www.reports.example.com",
+			"reports.example.com/",
+			" https://reports.example.com",
+			"https://reports.example.com/path",
+			"https://reports.example.com.evil.example",
+			"//reports.example.com",
+			"reports.example.com:443",
+			"ftp://reports.example.com",
+			"https://other.example.com",
+		]) {
+			await expect(
+				askDatabuddyAgent({ ...options, websiteId: site.id, websiteDomain })
+			).rejects.toThrow("not accessible");
+		}
+		expect(read).not.toHaveBeenCalled();
+		expect(model.doGenerateCalls).toHaveLength(0);
+	});
 	for (const source of ["slack", "mcp", "dashboard"] as const) {
 		it(`${source}: pairs absent/saved context through ask, stream and trace`, async () => {
 			for (const present of [false, true]) {

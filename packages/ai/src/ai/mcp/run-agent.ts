@@ -12,6 +12,7 @@ import { DatabuddyAgentUserError } from "../../agent/errors";
 import { getAILogger } from "../../lib/ai-logger";
 import { getAccessibleWebsites } from "../../lib/accessible-websites";
 import { loadOrganizationBusinessContext } from "../../lib/organization-business-context";
+import { matchesWebsiteDomain } from "../../lib/website-domain";
 import { mergeWideEvent } from "../../lib/tracing";
 import {
 	ensureAgentCreditsAvailable,
@@ -262,14 +263,15 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 		organizationId,
 		user: session?.user.id === mcpUserId ? session.user : null,
 	});
+	const websiteDomain = options.websiteDomain;
 	// A caller-supplied site must not bind another organization's brief or tools.
 	if (
 		(options.websiteId &&
 			!accessibleWebsites.some((site) => site.id === options.websiteId)) ||
-		(options.websiteDomain &&
+		(websiteDomain &&
 			!accessibleWebsites.some(
 				(site) =>
-					site.domain === options.websiteDomain &&
+					matchesWebsiteDomain(site.domain, websiteDomain) &&
 					(!options.websiteId || site.id === options.websiteId)
 			))
 	) {
