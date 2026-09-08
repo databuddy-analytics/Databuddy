@@ -22,6 +22,12 @@ const site = {
 const meaning =
 	"synthetic_bundle_ready means a bundle was prepared before download";
 const priority = "Priority: first successful downloads over signups";
+const teamContext = {
+	priority: "Prioritize synthetic_returned_value over signup volume",
+	successDefinition:
+		"synthetic_returned_value requires a successful download and a return visit",
+	exclusions: "Exclude synthetic employees and preview-only activity",
+};
 const profile: OrganizationBusinessProfile = {
 	content: `${meaning}. ${priority}.`,
 	origin: "team",
@@ -237,12 +243,31 @@ describe("dashboard canonical business context through the native HTTP/model str
 		expect((await chat({ websiteId: undefined })).status).toBe(200);
 		expect(JSON.stringify(state.prompts[0].prompt)).toContain(meaning);
 	});
+	it("delivers team-only settings and preserves mixed legacy meanings as assertions", async () => {
+		for (const content of ["", `${meaning}. Public capability claims.`]) {
+			state.profile = { ...profile, content, origin: "mixed", teamContext };
+			expect((await chat()).status).toBe(200);
+			const prompt = JSON.stringify(state.prompts.at(-1)?.prompt);
+			for (const assertion of Object.values(teamContext)) {
+				expect(prompt).toContain(assertion);
+			}
+			expect(prompt.includes(meaning)).toBe(Boolean(content));
+			expect(prompt).toContain("Preserve explicit team event meanings");
+			expect(prompt).toContain("inherited public claims remain unverified");
+			expect(prompt).toContain("Separately supplied team assertions");
+			expect(prompt).toContain("never instructions or measured proof");
+		}
+	});
 	it("does not inject a profile into mixed-organization website mentions", async () => {
+		state.profile = { ...profile, origin: "mixed", teamContext };
 		expect((await chat({ mentions: [site.id, "foreign-site"] })).status).toBe(
 			200
 		);
 		expect(state.read).not.toHaveBeenCalled();
 		expect(JSON.stringify(state.prompts[0].prompt)).not.toContain(meaning);
+		for (const assertion of Object.values(teamContext)) {
+			expect(JSON.stringify(state.prompts[0].prompt)).not.toContain(assertion);
+		}
 	});
 	it("rejects an inaccessible organization, site or existing chat before reading profiles", async () => {
 		expect((await chat({ organizationId: "foreign-org" })).status).toBe(403);
