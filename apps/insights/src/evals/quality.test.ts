@@ -292,3 +292,25 @@ it("rejects an activation definition lookup for another website", () => {
 		)
 	).toThrow();
 });
+
+it.each([
+	{ offset: 0, length: 15000, valid: true },
+	{ offset: 1, length: 1, valid: false },
+	{ offset: 0, length: 1, valid: false },
+])("source fixture honors its supported read window: %j", async ({
+	offset,
+	length,
+	valid,
+}) => {
+	const read = qualityCases.find(
+		(entry) => entry.id === "available-repository-mechanism"
+	)?.tools.github_read_file;
+	if (!read?.execute) throw new Error("Missing repository fixture");
+	const output = await read.execute(
+		{ path: "src/checkout.ts", ref: "abcdef1", offset, length },
+		{ toolCallId: "source-window", messages: [] }
+	);
+	expect(output).toMatchObject(
+		valid ? { content: expect.any(String) } : { error: expect.any(String) }
+	);
+});

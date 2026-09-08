@@ -826,10 +826,15 @@ qualityCases.push({
 		github_read_file: {
 			...repositoryTools.github_read_file,
 			execute: (query) => {
-				if (query.path !== "src/checkout.ts" || query.ref !== "abcdef1") {
+				if (
+					query.path !== "src/checkout.ts" ||
+					query.ref !== "abcdef1" ||
+					(query.offset ?? 0) !== 0 ||
+					(query.length ?? 15_000) !== 15_000
+				) {
 					return {
 						error:
-							"Read the observed deployed file and revision; no other synthetic source is available.",
+							"This fixture supports the observed deployed file and revision with offset 0 and default length 15000 only.",
 					};
 				}
 				return {
@@ -851,6 +856,8 @@ qualityCases.push({
 					.object({
 						path: z.literal("src/checkout.ts"),
 						ref: z.literal("abcdef1"),
+						offset: z.literal(0).optional(),
+						length: z.literal(15_000).optional(),
 					})
 					.safeParse(call.input).success &&
 				call.output &&
