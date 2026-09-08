@@ -10,8 +10,7 @@ const generatedContent =
 test("persists a manually edited business brief through the real API", {
 	tag: "@regression",
 }, async ({ authenticatedPage: page }) => {
-	const brief =
-		"Example sells scheduling software. Prioritize completed bookings, not calendar views. Ignore staff rehearsals.";
+	const brief = `Example sells scheduling software. Prioritize completed bookings, not calendar views. Ignore staff rehearsals. Test reference: ${crypto.randomUUID()}.`;
 	await page.goto(path);
 	const editor = page.getByRole("textbox", { name: "Business brief" });
 	await expect(editor).toBeEditable();
@@ -276,6 +275,7 @@ test("can save retained text after regenerating and declining the replacement", 
 		if (method === "generate") {
 			current = {
 				...current,
+				previousDrafts: [current.generation!],
 				generation: {
 					...current.generation!,
 					id: "second-generation",
@@ -306,6 +306,9 @@ test("can save retained text after regenerating and declining the replacement", 
 	await expect(editor).toHaveValue(generatedContent);
 	await page.getByRole("button", { name: "Save changes" }).click();
 	await expect(page.getByText("Changes saved", { exact: true })).toBeVisible();
-	expect(saved).toMatchObject({ content: generatedContent, revision: 1 });
-	expect(saved).not.toHaveProperty("generationId");
+	expect(saved).toMatchObject({
+		content: generatedContent,
+		revision: 1,
+		generationId: "first-generation",
+	});
 });

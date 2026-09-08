@@ -46,24 +46,20 @@ integration("business context source locking and provenance", () => {
 		org = `synthetic-lock-${randomUUID()}`;
 		other = `synthetic-lock-${randomUUID()}`;
 		websiteId = `synthetic-lock-${randomUUID()}`;
-		await db
-			.insert(organization)
-			.values(
-				[org, other].map((id) => ({
-					id,
-					name: "Synthetic organization",
-					slug: id,
-					createdAt: new Date(),
-				}))
-			);
-		await db
-			.insert(websites)
-			.values({
-				id: websiteId,
-				organizationId: org,
-				domain: "reports.example.com",
-				name: "Synthetic reports",
-			});
+		await db.insert(organization).values(
+			[org, other].map((id) => ({
+				id,
+				name: "Synthetic organization",
+				slug: id,
+				createdAt: new Date(),
+			}))
+		);
+		await db.insert(websites).values({
+			id: websiteId,
+			organizationId: org,
+			domain: "reports.example.com",
+			name: "Synthetic reports",
+		});
 	});
 	afterEach(async () => {
 		await db.delete(organization).where(inArray(organization.id, [org, other]));
@@ -177,9 +173,8 @@ integration("business context source locking and provenance", () => {
 	test("save waits for source deletion and preserves the previous profile", async () => {
 		await save("Existing team context");
 		const generationId = await ready();
-		const result = await interleave(
-			{ deletedAt: new Date() },
-			() => save(draft.content, 1, generationId)
+		const result = await interleave({ deletedAt: new Date() }, () =>
+			save(draft.content, 1, generationId)
 		);
 		expect(result).toMatchObject({ error: { code: "CONFLICT" } });
 		expect((await readOrganizationBusinessContext(org)).profile).toMatchObject({
@@ -224,6 +219,38 @@ integration("business context source locking and provenance", () => {
 		const generationId = await ready(content);
 		expect((await save(content, 1, generationId)).profile?.origin).toBe("team");
 		expect((await save(content, 2)).profile?.origin).toBe("team");
+	});
+
+	test("retaining the first AI draft preserves its sources and website provenance", async () => {
+		const firstGeneration = await ready();
+		await ready("A replacement public brief.");
+		const saved = await save(draft.content, 0, firstGeneration);
+		expect(saved.profile).toMatchObject({
+			...draft,
+			origin: "website",
+			sourceWebsiteId: websiteId,
+			revision: 1,
+		});
+		expect(saved.generation).toBeNull();
+		expect(saved.previousDrafts ?? []).toHaveLength(0);
+	});
+
+	test("draft history stays bounded and evicted drafts cannot become team context", async () => {
+		const firstGeneration = await ready();
+		for (let attempt = 0; attempt < 6; attempt++) {
+			await ready(`Replacement public brief ${attempt}.`);
+		}
+		const state = await readOrganizationBusinessContext(org);
+		expect(state.previousDrafts).toHaveLength(5);
+		expect(
+			state.previousDrafts?.some((item) => item.id === firstGeneration)
+		).toBe(false);
+		await expect(save(draft.content, 0, firstGeneration)).rejects.toMatchObject(
+			{
+				code: "CONFLICT",
+			}
+		);
+		expect((await readOrganizationBusinessContext(org)).profile).toBeNull();
 	});
 
 	test("an empty team profile does not upgrade public generation", async () => {

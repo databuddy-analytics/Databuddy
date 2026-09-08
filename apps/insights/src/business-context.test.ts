@@ -160,7 +160,9 @@ describe("website business context reconciliation", () => {
 				deps
 			);
 			expect(result.sources).toContainEqual(page);
-			expect(result.sources.filter((source) => source.kind === "team_reply")).toEqual(replies.slice(0, 15));
+			expect(
+				result.sources.filter((source) => source.kind === "team_reply")
+			).toEqual(replies.slice(0, 15));
 			expect(result.status).toBe("partial");
 			expect(result.issues).toContain(
 				"Context is bounded; additional source records were omitted."
@@ -556,7 +558,7 @@ describe("saved organization business context", () => {
 				},
 			})
 		);
-		expect(checks).toBe(2);
+		expect(checks).toBe(3);
 		expect(reads).toEqual([scope.organizationId]);
 		expect(result.sources).toHaveLength(2);
 		expect(result.sources[0]).toMatchObject({
@@ -694,5 +696,32 @@ describe("saved organization business context", () => {
 		expect(result.sources).toContainEqual(page);
 		expect(result.sources).toContainEqual(statement);
 		expect(result.issues.length).toBeGreaterThan(0);
+	});
+
+	it.each([
+		null,
+		{ ...scope, organizationId: "other" },
+		{ ...scope, domain: "other.example" },
+		{ ...scope, startedAt: "2026-09-05T11:00:00.000Z" },
+		new Error("Synthetic final scope lookup unavailable"),
+	])("withholds private context when the scope changes during organization retrieval: %j", async (changed) => {
+		let loaded = false;
+		const result = await loadWebsiteBusinessProfile(
+			input,
+			dependencies({
+				currentScope: async () => {
+					if (!loaded) return scope;
+					if (changed instanceof Error) throw changed;
+					return changed;
+				},
+				readOrganization: async () => {
+					loaded = true;
+					return { profile, generation: null };
+				},
+			})
+		);
+		expect(loaded).toBe(true);
+		expect(result.status).toBe("unavailable");
+		expect(result.sources).toHaveLength(0);
 	});
 });

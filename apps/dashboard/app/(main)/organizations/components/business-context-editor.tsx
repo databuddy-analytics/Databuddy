@@ -74,12 +74,14 @@ export function BusinessContextEditor({
 		(site) =>
 			site.id === generation?.websiteId && site.domain === generation.domain
 	);
-	const draftGeneration =
-		generation?.status === "ready" &&
-		generationWebsite &&
-		generation.id === draft?.generationId
-			? generation
-			: null;
+	const draftGeneration = [generation, ...(settings.previousDrafts ?? [])].find(
+		(item) =>
+			item?.status === "ready" &&
+			item.id === draft?.generationId &&
+			websites.some(
+				(site) => site.id === item.websiteId && site.domain === item.domain
+			)
+	);
 	const dirty =
 		draft !== null &&
 		(content.trim() !== (profile?.content ?? "") || Boolean(draftGeneration));
@@ -152,7 +154,7 @@ export function BusinessContextEditor({
 			await onSave({
 				content: content.trim(),
 				revision: draft.revision,
-				...(draftGeneration ? { generationId: draftGeneration.id } : {}),
+				...(draft.generationId ? { generationId: draft.generationId } : {}),
 			});
 			setDismissedGenerationId(generation?.id);
 			setDraft(null);

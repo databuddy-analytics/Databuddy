@@ -3,6 +3,7 @@ import { and, db, eq, isNull, sql } from "@databuddy/db";
 import { organization, websites } from "@databuddy/db/schema";
 import {
 	BUSINESS_CONTEXT_GENERATION_TIMEOUT,
+	BUSINESS_CONTEXT_DRAFT_HISTORY_LIMIT,
 	businessBriefSchema,
 	businessContextIsGenerating,
 	organizationBusinessContextSchema,
@@ -116,8 +117,15 @@ export async function beginBusinessContextGeneration(input: {
 		if (businessContextIsGenerating(current)) {
 			return current;
 		}
+		const previousDrafts = [...(current.previousDrafts ?? [])];
+		if (current.generation?.status === "ready" && current.generation.draft) {
+			previousDrafts.push(current.generation);
+		}
 		return {
 			...current,
+			previousDrafts: previousDrafts.slice(
+				-BUSINESS_CONTEXT_DRAFT_HISTORY_LIMIT
+			),
 			generation: {
 				id: randomUUID(),
 				websiteId: input.websiteId,
@@ -204,7 +212,11 @@ export async function saveOrganizationBusinessProfile(input: {
 				"Business context changed since you opened it. Reload the saved version before saving your changes."
 			);
 		}
-		const generated = input.generationId ? current.generation : null;
+		const generated = input.generationId
+			? [current.generation, ...(current.previousDrafts ?? [])].find(
+					(item) => item?.id === input.generationId
+				)
+			: null;
 		if (
 			input.generationId &&
 			(generated?.id !== input.generationId ||

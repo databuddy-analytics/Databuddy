@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const BUSINESS_CONTEXT_LIMIT = 12_000;
 export const BUSINESS_CONTEXT_GENERATION_TIMEOUT = 180_000;
+export const BUSINESS_CONTEXT_DRAFT_HISTORY_LIMIT = 5;
 
 export const businessBriefSchema = z.object({
 	content: z.string().trim().max(BUSINESS_CONTEXT_LIMIT),
@@ -38,6 +39,10 @@ export const businessContextGenerationSchema = z.object({
 export const organizationBusinessContextSchema = z.object({
 	profile: organizationBusinessProfileSchema.nullable(),
 	generation: businessContextGenerationSchema.nullable(),
+	previousDrafts: z
+		.array(businessContextGenerationSchema)
+		.max(BUSINESS_CONTEXT_DRAFT_HISTORY_LIMIT)
+		.optional(),
 });
 
 export const businessContextSettingsSchema =

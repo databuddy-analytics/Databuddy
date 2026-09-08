@@ -352,6 +352,13 @@ export async function loadWebsiteBusinessProfile(
 			.catch((error) =>
 				unavailableBusinessContext(error, input.scope, input.asOf)
 			);
+		const current = await sources.currentScope(input.scope);
+		if (
+			!current?.startedAt ||
+			businessContainerTag(current) !== businessContainerTag(input.scope)
+		) {
+			throw new BusinessScopeError("Website scope changed or was deleted");
+		}
 		return mergeBusinessContext(reconciled, organization);
 	} catch (error) {
 		return unavailableBusinessContext(error, input.scope, input.asOf);
