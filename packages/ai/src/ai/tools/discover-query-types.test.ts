@@ -69,3 +69,36 @@ test("accepts an empty keyword to inspect a category after a missing match", asy
 		]),
 	});
 });
+
+test("explicit null searches across categories and can inspect the full catalog", async () => {
+	const schema = discoverQueryTypesTool.inputSchema;
+	if (!(schema instanceof z.ZodType))
+		throw new Error("Expected native Zod tool schema");
+	const options = { toolCallId: "all-categories", messages: [] };
+	const filtered = await discoverQueryTypesTool.execute?.(
+		schema.parse({ category: null, search: "revenue_overview" }),
+		options
+	);
+	expect(filtered).toMatchObject({
+		matchCount: 1,
+		types: [
+			expect.objectContaining({
+				name: "revenue_overview",
+				allowedFilters: expect.arrayContaining(["currency"]),
+				outputFields: expect.any(Array),
+			}),
+		],
+	});
+	const all = await discoverQueryTypesTool.execute?.(
+		schema.parse({ category: null, search: null }),
+		options
+	);
+	expect(JSON.stringify(all)).not.toContain('"outputFields"');
+	expect(JSON.stringify(all)).not.toContain('"allowedFilters"');
+	expect(all).toMatchObject({
+		types: expect.arrayContaining([
+			expect.objectContaining({ category: "Revenue" }),
+			expect.objectContaining({ category: "Audience" }),
+		]),
+	});
+});
