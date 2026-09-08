@@ -232,6 +232,50 @@ function outputModel(value: unknown = agentOutcome) {
 }
 
 describe("intelligence agent", () => {
+	it("does not resupply prior context snapshots or offer model-authored provenance", async () => {
+		const model = outputModel();
+		await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence,
+				githubRepository: null,
+				otherOpenWork: [],
+				signal,
+				history: [
+					{
+						kind: "investigation",
+						asOf: "2026-07-10T00:00:00Z",
+						evidence: [],
+						signal,
+						outcome: {
+							...outcome,
+							contextSnapshot: {
+								capturedAt: "2026-07-10T00:00:00Z",
+								status: "ready",
+								issues: [],
+								sources: [
+									{
+										id: "old-profile",
+										kind: "organization_profile",
+										content: "Superseded private business context",
+										observedAt: "2026-07-09T00:00:00Z",
+									},
+								],
+							},
+						},
+					},
+				],
+			},
+			{ model, tools: {} }
+		);
+		expect(JSON.stringify(model.doGenerateCalls[0]?.prompt)).not.toContain(
+			"Superseded private business context"
+		);
+		expect(JSON.stringify(model.doGenerateCalls[0]?.tools)).not.toContain(
+			"contextSnapshot"
+		);
+		expect(model.doGenerateCalls).toHaveLength(1);
+	});
 	it("preserves manual repairs while omitting definition-only choices", async () => {
 		const model = outputModel();
 		const availableRead = tool({

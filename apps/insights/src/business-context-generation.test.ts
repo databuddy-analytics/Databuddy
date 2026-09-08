@@ -6,6 +6,7 @@ import type {
 } from "@databuddy/ai/lib/business-context";
 import {
 	loadWebsiteBusinessProfile,
+	organizationProfileContext,
 	recallWebsiteBusinessContext,
 } from "./business-context";
 import { planInvestigationsWithBusinessContext } from "./generation";
@@ -60,6 +61,43 @@ const profile: BusinessContext = {
 };
 
 describe("freezing investigation business context", () => {
+	it("retains the captured canonical revision when the saved profile changes after freezing", () => {
+		const saved = {
+			content: "Preparation starts a draft.",
+			origin: "team" as const,
+			revision: 3,
+			updatedAt: "2026-07-11T11:00:00.000Z",
+			updatedBy: "example-editor",
+			sourceWebsiteId: null,
+			sources: [{ title: "Report guide", url: "https://example.com/reports" }],
+		};
+		const context = organizationProfileContext(
+			saved,
+			input.organizationId,
+			new Date(input.asOf)
+		);
+		const stored = JSON.stringify({
+			asOf: input.asOf,
+			reason: "manual",
+			businessScope,
+			candidates: [{ ...candidates[0], businessContext: context }],
+		});
+		saved.revision = 4;
+		saved.content = "New operational priority.";
+		saved.sources[0]!.title = "Changed source";
+		const frozen = parseFrozenInvestigationPlan(
+			JSON.parse(stored),
+			"manual",
+			businessScope
+		);
+		expect(frozen.candidates[0]?.businessContext?.sources[0]).toMatchObject({
+			content: "Preparation starts a draft.",
+			profileVersion: { revision: 3, updatedAt: "2026-07-11T11:00:00.000Z" },
+			references: [
+				{ title: "Report guide", url: "https://example.com/reports" },
+			],
+		});
+	});
 	it("loads shared context once and recalls each exact subject before freezing", async () => {
 		let profileReads = 0;
 		const recalled: string[] = [];

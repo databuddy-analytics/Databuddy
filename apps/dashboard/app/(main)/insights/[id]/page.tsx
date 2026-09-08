@@ -30,6 +30,7 @@ import {
 	StatusDot,
 	Textarea,
 } from "@databuddy/ui";
+import { ContextUsed } from "../_components/context-used";
 import { ExecuteDefinitionAction } from "../_components/investigation-row";
 
 type TimelineItem = InsightByIdResponse["timeline"][number];
@@ -470,6 +471,8 @@ function InvestigationActivity({
 						: (sourceLink?.href ?? null)
 				}
 			/>
+
+			<ContextUsed snapshot={outcome.contextSnapshot} />
 
 			<NextStep
 				hideAction={executable}

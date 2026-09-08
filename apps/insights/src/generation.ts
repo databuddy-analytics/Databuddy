@@ -9,6 +9,7 @@ import {
 	loadWebsiteBusinessProfile,
 	recallWebsiteBusinessContext,
 	unavailableBusinessContext,
+	withBusinessContextSnapshot,
 } from "./business-context";
 import type { AppContext } from "@databuddy/ai/config/context";
 import {
@@ -938,7 +939,10 @@ async function investigatePlannedCandidate(
 	return {
 		asOf: asOf.toISOString(),
 		evidence,
-		outcome: investigationResult.outcome,
+		outcome: withBusinessContextSnapshot(
+			investigationResult.outcome,
+			candidate.businessContext
+		),
 		signal: candidate.signal,
 		status: "completed",
 	};

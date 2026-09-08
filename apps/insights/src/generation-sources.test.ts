@@ -14,6 +14,8 @@ import {
 	type InvestigationSources,
 	investigateWebsitePortfolioWithSources,
 } from "./generation";
+import { organizationProfileContext } from "./business-context";
+import { parseInvestigationOutcome } from "@databuddy/shared/insights";
 import { prepareInvestigation } from "./investigation";
 
 const trafficDrop: DetectedSignal = {
@@ -113,6 +115,64 @@ async function investigateFixture(
 }
 
 describe("fixture investigation sources", () => {
+	it("retains exactly the supplied context in the generated durable outcome", async () => {
+		const context = organizationProfileContext(
+			{
+				content: "Paid report preparation is the current priority.",
+				origin: "team",
+				revision: 3,
+				updatedAt: "2026-07-11T11:00:00Z",
+				updatedBy: "example-editor",
+				sourceWebsiteId: null,
+				sources: [
+					{ title: "Report guide", url: "https://example.com/reports" },
+				],
+			},
+			fixtureInput.organizationId,
+			new Date(fixtureInput.asOf)
+		);
+		let modelCalls = 0;
+		const artifact = await investigateFixture(
+			fixtureSources({
+				detectDefinitionSignals: async () => [],
+				detectMetricSignals: async () => [trafficDrop],
+				fetchAnnotations: async () => [],
+				loadDueInvestigation: async () => null,
+				loadObservations: async () => new Map(),
+				loadHistory: async () => [],
+				loadBusinessProfile: async () => context,
+				investigateSignal: async (input) => {
+					modelCalls += 1;
+					expect(input.businessContext).toEqual(context);
+					return {
+						outcome: {
+							title: "Traffic changed",
+							summary: "Traffic needs a closer look.",
+							impact: null,
+							rootCause: null,
+							evidence: ["Visitors fell from 1000 to 300."],
+							next: {
+								type: "resolve",
+								reason: "No material action established.",
+							},
+							contextSnapshot: { ...context, sources: [] },
+						},
+						toolCallCount: 0,
+					};
+				},
+			})
+		);
+		expect(artifact.status).toBe("completed");
+		expect(modelCalls).toBe(1);
+		expect(
+			parseInvestigationOutcome(JSON.parse(JSON.stringify(artifact.outcome)))
+				?.contextSnapshot
+		).toEqual(context);
+		context.sources[0]!.content = "Changed after the turn.";
+		expect(artifact.outcome?.contextSnapshot?.sources[0]?.content).toBe(
+			"Paid report preparation is the current priority."
+		);
+	});
 	it("passes a completed sibling ask to later candidates as open work", async () => {
 		const errorSignal: DetectedSignal = {
 			...trafficDrop,

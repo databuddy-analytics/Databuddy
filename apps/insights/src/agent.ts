@@ -1417,17 +1417,20 @@ export async function runInsightAgent(
 		repository: input.githubRepository,
 		investigationObjective: input.investigationObjective,
 		evidence: input.evidence,
-		history: input.history.map((item) =>
-			item.kind === "investigation"
-				? {
-						asOf: item.asOf,
-						evidence: item.evidence,
-						kind: item.kind,
-						outcome: item.outcome,
-						signal: promptSignal(item.signal),
-					}
-				: item
-		),
+		history: input.history.map((item) => {
+			if (item.kind !== "investigation") {
+				return item;
+			}
+			// Prior snapshots remain inspectable history, not fresh model context.
+			const { contextSnapshot: _snapshot, ...outcome } = item.outcome;
+			return {
+				asOf: item.asOf,
+				evidence: item.evidence,
+				kind: item.kind,
+				outcome,
+				signal: promptSignal(item.signal),
+			};
+		}),
 		otherOpenWork: input.otherOpenWork,
 		...(input.request
 			? {
