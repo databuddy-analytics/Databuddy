@@ -1442,7 +1442,7 @@ export async function generateWebsiteInsights(
 							await billUsage(
 								result,
 								"selection",
-								`insights:${input.runId}:${site.id}:selection:${randomUUIDv7()}`
+								`insights:${input.runId}:${site.id}:selection`
 							);
 						}
 						return result;
