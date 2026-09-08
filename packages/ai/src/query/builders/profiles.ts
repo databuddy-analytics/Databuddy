@@ -318,6 +318,43 @@ function buildProfileAggregateFilter(
 	};
 }
 
+function profileIdentityPrepareStages(ctx: CustomSqlContext) {
+	const visitorId = ctx.filters?.find((f) => f.field === "anonymous_id")?.value;
+	if (typeof visitorId !== "string" || !visitorId) {
+		return [];
+	}
+	const params = {
+		websiteId: ctx.websiteId,
+		startDate: ctx.startDate,
+		endDate: `${ctx.endDate} 23:59:59`,
+		visitorId,
+	};
+	const identity = `WITH ${PROFILE_TARGET_IDENTITY_CTES}`;
+	return [
+		{
+			as: "targetAnonIds",
+			column: "anonymous_id",
+			params,
+			sql: `${identity} SELECT anonymous_id FROM target_anonymous_ids`,
+		},
+		{
+			as: "targetSessionIds",
+			column: "session_id",
+			params,
+			sql: `${identity} SELECT session_id FROM target_session_ids`,
+		},
+		{
+			as: "targetVisitorIds",
+			column: "anonymous_id",
+			params,
+			sql: `${identity}
+      SELECT anonymous_id FROM target_anonymous_ids
+      UNION DISTINCT
+      SELECT {visitorId:String} AS anonymous_id`,
+		},
+	];
+}
+
 function profileActivityCte(
 	identityCtes: string,
 	limitToVisitor = false,
@@ -329,6 +366,9 @@ function profileActivityCte(
 	const sessionSet = prepared?.targetSessionIds
 		? "{targetSessionIds:Array(String)}"
 		: "(SELECT session_id FROM target_session_ids)";
+	const visitorSet = prepared?.targetVisitorIds
+		? "{targetVisitorIds:Array(String)}"
+		: "(SELECT anonymous_id FROM visitor_ids)";
 	const eventVisitorExpression = limitToVisitor
 		? "{visitorId:String}"
 		: canonicalVisitorExpression("e");
@@ -466,7 +506,7 @@ function profileActivityCte(
         FROM ${Analytics.error_spans}
         WHERE
           client_id = {websiteId:String}
-          AND anonymous_id IN (SELECT anonymous_id FROM visitor_ids)
+          AND anonymous_id IN ${visitorSet}
           AND timestamp >= toDateTime({startDate:String})
           AND timestamp <= toDateTime({endDate:String})
 
@@ -478,7 +518,7 @@ function profileActivityCte(
         FROM ${Analytics.web_vitals_spans}
         WHERE
           client_id = {websiteId:String}
-          AND anonymous_id IN (SELECT anonymous_id FROM visitor_ids)
+          AND anonymous_id IN ${visitorSet}
           AND timestamp >= toDateTime({startDate:String})
           AND timestamp <= toDateTime({endDate:String})
 
@@ -490,7 +530,7 @@ function profileActivityCte(
         FROM ${Analytics.outgoing_links}
         WHERE
           client_id = {websiteId:String}
-          AND anonymous_id IN (SELECT anonymous_id FROM visitor_ids)
+          AND anonymous_id IN ${visitorSet}
           AND timestamp >= toDateTime({startDate:String})
           AND timestamp <= toDateTime({endDate:String})
       )`;
@@ -795,7 +835,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 
 			return {
 				sql: `
-	    WITH ${profileActivityCte(PROFILE_TARGET_IDENTITY_CTES, true)},
+	    WITH ${profileActivityCte(PROFILE_TARGET_IDENTITY_CTES, true, ctx.preparedKeys)},
     activity_stats AS (
       SELECT
         {visitorId:String} as visitor_id,
@@ -953,44 +993,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 		},
 		allowedFilters: ["anonymous_id"],
 		requiredFilters: ["anonymous_id"],
-		prepareSql: (ctx) => {
-			const visitorId = ctx.filters?.find(
-				(f) => f.field === "anonymous_id"
-			)?.value;
-			if (typeof visitorId !== "string" || !visitorId) {
-				return [];
-			}
-			const params = {
-				websiteId: ctx.websiteId,
-				startDate: ctx.startDate,
-				endDate: `${ctx.endDate} 23:59:59`,
-				visitorId,
-			};
-			const identity = `WITH ${PROFILE_TARGET_IDENTITY_CTES}`;
-			return [
-				{
-					as: "targetAnonIds",
-					column: "anonymous_id",
-					params,
-					sql: `${identity} SELECT anonymous_id FROM target_anonymous_ids`,
-				},
-				{
-					as: "targetSessionIds",
-					column: "session_id",
-					params,
-					sql: `${identity} SELECT session_id FROM target_session_ids`,
-				},
-				{
-					as: "targetVisitorIds",
-					column: "anonymous_id",
-					params,
-					sql: `${identity}
-      SELECT anonymous_id FROM target_anonymous_ids
-      UNION DISTINCT
-      SELECT {visitorId:String} AS anonymous_id`,
-				},
-			];
-		},
+		prepareSql: profileIdentityPrepareStages,
 		customSql: (ctx) => {
 			const { websiteId, startDate, endDate, filters } = ctx;
 			const limit = ctx.limit ?? 100;
