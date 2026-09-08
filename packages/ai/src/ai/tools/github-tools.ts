@@ -663,16 +663,16 @@ export function createGitHubTools(
 				.describe("Maximum UTF-16 characters to return; defaults to 15,000."),
 		}),
 		execute: async (input) => {
+			const repo = resolveRepository(repository, input);
+			const refParam = input.ref ? `?ref=${encodeURIComponent(input.ref)}` : "";
+			const requestPath = `/repos/${repositoryPath(repo)}/contents/${filePath(input.path)}${refParam}`;
+			// Bind this read before auth can yield to a concurrent first-window read.
+			const previousSha = fileShas.get(requestPath);
+			const continuation = (input.offset ?? 0) > 0;
 			const token = await getToken();
 			if (!token) {
 				return { error: "No GitHub account connected" };
 			}
-			const repo = resolveRepository(repository, input);
-
-			const refParam = input.ref ? `?ref=${encodeURIComponent(input.ref)}` : "";
-			const requestPath = `/repos/${repositoryPath(repo)}/contents/${filePath(input.path)}${refParam}`;
-			const previousSha = fileShas.get(requestPath);
-			const continuation = (input.offset ?? 0) > 0;
 			const data = await request(requestPath, token);
 
 			if (data && typeof data === "object" && "error" in data) {
