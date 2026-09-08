@@ -17,6 +17,7 @@ const MAX_RESULTS = 10;
 const DEPLOY_FETCH_SIZE = 50;
 const MAX_DEPLOY_PAGES = 5;
 const MAX_COMMITS = 50;
+const MAX_FILE_CHARACTERS = 15_000;
 const SEARCH_SCOPE = /\b(?:repo|org|user):\S+/i;
 const DEPLOYMENT_RESULT_STATES = new Set(["error", "failure", "success"]);
 const DEPLOYMENT_TIMESTAMP = z
@@ -171,6 +172,8 @@ export function createGitHubTools(
 		dependencies.getToken ??
 		createInstallationFirstTokenFn(params.organizationId, params.userId);
 	const request = dependencies.request ?? githubFetch;
+	// Toolkits are created per agent run; never share file identities across runs.
+	const fileShas = new Map<string, string | null>();
 	const deploymentInput = createRepositorySchema(repository, {
 		environment: z
 			.string()
@@ -632,7 +635,7 @@ export function createGitHubTools(
 
 	const readFileTool = tool({
 		description:
-			"Read a file from a GitHub repo. Use to inspect source code when investigating a bug or tracking issue. Returns the file content as text.",
+			"Read source code to inspect a bug, tracking predicate or event meaning. Start at offset 0, then follow nextOffset with the same path/ref instead of repeating the prefix. Returns at most 15,000 UTF-16 source characters. The tool checks file identity across windows in this run; if it changes or is unavailable, restart at offset 0. truncated means more content follows this window. ref is the requested branch/tag/commit (null means default branch); blobSha identifies file content, not a deployed commit. Pin a known deployed commit for historical claims.",
 		inputSchema: createRepositorySchema(repository, {
 			path: REPOSITORY_PATH.describe(
 				"File path in the repo (e.g. 'src/components/navbar.tsx')"
@@ -643,6 +646,21 @@ export function createGitHubTools(
 				.describe(
 					"Branch, tag, or commit SHA. Defaults to the default branch."
 				),
+			offset: z
+				.number()
+				.int()
+				.nonnegative()
+				.optional()
+				.describe(
+					"Zero-based UTF-16 character offset; defaults to 0. Use nextOffset to continue."
+				),
+			length: z
+				.number()
+				.int()
+				.min(1)
+				.max(MAX_FILE_CHARACTERS)
+				.optional()
+				.describe("Maximum UTF-16 characters to return; defaults to 15,000."),
 		}),
 		execute: async (input) => {
 			const token = await getToken();
@@ -652,10 +670,10 @@ export function createGitHubTools(
 			const repo = resolveRepository(repository, input);
 
 			const refParam = input.ref ? `?ref=${encodeURIComponent(input.ref)}` : "";
-			const data = await request(
-				`/repos/${repositoryPath(repo)}/contents/${filePath(input.path)}${refParam}`,
-				token
-			);
+			const requestPath = `/repos/${repositoryPath(repo)}/contents/${filePath(input.path)}${refParam}`;
+			const previousSha = fileShas.get(requestPath);
+			const continuation = (input.offset ?? 0) > 0;
+			const data = await request(requestPath, token);
 
 			if (data && typeof data === "object" && "error" in data) {
 				return data;
@@ -666,19 +684,47 @@ export function createGitHubTools(
 				encoding?: string;
 				size?: number;
 				name?: string;
+				sha?: string;
 			};
-			if (!file.content || file.encoding !== "base64") {
+			if (typeof file?.content !== "string" || file.encoding !== "base64") {
 				return { error: "File not found or not a regular file" };
+			}
+			const blobSha = file.sha?.toLowerCase() || null;
+			const currentSha = fileShas.get(requestPath);
+			if (
+				(continuation && (!previousSha || previousSha !== blobSha)) ||
+				(currentSha !== previousSha && currentSha !== blobSha)
+			) {
+				return {
+					error:
+						"File identity changed or is unavailable for continuation. Read this path/ref again at offset 0, then follow the new nextOffset.",
+				};
+			}
+			if (!continuation) {
+				fileShas.set(requestPath, blobSha);
 			}
 
 			const decoded = Buffer.from(file.content, "base64").toString("utf-8");
+			const offset = Math.min(input.offset ?? 0, decoded.length);
+			const end = Math.min(
+				offset + (input.length ?? MAX_FILE_CHARACTERS),
+				decoded.length
+			);
+			const content = decoded.slice(offset, end);
+			const truncated = end < decoded.length;
 			return {
 				path: input.path,
 				size: file.size,
+				ref: input.ref ?? null,
+				blobSha,
+				offset,
+				nextOffset: truncated ? end : null,
+				totalCharacters: decoded.length,
+				truncated,
 				content:
-					decoded.length > 15_000
-						? `${decoded.slice(0, 15_000)}\n…[truncated at 15KB]`
-						: decoded,
+					truncated && input.offset === undefined && input.length === undefined
+						? `${content}\n…[truncated at 15KB]`
+						: content,
 			};
 		},
 	});
