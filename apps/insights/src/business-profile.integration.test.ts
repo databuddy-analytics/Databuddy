@@ -528,6 +528,29 @@ integration(
 			}
 			expect(record.refreshAfter.getTime()).toBeGreaterThan(Date.now());
 		});
+		it("uses discovered pages after a homepage timeout without retrying it", async () => {
+            const selected = model();
+            readPage.mockImplementation(async input => input.path === "/" ? { success: false, error: "Synthetic homepage timeout" } : page(input.path));
+            const result = await loadDurableBusinessProfile(
+                { scope, asOf: new Date(), allowRefresh: true },
+                { model: selected, readPage, discoverPages: async () => ({ paths: ["/pricing"] }) }
+            );
+            expect(selected.doGenerateCalls).toHaveLength(2);
+            expect(readPage.mock.calls.map(([input]) => input.path)).toEqual(["/", "/pricing"]);
+            expect(result.status).toBe("partial");
+            expect(result.issues).toContain("Synthetic homepage timeout");
+            expect(result.sources.map(source => source.url)).toEqual([page("/pricing").finalUrl]);
+            expect((await stored()).profile.brief).not.toBeNull();
+        });
+        it("avoids model work when both the homepage and discovery are unavailable", async () => {
+            const unused = model();
+            readPage.mockResolvedValue({ success: false, error: "Synthetic homepage timeout" });
+            const result = await load(unused);
+            expect(unused.doGenerateCalls).toHaveLength(0);
+            expect(readPage).toHaveBeenCalledTimes(1);
+            expect(result.sources).toHaveLength(0);
+            expect(result.issues).toContain("Synthetic homepage timeout");
+        });
 		it("persists the fetched homepage when optional page selection fails", async () => {
 			const unavailable = new MockLanguageModelV3({
 				doGenerate: async () => {

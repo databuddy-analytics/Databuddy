@@ -140,7 +140,7 @@ export async function compileBusinessBrief(
 }
 
 export async function selectBusinessPages(
-	page: Page,
+	page: Pick<Page, "finalUrl" | "content" | "internalLinks">,
 	options: ModelOptions & { paths?: string[] } = {}
 ) {
 	const links = [...new Set([...page.internalLinks, ...(options.paths ?? [])])];
@@ -447,10 +447,20 @@ export async function loadDurableBusinessProfile(
 				]
 					.slice(0, 8)
 					.concat(replies);
-				const paths = await selectBusinessPages(homepage, {
-					...refreshOptions,
-					paths: discovery.paths,
-				});
+			} else {
+				profile.issues.push(homepage.error.slice(0, 200));
+			}
+			if (homepage.success || discovery.paths.length) {
+				const paths = await selectBusinessPages(
+					homepage.success
+						? homepage
+						: {
+								finalUrl: `https://${scope.domain}/`,
+								content: "",
+								internalLinks: [],
+							},
+					{ ...refreshOptions, paths: discovery.paths }
+				);
 				for (let index = 0; index < paths.length; index += 2) {
 					const results = await Promise.all(
 						paths.slice(index, index + 2).map((path) =>
@@ -480,8 +490,6 @@ export async function loadDurableBusinessProfile(
 						}
 					}
 				}
-			} else {
-				profile.issues.push(homepage.error.slice(0, 200));
 			}
 		}
 		if (profile.sources.length) {
