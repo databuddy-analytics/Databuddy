@@ -501,12 +501,45 @@ describe("bounded canonical loader and formatter", () => {
 		});
 		const text = formatOrganizationBusinessContext("org-synthetic", parsed.profile);
 		expect(text.length).toBeLessThanOrEqual(48_000);
+		expect(text).not.toContain("sourceReferencesOmitted");
 		expect(text).toContain(finalMeaning);
 		expect(text).toContain(finalExclusion);
 		expect(text).toContain(parsed.profile?.content ?? "missing");
 		for (const reference of parsed.profile?.sources ?? []) {
 			expect(text).toContain(reference.url);
 		}
+	});
+	it("omits oversized escaped references explicitly while retaining the complete plaintext brief and team assertions", () => {
+		const finalMeaning = "synthetic_tail means preparation, not download.";
+		const finalExclusion = "Exclude synthetic preview-only activity.";
+		const parsed = organizationBusinessContextSchema.parse({
+			profile: {
+				...profile,
+				origin: "mixed",
+				content: "b".repeat(12_000 - finalMeaning.length) + finalMeaning,
+				teamContext: {
+					priority: "p".repeat(2000),
+					successDefinition: "s".repeat(2000),
+					exclusions: "e".repeat(2000 - finalExclusion.length) + finalExclusion,
+				},
+				sources: Array.from({ length: 8 }, (_, index) => ({
+					url: `https://example.com/${index}/`.padEnd(2048, "x"),
+					title: ">".repeat(512),
+				})),
+			},
+			generation: null,
+		});
+		const text = formatOrganizationBusinessContext("org-synthetic", parsed.profile);
+		expect(text.length).toBeLessThanOrEqual(48_000);
+		expect(text).toContain(parsed.profile?.content ?? "missing");
+		for (const assertion of Object.values(parsed.profile?.teamContext ?? {})) {
+			expect(text).toContain(assertion);
+		}
+		expect(text).toContain('"sourceReferences":[]');
+		expect(text).toContain('"sourceReferencesOmitted":{"count":8');
+		expect(text).toContain("Reference URLs and titles are unavailable for this turn");
+		expect(text).not.toContain("https://example.com/");
+		expect(parsed.profile?.sources).toHaveLength(8);
 	});
 	it("preserves a complete maximum-size ordinary brief, and omits oversized escaped records intact", () => {
 		for (const content of [
