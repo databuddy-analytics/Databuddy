@@ -50,7 +50,12 @@ detect signal
 
 One exact signal starts an agent turn. The Insights brief aggregates useful turns across websites and time.
 
-A run may first freeze a small, deterministic portfolio of distinct signals.
+A run may first freeze a small portfolio of distinct signals. Available sourced
+business context and complete candidate definitions inform at most one bounded
+model selection before subject recall and investigation. Unavailable or invalid
+context retains the deterministic fallback; due rechecks and critical reliability
+regressions retain priority even when the model selects none. Original measurement
+constraints and the unverified planning rationale stay in the frozen objective.
 Scheduled runs investigate at most two; a deliberate manual full scan investigates at
 most five and covers a distinct eligible specialist family before taking extra work from
 one family. The portfolio is diversified across correlated subjects and survives a
