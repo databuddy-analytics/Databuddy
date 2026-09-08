@@ -27,23 +27,23 @@ const CATEGORIES = [...new Set(ALL_TYPES.map((t) => t.category))].sort();
 
 export const discoverQueryTypesTool = tool({
 	description:
-		"List the analytics query builders available to get_data, filtered by category and/or keyword. Call this when you need the right builder or its input contract. Returns allowed filters and operators, required selectors, output fields, and default order alongside the description. Null outputFields means undocumented, not an empty result schema. Custom SQL may have undocumented built-in ordering; omit orderBy to retain it. Cheap to call (no I/O).",
+		"Discover the analytics query builders available to get_data. With no category or keyword, returns a compact catalog of names, descriptions and tags; look up a relevant name for its input contract. A category or keyword returns allowed filters/operators, required selectors, output fields and default order. Null outputFields means undocumented, not an empty result schema. Omit orderBy when ordering is undocumented. No I/O.",
 	inputSchema: z.object({
 		category: z
 			.enum([CATEGORIES[0] ?? "Summary", ...CATEGORIES.slice(1)] as [
 				string,
 				...string[],
 			])
-			.optional()
+			.nullish()
 			.describe(
-				`Filter by category. Available: ${CATEGORIES.join(", ")}. Omit to list everything.`
+				`Filter by category, or null to search across all categories. Available: ${CATEGORIES.join(", ")}. Use null when the capability's category is unknown.`
 			),
 		search: z
 			.string()
 			.max(60)
-			.optional()
+			.nullish()
 			.describe(
-				"One literal keyword or exact builder name, e.g. revenue_overview or retention. Use an empty string to list the category. Full questions are not semantic searches; a missing narrow match does not prove the category lacks the capability."
+				"One literal keyword or exact builder name, e.g. revenue_overview or retention. Null or empty lists all types in the selected scope. This is substring matching, not semantic search; an empty result only rules out that search in that scope."
 			),
 	}),
 	execute: ({ category, search }) => {
@@ -64,7 +64,15 @@ export const discoverQueryTypesTool = tool({
 		return {
 			categories: CATEGORIES,
 			matchCount: filtered.length,
-			types: filtered,
+			types:
+				category || needle
+					? filtered
+					: filtered.map(({ name, category, description, tags }) => ({
+							name,
+							category,
+							description,
+							tags,
+						})),
 		};
 	},
 });
