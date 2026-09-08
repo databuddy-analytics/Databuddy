@@ -880,6 +880,7 @@ async function investigatePlannedCandidate(
 	try {
 		investigationResult = await runtime.sources.investigateSignal({
 			appContext,
+			retainBusinessPages: runtime.mode === "production",
 			...(candidate.businessContext
 				? { businessContext: candidate.businessContext }
 				: {}),

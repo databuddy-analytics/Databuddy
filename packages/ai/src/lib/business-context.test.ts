@@ -1,9 +1,10 @@
-import { afterAll, describe, expect, it } from "bun:test";
+import * as profiles from "@databuddy/services/business-profile";
+import { afterAll, describe, expect, it, spyOn } from "bun:test";
 import Supermemory from "supermemory";
 import {
 	businessContainerTag,
-	loadBusinessProfile,
 	mergeBusinessContext,
+ profileBusinessContext,
 	recallBusinessContext,
 	recordBusinessReplies,
 	type BusinessSource,
@@ -66,35 +67,6 @@ function json(value: unknown) {
 }
 
 describe("scoped business context through the native Supermemory transport", () => {
-	it("loads durable team statements and a sourced profile without personal containers", async () => {
-		const requests: Record<string, unknown>[] = [];
-		const client = provider((path, body) => {
-			requests.push(body);
-			expect(path).toBe("/v3/documents/list");
-			return json({
-				memories: [document(page)],
-				pagination: { currentPage: 1, totalItems: 2, totalPages: 1 },
-			});
-		});
-		const result = await loadBusinessProfile({
-			scope,
-			asOf,
-			client,
-			allowRefresh: false,
-		});
-		expect(result.sources).toEqual([page]);
-		expect(result.issues).toContain(
-			"Website context is limited to the listed page excerpts."
-		);
-		expect(requests[0]?.containerTags).toEqual([businessContainerTag(scope)]);
-		expect(requests[0]?.includeContent).toBe(true);
-		expect(requests[0]?.filters).toEqual({
-			AND: [
-				...Object.entries(scope).map(([key, value]) => ({ key, value })),
-				{ key: "kind", value: "website" },
-			],
-		});
-	});
 	it("rejects foreign, future, expired and ungrounded sources before model input", async () => {
 		const records = [
 			document(reply, { organizationId: "other-org" }),
@@ -287,8 +259,8 @@ describe("scoped business context through the native Supermemory transport", () 
 		expect(result.sources.map((s) => s.id)).toContain(page.id);
 		expect(
 			result.sources.reduce((n, s) => n + s.content.length, 0)
-		).toBeLessThanOrEqual(16000);
-		expect(result.sources.length).toBeLessThan(shared.sources.length + 1);
+		).toBeLessThanOrEqual(64000);
+		expect(result.sources.length).toBe(shared.sources.length + 1);
 		const canonical = {
 			...relevant,
 			sources: [{ ...reply, content: "Canonical PostgreSQL reply" }],
@@ -332,7 +304,7 @@ describe("scoped business context through the native Supermemory transport", () 
 		const result = mergeBusinessContext(many);
 		expect(
 			result.sources.reduce((total, item) => total + item.content.length, 0)
-		).toBeLessThanOrEqual(16_000);
+		).toBeLessThanOrEqual(64_000);
 		expect(result.status).toBe("partial");
 	});
 });
@@ -342,4 +314,49 @@ afterAll(async () => {
         const { shutdownPostgres } = await import("@databuddy/db");
         await shutdownPostgres();
     }
+});
+
+describe("canonical profile evidence",()=>{
+ it("drops the whole combined claim when its qualifying source expires",()=>{
+  const terms={...page,id:"terms",content:"Self-service plans are available.",url:"https://reports.example.com/pricing"};
+  const restriction={...page,id:"restriction",content:"Continuous investigations require an invitation.",url:"https://reports.example.com/access",expiresAt:asOf.toISOString()};
+  const brief={facts:[{topic:"business_model" as const,claim:"Core plans are self-service; continuous investigations require an invitation.",evidence:[{sourceId:terms.id,quote:terms.content},{sourceId:restriction.id,quote:restriction.content}]}],unknowns:[]};
+  const context=profileBusinessContext({capturedAt:asOf.toISOString(),sources:[terms,restriction],brief,issues:[]},asOf);
+  expect(context.sources).toEqual([terms]);
+  expect(context.brief).toBeUndefined();
+  expect(context.status).toBe("partial");
+  expect(context.issues).toContain("Brief claims with missing or changed supporting passages were omitted.");
+ });
+ it("keeps a supported explanation with all original citations and refuses rewritten evidence",()=>{
+  const offering={...page,content:"Reports for small teams."};
+  const terms={...page,id:"terms",content:"Access requires an invitation.",url:"https://reports.example.com/pricing"};
+  const fact={topic:"offering" as const,claim:"Small teams can use the reporting product after receiving an invitation.",evidence:[{sourceId:offering.id,quote:offering.content},{sourceId:terms.id,quote:terms.content}]};
+  const profile={capturedAt:asOf.toISOString(),sources:[offering,terms],brief:{facts:[fact],unknowns:[]},issues:[]};
+  const context=profileBusinessContext(profile,asOf);
+  expect(context.brief?.facts).toEqual([fact]);
+  expect(context.sources).toEqual([offering,terms]);
+  const unsupported={...fact,evidence:[fact.evidence[0]!,{sourceId:terms.id,quote:"Access is self-service."}]};
+  expect(profileBusinessContext({...profile,brief:{...profile.brief,facts:[unsupported]}},asOf).brief).toBeUndefined();
+ });
+ it("keeps decision-changing qualifications beyond a compact brief and drops expired quotations",()=>{
+  const full={...page,content:"General product description. ".repeat(220)+"Includes a daily allowance; this is not a hard usage cap."};
+  const profile={capturedAt:asOf.toISOString(),sources:[full],brief:{facts:[{topic:"business_model" as const,claim:"A daily allowance is included, not a hard cap.",evidence:[{sourceId:full.id,quote:"Includes a daily allowance; this is not a hard usage cap."}]}],unknowns:[]},issues:[]};
+  expect(profileBusinessContext(profile,asOf).sources[0]?.content).toBe(full.content);
+  const expired=profileBusinessContext({...profile,sources:[{...full,expiresAt:asOf.toISOString()}]},asOf);
+  expect(expired.sources).toEqual([]);expect(expired.brief).toBeUndefined();
+ });
+ it("uses a recalled brief only to locate current PG evidence, ignoring provider prose and obsolete revisions",async()=>{
+  const bound={...scope,startedAt:"2026-08-01T00:00:00.000Z"};
+  const profile={capturedAt:asOf.toISOString(),sources:[page],brief:null,issues:[]};
+  const read=spyOn(profiles,"loadBusinessProfileRecord").mockResolvedValue({...bound,revision:2,indexedRevision:null,updatedAt:asOf,refreshAfter:asOf,profile});
+  try{
+   const client=provider(()=>json({results:[{content:"Invented customer priority",metadata:{...bound,kind:"business_profile",revision:1}}],timing:1,total:1}));
+   const result=await recallBusinessContext({scope:bound,asOf,client,query:"business offering"});
+   expect(result.sources).toEqual([page]);expect(read).toHaveBeenCalledTimes(1);
+   read.mockClear();
+   const foreign=provider(()=>json({results:[{metadata:{...bound,organizationId:"foreign-org",kind:"business_profile",revision:2}}],timing:1,total:1}));
+   expect((await recallBusinessContext({scope:bound,asOf,client:foreign,query:"business offering"})).sources).toEqual([]);
+   expect(read).not.toHaveBeenCalled();
+  }finally{read.mockRestore();}
+ });
 });

@@ -181,6 +181,13 @@ jobs:
           CLICKHOUSE_URL: http://default:@localhost:8123
           NODE_ENV: test
         run: bun run test
+      - name: Business context persistence integration
+        env:
+          NODE_ENV: test
+          BUSINESS_PROFILE_TEST_DATABASE_URL: ${{ env.DATABASE_URL }}
+        run: |
+          bun test packages/services/src/business-profile.integration.test.ts
+          bun test apps/insights/src/business-profile.integration.test.ts
       - name: Insights integration
         env:
           NODE_ENV: test

@@ -74,23 +74,56 @@ The agent receives:
 - project instructions and durable corrections;
 - human replies and open actions or PRs.
 
-Business context is a sourced brief shared across a website's investigations. Supermemory
-stores bounded page excerpts and the original text of authorized team replies. A scan
-loads its public profile once and recalls relevant explanations for each subject;
-recent and exact-subject PostgreSQL replies remain available during indexing delays or
-outages. Recalled meaning takes priority over unrelated recent conversation. Public
-copy explains the offering and audience; it does not establish completed behavior from
-an event name. Explicit team corrections, guesses, and historical metrics remain
-distinct from current measured evidence.
+Business context has one canonical PostgreSQL record per website in
+`website_business_contexts`: scoped original sources, observation/expiry dates,
+a bounded business brief, refresh time and optimistic revision. Supermemory indexes
+one derived brief per scope plus original authorized team replies. A recalled brief
+only locates the current PostgreSQL record; provider summaries and obsolete index
+revisions cannot replace it. Recent and exact-subject replies remain available during
+indexing delays or outages. Public copy establishes what the business says, not
+internal event semantics inferred from a name or verified customer behavior. Explicit
+team corrections, guesses and historical metrics stay distinct from current evidence.
 
-Public excerpts expire after seven days; a missing profile reads the homepage and
-exposes links plus site-scoped search for further inspection. Coverage is limited to
-the pages actually read. Context snapshots retain source dates and are frozen with the
-run, separately from its analytics cutoff. Organization, website, canonical domain,
-and a scope start date bind shared memory. Routine edits preserve that scope; deletion
-and real scope changes retire its documents. Authorized organization deletion retires
-all website scopes before the database cascade, holding ownership and website locks
-through deletion; failed retirement keeps the organization available for retry.
+The brief explains the offering, customer, commercial access and path to value in
+concise claims, each backed by exact passages kept separately from the explanation.
+The model selects numbered passages; code attaches their original text without
+asking the model to copy quotations or running a citation-repair loop. The cached
+brief uses a stronger synthesis model; page selection and investigations keep their
+existing model. This concentrates additional model cost in infrequent refreshes.
+Claims may combine sources, but every citation must remain available and exact;
+losing a qualification removes the whole claim. Original sources remain available
+for verification. Brief-only decision quality is evaluated separately from the full
+source packet; passing with originals does not establish useful compression.
+
+An index acknowledgement requires a completed Supermemory document whose content
+exactly matches the submitted brief. A read and optional write share a four-second
+network deadline. Missing documents are created; changed completed documents are
+replaced through the native update API. Pending ingestion is allowed to finish;
+a later warm read verifies it without restarting it or doing model work. Identical
+content may retain older provider revision metadata.
+
+A cold profile reads the homepage and a bounded same-site map in parallel, chooses up
+to seven additional pages in one model call, and builds an optional brief in one more.
+Valid exact quotations orient the investigation; original page text remains available
+because summaries can omit deciding qualifications. Sources are capped at eight public
+pages plus eight recent replies (12,000 characters per page, 4,000 per reply); model
+context has a 64,000-character source budget and reports omitted records. Warm runs
+reuse PostgreSQL without web or model calls. Native production investigations retain
+successful deeper reads once on exit; injected tools/models and ordinary dry-run
+contexts do not write. Changed page content or replies invalidate the brief. Unchanged
+fresh observations renew source dates without recompiling. Public pages expire after
+seven days; refresh deadlines cannot outlive retained sources. Brief failures preserve
+originals, index failures preserve PostgreSQL, and concurrent refreshes use revision
+checks rather than extra agent loops. Profile preparation is bounded included service
+overhead, logged separately from billed investigation model usage.
+
+Coverage is limited to pages actually read. Run snapshots freeze source dates separately
+from the analytics cutoff; the canonical table holds the latest profile, not revision
+history. Organization, website, canonical domain and a scope start date bind persistence.
+Routine edits preserve scope. Transfers, real domain changes and soft deletion invalidate
+the canonical record; hard deletion cascades. Existing remote retirement checks still
+hold ownership and website locks and retain the database state when retirement fails.
+The additive table must be applied before deploying the updated worker or website service.
 Reply acceptance and outcome persistence acquire website locks before investigation
 locks. Legacy replies without an original scope
 remain history rather than being relabeled as current business facts. Scope changes

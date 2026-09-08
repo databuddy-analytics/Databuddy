@@ -134,6 +134,7 @@ describe("readWebsitePage", () => {
 				url: "https://www.example.com/start",
 				formats: ["markdown", "links"],
 				onlyMainContent: true,
+                excludeTags: ["iframe"],
 				maxAge: 0,
 				timeout: 10_000,
 			});
@@ -565,4 +566,22 @@ describe("website tools", () => {
 			error: "Website search cancelled or timed out",
 		});
 	});
+});
+
+describe("business page discovery", () => {
+ it("finds deeper paths while rejecting external hosts, ports, credentials and query URLs", async () => {
+  globalThis.fetch=mock(async(input,init)=>{
+   expect(String(input)).toBe("https://api.firecrawl.dev/v2/map");
+   expect(JSON.parse(String(init?.body))).toMatchObject({includeSubdomains:false,sitemap:"include",limit:200});
+   return Response.json({success:true,links:["https://example.com/docs/setup","https://www.example.com/docs/setup#verify","https://example.com.attacker.test/","https://docs.example.com/","https://user@example.com/private","https://example.com:8443/","https://example.com/search?q=private"].map(url=>({url}))});
+  });
+  const {discoverWebsitePages}=await import("./scrape-page");
+  expect(await discoverWebsitePages({domain:"example.com"})).toEqual({paths:["/docs/setup"]});
+ });
+ it("reports unavailable discovery without retrying or inventing pages",async()=>{
+  globalThis.fetch=mock(async()=>new Response("rate limited",{status:429}));
+  const {discoverWebsitePages}=await import("./scrape-page");
+  const result=await discoverWebsitePages({domain:"example.com"});
+  expect(result.paths).toEqual([]);expect(result.issue).toContain("429");expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+ });
 });

@@ -3,6 +3,7 @@ import { db, eq, isUniqueViolationFor } from "@databuddy/db";
 import {
 	type WebsiteInsert,
 	type Website,
+	websiteBusinessContexts,
 	websites,
 } from "@databuddy/db/schema";
 import { invalidateWebsiteReadCaches } from "@databuddy/redis/cache-invalidation";
@@ -314,6 +315,11 @@ export class WebsiteService {
 
 			if (!updated) {
 				throw new WebsiteNotFoundError();
+			}
+			if (scopeChanged || (!before.deletedAt && updated.deletedAt)) {
+				await database
+					.delete(websiteBusinessContexts)
+					.where(eq(websiteBusinessContexts.websiteId, id));
 			}
 			if (scopeChanged && scope.startedAt) {
 				await retireBusinessMemory(scope);

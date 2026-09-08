@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./business-memory": "./src/business-memory.ts",
+    "./business-profile": "./src/business-profile.ts",
     "./billing-lifecycle": "./src/billing-lifecycle.ts",
     "./audit": "./src/audit.ts",
     "./feedback": "./src/feedback.ts",
