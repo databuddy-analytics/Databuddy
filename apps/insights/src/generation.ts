@@ -1031,12 +1031,19 @@ export async function planInvestigationsWithBusinessContext(
 				candidates = planCoveragePortfolio(signals, {
 					...options,
 					selectedSignalKeys: [...objectives.keys()],
-				}).map((signal) => ({
-					...toPlannedCandidate(signal),
-					investigationObjective:
-						objectives.get(signalKeyForDetectedSignal(signal)) ??
-						signal.investigationObjective,
-				}));
+				}).map((signal) => {
+					const hypothesis = objectives.get(signalKeyForDetectedSignal(signal));
+					return {
+						...toPlannedCandidate(signal),
+						investigationObjective:
+							[
+								signal.investigationObjective,
+								hypothesis && `Unverified planning hypothesis: ${hypothesis}`,
+							]
+								.filter(Boolean)
+								.join("\n") || undefined,
+					};
+				});
 				emitInsightsEvent("info", "generation.candidate_portfolio.selected", {
 					organization_id: input.organizationId,
 					website_id: input.websiteId,
@@ -1128,6 +1135,8 @@ async function runPlannedCandidatePortfolio(params: {
 		throw firstCandidateFailure;
 	}
 }
+// Shadow callers must inject both business context and selection explicitly;
+// missing sources never fall through to live profile, memory or model calls.
 export async function investigateWebsitePortfolioWithSources(
 	input: InvestigateWebsiteInput,
 	sources: InvestigationSources,

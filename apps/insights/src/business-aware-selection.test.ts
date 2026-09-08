@@ -54,7 +54,7 @@ const outcome: DetectedSignal = {
 	definitionEvidence:
 		'Goal "Report delivered": CUSTOM_EVENT report_delivered; property delivery_status = "accepted"; unique visitors; excludes internal workspace.',
 	investigationObjective:
-		"Check completed report delivery for external workspaces.",
+		'Verify goal:report-delivery for both complete signal windows using unique visitors, CUSTOM_EVENT report_delivered, delivery_status="accepted" and the external-workspace filter. Event reach alone does not establish completed delivery.',
 };
 const error: DetectedSignal = {
 	...traffic,
@@ -181,6 +181,11 @@ describe("business-aware investigation selection", () => {
 				investigateSignal: async (params) => {
 					investigations.push(params.signal.signalKey);
 					expect(params.investigationObjective).toBeTruthy();
+					if (selected === choice.signalKey) {
+						expect(params.investigationObjective).toBe(
+							`${outcome.investigationObjective}\nUnverified planning hypothesis: ${choice.objective}`
+						);
+					}
 					expect(params.appContext.organizationId).toBe(input.organizationId);
 					expect(params.appContext.mutationMode).toBe("dry-run");
 					expect(params.evidence).not.toContain(params.investigationObjective!);
@@ -565,9 +570,11 @@ describe("business-aware investigation selection", () => {
 		expect(model.doGenerateCalls).toHaveLength(1);
 	});
 
-	it("freezes the chosen objective and context while keeping the rationale out of evidence", async () => {
+	it("freezes the exact measurement constraint even when the model uses its whole objective budget without it", async () => {
+		const hypothesis = choice.objective.padEnd(500, ".");
 		const model = new MockLanguageModelV3({
-			doGenerate: async () => response({ selections: [choice] }),
+			doGenerate: async () =>
+				response({ selections: [{ ...choice, objective: hypothesis }] }),
 		});
 		const candidates = await planInvestigationsWithBusinessContext(
 			input,
@@ -591,7 +598,9 @@ describe("business-aware investigation selection", () => {
 			"scheduled",
 			scope
 		);
-		expect(retry.candidates[0]?.investigationObjective).toBe(choice.objective);
+		expect(retry.candidates[0]?.investigationObjective).toBe(
+			`${outcome.investigationObjective}\nUnverified planning hypothesis: ${hypothesis}`
+		);
 		expect(retry.candidates[0]?.businessContext).toEqual(context);
 		expect(retry.candidates[0]?.evidence).toEqual(
 			prepareInvestigation(outcome, 7).evidence
