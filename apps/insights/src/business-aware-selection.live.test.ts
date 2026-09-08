@@ -157,8 +157,8 @@ live("live native business selection", () => {
 		const chosen = result?.output.selections.map(
 			(selection) => selection.signalKey
 		);
-		console.log(
-			JSON.stringify({
+		process.stdout.write(
+			`${JSON.stringify({
 				name: "newest correction, oversized homepage and pricing",
 				calls,
 				durationMs: Math.round(performance.now() - started),
@@ -171,7 +171,7 @@ live("live native business selection", () => {
 				objectives: result?.output.selections.map(
 					(selection) => selection.objective
 				),
-			})
+			})}\n`
 		);
 		expect(calls).toBe(1);
 		expect(chosen).toEqual(["goal:report-delivery"]);
@@ -305,7 +305,7 @@ live("live native business selection", () => {
 					(candidate) => candidate.investigationObjective
 				),
 			};
-			console.log(JSON.stringify(record));
+			process.stdout.write(`${JSON.stringify(record)}\n`);
 			expect(calls).toBe(1);
 			expect(result).toBeDefined();
 			if (fixture.expected) expect(chosen).toEqual(fixture.expected);
