@@ -51,7 +51,7 @@ export function createFunnelTools() {
 
 	const getFunnelAnalyticsTool = tool({
 		description:
-			"Funnel definition, measured dates and distinct visitor counts: entrants match the first step; completions reach every ordered step. These are visitors, not projects, occurrences or attempts. Optional cohort measures browser, device, country or campaign segments without editing the saved definition. Compare cohorts and periods with parallel calls. Reuse matching verified measurements; remeasure stale or conflicting context.",
+			"Funnel definition, measured dates and distinct visitor counts. savedDefinition is the saved configuration; measurement.definition includes read-time cohort filters. A filtered measurement alone does not establish a saved-definition change. Entrants match the first step; completions reach every ordered step. These are visitors, not projects, occurrences or attempts. Optional cohort measures browser, device, country or campaign segments without editing the saved definition. Compare cohorts and periods with parallel calls. Reuse matching verified measurements; remeasure stale or conflicting context.",
 		inputSchema: funnelAnalyticsInputSchema,
 		execute: async (
 			{ funnelId, websiteId: inputWebsiteId, startDate, endDate, cohort },

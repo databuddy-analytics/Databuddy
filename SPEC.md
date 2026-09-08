@@ -149,6 +149,8 @@ Goal and funnel repairs must match the signal's exact definition ID in the lates
 
 Reject output that merely restates a percentage, invents a cause, asks for data Databuddy can read, gives a generic recommendation, or creates duplicate work.
 
+Stop gathering when further reads cannot change the decision, while retaining established changes and controls that change its interpretation. An overview of the current subject can reveal independent business facts even when its headline metric is stable: stable gross revenue does not erase falling attribution or rising refunds. Prefer these distinct comparisons over redundant counts. Capability discovery can inspect a compact complete catalog, then retrieve the relevant query contract; an empty search in one category cannot establish that a capability is unavailable everywhere.
+
 A detected signal is a snapshot. Conflicting current evidence must be reconciled against the same definition, population and measured dates; a current definition listing alone cannot validate old counts. Unresolved measurement conflicts remain private without an invented cause.
 
 Summary, cause, and evidence each contribute a different fact. Routine or unchanged rechecks remain in internal history with `publish: false`. Raw website traffic is not a verified product outcome: it can publish only a measurement-coverage finding with cited collection or implementation evidence. Uncited context, goal listings, and sibling metrics cannot establish visitor loss; a product result belongs to its own signal and subject.

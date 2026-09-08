@@ -7,6 +7,7 @@ import {
 import { dirname, resolve } from "node:path";
 import { isDeepStrictEqual, parseArgs } from "node:util";
 import { createModelFromId } from "@databuddy/ai/config/models";
+import { QueryBuilders } from "@databuddy/ai/query/builders";
 import { createToolkit } from "@databuddy/ai/tools/toolkit";
 import { insightMeasurementSchema } from "@databuddy/shared/insights";
 import { tool, wrapLanguageModel, type ToolSet } from "ai";
@@ -147,7 +148,8 @@ interface QualityCase {
 	// Observable expectations, independent of exact wording.
 	check: (
 		result: InsightAgentResult,
-		calls: { name: string; input: unknown; output?: unknown }[]
+		calls: { name: string; input: unknown; output?: unknown }[],
+		acceptedFinish?: unknown
 	) => string[];
 	id: string;
 	input: InsightAgentInput;
@@ -826,10 +828,15 @@ qualityCases.push({
 		github_read_file: {
 			...repositoryTools.github_read_file,
 			execute: (query) => {
-				if (query.path !== "src/checkout.ts" || query.ref !== "abcdef1") {
+				if (
+					query.path !== "src/checkout.ts" ||
+					query.ref !== "abcdef1" ||
+					(query.offset ?? 0) !== 0 ||
+					(query.length ?? 15_000) !== 15_000
+				) {
 					return {
 						error:
-							"Read the observed deployed file and revision; no other synthetic source is available.",
+							"This fixture supports the observed deployed file and revision with offset 0 and default length 15000 only.",
 					};
 				}
 				return {
@@ -847,10 +854,14 @@ qualityCases.push({
 		...(calls.some(
 			(call) =>
 				call.name === "github_read_file" &&
-				isDeepStrictEqual(call.input, {
-					path: "src/checkout.ts",
-					ref: "abcdef1",
-				}) &&
+				z
+					.object({
+						path: z.literal("src/checkout.ts"),
+						ref: z.literal("abcdef1"),
+						offset: z.literal(0).optional(),
+						length: z.literal(15_000).optional(),
+					})
+					.safeParse(call.input).success &&
 				call.output &&
 				typeof call.output === "object" &&
 				!("error" in call.output) &&
@@ -951,6 +962,11 @@ for (const repaired of [false, true]) {
 								filters: [],
 							},
 						},
+						savedDefinition: {
+							type: goal.type,
+							target: "/workspace",
+							filters: [],
+						},
 						total_users_completed: repaired ? 120 : 40,
 						total_users_entered: 200,
 						overall_conversion_rate: repaired ? 60 : 20,
@@ -981,19 +997,16 @@ for (const repaired of [false, true]) {
 					!("error" in call.output) &&
 					"total_users_completed" in call.output &&
 					call.output.total_users_completed === (repaired ? 120 : 40) &&
-					isDeepStrictEqual(
-						{
-							goalId: goal.id,
-							startDate: period.current.from,
-							endDate: period.current.to,
-							...(call.input &&
-							typeof call.input === "object" &&
-							"websiteId" in call.input
-								? { websiteId: appContext.websiteId }
-								: {}),
-						},
-						call.input
-					)
+					z
+						.object({
+							goalId: z.literal(goal.id),
+							startDate: z.literal(period.current.from),
+							endDate: z.literal(period.current.to),
+							websiteId: z.literal(appContext.websiteId).optional(),
+							cohort: z.null().optional(),
+						})
+						.strict()
+						.safeParse(call.input).success
 			)
 				? []
 				: ["Accepted a reported repair without remeasuring"]),
@@ -1672,6 +1685,324 @@ qualityCases.push({
 	],
 });
 
+const depthPeriod = {
+	previous: { from: "2026-08-25", to: "2026-08-31" },
+	current: { from: "2026-09-01", to: "2026-09-07" },
+};
+const depthInput = input({
+	appContext: { ...appContext, currentDateTime: "2026-09-08T00:00:00.000Z" },
+	signal: {
+		...defaultSignal,
+		signalKey: "event:settled-receipts",
+		entity: {
+			type: "event",
+			id: "settled-receipts",
+			label: "Settled USD receipts",
+		},
+		metric: {
+			label: "Settled receipts",
+			previous: 120,
+			current: 120,
+			format: "number",
+		},
+		changePercent: 0,
+		period: depthPeriod,
+	},
+	evidence: [
+		"Business meaning: this event counts settled USD receipts, not subscribers. Attribution links receipts to their recorded source. Inspect both complete revenue_overview windows for changes despite steady transaction counts. Gross revenue excludes refunds. No cause or retention measurement is supplied.",
+	],
+});
+
+function depthRevenueTool(reordered: boolean, available = true) {
+	return {
+		...analyticsTools.get_data,
+		execute: (value: unknown) => {
+			// The model sees the native get_data schema; this boundary restricts synthetic responses.
+			const { queries } = z
+				.object({
+					queries: z.array(
+						z.object({
+							type: z.string(),
+							websiteId: z.literal(appContext.websiteId).optional(),
+							from: z.string().optional(),
+							to: z.string().optional(),
+							timezone: z.string().default("UTC"),
+							filters: z
+								.array(
+									z.object({
+										field: z.string(),
+										op: z.string(),
+										value: z.unknown(),
+									})
+								)
+								.default([]),
+						})
+					),
+				})
+				.parse(value);
+			const results: Record<string, unknown> = {};
+			for (const [index, query] of queries.entries()) {
+				const previous =
+					query.from === depthPeriod.previous.from &&
+					query.to === depthPeriod.previous.to;
+				const current =
+					query.from === depthPeriod.current.from &&
+					query.to === depthPeriod.current.to;
+				const key = `${query.type}@${appContext.websiteId}#${index + 1}`;
+				if (
+					!available ||
+					query.type !== "revenue_overview" ||
+					!(previous || current) ||
+					query.timezone !== "UTC" ||
+					query.filters.some(
+						(filter) => filter.field !== "currency" || filter.op !== "eq"
+					)
+				) {
+					results[key] = {
+						error:
+							"No synthetic measurement is available for this query. Only advertised revenue_overview, exact supplied UTC windows and currency equality are supported.",
+					};
+					continue;
+				}
+				const rows = [
+					{
+						currency: "USD",
+						total_revenue: 12_000,
+						total_transactions: 120,
+						refund_amount: previous ? 120 : 960,
+						refund_count: previous ? 2 : 12,
+						attributed_revenue: previous ? 10_800 : 3600,
+					},
+					{
+						currency: "EUR",
+						total_revenue: 5000,
+						total_transactions: 50,
+						refund_amount: 0,
+						refund_count: 0,
+						attributed_revenue: 5000,
+					},
+				].filter((row) =>
+					query.filters.every((filter) => filter.value === row.currency)
+				);
+				const data = rows.map((row) =>
+					reordered ? Object.fromEntries(Object.entries(row).reverse()) : row
+				);
+				results[key] = {
+					type: query.type,
+					websiteId: appContext.websiteId,
+					from: query.from,
+					to: query.to,
+					timezone: query.timezone,
+					filters: query.filters,
+					data,
+					rowCount: data.length,
+					returnedRows: data.length,
+					truncated: false,
+				};
+			}
+			return { results };
+		},
+	};
+}
+
+for (const reordered of [false, true]) {
+	qualityCases.push({
+		id: reordered
+			? "holdout-revenue-competing-reordered"
+			: "holdout-revenue-competing",
+		input: depthInput,
+		tools: {
+			discover_query_types: analyticsTools.discover_query_types,
+			get_data: depthRevenueTool(reordered),
+		},
+		reviewRequired:
+			"Synthetic holdout: USD gross stays 12000, attribution falls 10800→3600, refunds rise 120→960; transactions stay 120 and refund count rises 2→12. EUR is unchanged. Preserve all three distinct comparisons without inventing lost sales, churn or a cause. The reordered variant changes only object field order. Review failed finish attempts for dropped facts and unnecessary rereads; exact renderer checks do not establish semantic usefulness.",
+		check: ({ outcome }, _calls, acceptedFinish) => {
+			const selection = z
+				.object({
+					evidence: z.array(
+						z.union([
+							z.string(),
+							z.object({ currency: z.string(), fields: z.array(z.string()) }),
+						])
+					),
+				})
+				.safeParse(acceptedFinish);
+			const fields = selection.success
+				? selection.data.evidence.flatMap((entry) =>
+						typeof entry !== "string" && entry.currency === "USD"
+							? entry.fields
+							: []
+					)
+				: [];
+			const usdEvidence = outcome.evidence.filter((entry) =>
+				entry.startsWith(
+					"USD, 2026-08-25–2026-08-31 → 2026-09-01–2026-09-07 UTC:"
+				)
+			);
+			return [
+				...(outcome.publish
+					? []
+					: ["Hid the measured attribution and refund changes"]),
+				...(outcome.rootCause === null && outcome.next.type === "resolve"
+					? []
+					: ["Invented a revenue cause or next move"]),
+				...[
+					["total_revenue", "Gross Revenue: 12,000 → 12,000"],
+					["attributed_revenue", "Attributed Revenue: 10,800 → 3,600"],
+					["refund_amount", "Refund Amount: 120 → 960"],
+				].flatMap(([field, comparison]) => [
+					...(fields.includes(field)
+						? []
+						: [`Accepted finish omitted USD ${field}`]),
+					...(usdEvidence.some((entry) => entry.includes(comparison))
+						? []
+						: [`Rendered evidence omitted ${comparison}`]),
+				]),
+			];
+		},
+	});
+}
+
+for (const available of [true, false]) {
+	qualityCases.push({
+		id: available
+			? "holdout-discovery-cross-category-available"
+			: "holdout-discovery-cross-category-unavailable",
+		input: {
+			...depthInput,
+			request: {
+				body: "An earlier search in Audience for revenue returned no matches. Check the available capabilities beyond that category before deciding whether the USD attribution change can be verified.",
+				createdAt: depthInput.appContext.currentDateTime,
+			},
+		},
+		tools: {
+			discover_query_types: {
+				...analyticsTools.discover_query_types,
+				execute: async (value: unknown, options) => {
+					const { category, search } = z
+						.object({
+							category: z.string().nullish(),
+							search: z.string().nullish(),
+						})
+						.parse(value);
+					const discover = analyticsTools.discover_query_types.execute;
+					if (!discover) {
+						throw new Error("Missing native catalog discovery");
+					}
+					const catalogSchema = z.object({
+						types: z.array(
+							z
+								.object({
+									name: z.string(),
+									category: z.string(),
+									description: z.string(),
+									tags: z.array(z.string()),
+								})
+								.passthrough()
+						),
+					});
+					const catalog = (
+						await Promise.all([
+							discover({ category: "Audience" }, options),
+							discover({ category: "Revenue" }, options),
+						])
+					).flatMap((result) => catalogSchema.parse(result).types);
+					// Synthetic discovery contract only: relocate a real native type, never invent query execution.
+					const candidates = catalog
+						.filter(
+							(entry) =>
+								entry.category === "Audience" ||
+								(available && entry.name === "revenue_overview")
+						)
+						.map((entry) =>
+							entry.name === "revenue_overview"
+								? { ...entry, category: "Profiles" }
+								: entry
+						);
+					const needle = search?.trim().toLowerCase();
+					const types = candidates.filter(
+						(entry) =>
+							(!category || entry.category === category) &&
+							(!needle ||
+								`${entry.name} ${entry.description} ${entry.tags.join(" ")}`
+									.toLowerCase()
+									.includes(needle))
+					);
+					return {
+						categories: ["Audience", "Profiles"],
+						types:
+							category || needle
+								? types
+								: types.map(({ name, category, description, tags }) => ({
+										name,
+										category,
+										description,
+										tags,
+									})),
+						matchCount: types.length,
+					};
+				},
+			},
+			get_data: depthRevenueTool(false, available),
+		},
+		reviewRequired: `Synthetic capability discovery contract: real revenue_overview metadata is ${available ? "relocated under the existing Profiles category" : "omitted"}; native discovery/get_data input schemas are preserved, but every measurement is synthetic and no native query executes. An Audience-only miss cannot establish absence. ${available ? "Find the available comparison and publish measured attribution loss with stable gross; do not claim retention or sales loss." : "Resolve privately with unknown cause; unavailable diagnostics do not establish missing collection, a coverage finding or a setup action."} Accept any relevant native substring search or complete catalog inspection; inspect search relevance manually.`,
+		check: ({ outcome }, calls) => {
+			const widened = calls.some((call) => {
+				if (call.name !== "discover_query_types") {
+					return false;
+				}
+				const query = z
+					.object({
+						category: z.string().nullish(),
+						search: z.string().nullish(),
+					})
+					.safeParse(call.input);
+				const result = z
+					.object({
+						types: z.array(z.object({ name: z.string() })),
+						matchCount: z.number(),
+					})
+					.safeParse(call.output);
+				const needle = query.success
+					? query.data.search?.trim().toLowerCase()
+					: undefined;
+				const meta = QueryBuilders.revenue_overview.meta;
+				const relevant =
+					!needle ||
+					`revenue_overview ${meta?.description ?? ""} ${(meta?.tags ?? []).join(" ")}`
+						.toLowerCase()
+						.includes(needle);
+				return (
+					query.success &&
+					result.success &&
+					(available
+						? query.data.category !== "Audience" &&
+							result.data.types.some(
+								(entry) => entry.name === "revenue_overview"
+							)
+						: !query.data.category && relevant)
+				);
+			});
+			return [
+				...(widened
+					? []
+					: ["Did not inspect capabilities beyond the wrong category"]),
+				...(outcome.publish === available
+					? []
+					: [
+							available
+								? "Hid an available measured comparison"
+								: "Published diagnostic unavailability as a finding",
+						]),
+				...(outcome.rootCause === null && outcome.next.type === "resolve"
+					? []
+					: ["Invented a cause or created work from capability discovery"]),
+			];
+		},
+	});
+}
+
 async function evaluate(
 	agent: typeof runInsightAgent,
 	fixture: QualityCase,
@@ -1710,6 +2041,7 @@ async function evaluate(
 			{ mode: 0o600 }
 		);
 	const calls: { name: string; input: unknown; output?: unknown }[] = [];
+	let acceptedFinish: unknown;
 	const model = wrapLanguageModel({
 		model: createModelFromId(modelId),
 		middleware: {
@@ -1781,6 +2113,15 @@ async function evaluate(
 			model,
 			tools,
 			onStepFinish: (step) => {
+				for (const result of step.toolResults) {
+					if (
+						result.toolName === "finish_investigation" &&
+						z.object({ accepted: z.literal(true) }).safeParse(result.output)
+							.success
+					) {
+						acceptedFinish = result.input;
+					}
+				}
 				emit("agent.step", {
 					finishReason: step.finishReason,
 					toolCalls: step.toolCalls,
@@ -1801,7 +2142,7 @@ async function evaluate(
 			.trim();
 		const briefWordCount = brief.split(WORD_SEPARATOR).length;
 		const failures = [
-			...fixture.check(result, calls),
+			...fixture.check(result, calls, acceptedFinish),
 			...(result.outcome.publish && briefWordCount > 60
 				? [
 						`Published brief uses ${briefWordCount} words; the product budget is 60`,

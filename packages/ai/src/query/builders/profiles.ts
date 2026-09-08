@@ -5,7 +5,12 @@ import {
 } from "@databuddy/db/clickhouse";
 import { Analytics } from "../../types/tables";
 import { isFilterFieldAllowed } from "../simple-builder";
-import { FilterOperators, type Filter, type SimpleQueryConfig } from "../types";
+import {
+	FilterOperators,
+	type CustomSqlContext,
+	type Filter,
+	type SimpleQueryConfig,
+} from "../types";
 
 const PROFILE_SORT_FIELDS: Record<string, string> = {
 	session_count: "session_count",
@@ -553,56 +558,49 @@ function attributedProfileRevenueCte(latestCte: string): string {
     )`;
 }
 
-export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
-	profile_list: {
-		meta: {
-			description:
-				"List of identified user profiles with visit counts and metadata.",
-			category: "Profiles",
-			tags: ["profiles", "users", "identified"],
-		},
-		allowedFilters: PROFILE_LIST_ALLOWED_FILTERS,
-		customSql: (ctx) => {
-			const {
-				websiteId,
-				startDate,
-				endDate,
-				filters,
-				filterConditions,
-				filterParams,
-				orderBy,
-			} = ctx;
-			const limit = ctx.limit;
-			const offset = ctx.offset;
-			const {
-				filterParams: profileFilterParams,
-				havingConditions,
-				subqueryConditions,
-				whereConditions,
-			} = separateProfileFilters(filters, filterConditions, filterParams);
+function profileListQueries(ctx: CustomSqlContext) {
+	const {
+		websiteId,
+		startDate,
+		endDate,
+		filters,
+		filterConditions,
+		filterParams,
+		orderBy,
+	} = ctx;
+	const limit = ctx.limit;
+	const offset = ctx.offset;
+	const {
+		filterParams: profileFilterParams,
+		havingConditions,
+		subqueryConditions,
+		whereConditions,
+	} = separateProfileFilters(filters, filterConditions, filterParams);
 
-			const combinedWhereClause = whereConditions.length
-				? `AND ${whereConditions.join(" AND ")}`
-				: "";
+	const combinedWhereClause = whereConditions.length
+		? `AND ${whereConditions.join(" AND ")}`
+		: "";
 
-			const havingClause = havingConditions.length
-				? `HAVING ${havingConditions.join(" AND ")}`
-				: "";
+	const havingClause = havingConditions.length
+		? `HAVING ${havingConditions.join(" AND ")}`
+		: "";
 
-			const eventSubqueryClause = subqueryConditions.length
-				? `AND visitor_id IN (
+	const eventSubqueryClause = subqueryConditions.length
+		? `AND visitor_id IN (
 	        SELECT DISTINCT visitor_id
 	        FROM profile_custom_events
 	        WHERE ${subqueryConditions.join(" AND ")}
 	          AND visitor_id != ''
 	      )`
-				: "";
+		: "";
 
-			const profileSort = resolveProfileSort(orderBy);
-			const profileRevenueKeyPredicate = `${CUSTOM_EVENTS_VISITOR_KEY} IN (SELECT visitor_id FROM visitor_profiles)`;
+	const profileSort = resolveProfileSort(orderBy);
+	const selectedVisitors = ctx.preparedKeys
+		? "IN {preparedKeys:Array(String)}"
+		: "IN (SELECT visitor_id FROM visitor_profiles)";
+	const profileRevenueKeyPredicate = `${CUSTOM_EVENTS_VISITOR_KEY} ${selectedVisitors}`;
 
-			return {
-				sql: `
+	const head = `
     WITH ${PROFILE_IDENTITY_CTES},
     profile_events AS (
       SELECT
@@ -678,7 +676,26 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
       FROM all_visitor_profiles
       ORDER BY ${profileSort}
       LIMIT {limit:Int32} OFFSET {offset:Int32}
-    ),
+	)`;
+	const params = {
+		websiteId,
+		startDate,
+		endDate: `${endDate} 23:59:59`,
+		limit: limit || 25,
+		offset: offset || 0,
+		...profileFilterParams,
+	};
+
+	return {
+		ids: {
+			column: "visitor_id",
+			params,
+			sql: `${head}
+    SELECT visitor_id FROM visitor_profiles`,
+		},
+		full: {
+			params,
+			sql: `${head},
     visitor_custom_events AS (
       SELECT
         visitor_id,
@@ -686,7 +703,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
         uniq(event_name) as unique_event_names
       FROM profile_custom_events
       WHERE website_id = {websiteId:String}
-        AND visitor_id IN (SELECT visitor_id FROM visitor_profiles)
+        AND visitor_id ${selectedVisitors}
       GROUP BY visitor_id
     ),
 		${stripeProfileContextCtes(profileRevenueKeyPredicate)},
@@ -706,7 +723,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 		${ATTRIBUTED_REVENUE_VISITOR_KEY} as visitor_id,
 		toFloat64(sumIf(amount, status IN ('completed', 'refunded') AND type != 'subscription_event')) as ltv
 			FROM profile_revenue_attributed
-			WHERE ${ATTRIBUTED_REVENUE_VISITOR_KEY} IN (SELECT visitor_id FROM visitor_profiles)
+			WHERE ${ATTRIBUTED_REVENUE_VISITOR_KEY} ${selectedVisitors}
 	      GROUP BY visitor_id
     )
     SELECT
@@ -732,16 +749,21 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
     LEFT JOIN visitor_revenue vr ON vp.visitor_id = vr.visitor_id
     ORDER BY vp.${profileSort}
   `,
-				params: {
-					websiteId,
-					startDate,
-					endDate: `${endDate} 23:59:59`,
-					limit: limit || 25,
-					offset: offset || 0,
-					...profileFilterParams,
-				},
-			};
 		},
+	};
+}
+
+export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
+	profile_list: {
+		meta: {
+			description:
+				"List of identified user profiles with visit counts and metadata.",
+			category: "Profiles",
+			tags: ["profiles", "users", "identified"],
+		},
+		allowedFilters: PROFILE_LIST_ALLOWED_FILTERS,
+		customSql: (ctx) => profileListQueries(ctx).full,
+		prepareSql: (ctx) => profileListQueries(ctx).ids,
 	},
 
 	profile_detail: {

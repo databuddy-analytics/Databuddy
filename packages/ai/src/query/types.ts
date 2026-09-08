@@ -120,6 +120,7 @@ export interface CustomSqlContext {
 	limit?: number;
 	offset?: number;
 	orderBy?: string;
+	preparedKeys?: string[];
 	startDate: string;
 	timezone?: string;
 	websiteId: string;
@@ -128,6 +129,17 @@ export interface CustomSqlContext {
 export type CustomSqlFn = (
 	ctx: CustomSqlContext
 ) => string | { sql: string; params: Record<string, unknown> };
+
+/**
+ * Resolves a narrow key set in its own round trip so customSql can bind it as a
+ * parameter, instead of leaving ClickHouse to re-execute the CTE that produces
+ * it once per reference. Builders declaring this never join a batched UNION.
+ */
+export type PrepareSqlFn = (ctx: CustomSqlContext) => {
+	column: string;
+	sql: string;
+	params: Record<string, unknown>;
+};
 
 export interface PercentageOf {
 	as?: string;
@@ -151,6 +163,7 @@ export interface SimpleQueryConfig {
 	orderBy?: string;
 	percentageOf?: PercentageOf;
 	plugins?: QueryPlugins;
+	prepareSql?: PrepareSqlFn;
 	publicAccess?: boolean;
 	requiredAnyFilter?: string[];
 	requiredFilters?: string[];

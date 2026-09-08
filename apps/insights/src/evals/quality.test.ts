@@ -1,6 +1,8 @@
 import "@databuddy/test/env";
 import { expect, it } from "bun:test";
 import type { InsightDefinitionEditChanges } from "@databuddy/shared/insights";
+import { z } from "zod";
+import { renderRevenueEvidence, type InsightAgentResult } from "../agent";
 import { qualityCases } from "./quality";
 
 it.each([
@@ -291,4 +293,199 @@ it("rejects an activation definition lookup for another website", () => {
 			{ toolCallId: "wrong-site", messages: [] }
 		)
 	).toThrow();
+});
+
+const holdoutOutcome: InsightAgentResult = {
+	toolCallCount: 1,
+	outcome: {
+		title: "Receipt attribution fell and refunds increased",
+		summary:
+			"Acquisition reporting covers less revenue while gross settlements stay steady.",
+		impact: null,
+		rootCause: null,
+		evidence: ["Synthetic comparison"],
+		publish: true,
+		findingKind: "measurement_coverage",
+		publicationBasis: "decision_safety",
+		next: { type: "resolve", reason: "No cause is established." },
+	},
+};
+
+it.each([
+	false,
+	true,
+])("scores accepted revenue fields and their rendered metric/value pairs (reordered: %s)", async (reordered) => {
+	const fixture = qualityCases.find(
+		(entry) =>
+			entry.id ===
+			(reordered
+				? "holdout-revenue-competing-reordered"
+				: "holdout-revenue-competing")
+	);
+	const read = fixture?.tools.get_data;
+	if (!(fixture && read?.execute && read.inputSchema instanceof z.ZodType))
+		throw new Error("Missing revenue holdout");
+	const query = {
+		queries: Object.values(fixture.input.signal.period).map((window) => ({
+			...window,
+			type: "revenue_overview",
+			groupBy: ["currency"],
+			filters: [{ field: "currency", op: "eq", value: "USD" }],
+		})),
+	};
+	expect(read.inputSchema.safeParse(query).success).toBe(true);
+	const output = z
+		.object({
+			results: z.record(
+				z.string(),
+				z
+					.object({ data: z.array(z.record(z.string(), z.unknown())) })
+					.passthrough()
+			),
+		})
+		.parse(await read.execute(query, { toolCallId: "holdout", messages: [] }));
+	const readings = Object.values(output.results);
+	expect(Object.keys(readings[0].data[0])[0]).toBe(
+		reordered ? "attributed_revenue" : "currency"
+	);
+	const required = ["total_revenue", "attributed_revenue", "refund_amount"];
+	for (const omitted of [null, ...required]) {
+		const selection = {
+			currency: "USD",
+			fields: required.filter((field) => field !== omitted),
+		};
+		const evidence = [
+			renderRevenueEvidence(selection, readings, fixture.input).text,
+		];
+		const failures = fixture.check(
+			{ ...holdoutOutcome, outcome: { ...holdoutOutcome.outcome, evidence } },
+			[],
+			{ evidence: [selection] }
+		);
+		expect(failures).toHaveLength(omitted ? 2 : 0);
+		if (omitted)
+			expect(failures[0]).toBe(`Accepted finish omitted USD ${omitted}`);
+	}
+	const selection = { currency: "USD", fields: required };
+	const text = renderRevenueEvidence(selection, readings, fixture.input).text;
+	const swapped = text.replace(
+		"Gross Revenue: 12,000 → 12,000",
+		"Gross Revenue: 10,800 → 3,600"
+	);
+	expect(
+		fixture.check(
+			{
+				...holdoutOutcome,
+				outcome: { ...holdoutOutcome.outcome, evidence: [swapped] },
+			},
+			[],
+			{ evidence: [selection] }
+		)
+	).toEqual(["Rendered evidence omitted Gross Revenue: 12,000 → 12,000"]);
+});
+
+it.each([
+	true,
+	false,
+])("requires a relevant widened capability search (available: %s)", async (available) => {
+	const fixture = qualityCases.find(
+		(entry) =>
+			entry.id ===
+			`holdout-discovery-cross-category-${available ? "available" : "unavailable"}`
+	);
+	const read = fixture?.tools.discover_query_types;
+	if (!(fixture && read?.execute && read.inputSchema instanceof z.ZodType))
+		throw new Error("Missing discovery holdout");
+	const result = {
+		...holdoutOutcome,
+		outcome: {
+			...holdoutOutcome.outcome,
+			publish: available,
+			publicationBasis: available
+				? holdoutOutcome.outcome.publicationBasis
+				: null,
+		},
+	};
+	for (const query of [
+		{ category: "Audience", search: "revenue" },
+		{ category: "Audience", search: "" },
+		{ search: "language" },
+		{ search: "revenue" },
+		{ search: "" },
+	]) {
+		expect(read.inputSchema.safeParse(query).success).toBe(true);
+		const output = await read.execute(query, {
+			toolCallId: "catalog",
+			messages: [],
+		});
+		const widened = !query.category && query.search !== "language";
+		if (!query.category && !query.search) {
+			expect(JSON.stringify(output)).not.toContain('"outputFields"');
+		}
+		if (available && !query.category && query.search === "revenue") {
+			expect(JSON.stringify(output)).toContain('"outputFields"');
+		}
+		expect(
+			fixture.check(result, [
+				{ name: "discover_query_types", input: query, output },
+			])
+		).toHaveLength(widened ? 0 : 1);
+		if (query.search === "revenue" && !query.category)
+			expect(output).toMatchObject({
+				matchCount: available ? 1 : 0,
+				types: available
+					? [
+							expect.objectContaining({
+								name: "revenue_overview",
+								category: "Profiles",
+							}),
+						]
+					: [],
+			});
+	}
+	const data = fixture.tools.get_data;
+	if (!(data.execute && data.inputSchema instanceof z.ZodType))
+		throw new Error("Missing native query schema");
+	const query = {
+		queries: [
+			{ type: "revenue_overview", ...fixture.input.signal.period.current },
+		],
+	};
+	expect(data.inputSchema.safeParse(query).success).toBe(true);
+	expect(
+		data.inputSchema.safeParse({ queries: [{ type: "fictional_retention" }] })
+			.success
+	).toBe(false);
+	const output = z
+		.object({ results: z.record(z.string(), z.unknown()) })
+		.parse(
+			await data.execute(query, { toolCallId: "measurement", messages: [] })
+		);
+	expect(
+		z
+			.object({ data: z.array(z.unknown()) })
+			.safeParse(Object.values(output.results)[0]).success
+	).toBe(available);
+});
+
+it.each([
+	{ offset: 0, length: 15000, valid: true },
+	{ offset: 1, length: 1, valid: false },
+	{ offset: 0, length: 1, valid: false },
+])("source fixture honors its supported read window: %j", async ({
+	offset,
+	length,
+	valid,
+}) => {
+	const read = qualityCases.find(
+		(entry) => entry.id === "available-repository-mechanism"
+	)?.tools.github_read_file;
+	if (!read?.execute) throw new Error("Missing repository fixture");
+	const output = await read.execute(
+		{ path: "src/checkout.ts", ref: "abcdef1", offset, length },
+		{ toolCallId: "source-window", messages: [] }
+	);
+	expect(output).toMatchObject(
+		valid ? { content: expect.any(String) } : { error: expect.any(String) }
+	);
 });

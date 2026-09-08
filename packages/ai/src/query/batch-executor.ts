@@ -364,7 +364,9 @@ function groupBySchema(
 			continue;
 		}
 
-		const sig = getSchemaSignature(req.type, config) || `__solo_${req.type}`;
+		const sig = config.prepareSql
+			? `__staged_${req.type}_${index}`
+			: getSchemaSignature(req.type, config) || `__solo_${req.type}`;
 		const list = groups.get(sig) || [];
 		list.push({ index, req });
 		groups.set(sig, list);
