@@ -964,7 +964,10 @@ function verificationFor(
 			typeof item.input === "object" &&
 			isDeepStrictEqual(
 				Object.fromEntries(
-					Object.entries(item.input).filter(([key]) => key !== "websiteId")
+					Object.entries(item.input).filter(
+						([key, value]) =>
+							key !== "websiteId" && !(key === "cohort" && value == null)
+					)
 				),
 				{
 					[`${input.signal.entity.type}Id`]: input.signal.entity.id,

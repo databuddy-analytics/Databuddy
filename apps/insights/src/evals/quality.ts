@@ -826,10 +826,15 @@ qualityCases.push({
 		github_read_file: {
 			...repositoryTools.github_read_file,
 			execute: (query) => {
-				if (query.path !== "src/checkout.ts" || query.ref !== "abcdef1") {
+				if (
+					query.path !== "src/checkout.ts" ||
+					query.ref !== "abcdef1" ||
+					(query.offset ?? 0) !== 0 ||
+					(query.length ?? 15_000) !== 15_000
+				) {
 					return {
 						error:
-							"Read the observed deployed file and revision; no other synthetic source is available.",
+							"This fixture supports the observed deployed file and revision with offset 0 and default length 15000 only.",
 					};
 				}
 				return {
@@ -847,10 +852,14 @@ qualityCases.push({
 		...(calls.some(
 			(call) =>
 				call.name === "github_read_file" &&
-				isDeepStrictEqual(call.input, {
-					path: "src/checkout.ts",
-					ref: "abcdef1",
-				}) &&
+				z
+					.object({
+						path: z.literal("src/checkout.ts"),
+						ref: z.literal("abcdef1"),
+						offset: z.literal(0).optional(),
+						length: z.literal(15_000).optional(),
+					})
+					.safeParse(call.input).success &&
 				call.output &&
 				typeof call.output === "object" &&
 				!("error" in call.output) &&
@@ -981,19 +990,16 @@ for (const repaired of [false, true]) {
 					!("error" in call.output) &&
 					"total_users_completed" in call.output &&
 					call.output.total_users_completed === (repaired ? 120 : 40) &&
-					isDeepStrictEqual(
-						{
-							goalId: goal.id,
-							startDate: period.current.from,
-							endDate: period.current.to,
-							...(call.input &&
-							typeof call.input === "object" &&
-							"websiteId" in call.input
-								? { websiteId: appContext.websiteId }
-								: {}),
-						},
-						call.input
-					)
+					z
+						.object({
+							goalId: z.literal(goal.id),
+							startDate: z.literal(period.current.from),
+							endDate: z.literal(period.current.to),
+							websiteId: z.literal(appContext.websiteId).optional(),
+							cohort: z.null().optional(),
+						})
+						.strict()
+						.safeParse(call.input).success
 			)
 				? []
 				: ["Accepted a reported repair without remeasuring"]),
