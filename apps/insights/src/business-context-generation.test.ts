@@ -62,6 +62,7 @@ const profile: BusinessContext = {
 
 describe("freezing investigation business context", () => {
 	it("retains the captured canonical revision when the saved profile changes after freezing", () => {
+		const reference = { title: "Report guide", url: "https://example.com/reports" };
 		const saved = {
 			content: "Preparation starts a draft.",
 			origin: "team" as const,
@@ -69,7 +70,7 @@ describe("freezing investigation business context", () => {
 			updatedAt: "2026-07-11T11:00:00.000Z",
 			updatedBy: "example-editor",
 			sourceWebsiteId: null,
-			sources: [{ title: "Report guide", url: "https://example.com/reports" }],
+			sources: [reference],
 		};
 		const context = organizationProfileContext(
 			saved,
@@ -84,7 +85,7 @@ describe("freezing investigation business context", () => {
 		});
 		saved.revision = 4;
 		saved.content = "New operational priority.";
-		saved.sources[0]!.title = "Changed source";
+		reference.title = "Changed source";
 		const frozen = parseFrozenInvestigationPlan(
 			JSON.parse(stored),
 			"manual",

@@ -152,7 +152,7 @@ integration("persisted business reply scope", () => {
 		let supplied: BusinessContext | undefined;
 		let models = 0;
 		const billingKey = process.env.AUTUMN_SECRET_KEY;
-		delete process.env.AUTUMN_SECRET_KEY;
+		Reflect.deleteProperty(process.env, "AUTUMN_SECRET_KEY");
 		try {
 			expect(
 				await resumeInsightReply(
@@ -198,7 +198,7 @@ integration("persisted business reply scope", () => {
 				})
 			).toBe("succeeded");
 		} finally {
-			if (billingKey === undefined) delete process.env.AUTUMN_SECRET_KEY;
+			if (billingKey === undefined) Reflect.deleteProperty(process.env, "AUTUMN_SECRET_KEY");
 			else process.env.AUTUMN_SECRET_KEY = billingKey;
 		}
 		const rows = await db()

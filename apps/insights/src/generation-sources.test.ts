@@ -168,7 +168,11 @@ describe("fixture investigation sources", () => {
 			parseInvestigationOutcome(JSON.parse(JSON.stringify(artifact.outcome)))
 				?.contextSnapshot
 		).toEqual(context);
-		context.sources[0]!.content = "Changed after the turn.";
+		const source = context.sources[0];
+		if (!source) {
+			throw new Error("Expected a supplied context source");
+		}
+		source.content = "Changed after the turn.";
 		expect(artifact.outcome?.contextSnapshot?.sources[0]?.content).toBe(
 			"Paid report preparation is the current priority."
 		);

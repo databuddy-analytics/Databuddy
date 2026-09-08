@@ -17,10 +17,12 @@ export function ContextUsed({ snapshot }: { snapshot?: BusinessContext }) {
 				Business context
 			</Accordion.Trigger>
 			<Accordion.Content className="space-y-3 px-2 text-muted-foreground text-xs">
-				<p>
-					Background available for this update. This snapshot does not identify
-					which facts influenced individual claims.
-				</p>
+				{snapshot.sources.length > 0 && (
+					<p>
+						Background available for this update. This snapshot does not
+						identify which facts influenced individual claims.
+					</p>
+				)}
 				<p>
 					Captured{" "}
 					<time dateTime={snapshot.capturedAt}>

@@ -71,14 +71,25 @@ describe("Business context disclosure", () => {
 		expect(html).toContain("Priority: completed downloads");
 		expect(html.match(/Revision 4/g)).toHaveLength(2);
 	});
-	it("does not invent provenance for legacy results and explains unavailable context", () => {
+	it("does not invent provenance for legacy results", () => {
 		expect(renderToStaticMarkup(<ContextUsed />)).toBe("");
+	});
+	it.each([
+		"unavailable",
+		"disabled",
+		"ready",
+		"partial",
+	] as const)("does not claim background was available for an empty %s snapshot", (status) => {
 		const html = renderToStaticMarkup(
-			<ContextUsed
-				snapshot={{ ...snapshot, status: "unavailable", sources: [] }}
-			/>
+			<ContextUsed snapshot={{ ...snapshot, status, sources: [] }} />
 		);
-		expect(html).toContain("Business context was unavailable for this update.");
+		expect(html).toContain(
+			status === "unavailable"
+				? "Business context was unavailable for this update."
+				: "No business context sources were supplied for this update."
+		);
+		expect(html).not.toContain("Background available for this update.");
+		expect(html).not.toContain("which facts influenced individual claims");
 		expect(html).not.toContain("Revision");
 	});
 	it("does not turn non-web source URLs into clickable links", () => {
