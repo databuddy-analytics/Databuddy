@@ -87,7 +87,9 @@ team corrections, guesses and historical metrics stay distinct from current evid
 The brief explains the offering, customer, commercial access and path to value in
 concise claims, each backed by exact passages kept separately from the explanation.
 The model selects numbered passages; code attaches their original text without
-asking the model to copy quotations or running a citation-repair loop.
+asking the model to copy quotations or running a citation-repair loop. The cached
+brief uses a stronger synthesis model; page selection and investigations keep their
+existing model. This concentrates additional model cost in infrequent refreshes.
 Claims may combine sources, but every citation must remain available and exact;
 losing a qualification removes the whole claim. Original sources remain available
 for verification. Brief-only decision quality is evaluated separately from the full

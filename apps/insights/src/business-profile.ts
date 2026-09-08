@@ -50,9 +50,9 @@ interface ModelOptions {
 	model?: LanguageModel;
 	onStepFinish?: (step: StepResult<ToolSet>) => void | Promise<void>;
 }
-function modelOptions(options: ModelOptions) {
+function modelOptions(options: ModelOptions, modelId = MODEL) {
 	return {
-		model: options.model ?? createModelFromId(MODEL),
+		model: options.model ?? createModelFromId(modelId),
 		maxRetries: 0,
 		maxOutputTokens: 4000,
 		abortSignal: AbortSignal.any([
@@ -94,7 +94,7 @@ export async function compileBusinessBrief(
 		return null;
 	}
 	const result = await generateText({
-		...modelOptions(options),
+		...modelOptions(options, "openai/gpt-6-astra"),
 		maxOutputTokens: 2000,
 		output: Output.object({
 			schema: businessBriefSchema.extend({
@@ -130,7 +130,7 @@ export async function compileBusinessBrief(
 		evidence: [...new Set(fact.evidence)].map((id) => passages[id]),
 	}));
 	emitInsightsEvent("info", "business_profile.compiled", {
-		model_id: MODEL,
+		model_id: result.response.modelId,
 		input_tokens: result.usage.inputTokens,
 		output_tokens: result.usage.outputTokens,
 		source_count: context.sources.length,
