@@ -34,7 +34,8 @@
     "./uptime": "./src/uptime.ts",
     "./uptime-status": "./src/uptime-status.ts",
     "./utils/client-ip": "./src/utils/client-ip.ts",
-    "./utils/referrer": "./src/utils/referrer.ts"
+    "./utils/referrer": "./src/utils/referrer.ts",
+    "./organization-business-context": "./src/organization-business-context.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit",

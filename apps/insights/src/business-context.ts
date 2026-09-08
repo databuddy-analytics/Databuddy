@@ -32,6 +32,8 @@ import {
 	getWebsiteBusinessScope,
 } from "@databuddy/services/business-memory";
 import { captureInsightsError, emitInsightsEvent } from "./lib/evlog-insights";
+import { readOrganizationBusinessContext } from "@databuddy/services/organization-business-context";
+import type { OrganizationBusinessProfile } from "@databuddy/shared/organization-business-context";
 
 type ProfileInput = Parameters<typeof loadBusinessProfile>[0];
 type RecallInput = Parameters<typeof recallBusinessContext>[0] & {
@@ -207,6 +209,8 @@ export function unavailableBusinessContext(
 	};
 }
 
+class BusinessScopeError extends Error {}
+
 async function reconcileReplies(
 	input: {
 		scope: BusinessScope;
@@ -234,16 +238,16 @@ async function reconcileReplies(
 		const replies = await sources.readReplies(input);
 		// Reauthorize immediately before any external reply write. A refresh
 		// or concurrent transfer must not move old replies into a new scope.
-		const current = await sources.currentScope(input.scope);
+		const current = await sources.currentScope(input.scope).catch((error) => {
+			throw new BusinessScopeError("Website scope could not be rechecked", {
+				cause: error,
+			});
+		});
 		if (
 			!current?.startedAt ||
 			businessContainerTag(current) !== businessContainerTag(input.scope)
 		) {
-			return unavailableBusinessContext(
-				new Error("Website scope changed or was deleted"),
-				input.scope,
-				input.asOf
-			);
+			throw new BusinessScopeError("Website scope changed or was deleted");
 		}
 		const scopeStartedAt = Date.parse(current.startedAt);
 		const eligible = replies.filter(
@@ -297,13 +301,21 @@ async function reconcileReplies(
 			),
 		});
 	} catch (error) {
+		if (error instanceof BusinessScopeError) {
+			throw error;
+		}
 		return unavailableBusinessContext(error, input.scope, input.asOf);
 	}
 }
 
 export async function loadWebsiteBusinessProfile(
 	input: ProfileInput,
-	sources = productionSources
+	sources: typeof productionSources & {
+		readOrganization?: typeof readOrganizationBusinessContext;
+	} = {
+		...productionSources,
+		readOrganization: readOrganizationBusinessContext,
+	}
 ): Promise<BusinessContext> {
 	try {
 		if (!(await sources.currentScope(input.scope))) {
@@ -314,7 +326,7 @@ export async function loadWebsiteBusinessProfile(
 			.catch((error) =>
 				unavailableBusinessContext(error, input.scope, input.asOf)
 			);
-		return await reconcileReplies(
+		const reconciled = await reconcileReplies(
 			{
 				...input,
 				// Shared profile lists only public records. Repair team indexing
@@ -325,9 +337,54 @@ export async function loadWebsiteBusinessProfile(
 			context,
 			sources
 		);
+		if (!sources.readOrganization) {
+			return reconciled;
+		}
+		const organization = await sources
+			.readOrganization(input.scope.organizationId)
+			.then((value) =>
+				organizationProfileContext(
+					value.profile,
+					input.scope.organizationId,
+					input.allowRefresh ? new Date() : input.asOf
+				)
+			)
+			.catch((error) =>
+				unavailableBusinessContext(error, input.scope, input.asOf)
+			);
+		return mergeBusinessContext(reconciled, organization);
 	} catch (error) {
 		return unavailableBusinessContext(error, input.scope, input.asOf);
 	}
+}
+
+export function organizationProfileContext(
+	profile: OrganizationBusinessProfile | null,
+	organizationId: string,
+	asOf: Date
+): BusinessContext {
+	const sources: BusinessSource[] = [];
+	if (profile?.content && Date.parse(profile.updatedAt) <= asOf.getTime()) {
+		// Keep the source contract and the complete editable document; no semantic
+		// summarization between the saved text and the investigator's input.
+		for (let offset = 0; offset < profile.content.length; offset += 4000) {
+			sources.push({
+				id: `organization-profile:${organizationId}:${offset / 4000}`,
+				kind: "organization_profile",
+				content: profile.content.slice(offset, offset + 4000),
+				observedAt: profile.updatedAt,
+				author: "Organization settings",
+				origin: profile.origin,
+				...(offset === 0 ? { references: profile.sources } : {}),
+			});
+		}
+	}
+	return {
+		capturedAt: asOf.toISOString(),
+		status: sources.length ? "ready" : "disabled",
+		sources,
+		issues: [],
+	};
 }
 
 export async function recallWebsiteBusinessContext(

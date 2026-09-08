@@ -181,6 +181,13 @@ jobs:
           CLICKHOUSE_URL: http://default:@localhost:8123
           NODE_ENV: test
         run: bun run test
+      - name: Business context integration
+        env:
+          NODE_ENV: test
+          BUSINESS_CONTEXT_INTEGRATION_TESTS: "true"
+        run: |
+          bun test packages/services/src/organization-business-context.integration.test.ts packages/services/src/organization-business-context-hardening.integration.test.ts
+          bun test packages/auth/src/organization-metadata.integration.test.ts
       - name: Insights integration
         env:
           NODE_ENV: test
