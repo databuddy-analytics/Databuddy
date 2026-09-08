@@ -22,12 +22,12 @@ const snapshot: BusinessContext = {
 	],
 };
 
-describe("Context used disclosure", () => {
+describe("Business context disclosure", () => {
 	it("shows supplied text and revision without claiming fact-to-claim attribution", () => {
 		const html = renderToStaticMarkup(<ContextUsed snapshot={snapshot} />);
-		expect(html).toContain("Context used");
+		expect(html).toContain("Business context");
 		expect(html).toContain('aria-expanded="false"');
-		expect(html).toContain("Business context supplied to the model");
+		expect(html).toContain("Background available for this update.");
 		expect(html).toContain(
 			"does not identify which facts influenced individual claims"
 		);

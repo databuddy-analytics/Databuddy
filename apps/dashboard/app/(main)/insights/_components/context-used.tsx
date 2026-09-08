@@ -14,12 +14,12 @@ export function ContextUsed({ snapshot }: { snapshot?: BusinessContext }) {
 	return (
 		<Accordion>
 			<Accordion.Trigger className="bg-transparent px-2">
-				Context used
+				Business context
 			</Accordion.Trigger>
 			<Accordion.Content className="space-y-3 px-2 text-muted-foreground text-xs">
 				<p>
-					Business context supplied to the model for this update. This snapshot
-					does not identify which facts influenced individual claims.
+					Background available for this update. This snapshot does not identify
+					which facts influenced individual claims.
 				</p>
 				<p>
 					Captured{" "}
@@ -66,10 +66,7 @@ export function ContextUsed({ snapshot }: { snapshot?: BusinessContext }) {
 							{source.url && <SourceLink url={source.url} title={source.url} />}
 							{Boolean(source.references?.length) && (
 								<div className="space-y-1 pt-1">
-									<p>
-										Links recorded with this source; not citations for
-										individual claims.
-									</p>
+									<p>Source links</p>
 									<ul className="space-y-1">
 										{source.references?.map((reference) => (
 											<li key={reference.url}>
