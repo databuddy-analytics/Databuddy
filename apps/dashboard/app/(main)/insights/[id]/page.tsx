@@ -774,7 +774,7 @@ function nextCopy(
 				label: "Measuring",
 			};
 		case "resolve":
-			return { body: next.reason, label: "Verified" };
+			return { body: next.reason, label: "Conclusion" };
 		default:
 			throw new Error("Unknown investigation outcome");
 	}
