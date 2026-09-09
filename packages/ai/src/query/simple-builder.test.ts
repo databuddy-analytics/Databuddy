@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { QueryBuilders } from "./builders";
+import { makeRequiredFilters } from "./filter-fixtures";
 import {
 	getClickHouseQuerySettings,
 	SimpleQueryBuilder,
@@ -29,23 +30,6 @@ function makeConfig(overrides: Partial<SimpleQueryConfig> = {}): SimpleQueryConf
 }
 
 const QUERY_BUILDER_ENTRIES = Object.entries(QueryBuilders);
-
-function makeRequiredFilters(config: SimpleQueryConfig): Filter[] {
-	const fields = [
-		...(config.requiredFilters ?? []),
-		...(config.requiredAnyFilter?.slice(0, 1) ?? []),
-	];
-	return [...new Set(fields)].map((field) => ({
-		field,
-		op: "eq",
-		value:
-			field === "horizon_days"
-				? 7
-				: field === "observation_end"
-					? "2026-05-11"
-					: `${field}-required-value`,
-	}));
-}
 
 function compileBuilder(
 	type: string,
