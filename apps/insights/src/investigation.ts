@@ -363,6 +363,9 @@ export function prepareInvestigation(
 		...(candidate.cohortMeasurement
 			? { cohortMeasurement: candidate.cohortMeasurement }
 			: {}),
+		...(candidate.retentionMeasurement
+			? { retentionMeasurement: candidate.retentionMeasurement }
+			: {}),
 	};
 	const evidence: string[] = [...(candidate.evidence ?? [])];
 	if (candidate.definitionEvidence) {

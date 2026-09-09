@@ -1,6 +1,6 @@
 import "@databuddy/test/env";
 import { describe, expect, it } from "bun:test";
-import { describeInsightDefinitionAction } from "@databuddy/shared/insights";
+import { agentEvidenceReferenceSchema, describeInsightDefinitionAction } from "@databuddy/shared/insights";
 import type {
 	InvestigationOutcome,
 	InvestigationSignal,
@@ -8,6 +8,10 @@ import type {
 import { tool } from "ai";
 import { MockLanguageModelV3, mockValues } from "ai/test";
 import { z } from "zod";
+import dayjs from "dayjs";
+import type { QueryRequest } from "@databuddy/ai/query";
+import { detectRetentionSignals } from "./measurement-plan";
+import { prepareInvestigation } from "./investigation";
 import {
 	InsightAgentExecutionError,
 	InsightAgentGenerationError,
@@ -220,12 +224,12 @@ function outputResponse(value: unknown) {
 	return toolCallResponse("finish_investigation", JSON.stringify(value));
 }
 
-function toolCallResponse(toolName = "inspect", input = "{}") {
+function toolCallResponse(toolName = "inspect", input = "{}", toolCallId = `${toolName}-1`) {
 	return {
 		content: [
 			{
 				input,
-				toolCallId: `${toolName}-1`,
+				toolCallId,
 				toolName,
 				type: "tool-call" as const,
 			},
@@ -4174,6 +4178,226 @@ describe("identified-profile cohort publication", () => {
 		},
 		changePercent: -57.14,
 	};
+	it.each([
+		"none",
+		"control",
+		"wrong-source",
+		"updated-read",
+		"confirmed-read",
+		"publish-conflict",
+		"hide-conflict",
+		"wrong-namespace",
+		"wrong-horizon",
+		"wrong-window",
+		"wrong-website",
+		"wrong-timezone",
+		"wrong-cutoff",
+		"malformed-read",
+		"swapped-return",
+		"swapped-signal",
+		"sticky-conflict",
+	])("preserves native facts and grounds additional evidence: %s", async (mode) => {
+		const nativeReads: {
+			request: QueryRequest;
+			data: Record<string, unknown>[];
+		}[] = [];
+		const [detected] = await detectRetentionSignals(
+			{ websiteId: "site-1", timezone: "UTC", lookbackDays: 7 },
+			dayjs("2026-07-12T00:00:00Z"),
+			undefined,
+			{
+				readPlan: async () => ({
+					websiteId: "site-1",
+					domain: "example.com",
+					name: "Shared reports",
+					activationEvent: "report_shared",
+					returnEvent: "report_opened",
+					horizonDays: 7,
+				}),
+				query: async (request) => {
+					const retained = request.from === "2026-06-20" ? 140 : 60;
+					const row = {
+						cohort_from: request.from,
+						cohort_to: request.to,
+						observation_end: "2026-07-11",
+						cohort_start: `${request.from}T00:00:00.000Z`,
+						cohort_end: dayjs(request.to).add(1, "day").toISOString(),
+						observed_before: "2026-07-12T00:00:00.000Z",
+						timezone: "UTC",
+						horizon_days: 7,
+						identity_basis: "direct_profile_id",
+						activation_basis: "first_in_cohort_window",
+						activated_profiles: 200,
+						eligible_profiles: 200,
+						retained_profiles: retained,
+						not_retained_profiles: 200 - retained,
+						incomplete_profiles: 0,
+						activation_events: 2000,
+						identified_activation_events: 200,
+						unidentified_activation_events: 1800,
+					};
+					const data = [
+						{ ...row, row_type: "overall", cohort_date: null },
+						{ ...row, row_type: "cohort", cohort_date: request.from },
+					];
+					nativeReads.push({ request, data });
+					return data;
+				},
+			}
+		);
+
+		const prepared = prepareInvestigation(detected, 7);
+		const reads = !["none", "control", "wrong-source", "swapped-signal"].includes(
+			mode
+		);
+		const additional = !["none", "hide-conflict"].includes(mode);
+		const updated = mode === "updated-read";
+		const retained = [
+			"updated-read",
+			"publish-conflict",
+			"hide-conflict",
+		].includes(mode)
+			? 130
+			: 140;
+		const original = nativeReads.find(
+			(item) => item.request.from === prepared.signal.period.previous.from
+		);
+		if (!original) throw new Error("Missing detector read fixture");
+		let claim = "Report sharing remained at 600 events.";
+		let source: z.infer<typeof agentEvidenceReferenceSchema> = {
+			source: "provided",
+			index: mode === "wrong-source" ? 1 : 0,
+		};
+		if (reads) {
+			claim = "The read confirms the previous cohort.";
+			source = {
+				source: "tool",
+				name: "get_data",
+				toolCallId: mode === "sticky-conflict" ? "get_data-2" : "get_data-1",
+				resultKey: "previous",
+			};
+		}
+		if (updated) claim = "The later read conflicts with the snapshot.";
+		if (mode.startsWith("swapped-")) claim = "Previous cohort: 60/200 returned.";
+		if (mode === "swapped-signal") source = { source: "signal" };
+		const proposed = {
+			...finish,
+			...(updated
+				? {
+						publish: false,
+						publicationBasis: null,
+						summary:
+							"The latest read conflicts with the initial count; the change remains unconfirmed.",
+					}
+				: {}),
+			evidence: additional ? [claim] : [],
+			evidenceRefs: additional ? [source] : [],
+		};
+		const model = reads
+			? new MockLanguageModelV3({
+					doGenerate: mockValues(
+						toolCallResponse("get_data"),
+						...(mode === "sticky-conflict"
+							? [toolCallResponse("get_data", "{}", "get_data-2")]
+							: []),
+						outputResponse(proposed)
+					),
+				})
+			: outputModel(proposed);
+		const filters = (original.request.filters ?? []).map((filter) => ({
+			...filter,
+			...(mode === "wrong-horizon" && filter.field === "horizon_days"
+				? { value: 30 }
+				: {}),
+		}));
+		if (mode === "wrong-namespace")
+			filters.push({ field: "namespace", op: "eq", value: "demo" });
+		let readCount = 0;
+		const run = runInsightAgent(
+			{
+				appContext: appContext(),
+				...prepared,
+				evidence: [
+					"Report sharing remained at 600 events.",
+					"No measured count in this separate source.",
+				],
+				history: [],
+				otherOpenWork: [],
+				githubRepository: null,
+			},
+			{
+				model,
+				tools: reads
+					? {
+							get_data: tool({
+								inputSchema: z.object({}),
+								execute: async () => {
+									const observedRetained =
+										mode === "sticky-conflict" && readCount++ === 0
+											? 130
+											: retained;
+									return {
+										results: {
+											previous: {
+												type: "identified_profile_retention",
+												websiteId:
+													mode === "wrong-website" ? "other-site" : "site-1",
+												...prepared.signal.period.previous,
+												...(mode === "wrong-window"
+													? { from: "2026-06-21" }
+													: {}),
+												timezone:
+													mode === "wrong-timezone" ? "Europe/London" : "UTC",
+												filters,
+												data: original.data.map((row) => ({
+													...row,
+													retained_profiles: observedRetained,
+													not_retained_profiles: 200 - observedRetained,
+													...(mode === "wrong-cutoff"
+														? { observed_before: "2026-07-11T00:00:00.000Z" }
+														: {}),
+													...(mode === "malformed-read"
+														? { identity_basis: "anonymous" }
+														: {}),
+												})),
+											},
+										},
+									};
+								},
+							}),
+						}
+					: {},
+			}
+		);
+		if (mode.startsWith("swapped-")) {
+			await expect(run).rejects.toThrow(
+				"Retention quantities belong in the code-generated comparison"
+			);
+			return;
+		}
+		if (mode === "wrong-source") {
+			await expect(run).rejects.toThrow("does not appear in its cited source");
+			return;
+		}
+		if (reads && !["updated-read", "confirmed-read"].includes(mode)) {
+			await expect(run).rejects.toThrow(
+				"conflicts with the snapshot or the cited cohort uses a different scope"
+			);
+			return;
+		}
+		const result = await run;
+		expect(result.outcome.evidence[0]).toBe(
+			"Initial snapshot through 2026-07-11 UTC: eligible identified profiles returning within 7 days: 140/200 (70%) → 60/200 (30%); cohorts 2026-06-20–2026-06-26 → 2026-06-27–2026-07-03, fully observed. Activation events with identity: 200/2000 (10%) → 200/2000 (10%); anonymous events excluded."
+		);
+		expect(result.outcome.evidence).toHaveLength(additional ? 2 : 1);
+		expect(model.doGenerateCalls).toHaveLength(reads ? 2 : 1);
+		expect(JSON.stringify(model.doGenerateCalls[0].prompt)).toContain(
+			"retentionMeasurement"
+		);
+		expect(result.toolCallCount).toBe(reads ? 1 : 0);
+		expect(result.outcome.publish).toBe(!updated);
+		if (reads) expect(result.outcome.evidence[1]).toBe(proposed.evidence[0]);
+	});
 	it("publishes a known-purpose cohort finding without a redundant data read or invented cause", async () => {
 		const model = outputModel(finish);
 		const result = await runInsightAgent(
