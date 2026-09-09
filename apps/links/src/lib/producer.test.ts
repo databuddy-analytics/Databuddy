@@ -308,3 +308,187 @@ describe("producer health state", () => {
 		}
 	});
 });
+
+describe("health probe failures (issue #719)", () => {
+	test("health refresh rejects loudly when Kafka is unreachable", async () => {
+		process.env.REDPANDA_BROKER = "redpanda.test:9092";
+		nextProducer = makeProducer({
+			connect: () => Promise.reject(new Error("tls handshake failed")),
+		});
+		const { getProducerHealthState, refreshProducerConnection } =
+			await loadProducer();
+
+		await expect(refreshProducerConnection()).rejects.toThrow(
+			"Kafka health probe failed"
+		);
+		expect(setAttributes).toHaveBeenCalledWith({
+			kafka_health_connect_failed: true,
+		});
+		expect(getProducerHealthState()).toBe("cooldown");
+	});
+
+	test("health refresh resolves once Kafka is reachable", async () => {
+		process.env.REDPANDA_BROKER = "redpanda.test:9092";
+		nextProducer = makeProducer();
+		const {
+			disconnectProducer,
+			getProducerHealthState,
+			refreshProducerConnection,
+		} = await loadProducer();
+
+		await refreshProducerConnection();
+
+		expect(getProducerHealthState()).toBe("connected");
+		await disconnectProducer();
+	});
+
+	test("production sends still fall back to ClickHouse when Kafka is down", async () => {
+		process.env.REDPANDA_BROKER = "redpanda.test:9092";
+		nextProducer = makeProducer({
+			connect: () => Promise.reject(new Error("broker unavailable")),
+		});
+		const { sendLinkVisit } = await loadProducer();
+
+		const result = await sendLinkVisit(event, event.link_id);
+
+		expect(result).toBe(true);
+		expect(clickHouseInsert).toHaveBeenCalledTimes(1);
+	});
+
+	test("flags Kafka outages for the health endpoint until recovery", async () => {
+		process.env.REDPANDA_BROKER = "redpanda.test:9092";
+		const realNow = Date.now;
+		let now = 1000;
+		Date.now = () => now;
+		try {
+			nextProducer = makeProducer({
+				connect: () => Promise.reject(new Error("broker unavailable")),
+			});
+			const {
+				didKafkaConnectFail,
+				disconnectProducer,
+				refreshProducerConnection,
+				warmProducerConnection,
+			} = await loadProducer();
+
+			expect(didKafkaConnectFail()).toBe(false);
+			await warmProducerConnection();
+			expect(didKafkaConnectFail()).toBe(true);
+
+			now += 60_001;
+			nextProducer = makeProducer();
+			await refreshProducerConnection();
+
+			expect(didKafkaConnectFail()).toBe(false);
+			await disconnectProducer();
+		} finally {
+			Date.now = realNow;
+		}
+	});
+
+	test("suppressed health probes still report a known outage", async () => {
+		process.env.REDPANDA_BROKER = "redpanda.test:9092";
+		nextProducer = makeProducer({
+			connect: () => Promise.reject(new Error("tls handshake failed")),
+		});
+		const { didKafkaConnectFail, refreshProducerConnection } =
+			await loadProducer();
+
+		await expect(refreshProducerConnection()).rejects.toThrow(
+			"Kafka health probe failed"
+		);
+		expect(didKafkaConnectFail()).toBe(true);
+
+		await expect(refreshProducerConnection()).rejects.toThrow(
+			"Kafka health probe failed"
+		);
+		expect(didKafkaConnectFail()).toBe(true);
+	});
+
+	test("a failing health-owned attempt does not break concurrent sends", async () => {
+		process.env.REDPANDA_BROKER = "redpanda.test:9092";
+		let releaseConnect!: (error: Error) => void;
+		nextProducer = makeProducer({
+			connect: () =>
+				new Promise<void>((_resolve, reject) => {
+					releaseConnect = reject;
+				}),
+		});
+		const { refreshProducerConnection, sendLinkVisit } =
+			await loadProducer();
+
+		const health = refreshProducerConnection();
+		await Bun.sleep(0);
+		const send = sendLinkVisit(event, event.link_id);
+		await Bun.sleep(0);
+		releaseConnect(new Error("tls handshake failed"));
+
+		await expect(health).rejects.toThrow("Kafka health probe failed");
+		await expect(send).resolves.toBe(true);
+		expect(clickHouseInsert).toHaveBeenCalledTimes(1);
+	});
+
+	test("disables SSL when REDPANDA_SSL is false", async () => {
+		process.env.REDPANDA_BROKER = "redpanda.test:9092";
+		process.env.REDPANDA_SSL = "false";
+		nextProducer = makeProducer();
+		const { disconnectProducer, sendLinkVisit } = await loadProducer();
+
+		await sendLinkVisit(event, event.link_id);
+
+		expect(kafkaConfigs).toEqual([
+			expect.objectContaining({
+				brokers: ["redpanda.test:9092"],
+				ssl: false,
+			}),
+		]);
+		await disconnectProducer();
+	});
+
+	test("reports connection dependency error when sendLinkVisit joins health-owned attempt", async () => {
+		process.env.REDPANDA_BROKER = "redpanda.test:9092";
+		let releaseConnect!: (error: Error) => void;
+		const connectErr = new Error("connection failed");
+		nextProducer = makeProducer({
+			connect: () =>
+				new Promise<void>((_resolve, reject) => {
+					releaseConnect = reject;
+				}),
+		});
+		const { refreshProducerConnection, sendLinkVisit } =
+			await loadProducer();
+
+		const health = refreshProducerConnection();
+		await Bun.sleep(0);
+		const send = sendLinkVisit(event, event.link_id);
+		await Bun.sleep(0);
+		releaseConnect(connectErr);
+
+		await expect(health).rejects.toThrow("Kafka health probe failed");
+		await expect(send).resolves.toBe(true);
+		expect(captureError).toHaveBeenCalledWith(connectErr, {
+			operation: "kafka_connect",
+		});
+	});
+
+	test("does not fail disconnectProducer if a pending connection fails during shutdown", async () => {
+		process.env.REDPANDA_BROKER = "redpanda.test:9092";
+		let releaseConnect!: (error: Error) => void;
+		nextProducer = makeProducer({
+			connect: () =>
+				new Promise<void>((_resolve, reject) => {
+					releaseConnect = reject;
+				}),
+		});
+		const { disconnectProducer, warmProducerConnection } =
+			await loadProducer();
+
+		const warmup = warmProducerConnection();
+		await Bun.sleep(0);
+		const shutdown = disconnectProducer();
+		releaseConnect(new Error("connection rejected during shutdown"));
+
+		await warmup;
+		await expect(shutdown).resolves.toBeUndefined();
+	});
+});
