@@ -1071,6 +1071,7 @@ for (const scenario of [
 			request: original.input.request
 				? {
 						...original.input.request,
+						kind: "verification",
 						createdAt:
 							scenario === "unfinished-window"
 								? "2026-09-04T12:00:00Z"
@@ -1139,12 +1140,7 @@ for (const scenario of [
 		},
 		reviewRequired: `Expected ${status}. Check that the customer copy agrees with the code verdict and preserves the reason, exact dates, measured count and threshold. A small sample or unfinished window cannot prove recovery.`,
 		check: (result, calls) => [
-			...original.check(result, calls).filter(
-				(failure) =>
-					// A new population mismatch can justify a different repair.
-					scenario !== "population-drift" ||
-					failure !== "Repeated the already-applied definition repair"
-			),
+			...original.check(result, calls),
 			...(result.outcome.verification?.status === status
 				? []
 				: [`Expected persisted verification status ${status}`]),

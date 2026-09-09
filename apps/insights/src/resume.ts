@@ -26,6 +26,7 @@ import {
 } from "@databuddy/redis";
 import { createServiceAuth } from "@databuddy/rpc";
 import {
+	appliedInsightActionReply,
 	insightReplySlackDeliverySchema,
 	parseInvestigationOutcome,
 	parseInvestigationSignal,
@@ -275,6 +276,11 @@ export async function resumeInsightReply(
 		history,
 		otherOpenWork,
 		request: {
+			kind: (["goal", "funnel"] as const).some(
+				(type) => trigger.body === appliedInsightActionReply(type)
+			)
+				? "verification"
+				: undefined,
 			body: trigger.body,
 			createdAt: trigger.createdAt.toISOString(),
 		},

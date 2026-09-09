@@ -311,6 +311,13 @@ const holdoutOutcome: InsightAgentResult = {
 	},
 };
 
+it("does not excuse a new repair when a saved verification has population drift", () => {
+ const fixture = qualityCases.find((entry) => entry.id === "check-population-drift");
+ const previous = fixture?.input.history.find((entry) => entry.kind === "investigation");
+ if (!fixture || previous?.kind !== "investigation") throw new Error("Missing population drift evaluation");
+ expect(fixture.check({...holdoutOutcome, outcome: previous.outcome}, [])).toContain("Repeated the already-applied definition repair");
+});
+
 it.each([undefined, null])(
 	"accepts an unscoped native goal read with cohort %s while rejecting scope drift",
 	async (cohort) => {

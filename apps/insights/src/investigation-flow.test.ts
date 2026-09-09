@@ -2257,22 +2257,13 @@ describe("intelligence agent", () => {
 		"wrong-measured-id",
 		"passed",
 		"passed-explicit",
-		"passed-null-cohort",
-		"passed-domain",
 		"passed-cosmetic",
 		"failed-rate",
 		"failed",
-		"wrong-subject",
-		"wrong-website",
-		"wrong-start",
-		"wrong-end",
-		"extra-filter",
-		"extra-cohort",
 		"small-sample",
 		"unfinished-window",
 		"failed-read",
 		"invalid-count",
-		"no-read",
 		"newer-resolution",
 		"referrer-rate",
 		"referrer-count",
@@ -2317,23 +2308,9 @@ describe("intelligence agent", () => {
 				: "inconclusive";
 		const completed = scenario === "failed" ? 40 : 120;
 		const query = {
-			funnelId: scenario === "wrong-subject" ? "another-funnel" : "checkout",
-			startDate: scenario === "wrong-start" ? "2026-07-04" : check.startDate,
-			endDate: scenario === "wrong-end" ? "2026-07-12" : check.endDate,
-			...(scenario === "passed-explicit" ? { websiteId: "site-1" } : {}),
-			...(scenario === "wrong-website" ? { websiteId: "another-site" } : {}),
-			...(scenario === "passed-domain" ? { websiteId: "example.com" } : {}),
-			...(scenario === "extra-filter" ? { filter: "paid-only" } : {}),
-			...(scenario === "passed-null-cohort" ? { cohort: null } : {}),
-			...(scenario === "extra-cohort"
-				? {
-						cohort: {
-							filters: [
-								{ field: "browser_name", operator: "equals", value: "Chrome" },
-							],
-						},
-					}
-				: {}),
+			funnelId: "checkout",
+			startDate: check.startDate,
+			endDate: check.endDate,
 		};
 		const candidate = {
 			...agentOutcome,
@@ -2352,9 +2329,7 @@ describe("intelligence agent", () => {
 		};
 		const model = new MockLanguageModelV3({
 			doGenerate: mockValues(
-				...(scenario === "no-read"
-					? []
-					: [toolCallResponse("get_funnel_analytics", JSON.stringify(query))]),
+				toolCallResponse("get_funnel_analytics", JSON.stringify(query)),
 				outputResponse(candidate)
 			),
 		});
@@ -2407,57 +2382,68 @@ describe("intelligence agent", () => {
 				tools: {
 					get_funnel_analytics: tool({
 						inputSchema: z.object({}).passthrough(),
-						execute: () => ({
-							...(scenario === "missing-metadata"
-								? {}
-								: {
-										measurement: {
-											websiteId:
-												scenario === "wrong-measured-site" ||
-												scenario === "wrong-website"
-													? "another-site"
-													: "site-1",
-											definitionId:
-												scenario === "wrong-measured-id"
-													? "another-funnel"
-													: "checkout",
-											startDate:
-												scenario === "effective-window"
-													? "2026-07-07"
-													: check.startDate,
-											endDate: check.endDate,
-											definition: {
-												...check.definition,
-												steps: inspectedFunnel.steps.map((step) => ({
-													...step,
-													...(scenario === "passed-cosmetic"
-														? { name: "Renamed" }
+						execute: (readInput, options) => {
+							if (scenario !== "newer-resolution") {
+								expect(readInput).toEqual({
+									...query,
+									websiteId: "site-1",
+									cohort: null,
+								});
+								expect(options.experimental_context).toMatchObject({
+									organizationId: appContext().organizationId,
+								});
+							}
+							return {
+								...(scenario === "missing-metadata"
+									? {}
+									: {
+											measurement: {
+												websiteId:
+													scenario === "wrong-measured-site"
+														? "another-site"
+														: "site-1",
+												definitionId:
+													scenario === "wrong-measured-id"
+														? "another-funnel"
+														: "checkout",
+												startDate:
+													scenario === "effective-window"
+														? "2026-07-07"
+														: check.startDate,
+												endDate: check.endDate,
+												definition: {
+													...check.definition,
+													steps: inspectedFunnel.steps.map((step) => ({
+														...step,
+														...(scenario === "passed-cosmetic"
+															? { name: "Renamed" }
+															: {}),
+													})),
+													...(scenario === "changed-definition"
+														? {
+																filters: [
+																	{
+																		field: "country",
+																		operator: "equals",
+																		value: "US",
+																	},
+																],
+															}
 														: {}),
-												})),
-												...(scenario === "changed-definition"
-													? {
-															filters: [
-																{
-																	field: "country",
-																	operator: "equals",
-																	value: "US",
-																},
-															],
-														}
-													: {}),
+												},
 											},
-										},
-									}),
-							total_users_entered: scenario === "small-sample" ? 80 : 200,
-							total_users_completed:
-								scenario === "small-sample"
-									? 60
-									: scenario === "invalid-count"
-										? 250
-										: completed,
-							overall_conversion_rate: 60,
-							...(scenario === "failed-read" ? { error: "Unavailable" } : {}),
-						}),
+										}),
+								total_users_entered: scenario === "small-sample" ? 80 : 200,
+								total_users_completed:
+									scenario === "small-sample"
+										? 60
+										: scenario === "invalid-count"
+											? 250
+											: completed,
+								overall_conversion_rate: 60,
+								...(scenario === "failed-read" ? { error: "Unavailable" } : {}),
+							};
+						},
 					}),
 				},
 			}
@@ -2467,8 +2453,21 @@ describe("intelligence agent", () => {
 			return;
 		}
 		expect(result.outcome.verification?.status).toBe(status);
-		expect(result.toolCallCount).toBe(scenario === "no-read" ? 0 : 1);
-		expect(model.doGenerateCalls).toHaveLength(scenario === "no-read" ? 1 : 2);
+		expect(result.toolCallCount).toBe(scenario.startsWith("referrer-") ? 0 : 1);
+		expect(model.doGenerateCalls).toHaveLength(0);
+		expect(result.usage?.totalTokens).toBe(0);
+		expect(result.modelId).toBeUndefined();
+		expect(result.outcome.rootCause).toBeNull();
+		expect(result.outcome.next.type).toBe(
+			scenario === "unfinished-window" ? "watch" : "resolve"
+		);
+		expect(result.outcome.publish).toBe(status !== "inconclusive");
+		if (!scenario.startsWith("referrer-")) {
+			expect(result.verificationRead).toMatchObject({
+				toolName: "get_funnel_analytics",
+				input: { ...query, websiteId: "site-1", cohort: null },
+			});
+		}
 		expect(result.outcome.summary).not.toBe("Recovery definitely passed.");
 		expect(result.outcome.summary).toContain(
 			status === "inconclusive" ? "unverified" : status

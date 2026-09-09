@@ -824,6 +824,10 @@ export const agentInvestigationOutcomeSchema = z
 
 const insightStatusSchema = z.enum(["open", "resolved"]);
 const insightResolvedReasonSchema = z.enum(["recovered", "stale"]);
+export function appliedInsightActionReply(type: "goal" | "funnel"): string {
+	return `Databuddy applied the ${type} action. Recheck its verification condition against current data.`;
+}
+
 export const insightReplyStatusSchema = z.enum([
 	"queued",
 	"running",

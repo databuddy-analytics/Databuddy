@@ -1,3 +1,4 @@
+import { appliedInsightActionReply } from "@databuddy/shared/insights";
 import {
 	and,
 	db,
@@ -1020,7 +1021,7 @@ async function applyInsightAction(input: {
 		}
 
 		const replyId = randomUUIDv7();
-		const body = `Databuddy applied the ${entityType} action. Recheck its verification condition against current data.`;
+		const body = appliedInsightActionReply(entityType);
 		await tx.insert(insightReplies).values({
 			...author,
 			body,
