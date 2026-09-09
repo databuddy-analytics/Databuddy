@@ -637,29 +637,70 @@ describe("business-aware investigation selection", () => {
 
 
 describe("saved activation measurement selection", () => {
-    const retention: DetectedSignal = { ...outcome, metric: "identified_retention", subjectKey: "retention:synthetic", label: "Reports shared again", evidence: ["Native complete cohorts: 160/200 returned before, 80/200 after."] };
-    it("avoids a selection call while preserving critical reliability and due work", async () => {
-        let calls = 0;
-        for (const dueSignalKey of [undefined, "goal:report-delivery"]) {
-            const selected = await planInvestigationsWithBusinessContext(input, [traffic, retention, outcome, error], {
-                loadBusinessProfile: async () => ({ ...context, sources: [] }),
-                selectCandidates: async () => { calls++; throw new Error("Unexpected selection"); },
-            }, false, scope, { reason: "manual", dueSignalKey });
-            const keys = selected.map((candidate) => candidate.signal.signalKey);
-            expect(keys).toContain(retention.subjectKey!);
-            expect(keys).toContain(error.subjectKey!);
-            if (dueSignalKey) expect(keys[0]).toBe(dueSignalKey);
-            expect(keys).not.toContain("visitors");
-        }
-        expect(calls).toBe(0);
-    });
-    it.each(["team_reply", "organization_profile"] as const)("allows %s context to supersede the saved measurement priority", async (kind) => {
-        let calls = 0;
-        const selected = await planInvestigationsWithBusinessContext(input, [traffic, retention, outcome], {
-            loadBusinessProfile: async () => ({ ...context, sources: context.sources.map((source) => ({ ...source, kind })) }),
-            selectCandidates: (params) => { calls++; return chooseInvestigationSignals(params, new MockLanguageModelV3({ doGenerate: async () => response({ selections: [choice] }) })); },
-        }, false, scope, { reason: "scheduled" });
-        expect(calls).toBe(1);
-        expect(selected.map((candidate) => candidate.signal.signalKey)).toEqual([choice.signalKey]);
-    });
+	const retention: DetectedSignal = {
+		...outcome,
+		metric: "identified_retention",
+		subjectKey: "retention:synthetic",
+		label: "Reports shared again",
+		evidence: [
+			"Native complete cohorts: 160/200 returned before, 80/200 after.",
+		],
+	};
+	it("avoids a selection call while preserving critical reliability and due work", async () => {
+		let calls = 0;
+		for (const dueSignalKey of [undefined, "goal:report-delivery"]) {
+			const selected = await planInvestigationsWithBusinessContext(
+				input,
+				[traffic, retention, outcome, error],
+				{
+					loadBusinessProfile: async () => ({ ...context, sources: [] }),
+					selectCandidates: async () => {
+						calls++;
+						throw new Error("Unexpected selection");
+					},
+				},
+				false,
+				scope,
+				{ reason: "manual", dueSignalKey }
+			);
+			const keys = selected.map((candidate) => candidate.signal.signalKey);
+			expect(keys).toContain(retention.subjectKey!);
+			expect(keys).toContain(error.subjectKey!);
+			if (dueSignalKey) expect(keys[0]).toBe(dueSignalKey);
+			expect(keys).not.toContain("visitors");
+		}
+		expect(calls).toBe(0);
+	});
+	it.each([
+		"team_reply",
+		"organization_profile",
+	] as const)("allows %s context to supersede the saved measurement priority", async (kind) => {
+		let calls = 0;
+		const selected = await planInvestigationsWithBusinessContext(
+			input,
+			[traffic, retention, outcome],
+			{
+				loadBusinessProfile: async () => ({
+					...context,
+					sources: context.sources.map((source) => ({ ...source, kind })),
+				}),
+				selectCandidates: (params) => {
+					calls++;
+					return chooseInvestigationSignals(
+						params,
+						new MockLanguageModelV3({
+							doGenerate: async () => response({ selections: [choice] }),
+						})
+					);
+				},
+			},
+			false,
+			scope,
+			{ reason: "scheduled" }
+		);
+		expect(calls).toBe(1);
+		expect(selected.map((candidate) => candidate.signal.signalKey)).toEqual([
+			choice.signalKey,
+		]);
+	});
 });

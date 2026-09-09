@@ -597,27 +597,74 @@ describe("bounded canonical loader and formatter", () => {
 
 
 describe("canonical measurement plan context", () => {
-    const plan = { websiteId: site.id, domain: site.domain, name: "Returned reports", activationEvent: "report_shared", returnEvent: "report_opened", horizonDays: 7 };
-    it("preserves plan-only context with explicit provenance for an authorized matching website", () => {
-        const parsed = organizationBusinessContextSchema.parse({ profile: { ...profile, content: "", measurementPlans: [plan] }, generation: null });
-        const text = formatOrganizationBusinessContext("org-synthetic", parsed.profile, [site]);
-        expect(text).toContain("report_shared");
-        expect(text).toContain("identified_profile_retention");
-        expect(text).toContain("Not inspected emitter semantics");
-    });
-    it("withholds event definitions for unavailable or changed website bindings", () => {
-        const parsed = organizationBusinessContextSchema.parse({ profile: { ...profile, measurementPlans: [plan] }, generation: null });
-        for (const websites of [[], [{ ...site, domain: "changed.example.com" }], [{ ...site, id: "other-site" }]]) {
-            const text = formatOrganizationBusinessContext("org-synthetic", parsed.profile, websites);
-            expect(text).not.toContain("report_shared");
-            expect(text).toContain(meaning);
-        }
-    });
-    it("limits loaded plan context to the mentioned authorized websites", async () => {
-        const other = { ...site, id: "other-synthetic", domain: "other.example.com" };
-        saved = organizationBusinessContextSchema.parse({ profile: { ...profile, measurementPlans: [plan, { ...plan, websiteId: other.id, domain: other.domain, activationEvent: "other_activation" }] }, generation: null });
-        const text = await loadOrganizationBusinessContext({ organizationId: "org-synthetic", accessibleWebsites: [site, other], websiteIds: [site.id] });
-        expect(text).toContain("report_shared");
-        expect(text).not.toContain("other_activation");
-    });
+	const plan = {
+		websiteId: site.id,
+		domain: site.domain,
+		name: "Returned reports",
+		activationEvent: "report_shared",
+		returnEvent: "report_opened",
+		horizonDays: 7,
+	};
+	it("preserves plan-only context with explicit provenance for an authorized matching website", () => {
+		const parsed = organizationBusinessContextSchema.parse({
+			profile: { ...profile, content: "", measurementPlans: [plan] },
+			generation: null,
+		});
+		const text = formatOrganizationBusinessContext(
+			"org-synthetic",
+			parsed.profile,
+			[site]
+		);
+		expect(text).toContain("report_shared");
+		expect(text).toContain("identified_profile_retention");
+		expect(text).toContain("Not inspected emitter semantics");
+	});
+	it("withholds event definitions for unavailable or changed website bindings", () => {
+		const parsed = organizationBusinessContextSchema.parse({
+			profile: { ...profile, measurementPlans: [plan] },
+			generation: null,
+		});
+		for (const websites of [
+			[],
+			[{ ...site, domain: "changed.example.com" }],
+			[{ ...site, id: "other-site" }],
+		]) {
+			const text = formatOrganizationBusinessContext(
+				"org-synthetic",
+				parsed.profile,
+				websites
+			);
+			expect(text).not.toContain("report_shared");
+			expect(text).toContain(meaning);
+		}
+	});
+	it("limits loaded plan context to the mentioned authorized websites", async () => {
+		const other = {
+			...site,
+			id: "other-synthetic",
+			domain: "other.example.com",
+		};
+		saved = organizationBusinessContextSchema.parse({
+			profile: {
+				...profile,
+				measurementPlans: [
+					plan,
+					{
+						...plan,
+						websiteId: other.id,
+						domain: other.domain,
+						activationEvent: "other_activation",
+					},
+				],
+			},
+			generation: null,
+		});
+		const text = await loadOrganizationBusinessContext({
+			organizationId: "org-synthetic",
+			accessibleWebsites: [site, other],
+			websiteIds: [site.id],
+		});
+		expect(text).toContain("report_shared");
+		expect(text).not.toContain("other_activation");
+	});
 });
