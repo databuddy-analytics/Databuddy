@@ -108,6 +108,7 @@ import type { WebsiteInvestigation } from "./persistence";
 import {
 	isInterruptingInvestigation,
 	persistInvestigation,
+	retireObsoleteRetentionObservation,
 } from "./persistence";
 import {
 	captureInsightsError,
@@ -536,7 +537,7 @@ function annotationEvidence(rows: InvestigationAnnotation[]): string | null {
 	return value.length <= 500 ? value : `${value.slice(0, 499).trimEnd()}…`;
 }
 
-async function discoverWebsiteSignals(
+export async function discoverWebsiteSignals(
 	input: InvestigateWebsiteInput,
 	runtime: InvestigationRuntime,
 	options: { allowCoolingFallback?: boolean } = {}
@@ -657,6 +658,17 @@ async function discoverWebsiteSignals(
 			`Insight detection was incomplete (${metricDiagnostics.failedFamilies} metric families and ${definitionDiagnostics.failedDefinitions} conversion definitions failed)`
 		);
 	}
+	const retiredDue =
+		due &&
+		!remeasuredDue &&
+		runtime.mode === "production" &&
+		(await retireObsoleteRetentionObservation({
+			asOf: asOf.toDate(),
+			domain: input.domain,
+			observation: due,
+			organizationId: input.organizationId,
+			websiteId: input.websiteId,
+		}));
 	const signalsByKey = new Map<string, DetectedSignal>();
 	for (const signal of [
 		...(remeasuredDue ? [remeasuredDue] : []),
@@ -670,12 +682,16 @@ async function discoverWebsiteSignals(
 			signalsByKey.set(key, signal);
 		}
 	}
+	if (retiredDue && due) {
+		// A parallel detector may have read the definition before it was edited.
+		signalsByKey.delete(due.signal.signalKey);
+	}
 	const detectedSignals = rankSignals([...signalsByKey.values()]);
 	if (detectedSignals.length === 0) {
 		const coverage = emptyInvestigationCoverage(
-			due ? "due_recheck_unmeasurable" : "no_detected_signals"
+			due && !retiredDue ? "due_recheck_unmeasurable" : "no_detected_signals"
 		);
-		if (due) {
+		if (due && !retiredDue) {
 			if (runtime.mode === "production") {
 				emitInsightsEvent(
 					"info",
@@ -735,7 +751,8 @@ async function discoverWebsiteSignals(
 		: candidateAutomaticEligibleSignals;
 	const hasDetectedCandidate = detectedSignals.some(isInvestigationCandidate);
 	const hasPlannableCandidate = eligibleSignals.length > 0;
-	const hasUnmeasuredDue = due !== null && remeasuredDue === null;
+	const hasUnmeasuredDue =
+		due !== null && remeasuredDue === null && !retiredDue;
 	if (
 		(hasUnmeasuredDue && !hasPlannableCandidate) ||
 		(eligibleSignals.length === 0 && !options.allowCoolingFallback)

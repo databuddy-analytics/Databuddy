@@ -1,7 +1,22 @@
 import type { BusinessScope } from "@databuddy/ai/lib/business-context";
 import { assertBusinessScopeCurrent } from "./business-context";
-import { and, db, desc, eq, isNotNull, lte, or, sql } from "@databuddy/db";
-import { analyticsInsights, insightObservations } from "@databuddy/db/schema";
+import {
+	and,
+	db,
+	desc,
+	eq,
+	isNotNull,
+	isNull,
+	lte,
+	or,
+	sql,
+} from "@databuddy/db";
+import {
+	analyticsInsights,
+	insightObservations,
+	organization,
+	websites,
+} from "@databuddy/db/schema";
 import {
 	invalidateAgentContextSnapshotsForWebsite,
 	invalidateInsightsCachesForOrganization,
@@ -10,9 +25,157 @@ import type {
 	InvestigationOutcome,
 	InvestigationSignal,
 } from "@databuddy/shared/insights";
+import { organizationBusinessContextSchema } from "@databuddy/shared/organization-business-context";
 import { randomUUIDv7 } from "bun";
+import { z } from "zod";
 import { normalizedErrorSubject } from "./investigation";
 import { captureInsightsError, emitInsightsEvent } from "./lib/evlog-insights";
+import { measurementPlanKey } from "./measurement-plan";
+import type { DueOpenInvestigation } from "./observations";
+
+export async function retireObsoleteRetentionObservation(params: {
+	asOf: Date;
+	domain: string;
+	observation: DueOpenInvestigation;
+	organizationId: string;
+	websiteId: string;
+}): Promise<boolean> {
+	const { observation } = params;
+	const signalKey = observation.signal.signalKey;
+	const insightId = observation.insightId;
+	if (!(signalKey.startsWith("retention:") && observation.id && insightId)) {
+		return false;
+	}
+	const retired = await db.transaction(async (tx) => {
+		// Match settings-save lock order and hold the canonical definition stable
+		// through the transition. A failed read must roll back, never imply removal.
+		const [owner] = await tx
+			.select({ metadata: organization.metadata })
+			.from(organization)
+			.where(eq(organization.id, params.organizationId))
+			.for("no key update");
+		const [site] = await tx
+			.select({ id: websites.id })
+			.from(websites)
+			.where(
+				and(
+					eq(websites.id, params.websiteId),
+					eq(websites.organizationId, params.organizationId),
+					eq(websites.domain, params.domain),
+					isNull(websites.deletedAt)
+				)
+			)
+			.for("update");
+		if (!(owner?.metadata && site)) {
+			return false;
+		}
+		const { businessContext } = z
+			.object({ businessContext: organizationBusinessContextSchema.optional() })
+			.parse(JSON.parse(owner.metadata));
+		const profile = businessContext?.profile;
+		if (
+			!profile?.measurementPlans ||
+			Date.parse(profile.updatedAt) > params.asOf.getTime() ||
+			profile.measurementPlans.some(
+				(plan) =>
+					plan.websiteId === params.websiteId &&
+					plan.domain === params.domain &&
+					measurementPlanKey(plan) === signalKey
+			)
+		) {
+			return false;
+		}
+		const scope = and(
+			eq(analyticsInsights.id, insightId),
+			eq(analyticsInsights.organizationId, params.organizationId),
+			eq(analyticsInsights.websiteId, params.websiteId),
+			eq(analyticsInsights.subjectKey, signalKey),
+			eq(analyticsInsights.status, "open"),
+			lte(analyticsInsights.createdAt, params.asOf)
+		);
+		const [current] = await tx
+			.select({ id: analyticsInsights.id })
+			.from(analyticsInsights)
+			.where(scope)
+			.for("update");
+		if (!current) {
+			return false;
+		}
+		const [latest] = await tx
+			.select()
+			.from(insightObservations)
+			.where(
+				and(
+					eq(insightObservations.organizationId, params.organizationId),
+					eq(insightObservations.websiteId, params.websiteId),
+					eq(insightObservations.signalKey, signalKey)
+				)
+			)
+			.orderBy(
+				desc(insightObservations.asOf),
+				desc(insightObservations.createdAt)
+			)
+			.limit(1);
+		if (
+			latest?.id !== observation.id ||
+			latest.insightId !== current.id ||
+			latest.asOf > params.asOf ||
+			latest.createdAt > params.asOf ||
+			latest.recheckAt > params.asOf ||
+			latest.outcome.next.type === "resolve"
+		) {
+			return false;
+		}
+		const reason =
+			"The saved activation and return definition was removed or changed. This investigation's measurement no longer applies; recovery was not measured.";
+		await tx
+			.update(analyticsInsights)
+			.set({
+				// Supersede even an in-flight write with this exact snapshot time.
+				// The existing UPDATE/UPSERT fences both compare createdAt with <=.
+				createdAt: new Date(params.asOf.getTime() + 1),
+				status: "resolved",
+				resolvedAt: params.asOf,
+				resolvedReason: "stale",
+			})
+			.where(scope);
+		await tx.insert(insightObservations).values({
+			id: randomUUIDv7(),
+			insightId: current.id,
+			organizationId: params.organizationId,
+			websiteId: params.websiteId,
+			signalKey,
+			signal: latest.signal,
+			evidence: [reason],
+			outcome: {
+				title: latest.outcome.title,
+				summary: reason,
+				evidence: [reason],
+				rootCause: null,
+				impact: null,
+				publish: false,
+				next: { type: "resolve", reason },
+			},
+			asOf: params.asOf,
+			recheckAt: params.asOf,
+		});
+		return true;
+	});
+	if (retired) {
+		try {
+			await Promise.all([
+				invalidateInsightsCachesForOrganization(params.organizationId),
+				invalidateAgentContextSnapshotsForWebsite(params.websiteId),
+			]);
+		} catch (error) {
+			captureInsightsError(error, "generation.cache_invalidation.failed", {
+				organization_id: params.organizationId,
+				website_id: params.websiteId,
+			});
+		}
+	}
+	return retired;
+}
 
 export interface WebsiteInvestigation {
 	id: string;
