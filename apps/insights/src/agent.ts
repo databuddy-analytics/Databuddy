@@ -14,6 +14,7 @@ import { getAILogger } from "@databuddy/ai/lib/ai-logger";
 import { QueryBuilders } from "@databuddy/ai/query/builders";
 import { insightRepairError } from "@databuddy/rpc/insight-repairs";
 import {
+	agentEvidenceReferenceSchema,
 	agentInvestigationOutcomeSchema,
 	describeInsightDefinitionAction,
 	insightDefinitionEditChangesSchema,
@@ -36,7 +37,9 @@ import {
 	ToolLoopAgent,
 } from "ai";
 import type { ErrorCustomerImpact } from "./error-customer-impact";
+import { raceWithAbort } from "./funnel-detection";
 import { signalKeyForDetectedSignal } from "./investigation";
+import { emitInsightsEvent } from "./lib/evlog-insights";
 
 const MAX_STEPS = 8;
 const TIMEOUT_MS = 2 * 60_000;
@@ -64,21 +67,32 @@ const revenueEvidenceSchema = z
 			.max(4),
 	})
 	.describe(
-		"For revenue_overview, select complementary fields: gross revenue, settled transactions, refunds, and attributed revenue when it differs from gross. Select only fields with a non-null value in every cited period. Omit redundant subtotals and diagnostic availability flags. One entry per measured population; a payment-description comparison uses a second entry for the whole-currency control. Cite both complete comparison windows in each evidenceRefs entry. Code supplies labels, values, periods and deltas; preserve supported comparisons when correcting format."
+		"For revenue_overview, select complementary fields: gross revenue, refunds, and attributed revenue when it differs from gross. Select only non-null fields in every cited period; omit redundant counts and subtotals. Refund totals/counts do not establish net revenue or distinct refunded receipts. One entry per population; payment-description comparisons need a second whole-currency control. Cite both complete windows using only get_data references. Code supplies labels, values, periods and deltas."
 	);
-const finishSchema = z.object(agentInvestigationOutcomeSchema.shape).extend({
+const finishSchema = z.object({
 	evidence: z
 		.array(
-			z.union([
-				agentInvestigationOutcomeSchema.shape.evidence.element,
-				revenueEvidenceSchema,
-			])
+			z.strictObject({
+				sources: z.array(agentEvidenceReferenceSchema).min(1).max(8),
+				claim: z.union([
+					agentInvestigationOutcomeSchema.shape.evidence.element.describe(
+						"One compact comparison: behavior, before → after, dates and denominator, plus any interpretation-changing control. Use about 30 words across all prose claims. Do not repeat event definitions or describe source provenance."
+					),
+					revenueEvidenceSchema,
+				]),
+			})
 		)
 		.min(1)
 		.max(2)
 		.describe(
-			"Every revenue_overview entry, including unchanged controls, must be {currency, fields}. Receipt-description and whole-currency entries cite separate result pairs. Use text only for other sources. Keep only comparisons that change the interpretation."
+			"Select the evidence before deciding whether it merits publication. Keep each claim beside all contributing references. Revenue claims use {currency, fields} with only their contributing get_data references; other claims use concise text."
 		),
+	publish: agentInvestigationOutcomeSchema.shape.publish,
+	...agentInvestigationOutcomeSchema.omit({
+		evidence: true,
+		evidenceRefs: true,
+		publish: true,
+	}).shape,
 });
 
 const revenueReadingSchema = z.object({
@@ -321,17 +335,28 @@ export interface InsightAgentInput {
 	}[];
 	relatedSignals?: InvestigationSignal[];
 	request?: {
+		kind?: "verification";
 		body: string;
 		createdAt: string;
 	};
 	signal: InvestigationSignal;
 }
 
+type VerificationRead = Pick<
+	StepResult<ToolSet>["toolResults"][number],
+	"toolName" | "toolCallId" | "input" | "output"
+>;
+
+type SavedVerification = NonNullable<InvestigationOutcome["verification"]> & {
+	reason: string;
+};
+
 export interface InsightAgentResult {
 	modelId?: string;
 	outcome: InvestigationOutcome;
 	toolCallCount: number;
 	usage?: LanguageModelUsage;
+	verificationRead?: VerificationRead;
 }
 export class InsightAgentExecutionError extends Error {
 	readonly modelId: string;
@@ -366,7 +391,7 @@ export class InsightAgentGenerationError extends InsightAgentExecutionError {
 }
 
 const commonInstructions = (isDefinition: boolean) =>
-	`Investigate one exact Databuddy signal until a teammate has a clear next move or a useful new fact. Finish by calling finish_investigation in a separate turn after receiving the needed read results. Its validation errors identify what to correct within this same investigation. Do not finish with ordinary text.
+	`Return one useful finding or next move for this exact Databuddy signal. Call finish_investigation as soon as supplied or inspected evidence is sufficient. If a read is needed, wait for its result before finishing. Repair validation errors using existing evidence; read again only to fill a missing fact. Do not finish with ordinary text.
 
 Subject
 - Name the exact subject: signal.entity.label for named goals, funnels, pages, events, and campaigns; otherwise the most specific inspected path, segment, or fingerprint. A fingerprint cohort can span routes, so never narrow the headline or repair request to one representative path.
@@ -374,7 +399,7 @@ Subject
 
 Evidence
 - The optional investigationObjective is a machine-selected question, not a human request or citable measurement. Use it to choose useful diagnostic work; verify its premise with source data.
-- Cite each evidence sentence to its actual source: source signal for the supplied signal; source provided with a valid zero-based evidence index; source history with the index of a prior action for its saved verification condition only (not historical or current measurements); source customer_impact for supplied customerImpact; source related_signal with its array index; or source tool with its exact name, toolCallId, and get_data resultKey (null for other tools). Use an array of source references per evidence entry, including every contributing period, population, and inspected mechanism. One concise comparison can cite several sources without repeating its facts. An exact verification read also supports the saved condition and code verdict returned with it. Correct a mismatched citation without discarding a supported discovery. Never cite a failed read as evidence. An empty evidence array does not invalidate the supplied signal.
+- Keep each evidence claim with its actual sources. Copy the supplied evidence item's reference or a completed read's exact reference; include every contributing period, population, and inspected mechanism. Other references are source signal for the supplied signal, source related_signal with its array index, source customer_impact for customerImpact, or source history with its action index for a saved verification condition only. History cannot supply measurements. An exact verification read also supports its returned condition and code verdict. A concise comparison may cite several sources. Correct citations without discarding supported facts; never cite a failed read. Empty supplied evidence does not invalidate the signal.
 - Tool availability is not proof of a connected integration. If a connector reports missing access, stop trying that connector. Preserve an independently verified product or reliability finding, with an unknown cause when necessary. Missing diagnostic access is not evidence that tracking failed, and does not itself deserve a coverage notice or a connection request.
 - get_data can return a partial table. returnedRows is what you saw; rowCount is query rows, not visitors or all matching entities. A path missing from a top-N table is not absent. Use an exact filtered lookup or a dedicated aggregate before making absence, total, or exhaustive claims. Omit orderBy unless discovery documents the field and use only declared row filters.
 - Use reads to resolve a specific distinction that could change the finding or next move. Batch independent reads and never repeat an identical call. Stop gathering when further reads cannot change the decision; retain already-established changes and controls that change its interpretation. An overview of this subject can reveal several independent facts even when its headline metric is stable. For settled payments, distinguish gross revenue, refunds and attribution: stable sales with falling attribution limits acquisition decisions; rising refunds are a separate deterioration. Preserve both when measured, without treating one as the cause of the other. Select independent changes and interpretation-changing controls before redundant counts.
@@ -392,12 +417,12 @@ Outcome
 
 Publishing
 - A raw website traffic change is not a verified product outcome. It may publish only as measurement_coverage with cited collection or implementation evidence. Uncited context, analytics counts, goal/funnel listings, and sibling metrics do not establish visitor loss. An unrelated sibling product result belongs to its own signal; comparisons returned for this subject belong in its finding when they change the interpretation. For a measurement-definition headline, name the mismatch and put period-specific counts in the evidence instead of estimating affected visits.
-- Publish a distinct decision, action or durable finding; publication is independent of opening work. A material product result can publish with next.resolve and rootCause null. Name the changed outcome and measured scope. Keep unchanged, duplicate, routine, low-volume and unproven-impact work private.
-- Distinguish an observed collection gap from an inability to explain a metric. Publish measurement_coverage only for a measured missing population or inspected tracking defect that makes a specific decision unsafe. An unavailable connector, absent diagnostic data, an unmeasured cohort, or an untested explanation is an investigation limit; resolve privately when that is the only new finding. A successful unrelated read does not turn that limit into a discovery. Still publish an independently verified outage or material product result.
+- Publish a new measured finding that changes a product decision, or an inspected issue with a concrete remedy. A material product result can publish with next.resolve and rootCause null. Keep unchanged, explained, superseded, routine, low-volume and unproven-impact work private. A request for an explanation does not lower this threshold. An outdated business brief is context to correct, not an inspected measurement defect.
+- Publish measurement_coverage only for a measured missing population or inspected tracking defect that makes a specific decision unsafe. An unavailable connector, absent diagnostic data, unmeasured or immature cohort, or untested explanation is an investigation limit; resolve privately when that is all you found. Waiting for a normal observation window is not a product or tracking problem. A successful unrelated read does not change this. Preserve an independently verified outage or material product result.
 - When a reported action is complete, remeasure its saved verification window and report whether the condition passed, failed, or remains inconclusive. Use the reported deployment time, not the reply timestamp, to select that window. An improvement that remains unhealthy is not recovery. When verification.read is supplied, use its exact query. Classify a measured goal or funnel recovery result as product_outcome; reserve measurement_definition for a newly inspected mismatch that needs a repair. Code computes the verdict and writes the summary, so omit that field when the finish schema omits it; keep the rest of the finding consistent. Missing, incomplete or undersampled measurements are inconclusive. A passed condition does not establish that a deployment preceded it or caused the improvement.
 
 Writing
-- Keep title, summary, rootCause and evidence under 60 words combined; aim for 40–50. Title names the finding; summary adds a distinct consequence; rootCause names only the inspected failing operation; evidence supplies the before/after comparison and measured scope. State each fact once. Cite inspected code alongside the comparison without repeating its mechanism in the evidence text. Use one evidence entry, or two for a distinct comparison or contradiction. Preserve the affected cohort, denominator, period and stable control when they change the interpretation. Describe recorded behavior; eligible website visitors are not goal attempts, and missing telemetry or error exposure cannot prove failed tasks. Prefer the matched cohort and unchanged control over restating the definition. For repairs, say which behavior cannot be measured instead of calling reporting or decisions "unsafe". Omit investigation narration and repeated descriptions of the same change.
+- Aim for 40–50 words across title, summary, rootCause and evidence; stay under 60. Title names the finding; summary adds its decision-relevant consequence; evidence supplies the before/after comparison and measured scope. State each fact once. Preserve the cohort, denominator, period, limiting identity coverage and interpretation-changing control; omit redundant counts and routine caveats. Use one evidence entry, or two for a distinct comparison. Put an inspected failing operation only in rootCause and cite its source alongside the comparison. Describe recorded behavior: visitors are not goal attempts, and missing telemetry or error exposure cannot prove failed tasks. Omit investigation narration and generic advice to investigate, monitor or prioritize further.
 - Never call occurrences, sessions, entrants, or samples "people"; distinguish visitors, identified profiles, and customers with attributed payment history. Translate raw event names into behavior; if behavior is unknown, say "this event." Never expose raw user, session, order, payment, or request identifiers.
 - For revenue_overview evidence, select {currency, fields} and cite only the contributing get_data result keys; code writes the quantitative comparison and deltas. Use a separate prose entry only when additional context is needed. Prefer independent changes and their stable control over redundant transaction or refund counts. Keep the headline, summary and cause qualitative when using this evidence. For other sources, report only supplied or measured numbers, using metricDelta for a change in native units. Write whole counts as integers and other numbers with at most one decimal. Never turn row counts into customer counts.
 
@@ -627,7 +652,7 @@ export function validateNumericGrounding(
 				throw new Error(
 					evidenceIndex === undefined
 						? `Insights outcome cites the number ${value}, which does not appear in the supplied signal, evidence, or inspected tool results. Only report numbers you were given or measured.`
-						: `Insights evidence[${evidenceIndex}] cites the number ${value}, which does not appear in its cited source. Correct evidenceRefs[${evidenceIndex}] to the successful source containing this fact. If a claim combines reads, cite all contributing sources in an array for that evidence item. Preserve facts supported by inspected results; remove only unsupported claims.`
+						: `Insights evidence[${evidenceIndex}] cites the number ${value}, which does not appear in its cited source. Correct evidence[${evidenceIndex}].sources to include the successful source containing this fact. If a claim combines reads, cite all contributing sources for that claim. Preserve facts supported by inspected results; remove only unsupported claims.`
 				);
 			}
 		}
@@ -918,13 +943,7 @@ function resolveEvidenceReferences(
 	);
 }
 
-function verificationFor(
-	input: InsightAgentInput,
-	results: Pick<
-		StepResult<ToolSet>["toolResults"][number],
-		"toolName" | "toolCallId" | "input" | "output"
-	>[]
-): InvestigationOutcome["verification"] {
+function savedVerificationCheck(input: InsightAgentInput) {
 	const prior = [...input.history]
 		.reverse()
 		.find(
@@ -936,15 +955,26 @@ function verificationFor(
 		);
 	if (
 		prior?.kind !== "investigation" ||
-		prior.outcome.next.type !== "act" ||
-		!prior.outcome.next.check ||
 		!["goal", "funnel"].includes(input.signal.entity.type)
 	) {
 		return;
 	}
-	const check = prior.outcome.next.check;
-	// A source case cannot recover on whole-funnel counts, including legacy checks.
+	return prior.outcome.next.type === "act"
+		? (prior.outcome.next.check ?? undefined)
+		: prior.outcome.next.type === "watch" &&
+				prior.outcome.verification?.status === "inconclusive"
+			? prior.outcome.verification.check
+			: undefined;
+}
+
+function verifySavedMeasurement(
+	input: InsightAgentInput,
+	check: NonNullable<ReturnType<typeof savedVerificationCheck>>,
+	result?: VerificationRead
+): SavedVerification {
+	// Legacy source checks cannot recover on aggregate counts or an unbound definition.
 	if (
+		!check.definition ||
 		input.signal.signalKey.startsWith(
 			`funnel:${input.signal.entity.id}:referrer:`
 		)
@@ -955,7 +985,120 @@ function verificationFor(
 			measured: null,
 			entrants: null,
 			source: null,
+			reason: check.definition
+				? "This saved population cannot be verified with aggregate analytics."
+				: "The saved condition has no bound measurement definition.",
 		};
+	}
+	const measurement = z
+		.object({
+			measurement: insightMeasurementSchema,
+			total_users_entered: z.number().int().nonnegative(),
+			total_users_completed: z.number().int().nonnegative(),
+			overall_conversion_rate: z.number().finite().min(0).max(100),
+		})
+		.safeParse(result?.output);
+	const verification: SavedVerification = {
+		reason: "The exact saved measurement is unavailable.",
+		check,
+		status: "inconclusive",
+		measured: null,
+		entrants: null,
+		source: null,
+	};
+	if (!(result && isSuccessfulRead(result.output) && measurement.success)) {
+		return verification;
+	}
+	if (
+		measurement.data.total_users_completed >
+		measurement.data.total_users_entered
+	) {
+		return {
+			...verification,
+			reason: "The returned visitor counts are inconsistent.",
+		};
+	}
+	if (
+		measurement.data.measurement.websiteId !==
+			(input.appContext.websiteId ?? input.appContext.defaultWebsiteId) ||
+		measurement.data.measurement.definitionId !== input.signal.entity.id
+	) {
+		return {
+			...verification,
+			reason: "The returned measurement concerns a different subject.",
+		};
+	}
+	if (
+		measurement.data.measurement.startDate !== check.startDate ||
+		measurement.data.measurement.endDate !== check.endDate
+	) {
+		return {
+			...verification,
+			reason: `Returned window ${measurement.data.measurement.startDate}–${measurement.data.measurement.endDate} differs from the saved window.`,
+		};
+	}
+	if (
+		!isDeepStrictEqual(
+			check.definition,
+			insightVerificationDefinitionSchema.parse(
+				measurement.data.measurement.definition
+			)
+		)
+	) {
+		return {
+			...verification,
+			reason:
+				"The returned population or definition differs from the saved condition.",
+		};
+	}
+	verification.measured = measurement.data[check.metric];
+	verification.entrants = measurement.data.total_users_entered;
+	verification.source = {
+		source: "tool",
+		name: result.toolName,
+		toolCallId: result.toolCallId,
+		resultKey: null,
+	};
+	if (
+		Date.parse(input.appContext.currentDateTime) <
+		Date.parse(check.endDate) + 86_400_000
+	) {
+		return {
+			...verification,
+			reason: `The saved window remains open through ${check.endDate} UTC.`,
+		};
+	}
+	if (verification.entrants < check.minimumEntrants) {
+		return {
+			...verification,
+			reason: `Only ${verification.entrants} eligible visitors; ${check.minimumEntrants} required.`,
+		};
+	}
+	const { comparison, value } = check.threshold;
+	const passed =
+		comparison === "above"
+			? verification.measured > value
+			: comparison === "at_or_above"
+				? verification.measured >= value
+				: comparison === "below"
+					? verification.measured < value
+					: verification.measured <= value;
+	return {
+		...verification,
+		status: passed ? "passed" : "failed",
+		reason: passed
+			? "The saved recovery condition passed."
+			: "The saved recovery condition failed.",
+	};
+}
+
+function verificationFor(
+	input: InsightAgentInput,
+	results: VerificationRead[]
+): InvestigationOutcome["verification"] {
+	const check = savedVerificationCheck(input);
+	if (!check) {
+		return;
 	}
 	const result = [...results].reverse().find(
 		(item) =>
@@ -976,64 +1119,12 @@ function verificationFor(
 				}
 			)
 	);
-	const measurement = z
-		.object({
-			measurement: insightMeasurementSchema,
-			total_users_entered: z.number().int().nonnegative(),
-			total_users_completed: z.number().int().nonnegative(),
-			overall_conversion_rate: z.number().finite().min(0).max(100),
-		})
-		.safeParse(result?.output);
-	const verification: NonNullable<InvestigationOutcome["verification"]> = {
+	const { reason: _reason, ...verification } = verifySavedMeasurement(
+		input,
 		check,
-		status: "inconclusive",
-		measured: null,
-		entrants: null,
-		source: null,
-	};
-	if (
-		!(result && isSuccessfulRead(result.output) && measurement.success) ||
-		measurement.data.total_users_completed >
-			measurement.data.total_users_entered ||
-		measurement.data.measurement.websiteId !==
-			(input.appContext.websiteId ?? input.appContext.defaultWebsiteId) ||
-		measurement.data.measurement.definitionId !== input.signal.entity.id ||
-		measurement.data.measurement.startDate !== check.startDate ||
-		measurement.data.measurement.endDate !== check.endDate ||
-		!isDeepStrictEqual(
-			check.definition,
-			insightVerificationDefinitionSchema.parse(
-				measurement.data.measurement.definition
-			)
-		)
-	) {
-		return verification;
-	}
-	verification.measured = measurement.data[check.metric];
-	verification.entrants = measurement.data.total_users_entered;
-	verification.source = {
-		source: "tool",
-		name: result.toolName,
-		toolCallId: result.toolCallId,
-		resultKey: null,
-	};
-	if (
-		new Date(input.appContext.currentDateTime).getTime() <
-			Date.parse(check.endDate) + 86_400_000 ||
-		verification.entrants < check.minimumEntrants
-	) {
-		return verification;
-	}
-	const { comparison, value } = check.threshold;
-	const passed =
-		comparison === "above"
-			? verification.measured > value
-			: comparison === "at_or_above"
-				? verification.measured >= value
-				: comparison === "below"
-					? verification.measured < value
-					: verification.measured <= value;
-	return { ...verification, status: passed ? "passed" : "failed" };
+		result
+	);
+	return verification;
 }
 
 function validateAgentOutcome(
@@ -1240,6 +1331,136 @@ function validateAgentOutcome(
 	return investigationOutcomeSchema.parse({ ...outcome, next });
 }
 
+async function runSavedVerification(
+	input: InsightAgentInput,
+	check: NonNullable<ReturnType<typeof savedVerificationCheck>>,
+	tools: ToolSet,
+	abortSignal?: AbortSignal
+): Promise<InsightAgentResult> {
+	const toolName = `get_${input.signal.entity.type}_analytics`;
+	const toolCallId = crypto.randomUUID();
+	const query = {
+		[`${input.signal.entity.type}Id`]: input.signal.entity.id,
+		websiteId: input.appContext.websiteId ?? input.appContext.defaultWebsiteId,
+		startDate: check.startDate,
+		endDate: check.endDate,
+		cohort: null,
+	};
+	const deadline = AbortSignal.any([
+		...(abortSignal ? [abortSignal] : []),
+		AbortSignal.timeout(TIMEOUT_MS),
+	]);
+	let verificationRead: VerificationRead | undefined;
+	let toolCallCount = 0;
+	if (
+		check.definition &&
+		!input.signal.signalKey.startsWith(
+			`funnel:${input.signal.entity.id}:referrer:`
+		)
+	) {
+		const trace = {
+			organization_id: input.appContext.organizationId,
+			website_id: query.websiteId,
+			signal_key: input.signal.signalKey,
+			tool_name: toolName,
+			tool_call_id: toolCallId,
+			input: JSON.stringify(query),
+		};
+		emitInsightsEvent("info", "verification.read.started", trace);
+		let output: unknown;
+		try {
+			const execute = tools[toolName]?.execute;
+			if (!execute) {
+				throw new Error("The saved measurement tool is unavailable.");
+			}
+			output = await raceWithAbort(async () => {
+				toolCallCount++;
+				return await execute(query, {
+					toolCallId,
+					messages: [],
+					abortSignal: deadline,
+					experimental_context: input.appContext,
+				});
+			}, deadline);
+		} catch (error) {
+			if (deadline.aborted) {
+				emitInsightsEvent("warn", "verification.read.aborted", {
+					...trace,
+					error_message:
+						error instanceof Error ? error.message : "Verification aborted",
+				});
+				deadline.throwIfAborted();
+			}
+			// Retain failed-read diagnostics without turning them into measurements or repairs.
+			output = {
+				error:
+					error instanceof Error
+						? error.message
+						: "The saved measurement failed.",
+			};
+		}
+		verificationRead = { toolName, toolCallId, input: query, output };
+		emitInsightsEvent("info", "verification.read.completed", {
+			...trace,
+			output: JSON.stringify(output, (_key, value) =>
+				typeof value === "bigint" ? value.toString() : value
+			),
+			tool_call_count: toolCallCount,
+		});
+	}
+	const { reason, ...verification } = verifySavedMeasurement(
+		input,
+		check,
+		verificationRead
+	);
+	const { status } = verification;
+	const windowClosesAt = Date.parse(check.endDate) + 86_400_000;
+	const waitingForWindow =
+		Date.parse(input.appContext.currentDateTime) < windowClosesAt;
+	const unit =
+		check.metric === "overall_conversion_rate"
+			? "% conversion"
+			: " completed visitors";
+	const threshold = `${{ above: "more than", at_or_above: "at least", below: "less than", at_or_below: "at most" }[check.threshold.comparison]} ${check.threshold.value}${unit}`;
+	const population =
+		input.signal.entity.type === "goal"
+			? "eligible website visitors"
+			: "funnel entrants";
+	const evidence = [
+		`${check.startDate}–${check.endDate} UTC. ${verification.source ? `${verification.measured}${unit}; ${verification.entrants} ${population}. ` : ""}Required: ${threshold}; minimum ${check.minimumEntrants} eligible visitors.`,
+	];
+	const outcome = investigationOutcomeSchema.parse({
+		title: `${input.signal.entity.label}: check ${status}`,
+		summary:
+			status === "inconclusive" ? `Recovery is unverified: ${reason}` : reason,
+		rootCause: null,
+		evidence,
+		findingKind: "product_outcome",
+		publish: status !== "inconclusive",
+		publicationBasis: status === "inconclusive" ? null : "measured_impact",
+		next: waitingForWindow
+			? {
+					type: "watch",
+					escalation: `Verify the saved condition after ${check.endDate} UTC.`,
+					recheckAt: new Date(windowClosesAt).toISOString(),
+				}
+			: {
+					type: "resolve",
+					reason:
+						status === "passed"
+							? "The condition passed; this does not establish that the reported change caused it."
+							: "No new repair is established by this verification result.",
+				},
+		verification,
+	});
+	return {
+		outcome,
+		toolCallCount,
+		usage: aggregateUsage([]),
+		...(verificationRead ? { verificationRead } : {}),
+	};
+}
+
 export async function runInsightAgent(
 	originalInput: InsightAgentInput,
 	options: {
@@ -1249,6 +1470,34 @@ export async function runInsightAgent(
 		tools?: ToolSet;
 	} = {}
 ): Promise<InsightAgentResult> {
+	options.abortSignal?.throwIfAborted();
+	const organizationId = originalInput.appContext.organizationId;
+	if (!organizationId) {
+		throw new Error("An organization is required for investigation tools");
+	}
+
+	const availableTools =
+		options.tools ??
+		(await import("@databuddy/ai/tools/toolkit")).createToolkit({
+			capabilities: ["analytics", "investigation"],
+			domain: originalInput.appContext.websiteDomain,
+			githubRepository: originalInput.githubRepository,
+			organizationId,
+			userId: originalInput.appContext.userId,
+		});
+	const savedCheck = savedVerificationCheck(originalInput);
+	if (
+		savedCheck &&
+		(!originalInput.request || originalInput.request.kind === "verification")
+	) {
+		return runSavedVerification(
+			originalInput,
+			savedCheck,
+			availableTools,
+			options.abortSignal
+		);
+	}
+
 	const businessContext = originalInput.businessContext
 		? businessContextSchema.parse(originalInput.businessContext)
 		: undefined;
@@ -1265,10 +1514,6 @@ export async function runInsightAgent(
 		: originalInput;
 	if (!(options.model || isAiGatewayConfigured)) {
 		throw new Error("AI_GATEWAY_API_KEY is required");
-	}
-	const organizationId = input.appContext.organizationId;
-	if (!organizationId) {
-		throw new Error("An organization is required for investigation tools");
 	}
 	const isDefinition = ["goal", "funnel"].includes(input.signal.entity.type);
 	const finishInputSchema = isDefinition
@@ -1294,15 +1539,6 @@ export async function runInsightAgent(
 		.filter(Boolean)
 		.join("\n\n");
 	const pendingVerification = verificationFor(input, []);
-	const availableTools =
-		options.tools ??
-		(await import("@databuddy/ai/tools/toolkit")).createToolkit({
-			capabilities: ["analytics", "investigation"],
-			domain: input.appContext.websiteDomain,
-			githubRepository: input.githubRepository,
-			organizationId,
-			userId: input.appContext.userId,
-		});
 	const {
 		configure_investigations: _configureInvestigations,
 		describe_schema: _describeSchema,
@@ -1416,7 +1652,10 @@ export async function runInsightAgent(
 			: {}),
 		repository: input.githubRepository,
 		investigationObjective: input.investigationObjective,
-		evidence: input.evidence,
+		evidence: input.evidence.map((value, index) => ({
+			value,
+			reference: { source: "provided", index },
+		})),
 		history: input.history.map((item) => {
 			if (item.kind !== "investigation") {
 				return item;
@@ -1457,7 +1696,7 @@ export async function runInsightAgent(
 			...investigationTools,
 			finish_investigation: tool({
 				description:
-					"Submit the evidence-backed outcome and finish. Call after the necessary reads. If validation fails, correct the cited error using existing results.",
+					"Finish when supplied or inspected evidence supports the decision. Wait for any requested reads first. Correct validation errors using existing evidence.",
 				inputSchema: pendingVerification
 					? finishInputSchema.omit({ summary: true })
 					: finishInputSchema,
@@ -1474,18 +1713,18 @@ export async function runInsightAgent(
 					}
 					const results = steps.flatMap((step) => step.toolResults);
 					const verification = verificationFor(input, results);
+					const evidenceRefs = candidate.evidence.map((item) => item.sources);
 					const citedEvidence = resolveEvidenceReferences(
-						candidate,
+						{ evidenceRefs },
 						input,
 						results
 					);
 					const nativeRevenue: ReturnType<typeof renderRevenueEvidence>[] = [];
 					const evidence = candidate.evidence.map((item, index) => {
-						if (typeof item !== "string") {
-							const references = candidate.evidenceRefs[index];
+						if (typeof item.claim !== "string") {
 							if (
-								(Array.isArray(references) ? references : [references]).some(
-									(ref) => ref?.source !== "tool" || ref.name !== "get_data"
+								item.sources.some(
+									(ref) => ref.source !== "tool" || ref.name !== "get_data"
 								)
 							) {
 								throw new Error(
@@ -1493,7 +1732,7 @@ export async function runInsightAgent(
 								);
 							}
 							const native = renderRevenueEvidence(
-								item,
+								item.claim,
 								citedEvidence[index],
 								input
 							);
@@ -1512,11 +1751,12 @@ export async function runInsightAgent(
 								"For revenue_overview evidence, submit {currency, fields} instead of prose, preserving this comparison; code binds every value to its field. Cite both periods."
 							);
 						}
-						return item;
+						return item.claim;
 					});
 					const proposed = agentInvestigationOutcomeSchema.parse({
 						...candidate,
 						evidence,
+						evidenceRefs,
 						...(verification
 							? {
 									summary:
@@ -1531,6 +1771,22 @@ export async function runInsightAgent(
 								}
 							: {}),
 					});
+					if (
+						verification?.status === "inconclusive" &&
+						proposed.next.type === "act" &&
+						!proposed.next.execution &&
+						!proposed.evidenceRefs
+							.flat()
+							.some(
+								(ref) =>
+									ref.source === "tool" &&
+									DEFINITION_PURPOSE_TOOLS.includes(ref.name)
+							)
+					) {
+						throw new Error(
+							"An inconclusive saved check does not establish a new repair. A manual action needs independently inspected implementation evidence; otherwise report the check's limitation."
+						);
+					}
 					const successfulResults = results.filter(
 						(result) => successfulReadOutputs(result).length > 0
 					);
@@ -1541,7 +1797,7 @@ export async function runInsightAgent(
 						steps.flatMap((step) => step.toolCalls.map((call) => call.toolName))
 					);
 					if (
-						candidate.evidence.some((item) => typeof item !== "string") &&
+						candidate.evidence.some((item) => typeof item.claim !== "string") &&
 						[
 							proposed.title.replace(input.signal.entity.label, ""),
 							verification ? "" : proposed.summary,
@@ -1608,7 +1864,7 @@ export async function runInsightAgent(
 						})
 					);
 					for (const [index, source] of citedEvidence.entries()) {
-						if (typeof candidate.evidence[index] !== "string") {
+						if (typeof candidate.evidence[index].claim !== "string") {
 							continue;
 						}
 						validateNumericGrounding(

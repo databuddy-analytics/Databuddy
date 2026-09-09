@@ -109,6 +109,9 @@ describe("saved activation and return measurement", () => {
 		expect(signal.direction).toBe("up");
 		expect(signal.evidence?.join("\n")).toContain("200/2000");
 		expect(signal.evidence?.join("\n")).toContain(
+			"Activation identity coverage: 10% (200/2000 activation events)"
+		);
+		expect(signal.evidence?.join("\n")).toContain(
 			"Anonymous events are outside the profile denominator"
 		);
 	});

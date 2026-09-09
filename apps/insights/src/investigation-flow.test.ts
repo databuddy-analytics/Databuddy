@@ -188,6 +188,35 @@ function appContext() {
 }
 
 function outputResponse(value: unknown) {
+	// Keep legacy outcome fixtures readable; raw/malformed model input stays invalid.
+	if (
+		typeof value === "object" &&
+		value !== null &&
+		"evidence" in value &&
+		"evidenceRefs" in value &&
+		Array.isArray(value.evidence) &&
+		Array.isArray(value.evidenceRefs) &&
+		value.evidence.length === value.evidenceRefs.length &&
+		value.evidence.every(
+			(claim) =>
+				typeof claim === "string" ||
+				(typeof claim === "object" &&
+					claim !== null &&
+					"currency" in claim &&
+					"fields" in claim)
+		)
+	) {
+		const { evidence, evidenceRefs, ...outcome } = value;
+		value = {
+			...outcome,
+			evidence: evidence.map((claim, index) => ({
+				claim,
+				sources: Array.isArray(evidenceRefs[index])
+					? evidenceRefs[index]
+					: [evidenceRefs[index]],
+			})),
+		};
+	}
 	return toolCallResponse("finish_investigation", JSON.stringify(value));
 }
 
@@ -230,6 +259,233 @@ function outputModel(value: unknown = agentOutcome) {
 		),
 	});
 }
+
+describe("claim-bound finish input", () => {
+	const finish = {
+		...outcome,
+		next: agentOutcome.next,
+		evidence: outcome.evidence.map((claim, index) => ({
+			claim,
+			sources: [{ source: "provided", index }],
+		})),
+	};
+	const input = {
+		appContext: appContext(),
+		evidence,
+		githubRepository: null,
+		history: [],
+		otherOpenWork: [],
+		signal,
+	};
+	const comparison = {
+		...finish,
+		title: "Measured cohort comparison",
+		summary: "The measured populations have distinct counts.",
+		rootCause: null,
+		next: { type: "resolve", reason: "The comparison is measured." },
+	};
+
+	it("requires sources on each model claim and stores the existing text outcome", async () => {
+		const model = outputModel(finish);
+		const result = await runInsightAgent(input, { model, tools: {} });
+		const schema = model.doGenerateCalls[0]?.tools?.find(
+			(item) => item.name === "finish_investigation"
+		)?.inputSchema;
+		expect(schema).toMatchObject({
+			properties: {
+				evidence: {
+					minItems: 1,
+					maxItems: 2,
+					items: {
+						required: expect.arrayContaining(["claim", "sources"]),
+						properties: {
+							claim: {
+								anyOf: expect.arrayContaining([
+									expect.objectContaining({ type: "string" }),
+									expect.objectContaining({
+										type: "object",
+										required: expect.arrayContaining(["currency", "fields"]),
+									}),
+								]),
+							},
+							sources: { type: "array", minItems: 1, maxItems: 8 },
+						},
+					},
+				},
+			},
+		});
+		expect(schema).not.toHaveProperty("properties.evidenceRefs");
+		expect(result.outcome).toEqual(outcome);
+		expect(result.outcome).not.toHaveProperty("evidenceRefs");
+		expect(model.doGenerateCalls).toHaveLength(1);
+	});
+
+	it.each([
+		{ name: "missing sources", item: { claim: outcome.evidence[0] } },
+		{
+			name: "empty sources",
+			item: { claim: outcome.evidence[0], sources: [] },
+		},
+		{
+			name: "nested references",
+			item: {
+				claim: outcome.evidence[0],
+				sources: [[{ source: "provided", index: 0 }]],
+			},
+		},
+		{
+			name: "too many sources",
+			item: {
+				claim: outcome.evidence[0],
+				sources: Array.from({ length: 9 }, () => ({
+					source: "provided",
+					index: 0,
+				})),
+			},
+		},
+	])("rejects $name without repairing the raw model input", async ({
+		item,
+	}) => {
+		const candidate = { ...finish, evidence: [item, finish.evidence[1]] };
+		const response = toolCallResponse(
+			"finish_investigation",
+			JSON.stringify(candidate)
+		);
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(response, response, response),
+		});
+		await expect(
+			runInsightAgent(input, { model, tools: {} })
+		).rejects.toBeInstanceOf(InsightAgentGenerationError);
+		expect(model.doGenerateCalls).toHaveLength(3);
+		const error = model.doGenerateCalls[1]?.prompt
+			.flatMap((message) => (message.role === "tool" ? message.content : []))
+			.find((part) => part.type === "tool-result");
+		if (error?.output.type !== "error-text")
+			throw new Error("Missing schema validation error");
+		const feedback = error.output.value;
+		expect(feedback).toContain("evidence");
+		expect(feedback).toContain("sources");
+	});
+
+	it("rejects legacy prose and separate references at the model boundary", async () => {
+		const response = toolCallResponse(
+			"finish_investigation",
+			JSON.stringify(agentOutcome)
+		);
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(response, response, response),
+		});
+		await expect(
+			runInsightAgent(input, { model, tools: {} })
+		).rejects.toBeInstanceOf(InsightAgentGenerationError);
+		expect(model.doGenerateCalls).toHaveLength(3);
+	});
+
+	it.each([
+		"valid",
+		"wrong-source",
+		"wrong-number",
+	] as const)("validates each claim against its own sources: %s", async (scenario) => {
+		const candidate = {
+			...comparison,
+			evidence: [
+				{
+					claim: "Checkout and report counts were 41 and 52.",
+					sources: [
+						{ source: "provided", index: 0 },
+						{ source: "provided", index: 1 },
+					],
+				},
+				{
+					claim: `${scenario === "wrong-number" ? 53 : 52} reports were shared.`,
+					sources: [
+						{ source: "provided", index: scenario === "wrong-source" ? 0 : 1 },
+					],
+				},
+			],
+		};
+		const model = outputModel(candidate);
+		const run = runInsightAgent(
+			{
+				...input,
+				evidence: ["41 sessions used checkout.", "52 reports were shared."],
+			},
+			{ model, tools: {} }
+		);
+		if (scenario === "valid") {
+			expect((await run).outcome.evidence).toEqual(
+				candidate.evidence.map((item) => item.claim)
+			);
+			expect(model.doGenerateCalls).toHaveLength(1);
+			return;
+		}
+		await expect(run).rejects.toThrow(
+			`evidence[1] cites the number ${scenario === "wrong-number" ? 53 : 52}`
+		);
+		expect(JSON.stringify(model.doGenerateCalls[1]?.prompt)).toContain(
+			"Correct evidence[1].sources"
+		);
+	});
+
+	it.each([
+		"valid",
+		"omitted-source",
+		"wrong-source",
+		"missing-source",
+	] as const)("retains all five provided sources in a bound comparison: %s", async (scenario) => {
+		const counts = [41, 52, 63, 74, 85];
+		const sources = counts.map((_, index) => ({ source: "provided", index }));
+		if (scenario === "omitted-source") sources.pop();
+		if (scenario === "wrong-source")
+			sources[4] = { source: "provided", index: 0 };
+		if (scenario === "missing-source")
+			sources[4] = { source: "provided", index: 5 };
+		const claim = "The cohort counts were 41, 52, 63, 74, and 85.";
+		const model = outputModel({
+			...comparison,
+			evidence: [{ claim, sources }],
+		});
+		const run = runInsightAgent(
+			{
+				...input,
+				evidence: counts.map(
+					(count) => `The measured cohort contained ${count} profiles.`
+				),
+			},
+			{ model, tools: {} }
+		);
+		if (scenario === "valid") {
+			expect((await run).outcome.evidence).toEqual([claim]);
+			expect(model.doGenerateCalls).toHaveLength(1);
+			return;
+		}
+		await expect(run).rejects.toThrow(
+			scenario === "missing-source" ? "evidence index 5" : "number 85"
+		);
+	});
+
+	it("accepts all eight sources at the normalization limit", async () => {
+		const counts = [41, 52, 63, 74, 85, 96, 107, 118];
+		const claim = `The measured cohort counts were ${counts.join(", ")}.`;
+		const sources = counts.map((_, index) => ({ source: "provided", index }));
+		const model = outputModel({
+			...comparison,
+			evidence: [{ claim, sources }],
+		});
+		const result = await runInsightAgent(
+			{
+				...input,
+				evidence: counts.map(
+					(count) => `The cohort contained ${count} profiles.`
+				),
+			},
+			{ model, tools: {} }
+		);
+		expect(result.outcome.evidence).toEqual([claim]);
+		expect(model.doGenerateCalls).toHaveLength(1);
+	});
+});
 
 describe("intelligence agent", () => {
 	it("does not resupply prior context snapshots or offer model-authored provenance", async () => {
@@ -2001,22 +2257,13 @@ describe("intelligence agent", () => {
 		"wrong-measured-id",
 		"passed",
 		"passed-explicit",
-		"passed-null-cohort",
-		"passed-domain",
 		"passed-cosmetic",
 		"failed-rate",
 		"failed",
-		"wrong-subject",
-		"wrong-website",
-		"wrong-start",
-		"wrong-end",
-		"extra-filter",
-		"extra-cohort",
 		"small-sample",
 		"unfinished-window",
 		"failed-read",
 		"invalid-count",
-		"no-read",
 		"newer-resolution",
 		"referrer-rate",
 		"referrer-count",
@@ -2061,23 +2308,9 @@ describe("intelligence agent", () => {
 				: "inconclusive";
 		const completed = scenario === "failed" ? 40 : 120;
 		const query = {
-			funnelId: scenario === "wrong-subject" ? "another-funnel" : "checkout",
-			startDate: scenario === "wrong-start" ? "2026-07-04" : check.startDate,
-			endDate: scenario === "wrong-end" ? "2026-07-12" : check.endDate,
-			...(scenario === "passed-explicit" ? { websiteId: "site-1" } : {}),
-			...(scenario === "wrong-website" ? { websiteId: "another-site" } : {}),
-			...(scenario === "passed-domain" ? { websiteId: "example.com" } : {}),
-			...(scenario === "extra-filter" ? { filter: "paid-only" } : {}),
-			...(scenario === "passed-null-cohort" ? { cohort: null } : {}),
-			...(scenario === "extra-cohort"
-				? {
-						cohort: {
-							filters: [
-								{ field: "browser_name", operator: "equals", value: "Chrome" },
-							],
-						},
-					}
-				: {}),
+			funnelId: "checkout",
+			startDate: check.startDate,
+			endDate: check.endDate,
 		};
 		const candidate = {
 			...agentOutcome,
@@ -2096,9 +2329,7 @@ describe("intelligence agent", () => {
 		};
 		const model = new MockLanguageModelV3({
 			doGenerate: mockValues(
-				...(scenario === "no-read"
-					? []
-					: [toolCallResponse("get_funnel_analytics", JSON.stringify(query))]),
+				toolCallResponse("get_funnel_analytics", JSON.stringify(query)),
 				outputResponse(candidate)
 			),
 		});
@@ -2151,57 +2382,68 @@ describe("intelligence agent", () => {
 				tools: {
 					get_funnel_analytics: tool({
 						inputSchema: z.object({}).passthrough(),
-						execute: () => ({
-							...(scenario === "missing-metadata"
-								? {}
-								: {
-										measurement: {
-											websiteId:
-												scenario === "wrong-measured-site" ||
-												scenario === "wrong-website"
-													? "another-site"
-													: "site-1",
-											definitionId:
-												scenario === "wrong-measured-id"
-													? "another-funnel"
-													: "checkout",
-											startDate:
-												scenario === "effective-window"
-													? "2026-07-07"
-													: check.startDate,
-											endDate: check.endDate,
-											definition: {
-												...check.definition,
-												steps: inspectedFunnel.steps.map((step) => ({
-													...step,
-													...(scenario === "passed-cosmetic"
-														? { name: "Renamed" }
+						execute: (readInput, options) => {
+							if (scenario !== "newer-resolution") {
+								expect(readInput).toEqual({
+									...query,
+									websiteId: "site-1",
+									cohort: null,
+								});
+								expect(options.experimental_context).toMatchObject({
+									organizationId: appContext().organizationId,
+								});
+							}
+							return {
+								...(scenario === "missing-metadata"
+									? {}
+									: {
+											measurement: {
+												websiteId:
+													scenario === "wrong-measured-site"
+														? "another-site"
+														: "site-1",
+												definitionId:
+													scenario === "wrong-measured-id"
+														? "another-funnel"
+														: "checkout",
+												startDate:
+													scenario === "effective-window"
+														? "2026-07-07"
+														: check.startDate,
+												endDate: check.endDate,
+												definition: {
+													...check.definition,
+													steps: inspectedFunnel.steps.map((step) => ({
+														...step,
+														...(scenario === "passed-cosmetic"
+															? { name: "Renamed" }
+															: {}),
+													})),
+													...(scenario === "changed-definition"
+														? {
+																filters: [
+																	{
+																		field: "country",
+																		operator: "equals",
+																		value: "US",
+																	},
+																],
+															}
 														: {}),
-												})),
-												...(scenario === "changed-definition"
-													? {
-															filters: [
-																{
-																	field: "country",
-																	operator: "equals",
-																	value: "US",
-																},
-															],
-														}
-													: {}),
+												},
 											},
-										},
-									}),
-							total_users_entered: scenario === "small-sample" ? 80 : 200,
-							total_users_completed:
-								scenario === "small-sample"
-									? 60
-									: scenario === "invalid-count"
-										? 250
-										: completed,
-							overall_conversion_rate: 60,
-							...(scenario === "failed-read" ? { error: "Unavailable" } : {}),
-						}),
+										}),
+								total_users_entered: scenario === "small-sample" ? 80 : 200,
+								total_users_completed:
+									scenario === "small-sample"
+										? 60
+										: scenario === "invalid-count"
+											? 250
+											: completed,
+								overall_conversion_rate: 60,
+								...(scenario === "failed-read" ? { error: "Unavailable" } : {}),
+							};
+						},
 					}),
 				},
 			}
@@ -2211,8 +2453,21 @@ describe("intelligence agent", () => {
 			return;
 		}
 		expect(result.outcome.verification?.status).toBe(status);
-		expect(result.toolCallCount).toBe(scenario === "no-read" ? 0 : 1);
-		expect(model.doGenerateCalls).toHaveLength(scenario === "no-read" ? 1 : 2);
+		expect(result.toolCallCount).toBe(scenario.startsWith("referrer-") ? 0 : 1);
+		expect(model.doGenerateCalls).toHaveLength(0);
+		expect(result.usage?.totalTokens).toBe(0);
+		expect(result.modelId).toBeUndefined();
+		expect(result.outcome.rootCause).toBeNull();
+		expect(result.outcome.next.type).toBe(
+			scenario === "unfinished-window" ? "watch" : "resolve"
+		);
+		expect(result.outcome.publish).toBe(status !== "inconclusive");
+		if (!scenario.startsWith("referrer-")) {
+			expect(result.verificationRead).toMatchObject({
+				toolName: "get_funnel_analytics",
+				input: { ...query, websiteId: "site-1", cohort: null },
+			});
+		}
 		expect(result.outcome.summary).not.toBe("Recovery definitely passed.");
 		expect(result.outcome.summary).toContain(
 			status === "inconclusive" ? "unverified" : status
@@ -2484,6 +2739,7 @@ describe("intelligence agent", () => {
 				reason: "Coverage is uncertain; the cause has not been established.",
 			},
 		};
+		const model = outputModel(coverage);
 		const run = runInsightAgent(
 			{
 				appContext: appContext(),
@@ -2510,7 +2766,7 @@ describe("intelligence agent", () => {
 				history: [],
 				otherOpenWork: [],
 			},
-			{ model: outputModel(coverage), tools: {} }
+			{ model, tools: {} }
 		);
 		if (citeBusiness && publish) {
 			await expect(run).rejects.toThrow(
@@ -2523,6 +2779,23 @@ describe("intelligence agent", () => {
 			evidence: coverage.evidence,
 			next: { type: "resolve" },
 			rootCause: null,
+		});
+		const message = model.doGenerateCalls[0]?.prompt
+			.find((item) => item.role === "user")
+			?.content.find((item) => item.type === "text");
+		if (message?.type !== "text") throw new Error("Missing evidence prompt");
+		expect(JSON.parse(message.text)).toMatchObject({
+			businessContext: { sourceEvidenceIndexes: [providedCount] },
+			evidence: [
+				...Array.from({ length: providedCount }, (_, index) => ({
+					value: collection,
+					reference: { source: "provided", index },
+				})),
+				{
+					value: expect.stringContaining(background),
+					reference: { source: "provided", index: providedCount },
+				},
+			],
 		});
 	});
 
@@ -2719,7 +2992,7 @@ describe("intelligence agent", () => {
 			);
 		} else {
 			expect(feedback).toContain("evidence[0] cites the number 88");
-			expect(feedback).toContain("Correct evidenceRefs[0]");
+			expect(feedback).toContain("Correct evidence[0].sources");
 			expect(feedback).toContain(
 				"Preserve facts supported by inspected results"
 			);

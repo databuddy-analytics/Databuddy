@@ -294,7 +294,7 @@ const insightDefinitionExecutionSchema = z.discriminatedUnion("operation", [
 	legacyDefinitionExecutionSchema,
 ]);
 
-const agentEvidenceReferenceSchema = z.discriminatedUnion("source", [
+export const agentEvidenceReferenceSchema = z.discriminatedUnion("source", [
 	z
 		.strictObject({
 			source: z.literal("history"),
@@ -611,7 +611,7 @@ export const investigationOutcomeSchema = z
 			.trim()
 			.min(1)
 			.describe(
-				"In roughly twelve words, state the consequence for the affected journey or decision. Keep measured comparisons in evidence and the inspected mechanism in rootCause; do not repeat them here."
+				"In 8–10 words, add a concrete implication or material limit. No restatement of the headline, generic advice, or unmeasured customer/revenue harm. Keep comparisons in evidence and the inspected mechanism in rootCause."
 			),
 		// Retain stored briefs; new investigations include the consequence in summary.
 		impact: z.string().trim().min(1).nullable().default(null),
@@ -621,7 +621,7 @@ export const investigationOutcomeSchema = z
 			.min(1)
 			.nullable()
 			.describe(
-				"One short, inspected causal mechanism describing the actual failing operation. Use null for unknown, suspected, or merely correlated explanations. Error text, a runtime stack, bundle location, route, browser document line, timing, or annotation is not a source-code mechanism."
+				"One short, inspected mechanism naming the actual failing operation; otherwise null. A business brief or team reply alone cannot verify an implementation or measurement defect. Error text, a runtime stack, route, timing or annotation is not an inspected mechanism."
 			),
 		// Supplied background only; does not establish which facts influenced a claim.
 		contextSnapshot: businessContextSchema.optional(),
@@ -771,7 +771,7 @@ const agentTitleSchema = z
 			"Titles must use natural product language, never raw identifiers, event names, or URLs",
 	})
 	.describe(
-		"A short headline stating the verified finding in natural product language. For directly measured reliability or user impact, an affected count can lead. With structured revenue evidence, use a qualitative headline and keep all quantities in the generated evidence. For measurement_definition, name the incorrect target or purpose mismatch without a numeric count; keep counts with their periods in evidence. For measurement_coverage, name the observed blind spot, never a presumed product loss. Never use raw identifiers, snake_case event names, or URLs."
+		"A natural 4–8 word headline stating the finding. Directly measured reliability or user impact may lead with an affected count. Structured revenue headlines stay qualitative. Measurement findings name the inspected mismatch or measured blind spot without implying product harm; counts belong with dates in evidence. Never use raw identifiers, event names or URLs."
 	);
 
 export const agentInvestigationOutcomeSchema = z
@@ -783,7 +783,7 @@ export const agentInvestigationOutcomeSchema = z
 			.array(
 				z.union([
 					agentEvidenceReferenceSchema,
-					z.array(agentEvidenceReferenceSchema).min(1).max(4),
+					z.array(agentEvidenceReferenceSchema).min(1).max(8),
 				])
 			)
 			.min(1)
@@ -795,10 +795,10 @@ export const agentInvestigationOutcomeSchema = z
 		publish: z
 			.boolean()
 			.describe(
-				"True only when this turn adds a new customer-relevant fact worth showing in Insights."
+				"True for a new material measured change or coverage gap, inspected defect, or verification verdict. False for a baseline alone, normal maturation, explained/excluded changes, stale business context, or missing diagnostic access. Answering a question does not itself merit a feed incident."
 			),
 		findingKind: insightFindingKindSchema.describe(
-			"Classify this as user_experience only for a directly measured downstream user experience; product_outcome for a measured business or journey result, or a material measured usage change of a behavior whose purpose is established by inspected code or explicit owner context, even when its cause is unknown (event names and raw traffic alone do not establish purpose); reliability_exposure for directly measured error or performance exposure without a measured downstream outcome; measurement_definition for a named definition that measures something other than its stated purpose; or measurement_coverage for missing telemetry/setup. Published user experience and product outcomes require measured impact, reliability exposure requires measured reliability, and published measurement findings require decision safety."
+			"Classify the cited evidence: user_experience needs a measured downstream consequence; product_outcome needs a measured result of known-purpose behavior; reliability_exposure reports measured errors or performance. measurement_definition needs an inspected current definition or emitter mismatch, not a stale brief or reply alone. measurement_coverage needs a measured missing population or inspected collection defect, not immature cohorts or unavailable diagnostics. Event names alone establish no business purpose."
 		),
 		publicationBasis: insightPublicationBasisSchema
 			.nullable()
@@ -824,6 +824,10 @@ export const agentInvestigationOutcomeSchema = z
 
 const insightStatusSchema = z.enum(["open", "resolved"]);
 const insightResolvedReasonSchema = z.enum(["recovered", "stale"]);
+export function appliedInsightActionReply(type: "goal" | "funnel"): string {
+	return `Databuddy applied the ${type} action. Recheck its verification condition against current data.`;
+}
+
 export const insightReplyStatusSchema = z.enum([
 	"queued",
 	"running",

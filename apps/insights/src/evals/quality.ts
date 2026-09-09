@@ -1071,6 +1071,7 @@ for (const scenario of [
 			request: original.input.request
 				? {
 						...original.input.request,
+						kind: "verification",
 						createdAt:
 							scenario === "unfinished-window"
 								? "2026-09-04T12:00:00Z"
@@ -1139,12 +1140,7 @@ for (const scenario of [
 		},
 		reviewRequired: `Expected ${status}. Check that the customer copy agrees with the code verdict and preserves the reason, exact dates, measured count and threshold. A small sample or unfinished window cannot prove recovery.`,
 		check: (result, calls) => [
-			...original.check(result, calls).filter(
-				(failure) =>
-					// A new population mismatch can justify a different repair.
-					scenario !== "population-drift" ||
-					failure !== "Repeated the already-applied definition repair"
-			),
+			...original.check(result, calls),
 			...(result.outcome.verification?.status === status
 				? []
 				: [`Expected persisted verification status ${status}`]),
@@ -1251,16 +1247,15 @@ for (const scenario of [
 				calls.some(
 					(call) =>
 						call.name === "get_goal_analytics" &&
-						isDeepStrictEqual(call.input, {
-							startDate: window.from,
-							endDate: window.to,
-							goalId: goal.id,
-							...(call.input &&
-							typeof call.input === "object" &&
-							"websiteId" in call.input
-								? { websiteId: appContext.websiteId }
-								: {}),
-						})
+						z
+							.strictObject({
+								startDate: z.literal(window.from),
+								endDate: z.literal(window.to),
+								goalId: z.literal(goal.id),
+								websiteId: z.literal(appContext.websiteId).optional(),
+								cohort: z.null().optional(),
+							})
+							.safeParse(call.input).success
 				)
 					? []
 					: [`Did not remeasure the exact goal for ${window.from}–${window.to}`]
@@ -1821,17 +1816,19 @@ for (const reordered of [false, true]) {
 			const selection = z
 				.object({
 					evidence: z.array(
-						z.union([
-							z.string(),
-							z.object({ currency: z.string(), fields: z.array(z.string()) }),
-						])
+						z.object({
+							claim: z.union([
+								z.string(),
+								z.object({ currency: z.string(), fields: z.array(z.string()) }),
+							]),
+						})
 					),
 				})
 				.safeParse(acceptedFinish);
 			const fields = selection.success
-				? selection.data.evidence.flatMap((entry) =>
-						typeof entry !== "string" && entry.currency === "USD"
-							? entry.fields
+				? selection.data.evidence.flatMap(({ claim }) =>
+						typeof claim !== "string" && claim.currency === "USD"
+							? claim.fields
 							: []
 					)
 				: [];

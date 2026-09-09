@@ -272,7 +272,7 @@ export async function detectRetentionSignals(
 			evidence: [
 				...(["previous", "current"] as const).map((key) => {
 					const counts = measured[key];
-					return `Native identified_profile_retention, ${period[key].from}–${period[key].to}: ${counts.retained}/${counts.eligible} eligible identified profiles returned (${Math.round((counts.retained / counts.eligible) * 1000) / 10}%). Activation events with direct identity: ${counts.identifiedEvents}/${counts.events}. Both counts refer to this week's activation window.`;
+					return `Native identified_profile_retention, ${period[key].from}–${period[key].to}: ${counts.retained}/${counts.eligible} eligible identified profiles returned (${Math.round((counts.retained / counts.eligible) * 1000) / 10}%). Activation identity coverage: ${Math.round((counts.identifiedEvents / counts.events) * 1000) / 10}% (${counts.identifiedEvents}/${counts.events} activation events). Both counts refer to this week's activation window.`;
 				}),
 				`Team-defined activation event: ${plan.activationEvent}`,
 				`Team-defined return event: ${plan.returnEvent}`,
