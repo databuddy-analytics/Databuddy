@@ -425,6 +425,38 @@ describe("saved organization business context", () => {
 	};
 	const input = { scope, asOf, allowRefresh: false };
 
+	it("keeps canonical replies ahead of extra public pages before selection", async () => {
+		const pages = Array.from({ length: 4 }, (_, index) => ({
+			...page,
+			id: `page-${index}`,
+			url: `https://example.com/${index || ""}`,
+			content: "Public background. ".padEnd(4000, "."),
+		}));
+		const result = await loadWebsiteBusinessProfile(
+			input,
+			dependencies({
+				loadProfile: async () => context(pages),
+				readReplies: async () => [statement],
+				readOrganization: async () => ({ profile, generation: null }),
+			})
+		);
+
+		expect(result.sources).toContainEqual(statement);
+		expect(result.sources[0]).toMatchObject({
+			kind: "organization_profile",
+			content: profile.content,
+		});
+		expect(result.sources[1]).toEqual(statement);
+		expect(result.sources.filter((source) => source.kind === "website")).toEqual(
+			pages.slice(0, 3)
+		);
+		expect(
+			result.sources.reduce((total, source) => total + source.content.length, 0)
+		).toBeLessThanOrEqual(16_000);
+		expect(result.status).toBe("partial");
+		expect(businessContextSchema.parse(result)).toEqual(result);
+	});
+
 	it("keeps the complete 12k saved profile and canonical correction ahead of a full homepage", async () => {
 		const content = "A".repeat(4000) + "B".repeat(4000) + "C".repeat(4000);
 		const result = await loadWebsiteBusinessProfile(
