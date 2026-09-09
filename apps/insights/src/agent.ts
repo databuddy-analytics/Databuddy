@@ -41,6 +41,7 @@ import type { ErrorCustomerImpact } from "./error-customer-impact";
 import { raceWithAbort } from "./funnel-detection";
 import { signalKeyForDetectedSignal } from "./investigation";
 import { emitInsightsEvent } from "./lib/evlog-insights";
+import { retentionRowSchema, retentionWindow } from "./measurement-plan";
 
 const MAX_STEPS = 8;
 const TIMEOUT_MS = 2 * 60_000;
@@ -96,8 +97,8 @@ const finishSchema = z.object({
 	}).shape,
 });
 
-const revenueReadingSchema = z.object({
-	type: z.literal("revenue_overview"),
+const nativeReadingSchema = z.object({
+	type: z.string(),
 	websiteId: z.string().min(1),
 	from: z.iso.date(),
 	to: z.iso.date(),
@@ -115,7 +116,8 @@ export function renderRevenueEvidence(
 ) {
 	const readings = z
 		.array(
-			revenueReadingSchema.extend({
+			nativeReadingSchema.extend({
+				type: z.literal("revenue_overview"),
 				websiteId: z.literal(
 					z
 						.string()
@@ -226,6 +228,79 @@ function renderRetentionEvidence(signal: InvestigationSignal): string | null {
 		(period) => `${period.from}–${period.to}`
 	);
 	return `Initial snapshot through ${measured.observationEnd} ${measured.timezone}: eligible identified profiles returning within ${measured.definition.horizonDays} days: ${returned.join(" → ")}; cohorts ${periods.join(" → ")}, fully observed. Activation events with identity: ${identity.join(" → ")}; anonymous events excluded.`;
+}
+
+const retentionReadingType = z.object({
+	type: z.literal("identified_profile_retention"),
+});
+const retentionEvidenceSource = z.union([
+	retentionReadingType,
+	z.object({ retentionMeasurement: retentionMeasurementSchema }),
+]);
+
+function retentionReadStatus(value: unknown, signal: InvestigationSignal) {
+	const measured = signal.retentionMeasurement;
+	if (!(measured && retentionReadingType.safeParse(value).success)) {
+		return null;
+	}
+	const reading = nativeReadingSchema.safeParse(value);
+	if (!reading.success) {
+		return { sameQuery: false, consistent: false };
+	}
+	const row = reading.data;
+	const period = (["previous", "current"] as const).find(
+		(key) =>
+			row.from === signal.period[key].from && row.to === signal.period[key].to
+	);
+	const { definition } = measured;
+	const expectedFilters = [
+		{ field: "activation_event", op: "eq", value: definition.activationEvent },
+		{ field: "return_event", op: "eq", value: definition.returnEvent },
+		{ field: "horizon_days", op: "eq", value: definition.horizonDays },
+		{ field: "observation_end", op: "eq", value: measured.observationEnd },
+		...(definition.namespace
+			? [{ field: "namespace", op: "eq", value: definition.namespace }]
+			: []),
+	];
+	const sameQuery =
+		Boolean(period) &&
+		row.websiteId === definition.websiteId &&
+		row.timezone === measured.timezone &&
+		row.filters.length === expectedFilters.length &&
+		expectedFilters.every((expected) =>
+			row.filters.some(
+				(filter) =>
+					filter.field === expected.field &&
+					filter.op === expected.op &&
+					(typeof filter.value === "string" ||
+						typeof filter.value === "number") &&
+					(typeof expected.value === "number"
+						? Number(filter.value) === expected.value
+						: filter.value === expected.value)
+			)
+		);
+	const overall = row.data.filter((item) => item.row_type === "overall");
+	const actual = retentionRowSchema.safeParse(overall[0]).data;
+	const expected = period ? measured[period] : null;
+	return {
+		sameQuery,
+		consistent:
+			sameQuery &&
+			expected &&
+			overall.length === 1 &&
+			actual &&
+			actual.cohort_date === null &&
+			actual.cohort_from === row.from &&
+			actual.cohort_to === row.to &&
+			actual.timezone === row.timezone &&
+			actual.observation_end === measured.observationEnd &&
+			actual.horizon_days === definition.horizonDays &&
+			Date.parse(actual.observed_before) ===
+				Date.parse(measured.observedBefore) &&
+			Date.parse(actual.cohort_start) === Date.parse(expected.cohortStart) &&
+			Date.parse(actual.cohort_end) === Date.parse(expected.cohortEnd) &&
+			isDeepStrictEqual(retentionWindow(actual), expected),
+	};
 }
 
 function hasProductRevenueEvidence(
@@ -1552,7 +1627,7 @@ export async function runInsightAgent(
 						finishSchema.shape.evidence.element.extend({
 							claim: z.union([
 								agentInvestigationOutcomeSchema.shape.evidence.element.describe(
-									"One additional sourced fact that changes the interpretation, under 10 words. Do not repeat the generated cohort comparison."
+									"One additional sourced fact that changes the interpretation, under 10 words. Leave retention quantities to the generated comparison; add other context or a qualitative discrepancy."
 								),
 								revenueEvidenceSchema,
 							]),
@@ -1791,6 +1866,17 @@ export async function runInsightAgent(
 							return native.text;
 						}
 						if (
+							nativeRetention &&
+							numericTokens(item.claim).length > 0 &&
+							citedEvidence[index].some(
+								(source) => retentionEvidenceSource.safeParse(source).success
+							)
+						) {
+							throw new Error(
+								"Retention quantities belong in the code-generated comparison. Use additional evidence for a distinct non-retention fact or a qualitative discrepancy; numbers present in a native row do not establish their field meaning."
+							);
+						}
+						if (
 							citedEvidence[index].some(
 								(source) =>
 									z
@@ -1845,6 +1931,22 @@ export async function runInsightAgent(
 					const successfulResults = results.filter(
 						(result) => successfulReadOutputs(result).length > 0
 					);
+					if (
+						nativeRetention &&
+						proposed.publish &&
+						(successfulResults.flatMap(successfulReadOutputs).some((read) => {
+							const status = retentionReadStatus(read, input.signal);
+							return status?.sameQuery && !status.consistent;
+						}) ||
+							citedEvidence.flat().some((read) => {
+								const status = retentionReadStatus(read, input.signal);
+								return status && !status.consistent;
+							}))
+					) {
+						throw new Error(
+							"A native retention read conflicts with the snapshot or the cited cohort uses a different scope. Resolve privately and explain the discrepancy; dropping its citation cannot make a conflicting comparison publishable."
+						);
+					}
 					const usedToolNames = new Set(
 						successfulResults.map((result) => result.toolName)
 					);

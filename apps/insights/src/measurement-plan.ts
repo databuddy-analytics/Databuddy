@@ -20,28 +20,52 @@ import {
 const count = z
 	.union([z.number(), z.string().trim().min(1)])
 	.pipe(z.coerce.number<string | number>().int().nonnegative().safe());
-const rowSchema = z.object({
-	row_type: z.enum(["overall", "cohort"]),
-	cohort_date: z.iso.date().nullable(),
-	activated_profiles: count,
-	eligible_profiles: count,
-	retained_profiles: count,
-	not_retained_profiles: count,
-	incomplete_profiles: count,
-	activation_events: count,
-	identified_activation_events: count,
-	unidentified_activation_events: count,
-	cohort_from: z.iso.date(),
-	cohort_to: z.iso.date(),
-	observation_end: z.iso.date(),
-	cohort_start: z.string(),
-	cohort_end: z.string(),
-	observed_before: z.string(),
-	timezone: z.string(),
-	horizon_days: z.coerce.number(),
-	identity_basis: z.literal("direct_profile_id"),
-	activation_basis: z.literal("first_in_cohort_window"),
-});
+export const retentionRowSchema = z
+	.object({
+		row_type: z.enum(["overall", "cohort"]),
+		cohort_date: z.iso.date().nullable(),
+		activated_profiles: count,
+		eligible_profiles: count,
+		retained_profiles: count,
+		not_retained_profiles: count,
+		incomplete_profiles: count,
+		activation_events: count,
+		identified_activation_events: count,
+		unidentified_activation_events: count,
+		cohort_from: z.iso.date(),
+		cohort_to: z.iso.date(),
+		observation_end: z.iso.date(),
+		cohort_start: z.string(),
+		cohort_end: z.string(),
+		observed_before: z.string(),
+		timezone: z.string(),
+		horizon_days: z.coerce.number(),
+		identity_basis: z.literal("direct_profile_id"),
+		activation_basis: z.literal("first_in_cohort_window"),
+	})
+	.refine(
+		(row) =>
+			row.activated_profiles <= row.identified_activation_events &&
+			row.eligible_profiles + row.incomplete_profiles ===
+				row.activated_profiles &&
+			row.retained_profiles + row.not_retained_profiles ===
+				row.eligible_profiles &&
+			row.identified_activation_events + row.unidentified_activation_events ===
+				row.activation_events,
+		"Retention returned an inconsistent measured population"
+	);
+
+export function retentionWindow(row: z.infer<typeof retentionRowSchema>) {
+	return {
+		eligible: row.eligible_profiles,
+		retained: row.retained_profiles,
+		incomplete: row.incomplete_profiles,
+		events: row.activation_events,
+		identifiedEvents: row.identified_activation_events,
+		cohortStart: new Date(row.cohort_start).toISOString(),
+		cohortEnd: new Date(row.cohort_end).toISOString(),
+	};
+}
 
 export function measurementPlanKey(plan: BusinessMeasurementPlan): string {
 	return `retention:${createHash("sha256")
@@ -125,7 +149,7 @@ export async function measureActivationRetention(
 			],
 		};
 		const rows = z
-			.array(rowSchema)
+			.array(retentionRowSchema)
 			.min(1)
 			.max(8)
 			.parse(await query(request, plan.domain, timezone, abortSignal));
@@ -147,14 +171,6 @@ export async function measureActivationRetention(
 					Date.parse(row.cohort_start) !== start ||
 					Date.parse(row.cohort_end) !== end ||
 					Date.parse(row.observed_before) !== today.valueOf() ||
-					row.activated_profiles > row.identified_activation_events ||
-					row.eligible_profiles + row.incomplete_profiles !==
-						row.activated_profiles ||
-					row.retained_profiles + row.not_retained_profiles !==
-						row.eligible_profiles ||
-					row.identified_activation_events +
-						row.unidentified_activation_events !==
-						row.activation_events ||
 					(row.row_type === "cohort" &&
 						(!row.cohort_date ||
 							row.cohort_date < from ||
@@ -183,15 +199,7 @@ export async function measureActivationRetention(
 		) {
 			throw new Error("Retention cohort rows are incomplete");
 		}
-		return {
-			eligible: overall[0].eligible_profiles,
-			retained: overall[0].retained_profiles,
-			incomplete: overall[0].incomplete_profiles,
-			events: overall[0].activation_events,
-			identifiedEvents: overall[0].identified_activation_events,
-			cohortStart: new Date(start).toISOString(),
-			cohortEnd: new Date(end).toISOString(),
-		};
+		return retentionWindow(overall[0]);
 	}
 	const [previous, current] = await Promise.all([
 		window(period.previous),

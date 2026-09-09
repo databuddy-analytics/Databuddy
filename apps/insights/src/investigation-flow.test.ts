@@ -9,6 +9,7 @@ import { tool } from "ai";
 import { MockLanguageModelV3, mockValues } from "ai/test";
 import { z } from "zod";
 import dayjs from "dayjs";
+import type { QueryRequest } from "@databuddy/ai/query";
 import { detectRetentionSignals } from "./measurement-plan";
 import { prepareInvestigation } from "./investigation";
 import {
@@ -4182,7 +4183,23 @@ describe("identified-profile cohort publication", () => {
 		"control",
 		"wrong-source",
 		"updated-read",
+		"confirmed-read",
+		"publish-conflict",
+		"hide-conflict",
+		"wrong-namespace",
+		"wrong-horizon",
+		"wrong-window",
+		"wrong-website",
+		"wrong-timezone",
+		"wrong-cutoff",
+		"malformed-read",
+		"swapped-return",
+		"swapped-signal",
 	])("preserves native facts and grounds additional evidence: %s", async (mode) => {
+		const nativeReads: {
+			request: QueryRequest;
+			data: Record<string, unknown>[];
+		}[] = [];
 		const [detected] = await detectRetentionSignals(
 			{ websiteId: "site-1", timezone: "UTC", lookbackDays: 7 },
 			dayjs("2026-07-12T00:00:00Z"),
@@ -4218,16 +4235,29 @@ describe("identified-profile cohort publication", () => {
 						identified_activation_events: 200,
 						unidentified_activation_events: 1800,
 					};
-					return [
+					const data = [
 						{ ...row, row_type: "overall", cohort_date: null },
 						{ ...row, row_type: "cohort", cohort_date: request.from },
 					];
+					nativeReads.push({ request, data });
+					return data;
 				},
 			}
 		);
+
 		const prepared = prepareInvestigation(detected, 7);
-		const additional = mode !== "none";
+		const reads = !["none", "control", "wrong-source", "swapped-signal"].includes(
+			mode
+		);
+		const additional = !["none", "hide-conflict"].includes(mode);
 		const updated = mode === "updated-read";
+		const retained = ["confirmed-read", "swapped-return"].includes(mode)
+			? 140
+			: 130;
+		const original = nativeReads.find(
+			(item) => item.request.from === prepared.signal.period.previous.from
+		);
+		if (!original) throw new Error("Missing detector read fixture");
 		const proposed = {
 			...finish,
 			...(updated
@@ -4240,25 +4270,31 @@ describe("identified-profile cohort publication", () => {
 				: {}),
 			evidence: additional
 				? [
-						updated
-							? "Updated same-cohort read: 130/200 previously returned; comparison unresolved."
-							: "Report sharing remained at 600 events.",
+						mode.startsWith("swapped-")
+							? "Previous cohort: 60/200 returned."
+							: reads
+								? updated
+									? "The later read conflicts with the snapshot."
+									: "The read confirms the previous cohort."
+								: "Report sharing remained at 600 events.",
 					]
 				: [],
 			evidenceRefs: additional
 				? [
-						updated
-							? {
-									source: "tool",
-									name: "get_data",
-									toolCallId: "get_data-1",
-									resultKey: "previous",
-								}
-							: { source: "provided", index: mode === "wrong-source" ? 1 : 0 },
+						mode === "swapped-signal"
+							? { source: "signal" }
+							: reads
+								? {
+										source: "tool",
+										name: "get_data",
+										toolCallId: "get_data-1",
+										resultKey: "previous",
+									}
+								: { source: "provided", index: mode === "wrong-source" ? 1 : 0 },
 					]
 				: [],
 		};
-		const model = updated
+		const model = reads
 			? new MockLanguageModelV3({
 					doGenerate: mockValues(
 						toolCallResponse("get_data"),
@@ -4266,6 +4302,14 @@ describe("identified-profile cohort publication", () => {
 					),
 				})
 			: outputModel(proposed);
+		const filters = (original.request.filters ?? []).map((filter) => ({
+			...filter,
+			...(mode === "wrong-horizon" && filter.field === "horizon_days"
+				? { value: 30 }
+				: {}),
+		}));
+		if (mode === "wrong-namespace")
+			filters.push({ field: "namespace", op: "eq", value: "demo" });
 		const run = runInsightAgent(
 			{
 				appContext: appContext(),
@@ -4280,7 +4324,7 @@ describe("identified-profile cohort publication", () => {
 			},
 			{
 				model,
-				tools: updated
+				tools: reads
 					? {
 							get_data: tool({
 								inputSchema: z.object({}),
@@ -4288,12 +4332,24 @@ describe("identified-profile cohort publication", () => {
 									results: {
 										previous: {
 											type: "identified_profile_retention",
-											websiteId: "site-1",
+											websiteId:
+												mode === "wrong-website" ? "other-site" : "site-1",
 											...prepared.signal.period.previous,
-											timezone: "UTC",
-											definition: detected.retentionMeasurement?.definition,
-											retained_profiles: 130,
-											eligible_profiles: 200,
+											...(mode === "wrong-window" ? { from: "2026-06-21" } : {}),
+											timezone:
+												mode === "wrong-timezone" ? "Europe/London" : "UTC",
+											filters,
+											data: original.data.map((row) => ({
+												...row,
+												retained_profiles: retained,
+												not_retained_profiles: 200 - retained,
+												...(mode === "wrong-cutoff"
+													? { observed_before: "2026-07-11T00:00:00.000Z" }
+													: {}),
+												...(mode === "malformed-read"
+													? { identity_basis: "anonymous" }
+													: {}),
+											})),
 										},
 									},
 								}),
@@ -4302,8 +4358,20 @@ describe("identified-profile cohort publication", () => {
 					: {},
 			}
 		);
+		if (mode.startsWith("swapped-")) {
+			await expect(run).rejects.toThrow(
+				"Retention quantities belong in the code-generated comparison"
+			);
+			return;
+		}
 		if (mode === "wrong-source") {
 			await expect(run).rejects.toThrow("does not appear in its cited source");
+			return;
+		}
+		if (reads && !["updated-read", "confirmed-read"].includes(mode)) {
+			await expect(run).rejects.toThrow(
+				"conflicts with the snapshot or the cited cohort uses a different scope"
+			);
 			return;
 		}
 		const result = await run;
@@ -4311,13 +4379,13 @@ describe("identified-profile cohort publication", () => {
 			"Initial snapshot through 2026-07-11 UTC: eligible identified profiles returning within 7 days: 140/200 (70%) → 60/200 (30%); cohorts 2026-06-20–2026-06-26 → 2026-06-27–2026-07-03, fully observed. Activation events with identity: 200/2000 (10%) → 200/2000 (10%); anonymous events excluded."
 		);
 		expect(result.outcome.evidence).toHaveLength(additional ? 2 : 1);
-		expect(model.doGenerateCalls).toHaveLength(updated ? 2 : 1);
+		expect(model.doGenerateCalls).toHaveLength(reads ? 2 : 1);
 		expect(JSON.stringify(model.doGenerateCalls[0].prompt)).toContain(
 			"retentionMeasurement"
 		);
-		expect(result.toolCallCount).toBe(updated ? 1 : 0);
+		expect(result.toolCallCount).toBe(reads ? 1 : 0);
 		expect(result.outcome.publish).toBe(!updated);
-		if (updated) expect(result.outcome.evidence[1]).toBe(proposed.evidence[0]);
+		if (reads) expect(result.outcome.evidence[1]).toBe(proposed.evidence[0]);
 	});
 	it("publishes a known-purpose cohort finding without a redundant data read or invented cause", async () => {
 		const model = outputModel(finish);
