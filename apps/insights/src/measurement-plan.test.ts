@@ -1,6 +1,7 @@
 import "@databuddy/test/env";
 import { describe, expect, it } from "bun:test";
 import type { executeQuery } from "@databuddy/ai/query";
+import { parseInvestigationSignal } from "@databuddy/shared/insights";
 import type { BusinessMeasurementPlan } from "@databuddy/shared/organization-business-context";
 import dayjs from "dayjs";
 import { prepareInvestigation } from "./investigation";
@@ -98,8 +99,16 @@ describe("saved activation and return measurement", () => {
 			previous: { from: "2026-08-18", to: "2026-08-24" },
 			current: { from: "2026-08-25", to: "2026-08-31" },
 		});
-		expect(prepared.evidence.join("\n")).toContain("160/200");
-		expect(prepared.evidence.join("\n")).toContain("not first-ever activation");
+		expect(prepared.signal.retentionMeasurement).toMatchObject({
+			definition: {
+				websiteId: plan.websiteId,
+				activationEvent: plan.activationEvent,
+				returnEvent: plan.returnEvent,
+				namespace: "production",
+			},
+			previous: { retained: 160, eligible: 200, incomplete: 0 },
+			current: { retained: 80, eligible: 200, incomplete: 0 },
+		});
 	});
 	it("keeps positive return changes and explicitly reports low identity coverage", async () => {
 		const [signal] = await detectRetentionSignals(params, asOf, undefined, {
@@ -107,13 +116,10 @@ describe("saved activation and return measurement", () => {
 			query: fixture({ before: 80, after: 160, identity: 0.1 }),
 		});
 		expect(signal.direction).toBe("up");
-		expect(signal.evidence?.join("\n")).toContain("200/2000");
-		expect(signal.evidence?.join("\n")).toContain(
-			"Activation identity coverage: 10% (200/2000 activation events)"
-		);
-		expect(signal.evidence?.join("\n")).toContain(
-			"Anonymous events are outside the profile denominator"
-		);
+		expect(signal.retentionMeasurement).toMatchObject({
+			previous: { identifiedEvents: 200, events: 2000 },
+			current: { identifiedEvents: 200, events: 2000 },
+		});
 	});
 	it.each([
 		{ eligible: 49, before: 40, after: 10 },
@@ -191,7 +197,6 @@ describe("saved activation and return measurement", () => {
 	});
 });
 
-
 it("freezes maximum-length event definitions without losing meaning or measured coverage", async () => {
 	const definition = {
 		...plan,
@@ -235,6 +240,34 @@ it("freezes maximum-length event definitions without losing meaning or measured 
 	expect(retained).toContain(definition.activationEvent);
 	expect(retained).toContain(definition.returnEvent);
 	expect(retained).toContain(definition.namespace);
-	expect(frozen.candidates[0].evidence[0]).toContain("160/200");
-	expect(frozen.candidates[0].evidence[0]).toContain("200/200");
+	const stored = parseInvestigationSignal(
+		JSON.parse(JSON.stringify(frozen.candidates[0].signal))
+	);
+	expect(stored?.retentionMeasurement).toEqual(detected.retentionMeasurement);
+	expect(stored?.retentionMeasurement?.previous).toMatchObject({
+		retained: 160,
+		eligible: 200,
+		identifiedEvents: 200,
+		events: 200,
+	});
+	expect(
+		parseInvestigationSignal({ ...stored, retentionMeasurement: undefined })
+	).not.toBeNull();
+	for (const invalid of [
+		{ eligible: 20 },
+		{ retained: 201 },
+		{ events: 199 },
+		{ incomplete: 1 },
+		{ cohortEnd: "2026-08-01T00:00:00Z" },
+	]) {
+		expect(
+			parseInvestigationSignal({
+				...stored,
+				retentionMeasurement: {
+					...stored?.retentionMeasurement,
+					previous: { ...stored?.retentionMeasurement?.previous, ...invalid },
+				},
+			})
+		).toBeNull();
+	}
 });

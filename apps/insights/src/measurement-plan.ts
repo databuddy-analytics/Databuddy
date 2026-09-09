@@ -3,7 +3,11 @@ import { executeQuery, type QueryRequest } from "@databuddy/ai/query";
 import { db } from "@databuddy/db";
 import { readOrganizationBusinessContext } from "@databuddy/services/organization-business-context";
 import type { BusinessMeasurementPlan } from "@databuddy/shared/organization-business-context";
-import type { InvestigationSignal } from "@databuddy/shared/insights";
+import {
+	RETENTION_MINIMUM_PROFILES,
+	retentionMeasurementSchema,
+	type InvestigationSignal,
+} from "@databuddy/shared/insights";
 import dayjs from "dayjs";
 import { z } from "zod";
 import { raceWithAbort } from "./funnel-detection";
@@ -185,15 +189,21 @@ export async function measureActivationRetention(
 			incomplete: overall[0].incomplete_profiles,
 			events: overall[0].activation_events,
 			identifiedEvents: overall[0].identified_activation_events,
-			observedBefore: overall[0].observed_before,
-			request,
+			cohortStart: new Date(start).toISOString(),
+			cohortEnd: new Date(end).toISOString(),
 		};
 	}
 	const [previous, current] = await Promise.all([
 		window(period.previous),
 		window(period.current),
 	]);
-	return { period, previous, current, observedBefore: current.observedBefore };
+	return {
+		period,
+		previous,
+		current,
+		observationEnd,
+		observedBefore: today.toISOString(),
+	};
 }
 
 export async function detectRetentionSignals(
@@ -234,8 +244,8 @@ export async function detectRetentionSignals(
 	if (
 		previous.incomplete ||
 		current.incomplete ||
-		previous.eligible < 50 ||
-		current.eligible < 50
+		previous.eligible < RETENTION_MINIMUM_PROFILES ||
+		current.eligible < RETENTION_MINIMUM_PROFILES
 	) {
 		return [];
 	}
@@ -267,19 +277,16 @@ export async function detectRetentionSignals(
 			subjectKey: measurementPlanKey(plan),
 			entityLabel: plan.name,
 			period,
+			retentionMeasurement: retentionMeasurementSchema.parse({
+				definition: plan,
+				timezone: params.timezone,
+				observationEnd: measured.observationEnd,
+				observedBefore: measured.observedBefore,
+				previous,
+				current,
+			}),
 			investigationObjective:
 				"Explain the measured return-within-window change for this saved team definition. The supplied native comparison already contains both complete cohorts and identity coverage; use further reads only to answer a distinct unresolved question. Keep identified profiles separate from people, accounts, anonymous visitors, new customers, and subscription churn. Cause remains unknown without inspected evidence.",
-			evidence: [
-				...(["previous", "current"] as const).map((key) => {
-					const counts = measured[key];
-					return `Native identified_profile_retention, ${period[key].from}–${period[key].to}: ${counts.retained}/${counts.eligible} eligible identified profiles returned (${Math.round((counts.retained / counts.eligible) * 1000) / 10}%). Activation identity coverage: ${Math.round((counts.identifiedEvents / counts.events) * 1000) / 10}% (${counts.identifiedEvents}/${counts.events} activation events). Both counts refer to this week's activation window.`;
-				}),
-				`Team-defined activation event: ${plan.activationEvent}`,
-				`Team-defined return event: ${plan.returnEvent}`,
-				`Namespace for both events: ${plan.namespace ?? "all namespaces"}. The team supplies event meaning; this is not emitter-code verification.`,
-				`Return is strictly after activation and within ${plan.horizonDays}×24 hours. Both weeks have complete follow-up, observed before ${measured.observedBefore} (${params.timezone}). Activation is the first matching event in each week independently, not first-ever activation; a profile can appear in both weeks. This is not a paired-profile or new-customer comparison.`,
-				"Identity coverage counts activation event occurrences, not the proportion of people tracked. Anonymous events are outside the profile denominator.",
-			],
 		},
 	];
 }

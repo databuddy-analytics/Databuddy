@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { businessMeasurementPlanSchema } from "./organization-business-context";
 import {
 	goalFunnelFilterFields,
 	goalFunnelFilterFieldSet,
@@ -115,6 +116,36 @@ export type MatchedErrorContinuationMeasurement = z.infer<
 	typeof matchedErrorContinuationMeasurementSchema
 >;
 
+export const RETENTION_MINIMUM_PROFILES = 50;
+const retentionWindowSchema = z
+	.strictObject({
+		eligible: z.number().int().min(RETENTION_MINIMUM_PROFILES).safe(),
+		retained: z.number().int().nonnegative().safe(),
+		incomplete: z.literal(0),
+		events: z.number().int().positive().safe(),
+		identifiedEvents: z.number().int().positive().safe(),
+		cohortStart: z.iso.datetime({ offset: true }),
+		cohortEnd: z.iso.datetime({ offset: true }),
+	})
+	.refine(
+		(row) =>
+			row.retained <= row.eligible &&
+			row.eligible <= row.identifiedEvents &&
+			row.identifiedEvents <= row.events &&
+			Date.parse(row.cohortStart) < Date.parse(row.cohortEnd),
+		"Retention requires a consistent, complete identified-profile population"
+	);
+
+export const retentionMeasurementSchema = z.strictObject({
+	definition: businessMeasurementPlanSchema.omit({ name: true }),
+	timezone: z.string().min(1).max(100),
+	observationEnd: z.iso.date(),
+	observedBefore: z.iso.datetime({ offset: true }),
+	previous: retentionWindowSchema,
+	current: retentionWindowSchema,
+});
+export type RetentionMeasurement = z.infer<typeof retentionMeasurementSchema>;
+
 const investigationSignalShape = {
 	signalKey: investigationKeySchema.describe(
 		"Backend-owned identity for this exact signal."
@@ -127,6 +158,7 @@ const investigationSignalShape = {
 	period: weekOverWeekPeriodSchema,
 	baselineDates: z.array(z.iso.date()).min(6).max(90).optional(),
 	cohortMeasurement: matchedErrorContinuationMeasurementSchema.optional(),
+	retentionMeasurement: retentionMeasurementSchema.optional(),
 };
 
 function validateBaselineDates(

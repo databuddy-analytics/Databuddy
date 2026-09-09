@@ -3,6 +3,7 @@ import { normalizeCurrencyCode } from "@databuddy/shared/currency";
 import type {
 	InvestigationSignal,
 	MatchedErrorContinuationMeasurement,
+	RetentionMeasurement,
 	WeekOverWeekPeriod,
 } from "@databuddy/shared/insights";
 import dayjs from "dayjs";
@@ -37,6 +38,7 @@ export interface DetectedSignal {
 	method: "behavior" | "zscore" | "wow";
 	metric: string;
 	period?: WeekOverWeekPeriod;
+	retentionMeasurement?: RetentionMeasurement;
 	severity: "critical" | "warning" | "info";
 	subjectKey?: string;
 }

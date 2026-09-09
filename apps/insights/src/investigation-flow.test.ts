@@ -8,6 +8,9 @@ import type {
 import { tool } from "ai";
 import { MockLanguageModelV3, mockValues } from "ai/test";
 import { z } from "zod";
+import dayjs from "dayjs";
+import { detectRetentionSignals } from "./measurement-plan";
+import { prepareInvestigation } from "./investigation";
 import {
 	InsightAgentExecutionError,
 	InsightAgentGenerationError,
@@ -4174,6 +4177,148 @@ describe("identified-profile cohort publication", () => {
 		},
 		changePercent: -57.14,
 	};
+	it.each([
+		"none",
+		"control",
+		"wrong-source",
+		"updated-read",
+	])("preserves native facts and grounds additional evidence: %s", async (mode) => {
+		const [detected] = await detectRetentionSignals(
+			{ websiteId: "site-1", timezone: "UTC", lookbackDays: 7 },
+			dayjs("2026-07-12T00:00:00Z"),
+			undefined,
+			{
+				readPlan: async () => ({
+					websiteId: "site-1",
+					domain: "example.com",
+					name: "Shared reports",
+					activationEvent: "report_shared",
+					returnEvent: "report_opened",
+					horizonDays: 7,
+				}),
+				query: async (request) => {
+					const retained = request.from === "2026-06-20" ? 140 : 60;
+					const row = {
+						cohort_from: request.from,
+						cohort_to: request.to,
+						observation_end: "2026-07-11",
+						cohort_start: `${request.from}T00:00:00.000Z`,
+						cohort_end: dayjs(request.to).add(1, "day").toISOString(),
+						observed_before: "2026-07-12T00:00:00.000Z",
+						timezone: "UTC",
+						horizon_days: 7,
+						identity_basis: "direct_profile_id",
+						activation_basis: "first_in_cohort_window",
+						activated_profiles: 200,
+						eligible_profiles: 200,
+						retained_profiles: retained,
+						not_retained_profiles: 200 - retained,
+						incomplete_profiles: 0,
+						activation_events: 2000,
+						identified_activation_events: 200,
+						unidentified_activation_events: 1800,
+					};
+					return [
+						{ ...row, row_type: "overall", cohort_date: null },
+						{ ...row, row_type: "cohort", cohort_date: request.from },
+					];
+				},
+			}
+		);
+		const prepared = prepareInvestigation(detected, 7);
+		const additional = mode !== "none";
+		const updated = mode === "updated-read";
+		const proposed = {
+			...finish,
+			...(updated
+				? {
+						publish: false,
+						publicationBasis: null,
+						summary:
+							"The latest read conflicts with the initial count; the change remains unconfirmed.",
+					}
+				: {}),
+			evidence: additional
+				? [
+						updated
+							? "Updated same-cohort read: 130/200 previously returned; comparison unresolved."
+							: "Report sharing remained at 600 events.",
+					]
+				: [],
+			evidenceRefs: additional
+				? [
+						updated
+							? {
+									source: "tool",
+									name: "get_data",
+									toolCallId: "get_data-1",
+									resultKey: "previous",
+								}
+							: { source: "provided", index: mode === "wrong-source" ? 1 : 0 },
+					]
+				: [],
+		};
+		const model = updated
+			? new MockLanguageModelV3({
+					doGenerate: mockValues(
+						toolCallResponse("get_data"),
+						outputResponse(proposed)
+					),
+				})
+			: outputModel(proposed);
+		const run = runInsightAgent(
+			{
+				appContext: appContext(),
+				...prepared,
+				evidence: [
+					"Report sharing remained at 600 events.",
+					"No measured count in this separate source.",
+				],
+				history: [],
+				otherOpenWork: [],
+				githubRepository: null,
+			},
+			{
+				model,
+				tools: updated
+					? {
+							get_data: tool({
+								inputSchema: z.object({}),
+								execute: async () => ({
+									results: {
+										previous: {
+											type: "identified_profile_retention",
+											websiteId: "site-1",
+											...prepared.signal.period.previous,
+											timezone: "UTC",
+											definition: detected.retentionMeasurement?.definition,
+											retained_profiles: 130,
+											eligible_profiles: 200,
+										},
+									},
+								}),
+							}),
+						}
+					: {},
+			}
+		);
+		if (mode === "wrong-source") {
+			await expect(run).rejects.toThrow("does not appear in its cited source");
+			return;
+		}
+		const result = await run;
+		expect(result.outcome.evidence[0]).toBe(
+			"Initial snapshot, observed before 2026-07-12T00:00:00.000Z: eligible identified profiles returning within 7×24h: 140/200 (70%) → 60/200 (30%); cohorts 2026-06-20–2026-06-26 → 2026-06-27–2026-07-03 UTC, fully observed. Activation events with identity: 200/2000 (10%) → 200/2000 (10%); anonymous events excluded."
+		);
+		expect(result.outcome.evidence).toHaveLength(additional ? 2 : 1);
+		expect(model.doGenerateCalls).toHaveLength(updated ? 2 : 1);
+		expect(JSON.stringify(model.doGenerateCalls[0].prompt)).toContain(
+			"retentionMeasurement"
+		);
+		expect(result.toolCallCount).toBe(updated ? 1 : 0);
+		expect(result.outcome.publish).toBe(!updated);
+		if (updated) expect(result.outcome.evidence[1]).toBe(proposed.evidence[0]);
+	});
 	it("publishes a known-purpose cohort finding without a redundant data read or invented cause", async () => {
 		const model = outputModel(finish);
 		const result = await runInsightAgent(
