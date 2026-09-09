@@ -391,18 +391,21 @@ export function organizationProfileContext(
 				item.websiteId === scope?.websiteId && item.domain === scope.domain
 		);
 		if (plan) {
-			sources.push({
-				id: `organization-measurement-plan:${organizationId}:${plan.websiteId}`,
-				kind: "organization_profile",
-				content: `Saved team-defined activation and return measurement (not emitter-code verification): ${JSON.stringify(plan)}. Native query: identified_profile_retention.`,
-				observedAt: profile.updatedAt,
-				author: "Team measurement definition",
-				origin: "team",
-				profileVersion: {
-					revision: profile.revision,
-					updatedAt: profile.updatedAt,
-				},
-			});
+			const content = `Saved team-defined activation and return measurement (not emitter-code verification): ${JSON.stringify(plan)}. Native query: identified_profile_retention.`;
+			for (let offset = 0; offset < content.length; offset += 4000) {
+				sources.push({
+					id: `organization-measurement-plan:${organizationId}:${plan.websiteId}:${offset / 4000}`,
+					kind: "organization_profile",
+					content: content.slice(offset, offset + 4000),
+					observedAt: profile.updatedAt,
+					author: "Team measurement definition",
+					origin: "team",
+					profileVersion: {
+						revision: profile.revision,
+						updatedAt: profile.updatedAt,
+					},
+				});
+			}
 		}
 		const teamContext = formatBusinessTeamContext(profile.teamContext);
 		for (let offset = 0; offset < teamContext.length; offset += 4000) {

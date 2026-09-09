@@ -152,6 +152,8 @@ export interface SimpleQueryConfig {
 	allowedFilterOperators?: Partial<Record<string, readonly FilterOperator[]>>;
 	allowedFilters?: string[];
 	appendEndOfDayToTo?: boolean;
+	/** False for native selectors that do not accept generic event filters. */
+	commonFilters?: boolean;
 	customizable?: boolean;
 	customSql?: CustomSqlFn;
 	fields?: ConfigField[];

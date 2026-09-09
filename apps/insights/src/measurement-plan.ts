@@ -270,9 +270,15 @@ export async function detectRetentionSignals(
 			investigationObjective:
 				"Explain the measured return-within-window change for this saved team definition. The supplied native comparison already contains both complete cohorts and identity coverage; use further reads only to answer a distinct unresolved question. Keep identified profiles separate from people, accounts, anonymous visitors, new customers, and subscription churn. Cause remains unknown without inspected evidence.",
 			evidence: [
-				`Team-defined measure ${JSON.stringify(plan.name)}: activation event ${JSON.stringify(plan.activationEvent)}, return event ${JSON.stringify(plan.returnEvent)}, namespace ${JSON.stringify(plan.namespace ?? "all")}. This supplies business meaning; it is not an inspection of emitter code.`,
-				`Native identified_profile_retention: ${period.previous.from}–${period.previous.to}: ${previous.retained}/${previous.eligible} eligible identified profiles returned; ${period.current.from}–${period.current.to}: ${current.retained}/${current.eligible}. Return is strictly after activation and within ${plan.horizonDays}×24 hours. Both cohorts have complete follow-up, observed before ${measured.observedBefore} (${params.timezone}).`,
-				`Activation events with direct profile identity: ${previous.identifiedEvents}/${previous.events} in the earlier cohort dates; ${current.identifiedEvents}/${current.events} in the later dates. These are event counts, not population coverage. Anonymous events are outside the profile denominator. Activation is the first matching event within each week independently, not first-ever activation. A profile can appear in both weeks; this is not a paired-profile or new-customer comparison.`,
+				...(["previous", "current"] as const).map((key) => {
+					const counts = measured[key];
+					return `Native identified_profile_retention, ${period[key].from}–${period[key].to}: ${counts.retained}/${counts.eligible} eligible identified profiles returned (${Math.round((counts.retained / counts.eligible) * 1000) / 10}%). Activation events with direct identity: ${counts.identifiedEvents}/${counts.events}. Both counts refer to this week's activation window.`;
+				}),
+				`Team-defined activation event: ${plan.activationEvent}`,
+				`Team-defined return event: ${plan.returnEvent}`,
+				`Namespace for both events: ${plan.namespace ?? "all namespaces"}. The team supplies event meaning; this is not emitter-code verification.`,
+				`Return is strictly after activation and within ${plan.horizonDays}×24 hours. Both weeks have complete follow-up, observed before ${measured.observedBefore} (${params.timezone}). Activation is the first matching event in each week independently, not first-ever activation; a profile can appear in both weeks. This is not a paired-profile or new-customer comparison.`,
+				"Identity coverage counts activation event occurrences, not the proportion of people tracked. Anonymous events are outside the profile denominator.",
 			],
 		},
 	];

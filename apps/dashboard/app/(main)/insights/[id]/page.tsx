@@ -558,6 +558,11 @@ function investigationSourceLink(
 ): { href: string; label: string } | null {
 	const base = `/websites/${encodeURIComponent(websiteId)}`;
 	switch (item.entity.type) {
+		case "cohort":
+			return {
+				href: "/organizations/settings/business-context",
+				label: "View definition",
+			};
 		case "event":
 			return {
 				href: `${base}/events/${encodeURIComponent(item.entity.id)}`,

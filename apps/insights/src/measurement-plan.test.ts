@@ -4,6 +4,8 @@ import type { executeQuery } from "@databuddy/ai/query";
 import type { BusinessMeasurementPlan } from "@databuddy/shared/organization-business-context";
 import dayjs from "dayjs";
 import { prepareInvestigation } from "./investigation";
+import { parseFrozenInvestigationPlan } from "./run-candidate-plan";
+import { organizationProfileContext } from "./business-context";
 import {
 	detectRetentionSignals,
 	measureActivationRetention,
@@ -184,4 +186,52 @@ describe("saved activation and return measurement", () => {
 			})
 		).rejects.toThrow();
 	});
+});
+
+
+it("freezes maximum-length event definitions without losing meaning or measured coverage", async () => {
+	const definition = {
+		...plan,
+		activationEvent: "activate".padEnd(256, "x"),
+		returnEvent: "return".padEnd(256, "y"),
+		namespace: "production".padEnd(256, "z"),
+	};
+	const [detected] = await detectRetentionSignals(params, asOf, undefined, {
+		readPlan: async () => definition,
+		query: fixture(),
+	});
+	const prepared = prepareInvestigation(detected, 7);
+	expect(prepared.signal.entity.type).toBe("cohort");
+	expect(prepared.evidence.every((item) => item.length <= 500)).toBe(true);
+	const context = organizationProfileContext(
+		{
+			content: "Synthetic reports",
+			measurementPlans: [definition],
+			origin: "team",
+			sources: [],
+			revision: 1,
+			updatedAt: "2026-09-08T00:00:00Z",
+			updatedBy: "synthetic",
+			sourceWebsiteId: null,
+		},
+		"synthetic-org",
+		asOf.toDate(),
+		{ websiteId: plan.websiteId, domain: plan.domain }
+	);
+	const frozen = parseFrozenInvestigationPlan({
+		asOf: asOf.toISOString(),
+		reason: "scheduled",
+		businessScope: {
+			organizationId: "synthetic-org",
+			websiteId: plan.websiteId,
+			domain: plan.domain,
+		},
+		candidates: [{ ...prepared, businessContext: context }],
+	});
+	const retained = JSON.stringify(frozen);
+	expect(retained).toContain(definition.activationEvent);
+	expect(retained).toContain(definition.returnEvent);
+	expect(retained).toContain(definition.namespace);
+	expect(frozen.candidates[0].evidence[0]).toContain("160/200");
+	expect(frozen.candidates[0].evidence[0]).toContain("200/200");
 });

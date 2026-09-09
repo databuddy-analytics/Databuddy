@@ -247,6 +247,13 @@ function entity(signal: DetectedSignal): InvestigationSignal["entity"] {
 	const exactId = idParts.join(":");
 	const rawId = exactId.trim();
 	const id = boundedKey(rawId);
+	if (prefix === "retention" && signal.metric === "identified_retention") {
+		return {
+			type: "cohort",
+			id,
+			label: (signal.entityLabel ?? signal.label).slice(0, 120),
+		};
+	}
 	if (prefix === "funnel" && idParts.at(1) === "step") {
 		return {
 			type: "funnel_step",
