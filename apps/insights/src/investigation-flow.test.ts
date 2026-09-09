@@ -224,12 +224,12 @@ function outputResponse(value: unknown) {
 	return toolCallResponse("finish_investigation", JSON.stringify(value));
 }
 
-function toolCallResponse(toolName = "inspect", input = "{}") {
+function toolCallResponse(toolName = "inspect", input = "{}", toolCallId = `${toolName}-1`) {
 	return {
 		content: [
 			{
 				input,
-				toolCallId: `${toolName}-1`,
+				toolCallId,
 				toolName,
 				type: "tool-call" as const,
 			},
@@ -4195,6 +4195,7 @@ describe("identified-profile cohort publication", () => {
 		"malformed-read",
 		"swapped-return",
 		"swapped-signal",
+		"sticky-conflict",
 	])("preserves native facts and grounds additional evidence: %s", async (mode) => {
 		const nativeReads: {
 			request: QueryRequest;
@@ -4251,9 +4252,13 @@ describe("identified-profile cohort publication", () => {
 		);
 		const additional = !["none", "hide-conflict"].includes(mode);
 		const updated = mode === "updated-read";
-		const retained = ["confirmed-read", "swapped-return"].includes(mode)
-			? 140
-			: 130;
+		const retained = [
+			"updated-read",
+			"publish-conflict",
+			"hide-conflict",
+		].includes(mode)
+			? 130
+			: 140;
 		const original = nativeReads.find(
 			(item) => item.request.from === prepared.signal.period.previous.from
 		);
@@ -4287,7 +4292,8 @@ describe("identified-profile cohort publication", () => {
 								? {
 										source: "tool",
 										name: "get_data",
-										toolCallId: "get_data-1",
+										toolCallId:
+											mode === "sticky-conflict" ? "get_data-2" : "get_data-1",
 										resultKey: "previous",
 									}
 								: { source: "provided", index: mode === "wrong-source" ? 1 : 0 },
@@ -4298,6 +4304,9 @@ describe("identified-profile cohort publication", () => {
 			? new MockLanguageModelV3({
 					doGenerate: mockValues(
 						toolCallResponse("get_data"),
+						...(mode === "sticky-conflict"
+							? [toolCallResponse("get_data", "{}", "get_data-2")]
+							: []),
 						outputResponse(proposed)
 					),
 				})
@@ -4310,6 +4319,7 @@ describe("identified-profile cohort publication", () => {
 		}));
 		if (mode === "wrong-namespace")
 			filters.push({ field: "namespace", op: "eq", value: "demo" });
+		let readCount = 0;
 		const run = runInsightAgent(
 			{
 				appContext: appContext(),
@@ -4328,31 +4338,39 @@ describe("identified-profile cohort publication", () => {
 					? {
 							get_data: tool({
 								inputSchema: z.object({}),
-								execute: async () => ({
-									results: {
-										previous: {
-											type: "identified_profile_retention",
-											websiteId:
-												mode === "wrong-website" ? "other-site" : "site-1",
-											...prepared.signal.period.previous,
-											...(mode === "wrong-window" ? { from: "2026-06-21" } : {}),
-											timezone:
-												mode === "wrong-timezone" ? "Europe/London" : "UTC",
-											filters,
-											data: original.data.map((row) => ({
-												...row,
-												retained_profiles: retained,
-												not_retained_profiles: 200 - retained,
-												...(mode === "wrong-cutoff"
-													? { observed_before: "2026-07-11T00:00:00.000Z" }
+								execute: async () => {
+									const observedRetained =
+										mode === "sticky-conflict" && readCount++ === 0
+											? 130
+											: retained;
+									return {
+										results: {
+											previous: {
+												type: "identified_profile_retention",
+												websiteId:
+													mode === "wrong-website" ? "other-site" : "site-1",
+												...prepared.signal.period.previous,
+												...(mode === "wrong-window"
+													? { from: "2026-06-21" }
 													: {}),
-												...(mode === "malformed-read"
-													? { identity_basis: "anonymous" }
-													: {}),
-											})),
+												timezone:
+													mode === "wrong-timezone" ? "Europe/London" : "UTC",
+												filters,
+												data: original.data.map((row) => ({
+													...row,
+													retained_profiles: observedRetained,
+													not_retained_profiles: 200 - observedRetained,
+													...(mode === "wrong-cutoff"
+														? { observed_before: "2026-07-11T00:00:00.000Z" }
+														: {}),
+													...(mode === "malformed-read"
+														? { identity_basis: "anonymous" }
+														: {}),
+												})),
+											},
 										},
-									},
-								}),
+									};
+								},
 							}),
 						}
 					: {},
