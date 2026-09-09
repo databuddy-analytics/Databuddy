@@ -300,7 +300,7 @@ export async function saveOrganizationBusinessProfile(input: {
 		await validateMeasurementBindings(
 			tx,
 			input.organizationId,
-			input.measurementPlans
+			measurementPlans
 		);
 		const unchangedDraft = generated?.draft?.content === content;
 		const unchangedSaved = !generated && current.profile?.content === content;
