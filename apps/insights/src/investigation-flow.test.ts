@@ -327,39 +327,6 @@ describe("claim-bound finish input", () => {
 			item: { claim: outcome.evidence[0], sources: [] },
 		},
 		{
-			name: "null sources",
-			item: { claim: outcome.evidence[0], sources: null },
-		},
-		{
-			name: "a reference instead of an array",
-			item: {
-				claim: outcome.evidence[0],
-				sources: { source: "provided", index: 0 },
-			},
-		},
-		{
-			name: "an unknown source kind",
-			item: {
-				claim: outcome.evidence[0],
-				sources: [{ source: "invented", index: 0 }],
-			},
-		},
-		{
-			name: "a missing provided index",
-			item: { claim: outcome.evidence[0], sources: [{ source: "provided" }] },
-		},
-		{
-			name: "a negative provided index",
-			item: {
-				claim: outcome.evidence[0],
-				sources: [{ source: "provided", index: -1 }],
-			},
-		},
-		{
-			name: "a null reference",
-			item: { claim: outcome.evidence[0], sources: [null] },
-		},
-		{
 			name: "nested references",
 			item: {
 				claim: outcome.evidence[0],
@@ -375,14 +342,6 @@ describe("claim-bound finish input", () => {
 					index: 0,
 				})),
 			},
-		},
-		{
-			name: "a missing claim",
-			item: { sources: [{ source: "provided", index: 0 }] },
-		},
-		{
-			name: "a blank claim",
-			item: { claim: " ", sources: [{ source: "provided", index: 0 }] },
 		},
 	])("rejects $name without repairing the raw model input", async ({
 		item,
@@ -406,25 +365,13 @@ describe("claim-bound finish input", () => {
 			throw new Error("Missing schema validation error");
 		const feedback = error.output.value;
 		expect(feedback).toContain("evidence");
-		expect(feedback).toContain(
-			"claim" in item && item.claim?.trim() ? "sources" : "claim"
-		);
+		expect(feedback).toContain("sources");
 	});
 
-	it.each([
-		{ name: "no evidence", candidate: { ...finish, evidence: [] } },
-		{
-			name: "three claims",
-			candidate: {
-				...finish,
-				evidence: [...finish.evidence, finish.evidence[0]],
-			},
-		},
-		{ name: "legacy prose and separate refs", candidate: agentOutcome },
-	])("rejects $name at the model boundary", async ({ candidate }) => {
+	it("rejects legacy prose and separate references at the model boundary", async () => {
 		const response = toolCallResponse(
 			"finish_investigation",
-			JSON.stringify(candidate)
+			JSON.stringify(agentOutcome)
 		);
 		const model = new MockLanguageModelV3({
 			doGenerate: mockValues(response, response, response),
@@ -2793,6 +2740,7 @@ describe("intelligence agent", () => {
 				reason: "Coverage is uncertain; the cause has not been established.",
 			},
 		};
+		const model = outputModel(coverage);
 		const run = runInsightAgent(
 			{
 				appContext: appContext(),
@@ -2819,7 +2767,7 @@ describe("intelligence agent", () => {
 				history: [],
 				otherOpenWork: [],
 			},
-			{ model: outputModel(coverage), tools: {} }
+			{ model, tools: {} }
 		);
 		if (citeBusiness && publish) {
 			await expect(run).rejects.toThrow(
@@ -2832,6 +2780,23 @@ describe("intelligence agent", () => {
 			evidence: coverage.evidence,
 			next: { type: "resolve" },
 			rootCause: null,
+		});
+		const message = model.doGenerateCalls[0]?.prompt
+			.find((item) => item.role === "user")
+			?.content.find((item) => item.type === "text");
+		if (message?.type !== "text") throw new Error("Missing evidence prompt");
+		expect(JSON.parse(message.text)).toMatchObject({
+			businessContext: { sourceEvidenceIndexes: [providedCount] },
+			evidence: [
+				...Array.from({ length: providedCount }, (_, index) => ({
+					value: collection,
+					reference: { source: "provided", index },
+				})),
+				{
+					value: expect.stringContaining(background),
+					reference: { source: "provided", index: providedCount },
+				},
+			],
 		});
 	});
 

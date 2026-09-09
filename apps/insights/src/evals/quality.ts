@@ -1251,16 +1251,15 @@ for (const scenario of [
 				calls.some(
 					(call) =>
 						call.name === "get_goal_analytics" &&
-						isDeepStrictEqual(call.input, {
-							startDate: window.from,
-							endDate: window.to,
-							goalId: goal.id,
-							...(call.input &&
-							typeof call.input === "object" &&
-							"websiteId" in call.input
-								? { websiteId: appContext.websiteId }
-								: {}),
-						})
+						z
+							.strictObject({
+								startDate: z.literal(window.from),
+								endDate: z.literal(window.to),
+								goalId: z.literal(goal.id),
+								websiteId: z.literal(appContext.websiteId).optional(),
+								cohort: z.null().optional(),
+							})
+							.safeParse(call.input).success
 				)
 					? []
 					: [`Did not remeasure the exact goal for ${window.from}–${window.to}`]

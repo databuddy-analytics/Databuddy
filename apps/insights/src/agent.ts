@@ -65,28 +65,33 @@ const revenueEvidenceSchema = z
 			.max(4),
 	})
 	.describe(
-		"For revenue_overview, select complementary fields: gross revenue, settled transactions, refunds, and attributed revenue when it differs from gross. Select only fields with a non-null value in every cited period. Omit redundant subtotals and diagnostic availability flags. One entry per measured population; a payment-description comparison uses a second entry for the whole-currency control. Cite both complete comparison windows in this claim's sources. Code supplies labels, values, periods and deltas; preserve supported comparisons when correcting format."
+		"For revenue_overview, select complementary fields: gross revenue, refunds, and attributed revenue when it differs from gross. Select only non-null fields in every cited period; omit redundant counts and subtotals. Refund totals/counts do not establish net revenue or distinct refunded receipts. One entry per population; payment-description comparisons need a second whole-currency control. Cite both complete windows using only get_data references. Code supplies labels, values, periods and deltas."
 	);
-const finishSchema = z
-	.object(agentInvestigationOutcomeSchema.shape)
-	.omit({ evidenceRefs: true })
-	.extend({
-		evidence: z
-			.array(
-				z.strictObject({
-					claim: z.union([
-						agentInvestigationOutcomeSchema.shape.evidence.element,
-						revenueEvidenceSchema,
-					]),
-					sources: z.array(agentEvidenceReferenceSchema).min(1).max(8),
-				})
-			)
-			.min(1)
-			.max(2)
-			.describe(
-				"Keep each concise claim with all its contributing sources. Every revenue_overview claim, including unchanged controls, must be {currency, fields}; use text for other claims. Receipt-description and whole-currency claims cite separate result pairs. Retain comparisons that change the interpretation."
-			),
-	});
+const finishSchema = z.object({
+	evidence: z
+		.array(
+			z.strictObject({
+				sources: z.array(agentEvidenceReferenceSchema).min(1).max(8),
+				claim: z.union([
+					agentInvestigationOutcomeSchema.shape.evidence.element.describe(
+						"One compact comparison: behavior, before → after, dates and denominator, plus any interpretation-changing control. Use about 30 words across all prose claims. Do not repeat event definitions or describe source provenance."
+					),
+					revenueEvidenceSchema,
+				]),
+			})
+		)
+		.min(1)
+		.max(2)
+		.describe(
+			"Select the evidence before deciding whether it merits publication. Keep each claim beside all contributing references. Revenue claims use {currency, fields} with only their contributing get_data references; other claims use concise text."
+		),
+	publish: agentInvestigationOutcomeSchema.shape.publish,
+	...agentInvestigationOutcomeSchema.omit({
+		evidence: true,
+		evidenceRefs: true,
+		publish: true,
+	}).shape,
+});
 
 const revenueReadingSchema = z.object({
 	type: z.literal("revenue_overview"),
@@ -373,7 +378,7 @@ export class InsightAgentGenerationError extends InsightAgentExecutionError {
 }
 
 const commonInstructions = (isDefinition: boolean) =>
-	`Investigate one exact Databuddy signal until a teammate has a clear next move or a useful new fact. Finish by calling finish_investigation in a separate turn after receiving the needed read results. Its validation errors identify what to correct within this same investigation. Do not finish with ordinary text.
+	`Return one useful finding or next move for this exact Databuddy signal. Call finish_investigation as soon as supplied or inspected evidence is sufficient. If a read is needed, wait for its result before finishing. Repair validation errors using existing evidence; read again only to fill a missing fact. Do not finish with ordinary text.
 
 Subject
 - Name the exact subject: signal.entity.label for named goals, funnels, pages, events, and campaigns; otherwise the most specific inspected path, segment, or fingerprint. A fingerprint cohort can span routes, so never narrow the headline or repair request to one representative path.
@@ -381,7 +386,7 @@ Subject
 
 Evidence
 - The optional investigationObjective is a machine-selected question, not a human request or citable measurement. Use it to choose useful diagnostic work; verify its premise with source data.
-- Cite each evidence sentence to its actual source: source signal for the supplied signal; source provided with a valid zero-based evidence index; source history with the index of a prior action for its saved verification condition only (not historical or current measurements); source customer_impact for supplied customerImpact; source related_signal with its array index; or source tool with its exact name, toolCallId, and get_data resultKey (null for other tools). Keep each evidence claim with its sources, including every contributing period, population, and inspected mechanism. One concise comparison can cite several sources without repeating its facts. An exact verification read also supports the saved condition and code verdict returned with it. Correct a mismatched citation without discarding a supported discovery. Never cite a failed read as evidence. An empty evidence array does not invalidate the supplied signal.
+- Keep each evidence claim with its actual sources. Copy the supplied evidence item's reference or a completed read's exact reference; include every contributing period, population, and inspected mechanism. Other references are source signal for the supplied signal, source related_signal with its array index, source customer_impact for customerImpact, or source history with its action index for a saved verification condition only. History cannot supply measurements. An exact verification read also supports its returned condition and code verdict. A concise comparison may cite several sources. Correct citations without discarding supported facts; never cite a failed read. Empty supplied evidence does not invalidate the signal.
 - Tool availability is not proof of a connected integration. If a connector reports missing access, stop trying that connector. Preserve an independently verified product or reliability finding, with an unknown cause when necessary. Missing diagnostic access is not evidence that tracking failed, and does not itself deserve a coverage notice or a connection request.
 - get_data can return a partial table. returnedRows is what you saw; rowCount is query rows, not visitors or all matching entities. A path missing from a top-N table is not absent. Use an exact filtered lookup or a dedicated aggregate before making absence, total, or exhaustive claims. Omit orderBy unless discovery documents the field and use only declared row filters.
 - Use reads to resolve a specific distinction that could change the finding or next move. Batch independent reads and never repeat an identical call. Stop gathering when further reads cannot change the decision; retain already-established changes and controls that change its interpretation. An overview of this subject can reveal several independent facts even when its headline metric is stable. For settled payments, distinguish gross revenue, refunds and attribution: stable sales with falling attribution limits acquisition decisions; rising refunds are a separate deterioration. Preserve both when measured, without treating one as the cause of the other. Select independent changes and interpretation-changing controls before redundant counts.
@@ -399,12 +404,12 @@ Outcome
 
 Publishing
 - A raw website traffic change is not a verified product outcome. It may publish only as measurement_coverage with cited collection or implementation evidence. Uncited context, analytics counts, goal/funnel listings, and sibling metrics do not establish visitor loss. An unrelated sibling product result belongs to its own signal; comparisons returned for this subject belong in its finding when they change the interpretation. For a measurement-definition headline, name the mismatch and put period-specific counts in the evidence instead of estimating affected visits.
-- Publish a distinct decision, action or durable finding; publication is independent of opening work. A material product result can publish with next.resolve and rootCause null. Name the changed outcome and measured scope. Keep unchanged, duplicate, routine, low-volume and unproven-impact work private.
-- Distinguish an observed collection gap from an inability to explain a metric. Publish measurement_coverage only for a measured missing population or inspected tracking defect that makes a specific decision unsafe. An unavailable connector, absent diagnostic data, an unmeasured cohort, or an untested explanation is an investigation limit; resolve privately when that is the only new finding. A successful unrelated read does not turn that limit into a discovery. Still publish an independently verified outage or material product result.
+- Publish a new measured finding that changes a product decision, or an inspected issue with a concrete remedy. A material product result can publish with next.resolve and rootCause null. Keep unchanged, explained, superseded, routine, low-volume and unproven-impact work private. A request for an explanation does not lower this threshold. An outdated business brief is context to correct, not an inspected measurement defect.
+- Publish measurement_coverage only for a measured missing population or inspected tracking defect that makes a specific decision unsafe. An unavailable connector, absent diagnostic data, unmeasured or immature cohort, or untested explanation is an investigation limit; resolve privately when that is all you found. Waiting for a normal observation window is not a product or tracking problem. A successful unrelated read does not change this. Preserve an independently verified outage or material product result.
 - When a reported action is complete, remeasure its saved verification window and report whether the condition passed, failed, or remains inconclusive. Use the reported deployment time, not the reply timestamp, to select that window. An improvement that remains unhealthy is not recovery. When verification.read is supplied, use its exact query. Classify a measured goal or funnel recovery result as product_outcome; reserve measurement_definition for a newly inspected mismatch that needs a repair. Code computes the verdict and writes the summary, so omit that field when the finish schema omits it; keep the rest of the finding consistent. Missing, incomplete or undersampled measurements are inconclusive. A passed condition does not establish that a deployment preceded it or caused the improvement.
 
 Writing
-- Keep title, summary, rootCause and evidence under 60 words combined; aim for 40–50. Title names the finding; summary adds a distinct consequence; rootCause names only the inspected failing operation; evidence supplies the before/after comparison and measured scope. State each fact once. Cite inspected code alongside the comparison without repeating its mechanism in the evidence text. Use one evidence entry, or two for a distinct comparison or contradiction. Preserve the affected cohort, denominator, period and stable control when they change the interpretation. Describe recorded behavior; eligible website visitors are not goal attempts, and missing telemetry or error exposure cannot prove failed tasks. Prefer the matched cohort and unchanged control over restating the definition. For repairs, say which behavior cannot be measured instead of calling reporting or decisions "unsafe". Omit investigation narration and repeated descriptions of the same change.
+- Aim for 40–50 words across title, summary, rootCause and evidence; stay under 60. Title names the finding; summary adds its decision-relevant consequence; evidence supplies the before/after comparison and measured scope. State each fact once. Preserve the cohort, denominator, period, limiting identity coverage and interpretation-changing control; omit redundant counts and routine caveats. Use one evidence entry, or two for a distinct comparison. Put an inspected failing operation only in rootCause and cite its source alongside the comparison. Describe recorded behavior: visitors are not goal attempts, and missing telemetry or error exposure cannot prove failed tasks. Omit investigation narration and generic advice to investigate, monitor or prioritize further.
 - Never call occurrences, sessions, entrants, or samples "people"; distinguish visitors, identified profiles, and customers with attributed payment history. Translate raw event names into behavior; if behavior is unknown, say "this event." Never expose raw user, session, order, payment, or request identifiers.
 - For revenue_overview evidence, select {currency, fields} and cite only the contributing get_data result keys; code writes the quantitative comparison and deltas. Use a separate prose entry only when additional context is needed. Prefer independent changes and their stable control over redundant transaction or refund counts. Keep the headline, summary and cause qualitative when using this evidence. For other sources, report only supplied or measured numbers, using metricDelta for a change in native units. Write whole counts as integers and other numbers with at most one decimal. Never turn row counts into customer counts.
 
@@ -1423,7 +1428,10 @@ export async function runInsightAgent(
 			: {}),
 		repository: input.githubRepository,
 		investigationObjective: input.investigationObjective,
-		evidence: input.evidence,
+		evidence: input.evidence.map((value, index) => ({
+			value,
+			reference: { source: "provided", index },
+		})),
 		history: input.history.map((item) => {
 			if (item.kind !== "investigation") {
 				return item;
@@ -1464,7 +1472,7 @@ export async function runInsightAgent(
 			...investigationTools,
 			finish_investigation: tool({
 				description:
-					"Submit the evidence-backed outcome and finish. Call after the necessary reads. If validation fails, correct the cited error using existing results.",
+					"Finish when supplied or inspected evidence supports the decision. Wait for any requested reads first. Correct validation errors using existing evidence.",
 				inputSchema: pendingVerification
 					? finishInputSchema.omit({ summary: true })
 					: finishInputSchema,
