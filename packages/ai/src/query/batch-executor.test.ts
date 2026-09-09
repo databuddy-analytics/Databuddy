@@ -3,6 +3,7 @@ import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
 import type { RequestLogger } from "evlog";
 import { setAiRequestLoggerProvider } from "../lib/request-logger";
 import { QueryBuilders } from "./builders";
+import { makeRequiredFilters } from "./filter-fixtures";
 import { SimpleQueryBuilder } from "./simple-builder";
 
 const realClickHouseModule = { ...actualClickHouse };
@@ -29,23 +30,8 @@ function compileSql(type: string): string {
 	if (!config) {
 		throw new Error(`Missing config for ${type}`);
 	}
-	const requiredFilters = [
-		...new Set([
-			...(config.requiredFilters ?? []),
-			...(config.requiredAnyFilter?.slice(0, 1) ?? []),
-		]),
-	].map((field) => ({
-		field,
-		op: "eq" as const,
-		value:
-			field === "horizon_days"
-				? 7
-				: field === "observation_end"
-					? "2026-05-11"
-					: `${field}-required-value`,
-	}));
 	return new SimpleQueryBuilder(config, {
-		filters: requiredFilters,
+		filters: makeRequiredFilters(config),
 		projectId: "test-website",
 		type,
 		from: "2026-04-01",

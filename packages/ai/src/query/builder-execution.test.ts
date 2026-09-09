@@ -9,14 +9,10 @@ import {
 import { randomUUIDv7 } from "bun";
 import { chCommand, chQuery } from "@databuddy/db/clickhouse";
 import { QueryBuilders } from "./builders";
+import { filterFor } from "./filter-fixtures";
 import { SimpleQueryBuilder } from "./simple-builder";
 import { ProfilesBuilders } from "./builders/profiles";
-import type {
-	CompiledQuery,
-	Filter,
-	QueryRequest,
-	SimpleQueryConfig,
-} from "./types";
+import type { CompiledQuery, QueryRequest, SimpleQueryConfig } from "./types";
 
 const TEST_CLICKHOUSE_URL = "http://default:@127.0.0.1:8123";
 
@@ -99,21 +95,6 @@ const FILTER_FIELD_OVERRIDES: Partial<
 	},
 };
 
-function filterFor(field: string): Filter {
-	return {
-		field,
-		op: "eq",
-		value:
-			field === "horizon_days"
-				? 7
-				: field === "observation_end"
-					? "2026-02-01"
-					: NUMERIC_FILTER_FIELDS.has(field)
-						? 1
-						: `test-${field}`,
-	};
-}
-
 function requestFor(
 	name: string,
 	config: SimpleQueryConfig,
@@ -124,7 +105,13 @@ function requestFor(
 		type: name,
 		from: "2026-01-01",
 		to: "2026-01-02",
-		filters: fields.map(filterFor),
+		filters: fields.map((field) =>
+			filterFor(
+				field,
+				"2026-02-01",
+				NUMERIC_FILTER_FIELDS.has(field) ? 1 : `test-${field}`
+			)
+		),
 		limit: 5,
 		offset: 0,
 	};

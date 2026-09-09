@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { z } from "zod";
 import { SimpleQueryBuilder } from "../simple-builder";
 import type { Filter, QueryRequest } from "../types";
 import { RetentionBuilders } from "./retention";
@@ -21,7 +22,10 @@ type Event = {
 	anonymous_id?: string | null;
 };
 
-async function sql(query: string, params: Record<string, unknown> = {}) {
+async function sql(
+	query: string,
+	params: Record<string, string | number> = {}
+) {
 	const url = new URL("http://127.0.0.1:16555/");
 	url.searchParams.set("output_format_json_quote_64bit_integers", "0");
 	url.searchParams.set("join_default_strictness", "ANY");
@@ -72,7 +76,7 @@ async function measure(
 	).compile();
 	const result = await sql(
 		`${query.sql.replaceAll("analytics.custom_events", table)} FORMAT JSONEachRow`,
-		query.params
+		z.record(z.string(), z.union([z.string(), z.number()])).parse(query.params)
 	);
 	const rows: Row[] = result
 		.trim()
