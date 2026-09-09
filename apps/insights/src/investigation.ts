@@ -68,6 +68,7 @@ function metricFormat(metric: string): InsightMetric["format"] {
 	if (
 		metric === "bounce_rate" ||
 		metric === "attribution_rate" ||
+		metric === "identified_retention" ||
 		metric.startsWith("funnel:") ||
 		metric.startsWith("goal:")
 	) {
@@ -117,6 +118,7 @@ function isDirectSignal(signal: DetectedSignal): boolean {
 		signal.metric === "revenue" ||
 		signal.metric === "refund_amount" ||
 		signal.metric === "attribution_rate" ||
+		signal.metric === "identified_retention" ||
 		signal.subjectKey?.includes(":referrer:") === true ||
 		signal.metric === "error_count" ||
 		signal.metric === "custom_event_count" ||
@@ -165,6 +167,7 @@ export function isInvestigationCandidate(signal: DetectedSignal): boolean {
 			"product_revenue",
 			"refund_amount",
 			"attribution_rate",
+			"identified_retention",
 		].includes(signal.metric) ||
 		(isConversionDefinitionSignal(signal) &&
 			signal.current - signal.baseline >= 10 &&
@@ -206,6 +209,14 @@ export function rankSignals(signals: DetectedSignal[]): DetectedSignal[] {
 }
 
 function signalWindow(signal: DetectedSignal, lookbackDays: number) {
+	if (signal.period) {
+		return {
+			currentFrom: signal.period.current.from,
+			currentTo: signal.period.current.to,
+			previousFrom: signal.period.previous.from,
+			previousTo: signal.period.previous.to,
+		};
+	}
 	const detectedDay = dayjs(signal.detectedAt);
 	if (signal.method === "zscore") {
 		const baselineDates = signal.baselineDates ?? [];
@@ -346,7 +357,7 @@ export function prepareInvestigation(
 			? { cohortMeasurement: candidate.cohortMeasurement }
 			: {}),
 	};
-	const evidence: string[] = [];
+	const evidence: string[] = [...(candidate.evidence ?? [])];
 	if (candidate.definitionEvidence) {
 		evidence.push(evidenceSummary(candidate.definitionEvidence));
 	}

@@ -73,7 +73,7 @@ Use this file when the task spans multiple packages or when the right edit locat
   - Postgres schema and relations
   - ClickHouse client and schema
 - Key files:
-  - [`packages/db/src/drizzle/schema.ts`](/Users/iza/Dev/Databuddy/packages/db/src/drizzle/schema.ts)
+  - [`packages/db/src/drizzle/schema/index.ts`](/Users/iza/Dev/Databuddy/packages/db/src/drizzle/schema/index.ts)
   - [`packages/db/src/drizzle/relations.ts`](/Users/iza/Dev/Databuddy/packages/db/src/drizzle/relations.ts)
   - [`packages/db/src/client.ts`](/Users/iza/Dev/Databuddy/packages/db/src/client.ts) — strips `sslrootcert=system` from `DATABASE_URL` before `pg` Pool: libpq uses it for the OS trust store, but node-postgres treats `sslrootcert` as a file path and throws `ENOENT` on path `"system"`.
   - [`packages/db/src/clickhouse/client.ts`](/Users/iza/Dev/Databuddy/packages/db/src/clickhouse/client.ts)

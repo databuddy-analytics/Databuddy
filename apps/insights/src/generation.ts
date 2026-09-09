@@ -37,6 +37,7 @@ import {
 	detectSignals,
 	remeasureMetricSignal,
 } from "./detection";
+import { detectRetentionSignals } from "./measurement-plan";
 import {
 	detectFunnelGoalSignals,
 	type FunnelGoalDeps,
@@ -307,6 +308,7 @@ interface InvestigationRuntime {
 export interface InvestigationSources {
 	detectDefinitionSignals: typeof detectFunnelGoalSignals;
 	detectMetricSignals: typeof detectSignals;
+	detectRetentionSignals?: typeof detectRetentionSignals;
 	detectRouteHealthSignals: typeof detectRouteHealthSignals;
 	fetchAnnotations: (
 		websiteId: string,
@@ -348,10 +350,20 @@ export function remeasureStoredSignal(
 	abortSignal?: AbortSignal,
 	dependencies: {
 		funnelGoal?: FunnelGoalDeps;
+		retention?: Parameters<typeof detectRetentionSignals>[3];
 		query?: Parameters<typeof remeasureMetricSignal>[2];
 		routeHealth?: RouteHealthDetectionDeps;
 	} = {}
 ): Promise<DetectedSignal | null> {
+	if (prior.signalKey.startsWith("retention:")) {
+		return detectRetentionSignals(
+			params,
+			today,
+			abortSignal,
+			dependencies.retention,
+			prior
+		).then((signals) => signals[0] ?? null);
+	}
 	return prior.signalKey.startsWith("goal:") ||
 		prior.signalKey.startsWith("funnel:")
 		? remeasureFunnelGoalSignal(
@@ -466,6 +478,7 @@ export async function refreshInvestigationSignal(params: {
 }
 
 const productionInvestigationSources: InvestigationSources = {
+	detectRetentionSignals,
 	loadBusinessProfile: loadWebsiteBusinessProfile,
 	recallBusinessContext: recallWebsiteBusinessContext,
 	detectDefinitionSignals: detectFunnelGoalSignals,
@@ -605,6 +618,15 @@ async function discoverWebsiteSignals(
 				sourceAbortSignal
 			)
 		),
+		detectSource(
+			"retention",
+			() =>
+				runtime.sources.detectRetentionSignals?.(
+					detectParams,
+					asOf,
+					sourceAbortSignal
+				) ?? Promise.resolve([])
+		),
 	] as const;
 	const settledDetections = await Promise.allSettled(detectionTasks);
 	const failedDetection = settledDetections.find(
@@ -613,8 +635,13 @@ async function discoverWebsiteSignals(
 	if (failedDetection?.status === "rejected") {
 		throw discoveryController.signal.reason ?? failedDetection.reason;
 	}
-	const [remeasuredDue, metricSignals, funnelGoalSignals, routeHealthSignals] =
-		await Promise.all(detectionTasks);
+	const [
+		remeasuredDue,
+		metricSignals,
+		funnelGoalSignals,
+		routeHealthSignals,
+		retentionSignals,
+	] = await Promise.all(detectionTasks);
 	if (
 		due &&
 		remeasuredDue &&
@@ -636,6 +663,7 @@ async function discoverWebsiteSignals(
 		...metricSignals,
 		...funnelGoalSignals,
 		...routeHealthSignals,
+		...retentionSignals,
 	]) {
 		const key = signalKeyForDetectedSignal(signal);
 		if (!signalsByKey.has(key)) {
@@ -997,6 +1025,24 @@ export async function planInvestigationsWithBusinessContext(
 		: disabled;
 	// The shared profile already contains bounded, scoped PostgreSQL team replies.
 	// Only selected subjects incur recall, analytics enrichment and investigation loops.
+	// Descriptive context, priorities, exclusions or replies can change what matters.
+	// Only a standalone saved measurement can skip contextual selection safely.
+	const plannedKeys = profile.sources.every((source) =>
+		source.id.startsWith("organization-measurement-plan:")
+	)
+		? signals
+				.filter((signal) => signal.metric === "identified_retention")
+				.map(signalKeyForDetectedSignal)
+		: [];
+
+	if (plannedKeys.length) {
+		// A saved exact measurement already supplies the question; preserve critical
+		// reliability and due work without spending a model call to rediscover it.
+		candidates = planCoveragePortfolio(signals, {
+			...options,
+			selectedSignalKeys: plannedKeys,
+		}).map(toPlannedCandidate);
+	}
 	const protectedCount = candidates.filter(
 		(candidate) =>
 			candidate.signal.signalKey === options.dueSignalKey ||
@@ -1007,6 +1053,7 @@ export async function planInvestigationsWithBusinessContext(
 	).length;
 	if (
 		sources.selectCandidates &&
+		plannedKeys.length === 0 &&
 		profile.sources.length > 0 &&
 		(profile.status === "ready" || profile.status === "partial") &&
 		signals.length > 1 &&
