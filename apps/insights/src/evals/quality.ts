@@ -1821,17 +1821,19 @@ for (const reordered of [false, true]) {
 			const selection = z
 				.object({
 					evidence: z.array(
-						z.union([
-							z.string(),
-							z.object({ currency: z.string(), fields: z.array(z.string()) }),
-						])
+						z.object({
+							claim: z.union([
+								z.string(),
+								z.object({ currency: z.string(), fields: z.array(z.string()) }),
+							]),
+						})
 					),
 				})
 				.safeParse(acceptedFinish);
 			const fields = selection.success
-				? selection.data.evidence.flatMap((entry) =>
-						typeof entry !== "string" && entry.currency === "USD"
-							? entry.fields
+				? selection.data.evidence.flatMap(({ claim }) =>
+						typeof claim !== "string" && claim.currency === "USD"
+							? claim.fields
 							: []
 					)
 				: [];

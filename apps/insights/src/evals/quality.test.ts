@@ -345,6 +345,12 @@ it.each([
 		})
 		.parse(await read.execute(query, { toolCallId: "holdout", messages: [] }));
 	const readings = Object.values(output.results);
+	const sources = Object.keys(output.results).map((resultKey) => ({
+		source: "tool",
+		name: "get_data",
+		toolCallId: "holdout",
+		resultKey,
+	}));
 	expect(Object.keys(readings[0].data[0])[0]).toBe(
 		reordered ? "attributed_revenue" : "currency"
 	);
@@ -360,7 +366,7 @@ it.each([
 		const failures = fixture.check(
 			{ ...holdoutOutcome, outcome: { ...holdoutOutcome.outcome, evidence } },
 			[],
-			{ evidence: [selection] }
+			{ evidence: [{ claim: selection, sources }] }
 		);
 		expect(failures).toHaveLength(omitted ? 2 : 0);
 		if (omitted)
@@ -379,7 +385,7 @@ it.each([
 				outcome: { ...holdoutOutcome.outcome, evidence: [swapped] },
 			},
 			[],
-			{ evidence: [selection] }
+			{ evidence: [{ claim: selection, sources }] }
 		)
 	).toEqual(["Rendered evidence omitted Gross Revenue: 12,000 → 12,000"]);
 });

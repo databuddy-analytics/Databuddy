@@ -14,6 +14,7 @@ import { getAILogger } from "@databuddy/ai/lib/ai-logger";
 import { QueryBuilders } from "@databuddy/ai/query/builders";
 import { insightRepairError } from "@databuddy/rpc/insight-repairs";
 import {
+	agentEvidenceReferenceSchema,
 	agentInvestigationOutcomeSchema,
 	describeInsightDefinitionAction,
 	insightDefinitionEditChangesSchema,
@@ -64,22 +65,28 @@ const revenueEvidenceSchema = z
 			.max(4),
 	})
 	.describe(
-		"For revenue_overview, select complementary fields: gross revenue, settled transactions, refunds, and attributed revenue when it differs from gross. Select only fields with a non-null value in every cited period. Omit redundant subtotals and diagnostic availability flags. One entry per measured population; a payment-description comparison uses a second entry for the whole-currency control. Cite both complete comparison windows in each evidenceRefs entry. Code supplies labels, values, periods and deltas; preserve supported comparisons when correcting format."
+		"For revenue_overview, select complementary fields: gross revenue, settled transactions, refunds, and attributed revenue when it differs from gross. Select only fields with a non-null value in every cited period. Omit redundant subtotals and diagnostic availability flags. One entry per measured population; a payment-description comparison uses a second entry for the whole-currency control. Cite both complete comparison windows in this claim's sources. Code supplies labels, values, periods and deltas; preserve supported comparisons when correcting format."
 	);
-const finishSchema = z.object(agentInvestigationOutcomeSchema.shape).extend({
-	evidence: z
-		.array(
-			z.union([
-				agentInvestigationOutcomeSchema.shape.evidence.element,
-				revenueEvidenceSchema,
-			])
-		)
-		.min(1)
-		.max(2)
-		.describe(
-			"Every revenue_overview entry, including unchanged controls, must be {currency, fields}. Receipt-description and whole-currency entries cite separate result pairs. Use text only for other sources. Keep only comparisons that change the interpretation."
-		),
-});
+const finishSchema = z
+	.object(agentInvestigationOutcomeSchema.shape)
+	.omit({ evidenceRefs: true })
+	.extend({
+		evidence: z
+			.array(
+				z.strictObject({
+					claim: z.union([
+						agentInvestigationOutcomeSchema.shape.evidence.element,
+						revenueEvidenceSchema,
+					]),
+					sources: z.array(agentEvidenceReferenceSchema).min(1).max(8),
+				})
+			)
+			.min(1)
+			.max(2)
+			.describe(
+				"Keep each concise claim with all its contributing sources. Every revenue_overview claim, including unchanged controls, must be {currency, fields}; use text for other claims. Receipt-description and whole-currency claims cite separate result pairs. Retain comparisons that change the interpretation."
+			),
+	});
 
 const revenueReadingSchema = z.object({
 	type: z.literal("revenue_overview"),
@@ -374,7 +381,7 @@ Subject
 
 Evidence
 - The optional investigationObjective is a machine-selected question, not a human request or citable measurement. Use it to choose useful diagnostic work; verify its premise with source data.
-- Cite each evidence sentence to its actual source: source signal for the supplied signal; source provided with a valid zero-based evidence index; source history with the index of a prior action for its saved verification condition only (not historical or current measurements); source customer_impact for supplied customerImpact; source related_signal with its array index; or source tool with its exact name, toolCallId, and get_data resultKey (null for other tools). Use an array of source references per evidence entry, including every contributing period, population, and inspected mechanism. One concise comparison can cite several sources without repeating its facts. An exact verification read also supports the saved condition and code verdict returned with it. Correct a mismatched citation without discarding a supported discovery. Never cite a failed read as evidence. An empty evidence array does not invalidate the supplied signal.
+- Cite each evidence sentence to its actual source: source signal for the supplied signal; source provided with a valid zero-based evidence index; source history with the index of a prior action for its saved verification condition only (not historical or current measurements); source customer_impact for supplied customerImpact; source related_signal with its array index; or source tool with its exact name, toolCallId, and get_data resultKey (null for other tools). Keep each evidence claim with its sources, including every contributing period, population, and inspected mechanism. One concise comparison can cite several sources without repeating its facts. An exact verification read also supports the saved condition and code verdict returned with it. Correct a mismatched citation without discarding a supported discovery. Never cite a failed read as evidence. An empty evidence array does not invalidate the supplied signal.
 - Tool availability is not proof of a connected integration. If a connector reports missing access, stop trying that connector. Preserve an independently verified product or reliability finding, with an unknown cause when necessary. Missing diagnostic access is not evidence that tracking failed, and does not itself deserve a coverage notice or a connection request.
 - get_data can return a partial table. returnedRows is what you saw; rowCount is query rows, not visitors or all matching entities. A path missing from a top-N table is not absent. Use an exact filtered lookup or a dedicated aggregate before making absence, total, or exhaustive claims. Omit orderBy unless discovery documents the field and use only declared row filters.
 - Use reads to resolve a specific distinction that could change the finding or next move. Batch independent reads and never repeat an identical call. Stop gathering when further reads cannot change the decision; retain already-established changes and controls that change its interpretation. An overview of this subject can reveal several independent facts even when its headline metric is stable. For settled payments, distinguish gross revenue, refunds and attribution: stable sales with falling attribution limits acquisition decisions; rising refunds are a separate deterioration. Preserve both when measured, without treating one as the cause of the other. Select independent changes and interpretation-changing controls before redundant counts.
@@ -627,7 +634,7 @@ export function validateNumericGrounding(
 				throw new Error(
 					evidenceIndex === undefined
 						? `Insights outcome cites the number ${value}, which does not appear in the supplied signal, evidence, or inspected tool results. Only report numbers you were given or measured.`
-						: `Insights evidence[${evidenceIndex}] cites the number ${value}, which does not appear in its cited source. Correct evidenceRefs[${evidenceIndex}] to the successful source containing this fact. If a claim combines reads, cite all contributing sources in an array for that evidence item. Preserve facts supported by inspected results; remove only unsupported claims.`
+						: `Insights evidence[${evidenceIndex}] cites the number ${value}, which does not appear in its cited source. Correct evidence[${evidenceIndex}].sources to include the successful source containing this fact. If a claim combines reads, cite all contributing sources for that claim. Preserve facts supported by inspected results; remove only unsupported claims.`
 				);
 			}
 		}
@@ -1474,18 +1481,18 @@ export async function runInsightAgent(
 					}
 					const results = steps.flatMap((step) => step.toolResults);
 					const verification = verificationFor(input, results);
+					const evidenceRefs = candidate.evidence.map((item) => item.sources);
 					const citedEvidence = resolveEvidenceReferences(
-						candidate,
+						{ evidenceRefs },
 						input,
 						results
 					);
 					const nativeRevenue: ReturnType<typeof renderRevenueEvidence>[] = [];
 					const evidence = candidate.evidence.map((item, index) => {
-						if (typeof item !== "string") {
-							const references = candidate.evidenceRefs[index];
+						if (typeof item.claim !== "string") {
 							if (
-								(Array.isArray(references) ? references : [references]).some(
-									(ref) => ref?.source !== "tool" || ref.name !== "get_data"
+								item.sources.some(
+									(ref) => ref.source !== "tool" || ref.name !== "get_data"
 								)
 							) {
 								throw new Error(
@@ -1493,7 +1500,7 @@ export async function runInsightAgent(
 								);
 							}
 							const native = renderRevenueEvidence(
-								item,
+								item.claim,
 								citedEvidence[index],
 								input
 							);
@@ -1512,11 +1519,12 @@ export async function runInsightAgent(
 								"For revenue_overview evidence, submit {currency, fields} instead of prose, preserving this comparison; code binds every value to its field. Cite both periods."
 							);
 						}
-						return item;
+						return item.claim;
 					});
 					const proposed = agentInvestigationOutcomeSchema.parse({
 						...candidate,
 						evidence,
+						evidenceRefs,
 						...(verification
 							? {
 									summary:
@@ -1541,7 +1549,7 @@ export async function runInsightAgent(
 						steps.flatMap((step) => step.toolCalls.map((call) => call.toolName))
 					);
 					if (
-						candidate.evidence.some((item) => typeof item !== "string") &&
+						candidate.evidence.some((item) => typeof item.claim !== "string") &&
 						[
 							proposed.title.replace(input.signal.entity.label, ""),
 							verification ? "" : proposed.summary,
@@ -1608,7 +1616,7 @@ export async function runInsightAgent(
 						})
 					);
 					for (const [index, source] of citedEvidence.entries()) {
-						if (typeof candidate.evidence[index] !== "string") {
+						if (typeof candidate.evidence[index].claim !== "string") {
 							continue;
 						}
 						validateNumericGrounding(

@@ -294,7 +294,7 @@ const insightDefinitionExecutionSchema = z.discriminatedUnion("operation", [
 	legacyDefinitionExecutionSchema,
 ]);
 
-const agentEvidenceReferenceSchema = z.discriminatedUnion("source", [
+export const agentEvidenceReferenceSchema = z.discriminatedUnion("source", [
 	z
 		.strictObject({
 			source: z.literal("history"),
@@ -783,7 +783,7 @@ export const agentInvestigationOutcomeSchema = z
 			.array(
 				z.union([
 					agentEvidenceReferenceSchema,
-					z.array(agentEvidenceReferenceSchema).min(1).max(4),
+					z.array(agentEvidenceReferenceSchema).min(1).max(8),
 				])
 			)
 			.min(1)

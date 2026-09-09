@@ -188,6 +188,35 @@ function appContext() {
 }
 
 function outputResponse(value: unknown) {
+	// Keep legacy outcome fixtures readable; raw/malformed model input stays invalid.
+	if (
+		typeof value === "object" &&
+		value !== null &&
+		"evidence" in value &&
+		"evidenceRefs" in value &&
+		Array.isArray(value.evidence) &&
+		Array.isArray(value.evidenceRefs) &&
+		value.evidence.length === value.evidenceRefs.length &&
+		value.evidence.every(
+			(claim) =>
+				typeof claim === "string" ||
+				(typeof claim === "object" &&
+					claim !== null &&
+					"currency" in claim &&
+					"fields" in claim)
+		)
+	) {
+		const { evidence, evidenceRefs, ...outcome } = value;
+		value = {
+			...outcome,
+			evidence: evidence.map((claim, index) => ({
+				claim,
+				sources: Array.isArray(evidenceRefs[index])
+					? evidenceRefs[index]
+					: [evidenceRefs[index]],
+			})),
+		};
+	}
 	return toolCallResponse("finish_investigation", JSON.stringify(value));
 }
 
@@ -230,6 +259,286 @@ function outputModel(value: unknown = agentOutcome) {
 		),
 	});
 }
+
+describe("claim-bound finish input", () => {
+	const finish = {
+		...outcome,
+		next: agentOutcome.next,
+		evidence: outcome.evidence.map((claim, index) => ({
+			claim,
+			sources: [{ source: "provided", index }],
+		})),
+	};
+	const input = {
+		appContext: appContext(),
+		evidence,
+		githubRepository: null,
+		history: [],
+		otherOpenWork: [],
+		signal,
+	};
+	const comparison = {
+		...finish,
+		title: "Measured cohort comparison",
+		summary: "The measured populations have distinct counts.",
+		rootCause: null,
+		next: { type: "resolve", reason: "The comparison is measured." },
+	};
+
+	it("requires sources on each model claim and stores the existing text outcome", async () => {
+		const model = outputModel(finish);
+		const result = await runInsightAgent(input, { model, tools: {} });
+		const schema = model.doGenerateCalls[0]?.tools?.find(
+			(item) => item.name === "finish_investigation"
+		)?.inputSchema;
+		expect(schema).toMatchObject({
+			properties: {
+				evidence: {
+					minItems: 1,
+					maxItems: 2,
+					items: {
+						required: expect.arrayContaining(["claim", "sources"]),
+						properties: {
+							claim: {
+								anyOf: expect.arrayContaining([
+									expect.objectContaining({ type: "string" }),
+									expect.objectContaining({
+										type: "object",
+										required: expect.arrayContaining(["currency", "fields"]),
+									}),
+								]),
+							},
+							sources: { type: "array", minItems: 1, maxItems: 8 },
+						},
+					},
+				},
+			},
+		});
+		expect(schema).not.toHaveProperty("properties.evidenceRefs");
+		expect(result.outcome).toEqual(outcome);
+		expect(result.outcome).not.toHaveProperty("evidenceRefs");
+		expect(model.doGenerateCalls).toHaveLength(1);
+	});
+
+	it.each([
+		{ name: "missing sources", item: { claim: outcome.evidence[0] } },
+		{
+			name: "empty sources",
+			item: { claim: outcome.evidence[0], sources: [] },
+		},
+		{
+			name: "null sources",
+			item: { claim: outcome.evidence[0], sources: null },
+		},
+		{
+			name: "a reference instead of an array",
+			item: {
+				claim: outcome.evidence[0],
+				sources: { source: "provided", index: 0 },
+			},
+		},
+		{
+			name: "an unknown source kind",
+			item: {
+				claim: outcome.evidence[0],
+				sources: [{ source: "invented", index: 0 }],
+			},
+		},
+		{
+			name: "a missing provided index",
+			item: { claim: outcome.evidence[0], sources: [{ source: "provided" }] },
+		},
+		{
+			name: "a negative provided index",
+			item: {
+				claim: outcome.evidence[0],
+				sources: [{ source: "provided", index: -1 }],
+			},
+		},
+		{
+			name: "a null reference",
+			item: { claim: outcome.evidence[0], sources: [null] },
+		},
+		{
+			name: "nested references",
+			item: {
+				claim: outcome.evidence[0],
+				sources: [[{ source: "provided", index: 0 }]],
+			},
+		},
+		{
+			name: "too many sources",
+			item: {
+				claim: outcome.evidence[0],
+				sources: Array.from({ length: 9 }, () => ({
+					source: "provided",
+					index: 0,
+				})),
+			},
+		},
+		{
+			name: "a missing claim",
+			item: { sources: [{ source: "provided", index: 0 }] },
+		},
+		{
+			name: "a blank claim",
+			item: { claim: " ", sources: [{ source: "provided", index: 0 }] },
+		},
+	])("rejects $name without repairing the raw model input", async ({
+		item,
+	}) => {
+		const candidate = { ...finish, evidence: [item, finish.evidence[1]] };
+		const response = toolCallResponse(
+			"finish_investigation",
+			JSON.stringify(candidate)
+		);
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(response, response, response),
+		});
+		await expect(
+			runInsightAgent(input, { model, tools: {} })
+		).rejects.toBeInstanceOf(InsightAgentGenerationError);
+		expect(model.doGenerateCalls).toHaveLength(3);
+		const error = model.doGenerateCalls[1]?.prompt
+			.flatMap((message) => (message.role === "tool" ? message.content : []))
+			.find((part) => part.type === "tool-result");
+		if (error?.output.type !== "error-text")
+			throw new Error("Missing schema validation error");
+		const feedback = error.output.value;
+		expect(feedback).toContain("evidence");
+		expect(feedback).toContain(
+			"claim" in item && item.claim?.trim() ? "sources" : "claim"
+		);
+	});
+
+	it.each([
+		{ name: "no evidence", candidate: { ...finish, evidence: [] } },
+		{
+			name: "three claims",
+			candidate: {
+				...finish,
+				evidence: [...finish.evidence, finish.evidence[0]],
+			},
+		},
+		{ name: "legacy prose and separate refs", candidate: agentOutcome },
+	])("rejects $name at the model boundary", async ({ candidate }) => {
+		const response = toolCallResponse(
+			"finish_investigation",
+			JSON.stringify(candidate)
+		);
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(response, response, response),
+		});
+		await expect(
+			runInsightAgent(input, { model, tools: {} })
+		).rejects.toBeInstanceOf(InsightAgentGenerationError);
+		expect(model.doGenerateCalls).toHaveLength(3);
+	});
+
+	it.each([
+		"valid",
+		"wrong-source",
+		"wrong-number",
+	] as const)("validates each claim against its own sources: %s", async (scenario) => {
+		const candidate = {
+			...comparison,
+			evidence: [
+				{
+					claim: "Checkout and report counts were 41 and 52.",
+					sources: [
+						{ source: "provided", index: 0 },
+						{ source: "provided", index: 1 },
+					],
+				},
+				{
+					claim: `${scenario === "wrong-number" ? 53 : 52} reports were shared.`,
+					sources: [
+						{ source: "provided", index: scenario === "wrong-source" ? 0 : 1 },
+					],
+				},
+			],
+		};
+		const model = outputModel(candidate);
+		const run = runInsightAgent(
+			{
+				...input,
+				evidence: ["41 sessions used checkout.", "52 reports were shared."],
+			},
+			{ model, tools: {} }
+		);
+		if (scenario === "valid") {
+			expect((await run).outcome.evidence).toEqual(
+				candidate.evidence.map((item) => item.claim)
+			);
+			expect(model.doGenerateCalls).toHaveLength(1);
+			return;
+		}
+		await expect(run).rejects.toThrow(
+			`evidence[1] cites the number ${scenario === "wrong-number" ? 53 : 52}`
+		);
+		expect(JSON.stringify(model.doGenerateCalls[1]?.prompt)).toContain(
+			"Correct evidence[1].sources"
+		);
+	});
+
+	it.each([
+		"valid",
+		"omitted-source",
+		"wrong-source",
+		"missing-source",
+	] as const)("retains all five provided sources in a bound comparison: %s", async (scenario) => {
+		const counts = [41, 52, 63, 74, 85];
+		const sources = counts.map((_, index) => ({ source: "provided", index }));
+		if (scenario === "omitted-source") sources.pop();
+		if (scenario === "wrong-source")
+			sources[4] = { source: "provided", index: 0 };
+		if (scenario === "missing-source")
+			sources[4] = { source: "provided", index: 5 };
+		const claim = "The cohort counts were 41, 52, 63, 74, and 85.";
+		const model = outputModel({
+			...comparison,
+			evidence: [{ claim, sources }],
+		});
+		const run = runInsightAgent(
+			{
+				...input,
+				evidence: counts.map(
+					(count) => `The measured cohort contained ${count} profiles.`
+				),
+			},
+			{ model, tools: {} }
+		);
+		if (scenario === "valid") {
+			expect((await run).outcome.evidence).toEqual([claim]);
+			expect(model.doGenerateCalls).toHaveLength(1);
+			return;
+		}
+		await expect(run).rejects.toThrow(
+			scenario === "missing-source" ? "evidence index 5" : "number 85"
+		);
+	});
+
+	it("accepts all eight sources at the normalization limit", async () => {
+		const counts = [41, 52, 63, 74, 85, 96, 107, 118];
+		const claim = `The measured cohort counts were ${counts.join(", ")}.`;
+		const sources = counts.map((_, index) => ({ source: "provided", index }));
+		const model = outputModel({
+			...comparison,
+			evidence: [{ claim, sources }],
+		});
+		const result = await runInsightAgent(
+			{
+				...input,
+				evidence: counts.map(
+					(count) => `The cohort contained ${count} profiles.`
+				),
+			},
+			{ model, tools: {} }
+		);
+		expect(result.outcome.evidence).toEqual([claim]);
+		expect(model.doGenerateCalls).toHaveLength(1);
+	});
+});
 
 describe("intelligence agent", () => {
 	it("does not resupply prior context snapshots or offer model-authored provenance", async () => {
@@ -2719,7 +3028,7 @@ describe("intelligence agent", () => {
 			);
 		} else {
 			expect(feedback).toContain("evidence[0] cites the number 88");
-			expect(feedback).toContain("Correct evidenceRefs[0]");
+			expect(feedback).toContain("Correct evidence[0].sources");
 			expect(feedback).toContain(
 				"Preserve facts supported by inspected results"
 			);
