@@ -71,14 +71,17 @@ export function isFilterFieldAllowed(
 	field: string
 ): boolean {
 	return (
-		GLOBAL_ALLOWED_FILTERS.has(field) ||
+		(config.commonFilters !== false && GLOBAL_ALLOWED_FILTERS.has(field)) ||
 		(config.allowedFilters?.includes(field) ?? false)
 	);
 }
 
 export function allowedFilterFields(config: SimpleQueryConfig): string[] {
 	return [
-		...new Set([...GLOBAL_ALLOWED_FILTERS, ...(config.allowedFilters ?? [])]),
+		...new Set([
+			...(config.commonFilters === false ? [] : GLOBAL_ALLOWED_FILTERS),
+			...(config.allowedFilters ?? []),
+		]),
 	];
 }
 

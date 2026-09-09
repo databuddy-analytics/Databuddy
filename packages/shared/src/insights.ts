@@ -87,6 +87,7 @@ const investigationEntitySchema = z
 			"website",
 			"page",
 			"event",
+			"cohort",
 			"goal",
 			"funnel",
 			"funnel_step",

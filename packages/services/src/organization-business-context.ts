@@ -1,15 +1,17 @@
 import { randomUUID } from "node:crypto";
-import { and, db, eq, isNull, sql } from "@databuddy/db";
+import { and, db, eq, inArray, isNull, sql } from "@databuddy/db";
 import { organization, websites } from "@databuddy/db/schema";
 import {
 	BUSINESS_CONTEXT_GENERATION_TIMEOUT,
 	BUSINESS_CONTEXT_DRAFT_HISTORY_LIMIT,
 	businessBriefSchema,
 	businessTeamContextSchema,
+	businessMeasurementPlansSchema,
 	businessContextIsGenerating,
 	organizationBusinessContextSchema,
 	type BusinessBrief,
 	type BusinessTeamContext,
+	type BusinessMeasurementPlan,
 	type OrganizationBusinessContext,
 	type OrganizationBusinessProfile,
 } from "@databuddy/shared/organization-business-context";
@@ -201,6 +203,44 @@ export async function markBusinessContextGeneration(input: {
 	});
 }
 
+async function validateMeasurementBindings(
+	tx: Transaction,
+	organizationId: string,
+	plans?: BusinessMeasurementPlan[]
+) {
+	if (!plans?.length) {
+		return;
+	}
+
+	const sites = await tx
+		.select({ id: websites.id, domain: websites.domain })
+		.from(websites)
+		.where(
+			and(
+				inArray(
+					websites.id,
+					plans.map((plan) => plan.websiteId)
+				),
+				eq(websites.organizationId, organizationId),
+				isNull(websites.deletedAt)
+			)
+		)
+		.for("update");
+	if (
+		plans.some(
+			(plan) =>
+				!sites.some(
+					(site) => site.id === plan.websiteId && site.domain === plan.domain
+				)
+		)
+	) {
+		throw new BusinessContextError(
+			"CONFLICT",
+			"A measurement website changed or is unavailable. Review its definition before saving."
+		);
+	}
+}
+
 export async function saveOrganizationBusinessProfile(input: {
 	organizationId: string;
 	revision: number;
@@ -208,6 +248,7 @@ export async function saveOrganizationBusinessProfile(input: {
 	updatedBy: string;
 	generationId?: string;
 	teamContext?: BusinessTeamContext;
+	measurementPlans?: BusinessMeasurementPlan[];
 }): Promise<OrganizationBusinessContext> {
 	return await update(input.organizationId, async (current, tx) => {
 		if ((current.profile?.revision ?? 0) !== input.revision) {
@@ -253,6 +294,14 @@ export async function saveOrganizationBusinessProfile(input: {
 			}
 		}
 		const content = input.content.trim();
+		const measurementPlans = input.measurementPlans
+			? businessMeasurementPlansSchema.parse(input.measurementPlans)
+			: current.profile?.measurementPlans;
+		await validateMeasurementBindings(
+			tx,
+			input.organizationId,
+			input.measurementPlans
+		);
 		const unchangedDraft = generated?.draft?.content === content;
 		const unchangedSaved = !generated && current.profile?.content === content;
 		// A small edit does not verify every inherited website claim. Manual changes
@@ -283,6 +332,7 @@ export async function saveOrganizationBusinessProfile(input: {
 			history: profileHistory(current),
 			profile: {
 				...brief,
+				measurementPlans,
 				origin,
 				revision: input.revision + 1,
 				updatedAt: new Date().toISOString(),
@@ -328,7 +378,7 @@ export async function restoreOrganizationBusinessProfile(input: {
 	restoreRevision: number;
 	updatedBy: string;
 }): Promise<OrganizationBusinessContext> {
-	return await update(input.organizationId, (current) => {
+	return await update(input.organizationId, async (current, tx) => {
 		if ((current.profile?.revision ?? 0) !== input.revision) {
 			throw new BusinessContextError(
 				"CONFLICT",
@@ -344,6 +394,11 @@ export async function restoreOrganizationBusinessProfile(input: {
 				"This version is no longer available."
 			);
 		}
+		await validateMeasurementBindings(
+			tx,
+			input.organizationId,
+			previous.measurementPlans
+		);
 		return {
 			profile: {
 				...previous,

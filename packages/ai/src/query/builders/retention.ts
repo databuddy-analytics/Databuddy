@@ -14,6 +14,7 @@ const selectors = z.strictObject({
 
 export const RetentionBuilders: Record<string, SimpleQueryConfig> = {
 	identified_profile_retention: {
+		commonFilters: false,
 		allowedFilters: [
 			"activation_event",
 			"return_event",
@@ -37,7 +38,7 @@ export const RetentionBuilders: Record<string, SimpleQueryConfig> = {
 		noCache: true,
 		meta: {
 			title: "Identified profile activation retention",
-			category: "Custom Events",
+			category: "Profiles",
 			tags: ["retention", "activation", "cohort", "identified", "coverage"],
 			description:
 				"Directly identified profile retention on exact custom events. Required scalar eq filters: activation_event, return_event, horizon_days (7 or 30), observation_end (YYYY-MM-DD); optional exact namespace scopes both events. from/to are inclusive cohort calendar dates in timezone (default UTC), at most 90 days. observation_end is an inclusive observation date >= to, capped at query time. Each owner-scoped profile activates once at its earliest matching event IN this cohort window, not first-ever. Return interval is (activation, activation + horizon * 24 hours], not day-N retention. Only fully observed profiles enter retained/not_retained and the retention rate; incomplete follow-up is separate even if a return is already observed. No anonymous joins, person, customer or subscription inference. Overall row first, followed by daily cohorts; do not sum the overall row with daily rows. Identity coverage counts raw activation events (including duplicates), not profiles or population coverage. Fixed daily grouping/order; omit groupBy/orderBy. At most 91 SQL rows; limit100 includes all. get_data separately caps returnedRows at 20 and reports rowCount/truncated. No referrer attribution.",
@@ -153,7 +154,7 @@ export const RetentionBuilders: Record<string, SimpleQueryConfig> = {
 			}
 			if (
 				ctx.groupBy?.length ||
-				ctx.orderBy ||
+				(ctx.orderBy && ctx.orderBy !== "row_type DESC, cohort_date ASC") ||
 				ctx.offset ||
 				(ctx.granularity &&
 					ctx.granularity !== "day" &&

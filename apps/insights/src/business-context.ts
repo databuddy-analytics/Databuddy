@@ -358,7 +358,8 @@ export async function loadWebsiteBusinessProfile(
 				organizationProfileContext(
 					value.profile,
 					input.scope.organizationId,
-					input.allowRefresh ? new Date() : input.asOf
+					input.allowRefresh ? new Date() : input.asOf,
+					input.scope
 				)
 			)
 			.catch((error) =>
@@ -380,10 +381,32 @@ export async function loadWebsiteBusinessProfile(
 export function organizationProfileContext(
 	profile: OrganizationBusinessProfile | null,
 	organizationId: string,
-	asOf: Date
+	asOf: Date,
+	scope?: Pick<BusinessScope, "websiteId" | "domain">
 ): BusinessContext {
 	const sources: BusinessSource[] = [];
 	if (profile && Date.parse(profile.updatedAt) <= asOf.getTime()) {
+		const plan = profile.measurementPlans?.find(
+			(item) =>
+				item.websiteId === scope?.websiteId && item.domain === scope.domain
+		);
+		if (plan) {
+			const content = `Saved team-defined activation and return measurement (not emitter-code verification): ${JSON.stringify(plan)}. Native query: identified_profile_retention.`;
+			for (let offset = 0; offset < content.length; offset += 4000) {
+				sources.push({
+					id: `organization-measurement-plan:${organizationId}:${plan.websiteId}:${offset / 4000}`,
+					kind: "organization_profile",
+					content: content.slice(offset, offset + 4000),
+					observedAt: profile.updatedAt,
+					author: "Team measurement definition",
+					origin: "team",
+					profileVersion: {
+						revision: profile.revision,
+						updatedAt: profile.updatedAt,
+					},
+				});
+			}
+		}
 		const teamContext = formatBusinessTeamContext(profile.teamContext);
 		for (let offset = 0; offset < teamContext.length; offset += 4000) {
 			sources.push({

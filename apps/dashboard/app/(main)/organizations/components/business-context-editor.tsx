@@ -10,6 +10,8 @@ import {
 	type BusinessContextSettings,
 	businessContextIsGenerating,
 	formatBusinessTeamContext,
+	formatBusinessMeasurementPlans,
+	businessMeasurementPlansSchema,
 } from "@databuddy/shared/organization-business-context";
 import { Button, Card, Field, Textarea, dayjs } from "@databuddy/ui";
 import { Accordion, Dialog, DropdownMenu } from "@databuddy/ui/client";
@@ -25,6 +27,7 @@ import { useEffect, useRef, useState } from "react";
 import { TopBar } from "@/components/layout/top-bar";
 import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
 import { useBusinessContextDraft } from "./use-business-context-draft";
+import { MeasurementPlanEditor } from "./measurement-plan-editor";
 
 const emptyTeamContext: BusinessTeamContext = {
 	priority: "",
@@ -190,6 +193,8 @@ export function BusinessContextEditor({
 	const content = draft?.content ?? profile?.content ?? "";
 	const teamContext =
 		draft?.teamContext ?? profile?.teamContext ?? emptyTeamContext;
+	const measurementPlans =
+		draft?.measurementPlans ?? profile?.measurementPlans ?? [];
 	const generationWebsite = websites.find(
 		(site) =>
 			site.id === generation?.websiteId && site.domain === generation.domain
@@ -207,7 +212,9 @@ export function BusinessContextEditor({
 		(content.trim() !== (profile?.content ?? "") ||
 			Boolean(draftGeneration) ||
 			formatBusinessTeamContext(teamContext) !==
-				formatBusinessTeamContext(profile?.teamContext));
+				formatBusinessTeamContext(profile?.teamContext) ||
+			JSON.stringify(measurementPlans) !==
+				JSON.stringify(profile?.measurementPlans ?? []));
 	const conflict = dirty && draft.revision !== revision;
 	const activeGeneration = businessContextIsGenerating(settings);
 	const generating = isRequesting || activeGeneration;
@@ -233,11 +240,20 @@ export function BusinessContextEditor({
 	const teamTooLong = Object.values(teamContext).some(
 		(value) => value.trim().length > BUSINESS_CONTEXT_TEAM_FIELD_LIMIT
 	);
+	const plansValid =
+		businessMeasurementPlansSchema.safeParse(measurementPlans).success;
+	const bindingsValid = measurementPlans.every((plan) =>
+		websites.some(
+			(site) => site.id === plan.websiteId && site.domain === plan.domain
+		)
+	);
 	const saveDisabled =
 		!(ready && canEdit && dirty) ||
 		conflict ||
 		tooLong ||
 		teamTooLong ||
+		!plansValid ||
+		!bindingsValid ||
 		isSaving ||
 		review !== null;
 	const reviewedProfile = review?.kind === "history" ? review.profile : profile;
@@ -247,6 +263,10 @@ export function BusinessContextEditor({
 			: (reviewedProfile?.content ?? "");
 	const reviewTeam =
 		review?.kind === "generation" ? teamContext : reviewedProfile?.teamContext;
+	const reviewPlans =
+		review?.kind === "generation"
+			? measurementPlans
+			: reviewedProfile?.measurementPlans;
 
 	useEffect(() => {
 		if (
@@ -265,6 +285,7 @@ export function BusinessContextEditor({
 			revision,
 			generationId: readyGeneration.id,
 			teamContext: profile?.teamContext,
+			measurementPlans: profile?.measurementPlans,
 		});
 	}, [
 		ready,
@@ -274,6 +295,7 @@ export function BusinessContextEditor({
 		readyGeneration,
 		revision,
 		profile?.teamContext,
+		profile?.measurementPlans,
 		setDraft,
 	]);
 
@@ -333,6 +355,7 @@ export function BusinessContextEditor({
 					content: content.trim(),
 					revision: draft.revision,
 					teamContext,
+					measurementPlans,
 					...(draftGeneration ? { generationId: draftGeneration.id } : {}),
 				}),
 			"Changes saved"
@@ -676,6 +699,30 @@ export function BusinessContextEditor({
 					)}
 				</Card.Footer>
 			</Card>
+			<MeasurementPlanEditor
+				disabled={!(ready && canEdit) || isSaving}
+				websites={websites}
+				plans={measurementPlans}
+				onChange={(plans) => {
+					setDraft({
+						...(draft ?? { content, revision, teamContext }),
+						measurementPlans: plans,
+					});
+					setNotice("");
+				}}
+			/>
+			{dirty && !plansValid && (
+				<p className="text-destructive text-xs" role="alert">
+					Complete the outcome name and both event names before saving. Event
+					names and namespace can contain up to 256 characters.
+				</p>
+			)}
+			{dirty && !bindingsValid && (
+				<p className="text-destructive text-xs" role="alert">
+					Update or remove definitions for changed or unavailable websites
+					before saving.
+				</p>
+			)}
 			<Sources
 				sources={draftGeneration?.draft?.sources ?? profile?.sources ?? []}
 			/>
@@ -706,16 +753,24 @@ export function BusinessContextEditor({
 							{review?.kind === "generation"
 								? "Using this draft replaces your local text. You can edit it before saving."
 								: review?.kind === "history"
-									? "Restoring replaces the saved brief and your current edits. Your current saved version stays in history."
+									? "Restoring replaces the saved brief, team context, event definitions, and your current edits. Your current saved version stays in history."
 									: "Your edits are still in the editor. Choose which version to keep working on."}
 						</Dialog.Description>
 					</Dialog.Header>
 					<Dialog.Body className="max-h-[60vh] space-y-4 overflow-y-auto">
 						<BriefChanges
-							before={[content, formatBusinessTeamContext(teamContext)]
+							before={[
+								content,
+								formatBusinessTeamContext(teamContext),
+								formatBusinessMeasurementPlans(measurementPlans),
+							]
 								.filter(Boolean)
 								.join("\n\n")}
-							after={[reviewText, formatBusinessTeamContext(reviewTeam)]
+							after={[
+								reviewText,
+								formatBusinessTeamContext(reviewTeam),
+								formatBusinessMeasurementPlans(reviewPlans),
+							]
 								.filter(Boolean)
 								.join("\n\n")}
 						/>
@@ -788,6 +843,7 @@ export function BusinessContextEditor({
 											revision,
 											generationId: pendingDraft.id,
 											teamContext,
+											measurementPlans,
 										});
 										setReview(null);
 										editorRef.current?.focus();

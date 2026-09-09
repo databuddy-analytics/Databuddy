@@ -193,7 +193,7 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 
 ### Database work
 
-- Postgres schema: `packages/db/src/drizzle/schema.ts`
+- Postgres schemas: `packages/db/src/drizzle/schema/` (`index.ts` barrel)
 - Relations: `packages/db/src/drizzle/relations.ts`
 - Drizzle client: `packages/db/src/client.ts`
 - Production `DATABASE_URL` may already target PgBouncer; inspect both the process pool and PgBouncer queues before attributing API timeouts to PostgreSQL.

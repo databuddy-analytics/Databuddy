@@ -3870,3 +3870,81 @@ describe("validateNumericGrounding", () => {
 		).not.toThrow();
 	});
 });
+
+
+describe("identified-profile cohort publication", () => {
+	const comparison =
+		"Eligible identified profiles returning within seven days fell from 140/200 (70%) to 60/200 (30%).";
+	const finish = {
+		title: "Report reuse fell",
+		summary: "Fewer identified profiles returned after sharing a report.",
+		rootCause: null,
+		evidence: [comparison],
+		evidenceRefs: [{ source: "provided", index: 0 }],
+		publish: true,
+		findingKind: "product_outcome",
+		publicationBasis: "measured_impact",
+		next: {
+			type: "resolve",
+			reason: "The measured change is useful; its cause remains unknown.",
+		},
+	};
+	const cohort: InvestigationSignal = {
+		...signal,
+		signalKey: "retention:synthetic",
+		entity: { type: "cohort", id: "synthetic", label: "Shared reports" },
+		metric: {
+			label: "Return within seven days",
+			format: "percent",
+			current: 30,
+			previous: 70,
+		},
+		changePercent: -57.14,
+	};
+	it("publishes a known-purpose cohort finding without a redundant data read or invented cause", async () => {
+		const model = outputModel(finish);
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				signal: cohort,
+				evidence: [
+					comparison,
+					"The team defines sharing a report as initial value and opening it later as reuse.",
+				],
+				history: [],
+				otherOpenWork: [],
+				githubRepository: null,
+			},
+			{ model, tools: {} }
+		);
+		expect(result.outcome).toMatchObject({
+			publish: true,
+			findingKind: "product_outcome",
+			rootCause: null,
+			next: { type: "resolve" },
+		});
+		expect(model.doGenerateCalls).toHaveLength(1);
+		expect(result.toolCallCount).toBe(0);
+	});
+	it("still rejects relabeling raw website traffic as a product loss", async () => {
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					signal: {
+						...cohort,
+						signalKey: "visitors",
+						entity: { type: "website", id: "website", label: "Visitors" },
+					},
+					evidence: [comparison],
+					history: [],
+					otherOpenWork: [],
+					githubRepository: null,
+				},
+				{ model: outputModel(finish), tools: {} }
+			)
+		).rejects.toThrow(
+			"A website traffic signal is not a verified product loss"
+		);
+	});
+});

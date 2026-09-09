@@ -26,7 +26,7 @@ function compile(overrides: Partial<QueryRequest> = {}) {
 describe("identified profile retention contract", () => {
 	it("is privately discoverable with exact selectors and aggregate outputs", async () => {
 		const result = await discoverQueryTypesTool.execute?.(
-			{ search: "identified_profile_retention" },
+			{ category: "Profiles", search: "identified_profile_retention" },
 			{ toolCallId: "synthetic", messages: [] }
 		);
 		expect(result).toMatchObject({
@@ -34,6 +34,7 @@ describe("identified profile retention contract", () => {
 			types: [
 				{
 					name: "identified_profile_retention",
+					allowedFilters: [...filters.map((filter) => filter.field), "namespace"],
 					requiredFilters: filters.map((filter) => filter.field),
 					allowedFilterOperators: {
 						activation_event: ["eq"],
@@ -131,4 +132,22 @@ describe("identified profile retention contract", () => {
 			"Query failed"
 		);
 	});
+});
+
+
+it("accepts its documented native ordering and rejects generic filters", () => {
+	expect(
+		compile({
+			orderBy: "row_type DESC, cohort_date ASC",
+			timeUnit: "day",
+			groupBy: [],
+		})
+	).toEqual(compile());
+	for (const field of ["path", "country", "referrer"]) {
+		expect(() =>
+			compile({
+				filters: [...filters, { field, op: "eq", value: "synthetic" }],
+			})
+		).toThrow();
+	}
 });
