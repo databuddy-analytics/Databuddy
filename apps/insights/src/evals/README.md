@@ -1,5 +1,13 @@
 # Investigation quality evals
 
+`context-selection.ts --out <fresh-directory> --runs 2` compares native absent/present
+context paths before running selected investigations through this evaluator. It uses
+synthetic 2-, 9- and 24-signal portfolios, a maximum-sized context correction case and
+manual exclusion coverage. `--reverse` reverses candidate order for holdouts; `--cases`
+selects scenario IDs. Alternate arms, preserve the copied source and fixtures, and
+review the complete outputs as well as final selections. Its zero exit status means
+the run completed; `results.json` retains quality failures for manual comparison.
+
 Run from the repository root with `AI_GATEWAY_API_KEY` configured:
 
 ```sh

@@ -2003,7 +2003,7 @@ for (const available of [true, false]) {
 	});
 }
 
-async function evaluate(
+export async function evaluate(
 	agent: typeof runInsightAgent,
 	fixture: QualityCase,
 	directory: string,

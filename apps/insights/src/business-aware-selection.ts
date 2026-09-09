@@ -45,7 +45,6 @@ export async function chooseInvestigationSignals(
 	if (
 		!(model || isAiGatewayConfigured) ||
 		candidates.length <= 1 ||
-		candidates.length > input.limit * 4 ||
 		!businessContext.sources.length ||
 		!["ready", "partial"].includes(businessContext.status) ||
 		JSON.stringify(candidates).length > 48_000
@@ -69,54 +68,47 @@ export async function chooseInvestigationSignals(
 		),
 		...replies,
 		...businessContext.sources.filter((source) => source.kind === "website"),
-	];
-	const sources: Pick<
-		BusinessContext["sources"][number],
-		| "id"
-		| "kind"
-		| "content"
-		| "observedAt"
-		| "subjectKey"
-		| "author"
-		| "url"
-		| "references"
-		| "origin"
-	>[] = [];
-	let pageCharacters = 0;
-	let characters = 0;
-	for (const {
-		id,
-		kind,
-		content,
-		observedAt,
-		subjectKey,
-		author,
-		origin,
-		url,
-		references,
-	} of ordered) {
-		const source = {
+	].map(
+		({ id, kind, content, observedAt, subjectKey, author, origin, url }) => ({
 			id,
 			kind,
-			references,
 			content,
 			observedAt,
 			subjectKey,
 			author,
 			origin,
 			url,
-		};
+		})
+	);
+	// Keep the complete saved document and the newest relevant correction.
+	// Bibliography stays on the investigation snapshot; it is not needed to rank work.
+	const characterLimit = Math.max(
+		18_000,
+		ordered
+			.filter(
+				(source) =>
+					source.kind === "organization_profile" || source.id === replies[0]?.id
+			)
+			.reduce((total, source) => total + JSON.stringify(source).length, 0)
+	);
+	if (characterLimit > 32_000) {
+		return null;
+	}
+	const sources: typeof ordered = [];
+	let pageCharacters = 0;
+	let characters = 0;
+	for (const source of ordered) {
 		const size = JSON.stringify(source).length;
 		if (
-			sources.some((item) => item.id === id) ||
-			characters + size > 18_000 ||
-			(kind === "website" && pageCharacters + size > 8000)
+			sources.some((item) => item.id === source.id) ||
+			characters + size > characterLimit ||
+			(source.kind === "website" && pageCharacters + size > 8000)
 		) {
 			continue;
 		}
 		sources.push(source);
 		characters += size;
-		if (kind === "website") {
+		if (source.kind === "website") {
 			pageCharacters += size;
 		}
 	}
