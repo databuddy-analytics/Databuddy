@@ -58,7 +58,10 @@ regressions retain priority even when the model selects none. Original measureme
 constraints and the unverified planning rationale stay in the frozen objective.
 Scheduled runs investigate at most two; a deliberate manual full scan investigates at
 most five and covers a distinct eligible specialist family before taking extra work from
-one family. The portfolio is diversified across correlated subjects and survives a
+one family. This does not reintroduce optional general work excluded by business-aware
+selection. Candidate input is bounded by serialized size rather than a count cutoff;
+the complete saved brief and newest relevant correction survive source budgeting, or
+selection retains the conservative fallback. The portfolio is diversified across correlated subjects and survives a
 retry unchanged. Each selected signal still gets its own exact agent turn, durable
 observation, and investigation history; a model does not manufacture a broad report
 from ungrounded raw data.
