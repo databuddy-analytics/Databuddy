@@ -17,6 +17,7 @@ import {
 	organization,
 	websites,
 } from "@databuddy/db/schema";
+import { shutdownRedis } from "@databuddy/redis";
 import { saveOrganizationBusinessProfile } from "@databuddy/services/organization-business-context";
 import type { BusinessMeasurementPlan } from "@databuddy/shared/organization-business-context";
 import type {
@@ -201,7 +202,7 @@ describe("obsolete retention observations in synthetic PostgreSQL", () => {
 			.where(inArray(organization.id, [organizationId, other]));
 	});
 	afterAll(async () => {
-		await shutdownPostgres();
+		await Promise.all([shutdownPostgres(), shutdownRedis()]);
 	});
 
 	const query =
