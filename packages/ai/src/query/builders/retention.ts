@@ -152,6 +152,7 @@ export const RetentionBuilders: Record<string, SimpleQueryConfig> = {
 				);
 			}
 			if (
+				ctx.groupBy?.length ||
 				ctx.orderBy ||
 				ctx.offset ||
 				(ctx.granularity &&
@@ -159,7 +160,7 @@ export const RetentionBuilders: Record<string, SimpleQueryConfig> = {
 					ctx.granularity !== "daily")
 			) {
 				throw new Error(
-					"Invalid retention options: fixed daily cohorts with overall row first; omit orderBy and offset."
+					"Invalid retention options: fixed daily cohorts with overall row first; omit groupBy, orderBy and offset."
 				);
 			}
 			const scope = ctx.filterParams?.__orgLevel

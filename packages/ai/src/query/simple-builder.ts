@@ -1166,6 +1166,7 @@ export class SimpleQueryBuilder {
 			endDate: normalizeClickHouseDateTime(this.request.to),
 			filters: this.request.filters,
 			granularity: this.request.timeUnit,
+			groupBy: this.request.groupBy,
 			limit: this.request.limit,
 			offset: this.request.offset,
 			timezone: this.request.timezone,
