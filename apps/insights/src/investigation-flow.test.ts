@@ -1,6 +1,6 @@
 import "@databuddy/test/env";
 import { describe, expect, it } from "bun:test";
-import { describeInsightDefinitionAction } from "@databuddy/shared/insights";
+import { agentEvidenceReferenceSchema, describeInsightDefinitionAction } from "@databuddy/shared/insights";
 import type {
 	InvestigationOutcome,
 	InvestigationSignal,
@@ -4263,6 +4263,23 @@ describe("identified-profile cohort publication", () => {
 			(item) => item.request.from === prepared.signal.period.previous.from
 		);
 		if (!original) throw new Error("Missing detector read fixture");
+		let claim = "Report sharing remained at 600 events.";
+		let source: z.infer<typeof agentEvidenceReferenceSchema> = {
+			source: "provided",
+			index: mode === "wrong-source" ? 1 : 0,
+		};
+		if (reads) {
+			claim = "The read confirms the previous cohort.";
+			source = {
+				source: "tool",
+				name: "get_data",
+				toolCallId: mode === "sticky-conflict" ? "get_data-2" : "get_data-1",
+				resultKey: "previous",
+			};
+		}
+		if (updated) claim = "The later read conflicts with the snapshot.";
+		if (mode.startsWith("swapped-")) claim = "Previous cohort: 60/200 returned.";
+		if (mode === "swapped-signal") source = { source: "signal" };
 		const proposed = {
 			...finish,
 			...(updated
@@ -4273,32 +4290,8 @@ describe("identified-profile cohort publication", () => {
 							"The latest read conflicts with the initial count; the change remains unconfirmed.",
 					}
 				: {}),
-			evidence: additional
-				? [
-						mode.startsWith("swapped-")
-							? "Previous cohort: 60/200 returned."
-							: reads
-								? updated
-									? "The later read conflicts with the snapshot."
-									: "The read confirms the previous cohort."
-								: "Report sharing remained at 600 events.",
-					]
-				: [],
-			evidenceRefs: additional
-				? [
-						mode === "swapped-signal"
-							? { source: "signal" }
-							: reads
-								? {
-										source: "tool",
-										name: "get_data",
-										toolCallId:
-											mode === "sticky-conflict" ? "get_data-2" : "get_data-1",
-										resultKey: "previous",
-									}
-								: { source: "provided", index: mode === "wrong-source" ? 1 : 0 },
-					]
-				: [],
+			evidence: additional ? [claim] : [],
+			evidenceRefs: additional ? [source] : [],
 		};
 		const model = reads
 			? new MockLanguageModelV3({
