@@ -37,7 +37,12 @@ function compileSql(type: string): string {
 	].map((field) => ({
 		field,
 		op: "eq" as const,
-		value: `${field}-required-value`,
+		value:
+			field === "horizon_days"
+				? 7
+				: field === "observation_end"
+					? "2026-05-11"
+					: `${field}-required-value`,
 	}));
 	return new SimpleQueryBuilder(config, {
 		filters: requiredFilters,

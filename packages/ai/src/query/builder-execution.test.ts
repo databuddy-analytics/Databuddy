@@ -103,7 +103,14 @@ function filterFor(field: string): Filter {
 	return {
 		field,
 		op: "eq",
-		value: NUMERIC_FILTER_FIELDS.has(field) ? 1 : `test-${field}`,
+		value:
+			field === "horizon_days"
+				? 7
+				: field === "observation_end"
+					? "2026-02-01"
+					: NUMERIC_FILTER_FIELDS.has(field)
+						? 1
+						: `test-${field}`,
 	};
 }
 

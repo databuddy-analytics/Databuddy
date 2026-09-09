@@ -116,6 +116,7 @@ export interface CustomSqlContext {
 	filterParams?: Record<string, Filter["value"]>;
 	filters?: Filter[];
 	granularity?: TimeUnit;
+	groupBy?: string[];
 	helpers?: QueryHelpers;
 	limit?: number;
 	offset?: number;
