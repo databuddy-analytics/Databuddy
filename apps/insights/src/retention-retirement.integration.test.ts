@@ -7,7 +7,6 @@ import {
 	describe,
 	expect,
 	it,
-	spyOn,
 } from "bun:test";
 import type { executeQuery } from "@databuddy/ai/query";
 import { db, eq, inArray, shutdownPostgres } from "@databuddy/db";
@@ -18,7 +17,6 @@ import {
 	organization,
 	websites,
 } from "@databuddy/db/schema";
-import * as cache from "@databuddy/redis";
 import { saveOrganizationBusinessProfile } from "@databuddy/services/organization-business-context";
 import type { BusinessMeasurementPlan } from "@databuddy/shared/organization-business-context";
 import type {
@@ -46,10 +44,7 @@ import {
 // Run this file alone with env -i and --no-env-file. Only this synthetic DB is allowed.
 const databaseUrl =
 	"postgresql://postgres:synthetic-only@localhost:16553/business_context_settings";
-const integration =
-	process.env.INSIGHTS_INTEGRATION_TESTS === "true" ? describe : describe.skip;
-
-integration("obsolete retention observations in synthetic PostgreSQL", () => {
+describe("obsolete retention observations in synthetic PostgreSQL", () => {
 	let organizationId: string;
 	let other: string;
 	let websiteId: string;
@@ -69,23 +64,16 @@ integration("obsolete retention observations in synthetic PostgreSQL", () => {
 		publish: true,
 		next: { type: "ask", question: "Was the report flow changed?" },
 	};
-	const invalidations: ReturnType<typeof spyOn>[] = [];
-
 	beforeAll(() => {
-		if (process.env.DATABASE_URL !== databaseUrl) {
+		if (
+			process.env.DATABASE_URL !== databaseUrl ||
+			process.env.REDIS_URL !== "redis://localhost:16554" ||
+			process.env.BULLMQ_REDIS_URL !== "redis://localhost:16554"
+		) {
 			throw new Error(
-				"Use only the synthetic localhost:16553/business_context_settings database"
+				"Use only synthetic PostgreSQL at localhost:16553/business_context_settings and Redis at localhost:16554"
 			);
 		}
-		invalidations.push(
-			spyOn(cache, "invalidateInsightsCachesForOrganization").mockResolvedValue(
-				{ attempted: 2, failed: 0 }
-			),
-			spyOn(
-				cache,
-				"invalidateAgentContextSnapshotsForWebsite"
-			).mockResolvedValue(0)
-		);
 	});
 
 	const save = async (measurementPlans: BusinessMeasurementPlan[]) => {
@@ -213,7 +201,6 @@ integration("obsolete retention observations in synthetic PostgreSQL", () => {
 			.where(inArray(organization.id, [organizationId, other]));
 	});
 	afterAll(async () => {
-		for (const invalidation of invalidations) invalidation.mockRestore();
 		await shutdownPostgres();
 	});
 
