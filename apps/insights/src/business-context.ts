@@ -300,6 +300,11 @@ async function reconcileReplies(
 			sources: eligible,
 			issues: issue ? [issue] : [],
 		};
+		// Shared pages must not consume the budget before canonical replies.
+		// Exact-subject recall still keeps relevance ahead of recent replies below.
+		if (!input.subjectKey) {
+			return mergeBusinessContext(context, raw);
+		}
 		const canonical = new Map(eligible.map((reply) => [reply.id, reply]));
 		return mergeBusinessContext(raw, {
 			...context,
