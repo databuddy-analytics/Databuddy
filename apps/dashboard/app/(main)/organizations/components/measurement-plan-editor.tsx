@@ -71,8 +71,8 @@ export function MeasurementPlanEditor({
 	return (
 		<Card>
 			<Card.Header>
-				<Card.Title>Activation and return</Card.Title>
-				<Card.Description>
+				<Card.Title className="text-balance">Activation and return</Card.Title>
+				<Card.Description className="text-pretty">
 					Choose the events that mean someone got value and came back. Saved
 					definitions guide automatic investigations. Only identified profiles
 					can be measured.
@@ -88,7 +88,7 @@ export function MeasurementPlanEditor({
 							className="flex items-center justify-between gap-2 text-xs"
 							key={item.websiteId}
 						>
-							<p className="text-muted-foreground">
+							<p className="text-pretty text-muted-foreground">
 								{item.name || item.domain}: website unavailable. This definition
 								is inactive.
 							</p>
@@ -120,25 +120,27 @@ export function MeasurementPlanEditor({
 									className="space-y-2 break-words text-xs"
 									key={item.websiteId}
 								>
-									<p className="font-medium">
+									<p className="text-pretty font-medium">
 										{item.name || "Unnamed outcome"}
 									</p>
-									<p className="text-muted-foreground">{item.domain}</p>
+									<p className="text-pretty text-muted-foreground">
+										{item.domain}
+									</p>
 									{site && site.domain !== item.domain && (
-										<p className="text-destructive">
+										<p className="text-pretty text-destructive">
 											Website domain changed to {site.domain}. This definition
 											is inactive until updated.
 										</p>
 									)}
-									<p>
+									<p className="text-pretty">
 										Activation: <code>{item.activationEvent || "Not set"}</code>
 									</p>
-									<p>
+									<p className="text-pretty">
 										Return: <code>{item.returnEvent || "Not set"}</code> within{" "}
 										{item.horizonDays} days
 									</p>
 									{item.namespace && (
-										<p>
+										<p className="text-pretty">
 											Namespace: <code>{item.namespace}</code>
 										</p>
 									)}
@@ -146,7 +148,7 @@ export function MeasurementPlanEditor({
 							);
 						})
 					) : (
-						<p className="text-muted-foreground text-xs">
+						<p className="text-pretty text-muted-foreground text-xs">
 							No definitions configured.
 						</p>
 					)
@@ -182,7 +184,7 @@ export function MeasurementPlanEditor({
 									</DropdownMenu.Content>
 								</DropdownMenu>
 							) : (
-								<p className="break-all text-muted-foreground text-xs">
+								<p className="text-pretty break-all text-muted-foreground text-xs">
 									{website.domain}
 								</p>
 							)}
@@ -200,7 +202,7 @@ export function MeasurementPlanEditor({
 							<div className="space-y-4" key={website.id}>
 								{domainMismatch && (
 									<div className="space-y-2" role="alert">
-										<p className="break-words text-destructive text-xs">
+										<p className="text-pretty break-words text-destructive text-xs">
 											This definition is bound to {plan.domain}. Update it to{" "}
 											{website.domain} before saving.
 										</p>
@@ -233,7 +235,7 @@ export function MeasurementPlanEditor({
 												suggestions={events}
 												value={plan[key]}
 											/>
-											<Field.Description>
+											<Field.Description className="text-pretty">
 												{catalog.isError
 													? "Catalog unavailable; enter an exact name."
 													: catalog.isPending
@@ -293,7 +295,7 @@ export function MeasurementPlanEditor({
 								</Accordion>
 							</div>
 						) : (
-							<p className="text-muted-foreground text-xs">
+							<p className="text-pretty text-muted-foreground text-xs">
 								{plans.length >= 20
 									? "Up to 20 website definitions are supported."
 									: "No definition for this website. Add one to choose the outcome and events."}
@@ -301,7 +303,7 @@ export function MeasurementPlanEditor({
 						)}
 					</>
 				) : (
-					<p className="text-muted-foreground text-xs">
+					<p className="text-pretty text-muted-foreground text-xs">
 						Add a website to define activation and return.
 					</p>
 				)}
