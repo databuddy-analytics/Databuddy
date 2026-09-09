@@ -53,6 +53,9 @@ export type LatestInsightObservation = Pick<
 
 export interface DueOpenInvestigation extends LatestInsightObservation {
 	evidence: string[];
+	// Synthetic shadow observations have no persisted identity.
+	id?: string;
+	insightId?: string | null;
 }
 
 export function nextRecheckAt(
@@ -158,6 +161,8 @@ export async function loadDueOpenInvestigation(params: {
 }): Promise<DueOpenInvestigation | null> {
 	const rows = await db
 		.selectDistinctOn([insightObservations.signalKey], {
+			id: insightObservations.id,
+			insightId: insightObservations.insightId,
 			evidence: insightObservations.evidence,
 			outcome: insightObservations.outcome,
 			recheckAt: insightObservations.recheckAt,

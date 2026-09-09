@@ -209,6 +209,52 @@ integration("measurement plan storage in synthetic PostgreSQL", () => {
 		expect(read.history).toEqual([original.profile]);
 	});
 
+	test.each([
+		"transferred",
+		"deleted",
+		"missing",
+		"changed domain",
+	] as const)("validates inherited plans after their website is %s", async (binding) => {
+		await save({ revision: 0, content: "Original", measurementPlans: plans });
+		const generationId = await ready();
+		if (binding === "transferred") {
+			await db.delete(websites).where(eq(websites.id, foreignId));
+			await db
+				.update(websites)
+				.set({ organizationId: other })
+				.where(eq(websites.id, secondaryId));
+		} else if (binding === "deleted") {
+			await db
+				.update(websites)
+				.set({ deletedAt: new Date() })
+				.where(eq(websites.id, secondaryId));
+		} else if (binding === "missing") {
+			await db.delete(websites).where(eq(websites.id, secondaryId));
+		} else {
+			await db
+				.update(websites)
+				.set({ domain: "changed.example.com" })
+				.where(eq(websites.id, secondaryId));
+		}
+		const before = await metadata();
+		const foreignBefore = await metadata(other);
+		for (const candidate of [
+			{ revision: 1, content: "Text-only edit", teamContext },
+			{ revision: 1, content: draft.content, generationId },
+		]) {
+			await expect(save(candidate)).rejects.toMatchObject({ code: "CONFLICT" });
+			expect(await metadata()).toBe(before);
+			expect(await metadata(other)).toBe(foreignBefore);
+		}
+		const repaired = await save({
+			revision: 1,
+			content: "Remove the stale definition",
+			measurementPlans: [plans[0]],
+		});
+		expect(repaired.profile.measurementPlans).toEqual([plans[0]]);
+		expect(repaired.profile.revision).toBe(2);
+	});
+
 	test("an explicit empty array clears plans and a later omission keeps them cleared", async () => {
 		const original = await save({
 			revision: 0,
