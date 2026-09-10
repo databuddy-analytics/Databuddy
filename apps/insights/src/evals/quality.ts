@@ -1902,7 +1902,7 @@ for (const available of [true, false]) {
 					const catalog = (
 						await Promise.all([
 							discover({ category: "Audience" }, options),
-							discover({ search: "revenue_overview" }, options),
+							discover({ category: "Revenue" }, options),
 						])
 					).flatMap((result) => catalogSchema.parse(result).types);
 					// Synthetic discovery contract only: relocate a real native type, never invent query execution.

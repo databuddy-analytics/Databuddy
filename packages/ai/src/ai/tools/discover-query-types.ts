@@ -25,26 +25,9 @@ function listAllTypes() {
 const ALL_TYPES = listAllTypes();
 const CATEGORIES = [...new Set(ALL_TYPES.map((t) => t.category))].sort();
 
-function describeMatches(types: typeof ALL_TYPES, hasSearch: boolean) {
-	const detail = hasSearch && types.length === 1 ? "full" : "summary";
-	return {
-		detail,
-		matchCount: types.length,
-		types:
-			detail === "full"
-				? types
-				: types.map(({ name, category, description, tags }) => ({
-						name,
-						category,
-						description,
-						tags,
-					})),
-	};
-}
-
 export const discoverQueryTypesTool = tool({
 	description:
-		"Discover analytics builders available to get_data. Exact builder names take precedence over substring matches. An exact name or unique keyword match returns detail=full: allowed filters/operators, required selectors, output fields and default order. Browsing or multiple matches returns detail=summary: names, categories, descriptions and tags; search an exact name for its full contract. A category-scoped keyword miss also returns outsideCategory matches without changing the scoped types or count. Null outputFields means undocumented; omit orderBy when ordering is undocumented. No I/O.",
+		"Discover the analytics query builders available to get_data. With no category or keyword, returns a compact catalog of names, descriptions and tags; look up a relevant name for its input contract. A category or keyword returns allowed filters/operators, required selectors, output fields and default order. Null outputFields means undocumented, not an empty result schema. Omit orderBy when ordering is undocumented. No I/O. A category-scoped keyword miss also returns outsideCategory matches without changing the scoped types or count.",
 	inputSchema: z.object({
 		category: z
 			.enum([CATEGORIES[0] ?? "Summary", ...CATEGORIES.slice(1)] as [
@@ -65,26 +48,37 @@ export const discoverQueryTypesTool = tool({
 	}),
 	execute: ({ category, search }) => {
 		const needle = search?.trim().toLowerCase();
-		const exact =
-			needle && ALL_TYPES.find((t) => t.name.toLowerCase() === needle);
-		const matches = exact
-			? [exact]
-			: ALL_TYPES.filter(
-					(t) =>
-						!needle ||
-						`${t.name} ${t.description} ${t.tags.join(" ")}`
-							.toLowerCase()
-							.includes(needle)
-				);
-		const scoped = category
+		const matches = ALL_TYPES.filter((t) => {
+			if (needle) {
+				const haystack =
+					`${t.name} ${t.description} ${t.tags.join(" ")}`.toLowerCase();
+				if (!haystack.includes(needle)) {
+					return false;
+				}
+			}
+			return true;
+		});
+		const filtered = category
 			? matches.filter((t) => t.category === category)
 			: matches;
 		const result = {
 			categories: CATEGORIES,
-			...describeMatches(scoped, Boolean(needle)),
+			matchCount: filtered.length,
+			types:
+				category || needle
+					? filtered
+					: filtered.map(({ name, category, description, tags }) => ({
+							name,
+							category,
+							description,
+							tags,
+						})),
 		};
-		if (category && needle && scoped.length === 0) {
-			return { ...result, outsideCategory: describeMatches(matches, true) };
+		if (category && needle && filtered.length === 0) {
+			return {
+				...result,
+				outsideCategory: { matchCount: matches.length, types: matches },
+			};
 		}
 		return result;
 	},
