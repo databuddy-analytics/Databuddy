@@ -199,7 +199,19 @@ export async function measureActivationRetention(
 		) {
 			throw new Error("Retention cohort rows are incomplete");
 		}
-		return retentionWindow(overall[0]);
+		return {
+			overall: retentionWindow(overall[0]),
+			daily: daily
+				.map((row) => ({
+					date: z.iso.date().parse(row.cohort_date),
+					eligible: row.eligible_profiles,
+					retained: row.retained_profiles,
+					incomplete: row.incomplete_profiles,
+					events: row.activation_events,
+					identifiedEvents: row.identified_activation_events,
+				}))
+				.sort((left, right) => left.date.localeCompare(right.date)),
+		};
 	}
 	const [previous, current] = await Promise.all([
 		window(period.previous),
@@ -207,8 +219,9 @@ export async function measureActivationRetention(
 	]);
 	return {
 		period,
-		previous,
-		current,
+		previous: previous.overall,
+		current: current.overall,
+		daily: { previous: previous.daily, current: current.daily },
 		observationEnd,
 		observedBefore: today.toISOString(),
 	};
@@ -292,6 +305,7 @@ export async function detectRetentionSignals(
 				observedBefore: measured.observedBefore,
 				previous,
 				current,
+				daily: measured.daily,
 			}),
 			investigationObjective:
 				"Explain the measured return-within-window change for this saved team definition. The supplied native comparison already contains both complete cohorts and identity coverage; use further reads only to answer a distinct unresolved question. Keep identified profiles separate from people, accounts, anonymous visitors, new customers, and subscription churn. Cause remains unknown without inspected evidence.",

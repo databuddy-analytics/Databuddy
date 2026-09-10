@@ -9,6 +9,7 @@ import {
 	investigationSignalSchema,
 	parseInvestigationOutcome,
 	parseInvestigationSignal,
+	retentionMeasurementSchema,
 } from "./insights";
 
 const signal = {
@@ -127,6 +128,193 @@ describe("investigationSignalSchema", () => {
 	});
 });
 
+describe("durable retention daily rows", () => {
+	function measurement() {
+		const window = (from: string, end: string) => ({
+			eligible: 100,
+			retained: 80,
+			incomplete: 0 as const,
+			events: 125,
+			identifiedEvents: 100,
+			cohortStart: `${from}T00:00:00.000Z`,
+			cohortEnd: `${end}T00:00:00.000Z`,
+		});
+		const days = (from: string) => [
+			{
+				date: from,
+				eligible: 0,
+				retained: 0,
+				incomplete: 0 as const,
+				events: 0,
+				identifiedEvents: 0,
+			},
+			{
+				date: new Date(Date.parse(from) + 86_400_000)
+					.toISOString()
+					.slice(0, 10),
+				eligible: 40,
+				retained: 32,
+				incomplete: 0 as const,
+				events: 50,
+				identifiedEvents: 40,
+			},
+			{
+				date: new Date(Date.parse(from) + 2 * 86_400_000)
+					.toISOString()
+					.slice(0, 10),
+				eligible: 60,
+				retained: 48,
+				incomplete: 0 as const,
+				events: 75,
+				identifiedEvents: 60,
+			},
+		];
+		return {
+			definition: {
+				websiteId: "site-1",
+				domain: "example.com",
+				activationEvent: "report_shared",
+				returnEvent: "report_opened",
+				horizonDays: 7 as const,
+			},
+			timezone: "UTC",
+			observationEnd: "2026-07-15",
+			observedBefore: "2026-07-16T00:00:00.000Z",
+			previous: window("2026-06-24", "2026-07-01"),
+			current: window("2026-07-01", "2026-07-08"),
+			daily: { previous: days("2026-06-24"), current: days("2026-07-01") },
+		};
+	}
+
+	it("round-trips zero and sub-50 daily counts without changing aggregate windows", () => {
+		const retained = measurement();
+		const stored = JSON.parse(
+			JSON.stringify({ ...signal, retentionMeasurement: retained })
+		);
+		expect(parseInvestigationSignal(stored)?.retentionMeasurement).toEqual(
+			retained
+		);
+		const { daily: _daily, ...legacy } = retained;
+		expect(retentionMeasurementSchema.parse(legacy)).toEqual(legacy);
+		expect(
+			parseInvestigationSignal({ ...signal, retentionMeasurement: legacy })
+				?.retentionMeasurement
+		).toEqual(legacy);
+	});
+
+	it.each([
+		"eligible",
+		"retained",
+		"events",
+		"identifiedEvents",
+	] as const)("rejects a stored %s sum that differs from the overall count", (field) => {
+		const retained = measurement();
+		retained.daily.current[1][field] -= 1;
+		expect(
+			parseInvestigationSignal({ ...signal, retentionMeasurement: retained })
+		).toBeNull();
+	});
+
+	it.each([
+		"duplicate",
+		"unsorted",
+		"before-window",
+		"end-boundary",
+		"eighth-day",
+		"missing-period",
+		"empty-period",
+		"incomplete",
+		"fractional",
+		"unsafe-count",
+		"negative",
+		"retained-over-eligible",
+		"events-below-identified",
+		"invalid-date",
+		"long-window",
+		"invalid-timezone",
+		"invalid-window-timestamp",
+	] as const)("rejects invalid stored daily data: %s", (mode) => {
+		const retained = measurement();
+		const days = retained.daily.current;
+		switch (mode) {
+			case "duplicate":
+				days[1].date = days[0].date;
+				break;
+			case "unsorted":
+				days.reverse();
+				break;
+			case "before-window":
+				days[0].date = "2026-06-30";
+				break;
+			case "end-boundary":
+				days[2].date = "2026-07-08";
+				break;
+			case "eighth-day":
+				days.push(...Array.from({ length: 5 }, () => ({ ...days[0] })));
+				break;
+			case "missing-period":
+				Reflect.deleteProperty(retained.daily, "previous");
+				break;
+			case "empty-period":
+				retained.daily.previous = [];
+				break;
+			case "incomplete":
+				Object.assign(days[0], { incomplete: 1 });
+				break;
+			case "fractional":
+				days[1].retained = 31.5;
+				break;
+			case "unsafe-count":
+				days[1].events = Number.MAX_SAFE_INTEGER + 1;
+				break;
+			case "negative":
+				days[0].retained = -1;
+				break;
+			case "retained-over-eligible":
+				days[0].retained = 1;
+				break;
+			case "events-below-identified":
+				days[1].events = 39;
+				break;
+			case "invalid-date":
+				days[0].date = "2026-07-00";
+				break;
+			case "long-window":
+				retained.current.cohortEnd = "2026-07-09T00:00:00.000Z";
+				break;
+			case "invalid-timezone":
+				retained.timezone = "Invalid/Timezone";
+				break;
+			case "invalid-window-timestamp":
+				retained.current.cohortStart = "not-a-timestamp";
+				break;
+		}
+		expect(
+			parseInvestigationSignal({ ...signal, retentionMeasurement: retained })
+		).toBeNull();
+	});
+
+	it("uses calendar dates in the saved timezone across a DST change", () => {
+		const retained = measurement();
+		retained.timezone = "Europe/Berlin";
+		retained.previous.cohortStart = "2026-03-16T00:00:00+01:00";
+		retained.previous.cohortEnd = "2026-03-23T00:00:00+01:00";
+		retained.current.cohortStart = "2026-03-23T00:00:00+01:00";
+		retained.current.cohortEnd = "2026-03-30T00:00:00+02:00";
+		for (const [period, dates] of [
+			["previous", ["2026-03-16", "2026-03-17", "2026-03-22"]],
+			["current", ["2026-03-23", "2026-03-24", "2026-03-29"]],
+		] as const) {
+			for (const [index, row] of retained.daily[period].entries()) {
+				row.date = dates[index];
+			}
+		}
+		expect(retentionMeasurementSchema.parse(retained)).toEqual(retained);
+		retained.daily.current[2].date = "2026-03-30";
+		expect(retentionMeasurementSchema.safeParse(retained).success).toBe(false);
+	});
+});
+
 const outcomeBase = {
 	title: "Checkout recovered after the handler rollback",
 	summary:
@@ -174,7 +362,9 @@ describe("insightDefinitionOperationSchema", () => {
 		).toBe(
 			'For Reached workspace, set target to "/workspace"; set type to PAGE_VIEW; set filters to none.'
 		);
-		if (operation.operation !== "edit") throw new Error("Expected an edit");
+		if (operation.operation !== "edit") {
+			throw new Error("Expected an edit");
+		}
 		expect(insightDefinitionEditError("goal", operation.changes)).toBeNull();
 		expect(insightDefinitionEditError("funnel", operation.changes)).toContain(
 			"replace steps"
@@ -267,7 +457,11 @@ describe("insightBriefItemSchema", () => {
 });
 
 describe("investigationOutcomeSchema", () => {
-	it.each(["team", "website", "mixed"])("round trips %s context without letting the model author provenance", (origin) => {
+	it.each([
+		"team",
+		"website",
+		"mixed",
+	])("round trips %s context without letting the model author provenance", (origin) => {
 		const snapshot = {
 			capturedAt: "2026-09-08T12:00:00Z",
 			status: "partial",
