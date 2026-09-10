@@ -413,7 +413,7 @@ describe("native retention daily depth", () => {
 		"complete",
 		"overall-only",
 		"partial",
-	] as const)("keeps a daily conflict sticky after a %s matching read, without vetoing the aggregate", async (later) => {
+	] as const)("keeps a daily conflict sticky after a %s matching read, regardless of claim encoding", async (later) => {
 		const { prepared, reading } = await prepareFixture();
 		// Move one return across the partition, preserving every weekly total and
 		// each row's eligible = retained + not-retained accounting.
@@ -452,11 +452,19 @@ describe("native retention daily depth", () => {
 			"conflicts with the snapshot or the cited cohort uses a different scope"
 		);
 		expect(blocked.model.doGenerateCalls).toHaveLength(5);
-		const aggregateOnly = startAgent(prepared, [], [changed, matching]);
-		await expectSuccessfulReads(aggregateOnly, 2);
-		const result = await aggregateOnly.result;
-		expectBrief(result.outcome, [aggregate]);
-		expect(aggregateOnly.model.doGenerateCalls).toHaveLength(3);
-		expect(result.toolCallCount).toBe(2);
+		for (const evidence of [
+			[],
+			[
+				{
+					claim: "Late-week activators account for the decline.",
+					sources: [{ source: "signal" }],
+				},
+			],
+		]) {
+			const prose = startAgent(prepared, evidence, [changed, matching]);
+			await expectSuccessfulReads(prose, 2);
+			await expect(prose.result).rejects.toThrow("conflicts with the snapshot");
+			expect(prose.model.doGenerateCalls).toHaveLength(5);
+		}
 	});
 });

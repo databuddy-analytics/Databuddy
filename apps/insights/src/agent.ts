@@ -5,7 +5,6 @@ import {
 } from "@databuddy/ai/lib/business-context";
 import { isDeepStrictEqual } from "node:util";
 import dayjs from "dayjs";
-import { shiftDate } from "@databuddy/ai/query/date-utils";
 import { z } from "zod";
 import {
 	AI_MODEL_MAX_RETRIES,
@@ -505,11 +504,7 @@ const retentionEvidenceSource = z.union([
 	z.object({ retentionMeasurement: retentionMeasurementSchema }),
 ]);
 
-function retentionReadStatus(
-	value: unknown,
-	signal: InvestigationSignal,
-	detail = false
-) {
+function retentionReadStatus(value: unknown, signal: InvestigationSignal) {
 	const measured = signal.retentionMeasurement;
 	if (!(measured && retentionReadingType.safeParse(value).success)) {
 		return null;
@@ -555,7 +550,7 @@ function retentionReadStatus(
 	const expected = period ? measured[period] : null;
 	const daily = period ? measured.daily?.[period] : undefined;
 	const dailyConsistent =
-		!detail ||
+		!measured.daily ||
 		row.data
 			.filter((item) => item.row_type === "cohort")
 			.every((item) => {
@@ -2161,10 +2156,6 @@ export async function runInsightAgent(
 						results
 					);
 					const nativeRevenue: ReturnType<typeof renderRevenueEvidence>[] = [];
-					const usesRetentionDetail = candidate.evidence.some(
-						(item) =>
-							typeof item.claim !== "string" && "retentionDetail" in item.claim
-					);
 					const evidence = candidate.evidence.map((item, index) => {
 						if (typeof item.claim !== "string") {
 							if ("retentionDetail" in item.claim) {
@@ -2285,19 +2276,11 @@ export async function runInsightAgent(
 						nativeRetention &&
 						proposed.publish &&
 						(successfulResults.flatMap(successfulReadOutputs).some((read) => {
-							const status = retentionReadStatus(
-								read,
-								input.signal,
-								usesRetentionDetail
-							);
+							const status = retentionReadStatus(read, input.signal);
 							return status?.sameQuery && !status.consistent;
 						}) ||
 							citedEvidence.flat().some((read) => {
-								const status = retentionReadStatus(
-									read,
-									input.signal,
-									usesRetentionDetail
-								);
+								const status = retentionReadStatus(read, input.signal);
 								return status && !status.consistent;
 							}))
 					) {
