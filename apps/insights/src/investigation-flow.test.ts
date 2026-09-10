@@ -4387,7 +4387,7 @@ describe("identified-profile cohort publication", () => {
 		}
 		const result = await run;
 		expect(result.outcome.evidence[0]).toBe(
-			"Initial snapshot through 2026-07-11 UTC: eligible identified profiles returning within 7 days: 140/200 (70%) → 60/200 (30%); cohorts 2026-06-20–2026-06-26 → 2026-06-27–2026-07-03, fully observed. Activation events with identity: 200/2000 (10%) → 200/2000 (10%); anonymous events excluded."
+			"7-day return among identified profiles: 140/200 (70%) → 60/200 (30%). Cohorts 2026-06-20–2026-06-26 → 2026-06-27–2026-07-03; fully observed through 2026-07-11 UTC. Activation events with identity: 200/2000 (10%) → 200/2000 (10%); anonymous excluded."
 		);
 		expect(result.outcome.evidence).toHaveLength(additional ? 2 : 1);
 		expect(model.doGenerateCalls).toHaveLength(reads ? 2 : 1);

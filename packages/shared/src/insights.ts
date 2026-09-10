@@ -136,14 +136,99 @@ const retentionWindowSchema = z
 		"Retention requires a consistent, complete identified-profile population"
 	);
 
-export const retentionMeasurementSchema = z.strictObject({
-	definition: businessMeasurementPlanSchema.omit({ name: true }),
-	timezone: z.string().min(1).max(100),
-	observationEnd: z.iso.date(),
-	observedBefore: z.iso.datetime({ offset: true }),
-	previous: retentionWindowSchema,
-	current: retentionWindowSchema,
-});
+const retentionDayCount = z.number().int().nonnegative().safe();
+const retentionDaySchema = z
+	.strictObject({
+		date: z.iso.date(),
+		eligible: retentionDayCount,
+		retained: retentionDayCount,
+		incomplete: z.literal(0),
+		events: retentionDayCount,
+		identifiedEvents: retentionDayCount,
+	})
+	.refine(
+		(row) =>
+			row.retained <= row.eligible &&
+			row.eligible <= row.identifiedEvents &&
+			row.identifiedEvents <= row.events,
+		"Retention daily counts require a consistent identified-profile population"
+	);
+export type RetentionDay = z.infer<typeof retentionDaySchema>;
+
+export const retentionMeasurementSchema = z
+	.strictObject({
+		definition: businessMeasurementPlanSchema.omit({ name: true }),
+		timezone: z.string().min(1).max(100),
+		observationEnd: z.iso.date(),
+		observedBefore: z.iso.datetime({ offset: true }),
+		previous: retentionWindowSchema,
+		current: retentionWindowSchema,
+		daily: z
+			.strictObject({
+				previous: z.array(retentionDaySchema).max(7),
+				current: z.array(retentionDaySchema).max(7),
+			})
+			.optional(),
+	})
+	.superRefine((measurement, context) => {
+		if (!measurement.daily) {
+			return;
+		}
+		let calendar: Intl.DateTimeFormat;
+		try {
+			calendar = new Intl.DateTimeFormat("en-CA", {
+				timeZone: measurement.timezone,
+				year: "numeric",
+				month: "2-digit",
+				day: "2-digit",
+			});
+		} catch {
+			context.addIssue({
+				code: "custom",
+				message: "Retention daily dates require a valid timezone",
+				path: ["timezone"],
+			});
+			return;
+		}
+		for (const period of ["previous", "current"] as const) {
+			const overall = measurement[period];
+			// Invalid aggregate timestamps already have schema issues.
+			if (!(Date.parse(overall.cohortStart) < Date.parse(overall.cohortEnd))) {
+				continue;
+			}
+			const rows = measurement.daily[period];
+			const from = calendar.format(new Date(overall.cohortStart));
+			const end = calendar.format(new Date(overall.cohortEnd));
+			if (
+				Date.parse(end) - Date.parse(from) !== 7 * 86_400_000 ||
+				rows.some(
+					(row, index) =>
+						row.date < from ||
+						row.date >= end ||
+						(index > 0 && row.date <= rows[index - 1].date)
+				) ||
+				(
+					[
+						"eligible",
+						"retained",
+						"incomplete",
+						"events",
+						"identifiedEvents",
+					] as const
+				).some(
+					(field) =>
+						rows.reduce((sum, row) => sum + row[field], 0) !== overall[field]
+				)
+			) {
+				context.addIssue({
+					code: "custom",
+					message:
+						"Retention daily rows must be sorted, unique, inside their seven-day window and sum to its counts",
+					path: ["daily", period],
+				});
+			}
+		}
+	});
 export type RetentionMeasurement = z.infer<typeof retentionMeasurementSchema>;
 
 const investigationSignalShape = {

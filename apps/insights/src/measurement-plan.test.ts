@@ -69,6 +69,207 @@ function fixture(
 }
 
 describe("saved activation and return measurement", () => {
+	it.each([
+		{
+			name: "localized",
+			eligible: 40,
+			events: 50,
+			before: [32, 32, 32, 32, 32, 32, 32],
+			after: [32, 32, 32, 32, 8, 8, 8],
+		},
+		{
+			name: "sparse",
+			eligible: 10,
+			events: 20,
+			before: [8, 8, 8, 8, 8, 8, 8],
+			after: [8, 8, 8, 8, 2, 2, 2],
+		},
+		{
+			name: "uniform",
+			eligible: 40,
+			events: 50,
+			before: [32, 32, 32, 32, 32, 32, 32],
+			after: [16, 16, 16, 16, 16, 16, 16],
+		},
+	])("retains sorted daily counts from the existing two queries: $name", async ({
+		eligible,
+		events,
+		before,
+		after,
+	}) => {
+		let calls = 0;
+		const query: typeof executeQuery = async (...args) => {
+			calls++;
+			const [base] = await fixture()(...args);
+			const request = args[0];
+			const retained = request.from === "2026-08-18" ? before : after;
+			const daily = retained.map((count, index) => ({
+				...base,
+				row_type: "cohort",
+				cohort_date: dayjs(request.from).add(index, "day").format("YYYY-MM-DD"),
+				activated_profiles: eligible,
+				eligible_profiles: eligible,
+				retained_profiles: count,
+				not_retained_profiles: eligible - count,
+				activation_events: events,
+				identified_activation_events: eligible,
+				unidentified_activation_events: events - eligible,
+			}));
+			return [
+				{
+					...base,
+					activated_profiles: eligible * 7,
+					eligible_profiles: eligible * 7,
+					retained_profiles: retained.reduce((sum, count) => sum + count, 0),
+					not_retained_profiles: retained.reduce(
+						(sum, count) => sum + eligible - count,
+						0
+					),
+					activation_events: events * 7,
+					identified_activation_events: eligible * 7,
+					unidentified_activation_events: (events - eligible) * 7,
+				},
+				...daily.reverse(),
+			];
+		};
+		const [detected] = await detectRetentionSignals(params, asOf, undefined, {
+			readPlan: async () => plan,
+			query,
+		});
+		expect(calls).toBe(2);
+		const prepared = prepareInvestigation(detected, 7);
+		const stored = parseInvestigationSignal(
+			JSON.parse(JSON.stringify(prepared.signal))
+		);
+		expect(stored?.retentionMeasurement).toEqual(detected.retentionMeasurement);
+		for (const [period, retained] of [
+			["previous", before],
+			["current", after],
+		] as const) {
+			expect(stored?.retentionMeasurement?.daily?.[period]).toEqual(
+				retained.map((count, index) => ({
+					date: dayjs(prepared.signal.period[period].from)
+						.add(index, "day")
+						.format("YYYY-MM-DD"),
+					eligible,
+					retained: count,
+					incomplete: 0,
+					events,
+					identifiedEvents: eligible,
+				}))
+			);
+			expect(stored?.retentionMeasurement?.[period]).toEqual({
+				eligible: eligible * 7,
+				retained: retained.reduce((sum, count) => sum + count, 0),
+				incomplete: 0,
+				events: events * 7,
+				identifiedEvents: eligible * 7,
+				cohortStart: `${prepared.signal.period[period].from}T00:00:00.000Z`,
+				cohortEnd: dayjs(prepared.signal.period[period].to)
+					.add(1, "day")
+					.toISOString(),
+			});
+		}
+	});
+
+	it("preserves sparse reported dates and anonymous-only days without filling absent dates", async () => {
+		const query: typeof executeQuery = async (...args) => {
+			const rows = await fixture()(...args);
+			rows[0].activation_events += 20;
+			rows[0].unidentified_activation_events += 20;
+			return [
+				...rows,
+				{
+					...rows[1],
+					cohort_date: args[0].to,
+					activated_profiles: 0,
+					eligible_profiles: 0,
+					retained_profiles: 0,
+					not_retained_profiles: 0,
+					activation_events: 20,
+					identified_activation_events: 0,
+					unidentified_activation_events: 20,
+				},
+			];
+		};
+		const measured = await measureActivationRetention(plan, "UTC", asOf, query);
+		expect(measured.previous).toEqual({
+			eligible: 200,
+			retained: 160,
+			incomplete: 0,
+			events: 220,
+			identifiedEvents: 200,
+			cohortStart: "2026-08-18T00:00:00.000Z",
+			cohortEnd: "2026-08-25T00:00:00.000Z",
+		});
+		expect(measured.daily.current.map((row) => row.date)).toEqual([
+			"2026-08-25",
+			"2026-08-31",
+		]);
+		expect(measured.daily.current[1]).toEqual({
+			date: "2026-08-31",
+			eligible: 0,
+			retained: 0,
+			incomplete: 0,
+			events: 20,
+			identifiedEvents: 0,
+		});
+	});
+
+	it.each([
+		"duplicate-date",
+		"outside-window",
+		"inconsistent-sum",
+	])("rejects invalid native daily evidence before retaining it: %s", async (mode) => {
+		const query: typeof executeQuery = async (...args) => {
+			const rows = await fixture()(...args);
+			if (mode === "duplicate-date") {
+				rows.push({ ...rows[1] });
+			} else if (mode === "outside-window") {
+				rows[1].cohort_date = "2026-08-17";
+			} else {
+				rows[1].retained_profiles -= 1;
+				rows[1].not_retained_profiles += 1;
+			}
+			return rows;
+		};
+		await expect(
+			measureActivationRetention(plan, "UTC", asOf, query)
+		).rejects.toThrow();
+	});
+
+	it("retains local activation dates across a DST transition", async () => {
+		const timezone = "Europe/Berlin";
+		const clock = dayjs("2026-04-07T12:00:00Z");
+		const query: typeof executeQuery = async (...args) => {
+			const rows = await fixture()(...args);
+			const request = args[0];
+			return rows.map((row) => ({
+				...row,
+				timezone,
+				observation_end: "2026-04-06",
+				observed_before: "2026-04-06T22:00:00.000Z",
+				cohort_start: dayjs.tz(request.from, timezone).toISOString(),
+				cohort_end: dayjs
+					.tz(dayjs(request.to).add(1, "day").format("YYYY-MM-DD"), timezone)
+					.toISOString(),
+			}));
+		};
+		const measured = await measureActivationRetention(
+			plan,
+			timezone,
+			clock,
+			query
+		);
+		expect(measured.daily.current[0].date).toBe("2026-03-23");
+		expect(measured.current.cohortStart).toBe("2026-03-22T23:00:00.000Z");
+		expect(measured.current.cohortEnd).toBe("2026-03-29T22:00:00.000Z");
+		expect(
+			Date.parse(measured.current.cohortEnd) -
+				Date.parse(measured.current.cohortStart)
+		).toBe(167 * 3_600_000);
+	});
+
 	it("measures two independent complete cohorts in parallel native queries and preserves exact evidence", async () => {
 		let calls = 0;
 		const query: typeof executeQuery = async (...args) => {
