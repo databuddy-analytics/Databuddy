@@ -9,6 +9,7 @@
     "./agent/errors": "./src/agent/errors.ts",
     "./agent/feedback": "./src/agent/feedback.ts",
     "./agents/analytics": "./src/ai/agents/analytics.ts",
+    "./agents/conversation": "./src/ai/agents/conversation.ts",
     "./agents/cache": "./src/ai/agents/cache.ts",
     "./agents/execution": "./src/ai/agents/execution.ts",
     "./agents/router": "./src/ai/agents/router.ts",

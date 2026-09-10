@@ -7,7 +7,7 @@ import {
 import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
 import { auth } from "@databuddy/auth";
 import type { LanguageModelUsage, StepResult, ToolSet } from "ai";
-import { ToolLoopAgent } from "ai";
+import { createConversationAgent } from "../agents/conversation";
 import { DatabuddyAgentUserError } from "../../agent/errors";
 import { getAILogger } from "../../lib/ai-logger";
 import { getAccessibleWebsites } from "../../lib/accessible-websites";
@@ -324,11 +324,6 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 				source,
 				websiteDomain: options.websiteDomain,
 				websiteId: options.websiteId,
-				activeTools: selectActiveToolsForQuestion({
-					hasPriorMessages: Boolean(options.priorMessages?.length),
-					question: options.question,
-					source,
-				}),
 			})
 		),
 		isMemoryEnabled()
@@ -345,7 +340,6 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 	]);
 
 	const memoryBlock = memoryCtx ? formatMemoryForPrompt(memoryCtx) : "";
-	const instructions = config.system;
 
 	const mcpTelemetryMetadata: Record<string, string> = {
 		source,
@@ -363,27 +357,23 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 
 	const ai = getAILogger();
 	const capturedSteps: StepResult<ToolSet>[] = [];
-	const agent = new ToolLoopAgent({
-		model: ai.wrap(config.model),
-		instructions,
-		tools: config.tools,
-		activeTools: config.activeTools,
-		stopWhen: config.stopWhen,
-		temperature: config.temperature,
-		experimental_context: config.experimental_context,
-		onStepFinish: (step) => {
-			capturedSteps.push(step);
-			const toolNames = step.toolCalls.map((call) => call.toolName);
-			if (toolNames.length > 0) {
-				options.onToolEvent?.(toolNames);
-			}
-		},
-		experimental_telemetry: {
-			isEnabled: true,
-			functionId: `databuddy.${source}.ask`,
-			metadata: mcpTelemetryMetadata,
-		},
-	});
+	const agent = createConversationAgent(
+		{ ...config, model: ai.wrap(config.model) },
+		{
+			onStepFinish: (step) => {
+				capturedSteps.push(step);
+				const toolNames = step.toolCalls.map((call) => call.toolName);
+				if (toolNames.length > 0) {
+					options.onToolEvent?.(toolNames);
+				}
+			},
+			experimental_telemetry: {
+				isEnabled: true,
+				functionId: `databuddy.${source}.ask`,
+				metadata: mcpTelemetryMetadata,
+			},
+		}
+	);
 
 	const contextBlock = [businessContext, memoryBlock]
 		.filter(Boolean)
@@ -430,183 +420,6 @@ async function trackPreparedUsage(
 		chatId: prepared.sessionId,
 		billingCustomerId: prepared.billingCustomerId,
 	});
-}
-
-const NO_TOOL_CHAT_PATTERN =
-	/\b(hi|hello|hey|thanks|thank you|lol|nice|cool|ok|okay|nah that's wrong|that's wrong|nope|shut up)\b|^\s*(damn|lol|nice|thanks)[.!?\s]*$/i;
-const THREAD_REFERENCE_PATTERN =
-	/\b(above|that|this thread|which one|what first|where do we .*first|poke first|prioriti[sz]e|what'?s the call|do you agree|who said|who asked|recap|from earlier|from above)\b/i;
-const ANALYTICS_REQUEST_PATTERN =
-	/\b(analytics?|metrics?|insights?|findings?|traffic|visitors?|sessions?|page\s*views?|pageviews?|top pages?|pages?|referrers?|sources?|campaigns?|conversions?|events?|errors?|vitals?|performance|uptime|revenue|transactions?|llm|latency|bounce|countries|country|regions?|cities|devices?|browsers?|operating systems?|utm|fresh|current|latest|live|rerun|last \d+|last week|last month|today|yesterday)\b/i;
-const NON_ANALYTICS_TOOL_PATTERN =
-	/\b(remember|memory|forget|profile|profiles|flag|flags|feature flag|feature flags|funnel|funnels|goal|goals|annotation|annotations|link|links|short link|short links|investigation|investigations|automatic analysis|subscribe|unsubscribe|create|update|delete|archive|enable|disable|rollout|target|folder|folders|navigate|open|go to|take me|feedback|bug|bugs|broken)\b/i;
-const INVESTIGATION_REQUEST_PATTERN =
-	/\b(why|what caused|root cause|because|reason|investigate|investigation|diagnose|debug|deploy|deployed|deployment|commit|commits|merged|pull request|pr|branch|release|rollback|regression|search console|google search|keyword|seo|impressions|ranking|scrape|crawl)\b/i;
-const COPY_ONLY_PATTERN = /\b(exact copy|copy only)\b/i;
-const FEEDBACK_REQUEST_PATTERN =
-	/\b(feedback|feature request|report (this|that|it|a bug)|file a bug|send (this|that|it) to|tell the (databuddy )?team|complain)\b/i;
-const SLACK_FOLLOW_UP_OPEN_TAG = "<slack_follow_up";
-const SLACK_FOLLOW_UP_CLOSE_TAG = "</slack_follow_up>";
-const SLACK_LATEST_MESSAGE_OPEN_TAG = "<slack_latest_message>";
-const SLACK_LATEST_MESSAGE_CLOSE_TAG = "</slack_latest_message>";
-const SLACK_TEXT_MARKER = "\ntext:\n";
-const SLACK_TEXT_PREFIX = "text:\n";
-const ANALYTICS_ACTIVE_TOOLS = [
-	"list_websites",
-	"investigations",
-	"get_data",
-	"execute_sql_query",
-	"list_profiles",
-	"get_profile",
-	"get_profile_sessions",
-	"list_profile_traits",
-	"submit_feedback",
-];
-
-function latestSlackText(input: string): string {
-	const lastFollowUp = getLastTaggedBlock(
-		input,
-		SLACK_FOLLOW_UP_OPEN_TAG,
-		SLACK_FOLLOW_UP_CLOSE_TAG
-	);
-	if (lastFollowUp !== undefined) {
-		return getSlackBlockText(lastFollowUp) ?? lastFollowUp;
-	}
-
-	const latestMessage = getFirstTaggedBlock(
-		input,
-		SLACK_LATEST_MESSAGE_OPEN_TAG,
-		SLACK_LATEST_MESSAGE_CLOSE_TAG
-	);
-	return latestMessage === undefined
-		? input
-		: (getSlackBlockText(latestMessage) ?? latestMessage);
-}
-
-function getFirstTaggedBlock(
-	input: string,
-	openTagPrefix: string,
-	closeTag: string
-): string | undefined {
-	const openStart = input.indexOf(openTagPrefix);
-	return openStart === -1
-		? undefined
-		: getTaggedBlockAfterOpen(input, openStart, openTagPrefix, closeTag)?.block;
-}
-
-function getLastTaggedBlock(
-	input: string,
-	openTagPrefix: string,
-	closeTag: string
-): string | undefined {
-	let searchFrom = 0;
-	let lastBlock: string | undefined;
-	while (searchFrom < input.length) {
-		const openStart = input.indexOf(openTagPrefix, searchFrom);
-		if (openStart === -1) {
-			return lastBlock;
-		}
-
-		const parsed = getTaggedBlockAfterOpen(
-			input,
-			openStart,
-			openTagPrefix,
-			closeTag
-		);
-		if (!parsed) {
-			return lastBlock;
-		}
-
-		lastBlock = parsed.block;
-		searchFrom = parsed.nextIndex;
-	}
-	return lastBlock;
-}
-
-function getTaggedBlockAfterOpen(
-	input: string,
-	openStart: number,
-	openTagPrefix: string,
-	closeTag: string
-): { block: string; nextIndex: number } | undefined {
-	const openEnd = input.indexOf(">", openStart + openTagPrefix.length);
-	if (openEnd === -1) {
-		return;
-	}
-
-	const bodyStart = openEnd + 1;
-	const closeStart = input.indexOf(closeTag, bodyStart);
-	if (closeStart === -1) {
-		return;
-	}
-
-	return {
-		block: input.slice(bodyStart, closeStart),
-		nextIndex: closeStart + closeTag.length,
-	};
-}
-
-function getSlackBlockText(block: string): string | undefined {
-	const textIndex = block.indexOf(SLACK_TEXT_MARKER);
-	if (textIndex !== -1) {
-		return block.slice(textIndex + SLACK_TEXT_MARKER.length);
-	}
-	return block.startsWith(SLACK_TEXT_PREFIX)
-		? block.slice(SLACK_TEXT_PREFIX.length)
-		: undefined;
-}
-
-export function selectActiveToolsForQuestion(options: {
-	hasPriorMessages?: boolean;
-	question: string;
-	source: "dashboard" | "mcp" | "slack";
-}): string[] | undefined {
-	if (options.source === "slack" && options.hasPriorMessages) {
-		return;
-	}
-	const text = (
-		options.source === "slack"
-			? latestSlackText(options.question)
-			: options.question
-	).toLowerCase();
-	const hasAnalyticsRequest = ANALYTICS_REQUEST_PATTERN.test(text);
-	const hasNonAnalyticsToolRequest = NON_ANALYTICS_TOOL_PATTERN.test(text);
-	const hasInvestigationRequest = INVESTIGATION_REQUEST_PATTERN.test(text);
-	if (hasInvestigationRequest) {
-		return;
-	}
-	if (FEEDBACK_REQUEST_PATTERN.test(text)) {
-		return;
-	}
-	if (options.source === "slack") {
-		if (hasAnalyticsRequest && !hasNonAnalyticsToolRequest) {
-			return THREAD_REFERENCE_PATTERN.test(text)
-				? ["slack_read_current_thread", ...ANALYTICS_ACTIVE_TOOLS]
-				: ANALYTICS_ACTIVE_TOOLS;
-		}
-		if (COPY_ONLY_PATTERN.test(text) && !THREAD_REFERENCE_PATTERN.test(text)) {
-			return [];
-		}
-		if (THREAD_REFERENCE_PATTERN.test(text)) {
-			return ["slack_read_current_thread"];
-		}
-		if (NO_TOOL_CHAT_PATTERN.test(text)) {
-			return [];
-		}
-	}
-
-	if (
-		NO_TOOL_CHAT_PATTERN.test(text) &&
-		!hasAnalyticsRequest &&
-		!hasNonAnalyticsToolRequest
-	) {
-		return [];
-	}
-	if (hasAnalyticsRequest && !hasNonAnalyticsToolRequest) {
-		return ANALYTICS_ACTIVE_TOOLS;
-	}
-
-	return;
 }
 
 function collectToolTrace(

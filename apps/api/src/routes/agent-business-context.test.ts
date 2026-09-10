@@ -11,6 +11,8 @@ const state = vi.hoisted(() => ({
 	errors: vi.fn(),
 	sessionOrg: "org-synthetic",
 	chatOrg: "org-synthetic",
+	checkCredits: vi.fn(),
+	billUsage: vi.fn(),
 }));
 const site = {
 	id: "site-synthetic",
@@ -84,6 +86,7 @@ vi.mock("@databuddy/ai/agents/analytics", async () => {
 		"ai/test"
 	);
 	const model = new MockLanguageModelV3({
+		modelId: "synthetic/actual-model",
 		doStream: async (input) => {
 			state.prompts.push(input);
 			return {
@@ -121,9 +124,9 @@ vi.mock("@databuddy/ai/agents/analytics", async () => {
 	};
 });
 vi.mock("@databuddy/ai/agents/execution", () => ({
-	ensureAgentCreditsAvailable: async () => true,
-	resolveAgentBillingCustomerId: async () => null,
-	trackAgentUsageAndBill: async () => {},
+	ensureAgentCreditsAvailable: state.checkCredits,
+	resolveAgentBillingCustomerId: async () => "billing-synthetic",
+	trackAgentUsageAndBill: state.billUsage,
 }));
 vi.mock("@databuddy/ai/agents/router", () => ({
 	tierToModelKey: () => "balanced",
@@ -196,6 +199,10 @@ async function chat(input: Record<string, unknown> = {}) {
 }
 
 beforeEach(() => {
+	state.checkCredits.mockReset();
+	state.checkCredits.mockResolvedValue(true);
+	state.billUsage.mockReset();
+	state.billUsage.mockResolvedValue(undefined);
 	state.profile = profile;
 	state.prompts.length = 0;
 	state.contexts.length = 0;
@@ -284,5 +291,26 @@ describe("dashboard canonical business context through the native HTTP/model str
 			"unavailable for this turn"
 		);
 		expect(state.read).toHaveBeenCalledTimes(1);
+	});
+});
+
+
+describe("dashboard conversational execution policy at HTTP boundary", () => {
+	it("does not start the model when a credit check fails", async () => {
+		state.checkCredits.mockRejectedValueOnce(new Error("Synthetic billing outage"));
+		const response = await chat();
+		expect(response.status).toBe(500);
+		expect(state.prompts).toHaveLength(0);
+		expect(state.billUsage).not.toHaveBeenCalled();
+	});
+	it("preserves the exhausted-credit response without invoking the model", async () => {
+		state.checkCredits.mockResolvedValueOnce(false);
+		const response = await chat();
+		expect(response.status).toBe(402);
+		expect(state.prompts).toHaveLength(0);
+	});
+	it("attributes usage to the model actually executed", async () => {
+		expect((await chat()).status).toBe(200);
+		expect(state.billUsage).toHaveBeenCalledWith(expect.objectContaining({ modelId: "synthetic/actual-model" }));
 	});
 });

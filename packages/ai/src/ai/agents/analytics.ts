@@ -1,41 +1,22 @@
 import type { AppContext } from "../config/context";
 import {
 	type AgentModelKey,
-	ANTHROPIC_CACHE_1H,
 	createModelFromId,
-	models,
+	modelNames,
 } from "../config/models";
-import { TIER_CONFIG } from "../config/tiers";
+import { conversationModelOptions } from "../config/conversation-model";
 import { buildAnalyticsInstructions } from "../prompts/analytics";
 import { createToolkit } from "../tools/toolkit";
 import { stopAtMaxSteps } from "./stop-conditions";
-import type { AgentConfig, AgentContext, AgentThinking } from "./types";
-
-function thinkingProviderOptions(
-	thinking: AgentThinking | undefined,
-	modelKey: AgentModelKey
-): AgentConfig["providerOptions"] {
-	const tier = TIER_CONFIG[modelKey];
-	if (!(tier.supportsThinking && thinking) || thinking === "off") {
-		return;
-	}
-	const budget = tier.thinkingBudgets?.[thinking];
-	if (!budget) {
-		return;
-	}
-	return {
-		anthropic: {
-			thinking: { type: "enabled", budgetTokens: budget },
-		},
-	};
-}
+import type { AgentConfig, AgentContext } from "./types";
 
 export function createConfig(
 	context: AgentContext,
 	modelKey: AgentModelKey = "balanced",
 	modelOverride?: string | null
 ): AgentConfig {
-	const tier = TIER_CONFIG[modelKey];
+	const modelId = modelOverride ?? modelNames[modelKey];
+	const options = conversationModelOptions(modelId, context.thinking);
 
 	const appContext: AppContext = {
 		userId: context.userId,
@@ -52,14 +33,12 @@ export function createConfig(
 		billingCustomerId: context.billingCustomerId,
 	};
 
-	const useOverride = modelOverride != null;
-
 	return {
-		model: useOverride ? createModelFromId(modelOverride) : models[modelKey],
+		model: createModelFromId(modelId),
 		system: {
 			role: "system",
 			content: buildAnalyticsInstructions(appContext),
-			providerOptions: tier.promptCaching ? ANTHROPIC_CACHE_1H : undefined,
+			providerOptions: options.systemProviderOptions,
 		},
 		tools: createToolkit({
 			capabilities: [
@@ -74,8 +53,8 @@ export function createConfig(
 			userId: context.userId,
 		}),
 		stopWhen: stopAtMaxSteps,
-		temperature: tier.temperature,
-		providerOptions: thinkingProviderOptions(context.thinking, modelKey),
+		temperature: options.temperature,
+		providerOptions: options.providerOptions,
 		experimental_context: appContext,
 	};
 }
