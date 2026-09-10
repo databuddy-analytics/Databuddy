@@ -305,9 +305,9 @@ describe("durable retention daily rows", () => {
 			["previous", ["2026-03-16", "2026-03-17", "2026-03-22"]],
 			["current", ["2026-03-23", "2026-03-24", "2026-03-29"]],
 		] as const) {
-			retained.daily[period].forEach((row, index) => {
+			for (const [index, row] of retained.daily[period].entries()) {
 				row.date = dates[index];
-			});
+			}
 		}
 		expect(retentionMeasurementSchema.parse(retained)).toEqual(retained);
 		retained.daily.current[2].date = "2026-03-30";
