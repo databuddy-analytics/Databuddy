@@ -78,7 +78,6 @@ test("accepts an empty keyword to inspect a category after a missing match", asy
 		messages: [],
 	});
 	expect(result).toMatchObject({
-		detail: "summary",
 		types: expect.arrayContaining([
 			expect.objectContaining({
 				name: "revenue_overview",
@@ -98,7 +97,6 @@ test("explicit null searches across categories and can inspect the full catalog"
 		options
 	);
 	expect(filtered).toMatchObject({
-		detail: "full",
 		matchCount: 1,
 		types: [
 			expect.objectContaining({
@@ -115,7 +113,6 @@ test("explicit null searches across categories and can inspect the full catalog"
 	expect(JSON.stringify(all)).not.toContain('"outputFields"');
 	expect(JSON.stringify(all)).not.toContain('"allowedFilters"');
 	expect(all).toMatchObject({
-		detail: "summary",
 		types: expect.arrayContaining([
 			expect.objectContaining({ category: "Revenue" }),
 			expect.objectContaining({ category: "Audience" }),
@@ -123,21 +120,16 @@ test("explicit null searches across categories and can inspect the full catalog"
 	});
 });
 
-test("a scoped miss returns the unique native contract in its actual category", async () => {
+test("a scoped miss exposes the unique full contract in its actual category", async () => {
 	const global = await discover({ search: "continuation" });
 	const scoped = await discover({
 		category: "Audience",
 		search: "continuation",
 	});
 	expect(scoped).toMatchObject({
-		detail: "summary",
 		matchCount: 0,
 		types: [],
-		outsideCategory: {
-			detail: "full",
-			matchCount: 1,
-			types: global.types,
-		},
+		outsideCategory: { matchCount: 1, types: global.types },
 	});
 	expect(global.types).toEqual([
 		expect.objectContaining({
@@ -145,6 +137,7 @@ test("a scoped miss returns the unique native contract in its actual category", 
 			category: "Errors",
 			requiredAnyFilter: ["message", "path"],
 			allowedFilterOperators: { message: ["eq"], path: ["eq"] },
+			defaultOrder: "Built-in ordering is undocumented; omit orderBy.",
 			outputFields:
 				QueryBuilders.error_route_continuation_comparison.meta?.output_fields,
 		}),
@@ -152,28 +145,25 @@ test("a scoped miss returns the unique native contract in its actual category", 
 	expect(global).not.toHaveProperty("outsideCategory");
 });
 
-test("a scoped miss reports all literal matches elsewhere without relabeling them", async () => {
+test("a scoped broad miss exposes every full global match without relabeling it", async () => {
 	const global = await discover({ search: "revenue" });
 	const scoped = await discover({ category: "Audience", search: "revenue" });
 	expect(global.matchCount).toBeGreaterThan(1);
-	expect(global.detail).toBe("summary");
 	expect(scoped).toMatchObject({
 		matchCount: 0,
 		types: [],
-		outsideCategory: {
-			detail: "summary",
-			matchCount: global.matchCount,
-			types: global.types,
-		},
+		outsideCategory: { matchCount: global.matchCount, types: global.types },
 	});
 	for (const entry of global.types) {
 		expect(entry.category).toBe(QueryBuilders[entry.name]?.meta?.category);
-		expect(entry).not.toHaveProperty("outputFields");
-		expect(entry).not.toHaveProperty("allowedFilters");
+		expect(entry).toHaveProperty("allowedFilters");
+		expect(entry).toHaveProperty("requiredFilters");
+		expect(entry).toHaveProperty("outputFields");
+		expect(entry).toHaveProperty("defaultOrder");
 	}
 });
 
-test("no literal match is explicit, while browsing and scoped hits do not widen", async () => {
+test("a global literal miss is explicit, while browsing and scoped hits do not widen", async () => {
 	const missing = await discover({
 		category: "Revenue",
 		search: "zz_no_builder",
@@ -181,7 +171,7 @@ test("no literal match is explicit, while browsing and scoped hits do not widen"
 	expect(missing).toMatchObject({
 		matchCount: 0,
 		types: [],
-		outsideCategory: { detail: "summary", matchCount: 0, types: [] },
+		outsideCategory: { matchCount: 0, types: [] },
 	});
 	for (const input of [
 		{ category: "Revenue", search: null },
@@ -193,46 +183,58 @@ test("no literal match is explicit, while browsing and scoped hits do not widen"
 	}
 });
 
-test("exact builder names take precedence over substring siblings", async () => {
+test("substring searches retain full sibling contracts even for an exact builder name", async () => {
 	const result = await discover({ search: " CUSTOM_EVENTS " });
-	expect(result).toMatchObject({
-		detail: "full",
-		matchCount: 1,
-		types: [{ name: "custom_events", category: "Custom Events" }],
-	});
-	expect(result.types[0]).toHaveProperty("allowedFilters");
-	const wrongCategory = await discover({
-		category: "Revenue",
-		search: "custom_events",
-	});
-	expect(wrongCategory).toMatchObject({
-		matchCount: 0,
-		types: [],
-		outsideCategory: { detail: "full", matchCount: 1, types: result.types },
-	});
+	const catalog = await discover({});
+	const expected = catalog.types.filter((entry) =>
+		`${entry.name} ${entry.description} ${entry.tags.join(" ")}`
+			.toLowerCase()
+			.includes("custom_events")
+	);
+	expect(result.matchCount).toBe(expected.length);
+	expect(result.types.map((entry) => entry.name)).toEqual(
+		expected.map((entry) => entry.name)
+	);
+	expect(result.types).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({ name: "custom_events" }),
+			expect.objectContaining({ name: "custom_events_property_top_values" }),
+		])
+	);
+	for (const entry of result.types) {
+		expect(entry).toHaveProperty("allowedFilters");
+		expect(entry).toHaveProperty("outputFields");
+	}
 });
 
-test("category and global browsing stay complete while omitting detailed contracts", async () => {
+test("category browsing remains full and complete; the unfiltered catalog stays compact", async () => {
 	const all = await discover({});
 	expect(all.matchCount).toBe(Object.keys(QueryBuilders).length);
 	expect(all.types.map((entry) => entry.name).sort()).toEqual(
 		Object.keys(QueryBuilders).sort()
 	);
-	const category = await discover({ category: "Custom Events" });
-	const expected = all.types.filter(
-		(entry) => entry.category === "Custom Events"
+	const category = await discover({ category: "Profiles" });
+	const expected = all.types.filter((entry) => entry.category === "Profiles");
+	expect(category.types.map((entry) => entry.name)).toEqual(
+		expected.map((entry) => entry.name)
 	);
-	expect(category.types).toEqual(expected);
 	expect(category.matchCount).toBe(expected.length);
-	for (const result of [all, category]) {
-		expect(result.detail).toBe("summary");
-		for (const entry of result.types) {
-			expect(Object.keys(entry).sort()).toEqual([
-				"category",
-				"description",
-				"name",
-				"tags",
-			]);
-		}
+	expect(category.types).toContainEqual(
+		expect.objectContaining({
+			name: "profile_sessions",
+			requiredFilters: ["anonymous_id"],
+		})
+	);
+	for (const entry of category.types) {
+		expect(entry).toHaveProperty("allowedFilters");
+		expect(entry).toHaveProperty("outputFields");
+	}
+	for (const entry of all.types) {
+		expect(Object.keys(entry).sort()).toEqual([
+			"category",
+			"description",
+			"name",
+			"tags",
+		]);
 	}
 });
