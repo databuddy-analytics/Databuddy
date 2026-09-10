@@ -1930,6 +1930,16 @@ export async function runInsightAgent(
 			`Optional precomputed exploratory comparison: ${nativeRetentionDetail ?? "unavailable"} Cite only source signal. Select it when it adds useful scope detail, instead of another control. Dates describe activation cohorts within the original weekly populations, not when a fault began or its cause. Do not recalculate or requery those dates. With this detail, ${60 - (nativeRetention ?? "").split(" ").length - (nativeRetentionDetail ?? "").split(" ").length} words remain for the title, summary and cause combined.`
 		);
 	const outcomeSchema = finishSchema.extend({
+		...(nativeRetention
+			? {
+					title: finishSchema.shape.title.describe(
+						"In 4–6 words, name the measured behavior qualitatively. Leave measured quantities in the generated evidence."
+					),
+					summary: finishSchema.shape.summary.describe(
+						"In 4–6 words, add one distinct scope limit or control. Leave measured quantities in the generated evidence; no repetition or generic advice."
+					),
+				}
+			: {}),
 		evidence: nativeRetention
 			? z
 					.array(
