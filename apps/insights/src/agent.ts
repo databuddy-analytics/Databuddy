@@ -24,6 +24,7 @@ import {
 	insightMeasurementSchema,
 	insightVerificationDefinitionSchema,
 	retentionMeasurementSchema,
+	RETENTION_MINIMUM_PROFILES,
 	type AgentInvestigationOutcome,
 	type InsightDefinitionOperation,
 	type InvestigationOutcome,
@@ -76,7 +77,7 @@ const revenueEvidenceSchema = z
 const retentionEvidenceSchema = z
 	.strictObject({ retention: z.literal(true) })
 	.describe(
-		"For identified_profile_retention without a saved snapshot, select {retention: true} and cite exactly two successful get_data results. Code compares the complete overall populations, each with at least 50 eligible profiles and no incomplete follow-up; never substitute daily rows or events. Keep the headline and summary qualitative. Unsupported comparisons resolve privately with a concise limitation."
+		"For identified_profile_retention without a saved snapshot, select {retention: true} and cite exactly two successful get_data results. Code compares the complete overall populations, each with at least 50 eligible profiles and no incomplete follow-up; never substitute daily rows or events. Keep the headline and summary qualitative. Unsupported comparisons resolve privately; code records their eligibility limits without asserting a retention rate."
 	);
 const finishSchema = z.object({
 	evidence: z
@@ -242,7 +243,8 @@ function renderRetentionEvidence(
 function renderToolRetentionEvidence(
 	sources: unknown,
 	input: InsightAgentInput,
-	completedReads: unknown[]
+	completedReads: unknown[],
+	publish: boolean
 ) {
 	const readings = z
 		.array(
@@ -341,16 +343,29 @@ function renderToolRetentionEvidence(
 				"Retention comparisons require complete equal-duration non-overlapping cohorts with the same website, events, namespace, horizon, timezone and observation cutoff. Cite their exact overall rows."
 			);
 		}
-		const window = retentionMeasurementSchema.shape.previous.parse(
-			retentionWindow(row),
-			{
-				error: () =>
-					"Retention publication requires at least 50 eligible profiles and no incomplete follow-up in each cohort. Resolve this comparison privately; preserve independently supported findings.",
-			}
-		);
-		return { overall: row, window };
+		return row;
 	});
+	const windows = rows.map(retentionWindow);
 	if (
+		!publish &&
+		windows.some(
+			(window) =>
+				!retentionMeasurementSchema.shape.previous.safeParse(window).success
+		)
+	) {
+		return {
+			text: `Retention comparison withheld. Cohorts ${readings.map((reading) => `${reading.from}–${reading.to}`).join(" → ")} ${first.timezone}, through ${filters.observation_end}: ${rows.map((row) => `${row.eligible_profiles} eligible, ${row.incomplete_profiles} incomplete`).join(" → ")} identified profiles. Publication requires ${RETENTION_MINIMUM_PROFILES} eligible profiles per fully observed cohort.`,
+		};
+	}
+	const [previous, current] = z
+		.array(retentionMeasurementSchema.shape.previous)
+		.length(2)
+		.parse(windows, {
+			error: () =>
+				`Retention publication requires at least ${RETENTION_MINIMUM_PROFILES} eligible profiles and no incomplete follow-up in each cohort. Resolve this comparison privately; preserve independently supported findings.`,
+		});
+	if (
+		publish &&
 		completedReads.some((value) => {
 			const reading = nativeReadingSchema.safeParse(value).data;
 			if (!reading) {
@@ -367,7 +382,7 @@ function renderToolRetentionEvidence(
 				overall.length !== 1 ||
 				!isDeepStrictEqual(
 					retentionRowSchema.safeParse(overall[0]).data,
-					rows[index].overall
+					rows[index]
 				)
 			);
 		})
@@ -379,8 +394,8 @@ function renderToolRetentionEvidence(
 	return {
 		text: renderRetentionEvidence(
 			{
-				previous: rows[0].window,
-				current: rows[1].window,
+				previous,
+				current,
 				observationEnd: filters.observation_end,
 				timezone: first.timezone,
 			},
@@ -2027,7 +2042,8 @@ export async function runInsightAgent(
 								return renderToolRetentionEvidence(
 									citedEvidence[index],
 									input,
-									results.flatMap(successfulReadOutputs)
+									results.flatMap(successfulReadOutputs),
+									candidate.publish
 								).text;
 							}
 							const native = renderRevenueEvidence(
@@ -2138,19 +2154,20 @@ export async function runInsightAgent(
 						steps.flatMap((step) => step.toolCalls.map((call) => call.toolName))
 					);
 					if (
+						proposed.publish &&
 						(nativeRetention ||
-							candidate.evidence.some(
-								(item) => typeof item.claim !== "string"
-							)) &&
-						[
-							proposed.title.replace(input.signal.entity.label, ""),
-							verification ? "" : proposed.summary,
-							proposed.rootCause ?? "",
-						].some((text) => numericTokens(text).length > 0)
+							candidate.evidence.some((item) => typeof item.claim !== "string"))
 					) {
-						throw new Error(
-							"Keep measured quantities in the generated evidence; use a qualitative headline, summary and cause."
-						);
+						const numericFields = Object.entries({
+							title: proposed.title.replace(input.signal.entity.label, ""),
+							summary: verification ? "" : proposed.summary,
+							rootCause: proposed.rootCause ?? "",
+						}).filter(([, value]) => numericTokens(value).length > 0);
+						if (numericFields.length > 0) {
+							throw new Error(
+								`Keep measured quantities in the generated evidence; use a qualitative headline, summary and cause. Rewrite only these fields without measured numbers: ${numericFields.map(([field, value]) => `${field}: ${JSON.stringify(value)}`).join("; ")}. Preserve the valid evidence and its references; no new read is needed.`
+							);
+						}
 					}
 					const validated = validateAgentOutcome(
 						proposed,

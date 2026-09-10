@@ -241,6 +241,54 @@ async function expectPrivate(
 
 describe("tool-supplied retention publication without a saved snapshot", () => {
 	it.each([
+		"small",
+		"incomplete",
+	])("records a private structured %s limitation without a repair turn", async (kind) => {
+		const result = await investigate(
+			[
+				reading("previous", kind === "small" ? 20 : 50),
+				reading(
+					"current",
+					kind === "small" ? 20 : 50,
+					kind === "incomplete" ? 1 : 0
+				),
+			],
+			{
+				...privateFinish,
+				summary: `${kind === "small" ? 20 : 50} eligible profiles; the comparison remains unconfirmed.`,
+				evidence: [{ sources, claim: { retention: true } }],
+			}
+		);
+		expect(result.outcome.publish).toBe(false);
+		expect(result.model.doGenerateCalls).toHaveLength(2);
+		expect(result.outcome.evidence[0]).toContain(
+			"Retention comparison withheld."
+		);
+		expect(result.outcome.evidence[0]).not.toContain("%");
+		expect(
+			result.steps
+				.flatMap((step) => step.content)
+				.filter((part) => part.type === "tool-error")
+		).toHaveLength(0);
+	});
+	it("identifies the exact numeric summary that needs correction", async () => {
+		const result = await investigate(
+			undefined,
+			{ ...finish(), summary: "Identity coverage was 50%." },
+			finish()
+		);
+		expect(result.outcome.publish).toBe(true);
+		const rejection = result.steps[1].content.find(
+			(part) => part.type === "tool-error"
+		);
+		expect(rejection?.type).toBe("tool-error");
+		if (rejection?.type === "tool-error")
+			expect(String(rejection.error)).toContain(
+				'summary: "Identity coverage was 50%."'
+			);
+	});
+
+	it.each([
 		{ period: "previous" as const, eligible: 20 },
 		{ period: "current" as const, eligible: 20 },
 		{ period: "previous" as const, eligible: 49 },
