@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, mock } from "bun:test";
 import type { LanguageModelV3 } from "@ai-sdk/provider";
 import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
 import { organizationBusinessContextSchema } from "@databuddy/shared/organization-business-context";
+import { tool } from "ai";
+import { z } from "zod";
 import { MockLanguageModelV3, convertArrayToReadableStream } from "ai/test";
 import type {
 	AccessibleWebsitesAuth,
@@ -77,8 +79,9 @@ mock.module("../../lib/ai-logger", () => ({
 	getAILogger: () => ({ wrap: (model: LanguageModelV3) => model }),
 }));
 mock.module("../../lib/tracing", () => ({ mergeWideEvent: () => {} }));
+const checkCredits = mock(async () => true);
 mock.module("../agents/execution", () => ({
-	ensureAgentCreditsAvailable: async () => true,
+	ensureAgentCreditsAvailable: checkCredits,
 	resolveAgentBillingCustomerId: async () => null,
 	trackAgentUsageAndBill: async () => {},
 }));
@@ -94,7 +97,13 @@ mock.module("@databuddy/api-keys/resolve", () => ({
 mock.module("../../agent/slack-relevance", () => ({
 	classifySlackThreadReplyRelevance: async () => ({}),
 }));
-mock.module("./agent-tools", () => ({ createMcpAgentTools: () => ({}) }));
+const availableTools = {
+	get_data: tool({ inputSchema: z.object({}) }),
+	discover_query_types: tool({ inputSchema: z.object({}) }),
+	describe_schema: tool({ inputSchema: z.object({}) }),
+	slack_read_current_thread: tool({ inputSchema: z.object({}) }),
+};
+mock.module("./agent-tools", () => ({ createMcpAgentTools: () => availableTools }));
 
 const usage = {
 	inputTokens: { total: 10, noCache: 10, cacheRead: 0, cacheWrite: 0 },
@@ -119,6 +128,8 @@ const model = new MockLanguageModelV3({
 mock.module("../config/models", () => ({
 	createModelFromId: () => model,
 	getDefaultAgentModelId: () => "synthetic/model",
+	modelNames: { balanced: "synthetic/model" },
+	AI_MODEL_MAX_RETRIES: 3,
 	ANTHROPIC_CACHE_1H: {},
 }));
 
@@ -163,6 +174,8 @@ const scope = {
 };
 
 beforeEach(() => {
+	checkCredits.mockReset();
+	checkCredits.mockResolvedValue(true);
 	saved = organizationBusinessContextSchema.parse({
 		profile,
 		generation: null,
@@ -666,5 +679,25 @@ describe("canonical measurement plan context", () => {
 		});
 		expect(text).toContain("report_shared");
 		expect(text).not.toContain("other_activation");
+	});
+});
+
+
+describe("shared conversational execution policy", () => {
+	it("leaves capability selection to the model even with greetings or thread references", async () => {
+		for (const source of ["mcp", "slack"] as const) {
+			for (const input of ["Thanks, what is our retention?", "Which one should we fix first?", "lol ok"]) {
+				await askDatabuddyAgent({ ...options, source, input });
+				const names = model.doGenerateCalls.at(-1)?.tools?.map((entry) => entry.name);
+				expect(names).toEqual(Object.keys(availableTools));
+			}
+		}
+	});
+	it("stops before the model when billing rejects or fails", async () => {
+		checkCredits.mockResolvedValueOnce(false);
+		await expect(askDatabuddyAgent({ ...options, billingMode: "bill" })).rejects.toThrow("allowance");
+		checkCredits.mockRejectedValueOnce(new Error("Synthetic billing outage"));
+		await expect(askDatabuddyAgent({ ...options, billingMode: "bill" })).rejects.toThrow("Synthetic billing outage");
+		expect(model.doGenerateCalls).toHaveLength(0);
 	});
 });

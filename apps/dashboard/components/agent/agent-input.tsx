@@ -461,14 +461,14 @@ const InputToolbar = memo(function InputToolbar({
 });
 
 const THINKING_LABELS: Record<AgentThinking, string> = {
-	off: "Off",
+	off: "Default",
 	low: "Low",
 	medium: "Medium",
 	high: "High",
 };
 
 const THINKING_DESCRIPTIONS: Record<AgentThinking, string> = {
-	off: "Fastest, cheapest",
+	off: "Model's default reasoning",
 	low: "Brief reasoning",
 	medium: "Deeper analysis",
 	high: "Extended reasoning",

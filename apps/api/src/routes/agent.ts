@@ -4,6 +4,7 @@ import {
 	hasKeyScope,
 	isApiKeyPresent,
 } from "@databuddy/api-keys/resolve";
+import { createConversationAgent } from "@databuddy/ai/agents/conversation";
 import { createConfig as createAgentConfig } from "@databuddy/ai/agents/analytics";
 import {
 	ensureAgentCreditsAvailable,
@@ -11,18 +12,8 @@ import {
 	trackAgentUsageAndBill,
 } from "@databuddy/ai/agents/execution";
 import { type AgentTier, tierToModelKey } from "@databuddy/ai/agents/router";
-import {
-	AGENT_THINKING_LEVELS,
-	AGENT_TIERS,
-	type AgentConfig,
-} from "@databuddy/ai/agents/types";
-import {
-	type AgentModelKey,
-	AI_MODEL_MAX_RETRIES,
-	ANTHROPIC_CACHE_1H,
-	modelNames,
-	models,
-} from "@databuddy/ai/config/models";
+import { AGENT_THINKING_LEVELS, AGENT_TIERS } from "@databuddy/ai/agents/types";
+import { type AgentModelKey, models } from "@databuddy/ai/config/models";
 import { askDatabuddyAgent, streamDatabuddyAgent } from "@databuddy/ai/agent";
 import {
 	formatMemoryForPrompt,
@@ -52,7 +43,6 @@ import {
 	pruneMessages,
 	safeValidateUIMessages,
 	smoothStream,
-	ToolLoopAgent,
 	type UIMessage,
 } from "ai";
 import { Elysia, t } from "elysia";
@@ -213,12 +203,6 @@ const MAX_MESSAGES = 100;
 const MAX_PARTS_PER_MESSAGE = 50;
 const MAX_PROPERTIES_PER_PART = 20;
 
-interface AgentExperimentalTelemetry {
-	functionId: string;
-	isEnabled: true;
-	metadata?: Record<string, string>;
-}
-
 // UIMessage parts are polymorphic (text/tool/reasoning/...) and re-validated
 // by safeValidateUIMessages + convertToModelMessages, so we only cap sizes here.
 const UIMessageSchema = t.Object({
@@ -323,47 +307,6 @@ function optionalAgentContext<T>(
 				[`agent_phase_${phaseName}_ms`]: elapsed,
 			});
 		}
-	});
-}
-
-function createToolLoopAgent(
-	config: AgentConfig,
-	experimentalTelemetry?: AgentExperimentalTelemetry
-): InstanceType<typeof ToolLoopAgent> {
-	const ai = getAILogger();
-	// Anthropic rejects `temperature` when extended thinking is enabled.
-	const thinkingEnabled = Boolean(config.providerOptions);
-	return new ToolLoopAgent({
-		model: ai.wrap(config.model),
-		instructions: config.system,
-		tools: config.tools,
-		stopWhen: config.stopWhen,
-		temperature: thinkingEnabled ? undefined : config.temperature,
-		maxRetries: AI_MODEL_MAX_RETRIES,
-		experimental_context: config.experimental_context,
-		experimental_telemetry: experimentalTelemetry,
-		providerOptions: config.providerOptions,
-		prepareStep({ messages }) {
-			if (messages.length === 0) {
-				return { messages };
-			}
-			const last = messages.at(-1);
-			const isAnthropic = config.system.providerOptions != null;
-			if (
-				isAnthropic &&
-				last &&
-				last.role === "user" &&
-				!last.providerOptions
-			) {
-				return {
-					messages: [
-						...messages.slice(0, -1),
-						{ ...last, providerOptions: ANTHROPIC_CACHE_1H },
-					],
-				};
-			}
-			return { messages };
-		},
 	});
 }
 
@@ -753,16 +696,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 					const creditsCheck = billingCustomerId
 						? timeAgentPhase(
 								"credits_check",
-								ensureAgentCreditsAvailable(billingCustomerId).catch((err) => {
-									captureError(err, {
-										agent_credit_check_error: true,
-										agent_chat_id: chatId,
-										...(defaultWebsiteId
-											? { agent_website_id: defaultWebsiteId }
-											: {}),
-									});
-									return true;
-								})
+								ensureAgentCreditsAvailable(billingCustomerId)
 							)
 						: Promise.resolve(true);
 
@@ -936,11 +870,16 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						dashboardTelemetryMetadata.organizationId = organizationId;
 					}
 
-					const agent = createToolLoopAgent(config, {
-						isEnabled: true,
-						functionId: `databuddy.dashboard.agent.${AGENT_TYPE}`,
-						metadata: dashboardTelemetryMetadata,
-					});
+					const agent = createConversationAgent(
+						{ ...config, model: getAILogger().wrap(config.model) },
+						{
+							experimental_telemetry: {
+								isEnabled: true,
+								functionId: `databuddy.dashboard.agent.${AGENT_TYPE}`,
+								metadata: dashboardTelemetryMetadata,
+							},
+						}
+					);
 
 					if (isMemoryEnabled() && lastMessage && defaultWebsiteId) {
 						storeConversation(
@@ -999,7 +938,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						.then(async (usage) => {
 							await trackAgentUsageAndBill({
 								usage,
-								modelId: modelNames[modelKey],
+								modelId: config.model.modelId,
 								source: "dashboard",
 								agentType: AGENT_TYPE,
 								websiteId: defaultWebsiteId ?? undefined,
