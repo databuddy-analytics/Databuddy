@@ -87,6 +87,7 @@ vi.mock("@databuddy/ai/agents/analytics", async () => {
 		"ai/test"
 	);
 	const model = new MockLanguageModelV3({
+		modelId: "synthetic/actual-model",
 		doStream: async (input) => {
 			state.prompts.push(input);
 			return {
@@ -320,5 +321,15 @@ describe("dashboard billing permission before the native model stream", () => {
 		expect((await chat()).status).toBe(429);
 		expect(state.billing).not.toHaveBeenCalled();
 		expect(state.prompts).toHaveLength(0);
+	});
+});
+
+
+describe("dashboard executed model attribution", () => {
+	it("attributes usage to the model actually executed", async () => {
+		expect((await chat()).status).toBe(200);
+		expect(state.billedUsage).toHaveBeenCalledWith(
+			expect.objectContaining({ modelId: "synthetic/actual-model" })
+		);
 	});
 });
