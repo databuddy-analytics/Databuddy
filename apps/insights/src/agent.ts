@@ -4,6 +4,8 @@ import {
 	type BusinessContext,
 } from "@databuddy/ai/lib/business-context";
 import { isDeepStrictEqual } from "node:util";
+import dayjs from "dayjs";
+import { shiftDate } from "@databuddy/ai/query/date-utils";
 import { z } from "zod";
 import {
 	AI_MODEL_MAX_RETRIES,
@@ -22,6 +24,7 @@ import {
 	insightMeasurementSchema,
 	insightVerificationDefinitionSchema,
 	retentionMeasurementSchema,
+	RETENTION_MINIMUM_PROFILES,
 	type AgentInvestigationOutcome,
 	type InsightDefinitionOperation,
 	type InvestigationOutcome,
@@ -71,6 +74,11 @@ const revenueEvidenceSchema = z
 	.describe(
 		"For revenue_overview, select complementary fields: gross revenue, refunds, and attributed revenue when it differs from gross. Select only non-null fields in every cited period; omit redundant counts and subtotals. Refund totals/counts do not establish net revenue or distinct refunded receipts. One entry per population; payment-description comparisons need a second whole-currency control. Cite both complete windows using only get_data references. Code supplies labels, values, periods and deltas."
 	);
+const retentionEvidenceSchema = z
+	.strictObject({ retention: z.literal(true) })
+	.describe(
+		"For identified_profile_retention without a saved snapshot, select {retention: true} and cite exactly two successful get_data results. Code compares the complete overall populations, each with at least 50 eligible profiles and no incomplete follow-up; never substitute daily rows or events. Keep the headline and summary qualitative. Unsupported comparisons resolve privately; code records their eligibility limits without asserting a retention rate."
+	);
 const finishSchema = z.object({
 	evidence: z
 		.array(
@@ -81,13 +89,14 @@ const finishSchema = z.object({
 						"One compact comparison: behavior, before → after, dates and denominator, plus any interpretation-changing control. Use about 30 words across all prose claims. Do not repeat event definitions or describe source provenance."
 					),
 					revenueEvidenceSchema,
+					retentionEvidenceSchema,
 				]),
 			})
 		)
 		.min(1)
 		.max(2)
 		.describe(
-			"Select the evidence before deciding whether it merits publication. Keep each claim beside all contributing references. Revenue claims use {currency, fields} with only their contributing get_data references; other claims use concise text."
+			"Select the evidence before deciding whether it merits publication. Keep each claim beside all contributing references. Revenue claims use {currency, fields}; retention tool comparisons use {retention: true}. Both require their contributing get_data references. Other claims use concise text."
 		),
 	publish: agentInvestigationOutcomeSchema.shape.publish,
 	...agentInvestigationOutcomeSchema.omit({
@@ -206,13 +215,14 @@ export function renderRevenueEvidence(
 	};
 }
 
-function renderRetentionEvidence(signal: InvestigationSignal): string | null {
-	if (!signal.retentionMeasurement) {
-		return null;
-	}
-	const measured = retentionMeasurementSchema.parse(
-		signal.retentionMeasurement
-	);
+function renderRetentionEvidence(
+	measured: Pick<
+		z.infer<typeof retentionMeasurementSchema>,
+		"previous" | "current" | "observationEnd" | "timezone"
+	>,
+	period: InvestigationSignal["period"],
+	horizonDays: number
+): string {
 	const percent = (numerator: number, denominator: number) =>
 		`${Math.round((numerator / denominator) * 1000) / 10}%`;
 	const windows = [measured.previous, measured.current];
@@ -224,10 +234,175 @@ function renderRetentionEvidence(signal: InvestigationSignal): string | null {
 		(row) =>
 			`${row.identifiedEvents}/${row.events} (${percent(row.identifiedEvents, row.events)})`
 	);
-	const periods = [signal.period.previous, signal.period.current].map(
-		(period) => `${period.from}–${period.to}`
+	const periods = [period.previous, period.current].map(
+		(window) => `${window.from}–${window.to}`
 	);
-	return `Initial snapshot through ${measured.observationEnd} ${measured.timezone}: eligible identified profiles returning within ${measured.definition.horizonDays} days: ${returned.join(" → ")}; cohorts ${periods.join(" → ")}, fully observed. Activation events with identity: ${identity.join(" → ")}; anonymous events excluded.`;
+	return `Initial snapshot through ${measured.observationEnd} ${measured.timezone}: eligible identified profiles returning within ${horizonDays} days: ${returned.join(" → ")}; cohorts ${periods.join(" → ")}, fully observed. Activation events with identity: ${identity.join(" → ")}; anonymous events excluded.`;
+}
+
+function renderToolRetentionEvidence(
+	sources: unknown,
+	input: InsightAgentInput,
+	completedReads: unknown[],
+	publish: boolean
+) {
+	const readings = z
+		.array(
+			nativeReadingSchema.extend({
+				type: z.literal("identified_profile_retention"),
+				websiteId: z.literal(
+					z
+						.string()
+						.min(1)
+						.parse(
+							input.appContext.websiteId ?? input.appContext.defaultWebsiteId
+						)
+				),
+				timezone: z.literal(input.appContext.timezone ?? "UTC"),
+				filters: z
+					.array(
+						z.object({
+							field: z.enum([
+								"activation_event",
+								"return_event",
+								"horizon_days",
+								"observation_end",
+								"namespace",
+							]),
+							op: z.literal("eq"),
+							value: z.union([z.string().min(1), z.number()]),
+						})
+					)
+					.min(4)
+					.max(5),
+			})
+		)
+		.length(2)
+		.parse(sources)
+		.sort((a, b) => a.from.localeCompare(b.from));
+	const first = readings[0];
+	const scope = (reading: z.infer<typeof nativeReadingSchema>) => ({
+		type: reading.type,
+		websiteId: reading.websiteId,
+		from: reading.from,
+		to: reading.to,
+		timezone: reading.timezone,
+		filters: reading.filters
+			.map((filter) => ({
+				...filter,
+				value:
+					filter.field === "horizon_days" ? Number(filter.value) : filter.value,
+			}))
+			.sort((a, b) => a.field.localeCompare(b.field)),
+	});
+	const filters = z
+		.strictObject({
+			activation_event: z.string().min(1).max(256),
+			return_event: z.string().min(1).max(256),
+			horizon_days: z.coerce
+				.number()
+				.pipe(z.union([z.literal(7), z.literal(30)])),
+			observation_end: z.iso.date(),
+			namespace: z.string().min(1).max(256).optional(),
+		})
+		.parse(
+			Object.fromEntries(
+				first.filters.map((filter) => [filter.field, filter.value])
+			)
+		);
+	const observedBefore = dayjs
+		.tz(shiftDate(filters.observation_end, 1), first.timezone)
+		.valueOf();
+	const rows = readings.map((reading, index) => {
+		const overall = reading.data.filter((row) => row.row_type === "overall");
+		const row = retentionRowSchema.parse(overall[0]);
+		if (
+			new Set(reading.filters.map((filter) => filter.field)).size !==
+				reading.filters.length ||
+			!isDeepStrictEqual(scope(reading).filters, scope(first).filters) ||
+			reading.from > reading.to ||
+			Date.parse(reading.to) - Date.parse(reading.from) !==
+				Date.parse(first.to) - Date.parse(first.from) ||
+			(index > 0 && reading.from <= first.to) ||
+			overall.length !== 1 ||
+			row.cohort_date !== null ||
+			row.cohort_from !== reading.from ||
+			row.cohort_to !== reading.to ||
+			row.timezone !== reading.timezone ||
+			row.horizon_days !== filters.horizon_days ||
+			row.observation_end !== filters.observation_end ||
+			Date.parse(row.cohort_start) !==
+				dayjs.tz(reading.from, reading.timezone).valueOf() ||
+			Date.parse(row.cohort_end) !==
+				dayjs.tz(shiftDate(reading.to, 1), reading.timezone).valueOf() ||
+			Date.parse(row.observed_before) !== observedBefore ||
+			observedBefore > Date.parse(input.appContext.currentDateTime) ||
+			Date.parse(row.cohort_end) > observedBefore
+		) {
+			throw new Error(
+				"Retention comparisons require complete equal-duration non-overlapping cohorts with the same website, events, namespace, horizon, timezone and observation cutoff. Cite their exact overall rows."
+			);
+		}
+		return row;
+	});
+	const windows = rows.map(retentionWindow);
+	if (
+		!publish &&
+		windows.some(
+			(window) =>
+				!retentionMeasurementSchema.shape.previous.safeParse(window).success
+		)
+	) {
+		return {
+			text: `Retention comparison withheld. Cohorts ${readings.map((reading) => `${reading.from}–${reading.to}`).join(" → ")} ${first.timezone}, through ${filters.observation_end}: ${rows.map((row) => `${row.eligible_profiles} eligible, ${row.incomplete_profiles} incomplete`).join(" → ")} identified profiles. Publication requires ${RETENTION_MINIMUM_PROFILES} eligible profiles per fully observed cohort.`,
+		};
+	}
+	const [previous, current] = z
+		.array(retentionMeasurementSchema.shape.previous)
+		.length(2)
+		.parse(windows, {
+			error: () =>
+				`Retention publication requires at least ${RETENTION_MINIMUM_PROFILES} eligible profiles and no incomplete follow-up in each cohort. Resolve this comparison privately; preserve independently supported findings.`,
+		});
+	if (
+		publish &&
+		completedReads.some((value) => {
+			const reading = nativeReadingSchema.safeParse(value).data;
+			if (!reading) {
+				return false;
+			}
+			const index = readings.findIndex((selected) =>
+				isDeepStrictEqual(scope(reading), scope(selected))
+			);
+			if (index < 0) {
+				return false;
+			}
+			const overall = reading.data.filter((row) => row.row_type === "overall");
+			return (
+				overall.length !== 1 ||
+				!isDeepStrictEqual(
+					retentionRowSchema.safeParse(overall[0]).data,
+					rows[index]
+				)
+			);
+		})
+	) {
+		throw new Error(
+			"A retention read conflicts with the cited comparison. Resolve privately; dropping a citation or reading again cannot erase an unresolved measurement conflict."
+		);
+	}
+	return {
+		text: renderRetentionEvidence(
+			{
+				previous,
+				current,
+				observationEnd: filters.observation_end,
+				timezone: first.timezone,
+			},
+			{ previous: first, current: readings[1] },
+			filters.horizon_days
+		),
+	};
 }
 
 const retentionReadingType = z.object({
@@ -1619,7 +1794,13 @@ export async function runInsightAgent(
 		throw new Error("AI_GATEWAY_API_KEY is required");
 	}
 	const isDefinition = ["goal", "funnel"].includes(input.signal.entity.type);
-	const nativeRetention = renderRetentionEvidence(input.signal);
+	const nativeRetention = input.signal.retentionMeasurement
+		? renderRetentionEvidence(
+				retentionMeasurementSchema.parse(input.signal.retentionMeasurement),
+				input.signal.period,
+				input.signal.retentionMeasurement.definition.horizonDays
+			)
+		: null;
 	const outcomeSchema = finishSchema.extend({
 		evidence: nativeRetention
 			? z
@@ -1854,8 +2035,16 @@ export async function runInsightAgent(
 								)
 							) {
 								throw new Error(
-									"Structured revenue evidence requires exact successful get_data result references."
+									"Structured evidence requires exact successful get_data result references."
 								);
+							}
+							if ("retention" in item.claim) {
+								return renderToolRetentionEvidence(
+									citedEvidence[index],
+									input,
+									results.flatMap(successfulReadOutputs),
+									candidate.publish
+								).text;
 							}
 							const native = renderRevenueEvidence(
 								item.claim,
@@ -1864,6 +2053,17 @@ export async function runInsightAgent(
 							);
 							nativeRevenue.push(native);
 							return native.text;
+						}
+						if (
+							!nativeRetention &&
+							candidate.publish &&
+							citedEvidence[index].some(
+								(source) => retentionReadingType.safeParse(source).success
+							)
+						) {
+							throw new Error(
+								"For published retention tool evidence, submit {retention: true} with both exact get_data results instead of prose. Code validates eligible profiles, complete follow-up and scope; unsupported comparisons stay private."
+							);
 						}
 						if (
 							nativeRetention &&
@@ -1954,19 +2154,20 @@ export async function runInsightAgent(
 						steps.flatMap((step) => step.toolCalls.map((call) => call.toolName))
 					);
 					if (
+						proposed.publish &&
 						(nativeRetention ||
-							candidate.evidence.some(
-								(item) => typeof item.claim !== "string"
-							)) &&
-						[
-							proposed.title.replace(input.signal.entity.label, ""),
-							verification ? "" : proposed.summary,
-							proposed.rootCause ?? "",
-						].some((text) => numericTokens(text).length > 0)
+							candidate.evidence.some((item) => typeof item.claim !== "string"))
 					) {
-						throw new Error(
-							"Keep measured quantities in the generated evidence; use a qualitative headline, summary and cause."
-						);
+						const numericFields = Object.entries({
+							title: proposed.title.replace(input.signal.entity.label, ""),
+							summary: verification ? "" : proposed.summary,
+							rootCause: proposed.rootCause ?? "",
+						}).filter(([, value]) => numericTokens(value).length > 0);
+						if (numericFields.length > 0) {
+							throw new Error(
+								`Keep measured quantities in the generated evidence; use a qualitative headline, summary and cause. Rewrite only these fields without measured numbers: ${numericFields.map(([field, value]) => `${field}: ${JSON.stringify(value)}`).join("; ")}. Preserve the valid evidence and its references; no new read is needed.`
+							);
+						}
 					}
 					const validated = validateAgentOutcome(
 						proposed,
