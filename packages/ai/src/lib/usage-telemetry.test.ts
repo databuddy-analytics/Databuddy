@@ -47,4 +47,25 @@ describe("summarizeAgentUsage", () => {
 		expect(summary.cost_total_usd).toBe(20.875);
 		expect(summary.agent_credits_used).toBe(417.5);
 	});
+
+	test("bills Luna input, output, and cached tokens at its own rates", () => {
+		const summary = summarizeAgentUsage("openai/gpt-5.6-luna", {
+			inputTokens: 30_000,
+			outputTokens: 10_000,
+			inputTokenDetails: {
+				cacheReadTokens: 10_000,
+				cacheWriteTokens: 10_000,
+			},
+		});
+
+		expect(summary.cost_fallback).toBe(false);
+		expect(summary.cost_model_id).toBe("openai/gpt-5.6-luna");
+		expect(summary.fresh_input_tokens).toBe(10_000);
+		expect(summary.cost_input_usd).toBeCloseTo(0.002, 8);
+		expect(summary.cost_cache_read_usd).toBeCloseTo(0.0002, 8);
+		expect(summary.cost_cache_write_usd).toBeCloseTo(0.0025, 8);
+		expect(summary.cost_output_usd).toBeCloseTo(0.012, 8);
+		expect(summary.cost_total_usd).toBeCloseTo(0.0167, 8);
+		expect(summary.agent_credits_used).toBeCloseTo(0.334, 8);
+	});
 });
