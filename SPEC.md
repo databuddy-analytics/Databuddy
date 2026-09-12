@@ -50,8 +50,10 @@ pending for reconciliation rather than starting a second charge.
 Clarifications of the same question use its saved evidence and are included.
 Verification after applying that investigation's proposed repair is also included,
 as are backend-triggered definition-change checks and deterministic continuations
-of saved verification conditions during regular scans. A new question or separate fresh analysis requires an explicit accepted price;
-the model must never decide whether a reply incurs a charge. Signal selection,
+of saved verification conditions during regular scans. A new question or separate
+fresh analysis requires an explicit accepted price persisted with its queued reply;
+the reservation must match those immutable terms. The model must never decide
+whether a reply incurs a charge. Signal selection,
 preparation, model turns, and internal retries do not add customer charges.
 
 Autumn stores the new unit in a separate `investigation_runs` balance with a $1
@@ -160,9 +162,11 @@ The Insights brief reads like a short news report: headline, what happened, why 
 ## Continuity
 
 - A dashboard, Slack, or MCP reply resumes the same investigation.
-- A clarification is anchored to the original observation and its saved successful
-  tool results, including source descriptions and measurement constraints. This
-  evidence survives history truncation and later reopening of the same case.
+- A clarification is anchored to the original observation and typed, allowlisted
+  goal/funnel measurement fields, with trusted descriptions and exact scope. Raw
+  profiles, sessions, source files, search queries, arbitrary properties and free-form
+  context are omitted with explicit limitations. Retained evidence survives history
+  truncation and later reopening of the same case.
   The answer is stored on the reply without new data reads or case-state changes.
   Legacy results without saved evidence receive an honest explanation of that
   limitation; answering them never silently starts paid analysis.

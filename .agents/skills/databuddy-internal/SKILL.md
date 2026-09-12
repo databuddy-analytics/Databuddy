@@ -168,6 +168,7 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 - Start in `apps/api/src`
 - Shared API contracts and procedure logic live in `packages/rpc`
 - Prefer changing shared router logic in `packages/rpc` rather than duplicating validation in the dashboard
+- Saved investigation tool evidence must use typed, positive field allowlists; do not persist arbitrary tool outputs or rely on generic secret-pattern redaction. Preserve exact measurement scope, and record omissions instead of reconstructing missing raw evidence.
 - Investigations run in `apps/insights`; RPC only reads cases and accepts durable replies. Case identity is `websiteId|subjectKey`, where the backend owns the subject key. New analysis appends an observation; a clarification stores its answer on the reply and reads the originating observation's saved evidence without changing case state. The stored `changePercent` is already signed.
 
 ### Ingestion and analytics pipeline
@@ -180,7 +181,7 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 ## Billing (Autumn)
 
 - Retried insight jobs must persist immutable external delivery effects (currently Slack) before calling providers and reuse the effect ID as the provider idempotency key. An insight observation is product memory, not a delivery checkpoint.
-- Investigations cost $1 per completed result through the separate Autumn `investigation_runs` meter. Clarifications and verification after applying a proposed repair are included. Reserve one unit before new analysis and settle only after a readable complete result is persisted; retries reuse durable operation identity. Internal token costs are telemetry. Existing customers without the new entitlement retain legacy `agent_credits` terms; do not convert balances or point legacy credit refills at the new meter.
+- Investigations cost $1 per completed result through the separate Autumn `investigation_runs` meter. Clarifications and verification after applying a proposed repair are included. Persist the accepted price with an explicit queued analysis and bind its reservation to that price. Reserve one unit before new analysis and settle only after a readable complete result is persisted; retries reuse durable operation identity. Internal token costs are telemetry. Existing customers without the new entitlement retain legacy `agent_credits` terms; do not convert balances or point legacy credit refills at the new meter.
 - Transactional billing email identity has three separate concepts: Autumn customer/billing owner, organization, and actual `to` recipient. Only personalize from the actual recipient record; if it is unavailable, omit the greeting rather than using the owner name. Distinguish fixed-price investigations from legacy credits in billing copy.
 - `autumn-js` v1.2.2+ — import `autumnHandler` from `autumn-js/fetch` (NOT `autumn-js/elysia`, that export was removed in v1.0)
 - For Elysia, mount with `.mount(autumnHandler(...))` — NOT `.use()`
