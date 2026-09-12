@@ -48,8 +48,9 @@ and recovery reuse the same unit. Uncertain payment-provider responses remain
 pending for reconciliation rather than starting a second charge.
 
 Clarifications of the same question use its saved evidence and are included.
-Verification after applying that investigation's proposed repair is also included.
-A new question or separate fresh analysis requires an explicit accepted price;
+Verification after applying that investigation's proposed repair is also included,
+as are backend-triggered definition-change checks and deterministic continuations
+of saved verification conditions during regular scans. A new question or separate fresh analysis requires an explicit accepted price;
 the model must never decide whether a reply incurs a charge. Signal selection,
 preparation, model turns, and internal retries do not add customer charges.
 
