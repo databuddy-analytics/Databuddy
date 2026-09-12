@@ -3,10 +3,7 @@ import {
 	INVESTIGATION_USAGE,
 } from "@databuddy/shared/billing";
 import type { RawPlan } from "../data";
-
-function formatTierRate(amount: number): string {
-	return `$${(amount * 1000).toFixed(2)} per 1,000 events`;
-}
+import { formatTierRate } from "./estimator-utils";
 
 function buildPlanSummary(plan: RawPlan): string {
 	const lines: string[] = [];
@@ -38,13 +35,15 @@ function buildPlanSummary(plan: RawPlan): string {
 			const per = item.interval ? ` per ${item.interval}` : "";
 			lines.push(`${item.feature.name}: ${qty} included${per}`);
 
-			if (item.tiers?.length) {
-				lines.push("Overage tiers:");
-				let prevTo = 0;
+			if (item.tiers?.length && item.included_usage !== "inf") {
+				lines.push("Overage tiers (total monthly event counts):");
+				let prevTo = item.included_usage;
 				for (const tier of item.tiers) {
-					const from = prevTo.toLocaleString();
+					const from = (prevTo + 1).toLocaleString();
 					const to = tier.to === "inf" ? "unlimited" : tier.to.toLocaleString();
-					lines.push(`  ${from}–${to}: ${formatTierRate(tier.amount)}`);
+					lines.push(
+						`  ${from}–${to}: ${formatTierRate(tier.amount)} per 1,000 events`
+					);
 					if (tier.to !== "inf") {
 						prevTo = tier.to;
 					}

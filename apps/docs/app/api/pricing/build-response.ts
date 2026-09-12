@@ -55,6 +55,7 @@ function mapRawPlans() {
 				interval: f.interval,
 				...(f.type === "priced_feature" && f.tiers
 					? {
+							overageTierBasis: "total_monthly_events" as const,
 							overageTiers: f.tiers.map((t) => ({
 								upTo: t.to === "inf" ? ("unlimited" as const) : t.to,
 								pricePerUnit: t.amount,

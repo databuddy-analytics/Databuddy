@@ -17,9 +17,9 @@ Machine-readable: [JSON](https://www.databuddy.cc/api/pricing) · static [Markdo
 
 ## Events (overage on paid plans)
 
-Overage = events **above** the monthly included amount. Cumulative overage is charged in bands (first band fills, then the next). Hobby and Pro use the same per-event rates, but the exact band boundaries differ slightly between plans.
+Overage = events **above** the monthly included amount. Usage is charged in bands (first band fills, then the next). The table below is the **Hobby example**, after its 30,000 included events; other plans have different paid band widths.
 
-| Cumulative overage (events) | $ / event | $ / 1,000 events |
+| Hobby cumulative overage (events) | $ / event | $ / 1,000 events |
 | --- | --- | --- |
 | 1st – 2,000,000 | $0.000035 | $0.035 |
 | 2,000,001 – 10,000,000 | $0.00003 | $0.03 |
@@ -27,7 +27,9 @@ Overage = events **above** the monthly included amount. Cumulative overage is ch
 | 50,000,001 – 250,000,000 | $0.000015 | $0.015 |
 | 250,000,001+ | $0.00001 | $0.01 |
 
-For exact monthly totals at your event volume, use the calculator on the [pricing page](https://www.databuddy.cc/pricing).
+Pro includes 1,000,000 events, then charges $0.035 per 1,000 for its first 1,000,000 paid events (up to 2,000,000 total monthly events). Business includes 2,000,000 events and starts overage at $0.03 per 1,000, up to 10,000,000 total monthly events. Scale includes 10,000,000 events and starts overage at $0.02 per 1,000, up to 50,000,000 total monthly events.
+
+The [JSON API](https://www.databuddy.cc/api/pricing) declares `overageTierBasis: "total_monthly_events"`: its `overageTiers.upTo` values are total monthly event ceilings, including the allowance, not cumulative paid overage. For exact monthly totals at your event volume, use the calculator on the [pricing page](https://www.databuddy.cc/pricing).
 
 ## Product limits
 
