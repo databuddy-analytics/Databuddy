@@ -1,6 +1,16 @@
+import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
 import { FaqSection } from "@/components/landing/faq-section";
 
 export const pricingFaqItems = [
+	{
+		question: "What is included in one investigation?",
+		answer: INVESTIGATION_USAGE.description,
+	},
+	{
+		question: "What happens to my existing credits?",
+		answer:
+			"Your existing credits and plan allowances are preserved. Existing subscriptions retain legacy investigation billing until you buy $1 investigations or switch to a new plan version. After opting in, AI credits continue to pay for ordinary chat; they are not converted into investigation units.",
+	},
 	{
 		question: "What happens when I hit my event limit?",
 		answer:
@@ -9,7 +19,7 @@ export const pricingFaqItems = [
 	{
 		question: "Is there a free trial?",
 		answer:
-			"The Free plan has no trial period and requires no credit card. It includes 10,000 events and 10 investigation credits per month. Credits pay for the work Databunny performs, not a fixed number of messages: simple checks use fewer credits; deeper investigations, replies, and rechecks use more.",
+			"The Free plan has no trial period and requires no credit card. It includes 10,000 events and 10 AI credits per month for ordinary Databunny chat. Investigations are purchased separately at $1 each; scheduled investigations remain invite only.",
 	},
 	{
 		question: "Can I switch plans?",

@@ -1,3 +1,7 @@
+import {
+	DATABUNNY_USAGE,
+	INVESTIGATION_USAGE,
+} from "@databuddy/shared/billing";
 import type { RawPlan } from "../data";
 
 function formatTierRate(amount: number): string {
@@ -59,9 +63,12 @@ export function AiPricingSummary({ plans }: { plans: RawPlan[] }) {
 
 	const full = [
 		"# Databuddy Pricing",
-		"Currency: USD. All prices are monthly.",
+		"Currency: USD. Base plans are monthly; investigations are prepaid.",
 		"Machine-readable version: https://www.databuddy.cc/api/pricing",
 		"",
+		INVESTIGATION_USAGE.description,
+		"Prepaid investigations do not expire. No investigations are included in new base-plan versions.",
+		DATABUNNY_USAGE.description,
 		summary,
 		"",
 		"Sign up: https://app.databuddy.cc/register",

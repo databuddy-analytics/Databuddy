@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import { mergeBusinessContext } from "@databuddy/ai/lib/business-context";
 import {
 	assertBusinessScopeCurrent,
@@ -8,12 +9,8 @@ import {
 	withBusinessContextSnapshot,
 } from "./business-context";
 import type { AppContext } from "@databuddy/ai/config/context";
-import {
-	ensureAgentCreditsAvailable,
-	resolveAgentBillingCustomerId,
-	trackAgentUsageAndBill,
-} from "@databuddy/ai/agents/execution";
-import { and, db, desc, eq, inArray, isNull, ne } from "@databuddy/db";
+import { trackAgentUsage } from "@databuddy/ai/agents/execution";
+import { and, db, desc, eq, inArray, isNull, lte, ne } from "@databuddy/db";
 import {
 	analyticsInsights,
 	insightObservations,
@@ -36,9 +33,12 @@ import {
 	type InsightAgentInput,
 	type InsightAgentResult,
 	runInsightAgent,
+	clarifyInsight,
+	InsightAgentExecutionError,
 } from "./agent";
 import {
 	loadInvestigationHistory,
+	loadClarificationContext,
 	loadOtherOpenWork,
 	nextRecheckAt,
 } from "./observations";
@@ -46,6 +46,14 @@ import { refreshInvestigationSignal } from "./generation";
 import { caseValues } from "./persistence";
 import { captureInsightsError } from "./lib/evlog-insights";
 import { deliverInsightSlackReply } from "./delivery";
+
+import {
+	resolveInvestigationBilling,
+	reserveInvestigationCharge,
+	commitInvestigationCharge,
+	settleInvestigationCharge,
+	releaseInvestigationChargeForOperation,
+} from "./investigation-billing";
 
 type Investigate = (input: InsightAgentInput) => Promise<InsightAgentResult>;
 type Refresh = typeof refreshInvestigationSignal;
@@ -68,21 +76,39 @@ async function deliverCompletedSlackReply(
 	const [observation] = await db
 		.select({
 			outcome: insightObservations.outcome,
+			assistantText: insightReplies.assistantText,
 			signal: insightObservations.signal,
 		})
 		.from(insightReplies)
 		.innerJoin(
+			analyticsInsights,
+			eq(insightReplies.insightId, analyticsInsights.id)
+		)
+		.leftJoin(
 			insightObservations,
 			eq(insightReplies.observationId, insightObservations.id)
 		)
 		.where(
 			and(
 				eq(insightReplies.id, replyId),
-				eq(insightObservations.organizationId, target.organizationId),
-				eq(insightObservations.websiteId, target.websiteId)
+				eq(analyticsInsights.organizationId, target.organizationId),
+				eq(analyticsInsights.websiteId, target.websiteId)
 			)
 		)
 		.limit(1);
+	if (observation?.assistantText) {
+		await deliver({
+			clientMessageId: `${replyId}-success`,
+			context: {
+				...slackDelivery,
+				organizationId: target.organizationId,
+				websiteId: target.websiteId,
+			},
+			result: null,
+			text: observation.assistantText,
+		});
+		return;
+	}
 	const outcome = parseInvestigationOutcome(observation?.outcome);
 	const signal = parseInvestigationSignal(observation?.signal);
 	if (!(outcome && signal)) {
@@ -108,12 +134,17 @@ export async function resumeInsightReply(
 		loadCurrentBusinessScope,
 		loadBusinessProfile: loadWebsiteBusinessProfile,
 		recallBusinessContext: recallWebsiteBusinessContext,
-	}
+	},
+	clarify: typeof clarifyInsight = clarifyInsight
 ): Promise<"skipped" | "succeeded"> {
 	const [trigger] = await db
 		.select({
+			acceptedPriceCents: insightReplies.acceptedPriceCents,
 			authorId: insightReplies.authorId,
+			authorName: insightReplies.authorName,
 			body: insightReplies.body,
+			intent: insightReplies.intent,
+			sourceObservationId: insightReplies.sourceObservationId,
 			createdAt: insightReplies.createdAt,
 			integrations: websites.integrations,
 			organizationId: analyticsInsights.organizationId,
@@ -182,14 +213,140 @@ export async function resumeInsightReply(
 		throw new Error("The investigation no longer exists");
 	}
 
+	const legacyVerification =
+		trigger.sourceObservationId === null &&
+		(["goal", "funnel"] as const).some(
+			(type) =>
+				trigger.body === appliedInsightActionReply(type) ||
+				(trigger.authorId === null &&
+					trigger.authorName === "Databuddy" &&
+					trigger.body ===
+						`Databuddy detected a ${type} definition change. Recheck the current evidence and resolve this investigation if the change addressed it.`)
+		);
+	const intent = legacyVerification ? "verification" : trigger.intent;
+	const track = (answer: {
+		modelId?: string;
+		usage?: InsightAgentResult["usage"];
+	}) => {
+		if (answer.modelId && answer.usage) {
+			trackAgentUsage({
+				modelId: answer.modelId,
+				usage: answer.usage,
+				source: "insights",
+				organizationId: trigger.organizationId,
+				websiteId: trigger.websiteId,
+				userId: trigger.authorId,
+				chatId: `insights:${intent}:${replyId}`,
+			});
+		}
+	};
+	if (intent === "clarification") {
+		const saved = await loadClarificationContext({
+			sourceObservationId: trigger.sourceObservationId,
+			organizationId: trigger.organizationId,
+			websiteId: trigger.websiteId,
+			signalKey: trigger.subjectKey,
+			beforeReply: { createdAt: trigger.createdAt, id: replyId },
+		});
+		const answer = await clarify({
+			...saved,
+			organizationId: trigger.organizationId,
+			websiteId: trigger.websiteId,
+			signalKey: trigger.subjectKey,
+			question: trigger.body,
+		}).catch((error) => {
+			if (error instanceof InsightAgentExecutionError) {
+				track(error);
+			}
+			throw error;
+		});
+		trackAgentUsage({
+			modelId: answer.modelId,
+			usage: answer.usage,
+			source: "insights",
+			organizationId: trigger.organizationId,
+			websiteId: trigger.websiteId,
+			userId: trigger.authorId,
+			chatId: `insights:clarification:${replyId}`,
+		});
+		await db.transaction(async (tx) => {
+			const [site] = await tx
+				.select({ id: websites.id })
+				.from(websites)
+				.where(
+					and(
+						eq(websites.id, trigger.websiteId),
+						eq(websites.organizationId, trigger.organizationId),
+						isNull(websites.deletedAt)
+					)
+				)
+				.for("update");
+			if (!site) {
+				throw new Error("This investigation's website access changed");
+			}
+			await tx
+				.update(insightReplies)
+				.set({ assistantText: answer.text, status: "succeeded" })
+				.where(
+					and(
+						eq(insightReplies.id, replyId),
+						eq(insightReplies.status, "running")
+					)
+				);
+		});
+		try {
+			await invalidateInsightsCachesForOrganization(trigger.organizationId);
+		} catch (error) {
+			captureInsightsError(error, "resume.cache_invalidation.failed", {
+				organization_id: trigger.organizationId,
+				website_id: trigger.websiteId,
+			});
+		}
+		await deliverCompletedSlackReply(replyId, trigger, deliverSlackReply);
+		return "succeeded";
+	}
+
+	let charge:
+		| Awaited<ReturnType<typeof reserveInvestigationCharge>>
+		| undefined;
+	if (intent === "analysis") {
+		if (
+			trigger.acceptedPriceCents == null ||
+			!Number.isSafeInteger(trigger.acceptedPriceCents) ||
+			trigger.acceptedPriceCents <= 0
+		) {
+			throw new Error(
+				"Accept the investigation price before starting a new analysis"
+			);
+		}
+		const billing = await resolveInvestigationBilling({
+			organizationId: trigger.organizationId,
+			userId: trigger.authorId,
+		});
+		if (billing.mode !== "fixed") {
+			throw new Error(
+				"Buy investigation units to start a new $1 analysis. Clarifications and verification of this investigation’s repair are included."
+			);
+		}
+		charge = await reserveInvestigationCharge({
+			billing,
+			expectedPriceCents: trigger.acceptedPriceCents,
+			organizationId: trigger.organizationId,
+			websiteId: trigger.websiteId,
+			operationKey: JSON.stringify(["reply", replyId]),
+		});
+		if (charge.mode !== "fixed") {
+			throw new Error("This operation does not have fixed investigation terms");
+		}
+	}
 	const startedAt = new Date();
 	const scope = {
 		organizationId: trigger.organizationId,
 		websiteId: trigger.websiteId,
 		domain: trigger.websiteDomain,
 	};
-	// Capture and reconcile persisted team statements before billing, current
-	// measurement, or model success. Unacknowledged writes retain the PG fallback.
+	// After the explicit reservation, reconcile persisted team statements before
+	// current measurement. Unacknowledged writes retain the PG fallback.
 	const currentScope = await business.loadCurrentBusinessScope(scope, true);
 	const profile = await business
 		.loadBusinessProfile({
@@ -225,6 +382,62 @@ export async function resumeInsightReply(
 			websiteId: trigger.websiteId,
 		}),
 	]);
+	if (intent === "verification") {
+		const [source] = await db
+			.select({
+				id: insightObservations.id,
+				asOf: insightObservations.asOf,
+				evidence: insightObservations.evidence,
+				outcome: insightObservations.outcome,
+				signal: insightObservations.signal,
+			})
+			.from(insightObservations)
+			.where(
+				and(
+					eq(insightObservations.organizationId, trigger.organizationId),
+					eq(insightObservations.websiteId, trigger.websiteId),
+					eq(insightObservations.signalKey, trigger.subjectKey),
+					trigger.sourceObservationId
+						? eq(insightObservations.id, trigger.sourceObservationId)
+						: lte(insightObservations.createdAt, trigger.createdAt)
+				)
+			)
+			.orderBy(
+				desc(insightObservations.createdAt),
+				desc(insightObservations.id)
+			)
+			.limit(1);
+		const sourceOutcome = parseInvestigationOutcome(source?.outcome);
+		const sourceSignal = parseInvestigationSignal(source?.signal);
+		if (!(source && sourceOutcome && sourceSignal)) {
+			throw new Error(
+				"The original investigation is unavailable for verification"
+			);
+		}
+		const existingSource = history.findIndex(
+			(item) =>
+				item.kind === "investigation" &&
+				item.asOf === source.asOf.toISOString() &&
+				isDeepStrictEqual(item.outcome, sourceOutcome) &&
+				isDeepStrictEqual(item.signal, sourceSignal)
+		);
+		if (existingSource >= 0) {
+			history.splice(existingSource, 1);
+		}
+		history.push({
+			kind: "investigation",
+			asOf: source.asOf.toISOString(),
+			evidence: source.evidence,
+			outcome: sourceOutcome,
+			signal: sourceSignal,
+		});
+		if (legacyVerification) {
+			await db
+				.update(insightReplies)
+				.set({ intent: "verification", sourceObservationId: source.id })
+				.where(eq(insightReplies.id, replyId));
+		}
+	}
 	let latest = history.at(-1);
 	for (
 		let index = history.length - 2;
@@ -237,13 +450,6 @@ export async function resumeInsightReply(
 		throw new Error("This investigation has no history to resume");
 	}
 
-	const billingCustomerId = await resolveAgentBillingCustomerId({
-		organizationId: trigger.organizationId,
-		userId: trigger.authorId,
-	});
-	if (!(await ensureAgentCreditsAvailable(billingCustomerId))) {
-		throw new Error("AI usage allowance is empty");
-	}
 	const currentMeasurement = await refresh({
 		asOf: startedAt,
 		signal: latest.signal,
@@ -276,16 +482,18 @@ export async function resumeInsightReply(
 		history,
 		otherOpenWork,
 		request: {
-			kind: (["goal", "funnel"] as const).some(
-				(type) => trigger.body === appliedInsightActionReply(type)
-			)
-				? "verification"
-				: undefined,
+			kind: intent === "verification" ? "verification" : undefined,
 			body: trigger.body,
 			createdAt: trigger.createdAt.toISOString(),
 		},
 		signal: currentMeasurement.signal,
+	}).catch((error) => {
+		if (error instanceof InsightAgentExecutionError) {
+			track(error);
+		}
+		throw error;
 	});
+	track(result);
 	const outcome = withBusinessContextSnapshot(result.outcome, businessContext);
 	const committed = await db.transaction(async (tx) => {
 		await assertBusinessScopeCurrent(currentScope, tx);
@@ -328,7 +536,14 @@ export async function resumeInsightReply(
 
 		const next = outcome.next.type;
 		const shouldUpdateInvestigation =
-			current.status === "open" || next === "act" || next === "ask";
+			current.status === "open" ||
+			next === "act" ||
+			next === "ask" ||
+			Boolean(
+				charge &&
+					result.completion === "complete" &&
+					result.snapshot?.completion === "complete"
+			);
 		if (shouldUpdateInvestigation) {
 			await tx
 				.update(analyticsInsights)
@@ -346,6 +561,7 @@ export async function resumeInsightReply(
 		await tx.insert(insightObservations).values({
 			asOf: committedAt,
 			evidence: currentMeasurement.evidence,
+			snapshot: result.snapshot,
 			id: observationId,
 			insightId: current.id,
 			organizationId: trigger.organizationId,
@@ -356,6 +572,15 @@ export async function resumeInsightReply(
 			signalKey: currentMeasurement.signal.signalKey,
 			websiteId: trigger.websiteId,
 		});
+		if (charge) {
+			await commitInvestigationCharge(tx, {
+				chargeId: charge.id,
+				observationId,
+				complete:
+					result.completion === "complete" &&
+					result.snapshot?.completion === "complete",
+			});
+		}
 		await tx
 			.update(insightReplies)
 			.set({ observationId, status: "succeeded" })
@@ -364,24 +589,13 @@ export async function resumeInsightReply(
 	});
 
 	if (committed) {
-		if (result.modelId && result.usage) {
+		if (charge) {
 			try {
-				await trackAgentUsageAndBill({
-					billingCustomerId,
-					chatId,
-					idempotencyKey: `insights:reply:${replyId}`,
-					modelId: result.modelId,
-					organizationId: trigger.organizationId,
-					source: "insights",
-					usage: result.usage,
-					userId: trigger.authorId,
-					websiteId: trigger.websiteId,
-				});
+				await settleInvestigationCharge(charge.id);
 			} catch (error) {
-				captureInsightsError(error, "resume.billing.failed", {
-					organization_id: trigger.organizationId,
+				captureInsightsError(error, "resume.billing.settlement_pending", {
+					charge_id: charge.id,
 					reply_id: replyId,
-					website_id: trigger.websiteId,
 				});
 			}
 		}
@@ -415,13 +629,13 @@ export async function recordInsightReplyFailure(
 				ne(insightReplies.status, "succeeded")
 			)
 		)
-		.returning({ slackDelivery: insightReplies.slackDelivery });
-	if (!(finalAttempt && failed?.slackDelivery)) {
+		.returning({
+			slackDelivery: insightReplies.slackDelivery,
+			intent: insightReplies.intent,
+		});
+	if (!(finalAttempt && failed)) {
 		return;
 	}
-	const slackDelivery = insightReplySlackDeliverySchema.parse(
-		failed.slackDelivery
-	);
 	const [target] = await db
 		.select({
 			organizationId: analyticsInsights.organizationId,
@@ -437,6 +651,25 @@ export async function recordInsightReplyFailure(
 	if (!target) {
 		return;
 	}
+	if (failed.intent === "analysis") {
+		try {
+			await releaseInvestigationChargeForOperation({
+				organizationId: target.organizationId,
+				operationKey: JSON.stringify(["reply", replyId]),
+			});
+		} catch (error) {
+			captureInsightsError(error, "resume.billing.release_pending", {
+				organization_id: target.organizationId,
+				reply_id: replyId,
+			});
+		}
+	}
+	if (!failed.slackDelivery) {
+		return;
+	}
+	const slackDelivery = insightReplySlackDeliverySchema.parse(
+		failed.slackDelivery
+	);
 	await deliverSlackFailure({
 		clientMessageId: `${replyId}-failure`,
 		context: { ...slackDelivery, ...target },

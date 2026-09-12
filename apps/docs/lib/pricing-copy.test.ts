@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "bun:test";
+import { buildPricingApiPayload } from "@/app/api/pricing/build-response";
 import { RAW_PLANS } from "@/app/(home)/pricing/data";
 
 function included(
@@ -46,7 +47,22 @@ describe("public pricing copy", () => {
 		expect(markdown).not.toContain("Agent credits");
 		expect(markdown).not.toContain("Databunny usage");
 		expect(markdown).not.toContain("usage units");
-		expect(markdown).toContain("Investigation credits");
+		expect(markdown).toContain("AI credits");
 		expect(markdown).toContain("Invite only");
+		expect(markdown).toContain("$1 per completed investigation");
+		expect(markdown).toContain("prepaid investigations do not expire");
 	});
+	it("publishes fixed investigation pricing separately from unchanged AI credit allowances", () => {
+		const response = buildPricingApiPayload(new Request("https://www.databuddy.cc/api/pricing"));
+		expect(response.investigations).toMatchObject({
+			featureId: "investigation_runs", pricePerInvestigation: 1,
+			billingModel: "prepaid", includedPerPlan: 0, purchaseLimit: 1000, expires: false,
+		});
+		for (const plan of response.plans.filter((entry) => entry.id !== "enterprise")) {
+			expect(plan.features.find((feature) => feature.id === "investigation_runs")).toMatchObject({ included: 0, interval: null });
+		}
+		expect(response.investigations.description).toContain("verification after applying a proposed repair are included");
+		expect(response.notes.legacyCredits).toContain("preserved");
+	});
+
 });

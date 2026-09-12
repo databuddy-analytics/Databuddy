@@ -7,6 +7,7 @@ import {
 	websites,
 	insightRuns,
 	insightRunItems,
+	investigationCharges,
 } from "@databuddy/db/schema";
 import { getAutumn } from "@databuddy/rpc/autumn";
 import { hasTestDb } from "@databuddy/test";
@@ -17,6 +18,7 @@ import * as definitions from "./funnel-detection";
 import * as routes from "./route-health-detection";
 import * as selection from "./business-aware-selection";
 import * as plans from "./run-candidate-plan";
+import * as investigationBilling from "./investigation-billing";
 
 const integration =
 	process.env.INSIGHTS_INTEGRATION_TESTS === "true" && hasTestDb
@@ -61,6 +63,8 @@ integration("selection billing across native generation retries", () => {
 			billing,
 			"resolveAgentBillingCustomerId"
 		).mockResolvedValue("synthetic-customer");
+		const mode = spyOn(investigationBilling, "resolveInvestigationBilling").mockResolvedValue({ mode: "legacy", customerId: "synthetic-customer" });
+		const access = spyOn(investigationBilling, "canRunInvestigation").mockResolvedValue(true);
 		const metrics = spyOn(detection, "detectSignals").mockResolvedValue(
 			["visitors", "sessions"].map((metric) => ({
 				metric,
@@ -212,11 +216,27 @@ integration("selection billing across native generation retries", () => {
 							`insights:${identity.runId}:${identity.websiteId}:selection`
 					)
 			);
+			// Opting into the fixed meter makes selection operating overhead. An
+			// empty portfolio must not reserve or debit an investigation unit.
+			mode.mockResolvedValue({ mode: "fixed", customerId: "synthetic-customer" });
+			await db.update(insightRuns).set({ status: "succeeded" }).where(inArray(insightRuns.id, runIds));
+			const fixedRunId = randomUUIDv7();
+			const fixedItemId = randomUUIDv7();
+			runIds.push(fixedRunId);
+			itemIds.push(fixedItemId);
+			await db.insert(insightRuns).values({ id: fixedRunId, organizationId, status: "running" });
+			await db.insert(insightRunItems).values({ id: fixedItemId, runId: fixedRunId, organizationId, websiteId: input.websiteId, queueJobId: `synthetic-${fixedItemId}`, status: "running" });
+			const priorTrackCalls = track.mock.calls.length;
+			await generateWebsiteInsights({ ...input, runId: fixedRunId, itemId: fixedItemId, queueJobId: `synthetic-${fixedItemId}` });
+			expect(track).toHaveBeenCalledTimes(priorTrackCalls);
+			expect(await db.select().from(investigationCharges).where(eq(investigationCharges.runId, fixedRunId))).toHaveLength(0);
 		} finally {
 			for (const stub of [
 				track,
 				check,
 				customer,
+				mode,
+				access,
 				metrics,
 				goals,
 				health,

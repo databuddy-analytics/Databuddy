@@ -161,11 +161,11 @@ export function AgentInput() {
 			bumpCreditShake((n) => n + 1);
 			toast.error("Databunny can't answer another question yet", {
 				description:
-					"This organization's investigation credit balance is empty. Add credits or change the plan to continue.",
+					"This organization's AI credit balance is empty. Add AI credits for chat or change the plan to continue.",
 				id: "databunny-usage-empty",
 				action: {
 					label: "View billing",
-					onClick: () => router.push("/billing#topup"),
+					onClick: () => router.push("/billing#chat-topup"),
 				},
 			});
 			return;

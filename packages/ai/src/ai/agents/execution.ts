@@ -149,9 +149,9 @@ function mergeAgentBillingFields(input: {
 	});
 }
 
-export async function trackAgentUsageAndBill(
+export function trackAgentUsage(
 	input: AgentUsageTrackingInput
-): Promise<UsageTelemetry> {
+): UsageTelemetry {
 	const summary = summarizeAgentUsage(input.modelId, input.usage);
 	mergeWideEvent(summary);
 
@@ -164,6 +164,13 @@ export async function trackAgentUsageAndBill(
 		user_id: input.userId ?? null,
 		...summary,
 	});
+	return summary;
+}
+
+export async function trackAgentUsageAndBill(
+	input: AgentUsageTrackingInput
+): Promise<UsageTelemetry> {
+	const summary = trackAgentUsage(input);
 
 	if (!(isAgentBillingConfigured() && input.billingCustomerId)) {
 		return summary;

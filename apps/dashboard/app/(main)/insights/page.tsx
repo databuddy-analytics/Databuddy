@@ -7,7 +7,7 @@ import { Suspense, type ReactNode, useEffect, useRef, useState } from "react";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import {
 	useBillingContext,
-	useUsageFeature,
+	useInvestigationUsage,
 } from "@/components/providers/billing-provider";
 import { type BriefInsight, insightQueries } from "@/lib/insight-api";
 import { APP_EVENTS, trackAppEvent } from "@/lib/app-events";
@@ -51,8 +51,7 @@ function InsightsPageContent() {
 	const searchParams = useSearchParams();
 	const firstReviewWebsiteId =
 		searchParams.get("firstReview")?.trim() || undefined;
-	const { balance: investigationCredits, unlimited } =
-		useUsageFeature("agent_credits");
+	const { canUse: canUseInvestigations, fixedPrice } = useInvestigationUsage();
 	const { isLoading: billingLoading } = useBillingContext();
 	const latestRun = useQuery({
 		...orpc.insightGeneration.getLatestRun.queryOptions({
@@ -274,7 +273,8 @@ function InsightsPageContent() {
 				<FirstReview
 					billingLoading={billingLoading}
 					canRun={canRunFirstReview}
-					canUseCredits={unlimited || investigationCredits > 0}
+					canUseCredits={canUseInvestigations}
+					fixedPrice={fixedPrice}
 					error={
 						firstReview.isError ||
 						(shouldPollFirstReviewStatus && firstReviewStatus.isError)
@@ -353,6 +353,7 @@ type FirstReviewRun = FirstReviewReadiness["latestRun"];
 
 function FirstReview({
 	billingLoading,
+	fixedPrice,
 	canRun,
 	canUseCredits,
 	error,
@@ -367,6 +368,7 @@ function FirstReview({
 	websiteId,
 }: {
 	billingLoading: boolean;
+	fixedPrice: boolean;
 	canRun: boolean;
 	canUseCredits: boolean;
 	error: boolean;
@@ -479,7 +481,7 @@ function FirstReview({
 	} else if (!needsRefresh && canRun && status.action === "review") {
 		action = billingLoading ? (
 			<Button disabled loading size="sm">
-				Checking credits
+				Checking balance
 			</Button>
 		) : canUseCredits ? (
 			<Button onClick={onRun} size="sm">
@@ -490,7 +492,7 @@ function FirstReview({
 			<Button asChild size="sm">
 				<Link href="/billing#topup">
 					<CoinsIcon className="size-3.5" />
-					Add investigation credits
+					Add investigation balance
 				</Link>
 			</Button>
 		);
@@ -529,6 +531,14 @@ function FirstReview({
 							{permissionDescription}
 						</p>
 					) : null}
+					{action && !billingLoading && fixedPrice && (
+						<p className="mt-3 text-muted-foreground text-xs">
+							$1 per completed investigation. A first review may investigate
+							several signals and use multiple prepaid investigations.
+							Same-question clarifications and verification of a proposed repair
+							are included.
+						</p>
+					)}
 					{action ? <div className="mt-3">{action}</div> : null}
 				</div>
 			</Card.Content>
@@ -590,12 +600,12 @@ const FIRST_REVIEW_STATUSES = {
 	},
 	needs_credits: {
 		action: "review",
-		badgeLabel: "Needs credits",
+		badgeLabel: "Needs balance",
 		badgeVariant: "warning",
 		description:
-			"No investigation credits were available for the last attempt. Add credits, then retry.",
+			"No investigation balance was available for the last attempt. Add balance, then retry.",
 		icon: <CoinsIcon className="size-5 text-warning" />,
-		title: "Your first review is waiting for credits",
+		title: "Your first review is waiting for balance",
 	},
 	deferred: {
 		action: null,

@@ -273,6 +273,7 @@
         "@databuddy/shared": "workspace:*",
         "@slack/web-api": "7.17.0",
         "ai": "^6.0.188",
+        "autumn-js": "catalog:",
         "bullmq": "^5.78.0",
         "dayjs": "^1.11.19",
         "elysia": "catalog:",

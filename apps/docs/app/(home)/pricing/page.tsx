@@ -1,5 +1,7 @@
 "use client";
 
+import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
+
 import { Footer } from "@/components/footer";
 import { AiPricingSummary } from "./_pricing/ai-pricing-summary";
 import { Estimator } from "./_pricing/estimator";
@@ -30,6 +32,23 @@ export default function PricingPage() {
 				<AiPricingSummary plans={RAW_PLANS} />
 
 				<PlansComparisonTable plans={PLANS} />
+
+				<section
+					aria-label="Investigation pricing"
+					className="mb-10 border border-border bg-card p-6"
+				>
+					<h2 className="font-semibold text-2xl">$1 per investigation</h2>
+					<p className="mt-2 text-muted-foreground">
+						{INVESTIGATION_USAGE.description}
+					</p>
+					<p className="mt-2 text-muted-foreground text-sm">
+						Buy only what you need. Prepaid investigations do not expire. Plan
+						AI credits pay for ordinary chat; no investigations are bundled with
+						new plan versions. Existing balances and legacy investigation terms
+						are preserved until you buy investigations or switch to a new plan
+						version.
+					</p>
+				</section>
 
 				<IntelligenceSection />
 

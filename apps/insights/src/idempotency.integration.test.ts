@@ -1022,6 +1022,8 @@ describeIntegration("insights idempotency integration", () => {
 			authorId: author.id,
 			authorName: "Test author",
 			body: "The signup form changed in yesterday's deploy.",
+			// Trusted backend verification retains the fresh-analysis lifecycle.
+			intent: "verification",
 			createdAt: new Date("2026-01-11T00:00:00.000Z"),
 			id: replyId,
 			insightId: olderInsightId,
@@ -1164,6 +1166,8 @@ describeIntegration("insights idempotency integration", () => {
 			authorId: null,
 			authorName: "Test author",
 			body: "That deploy was intentionally rolled back.",
+			// Trusted backend verification retains the fresh-analysis lifecycle.
+			intent: "verification",
 			id: secondReplyId,
 			insightId: olderInsightId,
 			status: "queued",
@@ -1284,6 +1288,8 @@ describeIntegration("insights idempotency integration", () => {
 			authorId: author.id,
 			authorName: "Test author",
 			body: "Keep watching the recovery.",
+			// Trusted backend verification retains the fresh-analysis lifecycle.
+			intent: "verification",
 			id: watchReplyId,
 			insightId: olderInsightId,
 			status: "queued",
@@ -1508,13 +1514,13 @@ describeIntegration("insights idempotency integration", () => {
 		expect(await replyStatus(replyId)).toBe("queued");
 
 		await expect(processInsightsJob(job)).rejects.toThrow(
-			"no history to resume"
+			"saved investigation is unavailable"
 		);
 		expect(await replyStatus(replyId)).toBe("queued");
 
 		await expect(
 			processInsightsJob({ ...job, attemptsMade: 2, attemptsStarted: 3 })
-		).rejects.toThrow("no history to resume");
+		).rejects.toThrow("saved investigation is unavailable");
 		expect(await replyStatus(replyId)).toBe("failed");
 	});
 

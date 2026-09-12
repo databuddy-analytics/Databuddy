@@ -58,6 +58,7 @@ const {
 	ensureAgentCreditsAvailable,
 	isAgentBillingConfigured,
 	resolveAgentBillingCustomerId,
+	trackAgentUsage,
 	trackAgentUsageAndBill,
 } = await import("./execution");
 
@@ -200,6 +201,23 @@ describe("ensureAgentCreditsAvailable", () => {
 			agent_credits_allowed: true,
 			agent_credits_check_skipped: true,
 		});
+	});
+});
+
+describe("trackAgentUsage", () => {
+	it("retains model costs without consuming credits when billing is configured", () => {
+		const summary = trackAgentUsage({
+			billingCustomerId: "owner:synthetic-org",
+			modelId: "openai/gpt-5.6-luna",
+			source: "insights",
+			usage: { inputTokens: 1_000_000, outputTokens: 1_000_000 },
+		});
+
+		expect(summary.cost_fallback).toBe(false);
+		expect(summary.cost_total_usd).toBe(1.4);
+		expect(mockMergeWideEvent).toHaveBeenCalledWith(summary);
+		expect(mockAutumnCheck).not.toHaveBeenCalled();
+		expect(mockAutumnTrack).not.toHaveBeenCalled();
 	});
 });
 

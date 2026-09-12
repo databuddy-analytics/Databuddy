@@ -13,9 +13,7 @@ import {
 } from "./business-context";
 import type { AppContext } from "@databuddy/ai/config/context";
 import {
-	ensureAgentCreditsAvailable,
-	isAgentBillingConfigured,
-	resolveAgentBillingCustomerId,
+	trackAgentUsage,
 	trackAgentUsageAndBill,
 } from "@databuddy/ai/agents/execution";
 import { and, between, db, eq, gt, isNull, lte, or } from "@databuddy/db";
@@ -26,6 +24,7 @@ import { createServiceAuth } from "@databuddy/rpc";
 import type {
 	InvestigationOutcome,
 	InvestigationSignal,
+	InvestigationEvidenceSnapshot,
 } from "@databuddy/shared/insights";
 import { randomUUIDv7 } from "bun";
 import dayjs from "dayjs";
@@ -82,6 +81,7 @@ import {
 	type InsightAgentInput,
 	type InsightAgentResult,
 	runInsightAgent,
+	savedVerificationCheck,
 } from "./agent";
 import {
 	errorCustomerImpactEvidence,
@@ -115,6 +115,15 @@ import {
 	emitInsightsEvent,
 	setInsightsLog,
 } from "./lib/evlog-insights";
+import {
+	canRunInvestigation,
+	type InvestigationBilling,
+	resolveInvestigationBilling,
+	reserveInvestigationCharge,
+	releaseInvestigationCharge,
+	settleInvestigationCharge,
+	recoverInvestigationCharges,
+} from "./investigation-billing";
 
 interface GenerateWebsiteInsightsInput {
 	finalAttempt: boolean;
@@ -147,9 +156,11 @@ interface InvestigateWebsiteInput {
 
 export interface WebsiteInvestigationArtifact {
 	asOf: string;
+	completion?: "complete" | "incomplete";
 	evidence: string[];
 	outcome: InvestigationOutcome | null;
 	signal: InvestigationSignal | null;
+	snapshot?: InvestigationEvidenceSnapshot;
 	status: "completed" | "deferred" | "no_signals";
 }
 
@@ -299,6 +310,7 @@ const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 interface InvestigationRuntime {
 	canRunAgent?: () => Promise<boolean>;
+	history?: InsightAgentInput["history"];
 	mode: "production" | "shadow";
 	onUsage?: (
 		result: Required<Pick<InsightAgentResult, "modelId" | "usage">>
@@ -909,12 +921,14 @@ async function investigatePlannedCandidate(
 		websiteName: input.name ?? null,
 	};
 	const [history, otherOpenWork] = await Promise.all([
-		runtime.sources.loadHistory({
-			organizationId: input.organizationId,
-			signalKey: candidate.signal.signalKey,
-			through: asOf.toDate(),
-			websiteId: input.websiteId,
-		}),
+		runtime.history
+			? Promise.resolve(runtime.history)
+			: runtime.sources.loadHistory({
+					organizationId: input.organizationId,
+					signalKey: candidate.signal.signalKey,
+					through: asOf.toDate(),
+					websiteId: input.websiteId,
+				}),
 		runtime.sources.loadOtherOpenWork({
 			organizationId: input.organizationId,
 			signalKey: candidate.signal.signalKey,
@@ -984,6 +998,8 @@ async function investigatePlannedCandidate(
 	return {
 		asOf: asOf.toISOString(),
 		evidence,
+		completion: investigationResult.completion,
+		snapshot: investigationResult.snapshot,
 		outcome: withBusinessContextSnapshot(
 			investigationResult.outcome,
 			candidate.businessContext
@@ -1312,6 +1328,10 @@ export async function generateWebsiteInsights(
 		runId: input.runId,
 		websiteId: input.websiteId,
 	};
+	await recoverInvestigationCharges({
+		runId: input.runId,
+		websiteId: input.websiteId,
+	});
 	const prepared = await loadPreparedInsightRun(runIdentity);
 	if (prepared) {
 		await drainInsightRunEffects(runIdentity, input.finalAttempt);
@@ -1376,17 +1396,16 @@ export async function generateWebsiteInsights(
 	});
 	let billingCheckError: unknown;
 	let billingCustomerId: string | null = null;
+	let billing: InvestigationBilling | null = null;
 	let noCredits = false;
 	const canRunAgent = async () => {
-		if (!isAgentBillingConfigured()) {
-			return true;
-		}
 		try {
-			billingCustomerId = await resolveAgentBillingCustomerId({
+			billing ??= await resolveInvestigationBilling({
 				organizationId: input.organizationId,
 				userId: input.requestedByUserId,
 			});
-			noCredits = !(await ensureAgentCreditsAvailable(billingCustomerId));
+			billingCustomerId = billing.customerId;
+			noCredits = !(await canRunInvestigation(billing));
 			return !noCredits;
 		} catch (error) {
 			billingCheckError = error;
@@ -1402,25 +1421,30 @@ export async function generateWebsiteInsights(
 	const billUsage = (
 		usage: Required<Pick<InsightAgentResult, "modelId" | "usage">>,
 		signalKey: string,
-		idempotencyKey: string
+		idempotencyKey: string,
+		mode: InvestigationBilling["mode"] | "included" | undefined = billing?.mode
 	) =>
-		trackAgentUsageAndBill({
-			billingCustomerId,
-			chatId: `insights:${input.organizationId}:${site.id}:${signalKey}`,
-			idempotencyKey,
-			modelId: usage.modelId,
-			usage: usage.usage,
-			organizationId: input.organizationId,
-			source: "insights",
-			userId: input.requestedByUserId,
-			websiteId: site.id,
-		}).catch((error) =>
-			captureInsightsError(error, "generation.billing.failed", {
-				organization_id: input.organizationId,
-				run_id: input.runId,
-				website_id: site.id,
-			})
-		);
+		Promise.resolve()
+			.then(() =>
+				(mode === "legacy" ? trackAgentUsageAndBill : trackAgentUsage)({
+					billingCustomerId,
+					chatId: `insights:${input.organizationId}:${site.id}:${signalKey}`,
+					idempotencyKey,
+					modelId: usage.modelId,
+					usage: usage.usage,
+					organizationId: input.organizationId,
+					source: "insights",
+					userId: input.requestedByUserId,
+					websiteId: site.id,
+				})
+			)
+			.catch((error) =>
+				captureInsightsError(error, "generation.billing.failed", {
+					organization_id: input.organizationId,
+					run_id: input.runId,
+					website_id: site.id,
+				})
+			);
 	let plan = await loadInsightRunCandidatePlan(
 		runIdentity,
 		input.reason,
@@ -1564,6 +1588,8 @@ export async function generateWebsiteInsights(
 		});
 	}
 	const emptyStatus = plan?.emptyStatus ?? null;
+	// These keys account for durable terminal observations in this run.
+	// Billable answer completion is tracked separately by the charge ledger.
 	const completedSignalKeys = new Set(
 		existingObservations.map((observation) => observation.signal.signalKey)
 	);
@@ -1650,11 +1676,60 @@ export async function generateWebsiteInsights(
 				candidates: plan.candidates,
 				completedSignalKeys,
 				runCandidate: async (plannedCandidate, relatedSignals) => {
-					if (noCredits) {
-						return;
-					}
 					if (plan.businessScope?.startedAt) {
 						await loadCurrentBusinessScope(plan.businessScope);
+					}
+					// Freeze the history used by the native deterministic continuation.
+					// Rechecking its exact saved condition is included, even on a manual scan.
+					const history = ["goal", "funnel"].includes(
+						plannedCandidate.signal.entity.type
+					)
+						? await productionInvestigationSources.loadHistory({
+								organizationId: input.organizationId,
+								signalKey: plannedCandidate.signal.signalKey,
+								through: new Date(plan.asOf),
+								websiteId: site.id,
+							})
+						: undefined;
+					const included = Boolean(
+						history &&
+							savedVerificationCheck({
+								history,
+								signal: plannedCandidate.signal,
+							})
+					);
+					if (noCredits && !included) {
+						return;
+					}
+					let charge: Awaited<
+						ReturnType<typeof reserveInvestigationCharge>
+					> | null = null;
+					if (!included) {
+						try {
+							billing ??= await resolveInvestigationBilling({
+								organizationId: input.organizationId,
+								userId: input.requestedByUserId,
+							});
+							charge = await reserveInvestigationCharge({
+								billing,
+								organizationId: input.organizationId,
+								websiteId: site.id,
+								runId: input.runId,
+								operationKey: JSON.stringify([
+									"run",
+									input.runId,
+									site.id,
+									plannedCandidate.signal.signalKey,
+								]),
+							});
+							billingCustomerId = charge.customerId;
+						} catch (error) {
+							// Included continuations can still finish; report the unpaid
+							// fresh work as a partial failure after the portfolio runs.
+							billingCheckError = error;
+							noCredits = true;
+							return;
+						}
 					}
 					const usageIdempotencyKey = `insights:${input.runId}:${site.id}:${randomUUIDv7()}`;
 					const agentUsage: {
@@ -1668,8 +1743,18 @@ export async function generateWebsiteInsights(
 							plannedCandidate,
 							relatedSignals,
 							{
-								canRunAgent,
+								canRunAgent: async () => {
+									if (!charge || charge.mode === "fixed") {
+										return true;
+									}
+									noCredits = !(await canRunInvestigation({
+										mode: charge.mode,
+										customerId: charge.customerId,
+									}));
+									return !noCredits;
+								},
 								mode: "production",
+								history,
 								sources: productionInvestigationSources,
 								onUsage: (usage) => {
 									agentUsage.value = usage;
@@ -1700,6 +1785,9 @@ export async function generateWebsiteInsights(
 						};
 						const asOf = new Date(analysis.asOf);
 						const saved = await persistInvestigation({
+							charge: charge ?? undefined,
+							completion: analysis.completion,
+							snapshot: analysis.snapshot,
 							businessScope: plan.businessScope ?? businessScope,
 							evidence: analysis.evidence,
 							investigation: candidate,
@@ -1725,13 +1813,38 @@ export async function generateWebsiteInsights(
 							interruptingInvestigations.push(saved);
 							await enqueueInterruptingEffects([saved]);
 						}
+						if (charge) {
+							try {
+								await settleInvestigationCharge(charge.id);
+							} catch (error) {
+								captureInsightsError(
+									error,
+									"generation.billing.settlement_pending",
+									{ charge_id: charge.id }
+								);
+							}
+						}
+					} catch (error) {
+						if (charge && input.finalAttempt) {
+							try {
+								await releaseInvestigationCharge(charge.id);
+							} catch (releaseError) {
+								captureInsightsError(
+									releaseError,
+									"generation.billing.release_pending",
+									{ charge_id: charge.id }
+								);
+							}
+						}
+						throw error;
 					} finally {
 						const billableUsage = agentUsage.value;
 						if (billableUsage) {
 							await billUsage(
 								billableUsage,
 								plannedCandidate.signal.signalKey,
-								usageIdempotencyKey
+								usageIdempotencyKey,
+								charge?.mode ?? "included"
 							);
 						}
 					}
@@ -1755,7 +1868,12 @@ export async function generateWebsiteInsights(
 		throw error;
 	}
 
-	if (billingCheckError) {
+	if (
+		billingCheckError &&
+		plan?.candidates.some(
+			(candidate) => !completedSignalKeys.has(candidate.signal.signalKey)
+		)
+	) {
 		emitExecutionCoverage("partial_failure");
 		throw billingCheckError;
 	}

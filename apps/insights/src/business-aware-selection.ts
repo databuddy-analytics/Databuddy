@@ -115,7 +115,7 @@ export async function chooseInvestigationSignals(
 	if (!sources.length) {
 		return null;
 	}
-	const modelId = "openai/gpt-5.6-terra";
+	const modelId = "openai/gpt-5.6-luna";
 	const result = await generateText({
 		model: model ?? getAILogger().wrap(createModelFromId(modelId)),
 		maxRetries: 0,

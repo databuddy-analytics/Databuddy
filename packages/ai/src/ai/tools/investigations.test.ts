@@ -191,6 +191,7 @@ describe("investigations", () => {
 				router: "insights",
 				input: {
 					body: reply.body,
+					intent: "clarification",
 					insightId: "investigation-1",
 					replyId: "reply-1",
 				},
@@ -208,7 +209,7 @@ describe("investigations", () => {
 		expect(got).toMatchObject({ action: "get", investigation, timeline: [reply] });
 		expect(replied).toMatchObject({ action: "reply", reply });
 		expect(replied.message).toContain("status queued");
-		expect(replied.message).toContain("asynchronously");
+		expect(replied.message).toContain("included clarification uses saved evidence");
 	});
 
 	it("requires a stable colon-free reply id", async () => {

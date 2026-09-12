@@ -1,4 +1,8 @@
-import { DATABUNNY_USAGE, LEGACY_SCALE_PLAN } from "../billing";
+import {
+	DATABUNNY_USAGE,
+	INVESTIGATION_USAGE,
+	LEGACY_SCALE_PLAN,
+} from "../billing";
 
 export const PLAN_IDS = {
 	FREE: "free",
@@ -37,6 +41,7 @@ export const PLAN_HIERARCHY: PlanId[] = [
 export const FEATURE_IDS = {
 	EVENTS: "events",
 	AGENT_CREDITS: "agent_credits",
+	INVESTIGATION_RUNS: INVESTIGATION_USAGE.featureId,
 } as const;
 
 export type FeatureId = (typeof FEATURE_IDS)[keyof typeof FEATURE_IDS];
@@ -176,6 +181,12 @@ export const FEATURE_METADATA: Record<FeatureId | GatedFeatureId, FeatureMeta> =
 			description: DATABUNNY_USAGE.description,
 			upgradeMessage: DATABUNNY_USAGE.upgradeMessage,
 			unit: DATABUNNY_USAGE.unit,
+		},
+		[FEATURE_IDS.INVESTIGATION_RUNS]: {
+			name: INVESTIGATION_USAGE.name,
+			description: INVESTIGATION_USAGE.description,
+			unit: INVESTIGATION_USAGE.unit,
+			upgradeMessage: "Add investigations at $1 each",
 		},
 		[GATED_FEATURES.FUNNELS]: {
 			name: "Funnels",

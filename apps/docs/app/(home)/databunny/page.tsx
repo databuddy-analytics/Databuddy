@@ -59,7 +59,7 @@ const FAQ_ITEMS = [
 	{
 		question: "Is Databunny included in all plans?",
 		answer:
-			"Every plan includes investigation credits for asking Databunny questions; Free includes 10 credits each month. Automatic scheduled investigations are part of the invite-only Business and Scale plans. Simple checks use fewer credits; deeper investigations, replies, and rechecks use more.",
+			"Every plan includes AI credits for ordinary Databunny chat; Free includes 10 credits each month. Completed investigations cost $1 each, with same-question clarifications and verification after applying a proposed repair included. New questions and separate fresh analysis are new investigations. Existing balances and legacy terms are preserved until you buy investigations or switch to a new plan version. Automatic scheduled investigations remain invite only.",
 	},
 ] as const;
 

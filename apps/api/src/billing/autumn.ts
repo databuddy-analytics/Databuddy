@@ -1,3 +1,6 @@
+import type { JSONValue } from "ai";
+import { buildHttpErrorResponse } from "@databuddy/shared/http-error-response";
+import { isInvestigationPurchaseValid } from "./investigation-purchase";
 import { auth } from "@databuddy/auth";
 import { getRedisCache } from "@databuddy/redis";
 import { getBillingCustomerId, getMemberRole } from "@databuddy/rpc";
@@ -22,19 +25,19 @@ const FORBIDDEN_BODY_KEYS = new Set([
 	"prorationBehavior",
 ]);
 
-function sanitize(value: unknown): unknown {
+function sanitize(value: JSONValue): JSONValue {
 	if (Array.isArray(value)) {
 		return value.map(sanitize);
 	}
 	if (!value || typeof value !== "object") {
 		return value;
 	}
-	const out: Record<string, unknown> = {};
+	const out: Record<string, JSONValue | undefined> = {};
 	for (const [key, val] of Object.entries(value)) {
 		if (FORBIDDEN_BODY_KEYS.has(key)) {
 			continue;
 		}
-		out[key] = sanitize(val);
+		out[key] = val === undefined ? undefined : sanitize(val);
 	}
 	return out;
 }
@@ -43,11 +46,8 @@ async function stripPrivilegedBody(request: Request): Promise<Request> {
 	if (request.method === "GET" || request.method === "HEAD") {
 		return request;
 	}
-	const contentType = request.headers.get("content-type") ?? "";
-	if (!contentType.includes("application/json")) {
-		return request;
-	}
-
+	// The native adapter parses JSON regardless of Content-Type. Apply the same
+	// restrictions to text/plain and missing-header requests before forwarding.
 	const text = await request.text();
 	let body: string | null = text || null;
 	if (text) {
@@ -133,6 +133,19 @@ async function writeAutumnCache(
 export async function handleAutumnRequest(request: Request) {
 	const sanitized = await stripPrivilegedBody(request);
 	const segment = autumnPathSegment(sanitized);
+	if (sanitized.method !== "GET" && sanitized.method !== "HEAD") {
+		const body: JSONValue = await sanitized
+			.clone()
+			.json()
+			.catch(() => null);
+		if (!isInvestigationPurchaseValid(body, segment)) {
+			const response = buildHttpErrorResponse({
+				code: "VALIDATION",
+				error: null,
+			});
+			return Response.json(response.payload, { status: response.status });
+		}
+	}
 	const ttlSec = AUTUMN_CACHE_TTL_SEC[segment];
 
 	if (ttlSec === undefined) {

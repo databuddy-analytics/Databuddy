@@ -1,11 +1,14 @@
 "use client";
 
+import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
+
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { type FormEvent, useId, useState } from "react";
 import { toast } from "sonner";
 import { TopBar } from "@/components/layout/top-bar";
+import { MessageResponse } from "@/components/ai-elements/message";
 import { insightQueries, type InsightByIdResponse } from "@/lib/insight-api";
 import { orpc } from "@/lib/orpc";
 import {
@@ -156,7 +159,8 @@ function CaseState({
 	);
 	const verifying =
 		reported &&
-		reported.status !== "failed" &&
+		reported.intent !== "clarification" &&
+		(reported.status === "queued" || reported.status === "running") &&
 		reported.createdAt > latest.createdAt;
 	const label = verifying
 		? "Measuring"
@@ -287,7 +291,7 @@ function CaseActivity({
 				</div>
 			) : null}
 
-			{canReply && !isResolved && (
+			{canReply && (
 				<ContextReply
 					disabled={active}
 					insightId={insightId}
@@ -355,17 +359,30 @@ function TimelineEntry({
 						<p className="whitespace-pre-wrap text-foreground/85 text-sm leading-relaxed">
 							{item.body}
 						</p>
+						{item.assistantText && (
+							<div className="space-y-1 border-t pt-3">
+								<p className="font-medium text-xs">Databuddy</p>
+								<MessageResponse
+									className="text-sm leading-relaxed"
+									mode="static"
+								>
+									{item.assistantText}
+								</MessageResponse>
+							</div>
+						)}
 						{(item.status === "queued" || item.status === "running") && (
 							<p className="flex items-center gap-2 text-muted-foreground text-xs">
 								<Spinner size="sm" />
 								{item.status === "queued"
-									? "Queued for investigation…"
-									: "Databuddy is investigating…"}
+									? "Reply queued…"
+									: item.intent === "clarification"
+										? "Databuddy is answering…"
+										: "Databuddy is investigating…"}
 							</p>
 						)}
 						{item.status === "failed" && (
 							<div className="flex flex-wrap items-center gap-2 text-muted-foreground text-xs">
-								<span>Investigation failed.</span>
+								<span>Reply failed.</span>
 								{onRetry && (
 									<Button
 										disabled={retrying}
@@ -633,7 +650,7 @@ function ContextReply({
 					type="button"
 					variant="ghost"
 				>
-					Reply with context
+					Ask about this investigation
 				</Button>
 			</div>
 		);
@@ -684,14 +701,25 @@ function ReplyComposer({
 		if (!trimmed) {
 			return;
 		}
-		sendReply(trimmed, "Databuddy is checking the latest context");
+		sendReply(trimmed, "Databuddy is answering your clarification");
 	};
-	const sendReply = (message: string, successMessage: string) => {
+	const sendReply = (
+		message: string,
+		successMessage: string,
+		intent: "clarification" | "analysis" = "clarification"
+	) => {
 		if (disabled || replyMutation.isPending) {
 			return;
 		}
 		replyMutation.mutate(
-			{ body: message, insightId },
+			{
+				body: message,
+				insightId,
+				intent,
+				...(intent === "analysis"
+					? { acceptedPriceUsd: INVESTIGATION_USAGE.priceUsd }
+					: {}),
+			},
 			{
 				onSuccess: (data) => {
 					if (data.reply.status !== "failed") {
@@ -704,17 +732,32 @@ function ReplyComposer({
 	return (
 		<form className="border-t px-4 py-4 sm:px-5" onSubmit={submitReply}>
 			<Field>
-				<Field.Label className="sr-only">Add context</Field.Label>
+				<Field.Label className="sr-only">Question</Field.Label>
 				<Textarea
 					disabled={disabled}
 					maxLength={2000}
 					maxRows={8}
 					minRows={2}
 					onChange={(event) => setBody(event.target.value)}
-					placeholder="Add context, a correction, or what changed…"
+					placeholder="Ask about this result, or write a new question…"
 					value={body}
 				/>
-				<div className="flex justify-end gap-2">
+				<p className="text-muted-foreground text-xs">
+					Clarifications are included. A new question or fresh analysis costs $1
+					when completed.
+				</p>
+				<div className="flex flex-wrap justify-end gap-2">
+					<Button
+						disabled={disabled || !body.trim() || replyMutation.isPending}
+						onClick={() =>
+							sendReply(body.trim(), "New analysis queued", "analysis")
+						}
+						size="sm"
+						type="button"
+						variant="secondary"
+					>
+						New analysis · $1
+					</Button>
 					<Button
 						disabled={replyMutation.isPending}
 						onClick={onClose}
@@ -731,7 +774,7 @@ function ReplyComposer({
 						type="submit"
 					>
 						<PaperPlaneIcon className="size-3.5" />
-						Check latest context
+						Send clarification
 					</Button>
 				</div>
 			</Field>

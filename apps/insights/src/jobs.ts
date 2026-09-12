@@ -35,6 +35,7 @@ import {
 import { recordInsightReplyFailure, resumeInsightReply } from "./resume";
 import { dispatchDueInsightRuns } from "./scheduler";
 import { generateOrganizationBusinessContext } from "./organization-business-context";
+import { recoverInvestigationCharges } from "./investigation-billing";
 
 const SUCCESS_CHECKPOINT_ATTEMPTS = 3;
 const SUCCESSFUL_ITEM_STATUSES: ("skipped" | "succeeded")[] = [
@@ -408,6 +409,7 @@ export async function processInsightsJob(job: InsightsJob) {
 			if (job.name === INSIGHTS_DISPATCH_JOB_NAME) {
 				result = await dispatchDueInsightRuns();
 			} else if (job.name === INSIGHTS_MAINTENANCE_JOB_NAME) {
+				await recoverInvestigationCharges();
 				result = await recoverStaleInsightRuns();
 			} else if (job.name === INSIGHTS_GENERATE_WEBSITE_JOB_NAME) {
 				result = await processGenerateWebsiteJob(

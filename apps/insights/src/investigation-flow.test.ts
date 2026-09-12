@@ -4445,3 +4445,98 @@ describe("identified-profile cohort publication", () => {
 		);
 	});
 });
+
+describe("investigation completion and retained evidence", () => {
+ it.each([true, false])("keeps unknown cause independent of publication (%s)", async (publish) => {
+  const result = await runInsightAgent({appContext: appContext(), evidence: [], githubRepository: null, history: [], otherOpenWork: [], signal: reliabilitySignal}, {tools: {}, model: outputModel({
+   completion: "complete", title: "Route errors increased", summary: "The cause remains unknown.", rootCause: null, impact: null,
+   evidence: ["Route loading failures increased from 23 to 36."], evidenceRefs: [{source: "signal"}], findingKind: "reliability_exposure", publish, publicationBasis: publish ? "measured_reliability" : null,
+   next: {type: "resolve", reason: "No inspected repair is established."},
+  })});
+  expect(result.completion).toBe("complete");
+  expect(result.snapshot).toMatchObject({completion: "complete", organizationId: "org-1", websiteId: "site-1", signal: reliabilitySignal, reads: []});
+ });
+ it("does not bill an explicitly incomplete diagnostic even when the signal contains a count", async () => {
+  const result = await runInsightAgent({appContext: appContext(), evidence: [], githubRepository: null, history: [], otherOpenWork: [], signal: reliabilitySignal}, {tools: {}, model: outputModel({
+   completion: "incomplete", title: "Route errors increased", summary: "Required diagnostic evidence is unavailable.", rootCause: null, impact: null,
+   evidence: ["Route loading failures increased from 23 to 36."], evidenceRefs: [{source: "signal"}], findingKind: "reliability_exposure", publish: false, publicationBasis: null,
+   next: {type: "resolve", reason: "The requested answer remains incomplete."},
+  })});
+  expect(result.completion).toBe("incomplete");
+ });
+});
+
+describe("completed answer measurement boundary", () => {
+ it.each(["interleaved", "reversed", "non-native-current", "earlier-clipped"])("preserves native measurement boundaries within mixed evidence: %s", async (mode) => {
+  const goalSignal: InvestigationSignal = {
+   ...signal,
+   signalKey: "goal:workspace",
+   entity: {type: "goal", id: "workspace", label: "Workspace visits"},
+  };
+  const measurement = (startDate: string, endDate: string) => ({
+   measurement: {websiteId: "site-1", definitionId: "workspace", startDate, endDate, definition: {type: "PAGE_VIEW", target: "/workspace", filters: []}},
+   total_users_entered: 200,
+   total_users_completed: 164,
+  });
+  const reference = (name: string, toolCallId: string) => ({source: "tool" as const, name, toolCallId, resultKey: null});
+  const read = (toolCallId: string, period: typeof signal.period.current) => toolCallResponse("get_goal_analytics", JSON.stringify({goalId: "workspace", startDate: period.from, endDate: period.to}), toolCallId);
+  const responses = [read("previous", signal.period.previous)];
+  if (mode === "earlier-clipped") responses.push(read("clipped", signal.period.current));
+  if (mode !== "non-native-current") responses.push(read("current", signal.period.current));
+  responses.push(toolCallResponse("scrape_page", "{}", "page"));
+  const sources = [
+   {source: "signal" as const},
+   reference("get_goal_analytics", "previous"),
+   reference("scrape_page", "page"),
+   {source: "provided" as const, index: 0},
+   ...(mode === "non-native-current" ? [] : [reference("get_goal_analytics", "current")]),
+  ];
+  if (mode === "reversed") sources.reverse();
+  const finish = {
+   completion: "complete", findingKind: "product_outcome", title: "Workspace visits inspected",
+   summary: "The available evidence was inspected; no repair was established.",
+   rootCause: null, impact: null, publish: false, publicationBasis: null,
+   next: {type: "resolve", reason: "No inspected repair is established."},
+   evidence: [{claim: "The cited measurements and route inspection were reviewed together.", sources}],
+  };
+  responses.push(outputResponse(finish));
+  const model = new MockLanguageModelV3({doGenerate: mockValues(...responses)});
+  let currentReads = 0;
+  const result = await runInsightAgent({
+   appContext: appContext(), signal: goalSignal, evidence: ["Workspace visits are the intended goal."],
+   history: [], otherOpenWork: [], githubRepository: null,
+  }, {model, tools: {
+   get_goal_analytics: tool({
+    description: "Synthetic native goal measurement with exact dates and definition.",
+    inputSchema: z.object({goalId: z.string(), startDate: z.string(), endDate: z.string()}),
+    execute: ({startDate, endDate}) => {
+     if (startDate === signal.period.current.from) {
+      currentReads += 1;
+      if (mode === "earlier-clipped" && currentReads === 1) return measurement("2026-07-07", endDate);
+     }
+     return measurement(startDate, endDate);
+    },
+   }),
+   scrape_page: tool({
+    description: "Synthetic route content, never an authoritative native measurement.", inputSchema: z.object({}),
+    // Matching measurement-shaped page content must never establish completion.
+    execute: () => measurement(signal.period.current.from, signal.period.current.to),
+   }),
+  }});
+  const complete = mode === "interleaved" || mode === "reversed";
+  expect(result.completion).toBe(complete ? "complete" : "incomplete");
+  expect(result.snapshot?.completion).toBe(result.completion);
+  expect(result.outcome.publish).toBe(false);
+  expect(result.snapshot?.reads.filter((entry) => entry.name === "get_goal_analytics")).toHaveLength(mode === "earlier-clipped" ? 3 : mode === "non-native-current" ? 1 : 2);
+ });
+ it.each(["exact", "clipped", "unrelated", "definition-unavailable", "open-window", "immature-cohort"])("checks actual scope before accepting claimed completion: %s", async (mode) => {
+  const goalSignal: InvestigationSignal = {...signal, signalKey: "goal:workspace", entity: {type: "goal", id: "workspace", label: "Workspace visits"}};
+  const native = {measurement: {websiteId: "site-1", definitionId: mode === "unrelated" ? "other-goal" : "workspace", startDate: mode === "clipped" ? "2026-07-07" : signal.period.current.from, endDate: signal.period.current.to, definition: {type: "PAGE_VIEW", target: "/workspace", filters: []}}, total_users_entered: 200, total_users_completed: 20};
+  const output = mode === "definition-unavailable" ? {total_users_entered: 200, total_users_completed: 20} : mode === "immature-cohort" ? {results: {current: {type: "identified_profile_retention", websiteId: "site-1", from: signal.period.current.from, to: signal.period.current.to, timezone: "UTC", filters: [], data: [{eligible_profiles: 20, incomplete_profiles: 180}]}}} : native;
+  const name = mode === "immature-cohort" ? "get_data" : "get_goal_analytics";
+  const finish = {completion: "complete", findingKind: "product_outcome", title: "Current evidence inspected", summary: "The cause remains unknown.", rootCause: null, impact: null, publish: false, publicationBasis: null, next: {type: "resolve", reason: "No inspected repair is established."}, evidence: ["The available read was inspected."], evidenceRefs: [{source: "tool", name, toolCallId: `${name}-1`, resultKey: name === "get_data" ? "current" : null}]};
+  const model = new MockLanguageModelV3({doGenerate: mockValues(toolCallResponse(name, JSON.stringify({goalId:"workspace",startDate:signal.period.current.from,endDate:signal.period.current.to})), outputResponse(finish))});
+  const result = await runInsightAgent({appContext: {...appContext(), ...(mode === "open-window" ? {currentDateTime: "2026-07-11T12:00:00.000Z"} : {})}, signal: goalSignal, evidence: [], history: [], otherOpenWork: [], githubRepository: null}, {model, tools: {[name]: tool({description: "Synthetic native measurement.",inputSchema: z.object({goalId:z.string(),startDate:z.string(),endDate:z.string()}),execute:()=>output})}});
+  expect(result.completion).toBe(mode === "exact" ? "complete" : "incomplete");
+ });
+});

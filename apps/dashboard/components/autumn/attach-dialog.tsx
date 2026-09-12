@@ -13,6 +13,7 @@ export interface AttachDialogProps {
 	planName: string;
 	preview: PreviewAttachResponse;
 	setOpen: (open: boolean) => void;
+	terms?: string;
 }
 
 type PreviewLineItem = PreviewAttachResponse["lineItems"][number];
@@ -126,6 +127,7 @@ function NextCycleSummary({
 
 export default function AttachDialog({
 	action,
+	terms,
 	open,
 	setOpen,
 	preview,
@@ -148,6 +150,11 @@ export default function AttachDialog({
 				</Dialog.Header>
 
 				<Dialog.Body className="space-y-4">
+					{terms && (
+						<Text tone="muted" variant="caption">
+							{terms}
+						</Text>
+					)}
 					<div className="space-y-2">
 						{lineItems.map((item, idx) => {
 							const discounts = item.discounts ?? [];

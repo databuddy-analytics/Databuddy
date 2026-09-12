@@ -33,6 +33,37 @@ An append-only explanation of one signal at one point in time. It names the subj
 
 The durable work object for one signal. It has an `open` or `resolved` state plus observations, replies, actions, rechecks, and recurrence history.
 
+### Investigation price
+
+A completed investigation costs **$1**. The billable unit is one explicitly started
+analysis of a selected signal or new question, not the durable case that may hold
+several analyses over time. A supported measured answer, concrete inspected repair,
+or verified no-action conclusion can complete it. Failed, interrupted, inconclusive
+work and an unanswered necessary question are not completed investigations.
+
+Reserve one investigation before starting new analysis. Confirm that reservation
+only after its complete result is saved and readable; release it when the work is
+incomplete. Persist charge identity and settlement intent with the result so retries
+and recovery reuse the same unit. Uncertain payment-provider responses remain
+pending for reconciliation rather than starting a second charge.
+
+Clarifications of the same question use its saved evidence and are included.
+Verification after applying that investigation's proposed repair is also included,
+as are backend-triggered definition-change checks and deterministic continuations
+of saved verification conditions during regular scans. A new question or separate
+fresh analysis requires an explicit accepted price persisted with its queued reply;
+the reservation must match those immutable terms. The model must never decide
+whether a reply incurs a charge. Signal selection,
+preparation, model turns, and internal retries do not add customer charges.
+
+Autumn stores the new unit in a separate `investigation_runs` balance with a $1
+prepaid purchase option. Existing credit balances, credit refills, and attached
+legacy plans retain their terms until the customer adopts the new entitlement
+through an investigation purchase or a switch to a new plan version.
+An exhausted fixed-price balance does not fall back to spending legacy credits.
+Chat continues to use credits. Token usage and model costs remain internal
+telemetry for fixed-price investigations and included replies.
+
 ### Action
 
 An optional proposed change with a target and verification condition. A code action may become a patch and PR. Other actions may target tracking, a goal, a campaign, configuration, or operations.
@@ -131,6 +162,14 @@ The Insights brief reads like a short news report: headline, what happened, why 
 ## Continuity
 
 - A dashboard, Slack, or MCP reply resumes the same investigation.
+- A clarification is anchored to the original observation and typed, allowlisted
+  goal/funnel measurement fields, with trusted descriptions and exact scope. Raw
+  profiles, sessions, source files, search queries, arbitrary properties and free-form
+  context are omitted with explicit limitations. Retained evidence survives history
+  truncation and later reopening of the same case.
+  The answer is stored on the reply without new data reads or case-state changes.
+  Legacy results without saved evidence receive an honest explanation of that
+  limitation; answering them never silently starts paid analysis.
 - A GitHub comment or review resumes the agent working on that PR.
 - A materially worse resolved signal reopens the same investigation with its prior outcomes.
 - Corrections such as terminology, ownership, or known infrastructure become project memory.
@@ -174,6 +213,6 @@ When business meaning is missing, inspect the definition, site, events, and conn
 
 ## Implementation constraint
 
-Use `insight_observations` as the append-only Insights source and `analytics_insights` as the current investigation projection. An `act` or `ask` creates or reopens that projection; `resolve` may update an open investigation but never creates or reopens one. Recommendations are a read projection of the latest observation for each signal: standalone setup and measurement recommendations expire at their recheck time unless renewed, while definition recommendations also verify against the current definition. Keep one agent and one evidence/tool stack. Add storage only when this model cannot represent a real use case.
+Use `insight_observations` as the append-only Insights source and `analytics_insights` as the current investigation projection. An `act` or `ask` creates or reopens that projection. A complete fixed-price result may create a resolved projection so its paid answer remains readable even when no action is needed; it does not create an interruption or reopen work. Other `resolve` outcomes may update an open investigation but never create or reopen one. Recommendations are a read projection of the latest observation for each signal: standalone setup and measurement recommendations expire at their recheck time unless renewed, while definition recommendations also verify against the current definition. Keep one agent and one evidence/tool stack. Add storage only when this model cannot represent a real use case.
 
 Exact error-customer joins run as a private, aggregate-only enrichment after the backend selects a signal. They return counts and coverage, never visitor, profile, session, payment, order, or request identifiers. Identity joins report same-window resolution explicitly; attributed completed-payment matches require the payment to predate the affected profile's first error and remain a lower bound.

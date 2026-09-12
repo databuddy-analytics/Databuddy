@@ -106,10 +106,10 @@ export function PlansComparisonTable({ plans: allPlans }: Props) {
 								</td>
 							))}
 						</tr>
-						{/* Investigation credits per month */}
+						{/* AI credits per month */}
 						<tr className="border-border border-t hover:bg-card/10">
 							<td className="px-4 py-3 text-muted-foreground text-sm sm:px-5 lg:px-6">
-								Investigation credits / month
+								AI credits / month
 							</td>
 							{plans.map((p) => (
 								<td
@@ -126,10 +126,10 @@ export function PlansComparisonTable({ plans: allPlans }: Props) {
 								</td>
 							))}
 						</tr>
-						{/* Daily investigation credit bonus */}
+						{/* Daily AI credit bonus */}
 						<tr className="border-border border-t hover:bg-card/10">
 							<td className="px-4 py-3 text-muted-foreground text-sm sm:px-5 lg:px-6">
-								Daily investigation credit bonus
+								Daily AI credit bonus
 							</td>
 							{plans.map((p) => (
 								<td
@@ -310,10 +310,9 @@ export function PlansComparisonTable({ plans: allPlans }: Props) {
 					quota.
 				</p>
 				<p>
-					<span className="text-foreground">Investigation credits</span> pay for
-					the work Databunny performs. They are not a message count: simple
-					checks use fewer credits; deeper investigations, replies, and rechecks
-					use more.
+					<span className="text-foreground">AI credits</span> pay for ordinary
+					Databunny chat and investigations on legacy billing terms. New
+					investigations cost $1 each, purchased separately.
 				</p>
 				<p>
 					<span className="text-foreground">Unlimited seats & sites.</span> Team

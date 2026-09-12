@@ -1,6 +1,10 @@
 import { AGENT_CREDIT_SCHEMA } from "./lib/credit-schema";
 import { TOPUP_MAX_QUANTITY, TOPUP_TIERS } from "./lib/topup-math";
-import { DATABUNNY_USAGE, LEGACY_SCALE_PLAN } from "@databuddy/shared/billing";
+import {
+	DATABUNNY_USAGE,
+	INVESTIGATION_USAGE,
+	LEGACY_SCALE_PLAN,
+} from "@databuddy/shared/billing";
 import { feature, item, plan } from "atmn";
 
 export const events = feature({
@@ -63,6 +67,13 @@ export const agent_credits = feature({
 	],
 });
 
+export const investigation_runs = feature({
+	id: INVESTIGATION_USAGE.featureId,
+	name: INVESTIGATION_USAGE.name,
+	type: "metered",
+	consumable: true,
+});
+
 const EVENT_OVERAGE_TIERS = [
 	{ to: 2_000_000, amount: 0.000_035 },
 	{ to: 10_000_000, amount: 0.000_03 },
@@ -94,6 +105,7 @@ export const free = plan({
 	addOn: false,
 	autoEnable: true,
 	items: [
+		item({ featureId: investigation_runs.id, included: 0 }),
 		item({
 			featureId: events.id,
 			included: 10_000,
@@ -121,6 +133,7 @@ export const hobby = plan({
 		interval: "month",
 	},
 	items: [
+		item({ featureId: investigation_runs.id, included: 0 }),
 		item({
 			featureId: events.id,
 			included: 30_000,
@@ -165,6 +178,7 @@ export const pro = plan({
 		interval: "month",
 	},
 	items: [
+		item({ featureId: investigation_runs.id, included: 0 }),
 		eventsOverageItem(1_000_000),
 		item({
 			featureId: agent_credits.id,
@@ -226,11 +240,10 @@ export const scale = plan({
 });
 
 /*
- * Intelligence is the new credit-led base plan family. The customer-facing
- * names anchor the plans against analyst capacity, while investigations still
- * consume agent_credits from actual model usage with the shared markup.
- * Monthly plan grants reset; paid credits_topup balances persist and can be
- * replenished automatically with the existing billing controls.
+ * New plan versions opt into fixed-price investigations with no bundled grant.
+ * Existing agent_credits grants and prepaid prices remain for ordinary chat.
+ * Do not migrate existing subscriptions: their attached versions retain legacy
+ * investigation credit terms until they buy investigations or switch plan versions.
  *
  * These are invitation-only beta plans for now, so checkout stays contact-only
  * on the billing picker and public pricing docs. Keep them in the default
@@ -248,6 +261,7 @@ export const intelligence = plan({
 		interval: "month",
 	},
 	items: [
+		item({ featureId: investigation_runs.id, included: 0 }),
 		eventsOverageItem(2_000_000),
 		item({
 			featureId: agent_credits.id,
@@ -282,6 +296,7 @@ export const intelligence_scale = plan({
 		interval: "month",
 	},
 	items: [
+		item({ featureId: investigation_runs.id, included: 0 }),
 		eventsOverageItem(10_000_000),
 		item({
 			featureId: agent_credits.id,
@@ -360,8 +375,9 @@ export const pulse_pro = plan({
  */
 export const credits_booster = plan({
 	id: "credits_booster",
-	name: "Monthly investigation credits",
-	description: "200 additional investigation credits every month.",
+	name: "Monthly AI credits",
+	description:
+		"200 additional AI credits every month for chat and legacy billing terms.",
 	addOn: true,
 	autoEnable: false,
 	price: {
@@ -392,9 +408,9 @@ export const credits_booster = plan({
  */
 export const credits_topup = plan({
 	id: "credits_topup",
-	name: "Additional investigation credits",
+	name: "Additional AI credits",
 	description:
-		"Prepaid investigation credits that remain available until used.",
+		"Prepaid AI credits for chat and legacy billing terms; available until used.",
 	addOn: true,
 	autoEnable: false,
 	items: [
@@ -407,6 +423,27 @@ export const credits_topup = plan({
 				billingMethod: "prepaid",
 				billingUnits: 1,
 				maxPurchase: TOPUP_MAX_QUANTITY,
+			},
+		}),
+	],
+});
+
+// Separate prepaid balance. No reset or expiry; never convert agent_credits.
+export const investigations_topup = plan({
+	id: INVESTIGATION_USAGE.topupPlanId,
+	name: "Additional investigations",
+	description: INVESTIGATION_USAGE.description,
+	addOn: true,
+	autoEnable: false,
+	items: [
+		item({
+			featureId: investigation_runs.id,
+			price: {
+				amount: INVESTIGATION_USAGE.priceUsd,
+				interval: "one_off",
+				billingMethod: "prepaid",
+				billingUnits: 1,
+				maxPurchase: INVESTIGATION_USAGE.maxPurchase,
 			},
 		}),
 	],

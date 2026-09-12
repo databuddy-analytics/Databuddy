@@ -1001,6 +1001,8 @@ const insightTimelineInvestigationSchema = z.object({
 });
 
 export const insightTimelineReplySchema = z.object({
+	assistantText: z.string().nullable().optional(),
+	intent: z.enum(["clarification", "analysis", "verification"]).optional(),
 	author: z.string(),
 	body: z.string(),
 	createdAt: z.string(),
@@ -1113,3 +1115,34 @@ export function parseInvestigationSignal(
 	const result = storedInvestigationSignalSchema.safeParse(value);
 	return result.success ? result.data : null;
 }
+
+/** Internal observation evidence. Never exposed by the public timeline schema. */
+export const investigationEvidenceSnapshotSchema = z.object({
+	version: z.literal(1),
+	completion: z.enum(["complete", "incomplete"]),
+	organizationId: z.string(),
+	websiteId: z.string(),
+	signalKey: z.string(),
+	capturedAt: z.iso.datetime(),
+	signal: investigationSignalSchema,
+	providedEvidence: z.array(z.string()),
+	reads: z.array(
+		z.object({
+			name: z.string(),
+			toolCallId: z.string(),
+			resultKey: z.string().nullable(),
+			description: z.string().nullable(),
+			input: z.json(),
+			output: z.json(),
+		})
+	),
+	limitations: z.array(z.string()),
+});
+export type InvestigationEvidenceSnapshot = z.infer<
+	typeof investigationEvidenceSnapshotSchema
+>;
+export const insightReplyIntentSchema = z.enum([
+	"clarification",
+	"analysis",
+	"verification",
+]);
