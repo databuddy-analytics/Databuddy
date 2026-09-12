@@ -14,7 +14,10 @@ const purchaseSchema = strictObject({
 	).length(1),
 });
 
-function referencesInvestigationPlan(value: unknown): boolean {
+function referencesInvestigationBilling(value: unknown): boolean {
+	if (Array.isArray(value)) {
+		return value.some(referencesInvestigationBilling);
+	}
 	if (!value || typeof value !== "object") {
 		return false;
 	}
@@ -22,16 +25,18 @@ function referencesInvestigationPlan(value: unknown): boolean {
 		if (["planId", "plan_id", "productId", "product_id"].includes(key)) {
 			return entry === INVESTIGATION_USAGE.topupPlanId;
 		}
-		return (
-			["plans", "products"].includes(key) &&
-			Array.isArray(entry) &&
-			entry.some(referencesInvestigationPlan)
-		);
+		if (["featureId", "feature_id"].includes(key)) {
+			return entry === INVESTIGATION_USAGE.featureId;
+		}
+		if (["featureIds", "feature_ids"].includes(key) && Array.isArray(entry)) {
+			return entry.includes(INVESTIGATION_USAGE.featureId);
+		}
+		return typeof entry === "object" && referencesInvestigationBilling(entry);
 	});
 }
 
 export function isInvestigationPurchaseValid(body: unknown, route: string) {
-	if (!referencesInvestigationPlan(body)) {
+	if (!referencesInvestigationBilling(body)) {
 		return true;
 	}
 	// Only the supported manual checkout can purchase this SKU. Identity comes

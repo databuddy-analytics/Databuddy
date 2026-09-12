@@ -45,11 +45,8 @@ async function stripPrivilegedBody(request: Request): Promise<Request> {
 	if (request.method === "GET" || request.method === "HEAD") {
 		return request;
 	}
-	const contentType = request.headers.get("content-type") ?? "";
-	if (!contentType.includes("application/json")) {
-		return request;
-	}
-
+	// The native adapter parses JSON regardless of Content-Type. Apply the same
+	// restrictions to text/plain and missing-header requests before forwarding.
 	const text = await request.text();
 	let body: string | null = text || null;
 	if (text) {

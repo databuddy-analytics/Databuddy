@@ -41,4 +41,16 @@ describe("investigation checkout validation", () => {
 		expect(isInvestigationPurchaseValid({ planId: "credits_topup", featureQuantities: [{ featureId: "agent_credits", quantity: 2500 }] }, "attach")).toBe(true);
 		expect(isInvestigationPurchaseValid({ plans: [{ planId: "pro" }, { planId: "credits_topup" }], discounts: [] }, "multiAttach")).toBe(true);
 	});
+	test.each([
+		{ planId: "pro", customize: { addItems: [{ featureId: "investigation_runs", included: 1000 }] } },
+		{ planId: "pro", customize: { items: [{ featureId: "investigation_runs", unlimited: true }] } },
+		{ planId: "pro", featureQuantities: [{ featureId: "investigation_runs", quantity: 1000 }] },
+		{ plans: [{ planId: "pro", customize: { items: [{ featureId: "investigation_runs", included: 1000 }] } }] },
+		{ subscriptionId: "subscription", customize: { add_items: [{ feature_id: "investigation_runs", included: 1000 }] } },
+		{ subscriptionId: "subscription", carryOverBalances: { enabled: true, featureIds: ["investigation_runs"] } },
+	])("rejects investigation grants through another plan or subscription", (body) => {
+		for (const route of ["attach", "previewAttach", "multiAttach", "updateSubscription", "setupPayment"]) {
+			expect(isInvestigationPurchaseValid(body, route)).toBe(false);
+		}
+	});
 });
