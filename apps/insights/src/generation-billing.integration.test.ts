@@ -14,6 +14,7 @@ import {
 import * as execution from "@databuddy/ai/agents/execution";
 import { summarizeAgentUsage } from "@databuddy/ai/lib/usage-telemetry";
 import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
+import { investigationOutcomeSchema } from "@databuddy/shared/insights";
 import { randomUUIDv7 } from "bun";
 import * as agent from "./agent";
 import * as billing from "./investigation-billing";
@@ -506,5 +507,166 @@ integration("native generation fixed-unit persistence", () => {
 		denyReservation = false;
 		expect(tokenDebit).not.toHaveBeenCalled();
 		mode.mockResolvedValue({ mode: "fixed", customerId: "synthetic-customer" });
+	});
+	it("keeps an incomplete published ask free and replay-safe while a new manual run remains eligible", async () => {
+		const { generateWebsiteInsights } = await import("./generation");
+		const input = await fixture("goal:checkout", false);
+		detected = [
+			{
+				baseline: 20,
+				current: 10,
+				deltaPercent: -50,
+				detectedAt: "2026-09-08",
+				direction: "down",
+				label: "Checkout",
+				method: "wow",
+				metric: "goal:checkout",
+				severity: "warning",
+			},
+		];
+		const outcome = investigationOutcomeSchema.parse({
+			title: "Checkout completions declined",
+			summary: "The team must confirm whether the pause was intentional.",
+			evidence: [
+				"Checkout completions fell from 20 to 10 in the compared weeks.",
+			],
+			rootCause: null,
+			impact: null,
+			publish: true,
+			next: { type: "ask", question: "Was the checkout pause intentional?" },
+		});
+		const ask = async (
+			agentInput: agent.InsightAgentInput
+		): Promise<agent.InsightAgentResult> => {
+			calls += 1;
+			return {
+				completion: "incomplete",
+				outcome,
+				modelId: "openai/gpt-5.6-luna",
+				usage,
+				toolCallCount: 1,
+				snapshot: createEvidenceSnapshot({
+					organizationId: input.organizationId,
+					websiteId: input.websiteId,
+					capturedAt: agentInput.appContext.currentDateTime,
+					signal: agentInput.signal,
+					evidence: agentInput.evidence,
+					reads: [],
+					descriptions: {},
+				}),
+			};
+		};
+		runAgent.mockImplementationOnce(ask);
+		const beforeCalls = calls;
+		const beforeRequests = requests.length;
+		const result = await generateWebsiteInsights(input);
+		expect(result).toMatchObject({ status: "succeeded", resultCount: 1 });
+		const [observation] = await db
+			.select()
+			.from(insightObservations)
+			.where(eq(insightObservations.runId, input.runId));
+		expect(observation?.snapshot?.completion).toBe("incomplete");
+		expect(observation?.outcome).toMatchObject({
+			publish: true,
+			next: outcome.next,
+		});
+		expect(observation?.insightId).toBeTruthy();
+		const [visible] = await db
+			.select()
+			.from(analyticsInsights)
+			.where(eq(analyticsInsights.organizationId, input.organizationId));
+		expect(visible).toMatchObject({
+			id: observation?.insightId,
+			status: "open",
+			title: outcome.title,
+		});
+		const [charge] = await db
+			.select()
+			.from(investigationCharges)
+			.where(eq(investigationCharges.runId, input.runId));
+		expect(charge).toMatchObject({
+			status: "released",
+			observationId: observation?.id,
+		});
+		expect(
+			requests
+				.slice(beforeRequests)
+				.map((request) => request.action ?? "reserve")
+		).toEqual(["reserve", "release"]);
+		const effects = await db
+			.select()
+			.from(insightRunEffects)
+			.where(eq(insightRunEffects.runItemId, input.itemId));
+		expect(effects).toHaveLength(1);
+		expect(effects[0]?.status).toBe("succeeded");
+
+		const afterRequests = requests.length;
+		expect(await generateWebsiteInsights(input)).toEqual(result);
+		expect(calls - beforeCalls).toBe(1);
+		expect(requests).toHaveLength(afterRequests);
+		expect(
+			await db
+				.select()
+				.from(insightObservations)
+				.where(eq(insightObservations.runId, input.runId))
+		).toHaveLength(1);
+		expect(
+			await db
+				.select()
+				.from(insightRunEffects)
+				.where(eq(insightRunEffects.runItemId, input.itemId))
+		).toHaveLength(1);
+
+		// The prior question is still cooling; a new explicit manual scan can
+		// inspect the detected subject without replaying the old run identity.
+		expect(observation!.recheckAt.getTime()).toBeGreaterThan(Date.now());
+		await db
+			.update(insightRuns)
+			.set({ status: "succeeded" })
+			.where(eq(insightRuns.id, input.runId));
+		const runId = randomUUIDv7();
+		const itemId = randomUUIDv7();
+		const nextInput = { ...input, runId, itemId, queueJobId: `job-${itemId}` };
+		await db
+			.insert(insightRuns)
+			.values({
+				id: runId,
+				organizationId: input.organizationId,
+				status: "running",
+				reason: "manual",
+			});
+		await db
+			.insert(insightRunItems)
+			.values({
+				id: itemId,
+				runId,
+				organizationId: input.organizationId,
+				websiteId: input.websiteId,
+				queueJobId: nextInput.queueJobId,
+				status: "running",
+			});
+		runAgent.mockImplementationOnce(ask);
+		expect(await generateWebsiteInsights(nextInput)).toMatchObject({
+			status: "succeeded",
+			resultCount: 1,
+		});
+		expect(calls - beforeCalls).toBe(2);
+		const [nextObservation] = await db
+			.select()
+			.from(insightObservations)
+			.where(eq(insightObservations.runId, runId));
+		expect(nextObservation?.signalKey).toBe(observation?.signalKey);
+		expect(nextObservation?.id).not.toBe(observation?.id);
+		expect(nextObservation!.asOf.getTime()).toBeGreaterThan(
+			observation!.asOf.getTime()
+		);
+		const [nextCharge] = await db
+			.select()
+			.from(investigationCharges)
+			.where(eq(investigationCharges.runId, runId));
+		expect(nextCharge?.id).not.toBe(charge?.id);
+		expect(nextCharge?.status).toBe("released");
+		expect(tokenDebit).not.toHaveBeenCalled();
+		detected = [];
 	});
 });

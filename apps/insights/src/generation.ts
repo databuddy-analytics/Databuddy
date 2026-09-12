@@ -1588,6 +1588,8 @@ export async function generateWebsiteInsights(
 		});
 	}
 	const emptyStatus = plan?.emptyStatus ?? null;
+	// These keys account for durable terminal observations in this run.
+	// Billable answer completion is tracked separately by the charge ledger.
 	const completedSignalKeys = new Set(
 		existingObservations.map((observation) => observation.signal.signalKey)
 	);
