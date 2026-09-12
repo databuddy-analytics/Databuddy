@@ -49,6 +49,183 @@ export function snapshotJson(
 	);
 }
 
+// Snapshot retention is a positive allowlist, not a generic raw-data sanitizer.
+const scopeText = z
+	.string()
+	.max(256)
+	.regex(/^[\p{L}\p{N}_./(): -]*$/u)
+	.refine(
+		(value) =>
+			value.search(credentialPattern) < 0 && !value.includes("PRIVATE KEY")
+	);
+const scopeId = z
+	.string()
+	.min(1)
+	.max(200)
+	.regex(/^[A-Za-z0-9_.:-]+$/);
+const scopeFilter = z.object({
+	field: z.enum([
+		"event_name",
+		"path",
+		"referrer",
+		"country",
+		"city",
+		"device_type",
+		"browser_name",
+		"os_name",
+		"language",
+		"utm_source",
+		"utm_medium",
+		"utm_campaign",
+		"screen_resolution",
+	]),
+	operator: z.enum(["equals", "contains", "not_equals", "in", "not_in"]),
+	value: z.union([scopeText, z.array(scopeText).max(50)]),
+});
+const savedCohort = z.object({
+	filters: z
+		.array(
+			scopeFilter.extend({
+				field: z.enum([
+					"browser_name",
+					"device_type",
+					"os_name",
+					"country",
+					"utm_source",
+					"utm_medium",
+					"utm_campaign",
+				]),
+				operator: z.enum(["equals", "not_equals", "in", "not_in"]),
+			})
+		)
+		.min(1)
+		.max(8),
+});
+const savedDefinition = z.union([
+	z.object({
+		type: z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]),
+		target: scopeText,
+		filters: z.array(scopeFilter).max(32),
+	}),
+	z.object({
+		steps: z
+			.array(
+				z.object({
+					name: scopeText,
+					type: z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]),
+					target: scopeText,
+				})
+			)
+			.min(2)
+			.max(10),
+		filters: z.array(scopeFilter).max(32),
+	}),
+]);
+const savedMeasurement = z.object({
+	websiteId: scopeId,
+	definitionId: scopeId,
+	startDate: z.iso.date(),
+	endDate: z.iso.date(),
+	definition: savedDefinition,
+});
+const measurementRequest = z.object({
+	websiteId: scopeId.optional(),
+	goalId: scopeId.optional(),
+	funnelId: scopeId.optional(),
+	startDate: z.iso.date().optional(),
+	endDate: z.iso.date().optional(),
+	cohort: savedCohort.nullish(),
+	limit: z.number().int().nonnegative().optional(),
+});
+const count = z.number().int().nonnegative().safe();
+const rate = z.number().finite();
+const measurementCounts = z.object({
+	total_users_entered: count,
+	total_users_completed: count,
+	overall_conversion_rate: rate.optional(),
+	avg_completion_time: rate.optional(),
+	biggest_dropoff_step: count.optional(),
+	biggest_dropoff_rate: rate.optional(),
+	duration_available: z.boolean().optional(),
+	measurement: savedMeasurement.optional(),
+	savedDefinition: savedDefinition.optional(),
+	steps_analytics: z
+		.array(
+			z.object({
+				step_number: count,
+				users: count,
+				total_users: count,
+				conversion_rate: rate,
+				dropoffs: count,
+				dropoff_rate: rate,
+				avg_time_to_complete: rate.optional(),
+				error_count: count.optional(),
+				error_rate: rate.optional(),
+				error_context_available: z.boolean().optional(),
+			})
+		)
+		.max(10)
+		.optional(),
+});
+const referrerCounts = z.object({
+	referrer_analytics: z
+		.array(
+			z.object({
+				// Keep a source/hostname, never a referrer URL path or search/query string.
+				referrer: z
+					.string()
+					.max(253)
+					.regex(
+						/^(?:|\(direct\)|(?:https?:\/\/)?[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?\/?)$/
+					),
+				total_users: count,
+				completed_users: count,
+				conversion_rate: rate.optional(),
+			})
+		)
+		.max(1000),
+	measurement: savedMeasurement.optional(),
+	savedDefinition: savedDefinition.optional(),
+});
+const retainedDescriptions = {
+	get_goal_analytics:
+		"Native goal analytics. total_users_entered counts website page-view visitors matching evaluated filters except event_name; total_users_completed counts visitors matching the goal. These are visitors, not attempts. measurement contains actual dates and evaluated definition; savedDefinition is the saved configuration before read-time cohort filters.",
+	get_funnel_analytics:
+		"Native funnel analytics. Entrants are distinct visitors matching the first step; completions reach every ordered step. These are visitors, not projects or attempts. measurement contains actual dates and evaluated selectors; savedDefinition precedes read-time cohort filters. Stored step conditions are not evaluated and are not retained here.",
+	get_funnel_analytics_by_referrer:
+		"Native funnel visitors grouped by referrer/source. Entrants match the first step and completions reach the ordered steps. These are visitors, not attempts. Each read has one date range; rows may be ranked or limited. Stored step conditions are not evaluated and are not retained here.",
+};
+
+function projectMeasurementRead(read: {
+	toolName: string;
+	input: unknown;
+	output: unknown;
+}) {
+	if (
+		!(
+			read.toolName === "get_goal_analytics" ||
+			read.toolName === "get_funnel_analytics" ||
+			read.toolName === "get_funnel_analytics_by_referrer"
+		)
+	) {
+		return null;
+	}
+	const request = measurementRequest.safeParse(read.input);
+	const output = (
+		read.toolName === "get_funnel_analytics_by_referrer"
+			? referrerCounts
+			: measurementCounts
+	).safeParse(read.output);
+	if (!(request.success && output.success)) {
+		return null;
+	}
+	return {
+		input: request.data,
+		output: output.data,
+		description: retainedDescriptions[read.toolName],
+	};
+}
+
 export function createEvidenceSnapshot(input: {
 	organizationId: string;
 	websiteId: string;
@@ -84,63 +261,58 @@ export function createEvidenceSnapshot(input: {
 		throw new Error("The native signal exceeds the saved-evidence size limit");
 	}
 	const limitation = (message: string) => {
-		if (snapshot.limitations.length < 16) {
+		if (
+			snapshot.limitations.length < 16 &&
+			!snapshot.limitations.includes(message)
+		) {
 			snapshot.limitations.push(message.slice(0, 256));
 		}
 	};
-	for (const value of input.evidence) {
-		const text = String(snapshotJson(value));
-		const bytes = Buffer.byteLength(JSON.stringify(text)) + 1;
-		if (usedBytes + bytes > dataBudget) {
-			limitation(
-				"Some supplied context was omitted due to the saved-evidence size limit; absence cannot establish a fact."
-			);
-		} else {
-			snapshot.providedEvidence.push(text);
-			usedBytes += bytes;
-		}
+	if (input.evidence.length) {
+		limitation(
+			"Free-form supplied context was not retained; use the validated outcome for its attributed interpretation, not as raw measurement evidence."
+		);
 	}
 	for (const read of input.reads) {
 		if (read.toolName === "finish_investigation") {
 			continue;
 		}
-		const parsed = z
-			.object({ results: z.record(z.string(), z.unknown()) })
-			.safeParse(read.output);
-		const outputs: [string | null, unknown][] =
-			read.toolName === "get_data" && parsed.success
-				? Object.entries(parsed.data.results)
-				: [[null, read.output]];
-		for (const [resultKey, output] of outputs) {
-			if (
-				output == null ||
-				(typeof output === "object" &&
-					(("error" in output && output.error != null) ||
-						("success" in output && output.success === false)))
-			) {
-				limitation(
-					`${read.toolName}/${read.toolCallId}${resultKey ? `/${resultKey}` : ""}: no successful result; unavailable is not zero.`
-				);
-				continue;
-			}
-			const record = {
-				name: read.toolName,
-				toolCallId: read.toolCallId,
-				resultKey,
-				description: input.descriptions[read.toolName] ?? null,
-				input: snapshotJson(read.input),
-				output: snapshotJson(output),
-			};
-
-			const bytes = Buffer.byteLength(JSON.stringify(record)) + 1;
-			if (usedBytes + bytes > dataBudget) {
-				limitation(
-					`${read.toolName}/${read.toolCallId}: result omitted due to the saved-evidence size limit; no complete population claim is supported by that omission.`
-				);
-			} else {
-				snapshot.reads.push(record);
-				usedBytes += bytes;
-			}
+		if (
+			read.output == null ||
+			(typeof read.output === "object" &&
+				(("error" in read.output && read.output.error != null) ||
+					("success" in read.output && read.output.success === false)))
+		) {
+			limitation(
+				"An unsuccessful read was not retained; unavailable is not zero."
+			);
+			continue;
+		}
+		const projection = projectMeasurementRead(read);
+		const callId = scopeId.safeParse(read.toolCallId);
+		if (!(projection && callId.success)) {
+			limitation(
+				"A raw or unsupported read, or a read with unsafe/unsupported scope, was omitted. Its absence cannot establish a fact or a complete population."
+			);
+			continue;
+		}
+		const record = {
+			name: read.toolName,
+			toolCallId: callId.data,
+			resultKey: null,
+			...projection,
+		};
+		const bytes = Buffer.byteLength(JSON.stringify(record)) + 1;
+		if (usedBytes + bytes > dataBudget) {
+			limitation(
+				"A measurement projection was omitted due to the saved-evidence size limit; no complete population claim is supported by that omission."
+			);
+		} else {
+			snapshot.reads.push(record);
+			usedBytes += bytes;
+			limitation(
+				"Retained reads contain only allowlisted measurement fields. Raw rows, event properties, source content, free text, stored step conditions and other metadata were not saved."
+			);
 		}
 	}
 	return investigationEvidenceSnapshotSchema.parse(snapshot);
@@ -160,7 +332,7 @@ const referrerScopeSchema = z.object({
 	funnelId: z.string(),
 	startDate: z.string(),
 	endDate: z.string(),
-	cohort: z.string().nullable().optional(),
+	cohort: savedCohort.nullish(),
 });
 
 function previousReferrerRates(snapshot: InvestigationEvidenceSnapshot) {
