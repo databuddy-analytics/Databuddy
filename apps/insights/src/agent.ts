@@ -1359,6 +1359,88 @@ function resolveEvidenceReferences(
 	);
 }
 
+function hasCompleteDefinitionMeasurement(
+	input: InsightAgentInput,
+	sources: unknown[],
+	results: VerificationRead[]
+) {
+	const entity = input.signal.entity;
+	if (entity.type !== "goal" && entity.type !== "funnel") {
+		return false;
+	}
+	if (input.signal.signalKey.startsWith(`funnel:${entity.id}:referrer:`)) {
+		return false;
+	}
+	const schema = z.object({
+		measurement: insightMeasurementSchema,
+		total_users_entered: z.number().int().nonnegative(),
+		total_users_completed: z.number().int().nonnegative(),
+	});
+	const parsed = sources
+		.map((source) => schema.safeParse(source))
+		.filter((value) => value.success);
+	const current = parsed.find(
+		({ data }) =>
+			data.measurement.startDate === input.signal.period.current.from &&
+			data.measurement.endDate === input.signal.period.current.to
+	);
+	if (
+		!current ||
+		Date.parse(input.signal.period.current.to) + 86_400_000 >
+			Date.parse(input.appContext.currentDateTime)
+	) {
+		return false;
+	}
+	const definition = insightVerificationDefinitionSchema.parse(
+		current.data.measurement.definition
+	);
+	if (
+		insightRepairError(
+			{ id: entity.id, type: entity.type },
+			{ id: entity.id, ...current.data.measurement.definition }
+		)
+	) {
+		return false;
+	}
+	const exact = ({ data }: (typeof parsed)[number]) =>
+		data.measurement.websiteId ===
+			(input.appContext.websiteId ?? input.appContext.defaultWebsiteId) &&
+		data.measurement.definitionId === entity.id &&
+		data.total_users_completed <= data.total_users_entered &&
+		isDeepStrictEqual(
+			insightVerificationDefinitionSchema.parse(data.measurement.definition),
+			definition
+		);
+	if (!parsed.every(exact)) {
+		return false;
+	}
+	// A later read cannot erase a clipped/conflicting read of the requested window.
+	for (const read of results) {
+		if (read.toolName !== `get_${entity.type}_analytics`) {
+			continue;
+		}
+		const request = z
+			.object({ startDate: z.string(), endDate: z.string() })
+			.safeParse(read.input);
+		if (
+			!request.success ||
+			request.data.startDate !== input.signal.period.current.from ||
+			request.data.endDate !== input.signal.period.current.to
+		) {
+			continue;
+		}
+		const actual = schema.safeParse(read.output);
+		if (
+			!(actual.success && exact(actual)) ||
+			actual.data.measurement.startDate !== request.data.startDate ||
+			actual.data.measurement.endDate !== request.data.endDate
+		) {
+			return false;
+		}
+	}
+	return true;
+}
+
 function savedVerificationCheck(input: InsightAgentInput) {
 	const prior = [...input.history]
 		.reverse()
@@ -2439,55 +2521,64 @@ export async function runInsightAgent(
 						);
 					}
 					outcome = { ...validated, ...(verification ? { verification } : {}) };
+					const citedSignal = candidate.evidence.some((entry) =>
+						entry.sources.some((ref) => ref.source === "signal")
+					);
+					const completeRetention =
+						nativeRetention &&
+						!successfulResults.flatMap(successfulReadOutputs).some((read) => {
+							const status = retentionReadStatus(read, input.signal);
+							return status?.sameQuery && !status.consistent;
+						});
 					const measured =
-						Boolean(nativeRetention || input.signal.cohortMeasurement) ||
-						(candidate.evidence.some((entry) =>
-							entry.sources.some((ref) => ref.source === "signal")
-						) &&
+						(citedSignal &&
+							Boolean(completeRetention || input.signal.cohortMeasurement)) ||
+						(citedSignal &&
 							(["error", "vital", "uptime_monitor"].includes(
 								input.signal.entity.type
 							) ||
 								input.signal.signalKey.startsWith("route:lcp:") ||
 								input.signal.signalKey.startsWith("route:inp:"))) ||
-						successfulResults
-							.filter((read) =>
-								candidate.evidence.some((entry) =>
-									entry.sources.some(
-										(ref) =>
-											ref.source === "tool" &&
-											ref.name === read.toolName &&
-											ref.toolCallId === read.toolCallId
-									)
+						hasCompleteDefinitionMeasurement(
+							input,
+							candidate.evidence.flatMap((entry, index) =>
+								entry.sources.every(
+									(ref) =>
+										ref.source === "tool" &&
+										ref.name === `get_${input.signal.entity.type}_analytics`
 								)
+									? citedEvidence[index]
+									: []
+							),
+							results
+						) ||
+						nativeRevenue.some((native) =>
+							native.readings.some(
+								(reading) =>
+									reading.from === input.signal.period.current.from &&
+									reading.to === input.signal.period.current.to
 							)
-							.some(
-								(read) =>
-									((read.toolName === "get_goal_analytics" ||
-										read.toolName === "get_funnel_analytics") &&
-										z
-											.object({
-												total_users_entered: z.number(),
-												total_users_completed: z.number(),
-											})
-											.safeParse(read.output).success) ||
-									(read.toolName === "get_data" &&
-										successfulReadOutputs(read).some(
-											(output) => nativeReadingSchema.safeParse(output).success
-										)) ||
-									(read.toolName === "get_funnel_analytics_by_referrer" &&
-										z
-											.object({
-												referrer_analytics: z
-													.array(
-														z.object({
-															total_users: z.number(),
-															completed_users: z.number(),
-														})
-													)
-													.min(1),
-											})
-											.safeParse(read.output).success)
-							);
+						) ||
+						candidate.evidence.some((entry, index) => {
+							if (
+								typeof entry.claim === "string" ||
+								!("retention" in entry.claim)
+							) {
+								return false;
+							}
+							try {
+								renderToolRetentionEvidence(
+									citedEvidence[index],
+									input,
+									results.flatMap(successfulReadOutputs),
+									true
+								);
+								return true;
+							} catch {
+								// A valid private diagnostic may still lack a mature, complete comparison.
+								return false;
+							}
+						});
 					const concreteRepair =
 						validated.next.type === "act" && Boolean(validated.next.execution);
 					completion =
