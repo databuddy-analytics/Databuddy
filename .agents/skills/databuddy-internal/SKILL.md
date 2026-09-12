@@ -45,7 +45,7 @@ Keep additions **minimal**: one bullet, a new `rg` hint, or a routing note—eno
 - `SPEC.md` is the intelligence product contract. `insight_observations` is the readable Insights history; `analytics_insights` is the durable investigation projection. The agent outcome owns brief publication and `act`/`ask` promotion; do not replace either with frontend heuristics or collapse the feed into cases. Do not add a parallel agent, evidence API, fixed query choreography, or action-specific lifecycle.
 - Insights quality reviews must compare fresh baseline/candidate outputs and lead with the product verdict and concrete examples. Score usefulness, noise, reading effort, and retained useful findings separately from code tests and contract passes; preserve interrupted attempts instead of reporting retries as an uninterrupted pass rate.
 - Insights RPC helpers that take `{ context, ...input }` must strip `context` before parsing a `.strict()` Zod input schema (same pattern as `appendInvestigationReply` / `applyInsightGoalAction`); otherwise CI fails with `Unrecognized key: "context"`.
-- `insights.history` / MCP `list_investigations` hide cases while a reply is `queued`/`running` (action-inbox verification); tests must list before reply or expect an empty list while verifying.
+- `insights.history` / MCP `list_investigations` hide cases while analysis or verification is queued/running; included clarifications use saved evidence and must not hide or mutate the case.
 - When reporting what an organization can see in Insights, follow the `insights.brief`/`history` visibility rules instead of counting `analytics_insights`; the projection can contain legacy rows without a readable or published `insight_observations` turn.
 - Production insight shadows must freeze `--reference-time`, retain a tool-name trace, and pass available GitHub context before supporting quality claims. Postgres and ClickHouse are read-only, but connector token refreshes or cache writes can still occur; never describe the whole run as zero-write.
 - Automatic investigations have one organization-wide schedule (`off`, `daily`, or `weekly`) and one organization-wide delivery set; website selection is only for manual runs. Do not reintroduce per-website overrides, hourly/custom cadence, or cron input.
@@ -167,7 +167,7 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 - Start in `apps/api/src`
 - Shared API contracts and procedure logic live in `packages/rpc`
 - Prefer changing shared router logic in `packages/rpc` rather than duplicating validation in the dashboard
-- Investigations run in `apps/insights`; RPC only reads cases and accepts durable replies. Case identity is `websiteId|subjectKey`, where the backend owns the subject key. Persist a new observation for each turn while updating the existing insight row. The stored `changePercent` is already signed.
+- Investigations run in `apps/insights`; RPC only reads cases and accepts durable replies. Case identity is `websiteId|subjectKey`, where the backend owns the subject key. New analysis appends an observation; a clarification stores its answer on the reply and reads the originating observation's saved evidence without changing case state. The stored `changePercent` is already signed.
 
 ### Ingestion and analytics pipeline
 
@@ -179,8 +179,8 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 ## Billing (Autumn)
 
 - Retried insight jobs must persist immutable external delivery effects (currently Slack) before calling providers and reuse the effect ID as the provider idempotency key. An insight observation is product memory, not a delivery checkpoint.
-- Intelligence pricing should use the existing token-cost-backed `agent_credits` and top-up flow; do not invent per-site or "monitored product" billing without explicit product selection and runtime enforcement.
-- Transactional billing email identity has three separate concepts: Autumn customer/billing owner, organization, and actual `to` recipient. Only personalize from the actual recipient record; if it is unavailable, omit the greeting rather than using the owner name. Keep `agent_credits` as an internal feature ID, but describe it to customers as investigation credits and explain that deeper investigations, replies, and rechecks can use more credits.
+- Investigations cost $1 per completed result through the separate Autumn `investigation_runs` meter. Clarifications and verification after applying a proposed repair are included. Reserve one unit before new analysis and settle only after a readable complete result is persisted; retries reuse durable operation identity. Internal token costs are telemetry. Existing customers without the new entitlement retain legacy `agent_credits` terms; do not convert balances or point legacy credit refills at the new meter.
+- Transactional billing email identity has three separate concepts: Autumn customer/billing owner, organization, and actual `to` recipient. Only personalize from the actual recipient record; if it is unavailable, omit the greeting rather than using the owner name. Distinguish fixed-price investigations from legacy credits in billing copy.
 - `autumn-js` v1.2.2+ — import `autumnHandler` from `autumn-js/fetch` (NOT `autumn-js/elysia`, that export was removed in v1.0)
 - For Elysia, mount with `.mount(autumnHandler(...))` — NOT `.use()`
 - `identify` callback receives `(request: Request)` directly, not `({ request })`
@@ -202,6 +202,7 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 - ClickHouse helpers and schema: `packages/db/src/clickhouse/*`
 - `ch:check` is package-scoped; run `cd packages/db && bun run ch:check`, not the root script runner.
 - After schema changes, use the repo db scripts rather than ad hoc commands
+- PostgreSQL deploys use `packages/db db:push` through `init.Dockerfile`; register new schema files in `packages/db/drizzle.config.ts`. `packages/migrate` transforms SDK source and is not a database migration runner.
 - A shipped ClickHouse table change needs a tracked forward migration alongside
   its reference DDL: bootstrap `CREATE ... IF NOT EXISTS` does not migrate
   deployed tables, and Keeper-path or sort-key changes need a shadow-table
