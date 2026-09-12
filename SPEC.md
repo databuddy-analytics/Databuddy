@@ -37,9 +37,9 @@ The durable work object for one signal. It has an `open` or `resolved` state plu
 
 A completed investigation costs **$1**. The billable unit is one explicitly started
 analysis of a selected signal or new question, not the durable case that may hold
-several analyses over time. The result can identify an action, ask a necessary
-question, or establish that no action is needed. Failed, interrupted, and
-inconclusive work is not a completed investigation.
+several analyses over time. A supported measured answer, concrete inspected repair,
+or verified no-action conclusion can complete it. Failed, interrupted, inconclusive
+work and an unanswered necessary question are not completed investigations.
 
 Reserve one investigation before starting new analysis. Confirm that reservation
 only after its complete result is saved and readable; release it when the work is
@@ -55,7 +55,8 @@ preparation, model turns, and internal retries do not add customer charges.
 
 Autumn stores the new unit in a separate `investigation_runs` balance with a $1
 prepaid purchase option. Existing credit balances, credit refills, and attached
-legacy plans retain their terms until the customer adopts the new entitlement.
+legacy plans retain their terms until the customer adopts the new entitlement
+through an investigation purchase or a switch to a new plan version.
 An exhausted fixed-price balance does not fall back to spending legacy credits.
 Chat continues to use credits. Token usage and model costs remain internal
 telemetry for fixed-price investigations and included replies.
