@@ -2544,13 +2544,12 @@ export async function runInsightAgent(
 						hasCompleteDefinitionMeasurement(
 							input,
 							candidate.evidence.flatMap((entry, index) =>
-								entry.sources.every(
-									(ref) =>
-										ref.source === "tool" &&
-										ref.name === `get_${input.signal.entity.type}_analytics`
+								entry.sources.flatMap((ref, sourceIndex) =>
+									ref.source === "tool" &&
+									ref.name === `get_${input.signal.entity.type}_analytics`
+										? [citedEvidence[index][sourceIndex]]
+										: []
 								)
-									? citedEvidence[index]
-									: []
 							),
 							results
 						) ||
