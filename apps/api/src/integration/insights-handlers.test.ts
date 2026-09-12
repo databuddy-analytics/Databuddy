@@ -11,10 +11,11 @@ import {
 } from "@databuddy/db/schema";
 import {
 	appRouter,
+	type Context,
 	createInternalPrincipal,
 	createRPCContext,
 } from "@databuddy/rpc";
-import * as autumn from "@databuddy/rpc/autumn";
+import { getAutumn } from "@databuddy/rpc/autumn";
 import {
 	closeInsightsQueue,
 	getInsightsQueue,
@@ -33,12 +34,41 @@ import {
 	signUp,
 	userContext,
 } from "@databuddy/test";
+import { RPCHandler } from "@orpc/server/fetch";
 import { Autumn } from "autumn-js";
 import { randomUUIDv7 } from "bun";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { call } from "./helpers";
 
+vi.mock("@databuddy/rpc/autumn", { spy: true });
+
 const iit = hasTestDb ? it : it.skip;
+
+async function expectBadReplyRequest(
+	context: Context,
+	input: {
+		body: string;
+		insightId: string;
+		intent: string;
+		acceptedPriceUsd?: number;
+		replyId?: string;
+	}
+) {
+	const handler = new RPCHandler({ reply: appRouter.insights.reply });
+	const result = await handler.handle(
+		new Request("https://api.example.invalid/reply", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ json: input }),
+		}),
+		{ context }
+	);
+	expect(result.matched).toBe(true);
+	expect(result.response?.status).toBe(400);
+	expect(await result.response?.json()).toMatchObject({
+		json: { code: "BAD_REQUEST" },
+	});
+}
 
 function investigationOutcome(nextType: "act" | "watch"): InvestigationOutcome {
 	const next: InvestigationOutcome["next"] =
@@ -1097,7 +1127,7 @@ describe("insight investigation timeline", () => {
 					},
 				},
 			});
-			const getAutumn = vi.spyOn(autumn, "getAutumn").mockReturnValue(client);
+			const autumnClient = vi.mocked(getAutumn).mockReturnValue(client);
 			try {
 				const input = {
 					body: "Run a fresh signup analysis",
@@ -1107,13 +1137,7 @@ describe("insight investigation timeline", () => {
 					replyId: randomUUIDv7(),
 				};
 				for (const acceptedPriceUsd of [undefined, 2]) {
-					await expectCode(
-						call(
-							appRouter.insights.reply,
-							context
-						)({ ...input, acceptedPriceUsd } as never),
-						"BAD_REQUEST"
-					);
+					await expectBadReplyRequest(context, { ...input, acceptedPriceUsd });
 				}
 				expect(getCustomer).not.toHaveBeenCalled();
 				expect(
@@ -1156,7 +1180,7 @@ describe("insight investigation timeline", () => {
 					expect(unchanged?.acceptedPriceCents).toBe(acceptedPriceCents);
 				}
 			} finally {
-				getAutumn.mockRestore();
+				autumnClient.mockRestore();
 				getCustomer.mockRestore();
 			}
 		}
@@ -1223,10 +1247,11 @@ describe("insight investigation timeline", () => {
 			call(appRouter.insights.reply, context)({ body: "Fresh analysis", insightId: previousInsightId, intent: "analysis" }),
 			"BAD_REQUEST"
 		);
-		await expectCode(
-			call(appRouter.insights.reply, context)({ body: "Verify", insightId: previousInsightId, intent: "verification" } as never),
-			"BAD_REQUEST"
-		);
+		await expectBadReplyRequest(context, {
+			body: "Verify",
+			insightId: previousInsightId,
+			intent: "verification",
+		});
 		const added = await call(appRouter.insights.reply, context)({
 			body: "  The signup form changed in yesterday's deploy.  ",
 			insightId: previousInsightId,
