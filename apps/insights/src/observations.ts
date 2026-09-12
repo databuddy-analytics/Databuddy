@@ -8,6 +8,7 @@ import type { InvestigationOutcome } from "@databuddy/shared/insights";
 import {
 	parseInvestigationOutcome,
 	parseInvestigationSignal,
+	investigationEvidenceSnapshotSchema,
 } from "@databuddy/shared/insights";
 import type { DetectedSignal } from "./detection";
 import type { InsightAgentInput } from "./agent";
@@ -421,4 +422,81 @@ export async function findRunObservations(params: {
 		}
 		return [{ ...observation, outcome, signal }];
 	});
+}
+
+/** Source evidence is loaded independently of the bounded conversation tail. */
+export async function loadClarificationContext(params: {
+	sourceObservationId: string | null;
+	organizationId: string;
+	websiteId: string;
+	signalKey: string;
+	beforeReply: { createdAt: Date; id: string };
+}) {
+	const [source] = await db
+		.select({
+			id: insightObservations.id,
+			snapshot: insightObservations.snapshot,
+			outcome: insightObservations.outcome,
+			signal: insightObservations.signal,
+		})
+		.from(insightObservations)
+		.where(
+			and(
+				eq(insightObservations.organizationId, params.organizationId),
+				eq(insightObservations.websiteId, params.websiteId),
+				eq(insightObservations.signalKey, params.signalKey),
+				params.sourceObservationId
+					? eq(insightObservations.id, params.sourceObservationId)
+					: lte(insightObservations.createdAt, params.beforeReply.createdAt)
+			)
+		)
+		.orderBy(desc(insightObservations.createdAt), desc(insightObservations.id))
+		.limit(1);
+	const outcome = parseInvestigationOutcome(source?.outcome);
+	const signal = parseInvestigationSignal(source?.signal);
+	if (!(source && outcome && signal)) {
+		throw new Error("The saved investigation is unavailable for this reply");
+	}
+	const snapshot =
+		source.snapshot == null
+			? null
+			: investigationEvidenceSnapshotSchema.parse(source.snapshot);
+	if (
+		snapshot &&
+		(snapshot.organizationId !== params.organizationId ||
+			snapshot.websiteId !== params.websiteId ||
+			snapshot.signalKey !== params.signalKey)
+	) {
+		throw new Error("The saved evidence belongs to a different investigation");
+	}
+	const replies = await db
+		.select({
+			body: insightReplies.body,
+			assistantText: insightReplies.assistantText,
+		})
+		.from(insightReplies)
+		.innerJoin(
+			analyticsInsights,
+			eq(insightReplies.insightId, analyticsInsights.id)
+		)
+		.where(
+			and(
+				eq(analyticsInsights.organizationId, params.organizationId),
+				eq(analyticsInsights.websiteId, params.websiteId),
+				eq(analyticsInsights.subjectKey, params.signalKey),
+				eq(insightReplies.sourceObservationId, source.id),
+				eq(insightReplies.intent, "clarification"),
+				eq(insightReplies.status, "succeeded"),
+				or(
+					lt(insightReplies.createdAt, params.beforeReply.createdAt),
+					and(
+						eq(insightReplies.createdAt, params.beforeReply.createdAt),
+						lt(insightReplies.id, params.beforeReply.id)
+					)
+				)
+			)
+		)
+		.orderBy(desc(insightReplies.createdAt), desc(insightReplies.id))
+		.limit(HISTORY_LIMIT);
+	return { snapshot, outcome, signal, history: replies.reverse() };
 }

@@ -143,6 +143,8 @@ integration("persisted business reply scope", () => {
 			insightId: investigation.id,
 			authorName: "Example teammate",
 			body: "Please check the revised business priority.",
+			// Trusted backend verification retains the fresh-analysis lifecycle.
+			intent: "verification",
 			status: "queued",
 		});
 		saved.revision = 4;
@@ -619,6 +621,8 @@ integration("persisted business reply scope", () => {
 				insightId,
 				authorName: "Example teammate",
 				body: "Preparation is not download completion.",
+				// Trusted backend verification retains the fresh-analysis lifecycle.
+				intent: "verification",
 				createdAt: new Date("2026-09-05T00:00:00.000Z"),
 				status: "queued",
 			});

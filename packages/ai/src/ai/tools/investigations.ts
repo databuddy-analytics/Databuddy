@@ -236,6 +236,7 @@ export async function runInvestigationAction(
 		{
 			body: input.body,
 			insightId: input.investigationId,
+			intent: "clarification",
 			replyId: input.replyId,
 		},
 		context,
@@ -249,7 +250,7 @@ export async function runInvestigationAction(
 		.parse(response);
 	return {
 		action: "reply" as const,
-		message: `Reply accepted with status ${result.reply.status}. The investigation continues asynchronously; use investigations with action=get to read the updated timeline.`,
+		message: `Reply accepted with status ${result.reply.status}. This included clarification uses saved evidence, without new measurements. Use investigations with action=get to read its answer in the updated timeline. Start a new question or fresh $1 analysis explicitly in the dashboard.`,
 		reply: result.reply,
 	};
 }

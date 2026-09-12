@@ -309,7 +309,7 @@ describe("insight investigation timeline", () => {
 		]);
 	});
 
-	iit("hides a case from the action inbox while a reply is being verified", async () => {
+	iit.each(["verification", "clarification"] as const)("keeps clarification independent of case visibility: %s", async (intent) => {
 		const member = await signUp();
 		const organization = await insertOrganization();
 		await addToOrganization(member.id, organization.id, "member");
@@ -339,6 +339,7 @@ describe("insight investigation timeline", () => {
 			authorId: member.id,
 			authorName: "Test member",
 			body: "Databuddy applied the suggested action.",
+			intent,
 			id: randomUUIDv7(),
 			insightId,
 			status: "running",
@@ -353,7 +354,7 @@ describe("insight investigation timeline", () => {
 			organizationId: organization.id,
 		});
 
-		expect(result.insights).toEqual([]);
+		expect(result.insights).toHaveLength(intent === "verification" ? 0 : 1);
 	});
 
 	iit("applies an executable goal action and queues verification together", async () => {
@@ -1117,6 +1118,14 @@ describe("insight investigation timeline", () => {
 		]);
 
 		const context = userContext(member, organization.id);
+		await expectCode(
+			call(appRouter.insights.reply, context)({ body: "Fresh analysis", insightId: previousInsightId, intent: "analysis" }),
+			"BAD_REQUEST"
+		);
+		await expectCode(
+			call(appRouter.insights.reply, context)({ body: "Verify", insightId: previousInsightId, intent: "verification" } as never),
+			"BAD_REQUEST"
+		);
 		const added = await call(appRouter.insights.reply, context)({
 			body: "  The signup form changed in yesterday's deploy.  ",
 			insightId: previousInsightId,
@@ -1174,6 +1183,8 @@ describe("insight investigation timeline", () => {
 				authorName: "test",
 				body: "The signup form changed in yesterday's deploy.",
 				insightId,
+				intent: "clarification",
+				sourceObservationId: secondObservationId,
 				status: "queued",
 			}),
 		]);
@@ -1278,12 +1289,12 @@ describe("insight investigation timeline", () => {
 			total: 1,
 			websites: [expect.objectContaining({ id: website.id })],
 		});
-		const listedWhileVerifying = await mcpTools
+		const listedWhileClarifying = await mcpTools
 			.find((tool) => tool.name === "list_investigations")
 			?.handler({ limit: 20, offset: 0, websiteId: website.id });
-		expect(listedWhileVerifying?.isError).toBe(false);
-		expect(listedWhileVerifying?.structuredContent).toMatchObject({
-			investigations: [],
+		expect(listedWhileClarifying?.isError).toBe(false);
+		expect(listedWhileClarifying?.structuredContent).toMatchObject({
+			investigations: [expect.objectContaining({ id: insightId })],
 		});
 		expect(await db().select().from(insightReplies)).toEqual([
 			expect.objectContaining({
