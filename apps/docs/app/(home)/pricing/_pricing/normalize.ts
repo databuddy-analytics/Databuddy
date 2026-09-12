@@ -30,7 +30,17 @@ function getEventsInfo(items: RawItem[]): {
 			tiers = item.tiers;
 		}
 	}
-	return { included, tiers };
+	return {
+		included,
+		// Catalog ceilings are total monthly events; the estimator takes overage events.
+		tiers:
+			tiers
+				?.filter((tier) => tier.to === "inf" || tier.to > included)
+				.map((tier) => ({
+					...tier,
+					to: tier.to === "inf" ? "inf" : tier.to - included,
+				})) ?? null,
+	};
 }
 
 function getAgentCreditsByInterval(

@@ -131,7 +131,7 @@ export function Estimator({ plans }: Props) {
 								<p className="text-muted-foreground text-xs">
 									{bestPlanDisplayName === "Enterprise"
 										? "Custom pricing for high-volume usage"
-										: `Cheapest option for ${formatInteger(monthlyEvents)} events/month`}
+										: `Estimate for ${formatInteger(monthlyEvents)} events/month`}
 								</p>
 							</div>
 							{bestPlanDisplayName === "Enterprise" ? (

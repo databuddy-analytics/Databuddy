@@ -87,10 +87,9 @@ function eventsOverageItem(included: number) {
 		featureId: events.id,
 		included,
 		price: {
-			tiers: EVENT_OVERAGE_TIERS.map((tier) => ({
-				to: tier.to,
-				amount: tier.amount,
-			})),
+			tiers: EVENT_OVERAGE_TIERS.filter(
+				(tier) => tier.to === "inf" || tier.to > included
+			),
 			tierBehaviour: "graduated",
 			billingUnits: 1,
 			billingMethod: "usage_based",
