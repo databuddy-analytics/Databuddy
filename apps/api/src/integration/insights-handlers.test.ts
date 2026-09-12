@@ -35,12 +35,9 @@ import {
 	userContext,
 } from "@databuddy/test";
 import { RPCHandler } from "@orpc/server/fetch";
-import { Autumn } from "autumn-js";
 import { randomUUIDv7 } from "bun";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { call } from "./helpers";
-
-vi.mock("@databuddy/rpc/autumn", { spy: true });
 
 const iit = hasTestDb ? it : it.skip;
 
@@ -1099,8 +1096,9 @@ describe("insight investigation timeline", () => {
 			const { member, organization, insightId } =
 				await seedExecutableGoalAction();
 			const context = userContext(member, organization.id);
-			const client = new Autumn({ secretKey: "synthetic-local-only" });
-			const getCustomer = vi.spyOn(client.customers, "get").mockResolvedValue({
+			const originalSecret = process.env.AUTUMN_SECRET_KEY;
+			process.env.AUTUMN_SECRET_KEY = "synthetic-local-only";
+			const getCustomer = vi.spyOn(getAutumn().customers, "get").mockResolvedValue({
 				id: member.id,
 				name: null,
 				email: null,
@@ -1127,7 +1125,6 @@ describe("insight investigation timeline", () => {
 					},
 				},
 			});
-			const autumnClient = vi.mocked(getAutumn).mockReturnValue(client);
 			try {
 				const input = {
 					body: "Run a fresh signup analysis",
@@ -1180,8 +1177,9 @@ describe("insight investigation timeline", () => {
 					expect(unchanged?.acceptedPriceCents).toBe(acceptedPriceCents);
 				}
 			} finally {
-				autumnClient.mockRestore();
 				getCustomer.mockRestore();
+				if (originalSecret === undefined) delete process.env.AUTUMN_SECRET_KEY;
+				else process.env.AUTUMN_SECRET_KEY = originalSecret;
 			}
 		}
 	);
