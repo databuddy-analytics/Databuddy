@@ -1,3 +1,5 @@
+import { buildHttpErrorResponse } from "@databuddy/shared/http-error-response";
+import { isInvestigationPurchaseValid } from "./investigation-purchase";
 import { auth } from "@databuddy/auth";
 import { getRedisCache } from "@databuddy/redis";
 import { getBillingCustomerId, getMemberRole } from "@databuddy/rpc";
@@ -133,6 +135,19 @@ async function writeAutumnCache(
 export async function handleAutumnRequest(request: Request) {
 	const sanitized = await stripPrivilegedBody(request);
 	const segment = autumnPathSegment(sanitized);
+	if (sanitized.method !== "GET" && sanitized.method !== "HEAD") {
+		const body: unknown = await sanitized
+			.clone()
+			.json()
+			.catch(() => null);
+		if (!isInvestigationPurchaseValid(body, segment)) {
+			const response = buildHttpErrorResponse({
+				code: "VALIDATION",
+				error: null,
+			});
+			return Response.json(response.payload, { status: response.status });
+		}
+	}
 	const ttlSec = AUTUMN_CACHE_TTL_SEC[segment];
 
 	if (ttlSec === undefined) {

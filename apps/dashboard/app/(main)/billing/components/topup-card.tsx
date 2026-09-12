@@ -37,10 +37,10 @@ export function TopupCard() {
 		if (typeof window === "undefined") {
 			return;
 		}
-		if (window.location.hash !== "#topup") {
+		if (window.location.hash !== "#chat-topup") {
 			return;
 		}
-		const el = document.getElementById("topup");
+		const el = document.getElementById("chat-topup");
 		if (el) {
 			el.scrollIntoView({ behavior: "smooth", block: "start" });
 		}
@@ -76,11 +76,11 @@ export function TopupCard() {
 	};
 
 	return (
-		<Card className="scroll-mt-6" id="topup">
+		<Card className="scroll-mt-6" id="chat-topup">
 			<Card.Header>
 				<Card.Title className="flex items-center gap-2">
 					<CoinsIcon className="text-primary" size={14} />
-					Add investigation credits
+					Add AI credits
 				</Card.Title>
 				<Card.Description>
 					{DATABUNNY_USAGE.description} Purchased credits stack with your plan
@@ -91,7 +91,7 @@ export function TopupCard() {
 				<div className="flex flex-col items-center gap-3">
 					<div className="w-full max-w-sm">
 						<CreditArcSlider
-							ariaLabel="Investigation credits to buy"
+							ariaLabel="AI credits to buy"
 							max={TOPUP_MAX_QUANTITY}
 							min={TOPUP_MIN_QUANTITY}
 							onValueChange={setQuantity}
@@ -121,7 +121,7 @@ export function TopupCard() {
 				<div className="space-y-2">
 					<Row label="You get">
 						<span className="tabular-nums">
-							{quantity.toLocaleString()} investigation credits
+							{quantity.toLocaleString()} AI credits
 						</span>
 					</Row>
 					<Row label="Average per credit">

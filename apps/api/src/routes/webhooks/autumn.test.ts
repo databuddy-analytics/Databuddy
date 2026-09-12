@@ -462,12 +462,12 @@ describe("Autumn usage emails", () => {
 
 		expect(UsageAlertEmail).toHaveBeenCalledWith(
 			expect.objectContaining({
-				featureName: "Investigation credits",
+				featureName: "AI credits",
 				limitAmount: 350,
 				organizationName: "Acme",
 				remainingAmount: 62,
 				usageAmount: 288,
-				usageUnit: "investigation credits",
+				usageUnit: "AI credits",
 			})
 		);
 		expect(UsageAlertEmail).not.toHaveBeenCalledWith(
@@ -475,7 +475,7 @@ describe("Autumn usage emails", () => {
 		);
 		expect(state.send).toHaveBeenCalledWith(
 			expect.objectContaining({
-				subject: "Investigation credits: 82% used",
+				subject: "AI credits: 82% used",
 				to: "recipient@example.com",
 			})
 		);
@@ -553,7 +553,7 @@ describe("Autumn usage emails", () => {
 
 		expect(UsageLimitEmail).toHaveBeenCalledWith(
 			expect.objectContaining({
-				featureName: "Investigation credits",
+				featureName: "AI credits",
 				isAvailable: false,
 				limitAmount: 350,
 				limitType: "spend_limit",
@@ -562,9 +562,25 @@ describe("Autumn usage emails", () => {
 		);
 		expect(state.send).toHaveBeenCalledWith(
 			expect.objectContaining({
-				subject: "[Action required] Investigation credits limit reached",
+				subject: "[Action required] AI credits limit reached",
 			})
 		);
+	});
+
+	it("limits new investigations without describing included clarifications as paused", async () => {
+		state.check.mockResolvedValueOnce({
+			allowed: false,
+			balance: { granted: 10, remaining: 0, usage: 10, overageAllowed: false, nextResetAt: 0 },
+		});
+		await handleLimitReached({
+			customer_id: "user-1", entity_id: "org-1",
+			feature_id: "investigation_runs", limit_type: "included",
+		});
+		expect(UsageLimitEmail).toHaveBeenCalledWith(expect.objectContaining({
+			featureName: "Investigations", usageUnit: "investigations",
+			pausedActivity: "new investigations (included clarifications remain available)",
+			featureDescription: expect.stringContaining("$1 per completed investigation"),
+		}));
 	});
 
 	it("honors the resolved organization's billing email preference", async () => {

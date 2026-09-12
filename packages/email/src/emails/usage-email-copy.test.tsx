@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { DATABUNNY_USAGE } from "@databuddy/shared/billing";
+import {
+	DATABUNNY_USAGE,
+	INVESTIGATION_USAGE,
+} from "@databuddy/shared/billing";
 import { render } from "@react-email/render";
 import { UsageAlertEmail } from "./usage-alert-email";
 import {
@@ -32,20 +35,20 @@ describe("billing usage email copy", () => {
 		expect(formatResetDate(1_782_864_000)).toContain("1970");
 	});
 
-	test("explains investigation credits with real values and no owner greeting", async () => {
+	test("explains AI credits with real values and no owner greeting", async () => {
 		const text = await render(UsageAlertEmail(FEATURE_COPY), {
 			plainText: true,
 		});
 
-		expect(text.toLowerCase()).toContain("investigation credits: 82% used");
-		expect(text).toContain("288 of 350 investigation credits");
+		expect(text.toLowerCase()).toContain("ai credits: 82% used");
+		expect(text).toContain("288 of 350 AI credits");
 		expect(text).toContain("62 remain");
-		expect(text).toContain("pay for the work Databunny performs");
+		expect(text).toContain("pay for ordinary Databunny chat");
 		expect(text).toContain(
-			"deeper investigations, replies, and rechecks use more"
+			"Existing credit balances and allowances keep their value"
 		);
 		expect(text).not.toContain("agent credits");
-		expect(text).not.toContain("Investigation credits is");
+		expect(text).not.toContain("AI credits is");
 		expect(text).not.toContain("Hi ");
 	});
 
@@ -62,11 +65,34 @@ describe("billing usage email copy", () => {
 		);
 
 		expect(text).toContain(
-			"Access to Databunny questions and investigations is currently paused"
+			"Access to Databunny chat and investigations on legacy billing terms is currently paused"
 		);
-		expect(text).toContain("350 of 350 investigation credits");
-		expect(text).not.toContain("Investigation credits is");
+		expect(text).toContain("350 of 350 AI credits");
+		expect(text).not.toContain("AI credits is");
 		expect(text).not.toContain("1.5x");
 		expect(text).not.toContain("10,000");
+	});
+	test("investigation balance email preserves included clarification terms", async () => {
+		const text = await render(
+			UsageLimitEmail({
+				...FEATURE_COPY,
+				featureName: INVESTIGATION_USAGE.name,
+				featureDescription: INVESTIGATION_USAGE.description,
+				usageUnit: INVESTIGATION_USAGE.unit,
+				pausedActivity:
+					"new investigations (included clarifications remain available)",
+				isAvailable: false,
+				limitType: "included",
+				limitAmount: 10,
+				usageAmount: 10,
+				remainingAmount: 0,
+				nextResetAt: null,
+			}),
+			{ plainText: true }
+		);
+		expect(text).toContain("$1 per completed investigation");
+		expect(text).toContain("included clarifications remain available");
+		expect(text).toContain("10 of 10 investigations");
+		expect(text).not.toContain("replies, and rechecks use more");
 	});
 });

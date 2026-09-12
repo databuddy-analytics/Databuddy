@@ -1,4 +1,7 @@
-import { DATABUNNY_USAGE } from "@databuddy/shared/billing";
+import {
+	DATABUNNY_USAGE,
+	INVESTIGATION_USAGE,
+} from "@databuddy/shared/billing";
 
 interface FeatureDisplay {
 	plural: string;
@@ -52,9 +55,23 @@ const AGENT_CREDITS_FEATURE: RawFeature = {
 	name: DATABUNNY_USAGE.name,
 	type: "single_use",
 	display: {
-		singular: "investigation credit",
+		singular: "AI credit",
 		plural: DATABUNNY_USAGE.unit,
 	},
+};
+
+const INVESTIGATION_ITEM: RawItem = {
+	type: "feature",
+	feature_id: INVESTIGATION_USAGE.featureId,
+	feature_type: "single_use",
+	feature: {
+		id: INVESTIGATION_USAGE.featureId,
+		name: INVESTIGATION_USAGE.name,
+		type: "single_use",
+		display: { singular: "investigation", plural: INVESTIGATION_USAGE.unit },
+	},
+	included_usage: 0,
+	interval: null,
 };
 
 const EVENTS_FEATURE: RawFeature = {
@@ -77,6 +94,7 @@ export const RAW_PLANS: RawPlan[] = [
 		id: "free",
 		name: "Free",
 		items: [
+			INVESTIGATION_ITEM,
 			{
 				type: "feature",
 				feature_id: "events",
@@ -99,6 +117,7 @@ export const RAW_PLANS: RawPlan[] = [
 		id: "hobby",
 		name: "Hobby",
 		items: [
+			INVESTIGATION_ITEM,
 			{
 				type: "price",
 				interval: "month",
@@ -138,6 +157,7 @@ export const RAW_PLANS: RawPlan[] = [
 		id: "pro",
 		name: "Pro",
 		items: [
+			INVESTIGATION_ITEM,
 			{
 				type: "price",
 				interval: "month",
@@ -177,6 +197,7 @@ export const RAW_PLANS: RawPlan[] = [
 		id: "intelligence",
 		name: "Business",
 		items: [
+			INVESTIGATION_ITEM,
 			{
 				type: "price",
 				interval: "month",
@@ -208,6 +229,7 @@ export const RAW_PLANS: RawPlan[] = [
 		id: "intelligence_scale",
 		name: "Scale",
 		items: [
+			INVESTIGATION_ITEM,
 			{
 				type: "price",
 				interval: "month",

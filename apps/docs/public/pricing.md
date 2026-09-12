@@ -1,12 +1,12 @@
 # Databuddy Pricing
 
-Product analytics, web analytics, feature flags, and Databunny investigations. Plans include monthly events and Investigation credits, with pay-as-you-go event overage on paid plans.
+Product analytics, web analytics, feature flags, and Databunny investigations. Plans include monthly events and AI credits, with pay-as-you-go event overage on paid plans.
 
 Machine-readable: [JSON](https://www.databuddy.cc/api/pricing) · static [Markdown](https://www.databuddy.cc/pricing.md) · **GET `/pricing`** with `Accept: text/markdown` (see `Vary: Accept`).
 
 ## Plans
 
-| Plan | Price | Events / month (included) | Investigation credits | Notes |
+| Plan | Price | Events / month (included) | AI credits | Notes |
 | --- | --- | --- | --- | --- |
 | Free | $0 | 10,000 | 10 / month | No paid overage — ingestion pauses at the monthly event allowance |
 | Hobby | $9.99/mo | 30,000 | 20 / month + 1 daily bonus | Tiered event overage |
@@ -45,11 +45,15 @@ For exact monthly totals at your event volume, use the calculator on the [pricin
 | Target groups | Unlimited | Unlimited | Unlimited | Unlimited |
 | Team members | Unlimited | Unlimited | Unlimited | Unlimited |
 
-## Investigation credits
+## Investigations — $1 each
 
-Every cloud plan includes Investigation credits for asking Databunny questions. Credits pay for the work Databunny performs, not a fixed number of messages: simple checks use fewer credits, while deeper investigations, replies, and rechecks use more. Hobby and Pro also receive a credit bonus that replenishes each day. Automatic scheduled investigations are exclusive to the invite-only Business and Scale plans.
+$1 per completed investigation. Clarifications of the same question and verification after applying a proposed repair are included. New questions and separate fresh analysis are new investigations. Buy 1–1,000 investigations at a time; prepaid investigations do not expire. New base-plan versions include no bundled investigations. Automatic scheduled investigations remain exclusive to the invite-only Business and Scale plans.
 
-Additional credits are available: a recurring monthly booster add-on and prepaid top-ups that do not expire.
+## AI credits and existing balances
+
+Every cloud plan includes AI credits for ordinary Databunny chat. Hobby and Pro also receive a daily credit bonus. Existing credit balances, plan allowances, and purchased top-ups are preserved; they are not converted into $1 investigations. Existing subscriptions retain legacy investigation billing terms until they buy investigations or switch to a new plan version. After opting in, AI credits remain available for chat.
+
+Legacy AI credit purchases remain available for chat and grandfathered billing terms: a monthly booster and prepaid top-ups that do not expire. Credit refill and spend-limit settings apply to AI credits, not $1 investigation purchases.
 
 ## Enterprise
 
@@ -58,7 +62,8 @@ Custom contracts for volume, compliance, onboarding, and support. Use [databuddy
 ## Definitions
 
 - **Event:** A pageview, custom event, captured error, or Web Vital measurement counted toward monthly analytics usage. Feature flag evaluations and uptime checks do not count.
-- **Investigation credits:** Credits that pay for Databunny's work. Simple checks use fewer credits; deeper investigations, replies, and rechecks use more.
+- **Investigation:** One completed question, including same-question clarifications and verification of a proposed repair, for $1.
+- **AI credits:** Usage credits for ordinary chat and investigations on legacy billing terms.
 - **Overage:** Events in a billing month above the plan’s included events.
 
 ## Links

@@ -1,3 +1,4 @@
+import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
 import {
 	INTELLIGENCE_CONTACT_TOPICS,
 	INTELLIGENCE_PLAN_IDS,
@@ -16,9 +17,10 @@ const INTELLIGENCE_TIERS = [
 		description:
 			"An always-on product investigator for founders and engineers.",
 		features: [
-			"1,500 investigation credits / month",
+			"1,500 AI credits / month for chat",
 			"2,000,000 events included / month",
 			"Scheduled investigations across all your sites",
+			"$1 per completed investigation, purchased separately",
 			"Unlimited funnels, goals, and feature flags",
 			"Tiered event overage",
 		],
@@ -31,9 +33,10 @@ const INTELLIGENCE_TIERS = [
 		description:
 			"More investigation capacity for products with higher traffic and faster release cycles.",
 		features: [
-			"5,000 investigation credits / month",
+			"5,000 AI credits / month for chat",
 			"10,000,000 events included / month",
 			"Scheduled investigations across all your sites",
+			"$1 per completed investigation, purchased separately",
 			"Unlimited funnels, goals, and feature flags",
 			"Tiered event overage",
 		],
@@ -53,8 +56,7 @@ export function IntelligenceSection() {
 					</span>
 				</div>
 				<p className="mt-1 max-w-2xl text-muted-foreground text-sm sm:text-base">
-					Databunny capacity for teams that want investigations running
-					continuously. Sized by investigation credits, not just event volume.
+					{INVESTIGATION_USAGE.description}
 					Access is invite only while we onboard teams personally.
 				</p>
 			</div>

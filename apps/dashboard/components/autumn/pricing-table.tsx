@@ -1,5 +1,7 @@
 "use client";
 
+import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
+
 import {
 	FEATURE_METADATA,
 	type FeatureLimit,
@@ -89,7 +91,7 @@ const PLAN_SUPPORT: Record<string, string> = {
 
 const PLAN_EXTRAS: Record<string, string[]> = {
 	intelligence: [
-		"1,500 investigation credits / month",
+		"1,500 AI credits / month for chat",
 		"2M events included / month",
 	],
 	buddy: ["White-glove onboarding", "Beta / early access"],
@@ -455,6 +457,11 @@ function PricingCard({
 	const extras = PLAN_EXTRAS[plan.id] ?? [];
 	const previousPlanName = PREVIOUS_PLAN_NAME[plan.id];
 
+	const investigationTerms = plan.items.some(
+		(item) => item.featureId === INVESTIGATION_USAGE.featureId
+	)
+		? "Selecting this plan version opts into $1 per completed investigation, purchased separately. Same-question clarifications and verification of a proposed repair are included. Existing AI credits remain available for chat."
+		: undefined;
 	const billingItems = isFree ? plan.items : plan.items.slice(1);
 	const groupedBillingItems = groupItemsByFeature(billingItems);
 	const newGatedFeatures = getNewFeaturesForPlan(plan.id);
@@ -588,6 +595,11 @@ function PricingCard({
 			</div>
 
 			<div className="p-5 pt-0">
+				{investigationTerms && (
+					<Text className="mb-3" tone="muted" variant="caption">
+						{investigationTerms}
+					</Text>
+				)}
 				{CONTACT_TOPICS[plan.id] && !isActive ? (
 					<Button asChild className="w-full" size="lg" variant="secondary">
 						<a
@@ -615,6 +627,7 @@ function PricingCard({
 			{preview && (
 				<AttachDialog
 					action={dialogAction}
+					terms={investigationTerms}
 					onConfirm={async () => {
 						await attachAction?.();
 					}}

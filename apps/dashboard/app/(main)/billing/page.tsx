@@ -1,5 +1,7 @@
 "use client";
 
+import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
+
 import AttachDialog from "@/components/autumn/attach-dialog";
 import { useBillingContext } from "@/components/providers/billing-provider";
 import { getCustomerPlanName } from "@/lib/autumn/customer-plan-name";
@@ -19,6 +21,7 @@ import { CancelSubscriptionDialog } from "./components/cancel-subscription-dialo
 import { ConsumptionChart } from "./components/consumption-chart";
 import { ErrorState } from "./components/empty-states";
 import { PlanStatusBadge } from "./components/plan-status-badge";
+import { InvestigationTopupCard } from "./components/investigation-topup-card";
 import { TopupCard } from "./components/topup-card";
 import { UsageBreakdownTable } from "./components/usage-breakdown-table";
 import { UsageRow } from "./components/usage-row";
@@ -324,7 +327,11 @@ export default function BillingPage() {
 			basePlanId != null && INTELLIGENCE_PLAN_ID_SET.has(basePlanId);
 
 		return allAddOns.filter((plan) => {
-			if (isSSOPlan(plan) || plan.id === TOPUP_PRODUCT_ID) {
+			if (
+				isSSOPlan(plan) ||
+				plan.id === TOPUP_PRODUCT_ID ||
+				plan.id === INVESTIGATION_USAGE.topupPlanId
+			) {
 				return false;
 			}
 			if (onIntelligencePlan && plan.id === CREDITS_BOOSTER_PLAN_ID) {
@@ -528,6 +535,7 @@ export default function BillingPage() {
 					</Card.Content>
 				</Card>
 
+				<InvestigationTopupCard />
 				{!isFree && <TopupCard />}
 				{!isFree && <BillingControlsCard />}
 

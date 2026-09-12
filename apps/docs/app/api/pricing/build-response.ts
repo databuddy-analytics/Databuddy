@@ -1,3 +1,4 @@
+import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
 import {
 	PLAN_CAPABILITIES,
 	PLAN_IDS,
@@ -109,10 +110,22 @@ export function buildPricingApiPayload(request: Request) {
 			pricingMarkdown: `${PUBLIC_DOCS_ORIGIN}/pricing.md`,
 			signUp: APP_SIGNUP,
 		},
+		investigations: {
+			featureId: INVESTIGATION_USAGE.featureId,
+			pricePerInvestigation: INVESTIGATION_USAGE.priceUsd,
+			currency: "USD" as const,
+			billingModel: "prepaid" as const,
+			includedPerPlan: 0,
+			purchaseLimit: INVESTIGATION_USAGE.maxPurchase,
+			expires: false,
+			description: INVESTIGATION_USAGE.description,
+		},
 		plans: mapRawPlans(),
 		entitlements: buildEntitlements(),
 		notes: {
 			enterpriseCheckoutUsesEntitlementsPlanId: "scale" as const,
+			legacyCredits:
+				"Existing credit balances and allowances are preserved. Existing subscriptions retain legacy investigation terms until they buy $1 investigations or switch to a new plan version. AI credits continue to pay for ordinary chat.",
 		},
 		signUpUrl: APP_SIGNUP,
 		pricingPageUrl: `${PUBLIC_DOCS_ORIGIN}/pricing`,

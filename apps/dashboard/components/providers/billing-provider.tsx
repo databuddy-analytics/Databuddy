@@ -1,6 +1,11 @@
 "use client";
 
 import {
+	getInvestigationBillingFeatureId,
+	INVESTIGATION_USAGE,
+} from "@databuddy/shared/billing";
+
+import {
 	FEATURE_METADATA,
 	type FeatureId,
 	type FeatureLimit,
@@ -323,5 +328,18 @@ export function useUsageFeature(featureId: FeatureId) {
 		canUse: canUse(featureId),
 		upgradeMessage: getUpgradeMessage(featureId),
 		isFree,
+	};
+}
+
+export function useInvestigationUsage() {
+	const { customer } = useBillingContext();
+	const featureId = getInvestigationBillingFeatureId(customer?.balances);
+	const usage = useUsageFeature(featureId);
+	const fixedPrice = featureId === INVESTIGATION_USAGE.featureId;
+	return {
+		...usage,
+		fixedPrice,
+		canUse:
+			usage.unlimited || (fixedPrice ? usage.balance >= 1 : usage.balance > 0),
 	};
 }
