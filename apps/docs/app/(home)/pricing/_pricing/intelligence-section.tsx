@@ -56,8 +56,8 @@ export function IntelligenceSection() {
 					</span>
 				</div>
 				<p className="mt-1 max-w-2xl text-muted-foreground text-sm sm:text-base">
-					{INVESTIGATION_USAGE.description}
-					Access is invite only while we onboard teams personally.
+					{INVESTIGATION_USAGE.description} Access is invite only while we
+					onboard teams personally.
 				</p>
 			</div>
 			<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

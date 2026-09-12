@@ -135,6 +135,79 @@ integration("fixed investigation billing at the PostgreSQL and native Autumn bou
 		expect((await chargeState(charge.id))?.status).toBe("confirmed");
 	});
 
+	it("binds the accepted 100-cent quote durably and refuses a different quote on retry", async () => {
+		const input = { ...(await fixture()), expectedPriceCents: 100 };
+		const remote = provider();
+		const charge = await reserveInvestigationCharge(input, remote.client);
+		expect((await chargeState(charge.id))?.priceCents).toBe(100);
+		expect((await reserveInvestigationCharge(input, remote.client)).id).toBe(
+			charge.id
+		);
+		await expect(
+			reserveInvestigationCharge(
+				{ ...input, expectedPriceCents: 200 },
+				remote.client
+			)
+		).rejects.toThrow("does not match this reservation");
+		expect((await chargeState(charge.id))?.priceCents).toBe(100);
+		expect(remote.requests).toHaveLength(1);
+	});
+
+	it.each([
+		0, -100, 100.5, 200,
+	])("does not create a new charge or call the provider for an unavailable quote of %s cents", async (expectedPriceCents) => {
+		const input = await fixture();
+		const remote = provider();
+		await expect(
+			reserveInvestigationCharge({ ...input, expectedPriceCents }, remote.client)
+		).rejects.toThrow("accepted investigation price");
+		expect(remote.requests).toHaveLength(0);
+		expect(
+			await db
+				.select()
+				.from(investigationCharges)
+				.where(eq(investigationCharges.organizationId, input.organizationId))
+		).toHaveLength(0);
+	});
+
+	it.each([
+		"pending",
+		"reserved",
+	] as const)("preserves a prior quote only after an acknowledged hold: %s", async (status) => {
+		const input = await fixture();
+		const remote = provider();
+		const id = randomUUIDv7();
+		await db.insert(investigationCharges).values({
+			id,
+			organizationId: input.organizationId,
+			websiteId: input.websiteId,
+			operationKey: input.operationKey,
+			customerId,
+			mode: "fixed",
+			featureId: INVESTIGATION_USAGE.featureId,
+			priceCents: 200,
+			status,
+			expiresAt: new Date(Date.now() + 60_000),
+		});
+		const retry = reserveInvestigationCharge(
+			{ ...input, expectedPriceCents: 200 },
+			remote.client
+		);
+		if (status === "reserved") {
+			expect(await retry).toMatchObject({ id, priceCents: 200, status });
+		} else {
+			await expect(retry).rejects.toThrow("no longer available");
+		}
+		await expect(
+			reserveInvestigationCharge(
+				{ ...input, expectedPriceCents: 100 },
+				remote.client
+			)
+		).rejects.toThrow("does not match this reservation");
+		expect((await chargeState(id))?.priceCents).toBe(200);
+		expect(remote.requests).toHaveLength(0);
+	});
+
 	it("does not confirm invisible answers or rolled-back observations; an incomplete result releases the hold", async () => {
 		const input = await fixture();
 		const remote = provider();

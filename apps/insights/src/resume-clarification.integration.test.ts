@@ -168,6 +168,62 @@ integration("included saved-evidence replies", () => {
 		await closeInsightsQueue();
 		await shutdownPostgres();
 	});
+	it.each([
+		null,
+		100,
+		200,
+	])("loads the durable accepted quote of %s cents before any fresh analysis", async (acceptedPriceCents) => {
+		const f = await fixture();
+		await db
+			.update(insightReplies)
+			.set({ intent: "analysis", acceptedPriceCents })
+			.where(eq(insightReplies.id, f.replyId));
+		const resolve = spyOn(
+			billing,
+			"resolveInvestigationBilling"
+		).mockResolvedValue({ mode: "fixed", customerId: "synthetic-customer" });
+		const originalReserve = billing.reserveInvestigationCharge;
+		const reserve = spyOn(
+			billing,
+			"reserveInvestigationCharge"
+		).mockImplementation(async (input) => {
+			expect(input.expectedPriceCents).toBe(acceptedPriceCents ?? undefined);
+			if (acceptedPriceCents === 100)
+				throw new Error("Durable quote reached reservation");
+			return originalReserve(input);
+		});
+		const newWork = mock(forbidden);
+		await expect(
+			resumeInsightReply(
+				f.replyId,
+				newWork,
+				newWork,
+				newWork,
+				{
+					loadCurrentBusinessScope: newWork,
+					loadBusinessProfile: newWork,
+					recallBusinessContext: newWork,
+				},
+				newWork
+			)
+		).rejects.toThrow(
+			acceptedPriceCents === null
+				? "Accept the investigation price"
+				: acceptedPriceCents === 100
+					? "Durable quote reached reservation"
+					: "no longer available"
+		);
+		expect(resolve).toHaveBeenCalledTimes(acceptedPriceCents === null ? 0 : 1);
+		expect(reserve).toHaveBeenCalledTimes(acceptedPriceCents === null ? 0 : 1);
+		expect(newWork).not.toHaveBeenCalled();
+		expect(
+			await db
+				.select()
+				.from(investigationCharges)
+				.where(eq(investigationCharges.organizationId, f.organizationId))
+		).toHaveLength(0);
+	});
+
 	it("loads the original observation beyond history truncation, saves only assistant text, and never bills or mutates the case", async () => {
 		const f = await fixture();
 		await db

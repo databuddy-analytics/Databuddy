@@ -109,34 +109,21 @@ export async function reserveInvestigationCharge(
 		organizationId: string;
 		websiteId: string;
 		operationKey: string;
+		expectedPriceCents?: number;
 		runId?: string;
 	},
 	client?: Autumn
 ): Promise<Charge> {
 	const now = new Date();
-	await db
-		.insert(investigationCharges)
-		.values({
-			id: randomUUIDv7(),
-			operationKey: input.operationKey,
-			organizationId: input.organizationId,
-			websiteId: input.websiteId,
-			runId: input.runId,
-			customerId: input.billing.customerId,
-			mode: input.billing.mode,
-			featureId: INVESTIGATION_USAGE.featureId,
-			priceCents:
-				input.billing.mode === "fixed" ? INVESTIGATION_USAGE.priceUsd * 100 : 0,
-			status: input.billing.mode === "fixed" ? "pending" : "reserved",
-			expiresAt: new Date(now.getTime() + LOCK_MS),
-		})
-		.onConflictDoNothing({
-			target: [
-				investigationCharges.organizationId,
-				investigationCharges.operationKey,
-			],
-		});
-	const [charge] = await db
+	const currentPriceCents = INVESTIGATION_USAGE.priceUsd * 100;
+	const expectedPriceCents = input.expectedPriceCents;
+	if (
+		expectedPriceCents !== undefined &&
+		(!Number.isSafeInteger(expectedPriceCents) || expectedPriceCents <= 0)
+	) {
+		throw new Error("The accepted investigation price is invalid");
+	}
+	const chargeQuery = db
 		.select()
 		.from(investigationCharges)
 		.where(
@@ -145,11 +132,53 @@ export async function reserveInvestigationCharge(
 				eq(investigationCharges.operationKey, input.operationKey)
 			)
 		);
+	let [charge] = await chargeQuery;
+	if (!charge) {
+		if (
+			expectedPriceCents !== undefined &&
+			(input.billing.mode !== "fixed" ||
+				expectedPriceCents !== currentPriceCents)
+		) {
+			throw new Error(
+				"The accepted investigation price is no longer available; accept the current price to start a new analysis"
+			);
+		}
+		await db
+			.insert(investigationCharges)
+			.values({
+				id: randomUUIDv7(),
+				operationKey: input.operationKey,
+				organizationId: input.organizationId,
+				websiteId: input.websiteId,
+				runId: input.runId,
+				customerId: input.billing.customerId,
+				mode: input.billing.mode,
+				featureId: INVESTIGATION_USAGE.featureId,
+				priceCents: input.billing.mode === "fixed" ? currentPriceCents : 0,
+				status: input.billing.mode === "fixed" ? "pending" : "reserved",
+				expiresAt: new Date(now.getTime() + LOCK_MS),
+			})
+			.onConflictDoNothing({
+				target: [
+					investigationCharges.organizationId,
+					investigationCharges.operationKey,
+				],
+			});
+		[charge] = await chargeQuery;
+	}
 	if (!charge || charge.websiteId !== input.websiteId) {
 		throw new Error("Investigation charge identity does not match");
 	}
 	if (charge.customerId !== input.billing.customerId) {
 		throw new Error("The billing owner changed after this investigation began");
+	}
+	if (
+		expectedPriceCents !== undefined &&
+		(charge.mode !== "fixed" || charge.priceCents !== expectedPriceCents)
+	) {
+		throw new Error(
+			"The accepted investigation price does not match this reservation"
+		);
 	}
 	if (charge.mode !== "fixed") {
 		return charge;
@@ -160,6 +189,13 @@ export async function reserveInvestigationCharge(
 	if (charge.status !== "pending" || charge.expiresAt <= now) {
 		throw new Error(
 			"This investigation reservation is unavailable; no new charge was created"
+		);
+	}
+	// An acknowledged hold keeps its original price; a pending row cannot authorize
+	// a new debit after that price stops being available.
+	if (charge.priceCents !== currentPriceCents) {
+		throw new Error(
+			"The accepted investigation price is no longer available; accept the current price to start a new analysis"
 		);
 	}
 	const [claimed] = await db

@@ -325,6 +325,7 @@ export const insightReplies = pgTable(
 		insightId: text("insight_id").notNull(),
 		observationId: text("observation_id"),
 		sourceObservationId: text("source_observation_id"),
+		acceptedPriceCents: integer("accepted_price_cents"),
 		intent: text()
 			.$type<"clarification" | "analysis" | "verification">()
 			.default("clarification")

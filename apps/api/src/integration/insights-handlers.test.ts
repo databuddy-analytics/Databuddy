@@ -14,6 +14,7 @@ import {
 	createInternalPrincipal,
 	createRPCContext,
 } from "@databuddy/rpc";
+import * as autumn from "@databuddy/rpc/autumn";
 import {
 	closeInsightsQueue,
 	getInsightsQueue,
@@ -32,8 +33,9 @@ import {
 	signUp,
 	userContext,
 } from "@databuddy/test";
+import { Autumn } from "autumn-js";
 import { randomUUIDv7 } from "bun";
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { call } from "./helpers";
 
 const iit = hasTestDb ? it : it.skip;
@@ -1061,6 +1063,105 @@ describe("insight investigation timeline", () => {
 		expect(websiteOnly.insights[0]?.websiteId).toBe(secondWebsite.id);
 	});
 
+	iit(
+		"persists the accepted $1 analysis quote and rejects idempotent replay with a different durable price",
+		async () => {
+			const { member, organization, insightId } =
+				await seedExecutableGoalAction();
+			const context = userContext(member, organization.id);
+			const client = new Autumn({ secretKey: "synthetic-local-only" });
+			const getCustomer = vi.spyOn(client.customers, "get").mockResolvedValue({
+				id: member.id,
+				name: null,
+				email: null,
+				createdAt: 0,
+				fingerprint: null,
+				stripeId: null,
+				env: "sandbox",
+				metadata: {},
+				sendEmailReceipts: false,
+				billingControls: {},
+				subscriptions: [],
+				purchases: [],
+				flags: {},
+				balances: {
+					investigation_runs: {
+						featureId: "investigation_runs",
+						granted: 1,
+						remaining: 1,
+						usage: 0,
+						unlimited: false,
+						overageAllowed: false,
+						maxPurchase: null,
+						nextResetAt: null,
+					},
+				},
+			});
+			const getAutumn = vi.spyOn(autumn, "getAutumn").mockReturnValue(client);
+			try {
+				const input = {
+					body: "Run a fresh signup analysis",
+					insightId,
+					intent: "analysis" as const,
+					acceptedPriceUsd: 1 as const,
+					replyId: randomUUIDv7(),
+				};
+				for (const acceptedPriceUsd of [undefined, 2]) {
+					await expectCode(
+						call(
+							appRouter.insights.reply,
+							context
+						)({ ...input, acceptedPriceUsd } as never),
+						"BAD_REQUEST"
+					);
+				}
+				expect(getCustomer).not.toHaveBeenCalled();
+				expect(
+					await db()
+						.select()
+						.from(insightReplies)
+						.where(eq(insightReplies.id, input.replyId))
+				).toHaveLength(0);
+				const first = await call(appRouter.insights.reply, context)(input);
+				const [stored] = await db()
+					.select()
+					.from(insightReplies)
+					.where(eq(insightReplies.id, first.reply.id));
+				expect(stored).toMatchObject({
+					intent: "analysis",
+					acceptedPriceCents: 100,
+					status: "queued",
+				});
+				const retry = await call(appRouter.insights.reply, context)(input);
+				expect(retry.reply).toEqual(first.reply);
+				expect(
+					await db()
+						.select()
+						.from(insightReplies)
+						.where(eq(insightReplies.id, input.replyId))
+				).toHaveLength(1);
+				for (const acceptedPriceCents of [null, 200]) {
+					await db()
+						.update(insightReplies)
+						.set({ acceptedPriceCents })
+						.where(eq(insightReplies.id, first.reply.id));
+					await expectCode(
+						call(appRouter.insights.reply, context)(input),
+						"CONFLICT"
+					);
+					const [unchanged] = await db()
+						.select()
+						.from(insightReplies)
+						.where(eq(insightReplies.id, first.reply.id));
+					expect(unchanged?.acceptedPriceCents).toBe(acceptedPriceCents);
+				}
+			} finally {
+				getAutumn.mockRestore();
+				getCustomer.mockRestore();
+			}
+		}
+	);
+
 	iit("persists a reply beside every observation for the same signal", async () => {
 		const member = await signUp();
 		const organization = await insertOrganization();
@@ -1134,6 +1235,11 @@ describe("insight investigation timeline", () => {
 			"The signup form changed in yesterday's deploy."
 		);
 		expect(added.reply.status).toBe("queued");
+		const [includedReply] = await db()
+			.select()
+			.from(insightReplies)
+			.where(eq(insightReplies.id, added.reply.id));
+		expect(includedReply?.acceptedPriceCents).toBeNull();
 		expect(
 			(await getInsightsQueue().getJob(insightsResumeJobId(added.reply.id)))?.data
 		).toEqual({ replyId: added.reply.id });

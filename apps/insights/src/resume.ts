@@ -139,6 +139,7 @@ export async function resumeInsightReply(
 ): Promise<"skipped" | "succeeded"> {
 	const [trigger] = await db
 		.select({
+			acceptedPriceCents: insightReplies.acceptedPriceCents,
 			authorId: insightReplies.authorId,
 			authorName: insightReplies.authorName,
 			body: insightReplies.body,
@@ -309,6 +310,15 @@ export async function resumeInsightReply(
 		| Awaited<ReturnType<typeof reserveInvestigationCharge>>
 		| undefined;
 	if (intent === "analysis") {
+		if (
+			trigger.acceptedPriceCents == null ||
+			!Number.isSafeInteger(trigger.acceptedPriceCents) ||
+			trigger.acceptedPriceCents <= 0
+		) {
+			throw new Error(
+				"Accept the investigation price before starting a new analysis"
+			);
+		}
 		const billing = await resolveInvestigationBilling({
 			organizationId: trigger.organizationId,
 			userId: trigger.authorId,
@@ -320,6 +330,7 @@ export async function resumeInsightReply(
 		}
 		charge = await reserveInvestigationCharge({
 			billing,
+			expectedPriceCents: trigger.acceptedPriceCents,
 			organizationId: trigger.organizationId,
 			websiteId: trigger.websiteId,
 			operationKey: JSON.stringify(["reply", replyId]),

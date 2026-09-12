@@ -45,6 +45,7 @@ const snapshot = createEvidenceSnapshot({
 	reads: [],
 });
 const trigger = {
+	acceptedPriceCents: null,
 	authorName: "Example teammate",
 	authorId: "example-user",
 	body: "Explain the original result",
@@ -237,7 +238,7 @@ it.each([
 ] as const)("rejects a quoted new analysis under %s terms before any new work", async (mode) => {
 	const billing = await import("./investigation-billing");
 	const reads = [
-		[{ ...trigger, intent: "analysis" }],
+		[{ ...trigger, intent: "analysis", acceptedPriceCents: 100 }],
 		[{ id: "case-1", status: "open", createdAt: new Date("2026-09-01") }],
 	];
 	replaceDb("select", mock(() => query(reads.shift() ?? [])) as never);
@@ -268,7 +269,7 @@ it.each([
 it("reserves the explicit reply's stable unit before any refresh or business work", async () => {
 	const billing = await import("./investigation-billing");
 	const reads = [
-		[{ ...trigger, intent: "analysis" }],
+		[{ ...trigger, intent: "analysis", acceptedPriceCents: 100 }],
 		[{ id: "case-1", status: "open", createdAt: new Date("2026-09-01") }],
 	];
 	replaceDb("select", mock(() => query(reads.shift() ?? [])) as never);
@@ -282,6 +283,7 @@ it("reserves the explicit reply's stable unit before any refresh or business wor
 		async (input) => {
 			order.push("reserve");
 			expect(input.operationKey).toBe(JSON.stringify(["reply", "reply-1"]));
+			expect(input.expectedPriceCents).toBe(100);
 			throw new Error("Synthetic balance empty");
 		}
 	);
@@ -303,5 +305,41 @@ it("reserves the explicit reply's stable unit before any refresh or business wor
 		)
 	).rejects.toThrow("Synthetic balance empty");
 	expect(order).toEqual(["terms", "reserve"]);
+	expect(forbidden).not.toHaveBeenCalled();
+});
+
+it.each([
+	undefined,
+	null,
+	0,
+	-100,
+	100.5,
+])("rejects an explicit analysis with invalid accepted price %s before provider lookup or work", async (acceptedPriceCents) => {
+	const billing = await import("./investigation-billing");
+	const reads = [
+		[{ ...trigger, intent: "analysis", acceptedPriceCents }],
+		[{ id: "case-1", status: "open", createdAt: new Date("2026-09-01") }],
+	];
+	replaceDb("select", mock(() => query(reads.shift() ?? [])) as never);
+	replaceDb("update", mock(() => query([{ id: "reply-1" }])) as never);
+	const forbidden = mock(async () => {
+		throw new Error("New work must not run");
+	});
+	spyOn(billing, "resolveInvestigationBilling").mockImplementation(forbidden);
+	spyOn(billing, "reserveInvestigationCharge").mockImplementation(forbidden);
+	await expect(
+		resumeInsightReply(
+			"reply-1",
+			forbidden,
+			forbidden,
+			forbidden,
+			{
+				loadCurrentBusinessScope: forbidden,
+				loadBusinessProfile: forbidden,
+				recallBusinessContext: forbidden,
+			},
+			forbidden
+		)
+	).rejects.toThrow("Accept the investigation price");
 	expect(forbidden).not.toHaveBeenCalled();
 });
