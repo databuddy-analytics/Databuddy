@@ -20,12 +20,12 @@ export default function PricingPage() {
 			<div className="mx-auto w-full max-w-7xl">
 				<header className="mb-8 text-center sm:mb-10">
 					<h1 className="mb-2 font-bold text-3xl tracking-tight sm:text-4xl">
-						Every feature, every plan.
+						Find the plan that fits your product.
 					</h1>
 					<p className="mx-auto max-w-2xl text-muted-foreground text-sm sm:text-base">
-						Analytics, uptime monitoring, link management, error tracking, web
-						vitals, feature flags, and more included at every tier. Pick a plan
-						based on volume, not features.
+						Compare analytics plans by usage and capabilities. Investigations
+						remain invite only and are purchased separately at $
+						{INVESTIGATION_USAGE.priceUsd} per completed investigation.
 					</p>
 				</header>
 

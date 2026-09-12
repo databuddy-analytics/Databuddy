@@ -1,8 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "bun:test";
+import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
 import { buildPricingApiPayload } from "@/app/api/pricing/build-response";
 import { RAW_PLANS } from "@/app/(home)/pricing/data";
+import { competitors } from "./comparison-config";
 
 function included(
 	planId: string,
@@ -22,6 +24,22 @@ function included(
 }
 
 describe("public pricing copy", () => {
+	it("shows the completed-unit price and access gate on every investigation comparison row", () => {
+		const rows = Object.values(competitors).flatMap((competitor) =>
+			competitor.pricingTiers.filter(
+				(row) => row.pageviews === "Automatic investigations"
+			)
+		);
+		expect(rows.length).toBeGreaterThan(0);
+		for (const row of rows) {
+			expect(row.databuddy).toContain(
+				`$${INVESTIGATION_USAGE.priceUsd} per completed investigation`
+			);
+			expect(row.databuddy).toContain("Invite only");
+			expect(["Free", "Included"]).not.toContain(row.databuddy);
+		}
+	});
+
 	it("stays aligned with the pricing data used by the page and API", async () => {
 		const markdown = await readFile(
 			join(import.meta.dir, "..", "public", "pricing.md"),

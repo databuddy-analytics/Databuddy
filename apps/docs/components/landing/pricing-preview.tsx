@@ -1,5 +1,6 @@
 "use client";
 
+import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
 import { ArrowRightIcon } from "@databuddy/ui/icons";
 import Link from "next/link";
 import { Estimator } from "@/app/(home)/pricing/_pricing/estimator";
@@ -23,8 +24,9 @@ export function PricingPreview() {
 					</span>
 				</h2>
 				<p className="mt-3 max-w-2xl text-pretty text-muted-foreground text-sm sm:px-0 sm:text-base lg:text-lg">
-					Every feature on every plan. Slide to your event volume and see the
-					number. No sales call, no feature gates.
+					Estimate your analytics plan from your event volume, then compare plan
+					capabilities. Invite-only investigations are separate: $
+					{INVESTIGATION_USAGE.priceUsd} per completed investigation.
 				</p>
 			</div>
 

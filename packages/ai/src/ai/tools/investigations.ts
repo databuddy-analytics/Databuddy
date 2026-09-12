@@ -1,4 +1,5 @@
 import { isValidTimezone } from "@databuddy/rpc/insight-schedule";
+import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
 import {
 	historyInsightSchema,
 	insightBriefItemSchema,
@@ -250,7 +251,7 @@ export async function runInvestigationAction(
 		.parse(response);
 	return {
 		action: "reply" as const,
-		message: `Reply accepted with status ${result.reply.status}. This included clarification uses saved evidence, without new measurements. Use investigations with action=get to read its answer in the updated timeline. Start a new question or fresh $1 analysis explicitly in the dashboard.`,
+		message: `Reply accepted with status ${result.reply.status}. This included clarification uses saved evidence, without new measurements. Use investigations with action=get to read its answer in the updated timeline. Start a new question or fresh $${INVESTIGATION_USAGE.priceUsd} analysis explicitly in the dashboard.`,
 		reply: result.reply,
 	};
 }
@@ -291,7 +292,7 @@ export function createInvestigationTools() {
 		}),
 		configure_investigations: tool({
 			description:
-				"Read or change automatic investigations. status returns the organization config; configure sets Off/Daily/Weekly, timezone, or Slack delivery; run investigates the selected website now, or every website when none is selected. Configure and run require a separate confirmation turn.",
+				"Read or change automatic investigations. status returns the organization config; configure sets Off/Daily/Weekly, timezone, or Slack delivery; run investigates the selected website now, or every website when none is selected. Configure and run require a separate confirmation turn. Show the preview's scope and billing disclosure before asking for confirmation. A run may investigate several signals; its price is not a single investigation's price.",
 			inputSchema,
 			execute: (input, options) => {
 				const context = getAppContext(options);
@@ -313,7 +314,22 @@ export function createInvestigationTools() {
 					validateConfiguration(input);
 				}
 				if (!input.confirmed) {
-					return { confirmationRequired: true };
+					const websiteId = context.defaultWebsiteId ?? context.websiteId;
+					const startsAnalysis =
+						input.action === "run" ||
+						input.frequency === "daily" ||
+						input.frequency === "weekly" ||
+						input.channelAction === "add";
+					return {
+						confirmationRequired: true,
+						scope:
+							input.action === "run" && websiteId
+								? `Website ${websiteId}`
+								: "All websites in this organization",
+						billing: startsAnalysis
+							? `For organizations on fixed-price investigation billing: ${INVESTIGATION_USAGE.description} Each manual or scheduled run may investigate several signals and use multiple prepaid investigations. Changing settings does not itself charge for an investigation. Existing legacy credit terms remain in effect until the organization buys investigations or switches to a new plan version.`
+							: undefined,
+					};
 				}
 
 				if (input.action === "run") {
