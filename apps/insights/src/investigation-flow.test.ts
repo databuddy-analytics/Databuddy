@@ -4445,3 +4445,23 @@ describe("identified-profile cohort publication", () => {
 		);
 	});
 });
+
+describe("investigation completion and retained evidence", () => {
+ it.each([true, false])("keeps unknown cause independent of publication (%s)", async (publish) => {
+  const result = await runInsightAgent({appContext: appContext(), evidence: [], githubRepository: null, history: [], otherOpenWork: [], signal: reliabilitySignal}, {tools: {}, model: outputModel({
+   completion: "complete", title: "Route errors increased", summary: "The cause remains unknown.", rootCause: null, impact: null,
+   evidence: ["Route loading failures increased from 23 to 36."], evidenceRefs: [{source: "signal"}], findingKind: "reliability_exposure", publish, publicationBasis: publish ? "measured_reliability" : null,
+   next: {type: "resolve", reason: "No inspected repair is established."},
+  })});
+  expect(result.completion).toBe("complete");
+  expect(result.snapshot).toMatchObject({completion: "complete", organizationId: "org-1", websiteId: "site-1", signal: reliabilitySignal, reads: []});
+ });
+ it("does not bill an explicitly incomplete diagnostic even when the signal contains a count", async () => {
+  const result = await runInsightAgent({appContext: appContext(), evidence: [], githubRepository: null, history: [], otherOpenWork: [], signal: reliabilitySignal}, {tools: {}, model: outputModel({
+   completion: "incomplete", title: "Route errors increased", summary: "Required diagnostic evidence is unavailable.", rootCause: null, impact: null,
+   evidence: ["Route loading failures increased from 23 to 36."], evidenceRefs: [{source: "signal"}], findingKind: "reliability_exposure", publish: false, publicationBasis: null,
+   next: {type: "resolve", reason: "The requested answer remains incomplete."},
+  })});
+  expect(result.completion).toBe("incomplete");
+ });
+});
