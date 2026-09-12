@@ -1,4 +1,5 @@
 import {
+	insightMeasurementSchema,
 	investigationEvidenceSnapshotSchema,
 	type InvestigationEvidenceSnapshot,
 	type InvestigationSignal,
@@ -154,9 +155,62 @@ const referrerSchema = z.object({
 	total_users: z.number().int().nonnegative(),
 	completed_users: z.number().int().nonnegative(),
 });
+const referrerScopeSchema = z.object({
+	websiteId: z.string(),
+	funnelId: z.string(),
+	startDate: z.string(),
+	endDate: z.string(),
+	cohort: z.string().nullable().optional(),
+});
+
+function previousReferrerRates(snapshot: InvestigationEvidenceSnapshot) {
+	const rates = new Map<string, { source: string; percent: number } | null>();
+	for (const read of snapshot.reads) {
+		if (read.name !== "get_funnel_analytics_by_referrer") {
+			continue;
+		}
+		const scope = referrerScopeSchema.safeParse(read.input);
+		const rows = z
+			.object({ referrer_analytics: z.array(referrerSchema) })
+			.safeParse(read.output);
+		if (
+			!(scope.success && rows.success) ||
+			scope.data.websiteId !== snapshot.websiteId ||
+			scope.data.funnelId !== snapshot.signal.entity.id ||
+			scope.data.startDate !== snapshot.signal.period.previous.from ||
+			scope.data.endDate !== snapshot.signal.period.previous.to
+		) {
+			continue;
+		}
+		for (const row of rows.data.referrer_analytics) {
+			if (!row.total_users || row.completed_users > row.total_users) {
+				continue;
+			}
+			const key = JSON.stringify([
+				scope.data.websiteId,
+				scope.data.funnelId,
+				scope.data.cohort ?? null,
+				row.referrer,
+			]);
+			// Repeated/conflicting sources are left to explicit evidence review.
+			rates.set(
+				key,
+				rates.has(key)
+					? null
+					: {
+							source: read.toolCallId,
+							percent: (100 * row.completed_users) / row.total_users,
+						}
+			);
+		}
+	}
+	return rates;
+}
+
 /** Only native count contracts define arithmetic; arbitrary numeric text never does. */
 export function clarificationMetrics(snapshot: InvestigationEvidenceSnapshot) {
-	return snapshot.reads.flatMap((read) => {
+	const previousRates = previousReferrerRates(snapshot);
+	return snapshot.reads.flatMap<z.infer<ReturnType<typeof z.json>>>((read) => {
 		if (
 			read.name === "get_funnel_analytics" ||
 			read.name === "get_goal_analytics"
@@ -172,10 +226,16 @@ export function clarificationMetrics(snapshot: InvestigationEvidenceSnapshot) {
 				total_users_entered: entrants,
 				total_users_completed: completed,
 			} = parsed.data;
+			const measured = z
+				.object({ measurement: insightMeasurementSchema })
+				.safeParse(read.output);
 			return [
 				{
 					source: { toolCallId: read.toolCallId, resultKey: read.resultKey },
-					scope: read.input,
+					scope: measured.success
+						? snapshotJson(measured.data.measurement)
+						: null,
+					requestedScope: read.input,
 					population:
 						read.name === "get_goal_analytics"
 							? "eligible website visitors"
@@ -198,23 +258,50 @@ export function clarificationMetrics(snapshot: InvestigationEvidenceSnapshot) {
 		if (!parsed.success) {
 			return [];
 		}
+		const scope = referrerScopeSchema.safeParse(read.input);
 		return parsed.data.referrer_analytics
 			.filter((row) => row.completed_users <= row.total_users)
-			.map((row) => ({
-				source: { toolCallId: read.toolCallId, resultKey: read.resultKey },
-				scope: {
-					...z.record(z.string(), z.json()).parse(read.input),
-					referrer: row.referrer,
-				},
-				population: "funnel entrants",
-				entrants: row.total_users,
-				completed: row.completed_users,
-				notCompleted: row.total_users - row.completed_users,
-				conversionPercent: row.total_users
+			.map((row) => {
+				const prior =
+					scope.success &&
+					scope.data.startDate === snapshot.signal.period.current.from &&
+					scope.data.endDate === snapshot.signal.period.current.to
+						? previousRates.get(
+								JSON.stringify([
+									scope.data.websiteId,
+									scope.data.funnelId,
+									scope.data.cohort ?? null,
+									row.referrer,
+								])
+							)
+						: null;
+				const percent = row.total_users
 					? (100 * row.completed_users) / row.total_users
-					: null,
-				derivation:
-					"Per-referrer counts; notCompleted = total_users - completed_users. Rows may be ranked/limited and do not establish the complete funnel population.",
-			}));
+					: null;
+				return {
+					source: { toolCallId: read.toolCallId, resultKey: read.resultKey },
+					scope: {
+						...z.record(z.string(), z.json()).parse(read.input),
+						referrer: row.referrer,
+					},
+					population: "funnel entrants",
+					entrants: row.total_users,
+					completed: row.completed_users,
+					notCompleted: row.total_users - row.completed_users,
+					conversionPercent: percent,
+					changeFromPrevious:
+						prior && percent !== null
+							? {
+									previousSource: prior.source,
+									previousPercent: prior.percent,
+									changePercentagePoints: percent - prior.percent,
+									derivation:
+										"Current minus previous conversion, computed from integer counts before rounding. Round only the final displayed difference; this does not establish a cause.",
+								}
+							: null,
+					derivation:
+						"Per-referrer counts; notCompleted = total_users - completed_users. Rows may be ranked/limited and do not establish the complete funnel population.",
+				};
+			});
 	});
 }
