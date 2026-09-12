@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { isInvestigationPurchaseValid } from "./investigation-purchase";
 
-const purchase = (quantity: unknown) => ({
+const purchase = (quantity: number | string | null | undefined) => ({
 	planId: "investigations_topup",
 	featureQuantities: [{ featureId: "investigation_runs", quantity }],
 });

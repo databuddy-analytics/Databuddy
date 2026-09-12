@@ -1,3 +1,4 @@
+import type { JSONValue } from "ai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { forward } = vi.hoisted(() => ({
@@ -17,7 +18,7 @@ vi.mock("@databuddy/rpc", () => ({
 
 import { handleAutumnRequest } from "./autumn";
 
-function request(body: unknown, contentType: string | null) {
+function request(body: JSONValue, contentType: string | null) {
 	const value = new Request("https://synthetic.invalid/autumn/attach", {
 		method: "POST",
 		body: JSON.stringify(body),

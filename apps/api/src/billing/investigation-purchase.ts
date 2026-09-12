@@ -1,3 +1,4 @@
+import type { JSONValue } from "ai";
 import {
 	INVESTIGATION_USAGE,
 	investigationQuantitySchema,
@@ -14,7 +15,7 @@ const purchaseSchema = strictObject({
 	).length(1),
 });
 
-function referencesInvestigationBilling(value: unknown): boolean {
+function referencesInvestigationBilling(value: JSONValue): boolean {
 	if (Array.isArray(value)) {
 		return value.some(referencesInvestigationBilling);
 	}
@@ -35,7 +36,7 @@ function referencesInvestigationBilling(value: unknown): boolean {
 	});
 }
 
-export function isInvestigationPurchaseValid(body: unknown, route: string) {
+export function isInvestigationPurchaseValid(body: JSONValue, route: string) {
 	if (!referencesInvestigationBilling(body)) {
 		return true;
 	}

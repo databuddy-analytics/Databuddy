@@ -1,3 +1,4 @@
+import type { JSONValue } from "ai";
 import { buildHttpErrorResponse } from "@databuddy/shared/http-error-response";
 import { isInvestigationPurchaseValid } from "./investigation-purchase";
 import { auth } from "@databuddy/auth";
@@ -24,19 +25,19 @@ const FORBIDDEN_BODY_KEYS = new Set([
 	"prorationBehavior",
 ]);
 
-function sanitize(value: unknown): unknown {
+function sanitize(value: JSONValue): JSONValue {
 	if (Array.isArray(value)) {
 		return value.map(sanitize);
 	}
 	if (!value || typeof value !== "object") {
 		return value;
 	}
-	const out: Record<string, unknown> = {};
+	const out: Record<string, JSONValue | undefined> = {};
 	for (const [key, val] of Object.entries(value)) {
 		if (FORBIDDEN_BODY_KEYS.has(key)) {
 			continue;
 		}
-		out[key] = sanitize(val);
+		out[key] = val === undefined ? undefined : sanitize(val);
 	}
 	return out;
 }
@@ -133,7 +134,7 @@ export async function handleAutumnRequest(request: Request) {
 	const sanitized = await stripPrivilegedBody(request);
 	const segment = autumnPathSegment(sanitized);
 	if (sanitized.method !== "GET" && sanitized.method !== "HEAD") {
-		const body: unknown = await sanitized
+		const body: JSONValue = await sanitized
 			.clone()
 			.json()
 			.catch(() => null);
