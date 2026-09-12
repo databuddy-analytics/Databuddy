@@ -87,10 +87,9 @@ function eventsOverageItem(included: number) {
 		featureId: events.id,
 		included,
 		price: {
-			tiers: EVENT_OVERAGE_TIERS.map((tier) => ({
-				to: tier.to,
-				amount: tier.amount,
-			})),
+			tiers: EVENT_OVERAGE_TIERS.filter(
+				(tier) => tier.to === "inf" || tier.to > included
+			),
 			tierBehaviour: "graduated",
 			billingUnits: 1,
 			billingMethod: "usage_based",
@@ -105,7 +104,11 @@ export const free = plan({
 	addOn: false,
 	autoEnable: true,
 	items: [
-		item({ featureId: investigation_runs.id, included: 0 }),
+		item({
+			featureId: investigation_runs.id,
+			included: 0,
+			reset: { interval: "one_off" },
+		}),
 		item({
 			featureId: events.id,
 			included: 10_000,
@@ -133,7 +136,11 @@ export const hobby = plan({
 		interval: "month",
 	},
 	items: [
-		item({ featureId: investigation_runs.id, included: 0 }),
+		item({
+			featureId: investigation_runs.id,
+			included: 0,
+			reset: { interval: "one_off" },
+		}),
 		item({
 			featureId: events.id,
 			included: 30_000,
@@ -178,7 +185,11 @@ export const pro = plan({
 		interval: "month",
 	},
 	items: [
-		item({ featureId: investigation_runs.id, included: 0 }),
+		item({
+			featureId: investigation_runs.id,
+			included: 0,
+			reset: { interval: "one_off" },
+		}),
 		eventsOverageItem(1_000_000),
 		item({
 			featureId: agent_credits.id,
@@ -261,7 +272,11 @@ export const intelligence = plan({
 		interval: "month",
 	},
 	items: [
-		item({ featureId: investigation_runs.id, included: 0 }),
+		item({
+			featureId: investigation_runs.id,
+			included: 0,
+			reset: { interval: "one_off" },
+		}),
 		eventsOverageItem(2_000_000),
 		item({
 			featureId: agent_credits.id,
@@ -296,7 +311,11 @@ export const intelligence_scale = plan({
 		interval: "month",
 	},
 	items: [
-		item({ featureId: investigation_runs.id, included: 0 }),
+		item({
+			featureId: investigation_runs.id,
+			included: 0,
+			reset: { interval: "one_off" },
+		}),
 		eventsOverageItem(10_000_000),
 		item({
 			featureId: agent_credits.id,

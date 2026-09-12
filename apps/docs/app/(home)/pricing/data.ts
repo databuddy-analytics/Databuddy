@@ -132,7 +132,10 @@ export const RAW_PLANS: RawPlan[] = [
 				feature: EVENTS_FEATURE,
 				included_usage: 30_000,
 				interval: "month",
-				tiers: EVENT_TIERS,
+				tiers: EVENT_TIERS.map((tier) => ({
+					...tier,
+					to: tier.to === "inf" ? "inf" : tier.to + 30_000,
+				})),
 				usage_model: "pay_per_use",
 			},
 			{
@@ -212,7 +215,9 @@ export const RAW_PLANS: RawPlan[] = [
 				feature: EVENTS_FEATURE,
 				included_usage: 2_000_000,
 				interval: "month",
-				tiers: EVENT_TIERS,
+				tiers: EVENT_TIERS.filter(
+					(tier) => tier.to === "inf" || tier.to > 2_000_000
+				),
 				usage_model: "pay_per_use",
 			},
 			{
@@ -244,7 +249,9 @@ export const RAW_PLANS: RawPlan[] = [
 				feature: EVENTS_FEATURE,
 				included_usage: 10_000_000,
 				interval: "month",
-				tiers: EVENT_TIERS,
+				tiers: EVENT_TIERS.filter(
+					(tier) => tier.to === "inf" || tier.to > 10_000_000
+				),
 				usage_model: "pay_per_use",
 			},
 			{

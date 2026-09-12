@@ -1,3 +1,7 @@
+import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
+
+const investigationPrice = `Invite only · $${INVESTIGATION_USAGE.priceUsd} per completed investigation`;
+
 export interface ComparisonFeature {
 	benefit: string;
 	category: "privacy" | "performance" | "features" | "pricing" | "technical";
@@ -435,7 +439,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				pageviews: "Automatic investigations",
 				competitor: "Not available",
-				databuddy: "Free",
+				databuddy: investigationPrice,
 			},
 			{
 				pageviews: "Product analytics",
@@ -1008,7 +1012,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				pageviews: "Automatic investigations",
 				competitor: "Not available",
-				databuddy: "Included",
+				databuddy: investigationPrice,
 			},
 			{
 				pageviews: "Product analytics",
@@ -1181,7 +1185,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				pageviews: "Automatic investigations",
 				competitor: "Not available",
-				databuddy: "Included",
+				databuddy: investigationPrice,
 			},
 			{
 				pageviews: "Web analytics",
@@ -1358,7 +1362,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				pageviews: "Automatic investigations",
 				competitor: "Not available",
-				databuddy: "Included",
+				databuddy: investigationPrice,
 			},
 			{
 				pageviews: "Web analytics",
@@ -1521,7 +1525,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				pageviews: "Automatic investigations",
 				competitor: "Not available",
-				databuddy: "Included",
+				databuddy: investigationPrice,
 			},
 			{
 				pageviews: "Product analytics",
@@ -1722,7 +1726,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				pageviews: "Automatic investigations",
 				competitor: "Not available",
-				databuddy: "Included",
+				databuddy: investigationPrice,
 			},
 		],
 	},
@@ -1911,7 +1915,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				pageviews: "Automatic investigations",
 				competitor: "Not available",
-				databuddy: "Included",
+				databuddy: investigationPrice,
 			},
 		],
 	},

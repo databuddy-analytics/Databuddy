@@ -28,12 +28,14 @@ describe("fixed investigation purchases", () => {
 		}]);
 	});
 
-	test("active plan versions opt in with zero units and preserve every old credit grant", () => {
+	test("active plan versions declare one-off zero units and preserve every old credit grant", () => {
 		for (const [plan, monthly, daily] of [
 			[free, 10, undefined], [hobby, 20, 1], [pro, 350, 5],
 			[intelligence, 1500, undefined], [intelligence_scale, 5000, undefined],
 		] as const) {
-			expect(plan.items?.filter((item) => item.featureId === "investigation_runs")).toEqual([{ featureId: "investigation_runs", included: 0 }]);
+			expect(plan.items?.filter((item) => item.featureId === "investigation_runs")).toEqual([
+			{ featureId: "investigation_runs", included: 0, reset: { interval: "one_off" } },
+		]);
 			const credits = plan.items?.filter((item) => item.featureId === "agent_credits");
 			expect(credits?.find((item) => item.reset?.interval === "month")?.included).toBe(monthly);
 			expect(credits?.find((item) => item.reset?.interval === "day")?.included).toBe(daily);

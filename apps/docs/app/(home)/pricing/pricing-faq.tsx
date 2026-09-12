@@ -18,8 +18,7 @@ export const pricingFaqItems = [
 	},
 	{
 		question: "Is there a free trial?",
-		answer:
-			"The Free plan has no trial period and requires no credit card. It includes 10,000 events and 10 AI credits per month for ordinary Databunny chat. Investigations are purchased separately at $1 each; scheduled investigations remain invite only.",
+		answer: `The Free plan has no trial period and requires no credit card. It includes 10,000 events and 10 AI credits per month for ordinary Databunny chat. Investigations remain invite only and are purchased separately at $${INVESTIGATION_USAGE.priceUsd} per completed investigation.`,
 	},
 	{
 		question: "Can I switch plans?",

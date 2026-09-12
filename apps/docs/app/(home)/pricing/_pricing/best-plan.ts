@@ -82,7 +82,9 @@ function computeEnterpriseThreshold(plans: NormalizedPlan[]): number {
 			highest = Math.max(highest, toNum);
 		}
 	}
-	return highest > 0 ? highest : Number.POSITIVE_INFINITY;
+	return highest > 0
+		? highest + maxPlan.includedEventsMonthly
+		: Number.POSITIVE_INFINITY;
 }
 
 export function displayNameForPlan(

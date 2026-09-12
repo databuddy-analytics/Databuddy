@@ -13,6 +13,7 @@ import {
 	formatCompact,
 	formatInteger,
 	formatMoney,
+	formatTierRate,
 } from "./estimator-utils";
 import { trackPricingPlanClick } from "./track-pricing";
 import type { NormalizedPlan } from "./types";
@@ -131,7 +132,7 @@ export function Estimator({ plans }: Props) {
 								<p className="text-muted-foreground text-xs">
 									{bestPlanDisplayName === "Enterprise"
 										? "Custom pricing for high-volume usage"
-										: `Cheapest option for ${formatInteger(monthlyEvents)} events/month`}
+										: `Estimate for ${formatInteger(monthlyEvents)} events/month`}
 								</p>
 							</div>
 							{bestPlanDisplayName === "Enterprise" ? (
@@ -274,7 +275,7 @@ export function Estimator({ plans }: Props) {
 														{to}
 													</td>
 													<td className="px-3 py-2 text-foreground text-xs">
-														${(tier.amount * 1000).toFixed(2)}
+														{formatTierRate(tier.amount)}
 													</td>
 												</tr>
 											);

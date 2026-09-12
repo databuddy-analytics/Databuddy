@@ -114,7 +114,7 @@ function planToOffer(plan: RawPlan, baseUrl: string) {
 
 				priceSpecs.push({
 					"@type": "UnitPriceSpecification",
-					price: priceStr(t.amount * BLOCK_UNITS_FOR_EVENTS, 2), // e.g. "0.03" per 1,000 events
+					price: priceStr(t.amount * BLOCK_UNITS_FOR_EVENTS, 3),
 					priceCurrency: "USD",
 					referenceQuantity: {
 						"@type": "QuantitativeValue",
@@ -125,7 +125,7 @@ function planToOffer(plan: RawPlan, baseUrl: string) {
 						"@type": "QuantitativeValue",
 						minValue,
 						maxValue,
-						unitText: "events",
+						unitText: "total monthly events",
 					},
 					unitText: "per 1,000 events (overage)",
 				});
