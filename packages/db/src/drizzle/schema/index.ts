@@ -9,6 +9,7 @@ export * from "./flags";
 export * from "./identity";
 export * from "./integrations";
 export * from "./insights";
+export * from "./investigation-billing";
 export * from "./links";
 export * from "./uptime";
 export * from "./tracker";

@@ -13,6 +13,7 @@ export default defineConfig({
 		"./src/drizzle/schema/flags.ts",
 		"./src/drizzle/schema/identity.ts",
 		"./src/drizzle/schema/insights.ts",
+		"./src/drizzle/schema/investigation-billing.ts",
 		"./src/drizzle/schema/integrations.ts",
 		"./src/drizzle/schema/links.ts",
 		"./src/drizzle/schema/tracker.ts",
