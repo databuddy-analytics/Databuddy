@@ -50,7 +50,7 @@ export function PlanCards({ plans }: { plans: NormalizedPlan[] }) {
 											: "Priority email + Slack support"}
 								</li>
 							</ul>
-							<SciFiButton asChild>
+							<SciFiButton asChild className="w-full">
 								<Link
 									href={
 										plan.id === INTELLIGENCE_PLAN_IDS.ANALYST
