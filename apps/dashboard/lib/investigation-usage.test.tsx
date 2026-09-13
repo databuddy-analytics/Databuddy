@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import { InvestigationBalanceDetails } from "../app/(main)/billing/components/investigation-topup-card";
+import {
+	InvestigationAdditionalUsage,
+	InvestigationBalanceDetails,
+} from "../app/(main)/billing/components/investigation-topup-card";
 import { summarizeInvestigationBalance } from "./investigation-usage";
 
 type Balance = NonNullable<Parameters<typeof summarizeInvestigationBalance>[0]>;
@@ -167,8 +170,9 @@ describe("native investigation balances", () => {
 		const aggregate = { ...balance([monthly(100, 101)]), breakdown: undefined };
 		expect(summarizeInvestigationBalance(aggregate)).toMatchObject({
 			canUse: true,
-			payAsYouGo: true,
-			overage: 1,
+			payAsYouGo: false,
+			usagePrices: [],
+			overage: 0,
 			monthly: [],
 			prepaid: [],
 		});
@@ -180,6 +184,124 @@ describe("native investigation balances", () => {
 				overageAllowed: false,
 			}).canUse
 		).toBe(true);
+	});
+
+	test("unpriced overage permission allows use without inventing an invoice charge", () => {
+		const usage = summarizeInvestigationBalance(
+			balance([{ ...monthly(100, 101), price: null }])
+		);
+		expect(usage).toMatchObject({
+			canUse: true,
+			overageAllowed: true,
+			payAsYouGo: false,
+			usagePrices: [],
+			overage: 0,
+		});
+		const markup = renderToStaticMarkup(
+			<InvestigationAdditionalUsage usage={usage} />
+		);
+		expect(markup).toContain(
+			"allows investigations beyond the displayed balance"
+		);
+		expect(markup).not.toContain("$");
+		expect(markup).not.toContain("invoice");
+		expect(markup).not.toContain("usage charge");
+	});
+
+	test.each([
+		{
+			amount: 1,
+			billingUnits: 1,
+			expected: "$1 per additional investigation, billed on your invoice.",
+		},
+		{
+			amount: 0.25,
+			billingUnits: 1,
+			expected: "$0.25 per additional investigation, billed on your invoice.",
+		},
+		{
+			amount: 2,
+			billingUnits: 5,
+			expected: "$2 per 5 additional investigations, billed on your invoice.",
+		},
+	])("renders the native $amount price per $billingUnits units", ({
+		amount,
+		billingUnits,
+		expected,
+	}) => {
+		const usage = summarizeInvestigationBalance(
+			balance([
+				{
+					...monthly(100, 101),
+					price: {
+						amount,
+						billingUnits,
+						billingMethod: "usage_based",
+						maxPurchase: null,
+					},
+				},
+			])
+		);
+		const markup = renderToStaticMarkup(
+			<InvestigationAdditionalUsage usage={usage} />
+		);
+		expect(markup).toContain(expected);
+	});
+
+	test("native zero-dollar pricing does not promise a dollar invoice", () => {
+		const usage = summarizeInvestigationBalance(
+			balance([
+				{
+					...monthly(100, 101),
+					price: {
+						amount: 0,
+						billingUnits: 1,
+						billingMethod: "usage_based",
+						maxPurchase: null,
+					},
+				},
+			])
+		);
+		expect(usage.canUse).toBe(true);
+		const markup = renderToStaticMarkup(
+			<InvestigationAdditionalUsage usage={usage} />
+		);
+		expect(markup).toContain("Additional investigations have no usage charge.");
+		expect(markup).not.toContain("$");
+		expect(markup).not.toContain("invoice");
+	});
+
+	test("tiered pricing does not imply a single flat rate", () => {
+		const usage = summarizeInvestigationBalance(
+			balance([
+				{
+					...monthly(100, 101),
+					price: {
+						tiers: [{ to: "inf", amount: 0.5 }],
+						billingUnits: 1,
+						billingMethod: "usage_based",
+						maxPurchase: null,
+					},
+				},
+			])
+		);
+		const markup = renderToStaticMarkup(
+			<InvestigationAdditionalUsage usage={usage} />
+		);
+		expect(markup).toContain("tiered usage pricing");
+		expect(markup).not.toContain("$");
+	});
+
+	test("a configured rate does not override native overage denial", () => {
+		const usage = summarizeInvestigationBalance(
+			balance([monthly(100, 100)], false)
+		);
+		expect(usage.canUse).toBe(false);
+		const markup = renderToStaticMarkup(
+			<InvestigationAdditionalUsage usage={usage} />
+		);
+		expect(markup).toContain("$1 per additional investigation");
+		expect(markup).toContain("Additional usage is currently unavailable.");
 	});
 
 	test("requires a whole fixed-price unit if overage is unavailable", () => {
