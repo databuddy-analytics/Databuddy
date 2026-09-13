@@ -579,7 +579,7 @@ describe("Autumn usage emails", () => {
 		expect(UsageLimitEmail).toHaveBeenCalledWith(expect.objectContaining({
 			featureName: "Investigations", usageUnit: "investigations",
 			pausedActivity: "new investigations (included clarifications remain available)",
-			featureDescription: expect.stringContaining("$1 per completed investigation"),
+			featureDescription: expect.stringContaining("Additional investigations cost $1 each"),
 		}));
 	});
 

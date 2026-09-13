@@ -56,11 +56,17 @@ the reservation must match those immutable terms. The model must never decide
 whether a reply incurs a charge. Signal selection,
 preparation, model turns, and internal retries do not add customer charges.
 
-Autumn stores the new unit in a separate `investigation_runs` balance with a $1
-prepaid purchase option. Existing credit balances, credit refills, and attached
+Autumn stores the unit in `investigation_runs`. Business includes 100 completed
+investigations per month; Scale includes 500. Monthly allowances reset without
+rollover. Additional completed investigations cost $1 each and are billed on the
+monthly invoice when overage is enabled. Previously purchased investigations stay
+available until used; they are not erased by a monthly reset. The stored accepted
+price is the additional-unit rate, not evidence of a new $1 invoice charge for an
+included investigation. Existing credit balances, credit refills, and attached
 legacy plans retain their terms until the customer adopts the new entitlement
 through an investigation purchase or a switch to a new plan version.
-An exhausted fixed-price balance does not fall back to spending legacy credits.
+An exhausted fixed-price balance does not fall back to spending legacy credits;
+Autumn's check decides whether paid overage or a remaining prepaid unit is allowed.
 Chat continues to use credits. Token usage and model costs remain internal
 telemetry for fixed-price investigations and included replies.
 

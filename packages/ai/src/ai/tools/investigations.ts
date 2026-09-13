@@ -251,7 +251,7 @@ export async function runInvestigationAction(
 		.parse(response);
 	return {
 		action: "reply" as const,
-		message: `Reply accepted with status ${result.reply.status}. This included clarification uses saved evidence, without new measurements. Use investigations with action=get to read its answer in the updated timeline. Start a new question or fresh $${INVESTIGATION_USAGE.priceUsd} analysis explicitly in the dashboard.`,
+		message: `Reply accepted with status ${result.reply.status}. This included clarification uses saved evidence, without new measurements. Use investigations with action=get to read its answer in the updated timeline. Start a new question or fresh analysis explicitly in the dashboard; it uses an included investigation, then costs $${INVESTIGATION_USAGE.priceUsd} after the allowance.`,
 		reply: result.reply,
 	};
 }
@@ -327,7 +327,7 @@ export function createInvestigationTools() {
 								? `Website ${websiteId}`
 								: "All websites in this organization",
 						billing: startsAnalysis
-							? `For organizations on fixed-price investigation billing: ${INVESTIGATION_USAGE.description} Each manual or scheduled run may investigate several signals and use multiple prepaid investigations. Changing settings does not itself charge for an investigation. Existing legacy credit terms remain in effect until the organization buys investigations or switches to a new plan version.`
+							? `For organizations on fixed-price investigation billing: ${INVESTIGATION_USAGE.description} Each manual or scheduled run may investigate several signals and use multiple investigations. Additional usage is billed monthly when overage is enabled. Changing settings does not itself charge for an investigation. Existing legacy billing terms remain in effect until the organization adopts the new plan.`
 							: undefined,
 					};
 				}

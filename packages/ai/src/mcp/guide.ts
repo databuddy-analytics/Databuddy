@@ -7,7 +7,7 @@ export const MCP_INSTRUCTIONS = `Databuddy gives agents product analytics and du
 - Use get_data for current analytics. Batch related queries.
 - Use list_insights for published findings. Preserve each returned recommendation exactly; if it is null, do not add advice.
 - Use list_investigations to find cases, then get_investigation for evidence and history.
-- Use reply_to_investigation for an included clarification of the same question using saved evidence. It does not fetch new measurements or change actions. A new question or fresh analysis must be started explicitly in the dashboard at $${INVESTIGATION_USAGE.priceUsd} per completed investigation.
+- Use reply_to_investigation for an included clarification of the same question using saved evidence. It does not fetch new measurements or change actions. Start a new question or fresh analysis explicitly in the dashboard. It uses one included investigation; additional investigations cost $${INVESTIGATION_USAGE.priceUsd} each after the allowance.
 - After a queued reply, poll get_investigation and reuse the same replyId on retries.
 - Use capabilities only when you need to discover query types, and get_schema only when a field is uncertain.
 - Most website-scoped tools accept websiteId, websiteName, or websiteDomain; tools that operate by a returned ID may not.
@@ -39,7 +39,7 @@ Investigations are durable cases, not generated summaries.
 2. \`get_investigation\` returns its evidence, observations, status, and human replies.
 3. \`reply_to_investigation\` adds human context for an included clarification using that case's saved evidence. It does not fetch new measurements or change actions.
 
-Start a new question or separate fresh analysis explicitly in the dashboard at $${INVESTIGATION_USAGE.priceUsd} per completed investigation. Clarifications of the same question and verification after applying a proposed repair are included.
+Start a new question or separate fresh analysis explicitly in the dashboard. ${INVESTIGATION_USAGE.description}
 
 Replies are asynchronous. When a reply is queued or running, poll \`get_investigation\` until its durable status succeeds or fails; do not submit the same context under a new reply ID.
 

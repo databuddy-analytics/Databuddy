@@ -140,8 +140,9 @@ describe("configure_investigations confirmation preview", () => {
 		expect(preview.billing).toContain(INVESTIGATION_USAGE.description);
 		expect(preview.billing).toContain("fixed-price investigation billing");
 		expect(preview.billing).toContain("several signals");
-		expect(preview.billing).toContain("multiple prepaid investigations");
-		expect(preview.billing).toContain("Existing legacy credit terms remain");
+		expect(preview.billing).toContain("multiple investigations");
+		expect(preview.billing).toContain("Additional usage is billed monthly when overage is enabled");
+		expect(preview.billing).toContain("Existing legacy billing terms remain");
 		expect(preview.billing).toContain(
 			"Changing settings does not itself charge"
 		);
@@ -165,7 +166,7 @@ describe("configure_investigations confirmation preview", () => {
 			})
 		);
 		expect(preview.scope).toBe("All websites in this organization");
-		expect(preview.billing).toContain("multiple prepaid investigations");
+		expect(preview.billing).toContain("multiple investigations");
 	});
 
 	it.each([
