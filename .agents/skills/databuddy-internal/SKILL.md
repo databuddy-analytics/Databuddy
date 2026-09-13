@@ -183,7 +183,7 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 
 - Billing-control read/modify/write must use a strict native client and verify the customer ID before merging settings. SDK `getOrCreate` can fail open with empty controls, causing a later successful update to erase unrelated saved limits.
 
-- Before changing live investigation plans, verify the serving API/dashboard support their entitlements and the backing database has `investigation_charges` plus reply/snapshot fields. Staging and production can share a database; successful builds, `SELECT 1` health checks, and local schema tests do not apply production schema.
+- Autumn owns allowances, usage, and invoicing. Prefer its native reservations/finalization with existing investigation job state; a pricing change does not inherently require a separate Postgres billing ledger. Verify deployed entitlement support before syncing live plans.
 
 - Autumn catalog updates must send complete mutable plan fields, including explicit `addOn`, `autoEnable`, price, and description: omitted provider fields can reset flags, erase descriptions, or create a free new version. Preserve live legacy economics and verify exact before/after provider readback; passing SDK/CLI validation does not establish provider defaults. Do not overwrite unrelated live credit-schema drift during a pricing sync.
 - Retried insight jobs must persist immutable external delivery effects (currently Slack) before calling providers and reuse the effect ID as the provider idempotency key. An insight observation is product memory, not a delivery checkpoint.
