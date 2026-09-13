@@ -9,6 +9,8 @@ Use this file when the task spans multiple packages or when the right edit locat
 - Theme tokens and WCAG-oriented contrast: `apps/dashboard/app/globals.css` (`:root`, `.dark`)
 - Next.js dashboard application
 - Default dev port: `3000`
+- For local app review, use `bun run dev:dashboard` with the same existing root `.env` across services; do not blank billing or AI credentials and present the resulting environment as a working app.
+- Include interaction feedback in billing/pricing work: short transform/opacity reveals, native pending buttons with accessible labels, and reduced-motion support. Keep disabled billing details unmounted and verify motion in the local browser.
 - Talks to the backend through oRPC using [`apps/dashboard/lib/orpc.ts`](/Users/iza/Dev/Databuddy/apps/dashboard/lib/orpc.ts)
 - **Status pages:** Public page lives under `app/status/[slug]`; **dashboard** edit surface is `app/(main)/monitors/status-pages/[id]/page.tsx`. For stable chrome (no tab strip pop-in), keep `Tabs` always mounted and gate **content** with `useFeatureAccess` + `FeatureLockedPanel`—do not wrap the whole `Tabs` in `FeatureAccessGate` with a list-only `loadingFallback`. Reserve `PageHeader` `right` with skeletons until `statusPage` loads; use a static `description` and breadcrumb fallback `"Status page"` so the header does not reflow on fetch.
 - Typical work:

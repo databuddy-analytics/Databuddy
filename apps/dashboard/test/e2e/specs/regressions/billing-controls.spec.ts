@@ -43,6 +43,8 @@ for (const includedChat of [false, true]) {
 			await page.setExtraHTTPHeaders({ "x-e2e-test-key": key });
 			const customer = syntheticCustomer(includedChat);
 			const savedFeatures: string[] = [];
+			const firstSave = Promise.withResolvers<void>();
+			let requestCount = 0;
 			await page.route("**/api/autumn/**", (route) =>
 				route.fulfill({ json: customer })
 			);
@@ -59,6 +61,8 @@ for (const includedChat of [false, true]) {
 					});
 					return;
 				}
+				requestCount++;
+				if (requestCount === 1) await firstSave.promise;
 				const input = route.request().postDataJSON().json;
 				if (route.request().url().endsWith("setUsageAlert")) {
 					customer.billingControls.usageAlerts = [
@@ -122,7 +126,52 @@ for (const includedChat of [false, true]) {
 				await row.evaluate((el) => el.getBoundingClientRect().height)
 			).toBeGreaterThan(closedHeight + 40);
 			await row.getByRole("spinbutton", { name: "Notify me at" }).fill("75");
-			await row.getByRole("button", { name: "Turn on", exact: true }).click();
+			const saveButton = row.getByRole("button", {
+				name: "Turn on",
+				exact: true,
+			});
+			const beforeWidth = await saveButton.evaluate(
+				(button) => button.getBoundingClientRect().width
+			);
+			await saveButton.click();
+			const pendingButton = row.getByRole("button", {
+				name: "Saving…",
+				exact: true,
+			});
+			try {
+				await expect(pendingButton).toBeDisabled();
+				await expect(pendingButton).toHaveAttribute("aria-busy", "true");
+				const pendingWidth = await pendingButton.evaluate(
+					(button) =>
+						new Promise<number>((resolve) =>
+							requestAnimationFrame(() =>
+								requestAnimationFrame(() =>
+									resolve(button.getBoundingClientRect().width)
+								)
+							)
+						)
+				);
+				expect(Math.abs(pendingWidth - beforeWidth)).toBeLessThan(0.1);
+				await pendingButton.click({ force: true });
+				expect(requestCount).toBe(1);
+				await testInfo.attach("pending-computed.json", {
+					body: JSON.stringify(
+						{
+							beforeWidth,
+							pendingWidth,
+							delta: pendingWidth - beforeWidth,
+							disabled: true,
+							ariaBusy: true,
+							requestCount,
+						},
+						null,
+						2
+					),
+					contentType: "application/json",
+				});
+			} finally {
+				firstSave.resolve();
+			}
 			await expect(row.getByRole("button")).toHaveCount(0);
 			await page.reload();
 			await expect(alertSwitch).toBeChecked();

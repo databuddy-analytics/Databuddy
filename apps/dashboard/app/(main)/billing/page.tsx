@@ -430,7 +430,7 @@ export default function BillingPage() {
 				}
 			/>
 
-			<div className="mx-auto max-w-2xl space-y-6 p-5">
+			<div className="motion-safe:fade-in mx-auto max-w-2xl space-y-6 p-5 motion-safe:animate-in motion-safe:duration-200">
 				<Card>
 					<Card.Header className="flex-row items-start justify-between gap-4">
 						<div>

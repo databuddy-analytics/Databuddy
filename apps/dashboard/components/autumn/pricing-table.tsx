@@ -143,7 +143,7 @@ export default function PricingTable({
 	);
 	return (
 		<div className="space-y-4">
-			<div className="grid items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3">
+			<div className="motion-safe:fade-in motion-safe:slide-in-from-bottom-1 grid items-stretch gap-4 motion-safe:animate-in motion-safe:duration-150 sm:grid-cols-2 lg:grid-cols-3">
 				{displayedPlans.map((plan) => (
 					<PricingCard
 						attachAction={async () => {
@@ -219,7 +219,10 @@ function PricingCard({
 
 	return (
 		<Card
-			className={cn("min-h-[340px]", isSelected && "ring-2 ring-primary/30")}
+			className={cn(
+				"min-h-[340px] focus-within:border-primary/40 hover:border-primary/30 hover:shadow-sm",
+				isSelected && "ring-2 ring-primary/30"
+			)}
 		>
 			<Card.Header className="gap-3">
 				<div className="flex flex-wrap items-center gap-2">
@@ -252,6 +255,7 @@ function PricingCard({
 						</Button>
 					) : (
 						<Button
+							aria-label={getButtonText(eligibility, isSelected)}
 							className="w-full"
 							disabled={
 								!eligibility?.canceling &&

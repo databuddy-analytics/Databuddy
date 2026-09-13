@@ -32,6 +32,7 @@ import {
 	Text,
 } from "@databuddy/ui";
 import { Switch } from "@databuddy/ui/client";
+import { cn } from "@/lib/utils";
 
 const EVENTS_FEATURE_ID = "events";
 
@@ -351,9 +352,8 @@ function BillingRow<TForm extends FormShape>({
 		);
 	};
 
-	const saveLabel = mutation.isPending
-		? "Saving…"
-		: wasEnabled && !enabled
+	const saveLabel =
+		wasEnabled && !enabled
 			? actions.turnOff
 			: wasEnabled
 				? actions.save
@@ -363,7 +363,14 @@ function BillingRow<TForm extends FormShape>({
 		<section className="px-5 py-4">
 			<header className="flex items-start justify-between gap-4">
 				<div className="flex min-w-0 items-start gap-3">
-					<div className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-secondary text-muted-foreground">
+					<div
+						className={cn(
+							"flex size-9 shrink-0 items-center justify-center rounded-lg border transition-opacity duration-(--duration-quick) ease-out motion-reduce:transition-none",
+							enabled
+								? "border-primary/30 bg-primary/10 text-primary"
+								: "border-border bg-secondary text-muted-foreground opacity-75"
+						)}
+					>
 						{icon}
 					</div>
 					<div className="min-w-0 space-y-0.5">
@@ -384,7 +391,9 @@ function BillingRow<TForm extends FormShape>({
 			</header>
 
 			{enabled && (
-				<div className="space-y-3 pt-4">{children(form, setForm)}</div>
+				<div className="motion-safe:fade-in motion-safe:slide-in-from-top-1 space-y-3 pt-4 motion-safe:animate-in motion-safe:duration-150">
+					{children(form, setForm)}
+				</div>
 			)}
 
 			{mutation.isError && (
@@ -393,9 +402,11 @@ function BillingRow<TForm extends FormShape>({
 				</p>
 			)}
 			{dirty && (
-				<div className="flex justify-end pt-3">
+				<div className="motion-safe:fade-in motion-safe:slide-in-from-top-1 flex justify-end pt-3 motion-safe:animate-in motion-safe:duration-150">
 					<Button
+						aria-label={mutation.isPending ? "Saving…" : saveLabel}
 						disabled={!canEdit || invalid || mutation.isPending}
+						loading={mutation.isPending}
 						onClick={handleSave}
 						size="sm"
 						variant={wasEnabled && !enabled ? "destructive" : "secondary"}

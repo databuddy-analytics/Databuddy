@@ -98,7 +98,7 @@ export function InvestigationTopupCard() {
 						Buy investigations
 					</Button>
 				) : hasAccess ? (
-					<>
+					<div className="motion-safe:fade-in motion-safe:slide-in-from-top-1 space-y-4 motion-safe:animate-in motion-safe:duration-150">
 						<p className="text-pretty text-muted-foreground text-sm">
 							Purchased investigations do not expire.
 							{!fixedPrice &&
@@ -107,6 +107,7 @@ export function InvestigationTopupCard() {
 						<Field className="max-w-xs" error={!parsedQuantity.success}>
 							<Field.Label>Investigations to buy</Field.Label>
 							<Input
+								disabled={isAttaching}
 								max={INVESTIGATION_USAGE.maxPurchase}
 								min={1}
 								onChange={(event) => setQuantity(event.target.value)}
@@ -124,21 +125,21 @@ export function InvestigationTopupCard() {
 							)}
 						</Field>
 						<Button
+							aria-label={isAttaching ? "Opening checkout…" : undefined}
 							disabled={!(quote && canUserUpgrade) || isLoading || isAttaching}
+							loading={isAttaching}
 							onClick={purchase}
 						>
-							{isAttaching
-								? "Opening checkout…"
-								: quote
-									? `Buy ${parsedQuantity.data} investigations · $${quote.costUsd.toFixed(2)}`
-									: "Buy investigations"}
+							{quote
+								? `Buy ${parsedQuantity.data} investigations · $${quote.costUsd.toFixed(2)}`
+								: "Buy investigations"}
 						</Button>
 						{!canUserUpgrade && (
 							<p className="text-muted-foreground text-sm">
 								Ask an organization owner or admin to add balance.
 							</p>
 						)}
-					</>
+					</div>
 				) : (
 					<Button asChild variant="secondary">
 						<a
