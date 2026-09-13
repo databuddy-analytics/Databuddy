@@ -134,7 +134,9 @@ export function useBillingData() {
 		isLoading: isCustomerLoading,
 		error: customerError,
 		refetch: refetchCustomer,
-	} = useCustomer({ expand: ["invoices", "payment_method"] });
+	} = useCustomer({
+		expand: ["invoices", "payment_method", "subscriptions.plan"],
+	});
 
 	const {
 		data: plans,

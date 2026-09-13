@@ -743,8 +743,8 @@ function ReplyComposer({
 					value={body}
 				/>
 				<p className="text-muted-foreground text-xs">
-					Clarifications are included. A new question or fresh analysis costs $1
-					when completed.
+					Clarifications are included. Each completed new analysis uses one
+					investigation. Additional investigations cost $1 after your allowance.
 				</p>
 				<div className="flex flex-wrap justify-end gap-2">
 					<Button
@@ -756,7 +756,7 @@ function ReplyComposer({
 						type="button"
 						variant="secondary"
 					>
-						New analysis · $1
+						New analysis · 1 investigation
 					</Button>
 					<Button
 						disabled={replyMutation.isPending}

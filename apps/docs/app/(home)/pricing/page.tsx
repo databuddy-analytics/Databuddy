@@ -1,6 +1,9 @@
 "use client";
 
-import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
+import {
+	INVESTIGATION_ALLOWANCES,
+	INVESTIGATION_USAGE,
+} from "@databuddy/shared/billing";
 
 import { Footer } from "@/components/footer";
 import { AiPricingSummary } from "./_pricing/ai-pricing-summary";
@@ -23,9 +26,9 @@ export default function PricingPage() {
 						Find the plan that fits your product.
 					</h1>
 					<p className="mx-auto max-w-2xl text-pretty text-muted-foreground text-sm sm:text-base">
-						Compare analytics plans by usage and capabilities. Investigations
-						remain invite only and are purchased separately at $
-						{INVESTIGATION_USAGE.priceUsd} per completed investigation.
+						Compare analytics plans by usage and capabilities. Business and
+						Scale include monthly investigations, with $
+						{INVESTIGATION_USAGE.priceUsd} per additional investigation.
 					</p>
 				</header>
 
@@ -37,16 +40,19 @@ export default function PricingPage() {
 					aria-label="Investigation pricing"
 					className="mb-10 border border-border bg-card p-6"
 				>
-					<h2 className="font-semibold text-2xl">$1 per investigation</h2>
+					<h2 className="font-semibold text-2xl">
+						Monthly investigations, ${INVESTIGATION_USAGE.priceUsd} per extra
+					</h2>
 					<p className="mt-2 text-muted-foreground">
 						{INVESTIGATION_USAGE.description}
 					</p>
 					<p className="mt-2 text-muted-foreground text-sm">
-						Buy only what you need. Prepaid investigations do not expire. Plan
-						AI credits pay for ordinary chat; no investigations are bundled with
-						new plan versions. Existing balances and legacy investigation terms
-						are preserved until you buy investigations or switch to a new plan
-						version.
+						Business includes {INVESTIGATION_ALLOWANCES.intelligence} and Scale
+						includes {INVESTIGATION_ALLOWANCES.intelligence_scale} completed
+						investigations per month. Additional investigations are billed
+						monthly. Failed or incomplete work does not use your allowance.
+						Existing credit and prepaid investigation balances retain their
+						original terms. Access remains invite only.
 					</p>
 				</section>
 

@@ -4,6 +4,7 @@ import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
 
 import {
 	FEATURE_METADATA,
+	GATED_FEATURES,
 	type FeatureLimit,
 	type GatedFeatureId,
 	HIDDEN_PRICING_FEATURES,
@@ -90,10 +91,6 @@ const PLAN_SUPPORT: Record<string, string> = {
 };
 
 const PLAN_EXTRAS: Record<string, string[]> = {
-	intelligence: [
-		"1,500 AI credits / month for chat",
-		"2M events included / month",
-	],
 	buddy: ["White-glove onboarding", "Beta / early access"],
 };
 
@@ -453,18 +450,13 @@ function PricingCard({
 		: null;
 	const introOffer = PLAN_INTRO_OFFER[plan.id];
 
-	const support = PLAN_SUPPORT[plan.id];
-	const extras = PLAN_EXTRAS[plan.id] ?? [];
 	const previousPlanName = PREVIOUS_PLAN_NAME[plan.id];
 
 	const investigationTerms = plan.items.some(
 		(item) => item.featureId === INVESTIGATION_USAGE.featureId
 	)
-		? "Selecting this plan version opts into $1 per completed investigation, purchased separately. Same-question clarifications and verification of a proposed repair are included. Existing AI credits remain available for chat."
+		? "Completed investigations use the allowance shown above. Additional investigations follow the displayed price. Same-question clarifications and verification of a proposed repair are included."
 		: undefined;
-	const billingItems = isFree ? plan.items : plan.items.slice(1);
-	const groupedBillingItems = groupItemsByFeature(billingItems);
-	const newGatedFeatures = getNewFeaturesForPlan(plan.id);
 
 	return (
 		<div
@@ -569,29 +561,7 @@ function PricingCard({
 						Everything in {previousPlanName}, plus:
 					</Text>
 				)}
-				<ul className="space-y-2.5">
-					{groupedBillingItems.map((group) => (
-						<FeatureItem
-							group={group}
-							key={`${group[0].featureId}-${group[0].display?.primaryText}`}
-						/>
-					))}
-					{newGatedFeatures.map(({ feature, limit }) => {
-						const meta = FEATURE_METADATA[feature];
-						return (
-							<GatedFeatureItem
-								key={feature}
-								limit={limit}
-								name={meta?.name ?? feature}
-								unit={meta?.unit}
-							/>
-						);
-					})}
-					{extras.map((label) => (
-						<StaticFeatureItem key={label} label={label} />
-					))}
-					{support && <StaticFeatureItem label={support} />}
-				</ul>
+				<PricingFeatures plan={plan} />
 			</div>
 
 			<div className="p-5 pt-0">
@@ -646,9 +616,81 @@ interface FeatureItemDisplay {
 	featureId?: string;
 	included?: number;
 	price?: {
+		amount?: number;
+		billingMethod?: string;
+		billingUnits?: number;
 		tiers?: Array<{ to: number | "inf"; amount: number } | null> | null;
 	} | null;
-	reset?: { interval?: string | null } | null;
+	reset?: { interval?: string | null; intervalCount?: number } | null;
+	unlimited?: boolean;
+}
+
+export function PricingFeatures({
+	plan,
+}: {
+	plan: Pick<HookPlan, "id" | "items">;
+}) {
+	const groups = groupItemsByFeature(plan.items);
+	const support = PLAN_SUPPORT[plan.id];
+	return (
+		<ul className="space-y-2.5">
+			{groups.map((group) => (
+				<FeatureItem group={group} key={group[0].featureId} />
+			))}
+			{getNewFeaturesForPlan(plan.id).map(({ feature, limit }) => {
+				const meta = FEATURE_METADATA[feature];
+				return (
+					<GatedFeatureItem
+						availabilityOnly={feature === GATED_FEATURES.INVESTIGATIONS}
+						key={feature}
+						limit={limit}
+						name={meta?.name ?? feature}
+						unit={meta?.unit}
+					/>
+				);
+			})}
+			{(PLAN_EXTRAS[plan.id] ?? []).map((label) => (
+				<StaticFeatureItem key={label} label={label} />
+			))}
+			{support && <StaticFeatureItem label={support} />}
+		</ul>
+	);
+}
+
+function InvestigationFeatureItem({ group }: { group: FeatureItemDisplay[] }) {
+	const allowance =
+		group.find((item) => item.included || item.unlimited) ?? group[0];
+	const included = allowance.included ?? 0;
+	const interval = allowance.reset?.interval;
+	const intervalCount = allowance.reset?.intervalCount ?? 1;
+	const period =
+		interval && interval !== "one_off"
+			? ` / ${intervalCount > 1 ? `${intervalCount} ${interval}s` : interval}`
+			: " included";
+	const label = allowance.unlimited
+		? "Unlimited investigations"
+		: `${formatLocaleNumber(included)} investigations${period}`;
+	const price = group.find((item) => item.price)?.price;
+	const units = price?.billingUnits ?? 1;
+	const extraPrice =
+		price && price.amount == null
+			? "Additional investigation pricing varies by tier"
+			: `${formatPriceAmount(price?.amount ?? INVESTIGATION_USAGE.priceUsd)} per ${units === 1 ? "additional investigation" : `${formatLocaleNumber(units)} additional investigations`}`;
+	const billingMethod =
+		price?.billingMethod === "usage_based" ? "billed by usage" : "prepaid";
+	return (
+		<li className="flex items-start gap-2 text-sm">
+			<CheckIcon className="mt-[3px] size-4 shrink-0 text-success" />
+			<div className="min-w-0 flex-1">
+				<span className="text-foreground tabular-nums">{label}</span>
+				{!allowance.unlimited && (
+					<Text className="text-pretty" tone="muted" variant="caption">
+						{extraPrice} · {billingMethod}
+					</Text>
+				)}
+			</div>
+		</li>
+	);
 }
 
 const INTERVAL_ADVERB: Record<string, string> = {
@@ -698,6 +740,9 @@ function groupItemsByFeature<T extends FeatureItemDisplay>(items: T[]): T[][] {
 
 function FeatureItem({ group }: { group: FeatureItemDisplay[] }) {
 	const primary = group[0];
+	if (primary.featureId === INVESTIGATION_USAGE.featureId) {
+		return <InvestigationFeatureItem group={group} />;
+	}
 	const extras = group.slice(1);
 	const rawTiers = primary.price?.tiers;
 	const tiers = rawTiers?.filter(
@@ -747,15 +792,20 @@ function FeatureItem({ group }: { group: FeatureItemDisplay[] }) {
 }
 
 function GatedFeatureItem({
+	availabilityOnly = false,
 	name,
 	limit,
 	unit,
 }: {
+	availabilityOnly?: boolean;
 	name: string;
 	limit: FeatureLimit;
 	unit?: string;
 }) {
 	const limitText = (() => {
+		if (availabilityOnly) {
+			return "Enabled";
+		}
 		if (limit === "unlimited") {
 			return "Unlimited";
 		}

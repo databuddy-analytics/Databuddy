@@ -25,8 +25,9 @@ export function PricingPreview() {
 				</h2>
 				<p className="mt-3 max-w-2xl text-pretty text-muted-foreground text-sm sm:px-0 sm:text-base lg:text-lg">
 					Estimate your analytics plan from your event volume, then compare plan
-					capabilities. Invite-only investigations are separate: $
-					{INVESTIGATION_USAGE.priceUsd} per completed investigation.
+					capabilities. Business and Scale include monthly investigations, with
+					${INVESTIGATION_USAGE.priceUsd} per additional investigation billed
+					monthly.
 				</p>
 			</div>
 

@@ -1,4 +1,7 @@
-import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
+import {
+	INVESTIGATION_ALLOWANCES,
+	INVESTIGATION_USAGE,
+} from "@databuddy/shared/billing";
 import {
 	PLAN_CAPABILITIES,
 	PLAN_IDS,
@@ -53,6 +56,12 @@ function mapRawPlans() {
 				name: f.feature.name,
 				included: toIncludedUsage(f.included_usage),
 				interval: f.interval,
+				...(f.type === "priced_feature" && typeof f.price === "number"
+					? {
+							overagePricePerUnit: f.price,
+							overageBillingInterval: "month" as const,
+						}
+					: {}),
 				...(f.type === "priced_feature" && f.tiers
 					? {
 							overageTierBasis: "total_monthly_events" as const,
@@ -74,25 +83,17 @@ function mapRawPlans() {
 	});
 }
 
-function buildEntitlements(): Record<
-	PlanId,
-	{
-		limits: (typeof PLAN_CAPABILITIES)[PlanId]["limits"];
-	}
-> {
+function publicEntitlement(planId: PlanId) {
+	const { investigations, ...limits } = PLAN_CAPABILITIES[planId].limits;
+	return { limits, investigationAccess: investigations !== false };
+}
+
+function buildEntitlements() {
 	return {
-		[PLAN_IDS.FREE]: {
-			limits: PLAN_CAPABILITIES[PLAN_IDS.FREE].limits,
-		},
-		[PLAN_IDS.HOBBY]: {
-			limits: PLAN_CAPABILITIES[PLAN_IDS.HOBBY].limits,
-		},
-		[PLAN_IDS.PRO]: {
-			limits: PLAN_CAPABILITIES[PLAN_IDS.PRO].limits,
-		},
-		[PLAN_IDS.SCALE]: {
-			limits: PLAN_CAPABILITIES[PLAN_IDS.SCALE].limits,
-		},
+		[PLAN_IDS.FREE]: publicEntitlement(PLAN_IDS.FREE),
+		[PLAN_IDS.HOBBY]: publicEntitlement(PLAN_IDS.HOBBY),
+		[PLAN_IDS.PRO]: publicEntitlement(PLAN_IDS.PRO),
+		[PLAN_IDS.SCALE]: publicEntitlement(PLAN_IDS.SCALE),
 	};
 }
 
@@ -100,7 +101,7 @@ export function buildPricingApiPayload(request: Request) {
 	const url = new URL(request.url);
 
 	return {
-		schemaVersion: 1 as const,
+		schemaVersion: 2 as const,
 		meta: {
 			description: "Public billing and entitlements (same source as /pricing).",
 			currency: "USD" as const,
@@ -113,12 +114,11 @@ export function buildPricingApiPayload(request: Request) {
 		},
 		investigations: {
 			featureId: INVESTIGATION_USAGE.featureId,
-			pricePerInvestigation: INVESTIGATION_USAGE.priceUsd,
+			pricePerAdditionalInvestigation: INVESTIGATION_USAGE.priceUsd,
 			currency: "USD" as const,
-			billingModel: "prepaid" as const,
-			includedPerPlan: 0,
-			purchaseLimit: INVESTIGATION_USAGE.maxPurchase,
-			expires: false,
+			billingModel: "usage_based" as const,
+			interval: "month" as const,
+			includedByPlan: INVESTIGATION_ALLOWANCES,
 			description: INVESTIGATION_USAGE.description,
 		},
 		plans: mapRawPlans(),
@@ -126,7 +126,9 @@ export function buildPricingApiPayload(request: Request) {
 		notes: {
 			enterpriseCheckoutUsesEntitlementsPlanId: "scale" as const,
 			legacyCredits:
-				"Existing credit balances and allowances are preserved. Existing subscriptions retain legacy investigation terms until they buy $1 investigations or switch to a new plan version. AI credits continue to pay for ordinary chat.",
+				"Existing credit balances and allowances are preserved. Existing subscriptions retain legacy investigation terms until they switch billing terms. AI credits continue to pay for ordinary chat.",
+			legacyInvestigations:
+				"Existing prepaid investigation balances retain their original terms. Monthly investigation allowances and additional usage billing apply to the new Business and Scale plans.",
 		},
 		signUpUrl: APP_SIGNUP,
 		pricingPageUrl: `${PUBLIC_DOCS_ORIGIN}/pricing`,

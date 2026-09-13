@@ -17,7 +17,12 @@ export const INVESTIGATION_USAGE = {
 	topupPlanId: "investigations_topup",
 	maxPurchase: 1000,
 	description:
-		"$1 per completed investigation. Clarifications of the same question and verification after applying a proposed repair are included. New questions and separate fresh analysis are new investigations.",
+		"Each completed investigation uses one investigation from your monthly allowance. Additional investigations cost $1 each. Clarifications of the same question and verification after applying a proposed repair are included. New questions and separate fresh analysis are new investigations.",
+} as const;
+
+export const INVESTIGATION_ALLOWANCES = {
+	intelligence: 100,
+	intelligence_scale: 500,
 } as const;
 
 export const LEGACY_SCALE_PLAN = {

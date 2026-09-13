@@ -145,6 +145,15 @@ export async function handleAutumnRequest(request: Request) {
 			});
 			return Response.json(response.payload, { status: response.status });
 		}
+		// Expanded responses have a different shape from the plain customer cache.
+		if (
+			segment === "getOrCreateCustomer" &&
+			body !== null &&
+			typeof body === "object" &&
+			Object.hasOwn(body, "expand")
+		) {
+			return autumn(withAutumnApiPath(sanitized));
+		}
 	}
 	const ttlSec = AUTUMN_CACHE_TTL_SEC[segment];
 
