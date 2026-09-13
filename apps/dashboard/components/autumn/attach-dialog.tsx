@@ -11,7 +11,10 @@ export interface AttachDialogProps {
 	onConfirm: () => Promise<void>;
 	open: boolean;
 	planName: string;
-	preview: PreviewAttachResponse;
+	preview: Pick<
+		PreviewAttachResponse,
+		"currency" | "lineItems" | "subtotal" | "total" | "nextCycle"
+	>;
 	setOpen: (open: boolean) => void;
 	terms?: string;
 }

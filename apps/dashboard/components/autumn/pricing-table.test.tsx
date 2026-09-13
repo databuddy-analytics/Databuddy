@@ -3,6 +3,7 @@ import type { Item } from "autumn-js";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
 	getInvestigationTerms,
+	PlanComparison,
 	PricingFeatures,
 	PricingPlanPrice,
 } from "./pricing-table";
@@ -59,7 +60,7 @@ describe("native plan subscription price", () => {
 			/>
 		);
 		expect(markup).toContain(">$9.99</span>");
-		expect(markup).toContain("/mo</span>");
+		expect(markup).toContain("/ month</p>");
 		expect(markup).not.toContain(">$2</span>");
 		expect(markup).not.toContain("first month");
 		expect(markup).not.toContain("then ");
@@ -100,9 +101,7 @@ describe("native plan investigation disclosures", () => {
 	test("renders the real monthly allowance and usage price instead of stale provider copy", () => {
 		const markup = render([monthlyInvestigations]);
 		expect(markup).toContain("100 investigations / month");
-		expect(markup).toContain(
-			"$1 per additional investigation · billed by usage"
-		);
+		expect(markup).toContain("$1 per extra investigation");
 		expect(markup).not.toContain("investigation credits");
 		expect(markup).not.toContain("Stale provider description");
 	});
@@ -116,34 +115,45 @@ describe("native plan investigation disclosures", () => {
 			const markup = render(items);
 			expect(markup.split("100 investigations / month")).toHaveLength(2);
 			expect(markup.split("2,000,000 events")).toHaveLength(2);
-			expect(markup.split("1,500 agent credits")).toHaveLength(2);
+			expect(markup).not.toContain("agent credits");
 			expect(markup).not.toContain("1,500 AI credits / month for chat");
 			expect(markup).not.toContain("2M events included / month");
 		}
 	});
 
-	test("labels scheduling as Enabled while other unlimited capabilities remain unchanged", () => {
-		const markup = render([monthlyInvestigations]);
+	test("moves detailed capabilities and native legacy credit terms into the comparison", () => {
+		const plan = {
+			id: "intelligence",
+			name: "Business",
+			items: [events, chat],
+		};
+		const cards = render(plan.items);
+		expect(cards).not.toContain("Automatic Investigations");
+		expect(cards).not.toContain("credits");
+		const markup = renderToStaticMarkup(<PlanComparison plans={[plan]} />);
+		expect(markup).toContain("Current AI terms");
+		expect(markup).toContain("1,500 AI credits / month");
 		const automaticRow = markup
-			.split("Automatic Investigations</span>")[1]
-			?.split("</li>")[0];
-		expect(automaticRow).toContain("Enabled");
+			.split("Automatic Investigations</th>")[1]
+			?.split("</tr>")[0];
+		expect(automaticRow).toContain("Included");
 		expect(automaticRow).not.toContain("Unlimited");
 		expect(markup).toContain("Unlimited");
 	});
 
-	test("shows a zero one-off entitlement without inventing a monthly allowance", () => {
-		const markup = render([
-			{
-				...monthlyInvestigations,
-				included: 0,
-				reset: { interval: "one_off" },
-				price: null,
-			},
-		]);
-		expect(markup).toContain("0 investigations included");
-		expect(markup).toContain("$1 per additional investigation · prepaid");
-		expect(markup).not.toContain("investigations / month");
+	test("hides zero unpriced markers without inventing access or a purchase offer", () => {
+		const marker = {
+			...monthlyInvestigations,
+			included: 0,
+			reset: { interval: "one_off" },
+			price: null,
+		} satisfies Item;
+		for (const id of ["hobby", "pro", "intelligence"]) {
+			const markup = render([marker], id);
+			expect(markup).not.toContain("investigations");
+			expect(markup).not.toContain("$1");
+			expect(markup).not.toContain("prepaid");
+		}
 	});
 
 	test("reads prepaid price and billing units from the native price item", () => {
@@ -159,8 +169,8 @@ describe("native plan investigation disclosures", () => {
 				},
 			},
 		]);
-		expect(markup).toContain("$1.25 per 5 additional investigations · prepaid");
-		expect(markup).not.toContain("$1 per additional investigation");
+		expect(markup).toContain("$1.25 per 5 extra investigations · prepaid");
+		expect(markup).not.toContain("$1 per extra investigation");
 	});
 
 	test("combines separate allowance and priced items without losing either contract", () => {
@@ -169,18 +179,15 @@ describe("native plan investigation disclosures", () => {
 			{ ...monthlyInvestigations, price: null },
 		]);
 		expect(markup.split("100 investigations / month")).toHaveLength(2);
-		expect(markup).toContain(
-			"$1 per additional investigation · billed by usage"
-		);
+		expect(markup).toContain("$1 per extra investigation");
 		expect(markup).not.toContain(">0 investigations");
 	});
 
-	test("preserves the monthly reset on a zero allowance", () => {
+	test("shows a real pay-as-you-go offer without a zero-allowance bullet", () => {
 		const markup = render([{ ...monthlyInvestigations, included: 0 }]);
-		expect(markup).toContain("0 investigations / month");
-		expect(markup).toContain(
-			"$1 per additional investigation · billed by usage"
-		);
+		expect(markup).toContain(">Investigations</span>");
+		expect(markup).not.toContain("0 investigations");
+		expect(markup).toContain("$1 per extra investigation");
 	});
 
 	test("does not turn a multi-month grant into the same monthly allowance", () => {
@@ -196,8 +203,90 @@ describe("native plan investigation disclosures", () => {
 
 	test("does not invent an investigation grant for a legacy plan", () => {
 		const markup = render([events, chat], "pro");
-		expect(markup).toContain("1,500 agent credits");
+		expect(markup).not.toContain("credits");
+		expect(markup).not.toContain("Databunny chat included");
 		expect(markup).not.toContain("additional investigation");
 		expect(markup).not.toContain("investigations / month");
+	});
+});
+
+describe("native pricing edge cases", () => {
+	test("preserves custom zero subscription price and period", () => {
+		const markup = renderToStaticMarkup(
+			<PricingPlanPrice
+				plan={{
+					id: "pro",
+					autoEnable: false,
+					price: { amount: 0, interval: "month", intervalCount: 3 },
+				}}
+			/>
+		);
+		expect(markup).toContain(">$0</span>");
+		expect(markup).toContain("/ 3 months");
+		expect(markup).not.toContain("$49.99");
+	});
+	test("preserves an unpriced investigation grant and a custom zero extra rate", () => {
+		const unpriced = render([{ ...monthlyInvestigations, price: null }]);
+		expect(unpriced).toContain("100 investigations / month");
+		expect(unpriced).not.toContain("$");
+		expect(unpriced).not.toContain("prepaid");
+		const zero = render([
+			{
+				...monthlyInvestigations,
+				price: {
+					...monthlyInvestigations.price,
+					amount: 0,
+					billingMethod: "usage_based",
+					billingUnits: 1,
+					interval: "month",
+					maxPurchase: null,
+				},
+			},
+		]);
+		expect(zero).toContain("$0 per extra investigation");
+		expect(zero).not.toContain("$1");
+	});
+	test("does not enable investigations on a plan without application access", () => {
+		expect(render([monthlyInvestigations], "pro")).not.toContain(
+			"investigations"
+		);
+	});
+	test("keeps tiny native flat event prices readable without losing billing units", () => {
+		for (const [amount, billingUnits] of [
+			[0.000_03, 1],
+			[0.03, 1000],
+		]) {
+			const markup = render([
+				{
+					...events,
+					price: {
+						amount,
+						billingUnits,
+						billingMethod: "usage_based",
+						interval: "month",
+						maxPurchase: null,
+					},
+				},
+			]);
+			expect(markup).toContain("Extra events: $0.03 per 1,000");
+			expect(markup).not.toContain("$0 per");
+		}
+	});
+	test("only advertises chat from native boolean plan items", () => {
+		const included = { featureId: "databunny_chat" };
+		const legacy = {
+			id: "hobby",
+			name: "Hobby",
+			items: [chat, { ...chat, included: 1, reset: { interval: "day" } }],
+		} satisfies Parameters<typeof PlanComparison>[0]["plans"][number];
+		const newPlan = { ...legacy, items: [included] };
+		const mixed = renderToStaticMarkup(
+			<PlanComparison plans={[legacy, newPlan]} />
+		);
+		expect(mixed).toContain("1,500 AI credits / month + 1 AI credits / day");
+		expect(mixed).toContain("Chat included");
+		const synced = renderToStaticMarkup(<PlanComparison plans={[newPlan]} />);
+		expect(synced).not.toContain("Current AI terms");
+		expect(synced).not.toContain("AI credits");
 	});
 });

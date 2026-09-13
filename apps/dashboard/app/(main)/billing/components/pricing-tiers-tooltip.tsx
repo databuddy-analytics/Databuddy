@@ -1,99 +1,85 @@
 "use client";
 
-import { Tooltip } from "@databuddy/ui";
-import { formatLocaleNumber } from "@/lib/format-locale-number";
-import { cn } from "@/lib/utils";
+import { Button } from "@databuddy/ui";
+import { Popover } from "@databuddy/ui/client";
 import { InfoIcon } from "@databuddy/ui/icons";
-
-interface PricingTier {
-	amount: number;
-	to: number | "inf";
-}
+import { formatLocaleNumber } from "@/lib/format-locale-number";
 
 interface PricingTiersTooltipProps {
-	className?: string;
+	billingUnits?: number;
+	included?: number;
 	showText?: boolean;
-	tiers: PricingTier[];
+	tiers: { amount: number; to: number | "inf" }[];
 }
 
 export function PricingTiersTooltip({
-	tiers,
-	className,
+	billingUnits = 1,
+	included = 0,
 	showText = true,
+	tiers,
 }: PricingTiersTooltipProps) {
-	const formatTierRange = (tier: PricingTier, index: number) => {
-		const prevTier = index > 0 ? tiers[index - 1] : null;
-		const from = prevTier
-			? typeof prevTier.to === "number"
-				? prevTier.to + 1
-				: 0
-			: 0;
-		const to = tier.to;
-
-		const formatNumber = (num: number) => {
-			if (num >= 1_000_000) {
-				return `${(num / 1_000_000).toFixed(num % 1_000_000 === 0 ? 0 : 1)}M`;
-			}
-			if (num >= 1000) {
-				return `${(num / 1000).toFixed(num % 1000 === 0 ? 0 : 1)}K`;
-			}
-			return formatLocaleNumber(num);
-		};
-
-		if (to === "inf") {
-			return `${formatNumber(from)}+`;
-		}
-
-		if (from === 0) {
-			return `0 - ${formatNumber(typeof to === "number" ? to : 0)}`;
-		}
-
-		return `${formatNumber(from)} - ${formatNumber(typeof to === "number" ? to : 0)}`;
-	};
-
+	const paidTiers = tiers.filter(
+		(tier) => tier.to === "inf" || tier.to > included
+	);
 	return (
-		<Tooltip
-			content={
-				<div className="w-64 space-y-3 p-1">
+		<Popover>
+			<Popover.Trigger
+				render={
+					<Button
+						aria-label="Extra event rates"
+						className="h-auto gap-1 p-0 font-normal text-xs"
+						size="sm"
+						variant="ghost"
+					>
+						<InfoIcon size={12} />
+						{showText && "Extra event rates"}
+					</Button>
+				}
+			/>
+			<Popover.Content className="w-80" side="top">
+				<div className="space-y-3 text-xs">
 					<div>
-						<h4 className="font-semibold text-sm">Tiered Pricing Structure</h4>
-						<p className="text-xs opacity-70">
-							Lower rates for higher usage volumes
+						<Popover.Title className="text-balance">
+							Extra event rates
+						</Popover.Title>
+						<p className="text-pretty opacity-80">
+							After {formatLocaleNumber(included)} included events / month
 						</p>
 					</div>
 					<div className="space-y-2">
-						{tiers.map((tier) => (
-							<div
-								className="flex items-center justify-between text-xs"
-								key={tier.to}
-							>
-								<span className="opacity-70">
-									{formatTierRange(tier, tiers.indexOf(tier))} events
-								</span>
-								<span className="font-medium font-mono">
-									${tier.amount.toFixed(6)} each
-								</span>
-							</div>
-						))}
+						{paidTiers.map((tier, index) => {
+							const previous = index > 0 ? paidTiers[index - 1].to : included;
+							const from =
+								typeof previous === "number" ? previous + 1 : included + 1;
+							return (
+								<div
+									className="flex justify-between gap-3 tabular-nums"
+									key={tier.to}
+								>
+									<span>
+										{formatLocaleNumber(from)}
+										{tier.to === "inf"
+											? "+"
+											: `–${formatLocaleNumber(tier.to)}`}
+									</span>
+									<span className="shrink-0">
+										$
+										{((tier.amount * 1000) / billingUnits).toLocaleString(
+											"en-US",
+											{ maximumFractionDigits: 6 }
+										)}{" "}
+										/ 1k
+									</span>
+								</div>
+							);
+						})}
 					</div>
-					<div className="border-current/10 border-t pt-2 text-xs opacity-70">
-						You only pay the tier rate for usage within that range
-					</div>
+					<p className="text-pretty opacity-80">
+						Ranges are total monthly events. Each rate applies only within its
+						range.
+					</p>
 				</div>
-			}
-			side="top"
-		>
-			<button
-				className={cn(
-					"inline-flex cursor-help items-center gap-1 text-muted-foreground text-xs hover:text-foreground",
-					!showText && "rounded-full p-1 hover:bg-muted/50",
-					className
-				)}
-				type="button"
-			>
-				<InfoIcon size={12} />
-				{showText && <span>View pricing tiers</span>}
-			</button>
-		</Tooltip>
+			</Popover.Content>
+		</Popover>
 	);
 }
