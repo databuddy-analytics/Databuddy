@@ -1,6 +1,9 @@
 "use client";
 
-import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
+import {
+	hasDatabunnyChat,
+	INVESTIGATION_USAGE,
+} from "@databuddy/shared/billing";
 
 import AttachDialog from "@/components/autumn/attach-dialog";
 import { useBillingContext } from "@/components/providers/billing-provider";
@@ -274,6 +277,7 @@ export default function BillingPage() {
 	const { plans, usage, customer, isLoading, error, refetch } =
 		useBillingData();
 	const { attach, previewAttach } = useCustomer();
+	const includedChat = hasDatabunnyChat(customer?.flags);
 	const [dateRange, setDateRange] = useState(getDefaultDateRange);
 
 	const { data: breakdownUsageRaw, isLoading: isBreakdownLoading } = useQuery({
@@ -335,12 +339,15 @@ export default function BillingPage() {
 			) {
 				return false;
 			}
-			if (onIntelligencePlan && plan.id === CREDITS_BOOSTER_PLAN_ID) {
+			if (
+				(includedChat || onIntelligencePlan) &&
+				plan.id === CREDITS_BOOSTER_PLAN_ID
+			) {
 				return false;
 			}
 			return true;
 		});
-	}, [customer?.subscriptions, plans]);
+	}, [customer?.subscriptions, plans, includedChat]);
 
 	const { currentPlan, currentSubscription, usageStats, statusDetails } =
 		useMemo(() => {
@@ -376,12 +383,15 @@ export default function BillingPage() {
 				currentSubscription: activeSub,
 				usageStats:
 					usage?.features.filter(
-						(feature) => feature.id !== INVESTIGATION_USAGE.featureId
+						(feature) =>
+							feature.id !== INVESTIGATION_USAGE.featureId &&
+							!(includedChat && feature.id === "agent_credits")
 					) ?? [],
 				statusDetails: planStatusDetails,
 			};
 		}, [
 			plans,
+			includedChat,
 			usage?.features,
 			customer?.subscriptions,
 			getSubscriptionStatusDetails,
@@ -476,6 +486,12 @@ export default function BillingPage() {
 
 						<Divider />
 
+						{includedChat && (
+							<Text tone="muted" variant="caption">
+								Databunny chat included
+							</Text>
+						)}
+
 						<PaymentMethodRow customer={customer ?? null} />
 
 						<Divider />
@@ -550,7 +566,7 @@ export default function BillingPage() {
 				</Card>
 
 				<InvestigationTopupCard />
-				{!isFree && <TopupCard />}
+				{!(isFree || includedChat) && <TopupCard />}
 				{!isFree && <BillingControlsCard />}
 
 				{showAddOns && (

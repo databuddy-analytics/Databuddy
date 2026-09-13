@@ -201,7 +201,7 @@ describe("native investigation balances", () => {
 			<InvestigationAdditionalUsage usage={usage} />
 		);
 		expect(markup).toContain(
-			"allows investigations beyond the displayed balance"
+			"Additional investigations are enabled for your account"
 		);
 		expect(markup).not.toContain("$");
 		expect(markup).not.toContain("invoice");
@@ -212,17 +212,17 @@ describe("native investigation balances", () => {
 		{
 			amount: 1,
 			billingUnits: 1,
-			expected: "$1 per additional investigation, billed on your invoice.",
+			expected: "$1 per extra investigation on your invoice.",
 		},
 		{
 			amount: 0.25,
 			billingUnits: 1,
-			expected: "$0.25 per additional investigation, billed on your invoice.",
+			expected: "$0.25 per extra investigation on your invoice.",
 		},
 		{
 			amount: 2,
 			billingUnits: 5,
-			expected: "$2 per 5 additional investigations, billed on your invoice.",
+			expected: "$2 per 5 extra investigations on your invoice.",
 		},
 	])("renders the native $amount price per $billingUnits units", ({
 		amount,
@@ -266,7 +266,7 @@ describe("native investigation balances", () => {
 		const markup = renderToStaticMarkup(
 			<InvestigationAdditionalUsage usage={usage} />
 		);
-		expect(markup).toContain("Additional investigations have no usage charge.");
+		expect(markup).toContain("Extra investigations have no usage charge.");
 		expect(markup).not.toContain("$");
 		expect(markup).not.toContain("invoice");
 	});
@@ -288,7 +288,7 @@ describe("native investigation balances", () => {
 		const markup = renderToStaticMarkup(
 			<InvestigationAdditionalUsage usage={usage} />
 		);
-		expect(markup).toContain("tiered usage pricing");
+		expect(markup).toContain("plan’s usage rates");
 		expect(markup).not.toContain("$");
 	});
 
@@ -300,8 +300,8 @@ describe("native investigation balances", () => {
 		const markup = renderToStaticMarkup(
 			<InvestigationAdditionalUsage usage={usage} />
 		);
-		expect(markup).toContain("$1 per additional investigation");
-		expect(markup).toContain("Additional usage is currently unavailable.");
+		expect(markup).toContain("$1 per extra investigation");
+		expect(markup).toContain("Extra usage is currently unavailable.");
 	});
 
 	test("requires a whole fixed-price unit if overage is unavailable", () => {

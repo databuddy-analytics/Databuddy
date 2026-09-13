@@ -5,7 +5,7 @@ import {
 	investigationQuantitySchema,
 } from "@databuddy/shared/billing";
 import { GATED_FEATURES } from "@databuddy/shared/types/features";
-import { Button, Card, dayjs, Field, Input } from "@databuddy/ui";
+import { Button, Card, dayjs, Field, Input, Skeleton } from "@databuddy/ui";
 import { useCustomer } from "autumn-js/react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -24,6 +24,7 @@ export function InvestigationTopupCard() {
 	const { balance, fixedPrice, payAsYouGo, unlimited } = usage;
 	const [quantity, setQuantity] = useState("10");
 	const [isAttaching, setIsAttaching] = useState(false);
+	const [showPurchase, setShowPurchase] = useState(false);
 	const parsedQuantity = investigationQuantitySchema.safeParse(
 		Number(quantity)
 	);
@@ -35,6 +36,7 @@ export function InvestigationTopupCard() {
 	useEffect(() => {
 		if (window.location.hash === "#topup") {
 			document.getElementById("topup")?.scrollIntoView({ block: "start" });
+			setShowPurchase(true);
 		}
 	}, []);
 
@@ -69,31 +71,37 @@ export function InvestigationTopupCard() {
 		<Card className="scroll-mt-6" id="topup">
 			<Card.Header>
 				<Card.Title className="text-balance">Investigations</Card.Title>
-				<Card.Description className="text-pretty">
-					Clarifications of the same question and verification after applying a
-					proposed repair are included. New questions and separate fresh
-					analysis use another investigation.
-				</Card.Description>
 			</Card.Header>
 			<Card.Content className="space-y-4">
-				{!isLoading && (
+				{isLoading ? (
+					<Skeleton className="h-16" />
+				) : unlimited ? (
 					<p className="text-pretty text-muted-foreground text-sm">
-						{fixedPrice
-							? unlimited
-								? "Your plan has unlimited investigations."
-								: `${Math.max(0, balance).toLocaleString()} investigations available from your allowance and purchased balance.`
-							: "Your investigations currently use legacy AI credit terms. Buying investigations switches future investigations to the purchased balance. Switching plan versions uses the new plan’s investigation allowance and pricing. Existing AI credits remain available for chat."}
+						Unlimited investigations
 					</p>
-				)}
+				) : fixedPrice &&
+					usage.monthly.length === 0 &&
+					usage.prepaid.length === 0 ? (
+					<p className="text-pretty text-muted-foreground text-sm">
+						{Math.max(0, balance).toLocaleString()} investigations available
+					</p>
+				) : null}
 				{fixedPrice && !isLoading && !unlimited && (
 					<InvestigationBalanceDetails usage={usage} />
 				)}
-				{hasAccess && (payAsYouGo || usage.overageAllowed) ? (
+				{isLoading ? null : hasAccess &&
+					(payAsYouGo || usage.overageAllowed) ? (
 					<InvestigationAdditionalUsage usage={usage} />
+				) : hasAccess && !showPurchase ? (
+					<Button variant="secondary" onClick={() => setShowPurchase(true)}>
+						Buy investigations
+					</Button>
 				) : hasAccess ? (
 					<>
 						<p className="text-pretty text-muted-foreground text-sm">
 							Purchased investigations do not expire.
+							{!fixedPrice &&
+								" Buying switches future investigations from legacy credits to $1 each; your credits are preserved."}
 						</p>
 						<Field className="max-w-xs" error={!parsedQuantity.success}>
 							<Field.Label>Investigations to buy</Field.Label>
@@ -154,7 +162,7 @@ export function InvestigationAdditionalUsage({
 	if (!usage.payAsYouGo) {
 		return (
 			<p className="text-pretty text-muted-foreground text-sm">
-				Your account allows investigations beyond the displayed balance.
+				Additional investigations are enabled for your account.
 			</p>
 		);
 	}
@@ -162,10 +170,10 @@ export function InvestigationAdditionalUsage({
 		<div className="space-y-2 text-pretty text-muted-foreground text-sm">
 			{usage.usagePrices.map((price) => {
 				let description = price.tiered
-					? "Additional investigations follow your plan’s tiered usage pricing."
-					: "Additional investigation rates are unavailable here. Check your billing settings.";
+					? "Extra investigations follow your plan’s usage rates."
+					: "Your extra investigation rate is unavailable. Check your billing settings.";
 				if (!price.tiered && price.amount === 0) {
-					description = "Additional investigations have no usage charge.";
+					description = "Extra investigations have no usage charge.";
 				} else if (
 					!price.tiered &&
 					price.amount !== null &&
@@ -180,18 +188,13 @@ export function InvestigationAdditionalUsage({
 					});
 					const unit =
 						price.billingUnits === 1
-							? "additional investigation"
-							: `${price.billingUnits.toLocaleString()} additional investigations`;
-					description = `${amount} per ${unit}, billed on your invoice.`;
+							? "extra investigation"
+							: `${price.billingUnits.toLocaleString()} extra investigations`;
+					description = `${amount} per ${unit} on your invoice.`;
 				}
 				return <p key={price.id}>{description}</p>;
 			})}
-			{!usage.overageAllowed && (
-				<p>
-					Additional usage is currently unavailable. Check your billing
-					settings.
-				</p>
-			)}
+			{!usage.overageAllowed && <p>Extra usage is currently unavailable.</p>}
 		</div>
 	);
 }
@@ -229,7 +232,7 @@ export function InvestigationBalanceDetails({
 					</p>
 				</div>
 			))}
-			{usage.payAsYouGo && (
+			{usage.payAsYouGo && usage.overage > 0 && (
 				<div>
 					<p className="text-pretty font-medium">Estimated additional usage</p>
 					<p className="text-pretty text-muted-foreground tabular-nums">

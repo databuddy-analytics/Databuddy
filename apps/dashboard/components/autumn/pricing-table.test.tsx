@@ -44,6 +44,17 @@ function render(items: Item[], id = "intelligence") {
 }
 
 describe("native plan investigation disclosures", () => {
+	test("renders boolean chat access as included without a quantity", () => {
+		const markup = render([
+			{
+				featureId: "databunny_chat",
+				display: { primaryText: "Unlimited Databunny chat" },
+			},
+		]);
+		expect(markup).toContain("Databunny chat included");
+		expect(markup).not.toContain("Unlimited Databunny chat");
+		expect(markup).not.toContain("agent credits");
+	});
 	test("renders the real monthly allowance and usage price instead of stale provider copy", () => {
 		const markup = render([monthlyInvestigations]);
 		expect(markup).toContain("100 investigations / month");

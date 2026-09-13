@@ -1,6 +1,6 @@
 "use client";
 
-import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
+import { DATABUNNY_CHAT, INVESTIGATION_USAGE } from "@databuddy/shared/billing";
 
 import {
 	FEATURE_METADATA,
@@ -740,6 +740,9 @@ function groupItemsByFeature<T extends FeatureItemDisplay>(items: T[]): T[][] {
 
 function FeatureItem({ group }: { group: FeatureItemDisplay[] }) {
 	const primary = group[0];
+	if (primary.featureId === DATABUNNY_CHAT.featureId) {
+		return <StaticFeatureItem label="Databunny chat included" />;
+	}
 	if (primary.featureId === INVESTIGATION_USAGE.featureId) {
 		return <InvestigationFeatureItem group={group} />;
 	}
