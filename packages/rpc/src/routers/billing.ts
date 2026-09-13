@@ -156,7 +156,6 @@ const aggregateUsageData = (
 
 const AUTO_TOPUP_FEATURE_ID = "agent_credits";
 const EVENTS_FEATURE_ID = "events";
-const SPEND_LIMIT_FEATURE_ID = "agent_credits";
 const MIN_AUTO_TOPUP_THRESHOLD = 10;
 const MAX_AUTO_TOPUP_THRESHOLD = 50_000;
 const MIN_AUTO_TOPUP_QUANTITY = 100;
@@ -211,6 +210,9 @@ const usageAlertConfigSchema = z
 
 const spendLimitConfigSchema = z
 	.object({
+		featureId: z
+			.enum(["agent_credits", "investigation_runs"])
+			.default("agent_credits"),
 		enabled: z.boolean(),
 		overageLimit: z.number().int(),
 	})
@@ -344,7 +346,7 @@ export const billingRouter = {
 	setSpendLimit: trackedSessionProcedure
 		.route({
 			description:
-				"Configures a spend limit (maximum overage in USD) for AI credits.",
+				"Sets a monthly spending limit in USD for investigations or legacy AI credits.",
 			method: "POST",
 			path: "/billing/setSpendLimit",
 			summary: "Set spend limit",
@@ -358,7 +360,7 @@ export const billingRouter = {
 				context,
 				key: "spendLimits",
 				entry: {
-					featureId: SPEND_LIMIT_FEATURE_ID,
+					featureId: input.featureId,
 					enabled: input.enabled,
 					overageLimit: input.overageLimit,
 				},
