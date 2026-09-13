@@ -1,6 +1,7 @@
 import { AGENT_CREDIT_SCHEMA } from "./lib/credit-schema";
 import { TOPUP_MAX_QUANTITY, TOPUP_TIERS } from "./lib/topup-math";
 import {
+	DATABUNNY_CHAT,
 	DATABUNNY_USAGE,
 	INVESTIGATION_ALLOWANCES,
 	INVESTIGATION_USAGE,
@@ -75,6 +76,12 @@ export const investigation_runs = feature({
 	consumable: true,
 });
 
+export const databunny_chat = feature({
+	id: DATABUNNY_CHAT.featureId,
+	name: DATABUNNY_CHAT.name,
+	type: "boolean",
+});
+
 const EVENT_OVERAGE_TIERS = [
 	{ to: 2_000_000, amount: 0.000_035 },
 	{ to: 10_000_000, amount: 0.000_03 },
@@ -117,13 +124,7 @@ export const free = plan({
 				interval: "month",
 			},
 		}),
-		item({
-			featureId: agent_credits.id,
-			included: 10,
-			reset: {
-				interval: "month",
-			},
-		}),
+		item({ featureId: databunny_chat.id }),
 	],
 });
 
@@ -159,20 +160,7 @@ export const hobby = plan({
 				interval: "month",
 			},
 		}),
-		item({
-			featureId: agent_credits.id,
-			included: 20,
-			reset: {
-				interval: "month",
-			},
-		}),
-		item({
-			featureId: agent_credits.id,
-			included: 1,
-			reset: {
-				interval: "day",
-			},
-		}),
+		item({ featureId: databunny_chat.id }),
 	],
 });
 
@@ -192,20 +180,7 @@ export const pro = plan({
 			reset: { interval: "one_off" },
 		}),
 		eventsOverageItem(1_000_000),
-		item({
-			featureId: agent_credits.id,
-			included: 350,
-			reset: {
-				interval: "month",
-			},
-		}),
-		item({
-			featureId: agent_credits.id,
-			included: 5,
-			reset: {
-				interval: "day",
-			},
-		}),
+		item({ featureId: databunny_chat.id }),
 	],
 });
 
@@ -254,7 +229,8 @@ export const scale = plan({
 /*
  * Business and Scale include monthly investigations; additional investigations
  * use the same investigation_runs meter at a fixed $1 each.
- * Existing agent_credits grants and prepaid prices remain for ordinary chat.
+ * Current plans include ordinary chat. Legacy grants and purchased credits
+ * retain their terms on existing attached plan versions.
  * Do not migrate existing subscriptions: their attached versions retain legacy
  * investigation credit terms until they buy investigations or switch plan versions.
  *
@@ -285,24 +261,7 @@ export const intelligence = plan({
 			},
 		}),
 		eventsOverageItem(2_000_000),
-		item({
-			featureId: agent_credits.id,
-			included: 1500,
-			reset: {
-				interval: "month",
-			},
-		}),
-		item({
-			featureId: agent_credits.id,
-			price: {
-				tiers: TOPUP_TIERS.map((t) => ({ to: t.to, amount: t.amount })),
-				tierBehaviour: "graduated",
-				interval: "one_off",
-				billingMethod: "prepaid",
-				billingUnits: 1,
-				maxPurchase: TOPUP_MAX_QUANTITY,
-			},
-		}),
+		item({ featureId: databunny_chat.id }),
 	],
 });
 
@@ -329,24 +288,7 @@ export const intelligence_scale = plan({
 			},
 		}),
 		eventsOverageItem(10_000_000),
-		item({
-			featureId: agent_credits.id,
-			included: 5000,
-			reset: {
-				interval: "month",
-			},
-		}),
-		item({
-			featureId: agent_credits.id,
-			price: {
-				tiers: TOPUP_TIERS.map((t) => ({ to: t.to, amount: t.amount })),
-				tierBehaviour: "graduated",
-				interval: "one_off",
-				billingMethod: "prepaid",
-				billingUnits: 1,
-				maxPurchase: TOPUP_MAX_QUANTITY,
-			},
-		}),
+		item({ featureId: databunny_chat.id }),
 	],
 });
 

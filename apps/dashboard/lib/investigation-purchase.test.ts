@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { getInvestigationBillingFeatureId, INVESTIGATION_ALLOWANCES, INVESTIGATION_USAGE } from "@databuddy/shared/billing";
+import { DATABUNNY_CHAT, getInvestigationBillingFeatureId, INVESTIGATION_ALLOWANCES, INVESTIGATION_USAGE } from "@databuddy/shared/billing";
 import {
-	credits_booster, credits_topup, free, hobby, intelligence, intelligence_scale,
+	credits_booster, credits_topup, databunny_chat, free, hobby, intelligence, intelligence_scale,
 	investigations_topup, investigation_runs, pro, pulse_hobby, pulse_pro, scale,
 } from "../autumn.config";
 import { quoteInvestigationPurchase } from "./investigation-purchase";
@@ -28,14 +28,11 @@ describe("fixed investigation purchases", () => {
 		}]);
 	});
 
-	test("investigation allowances preserve separately metered chat terms", () => {
-		for (const [plan, monthly, daily] of [
-			[free, 10, undefined], [hobby, 20, 1], [pro, 350, 5],
-			[intelligence, 1500, undefined], [intelligence_scale, 5000, undefined],
-		] as const) {
-			const credits = plan.items?.filter((item) => item.featureId === "agent_credits");
-			expect(credits?.find((item) => item.reset?.interval === "month")?.included).toBe(monthly);
-			expect(credits?.find((item) => item.reset?.interval === "day")?.included).toBe(daily);
+	test("new plans include chat without credit grants or prices", () => {
+		expect(databunny_chat).toEqual({ id: DATABUNNY_CHAT.featureId, name: DATABUNNY_CHAT.name, type: "boolean" });
+		for (const plan of [free, hobby, pro, intelligence, intelligence_scale]) {
+			expect(plan.items?.filter((item) => item.featureId === "agent_credits")).toEqual([]);
+			expect(plan.items?.filter((item) => item.featureId === DATABUNNY_CHAT.featureId)).toEqual([{ featureId: DATABUNNY_CHAT.featureId }]);
 		}
 	});
 

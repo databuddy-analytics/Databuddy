@@ -67,8 +67,12 @@ legacy plans retain their terms until the customer adopts the new entitlement
 through an investigation purchase or a switch to a new plan version.
 An exhausted fixed-price balance does not fall back to spending legacy credits;
 Autumn's check decides whether paid overage or a remaining prepaid unit is allowed.
-Chat continues to use credits. Token usage and model costs remain internal
-telemetry for fixed-price investigations and included replies.
+Current plans include ordinary Databunny chat through Autumn's `databunny_chat`
+flag. Legacy accounts without that flag retain their existing chat credit terms.
+Chat access is verified before model execution; unavailable billing state does
+not grant access. The server pins that decision for the request, and token usage
+and model costs remain internal telemetry. Included chat does not bypass billing
+for a separately requested investigation.
 
 ### Action
 
