@@ -2,6 +2,7 @@ import { AGENT_CREDIT_SCHEMA } from "./lib/credit-schema";
 import { TOPUP_MAX_QUANTITY, TOPUP_TIERS } from "./lib/topup-math";
 import {
 	DATABUNNY_USAGE,
+	INVESTIGATION_ALLOWANCES,
 	INVESTIGATION_USAGE,
 	LEGACY_SCALE_PLAN,
 } from "@databuddy/shared/billing";
@@ -251,7 +252,8 @@ export const scale = plan({
 });
 
 /*
- * New plan versions opt into fixed-price investigations with no bundled grant.
+ * Business and Scale include monthly investigations; additional investigations
+ * use the same investigation_runs meter at a fixed $1 each.
  * Existing agent_credits grants and prepaid prices remain for ordinary chat.
  * Do not migrate existing subscriptions: their attached versions retain legacy
  * investigation credit terms until they buy investigations or switch plan versions.
@@ -274,8 +276,13 @@ export const intelligence = plan({
 	items: [
 		item({
 			featureId: investigation_runs.id,
-			included: 0,
-			reset: { interval: "one_off" },
+			included: INVESTIGATION_ALLOWANCES.intelligence,
+			price: {
+				amount: INVESTIGATION_USAGE.priceUsd,
+				interval: "month",
+				billingMethod: "usage_based",
+				billingUnits: 1,
+			},
 		}),
 		eventsOverageItem(2_000_000),
 		item({
@@ -313,8 +320,13 @@ export const intelligence_scale = plan({
 	items: [
 		item({
 			featureId: investigation_runs.id,
-			included: 0,
-			reset: { interval: "one_off" },
+			included: INVESTIGATION_ALLOWANCES.intelligence_scale,
+			price: {
+				amount: INVESTIGATION_USAGE.priceUsd,
+				interval: "month",
+				billingMethod: "usage_based",
+				billingUnits: 1,
+			},
 		}),
 		eventsOverageItem(10_000_000),
 		item({

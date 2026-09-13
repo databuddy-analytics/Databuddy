@@ -455,7 +455,7 @@ function PricingCard({
 	const investigationTerms = plan.items.some(
 		(item) => item.featureId === INVESTIGATION_USAGE.featureId
 	)
-		? "Completed investigations use the allowance shown above. Additional investigations follow the displayed price. Same-question clarifications and verification of a proposed repair are included. Existing AI credits remain available for chat."
+		? "Completed investigations use the allowance shown above. Additional investigations follow the displayed price. Same-question clarifications and verification of a proposed repair are included."
 		: undefined;
 
 	return (

@@ -33,8 +33,8 @@ export function InvestigationsAccessNotice({
 			<LockSimpleIcon className="size-4 shrink-0 text-muted-foreground" />
 			<p className="min-w-0 flex-1 text-muted-foreground text-sm">
 				Automatic investigations are now invite only, so your scheduled runs are
-				paused. Existing findings stay available and Databunny chat still works
-				with your credits.
+				paused. Existing findings stay available and you can still ask Databunny
+				for a manual check.
 			</p>
 			<Button asChild size="sm" variant="secondary">
 				<a
