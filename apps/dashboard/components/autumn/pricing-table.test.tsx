@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import type { Item } from "autumn-js";
 import { renderToStaticMarkup } from "react-dom/server";
-import { PricingFeatures } from "./pricing-table";
+import {
+	getInvestigationTerms,
+	PricingFeatures,
+	PricingPlanPrice,
+} from "./pricing-table";
 
 const monthlyInvestigations: Item = {
 	featureId: "investigation_runs",
@@ -43,7 +47,45 @@ function render(items: Item[], id = "intelligence") {
 	return renderToStaticMarkup(<PricingFeatures plan={{ id, items }} />);
 }
 
+describe("native plan subscription price", () => {
+	test("renders the configured Hobby price without an invented first-month offer", () => {
+		const markup = renderToStaticMarkup(
+			<PricingPlanPrice
+				plan={{
+					id: "hobby",
+					autoEnable: false,
+					price: { amount: 9.99, interval: "month", intervalCount: 1 },
+				}}
+			/>
+		);
+		expect(markup).toContain(">$9.99</span>");
+		expect(markup).toContain("/mo</span>");
+		expect(markup).not.toContain(">$2</span>");
+		expect(markup).not.toContain("first month");
+		expect(markup).not.toContain("then ");
+	});
+});
+
 describe("native plan investigation disclosures", () => {
+	test("keeps short completion terms only for included, unlimited, or priced investigations", () => {
+		const marker: Item = {
+			...monthlyInvestigations,
+			included: 0,
+			reset: { interval: "one_off" },
+			price: null,
+		};
+		expect(getInvestigationTerms([marker])).toBeUndefined();
+		expect(getInvestigationTerms([events, chat])).toBeUndefined();
+		for (const item of [
+			{ ...marker, included: 100 },
+			{ ...marker, unlimited: true },
+			{ ...marker, price: monthlyInvestigations.price },
+		]) {
+			expect(getInvestigationTerms([item])).toBe(
+				"Only completed investigations count. Clarifications and repair checks are included."
+			);
+		}
+	});
 	test("renders boolean chat access as included without a quantity", () => {
 		const markup = render([
 			{

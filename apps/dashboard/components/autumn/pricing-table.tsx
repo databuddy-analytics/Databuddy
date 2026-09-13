@@ -53,10 +53,6 @@ const PLAN_ICONS: Record<string, typeof CrownIcon> = {
 	buddy: CrownIcon,
 };
 
-const PLAN_INTRO_OFFER: Record<string, { amount: number; label: string }> = {
-	hobby: { amount: 2, label: "first month" },
-};
-
 const INTERVAL_COMPACT: Record<string, string> = {
 	day: "day",
 	week: "wk",
@@ -442,21 +438,9 @@ function PricingCard({
 		}
 	};
 
-	const isFree = plan.autoEnable === true;
-	const priceAmount = plan.price?.amount;
-	const priceInterval = plan.price?.interval;
-	const compactUnit = priceInterval
-		? (INTERVAL_COMPACT[priceInterval] ?? priceInterval)
-		: null;
-	const introOffer = PLAN_INTRO_OFFER[plan.id];
-
 	const previousPlanName = PREVIOUS_PLAN_NAME[plan.id];
 
-	const investigationTerms = plan.items.some(
-		(item) => item.featureId === INVESTIGATION_USAGE.featureId
-	)
-		? "Completed investigations use the allowance shown above. Additional investigations follow the displayed price. Same-question clarifications and verification of a proposed repair are included."
-		: undefined;
+	const investigationTerms = getInvestigationTerms(plan.items);
 
 	return (
 		<div
@@ -516,44 +500,7 @@ function PricingCard({
 				</div>
 			</div>
 
-			<div className="border-border/60 border-y bg-secondary/40 px-5 py-5">
-				{isFree ? (
-					<div className="flex items-baseline gap-1.5">
-						<span className="font-semibold text-3xl text-foreground tracking-tight">
-							Free
-						</span>
-						<Text tone="muted" variant="body">
-							forever
-						</Text>
-					</div>
-				) : introOffer ? (
-					<div className="space-y-1">
-						<div className="flex items-baseline gap-1.5">
-							<span className="font-semibold text-3xl text-foreground tabular-nums tracking-tight">
-								{formatPriceAmount(introOffer.amount)}
-							</span>
-							<Text tone="muted" variant="body">
-								for your {introOffer.label}
-							</Text>
-						</div>
-						<Text tone="muted" variant="caption">
-							then {formatPriceAmount(priceAmount)}
-							{compactUnit ? `/${compactUnit}` : ""}
-						</Text>
-					</div>
-				) : (
-					<div className="flex items-baseline text-foreground">
-						<span className="font-semibold text-3xl tabular-nums tracking-tight">
-							{formatPriceAmount(priceAmount)}
-						</span>
-						{compactUnit && (
-							<span className="ml-0.5 font-medium text-base text-muted-foreground">
-								/{compactUnit}
-							</span>
-						)}
-					</div>
-				)}
-			</div>
+			<PricingPlanPrice plan={plan} />
 
 			<div className="flex flex-1 flex-col gap-4 p-5">
 				{previousPlanName && (
@@ -623,6 +570,56 @@ interface FeatureItemDisplay {
 	} | null;
 	reset?: { interval?: string | null; intervalCount?: number } | null;
 	unlimited?: boolean;
+}
+
+export function getInvestigationTerms(items: HookPlan["items"]) {
+	const hasInvestigations = items.some(
+		(item) =>
+			item.featureId === INVESTIGATION_USAGE.featureId &&
+			((item.included ?? 0) > 0 || item.unlimited || item.price)
+	);
+	return hasInvestigations
+		? "Only completed investigations count. Clarifications and repair checks are included."
+		: undefined;
+}
+
+export function PricingPlanPrice({
+	plan,
+}: {
+	plan: Pick<HookPlan, "id" | "autoEnable" | "price">;
+}) {
+	const isFree = plan.autoEnable === true;
+	const priceAmount = plan.price?.amount;
+	const priceInterval = plan.price?.interval;
+	const compactUnit = priceInterval
+		? (INTERVAL_COMPACT[priceInterval] ?? priceInterval)
+		: null;
+
+	return (
+		<div className="border-border/60 border-y bg-secondary/40 px-5 py-5">
+			{isFree ? (
+				<div className="flex items-baseline gap-1.5">
+					<span className="font-semibold text-3xl text-foreground tracking-tight">
+						Free
+					</span>
+					<Text tone="muted" variant="body">
+						forever
+					</Text>
+				</div>
+			) : (
+				<div className="flex items-baseline text-foreground">
+					<span className="font-semibold text-3xl tabular-nums tracking-tight">
+						{formatPriceAmount(priceAmount)}
+					</span>
+					{compactUnit && (
+						<span className="ml-0.5 font-medium text-base text-muted-foreground">
+							/{compactUnit}
+						</span>
+					)}
+				</div>
+			)}
+		</div>
+	);
 }
 
 export function PricingFeatures({
