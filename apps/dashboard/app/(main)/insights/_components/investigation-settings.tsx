@@ -176,8 +176,8 @@ export function InvestigationSettings({
 									{!billingLoading && fixedPrice && (
 										<p className="text-muted-foreground text-xs">
 											Each scheduled run may investigate several signals. Each
-											completed investigation uses one prepaid investigation
-											($1).
+											completed investigation uses your monthly allowance first;
+											additional investigations cost $1 each.
 										</p>
 									)}
 									<div className="flex gap-1.5">
@@ -226,9 +226,10 @@ export function InvestigationSettings({
 				<Sheet.Footer className="flex flex-wrap items-center justify-between gap-3">
 					{!billingLoading && fixedPrice && (
 						<p className="w-full text-muted-foreground text-xs">
-							$1 per completed investigation; Run now may investigate several
-							signals. Same-question clarifications and verification of a
-							proposed repair are included.
+							Run now uses your monthly investigation allowance first, then $1
+							per additional investigation, and may investigate several signals.
+							Same-question clarifications and verification of a proposed repair
+							are included.
 						</p>
 					)}
 					<Button

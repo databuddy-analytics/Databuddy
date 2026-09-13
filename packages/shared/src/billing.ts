@@ -1,10 +1,5 @@
 import { number } from "zod";
 
-export const DATABUNNY_CHAT = {
-	featureId: "databunny_chat",
-	name: "Databunny chat",
-} as const;
-
 export const DATABUNNY_USAGE = {
 	description:
 		"AI credits pay for ordinary Databunny chat and investigations on legacy billing terms. Existing credit balances and allowances keep their value; they are not converted into $1 investigations.",

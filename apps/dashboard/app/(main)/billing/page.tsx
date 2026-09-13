@@ -5,6 +5,7 @@ import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
 import AttachDialog from "@/components/autumn/attach-dialog";
 import { useBillingContext } from "@/components/providers/billing-provider";
 import { getCustomerPlanName } from "@/lib/autumn/customer-plan-name";
+import { getSubscriptionPriceText } from "@/lib/autumn/subscription-price";
 import { orpc } from "@/lib/orpc";
 import { TOPUP_PRODUCT_ID } from "@/lib/topup-math";
 import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
@@ -343,19 +344,28 @@ export default function BillingPage() {
 
 	const { currentPlan, currentSubscription, usageStats, statusDetails } =
 		useMemo(() => {
-			const activeSub = customer?.subscriptions?.find((s) => {
-				if (s.canceledAt && s.currentPeriodEnd) {
-					return dayjs(s.currentPeriodEnd).isAfter(dayjs());
-				}
-				return !s.canceledAt || s.status === "scheduled";
-			});
+			const activeSub =
+				customer?.subscriptions?.find(
+					(s) => !s.addOn && (s.status === "active" || s.status === "past_due")
+				) ??
+				customer?.subscriptions?.find(
+					(s) => !s.addOn && s.status === "scheduled"
+				);
 
-			const activePlan = activeSub
+			const listedPlan = activeSub
 				? plans?.find((p) => p.id === activeSub.planId)
 				: plans?.find((p) => {
 						const action = p.customerEligibility?.attachAction;
 						return !(action && ["upgrade", "downgrade"].includes(action));
 					});
+			const activePlan = activeSub
+				? {
+						...listedPlan,
+						...activeSub.plan,
+						id: activeSub.planId,
+						price: activeSub.plan?.price,
+					}
+				: listedPlan;
 
 			const planStatusDetails = activeSub
 				? getSubscriptionStatusDetails(activeSub)
@@ -364,7 +374,10 @@ export default function BillingPage() {
 			return {
 				currentPlan: activePlan,
 				currentSubscription: activeSub,
-				usageStats: usage?.features ?? [],
+				usageStats:
+					usage?.features.filter(
+						(feature) => feature.id !== INVESTIGATION_USAGE.featureId
+					) ?? [],
 				statusDetails: planStatusDetails,
 			};
 		}, [
@@ -405,6 +418,7 @@ export default function BillingPage() {
 		currentPlan?.id,
 		currentPlan?.name || "Free"
 	);
+	const currentPriceText = getSubscriptionPriceText(currentSubscription);
 
 	return (
 		<main className="min-h-0 flex-1 overflow-y-auto">
@@ -443,9 +457,9 @@ export default function BillingPage() {
 								</div>
 								<div>
 									<Text variant="label">{currentPlanDisplayName}</Text>
-									{!isFree && currentPlan?.price?.display?.primaryText && (
+									{!isFree && currentPriceText && (
 										<Text tone="muted" variant="caption">
-											{currentPlan.price.display.primaryText}
+											{currentPriceText}
 										</Text>
 									)}
 								</div>
