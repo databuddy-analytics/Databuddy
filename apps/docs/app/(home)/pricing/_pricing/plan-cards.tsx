@@ -57,7 +57,7 @@ export function PlanCards({ plans }: { plans: NormalizedPlan[] }) {
 							</ul>
 							<SciFiButton
 								asChild
-								className="w-full transition-opacity duration-150 hover:bg-foreground/10 focus-visible:bg-foreground/10 active:scale-100 active:bg-foreground/15 active:opacity-80"
+								className="w-full transition-opacity duration-150 hover:animate-none hover:bg-foreground/10 focus-visible:bg-foreground/10 active:scale-100 active:bg-foreground/15 active:opacity-80"
 							>
 								<Link
 									href={

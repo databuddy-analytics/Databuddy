@@ -191,7 +191,7 @@ export function Estimator({ plans }: Props) {
 									<div className="mt-4 flex justify-end">
 										<SciFiButton
 											asChild
-											className="transition-opacity duration-150 hover:bg-foreground/10 focus-visible:bg-foreground/10 active:scale-100 active:bg-foreground/15 active:opacity-80"
+											className="transition-opacity duration-150 hover:animate-none hover:bg-foreground/10 focus-visible:bg-foreground/10 active:scale-100 active:bg-foreground/15 active:opacity-80"
 										>
 											<Link
 												href="/contact"
@@ -276,7 +276,7 @@ export function Estimator({ plans }: Props) {
 									<div className="mt-4 flex justify-end">
 										<SciFiButton
 											asChild
-											className="transition-opacity duration-150 hover:bg-foreground/10 focus-visible:bg-foreground/10 active:scale-100 active:bg-foreground/15 active:opacity-80"
+											className="transition-opacity duration-150 hover:animate-none hover:bg-foreground/10 focus-visible:bg-foreground/10 active:scale-100 active:bg-foreground/15 active:opacity-80"
 										>
 											<Link
 												href={
