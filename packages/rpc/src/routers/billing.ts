@@ -162,8 +162,8 @@ const MIN_AUTO_TOPUP_QUANTITY = 100;
 const MAX_AUTO_TOPUP_QUANTITY = 75_000;
 const MIN_ALERT_PERCENTAGE = 1;
 const MAX_ALERT_PERCENTAGE = 99;
-const MIN_SPEND_LIMIT_USD = 1;
-const MAX_SPEND_LIMIT_USD = 10_000;
+const MIN_OVERAGE_UNITS = 1;
+const MAX_OVERAGE_UNITS = 10_000;
 
 const autoTopupConfigSchema = z
 	.object({
@@ -219,10 +219,10 @@ const spendLimitConfigSchema = z
 	.refine(
 		(v) =>
 			!v.enabled ||
-			(v.overageLimit >= MIN_SPEND_LIMIT_USD &&
-				v.overageLimit <= MAX_SPEND_LIMIT_USD),
+			(v.overageLimit >= MIN_OVERAGE_UNITS &&
+				v.overageLimit <= MAX_OVERAGE_UNITS),
 		{
-			message: `overageLimit must be between ${MIN_SPEND_LIMIT_USD} and ${MAX_SPEND_LIMIT_USD}`,
+			message: `overageLimit must be between ${MIN_OVERAGE_UNITS} and ${MAX_OVERAGE_UNITS}`,
 			path: ["overageLimit"],
 		}
 	);
@@ -346,7 +346,7 @@ export const billingRouter = {
 	setSpendLimit: trackedSessionProcedure
 		.route({
 			description:
-				"Sets a monthly spending limit in USD for investigations or legacy AI credits.",
+				"Limits additional investigation or legacy credit units per billing cycle.",
 			method: "POST",
 			path: "/billing/setSpendLimit",
 			summary: "Set spend limit",
