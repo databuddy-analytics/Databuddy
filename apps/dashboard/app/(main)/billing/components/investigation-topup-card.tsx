@@ -89,8 +89,9 @@ export function InvestigationTopupCard() {
 				{fixedPrice && !isLoading && !unlimited && (
 					<InvestigationBalanceDetails usage={usage} />
 				)}
-				{isLoading ? null : hasAccess &&
-					(payAsYouGo || usage.overageAllowed) ? (
+				{isLoading ? (
+					<Skeleton className="h-8 w-56" />
+				) : hasAccess && (payAsYouGo || usage.overageAllowed) ? (
 					<InvestigationAdditionalUsage usage={usage} />
 				) : hasAccess && !showPurchase ? (
 					<Button variant="secondary" onClick={() => setShowPurchase(true)}>
