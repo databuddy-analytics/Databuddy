@@ -24,6 +24,7 @@ import { useCustomer, useListPlans } from "autumn-js/react";
 import { useParams, usePathname } from "next/navigation";
 import { createContext, type ReactNode, useContext, useMemo } from "react";
 import { isDashboardE2E } from "@/lib/e2e-mode";
+import { summarizeInvestigationBalance } from "@/lib/investigation-usage";
 import { orpc } from "@/lib/orpc";
 
 type HookCustomer = NonNullable<ReturnType<typeof useCustomer>["data"]>;
@@ -336,10 +337,13 @@ export function useInvestigationUsage() {
 	const featureId = getInvestigationBillingFeatureId(customer?.balances);
 	const usage = useUsageFeature(featureId);
 	const fixedPrice = featureId === INVESTIGATION_USAGE.featureId;
+	const details = summarizeInvestigationBalance(
+		fixedPrice ? customer?.balances?.[featureId] : null
+	);
 	return {
 		...usage,
+		...details,
 		fixedPrice,
-		canUse:
-			usage.unlimited || (fixedPrice ? usage.balance >= 1 : usage.balance > 0),
+		canUse: fixedPrice ? details.canUse : usage.unlimited || usage.balance > 0,
 	};
 }
