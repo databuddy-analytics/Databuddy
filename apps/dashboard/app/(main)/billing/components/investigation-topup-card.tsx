@@ -39,7 +39,11 @@ export function InvestigationTopupCard() {
 	}, []);
 
 	async function purchase() {
-		if (!(quote && canUserUpgrade && hasAccess) || payAsYouGo) {
+		if (
+			!(quote && canUserUpgrade && hasAccess) ||
+			payAsYouGo ||
+			usage.overageAllowed
+		) {
 			return;
 		}
 		setIsAttaching(true);
@@ -66,7 +70,9 @@ export function InvestigationTopupCard() {
 			<Card.Header>
 				<Card.Title className="text-balance">Investigations</Card.Title>
 				<Card.Description className="text-pretty">
-					{INVESTIGATION_USAGE.description}
+					Clarifications of the same question and verification after applying a
+					proposed repair are included. New questions and separate fresh
+					analysis use another investigation.
 				</Card.Description>
 			</Card.Header>
 			<Card.Content className="space-y-4">
@@ -82,13 +88,8 @@ export function InvestigationTopupCard() {
 				{fixedPrice && !isLoading && !unlimited && (
 					<InvestigationBalanceDetails usage={usage} />
 				)}
-				{hasAccess && payAsYouGo ? (
-					<p className="text-pretty text-muted-foreground text-sm">
-						Additional investigations cost ${INVESTIGATION_USAGE.priceUsd} each
-						and are billed on your invoice.
-						{!usage.overageAllowed &&
-							" Additional usage is currently unavailable. Check your billing settings."}
-					</p>
+				{hasAccess && (payAsYouGo || usage.overageAllowed) ? (
+					<InvestigationAdditionalUsage usage={usage} />
 				) : hasAccess ? (
 					<>
 						<p className="text-pretty text-muted-foreground text-sm">
@@ -142,6 +143,56 @@ export function InvestigationTopupCard() {
 				)}
 			</Card.Content>
 		</Card>
+	);
+}
+
+export function InvestigationAdditionalUsage({
+	usage,
+}: {
+	usage: ReturnType<typeof summarizeInvestigationBalance>;
+}) {
+	if (!usage.payAsYouGo) {
+		return (
+			<p className="text-pretty text-muted-foreground text-sm">
+				Your account allows investigations beyond the displayed balance.
+			</p>
+		);
+	}
+	return (
+		<div className="space-y-2 text-pretty text-muted-foreground text-sm">
+			{usage.usagePrices.map((price) => {
+				let description = price.tiered
+					? "Additional investigations follow your plan’s tiered usage pricing."
+					: "Additional investigation rates are unavailable here. Check your billing settings.";
+				if (!price.tiered && price.amount === 0) {
+					description = "Additional investigations have no usage charge.";
+				} else if (
+					!price.tiered &&
+					price.amount !== null &&
+					price.amount > 0 &&
+					price.billingUnits > 0
+				) {
+					const amount = price.amount.toLocaleString("en-US", {
+						style: "currency",
+						currency: "USD",
+						minimumFractionDigits: 0,
+						maximumFractionDigits: 6,
+					});
+					const unit =
+						price.billingUnits === 1
+							? "additional investigation"
+							: `${price.billingUnits.toLocaleString()} additional investigations`;
+					description = `${amount} per ${unit}, billed on your invoice.`;
+				}
+				return <p key={price.id}>{description}</p>;
+			})}
+			{!usage.overageAllowed && (
+				<p>
+					Additional usage is currently unavailable. Check your billing
+					settings.
+				</p>
+			)}
+		</div>
 	);
 }
 

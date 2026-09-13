@@ -30,22 +30,26 @@ export function summarizeInvestigationBalance(
 			remaining: Math.max(0, entry.remaining),
 			expiresAt: entry.expiresAt,
 		}));
-	const usageBased = breakdown.filter(
-		(entry) => entry.price?.billingMethod === "usage_based"
-	);
+	const usageBased = breakdown.flatMap((entry) => {
+		const price = entry.price;
+		return price?.billingMethod === "usage_based"
+			? [{ id: entry.id, remaining: entry.remaining, price }]
+			: [];
+	});
 	return {
 		monthly,
 		prepaid,
-		payAsYouGo: balance?.overageAllowed === true || usageBased.length > 0,
-		overage:
-			breakdown.length > 0
-				? usageBased.reduce(
-						(total, entry) => total + Math.max(0, -entry.remaining),
-						0
-					)
-				: balance?.overageAllowed
-					? Math.max(0, -balance.remaining)
-					: 0,
+		payAsYouGo: usageBased.length > 0,
+		usagePrices: usageBased.map(({ id, price }) => ({
+			id,
+			amount: price.amount ?? null,
+			billingUnits: price.billingUnits,
+			tiered: Boolean(price.tiers?.length),
+		})),
+		overage: usageBased.reduce(
+			(total, entry) => total + Math.max(0, -entry.remaining),
+			0
+		),
 		overageAllowed: balance?.overageAllowed === true,
 		canUse:
 			balance?.unlimited === true ||
