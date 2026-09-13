@@ -77,10 +77,12 @@ mock.module("../../lib/ai-logger", () => ({
 	getAILogger: () => ({ wrap: (model: LanguageModelV3) => model }),
 }));
 mock.module("../../lib/tracing", () => ({ mergeWideEvent: () => {} }));
+const billing = mock(async () => ({ allowed: true, customerId: "synthetic-owner", includedChat: true }));
+const billedUsage = mock(async (_input: Record<string, unknown>) => {});
 mock.module("../agents/execution", () => ({
-	ensureAgentCreditsAvailable: async () => true,
-	resolveAgentBillingCustomerId: async () => null,
-	trackAgentUsageAndBill: async () => {},
+	getAgentBillingAccess: billing,
+	resolveAgentBillingCustomerId: async () => "synthetic-owner",
+	trackAgentUsageAndBill: billedUsage,
 }));
 mock.module("./conversation-store", () => ({
 	getConversationHistory: async () => [],
@@ -167,6 +169,8 @@ beforeEach(() => {
 		profile,
 		generation: null,
 	});
+	billing.mockReset().mockResolvedValue({ allowed: true, customerId: "synthetic-owner", includedChat: true });
+	billedUsage.mockClear();
 	read.mockReset();
 	read.mockImplementation(async () => saved);
 	accessible.mockClear();
@@ -666,5 +670,30 @@ describe("canonical measurement plan context", () => {
 		});
 		expect(text).toContain("report_shared");
 		expect(text).not.toContain("other_activation");
+	});
+});
+
+
+describe("shared Slack/MCP agent billing before model work", () => {
+	it.each(["slack", "mcp"] as const)("pins included %s chat access through ask, trace and stream", async (source) => {
+		const input = { ...options, source, billingMode: "bill" as const };
+		await askDatabuddyAgent(input);
+		await traceDatabuddyAgent(input);
+		for await (const _chunk of streamDatabuddyAgent(input)) { /* consume native stream */ }
+		expect(billing).toHaveBeenCalledTimes(3);
+		expect(billedUsage).toHaveBeenCalledTimes(3);
+		for (const [call] of billedUsage.mock.calls) {
+			expect(call).toMatchObject({ source, billingCustomerId: "synthetic-owner", billingAccess: { allowed: true, customerId: "synthetic-owner", includedChat: true } });
+		}
+	});
+	it.each(["slack", "mcp"] as const)("stops %s before its model when entitlement lookup fails", async (source) => {
+		billing.mockRejectedValue(new Error("synthetic billing unavailable"));
+		const input = { ...options, source, billingMode: "bill" as const };
+		await expect(askDatabuddyAgent(input)).rejects.toThrow("billing unavailable");
+		await expect(traceDatabuddyAgent(input)).rejects.toThrow("billing unavailable");
+		await expect(async () => { for await (const _chunk of streamDatabuddyAgent(input)) { /* consume native stream */ } }).toThrow("billing unavailable");
+		expect(model.doGenerateCalls).toHaveLength(0);
+		expect(model.doStreamCalls).toHaveLength(0);
+		expect(billedUsage).not.toHaveBeenCalled();
 	});
 });

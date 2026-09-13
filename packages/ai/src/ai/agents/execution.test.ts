@@ -2,9 +2,11 @@ import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
 
 const originalAutumnSecretKey = process.env.AUTUMN_SECRET_KEY;
 
-const mockAutumnCheck = mock(async () => ({
+const mockAutumnCheck = mock(async (input: { customerId: string }) => ({
 	allowed: true,
+	customerId: input.customerId,
 	balance: {
+		featureId: "agent_credits",
 		granted: 100,
 		remaining: 42,
 		unlimited: false,
@@ -23,6 +25,7 @@ const mockMergeWideEvent = mock((_: Record<string, unknown>) => {});
 
 mock.module("@databuddy/rpc/autumn", () => ({
 	getAutumn: () => ({
+		customers: { get: async (input: { customerId: string }) => ({ id: input.customerId, flags: {} }) },
 		check: mockAutumnCheck,
 		track: mockAutumnTrack,
 	}),

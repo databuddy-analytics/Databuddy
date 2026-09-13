@@ -11,6 +11,9 @@ const state = vi.hoisted(() => ({
 	errors: vi.fn(),
 	sessionOrg: "org-synthetic",
 	chatOrg: "org-synthetic",
+	billing: vi.fn(),
+	billedUsage: vi.fn(),
+	rateLimit: vi.fn(),
 }));
 const site = {
 	id: "site-synthetic",
@@ -121,9 +124,9 @@ vi.mock("@databuddy/ai/agents/analytics", async () => {
 	};
 });
 vi.mock("@databuddy/ai/agents/execution", () => ({
-	ensureAgentCreditsAvailable: async () => true,
-	resolveAgentBillingCustomerId: async () => null,
-	trackAgentUsageAndBill: async () => {},
+	getAgentBillingAccess: state.billing,
+	resolveAgentBillingCustomerId: async () => "synthetic-billing-owner",
+	trackAgentUsageAndBill: state.billedUsage,
 }));
 vi.mock("@databuddy/ai/agents/router", () => ({
 	tierToModelKey: () => "balanced",
@@ -156,7 +159,7 @@ vi.mock("evlog/elysia", () => ({
 	useLogger: () => ({ info: () => {}, warn: () => {}, set: () => {} }),
 }));
 vi.mock("@databuddy/redis/rate-limit", () => ({
-	ratelimit: async () => ({ success: true }),
+	ratelimit: state.rateLimit,
 }));
 vi.mock("@databuddy/redis/stream-buffer", () => ({
 	appendStreamChunk: async () => {},
@@ -196,6 +199,9 @@ async function chat(input: Record<string, unknown> = {}) {
 }
 
 beforeEach(() => {
+	state.billing.mockReset().mockResolvedValue({ allowed: true, customerId: "synthetic-billing-owner", includedChat: true });
+	state.billedUsage.mockReset().mockResolvedValue(undefined);
+	state.rateLimit.mockReset().mockResolvedValue({ success: true });
 	state.profile = profile;
 	state.prompts.length = 0;
 	state.contexts.length = 0;
@@ -284,5 +290,35 @@ describe("dashboard canonical business context through the native HTTP/model str
 			"unavailable for this turn"
 		);
 		expect(state.read).toHaveBeenCalledTimes(1);
+	});
+});
+
+
+describe("dashboard billing permission before the native model stream", () => {
+	it("fails closed when entitlement lookup fails, without a model call", async () => {
+		state.billing.mockRejectedValueOnce(new Error("synthetic billing unavailable"));
+		expect((await chat()).status).toBe(500);
+		expect(state.prompts).toHaveLength(0);
+		expect(state.billedUsage).not.toHaveBeenCalled();
+	});
+	it("keeps legacy credit denial authoritative", async () => {
+		state.billing.mockResolvedValueOnce({ allowed: false, customerId: "synthetic-billing-owner", includedChat: false });
+		expect((await chat({ billingAccess: { allowed: true, customerId: "synthetic-billing-owner", includedChat: true } })).status).toBe(402);
+		expect(state.prompts).toHaveLength(0);
+	});
+	it("pins the server entitlement for usage and ignores a caller-supplied billing flag", async () => {
+		expect((await chat({ billingAccess: { allowed: true, customerId: "foreign", includedChat: true } })).status).toBe(200);
+		expect(state.billedUsage).toHaveBeenCalledWith(expect.objectContaining({
+			billingCustomerId: "synthetic-billing-owner",
+			billingAccess: { allowed: true, customerId: "synthetic-billing-owner", includedChat: true },
+			source: "dashboard",
+		}));
+		expect(state.billing).toHaveBeenCalledTimes(1);
+	});
+	it("preserves rate limits before any included-chat lookup", async () => {
+		state.rateLimit.mockResolvedValueOnce({ success: false });
+		expect((await chat()).status).toBe(429);
+		expect(state.billing).not.toHaveBeenCalled();
+		expect(state.prompts).toHaveLength(0);
 	});
 });

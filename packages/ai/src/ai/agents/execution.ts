@@ -1,5 +1,6 @@
 import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
 import { MIN_AGENT_CREDIT_CHECK_BALANCE } from "@databuddy/shared/agent-credits";
+import { hasDatabunnyChat } from "@databuddy/shared/billing";
 import { getAutumn } from "@databuddy/rpc/autumn";
 import { getBillingCustomerId } from "@databuddy/rpc/billing";
 import { getOrganizationOwnerId } from "@databuddy/rpc/organization";
@@ -13,6 +14,7 @@ import {
 
 interface AgentUsageTrackingInput {
 	agentType?: string;
+	billingAccess?: AgentBillingAccess;
 	billingCustomerId?: string | null;
 	chatId?: string;
 	idempotencyKey?: string;
@@ -22,6 +24,12 @@ interface AgentUsageTrackingInput {
 	usage: LanguageModelUsage;
 	userId?: string | null;
 	websiteId?: string;
+}
+
+export interface AgentBillingAccess {
+	allowed: boolean;
+	customerId: string | null;
+	includedChat: boolean;
 }
 
 export function isAgentBillingConfigured(): boolean {
@@ -82,25 +90,56 @@ export async function resolveAgentBillingCustomerId(principal: {
 	return customerId;
 }
 
-export async function ensureAgentCreditsAvailable(
+export async function getAgentBillingAccess(
 	billingCustomerId: string | null
-): Promise<boolean> {
-	if (!(isAgentBillingConfigured() && billingCustomerId)) {
+): Promise<AgentBillingAccess> {
+	if (!isAgentBillingConfigured()) {
 		mergeWideEvent({
 			agent_credits_allowed: true,
 			agent_credits_check_skipped: true,
 		});
-		return true;
+		return {
+			allowed: true,
+			customerId: billingCustomerId,
+			includedChat: false,
+		};
+	}
+	if (!billingCustomerId) {
+		throw new Error("The agent billing customer is unavailable");
 	}
 
 	const startedAt = performance.now();
 	try {
-		const result = await getAutumn().check({
+		const autumn = getAutumn({ strict: true });
+		const customer = await autumn.customers.get({
+			customerId: billingCustomerId,
+		});
+		if (customer.id !== billingCustomerId) {
+			throw new Error("The agent billing customer could not be verified");
+		}
+		if (hasDatabunnyChat(customer.flags)) {
+			mergeWideEvent({
+				agent_chat_included: true,
+				billing_customer_id: billingCustomerId,
+			});
+			return {
+				allowed: true,
+				customerId: billingCustomerId,
+				includedChat: true,
+			};
+		}
+		const result = await autumn.check({
 			customerId: billingCustomerId,
 			featureId: "agent_credits",
 			requiredBalance: MIN_AGENT_CREDIT_CHECK_BALANCE,
 		});
-		const allowed = result.allowed !== false;
+		if (
+			result.customerId !== billingCustomerId ||
+			(result.allowed && result.balance?.featureId !== "agent_credits")
+		) {
+			throw new Error("The agent credit balance could not be verified");
+		}
+		const allowed = result.allowed === true;
 		const balance = result.balance;
 		mergeWideEvent({
 			agent_credits_allowed: allowed,
@@ -118,7 +157,7 @@ export async function ensureAgentCreditsAvailable(
 					}
 				: {}),
 		});
-		return allowed;
+		return { allowed, customerId: billingCustomerId, includedChat: false };
 	} catch (error) {
 		captureError(error, {
 			agent_credit_check_error: true,
@@ -127,6 +166,12 @@ export async function ensureAgentCreditsAvailable(
 		});
 		throw error;
 	}
+}
+
+export async function ensureAgentCreditsAvailable(
+	billingCustomerId: string | null
+): Promise<boolean> {
+	return (await getAgentBillingAccess(billingCustomerId)).allowed;
 }
 
 function mergeAgentBillingFields(input: {
@@ -174,6 +219,18 @@ export async function trackAgentUsageAndBill(
 
 	if (!(isAgentBillingConfigured() && input.billingCustomerId)) {
 		return summary;
+	}
+	if (input.source !== "insights") {
+		const access =
+			input.billingAccess ??
+			(await getAgentBillingAccess(input.billingCustomerId));
+		if (access.customerId !== input.billingCustomerId) {
+			throw new Error("The agent billing access belongs to another customer");
+		}
+		if (access.includedChat) {
+			mergeWideEvent({ agent_chat_included: true });
+			return summary;
+		}
 	}
 
 	const autumn = getAutumn();
