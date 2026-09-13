@@ -1,3 +1,4 @@
+import { CaretDownIcon } from "@databuddy/ui/icons";
 import { formatMoney } from "./estimator-utils";
 import { GatedFeaturePricingRows } from "./gated-feature-rows";
 import type { NormalizedPlan } from "./types";
@@ -54,11 +55,15 @@ export function PlansComparisonTable({ plans }: { plans: NormalizedPlan[] }) {
 		},
 	];
 	return (
-		<details className="mb-10 border border-border bg-card/70">
-			<summary className="cursor-pointer px-5 py-4 font-medium">
+		<details className="group/comparison mb-10 border border-border bg-card/70">
+			<summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 font-medium hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset active:bg-foreground/10 [&::-webkit-details-marker]:hidden">
 				Compare all features
+				<CaretDownIcon
+					aria-hidden="true"
+					className="size-4 shrink-0 transition-transform duration-150 group-open/comparison:rotate-180 motion-reduce:transition-none"
+				/>
 			</summary>
-			<div className="overflow-x-auto border-border border-t">
+			<div className="motion-safe:group-open/comparison:fade-in-75 motion-safe:animation-duration-150 overflow-x-auto border-border border-t motion-safe:group-open/comparison:animate-in">
 				<table className="w-full">
 					<caption className="sr-only">Databuddy plan comparison</caption>
 					<thead>

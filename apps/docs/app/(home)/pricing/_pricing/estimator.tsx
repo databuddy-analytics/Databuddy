@@ -2,6 +2,7 @@ import {
 	INTELLIGENCE_CONTACT_TOPICS,
 	INTELLIGENCE_PLAN_IDS,
 } from "@databuddy/shared/types/features";
+import { CaretDownIcon } from "@databuddy/ui/icons";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { SciFiButton } from "@/components/landing/scifi-btn";
@@ -80,8 +81,8 @@ export function Estimator({ plans }: Props) {
 			: null;
 
 	return (
-		<section>
-			<Card className="group relative rounded border border-border bg-card/70 shadow-inner backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:shadow-primary/10">
+		<section className="motion-reduce:[&_*]:animate-none! motion-reduce:[&_*]:transition-none!">
+			<Card className="group relative rounded border border-border bg-card/70 shadow-inner backdrop-blur-sm hover:border-border/80 hover:shadow-primary/10">
 				<CardHeader>
 					<CardTitle className="font-semibold text-lg">
 						Estimate your monthly cost
@@ -188,7 +189,10 @@ export function Estimator({ plans }: Props) {
 										needs.
 									</p>
 									<div className="mt-4 flex justify-end">
-										<SciFiButton asChild>
+										<SciFiButton
+											asChild
+											className="transition-opacity duration-150 hover:bg-foreground/10 focus-visible:bg-foreground/10 active:scale-100 active:bg-foreground/15 active:opacity-80"
+										>
 											<Link
 												href="/contact"
 												onClick={() =>
@@ -208,8 +212,8 @@ export function Estimator({ plans }: Props) {
 									<Separator className="my-3" />
 									<div className="relative h-2 w-full rounded bg-muted">
 										<div
-											className="absolute top-0 left-0 h-full rounded bg-primary"
-											style={{ width: `${includedPortion}%` }}
+											className="absolute top-0 left-0 h-full w-full origin-left rounded bg-primary transition-transform duration-150 ease-out"
+											style={{ transform: `scaleX(${includedPortion / 100})` }}
 										/>
 									</div>
 									<div className="mt-2 flex items-center justify-between text-muted-foreground text-xs">
@@ -270,7 +274,10 @@ export function Estimator({ plans }: Props) {
 										Estimate before taxes. Databunny chat is included.
 									</p>
 									<div className="mt-4 flex justify-end">
-										<SciFiButton asChild>
+										<SciFiButton
+											asChild
+											className="transition-opacity duration-150 hover:bg-foreground/10 focus-visible:bg-foreground/10 active:scale-100 active:bg-foreground/15 active:opacity-80"
+										>
 											<Link
 												href={
 													contactTopic
@@ -297,14 +304,18 @@ export function Estimator({ plans }: Props) {
 
 					{/* Overage tiers table */}
 					<details
-						className="mt-6 scroll-mt-24 text-muted-foreground text-sm"
+						className="group/rates mt-6 scroll-mt-24 text-muted-foreground text-sm"
 						id="event-rates"
 					>
-						<summary className="cursor-pointer select-none">
+						<summary className="flex cursor-pointer select-none list-none items-center gap-2 rounded-sm py-1 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-background [&::-webkit-details-marker]:hidden">
 							View rates for extra events
+							<CaretDownIcon
+								aria-hidden="true"
+								className="size-4 transition-transform duration-150 group-open/rates:rotate-180"
+							/>
 						</summary>
 						{tiers.length > 0 ? (
-							<div className="mt-2 overflow-x-auto rounded border border-border bg-card/70 backdrop-blur-sm">
+							<div className="motion-safe:group-open/rates:fade-in-75 motion-safe:animation-duration-150 mt-2 overflow-x-auto rounded border border-border bg-card/70 backdrop-blur-sm motion-safe:group-open/rates:animate-in">
 								<table className="w-full text-left">
 									<caption className="sr-only">
 										Rates for cumulative events above the monthly allowance

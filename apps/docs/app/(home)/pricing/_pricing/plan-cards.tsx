@@ -2,6 +2,7 @@ import {
 	INTELLIGENCE_CONTACT_TOPICS,
 	INTELLIGENCE_PLAN_IDS,
 } from "@databuddy/shared/types/features";
+import { ArrowRightIcon } from "@databuddy/ui/icons";
 import Link from "next/link";
 import { SciFiButton } from "@/components/landing/scifi-btn";
 import { formatMoney } from "./estimator-utils";
@@ -10,15 +11,19 @@ import type { NormalizedPlan } from "./types";
 
 export function PlanCards({ plans }: { plans: NormalizedPlan[] }) {
 	return (
-		<section aria-label="Plans" className="mb-10">
+		<section
+			aria-label="Plans"
+			className="mb-10 motion-reduce:[&_*]:animate-none! motion-reduce:[&_*]:transition-none!"
+		>
 			<div className="grid gap-4 md:grid-cols-3">
 				{plans
 					.filter((plan) => ["hobby", "pro", "intelligence"].includes(plan.id))
-					.map((plan) => (
+					.map((plan, index) => (
 						<article
-							className="flex flex-col border border-border bg-card/70 p-6"
+							className="motion-safe:fade-in-75 motion-safe:slide-in-from-bottom-2 motion-safe:animation-duration-150 flex flex-col border border-border bg-card/70 p-6 transition-transform duration-150 ease-out focus-within:bg-card focus-within:shadow-lg hover:bg-card hover:shadow-lg motion-safe:animate-in motion-safe:fill-mode-backwards motion-safe:hover:-translate-y-1 motion-safe:focus-within:-translate-y-1"
 							id={plan.id}
 							key={plan.id}
+							style={{ animationDelay: `${index * 40}ms` }}
 						>
 							<h2 className="font-semibold text-lg">{plan.name}</h2>
 							<p className="mt-3 font-semibold text-3xl tracking-tight">
@@ -50,7 +55,10 @@ export function PlanCards({ plans }: { plans: NormalizedPlan[] }) {
 											: "Priority email + Slack support"}
 								</li>
 							</ul>
-							<SciFiButton asChild className="w-full">
+							<SciFiButton
+								asChild
+								className="w-full transition-opacity duration-150 hover:bg-foreground/10 focus-visible:bg-foreground/10 active:scale-100 active:bg-foreground/15 active:opacity-80"
+							>
 								<Link
 									href={
 										plan.id === INTELLIGENCE_PLAN_IDS.ANALYST
@@ -76,7 +84,7 @@ export function PlanCards({ plans }: { plans: NormalizedPlan[] }) {
 					)
 					.map((plan) => (
 						<div
-							className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 text-sm"
+							className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 text-sm focus-within:bg-card/70 hover:bg-card/70"
 							id={plan.id}
 							key={plan.id}
 						>
@@ -94,7 +102,7 @@ export function PlanCards({ plans }: { plans: NormalizedPlan[] }) {
 								</p>
 							</div>
 							<Link
-								className="shrink-0 underline underline-offset-4"
+								className="group/plan-link inline-flex shrink-0 items-center gap-2 rounded-sm underline underline-offset-4 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-background active:text-muted-foreground"
 								href={
 									plan.id === INTELLIGENCE_PLAN_IDS.DATA_TEAM
 										? `/contact?topic=${INTELLIGENCE_CONTACT_TOPICS[plan.id]}`
@@ -109,6 +117,10 @@ export function PlanCards({ plans }: { plans: NormalizedPlan[] }) {
 									: plan.id === "enterprise"
 										? "Contact us"
 										: "Request access"}
+								<ArrowRightIcon
+									aria-hidden="true"
+									className="size-3.5 transition-transform duration-150 motion-safe:group-focus-visible/plan-link:translate-x-0.5 motion-safe:group-hover/plan-link:translate-x-0.5"
+								/>
 							</Link>
 						</div>
 					))}
