@@ -181,6 +181,8 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 
 ## Billing (Autumn)
 
+- Billing-control read/modify/write must use a strict native client and verify the customer ID before merging settings. SDK `getOrCreate` can fail open with empty controls, causing a later successful update to erase unrelated saved limits.
+
 - Before changing live investigation plans, verify the serving API/dashboard support their entitlements and the backing database has `investigation_charges` plus reply/snapshot fields. Staging and production can share a database; successful builds, `SELECT 1` health checks, and local schema tests do not apply production schema.
 
 - Autumn catalog updates must send complete mutable plan fields, including explicit `addOn`, `autoEnable`, price, and description: omitted provider fields can reset flags, erase descriptions, or create a free new version. Preserve live legacy economics and verify exact before/after provider readback; passing SDK/CLI validation does not establish provider defaults. Do not overwrite unrelated live credit-schema drift during a pricing sync.

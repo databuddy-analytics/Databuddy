@@ -266,8 +266,11 @@ async function upsertBillingControl<
 	}
 
 	try {
-		const autumn = getAutumn();
+		const autumn = getAutumn({ strict: true });
 		const customer = await autumn.customers.getOrCreate({ customerId });
+		if (customer.id !== customerId) {
+			throw new Error("The billing customer could not be verified");
+		}
 		const existing = (customer.billingControls?.[args.key] ?? []) as Array<{
 			featureId: string;
 		}>;
