@@ -21,7 +21,10 @@ const balance = {
 	unlimited: false, overage_allowed: false, max_purchase: null, next_reset_at: null,
 };
 
-function provider(input: { balance?: boolean; units?: number; status?: number } = {}) {
+function provider(input: {
+	balance?: boolean; units?: number; status?: number; overage?: boolean; grant?: number;
+	breakdown?: boolean; price?: Record<string, unknown> | null;
+} = {}) {
 	const requests: { key: string | null; body: Record<string, unknown>; url: string }[] = [];
 	const seen = new Set<string>();
 	let units = input.units ?? 1;
@@ -43,9 +46,23 @@ function provider(input: { balance?: boolean; units?: number; status?: number } 
 			if (key && seen.has(key)) return Response.json({ message: "duplicate idempotency key" }, { status: 409 });
 			if (key) seen.add(key);
 			if (request.url.includes("balances.check")) {
-				const allowed = units > 0;
+				const allowed = units > 0 || input.overage === true;
 				if (body.send_event && allowed) units -= 1;
-				return Response.json({ allowed, customer_id: customerId, balance, flag: null });
+				const granted = input.grant ?? (input.overage ? 100 : 1);
+				const resetsAt = input.overage ? Date.UTC(2026, 9, 1) : null;
+				const price = input.price === undefined ? {
+					amount: 1, billing_units: 1, billing_method: "usage_based", max_purchase: null,
+				} : input.price;
+				return Response.json({ allowed, customer_id: customerId, balance: {
+					...balance, granted, remaining: Math.max(0, units), usage: granted - units,
+					overage_allowed: input.overage === true, next_reset_at: resetsAt,
+					breakdown: input.breakdown === false ? undefined : [{
+						id: "synthetic-grant", plan_id: "synthetic-plan", included_grant: granted,
+						prepaid_grant: 0, remaining: Math.max(0, units), usage: granted - units,
+						unlimited: false, reset: resetsAt ? { interval: "month", resets_at: resetsAt } : null, expires_at: null,
+						price: input.overage ? price : null,
+					}],
+				}, flag: null });
 			}
 			if (request.url.includes("balances.finalize")) return Response.json({ success: true });
 			throw new Error("Unexpected SDK endpoint");
@@ -113,6 +130,81 @@ integration("fixed investigation billing at the PostgreSQL and native Autumn bou
 			await expect(canRunInvestigation({ mode: "fixed", customerId }, provider({ status }).client)).rejects.toThrow();
 		}
 		expect(await canRunInvestigation({ mode: "fixed", customerId }, provider({ units: 0 }).client)).toBe(false);
+	});
+
+	it.each([100, 500])("uses native overage permission after %s monthly units and settles one unit without a second debit", async (grant) => {
+		const input = await fixture();
+		const remote = provider({ units: 0, overage: true, grant });
+		expect(await canRunInvestigation(input.billing, remote.client)).toBe(true);
+		const charge = await reserveInvestigationCharge(input, remote.client);
+		await saveAnswer(input, charge.id);
+		await settleInvestigationCharge(charge.id, remote.client);
+		await settleInvestigationCharge(charge.id, remote.client);
+		expect((await chargeState(charge.id))?.status).toBe("confirmed");
+		expect(remote.requests.filter((request) => request.body.send_event === true)).toHaveLength(1);
+		expect(remote.requests.filter((request) => request.body.action === "confirm")).toHaveLength(1);
+		expect(remote.requests.every((request) => request.url.includes("balances.check") || request.url.includes("balances.finalize"))).toBe(true);
+	});
+
+	it("releases an incomplete extra investigation through the original lock", async () => {
+		const input = await fixture();
+		const remote = provider({ units: 0, overage: true });
+		const charge = await reserveInvestigationCharge(input, remote.client);
+		await releaseInvestigationCharge(charge.id, remote.client);
+		await releaseInvestigationCharge(charge.id, remote.client);
+		expect((await chargeState(charge.id))?.status).toBe("released");
+		expect(remote.requests.filter((request) => request.body.send_event === true)).toHaveLength(1);
+		expect(remote.requests.filter((request) => request.body.action === "release")).toHaveLength(1);
+	});
+
+	it("keeps native denial authoritative when overage is disabled or capped", async () => {
+		const input = await fixture();
+		const remote = provider({ units: 0, overage: false });
+		expect(await canRunInvestigation(input.billing, remote.client)).toBe(false);
+		await expect(reserveInvestigationCharge(input, remote.client)).rejects.toThrow();
+		expect(remote.requests.every((request) => request.url.includes("balances.check"))).toBe(true);
+	});
+
+	it.each([
+		{ name: "custom $2 overage", price: { amount: 2, billing_units: 1, billing_method: "usage_based", max_purchase: null } },
+		{ name: "unverified tiers", price: { tiers: [{ to: "inf", amount: 1 }], billing_units: 1, billing_method: "usage_based", max_purchase: null } },
+		{ name: "a $10 block with a $1 unit average", price: { amount: 10, billing_units: 10, billing_method: "usage_based", max_purchase: null } },
+		{ name: "a $1 block with a lower unit average", price: { amount: 1, billing_units: 10, billing_method: "usage_based", max_purchase: null } },
+		{ name: "a missing flat amount", price: { billing_units: 1, billing_method: "usage_based", max_purchase: null } },
+		{ name: "an unknown billing method", price: { amount: 1, billing_units: 1, billing_method: "future_method", max_purchase: null } },
+		{ name: "a missing breakdown", breakdown: false },
+	])("rejects $name after the native lock and releases only that original hold", async (terms) => {
+		const input = { ...(await fixture()), expectedPriceCents: 100 };
+		const remote = provider({ units: 0, overage: true, ...terms });
+		await expect(reserveInvestigationCharge(input, remote.client)).rejects.toThrow("overage price could not be verified");
+		const [charge] = await db.select().from(investigationCharges).where(eq(investigationCharges.operationKey, input.operationKey));
+		if (!charge) throw new Error("Missing rejected reservation");
+		expect(charge).toMatchObject({ status: "release_pending", priceCents: 100, observationId: null });
+		await expect(reserveInvestigationCharge(input, remote.client)).rejects.toThrow("no new charge");
+		await settleInvestigationCharge(charge.id, remote.client);
+		await settleInvestigationCharge(charge.id, remote.client);
+		expect((await chargeState(charge.id))?.status).toBe("released");
+		const holds = remote.requests.filter((request) => request.body.send_event === true);
+		expect(holds).toHaveLength(1);
+		expect(holds[0]?.body.lock).toMatchObject({ lock_id: charge.id });
+		expect(remote.requests.filter((request) => request.body.action === "release")).toHaveLength(1);
+		expect(remote.requests.at(-1)?.body).toMatchObject({ action: "release", lock_id: charge.id });
+		expect(remote.requests.some((request) => request.body.action === "confirm")).toBe(false);
+	});
+
+	it.each([
+		{ name: "a custom zero-price plan", units: 0, overage: true, price: { amount: 0, billing_units: 1, billing_method: "usage_based", max_purchase: null } },
+		{ name: "an explicitly unpriced grant", units: 0, overage: true, price: null },
+		{ name: "already purchased units", units: 1, overage: false, breakdown: false },
+	])("preserves $name without requiring the public plan price", async (terms) => {
+		const input = { ...(await fixture()), expectedPriceCents: 100 };
+		const remote = provider(terms);
+		const charge = await reserveInvestigationCharge(input, remote.client);
+		await saveAnswer(input, charge.id);
+		await settleInvestigationCharge(charge.id, remote.client);
+		expect((await chargeState(charge.id))?.status).toBe("confirmed");
+		expect(remote.requests.filter((request) => request.body.send_event === true)).toHaveLength(1);
+		expect(remote.requests.filter((request) => request.body.action === "confirm")).toHaveLength(1);
 	});
 
 	it("reserves one unit across concurrent duplicate workers and retries, then confirms a readable unpublished answer once", async () => {

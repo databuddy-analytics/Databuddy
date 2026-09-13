@@ -115,6 +115,8 @@ export async function reserveInvestigationCharge(
 	client?: Autumn
 ): Promise<Charge> {
 	const now = new Date();
+	// This is the accepted rate for an extra unit. Autumn applies included and
+	// prepaid balances first; the reservation is not a dollar invoice receipt.
 	const currentPriceCents = INVESTIGATION_USAGE.priceUsd * 100;
 	const expectedPriceCents = input.expectedPriceCents;
 	if (
@@ -242,6 +244,39 @@ export async function reserveInvestigationCharge(
 			throw new Error(
 				"Investigation reservation did not include the requested balance"
 			);
+		}
+		if (
+			result.allowed &&
+			result.balance?.overageAllowed &&
+			!result.balance.unlimited
+		) {
+			// Native checks return the attached balance prices after deduction. Do not
+			// infer a free grant from missing pricing or average a rounded billing block.
+			const breakdown = result.balance.breakdown;
+			if (
+				!breakdown?.length ||
+				breakdown.some(({ price }) => {
+					if (price === null || price.billingMethod === "prepaid") {
+						return false;
+					}
+					return (
+						price.billingMethod !== "usage_based" ||
+						price.tiers !== undefined ||
+						price.tierBehavior !== undefined ||
+						price.amount === undefined ||
+						!Number.isFinite(price.amount) ||
+						price.amount < 0 ||
+						!Number.isFinite(price.billingUnits) ||
+						price.billingUnits <= 0 ||
+						(price.amount !== 0 && price.billingUnits !== 1) ||
+						price.amount * 100 > claimed.priceCents
+					);
+				})
+			) {
+				throw new Error(
+					"The investigation overage price could not be verified within the accepted price"
+				);
+			}
 		}
 		const [reserved] = await db
 			.update(investigationCharges)
