@@ -1,4 +1,7 @@
-import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
+import {
+	INVESTIGATION_ALLOWANCES,
+	INVESTIGATION_USAGE,
+} from "@databuddy/shared/billing";
 import {
 	INTELLIGENCE_CONTACT_TOPICS,
 	INTELLIGENCE_PLAN_IDS,
@@ -17,10 +20,11 @@ const INTELLIGENCE_TIERS = [
 		description:
 			"An always-on product investigator for founders and engineers.",
 		features: [
+			`${INVESTIGATION_ALLOWANCES.intelligence} completed investigations / month`,
 			"1,500 AI credits / month for chat",
 			"2,000,000 events included / month",
 			"Scheduled investigations across all your sites",
-			"$1 per completed investigation, purchased separately",
+			`$${INVESTIGATION_USAGE.priceUsd} per additional investigation, billed monthly`,
 			"Unlimited funnels, goals, and feature flags",
 			"Tiered event overage",
 		],
@@ -33,10 +37,11 @@ const INTELLIGENCE_TIERS = [
 		description:
 			"More investigation capacity for products with higher traffic and faster release cycles.",
 		features: [
+			`${INVESTIGATION_ALLOWANCES.intelligence_scale} completed investigations / month`,
 			"5,000 AI credits / month for chat",
 			"10,000,000 events included / month",
 			"Scheduled investigations across all your sites",
-			"$1 per completed investigation, purchased separately",
+			`$${INVESTIGATION_USAGE.priceUsd} per additional investigation, billed monthly`,
 			"Unlimited funnels, goals, and feature flags",
 			"Tiered event overage",
 		],

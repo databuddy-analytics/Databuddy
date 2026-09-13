@@ -312,7 +312,8 @@ export function PlansComparisonTable({ plans: allPlans }: Props) {
 				<p>
 					<span className="text-foreground">AI credits</span> pay for ordinary
 					Databunny chat and investigations on legacy billing terms. New
-					investigations cost $1 each, purchased separately.
+					Business and Scale plans include monthly investigations; additional
+					investigations cost $1 each and are billed monthly.
 				</p>
 				<p>
 					<span className="text-foreground">Unlimited seats & sites.</span> Team

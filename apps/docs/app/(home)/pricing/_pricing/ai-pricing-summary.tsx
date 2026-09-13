@@ -34,6 +34,11 @@ function buildPlanSummary(plan: RawPlan): string {
 					: item.included_usage.toLocaleString();
 			const per = item.interval ? ` per ${item.interval}` : "";
 			lines.push(`${item.feature.name}: ${qty} included${per}`);
+			if (typeof item.price === "number") {
+				lines.push(
+					`Additional ${item.feature.display.plural}: $${item.price} per ${item.feature.display.singular}, billed monthly`
+				);
+			}
 
 			if (item.tiers?.length && item.included_usage !== "inf") {
 				lines.push("Overage tiers (total monthly event counts):");
@@ -62,11 +67,11 @@ export function AiPricingSummary({ plans }: { plans: RawPlan[] }) {
 
 	const full = [
 		"# Databuddy Pricing",
-		"Currency: USD. Base plans are monthly; investigations are prepaid.",
+		"Currency: USD. Base plans and additional investigation usage are billed monthly.",
 		"Machine-readable version: https://www.databuddy.cc/api/pricing",
 		"",
 		INVESTIGATION_USAGE.description,
-		"Prepaid investigations do not expire. No investigations are included in new base-plan versions.",
+		"Business and Scale include monthly investigation allowances. Existing prepaid investigation balances retain their original terms.",
 		DATABUNNY_USAGE.description,
 		summary,
 		"",

@@ -1,5 +1,6 @@
 import {
 	DATABUNNY_USAGE,
+	INVESTIGATION_ALLOWANCES,
 	INVESTIGATION_USAGE,
 } from "@databuddy/shared/billing";
 
@@ -60,19 +61,25 @@ const AGENT_CREDITS_FEATURE: RawFeature = {
 	},
 };
 
-const INVESTIGATION_ITEM: RawItem = {
-	type: "feature",
-	feature_id: INVESTIGATION_USAGE.featureId,
-	feature_type: "single_use",
-	feature: {
-		id: INVESTIGATION_USAGE.featureId,
-		name: INVESTIGATION_USAGE.name,
-		type: "single_use",
-		display: { singular: "investigation", plural: INVESTIGATION_USAGE.unit },
-	},
-	included_usage: 0,
-	interval: null,
+const INVESTIGATION_FEATURE: RawFeature = {
+	id: INVESTIGATION_USAGE.featureId,
+	name: INVESTIGATION_USAGE.name,
+	type: "single_use",
+	display: { singular: "investigation", plural: INVESTIGATION_USAGE.unit },
 };
+
+function investigationAllowance(included: number): RawItem {
+	return {
+		type: "priced_feature",
+		feature_id: INVESTIGATION_USAGE.featureId,
+		feature_type: "single_use",
+		feature: INVESTIGATION_FEATURE,
+		included_usage: included,
+		interval: "month",
+		price: INVESTIGATION_USAGE.priceUsd,
+		usage_model: "pay_per_use",
+	};
+}
 
 const EVENTS_FEATURE: RawFeature = {
 	id: "events",
@@ -94,7 +101,6 @@ export const RAW_PLANS: RawPlan[] = [
 		id: "free",
 		name: "Free",
 		items: [
-			INVESTIGATION_ITEM,
 			{
 				type: "feature",
 				feature_id: "events",
@@ -117,7 +123,6 @@ export const RAW_PLANS: RawPlan[] = [
 		id: "hobby",
 		name: "Hobby",
 		items: [
-			INVESTIGATION_ITEM,
 			{
 				type: "price",
 				interval: "month",
@@ -160,7 +165,6 @@ export const RAW_PLANS: RawPlan[] = [
 		id: "pro",
 		name: "Pro",
 		items: [
-			INVESTIGATION_ITEM,
 			{
 				type: "price",
 				interval: "month",
@@ -200,7 +204,7 @@ export const RAW_PLANS: RawPlan[] = [
 		id: "intelligence",
 		name: "Business",
 		items: [
-			INVESTIGATION_ITEM,
+			investigationAllowance(INVESTIGATION_ALLOWANCES.intelligence),
 			{
 				type: "price",
 				interval: "month",
@@ -234,7 +238,7 @@ export const RAW_PLANS: RawPlan[] = [
 		id: "intelligence_scale",
 		name: "Scale",
 		items: [
-			INVESTIGATION_ITEM,
+			investigationAllowance(INVESTIGATION_ALLOWANCES.intelligence_scale),
 			{
 				type: "price",
 				interval: "month",

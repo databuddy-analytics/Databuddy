@@ -1,3 +1,7 @@
+import {
+	INTELLIGENCE_CONTACT_TOPICS,
+	INTELLIGENCE_PLAN_IDS,
+} from "@databuddy/shared/types/features";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { SciFiButton } from "@/components/landing/scifi-btn";
@@ -24,10 +28,11 @@ interface Props {
 
 export function Estimator({ plans }: Props) {
 	const [monthlyEvents, setMonthlyEvents] = useState<number>(25_000);
+	const [monthlyInvestigations, setMonthlyInvestigations] = useState(0);
 
 	const bestPlan = useMemo(
-		() => selectBestPlan(monthlyEvents, plans),
-		[monthlyEvents, plans]
+		() => selectBestPlan(monthlyEvents, plans, monthlyInvestigations),
+		[monthlyEvents, plans, monthlyInvestigations]
 	);
 
 	const bestPlanDisplayName = useMemo(
@@ -47,8 +52,16 @@ export function Estimator({ plans }: Props) {
 		);
 	}, [bestPlan, monthlyEvents]);
 
+	const extraInvestigations = Math.max(
+		monthlyInvestigations - (bestPlan?.includedInvestigationsMonthly ?? 0),
+		0
+	);
+	const investigationOverage =
+		extraInvestigations * (bestPlan?.investigationPrice ?? 0);
 	const estimatedMonthly =
-		(bestPlan ? bestPlan.priceMonthly : 0) + estimatedOverage;
+		(bestPlan ? bestPlan.priceMonthly : 0) +
+		estimatedOverage +
+		investigationOverage;
 	const included = bestPlan ? bestPlan.includedEventsMonthly : 0;
 	const over = Math.max(monthlyEvents - included, 0);
 	const includedPortion =
@@ -60,6 +73,11 @@ export function Estimator({ plans }: Props) {
 				);
 
 	const tiers = bestPlan?.eventTiers ?? [];
+	const contactTopic =
+		bestPlan?.id === INTELLIGENCE_PLAN_IDS.ANALYST ||
+		bestPlan?.id === INTELLIGENCE_PLAN_IDS.DATA_TEAM
+			? INTELLIGENCE_CONTACT_TOPICS[bestPlan.id]
+			: null;
 
 	return (
 		<section>
@@ -115,6 +133,33 @@ export function Estimator({ plans }: Props) {
 								</div>
 								<p className="mt-2 text-muted-foreground text-xs">
 									We can scale with you, from 0 to 250M+ events / month.
+								</p>
+							</div>
+							<div className="mt-6">
+								<Label htmlFor="investigations">
+									Completed investigations / month
+								</Label>
+								<Input
+									aria-label="Monthly completed investigations"
+									className="mt-2"
+									id="investigations"
+									inputMode="numeric"
+									min={0}
+									onChange={(event) => {
+										const amount = Number(event.target.value);
+										setMonthlyInvestigations(
+											Number.isFinite(amount)
+												? Math.max(0, Math.floor(amount))
+												: 0
+										);
+									}}
+									step={1}
+									type="number"
+									value={monthlyInvestigations}
+								/>
+								<p className="mt-2 text-muted-foreground text-xs">
+									Available on invite-only Business and Scale. Same-question
+									clarifications and repair verification are included.
 								</p>
 							</div>
 						</div>
@@ -186,12 +231,33 @@ export function Estimator({ plans }: Props) {
 									</div>
 									<div className="mt-2 flex items-center justify-between">
 										<span className="text-muted-foreground text-sm">
-											Estimated overage
+											Event overage
 										</span>
 										<span className="text-sm">
 											{formatMoney(estimatedOverage)}
 										</span>
 									</div>
+									{bestPlan?.includedInvestigationsMonthly != null && (
+										<>
+											<div className="mt-2 flex items-center justify-between text-sm">
+												<span className="text-muted-foreground">
+													Investigations included / month
+												</span>
+												<span>
+													{formatInteger(
+														bestPlan.includedInvestigationsMonthly
+													)}
+												</span>
+											</div>
+											<div className="mt-2 flex items-center justify-between text-sm">
+												<span className="text-muted-foreground">
+													Additional investigations (
+													{formatInteger(extraInvestigations)})
+												</span>
+												<span>{formatMoney(investigationOverage)}</span>
+											</div>
+										</>
+									)}
 									<Separator className="my-3" />
 									<div className="flex items-center justify-between">
 										<span className="font-semibold text-sm">
@@ -201,20 +267,29 @@ export function Estimator({ plans }: Props) {
 											{formatMoney(estimatedMonthly)}
 										</span>
 									</div>
+									<p className="mt-2 text-muted-foreground text-xs">
+										Includes plan price, event overage and additional
+										investigations billed monthly. Ordinary chat purchases are
+										separate.
+									</p>
 									<div className="mt-4 flex justify-end">
 										<SciFiButton asChild>
 											<Link
-												href={`https://app.databuddy.cc/register${bestPlan ? `?plan=${bestPlan.id}` : ""}`}
+												href={
+													contactTopic
+														? `/contact?topic=${contactTopic}`
+														: `https://app.databuddy.cc/register${bestPlan ? `?plan=${bestPlan.id}` : ""}`
+												}
 												onClick={() =>
 													trackPricingPlanClick(
 														bestPlan?.id ?? "unknown",
 														"pricing_estimator"
 													)
 												}
-												rel="noopener noreferrer"
-												target="_blank"
+												rel={contactTopic ? undefined : "noopener noreferrer"}
+												target={contactTopic ? undefined : "_blank"}
 											>
-												GET STARTED
+												{contactTopic ? "REQUEST ACCESS" : "GET STARTED"}
 											</Link>
 										</SciFiButton>
 									</div>
