@@ -1,5 +1,24 @@
 import { number } from "zod";
 
+export const DATABUNNY_CHAT = {
+	featureId: "databunny_chat",
+	name: "Databunny chat",
+} as const;
+
+export function hasDatabunnyChat(
+	flags:
+		| Record<string, { featureId: string; expiresAt: number | null }>
+		| null
+		| undefined,
+	now = Date.now()
+) {
+	const flag = flags?.[DATABUNNY_CHAT.featureId];
+	return (
+		flag?.featureId === DATABUNNY_CHAT.featureId &&
+		(flag.expiresAt === null || flag.expiresAt > now)
+	);
+}
+
 export const DATABUNNY_USAGE = {
 	description:
 		"AI credits pay for ordinary Databunny chat and investigations on legacy billing terms. Existing credit balances and allowances keep their value; they are not converted into $1 investigations.",
