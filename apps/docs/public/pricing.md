@@ -1,8 +1,8 @@
 # Databuddy Pricing
 
-Product analytics, web analytics, feature flags, and Databunny investigations. Business and Scale include monthly investigation allowances, with $1 per additional completed investigation billed monthly. Databunny chat is included in every plan.
+Start with analytics and included Databunny chat. Business includes 100 investigations per month; Scale includes 500. Extras cost $1 each, billed monthly.
 
-Machine-readable: [JSON](https://www.databuddy.cc/api/pricing) · static [Markdown](https://www.databuddy.cc/pricing.md) · **GET `/pricing`** with `Accept: text/markdown` (see `Vary: Accept`).
+Machine-readable: [JSON](https://www.databuddy.cc/api/pricing) · static [Markdown](https://www.databuddy.cc/pricing.md) · **GET `/pricing`** with `Accept: text/markdown`.
 
 ## Plans
 
@@ -33,29 +33,25 @@ The [JSON API](https://www.databuddy.cc/api/pricing) declares `overageTierBasis:
 
 ## Product limits
 
-| | Free | Hobby | Pro | Enterprise |
-| --- | --- | --- | --- | --- |
-| Funnels | 1 | 5 | 50 | Unlimited |
-| Goals | 2 | 10 | Unlimited | Unlimited |
-| Feature flags | 3 | 10 | 100 | Unlimited |
-| User tracking | Unlimited | Unlimited | Unlimited | Unlimited |
-| Web Vitals | ✓ | ✓ | ✓ | ✓ |
-| Geographic maps | ✓ | ✓ | ✓ | ✓ |
-| Retention | ✓ | ✓ | ✓ | ✓ |
-| Error tracking | — | ✓ | ✓ | ✓ |
-| Databunny chat | ✓ | ✓ | ✓ | ✓ |
-| Target groups | Unlimited | Unlimited | Unlimited | Unlimited |
-| Team members | Unlimited | Unlimited | Unlimited | Unlimited |
+| | Free | Hobby | Pro | Business | Scale | Enterprise |
+| --- | --- | --- | --- | --- | --- | --- |
+| Funnels | 1 | 5 | 50 | Unlimited | Unlimited | Unlimited |
+| Goals | 2 | 10 | Unlimited | Unlimited | Unlimited | Unlimited |
+| Feature flags | 3 | 10 | 100 | Unlimited | Unlimited | Unlimited |
+| Error tracking | — | Included | Included | Included | Included | Included |
+| SSO and audit logs | — | — | — | — | — | Included |
+
+All plans include unlimited websites and team members, user tracking, Web Vitals, geographic maps, uptime monitoring, and API access.
 
 ## Investigations — monthly allowance, $1 per extra
 
-Business includes 100 completed investigations per month; Scale includes 500. Each additional completed investigation costs $1 and is billed monthly. Clarifications of the same question and verification after applying a proposed repair are included. New questions and separate fresh analysis are new investigations. Failed or incomplete work does not use your allowance. Automatic scheduled investigations remain exclusive to the invite-only Business and Scale plans.
+Business includes 100 completed investigations per month; Scale includes 500. Each additional completed investigation costs $1 and is billed monthly. Clarifications of the same question and verification after applying a proposed repair are included. New questions and separate fresh analysis are new investigations. Failed or incomplete work does not use your allowance. Business and Scale require an invitation.
 
 For example, 125 completed investigations on Business use the 100 included investigations and add $25 to the monthly bill. The total is $324 before event overage and taxes.
 
 ## Enterprise
 
-Custom contracts for volume, compliance, onboarding, and support. Use [databuddy.cc/pricing](https://www.databuddy.cc/pricing) or your account contact.
+Custom volume, security, and support. [Contact us](https://www.databuddy.cc/contact).
 
 ## Definitions
 
@@ -66,6 +62,8 @@ Custom contracts for volume, compliance, onboarding, and support. Use [databuddy
 
 ## Links
 
-- Sign up: [app.databuddy.cc/register](https://app.databuddy.cc/register)
+- Free, Hobby, and Pro: [Get started](https://app.databuddy.cc/register)
+- Business: [Request access](https://www.databuddy.cc/contact?topic=intelligence-business)
+- Scale: [Request access](https://www.databuddy.cc/contact?topic=intelligence-scale)
 - Website: [databuddy.cc/pricing](https://www.databuddy.cc/pricing)
 - JSON API: [databuddy.cc/api/pricing](https://www.databuddy.cc/api/pricing)

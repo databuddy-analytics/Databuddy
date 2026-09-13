@@ -1,9 +1,6 @@
 import { flush, track } from "@databuddy/sdk";
 
-type PricingPlacement =
-	| "pricing_comparison_table"
-	| "pricing_estimator"
-	| "pricing_intelligence";
+type PricingPlacement = "pricing_cards" | "pricing_estimator";
 
 export function trackPricingPlanClick(
 	planId: string,

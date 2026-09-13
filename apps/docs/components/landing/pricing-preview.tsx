@@ -1,6 +1,5 @@
 "use client";
 
-import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
 import { ArrowRightIcon } from "@databuddy/ui/icons";
 import Link from "next/link";
 import { Estimator } from "@/app/(home)/pricing/_pricing/estimator";
@@ -24,10 +23,8 @@ export function PricingPreview() {
 					</span>
 				</h2>
 				<p className="mt-3 max-w-2xl text-pretty text-muted-foreground text-sm sm:px-0 sm:text-base lg:text-lg">
-					Estimate your analytics plan from your event volume, then compare plan
-					capabilities. Business and Scale include monthly investigations, with
-					${INVESTIGATION_USAGE.priceUsd} per additional investigation billed
-					monthly.
+					Estimate your monthly bill from events and investigations. Databunny
+					chat is included.
 				</p>
 			</div>
 

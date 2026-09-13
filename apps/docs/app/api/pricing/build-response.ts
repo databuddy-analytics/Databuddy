@@ -28,18 +28,9 @@ const PUBLIC_DOCS_ORIGIN =
 	process.env.SITE_URL ||
 	"https://www.databuddy.cc";
 
-function toIncludedUsage(usage: number | "inf"): number | "unlimited" {
-	if (usage === "inf") {
-		return "unlimited";
-	}
-	return usage;
-}
-
 function mapRawPlans() {
 	return RAW_PLANS.map((plan) => {
-		const priceItem = plan.items.find((i) => i.type === "price") as
-			| Extract<(typeof plan.items)[number], { type: "price" }>
-			| undefined;
+		const priceItem = plan.items.find((i) => i.type === "price");
 
 		const billingModel =
 			plan.id === "enterprise"
@@ -68,7 +59,7 @@ function mapRawPlans() {
 				id: f.feature_id,
 				name: f.feature.name,
 				type: "metered" as const,
-				included: toIncludedUsage(f.included_usage),
+				included: f.included_usage === "inf" ? "unlimited" : f.included_usage,
 				interval: f.interval,
 				...(f.type === "priced_feature" && typeof f.price === "number"
 					? {

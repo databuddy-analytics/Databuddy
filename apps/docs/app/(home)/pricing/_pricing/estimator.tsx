@@ -158,8 +158,7 @@ export function Estimator({ plans }: Props) {
 									value={monthlyInvestigations}
 								/>
 								<p className="mt-2 text-muted-foreground text-xs">
-									Available on invite-only Business and Scale. Same-question
-									clarifications and repair verification are included.
+									Business and Scale require an invitation.
 								</p>
 							</div>
 						</div>
@@ -268,8 +267,7 @@ export function Estimator({ plans }: Props) {
 										</span>
 									</div>
 									<p className="mt-2 text-muted-foreground text-xs">
-										Includes plan price, event overage and additional
-										investigations billed monthly. Databunny chat is included.
+										Estimate before taxes. Databunny chat is included.
 									</p>
 									<div className="mt-4 flex justify-end">
 										<SciFiButton asChild>
@@ -298,15 +296,18 @@ export function Estimator({ plans }: Props) {
 					</div>
 
 					{/* Overage tiers table */}
-					<details className="mt-6 text-muted-foreground text-sm">
+					<details
+						className="mt-6 scroll-mt-24 text-muted-foreground text-sm"
+						id="event-rates"
+					>
 						<summary className="cursor-pointer select-none">
-							View overage tier rates
+							View rates for extra events
 						</summary>
 						{tiers.length > 0 ? (
 							<div className="mt-2 overflow-x-auto rounded border border-border bg-card/70 backdrop-blur-sm">
 								<table className="w-full text-left">
 									<caption className="sr-only">
-										Overage tier rates table
+										Rates for cumulative events above the monthly allowance
 									</caption>
 									<thead className="border-border border-b bg-background/60">
 										<tr>
@@ -314,13 +315,13 @@ export function Estimator({ plans }: Props) {
 												className="px-3 py-2 text-foreground text-xs"
 												scope="col"
 											>
-												From
+												Extra events from
 											</th>
 											<th
 												className="px-3 py-2 text-foreground text-xs"
 												scope="col"
 											>
-												To
+												Through
 											</th>
 											<th
 												className="px-3 py-2 text-foreground text-xs"
@@ -332,7 +333,9 @@ export function Estimator({ plans }: Props) {
 									</thead>
 									<tbody>
 										{tiers.map((tier, i, arr) => {
-											const from = i === 0 ? 0 : (arr[i - 1].to as number) + 1;
+											const previous = arr[i - 1]?.to;
+											const from =
+												typeof previous === "number" ? previous + 1 : 1;
 											const to =
 												tier.to === "inf"
 													? "∞"

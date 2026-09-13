@@ -214,8 +214,3 @@ export const RAW_PLANS: RawPlan[] = [
 		items: [{ type: "enterprise" }],
 	},
 ];
-
-export const INTELLIGENCE_PLAN_TABLE_IDS = [
-	"intelligence",
-	"intelligence_scale",
-] as const;

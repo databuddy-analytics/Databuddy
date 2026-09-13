@@ -1,9 +1,8 @@
 "use client";
 
 import { Footer } from "@/components/footer";
-import { AiPricingSummary } from "./_pricing/ai-pricing-summary";
 import { Estimator } from "./_pricing/estimator";
-import { IntelligenceSection } from "./_pricing/intelligence-section";
+import { PlanCards } from "./_pricing/plan-cards";
 import { normalizePlans } from "./_pricing/normalize";
 import { PlansComparisonTable } from "./_pricing/table";
 import type { NormalizedPlan } from "./_pricing/types";
@@ -26,11 +25,9 @@ export default function PricingPage() {
 					</p>
 				</header>
 
-				<AiPricingSummary plans={RAW_PLANS} />
+				<PlanCards plans={PLANS} />
 
 				<PlansComparisonTable plans={PLANS} />
-
-				<IntelligenceSection />
 
 				<Estimator plans={PLANS} />
 
