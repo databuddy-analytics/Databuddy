@@ -2,6 +2,7 @@ import { CheckIcon, XMarkIcon as XIcon } from "@databuddy/ui/icons";
 import Link from "next/link";
 import { SciFiButton } from "@/components/landing/scifi-btn";
 import { INTELLIGENCE_PLAN_TABLE_IDS } from "../data";
+import { formatMoney } from "./estimator-utils";
 import { GatedFeaturePricingRows } from "./gated-feature-rows";
 import { trackPricingPlanClick } from "./track-pricing";
 import type { NormalizedPlan } from "./types";
@@ -77,15 +78,8 @@ export function PlansComparisonTable({ plans: allPlans }: Props) {
 										</span>
 									) : p.priceMonthly === 0 ? (
 										"Free"
-									) : p.id === "hobby" ? (
-										<div className="flex flex-col items-center gap-0.5">
-											<span className="font-medium">$10/mo</span>
-											<span className="text-muted-foreground text-xs">
-												first month $2
-											</span>
-										</div>
 									) : (
-										`$${p.priceMonthly.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+										formatMoney(p.priceMonthly)
 									)}
 								</td>
 							))}
@@ -106,42 +100,21 @@ export function PlansComparisonTable({ plans: allPlans }: Props) {
 								</td>
 							))}
 						</tr>
-						{/* AI credits per month */}
 						<tr className="border-border border-t hover:bg-card/10">
 							<td className="px-4 py-3 text-muted-foreground text-sm sm:px-5 lg:px-6">
-								AI credits / month
+								Databunny chat
 							</td>
-							{plans.map((p) => (
+							{plans.map((plan) => (
 								<td
-									className={planComparisonTdClass(p.id)}
-									key={`credits-month-${p.id}`}
+									className={planComparisonTdClass(plan.id)}
+									key={`chat-${plan.id}`}
 								>
-									{p.id === "enterprise" ? (
+									{plan.chatIncluded === null ? (
 										"Custom"
-									) : p.agentCreditsMonthly == null ? (
-										<FeatureX />
+									) : plan.chatIncluded ? (
+										"Included"
 									) : (
-										Number(p.agentCreditsMonthly).toLocaleString()
-									)}
-								</td>
-							))}
-						</tr>
-						{/* Daily AI credit bonus */}
-						<tr className="border-border border-t hover:bg-card/10">
-							<td className="px-4 py-3 text-muted-foreground text-sm sm:px-5 lg:px-6">
-								Daily AI credit bonus
-							</td>
-							{plans.map((p) => (
-								<td
-									className={planComparisonTdClass(p.id)}
-									key={`credits-day-${p.id}`}
-								>
-									{p.id === "enterprise" ? (
-										"Custom"
-									) : p.agentCreditsDaily == null ? (
 										<FeatureX />
-									) : (
-										Number(p.agentCreditsDaily).toLocaleString()
 									)}
 								</td>
 							))}
@@ -308,12 +281,6 @@ export function PlansComparisonTable({ plans: allPlans }: Props) {
 					pageview, custom event, error, or Web Vital measurement. Feature flag
 					evaluations and uptime checks are free and don't count toward your
 					quota.
-				</p>
-				<p>
-					<span className="text-foreground">AI credits</span> pay for ordinary
-					Databunny chat and investigations on legacy billing terms. New
-					Business and Scale plans include monthly investigations; additional
-					investigations cost $1 each and are billed monthly.
 				</p>
 				<p>
 					<span className="text-foreground">Unlimited seats & sites.</span> Team

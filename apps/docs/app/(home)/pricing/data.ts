@@ -1,5 +1,4 @@
 import {
-	DATABUNNY_USAGE,
 	INVESTIGATION_ALLOWANCES,
 	INVESTIGATION_USAGE,
 } from "@databuddy/shared/billing";
@@ -46,20 +45,11 @@ export type RawItem =
 	  };
 
 export interface RawPlan {
+	chatIncluded: boolean | null;
 	id: string;
 	items: RawItem[];
 	name: string;
 }
-
-const AGENT_CREDITS_FEATURE: RawFeature = {
-	id: "agent_credits",
-	name: DATABUNNY_USAGE.name,
-	type: "single_use",
-	display: {
-		singular: "AI credit",
-		plural: DATABUNNY_USAGE.unit,
-	},
-};
 
 const INVESTIGATION_FEATURE: RawFeature = {
 	id: INVESTIGATION_USAGE.featureId,
@@ -99,6 +89,7 @@ const EVENT_TIERS = [
 export const RAW_PLANS: RawPlan[] = [
 	{
 		id: "free",
+		chatIncluded: true,
 		name: "Free",
 		items: [
 			{
@@ -109,18 +100,11 @@ export const RAW_PLANS: RawPlan[] = [
 				included_usage: 10_000,
 				interval: "month",
 			},
-			{
-				type: "feature",
-				feature_id: "agent_credits",
-				feature_type: "single_use",
-				feature: AGENT_CREDITS_FEATURE,
-				included_usage: 10,
-				interval: "month",
-			},
 		],
 	},
 	{
 		id: "hobby",
+		chatIncluded: true,
 		name: "Hobby",
 		items: [
 			{
@@ -143,26 +127,11 @@ export const RAW_PLANS: RawPlan[] = [
 				})),
 				usage_model: "pay_per_use",
 			},
-			{
-				type: "feature",
-				feature_id: "agent_credits",
-				feature_type: "single_use",
-				feature: AGENT_CREDITS_FEATURE,
-				included_usage: 20,
-				interval: "month",
-			},
-			{
-				type: "feature",
-				feature_id: "agent_credits",
-				feature_type: "single_use",
-				feature: AGENT_CREDITS_FEATURE,
-				included_usage: 1,
-				interval: "day",
-			},
 		],
 	},
 	{
 		id: "pro",
+		chatIncluded: true,
 		name: "Pro",
 		items: [
 			{
@@ -182,26 +151,11 @@ export const RAW_PLANS: RawPlan[] = [
 				tiers: EVENT_TIERS,
 				usage_model: "pay_per_use",
 			},
-			{
-				type: "feature",
-				feature_id: "agent_credits",
-				feature_type: "single_use",
-				feature: AGENT_CREDITS_FEATURE,
-				included_usage: 350,
-				interval: "month",
-			},
-			{
-				type: "feature",
-				feature_id: "agent_credits",
-				feature_type: "single_use",
-				feature: AGENT_CREDITS_FEATURE,
-				included_usage: 5,
-				interval: "day",
-			},
 		],
 	},
 	{
 		id: "intelligence",
+		chatIncluded: true,
 		name: "Business",
 		items: [
 			investigationAllowance(INVESTIGATION_ALLOWANCES.intelligence),
@@ -224,18 +178,11 @@ export const RAW_PLANS: RawPlan[] = [
 				),
 				usage_model: "pay_per_use",
 			},
-			{
-				type: "feature",
-				feature_id: "agent_credits",
-				feature_type: "single_use",
-				feature: AGENT_CREDITS_FEATURE,
-				included_usage: 1500,
-				interval: "month",
-			},
 		],
 	},
 	{
 		id: "intelligence_scale",
+		chatIncluded: true,
 		name: "Scale",
 		items: [
 			investigationAllowance(INVESTIGATION_ALLOWANCES.intelligence_scale),
@@ -258,18 +205,11 @@ export const RAW_PLANS: RawPlan[] = [
 				),
 				usage_model: "pay_per_use",
 			},
-			{
-				type: "feature",
-				feature_id: "agent_credits",
-				feature_type: "single_use",
-				feature: AGENT_CREDITS_FEATURE,
-				included_usage: 5000,
-				interval: "month",
-			},
 		],
 	},
 	{
 		id: "enterprise",
+		chatIncluded: null,
 		name: "Enterprise",
 		items: [{ type: "enterprise" }],
 	},

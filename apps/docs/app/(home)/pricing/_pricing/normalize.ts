@@ -44,23 +44,6 @@ function getEventsInfo(items: RawItem[]): {
 	};
 }
 
-function getAgentCreditsByInterval(
-	items: RawItem[],
-	interval: "day" | "month"
-): number | null {
-	for (const item of items) {
-		const isAgent =
-			(item.type === "feature" || item.type === "priced_feature") &&
-			item.feature_id === "agent_credits" &&
-			item.interval === interval &&
-			typeof item.included_usage === "number";
-		if (isAgent) {
-			return item.included_usage as number;
-		}
-	}
-	return null;
-}
-
 export function normalizePlans(raw: RawPlan[]): NormalizedPlan[] {
 	return raw.map((plan) => {
 		if (plan.id === "enterprise") {
@@ -72,16 +55,13 @@ export function normalizePlans(raw: RawPlan[]): NormalizedPlan[] {
 				includedInvestigationsMonthly: null,
 				investigationPrice: null,
 				eventTiers: null,
-				agentCreditsMonthly: null,
-				agentCreditsDaily: null,
+				chatIncluded: plan.chatIncluded,
 			};
 		}
 
 		const priceMonthly = getPriceMonthly(plan.items);
 		const { included: includedEventsMonthly, tiers: eventTiers } =
 			getEventsInfo(plan.items);
-		const agentCreditsMonthly = getAgentCreditsByInterval(plan.items, "month");
-		const agentCreditsDaily = getAgentCreditsByInterval(plan.items, "day");
 		const investigations = plan.items.find(
 			(item) =>
 				item.type === "priced_feature" &&
@@ -103,8 +83,7 @@ export function normalizePlans(raw: RawPlan[]): NormalizedPlan[] {
 					? (investigations.price ?? null)
 					: null,
 			eventTiers,
-			agentCreditsMonthly,
-			agentCreditsDaily,
+			chatIncluded: plan.chatIncluded,
 		};
 	});
 }

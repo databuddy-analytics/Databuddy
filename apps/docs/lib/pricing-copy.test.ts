@@ -9,6 +9,7 @@ import { AiPricingSummary } from "@/app/(home)/pricing/_pricing/ai-pricing-summa
 import { Estimator } from "@/app/(home)/pricing/_pricing/estimator";
 import { calculateTotalCost, selectBestPlan } from "@/app/(home)/pricing/_pricing/best-plan";
 import { IntelligenceSection } from "@/app/(home)/pricing/_pricing/intelligence-section";
+import { PlansComparisonTable } from "@/app/(home)/pricing/_pricing/table";
 import { normalizePlans } from "@/app/(home)/pricing/_pricing/normalize";
 import { RAW_PLANS } from "@/app/(home)/pricing/data";
 import { StructuredData } from "@/components/structured-data";
@@ -134,16 +135,15 @@ describe("public pricing copy", () => {
 			expect(markdown).toContain(
 				included(planId, "events", "month")?.toLocaleString() ?? ""
 			);
-			expect(markdown).toContain(
-				`${included(planId, "agent_credits", "month")?.toLocaleString()} / month`
-			);
 		}
 
 		expect(markdown).not.toContain("Assistant messages");
 		expect(markdown).not.toContain("Agent credits");
 		expect(markdown).not.toContain("Databunny usage");
 		expect(markdown).not.toContain("usage units");
-		expect(markdown).toContain("AI credits");
+		expect(markdown).not.toContain("AI credits");
+		expect(markdown).not.toContain("investigation credits");
+		expect(markdown).toContain("Databunny chat");
 		expect(markdown).toContain("Invite only");
 		expect(markdown).toContain("$1 per additional investigation, billed monthly");
 		expect(markdown).toContain("125 completed investigations on Business use the 100 included investigations and add $25");
@@ -151,7 +151,7 @@ describe("public pricing copy", () => {
 	});
 	it("publishes monthly allowances and the flat extra price without event-tier or prepaid semantics", () => {
 		const response = buildPricingApiPayload(new Request("https://www.databuddy.cc/api/pricing"));
-		expect(response.schemaVersion).toBe(2);
+		expect(response.schemaVersion).toBe(3);
 		expect(response.investigations).toMatchObject({
 			featureId: "investigation_runs", pricePerAdditionalInvestigation: 1,
 			billingModel: "usage_based", interval: "month", includedByPlan: { intelligence: 100, intelligence_scale: 500 },
@@ -173,7 +173,6 @@ describe("public pricing copy", () => {
 			expect(response.plans.find((plan) => plan.id === id)?.features.find((feature) => feature.id === "investigation_runs")).toBeUndefined();
 		}
 		expect(response.investigations.description).toContain("verification after applying a proposed repair are included");
-		expect(response.notes.legacyCredits).toContain("preserved");
 	});
 
 	it.each([
@@ -207,7 +206,7 @@ describe("public pricing copy", () => {
 		const cards = renderToStaticMarkup(createElement(IntelligenceSection));
 		for (const [id, allowance] of Object.entries(INVESTIGATION_ALLOWANCES)) {
 			const plans = RAW_PLANS.filter((plan) => plan.id === id);
-			expect(cards).toContain(`${allowance} completed investigations / month`);
+			expect(cards).toContain(`${allowance} investigations / month`);
 			const summary = renderToStaticMarkup(createElement(AiPricingSummary, { plans }));
 			expect(summary).toContain(`Investigations: ${allowance} included per month`);
 			expect(summary).toContain("Additional investigations: $1 per investigation, billed monthly");
@@ -222,7 +221,33 @@ describe("public pricing copy", () => {
 			expect(structured).toContain(`"minValue":${allowance + 1},"unitText":"total monthly completed investigations"`);
 			expect(structured).toContain('"unitText":"per additional completed investigation (billed monthly)"');
 		}
-		expect(cards).toContain("$1 per additional investigation, billed monthly");
+		expect(cards).toContain("$1 per extra investigation");
 		expect(cards).not.toContain("purchased separately");
+	});
+
+	it("publishes included chat as a capability without customer credit grants or prices", () => {
+		const response = buildPricingApiPayload(new Request("https://www.databuddy.cc/api/pricing"));
+		for (const plan of response.plans.filter((entry) => entry.id !== "enterprise")) {
+			const chat = plan.features.find((feature) => feature.id === "databunny_chat");
+			expect(chat).toEqual({ id: "databunny_chat", name: "Databunny chat", type: "boolean", included: true, interval: null });
+			expect(plan.features.some((feature) => feature.id === "agent_credits")).toBe(false);
+		}
+		expect(response).not.toHaveProperty("notes.legacyCredits");
+		const structured = renderToStaticMarkup(createElement(StructuredData, { page: { title: "Pricing", url: "/pricing" }, elements: [{ type: "softwareOffers", plans: RAW_PLANS }] }));
+		expect(structured).toContain('"name":"Databunny chat","value":"Included"');
+		const table = renderToStaticMarkup(createElement(PlansComparisonTable, { plans: normalizePlans(RAW_PLANS) }));
+		expect(table).toContain("Databunny chat");
+		expect(table).toContain("Included");
+		expect(table).toContain("$9.99");
+		expect(table).toContain("$49.99");
+		expect(table).not.toContain("first month $2");
+		const summary = renderToStaticMarkup(createElement(AiPricingSummary, { plans: RAW_PLANS }));
+		const cards = renderToStaticMarkup(createElement(IntelligenceSection));
+		for (const output of [structured, table, summary, cards]) {
+			expect(output).not.toContain("AI credits");
+			expect(output).not.toContain("investigation credits");
+			expect(output).not.toContain("prepaid");
+			expect(output).not.toContain("legacy billing");
+		}
 	});
 });

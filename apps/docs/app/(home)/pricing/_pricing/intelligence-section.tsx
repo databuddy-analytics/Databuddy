@@ -17,14 +17,13 @@ const INTELLIGENCE_TIERS = [
 		name: "Business",
 		contactTopic: INTELLIGENCE_CONTACT_TOPICS[INTELLIGENCE_PLAN_IDS.ANALYST],
 		price: "$299",
-		description:
-			"An always-on product investigator for founders and engineers.",
+		description: "Investigate changes in your product.",
 		features: [
-			`${INVESTIGATION_ALLOWANCES.intelligence} completed investigations / month`,
-			"1,500 AI credits / month for chat",
+			`${INVESTIGATION_ALLOWANCES.intelligence} investigations / month`,
+			"Databunny chat included",
 			"2,000,000 events included / month",
 			"Scheduled investigations across all your sites",
-			`$${INVESTIGATION_USAGE.priceUsd} per additional investigation, billed monthly`,
+			`$${INVESTIGATION_USAGE.priceUsd} per extra investigation`,
 			"Unlimited funnels, goals, and feature flags",
 			"Tiered event overage",
 		],
@@ -34,14 +33,13 @@ const INTELLIGENCE_TIERS = [
 		name: "Scale",
 		contactTopic: INTELLIGENCE_CONTACT_TOPICS[INTELLIGENCE_PLAN_IDS.DATA_TEAM],
 		price: "$799",
-		description:
-			"More investigation capacity for products with higher traffic and faster release cycles.",
+		description: "For teams running more investigations.",
 		features: [
-			`${INVESTIGATION_ALLOWANCES.intelligence_scale} completed investigations / month`,
-			"5,000 AI credits / month for chat",
+			`${INVESTIGATION_ALLOWANCES.intelligence_scale} investigations / month`,
+			"Databunny chat included",
 			"10,000,000 events included / month",
 			"Scheduled investigations across all your sites",
-			`$${INVESTIGATION_USAGE.priceUsd} per additional investigation, billed monthly`,
+			`$${INVESTIGATION_USAGE.priceUsd} per extra investigation`,
 			"Unlimited funnels, goals, and feature flags",
 			"Tiered event overage",
 		],
@@ -60,10 +58,6 @@ export function IntelligenceSection() {
 						Invite only
 					</span>
 				</div>
-				<p className="mt-1 max-w-2xl text-muted-foreground text-sm sm:text-base">
-					{INVESTIGATION_USAGE.description} Access is invite only while we
-					onboard teams personally.
-				</p>
 			</div>
 			<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 				{INTELLIGENCE_TIERS.map((tier) => (
@@ -109,6 +103,11 @@ export function IntelligenceSection() {
 					</div>
 				))}
 			</div>
+			<p className="mt-4 text-muted-foreground text-sm">
+				Same-question clarifications and repair verification are included.
+				Extras are billed monthly; failed or incomplete work does not use your
+				allowance.
+			</p>
 		</section>
 	);
 }

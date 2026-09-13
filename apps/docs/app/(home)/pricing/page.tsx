@@ -1,10 +1,5 @@
 "use client";
 
-import {
-	INVESTIGATION_ALLOWANCES,
-	INVESTIGATION_USAGE,
-} from "@databuddy/shared/billing";
-
 import { Footer } from "@/components/footer";
 import { AiPricingSummary } from "./_pricing/ai-pricing-summary";
 import { Estimator } from "./_pricing/estimator";
@@ -26,35 +21,14 @@ export default function PricingPage() {
 						Find the plan that fits your product.
 					</h1>
 					<p className="mx-auto max-w-2xl text-pretty text-muted-foreground text-sm sm:text-base">
-						Compare analytics plans by usage and capabilities. Business and
-						Scale include monthly investigations, with $
-						{INVESTIGATION_USAGE.priceUsd} per additional investigation.
+						Databunny chat is included. Business and Scale add monthly
+						investigations.
 					</p>
 				</header>
 
 				<AiPricingSummary plans={RAW_PLANS} />
 
 				<PlansComparisonTable plans={PLANS} />
-
-				<section
-					aria-label="Investigation pricing"
-					className="mb-10 border border-border bg-card p-6"
-				>
-					<h2 className="font-semibold text-2xl">
-						Monthly investigations, ${INVESTIGATION_USAGE.priceUsd} per extra
-					</h2>
-					<p className="mt-2 text-muted-foreground">
-						{INVESTIGATION_USAGE.description}
-					</p>
-					<p className="mt-2 text-muted-foreground text-sm">
-						Business includes {INVESTIGATION_ALLOWANCES.intelligence} and Scale
-						includes {INVESTIGATION_ALLOWANCES.intelligence_scale} completed
-						investigations per month. Additional investigations are billed
-						monthly. Failed or incomplete work does not use your allowance.
-						Existing credit and prepaid investigation balances retain their
-						original terms. Access remains invite only.
-					</p>
-				</section>
 
 				<IntelligenceSection />
 

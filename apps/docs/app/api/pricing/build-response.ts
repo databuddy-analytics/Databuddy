@@ -1,4 +1,5 @@
 import {
+	DATABUNNY_CHAT,
 	INVESTIGATION_ALLOWANCES,
 	INVESTIGATION_USAGE,
 } from "@databuddy/shared/billing";
@@ -10,6 +11,18 @@ import {
 import { RAW_PLANS } from "@/app/(home)/pricing/data";
 
 const APP_SIGNUP = "https://app.databuddy.cc/register";
+
+interface PricingFeature {
+	id: string;
+	included: boolean | number | "unlimited";
+	interval: "day" | "month" | null;
+	name: string;
+	overageBillingInterval?: "month";
+	overagePricePerUnit?: number;
+	overageTierBasis?: "total_monthly_events";
+	overageTiers?: Array<{ upTo: number | "unlimited"; pricePerUnit: number }>;
+	type: "boolean" | "metered";
+}
 const PUBLIC_DOCS_ORIGIN =
 	process.env.NEXT_PUBLIC_SITE_URL ||
 	process.env.SITE_URL ||
@@ -42,7 +55,7 @@ function mapRawPlans() {
 					? 0
 					: (priceItem?.price ?? 0);
 
-		const features = plan.items
+		const features: PricingFeature[] = plan.items
 			.filter(
 				(
 					i
@@ -54,6 +67,7 @@ function mapRawPlans() {
 			.map((f) => ({
 				id: f.feature_id,
 				name: f.feature.name,
+				type: "metered" as const,
 				included: toIncludedUsage(f.included_usage),
 				interval: f.interval,
 				...(f.type === "priced_feature" && typeof f.price === "number"
@@ -72,6 +86,15 @@ function mapRawPlans() {
 						}
 					: {}),
 			}));
+		if (plan.chatIncluded !== null) {
+			features.unshift({
+				id: DATABUNNY_CHAT.featureId,
+				name: DATABUNNY_CHAT.name,
+				type: "boolean",
+				included: plan.chatIncluded,
+				interval: null,
+			});
+		}
 
 		return {
 			id: plan.id,
@@ -101,9 +124,9 @@ export function buildPricingApiPayload(request: Request) {
 	const url = new URL(request.url);
 
 	return {
-		schemaVersion: 2 as const,
+		schemaVersion: 3 as const,
 		meta: {
-			description: "Public billing and entitlements (same source as /pricing).",
+			description: "Current public plans (same source as /pricing).",
 			currency: "USD" as const,
 		},
 		links: {
@@ -123,13 +146,6 @@ export function buildPricingApiPayload(request: Request) {
 		},
 		plans: mapRawPlans(),
 		entitlements: buildEntitlements(),
-		notes: {
-			enterpriseCheckoutUsesEntitlementsPlanId: "scale" as const,
-			legacyCredits:
-				"Existing credit balances and allowances are preserved. Existing subscriptions retain legacy investigation terms until they switch billing terms. AI credits continue to pay for ordinary chat.",
-			legacyInvestigations:
-				"Existing prepaid investigation balances retain their original terms. Monthly investigation allowances and additional usage billing apply to the new Business and Scale plans.",
-		},
 		signUpUrl: APP_SIGNUP,
 		pricingPageUrl: `${PUBLIC_DOCS_ORIGIN}/pricing`,
 		currency: "USD" as const,

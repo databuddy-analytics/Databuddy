@@ -7,16 +7,12 @@ import { FaqSection } from "@/components/landing/faq-section";
 export const pricingFaqItems = [
 	{
 		question: "How many investigations are included?",
-		answer: `Business includes ${INVESTIGATION_ALLOWANCES.intelligence} completed investigations per month and Scale includes ${INVESTIGATION_ALLOWANCES.intelligence_scale}. Additional investigations cost $${INVESTIGATION_USAGE.priceUsd} each and are billed monthly. Failed or incomplete work does not use your allowance. Access is invite only.`,
+		answer: `Business includes ${INVESTIGATION_ALLOWANCES.intelligence} investigations per month; Scale includes ${INVESTIGATION_ALLOWANCES.intelligence_scale}. Extras cost $${INVESTIGATION_USAGE.priceUsd} each, billed monthly. Only completed investigations count.`,
 	},
 	{
 		question: "What is included in one investigation?",
-		answer: INVESTIGATION_USAGE.description,
-	},
-	{
-		question: "What happens to my existing credits?",
 		answer:
-			"Your existing credits, prepaid investigations and plan allowances retain their original terms. Existing subscriptions retain legacy investigation billing until you switch billing terms. AI credits continue to pay for ordinary chat; they are not converted into monthly investigations.",
+			"One completed answer, including same-question clarifications and verification of the proposed repair. A new question or fresh analysis starts another investigation.",
 	},
 	{
 		question: "What happens when I hit my event limit?",
@@ -26,7 +22,7 @@ export const pricingFaqItems = [
 	{
 		question: "Is there a free trial?",
 		answer:
-			"The Free plan has no trial period and requires no credit card. It includes 10,000 events and 10 AI credits per month for ordinary Databunny chat. Monthly investigations are available on the invite-only Business and Scale plans.",
+			"The Free plan has no trial period and requires no credit card. It includes 10,000 events per month and Databunny chat. Monthly investigations are available on the invite-only Business and Scale plans.",
 	},
 	{
 		question: "Can I switch plans?",

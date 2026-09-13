@@ -269,8 +269,7 @@ export function Estimator({ plans }: Props) {
 									</div>
 									<p className="mt-2 text-muted-foreground text-xs">
 										Includes plan price, event overage and additional
-										investigations billed monthly. Ordinary chat purchases are
-										separate.
+										investigations billed monthly. Databunny chat is included.
 									</p>
 									<div className="mt-4 flex justify-end">
 										<SciFiButton asChild>

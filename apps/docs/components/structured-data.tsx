@@ -81,6 +81,14 @@ function planToOffer(plan: RawPlan, baseUrl: string) {
 				i.included_usage === "inf" ? "Unlimited" : String(i.included_usage),
 			unitText: i.interval ? `per ${i.interval}` : undefined,
 		}));
+	if (plan.chatIncluded !== null) {
+		included.unshift({
+			"@type": "PropertyValue",
+			name: "Databunny chat",
+			value: plan.chatIncluded ? "Included" : "Not included",
+			unitText: undefined,
+		});
+	}
 
 	// Overage & add-ons → priceSpecification[]
 	const priceSpecs: any[] = [];

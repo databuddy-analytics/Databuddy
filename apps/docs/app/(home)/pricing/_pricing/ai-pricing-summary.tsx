@@ -1,12 +1,12 @@
-import {
-	DATABUNNY_USAGE,
-	INVESTIGATION_USAGE,
-} from "@databuddy/shared/billing";
+import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
 import type { RawPlan } from "../data";
 import { formatTierRate } from "./estimator-utils";
 
 function buildPlanSummary(plan: RawPlan): string {
 	const lines: string[] = [];
+	if (plan.chatIncluded) {
+		lines.push("Databunny chat: included");
+	}
 
 	const priceItem = plan.items.find((i) => i.type === "price");
 	if (priceItem && priceItem.type === "price") {
@@ -71,8 +71,6 @@ export function AiPricingSummary({ plans }: { plans: RawPlan[] }) {
 		"Machine-readable version: https://www.databuddy.cc/api/pricing",
 		"",
 		INVESTIGATION_USAGE.description,
-		"Business and Scale include monthly investigation allowances. Existing prepaid investigation balances retain their original terms.",
-		DATABUNNY_USAGE.description,
 		summary,
 		"",
 		"Sign up: https://app.databuddy.cc/register",
