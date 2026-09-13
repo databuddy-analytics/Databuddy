@@ -1,7 +1,14 @@
-import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
+import {
+	INVESTIGATION_ALLOWANCES,
+	INVESTIGATION_USAGE,
+} from "@databuddy/shared/billing";
 import { FaqSection } from "@/components/landing/faq-section";
 
 export const pricingFaqItems = [
+	{
+		question: "How many investigations are included?",
+		answer: `Business includes ${INVESTIGATION_ALLOWANCES.intelligence} completed investigations per month and Scale includes ${INVESTIGATION_ALLOWANCES.intelligence_scale}. Additional investigations cost $${INVESTIGATION_USAGE.priceUsd} each and are billed monthly. Failed or incomplete work does not use your allowance. Access is invite only.`,
+	},
 	{
 		question: "What is included in one investigation?",
 		answer: INVESTIGATION_USAGE.description,
@@ -9,7 +16,7 @@ export const pricingFaqItems = [
 	{
 		question: "What happens to my existing credits?",
 		answer:
-			"Your existing credits and plan allowances are preserved. Existing subscriptions retain legacy investigation billing until you buy $1 investigations or switch to a new plan version. After opting in, AI credits continue to pay for ordinary chat; they are not converted into investigation units.",
+			"Your existing credits, prepaid investigations and plan allowances retain their original terms. Existing subscriptions retain legacy investigation billing until you switch billing terms. AI credits continue to pay for ordinary chat; they are not converted into monthly investigations.",
 	},
 	{
 		question: "What happens when I hit my event limit?",
@@ -18,7 +25,8 @@ export const pricingFaqItems = [
 	},
 	{
 		question: "Is there a free trial?",
-		answer: `The Free plan has no trial period and requires no credit card. It includes 10,000 events and 10 AI credits per month for ordinary Databunny chat. Investigations remain invite only and are purchased separately at $${INVESTIGATION_USAGE.priceUsd} per completed investigation.`,
+		answer:
+			"The Free plan has no trial period and requires no credit card. It includes 10,000 events and 10 AI credits per month for ordinary Databunny chat. Monthly investigations are available on the invite-only Business and Scale plans.",
 	},
 	{
 		question: "Can I switch plans?",
