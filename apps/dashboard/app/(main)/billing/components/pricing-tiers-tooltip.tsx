@@ -8,14 +8,12 @@ import { formatLocaleNumber } from "@/lib/format-locale-number";
 interface PricingTiersTooltipProps {
 	billingUnits?: number;
 	included?: number;
-	showText?: boolean;
 	tiers: { amount: number; to: number | "inf" }[];
 }
 
 export function PricingTiersTooltip({
 	billingUnits = 1,
 	included = 0,
-	showText = true,
 	tiers,
 }: PricingTiersTooltipProps) {
 	const paidTiers = tiers.filter(
@@ -32,7 +30,7 @@ export function PricingTiersTooltip({
 						variant="ghost"
 					>
 						<InfoIcon size={12} />
-						{showText && "Extra event rates"}
+						Extra event rates
 					</Button>
 				}
 			/>

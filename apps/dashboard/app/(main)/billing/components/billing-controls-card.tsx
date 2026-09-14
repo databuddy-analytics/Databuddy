@@ -114,11 +114,7 @@ export function BillingControlsCard() {
 					<>
 						<BillingRow
 							canEdit={canUserUpgrade}
-							actions={{
-								save: "Save changes",
-								turnOff: "Turn off auto top-up",
-								turnOn: "Turn on",
-							}}
+							turnOffLabel="Turn off auto top-up"
 							defaults={TOPUP_DEFAULTS}
 							description="Refill your legacy AI credits when they run low."
 							icon={<InfinityIcon size={16} />}
@@ -169,11 +165,7 @@ export function BillingControlsCard() {
 				)}
 				<BillingRow
 					canEdit={canUserUpgrade}
-					actions={{
-						save: "Save changes",
-						turnOff: "Turn off alert",
-						turnOn: "Turn on",
-					}}
+					turnOffLabel="Turn off alert"
 					defaults={ALERT_DEFAULTS}
 					description="Email me before I reach my monthly event allowance."
 					icon={<BellIcon size={16} />}
@@ -208,11 +200,7 @@ export function BillingControlsCard() {
 						<Divider />
 						<BillingRow
 							canEdit={canUserUpgrade}
-							actions={{
-								save: "Save changes",
-								turnOff: "Remove limit",
-								turnOn: "Turn on",
-							}}
+							turnOffLabel="Remove limit"
 							defaults={USAGE_LIMIT_DEFAULTS}
 							description={
 								includedChat
@@ -272,7 +260,6 @@ type FormLimits<T extends FormShape> = {
 };
 
 interface BillingRowProps<TForm extends FormShape> {
-	actions: { save: string; turnOff: string; turnOn: string };
 	canEdit: boolean;
 	children: (
 		form: TForm,
@@ -290,6 +277,7 @@ interface BillingRowProps<TForm extends FormShape> {
 	onSaved: () => void;
 	switchLabel: string;
 	title: string;
+	turnOffLabel: string;
 }
 
 function BillingRow<TForm extends FormShape>({
@@ -300,7 +288,7 @@ function BillingRow<TForm extends FormShape>({
 	title,
 	description,
 	switchLabel,
-	actions,
+	turnOffLabel,
 	messages,
 	onSave,
 	canEdit,
@@ -354,10 +342,10 @@ function BillingRow<TForm extends FormShape>({
 
 	const saveLabel =
 		wasEnabled && !enabled
-			? actions.turnOff
+			? turnOffLabel
 			: wasEnabled
-				? actions.save
-				: actions.turnOn;
+				? "Save changes"
+				: "Turn on";
 
 	return (
 		<section className="px-5 py-4">
