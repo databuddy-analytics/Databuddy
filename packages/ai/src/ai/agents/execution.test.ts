@@ -58,7 +58,7 @@ mock.module("../../lib/tracing", () => ({
 }));
 
 const {
-	ensureAgentCreditsAvailable,
+	getAgentBillingAccess,
 	isAgentBillingConfigured,
 	resolveAgentBillingCustomerId,
 	trackAgentUsage,
@@ -170,9 +170,9 @@ describe("resolveAgentBillingCustomerId", () => {
 	});
 });
 
-describe("ensureAgentCreditsAvailable", () => {
+describe("getAgentBillingAccess", () => {
 	it("logs the checked Autumn customer and balance", async () => {
-		const allowed = await ensureAgentCreditsAvailable("owner:org_slack");
+		const { allowed } = await getAgentBillingAccess("owner:org_slack");
 
 		expect(allowed).toBe(true);
 		expect(mockAutumnCheck).toHaveBeenCalledWith({
@@ -196,7 +196,7 @@ describe("ensureAgentCreditsAvailable", () => {
 	it("skips Autumn when billing is not configured", async () => {
 		delete process.env.AUTUMN_SECRET_KEY;
 
-		const allowed = await ensureAgentCreditsAvailable("self-hosted-user");
+		const { allowed } = await getAgentBillingAccess("self-hosted-user");
 
 		expect(allowed).toBe(true);
 		expect(mockAutumnCheck).not.toHaveBeenCalled();

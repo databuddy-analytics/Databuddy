@@ -33,7 +33,6 @@ export {
 } from "./ai/agents/types";
 export {
 	resolveAgentBillingCustomerId,
-	ensureAgentCreditsAvailable,
 	trackAgentUsageAndBill,
 } from "./ai/agents/execution";
 export {

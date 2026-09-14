@@ -168,12 +168,6 @@ export async function getAgentBillingAccess(
 	}
 }
 
-export async function ensureAgentCreditsAvailable(
-	billingCustomerId: string | null
-): Promise<boolean> {
-	return (await getAgentBillingAccess(billingCustomerId)).allowed;
-}
-
 function mergeAgentBillingFields(input: {
 	apiKeyId?: string | null;
 	apiKeyUserId?: string | null;

@@ -48,7 +48,7 @@ mock.module("@databuddy/rpc/organization", () => ({ getOrganizationOwnerId: asyn
 mock.module("../../lib/databuddy", () => ({ trackAgentEvent: events }));
 mock.module("../../lib/tracing", () => ({ captureError: errors, mergeWideEvent: wide }));
 
-const { getAgentBillingAccess, ensureAgentCreditsAvailable, trackAgentUsageAndBill } = await import("./execution");
+const { getAgentBillingAccess, trackAgentUsageAndBill } = await import("./execution");
 const usage = { inputTokens: 1000, outputTokens: 100 };
 const included = { id: "synthetic-flag", feature_id: DATABUNNY_CHAT.featureId, plan_id: "synthetic-plan", expires_at: null };
 
@@ -113,7 +113,7 @@ describe("included chat at the native Autumn boundary", () => {
 
 	it("denies exhausted legacy credits and rejects a missing billing owner", async () => {
 		allowed = false;
-		expect(await ensureAgentCreditsAvailable(customerId)).toBe(false);
+		expect((await getAgentBillingAccess(customerId)).allowed).toBe(false);
 		await expect(getAgentBillingAccess(null)).rejects.toThrow("billing customer is unavailable");
 		expect(requests).toHaveLength(2);
 	});
