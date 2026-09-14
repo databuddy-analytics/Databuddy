@@ -1,25 +1,15 @@
 import { resolveAgentBillingCustomerId } from "@databuddy/ai/agents/execution";
-import { and, db, eq, inArray, isNull, lt, or } from "@databuddy/db";
-import {
-	insightObservations,
-	investigationCharges,
-	type InvestigationBillingMode,
-} from "@databuddy/db/schema";
+import { createHash } from "node:crypto";
 import { MIN_AGENT_CREDIT_CHECK_BALANCE } from "@databuddy/shared/agent-credits";
 import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
 import { Autumn, HTTPClient } from "autumn-js";
-import { randomUUIDv7 } from "bun";
-import { captureInsightsError } from "./lib/evlog-insights";
 
-type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
-type Charge = typeof investigationCharges.$inferSelect;
 export interface InvestigationBilling {
 	customerId: string | null;
-	mode: InvestigationBillingMode;
+	mode: "fixed" | "legacy" | "unconfigured";
 }
 
 const LOCK_MS = 23 * 60 * 60 * 1000;
-const LEASE_MS = 60_000;
 
 export function createInvestigationBillingClient(
 	options: {
@@ -103,455 +93,195 @@ export async function canRunInvestigation(
 	return result.allowed === true;
 }
 
+interface InvestigationOperation {
+	operationKey: string;
+	organizationId: string;
+	websiteId: string;
+}
+
+export interface InvestigationReservation extends InvestigationBilling {
+	expiresAt: Date;
+	id: string;
+}
+
+function reservationId(input: InvestigationOperation): string {
+	return `investigation:${createHash("sha256")
+		.update(
+			JSON.stringify([
+				INVESTIGATION_USAGE.featureId,
+				input.organizationId,
+				input.websiteId,
+				input.operationKey,
+			])
+		)
+		.digest("hex")}`;
+}
+
 export async function reserveInvestigationCharge(
-	input: {
+	input: InvestigationOperation & {
 		billing: InvestigationBilling;
-		organizationId: string;
-		websiteId: string;
-		operationKey: string;
-		expectedPriceCents?: number;
-		runId?: string;
+		startedAt: Date;
 	},
 	client?: Autumn
-): Promise<Charge> {
-	const now = new Date();
-	const currentPriceCents = INVESTIGATION_USAGE.priceUsd * 100;
-	const expectedPriceCents = input.expectedPriceCents;
-	if (
-		expectedPriceCents !== undefined &&
-		(!Number.isSafeInteger(expectedPriceCents) || expectedPriceCents <= 0)
-	) {
-		throw new Error("The accepted investigation price is invalid");
+): Promise<InvestigationReservation> {
+	const reservation = {
+		...input.billing,
+		id: reservationId(input),
+		expiresAt: new Date(input.startedAt.getTime() + LOCK_MS),
+	};
+	if (reservation.mode !== "fixed") {
+		return reservation;
 	}
-	const chargeQuery = db
-		.select()
-		.from(investigationCharges)
-		.where(
-			and(
-				eq(investigationCharges.organizationId, input.organizationId),
-				eq(investigationCharges.operationKey, input.operationKey)
-			)
-		);
-	let [charge] = await chargeQuery;
-	if (!charge) {
-		if (
-			expectedPriceCents !== undefined &&
-			(input.billing.mode !== "fixed" ||
-				expectedPriceCents !== currentPriceCents)
-		) {
-			throw new Error(
-				"The accepted investigation price is no longer available; accept the current price to start a new analysis"
-			);
-		}
-		await db
-			.insert(investigationCharges)
-			.values({
-				id: randomUUIDv7(),
-				operationKey: input.operationKey,
-				organizationId: input.organizationId,
-				websiteId: input.websiteId,
-				runId: input.runId,
-				customerId: input.billing.customerId,
-				mode: input.billing.mode,
-				featureId: INVESTIGATION_USAGE.featureId,
-				priceCents: input.billing.mode === "fixed" ? currentPriceCents : 0,
-				status: input.billing.mode === "fixed" ? "pending" : "reserved",
-				expiresAt: new Date(now.getTime() + LOCK_MS),
-			})
-			.onConflictDoNothing({
-				target: [
-					investigationCharges.organizationId,
-					investigationCharges.operationKey,
-				],
-			});
-		[charge] = await chargeQuery;
+	assertInvestigationReservationActive(reservation);
+	if (!reservation.customerId) {
+		throw new Error("The investigation billing customer is unavailable");
 	}
-	if (!charge || charge.websiteId !== input.websiteId) {
-		throw new Error("Investigation charge identity does not match");
+	const autumn = client ?? createInvestigationBillingClient();
+	// Autumn owns the hold. A duplicate/ambiguous response never authorizes work.
+	// The immutable expiry is shorter than the provider's idempotency window:
+	// a released/confirmed operation cannot be reserved again after that window.
+	const result = await autumn.check(
+		{
+			customerId: reservation.customerId,
+			featureId: INVESTIGATION_USAGE.featureId,
+			requiredBalance: 1,
+			sendEvent: true,
+			lock: {
+				enabled: true,
+				lockId: reservation.id,
+				expiresAt: reservation.expiresAt.getTime(),
+			},
+		},
+		{ headers: { "Idempotency-Key": `${reservation.id}:reserve` } }
+	);
+	if (result.customerId !== reservation.customerId) {
+		throw new Error("Investigation reservation could not be verified");
 	}
-	if (charge.customerId !== input.billing.customerId) {
-		throw new Error("The billing owner changed after this investigation began");
-	}
-	if (
-		expectedPriceCents !== undefined &&
-		(charge.mode !== "fixed" || charge.priceCents !== expectedPriceCents)
-	) {
+	if (!result.allowed) {
 		throw new Error(
-			"The accepted investigation price does not match this reservation"
-		);
-	}
-	if (charge.mode !== "fixed") {
-		return charge;
-	}
-	if (charge.status === "reserved" && charge.expiresAt > now) {
-		return charge;
-	}
-	if (charge.status !== "pending" || charge.expiresAt <= now) {
-		throw new Error(
-			"This investigation reservation is unavailable; no new charge was created"
-		);
-	}
-	// An acknowledged hold keeps its original price; a pending row cannot authorize
-	// a new debit after that price stops being available.
-	if (charge.priceCents !== currentPriceCents) {
-		throw new Error(
-			"The accepted investigation price is no longer available; accept the current price to start a new analysis"
-		);
-	}
-	const [claimed] = await db
-		.update(investigationCharges)
-		.set({ leaseUntil: new Date(now.getTime() + LEASE_MS), updatedAt: now })
-		.where(
-			and(
-				eq(investigationCharges.id, charge.id),
-				eq(investigationCharges.status, "pending"),
-				or(
-					isNull(investigationCharges.leaseUntil),
-					lt(investigationCharges.leaseUntil, now)
-				)
-			)
-		)
-		.returning();
-	if (!claimed?.leaseUntil) {
-		throw new Error(
-			"This investigation reservation is already being processed"
+			"No investigations remaining. Review your billing limit to continue."
 		);
 	}
 	try {
-		if (!claimed.customerId) {
-			throw new Error("The investigation billing customer is unavailable");
-		}
-		const result = await (client ?? createInvestigationBillingClient()).check(
-			{
-				customerId: claimed.customerId,
-				featureId: claimed.featureId,
-				requiredBalance: 1,
-				sendEvent: true,
-				lock: {
-					enabled: true,
-					lockId: claimed.id,
-					expiresAt: claimed.expiresAt.getTime(),
-				},
-			},
-			{ headers: { "Idempotency-Key": `investigation:${claimed.id}:reserve` } }
-		);
-		if (result.customerId !== claimed.customerId) {
-			throw new Error("Investigation reservation could not be verified");
-		}
-		if (result.allowed && result.balance?.featureId !== claimed.featureId) {
+		if (result.balance?.featureId !== INVESTIGATION_USAGE.featureId) {
 			throw new Error(
 				"Investigation reservation did not include the requested balance"
 			);
 		}
-		const [reserved] = await db
-			.update(investigationCharges)
-			.set({
-				status: result.allowed === true ? "reserved" : "denied",
-				leaseUntil: null,
-				updatedAt: new Date(),
-			})
-			.where(
-				and(
-					eq(investigationCharges.id, claimed.id),
-					eq(investigationCharges.status, "pending"),
-					eq(investigationCharges.leaseUntil, claimed.leaseUntil)
-				)
-			)
-			.returning();
-		if (!result.allowed) {
-			throw new Error(
-				"No investigations remaining. Add investigations to continue."
-			);
+		if (result.balance.overageAllowed && !result.balance.unlimited) {
+			const breakdown = result.balance.breakdown;
+			if (
+				!breakdown?.length ||
+				breakdown.some(({ price }) => {
+					if (price === null || price.billingMethod === "prepaid") {
+						return false;
+					}
+					return (
+						price.billingMethod !== "usage_based" ||
+						price.tiers !== undefined ||
+						price.tierBehavior !== undefined ||
+						price.amount === undefined ||
+						!Number.isFinite(price.amount) ||
+						price.amount < 0 ||
+						!Number.isFinite(price.billingUnits) ||
+						price.billingUnits <= 0 ||
+						(price.amount !== 0 && price.billingUnits !== 1) ||
+						price.amount > INVESTIGATION_USAGE.priceUsd
+					);
+				})
+			) {
+				throw new Error(
+					"The investigation overage price could not be verified within the accepted price"
+				);
+			}
 		}
-		if (!reserved) {
-			throw new Error("Investigation reservation was not saved");
-		}
-		return reserved;
 	} catch (error) {
-		// A lost response might have reserved a unit. Abandon it safely; do not
-		// infer permission from a duplicate 409 or invent a second reserve key.
-		await db
-			.update(investigationCharges)
-			.set({
-				status: "release_pending",
-				leaseUntil: null,
-				updatedAt: new Date(),
-				errorMessage: error instanceof Error ? error.message : String(error),
-			})
-			.where(
-				and(
-					eq(investigationCharges.id, claimed.id),
-					eq(investigationCharges.status, "pending"),
-					eq(investigationCharges.leaseUntil, claimed.leaseUntil)
-				)
-			);
+		await releaseInvestigationCharge(reservation, autumn);
 		throw error;
 	}
+	return reservation;
 }
 
-export async function commitInvestigationCharge(
-	tx: Transaction,
-	input: {
-		chargeId: string;
-		observationId: string;
-		complete: boolean;
-	}
-): Promise<void> {
-	const [charge] = await tx
-		.select()
-		.from(investigationCharges)
-		.where(eq(investigationCharges.id, input.chargeId))
-		.for("update");
-	if (!charge || charge.status !== "reserved") {
-		throw new Error("Investigation reservation is not ready to complete");
-	}
-	if (charge.mode === "fixed" && charge.expiresAt <= new Date()) {
-		throw new Error(
-			"Investigation reservation expired before the answer was saved"
-		);
-	}
-	const [observation] = await tx
-		.select({ insightId: insightObservations.insightId })
-		.from(insightObservations)
-		.where(
-			and(
-				eq(insightObservations.id, input.observationId),
-				eq(insightObservations.organizationId, charge.organizationId),
-				eq(insightObservations.websiteId, charge.websiteId)
-			)
-		);
+export function assertInvestigationReservationActive(
+	reservation: InvestigationReservation
+): void {
 	if (
-		!observation ||
-		(charge.mode === "fixed" && input.complete && !observation.insightId)
+		reservation.mode === "fixed" &&
+		(!Number.isFinite(reservation.expiresAt.getTime()) ||
+			reservation.expiresAt.getTime() <= Date.now())
 	) {
 		throw new Error(
-			"A completed investigation must have a readable, scoped observation before charging"
+			"This investigation reservation expired. Start a new investigation."
 		);
 	}
-	await tx
-		.update(investigationCharges)
-		.set({
-			observationId: input.observationId,
-			status:
-				charge.mode === "fixed"
-					? input.complete
-						? "confirm_pending"
-						: "release_pending"
-					: "confirmed",
-			updatedAt: new Date(),
-		})
-		.where(eq(investigationCharges.id, charge.id));
 }
 
-export async function releaseInvestigationCharge(
-	chargeId: string,
+async function finalizeReservation(
+	id: string,
+	complete: boolean,
 	client?: Autumn
 ): Promise<void> {
-	await db
-		.update(investigationCharges)
-		.set({ status: "release_pending", updatedAt: new Date() })
-		.where(
-			and(
-				eq(investigationCharges.id, chargeId),
-				eq(investigationCharges.mode, "fixed"),
-				eq(investigationCharges.status, "reserved"),
-				isNull(investigationCharges.observationId)
-			)
-		);
-	await settleInvestigationCharge(chargeId, client);
-}
-
-export async function releaseInvestigationChargeForOperation(input: {
-	organizationId: string;
-	operationKey: string;
-}): Promise<void> {
-	const [charge] = await db
-		.select({ id: investigationCharges.id })
-		.from(investigationCharges)
-		.where(
-			and(
-				eq(investigationCharges.organizationId, input.organizationId),
-				eq(investigationCharges.operationKey, input.operationKey)
-			)
-		);
-	if (charge) {
-		await releaseInvestigationCharge(charge.id);
+	if (!(client || process.env.AUTUMN_SECRET_KEY?.trim())) {
+		if (process.env.NODE_ENV !== "production") {
+			return;
+		}
+		throw new Error("Investigation billing is not configured");
+	}
+	try {
+		// Full confirmation does not debit again. Replays only finalize this lock;
+		// they must never reserve or track a replacement unit for a saved result.
+		const result = await (
+			client ?? createInvestigationBillingClient()
+		).balances.finalize({
+			lockId: id,
+			action: complete ? "confirm" : "release",
+		});
+		if (!result.success) {
+			throw new Error("Investigation settlement was not confirmed");
+		}
+	} catch (error) {
+		if (
+			error instanceof Error &&
+			"statusCode" in error &&
+			error.statusCode === 400 &&
+			"body" in error &&
+			typeof error.body === "string"
+		) {
+			let body: unknown;
+			try {
+				body = JSON.parse(error.body);
+			} catch {
+				/* Non-JSON provider failures remain failures. */
+			}
+			if (
+				body &&
+				typeof body === "object" &&
+				"code" in body &&
+				"message" in body &&
+				body.code === "invalid_request" &&
+				body.message === `Lock not found for ID: ${id}`
+			) {
+				// Missing can mean confirmed, released, or expired. Nothing remains to
+				// finalize; it is not proof of payment and never warrants a new debit.
+				return;
+			}
+		}
+		throw error;
 	}
 }
 
 export async function settleInvestigationCharge(
-	chargeId: string,
+	input: InvestigationOperation & { complete: boolean },
 	client?: Autumn
 ): Promise<void> {
-	const now = new Date();
-	const [charge] = await db
-		.update(investigationCharges)
-		.set({ leaseUntil: new Date(now.getTime() + LEASE_MS), updatedAt: now })
-		.where(
-			and(
-				eq(investigationCharges.id, chargeId),
-				eq(investigationCharges.mode, "fixed"),
-				inArray(investigationCharges.status, [
-					"confirm_pending",
-					"release_pending",
-				]),
-				or(
-					isNull(investigationCharges.leaseUntil),
-					lt(investigationCharges.leaseUntil, now)
-				)
-			)
-		)
-		.returning();
-	if (!charge?.leaseUntil) {
-		return;
-	}
-	const claimed = and(
-		eq(investigationCharges.id, charge.id),
-		eq(investigationCharges.status, charge.status),
-		eq(investigationCharges.leaseUntil, charge.leaseUntil)
-	);
-	if (charge.expiresAt <= now) {
-		// The lock and provider idempotency protection have a bounded lifetime.
-		// Never issue a fresh debit to recover an old uncertain settlement.
-		await db
-			.update(investigationCharges)
-			.set({
-				status: "review_required",
-				leaseUntil: null,
-				errorMessage: "Reservation expired before settlement was confirmed",
-				updatedAt: now,
-			})
-			.where(claimed);
-		return;
-	}
-	const action = charge.status === "confirm_pending" ? "confirm" : "release";
-	if (action === "confirm" && !charge.observationId) {
-		await db
-			.update(investigationCharges)
-			.set({
-				status: "review_required",
-				leaseUntil: null,
-				errorMessage: "The completed observation is no longer available",
-				updatedAt: now,
-			})
-			.where(claimed);
-		return;
-	}
-	try {
-		const result = await (
-			client ?? createInvestigationBillingClient()
-		).balances.finalize(
-			{ lockId: charge.id, action },
-			{
-				headers: { "Idempotency-Key": `investigation:${charge.id}:${action}` },
-			}
-		);
-		if (!result.success) {
-			throw new Error("Investigation settlement was not confirmed");
-		}
-		await db
-			.update(investigationCharges)
-			.set({
-				status: action === "confirm" ? "confirmed" : "released",
-				leaseUntil: null,
-				errorMessage: null,
-				updatedAt: new Date(),
-			})
-			.where(claimed);
-	} catch (error) {
-		await db
-			.update(investigationCharges)
-			.set({
-				leaseUntil: null,
-				errorMessage: error instanceof Error ? error.message : String(error),
-				updatedAt: new Date(),
-			})
-			.where(claimed);
-		captureInsightsError(error, "investigation.billing.settlement_pending", {
-			charge_id: charge.id,
-			action,
-		});
-		throw error;
-	}
+	await finalizeReservation(reservationId(input), input.complete, client);
 }
 
-export async function recoverInvestigationCharges(
-	input?: {
-		runId: string;
-		websiteId: string;
-	},
+export async function releaseInvestigationCharge(
+	reservation: InvestigationReservation,
 	client?: Autumn
 ): Promise<void> {
-	const now = new Date();
-	const scope = input
-		? and(
-				eq(investigationCharges.runId, input.runId),
-				eq(investigationCharges.websiteId, input.websiteId)
-			)
-		: undefined;
-	await db
-		.update(investigationCharges)
-		.set({ status: "released", updatedAt: now })
-		.where(
-			and(
-				scope,
-				eq(investigationCharges.mode, "fixed"),
-				eq(investigationCharges.status, "pending"),
-				isNull(investigationCharges.leaseUntil),
-				lt(investigationCharges.createdAt, new Date(now.getTime() - LEASE_MS))
-			)
-		);
-	await db
-		.update(investigationCharges)
-		.set({
-			status: "review_required",
-			leaseUntil: null,
-			errorMessage: "Reservation expired without a completed observation",
-			updatedAt: now,
-		})
-		.where(
-			and(
-				scope,
-				eq(investigationCharges.mode, "fixed"),
-				inArray(investigationCharges.status, ["pending", "reserved"]),
-				lt(investigationCharges.expiresAt, now)
-			)
-		);
-	// A worker may disappear during the reserve request. Its stale lease never
-	// grants access; release the possibly held unit rather than reserve again.
-	await db
-		.update(investigationCharges)
-		.set({ status: "release_pending", leaseUntil: null, updatedAt: now })
-		.where(
-			and(
-				scope,
-				eq(investigationCharges.mode, "fixed"),
-				eq(investigationCharges.status, "pending"),
-				lt(investigationCharges.leaseUntil, now)
-			)
-		);
-	const pending = await db
-		.select({ id: investigationCharges.id })
-		.from(investigationCharges)
-		.where(
-			and(
-				scope,
-				eq(investigationCharges.mode, "fixed"),
-				inArray(investigationCharges.status, [
-					"confirm_pending",
-					"release_pending",
-				])
-			)
-		)
-		.orderBy(investigationCharges.updatedAt)
-		.limit(100);
-	for (const charge of pending) {
-		try {
-			await settleInvestigationCharge(charge.id, client);
-		} catch (error) {
-			captureInsightsError(error, "investigation.billing.recovery_pending", {
-				charge_id: charge.id,
-			});
-		}
+	if (reservation.mode === "fixed") {
+		await finalizeReservation(reservation.id, false, client);
 	}
 }

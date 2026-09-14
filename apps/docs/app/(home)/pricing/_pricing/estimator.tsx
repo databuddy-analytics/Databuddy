@@ -1,3 +1,8 @@
+import {
+	INTELLIGENCE_CONTACT_TOPICS,
+	INTELLIGENCE_PLAN_IDS,
+} from "@databuddy/shared/types/features";
+import { CaretDownIcon } from "@databuddy/ui/icons";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { SciFiButton } from "@/components/landing/scifi-btn";
@@ -24,10 +29,11 @@ interface Props {
 
 export function Estimator({ plans }: Props) {
 	const [monthlyEvents, setMonthlyEvents] = useState<number>(25_000);
+	const [monthlyInvestigations, setMonthlyInvestigations] = useState(0);
 
 	const bestPlan = useMemo(
-		() => selectBestPlan(monthlyEvents, plans),
-		[monthlyEvents, plans]
+		() => selectBestPlan(monthlyEvents, plans, monthlyInvestigations),
+		[monthlyEvents, plans, monthlyInvestigations]
 	);
 
 	const bestPlanDisplayName = useMemo(
@@ -47,8 +53,16 @@ export function Estimator({ plans }: Props) {
 		);
 	}, [bestPlan, monthlyEvents]);
 
+	const extraInvestigations = Math.max(
+		monthlyInvestigations - (bestPlan?.includedInvestigationsMonthly ?? 0),
+		0
+	);
+	const investigationOverage =
+		extraInvestigations * (bestPlan?.investigationPrice ?? 0);
 	const estimatedMonthly =
-		(bestPlan ? bestPlan.priceMonthly : 0) + estimatedOverage;
+		(bestPlan ? bestPlan.priceMonthly : 0) +
+		estimatedOverage +
+		investigationOverage;
 	const included = bestPlan ? bestPlan.includedEventsMonthly : 0;
 	const over = Math.max(monthlyEvents - included, 0);
 	const includedPortion =
@@ -60,10 +74,15 @@ export function Estimator({ plans }: Props) {
 				);
 
 	const tiers = bestPlan?.eventTiers ?? [];
+	const contactTopic =
+		bestPlan?.id === INTELLIGENCE_PLAN_IDS.ANALYST ||
+		bestPlan?.id === INTELLIGENCE_PLAN_IDS.DATA_TEAM
+			? INTELLIGENCE_CONTACT_TOPICS[bestPlan.id]
+			: null;
 
 	return (
-		<section>
-			<Card className="group relative rounded border border-border bg-card/70 shadow-inner backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:shadow-primary/10">
+		<section className="motion-reduce:[&_*]:animate-none! motion-reduce:[&_*]:transition-none!">
+			<Card className="group relative rounded border border-border bg-card/70 shadow-inner backdrop-blur-sm hover:border-border/80 hover:shadow-primary/10">
 				<CardHeader>
 					<CardTitle className="font-semibold text-lg">
 						Estimate your monthly cost
@@ -117,6 +136,32 @@ export function Estimator({ plans }: Props) {
 									We can scale with you, from 0 to 250M+ events / month.
 								</p>
 							</div>
+							<div className="mt-6">
+								<Label htmlFor="investigations">
+									Completed investigations / month
+								</Label>
+								<Input
+									aria-label="Monthly completed investigations"
+									className="mt-2"
+									id="investigations"
+									inputMode="numeric"
+									min={0}
+									onChange={(event) => {
+										const amount = Number(event.target.value);
+										setMonthlyInvestigations(
+											Number.isFinite(amount)
+												? Math.max(0, Math.floor(amount))
+												: 0
+										);
+									}}
+									step={1}
+									type="number"
+									value={monthlyInvestigations}
+								/>
+								<p className="mt-2 text-muted-foreground text-xs">
+									Business and Scale require an invitation.
+								</p>
+							</div>
 						</div>
 
 						<div className="rounded border border-border bg-card/20 p-4">
@@ -144,7 +189,10 @@ export function Estimator({ plans }: Props) {
 										needs.
 									</p>
 									<div className="mt-4 flex justify-end">
-										<SciFiButton asChild>
+										<SciFiButton
+											asChild
+											className="transition-opacity duration-150 hover:animate-none hover:bg-foreground/10 focus-visible:bg-foreground/10 active:scale-100 active:bg-foreground/15 active:opacity-80"
+										>
 											<Link
 												href="/contact"
 												onClick={() =>
@@ -164,8 +212,8 @@ export function Estimator({ plans }: Props) {
 									<Separator className="my-3" />
 									<div className="relative h-2 w-full rounded bg-muted">
 										<div
-											className="absolute top-0 left-0 h-full rounded bg-primary"
-											style={{ width: `${includedPortion}%` }}
+											className="absolute top-0 left-0 h-full w-full origin-left rounded bg-primary transition-transform duration-150 ease-out"
+											style={{ transform: `scaleX(${includedPortion / 100})` }}
 										/>
 									</div>
 									<div className="mt-2 flex items-center justify-between text-muted-foreground text-xs">
@@ -186,12 +234,33 @@ export function Estimator({ plans }: Props) {
 									</div>
 									<div className="mt-2 flex items-center justify-between">
 										<span className="text-muted-foreground text-sm">
-											Estimated overage
+											Event overage
 										</span>
 										<span className="text-sm">
 											{formatMoney(estimatedOverage)}
 										</span>
 									</div>
+									{bestPlan?.includedInvestigationsMonthly != null && (
+										<>
+											<div className="mt-2 flex items-center justify-between text-sm">
+												<span className="text-muted-foreground">
+													Investigations included / month
+												</span>
+												<span>
+													{formatInteger(
+														bestPlan.includedInvestigationsMonthly
+													)}
+												</span>
+											</div>
+											<div className="mt-2 flex items-center justify-between text-sm">
+												<span className="text-muted-foreground">
+													Additional investigations (
+													{formatInteger(extraInvestigations)})
+												</span>
+												<span>{formatMoney(investigationOverage)}</span>
+											</div>
+										</>
+									)}
 									<Separator className="my-3" />
 									<div className="flex items-center justify-between">
 										<span className="font-semibold text-sm">
@@ -201,20 +270,30 @@ export function Estimator({ plans }: Props) {
 											{formatMoney(estimatedMonthly)}
 										</span>
 									</div>
+									<p className="mt-2 text-muted-foreground text-xs">
+										Estimate before taxes. Databunny chat is included.
+									</p>
 									<div className="mt-4 flex justify-end">
-										<SciFiButton asChild>
+										<SciFiButton
+											asChild
+											className="transition-opacity duration-150 hover:animate-none hover:bg-foreground/10 focus-visible:bg-foreground/10 active:scale-100 active:bg-foreground/15 active:opacity-80"
+										>
 											<Link
-												href={`https://app.databuddy.cc/register${bestPlan ? `?plan=${bestPlan.id}` : ""}`}
+												href={
+													contactTopic
+														? `/contact?topic=${contactTopic}`
+														: `https://app.databuddy.cc/register${bestPlan ? `?plan=${bestPlan.id}` : ""}`
+												}
 												onClick={() =>
 													trackPricingPlanClick(
 														bestPlan?.id ?? "unknown",
 														"pricing_estimator"
 													)
 												}
-												rel="noopener noreferrer"
-												target="_blank"
+												rel={contactTopic ? undefined : "noopener noreferrer"}
+												target={contactTopic ? undefined : "_blank"}
 											>
-												GET STARTED
+												{contactTopic ? "REQUEST ACCESS" : "GET STARTED"}
 											</Link>
 										</SciFiButton>
 									</div>
@@ -224,15 +303,22 @@ export function Estimator({ plans }: Props) {
 					</div>
 
 					{/* Overage tiers table */}
-					<details className="mt-6 text-muted-foreground text-sm">
-						<summary className="cursor-pointer select-none">
-							View overage tier rates
+					<details
+						className="group/rates mt-6 scroll-mt-24 text-muted-foreground text-sm"
+						id="event-rates"
+					>
+						<summary className="flex cursor-pointer select-none list-none items-center gap-2 rounded-sm py-1 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-background [&::-webkit-details-marker]:hidden">
+							View rates for extra events
+							<CaretDownIcon
+								aria-hidden="true"
+								className="size-4 transition-transform duration-150 group-open/rates:rotate-180"
+							/>
 						</summary>
 						{tiers.length > 0 ? (
-							<div className="mt-2 overflow-x-auto rounded border border-border bg-card/70 backdrop-blur-sm">
+							<div className="motion-safe:group-open/rates:fade-in-75 motion-safe:animation-duration-150 mt-2 overflow-x-auto rounded border border-border bg-card/70 backdrop-blur-sm motion-safe:group-open/rates:animate-in">
 								<table className="w-full text-left">
 									<caption className="sr-only">
-										Overage tier rates table
+										Rates for cumulative events above the monthly allowance
 									</caption>
 									<thead className="border-border border-b bg-background/60">
 										<tr>
@@ -240,13 +326,13 @@ export function Estimator({ plans }: Props) {
 												className="px-3 py-2 text-foreground text-xs"
 												scope="col"
 											>
-												From
+												Extra events from
 											</th>
 											<th
 												className="px-3 py-2 text-foreground text-xs"
 												scope="col"
 											>
-												To
+												Through
 											</th>
 											<th
 												className="px-3 py-2 text-foreground text-xs"
@@ -258,7 +344,9 @@ export function Estimator({ plans }: Props) {
 									</thead>
 									<tbody>
 										{tiers.map((tier, i, arr) => {
-											const from = i === 0 ? 0 : (arr[i - 1].to as number) + 1;
+											const previous = arr[i - 1]?.to;
+											const from =
+												typeof previous === "number" ? previous + 1 : 1;
 											const to =
 												tier.to === "inf"
 													? "∞"

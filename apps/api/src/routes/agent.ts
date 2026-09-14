@@ -6,7 +6,7 @@ import {
 } from "@databuddy/api-keys/resolve";
 import { createConfig as createAgentConfig } from "@databuddy/ai/agents/analytics";
 import {
-	ensureAgentCreditsAvailable,
+	getAgentBillingAccess,
 	resolveAgentBillingCustomerId,
 	trackAgentUsageAndBill,
 } from "@databuddy/ai/agents/execution";
@@ -750,21 +750,10 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						},
 					});
 
-					const creditsCheck = billingCustomerId
-						? timeAgentPhase(
-								"credits_check",
-								ensureAgentCreditsAvailable(billingCustomerId).catch((err) => {
-									captureError(err, {
-										agent_credit_check_error: true,
-										agent_chat_id: chatId,
-										...(defaultWebsiteId
-											? { agent_website_id: defaultWebsiteId }
-											: {}),
-									});
-									return true;
-								})
-							)
-						: Promise.resolve(true);
+					const creditsCheck = timeAgentPhase(
+						"credits_check",
+						getAgentBillingAccess(billingCustomerId)
+					);
 
 					const loadMemoryContext = shouldLoadMemoryContext(lastMessage);
 					mergeWideEvent({
@@ -779,7 +768,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						});
 					}
 
-					const [hasCredits, memoryCtx, enrichment, businessContext] =
+					const [billingAccess, memoryCtx, enrichment, businessContext] =
 						await timeAgentPhase(
 							"memory_enrich",
 							Promise.all([
@@ -834,7 +823,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						agent_enrichment_context_source: enrichment.source,
 					});
 
-					if (!hasCredits) {
+					if (!billingAccess.allowed) {
 						mergeWideEvent({ agent_rejected: "out_of_credits" });
 						return jsonError(
 							402,
@@ -1007,6 +996,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 								userId: persistedUserId ?? null,
 								chatId,
 								billingCustomerId,
+								billingAccess,
 							});
 						})
 						.catch((usageError) => {

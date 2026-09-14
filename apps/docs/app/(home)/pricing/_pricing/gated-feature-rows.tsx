@@ -17,6 +17,7 @@ const TABLE_PLAN_TO_SHARED: Record<string, PlanId> = {
 	hobby: PLAN_IDS.HOBBY,
 	pro: PLAN_IDS.PRO,
 	intelligence: PLAN_IDS.SCALE,
+	intelligence_scale: PLAN_IDS.SCALE,
 	enterprise: PLAN_IDS.SCALE,
 };
 
@@ -30,17 +31,11 @@ function isUnlimitedOnAllPlans(featureId: GatedFeatureId): boolean {
 	return true;
 }
 
-function featuresWithLimits(): GatedFeatureId[] {
-	return (Object.values(GATED_FEATURES) as GatedFeatureId[])
-		.filter((id) => !HIDDEN_PRICING_FEATURES.includes(id))
-		.filter((id) => !isUnlimitedOnAllPlans(id));
-}
-
-function featuresUnlimitedOnAll(): GatedFeatureId[] {
-	return (Object.values(GATED_FEATURES) as GatedFeatureId[])
-		.filter((id) => !HIDDEN_PRICING_FEATURES.includes(id))
-		.filter((id) => isUnlimitedOnAllPlans(id));
-}
+const visibleFeatures = Object.values(GATED_FEATURES).filter(
+	(id) =>
+		id !== GATED_FEATURES.INVESTIGATIONS &&
+		!HIDDEN_PRICING_FEATURES.includes(id)
+);
 
 function FeatureX() {
 	return (
@@ -136,7 +131,7 @@ const PLATFORM_FEATURES: PlatformFeature[] = [
 	{ name: "API Access", description: "REST API with scoped API keys" },
 	{
 		name: "Slack Integration",
-		description: "Alerts and investigations in Slack",
+		description: "Analytics and alerts in Slack",
 	},
 	{ name: "SDKs", description: "JavaScript, React, Vue, Swift" },
 ];
@@ -198,8 +193,8 @@ export function GatedFeaturePricingRows({
 	plans,
 	planTdClassName,
 }: GatedFeaturePricingRowsProps) {
-	const limited = featuresWithLimits();
-	const unlimited = featuresUnlimitedOnAll();
+	const limited = visibleFeatures.filter((id) => !isUnlimitedOnAllPlans(id));
+	const unlimited = visibleFeatures.filter(isUnlimitedOnAllPlans);
 	const colSpan = 1 + plans.length;
 
 	return (

@@ -1,5 +1,24 @@
 import { number } from "zod";
 
+export const DATABUNNY_CHAT = {
+	featureId: "databunny_chat",
+	name: "Databunny chat",
+} as const;
+
+export function hasDatabunnyChat(
+	flags:
+		| Record<string, { featureId: string; expiresAt: number | null }>
+		| null
+		| undefined,
+	now = Date.now()
+) {
+	const flag = flags?.[DATABUNNY_CHAT.featureId];
+	return (
+		flag?.featureId === DATABUNNY_CHAT.featureId &&
+		(flag.expiresAt === null || flag.expiresAt > now)
+	);
+}
+
 export const DATABUNNY_USAGE = {
 	description:
 		"AI credits pay for ordinary Databunny chat and investigations on legacy billing terms. Existing credit balances and allowances keep their value; they are not converted into $1 investigations.",
@@ -17,7 +36,12 @@ export const INVESTIGATION_USAGE = {
 	topupPlanId: "investigations_topup",
 	maxPurchase: 1000,
 	description:
-		"$1 per completed investigation. Clarifications of the same question and verification after applying a proposed repair are included. New questions and separate fresh analysis are new investigations.",
+		"Business and Scale include monthly investigations. Extras cost $1 per completed investigation.",
+} as const;
+
+export const INVESTIGATION_ALLOWANCES = {
+	intelligence: 100,
+	intelligence_scale: 500,
 } as const;
 
 export const LEGACY_SCALE_PLAN = {

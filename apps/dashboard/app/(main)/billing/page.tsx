@@ -1,17 +1,25 @@
 "use client";
 
-import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
+import {
+	hasDatabunnyChat,
+	INVESTIGATION_USAGE,
+} from "@databuddy/shared/billing";
 
 import AttachDialog from "@/components/autumn/attach-dialog";
 import { useBillingContext } from "@/components/providers/billing-provider";
+import {
+	getBillingAddOns,
+	isManageableAddOn,
+} from "@/lib/autumn/billing-add-ons";
 import { getCustomerPlanName } from "@/lib/autumn/customer-plan-name";
+import { getSubscriptionPriceText } from "@/lib/autumn/subscription-price";
 import { orpc } from "@/lib/orpc";
-import { TOPUP_PRODUCT_ID } from "@/lib/topup-math";
 import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
 import type { UsageResponse } from "@/types/billing";
 import { INTELLIGENCE_PLAN_IDS } from "@databuddy/shared/types/features";
 import { useQuery } from "@tanstack/react-query";
 import type { PreviewAttachResponse } from "autumn-js";
+import type { UseCustomerResult } from "autumn-js/react";
 import { useCustomer } from "autumn-js/react";
 import { useRouter } from "next/navigation";
 import { Suspense, useMemo, useState } from "react";
@@ -57,7 +65,6 @@ const PLANS_WITHOUT_SELF_SERVE_UPGRADES = new Set([
 const INTELLIGENCE_PLAN_ID_SET = new Set<string>(
 	Object.values(INTELLIGENCE_PLAN_IDS)
 );
-const CREDITS_BOOSTER_PLAN_ID = "credits_booster";
 
 interface OrgUsageData {
 	balance?: number | null;
@@ -96,14 +103,6 @@ function calculateOverageInfo(
 	};
 }
 
-function isSSOPlan(plan: { id: string; name: string }): boolean {
-	const id = plan.id.toLowerCase();
-	if (id === "sso" || id.includes("sso")) {
-		return true;
-	}
-	return plan.name.toLowerCase().includes("single sign-on");
-}
-
 interface AddOnPriceDisplay {
 	primaryText?: string;
 	secondaryText?: string;
@@ -125,11 +124,10 @@ interface AddOn {
 	price?: { display?: AddOnPriceDisplay | null } | null;
 }
 
-interface AddOnSubscription {
-	canceledAt?: number | null;
-	currentPeriodEnd?: number | null;
-	status?: string;
-}
+type AddOnSubscription = Pick<
+	NonNullable<UseCustomerResult["data"]>["subscriptions"][number],
+	"canceledAt" | "currentPeriodEnd" | "status" | "plan"
+>;
 
 interface AddOnRowProps {
 	addOn: AddOn;
@@ -156,7 +154,9 @@ function AddOnRow({
 	const [preview, setPreview] = useState<PreviewAttachResponse | null>(null);
 	const [dialogOpen, setDialogOpen] = useState(false);
 
-	const priceText = formatPriceDisplay(addOn.price?.display);
+	const priceText = subscription
+		? getSubscriptionPriceText(subscription)
+		: formatPriceDisplay(addOn.price?.display);
 	const benefitText = formatPriceDisplay(addOn.items.at(0)?.display);
 
 	const description =
@@ -199,7 +199,15 @@ function AddOnRow({
 					<Badge variant="muted">Cancellation scheduled</Badge>
 				) : isActive ? (
 					<div className="flex items-center gap-2">
-						<Badge variant="success">Active</Badge>
+						<Badge
+							variant={subscription?.status === "active" ? "success" : "muted"}
+						>
+							{subscription?.status === "past_due"
+								? "Past due"
+								: subscription?.status === "scheduled"
+									? "Scheduled"
+									: "Active"}
+						</Badge>
 						{canUserUpgrade && (
 							<Button
 								aria-label={`Cancel ${addOn.name}`}
@@ -245,11 +253,7 @@ function AddOnRow({
 
 function getAddOnStatus(
 	plan: { customerEligibility?: { status?: string } | null },
-	subscription?: {
-		canceledAt?: number | null;
-		currentPeriodEnd?: number | null;
-		status?: string;
-	}
+	subscription?: AddOnSubscription
 ) {
 	const isCancelled =
 		subscription?.canceledAt &&
@@ -259,10 +263,10 @@ function getAddOnStatus(
 	const eligibility = plan.customerEligibility;
 	const isActive =
 		!isCancelled &&
-		(eligibility?.status === "active" ||
-			eligibility?.status === "scheduled" ||
-			subscription?.status === "active" ||
-			subscription?.status === "scheduled");
+		(subscription
+			? isManageableAddOn(subscription)
+			: eligibility?.status === "active" ||
+				eligibility?.status === "scheduled");
 
 	return { isCancelled, isActive };
 }
@@ -273,6 +277,7 @@ export default function BillingPage() {
 	const { plans, usage, customer, isLoading, error, refetch } =
 		useBillingData();
 	const { attach, previewAttach } = useCustomer();
+	const includedChat = hasDatabunnyChat(customer?.flags);
 	const [dateRange, setDateRange] = useState(getDefaultDateRange);
 
 	const { data: breakdownUsageRaw, isLoading: isBreakdownLoading } = useQuery({
@@ -317,45 +322,30 @@ export default function BillingPage() {
 		getSubscriptionStatusDetails,
 	} = useBilling(refetch);
 
-	const addOns = useMemo(() => {
-		const allAddOns = plans?.filter((p) => p.addOn) ?? [];
-		const basePlanId = customer?.subscriptions?.find((subscription) => {
-			const plan = plans?.find((entry) => entry.id === subscription.planId);
-			return plan && !plan.addOn;
-		})?.planId;
-		const onIntelligencePlan =
-			basePlanId != null && INTELLIGENCE_PLAN_ID_SET.has(basePlanId);
-
-		return allAddOns.filter((plan) => {
-			if (
-				isSSOPlan(plan) ||
-				plan.id === TOPUP_PRODUCT_ID ||
-				plan.id === INVESTIGATION_USAGE.topupPlanId
-			) {
-				return false;
-			}
-			if (onIntelligencePlan && plan.id === CREDITS_BOOSTER_PLAN_ID) {
-				return false;
-			}
-			return true;
-		});
-	}, [customer?.subscriptions, plans]);
-
 	const { currentPlan, currentSubscription, usageStats, statusDetails } =
 		useMemo(() => {
-			const activeSub = customer?.subscriptions?.find((s) => {
-				if (s.canceledAt && s.currentPeriodEnd) {
-					return dayjs(s.currentPeriodEnd).isAfter(dayjs());
-				}
-				return !s.canceledAt || s.status === "scheduled";
-			});
+			const activeSub =
+				customer?.subscriptions?.find(
+					(s) => !s.addOn && (s.status === "active" || s.status === "past_due")
+				) ??
+				customer?.subscriptions?.find(
+					(s) => !s.addOn && s.status === "scheduled"
+				);
 
-			const activePlan = activeSub
+			const listedPlan = activeSub
 				? plans?.find((p) => p.id === activeSub.planId)
 				: plans?.find((p) => {
 						const action = p.customerEligibility?.attachAction;
 						return !(action && ["upgrade", "downgrade"].includes(action));
 					});
+			const activePlan = activeSub
+				? {
+						...listedPlan,
+						...activeSub.plan,
+						id: activeSub.planId,
+						price: activeSub.plan?.price,
+					}
+				: listedPlan;
 
 			const planStatusDetails = activeSub
 				? getSubscriptionStatusDetails(activeSub)
@@ -364,15 +354,34 @@ export default function BillingPage() {
 			return {
 				currentPlan: activePlan,
 				currentSubscription: activeSub,
-				usageStats: usage?.features ?? [],
+				usageStats:
+					usage?.features.filter(
+						(feature) =>
+							feature.id !== INVESTIGATION_USAGE.featureId &&
+							!(includedChat && feature.id === "agent_credits")
+					) ?? [],
 				statusDetails: planStatusDetails,
 			};
 		}, [
 			plans,
+			includedChat,
 			usage?.features,
 			customer?.subscriptions,
 			getSubscriptionStatusDetails,
 		]);
+
+	const isFree = currentPlan?.id === "free" || currentPlan?.autoEnable === true;
+	const addOns = useMemo(
+		() =>
+			getBillingAddOns(plans, customer?.subscriptions ?? [], {
+				hideCreditOffers:
+					includedChat ||
+					(currentPlan?.id != null &&
+						INTELLIGENCE_PLAN_ID_SET.has(currentPlan.id)),
+				isFree,
+			}),
+		[plans, customer?.subscriptions, includedChat, currentPlan?.id, isFree]
+	);
 
 	if (isLoading) {
 		return (
@@ -392,7 +401,6 @@ export default function BillingPage() {
 		);
 	}
 
-	const isFree = currentPlan?.id === "free" || currentPlan?.autoEnable === true;
 	const isCanceled = Boolean(
 		currentSubscription?.canceledAt ||
 			currentPlan?.customerEligibility?.canceling === true
@@ -400,11 +408,12 @@ export default function BillingPage() {
 	const showUsageUpgrade = !(
 		currentPlan?.id && PLANS_WITHOUT_SELF_SERVE_UPGRADES.has(currentPlan.id)
 	);
-	const showAddOns = addOns.length > 0 && !isFree;
+	const showAddOns = addOns.length > 0;
 	const currentPlanDisplayName = getCustomerPlanName(
 		currentPlan?.id,
 		currentPlan?.name || "Free"
 	);
+	const currentPriceText = getSubscriptionPriceText(currentSubscription);
 
 	return (
 		<main className="min-h-0 flex-1 overflow-y-auto">
@@ -421,7 +430,7 @@ export default function BillingPage() {
 				}
 			/>
 
-			<div className="mx-auto max-w-2xl space-y-6 p-5">
+			<div className="motion-safe:fade-in mx-auto max-w-2xl space-y-6 p-5 motion-safe:animate-in motion-safe:duration-200">
 				<Card>
 					<Card.Header className="flex-row items-start justify-between gap-4">
 						<div>
@@ -443,9 +452,9 @@ export default function BillingPage() {
 								</div>
 								<div>
 									<Text variant="label">{currentPlanDisplayName}</Text>
-									{!isFree && currentPlan?.price?.display?.primaryText && (
+									{!isFree && currentPriceText && (
 										<Text tone="muted" variant="caption">
-											{currentPlan.price.display.primaryText}
+											{currentPriceText}
 										</Text>
 									)}
 								</div>
@@ -461,6 +470,12 @@ export default function BillingPage() {
 						</div>
 
 						<Divider />
+
+						{includedChat && (
+							<Text tone="muted" variant="caption">
+								Databunny chat included
+							</Text>
+						)}
 
 						<PaymentMethodRow customer={customer ?? null} />
 
@@ -536,7 +551,7 @@ export default function BillingPage() {
 				</Card>
 
 				<InvestigationTopupCard />
-				{!isFree && <TopupCard />}
+				{!(isFree || includedChat) && <TopupCard />}
 				{!isFree && <BillingControlsCard />}
 
 				{showAddOns && (
@@ -552,10 +567,7 @@ export default function BillingPage() {
 						</Card.Header>
 						<Card.Content className="p-0">
 							<div className="divide-y">
-								{addOns.map((addOn) => {
-									const sub = customer?.subscriptions?.find(
-										(s) => s.planId === addOn.id
-									);
+								{addOns.map(({ plan: addOn, subscription: sub }) => {
 									const { isCancelled, isActive } = getAddOnStatus(addOn, sub);
 
 									return (

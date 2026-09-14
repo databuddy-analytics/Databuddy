@@ -96,7 +96,8 @@ const appendInvestigationReplyInputSchema = z
 			context.addIssue({
 				code: "custom",
 				path: ["acceptedPriceUsd"],
-				message: "A new analysis costs $1. Accept that price to continue.",
+				message:
+					"A new analysis uses one investigation; additional investigations cost $1 after your allowance. Accept that rate to continue.",
 			});
 		}
 	});
@@ -525,10 +526,6 @@ export async function appendInvestigationReply(
 		...rawInput
 	} = input;
 	const parsed = appendInvestigationReplyInputSchema.parse(rawInput);
-	const acceptedPriceCents =
-		parsed.intent === "analysis" && parsed.acceptedPriceUsd !== undefined
-			? parsed.acceptedPriceUsd * 100
-			: null;
 	const slackDelivery =
 		rawSlackDelivery === undefined
 			? null
@@ -568,7 +565,7 @@ export async function appendInvestigationReply(
 	const author = replyAuthor(context, authorName);
 	if (parsed.intent === "analysis") {
 		if (!author.authorId) {
-			throw rpcError.badRequest("Start a new $1 analysis from the dashboard.");
+			throw rpcError.badRequest("Start a new analysis from the dashboard.");
 		}
 		const customerId = await getBillingCustomerId(
 			author.authorId,
@@ -580,7 +577,7 @@ export async function appendInvestigationReply(
 			!Object.hasOwn(customer.balances, INVESTIGATION_USAGE.featureId)
 		) {
 			throw rpcError.badRequest(
-				"Buy investigation units to start a new $1 analysis. Clarifications remain included."
+				"Activate investigation billing to start a new analysis. Clarifications remain included."
 			);
 		}
 	}
@@ -625,7 +622,6 @@ export async function appendInvestigationReply(
 
 		const [existing] = await tx
 			.select({
-				acceptedPriceCents: insightReplies.acceptedPriceCents,
 				authorName: insightReplies.authorName,
 				body: insightReplies.body,
 				intent: insightReplies.intent,
@@ -651,7 +647,6 @@ export async function appendInvestigationReply(
 				existing.subjectKey !== insight.subjectKey ||
 				existing.body !== parsed.body ||
 				existing.intent !== (parsed.intent ?? "clarification") ||
-				existing.acceptedPriceCents !== acceptedPriceCents ||
 				existing.slackDelivery?.channelId !== slackDelivery?.channelId ||
 				existing.slackDelivery?.threadTs !== slackDelivery?.threadTs
 			) {
@@ -717,7 +712,6 @@ export async function appendInvestigationReply(
 		);
 		await tx.insert(insightReplies).values({
 			...author,
-			acceptedPriceCents,
 			body: parsed.body,
 			createdAt,
 			id,

@@ -1,5 +1,5 @@
 import {
-	DATABUNNY_USAGE,
+	INVESTIGATION_ALLOWANCES,
 	INVESTIGATION_USAGE,
 } from "@databuddy/shared/billing";
 
@@ -45,34 +45,31 @@ export type RawItem =
 	  };
 
 export interface RawPlan {
+	chatIncluded: boolean | null;
 	id: string;
 	items: RawItem[];
 	name: string;
 }
 
-const AGENT_CREDITS_FEATURE: RawFeature = {
-	id: "agent_credits",
-	name: DATABUNNY_USAGE.name,
+const INVESTIGATION_FEATURE: RawFeature = {
+	id: INVESTIGATION_USAGE.featureId,
+	name: INVESTIGATION_USAGE.name,
 	type: "single_use",
-	display: {
-		singular: "AI credit",
-		plural: DATABUNNY_USAGE.unit,
-	},
+	display: { singular: "investigation", plural: INVESTIGATION_USAGE.unit },
 };
 
-const INVESTIGATION_ITEM: RawItem = {
-	type: "feature",
-	feature_id: INVESTIGATION_USAGE.featureId,
-	feature_type: "single_use",
-	feature: {
-		id: INVESTIGATION_USAGE.featureId,
-		name: INVESTIGATION_USAGE.name,
-		type: "single_use",
-		display: { singular: "investigation", plural: INVESTIGATION_USAGE.unit },
-	},
-	included_usage: 0,
-	interval: null,
-};
+function investigationAllowance(included: number): RawItem {
+	return {
+		type: "priced_feature",
+		feature_id: INVESTIGATION_USAGE.featureId,
+		feature_type: "single_use",
+		feature: INVESTIGATION_FEATURE,
+		included_usage: included,
+		interval: "month",
+		price: INVESTIGATION_USAGE.priceUsd,
+		usage_model: "pay_per_use",
+	};
+}
 
 const EVENTS_FEATURE: RawFeature = {
 	id: "events",
@@ -92,9 +89,9 @@ const EVENT_TIERS = [
 export const RAW_PLANS: RawPlan[] = [
 	{
 		id: "free",
+		chatIncluded: true,
 		name: "Free",
 		items: [
-			INVESTIGATION_ITEM,
 			{
 				type: "feature",
 				feature_id: "events",
@@ -103,21 +100,13 @@ export const RAW_PLANS: RawPlan[] = [
 				included_usage: 10_000,
 				interval: "month",
 			},
-			{
-				type: "feature",
-				feature_id: "agent_credits",
-				feature_type: "single_use",
-				feature: AGENT_CREDITS_FEATURE,
-				included_usage: 10,
-				interval: "month",
-			},
 		],
 	},
 	{
 		id: "hobby",
+		chatIncluded: true,
 		name: "Hobby",
 		items: [
-			INVESTIGATION_ITEM,
 			{
 				type: "price",
 				interval: "month",
@@ -138,29 +127,13 @@ export const RAW_PLANS: RawPlan[] = [
 				})),
 				usage_model: "pay_per_use",
 			},
-			{
-				type: "feature",
-				feature_id: "agent_credits",
-				feature_type: "single_use",
-				feature: AGENT_CREDITS_FEATURE,
-				included_usage: 20,
-				interval: "month",
-			},
-			{
-				type: "feature",
-				feature_id: "agent_credits",
-				feature_type: "single_use",
-				feature: AGENT_CREDITS_FEATURE,
-				included_usage: 1,
-				interval: "day",
-			},
 		],
 	},
 	{
 		id: "pro",
+		chatIncluded: true,
 		name: "Pro",
 		items: [
-			INVESTIGATION_ITEM,
 			{
 				type: "price",
 				interval: "month",
@@ -178,29 +151,14 @@ export const RAW_PLANS: RawPlan[] = [
 				tiers: EVENT_TIERS,
 				usage_model: "pay_per_use",
 			},
-			{
-				type: "feature",
-				feature_id: "agent_credits",
-				feature_type: "single_use",
-				feature: AGENT_CREDITS_FEATURE,
-				included_usage: 350,
-				interval: "month",
-			},
-			{
-				type: "feature",
-				feature_id: "agent_credits",
-				feature_type: "single_use",
-				feature: AGENT_CREDITS_FEATURE,
-				included_usage: 5,
-				interval: "day",
-			},
 		],
 	},
 	{
 		id: "intelligence",
+		chatIncluded: true,
 		name: "Business",
 		items: [
-			INVESTIGATION_ITEM,
+			investigationAllowance(INVESTIGATION_ALLOWANCES.intelligence),
 			{
 				type: "price",
 				interval: "month",
@@ -220,21 +178,14 @@ export const RAW_PLANS: RawPlan[] = [
 				),
 				usage_model: "pay_per_use",
 			},
-			{
-				type: "feature",
-				feature_id: "agent_credits",
-				feature_type: "single_use",
-				feature: AGENT_CREDITS_FEATURE,
-				included_usage: 1500,
-				interval: "month",
-			},
 		],
 	},
 	{
 		id: "intelligence_scale",
+		chatIncluded: true,
 		name: "Scale",
 		items: [
-			INVESTIGATION_ITEM,
+			investigationAllowance(INVESTIGATION_ALLOWANCES.intelligence_scale),
 			{
 				type: "price",
 				interval: "month",
@@ -254,24 +205,12 @@ export const RAW_PLANS: RawPlan[] = [
 				),
 				usage_model: "pay_per_use",
 			},
-			{
-				type: "feature",
-				feature_id: "agent_credits",
-				feature_type: "single_use",
-				feature: AGENT_CREDITS_FEATURE,
-				included_usage: 5000,
-				interval: "month",
-			},
 		],
 	},
 	{
 		id: "enterprise",
+		chatIncluded: null,
 		name: "Enterprise",
 		items: [{ type: "enterprise" }],
 	},
 ];
-
-export const INTELLIGENCE_PLAN_TABLE_IDS = [
-	"intelligence",
-	"intelligence_scale",
-] as const;

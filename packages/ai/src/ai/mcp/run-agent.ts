@@ -15,7 +15,7 @@ import { loadOrganizationBusinessContext } from "../../lib/organization-business
 import { matchesWebsiteDomain } from "../../lib/website-domain";
 import { mergeWideEvent } from "../../lib/tracing";
 import {
-	ensureAgentCreditsAvailable,
+	getAgentBillingAccess,
 	resolveAgentBillingCustomerId,
 	trackAgentUsageAndBill,
 } from "../agents/execution";
@@ -295,10 +295,11 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 		agent_billing_mode: options.billingMode === "skip" ? "skip" : "bill",
 	});
 
-	if (
-		options.billingMode !== "skip" &&
-		!(await ensureAgentCreditsAvailable(billingCustomerId))
-	) {
+	const billingAccess =
+		options.billingMode === "skip"
+			? undefined
+			: await getAgentBillingAccess(billingCustomerId);
+	if (billingAccess && !billingAccess.allowed) {
 		throw new DatabuddyAgentUserError({
 			code: "agent_credits_exhausted",
 			message:
@@ -404,6 +405,7 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 		agent,
 		apiKeyId,
 		billingCustomerId,
+		billingAccess,
 		capturedSteps,
 		memoryUserId,
 		mcpUserId,
@@ -429,6 +431,7 @@ async function trackPreparedUsage(
 		userId: prepared.mcpUserId,
 		chatId: prepared.sessionId,
 		billingCustomerId: prepared.billingCustomerId,
+		billingAccess: prepared.billingAccess,
 	});
 }
 

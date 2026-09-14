@@ -35,7 +35,7 @@ import {
 import { recordInsightReplyFailure, resumeInsightReply } from "./resume";
 import { dispatchDueInsightRuns } from "./scheduler";
 import { generateOrganizationBusinessContext } from "./organization-business-context";
-import { recoverInvestigationCharges } from "./investigation-billing";
+import { settleRunInvestigationCharges } from "./observations";
 
 const SUCCESS_CHECKPOINT_ATTEMPTS = 3;
 const SUCCESSFUL_ITEM_STATUSES: ("skipped" | "succeeded")[] = [
@@ -190,7 +190,11 @@ async function loadSuccessfulItem(
 		.from(insightRunItems)
 		.where(runIdentityCondition(identity))
 		.limit(1);
-	return item ? successfulItemResult(item) : null;
+	const result = item ? successfulItemResult(item) : null;
+	if (result) {
+		await settleRunInvestigationCharges(identity);
+	}
+	return result;
 }
 
 async function checkpointSuccessfulItem(
@@ -240,7 +244,16 @@ async function finishGenerationFailure(params: {
 	error: unknown;
 	job: InsightsJob;
 }): Promise<GenerateWebsiteInsightsResult> {
-	const recovered = await loadCompletedPreparedResult(params.data);
+	let error = params.error;
+	let recovered = await loadCompletedPreparedResult(params.data);
+	if (recovered) {
+		try {
+			await settleRunInvestigationCharges(params.data);
+		} catch (settlementError) {
+			error = settlementError;
+			recovered = null;
+		}
+	}
 	if (recovered) {
 		await checkpointSuccessfulItem(params.data, recovered, params.activation);
 		await syncRunStatus(params.data.runId);
@@ -253,7 +266,7 @@ async function finishGenerationFailure(params: {
 	}
 
 	const finalAttempt = isFinalAttempt(params.job);
-	const message = errorMessage(params.error);
+	const message = errorMessage(error);
 	const updated = await db
 		.update(insightRunItems)
 		.set({
@@ -279,7 +292,7 @@ async function finishGenerationFailure(params: {
 			await syncRunStatus(params.data.runId);
 			return completed;
 		}
-		throw params.error;
+		throw error;
 	}
 
 	let runStatus: string | undefined;
@@ -292,14 +305,14 @@ async function finishGenerationFailure(params: {
 			item_id: params.data.itemId,
 		});
 	}
-	captureInsightsError(params.error, "job.generate_website.failed", {
+	captureInsightsError(error, "job.generate_website.failed", {
 		...jobContext(params.job),
 		final_attempt: finalAttempt,
 		item_id: params.data.itemId,
 		next_status: finalAttempt ? "failed" : "queued",
 		run_status: runStatus,
 	});
-	throw params.error;
+	throw error;
 }
 
 async function processGenerateWebsiteJob(
@@ -309,6 +322,7 @@ async function processGenerateWebsiteJob(
 	const data = await loadCanonicalGenerateItem(queuedData, job);
 	const completed = successfulItemResult(data);
 	if (completed) {
+		await settleRunInvestigationCharges(data);
 		await syncRunStatus(data.runId);
 		return { resultCount: completed.resultCount, status: completed.status };
 	}
@@ -409,7 +423,6 @@ export async function processInsightsJob(job: InsightsJob) {
 			if (job.name === INSIGHTS_DISPATCH_JOB_NAME) {
 				result = await dispatchDueInsightRuns();
 			} else if (job.name === INSIGHTS_MAINTENANCE_JOB_NAME) {
-				await recoverInvestigationCharges();
 				result = await recoverStaleInsightRuns();
 			} else if (job.name === INSIGHTS_GENERATE_WEBSITE_JOB_NAME) {
 				result = await processGenerateWebsiteJob(

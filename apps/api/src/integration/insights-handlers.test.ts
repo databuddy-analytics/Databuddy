@@ -1091,7 +1091,7 @@ describe("insight investigation timeline", () => {
 	});
 
 	iit(
-		"persists the accepted $1 analysis quote and rejects idempotent replay with a different durable price",
+		"requires explicit $1 consent and replays the same analysis without storing a price",
 		async () => {
 			const { member, organization, insightId } =
 				await seedExecutableGoalAction();
@@ -1133,7 +1133,7 @@ describe("insight investigation timeline", () => {
 					acceptedPriceUsd: 1 as const,
 					replyId: randomUUIDv7(),
 				};
-				for (const acceptedPriceUsd of [undefined, 2]) {
+				for (const acceptedPriceUsd of [undefined, 0, 2]) {
 					await expectBadReplyRequest(context, { ...input, acceptedPriceUsd });
 				}
 				expect(getCustomer).not.toHaveBeenCalled();
@@ -1143,16 +1143,21 @@ describe("insight investigation timeline", () => {
 						.from(insightReplies)
 						.where(eq(insightReplies.id, input.replyId))
 				).toHaveLength(0);
+				expect(
+					await getInsightsQueue().getJob(insightsResumeJobId(input.replyId))
+				).toBeUndefined();
 				const first = await call(appRouter.insights.reply, context)(input);
 				const [stored] = await db()
 					.select()
 					.from(insightReplies)
 					.where(eq(insightReplies.id, first.reply.id));
 				expect(stored).toMatchObject({
+					body: input.body,
 					intent: "analysis",
-					acceptedPriceCents: 100,
 					status: "queued",
 				});
+				expect(stored?.sourceObservationId).toBeTruthy();
+				expect(stored).not.toHaveProperty("acceptedPriceCents");
 				const retry = await call(appRouter.insights.reply, context)(input);
 				expect(retry.reply).toEqual(first.reply);
 				expect(
@@ -1161,21 +1166,30 @@ describe("insight investigation timeline", () => {
 						.from(insightReplies)
 						.where(eq(insightReplies.id, input.replyId))
 				).toHaveLength(1);
-				for (const acceptedPriceCents of [null, 200]) {
-					await db()
-						.update(insightReplies)
-						.set({ acceptedPriceCents })
-						.where(eq(insightReplies.id, first.reply.id));
-					await expectCode(
-						call(appRouter.insights.reply, context)(input),
-						"CONFLICT"
-					);
-					const [unchanged] = await db()
-						.select()
-						.from(insightReplies)
-						.where(eq(insightReplies.id, first.reply.id));
-					expect(unchanged?.acceptedPriceCents).toBe(acceptedPriceCents);
+				const customerChecks = getCustomer.mock.calls.length;
+				for (const acceptedPriceUsd of [undefined, 0, 2]) {
+					await expectBadReplyRequest(context, { ...input, acceptedPriceUsd });
 				}
+				expect(getCustomer).toHaveBeenCalledTimes(customerChecks);
+				await expectCode(
+					call(appRouter.insights.reply, context)({
+						...input,
+						body: "Run a different signup analysis",
+					}),
+					"CONFLICT"
+				);
+				await expectCode(
+					call(appRouter.insights.reply, context)({
+						...input,
+						intent: "clarification",
+					}),
+					"CONFLICT"
+				);
+				const [unchanged] = await db()
+					.select()
+					.from(insightReplies)
+					.where(eq(insightReplies.id, first.reply.id));
+				expect(unchanged).toEqual(stored);
 			} finally {
 				getCustomer.mockRestore();
 				if (originalSecret === undefined) delete process.env.AUTUMN_SECRET_KEY;
@@ -1262,7 +1276,10 @@ describe("insight investigation timeline", () => {
 			.select()
 			.from(insightReplies)
 			.where(eq(insightReplies.id, added.reply.id));
-		expect(includedReply?.acceptedPriceCents).toBeNull();
+		expect(includedReply).toMatchObject({
+			intent: "clarification",
+			sourceObservationId: secondObservationId,
+		});
 		expect(
 			(await getInsightsQueue().getJob(insightsResumeJobId(added.reply.id)))?.data
 		).toEqual({ replyId: added.reply.id });

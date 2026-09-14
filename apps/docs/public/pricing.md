@@ -1,19 +1,19 @@
 # Databuddy Pricing
 
-Product analytics, web analytics, feature flags, and Databunny investigations. Plans include monthly events and AI credits, with pay-as-you-go event overage on paid plans.
+Start with analytics and included Databunny chat. Business includes 100 investigations per month; Scale includes 500. Extras cost $1 each, billed monthly.
 
-Machine-readable: [JSON](https://www.databuddy.cc/api/pricing) · static [Markdown](https://www.databuddy.cc/pricing.md) · **GET `/pricing`** with `Accept: text/markdown` (see `Vary: Accept`).
+Machine-readable: [JSON](https://www.databuddy.cc/api/pricing) · static [Markdown](https://www.databuddy.cc/pricing.md) · **GET `/pricing`** with `Accept: text/markdown`.
 
 ## Plans
 
-| Plan | Price | Events / month (included) | AI credits | Notes |
-| --- | --- | --- | --- | --- |
-| Free | $0 | 10,000 | 10 / month | No paid overage — ingestion pauses at the monthly event allowance |
-| Hobby | $9.99/mo | 30,000 | 20 / month + 1 daily bonus | Tiered event overage |
-| Pro | $49.99/mo | 1,000,000 | 350 / month + 5 daily bonus | Tiered event overage |
-| Business | $299/mo | 2,000,000 | 1,500 / month | Invite only. An always-on product investigator; tiered event overage |
-| Scale | $799/mo | 10,000,000 | 5,000 / month | Invite only. More investigation capacity for higher traffic; tiered event overage |
-| Enterprise | Custom | Custom | Custom | Volume, security, SLAs — [pricing page](https://www.databuddy.cc/pricing) |
+| Plan | Price | Events / month (included) | Investigations / month (included) | Databunny chat | Notes |
+| --- | --- | --- | --- | --- | --- |
+| Free | $0 | 10,000 | — | Included | No paid overage — ingestion pauses at the monthly event allowance |
+| Hobby | $9.99/mo | 30,000 | — | Included | Tiered event overage |
+| Pro | $49.99/mo | 1,000,000 | — | Included | Tiered event overage |
+| Business | $299/mo | 2,000,000 | 100 / month | Included | Invite only. $1 per additional investigation, billed monthly; tiered event overage |
+| Scale | $799/mo | 10,000,000 | 500 / month | Included | Invite only. $1 per additional investigation, billed monthly; tiered event overage |
+| Enterprise | Custom | Custom | Custom | Custom | Volume, security, SLAs — [pricing page](https://www.databuddy.cc/pricing) |
 
 ## Events (overage on paid plans)
 
@@ -33,43 +33,37 @@ The [JSON API](https://www.databuddy.cc/api/pricing) declares `overageTierBasis:
 
 ## Product limits
 
-| | Free | Hobby | Pro | Enterprise |
-| --- | --- | --- | --- | --- |
-| Funnels | 1 | 5 | 50 | Unlimited |
-| Goals | 2 | 10 | Unlimited | Unlimited |
-| Feature flags | 3 | 10 | 100 | Unlimited |
-| User tracking | Unlimited | Unlimited | Unlimited | Unlimited |
-| Web Vitals | ✓ | ✓ | ✓ | ✓ |
-| Geographic maps | ✓ | ✓ | ✓ | ✓ |
-| Retention | ✓ | ✓ | ✓ | ✓ |
-| Error tracking | — | ✓ | ✓ | ✓ |
-| Databunny questions and analysis | ✓ | ✓ | ✓ | ✓ |
-| Target groups | Unlimited | Unlimited | Unlimited | Unlimited |
-| Team members | Unlimited | Unlimited | Unlimited | Unlimited |
+| | Free | Hobby | Pro | Business | Scale | Enterprise |
+| --- | --- | --- | --- | --- | --- | --- |
+| Funnels | 1 | 5 | 50 | Unlimited | Unlimited | Unlimited |
+| Goals | 2 | 10 | Unlimited | Unlimited | Unlimited | Unlimited |
+| Feature flags | 3 | 10 | 100 | Unlimited | Unlimited | Unlimited |
+| Error tracking | — | Included | Included | Included | Included | Included |
+| SSO and audit logs | — | — | — | — | — | Included |
 
-## Investigations — $1 each
+All plans include unlimited websites and team members, user tracking, Web Vitals, geographic maps, uptime monitoring, and API access.
 
-$1 per completed investigation. Clarifications of the same question and verification after applying a proposed repair are included. New questions and separate fresh analysis are new investigations. Buy 1–1,000 investigations at a time; prepaid investigations do not expire. New base-plan versions include no bundled investigations. Automatic scheduled investigations remain exclusive to the invite-only Business and Scale plans.
+## Investigations — monthly allowance, $1 per extra
 
-## AI credits and existing balances
+Only completed investigations count. Same-question clarifications and repair checks are included.
 
-Every cloud plan includes AI credits for ordinary Databunny chat. Hobby and Pro also receive a daily credit bonus. Existing credit balances, plan allowances, and purchased top-ups are preserved; they are not converted into $1 investigations. Existing subscriptions retain legacy investigation billing terms until they buy investigations or switch to a new plan version. After opting in, AI credits remain available for chat.
-
-Legacy AI credit purchases remain available for chat and grandfathered billing terms: a monthly booster and prepaid top-ups that do not expire. Credit refill and spend-limit settings apply to AI credits, not $1 investigation purchases.
+For example, 125 completed investigations on Business use the 100 included investigations and add $25 to the monthly bill. The total is $324 before event overage and taxes.
 
 ## Enterprise
 
-Custom contracts for volume, compliance, onboarding, and support. Use [databuddy.cc/pricing](https://www.databuddy.cc/pricing) or your account contact.
+Custom volume, security, and support. [Contact us](https://www.databuddy.cc/contact).
 
 ## Definitions
 
 - **Event:** A pageview, custom event, captured error, or Web Vital measurement counted toward monthly analytics usage. Feature flag evaluations and uptime checks do not count.
-- **Investigation:** One completed question, including same-question clarifications and verification of a proposed repair, for $1.
-- **AI credits:** Usage credits for ordinary chat and investigations on legacy billing terms.
-- **Overage:** Events in a billing month above the plan’s included events.
+- **Investigation:** A completed analysis of one question.
+- **Databunny chat:** Included questions and answers about your analytics.
+- **Overage:** Usage above the monthly included allowance. Events have tiered rates; completed investigations cost $1 each above the included amount.
 
 ## Links
 
-- Sign up: [app.databuddy.cc/register](https://app.databuddy.cc/register)
+- Free, Hobby, and Pro: [Get started](https://app.databuddy.cc/register)
+- Business: [Request access](https://www.databuddy.cc/contact?topic=intelligence-business)
+- Scale: [Request access](https://www.databuddy.cc/contact?topic=intelligence-scale)
 - Website: [databuddy.cc/pricing](https://www.databuddy.cc/pricing)
 - JSON API: [databuddy.cc/api/pricing](https://www.databuddy.cc/api/pricing)

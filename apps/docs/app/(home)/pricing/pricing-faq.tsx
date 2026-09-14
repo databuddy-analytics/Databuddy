@@ -1,34 +1,37 @@
-import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
+import {
+	INVESTIGATION_ALLOWANCES,
+	INVESTIGATION_USAGE,
+} from "@databuddy/shared/billing";
 import { FaqSection } from "@/components/landing/faq-section";
 
 export const pricingFaqItems = [
 	{
-		question: "What is included in one investigation?",
-		answer: INVESTIGATION_USAGE.description,
+		question: "How many investigations are included?",
+		answer: `Business includes ${INVESTIGATION_ALLOWANCES.intelligence} investigations per month; Scale includes ${INVESTIGATION_ALLOWANCES.intelligence_scale}. Extras cost $${INVESTIGATION_USAGE.priceUsd} each, billed monthly.`,
 	},
 	{
-		question: "What happens to my existing credits?",
+		question: "What is included in one investigation?",
 		answer:
-			"Your existing credits and plan allowances are preserved. Existing subscriptions retain legacy investigation billing until you buy $1 investigations or switch to a new plan version. After opting in, AI credits continue to pay for ordinary chat; they are not converted into investigation units.",
+			"Only completed investigations count. Same-question clarifications and repair checks are included.",
 	},
 	{
 		question: "What happens when I hit my event limit?",
 		answer:
-			"On Free, event ingestion pauses after 10,000 events for the month. Hobby and Pro continue with tiered event overage unless you set a hard billing limit. The dashboard shows current usage and lets you configure alerts and limits.",
+			"On Free, event ingestion pauses after 10,000 events for the month. Paid plans continue at tiered rates, subject to your billing limits.",
 	},
 	{
 		question: "Is there a free trial?",
-		answer: `The Free plan has no trial period and requires no credit card. It includes 10,000 events and 10 AI credits per month for ordinary Databunny chat. Investigations remain invite only and are purchased separately at $${INVESTIGATION_USAGE.priceUsd} per completed investigation.`,
+		answer:
+			"The Free plan has no trial period and requires no credit card. It includes 10,000 events per month and Databunny chat. Monthly investigations are available on the invite-only Business and Scale plans.",
 	},
 	{
 		question: "Can I switch plans?",
 		answer:
-			"Yes, you can upgrade or downgrade at any time. When you upgrade, the new plan takes effect immediately. When you downgrade, the change takes effect at the start of your next billing cycle.",
+			"Self-serve upgrades take effect immediately; downgrades start next billing cycle. Contact us for Business, Scale, or Enterprise access.",
 	},
 	{
 		question: "Do you offer annual billing?",
-		answer:
-			"Not yet, but it's on the roadmap. Right now all plans are billed monthly with no long-term commitment. You can cancel at any time.",
+		answer: "Plans are billed monthly. You can cancel at any time.",
 	},
 	{
 		question: "What counts as an event?",

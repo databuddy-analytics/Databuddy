@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { getInvestigationBillingFeatureId, INVESTIGATION_USAGE } from "@databuddy/shared/billing";
+import { DATABUNNY_CHAT, getInvestigationBillingFeatureId, INVESTIGATION_ALLOWANCES, INVESTIGATION_USAGE } from "@databuddy/shared/billing";
 import {
-	credits_booster, credits_topup, free, hobby, intelligence, intelligence_scale,
+	credits_booster, credits_topup, databunny_chat, free, hobby, intelligence, intelligence_scale,
 	investigations_topup, investigation_runs, pro, pulse_hobby, pulse_pro, scale,
 } from "../autumn.config";
 import { quoteInvestigationPurchase } from "./investigation-purchase";
@@ -28,18 +28,33 @@ describe("fixed investigation purchases", () => {
 		}]);
 	});
 
-	test("active plan versions declare one-off zero units and preserve every old credit grant", () => {
-		for (const [plan, monthly, daily] of [
-			[free, 10, undefined], [hobby, 20, 1], [pro, 350, 5],
-			[intelligence, 1500, undefined], [intelligence_scale, 5000, undefined],
-		] as const) {
+	test("new plans include chat without credit grants or prices", () => {
+		expect(databunny_chat).toEqual({ id: DATABUNNY_CHAT.featureId, name: DATABUNNY_CHAT.name, type: "boolean" });
+		for (const plan of [free, hobby, pro, intelligence, intelligence_scale]) {
+			expect(plan.items?.filter((item) => item.featureId === "agent_credits")).toEqual([]);
+			expect(plan.items?.filter((item) => item.featureId === DATABUNNY_CHAT.featureId)).toEqual([{ featureId: DATABUNNY_CHAT.featureId }]);
+		}
+	});
+
+	test("analytics plans do not promise included automatic investigations", () => {
+		for (const plan of [free, hobby, pro]) {
 			expect(plan.items?.filter((item) => item.featureId === "investigation_runs")).toEqual([
 			{ featureId: "investigation_runs", included: 0, reset: { interval: "one_off" } },
 		]);
-			const credits = plan.items?.filter((item) => item.featureId === "agent_credits");
-			expect(credits?.find((item) => item.reset?.interval === "month")?.included).toBe(monthly);
-			expect(credits?.find((item) => item.reset?.interval === "day")?.included).toBe(daily);
 		}
+	});
+
+	test.each([
+		[intelligence, INVESTIGATION_ALLOWANCES.intelligence, 299],
+		[intelligence_scale, INVESTIGATION_ALLOWANCES.intelligence_scale, 799],
+	] as const)("%s grants monthly investigations and bills only extras at one dollar", (plan, included, basePrice) => {
+		expect(plan.price).toEqual({ amount: basePrice, interval: "month" });
+		expect(plan.items?.filter((item) => item.featureId === INVESTIGATION_USAGE.featureId)).toEqual([{
+			featureId: INVESTIGATION_USAGE.featureId,
+			included,
+			price: { amount: 1, interval: "month", billingMethod: "usage_based", billingUnits: 1 },
+		}]);
+		expect(plan.autoEnable).toBe(false);
 	});
 
 	test("legacy plans and credit top-ups are not converted into investigation units", () => {

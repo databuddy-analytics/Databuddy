@@ -1,11 +1,7 @@
 "use client";
 
-import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
-
 import { Footer } from "@/components/footer";
-import { AiPricingSummary } from "./_pricing/ai-pricing-summary";
 import { Estimator } from "./_pricing/estimator";
-import { IntelligenceSection } from "./_pricing/intelligence-section";
 import { normalizePlans } from "./_pricing/normalize";
 import { PlansComparisonTable } from "./_pricing/table";
 import type { NormalizedPlan } from "./_pricing/types";
@@ -23,34 +19,12 @@ export default function PricingPage() {
 						Find the plan that fits your product.
 					</h1>
 					<p className="mx-auto max-w-2xl text-pretty text-muted-foreground text-sm sm:text-base">
-						Compare analytics plans by usage and capabilities. Investigations
-						remain invite only and are purchased separately at $
-						{INVESTIGATION_USAGE.priceUsd} per completed investigation.
+						Databunny chat is included. Business and Scale add monthly
+						investigations.
 					</p>
 				</header>
 
-				<AiPricingSummary plans={RAW_PLANS} />
-
 				<PlansComparisonTable plans={PLANS} />
-
-				<section
-					aria-label="Investigation pricing"
-					className="mb-10 border border-border bg-card p-6"
-				>
-					<h2 className="font-semibold text-2xl">$1 per investigation</h2>
-					<p className="mt-2 text-muted-foreground">
-						{INVESTIGATION_USAGE.description}
-					</p>
-					<p className="mt-2 text-muted-foreground text-sm">
-						Buy only what you need. Prepaid investigations do not expire. Plan
-						AI credits pay for ordinary chat; no investigations are bundled with
-						new plan versions. Existing balances and legacy investigation terms
-						are preserved until you buy investigations or switch to a new plan
-						version.
-					</p>
-				</section>
-
-				<IntelligenceSection />
 
 				<Estimator plans={PLANS} />
 

@@ -1,10 +1,26 @@
 import { estimateTieredOverageCostFromTiers } from "./estimator-utils";
 import type { NormalizedPlan } from "./types";
 
-function calculateTotalCost(
+export function calculateTotalCost(
 	plan: NormalizedPlan,
-	monthlyEvents: number
+	monthlyEvents: number,
+	monthlyInvestigations = 0
 ): number | null {
+	if (plan.id === "enterprise") {
+		return null;
+	}
+	if (
+		monthlyInvestigations > 0 &&
+		(plan.includedInvestigationsMonthly === null ||
+			plan.investigationPrice === null)
+	) {
+		return null;
+	}
+	const investigationCost =
+		Math.max(
+			monthlyInvestigations - (plan.includedInvestigationsMonthly ?? 0),
+			0
+		) * (plan.investigationPrice ?? 0);
 	const basePrice = plan.priceMonthly;
 	const included = plan.includedEventsMonthly;
 	const overage = Math.max(monthlyEvents - included, 0);
@@ -14,44 +30,34 @@ function calculateTotalCost(
 	}
 
 	if (overage <= 0) {
-		return basePrice;
+		return basePrice + investigationCost;
 	}
 
 	const overageCost = estimateTieredOverageCostFromTiers(
 		overage,
 		plan.eventTiers ?? []
 	);
-	return basePrice + overageCost;
-}
-
-function findHighestTierPlan(plans: NormalizedPlan[]): NormalizedPlan | null {
-	const paidPlansWithOverage = plans.filter((p) => p.eventTiers !== null);
-	if (paidPlansWithOverage.length === 0) {
-		return null;
-	}
-	return paidPlansWithOverage.reduce((max, plan) =>
-		plan.includedEventsMonthly > max.includedEventsMonthly ? plan : max
-	);
+	return basePrice + overageCost + investigationCost;
 }
 
 export function selectBestPlan(
 	monthlyEvents: number,
-	plans: NormalizedPlan[]
+	plans: NormalizedPlan[],
+	monthlyInvestigations = 0
 ): NormalizedPlan | null {
 	if (plans.length === 0) {
 		return null;
 	}
 
-	const highestTier = findHighestTierPlan(plans);
-
-	if (highestTier && monthlyEvents > highestTier.includedEventsMonthly) {
-		return highestTier;
-	}
 	let bestPlan: NormalizedPlan | null = null;
 	let bestCost = Number.POSITIVE_INFINITY;
 
 	for (const plan of plans) {
-		const totalCost = calculateTotalCost(plan, monthlyEvents);
+		const totalCost = calculateTotalCost(
+			plan,
+			monthlyEvents,
+			monthlyInvestigations
+		);
 		if (totalCost === null) {
 			continue;
 		}

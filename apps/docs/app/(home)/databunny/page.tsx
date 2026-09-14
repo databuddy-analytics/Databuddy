@@ -1,3 +1,7 @@
+import {
+	INVESTIGATION_ALLOWANCES,
+	INVESTIGATION_USAGE,
+} from "@databuddy/shared/billing";
 import type { Metadata } from "next";
 import { Footer } from "@/components/footer";
 import { CELL_TITLE_CLASS } from "@/components/landing/demo-constants";
@@ -58,8 +62,7 @@ const FAQ_ITEMS = [
 	},
 	{
 		question: "Is Databunny included in all plans?",
-		answer:
-			"Every plan includes AI credits for ordinary Databunny chat; Free includes 10 credits each month. Completed investigations cost $1 each, with same-question clarifications and verification after applying a proposed repair included. New questions and separate fresh analysis are new investigations. Existing balances and legacy terms are preserved until you buy investigations or switch to a new plan version. Automatic scheduled investigations remain invite only.",
+		answer: `Databunny chat is included in every plan. Business includes ${INVESTIGATION_ALLOWANCES.intelligence} investigations per month and Scale includes ${INVESTIGATION_ALLOWANCES.intelligence_scale}, with $${INVESTIGATION_USAGE.priceUsd} per extra. Investigation access is invite only.`,
 	},
 ] as const;
 

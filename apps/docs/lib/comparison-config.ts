@@ -1,6 +1,9 @@
-import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
+import {
+	INVESTIGATION_ALLOWANCES,
+	INVESTIGATION_USAGE,
+} from "@databuddy/shared/billing";
 
-const investigationPrice = `Invite only · $${INVESTIGATION_USAGE.priceUsd} per completed investigation`;
+const investigationPrice = `Invite only · ${INVESTIGATION_ALLOWANCES.intelligence}/month on Business, ${INVESTIGATION_ALLOWANCES.intelligence_scale}/month on Scale · $${INVESTIGATION_USAGE.priceUsd} per additional investigation, billed monthly`;
 
 export interface ComparisonFeature {
 	benefit: string;

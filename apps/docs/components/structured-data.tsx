@@ -71,7 +71,8 @@ function planToOffer(plan: RawPlan, baseUrl: string) {
 	// Included features → additionalProperty
 	const included = plan.items
 		.filter(
-			(i): i is Extract<RawItem, { type: "feature" }> => i.type === "feature"
+			(i): i is Extract<RawItem, { type: "feature" | "priced_feature" }> =>
+				i.type === "feature" || i.type === "priced_feature"
 		)
 		.map((i) => ({
 			"@type": "PropertyValue",
@@ -80,6 +81,14 @@ function planToOffer(plan: RawPlan, baseUrl: string) {
 				i.included_usage === "inf" ? "Unlimited" : String(i.included_usage),
 			unitText: i.interval ? `per ${i.interval}` : undefined,
 		}));
+	if (plan.chatIncluded !== null) {
+		included.unshift({
+			"@type": "PropertyValue",
+			name: "Databunny chat",
+			value: plan.chatIncluded ? "Included" : "Not included",
+			unitText: undefined,
+		});
+	}
 
 	// Overage & add-ons → priceSpecification[]
 	const priceSpecs: any[] = [];
@@ -134,6 +143,29 @@ function planToOffer(plan: RawPlan, baseUrl: string) {
 					prevMax = t.to as number;
 				}
 			}
+		} else if (
+			pf.feature_id === "investigation_runs" &&
+			typeof pf.price === "number"
+		) {
+			priceSpecs.push({
+				"@type": "UnitPriceSpecification",
+				price: priceStr(pf.price),
+				priceCurrency: "USD",
+				unitText: "per additional completed investigation (billed monthly)",
+				referenceQuantity: {
+					"@type": "QuantitativeValue",
+					value: 1,
+					unitText: "investigation",
+				},
+				eligibleQuantity: {
+					"@type": "QuantitativeValue",
+					minValue:
+						typeof pf.included_usage === "number"
+							? pf.included_usage + 1
+							: undefined,
+					unitText: "total monthly completed investigations",
+				},
+			});
 		}
 		// Other priced features (e.g., extra websites per month)
 		else if (typeof pf.price === "number") {
