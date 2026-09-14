@@ -2,7 +2,6 @@
 
 import { Footer } from "@/components/footer";
 import { Estimator } from "./_pricing/estimator";
-import { PlanCards } from "./_pricing/plan-cards";
 import { normalizePlans } from "./_pricing/normalize";
 import { PlansComparisonTable } from "./_pricing/table";
 import type { NormalizedPlan } from "./_pricing/types";
@@ -24,8 +23,6 @@ export default function PricingPage() {
 						investigations.
 					</p>
 				</header>
-
-				<PlanCards plans={PLANS} />
 
 				<PlansComparisonTable plans={PLANS} />
 

@@ -13,7 +13,6 @@ import {
 	calculateTotalCost,
 	selectBestPlan,
 } from "@/app/(home)/pricing/_pricing/best-plan";
-import { PlanCards } from "@/app/(home)/pricing/_pricing/plan-cards";
 import { PlansComparisonTable } from "@/app/(home)/pricing/_pricing/table";
 import { normalizePlans } from "@/app/(home)/pricing/_pricing/normalize";
 import { RAW_PLANS } from "@/app/(home)/pricing/data";
@@ -248,13 +247,13 @@ describe("public pricing copy", () => {
 		expect(calculateTotalCost(hobby, 25_000, 0)).toBe(9.99);
 	});
 
-	it("renders the same monthly allowance in cards, calculator, and structured offers", () => {
+	it("renders the same monthly allowance in the table, calculator, and structured offers", () => {
 		const cards = renderToStaticMarkup(
-			createElement(PlanCards, { plans: normalizePlans(RAW_PLANS) })
+			createElement(PlansComparisonTable, { plans: normalizePlans(RAW_PLANS) })
 		);
 		for (const [id, allowance] of Object.entries(INVESTIGATION_ALLOWANCES)) {
 			const plans = RAW_PLANS.filter((plan) => plan.id === id);
-			expect(cards).toContain(`${allowance} investigations / month included`);
+			expect(cards).toContain(`>${allowance}</td>`);
 			const estimator = renderToStaticMarkup(
 				createElement(Estimator, { plans: normalizePlans(plans) })
 			);
@@ -278,7 +277,7 @@ describe("public pricing copy", () => {
 				'"unitText":"per additional completed investigation (billed monthly)"'
 			);
 		}
-		expect(cards).toContain("$1 per extra");
+		expect(cards).toContain("$1.00 per extra");
 		expect(cards).not.toContain("purchased separately");
 		expect(cards).not.toContain("no investigations are bundled");
 		expect(cards).not.toContain("Clarifications");
@@ -321,20 +320,18 @@ describe("public pricing copy", () => {
 		expect(table).toContain("$9.99");
 		expect(table).toContain("$49.99");
 		expect(table).not.toContain("first month $2");
-		const cards = renderToStaticMarkup(
-			createElement(PlanCards, { plans: normalizePlans(RAW_PLANS) })
-		);
-		for (const output of [structured, table, cards]) {
+		for (const output of [structured, table]) {
 			expect(output).not.toContain("AI credits");
 			expect(output).not.toContain("investigation credits");
 			expect(output).not.toContain("prepaid");
 			expect(output).not.toContain("legacy billing");
 		}
 	});
-	it("keeps three primary cards, all six plan anchors, and accurate request-access links", () => {
+	it("restores a visible comparison table with all six plans and accurate request-access links", () => {
 		const plans = normalizePlans(RAW_PLANS);
-		const markup = renderToStaticMarkup(createElement(PlanCards, { plans }));
-		expect(markup.split("<article ")).toHaveLength(4);
+		const markup = renderToStaticMarkup(createElement(PlansComparisonTable, { plans }));
+		expect(markup).not.toContain("<article");
+		expect(markup).not.toContain("<details");
 		for (const plan of plans) expect(markup).toContain(`id="${plan.id}"`);
 		for (const id of ["hobby", "pro"])
 			expect(markup).toContain(
@@ -344,20 +341,20 @@ describe("public pricing copy", () => {
 			expect(markup).toContain(`href="/contact?topic=${topic}"`);
 		expect(markup).not.toContain("register?plan=intelligence");
 		expect(markup).not.toContain("Most popular");
-		const comparison = renderToStaticMarkup(
-			createElement(PlansComparisonTable, { plans })
-		);
-		expect(comparison).toStartWith("<details ");
+		const comparison = markup;
+		expect(comparison).toStartWith("<section ");
 		expect(comparison).not.toContain(" open=");
 		for (const plan of plans)
-			expect(comparison).toContain(`>${plan.name}</th>`);
+			expect(comparison).toContain(`>${plan.name}</span>`);
 		expect(comparison).toContain("Investigations / month");
-		expect(comparison).toContain(">100</td>");
-		expect(comparison).toContain(">500</td>");
+		const investigationRow = comparison.split("Investigations / month")[1]?.split("</tr>")[0];
+		expect(investigationRow).toContain(">100</td>");
+		expect(investigationRow).toContain(">500</td>");
+		expect(comparison).toContain("Priority email + Slack");
 		expect(comparison).not.toContain("Automatic investigations");
 	});
 
-	it("renders card price and investigation allowance from the supplied plan terms", () => {
+	it("renders table price and investigation allowance from the supplied plan terms", () => {
 		const plans = normalizePlans(RAW_PLANS).map((plan) =>
 			plan.id === "intelligence"
 				? {
@@ -368,11 +365,11 @@ describe("public pricing copy", () => {
 					}
 				: plan
 		);
-		const markup = renderToStaticMarkup(createElement(PlanCards, { plans }));
+		const markup = renderToStaticMarkup(createElement(PlansComparisonTable, { plans }));
 		expect(markup).toContain("$123");
-		expect(markup).toContain("42 investigations / month");
-		expect(markup).toContain("$0.5 per extra");
-		expect(markup).not.toContain("100 investigations / month");
+		expect(markup).toContain(">42</td>");
+		expect(markup).toContain("$0.50 per extra");
+		expect(markup).not.toContain(">100</td>");
 	});
 	it("does not invent chat inclusion or a price for grant-only investigation terms", () => {
 		const plans = normalizePlans(RAW_PLANS)
@@ -384,9 +381,9 @@ describe("public pricing copy", () => {
 				chatIncluded: false,
 				investigationPrice: null,
 			}));
-		const markup = renderToStaticMarkup(createElement(PlanCards, { plans }));
-		expect(markup).toContain("100 investigations / month");
-		expect(markup).toContain("500 investigations / month");
+		const markup = renderToStaticMarkup(createElement(PlansComparisonTable, { plans }));
+		expect(markup).toContain(">100</td>");
+		expect(markup).toContain(">500</td>");
 		expect(markup).not.toContain("Databunny chat included");
 		expect(markup).not.toContain("per extra");
 		expect(markup).not.toContain("$null");
