@@ -1,15 +1,5 @@
 import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
 import type { RawItem, RawPlan } from "../data";
-import type { NormalizedPlan } from "./types";
-
-function getPriceMonthly(items: RawItem[]): number {
-	for (const item of items) {
-		if (item.type === "price") {
-			return item.price;
-		}
-	}
-	return 0;
-}
 
 function getEventsInfo(items: RawItem[]): {
 	included: number;
@@ -44,7 +34,9 @@ function getEventsInfo(items: RawItem[]): {
 	};
 }
 
-export function normalizePlans(raw: RawPlan[]): NormalizedPlan[] {
+export type NormalizedPlan = ReturnType<typeof normalizePlans>[number];
+
+export function normalizePlans(raw: RawPlan[]) {
 	return raw.map((plan) => {
 		if (plan.id === "enterprise") {
 			return {
@@ -59,7 +51,8 @@ export function normalizePlans(raw: RawPlan[]): NormalizedPlan[] {
 			};
 		}
 
-		const priceMonthly = getPriceMonthly(plan.items);
+		const priceMonthly =
+			plan.items.find((item) => item.type === "price")?.price ?? 0;
 		const { included: includedEventsMonthly, tiers: eventTiers } =
 			getEventsInfo(plan.items);
 		const investigations = plan.items.find(

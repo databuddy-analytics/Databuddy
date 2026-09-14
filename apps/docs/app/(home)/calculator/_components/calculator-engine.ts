@@ -1,6 +1,6 @@
 import { estimateTieredOverageCostFromTiers } from "@/app/(home)/pricing/_pricing/estimator-utils";
 import { normalizePlans } from "@/app/(home)/pricing/_pricing/normalize";
-import type { NormalizedPlan } from "@/app/(home)/pricing/_pricing/types";
+import type { NormalizedPlan } from "@/app/(home)/pricing/_pricing/normalize";
 import { RAW_PLANS } from "@/app/(home)/pricing/data";
 
 const PLANS: NormalizedPlan[] = normalizePlans(RAW_PLANS);

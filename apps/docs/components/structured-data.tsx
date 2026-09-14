@@ -1,5 +1,19 @@
 import { serializeJsonLd } from "@databuddy/shared/json-ld";
-import type { RawItem, RawPlan } from "@/app/(home)/pricing/data";
+import type { RawPlan } from "@/app/(home)/pricing/data";
+
+type JsonLdValue =
+	| string
+	| number
+	| boolean
+	| null
+	| undefined
+	| JsonLdValue[]
+	| { [property: string]: JsonLdValue };
+
+interface JsonLdNode {
+	"@type": string | string[];
+	[property: string]: JsonLdValue;
+}
 
 interface Breadcrumb {
 	name: string;
@@ -49,9 +63,9 @@ type ElementItem =
 	| { type: "softwareOffers"; name?: string; plans: RawPlan[] };
 
 interface StructuredDataProps {
-	baseUrl?: string; // default: https://www.databuddy.cc
+	baseUrl?: string;
 	elements?: ElementItem[];
-	logoUrl?: string; // default: {baseUrl}/logo.png
+	logoUrl?: string;
 
 	page: PageProps;
 }
@@ -59,21 +73,15 @@ interface StructuredDataProps {
 const EMPTY_ELEMENTS: ElementItem[] = [];
 
 function planToOffer(plan: RawPlan, baseUrl: string) {
-	const BLOCK_UNITS_FOR_EVENTS = 1000; // price is expressed per 1,000 events
+	const BLOCK_UNITS_FOR_EVENTS = 1000;
 	const toUnitCode = (interval: "day" | "month" | null | undefined) =>
 		interval === "month" ? "MON" : interval === "day" ? "DAY" : undefined;
-	const priceStr = (n: number, decimals = 2) => n.toFixed(decimals); // avoid scientific notation
 
 	const priceItem = plan.items.find((i) => i.type === "price");
-	const basePrice =
-		priceItem && typeof priceItem.price === "number" ? priceItem.price : 0;
+	const basePrice = priceItem?.price ?? 0;
 
-	// Included features → additionalProperty
 	const included = plan.items
-		.filter(
-			(i): i is Extract<RawItem, { type: "feature" | "priced_feature" }> =>
-				i.type === "feature" || i.type === "priced_feature"
-		)
+		.filter((i) => i.type === "feature" || i.type === "priced_feature")
 		.map((i) => ({
 			"@type": "PropertyValue",
 			name: i.feature?.name,
@@ -90,40 +98,32 @@ function planToOffer(plan: RawPlan, baseUrl: string) {
 		});
 	}
 
-	// Overage & add-ons → priceSpecification[]
-	const priceSpecs: any[] = [];
+	const priceSpecs: JsonLdNode[] = [];
 
-	// Base monthly plan price
 	if (priceItem) {
 		priceSpecs.push({
 			"@type": "UnitPriceSpecification",
-			price: priceStr(basePrice, 2),
+			price: basePrice.toFixed(2),
 			priceCurrency: "USD",
 			unitCode: "MON",
 			unitText: "per month",
 		});
 	}
 
-	const items = plan.items.filter(
-		(i): i is Extract<RawItem, { type: "priced_feature" }> =>
-			i.type === "priced_feature"
-	);
+	const items = plan.items.filter((i) => i.type === "priced_feature");
 
-	// priced_feature with tiers (events, extra websites, etc.)
 	for (const pf of items) {
-		// Event overage tiers → convert per-event micro price to per-1,000 events
 		if (pf.feature?.id === "events" && pf.tiers?.length) {
-			// Start tier ranges right after included quota (if any)
 			let prevMax: number | undefined =
 				typeof pf.included_usage === "number" ? pf.included_usage : undefined;
 
 			for (const t of pf.tiers) {
 				const minValue = prevMax == null ? undefined : prevMax + 1;
-				const maxValue = t.to === "inf" ? undefined : (t.to as number);
+				const maxValue = t.to === "inf" ? undefined : t.to;
 
 				priceSpecs.push({
 					"@type": "UnitPriceSpecification",
-					price: priceStr(t.amount * BLOCK_UNITS_FOR_EVENTS, 3),
+					price: (t.amount * BLOCK_UNITS_FOR_EVENTS).toFixed(3),
 					priceCurrency: "USD",
 					referenceQuantity: {
 						"@type": "QuantitativeValue",
@@ -140,7 +140,7 @@ function planToOffer(plan: RawPlan, baseUrl: string) {
 				});
 
 				if (t.to !== "inf") {
-					prevMax = t.to as number;
+					prevMax = t.to;
 				}
 			}
 		} else if (
@@ -149,7 +149,7 @@ function planToOffer(plan: RawPlan, baseUrl: string) {
 		) {
 			priceSpecs.push({
 				"@type": "UnitPriceSpecification",
-				price: priceStr(pf.price),
+				price: pf.price.toFixed(2),
 				priceCurrency: "USD",
 				unitText: "per additional completed investigation (billed monthly)",
 				referenceQuantity: {
@@ -166,13 +166,11 @@ function planToOffer(plan: RawPlan, baseUrl: string) {
 					unitText: "total monthly completed investigations",
 				},
 			});
-		}
-		// Other priced features (e.g., extra websites per month)
-		else if (typeof pf.price === "number") {
+		} else if (typeof pf.price === "number") {
 			const refUnit = toUnitCode(pf.interval);
 			priceSpecs.push({
 				"@type": "UnitPriceSpecification",
-				price: priceStr(pf.price, 2), // e.g. "0.50"
+				price: pf.price.toFixed(2),
 				priceCurrency: "USD",
 				unitText: `per ${pf.feature?.display?.singular ?? "unit"}`,
 				...(refUnit
@@ -180,7 +178,7 @@ function planToOffer(plan: RawPlan, baseUrl: string) {
 							referenceQuantity: {
 								"@type": "QuantitativeValue",
 								value: 1,
-								unitCode: refUnit, // MON or DAY
+								unitCode: refUnit,
 							},
 						}
 					: {}),
@@ -192,7 +190,7 @@ function planToOffer(plan: RawPlan, baseUrl: string) {
 		"@type": "Offer",
 		name: plan.name,
 		url: `${baseUrl}/pricing#${plan.id}`,
-		price: basePrice, // simple base price (numeric) for the plan itself
+		price: basePrice,
 		priceCurrency: "USD",
 		priceSpecification: priceSpecs,
 		itemOffered: {
@@ -208,7 +206,7 @@ function planToOffer(plan: RawPlan, baseUrl: string) {
 
 export function StructuredData({
 	baseUrl = "https://www.databuddy.cc",
-	logoUrl = `${"https://www.databuddy.cc"}/logo.png`,
+	logoUrl = "https://www.databuddy.cc/logo.png",
 	page,
 	elements = EMPTY_ELEMENTS,
 }: StructuredDataProps) {
@@ -225,9 +223,8 @@ export function StructuredData({
 	const softwareId = `${baseUrl}#software`;
 	const serviceId = `${baseUrl}#analytics-service`;
 
-	const graph: any[] = [];
+	const graph: JsonLdNode[] = [];
 
-	// Organization (always)
 	graph.push({
 		"@type": "Organization",
 		"@id": orgId,
@@ -256,7 +253,6 @@ export function StructuredData({
 		areaServed: "Worldwide",
 	});
 
-	// WebSite (always)
 	graph.push({
 		"@type": "WebSite",
 		"@id": websiteId,
@@ -265,7 +261,6 @@ export function StructuredData({
 		publisher: { "@id": orgId },
 	});
 
-	// WebPage (anchor)
 	graph.push({
 		"@type": "WebPage",
 		"@id": webPageId,
@@ -299,7 +294,6 @@ export function StructuredData({
 		url: baseUrl,
 	});
 
-	// Breadcrumbs
 	if (page.breadcrumbs?.length) {
 		graph.push({
 			"@type": "BreadcrumbList",
@@ -411,7 +405,7 @@ export function StructuredData({
 				operatingSystem: "Web",
 				url: baseUrl,
 				publisher: { "@type": "Organization", "@id": orgId },
-				// Multiple plans → AggregateOffer
+
 				offers: {
 					"@type": "AggregateOffer",
 					offerCount: offers.length,
@@ -442,7 +436,7 @@ export function StructuredData({
 
 	const jsonLd = {
 		"@context": "https://schema.org",
-		"@graph": graph.filter(Boolean),
+		"@graph": graph,
 	};
 
 	return (

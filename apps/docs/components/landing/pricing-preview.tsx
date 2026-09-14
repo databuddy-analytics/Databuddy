@@ -4,7 +4,7 @@ import { ArrowRightIcon } from "@databuddy/ui/icons";
 import Link from "next/link";
 import { Estimator } from "@/app/(home)/pricing/_pricing/estimator";
 import { normalizePlans } from "@/app/(home)/pricing/_pricing/normalize";
-import type { NormalizedPlan } from "@/app/(home)/pricing/_pricing/types";
+import type { NormalizedPlan } from "@/app/(home)/pricing/_pricing/normalize";
 import { RAW_PLANS } from "@/app/(home)/pricing/data";
 import { SectionBullet } from "../icons/section-bullet";
 
