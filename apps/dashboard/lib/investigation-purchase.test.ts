@@ -1,22 +1,24 @@
 import { describe, expect, test } from "bun:test";
-import { DATABUNNY_CHAT, getInvestigationBillingFeatureId, INVESTIGATION_ALLOWANCES, INVESTIGATION_USAGE } from "@databuddy/shared/billing";
+import {
+	DATABUNNY_CHAT,
+	getInvestigationBillingFeatureId,
+	INVESTIGATION_ALLOWANCES,
+	INVESTIGATION_USAGE,
+	investigationQuantitySchema,
+} from "@databuddy/shared/billing";
 import {
 	credits_booster, credits_topup, databunny_chat, free, hobby, intelligence, intelligence_scale,
 	investigations_topup, investigation_runs, pro, pulse_hobby, pulse_pro, scale,
 } from "../autumn.config";
-import { quoteInvestigationPurchase } from "./investigation-purchase";
 import { calculateTopupCost, TOPUP_FEATURE_ID, TOPUP_TIERS } from "./topup-math";
 
 describe("fixed investigation purchases", () => {
-	test.each([1, 10, 137, 1000])("quotes %i units at exactly one dollar without credit tiers", (quantity) => {
-		expect(quoteInvestigationPurchase(quantity)).toEqual({
-			costUsd: quantity, planId: "investigations_topup",
-			featureQuantities: [{ featureId: "investigation_runs", quantity }],
-		});
+	test.each([1, 10, 137, 1000])("accepts %i whole units", (quantity) => {
+		expect(investigationQuantitySchema.parse(quantity)).toBe(quantity);
 	});
 
 	test.each([0, -1, 0.5, 1.5, 1001, Number.NaN, Number.POSITIVE_INFINITY])("rejects invalid quantity %s", (quantity) => {
-		expect(() => quoteInvestigationPurchase(quantity)).toThrow();
+		expect(() => investigationQuantitySchema.parse(quantity)).toThrow();
 	});
 
 	test("new catalog item is prepaid without a reset, expiration, or volume discount", () => {
