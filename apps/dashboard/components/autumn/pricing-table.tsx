@@ -10,7 +10,13 @@ import {
 	PLAN_FEATURE_LIMITS,
 } from "@databuddy/shared/types/features";
 import { Badge, Button, Card, EmptyState, Skeleton, Text } from "@databuddy/ui";
-import { CheckIcon, WarningIcon } from "@databuddy/ui/icons";
+import {
+	CheckIcon,
+	CrownIcon,
+	RocketLaunchIcon,
+	StarIcon,
+	WarningIcon,
+} from "@databuddy/ui/icons";
 import { Accordion } from "@databuddy/ui/client";
 import { useCustomer, useListPlans } from "autumn-js/react";
 import { useState } from "react";
@@ -40,6 +46,16 @@ type BillingPreview = AttachDialogProps["preview"];
 const CONTACT_TOPICS: Record<string, string | undefined> =
 	INTELLIGENCE_CONTACT_TOPICS;
 const DISPLAYED_PLAN_IDS = new Set(["hobby", "pro", "intelligence"]);
+const PLAN_ICONS: Record<string, typeof CrownIcon> = {
+	hobby: RocketLaunchIcon,
+	pro: StarIcon,
+	intelligence: CrownIcon,
+};
+const PLAN_TAGLINES: Record<string, string> = {
+	hobby: "For solo builders and side projects.",
+	pro: "For growing teams shipping production apps.",
+	intelligence: "An always-on product investigator for founders and engineers.",
+};
 const PLAN_SUPPORT: Record<string, string> = {
 	hobby: "Email support",
 	pro: "Priority email support",
@@ -104,11 +120,17 @@ export default function PricingTable({
 			<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 				{[1, 2, 3].map((id) => (
 					<Card className="min-h-[340px]" key={id}>
-						<Card.Header>
-							<Skeleton className="h-5 w-24" />
-							<Skeleton className="mt-2 h-9 w-32" />
+						<Card.Header className="min-h-[104px] flex-row items-start gap-3 bg-transparent p-5">
+							<Skeleton className="size-9 shrink-0" />
+							<div className="min-w-0 flex-1 space-y-2">
+								<Skeleton className="h-5 w-24" />
+								<Skeleton className="h-3 w-full" />
+							</div>
 						</Card.Header>
-						<Card.Content className="space-y-5">
+						<div className="border-border/60 border-y bg-secondary/40 px-5 py-5">
+							<Skeleton className="h-9 w-32" />
+						</div>
+						<Card.Content className="space-y-5 p-5">
 							<Skeleton className="h-5 w-40" />
 							<Skeleton className="h-5 w-32" />
 							<Skeleton className="h-5 w-36" />
@@ -216,31 +238,64 @@ function PricingCard({
 			? undefined
 			: getInvestigationTerms(plan.items);
 	const contactTopic = CONTACT_TOPICS[plan.id];
+	const isRecommended = plan.id === "pro";
+	const Icon = PLAN_ICONS[plan.id] ?? CrownIcon;
 
 	return (
 		<Card
 			className={cn(
-				"min-h-[340px] focus-within:border-primary/40 hover:border-primary/30 hover:shadow-sm",
+				"relative min-h-[340px] transition-[border-color,box-shadow] duration-(--duration-base) ease-(--expo-out) motion-reduce:transition-none",
+				isRecommended
+					? "border-primary/50 shadow-sm"
+					: "focus-within:border-border hover:border-border",
 				isSelected && "ring-2 ring-primary/30"
 			)}
 		>
-			<Card.Header className="gap-3">
-				<div className="flex flex-wrap items-center gap-2">
-					<Card.Title className="text-balance text-base">{planName}</Card.Title>
-					{isActive && (
-						<Badge size="sm" variant="muted">
-							Current
-						</Badge>
+			{isRecommended && (
+				<Badge
+					className="pointer-events-none absolute top-0 right-0 rounded-none rounded-bl-md uppercase tracking-wider"
+					size="sm"
+					variant="primary"
+				>
+					Most popular
+				</Badge>
+			)}
+			<Card.Header className="min-h-[104px] flex-row items-start gap-3 bg-transparent p-5">
+				<div
+					className={cn(
+						"flex size-9 shrink-0 items-center justify-center rounded-lg border",
+						isRecommended
+							? "border-primary/30 bg-primary/10 text-primary"
+							: "border-border/60 bg-accent text-accent-foreground"
 					)}
-					{isSelected && !isActive && (
-						<Badge size="sm" variant="primary">
-							Selected
-						</Badge>
-					)}
+				>
+					<Icon aria-hidden="true" className="size-4" />
 				</div>
-				<PricingPlanPrice plan={plan} />
+				<div className="min-w-0 flex-1">
+					<div className="flex flex-wrap items-center gap-2">
+						<Card.Title className="text-balance text-base">
+							{planName}
+						</Card.Title>
+						{isActive && (
+							<Badge size="sm" variant="muted">
+								Current
+							</Badge>
+						)}
+						{isSelected && !isActive && (
+							<Badge size="sm" variant="primary">
+								Selected
+							</Badge>
+						)}
+					</div>
+					<Card.Description className="mt-0.5 text-pretty">
+						{PLAN_TAGLINES[plan.id] ?? plan.description}
+					</Card.Description>
+				</div>
 			</Card.Header>
-			<Card.Content className="flex flex-1 flex-col gap-5">
+			<div className="border-border/60 border-y bg-secondary/40 px-5 py-5">
+				<PricingPlanPrice plan={plan} />
+			</div>
+			<Card.Content className="flex flex-1 flex-col gap-5 p-5">
 				<PricingFeatures plan={plan} />
 				<div className="mt-auto space-y-3">
 					{contactTopic && !isActive ? (
@@ -279,7 +334,11 @@ function PricingCard({
 								}
 							}}
 							size="lg"
-							variant={isActive ? "secondary" : "primary"}
+							variant={
+								isActive || !(isRecommended || isSelected)
+									? "secondary"
+									: "primary"
+							}
 						>
 							{getButtonText(eligibility, isSelected)}
 						</Button>
