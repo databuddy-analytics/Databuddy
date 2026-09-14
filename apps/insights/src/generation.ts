@@ -187,17 +187,10 @@ const COVERAGE_FAMILIES: readonly InsightPortfolioFamily[] = [
 	"general",
 ];
 
-const COVERAGE_COUNT_STAGES = [
-	"detected",
-	"eligible",
-	"selected",
-	"completed",
-	"published",
-] as const satisfies ReadonlyArray<
-	keyof Omit<InvestigationCoverage, "noSignalReason">
+type InvestigationCoverageCountStage = keyof Omit<
+	InvestigationCoverage,
+	"noSignalReason"
 >;
-
-type InvestigationCoverageCountStage = (typeof COVERAGE_COUNT_STAGES)[number];
 
 function emptyCoverageCounts(): InvestigationCoverageCounts {
 	return Object.fromEntries(
@@ -1769,9 +1762,7 @@ export async function generateWebsiteInsights(
 							throw (
 								billingCheckError ??
 								new Error(
-									noCredits
-										? "AI usage allowance is empty"
-										: "Insight agent access is unavailable before the candidate portfolio is complete"
+									"Insight agent access is unavailable before the candidate portfolio is complete"
 								)
 							);
 						}
