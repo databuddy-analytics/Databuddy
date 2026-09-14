@@ -29,11 +29,10 @@ mock.module("@databuddy/auth", () => ({
 	websitesApi: { hasPermission: permission },
 }));
 mock.module("../../lib/website-utils", () => ({
-	validateWebsite: async (id: string) => ({
-		success: true,
-		website: { id, organizationId: "org-other", domain: "other.example.com" },
-	}),
-	getCachedWebsite: async () => null,
+	getCachedWebsite: async (id: string) =>
+		id === "missing-site"
+			? null
+			: { id, organizationId: "org-other", domain: "other.example.com" },
 }));
 mock.module("../../lib/accessible-websites", () => ({
 	getAccessibleWebsites: async () => sites,
@@ -76,6 +75,13 @@ describe("MCP domain selector compatibility", () => {
 });
 
 describe("shared agent's business-context organization boundary", () => {
+	it("rejects a missing website before checking permissions", async () => {
+		permission.mockClear();
+		expect(
+			await ensureWebsiteAccess("missing-site", new Headers(), null, "org-other")
+		).toEqual(new Error("Website not found"));
+		expect(permission).not.toHaveBeenCalled();
+	});
 	it("rejects a site in another organization even if the session could read both", async () => {
 		permission.mockClear();
 		const result = await ensureWebsiteAccess(
