@@ -90,8 +90,8 @@ describe("billing usage email copy", () => {
 			}),
 			{ plainText: true }
 		);
-		expect(text).toContain("monthly allowance");
-		expect(text).toContain("Additional investigations cost $1 each");
+		expect(text).toContain("Business and Scale include monthly investigations");
+		expect(text).toContain("Extras cost $1 per completed investigation");
 		expect(text).toContain("included clarifications remain available");
 		expect(text).toContain("10 of 10 investigations");
 		expect(text).not.toContain("replies, and rechecks use more");
