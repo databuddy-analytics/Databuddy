@@ -18,6 +18,7 @@ import {
 	signalKeyForDetectedSignal,
 } from "./investigation";
 import { captureInsightsError } from "./lib/evlog-insights";
+import { settleInvestigationCharge } from "./investigation-billing";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const HISTORY_LIMIT = 12;
@@ -396,6 +397,7 @@ export async function findRunObservations(params: {
 			outcome: insightObservations.outcome,
 			signal: insightObservations.signal,
 			signalKey: insightObservations.signalKey,
+			snapshot: insightObservations.snapshot,
 		})
 		.from(insightObservations)
 		.where(
@@ -422,6 +424,40 @@ export async function findRunObservations(params: {
 		}
 		return [{ ...observation, outcome, signal }];
 	});
+}
+
+export async function settleRunInvestigationCharges(params: {
+	organizationId: string;
+	runId: string;
+	websiteId: string;
+}): Promise<void> {
+	for (const observation of await findRunObservations(params)) {
+		// Deterministic included checks and pre-snapshot legacy results never held
+		// a reservation. Native result snapshots describe completion, not payment.
+		if (!observation.snapshot) {
+			continue;
+		}
+		const snapshot = investigationEvidenceSnapshotSchema.safeParse(
+			observation.snapshot
+		);
+		await settleInvestigationCharge({
+			...params,
+			operationKey: JSON.stringify([
+				"run",
+				params.runId,
+				params.websiteId,
+				observation.signalKey,
+			]),
+			complete: Boolean(
+				observation.insightId &&
+					snapshot.success &&
+					snapshot.data.organizationId === params.organizationId &&
+					snapshot.data.websiteId === params.websiteId &&
+					snapshot.data.signalKey === observation.signalKey &&
+					snapshot.data.completion === "complete"
+			),
+		});
+	}
 }
 
 /** Source evidence is loaded independently of the bounded conversation tail. */

@@ -33,7 +33,6 @@ import { normalizedErrorSubject } from "./investigation";
 import { captureInsightsError, emitInsightsEvent } from "./lib/evlog-insights";
 import { measurementPlanKey } from "./measurement-plan";
 import type { DueOpenInvestigation } from "./observations";
-import { commitInvestigationCharge } from "./investigation-billing";
 
 export async function retireObsoleteRetentionObservation(params: {
 	asOf: Date;
@@ -265,7 +264,6 @@ export function caseValues(
 }
 
 export async function persistInvestigation(params: {
-	charge?: { id: string; mode: "fixed" | "legacy" | "unconfigured" };
 	completion?: "complete" | "incomplete";
 	snapshot?: InvestigationEvidenceSnapshot;
 	businessScope?: BusinessScope;
@@ -293,12 +291,10 @@ export async function persistInvestigation(params: {
 		prior?.status === "open" &&
 		(investigation.outcome.next.type === "watch" ||
 			investigation.outcome.next.type === "resolve");
-	const completedFixedUnit =
-		params.charge?.mode === "fixed" &&
+	const complete =
 		params.completion === "complete" &&
 		params.snapshot?.completion === "complete";
-	const shouldPersistCase =
-		interrupting || quietContinuation || completedFixedUnit;
+	const shouldPersistCase = interrupting || quietContinuation || complete;
 	const projection = caseValues(investigation, params.timezone, persistedAt);
 	const row = {
 		...projection,
@@ -355,7 +351,10 @@ export async function persistInvestigation(params: {
 				insightId: rows[0]?.id ?? null,
 				organizationId: params.organizationId,
 				outcome: investigation.outcome,
-				snapshot: params.snapshot,
+				snapshot: params.snapshot && {
+					...params.snapshot,
+					completion: complete ? "complete" : "incomplete",
+				},
 				recheckAt: params.recheckAt,
 				runId: params.runId,
 				signal: investigation.signal,
@@ -374,16 +373,6 @@ export async function persistInvestigation(params: {
 			throw new Error(
 				"This website run already has an outcome for this signal"
 			);
-		}
-		if (params.charge && observations[0]) {
-			await commitInvestigationCharge(tx, {
-				chargeId: params.charge.id,
-				observationId: observations[0].id,
-				complete:
-					params.charge.mode === "fixed"
-						? completedFixedUnit
-						: params.completion === "complete",
-			});
 		}
 		return rows[0] ?? null;
 	});

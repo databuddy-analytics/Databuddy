@@ -7,7 +7,6 @@ import {
 	websites,
 	insightRuns,
 	insightRunItems,
-	investigationCharges,
 } from "@databuddy/db/schema";
 import { getAutumn } from "@databuddy/rpc/autumn";
 import { hasTestDb } from "@databuddy/test";
@@ -34,6 +33,9 @@ integration("selection billing across native generation retries", () => {
 		const secret = process.env.AUTUMN_SECRET_KEY;
 		process.env.AUTUMN_SECRET_KEY = "synthetic-selection-billing";
 		const autumn = getAutumn();
+		const provider = spyOn(globalThis, "fetch").mockRejectedValue(
+			new Error("Empty selection must not make investigation reservation requests")
+		);
 		const requests: string[] = [];
 		const charges = new Map<string, number>();
 		const track = spyOn(autumn, "track").mockImplementation(
@@ -229,9 +231,10 @@ integration("selection billing across native generation retries", () => {
 			const priorTrackCalls = track.mock.calls.length;
 			await generateWebsiteInsights({ ...input, runId: fixedRunId, itemId: fixedItemId, queueJobId: `synthetic-${fixedItemId}` });
 			expect(track).toHaveBeenCalledTimes(priorTrackCalls);
-			expect(await db.select().from(investigationCharges).where(eq(investigationCharges.runId, fixedRunId))).toHaveLength(0);
+			expect(provider).not.toHaveBeenCalled();
 		} finally {
 			for (const stub of [
+				provider,
 				track,
 				check,
 				customer,

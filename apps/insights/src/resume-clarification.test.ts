@@ -45,7 +45,6 @@ const snapshot = createEvidenceSnapshot({
 	reads: [],
 });
 const trigger = {
-	acceptedPriceCents: null,
 	authorName: "Example teammate",
 	authorId: "example-user",
 	body: "Explain the original result",
@@ -235,10 +234,10 @@ it("preserves a queued legacy Apply sentinel only when its source anchor is abse
 it.each([
 	"legacy",
 	"unconfigured",
-] as const)("rejects a quoted new analysis under %s terms before any new work", async (mode) => {
+] as const)("rejects a new analysis under %s terms before any new work", async (mode) => {
 	const billing = await import("./investigation-billing");
 	const reads = [
-		[{ ...trigger, intent: "analysis", acceptedPriceCents: 100 }],
+		[{ ...trigger, intent: "analysis" }],
 		[{ id: "case-1", status: "open", createdAt: new Date("2026-09-01") }],
 	];
 	replaceDb("select", mock(() => query(reads.shift() ?? [])) as never);
@@ -263,13 +262,13 @@ it.each([
 			},
 			forbidden
 		)
-	).rejects.toThrow("Buy investigation units");
+	).rejects.toThrow("Activate investigation billing");
 	expect(forbidden).not.toHaveBeenCalled();
 });
 it("reserves the explicit reply's stable unit before any refresh or business work", async () => {
 	const billing = await import("./investigation-billing");
 	const reads = [
-		[{ ...trigger, intent: "analysis", acceptedPriceCents: 100 }],
+		[{ ...trigger, intent: "analysis" }],
 		[{ id: "case-1", status: "open", createdAt: new Date("2026-09-01") }],
 	];
 	replaceDb("select", mock(() => query(reads.shift() ?? [])) as never);
@@ -283,7 +282,7 @@ it("reserves the explicit reply's stable unit before any refresh or business wor
 		async (input) => {
 			order.push("reserve");
 			expect(input.operationKey).toBe(JSON.stringify(["reply", "reply-1"]));
-			expect(input.expectedPriceCents).toBe(100);
+			expect(input.startedAt).toEqual(trigger.createdAt);
 			throw new Error("Synthetic balance empty");
 		}
 	);
@@ -308,27 +307,37 @@ it("reserves the explicit reply's stable unit before any refresh or business wor
 	expect(forbidden).not.toHaveBeenCalled();
 });
 
-it.each([
-	undefined,
-	null,
-	0,
-	-100,
-	100.5,
-])("rejects an explicit analysis with invalid accepted price %s before provider lookup or work", async (acceptedPriceCents) => {
+it("replays a saved completed analysis by finalizing its original operation without reservation or new work", async () => {
 	const billing = await import("./investigation-billing");
 	const reads = [
-		[{ ...trigger, intent: "analysis", acceptedPriceCents }],
-		[{ id: "case-1", status: "open", createdAt: new Date("2026-09-01") }],
+		[
+			{
+				...trigger,
+				status: "succeeded",
+				intent: "analysis",
+				observationId: "completed-observation",
+			},
+		],
+		[
+			{
+				insightId: "case-1",
+				snapshot: { ...snapshot, completion: "complete" },
+			},
+		],
 	];
 	replaceDb("select", mock(() => query(reads.shift() ?? [])) as never);
-	replaceDb("update", mock(() => query([{ id: "reply-1" }])) as never);
 	const forbidden = mock(async () => {
-		throw new Error("New work must not run");
+		throw new Error("A saved reply must not restart work");
 	});
+	replaceDb("update", forbidden as never);
+	replaceDb("insert", forbidden as never);
 	spyOn(billing, "resolveInvestigationBilling").mockImplementation(forbidden);
 	spyOn(billing, "reserveInvestigationCharge").mockImplementation(forbidden);
-	await expect(
-		resumeInsightReply(
+	const settle = spyOn(billing, "settleInvestigationCharge").mockResolvedValue(
+		undefined
+	);
+	expect(
+		await resumeInsightReply(
 			"reply-1",
 			forbidden,
 			forbidden,
@@ -340,6 +349,14 @@ it.each([
 			},
 			forbidden
 		)
-	).rejects.toThrow("Accept the investigation price");
+	).toBe("succeeded");
+	expect(settle).toHaveBeenCalledTimes(1);
+	expect(settle).toHaveBeenCalledWith({
+		organizationId: trigger.organizationId,
+		websiteId: trigger.websiteId,
+		operationKey: JSON.stringify(["reply", "reply-1"]),
+		complete: true,
+	});
 	expect(forbidden).not.toHaveBeenCalled();
+	expect(reads).toHaveLength(0);
 });

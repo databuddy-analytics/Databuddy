@@ -1,390 +1,666 @@
-import "@databuddy/test/env";
-import { afterAll, describe, expect, it, spyOn } from "bun:test";
-import * as execution from "@databuddy/ai/agents/execution";
-import { db, eq, inArray, shutdownPostgres } from "@databuddy/db";
-import { analyticsInsights, insightObservations, investigationCharges, organization, websites } from "@databuddy/db/schema";
+import { afterEach, describe, expect, it, mock } from "bun:test";
 import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
-import { randomUUIDv7 } from "bun";
-import {
-	canRunInvestigation, commitInvestigationCharge, createInvestigationBillingClient,
-	reserveInvestigationCharge, resolveInvestigationBilling, settleInvestigationCharge,
-	releaseInvestigationCharge,
-	recoverInvestigationCharges,
-} from "./investigation-billing";
-import { prepareInvestigation } from "./investigation";
 
-const integration = process.env.INSIGHTS_INTEGRATION_TESTS === "true" ? describe : describe.skip;
-const ids: string[] = [];
+// The provider contract is exercised through the installed SDK. Customer ownership
+// is the only application dependency stubbed; no PostgreSQL or Redis is needed.
+const resolveCustomer = mock(async (): Promise<string | null> => customerId);
+mock.module("@databuddy/ai/agents/execution", () => ({
+	resolveAgentBillingCustomerId: resolveCustomer,
+}));
+const {
+	assertInvestigationReservationActive,
+	canRunInvestigation,
+	createInvestigationBillingClient,
+	releaseInvestigationCharge,
+	reserveInvestigationCharge,
+	resolveInvestigationBilling,
+	settleInvestigationCharge,
+} = await import("./investigation-billing");
+
+const integration =
+	process.env.INSIGHTS_INTEGRATION_TESTS === "true" ? describe : describe.skip;
 const customerId = "synthetic-investigation-customer";
-const balance = {
-	feature_id: INVESTIGATION_USAGE.featureId, granted: 1, remaining: 0, usage: 1,
-	unlimited: false, overage_allowed: false, max_purchase: null, next_reset_at: null,
+const originalSecret = process.env.AUTUMN_SECRET_KEY;
+const originalNodeEnv = process.env.NODE_ENV;
+
+afterEach(() => {
+	if (originalSecret === undefined) delete process.env.AUTUMN_SECRET_KEY;
+	else process.env.AUTUMN_SECRET_KEY = originalSecret;
+	if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+	else process.env.NODE_ENV = originalNodeEnv;
+	resolveCustomer.mockResolvedValue(customerId);
+	resolveCustomer.mockClear();
+});
+
+type NativePrice = {
+	amount?: number;
+	billing_units?: number;
+	billing_method?: string;
+	max_purchase?: number | null;
+	tiers?: { to: number | "inf"; amount: number }[];
+	tier_behavior?: string;
+};
+type Fault = {
+	endpoint: "reserve" | "finalize" | "customer";
+	afterCommit?: boolean;
+	status?: number;
+	body?: unknown;
+	lost?: boolean;
 };
 
-function provider(input: {
-	balance?: boolean; units?: number; status?: number; overage?: boolean; grant?: number;
-	breakdown?: boolean; price?: Record<string, unknown> | null;
-} = {}) {
-	const requests: { key: string | null; body: Record<string, unknown>; url: string }[] = [];
-	const seen = new Set<string>();
-	let units = input.units ?? 1;
-	let status = input.status ?? 200;
+function provider(
+	options: {
+		grant?: number;
+		remaining?: number;
+		overage?: boolean;
+		entitled?: boolean;
+		responseCustomerId?: string;
+		responseFeatureId?: string;
+		breakdown?: boolean;
+		price?: NativePrice | null;
+	} = {}
+) {
+	const requests: {
+		endpoint: string;
+		key: string | null;
+		body: Record<string, unknown>;
+	}[] = [];
+	const holds = new Map<string, number>();
+	const idempotencyKeys = new Set<string>();
+	const faults: Fault[] = [];
+	const grant = options.grant ?? 1;
+	let remaining = options.remaining ?? grant;
+	let confirmed = 0;
+	let released = 0;
+	const nativePrice =
+		options.price === undefined
+			? {
+					amount: 1,
+					billing_units: 1,
+					billing_method: "usage_based",
+					max_purchase: null,
+				}
+			: options.price;
+	const balance = () => ({
+		feature_id: options.responseFeatureId ?? INVESTIGATION_USAGE.featureId,
+		granted: grant,
+		remaining,
+		usage: grant - remaining,
+		unlimited: false,
+		overage_allowed: options.overage === true,
+		max_purchase: null,
+		next_reset_at: options.overage ? Date.UTC(2026, 9, 1) : null,
+		breakdown:
+			options.breakdown === false
+				? undefined
+				: [
+						{
+							id: "synthetic-grant",
+							plan_id: "synthetic-plan",
+							included_grant: grant,
+							prepaid_grant: 0,
+							remaining,
+							usage: grant - remaining,
+							unlimited: false,
+							reset: options.overage
+								? { interval: "month", resets_at: Date.UTC(2026, 9, 1) }
+								: null,
+							expires_at: null,
+							price: options.overage ? nativePrice : null,
+						},
+					],
+	});
+	const faultResponse = (fault: Fault) => {
+		if (fault.lost)
+			throw new TypeError("Synthetic response lost after provider processing");
+		return Response.json(
+			fault.body ?? {
+				code: "synthetic_error",
+				message: "Synthetic provider failure",
+			},
+			{ status: fault.status ?? 500 }
+		);
+	};
 	const client = createInvestigationBillingClient({
 		secretKey: "synthetic-local-only",
 		fetcher: async (request) => {
-			if (!(request instanceof Request)) throw new Error("Expected a native SDK request");
+			if (!(request instanceof Request))
+				throw new Error("Expected a native SDK request");
 			expect(new URL(request.url).hostname).toBe("api.useautumn.com");
-			const body = request.method === "GET" ? {} : await request.json() as Record<string, unknown>;
+			const body =
+				request.method === "GET"
+					? {}
+					: ((await request.json()) as Record<string, unknown>);
+			const endpoint = request.url.includes("customers.get")
+				? "customer"
+				: request.url.includes("balances.finalize")
+					? "finalize"
+					: request.url.includes("balances.check")
+						? "reserve"
+						: "unexpected";
 			const key = request.headers.get("Idempotency-Key");
-			requests.push({ key, body, url: request.url });
-			if (status !== 200) return Response.json(status === 202 ? { allowed: true, success: true, customer_id: null, balance: null, flag: null } : { message: "synthetic transport failure" }, { status });
-			if (request.url.includes("customers.get")) return Response.json({
-				id: customerId, name: null, email: null, created_at: 0, fingerprint: null, stripe_id: null,
-				env: "sandbox", metadata: {}, send_email_receipts: false, billing_controls: {},
-				subscriptions: [], purchases: [], balances: input.balance === false ? {} : { [INVESTIGATION_USAGE.featureId]: balance }, flags: {},
-			});
-			if (key && seen.has(key)) return Response.json({ message: "duplicate idempotency key" }, { status: 409 });
-			if (key) seen.add(key);
-			if (request.url.includes("balances.check")) {
-				const allowed = units > 0 || input.overage === true;
-				if (body.send_event && allowed) units -= 1;
-				const granted = input.grant ?? (input.overage ? 100 : 1);
-				const resetsAt = input.overage ? Date.UTC(2026, 9, 1) : null;
-				const price = input.price === undefined ? {
-					amount: 1, billing_units: 1, billing_method: "usage_based", max_purchase: null,
-				} : input.price;
-				return Response.json({ allowed, customer_id: customerId, balance: {
-					...balance, granted, remaining: Math.max(0, units), usage: granted - units,
-					overage_allowed: input.overage === true, next_reset_at: resetsAt,
-					breakdown: input.breakdown === false ? undefined : [{
-						id: "synthetic-grant", plan_id: "synthetic-plan", included_grant: granted,
-						prepaid_grant: 0, remaining: Math.max(0, units), usage: granted - units,
-						unlimited: false, reset: resetsAt ? { interval: "month", resets_at: resetsAt } : null, expires_at: null,
-						price: input.overage ? price : null,
-					}],
-				}, flag: null });
+			requests.push({ endpoint, key, body });
+			const index = faults.findIndex((fault) => fault.endpoint === endpoint);
+			const fault = index >= 0 ? faults.splice(index, 1)[0] : undefined;
+			if (fault && !fault.afterCommit) return faultResponse(fault);
+			if (endpoint === "customer")
+				return Response.json({
+					id: options.responseCustomerId ?? customerId,
+					name: null,
+					email: null,
+					created_at: 0,
+					fingerprint: null,
+					stripe_id: null,
+					env: "sandbox",
+					metadata: {},
+					send_email_receipts: false,
+					billing_controls: {},
+					subscriptions: [],
+					purchases: [],
+					flags: {},
+					balances:
+						options.entitled === false
+							? {}
+							: { [INVESTIGATION_USAGE.featureId]: balance() },
+				});
+			if (endpoint === "reserve") {
+				if (key && idempotencyKeys.has(key))
+					return Response.json(
+						{
+							code: "duplicate_idempotency_key",
+							message: "Duplicate idempotency key",
+						},
+						{ status: 409 }
+					);
+				if (key) idempotencyKeys.add(key);
+				const allowed =
+					remaining >= Number(body.required_balance ?? 1) ||
+					options.overage === true;
+				if (body.send_event && allowed) {
+					const lock = body.lock as {
+						enabled: boolean;
+						lock_id: string;
+						expires_at: number;
+					};
+					expect(lock.enabled).toBe(true);
+					expect(holds.has(lock.lock_id)).toBe(false);
+					remaining -= 1;
+					holds.set(lock.lock_id, lock.expires_at);
+				}
+				if (fault) return faultResponse(fault);
+				return Response.json({
+					allowed,
+					customer_id: options.responseCustomerId ?? customerId,
+					balance: balance(),
+					flag: null,
+				});
 			}
-			if (request.url.includes("balances.finalize")) return Response.json({ success: true });
-			throw new Error("Unexpected SDK endpoint");
+			if (endpoint === "finalize") {
+				const id = String(body.lock_id);
+				if (!holds.has(id))
+					return Response.json(
+						{
+							code: "invalid_request",
+							message: `Lock not found for ID: ${id}`,
+						},
+						{ status: 400 }
+					);
+				holds.delete(id);
+				if (body.action === "release") {
+					remaining += 1;
+					released += 1;
+				} else {
+					expect(body.action).toBe("confirm");
+					confirmed += 1;
+				}
+				if (fault) return faultResponse(fault);
+				return Response.json({ success: true });
+			}
+			throw new Error("Unexpected native SDK endpoint");
 		},
 	});
-	return { client, requests, setStatus: (value: number) => { status = value; } };
+	return {
+		client,
+		requests,
+		faults,
+		state: () => ({ remaining, confirmed, released, holds: holds.size }),
+	};
 }
 
-async function fixture() {
-	const organizationId = randomUUIDv7();
-	const websiteId = randomUUIDv7();
-	const insightId = randomUUIDv7();
-	ids.push(organizationId);
-	await db.insert(organization).values({ id: organizationId, name: "Synthetic investigation", slug: organizationId, createdAt: new Date() });
-	await db.insert(websites).values({ id: websiteId, organizationId, domain: "billing.example.invalid" });
-	await db.insert(analyticsInsights).values({ id: insightId, organizationId, websiteId, title: "Verified steady result", description: "20 completed checkouts", subjectKey: "checkout", severity: "info", sentiment: "neutral", status: "resolved" });
-	return { organizationId, websiteId, insightId, operationKey: JSON.stringify(["run", randomUUIDv7(), websiteId, "checkout"]), billing: { mode: "fixed" as const, customerId } };
+function operation(operationKey = "run:synthetic-run:synthetic-site:checkout") {
+	return {
+		organizationId: "synthetic-org",
+		websiteId: "synthetic-site",
+		operationKey,
+		startedAt: new Date(),
+		billing: { mode: "fixed" as const, customerId },
+	};
 }
 
-async function saveAnswer(input: Awaited<ReturnType<typeof fixture>>, chargeId: string, complete = true, readable = true, rollback = false) {
-	return db.transaction(async (tx) => {
-		const observationId = randomUUIDv7();
-		await tx.insert(insightObservations).values({
-			id: observationId, organizationId: input.organizationId, websiteId: input.websiteId,
-			insightId: readable ? input.insightId : null, signalKey: "checkout", asOf: new Date(), recheckAt: new Date(),
-			signal: prepareInvestigation({ baseline: 20, current: 20, deltaPercent: 0, detectedAt: "2026-09-01", direction: "up", label: "Checkout", method: "wow", metric: "checkout", severity: "info" }, 7).signal,
-			outcome: { title: "Verified steady result", summary: "20 completed checkouts, unchanged.", evidence: ["20 completed checkouts in both periods"], rootCause: null, impact: null, publish: false, next: { type: "resolve", reason: "No action required" } },
-		});
-		await commitInvestigationCharge(tx, { chargeId, observationId, complete });
-		if (rollback) throw new Error("Synthetic transaction rollback");
-		return observationId;
-	});
-}
-
-async function chargeState(id: string) {
-	const [row] = await db.select().from(investigationCharges).where(eq(investigationCharges.id, id));
-	return row;
-}
-
-integration("fixed investigation billing at the PostgreSQL and native Autumn boundaries", () => {
-	afterAll(async () => {
-		if (ids.length) await db.delete(organization).where(inArray(organization.id, ids));
-		await shutdownPostgres();
-	});
-
-	it("selects fixed terms at zero balance and preserves absent-feature legacy terms; errors never choose free", async () => {
-		const original = process.env.AUTUMN_SECRET_KEY;
-		process.env.AUTUMN_SECRET_KEY = "synthetic-local-only";
-		const customer = spyOn(execution, "resolveAgentBillingCustomerId").mockResolvedValue(customerId);
-		try {
-			expect(await resolveInvestigationBilling({ organizationId: "synthetic-org" }, provider().client)).toEqual({ mode: "fixed", customerId });
-			expect(await resolveInvestigationBilling({ organizationId: "synthetic-org" }, provider({ balance: false }).client)).toEqual({ mode: "legacy", customerId });
-			await expect(resolveInvestigationBilling({ organizationId: "synthetic-org" }, provider({ status: 500 }).client)).rejects.toThrow();
-			customer.mockResolvedValue(null);
-			await expect(resolveInvestigationBilling({ organizationId: "synthetic-org" }, provider().client)).rejects.toThrow("customer is unavailable");
-		} finally {
-			customer.mockRestore();
-			if (original === undefined) delete process.env.AUTUMN_SECRET_KEY;
-			else process.env.AUTUMN_SECRET_KEY = original;
-		}
-	});
-
-	it("rejects SDK fail-open responses and malformed identities before access", async () => {
-		for (const status of [202, 500]) {
-			await expect(canRunInvestigation({ mode: "fixed", customerId }, provider({ status }).client)).rejects.toThrow();
-		}
-		expect(await canRunInvestigation({ mode: "fixed", customerId }, provider({ units: 0 }).client)).toBe(false);
-	});
-
-	it.each([100, 500])("uses native overage permission after %s monthly units and settles one unit without a second debit", async (grant) => {
-		const input = await fixture();
-		const remote = provider({ units: 0, overage: true, grant });
-		expect(await canRunInvestigation(input.billing, remote.client)).toBe(true);
-		const charge = await reserveInvestigationCharge(input, remote.client);
-		await saveAnswer(input, charge.id);
-		await settleInvestigationCharge(charge.id, remote.client);
-		await settleInvestigationCharge(charge.id, remote.client);
-		expect((await chargeState(charge.id))?.status).toBe("confirmed");
-		expect(remote.requests.filter((request) => request.body.send_event === true)).toHaveLength(1);
-		expect(remote.requests.filter((request) => request.body.action === "confirm")).toHaveLength(1);
-		expect(remote.requests.every((request) => request.url.includes("balances.check") || request.url.includes("balances.finalize"))).toBe(true);
-	});
-
-	it("releases an incomplete extra investigation through the original lock", async () => {
-		const input = await fixture();
-		const remote = provider({ units: 0, overage: true });
-		const charge = await reserveInvestigationCharge(input, remote.client);
-		await releaseInvestigationCharge(charge.id, remote.client);
-		await releaseInvestigationCharge(charge.id, remote.client);
-		expect((await chargeState(charge.id))?.status).toBe("released");
-		expect(remote.requests.filter((request) => request.body.send_event === true)).toHaveLength(1);
-		expect(remote.requests.filter((request) => request.body.action === "release")).toHaveLength(1);
-	});
-
-	it("keeps native denial authoritative when overage is disabled or capped", async () => {
-		const input = await fixture();
-		const remote = provider({ units: 0, overage: false });
-		expect(await canRunInvestigation(input.billing, remote.client)).toBe(false);
-		await expect(reserveInvestigationCharge(input, remote.client)).rejects.toThrow();
-		expect(remote.requests.every((request) => request.url.includes("balances.check"))).toBe(true);
-	});
-
-	it.each([
-		{ name: "custom $2 overage", price: { amount: 2, billing_units: 1, billing_method: "usage_based", max_purchase: null } },
-		{ name: "unverified tiers", price: { tiers: [{ to: "inf", amount: 1 }], billing_units: 1, billing_method: "usage_based", max_purchase: null } },
-		{ name: "a $10 block with a $1 unit average", price: { amount: 10, billing_units: 10, billing_method: "usage_based", max_purchase: null } },
-		{ name: "a $1 block with a lower unit average", price: { amount: 1, billing_units: 10, billing_method: "usage_based", max_purchase: null } },
-		{ name: "a missing flat amount", price: { billing_units: 1, billing_method: "usage_based", max_purchase: null } },
-		{ name: "an unknown billing method", price: { amount: 1, billing_units: 1, billing_method: "future_method", max_purchase: null } },
-		{ name: "a missing breakdown", breakdown: false },
-	])("rejects $name after the native lock and releases only that original hold", async (terms) => {
-		const input = { ...(await fixture()), expectedPriceCents: 100 };
-		const remote = provider({ units: 0, overage: true, ...terms });
-		await expect(reserveInvestigationCharge(input, remote.client)).rejects.toThrow("overage price could not be verified");
-		const [charge] = await db.select().from(investigationCharges).where(eq(investigationCharges.operationKey, input.operationKey));
-		if (!charge) throw new Error("Missing rejected reservation");
-		expect(charge).toMatchObject({ status: "release_pending", priceCents: 100, observationId: null });
-		await expect(reserveInvestigationCharge(input, remote.client)).rejects.toThrow("no new charge");
-		await settleInvestigationCharge(charge.id, remote.client);
-		await settleInvestigationCharge(charge.id, remote.client);
-		expect((await chargeState(charge.id))?.status).toBe("released");
-		const holds = remote.requests.filter((request) => request.body.send_event === true);
-		expect(holds).toHaveLength(1);
-		expect(holds[0]?.body.lock).toMatchObject({ lock_id: charge.id });
-		expect(remote.requests.filter((request) => request.body.action === "release")).toHaveLength(1);
-		expect(remote.requests.at(-1)?.body).toMatchObject({ action: "release", lock_id: charge.id });
-		expect(remote.requests.some((request) => request.body.action === "confirm")).toBe(false);
-	});
-
-	it.each([
-		{ name: "a custom zero-price plan", units: 0, overage: true, price: { amount: 0, billing_units: 1, billing_method: "usage_based", max_purchase: null } },
-		{ name: "an explicitly unpriced grant", units: 0, overage: true, price: null },
-		{ name: "already purchased units", units: 1, overage: false, breakdown: false },
-	])("preserves $name without requiring the public plan price", async (terms) => {
-		const input = { ...(await fixture()), expectedPriceCents: 100 };
-		const remote = provider(terms);
-		const charge = await reserveInvestigationCharge(input, remote.client);
-		await saveAnswer(input, charge.id);
-		await settleInvestigationCharge(charge.id, remote.client);
-		expect((await chargeState(charge.id))?.status).toBe("confirmed");
-		expect(remote.requests.filter((request) => request.body.send_event === true)).toHaveLength(1);
-		expect(remote.requests.filter((request) => request.body.action === "confirm")).toHaveLength(1);
-	});
-
-	it("reserves one unit across concurrent duplicate workers and retries, then confirms a readable unpublished answer once", async () => {
-		const input = await fixture();
-		const remote = provider();
-		const attempts = await Promise.allSettled([reserveInvestigationCharge(input, remote.client), reserveInvestigationCharge(input, remote.client)]);
-		const first = attempts.find((result) => result.status === "fulfilled");
-		if (first?.status !== "fulfilled") throw new Error("No reservation succeeded");
-		const charge = first.value;
-		expect((await reserveInvestigationCharge(input, remote.client)).id).toBe(charge.id);
-		expect(remote.requests.filter((request) => request.url.includes("balances.check"))).toHaveLength(1);
-		expect(remote.requests[0]?.body.required_balance).toBe(1);
-		expect(remote.requests[0]?.body.send_event).toBe(true);
-		expect(charge.priceCents).toBe(100);
-		await saveAnswer(input, charge.id);
-		expect((await chargeState(charge.id))?.status).toBe("confirm_pending");
-		await settleInvestigationCharge(charge.id, remote.client);
-		await settleInvestigationCharge(charge.id, remote.client);
-		expect(remote.requests.filter((request) => request.body.action === "confirm")).toHaveLength(1);
-		expect((await chargeState(charge.id))?.status).toBe("confirmed");
-	});
-
-	it("binds the accepted 100-cent quote durably and refuses a different quote on retry", async () => {
-		const input = { ...(await fixture()), expectedPriceCents: 100 };
-		const remote = provider();
-		const charge = await reserveInvestigationCharge(input, remote.client);
-		expect((await chargeState(charge.id))?.priceCents).toBe(100);
-		expect((await reserveInvestigationCharge(input, remote.client)).id).toBe(
-			charge.id
-		);
+integration("investigation billing through the native Autumn SDK", () => {
+	it("selects fixed terms even at zero balance; absent feature stays legacy and failures never become free", async () => {
+		const fixed = provider({ remaining: 0 });
+		expect(
+			await resolveInvestigationBilling(
+				{ organizationId: "synthetic-org" },
+				fixed.client
+			)
+		).toEqual({ mode: "fixed", customerId });
+		expect(
+			await canRunInvestigation({ mode: "fixed", customerId }, fixed.client)
+		).toBe(false);
+		expect(
+			await resolveInvestigationBilling(
+				{ organizationId: "synthetic-org" },
+				provider({ entitled: false }).client
+			)
+		).toEqual({ mode: "legacy", customerId });
+		const failed = provider();
+		failed.faults.push({ endpoint: "customer", status: 500 });
 		await expect(
-			reserveInvestigationCharge(
-				{ ...input, expectedPriceCents: 200 },
+			resolveInvestigationBilling(
+				{ organizationId: "synthetic-org" },
+				failed.client
+			)
+		).rejects.toThrow();
+		resolveCustomer.mockResolvedValue(null);
+		await expect(
+			resolveInvestigationBilling(
+				{ organizationId: "synthetic-org" },
+				fixed.client
+			)
+		).rejects.toThrow("customer is unavailable");
+	});
+
+	it("rejects missing production configuration and mismatched native customer identities", async () => {
+		delete process.env.AUTUMN_SECRET_KEY;
+		process.env.NODE_ENV = "production";
+		expect(() => createInvestigationBillingClient()).toThrow("not configured");
+		await expect(
+			resolveInvestigationBilling({ organizationId: "synthetic-org" })
+		).rejects.toThrow("not configured");
+		const remote = provider({ responseCustomerId: "different-customer" });
+		await expect(
+			resolveInvestigationBilling(
+				{ organizationId: "synthetic-org" },
 				remote.client
 			)
-		).rejects.toThrow("does not match this reservation");
-		expect((await chargeState(charge.id))?.priceCents).toBe(100);
-		expect(remote.requests).toHaveLength(1);
-	});
-
-	it.each([
-		0, -100, 100.5, 200,
-	])("does not create a new charge or call the provider for an unavailable quote of %s cents", async (expectedPriceCents) => {
-		const input = await fixture();
-		const remote = provider();
+		).rejects.toThrow("could not be verified");
 		await expect(
-			reserveInvestigationCharge({ ...input, expectedPriceCents }, remote.client)
-		).rejects.toThrow("accepted investigation price");
-		expect(remote.requests).toHaveLength(0);
+			canRunInvestigation({ mode: "fixed", customerId }, remote.client)
+		).rejects.toThrow("could not be verified");
+		await expect(
+			reserveInvestigationCharge(operation(), remote.client)
+		).rejects.toThrow("could not be verified");
+		expect(remote.state().confirmed).toBe(0);
+	});
+
+	it("authorizes only one concurrent duplicate worker and keeps the immutable reservation identity and expiry on retry", async () => {
+		const remote = provider();
+		const input = operation();
+		const results = await Promise.allSettled([
+			reserveInvestigationCharge(input, remote.client),
+			reserveInvestigationCharge(input, remote.client),
+		]);
 		expect(
-			await db
-				.select()
-				.from(investigationCharges)
-				.where(eq(investigationCharges.organizationId, input.organizationId))
-		).toHaveLength(0);
+			results.filter((result) => result.status === "fulfilled")
+		).toHaveLength(1);
+		expect(
+			results.filter((result) => result.status === "rejected")
+		).toHaveLength(1);
+		await expect(
+			reserveInvestigationCharge(input, remote.client)
+		).rejects.toThrow();
+		const reserves = remote.requests.filter(
+			(request) => request.endpoint === "reserve"
+		);
+		expect(new Set(reserves.map((request) => request.key)).size).toBe(1);
+		expect(
+			new Set(reserves.map((request) => JSON.stringify(request.body))).size
+		).toBe(1);
+		expect(reserves[0]?.body).toMatchObject({
+			customer_id: customerId,
+			feature_id: INVESTIGATION_USAGE.featureId,
+			required_balance: 1,
+			send_event: true,
+			lock: {
+				enabled: true,
+				expires_at: input.startedAt.getTime() + 23 * 60 * 60 * 1000,
+			},
+		});
+		expect(remote.state()).toEqual({
+			remaining: 0,
+			confirmed: 0,
+			released: 0,
+			holds: 1,
+		});
+	});
+
+	it("protects the last included unit across distinct operations and separates site, organization, and signal identities", async () => {
+		const capped = provider();
+		const attempts = await Promise.allSettled([
+			reserveInvestigationCharge(operation("first-question"), capped.client),
+			reserveInvestigationCharge(operation("second-question"), capped.client),
+		]);
+		expect(
+			attempts.filter((result) => result.status === "fulfilled")
+		).toHaveLength(1);
+		expect(capped.state().holds).toBe(1);
+		const remote = provider({ grant: 4 });
+		const input = operation();
+		const reservations = await Promise.all(
+			[
+				input,
+				{ ...input, operationKey: "different-signal" },
+				{ ...input, websiteId: "different-site" },
+				{ ...input, organizationId: "different-org" },
+			].map((value) => reserveInvestigationCharge(value, remote.client))
+		);
+		expect(
+			new Set(reservations.map((reservation) => reservation.id)).size
+		).toBe(4);
+		expect(remote.state().remaining).toBe(0);
 	});
 
 	it.each([
-		"pending",
-		"reserved",
-	] as const)("preserves a prior quote only after an acknowledged hold: %s", async (status) => {
-		const input = await fixture();
+		["complete", true],
+		["incomplete", false],
+	] as const)("finalizes %s without a second debit and treats deleted locks as no-op, not a receipt", async (_label, complete) => {
 		const remote = provider();
-		const id = randomUUIDv7();
-		await db.insert(investigationCharges).values({
-			id,
-			organizationId: input.organizationId,
-			websiteId: input.websiteId,
-			operationKey: input.operationKey,
-			customerId,
-			mode: "fixed",
-			featureId: INVESTIGATION_USAGE.featureId,
-			priceCents: 200,
-			status,
-			expiresAt: new Date(Date.now() + 60_000),
+		const input = operation();
+		await reserveInvestigationCharge(input, remote.client);
+		await settleInvestigationCharge({ ...input, complete }, remote.client);
+		await settleInvestigationCharge({ ...input, complete }, remote.client);
+		expect(remote.state()).toEqual({
+			remaining: complete ? 0 : 1,
+			confirmed: complete ? 1 : 0,
+			released: complete ? 0 : 1,
+			holds: 0,
 		});
-		const retry = reserveInvestigationCharge(
-			{ ...input, expectedPriceCents: 200 },
+		expect(
+			remote.requests.filter((request) => request.endpoint === "reserve")
+		).toHaveLength(1);
+		expect(
+			remote.requests
+				.filter((request) => request.endpoint === "finalize")
+				.every((request) => request.key === null)
+		).toBe(true);
+		const absent = provider();
+		await settleInvestigationCharge({ ...input, complete }, absent.client);
+		expect(absent.state().confirmed).toBe(0);
+		expect(
+			absent.requests.every((request) => request.endpoint === "finalize")
+		).toBe(true);
+	});
+
+	it("rejects a lost reservation response and duplicate retry without authorizing work; explicit release only restores the hold", async () => {
+		const remote = provider();
+		const input = operation();
+		remote.faults.push({ endpoint: "reserve", afterCommit: true, lost: true });
+		await expect(
+			reserveInvestigationCharge(input, remote.client)
+		).rejects.toThrow();
+		await expect(
+			reserveInvestigationCharge(input, remote.client)
+		).rejects.toThrow();
+		expect(remote.state()).toEqual({
+			remaining: 0,
+			confirmed: 0,
+			released: 0,
+			holds: 1,
+		});
+		await settleInvestigationCharge(
+			{ ...input, complete: false },
 			remote.client
 		);
-		if (status === "reserved") {
-			expect(await retry).toMatchObject({ id, priceCents: 200, status });
-		} else {
-			await expect(retry).rejects.toThrow("no longer available");
-		}
+		expect(remote.state()).toEqual({
+			remaining: 1,
+			confirmed: 0,
+			released: 1,
+			holds: 0,
+		});
+	});
+
+	it("replays a lost confirmation response after native lock deletion without reserving or debiting again", async () => {
+		const remote = provider();
+		const input = operation();
+		await reserveInvestigationCharge(input, remote.client);
+		remote.faults.push({ endpoint: "finalize", afterCommit: true, lost: true });
 		await expect(
-			reserveInvestigationCharge(
-				{ ...input, expectedPriceCents: 100 },
+			settleInvestigationCharge({ ...input, complete: true }, remote.client)
+		).rejects.toThrow();
+		await settleInvestigationCharge(
+			{ ...input, complete: true },
+			remote.client
+		);
+		expect(remote.state()).toEqual({
+			remaining: 0,
+			confirmed: 1,
+			released: 0,
+			holds: 0,
+		});
+		expect(
+			remote.requests.filter((request) => request.endpoint === "reserve")
+		).toHaveLength(1);
+	});
+
+	it.each([
+		[202],
+		[409],
+		[500],
+	])("rejects unconfirmed native status %i at reserve and settlement", async (status) => {
+		const remote = provider();
+		const input = operation();
+		const body =
+			status === 202
+				? {
+						allowed: true,
+						success: true,
+						customer_id: customerId,
+						balance: null,
+						flag: null,
+					}
+				: undefined;
+		remote.faults.push({ endpoint: "reserve", status, body });
+		await expect(
+			reserveInvestigationCharge(input, remote.client)
+		).rejects.toThrow();
+		remote.faults.push({ endpoint: "finalize", status, body });
+		await expect(
+			settleInvestigationCharge({ ...input, complete: true }, remote.client)
+		).rejects.toThrow();
+		expect(remote.state().confirmed).toBe(0);
+	});
+
+	it.each([
+		{
+			code: "invalid_request",
+			message: "Lock not found for ID: a-different-operation",
+		},
+		{ code: "server_error", message: "Lock not found" },
+		{ code: "invalid_request", message: "Another validation problem" },
+	])("does not swallow unrelated native finalize errors: %j", async (body) => {
+		const remote = provider();
+		remote.faults.push({ endpoint: "finalize", status: 400, body });
+		await expect(
+			settleInvestigationCharge(
+				{ ...operation(), complete: true },
 				remote.client
 			)
-		).rejects.toThrow("does not match this reservation");
-		expect((await chargeState(id))?.priceCents).toBe(200);
+		).rejects.toThrow();
+	});
+
+	it.each([
+		[100],
+		[500],
+	])("accepts the native %i monthly grant and $1 single-unit additional usage", async (grant) => {
+		const remote = provider({ grant, remaining: 0, overage: true });
+		const input = operation();
+		await reserveInvestigationCharge(input, remote.client);
+		await settleInvestigationCharge(
+			{ ...input, complete: true },
+			remote.client
+		);
+		expect(remote.state()).toEqual({
+			remaining: -1,
+			confirmed: 1,
+			released: 0,
+			holds: 0,
+		});
+		expect(remote.requests[0]?.body.required_balance).toBe(1);
+	});
+
+	it("accepts discounted and zero-cost attached usage terms without inventing a $1 invoice", async () => {
+		for (const price of [
+			{
+				amount: 0.5,
+				billing_units: 1,
+				billing_method: "usage_based",
+				max_purchase: null,
+			},
+			{
+				amount: 0,
+				billing_units: 100,
+				billing_method: "usage_based",
+				max_purchase: null,
+			},
+		]) {
+			const remote = provider({ remaining: 0, overage: true, price });
+			const input = operation();
+			await reserveInvestigationCharge(input, remote.client);
+			await settleInvestigationCharge(
+				{ ...input, complete: true },
+				remote.client
+			);
+			expect(remote.state()).toEqual({
+				remaining: -1,
+				confirmed: 1,
+				released: 0,
+				holds: 0,
+			});
+		}
+	});
+
+	it.each([
+		[
+			"higher unit price",
+			{
+				amount: 2,
+				billing_units: 1,
+				billing_method: "usage_based",
+				max_purchase: null,
+			},
+		],
+		[
+			"rounded billing block",
+			{
+				amount: 1,
+				billing_units: 10,
+				billing_method: "usage_based",
+				max_purchase: null,
+			},
+		],
+		[
+			"tiered price",
+			{
+				tiers: [{ to: "inf", amount: 1 }],
+				billing_units: 1,
+				billing_method: "usage_based",
+				max_purchase: null,
+			},
+		],
+		[
+			"missing price amount",
+			{ billing_units: 1, billing_method: "usage_based", max_purchase: null },
+		],
+	] as const)("rejects %s and releases the native hold", async (_label, price) => {
+		const remote = provider({
+			overage: true,
+			remaining: 0,
+			price: structuredClone(price) as NativePrice,
+		});
+		await expect(
+			reserveInvestigationCharge(operation(), remote.client)
+		).rejects.toThrow("price could not be verified");
+		expect(remote.state()).toEqual({
+			remaining: 0,
+			confirmed: 0,
+			released: 1,
+			holds: 0,
+		});
+	});
+
+	it("rejects missing price breakdown and wrong feature receipts, releasing an acknowledged hold", async () => {
+		for (const options of [
+			{ overage: true, breakdown: false },
+			{ responseFeatureId: "different-feature" },
+		]) {
+			const remote = provider(options);
+			await expect(
+				reserveInvestigationCharge(operation(), remote.client)
+			).rejects.toThrow();
+			expect(remote.state()).toEqual({
+				remaining: 1,
+				confirmed: 0,
+				released: 1,
+				holds: 0,
+			});
+		}
+	});
+
+	it("never re-reserves an expired operation and asserts expiry before product persistence", async () => {
+		const remote = provider();
+		const input = operation();
+		const reservation = await reserveInvestigationCharge(input, remote.client);
+		expect(() =>
+			assertInvestigationReservationActive(reservation)
+		).not.toThrow();
+		for (const startedAt of [
+			new Date(Date.now() - 24 * 60 * 60 * 1000),
+			new Date(Number.NaN),
+		]) {
+			await expect(
+				reserveInvestigationCharge({ ...input, startedAt }, remote.client)
+			).rejects.toThrow("expired");
+		}
+		expect(() =>
+			assertInvestigationReservationActive({
+				...reservation,
+				expiresAt: new Date(0),
+			})
+		).toThrow("expired");
+		expect(remote.requests).toHaveLength(1);
+		await releaseInvestigationCharge(reservation, remote.client);
+	});
+
+	it("leaves legacy/unconfigured access on its original path without fixed-unit provider mutations", async () => {
+		const remote = provider();
+		for (const mode of ["legacy", "unconfigured"] as const) {
+			const reservation = await reserveInvestigationCharge(
+				{ ...operation(), billing: { mode, customerId } },
+				remote.client
+			);
+			expect(reservation.mode).toBe(mode);
+			await releaseInvestigationCharge(reservation, remote.client);
+		}
 		expect(remote.requests).toHaveLength(0);
 	});
 
-	it("does not confirm invisible answers or rolled-back observations; an incomplete result releases the hold", async () => {
-		const input = await fixture();
-		const remote = provider();
-		const charge = await reserveInvestigationCharge(input, remote.client);
-		await expect(saveAnswer(input, charge.id, true, false)).rejects.toThrow("readable");
-		await expect(saveAnswer(input, charge.id, true, true, true)).rejects.toThrow("rollback");
-		expect((await chargeState(charge.id))?.status).toBe("reserved");
-		expect((await chargeState(charge.id))?.observationId).toBeNull();
-		await saveAnswer(input, charge.id, false, false);
-		await settleInvestigationCharge(charge.id, remote.client);
-		expect(remote.requests.at(-1)?.body.action).toBe("release");
-		expect((await chargeState(charge.id))?.status).toBe("released");
-	});
-
-	it("retains confirmation uncertainty after commit and never creates a late debit outside the lock window", async () => {
-		const input = await fixture();
-		const remote = provider();
-		const charge = await reserveInvestigationCharge(input, remote.client);
-		await saveAnswer(input, charge.id);
-		remote.setStatus(202);
-		await expect(settleInvestigationCharge(charge.id, remote.client)).rejects.toThrow();
-		expect((await chargeState(charge.id))?.status).toBe("confirm_pending");
-		await expect(releaseInvestigationCharge(charge.id, remote.client)).rejects.toThrow();
-		expect(remote.requests.some((request) => request.body.action === "release")).toBe(false);
-		await db.update(investigationCharges).set({ expiresAt: new Date(Date.now() - 25 * 60 * 60 * 1000) }).where(eq(investigationCharges.id, charge.id));
-		const before = remote.requests.length;
-		await settleInvestigationCharge(charge.id, remote.client);
-		expect(remote.requests).toHaveLength(before);
-		expect((await chargeState(charge.id))?.status).toBe("review_required");
-		await expect(reserveInvestigationCharge(input, remote.client)).rejects.toThrow("no new charge");
-	});
-
-	it("aborts uncertain reservations without running work or silently retrying a second charge", async () => {
-		const input = await fixture();
-		const remote = provider({ status: 202 });
-		await expect(reserveInvestigationCharge(input, remote.client)).rejects.toThrow();
-		await expect(reserveInvestigationCharge(input, remote.client)).rejects.toThrow("no new charge");
-		expect(remote.requests).toHaveLength(1);
-		const [charge] = await db.select().from(investigationCharges).where(eq(investigationCharges.operationKey, input.operationKey));
-		if (!charge) throw new Error("Missing charge");
-		expect(charge.status).toBe("release_pending");
-		remote.setStatus(200);
-		await settleInvestigationCharge(charge.id, remote.client);
-		expect(remote.requests.at(-1)?.body.action).toBe("release");
-	});
-
-	it("protects the last unit across distinct investigations and freezes grandfathered terms", async () => {
-		const input = await fixture();
-		const remote = provider();
-		const second = { ...input, operationKey: JSON.stringify(["reply", randomUUIDv7()]) };
-		const results = await Promise.allSettled([reserveInvestigationCharge(input, remote.client), reserveInvestigationCharge(second, remote.client)]);
-		expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
-		const legacy = await reserveInvestigationCharge({ ...input, operationKey: "legacy-operation", billing: { mode: "legacy", customerId } }, remote.client);
-		expect((await reserveInvestigationCharge({ ...input, operationKey: "legacy-operation" }, remote.client)).mode).toBe("legacy");
-		expect(legacy.priceCents).toBe(0);
-		expect(remote.requests.filter((request) => request.url.includes("balances.check"))).toHaveLength(2);
-	});
-
-	it("keeps a lost confirmation receipt unresolved when Autumn returns a duplicate 409", async () => {
-		const input = await fixture();
-		const remote = provider();
-		const charge = await reserveInvestigationCharge(input, remote.client);
-		await saveAnswer(input, charge.id);
-		await settleInvestigationCharge(charge.id, remote.client);
-		// Crash after the provider committed, before saving its receipt locally.
-		await db.update(investigationCharges).set({ status: "confirm_pending" }).where(eq(investigationCharges.id, charge.id));
-		await expect(settleInvestigationCharge(charge.id, remote.client)).rejects.toThrow();
-		expect((await chargeState(charge.id))?.status).toBe("confirm_pending");
-		const confirmations = remote.requests.filter((request) => request.body.action === "confirm");
-		expect(confirmations).toHaveLength(2);
-		expect(new Set(confirmations.map((request) => request.key)).size).toBe(1);
-	});
-
-	it("recovers committed work without another reservation and retires never-started orphan intents", async () => {
-		const input = { ...await fixture(), runId: randomUUIDv7() };
-		const remote = provider();
-		const charge = await reserveInvestigationCharge(input, remote.client);
-		await saveAnswer(input, charge.id);
-		await recoverInvestigationCharges(input, remote.client);
-		expect((await chargeState(charge.id))?.status).toBe("confirmed");
-		expect(remote.requests.filter((request) => request.url.includes("balances.check"))).toHaveLength(1);
-		await db.update(investigationCharges).set({ status: "pending", observationId: null, leaseUntil: null, createdAt: new Date(Date.now() - 120_000) }).where(eq(investigationCharges.id, charge.id));
-		const before = remote.requests.length;
-		await recoverInvestigationCharges(input, remote.client);
-		expect((await chargeState(charge.id))?.status).toBe("released");
-		expect(remote.requests).toHaveLength(before);
+	it("keeps provider billing implementation independent of PostgreSQL and Redis write modules", async () => {
+		const source = await Bun.file(
+			new URL("./investigation-billing.ts", import.meta.url)
+		).text();
+		const imports = new Bun.Transpiler({ loader: "ts" })
+			.scan(source)
+			.imports.map((entry) => entry.path);
+		expect(
+			imports.some(
+				(path) =>
+					path === "@databuddy/db" ||
+					path.startsWith("@databuddy/db/") ||
+					path === "@databuddy/redis" ||
+					path === "pg"
+			)
+		).toBe(false);
 	});
 });

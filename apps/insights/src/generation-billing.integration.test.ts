@@ -1,5 +1,6 @@
 import "@databuddy/test/env";
-import { afterAll, beforeAll, describe, expect, it, spyOn } from "bun:test";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, spyOn } from "bun:test";
+import { z } from "zod";
 import { db, eq, inArray, shutdownPostgres, sql } from "@databuddy/db";
 import {
 	analyticsInsights,
@@ -7,7 +8,6 @@ import {
 	insightRunEffects,
 	insightRunItems,
 	insightRuns,
-	investigationCharges,
 	organization,
 	websites,
 } from "@databuddy/db/schema";
@@ -29,6 +29,22 @@ import * as routes from "./route-health-detection";
 import * as context from "./business-context";
 import * as selection from "./business-aware-selection";
 
+const reserveRequestSchema = z.object({
+	customer_id: z.literal("synthetic-customer"),
+	feature_id: z.literal(INVESTIGATION_USAGE.featureId),
+	required_balance: z.literal(1),
+	send_event: z.literal(true),
+	lock: z.object({
+		enabled: z.literal(true),
+		lock_id: z.string().min(1),
+		expires_at: z.number(),
+	}),
+});
+const finalizeRequestSchema = z.object({
+	lock_id: z.string().min(1),
+	action: z.enum(["confirm", "release"]),
+});
+
 const integration =
 	process.env.INSIGHTS_INTEGRATION_TESTS === "true" ? describe : describe.skip;
 
@@ -37,12 +53,27 @@ integration("native generation fixed-unit persistence", () => {
 		await db.execute(sql`select 1`);
 	}, 15_000);
 	const ids: string[] = [];
-	const requests: Record<string, unknown>[] = [];
+	const requests: {
+		body: z.infer<typeof reserveRequestSchema> | z.infer<typeof finalizeRequestSchema>;
+		key: string | null;
+	}[] = [];
+	// This state belongs only to the synthetic provider, never to application storage.
+	const holds = new Map<string, { expiresAt: number; state: "held" | "confirmed" | "released" }>();
+	const reservationKeys = new Set<string>();
+	const reservationsSince = (index: number) => requests.slice(index).flatMap(({ body, key }) =>
+		"lock" in body ? [{ ...body, key }] : []
+	);
+	const actionsSince = (index: number) => requests.slice(index).map(({ body }) =>
+		"action" in body ? body.action : "reserve"
+	);
 	const originalSecret = process.env.AUTUMN_SECRET_KEY;
 	let complete = true;
 	let interrupting = false;
 	let fail = false;
 	let providerUnavailable = false;
+	let loseFinalizeReceipt = false;
+	let ambiguousReservation = false;
+	let monthlyAllowance: number | null = null;
 	let denyReservation = false;
 	let calls = 0;
 	let detected: detection.DetectedSignal[] = [];
@@ -166,34 +197,79 @@ integration("native generation fixed-unit persistence", () => {
 	);
 	const transport = spyOn(globalThis, "fetch").mockImplementation(
 		async (request) => {
-			if (
-				!(request instanceof Request) ||
-				new URL(request.url).hostname !== "api.useautumn.com"
-			)
+			if (!(request instanceof Request) || new URL(request.url).hostname !== "api.useautumn.com")
 				throw new Error("Only the synthetic Autumn transport is permitted");
-			const body = (await request.json()) as Record<string, unknown>;
-			requests.push(body);
-			if (request.url.includes("balances.check"))
+			const key = request.headers.get("Idempotency-Key");
+			if (request.url.includes("balances.check")) {
+				const body = reserveRequestSchema.parse(await request.json());
+				requests.push({ body, key });
+				expect(key).toBe(`${body.lock.lock_id}:reserve`);
+				if (!key) throw new Error("Missing native reservation idempotency key");
+				if (reservationKeys.has(key))
+					return Response.json({ message: "duplicate idempotency key" }, { status: 409 });
+				reservationKeys.add(key);
+				if (!denyReservation)
+					holds.set(body.lock.lock_id, { expiresAt: body.lock.expires_at, state: "held" });
+				const granted = monthlyAllowance ?? 1;
+				const resetsAt = monthlyAllowance === null ? null : Date.now() + 30 * 86_400_000;
 				return Response.json({
 					allowed: !denyReservation,
 					customer_id: "synthetic-customer",
 					balance: {
 						feature_id: INVESTIGATION_USAGE.featureId,
-						granted: 1,
-						remaining: 0,
-						usage: 1,
+						granted,
+						remaining: monthlyAllowance === null ? 0 : -1,
+						usage: monthlyAllowance === null ? 1 : granted + 1,
 						unlimited: false,
-						overage_allowed: false,
+						overage_allowed: monthlyAllowance !== null,
 						max_purchase: null,
-						next_reset_at: null,
+						next_reset_at: resetsAt,
+						breakdown: [{
+							id: "synthetic-grant", plan_id: "synthetic-plan", included_grant: granted,
+							prepaid_grant: 0, remaining: monthlyAllowance === null ? 0 : -1,
+							usage: monthlyAllowance === null ? 1 : granted + 1, unlimited: false,
+							reset: resetsAt === null ? null : { interval: "month", resets_at: resetsAt },
+							expires_at: null,
+							price: monthlyAllowance === null ? null : {
+								amount: 1, billing_units: 1, billing_method: "usage_based", max_purchase: null,
+							},
+						}],
 					},
 					flag: null,
-				});
-			if (providerUnavailable)
-				return Response.json({ success: true }, { status: 202 });
-			return Response.json({ success: true });
+				}, { status: ambiguousReservation ? 202 : 200 });
+			}
+			if (!request.url.includes("balances.finalize")) throw new Error("Unexpected native Autumn endpoint");
+			const body = finalizeRequestSchema.parse(await request.json());
+			requests.push({ body, key });
+			if (providerUnavailable) return Response.json({ success: true }, { status: 202 });
+			const hold = holds.get(body.lock_id);
+			if (!hold || hold.state !== "held" || hold.expiresAt <= Date.now())
+				return Response.json({ code: "invalid_request", message: `Lock not found for ID: ${body.lock_id}` }, { status: 400 });
+			hold.state = body.action === "confirm" ? "confirmed" : "released";
+			return Response.json({ success: true }, { status: loseFinalizeReceipt ? 202 : 200 });
 		}
 	);
+
+	beforeEach(() => {
+		requests.length = 0;
+		holds.clear();
+		reservationKeys.clear();
+		complete = true;
+		interrupting = false;
+		fail = false;
+		providerUnavailable = false;
+		loseFinalizeReceipt = false;
+		ambiguousReservation = false;
+		denyReservation = false;
+		monthlyAllowance = null;
+		calls = 0;
+		detected = [];
+		mode.mockResolvedValue({ mode: "fixed", customerId: "synthetic-customer" });
+		choose.mockClear();
+		telemetry.mockClear();
+		tokenDebit.mockClear();
+		deliver.mockClear();
+	});
 
 	afterAll(async () => {
 		for (const mock of [
@@ -220,7 +296,7 @@ integration("native generation fixed-unit persistence", () => {
 		await shutdownPostgres();
 	});
 
-	async function fixture(metric = "checkout", freeze = true) {
+	async function fixture(metric = "checkout", freeze = true, asOf = new Date().toISOString()) {
 		const organizationId = randomUUIDv7();
 		const websiteId = randomUUIDv7();
 		const runId = randomUUIDv7();
@@ -276,25 +352,26 @@ integration("native generation fixed-unit persistence", () => {
 		);
 		if (freeze)
 			await freezeInsightRunCandidatePlan(input, "manual", {
-				asOf: "2026-09-09T00:00:00.000Z",
+				asOf,
 				candidates: [candidate],
 			});
-		return { ...input, signal: candidate.signal };
+		return { ...input, signal: candidate.signal, candidate, asOf };
 	}
 
-	it("makes completed quiet answers readable and charges one unit, independently of publication", async () => {
+	it.each([100, 500])("keeps quiet completed answers readable and settles one extra unit after %s monthly investigations", async (allowance) => {
+		monthlyAllowance = allowance;
 		const input = await fixture();
 		const { generateWebsiteInsights } = await import("./generation");
 		const before = calls;
 		await generateWebsiteInsights(input);
 		await generateWebsiteInsights(input);
 		expect(calls - before).toBe(1);
-		const [charge] = await db
-			.select()
-			.from(investigationCharges)
-			.where(eq(investigationCharges.runId, input.runId));
-		expect(charge?.status).toBe("confirmed");
-		expect(charge?.priceCents).toBe(100);
+		const reservations = reservationsSince(0);
+		expect(reservations).toHaveLength(1);
+		const reservation = reservations[0]!;
+		expect(holds.get(reservation.lock.lock_id)?.state).toBe("confirmed");
+		expect(reservation.lock.expires_at).toBe(Date.parse(input.asOf) + 23 * 60 * 60 * 1000);
+		expect(actionsSince(0)).toEqual(["reserve", "confirm", "confirm"]);
 		const [observation] = await db
 			.select()
 			.from(insightObservations)
@@ -317,11 +394,9 @@ integration("native generation fixed-unit persistence", () => {
 		complete = false;
 		const incomplete = await fixture();
 		await generateWebsiteInsights(incomplete);
-		const [charge] = await db
-			.select()
-			.from(investigationCharges)
-			.where(eq(investigationCharges.runId, incomplete.runId));
-		expect(charge?.status).toBe("released");
+		const incompleteReservation = reservationsSince(0)[0]!;
+		expect(holds.get(incompleteReservation.lock.lock_id)?.state).toBe("released");
+		expect(actionsSince(0)).toEqual(["reserve", "release"]);
 		expect(
 			await db
 				.select()
@@ -333,11 +408,9 @@ integration("native generation fixed-unit persistence", () => {
 		await expect(generateWebsiteInsights(failed)).rejects.toThrow(
 			"Synthetic model failure"
 		);
-		const [failedCharge] = await db
-			.select()
-			.from(investigationCharges)
-			.where(eq(investigationCharges.runId, failed.runId));
-		expect(failedCharge?.status).toBe("released");
+		const failedReservation = reservationsSince(0)[1]!;
+		expect(holds.get(failedReservation.lock.lock_id)?.state).toBe("released");
+		expect(actionsSince(0)).toEqual(["reserve", "release", "reserve", "release"]);
 		expect(
 			await db
 				.select()
@@ -355,12 +428,9 @@ integration("native generation fixed-unit persistence", () => {
 		providerUnavailable = true;
 		const input = await fixture();
 		const before = calls;
-		await generateWebsiteInsights(input);
-		const [charge] = await db
-			.select()
-			.from(investigationCharges)
-			.where(eq(investigationCharges.runId, input.runId));
-		expect(charge?.status).toBe("confirm_pending");
+		await expect(generateWebsiteInsights(input)).rejects.toThrow("unconfirmed response");
+		const reservation = reservationsSince(0)[0]!;
+		expect(holds.get(reservation.lock.lock_id)?.state).toBe("held");
 		const effects = await db
 			.select()
 			.from(insightRunEffects)
@@ -370,12 +440,10 @@ integration("native generation fixed-unit persistence", () => {
 		providerUnavailable = false;
 		await generateWebsiteInsights(input);
 		expect(calls - before).toBe(1);
-		const [settled] = await db
-			.select()
-			.from(investigationCharges)
-			.where(eq(investigationCharges.runId, input.runId));
-		expect(settled?.status).toBe("confirmed");
-		expect(requests.filter((request) => request.send_event)).toHaveLength(4);
+		expect(holds.get(reservation.lock.lock_id)?.state).toBe("confirmed");
+		expect(reservationsSince(0)).toHaveLength(1);
+		expect(actionsSince(0)).toEqual(["reserve", "confirm", "confirm"]);
+		expect(deliver).toHaveBeenCalledTimes(1);
 		expect(tokenDebit).not.toHaveBeenCalled();
 	});
 
@@ -383,6 +451,7 @@ integration("native generation fixed-unit persistence", () => {
 		"empty",
 		"unavailable",
 		"reservation",
+		"saved settlement",
 	])("includes native saved-check continuations through a %s billing failure", async (availability) => {
 		const { generateWebsiteInsights } = await import("./generation");
 		interrupting = false;
@@ -461,49 +530,72 @@ integration("native generation fixed-unit persistence", () => {
 		expect(
 			agent.savedVerificationCheck({ history, signal: input.signal })
 		).toBeTruthy();
-		const modeCalls = mode.mock.calls.length;
 		if (availability === "unavailable")
 			mode.mockRejectedValue(new Error("Billing temporarily unavailable"));
-		if (availability === "reservation") {
-			denyReservation = true;
+		if (availability === "reservation" || availability === "saved settlement") {
+			denyReservation = availability === "reservation";
 			const paid = prepareInvestigation(
 				{ ...detected[0]!, metric: "fresh-checkout" },
 				7
 			);
 			await freezeInsightRunCandidatePlan(input, "manual", {
-				asOf: "2026-09-09T00:00:00.000Z",
+				asOf: input.asOf,
 				candidates: [
 					paid,
 					...detected.map((item) => prepareInvestigation(item, 7)),
 				],
 			});
 		}
+		if (availability === "saved settlement") {
+			// Stop after the first paid observation commits, leaving its two included
+			// checks unfinished and its hold entirely in the synthetic provider.
+			interrupting = true;
+			prepareDelivery.mockRejectedValueOnce(new Error("Interrupted before included checks"));
+			await expect(generateWebsiteInsights({ ...input, finalAttempt: false })).rejects.toThrow("Interrupted before included checks");
+			expect(calls).toBe(1);
+			expect(actionsSince(0)).toEqual(["reserve"]);
+			expect(await db.select().from(insightObservations).where(eq(insightObservations.runId, input.runId))).toHaveLength(1);
+			interrupting = false;
+			providerUnavailable = true;
+		}
+		const modeCalls = mode.mock.calls.length;
 		const before = requests.length;
 		const beforeCalls = calls;
-		if (availability === "reservation") {
+		if (availability === "reservation" || availability === "saved settlement") {
 			await expect(generateWebsiteInsights(input)).rejects.toThrow();
 		} else {
 			await generateWebsiteInsights(input);
 		}
-		expect(mode).toHaveBeenCalledTimes(modeCalls + 1);
+		expect(mode).toHaveBeenCalledTimes(modeCalls + (availability === "saved settlement" ? 0 : 1));
 		expect(choose).not.toHaveBeenCalled();
 		expect(calls - beforeCalls).toBe(2);
 		expect(requests).toHaveLength(
-			before + (availability === "reservation" ? 1 : 0)
+			before + (availability === "reservation" || availability === "saved settlement" ? 1 : 0)
 		);
-		const charges = await db
-			.select()
-			.from(investigationCharges)
-			.where(eq(investigationCharges.runId, input.runId));
-		expect(charges).toHaveLength(availability === "reservation" ? 1 : 0);
-		if (availability === "reservation")
-			expect(charges[0]?.status).toBe("denied");
+		expect(reservationsSince(before)).toHaveLength(availability === "reservation" ? 1 : 0);
+		expect(holds.size).toBe(availability === "saved settlement" ? 1 : 0);
+		expect(actionsSince(before)).toEqual(
+			availability === "reservation" ? ["reserve"] : availability === "saved settlement" ? ["confirm"] : []
+		);
 		expect(
 			await db
 				.select()
 				.from(insightObservations)
 				.where(eq(insightObservations.runId, input.runId))
-		).toHaveLength(2);
+		).toHaveLength(availability === "saved settlement" ? 3 : 2);
+		if (availability === "saved settlement") {
+			const reservation = reservationsSince(0)[0]!;
+			expect(holds.get(reservation.lock.lock_id)?.state).toBe("held");
+			expect(deliver).toHaveBeenCalledTimes(1);
+			const [runItem] = await db.select().from(insightRunItems).where(eq(insightRunItems.id, input.itemId));
+			expect(runItem?.preparedAt).toBeNull();
+			providerUnavailable = false;
+			await expect(generateWebsiteInsights(input)).resolves.toMatchObject({ status: "succeeded" });
+			expect(calls).toBe(3);
+			expect(reservationsSince(0)).toHaveLength(1);
+			expect(holds.get(reservation.lock.lock_id)?.state).toBe("confirmed");
+			expect(deliver).toHaveBeenCalledTimes(1);
+		}
 		denyReservation = false;
 		expect(tokenDebit).not.toHaveBeenCalled();
 		mode.mockResolvedValue({ mode: "fixed", customerId: "synthetic-customer" });
@@ -580,19 +672,9 @@ integration("native generation fixed-unit persistence", () => {
 			status: "open",
 			title: outcome.title,
 		});
-		const [charge] = await db
-			.select()
-			.from(investigationCharges)
-			.where(eq(investigationCharges.runId, input.runId));
-		expect(charge).toMatchObject({
-			status: "released",
-			observationId: observation?.id,
-		});
-		expect(
-			requests
-				.slice(beforeRequests)
-				.map((request) => request.action ?? "reserve")
-		).toEqual(["reserve", "release"]);
+		const reservation = reservationsSince(beforeRequests)[0]!;
+		expect(holds.get(reservation.lock.lock_id)?.state).toBe("released");
+		expect(actionsSince(beforeRequests)).toEqual(["reserve", "release"]);
 		const effects = await db
 			.select()
 			.from(insightRunEffects)
@@ -603,7 +685,8 @@ integration("native generation fixed-unit persistence", () => {
 		const afterRequests = requests.length;
 		expect(await generateWebsiteInsights(input)).toEqual(result);
 		expect(calls - beforeCalls).toBe(1);
-		expect(requests).toHaveLength(afterRequests);
+		expect(actionsSince(afterRequests)).toEqual(["release"]);
+		expect(reservationsSince(beforeRequests)).toHaveLength(1);
 		expect(
 			await db
 				.select()
@@ -660,13 +743,114 @@ integration("native generation fixed-unit persistence", () => {
 		expect(nextObservation!.asOf.getTime()).toBeGreaterThan(
 			observation!.asOf.getTime()
 		);
-		const [nextCharge] = await db
-			.select()
-			.from(investigationCharges)
-			.where(eq(investigationCharges.runId, runId));
-		expect(nextCharge?.id).not.toBe(charge?.id);
-		expect(nextCharge?.status).toBe("released");
+		const nextReservation = reservationsSince(beforeRequests)[1]!;
+		expect(nextReservation.lock.lock_id).not.toBe(reservation.lock.lock_id);
+		expect(nextReservation.key).not.toBe(reservation.key);
+		expect(holds.get(nextReservation.lock.lock_id)?.state).toBe("released");
 		expect(tokenDebit).not.toHaveBeenCalled();
 		detected = [];
+	});
+
+	it("retries a lost finalization receipt without another reservation or model call", async () => {
+		const { generateWebsiteInsights } = await import("./generation");
+		const input = await fixture();
+		loseFinalizeReceipt = true;
+		await expect(generateWebsiteInsights(input)).rejects.toThrow("unconfirmed response");
+		const reservation = reservationsSince(0)[0]!;
+		expect(holds.get(reservation.lock.lock_id)?.state).toBe("confirmed");
+		loseFinalizeReceipt = false;
+		await generateWebsiteInsights(input);
+		expect(calls).toBe(1);
+		expect(reservationsSince(0)).toHaveLength(1);
+		expect(actionsSince(0)).toEqual(["reserve", "confirm", "confirm"]);
+		expect(holds.size).toBe(1);
+	});
+
+	it("confirms the original hold after a crash between readable persistence and delivery preparation", async () => {
+		const { generateWebsiteInsights } = await import("./generation");
+		interrupting = true;
+		const input = { ...(await fixture()), finalAttempt: false };
+		prepareDelivery.mockRejectedValueOnce(new Error("Interrupted after observation persistence"));
+		await expect(generateWebsiteInsights(input)).rejects.toThrow("Interrupted after observation persistence");
+		const [observation] = await db.select().from(insightObservations).where(eq(insightObservations.runId, input.runId));
+		expect(observation?.insightId).toBeTruthy();
+		expect(observation?.snapshot?.completion).toBe("complete");
+		const reservation = reservationsSince(0)[0]!;
+		expect(holds.get(reservation.lock.lock_id)?.state).toBe("held");
+		await generateWebsiteInsights({ ...input, finalAttempt: true });
+		expect(calls).toBe(1);
+		expect(reservationsSince(0)).toHaveLength(1);
+		expect(holds.get(reservation.lock.lock_id)?.state).toBe("confirmed");
+		expect(deliver).toHaveBeenCalledTimes(1);
+		expect(await db.select().from(insightObservations).where(eq(insightObservations.runId, input.runId))).toHaveLength(1);
+	});
+
+	it("reserves separate units for separate signals and only finalizes on a completed portfolio retry", async () => {
+		const { generateWebsiteInsights } = await import("./generation");
+		const input = await fixture("checkout", false);
+		const second = prepareInvestigation({
+			baseline: 20, current: 20, deltaPercent: 0, detectedAt: "2026-09-08",
+			direction: "up", label: "Signup", method: "wow", metric: "signup", severity: "info",
+		}, 7);
+		await freezeInsightRunCandidatePlan(input, "manual", { asOf: input.asOf, candidates: [input.candidate, second] });
+		await generateWebsiteInsights(input);
+		const reservations = reservationsSince(0);
+		expect(reservations).toHaveLength(2);
+		expect(new Set(reservations.map(({ key }) => key)).size).toBe(2);
+		expect([...holds.values()].map(({ state }) => state)).toEqual(["confirmed", "confirmed"]);
+		const afterInitial = requests.length;
+		await generateWebsiteInsights(input);
+		expect(calls).toBe(2);
+		expect(reservationsSince(afterInitial)).toHaveLength(0);
+		expect(actionsSince(afterInitial)).toEqual(["confirm", "confirm"]);
+		expect(await db.select().from(insightObservations).where(eq(insightObservations.runId, input.runId))).toHaveLength(2);
+	});
+
+	it.each([false, true])("does not rerun failed model work through a duplicate native reservation (final attempt: %s)", async (finalAttempt) => {
+		const { generateWebsiteInsights } = await import("./generation");
+		const input = { ...(await fixture()), finalAttempt };
+		fail = true;
+		await expect(generateWebsiteInsights(input)).rejects.toThrow("Synthetic model failure");
+		expect(telemetry).toHaveBeenCalledTimes(1);
+		expect(telemetry.mock.calls[0]?.[0]).toMatchObject({ modelId: "openai/gpt-5.6-luna", usage });
+		const first = reservationsSince(0)[0]!;
+		expect(holds.get(first.lock.lock_id)?.state).toBe("released");
+		fail = false;
+		await expect(generateWebsiteInsights({ ...input, finalAttempt: true })).rejects.toThrow();
+		const retries = reservationsSince(0);
+		expect(retries).toHaveLength(2);
+		expect(retries[1]).toEqual(first);
+		expect(holds.size).toBe(1);
+		expect(calls).toBe(1);
+		expect(telemetry).toHaveBeenCalledTimes(1);
+		expect(actionsSince(0).includes("confirm")).toBe(false);
+		expect(await db.select().from(insightObservations).where(eq(insightObservations.runId, input.runId))).toHaveLength(0);
+	});
+
+	it("does not authorize work after an ambiguous reservation receipt or its duplicate", async () => {
+		const { generateWebsiteInsights } = await import("./generation");
+		const input = await fixture();
+		ambiguousReservation = true;
+		await expect(generateWebsiteInsights(input)).rejects.toThrow();
+		ambiguousReservation = false;
+		await expect(generateWebsiteInsights(input)).rejects.toThrow();
+		const reservations = reservationsSince(0);
+		expect(reservations).toHaveLength(2);
+		expect(reservations[1]).toEqual(reservations[0]);
+		expect(holds.size).toBe(1);
+		expect([...holds.values()][0]?.state).toBe("held");
+		expect(calls).toBe(0);
+		expect(actionsSince(0)).toEqual(["reserve", "reserve"]);
+	});
+
+	it("refuses an expired frozen plan before requesting a fresh provider reservation", async () => {
+		const { generateWebsiteInsights } = await import("./generation");
+		const asOf = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+		const input = await fixture("checkout", true, asOf);
+		await expect(generateWebsiteInsights(input)).rejects.toThrow("reservation expired");
+		await expect(generateWebsiteInsights(input)).rejects.toThrow("reservation expired");
+		expect(calls).toBe(0);
+		expect(requests).toHaveLength(0);
+		expect(holds.size).toBe(0);
 	});
 });

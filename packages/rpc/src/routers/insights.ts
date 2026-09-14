@@ -526,10 +526,6 @@ export async function appendInvestigationReply(
 		...rawInput
 	} = input;
 	const parsed = appendInvestigationReplyInputSchema.parse(rawInput);
-	const acceptedPriceCents =
-		parsed.intent === "analysis" && parsed.acceptedPriceUsd !== undefined
-			? parsed.acceptedPriceUsd * 100
-			: null;
 	const slackDelivery =
 		rawSlackDelivery === undefined
 			? null
@@ -626,7 +622,6 @@ export async function appendInvestigationReply(
 
 		const [existing] = await tx
 			.select({
-				acceptedPriceCents: insightReplies.acceptedPriceCents,
 				authorName: insightReplies.authorName,
 				body: insightReplies.body,
 				intent: insightReplies.intent,
@@ -652,7 +647,6 @@ export async function appendInvestigationReply(
 				existing.subjectKey !== insight.subjectKey ||
 				existing.body !== parsed.body ||
 				existing.intent !== (parsed.intent ?? "clarification") ||
-				existing.acceptedPriceCents !== acceptedPriceCents ||
 				existing.slackDelivery?.channelId !== slackDelivery?.channelId ||
 				existing.slackDelivery?.threadTs !== slackDelivery?.threadTs
 			) {
@@ -718,7 +712,6 @@ export async function appendInvestigationReply(
 		);
 		await tx.insert(insightReplies).values({
 			...author,
-			acceptedPriceCents,
 			body: parsed.body,
 			createdAt,
 			id,

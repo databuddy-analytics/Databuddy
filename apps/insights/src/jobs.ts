@@ -35,7 +35,7 @@ import {
 import { recordInsightReplyFailure, resumeInsightReply } from "./resume";
 import { dispatchDueInsightRuns } from "./scheduler";
 import { generateOrganizationBusinessContext } from "./organization-business-context";
-import { recoverInvestigationCharges } from "./investigation-billing";
+import { settleRunInvestigationCharges } from "./observations";
 
 const SUCCESS_CHECKPOINT_ATTEMPTS = 3;
 const SUCCESSFUL_ITEM_STATUSES: ("skipped" | "succeeded")[] = [
@@ -190,7 +190,11 @@ async function loadSuccessfulItem(
 		.from(insightRunItems)
 		.where(runIdentityCondition(identity))
 		.limit(1);
-	return item ? successfulItemResult(item) : null;
+	const result = item ? successfulItemResult(item) : null;
+	if (result) {
+		await settleRunInvestigationCharges(identity);
+	}
+	return result;
 }
 
 async function checkpointSuccessfulItem(
@@ -309,6 +313,7 @@ async function processGenerateWebsiteJob(
 	const data = await loadCanonicalGenerateItem(queuedData, job);
 	const completed = successfulItemResult(data);
 	if (completed) {
+		await settleRunInvestigationCharges(data);
 		await syncRunStatus(data.runId);
 		return { resultCount: completed.resultCount, status: completed.status };
 	}
@@ -409,7 +414,6 @@ export async function processInsightsJob(job: InsightsJob) {
 			if (job.name === INSIGHTS_DISPATCH_JOB_NAME) {
 				result = await dispatchDueInsightRuns();
 			} else if (job.name === INSIGHTS_MAINTENANCE_JOB_NAME) {
-				await recoverInvestigationCharges();
 				result = await recoverStaleInsightRuns();
 			} else if (job.name === INSIGHTS_GENERATE_WEBSITE_JOB_NAME) {
 				result = await processGenerateWebsiteJob(

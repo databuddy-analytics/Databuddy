@@ -61,6 +61,7 @@ import {
 import {
 	eligibleSignalsForInvestigation,
 	findRunObservations,
+	settleRunInvestigationCharges,
 	type DueOpenInvestigation,
 	type LatestInsightObservation,
 	loadDueOpenInvestigation,
@@ -122,7 +123,7 @@ import {
 	reserveInvestigationCharge,
 	releaseInvestigationCharge,
 	settleInvestigationCharge,
-	recoverInvestigationCharges,
+	assertInvestigationReservationActive,
 } from "./investigation-billing";
 
 interface GenerateWebsiteInsightsInput {
@@ -1321,13 +1322,22 @@ export async function generateWebsiteInsights(
 		runId: input.runId,
 		websiteId: input.websiteId,
 	};
-	await recoverInvestigationCharges({
-		runId: input.runId,
-		websiteId: input.websiteId,
-	});
+	let settlementError: unknown;
+	try {
+		await settleRunInvestigationCharges({
+			organizationId: input.organizationId,
+			runId: input.runId,
+			websiteId: input.websiteId,
+		});
+	} catch (error) {
+		settlementError = error;
+	}
 	const prepared = await loadPreparedInsightRun(runIdentity);
 	if (prepared) {
 		await drainInsightRunEffects(runIdentity, input.finalAttempt);
+		if (settlementError) {
+			throw settlementError;
+		}
 		return prepared;
 	}
 	const [site] = await db
@@ -1582,7 +1592,7 @@ export async function generateWebsiteInsights(
 	}
 	const emptyStatus = plan?.emptyStatus ?? null;
 	// These keys account for durable terminal observations in this run.
-	// Billable answer completion is tracked separately by the charge ledger.
+	// Completed results retain their native evidence snapshot for replay.
 	const completedSignalKeys = new Set(
 		existingObservations.map((observation) => observation.signal.signalKey)
 	);
@@ -1694,6 +1704,16 @@ export async function generateWebsiteInsights(
 					if (noCredits && !included) {
 						return;
 					}
+					const operation = {
+						organizationId: input.organizationId,
+						websiteId: site.id,
+						operationKey: JSON.stringify([
+							"run",
+							input.runId,
+							site.id,
+							plannedCandidate.signal.signalKey,
+						]),
+					};
 					let charge: Awaited<
 						ReturnType<typeof reserveInvestigationCharge>
 					> | null = null;
@@ -1704,16 +1724,9 @@ export async function generateWebsiteInsights(
 								userId: input.requestedByUserId,
 							});
 							charge = await reserveInvestigationCharge({
+								...operation,
 								billing,
-								organizationId: input.organizationId,
-								websiteId: site.id,
-								runId: input.runId,
-								operationKey: JSON.stringify([
-									"run",
-									input.runId,
-									site.id,
-									plannedCandidate.signal.signalKey,
-								]),
+								startedAt: new Date(plan.asOf),
 							});
 							billingCustomerId = charge.customerId;
 						} catch (error) {
@@ -1724,6 +1737,7 @@ export async function generateWebsiteInsights(
 							return;
 						}
 					}
+					let outcomeSaved = false;
 					const usageIdempotencyKey = `insights:${input.runId}:${site.id}:${randomUUIDv7()}`;
 					const agentUsage: {
 						value: Required<
@@ -1775,8 +1789,10 @@ export async function generateWebsiteInsights(
 							websiteName: site.name,
 						};
 						const asOf = new Date(analysis.asOf);
+						if (charge) {
+							assertInvestigationReservationActive(charge);
+						}
 						const saved = await persistInvestigation({
-							charge: charge ?? undefined,
 							completion: analysis.completion,
 							snapshot: analysis.snapshot,
 							businessScope: plan.businessScope ?? businessScope,
@@ -1788,6 +1804,7 @@ export async function generateWebsiteInsights(
 							runId: input.runId,
 							timezone: input.timezone,
 						});
+						outcomeSaved = true;
 						completedSignalKeys.add(candidate.signal.signalKey);
 						if (candidate.outcome.publish) {
 							publishedSignalKeys.add(candidate.signal.signalKey);
@@ -1804,21 +1821,22 @@ export async function generateWebsiteInsights(
 							interruptingInvestigations.push(saved);
 							await enqueueInterruptingEffects([saved]);
 						}
-						if (charge) {
+						if (charge?.mode === "fixed") {
 							try {
-								await settleInvestigationCharge(charge.id);
+								await settleInvestigationCharge({
+									...operation,
+									complete:
+										analysis.completion === "complete" &&
+										analysis.snapshot?.completion === "complete",
+								});
 							} catch (error) {
-								captureInsightsError(
-									error,
-									"generation.billing.settlement_pending",
-									{ charge_id: charge.id }
-								);
+								settlementError = error;
 							}
 						}
 					} catch (error) {
-						if (charge && input.finalAttempt) {
+						if (charge && !outcomeSaved) {
 							try {
-								await releaseInvestigationCharge(charge.id);
+								await releaseInvestigationCharge(charge);
 							} catch (releaseError) {
 								captureInsightsError(
 									releaseError,
@@ -1852,6 +1870,9 @@ export async function generateWebsiteInsights(
 					"AI usage allowance ran out before the candidate portfolio completed"
 				);
 			}
+		}
+		if (settlementError) {
+			throw settlementError;
 		}
 	} catch (error) {
 		emitExecutionCoverage("partial_failure");
