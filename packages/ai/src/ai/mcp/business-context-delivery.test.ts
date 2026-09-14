@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, mock } from "bun:test";
 import type { LanguageModelV3 } from "@ai-sdk/provider";
 import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
 import { organizationBusinessContextSchema } from "@databuddy/shared/organization-business-context";
+import { tool } from "ai";
+import { z } from "zod";
 import { MockLanguageModelV3, convertArrayToReadableStream } from "ai/test";
 import type {
 	AccessibleWebsitesAuth,
@@ -96,7 +98,13 @@ mock.module("@databuddy/api-keys/resolve", () => ({
 mock.module("../../agent/slack-relevance", () => ({
 	classifySlackThreadReplyRelevance: async () => ({}),
 }));
-mock.module("./agent-tools", () => ({ createMcpAgentTools: () => ({}) }));
+const availableTools = {
+	get_data: tool({ inputSchema: z.object({}) }),
+	discover_query_types: tool({ inputSchema: z.object({}) }),
+	describe_schema: tool({ inputSchema: z.object({}) }),
+	slack_read_current_thread: tool({ inputSchema: z.object({}) }),
+};
+mock.module("./agent-tools", () => ({ createMcpAgentTools: () => availableTools }));
 
 const usage = {
 	inputTokens: { total: 10, noCache: 10, cacheRead: 0, cacheWrite: 0 },
@@ -121,6 +129,8 @@ const model = new MockLanguageModelV3({
 mock.module("../config/models", () => ({
 	createModelFromId: () => model,
 	getDefaultAgentModelId: () => "synthetic/model",
+	modelNames: { balanced: "synthetic/model" },
+	AI_MODEL_MAX_RETRIES: 3,
 	ANTHROPIC_CACHE_1H: {},
 }));
 
@@ -694,6 +704,25 @@ describe("shared Slack/MCP agent billing before model work", () => {
 		await expect(async () => { for await (const _chunk of streamDatabuddyAgent(input)) { /* consume native stream */ } }).toThrow("billing unavailable");
 		expect(model.doGenerateCalls).toHaveLength(0);
 		expect(model.doStreamCalls).toHaveLength(0);
+		expect(billedUsage).not.toHaveBeenCalled();
+	});
+});
+
+
+describe("shared conversational capability selection", () => {
+	it("leaves capability selection to the model even with greetings or thread references", async () => {
+		for (const source of ["mcp", "slack"] as const) {
+			for (const input of ["Thanks, what is our retention?", "Which one should we fix first?", "lol ok"]) {
+				await askDatabuddyAgent({ ...options, source, input });
+				const names = model.doGenerateCalls.at(-1)?.tools?.map((entry) => entry.name);
+				expect(names).toEqual(Object.keys(availableTools));
+			}
+		}
+	});
+	it("stops before the model when the native billing allowance is exhausted", async () => {
+		billing.mockResolvedValueOnce({ allowed: false, customerId: "synthetic-owner", includedChat: false });
+		await expect(askDatabuddyAgent({ ...options, billingMode: "bill" })).rejects.toThrow("allowance");
+		expect(model.doGenerateCalls).toHaveLength(0);
 		expect(billedUsage).not.toHaveBeenCalled();
 	});
 });

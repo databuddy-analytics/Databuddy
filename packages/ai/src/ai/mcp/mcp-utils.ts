@@ -179,7 +179,7 @@ export function buildBatchQueryRequests(
 			const hint = suggestQueryTypes(q.type.replace(TOP_QUERY_PREFIX, ""));
 			const message = hint.length
 				? `Unknown type: ${q.type}. Did you mean: ${hint.join(", ")}?`
-				: `Unknown type: ${q.type}. Use the capabilities tool to see valid types.`;
+				: `Unknown type: ${q.type}. Discover available query types before retrying.`;
 			reject(message, q.type);
 			continue;
 		}

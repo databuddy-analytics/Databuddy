@@ -1,10 +1,7 @@
+import { conversationModelOptions } from "../config/conversation-model";
 import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
 import type { WebsiteSummary } from "../../lib/accessible-websites";
-import {
-	ANTHROPIC_CACHE_1H,
-	createModelFromId,
-	getDefaultAgentModelId,
-} from "../config/models";
+import { createModelFromId, getDefaultAgentModelId } from "../config/models";
 import { createMcpAgentTools } from "../mcp/agent-tools";
 import type { DatabuddyAgentSlackContext } from "../mcp/slack-context";
 import { buildAnalyticsInstructionsForMcp } from "../prompts/analytics";
@@ -38,7 +35,7 @@ export function createMcpAgentConfig(context: {
 	const selectedModelId =
 		context.modelOverride ?? getDefaultAgentModelId(context.source);
 
-	const useAnthropicPromptCache = selectedModelId.startsWith("anthropic/");
+	const modelOptions = conversationModelOptions(selectedModelId);
 
 	const apiKey =
 		context.apiKey && typeof context.apiKey === "object"
@@ -59,7 +56,7 @@ export function createMcpAgentConfig(context: {
 				websiteDomain,
 				websiteId,
 			}),
-			providerOptions: useAnthropicPromptCache ? ANTHROPIC_CACHE_1H : undefined,
+			providerOptions: modelOptions.systemProviderOptions,
 		},
 		tools: createMcpAgentTools({
 			slackContext: context.slackContext,
@@ -69,7 +66,8 @@ export function createMcpAgentConfig(context: {
 		}),
 		activeTools: context.activeTools,
 		stopWhen: stopAtMaxSteps,
-		temperature: 0.1,
+		temperature: modelOptions.temperature,
+		providerOptions: modelOptions.providerOptions,
 		experimental_context: {
 			accessibleWebsites: context.accessibleWebsites,
 			apiKey,

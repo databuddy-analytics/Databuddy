@@ -4,6 +4,8 @@ import { tool, type ToolSet } from "ai";
 import { z } from "zod";
 import { getAccessibleWebsites } from "../../lib/accessible-websites";
 import { executeBatch } from "../../query";
+import { discoverQueryTypesTool } from "../tools/discover-query-types";
+import { describeSchemaTool } from "../tools/describe-schema";
 import { createAnnotationTools } from "../tools/annotations";
 import { createFeedbackTools } from "../tools/feedback";
 import { createFlagTools } from "../tools/flags";
@@ -14,17 +16,13 @@ import { createMemoryTools } from "../tools/memory";
 import { buildProfileTools } from "../tools/profiles";
 import { createToolkit } from "../tools/toolkit";
 import { executeAgentSqlForWebsite } from "../tools/execute-sql-query";
-import {
-	buildBatchQueryRequests,
-	FilterSchema,
-	formatMcpQueryResults,
-	MCP_DATE_PRESETS,
-} from "./mcp-utils";
+import { buildBatchQueryRequests, formatMcpQueryResults } from "./mcp-utils";
 import {
 	createSlackConversationTools,
 	type DatabuddyAgentSlackContext,
 } from "./slack-context";
 import { ensureWebsiteAccess } from "./tool-context";
+import { agentDataInputSchema } from "./agent-query-schema";
 
 interface McpAgentContext {
 	apiKey: ApiKeyRow | null;
@@ -63,6 +61,8 @@ export function createMcpAgentTools(
 		domain: options.websiteDomain ?? undefined,
 	});
 	return {
+		discover_query_types: discoverQueryTypesTool,
+		describe_schema: describeSchemaTool,
 		list_websites: tool({
 			description:
 				"List all websites accessible with the current API key. Call this first when a website is not already selected.",
@@ -136,32 +136,9 @@ Critical schema footguns: website id column is client_id (not website_id); times
 		}),
 		get_data: tool({
 			description:
-				"Run 1-10 analytics builders. Use preset or from/to; supports filters (including trait:<key>), groupBy, and orderBy. Returns a query summary, full rowCount, returnedRows, truncated, and up to 20 data rows. Call list_profile_traits before trait segmentation.",
+				"Run 1-10 analytics builders. Use discover_query_types for builder names and required filters. Use preset or from/to; supports filters (including trait:<key>), groupBy, and orderBy. Returns a query summary, full rowCount, returnedRows, truncated, and up to 20 data rows. Call list_profile_traits before trait segmentation.",
 			strict: true,
-			inputSchema: z.object({
-				websiteId: z.string(),
-				queries: z
-					.array(
-						z.object({
-							type: z.string(),
-							preset: z
-								.enum(MCP_DATE_PRESETS as [string, ...string[]])
-								.optional(),
-							from: z.string().optional(),
-							to: z.string().optional(),
-							timeUnit: z
-								.enum(["minute", "hour", "day", "week", "month"])
-								.optional(),
-							limit: z.number().min(1).max(1000).optional(),
-							filters: z.array(FilterSchema).optional(),
-							groupBy: z.array(z.string()).optional(),
-							orderBy: z.string().optional(),
-						})
-					)
-					.min(1)
-					.max(10),
-				timezone: z.string().optional().default("UTC"),
-			}),
+			inputSchema: agentDataInputSchema,
 			execute: async (args, options) => {
 				const ctx = getToolContext(options);
 				const access = await ensureWebsiteAccess(
