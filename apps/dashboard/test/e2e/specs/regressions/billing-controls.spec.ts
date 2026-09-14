@@ -43,7 +43,10 @@ for (const includedChat of [false, true]) {
 			await page.setExtraHTTPHeaders({ "x-e2e-test-key": key });
 			const customer = syntheticCustomer(includedChat);
 			const savedFeatures: string[] = [];
-			const firstSave = Promise.withResolvers<void>();
+			let releaseFirstSave: () => void = () => {};
+			const firstSave = new Promise<void>((resolve) => {
+				releaseFirstSave = resolve;
+			});
 			let requestCount = 0;
 			await page.route("**/api/autumn/**", (route) =>
 				route.fulfill({ json: customer })
@@ -62,7 +65,7 @@ for (const includedChat of [false, true]) {
 					return;
 				}
 				requestCount++;
-				if (requestCount === 1) await firstSave.promise;
+				if (requestCount === 1) await firstSave;
 				const input = route.request().postDataJSON().json;
 				if (route.request().url().endsWith("setUsageAlert")) {
 					customer.billingControls.usageAlerts = [
@@ -170,7 +173,7 @@ for (const includedChat of [false, true]) {
 					contentType: "application/json",
 				});
 			} finally {
-				firstSave.resolve();
+				releaseFirstSave();
 			}
 			await expect(row.getByRole("button")).toHaveCount(0);
 			await page.reload();
