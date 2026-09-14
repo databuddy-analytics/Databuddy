@@ -13,7 +13,6 @@ import {
 	useBillingContext,
 	useInvestigationUsage,
 } from "@/components/providers/billing-provider";
-import { quoteInvestigationPurchase } from "@/lib/investigation-purchase";
 import type { summarizeInvestigationBalance } from "@/lib/investigation-usage";
 import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
 
@@ -28,9 +27,6 @@ export function InvestigationTopupCard() {
 	const parsedQuantity = investigationQuantitySchema.safeParse(
 		Number(quantity)
 	);
-	const quote = parsedQuantity.success
-		? quoteInvestigationPurchase(parsedQuantity.data)
-		: null;
 	const hasAccess = isFeatureEnabled(GATED_FEATURES.INVESTIGATIONS);
 
 	useEffect(() => {
@@ -42,7 +38,7 @@ export function InvestigationTopupCard() {
 
 	async function purchase() {
 		if (
-			!(quote && canUserUpgrade && hasAccess) ||
+			!(parsedQuantity.success && canUserUpgrade && hasAccess) ||
 			payAsYouGo ||
 			usage.overageAllowed
 		) {
@@ -51,8 +47,13 @@ export function InvestigationTopupCard() {
 		setIsAttaching(true);
 		try {
 			await attach({
-				planId: quote.planId,
-				featureQuantities: quote.featureQuantities,
+				planId: INVESTIGATION_USAGE.topupPlanId,
+				featureQuantities: [
+					{
+						featureId: INVESTIGATION_USAGE.featureId,
+						quantity: parsedQuantity.data,
+					},
+				],
 				successUrl: `${window.location.origin}/billing`,
 			});
 		} catch (error) {
@@ -126,12 +127,16 @@ export function InvestigationTopupCard() {
 						</Field>
 						<Button
 							aria-label={isAttaching ? "Opening checkout…" : undefined}
-							disabled={!(quote && canUserUpgrade) || isLoading || isAttaching}
+							disabled={
+								!(parsedQuantity.success && canUserUpgrade) ||
+								isLoading ||
+								isAttaching
+							}
 							loading={isAttaching}
 							onClick={purchase}
 						>
-							{quote
-								? `Buy ${parsedQuantity.data} investigations · $${quote.costUsd.toFixed(2)}`
+							{parsedQuantity.success
+								? `Buy ${parsedQuantity.data} investigations · $${(parsedQuantity.data * INVESTIGATION_USAGE.priceUsd).toFixed(2)}`
 								: "Buy investigations"}
 						</Button>
 						{!canUserUpgrade && (

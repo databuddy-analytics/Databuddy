@@ -1,22 +1,73 @@
 import { describe, expect, test } from "bun:test";
-import { DATABUNNY_CHAT, getInvestigationBillingFeatureId, INVESTIGATION_ALLOWANCES, INVESTIGATION_USAGE } from "@databuddy/shared/billing";
+import {
+	DATABUNNY_CHAT,
+	getInvestigationBillingFeatureId,
+	INVESTIGATION_ALLOWANCES,
+	INVESTIGATION_USAGE,
+} from "@databuddy/shared/billing";
 import {
 	credits_booster, credits_topup, databunny_chat, free, hobby, intelligence, intelligence_scale,
 	investigations_topup, investigation_runs, pro, pulse_hobby, pulse_pro, scale,
 } from "../autumn.config";
-import { quoteInvestigationPurchase } from "./investigation-purchase";
 import { calculateTopupCost, TOPUP_FEATURE_ID, TOPUP_TIERS } from "./topup-math";
 
 describe("fixed investigation purchases", () => {
-	test.each([1, 10, 137, 1000])("quotes %i units at exactly one dollar without credit tiers", (quantity) => {
-		expect(quoteInvestigationPurchase(quantity)).toEqual({
-			costUsd: quantity, planId: "investigations_topup",
-			featureQuantities: [{ featureId: "investigation_runs", quantity }],
+	test("card displays one dollar per unit and sends only valid, authorized purchases to Autumn", async () => {
+		// Bun module mocks persist across tests; isolate the card's hook mocks.
+		const child = Bun.spawn([process.execPath, "--no-env-file", "-"], {
+			cwd: import.meta.dir,
+			env: { NODE_ENV: "test", TZ: "UTC" },
+			stdin: new Blob([`
+import assert from "node:assert/strict";
+import { mock } from "bun:test";
+const React = await import("react");
+let state, cursor, canUserUpgrade;
+const attach = mock(async () => {});
+mock.module("react", () => ({ ...React, useState: () => [state[cursor++], () => {}], useEffect: () => {} }));
+mock.module("autumn-js/react", () => ({ useCustomer: () => ({ attach }) }));
+mock.module("@/components/providers/billing-provider", () => ({
+  useBillingContext: () => ({ canUserUpgrade, isFeatureEnabled: () => true, isLoading: false }),
+  useInvestigationUsage: () => ({ fixedPrice: true, balance: 0, payAsYouGo: false, overageAllowed: false, unlimited: false, monthly: [], prepaid: [], usagePrices: [] }),
+}));
+globalThis.window = { location: { origin: "https://dashboard.example" } };
+globalThis.fetch = () => { throw new Error("Unexpected network request"); };
+const { InvestigationTopupCard } = await import("../app/(main)/billing/components/investigation-topup-card");
+for (const [quantity, valid, authorized] of [
+  [1, true, true], [10, true, true], [137, true, true], [1000, true, true],
+  [0, false, true], [-1, false, true], [0.5, false, true], [1.5, false, true],
+  [1001, false, true], [NaN, false, true], [Infinity, false, true], [10, true, false],
+]) {
+  state = [String(quantity), false, true];
+  cursor = 0;
+  canUserUpgrade = authorized;
+  attach.mockClear();
+  const pending = [InvestigationTopupCard()];
+  let button;
+  while (pending.length) {
+    const element = pending.pop();
+    if (!React.isValidElement(element)) continue;
+    if (element.props.onClick && typeof element.props.children === "string" && element.props.children.startsWith("Buy")) button = element;
+    pending.push(...React.Children.toArray(element.props.children));
+  }
+  assert.ok(button, \`Purchase button for quantity \${quantity}\`);
+  assert.equal(button.props.disabled, !(valid && authorized));
+  assert.equal(button.props.children, valid ? \`Buy \${quantity} investigations · $\${quantity.toFixed(2)}\` : "Buy investigations");
+  await button.props.onClick();
+  assert.deepEqual(attach.mock.calls, valid && authorized ? [[{
+    planId: "investigations_topup",
+    featureQuantities: [{ featureId: "investigation_runs", quantity }],
+    successUrl: "https://dashboard.example/billing",
+  }]] : []);
+}
+			`]),
+			stdout: "ignore",
+			stderr: "pipe",
 		});
-	});
-
-	test.each([0, -1, 0.5, 1.5, 1001, Number.NaN, Number.POSITIVE_INFINITY])("rejects invalid quantity %s", (quantity) => {
-		expect(() => quoteInvestigationPurchase(quantity)).toThrow();
+		const [exitCode, stderr] = await Promise.all([
+			child.exited,
+			new Response(child.stderr).text(),
+		]);
+		expect(exitCode, stderr).toBe(0);
 	});
 
 	test("new catalog item is prepaid without a reset, expiration, or volume discount", () => {
