@@ -1,6 +1,20 @@
 import { serializeJsonLd } from "@databuddy/shared/json-ld";
 import type { RawPlan } from "@/app/(home)/pricing/data";
 
+type JsonLdValue =
+	| string
+	| number
+	| boolean
+	| null
+	| undefined
+	| JsonLdValue[]
+	| { [property: string]: JsonLdValue };
+
+interface JsonLdNode {
+	"@type": string | string[];
+	[property: string]: JsonLdValue;
+}
+
 interface Breadcrumb {
 	name: string;
 	url: string;
@@ -84,7 +98,7 @@ function planToOffer(plan: RawPlan, baseUrl: string) {
 		});
 	}
 
-	const priceSpecs: Record<string, unknown>[] = [];
+	const priceSpecs: JsonLdNode[] = [];
 
 	if (priceItem) {
 		priceSpecs.push({
@@ -209,7 +223,7 @@ export function StructuredData({
 	const softwareId = `${baseUrl}#software`;
 	const serviceId = `${baseUrl}#analytics-service`;
 
-	const graph: Record<string, unknown>[] = [];
+	const graph: JsonLdNode[] = [];
 
 	graph.push({
 		"@type": "Organization",
