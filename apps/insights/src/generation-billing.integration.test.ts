@@ -21,6 +21,8 @@ import * as billing from "./investigation-billing";
 import * as delivery from "./delivery";
 import { prepareInvestigation } from "./investigation";
 import { freezeInsightRunCandidatePlan } from "./run-candidate-plan";
+import { recoverStaleInsightRuns } from "./recovery";
+import { INSIGHTS_GENERATE_WEBSITE_JOB_NAME } from "@databuddy/redis";
 import { createEvidenceSnapshot } from "./evidence-snapshot";
 import { loadInvestigationHistory } from "./observations";
 import * as detection from "./detection";
@@ -447,6 +449,53 @@ integration("native generation fixed-unit persistence", () => {
 		expect(tokenDebit).not.toHaveBeenCalled();
 	});
 
+	it.each([false, true])("preserves a completed job for native settlement recovery (final attempt: %s)", async (finalAttempt) => {
+		const { processInsightsJob } = await import("./jobs");
+		interrupting = true;
+		providerUnavailable = true;
+		const input = await fixture();
+		const job = {
+			id: input.queueJobId,
+			name: INSIGHTS_GENERATE_WEBSITE_JOB_NAME,
+			data: input,
+			opts: { attempts: 2 },
+			attemptsMade: finalAttempt ? 1 : 0,
+			attemptsStarted: finalAttempt ? 2 : 1,
+		};
+		await expect(processInsightsJob(job)).rejects.toThrow("unconfirmed response");
+		const reservation = reservationsSince(0)[0]!;
+		const [pending] = await db.select().from(insightRunItems).where(eq(insightRunItems.id, input.itemId));
+		expect(pending?.status).toBe(finalAttempt ? "failed" : "queued");
+		expect(pending?.errorMessage).toContain("unconfirmed response");
+		expect(pending?.preparedStatus).toBe("succeeded");
+		expect(holds.get(reservation.lock.lock_id)?.state).toBe("held");
+		expect(calls).toBe(1);
+		expect(deliver).toHaveBeenCalledTimes(1);
+		if (finalAttempt) {
+			await db.update(insightRunItems).set({
+				updatedAt: new Date(Date.now() - 20 * 60 * 1000),
+			}).where(eq(insightRunItems.id, input.itemId));
+			await recoverStaleInsightRuns();
+			const [stillFailed] = await db.select().from(insightRunItems).where(eq(insightRunItems.id, input.itemId));
+			expect(stillFailed?.status).toBe("failed");
+		}
+		providerUnavailable = false;
+		if (finalAttempt) {
+			await recoverStaleInsightRuns();
+		} else {
+			await expect(processInsightsJob({ ...job, attemptsMade: 1, attemptsStarted: 2 })).resolves.toEqual({
+				status: "succeeded", resultCount: 1,
+			});
+		}
+		const [completed] = await db.select().from(insightRunItems).where(eq(insightRunItems.id, input.itemId));
+		expect(completed?.status).toBe("succeeded");
+		expect(holds.get(reservation.lock.lock_id)?.state).toBe("confirmed");
+		expect(reservationsSince(0)).toHaveLength(1);
+		expect(calls).toBe(1);
+		expect(deliver).toHaveBeenCalledTimes(1);
+		expect(tokenDebit).not.toHaveBeenCalled();
+	});
+
 	it.each([
 		"empty",
 		"unavailable",
@@ -588,7 +637,8 @@ integration("native generation fixed-unit persistence", () => {
 			expect(holds.get(reservation.lock.lock_id)?.state).toBe("held");
 			expect(deliver).toHaveBeenCalledTimes(1);
 			const [runItem] = await db.select().from(insightRunItems).where(eq(insightRunItems.id, input.itemId));
-			expect(runItem?.preparedAt).toBeNull();
+			expect(runItem?.preparedAt).not.toBeNull();
+			expect(runItem?.preparedStatus).toBe("succeeded");
 			providerUnavailable = false;
 			await expect(generateWebsiteInsights(input)).resolves.toMatchObject({ status: "succeeded" });
 			expect(calls).toBe(3);

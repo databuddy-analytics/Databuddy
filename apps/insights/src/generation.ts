@@ -1871,9 +1871,6 @@ export async function generateWebsiteInsights(
 				);
 			}
 		}
-		if (settlementError) {
-			throw settlementError;
-		}
 	} catch (error) {
 		emitExecutionCoverage("partial_failure");
 		await drainPendingEffectsAfterFailure();
@@ -1923,6 +1920,9 @@ export async function generateWebsiteInsights(
 			run_id: input.runId,
 		});
 		throw error;
+	}
+	if (settlementError) {
+		throw settlementError;
 	}
 	emitInsightsEvent("info", "generation.website.completed", {
 		organization_id: input.organizationId,

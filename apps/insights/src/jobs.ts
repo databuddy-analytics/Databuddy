@@ -244,7 +244,16 @@ async function finishGenerationFailure(params: {
 	error: unknown;
 	job: InsightsJob;
 }): Promise<GenerateWebsiteInsightsResult> {
-	const recovered = await loadCompletedPreparedResult(params.data);
+	let error = params.error;
+	let recovered = await loadCompletedPreparedResult(params.data);
+	if (recovered) {
+		try {
+			await settleRunInvestigationCharges(params.data);
+		} catch (settlementError) {
+			error = settlementError;
+			recovered = null;
+		}
+	}
 	if (recovered) {
 		await checkpointSuccessfulItem(params.data, recovered, params.activation);
 		await syncRunStatus(params.data.runId);
@@ -257,7 +266,7 @@ async function finishGenerationFailure(params: {
 	}
 
 	const finalAttempt = isFinalAttempt(params.job);
-	const message = errorMessage(params.error);
+	const message = errorMessage(error);
 	const updated = await db
 		.update(insightRunItems)
 		.set({
@@ -283,7 +292,7 @@ async function finishGenerationFailure(params: {
 			await syncRunStatus(params.data.runId);
 			return completed;
 		}
-		throw params.error;
+		throw error;
 	}
 
 	let runStatus: string | undefined;
@@ -296,14 +305,14 @@ async function finishGenerationFailure(params: {
 			item_id: params.data.itemId,
 		});
 	}
-	captureInsightsError(params.error, "job.generate_website.failed", {
+	captureInsightsError(error, "job.generate_website.failed", {
 		...jobContext(params.job),
 		final_attempt: finalAttempt,
 		item_id: params.data.itemId,
 		next_status: finalAttempt ? "failed" : "queued",
 		run_status: runStatus,
 	});
-	throw params.error;
+	throw error;
 }
 
 async function processGenerateWebsiteJob(
