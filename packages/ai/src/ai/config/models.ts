@@ -15,7 +15,7 @@ const gateway = createGateway({
 export const modelNames = {
 	tiny: "openai/gpt-oss-120b",
 	quick: "google/gemini-2.5-flash-lite",
-	balanced: "openai/gpt-5.6-terra",
+	balanced: "openai/gpt-5.6-luna",
 	deep: "deepseek/deepseek-v4-flash",
 } as const;
 
