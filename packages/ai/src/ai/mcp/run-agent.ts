@@ -222,7 +222,10 @@ function createRunAbortController(options: RunMcpAgentOptions): {
 	signal: AbortSignal;
 } {
 	const controller = new AbortController();
-	const timeout = setTimeout(() => controller.abort(), getTimeoutMs(options));
+	const timeout = setTimeout(
+		() => controller.abort(),
+		options.timeoutMs ?? DEFAULT_MCP_AGENT_TIMEOUT_MS
+	);
 	const externalSignal = options.abortSignal;
 	const abortFromExternalSignal = () => {
 		controller.abort(externalSignal?.reason);
@@ -308,25 +311,23 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 	}
 
 	const [config, memoryCtx, businessContext] = await Promise.all([
-		Promise.resolve(
-			createMcpAgentConfig({
-				billingCustomerId,
-				requestHeaders: options.requestHeaders,
-				apiKey: options.apiKey,
-				userId: mcpUserId,
-				timezone: options.timezone,
-				chatId: sessionId,
-				modelOverride: options.modelOverride,
-				memoryUserId,
-				mutationMode: options.mutationMode,
-				organizationId,
-				accessibleWebsites,
-				slackContext: options.slackContext,
-				source,
-				websiteDomain: options.websiteDomain,
-				websiteId: options.websiteId,
-			})
-		),
+		createMcpAgentConfig({
+			billingCustomerId,
+			requestHeaders: options.requestHeaders,
+			apiKey: options.apiKey,
+			userId: mcpUserId,
+			timezone: options.timezone,
+			chatId: sessionId,
+			modelOverride: options.modelOverride,
+			memoryUserId,
+			mutationMode: options.mutationMode,
+			organizationId,
+			accessibleWebsites,
+			slackContext: options.slackContext,
+			source,
+			websiteDomain: options.websiteDomain,
+			websiteId: options.websiteId,
+		}),
 		isMemoryEnabled()
 			? getMemoryContext(options.question, memoryUserId, apiKeyId, {
 					websiteId: options.websiteId ?? undefined,
@@ -383,13 +384,10 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 		? `<context>\n${contextBlock}\n</context>\n\n${options.question}`
 		: options.question;
 
-	const messages =
-		options.priorMessages && options.priorMessages.length > 0
-			? [
-					...options.priorMessages,
-					{ role: "user" as const, content: questionContent },
-				]
-			: [{ role: "user" as const, content: questionContent }];
+	const messages = [
+		...(options.priorMessages ?? []),
+		{ role: "user" as const, content: questionContent },
+	];
 
 	return {
 		agent,
@@ -426,17 +424,7 @@ async function trackPreparedUsage(
 }
 
 function collectToolTrace(
-	steps: readonly {
-		readonly toolCalls: readonly {
-			readonly input: unknown;
-			readonly toolCallId: string;
-			readonly toolName: string;
-		}[];
-		readonly toolResults: readonly {
-			readonly output: unknown;
-			readonly toolCallId: string;
-		}[];
-	}[]
+	steps: readonly StepResult<ToolSet>[]
 ): McpAgentToolTrace[] {
 	const traces: McpAgentToolTrace[] = [];
 	for (const step of steps) {
@@ -474,8 +462,4 @@ function storePreparedConversation(
 			websiteId: prepared.websiteId,
 		}
 	);
-}
-
-function getTimeoutMs(options: RunMcpAgentOptions): number {
-	return options.timeoutMs ?? DEFAULT_MCP_AGENT_TIMEOUT_MS;
 }
