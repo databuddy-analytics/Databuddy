@@ -1,5 +1,5 @@
 import { estimateTieredOverageCostFromTiers } from "./estimator-utils";
-import type { NormalizedPlan } from "./types";
+import type { NormalizedPlan } from "./normalize";
 
 export function calculateTotalCost(
 	plan: NormalizedPlan,

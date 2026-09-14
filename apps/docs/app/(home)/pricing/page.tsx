@@ -4,7 +4,7 @@ import { Footer } from "@/components/footer";
 import { Estimator } from "./_pricing/estimator";
 import { normalizePlans } from "./_pricing/normalize";
 import { PlansComparisonTable } from "./_pricing/table";
-import type { NormalizedPlan } from "./_pricing/types";
+import type { NormalizedPlan } from "./_pricing/normalize";
 import { RAW_PLANS } from "./data";
 import { PricingFaq } from "./pricing-faq";
 

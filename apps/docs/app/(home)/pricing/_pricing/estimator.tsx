@@ -21,7 +21,7 @@ import {
 	formatTierRate,
 } from "./estimator-utils";
 import { trackPricingPlanClick } from "./track-pricing";
-import type { NormalizedPlan } from "./types";
+import type { NormalizedPlan } from "./normalize";
 
 interface Props {
 	plans: NormalizedPlan[];

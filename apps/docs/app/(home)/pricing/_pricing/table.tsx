@@ -5,7 +5,7 @@ import { SciFiCard } from "@/components/scifi-card";
 import { formatMoney } from "./estimator-utils";
 import { GatedFeaturePricingRows } from "./gated-feature-rows";
 import { trackPricingPlanClick } from "./track-pricing";
-import type { NormalizedPlan } from "./types";
+import type { NormalizedPlan } from "./normalize";
 
 const contactTopics: Record<string, string | undefined> =
 	INTELLIGENCE_CONTACT_TOPICS;
