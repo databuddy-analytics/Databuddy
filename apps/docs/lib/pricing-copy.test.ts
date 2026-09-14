@@ -211,7 +211,7 @@ describe("public pricing copy", () => {
 			).toBeUndefined();
 		}
 		expect(response.investigations.description).toContain(
-			"verification after applying a proposed repair are included"
+			"Extras cost $1 per completed investigation."
 		);
 	});
 
@@ -254,7 +254,7 @@ describe("public pricing copy", () => {
 		);
 		for (const [id, allowance] of Object.entries(INVESTIGATION_ALLOWANCES)) {
 			const plans = RAW_PLANS.filter((plan) => plan.id === id);
-			expect(cards).toContain(`${allowance} investigations / month`);
+			expect(cards).toContain(`${allowance} investigations / month included`);
 			const estimator = renderToStaticMarkup(
 				createElement(Estimator, { plans: normalizePlans(plans) })
 			);
@@ -280,6 +280,8 @@ describe("public pricing copy", () => {
 		}
 		expect(cards).toContain("$1 per extra");
 		expect(cards).not.toContain("purchased separately");
+		expect(cards).not.toContain("no investigations are bundled");
+		expect(cards).not.toContain("Clarifications");
 	});
 
 	it("publishes included chat as a capability without customer credit grants or prices", () => {

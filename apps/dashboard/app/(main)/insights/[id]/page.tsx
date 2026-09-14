@@ -743,8 +743,8 @@ function ReplyComposer({
 					value={body}
 				/>
 				<p className="text-muted-foreground text-xs">
-					Clarifications are included. Each completed new analysis uses one
-					investigation. Additional investigations cost $1 after your allowance.
+					Clarifications are included. New investigations use your allowance,
+					then cost $1 each.
 				</p>
 				<div className="flex flex-wrap justify-end gap-2">
 					<Button

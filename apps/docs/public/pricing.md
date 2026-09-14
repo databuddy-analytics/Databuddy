@@ -45,7 +45,7 @@ All plans include unlimited websites and team members, user tracking, Web Vitals
 
 ## Investigations — monthly allowance, $1 per extra
 
-Business includes 100 completed investigations per month; Scale includes 500. Each additional completed investigation costs $1 and is billed monthly. Clarifications of the same question and verification after applying a proposed repair are included. New questions and separate fresh analysis are new investigations. Failed or incomplete work does not use your allowance. Business and Scale require an invitation.
+Only completed investigations count. Same-question clarifications and repair checks are included.
 
 For example, 125 completed investigations on Business use the 100 included investigations and add $25 to the monthly bill. The total is $324 before event overage and taxes.
 
@@ -56,7 +56,7 @@ Custom volume, security, and support. [Contact us](https://www.databuddy.cc/cont
 ## Definitions
 
 - **Event:** A pageview, custom event, captured error, or Web Vital measurement counted toward monthly analytics usage. Feature flag evaluations and uptime checks do not count.
-- **Investigation:** One completed question, including same-question clarifications and verification of a proposed repair. Uses one monthly included investigation, then costs $1 per extra.
+- **Investigation:** A completed analysis of one question.
 - **Databunny chat:** Included questions and answers about your analytics.
 - **Overage:** Usage above the monthly included allowance. Events have tiered rates; completed investigations cost $1 each above the included amount.
 

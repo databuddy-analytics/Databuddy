@@ -7,12 +7,12 @@ import { FaqSection } from "@/components/landing/faq-section";
 export const pricingFaqItems = [
 	{
 		question: "How many investigations are included?",
-		answer: `Business includes ${INVESTIGATION_ALLOWANCES.intelligence} investigations per month; Scale includes ${INVESTIGATION_ALLOWANCES.intelligence_scale}. Extras cost $${INVESTIGATION_USAGE.priceUsd} each, billed monthly. Failed or incomplete work does not use your allowance.`,
+		answer: `Business includes ${INVESTIGATION_ALLOWANCES.intelligence} investigations per month; Scale includes ${INVESTIGATION_ALLOWANCES.intelligence_scale}. Extras cost $${INVESTIGATION_USAGE.priceUsd} each, billed monthly.`,
 	},
 	{
 		question: "What is included in one investigation?",
 		answer:
-			"One completed answer, including same-question clarifications and verification of the proposed repair. A new question or fresh analysis starts another investigation.",
+			"Only completed investigations count. Same-question clarifications and repair checks are included.",
 	},
 	{
 		question: "What happens when I hit my event limit?",

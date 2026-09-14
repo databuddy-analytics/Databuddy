@@ -181,6 +181,8 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 
 ## Billing (Autumn)
 
+- Business includes 100 investigations/month and Scale 500, then $1 per extra. Lead pricing cards with these allowances; keep investigation definitions in one short FAQ. A pushed config is not an active offer: verify the serving deployment and native Autumn plan version before claiming the change is live.
+
 - Billing-control read/modify/write must use a strict native client and verify the customer ID before merging settings. SDK `getOrCreate` can fail open with empty controls, causing a later successful update to erase unrelated saved limits.
 
 - Autumn owns allowances, usage, and invoicing. Prefer its native reservations/finalization with existing investigation job state; a pricing change does not inherently require a separate Postgres billing ledger. Verify deployed entitlement support before syncing live plans.

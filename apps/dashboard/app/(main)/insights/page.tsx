@@ -533,11 +533,8 @@ function FirstReview({
 					) : null}
 					{action && !billingLoading && fixedPrice && (
 						<p className="mt-3 text-muted-foreground text-xs">
-							Each completed investigation uses your monthly allowance first;
-							additional investigations cost $1 each. A first review may
-							investigate several signals and use multiple investigations.
-							Same-question clarifications and verification of a proposed repair
-							are included.
+							A review can complete multiple investigations. Your monthly
+							allowance applies first, then $1 each.
 						</p>
 					)}
 					{action ? <div className="mt-3">{action}</div> : null}

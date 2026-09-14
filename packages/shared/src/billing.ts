@@ -36,7 +36,7 @@ export const INVESTIGATION_USAGE = {
 	topupPlanId: "investigations_topup",
 	maxPurchase: 1000,
 	description:
-		"Each completed investigation uses one investigation from your monthly allowance. Additional investigations cost $1 each. Clarifications of the same question and verification after applying a proposed repair are included. New questions and separate fresh analysis are new investigations.",
+		"Business and Scale include monthly investigations. Extras cost $1 per completed investigation.",
 } as const;
 
 export const INVESTIGATION_ALLOWANCES = {

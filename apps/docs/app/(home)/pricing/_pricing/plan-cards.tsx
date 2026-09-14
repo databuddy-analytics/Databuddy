@@ -33,13 +33,12 @@ export function PlanCards({ plans }: { plans: NormalizedPlan[] }) {
 								</span>
 							</p>
 							<ul className="my-6 flex-1 space-y-3 text-sm">
-								<li>
-									{plan.includedEventsMonthly.toLocaleString()} events / month
-								</li>
-								{plan.chatIncluded && <li>Databunny chat included</li>}
 								{plan.includedInvestigationsMonthly !== null && (
 									<li>
-										{plan.includedInvestigationsMonthly} investigations / month
+										<span className="font-semibold">
+											{plan.includedInvestigationsMonthly} investigations /
+											month included
+										</span>
 										{plan.investigationPrice !== null && (
 											<span className="mt-1 block text-muted-foreground">
 												${plan.investigationPrice} per extra, billed monthly
@@ -47,6 +46,10 @@ export function PlanCards({ plans }: { plans: NormalizedPlan[] }) {
 										)}
 									</li>
 								)}
+								<li>
+									{plan.includedEventsMonthly.toLocaleString()} events / month
+								</li>
+								{plan.chatIncluded && <li>Databunny chat included</li>}
 								<li>
 									{plan.id === "hobby"
 										? "Email support"
@@ -98,7 +101,7 @@ export function PlanCards({ plans }: { plans: NormalizedPlan[] }) {
 								<p className="mt-1 text-muted-foreground">
 									{plan.id === "enterprise"
 										? "Custom volume, security, and support"
-										: `${plan.includedEventsMonthly.toLocaleString()} events / month${plan.chatIncluded ? " · Databunny chat included" : ""}${plan.includedInvestigationsMonthly === null ? "" : ` · ${plan.includedInvestigationsMonthly} investigations / month${plan.investigationPrice === null ? "" : ` · $${plan.investigationPrice} per extra`}`}`}
+										: `${plan.includedInvestigationsMonthly === null ? "" : `${plan.includedInvestigationsMonthly} investigations / month included${plan.investigationPrice === null ? "" : ` · $${plan.investigationPrice} per extra`} · `}${plan.includedEventsMonthly.toLocaleString()} events / month${plan.chatIncluded ? " · Databunny chat included" : ""}`}
 								</p>
 							</div>
 							<Link
@@ -126,8 +129,7 @@ export function PlanCards({ plans }: { plans: NormalizedPlan[] }) {
 					))}
 			</div>
 			<p className="mt-4 text-muted-foreground text-sm">
-				Business and Scale are invite only. Only completed investigations count;
-				same-question clarifications and repair verification are included.
+				Business and Scale are invite only.
 			</p>
 			<p className="mt-2 text-muted-foreground text-sm">
 				Paid plans add tiered charges for extra events.{" "}
