@@ -49,9 +49,9 @@ for (const [quantity, valid, authorized] of [
     if (element.props.onClick && typeof element.props.children === "string" && element.props.children.startsWith("Buy")) button = element;
     pending.push(...React.Children.toArray(element.props.children));
   }
-  assert.ok(button, "Purchase button for quantity " + quantity);
+  assert.ok(button, \`Purchase button for quantity \${quantity}\`);
   assert.equal(button.props.disabled, !(valid && authorized));
-  assert.equal(button.props.children, valid ? "Buy " + quantity + " investigations · $" + quantity.toFixed(2) : "Buy investigations");
+  assert.equal(button.props.children, valid ? \`Buy \${quantity} investigations · $\${quantity.toFixed(2)}\` : "Buy investigations");
   await button.props.onClick();
   assert.deepEqual(attach.mock.calls, valid && authorized ? [[{
     planId: "investigations_topup",
