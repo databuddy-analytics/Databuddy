@@ -12,11 +12,9 @@ import {
 	type GatedFeatureId,
 	getMinimumPlanForFeature,
 	getNextPlanForFeature,
-	getPlanCapabilities as getPlanCapabilitiesForPlan,
 	getPlanFeatureLimit,
 	isPlanFeatureEnabled,
 	PLAN_IDS,
-	type PlanCapabilities,
 	type PlanId,
 } from "@databuddy/shared/types/features";
 import { useQuery } from "@tanstack/react-query";
@@ -29,7 +27,6 @@ import { orpc } from "@/lib/orpc";
 
 type HookCustomer = NonNullable<ReturnType<typeof useCustomer>["data"]>;
 type HookPlan = NonNullable<ReturnType<typeof useListPlans>["data"]>[number];
-type HookBalance = NonNullable<HookCustomer["balances"]>[string];
 
 interface FeatureAccess {
 	allowed: boolean;
@@ -52,9 +49,7 @@ export interface BillingContextValue {
 	canUserUpgrade: boolean;
 	currentPlanId: string | null;
 	customer: HookCustomer | null;
-	getBalance: (featureId: FeatureId | string) => HookBalance | null;
 	getGatedFeatureAccess: (feature: GatedFeatureId) => GatedFeatureAccess;
-	getPlanCapabilities: () => PlanCapabilities;
 	getUpgradeMessage: (
 		featureId: FeatureId | GatedFeatureId | string
 	) => string | null;
@@ -86,7 +81,6 @@ const DEMO_BILLING_VALUE: BillingContextValue = {
 	isOrganizationBilling: false,
 	canUserUpgrade: true,
 	canUse: () => true,
-	getBalance: () => null,
 	getUsage: () => ({
 		allowed: true,
 		balance: 0,
@@ -103,7 +97,6 @@ const DEMO_BILLING_VALUE: BillingContextValue = {
 		upgradeMessage: null,
 	}),
 	getUpgradeMessage: () => null,
-	getPlanCapabilities: () => getPlanCapabilitiesForPlan(PLAN_IDS.SCALE),
 	refetch: () => {},
 };
 
@@ -203,9 +196,6 @@ function AuthenticatedBillingProvider({
 			currentPlan?.autoEnable === true ||
 			!billingContext?.hasActiveSubscription;
 
-		const getBalance = (id: FeatureId | string): HookBalance | null =>
-			customer?.balances?.[id] ?? null;
-
 		const canUse = (id: FeatureId | string): boolean => {
 			const bal = customer?.balances?.[id];
 			if (!bal) {
@@ -270,9 +260,6 @@ function AuthenticatedBillingProvider({
 			FEATURE_METADATA[id as FeatureId | GatedFeatureId]?.upgradeMessage ??
 			null;
 
-		const getPlanCapabilities = (): PlanCapabilities =>
-			getPlanCapabilitiesForPlan(currentPlanId);
-
 		const refetch = () => {
 			refetchCustomer();
 			refetchBillingContext();
@@ -290,11 +277,9 @@ function AuthenticatedBillingProvider({
 			canUserUpgrade,
 			canUse,
 			getUsage,
-			getBalance,
 			isFeatureEnabled,
 			getGatedFeatureAccess,
 			getUpgradeMessage,
-			getPlanCapabilities,
 			refetch,
 		};
 	}, [

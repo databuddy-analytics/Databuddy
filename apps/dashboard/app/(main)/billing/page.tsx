@@ -34,7 +34,6 @@ import { TopupCard } from "./components/topup-card";
 import { UsageBreakdownTable } from "./components/usage-breakdown-table";
 import { UsageRow } from "./components/usage-row";
 import { useBilling, useBillingData } from "./hooks/use-billing";
-import type { CustomerWithPaymentMethod } from "./types/billing";
 import type { OverageInfo } from "./utils/billing-utils";
 import type { PricingTier } from "./utils/feature-usage";
 import {
@@ -477,7 +476,7 @@ export default function BillingPage() {
 							</Text>
 						)}
 
-						<PaymentMethodRow customer={customer ?? null} />
+						<PaymentMethodRow card={customer?.paymentMethod?.card} />
 
 						<Divider />
 
@@ -678,12 +677,15 @@ export default function BillingPage() {
 }
 
 function PaymentMethodRow({
-	customer,
+	card,
 }: {
-	customer: CustomerWithPaymentMethod | null;
+	card?: {
+		brand?: string;
+		exp_month?: number;
+		exp_year?: number;
+		last4?: string;
+	} | null;
 }) {
-	const card = customer?.paymentMethod?.card;
-
 	if (!card) {
 		return (
 			<div className="flex items-center gap-3">
