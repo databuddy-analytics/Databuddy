@@ -1,6 +1,6 @@
 import { type ApiKeyRow, hasKeyScope } from "@databuddy/api-keys/resolve";
 import { auth } from "@databuddy/auth";
-import { tool, type ToolSet } from "ai";
+import { tool, type ToolExecutionOptions, type ToolSet } from "ai";
 import { z } from "zod";
 import { getAccessibleWebsites } from "../../lib/accessible-websites";
 import { executeBatch } from "../../query";
@@ -31,19 +31,15 @@ interface McpAgentContext {
 	userId: string | null;
 }
 
-function getContext(ctx: unknown): McpAgentContext {
+function getToolContext({
+	experimental_context: ctx,
+}: Pick<ToolExecutionOptions, "experimental_context">): McpAgentContext {
 	if (!ctx || typeof ctx !== "object" || !("requestHeaders" in ctx)) {
 		throw new Error(
 			"MCP agent tools require context with requestHeaders and apiKey"
 		);
 	}
 	return ctx as McpAgentContext;
-}
-
-function getToolContext(options: unknown): McpAgentContext {
-	return getContext(
-		(options as { experimental_context?: unknown }).experimental_context
-	);
 }
 
 export function createMcpAgentTools(

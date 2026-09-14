@@ -13,7 +13,7 @@ export function createMcpAgentConfig(context: {
 	accessibleWebsites?: WebsiteSummary[];
 	billingCustomerId?: string | null;
 	requestHeaders: Headers;
-	apiKey: unknown;
+	apiKey: ApiKeyRow | null;
 	userId: string | null;
 	timezone?: string;
 	chatId?: string;
@@ -37,10 +37,7 @@ export function createMcpAgentConfig(context: {
 
 	const modelOptions = conversationModelOptions(selectedModelId);
 
-	const apiKey =
-		context.apiKey && typeof context.apiKey === "object"
-			? (context.apiKey as ApiKeyRow)
-			: null;
+	const apiKey = context.apiKey;
 	const serviceAuth: ServiceAuth | undefined = apiKey
 		? { apiKey, session: null }
 		: undefined;
