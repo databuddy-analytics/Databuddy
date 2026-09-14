@@ -129,9 +129,6 @@ vi.mock("@databuddy/ai/agents/execution", () => ({
 	resolveAgentBillingCustomerId: async () => "synthetic-billing-owner",
 	trackAgentUsageAndBill: state.billedUsage,
 }));
-vi.mock("@databuddy/ai/agents/router", () => ({
-	tierToModelKey: () => "balanced",
-}));
 vi.mock("@databuddy/ai/config/models", () => ({
 	AI_MODEL_MAX_RETRIES: 0,
 	ANTHROPIC_CACHE_1H: {},

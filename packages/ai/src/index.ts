@@ -36,10 +36,6 @@ export {
 	trackAgentUsageAndBill,
 } from "./ai/agents/execution";
 export {
-	tierToModelKey,
-	type AgentTier as RouterAgentTier,
-} from "./ai/agents/router";
-export {
 	AI_MODEL_MAX_RETRIES,
 	ANTHROPIC_CACHE_1H,
 	createModelFromId,

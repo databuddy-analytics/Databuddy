@@ -11,7 +11,6 @@ import {
 	resolveAgentBillingCustomerId,
 	trackAgentUsageAndBill,
 } from "@databuddy/ai/agents/execution";
-import { type AgentTier, tierToModelKey } from "@databuddy/ai/agents/router";
 import { AGENT_THINKING_LEVELS, AGENT_TIERS } from "@databuddy/ai/agents/types";
 import { type AgentModelKey, models } from "@databuddy/ai/config/models";
 import { askDatabuddyAgent, streamDatabuddyAgent } from "@databuddy/ai/agent";
@@ -666,8 +665,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 					const timezone = body.timezone ?? "UTC";
 					const lastMessage = getLastMessagePreview(body.messages);
 
-					const agentTier: AgentTier = body.tier ?? "balanced";
-					const modelKey: AgentModelKey = tierToModelKey(agentTier);
+					const modelKey: AgentModelKey = body.tier ?? "balanced";
 
 					mergeWideEvent({
 						agent_tier: modelKey,
