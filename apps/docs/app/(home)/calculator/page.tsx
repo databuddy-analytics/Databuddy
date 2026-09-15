@@ -23,20 +23,35 @@ export async function generateMetadata({
 	const visitors = typeof params.visitors === "string" ? params.visitors : null;
 	const cost = typeof params.cost === "string" ? params.cost : null;
 
-	const hasPersonalizedParams = revenue && visitors && cost;
+	const hasPersonalizedParams =
+		revenue !== null &&
+		visitors !== null &&
+		cost !== null &&
+		[revenue, visitors, cost].every(
+			(value) =>
+				value !== null &&
+				value.trim() !== "" &&
+				Number.isFinite(Number(value)) &&
+				Number(value) >= 0
+		);
 
 	const ogParams = hasPersonalizedParams
-		? `revenue=${revenue}&visitors=${visitors}&cost=${cost}`
+		? new URLSearchParams({
+				revenue: String(Number(revenue)),
+				visitors: String(Number(visitors)),
+				cost: String(Number(cost)),
+			}).toString()
 		: DEFAULT_OG_PARAMS;
 
 	const ogImageUrl = `${SITE_URL}/calculator/og?${ogParams}`;
 
 	const personalizedDescription = hasPersonalizedParams
-		? `Modeled unattributed revenue ~$${Number(revenue).toLocaleString()}/year (measurement gap) vs Databuddy ~$${Number(cost).toLocaleString()}/month - not literal loss.`
+		? `Modeled unattributed revenue ~$${Number(revenue).toLocaleString("en-US")}/year (measurement gap) vs Databuddy ~$${Number(cost).toLocaleString("en-US")}/month - not literal loss.`
 		: DESCRIPTION;
 
 	return {
 		title: TITLE,
+		alternates: { canonical: "/calculator" },
 		description: personalizedDescription,
 		openGraph: {
 			title: TITLE,
