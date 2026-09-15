@@ -1,3 +1,4 @@
+import { config } from "@databuddy/env/app";
 import type { NotificationClientConfig } from "./client";
 import type { NotificationChannel } from "./types";
 
@@ -124,9 +125,7 @@ export function buildAlarmNotificationTargets(
 					email: {
 						defaultTo: dest.identifier,
 						from:
-							typeof cfg.from === "string"
-								? cfg.from
-								: "Databuddy <alerts@databuddy.cc>",
+							typeof cfg.from === "string" ? cfg.from : config.email.alertsFrom,
 						sendEmailAction: async (payload: {
 							to: string | string[];
 							subject: string;
@@ -141,7 +140,7 @@ export function buildAlarmNotificationTargets(
 							}
 							const resend = new Resend(apiKey);
 							const result = await resend.emails.send({
-								from: payload.from || "Databuddy <alerts@databuddy.cc>",
+								from: payload.from || config.email.alertsFrom,
 								to: Array.isArray(payload.to) ? payload.to : [payload.to],
 								subject: payload.subject,
 								html: payload.html || payload.text || "",

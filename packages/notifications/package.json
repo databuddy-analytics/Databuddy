@@ -18,6 +18,7 @@
     "test:integration": "bun test src/__tests__/integration"
   },
   "dependencies": {
+    "@databuddy/env": "workspace:*",
     "@databuddy/shared": "workspace:*",
     "resend": "^4.0.1"
   },
