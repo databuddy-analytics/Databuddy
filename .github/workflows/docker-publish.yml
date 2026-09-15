@@ -49,7 +49,7 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           BEFORE_SHA: ${{ github.event.before }}
         run: |
-          ALL='["api","basket","dashboard","insights","links","uptime"]'
+          ALL='["api","basket","dashboard","init","insights","links","uptime"]'
           if [[ "$EVENT_NAME" != "push" ]]; then
             echo "services=$ALL" >> "$GITHUB_OUTPUT"
             exit 0
@@ -60,19 +60,16 @@ jobs:
           fi
           export TURBO_SCM_BASE="$BEFORE_SHA"
           export TURBO_SCM_HEAD="HEAD"
-          affected=()
+          # The init image ships the schema and tooling for every release.
+          affected=('"init"')
           for svc in api basket dashboard insights links uptime; do
             count=$(bunx turbo ls --affected --filter="@databuddy/$svc" --output=json | jq -r '.packages.count')
             if [[ "$count" != "0" ]]; then
               affected+=("\"$svc\"")
             fi
           done
-          if [[ ${#affected[@]} -eq 0 ]]; then
-            echo "services=[]" >> "$GITHUB_OUTPUT"
-          else
-            IFS=,
-            echo "services=[${affected[*]}]" >> "$GITHUB_OUTPUT"
-          fi
+          IFS=,
+          echo "services=[${affected[*]}]" >> "$GITHUB_OUTPUT"
 
   build:
     name: Build ${{ matrix.service }} (${{ matrix.platform.arch }})
@@ -136,6 +133,7 @@ jobs:
             api) text="Databuddy API service - analytics backend" ;;
             basket) text="Databuddy Basket service - event ingestion" ;;
             dashboard) text="Databuddy Dashboard service - web analytics UI" ;;
+            init) text="Databuddy database initialization and schema tools" ;;
             insights) text="Databuddy Insights service - queued insight generation" ;;
             links) text="Databuddy Links service - URL shortening and tracking" ;;
             uptime) text="Databuddy Uptime service - availability monitoring" ;;
