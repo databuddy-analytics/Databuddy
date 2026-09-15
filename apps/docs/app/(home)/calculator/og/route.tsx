@@ -3,17 +3,17 @@ import { loadOgFonts, OG_COLORS, OgLogo } from "@/lib/og";
 
 export async function GET(request: Request) {
 	const { searchParams } = new URL(request.url);
-	const revenue = searchParams.get("revenue") || "0";
-	const visitors = searchParams.get("visitors") || "0";
-	const cost = searchParams.get("cost") || "0";
-
-	const revenueNum = Number.parseInt(revenue, 10);
-	const visitorsNum = Number.parseInt(visitors, 10);
-	const costNum = Number.parseInt(cost, 10);
-
-	const formattedRevenue = `$${revenueNum.toLocaleString("en-US")}`;
-	const formattedVisitors = visitorsNum.toLocaleString("en-US");
-	const formattedCost = `$${costNum.toLocaleString("en-US")}`;
+	const [revenue, visitors, cost] = ["revenue", "visitors", "cost"].map(
+		(key) => {
+			const value = Number(searchParams.get(key));
+			return (Number.isFinite(value) && value >= 0 ? value : 0).toLocaleString(
+				"en-US"
+			);
+		}
+	);
+	const formattedRevenue = `$${revenue}`;
+	const formattedVisitors = visitors;
+	const formattedCost = `$${cost}`;
 
 	return new ImageResponse(
 		<div

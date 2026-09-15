@@ -36,13 +36,17 @@ export async function generateMetadata({
 		);
 
 	const ogParams = hasPersonalizedParams
-		? new URLSearchParams({ revenue, visitors, cost }).toString()
+		? new URLSearchParams({
+				revenue: String(Number(revenue)),
+				visitors: String(Number(visitors)),
+				cost: String(Number(cost)),
+			}).toString()
 		: DEFAULT_OG_PARAMS;
 
 	const ogImageUrl = `${SITE_URL}/calculator/og?${ogParams}`;
 
 	const personalizedDescription = hasPersonalizedParams
-		? `Modeled unattributed revenue ~$${Number(revenue).toLocaleString()}/year (measurement gap) vs Databuddy ~$${Number(cost).toLocaleString()}/month - not literal loss.`
+		? `Modeled unattributed revenue ~$${Number(revenue).toLocaleString("en-US")}/year (measurement gap) vs Databuddy ~$${Number(cost).toLocaleString("en-US")}/month - not literal loss.`
 		: DESCRIPTION;
 
 	return {

@@ -20,7 +20,10 @@ describe("public copy contracts", () => {
 			files.push(await readFile(join(docsRoot, path), "utf8"));
 		}
 		files.push(
-			await readFile(join(import.meta.dir, "..", "app", "skill.md", "route.ts"), "utf8")
+			await readFile(
+				join(import.meta.dir, "..", "app", "skill.md", "route.ts"),
+				"utf8"
+			)
 		);
 		const publicDocs = files.join("\n");
 
@@ -89,8 +92,31 @@ describe("public copy contracts", () => {
 	});
 });
 
-
 describe("search discovery", () => {
+	it("normalizes calculator share values without losing decimal costs", async () => {
+		const { generateMetadata } = await import("@/app/(home)/calculator/page");
+		const metadata = await generateMetadata({
+			searchParams: Promise.resolve({
+				revenue: "1e3",
+				visitors: "0x10",
+				cost: "9.99",
+			}),
+		});
+		expect(metadata.description).toContain("$1,000");
+		expect(metadata.description).toContain("$9.99");
+		expect(JSON.stringify(metadata.openGraph)).toContain(
+			"revenue=1000&visitors=16&cost=9.99"
+		);
+		const invalid = await generateMetadata({
+			searchParams: Promise.resolve({
+				revenue: "NaN",
+				visitors: "1",
+				cost: "1",
+			}),
+		});
+		expect(JSON.stringify(invalid)).not.toContain("NaN");
+	});
+
 	it("allows rendering assets and pages whose noindex must be read", async () => {
 		const body = await robots().text();
 		expect(body).not.toContain("Disallow: /_next/");
@@ -99,19 +125,42 @@ describe("search discovery", () => {
 	});
 
 	it("uses supplied article authors and omits unknown documentation dates", () => {
-		const markup = renderToStaticMarkup(createElement(StructuredData, {
-			page: { url: "/docs", title: "Docs" },
-			elements: [
-				{ type: "documentation", value: { title: "Docs" } },
-				{ type: "article", value: { title: "Example", authors: [{ name: "Example Author", url: "https://example.com/author" }], datePublished: "2024-01-01" } },
-			],
-		}));
-		const graph = JSON.parse(markup.slice(markup.indexOf(">") + 1, markup.lastIndexOf("</script>")))["@graph"];
-		const docs = graph.find((item: { "@type": string[] }) => item["@type"].includes("TechArticle"));
-		const article = graph.find((item: { "@type": string[] }) => item["@type"].includes("BlogPosting"));
+		const markup = renderToStaticMarkup(
+			createElement(StructuredData, {
+				page: { url: "/docs", title: "Docs" },
+				elements: [
+					{ type: "documentation", value: { title: "Docs" } },
+					{
+						type: "article",
+						value: {
+							title: "Example",
+							authors: [
+								{ name: "Example Author", url: "https://example.com/author" },
+							],
+							datePublished: "2024-01-01",
+						},
+					},
+				],
+			})
+		);
+		const graph = JSON.parse(
+			markup.slice(markup.indexOf(">") + 1, markup.lastIndexOf("</script>"))
+		)["@graph"];
+		const docs = graph.find((item: { "@type": string[] }) =>
+			item["@type"].includes("TechArticle")
+		);
+		const article = graph.find((item: { "@type": string[] }) =>
+			item["@type"].includes("BlogPosting")
+		);
 		expect(docs).not.toHaveProperty("datePublished");
 		expect(docs).not.toHaveProperty("dateModified");
-		expect(article.author).toEqual([{ "@type": "Person", name: "Example Author", url: "https://example.com/author" }]);
+		expect(article.author).toEqual([
+			{
+				"@type": "Person",
+				name: "Example Author",
+				url: "https://example.com/author",
+			},
+		]);
 		expect(markup).not.toContain("speakable");
 	});
 
@@ -124,29 +173,47 @@ describe("search discovery", () => {
 		try {
 			process.env.NODE_ENV = "production";
 			process.env.MARBLE_API_KEY = "test-token";
-			fetch.mockResolvedValueOnce(new Response(null, { status: 503 }));
+			fetch.mockResolvedValueOnce(Response.json(null, { status: 503 }));
 			const fallback = await generateSitemapEntries();
 			const urls = fallback.map((entry) => entry.url);
 			for (const path of ["/blog", "/oss", "/branding", "/docs", "/pricing"]) {
 				expect(urls).toContain(`https://www.databuddy.cc${path}`);
 			}
 			expect(new Set(urls).size).toBe(urls.length);
-			for (const path of ["/ask", "/api/llms.txt", "/openapi.json", "/contact/thanks"]) {
+			for (const path of [
+				"/ask",
+				"/api/llms.txt",
+				"/openapi.json",
+				"/contact/thanks",
+			]) {
 				expect(urls).not.toContain(`https://www.databuddy.cc${path}`);
 			}
-			fetch.mockResolvedValueOnce(Response.json({ posts: [
-				{ slug: "example", publishedAt: "2024-01-01", updatedAt: "2024-02-01" },
-				{ slug: "draft", status: "draft", publishedAt: "2024-01-01" },
-			] }));
+			fetch.mockResolvedValueOnce(
+				Response.json({
+					posts: [
+						{
+							slug: "example",
+							publishedAt: "2024-01-01",
+							updatedAt: "2024-02-01",
+						},
+						{ slug: "draft", status: "draft", publishedAt: "2024-01-01" },
+					],
+				})
+			);
 			const entries = await generateSitemapEntries();
 			expect(entries.filter((entry) => entry.url.includes("/blog/"))).toEqual([
-				{ url: "https://www.databuddy.cc/blog/example", lastModified: "2024-02-01T00:00:00.000Z" },
+				{
+					url: "https://www.databuddy.cc/blog/example",
+					lastModified: "2024-02-01T00:00:00.000Z",
+				},
 			]);
 		} finally {
 			fetch.mockRestore();
-			if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+			if (originalNodeEnv === undefined)
+				Reflect.deleteProperty(process.env, "NODE_ENV");
 			else process.env.NODE_ENV = originalNodeEnv;
-			if (originalApiKey === undefined) delete process.env.MARBLE_API_KEY;
+			if (originalApiKey === undefined)
+				Reflect.deleteProperty(process.env, "MARBLE_API_KEY");
 			else process.env.MARBLE_API_KEY = originalApiKey;
 		}
 	});
