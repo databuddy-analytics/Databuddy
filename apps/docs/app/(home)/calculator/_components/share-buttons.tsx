@@ -25,7 +25,7 @@ export function ShareButtons({ inputs }: { inputs: CalculatorInputs }) {
 
 	return (
 		<div className="space-y-3">
-			<p className="text-muted-foreground text-xs">
+			<p className="text-pretty text-muted-foreground text-xs">
 				Share these assumptions and results
 			</p>
 			<div className="flex flex-wrap gap-2">

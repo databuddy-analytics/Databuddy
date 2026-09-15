@@ -69,13 +69,13 @@ export default async function CalculatorPage({ searchParams }: PageProps) {
 			<div className="px-4 pt-20 sm:px-6 sm:pt-24 lg:px-8 lg:pt-32">
 				<div className="mx-auto w-full max-w-7xl">
 					<header className="mb-12 text-center sm:mb-16">
-						<p className="mb-3 font-mono text-muted-foreground text-xs uppercase tracking-widest">
+						<p className="mb-3 text-pretty font-mono text-muted-foreground text-xs uppercase tracking-widest">
 							Free Tool
 						</p>
 						<h1 className="mb-3 text-balance font-bold text-3xl tracking-tight sm:text-4xl lg:text-5xl">
 							Analytics Measurement Gap Calculator
 						</h1>
-						<p className="mx-auto max-w-2xl text-balance text-pretty text-muted-foreground text-sm sm:text-base">
+						<p className="mx-auto max-w-2xl text-pretty text-muted-foreground text-sm sm:text-base">
 							Estimate the revenue associated with visits missing from your
 							analytics. Adjust the assumptions to explore your measurement gap.
 						</p>

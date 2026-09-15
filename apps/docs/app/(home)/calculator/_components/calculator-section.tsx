@@ -96,13 +96,13 @@ export function CalculatorSection({
 	return (
 		<section className="mx-auto w-full max-w-5xl" id="calculator">
 			<div className="mb-8 text-center">
-				<p className="mb-2 font-mono text-muted-foreground text-xs uppercase tracking-widest">
+				<p className="mb-2 text-pretty font-mono text-muted-foreground text-xs uppercase tracking-widest">
 					Analytics Measurement Gap
 				</p>
 				<h2 className="mb-3 text-balance font-bold text-2xl tracking-tight sm:text-3xl">
 					Model the measurement gap
 				</h2>
-				<p className="mx-auto max-w-2xl text-balance text-muted-foreground text-sm">
+				<p className="mx-auto max-w-2xl text-pretty text-muted-foreground text-sm">
 					Use your own estimates. The example inputs are assumptions, not
 					benchmarks.
 				</p>
@@ -210,10 +210,10 @@ export function CalculatorSection({
 								<Separator />
 
 								<div className="rounded border border-destructive/20 bg-destructive/5 p-4">
-									<p className="mb-1 text-muted-foreground text-xs uppercase tracking-wider">
+									<p className="mb-1 text-pretty text-muted-foreground text-xs uppercase tracking-wider">
 										Modeled unattributed revenue / year
 									</p>
-									<p className="font-bold text-2xl text-destructive tabular-nums tracking-tight sm:text-3xl">
+									<p className="text-pretty font-bold text-2xl text-destructive tabular-nums tracking-tight sm:text-3xl">
 										{formatCurrencyFull(results.lostRevenueYearly)}
 									</p>
 									<p className="mt-2 text-pretty text-muted-foreground text-xs">
@@ -295,7 +295,7 @@ function InputField({
 				step={sliderStep}
 				value={[valueToSlider(value)]}
 			/>
-			<p className="mt-1.5 text-muted-foreground text-xs">{hint}</p>
+			<p className="mt-1.5 text-pretty text-muted-foreground text-xs">{hint}</p>
 		</div>
 	);
 }
