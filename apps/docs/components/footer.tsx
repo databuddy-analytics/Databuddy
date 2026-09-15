@@ -18,7 +18,7 @@ const footerSections = [
 			{ href: "/pricing", label: "Pricing", navItem: "pricing" },
 			{
 				href: "/calculator",
-				label: "Cookie cost calculator",
+				label: "Measurement gap calculator",
 				navItem: "calculator",
 			},
 			{ href: "/compare", label: "Compare", navItem: "compare" },
@@ -66,11 +66,10 @@ function FooterHero() {
 			/>
 			<div className="relative max-w-5xl px-8 pt-8 sm:px-16 md:pt-16">
 				<h2 className="mb-2 text-left font-medium text-2xl text-white leading-tight sm:text-4xl">
-					Every day without Databuddy is a day of data you'll never get back.
+					See how people use your product.
 				</h2>
 				<p className="mb-6 text-lg text-white/70">
-					No credit card. No commitment. Set up in 5 minutes and see what you've
-					been missing.
+					Start free with 10,000 events per month. No credit card required.
 				</p>
 				<div className="flex gap-3">
 					<Button
