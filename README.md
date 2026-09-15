@@ -68,37 +68,76 @@ Databuddy can be self-hosted using Docker Compose. The repo includes two compose
 | File | Purpose |
 |---|---|
 | `docker-compose.yaml` | **Development only** — starts infrastructure (Postgres, ClickHouse, Redis) for local dev |
-| `docker-compose.selfhost.yml` | **Production / self-hosting** — backend services from GHCR images |
+| `docker-compose.selfhost.yml` | **Self-hosting** — backend images plus a dashboard built for your URLs |
 
 ### Quick Start
+
+Use a checkout matching `IMAGE_TAG`. Docker Compose is sufficient; Bun and Node
+are only needed for local development. For local testing, use
+`http://localhost:3000`, `http://localhost:3001`, and `http://localhost:4000`
+for the dashboard, API, and Basket URLs.
 
 ```bash
 # 1. Configure environment
 cp .env.example .env
-# Edit .env — set IMAGE_TAG, URL-safe database/cache passwords, public URLs,
-# BETTER_AUTH_SECRET, DATABUDDY_ENCRYPTION_KEY, IP_HASH_SALT, and
-# AI_GATEWAY_API_KEY. Make the local database URLs use the same credentials
-# before running the initialization commands below.
+# Edit .env — set IMAGE_TAG, POSTGRES_PASSWORD, CLICKHOUSE_PASSWORD,
+# REDIS_PASSWORD, BETTER_AUTH_SECRET, DATABUDDY_ENCRYPTION_KEY, and the
+# DASHBOARD_URL, API_URL, BASKET_URL public URLs. Use URL-safe passwords.
 
-# 2. Start databases and cache
-docker compose -f docker-compose.selfhost.yml up -d postgres clickhouse redis
+# 2. Start databases and initialize their schemas
+docker compose -f docker-compose.selfhost.yml run --rm init
 
-# 3. Initialize databases from the repo checkout (first run only)
-bun install --frozen-lockfile
-bun run db:push
-bun run clickhouse:init
-
-# 4. Start backend services
-docker compose -f docker-compose.selfhost.yml up -d
+# 3. Build the dashboard for your URLs and start the services
+docker compose -f docker-compose.selfhost.yml up -d --build
 ```
 
+The explicit `init` command runs PostgreSQL `db:push`, then creates missing
+ClickHouse tables and views using the release's schema source and tooling.
+
+For upgrades, back up your databases, check out the new release, and set
+`IMAGE_TAG` to that release. Apply PostgreSQL changes separately so you can review
+any schema change prompts:
+
+```bash
+docker compose -f docker-compose.selfhost.yml pull init
+docker compose -f docker-compose.selfhost.yml run --rm init bun run --cwd packages/db db:push
+```
+
+If you decline a PostgreSQL change, stop the upgrade. After accepting the changes,
+create any missing ClickHouse objects with
+`docker compose -f docker-compose.selfhost.yml run --rm init bun --cwd packages/db src/clickhouse/setup.ts`.
+This only creates missing objects; apply any additional migrations listed in the
+release notes separately before starting the updated services.
+
+To verify a local init image against disposable databases, run
+`bash scripts/test-selfhost-init.sh` (requires Docker Compose 2.24.4 or later).
+
 Services started:
+- **Dashboard** → `localhost:3000`
 - **API** → `localhost:3001`
 - **Basket** (event ingestion) → `localhost:4000`
-- **Insights** (investigation worker) → `localhost:4002`
 - **Links** (short links) → `localhost:2500`
 
-All ports are configurable via env vars (`API_PORT`, `BASKET_PORT`, etc.). See the compose file comments for the full env var reference.
+Ports are configurable (`DASHBOARD_PORT`, `API_PORT`, `BASKET_PORT`, `LINKS_PORT`).
+For remote access, put the dashboard and API behind HTTPS on the same parent
+domain and set `BETTER_AUTH_COOKIE_DOMAIN` (for example `.example.com`) so login
+works across subdomains. Leave it empty for localhost. Repeat step 3 after changing
+public URLs; they are embedded in the dashboard's browser bundle.
+
+### Optional services
+
+Email is optional for self-host signup. For password resets, invitations, and
+alerts, set `RESEND_API_KEY` and `EMAIL_FROM` to a sender on your verified domain,
+for example `Databuddy <no-reply@example.com>`. Leave `ALERTS_EMAIL_FROM` empty to
+reuse that sender. Recreate services after changing these values.
+
+Insights is opt-in: configure its AI and billing providers, then run
+`docker compose -f docker-compose.selfhost.yml --profile insights up -d insights`.
+Basic analytics and link delivery do not require an AI key or Kafka.
+Error analytics and creating goals, funnels, or feature flags still require an
+Autumn billing provider configuration. The billing UI can show errors without it.
+DQL requires separate restricted-user provisioning; never use the application's
+admin ClickHouse credentials for DQL.
 
 ## 🤝 Contributing
 
