@@ -9,16 +9,14 @@ export POSTGRES_PASSWORD=init_test_password CLICKHOUSE_PASSWORD=init_test_passwo
 export POSTGRES_USER=databuddy POSTGRES_DB=databuddy
 export CLICKHOUSE_USER=default CLICKHOUSE_DB=databuddy_analytics
 export REDIS_PASSWORD=unused BETTER_AUTH_SECRET=unused DATABUDDY_ENCRYPTION_KEY=unused
-export IP_HASH_SALT=unused AI_GATEWAY_API_KEY=unused
+unset AI_GATEWAY_API_KEY
 export DASHBOARD_URL=http://example.com API_URL=http://api.example.com BASKET_URL=http://basket.example.com
 
 cat > "$test_dir/compose.yml" <<EOF
 services:
   postgres:
-    container_name: ${project}-postgres
     ports: !reset []
   clickhouse:
-    container_name: ${project}-clickhouse
     ports: !reset []
   init:
     image: databuddy-init:selfhost-test
