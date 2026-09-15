@@ -5,8 +5,6 @@ import { EnvelopeIcon } from "@databuddy/ui/icons";
 import { SiDiscord, SiX } from "@icons-pack/react-simple-icons";
 import Image from "next/image";
 import Link from "next/link";
-import { CCPAIcon } from "./icons/ccpa";
-import { GDPRIcon } from "./icons/gdpr";
 import { LogoContent } from "./logo";
 import { NavLink } from "./nav-link";
 import { NewsletterForm } from "./newsletter-form";
@@ -210,26 +208,10 @@ function FooterNav() {
 	);
 }
 
-function ComplianceLinks() {
+function LegalLinks() {
 	return (
 		<div className="mt-6">
 			<div className="flex flex-col gap-4">
-				<div className="flex items-center gap-6">
-					<Link
-						aria-label="CCPA Compliance"
-						className="text-foreground transition-colors hover:text-muted-foreground"
-						href="/privacy"
-					>
-						<CCPAIcon className="size-9" />
-					</Link>
-					<Link
-						aria-label="GDPR Compliance"
-						className="text-foreground transition-colors hover:text-muted-foreground"
-						href="/dpa"
-					>
-						<GDPRIcon className="size-11" />
-					</Link>
-				</div>
 				<div className="flex flex-wrap items-center gap-4">
 					{legalLinks.map((link, index) => (
 						<LegalLink index={index} key={link.href} link={link} />
@@ -281,7 +263,7 @@ export function Footer() {
 			<div className="mx-auto flex w-full max-w-400 flex-col gap-8 px-4 pt-10 sm:px-14 lg:px-20">
 				<FooterHero />
 				<FooterNav />
-				<ComplianceLinks />
+				<LegalLinks />
 				<FooterBottom />
 			</div>
 		</footer>

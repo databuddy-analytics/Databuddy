@@ -11,7 +11,7 @@ const BASE_URL = "https://www.databuddy.cc/docs";
 
 const HEADER = `# Databuddy Documentation
 
-> Lightweight web analytics with an asynchronous tracker, GDPR compliant, no cookies required.
+> Cookieless web analytics with events, errors, funnels, and optional user identification.
 > For the full documentation corpus, see [llms-full.txt](https://www.databuddy.cc/llms-full.txt).
 
 `;

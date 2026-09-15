@@ -73,7 +73,6 @@ export function getDocsPageSeo(page: DocPage): DocsPageSeoModel {
 		"analytics",
 		"privacy-first",
 		"web analytics",
-		"GDPR compliant",
 		"cookieless analytics",
 		...contextKeywordsForUrl(page.url),
 	];

@@ -3,12 +3,6 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 
-const stats = [
-	{ value: "1,500+", label: "Websites" },
-	{ value: "3,500+", label: "Developers" },
-	{ value: "5M+", label: "Events / month" },
-];
-
 const companies = [
 	{
 		name: "Open",
@@ -169,21 +163,8 @@ export function TrustedBy() {
 
 	return (
 		<div className="w-full py-10 sm:py-12">
-			<div className="flex flex-wrap items-center justify-center gap-x-12 gap-y-4 sm:gap-x-16 lg:gap-x-20">
-				{stats.map((stat) => (
-					<div className="flex flex-col items-center gap-1" key={stat.label}>
-						<span className="font-semibold text-2xl text-foreground tabular-nums sm:text-3xl">
-							{stat.value}
-						</span>
-						<span className="text-muted-foreground text-sm">{stat.label}</span>
-					</div>
-				))}
-			</div>
-
-			<div className="mx-auto my-8 h-px w-full max-w-xs bg-border/50 sm:my-10" />
-
 			<p className="mb-6 text-center text-muted-foreground text-sm uppercase tracking-wide">
-				Trusted by teams that switched from PostHog, GA4, Plausible, and others
+				Used by teams including
 			</p>
 
 			<div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">

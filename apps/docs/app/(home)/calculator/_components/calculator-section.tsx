@@ -12,8 +12,6 @@ import {
 	formatCurrencyFull,
 	formatNumber,
 	formatPercent,
-	VISITOR_DATA_LOSS_RANGE_HIGH,
-	VISITOR_DATA_LOSS_RANGE_LOW,
 } from "./calculator-engine";
 import { ShareButtons } from "./share-buttons";
 
@@ -102,14 +100,14 @@ export function CalculatorSection() {
 		<section className="mx-auto w-full max-w-5xl" id="calculator">
 			<div className="mb-8 text-center">
 				<p className="mb-2 font-mono text-muted-foreground text-xs uppercase tracking-widest">
-					Cookie Banner Cost Calculator
+					Analytics Measurement Gap
 				</p>
 				<h2 className="mb-3 font-bold text-2xl tracking-tight sm:text-3xl">
 					Model the measurement gap
 				</h2>
 				<p className="mx-auto max-w-2xl text-balance text-muted-foreground text-sm">
-					Labels say unmeasured and unattributed - not money walking out the
-					door. Adjust inputs; outputs update live.
+					Use your own estimates. The example inputs are assumptions, not
+					benchmarks.
 				</p>
 			</div>
 
@@ -143,9 +141,9 @@ export function CalculatorSection() {
 
 								<InputField
 									displayPercent
-									hint="Share of visits that never reach your analytics without consent. Default 55%; yearly range uses 40–70%."
+									hint="Your estimate of visitors missing from analytics. The 55% starting value is illustrative."
 									id="data-loss"
-									label="Visitor Data Loss Rate"
+									label="Unmeasured Share"
 									max={0.75}
 									min={0}
 									onChangeAction={setVisitorDataLossRate}
@@ -158,7 +156,7 @@ export function CalculatorSection() {
 
 								<InputField
 									displayPercent
-									hint="What % of all visitors become paying customers? Typical SaaS ~0.5–3%, e-commerce ~1–4%. Use paid conversions, not raw signups."
+									hint="Your estimated share of visitors who buy. Use paid conversions, not signups."
 									id="visitor-paid"
 									label="Visitor-to-Paid Rate"
 									max={0.05}
@@ -194,7 +192,7 @@ export function CalculatorSection() {
 					<SciFiCard>
 						<div className="flex h-full flex-col rounded border border-border bg-card/70 p-5 backdrop-blur-sm sm:p-6">
 							<h3 className="mb-5 font-semibold text-sm uppercase tracking-wider">
-								Unmeasured in cookie analytics
+								Estimated measurement gap
 							</h3>
 
 							<div className="flex flex-1 flex-col justify-between gap-4">
@@ -222,64 +220,22 @@ export function CalculatorSection() {
 										{formatCurrencyFull(results.lostRevenueYearly)}
 									</p>
 									<p className="mt-2 text-pretty text-muted-foreground text-xs">
-										Range at {formatPercent(VISITOR_DATA_LOSS_RANGE_LOW)}–
-										{formatPercent(VISITOR_DATA_LOSS_RANGE_HIGH)} visitor data
-										loss (same other inputs):{" "}
-										<span className="font-mono text-foreground">
-											{formatCurrencyFull(results.lostRevenueYearlyRangeLow)} –{" "}
-											{formatCurrencyFull(results.lostRevenueYearlyRangeHigh)}
-										</span>
-										/year. Not literal profit-and-loss impact - assumes
-										conversions scale with traffic.
+										Assumes measured and unmeasured visitors convert at the same
+										rate. This estimates missing attribution, not lost sales or
+										recoverable revenue.
 									</p>
-								</div>
-
-								<div className="space-y-2 rounded border border-border bg-card/40 p-3">
-									<p className="text-muted-foreground text-xs">
-										Side-by-side (no ratio - compare yourself)
-									</p>
-									<div className="flex flex-col gap-1.5 text-sm">
-										<div className="flex justify-between gap-2">
-											<span className="text-muted-foreground">
-												Modeled measurement gap
-											</span>
-											<span className="font-semibold tabular-nums">
-												{formatCurrencyFull(results.lostRevenueMonthly)}
-												/mo
-											</span>
-										</div>
-										<div className="flex justify-between gap-2">
-											<span className="text-muted-foreground">
-												Databuddy ({results.databuddyPlanName})
-											</span>
-											<span className="font-semibold tabular-nums">
-												{formatCurrencyFull(results.databuddyMonthlyCost)}
-												/mo
-											</span>
-										</div>
-									</div>
 								</div>
 							</div>
 
 							<Separator className="my-4" />
 
 							<ShareButtons
-								databuddyMonthlyCost={results.databuddyMonthlyCost}
 								lostRevenueYearly={results.lostRevenueYearly}
 								monthlyVisitors={monthlyVisitors}
 							/>
 						</div>
 					</SciFiCard>
 				</div>
-			</div>
-
-			<div className="mt-4 text-center">
-				<p className="text-pretty text-muted-foreground text-xs">
-					Yearly range: {formatPercent(VISITOR_DATA_LOSS_RANGE_LOW)}–
-					{formatPercent(VISITOR_DATA_LOSS_RANGE_HIGH)} unmeasured share.
-					Sources below. Databuddy needs no consent cookie; any JS can still be
-					blocked.
-				</p>
 			</div>
 		</section>
 	);
@@ -360,7 +316,7 @@ function ResultRow({
 	highlight?: boolean;
 }) {
 	return (
-		<div className="flex items-center justify-between">
+		<div className="flex items-center justify-between gap-3">
 			<span className="text-muted-foreground text-sm">{label}</span>
 			<span
 				className={cn(

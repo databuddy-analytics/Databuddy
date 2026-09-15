@@ -93,7 +93,26 @@ describe("public copy contracts", () => {
 });
 
 describe("search discovery", () => {
-	it("normalizes calculator share values without losing decimal costs", async () => {
+	it("models missing attribution from the supplied assumptions", async () => {
+		const { calculateCookieBannerCost } = await import(
+			"@/app/(home)/calculator/_components/calculator-engine"
+		);
+		const inputs = {
+			monthlyVisitors: 1000,
+			visitorDataLossRate: 0.2,
+			visitorToPaidRate: 0.05,
+			revenuePerConversion: 9.99,
+		};
+		const result = calculateCookieBannerCost(inputs);
+		expect(result.lostVisitors).toBe(200);
+		expect(result.lostConversions).toBe(10);
+		expect(result.lostRevenueYearly).toBeCloseTo(1198.8);
+		expect(
+			calculateCookieBannerCost({ ...inputs, visitorDataLossRate: 0 })
+				.lostRevenueYearly
+		).toBe(0);
+	});
+	it("normalizes calculator share values without losing decimal revenue", async () => {
 		const { generateMetadata } = await import("@/app/(home)/calculator/page");
 		const metadata = await generateMetadata({
 			searchParams: Promise.resolve({
@@ -103,10 +122,14 @@ describe("search discovery", () => {
 			}),
 		});
 		expect(metadata.description).toContain("$1,000");
-		expect(metadata.description).toContain("$9.99");
+		expect(metadata.description).not.toContain("Databuddy ~$9.99");
 		expect(JSON.stringify(metadata.openGraph)).toContain(
-			"revenue=1000&visitors=16&cost=9.99"
+			"revenue=1000&visitors=16"
 		);
+		const decimal = await generateMetadata({
+			searchParams: Promise.resolve({ revenue: "9.99", visitors: "16" }),
+		});
+		expect(decimal.description).toContain("$9.99");
 		const invalid = await generateMetadata({
 			searchParams: Promise.resolve({
 				revenue: "NaN",
@@ -180,11 +203,25 @@ describe("search discovery", () => {
 				expect(urls).toContain(`https://www.databuddy.cc${path}`);
 			}
 			expect(new Set(urls).size).toBe(urls.length);
+			expect(urls).toContain("https://www.databuddy.cc/compare");
+			for (const { competitor } of Object.values(competitors)) {
+				expect(urls).toContain(
+					`https://www.databuddy.cc/compare/${competitor.slug}`
+				);
+				expect(urls).not.toContain(
+					`https://www.databuddy.cc/alternatives/${competitor.slug}`
+				);
+				expect(urls).not.toContain(
+					`https://www.databuddy.cc/switch-from/${competitor.slug}`
+				);
+			}
 			for (const path of [
 				"/ask",
 				"/api/llms.txt",
 				"/openapi.json",
 				"/contact/thanks",
+				"/alternatives",
+				"/switch-from",
 			]) {
 				expect(urls).not.toContain(`https://www.databuddy.cc${path}`);
 			}

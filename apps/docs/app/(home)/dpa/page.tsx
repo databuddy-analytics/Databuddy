@@ -10,7 +10,7 @@ import type { Metadata } from "next";
 import { Footer } from "@/components/footer";
 import { StructuredData } from "@/components/structured-data";
 
-const title = "Data Processing Agreement - GDPR Article 28 DPA | Databuddy";
+const title = "Data Processing Agreement - GDPR Article 28 DPA";
 const description =
 	"Our data processing agreement under Article 28 of the GDPR, covering our role as data processor when you use our analytics service.";
 const url = "https://www.databuddy.cc/dpa";
@@ -30,7 +30,7 @@ export const metadata: Metadata = {
 };
 
 export default function DPAPage() {
-	const lastUpdated = new Date("2024-12-22");
+	const lastUpdated = new Date("2026-09-15");
 
 	return (
 		<>
@@ -44,7 +44,6 @@ export default function DPAPage() {
 				}}
 			/>
 			<div className="mx-auto w-full max-w-7xl px-4 pt-16 sm:px-6 lg:px-8 lg:pt-24">
-				{/* Header */}
 				<div className="mb-12 text-center">
 					<div className="mb-5 inline-flex items-center justify-center rounded border border-accent bg-accent/50 p-3">
 						<FileTextIcon className="size-7 text-primary" />
@@ -62,7 +61,6 @@ export default function DPAPage() {
 							})}
 						</span>
 					</p>
-					{/* TL;DR */}
 					<div className="mx-auto mb-6 max-w-2xl rounded border border-accent bg-accent/50 p-4 text-left">
 						<p className="text-foreground text-sm">
 							<strong>TL;DR</strong> - Our data processing agreement under
@@ -72,14 +70,11 @@ export default function DPAPage() {
 						</p>
 					</div>
 					<p className="mx-auto max-w-2xl text-muted-foreground">
-						All of our data processing happens in the EU under strict European
-						data protection standards. This means your visitor data benefits
-						from some of the world's strongest privacy laws, regardless of where
-						you're based.
+						This agreement explains how Databuddy processes visitor information
+						on your behalf and how we support your responsibilities as the data
+						controller.
 					</p>
 				</div>
-
-				{/* DPA highlight */}
 				<div className="mb-8 rounded border border-accent bg-accent/50 p-6">
 					<h2 className="mb-3 flex items-center font-bold text-primary text-xl">
 						<ShieldCheckIcon className="mr-2 size-5" />
@@ -94,11 +89,11 @@ export default function DPAPage() {
 					<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
 						<div className="flex items-center text-primary">
 							<LockKeyIcon className="mr-2 size-4" />
-							<span className="text-sm">EU Data Processing</span>
+							<span className="text-sm">Documented Processing</span>
 						</div>
 						<div className="flex items-center text-primary">
 							<ShieldIcon className="mr-2 size-4" />
-							<span className="text-sm">GDPR Compliant</span>
+							<span className="text-sm">Data Protection Commitments</span>
 						</div>
 						<div className="flex items-center text-primary">
 							<CheckCircleIcon className="mr-2 size-4" />
@@ -106,18 +101,16 @@ export default function DPAPage() {
 						</div>
 					</div>
 				</div>
-
-				{/* Main content */}
 				<div className="prose prose-lg dark:prose-invert max-w-none">
 					<section className="mb-8">
 						<h2 className="mb-4 font-bold text-2xl">
 							What We Do with Your Data
 						</h2>
 						<p className="mb-4">
-							We process visitor data from your websites to provide you with
-							analytics insights. When someone visits your site, our script
-							collects basic information and we turn that into the reports and
-							metrics you see in your dashboard.
+							We process the visitor information, account context, and connected
+							data needed to provide the features you use. These include
+							analytics, optional profiles, error and performance analysis,
+							AI-assisted investigations, and configured delivery of results.
 						</p>
 						<p className="mb-4">
 							This agreement stays active as long as you're using our service.
@@ -131,31 +124,33 @@ export default function DPAPage() {
 							Why We Process Your Data
 						</h2>
 						<p className="mb-4">
-							We process visitor data for one reason only. To give you useful
-							analytics about your website. That means turning raw visitor
-							interactions into charts, reports, and insights you can actually
-							use.
+							We process this information to provide the services you configure
+							and according to your instructions. This includes generating
+							reports, answering questions, investigating changes, and
+							delivering configured results.
 						</p>
 						<p className="mb-4">
-							We don't use your data for our own business purposes, we don't
-							sell it to advertisers, and we don't share it with anyone unless
-							legally required to do so. <strong>Your data is yours.</strong>
+							We do not sell your visitor information to advertisers or use it
+							for our own advertising or marketing. Service providers process
+							information needed to operate these features, as described in our
+							Data Policy.
 						</p>
 					</section>
 
 					<section className="mb-8">
 						<h2 className="mb-4 font-bold text-2xl">What Data We Handle</h2>
 						<p className="mb-4">
-							We process IP addresses (which we immediately discard after
-							getting location info), anonymous visitor signatures, general
-							location data like city and country, and basic browser
-							information. All data is anonymous by default - we never identify
-							individual visitors.
+							Depending on your configuration, we process visitor and session
+							IDs, page and referrer information, attribution parameters,
+							technical and approximate location information, custom events,
+							errors, and performance measurements.
 						</p>
 						<p className="mb-4">
-							The people whose data we process are your website visitors. Since
-							we don't collect personal information or identify users, all data
-							processing involves anonymous visitor data only.
+							If you identify users or send profile traits, this also includes
+							the supplied profile IDs, names, email addresses, and other
+							properties. AI features process relevant prompts and supporting
+							context. The people concerned may include identified users as well
+							as visitors without named profiles.
 						</p>
 					</section>
 
@@ -205,27 +200,23 @@ export default function DPAPage() {
 						<p className="mb-4">
 							We use industry-standard security practices including encrypting
 							data when it's transmitted and when it's stored, strict access
-							controls, regular security reviews, and secure data centers in the
-							EU.
+							controls, regular security reviews, and secure data centers.
 						</p>
 						<p className="mb-4">
-							All personal data processing occurs exclusively within EU
-							infrastructure provided by European companies for analytics event
-							processing and storage. Some account, billing, and email delivery
-							data is processed by our service providers and may involve
-							international transfers depending on where those providers
-							operate.
+							Processing locations depend on the infrastructure, AI, and
+							connected delivery services used for the configured features. Our
+							Data Policy describes these providers. Applicable
+							international-transfer requirements remain part of our
+							data-protection obligations.
 						</p>
 					</section>
 
 					<section className="mb-8">
 						<h2 className="mb-4 font-bold text-2xl">Our Partners</h2>
 						<p className="mb-4">
-							We work with a small number of trusted partners to deliver our
-							service. This includes Hetzner for hosting our databases in
-							Germany, Railway for our API infrastructure, Vercel for our
-							dashboard, and Bunny.net for our CDN. We also use Resend for
-							emails and Stripe for payments.
+							We use infrastructure, delivery, payment, billing, observability,
+							and AI service providers to operate Databuddy. Their functions are
+							described in our Data Policy.
 						</p>
 						<p className="mb-4">
 							All our partners are required to follow the same data protection
@@ -358,8 +349,6 @@ export default function DPAPage() {
 						</div>
 					</section>
 				</div>
-
-				{/* Footer */}
 				<div className="mt-12">
 					<Footer />
 				</div>

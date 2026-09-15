@@ -64,9 +64,8 @@ const heroInsights = [
 	{
 		tabId: "overview",
 		icon: TrendUpIcon,
-		headline: "Pricing traffic is converting 3x above baseline",
-		meta: "databuddy.cc - now",
-		change: "+340%",
+		headline: "Pricing traffic is converting 3× the baseline",
+		change: "+200%",
 		tone: "positive",
 		whyItMatters:
 			"Launch referral traffic is landing on /pricing and signing up at 12.4%.",
@@ -77,7 +76,6 @@ const heroInsights = [
 		tabId: "events",
 		icon: LightningIcon,
 		headline: "Invite accepted events jumped after the docs CTA shipped",
-		meta: "app.databuddy.cc - 12m ago",
 		change: "+64%",
 		tone: "positive",
 		whyItMatters:
@@ -89,7 +87,6 @@ const heroInsights = [
 		tabId: "errors",
 		icon: BugIcon,
 		headline: "Checkout errors are concentrated on mobile Safari",
-		meta: "app.databuddy.cc - 6m ago",
 		change: "+180%",
 		tone: "negative",
 		whyItMatters:
@@ -101,7 +98,6 @@ const heroInsights = [
 		tabId: "vitals",
 		icon: GaugeIcon,
 		headline: "INP degraded on the signup flow after script growth",
-		meta: "app.databuddy.cc - 24m ago",
 		change: "+42%",
 		tone: "warning",
 		whyItMatters:
@@ -113,7 +109,6 @@ const heroInsights = [
 		tabId: "funnels",
 		icon: FunnelIcon,
 		headline: "Signup funnel is leaking at email verification",
-		meta: "app.databuddy.cc - 38m ago",
 		change: "-18%",
 		tone: "warning",
 		whyItMatters:
@@ -126,7 +121,6 @@ const heroInsights = [
 		tabId: "flags",
 		icon: FlagIcon,
 		headline: "New onboarding variant is lifting activation",
-		meta: "app.databuddy.cc - 1h ago",
 		change: "+21%",
 		tone: "positive",
 		whyItMatters:
@@ -139,7 +133,6 @@ const heroInsights = [
 	evidence: string[];
 	headline: string;
 	icon: HeroInsightIcon;
-	meta: string;
 	nextStep: string;
 	tabId: HeroTabId;
 	tone: HeroInsightTone;
@@ -156,8 +149,8 @@ const tabLabels = new Map<HeroTabId, string>(
 
 const proofChips = [
 	{ icon: LightningIcon, label: "~12 KB script" },
-	{ icon: LockSimpleIcon, label: "Cookieless, no banners" },
-	{ icon: ShieldCheckIcon, label: "GDPR by default" },
+	{ icon: LockSimpleIcon, label: "Cookieless analytics" },
+	{ icon: ShieldCheckIcon, label: "Privacy controls" },
 ] as const;
 
 type FullscreenElement = HTMLIFrameElement & {
@@ -215,7 +208,7 @@ function HeroInsightOverlay({ activeTab }: { activeTab: HeroTabId }) {
 								From {sourceLabel}
 							</span>
 							<span className="truncate text-muted-foreground">
-								{insight.meta}
+								Example investigation
 							</span>
 							<span className="text-muted-foreground/30">&middot;</span>
 							<span className={cn("tabular-nums", tone.text)}>

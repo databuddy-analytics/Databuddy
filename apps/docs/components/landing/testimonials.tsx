@@ -84,15 +84,6 @@ const testimonials = [
 		avatar: "yassr.jpg",
 	},
 	{
-		name: "Ping Maxwell",
-		profession: "SWE, Better-auth",
-		link: "https://x.com/PingStruggles/status/194486256193522168",
-		social: null,
-		description:
-			"Databuddy is the only analytics platform I've used that I can genuinely say is actually GDPR compliant, and an absolute beast of a product.  Worth a try!",
-		avatar: "ping.jpg",
-	},
-	{
 		name: "Fynn",
 		profession: "Founder, Studiis",
 		description:

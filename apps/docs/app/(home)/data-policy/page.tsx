@@ -1,14 +1,4 @@
-import {
-	ClockIcon,
-	DatabaseIcon,
-	EnvelopeIcon,
-	ArrowsDownUpIcon as FlowArrowIcon,
-	GlobeIcon,
-	CodeIcon as HashIcon,
-	LockSimpleIcon as LockKeyIcon,
-	ShieldCheckIcon,
-	ShieldCheckIcon as ShieldIcon,
-} from "@databuddy/ui/icons";
+import { DatabaseIcon, EnvelopeIcon } from "@databuddy/ui/icons";
 import type { Metadata } from "next";
 import { Footer } from "@/components/footer";
 import { StructuredData } from "@/components/structured-data";
@@ -33,7 +23,7 @@ export const metadata: Metadata = {
 };
 
 export default function DataPolicyPage() {
-	const lastUpdated = new Date("2024-12-22");
+	const lastUpdated = new Date("2026-09-15");
 
 	return (
 		<>
@@ -47,7 +37,6 @@ export default function DataPolicyPage() {
 				}}
 			/>
 			<div className="mx-auto w-full max-w-7xl px-4 pt-16 sm:px-6 lg:px-8 lg:pt-24">
-				{/* Header */}
 				<div className="mb-12 text-center">
 					<div className="mb-5 inline-flex items-center justify-center rounded border border-accent bg-accent/50 p-3">
 						<DatabaseIcon className="size-7 text-primary" />
@@ -63,97 +52,49 @@ export default function DataPolicyPage() {
 							})}
 						</span>
 					</p>
-					{/* TL;DR */}
 					<div className="mx-auto mb-6 max-w-2xl rounded border border-accent bg-accent/50 p-4 text-left">
 						<p className="text-foreground text-sm">
-							<strong>TL;DR</strong> - We don't use cookies, we don't track
-							people across websites, and we can't identify individual visitors.
-							Privacy-first by design.
+							Databuddy collects analytics without analytics cookies. Browser
+							storage supports visitor and session measurement; optional
+							identification links activity to profiles supplied by the website
+							owner.
 						</p>
 					</div>
 					<p className="mx-auto max-w-2xl text-muted-foreground">
-						We believe in radical transparency about how your data flows through
-						our system. Here's exactly what happens when someone visits your
-						website.
+						How collection, storage, and connected services work depends on the
+						features and privacy settings you use.
 					</p>
 				</div>
-
-				{/* Privacy-first highlight */}
-				<div className="mb-8 rounded border border-accent bg-accent/50 p-6">
-					<h2 className="mb-3 flex items-center font-bold text-primary text-xl">
-						<ShieldCheckIcon className="mr-2 size-5" />
-						Privacy-First Design
-					</h2>
-					<p className="mb-4 text-muted-foreground">
-						We've designed our system from the ground up to be privacy-first.
-						Unlike many analytics providers, we're going to walk you through
-						exactly what happens from the moment our script loads to where that
-						data ends up.
-					</p>
-					<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-						<div className="flex items-center text-primary">
-							<LockKeyIcon className="mr-2 size-4" />
-							<span className="text-sm">No Cookies</span>
-						</div>
-						<div className="flex items-center text-primary">
-							<GlobeIcon className="mr-2 size-4" />
-							<span className="text-sm">No Cross-Site Tracking</span>
-						</div>
-						<div className="flex items-center text-primary">
-							<ShieldIcon className="mr-2 size-4" />
-							<span className="text-sm">Can't Identify Visitors</span>
-						</div>
-					</div>
-				</div>
-
-				{/* Main content */}
 				<div className="prose prose-lg dark:prose-invert max-w-none">
 					<section className="mb-8">
 						<h2 className="mb-4 flex items-center font-bold text-2xl">
-							<FlowArrowIcon className="mr-2 size-6 text-primary" />
 							Our Tracking Script
 						</h2>
 						<p className="mb-4">
-							When someone visits your website, our lightweight script
-							(delivered via Bunny.net's global CDN) springs into action. It
-							automatically sends us a pageview event with basic information
-							about the visit.
+							The browser tracker sends pageviews and enabled events with the
+							website ID, page and referrer information, and visitor and session
+							IDs. The request also provides an IP address and browser headers
+							for delivery, security checks, and approximate location.
 						</p>
 						<p className="mb-4">
-							The browser naturally sends us the visitor's IP address and
-							User-Agent string (which tells us their browser and operating
-							system). We also send the page URL they visited, where they came
-							from (referrer), and your project token to know which website this
-							visit belongs to.
+							Page and referrer addresses exclude query strings by default.
+							Selected campaign and advertising-click parameters are collected
+							separately; hash fragments can be included when hash tracking is
+							enabled.
 						</p>
 						<p className="mb-4">
-							Our script doesn't set cookies and sends only anonymous pageview
-							and event data. We never collect personal information or identify
-							individual users.
-						</p>
-						<div className="my-4 rounded border border-accent bg-accent/50 p-4">
-							<p className="text-sm">
-								<strong className="text-primary">Privacy Respect:</strong> If a
-								visitor has Global Privacy Control or Do Not Track enabled in
-								their browser, our script won't send analytics events.
-							</p>
-						</div>
-						<p className="mb-4">
-							Since we don't collect personal data, no consent is required. For
-							more information, see our{" "}
-							<a
-								className="text-primary hover:text-primary/80"
-								href="/docs/compliance/gdpr-compliance-guide"
-							>
-								GDPR compliance guide
+							The tracker honors Global Privacy Control, Do Not Track, and
+							stored opt-out settings. Whether consent is required depends on
+							your configuration, the information you send, and applicable
+							rules. See the{" "}
+							<a href="/docs/compliance/gdpr-compliance-guide">
+								consent and privacy guide
 							</a>
 							.
 						</p>
-
 						<h3 className="mb-3 font-semibold text-xl">Event Types</h3>
 						<p className="mb-3">
-							Beyond basic pageviews, our script can track these types of
-							interactions:
+							Depending on your configuration, the tracker can collect:
 						</p>
 						<div className="overflow-x-auto">
 							<table className="w-full rounded border border-accent">
@@ -205,8 +146,8 @@ export default function DataPolicyPage() {
 									<tr>
 										<td className="py-3 pr-4 font-medium">Performance</td>
 										<td className="py-3 text-muted-foreground">
-											Core Web Vitals (LCP, CLS, INP, FCP, TTFB) collected to
-											help you understand your website's performance.
+											Performance measurements including FCP, LCP, INP, CLS,
+											TTFB, and FPS.
 										</td>
 									</tr>
 								</tbody>
@@ -215,82 +156,48 @@ export default function DataPolicyPage() {
 					</section>
 
 					<section className="mb-8">
-						<h2 className="mb-4 flex items-center font-bold text-2xl">
-							<ShieldCheckIcon className="mr-2 size-6 text-primary" />
-							Security and Protection
-						</h2>
+						<h2 className="mb-4 font-bold text-2xl">Security and Protection</h2>
 						<p className="mb-4">
-							Before we process any visitor data, every request goes through our
-							security checks. We automatically detect and filter out bot
-							traffic using industry-standard bot detection. This keeps your
-							analytics clean and accurate.
+							Requests undergo validation, rate limiting, and bot checks.
+							Security controls may temporarily process or retain request
+							identifiers, including IP addresses. Standard analytics event
+							records omit raw IP addresses.
 						</p>
-						<p className="mb-4">
-							We also implement rate limiting to prevent abuse. If an IP address
-							makes too many requests in a short period, we temporarily block
-							it. This is the only time we store IP addresses. These records
-							automatically expire and are never used for anything beyond that.
-						</p>
-						<div className="my-4 rounded border border-accent bg-accent/50 p-4">
-							<p className="text-sm">
-								<strong className="text-primary">Note:</strong> Once a request
-								passes these security checks, we process the visitor data.
-							</p>
-						</div>
 					</section>
 
 					<section className="mb-8">
-						<h2 className="mb-4 flex items-center font-bold text-2xl">
-							<HashIcon className="mr-2 size-6 text-primary" />
-							What We Collect
-						</h2>
-						<p className="mb-4">
-							To count unique visitors without cookies or persistent tracking,
-							we create what we call an "anonymous signature" for each visitor.
-						</p>
-
+						<h2 className="mb-4 font-bold text-2xl">What We Collect</h2>
 						<h3 className="mb-3 font-semibold text-xl">
-							How Anonymous Signatures Work
+							Visitor and Session IDs
 						</h3>
 						<p className="mb-4">
-							Here's exactly how it works. We take the visitor's IP address,
-							their User-Agent string, your project token, and each project's
-							unique daily salt that rotates at midnight. We combine these into
-							a string and run it through SHA-256 hashing, creating a completely
-							anonymous identifier that looks something like{" "}
-							<code className="rounded bg-muted px-1.5 py-0.5 text-sm">
-								a7b2c9d4e5f6...
-							</code>
+							The browser generates a random visitor ID and stores it in
+							localStorage. A session ID and session timing information are
+							stored in sessionStorage.
 						</p>
 						<p className="mb-4">
-							Unless you have trillions of dollars, this hash is practically
-							impossible to reverse back to the original IP address. Even if
-							someone had our database, they couldn't figure out who visited
-							your site. And because the salt changes daily, each anonymous
-							visitor gets a completely different signature each day.
+							By default, ingestion hashes the visitor ID with a rotating daily
+							salt before storing analytics events. The{" "}
+							<code>anonymizeVisitorIds</code> setting can disable this
+							transformation or apply it according to the visitor’s country.
 						</p>
-
+						<p className="mb-4">
+							Calling <code>identify()</code> creates or updates a profile using
+							the supplied profile ID and traits, and links activity to that
+							profile. Profile IDs are not made anonymous by the visitor-ID
+							setting.
+						</p>
 						<h3 className="mb-3 font-semibold text-xl">IP Address Handling</h3>
 						<p className="mb-4">
-							What happens to the IP address? We use it for one last thing. We
-							look up the visitor's approximate location. Once we get the
-							location data, we immediately discard the IP address. It's never
-							stored anywhere.
+							The ingestion service uses the request IP address for security
+							checks and an approximate country, region, and city lookup.
+							Standard analytics event records leave the raw IP field empty.
 						</p>
 						<p className="mb-4">
-							Instead of storing precise coordinates like other analytics
-							providers, we only store the city, region, country, and geoname
-							ID. When we do need coordinates, we derive the city center
-							coordinates from this ID. This means two people on opposite sides
-							of New York for example will both show up at the exact same
-							coordinates. They both appear at the center of New York.
+							This location is inferred from an IP address, rather than
+							collected from the device’s GPS. It should not be treated as a
+							visitor’s precise location.
 						</p>
-						<div className="my-4 rounded border border-accent bg-accent/50 p-4">
-							<p className="text-sm">
-								<strong className="text-primary">Privacy Layer:</strong> This
-								provides an additional layer of privacy for your visitors.
-							</p>
-						</div>
 					</section>
 
 					<section className="mb-8">
@@ -299,13 +206,14 @@ export default function DataPolicyPage() {
 							Storage and Retention
 						</h2>
 						<p className="mb-4">
-							After processing, your analytics data is stored in ClickHouse, a
-							super-fast database designed for analytics.
+							Analytics events are stored in ClickHouse. Supporting account,
+							website, and profile records are stored separately.
 						</p>
 
 						<h3 className="mb-3 font-semibold text-xl">Data Organization</h3>
 						<p className="mb-3">
-							We organize your data into four main buckets:
+							We store event-level analytics and supporting application data,
+							including:
 						</p>
 						<div className="overflow-x-auto">
 							<table className="w-full rounded border border-accent">
@@ -323,33 +231,29 @@ export default function DataPolicyPage() {
 									<tr className="border-accent/50 border-b">
 										<td className="py-3 pr-4 font-medium">Events</td>
 										<td className="py-3 text-muted-foreground">
-											Every pageview, click, and custom event with the anonymous
-											signature, browser info, location data, and page details.
-											Think of this as the raw activity log.
+											Pageviews and enabled events, with visitor/session IDs,
+											page details, technical context, attribution parameters,
+											and any supplied profile ID or properties.
 										</td>
 									</tr>
 									<tr className="border-accent/50 border-b">
 										<td className="py-3 pr-4 font-medium">Sessions</td>
 										<td className="py-3 text-muted-foreground">
-											Aggregated data about visitor sessions. This includes how
-											long they stayed, how many pages they viewed, bounce
-											rates, and other session metrics. This is computed from
-											the events data.
+											Activity and measurements grouped by session.
 										</td>
 									</tr>
 									<tr className="border-accent/50 border-b">
 										<td className="py-3 pr-4 font-medium">Profiles</td>
 										<td className="py-3 text-muted-foreground">
-											Anonymous visitor profiles built from aggregated events.
-											These profiles contain only anonymous session data and
-											never include personal information like names or emails.
+											Optional profile IDs, supplied names or emails, custom
+											traits, and links to visitor activity.
 										</td>
 									</tr>
 									<tr>
 										<td className="py-3 pr-4 font-medium">Performance</td>
 										<td className="py-3 text-muted-foreground">
-											Core Web Vitals metrics (LCP, CLS, INP, FCP, TTFB) for
-											each visitor's page visit.
+											Collected performance measurements associated with the
+											page and session.
 										</td>
 									</tr>
 								</tbody>
@@ -358,9 +262,8 @@ export default function DataPolicyPage() {
 
 						<h3 className="mt-6 mb-3 font-semibold text-xl">Data Retention</h3>
 						<p className="mb-4">
-							Most data is retained indefinitely while your account is active,
-							except for performance metrics which are automatically deleted
-							after one year.
+							Most data is retained indefinitely while your account is active.
+							Our retention policy limits performance metrics to one year.
 						</p>
 						<p className="mb-4">
 							Long-term retention is part of the product so you can understand
@@ -380,106 +283,80 @@ export default function DataPolicyPage() {
 					</section>
 
 					<section className="mb-8">
-						<h2 className="mb-4 flex items-center font-bold text-2xl">
-							<GlobeIcon className="mr-2 size-6 text-primary" />
-							Subprocessors
-						</h2>
+						<h2 className="mb-4 font-bold text-2xl">Subprocessors</h2>
 						<p className="mb-4">
-							We work with a small number of carefully chosen partners to
-							deliver our service. Here's exactly who has access to what.
+							Service providers process the information needed for the features
+							they operate. The roles below describe these services; processing
+							locations depend on the provider and configured feature. Contact{" "}
+							<a href="mailto:privacy@databuddy.cc">privacy@databuddy.cc</a> for
+							the current subprocessor inventory and transfer information.
 						</p>
-						<div className="overflow-x-auto">
-							<table className="w-full rounded border border-accent">
-								<thead>
-									<tr className="border-accent border-b">
-										<th className="py-3 pr-4 text-left font-semibold">
-											Partner
-										</th>
-										<th className="py-3 text-left font-semibold">
-											What They Do for Us
-										</th>
-									</tr>
-								</thead>
-								<tbody>
-									<tr className="border-accent/50 border-b">
-										<td className="py-3 pr-4 font-medium">Hetzner</td>
-										<td className="py-3 text-muted-foreground">
-											European hosting company that provides the physical
-											servers where your analytics data lives. They host our
-											databases in Germany but never see or access your data.
-										</td>
-									</tr>
-									<tr className="border-accent/50 border-b">
-										<td className="py-3 pr-4 font-medium">Railway</td>
-										<td className="py-3 text-muted-foreground">
-											Provides infrastructure for our API and backend services.
-											They host our application servers but don't have access to
-											raw analytics data.
-										</td>
-									</tr>
-									<tr className="border-accent/50 border-b">
-										<td className="py-3 pr-4 font-medium">Vercel</td>
-										<td className="py-3 text-muted-foreground">
-											Hosts our dashboard application. They serve the frontend
-											but analytics data is fetched directly from our EU
-											servers.
-										</td>
-									</tr>
-									<tr className="border-accent/50 border-b">
-										<td className="py-3 pr-4 font-medium">Bunny.net</td>
-										<td className="py-3 text-muted-foreground">
-											Delivers our tracking script via their global CDN. Raw
-											analytics data is sent directly to our EU servers and
-											never passes through their network.
-										</td>
-									</tr>
-									<tr className="border-accent/50 border-b">
-										<td className="py-3 pr-4 font-medium">Resend</td>
-										<td className="py-3 text-muted-foreground">
-											Sends you emails about your account, billing, and product
-											updates. They don't have access to your analytics data.
-										</td>
-									</tr>
-									<tr>
-										<td className="py-3 pr-4 font-medium">Stripe</td>
-										<td className="py-3 text-muted-foreground">
-											Handles payment processing. They only see payment-related
-											data, not your website analytics.
-										</td>
-									</tr>
-									<tr>
-										<td className="py-3 pr-4 font-medium">Axiom</td>
-										<td className="py-3 text-muted-foreground">
-											OTEL tracer for observability. They don't have access to
-											your raw analytics data. They only see the traces and
-											metrics generated by our system.
-										</td>
-									</tr>
-								</tbody>
-							</table>
-						</div>
+						<dl className="divide-y divide-border">
+							<div className="py-3">
+								<dt className="font-semibold">Hetzner</dt>
+								<dd className="text-muted-foreground">
+									Hosting infrastructure.
+								</dd>
+							</div>
+							<div className="py-3">
+								<dt className="font-semibold">Railway</dt>
+								<dd className="text-muted-foreground">
+									Application and backend hosting.
+								</dd>
+							</div>
+							<div className="py-3">
+								<dt className="font-semibold">Vercel</dt>
+								<dd className="text-muted-foreground">
+									Website and dashboard hosting; AI Gateway routes AI requests
+									to configured model providers.
+								</dd>
+							</div>
+							<div className="py-3">
+								<dt className="font-semibold">Bunny.net</dt>
+								<dd className="text-muted-foreground">
+									Delivery of tracker and other static assets.
+								</dd>
+							</div>
+							<div className="py-3">
+								<dt className="font-semibold">Resend</dt>
+								<dd className="text-muted-foreground">Email delivery.</dd>
+							</div>
+							<div className="py-3">
+								<dt className="font-semibold">Stripe</dt>
+								<dd className="text-muted-foreground">Payment processing.</dd>
+							</div>
+							<div className="py-3">
+								<dt className="font-semibold">Autumn</dt>
+								<dd className="text-muted-foreground">
+									Subscription management, billing entitlements, and metered
+									usage. Billing requests include the customer ID, name, and
+									email.
+								</dd>
+							</div>
+							<div className="py-3">
+								<dt className="font-semibold">AI model providers</dt>
+								<dd className="text-muted-foreground">
+									Process prompts and supporting context used by AI features.
+									The provider depends on the configured model.
+								</dd>
+							</div>
+							<div className="py-3">
+								<dt className="font-semibold">Axiom</dt>
+								<dd className="text-muted-foreground">
+									Application observability and diagnostic telemetry.
+								</dd>
+							</div>
+						</dl>
 					</section>
 
 					<section className="mb-8">
-						<h2 className="mb-4 flex items-center font-bold text-2xl">
-							<ClockIcon className="mr-2 size-6 text-primary" />
-							Why You Can Trust Us
-						</h2>
+						<h2 className="mb-4 font-bold text-2xl">Data Use</h2>
 						<p className="mb-4">
-							We believe transparency builds trust. That's why we've walked you
-							through exactly how your data flows through our system, what we
-							collect, and how we protect your visitors' privacy.
-						</p>
-						<p className="mb-4">
-							Unlike many analytics providers, we don't have hidden data
-							collection, we don't sell your data to third parties, and we don't
-							use your website data for our own business purposes.{" "}
-							<strong>Your data belongs to you.</strong>
-						</p>
-						<p className="mb-4">
-							We're committed to maintaining this level of transparency. If you
-							have questions about how we handle data or want clarification on
-							any part of this policy, we're here to help.
+							We do not sell your data to third parties or use your visitor
+							information for our own advertising or marketing. Your data
+							belongs to you. Our <a href="/privacy">Privacy Policy</a> and{" "}
+							<a href="/dpa">Data Processing Agreement</a> describe our
+							commitments.
 						</p>
 					</section>
 
@@ -525,8 +402,6 @@ export default function DataPolicyPage() {
 						</div>
 					</section>
 				</div>
-
-				{/* Footer */}
 				<div className="mt-12">
 					<Footer />
 				</div>
