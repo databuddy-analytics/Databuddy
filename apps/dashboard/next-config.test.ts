@@ -43,6 +43,38 @@ async function withNodeEnv<T>(
 }
 
 describe("dashboard next config", () => {
+	it("allows configured API and ingestion origins in production", async () => {
+		const previousApi = process.env.NEXT_PUBLIC_API_URL;
+		const previousBasket = process.env.NEXT_PUBLIC_BASKET_URL;
+		process.env.NEXT_PUBLIC_API_URL = "https://api.example.com/prefix";
+		process.env.NEXT_PUBLIC_BASKET_URL = "https://events.example.com:8443";
+		try {
+			await withNodeEnv("production", async () => {
+				for (const source of [
+					"/demo/:path*",
+					"/public/:path*",
+					"/((?!demo|public).*)",
+				]) {
+					const csp = await getCspHeader(source);
+					const connect = csp
+						.split(";")
+						.find((part) => part.trim().startsWith("connect-src"));
+					expect(connect).toContain("https://api.example.com");
+					expect(connect).toContain("https://events.example.com:8443");
+					expect(connect).toContain("https://*.databuddy.cc");
+					expect(connect).not.toContain("/prefix");
+					expect(csp).not.toContain("'unsafe-eval'");
+				}
+			});
+		} finally {
+			if (previousApi === undefined) delete process.env.NEXT_PUBLIC_API_URL;
+			else process.env.NEXT_PUBLIC_API_URL = previousApi;
+			if (previousBasket === undefined)
+				delete process.env.NEXT_PUBLIC_BASKET_URL;
+			else process.env.NEXT_PUBLIC_BASKET_URL = previousBasket;
+		}
+	});
+
 	it("allows official docs and app origins to frame demo routes", async () => {
 		await withNodeEnv("production", async () => {
 			const csp = await getCspHeader("/demo/:path*");

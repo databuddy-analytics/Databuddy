@@ -1,3 +1,4 @@
+import { publicConfig } from "@databuddy/env/public";
 import { ACTUAL_LIBRARY_DEFAULTS } from "./tracking-defaults";
 import type { TrackingOptions } from "./types";
 
@@ -48,6 +49,7 @@ export function generateScriptTag(
 	return `<script
     src="${scriptUrl}"
     data-client-id="${websiteId}"
+    data-api-url="${publicConfig.urls.basket}"
 ${optionsLine}${integrityLine}    crossorigin="anonymous"
     async
   ></script>`;
@@ -88,6 +90,7 @@ function AppLayout({ children }) {
     <>
       {children}
       <Databuddy
+        apiUrl="${publicConfig.urls.basket}"
         clientId="${websiteId}"${propsString}/>
     </>
   );
@@ -100,6 +103,7 @@ export function generateNodeCode(websiteId: string): string {
 const analytics = new Databuddy({
   apiKey: process.env.DATABUDDY_API_KEY!,
   websiteId: '${websiteId}',
+  apiUrl: ${JSON.stringify(publicConfig.urls.basket)},
   enableBatching: true,
 });
 
@@ -152,6 +156,7 @@ import { Databuddy } from '@databuddy/sdk/vue';
   <div>
     <router-view />
     <Databuddy
+      api-url="${publicConfig.urls.basket}"
       client-id="${websiteId}"${propsString}
     />
   </div>
