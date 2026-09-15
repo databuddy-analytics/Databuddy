@@ -1,10 +1,12 @@
 import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import { join } from "node:path";
 import { runInNewContext } from "node:vm";
 import { describe, expect, it, spyOn } from "bun:test";
 import { plugin } from "bun";
 import { createMdxPlugin } from "fumadocs-mdx/bun";
+import matter from "gray-matter";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { StructuredData } from "@/components/structured-data";
@@ -134,6 +136,73 @@ describe("public copy contracts", () => {
 });
 
 describe("search discovery", () => {
+	it("serves every native document without changing its raw Markdown", async () => {
+		await plugin(createMdxPlugin());
+		const { source } = await import("./source");
+		const { GET: raw } = await import("@/app/api/docs/raw/[...slug]/route");
+		const { GET: index } = await import("@/app/llms.txt/route");
+		const { GET: full } = await import("@/app/llms-full.txt/route");
+		const request = new Request("https://www.databuddy.cc/api/docs/raw/index");
+		const indexBody = await index().text();
+		for (const page of source.getPages()) {
+			const original = matter(
+				await readFile(
+					join(import.meta.dir, "..", "content", "docs", page.file.path),
+					"utf8"
+				)
+			);
+			const title = original.data.title ? `# ${original.data.title}\n\n` : "";
+			const description = original.data.description
+				? `> ${original.data.description}\n\n`
+				: "";
+			expect(indexBody).toContain(
+				`https://www.databuddy.cc/docs/${page.file.flattenedPath}.md`
+			);
+			for (const slug of [page.slugs, page.file.flattenedPath.split("/")]) {
+				const response = await raw(request, {
+					params: Promise.resolve({ slug }),
+				});
+				const body = await response.text();
+				expect(response.status).toBe(200);
+				expect(body).toBe(title + description + original.content);
+				expect(response.headers.get("content-type")).toBe(
+					"text/markdown; charset=utf-8"
+				);
+				expect(response.headers.get("cache-control")).toBe(
+					"public, max-age=3600, must-revalidate"
+				);
+				expect(response.headers.get("etag")).toBe(
+					`"${createHash("sha256").update(body).digest("hex").slice(0, 16)}"`
+				);
+			}
+		}
+		for (const slug of [
+			["missing-document"],
+			[".."],
+			["api/authentication"],
+			["api\\authentication"],
+			[""],
+			["api", "\0"],
+		]) {
+			const response = await raw(request, { params: Promise.resolve({ slug }) });
+			expect(response.status).toBe(404);
+		}
+		const fullBody = await (await full()).text();
+		expect(fullBody.length).toBeLessThanOrEqual(190_000);
+		expect(fullBody).toContain("## Additional Documentation");
+		const page = source.getPages()[0];
+		const getText = spyOn(page.data, "getText").mockRejectedValueOnce(
+			new Error("Read failed")
+		);
+		try {
+			await expect(
+				raw(request, { params: Promise.resolve({ slug: page.slugs }) })
+			).rejects.toThrow("Read failed");
+		} finally {
+			getText.mockRestore();
+		}
+	});
+
 	it("models missing attribution from the supplied assumptions", async () => {
 		const { calculateCookieBannerCost } = await import(
 			"@/app/(home)/calculator/_components/calculator-engine"

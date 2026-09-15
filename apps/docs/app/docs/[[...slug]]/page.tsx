@@ -40,7 +40,6 @@ export default async function Page(props: {
 							title: seo.title,
 							description: seo.description,
 							section: seo.sectionLabel,
-							keywords: seo.keywords,
 						},
 					},
 				]}
@@ -90,20 +89,12 @@ export async function generateMetadata(props: {
 		notFound();
 	}
 
-	const {
-		title,
-		description,
-		url,
-		ogImage,
-		keywords,
-		pageTitle,
-		sectionLabel,
-	} = getDocsPageSeo(page);
+	const { title, description, url, ogImage, pageTitle, sectionLabel } =
+		getDocsPageSeo(page);
 
 	return {
 		title,
 		description,
-		keywords,
 		category: "Documentation",
 		openGraph: {
 			title,
