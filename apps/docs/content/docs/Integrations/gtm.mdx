@@ -282,7 +282,7 @@ Respect user privacy choices:
 
 Google's consent settings do not automatically gate Databuddy. If your deployment requires consent, configure the Databuddy Custom HTML tag's additional consent checks and trigger it only after your consent manager grants analytics consent. The `Cookie Consent Status` variable in the example above is a custom variable you must connect to that manager.
 
-On withdrawal, call `window.databuddy?.optOut()` and prevent the tag from loading again. On a later grant, `optIn()` clears that local opt-out; it does not override Do Not Track or Global Privacy Control. Test both a fresh browser session and withdrawal after collection has started.
+On withdrawal, call `window.databuddyOptOut()` and prevent the tag from loading again. On a later grant, `window.databuddyOptIn()` clears that local opt-out; it does not override Do Not Track or Global Privacy Control. Test both a fresh browser session and withdrawal after collection has started.
 
 See [Google's consent overview](https://developers.google.com/tag-platform/security/concepts/consent) and the [Databuddy privacy guide](/docs/compliance/gdpr-compliance-guide).
 

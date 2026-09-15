@@ -2,21 +2,23 @@
 
 import { SiReddit, SiX } from "@icons-pack/react-simple-icons";
 import { SciFiButton } from "@/components/landing/scifi-btn";
-import { formatCurrencyFull } from "./calculator-engine";
+import {
+	calculateCookieBannerCost,
+	formatCurrencyFull,
+	type CalculatorInputs,
+} from "./calculator-engine";
 
 const CALCULATOR_BASE = "https://www.databuddy.cc/calculator";
 
-export function ShareButtons({
-	lostRevenueYearly,
-	monthlyVisitors,
-}: {
-	lostRevenueYearly: number;
-	monthlyVisitors: number;
-}) {
+export function ShareButtons({ inputs }: { inputs: CalculatorInputs }) {
+	const { lostRevenueYearly } = calculateCookieBannerCost(inputs);
 	const shareUrl = `${CALCULATOR_BASE}?${new URLSearchParams({
-		revenue: String(Math.round(lostRevenueYearly)),
-		visitors: String(Math.round(monthlyVisitors)),
+		visitors: String(inputs.monthlyVisitors),
+		unmeasured: String(inputs.visitorDataLossRate),
+		conversion: String(inputs.visitorToPaidRate),
+		value: String(inputs.revenuePerConversion),
 	})}`;
+
 	const text = `Estimated unattributed revenue: ${formatCurrencyFull(lostRevenueYearly)}/year. Explore the assumptions:`;
 	const twitterUrl = `https://x.com/intent/tweet?${new URLSearchParams({ text, url: shareUrl })}`;
 	const redditUrl = `https://www.reddit.com/submit?${new URLSearchParams({ title: text, url: shareUrl })}`;
@@ -24,7 +26,7 @@ export function ShareButtons({
 	return (
 		<div className="space-y-3">
 			<p className="text-muted-foreground text-xs">
-				Share your results (preview uses your numbers)
+				Share these assumptions and results
 			</p>
 			<div className="flex flex-wrap gap-2">
 				<SciFiButton asChild>

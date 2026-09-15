@@ -263,7 +263,9 @@ export default function DataPolicyPage() {
 						<h3 className="mt-6 mb-3 font-semibold text-xl">Data Retention</h3>
 						<p className="mb-4">
 							Most data is retained indefinitely while your account is active.
-							Our retention policy limits performance metrics to one year.
+							We target one year for performance metrics, but automatic expiry
+							is not guaranteed. You can request deletion if you need data
+							removed by a specific date.
 						</p>
 						<p className="mb-4">
 							Long-term retention is part of the product so you can understand

@@ -13,12 +13,8 @@ import {
 	formatNumber,
 	formatPercent,
 } from "./calculator-engine";
+import type { CalculatorInputs } from "./calculator-engine";
 import { ShareButtons } from "./share-buttons";
-
-const DEFAULT_VISITORS = 50_000;
-const DEFAULT_VISITOR_DATA_LOSS_RATE = 0.55;
-const DEFAULT_VISITOR_TO_PAID = 0.015;
-const DEFAULT_REVENUE_PER_CONVERSION = 50;
 
 function bucketVisitors(visitors: number): string {
 	if (visitors < 10_000) {
@@ -41,31 +37,32 @@ function sliderToPercent(value: number): number {
 	return value / 1000;
 }
 
-export function CalculatorSection() {
-	const [monthlyVisitors, setMonthlyVisitors] = useState(DEFAULT_VISITORS);
+export function CalculatorSection({
+	initialInputs,
+}: {
+	initialInputs: CalculatorInputs;
+}) {
+	const [monthlyVisitors, setMonthlyVisitors] = useState(
+		initialInputs.monthlyVisitors
+	);
 	const [visitorDataLossRate, setVisitorDataLossRate] = useState(
-		DEFAULT_VISITOR_DATA_LOSS_RATE
+		initialInputs.visitorDataLossRate
 	);
 	const [visitorToPaidRate, setVisitorToPaidRate] = useState(
-		DEFAULT_VISITOR_TO_PAID
+		initialInputs.visitorToPaidRate
 	);
 	const [revenuePerConversion, setRevenuePerConversion] = useState(
-		DEFAULT_REVENUE_PER_CONVERSION
+		initialInputs.revenuePerConversion
 	);
 	const fired = useRef(false);
-	const initial = useRef({
-		monthlyVisitors: DEFAULT_VISITORS,
-		visitorDataLossRate: DEFAULT_VISITOR_DATA_LOSS_RATE,
-		visitorToPaidRate: DEFAULT_VISITOR_TO_PAID,
-		revenuePerConversion: DEFAULT_REVENUE_PER_CONVERSION,
-	});
-
-	const results = calculateCookieBannerCost({
+	const initial = useRef(initialInputs);
+	const inputs = {
 		monthlyVisitors,
 		visitorDataLossRate,
 		visitorToPaidRate,
 		revenuePerConversion,
-	});
+	};
+	const results = calculateCookieBannerCost(inputs);
 
 	useEffect(() => {
 		if (fired.current) {
@@ -102,7 +99,7 @@ export function CalculatorSection() {
 				<p className="mb-2 font-mono text-muted-foreground text-xs uppercase tracking-widest">
 					Analytics Measurement Gap
 				</p>
-				<h2 className="mb-3 font-bold text-2xl tracking-tight sm:text-3xl">
+				<h2 className="mb-3 text-balance font-bold text-2xl tracking-tight sm:text-3xl">
 					Model the measurement gap
 				</h2>
 				<p className="mx-auto max-w-2xl text-balance text-muted-foreground text-sm">
@@ -115,7 +112,7 @@ export function CalculatorSection() {
 				<div className="lg:col-span-3">
 					<SciFiCard>
 						<div className="rounded border border-border bg-card/70 p-5 backdrop-blur-sm sm:p-6">
-							<h3 className="mb-5 font-semibold text-sm uppercase tracking-wider">
+							<h3 className="mb-5 text-balance font-semibold text-sm uppercase tracking-wider">
 								Your Numbers
 							</h3>
 
@@ -191,7 +188,7 @@ export function CalculatorSection() {
 				<div className="lg:col-span-2">
 					<SciFiCard>
 						<div className="flex h-full flex-col rounded border border-border bg-card/70 p-5 backdrop-blur-sm sm:p-6">
-							<h3 className="mb-5 font-semibold text-sm uppercase tracking-wider">
+							<h3 className="mb-5 text-balance font-semibold text-sm uppercase tracking-wider">
 								Estimated measurement gap
 							</h3>
 
@@ -229,10 +226,7 @@ export function CalculatorSection() {
 
 							<Separator className="my-4" />
 
-							<ShareButtons
-								lostRevenueYearly={results.lostRevenueYearly}
-								monthlyVisitors={monthlyVisitors}
-							/>
+							<ShareButtons inputs={inputs} />
 						</div>
 					</SciFiCard>
 				</div>
@@ -278,7 +272,7 @@ function InputField({
 }: InputFieldProps) {
 	const displayValue = displayPercent
 		? formatPercent(value)
-		: `${prefix ?? ""}${formatNumber(value)}${suffix ?? ""}`;
+		: `${prefix ? formatCurrencyFull(value) : formatNumber(value)}${suffix ?? ""}`;
 
 	return (
 		<div>

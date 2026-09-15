@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
 import { SITE_URL } from "@/app/util/constants";
 import { Footer } from "@/components/footer";
+import {
+	calculateCookieBannerCost,
+	DEFAULT_INPUTS,
+	formatCurrencyFull,
+	readCalculatorInputs,
+} from "./_components/calculator-engine";
 import { CalculatorSection } from "./_components/calculator-section";
 import { CalculatorSources } from "./_components/calculator-sources";
 import { CtaSection } from "./_components/cta-section";
@@ -8,7 +14,6 @@ import { CtaSection } from "./_components/cta-section";
 const TITLE = "Analytics Measurement Gap Calculator";
 const DESCRIPTION =
 	"Estimate how missing visits affect revenue attribution. Adjust traffic, measurement coverage, conversion rate, and order value using your own assumptions.";
-const DEFAULT_OG_PARAMS = "revenue=247500&visitors=50000";
 
 interface PageProps {
 	searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -18,31 +23,16 @@ export async function generateMetadata({
 	searchParams,
 }: PageProps): Promise<Metadata> {
 	const params = await searchParams;
-	const revenue = typeof params.revenue === "string" ? params.revenue : null;
-	const visitors = typeof params.visitors === "string" ? params.visitors : null;
-
-	const hasPersonalizedParams =
-		revenue !== null &&
-		visitors !== null &&
-		[revenue, visitors].every(
-			(value) =>
-				value !== null &&
-				value.trim() !== "" &&
-				Number.isFinite(Number(value)) &&
-				Number(value) >= 0
-		);
-
-	const ogParams = hasPersonalizedParams
-		? new URLSearchParams({
-				revenue: String(Number(revenue)),
-				visitors: String(Number(visitors)),
-			}).toString()
-		: DEFAULT_OG_PARAMS;
-
+	const inputs = readCalculatorInputs(params);
+	const selected = inputs ?? DEFAULT_INPUTS;
+	const result = calculateCookieBannerCost(selected);
+	const ogParams = new URLSearchParams({
+		revenue: String(result.lostRevenueYearly),
+		visitors: String(selected.monthlyVisitors),
+	});
 	const ogImageUrl = `${SITE_URL}/calculator/og?${ogParams}`;
-
-	const personalizedDescription = hasPersonalizedParams
-		? `Estimated unattributed revenue: $${Number(revenue).toLocaleString("en-US")}/year. An illustrative measurement model, not lost sales or a forecast.`
+	const personalizedDescription = inputs
+		? `Estimated unattributed revenue: ${formatCurrencyFull(result.lostRevenueYearly)}/year. Explore the supplied assumptions in this measurement model.`
 		: DESCRIPTION;
 
 	return {
@@ -71,7 +61,9 @@ export async function generateMetadata({
 	};
 }
 
-export default function CalculatorPage() {
+export default async function CalculatorPage({ searchParams }: PageProps) {
+	const initialInputs =
+		readCalculatorInputs(await searchParams) ?? DEFAULT_INPUTS;
 	return (
 		<>
 			<div className="px-4 pt-20 sm:px-6 sm:pt-24 lg:px-8 lg:pt-32">
@@ -90,7 +82,10 @@ export default function CalculatorPage() {
 					</header>
 
 					<div className="space-y-16 sm:space-y-24">
-						<CalculatorSection />
+						<CalculatorSection
+							initialInputs={initialInputs}
+							key={JSON.stringify(initialInputs)}
+						/>
 						<CtaSection />
 						<CalculatorSources />
 					</div>

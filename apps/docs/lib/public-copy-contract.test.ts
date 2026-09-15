@@ -30,6 +30,8 @@ describe("public copy contracts", () => {
 		expect(publicDocs).not.toContain("data-track-performance");
 		expect(publicDocs).not.toContain("data-track-screen-views");
 		expect(publicDocs).not.toContain("trackSessions=");
+		expect(publicDocs).not.toContain("window.databuddy?.optOut()");
+		expect(publicDocs).not.toContain("window.databuddy.optOut()");
 	});
 
 	it("lists every performance metric collected by trackWebVitals", async () => {
@@ -112,32 +114,56 @@ describe("search discovery", () => {
 				.lostRevenueYearly
 		).toBe(0);
 	});
-	it("normalizes calculator share values without losing decimal revenue", async () => {
-		const { generateMetadata } = await import("@/app/(home)/calculator/page");
-		const metadata = await generateMetadata({
-			searchParams: Promise.resolve({
-				revenue: "1e3",
-				visitors: "0x10",
-				cost: "9.99",
-			}),
-		});
-		expect(metadata.description).toContain("$1,000");
-		expect(metadata.description).not.toContain("Databuddy ~$9.99");
-		expect(JSON.stringify(metadata.openGraph)).toContain(
-			"revenue=1000&visitors=16"
+	it("restores shared calculator assumptions and derives the preview from them", async () => {
+		const { ShareButtons } = await import(
+			"@/app/(home)/calculator/_components/share-buttons"
 		);
-		const decimal = await generateMetadata({
-			searchParams: Promise.resolve({ revenue: "9.99", visitors: "16" }),
+		const { readCalculatorInputs, calculateCookieBannerCost } = await import(
+			"@/app/(home)/calculator/_components/calculator-engine"
+		);
+		const { generateMetadata } = await import("@/app/(home)/calculator/page");
+		const inputs = {
+			monthlyVisitors: 1000,
+			visitorDataLossRate: 0.2,
+			visitorToPaidRate: 0.05,
+			revenuePerConversion: 9.99,
+		};
+		const markup = renderToStaticMarkup(
+			createElement(ShareButtons, { inputs })
+		);
+		const href = markup.match(/href="([^"]+)"/)?.[1].replaceAll("&amp;", "&");
+		expect(href).toBeDefined();
+		if (!href) throw new Error("Missing share link");
+		const shared = new URL(href).searchParams.get("url");
+		if (!shared) throw new Error("Missing calculator URL");
+		const shareUrl = new URL(shared);
+		const params = Object.fromEntries(shareUrl.searchParams);
+		expect(readCalculatorInputs(params)).toEqual(inputs);
+		const metadata = await generateMetadata({
+			searchParams: Promise.resolve(params),
 		});
-		expect(decimal.description).toContain("$9.99");
-		const invalid = await generateMetadata({
-			searchParams: Promise.resolve({
-				revenue: "NaN",
-				visitors: "1",
-				cost: "1",
-			}),
-		});
-		expect(JSON.stringify(invalid)).not.toContain("NaN");
+		expect(metadata.description).toContain("$1,198.80");
+		expect(JSON.stringify(metadata.openGraph)).toContain(
+			`revenue=${calculateCookieBannerCost(inputs).lostRevenueYearly}&visitors=1000`
+		);
+		for (const invalid of ["NaN", "Infinity", "-1", "", "2000001"]) {
+			expect(
+				readCalculatorInputs({ ...params, visitors: invalid })
+			).toBeUndefined();
+		}
+		expect(
+			readCalculatorInputs({ ...params, unmeasured: ["0.2"] })
+		).toBeUndefined();
+		expect(
+			readCalculatorInputs({ ...params, conversion: "0.06" })
+		).toBeUndefined();
+		expect(readCalculatorInputs({ ...params, value: "1001" })).toBeUndefined();
+		expect(
+			readCalculatorInputs({ revenue: "100", visitors: "1000", cost: "9.99" })
+		).toBeUndefined();
+		expect(readCalculatorInputs({ ...params, visitors: "1e3" })).toEqual(
+			inputs
+		);
 	});
 
 	it("allows rendering assets and pages whose noindex must be read", async () => {

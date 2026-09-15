@@ -1,19 +1,21 @@
 export function CalculatorSources() {
 	return (
 		<section className="mx-auto max-w-3xl space-y-4 rounded border border-border bg-card/40 p-6 text-muted-foreground text-sm">
-			<h2 className="font-semibold text-foreground">Assumptions and sources</h2>
-			<p>
+			<h2 className="text-balance font-semibold text-foreground">
+				Assumptions and sources
+			</h2>
+			<p className="text-pretty">
 				Monthly visitors × unmeasured share × conversion rate × revenue per
 				conversion. The yearly result multiplies the monthly estimate by 12. All
 				starting values are illustrative.
 			</p>
-			<p>
+			<p className="text-pretty">
 				The model assumes the same conversion rate for measured and unmeasured
 				visitors, constant monthly traffic, and no attribution from other
 				sources. It cannot predict the revenue a different analytics tool would
 				recover.
 			</p>
-			<p>
+			<p className="text-pretty">
 				Consent refusal does not always mean no measurement: Google’s advanced
 				consent mode can send cookieless pings. Cookieless tools also require a
 				review of their storage and processing configuration;

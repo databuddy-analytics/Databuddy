@@ -1,16 +1,15 @@
 import { ImageResponse } from "next/og";
+import { formatCurrencyFull } from "../_components/calculator-engine";
 import { loadOgFonts, OG_COLORS, OgLogo } from "@/lib/og";
 
 export async function GET(request: Request) {
 	const { searchParams } = new URL(request.url);
-	const [revenue, visitors] = ["revenue", "visitors"].map((key) => {
+	const values = ["revenue", "visitors"].map((key) => {
 		const value = Number(searchParams.get(key));
-		return (Number.isFinite(value) && value >= 0 ? value : 0).toLocaleString(
-			"en-US"
-		);
+		return Number.isFinite(value) && value >= 0 ? value : 0;
 	});
-	const formattedRevenue = `$${revenue}`;
-	const formattedVisitors = visitors;
+	const formattedRevenue = formatCurrencyFull(values[0]);
+	const formattedVisitors = Math.round(values[1]).toLocaleString("en-US");
 
 	return new ImageResponse(
 		<div

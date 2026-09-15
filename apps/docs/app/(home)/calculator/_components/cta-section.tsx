@@ -7,7 +7,7 @@ export function CtaSection() {
 		<section className="mx-auto w-full max-w-3xl">
 			<SciFiCard>
 				<div className="rounded border border-border bg-card/70 p-6 text-center backdrop-blur-sm sm:p-10">
-					<h2 className="mb-4 font-bold text-2xl tracking-tight sm:text-3xl">
+					<h2 className="mb-4 text-balance font-bold text-2xl tracking-tight sm:text-3xl">
 						Try cookieless analytics
 					</h2>
 					<p className="mx-auto mb-6 max-w-xl text-pretty text-muted-foreground text-sm sm:text-base">
