@@ -2,7 +2,7 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
-test_dir=$(mktemp -d)
+test_compose=$(mktemp)
 project="databuddy-init-test-$$"
 export IMAGE_TAG=selfhost-test
 export POSTGRES_PASSWORD=init_test_password CLICKHOUSE_PASSWORD=init_test_password
@@ -12,7 +12,7 @@ export REDIS_PASSWORD=unused BETTER_AUTH_SECRET=unused DATABUDDY_ENCRYPTION_KEY=
 unset AI_GATEWAY_API_KEY
 export DASHBOARD_URL=http://example.com API_URL=http://api.example.com BASKET_URL=http://basket.example.com
 
-cat > "$test_dir/compose.yml" <<EOF
+cat > "$test_compose" <<'EOF'
 services:
   postgres:
     ports: !reset []
@@ -25,12 +25,11 @@ EOF
 
 compose() {
   docker compose --project-name "$project" --env-file /dev/null \
-    -f docker-compose.selfhost.yml -f "$test_dir/compose.yml" "$@"
+    -f docker-compose.selfhost.yml -f "$test_compose" "$@"
 }
 cleanup() {
   compose down --volumes --remove-orphans
-  rm -f "$test_dir/compose.yml"
-  rmdir "$test_dir"
+  rm -f "$test_compose"
 }
 trap cleanup EXIT
 

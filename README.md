@@ -84,20 +84,15 @@ cp .env.example .env
 # REDIS_PASSWORD, BETTER_AUTH_SECRET, DATABUDDY_ENCRYPTION_KEY, and the
 # DASHBOARD_URL, API_URL, BASKET_URL public URLs. Use URL-safe passwords.
 
-# 2. Start databases and cache
-docker compose -f docker-compose.selfhost.yml up -d postgres clickhouse redis
-
-# 3. Initialize databases using the matching release image
+# 2. Start databases and initialize their schemas
 docker compose -f docker-compose.selfhost.yml run --rm init
 
-# 4. Build the dashboard for your URLs and start the services
+# 3. Build the dashboard for your URLs and start the services
 docker compose -f docker-compose.selfhost.yml up -d --build
 ```
 
-The `init` service contains the schema source and tooling; the compiled API
-image does not. It runs PostgreSQL `db:push`, then creates missing ClickHouse
-tables and views. It only runs when explicitly requested. No local Bun install
-or custom migration script is needed.
+The explicit `init` command runs PostgreSQL `db:push`, then creates missing
+ClickHouse tables and views using the release's schema source and tooling.
 
 For upgrades, back up your databases, check out the new release, and set
 `IMAGE_TAG` to that release. Apply PostgreSQL changes separately so you can review
@@ -126,9 +121,8 @@ Services started:
 Ports are configurable (`DASHBOARD_PORT`, `API_PORT`, `BASKET_PORT`, `LINKS_PORT`).
 For remote access, put the dashboard and API behind HTTPS on the same parent
 domain and set `BETTER_AUTH_COOKIE_DOMAIN` (for example `.example.com`) so login
-works across subdomains. Leave it empty for localhost. Rebuild the dashboard
-with `docker compose -f docker-compose.selfhost.yml up -d --build` after changing
-public URLs; they are embedded in its browser bundle.
+works across subdomains. Leave it empty for localhost. Repeat step 3 after changing
+public URLs; they are embedded in the dashboard's browser bundle.
 
 ### Optional services
 
