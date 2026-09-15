@@ -25,26 +25,49 @@ async function getCspHeader(source: string): Promise<string> {
 	return csp;
 }
 
-async function withNodeEnv<T>(
-	value: string,
+async function withEnv<T>(
+	overrides: Record<string, string>,
 	callback: () => Promise<T>
 ): Promise<T> {
-	const original = process.env.NODE_ENV;
-	process.env.NODE_ENV = value;
+	const original = process.env;
+	process.env = { ...original, ...overrides };
 	try {
 		return await callback();
 	} finally {
-		if (original === undefined) {
-			delete process.env.NODE_ENV;
-		} else {
-			process.env.NODE_ENV = original;
-		}
+		process.env = original;
 	}
 }
 
 describe("dashboard next config", () => {
+	it("allows configured API and ingestion origins in production", async () => {
+		await withEnv(
+			{
+				NODE_ENV: "production",
+				NEXT_PUBLIC_API_URL: "https://api.example.com/prefix",
+				NEXT_PUBLIC_BASKET_URL: "https://events.example.com:8443",
+			},
+			async () => {
+				for (const source of [
+					"/demo/:path*",
+					"/public/:path*",
+					"/((?!demo|public).*)",
+				]) {
+					const csp = await getCspHeader(source);
+					const connect = csp
+						.split(";")
+						.find((part) => part.trim().startsWith("connect-src"));
+					expect(connect).toContain("https://api.example.com");
+					expect(connect).toContain("https://events.example.com:8443");
+					expect(connect).toContain("https://*.databuddy.cc");
+					expect(connect).not.toContain("/prefix");
+					expect(csp).not.toContain("'unsafe-eval'");
+				}
+			}
+		);
+	});
+
 	it("allows official docs and app origins to frame demo routes", async () => {
-		await withNodeEnv("production", async () => {
+		await withEnv({ NODE_ENV: "production" }, async () => {
 			const csp = await getCspHeader("/demo/:path*");
 
 			expect(csp).toContain(
@@ -55,7 +78,7 @@ describe("dashboard next config", () => {
 	});
 
 	it("applies the same frame ancestor policy to public dashboard routes", async () => {
-		await withNodeEnv("production", async () => {
+		await withEnv({ NODE_ENV: "production" }, async () => {
 			const csp = await getCspHeader("/public/:path*");
 
 			expect(csp).toContain("https://www.databuddy.cc");
@@ -64,7 +87,7 @@ describe("dashboard next config", () => {
 	});
 
 	it("allows the OpenAI Ads measurement pixel on app routes", async () => {
-		await withNodeEnv("production", async () => {
+		await withEnv({ NODE_ENV: "production" }, async () => {
 			const csp = await getCspHeader("/((?!demo|public).*)");
 
 			expect(csp).toContain("https://bzrcdn.openai.com");
