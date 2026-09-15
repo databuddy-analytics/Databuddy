@@ -9,7 +9,7 @@
     "postinstall": "fumadocs-mdx",
     "lint:links": "bun ./scripts/validate-links.ts",
     "check-types": "tsc --noEmit",
-    "test": "bun test lib"
+    "test": "fumadocs-mdx && bun test lib"
   },
   "dependencies": {
     "@databuddy/redis": "workspace:*",
