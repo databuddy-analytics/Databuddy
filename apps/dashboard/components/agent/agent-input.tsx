@@ -1,5 +1,7 @@
 "use client";
 
+import { hasDatabunnyChat } from "@databuddy/shared/billing";
+
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect, memo, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
@@ -154,18 +156,18 @@ export function AgentInput() {
 			return;
 		}
 		if (
-			!(billingLoading || unlimited) &&
+			!(billingLoading || unlimited || hasDatabunnyChat(customer?.flags)) &&
 			creditsResolvedForUi &&
 			balance <= 0
 		) {
 			bumpCreditShake((n) => n + 1);
 			toast.error("Databunny can't answer another question yet", {
 				description:
-					"This organization's investigation credit balance is empty. Add credits or change the plan to continue.",
+					"This organization's AI credit balance is empty. Add AI credits for chat or change the plan to continue.",
 				id: "databunny-usage-empty",
 				action: {
 					label: "View billing",
-					onClick: () => router.push("/billing#topup"),
+					onClick: () => router.push("/billing#chat-topup"),
 				},
 			});
 			return;
@@ -461,14 +463,14 @@ const InputToolbar = memo(function InputToolbar({
 });
 
 const THINKING_LABELS: Record<AgentThinking, string> = {
-	off: "Off",
+	off: "Default",
 	low: "Low",
 	medium: "Medium",
 	high: "High",
 };
 
 const THINKING_DESCRIPTIONS: Record<AgentThinking, string> = {
-	off: "Fastest, cheapest",
+	off: "Model's default reasoning",
 	low: "Brief reasoning",
 	medium: "Deeper analysis",
 	high: "Extended reasoning",

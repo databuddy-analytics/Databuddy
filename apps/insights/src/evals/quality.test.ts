@@ -311,6 +311,57 @@ const holdoutOutcome: InsightAgentResult = {
 	},
 };
 
+it("does not excuse a new repair when a saved verification has population drift", () => {
+ const fixture = qualityCases.find((entry) => entry.id === "check-population-drift");
+ const previous = fixture?.input.history.find((entry) => entry.kind === "investigation");
+ if (!fixture || previous?.kind !== "investigation") throw new Error("Missing population drift evaluation");
+ expect(fixture.check({...holdoutOutcome, outcome: previous.outcome}, [])).toContain("Repeated the already-applied definition repair");
+});
+
+it.each([undefined, null])(
+	"accepts an unscoped native goal read with cohort %s while rejecting scope drift",
+	async (cohort) => {
+		const fixture = qualityCases.find(
+			(entry) => entry.id === "current-goal-unchanged"
+		);
+		const read = fixture?.tools.get_goal_analytics;
+		if (!(fixture && read?.execute && read.inputSchema instanceof z.ZodType))
+			throw new Error("Missing native goal evaluation");
+		const query = read.inputSchema.parse({
+			goalId: fixture.input.signal.entity.id,
+			startDate: fixture.input.signal.period.current.from,
+			endDate: fixture.input.signal.period.current.to,
+			...(cohort === null ? { cohort } : {}),
+		});
+		const call = {
+			name: "get_goal_analytics",
+			input: query,
+			output: await read.execute(query, { toolCallId: "goal", messages: [] }),
+		};
+		const result = {
+			...holdoutOutcome,
+			outcome: {
+				...holdoutOutcome.outcome,
+				publish: false,
+				publicationBasis: null,
+			},
+		};
+		expect(fixture.check(result, [call])).toEqual([]);
+		for (const change of [
+			{ goalId: "other-goal" },
+			{ websiteId: "other-site" },
+			{ startDate: "2026-09-01" },
+			{ cohort: { country: "US" } },
+		]) {
+			expect(
+				fixture.check(result, [{ ...call, input: { ...query, ...change } }])
+			).toEqual([
+				`Did not remeasure the exact goal for ${fixture.input.signal.period.current.from}–${fixture.input.signal.period.current.to}`,
+			]);
+		}
+	}
+);
+
 it.each([
 	false,
 	true,
@@ -345,6 +396,12 @@ it.each([
 		})
 		.parse(await read.execute(query, { toolCallId: "holdout", messages: [] }));
 	const readings = Object.values(output.results);
+	const sources = Object.keys(output.results).map((resultKey) => ({
+		source: "tool",
+		name: "get_data",
+		toolCallId: "holdout",
+		resultKey,
+	}));
 	expect(Object.keys(readings[0].data[0])[0]).toBe(
 		reordered ? "attributed_revenue" : "currency"
 	);
@@ -360,7 +417,7 @@ it.each([
 		const failures = fixture.check(
 			{ ...holdoutOutcome, outcome: { ...holdoutOutcome.outcome, evidence } },
 			[],
-			{ evidence: [selection] }
+			{ evidence: [{ claim: selection, sources }] }
 		);
 		expect(failures).toHaveLength(omitted ? 2 : 0);
 		if (omitted)
@@ -379,7 +436,7 @@ it.each([
 				outcome: { ...holdoutOutcome.outcome, evidence: [swapped] },
 			},
 			[],
-			{ evidence: [selection] }
+			{ evidence: [{ claim: selection, sources }] }
 		)
 	).toEqual(["Rendered evidence omitted Gross Revenue: 12,000 → 12,000"]);
 });

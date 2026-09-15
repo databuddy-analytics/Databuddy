@@ -49,7 +49,7 @@ const FAQ_ITEMS = [
 	{
 		question: "Will I get spammed with alerts?",
 		answer:
-			"No. Alerts only fire when status actually changes - from up to down, or down to up. You won't get repeated notifications during intermittent issues, just one clear signal when something needs attention.",
+			"Alerts fire when a monitor changes from up to down or back up. Repeated checks with the same status stay quiet; an intermittent service can trigger multiple status changes.",
 	},
 	{
 		question: "What kind of services can I monitor?",
@@ -83,11 +83,11 @@ export default function UptimePage() {
 			/>
 			<div className="overflow-x-hidden">
 				<FeatureHero
-					docsHref="/docs"
+					docsHref="/docs/uptime"
 					footnote="Included on every plan. Checks never count toward your event quota."
 					primaryLabel="Start Monitoring"
 					subtitle="1-minute HTTP checks, one alert per status change, and a public status page your customers can check themselves. In the same dashboard as your analytics."
-					title="Know the minute your site goes down."
+					title="Get alerted when your site goes down."
 				/>
 
 				<Section className="border-border border-b" id="how-it-works">
@@ -107,7 +107,7 @@ export default function UptimePage() {
 							</GridCell>
 							<GridCell>
 								<h3 className={CELL_TITLE_CLASS}>
-									One alert per incident to Slack, email, or webhook.
+									Status-change alerts to Slack, email, or webhook.
 								</h3>
 								<UptimeAlertsStackVisual />
 							</GridCell>

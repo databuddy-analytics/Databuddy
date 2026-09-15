@@ -21,7 +21,10 @@ import {
 } from "@databuddy/redis";
 import { getAutumn } from "@databuddy/rpc";
 import { recordPlanChange } from "@databuddy/services/billing-lifecycle";
-import { DATABUNNY_USAGE } from "@databuddy/shared/billing";
+import {
+	DATABUNNY_USAGE,
+	INVESTIGATION_USAGE,
+} from "@databuddy/shared/billing";
 import { Elysia } from "elysia";
 import { log } from "evlog";
 import { useLogger } from "evlog/elysia";
@@ -227,6 +230,15 @@ async function resolveBillingOrganization(
 }
 
 function getFeatureCopy(featureId: string): BillingFeatureCopy {
+	if (featureId === INVESTIGATION_USAGE.featureId) {
+		return {
+			description: INVESTIGATION_USAGE.description,
+			name: INVESTIGATION_USAGE.name,
+			pausedActivity:
+				"new investigations (included clarifications remain available)",
+			unit: INVESTIGATION_USAGE.unit,
+		};
+	}
 	if (featureId === "agent_credits") {
 		return {
 			description: DATABUNNY_USAGE.description,

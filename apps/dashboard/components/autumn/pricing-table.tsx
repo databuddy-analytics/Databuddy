@@ -1,273 +1,110 @@
 "use client";
 
+import { DATABUNNY_CHAT, INVESTIGATION_USAGE } from "@databuddy/shared/billing";
 import {
 	FEATURE_METADATA,
-	type FeatureLimit,
-	type GatedFeatureId,
+	GATED_FEATURES,
 	HIDDEN_PRICING_FEATURES,
 	INTELLIGENCE_CONTACT_TOPICS,
 	normalizePlanId,
 	PLAN_FEATURE_LIMITS,
-	PLAN_IDS,
-	type PlanId,
 } from "@databuddy/shared/types/features";
-import type { PreviewAttachResponse } from "autumn-js";
+import { Badge, Button, Card, EmptyState, Skeleton, Text } from "@databuddy/ui";
+import {
+	CheckIcon,
+	CrownIcon,
+	RocketLaunchIcon,
+	StarIcon,
+	WarningIcon,
+} from "@databuddy/ui/icons";
+import { Accordion } from "@databuddy/ui/client";
 import { useCustomer, useListPlans } from "autumn-js/react";
-import { createContext, useContext, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { PricingTiersTooltip } from "@/app/(main)/billing/components/pricing-tiers-tooltip";
 import { getStripeMetadata } from "@/app/(main)/billing/utils/stripe-metadata";
-import AttachDialog from "@/components/autumn/attach-dialog";
+import AttachDialog, {
+	type AttachDialogProps,
+} from "@/components/autumn/attach-dialog";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@/components/ui/table";
 import { getCustomerPlanName } from "@/lib/autumn/customer-plan-name";
 import { formatLocaleNumber } from "@/lib/format-locale-number";
 import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
 import { cn } from "@/lib/utils";
-import {
-	ArrowsDownUpIcon as TreeIcon,
-	CheckIcon,
-	CrownIcon,
-	LeafIcon,
-	LockSimpleIcon as LockKeyIcon,
-	ReceiptIcon,
-	RocketLaunchIcon,
-	ShieldCheckIcon,
-	StarIcon,
-	WarningIcon,
-} from "@databuddy/ui/icons";
-import { Badge, Button, EmptyState, Text } from "@databuddy/ui";
 
-const DISPLAYED_PLAN_IDS = ["hobby", "pro", "intelligence"] as const;
+type HookPlan = NonNullable<ReturnType<typeof useListPlans>["data"]>[number];
+type BillingItem = HookPlan["items"][number];
+type BillingPreview = AttachDialogProps["preview"];
+
 const CONTACT_TOPICS: Record<string, string | undefined> =
 	INTELLIGENCE_CONTACT_TOPICS;
-const RECOMMENDED_PLAN_ID = "pro";
-
+const DISPLAYED_PLAN_IDS = new Set(["hobby", "pro", "intelligence"]);
 const PLAN_ICONS: Record<string, typeof CrownIcon> = {
-	free: LeafIcon,
 	hobby: RocketLaunchIcon,
 	pro: StarIcon,
-	scale: CrownIcon,
 	intelligence: CrownIcon,
-	buddy: CrownIcon,
 };
-
-const PLAN_INTRO_OFFER: Record<string, { amount: number; label: string }> = {
-	hobby: { amount: 2, label: "first month" },
-};
-
-const INTERVAL_COMPACT: Record<string, string> = {
-	day: "day",
-	week: "wk",
-	month: "mo",
-	quarter: "qtr",
-	year: "yr",
-};
-
-const TRAILING_ZERO_CENTS = /\.00$/;
-
-function formatPriceAmount(amount: number | undefined | null): string {
-	if (amount == null) {
-		return "";
-	}
-	const fixed = amount.toFixed(2);
-	return `$${fixed.replace(TRAILING_ZERO_CENTS, "")}`;
-}
-
 const PLAN_TAGLINES: Record<string, string> = {
 	hobby: "For solo builders and side projects.",
 	pro: "For growing teams shipping production apps.",
-	scale: "For established products at serious scale.",
 	intelligence: "An always-on product investigator for founders and engineers.",
 };
-
 const PLAN_SUPPORT: Record<string, string> = {
 	hobby: "Email support",
 	pro: "Priority email support",
-	scale: "Priority email + Slack",
 	intelligence: "Priority email + Slack",
-	buddy: "Priority email + Slack",
 };
 
-const PLAN_EXTRAS: Record<string, string[]> = {
-	intelligence: [
-		"1,500 investigation credits / month",
-		"2M events included / month",
-	],
-	buddy: ["White-glove onboarding", "Beta / early access"],
-};
-
-const PREVIOUS_PLAN_NAME: Record<string, string> = {
-	pro: "Hobby",
-	intelligence: "Pro",
-};
-
-function getPlanIcon(planId: string) {
-	return PLAN_ICONS[planId] || CrownIcon;
+function formatPriceAmount(amount: number) {
+	return `$${amount.toLocaleString("en-US", { maximumFractionDigits: 6 })}`;
 }
 
-interface ButtonState {
-	disabled: boolean;
-	text: string;
-	variant: "primary" | "secondary" | "ghost";
+function allowanceText(item: BillingItem, unit: string) {
+	const quantity = item.unlimited
+		? "Unlimited"
+		: formatLocaleNumber(item.included ?? 0);
+	const interval = item.reset?.interval;
+	const count = item.reset?.intervalCount ?? 1;
+	const period =
+		interval && interval !== "one_off"
+			? ` / ${count > 1 ? `${count} ${interval}s` : interval}`
+			: " included";
+	return `${quantity} ${unit}${period}`;
 }
 
-function getButtonState(
-	eligibility:
-		| {
-				trialAvailable?: boolean;
-				status?: string;
-				canceling?: boolean;
-				attachAction?: string;
-		  }
-		| null
-		| undefined,
-	isRecommendedTier: boolean,
-	isActivelySelected: boolean
-): ButtonState {
+function getButtonText(
+	eligibility: HookPlan["customerEligibility"],
+	isSelected: boolean
+) {
 	if (eligibility?.canceling) {
-		return { text: "Resume plan", variant: "secondary", disabled: false };
+		return "Resume plan";
 	}
 	if (eligibility?.status === "active") {
-		return { text: "Current plan", variant: "secondary", disabled: true };
+		return "Current plan";
 	}
 	if (eligibility?.status === "scheduled") {
-		return { text: "Scheduled", variant: "secondary", disabled: true };
+		return "Scheduled";
 	}
-	if (isActivelySelected) {
-		return { text: "Complete purchase", variant: "primary", disabled: false };
+	if (isSelected) {
+		return "Complete purchase";
 	}
 	if (eligibility?.trialAvailable) {
-		return {
-			text: "Start free trial",
-			variant: isRecommendedTier ? "primary" : "secondary",
-			disabled: false,
-		};
+		return "Start free trial";
 	}
-	switch (eligibility?.attachAction) {
-		case "upgrade":
-			return {
-				text: "Upgrade",
-				variant: isRecommendedTier ? "primary" : "secondary",
-				disabled: false,
-			};
-		case "downgrade":
-			return { text: "Downgrade", variant: "secondary", disabled: false };
-		default:
-			return {
-				text: "Get started",
-				variant: isRecommendedTier ? "primary" : "secondary",
-				disabled: false,
-			};
+	if (eligibility?.attachAction === "upgrade") {
+		return "Upgrade";
 	}
-}
-
-function getNewFeaturesForPlan(planId: string): Array<{
-	feature: GatedFeatureId;
-	limit: FeatureLimit;
-}> {
-	const plan = normalizePlanId(planId);
-	const planLimits = PLAN_FEATURE_LIMITS[plan];
-	if (!planLimits) {
-		return [];
+	if (eligibility?.attachAction === "downgrade") {
+		return "Downgrade";
 	}
-
-	if (plan === PLAN_IDS.FREE) {
-		return Object.entries(planLimits)
-			.filter(([feature, limit]) => {
-				if (HIDDEN_PRICING_FEATURES.includes(feature as GatedFeatureId)) {
-					return false;
-				}
-				return limit !== false;
-			})
-			.map(([feature, limit]) => ({
-				feature: feature as GatedFeatureId,
-				limit,
-			}));
-	}
-
-	const tierOrder: PlanId[] = [
-		PLAN_IDS.FREE,
-		PLAN_IDS.HOBBY,
-		PLAN_IDS.PRO,
-		PLAN_IDS.SCALE,
-	];
-	const currentIndex = tierOrder.indexOf(plan);
-	const previousPlan = tierOrder[currentIndex - 1];
-	const previousLimits = PLAN_FEATURE_LIMITS[previousPlan] ?? {};
-
-	return Object.entries(planLimits)
-		.filter(([feature, limit]) => {
-			if (HIDDEN_PRICING_FEATURES.includes(feature as GatedFeatureId)) {
-				return false;
-			}
-			if (limit === false) {
-				return false;
-			}
-			const previousLimit = previousLimits[feature as GatedFeatureId];
-			if (previousLimit === false) {
-				return true;
-			}
-			if (limit === "unlimited" && previousLimit !== "unlimited") {
-				return true;
-			}
-			if (
-				typeof limit === "number" &&
-				typeof previousLimit === "number" &&
-				limit > previousLimit
-			) {
-				return true;
-			}
-			return false;
-		})
-		.map(([feature, limit]) => ({
-			feature: feature as GatedFeatureId,
-			limit,
-		}));
-}
-
-function PricingTableSkeleton() {
-	return (
-		<div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-			{[1, 2, 3].map((i) => (
-				<div
-					className="flex h-[520px] w-full animate-pulse flex-col rounded-lg border border-border/60 bg-card"
-					key={i}
-				>
-					<div className="flex items-start gap-3 p-5">
-						<div className="size-9 shrink-0 rounded-lg bg-muted" />
-						<div className="flex-1 space-y-2">
-							<div className="h-4 w-24 rounded bg-muted" />
-							<div className="h-3 w-40 rounded bg-muted" />
-						</div>
-					</div>
-					<div className="border-border/60 border-y bg-secondary/40 px-5 py-5">
-						<div className="h-8 w-28 rounded bg-muted" />
-					</div>
-					<div className="flex-1 space-y-2.5 p-5">
-						{[1, 2, 3, 4, 5].map((j) => (
-							<div className="flex items-center gap-2" key={j}>
-								<div className="size-4 rounded bg-muted" />
-								<div className="h-3 flex-1 rounded bg-muted" />
-							</div>
-						))}
-					</div>
-					<div className="p-5 pt-0">
-						<div className="h-9 w-full rounded-md bg-muted" />
-					</div>
-				</div>
-			))}
-		</div>
-	);
-}
-
-type HookPlan = NonNullable<ReturnType<typeof useListPlans>["data"]>[number];
-
-const PricingTableContext = createContext<{
-	plans: HookPlan[];
-	selectedPlan?: string | null;
-}>({ plans: [], selectedPlan: null });
-
-function usePricingTableCtx() {
-	return useContext(PricingTableContext);
+	return "Get started";
 }
 
 export default function PricingTable({
@@ -280,226 +117,165 @@ export default function PricingTable({
 
 	if (isLoading) {
 		return (
-			<div className="flex flex-col items-center">
-				<PricingTableSkeleton />
-				<Text className="mt-4" tone="muted" variant="body">
-					Loading plans…
-				</Text>
+			<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+				{[1, 2, 3].map((id) => (
+					<Card className="min-h-[340px]" key={id}>
+						<Card.Header className="min-h-[104px] flex-row items-start gap-3 bg-transparent p-5">
+							<Skeleton className="size-9 shrink-0" />
+							<div className="min-w-0 flex-1 space-y-2">
+								<Skeleton className="h-5 w-24" />
+								<Skeleton className="h-3 w-full" />
+							</div>
+						</Card.Header>
+						<div className="border-border/60 border-y bg-secondary/40 px-5 py-5">
+							<Skeleton className="h-9 w-32" />
+						</div>
+						<Card.Content className="space-y-5 p-5">
+							<Skeleton className="h-5 w-40" />
+							<Skeleton className="h-5 w-32" />
+							<Skeleton className="h-5 w-36" />
+							<Skeleton className="h-9 w-full" />
+						</Card.Content>
+					</Card>
+				))}
 			</div>
 		);
 	}
-
 	if (error) {
 		return (
 			<EmptyState
-				className="flex h-full flex-col items-center justify-center"
-				description="Something went wrong while loading pricing plans"
+				description="Try again in a moment."
 				icon={<WarningIcon />}
-				title="Failed to load pricing plans"
+				title="Couldn't load plans"
 				variant="error"
 			/>
 		);
 	}
-
-	const filteredPlans =
-		plans?.filter((p) =>
-			(DISPLAYED_PLAN_IDS as readonly string[]).includes(p.id)
-		) ?? [];
-
+	const displayedPlans =
+		plans?.filter((plan) => DISPLAYED_PLAN_IDS.has(plan.id)) ?? [];
+	const investigationTerms = getInvestigationTerms(
+		displayedPlans
+			.filter(
+				(plan) =>
+					PLAN_FEATURE_LIMITS[normalizePlanId(plan.id)][
+						GATED_FEATURES.INVESTIGATIONS
+					] !== false
+			)
+			.flatMap((plan) => plan.items)
+	);
 	return (
-		<PricingTableContext.Provider value={{ plans: plans ?? [], selectedPlan }}>
-			<div className="flex flex-col gap-6">
-				<div className="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3">
-					{filteredPlans.map((plan) => (
-						<PricingCard
-							attachAction={async () => {
-								try {
-									const result = await attach({
-										planId: plan.id,
-										metadata: getStripeMetadata(),
-										successUrl: `${window.location.origin}/billing`,
-									});
-									if (result?.paymentUrl) {
-										window.location.href = result.paymentUrl;
-										return;
-									}
+		<div className="space-y-4">
+			<div className="motion-safe:fade-in motion-safe:slide-in-from-bottom-1 grid items-stretch gap-4 motion-safe:animate-in motion-safe:duration-150 sm:grid-cols-2 lg:grid-cols-3">
+				{displayedPlans.map((plan) => (
+					<PricingCard
+						attachAction={async () => {
+							try {
+								const result = await attach({
+									planId: plan.id,
+									metadata: getStripeMetadata(),
+									successUrl: `${window.location.origin}/billing`,
+								});
+								if (result?.paymentUrl) {
+									window.location.href = result.paymentUrl;
+								} else {
 									toast.success("Plan updated");
-								} catch (err) {
-									toast.error(
-										getUserFacingErrorMessage(
-											err,
-											"We couldn't update this plan. Try again."
-										)
-									);
-									throw err;
 								}
-							}}
-							isSelected={selectedPlan === plan.id}
-							key={plan.id}
-							planId={plan.id}
-							previewAction={async () => {
-								const result = await previewAttach({ planId: plan.id });
-								return result as unknown as PreviewAttachResponse;
-							}}
-						/>
-					))}
-				</div>
-
-				<div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-muted-foreground text-xs">
-					<span className="inline-flex items-center gap-1.5">
-						<ShieldCheckIcon className="size-3.5" />
-						Cancel anytime
-					</span>
-					<span className="inline-flex items-center gap-1.5">
-						<LockKeyIcon className="size-3.5" />
-						Secure Stripe checkout
-					</span>
-					<span className="inline-flex items-center gap-1.5">
-						<ReceiptIcon className="size-3.5" />
-						No hidden fees
-					</span>
-					<a
-						className="inline-flex items-center gap-1.5 underline-offset-4 hover:text-foreground hover:underline"
-						href="https://stripe.com/climate"
-						rel="noreferrer"
-						target="_blank"
-					>
-						<TreeIcon className="size-3.5" />
-						1% goes to carbon removal
-					</a>
-				</div>
+							} catch (error) {
+								toast.error(
+									getUserFacingErrorMessage(
+										error,
+										"We couldn't update your plan. Try again."
+									)
+								);
+								throw error;
+							}
+						}}
+						isSelected={selectedPlan === plan.id}
+						key={plan.id}
+						plan={plan}
+						previewAction={() => previewAttach({ planId: plan.id })}
+					/>
+				))}
 			</div>
-		</PricingTableContext.Provider>
+			{investigationTerms && (
+				<Text className="text-pretty" tone="muted" variant="caption">
+					{investigationTerms}
+				</Text>
+			)}
+			<Card>
+				<Accordion>
+					<Accordion.Trigger>Compare features and AI terms</Accordion.Trigger>
+					<Accordion.Panel keepMounted={false}>
+						<PlanComparison plans={displayedPlans} />
+					</Accordion.Panel>
+				</Accordion>
+			</Card>
+		</div>
 	);
 }
 
 function PricingCard({
-	planId,
-	className,
+	plan,
 	attachAction,
 	previewAction,
-	isSelected = false,
+	isSelected,
 }: {
-	planId: string;
-	className?: string;
-	attachAction?: () => Promise<void>;
-	previewAction?: () => Promise<PreviewAttachResponse>;
-	isSelected?: boolean;
+	plan: HookPlan;
+	attachAction: () => Promise<void>;
+	previewAction: () => Promise<BillingPreview>;
+	isSelected: boolean;
 }) {
-	const { plans, selectedPlan } = usePricingTableCtx();
-	const [isAttaching, setIsAttaching] = useState(false);
-	const [preview, setPreview] = useState<PreviewAttachResponse | null>(null);
+	const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+	const [preview, setPreview] = useState<BillingPreview | null>(null);
 	const [dialogOpen, setDialogOpen] = useState(false);
-	const plan = plans.find((p) => p.id === planId);
-
-	if (!plan) {
-		return null;
-	}
-	const planDisplayName = getCustomerPlanName(plan.id, plan.name);
-
 	const eligibility = plan.customerEligibility;
-	const Icon = getPlanIcon(plan.id);
 	const isActive = eligibility?.status === "active";
-	const isRecommended = plan.id === RECOMMENDED_PLAN_ID;
-	const isActivelySelected = selectedPlan === planId;
-
-	const buttonState = getButtonState(
-		eligibility,
-		isRecommended,
-		isActivelySelected
-	);
-	const dialogAction = eligibility?.canceling
-		? "resume"
-		: eligibility?.trialAvailable
-			? "trial"
-			: eligibility?.attachAction;
-
-	const handleUpgradeClick = async () => {
-		if (!previewAction) {
-			setIsAttaching(true);
-			try {
-				await attachAction?.();
-			} catch {
-				// attachAction toasts its own error and rethrows for the dialog path.
-			}
-			setIsAttaching(false);
-			return;
-		}
-
-		setIsAttaching(true);
-		try {
-			const result = await previewAction();
-			setPreview(result);
-			setDialogOpen(true);
-		} catch (err) {
-			toast.error(
-				getUserFacingErrorMessage(
-					err,
-					"We couldn't load the billing preview. Try again."
-				)
-			);
-		} finally {
-			setIsAttaching(false);
-		}
-	};
-
-	const isFree = plan.autoEnable === true;
-	const priceAmount = plan.price?.amount;
-	const priceInterval = plan.price?.interval;
-	const compactUnit = priceInterval
-		? (INTERVAL_COMPACT[priceInterval] ?? priceInterval)
-		: null;
-	const introOffer = PLAN_INTRO_OFFER[plan.id];
-
-	const support = PLAN_SUPPORT[plan.id];
-	const extras = PLAN_EXTRAS[plan.id] ?? [];
-	const previousPlanName = PREVIOUS_PLAN_NAME[plan.id];
-
-	const billingItems = isFree ? plan.items : plan.items.slice(1);
-	const groupedBillingItems = groupItemsByFeature(billingItems);
-	const newGatedFeatures = getNewFeaturesForPlan(plan.id);
+	const planName = getCustomerPlanName(plan.id, plan.name);
+	const investigationTerms =
+		PLAN_FEATURE_LIMITS[normalizePlanId(plan.id)][
+			GATED_FEATURES.INVESTIGATIONS
+		] === false
+			? undefined
+			: getInvestigationTerms(plan.items);
+	const contactTopic = CONTACT_TOPICS[plan.id];
+	const isRecommended = plan.id === "pro";
+	const Icon = PLAN_ICONS[plan.id] ?? CrownIcon;
 
 	return (
-		<div
+		<Card
 			className={cn(
-				"group relative flex flex-col overflow-hidden rounded-lg border bg-card",
-				"transition-[border-color,box-shadow] duration-(--duration-base) ease-(--expo-out)",
+				"relative min-h-[340px] transition-[border-color,box-shadow] duration-(--duration-base) ease-(--expo-out) motion-reduce:transition-none",
 				isRecommended
 					? "border-primary/50 shadow-sm"
-					: "border-border/60 hover:border-border",
-				isSelected && "ring-2 ring-primary/30",
-				className
+					: "focus-within:border-border hover:border-border",
+				isSelected && "ring-2 ring-primary/30"
 			)}
 		>
 			{isRecommended && (
-				<div className="pointer-events-none absolute top-0 right-0">
-					<div className="rounded-bl-md bg-primary px-2.5 py-1 font-medium text-[10px] text-primary-foreground uppercase tracking-wider">
-						Most popular
-					</div>
-				</div>
+				<Badge
+					className="pointer-events-none absolute top-0 right-0 rounded-none rounded-bl-md uppercase tracking-wider"
+					size="sm"
+					variant="primary"
+				>
+					Most popular
+				</Badge>
 			)}
-
-			<div className="flex items-start gap-3 p-5">
+			<Card.Header className="min-h-[104px] flex-row items-start gap-3 bg-transparent p-5">
 				<div
 					className={cn(
 						"flex size-9 shrink-0 items-center justify-center rounded-lg border",
 						isRecommended
-							? "border-primary/30 bg-primary/10"
-							: "border-border/60 bg-accent"
+							? "border-primary/30 bg-primary/10 text-primary"
+							: "border-border/60 bg-accent text-accent-foreground"
 					)}
 				>
-					<Icon
-						className={cn(
-							"size-4",
-							isRecommended ? "text-primary" : "text-accent-foreground"
-						)}
-					/>
+					<Icon aria-hidden="true" className="size-4" />
 				</div>
 				<div className="min-w-0 flex-1">
 					<div className="flex flex-wrap items-center gap-2">
-						<Text as="h3" className="font-semibold text-base" variant="body">
-							{planDisplayName}
-						</Text>
+						<Card.Title className="text-balance text-base">
+							{planName}
+						</Card.Title>
 						{isActive && (
 							<Badge size="sm" variant="muted">
 								Current
@@ -511,270 +287,302 @@ function PricingCard({
 							</Badge>
 						)}
 					</div>
-					<Text className="mt-0.5" tone="muted" variant="caption">
+					<Card.Description className="mt-0.5 text-pretty">
 						{PLAN_TAGLINES[plan.id] ?? plan.description}
-					</Text>
+					</Card.Description>
 				</div>
-			</div>
-
+			</Card.Header>
 			<div className="border-border/60 border-y bg-secondary/40 px-5 py-5">
-				{isFree ? (
-					<div className="flex items-baseline gap-1.5">
-						<span className="font-semibold text-3xl text-foreground tracking-tight">
-							Free
-						</span>
-						<Text tone="muted" variant="body">
-							forever
-						</Text>
-					</div>
-				) : introOffer ? (
-					<div className="space-y-1">
-						<div className="flex items-baseline gap-1.5">
-							<span className="font-semibold text-3xl text-foreground tabular-nums tracking-tight">
-								{formatPriceAmount(introOffer.amount)}
-							</span>
-							<Text tone="muted" variant="body">
-								for your {introOffer.label}
-							</Text>
-						</div>
-						<Text tone="muted" variant="caption">
-							then {formatPriceAmount(priceAmount)}
-							{compactUnit ? `/${compactUnit}` : ""}
-						</Text>
-					</div>
-				) : (
-					<div className="flex items-baseline text-foreground">
-						<span className="font-semibold text-3xl tabular-nums tracking-tight">
-							{formatPriceAmount(priceAmount)}
-						</span>
-						{compactUnit && (
-							<span className="ml-0.5 font-medium text-base text-muted-foreground">
-								/{compactUnit}
-							</span>
-						)}
-					</div>
-				)}
+				<PricingPlanPrice plan={plan} />
 			</div>
-
-			<div className="flex flex-1 flex-col gap-4 p-5">
-				{previousPlanName && (
-					<Text tone="muted" variant="label">
-						Everything in {previousPlanName}, plus:
-					</Text>
-				)}
-				<ul className="space-y-2.5">
-					{groupedBillingItems.map((group) => (
-						<FeatureItem
-							group={group}
-							key={`${group[0].featureId}-${group[0].display?.primaryText}`}
-						/>
-					))}
-					{newGatedFeatures.map(({ feature, limit }) => {
-						const meta = FEATURE_METADATA[feature];
-						return (
-							<GatedFeatureItem
-								key={feature}
-								limit={limit}
-								name={meta?.name ?? feature}
-								unit={meta?.unit}
-							/>
-						);
-					})}
-					{extras.map((label) => (
-						<StaticFeatureItem key={label} label={label} />
-					))}
-					{support && <StaticFeatureItem label={support} />}
-				</ul>
-			</div>
-
-			<div className="p-5 pt-0">
-				{CONTACT_TOPICS[plan.id] && !isActive ? (
-					<Button asChild className="w-full" size="lg" variant="secondary">
-						<a
-							href={`https://www.databuddy.cc/contact?topic=${CONTACT_TOPICS[plan.id]}`}
-							rel="noopener noreferrer"
-							target="_blank"
+			<Card.Content className="flex flex-1 flex-col gap-5 p-5">
+				<PricingFeatures plan={plan} />
+				<div className="mt-auto space-y-3">
+					{contactTopic && !isActive ? (
+						<Button asChild className="w-full" size="lg" variant="secondary">
+							<a
+								href={`https://www.databuddy.cc/contact?topic=${contactTopic}`}
+								rel="noopener noreferrer"
+								target="_blank"
+							>
+								Request access
+							</a>
+						</Button>
+					) : (
+						<Button
+							aria-label={getButtonText(eligibility, isSelected)}
+							className="w-full"
+							disabled={
+								!eligibility?.canceling &&
+								(isActive || eligibility?.status === "scheduled")
+							}
+							loading={isLoadingPreview}
+							onClick={async () => {
+								setIsLoadingPreview(true);
+								try {
+									setPreview(await previewAction());
+									setDialogOpen(true);
+								} catch (error) {
+									toast.error(
+										getUserFacingErrorMessage(
+											error,
+											"We couldn't load the billing preview. Try again."
+										)
+									);
+								} finally {
+									setIsLoadingPreview(false);
+								}
+							}}
+							size="lg"
+							variant={
+								isActive || !(isRecommended || isSelected)
+									? "secondary"
+									: "primary"
+							}
 						>
-							Request access
-						</a>
-					</Button>
-				) : (
-					<Button
-						className="w-full"
-						disabled={buttonState.disabled}
-						loading={isAttaching}
-						onClick={handleUpgradeClick}
-						size="lg"
-						variant={buttonState.variant}
-					>
-						{buttonState.text}
-					</Button>
-				)}
-			</div>
-
+							{getButtonText(eligibility, isSelected)}
+						</Button>
+					)}
+				</div>
+			</Card.Content>
 			{preview && (
 				<AttachDialog
-					action={dialogAction}
-					onConfirm={async () => {
-						await attachAction?.();
-					}}
+					action={
+						eligibility?.canceling
+							? "resume"
+							: eligibility?.trialAvailable
+								? "trial"
+								: eligibility?.attachAction
+					}
+					onConfirm={attachAction}
 					open={dialogOpen}
-					planName={planDisplayName}
+					planName={planName}
 					preview={preview}
 					setOpen={setDialogOpen}
+					terms={investigationTerms}
 				/>
 			)}
+		</Card>
+	);
+}
+
+export function getInvestigationTerms(items: HookPlan["items"]) {
+	return items.some(
+		(item) =>
+			item.featureId === INVESTIGATION_USAGE.featureId &&
+			((item.included ?? 0) > 0 || item.unlimited || item.price)
+	)
+		? "Only completed investigations count. Clarifications and repair checks are included."
+		: undefined;
+}
+
+export function PricingPlanPrice({
+	plan,
+}: {
+	plan: Pick<HookPlan, "id" | "autoEnable" | "price">;
+}) {
+	const price = plan.price;
+	if (!price) {
+		return (
+			<Text className="text-pretty" tone="muted" variant="body">
+				{plan.autoEnable ? "Free" : "No base fee"}
+			</Text>
+		);
+	}
+	const count = price.intervalCount ?? 1;
+	const interval = count === 1 ? price.interval : `${count} ${price.interval}s`;
+	return (
+		<div className="flex items-baseline gap-1">
+			<span className="font-semibold text-3xl tabular-nums">
+				{formatPriceAmount(price.amount)}
+			</span>
+			<Text tone="muted" variant="body">
+				{price.interval === "one_off" ? "one time" : `/ ${interval}`}
+			</Text>
 		</div>
 	);
 }
 
-interface FeatureItemDisplay {
-	display?: { primaryText?: string; secondaryText?: string };
-	featureId?: string;
-	included?: number;
-	price?: {
-		tiers?: Array<{ to: number | "inf"; amount: number } | null> | null;
-	} | null;
-	reset?: { interval?: string | null } | null;
-}
-
-const INTERVAL_ADVERB: Record<string, string> = {
-	day: "daily",
-	week: "weekly",
-	month: "monthly",
-	quarter: "quarterly",
-	year: "yearly",
-};
-
-function intervalRank(interval?: string | null): number {
-	switch (interval) {
-		case "year":
-			return 5;
-		case "quarter":
-			return 4;
-		case "month":
-			return 3;
-		case "week":
-			return 2;
-		case "day":
-			return 1;
-		default:
-			return 0;
-	}
-}
-
-function groupItemsByFeature<T extends FeatureItemDisplay>(items: T[]): T[][] {
-	const byFeature = new Map<string, T[]>();
-	const order: string[] = [];
-	for (const item of items) {
-		const key = item.featureId ?? item.display?.primaryText ?? "";
-		if (!byFeature.has(key)) {
-			byFeature.set(key, []);
-			order.push(key);
-		}
-		byFeature.get(key)?.push(item);
-	}
-	return order.map((key) => {
-		const group = byFeature.get(key) ?? [];
-		return [...group].sort(
-			(a, b) =>
-				intervalRank(b.reset?.interval) - intervalRank(a.reset?.interval)
-		);
-	});
-}
-
-function FeatureItem({ group }: { group: FeatureItemDisplay[] }) {
-	const primary = group[0];
-	const extras = group.slice(1);
-	const rawTiers = primary.price?.tiers;
-	const tiers = rawTiers?.filter(
-		(t): t is { to: number | "inf"; amount: number } => t !== null
-	);
-	const hasTiers = tiers && tiers.length > 0;
-
-	let secondaryText = primary.display?.secondaryText;
-	if (hasTiers) {
-		const firstPaidTier = tiers.find((t) => t.amount > 0);
-		secondaryText = firstPaidTier
-			? `then $${firstPaidTier.amount.toFixed(6)}/event`
-			: "Included";
-	}
-
-	const extraFragments = extras
-		.map((item) => {
-			const interval = item.reset?.interval ?? undefined;
-			const adverb = interval ? INTERVAL_ADVERB[interval] : undefined;
-			if (!(item.included && adverb)) {
-				return null;
-			}
-			return `+${formatLocaleNumber(item.included)} ${adverb}`;
-		})
-		.filter((x): x is string => Boolean(x));
-
-	const combinedSecondary = [secondaryText, ...extraFragments]
-		.filter(Boolean)
-		.join(" · ");
-
-	return (
-		<li className="flex items-start gap-2 text-sm">
-			<CheckIcon className="mt-[3px] size-4 shrink-0 text-success" />
-			<div className="min-w-0 flex-1">
-				<span className="text-foreground">{primary.display?.primaryText}</span>
-				{combinedSecondary && (
-					<div className="flex items-center gap-1">
-						<Text tone="muted" variant="caption">
-							{combinedSecondary}
-						</Text>
-						{hasTiers && <PricingTiersTooltip showText={false} tiers={tiers} />}
-					</div>
-				)}
-			</div>
-		</li>
-	);
-}
-
-function GatedFeatureItem({
-	name,
-	limit,
-	unit,
+export function PricingFeatures({
+	plan,
 }: {
-	name: string;
-	limit: FeatureLimit;
-	unit?: string;
+	plan: Pick<HookPlan, "id" | "items">;
 }) {
-	const limitText = (() => {
-		if (limit === "unlimited") {
-			return "Unlimited";
-		}
-		if (typeof limit === "number") {
-			if (unit) {
-				return `Up to ${formatLocaleNumber(limit)} ${unit}`;
-			}
-			return `Up to ${formatLocaleNumber(limit)}`;
-		}
-		return null;
-	})();
+	const eventItem =
+		plan.items.find(
+			(item) => item.featureId === "events" && (item.included || item.unlimited)
+		) ?? plan.items.find((item) => item.featureId === "events");
+	const eventPrice = plan.items.find(
+		(item) => item.featureId === "events" && item.price
+	)?.price;
+	const eventTiers = eventPrice?.tiers?.filter((tier) => tier !== null);
+	const chatIncluded = plan.items.some(
+		(item) => item.featureId === DATABUNNY_CHAT.featureId
+	);
+	const investigations = plan.items.filter(
+		(item) => item.featureId === INVESTIGATION_USAGE.featureId
+	);
+	const supportsInvestigations =
+		PLAN_FEATURE_LIMITS[normalizePlanId(plan.id)][
+			GATED_FEATURES.INVESTIGATIONS
+		] !== false;
+	return (
+		<ul className="space-y-3">
+			{eventItem && (
+				<li className="flex items-start gap-2 text-sm">
+					<CheckIcon className="mt-0.5 size-4 shrink-0 text-success" />
+					<div>
+						<span className="tabular-nums">
+							{allowanceText(eventItem, "events")}
+						</span>
+						{eventTiers?.length ? (
+							<div className="mt-1">
+								<PricingTiersTooltip
+									included={eventItem.included ?? 0}
+									billingUnits={eventPrice?.billingUnits ?? 1}
+									tiers={eventTiers}
+								/>
+							</div>
+						) : eventPrice?.amount == null ? null : (
+							<Text className="text-pretty" tone="muted" variant="caption">
+								Extra events:{" "}
+								{formatPriceAmount(
+									(eventPrice.amount * 1000) / (eventPrice.billingUnits ?? 1)
+								)}{" "}
+								per 1,000
+							</Text>
+						)}
+					</div>
+				</li>
+			)}
+			{chatIncluded && <StaticFeatureItem label="Databunny chat included" />}
+			{supportsInvestigations && getInvestigationTerms(investigations) && (
+				<InvestigationFeatureItem items={investigations} />
+			)}
+			{PLAN_SUPPORT[plan.id] && (
+				<StaticFeatureItem label={PLAN_SUPPORT[plan.id]} />
+			)}
+		</ul>
+	);
+}
 
+function InvestigationFeatureItem({ items }: { items: BillingItem[] }) {
+	const allowance =
+		items.find((item) => item.included || item.unlimited) ?? items[0];
+	const price = items.find((item) => item.price)?.price;
+	const units = price?.billingUnits ?? 1;
 	return (
 		<li className="flex items-start gap-2 text-sm">
-			<CheckIcon className="mt-[3px] size-4 shrink-0 text-success" />
-			<div className="min-w-0 flex-1">
-				<span className="text-foreground">{name}</span>
-				{limitText && (
-					<Text tone="muted" variant="caption">
-						{limitText}
+			<CheckIcon className="mt-0.5 size-4 shrink-0 text-success" />
+			<div>
+				<span className="tabular-nums">
+					{allowance.included || allowance.unlimited
+						? allowanceText(allowance, "investigations")
+						: "Investigations"}
+				</span>
+				{!allowance.unlimited && price && (
+					<Text className="text-pretty" tone="muted" variant="caption">
+						{price.amount == null
+							? "Extra investigation rates vary by tier"
+							: `${formatPriceAmount(price.amount)} per ${units === 1 ? "extra investigation" : `${formatLocaleNumber(units)} extra investigations`}`}
+						{price.billingMethod === "prepaid" ? " · prepaid" : ""}
 					</Text>
 				)}
 			</div>
 		</li>
+	);
+}
+
+export function PlanComparison({
+	plans,
+}: {
+	plans: Pick<HookPlan, "id" | "name" | "items">[];
+}) {
+	const hasCreditTerms = plans.some(
+		(plan) =>
+			!plan.items.some((item) => item.featureId === DATABUNNY_CHAT.featureId) &&
+			plan.items.some((item) => item.featureId === "agent_credits")
+	);
+	return (
+		<Table aria-label="Plan comparison" className="min-w-[540px]" tabIndex={0}>
+			<TableHeader>
+				<TableRow>
+					<TableHead scope="col">Feature</TableHead>
+					{plans.map((plan) => (
+						<TableHead key={plan.id} scope="col">
+							{getCustomerPlanName(plan.id, plan.name)}
+						</TableHead>
+					))}
+				</TableRow>
+			</TableHeader>
+			<TableBody>
+				{hasCreditTerms && (
+					<TableRow>
+						<TableHead className="whitespace-normal" scope="row">
+							Current AI terms
+						</TableHead>
+						{plans.map((plan) => (
+							<TableCell
+								className="whitespace-normal text-pretty tabular-nums"
+								key={plan.id}
+							>
+								{plan.items.some(
+									(item) => item.featureId === DATABUNNY_CHAT.featureId
+								)
+									? "Chat included"
+									: plan.items
+											.filter(
+												(item) =>
+													item.featureId === "agent_credits" &&
+													(item.included || item.unlimited)
+											)
+											.map((item) => allowanceText(item, "AI credits"))
+											.join(" + ") ||
+										(plan.items.some(
+											(item) => item.featureId === "agent_credits" && item.price
+										)
+											? "Credits purchased separately"
+											: "Not included")}
+							</TableCell>
+						))}
+					</TableRow>
+				)}
+				{Object.values(GATED_FEATURES)
+					.filter((feature) => !HIDDEN_PRICING_FEATURES.includes(feature))
+					.map((feature) => (
+						<TableRow key={feature}>
+							<TableHead scope="row">
+								{FEATURE_METADATA[feature].name}
+							</TableHead>
+							{plans.map((plan) => {
+								const limit =
+									PLAN_FEATURE_LIMITS[normalizePlanId(plan.id)][feature];
+								const value =
+									limit === false
+										? "Not included"
+										: typeof limit === "number"
+											? formatLocaleNumber(limit)
+											: FEATURE_METADATA[feature].unit
+												? "Unlimited"
+												: "Included";
+								return (
+									<TableCell className="tabular-nums" key={plan.id}>
+										{value}
+									</TableCell>
+								);
+							})}
+						</TableRow>
+					))}
+			</TableBody>
+		</Table>
 	);
 }
 
 function StaticFeatureItem({ label }: { label: string }) {
 	return (
 		<li className="flex items-start gap-2 text-sm">
-			<CheckIcon className="mt-[3px] size-4 shrink-0 text-success" />
-			<span className="text-foreground">{label}</span>
+			<CheckIcon className="mt-0.5 size-4 shrink-0 text-success" />
+			<span>{label}</span>
 		</li>
 	);
 }

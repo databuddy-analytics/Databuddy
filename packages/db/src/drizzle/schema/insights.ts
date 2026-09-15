@@ -1,6 +1,7 @@
 import { inArray } from "drizzle-orm";
 import type {
 	InsightReplySlackDelivery,
+	InvestigationEvidenceSnapshot,
 	InvestigationOutcome,
 	InvestigationSignal,
 } from "@databuddy/shared/insights";
@@ -272,6 +273,7 @@ export const insightObservations = pgTable(
 		asOf: timestamp("as_of", { precision: 3, withTimezone: true }).notNull(),
 		signal: jsonb().$type<InvestigationSignal>().notNull(),
 		evidence: jsonb().$type<string[]>().default([]).notNull(),
+		snapshot: jsonb().$type<InvestigationEvidenceSnapshot>(),
 		outcome: jsonb("decision").$type<InvestigationOutcome>().notNull(),
 		recheckAt: timestamp("recheck_at", {
 			precision: 3,
@@ -322,6 +324,12 @@ export const insightReplies = pgTable(
 		id: text().primaryKey(),
 		insightId: text("insight_id").notNull(),
 		observationId: text("observation_id"),
+		sourceObservationId: text("source_observation_id"),
+		intent: text()
+			.$type<"clarification" | "analysis" | "verification">()
+			.default("clarification")
+			.notNull(),
+		assistantText: text("assistant_text"),
 		authorId: text("author_id"),
 		authorName: text("author_name").notNull(),
 		body: text().notNull(),

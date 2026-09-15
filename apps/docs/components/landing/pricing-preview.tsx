@@ -4,7 +4,7 @@ import { ArrowRightIcon } from "@databuddy/ui/icons";
 import Link from "next/link";
 import { Estimator } from "@/app/(home)/pricing/_pricing/estimator";
 import { normalizePlans } from "@/app/(home)/pricing/_pricing/normalize";
-import type { NormalizedPlan } from "@/app/(home)/pricing/_pricing/types";
+import type { NormalizedPlan } from "@/app/(home)/pricing/_pricing/normalize";
 import { RAW_PLANS } from "@/app/(home)/pricing/data";
 import { SectionBullet } from "../icons/section-bullet";
 
@@ -23,8 +23,8 @@ export function PricingPreview() {
 					</span>
 				</h2>
 				<p className="mt-3 max-w-2xl text-pretty text-muted-foreground text-sm sm:px-0 sm:text-base lg:text-lg">
-					Every feature on every plan. Slide to your event volume and see the
-					number. No sales call, no feature gates.
+					Estimate your monthly bill from events and investigations. Databunny
+					chat is included.
 				</p>
 			</div>
 

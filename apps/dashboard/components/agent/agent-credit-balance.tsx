@@ -1,5 +1,7 @@
 "use client";
 
+import { hasDatabunnyChat } from "@databuddy/shared/billing";
+
 import { useAtomValue } from "jotai";
 import { motion } from "motion/react";
 import { useRouter } from "next/navigation";
@@ -22,7 +24,7 @@ export function AgentCreditBalance({
 	variant = "default",
 }: AgentCreditBalanceProps) {
 	const { balance, limit, unlimited } = useUsageFeature("agent_credits");
-	const { refetch, isLoading } = useBillingContext();
+	const { customer, refetch, isLoading } = useBillingContext();
 	const chat = useChatSafe();
 	const status = chat?.status ?? "ready";
 	const router = useRouter();
@@ -58,12 +60,16 @@ export function AgentCreditBalance({
 		);
 	}
 
+	if (hasDatabunnyChat(customer?.flags)) {
+		return null;
+	}
+
 	if (unlimited) {
 		if (variant === "compact") {
 			return null;
 		}
 		return (
-			<Tooltip content="Unlimited investigation credits on your plan">
+			<Tooltip content="Unlimited AI credits on your plan">
 				<Button
 					className="gap-1 border border-border/60 bg-card px-2 text-muted-foreground text-xs hover:border-border hover:bg-card hover:text-foreground"
 					onClick={() => router.push("/billing")}
@@ -88,8 +94,8 @@ export function AgentCreditBalance({
 		<Tooltip
 			content={
 				isEmpty
-					? "Your investigation credit balance is empty. Open billing to add credits or change plans."
-					: `${balance.toLocaleString()} of ${limit.toLocaleString()} investigation credits remaining. Deeper investigations, replies, and rechecks use more.`
+					? "Your AI credit balance is empty. Open billing to add credits or change plans."
+					: `${balance.toLocaleString()} of ${limit.toLocaleString()} AI credits remaining. For ordinary chat and investigations on legacy billing terms.`
 			}
 		>
 			<motion.div
@@ -102,8 +108,8 @@ export function AgentCreditBalance({
 				<Button
 					aria-label={
 						isEmpty
-							? "Investigation credit balance is empty; open billing"
-							: `${balance.toLocaleString()} of ${limit.toLocaleString()} investigation credits remaining`
+							? "AI credit balance is empty; open billing"
+							: `${balance.toLocaleString()} of ${limit.toLocaleString()} AI credits remaining`
 					}
 					className={cn(
 						"gap-1.5 border px-2 text-xs",
@@ -115,7 +121,9 @@ export function AgentCreditBalance({
 						!(isEmpty || isLow) &&
 							"border-border/60 bg-card text-muted-foreground hover:border-border hover:bg-card hover:text-foreground"
 					)}
-					onClick={() => router.push(isEmpty ? "/billing#topup" : "/billing")}
+					onClick={() =>
+						router.push(isEmpty ? "/billing#chat-topup" : "/billing")
+					}
 					size="sm"
 					variant="secondary"
 				>

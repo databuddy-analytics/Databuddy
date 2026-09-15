@@ -116,10 +116,10 @@ Add to your MCP settings (typically `.cursor/mcp.json` or workspace settings):
 |------|-------------|
 | `list_investigations` | List durable investigations and their current status. |
 | `get_investigation` | Read an investigation's evidence, outcome, and reply timeline. |
-| `reply_to_investigation` | Add context and queue the same investigation to continue. |
+| `reply_to_investigation` | Ask an included clarification using the saved investigation evidence. |
 | `list_insights` | List published findings, including quiet ones. |
 
-`reply_to_investigation` returns the durable reply status immediately. If it is `queued` or `running`, call `get_investigation` with the same investigation ID until the reply is `succeeded` or `failed`; the new outcome appears in that timeline.
+`reply_to_investigation` returns the durable reply status immediately. If it is `queued` or `running`, call `get_investigation` with the same investigation ID until the reply is `succeeded` or `failed`; the clarification answer appears in that timeline. This does not fetch fresh data or change the investigation’s action. Start a new question or fresh analysis in the dashboard, where the $1 price is shown before you submit.
 
 ### Funnels & Goals
 

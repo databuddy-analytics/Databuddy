@@ -206,7 +206,10 @@ function BilledOverageRow({
 						</span>
 					</div>
 					{feature.pricingTiers.length > 0 && (
-						<PricingTiersTooltip tiers={feature.pricingTiers} />
+						<PricingTiersTooltip
+							included={feature.includedLimit}
+							tiers={feature.pricingTiers}
+						/>
 					)}
 				</div>
 			</div>

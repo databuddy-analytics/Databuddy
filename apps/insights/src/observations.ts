@@ -8,6 +8,7 @@ import type { InvestigationOutcome } from "@databuddy/shared/insights";
 import {
 	parseInvestigationOutcome,
 	parseInvestigationSignal,
+	investigationEvidenceSnapshotSchema,
 } from "@databuddy/shared/insights";
 import type { DetectedSignal } from "./detection";
 import type { InsightAgentInput } from "./agent";
@@ -17,6 +18,7 @@ import {
 	signalKeyForDetectedSignal,
 } from "./investigation";
 import { captureInsightsError } from "./lib/evlog-insights";
+import { settleInvestigationCharge } from "./investigation-billing";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const HISTORY_LIMIT = 12;
@@ -53,6 +55,9 @@ export type LatestInsightObservation = Pick<
 
 export interface DueOpenInvestigation extends LatestInsightObservation {
 	evidence: string[];
+	// Synthetic shadow observations have no persisted identity.
+	id?: string;
+	insightId?: string | null;
 }
 
 export function nextRecheckAt(
@@ -158,6 +163,8 @@ export async function loadDueOpenInvestigation(params: {
 }): Promise<DueOpenInvestigation | null> {
 	const rows = await db
 		.selectDistinctOn([insightObservations.signalKey], {
+			id: insightObservations.id,
+			insightId: insightObservations.insightId,
 			evidence: insightObservations.evidence,
 			outcome: insightObservations.outcome,
 			recheckAt: insightObservations.recheckAt,
@@ -390,6 +397,7 @@ export async function findRunObservations(params: {
 			outcome: insightObservations.outcome,
 			signal: insightObservations.signal,
 			signalKey: insightObservations.signalKey,
+			snapshot: insightObservations.snapshot,
 		})
 		.from(insightObservations)
 		.where(
@@ -416,4 +424,115 @@ export async function findRunObservations(params: {
 		}
 		return [{ ...observation, outcome, signal }];
 	});
+}
+
+export async function settleRunInvestigationCharges(params: {
+	organizationId: string;
+	runId: string;
+	websiteId: string;
+}): Promise<void> {
+	for (const observation of await findRunObservations(params)) {
+		// Deterministic included checks and pre-snapshot legacy results never held
+		// a reservation. Native result snapshots describe completion, not payment.
+		if (!observation.snapshot) {
+			continue;
+		}
+		const snapshot = investigationEvidenceSnapshotSchema.safeParse(
+			observation.snapshot
+		);
+		await settleInvestigationCharge({
+			...params,
+			operationKey: JSON.stringify([
+				"run",
+				params.runId,
+				params.websiteId,
+				observation.signalKey,
+			]),
+			complete: Boolean(
+				observation.insightId &&
+					snapshot.success &&
+					snapshot.data.organizationId === params.organizationId &&
+					snapshot.data.websiteId === params.websiteId &&
+					snapshot.data.signalKey === observation.signalKey &&
+					snapshot.data.completion === "complete"
+			),
+		});
+	}
+}
+
+/** Source evidence is loaded independently of the bounded conversation tail. */
+export async function loadClarificationContext(params: {
+	sourceObservationId: string | null;
+	organizationId: string;
+	websiteId: string;
+	signalKey: string;
+	beforeReply: { createdAt: Date; id: string };
+}) {
+	const [source] = await db
+		.select({
+			id: insightObservations.id,
+			snapshot: insightObservations.snapshot,
+			outcome: insightObservations.outcome,
+			signal: insightObservations.signal,
+		})
+		.from(insightObservations)
+		.where(
+			and(
+				eq(insightObservations.organizationId, params.organizationId),
+				eq(insightObservations.websiteId, params.websiteId),
+				eq(insightObservations.signalKey, params.signalKey),
+				params.sourceObservationId
+					? eq(insightObservations.id, params.sourceObservationId)
+					: lte(insightObservations.createdAt, params.beforeReply.createdAt)
+			)
+		)
+		.orderBy(desc(insightObservations.createdAt), desc(insightObservations.id))
+		.limit(1);
+	const outcome = parseInvestigationOutcome(source?.outcome);
+	const signal = parseInvestigationSignal(source?.signal);
+	if (!(source && outcome && signal)) {
+		throw new Error("The saved investigation is unavailable for this reply");
+	}
+	const snapshot =
+		source.snapshot == null
+			? null
+			: investigationEvidenceSnapshotSchema.parse(source.snapshot);
+	if (
+		snapshot &&
+		(snapshot.organizationId !== params.organizationId ||
+			snapshot.websiteId !== params.websiteId ||
+			snapshot.signalKey !== params.signalKey)
+	) {
+		throw new Error("The saved evidence belongs to a different investigation");
+	}
+	const replies = await db
+		.select({
+			body: insightReplies.body,
+			assistantText: insightReplies.assistantText,
+		})
+		.from(insightReplies)
+		.innerJoin(
+			analyticsInsights,
+			eq(insightReplies.insightId, analyticsInsights.id)
+		)
+		.where(
+			and(
+				eq(analyticsInsights.organizationId, params.organizationId),
+				eq(analyticsInsights.websiteId, params.websiteId),
+				eq(analyticsInsights.subjectKey, params.signalKey),
+				eq(insightReplies.sourceObservationId, source.id),
+				eq(insightReplies.intent, "clarification"),
+				eq(insightReplies.status, "succeeded"),
+				or(
+					lt(insightReplies.createdAt, params.beforeReply.createdAt),
+					and(
+						eq(insightReplies.createdAt, params.beforeReply.createdAt),
+						lt(insightReplies.id, params.beforeReply.id)
+					)
+				)
+			)
+		)
+		.orderBy(desc(insightReplies.createdAt), desc(insightReplies.id))
+		.limit(HISTORY_LIMIT);
+	return { snapshot, outcome, signal, history: replies.reverse() };
 }

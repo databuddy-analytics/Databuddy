@@ -1,8 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
-	ensureAgentCreditsAvailable,
 	isAgentBillingConfigured,
-	resolveAgentBillingCustomerId,
+	trackAgentUsage,
 	trackAgentUsageAndBill,
 } from "@databuddy/ai/agents/execution";
 import { createModelFromId } from "@databuddy/ai/config/models";
@@ -31,9 +30,13 @@ import {
 	emitInsightsEvent,
 	withInsightsLogContext,
 } from "./lib/evlog-insights";
+import {
+	canRunInvestigation,
+	resolveInvestigationBilling,
+} from "./investigation-billing";
 
 const WWW = /^www\./;
-const MODEL = "openai/gpt-5.6-terra";
+const MODEL = "openai/gpt-5.6-luna";
 const generationSchema = z.strictObject({
 	organizationId: z.string().min(1),
 	generationId: z.string().min(1),
@@ -177,24 +180,26 @@ export async function generateOrganizationBusinessContext(
 			return;
 		}
 		failure =
-			"Could not verify AI credits. Check billing and try again; your saved context is unchanged.";
-		const customer = await bounded(
-			resolveAgentBillingCustomerId({ organizationId: input.organizationId }),
+			"Could not verify investigation access. Check billing and try again; your saved context is unchanged.";
+		const billing = await bounded(
+			resolveInvestigationBilling({ organizationId: input.organizationId }),
 			signal
 		);
-		if (isAgentBillingConfigured() && !customer) {
-			throw new Error("Configured billing has no organization customer");
-		}
-		if (!(await bounded(ensureAgentCreditsAvailable(customer), signal))) {
+		if (!(await bounded(canRunInvestigation(billing), signal))) {
 			failure =
-				"There are not enough AI credits to generate a draft. Your saved context is unchanged.";
+				"Your investigation balance is empty. Add balance to generate a draft; your saved context is unchanged.";
 			throw new Error(
-				"Organization business context generation has insufficient credits"
+				"Organization business context generation has insufficient balance"
 			);
 		}
+		const billsCredits = billing.mode === "legacy";
 		// The shared helper reports charge failures through its native request logger.
 		// Require that channel before spending, and inspect each call's isolated event.
-		if (isAgentBillingConfigured() && !getActiveAiRequestLogger()) {
+		if (
+			billsCredits &&
+			isAgentBillingConfigured() &&
+			!getActiveAiRequestLogger()
+		) {
 			throw new Error("AI billing error reporting is unavailable");
 		}
 		const bill = async (
@@ -210,6 +215,7 @@ export async function generateOrganizationBusinessContext(
 			await withInsightsLogContext(logger, async () => {
 				try {
 					if (
+						billsCredits &&
 						isAgentBillingConfigured() &&
 						getActiveAiRequestLogger() !== logger
 					) {
@@ -218,17 +224,19 @@ export async function generateOrganizationBusinessContext(
 						);
 					}
 					await bounded(
-						trackAgentUsageAndBill({
-							billingCustomerId: customer,
-							organizationId: input.organizationId,
-							websiteId: site.id,
-							userId: generation.requestedBy,
-							source: "insights",
-							agentType: "organization_business_context",
-							modelId: MODEL,
-							usage,
-							idempotencyKey,
-						}),
+						Promise.resolve(
+							(billsCredits ? trackAgentUsageAndBill : trackAgentUsage)({
+								billingCustomerId: billing.customerId,
+								organizationId: input.organizationId,
+								websiteId: site.id,
+								userId: generation.requestedBy,
+								source: "insights",
+								agentType: "organization_business_context",
+								modelId: MODEL,
+								usage,
+								idempotencyKey,
+							})
+						),
 						settlement
 					);
 					if (logger.getContext().agent_usage_billing_error) {

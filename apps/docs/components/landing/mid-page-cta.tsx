@@ -15,7 +15,7 @@ export function MidPageCta() {
 				Ready to see your data?
 			</h2>
 			<p className="max-w-lg text-pretty text-muted-foreground text-sm sm:text-base">
-				Set up in 5 minutes. Free up to 10,000 events per month.
+				Free up to 10,000 events per month. No credit card required.
 			</p>
 			<div className="flex items-center gap-3 pt-1">
 				<Button asChild>

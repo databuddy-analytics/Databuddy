@@ -5,7 +5,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { FeatureGate } from "@/components/feature-gate";
-import { useBillingContext } from "@/components/providers/billing-provider";
+import {
+	useBillingContext,
+	useInvestigationUsage,
+} from "@/components/providers/billing-provider";
 import { orpc } from "@/lib/orpc";
 import {
 	Button,
@@ -110,6 +113,7 @@ export function InvestigationSettings({
 	});
 
 	const { isFeatureEnabled, isLoading: billingLoading } = useBillingContext();
+	const { fixedPrice } = useInvestigationUsage();
 	const canInvestigate =
 		billingLoading || isFeatureEnabled(GATED_FEATURES.INVESTIGATIONS);
 	const configReady = Boolean(organizationId && configQuery.isSuccess && form);
@@ -212,7 +216,13 @@ export function InvestigationSettings({
 					</FeatureGate>
 				</Sheet.Body>
 
-				<Sheet.Footer className="flex items-center justify-between gap-3">
+				<Sheet.Footer className="flex flex-wrap items-center justify-between gap-3">
+					{!billingLoading && fixedPrice && (
+						<p className="w-full text-muted-foreground text-xs">
+							Scheduled and manual runs can complete multiple investigations.
+							Your monthly allowance applies first, then $1 each.
+						</p>
+					)}
 					<Button
 						disabled={isBusy || !canInvestigate}
 						onClick={() => {

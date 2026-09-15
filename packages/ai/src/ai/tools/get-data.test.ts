@@ -60,6 +60,82 @@ describe("analytics tool contract", () => {
 		});
 	});
 
+	it.each([
+		{ groupBy: undefined },
+		{ groupBy: [] },
+		{ groupBy: ["namespace"] },
+		{ groupBy: ["namespace", "profile_id"] },
+	])("returns a native retention option error instead of mislabeling grouped data: %j", async ({
+		groupBy,
+	}) => {
+		const query = vi.fn().mockResolvedValue([{ row_type: "overall" }]);
+		vi.spyOn(SimpleQueryBuilder.prototype, "execute").mockImplementation(
+			function () {
+				// Exercise native request parsing and the real SQL compiler;
+				// stub the rows returned after compilation.
+				this.compile();
+				return query();
+			}
+		);
+		const request = {
+			queries: [
+				{
+					type: "identified_profile_retention",
+					from: "2026-08-01",
+					to: "2026-08-14",
+					groupBy,
+					filters: [
+						{
+							field: "activation_event",
+							op: "eq" as const,
+							value: "activated",
+						},
+						{ field: "return_event", op: "eq" as const, value: "returned" },
+						{ field: "horizon_days", op: "eq" as const, value: 7 },
+						{
+							field: "observation_end",
+							op: "eq" as const,
+							value: "2026-08-31",
+						},
+					],
+				},
+			],
+		};
+		const schema = asSchema(getDataTool.inputSchema);
+		if (!(schema.validate && getDataTool.execute))
+			throw new Error("Missing data tool contract");
+		expect((await schema.validate(request)).success).toBe(true);
+		const result = await getDataTool.execute(request, options);
+		if (groupBy?.length) {
+			expect(result).toEqual({
+				results: {
+					identified_profile_retention: {
+						type: "identified_profile_retention",
+						websiteId: "site-test",
+						data: [],
+						rowCount: 0,
+						error:
+							"Invalid retention options: fixed daily cohorts with overall row first; omit groupBy, orderBy and offset.",
+					},
+				},
+			});
+			expect(query).not.toHaveBeenCalled();
+			return;
+		}
+		expect(result).toMatchObject({
+			results: {
+				identified_profile_retention: {
+					data: [{ row_type: "overall" }],
+					rowCount: 1,
+					returnedRows: 1,
+					truncated: false,
+				},
+			},
+		});
+		expect(JSON.stringify(result)).not.toContain("groupBy:");
+		expect(query).toHaveBeenCalledOnce();
+	});
+
 	it("returns the measured scope and distinguishes a truncated result from its query row count", async () => {
 		const execute = vi
 			.spyOn(SimpleQueryBuilder.prototype, "execute")

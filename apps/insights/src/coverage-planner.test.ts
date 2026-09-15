@@ -303,10 +303,17 @@ describe("business preference constraints", () => {
 		expect(plan).toHaveLength(5);
 		expect(plan).toContain(error);
 		expect(plan).toContain(funnel);
-		expect(plan).toContain(traffic);
+		expect(plan).not.toContain(traffic);
 		expect(plan.filter((item) => item.metric.startsWith("goal:"))).toHaveLength(
-			2
+			3
 		);
+	});
+
+	it.each(["manual", "scheduled"] as const)("preserves an explicit traffic exclusion in a %s scan", (reason) => {
+		const goal = signal({ metric: "goal:activation", subjectKey: "goal:activation" });
+		const traffic = signal({ metric: "visitors" });
+		expect(planCoveragePortfolio([traffic, goal], { reason, selectedSignalKeys: keys([goal]) })).toEqual([goal]);
+		expect(planCoveragePortfolio([traffic, goal], { reason, selectedSignalKeys: keys([traffic]) })).toContain(traffic);
 	});
 
 	it("keeps one correlated subject, the due case first, and the scheduled limit", () => {

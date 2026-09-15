@@ -2,9 +2,11 @@ import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
 
 const originalAutumnSecretKey = process.env.AUTUMN_SECRET_KEY;
 
-const mockAutumnCheck = mock(async () => ({
+const mockAutumnCheck = mock(async (input: { customerId: string }) => ({
 	allowed: true,
+	customerId: input.customerId,
 	balance: {
+		featureId: "agent_credits",
 		granted: 100,
 		remaining: 42,
 		unlimited: false,
@@ -23,6 +25,7 @@ const mockMergeWideEvent = mock((_: Record<string, unknown>) => {});
 
 mock.module("@databuddy/rpc/autumn", () => ({
 	getAutumn: () => ({
+		customers: { get: async (input: { customerId: string }) => ({ id: input.customerId, flags: {} }) },
 		check: mockAutumnCheck,
 		track: mockAutumnTrack,
 	}),
@@ -55,9 +58,10 @@ mock.module("../../lib/tracing", () => ({
 }));
 
 const {
-	ensureAgentCreditsAvailable,
+	getAgentBillingAccess,
 	isAgentBillingConfigured,
 	resolveAgentBillingCustomerId,
+	trackAgentUsage,
 	trackAgentUsageAndBill,
 } = await import("./execution");
 
@@ -166,9 +170,9 @@ describe("resolveAgentBillingCustomerId", () => {
 	});
 });
 
-describe("ensureAgentCreditsAvailable", () => {
+describe("getAgentBillingAccess", () => {
 	it("logs the checked Autumn customer and balance", async () => {
-		const allowed = await ensureAgentCreditsAvailable("owner:org_slack");
+		const { allowed } = await getAgentBillingAccess("owner:org_slack");
 
 		expect(allowed).toBe(true);
 		expect(mockAutumnCheck).toHaveBeenCalledWith({
@@ -192,7 +196,7 @@ describe("ensureAgentCreditsAvailable", () => {
 	it("skips Autumn when billing is not configured", async () => {
 		delete process.env.AUTUMN_SECRET_KEY;
 
-		const allowed = await ensureAgentCreditsAvailable("self-hosted-user");
+		const { allowed } = await getAgentBillingAccess("self-hosted-user");
 
 		expect(allowed).toBe(true);
 		expect(mockAutumnCheck).not.toHaveBeenCalled();
@@ -200,6 +204,23 @@ describe("ensureAgentCreditsAvailable", () => {
 			agent_credits_allowed: true,
 			agent_credits_check_skipped: true,
 		});
+	});
+});
+
+describe("trackAgentUsage", () => {
+	it("retains model costs without consuming credits when billing is configured", () => {
+		const summary = trackAgentUsage({
+			billingCustomerId: "owner:synthetic-org",
+			modelId: "openai/gpt-5.6-luna",
+			source: "insights",
+			usage: { inputTokens: 1_000_000, outputTokens: 1_000_000 },
+		});
+
+		expect(summary.cost_fallback).toBe(false);
+		expect(summary.cost_total_usd).toBe(1.4);
+		expect(mockMergeWideEvent).toHaveBeenCalledWith(summary);
+		expect(mockAutumnCheck).not.toHaveBeenCalled();
+		expect(mockAutumnTrack).not.toHaveBeenCalled();
 	});
 });
 

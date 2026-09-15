@@ -1,3 +1,7 @@
+import { getAutumn } from "../lib/autumn-client";
+import { getBillingCustomerId } from "../utils/billing";
+import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
+import { appliedInsightActionReply } from "@databuddy/shared/insights";
 import {
 	and,
 	db,
@@ -5,6 +9,7 @@ import {
 	eq,
 	inArray,
 	isNull,
+	ne,
 	notExists,
 	sql,
 } from "@databuddy/db";
@@ -68,6 +73,8 @@ function isAccessDenied(error: unknown): boolean {
 
 const appendInvestigationReplyInputSchema = z
 	.object({
+		intent: z.enum(["clarification", "analysis"]).optional(),
+		acceptedPriceUsd: z.literal(INVESTIGATION_USAGE.priceUsd).optional(),
 		body: z.string().trim().min(1).max(2000),
 		insightId: z.string().min(1).max(256),
 		replyId: z
@@ -80,7 +87,20 @@ const appendInvestigationReplyInputSchema = z
 			})
 			.optional(),
 	})
-	.strict();
+	.strict()
+	.superRefine((input, context) => {
+		if (
+			input.intent === "analysis" &&
+			input.acceptedPriceUsd !== INVESTIGATION_USAGE.priceUsd
+		) {
+			context.addIssue({
+				code: "custom",
+				path: ["acceptedPriceUsd"],
+				message:
+					"A new analysis uses one investigation; additional investigations cost $1 after your allowance. Accept that rate to continue.",
+			});
+		}
+	});
 
 type InsightTimelineItem = z.infer<typeof insightTimelineItemSchema>;
 
@@ -216,11 +236,31 @@ export async function queueDefinitionChangeRechecks(input: {
 						return null;
 					}
 
+					const [source] = await tx
+						.select({ id: insightObservations.id })
+						.from(insightObservations)
+						.where(
+							and(
+								eq(insightObservations.organizationId, insight.organizationId),
+								eq(insightObservations.websiteId, input.websiteId),
+								eq(insightObservations.signalKey, insight.subjectKey)
+							)
+						)
+						.orderBy(
+							desc(insightObservations.createdAt),
+							desc(insightObservations.id)
+						)
+						.limit(1);
+					if (!source) {
+						return null;
+					}
 					const id = randomUUIDv7();
 					await tx.insert(insightReplies).values({
 						authorId: null,
 						authorName: "Databuddy",
 						body: definitionChangeReply(input.type),
+						intent: "verification",
+						sourceObservationId: source.id,
 						id,
 						insightId: current.id,
 						status: "queued",
@@ -385,6 +425,8 @@ async function loadInsightTimeline(
 		db
 			.select({
 				authorName: insightReplies.authorName,
+				assistantText: insightReplies.assistantText,
+				intent: insightReplies.intent,
 				body: insightReplies.body,
 				createdAt: insightReplies.createdAt,
 				id: insightReplies.id,
@@ -423,6 +465,8 @@ async function loadInsightTimeline(
 			};
 		}),
 		...replies.map((reply) => ({
+			assistantText: reply.assistantText,
+			intent: reply.intent,
 			author: reply.authorName,
 			body: reply.body,
 			createdAt: reply.createdAt.toISOString(),
@@ -519,15 +563,47 @@ export async function appendInvestigationReply(
 	setAuditOrganization(context, insight.organizationId);
 
 	const author = replyAuthor(context, authorName);
+	if (parsed.intent === "analysis") {
+		if (!author.authorId) {
+			throw rpcError.badRequest("Start a new analysis from the dashboard.");
+		}
+		const customerId = await getBillingCustomerId(
+			author.authorId,
+			insight.organizationId
+		);
+		const customer = await getAutumn().customers.get({ customerId });
+		if (
+			customer.id !== customerId ||
+			!Object.hasOwn(customer.balances, INVESTIGATION_USAGE.featureId)
+		) {
+			throw rpcError.badRequest(
+				"Activate investigation billing to start a new analysis. Clarifications remain included."
+			);
+		}
+	}
 	const stored = await db.transaction(async (tx) => {
 		// Match persistence and deletion: website first, then investigation rows.
-		const businessScope = await getWebsiteBusinessScope(insight, {
-			database: tx,
-			initialize: true,
-		});
-		if (!businessScope) {
+		const [site] = await tx
+			.select({ id: websites.id })
+			.from(websites)
+			.where(
+				and(
+					eq(websites.id, insight.websiteId),
+					eq(websites.organizationId, insight.organizationId),
+					isNull(websites.deletedAt)
+				)
+			)
+			.for("update");
+		if (!site) {
 			throw rpcError.notFound("website", insight.websiteId);
 		}
+		const businessScope =
+			parsed.intent === "analysis"
+				? await getWebsiteBusinessScope(insight, {
+						database: tx,
+						initialize: true,
+					})
+				: null;
 		const insightCase = and(
 			eq(analyticsInsights.organizationId, insight.organizationId),
 			eq(analyticsInsights.websiteId, insight.websiteId),
@@ -548,6 +624,7 @@ export async function appendInvestigationReply(
 			.select({
 				authorName: insightReplies.authorName,
 				body: insightReplies.body,
+				intent: insightReplies.intent,
 				createdAt: insightReplies.createdAt,
 				id: insightReplies.id,
 				organizationId: analyticsInsights.organizationId,
@@ -569,6 +646,7 @@ export async function appendInvestigationReply(
 				existing.websiteId !== insight.websiteId ||
 				existing.subjectKey !== insight.subjectKey ||
 				existing.body !== parsed.body ||
+				existing.intent !== (parsed.intent ?? "clarification") ||
 				existing.slackDelivery?.channelId !== slackDelivery?.channelId ||
 				existing.slackDelivery?.threadTs !== slackDelivery?.threadTs
 			) {
@@ -598,6 +676,10 @@ export async function appendInvestigationReply(
 					eq(insightObservations.signalKey, insight.subjectKey)
 				)
 			)
+			.orderBy(
+				desc(insightObservations.createdAt),
+				desc(insightObservations.id)
+			)
 			.limit(1);
 		if (!observation) {
 			throw rpcError.badRequest(
@@ -623,7 +705,10 @@ export async function appendInvestigationReply(
 		}
 
 		const createdAt = new Date(
-			Math.max(Date.now(), Date.parse(businessScope.startedAt))
+			Math.max(
+				Date.now(),
+				businessScope ? Date.parse(businessScope.startedAt) : 0
+			)
 		);
 		await tx.insert(insightReplies).values({
 			...author,
@@ -631,6 +716,8 @@ export async function appendInvestigationReply(
 			createdAt,
 			id,
 			insightId: current.id,
+			intent: parsed.intent ?? "clarification",
+			sourceObservationId: observation.id,
 			slackDelivery,
 			status: "queued",
 		});
@@ -801,6 +888,7 @@ async function applyInsightAction(input: {
 
 		const [observation] = await tx
 			.select({
+				id: insightObservations.id,
 				createdAt: insightObservations.createdAt,
 				outcome: insightObservations.outcome,
 				signal: insightObservations.signal,
@@ -1020,13 +1108,15 @@ async function applyInsightAction(input: {
 		}
 
 		const replyId = randomUUIDv7();
-		const body = `Databuddy applied the ${entityType} action. Recheck its verification condition against current data.`;
+		const body = appliedInsightActionReply(entityType);
 		await tx.insert(insightReplies).values({
 			...author,
 			body,
 			createdAt: completedAt,
 			id: replyId,
 			insightId: current.id,
+			intent: "verification",
+			sourceObservationId: observation.id,
 			status: "queued",
 		});
 		return { body, createdAt: completedAt, id: replyId, type: entityType };
@@ -1156,7 +1246,8 @@ export const insightsRouter = {
 					.where(
 						and(
 							eq(insightReplies.insightId, analyticsInsights.id),
-							inArray(insightReplies.status, ["queued", "running"])
+							inArray(insightReplies.status, ["queued", "running"]),
+							ne(insightReplies.intent, "clarification")
 						)
 					)
 			);
@@ -1197,7 +1288,7 @@ export const insightsRouter = {
 						eq(insightObservations.insightId, analyticsInsights.id),
 						eq(insightObservations.websiteId, analyticsInsights.websiteId),
 						eq(insightObservations.signalKey, analyticsInsights.subjectKey),
-						sql`${insightObservations.outcome}->'next'->>'type' in ('act', 'ask')`
+						sql`(${insightObservations.outcome}->'next'->>'type' in ('act', 'ask') OR ${insightObservations.snapshot}->>'completion' = 'complete')`
 					)
 				)
 				.where(whereClause)

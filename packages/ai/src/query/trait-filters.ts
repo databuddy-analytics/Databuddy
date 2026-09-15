@@ -11,6 +11,7 @@ import type { Filter, QueryRequest } from "./types";
 export const SANITIZED_QUERY_ERROR = "Query failed";
 
 const PUBLIC_QUERY_ERROR_PATTERNS = [
+	/^Invalid retention (selectors|dates|options):/,
 	/^Unknown query type:/,
 	/^Filter on field '[^']+' is not permitted/,
 	/^Filter target '[^']+' is not permitted/,

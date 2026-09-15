@@ -15,6 +15,7 @@ import {
 } from "@databuddy/shared/organization-business-context";
 import { MockLanguageModelV3 } from "ai/test";
 import * as logs from "./lib/evlog-insights";
+import * as investigationBilling from "./investigation-billing";
 import { generateOrganizationBusinessContext } from "./organization-business-context";
 
 const input = {
@@ -156,9 +157,18 @@ function fixture(
 		"resolveAgentBillingCustomerId"
 	).mockResolvedValue("example-customer");
 	const credits = spyOn(
-		execution,
-		"ensureAgentCreditsAvailable"
+		investigationBilling,
+		"canRunInvestigation"
 	).mockResolvedValue(true);
+	const resolveBilling = spyOn(
+		investigationBilling,
+		"resolveInvestigationBilling"
+	).mockImplementation(async (principal) => {
+		const customerId = await execution.resolveAgentBillingCustomerId(principal);
+		if (!customerId)
+			throw new Error("Configured billing has no organization customer");
+		return { mode: "legacy", customerId };
+	});
 	const billed = (
 		call: Parameters<typeof execution.trackAgentUsageAndBill>[0]
 	) => summarizeAgentUsage(call.modelId, call.usage);
@@ -201,6 +211,7 @@ function fixture(
 		read,
 		search,
 		customer,
+		resolveBilling,
 		credits,
 		bill,
 		billed,
@@ -212,6 +223,28 @@ function fixture(
 }
 
 describe("organization business context worker", () => {
+	it("treats fixed-price preparation as internal usage without consuming an investigation or credits", async () => {
+		const f = fixture();
+		process.env.AUTUMN_SECRET_KEY = "synthetic-business-context-test";
+		f.resolveBilling.mockResolvedValue({
+			mode: "fixed",
+			customerId: "example-customer",
+		});
+		const usage = spyOn(execution, "trackAgentUsage").mockImplementation(
+			f.billed
+		);
+		const reserve = spyOn(
+			investigationBilling,
+			"reserveInvestigationCharge"
+		).mockRejectedValue(new Error("Preparation must not reserve a unit"));
+		await f.run();
+		expect(f.state.generation?.status).toBe("ready");
+		expect(f.bill).not.toHaveBeenCalled();
+		expect(reserve).not.toHaveBeenCalled();
+		expect(usage).toHaveBeenCalledTimes(2);
+		expect(usage.mock.calls[0]?.[0].modelId).toBe("openai/gpt-5.6-luna");
+	});
+
 	it("generates only a draft using inspected sources and separate saved context", async () => {
 		const f = fixture();
 		const profile = structuredClone(f.state.profile);
@@ -276,7 +309,7 @@ describe("organization business context worker", () => {
 		expect(
 			f.bill.mock.calls.every(
 				([call]) =>
-					call.modelId === "openai/gpt-5.6-terra" &&
+					call.modelId === "openai/gpt-5.6-luna" &&
 					call.organizationId === "example-org"
 			)
 		).toBe(true);

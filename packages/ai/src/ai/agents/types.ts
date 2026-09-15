@@ -49,6 +49,6 @@ export interface AgentConfig {
 	providerOptions?: ProviderOptions;
 	stopWhen?: StopCondition<ToolSet>;
 	system: SystemModelMessage;
-	temperature: number;
+	temperature?: number;
 	tools: ToolSet;
 }

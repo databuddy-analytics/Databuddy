@@ -199,7 +199,9 @@ export function planCoveragePortfolio(
 					(candidate) =>
 						selection.has(candidate.key) ||
 						isCriticalReliabilitySignal(candidate.signal) ||
-						(options.reason === "manual" && !usedFamilies.has(candidate.family))
+						(options.reason === "manual" &&
+							candidate.family !== "general" &&
+							!usedFamilies.has(candidate.family))
 				)
 			: available;
 		const preferred =

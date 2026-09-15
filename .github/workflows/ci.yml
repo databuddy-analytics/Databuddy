@@ -81,6 +81,7 @@ jobs:
           restore-keys: ${{ runner.os }}-bun-
       - run: bun install --frozen-lockfile --ignore-scripts
       - run: bun run --cwd apps/docs postinstall
+      - run: bun run --cwd apps/docs lint:links
       - run: bun run check-types
       - name: ClickHouse types match DDL
         run: bun run --cwd packages/db ch:check

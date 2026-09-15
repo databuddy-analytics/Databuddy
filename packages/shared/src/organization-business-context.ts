@@ -5,6 +5,40 @@ export const BUSINESS_CONTEXT_GENERATION_TIMEOUT = 180_000;
 export const BUSINESS_CONTEXT_DRAFT_HISTORY_LIMIT = 5;
 export const BUSINESS_CONTEXT_TEAM_FIELD_LIMIT = 2000;
 
+export const businessMeasurementPlanSchema = z.object({
+	websiteId: z.string().min(1).max(256),
+	domain: z.string().min(1).max(2048),
+	name: z.string().trim().min(1).max(120),
+	activationEvent: z.string().trim().min(1).max(256),
+	returnEvent: z.string().trim().min(1).max(256),
+	horizonDays: z.union([z.literal(7), z.literal(30)]),
+	namespace: z.string().trim().min(1).max(256).optional(),
+});
+
+export const businessMeasurementPlansSchema = z
+	.array(businessMeasurementPlanSchema)
+	.max(20)
+	.refine(
+		(plans) =>
+			new Set(plans.map((plan) => plan.websiteId)).size === plans.length,
+		"Keep one activation and return definition per website"
+	);
+
+export type BusinessMeasurementPlan = z.infer<
+	typeof businessMeasurementPlanSchema
+>;
+
+export function formatBusinessMeasurementPlans(
+	plans: BusinessMeasurementPlan[] = []
+): string {
+	return plans
+		.map(
+			(plan) =>
+				`${plan.name} (${plan.domain}): ${plan.activationEvent} → ${plan.returnEvent} within ${plan.horizonDays} days${plan.namespace ? `; namespace ${plan.namespace}` : ""}`
+		)
+		.join("\n");
+}
+
 export const businessTeamContextSchema = z.object({
 	priority: z.string().trim().max(BUSINESS_CONTEXT_TEAM_FIELD_LIMIT),
 	successDefinition: z.string().trim().max(BUSINESS_CONTEXT_TEAM_FIELD_LIMIT),
@@ -15,6 +49,7 @@ export const businessContextEditSchema = z.object({
 	revision: z.number().int().nonnegative(),
 	content: z.string().trim().max(BUSINESS_CONTEXT_LIMIT),
 	teamContext: businessTeamContextSchema.optional(),
+	measurementPlans: businessMeasurementPlansSchema.optional(),
 	generationId: z.uuid().optional(),
 });
 
@@ -33,6 +68,7 @@ export const businessBriefSchema = z.object({
 export const organizationBusinessProfileSchema = businessBriefSchema.extend({
 	origin: z.enum(["team", "website", "mixed"]),
 	teamContext: businessTeamContextSchema.optional(),
+	measurementPlans: businessMeasurementPlansSchema.optional(),
 	revision: z.number().int().positive(),
 	updatedAt: z.iso.datetime(),
 	updatedBy: z.string(),

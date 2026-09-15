@@ -17,6 +17,7 @@ import * as definitions from "./funnel-detection";
 import * as routes from "./route-health-detection";
 import * as selection from "./business-aware-selection";
 import * as plans from "./run-candidate-plan";
+import * as investigationBilling from "./investigation-billing";
 
 const integration =
 	process.env.INSIGHTS_INTEGRATION_TESTS === "true" && hasTestDb
@@ -32,6 +33,9 @@ integration("selection billing across native generation retries", () => {
 		const secret = process.env.AUTUMN_SECRET_KEY;
 		process.env.AUTUMN_SECRET_KEY = "synthetic-selection-billing";
 		const autumn = getAutumn();
+		const provider = spyOn(globalThis, "fetch").mockRejectedValue(
+			new Error("Empty selection must not make investigation reservation requests")
+		);
 		const requests: string[] = [];
 		const charges = new Map<string, number>();
 		const track = spyOn(autumn, "track").mockImplementation(
@@ -61,6 +65,8 @@ integration("selection billing across native generation retries", () => {
 			billing,
 			"resolveAgentBillingCustomerId"
 		).mockResolvedValue("synthetic-customer");
+		const mode = spyOn(investigationBilling, "resolveInvestigationBilling").mockResolvedValue({ mode: "legacy", customerId: "synthetic-customer" });
+		const access = spyOn(investigationBilling, "canRunInvestigation").mockResolvedValue(true);
 		const metrics = spyOn(detection, "detectSignals").mockResolvedValue(
 			["visitors", "sessions"].map((metric) => ({
 				metric,
@@ -212,11 +218,28 @@ integration("selection billing across native generation retries", () => {
 							`insights:${identity.runId}:${identity.websiteId}:selection`
 					)
 			);
+			// Opting into the fixed meter makes selection operating overhead. An
+			// empty portfolio must not reserve or debit an investigation unit.
+			mode.mockResolvedValue({ mode: "fixed", customerId: "synthetic-customer" });
+			await db.update(insightRuns).set({ status: "succeeded" }).where(inArray(insightRuns.id, runIds));
+			const fixedRunId = randomUUIDv7();
+			const fixedItemId = randomUUIDv7();
+			runIds.push(fixedRunId);
+			itemIds.push(fixedItemId);
+			await db.insert(insightRuns).values({ id: fixedRunId, organizationId, status: "running" });
+			await db.insert(insightRunItems).values({ id: fixedItemId, runId: fixedRunId, organizationId, websiteId: input.websiteId, queueJobId: `synthetic-${fixedItemId}`, status: "running" });
+			const priorTrackCalls = track.mock.calls.length;
+			await generateWebsiteInsights({ ...input, runId: fixedRunId, itemId: fixedItemId, queueJobId: `synthetic-${fixedItemId}` });
+			expect(track).toHaveBeenCalledTimes(priorTrackCalls);
+			expect(provider).not.toHaveBeenCalled();
 		} finally {
 			for (const stub of [
+				provider,
 				track,
 				check,
 				customer,
+				mode,
+				access,
 				metrics,
 				goals,
 				health,

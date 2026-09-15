@@ -11,9 +11,11 @@ import {
 } from "@databuddy/db/schema";
 import {
 	appRouter,
+	type Context,
 	createInternalPrincipal,
 	createRPCContext,
 } from "@databuddy/rpc";
+import { getAutumn } from "@databuddy/rpc/autumn";
 import {
 	closeInsightsQueue,
 	getInsightsQueue,
@@ -32,11 +34,38 @@ import {
 	signUp,
 	userContext,
 } from "@databuddy/test";
+import { RPCHandler } from "@orpc/server/fetch";
 import { randomUUIDv7 } from "bun";
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { call } from "./helpers";
 
 const iit = hasTestDb ? it : it.skip;
+
+async function expectBadReplyRequest(
+	context: Context,
+	input: {
+		body: string;
+		insightId: string;
+		intent: string;
+		acceptedPriceUsd?: number;
+		replyId?: string;
+	}
+) {
+	const handler = new RPCHandler({ reply: appRouter.insights.reply });
+	const result = await handler.handle(
+		new Request("https://api.example.invalid/reply", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ json: input }),
+		}),
+		{ context }
+	);
+	expect(result.matched).toBe(true);
+	expect(result.response?.status).toBe(400);
+	expect(await result.response?.json()).toMatchObject({
+		json: { code: "BAD_REQUEST" },
+	});
+}
 
 function investigationOutcome(nextType: "act" | "watch"): InvestigationOutcome {
 	const next: InvestigationOutcome["next"] =
@@ -309,7 +338,7 @@ describe("insight investigation timeline", () => {
 		]);
 	});
 
-	iit("hides a case from the action inbox while a reply is being verified", async () => {
+	iit.each(["verification", "clarification"] as const)("keeps clarification independent of case visibility: %s", async (intent) => {
 		const member = await signUp();
 		const organization = await insertOrganization();
 		await addToOrganization(member.id, organization.id, "member");
@@ -339,6 +368,7 @@ describe("insight investigation timeline", () => {
 			authorId: member.id,
 			authorName: "Test member",
 			body: "Databuddy applied the suggested action.",
+			intent,
 			id: randomUUIDv7(),
 			insightId,
 			status: "running",
@@ -353,7 +383,7 @@ describe("insight investigation timeline", () => {
 			organizationId: organization.id,
 		});
 
-		expect(result.insights).toEqual([]);
+		expect(result.insights).toHaveLength(intent === "verification" ? 0 : 1);
 	});
 
 	iit("applies an executable goal action and queues verification together", async () => {
@@ -1060,6 +1090,114 @@ describe("insight investigation timeline", () => {
 		expect(websiteOnly.insights[0]?.websiteId).toBe(secondWebsite.id);
 	});
 
+	iit(
+		"requires explicit $1 consent and replays the same analysis without storing a price",
+		async () => {
+			const { member, organization, insightId } =
+				await seedExecutableGoalAction();
+			const context = userContext(member, organization.id);
+			const originalSecret = process.env.AUTUMN_SECRET_KEY;
+			process.env.AUTUMN_SECRET_KEY = "synthetic-local-only";
+			const getCustomer = vi.spyOn(getAutumn().customers, "get").mockResolvedValue({
+				id: member.id,
+				name: null,
+				email: null,
+				createdAt: 0,
+				fingerprint: null,
+				stripeId: null,
+				env: "sandbox",
+				metadata: {},
+				sendEmailReceipts: false,
+				billingControls: {},
+				subscriptions: [],
+				purchases: [],
+				flags: {},
+				balances: {
+					investigation_runs: {
+						featureId: "investigation_runs",
+						granted: 1,
+						remaining: 1,
+						usage: 0,
+						unlimited: false,
+						overageAllowed: false,
+						maxPurchase: null,
+						nextResetAt: null,
+					},
+				},
+			});
+			try {
+				const input = {
+					body: "Run a fresh signup analysis",
+					insightId,
+					intent: "analysis" as const,
+					acceptedPriceUsd: 1 as const,
+					replyId: randomUUIDv7(),
+				};
+				for (const acceptedPriceUsd of [undefined, 0, 2]) {
+					await expectBadReplyRequest(context, { ...input, acceptedPriceUsd });
+				}
+				expect(getCustomer).not.toHaveBeenCalled();
+				expect(
+					await db()
+						.select()
+						.from(insightReplies)
+						.where(eq(insightReplies.id, input.replyId))
+				).toHaveLength(0);
+				expect(
+					await getInsightsQueue().getJob(insightsResumeJobId(input.replyId))
+				).toBeUndefined();
+				const first = await call(appRouter.insights.reply, context)(input);
+				const [stored] = await db()
+					.select()
+					.from(insightReplies)
+					.where(eq(insightReplies.id, first.reply.id));
+				expect(stored).toMatchObject({
+					body: input.body,
+					intent: "analysis",
+					status: "queued",
+				});
+				expect(stored?.sourceObservationId).toBeTruthy();
+				expect(stored).not.toHaveProperty("acceptedPriceCents");
+				const retry = await call(appRouter.insights.reply, context)(input);
+				expect(retry.reply).toEqual(first.reply);
+				expect(
+					await db()
+						.select()
+						.from(insightReplies)
+						.where(eq(insightReplies.id, input.replyId))
+				).toHaveLength(1);
+				const customerChecks = getCustomer.mock.calls.length;
+				for (const acceptedPriceUsd of [undefined, 0, 2]) {
+					await expectBadReplyRequest(context, { ...input, acceptedPriceUsd });
+				}
+				expect(getCustomer).toHaveBeenCalledTimes(customerChecks);
+				await expectCode(
+					call(appRouter.insights.reply, context)({
+						...input,
+						body: "Run a different signup analysis",
+					}),
+					"CONFLICT"
+				);
+				await expectCode(
+					call(appRouter.insights.reply, context)({
+						...input,
+						intent: "clarification",
+					}),
+					"CONFLICT"
+				);
+				const [unchanged] = await db()
+					.select()
+					.from(insightReplies)
+					.where(eq(insightReplies.id, first.reply.id));
+				expect(unchanged).toEqual(stored);
+			} finally {
+				getCustomer.mockRestore();
+				if (originalSecret === undefined) delete process.env.AUTUMN_SECRET_KEY;
+				else process.env.AUTUMN_SECRET_KEY = originalSecret;
+			}
+		}
+	);
+
 	iit("persists a reply beside every observation for the same signal", async () => {
 		const member = await signUp();
 		const organization = await insertOrganization();
@@ -1117,6 +1255,15 @@ describe("insight investigation timeline", () => {
 		]);
 
 		const context = userContext(member, organization.id);
+		await expectCode(
+			call(appRouter.insights.reply, context)({ body: "Fresh analysis", insightId: previousInsightId, intent: "analysis" }),
+			"BAD_REQUEST"
+		);
+		await expectBadReplyRequest(context, {
+			body: "Verify",
+			insightId: previousInsightId,
+			intent: "verification",
+		});
 		const added = await call(appRouter.insights.reply, context)({
 			body: "  The signup form changed in yesterday's deploy.  ",
 			insightId: previousInsightId,
@@ -1125,6 +1272,14 @@ describe("insight investigation timeline", () => {
 			"The signup form changed in yesterday's deploy."
 		);
 		expect(added.reply.status).toBe("queued");
+		const [includedReply] = await db()
+			.select()
+			.from(insightReplies)
+			.where(eq(insightReplies.id, added.reply.id));
+		expect(includedReply).toMatchObject({
+			intent: "clarification",
+			sourceObservationId: secondObservationId,
+		});
 		expect(
 			(await getInsightsQueue().getJob(insightsResumeJobId(added.reply.id)))?.data
 		).toEqual({ replyId: added.reply.id });
@@ -1174,6 +1329,8 @@ describe("insight investigation timeline", () => {
 				authorName: "test",
 				body: "The signup form changed in yesterday's deploy.",
 				insightId,
+				intent: "clarification",
+				sourceObservationId: secondObservationId,
 				status: "queued",
 			}),
 		]);
@@ -1278,12 +1435,12 @@ describe("insight investigation timeline", () => {
 			total: 1,
 			websites: [expect.objectContaining({ id: website.id })],
 		});
-		const listedWhileVerifying = await mcpTools
+		const listedWhileClarifying = await mcpTools
 			.find((tool) => tool.name === "list_investigations")
 			?.handler({ limit: 20, offset: 0, websiteId: website.id });
-		expect(listedWhileVerifying?.isError).toBe(false);
-		expect(listedWhileVerifying?.structuredContent).toMatchObject({
-			investigations: [],
+		expect(listedWhileClarifying?.isError).toBe(false);
+		expect(listedWhileClarifying?.structuredContent).toMatchObject({
+			investigations: [expect.objectContaining({ id: insightId })],
 		});
 		expect(await db().select().from(insightReplies)).toEqual([
 			expect.objectContaining({

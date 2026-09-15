@@ -2,6 +2,7 @@
 
 import {
 	businessContextEditSchema,
+	businessMeasurementPlanSchema,
 	type BusinessContextEdit,
 } from "@databuddy/shared/organization-business-context";
 import { useCallback, useEffect, useState } from "react";
@@ -10,6 +11,17 @@ import { z } from "zod";
 // Keep invalid/unfinished input recoverable too; saving applies the real limits.
 const recoverySchema = businessContextEditSchema.extend({
 	content: z.string().max(100_000),
+	measurementPlans: z
+		.array(
+			businessMeasurementPlanSchema.extend({
+				name: z.string().max(1000),
+				activationEvent: z.string().max(1000),
+				returnEvent: z.string().max(1000),
+				namespace: z.string().max(1000).optional(),
+			})
+		)
+		.max(20)
+		.optional(),
 	teamContext: z
 		.object({
 			priority: z.string().max(10_000),

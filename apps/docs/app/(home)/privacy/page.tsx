@@ -1,17 +1,14 @@
 import {
-	CircleIcon as CookieIcon,
 	EnvelopeIcon,
-	ShieldCheckIcon,
 	ShieldCheckIcon as ShieldIcon,
-	UserIcon,
 } from "@databuddy/ui/icons";
 import type { Metadata } from "next";
 import { Footer } from "@/components/footer";
 import { StructuredData } from "@/components/structured-data";
 
-const title = "Privacy Policy - Cookie-less, GDPR by default | Databuddy";
+const title = "Privacy Policy";
 const description =
-	"Databuddy's comprehensive privacy policy for our privacy-first analytics service. Learn how we protect both customer and end user data with GDPR compliance and no user identification.";
+	"How Databuddy collects and uses account information, analytics data, optional user profiles, and information processed by connected services.";
 const url = "https://www.databuddy.cc/privacy";
 
 export const metadata: Metadata = {
@@ -29,7 +26,7 @@ export const metadata: Metadata = {
 };
 
 export default function PrivacyPage() {
-	const lastUpdated = new Date("2025-06-03");
+	const lastUpdated = new Date("2026-09-15");
 
 	return (
 		<>
@@ -43,7 +40,6 @@ export default function PrivacyPage() {
 				}}
 			/>
 			<div className="mx-auto w-full max-w-7xl px-4 pt-16 sm:px-6 lg:px-8 lg:pt-24">
-				{/* Header */}
 				<div className="mb-12 text-center">
 					<div className="mb-5 inline-flex items-center justify-center rounded border border-accent bg-accent/50 p-3">
 						<ShieldIcon className="size-7 text-primary" />
@@ -51,7 +47,7 @@ export default function PrivacyPage() {
 					<h1 className="mb-4 font-bold text-4xl md:text-5xl">
 						Privacy Policy
 					</h1>
-					<p className="mb-4 text-muted-foreground">
+					<p className="mb-4 text-pretty text-muted-foreground">
 						Last Updated{" "}
 						<span className="font-medium text-foreground">
 							{lastUpdated.toLocaleDateString("en-US", {
@@ -61,12 +57,11 @@ export default function PrivacyPage() {
 							})}
 						</span>
 					</p>
-					{/* TL;DR */}
 					<div className="mx-auto mb-6 max-w-2xl rounded border border-accent bg-accent/50 p-4 text-left">
-						<p className="text-foreground text-sm">
-							<strong>TL;DR</strong> - We don’t use cookies, we don’t identify
-							users, we anonymize IPs, and we only collect minimal, aggregated
-							data so you get insights without tracking people.
+						<p className="text-pretty text-foreground text-sm">
+							Our analytics tracker uses browser storage instead of analytics
+							cookies. Website owners can optionally identify users and send
+							profile details. Databuddy account sign-in uses session cookies.
 						</p>
 					</div>
 					<p className="mx-auto max-w-2xl text-muted-foreground">
@@ -75,35 +70,6 @@ export default function PrivacyPage() {
 						privacy-first analytics that respects everyone’s privacy.
 					</p>
 				</div>
-
-				{/* Privacy-first highlight */}
-				<div className="mb-8 rounded border border-accent bg-accent/50 p-6">
-					<h2 className="mb-3 flex items-center font-bold text-primary text-xl">
-						<ShieldCheckIcon className="mr-2 size-5" />
-						Privacy-First Analytics
-					</h2>
-					<p className="mb-4 text-muted-foreground">
-						Databuddy provides website analytics without compromising user
-						privacy. We don't use cookies, don't track individual users, and
-						never collect personal information from website visitors.
-					</p>
-					<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-						<div className="flex items-center text-primary">
-							<UserIcon className="mr-2 size-4" />
-							<span className="text-sm">No User Tracking</span>
-						</div>
-						<div className="flex items-center text-primary">
-							<CookieIcon className="mr-2 size-4" />
-							<span className="text-sm">No Cookies</span>
-						</div>
-						<div className="flex items-center text-primary">
-							<ShieldIcon className="mr-2 size-4" />
-							<span className="text-sm">GDPR Compliant</span>
-						</div>
-					</div>
-				</div>
-
-				{/* Main content */}
 				<div className="prose prose-lg dark:prose-invert max-w-none">
 					<p className="lead mb-8 text-lg text-muted-foreground">
 						Databuddy ("we", "our", or "us") is a privacy-first analytics
@@ -147,42 +113,31 @@ export default function PrivacyPage() {
 						<h2 className="mb-4 font-bold text-2xl">
 							Our Privacy-First Principles
 						</h2>
-						<p className="mb-4">
-							Databuddy is built on privacy-first principles that guide
-							everything we do:
-						</p>
-						<ul className="space-y-2">
+						<ul className="mb-4 space-y-2">
 							<li>
-								<strong>No User Identification:</strong> We never identify
-								individual users or track them across websites or sessions.
+								<strong>Optional identification:</strong> Website owners choose
+								whether to link activity to their own user IDs and profile
+								details.
 							</li>
 							<li>
-								<strong>No Personal Data Collection:</strong> We don't collect
-								names, email addresses, or any personally identifiable
-								information from website visitors.
+								<strong>Cookieless collection:</strong> The browser tracker uses
+								first-party localStorage and sessionStorage for visitor and
+								session information.
 							</li>
 							<li>
-								<strong>No Cross-Site Tracking:</strong> We don't use cookies,
-								fingerprinting, or other techniques to track users across
-								different websites.
+								<strong>Configurable visitor IDs:</strong> Ingestion salts and
+								hashes visitor IDs by default. Website owners can change this
+								behavior with the visitor-ID anonymization setting.
 							</li>
 							<li>
-								<strong>IP Address Anonymization:</strong> We immediately
-								anonymize IP addresses and never store them in their original
-								form.
+								<strong>Event-level analytics:</strong> We store individual
+								events and session information to produce reports. Identified
+								profiles may contain personal data supplied by the website
+								owner.
 							</li>
 							<li>
-								<strong>Aggregated Data Only:</strong> All analytics data is
-								aggregated and anonymized, making it impossible to identify
-								individual users.
-							</li>
-							<li>
-								<strong>No Data Sales:</strong> We never sell or share user data
+								<strong>No data sales:</strong> We never sell or share user data
 								with third parties for advertising or marketing purposes.
-							</li>
-							<li>
-								<strong>Minimal Data Collection:</strong> We only collect what's
-								necessary to provide meaningful analytics insights.
 							</li>
 						</ul>
 					</section>
@@ -213,92 +168,71 @@ export default function PrivacyPage() {
 							<li>
 								Communications: Support requests, feedback, and survey responses
 							</li>
+							<li>
+								Account security information: Session identifiers, IP addresses,
+								and browser information
+							</li>
 						</ul>
 
 						<h3 className="mb-3 font-semibold text-xl">
 							From End Users (Website Visitors)
 						</h3>
-						<p className="mb-3">
-							When someone visits a website using Databuddy analytics, we
-							collect minimal, anonymized data:
+						<p className="mb-4 text-pretty">
+							Depending on the enabled features and information the website
+							owner sends, we collect:
 						</p>
 						<ul className="mb-4 space-y-2">
 							<li>
-								Page views: Which pages were visited (URL path only, no query
-								parameters containing personal data)
+								Page addresses and titles, referrer addresses, and selected
+								campaign and advertising-click parameters.
 							</li>
 							<li>
-								Referrer information: Which website or search engine led to the
-								visit (domain only)
+								Visitor and session IDs, timestamps, navigation activity, and
+								enabled interaction measurements.
 							</li>
 							<li>
-								Technical information: Browser type, operating system, device
-								type, and screen resolution
+								Browser, operating system, device and viewport information,
+								language, and time zone.
 							</li>
 							<li>
-								Geographic location: Country and region only (derived from
-								anonymized IP address)
+								Approximate country, region, and city derived from the request
+								IP address.
 							</li>
 							<li>
-								Session data: Time spent on site, bounce rate, and navigation
-								patterns (anonymized)
+								Custom events and properties, error messages and stack traces,
+								and performance measurements.
 							</li>
 							<li>
-								User preferences: Dark/light mode, language settings (if
-								available)
-							</li>
-							<li>
-								Performance metrics: Page load times, Core Web Vitals (FCP, LCP,
-								CLS), and connection performance data
-							</li>
-							<li>
-								User interaction data: Scroll depth, interaction counts, and
-								exit intent detection (anonymized)
-							</li>
-							<li>
-								Error information: JavaScript errors and technical issues to
-								help website owners improve their sites
+								Profile IDs and optional names, email addresses, or other traits
+								supplied through user identification.
 							</li>
 						</ul>
-						<div className="my-4 rounded border border-accent bg-accent/50 p-4">
-							<p className="text-sm">
-								<strong className="text-primary">Important:</strong> We
-								immediately anonymize IP addresses using a one-way hash
-								function. We never store IP addresses in their original form,
-								and it's impossible for us to identify individual users from the
-								data we collect.
-							</p>
-						</div>
+						<p className="mb-4 text-pretty">
+							The standard browser tracker removes query strings from page and
+							referrer addresses, but collects selected attribution parameters
+							separately. URL paths, page titles, custom properties, errors, and
+							optional profile details can still contain personal information.
+							Website owners should review what they send and use the available
+							masking and filtering controls.
+						</p>
 					</section>
 
 					<section className="mb-8">
-						<h2 className="mb-4 font-bold text-2xl">No Cookies, No Tracking</h2>
-						<p className="mb-4">
-							Unlike traditional analytics services, Databuddy is designed to
-							respect user privacy:
+						<h2 className="mb-4 text-balance font-bold text-2xl">
+							Cookieless Analytics and Browser Storage
+						</h2>
+						<p className="mb-4 text-pretty">
+							The analytics tracker does not set analytics cookies. It stores a
+							random visitor ID in localStorage and session information in
+							sessionStorage. Advertising-click identifiers may also persist in
+							localStorage. If the website identifies a user, the supplied
+							profile ID is stored until cleared.
 						</p>
-						<ul className="mb-4 space-y-2">
-							<li>
-								<strong>No Cookies:</strong> We don't use cookies or any
-								cross-site tracking to track users
-							</li>
-							<li>
-								<strong>No Fingerprinting:</strong> We don't create browser
-								fingerprints or use device characteristics to identify users
-							</li>
-							<li>
-								<strong>No Cross-Site Tracking:</strong> We can't and don't
-								track users as they move between different websites
-							</li>
-							<li>
-								<strong>No User Profiles:</strong> We don't build profiles of
-								individual users or their browsing habits
-							</li>
-						</ul>
-						<p>
-							This means end users visiting websites with Databuddy analytics
-							enjoy complete privacy while still allowing website owners to
-							understand their site's performance.
+						<p className="mb-4 text-pretty">
+							The tracker honors Global Privacy Control, Do Not Track, and its
+							stored opt-out settings. Cookieless collection does not by itself
+							determine whether consent is required; that depends on the
+							configuration, collected information, and applicable rules.
 						</p>
 					</section>
 
@@ -317,28 +251,19 @@ export default function PrivacyPage() {
 						</ul>
 
 						<h3 className="mb-3 font-semibold text-xl">End User Data Usage</h3>
-						<p className="mb-3">We use anonymized end user data solely to:</p>
-						<ul className="mb-4 space-y-2">
-							<li>Generate aggregated analytics reports for website owners</li>
-							<li>
-								Provide insights about website performance and user experience
-							</li>
-							<li>
-								Help website owners understand their audience demographics
-								(country/region level only)
-							</li>
-							<li>
-								Monitor our service performance and detect technical issues
-							</li>
-							<li>
-								Help website owners identify and fix technical problems through
-								error tracking
-							</li>
-							<li>
-								Provide performance optimization insights through Core Web
-								Vitals and loading metrics
-							</li>
-						</ul>
+						<p className="mb-4 text-pretty">
+							We process visitor information to provide the features the website
+							owner uses, including analytics reports, session and profile
+							views, error tracking, performance monitoring, and AI-assisted
+							analysis.
+						</p>
+						<p className="mb-4 text-pretty">
+							AI features send prompts and supporting context to the configured
+							AI gateway and model providers. Connected delivery services
+							receive the findings or messages the customer configures them to
+							deliver. See our <a href="/data-policy">Data Policy</a> for
+							service-provider information.
+						</p>
 						<div className="my-4 rounded border border-accent bg-accent/50 p-4">
 							<p className="text-sm">
 								<strong className="text-primary">Note:</strong> End user data is
@@ -364,9 +289,10 @@ export default function PrivacyPage() {
 								improvement)
 							</li>
 							<li>
-								<strong>End User Data:</strong> Legitimate interests of website
-								owners to understand their site performance, balanced against
-								user privacy rights
+								<strong>End User Data:</strong> The website owner determines the
+								legal basis for collecting and using visitor information and is
+								responsible for obtaining consent where required. Databuddy
+								processes this information on the website owner’s behalf.
 							</li>
 						</ul>
 
@@ -412,59 +338,36 @@ export default function PrivacyPage() {
 								browser Do Not Track or ad blockers)
 							</li>
 							<li>
-								<strong>Erasure:</strong> Since we don't identify individuals,
-								we can't delete specific user data, but all data is
-								automatically deleted according to our retention policies
+								<strong>Access, correction, and deletion:</strong> Contact the
+								website owner about information collected through their website.
+								We assist them with requests concerning data we process on their
+								behalf. Whether a particular record can be located depends on
+								the identifiers and information available.
 							</li>
 						</ul>
 						<div className="my-4 rounded border border-accent bg-accent/50 p-4">
-							<p className="text-sm">
-								<strong className="text-primary">Note:</strong> Because we don't
-								identify individual end users, many traditional rights don't
-								apply, but this actually provides stronger privacy protection.
+							<p className="text-pretty text-sm">
+								Personal data does not lose its legal protections merely because
+								an identifier is hashed or a visitor’s name is absent.
 							</p>
 						</div>
 					</section>
 
 					<section className="mb-8">
 						<h2 className="mb-4 font-bold text-2xl">Data Security</h2>
-						<p className="mb-4">
-							We implement comprehensive security measures:
+						<p className="mb-4 text-pretty">
+							Customer workspaces use authentication and permission controls.
+							Standard analytics event records omit the raw IP address after it
+							is used for request handling and approximate location. Visitor-ID
+							anonymization, path masking, filtering, and opt-out controls help
+							limit collection.
 						</p>
-						<ul className="mb-4 space-y-2">
-							<li>
-								<strong>Encryption:</strong> All data is encrypted in transit
-								(TLS 1.3) and at rest (AES-256)
-							</li>
-							<li>
-								<strong>Access Controls:</strong> Strict employee access
-								controls with multi-factor authentication
-							</li>
-							<li>
-								<strong>Infrastructure:</strong> Hosted on secure, SOC 2
-								certified cloud infrastructure
-							</li>
-							<li>
-								<strong>Monitoring:</strong> 24/7 security monitoring and
-								automated threat detection
-							</li>
-							<li>
-								<strong>Data Minimization:</strong> We collect and store only
-								what's necessary
-							</li>
-							<li>
-								<strong>Anonymization:</strong> IP addresses are immediately
-								anonymized using cryptographic hashes
-							</li>
-						</ul>
-						<div className="my-4 rounded border border-accent bg-accent/50 p-4">
-							<p className="text-sm">
-								<strong className="text-primary">Note:</strong> Our
-								privacy-first approach means that even in the unlikely event of
-								a data breach, individual users cannot be identified from the
-								analytics data we store.
-							</p>
-						</div>
+						<p className="mb-4 text-pretty">
+							See our <a href="/docs/security">security documentation</a> for
+							configuration details and our{" "}
+							<a href="/dpa">Data Processing Agreement</a> for our security and
+							data-protection commitments.
+						</p>
 					</section>
 
 					<section className="mb-8">
@@ -515,8 +418,6 @@ export default function PrivacyPage() {
 						</div>
 					</section>
 				</div>
-
-				{/* Footer */}
 				<div className="mt-12">
 					<Footer />
 				</div>

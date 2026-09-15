@@ -71,14 +71,17 @@ export function isFilterFieldAllowed(
 	field: string
 ): boolean {
 	return (
-		GLOBAL_ALLOWED_FILTERS.has(field) ||
+		(config.commonFilters !== false && GLOBAL_ALLOWED_FILTERS.has(field)) ||
 		(config.allowedFilters?.includes(field) ?? false)
 	);
 }
 
 export function allowedFilterFields(config: SimpleQueryConfig): string[] {
 	return [
-		...new Set([...GLOBAL_ALLOWED_FILTERS, ...(config.allowedFilters ?? [])]),
+		...new Set([
+			...(config.commonFilters === false ? [] : GLOBAL_ALLOWED_FILTERS),
+			...(config.allowedFilters ?? []),
+		]),
 	];
 }
 
@@ -1166,6 +1169,7 @@ export class SimpleQueryBuilder {
 			endDate: normalizeClickHouseDateTime(this.request.to),
 			filters: this.request.filters,
 			granularity: this.request.timeUnit,
+			groupBy: this.request.groupBy,
 			limit: this.request.limit,
 			offset: this.request.offset,
 			timezone: this.request.timezone,
