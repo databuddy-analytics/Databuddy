@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { gzipSync } from "node:zlib";
 import { join } from "node:path";
+import { runInNewContext } from "node:vm";
 import { describe, expect, it, spyOn } from "bun:test";
 import { plugin } from "bun";
 import { createMdxPlugin } from "fumadocs-mdx/bun";
@@ -12,6 +13,44 @@ import { competitors } from "./comparison-config";
 import { homeFaqItems } from "./home-seo";
 
 describe("public copy contracts", () => {
+	it("emits GTM readiness only after the documented loader succeeds", async () => {
+		const guide = await readFile(
+			join(import.meta.dir, "..", "content", "docs", "Integrations", "gtm.mdx"),
+			"utf8"
+		);
+		const loader = guide.split("```html\n<script>\n")[1]?.split("</script>")[0];
+		expect(loader).toBeDefined();
+		if (!loader) throw new Error("Missing GTM loader");
+		expect(guide.match(/document\.createElement\("script"\)/g)).toHaveLength(1);
+		const attributes: Record<string, string> = {};
+		const script = {
+			src: "",
+			onload: () => {},
+			onerror: () => {},
+			setAttribute: (name: string, value: string) => { attributes[name] = value; },
+		};
+		const window = { dataLayer: [] as { event: string }[] };
+		const warnings: string[] = [];
+		let appended = false;
+		runInNewContext(loader, {
+			window,
+			console: { warn: (message: string) => warnings.push(message) },
+			document: {
+				createElement: () => script,
+				head: { appendChild: () => { appended = true; } },
+			},
+		});
+		expect(appended).toBe(true);
+		expect(script.src).toBe("https://cdn.databuddy.cc/databuddy.js");
+		expect(attributes["data-client-id"]).toBe("{{Databuddy Client ID}}");
+		expect(window.dataLayer).toEqual([]);
+		script.onerror();
+		expect(warnings).toEqual(["Databuddy script failed to load"]);
+		expect(window.dataLayer).toEqual([]);
+		script.onload();
+		expect(window.dataLayer).toEqual([{ event: "databuddy_ready" }]);
+	});
+
 	it("does not recommend deprecated or nonexistent browser tracking options", async () => {
 		const docsRoot = join(import.meta.dir, "..", "content", "docs");
 		const glob = new Bun.Glob("**/*.mdx");
