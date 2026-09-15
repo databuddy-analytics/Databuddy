@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "@databuddy/shared": "workspace:*",
-    "resend": "^4.0.1"
+    "resend": "^6.25.0"
   },
   "devDependencies": {
     "@types/node": "^26.0.0",
