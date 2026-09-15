@@ -7,7 +7,7 @@ import { Card, Cards } from "@/components/docs";
 
 Integrate Databuddy with Google Tag Manager for centralized tag management while maintaining privacy-first analytics. Perfect for teams managing multiple tracking tools.
 
-> TL;DR: In GTM, create a Custom HTML tag with an inline loader that appends `https://cdn.databuddy.cc/databuddy.js` and sets `data-client-id`. Enable optional flags such as `data-track-attributes` or `data-track-errors`. Page views and sessions are automatic. Trigger on All Pages and publish.
+> TL;DR: In GTM, create a Custom HTML tag with an inline loader that appends `https://cdn.databuddy.cc/databuddy.js` and sets `data-client-id`. Enable optional flags such as `data-track-attributes` or `data-track-errors`. Page views and sessions are automatic. Choose a page or consent-granted trigger that matches your privacy configuration, then preview and publish.
 
 ## Why Use GTM with Databuddy?
 
@@ -37,6 +37,10 @@ Integrate Databuddy with Google Tag Manager for centralized tag management while
     el.setAttribute("data-client-id", "{{Databuddy Client ID}}");
     el.setAttribute("data-track-attributes", "true");
     el.setAttribute("data-track-errors", "true");
+    el.onload = function () {
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({ event: 'databuddy_ready' });
+    };
     document.head.appendChild(el);
   })();
 </script>
@@ -56,7 +60,7 @@ Create a **Constant** variable for your Client ID:
 ### Step 3: Set Trigger
 
 1. In your Databuddy tag, click **Triggering**
-2. Choose **All Pages** trigger
+2. Choose **All Pages**, or your consent manager’s granted trigger when prior consent is required
 3. Save the tag
 
 ### Step 4: Publish
@@ -114,6 +118,8 @@ Load Databuddy only for specific conditions:
 ## Event Tracking Setup
 
 ### Custom Event Tags
+
+The loader above emits `databuddy_ready` after the script finishes loading. For startup events, use a Custom Event trigger named `databuddy_ready`. For purchase and other application events, dispatch them after readiness or buffer them in your application until then. The examples below do not queue early events. GTM tag sequencing alone does not wait for an asynchronously injected script.
 
 Create tags for specific events:
 
@@ -272,31 +278,13 @@ Respect user privacy choices:
 </script>
 ```
 
-### Consent Mode Integration
+### Google Consent Mode
 
-Integrate with Google Consent Mode:
+Google's consent settings do not automatically gate Databuddy. If your deployment requires consent, configure the Databuddy Custom HTML tag's additional consent checks and trigger it only after your consent manager grants analytics consent. The `Cookie Consent Status` variable in the example above is a custom variable you must connect to that manager.
 
-```html
-<script>
-  gtag("consent", "default", {
-    analytics_storage: "denied",
-    ad_storage: "denied",
-  });
+On withdrawal, call `window.databuddyOptOut()` and prevent the tag from loading again. On a later grant, `window.databuddyOptIn()` clears that local opt-out; it does not override Do Not Track or Global Privacy Control. Test both a fresh browser session and withdrawal after collection has started.
 
-  // When user grants consent
-  gtag("consent", "update", {
-    analytics_storage: "granted",
-  });
-
-  // Initialize Databuddy after consent
-  if (window.databuddy) {
-    databuddy.track("consent_granted", {
-      consent_type: "analytics",
-      timestamp: new Date().toISOString(),
-    });
-  }
-</script>
-```
+See [Google's consent overview](https://developers.google.com/tag-platform/security/concepts/consent) and the [Databuddy privacy guide](/docs/compliance/gdpr-compliance-guide).
 
 ## Debugging and Testing
 

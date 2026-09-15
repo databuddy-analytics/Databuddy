@@ -1,456 +1,99 @@
 ---
 title: Security & Privacy
-description: How Databuddy protects your data and respects user privacy
+description: Configure Databuddy's collection controls, visitor IDs, opt-out behavior, origin checks, and IP restrictions.
 ---
 
-import { CodeBlock } from "@/components/docs";
-
-Databuddy is built with privacy-first principles and enterprise-grade security. This guide covers what we do to protect your data and how to configure privacy settings for your users.
+Databuddy provides cookieless collection and controls for the information you send. This page describes those controls and their limits. See the [Privacy Policy](/privacy) and [Data Processing Agreement](/dpa) for our data-protection commitments.
 
 ## Privacy-First Design
 
-### What We Don't Collect by Default
+The browser tracker uses first-party localStorage for visitor information and sessionStorage for sessions. Session IDs use a 30-minute reuse window; a continuously open page can keep its current session longer.
 
-- **No Personal Information** - Names, emails, phone numbers, and addresses are never collected unless you explicitly send them with the opt-in `identify()` API
-- **No Cookies for Tracking** - Only local storage for anonymous IDs
-- **No Cross-Site Tracking** - Each site is isolated
-- **No Cross-Site Fingerprinting** - Device data is used for on-site analytics only. Global Privacy Control and Do Not Track signals are honored by default
-- **No Raw IP Addresses** - Used for location (country/region); after that, only a truncated salted hash is retained
+Standard analytics event records omit raw IP addresses after request handling and approximate country, region, and city lookup. By default, ingestion hashes visitor IDs with a rotating daily salt. Your website's `anonymizeVisitorIds` setting can disable that transformation or apply it according to the visitor's country.
 
-### What We Do Collect
-
-- **Anonymous Usage Data** - Page views, clicks, performance metrics
-- **Session Information** - Anonymous session IDs with 30-minute timeouts
-- **Technical Data** - Browser type, screen size, performance metrics
-- **Location Data** - Country and region only (from IP, then IP discarded)
-
-## Data Protection
-
-### Anonymous by Default
-
-<CodeBlock 
-  language="javascript"
-  code={`// All users get anonymous IDs - no personal data
-  {
-    anonymousId: "anon_abc123...",      // Random UUID
-    sessionId: "sess_xyz789...",        // Session identifier
-    event: "page_view",                 // What happened
-    path: "/dashboard",                 // Where it happened
-    // No names, emails, or personal data
-  }`}
-/>
-
-### Local Data Storage
-
-- **Anonymous ID** - Stored in localStorage and sent with events. Depending on your site's `anonymizeVisitorIds` setting, it is salted and hashed server-side with a daily-rotating salt before storage
-- **Session Data** - Temporary sessionStorage, clears on browser close
-- **No Cookies** - We don't use tracking cookies
-- **User Control** - Easy to clear all data, and `window.databuddyOptOut()` stops collection entirely
-
-## Privacy Compliance
-
-### GDPR Compliance by Design
-
-**Lawful Basis:** Legitimate interest for website analytics
-
-Databuddy is anonymous by default and avoids analytics-specific consent friction when your configuration and jurisdiction allow cookieless measurement:
-
-- **No Personal Data by Default** - Only anonymous usage statistics unless you opt in to `identify()`
-- **No Cookies Used** - A localStorage anonymous ID only, with no cross-site tracking
-- **Anonymous by Default** - Individual users are not identified unless your site sends identity data
-- **Server-Side Anonymization** - Visitor IDs are salted and hashed where anonymization applies
-
-If you use `identify()` to attach names, emails, or traits to profiles, those profiles are personal data you control: reflect them in your privacy policy and consent flow. Whether a consent banner is required depends on your configuration, what you send, and your jurisdiction's rules; when in doubt, ask your counsel.
-
-### Running Without a Cookie Banner
-
-<CodeBlock 
-  language="tsx"
-  code={`import { Databuddy } from "@databuddy/sdk/react";
-
-  function App() {
-    return (
-      <>
-        {/* Anonymous, cookieless measurement */}
-        <Databuddy
-          clientId="your-client-id"
-          trackWebVitals
-        />
-      </>
-    );
-  }`}
-/>
-
-**Why many sites can run Databuddy without an analytics consent banner:**
-
-- Anonymous data only, no cross-site tracking
-- No personal information in the default configuration
-- No advertising or behavioral profiling
-- Legitimate interest is the typical lawful basis for anonymous audience measurement
-
-This changes if you enable `identify()` or send personal data in event properties: your normal consent and privacy-policy obligations then apply.
+The [identify API](/docs/sdk/identify-users) links activity to profile IDs and traits you supply. Profile IDs are separate from visitor-ID anonymization. Page paths, titles, custom properties, and errors can also contain personal information; review those payloads before sending them.
 
 ## Privacy Controls
 
-### Minimal Tracking Setup
+Enable the features you need using the [SDK configuration](/docs/sdk/configuration). For example, this configuration disables errors, outgoing-link events, and performance collection:
 
-<CodeBlock 
-  language="tsx"
-  filename="Minimal Tracking Setup"
-  code={`// Essential analytics only
-  <Databuddy
-    clientId="your-client-id"
-    // Basic page tracking (automatic)
-    // Disable everything else
-    trackWebVitals={false}
-    trackOutgoingLinks={false}
-    trackErrors={false}
-  />`}
-/>
+```tsx
+import { Databuddy } from "@databuddy/sdk/react";
 
-### Development vs Production
-
-<CodeBlock 
-  language="tsx"
-  filename="Environment Configuration"
-  code={`const isProd = process.env.NODE_ENV === "production";
-
-  <Databuddy
-    clientId="your-client-id"
-    disabled={!isProd} // No tracking in development
-    // Production-only features
-    trackWebVitals={isProd}
-  />;`}
-/>
-
-## 🔐 Security Features
-
-### Domain Protection
-
-- **Domain Verification Required** - Only verified domains can send data
-- **Origin Validation** - Requests validated against registered domains
-- **HTTPS Required** - All communications encrypted in transit
-
-### Access Control Settings
-
-Configure allowed origins and IP addresses to control who can send analytics data to your website.
-
-#### Allowed Origins
-
-By default, Databuddy only accepts requests from your website's registered domain. To track analytics from third-party services (like [Cal.com](/docs/Integrations/cal), embedded widgets, or other integrations), you need to add those domains to your allowed origins.
-
-**Access**: Open [Websites](https://app.databuddy.cc/websites), select your site, then go to **Settings → Security**.
-
-**Default Behavior:**
-
-- Only requests from your registered domain are accepted
-- Requests from other origins are blocked with a 403 error
-
-**Supported Formats:**
-
-- **Exact domains**: `cal.com`, `example.com`
-- **Wildcard subdomains**: `*.cal.com` (matches `app.cal.com`, `api.cal.com`, etc.)
-- **Localhost**: `localhost` (for development)
-- **Allow all**: `*` (allows any origin - use with caution)
-
-**How It Works:**
-
-1. By default, only your registered domain can send analytics data
-2. Add additional origins to allow third-party integrations
-3. Requests from unauthorized origins are blocked with a 403 error
-
-**Example Configuration:**
-
-```
-Allowed Origins:
-- cal.com
-- *.cal.com
-- localhost
+<Databuddy
+  clientId="YOUR_WEBSITE_ID"
+  trackWebVitals={false}
+  trackOutgoingLinks={false}
+  trackErrors={false}
+/>;
 ```
 
-#### Allowed IP Addresses
+This is a collection example, not a consent configuration. Where prior consent is required, delay mounting the component or loading the script until consent is granted.
 
-Restrict analytics requests to specific IP addresses or IP ranges using CIDR notation.
+### Local Data Storage and Opt-Out
 
-**Supported Formats:**
+The browser tracker honors Global Privacy Control, Do Not Track, and the stored opt-out preference. Its built-in helpers are:
 
-- **Single IPv4**: `192.168.1.1`
-- **Single IPv6**: `2001:0db8:85a3:0000:0000:8a2e:0370:7334`
-- **CIDR ranges**: `192.168.1.0/24`, `10.0.0.0/8`
-
-**How It Works:**
-
-1. When `allowedIps` is configured, only requests from those IPs/ranges are accepted
-2. If not configured, all IPs are allowed (standard behavior)
-3. IP addresses are extracted from request headers (`cf-connecting-ip`, `x-forwarded-for`, `x-real-ip`)
-4. Requests from unauthorized IPs are blocked with a 403 error
-
-**Example Configuration:**
-
-```
-Allowed IPs:
-- 192.168.1.1
-- 10.0.0.0/8
-- 172.16.0.0/12
+```javascript
+window.databuddyOptOut();
+window.databuddyOptIn();
 ```
 
-**Use Cases:**
-
-- **Internal Tools**: Restrict analytics to your office IP range
-- **API Integrations**: Allow only specific server IPs
-- **Development**: Limit to your development environment IPs
-- **Security**: Block suspicious IP ranges
-
-<Callout type="warning">
-  **Important**: If you configure allowed IPs, make sure to include your production servers and any legitimate sources. Blocking legitimate traffic will prevent analytics collection.
-</Callout>
-
-<Callout type="info">
-  **Third-Party Integrations**: If you use services like Cal.com, embedded widgets, or other integrations that need to send analytics from their domains, add those domains to your allowed origins.
-</Callout>
-
-### Data Validation
-
-- **Input Sanitization** - All user data cleaned and validated
-- **Size Limits** - Prevents large payloads and spam
-- **Rate Limiting** - Protects against abuse
-
-### Infrastructure Security
-
-- **Encrypted Transport** - All traffic is served over TLS
-- **DDoS Protection** - Automatic attack mitigation at the edge
-- **Application-Layer Encryption** - Identity fields such as names and emails support AES-256-GCM encryption at rest
-- **Open Source** - The full codebase is public and auditable
-
-## 🛠️ User Privacy Controls (Optional)
-
-### Anonymous by Default
-
-In the default configuration Databuddy collects anonymous data only, so there is usually no personal data to delete. If you use `identify()`, the profiles you create are personal data: handle deletion requests for them, and contact support@databuddy.cc if you need help removing them. Either way, you can provide opt-out controls.
-
-### Optional Opt-Out Implementation
-
-The tracker ships built-in opt-out helpers. `window.databuddyOptOut()` stops tracking, clears local state, and persists the preference in localStorage under `databuddy_opt_out`; `window.databuddyOptIn()` reverses it.
-
-<CodeBlock 
-  language="tsx"
-  filename="Optional Opt-Out Component"
-  code={`function PrivacyControls() {
-    const [trackingEnabled, setTrackingEnabled] = useState(true);
-
-    const handleOptOut = () => {
-      window.databuddyOptOut();
-      setTrackingEnabled(false);
-    };
-
-    const handleOptIn = () => {
-      window.databuddyOptIn();
-      setTrackingEnabled(true);
-    };
-
-    return (
-      <div>
-        <p>
-          Analytics helps us improve our website. No personal data is collected.
-        </p>
-
-        <label>
-          <input
-            type="checkbox"
-            checked={trackingEnabled}
-            onChange={(e) =>
-              e.target.checked ? handleOptIn() : handleOptOut()
-            }
-          />
-          Enable anonymous analytics
-        </label>
-      </div>
-    );
-  }`}
-/>
-
-The anonymous ID itself is stored in localStorage under the `did` key.
+Opting out stops tracking, clears local tracker identifiers, and stores the preference when localStorage is available. Opting in does not override GPC or DNT. These helpers do not delete information already collected on the server.
 
 ### Data Deletion in Practice
 
-- **Anonymous by Default** - The default configuration stores no data that identifies individual users, so there is usually nothing to delete
-- **Identified Profiles Are Different** - Profiles created via `identify()` contain personal data; deletion requests for them are honored, and support@databuddy.cc can help
-- **DNT and GPC Honored** - Visitors with Do Not Track or Global Privacy Control enabled are not tracked at all by default
+Visitors should contact the website owner about collected information. We assist customers with access, correction, and deletion requests; contact [privacy@databuddy.cc](mailto:privacy@databuddy.cc). Hashing an identifier or leaving identification disabled does not guarantee that no personal data was collected.
 
-## 🌐 Global Privacy Settings
+## Access Control Settings
 
-### Respect Browser Preferences
+Collection requires an active website ID. Origin filtering is an ingestion control, not proof of domain ownership: a non-browser client can supply an Origin header.
 
-<CodeBlock 
-  language="javascript"
-  filename="Respect Browser Privacy Settings"
-  code={`// Check Do Not Track setting
-  const respectDNT = navigator.doNotTrack === "1";
+Open your website's **Settings → Security** to configure additional allowed origins and IP restrictions.
 
-  <Databuddy
-    clientId="your-client-id"
-    disabled={respectDNT} // Respect browser privacy setting
-  />;`}
-/>
+### Allowed Origins
 
-## 📋 Privacy Best Practices
+When a request includes an Origin, the registered hostname and its subdomains are accepted by default. Additional allowed origins broaden that set; they cannot exclude the registered domain.
 
-### 1. Be Transparent
+Without a configured list, requests lacking an Origin are accepted. With a nonempty list, a missing or unrecognized Origin produces a 403 response.
 
-<CodeBlock 
-  language="tsx"
-  filename="Privacy Notice Component"
-  code={`// Clear privacy notice
-  function PrivacyNotice() {
-    return (
-      <div className="privacy-notice">
-        <h3>We respect your privacy</h3>
-        <p>
-          We collect anonymous usage data to improve our website. No personal
-          information is collected. You can opt out anytime.
-        </p>
-        <a href="/privacy-policy">Read our privacy policy</a>
-      </div>
-    );
-  }`}
-/>
+Supported entries include:
 
-### 2. Provide Controls (Optional)
+- `example.com`: the hostname.
+- `*.example.com`: the apex and its subdomains.
+- `localhost`: local development.
+- `*`: any parseable origin.
 
-<CodeBlock 
-  language="tsx"
-  filename="Privacy Dashboard Component"
-  code={`// Optional privacy dashboard (not required since data is anonymous)
-  function PrivacyDashboard() {
-    return (
-      <div>
-        <h2>Analytics Preferences</h2>
+Matching uses the hostname, not a particular scheme or port. The origin check does not itself enforce HTTPS.
 
-        <div>
-          <h3>Anonymous Data Collection</h3>
-          <p>Help us improve our website with anonymous usage statistics.</p>
-          <Toggle label="Page views" />
-          <Toggle label="Performance metrics" />
-          <Toggle label="Error tracking" />
-        </div>
+### Allowed IP Addresses
 
-        <div>
-          <h3>Your Privacy</h3>
-          <p>✅ Analytics are anonymous by default</p>
-          <p>✅ No cookies are used for tracking</p>
-          <p>✅ No cross-site tracking or profiling</p>
-          <button onClick={clearLocalData}>Clear local preferences</button>
-        </div>
-      </div>
-    );
-  }`}
-/>
+An empty list imposes no IP restriction. A configured list accepts only requests with a trusted matching IP address; other requests receive a 403 response.
 
-### 3. Honor Preferences
+Supported entries include individual IPv4 or IPv6 addresses and IPv4 CIDR ranges, such as `192.0.2.10` or `192.0.2.0/24`.
 
-<CodeBlock 
-  language="tsx"
-  filename="Respect User Preferences"
-  code={`// Respect user choices
-  const privacySettings = getUserPrivacySettings();
+This path uses the trusted `cf-connecting-ip` header. It does not fall back to arbitrary `x-forwarded-for` or `x-real-ip` values. With `SELFHOST=true`, configured IP allowlists reject requests rather than trusting potentially spoofed proxy headers.
 
-  <Databuddy
-    clientId="your-client-id"
-    // Screen views are tracked automatically
-    trackWebVitals={privacySettings.allowPerformance}
-    trackErrors={privacySettings.allowErrors}
-  />`}
-/>
+Test restrictions with the actual clients and infrastructure that will send events. Blocking legitimate sources prevents their data from being collected.
 
-## ⚖️ Legal Compliance
+## Data Protection
 
-### Recommended Disclosures
+Requests are validated, size-limited, and rate-limited. Profile display names and email addresses use AES-256-GCM field encryption when the server key is configured; production ingestion requires that key. Arbitrary event properties and profile traits are outside this field-encryption mechanism.
 
-**Privacy Policy Should Include:**
+Infrastructure, AI, billing, and delivery services process information needed for the features you enable. See the [Data Policy](/data-policy) for their roles.
 
-- Anonymous analytics are collected via Databuddy
-- No personal information or cookies are used
-- Data is used only for website improvement
-- Optional: How users can opt-out
+## Privacy Compliance
 
-**Cookie Notice:**
+Cookieless collection does not automatically remove consent requirements. Review browser storage, the information collected, and applicable rules. See the [web analytics privacy guide](/docs/compliance/gdpr-compliance-guide).
 
-- **Not required for Databuddy** (no cookies used)
-- Only needed if you use other tracking tools
-
-### Sample Privacy Policy Text
-
-```
-Analytics: We use Databuddy to collect anonymous website usage statistics
-to help us improve our site. No personal information, cookies, or tracking
-is used. All data is completely anonymous and cannot identify individual
-visitors. Data is processed securely by Databuddy and used only for
-understanding website performance and usage patterns.
-```
-
-### Minimal Privacy Notice
-
-```
-We collect anonymous usage statistics to improve our website.
-No personal data or cookies are used.
-```
-
-## 🛡️ Implementation Security
+## Implementation Security
 
 ### Content Security Policy
 
-<CodeBlock 
-  language="html"
-  filename="Content Security Policy"
-  code={`<!-- Add Databuddy to your CSP -->
-<meta
-  http-equiv="Content-Security-Policy"
-  content="script-src 'self' https://cdn.databuddy.cc; 
-    connect-src 'self' https://basket.databuddy.cc;"
-/>`}
-/>
+Allow the tracker CDN in `script-src` and the configured ingestion endpoint in `connect-src`. For the default hosted endpoints, those are `https://cdn.databuddy.cc` and `https://basket.databuddy.cc`. Merge these into your existing policy; do not replace your application's other restrictions.
 
-### Secure Configuration
+## Support & Questions
 
-<CodeBlock 
-  language="tsx"
-  filename="Secure Environment Configuration"
-  code={`// Environment-specific settings
-  const config = {
-    development: {
-      clientId: process.env.NEXT_PUBLIC_DATABUDDY_DEV_ID,
-      disabled: true, // No tracking in development
-    },
-    production: {
-      clientId: process.env.NEXT_PUBLIC_DATABUDDY_PROD_ID,
-      disabled: false,
-    },
-  }[process.env.NODE_ENV];
-
-  <Databuddy {...config} />;`}
-/>
-
-## 🆘 Support & Questions
-
-### Privacy Questions
-
-If you have questions about privacy or data handling:
-
-- 📧 [privacy@databuddy.cc](mailto:privacy@databuddy.cc)
-- 📚 [Privacy Policy](/privacy)
-- 📊 [Data Policy](/data-policy)
-- 🛡️ [Security Overview](/docs/security)
-
-### Data Requests
-
-In the default anonymous configuration there is typically no personal data to request. For sites using `identify()`, or for any question about our data handling, reach out and we will respond promptly:
-
-- 📧 [privacy@databuddy.cc](mailto:privacy@databuddy.cc)
-
----
-
-## What's Next?
-
-- **[SDK Reference](/docs/sdk)** - Configure tracking options
-- **[Getting Started](/docs/getting-started)** - Set up Databuddy on your site
-- **[Dashboard Guide](/docs/dashboard)** - Analyze your anonymous data
+- [privacy@databuddy.cc](mailto:privacy@databuddy.cc) for privacy and data requests.
+- [Getting Started](/docs/getting-started) for installation.
+- [SDK Configuration](/docs/sdk/configuration) for collection options.

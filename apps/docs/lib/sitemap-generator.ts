@@ -39,10 +39,8 @@ export async function generateSitemapEntries(): Promise<MetadataRoute.Sitemap> {
 		"/oss",
 		"/branding",
 		...source.getPages().map((page) => page.url),
-		...["compare", "alternatives", "switch-from"].flatMap((section) => [
-			`/${section}`,
-			...getAllCompetitorSlugs().map((slug) => `/${section}/${slug}`),
-		]),
+		"/compare",
+		...getAllCompetitorSlugs().map((slug) => `/compare/${slug}`),
 	];
 	const entries: MetadataRoute.Sitemap = paths.map((path) => ({
 		url: `${SITE_URL}${path}`,

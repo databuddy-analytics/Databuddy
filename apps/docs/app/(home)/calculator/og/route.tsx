@@ -1,19 +1,15 @@
 import { ImageResponse } from "next/og";
+import { formatCurrencyFull } from "../_components/calculator-engine";
 import { loadOgFonts, OG_COLORS, OgLogo } from "@/lib/og";
 
 export async function GET(request: Request) {
 	const { searchParams } = new URL(request.url);
-	const [revenue, visitors, cost] = ["revenue", "visitors", "cost"].map(
-		(key) => {
-			const value = Number(searchParams.get(key));
-			return (Number.isFinite(value) && value >= 0 ? value : 0).toLocaleString(
-				"en-US"
-			);
-		}
-	);
-	const formattedRevenue = `$${revenue}`;
-	const formattedVisitors = visitors;
-	const formattedCost = `$${cost}`;
+	const values = ["revenue", "visitors"].map((key) => {
+		const value = Number(searchParams.get(key));
+		return Number.isFinite(value) && value >= 0 ? value : 0;
+	});
+	const formattedRevenue = formatCurrencyFull(values[0]);
+	const formattedVisitors = Math.round(values[1]).toLocaleString("en-US");
 
 	return new ImageResponse(
 		<div
@@ -79,7 +75,7 @@ export async function GET(request: Request) {
 						letterSpacing: "0.05em",
 					}}
 				>
-					Cookie Banner Cost Calculator
+					Analytics Measurement Gap
 				</span>
 			</div>
 
@@ -111,7 +107,7 @@ export async function GET(request: Request) {
 							letterSpacing: "0.15em",
 						}}
 					>
-						Estimated Opportunity Cost / Year
+						Estimated Unattributed Revenue / Year
 					</span>
 					<span
 						style={{
@@ -162,42 +158,6 @@ export async function GET(request: Request) {
 							{formattedVisitors}
 						</span>
 					</div>
-					<div
-						style={{
-							width: "1px",
-							height: "40px",
-							backgroundColor: OG_COLORS.badgeBorder,
-						}}
-					/>
-					<div
-						style={{
-							display: "flex",
-							flexDirection: "column",
-							alignItems: "center",
-							gap: "4px",
-						}}
-					>
-						<span
-							style={{
-								color: OG_COLORS.faint,
-								fontSize: "13px",
-								fontWeight: 500,
-								textTransform: "uppercase",
-								letterSpacing: "0.1em",
-							}}
-						>
-							Databuddy (est.)
-						</span>
-						<span
-							style={{
-								color: OG_COLORS.foreground,
-								fontSize: "28px",
-								fontWeight: 700,
-							}}
-						>
-							{formattedCost}/mo
-						</span>
-					</div>
 				</div>
 			</div>
 
@@ -216,7 +176,7 @@ export async function GET(request: Request) {
 						fontWeight: 500,
 					}}
 				>
-					Model yours at databuddy.cc/calculator
+					Illustrative assumptions · Not lost sales · databuddy.cc/calculator
 				</span>
 			</div>
 		</div>,

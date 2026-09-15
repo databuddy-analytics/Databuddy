@@ -84,14 +84,17 @@ export default function DatabunnyPage() {
 			<div className="overflow-x-hidden">
 				<FeatureHero
 					docsHref="/docs"
-					subtitle="Databunny investigates your sites on a schedule you set, delivers evidence-backed findings to Slack, and rechecks until the fix is verified. When you have a question, ask in plain English."
+					primaryLabel="Request investigation access"
+					primaryHref="/contact?topic=intelligence-business"
+					footnote={`Invite only. Business: ${INVESTIGATION_ALLOWANCES.intelligence}/month. Scale: ${INVESTIGATION_ALLOWANCES.intelligence_scale}/month. $${INVESTIGATION_USAGE.priceUsd} per extra.`}
+					subtitle="Ask questions about your analytics or schedule investigations into traffic, errors, and conversions. Get the findings and supporting evidence in your dashboard or Slack."
 					title="The analyst that finds problems before you ask."
 				/>
 
 				<Section className="border-border border-b" id="insights">
 					<div className={container}>
 						<SectionHeader
-							subtitle="On a daily or weekly schedule, Databunny checks anomaly baselines across traffic, errors, conversions, events, and performance. Each noteworthy change becomes one evidence-backed investigation with a clear next move."
+							subtitle="On a daily or weekly schedule, Databunny checks anomaly baselines across traffic, errors, conversions, events, and performance. It opens an investigation when a change has enough evidence to act on."
 							title="Investigations that"
 							titleMuted="find you."
 						/>
@@ -104,7 +107,7 @@ export default function DatabunnyPage() {
 							</GridCell>
 							<GridCell>
 								<h3 className={CELL_TITLE_CLASS}>
-									Every case is rechecked until the fix is verified.
+									Keep evidence, replies, and follow-up checks in one case.
 								</h3>
 								<CaseFollowUpDemo />
 							</GridCell>
@@ -139,7 +142,7 @@ export default function DatabunnyPage() {
 				<Section className="border-border border-b" id="agent">
 					<div className={container}>
 						<SectionHeader
-							subtitle="Type a question about your traffic, conversions, errors, or performance. Databunny queries your data and answers in seconds."
+							subtitle="Type a question about your traffic, conversions, errors, or performance. Databunny queries your data and shows the findings and supporting evidence."
 							title="Ask anything,"
 							titleMuted="get real answers."
 						/>

@@ -21,36 +21,36 @@ const cards = [
 	},
 	{
 		id: 2,
-		title: "No cookies, no banners",
+		title: "Cookieless analytics",
 		description:
-			"Avoid analytics-specific consent friction when your configuration and jurisdiction allow cookieless measurement.",
+			"Collect activity without analytics cookies. Choose whether to link events to your own user profiles.",
 		icon: ShieldCheckIcon,
 	},
 	{
 		id: 3,
 		title: "About 12 KB gzip",
 		description:
-			"Your analytics script shouldn't slow your site. Ours is lighter than a single hero image.",
+			"An asynchronous browser tracker for analytics, errors, and web vitals. Measure its impact in your own performance budget.",
 		icon: LightningIcon,
 	},
 	{
 		id: 4,
 		title: "Open source",
 		description:
-			"Full transparency. Self-host or let us run it. Your data, your rules.",
+			"Read the code, contribute, or run Databuddy on your own infrastructure.",
 		icon: CodeIcon,
 	},
 	{
 		id: 5,
 		title: "Real-time",
-		description: "See what's happening right now. No waiting, no sampling.",
+		description: "Follow incoming traffic and events in the live dashboard.",
 		icon: WaveformIcon,
 	},
 	{
 		id: 6,
-		title: "GDPR compliant by default",
+		title: "Ask Databunny",
 		description:
-			"No personal data collected. GDPR, CCPA, and ePrivacy compliant out of the box.",
+			"Ask about traffic, conversions, errors, and performance. Follow the evidence behind each answer.",
 		icon: RobotIcon,
 	},
 ];

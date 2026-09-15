@@ -40,7 +40,7 @@ export const roadmapItems: RoadmapItem[] = [
 			"Vue and Nuxt",
 			"Bun support",
 			"Node.js SDK",
-			"GDPR compliant",
+			"Cookieless collection",
 		],
 		tags: ["sdk"],
 	},

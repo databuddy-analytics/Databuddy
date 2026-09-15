@@ -9,7 +9,7 @@ export const revalidate = false;
 
 const HEADER = `# Databuddy Documentation (Full)
 
-> Lightweight web analytics with an asynchronous tracker, GDPR compliant, no cookies required.
+> Cookieless web analytics with events, errors, funnels, and optional user identification.
 > This file contains the highest-priority documentation sections for long-context agents,
 > truncated at a size limit. For the rest, use the scoped indexes at
 > https://www.databuddy.cc/docs/llms.txt, https://www.databuddy.cc/api/llms.txt, and

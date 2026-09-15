@@ -95,6 +95,16 @@ const config: NextConfig = {
 	async redirects() {
 		return [
 			{
+				source: "/alternatives/:path*",
+				destination: "/compare/:path*",
+				permanent: true,
+			},
+			{
+				source: "/switch-from/:path*",
+				destination: "/compare/:path*",
+				permanent: true,
+			},
+			{
 				source: "/compare/posthog-vs-databuddy",
 				destination: "/compare/posthog",
 				permanent: true,
