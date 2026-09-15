@@ -23,10 +23,20 @@ export async function generateMetadata({
 	const visitors = typeof params.visitors === "string" ? params.visitors : null;
 	const cost = typeof params.cost === "string" ? params.cost : null;
 
-	const hasPersonalizedParams = revenue && visitors && cost;
+	const hasPersonalizedParams =
+		revenue !== null &&
+		visitors !== null &&
+		cost !== null &&
+		[revenue, visitors, cost].every(
+			(value) =>
+				value !== null &&
+				value.trim() !== "" &&
+				Number.isFinite(Number(value)) &&
+				Number(value) >= 0
+		);
 
 	const ogParams = hasPersonalizedParams
-		? `revenue=${revenue}&visitors=${visitors}&cost=${cost}`
+		? new URLSearchParams({ revenue, visitors, cost }).toString()
 		: DEFAULT_OG_PARAMS;
 
 	const ogImageUrl = `${SITE_URL}/calculator/og?${ogParams}`;
@@ -37,6 +47,7 @@ export async function generateMetadata({
 
 	return {
 		title: TITLE,
+		alternates: { canonical: "/calculator" },
 		description: personalizedDescription,
 		openGraph: {
 			title: TITLE,

@@ -36,8 +36,9 @@ interface PageProps {
 }
 
 interface ArticleProps {
+	authors?: { name: string; url?: string }[];
 	dateModified?: string;
-	datePublished: string;
+	datePublished?: string;
 	description?: string;
 	imageUrl?: string;
 	title: string;
@@ -206,7 +207,7 @@ function planToOffer(plan: RawPlan, baseUrl: string) {
 
 export function StructuredData({
 	baseUrl = "https://www.databuddy.cc",
-	logoUrl = "https://www.databuddy.cc/logo.png",
+	logoUrl = "https://www.databuddy.cc/brand/logomark/black.svg",
 	page,
 	elements = EMPTY_ELEMENTS,
 }: StructuredDataProps) {
@@ -276,10 +277,6 @@ export function StructuredData({
 			? { "@type": "ImageObject", url: abs(page.imageUrl) }
 			: undefined,
 		inLanguage: lang,
-		speakable: {
-			"@type": "SpeakableSpecification",
-			cssSelector: ["#hero h1", "#faq"],
-		},
 	});
 
 	graph.push({
@@ -320,7 +317,9 @@ export function StructuredData({
 				url: pageUrl,
 				mainEntityOfPage: { "@id": webPageId },
 				isPartOf: { "@id": websiteId },
-				author: { "@type": "Organization", "@id": orgId, name: "Databuddy" },
+				author: a.authors?.length
+					? a.authors.map((author) => ({ "@type": "Person", ...author }))
+					: { "@type": "Organization", "@id": orgId, name: "Databuddy" },
 				publisher: { "@type": "Organization", "@id": orgId },
 				image: a.imageUrl
 					? { "@type": "ImageObject", url: abs(a.imageUrl) }

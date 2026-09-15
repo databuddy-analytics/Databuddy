@@ -33,11 +33,6 @@ const config: NextConfig = {
 						value: "strict-origin-when-cross-origin",
 					},
 					{
-						key: "X-Robots-Tag",
-						value:
-							"index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
-					},
-					{
 						key: "Link",
 						value: AGENT_LINK_HEADER,
 					},
@@ -98,7 +93,17 @@ const config: NextConfig = {
 	}),
 
 	async redirects() {
-		return await [
+		return [
+			{
+				source: "/compare/posthog-vs-databuddy",
+				destination: "/compare/posthog",
+				permanent: true,
+			},
+			{
+				source: "/docs/features/feature-flags",
+				destination: "/docs/sdk/feature-flags",
+				permanent: true,
+			},
 			{
 				source: "/documentation/:path*",
 				destination: "/docs/:path*",

@@ -1,7 +1,13 @@
 import { readFile } from "node:fs/promises";
 import { gzipSync } from "node:zlib";
 import { join } from "node:path";
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, spyOn } from "bun:test";
+import { plugin } from "bun";
+import { createMdxPlugin } from "fumadocs-mdx/bun";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { StructuredData } from "@/components/structured-data";
+import { GET as robots } from "@/app/robots.txt/route";
 import { competitors } from "./comparison-config";
 import { homeFaqItems } from "./home-seo";
 
@@ -80,5 +86,68 @@ describe("public copy contracts", () => {
 		expect(comparisonCopy).toContain(`${gzipKilobytes} KB gzip`);
 		expect(comparisonCopy).not.toContain("3KB");
 		expect(comparisonCopy).not.toContain("all features");
+	});
+});
+
+
+describe("search discovery", () => {
+	it("allows rendering assets and pages whose noindex must be read", async () => {
+		const body = await robots().text();
+		expect(body).not.toContain("Disallow: /_next/");
+		expect(body).not.toContain("Disallow: /contact/thanks");
+		expect(body).toContain("Disallow: /api/");
+	});
+
+	it("uses supplied article authors and omits unknown documentation dates", () => {
+		const markup = renderToStaticMarkup(createElement(StructuredData, {
+			page: { url: "/docs", title: "Docs" },
+			elements: [
+				{ type: "documentation", value: { title: "Docs" } },
+				{ type: "article", value: { title: "Example", authors: [{ name: "Example Author", url: "https://example.com/author" }], datePublished: "2024-01-01" } },
+			],
+		}));
+		const graph = JSON.parse(markup.slice(markup.indexOf(">") + 1, markup.lastIndexOf("</script>")))["@graph"];
+		const docs = graph.find((item: { "@type": string[] }) => item["@type"].includes("TechArticle"));
+		const article = graph.find((item: { "@type": string[] }) => item["@type"].includes("BlogPosting"));
+		expect(docs).not.toHaveProperty("datePublished");
+		expect(docs).not.toHaveProperty("dateModified");
+		expect(article.author).toEqual([{ "@type": "Person", name: "Example Author", url: "https://example.com/author" }]);
+		expect(markup).not.toContain("speakable");
+	});
+
+	it("keeps public pages discoverable through CMS failures and excludes machine endpoints", async () => {
+		await plugin(createMdxPlugin());
+		const { generateSitemapEntries } = await import("./sitemap-generator");
+		const originalNodeEnv = process.env.NODE_ENV;
+		const originalApiKey = process.env.MARBLE_API_KEY;
+		const fetch = spyOn(globalThis, "fetch");
+		try {
+			process.env.NODE_ENV = "production";
+			process.env.MARBLE_API_KEY = "test-token";
+			fetch.mockResolvedValueOnce(new Response(null, { status: 503 }));
+			const fallback = await generateSitemapEntries();
+			const urls = fallback.map((entry) => entry.url);
+			for (const path of ["/blog", "/oss", "/branding", "/docs", "/pricing"]) {
+				expect(urls).toContain(`https://www.databuddy.cc${path}`);
+			}
+			expect(new Set(urls).size).toBe(urls.length);
+			for (const path of ["/ask", "/api/llms.txt", "/openapi.json", "/contact/thanks"]) {
+				expect(urls).not.toContain(`https://www.databuddy.cc${path}`);
+			}
+			fetch.mockResolvedValueOnce(Response.json({ posts: [
+				{ slug: "example", publishedAt: "2024-01-01", updatedAt: "2024-02-01" },
+				{ slug: "draft", status: "draft", publishedAt: "2024-01-01" },
+			] }));
+			const entries = await generateSitemapEntries();
+			expect(entries.filter((entry) => entry.url.includes("/blog/"))).toEqual([
+				{ url: "https://www.databuddy.cc/blog/example", lastModified: "2024-02-01T00:00:00.000Z" },
+			]);
+		} finally {
+			fetch.mockRestore();
+			if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+			else process.env.NODE_ENV = originalNodeEnv;
+			if (originalApiKey === undefined) delete process.env.MARBLE_API_KEY;
+			else process.env.MARBLE_API_KEY = originalApiKey;
+		}
 	});
 });
