@@ -141,6 +141,10 @@ function shouldRequireEmailVerification() {
 	return isProduction() && !isSelfHosted();
 }
 
+const cookieDomain =
+	process.env.BETTER_AUTH_COOKIE_DOMAIN?.trim() ||
+	(isSelfHosted() ? undefined : ".databuddy.cc");
+
 type EmailTemplate = Parameters<typeof render>[0];
 
 async function enforceAuthEmailRateLimit(input: {
@@ -618,8 +622,8 @@ export const auth = betterAuth({
 	},
 	advanced: {
 		crossSubDomainCookies: {
-			enabled: isProduction() && !isSelfHosted(),
-			domain: process.env.BETTER_AUTH_COOKIE_DOMAIN ?? ".databuddy.cc",
+			enabled: isProduction() && Boolean(cookieDomain),
+			domain: cookieDomain,
 		},
 		cookiePrefix: isProduction() ? "databuddy" : "databuddy-dev",
 		useSecureCookies: isProduction(),
@@ -678,8 +682,8 @@ export const auth = betterAuth({
 	},
 	emailVerification: {
 		expiresIn: AUTH_EMAIL_EXPIRY_SECONDS.emailVerification,
-		sendOnSignUp: process.env.NODE_ENV === "production",
-		sendOnSignIn: process.env.NODE_ENV === "production",
+		sendOnSignUp: shouldRequireEmailVerification(),
+		sendOnSignIn: shouldRequireEmailVerification(),
 		autoSignInAfterVerification: true,
 		sendVerificationEmail: async ({ user, url }) => {
 			await enforceAuthEmailRateLimit({
