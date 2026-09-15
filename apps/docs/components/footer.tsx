@@ -65,10 +65,10 @@ function FooterHero() {
 				width={180}
 			/>
 			<div className="relative max-w-5xl px-8 pt-8 sm:px-16 md:pt-16">
-				<h2 className="mb-2 text-left font-medium text-2xl text-white leading-tight sm:text-4xl">
+				<h2 className="mb-2 text-balance text-left font-medium text-2xl text-white leading-tight sm:text-4xl">
 					See how people use your product.
 				</h2>
-				<p className="mb-6 text-lg text-white/70">
+				<p className="mb-6 text-pretty text-lg text-white/70">
 					Start free with 10,000 events per month. No credit card required.
 				</p>
 				<div className="flex gap-3">

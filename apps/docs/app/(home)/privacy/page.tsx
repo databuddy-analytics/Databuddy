@@ -47,7 +47,7 @@ export default function PrivacyPage() {
 					<h1 className="mb-4 font-bold text-4xl md:text-5xl">
 						Privacy Policy
 					</h1>
-					<p className="mb-4 text-muted-foreground">
+					<p className="mb-4 text-pretty text-muted-foreground">
 						Last Updated{" "}
 						<span className="font-medium text-foreground">
 							{lastUpdated.toLocaleDateString("en-US", {
@@ -58,7 +58,7 @@ export default function PrivacyPage() {
 						</span>
 					</p>
 					<div className="mx-auto mb-6 max-w-2xl rounded border border-accent bg-accent/50 p-4 text-left">
-						<p className="text-foreground text-sm">
+						<p className="text-pretty text-foreground text-sm">
 							Our analytics tracker uses browser storage instead of analytics
 							cookies. Website owners can optionally identify users and send
 							profile details. Databuddy account sign-in uses session cookies.
@@ -177,7 +177,7 @@ export default function PrivacyPage() {
 						<h3 className="mb-3 font-semibold text-xl">
 							From End Users (Website Visitors)
 						</h3>
-						<p className="mb-4">
+						<p className="mb-4 text-pretty">
 							Depending on the enabled features and information the website
 							owner sends, we collect:
 						</p>
@@ -207,7 +207,7 @@ export default function PrivacyPage() {
 								supplied through user identification.
 							</li>
 						</ul>
-						<p className="mb-4">
+						<p className="mb-4 text-pretty">
 							The standard browser tracker removes query strings from page and
 							referrer addresses, but collects selected attribution parameters
 							separately. URL paths, page titles, custom properties, errors, and
@@ -218,17 +218,17 @@ export default function PrivacyPage() {
 					</section>
 
 					<section className="mb-8">
-						<h2 className="mb-4 font-bold text-2xl">
+						<h2 className="mb-4 text-balance font-bold text-2xl">
 							Cookieless Analytics and Browser Storage
 						</h2>
-						<p className="mb-4">
+						<p className="mb-4 text-pretty">
 							The analytics tracker does not set analytics cookies. It stores a
 							random visitor ID in localStorage and session information in
 							sessionStorage. Advertising-click identifiers may also persist in
 							localStorage. If the website identifies a user, the supplied
 							profile ID is stored until cleared.
 						</p>
-						<p className="mb-4">
+						<p className="mb-4 text-pretty">
 							The tracker honors Global Privacy Control, Do Not Track, and its
 							stored opt-out settings. Cookieless collection does not by itself
 							determine whether consent is required; that depends on the
@@ -251,13 +251,13 @@ export default function PrivacyPage() {
 						</ul>
 
 						<h3 className="mb-3 font-semibold text-xl">End User Data Usage</h3>
-						<p className="mb-4">
+						<p className="mb-4 text-pretty">
 							We process visitor information to provide the features the website
 							owner uses, including analytics reports, session and profile
 							views, error tracking, performance monitoring, and AI-assisted
 							analysis.
 						</p>
-						<p className="mb-4">
+						<p className="mb-4 text-pretty">
 							AI features send prompts and supporting context to the configured
 							AI gateway and model providers. Connected delivery services
 							receive the findings or messages the customer configures them to
@@ -346,7 +346,7 @@ export default function PrivacyPage() {
 							</li>
 						</ul>
 						<div className="my-4 rounded border border-accent bg-accent/50 p-4">
-							<p className="text-sm">
+							<p className="text-pretty text-sm">
 								Personal data does not lose its legal protections merely because
 								an identifier is hashed or a visitor’s name is absent.
 							</p>
@@ -355,14 +355,14 @@ export default function PrivacyPage() {
 
 					<section className="mb-8">
 						<h2 className="mb-4 font-bold text-2xl">Data Security</h2>
-						<p className="mb-4">
+						<p className="mb-4 text-pretty">
 							Customer workspaces use authentication and permission controls.
 							Standard analytics event records omit the raw IP address after it
 							is used for request handling and approximate location. Visitor-ID
 							anonymization, path masking, filtering, and opt-out controls help
 							limit collection.
 						</p>
-						<p className="mb-4">
+						<p className="mb-4 text-pretty">
 							See our <a href="/docs/security">security documentation</a> for
 							configuration details and our{" "}
 							<a href="/dpa">Data Processing Agreement</a> for our security and

@@ -72,7 +72,7 @@ export function ComparisonPageView({
 						<h1 className="mb-4 text-balance font-semibold text-3xl leading-tight tracking-tight sm:text-4xl md:text-5xl lg:text-6xl">
 							{heroHeading}
 						</h1>
-						<p className="mx-auto max-w-2xl text-balance text-muted-foreground text-sm leading-relaxed sm:text-base">
+						<p className="mx-auto max-w-2xl text-pretty text-muted-foreground text-sm leading-relaxed sm:text-base">
 							{heroDescription}
 						</p>
 					</div>
@@ -90,7 +90,7 @@ export function ComparisonPageView({
 						<h2 className="mb-2 font-semibold text-2xl sm:text-3xl">
 							Feature <span className="text-muted-foreground">comparison</span>
 						</h2>
-						<p className="text-muted-foreground text-sm sm:text-base">
+						<p className="text-pretty text-muted-foreground text-sm sm:text-base">
 							{defaultSubtitle}
 						</p>
 					</div>
@@ -112,7 +112,7 @@ export function ComparisonPageView({
 						.
 					</p>
 
-					<p className="mt-6 text-center text-muted-foreground text-sm">
+					<p className="mt-6 text-pretty text-center text-muted-foreground text-sm">
 						To try Databuddy,{" "}
 						<a className="underline" href="/docs/getting-started">
 							add the tracker
@@ -121,7 +121,9 @@ export function ComparisonPageView({
 						switching.
 					</p>
 					<div className="mt-6 text-muted-foreground text-sm">
-						<p className="mb-2">Sources checked September 15, 2026:</p>
+						<p className="mb-2 text-pretty">
+							Sources checked September 15, 2026:
+						</p>
 						<ul className="flex flex-wrap gap-x-4 gap-y-2">
 							{sources.map((source) => (
 								<li key={source.href}>

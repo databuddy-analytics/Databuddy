@@ -42,7 +42,7 @@ export default function DataPolicyPage() {
 						<DatabaseIcon className="size-7 text-primary" />
 					</div>
 					<h1 className="mb-4 font-bold text-4xl md:text-5xl">Data Policy</h1>
-					<p className="mb-4 text-muted-foreground">
+					<p className="mb-4 text-pretty text-muted-foreground">
 						Last Updated{" "}
 						<span className="font-medium text-foreground">
 							{lastUpdated.toLocaleDateString("en-US", {
@@ -53,14 +53,14 @@ export default function DataPolicyPage() {
 						</span>
 					</p>
 					<div className="mx-auto mb-6 max-w-2xl rounded border border-accent bg-accent/50 p-4 text-left">
-						<p className="text-foreground text-sm">
+						<p className="text-pretty text-foreground text-sm">
 							Databuddy collects analytics without analytics cookies. Browser
 							storage supports visitor and session measurement; optional
 							identification links activity to profiles supplied by the website
 							owner.
 						</p>
 					</div>
-					<p className="mx-auto max-w-2xl text-muted-foreground">
+					<p className="mx-auto max-w-2xl text-pretty text-muted-foreground">
 						How collection, storage, and connected services work depends on the
 						features and privacy settings you use.
 					</p>
@@ -70,19 +70,19 @@ export default function DataPolicyPage() {
 						<h2 className="mb-4 flex items-center font-bold text-2xl">
 							Our Tracking Script
 						</h2>
-						<p className="mb-4">
+						<p className="mb-4 text-pretty">
 							The browser tracker sends pageviews and enabled events with the
 							website ID, page and referrer information, and visitor and session
 							IDs. The request also provides an IP address and browser headers
 							for delivery, security checks, and approximate location.
 						</p>
-						<p className="mb-4">
+						<p className="mb-4 text-pretty">
 							Page and referrer addresses exclude query strings by default.
 							Selected campaign and advertising-click parameters are collected
 							separately; hash fragments can be included when hash tracking is
 							enabled.
 						</p>
-						<p className="mb-4">
+						<p className="mb-4 text-pretty">
 							The tracker honors Global Privacy Control, Do Not Track, and
 							stored opt-out settings. Whether consent is required depends on
 							your configuration, the information you send, and applicable
@@ -93,7 +93,7 @@ export default function DataPolicyPage() {
 							.
 						</p>
 						<h3 className="mb-3 font-semibold text-xl">Event Types</h3>
-						<p className="mb-3">
+						<p className="mb-3 text-pretty">
 							Depending on your configuration, the tracker can collect:
 						</p>
 						<div className="overflow-x-auto">
@@ -156,8 +156,10 @@ export default function DataPolicyPage() {
 					</section>
 
 					<section className="mb-8">
-						<h2 className="mb-4 font-bold text-2xl">Security and Protection</h2>
-						<p className="mb-4">
+						<h2 className="mb-4 text-balance font-bold text-2xl">
+							Security and Protection
+						</h2>
+						<p className="mb-4 text-pretty">
 							Requests undergo validation, rate limiting, and bot checks.
 							Security controls may temporarily process or retain request
 							identifiers, including IP addresses. Standard analytics event
@@ -166,34 +168,36 @@ export default function DataPolicyPage() {
 					</section>
 
 					<section className="mb-8">
-						<h2 className="mb-4 font-bold text-2xl">What We Collect</h2>
-						<h3 className="mb-3 font-semibold text-xl">
+						<h2 className="mb-4 text-balance font-bold text-2xl">
+							What We Collect
+						</h2>
+						<h3 className="mb-3 text-balance font-semibold text-xl">
 							Visitor and Session IDs
 						</h3>
-						<p className="mb-4">
+						<p className="mb-4 text-pretty">
 							The browser generates a random visitor ID and stores it in
 							localStorage. A session ID and session timing information are
 							stored in sessionStorage.
 						</p>
-						<p className="mb-4">
+						<p className="mb-4 text-pretty">
 							By default, ingestion hashes the visitor ID with a rotating daily
 							salt before storing analytics events. The{" "}
 							<code>anonymizeVisitorIds</code> setting can disable this
 							transformation or apply it according to the visitor’s country.
 						</p>
-						<p className="mb-4">
+						<p className="mb-4 text-pretty">
 							Calling <code>identify()</code> creates or updates a profile using
 							the supplied profile ID and traits, and links activity to that
 							profile. Profile IDs are not made anonymous by the visitor-ID
 							setting.
 						</p>
 						<h3 className="mb-3 font-semibold text-xl">IP Address Handling</h3>
-						<p className="mb-4">
+						<p className="mb-4 text-pretty">
 							The ingestion service uses the request IP address for security
 							checks and an approximate country, region, and city lookup.
 							Standard analytics event records leave the raw IP field empty.
 						</p>
-						<p className="mb-4">
+						<p className="mb-4 text-pretty">
 							This location is inferred from an IP address, rather than
 							collected from the device’s GPS. It should not be treated as a
 							visitor’s precise location.
@@ -205,13 +209,13 @@ export default function DataPolicyPage() {
 							<DatabaseIcon className="mr-2 size-6 text-primary" />
 							Storage and Retention
 						</h2>
-						<p className="mb-4">
+						<p className="mb-4 text-pretty">
 							Analytics events are stored in ClickHouse. Supporting account,
 							website, and profile records are stored separately.
 						</p>
 
 						<h3 className="mb-3 font-semibold text-xl">Data Organization</h3>
-						<p className="mb-3">
+						<p className="mb-3 text-pretty">
 							We store event-level analytics and supporting application data,
 							including:
 						</p>
@@ -261,7 +265,7 @@ export default function DataPolicyPage() {
 						</div>
 
 						<h3 className="mt-6 mb-3 font-semibold text-xl">Data Retention</h3>
-						<p className="mb-4">
+						<p className="mb-4 text-pretty">
 							Most data is retained indefinitely while your account is active.
 							We target one year for performance metrics, but automatic expiry
 							is not guaranteed. You can request deletion if you need data
@@ -285,8 +289,10 @@ export default function DataPolicyPage() {
 					</section>
 
 					<section className="mb-8">
-						<h2 className="mb-4 font-bold text-2xl">Subprocessors</h2>
-						<p className="mb-4">
+						<h2 className="mb-4 text-balance font-bold text-2xl">
+							Subprocessors
+						</h2>
+						<p className="mb-4 text-pretty">
 							Service providers process the information needed for the features
 							they operate. The roles below describe these services; processing
 							locations depend on the provider and configured feature. Contact{" "}
@@ -352,8 +358,8 @@ export default function DataPolicyPage() {
 					</section>
 
 					<section className="mb-8">
-						<h2 className="mb-4 font-bold text-2xl">Data Use</h2>
-						<p className="mb-4">
+						<h2 className="mb-4 text-balance font-bold text-2xl">Data Use</h2>
+						<p className="mb-4 text-pretty">
 							We do not sell your data to third parties or use your visitor
 							information for our own advertising or marketing. Your data
 							belongs to you. Our <a href="/privacy">Privacy Policy</a> and{" "}

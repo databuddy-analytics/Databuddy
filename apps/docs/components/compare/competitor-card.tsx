@@ -13,7 +13,7 @@ export function CompetitorCard({ data }: { data: ComparisonData }) {
 		>
 			<div className="mb-4 flex items-start justify-between">
 				<div className="flex-1">
-					<h3 className="mb-1 font-semibold text-foreground text-lg">
+					<h3 className="mb-1 text-balance font-semibold text-foreground text-lg">
 						{`vs ${competitor.name}`}
 					</h3>
 					<p className="text-pretty text-muted-foreground text-sm">

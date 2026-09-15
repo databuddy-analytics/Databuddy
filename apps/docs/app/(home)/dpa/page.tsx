@@ -51,7 +51,7 @@ export default function DPAPage() {
 					<h1 className="mb-4 font-bold text-4xl md:text-5xl">
 						Data Processing Agreement
 					</h1>
-					<p className="mb-4 text-muted-foreground">
+					<p className="mb-4 text-pretty text-muted-foreground">
 						Last Updated{" "}
 						<span className="font-medium text-foreground">
 							{lastUpdated.toLocaleDateString("en-US", {
@@ -69,7 +69,7 @@ export default function DPAPage() {
 							automatically agree to this DPA.
 						</p>
 					</div>
-					<p className="mx-auto max-w-2xl text-muted-foreground">
+					<p className="mx-auto max-w-2xl text-pretty text-muted-foreground">
 						This agreement explains how Databuddy processes visitor information
 						on your behalf and how we support your responsibilities as the data
 						controller.
@@ -106,7 +106,7 @@ export default function DPAPage() {
 						<h2 className="mb-4 font-bold text-2xl">
 							What We Do with Your Data
 						</h2>
-						<p className="mb-4">
+						<p className="mb-4 text-pretty">
 							We process the visitor information, account context, and connected
 							data needed to provide the features you use. These include
 							analytics, optional profiles, error and performance analysis,
@@ -123,13 +123,13 @@ export default function DPAPage() {
 						<h2 className="mb-4 font-bold text-2xl">
 							Why We Process Your Data
 						</h2>
-						<p className="mb-4">
+						<p className="mb-4 text-pretty">
 							We process this information to provide the services you configure
 							and according to your instructions. This includes generating
 							reports, answering questions, investigating changes, and
 							delivering configured results.
 						</p>
-						<p className="mb-4">
+						<p className="mb-4 text-pretty">
 							We do not sell your visitor information to advertisers or use it
 							for our own advertising or marketing. Service providers process
 							information needed to operate these features, as described in our
@@ -139,13 +139,13 @@ export default function DPAPage() {
 
 					<section className="mb-8">
 						<h2 className="mb-4 font-bold text-2xl">What Data We Handle</h2>
-						<p className="mb-4">
+						<p className="mb-4 text-pretty">
 							Depending on your configuration, we process visitor and session
 							IDs, page and referrer information, attribution parameters,
 							technical and approximate location information, custom events,
 							errors, and performance measurements.
 						</p>
-						<p className="mb-4">
+						<p className="mb-4 text-pretty">
 							If you identify users or send profile traits, this also includes
 							the supplied profile IDs, names, email addresses, and other
 							properties. AI features process relevant prompts and supporting
@@ -197,12 +197,12 @@ export default function DPAPage() {
 						<h2 className="mb-4 font-bold text-2xl">
 							How We Keep Your Data Secure
 						</h2>
-						<p className="mb-4">
+						<p className="mb-4 text-pretty">
 							We use industry-standard security practices including encrypting
 							data when it's transmitted and when it's stored, strict access
 							controls, regular security reviews, and secure data centers.
 						</p>
-						<p className="mb-4">
+						<p className="mb-4 text-pretty">
 							Processing locations depend on the infrastructure, AI, and
 							connected delivery services used for the configured features. Our
 							Data Policy describes these providers. Applicable
@@ -213,7 +213,7 @@ export default function DPAPage() {
 
 					<section className="mb-8">
 						<h2 className="mb-4 font-bold text-2xl">Our Partners</h2>
-						<p className="mb-4">
+						<p className="mb-4 text-pretty">
 							We use infrastructure, delivery, payment, billing, observability,
 							and AI service providers to operate Databuddy. Their functions are
 							described in our Data Policy.

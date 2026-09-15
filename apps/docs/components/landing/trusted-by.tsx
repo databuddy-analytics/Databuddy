@@ -163,7 +163,7 @@ export function TrustedBy() {
 
 	return (
 		<div className="w-full py-10 sm:py-12">
-			<p className="mb-6 text-center text-muted-foreground text-sm uppercase tracking-wide">
+			<p className="mb-6 text-pretty text-center text-muted-foreground text-sm uppercase tracking-wide">
 				Used by teams including
 			</p>
 

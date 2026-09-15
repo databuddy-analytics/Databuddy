@@ -10,7 +10,7 @@ export function StatsCards({ competitor }: { competitor: CompetitorInfo }) {
 				<div className="mb-4 flex items-center justify-between">
 					<div>
 						<h3 className="font-semibold text-lg text-primary">Databuddy</h3>
-						<p className="text-muted-foreground text-xs">
+						<p className="text-pretty text-muted-foreground text-xs">
 							Analytics, errors, monitoring, and AI analysis
 						</p>
 					</div>
