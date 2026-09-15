@@ -530,6 +530,7 @@
       "name": "@databuddy/notifications",
       "version": "0.0.1",
       "dependencies": {
+        "@databuddy/env": "workspace:*",
         "@databuddy/shared": "workspace:*",
         "resend": "^4.0.1",
       },
