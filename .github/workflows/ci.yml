@@ -182,6 +182,12 @@ jobs:
           CLICKHOUSE_URL: http://default:@localhost:8123
           NODE_ENV: test
         run: bun run test
+      - name: Self-hosted dashboard settings
+        run: >-
+          bun test --no-env-file apps/dashboard/next-config.test.ts
+          apps/dashboard/app/layout.test.ts
+          'apps/dashboard/app/(main)/websites/[id]/_components/utils/code-generators.test.ts'
+          packages/auth/src/selfhost-config.test.ts
       - name: Business context integration
         env:
           NODE_ENV: test
