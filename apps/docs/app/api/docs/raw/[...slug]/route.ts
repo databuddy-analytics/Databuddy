@@ -20,9 +20,12 @@ export async function GET(
 	if (slug.some(isUnsafeSegment)) {
 		return new Response("Not found", { status: 404 });
 	}
+	const requestedPath = slug.join("/");
 	const page =
 		source.getPage(slug) ??
-		(slug.at(-1) === "index" ? source.getPage(slug.slice(0, -1)) : undefined);
+		source
+			.getPages()
+			.find((entry) => entry.file.flattenedPath === requestedPath);
 	if (!page) {
 		return new Response("Not found", { status: 404 });
 	}

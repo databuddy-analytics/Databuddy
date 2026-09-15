@@ -144,53 +144,65 @@ describe("search discovery", () => {
 		const { GET: full } = await import("@/app/llms-full.txt/route");
 		const request = new Request("https://www.databuddy.cc/api/docs/raw/index");
 		const indexBody = await index().text();
-		for (const page of source.getPages()) {
-			const original = matter(
-				await readFile(
-					join(import.meta.dir, "..", "content", "docs", page.file.path),
-					"utf8"
-				)
-			);
-			const title = original.data.title ? `# ${original.data.title}\n\n` : "";
-			const description = original.data.description
-				? `> ${original.data.description}\n\n`
-				: "";
-			expect(indexBody).toContain(
-				`https://www.databuddy.cc/docs/${page.file.flattenedPath}.md`
-			);
-			for (const slug of [page.slugs, page.file.flattenedPath.split("/")]) {
+		const pages = source.getPages();
+		await Promise.all(
+			pages.map(async (page) => {
+				const original = matter(
+					await readFile(
+						join(import.meta.dir, "..", "content", "docs", page.file.path),
+						"utf8"
+					)
+				);
+				const title = original.data.title ? `# ${original.data.title}\n\n` : "";
+				const description = original.data.description
+					? `> ${original.data.description}\n\n`
+					: "";
+				expect(indexBody).toContain(
+					`https://www.databuddy.cc/docs/${page.file.flattenedPath}.md`
+				);
+				await Promise.all(
+					[page.slugs, page.file.flattenedPath.split("/")].map(async (slug) => {
+						const response = await raw(request, {
+							params: Promise.resolve({ slug }),
+						});
+						const body = await response.text();
+						expect(response.status).toBe(200);
+						expect(body).toBe(title + description + original.content);
+						expect(response.headers.get("content-type")).toBe(
+							"text/markdown; charset=utf-8"
+						);
+						expect(response.headers.get("cache-control")).toBe(
+							"public, max-age=3600, must-revalidate"
+						);
+						expect(response.headers.get("etag")).toBe(
+							`"${createHash("sha256").update(body).digest("hex").slice(0, 16)}"`
+						);
+					})
+				);
+			})
+		);
+		await Promise.all(
+			[
+				["missing-document"],
+				["security", "index"],
+				["sdk", "react", "index"],
+				[".."],
+				["api/authentication"],
+				["api\\authentication"],
+				[""],
+				["api", "\0"],
+			].map(async (slug) => {
 				const response = await raw(request, {
 					params: Promise.resolve({ slug }),
 				});
-				const body = await response.text();
-				expect(response.status).toBe(200);
-				expect(body).toBe(title + description + original.content);
-				expect(response.headers.get("content-type")).toBe(
-					"text/markdown; charset=utf-8"
-				);
-				expect(response.headers.get("cache-control")).toBe(
-					"public, max-age=3600, must-revalidate"
-				);
-				expect(response.headers.get("etag")).toBe(
-					`"${createHash("sha256").update(body).digest("hex").slice(0, 16)}"`
-				);
-			}
-		}
-		for (const slug of [
-			["missing-document"],
-			[".."],
-			["api/authentication"],
-			["api\\authentication"],
-			[""],
-			["api", "\0"],
-		]) {
-			const response = await raw(request, { params: Promise.resolve({ slug }) });
-			expect(response.status).toBe(404);
-		}
+				expect(response.status).toBe(404);
+			})
+		);
 		const fullBody = await (await full()).text();
 		expect(fullBody.length).toBeLessThanOrEqual(190_000);
 		expect(fullBody).toContain("## Additional Documentation");
-		const page = source.getPages()[0];
+		const page = pages.at(0);
+		if (!page) throw new Error("Missing documentation inventory");
 		const getText = spyOn(page.data, "getText").mockRejectedValueOnce(
 			new Error("Read failed")
 		);
