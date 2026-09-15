@@ -69,7 +69,7 @@ Create a **Constant** variable for your Client ID:
 
 Reuse the loader above for each configuration:
 
-- **Environments:** make `Databuddy Client ID` a Lookup Table variable keyed by `Page Hostname`, with a separate Client ID for each registered site.
+- **Environments:** make `Databuddy Client ID` a Lookup Table variable keyed by `Page Hostname`. Map every hostname where the tag can fire to its registered site's Client ID, including staging or preview hosts used for testing. Add a trigger condition that permits only mapped hostnames; do not fire the tag on an unmatched host with an empty or unresolved Client ID.
 - **Internal traffic:** add a trigger condition or exception using your internal-traffic variable.
 - **Optional tracking:** change the `data-*` attributes before `appendChild()`. See the [configuration reference](/docs/sdk/configuration).
 
