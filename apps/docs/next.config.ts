@@ -11,6 +11,10 @@ const AGENT_LINK_HEADER =
 const config: NextConfig = {
 	reactStrictMode: true,
 	transpilePackages: ["@databuddy/ui"],
+	outputFileTracingIncludes: {
+		"/api/docs/raw/*": ["./content/docs/**/*.mdx"],
+		"/llms-full.txt": ["./content/docs/**/*.mdx"],
+	},
 	async headers() {
 		return await [
 			{
