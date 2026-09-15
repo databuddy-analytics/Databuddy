@@ -40,6 +40,7 @@ describe("buildAlarmNotificationTargets", () => {
 						config: { from: destinationFrom },
 					},
 				]);
+				expect(target?.channel).toBe("email");
 				const result = await new NotificationClient(target?.clientConfig).send(
 					{ title: "Site alert", message: "The site is unavailable." },
 					{ channels: ["email"] }
@@ -109,30 +110,6 @@ describe("buildAlarmNotificationTargets", () => {
 				},
 			]);
 			expect(targets).toEqual([]);
-		} finally {
-			if (previousApiKey === undefined) {
-				delete process.env.RESEND_API_KEY;
-			} else {
-				process.env.RESEND_API_KEY = previousApiKey;
-			}
-		}
-	});
-
-	test("builds an email delivery target when Resend is configured", () => {
-		const previousApiKey = process.env.RESEND_API_KEY;
-		process.env.RESEND_API_KEY = "re_test_key";
-		try {
-			const [target] = buildAlarmNotificationTargets([
-				{
-					type: "email",
-					identifier: "recipient@example.com",
-					config: {},
-				},
-			]);
-			expect(target?.channel).toBe("email");
-			expect(target?.clientConfig.email?.defaultTo).toBe(
-				"recipient@example.com"
-			);
 		} finally {
 			if (previousApiKey === undefined) {
 				delete process.env.RESEND_API_KEY;
