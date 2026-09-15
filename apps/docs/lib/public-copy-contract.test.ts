@@ -167,7 +167,7 @@ describe("search discovery", () => {
 						});
 						const body = await response.text();
 						expect(response.status).toBe(200);
-						expect(body).toBe(title + description + original.content);
+						expect(body).toBe(`${title}${description}${original.content}`);
 						expect(response.headers.get("content-type")).toBe(
 							"text/markdown; charset=utf-8"
 						);
@@ -201,14 +201,16 @@ describe("search discovery", () => {
 		const fullBody = await (await full()).text();
 		expect(fullBody.length).toBeLessThanOrEqual(190_000);
 		expect(fullBody).toContain("## Additional Documentation");
-		const page = pages.at(0);
-		if (!page) throw new Error("Missing documentation inventory");
-		const getText = spyOn(page.data, "getText").mockRejectedValueOnce(
+		const firstPage = pages.at(0);
+		if (!firstPage) {
+			throw new Error("Missing documentation inventory");
+		}
+		const getText = spyOn(firstPage.data, "getText").mockRejectedValueOnce(
 			new Error("Read failed")
 		);
 		try {
 			await expect(
-				raw(request, { params: Promise.resolve({ slug: page.slugs }) })
+				raw(request, { params: Promise.resolve({ slug: firstPage.slugs }) })
 			).rejects.toThrow("Read failed");
 		} finally {
 			getText.mockRestore();

@@ -35,7 +35,7 @@ export async function GET(
 	const description = page.data.description
 		? `> ${page.data.description}\n\n`
 		: "";
-	const body = header + description + markdown;
+	const body = `${header}${description}${markdown}`;
 
 	return new Response(body, {
 		headers: {
