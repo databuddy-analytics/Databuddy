@@ -77,20 +77,39 @@ Databuddy can be self-hosted using Docker Compose. The repo includes two compose
 cp .env.example .env
 # Edit .env — set IMAGE_TAG, URL-safe database/cache passwords, public URLs,
 # BETTER_AUTH_SECRET, DATABUDDY_ENCRYPTION_KEY, IP_HASH_SALT, and
-# AI_GATEWAY_API_KEY. Make the local database URLs use the same credentials
-# before running the initialization commands below.
+# AI_GATEWAY_API_KEY.
 
 # 2. Start databases and cache
 docker compose -f docker-compose.selfhost.yml up -d postgres clickhouse redis
 
-# 3. Initialize databases from the repo checkout (first run only)
-bun install --frozen-lockfile
-bun run db:push
-bun run clickhouse:init
+# 3. Initialize databases using the matching release image
+docker compose -f docker-compose.selfhost.yml run --rm init
 
 # 4. Start backend services
 docker compose -f docker-compose.selfhost.yml up -d
 ```
+
+The `init` service contains the schema source and tooling; the compiled API
+image does not. It runs PostgreSQL `db:push`, then creates missing ClickHouse
+tables and views. It only runs when explicitly requested. No local Bun install
+or custom migration script is needed.
+
+For upgrades, back up your databases, set `IMAGE_TAG` to the new release, and
+apply PostgreSQL changes separately so you can review any schema change prompts:
+
+```bash
+docker compose -f docker-compose.selfhost.yml pull init
+docker compose -f docker-compose.selfhost.yml run --rm init bun run --cwd packages/db db:push
+```
+
+If you decline a PostgreSQL change, stop the upgrade. After accepting the changes,
+create any missing ClickHouse objects with
+`docker compose -f docker-compose.selfhost.yml run --rm init bun --cwd packages/db src/clickhouse/setup.ts`.
+This only creates missing objects; apply any additional migrations listed in the
+release notes separately before starting the updated services.
+
+To verify a local init image against disposable databases, run
+`bash scripts/test-selfhost-init.sh` (requires Docker Compose 2.24.4 or later).
 
 Services started:
 - **API** → `localhost:3001`

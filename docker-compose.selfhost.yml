@@ -44,9 +44,10 @@ services:
         soft: 262144
         hard: 262144
     healthcheck:
-      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8123/ping" ]
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8123/ping" ]
       interval: 10s
       timeout: 5s
+      start_period: 30s
       retries: 5
     restart: unless-stopped
     networks:
@@ -70,6 +71,22 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    networks:
+      - databuddy
+    <<: *logging
+
+  init:
+    image: ghcr.io/databuddy-analytics/databuddy-init:${IMAGE_TAG:?Set IMAGE_TAG to a release tag, for example v1.0.0}
+    profiles: [ "tools" ]
+    environment:
+      DATABASE_URL: "postgres://${POSTGRES_USER:-databuddy}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your environment}@postgres:5432/${POSTGRES_DB:-databuddy}"
+      CLICKHOUSE_URL: "http://${CLICKHOUSE_USER:-default}:${CLICKHOUSE_PASSWORD:?Set CLICKHOUSE_PASSWORD in your environment}@clickhouse:8123/${CLICKHOUSE_DB:-databuddy_analytics}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    restart: "no"
     networks:
       - databuddy
     <<: *logging
