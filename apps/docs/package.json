@@ -37,7 +37,7 @@
     "fast-glob": "^3.3.3",
     "fumadocs-core": "15.5.0",
     "fumadocs-mdx": "14.3.0",
-    "fumadocs-ui": "15.5.0",
+    "fumadocs-ui": "16.15.1",
     "gray-matter": "^4.0.3",
     "isomorphic-dompurify": "^3.12.0",
     "libphonenumber-js": "^1.12.41",
