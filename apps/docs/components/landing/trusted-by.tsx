@@ -5,43 +5,6 @@ import { useEffect, useState } from "react";
 
 const companies = [
 	{
-		name: "Open",
-		badge: "YC W24",
-		url: "https://open.cx",
-		logo: "/social/opencx-black.svg",
-		invert: true,
-	},
-	{
-		name: "Autumn",
-		badge: "YC S25",
-		url: "https://useautumn.com",
-		logo: "/social/autumn.webp",
-	},
-	{
-		name: "Better Auth",
-		badge: "YC X25",
-		url: "https://www.better-auth.com",
-		logo: "/social/better-auth.svg",
-		invert: true,
-	},
-	{
-		name: "OpenCut",
-		url: "https://opencut.app",
-		logo: "/social/opencut.svg",
-		invert: true,
-	},
-	{
-		name: "Maza",
-		url: "https://maza.vc",
-		logo: "/social/maza.svg",
-	},
-	{
-		name: "Figurable",
-		url: "https://figurable.ai",
-		logo: "/social/figurable.svg",
-		invert: true,
-	},
-	{
 		name: "Quiver",
 		url: "https://quiver.ai",
 		logo: "/social/quiver.svg",
@@ -54,10 +17,37 @@ const companies = [
 		logo: "/social/inth.svg",
 	},
 	{
-		name: "Orchid",
-		badge: "YC S25",
-		url: "https://orchid.ai",
-		logo: "/social/orchid.webp",
+		name: "Tday",
+		badge: "YC P26",
+		url: "https://tday.com",
+		logo: "/social/tday.png",
+	},
+	{
+		name: "Rare UI",
+		url: "https://www.rareui.com",
+		logo: "/social/rare-ui.svg",
+	},
+	{
+		name: "nuqs",
+		url: "https://nuqs.dev",
+		logo: "/social/nuqs.svg",
+	},
+	{
+		name: "Coinstash",
+		url: "https://coinstash.com.au",
+		logo: "/social/coinstash.svg",
+		invert: true,
+	},
+	{
+		name: "Maza",
+		url: "https://maza.vc",
+		logo: "/social/maza.svg",
+	},
+	{
+		name: "Figurable",
+		url: "https://figurable.ai",
+		logo: "/social/figurable.svg",
+		invert: true,
 	},
 ];
 
@@ -103,9 +93,10 @@ function CompanyCard({
 		>
 			<Image
 				alt={company.name}
-				className={`h-6 w-auto object-contain opacity-70 transition-opacity duration-200 group-hover:opacity-100 sm:h-7 ${company.invert ? "invert" : ""}`}
+				className={`h-6 max-w-full object-contain opacity-70 transition-opacity duration-200 group-hover:opacity-100 sm:h-7 ${company.invert ? "invert" : ""}`}
 				height={28}
 				src={company.logo}
+				style={{ width: "auto" }}
 				width={120}
 			/>
 			<div className="flex items-center gap-1.5">
