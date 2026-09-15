@@ -135,10 +135,6 @@ services:
       CLICKHOUSE_URL: "http://${CLICKHOUSE_USER:-default}:${CLICKHOUSE_PASSWORD:?Set CLICKHOUSE_PASSWORD in your environment}@clickhouse:8123/${CLICKHOUSE_DB:-databuddy_analytics}"
       DATABUDDY_ENCRYPTION_KEY: ${DATABUDDY_ENCRYPTION_KEY:?Set DATABUDDY_ENCRYPTION_KEY in your environment}
       IP_HASH_SALT: ${IP_HASH_SALT:?Set IP_HASH_SALT in your environment}
-      DASHBOARD_URL: ${DASHBOARD_URL:?Set DASHBOARD_URL in your environment}
-      EMAIL_FROM: ${EMAIL_FROM:-}
-      ALERTS_EMAIL_FROM: ${ALERTS_EMAIL_FROM:-}
-      RESEND_API_KEY: ${RESEND_API_KEY:-}
       SUPERLOG_API_KEY: ${SUPERLOG_API_KEY:-}
       SELFHOST: "true"
     healthcheck:

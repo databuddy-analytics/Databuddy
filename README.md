@@ -100,21 +100,6 @@ Services started:
 
 All ports are configurable via env vars (`API_PORT`, `BASKET_PORT`, etc.). See the compose file comments for the full env var reference.
 
-### Email delivery
-
-Set `RESEND_API_KEY` and `EMAIL_FROM` in `.env` to send authentication emails and alerts. The sender must use a domain verified in your Resend account:
-
-```dotenv
-RESEND_API_KEY="your-resend-api-key"
-EMAIL_FROM="Databuddy <no-reply@example.com>"
-```
-
-Replace `example.com` with your verified domain. Leave `ALERTS_EMAIL_FROM` empty to use `EMAIL_FROM` for alerts, or set it to another verified sender. An alarm's own sender setting takes precedence. Without a sender override, Databuddy uses its hosted `databuddy.cc` addresses, which your Resend account cannot send from. Recreate the services after changing `.env`:
-
-```bash
-docker compose -f docker-compose.selfhost.yml up -d
-```
-
 ## 🤝 Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
