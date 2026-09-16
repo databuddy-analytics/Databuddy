@@ -902,7 +902,7 @@ async function investigatePlannedCandidate(
 		evidence = [...evidence, annotation];
 	}
 	const appContext: AppContext = {
-		userId: input.userId ?? "system",
+		userId: input.userId,
 		organizationId: input.organizationId,
 		websiteId: input.websiteId,
 		defaultWebsiteId: input.websiteId,

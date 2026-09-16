@@ -498,7 +498,7 @@ export async function resumeInsightReply(
 			organizationId: trigger.organizationId,
 			serviceAuth: createServiceAuth(trigger.organizationId, ["read:data"]),
 			timezone: trigger.timezone,
-			userId: trigger.authorId ?? "system",
+			userId: trigger.authorId,
 			websiteDomain: trigger.websiteDomain,
 			websiteId: trigger.websiteId,
 			websiteName: trigger.websiteName,

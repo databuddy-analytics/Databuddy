@@ -1983,7 +1983,7 @@ export async function runInsightAgent(
 			domain: originalInput.appContext.websiteDomain,
 			githubRepository: originalInput.githubRepository,
 			organizationId,
-			userId: originalInput.appContext.userId,
+			userId: originalInput.appContext.userId ?? undefined,
 		});
 	const savedCheck = savedVerificationCheck(originalInput);
 	if (

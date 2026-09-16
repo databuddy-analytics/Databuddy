@@ -19,7 +19,7 @@ export interface AppContext {
 	serviceAuth?: ServiceAuth;
 	source?: "dashboard" | "mcp" | "slack";
 	timezone: string;
-	userId: string;
+	userId?: string | null;
 	websiteDomain?: string;
 	websiteId?: string;
 	websiteName?: string | null;

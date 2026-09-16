@@ -234,7 +234,7 @@ export function buildRpcContext(
 	}
 ): AppContext {
 	return {
-		userId: principal.userId ?? "",
+		userId: principal.userId,
 		websiteId: "",
 		websiteDomain: "",
 		timezone: "UTC",
