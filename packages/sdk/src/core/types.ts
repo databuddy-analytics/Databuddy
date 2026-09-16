@@ -119,8 +119,6 @@ export interface EventTypeMap {
 		fcp?: number;
 		lcp?: number;
 		cls?: string;
-		/** @deprecated FID was replaced by INP. */
-		fid?: number;
 		inp?: number;
 		fps?: number;
 		ttfb?: number;
