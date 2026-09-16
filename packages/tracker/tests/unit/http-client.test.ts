@@ -600,13 +600,4 @@ describe("BaseTracker delivery outcomes", () => {
 		});
 		expect(send).toHaveBeenCalledTimes(3);
 	});
-
-	test("treats trackPerformance as a compatibility alias", () => {
-		const tracker = new BaseTracker({
-			clientId: "site_example",
-			trackPerformance: true,
-		});
-
-		expect(tracker.options.trackWebVitals).toBe(true);
-	});
 });

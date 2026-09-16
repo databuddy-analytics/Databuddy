@@ -42,8 +42,6 @@ export interface DatabuddyConfig {
 	trackHashChanges?: boolean;
 	trackInteractions?: boolean;
 	trackOutgoingLinks?: boolean;
-	/** @deprecated Use trackWebVitals. This remains as a compatibility alias. */
-	trackPerformance?: boolean;
 	trackWebVitals?: boolean;
 	/** Use 1x1 pixel image for tracking instead of script (default: false) */
 	usePixel?: boolean;

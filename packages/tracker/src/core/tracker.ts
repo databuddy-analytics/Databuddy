@@ -113,13 +113,6 @@ export class BaseTracker {
 			sdkVersion: "2.0.0",
 			...options,
 		};
-		if (
-			options.trackWebVitals === undefined &&
-			options.trackPerformance !== undefined
-		) {
-			this.options.trackWebVitals = options.trackPerformance;
-		}
-
 		const effectiveMaxRetries =
 			this.options.enableRetries === false ? 0 : (this.options.maxRetries ?? 3);
 

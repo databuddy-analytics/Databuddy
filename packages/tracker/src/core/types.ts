@@ -11,8 +11,6 @@ export type TrackerOptions = {
 	trackHashChanges?: boolean;
 	trackAttributes?: boolean;
 	trackOutgoingLinks?: boolean;
-	/** @deprecated Use trackWebVitals. This remains as a compatibility alias. */
-	trackPerformance?: boolean;
 	trackWebVitals?: boolean;
 	trackInteractions?: boolean;
 	trackErrors?: boolean;
