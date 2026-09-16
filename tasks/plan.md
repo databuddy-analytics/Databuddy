@@ -36,8 +36,8 @@ Use only synthetic fixtures for browser/model/provider tests. No production data
 
 - Root lint and all 33 workspace typecheck tasks pass on current staging.
 - Production dashboard build passes with E2E mode disabled.
-- 24 RPC, 52 generator/shared-schema, and 25 isolated PostgreSQL storage tests pass.
-- All 18 Playwright regressions pass in one run after rebasing. They cover recovery, saved revisions, source attribution, keyboard focus, credit/configuration gates, streamed previews, mobile comparison, and stable measurement controls during saves.
+- 27 RPC, 57 generator, and 26 isolated PostgreSQL storage tests pass.
+- All 37 Playwright regressions pass in one run after rebasing. They cover recovery, saved revisions, source attribution, keyboard focus, credit/configuration gates, streamed previews, mobile comparison, and stable measurement controls during saves.
 - Desktop and mobile screenshots were inspected; synthetic previews had no uncaught page errors or horizontal overflow.
 
 The generator uses real partial-output streaming with durable updates, surfaced by the active oRPC request. Settings polling remains a fallback for active generations outside the current request. Provider behavior is tested with mocks; live model output quality and paid-provider billing are outside this validation. Selected documentation subdomains are supported; arbitrary cross-domain crawling and scheduled refresh are not added.

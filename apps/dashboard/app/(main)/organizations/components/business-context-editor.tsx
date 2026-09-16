@@ -955,7 +955,7 @@ export function BusinessContextEditor({
 												{generation?.progress?.stage === "writing"
 													? "Writing your draft."
 													: "Reading your sources."}{" "}
-												Saving your edits cancels this draft.
+												Saving or leaving this page stops research.
 											</p>
 										) : accessPending ? (
 											<p className="text-muted-foreground">
