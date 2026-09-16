@@ -67,33 +67,6 @@ async function stripPrivilegedBody(request: Request): Promise<Request> {
 
 const autumn = autumnHandler({ identify: identifyAutumnCustomer });
 
-async function withDubCustomerMetadata(
-	request: Request,
-	body: JSONValue
-): Promise<Request> {
-	if (!body || typeof body !== "object" || Array.isArray(body)) {
-		return request;
-	}
-	const identity = await identifyAutumnCustomer(request).catch(() => null);
-	if (!identity?.customerId) {
-		return request;
-	}
-	const metadata =
-		body.metadata &&
-		typeof body.metadata === "object" &&
-		!Array.isArray(body.metadata)
-			? body.metadata
-			: {};
-	return new Request(request.url, {
-		method: request.method,
-		headers: request.headers,
-		body: JSON.stringify({
-			...body,
-			metadata: { ...metadata, dubCustomerExternalId: identity.customerId },
-		}),
-	});
-}
-
 const AUTUMN_CACHE_TTL_SEC: Record<string, number> = {
 	getOrCreateCustomer: 30,
 	listPlans: 300,
@@ -172,8 +145,19 @@ export async function handleAutumnRequest(request: Request) {
 			});
 			return Response.json(response.payload, { status: response.status });
 		}
-		if (segment === "attach") {
-			sanitized = await withDubCustomerMetadata(sanitized, body);
+		const identity = await identifyAutumnCustomer(sanitized).catch(() => null);
+		if (identity && body && typeof body === "object" && !Array.isArray(body)) {
+			sanitized = new Request(sanitized.url, {
+				method: sanitized.method,
+				headers: sanitized.headers,
+				body: JSON.stringify({
+					...body,
+					metadata: {
+						...(typeof body.metadata === "object" && body.metadata),
+						dubCustomerExternalId: identity.customerId,
+					},
+				}),
+			});
 		}
 		// Expanded responses have a different shape from the plain customer cache.
 		if (
