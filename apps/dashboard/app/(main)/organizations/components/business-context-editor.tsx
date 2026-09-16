@@ -3,31 +3,42 @@
 import {
 	BUSINESS_CONTEXT_LIMIT,
 	BUSINESS_CONTEXT_TEAM_FIELD_LIMIT,
-	type BusinessBrief,
 	type BusinessContextEdit,
 	type BusinessTeamContext,
 	type OrganizationBusinessProfile,
 	type BusinessContextSettings,
 	businessContextIsGenerating,
 	formatBusinessTeamContext,
-	formatBusinessMeasurementPlans,
 	businessMeasurementPlansSchema,
+	businessContextSourceUrlsSchema,
+	businessContextSourceBelongsToSite,
 } from "@databuddy/shared/organization-business-context";
-import { Button, Card, Field, Textarea, dayjs } from "@databuddy/ui";
-import { Accordion, Dialog, DropdownMenu } from "@databuddy/ui/client";
-import { diffWordsWithSpace } from "diff";
 import {
-	ArrowSquareOutIcon,
+	Button,
+	Card,
+	Field,
+	Textarea,
+	SegmentedControl,
+	Badge,
+	dayjs,
+} from "@databuddy/ui";
+import { DropdownMenu, Tabs } from "@databuddy/ui/client";
+import {
 	CaretDownIcon,
-	FileTextIcon,
 	FloppyDiskIcon,
 	WandSparkleIcon,
 } from "@databuddy/ui/icons";
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { TopBar } from "@/components/layout/top-bar";
 import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
 import { useBusinessContextDraft } from "./use-business-context-draft";
 import { MeasurementPlanEditor } from "./measurement-plan-editor";
+import {
+	BusinessContextMarkdown,
+	BusinessContextSources,
+	BusinessContextVersion,
+} from "./business-context-content";
 
 const emptyTeamContext: BusinessTeamContext = {
 	priority: "",
@@ -38,22 +49,22 @@ const teamFields = [
 	{
 		key: "priority",
 		label: "Current priority",
-		placeholder: "What business outcome matters most right now?",
+		placeholder:
+			"For example, help more trial accounts complete their first project.",
 	},
 	{
 		key: "successDefinition",
 		label: "How you define success",
 		placeholder:
-			"Which events or actions mean a customer has reached that outcome?",
+			"What does a successful customer actually do? Include relevant event names if you know them.",
 	},
 	{
 		key: "exclusions",
 		label: "Things to exclude or account for",
 		placeholder:
-			"Internal traffic, test accounts, seasonality, or other constraints.",
+			"Internal testing, seasonal demand, known incidents, or other context.",
 	},
 ] as const;
-
 type Review =
 	| { kind: "generation" | "conflict" }
 	| {
@@ -61,106 +72,25 @@ type Review =
 			profile: OrganizationBusinessProfile;
 			baseRevision: number;
 	  };
-
 interface BusinessContextEditorProps {
+	access?: {
+		status:
+			| "allowed"
+			| "credits-required"
+			| "unavailable"
+			| "not-configured"
+			| "read-only";
+		message: string;
+		action: "generate" | "billing" | "retry" | "contact-admin";
+	};
+	accessPending: boolean;
 	onCancel: (generationId: string) => Promise<void>;
-	onGenerate: (websiteId: string) => Promise<void>;
+	onGenerate: (websiteId: string, sourceUrls: string[]) => Promise<void>;
+	onRefreshAccess: () => void;
 	onRestore: (restoreRevision: number, revision: number) => Promise<void>;
 	onSave: (draft: BusinessContextEdit) => Promise<void>;
 	settings: BusinessContextSettings;
 	storageKey: string;
-}
-
-function BriefChanges({ before, after }: { before: string; after: string }) {
-	const changes = diffWordsWithSpace(before, after, { timeout: 50 });
-	if (!changes) {
-		return (
-			<div className="grid gap-5 sm:grid-cols-2">
-				<div>
-					<p className="mb-2 font-medium">Current text</p>
-					<p className="whitespace-pre-wrap break-words">{before || "Empty"}</p>
-				</div>
-				<div>
-					<p className="mb-2 font-medium">Selected version</p>
-					<p className="whitespace-pre-wrap break-words">{after || "Empty"}</p>
-				</div>
-			</div>
-		);
-	}
-	let offset = 0;
-	return (
-		<div className="space-y-3">
-			<p className="text-muted-foreground text-xs">
-				Additions are underlined. Removed text is struck through.
-			</p>
-			<p className="whitespace-pre-wrap break-words text-xs leading-6">
-				{changes.map((change) => {
-					const key = `${offset}:${change.added ? "add" : change.removed ? "remove" : "keep"}`;
-					offset += change.value.length;
-					if (change.added) {
-						return (
-							<ins className="bg-success/10 text-success" key={key}>
-								{change.value}
-							</ins>
-						);
-					}
-					if (change.removed) {
-						return (
-							<del className="bg-destructive/10 text-destructive" key={key}>
-								{change.value}
-							</del>
-						);
-					}
-					return <span key={key}>{change.value}</span>;
-				})}
-			</p>
-		</div>
-	);
-}
-
-function Sources({ sources }: { sources: BusinessBrief["sources"] }) {
-	const links = sources.filter(
-		({ url }) => url.startsWith("https://") || url.startsWith("http://")
-	);
-	if (!links.length) {
-		return null;
-	}
-	return (
-		<Card>
-			<Card.Header>
-				<Card.Title>Sources</Card.Title>
-				<Card.Description>Pages used to generate this brief</Card.Description>
-			</Card.Header>
-			<Card.Content className="divide-y p-0">
-				{links.map(({ url, title }) => {
-					const page = new URL(url);
-					return (
-						<a
-							aria-label={title || page.hostname}
-							className="group grid grid-cols-[auto_1fr_auto] items-center gap-3 px-5 py-3 hover:bg-interactive-hover"
-							href={url}
-							key={url}
-							rel="noopener noreferrer"
-							target="_blank"
-							title={url}
-						>
-							<FileTextIcon className="size-4 text-muted-foreground" />
-							<div className="min-w-0">
-								<p className="truncate font-medium text-foreground text-xs">
-									{title || page.hostname}
-								</p>
-								<p className="truncate text-muted-foreground text-xs">
-									{page.hostname}
-									{page.pathname === "/" ? "" : page.pathname}
-								</p>
-							</div>
-							<ArrowSquareOutIcon className="size-3.5 text-muted-foreground/40 group-hover:text-foreground" />
-						</a>
-					);
-				})}
-			</Card.Content>
-		</Card>
-	);
 }
 
 export function BusinessContextEditor({
@@ -170,6 +100,9 @@ export function BusinessContextEditor({
 	onCancel,
 	onRestore,
 	storageKey,
+	access,
+	accessPending,
+	onRefreshAccess,
 }: BusinessContextEditorProps) {
 	const { profile, generation, canEdit, websites } = settings;
 	const {
@@ -185,8 +118,13 @@ export function BusinessContextEditor({
 	const [error, setError] = useState<string>();
 	const [notice, setNotice] = useState("");
 	const [settledGenerationId, setSettledGenerationId] = useState<string>();
+	const [reviewVersion, setReviewVersion] = useState("proposed");
 	const [review, setReview] = useState<Review | null>(null);
 	const editorRef = useRef<HTMLTextAreaElement>(null);
+	const [view, setView] = useState("preview");
+	const [sourceText, setSourceText] = useState("");
+	const pageRef = useRef<HTMLDivElement>(null);
+	const reviewWasOpen = useRef(false);
 	const reviewTitleRef = useRef<HTMLHeadingElement>(null);
 	const savingRef = useRef(false);
 	const revision = profile?.revision ?? 0;
@@ -262,43 +200,74 @@ export function BusinessContextEditor({
 			? (pendingDraft?.draft?.content ?? "")
 			: (reviewedProfile?.content ?? "");
 	const reviewTeam =
-		review?.kind === "generation" ? teamContext : reviewedProfile?.teamContext;
+		review?.kind === "generation" ? undefined : reviewedProfile?.teamContext;
 	const reviewPlans =
 		review?.kind === "generation"
 			? measurementPlans
 			: reviewedProfile?.measurementPlans;
 
-	useEffect(() => {
-		if (
-			!(ready && canEdit) ||
-			draft ||
-			isSaving ||
-			!readyGeneration?.draft ||
-			readyGeneration.baseRevision !== revision
-		) {
-			return;
-		}
-		// A result may arrive between keystrokes. Only an untouched editor can adopt it automatically.
-		const generatedDraft = readyGeneration.draft;
-		setDraft({
-			content: generatedDraft.content,
-			revision,
-			generationId: readyGeneration.id,
-			teamContext: profile?.teamContext,
-			measurementPlans: profile?.measurementPlans,
-		});
-	}, [
-		ready,
-		canEdit,
-		draft,
-		isSaving,
-		readyGeneration,
-		revision,
-		profile?.teamContext,
-		profile?.measurementPlans,
-		setDraft,
-	]);
+	const sourceResult = businessContextSourceUrlsSchema.safeParse(
+		sourceText
+			.split("\n")
+			.map((value) => value.trim())
+			.filter(Boolean)
+	);
+	const invalidSource =
+		sourceResult.success &&
+		selectedWebsite &&
+		sourceResult.data.some(
+			(url) => !businessContextSourceBelongsToSite(url, selectedWebsite.domain)
+		);
+	const sourceError = sourceResult.success
+		? invalidSource
+			? "Use pages on the selected website or its subdomains, such as your docs site."
+			: undefined
+		: "Add up to six valid public page URLs, one per line.";
+	const canGenerate =
+		canEdit &&
+		!!selectedWebsite &&
+		access?.status === "allowed" &&
+		!accessPending &&
+		!generating &&
+		!isSaving &&
+		!sourceError;
+	const reviewTitle =
+		review?.kind === "history"
+			? `Review version ${review.profile.revision}`
+			: review?.kind === "generation"
+				? "Review AI draft"
+				: "Review saved changes";
+	const liveText = generation?.progress?.content ?? "";
+	const displayedDraft = readyGeneration?.draft?.content ?? liveText;
+	const hasGeneratedContent = generating || !!readyGeneration;
 
+	useEffect(() => {
+		if (review) {
+			reviewWasOpen.current = true;
+			reviewTitleRef.current?.focus();
+		} else if (reviewWasOpen.current) {
+			const target =
+				view === "edit"
+					? editorRef.current
+					: pageRef.current?.querySelector<HTMLButtonElement>(
+							'[role="tab"][aria-selected="true"]'
+						);
+			if (target) {
+				reviewWasOpen.current = false;
+				target.focus();
+			}
+		}
+	}, [review, view]);
+	useEffect(() => {
+		if (view === "edit") {
+			editorRef.current?.focus();
+		}
+	}, [view]);
+	useEffect(() => {
+		if (view === "draft" && !hasGeneratedContent) {
+			setView("preview");
+		}
+	}, [view, hasGeneratedContent]);
 	async function change(
 		action: () => Promise<void>,
 		message: string,
@@ -363,14 +332,23 @@ export function BusinessContextEditor({
 	}
 
 	async function generate() {
-		if (!(canEdit && selectedWebsite) || generating || isSaving) {
+		if (
+			!(canEdit && selectedWebsite) ||
+			generating ||
+			isSaving ||
+			accessPending ||
+			access?.status !== "allowed" ||
+			!sourceResult.success ||
+			invalidSource
+		) {
 			return;
 		}
 		setIsRequesting(true);
 		setError(undefined);
 		setNotice("");
 		try {
-			await onGenerate(selectedWebsite.id);
+			await onGenerate(selectedWebsite.id, sourceResult.data);
+			setView("draft");
 		} catch (cause) {
 			setError(
 				getUserFacingErrorMessage(
@@ -380,208 +358,432 @@ export function BusinessContextEditor({
 			);
 		} finally {
 			setIsRequesting(false);
+			onRefreshAccess();
 		}
 	}
 
 	return (
-		<div className="space-y-5">
-			{canEdit && (dirty || draft) && (
+		<div className="space-y-6" ref={pageRef}>
+			{canEdit && (
 				<TopBar.Actions>
 					<Button
 						aria-label="Discard changes"
-						disabled={isSaving}
+						disabled={isSaving || !(dirty || draft)}
 						onClick={discard}
 						size="sm"
 						variant="ghost"
 					>
-						<span>
-							Discard<span className="hidden sm:inline"> changes</span>
-						</span>
+						Discard<span className="hidden sm:inline"> changes</span>
 					</Button>
-					{dirty && (
-						<Button
-							aria-label="Save changes"
-							disabled={saveDisabled}
-							loading={isSaving}
-							keyboard={{
-								display: "⌘S",
-								trigger: (event) =>
-									(event.metaKey || event.ctrlKey) &&
-									event.key.toLowerCase() === "s",
-								callback: save,
-							}}
-							onClick={save}
-							size="sm"
-						>
-							<FloppyDiskIcon className="hidden size-4 shrink-0 sm:block" />
-							<span>
-								Save<span className="hidden sm:inline"> changes</span>
-							</span>
-						</Button>
-					)}
+					<Button
+						aria-label="Save changes"
+						disabled={saveDisabled}
+						loading={isSaving}
+						keyboard={{
+							display: "⌘S",
+							trigger: (event) =>
+								(event.metaKey || event.ctrlKey) &&
+								event.key.toLowerCase() === "s",
+							callback: save,
+						}}
+						onClick={save}
+						size="sm"
+					>
+						<FloppyDiskIcon className="hidden size-4 sm:block" />
+						Save<span className="hidden sm:inline"> changes</span>
+					</Button>
 				</TopBar.Actions>
 			)}
-			<Card>
-				<Card.Header>
-					<Card.Title>Business context</Card.Title>
-					<Card.Description>
-						What you do and who you serve. Applies to every website in this
-						organization.
-					</Card.Description>
-				</Card.Header>
-				<Card.Content className="space-y-5">
-					{canEdit && (
-						<div className="flex flex-wrap items-center justify-between gap-3">
-							{websites.length > 1 ? (
-								<DropdownMenu>
-									<DropdownMenu.Trigger
-										render={
+			<header className="space-y-2">
+				<h1 className="font-semibold text-xl tracking-tight">
+					Business context
+				</h1>
+				<p className="max-w-2xl text-muted-foreground text-sm leading-6">
+					Help Databuddy understand your business, focus on the right outcomes,
+					and interpret your analytics.
+				</p>
+			</header>
+			<div className="grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_18rem]">
+				<div className="contents">
+					<Card className="min-w-0 xl:col-start-1">
+						<Card.Header className="flex-row flex-wrap items-center justify-between gap-3">
+							<div className="space-y-1">
+								<Card.Title>Business brief</Card.Title>
+								<Card.Description>
+									Shared across this organization. Changes apply when saved.
+								</Card.Description>
+							</div>
+							<Badge variant={dirty ? "warning" : "muted"}>
+								{dirty ? "Unsaved changes" : profile ? "Saved" : "Not set up"}
+							</Badge>
+						</Card.Header>
+						{review ? (
+							<section aria-labelledby="business-context-review-title">
+								<div className="space-y-2 border-border border-b px-5 py-4">
+									<h2
+										id="business-context-review-title"
+										ref={reviewTitleRef}
+										tabIndex={-1}
+										className="font-semibold text-base outline-none"
+									>
+										{reviewTitle}
+									</h2>
+									<p className="text-muted-foreground text-xs leading-5">
+										{review.kind === "generation"
+											? "Compare the proposed brief with your current work. Using the draft keeps your team priorities and event definitions; save when you are ready."
+											: review.kind === "history"
+												? "Restoring this version replaces the brief, team context, and event definitions. Your current saved version stays in history."
+												: "Someone saved a newer version. Your edits are still here. Choose which version to continue with."}
+									</p>
+									{review.kind === "generation" &&
+										pendingDraft?.baseRevision !== revision && (
+											<p className="text-warning text-xs">
+												This draft predates the latest saved version. Check any
+												recent corrections before using it.
+											</p>
+										)}
+								</div>
+								<div className="border-border border-b px-5 py-3 md:hidden">
+									<SegmentedControl
+										aria-label="Version to review"
+										options={[
+											{ value: "current", label: "Current version" },
+											{ value: "proposed", label: "Proposed version" },
+										]}
+										value={reviewVersion}
+										onChange={setReviewVersion}
+									/>
+								</div>
+								<div className="grid max-h-144 divide-y divide-border overflow-y-auto md:grid-cols-2 md:divide-x md:divide-y-0">
+									<BusinessContextVersion
+										label="Current version"
+										className={
+											reviewVersion === "current" ? "" : "hidden md:block"
+										}
+										sources={
+											draftGeneration?.draft?.sources ?? profile?.sources ?? []
+										}
+										value={{ content, revision, teamContext, measurementPlans }}
+									/>
+									<BusinessContextVersion
+										label="Proposed version"
+										className={
+											reviewVersion === "proposed" ? "" : "hidden md:block"
+										}
+										sources={
+											review.kind === "generation"
+												? (pendingDraft?.draft?.sources ?? [])
+												: (reviewedProfile?.sources ?? [])
+										}
+										value={{
+											content: reviewText,
+											revision,
+											teamContext: reviewTeam,
+											measurementPlans: reviewPlans,
+										}}
+									/>
+								</div>
+								<div className="flex flex-wrap items-center justify-end gap-2 border-border border-t p-4">
+									<Button
+										size="sm"
+										variant="ghost"
+										disabled={isSaving}
+										onClick={() => setReview(null)}
+									>
+										Back to brief
+									</Button>
+									{review.kind === "generation" ? (
+										<>
 											<Button
-												disabled={generating || isSaving}
 												size="sm"
 												variant="secondary"
-											/>
-										}
-										aria-label={`Source website: ${selectedWebsite?.name || selectedWebsite?.domain}`}
-									>
-										<span className="max-w-48 truncate">
-											{selectedWebsite?.name || selectedWebsite?.domain}
-										</span>
-										<CaretDownIcon className="size-3 shrink-0" />
-									</DropdownMenu.Trigger>
-									<DropdownMenu.Content align="start">
-										<DropdownMenu.Group>
-											<DropdownMenu.GroupLabel>
-												Generate from website
-											</DropdownMenu.GroupLabel>
-											<DropdownMenu.RadioGroup
-												onValueChange={setWebsiteId}
-												value={selectedWebsite?.id}
+												disabled={isSaving}
+												onClick={() =>
+													pendingDraft &&
+													change(
+														() => onCancel(pendingDraft.id),
+														"AI draft discarded",
+														false
+													)
+												}
 											>
-												{websites.map((site) => (
-													<DropdownMenu.RadioItem key={site.id} value={site.id}>
-														{site.name || site.domain}
-													</DropdownMenu.RadioItem>
-												))}
-											</DropdownMenu.RadioGroup>
-										</DropdownMenu.Group>
-									</DropdownMenu.Content>
-								</DropdownMenu>
-							) : (
-								<p className="text-muted-foreground text-xs">
-									{selectedWebsite
-										? `From ${selectedWebsite.domain}`
-										: "Add a website to generate a brief, or write your own below."}
-								</p>
-							)}
-							{selectedWebsite && (
-								<Button
-									disabled={generating || isSaving}
-									onClick={generate}
-									size="sm"
-									variant="secondary"
+												Keep current text
+											</Button>
+											<Button
+												size="sm"
+												disabled={!(canEdit && pendingDraft?.draft) || isSaving}
+												onClick={() => {
+													if (!pendingDraft?.draft) {
+														return;
+													}
+													setDraft({
+														content: pendingDraft.draft.content,
+														revision,
+														generationId: pendingDraft.id,
+														teamContext,
+														measurementPlans,
+													});
+													setReview(null);
+													setView("preview");
+													setNotice(
+														"AI draft selected. Save to use it in your analyses."
+													);
+												}}
+											>
+												Use AI draft
+											</Button>
+										</>
+									) : review.kind === "history" ? (
+										<Button
+											size="sm"
+											disabled={!canEdit || isSaving}
+											onClick={() =>
+												change(
+													() =>
+														onRestore(
+															review.profile.revision,
+															review.baseRevision
+														),
+													"Version restored"
+												)
+											}
+										>
+											Restore this version
+										</Button>
+									) : (
+										<>
+											<Button
+												size="sm"
+												variant="secondary"
+												disabled={isSaving}
+												onClick={discard}
+											>
+												Use saved version
+											</Button>
+											<Button
+												size="sm"
+												disabled={!canEdit || isSaving}
+												onClick={() => {
+													setDraft(draft ? { ...draft, revision } : null);
+													setError(undefined);
+													setReview(null);
+												}}
+											>
+												Keep editing my version
+											</Button>
+										</>
+									)}
+								</div>
+							</section>
+						) : (
+							<Tabs
+								value={view}
+								onValueChange={(value) => setView(String(value))}
+							>
+								<div className="flex min-h-12 flex-wrap items-center justify-between gap-2 border-border border-b px-5">
+									<Tabs.List className="border-0">
+										<Tabs.Tab value="preview">Preview</Tabs.Tab>
+										{canEdit && <Tabs.Tab value="edit">Edit</Tabs.Tab>}
+										{hasGeneratedContent && (
+											<Tabs.Tab value="draft">AI draft</Tabs.Tab>
+										)}
+									</Tabs.List>
+									{Boolean(settings.history?.length) && (
+										<DropdownMenu>
+											<DropdownMenu.Trigger
+												render={<Button size="sm" variant="ghost" />}
+											>
+												History
+												<CaretDownIcon className="size-3" />
+											</DropdownMenu.Trigger>
+											<DropdownMenu.Content align="end">
+												<DropdownMenu.Group>
+													<DropdownMenu.GroupLabel>
+														Previous saved versions
+													</DropdownMenu.GroupLabel>
+													{settings.history?.toReversed().map((previous) => (
+														<DropdownMenu.Item
+															key={previous.revision}
+															onClick={() =>
+																setReview({
+																	kind: "history",
+																	profile: previous,
+																	baseRevision: revision,
+																})
+															}
+														>
+															Version {previous.revision} ·{" "}
+															{dayjs(previous.updatedAt).format(
+																"MMM D, h:mm A"
+															)}
+														</DropdownMenu.Item>
+													))}
+												</DropdownMenu.Group>
+											</DropdownMenu.Content>
+										</DropdownMenu>
+									)}
+								</div>
+								<Tabs.Panel
+									value="preview"
+									className="h-112 overflow-y-auto p-5 sm:p-6"
 								>
-									<WandSparkleIcon className="size-4 shrink-0" />
-									{generating
-										? "Generating draft…"
-										: content.trim() || profile
-											? "Regenerate with AI"
-											: "Generate with AI"}
-								</Button>
-							)}
-							{activeGeneration && generation && (
-								<Button
-									disabled={isSaving}
-									onClick={() =>
-										change(
-											() => onCancel(generation.id),
-											"Generation cancelled",
-											false
-										)
-									}
-									size="sm"
-									variant="ghost"
-								>
-									Cancel
-								</Button>
-							)}
-						</div>
-					)}
-					<div
-						aria-live="polite"
-						className="space-y-2 text-muted-foreground text-xs"
-					>
-						{generating && (
-							<p>
-								{canEdit
-									? generation?.status === "queued"
-										? "Waiting to start. You can keep writing."
-										: "Reading your website and preparing a draft. You can keep writing. Saving ends this generation."
-									: "An updated brief is being prepared."}
-							</p>
+									{content.trim() ? (
+										<BusinessContextMarkdown content={content} />
+									) : (
+										<div className="flex h-full flex-col items-start justify-center gap-4">
+											<div className="space-y-2">
+												<h2 className="font-medium text-base">
+													Give your analytics some context
+												</h2>
+												<p className="max-w-md text-muted-foreground text-sm leading-6">
+													Describe what you offer, who uses it, and how they get
+													value. Databuddy can also read your website to prepare
+													a draft.
+												</p>
+											</div>
+											{canEdit ? (
+												<Button
+													size="sm"
+													variant="secondary"
+													onClick={() => setView("edit")}
+												>
+													Write a brief
+												</Button>
+											) : (
+												<p className="text-muted-foreground text-sm">
+													An organization admin can add your business context.
+												</p>
+											)}
+										</div>
+									)}
+								</Tabs.Panel>
+								{canEdit && (
+									<Tabs.Panel
+										value="edit"
+										className="h-112 overflow-y-auto p-5"
+									>
+										<Field error={tooLong} className="h-full">
+											<Field.Label>Business brief</Field.Label>
+											<Field.Description>
+												Markdown is supported. Preview to see headings, lists,
+												and links.
+											</Field.Description>
+											<Textarea
+												className="min-h-80 flex-1 font-mono text-sm leading-6"
+												minRows={12}
+												maxRows={12}
+												readOnly={!(ready && canEdit) || isSaving}
+												ref={editorRef}
+												value={content}
+												onChange={(event) => {
+													setDraft({
+														...(draft ?? {
+															revision,
+															teamContext,
+															measurementPlans,
+														}),
+														content: event.target.value,
+													});
+													setNotice("");
+												}}
+												placeholder="Describe your product, customers, business model, and the workflow that brings them value."
+											/>
+											{tooLong && (
+												<Field.Error>
+													Keep the brief under{" "}
+													{BUSINESS_CONTEXT_LIMIT.toLocaleString()} characters (
+													{content.trim().length.toLocaleString()} used).
+												</Field.Error>
+											)}
+										</Field>
+									</Tabs.Panel>
+								)}
+								{hasGeneratedContent && (
+									<Tabs.Panel
+										value="draft"
+										className="h-112 overflow-y-auto p-5 sm:p-6"
+										aria-label="AI draft preview"
+									>
+										{displayedDraft ? (
+											<BusinessContextMarkdown
+												content={displayedDraft}
+												streaming={generating}
+											/>
+										) : (
+											<div className="flex h-full flex-col justify-center gap-3">
+												<p className="font-medium text-sm">
+													{generation?.status === "queued"
+														? "Your draft is queued"
+														: "Reading your sources"}
+												</p>
+												<p className="text-muted-foreground text-sm leading-6">
+													The draft will appear here as it is written. Your
+													current brief and edits stay intact.
+												</p>
+											</div>
+										)}
+									</Tabs.Panel>
+								)}
+							</Tabs>
 						)}
-						{pendingDraft && canEdit && (
-							<div className="flex flex-wrap items-center justify-between gap-2">
-								<p>An AI draft is ready. Your current text has been kept.</p>
+						<div className="flex min-h-16 flex-wrap items-center justify-between gap-2 border-border border-t px-5 py-3">
+							<div
+								className="min-w-0 text-muted-foreground text-xs"
+								aria-live="polite"
+							>
+								{error ? (
+									<p className="text-destructive" role="alert">
+										{error}
+									</p>
+								) : conflict ? (
+									<p>
+										A newer version was saved. Review it before saving your
+										edits.
+									</p>
+								) : notice ? (
+									<p>{notice}</p>
+								) : dirty ? (
+									<p>
+										{recoverable
+											? "Unsaved changes · Kept in this tab"
+											: "Unsaved changes · Save before closing this tab"}
+									</p>
+								) : profile ? (
+									<time dateTime={profile.updatedAt}>
+										Last saved {dayjs(profile.updatedAt).fromNow()}
+									</time>
+								) : (
+									<p>No saved brief yet</p>
+								)}
+							</div>
+							{conflict && canEdit ? (
 								<Button
-									disabled={isSaving}
-									onClick={() => setReview({ kind: "generation" })}
 									size="sm"
 									variant="secondary"
+									onClick={() => setReview({ kind: "conflict" })}
+								>
+									Review update
+								</Button>
+							) : pendingDraft && canEdit && !review ? (
+								<Button
+									size="sm"
+									variant="secondary"
+									onClick={() => setReview({ kind: "generation" })}
 								>
 									Review AI draft
 								</Button>
-							</div>
-						)}
-						{generation?.status === "failed" && canEdit && (
-							<p role="alert">
-								{generation.error ||
-									"AI couldn't finish this draft. Try generating again, or keep editing."}
-							</p>
-						)}
-						{notice && <p>{notice}</p>}
-					</div>
-					<Field error={tooLong}>
-						<Field.Label>Business brief</Field.Label>
-						<Field.Description>
-							{canEdit
-								? "Used by Databunny to interpret your analytics. Changes apply when saved."
-								: "Used by Databunny to interpret your analytics. Organization admins can update it."}
-						</Field.Description>
-						<Textarea
-							className="leading-6"
-							minRows={12}
-							maxRows={12}
-							onChange={(event) => {
-								setDraft({
-									...(draft ?? { revision, teamContext }),
-									content: event.target.value,
-								});
-								setNotice("");
-							}}
-							placeholder={
-								canEdit
-									? "Describe your product, customers, business model, and priorities. Include what your key events mean and anything the agent should account for."
-									: "No business brief has been saved yet."
-							}
-							readOnly={!(ready && canEdit) || isSaving}
-							ref={editorRef}
-							value={content}
-						/>
-						{tooLong && (
-							<Field.Error>
-								Keep the brief under {BUSINESS_CONTEXT_LIMIT.toLocaleString()}{" "}
-								characters ({content.trim().length.toLocaleString()} used).
-							</Field.Error>
-						)}
-					</Field>
-					<Accordion>
-						<Accordion.Trigger>What matters to your team</Accordion.Trigger>
-						<Accordion.Content className="space-y-4 pt-4">
-							<p className="text-muted-foreground text-xs">
-								Optional context your website cannot explain. Kept when AI
-								regenerates the brief.
-							</p>
+							) : null}
+						</div>
+					</Card>
+					<Card className="order-2 min-w-0 xl:col-start-1">
+						<Card.Header>
+							<Card.Title>What matters to your team</Card.Title>
+							<Card.Description>
+								Your priorities and corrections stay separate from website
+								research and are kept when you regenerate.
+							</Card.Description>
+						</Card.Header>
+						<Card.Content className="space-y-5">
 							{teamFields.map(({ key, label, placeholder }) => (
 								<Field
 									key={key}
@@ -595,11 +797,11 @@ export function BusinessContextEditor({
 										value={teamContext[key]}
 										placeholder={placeholder}
 										minRows={2}
-										maxRows={6}
+										maxRows={4}
 										readOnly={!(ready && canEdit) || isSaving}
 										onChange={(event) => {
 											setDraft({
-												...(draft ?? { content, revision }),
+												...(draft ?? { content, revision, measurementPlans }),
 												teamContext: {
 													...teamContext,
 													[key]: event.target.value,
@@ -618,267 +820,293 @@ export function BusinessContextEditor({
 									)}
 								</Field>
 							))}
-						</Accordion.Content>
-					</Accordion>
-					{conflict && canEdit && (
-						<div
-							className="flex flex-wrap items-center justify-between gap-2"
-							role="alert"
-						>
-							<p className="text-muted-foreground text-xs">
-								A newer brief was saved. Review it before saving your edits.
+						</Card.Content>
+					</Card>
+					<div className="order-3 min-w-0 space-y-3 xl:col-start-1">
+						<MeasurementPlanEditor
+							disabled={!(ready && canEdit) || isSaving}
+							readOnly={!canEdit}
+							websites={websites}
+							plans={measurementPlans}
+							onChange={(plans) => {
+								setDraft({
+									...(draft ?? { content, revision, teamContext }),
+									measurementPlans: plans,
+								});
+								setNotice("");
+							}}
+						/>
+						{dirty && !plansValid && (
+							<p className="text-destructive text-xs" role="alert">
+								Complete the outcome name and both event names before saving.
+								Event names and namespace can contain up to 256 characters.
 							</p>
-							<Button
-								onClick={() => setReview({ kind: "conflict" })}
-								size="sm"
-								variant="secondary"
-							>
-								Review update
-							</Button>
-						</div>
-					)}
-					{error && !conflict && (
-						<p className="text-destructive text-xs" role="alert">
-							{error}
-						</p>
-					)}
-				</Card.Content>
-				<Card.Footer className="justify-between">
-					<p className="text-muted-foreground text-xs">
-						{draftGeneration ? (
-							"AI draft · Not saved"
-						) : dirty ? (
-							recoverable ? (
-								"Unsaved changes · Kept in this tab"
-							) : (
-								"Unsaved changes · Save before closing this tab"
-							)
-						) : profile ? (
-							<time
-								dateTime={profile.updatedAt}
-								title={dayjs(profile.updatedAt).format(
-									"MMM D, YYYY [at] h:mm A"
-								)}
-							>
-								Updated {dayjs(profile.updatedAt).fromNow()}
-							</time>
-						) : (
-							"No saved brief yet"
 						)}
-					</p>
-					{Boolean(settings.history?.length) && (
-						<DropdownMenu>
-							<DropdownMenu.Trigger
-								render={<Button size="sm" variant="ghost" />}
-							>
-								History
-							</DropdownMenu.Trigger>
-							<DropdownMenu.Content align="end">
-								<DropdownMenu.Group>
-									<DropdownMenu.GroupLabel>
-										Previous saved versions
-									</DropdownMenu.GroupLabel>
-									{settings.history?.toReversed().map((previous) => (
-										<DropdownMenu.Item
-											key={previous.revision}
-											onClick={() =>
-												setReview({
-													kind: "history",
-													profile: previous,
-													baseRevision: revision,
-												})
+						{dirty && !bindingsValid && (
+							<p className="text-destructive text-xs" role="alert">
+								Update or remove definitions for changed or unavailable websites
+								before saving.
+							</p>
+						)}
+					</div>
+				</div>
+				<aside className="order-1 min-w-0 space-y-5 xl:col-start-2 xl:row-span-3 xl:row-start-1">
+					{canEdit && (
+						<Card>
+							<Card.Header>
+								<Card.Title>Research your business</Card.Title>
+								<Card.Description>
+									Create a draft from your public website and documentation.
+								</Card.Description>
+							</Card.Header>
+							<Card.Content className="space-y-4">
+								{websites.length > 1 ? (
+									<DropdownMenu>
+										<DropdownMenu.Trigger
+											aria-label={`Source website: ${selectedWebsite?.name || selectedWebsite?.domain}`}
+											render={
+												<Button
+													disabled={generating || isSaving}
+													size="sm"
+													variant="secondary"
+													className="w-full justify-between"
+												/>
 											}
 										>
-											Version {previous.revision} ·{" "}
-											{dayjs(previous.updatedAt).format("MMM D, h:mm A")}
-										</DropdownMenu.Item>
-									))}
-								</DropdownMenu.Group>
-							</DropdownMenu.Content>
-						</DropdownMenu>
+											<span className="truncate">
+												{selectedWebsite?.name || selectedWebsite?.domain}
+											</span>
+											<CaretDownIcon className="size-3 shrink-0" />
+										</DropdownMenu.Trigger>
+										<DropdownMenu.Content>
+											<DropdownMenu.Group>
+												<DropdownMenu.GroupLabel>
+													Generate from website
+												</DropdownMenu.GroupLabel>
+												<DropdownMenu.RadioGroup
+													value={selectedWebsite?.id}
+													onValueChange={setWebsiteId}
+												>
+													{websites.map((site) => (
+														<DropdownMenu.RadioItem
+															key={site.id}
+															value={site.id}
+														>
+															{site.name || site.domain}
+														</DropdownMenu.RadioItem>
+													))}
+												</DropdownMenu.RadioGroup>
+											</DropdownMenu.Group>
+										</DropdownMenu.Content>
+									</DropdownMenu>
+								) : (
+									<p className="break-all font-medium text-xs">
+										{selectedWebsite?.domain || "No website connected"}
+									</p>
+								)}
+								<Field error={Boolean(sourceError)}>
+									<Field.Label>
+										Additional pages{" "}
+										<span className="font-normal text-muted-foreground">
+											(optional)
+										</span>
+									</Field.Label>
+									<Textarea
+										value={sourceText}
+										onChange={(event) => setSourceText(event.target.value)}
+										readOnly={generating || isSaving || !selectedWebsite}
+										minRows={3}
+										maxRows={3}
+										placeholder="https://example.com/pricing
+https://docs.example.com/start"
+										className="text-xs"
+									/>
+									<Field.Description>
+										Up to six URLs, one per line. Include your pricing, setup
+										guide, or product documentation.
+									</Field.Description>
+									{sourceError && <Field.Error>{sourceError}</Field.Error>}
+								</Field>
+								<div
+									className="min-h-20 text-xs leading-5"
+									role="status"
+									aria-live="polite"
+								>
+									{selectedWebsite ? (
+										generating ? (
+											<p>
+												{generation?.status === "queued"
+													? "Waiting to start…"
+													: generation?.progress?.stage === "writing"
+														? "Writing your draft…"
+														: "Reading your sources…"}
+												<span className="mt-1 block text-muted-foreground">
+													You can keep editing. Saving ends this generation.
+												</span>
+											</p>
+										) : generation?.status === "failed" &&
+											!accessPending &&
+											access?.status === "allowed" ? (
+											<p className="text-destructive">
+												{generation.error ||
+													"The draft could not be completed. Your saved brief is unchanged. Try again."}
+											</p>
+										) : accessPending ? (
+											<p className="text-muted-foreground">
+												Checking generation access…
+											</p>
+										) : (
+											<p
+												className={
+													access?.status === "allowed"
+														? "text-muted-foreground"
+														: "text-foreground"
+												}
+											>
+												{access?.message ||
+													"Generation access could not be checked. Your brief is still editable."}
+											</p>
+										)
+									) : (
+										<p className="text-muted-foreground">
+											Add a website to generate a draft. You can write and save
+											your brief now.
+										</p>
+									)}
+								</div>
+								<Button
+									className="w-full"
+									disabled={!canGenerate}
+									loading={generating}
+									onClick={generate}
+									size="sm"
+									variant="secondary"
+								>
+									<WandSparkleIcon className="size-4" />
+									{generating
+										? "Generating draft…"
+										: content.trim() || profile
+											? "Regenerate with AI"
+											: "Generate with AI"}
+								</Button>
+								{activeGeneration && generation ? (
+									<Button
+										className="w-full"
+										size="sm"
+										variant="ghost"
+										disabled={isSaving}
+										onClick={() =>
+											change(
+												() => onCancel(generation.id),
+												"Generation cancelled",
+												false
+											)
+										}
+									>
+										Cancel generation
+									</Button>
+								) : selectedWebsite ? (
+									access?.action === "billing" ? (
+										<Button
+											asChild
+											className="w-full"
+											size="sm"
+											variant="ghost"
+										>
+											<Link href="/billing">Manage billing</Link>
+										</Button>
+									) : access?.action === "retry" ||
+										access?.action === "contact-admin" ||
+										!access ? (
+										<Button
+											className="w-full"
+											size="sm"
+											variant="ghost"
+											disabled={accessPending}
+											onClick={onRefreshAccess}
+										>
+											Check again
+										</Button>
+									) : null
+								) : (
+									<Button asChild className="w-full" size="sm" variant="ghost">
+										<Link href="/websites">Add a website</Link>
+									</Button>
+								)}
+								{access && access.status !== "allowed" && !generating && (
+									<p className="text-muted-foreground text-xs leading-5">
+										You can always write, edit, and save business context
+										manually.
+									</p>
+								)}
+							</Card.Content>
+						</Card>
 					)}
-				</Card.Footer>
-			</Card>
-			<MeasurementPlanEditor
-				disabled={!(ready && canEdit) || isSaving}
-				websites={websites}
-				plans={measurementPlans}
-				onChange={(plans) => {
-					setDraft({
-						...(draft ?? { content, revision, teamContext }),
-						measurementPlans: plans,
-					});
-					setNotice("");
-				}}
-			/>
-			{dirty && !plansValid && (
-				<p className="text-destructive text-xs" role="alert">
-					Complete the outcome name and both event names before saving. Event
-					names and namespace can contain up to 256 characters.
-				</p>
-			)}
-			{dirty && !bindingsValid && (
-				<p className="text-destructive text-xs" role="alert">
-					Update or remove definitions for changed or unavailable websites
-					before saving.
-				</p>
-			)}
-			<Sources
-				sources={draftGeneration?.draft?.sources ?? profile?.sources ?? []}
-			/>
-			<Dialog
-				onOpenChange={(open) => {
-					if (!open) {
-						setReview(null);
-					}
-				}}
-				open={review !== null}
-			>
-				<Dialog.Content className="max-w-2xl" initialFocus={reviewTitleRef}>
-					<Dialog.Header>
-						<Dialog.Title
-							render={(props) => (
-								<h2 {...props} ref={reviewTitleRef} tabIndex={-1}>
-									{props.children}
-								</h2>
-							)}
-						>
-							{review?.kind === "generation"
-								? "Review AI draft"
-								: review?.kind === "history"
-									? `Review version ${review.profile.revision}`
-									: "Review the latest saved brief"}
-						</Dialog.Title>
-						<Dialog.Description>
-							{review?.kind === "generation"
-								? "Using this draft replaces your local text. You can edit it before saving."
-								: review?.kind === "history"
-									? "Restoring replaces the saved brief, team context, event definitions, and your current edits. Your current saved version stays in history."
-									: "Your edits are still in the editor. Choose which version to keep working on."}
-						</Dialog.Description>
-					</Dialog.Header>
-					<Dialog.Body className="max-h-[60vh] space-y-4 overflow-y-auto">
-						<BriefChanges
-							before={[
-								content,
-								formatBusinessTeamContext(teamContext),
-								formatBusinessMeasurementPlans(measurementPlans),
-							]
-								.filter(Boolean)
-								.join("\n\n")}
-							after={[
-								reviewText,
-								formatBusinessTeamContext(reviewTeam),
-								formatBusinessMeasurementPlans(reviewPlans),
-							]
-								.filter(Boolean)
-								.join("\n\n")}
-						/>
-						{review?.kind === "generation" &&
-							pendingDraft?.baseRevision !== revision && (
-								<p className="text-muted-foreground text-xs">
-									This draft was generated before the latest saved update. Check
-									that it includes what matters.
-								</p>
-							)}
-						<Sources
-							sources={
-								(review?.kind === "generation"
-									? pendingDraft?.draft?.sources
-									: reviewedProfile?.sources) ?? []
-							}
-						/>
-					</Dialog.Body>
-					<Dialog.Footer>
-						{error && (
-							<p className="text-destructive text-xs" role="alert">
-								{error}
+					<section className="space-y-3 px-1" aria-label="Context checklist">
+						<h2 className="font-semibold text-xs">Context at a glance</h2>
+						<ul className="space-y-3 text-xs leading-5">
+							{[
+								[
+									"Business background",
+									!!content.trim(),
+									"Describe what you offer and who it helps.",
+								],
+								[
+									"Current priority",
+									!!teamContext.priority.trim(),
+									"Tell Databuddy which outcome matters now.",
+								],
+								[
+									"Success definition",
+									!!teamContext.successDefinition.trim(),
+									"Explain what getting value means for a customer.",
+								],
+								[
+									"Activation and return",
+									measurementPlans.length > 0 && plansValid && bindingsValid,
+									"Optional: connect an outcome to recorded events.",
+								],
+							].map(([label, complete, hint]) => (
+								<li key={String(label)}>
+									<div className="flex items-center justify-between gap-2">
+										<span>{label}</span>
+										<span
+											className={
+												complete ? "text-success" : "text-muted-foreground"
+											}
+										>
+											{complete ? "Added" : "Not set"}
+										</span>
+									</div>
+									{!complete && (
+										<p className="mt-1 text-muted-foreground">{hint}</p>
+									)}
+								</li>
+							))}
+						</ul>
+						{dirty && (
+							<p className="text-muted-foreground text-xs">
+								This preview includes your unsaved changes.
 							</p>
 						)}
-						{review?.kind === "history" ? (
-							<>
-								<Button
-									size="sm"
-									variant="ghost"
-									disabled={isSaving}
-									onClick={() => setReview(null)}
-								>
-									Keep current version
-								</Button>
-								<Button
-									size="sm"
-									disabled={!canEdit || isSaving}
-									onClick={() =>
-										change(
-											() =>
-												onRestore(review.profile.revision, review.baseRevision),
-											"Version restored"
-										)
-									}
-								>
-									Restore this version
-								</Button>
-							</>
-						) : review?.kind === "generation" ? (
-							<>
-								<Button
-									disabled={isSaving}
-									onClick={() =>
-										pendingDraft &&
-										change(() => onCancel(pendingDraft.id), "", false)
-									}
-									size="sm"
-									variant="ghost"
-								>
-									Keep current text
-								</Button>
-								<Button
-									disabled={!(canEdit && pendingDraft?.draft) || isSaving}
-									onClick={() => {
-										if (!pendingDraft?.draft) {
-											return;
-										}
-										setDraft({
-											content: pendingDraft.draft.content,
-											revision,
-											generationId: pendingDraft.id,
-											teamContext,
-											measurementPlans,
-										});
-										setReview(null);
-										editorRef.current?.focus();
-									}}
-									size="sm"
-								>
-									Use AI draft
-								</Button>
-							</>
-						) : (
-							<>
-								<Button
-									onClick={discard}
-									disabled={isSaving}
-									size="sm"
-									variant="ghost"
-								>
-									Use saved version
-								</Button>
-								<Button
-									disabled={!canEdit || isSaving}
-									onClick={() => {
-										setDraft(draft ? { ...draft, revision } : null);
-										setError(undefined);
-										setReview(null);
-									}}
-									size="sm"
-								>
-									Keep my edits
-								</Button>
-							</>
-						)}
-					</Dialog.Footer>
-				</Dialog.Content>
-			</Dialog>
+					</section>
+					<section
+						className="space-y-3 border-border border-t px-1 pt-5"
+						aria-label="Sources"
+					>
+						<h2 className="font-semibold text-xs">
+							{view === "draft" ? "Draft sources" : "Brief sources"}
+						</h2>
+						<BusinessContextSources
+							sources={
+								view === "draft"
+									? (readyGeneration?.draft?.sources ?? [])
+									: (draftGeneration?.draft?.sources ?? profile?.sources ?? [])
+							}
+						/>
+					</section>
+				</aside>
+			</div>
 		</div>
 	);
 }
