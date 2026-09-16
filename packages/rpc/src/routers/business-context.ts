@@ -24,6 +24,10 @@ import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import { rpcError } from "../errors";
 import { setAuditOrganization } from "../lib/audit";
+import {
+	businessContextGenerationAccess,
+	businessContextGenerationAccessSchema,
+} from "../lib/business-context-access";
 import { logger } from "../lib/logger";
 import { runAuditedMutation } from "../middleware/audit-mutation";
 import { protectedProcedure, sessionProcedure, type Context } from "../orpc";
@@ -39,7 +43,7 @@ async function requireEditor(context: Context, organizationId: string) {
 		permissions: ["read"],
 	});
 	setAuditOrganization(context, organizationId);
-	await withWorkspace(context, {
+	return await withWorkspace(context, {
 		organizationId,
 		resource: "organization",
 		permissions: ["update"],
@@ -85,6 +89,26 @@ async function settings(context: Context, organizationId: string) {
 }
 
 export const businessContextRouter = {
+	generationAccess: protectedProcedure
+		.route({
+			method: "POST",
+			path: "/business-context/generation-access",
+			summary: "Check access to generate a business context draft",
+			tags: ["Organizations"],
+		})
+		.input(scope)
+		.output(businessContextGenerationAccessSchema)
+		.handler(async ({ context, input }) => {
+			const workspace = await withWorkspace(context, {
+				organizationId: input.organizationId,
+				resource: "organization",
+				permissions: ["read"],
+			});
+			return businessContextGenerationAccess(
+				input.organizationId,
+				workspace.role
+			);
+		}),
 	get: protectedProcedure
 		.route({
 			method: "POST",
@@ -165,7 +189,20 @@ export const businessContextRouter = {
 		.output(businessContextSettingsSchema)
 		.handler(({ context, input }) =>
 			runAuditedMutation("businessContext.generate", context, async () => {
-				await requireEditor(context, input.organizationId);
+				const workspace = await requireEditor(context, input.organizationId);
+				const access = await businessContextGenerationAccess(
+					input.organizationId,
+					workspace.role
+				);
+				if (access.status === "credits-required") {
+					throw new ORPCError("PAYMENT_REQUIRED", { message: access.message });
+				}
+				if (access.status === "read-only") {
+					throw new ORPCError("FORBIDDEN", { message: access.message });
+				}
+				if (access.status !== "allowed") {
+					throw rpcError.serviceUnavailable(5, access.message);
+				}
 				const current = await readOrganizationBusinessContext(
 					input.organizationId
 				).catch(contextError);
