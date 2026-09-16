@@ -619,9 +619,13 @@ test("renders the brief as Markdown and preserves exact text between edit and pr
 	await expect(
 		page.getByRole("listitem").filter({ hasText: "Schedule classes" })
 	).toBeVisible();
+	await page
+		.getByRole("button", { name: "Read the guide", exact: true })
+		.click();
 	await expect(
-		page.getByRole("link", { name: "Read the guide", exact: true })
-	).toHaveAttribute("href", "https://example.com/guide");
+		page.getByText("https://example.com/guide", { exact: true })
+	).toBeVisible();
+	await page.getByRole("button", { name: "Close", exact: true }).click();
 	await expect(
 		page.getByRole("textbox", { name: "Business brief" })
 	).toBeHidden();
@@ -693,7 +697,7 @@ for (const access of [
 		).toBeDisabled();
 		if (access.action === "billing") {
 			await expect(
-				page.getByRole("link", { name: /billing|credits/i })
+				page.getByRole("link", { name: "Manage billing", exact: true })
 			).toHaveAttribute("href", /\/billing(?:#.*)?$/);
 		}
 		const editor = await editBrief(page);
@@ -739,7 +743,7 @@ test("streams a separate proposed brief without replacing local edits or enablin
 	const writing = {
 		...current.generation!,
 		progress: {
-			stage: "writing",
+			stage: "writing" as const,
 			content:
 				"## Proposed understanding\n\nExample serves independent studios.",
 		},
@@ -827,11 +831,29 @@ test("keeps current and proposed documents readable in a narrow viewport", {
 		page.getByRole("heading", { name: "Review AI draft", exact: true })
 	).toBeFocused();
 	await expect(
-		review.getByRole("heading", { name: "Current version", exact: true })
+		review.getByRole("radio", { name: "Proposed version", exact: true })
+	).toBeChecked();
+	await expect(
+		review.getByRole("heading", { name: "Proposed business", exact: true })
 	).toBeVisible();
 	await expect(
-		review.getByRole("heading", { name: "Proposed version", exact: true })
-	).toBeVisible();
+		review.getByRole("heading", { name: "Current version", exact: true })
+	).toBeHidden();
+	await review
+		.getByRole("radiogroup", { name: "Version to review", exact: true })
+		.getByText("Current version", { exact: true })
+		.click();
+	await expect(
+		review.getByRole("radio", { name: "Current version", exact: true })
+	).toBeChecked();
+	await expect(review.getByText(savedContent, { exact: true })).toBeVisible();
+	await expect(
+		review.getByRole("heading", { name: "Proposed business", exact: true })
+	).toBeHidden();
+	await review
+		.getByRole("radiogroup", { name: "Version to review", exact: true })
+		.getByText("Proposed version", { exact: true })
+		.click();
 	await expect(
 		review.getByRole("heading", { name: "Proposed business", exact: true })
 	).toBeVisible();
