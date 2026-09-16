@@ -269,19 +269,13 @@ function trackDubSignUp(user: {
 			eventName: "Sign Up",
 			customerExternalId: user.id,
 			customerEmail: user.email,
-			customerName: user.name ?? undefined,
-			customerAvatar: user.image ?? undefined,
+			customerName: user.name,
+			customerAvatar: user.image,
 		}),
 	})
 		.then(async (response) => {
 			if (!response.ok) {
-				log.warn({
-					service: "auth",
-					dub_event: "lead",
-					auth_user_id: user.id,
-					http_status: response.status,
-					error: await response.text().catch(() => ""),
-				});
+				throw new Error(`${response.status} ${await response.text()}`);
 			}
 		})
 		.catch((error) => {
