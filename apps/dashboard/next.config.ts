@@ -92,6 +92,7 @@ const nextConfig: NextConfig = {
 			"https://api.openai.com",
 			"https://bzr.openai.com",
 			"https://hooks.slack.com",
+			"https://api.dub.co",
 			"wss://*.databuddy.cc"
 		);
 		const scriptSources = joinCspSources(
@@ -100,7 +101,8 @@ const nextConfig: NextConfig = {
 			isDev && "'unsafe-eval'",
 			"'wasm-unsafe-eval'",
 			"https://cdn.databuddy.cc",
-			"https://bzrcdn.openai.com"
+			"https://bzrcdn.openai.com",
+			"https://www.dubcdn.com"
 		);
 
 		const cspDirectives = [

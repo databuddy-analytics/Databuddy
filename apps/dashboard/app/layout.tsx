@@ -163,6 +163,14 @@ export default function RootLayout({
 					/>
 				)}
 				{isLocalhost || isE2E ? null : <OpenAiAdsPixel />}
+				{isLocalhost || isE2E ? null : (
+					<script
+						data-cookie-options='{"domain":".databuddy.cc"}'
+						data-publishable-key="dub_pk_TbFwfIKx6BtgspSSbNDcDVRE"
+						defer
+						src="https://www.dubcdn.com/analytics/script.outbound-domains.conversion-tracking.js"
+					/>
+				)}
 				{isLocalhost && !isE2E ? <DatabuddyDevtools /> : null}
 			</body>
 		</html>

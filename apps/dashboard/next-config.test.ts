@@ -71,4 +71,13 @@ describe("dashboard next config", () => {
 			expect(csp).toContain("https://bzr.openai.com");
 		});
 	});
+
+	it("allows the Dub conversion tracking script on app routes", async () => {
+		await withNodeEnv("production", async () => {
+			const csp = await getCspHeader("/((?!demo|public).*)");
+
+			expect(csp).toContain("https://www.dubcdn.com");
+			expect(csp).toContain("https://api.dub.co");
+		});
+	});
 });
