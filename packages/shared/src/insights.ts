@@ -399,16 +399,9 @@ const definitionDeleteExecutionSchema = z
 	})
 	.strip();
 
-const legacyDefinitionExecutionSchema = z
-	.object({
-		changes: z.null(),
-		operation: z.null(),
-	})
-	.strip();
 const insightDefinitionExecutionSchema = z.discriminatedUnion("operation", [
 	definitionEditExecutionSchema,
 	definitionDeleteExecutionSchema,
-	legacyDefinitionExecutionSchema,
 ]);
 
 export const agentEvidenceReferenceSchema = z.discriminatedUnion("source", [
