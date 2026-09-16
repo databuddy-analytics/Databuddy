@@ -40,7 +40,7 @@ import {
 
 // Admission reads the native investigation allowance, not a plan name.
 // Reject every other request so this suite cannot contact a live provider.
-spyOn(globalThis, "fetch").mockImplementation(async (request) => {
+spyOn(globalThis, "fetch").mockImplementation((request) => {
 	if (
 		!(request instanceof Request) ||
 		new URL(request.url).origin !== "https://api.useautumn.com" ||
@@ -48,33 +48,35 @@ spyOn(globalThis, "fetch").mockImplementation(async (request) => {
 	) {
 		throw new Error("Only the synthetic customer allowance is permitted");
 	}
-	return Response.json({
-		id: "test-owner",
-		name: null,
-		email: null,
-		created_at: 0,
-		fingerprint: null,
-		stripe_id: null,
-		env: "sandbox",
-		metadata: {},
-		send_email_receipts: false,
-		billing_controls: {},
-		subscriptions: [],
-		purchases: [],
-		flags: {},
-		balances: {
-			[INVESTIGATION_USAGE.featureId]: {
-				feature_id: INVESTIGATION_USAGE.featureId,
-				granted: 10,
-				remaining: 10,
-				usage: 0,
-				unlimited: false,
-				overage_allowed: false,
-				max_purchase: null,
-				next_reset_at: null,
+	return Promise.resolve(
+		Response.json({
+			id: "test-owner",
+			name: null,
+			email: null,
+			created_at: 0,
+			fingerprint: null,
+			stripe_id: null,
+			env: "sandbox",
+			metadata: {},
+			send_email_receipts: false,
+			billing_controls: {},
+			subscriptions: [],
+			purchases: [],
+			flags: {},
+			balances: {
+				[INVESTIGATION_USAGE.featureId]: {
+					feature_id: INVESTIGATION_USAGE.featureId,
+					granted: 10,
+					remaining: 10,
+					usage: 0,
+					unlimited: false,
+					overage_allowed: false,
+					max_purchase: null,
+					next_reset_at: null,
+				},
 			},
-		},
-	});
+		})
+	);
 });
 
 const actualOrganization = await import("@databuddy/rpc/organization");
