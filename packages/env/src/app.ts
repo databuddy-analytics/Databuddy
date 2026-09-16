@@ -1,8 +1,8 @@
 // App-wide runtime config.
 //
 // To add or change a public URL, edit one entry in URLS:
-// - cloud: default in production
-// - local: default outside production
+// - cloud: default in hosted production
+// - local: default for development and self-hosting
 // - env: fallback order, first non-empty value wins
 //
 // Server code should import `config` from "@databuddy/env/app".
@@ -77,12 +77,10 @@ export interface Config {
 	};
 }
 
-function isProduction(env: Env): boolean {
-	return env.NODE_ENV === "production";
-}
-
 function defaultUrl(env: Env, setting: UrlConfig): string {
-	return isProduction(env) ? setting.cloud : setting.local;
+	return env.NODE_ENV === "production" && !readBooleanEnv("SELFHOST", env)
+		? setting.cloud
+		: setting.local;
 }
 
 function readFirst(env: Env, keys: readonly string[]): string | undefined {
