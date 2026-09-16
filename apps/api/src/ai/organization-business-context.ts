@@ -612,7 +612,12 @@ export async function* generateOrganizationBusinessContext(
 		});
 		requestSignal?.throwIfAborted();
 		const ready = await bounded(
-			markBusinessContextGeneration({ ...input, status: "ready", draft }),
+			markBusinessContextGeneration({
+				...input,
+				status: "ready",
+				draft,
+				signal: requestSignal,
+			}),
 			settlement
 		);
 		yield ready;

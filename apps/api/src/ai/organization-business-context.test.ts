@@ -394,6 +394,7 @@ describe("organization business context request", () => {
 
 	it("streams partial Markdown before completion without creating a saved draft", async () => {
 		const f = fixture();
+		const request = new AbortController();
 		const mark = f.mark.getMockImplementation();
 		if (!mark) throw new Error("Missing persistence fixture");
 		let partialSeen = false;
@@ -407,7 +408,8 @@ describe("organization business context request", () => {
 			}
 			return await mark(change);
 		});
-		await f.run();
+		await f.run(request.signal);
+		expect(f.mark.mock.calls.at(-1)?.[0].signal).toBe(request.signal);
 		expect(partialSeen).toBe(true);
 		expect(f.state.generation?.status).toBe("ready");
 		expect(f.state.generation?.progress).toBeUndefined();

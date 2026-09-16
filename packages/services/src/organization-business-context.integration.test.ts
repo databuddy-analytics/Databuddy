@@ -8,7 +8,7 @@ import {
 	expect,
 	test,
 } from "bun:test";
-import { db, eq, shutdownPostgres } from "@databuddy/db";
+import { db, eq, shutdownPostgres, sql } from "@databuddy/db";
 import {
 	organization,
 	organizationBusinessContexts,
@@ -159,6 +159,64 @@ integration("organization business context in isolated PostgreSQL", () => {
 		const state = await readOrganizationBusinessContext(org);
 		expect(state.previousDrafts).toEqual([]);
 		expect(state.generation?.id).toBe(newer);
+	});
+
+	test("request abort while publication waits for its lock cannot commit a ready draft", async () => {
+		await save("Saved context");
+		const generation = (await generate()).generation;
+		if (!generation) throw new Error("Missing generation");
+		const request = new AbortController();
+		const locked = Promise.withResolvers<number>();
+		const release = Promise.withResolvers<void>();
+		const holding = db.transaction(async (tx) => {
+			await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${org}))`);
+			const result = await tx.execute<{ pid: number }>(sql`select pg_backend_pid() as pid`);
+			const row = result.rows[0];
+			if (!row) throw new Error("Missing lock holder");
+			locked.resolve(row.pid);
+			await release.promise;
+		});
+		holding.catch(locked.reject);
+		const pid = await locked.promise;
+		const outcome = Promise.allSettled([
+			markBusinessContextGeneration({
+				organizationId: org,
+				generationId: generation.id,
+				status: "ready",
+				draft,
+				signal: request.signal,
+			}),
+		]);
+		try {
+			let blocked = false;
+			const deadline = Date.now() + 2000;
+			while (!blocked && Date.now() < deadline) {
+				const result = await db.execute<{ blocked: boolean }>(sql`
+					select exists (
+						select 1 from pg_stat_activity
+						where ${pid} = any(pg_blocking_pids(pid))
+						and wait_event = 'advisory'
+					) as blocked
+				`);
+				blocked = result.rows[0]?.blocked ?? false;
+				if (!blocked) await Bun.sleep(10);
+			}
+			expect(blocked).toBe(true);
+			request.abort();
+		} finally {
+			release.resolve();
+			await holding;
+		}
+		expect((await outcome)[0]).toMatchObject({
+			status: "rejected",
+			reason: { name: "AbortError" },
+		});
+		const state = await readOrganizationBusinessContext(org);
+		expect(state.generation?.status).toBe("running");
+		expect(state.generation?.draft).toBeNull();
+		expect(state.profile?.content).toBe("Saved context");
+		await cancelBusinessContextGeneration({ organizationId: org, generationId: generation.id, activeOnly: true });
+		expect((await readOrganizationBusinessContext(org)).generation).toBeNull();
 	});
 
 	test("disconnect cleanup preserves terminal drafts and cannot remove a newer run", async () => {
