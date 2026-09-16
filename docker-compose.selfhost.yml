@@ -205,7 +205,7 @@ services:
       <<: *environment
       SERVICE_NAME: databuddy-links
       SUPERLOG_API_KEY: ${SUPERLOG_API_KEY:-}
-      LINKS_ROOT_REDIRECT_URL: ${LINKS_ROOT_REDIRECT_URL:-https://databuddy.cc}
+      LINKS_ROOT_REDIRECT_URL: ${LINKS_ROOT_REDIRECT_URL:-${DASHBOARD_URL}}
       GEOIP_DB_URL: ${GEOIP_DB_URL:-https://cdn.databuddy.cc/mmdb/GeoLite2-City.mmdb}
     healthcheck:
       <<: *http-healthcheck
