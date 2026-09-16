@@ -1,4 +1,7 @@
-import type { BusinessContextSettings } from "@databuddy/shared/organization-business-context";
+import type {
+	BusinessContextSettings,
+	BusinessTeamContext,
+} from "@databuddy/shared/organization-business-context";
 import type { Page } from "@playwright/test";
 import { expect, test } from "@/test/e2e/fixtures";
 
@@ -183,7 +186,7 @@ test("saves distinct team fields even when their formatted prose matches", {
 		successDefinition: "Weekly bookings",
 		exclusions: "",
 	};
-	const saved: unknown[] = [];
+	const saved: BusinessTeamContext[] = [];
 	await page.route("**/rpc/businessContext/**", async (route) => {
 		const method = new URL(route.request().url()).pathname.split("/").at(-1);
 		if (method === "generationAccess") {
@@ -257,7 +260,7 @@ test("restores the submitted website and pages when retrying a failed generation
 				"Generation took too long. Try again; your saved context is unchanged.",
 		},
 	};
-	const requests: unknown[] = [];
+	const requests: { websiteId: string; sourceUrls: string[] }[] = [];
 	await page.route("**/rpc/businessContext/**", async (route) => {
 		const method = new URL(route.request().url()).pathname.split("/").at(-1);
 		if (method === "generationAccess") {

@@ -68,7 +68,7 @@ export function BusinessContextSettings({
 	const editMutationOptions = {
 		...mutationOptions,
 		onError: (
-			_error: unknown,
+			_error: Error,
 			{ organizationId }: Parameters<typeof orpc.businessContext.get.call>[0]
 		) =>
 			queryClient.invalidateQueries({
