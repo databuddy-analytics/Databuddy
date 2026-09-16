@@ -35,10 +35,10 @@ integration("business context source locking and provenance", () => {
 		const url = new URL(process.env.DATABASE_URL ?? "");
 		if (
 			!["localhost", "127.0.0.1"].includes(url.hostname) ||
-			!["/databuddy_test", "/business_context_settings"].includes(url.pathname)
+			(!["/databuddy_test", "/business_context_settings"].includes(url.pathname) && !url.pathname.startsWith("/databuddy_e2e_"))
 		) {
 			throw new Error(
-				"Use a localhost databuddy_test or business_context_settings database"
+				"Use a localhost test database"
 			);
 		}
 	});

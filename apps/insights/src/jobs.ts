@@ -1,7 +1,6 @@
 import { and, db, eq, inArray, lt, notInArray, sql } from "@databuddy/db";
 import { insightRunItems, insightRuns } from "@databuddy/db/schema";
 import {
-	INSIGHTS_BUSINESS_CONTEXT_JOB_NAME,
 	INSIGHTS_DISPATCH_JOB_NAME,
 	INSIGHTS_GENERATE_WEBSITE_JOB_NAME,
 	INSIGHTS_MAINTENANCE_JOB_NAME,
@@ -34,7 +33,6 @@ import {
 } from "./lib/evlog-insights";
 import { recordInsightReplyFailure, resumeInsightReply } from "./resume";
 import { dispatchDueInsightRuns } from "./scheduler";
-import { generateOrganizationBusinessContext } from "./organization-business-context";
 import { settleRunInvestigationCharges } from "./observations";
 
 const SUCCESS_CHECKPOINT_ATTEMPTS = 3;
@@ -431,8 +429,6 @@ export async function processInsightsJob(job: InsightsJob) {
 				);
 			} else if (job.name === INSIGHTS_RESUME_JOB_NAME) {
 				result = await processResumeJob(job.data as InsightsResumeJobData, job);
-			} else if (job.name === INSIGHTS_BUSINESS_CONTEXT_JOB_NAME) {
-				result = await generateOrganizationBusinessContext(job.data);
 			} else {
 				throw new Error(`Unknown insights job: ${job.name}`);
 			}

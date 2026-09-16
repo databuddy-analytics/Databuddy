@@ -3,7 +3,8 @@ import type {
 	BusinessTeamContext,
 } from "@databuddy/shared/organization-business-context";
 import type { Page } from "@playwright/test";
-import { expect, test } from "@/test/e2e/fixtures";
+import { expect } from "@/test/e2e/fixtures";
+import { businessContextEvent, test } from "@/test/e2e/business-context-stream";
 
 const path = "/organizations/settings/business-context";
 const savedContent =
@@ -145,6 +146,24 @@ function settings(): BusinessContextSettings {
 	};
 }
 
+function researching(): BusinessContextSettings {
+	return {
+		...settings(),
+		generation: {
+			id: "11111111-1111-4111-8111-111111111111",
+			websiteId: "example-site",
+			domain: "example.com",
+			requestedBy: "example-admin",
+			requestedAt: new Date().toISOString(),
+			baseRevision: 1,
+			status: "running",
+			draft: null,
+			error: null,
+			progress: { stage: "reading" },
+		},
+	};
+}
+
 test("opens an empty editable brief ready for typing", {
 	tag: "@regression",
 }, async ({ authenticatedPage: page }) => {
@@ -234,7 +253,7 @@ test("saves distinct team fields even when their formatted prose matches", {
 
 test("restores the submitted website and pages when retrying a failed generation", {
 	tag: "@regression",
-}, async ({ authenticatedPage: page }) => {
+}, async ({ authenticatedPage: page, contextStream }) => {
 	const sourceUrls = [
 		"https://second.example.net/pricing",
 		"https://second.example.net/docs",
@@ -270,26 +289,18 @@ test("restores the submitted website and pages when retrying a failed generation
 			await route.fallback();
 			return;
 		}
-		if (method === "generate" && current.generation) {
-			const input = route.request().postDataJSON().json;
-			requests.push({
-				websiteId: input.websiteId,
-				sourceUrls: input.sourceUrls,
-			});
-			current = {
-				...current,
-				generation: { ...current.generation, status: "queued", error: null },
-			};
-		}
+
 		await route.fulfill({ json: { json: current } });
 	});
+	await contextStream.intercept();
 	await page.goto(path);
 	const sources = page.getByRole("textbox", { name: /Additional pages/ });
 	await expect(sources).toHaveValue(sourceUrls.join("\n"));
 	await expect(
-		page
-			.getByTestId("business-context-research")
-			.getByRole("button", { name: "Source website: Second studio", exact: true })
+		page.getByTestId("business-context-research").getByRole("button", {
+			name: "Source website: Second studio",
+			exact: true,
+		})
 	).toBeVisible();
 	await page.reload();
 	await expect(sources).toHaveValue(sourceUrls.join("\n"));
@@ -299,7 +310,10 @@ test("restores the submitted website and pages when retrying a failed generation
 	await expect(
 		page.getByRole("button", { name: "Cancel generation", exact: true })
 	).toBeVisible();
-	expect(requests).toEqual([{ websiteId: "second-site", sourceUrls }]);
+	await contextStream.connected;
+	expect(contextStream.requests).toMatchObject([
+		{ websiteId: "second-site", sourceUrls },
+	]);
 });
 
 for (const viewport of contextViewports) {
@@ -453,7 +467,7 @@ for (const viewport of contextViewports) {
 
 test("keeps typing when AI finishes and saves only the reviewed draft", {
 	tag: "@regression",
-}, async ({ authenticatedPage: page }) => {
+}, async ({ authenticatedPage: page, contextStream }) => {
 	let current = settings();
 	let saved: unknown;
 	await page.route("**/rpc/businessContext/**", async (route) => {
@@ -462,22 +476,7 @@ test("keeps typing when AI finishes and saves only the reviewed draft", {
 			return;
 		}
 		const method = new URL(route.request().url()).pathname.split("/").at(-1);
-		if (method === "generate") {
-			current = {
-				...current,
-				generation: {
-					id: "11111111-1111-4111-8111-111111111111",
-					websiteId: "example-site",
-					domain: "example.com",
-					requestedBy: "example-admin",
-					requestedAt: new Date().toISOString(),
-					baseRevision: 1,
-					status: "running",
-					draft: null,
-					error: null,
-				},
-			};
-		}
+
 		if (method === "save") {
 			saved = route.request().postDataJSON().json;
 			current = {
@@ -492,10 +491,27 @@ test("keeps typing when AI finishes and saves only the reviewed draft", {
 		}
 		await route.fulfill({ json: { json: current } });
 	});
+	await contextStream.intercept();
 	await page.goto(path);
 	const editor = await editBrief(page);
 	await expect(editor).toHaveValue(savedContent);
 	await page.getByRole("button", { name: "Regenerate with AI" }).click();
+	await contextStream.connected;
+	current = {
+		...current,
+		generation: {
+			id: "11111111-1111-4111-8111-111111111111",
+			websiteId: "example-site",
+			domain: "example.com",
+			requestedBy: "example-admin",
+			requestedAt: new Date().toISOString(),
+			baseRevision: 1,
+			status: "running",
+			draft: null,
+			error: null,
+		},
+	};
+	contextStream.send(current);
 	await expect(
 		page.getByRole("button", { name: "Cancel generation", exact: true })
 	).toBeVisible();
@@ -512,6 +528,8 @@ test("keeps typing when AI finishes and saves only the reviewed draft", {
 			},
 		},
 	};
+	contextStream.send(current);
+	contextStream.end();
 	await expect(
 		page.getByRole("button", { name: "Review AI draft" })
 	).toBeVisible();
@@ -873,7 +891,7 @@ test("requires conflict review before saving an AI draft based on an older brief
 	const recoveredDraft = () =>
 		page.evaluate((key) => {
 			const value = sessionStorage.getItem(key);
-			return value ? JSON.parse(value) : null;
+			return value ? JSON.parse(value).draft : null;
 		}, storageKey);
 	await expect.poll(recoveredDraft).toMatchObject({
 		revision: 1,
@@ -1057,7 +1075,14 @@ test("can save retained text after regenerating and declining the replacement", 
 				},
 			};
 		}
-		await route.fulfill({ json: { json: current } });
+		await route.fulfill(
+			method === "generate"
+				? {
+						contentType: "text/event-stream",
+						body: businessContextEvent(current),
+					}
+				: { json: { json: current } }
+		);
 	});
 	await page.goto(path);
 	await useGeneratedDraft(page);
@@ -1157,6 +1182,8 @@ test("failed browser storage keeps newer text and discarded tombstones across in
 		}
 	});
 	await editor.fill("Newer memory draft");
+	const sources = page.getByRole("textbox", { name: /Additional pages/ });
+	await sources.fill("https://example.com/unfinished");
 	await page.getByRole("link", { name: "General", exact: true }).click();
 	await expect(page).toHaveURL(/organizations\/settings$/);
 	await expect(editor).toBeHidden();
@@ -1165,6 +1192,7 @@ test("failed browser storage keeps newer text and discarded tombstones across in
 		.click();
 	await editBrief(page);
 	await expect(editor).toHaveValue("Newer memory draft");
+	await expect(sources).toHaveValue("https://example.com/unfinished");
 	await page.getByRole("button", { name: "Discard changes" }).click();
 	await editBrief(page);
 	await page.getByRole("link", { name: "General", exact: true }).click();
@@ -1175,6 +1203,7 @@ test("failed browser storage keeps newer text and discarded tombstones across in
 		.click();
 	await editBrief(page);
 	await expect(editor).toHaveValue(savedContent);
+	await expect(sources).toHaveValue("https://example.com/unfinished");
 });
 
 test("choosing a saved version dismisses an available AI draft", {
@@ -1365,65 +1394,45 @@ for (const access of [
 
 for (const viewport of contextViewports) {
 	test(
-		`keeps ${viewport.name} queued and running drafts compact and stable`,
-		{
-			tag: "@regression",
-		},
-		async ({ authenticatedPage: page }, testInfo) => {
+		`keeps ${viewport.name} live research compact and stable`,
+		{ tag: "@regression" },
+		async ({ authenticatedPage: page, contextStream }, testInfo) => {
 			await page.setViewportSize(viewport);
 			await page.addInitScript(() => localStorage.setItem("theme", "dark"));
-			let current: BusinessContextSettings = {
-				...settings(),
-				generation: {
-					id: "11111111-1111-4111-8111-111111111111",
-					websiteId: "example-site",
-					domain: "example.com",
-					requestedBy: "example-admin",
-					requestedAt: new Date().toISOString(),
-					baseRevision: 1,
-					status: "queued",
-					draft: null,
-					error: null,
-				},
-			};
+			let current = settings();
 			await page.route("**/rpc/businessContext/get", (route) =>
 				route.fulfill({ json: { json: current } })
 			);
+			await contextStream.intercept();
 			await page.goto(path);
-			await page.getByRole("tab", { name: "AI draft", exact: true }).click();
+			await page
+				.getByRole("button", { name: "Regenerate with AI", exact: true })
+				.click();
+			await contextStream.connected;
 			const panel = page.locator('[aria-label="AI draft preview"]');
 			const brief = page.getByTestId("business-context-brief");
 			const research = page.getByTestId("business-context-research");
-			const queued = panel.getByText("Your draft is queued", { exact: true });
-			await expect(queued).toBeVisible();
+			const reading = panel.getByText("Reading your sources", { exact: true });
+			await expect(reading).toBeVisible();
 			const initialPanel = await panel.boundingBox();
 			const initialBrief = await brief.boundingBox();
-			const queuedTitle = await queued.boundingBox();
+			const title = await reading.boundingBox();
 			expect(initialPanel).not.toBeNull();
 			expect(initialBrief).not.toBeNull();
-			expect(queuedTitle).not.toBeNull();
+			expect(title).not.toBeNull();
 			expect(initialPanel!.height).toBe(320);
-			expect(queuedTitle!.y - initialPanel!.y).toBeLessThanOrEqual(32);
+			expect(title!.y - initialPanel!.y).toBeLessThanOrEqual(32);
 			await expect(research.getByRole("button")).toHaveCount(1);
 			await expect(
 				research.getByRole("button", { name: "Cancel generation", exact: true })
 			).toBeEnabled();
 			await page.screenshot({
 				animations: "disabled",
-				path: testInfo.outputPath("queued.png"),
+				path: testInfo.outputPath("starting.png"),
 			});
-
-			current = {
-				...current,
-				generation: {
-					...current.generation!,
-					status: "running",
-					progress: { stage: "reading" },
-				},
-			};
-			await expect(
-				panel.getByText("Reading your sources", { exact: true })
-			).toBeVisible({ timeout: 10_000 });
+			current = researching();
+			contextStream.send(current);
+			await expect(reading).toBeVisible();
 			await page.screenshot({
 				animations: "disabled",
 				path: testInfo.outputPath("reading.png"),
@@ -1439,12 +1448,13 @@ for (const viewport of contextViewports) {
 					},
 				},
 			};
+			contextStream.send(current);
 			await expect(
 				panel.getByRole("heading", {
 					name: "Proposed understanding",
 					exact: true,
 				})
-			).toBeVisible({ timeout: 10_000 });
+			).toBeVisible();
 			const writingPanel = await panel.boundingBox();
 			const writingBrief = await brief.boundingBox();
 			expect(writingPanel).toEqual(initialPanel);
@@ -1458,11 +1468,12 @@ for (const viewport of contextViewports) {
 				path: testInfo.outputPath("writing.png"),
 			});
 			await testInfo.attach("generation-bounds", {
-				body: JSON.stringify(
-					{ initialPanel, initialBrief, writingPanel, writingBrief },
-					null,
-					2
-				),
+				body: JSON.stringify({
+					initialPanel,
+					initialBrief,
+					writingPanel,
+					writingBrief,
+				}),
 				contentType: "application/json",
 			});
 		}
@@ -1471,27 +1482,24 @@ for (const viewport of contextViewports) {
 
 test("streams a separate proposed brief without replacing local edits or enabling early acceptance", {
 	tag: "@regression",
-}, async ({ authenticatedPage: page }) => {
-	let current: BusinessContextSettings = {
-		...settings(),
-		generation: {
-			id: "11111111-1111-4111-8111-111111111111",
-			websiteId: "example-site",
-			domain: "example.com",
-			requestedBy: "example-admin",
-			requestedAt: new Date().toISOString(),
-			baseRevision: 1,
-			status: "running",
-			draft: null,
-			error: null,
-		},
-	};
-	await page.route("**/rpc/businessContext/get", (route) =>
-		route.fulfill({ json: { json: current } })
-	);
+}, async ({ authenticatedPage: page, contextStream }) => {
+	let current = settings();
+	let reads = 0;
+	await page.route("**/rpc/businessContext/get", (route) => {
+		reads++;
+		return route.fulfill({ json: { json: current } });
+	});
+	await contextStream.intercept();
 	await page.goto(path);
 	const editor = await editBrief(page);
 	await editor.fill("My unfinished context stays here.");
+	await page
+		.getByRole("button", { name: "Regenerate with AI", exact: true })
+		.click();
+	await contextStream.connected;
+	current = researching();
+	contextStream.send(current);
+	const readsAtStart = reads;
 	const writing = {
 		...current.generation!,
 		progress: {
@@ -1501,12 +1509,16 @@ test("streams a separate proposed brief without replacing local edits or enablin
 		},
 	};
 	current = { ...current, generation: writing };
+	contextStream.send(current);
 	await page.getByRole("tab", { name: "AI draft", exact: true }).click();
 	await expect(
 		page.getByRole("heading", { name: "Proposed understanding", exact: true })
 	).toBeVisible({ timeout: 10_000 });
 	await editBrief(page);
 	await expect(editor).toHaveValue("My unfinished context stays here.");
+	// The owned request delivers progress directly; no two-second polling loop.
+	await page.waitForTimeout(2200);
+	expect(reads).toBe(readsAtStart);
 	await expect(
 		page.getByRole("button", { name: "Use AI draft", exact: true })
 	).toBeHidden();
@@ -1524,6 +1536,8 @@ test("streams a separate proposed brief without replacing local edits or enablin
 			},
 		},
 	};
+	contextStream.send(current);
+	contextStream.end();
 	await expect(
 		page.getByRole("button", { name: "Review AI draft", exact: true })
 	).toBeVisible({ timeout: 10_000 });
@@ -1622,4 +1636,255 @@ test("keeps current and proposed documents readable in a narrow viewport", {
 			() => document.documentElement.scrollWidth <= window.innerWidth
 		)
 	).toBe(true);
+});
+
+test("cancels research before its first event without losing manual work", {
+	tag: "@regression",
+}, async ({ authenticatedPage: page, contextStream }) => {
+	await page.route("**/rpc/businessContext/get", (route) =>
+		route.fulfill({ json: { json: settings() } })
+	);
+	await contextStream.intercept();
+	await page.goto(path);
+	const editor = await editBrief(page);
+	await editor.fill("Keep this unfinished brief.");
+	const sources = page.getByRole("textbox", { name: /Additional pages/ });
+	await sources.fill("https://example.com/docs");
+	await page
+		.getByRole("button", { name: "Regenerate with AI", exact: true })
+		.click();
+	await contextStream.connected;
+	await expect(
+		page.getByRole("tab", { name: "AI draft", exact: true })
+	).toHaveAttribute("aria-selected", "true");
+	await page
+		.getByRole("button", { name: "Cancel generation", exact: true })
+		.click();
+	await contextStream.disconnected;
+	await expect(
+		page.getByRole("button", { name: "Regenerate with AI", exact: true })
+	).toBeEnabled();
+	await editBrief(page);
+	await expect(editor).toHaveValue("Keep this unfinished brief.");
+	await expect(sources).toHaveValue("https://example.com/docs");
+	expect(contextStream.requests).toHaveLength(1);
+});
+
+test("saving manual edits stops the stream and ignores its late draft", {
+	tag: "@regression",
+}, async ({ authenticatedPage: page, contextStream }) => {
+	let current = settings();
+	await page.route("**/rpc/businessContext/**", async (route) => {
+		const method = new URL(route.request().url()).pathname.split("/").at(-1);
+		if (method === "generationAccess") return route.fallback();
+		if (method === "save")
+			current = {
+				...current,
+				generation: null,
+				profile: {
+					...current.profile!,
+					content: route.request().postDataJSON().json.content,
+					revision: 2,
+				},
+			};
+		await route.fulfill({ json: { json: current } });
+	});
+	await contextStream.intercept();
+	await page.goto(path);
+	await page
+		.getByRole("button", { name: "Regenerate with AI", exact: true })
+		.click();
+	await contextStream.connected;
+	current = researching();
+	contextStream.send(current);
+	const editor = await editBrief(page);
+	await editor.fill("The manual correction must win.");
+	await page.getByRole("button", { name: "Save changes", exact: true }).click();
+	await contextStream.disconnected;
+	contextStream.send({
+		...researching(),
+		generation: {
+			...researching().generation!,
+			status: "ready",
+			draft: { content: "A late AI answer must not replace it.", sources: [] },
+		},
+	});
+	await expect(page.getByText("Changes saved", { exact: true })).toBeVisible();
+	await expect(editor).toHaveValue("The manual correction must win.");
+	await expect(
+		page.getByRole("button", { name: "Review AI draft", exact: true })
+	).toBeHidden();
+	await page.reload();
+	await editBrief(page);
+	await expect(editor).toHaveValue("The manual correction must win.");
+	expect(current.profile?.revision).toBe(2);
+});
+
+test("an interrupted response preserves edits and does not restart generation on reload", {
+	tag: "@regression",
+}, async ({ authenticatedPage: page, contextStream }) => {
+	let current = settings();
+	await page.route("**/rpc/businessContext/get", (route) =>
+		route.fulfill({ json: { json: current } })
+	);
+	await contextStream.intercept();
+	await page.goto(path);
+	const editor = await editBrief(page);
+	await editor.fill("Keep the brief across a disconnected stream.");
+	const sources = page.getByRole("textbox", { name: /Additional pages/ });
+	await sources.fill("https://example.com/pricing");
+	await page
+		.getByRole("button", { name: "Regenerate with AI", exact: true })
+		.click();
+	await contextStream.connected;
+	current = {
+		...researching(),
+		generation: {
+			...researching().generation!,
+			progress: {
+				stage: "writing",
+				content: "## Partial answer\n\nStill incomplete.",
+			},
+		},
+	};
+	contextStream.send(current);
+	await expect(
+		page.getByRole("heading", { name: "Partial answer", exact: true })
+	).toBeVisible();
+	current = settings();
+	contextStream.end();
+	await expect(
+		page.getByTestId("business-context-brief").getByRole("alert")
+	).toContainText("Research could not be completed");
+	await expect(
+		page.getByRole("button", { name: "Review AI draft", exact: true })
+	).toBeHidden();
+	await page.reload();
+	await editBrief(page);
+	await expect(editor).toHaveValue(
+		"Keep the brief across a disconnected stream."
+	);
+	await expect(sources).toHaveValue("https://example.com/pricing");
+	await expect(
+		page.getByRole("button", { name: "Regenerate with AI", exact: true })
+	).toBeEnabled();
+	expect(contextStream.requests).toHaveLength(1);
+});
+
+test("recovers unsubmitted research inputs independently of brief saving and legacy drafts", {
+	tag: "@regression",
+}, async ({ authenticatedPage: page, e2eSession }) => {
+	const storageKey = `business-context-draft:${e2eSession.userId}:${e2eSession.organizationId}`;
+	await page.addInitScript(
+		({ storageKey }) => {
+			if (!sessionStorage.getItem(storageKey))
+				sessionStorage.setItem(
+					storageKey,
+					JSON.stringify({
+						revision: 1,
+						content: "A draft stored by an older tab.",
+					})
+				);
+		},
+		{ storageKey }
+	);
+	let current = {
+		...settings(),
+		websites: [
+			...settings().websites,
+			{
+				id: "second-site",
+				name: "Second studio",
+				domain: "second.example.net",
+			},
+		],
+	};
+	await page.route("**/rpc/businessContext/**", async (route) => {
+		const method = new URL(route.request().url()).pathname.split("/").at(-1);
+		if (method === "generationAccess") return route.fallback();
+		if (method === "save")
+			current = {
+				...current,
+				profile: {
+					...current.profile!,
+					content: route.request().postDataJSON().json.content,
+					revision: 2,
+				},
+			};
+		await route.fulfill({ json: { json: current } });
+	});
+	await page.goto(path);
+	const editor = await editBrief(page);
+	await expect(editor).toHaveValue("A draft stored by an older tab.");
+	await page
+		.getByRole("button", { name: "Source website: Example", exact: true })
+		.click();
+	await page
+		.getByRole("menuitemradio", { name: "Second studio", exact: true })
+		.click();
+	const sources = page.getByRole("textbox", { name: /Additional pages/ });
+	const unfinished = "https://second.example.net/pricing\nhttps://";
+	await sources.fill(unfinished);
+	await page.reload();
+	await expect(sources).toHaveValue(unfinished);
+	await expect(
+		page.getByRole("button", {
+			name: "Source website: Second studio",
+			exact: true,
+		})
+	).toBeVisible();
+	await editBrief(page);
+	await expect(editor).toHaveValue("A draft stored by an older tab.");
+	await page.getByRole("button", { name: "Save changes", exact: true }).click();
+	await expect(page.getByText("Changes saved", { exact: true })).toBeVisible();
+	await page.reload();
+	await expect(sources).toHaveValue(unfinished);
+	await expect(
+		page.getByRole("button", { name: "Save changes", exact: true })
+	).toBeDisabled();
+	await page.getByRole("link", { name: "General", exact: true }).click();
+	await page
+		.getByRole("link", { name: "Business Context", exact: true })
+		.click();
+	await expect(sources).toHaveValue(unfinished);
+	await expect(
+		page.getByRole("button", {
+			name: "Source website: Second studio",
+			exact: true,
+		})
+	).toBeVisible();
+});
+
+test("leaving the page aborts active research without restarting it on return", {
+	tag: "@regression",
+}, async ({ authenticatedPage: page, contextStream }) => {
+	let current = settings();
+	await page.route("**/rpc/businessContext/get", (route) =>
+		route.fulfill({ json: { json: current } })
+	);
+	await contextStream.intercept();
+	await page.goto(path);
+	const editor = await editBrief(page);
+	await editor.fill("Keep this context when navigating away.");
+	await page
+		.getByRole("button", { name: "Regenerate with AI", exact: true })
+		.click();
+	await contextStream.connected;
+	current = researching();
+	contextStream.send(current);
+	await expect(
+		page.getByRole("button", { name: "Cancel generation", exact: true })
+	).toBeEnabled();
+	await page.getByRole("link", { name: "General", exact: true }).click();
+	await contextStream.disconnected;
+	current = settings();
+	await page
+		.getByRole("link", { name: "Business Context", exact: true })
+		.click();
+	await editBrief(page);
+	await expect(editor).toHaveValue("Keep this context when navigating away.");
+	await expect(
+		page.getByRole("button", { name: "Regenerate with AI", exact: true })
+	).toBeEnabled();
+	expect(contextStream.requests).toHaveLength(1);
 });

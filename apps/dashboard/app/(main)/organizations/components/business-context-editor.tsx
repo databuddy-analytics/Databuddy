@@ -84,7 +84,7 @@ interface BusinessContextEditorProps {
 		ReturnType<typeof orpc.businessContext.generationAccess.call>
 	>;
 	accessPending: boolean;
-	onCancel: (generationId: string) => Promise<void>;
+	onCancel: (generationId?: string) => Promise<void>;
 	onGenerate: (websiteId: string, sourceUrls: string[]) => Promise<void>;
 	onRefreshAccess: () => void;
 	onRestore: (restoreRevision: number, revision: number) => Promise<void>;
@@ -111,8 +111,10 @@ export function BusinessContextEditor({
 		clearDraft: clearSubmittedDraft,
 		ready,
 		recoverable,
+		research,
+		updateResearch,
 	} = useBusinessContextDraft(storageKey, canEdit);
-	const [websiteId, setWebsiteId] = useState(generation?.websiteId);
+	const websiteId = research?.websiteId ?? generation?.websiteId;
 	const [isSaving, setIsSaving] = useState(false);
 	const [isRequesting, setIsRequesting] = useState(false);
 	const [error, setError] = useState<string>();
@@ -124,13 +126,13 @@ export function BusinessContextEditor({
 	const [view, setView] = useState(
 		canEdit && !profile?.content ? "edit" : "preview"
 	);
-	const [sourceText, setSourceText] = useState(
-		(generation?.sourceUrls ?? []).join("\n")
-	);
+	const sourceText =
+		research?.sourceText ?? (generation?.sourceUrls ?? []).join("\n");
 	const pageRef = useRef<HTMLDivElement>(null);
 	const reviewWasOpen = useRef(false);
 	const reviewTitleRef = useRef<HTMLHeadingElement>(null);
 	const savingRef = useRef(false);
+	const requestingRef = useRef(false);
 	const revision = profile?.revision ?? 0;
 	const content = draft?.content ?? profile?.content ?? "";
 	const teamContext =
@@ -176,7 +178,7 @@ export function BusinessContextEditor({
 			? generation
 			: null;
 	const pendingDraft =
-		readyGeneration && readyGeneration.id !== draft?.generationId
+		!generating && readyGeneration && readyGeneration.id !== draft?.generationId
 			? readyGeneration
 			: null;
 	const selectedWebsite =
@@ -236,6 +238,7 @@ export function BusinessContextEditor({
 			: undefined
 		: "Add up to six valid public page URLs, one per line.";
 	const canGenerate =
+		ready &&
 		canEdit &&
 		!!selectedWebsite &&
 		access?.status === "allowed" &&
@@ -344,23 +347,29 @@ export function BusinessContextEditor({
 	}
 
 	async function generate() {
-		if (!(canGenerate && selectedWebsite && sourceResult.success)) {
+		if (
+			requestingRef.current ||
+			!(canGenerate && selectedWebsite && sourceResult.success)
+		) {
 			return;
 		}
+		requestingRef.current = true;
+		updateResearch({ websiteId: selectedWebsite.id, sourceText });
 		setIsRequesting(true);
+		setView("draft");
 		setError(undefined);
 		setNotice("");
 		try {
 			await onGenerate(selectedWebsite.id, sourceResult.data);
-			setView("draft");
 		} catch (cause) {
 			setError(
 				getUserFacingErrorMessage(
 					cause,
-					"Couldn't start a draft. Please try again."
+					"Research could not be completed. Your edits are still here. Try again."
 				)
 			);
 		} finally {
+			requestingRef.current = false;
 			setIsRequesting(false);
 			onRefreshAccess();
 		}
@@ -703,9 +712,7 @@ export function BusinessContextEditor({
 													/>
 													<div className="space-y-1">
 														<p className="font-medium text-sm">
-															{generation?.status === "queued"
-																? "Your draft is queued"
-																: "Reading your sources"}
+															Reading your sources
 														</p>
 														<p className="text-muted-foreground text-xs leading-5">
 															The draft will appear here as it is written. Your
@@ -858,7 +865,7 @@ export function BusinessContextEditor({
 										aria-label={`Source website: ${selectedWebsite?.name || selectedWebsite?.domain}`}
 										render={
 											<Button
-												disabled={generating || isSaving}
+												disabled={!ready || generating || isSaving}
 												size="sm"
 												variant="secondary"
 												className="w-full justify-between"
@@ -877,7 +884,9 @@ export function BusinessContextEditor({
 											</DropdownMenu.GroupLabel>
 											<DropdownMenu.RadioGroup
 												value={selectedWebsite?.id}
-												onValueChange={setWebsiteId}
+												onValueChange={(websiteId) =>
+													updateResearch({ websiteId, sourceText })
+												}
 											>
 												{websites.map((site) => (
 													<DropdownMenu.RadioItem key={site.id} value={site.id}>
@@ -897,8 +906,10 @@ export function BusinessContextEditor({
 							)}
 							<BusinessContextSourceInput
 								value={sourceText}
-								onChange={setSourceText}
-								readOnly={generating || isSaving || !selectedWebsite}
+								onChange={(sourceText) =>
+									updateResearch({ websiteId: selectedWebsite?.id, sourceText })
+								}
+								readOnly={!ready || generating || isSaving || !selectedWebsite}
 								error={sourceError}
 							/>
 							<div className="space-y-2">
@@ -934,11 +945,9 @@ export function BusinessContextEditor({
 									{selectedWebsite ? (
 										generating ? (
 											<p className="text-muted-foreground">
-												{generation?.status === "queued"
-													? "Queued for research."
-													: generation?.progress?.stage === "writing"
-														? "Writing your draft."
-														: "Reading your sources."}{" "}
+												{generation?.progress?.stage === "writing"
+													? "Writing your draft."
+													: "Reading your sources."}{" "}
 												Saving your edits cancels this draft.
 											</p>
 										) : accessPending ? (
@@ -964,19 +973,22 @@ export function BusinessContextEditor({
 										</p>
 									)}
 								</div>
-								{activeGeneration && generation ? (
+								{generating ? (
 									<Button
 										className="w-full"
 										size="sm"
 										variant="secondary"
 										disabled={isSaving}
-										onClick={() =>
-											change(
-												() => onCancel(generation.id),
-												"Generation cancelled",
-												false
-											)
-										}
+										onClick={() => {
+											if (activeGeneration && generation) {
+												return change(
+													() => onCancel(generation.id),
+													"Generation cancelled",
+													false
+												);
+											}
+											return onCancel();
+										}}
 									>
 										Cancel generation
 									</Button>

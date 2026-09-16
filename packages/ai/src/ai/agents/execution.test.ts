@@ -1,4 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
+import { createLogger } from "evlog";
 
 const originalAutumnSecretKey = process.env.AUTUMN_SECRET_KEY;
 
@@ -208,6 +209,17 @@ describe("getAgentBillingAccess", () => {
 });
 
 describe("trackAgentUsage", () => {
+	it("records usage on an explicit call logger without ambient request context", () => {
+		const requestLogger = createLogger({ test: true });
+		const summary = trackAgentUsage({
+			requestLogger,
+			modelId: "openai/gpt-5.6-luna",
+			source: "dashboard",
+			usage: { inputTokens: 1000, outputTokens: 100 },
+		});
+		expect(requestLogger.getContext()).toMatchObject(summary);
+		expect(mockMergeWideEvent).not.toHaveBeenCalled();
+	});
 	it("retains model costs without consuming credits when billing is configured", () => {
 		const summary = trackAgentUsage({
 			billingCustomerId: "owner:synthetic-org",
@@ -225,6 +237,23 @@ describe("trackAgentUsage", () => {
 });
 
 describe("trackAgentUsageAndBill", () => {
+	it("records a swallowed charge error on the supplied call logger", async () => {
+		const requestLogger = createLogger({ test: true });
+		mockAutumnTrack.mockRejectedValueOnce(new Error("Synthetic charge failed"));
+		await trackAgentUsageAndBill({
+			requestLogger,
+			billingCustomerId: "owner:example-org",
+			billingAccess: { allowed: true, customerId: "owner:example-org" },
+			modelId: "openai/gpt-5.6-luna",
+			source: "dashboard",
+			usage: { inputTokens: 1000, outputTokens: 100 },
+		});
+		expect(requestLogger.getContext()).toMatchObject({
+			agent_usage_billing_error: true,
+			agent_source: "dashboard",
+		});
+		expect(mockAutumnCheck).not.toHaveBeenCalled();
+	});
 	it("deduplicates retryable usage charges", async () => {
 		await trackAgentUsageAndBill({
 			billingCustomerId: "owner:org_slack",

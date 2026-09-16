@@ -1,14 +1,12 @@
 import { randomUUID } from "node:crypto";
 import {
 	getAgentBillingAccess,
-	isAgentBillingConfigured,
 	resolveAgentBillingCustomerId,
 	trackAgentUsage,
 	trackAgentUsageAndBill,
 } from "@databuddy/ai/agents/execution";
 import { createModelFromId } from "@databuddy/ai/config/models";
 import { getAILogger } from "@databuddy/ai/lib/ai-logger";
-import { getActiveAiRequestLogger } from "@databuddy/ai/lib/request-logger";
 import {
 	createScrapeTools,
 	readWebsitePage,
@@ -25,21 +23,18 @@ import {
 	businessBriefSchema,
 	businessContextSourceUrlsSchema,
 	businessContextSourceBelongsToSite,
+	type OrganizationBusinessContext,
 } from "@databuddy/shared/organization-business-context";
 import { generateText, streamText, Output, type LanguageModelUsage } from "ai";
 import { z } from "zod";
-import {
-	captureInsightsError,
-	createInsightsEventLog,
-	emitInsightsEvent,
-	withInsightsLogContext,
-} from "./lib/evlog-insights";
+import { createLogger, log } from "evlog";
 
 const WWW = /^www\./;
 const MODEL = "openai/gpt-5.6-luna";
 const generationSchema = z.strictObject({
 	organizationId: z.string().min(1),
 	generationId: z.string().min(1),
+	signal: z.instanceof(AbortSignal).optional(),
 });
 type Page = Extract<WebsitePageResult, { success: true }>;
 
@@ -84,10 +79,11 @@ function sameSite(
 	}
 }
 
-export async function generateOrganizationBusinessContext(
-	payload: unknown
-): Promise<void> {
-	const input = generationSchema.parse(payload);
+export async function* generateOrganizationBusinessContext(
+	payload: z.infer<typeof generationSchema>
+): AsyncGenerator<OrganizationBusinessContext, void, void> {
+	const { signal: requestSignal, ...input } = generationSchema.parse(payload);
+	const controller = new AbortController();
 	const started = performance.now();
 	let deadline = Date.now() + 120_000;
 	const remaining = (reserve = 0) =>
@@ -100,7 +96,11 @@ export async function generateOrganizationBusinessContext(
 				) - reserve
 			)
 		);
-	let signal = AbortSignal.timeout(115_000);
+	let signal = AbortSignal.any([
+		AbortSignal.timeout(115_000),
+		controller.signal,
+		...(requestSignal ? [requestSignal] : []),
+	]);
 	const fields = {
 		organization_id: input.organizationId,
 		generation_id: input.generationId,
@@ -127,7 +127,7 @@ export async function generateOrganizationBusinessContext(
 			deadline,
 			Date.parse(generation.requestedAt) + BUSINESS_CONTEXT_GENERATION_TIMEOUT
 		);
-		// Queue age counts against the same deadline as the service. Reserve five
+		// Request age counts against the same deadline as the service. Reserve five
 		// seconds for consumed-call billing and persistence, including a friendly failure.
 		signal = AbortSignal.any([signal, AbortSignal.timeout(remaining(5000))]);
 		const settlement = AbortSignal.timeout(remaining());
@@ -177,6 +177,7 @@ export async function generateOrganizationBusinessContext(
 			}),
 			signal
 		);
+		yield running;
 		if (
 			running.generation?.id !== input.generationId ||
 			running.generation.status !== "running"
@@ -193,71 +194,56 @@ export async function generateOrganizationBusinessContext(
 			signal
 		);
 		const billsCredits = state.profile !== null;
-		if (
-			billsCredits &&
-			!(await bounded(getAgentBillingAccess(billingCustomerId), signal)).allowed
-		) {
+		const billingAccess = billsCredits
+			? await bounded(getAgentBillingAccess(billingCustomerId), signal)
+			: undefined;
+		if (billingAccess && !billingAccess.allowed) {
 			failure =
 				"Your AI credit balance is empty. Add credits to generate a draft; your saved context is unchanged.";
 			throw new Error(
 				"Organization business context generation has insufficient credits"
 			);
 		}
-		// The shared helper reports charge failures through its native request logger.
-		// Require that channel before spending, and inspect each call's isolated event.
-		if (
-			billsCredits &&
-			isAgentBillingConfigured() &&
-			!getActiveAiRequestLogger()
-		) {
-			throw new Error("AI billing error reporting is unavailable");
-		}
 		const bill = async (
 			usage: LanguageModelUsage,
 			phase: string,
 			idempotencyKey: string
 		) => {
-			const logger = createInsightsEventLog({
+			// The billing helper records failures on this call's logger. An explicit
+			// logger outlives the HTTP response's ambient logging context.
+			const logger = createLogger({
+				service: "api",
 				...fields,
 				phase,
 				model_id: MODEL,
 			});
-			await withInsightsLogContext(logger, async () => {
-				try {
-					if (
-						billsCredits &&
-						isAgentBillingConfigured() &&
-						getActiveAiRequestLogger() !== logger
-					) {
-						throw new Error(
-							"AI billing logger is not scoped to the generation call"
-						);
-					}
-					await bounded(
-						Promise.resolve(
-							(billsCredits ? trackAgentUsageAndBill : trackAgentUsage)({
-								billingCustomerId,
-								organizationId: input.organizationId,
-								websiteId: site.id,
-								userId: generation.requestedBy,
-								source: "insights",
-								agentType: "organization_business_context",
-								modelId: MODEL,
-								usage,
-								idempotencyKey,
-							})
-						),
-						settlement
-					);
-					if (logger.getContext().agent_usage_billing_error) {
-						throw new Error("Business context usage billing failed", {
-							cause: logger.getContext().error,
-						});
-					}
-				} finally {
-					logger.emit();
+			try {
+				await bounded(
+					Promise.resolve(
+						(billsCredits ? trackAgentUsageAndBill : trackAgentUsage)({
+							billingCustomerId,
+							billingAccess,
+							requestLogger: logger,
+							organizationId: input.organizationId,
+							websiteId: site.id,
+							userId: generation.requestedBy,
+							source: "dashboard",
+							agentType: "organization_business_context",
+							modelId: MODEL,
+							usage,
+							idempotencyKey,
+						})
+					),
+					settlement
+				);
+				if (logger.getContext().agent_usage_billing_error) {
+					throw new Error("Business context usage billing failed", {
+						cause: logger.getContext().error,
+					});
 				}
-			});
+			} finally {
+				logger.emit();
+			}
 		};
 		failure =
 			"Could not read enough of this website to write a reliable brief. Try again or edit the context manually.";
@@ -304,7 +290,9 @@ export async function generateOrganizationBusinessContext(
 				signal
 			);
 			if (!result.success) {
-				emitInsightsEvent("warn", "organization_business_context.page_failed", {
+				log.warn({
+					service: "api",
+					business_context_event: "page_failed",
 					...fields,
 					path,
 					error_message: result.error,
@@ -320,7 +308,9 @@ export async function generateOrganizationBusinessContext(
 			) {
 				throw new Error("Page provenance is outside the organization website");
 			}
-			emitInsightsEvent("info", "organization_business_context.page_read", {
+			log.info({
+				service: "api",
+				business_context_event: "page_read",
 				...fields,
 				url: result.finalUrl,
 				cached: result.cached ?? false,
@@ -380,11 +370,12 @@ export async function generateOrganizationBusinessContext(
 				)
 			);
 		if (discovered.error) {
-			emitInsightsEvent(
-				"warn",
-				"organization_business_context.discovery_failed",
-				{ ...fields, error_message: discovered.error }
-			);
+			log.warn({
+				service: "api",
+				business_context_event: "discovery_failed",
+				...fields,
+				error_message: discovered.error,
+			});
 		}
 		const candidates = (sources: Page[], links: string[] = []) =>
 			[
@@ -427,18 +418,16 @@ export async function generateOrganizationBusinessContext(
 				abortSignal: signal,
 				timeout: { totalMs: Math.min(45_000, available()) },
 				onStepFinish: async (step: { usage: LanguageModelUsage }) => {
-					emitInsightsEvent(
-						"info",
-						"organization_business_context.model_call",
-						{
-							...fields,
-							phase,
-							model_id: MODEL,
-							input_tokens: step.usage.inputTokens,
-							output_tokens: step.usage.outputTokens,
-							billing_key: key,
-						}
-					);
+					log.info({
+						service: "api",
+						business_context_event: "model_call",
+						...fields,
+						phase,
+						model_id: MODEL,
+						input_tokens: step.usage.inputTokens,
+						output_tokens: step.usage.outputTokens,
+						billing_key: key,
+					});
 					await bill(step.usage, phase, key).catch((error) => {
 						billingFailure =
 							error instanceof Error ? error : new Error(String(error));
@@ -544,6 +533,7 @@ export async function generateOrganizationBusinessContext(
 			}),
 			signal
 		);
+		yield writing;
 		if (
 			writing.generation?.id !== input.generationId ||
 			writing.generation.status !== "running"
@@ -590,6 +580,7 @@ export async function generateOrganizationBusinessContext(
 					}),
 					signal
 				);
+				yield updated;
 				if (
 					updated.generation?.id !== input.generationId ||
 					updated.generation.status !== "running"
@@ -619,28 +610,37 @@ export async function generateOrganizationBusinessContext(
 					fetchedAt: page.fetchedAt,
 				})),
 		});
+		requestSignal?.throwIfAborted();
 		const ready = await bounded(
 			markBusinessContextGeneration({ ...input, status: "ready", draft }),
 			settlement
 		);
+		yield ready;
 		if (
 			ready.generation?.id !== input.generationId ||
 			ready.generation.status !== "ready"
 		) {
 			return;
 		}
-		emitInsightsEvent("info", "organization_business_context.generated", {
+		log.info({
+			service: "api",
+			business_context_event: "generated",
 			...fields,
 			source_count: draft.sources.length,
 			duration_ms: Math.round(performance.now() - started),
 		});
 	} catch (error) {
-		captureInsightsError(
-			error,
-			"organization_business_context.generation_failed",
-			fields
-		);
-		await bounded(
+		if (requestSignal?.aborted) {
+			return;
+		}
+		log.error({
+			service: "api",
+			business_context_event: "generation_failed",
+			...fields,
+			error_message: error instanceof Error ? error.message : String(error),
+			error_stack: error instanceof Error ? error.stack : undefined,
+		});
+		const failed = await bounded(
 			markBusinessContextGeneration({
 				...input,
 				status: "failed",
@@ -652,5 +652,8 @@ export async function generateOrganizationBusinessContext(
 			}),
 			AbortSignal.timeout(Math.max(1, remaining()))
 		);
+		yield failed;
+	} finally {
+		controller.abort();
 	}
 }

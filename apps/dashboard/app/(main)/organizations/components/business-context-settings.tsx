@@ -4,7 +4,7 @@ import { businessContextIsGenerating } from "@databuddy/shared/organization-busi
 import { useSession } from "@databuddy/auth/client";
 import { Button } from "@databuddy/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
 	BusinessContextLayout,
 	BusinessContextLoading,
@@ -23,13 +23,40 @@ export function BusinessContextSettings({
 		input: { organizationId },
 	});
 	const mutationMeta = { suppressGlobalErrorToast: true };
+	const stream = useRef<{
+		organizationId: string;
+		controller: AbortController;
+	} | null>(null);
+	const [streamingOrganizationId, setStreamingOrganizationId] =
+		useState<string>();
+	const streaming = streamingOrganizationId === organizationId;
+
+	function stopStream() {
+		const current = stream.current;
+		stream.current = null;
+		current?.controller.abort();
+		setStreamingOrganizationId(undefined);
+	}
+
+	useEffect(
+		() => () => {
+			if (stream.current?.organizationId === organizationId) {
+				stream.current.controller.abort();
+				stream.current = null;
+				setStreamingOrganizationId(undefined);
+			}
+		},
+		[organizationId]
+	);
 	const query = useQuery({
 		...queryOptions,
 		meta: mutationMeta,
 		staleTime: 0,
-		refetchOnWindowFocus: true,
+		refetchOnWindowFocus: !streaming,
 		refetchInterval: ({ state }) =>
-			state.data && businessContextIsGenerating(state.data) ? 2000 : false,
+			!streaming && state.data && businessContextIsGenerating(state.data)
+				? 2000
+				: false,
 	});
 	const access = useQuery({
 		...orpc.businessContext.generationAccess.queryOptions({
@@ -81,10 +108,6 @@ export function BusinessContextSettings({
 		...orpc.businessContext.save.mutationOptions(),
 		...editMutationOptions,
 	});
-	const generate = useMutation({
-		...orpc.businessContext.generate.mutationOptions(),
-		...mutationOptions,
-	});
 	const cancel = useMutation({
 		...orpc.businessContext.cancel.mutationOptions(),
 		...mutationOptions,
@@ -93,6 +116,55 @@ export function BusinessContextSettings({
 		...orpc.businessContext.restore.mutationOptions(),
 		...editMutationOptions,
 	});
+
+	async function generate(websiteId: string, sourceUrls: string[]) {
+		if (stream.current) {
+			return;
+		}
+		const attempt = { organizationId, controller: new AbortController() };
+		stream.current = attempt;
+		setStreamingOrganizationId(organizationId);
+		let completed = false;
+		try {
+			await queryClient.cancelQueries({ queryKey: queryOptions.queryKey });
+			const events = await orpc.businessContext.generate.call(
+				{ organizationId, websiteId, sourceUrls },
+				{ signal: attempt.controller.signal }
+			);
+			for await (const result of events) {
+				if (stream.current !== attempt || attempt.controller.signal.aborted) {
+					break;
+				}
+				queryClient.setQueryData(queryOptions.queryKey, (current) => {
+					// A teammate may have saved while this request was researching.
+					return current &&
+						(current.profile?.revision ?? 0) > (result.profile?.revision ?? 0)
+						? { ...result, profile: current.profile, history: current.history }
+						: result;
+				});
+				completed =
+					result.generation?.status === "ready" ||
+					result.generation?.status === "failed";
+			}
+			if (!(completed || attempt.controller.signal.aborted)) {
+				throw new Error(
+					"Research was interrupted before the draft was complete. Your edits are still here. Try again."
+				);
+			}
+		} catch (error) {
+			if (!attempt.controller.signal.aborted) {
+				throw error;
+			}
+		} finally {
+			if (stream.current === attempt) {
+				stream.current = null;
+				setStreamingOrganizationId(undefined);
+				await queryClient.invalidateQueries({
+					queryKey: queryOptions.queryKey,
+				});
+			}
+		}
+	}
 
 	return (
 		<BusinessContextLayout>
@@ -139,26 +211,29 @@ export function BusinessContextSettings({
 					}
 					onRefreshAccess={() => access.refetch()}
 					onCancel={async (generationId) => {
+						stopStream();
+						if (!generationId) {
+							await queryClient.invalidateQueries({
+								queryKey: queryOptions.queryKey,
+							});
+							return;
+						}
 						await cancel.mutateAsync({
 							organizationId,
 							generationId,
 						});
 					}}
 					onRestore={async (restoreRevision, revision) => {
+						stopStream();
 						await restore.mutateAsync({
 							organizationId,
 							restoreRevision,
 							revision,
 						});
 					}}
-					onGenerate={async (websiteId, sourceUrls) => {
-						await generate.mutateAsync({
-							organizationId,
-							websiteId,
-							sourceUrls,
-						});
-					}}
+					onGenerate={generate}
 					onSave={async (draft) => {
+						stopStream();
 						await save.mutateAsync({ organizationId, ...draft });
 					}}
 				/>

@@ -1,3 +1,4 @@
+import type { OrganizationBusinessContext } from "@databuddy/shared/organization-business-context";
 import {
 	type ApiKeyRow,
 	getApiKeyFromHeader,
@@ -75,7 +76,15 @@ export function createServiceAuth(
 }
 
 export const createRPCContext = async (
-	opts: { headers: Headers; requestId?: string },
+	opts: {
+		headers: Headers;
+		requestId?: string;
+		generateBusinessContext?: (input: {
+			organizationId: string;
+			generationId: string;
+			signal?: AbortSignal;
+		}) => AsyncGenerator<OrganizationBusinessContext, void, void>;
+	},
 	preResolved?: PreResolvedAuth
 ) => {
 	let session: PreResolvedAuth["session"];

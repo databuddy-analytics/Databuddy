@@ -17,7 +17,7 @@ export const businessContextGenerationAccessSchema = z.object({
 	action: z.enum(["generate", "billing", "retry", "contact-admin"]),
 });
 
-/** Read-only preflight; the worker rechecks before making provider calls. */
+/** Read-only preflight; generation rechecks before making provider calls. */
 export async function businessContextGenerationAccess(
 	organizationId: string,
 	role: string | null,
@@ -46,7 +46,7 @@ export async function businessContextGenerationAccess(
 			action: "contact-admin",
 		};
 	}
-	// Match the worker's local/self-hosted policy when billing is not configured.
+	// Match generation's local/self-hosted policy when billing is not configured.
 	if (!process.env.AUTUMN_SECRET_KEY?.trim()) {
 		return {
 			status: "allowed",

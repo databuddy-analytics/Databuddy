@@ -135,7 +135,10 @@ export async function beginBusinessContextGeneration(input: {
 			);
 		}
 		if (businessContextIsGenerating(current)) {
-			return current;
+			throw new BusinessContextError(
+				"CONFLICT",
+				"A business context generation is already running. Stop it before starting another."
+			);
 		}
 		const sourceUrls = businessContextSourceUrlsSchema.parse(
 			input.sourceUrls ?? []
@@ -167,7 +170,8 @@ export async function beginBusinessContextGeneration(input: {
 				requestedBy: input.requestedBy,
 				requestedAt: new Date().toISOString(),
 				baseRevision: current.profile?.revision ?? 0,
-				status: "queued",
+				status: "running",
+				progress: { stage: "reading" },
 				draft: null,
 				error: null,
 			},
@@ -398,15 +402,27 @@ function profileHistory(current: OrganizationBusinessContext) {
 export async function cancelBusinessContextGeneration(input: {
 	organizationId: string;
 	generationId: string;
+	activeOnly?: boolean;
 }): Promise<OrganizationBusinessContext> {
-	return await update(input.organizationId, (current) => ({
-		...current,
-		generation:
-			current.generation?.id === input.generationId ? null : current.generation,
-		previousDrafts: current.previousDrafts?.filter(
-			(draft) => draft.id !== input.generationId
-		),
-	}));
+	return await update(input.organizationId, (current) => {
+		if (
+			input.activeOnly &&
+			(current.generation?.id !== input.generationId ||
+				!businessContextIsGenerating(current))
+		) {
+			return current;
+		}
+		return {
+			...current,
+			generation:
+				current.generation?.id === input.generationId
+					? null
+					: current.generation,
+			previousDrafts: current.previousDrafts?.filter(
+				(draft) => draft.id !== input.generationId
+			),
+		};
+	});
 }
 
 export async function restoreOrganizationBusinessProfile(input: {

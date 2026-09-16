@@ -35,10 +35,10 @@ integration("organization business context in isolated PostgreSQL", () => {
 		const url = new URL(process.env.DATABASE_URL ?? "");
 		if (
 			!["localhost", "127.0.0.1"].includes(url.hostname) ||
-			!["/databuddy_test", "/business_context_settings"].includes(url.pathname)
+			(!["/databuddy_test", "/business_context_settings"].includes(url.pathname) && !url.pathname.startsWith("/databuddy_e2e_"))
 		) {
 			throw new Error(
-				"Use a localhost databuddy_test or business_context_settings database"
+				"Use a localhost test database"
 			);
 		}
 	});
@@ -161,6 +161,30 @@ integration("organization business context in isolated PostgreSQL", () => {
 		expect(state.generation?.id).toBe(newer);
 	});
 
+	test("disconnect cleanup preserves terminal drafts and cannot remove a newer run", async () => {
+		await save("Saved context");
+		const first = (await generate()).generation;
+		if (!first) throw new Error("Missing generation");
+		await cancelBusinessContextGeneration({ organizationId: org, generationId: first.id, activeOnly: true });
+		expect((await readOrganizationBusinessContext(org)).generation).toBeNull();
+		for (const status of ["ready", "failed"] as const) {
+			const pending = (await generate()).generation;
+			if (!pending) throw new Error("Missing generation");
+			await markBusinessContextGeneration({ organizationId: org, generationId: pending.id, status, draft: status === "ready" ? draft : undefined });
+			await cancelBusinessContextGeneration({ organizationId: org, generationId: pending.id, activeOnly: true });
+			expect((await readOrganizationBusinessContext(org)).generation?.status).toBe(status);
+		}
+		const completed = (await generate()).generation;
+		if (!completed) throw new Error("Missing generation");
+		await markBusinessContextGeneration({ organizationId: org, generationId: completed.id, status: "ready", draft });
+		const newer = await generate();
+		await cancelBusinessContextGeneration({ organizationId: org, generationId: completed.id, activeOnly: true });
+		const final = await readOrganizationBusinessContext(org);
+		expect(final.generation?.id).toBe(newer.generation?.id);
+		expect(final.previousDrafts?.some((item) => item.id === completed.id)).toBe(true);
+		expect(final.profile?.content).toBe("Saved context");
+	});
+
 	test("manual content is durable and preserves unrelated organization metadata", async () => {
 		const content =
 			"Owner-defined priorities and terminology.\n" + "x".repeat(11_500);
@@ -178,11 +202,16 @@ integration("organization business context in isolated PostgreSQL", () => {
 		expect((await readOrganizationBusinessContext(other)).profile).toBeNull();
 	});
 
-	test("duplicate generation requests share a draft job and never replace saved content", async () => {
+	test("concurrent generation requests admit only one run and never replace saved content", async () => {
 		await save("Owner context");
-		const [first, second] = await Promise.all([generate(), generate()]);
-		expect(first.generation?.id).toBe(second.generation?.id);
-		const generationId = first.generation!.id;
+		const results = await Promise.allSettled([generate(), generate()]);
+		expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+		const rejected = results.find((result) => result.status === "rejected");
+		expect(rejected?.status === "rejected" && rejected.reason.code).toBe("CONFLICT");
+		const started = results.find((result) => result.status === "fulfilled");
+		if (started?.status !== "fulfilled" || !started.value.generation) throw new Error("Missing admitted generation");
+		const generationId = started.value.generation.id;
+		expect(started.value.generation.status).toBe("running");
 		await markBusinessContextGeneration({
 			organizationId: org,
 			generationId,
