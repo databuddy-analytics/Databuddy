@@ -133,6 +133,7 @@ async function writeAutumnCache(
 export async function handleAutumnRequest(request: Request) {
 	let sanitized = await stripPrivilegedBody(request);
 	const segment = autumnPathSegment(sanitized);
+	const identity = await identifyAutumnCustomer(sanitized).catch(() => null);
 	if (sanitized.method !== "GET" && sanitized.method !== "HEAD") {
 		const body: JSONValue = await sanitized
 			.clone()
@@ -145,7 +146,6 @@ export async function handleAutumnRequest(request: Request) {
 			});
 			return Response.json(response.payload, { status: response.status });
 		}
-		const identity = await identifyAutumnCustomer(sanitized).catch(() => null);
 		if (identity && body && typeof body === "object" && !Array.isArray(body)) {
 			sanitized = new Request(sanitized.url, {
 				method: sanitized.method,
@@ -183,7 +183,6 @@ export async function handleAutumnRequest(request: Request) {
 		return response;
 	}
 
-	const identity = await identifyAutumnCustomer(sanitized).catch(() => null);
 	if (!identity?.customerId) {
 		return autumn(withAutumnApiPath(sanitized));
 	}
