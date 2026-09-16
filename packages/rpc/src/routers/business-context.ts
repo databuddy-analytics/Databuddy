@@ -24,9 +24,9 @@ import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import { rpcError } from "../errors";
 import { setAuditOrganization } from "../lib/audit";
-import { runAuditedMutation } from "../middleware/audit-mutation";
 import { logger } from "../lib/logger";
-import { protectedProcedure, type Context } from "../orpc";
+import { runAuditedMutation } from "../middleware/audit-mutation";
+import { protectedProcedure, sessionProcedure, type Context } from "../orpc";
 import { withWorkspace } from "../procedures/with-workspace";
 
 const scope = z.object({ organizationId: z.string().min(1).max(256) }).strict();
@@ -95,7 +95,7 @@ export const businessContextRouter = {
 		.input(scope)
 		.output(businessContextSettingsSchema)
 		.handler(({ context, input }) => settings(context, input.organizationId)),
-	save: protectedProcedure
+	save: sessionProcedure
 		.route({
 			method: "POST",
 			path: "/business-context/save",
@@ -109,7 +109,7 @@ export const businessContextRouter = {
 				await requireEditor(context, input.organizationId);
 				await saveOrganizationBusinessProfile({
 					...input,
-					updatedBy: context.user?.id ?? "api",
+					updatedBy: context.user.id,
 				}).catch(contextError);
 				return settings(context, input.organizationId);
 			})
@@ -130,7 +130,7 @@ export const businessContextRouter = {
 				return settings(context, input.organizationId);
 			})
 		),
-	restore: protectedProcedure
+	restore: sessionProcedure
 		.route({
 			method: "POST",
 			path: "/business-context/restore",
@@ -149,12 +149,12 @@ export const businessContextRouter = {
 				await requireEditor(context, input.organizationId);
 				await restoreOrganizationBusinessProfile({
 					...input,
-					updatedBy: context.user?.id ?? "api",
+					updatedBy: context.user.id,
 				}).catch(contextError);
 				return settings(context, input.organizationId);
 			})
 		),
-	generate: protectedProcedure
+	generate: sessionProcedure
 		.route({
 			method: "POST",
 			path: "/business-context/generate",
@@ -183,7 +183,7 @@ export const businessContextRouter = {
 				}
 				const state = await beginBusinessContextGeneration({
 					...input,
-					requestedBy: context.user?.id ?? "",
+					requestedBy: context.user.id,
 				}).catch(contextError);
 				if (state.generation?.status === "queued") {
 					const generationId = state.generation.id;
