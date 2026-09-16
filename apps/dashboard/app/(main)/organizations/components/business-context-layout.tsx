@@ -41,7 +41,7 @@ export function BusinessContextBriefHeader({
 	children: ReactNode;
 }) {
 	return (
-		<Card.Header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1">
+		<Card.Header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 py-3">
 			<Card.Title>Business brief</Card.Title>
 			{children}
 			<Card.Description className="col-span-2">
@@ -58,13 +58,13 @@ export function BusinessContextResearchCard({
 }) {
 	return (
 		<Card data-testid="business-context-research">
-			<Card.Header>
+			<Card.Header className="py-3">
 				<Card.Title>Research your business</Card.Title>
 				<Card.Description>
 					Create a draft from your public website and documentation.
 				</Card.Description>
 			</Card.Header>
-			<Card.Content className="space-y-4">{children}</Card.Content>
+			<Card.Content className="space-y-3">{children}</Card.Content>
 		</Card>
 	);
 }
@@ -90,16 +90,15 @@ export function BusinessContextSourceInput({
 				value={value}
 				onChange={(event) => onChange?.(event.target.value)}
 				readOnly={readOnly}
-				minRows={3}
-				maxRows={3}
+				minRows={2}
+				maxRows={4}
 				placeholder={
 					"https://example.com/pricing\nhttps://docs.example.com/start"
 				}
-				className="text-xs"
+				className="min-h-16 text-xs"
 			/>
 			<Field.Description>
-				Up to six URLs, one per line. Include your pricing, setup guide, or
-				product documentation.
+				Pricing, docs, or setup guides. Up to six URLs, one per line.
 			</Field.Description>
 			{error && <Field.Error>{error}</Field.Error>}
 		</Field>
@@ -139,7 +138,7 @@ export function BusinessContextLoading() {
 						<Skeleton className="h-7 w-40" />
 					</div>
 					<div
-						className="h-112 space-y-5 p-5 sm:p-6"
+						className="h-80 space-y-5 p-5 sm:p-6"
 						data-testid="business-context-document"
 					>
 						<Skeleton className="h-5 w-1/2" />
@@ -147,7 +146,7 @@ export function BusinessContextLoading() {
 						<Skeleton className="h-4 w-5/6" />
 						<Skeleton className="h-4 w-3/4" />
 					</div>
-					<div className="flex min-h-16 items-center border-border border-t px-5 py-3">
+					<div className="flex min-h-12 items-center border-border border-t px-5 py-2">
 						<Skeleton className="h-3 w-32" />
 					</div>
 				</Card>
@@ -155,15 +154,13 @@ export function BusinessContextLoading() {
 					<BusinessContextResearchCard>
 						<Skeleton className="h-8 w-full" />
 						<BusinessContextSourceInput value="" readOnly />
-						<div className="min-h-20 space-y-2">
-							<Skeleton className="h-3 w-full" />
-							<Skeleton className="h-3 w-3/4" />
+						<div className="space-y-2">
+							<div className="min-h-16 space-y-2">
+								<Skeleton className="h-3 w-full" />
+								<Skeleton className="h-3 w-3/4" />
+							</div>
+							<Skeleton className="h-8 w-full" />
 						</div>
-						<Skeleton className="h-8 w-full" />
-						<div className="min-h-8" />
-						<p className="text-muted-foreground text-xs leading-5">
-							You can always write, edit, and save business context manually.
-						</p>
 					</BusinessContextResearchCard>
 					<div className="space-y-3 px-1">
 						<Skeleton className="h-4 w-32" />

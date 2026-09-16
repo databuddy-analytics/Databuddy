@@ -19,6 +19,8 @@ import {
 	Field,
 	Textarea,
 	SegmentedControl,
+	Skeleton,
+	Spinner,
 	Badge,
 	dayjs,
 } from "@databuddy/ui";
@@ -619,7 +621,7 @@ export function BusinessContextEditor({
 								<Tabs.Panel
 									value="preview"
 									data-testid="business-context-document"
-									className="h-112 overflow-y-auto p-5 sm:p-6"
+									className="h-80 overflow-y-auto p-5 sm:p-6"
 								>
 									{content.trim() ? (
 										<BusinessContextMarkdown content={content} />
@@ -652,10 +654,7 @@ export function BusinessContextEditor({
 									)}
 								</Tabs.Panel>
 								{canEdit && (
-									<Tabs.Panel
-										value="edit"
-										className="h-112 overflow-y-auto p-5"
-									>
+									<Tabs.Panel value="edit" className="h-80 overflow-y-auto p-5">
 										<Field error={tooLong} className="h-full">
 											<Field.Label>Business brief</Field.Label>
 											<Field.Description>
@@ -663,9 +662,9 @@ export function BusinessContextEditor({
 												and links.
 											</Field.Description>
 											<Textarea
-												className="min-h-80 flex-1 font-mono text-sm leading-6"
-												minRows={12}
-												maxRows={12}
+												className="min-h-56 flex-1 font-mono text-sm leading-6"
+												minRows={8}
+												maxRows={8}
 												readOnly={!(ready && canEdit) || isSaving}
 												ref={editorRef}
 												value={content}
@@ -695,7 +694,7 @@ export function BusinessContextEditor({
 								{hasGeneratedContent && (
 									<Tabs.Panel
 										value="draft"
-										className="h-112 overflow-y-auto p-5 sm:p-6"
+										className="h-80 overflow-y-auto p-5 sm:p-6"
 										aria-label="AI draft preview"
 									>
 										{displayedDraft ? (
@@ -704,23 +703,38 @@ export function BusinessContextEditor({
 												streaming={generating}
 											/>
 										) : (
-											<div className="flex h-full flex-col justify-center gap-3">
-												<p className="font-medium text-sm">
-													{generation?.status === "queued"
-														? "Your draft is queued"
-														: "Reading your sources"}
-												</p>
-												<p className="text-muted-foreground text-sm leading-6">
-													The draft will appear here as it is written. Your
-													current brief and edits stay intact.
-												</p>
+											<div className="space-y-6" role="status">
+												<div className="flex items-start gap-3">
+													<Spinner
+														size="sm"
+														className="mt-1 shrink-0 text-muted-foreground"
+														aria-hidden
+													/>
+													<div className="space-y-1">
+														<p className="font-medium text-sm">
+															{generation?.status === "queued"
+																? "Your draft is queued"
+																: "Reading your sources"}
+														</p>
+														<p className="text-muted-foreground text-xs leading-5">
+															The draft will appear here as it is written. Your
+															saved brief stays unchanged.
+														</p>
+													</div>
+												</div>
+												<div className="space-y-3" aria-hidden>
+													<Skeleton className="h-4 w-2/5" />
+													<Skeleton className="h-3 w-full" />
+													<Skeleton className="h-3 w-5/6" />
+													<Skeleton className="h-3 w-2/3" />
+												</div>
 											</div>
 										)}
 									</Tabs.Panel>
 								)}
 							</Tabs>
 						)}
-						<div className="flex min-h-16 flex-wrap items-center justify-between gap-2 border-border border-t px-5 py-3">
+						<div className="flex min-h-12 flex-wrap items-center justify-between gap-2 border-border border-t px-5 py-2">
 							<div
 								className="min-w-0 text-muted-foreground text-xs"
 								aria-live="polite"
@@ -896,74 +910,57 @@ export function BusinessContextEditor({
 								readOnly={generating || isSaving || !selectedWebsite}
 								error={sourceError}
 							/>
-							<div
-								className="min-h-20 text-xs leading-5"
-								role="status"
-								aria-live="polite"
-							>
-								{selectedWebsite ? (
-									generating ? (
-										<p>
-											{generation?.status === "queued"
-												? "Waiting to start…"
-												: generation?.progress?.stage === "writing"
-													? "Writing your draft…"
-													: "Reading your sources…"}
-											<span className="mt-1 block text-muted-foreground">
-												You can keep editing. Saving ends this generation.
-											</span>
-										</p>
-									) : generation?.status === "failed" &&
-										!accessPending &&
-										access?.status === "allowed" ? (
-										<p className="text-destructive">
-											{generation.error ||
-												"The draft could not be completed. Your saved brief is unchanged. Try again."}
-										</p>
-									) : accessPending ? (
-										<p className="text-muted-foreground">
-											Checking generation access…
-										</p>
+							<div className="space-y-2">
+								<div
+									className="min-h-16 text-xs leading-5"
+									role="status"
+									aria-live="polite"
+								>
+									{selectedWebsite ? (
+										generating ? (
+											<p className="text-muted-foreground">
+												{generation?.status === "queued"
+													? "Queued for research."
+													: generation?.progress?.stage === "writing"
+														? "Writing your draft."
+														: "Reading your sources."}{" "}
+												Saving your edits cancels this draft.
+											</p>
+										) : generation?.status === "failed" &&
+											!accessPending &&
+											access?.status === "allowed" ? (
+											<p className="text-destructive">
+												{generation.error ||
+													"The draft could not be completed. Your saved brief is unchanged. Try again."}
+											</p>
+										) : accessPending ? (
+											<p className="text-muted-foreground">
+												Checking generation access…
+											</p>
+										) : (
+											<p
+												className={
+													access?.status === "allowed"
+														? "text-muted-foreground"
+														: "text-foreground"
+												}
+											>
+												{access?.message ||
+													"Generation access could not be checked. Your brief is still editable."}
+											</p>
+										)
 									) : (
-										<p
-											className={
-												access?.status === "allowed"
-													? "text-muted-foreground"
-													: "text-foreground"
-											}
-										>
-											{access?.message ||
-												"Generation access could not be checked. Your brief is still editable."}
+										<p className="text-muted-foreground">
+											Add a website to generate a draft. You can write and save
+											your brief now.
 										</p>
-									)
-								) : (
-									<p className="text-muted-foreground">
-										Add a website to generate a draft. You can write and save
-										your brief now.
-									</p>
-								)}
-							</div>
-							<Button
-								className="w-full"
-								disabled={!canGenerate}
-								loading={generating}
-								onClick={generate}
-								size="sm"
-								variant="secondary"
-							>
-								<WandSparkleIcon className="size-4" />
-								{generating
-									? "Generating draft…"
-									: content.trim() || profile
-										? "Regenerate with AI"
-										: "Generate with AI"}
-							</Button>
-							<div className="min-h-8">
+									)}
+								</div>
 								{activeGeneration && generation ? (
 									<Button
 										className="w-full"
 										size="sm"
-										variant="ghost"
+										variant="secondary"
 										disabled={isSaving}
 										onClick={() =>
 											change(
@@ -976,37 +973,55 @@ export function BusinessContextEditor({
 										Cancel generation
 									</Button>
 								) : selectedWebsite ? (
-									access?.action === "billing" ? (
+									!accessPending && access?.action === "billing" ? (
 										<Button
 											asChild
 											className="w-full"
 											size="sm"
-											variant="ghost"
+											variant="secondary"
 										>
 											<Link href="/billing">Manage billing</Link>
 										</Button>
-									) : access?.action === "retry" ||
-										access?.action === "contact-admin" ||
-										!access ? (
+									) : !accessPending && access?.status !== "allowed" ? (
 										<Button
 											className="w-full"
 											size="sm"
-											variant="ghost"
-											disabled={accessPending}
+											variant="secondary"
 											onClick={onRefreshAccess}
 										>
 											Check again
 										</Button>
-									) : null
+									) : (
+										<Button
+											className="w-full"
+											disabled={!canGenerate}
+											onClick={generate}
+											size="sm"
+											variant="secondary"
+										>
+											{isRequesting ? (
+												<Spinner size="sm" aria-hidden />
+											) : (
+												<WandSparkleIcon className="size-4" />
+											)}
+											{isRequesting
+												? "Starting draft…"
+												: content.trim() || profile
+													? "Regenerate with AI"
+													: "Generate with AI"}
+										</Button>
+									)
 								) : (
-									<Button asChild className="w-full" size="sm" variant="ghost">
+									<Button
+										asChild
+										className="w-full"
+										size="sm"
+										variant="secondary"
+									>
 										<Link href="/websites">Add a website</Link>
 									</Button>
 								)}
 							</div>
-							<p className="text-muted-foreground text-xs leading-5">
-								You can always write, edit, and save business context manually.
-							</p>
 						</BusinessContextResearchCard>
 					)}
 					<section className="space-y-3 px-1" aria-label="Context checklist">

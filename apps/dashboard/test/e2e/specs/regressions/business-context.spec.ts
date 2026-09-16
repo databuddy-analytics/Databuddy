@@ -15,6 +15,19 @@ const allowedAccess = {
 	action: "generate",
 };
 
+const contextViewports = [
+	{ name: "desktop", width: 1440, height: 1000 },
+	{ name: "mobile", width: 390, height: 844 },
+];
+
+function requestGate() {
+	let resolve!: () => void;
+	const promise = new Promise<void>((release) => {
+		resolve = release;
+	});
+	return { promise, resolve };
+}
+
 test.beforeEach(async ({ page }) => {
 	await page.route("**/rpc/businessContext/generationAccess", (route) =>
 		route.fulfill({ json: { json: allowedAccess } })
@@ -129,10 +142,7 @@ function settings(): BusinessContextSettings {
 	};
 }
 
-for (const viewport of [
-	{ name: "desktop", width: 1440, height: 1000 },
-	{ name: "mobile", width: 390, height: 844 },
-]) {
+for (const viewport of contextViewports) {
 	for (const access of [
 		allowedAccess,
 		{
@@ -150,9 +160,9 @@ for (const viewport of [
 			},
 			async ({ authenticatedPage: page }, testInfo) => {
 				await page.setViewportSize(viewport);
-				const organizationGate = Promise.withResolvers<void>();
-				const briefGate = Promise.withResolvers<void>();
-				const accessGate = Promise.withResolvers<void>();
+				const organizationGate = requestGate();
+				const briefGate = requestGate();
+				const accessGate = requestGate();
 				const organizationRequest = page.waitForRequest(
 					"**/api/auth/organization/list*"
 				);
@@ -201,7 +211,9 @@ for (const viewport of [
 					});
 					await expect(loading).toBeVisible();
 					const initial = await readBounds();
+					expect(initial[2]!.height).toBe(320);
 					await page.screenshot({
+						animations: "disabled",
 						path: testInfo.outputPath("organization-loading.png"),
 					});
 					const expectStableBounds = async (phase: string) => {
@@ -249,7 +261,7 @@ for (const viewport of [
 						await expect(
 							page.getByRole("link", { name: "Manage billing", exact: true })
 						).toBeVisible();
-						await expect(generate).toBeDisabled();
+						await expect(generate).toBeHidden();
 					}
 					const ready = await expectStableBounds("generation access ready");
 					expect(
@@ -261,7 +273,10 @@ for (const viewport of [
 							() => document.documentElement.scrollWidth > window.innerWidth
 						)
 					).toBe(false);
-					await page.screenshot({ path: testInfo.outputPath("loaded.png") });
+					await page.screenshot({
+						animations: "disabled",
+						path: testInfo.outputPath("loaded.png"),
+					});
 					await testInfo.attach("loading-bounds", {
 						body: JSON.stringify({ initial, pendingAccess, ready }, null, 2),
 						contentType: "application/json",
@@ -841,11 +856,15 @@ for (const access of [
 		await expect(page.getByText(access.message, { exact: true })).toBeVisible();
 		await expect(
 			page.getByRole("button", { name: "Regenerate with AI", exact: true })
-		).toBeDisabled();
+		).toBeHidden();
 		if (access.action === "billing") {
 			await expect(
 				page.getByRole("link", { name: "Manage billing", exact: true })
 			).toHaveAttribute("href", /\/billing(?:#.*)?$/);
+		} else {
+			await expect(
+				page.getByRole("button", { name: "Check again", exact: true })
+			).toBeEnabled();
 		}
 		const editor = await editBrief(page);
 		await editor.fill(
@@ -862,6 +881,112 @@ for (const access of [
 		);
 		expect(generationRequests).toBe(0);
 	});
+}
+
+for (const viewport of contextViewports) {
+	test(
+		`keeps ${viewport.name} queued and running drafts compact and stable`,
+		{
+			tag: "@regression",
+		},
+		async ({ authenticatedPage: page }, testInfo) => {
+			await page.setViewportSize(viewport);
+			await page.addInitScript(() => localStorage.setItem("theme", "dark"));
+			let current: BusinessContextSettings = {
+				...settings(),
+				generation: {
+					id: "11111111-1111-4111-8111-111111111111",
+					websiteId: "example-site",
+					domain: "example.com",
+					requestedBy: "example-admin",
+					requestedAt: new Date().toISOString(),
+					baseRevision: 1,
+					status: "queued",
+					draft: null,
+					error: null,
+				},
+			};
+			await page.route("**/rpc/businessContext/get", (route) =>
+				route.fulfill({ json: { json: current } })
+			);
+			await page.goto(path);
+			await page.getByRole("tab", { name: "AI draft", exact: true }).click();
+			const panel = page.locator('[aria-label="AI draft preview"]');
+			const brief = page.getByTestId("business-context-brief");
+			const research = page.getByTestId("business-context-research");
+			const queued = panel.getByText("Your draft is queued", { exact: true });
+			await expect(queued).toBeVisible();
+			const initialPanel = await panel.boundingBox();
+			const initialBrief = await brief.boundingBox();
+			const queuedTitle = await queued.boundingBox();
+			expect(initialPanel).not.toBeNull();
+			expect(initialBrief).not.toBeNull();
+			expect(queuedTitle).not.toBeNull();
+			expect(initialPanel!.height).toBe(320);
+			expect(queuedTitle!.y - initialPanel!.y).toBeLessThanOrEqual(32);
+			await expect(research.getByRole("button")).toHaveCount(1);
+			await expect(
+				research.getByRole("button", { name: "Cancel generation", exact: true })
+			).toBeEnabled();
+			await page.screenshot({
+				animations: "disabled",
+				path: testInfo.outputPath("queued.png"),
+			});
+
+			current = {
+				...current,
+				generation: {
+					...current.generation!,
+					status: "running",
+					progress: { stage: "reading" },
+				},
+			};
+			await expect(
+				panel.getByText("Reading your sources", { exact: true })
+			).toBeVisible({ timeout: 10_000 });
+			await page.screenshot({
+				animations: "disabled",
+				path: testInfo.outputPath("reading.png"),
+			});
+			current = {
+				...current,
+				generation: {
+					...current.generation!,
+					progress: {
+						stage: "writing",
+						content:
+							"## Proposed understanding\n\nExample serves independent studios.",
+					},
+				},
+			};
+			await expect(
+				panel.getByRole("heading", {
+					name: "Proposed understanding",
+					exact: true,
+				})
+			).toBeVisible({ timeout: 10_000 });
+			const writingPanel = await panel.boundingBox();
+			const writingBrief = await brief.boundingBox();
+			expect(writingPanel).toEqual(initialPanel);
+			expect(writingBrief).toEqual(initialBrief);
+			await expect(research.getByRole("button")).toHaveCount(1);
+			await expect(
+				page.getByRole("button", { name: "Use AI draft", exact: true })
+			).toBeHidden();
+			await page.screenshot({
+				animations: "disabled",
+				path: testInfo.outputPath("writing.png"),
+			});
+			await testInfo.attach("generation-bounds", {
+				body: JSON.stringify(
+					{ initialPanel, initialBrief, writingPanel, writingBrief },
+					null,
+					2
+				),
+				contentType: "application/json",
+			});
+		}
+	);
 }
 
 test("streams a separate proposed brief without replacing local edits or enabling early acceptance", {
