@@ -268,4 +268,16 @@ integration("business context source locking and provenance", () => {
 				?.origin
 		).toBe("mixed");
 	});
+
+	test("metadata that is not an object neither breaks reads nor blocks writes", async () => {
+		await db
+			.update(organization)
+			.set({ metadata: JSON.stringify("Hello world") })
+			.where(inArray(organization.id, [org]));
+		expect((await readOrganizationBusinessContext(org)).profile).toBeNull();
+		await save("Our team sells annual contracts.");
+		expect((await readOrganizationBusinessContext(org)).profile?.content).toBe(
+			"Our team sells annual contracts."
+		);
+	});
 });

@@ -28,9 +28,17 @@ export class BusinessContextError extends Error {
 }
 
 function metadata(value: string | null): Record<string, unknown> {
-	return value
-		? z.record(z.string(), z.unknown()).parse(JSON.parse(value))
-		: {};
+	if (!value) {
+		return {};
+	}
+	try {
+		const parsed = z
+			.record(z.string(), z.unknown())
+			.safeParse(JSON.parse(value));
+		return parsed.success ? parsed.data : {};
+	} catch {
+		return {};
+	}
 }
 
 function state(value: Record<string, unknown>): OrganizationBusinessContext {
