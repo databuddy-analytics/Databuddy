@@ -20,6 +20,7 @@ for (const [selfhost, e2e, tracked] of [["", "", true], ["true", "", false], [""
   for (const component of [Databuddy, OpenAiAdsPixel]) {
     assert.equal(children.some(child => isValidElement(child) && child.type === component), tracked);
   }
+  assert.equal(children.some(child => isValidElement(child) && child.type === "script" && child.props.src?.startsWith("https://www.dubcdn.com/")), tracked);
 }
 `]),
 		stdout: "ignore",

@@ -96,7 +96,7 @@ describe("dashboard next config", () => {
 	});
 
 	it("allows the Dub conversion tracking script on app routes", async () => {
-		await withNodeEnv("production", async () => {
+		await withEnv({ NODE_ENV: "production" }, async () => {
 			const csp = await getCspHeader("/((?!demo|public).*)");
 
 			expect(csp).toContain("https://www.dubcdn.com");
