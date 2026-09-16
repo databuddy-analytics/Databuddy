@@ -387,8 +387,10 @@ export async function generateOrganizationBusinessContext(
 				...new Set(
 					[
 						...sources.flatMap((page) =>
-							page.internalLinks.map(
-								(link) => new URL(link, page.finalUrl).href
+							page.internalLinks.flatMap((link) =>
+								URL.canParse(link, page.finalUrl)
+									? [new URL(link, page.finalUrl).href]
+									: []
 							)
 						),
 						...links,

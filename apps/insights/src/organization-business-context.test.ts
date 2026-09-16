@@ -239,6 +239,21 @@ function fixture(
 }
 
 describe("organization business context worker", () => {
+	it("accepts fresh offset-dated sources and ignores malformed discovery links", async () => {
+		const f = fixture();
+		const read = f.read.getMockImplementation();
+		if (!read) throw new Error("Missing page fixture");
+		f.read.mockImplementation(async (...args) => ({
+			...await read(...args),
+			fetchedAt: new Date().toISOString().replace("Z", "+00:00"),
+			internalLinks: ["http://", "/pricing"],
+		}));
+		await f.run();
+		expect(f.state.generation?.status).toBe("ready");
+		expect(f.read.mock.calls.map(([call]) => call.path)).toEqual(["/", "/pricing"]);
+		expect(f.state.generation?.draft?.sources.every((source) => source.fetchedAt?.endsWith("+00:00"))).toBe(true);
+	});
+
 	it("follows a docs index once, carries team definitions and reads fresh sources", async () => {
 		const f = fixture([
 			{ paths: ["/docs"] },

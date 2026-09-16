@@ -102,7 +102,7 @@ export const businessBriefSchema = z.object({
 			z.object({
 				url: z.url().max(2048),
 				title: z.string().max(512),
-				fetchedAt: z.iso.datetime().optional(),
+				fetchedAt: z.iso.datetime({ offset: true }).optional(),
 			})
 		)
 		.max(8),
