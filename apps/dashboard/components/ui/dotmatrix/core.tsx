@@ -49,7 +49,7 @@ export function cx(...values: Array<string | undefined | null | false>): string 
   return values.filter(Boolean).join(" ");
 }
 
-export const MATRIX_SIZE = 5;
+const MATRIX_SIZE = 5;
 const CENTER = Math.floor(MATRIX_SIZE / 2);
 const RANGE = Array.from({ length: MATRIX_SIZE }, (_, index) => index);
 const MAX_RADIUS = Math.hypot(CENTER, CENTER);
@@ -100,7 +100,7 @@ function getPatternIndexes(pattern: MatrixPattern = "diamond"): number[] {
   return PATTERN_INDEXES[pattern];
 }
 
-export function rowMajorIndex(row: number, col: number): number {
+function rowMajorIndex(row: number, col: number): number {
   return row * MATRIX_SIZE + col;
 }
 
