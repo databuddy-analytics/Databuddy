@@ -22,7 +22,6 @@ interface AIComponentDataPart {
 	type: typeof AI_COMPONENT_DATA_PART_TYPE;
 }
 
-const LEGACY_AI_COMPONENT_DATA_PART_TYPE = "data-ai-component";
 const COMPONENT_JSON_MARKER = '{"type":"';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -35,17 +34,10 @@ function isTextPart(part: unknown): part is TextPartLike {
 	);
 }
 
-function isSupportedAIComponentPartType(type: unknown): boolean {
-	return (
-		type === AI_COMPONENT_DATA_PART_TYPE ||
-		type === LEGACY_AI_COMPONENT_DATA_PART_TYPE
-	);
-}
-
 export function getAIComponentInputFromPart(
 	part: unknown
 ): RawComponentInput | null {
-	if (!(isRecord(part) && isSupportedAIComponentPartType(part.type))) {
+	if (!(isRecord(part) && part.type === AI_COMPONENT_DATA_PART_TYPE)) {
 		return null;
 	}
 
