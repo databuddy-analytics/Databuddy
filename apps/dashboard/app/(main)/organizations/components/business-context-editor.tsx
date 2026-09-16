@@ -8,7 +8,6 @@ import {
 	type OrganizationBusinessProfile,
 	type BusinessContextSettings,
 	businessContextIsGenerating,
-	formatBusinessTeamContext,
 	businessMeasurementPlansSchema,
 	businessContextSourceUrlsSchema,
 	businessContextSourceBelongsToSite,
@@ -35,6 +34,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { TopBar } from "@/components/layout/top-bar";
 import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
+import type { orpc } from "@/lib/orpc";
 import {
 	BusinessContextBriefHeader,
 	BusinessContextResearchCard,
@@ -80,16 +80,10 @@ type Review =
 			baseRevision: number;
 	  };
 interface BusinessContextEditorProps {
-	access?: {
-		status:
-			| "allowed"
-			| "credits-required"
-			| "unavailable"
-			| "not-configured"
-			| "read-only";
-		message: string;
-		action: "generate" | "billing" | "retry" | "contact-admin";
-	};
+	access?: Omit<
+		Awaited<ReturnType<typeof orpc.businessContext.generationAccess.call>>,
+		"billingMode"
+	>;
 	accessPending: boolean;
 	onCancel: (generationId: string) => Promise<void>;
 	onGenerate: (websiteId: string, sourceUrls: string[]) => Promise<void>;
@@ -119,7 +113,7 @@ export function BusinessContextEditor({
 		ready,
 		recoverable,
 	} = useBusinessContextDraft(storageKey, canEdit);
-	const [websiteId, setWebsiteId] = useState<string>();
+	const [websiteId, setWebsiteId] = useState(generation?.websiteId);
 	const [isSaving, setIsSaving] = useState(false);
 	const [isRequesting, setIsRequesting] = useState(false);
 	const [error, setError] = useState<string>();
@@ -128,8 +122,12 @@ export function BusinessContextEditor({
 	const [reviewVersion, setReviewVersion] = useState("proposed");
 	const [review, setReview] = useState<Review | null>(null);
 	const editorRef = useRef<HTMLTextAreaElement>(null);
-	const [view, setView] = useState("preview");
-	const [sourceText, setSourceText] = useState("");
+	const [view, setView] = useState(
+		canEdit && !profile?.content ? "edit" : "preview"
+	);
+	const [sourceText, setSourceText] = useState(
+		(generation?.sourceUrls ?? []).join("\n")
+	);
 	const pageRef = useRef<HTMLDivElement>(null);
 	const reviewWasOpen = useRef(false);
 	const reviewTitleRef = useRef<HTMLHeadingElement>(null);
@@ -156,8 +154,10 @@ export function BusinessContextEditor({
 		draft !== null &&
 		(content.trim() !== (profile?.content ?? "") ||
 			Boolean(draftGeneration) ||
-			formatBusinessTeamContext(teamContext) !==
-				formatBusinessTeamContext(profile?.teamContext) ||
+			teamFields.some(
+				({ key }) =>
+					teamContext[key].trim() !== (profile?.teamContext?.[key] ?? "").trim()
+			) ||
 			JSON.stringify(measurementPlans) !==
 				JSON.stringify(profile?.measurementPlans ?? []));
 	const conflict = dirty && draft.revision !== revision;
@@ -345,15 +345,7 @@ export function BusinessContextEditor({
 	}
 
 	async function generate() {
-		if (
-			!(canEdit && selectedWebsite) ||
-			generating ||
-			isSaving ||
-			accessPending ||
-			access?.status !== "allowed" ||
-			!sourceResult.success ||
-			invalidSource
-		) {
+		if (!(canGenerate && selectedWebsite && sourceResult.success)) {
 			return;
 		}
 		setIsRequesting(true);
@@ -646,15 +638,7 @@ export function BusinessContextEditor({
 													a draft.
 												</p>
 											</div>
-											{canEdit ? (
-												<Button
-													size="sm"
-													variant="secondary"
-													onClick={() => setView("edit")}
-												>
-													Write a brief
-												</Button>
-											) : (
+											{!canEdit && (
 												<p className="text-muted-foreground text-sm">
 													An organization admin can add your business context.
 												</p>
