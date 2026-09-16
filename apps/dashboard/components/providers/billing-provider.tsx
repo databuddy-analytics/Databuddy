@@ -5,7 +5,6 @@ import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
 import {
 	FEATURE_METADATA,
 	type FeatureId,
-	GATED_FEATURES,
 	type FeatureLimit,
 	type GatedFeatureId,
 	getMinimumPlanForFeature,
@@ -235,9 +234,7 @@ function AuthenticatedBillingProvider({
 		};
 
 		const isFeatureEnabled = (feature: GatedFeatureId): boolean =>
-			feature === GATED_FEATURES.INVESTIGATIONS
-				? Object.hasOwn(customer?.balances ?? {}, INVESTIGATION_USAGE.featureId)
-				: isPlanFeatureEnabled(currentPlanId, feature);
+			isPlanFeatureEnabled(currentPlanId, feature);
 
 		const getGatedFeatureAccess = (
 			feature: GatedFeatureId

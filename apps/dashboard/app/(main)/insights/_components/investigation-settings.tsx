@@ -1,6 +1,6 @@
 "use client";
 
-import { GATED_FEATURES } from "@databuddy/shared/types/features";
+import { PLAN_IDS } from "@databuddy/shared/types/features";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -112,10 +112,9 @@ export function InvestigationSettings({
 		},
 	});
 
-	const { isFeatureEnabled, isLoading: billingLoading } = useBillingContext();
+	const { isLoading: billingLoading } = useBillingContext();
 	const { fixedPrice } = useInvestigationUsage();
-	const canInvestigate =
-		billingLoading || isFeatureEnabled(GATED_FEATURES.INVESTIGATIONS);
+	const canInvestigate = billingLoading || fixedPrice;
 	const configReady = Boolean(organizationId && configQuery.isSuccess && form);
 	const analysisPending = isAnalyzing || triggerMutation.isPending;
 	const isBusy = !configReady || saveMutation.isPending || analysisPending;
@@ -151,8 +150,9 @@ export function InvestigationSettings({
 
 				<Sheet.Body className="space-y-6">
 					<FeatureGate
+						allowed={fixedPrice}
 						description="Databunny runs scheduled investigations on the invite-only Business plan. Request access to turn them on for your organization."
-						feature={GATED_FEATURES.INVESTIGATIONS}
+						requiredPlan={PLAN_IDS.SCALE}
 						title="Automatic investigations are invite only"
 					>
 						{!configReady && configQuery.isError && !configQuery.isFetching ? (

@@ -1,8 +1,10 @@
 "use client";
 
-import { GATED_FEATURES } from "@databuddy/shared/types/features";
 import { useQuery } from "@tanstack/react-query";
-import { useBillingContext } from "@/components/providers/billing-provider";
+import {
+	useBillingContext,
+	useInvestigationUsage,
+} from "@/components/providers/billing-provider";
 import { orpc } from "@/lib/orpc";
 import { LockSimpleIcon } from "@databuddy/ui/icons";
 import { Button } from "@databuddy/ui";
@@ -12,7 +14,8 @@ export function InvestigationsAccessNotice({
 }: {
 	organizationId?: string;
 }) {
-	const { isFeatureEnabled, isLoading } = useBillingContext();
+	const { isLoading } = useBillingContext();
+	const { fixedPrice } = useInvestigationUsage();
 	const configQuery = useQuery({
 		...orpc.insightGeneration.getConfig.queryOptions({
 			input: { organizationId },
@@ -21,8 +24,7 @@ export function InvestigationsAccessNotice({
 	});
 
 	const hadInvestigationsEnabled = Boolean(configQuery.data?.enabled);
-	const hasAccess =
-		isLoading || isFeatureEnabled(GATED_FEATURES.INVESTIGATIONS);
+	const hasAccess = isLoading || fixedPrice;
 
 	if (hasAccess || !hadInvestigationsEnabled) {
 		return null;

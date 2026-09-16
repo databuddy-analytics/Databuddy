@@ -5,7 +5,7 @@ import {
 	DATABUNNY_USAGE,
 	INVESTIGATION_ALLOWANCES,
 	INVESTIGATION_USAGE,
-	LEGACY_SCALE_PLAN,
+	SCALE_PLAN,
 } from "@databuddy/shared/billing";
 import { feature, item, plan } from "atmn";
 
@@ -211,8 +211,8 @@ export const pro = plan({
 });
 
 export const scale = plan({
-	id: LEGACY_SCALE_PLAN.id,
-	name: LEGACY_SCALE_PLAN.name,
+	id: SCALE_PLAN.id,
+	name: SCALE_PLAN.name,
 	addOn: false,
 	autoEnable: false,
 	price: {

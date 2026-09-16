@@ -4,7 +4,6 @@ import {
 	INVESTIGATION_USAGE,
 	investigationQuantitySchema,
 } from "@databuddy/shared/billing";
-import { GATED_FEATURES } from "@databuddy/shared/types/features";
 import { Button, Card, dayjs, Field, Input, Skeleton } from "@databuddy/ui";
 import { useCustomer } from "autumn-js/react";
 import { useEffect, useState } from "react";
@@ -18,7 +17,7 @@ import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
 
 export function InvestigationTopupCard() {
 	const { attach } = useCustomer();
-	const { canUserUpgrade, isFeatureEnabled, isLoading } = useBillingContext();
+	const { canUserUpgrade, isLoading } = useBillingContext();
 	const usage = useInvestigationUsage();
 	const { balance, fixedPrice, payAsYouGo, unlimited } = usage;
 	const [quantity, setQuantity] = useState("10");
@@ -27,7 +26,7 @@ export function InvestigationTopupCard() {
 	const parsedQuantity = investigationQuantitySchema.safeParse(
 		Number(quantity)
 	);
-	const hasAccess = isFeatureEnabled(GATED_FEATURES.INVESTIGATIONS);
+	const hasAccess = fixedPrice;
 
 	useEffect(() => {
 		if (window.location.hash === "#topup") {

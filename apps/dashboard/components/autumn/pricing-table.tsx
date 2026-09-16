@@ -154,14 +154,7 @@ export default function PricingTable({
 	const displayedPlans =
 		plans?.filter((plan) => DISPLAYED_PLAN_IDS.has(plan.id)) ?? [];
 	const investigationTerms = getInvestigationTerms(
-		displayedPlans
-			.filter(
-				(plan) =>
-					PLAN_FEATURE_LIMITS[normalizePlanId(plan.id)][
-						GATED_FEATURES.INVESTIGATIONS
-					] !== false
-			)
-			.flatMap((plan) => plan.items)
+		displayedPlans.flatMap((plan) => plan.items)
 	);
 	return (
 		<div className="space-y-4">
@@ -231,12 +224,7 @@ function PricingCard({
 	const eligibility = plan.customerEligibility;
 	const isActive = eligibility?.status === "active";
 	const planName = getCustomerPlanName(plan.id, plan.name);
-	const investigationTerms =
-		PLAN_FEATURE_LIMITS[normalizePlanId(plan.id)][
-			GATED_FEATURES.INVESTIGATIONS
-		] === false
-			? undefined
-			: getInvestigationTerms(plan.items);
+	const investigationTerms = getInvestigationTerms(plan.items);
 	const contactTopic = CONTACT_TOPICS[plan.id];
 	const isRecommended = plan.id === "pro";
 	const Icon = PLAN_ICONS[plan.id] ?? CrownIcon;
@@ -419,10 +407,6 @@ export function PricingFeatures({
 	const investigations = plan.items.filter(
 		(item) => item.featureId === INVESTIGATION_USAGE.featureId
 	);
-	const supportsInvestigations =
-		PLAN_FEATURE_LIMITS[normalizePlanId(plan.id)][
-			GATED_FEATURES.INVESTIGATIONS
-		] !== false;
 	return (
 		<ul className="space-y-3">
 			{eventItem && (
@@ -452,7 +436,7 @@ export function PricingFeatures({
 					</div>
 				</li>
 			)}
-			{supportsInvestigations && getInvestigationTerms(investigations) && (
+			{getInvestigationTerms(investigations) && (
 				<InvestigationFeatureItem items={investigations} />
 			)}
 			{PLAN_SUPPORT[plan.id] && (

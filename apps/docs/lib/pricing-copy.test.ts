@@ -183,8 +183,6 @@ describe("public pricing copy", () => {
 			includedByPlan: { intelligence: 100, intelligence_scale: 500 },
 		});
 		expect(response.investigations).not.toHaveProperty("purchaseLimit");
-		expect(response.entitlements.scale.investigationAccess).toBe(true);
-		expect(response.entitlements.free.investigationAccess).toBe(false);
 		for (const entitlement of Object.values(response.entitlements)) {
 			expect(entitlement.limits).not.toHaveProperty("investigations");
 		}

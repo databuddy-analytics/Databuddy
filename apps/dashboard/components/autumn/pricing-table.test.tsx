@@ -122,11 +122,6 @@ describe("native plan investigation disclosures", () => {
 		const markup = renderToStaticMarkup(<PlanComparison plans={[plan]} />);
 		expect(markup).toContain("AI credits");
 		expect(markup).toContain("1,500 AI credits / month");
-		const automaticRow = markup
-			.split("Automatic Investigations</th>")[1]
-			?.split("</tr>")[0];
-		expect(automaticRow).toContain("Included");
-		expect(automaticRow).not.toContain("Unlimited");
 		expect(markup).toContain("Unlimited");
 	});
 
@@ -234,11 +229,6 @@ describe("native pricing edge cases", () => {
 		]);
 		expect(zero).toContain("$0 per extra investigation");
 		expect(zero).not.toContain("$1");
-	});
-	test("does not enable investigations on a plan without application access", () => {
-		expect(render([monthlyInvestigations], "pro")).not.toContain(
-			"investigations"
-		);
 	});
 	test("keeps tiny native flat event prices readable without losing billing units", () => {
 		for (const [amount, billingUnits] of [

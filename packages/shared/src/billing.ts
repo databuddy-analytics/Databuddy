@@ -34,7 +34,7 @@ export const AGENT_CREDIT_ALLOWANCES = {
 	intelligence_scale: { month: 5000 },
 } as const satisfies Record<string, { day?: number; month: number }>;
 
-export const LEGACY_SCALE_PLAN = {
+export const SCALE_PLAN = {
 	id: "scale",
 	name: "Enterprise",
 } as const;

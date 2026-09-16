@@ -32,9 +32,7 @@ function isUnlimitedOnAllPlans(featureId: GatedFeatureId): boolean {
 }
 
 const visibleFeatures = Object.values(GATED_FEATURES).filter(
-	(id) =>
-		id !== GATED_FEATURES.INVESTIGATIONS &&
-		!HIDDEN_PRICING_FEATURES.includes(id)
+	(id) => !HIDDEN_PRICING_FEATURES.includes(id)
 );
 
 function FeatureX() {

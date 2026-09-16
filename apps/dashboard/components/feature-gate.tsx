@@ -7,6 +7,7 @@ import {
 	getPlanLimitMessage,
 	INTELLIGENCE_PLAN_IDS,
 	PLAN_IDS,
+	type PlanId,
 } from "@databuddy/shared/types/features";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -56,15 +57,19 @@ const PLAN_CONFIG: Record<
 };
 
 interface FeatureGateProps {
+	allowed?: boolean;
 	blockWhileLoading?: boolean;
 	children: ReactNode;
 	description?: string;
-	feature: GatedFeatureId;
+	feature?: GatedFeatureId;
+	requiredPlan?: PlanId;
 	title?: string;
 }
 
 export function FeatureGate({
+	allowed,
 	feature,
+	requiredPlan: requiredPlanOverride,
 	children,
 	title,
 	description,
@@ -82,13 +87,17 @@ export function FeatureGate({
 		return <>{children}</>;
 	}
 
-	if (isFeatureEnabled(feature)) {
+	if (allowed ?? (feature ? isFeatureEnabled(feature) : false)) {
 		return <>{children}</>;
 	}
 
-	const metadata = FEATURE_METADATA[feature];
-	const minPlanFromMatrix = getMinimumPlanForFeature(feature);
-	const requiredPlan = minPlanFromMatrix ?? metadata?.minPlan ?? PLAN_IDS.PRO;
+	const metadata = feature ? FEATURE_METADATA[feature] : undefined;
+	const minPlanFromMatrix = feature ? getMinimumPlanForFeature(feature) : null;
+	const requiredPlan =
+		requiredPlanOverride ??
+		minPlanFromMatrix ??
+		metadata?.minPlan ??
+		PLAN_IDS.PRO;
 	const planConfig = PLAN_CONFIG[requiredPlan] ?? PLAN_CONFIG[PLAN_IDS.PRO];
 	const currentConfig =
 		PLAN_CONFIG[currentPlanId ?? PLAN_IDS.FREE] ?? PLAN_CONFIG[PLAN_IDS.FREE];

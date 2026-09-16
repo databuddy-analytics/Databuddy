@@ -97,8 +97,7 @@ function mapRawPlans() {
 }
 
 function publicEntitlement(planId: PlanId) {
-	const { investigations, ...limits } = PLAN_CAPABILITIES[planId].limits;
-	return { limits, investigationAccess: investigations !== false };
+	return { limits: PLAN_CAPABILITIES[planId].limits };
 }
 
 function buildEntitlements() {
