@@ -15,10 +15,15 @@ email, AI, or billing credentials. Some features need extra setup; see
 
 ### Start your instance
 
-Check out the release you want to run. You'll need Docker Compose; Bun and Node
-are only needed for [local development](CONTRIBUTING.md#run-locally).
+These steps need a release with the `databuddy-init` image. None is published yet;
+check [releases](https://github.com/databuddy-analytics/Databuddy/releases) before starting.
+You'll need Git and Docker Compose; Bun and Node are only needed for
+[local development](CONTRIBUTING.md#run-locally).
 
 ```bash
+git clone https://github.com/databuddy-analytics/Databuddy.git
+cd Databuddy
+git checkout YOUR_RELEASE_TAG
 cp .env.example .env
 ```
 
@@ -34,7 +39,9 @@ In `.env`, set:
 | `DASHBOARD_URL` | `http://localhost:3000` |
 | `API_URL` | `http://localhost:3001` |
 | `BASKET_URL` | `http://localhost:4000` |
+| `LINKS_URL` (short links) | `http://localhost:2500` |
 
+Generate each password and secret separately with `openssl rand -hex 32`.
 Then start Databuddy:
 
 ```bash
@@ -57,18 +64,21 @@ dashboard after changing public URLs; they're part of its browser bundle.
 ### Optional services
 
 - **Email:** For resets, invitations, and alerts, set `RESEND_API_KEY` and an `EMAIL_FROM` sender on your verified domain, such as `Databuddy <no-reply@example.com>`. Leave `ALERTS_EMAIL_FROM` empty to use the same sender. Recreate the services after changes.
-- **Insights:** Set `AI_GATEWAY_API_KEY` and `AUTUMN_SECRET_KEY`, then run `docker compose -f docker-compose.selfhost.yml --profile insights up -d insights`.
+- **Insights:** Set `AI_GATEWAY_API_KEY`, `AUTUMN_SECRET_KEY`, and `COMPOSE_PROFILES=insights` in `.env`, then rerun `docker compose -f docker-compose.selfhost.yml up -d --build`. Your organization also needs an Autumn customer with investigation allowance or credits.
 - **Billing-backed features:** Error analytics and creating goals, funnels, or feature flags still need Autumn. Billing screens can show errors without it.
-- **DQL:** Set up a restricted ClickHouse user separately. Use that account for DQL, never the application's admin credentials.
+- **DQL:** Requires separate setup: a restricted `dql_user` and `CLICKHOUSE_DQL_URL` passed to the API in Compose. Use HTTPS outside loopback and never use the application's admin credentials. See the [DQL setup script](packages/db/src/clickhouse/dql.ts).
 
 Self-hosting is still evolving. If you get stuck, [tell us what happened](https://github.com/databuddy-analytics/Databuddy/issues) or ask in [Discord](https://discord.gg/JTk7a38tCZ).
 
 ### Upgrade your instance
 
-Back up your databases, check out the new release, and update `IMAGE_TAG`.
-Apply PostgreSQL changes first so you can review any prompts:
+Back up your databases and `.env`, check out the new release in the same directory,
+and update `IMAGE_TAG`.
+Keep your existing `DATABUDDY_ENCRYPTION_KEY` so stored data stays readable.
+Pull the images, then apply PostgreSQL changes so you can review any prompts:
 
 ```bash
+docker compose -f docker-compose.selfhost.yml pull --ignore-buildable
 docker compose -f docker-compose.selfhost.yml pull init
 docker compose -f docker-compose.selfhost.yml run --rm init bun run --cwd packages/db db:push
 ```
