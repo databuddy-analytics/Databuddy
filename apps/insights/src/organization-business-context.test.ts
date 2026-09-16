@@ -15,7 +15,6 @@ import {
 } from "@databuddy/shared/organization-business-context";
 import { MockLanguageModelV3, convertArrayToReadableStream } from "ai/test";
 import * as logs from "./lib/evlog-insights";
-import * as investigationBilling from "./investigation-billing";
 import { generateOrganizationBusinessContext } from "./organization-business-context";
 
 const input = {
@@ -157,19 +156,13 @@ function fixture(
 		execution,
 		"resolveAgentBillingCustomerId"
 	).mockResolvedValue("example-customer");
-	const credits = spyOn(
-		investigationBilling,
-		"canRunInvestigation"
-	).mockResolvedValue(true);
-	const resolveBilling = spyOn(
-		investigationBilling,
-		"resolveInvestigationBilling"
-	).mockImplementation(async (principal) => {
-		const customerId = await execution.resolveAgentBillingCustomerId(principal);
-		if (!customerId)
-			throw new Error("Configured billing has no organization customer");
-		return { mode: "legacy", customerId };
-	});
+	const access = spyOn(execution, "getAgentBillingAccess").mockImplementation(
+		async (customerId) => {
+			if (!customerId)
+				throw new Error("Configured billing has no organization customer");
+			return { allowed: true, customerId };
+		}
+	);
 	const billed = (
 		call: Parameters<typeof execution.trackAgentUsageAndBill>[0]
 	) => summarizeAgentUsage(call.modelId, call.usage);
@@ -226,8 +219,7 @@ function fixture(
 		read,
 		search,
 		customer,
-		resolveBilling,
-		credits,
+		access,
 		bill,
 		billed,
 		model,
@@ -351,24 +343,17 @@ describe("organization business context worker", () => {
 		expect(f.mark.mock.calls.some(([change]) => change.status === "ready")).toBe(false);
 	});
 
-	it("treats fixed-price preparation as internal usage without consuming an investigation or credits", async () => {
+	it("includes the first draft without checking or charging credits", async () => {
 		const f = fixture();
 		process.env.AUTUMN_SECRET_KEY = "synthetic-business-context-test";
-		f.resolveBilling.mockResolvedValue({
-			mode: "fixed",
-			customerId: "example-customer",
-		});
+		f.state = { ...f.state, profile: null };
 		const usage = spyOn(execution, "trackAgentUsage").mockImplementation(
 			f.billed
 		);
-		const reserve = spyOn(
-			investigationBilling,
-			"reserveInvestigationCharge"
-		).mockRejectedValue(new Error("Preparation must not reserve a unit"));
 		await f.run();
 		expect(f.state.generation?.status).toBe("ready");
+		expect(f.access).not.toHaveBeenCalled();
 		expect(f.bill).not.toHaveBeenCalled();
-		expect(reserve).not.toHaveBeenCalled();
 		expect(usage).toHaveBeenCalledTimes(2);
 		expect(usage.mock.calls[0]?.[0].modelId).toBe("openai/gpt-5.6-luna");
 	});
@@ -616,9 +601,9 @@ describe("organization business context worker", () => {
 	] as const)("checks cancellation after %s before starting more reads or model calls", async (phase) => {
 		const f = fixture();
 		if (phase === "credits") {
-			f.credits.mockImplementation(async () => {
+			f.access.mockImplementation(async (customerId) => {
 				f.state.generation = null;
-				return true;
+				return { allowed: true, customerId };
 			});
 		}
 		if (phase === "discovery") {
@@ -745,9 +730,10 @@ describe("organization business context worker", () => {
 		const f = fixture();
 		process.env.AUTUMN_SECRET_KEY = "synthetic-business-context-test";
 		if (kind === "customer") f.customer.mockResolvedValue(null);
-		if (kind === "credits") f.credits.mockResolvedValue(false);
+		if (kind === "credits")
+			f.access.mockResolvedValue({ allowed: false, customerId: "example-customer" });
 		if (kind === "check")
-			f.credits.mockRejectedValue(new Error("Synthetic billing unavailable"));
+			f.access.mockRejectedValue(new Error("Synthetic billing unavailable"));
 		if (kind === "charge")
 			f.bill.mockRejectedValue(new Error("Synthetic charge failure"));
 		if (kind === "swallowed-charge") {

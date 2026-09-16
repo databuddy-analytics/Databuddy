@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import {
+	getAgentBillingAccess,
 	isAgentBillingConfigured,
+	resolveAgentBillingCustomerId,
 	trackAgentUsage,
 	trackAgentUsageAndBill,
 } from "@databuddy/ai/agents/execution";
@@ -32,10 +34,6 @@ import {
 	emitInsightsEvent,
 	withInsightsLogContext,
 } from "./lib/evlog-insights";
-import {
-	canRunInvestigation,
-	resolveInvestigationBilling,
-} from "./investigation-billing";
 
 const WWW = /^www\./;
 const MODEL = "openai/gpt-5.6-luna";
@@ -186,19 +184,25 @@ export async function generateOrganizationBusinessContext(
 			return;
 		}
 		failure =
-			"Could not verify investigation access. Check billing and try again; your saved context is unchanged.";
-		const billing = await bounded(
-			resolveInvestigationBilling({ organizationId: input.organizationId }),
+			"Could not verify AI credit access. Check billing and try again; your saved context is unchanged.";
+		const billingCustomerId = await bounded(
+			resolveAgentBillingCustomerId({
+				organizationId: input.organizationId,
+				userId: generation.requestedBy,
+			}),
 			signal
 		);
-		if (!(await bounded(canRunInvestigation(billing), signal))) {
+		const billsCredits = state.profile !== null;
+		if (
+			billsCredits &&
+			!(await bounded(getAgentBillingAccess(billingCustomerId), signal)).allowed
+		) {
 			failure =
-				"Your investigation balance is empty. Add balance to generate a draft; your saved context is unchanged.";
+				"Your AI credit balance is empty. Add credits to generate a draft; your saved context is unchanged.";
 			throw new Error(
-				"Organization business context generation has insufficient balance"
+				"Organization business context generation has insufficient credits"
 			);
 		}
-		const billsCredits = billing.mode === "legacy";
 		// The shared helper reports charge failures through its native request logger.
 		// Require that channel before spending, and inspect each call's isolated event.
 		if (
@@ -232,7 +236,7 @@ export async function generateOrganizationBusinessContext(
 					await bounded(
 						Promise.resolve(
 							(billsCredits ? trackAgentUsageAndBill : trackAgentUsage)({
-								billingCustomerId: billing.customerId,
+								billingCustomerId,
 								organizationId: input.organizationId,
 								websiteId: site.id,
 								userId: generation.requestedBy,

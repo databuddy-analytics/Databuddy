@@ -14,12 +14,18 @@ const originalEnv = {
 	AUTUMN_SECRET_KEY: process.env.AUTUMN_SECRET_KEY,
 	NODE_ENV: process.env.NODE_ENV,
 };
-let fixed = true;
 let allowed = true;
+const savedProfile: NonNullable<OrganizationBusinessContext["profile"]> = {
+	content: "Saved context",
+	sources: [],
+	origin: "team",
+	revision: 1,
+	updatedAt: "2026-09-16T00:00:00.000Z",
+	updatedBy: "owner-one",
+	sourceWebsiteId: null,
+};
 let customerId = "owner-one";
-let responseCustomerId = "owner-one";
 let checkCustomerId = "owner-one";
-let billingStatus = 200;
 let checkStatus = 200;
 const billingRequests: { path: string; body: Record<string, unknown> }[] = [];
 const transport = spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
@@ -29,7 +35,7 @@ const transport = spyOn(globalThis, "fetch").mockImplementation(async (input, in
 	const body = request.method === "GET" ? {} : await request.json();
 	billingRequests.push({ path: url.pathname, body });
 	const balance = {
-		feature_id: fixed ? "investigation_runs" : "agent_credits",
+		feature_id: "agent_credits",
 		granted: 0,
 		remaining: 0,
 		usage: 0,
@@ -38,14 +44,6 @@ const transport = spyOn(globalThis, "fetch").mockImplementation(async (input, in
 		max_purchase: null,
 		next_reset_at: null,
 	};
-	if (url.pathname === "/v1/customers.get") {
-		return Response.json({
-			id: responseCustomerId, name: null, email: null, fingerprint: null,
-			stripe_id: null, env: "sandbox", created_at: 0, metadata: {},
-			send_email_receipts: false, subscriptions: [], purchases: [], flags: {},
-			billing_controls: {}, balances: fixed ? { investigation_runs: balance } : {},
-		}, { status: billingStatus });
-	}
 	expect(url.pathname).toBe("/v1/balances.check");
 	expect(body).not.toHaveProperty("send_event");
 	expect(body).not.toHaveProperty("lock");
@@ -153,15 +151,12 @@ beforeEach(() => {
 	process.env.FIRECRAWL_API_KEY = "synthetic-scraper-key";
 	process.env.AUTUMN_SECRET_KEY = "synthetic-native-transport-only";
 	process.env.NODE_ENV = "test";
-	fixed = true;
 	allowed = true;
 	customerId = "owner-one";
-	responseCustomerId = "owner-one";
 	checkCustomerId = "owner-one";
-	billingStatus = 200;
 	checkStatus = 200;
 	billingRequests.length = 0;
-	state = { profile: null, generation: null };
+	state = { profile: savedProfile, generation: null };
 	role = "owner";
 	queueFails = false;
 	conflict = false;
@@ -281,7 +276,7 @@ test("queue failures become an actionable generation failure", async () => {
 		})
 	).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
 	expect(state.generation?.status).toBe("failed");
-	expect(state.profile).toBeNull();
+	expect(state.profile).toEqual(savedProfile);
 });
 
 
@@ -316,25 +311,27 @@ function access() {
 	})({ organizationId: "org-one" });
 }
 
-test.each([true, false])("preflight checks the native %s entitlement without charging", async (isFixed) => {
-	fixed = isFixed;
-	expect(await access()).toMatchObject({ status: "allowed", billingMode: fixed ? "fixed" : "legacy", action: "generate" });
-	expect(billingRequests.at(-1)).toEqual({ path: "/v1/balances.check", body: {
-		customer_id: "owner-one", feature_id: fixed ? "investigation_runs" : "agent_credits",
-		required_balance: fixed ? 1 : 0.01,
-	} });
-	expect(billingRequests).toHaveLength(2);
+test("the first draft is included without checking billing", async () => {
+	state = { profile: null, generation: null };
+	expect(await access()).toMatchObject({ status: "allowed", billingMode: null, action: "generate" });
+	expect(billingRequests).toEqual([]);
 	expect(queued).not.toHaveBeenCalled();
 });
 
-test.each([true, false])("a denied %s allowance is actionable and blocks generation before state changes", async (isFixed) => {
-	fixed = isFixed;
+test("preflight checks agent credits without charging", async () => {
+	expect(await access()).toMatchObject({ status: "allowed", billingMode: null, action: "generate" });
+	expect(billingRequests).toEqual([{ path: "/v1/balances.check", body: {
+		customer_id: "owner-one", feature_id: "agent_credits", required_balance: 0.01,
+	} }]);
+	expect(queued).not.toHaveBeenCalled();
+});
+
+test("denied agent credits are actionable and block generation before state changes", async () => {
 	allowed = false;
-	expect(await access()).toMatchObject({ status: "credits-required", billingMode: fixed ? "fixed" : "legacy", action: "billing" });
+	expect(await access()).toMatchObject({ status: "credits-required", billingMode: null, action: "billing" });
 	await expect(createProcedureClient(router.generate, { context: context() })({ organizationId: "org-one", websiteId: "site-one" })).rejects.toMatchObject({ code: "PAYMENT_REQUIRED" });
 	expect(state.generation).toBeNull();
 	expect(queued).not.toHaveBeenCalled();
-	expect(reads).not.toHaveBeenCalled();
 });
 
 test("generation rechecks an earlier successful preflight", async () => {
@@ -351,21 +348,16 @@ test("read-only and unauthorized callers cannot inspect billing", async () => {
 	expect(billingRequests).toEqual([]);
 });
 
-test.each([202, 500])("unconfirmed billing (%s) cannot authorize generation or block manual editing", async (status) => {
-	billingStatus = status;
+test.each([202, 500])("an unconfirmed credit check (%s) cannot authorize generation or block manual editing", async (status) => {
+	checkStatus = status;
 	expect(await access()).toMatchObject({ status: "unavailable", billingMode: null, action: "retry" });
 	await expect(createProcedureClient(router.generate, { context: context() })({ organizationId: "org-one", websiteId: "site-one" })).rejects.toMatchObject({ code: "SERVICE_UNAVAILABLE" });
 	const requestsBeforeEditing = billingRequests.length;
 	await createProcedureClient(router.get, { context: context() })({ organizationId: "org-one" });
-	await createProcedureClient(router.save, { path: ["businessContext", "save"], context: context() })({ organizationId: "org-one", revision: 0, content: "Manual context" });
+	await createProcedureClient(router.save, { path: ["businessContext", "save"], context: context() })({ organizationId: "org-one", revision: 1, content: "Manual context" });
 	expect(saves).toHaveBeenCalledTimes(1);
 	expect(billingRequests).toHaveLength(requestsBeforeEditing);
 	expect(queued).not.toHaveBeenCalled();
-});
-
-test.each([202, 500])("an unconfirmed allowance check (%s) is unavailable", async (status) => {
-	checkStatus = status;
-	expect((await access()).status).toBe("unavailable");
 });
 
 test("missing or mismatched billing identities fail closed", async () => {
@@ -373,12 +365,9 @@ test("missing or mismatched billing identities fail closed", async () => {
 	expect((await access()).status).toBe("unavailable");
 	expect(billingRequests).toEqual([]);
 	customerId = "owner-one";
-	responseCustomerId = "another-owner";
-	expect((await access()).status).toBe("unavailable");
-	expect(billingRequests).toHaveLength(1);
-	responseCustomerId = "owner-one";
 	checkCustomerId = "another-owner";
 	expect((await access()).status).toBe("unavailable");
+	expect(billingRequests).toHaveLength(1);
 });
 
 test.each(["AI_GATEWAY_API_KEY", "FIRECRAWL_API_KEY"])("missing %s disables generation without checking billing", async (key) => {

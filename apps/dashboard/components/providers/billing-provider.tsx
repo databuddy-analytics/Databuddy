@@ -8,6 +8,7 @@ import {
 import {
 	FEATURE_METADATA,
 	type FeatureId,
+	GATED_FEATURES,
 	type FeatureLimit,
 	type GatedFeatureId,
 	getMinimumPlanForFeature,
@@ -237,7 +238,9 @@ function AuthenticatedBillingProvider({
 		};
 
 		const isFeatureEnabled = (feature: GatedFeatureId): boolean =>
-			isPlanFeatureEnabled(currentPlanId, feature);
+			feature === GATED_FEATURES.INVESTIGATIONS
+				? Object.hasOwn(customer?.balances ?? {}, INVESTIGATION_USAGE.featureId)
+				: isPlanFeatureEnabled(currentPlanId, feature);
 
 		const getGatedFeatureAccess = (
 			feature: GatedFeatureId

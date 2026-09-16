@@ -1,6 +1,5 @@
 import { resolveAgentBillingCustomerId } from "@databuddy/ai/agents/execution";
 import { createHash } from "node:crypto";
-import { MIN_AGENT_CREDIT_CHECK_BALANCE } from "@databuddy/shared/agent-credits";
 import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
 import { Autumn, HTTPClient } from "autumn-js";
 
@@ -75,17 +74,16 @@ export async function canRunInvestigation(
 	if (billing.mode === "unconfigured") {
 		return true;
 	}
+	if (billing.mode === "legacy") {
+		return false;
+	}
 	if (!billing.customerId) {
 		throw new Error("The investigation billing customer is unavailable");
 	}
 	const result = await (client ?? createInvestigationBillingClient()).check({
 		customerId: billing.customerId,
-		featureId:
-			billing.mode === "fixed"
-				? INVESTIGATION_USAGE.featureId
-				: "agent_credits",
-		requiredBalance:
-			billing.mode === "fixed" ? 1 : MIN_AGENT_CREDIT_CHECK_BALANCE,
+		featureId: INVESTIGATION_USAGE.featureId,
+		requiredBalance: 1,
 	});
 	if (result.customerId !== billing.customerId) {
 		throw new Error("Investigation access could not be verified");
@@ -129,8 +127,13 @@ export async function reserveInvestigationCharge(
 		id: reservationId(input),
 		expiresAt: new Date(input.startedAt.getTime() + LOCK_MS),
 	};
-	if (reservation.mode !== "fixed") {
+	if (reservation.mode === "unconfigured") {
 		return reservation;
+	}
+	if (reservation.mode === "legacy") {
+		throw new Error(
+			"Investigations require a plan with an investigation allowance."
+		);
 	}
 	assertInvestigationReservationActive(reservation);
 	if (!reservation.customerId) {

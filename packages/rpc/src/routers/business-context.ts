@@ -105,9 +105,13 @@ export const businessContextRouter = {
 				resource: "organization",
 				permissions: ["read"],
 			});
+			const current = await readOrganizationBusinessContext(
+				input.organizationId
+			).catch(contextError);
 			return businessContextGenerationAccess(
 				input.organizationId,
-				workspace.role
+				workspace.role,
+				current.profile !== null
 			);
 		}),
 	get: protectedProcedure
@@ -196,9 +200,13 @@ export const businessContextRouter = {
 		.handler(({ context, input }) =>
 			runAuditedMutation("businessContext.generate", context, async () => {
 				const workspace = await requireEditor(context, input.organizationId);
+				const current = await readOrganizationBusinessContext(
+					input.organizationId
+				).catch(contextError);
 				const access = await businessContextGenerationAccess(
 					input.organizationId,
-					workspace.role
+					workspace.role,
+					current.profile !== null
 				);
 				if (access.status === "credits-required") {
 					throw new ORPCError("PAYMENT_REQUIRED", { message: access.message });
@@ -209,9 +217,6 @@ export const businessContextRouter = {
 				if (access.status !== "allowed") {
 					throw rpcError.serviceUnavailable(5, access.message);
 				}
-				const current = await readOrganizationBusinessContext(
-					input.organizationId
-				).catch(contextError);
 				if (!businessContextIsGenerating(current)) {
 					const rate = await ratelimit(
 						`business-context-generate:${input.organizationId}`,

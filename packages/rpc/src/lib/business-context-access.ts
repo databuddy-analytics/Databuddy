@@ -1,6 +1,5 @@
 import { roleHasPermission } from "@databuddy/auth/permissions";
 import { MIN_AGENT_CREDIT_CHECK_BALANCE } from "@databuddy/shared/agent-credits";
-import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
 import { z } from "zod";
 import { getOrganizationOwnerId } from "../utils/organization";
 import { getAutumn } from "./autumn-client";
@@ -22,7 +21,8 @@ export const businessContextGenerationAccessSchema = z.object({
 /** Read-only preflight; the worker rechecks before making provider calls. */
 export async function businessContextGenerationAccess(
 	organizationId: string,
-	role: string | null
+	role: string | null,
+	hasProfile: boolean
 ): Promise<z.infer<typeof businessContextGenerationAccessSchema>> {
 	if (!(role && roleHasPermission(role, "organization", ["update"]))) {
 		return {
@@ -58,33 +58,23 @@ export async function businessContextGenerationAccess(
 			action: "generate",
 		};
 	}
+	if (!hasProfile) {
+		return {
+			status: "allowed",
+			billingMode: null,
+			message: "Your first draft is included.",
+			action: "generate",
+		};
+	}
 	try {
 		const customerId = await getOrganizationOwnerId(organizationId);
 		if (!customerId) {
 			throw new Error("The organization billing owner is unavailable");
 		}
-		const autumn = getAutumn({ strict: true });
-		const customer = await autumn.customers.get({ customerId });
-		if (customer.id !== customerId) {
-			throw new Error(
-				"The organization billing customer could not be verified"
-			);
-		}
-		// A fixed-price balance with zero units must never fall back to legacy credits.
-		const billingMode = Object.hasOwn(
-			customer.balances,
-			INVESTIGATION_USAGE.featureId
-		)
-			? "fixed"
-			: "legacy";
-		const access = await autumn.check({
+		const access = await getAutumn({ strict: true }).check({
 			customerId,
-			featureId:
-				billingMode === "fixed"
-					? INVESTIGATION_USAGE.featureId
-					: "agent_credits",
-			requiredBalance:
-				billingMode === "fixed" ? 1 : MIN_AGENT_CREDIT_CHECK_BALANCE,
+			featureId: "agent_credits",
+			requiredBalance: MIN_AGENT_CREDIT_CHECK_BALANCE,
 		});
 		if (access.customerId !== customerId) {
 			throw new Error(
@@ -94,21 +84,16 @@ export async function businessContextGenerationAccess(
 		if (access.allowed === true) {
 			return {
 				status: "allowed",
-				billingMode,
-				message:
-					billingMode === "fixed"
-						? "You can generate a draft with your investigation access."
-						: "Generating a draft uses your AI credits.",
+				billingMode: null,
+				message: "Generating a draft uses your AI credits.",
 				action: "generate",
 			};
 		}
 		return {
 			status: "credits-required",
-			billingMode,
+			billingMode: null,
 			message:
-				billingMode === "fixed"
-					? "Investigation access is required to generate a draft. Review your investigation allowance and spending limit, or edit the context manually."
-					: "AI credits are required to generate a draft. Review your AI credit balance and spending limit, or edit the context manually.",
+				"AI credits are required to generate a draft. Review your AI credit balance and spending limit, or edit the context manually.",
 			action: roleHasPermission(role, "subscription", ["update"])
 				? "billing"
 				: "contact-admin",
