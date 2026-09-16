@@ -1,5 +1,5 @@
 import "@databuddy/test/env";
-import { afterEach, describe, expect, it, mock, spyOn } from "bun:test";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import * as execution from "@databuddy/ai/agents/execution";
 import * as models from "@databuddy/ai/config/models";
 import { setAiRequestLoggerProvider } from "@databuddy/ai/lib/request-logger";
@@ -14,8 +14,30 @@ import {
 	type OrganizationBusinessContext,
 } from "@databuddy/shared/organization-business-context";
 import { MockLanguageModelV3, convertArrayToReadableStream } from "ai/test";
-import * as logs from "./lib/evlog-insights";
+import { createLogger, log } from "evlog";
 import { generateOrganizationBusinessContext } from "./organization-business-context";
+
+vi.mock("@databuddy/ai/lib/databuddy", () => ({ trackAgentEvent: vi.fn() }));
+vi.mock("@databuddy/rpc/billing", () => ({ getBillingCustomerId: vi.fn() }));
+vi.mock("@databuddy/rpc/organization", () => ({
+	getOrganizationOwnerId: vi.fn(),
+}));
+vi.mock("@databuddy/rpc/autumn", () => {
+	const autumn = { track: vi.fn() };
+	return { getAutumn: () => autumn };
+});
+vi.mock("@databuddy/db", () => ({
+	db: { query: { websites: { findFirst: vi.fn() } } },
+}));
+vi.mock("@databuddy/services/organization-business-context", () => ({
+	readOrganizationBusinessContext: vi.fn(),
+	markBusinessContextGeneration: vi.fn(),
+}));
+vi.mock("@databuddy/ai/config/models", () => ({ createModelFromId: vi.fn() }));
+vi.mock("@databuddy/ai/tools/scrape-page", () => ({
+	readWebsitePage: vi.fn(),
+	createScrapeTools: () => ({ search_website: { execute: vi.fn() } }),
+}));
 
 const input = {
 	organizationId: "example-org",
@@ -28,7 +50,8 @@ const brief =
 const secret = process.env.AUTUMN_SECRET_KEY;
 
 afterEach(() => {
-	mock.restore();
+	vi.restoreAllMocks();
+	vi.clearAllMocks();
 	setAiRequestLoggerProvider(null);
 	if (secret === undefined) delete process.env.AUTUMN_SECRET_KEY;
 	else process.env.AUTUMN_SECRET_KEY = secret;
@@ -38,9 +61,9 @@ function clock() {
 	const started = Date.now();
 	let elapsed = 0;
 	const timers: { at: number; controller: AbortController }[] = [];
-	spyOn(Date, "now").mockImplementation(() => started + elapsed);
-	spyOn(performance, "now").mockImplementation(() => elapsed);
-	spyOn(AbortSignal, "timeout").mockImplementation((ms) => {
+	vi.spyOn(Date, "now").mockImplementation(() => started + elapsed);
+	vi.spyOn(performance, "now").mockImplementation(() => elapsed);
+	vi.spyOn(AbortSignal, "timeout").mockImplementation((ms) => {
 		const controller = new AbortController();
 		timers.push({ at: elapsed + ms, controller });
 		return controller.signal;
@@ -86,12 +109,12 @@ function fixture(
 			error: null,
 		},
 	};
-	const readState = spyOn(
-		store,
-		"readOrganizationBusinessContext"
-	).mockImplementation(async () => structuredClone(state));
-	const mark = spyOn(store, "markBusinessContextGeneration").mockImplementation(
-		async (change) => {
+	const readState = vi
+		.spyOn(store, "readOrganizationBusinessContext")
+		.mockImplementation(async () => structuredClone(state));
+	const mark = vi
+		.spyOn(store, "markBusinessContextGeneration")
+		.mockImplementation(async (change) => {
 			if (
 				state.generation?.id === change.generationId &&
 				["queued", "running"].includes(state.generation.status)
@@ -107,14 +130,14 @@ function fixture(
 					},
 				};
 			return structuredClone(state);
-		}
-	);
-	const site = spyOn(db.query.websites, "findFirst").mockResolvedValue({
+		});
+	const site = vi.spyOn(db.query.websites, "findFirst").mockResolvedValue({
 		id: "example-site",
 		domain: "example.com",
 	});
-	const read = spyOn(scrape, "readWebsitePage").mockImplementation(
-		async ({ path, domain }) => ({
+	const read = vi
+		.spyOn(scrape, "readWebsitePage")
+		.mockImplementation(async ({ path, domain }) => ({
 			success: true,
 			url: `https://${domain}${path}`,
 			requestedUrl: `https://${domain}${path}`,
@@ -134,9 +157,8 @@ function fixture(
 				"/login",
 				"javascript:alert(1)",
 			],
-		})
-	);
-	const search = mock(async () => ({
+		}));
+	const search = vi.fn(async () => ({
 		success: true,
 		results: [
 			{
@@ -148,27 +170,26 @@ function fixture(
 		],
 	}));
 	const nativeTools = scrape.createScrapeTools();
-	spyOn(scrape, "createScrapeTools").mockReturnValue({
+	vi.spyOn(scrape, "createScrapeTools").mockReturnValue({
 		...nativeTools,
 		search_website: { ...nativeTools.search_website, execute: search },
 	});
-	const customer = spyOn(
-		execution,
-		"resolveAgentBillingCustomerId"
-	).mockResolvedValue("example-customer");
-	const access = spyOn(execution, "getAgentBillingAccess").mockImplementation(
-		async (customerId) => {
+	const customer = vi
+		.spyOn(execution, "resolveAgentBillingCustomerId")
+		.mockResolvedValue("example-customer");
+	const access = vi
+		.spyOn(execution, "getAgentBillingAccess")
+		.mockImplementation(async (customerId) => {
 			if (!customerId)
 				throw new Error("Configured billing has no organization customer");
 			return { allowed: true, customerId };
-		}
-	);
+		});
 	const billed = (
 		call: Parameters<typeof execution.trackAgentUsageAndBill>[0]
 	) => summarizeAgentUsage(call.modelId, call.usage);
-	const bill = spyOn(execution, "trackAgentUsageAndBill").mockImplementation(
-		async (call) => billed(call)
-	);
+	const bill = vi
+		.spyOn(execution, "trackAgentUsageAndBill")
+		.mockImplementation(async (call) => billed(call));
 	const usage = {
 		inputTokens: { total: 200, noCache: 200, cacheRead: 0, cacheWrite: 0 },
 		outputTokens: { total: 100, text: 100, reasoning: 0 },
@@ -176,13 +197,19 @@ function fixture(
 	const model = new MockLanguageModelV3({
 		doStream: async () => {
 			const text = JSON.stringify(outputs.shift());
-			return { stream: convertArrayToReadableStream([
-				{ type: "text-start", id: "draft" },
-				{ type: "text-delta", id: "draft", delta: text.slice(0, 60) },
-				{ type: "text-delta", id: "draft", delta: text.slice(60) },
-				{ type: "text-end", id: "draft" },
-				{ type: "finish", finishReason: { unified: "stop", raw: "stop" }, usage },
-			]) };
+			return {
+				stream: convertArrayToReadableStream([
+					{ type: "text-start", id: "draft" },
+					{ type: "text-delta", id: "draft", delta: text.slice(0, 60) },
+					{ type: "text-delta", id: "draft", delta: text.slice(60) },
+					{ type: "text-end", id: "draft" },
+					{
+						type: "finish",
+						finishReason: { unified: "stop", raw: "stop" },
+						usage,
+					},
+				]),
+			};
 		},
 		doGenerate: async () => ({
 			content: [{ type: "text", text: JSON.stringify(outputs.shift()) }],
@@ -194,17 +221,21 @@ function fixture(
 			},
 		}),
 	});
-	spyOn(models, "createModelFromId").mockReturnValue(model);
-	const errors = spyOn(logs, "captureInsightsError").mockImplementation(
-		() => {}
-	);
-	const events = spyOn(logs, "emitInsightsEvent").mockImplementation(() => {});
-	setAiRequestLoggerProvider(logs.getActiveInsightsLog);
-	const logger = logs.createInsightsEventLog({ test: true });
-	const run = () =>
-		logs.withInsightsLogContext(logger, () =>
-			generateOrganizationBusinessContext(input)
-		);
+	vi.spyOn(models, "createModelFromId").mockReturnValue(model);
+	const errors = vi.spyOn(log, "error").mockImplementation(() => {});
+	const events = vi.spyOn(log, "info").mockImplementation(() => {});
+	vi.spyOn(log, "warn").mockImplementation(() => {});
+	const logger = createLogger({ test: true });
+	setAiRequestLoggerProvider(() => logger);
+	const updates: OrganizationBusinessContext[] = [];
+	const run = async (signal?: AbortSignal) => {
+		for await (const state of generateOrganizationBusinessContext({
+			...input,
+			signal,
+		})) {
+			updates.push(state);
+		}
+	};
 	return {
 		get state() {
 			return state;
@@ -213,6 +244,7 @@ function fixture(
 			state = value;
 		},
 		run,
+		updates,
 		mark,
 		readState,
 		site,
@@ -223,27 +255,36 @@ function fixture(
 		bill,
 		billed,
 		model,
-		get calls() { return [...model.doGenerateCalls, ...model.doStreamCalls]; },
+		get calls() {
+			return [...model.doGenerateCalls, ...model.doStreamCalls];
+		},
 		errors,
 		events,
 		logger,
 	};
 }
 
-describe("organization business context worker", () => {
+describe("organization business context request", () => {
 	it("accepts fresh offset-dated sources and ignores malformed discovery links", async () => {
 		const f = fixture();
 		const read = f.read.getMockImplementation();
 		if (!read) throw new Error("Missing page fixture");
 		f.read.mockImplementation(async (...args) => ({
-			...await read(...args),
+			...(await read(...args)),
 			fetchedAt: new Date().toISOString().replace("Z", "+00:00"),
 			internalLinks: ["http://", "/pricing"],
 		}));
 		await f.run();
 		expect(f.state.generation?.status).toBe("ready");
-		expect(f.read.mock.calls.map(([call]) => call.path)).toEqual(["/", "/pricing"]);
-		expect(f.state.generation?.draft?.sources.every((source) => source.fetchedAt?.endsWith("+00:00"))).toBe(true);
+		expect(f.read.mock.calls.map(([call]) => call.path)).toEqual([
+			"/",
+			"/pricing",
+		]);
+		expect(
+			f.state.generation?.draft?.sources.every((source) =>
+				source.fetchedAt?.endsWith("+00:00")
+			)
+		).toBe(true);
 	});
 
 	it("follows a docs index once, carries team definitions and reads fresh sources", async () => {
@@ -253,34 +294,71 @@ describe("organization business context worker", () => {
 			{ content: brief, sourceIds: [0, 2] },
 		]);
 		if (!f.state.profile) throw new Error("Missing profile");
-		f.state.profile.teamContext = { priority: "First accepted report", successDefinition: "report_accepted", exclusions: "Internal reports" };
-		f.state.profile.measurementPlans = [{ websiteId: "example-site", domain: "example.com", name: "Report return", activationEvent: "report_accepted", returnEvent: "report_accepted", horizonDays: 7 }];
+		f.state.profile.teamContext = {
+			priority: "First accepted report",
+			successDefinition: "report_accepted",
+			exclusions: "Internal reports",
+		};
+		f.state.profile.measurementPlans = [
+			{
+				websiteId: "example-site",
+				domain: "example.com",
+				name: "Report return",
+				activationEvent: "report_accepted",
+				returnEvent: "report_accepted",
+				horizonDays: 7,
+			},
+		];
 		const read = f.read.getMockImplementation();
 		if (!read) throw new Error("Missing page fixture");
 		f.read.mockImplementation(async (...args) => ({
-			...await read(...args),
-			internalLinks: args[0].path === "/" ? ["/docs"] : args[0].path === "/docs" ? ["/docs/start", "https://unapproved.example.com/setup"] : ["/docs/third-hop"],
+			...(await read(...args)),
+			internalLinks:
+				args[0].path === "/"
+					? ["/docs"]
+					: args[0].path === "/docs"
+						? ["/docs/start", "https://unapproved.example.com/setup"]
+						: ["/docs/third-hop"],
 		}));
 		await f.run();
 		expect(f.state.generation?.status).toBe("ready");
-		expect(f.read.mock.calls.map(([call]) => call.path)).toEqual(["/", "/docs", "/docs/start"]);
-		expect(f.read.mock.calls.every(([call]) => call.freshAfter?.toISOString() === f.state.generation?.requestedAt)).toBe(true);
+		expect(f.read.mock.calls.map(([call]) => call.path)).toEqual([
+			"/",
+			"/docs",
+			"/docs/start",
+		]);
+		expect(
+			f.read.mock.calls.every(
+				([call]) =>
+					call.freshAfter?.toISOString() === f.state.generation?.requestedAt
+			)
+		).toBe(true);
 		for (const call of f.calls) {
 			const message = call.prompt.find((item) => item.role === "user");
 			const part = message?.content.find((item) => item.type === "text");
-			if (!part || part.type !== "text") throw new Error("Missing context prompt");
+			if (!part || part.type !== "text")
+				throw new Error("Missing context prompt");
 			const data = JSON.parse(part.text);
-			expect(data.savedContext.teamContext).toEqual(f.state.profile?.teamContext);
-			expect(data.savedContext.measurementPlans).toEqual(f.state.profile?.measurementPlans);
+			expect(data.savedContext.teamContext).toEqual(
+				f.state.profile?.teamContext
+			);
+			expect(data.savedContext.measurementPlans).toEqual(
+				f.state.profile?.measurementPlans
+			);
 		}
-		expect(f.state.generation?.draft?.sources.every((source) => source.fetchedAt)).toBe(true);
+		expect(
+			f.state.generation?.draft?.sources.every((source) => source.fetchedAt)
+		).toBe(true);
 		expect(f.bill).toHaveBeenCalledTimes(3);
 	});
 
 	it("reads explicitly selected subdomains within the seven-page budget", async () => {
 		const f = fixture([{ content: brief, sourceIds: [0, 1] }]);
 		if (!f.state.generation) throw new Error("Missing generation");
-		f.state.generation.sourceUrls = Array.from({ length: 6 }, (_, index) => `https://docs.example.com/page-${index}`);
+		f.state.generation.sourceUrls = Array.from(
+			{ length: 6 },
+			(_, index) => `https://docs.example.com/page-${index}`
+		);
 		await f.run();
 		expect(f.state.generation?.status).toBe("ready");
 		expect(f.read).toHaveBeenCalledTimes(7);
@@ -301,14 +379,22 @@ describe("organization business context worker", () => {
 	it("canonical duplicate seed URLs do not spend the discovery read budget", async () => {
 		const f = fixture();
 		if (!f.state.generation) throw new Error("Missing generation");
-		f.state.generation.sourceUrls = ["https://example.com", "http://example.com/", "https://example.com/"];
+		f.state.generation.sourceUrls = [
+			"https://example.com",
+			"http://example.com/",
+			"https://example.com/",
+		];
 		await f.run();
 		expect(f.state.generation?.status).toBe("ready");
-		expect(f.read.mock.calls.map(([call]) => call.path)).toEqual(["/", "/pricing"]);
+		expect(f.read.mock.calls.map(([call]) => call.path)).toEqual([
+			"/",
+			"/pricing",
+		]);
 	});
 
 	it("streams partial Markdown before completion without creating a saved draft", async () => {
 		const f = fixture();
+		const request = new AbortController();
 		const mark = f.mark.getMockImplementation();
 		if (!mark) throw new Error("Missing persistence fixture");
 		let partialSeen = false;
@@ -322,10 +408,140 @@ describe("organization business context worker", () => {
 			}
 			return await mark(change);
 		});
-		await f.run();
+		await f.run(request.signal);
+		expect(f.mark.mock.calls.at(-1)?.[0].signal).toBe(request.signal);
 		expect(partialSeen).toBe(true);
 		expect(f.state.generation?.status).toBe("ready");
 		expect(f.state.generation?.progress).toBeUndefined();
+		expect(f.updates[0]?.generation?.progress?.stage).toBe("reading");
+		expect(f.updates.some((state) => state.generation?.progress?.content)).toBe(
+			true
+		);
+		expect(f.updates.at(-1)?.generation?.status).toBe("ready");
+		expect(f.updates.every((state) => state.profile?.content === manual)).toBe(
+			true
+		);
+	});
+
+	it("leaves external request cancellation to the RPC lifecycle without a timeout error", async () => {
+		const f = fixture();
+		const request = new AbortController();
+		f.read.mockImplementation(({ abortSignal }) => {
+			request.abort();
+			expect(abortSignal?.aborted).toBe(true);
+			return new Promise(() => {});
+		});
+		await f.run(request.signal);
+		expect(f.calls).toHaveLength(0);
+		expect(
+			f.mark.mock.calls.every(([change]) => change.status === "running")
+		).toBe(true);
+		expect(f.errors).not.toHaveBeenCalled();
+	});
+
+	it("closing the iterator aborts synthesis without publishing an unfinished draft", async () => {
+		const f = fixture();
+		const iterator = generateOrganizationBusinessContext(input);
+		while (true) {
+			const update = await iterator.next();
+			if (update.done) throw new Error("Expected streamed Markdown");
+			if (update.value.generation?.progress?.content) break;
+		}
+		await iterator.return();
+		expect(f.model.doStreamCalls[0]?.abortSignal?.aborted).toBe(true);
+		expect(f.state.generation?.draft).toBeNull();
+		expect(
+			f.mark.mock.calls.every(([change]) => change.status === "running")
+		).toBe(true);
+		expect(f.errors).not.toHaveBeenCalled();
+	});
+
+	it("request abort interrupts a stalled model and does not persist a failure", async () => {
+		const f = fixture();
+		const request = new AbortController();
+		let modelSignal: AbortSignal | undefined;
+		f.model.doStream = async (options) => {
+			modelSignal = options.abortSignal;
+			return {
+				stream: new ReadableStream({
+					start(stream) {
+						options.abortSignal?.addEventListener(
+							"abort",
+							() => stream.error(options.abortSignal?.reason),
+							{ once: true }
+						);
+						request.abort();
+					},
+				}),
+			};
+		};
+		await f.run(request.signal);
+		expect(modelSignal?.aborted).toBe(true);
+		expect(f.state.generation?.draft).toBeNull();
+		expect(
+			f.mark.mock.calls.every(([change]) => change.status === "running")
+		).toBe(true);
+		expect(f.errors).not.toHaveBeenCalled();
+	});
+
+	it("settles a consumed model call after request abort before returning", async () => {
+		const f = fixture();
+		const request = new AbortController();
+		let billed = false;
+		f.bill.mockImplementation(async (call) => {
+			request.abort();
+			await Promise.resolve();
+			billed = true;
+			return f.billed(call);
+		});
+		await f.run(request.signal);
+		expect(billed).toBe(true);
+		expect(f.bill).toHaveBeenCalledTimes(1);
+		expect(f.calls).toHaveLength(1);
+		expect(
+			f.mark.mock.calls.every(([change]) => change.status === "running")
+		).toBe(true);
+		expect(f.errors).not.toHaveBeenCalled();
+	});
+
+	it("awaits consumed synthesis billing after the request aborts", async () => {
+		const f = fixture();
+		const request = new AbortController();
+		const settling = Promise.withResolvers<void>();
+		const release = Promise.withResolvers<void>();
+		let completed = false;
+		let billed = false;
+		f.bill.mockImplementation(async (call) => {
+			if (f.calls.length === 2) {
+				settling.resolve();
+				await release.promise;
+				billed = true;
+			}
+			return f.billed(call);
+		});
+		const run = f.run(request.signal).then(() => {
+			completed = true;
+		});
+		await settling.promise;
+		try {
+			request.abort();
+			await new Promise<void>((resolve) => setImmediate(resolve));
+			expect(completed).toBe(false);
+			expect(billed).toBe(false);
+		} finally {
+			release.resolve();
+		}
+		await run;
+		expect(billed).toBe(true);
+		expect(f.bill).toHaveBeenCalledTimes(2);
+		expect(f.calls).toHaveLength(2);
+		expect(f.model.doStreamCalls[0]?.abortSignal?.aborted).toBe(true);
+		expect(f.state.generation?.draft).toBeNull();
+		expect(f.state.profile?.content).toBe(manual);
+		expect(
+			f.mark.mock.calls.every(([change]) => change.status === "running")
+		).toBe(true);
+		expect(f.errors).not.toHaveBeenCalled();
 	});
 
 	it("cancellation during streaming cannot publish a late draft", async () => {
@@ -340,16 +556,18 @@ describe("organization business context worker", () => {
 		expect(f.state.generation).toBeNull();
 		expect(f.state.profile?.content).toBe(manual);
 		expect(f.model.doStreamCalls[0]?.abortSignal?.aborted).toBe(true);
-		expect(f.mark.mock.calls.some(([change]) => change.status === "ready")).toBe(false);
+		expect(
+			f.mark.mock.calls.some(([change]) => change.status === "ready")
+		).toBe(false);
 	});
 
 	it("includes the first draft without checking or charging credits", async () => {
 		const f = fixture();
 		process.env.AUTUMN_SECRET_KEY = "synthetic-business-context-test";
 		f.state = { ...f.state, profile: null };
-		const usage = spyOn(execution, "trackAgentUsage").mockImplementation(
-			f.billed
-		);
+		const usage = vi
+			.spyOn(execution, "trackAgentUsage")
+			.mockImplementation(f.billed);
 		await f.run();
 		expect(f.state.generation?.status).toBe("ready");
 		expect(f.access).not.toHaveBeenCalled();
@@ -390,9 +608,7 @@ describe("organization business context worker", () => {
 		expect(f.calls).toHaveLength(2);
 		const selection = JSON.stringify(f.calls[0]?.prompt);
 		expect(selection).not.toContain("evil.example");
-		const synthesis = f.calls[1]?.prompt.find(
-			(item) => item.role === "user"
-		);
+		const synthesis = f.calls[1]?.prompt.find((item) => item.role === "user");
 		expect(JSON.stringify(synthesis)).toContain("savedContext");
 		expect(JSON.stringify(synthesis)).toContain(manual);
 		expect(f.bill).toHaveBeenCalledTimes(2);
@@ -404,10 +620,8 @@ describe("organization business context worker", () => {
 		});
 		expect(
 			f.events.mock.calls
-				.filter(
-					([, event]) => event === "organization_business_context.model_call"
-				)
-				.map(([, , fields]) => ({
+				.filter(([event]) => event.business_context_event === "model_call")
+				.map(([fields]) => ({
 					phase: fields?.phase,
 					input: fields?.input_tokens,
 					output: fields?.output_tokens,
@@ -624,9 +838,7 @@ describe("organization business context worker", () => {
 			return result;
 		});
 		await f.run();
-		expect(f.calls).toHaveLength(
-			phase === "selected-page" ? 1 : 0
-		);
+		expect(f.calls).toHaveLength(phase === "selected-page" ? 1 : 0);
 		expect(f.bill).toHaveBeenCalledTimes(phase === "selected-page" ? 1 : 0);
 		if (phase === "credits") expect(f.read).not.toHaveBeenCalled();
 		if (phase === "homepage") expect(f.search).not.toHaveBeenCalled();
@@ -731,14 +943,17 @@ describe("organization business context worker", () => {
 		process.env.AUTUMN_SECRET_KEY = "synthetic-business-context-test";
 		if (kind === "customer") f.customer.mockResolvedValue(null);
 		if (kind === "credits")
-			f.access.mockResolvedValue({ allowed: false, customerId: "example-customer" });
+			f.access.mockResolvedValue({
+				allowed: false,
+				customerId: "example-customer",
+			});
 		if (kind === "check")
 			f.access.mockRejectedValue(new Error("Synthetic billing unavailable"));
 		if (kind === "charge")
 			f.bill.mockRejectedValue(new Error("Synthetic charge failure"));
 		if (kind === "swallowed-charge") {
 			f.bill.mockRestore();
-			spyOn(getAutumn(), "track").mockRejectedValue(
+			vi.spyOn(getAutumn(), "track").mockRejectedValue(
 				new Error("Synthetic provider charge failed")
 			);
 		}
@@ -746,18 +961,32 @@ describe("organization business context worker", () => {
 		expect(f.state.generation?.status).toBe("failed");
 		expect(f.state.generation?.draft).toBeNull();
 		expect(f.state.profile?.content).toBe(manual);
-		expect(f.calls.length).toBe(
-			kind.includes("charge") ? 1 : 0
-		);
+		expect(f.calls.length).toBe(kind.includes("charge") ? 1 : 0);
 	});
 
-	it("requires billing error reporting when configured", async () => {
+	it("bills with an explicit logger after the ambient request logger expires", async () => {
 		const f = fixture();
 		process.env.AUTUMN_SECRET_KEY = "synthetic-business-context-test";
 		setAiRequestLoggerProvider(null);
 		await f.run();
+		expect(f.state.generation?.status).toBe("ready");
+		expect(f.bill).toHaveBeenCalledTimes(2);
+		expect(f.bill.mock.calls.every(([call]) => call.requestLogger)).toBe(true);
+	});
+
+	it("detects a swallowed charge failure without an ambient request logger", async () => {
+		const f = fixture();
+		process.env.AUTUMN_SECRET_KEY = "synthetic-business-context-test";
+		setAiRequestLoggerProvider(null);
+		f.bill.mockRestore();
+		vi.spyOn(getAutumn(), "track").mockRejectedValue(
+			new Error("Synthetic charge failed")
+		);
+		await f.run();
+		expect(f.calls).toHaveLength(1);
 		expect(f.state.generation?.status).toBe("failed");
-		expect(f.calls).toHaveLength(0);
+		expect(f.state.generation?.draft).toBeNull();
+		expect(f.updates.at(-1)?.generation?.status).toBe("failed");
 	});
 
 	it.each([
@@ -864,7 +1093,10 @@ describe("organization business context worker", () => {
 			return await generate(options);
 		};
 		const stream = f.model.doStream;
-		f.model.doStream = async (options) => { advance(2000); return await stream(options); };
+		f.model.doStream = async (options) => {
+			advance(2000);
+			return await stream(options);
+		};
 		f.bill.mockImplementation(async (call) => {
 			if (f.calls.length === 2) advance(4000);
 			return f.billed(call);
@@ -898,7 +1130,9 @@ describe("organization business context worker", () => {
 		expect(f.state.generation?.status).toBe("failed");
 		expect(f.state.generation?.error).not.toContain("provider");
 		expect(f.state.profile?.content).toBe(manual);
-		expect(f.errors.mock.calls[0]?.[0]).toBe(failure);
+		expect(f.errors.mock.calls[0]?.[0]).toMatchObject({
+			error_message: failure.message,
+		});
 		expect(f.bill).not.toHaveBeenCalled();
 	});
 
@@ -940,7 +1174,10 @@ describe("organization business context worker", () => {
 	it("rejects unknown payload fields", async () => {
 		const f = fixture();
 		await expect(
-			generateOrganizationBusinessContext({ ...input, domain: "other.example" })
+			generateOrganizationBusinessContext({
+				...input,
+				domain: "other.example",
+			}).next()
 		).rejects.toThrow();
 		expect(f.readState).not.toHaveBeenCalled();
 	});

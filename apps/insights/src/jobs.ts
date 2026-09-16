@@ -1,7 +1,6 @@
 import { and, db, eq, inArray, lt, notInArray, sql } from "@databuddy/db";
 import { insightRunItems, insightRuns } from "@databuddy/db/schema";
 import {
-	INSIGHTS_BUSINESS_CONTEXT_JOB_NAME,
 	INSIGHTS_DISPATCH_JOB_NAME,
 	INSIGHTS_GENERATE_WEBSITE_JOB_NAME,
 	INSIGHTS_MAINTENANCE_JOB_NAME,
@@ -12,6 +11,7 @@ import {
 	type InsightsResumeJobData,
 	insightsResumeJobId,
 } from "@databuddy/redis";
+import { markBusinessContextGeneration } from "@databuddy/services/organization-business-context";
 import type { Job } from "bullmq";
 import { z } from "zod";
 import {
@@ -34,7 +34,6 @@ import {
 } from "./lib/evlog-insights";
 import { recordInsightReplyFailure, resumeInsightReply } from "./resume";
 import { dispatchDueInsightRuns } from "./scheduler";
-import { generateOrganizationBusinessContext } from "./organization-business-context";
 import { settleRunInvestigationCharges } from "./observations";
 
 const SUCCESS_CHECKPOINT_ATTEMPTS = 3;
@@ -45,9 +44,13 @@ const SUCCESSFUL_ITEM_STATUSES: ("skipped" | "succeeded")[] = [
 const resumeJobSchema = z
 	.object({ replyId: z.string().min(1).max(256) })
 	.strict();
+const retiredBusinessContextJobSchema = z.strictObject({
+	organizationId: z.string().min(1).max(256),
+	generationId: z.uuid(),
+});
 
 type InsightsJob = Pick<
-	Job<InsightsQueueJobData>,
+	Job<InsightsQueueJobData | z.infer<typeof retiredBusinessContextJobSchema>>,
 	"attemptsMade" | "attemptsStarted" | "data" | "id" | "name" | "opts"
 >;
 
@@ -431,8 +434,19 @@ export async function processInsightsJob(job: InsightsJob) {
 				);
 			} else if (job.name === INSIGHTS_RESUME_JOB_NAME) {
 				result = await processResumeJob(job.data as InsightsResumeJobData, job);
-			} else if (job.name === INSIGHTS_BUSINESS_CONTEXT_JOB_NAME) {
-				result = await generateOrganizationBusinessContext(job.data);
+			} else if (job.name === "insights-business-context") {
+				// Retire jobs admitted by APIs still running the previous release.
+				const data = retiredBusinessContextJobSchema.parse(job.data);
+				if (job.id !== `business-context-${data.generationId}`) {
+					throw new Error("Business context queue job identity does not match");
+				}
+				await markBusinessContextGeneration({
+					...data,
+					status: "failed",
+					error:
+						"Research now runs live. Refresh this page, then start again. Your saved context is unchanged.",
+				});
+				result = { status: "skipped" };
 			} else {
 				throw new Error(`Unknown insights job: ${job.name}`);
 			}

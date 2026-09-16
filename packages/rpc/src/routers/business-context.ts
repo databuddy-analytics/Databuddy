@@ -1,16 +1,11 @@
 import { roleHasPermission } from "@databuddy/auth/permissions";
 import { and, db, eq, isNull } from "@databuddy/db";
 import { websites } from "@databuddy/db/schema";
-import {
-	getInsightsQueue,
-	INSIGHTS_BUSINESS_CONTEXT_JOB_NAME,
-} from "@databuddy/redis";
 import { ratelimit } from "@databuddy/redis/rate-limit";
 import {
 	beginBusinessContextGeneration,
 	BusinessContextError,
 	cancelBusinessContextGeneration,
-	markBusinessContextGeneration,
 	readOrganizationBusinessContext,
 	restoreOrganizationBusinessProfile,
 	saveOrganizationBusinessProfile,
@@ -21,7 +16,7 @@ import {
 	businessContextSettingsSchema,
 	businessContextSourceUrlsSchema,
 } from "@databuddy/shared/organization-business-context";
-import { ORPCError } from "@orpc/server";
+import { AsyncIteratorClass, eventIterator, ORPCError } from "@orpc/server";
 import { z } from "zod";
 import { rpcError } from "../errors";
 import { setAuditOrganization } from "../lib/audit";
@@ -29,7 +24,6 @@ import {
 	businessContextGenerationAccess,
 	businessContextGenerationAccessSchema,
 } from "../lib/business-context-access";
-import { logger } from "../lib/logger";
 import { runAuditedMutation } from "../middleware/audit-mutation";
 import { protectedProcedure, sessionProcedure, type Context } from "../orpc";
 import { withWorkspace } from "../procedures/with-workspace";
@@ -187,7 +181,7 @@ export const businessContextRouter = {
 		.route({
 			method: "POST",
 			path: "/business-context/generate",
-			summary: "Generate a business context draft from a website",
+			summary: "Stream a business context draft from a website",
 			tags: ["Organizations"],
 		})
 		.input(
@@ -196,13 +190,25 @@ export const businessContextRouter = {
 				sourceUrls: businessContextSourceUrlsSchema.optional(),
 			})
 		)
-		.output(businessContextSettingsSchema)
-		.handler(({ context, input }) =>
+		.output(eventIterator(businessContextSettingsSchema))
+		.handler(({ context, input, signal: requestSignal }) =>
+			// Audit admission; the generator records its eventual completion or failure.
 			runAuditedMutation("businessContext.generate", context, async () => {
 				const workspace = await requireEditor(context, input.organizationId);
-				const current = await readOrganizationBusinessContext(
-					input.organizationId
-				).catch(contextError);
+				const generate = context.generateBusinessContext;
+				if (!generate) {
+					throw rpcError.serviceUnavailable(
+						5,
+						"Business context generation is unavailable. Try again shortly."
+					);
+				}
+				const current = await settings(context, input.organizationId);
+				if (businessContextIsGenerating(current)) {
+					throw new ORPCError("CONFLICT", {
+						message:
+							"A business context generation is already running. Stop it before starting another.",
+					});
+				}
 				const access = await businessContextGenerationAccess(
 					input.organizationId,
 					workspace.role,
@@ -217,48 +223,58 @@ export const businessContextRouter = {
 				if (access.status !== "allowed") {
 					throw rpcError.serviceUnavailable(5, access.message);
 				}
-				if (!businessContextIsGenerating(current)) {
-					const rate = await ratelimit(
-						`business-context-generate:${input.organizationId}`,
-						5,
-						600
+				const rate = await ratelimit(
+					`business-context-generate:${input.organizationId}`,
+					5,
+					600
+				);
+				if (!rate.success) {
+					throw rpcError.rateLimited(
+						Math.max(1, Math.ceil((rate.reset - Date.now()) / 1000))
 					);
-					if (!rate.success) {
-						throw rpcError.rateLimited(
-							Math.max(1, Math.ceil((rate.reset - Date.now()) / 1000))
-						);
-					}
 				}
+				requestSignal?.throwIfAborted();
 				const state = await beginBusinessContextGeneration({
 					...input,
 					requestedBy: context.user.id,
 				}).catch(contextError);
-				if (state.generation?.status === "queued") {
-					const generationId = state.generation.id;
-					await getInsightsQueue()
-						.add(
-							INSIGHTS_BUSINESS_CONTEXT_JOB_NAME,
-							{ organizationId: input.organizationId, generationId },
-							{ jobId: `business-context-${generationId}`, attempts: 1 }
-						)
-						.catch(async (error) => {
-							logger.error(
-								{ error, organizationId: input.organizationId },
-								"Business context generation could not be queued"
-							);
-							await markBusinessContextGeneration({
-								organizationId: input.organizationId,
-								generationId,
-								status: "failed",
-								error:
-									"Generation could not start. Try again; your saved context is unchanged.",
-							});
-							throw rpcError.internal(
-								"Could not start business context generation. Try again."
-							);
-						});
+				const generation = state.generation;
+				if (!generation) {
+					throw rpcError.internal(
+						"Could not start business context generation. Try again."
+					);
 				}
-				return settings(context, input.organizationId);
+				const controller = new AbortController();
+				const signal = requestSignal
+					? AbortSignal.any([requestSignal, controller.signal])
+					: controller.signal;
+				const iterator = (async function* () {
+					signal.throwIfAborted();
+					yield { ...current, ...state };
+					for await (const update of generate({
+						organizationId: input.organizationId,
+						generationId: generation.id,
+						signal,
+					})) {
+						yield { ...current, ...update };
+					}
+				})();
+				return new AsyncIteratorClass(
+					() => iterator.next(),
+					async () => {
+						controller.abort();
+						try {
+							await cancelBusinessContextGeneration({
+								organizationId: input.organizationId,
+								generationId: generation.id,
+								activeOnly: true,
+							}).catch(contextError);
+						} finally {
+							// Consumed usage can settle after the active state is cleared.
+							await iterator.return();
+						}
+					}
+				);
 			})
 		),
 };

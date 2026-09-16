@@ -8,7 +8,7 @@ import {
 	expect,
 	test,
 } from "bun:test";
-import { db, eq, shutdownPostgres } from "@databuddy/db";
+import { db, eq, shutdownPostgres, sql } from "@databuddy/db";
 import {
 	organization,
 	organizationBusinessContexts,
@@ -35,10 +35,10 @@ integration("organization business context in isolated PostgreSQL", () => {
 		const url = new URL(process.env.DATABASE_URL ?? "");
 		if (
 			!["localhost", "127.0.0.1"].includes(url.hostname) ||
-			!["/databuddy_test", "/business_context_settings"].includes(url.pathname)
+			(!["/databuddy_test", "/business_context_settings"].includes(url.pathname) && !url.pathname.startsWith("/databuddy_e2e_"))
 		) {
 			throw new Error(
-				"Use a localhost databuddy_test or business_context_settings database"
+				"Use a localhost test database"
 			);
 		}
 	});
@@ -161,6 +161,88 @@ integration("organization business context in isolated PostgreSQL", () => {
 		expect(state.generation?.id).toBe(newer);
 	});
 
+	test("request abort while publication waits for its lock cannot commit a ready draft", async () => {
+		await save("Saved context");
+		const generation = (await generate()).generation;
+		if (!generation) throw new Error("Missing generation");
+		const request = new AbortController();
+		const locked = Promise.withResolvers<number>();
+		const release = Promise.withResolvers<void>();
+		const holding = db.transaction(async (tx) => {
+			await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${org}))`);
+			const result = await tx.execute<{ pid: number }>(sql`select pg_backend_pid() as pid`);
+			const row = result.rows[0];
+			if (!row) throw new Error("Missing lock holder");
+			locked.resolve(row.pid);
+			await release.promise;
+		});
+		holding.catch(locked.reject);
+		const pid = await locked.promise;
+		const outcome = Promise.allSettled([
+			markBusinessContextGeneration({
+				organizationId: org,
+				generationId: generation.id,
+				status: "ready",
+				draft,
+				signal: request.signal,
+			}),
+		]);
+		try {
+			let blocked = false;
+			const deadline = Date.now() + 2000;
+			while (!blocked && Date.now() < deadline) {
+				const result = await db.execute<{ blocked: boolean }>(sql`
+					select exists (
+						select 1 from pg_stat_activity
+						where ${pid} = any(pg_blocking_pids(pid))
+						and wait_event = 'advisory'
+					) as blocked
+				`);
+				blocked = result.rows[0]?.blocked ?? false;
+				if (!blocked) await Bun.sleep(10);
+			}
+			expect(blocked).toBe(true);
+			request.abort();
+		} finally {
+			release.resolve();
+			await holding;
+		}
+		expect((await outcome)[0]).toMatchObject({
+			status: "rejected",
+			reason: { name: "AbortError" },
+		});
+		const state = await readOrganizationBusinessContext(org);
+		expect(state.generation?.status).toBe("running");
+		expect(state.generation?.draft).toBeNull();
+		expect(state.profile?.content).toBe("Saved context");
+		await cancelBusinessContextGeneration({ organizationId: org, generationId: generation.id, activeOnly: true });
+		expect((await readOrganizationBusinessContext(org)).generation).toBeNull();
+	});
+
+	test("disconnect cleanup preserves terminal drafts and cannot remove a newer run", async () => {
+		await save("Saved context");
+		const first = (await generate()).generation;
+		if (!first) throw new Error("Missing generation");
+		await cancelBusinessContextGeneration({ organizationId: org, generationId: first.id, activeOnly: true });
+		expect((await readOrganizationBusinessContext(org)).generation).toBeNull();
+		for (const status of ["ready", "failed"] as const) {
+			const pending = (await generate()).generation;
+			if (!pending) throw new Error("Missing generation");
+			await markBusinessContextGeneration({ organizationId: org, generationId: pending.id, status, draft: status === "ready" ? draft : undefined });
+			await cancelBusinessContextGeneration({ organizationId: org, generationId: pending.id, activeOnly: true });
+			expect((await readOrganizationBusinessContext(org)).generation?.status).toBe(status);
+		}
+		const completed = (await generate()).generation;
+		if (!completed) throw new Error("Missing generation");
+		await markBusinessContextGeneration({ organizationId: org, generationId: completed.id, status: "ready", draft });
+		const newer = await generate();
+		await cancelBusinessContextGeneration({ organizationId: org, generationId: completed.id, activeOnly: true });
+		const final = await readOrganizationBusinessContext(org);
+		expect(final.generation?.id).toBe(newer.generation?.id);
+		expect(final.previousDrafts?.some((item) => item.id === completed.id)).toBe(true);
+		expect(final.profile?.content).toBe("Saved context");
+	});
+
 	test("manual content is durable and preserves unrelated organization metadata", async () => {
 		const content =
 			"Owner-defined priorities and terminology.\n" + "x".repeat(11_500);
@@ -178,11 +260,16 @@ integration("organization business context in isolated PostgreSQL", () => {
 		expect((await readOrganizationBusinessContext(other)).profile).toBeNull();
 	});
 
-	test("duplicate generation requests share a draft job and never replace saved content", async () => {
+	test("concurrent generation requests admit only one run and never replace saved content", async () => {
 		await save("Owner context");
-		const [first, second] = await Promise.all([generate(), generate()]);
-		expect(first.generation?.id).toBe(second.generation?.id);
-		const generationId = first.generation!.id;
+		const results = await Promise.allSettled([generate(), generate()]);
+		expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+		const rejected = results.find((result) => result.status === "rejected");
+		expect(rejected?.status === "rejected" && rejected.reason.code).toBe("CONFLICT");
+		const started = results.find((result) => result.status === "fulfilled");
+		if (started?.status !== "fulfilled" || !started.value.generation) throw new Error("Missing admitted generation");
+		const generationId = started.value.generation.id;
+		expect(started.value.generation.status).toBe("running");
 		await markBusinessContextGeneration({
 			organizationId: org,
 			generationId,

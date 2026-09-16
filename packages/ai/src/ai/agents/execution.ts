@@ -4,6 +4,7 @@ import { getAutumn } from "@databuddy/rpc/autumn";
 import { getBillingCustomerId } from "@databuddy/rpc/billing";
 import { getOrganizationOwnerId } from "@databuddy/rpc/organization";
 import type { LanguageModelUsage } from "ai";
+import type { RequestLogger } from "evlog";
 import { trackAgentEvent } from "../../lib/databuddy";
 import { captureError, mergeWideEvent } from "../../lib/tracing";
 import {
@@ -19,6 +20,7 @@ interface AgentUsageTrackingInput {
 	idempotencyKey?: string;
 	modelId: string;
 	organizationId?: string | null;
+	requestLogger?: RequestLogger;
 	source: "dashboard" | "mcp" | "slack" | "insights";
 	usage: LanguageModelUsage;
 	userId?: string | null;
@@ -175,7 +177,11 @@ export function trackAgentUsage(
 	input: AgentUsageTrackingInput
 ): UsageTelemetry {
 	const summary = summarizeAgentUsage(input.modelId, input.usage);
-	mergeWideEvent(summary);
+	if (input.requestLogger) {
+		input.requestLogger.set(summary);
+	} else {
+		mergeWideEvent(summary);
+	}
 
 	trackAgentEvent("agent_activity", {
 		action: "chat_usage",
@@ -241,7 +247,16 @@ export async function trackAgentUsageAndBill(
 				headers: { "Idempotency-Key": input.idempotencyKey },
 			})
 		: autumn.track(request);
-	await tracked.catch((err) => captureError(err, billingErrorContext));
+	await tracked.catch((err) => {
+		if (input.requestLogger) {
+			input.requestLogger.error(
+				err instanceof Error ? err : new Error(String(err)),
+				billingErrorContext
+			);
+		} else {
+			captureError(err, billingErrorContext);
+		}
+	});
 
 	return summary;
 }

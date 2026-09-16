@@ -78,7 +78,8 @@ async function update(
 	change: (
 		current: OrganizationBusinessContext,
 		tx: Transaction
-	) => OrganizationBusinessContext | Promise<OrganizationBusinessContext>
+	) => OrganizationBusinessContext | Promise<OrganizationBusinessContext>,
+	signal?: AbortSignal
 ): Promise<OrganizationBusinessContext> {
 	return await db.transaction(async (tx) => {
 		await tx.execute(sql`SET LOCAL lock_timeout = '4s'`);
@@ -99,6 +100,7 @@ async function update(
 		const next = organizationBusinessContextSchema.parse(
 			await change(state(row.state), tx)
 		);
+		signal?.throwIfAborted();
 		await tx
 			.insert(organizationBusinessContexts)
 			.values({ organizationId, state: next })
@@ -106,6 +108,8 @@ async function update(
 				target: organizationBusinessContexts.organizationId,
 				set: { state: next, updatedAt: new Date() },
 			});
+		// Publication wins once this transaction is authorized to commit.
+		signal?.throwIfAborted();
 		return next;
 	});
 }
@@ -135,7 +139,10 @@ export async function beginBusinessContextGeneration(input: {
 			);
 		}
 		if (businessContextIsGenerating(current)) {
-			return current;
+			throw new BusinessContextError(
+				"CONFLICT",
+				"A business context generation is already running. Stop it before starting another."
+			);
 		}
 		const sourceUrls = businessContextSourceUrlsSchema.parse(
 			input.sourceUrls ?? []
@@ -167,7 +174,8 @@ export async function beginBusinessContextGeneration(input: {
 				requestedBy: input.requestedBy,
 				requestedAt: new Date().toISOString(),
 				baseRevision: current.profile?.revision ?? 0,
-				status: "queued",
+				status: "running",
+				progress: { stage: "reading" },
 				draft: null,
 				error: null,
 			},
@@ -182,62 +190,68 @@ export async function markBusinessContextGeneration(input: {
 	draft?: BusinessBrief;
 	error?: string;
 	progress?: z.infer<typeof businessContextProgressSchema>;
+	signal?: AbortSignal;
 }): Promise<OrganizationBusinessContext> {
-	return await update(input.organizationId, async (current, tx) => {
-		const generation = current.generation;
-		if (
-			!generation ||
-			generation.id !== input.generationId ||
-			!businessContextIsGenerating(current)
-		) {
-			return current;
-		}
-		const [site] = await tx
-			.select({ id: websites.id })
-			.from(websites)
-			.where(
-				and(
-					eq(websites.id, generation.websiteId),
-					eq(websites.organizationId, input.organizationId),
-					eq(websites.domain, generation.domain),
-					isNull(websites.deletedAt)
+	return await update(
+		input.organizationId,
+		async (current, tx) => {
+			const generation = current.generation;
+			if (
+				!generation ||
+				generation.id !== input.generationId ||
+				!businessContextIsGenerating(current)
+			) {
+				return current;
+			}
+			const [site] = await tx
+				.select({ id: websites.id })
+				.from(websites)
+				.where(
+					and(
+						eq(websites.id, generation.websiteId),
+						eq(websites.organizationId, input.organizationId),
+						eq(websites.domain, generation.domain),
+						isNull(websites.deletedAt)
+					)
 				)
-			)
-			.for("update");
-		if (!site) {
+				.for("update");
+			if (!site) {
+				return {
+					...current,
+					generation: {
+						...generation,
+						status: "failed",
+						draft: null,
+						progress: undefined,
+						error: "The source website is no longer in this organization.",
+					},
+				};
+			}
 			return {
 				...current,
 				generation: {
 					...generation,
-					status: "failed",
-					draft: null,
-					progress: undefined,
-					error: "The source website is no longer in this organization.",
+					status: input.status,
+					progress:
+						input.status === "running"
+							? input.progress
+								? businessContextProgressSchema.parse(input.progress)
+								: generation.progress
+							: undefined,
+					draft:
+						input.status === "ready" && input.draft
+							? businessBriefSchema.parse(input.draft)
+							: null,
+					error:
+						input.status === "failed"
+							? (input.error ??
+								"Could not generate business context. Try again.")
+							: null,
 				},
 			};
-		}
-		return {
-			...current,
-			generation: {
-				...generation,
-				status: input.status,
-				progress:
-					input.status === "running"
-						? input.progress
-							? businessContextProgressSchema.parse(input.progress)
-							: generation.progress
-						: undefined,
-				draft:
-					input.status === "ready" && input.draft
-						? businessBriefSchema.parse(input.draft)
-						: null,
-				error:
-					input.status === "failed"
-						? (input.error ?? "Could not generate business context. Try again.")
-						: null,
-			},
-		};
-	});
+		},
+		input.signal
+	);
 }
 
 async function validateMeasurementBindings(
@@ -398,15 +412,27 @@ function profileHistory(current: OrganizationBusinessContext) {
 export async function cancelBusinessContextGeneration(input: {
 	organizationId: string;
 	generationId: string;
+	activeOnly?: boolean;
 }): Promise<OrganizationBusinessContext> {
-	return await update(input.organizationId, (current) => ({
-		...current,
-		generation:
-			current.generation?.id === input.generationId ? null : current.generation,
-		previousDrafts: current.previousDrafts?.filter(
-			(draft) => draft.id !== input.generationId
-		),
-	}));
+	return await update(input.organizationId, (current) => {
+		if (
+			input.activeOnly &&
+			(current.generation?.id !== input.generationId ||
+				!businessContextIsGenerating(current))
+		) {
+			return current;
+		}
+		return {
+			...current,
+			generation:
+				current.generation?.id === input.generationId
+					? null
+					: current.generation,
+			previousDrafts: current.previousDrafts?.filter(
+				(draft) => draft.id !== input.generationId
+			),
+		};
+	});
 }
 
 export async function restoreOrganizationBusinessProfile(input: {
