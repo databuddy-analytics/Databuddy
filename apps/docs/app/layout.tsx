@@ -118,6 +118,14 @@ export default function Layout({ children }: { children: ReactNode }) {
 					trackOutgoingLinks
 					trackWebVitals
 				/>
+				{process.env.NODE_ENV === "development" ? null : (
+					<script
+						data-cookie-options='{"domain":".databuddy.cc"}'
+						data-publishable-key="dub_pk_TbFwfIKx6BtgspSSbNDcDVRE"
+						defer
+						src="https://www.dubcdn.com/analytics/script.outbound-domains.conversion-tracking.js"
+					/>
+				)}
 			</body>
 		</html>
 	);
