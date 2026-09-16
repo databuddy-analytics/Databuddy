@@ -264,13 +264,14 @@ export const businessContextRouter = {
 					async () => {
 						controller.abort();
 						try {
-							await iterator.return();
-						} finally {
 							await cancelBusinessContextGeneration({
 								organizationId: input.organizationId,
 								generationId: generation.id,
 								activeOnly: true,
 							}).catch(contextError);
+						} finally {
+							// Consumed usage can settle after the active state is cleared.
+							await iterator.return();
 						}
 					}
 				);

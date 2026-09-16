@@ -8,6 +8,7 @@ process.env.REDIS_URL ??= "redis://127.0.0.1:16554";
 let role = "owner";
 let runnerWaits = false;
 let runnerFails = false;
+let runnerSettlement: Promise<void> | undefined;
 let runnerSignal: AbortSignal | undefined;
 let runnerEntered = Promise.withResolvers<void>();
 let admissionGate: Promise<void> | undefined;
@@ -76,6 +77,7 @@ const generates = mock(async function* (input: { signal?: AbortSignal }): AsyncG
 			if (input.signal?.aborted) resolve();
 			else input.signal?.addEventListener("abort", () => resolve(), { once: true });
 		});
+		await runnerSettlement;
 		return;
 	}
 	state = { ...state, generation: { ...generation, progress: { stage: "writing", content: "## Partial draft" } } };
@@ -177,6 +179,7 @@ beforeEach(() => {
 	role = "owner";
 	runnerWaits = false;
 	runnerFails = false;
+	runnerSettlement = undefined;
 	runnerSignal = undefined;
 	runnerEntered = Promise.withResolvers<void>();
 	admissionGate = undefined;
@@ -311,6 +314,26 @@ test("closing a pending stream aborts provider work and releases only its active
 	expect(runnerSignal?.aborted).toBe(true);
 	expect(state.generation).toBeNull();
 	expect(state.profile).toEqual(savedProfile);
+});
+
+test("disconnect releases the active run before consumed usage finishes settling", async () => {
+	runnerWaits = true;
+	const settlement = Promise.withResolvers<void>();
+	runnerSettlement = settlement.promise;
+	const stream = await createProcedureClient(router.generate, { context: context() })({ organizationId: "org-one", websiteId: "site-one" });
+	await stream.next();
+	const pending = stream.next();
+	await runnerEntered.promise;
+	const closing = stream.return();
+	try {
+		await cleanupFinished.promise;
+		expect(state.generation).toBeNull();
+		expect(runnerSignal?.aborted).toBe(true);
+	} finally {
+		settlement.resolve();
+		await closing;
+		await pending;
+	}
 });
 
 test("disconnect during admission clears a run committed after the HTTP client leaves", async () => {
