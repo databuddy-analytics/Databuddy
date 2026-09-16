@@ -1,3 +1,4 @@
+import { readBooleanEnv } from "@databuddy/env/app";
 import { chQuery } from "@databuddy/db/clickhouse";
 import { z } from "zod";
 import { rpcError } from "../errors";
@@ -255,6 +256,9 @@ async function upsertBillingControl<
 	entry: BillingControlEntries[K];
 	operation: string;
 }): Promise<void> {
+	if (readBooleanEnv("SELFHOST")) {
+		throw rpcError.badRequest("Billing is disabled for self-hosted instances");
+	}
 	const { customerId, canUserUpgrade } = await getBillingOwner(
 		args.context.user.id,
 		args.context.organizationId

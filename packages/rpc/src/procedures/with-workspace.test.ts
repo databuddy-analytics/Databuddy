@@ -38,6 +38,7 @@ const mockWebsiteFindFirst = mock(
 const mockGetMemberRole = mock(getMemberRoleFake);
 const mockGetOrganizationOwnerId = mock(getOrganizationOwnerIdFake);
 
+let createRPCContext: typeof import("../orpc").createRPCContext;
 let createInternalPrincipal: typeof import("../orpc").createInternalPrincipal;
 let requireLinkAccess: typeof import("../routers/link-access").requireLinkAccess;
 let withWorkspace: typeof import("./with-workspace").withWorkspace;
@@ -60,7 +61,7 @@ beforeAll(async () => {
 		getOrganizationOwnerId: mockGetOrganizationOwnerId,
 	}));
 
-	({ createInternalPrincipal } = await import("../orpc"));
+	({ createRPCContext, createInternalPrincipal } = await import("../orpc"));
 	({ requireLinkAccess } = await import("../routers/link-access"));
 	({ withWorkspace, withPublicWorkspace } = await import("./with-workspace"));
 
@@ -469,4 +470,68 @@ describe("withWorkspace plan resolution", () => {
 		expect(getBilling).toHaveBeenCalledTimes(1);
 		expect(workspace.plan).toBe("free");
 	});
+});
+
+it("self-hosting skips billing without relaxing workspace permissions", async () => {
+	const original = process.env.SELFHOST;
+	process.env.SELFHOST = "true";
+	try {
+		const context = await createRPCContext(
+			{ headers: new Headers() },
+			createInternalPrincipal({
+				organizationId: ORGANIZATION_ID,
+				scopes: ["write:links"],
+			})
+		);
+		expect(await context.getBilling()).toBeUndefined();
+		const workspace = await withWorkspace(context, {
+			organizationId: ORGANIZATION_ID,
+			resource: "link",
+			permissions: ["create"],
+			requiredPlans: ["pro"],
+		});
+		expect(workspace.organizationId).toBe(ORGANIZATION_ID);
+		await expectRpcError(
+			withWorkspace(context, {
+				organizationId: OTHER_ORGANIZATION_ID,
+				resource: "link",
+				permissions: ["create"],
+				requiredPlans: ["pro"],
+			}),
+			"FORBIDDEN"
+		);
+		await expectRpcError(
+			withWorkspace(apiKeyContext({ scopes: [] }), {
+				organizationId: ORGANIZATION_ID,
+				resource: "link",
+				permissions: ["create"],
+				requiredPlans: ["pro"],
+			}),
+			"FORBIDDEN"
+		);
+		const { requireFeatureWithLimit, requireUsageWithinLimit } = await import(
+			"../types/billing"
+		);
+		for (const feature of [
+			"error_tracking",
+			"goals",
+			"funnels",
+			"feature_flags",
+		] as const) {
+			expect(() =>
+				requireFeatureWithLimit("free", feature, 10000)
+			).not.toThrow();
+			expect(() =>
+				requireUsageWithinLimit("free", feature, 10000)
+			).not.toThrow();
+		}
+		process.env.SELFHOST = "false";
+		expect(() =>
+			requireFeatureWithLimit("free", "error_tracking", 0)
+		).toThrow();
+		expect(() => requireUsageWithinLimit("free", "goals", 10000)).toThrow();
+	} finally {
+		if (original === undefined) delete process.env.SELFHOST;
+		else process.env.SELFHOST = original;
+	}
 });

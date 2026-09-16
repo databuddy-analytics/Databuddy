@@ -1,5 +1,7 @@
 "use client";
 
+import { isSelfHosted } from "@databuddy/env/public";
+
 import { useQuery } from "@tanstack/react-query";
 import {
 	useBillingContext,
@@ -15,18 +17,18 @@ export function InvestigationsAccessNotice({
 	organizationId?: string;
 }) {
 	const { isLoading } = useBillingContext();
-	const { fixedPrice } = useInvestigationUsage();
+	const { hasAccess } = useInvestigationUsage();
 	const configQuery = useQuery({
 		...orpc.insightGeneration.getConfig.queryOptions({
 			input: { organizationId },
 		}),
-		enabled: Boolean(organizationId),
+		enabled: Boolean(organizationId) && !isSelfHosted,
 	});
 
 	const hadInvestigationsEnabled = Boolean(configQuery.data?.enabled);
-	const hasAccess = isLoading || fixedPrice;
+	const canInvestigate = isLoading || hasAccess;
 
-	if (hasAccess || !hadInvestigationsEnabled) {
+	if (isSelfHosted || canInvestigate || !hadInvestigationsEnabled) {
 		return null;
 	}
 

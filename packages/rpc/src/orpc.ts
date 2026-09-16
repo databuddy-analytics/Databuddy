@@ -1,3 +1,4 @@
+import { readBooleanEnv } from "@databuddy/env/app";
 import type { OrganizationBusinessContext } from "@databuddy/shared/organization-business-context";
 import {
 	type ApiKeyRow,
@@ -110,6 +111,9 @@ export const createRPCContext = async (
 	let billingResolved = false;
 
 	const getBilling = async (): Promise<BillingOwner | undefined> => {
+		if (readBooleanEnv("SELFHOST")) {
+			return;
+		}
 		if (billingResolved) {
 			return billingCache;
 		}

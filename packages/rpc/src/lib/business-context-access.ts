@@ -1,3 +1,4 @@
+import { readBooleanEnv } from "@databuddy/env/app";
 import { roleHasPermission } from "@databuddy/auth/permissions";
 import { MIN_AGENT_CREDIT_CHECK_BALANCE } from "@databuddy/shared/agent-credits";
 import { z } from "zod";
@@ -36,7 +37,7 @@ export async function businessContextGenerationAccess(
 			process.env.AI_GATEWAY_API_KEY?.trim() &&
 			process.env.FIRECRAWL_API_KEY?.trim()
 		) ||
-		(!process.env.AUTUMN_SECRET_KEY?.trim() &&
+		(!(readBooleanEnv("SELFHOST") || process.env.AUTUMN_SECRET_KEY?.trim()) &&
 			process.env.NODE_ENV === "production")
 	) {
 		return {
@@ -47,7 +48,7 @@ export async function businessContextGenerationAccess(
 		};
 	}
 	// Match generation's local/self-hosted policy when billing is not configured.
-	if (!process.env.AUTUMN_SECRET_KEY?.trim()) {
+	if (readBooleanEnv("SELFHOST") || !process.env.AUTUMN_SECRET_KEY?.trim()) {
 		return {
 			status: "allowed",
 			message: "You can generate a draft from your website.",

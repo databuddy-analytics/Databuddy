@@ -1,5 +1,7 @@
 "use client";
 
+import { isSelfHosted } from "@databuddy/env/public";
+
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect, memo, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
@@ -64,7 +66,7 @@ export function AgentInput() {
 	const [mentions, setMentions] = useAtom(agentMentionsAtom);
 	const { websites } = useWebsitesLight();
 	const bumpCreditShake = useSetAtom(agentCreditShakeNonceAtom);
-	const { balance, unlimited } = useUsageFeature("agent_credits");
+	const { balance, unlimited, canUse } = useUsageFeature("agent_credits");
 	const { customer, isLoading: billingLoading } = useBillingContext();
 	const agentCreditsRow = customer?.balances?.agent_credits;
 	const creditsResolvedForUi = agentCreditsRow != null;
@@ -151,6 +153,13 @@ export function AgentInput() {
 	const handleSubmit = (e?: React.FormEvent) => {
 		e?.preventDefault();
 		if (!input.trim()) {
+			return;
+		}
+		if (isSelfHosted && !canUse) {
+			toast.error("AI is not configured", {
+				description:
+					"Ask your administrator to connect an AI provider to use Databunny.",
+			});
 			return;
 		}
 		if (

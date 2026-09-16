@@ -662,3 +662,33 @@ integration("investigation billing through the native Autumn SDK", () => {
 		).toBe(false);
 	});
 });
+
+it("self-hosted production skips customer lookup, reservations and settlement", async () => {
+	const original = process.env;
+	process.env = {
+		...original,
+		SELFHOST: "true",
+		NODE_ENV: "production",
+		AUTUMN_SECRET_KEY: "stale-selfhost-key",
+	};
+	try {
+		const remote = provider();
+		const billing = await resolveInvestigationBilling(
+			{ organizationId: "synthetic-org" },
+			remote.client
+		);
+		expect(billing).toEqual({ mode: "unconfigured", customerId: null });
+		expect(await canRunInvestigation(billing, remote.client)).toBe(true);
+		const input = { ...operation(), billing };
+		const reservation = await reserveInvestigationCharge(input, remote.client);
+		await settleInvestigationCharge(
+			{ ...input, complete: true },
+			remote.client
+		);
+		await releaseInvestigationCharge(reservation, remote.client);
+		expect(remote.requests).toEqual([]);
+		expect(resolveCustomer).not.toHaveBeenCalled();
+	} finally {
+		process.env = original;
+	}
+});

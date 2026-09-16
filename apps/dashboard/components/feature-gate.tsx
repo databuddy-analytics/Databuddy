@@ -1,5 +1,7 @@
 "use client";
 
+import { isSelfHosted } from "@databuddy/env/public";
+
 import {
 	FEATURE_METADATA,
 	type GatedFeatureId,
@@ -89,6 +91,14 @@ export function FeatureGate({
 
 	if (allowed ?? (feature ? isFeatureEnabled(feature) : false)) {
 		return <>{children}</>;
+	}
+
+	if (isSelfHosted) {
+		return (
+			<p className="p-4 text-muted-foreground text-sm">
+				Ask your administrator to configure AI to use this feature.
+			</p>
+		);
 	}
 
 	const metadata = feature ? FEATURE_METADATA[feature] : undefined;

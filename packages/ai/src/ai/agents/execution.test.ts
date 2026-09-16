@@ -283,3 +283,38 @@ describe("trackAgentUsageAndBill", () => {
 		expect(mockAutumnTrack).not.toHaveBeenCalled();
 	});
 });
+
+it("self-hosted AI keeps provider setup and skips all hosted billing", async () => {
+	const original = process.env;
+	process.env = {
+		...original,
+		SELFHOST: "true",
+		AI_GATEWAY_API_KEY: "synthetic-ai-key",
+	};
+	try {
+		expect(isAgentBillingConfigured()).toBe(false);
+		expect(
+			await resolveAgentBillingCustomerId({
+				organizationId: "synthetic-org",
+				userId: "synthetic-user",
+			})
+		).toBeNull();
+		expect(await getAgentBillingAccess(null)).toEqual({
+			allowed: true,
+			customerId: null,
+		});
+		await trackAgentUsageAndBill({
+			billingCustomerId: "stale-customer",
+			modelId: "openai/gpt-5.6-luna",
+			source: "dashboard",
+			usage: { inputTokens: 1000, outputTokens: 100 },
+		});
+		expect(mockAutumnCheck).not.toHaveBeenCalled();
+		expect(mockAutumnTrack).not.toHaveBeenCalled();
+		expect(mockGetBillingCustomerId).not.toHaveBeenCalled();
+		delete process.env.AI_GATEWAY_API_KEY;
+		await expect(getAgentBillingAccess(null)).rejects.toThrow("configure AI");
+	} finally {
+		process.env = original;
+	}
+});

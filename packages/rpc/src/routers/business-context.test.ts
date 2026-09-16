@@ -524,3 +524,19 @@ test("unsafe or excessive source pages are rejected before billing or generation
 	expect(begins).not.toHaveBeenCalled();
 	expect(generates).not.toHaveBeenCalled();
 });
+
+test("self-hosted production requires AI setup and admin access, without Autumn", async () => {
+	const original = process.env;
+	process.env = { ...original, SELFHOST: "true", NODE_ENV: "production" };
+	try {
+		expect(await access()).toMatchObject({ status: "allowed" });
+		role = "viewer";
+		expect(await access()).toMatchObject({ status: "read-only" });
+		role = "owner";
+		delete process.env.AI_GATEWAY_API_KEY;
+		expect(await access()).toMatchObject({ status: "not-configured" });
+		expect(billingRequests).toEqual([]);
+	} finally {
+		process.env = original;
+	}
+});

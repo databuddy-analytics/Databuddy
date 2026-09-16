@@ -1,5 +1,7 @@
 "use client";
 
+import { isSelfHosted } from "@databuddy/env/public";
+
 import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
 
 import {
@@ -110,6 +112,9 @@ export function BillingProvider({
 	public: isPublic,
 	websiteId,
 }: BillingProviderProps) {
+	if (isSelfHosted && !isPublic) {
+		return <SelfHostedBillingProvider>{children}</SelfHostedBillingProvider>;
+	}
 	if (isPublic || isDashboardE2E) {
 		return <PublicBillingProvider>{children}</PublicBillingProvider>;
 	}
@@ -117,6 +122,34 @@ export function BillingProvider({
 		<AuthenticatedBillingProvider websiteId={websiteId}>
 			{children}
 		</AuthenticatedBillingProvider>
+	);
+}
+
+function SelfHostedBillingProvider({ children }: { children: ReactNode }) {
+	const { data, isLoading, refetch } = useQuery({
+		...orpc.organizations.getBillingContext.queryOptions(),
+		retry: false,
+	});
+	const canUse = (feature: string) =>
+		feature === "events" || data?.aiConfigured === true;
+	const value: BillingContextValue = {
+		...DEMO_BILLING_VALUE,
+		currentPlanId: null,
+		hasActiveSubscription: false,
+		canUserUpgrade: false,
+		isLoading,
+		canUse,
+		getUsage: (feature) => ({
+			allowed: canUse(feature),
+			balance: 0,
+			limit: 0,
+			unlimited: canUse(feature),
+			usagePercent: null,
+		}),
+		refetch,
+	};
+	return (
+		<BillingContext.Provider value={value}>{children}</BillingContext.Provider>
 	);
 }
 
@@ -323,6 +356,9 @@ export function useInvestigationUsage() {
 		...usage,
 		...details,
 		fixedPrice: balance !== undefined,
-		canUse: balance !== undefined && details.canUse,
+		hasAccess: isSelfHosted ? usage.canUse : balance !== undefined,
+		canUse: isSelfHosted
+			? usage.canUse
+			: balance !== undefined && details.canUse,
 	};
 }

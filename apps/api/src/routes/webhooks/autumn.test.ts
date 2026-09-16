@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
+ webhookHandler: undefined as ((context: { headers: Record<string, string>; request: Request; set: { status: number } }) => Promise<unknown>) | undefined,
 	check: vi.fn(async () => ({
 		allowed: true,
 		balance: {
@@ -201,7 +202,8 @@ vi.mock("@databuddy/email", () => ({
 	UsageLimitEmail: vi.fn(() => ({ type: "limit" })),
 }));
 
-vi.mock("@databuddy/env/app", () => ({
+vi.mock("@databuddy/env/app", async (importOriginal) => ({
+ ...await importOriginal<typeof import("@databuddy/env/app")>(),
 	config: { email: { alertsFrom: "alerts@databuddy.cc" } },
 }));
 
@@ -227,7 +229,8 @@ vi.mock("@databuddy/services/billing-lifecycle", () => ({
 
 vi.mock("elysia", () => ({
 	Elysia: class {
-		post() {
+		post(_path: string, handler: typeof state.webhookHandler) {
+			state.webhookHandler = handler;
 			return this;
 		}
 	},
@@ -243,13 +246,16 @@ vi.mock("resend", () => ({
 	},
 }));
 
-vi.mock("svix", () => ({
-	Webhook: class {
-		verify() {
-			return {};
-		}
-	},
-}));
+vi.mock("svix", async (importOriginal) => {
+	const { Webhook } = await importOriginal<typeof import("svix")>();
+	return {
+		Webhook: class extends Webhook {
+			verify() {
+				return {};
+			}
+		},
+	};
+});
 
 vi.mock("../../lib/tracing", () => ({
 	mergeWideEvent: vi.fn(),
@@ -859,4 +865,47 @@ describe("Autumn webhook inbox", () => {
 		});
 		expect(state.send).not.toHaveBeenCalled();
 	});
+});
+
+it("rejects Autumn webhooks in self-hosted instances before verification or billing", async () => {
+	const original = process.env.SELFHOST;
+	process.env.SELFHOST = "true";
+	try {
+		const response = await state.webhookHandler?.({
+			headers: {},
+			request: new Request("https://api.example.com/webhooks/autumn", {
+				method: "POST",
+				body: "{}",
+			}),
+			set: { status: 200 },
+		});
+		expect(response).toBeInstanceOf(Response);
+		expect((response as Response).status).toBe(404);
+		expect(state.storedWebhooks.size).toBe(0);
+		expect(state.check).not.toHaveBeenCalled();
+		expect(state.send).not.toHaveBeenCalled();
+	} finally {
+		if (original === undefined) delete process.env.SELFHOST;
+		else process.env.SELFHOST = original;
+	}
+});
+
+it("ignores malformed webhook secrets only in self-hosted instances", async () => {
+	const original = process.env;
+	process.env = {
+		...original,
+		SELFHOST: "true",
+		AUTUMN_WEBHOOK_SECRET: "synthetic-invalid-test-only",
+	};
+	try {
+		vi.resetModules();
+		await expect(import("./autumn")).resolves.toBeDefined();
+
+		process.env.SELFHOST = "false";
+		vi.resetModules();
+		await expect(import("./autumn")).rejects.toThrow("Base64Coder");
+	} finally {
+		process.env = original;
+		vi.resetModules();
+	}
 });

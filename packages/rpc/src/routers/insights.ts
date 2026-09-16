@@ -1,3 +1,4 @@
+import { readBooleanEnv } from "@databuddy/env/app";
 import { getAutumn } from "../lib/autumn-client";
 import { getBillingCustomerId } from "../utils/billing";
 import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
@@ -562,23 +563,30 @@ export async function appendInvestigationReply(
 	});
 	setAuditOrganization(context, insight.organizationId);
 
+	if (readBooleanEnv("SELFHOST") && !process.env.AI_GATEWAY_API_KEY?.trim()) {
+		throw rpcError.badRequest(
+			"Ask your administrator to configure AI before continuing an investigation."
+		);
+	}
 	const author = replyAuthor(context, authorName);
 	if (parsed.intent === "analysis") {
 		if (!author.authorId) {
 			throw rpcError.badRequest("Start a new analysis from the dashboard.");
 		}
-		const customerId = await getBillingCustomerId(
-			author.authorId,
-			insight.organizationId
-		);
-		const customer = await getAutumn().customers.get({ customerId });
-		if (
-			customer.id !== customerId ||
-			!Object.hasOwn(customer.balances, INVESTIGATION_USAGE.featureId)
-		) {
-			throw rpcError.badRequest(
-				"Activate investigation billing to start a new analysis. Clarifications remain included."
+		if (!readBooleanEnv("SELFHOST")) {
+			const customerId = await getBillingCustomerId(
+				author.authorId,
+				insight.organizationId
 			);
+			const customer = await getAutumn().customers.get({ customerId });
+			if (
+				customer.id !== customerId ||
+				!Object.hasOwn(customer.balances, INVESTIGATION_USAGE.featureId)
+			) {
+				throw rpcError.badRequest(
+					"Activate investigation billing to start a new analysis. Clarifications remain included."
+				);
+			}
 		}
 	}
 	const stored = await db.transaction(async (tx) => {

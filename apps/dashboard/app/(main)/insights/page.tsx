@@ -1,5 +1,7 @@
 "use client";
 
+import { isSelfHosted } from "@databuddy/env/public";
+
 import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -481,13 +483,17 @@ function FirstReview({
 	} else if (!needsRefresh && canRun && status.action === "review") {
 		action = billingLoading ? (
 			<Button disabled loading size="sm">
-				Checking balance
+				{isSelfHosted ? "Checking AI setup" : "Checking balance"}
 			</Button>
 		) : canUseCredits ? (
 			<Button onClick={onRun} size="sm">
 				{state === "ready" ? "Run first review" : "Retry first review"}
 				<ArrowRightIcon className="size-3" />
 			</Button>
+		) : isSelfHosted ? (
+			<p className="text-muted-foreground text-sm">
+				Ask your administrator to configure AI before running a review.
+			</p>
 		) : (
 			<Button asChild size="sm">
 				<Link href="/billing#topup">

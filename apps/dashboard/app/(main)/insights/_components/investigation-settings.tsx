@@ -113,8 +113,8 @@ export function InvestigationSettings({
 	});
 
 	const { isLoading: billingLoading } = useBillingContext();
-	const { fixedPrice } = useInvestigationUsage();
-	const canInvestigate = billingLoading || fixedPrice;
+	const { fixedPrice, hasAccess } = useInvestigationUsage();
+	const canInvestigate = billingLoading || hasAccess;
 	const configReady = Boolean(organizationId && configQuery.isSuccess && form);
 	const analysisPending = isAnalyzing || triggerMutation.isPending;
 	const isBusy = !configReady || saveMutation.isPending || analysisPending;
@@ -150,7 +150,7 @@ export function InvestigationSettings({
 
 				<Sheet.Body className="space-y-6">
 					<FeatureGate
-						allowed={fixedPrice}
+						allowed={hasAccess}
 						description="Databunny runs scheduled investigations on the invite-only Business plan. Request access to turn them on for your organization."
 						requiredPlan={PLAN_IDS.SCALE}
 						title="Automatic investigations are invite only"

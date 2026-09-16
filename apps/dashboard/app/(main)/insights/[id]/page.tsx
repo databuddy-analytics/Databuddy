@@ -1,5 +1,7 @@
 "use client";
 
+import { isSelfHosted } from "@databuddy/env/public";
+
 import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -743,8 +745,9 @@ function ReplyComposer({
 					value={body}
 				/>
 				<p className="text-muted-foreground text-xs">
-					Clarifications are included. New investigations use your allowance,
-					then cost $1 each.
+					{isSelfHosted
+						? "Ask a follow-up question or start a new investigation."
+						: "Clarifications are included. New investigations use your allowance, then cost $1 each."}
 				</p>
 				<div className="flex flex-wrap justify-end gap-2">
 					<Button

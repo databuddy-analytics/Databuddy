@@ -9,3 +9,5 @@ export const publicConfig = createConfig({
 	NEXT_PUBLIC_STATUS_URL: process.env.NEXT_PUBLIC_STATUS_URL,
 	NODE_ENV: process.env.NODE_ENV,
 });
+
+export const isSelfHosted = process.env.NEXT_PUBLIC_SELFHOST === "true";
