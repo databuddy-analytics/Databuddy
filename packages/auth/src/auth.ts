@@ -245,6 +245,55 @@ function notifySlack(
 		});
 }
 
+const DUB_API_KEY = process.env.DUB_API_KEY ?? "";
+
+function trackDubSignUp(user: {
+	id: string;
+	email: string;
+	name: string | null;
+	image?: string | null;
+}): void {
+	const clickId = getAuthAuditContext()?.dubClickId;
+	if (!(DUB_API_KEY && clickId)) {
+		return;
+	}
+
+	fetch("https://api.dub.co/track/lead", {
+		method: "POST",
+		headers: {
+			Authorization: `Bearer ${DUB_API_KEY}`,
+			"Content-Type": "application/json",
+		},
+		body: JSON.stringify({
+			clickId,
+			eventName: "Sign Up",
+			customerExternalId: user.id,
+			customerEmail: user.email,
+			customerName: user.name ?? undefined,
+			customerAvatar: user.image ?? undefined,
+		}),
+	})
+		.then(async (response) => {
+			if (!response.ok) {
+				log.warn({
+					service: "auth",
+					dub_event: "lead",
+					auth_user_id: user.id,
+					http_status: response.status,
+					error: await response.text().catch(() => ""),
+				});
+			}
+		})
+		.catch((error) => {
+			log.warn({
+				service: "auth",
+				dub_event: "lead",
+				auth_user_id: user.id,
+				error: error instanceof Error ? error.message : String(error),
+			});
+		});
+}
+
 function notifySignUpSlackAction(input: {
 	userId: string;
 	email: string;
@@ -458,6 +507,7 @@ export const auth = betterAuth({
 						name: createdUser.name,
 						organizationId: orgId,
 					});
+					trackDubSignUp(createdUser);
 				},
 			},
 		},
