@@ -109,6 +109,41 @@ describe("producer delivery guarantees", () => {
 		expect(stats).toMatchObject({ inFlight: 0, sent: 1 });
 	});
 
+	test("self-hosting ignores a configured broker and waits for direct persistence", async () => {
+		let resolveInsert: (() => void) | undefined;
+		const insert = vi.fn(
+			() =>
+				new Promise<void>((resolve) => {
+					resolveInsert = resolve;
+				})
+		);
+		const kafka = {
+			connect: vi.fn(),
+			send: vi.fn(),
+		} as unknown as Producer;
+		const effects = await makeEffects(
+			insert,
+			{ broker: "redpanda.test:9092" },
+			kafka
+		);
+		let settled = false;
+		const delivery = Effect.runPromise(
+			effects.sendOne("analytics-events", event("event_selfhost"))
+		).then(() => {
+			settled = true;
+		});
+		await vi.waitFor(() => expect(insert).toHaveBeenCalledOnce());
+		expect(settled).toBe(false);
+		expect(kafka.connect).not.toHaveBeenCalled();
+		expect(kafka.send).not.toHaveBeenCalled();
+		resolveInsert?.();
+		await delivery;
+		expect(await Effect.runPromise(effects.stats)).toMatchObject({
+			kafkaEnabled: false,
+			sent: 1,
+		});
+	});
+
 	test("keeps the ClickHouse deduplication token stable across an event retry", async () => {
 		const insert = vi.fn(() => Promise.resolve());
 		const effects = await makeEffects(insert);
