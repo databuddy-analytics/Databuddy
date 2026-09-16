@@ -52,21 +52,46 @@ export function BusinessContextSettings({
 			refreshAccess();
 		}
 	}, [canEdit, generationStatus, refreshAccess]);
+	const mutationOptions = {
+		meta: mutationMeta,
+		onSuccess: async (
+			result: Awaited<ReturnType<typeof orpc.businessContext.get.call>>,
+			{ organizationId }: Parameters<typeof orpc.businessContext.get.call>[0]
+		) => {
+			const queryKey = orpc.businessContext.get.queryKey({
+				input: { organizationId },
+			});
+			await queryClient.cancelQueries({ queryKey });
+			queryClient.setQueryData(queryKey, result);
+		},
+	};
+	const editMutationOptions = {
+		...mutationOptions,
+		onError: (
+			_error: Error,
+			{ organizationId }: Parameters<typeof orpc.businessContext.get.call>[0]
+		) =>
+			queryClient.invalidateQueries({
+				queryKey: orpc.businessContext.get.queryKey({
+					input: { organizationId },
+				}),
+			}),
+	};
 	const save = useMutation({
 		...orpc.businessContext.save.mutationOptions(),
-		meta: mutationMeta,
+		...editMutationOptions,
 	});
 	const generate = useMutation({
 		...orpc.businessContext.generate.mutationOptions(),
-		meta: mutationMeta,
+		...mutationOptions,
 	});
 	const cancel = useMutation({
 		...orpc.businessContext.cancel.mutationOptions(),
-		meta: mutationMeta,
+		...mutationOptions,
 	});
 	const restore = useMutation({
 		...orpc.businessContext.restore.mutationOptions(),
-		meta: mutationMeta,
+		...editMutationOptions,
 	});
 
 	return (
@@ -114,60 +139,27 @@ export function BusinessContextSettings({
 					}
 					onRefreshAccess={() => access.refetch()}
 					onCancel={async (generationId) => {
-						const result = await cancel.mutateAsync({
+						await cancel.mutateAsync({
 							organizationId,
 							generationId,
 						});
-						await queryClient.cancelQueries({
-							queryKey: queryOptions.queryKey,
-						});
-						queryClient.setQueryData(queryOptions.queryKey, result);
 					}}
 					onRestore={async (restoreRevision, revision) => {
-						try {
-							const result = await restore.mutateAsync({
-								organizationId,
-								restoreRevision,
-								revision,
-							});
-							await queryClient.cancelQueries({
-								queryKey: queryOptions.queryKey,
-							});
-							queryClient.setQueryData(queryOptions.queryKey, result);
-						} catch (error) {
-							await queryClient.invalidateQueries({
-								queryKey: queryOptions.queryKey,
-							});
-							throw error;
-						}
+						await restore.mutateAsync({
+							organizationId,
+							restoreRevision,
+							revision,
+						});
 					}}
 					onGenerate={async (websiteId, sourceUrls) => {
-						const result = await generate.mutateAsync({
+						await generate.mutateAsync({
 							organizationId,
 							websiteId,
 							sourceUrls,
 						});
-						await queryClient.cancelQueries({
-							queryKey: queryOptions.queryKey,
-						});
-						queryClient.setQueryData(queryOptions.queryKey, result);
 					}}
 					onSave={async (draft) => {
-						try {
-							const result = await save.mutateAsync({
-								organizationId,
-								...draft,
-							});
-							await queryClient.cancelQueries({
-								queryKey: queryOptions.queryKey,
-							});
-							queryClient.setQueryData(queryOptions.queryKey, result);
-						} catch (error) {
-							await queryClient.invalidateQueries({
-								queryKey: queryOptions.queryKey,
-							});
-							throw error;
-						}
+						await save.mutateAsync({ organizationId, ...draft });
 					}}
 				/>
 			)}

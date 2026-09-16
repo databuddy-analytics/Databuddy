@@ -1,4 +1,7 @@
-import type { BusinessContextSettings } from "@databuddy/shared/organization-business-context";
+import type {
+	BusinessContextSettings,
+	BusinessTeamContext,
+} from "@databuddy/shared/organization-business-context";
 import type { Page } from "@playwright/test";
 import { expect, test } from "@/test/e2e/fixtures";
 
@@ -141,6 +144,163 @@ function settings(): BusinessContextSettings {
 		generation: null,
 	};
 }
+
+test("opens an empty editable brief ready for typing", {
+	tag: "@regression",
+}, async ({ authenticatedPage: page }) => {
+	await page.route("**/rpc/businessContext/get", (route) =>
+		route.fulfill({ json: { json: { ...settings(), profile: null } } })
+	);
+	await page.goto(path);
+	await expect(
+		page.getByRole("tab", { name: "Edit", exact: true })
+	).toHaveAttribute("aria-selected", "true");
+	const editor = page.getByRole("textbox", {
+		name: "Business brief",
+		exact: true,
+	});
+	await expect(editor).toBeEditable();
+	await expect(
+		page.getByRole("button", { name: "Write a brief", exact: true })
+	).toBeHidden();
+	await expect(
+		page.getByRole("button", { name: "Save changes", exact: true })
+	).toBeDisabled();
+	await editor.fill("A brief typed without an extra setup step.");
+	await expect(
+		page.getByRole("button", { name: "Save changes", exact: true })
+	).toBeEnabled();
+});
+
+test("saves distinct team fields even when their formatted prose matches", {
+	tag: "@regression",
+}, async ({ authenticatedPage: page }) => {
+	let current = settings();
+	if (!current.profile) {
+		throw new Error("Expected a saved business profile in the fixture");
+	}
+	current.profile.teamContext = {
+		priority: "Improve retention\n\nSuccess definition: Weekly bookings",
+		successDefinition: "",
+		exclusions: "",
+	};
+	const updatedTeam = {
+		priority: "Improve retention",
+		successDefinition: "Weekly bookings",
+		exclusions: "",
+	};
+	const saved: BusinessTeamContext[] = [];
+	await page.route("**/rpc/businessContext/**", async (route) => {
+		const method = new URL(route.request().url()).pathname.split("/").at(-1);
+		if (method === "generationAccess") {
+			await route.fallback();
+			return;
+		}
+		if (method === "save" && current.profile) {
+			const input = route.request().postDataJSON().json;
+			saved.push(input.teamContext);
+			current = {
+				...current,
+				profile: {
+					...current.profile,
+					teamContext: input.teamContext,
+					revision: 2,
+				},
+			};
+		}
+		await route.fulfill({ json: { json: current } });
+	});
+	await page.goto(path);
+	const priority = page.getByRole("textbox", {
+		name: "Current priority",
+		exact: true,
+	});
+	const success = page.getByRole("textbox", {
+		name: "How you define success",
+		exact: true,
+	});
+	await priority.fill(updatedTeam.priority);
+	await success.fill(updatedTeam.successDefinition);
+	const save = page.getByRole("button", { name: "Save changes", exact: true });
+	await expect(save).toBeEnabled();
+	await save.click();
+	await expect(page.getByText("Changes saved", { exact: true })).toBeVisible();
+	expect(saved).toEqual([updatedTeam]);
+	await page.reload();
+	await expect(priority).toHaveValue(updatedTeam.priority);
+	await expect(success).toHaveValue(updatedTeam.successDefinition);
+	await expect(save).toBeDisabled();
+});
+
+test("restores the submitted website and pages when retrying a failed generation", {
+	tag: "@regression",
+}, async ({ authenticatedPage: page }) => {
+	const sourceUrls = [
+		"https://second.example.net/pricing",
+		"https://second.example.net/docs",
+	];
+	let current: BusinessContextSettings = {
+		...settings(),
+		websites: [
+			...settings().websites,
+			{
+				id: "second-site",
+				name: "Second studio",
+				domain: "second.example.net",
+			},
+		],
+		generation: {
+			id: "11111111-1111-4111-8111-111111111111",
+			websiteId: "second-site",
+			domain: "second.example.net",
+			sourceUrls,
+			requestedBy: "example-admin",
+			requestedAt: "2026-09-08T12:00:00Z",
+			baseRevision: 1,
+			status: "failed",
+			draft: null,
+			error:
+				"Generation took too long. Try again; your saved context is unchanged.",
+		},
+	};
+	const requests: { websiteId: string; sourceUrls: string[] }[] = [];
+	await page.route("**/rpc/businessContext/**", async (route) => {
+		const method = new URL(route.request().url()).pathname.split("/").at(-1);
+		if (method === "generationAccess") {
+			await route.fallback();
+			return;
+		}
+		if (method === "generate" && current.generation) {
+			const input = route.request().postDataJSON().json;
+			requests.push({
+				websiteId: input.websiteId,
+				sourceUrls: input.sourceUrls,
+			});
+			current = {
+				...current,
+				generation: { ...current.generation, status: "queued", error: null },
+			};
+		}
+		await route.fulfill({ json: { json: current } });
+	});
+	await page.goto(path);
+	const sources = page.getByRole("textbox", { name: /Additional pages/ });
+	await expect(sources).toHaveValue(sourceUrls.join("\n"));
+	await expect(
+		page
+			.getByTestId("business-context-research")
+			.getByRole("button", { name: "Source website: Second studio", exact: true })
+	).toBeVisible();
+	await page.reload();
+	await expect(sources).toHaveValue(sourceUrls.join("\n"));
+	await page
+		.getByRole("button", { name: "Regenerate with AI", exact: true })
+		.click();
+	await expect(
+		page.getByRole("button", { name: "Cancel generation", exact: true })
+	).toBeVisible();
+	expect(requests).toEqual([{ websiteId: "second-site", sourceUrls }]);
+});
 
 for (const viewport of contextViewports) {
 	for (const access of [

@@ -113,40 +113,41 @@ export function BusinessContextSources({
 	}
 	return (
 		<ul className="divide-y divide-border">
-			{links.map(({ url, title, fetchedAt }) => (
-				<li key={url} className="py-3 first:pt-0 last:pb-0">
-					<a
-						href={url}
-						target="_blank"
-						rel="noopener noreferrer"
-						className="group flex min-w-0 items-start gap-2 text-xs hover:underline"
-					>
-						<FileTextIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-						<span className="min-w-0 flex-1">
-							<span className="block break-words font-medium">
-								{title || new URL(url).hostname}
+			{links.map(({ url, title, fetchedAt }) => {
+				const source = new URL(url);
+				return (
+					<li key={url} className="py-3 first:pt-0 last:pb-0">
+						<a
+							href={url}
+							target="_blank"
+							rel="noopener noreferrer"
+							className="group flex min-w-0 items-start gap-2 text-xs hover:underline"
+						>
+							<FileTextIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+							<span className="min-w-0 flex-1">
+								<span className="block break-words font-medium">
+									{title || source.hostname}
+								</span>
+								<span className="mt-1 block break-all text-muted-foreground">
+									{source.hostname}
+									{source.pathname === "/" ? "" : source.pathname}
+								</span>
 							</span>
-							<span className="mt-1 block break-all text-muted-foreground">
-								{new URL(url).hostname}
-								{new URL(url).pathname === "/" ? "" : new URL(url).pathname}
-							</span>
-						</span>
-						<ArrowSquareOutIcon className="mt-0.5 size-3 shrink-0 text-muted-foreground" />
-					</a>
-					<p className="mt-1 pl-6 text-muted-foreground text-xs">
-						{fetchedAt ? (
-							<time
-								dateTime={fetchedAt}
-								title={dayjs(fetchedAt).format("MMM D, YYYY [at] h:mm A")}
-							>
-								Read {dayjs(fetchedAt).fromNow()}
-							</time>
-						) : (
-							"Read time unavailable"
+							<ArrowSquareOutIcon className="mt-0.5 size-3 shrink-0 text-muted-foreground" />
+						</a>
+						{fetchedAt && (
+							<p className="mt-1 pl-6 text-muted-foreground text-xs">
+								<time
+									dateTime={fetchedAt}
+									title={dayjs(fetchedAt).format("MMM D, YYYY [at] h:mm A")}
+								>
+									Read {dayjs(fetchedAt).fromNow()}
+								</time>
+							</p>
 						)}
-					</p>
-				</li>
-			))}
+					</li>
+				);
+			})}
 		</ul>
 	);
 }
