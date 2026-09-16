@@ -24,7 +24,7 @@ You'll need Git and Docker Compose; Bun and Node are only needed for
 git clone https://github.com/databuddy-analytics/Databuddy.git
 cd Databuddy
 git checkout YOUR_RELEASE_TAG
-cp .env.example .env
+cp selfhost.env.example .env
 ```
 
 In `.env`, set:
@@ -32,14 +32,9 @@ In `.env`, set:
 - `IMAGE_TAG` to the release you checked out.
 - `POSTGRES_PASSWORD`, `CLICKHOUSE_PASSWORD`, and `REDIS_PASSWORD` to URL-safe passwords.
 - `BETTER_AUTH_SECRET` and `DATABUDDY_ENCRYPTION_KEY` to separate random secrets.
-- Your public URLs. For a local instance, use:
 
-| Setting | Local value |
-| --- | --- |
-| `DASHBOARD_URL` | `http://localhost:3000` |
-| `API_URL` | `http://localhost:3001` |
-| `BASKET_URL` | `http://localhost:4000` |
-| `LINKS_URL` (short links) | `http://localhost:2500` |
+The template includes local URLs. Compose supplies database connections,
+`SELFHOST`, and browser settings; you don't need to repeat them in `.env`.
 
 Generate each password and secret separately with `openssl rand -hex 32`.
 Then start Databuddy:
@@ -56,8 +51,8 @@ Open your dashboard URL, create an account, and add your first website.
 The stack includes the dashboard, API, Basket event collector, and short-link
 service (port `2500`). Ports are configurable in `docker-compose.selfhost.yml`.
 
-For a public instance, use HTTPS for all public URLs. Keep the dashboard and API
-on the same parent domain. Set `BETTER_AUTH_COOKIE_DOMAIN`, such as `.example.com`,
+For a public instance, replace the template's local URLs with your HTTPS URLs.
+Keep the dashboard and API on the same parent domain. Set `BETTER_AUTH_COOKIE_DOMAIN`, such as `.example.com`,
 to share login across subdomains. Leave it empty for localhost. Rebuild the
 dashboard after changing public URLs; they're part of its browser bundle.
 
