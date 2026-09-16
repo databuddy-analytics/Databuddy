@@ -176,7 +176,10 @@ test("saves distinct team fields even when their formatted prose matches", {
 	tag: "@regression",
 }, async ({ authenticatedPage: page }) => {
 	let current = settings();
-	current.profile!.teamContext = {
+	if (!current.profile) {
+		throw new Error("Expected a saved business profile in the fixture");
+	}
+	current.profile.teamContext = {
 		priority: "Improve retention\n\nSuccess definition: Weekly bookings",
 		successDefinition: "",
 		exclusions: "",
@@ -193,13 +196,13 @@ test("saves distinct team fields even when their formatted prose matches", {
 			await route.fallback();
 			return;
 		}
-		if (method === "save") {
+		if (method === "save" && current.profile) {
 			const input = route.request().postDataJSON().json;
 			saved.push(input.teamContext);
 			current = {
 				...current,
 				profile: {
-					...current.profile!,
+					...current.profile,
 					teamContext: input.teamContext,
 					revision: 2,
 				},
@@ -267,7 +270,7 @@ test("restores the submitted website and pages when retrying a failed generation
 			await route.fallback();
 			return;
 		}
-		if (method === "generate") {
+		if (method === "generate" && current.generation) {
 			const input = route.request().postDataJSON().json;
 			requests.push({
 				websiteId: input.websiteId,
@@ -275,7 +278,7 @@ test("restores the submitted website and pages when retrying a failed generation
 			});
 			current = {
 				...current,
-				generation: { ...current.generation!, status: "queued", error: null },
+				generation: { ...current.generation, status: "queued", error: null },
 			};
 		}
 		await route.fulfill({ json: { json: current } });
