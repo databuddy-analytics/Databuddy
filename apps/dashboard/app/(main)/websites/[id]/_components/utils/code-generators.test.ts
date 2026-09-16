@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { publicConfig } from "@databuddy/env/public";
 import {
+	generateAgentPrompt,
 	generateNodeCode,
 	generateNpmCode,
 	generateScriptTag,
@@ -17,6 +18,14 @@ describe("recommended tracking snippets", () => {
 				"https://events.example.com",
 			]) {
 				publicConfig.urls.basket = url;
+				const prompt = generateAgentPrompt("example-client-id");
+				expect(prompt).toContain(`data-api-url="${url}"`);
+				expect(prompt).toContain(`apiUrl="${url}"`);
+				expect(prompt).toContain(`api-url="${url}"`);
+				expect(prompt).toContain(`${new URL(url).origin} in connect-src`);
+				if (url !== "https://basket.databuddy.cc") {
+					expect(prompt).not.toContain("basket.databuddy.cc");
+				}
 				expect(
 					generateScriptTag("example-client-id", RECOMMENDED_DEFAULTS)
 				).toContain(`data-api-url="${url}"`);
