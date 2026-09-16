@@ -1,12 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import {
-	DATABUNNY_CHAT,
 	getInvestigationBillingFeatureId,
 	INVESTIGATION_ALLOWANCES,
 	INVESTIGATION_USAGE,
 } from "@databuddy/shared/billing";
 import {
-	credits_booster, credits_topup, databunny_chat, free, hobby, intelligence, intelligence_scale,
+	credits_booster, credits_topup, free, hobby, intelligence, intelligence_scale,
 	investigations_topup, investigation_runs, pro, pulse_hobby, pulse_pro, scale,
 } from "../autumn.config";
 import { calculateTopupCost, TOPUP_FEATURE_ID, TOPUP_TIERS } from "./topup-math";
@@ -79,11 +78,21 @@ for (const [quantity, valid, authorized] of [
 		}]);
 	});
 
-	test("new plans include chat without credit grants or prices", () => {
-		expect(databunny_chat).toEqual({ id: DATABUNNY_CHAT.featureId, name: DATABUNNY_CHAT.name, type: "boolean" });
-		for (const plan of [free, hobby, pro, intelligence, intelligence_scale]) {
-			expect(plan.items?.filter((item) => item.featureId === "agent_credits")).toEqual([]);
-			expect(plan.items?.filter((item) => item.featureId === DATABUNNY_CHAT.featureId)).toEqual([{ featureId: DATABUNNY_CHAT.featureId }]);
+	test("every plan grants agent credits and none include chat as an entitlement", () => {
+		const allowances: [{ items?: { featureId?: string; included?: number }[] }, number[]][] = [
+			[free, [10]],
+			[hobby, [20, 1]],
+			[pro, [350, 5]],
+			[intelligence, [1500]],
+			[intelligence_scale, [5000]],
+		];
+		for (const [plan, included] of allowances) {
+			expect(
+				plan.items
+					?.filter((item) => item.featureId === "agent_credits")
+					.map((item) => item.included)
+			).toEqual(included);
+			expect(plan.items?.some((item) => item.featureId === "databunny_chat")).toBe(false);
 		}
 	});
 
@@ -120,7 +129,7 @@ for (const [quantity, valid, authorized] of [
 });
 
 describe("investigation billing mode", () => {
-	test("zero fixed balance remains fixed instead of falling back to available legacy credits", () => {
+	test("zero fixed balance remains fixed instead of falling back to available AI credits", () => {
 		expect(getInvestigationBillingFeatureId({ investigation_runs: { remaining: 0 }, agent_credits: { remaining: 500 } })).toBe("investigation_runs");
 		expect(getInvestigationBillingFeatureId({ investigation_runs: { remaining: 10 } })).toBe("investigation_runs");
 	});

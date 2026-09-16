@@ -1,7 +1,7 @@
 import { AGENT_CREDIT_SCHEMA } from "./lib/credit-schema";
 import { TOPUP_MAX_QUANTITY, TOPUP_TIERS } from "./lib/topup-math";
 import {
-	DATABUNNY_CHAT,
+	AGENT_CREDIT_ALLOWANCES,
 	DATABUNNY_USAGE,
 	INVESTIGATION_ALLOWANCES,
 	INVESTIGATION_USAGE,
@@ -76,12 +76,6 @@ export const investigation_runs = feature({
 	consumable: true,
 });
 
-export const databunny_chat = feature({
-	id: DATABUNNY_CHAT.featureId,
-	name: DATABUNNY_CHAT.name,
-	type: "boolean",
-});
-
 const EVENT_OVERAGE_TIERS = [
 	{ to: 2_000_000, amount: 0.000_035 },
 	{ to: 10_000_000, amount: 0.000_03 },
@@ -124,7 +118,13 @@ export const free = plan({
 				interval: "month",
 			},
 		}),
-		item({ featureId: databunny_chat.id }),
+		item({
+			featureId: agent_credits.id,
+			included: AGENT_CREDIT_ALLOWANCES.free.month,
+			reset: {
+				interval: "month",
+			},
+		}),
 	],
 });
 
@@ -160,7 +160,20 @@ export const hobby = plan({
 				interval: "month",
 			},
 		}),
-		item({ featureId: databunny_chat.id }),
+		item({
+			featureId: agent_credits.id,
+			included: AGENT_CREDIT_ALLOWANCES.hobby.month,
+			reset: {
+				interval: "month",
+			},
+		}),
+		item({
+			featureId: agent_credits.id,
+			included: AGENT_CREDIT_ALLOWANCES.hobby.day,
+			reset: {
+				interval: "day",
+			},
+		}),
 	],
 });
 
@@ -180,7 +193,20 @@ export const pro = plan({
 			reset: { interval: "one_off" },
 		}),
 		eventsOverageItem(1_000_000),
-		item({ featureId: databunny_chat.id }),
+		item({
+			featureId: agent_credits.id,
+			included: AGENT_CREDIT_ALLOWANCES.pro.month,
+			reset: {
+				interval: "month",
+			},
+		}),
+		item({
+			featureId: agent_credits.id,
+			included: AGENT_CREDIT_ALLOWANCES.pro.day,
+			reset: {
+				interval: "day",
+			},
+		}),
 	],
 });
 
@@ -218,7 +244,7 @@ export const scale = plan({
 		}),
 		item({
 			featureId: agent_credits.id,
-			included: 500,
+			included: AGENT_CREDIT_ALLOWANCES.scale.month,
 			reset: {
 				interval: "month",
 			},
@@ -261,7 +287,13 @@ export const intelligence = plan({
 			},
 		}),
 		eventsOverageItem(2_000_000),
-		item({ featureId: databunny_chat.id }),
+		item({
+			featureId: agent_credits.id,
+			included: AGENT_CREDIT_ALLOWANCES.intelligence.month,
+			reset: {
+				interval: "month",
+			},
+		}),
 	],
 });
 
@@ -288,7 +320,13 @@ export const intelligence_scale = plan({
 			},
 		}),
 		eventsOverageItem(10_000_000),
-		item({ featureId: databunny_chat.id }),
+		item({
+			featureId: agent_credits.id,
+			included: AGENT_CREDIT_ALLOWANCES.intelligence_scale.month,
+			reset: {
+				interval: "month",
+			},
+		}),
 	],
 });
 
@@ -349,8 +387,7 @@ export const pulse_pro = plan({
 export const credits_booster = plan({
 	id: "credits_booster",
 	name: "Monthly AI credits",
-	description:
-		"200 additional AI credits every month for chat and legacy billing terms.",
+	description: "200 additional AI credits every month for Databunny chat.",
 	addOn: true,
 	autoEnable: false,
 	price: {
@@ -382,8 +419,7 @@ export const credits_booster = plan({
 export const credits_topup = plan({
 	id: "credits_topup",
 	name: "Additional AI credits",
-	description:
-		"Prepaid AI credits for chat and legacy billing terms; available until used.",
+	description: "Prepaid AI credits for Databunny chat; available until used.",
 	addOn: true,
 	autoEnable: false,
 	items: [

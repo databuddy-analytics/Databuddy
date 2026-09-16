@@ -79,7 +79,7 @@ mock.module("../../lib/ai-logger", () => ({
 	getAILogger: () => ({ wrap: (model: LanguageModelV3) => model }),
 }));
 mock.module("../../lib/tracing", () => ({ mergeWideEvent: () => {} }));
-const billing = mock(async () => ({ allowed: true, customerId: "synthetic-owner", includedChat: true }));
+const billing = mock(async () => ({ allowed: true, customerId: "synthetic-owner" }));
 const billedUsage = mock(async (_input: Record<string, unknown>) => {});
 mock.module("../agents/execution", () => ({
 	getAgentBillingAccess: billing,
@@ -179,7 +179,7 @@ beforeEach(() => {
 		profile,
 		generation: null,
 	});
-	billing.mockReset().mockResolvedValue({ allowed: true, customerId: "synthetic-owner", includedChat: true });
+	billing.mockReset().mockResolvedValue({ allowed: true, customerId: "synthetic-owner" });
 	billedUsage.mockClear();
 	read.mockReset();
 	read.mockImplementation(async () => saved);
@@ -693,7 +693,7 @@ describe("shared Slack/MCP agent billing before model work", () => {
 		expect(billing).toHaveBeenCalledTimes(3);
 		expect(billedUsage).toHaveBeenCalledTimes(3);
 		for (const [call] of billedUsage.mock.calls) {
-			expect(call).toMatchObject({ source, billingCustomerId: "synthetic-owner", billingAccess: { allowed: true, customerId: "synthetic-owner", includedChat: true } });
+			expect(call).toMatchObject({ source, billingCustomerId: "synthetic-owner", billingAccess: { allowed: true, customerId: "synthetic-owner" } });
 		}
 	});
 	it.each(["slack", "mcp"] as const)("stops %s before its model when entitlement lookup fails", async (source) => {
@@ -720,7 +720,7 @@ describe("shared conversational capability selection", () => {
 		}
 	});
 	it("stops before the model when the native billing allowance is exhausted", async () => {
-		billing.mockResolvedValueOnce({ allowed: false, customerId: "synthetic-owner", includedChat: false });
+		billing.mockResolvedValueOnce({ allowed: false, customerId: "synthetic-owner" });
 		await expect(askDatabuddyAgent({ ...options, billingMode: "bill" })).rejects.toThrow("allowance");
 		expect(model.doGenerateCalls).toHaveLength(0);
 		expect(billedUsage).not.toHaveBeenCalled();

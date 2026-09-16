@@ -1,5 +1,4 @@
 import { afterAll, beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
-import { DATABUNNY_CHAT } from "@databuddy/shared/billing";
 
 const originalSecret = process.env.AUTUMN_SECRET_KEY;
 const customerId = "synthetic-billing-owner";
@@ -7,7 +6,6 @@ const requests: { path: string; body: Record<string, unknown> }[] = [];
 const events = mock(() => {});
 const errors = mock(() => {});
 const wide = mock((_: Record<string, unknown>) => {});
-let flags: Record<string, unknown> = {};
 let responseCustomerId = customerId;
 let customerStatus = 200;
 let checkStatus = 200;
@@ -27,7 +25,7 @@ const transport = spyOn(globalThis, "fetch").mockImplementation(async (input, in
 			id: responseCustomerId, name: null, email: null, created_at: 0,
 			fingerprint: null, stripe_id: null, env: "sandbox", metadata: {},
 			send_email_receipts: false, billing_controls: {}, subscriptions: [], purchases: [],
-			balances: {}, flags,
+			balances: {}, flags: {},
 		}, { status: customerStatus });
 	}
 	if (url.pathname.endsWith("balances.check")) {
@@ -50,7 +48,6 @@ mock.module("../../lib/tracing", () => ({ captureError: errors, mergeWideEvent: 
 
 const { getAgentBillingAccess, trackAgentUsageAndBill } = await import("./execution");
 const usage = { inputTokens: 1000, outputTokens: 100 };
-const included = { id: "synthetic-flag", feature_id: DATABUNNY_CHAT.featureId, plan_id: "synthetic-plan", expires_at: null };
 
 beforeEach(() => {
 	process.env.AUTUMN_SECRET_KEY = "synthetic-native-transport-only";
@@ -58,7 +55,6 @@ beforeEach(() => {
 	events.mockClear();
 	errors.mockClear();
 	wide.mockClear();
-	flags = {};
 	responseCustomerId = customerId;
 	customerStatus = 200;
 	checkStatus = 200;
@@ -72,28 +68,10 @@ afterAll(() => {
 	else process.env.AUTUMN_SECRET_KEY = originalSecret;
 });
 
-describe("included chat at the native Autumn boundary", () => {
-	it.each(["dashboard", "slack", "mcp"] as const)("includes %s chat and pins permission while preserving cost telemetry", async (source) => {
-		flags = { [DATABUNNY_CHAT.featureId]: included };
+describe("agent credits at the native Autumn boundary", () => {
+	it("checks credits once and debits once", async () => {
 		const billingAccess = await getAgentBillingAccess(customerId);
-		expect(billingAccess).toEqual({ allowed: true, customerId, includedChat: true });
-		// Completion uses the decision made before the model, even after expiry/removal.
-		flags = {};
-		const summary = await trackAgentUsageAndBill({ billingCustomerId: customerId, billingAccess, modelId: "openai/gpt-5.6-luna", source, usage });
-		expect(summary.cost_total_usd).toBeGreaterThan(0);
-		expect(events).toHaveBeenCalledTimes(1);
-		expect(wide).toHaveBeenCalledWith(summary);
-		expect(requests.map((request) => request.path)).toEqual(["/v1/customers.get"]);
-	});
-
-	it.each([
-		{ name: "absent flag", value: {} },
-		{ name: "expired flag", value: { [DATABUNNY_CHAT.featureId]: { ...included, expires_at: 1 } } },
-		{ name: "wrong feature identity", value: { [DATABUNNY_CHAT.featureId]: { ...included, feature_id: "another-feature" } } },
-	])("keeps legacy credit checks and one debit with $name", async ({ value }) => {
-		flags = value;
-		const billingAccess = await getAgentBillingAccess(customerId);
-		expect(billingAccess).toEqual({ allowed: true, customerId, includedChat: false });
+		expect(billingAccess).toEqual({ allowed: true, customerId });
 		await trackAgentUsageAndBill({ billingCustomerId: customerId, billingAccess, modelId: "openai/gpt-5.6-luna", source: "dashboard", usage });
 		expect(requests.map((request) => request.path)).toEqual(["/v1/customers.get", "/v1/balances.check", "/v1/balances.track"]);
 		expect(requests[1]?.body).toMatchObject({ customer_id: customerId, feature_id: "agent_credits", required_balance: 0.01 });
@@ -101,25 +79,14 @@ describe("included chat at the native Autumn boundary", () => {
 		expect(errors).not.toHaveBeenCalled();
 	});
 
-	it("never exempts legacy investigation usage because chat is included", async () => {
-		flags = { [DATABUNNY_CHAT.featureId]: included };
-		const billingAccess = await getAgentBillingAccess(customerId);
-		await trackAgentUsageAndBill({ billingCustomerId: customerId, billingAccess, modelId: "openai/gpt-5.6-luna", source: "insights", usage, idempotencyKey: "synthetic-legacy-investigation" });
-		expect(requests.map((request) => request.path)).toEqual(["/v1/customers.get", "/v1/balances.track"]);
-		expect(requests[1]?.body.feature_id).toBe("agent_credits");
-		expect(errors).not.toHaveBeenCalled();
-		expect(events).toHaveBeenCalledTimes(1);
-	});
-
-	it("denies exhausted legacy credits and rejects a missing billing owner", async () => {
+	it("denies exhausted credits and rejects a missing billing owner", async () => {
 		allowed = false;
 		expect((await getAgentBillingAccess(customerId)).allowed).toBe(false);
 		await expect(getAgentBillingAccess(null)).rejects.toThrow("billing customer is unavailable");
 		expect(requests).toHaveLength(2);
 	});
 
-	it.each([202, 500])("fails closed on native customer status %s even with a valid included flag", async (status) => {
-		flags = { [DATABUNNY_CHAT.featureId]: included };
+	it.each([202, 500])("fails closed on native customer status %s", async (status) => {
 		customerStatus = status;
 		await expect(getAgentBillingAccess(customerId)).rejects.toThrow();
 		expect(requests).toHaveLength(1);
@@ -131,14 +98,13 @@ describe("included chat at the native Autumn boundary", () => {
 		expect(requests).toHaveLength(2);
 	});
 
-	it("rejects a customer identity mismatch before interpreting its flag", async () => {
-		flags = { [DATABUNNY_CHAT.featureId]: included };
+	it("rejects a customer identity mismatch", async () => {
 		responseCustomerId = "another-customer";
 		await expect(getAgentBillingAccess(customerId)).rejects.toThrow("customer could not be verified");
 		expect(requests).toHaveLength(1);
 	});
 
-	it("does not use an unrelated balance as legacy credit permission", async () => {
+	it("does not use an unrelated balance as credit permission", async () => {
 		balanceFeature = "investigation_runs";
 		await expect(getAgentBillingAccess(customerId)).rejects.toThrow("credit balance could not be verified");
 	});
@@ -151,7 +117,7 @@ describe("included chat at the native Autumn boundary", () => {
 	});
 
 	it("rejects pinned permission belonging to another customer", async () => {
-		await expect(trackAgentUsageAndBill({ billingCustomerId: customerId, billingAccess: { allowed: true, customerId: "another-customer", includedChat: true }, modelId: "openai/gpt-5.6-luna", source: "slack", usage })).rejects.toThrow("another customer");
+		await expect(trackAgentUsageAndBill({ billingCustomerId: customerId, billingAccess: { allowed: true, customerId: "another-customer" }, modelId: "openai/gpt-5.6-luna", source: "slack", usage })).rejects.toThrow("another customer");
 		expect(events).toHaveBeenCalledTimes(1);
 		expect(requests).toHaveLength(0);
 	});

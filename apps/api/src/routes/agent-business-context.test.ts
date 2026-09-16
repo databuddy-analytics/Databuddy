@@ -197,7 +197,7 @@ async function chat(input: Record<string, unknown> = {}) {
 }
 
 beforeEach(() => {
-	state.billing.mockReset().mockResolvedValue({ allowed: true, customerId: "synthetic-billing-owner", includedChat: true });
+	state.billing.mockReset().mockResolvedValue({ allowed: true, customerId: "synthetic-billing-owner" });
 	state.billedUsage.mockReset().mockResolvedValue(undefined);
 	state.rateLimit.mockReset().mockResolvedValue({ success: true });
 	state.profile = profile;
@@ -299,16 +299,16 @@ describe("dashboard billing permission before the native model stream", () => {
 		expect(state.prompts).toHaveLength(0);
 		expect(state.billedUsage).not.toHaveBeenCalled();
 	});
-	it("keeps legacy credit denial authoritative", async () => {
-		state.billing.mockResolvedValueOnce({ allowed: false, customerId: "synthetic-billing-owner", includedChat: false });
-		expect((await chat({ billingAccess: { allowed: true, customerId: "synthetic-billing-owner", includedChat: true } })).status).toBe(402);
+	it("keeps credit denial authoritative", async () => {
+		state.billing.mockResolvedValueOnce({ allowed: false, customerId: "synthetic-billing-owner" });
+		expect((await chat({ billingAccess: { allowed: true, customerId: "synthetic-billing-owner" } })).status).toBe(402);
 		expect(state.prompts).toHaveLength(0);
 	});
 	it("pins the server entitlement for usage and ignores a caller-supplied billing flag", async () => {
-		expect((await chat({ billingAccess: { allowed: true, customerId: "foreign", includedChat: true } })).status).toBe(200);
+		expect((await chat({ billingAccess: { allowed: true, customerId: "foreign" } })).status).toBe(200);
 		expect(state.billedUsage).toHaveBeenCalledWith(expect.objectContaining({
 			billingCustomerId: "synthetic-billing-owner",
-			billingAccess: { allowed: true, customerId: "synthetic-billing-owner", includedChat: true },
+			billingAccess: { allowed: true, customerId: "synthetic-billing-owner" },
 			source: "dashboard",
 		}));
 		expect(state.billing).toHaveBeenCalledTimes(1);

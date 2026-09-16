@@ -3,7 +3,7 @@ import { expect, test } from "@/test/e2e/fixtures";
 
 type Customer = NonNullable<UseCustomerResult["data"]>;
 
-function syntheticCustomer(includedChat: boolean): Customer {
+function syntheticCustomer(): Customer {
 	return {
 		id: "billing-controls.invalid",
 		name: "Synthetic billing account",
@@ -18,30 +18,20 @@ function syntheticCustomer(includedChat: boolean): Customer {
 		subscriptions: [],
 		purchases: [],
 		balances: {},
-		flags: includedChat
-			? {
-					databunny_chat: {
-						id: "chat-flag",
-						featureId: "databunny_chat",
-						planId: "synthetic-plan",
-						expiresAt: null,
-					},
-				}
-			: {},
+		flags: {},
 	};
 }
 
 // This browser regression mounts native controls with intercepted provider I/O;
 // it needs no authenticated account, database rows, or remote billing service.
-for (const includedChat of [false, true]) {
 	test(
-		`billing switches collapse and persist for ${includedChat ? "included chat" : "legacy credits"}`,
+		"billing switches collapse and persist for agent credits",
 		{ tag: "@regression" },
 		async ({ page }, testInfo) => {
 			const key = process.env.DATABUDDY_E2E_TEST_KEY;
 			if (!key) throw new Error("DATABUDDY_E2E_TEST_KEY is required");
 			await page.setExtraHTTPHeaders({ "x-e2e-test-key": key });
-			const customer = syntheticCustomer(includedChat);
+			const customer = syntheticCustomer();
 			const savedFeatures: string[] = [];
 			let releaseFirstSave: () => void = () => {};
 			const firstSave = new Promise<void>((resolve) => {
@@ -101,10 +91,10 @@ for (const includedChat of [false, true]) {
 			await expect(alertSwitch).not.toBeChecked();
 			await expect(
 				page.getByRole("switch", { name: "Enable credit auto top-up" })
-			).toHaveCount(includedChat ? 0 : 1);
+			).toHaveCount(1);
 			await expect(
 				page.getByText("Credit usage limit", { exact: true })
-			).toHaveCount(includedChat ? 0 : 1);
+			).toHaveCount(1);
 			const row = page.locator("section").filter({ has: alertSwitch });
 			const closedHeight = await row.evaluate(
 				(el) => el.getBoundingClientRect().height
@@ -200,16 +190,12 @@ for (const includedChat of [false, true]) {
 			await page.keyboard.press("Tab");
 			await expect(
 				page.getByRole("switch", {
-					name: includedChat
-						? "Enable extra investigation limit"
-						: "Enable credit usage limit",
+					name: "Enable credit usage limit",
 				})
 			).toBeFocused();
 
 			const spendSwitch = page.getByRole("switch", {
-				name: includedChat
-					? "Enable extra investigation limit"
-					: "Enable credit usage limit",
+				name: "Enable credit usage limit",
 			});
 			const spendRow = page.locator("section").filter({ has: spendSwitch });
 			await spendSwitch.click();
@@ -221,7 +207,7 @@ for (const includedChat of [false, true]) {
 				.click();
 			await expect(spendRow.getByRole("button")).toHaveCount(0);
 			expect(savedFeatures).toEqual([
-				includedChat ? "investigation_runs" : "agent_credits",
+				"agent_credits",
 			]);
 		}
 	);

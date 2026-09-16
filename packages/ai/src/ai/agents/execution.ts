@@ -1,6 +1,5 @@
 import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
 import { MIN_AGENT_CREDIT_CHECK_BALANCE } from "@databuddy/shared/agent-credits";
-import { hasDatabunnyChat } from "@databuddy/shared/billing";
 import { getAutumn } from "@databuddy/rpc/autumn";
 import { getBillingCustomerId } from "@databuddy/rpc/billing";
 import { getOrganizationOwnerId } from "@databuddy/rpc/organization";
@@ -29,7 +28,6 @@ interface AgentUsageTrackingInput {
 export interface AgentBillingAccess {
 	allowed: boolean;
 	customerId: string | null;
-	includedChat: boolean;
 }
 
 export function isAgentBillingConfigured(): boolean {
@@ -98,11 +96,7 @@ export async function getAgentBillingAccess(
 			agent_credits_allowed: true,
 			agent_credits_check_skipped: true,
 		});
-		return {
-			allowed: true,
-			customerId: billingCustomerId,
-			includedChat: false,
-		};
+		return { allowed: true, customerId: billingCustomerId };
 	}
 	if (!billingCustomerId) {
 		throw new Error("The agent billing customer is unavailable");
@@ -116,17 +110,6 @@ export async function getAgentBillingAccess(
 		});
 		if (customer.id !== billingCustomerId) {
 			throw new Error("The agent billing customer could not be verified");
-		}
-		if (hasDatabunnyChat(customer.flags)) {
-			mergeWideEvent({
-				agent_chat_included: true,
-				billing_customer_id: billingCustomerId,
-			});
-			return {
-				allowed: true,
-				customerId: billingCustomerId,
-				includedChat: true,
-			};
 		}
 		const result = await autumn.check({
 			customerId: billingCustomerId,
@@ -157,7 +140,7 @@ export async function getAgentBillingAccess(
 					}
 				: {}),
 		});
-		return { allowed, customerId: billingCustomerId, includedChat: false };
+		return { allowed, customerId: billingCustomerId };
 	} catch (error) {
 		captureError(error, {
 			agent_credit_check_error: true,
@@ -220,10 +203,6 @@ export async function trackAgentUsageAndBill(
 			(await getAgentBillingAccess(input.billingCustomerId));
 		if (access.customerId !== input.billingCustomerId) {
 			throw new Error("The agent billing access belongs to another customer");
-		}
-		if (access.includedChat) {
-			mergeWideEvent({ agent_chat_included: true });
-			return summary;
 		}
 	}
 

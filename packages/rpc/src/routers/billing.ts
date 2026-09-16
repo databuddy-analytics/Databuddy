@@ -349,7 +349,7 @@ export const billingRouter = {
 	setSpendLimit: trackedSessionProcedure
 		.route({
 			description:
-				"Limits additional investigation or legacy credit units per billing cycle.",
+				"Limits additional investigation or AI credit units per billing cycle.",
 			method: "POST",
 			path: "/billing/setSpendLimit",
 			summary: "Set spend limit",

@@ -327,7 +327,7 @@ export function createInvestigationTools() {
 								? `Website ${websiteId}`
 								: "All websites in this organization",
 						billing: startsAnalysis
-							? `For organizations on fixed-price investigation billing: ${INVESTIGATION_USAGE.description} Each manual or scheduled run may investigate several signals and use multiple investigations. Additional usage is billed monthly when overage is enabled. Changing settings does not itself charge for an investigation. Existing legacy billing terms remain in effect until the organization adopts the new plan.`
+							? `For organizations on fixed-price investigation billing: ${INVESTIGATION_USAGE.description} Each manual or scheduled run may investigate several signals and use multiple investigations. Additional usage is billed monthly when overage is enabled. Changing settings does not itself charge for an investigation. AI credits pay for Databunny chat and are not drawn down by investigations.`
 							: undefined,
 					};
 				}

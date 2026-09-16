@@ -87,17 +87,6 @@ describe("native plan investigation disclosures", () => {
 			);
 		}
 	});
-	test("renders boolean chat access as included without a quantity", () => {
-		const markup = render([
-			{
-				featureId: "databunny_chat",
-				display: { primaryText: "Unlimited Databunny chat" },
-			},
-		]);
-		expect(markup).toContain("Databunny chat included");
-		expect(markup).not.toContain("Unlimited Databunny chat");
-		expect(markup).not.toContain("agent credits");
-	});
 	test("renders the real monthly allowance and usage price instead of stale provider copy", () => {
 		const markup = render([monthlyInvestigations]);
 		expect(markup).toContain("100 investigations / month");
@@ -121,7 +110,7 @@ describe("native plan investigation disclosures", () => {
 		}
 	});
 
-	test("moves detailed capabilities and native legacy credit terms into the comparison", () => {
+	test("moves detailed capabilities and native credit terms into the comparison", () => {
 		const plan = {
 			id: "intelligence",
 			name: "Business",
@@ -131,7 +120,7 @@ describe("native plan investigation disclosures", () => {
 		expect(cards).not.toContain("Automatic Investigations");
 		expect(cards).not.toContain("credits");
 		const markup = renderToStaticMarkup(<PlanComparison plans={[plan]} />);
-		expect(markup).toContain("Current AI terms");
+		expect(markup).toContain("AI credits");
 		expect(markup).toContain("1,500 AI credits / month");
 		const automaticRow = markup
 			.split("Automatic Investigations</th>")[1]
@@ -271,22 +260,5 @@ describe("native pricing edge cases", () => {
 			expect(markup).toContain("Extra events: $0.03 per 1,000");
 			expect(markup).not.toContain("$0 per");
 		}
-	});
-	test("only advertises chat from native boolean plan items", () => {
-		const included = { featureId: "databunny_chat" };
-		const legacy = {
-			id: "hobby",
-			name: "Hobby",
-			items: [chat, { ...chat, included: 1, reset: { interval: "day" } }],
-		} satisfies Parameters<typeof PlanComparison>[0]["plans"][number];
-		const newPlan = { ...legacy, items: [included] };
-		const mixed = renderToStaticMarkup(
-			<PlanComparison plans={[legacy, newPlan]} />
-		);
-		expect(mixed).toContain("1,500 AI credits / month + 1 AI credits / day");
-		expect(mixed).toContain("Chat included");
-		const synced = renderToStaticMarkup(<PlanComparison plans={[newPlan]} />);
-		expect(synced).not.toContain("Current AI terms");
-		expect(synced).not.toContain("AI credits");
 	});
 });

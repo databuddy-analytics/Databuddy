@@ -1,29 +1,10 @@
 import { number } from "zod";
 
-export const DATABUNNY_CHAT = {
-	featureId: "databunny_chat",
-	name: "Databunny chat",
-} as const;
-
-export function hasDatabunnyChat(
-	flags:
-		| Record<string, { featureId: string; expiresAt: number | null }>
-		| null
-		| undefined,
-	now = Date.now()
-) {
-	const flag = flags?.[DATABUNNY_CHAT.featureId];
-	return (
-		flag?.featureId === DATABUNNY_CHAT.featureId &&
-		(flag.expiresAt === null || flag.expiresAt > now)
-	);
-}
-
 export const DATABUNNY_USAGE = {
 	description:
-		"AI credits pay for ordinary Databunny chat and investigations on legacy billing terms. Existing credit balances and allowances keep their value; they are not converted into $1 investigations.",
+		"AI credits pay for Databunny chat. Investigations are billed separately at $1 per completed investigation and do not draw from AI credits.",
 	name: "AI credits",
-	pausedActivity: "Databunny chat and investigations on legacy billing terms",
+	pausedActivity: "Databunny chat",
 	unit: "AI credits",
 	upgradeMessage: "Add AI credits or upgrade your plan",
 } as const;
@@ -43,6 +24,15 @@ export const INVESTIGATION_ALLOWANCES = {
 	intelligence: 100,
 	intelligence_scale: 500,
 } as const;
+
+export const AGENT_CREDIT_ALLOWANCES = {
+	free: { month: 10 },
+	hobby: { month: 20, day: 1 },
+	pro: { month: 350, day: 5 },
+	scale: { month: 500 },
+	intelligence: { month: 1500 },
+	intelligence_scale: { month: 5000 },
+} as const satisfies Record<string, { day?: number; month: number }>;
 
 export const LEGACY_SCALE_PLAN = {
 	id: "scale",

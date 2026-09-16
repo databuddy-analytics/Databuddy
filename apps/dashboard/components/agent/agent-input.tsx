@@ -1,7 +1,5 @@
 "use client";
 
-import { hasDatabunnyChat } from "@databuddy/shared/billing";
-
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect, memo, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
@@ -156,7 +154,7 @@ export function AgentInput() {
 			return;
 		}
 		if (
-			!(billingLoading || unlimited || hasDatabunnyChat(customer?.flags)) &&
+			!(billingLoading || unlimited) &&
 			creditsResolvedForUi &&
 			balance <= 0
 		) {

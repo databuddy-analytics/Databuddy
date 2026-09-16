@@ -103,7 +103,7 @@ export function InvestigationTopupCard() {
 						<p className="text-pretty text-muted-foreground text-sm">
 							Purchased investigations do not expire.
 							{!fixedPrice &&
-								" Buying switches future investigations from legacy credits to $1 each; your credits are preserved."}
+								" Buying switches future investigations to $1 each; your AI credits are preserved for chat."}
 						</p>
 						<Field className="max-w-xs" error={!parsedQuantity.success}>
 							<Field.Label>Investigations to buy</Field.Label>

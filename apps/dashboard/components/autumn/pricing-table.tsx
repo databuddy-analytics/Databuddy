@@ -1,6 +1,6 @@
 "use client";
 
-import { DATABUNNY_CHAT, INVESTIGATION_USAGE } from "@databuddy/shared/billing";
+import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
 import {
 	FEATURE_METADATA,
 	GATED_FEATURES,
@@ -416,9 +416,6 @@ export function PricingFeatures({
 		(item) => item.featureId === "events" && item.price
 	)?.price;
 	const eventTiers = eventPrice?.tiers?.filter((tier) => tier !== null);
-	const chatIncluded = plan.items.some(
-		(item) => item.featureId === DATABUNNY_CHAT.featureId
-	);
 	const investigations = plan.items.filter(
 		(item) => item.featureId === INVESTIGATION_USAGE.featureId
 	);
@@ -455,7 +452,6 @@ export function PricingFeatures({
 					</div>
 				</li>
 			)}
-			{chatIncluded && <StaticFeatureItem label="Databunny chat included" />}
 			{supportsInvestigations && getInvestigationTerms(investigations) && (
 				<InvestigationFeatureItem items={investigations} />
 			)}
@@ -498,10 +494,8 @@ export function PlanComparison({
 }: {
 	plans: Pick<HookPlan, "id" | "name" | "items">[];
 }) {
-	const hasCreditTerms = plans.some(
-		(plan) =>
-			!plan.items.some((item) => item.featureId === DATABUNNY_CHAT.featureId) &&
-			plan.items.some((item) => item.featureId === "agent_credits")
+	const hasCreditTerms = plans.some((plan) =>
+		plan.items.some((item) => item.featureId === "agent_credits")
 	);
 	return (
 		<Table aria-label="Plan comparison" className="min-w-[540px]" tabIndex={0}>
@@ -519,30 +513,26 @@ export function PlanComparison({
 				{hasCreditTerms && (
 					<TableRow>
 						<TableHead className="whitespace-normal" scope="row">
-							Current AI terms
+							AI credits
 						</TableHead>
 						{plans.map((plan) => (
 							<TableCell
 								className="whitespace-normal text-pretty tabular-nums"
 								key={plan.id}
 							>
-								{plan.items.some(
-									(item) => item.featureId === DATABUNNY_CHAT.featureId
-								)
-									? "Chat included"
-									: plan.items
-											.filter(
-												(item) =>
-													item.featureId === "agent_credits" &&
-													(item.included || item.unlimited)
-											)
-											.map((item) => allowanceText(item, "AI credits"))
-											.join(" + ") ||
-										(plan.items.some(
-											(item) => item.featureId === "agent_credits" && item.price
-										)
-											? "Credits purchased separately"
-											: "Not included")}
+								{plan.items
+									.filter(
+										(item) =>
+											item.featureId === "agent_credits" &&
+											(item.included || item.unlimited)
+									)
+									.map((item) => allowanceText(item, "AI credits"))
+									.join(" + ") ||
+									(plan.items.some(
+										(item) => item.featureId === "agent_credits" && item.price
+									)
+										? "Credits purchased separately"
+										: "Not included")}
 							</TableCell>
 						))}
 					</TableRow>

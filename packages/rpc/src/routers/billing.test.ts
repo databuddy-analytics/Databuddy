@@ -89,7 +89,7 @@ describe("native investigation spending limits", () => {
 		]);
 	});
 
-	test("old clients continue to target legacy credits", async () => {
+	test("old clients continue to target AI credits", async () => {
 		await setLimit({ enabled: true, overageLimit: 40 });
 		expect(limits.find(entry => entry.feature_id === "agent_credits")?.overage_limit).toBe(40);
 		expect(limits.some(entry => entry.feature_id === "investigation_runs")).toBe(false);

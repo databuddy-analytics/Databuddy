@@ -142,7 +142,7 @@ describe("configure_investigations confirmation preview", () => {
 		expect(preview.billing).toContain("several signals");
 		expect(preview.billing).toContain("multiple investigations");
 		expect(preview.billing).toContain("Additional usage is billed monthly when overage is enabled");
-		expect(preview.billing).toContain("Existing legacy billing terms remain");
+		expect(preview.billing).toContain("AI credits pay for Databunny chat");
 		expect(preview.billing).toContain(
 			"Changing settings does not itself charge"
 		);

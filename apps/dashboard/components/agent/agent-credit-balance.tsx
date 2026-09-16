@@ -1,7 +1,5 @@
 "use client";
 
-import { hasDatabunnyChat } from "@databuddy/shared/billing";
-
 import { useAtomValue } from "jotai";
 import { motion } from "motion/react";
 import { useRouter } from "next/navigation";
@@ -24,7 +22,7 @@ export function AgentCreditBalance({
 	variant = "default",
 }: AgentCreditBalanceProps) {
 	const { balance, limit, unlimited } = useUsageFeature("agent_credits");
-	const { customer, refetch, isLoading } = useBillingContext();
+	const { refetch, isLoading } = useBillingContext();
 	const chat = useChatSafe();
 	const status = chat?.status ?? "ready";
 	const router = useRouter();
@@ -60,10 +58,6 @@ export function AgentCreditBalance({
 		);
 	}
 
-	if (hasDatabunnyChat(customer?.flags)) {
-		return null;
-	}
-
 	if (unlimited) {
 		if (variant === "compact") {
 			return null;
@@ -95,7 +89,7 @@ export function AgentCreditBalance({
 			content={
 				isEmpty
 					? "Your AI credit balance is empty. Open billing to add credits or change plans."
-					: `${balance.toLocaleString()} of ${limit.toLocaleString()} AI credits remaining. For ordinary chat and investigations on legacy billing terms.`
+					: `${balance.toLocaleString()} of ${limit.toLocaleString()} AI credits remaining. Credits pay for Databunny chat.`
 			}
 		>
 			<motion.div

@@ -1,11 +1,6 @@
 "use client";
 
 import { orpc } from "@/lib/orpc";
-import {
-	hasDatabunnyChat,
-	INVESTIGATION_USAGE,
-} from "@databuddy/shared/billing";
-import { GATED_FEATURES } from "@databuddy/shared/types/features";
 import { useBillingContext } from "@/components/providers/billing-provider";
 import {
 	calculateTopupCost,
@@ -50,13 +45,8 @@ const USAGE_LIMITS = { overageLimit: [1, 10_000] } as const;
 
 export function BillingControlsCard() {
 	const { data: customer, isLoading, refetch } = useCustomer();
-	const { canUserUpgrade, isFeatureEnabled } = useBillingContext();
-	const includedChat = hasDatabunnyChat(customer?.flags);
-	const showUsageLimit =
-		!includedChat || isFeatureEnabled(GATED_FEATURES.INVESTIGATIONS);
-	const spendFeatureId = includedChat
-		? INVESTIGATION_USAGE.featureId
-		: TOPUP_FEATURE_ID;
+	const { canUserUpgrade } = useBillingContext();
+	const spendFeatureId = TOPUP_FEATURE_ID;
 
 	const topup = useMemo(() => {
 		const e = customer?.billingControls?.autoTopups?.find(
@@ -110,13 +100,13 @@ export function BillingControlsCard() {
 				</Card.Title>
 			</Card.Header>
 			<Card.Content className="p-0">
-				{!includedChat && (
+				{
 					<>
 						<BillingRow
 							canEdit={canUserUpgrade}
 							turnOffLabel="Turn off auto top-up"
 							defaults={TOPUP_DEFAULTS}
-							description="Refill your legacy AI credits when they run low."
+							description="Refill your AI credits when they run low."
 							icon={<InfinityIcon size={16} />}
 							initial={topup}
 							limits={TOPUP_LIMITS}
@@ -162,7 +152,7 @@ export function BillingControlsCard() {
 						</BillingRow>
 						<Divider />
 					</>
-				)}
+				}
 				<BillingRow
 					canEdit={canUserUpgrade}
 					turnOffLabel="Turn off alert"
@@ -195,18 +185,14 @@ export function BillingControlsCard() {
 						/>
 					)}
 				</BillingRow>
-				{showUsageLimit && (
+				{
 					<>
 						<Divider />
 						<BillingRow
 							canEdit={canUserUpgrade}
 							turnOffLabel="Remove limit"
 							defaults={USAGE_LIMIT_DEFAULTS}
-							description={
-								includedChat
-									? "Limit investigations beyond your monthly allowance."
-									: "Limit additional legacy AI credit usage."
-							}
+							description="Limit additional AI credit usage."
 							icon={<ShieldCheckIcon size={16} />}
 							initial={spend}
 							limits={USAGE_LIMITS}
@@ -222,33 +208,25 @@ export function BillingControlsCard() {
 								})
 							}
 							onSaved={refetch}
-							switchLabel={
-								includedChat
-									? "Enable extra investigation limit"
-									: "Enable credit usage limit"
-							}
-							title={
-								includedChat
-									? "Extra investigation limit"
-									: "Credit usage limit"
-							}
+							switchLabel="Enable credit usage limit"
+							title="Credit usage limit"
 						>
 							{(form, setForm) => (
 								<LabeledNumberInput
-									helper={`Up to ${USAGE_LIMITS.overageLimit[1].toLocaleString()} additional ${includedChat ? "investigations" : "credits"}.`}
+									helper={`Up to ${USAGE_LIMITS.overageLimit[1].toLocaleString()} additional credits.`}
 									id="spend-limit"
 									label="Per month"
 									max={USAGE_LIMITS.overageLimit[1]}
 									min={USAGE_LIMITS.overageLimit[0]}
 									onChange={(v) => setForm({ overageLimit: v })}
 									step={10}
-									suffix={includedChat ? "investigations" : "credits"}
+									suffix="credits"
 									value={form.overageLimit}
 								/>
 							)}
 						</BillingRow>
 					</>
-				)}
+				}
 			</Card.Content>
 		</Card>
 	);
