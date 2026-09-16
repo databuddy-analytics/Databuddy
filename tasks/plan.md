@@ -28,6 +28,16 @@ Use `@databuddy/ui` controls, `Field` labels, semantic tokens, and explicit type
 
 ## Verification
 
-`bun run lint`; `bun run check-types`; `bun test src/organization-business-context.test.ts` from `apps/insights`; relevant RPC tests through its package runner; isolated dashboard Playwright business-context and measurement-plan regressions; `NODE_ENV=production bun run --cwd apps/dashboard build` with existing environment.
+`bun run lint`; `bun run check-types`; `bun test src/organization-business-context.test.ts` from `apps/insights`; relevant RPC tests through its package runner; isolated dashboard Playwright business-context and measurement-plan regressions; `NODE_ENV=production bun run --cwd apps/dashboard build` with synthetic local configuration and E2E mode disabled.
 
 Use only synthetic fixtures for browser/model/provider tests. No production data, paid model calls, billing mutations, deployment, or merge is part of validation. Code changes are approved by the user; preserve unrelated working-tree edits.
+
+## Completed validation
+
+- Root lint and all 33 workspace typecheck tasks pass on current staging.
+- Production dashboard build passes with E2E mode disabled.
+- 24 RPC, 52 generator/shared-schema, and 25 isolated PostgreSQL storage tests pass.
+- All 18 Playwright regressions pass in one run after rebasing. They cover recovery, saved revisions, source attribution, keyboard focus, credit/configuration gates, streamed previews, mobile comparison, and stable measurement controls during saves.
+- Desktop and mobile screenshots were inspected; synthetic previews had no uncaught page errors or horizontal overflow.
+
+The generator uses real partial-output streaming with durable updates, surfaced by the existing two-second settings polling. Provider behavior is tested with mocks; live model output quality and paid-provider billing are outside this validation. Selected documentation subdomains are supported; arbitrary cross-domain crawling and scheduled refresh are not added.
