@@ -13,6 +13,9 @@ export const businessContextSourceUrlsSchema = z
 			.url()
 			.max(2048)
 			.refine((value) => {
+				if (!URL.canParse(value)) {
+					return false;
+				}
 				const url = new URL(value);
 				return (
 					(url.protocol === "https:" || url.protocol === "http:") &&

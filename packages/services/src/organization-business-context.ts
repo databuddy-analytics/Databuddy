@@ -8,6 +8,9 @@ import {
 	businessTeamContextSchema,
 	businessMeasurementPlansSchema,
 	businessContextIsGenerating,
+	businessContextSourceUrlsSchema,
+	businessContextSourceBelongsToSite,
+	businessContextProgressSchema,
 	organizationBusinessContextSchema,
 	type BusinessBrief,
 	type BusinessTeamContext,
@@ -55,6 +58,7 @@ function state(value: Record<string, unknown>): OrganizationBusinessContext {
 		result.generation = {
 			...result.generation,
 			status: "failed",
+			progress: undefined,
 			error:
 				"Generation took too long. Try again; your saved context is unchanged.",
 		};
@@ -108,6 +112,7 @@ export async function beginBusinessContextGeneration(input: {
 	organizationId: string;
 	websiteId: string;
 	requestedBy: string;
+	sourceUrls?: string[];
 }): Promise<OrganizationBusinessContext> {
 	return await update(input.organizationId, async (current, tx) => {
 		const [site] = await tx
@@ -130,6 +135,19 @@ export async function beginBusinessContextGeneration(input: {
 		if (businessContextIsGenerating(current)) {
 			return current;
 		}
+		const sourceUrls = businessContextSourceUrlsSchema.parse(
+			input.sourceUrls ?? []
+		);
+		if (
+			sourceUrls.some(
+				(url) => !businessContextSourceBelongsToSite(url, site.domain)
+			)
+		) {
+			throw new BusinessContextError(
+				"CONFLICT",
+				"Source pages must belong to the selected website or its subdomains."
+			);
+		}
 		const previousDrafts = [...(current.previousDrafts ?? [])];
 		if (current.generation?.status === "ready" && current.generation.draft) {
 			previousDrafts.push(current.generation);
@@ -143,6 +161,7 @@ export async function beginBusinessContextGeneration(input: {
 				id: randomUUID(),
 				websiteId: input.websiteId,
 				domain: site.domain,
+				sourceUrls: [...new Set(sourceUrls)],
 				requestedBy: input.requestedBy,
 				requestedAt: new Date().toISOString(),
 				baseRevision: current.profile?.revision ?? 0,
@@ -160,6 +179,7 @@ export async function markBusinessContextGeneration(input: {
 	status: "running" | "ready" | "failed";
 	draft?: BusinessBrief;
 	error?: string;
+	progress?: z.infer<typeof businessContextProgressSchema>;
 }): Promise<OrganizationBusinessContext> {
 	return await update(input.organizationId, async (current, tx) => {
 		const generation = current.generation;
@@ -189,6 +209,7 @@ export async function markBusinessContextGeneration(input: {
 					...generation,
 					status: "failed",
 					draft: null,
+					progress: undefined,
 					error: "The source website is no longer in this organization.",
 				},
 			};
@@ -198,6 +219,12 @@ export async function markBusinessContextGeneration(input: {
 			generation: {
 				...generation,
 				status: input.status,
+				progress:
+					input.status === "running"
+						? input.progress
+							? businessContextProgressSchema.parse(input.progress)
+							: generation.progress
+						: undefined,
 				draft:
 					input.status === "ready" && input.draft
 						? businessBriefSchema.parse(input.draft)
