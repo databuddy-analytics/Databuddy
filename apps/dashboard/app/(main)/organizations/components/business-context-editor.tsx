@@ -163,6 +163,12 @@ export function BusinessContextEditor({
 	const conflict = dirty && draft.revision !== revision;
 	const activeGeneration = businessContextIsGenerating(settings);
 	const generating = isRequesting || activeGeneration;
+	const failedGeneration =
+		!generating &&
+		generation?.status === "failed" &&
+		generation.id !== settledGenerationId
+			? generation
+			: null;
 	const readyGeneration =
 		generation?.status === "ready" &&
 		generation.id !== settledGenerationId &&
@@ -914,10 +920,34 @@ export function BusinessContextEditor({
 							/>
 							<div className="space-y-2">
 								<div
-									className="min-h-16 text-xs leading-5"
+									className="min-h-16 space-y-2 text-xs leading-5"
 									role="status"
 									aria-live="polite"
 								>
+									{failedGeneration && (
+										<div className="flex items-start gap-2">
+											<p className="min-w-0 flex-1 text-destructive">
+												{failedGeneration.error ||
+													"The draft could not be completed. Your saved brief is unchanged. Try again."}
+											</p>
+											<Button
+												aria-label="Dismiss generation error"
+												className="shrink-0"
+												size="icon-sm"
+												variant="ghost"
+												disabled={isSaving}
+												onClick={() =>
+													change(
+														() => onCancel(failedGeneration.id),
+														"Generation error dismissed",
+														false
+													)
+												}
+											>
+												<XMarkIcon aria-hidden className="size-4" />
+											</Button>
+										</div>
+									)}
 									{selectedWebsite ? (
 										generating ? (
 											<p className="text-muted-foreground">
@@ -928,37 +958,11 @@ export function BusinessContextEditor({
 														: "Reading your sources."}{" "}
 												Saving your edits cancels this draft.
 											</p>
-										) : generation?.status === "failed" &&
-											generation.id !== settledGenerationId &&
-											!accessPending &&
-											access?.status === "allowed" ? (
-											<div className="flex items-start gap-2">
-												<p className="min-w-0 flex-1 text-destructive">
-													{generation.error ||
-														"The draft could not be completed. Your saved brief is unchanged. Try again."}
-												</p>
-												<Button
-													aria-label="Dismiss generation error"
-													className="shrink-0"
-													size="icon-sm"
-													variant="ghost"
-													disabled={isSaving}
-													onClick={() =>
-														change(
-															() => onCancel(generation.id),
-															"Generation error dismissed",
-															false
-														)
-													}
-												>
-													<XMarkIcon aria-hidden className="size-4" />
-												</Button>
-											</div>
 										) : accessPending ? (
 											<p className="text-muted-foreground">
 												Checking generation access…
 											</p>
-										) : (
+										) : !failedGeneration || access?.status !== "allowed" ? (
 											<p
 												className={
 													access?.status === "allowed"
@@ -969,7 +973,7 @@ export function BusinessContextEditor({
 												{access?.message ||
 													"Generation access could not be checked. Your brief is still editable."}
 											</p>
-										)
+										) : null
 									) : (
 										<p className="text-muted-foreground">
 											Add a website to generate a draft. You can write and save
