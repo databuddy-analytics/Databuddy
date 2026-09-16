@@ -437,6 +437,130 @@ test("discards an AI draft without restoring it on the next refresh", {
 	await expect(editor).toHaveValue(savedContent);
 });
 
+test(
+	"dismisses a persisted generation failure without losing unsaved context",
+	{
+		tag: "@regression",
+	},
+	async ({ authenticatedPage: page }, testInfo) => {
+		await page.setViewportSize({ width: 1440, height: 1000 });
+		const expiredMessage =
+			"Generation took too long. Try again; your saved context is unchanged.";
+		const failedGeneration: NonNullable<BusinessContextSettings["generation"]> =
+			{
+				id: "11111111-1111-4111-8111-111111111111",
+				websiteId: "example-site",
+				domain: "example.com",
+				requestedBy: "example-admin",
+				requestedAt: "2026-09-08T12:00:00Z",
+				baseRevision: 1,
+				status: "failed",
+				draft: null,
+				error: expiredMessage,
+			};
+		let current: BusinessContextSettings = {
+			...settings(),
+			generation: failedGeneration,
+		};
+		const mutations: string[] = [];
+		const cancelledIds: string[] = [];
+		await page.route("**/rpc/businessContext/**", async (route) => {
+			const method = new URL(route.request().url()).pathname.split("/").at(-1);
+			if (method === "generationAccess") {
+				await route.fallback();
+				return;
+			}
+			if (method === "save" || method === "generate" || method === "cancel") {
+				mutations.push(method);
+			}
+			if (method === "cancel") {
+				cancelledIds.push(route.request().postDataJSON().json.generationId);
+				if (cancelledIds.length === 1) {
+					await route.fulfill({
+						status: 503,
+						json: {
+							json: {
+								defined: false,
+								code: "SERVICE_UNAVAILABLE",
+								status: 503,
+								message: "Could not dismiss this failure. Try again.",
+							},
+						},
+					});
+					return;
+				}
+				current = { ...current, generation: null };
+			}
+			await route.fulfill({ json: { json: current } });
+		});
+		await page.goto(path);
+		const expiredError = page.getByText(expiredMessage, { exact: true });
+		await expect(expiredError).toBeVisible();
+		await page.reload();
+		await expect(expiredError).toBeVisible();
+		expect(mutations).toHaveLength(0);
+		const editor = await editBrief(page);
+		await editor.fill("Keep my unfinished business brief.");
+		const priority = page.getByRole("textbox", {
+			name: "Current priority",
+			exact: true,
+		});
+		await priority.fill("Keep my team priority too.");
+		const dismiss = page.getByRole("button", {
+			name: "Dismiss generation error",
+			exact: true,
+		});
+		await expect(dismiss).toBeVisible();
+		await page.screenshot({
+			animations: "disabled",
+			path: testInfo.outputPath("generation-error.png"),
+		});
+		await dismiss.click();
+		await expect(
+			page.getByTestId("business-context-brief").getByRole("alert")
+		).toContainText("Could not dismiss this failure. Try again.");
+		await expect(expiredError).toBeVisible();
+		await expect(editor).toHaveValue("Keep my unfinished business brief.");
+		await expect(priority).toHaveValue("Keep my team priority too.");
+		await expect(dismiss).toBeEnabled();
+		await dismiss.click();
+		await expect(
+			page.getByText("Generation error dismissed", { exact: true })
+		).toBeVisible();
+		await expect(expiredError).toBeHidden();
+		await expect(dismiss).toBeHidden();
+		await expect(editor).toHaveValue("Keep my unfinished business brief.");
+		await expect(priority).toHaveValue("Keep my team priority too.");
+		expect(cancelledIds).toEqual([failedGeneration.id, failedGeneration.id]);
+		expect(mutations).toEqual(["cancel", "cancel"]);
+		expect(current.profile?.content).toBe(savedContent);
+		await page.reload();
+		await editBrief(page);
+		await expect(expiredError).toBeHidden();
+		await expect(dismiss).toBeHidden();
+		await expect(editor).toHaveValue("Keep my unfinished business brief.");
+		await expect(priority).toHaveValue("Keep my team priority too.");
+		current = {
+			...current,
+			generation: {
+				...failedGeneration,
+				id: "22222222-2222-4222-8222-222222222222",
+				requestedAt: new Date().toISOString(),
+				error: "The source website could not be read.",
+			},
+		};
+		await page.reload();
+		await expect(
+			page.getByText("The source website could not be read.", { exact: true })
+		).toBeVisible();
+		await expect(dismiss).toBeVisible();
+		await editBrief(page);
+		await expect(editor).toHaveValue("Keep my unfinished business brief.");
+		await expect(priority).toHaveValue("Keep my team priority too.");
+		expect(mutations).toEqual(["cancel", "cancel"]);
+	}
+);
+
 test("requires conflict review before saving an AI draft based on an older brief", {
 	tag: "@regression",
 }, async ({ authenticatedPage: page, e2eSession }) => {

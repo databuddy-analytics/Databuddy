@@ -29,6 +29,7 @@ import {
 	CaretDownIcon,
 	FloppyDiskIcon,
 	WandSparkleIcon,
+	XMarkIcon,
 } from "@databuddy/ui/icons";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -928,12 +929,31 @@ export function BusinessContextEditor({
 												Saving your edits cancels this draft.
 											</p>
 										) : generation?.status === "failed" &&
+											generation.id !== settledGenerationId &&
 											!accessPending &&
 											access?.status === "allowed" ? (
-											<p className="text-destructive">
-												{generation.error ||
-													"The draft could not be completed. Your saved brief is unchanged. Try again."}
-											</p>
+											<div className="flex items-start gap-2">
+												<p className="min-w-0 flex-1 text-destructive">
+													{generation.error ||
+														"The draft could not be completed. Your saved brief is unchanged. Try again."}
+												</p>
+												<Button
+													aria-label="Dismiss generation error"
+													className="shrink-0"
+													size="icon-sm"
+													variant="ghost"
+													disabled={isSaving}
+													onClick={() =>
+														change(
+															() => onCancel(generation.id),
+															"Generation error dismissed",
+															false
+														)
+													}
+												>
+													<XMarkIcon aria-hidden className="size-4" />
+												</Button>
+											</div>
 										) : accessPending ? (
 											<p className="text-muted-foreground">
 												Checking generation access…
