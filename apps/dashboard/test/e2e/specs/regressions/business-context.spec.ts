@@ -282,7 +282,6 @@ test("restores the submitted website and pages when retrying a failed generation
 				"Generation took too long. Try again; your saved context is unchanged.",
 		},
 	};
-	const requests: { websiteId: string; sourceUrls: string[] }[] = [];
 	await page.route("**/rpc/businessContext/**", async (route) => {
 		const method = new URL(route.request().url()).pathname.split("/").at(-1);
 		if (method === "generationAccess") {
