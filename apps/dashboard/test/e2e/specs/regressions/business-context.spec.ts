@@ -184,7 +184,10 @@ test("keeps typing when AI finishes and saves only the reviewed draft", {
 		generation: {
 			...current.generation!,
 			status: "ready",
-			draft: { content: generatedContent, sources: [] },
+			draft: {
+				content: generatedContent,
+				sources: [{ url: "https://example.com/pricing", title: "Pricing" }],
+			},
 		},
 	};
 	await expect(
@@ -198,7 +201,20 @@ test("keeps typing when AI finishes and saves only the reviewed draft", {
 	await expect(
 		page.getByRole("heading", { name: "Review AI draft" })
 	).toBeFocused();
+	await expect(
+		page
+			.getByRole("region", { name: "Current version", exact: true })
+			.getByRole("link", { name: /^Example/ })
+	).toHaveAttribute("href", "https://example.com");
+	await expect(
+		page
+			.getByRole("region", { name: "Proposed version", exact: true })
+			.getByRole("link", { name: /^Pricing/ })
+	).toHaveAttribute("href", "https://example.com/pricing");
 	await page.getByRole("button", { name: "Use AI draft" }).click();
+	await expect(
+		page.getByRole("tab", { name: "Preview", exact: true })
+	).toBeFocused();
 	await editBrief(page);
 	await expect(editor).toHaveValue(generatedContent);
 	expect(saved).toBeUndefined();
@@ -318,6 +334,7 @@ test("preserves edits on a revision conflict and requires reviewing the new brie
 		page.getByText("A teammate's newer brief.", { exact: true })
 	).toBeVisible();
 	await page.getByRole("button", { name: "Keep editing my version" }).click();
+	await expect(editor).toBeFocused();
 	await page.getByRole("button", { name: "Save changes" }).click();
 	await expect(page.getByText("Changes saved", { exact: true })).toBeVisible();
 	expect(savedRevisions).toEqual([1, 2]);
@@ -407,6 +424,9 @@ test("can save retained text after regenerating and declining the replacement", 
 	await page.getByRole("button", { name: "Regenerate with AI" }).click();
 	await page.getByRole("button", { name: "Review AI draft" }).click();
 	await page.getByRole("button", { name: "Keep current text" }).click();
+	await expect(
+		page.getByRole("tab", { name: "Preview", exact: true })
+	).toBeFocused();
 	await editBrief(page);
 	await expect(editor).toHaveValue(generatedContent);
 	await page.getByRole("button", { name: "Save changes" }).click();
