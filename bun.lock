@@ -565,6 +565,7 @@
       "name": "@databuddy/redis",
       "version": "1.0.0",
       "dependencies": {
+        "@databuddy/env": "workspace:*",
         "bullmq": "^5.78.0",
         "ioredis": "^5.8.2",
       },

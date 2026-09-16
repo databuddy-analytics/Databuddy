@@ -1,15 +1,23 @@
-import { afterEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import {
 	getBullMQConnectionOptions,
 	getBullMQWorkerConnectionOptions,
 } from "./bullmq";
 
-const ORIGINAL_URL = process.env.BULLMQ_REDIS_URL;
-const ORIGINAL_INSIGHTS_URL = process.env.INSIGHTS_BULLMQ_REDIS_URL;
+const originalEnv = process.env;
+
+beforeEach(() => {
+	process.env = {
+		...originalEnv,
+		SELFHOST: "false",
+		REDIS_URL: "rediss://shared:secret@shared.test:6380/2",
+		BULLMQ_REDIS_URL: "",
+		INSIGHTS_BULLMQ_REDIS_URL: "",
+	};
+});
 
 afterEach(() => {
-	process.env.BULLMQ_REDIS_URL = ORIGINAL_URL;
-	process.env.INSIGHTS_BULLMQ_REDIS_URL = ORIGINAL_INSIGHTS_URL;
+	process.env = originalEnv;
 });
 
 describe("BullMQ connection options", () => {
@@ -22,6 +30,34 @@ describe("BullMQ connection options", () => {
 		expect(() => getBullMQWorkerConnectionOptions()).toThrow(
 			"BULLMQ_REDIS_URL environment variable is required"
 		);
+	});
+
+	it("uses the shared Redis URL for self-hosted producers and workers", () => {
+		process.env.SELFHOST = " TRUE ";
+
+		const connection = {
+			host: "shared.test",
+			port: 6380,
+			username: "shared",
+			password: "secret",
+			db: 2,
+			tls: {},
+		};
+		expect(getBullMQConnectionOptions({ envPrefix: "INSIGHTS" })).toEqual({
+			...connection,
+			maxRetriesPerRequest: 1,
+		});
+		expect(getBullMQWorkerConnectionOptions()).toEqual({
+			...connection,
+			maxRetriesPerRequest: null,
+		});
+	});
+
+	it("still requires a Redis URL when self-hosting", () => {
+		process.env.SELFHOST = "true";
+		process.env.REDIS_URL = " ";
+
+		expect(() => getBullMQConnectionOptions()).toThrow();
 	});
 
 	it("parses redis URLs for queue producers", () => {
@@ -78,6 +114,7 @@ describe("BullMQ connection options", () => {
 	});
 
 	it("prefers a queue-specific Redis URL when an env prefix is provided", () => {
+		process.env.SELFHOST = "true";
 		process.env.BULLMQ_REDIS_URL = "redis://default.test:6379/0";
 		process.env.INSIGHTS_BULLMQ_REDIS_URL =
 			"redis://insights:secret@insights.test:6380/5";
@@ -95,6 +132,7 @@ describe("BullMQ connection options", () => {
 	});
 
 	it("falls back to the default Redis URL when a prefixed URL is blank", () => {
+		process.env.SELFHOST = "true";
 		process.env.BULLMQ_REDIS_URL = "redis://default.test:6379/4";
 		process.env.INSIGHTS_BULLMQ_REDIS_URL = "";
 
