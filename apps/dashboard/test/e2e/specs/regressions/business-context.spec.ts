@@ -129,6 +129,153 @@ function settings(): BusinessContextSettings {
 	};
 }
 
+for (const viewport of [
+	{ name: "desktop", width: 1440, height: 1000 },
+	{ name: "mobile", width: 390, height: 844 },
+]) {
+	for (const access of [
+		allowedAccess,
+		{
+			status: "credits-required",
+			billingMode: "fixed",
+			message:
+				"Investigation access is required to generate a draft. Review your investigation allowance and spending limit, or edit the context manually.",
+			action: "billing",
+		},
+	]) {
+		test(
+			`keeps ${viewport.name} ${access.status} context stable through sequential loading`,
+			{
+				tag: "@regression",
+			},
+			async ({ authenticatedPage: page }, testInfo) => {
+				await page.setViewportSize(viewport);
+				const organizationGate = Promise.withResolvers<void>();
+				const briefGate = Promise.withResolvers<void>();
+				const accessGate = Promise.withResolvers<void>();
+				const organizationRequest = page.waitForRequest(
+					"**/api/auth/organization/list*"
+				);
+				const briefRequest = page.waitForRequest("**/rpc/businessContext/get");
+				const accessRequest = page.waitForRequest(
+					"**/rpc/businessContext/generationAccess"
+				);
+				await page.route("**/api/auth/organization/list*", async (route) => {
+					await organizationGate.promise;
+					await route.continue();
+				});
+				await page.route("**/rpc/businessContext/get", async (route) => {
+					await briefGate.promise;
+					await route.fulfill({ json: { json: settings() } });
+				});
+				await page.route(
+					"**/rpc/businessContext/generationAccess",
+					async (route) => {
+						await accessGate.promise;
+						await route.fulfill({ json: { json: access } });
+					}
+				);
+
+				const regions = ["page", "brief", "document", "research"] as const;
+				const readBounds = async () => {
+					const bounds = [];
+					for (const region of regions) {
+						const element = page.getByTestId(`business-context-${region}`);
+						await expect(element).toBeVisible();
+						const rect = await element.boundingBox();
+						if (!rect) {
+							throw new Error(`Missing ${region} bounds`);
+						}
+						bounds.push({ region, ...rect });
+					}
+					return bounds;
+				};
+
+				try {
+					await page.goto(path, { waitUntil: "domcontentloaded" });
+					await organizationRequest;
+					await page.evaluate(() => document.fonts.ready.then(() => undefined));
+					const loading = page.getByRole("status", {
+						name: "Loading business context",
+						exact: true,
+					});
+					await expect(loading).toBeVisible();
+					const initial = await readBounds();
+					await page.screenshot({
+						path: testInfo.outputPath("organization-loading.png"),
+					});
+					const expectStableBounds = async (phase: string) => {
+						const current = await readBounds();
+						for (const [index, before] of initial.entries()) {
+							const after = current[index]!;
+							const dimensions =
+								before.region === "brief" || before.region === "document"
+									? (["x", "y", "width", "height"] as const)
+									: (["x", "y", "width"] as const);
+							for (const dimension of dimensions) {
+								expect(
+									Math.abs(after[dimension] - before[dimension]),
+									`${phase}: ${before.region} ${dimension}`
+								).toBeLessThanOrEqual(1);
+							}
+						}
+						return current;
+					};
+
+					organizationGate.resolve();
+					await briefRequest;
+					await expect(loading).toBeVisible();
+					await expectStableBounds("business context loading");
+
+					briefGate.resolve();
+					await accessRequest;
+					await expect(loading).toBeHidden();
+					await expect(
+						page.getByText(savedContent, { exact: true })
+					).toBeVisible();
+					const generate = page.getByRole("button", {
+						name: "Regenerate with AI",
+						exact: true,
+					});
+					await expect(generate).toBeDisabled();
+					const pendingAccess = await expectStableBounds(
+						"generation access loading"
+					);
+
+					accessGate.resolve();
+					if (access.status === "allowed") {
+						await expect(generate).toBeEnabled();
+					} else {
+						await expect(
+							page.getByRole("link", { name: "Manage billing", exact: true })
+						).toBeVisible();
+						await expect(generate).toBeDisabled();
+					}
+					const ready = await expectStableBounds("generation access ready");
+					expect(
+						Math.abs(ready[3]!.height - pendingAccess[3]!.height),
+						"generation access must not resize research controls"
+					).toBeLessThanOrEqual(1);
+					expect(
+						await page.evaluate(
+							() => document.documentElement.scrollWidth > window.innerWidth
+						)
+					).toBe(false);
+					await page.screenshot({ path: testInfo.outputPath("loaded.png") });
+					await testInfo.attach("loading-bounds", {
+						body: JSON.stringify({ initial, pendingAccess, ready }, null, 2),
+						contentType: "application/json",
+					});
+				} finally {
+					organizationGate.resolve();
+					briefGate.resolve();
+					accessGate.resolve();
+				}
+			}
+		);
+	}
+}
+
 test("keeps typing when AI finishes and saves only the reviewed draft", {
 	tag: "@regression",
 }, async ({ authenticatedPage: page }) => {

@@ -32,6 +32,11 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { TopBar } from "@/components/layout/top-bar";
 import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
+import {
+	BusinessContextBriefHeader,
+	BusinessContextResearchCard,
+	BusinessContextSourceInput,
+} from "./business-context-layout";
 import { useBusinessContextDraft } from "./use-business-context-draft";
 import { MeasurementPlanEditor } from "./measurement-plan-editor";
 import {
@@ -394,29 +399,17 @@ export function BusinessContextEditor({
 					</Button>
 				</TopBar.Actions>
 			)}
-			<header className="space-y-2">
-				<h1 className="font-semibold text-xl tracking-tight">
-					Business context
-				</h1>
-				<p className="max-w-2xl text-muted-foreground text-sm leading-6">
-					Help Databuddy understand your business, focus on the right outcomes,
-					and interpret your analytics.
-				</p>
-			</header>
 			<div className="grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_18rem]">
 				<div className="contents">
-					<Card className="min-w-0 xl:col-start-1">
-						<Card.Header className="flex-row flex-wrap items-center justify-between gap-3">
-							<div className="space-y-1">
-								<Card.Title>Business brief</Card.Title>
-								<Card.Description>
-									Shared across this organization. Changes apply when saved.
-								</Card.Description>
-							</div>
+					<Card
+						className="min-w-0 xl:col-start-1"
+						data-testid="business-context-brief"
+					>
+						<BusinessContextBriefHeader>
 							<Badge variant={dirty ? "warning" : "muted"}>
 								{dirty ? "Unsaved changes" : profile ? "Saved" : "Not set up"}
 							</Badge>
-						</Card.Header>
+						</BusinessContextBriefHeader>
 						{review ? (
 							<section aria-labelledby="business-context-review-title">
 								<div className="space-y-2 border-border border-b px-5 py-4">
@@ -625,6 +618,7 @@ export function BusinessContextEditor({
 								</div>
 								<Tabs.Panel
 									value="preview"
+									data-testid="business-context-document"
 									className="h-112 overflow-y-auto p-5 sm:p-6"
 								>
 									{content.trim() ? (
@@ -852,143 +846,119 @@ export function BusinessContextEditor({
 				</div>
 				<aside className="order-1 min-w-0 space-y-5 xl:col-start-2 xl:row-span-3 xl:row-start-1">
 					{canEdit && (
-						<Card>
-							<Card.Header>
-								<Card.Title>Research your business</Card.Title>
-								<Card.Description>
-									Create a draft from your public website and documentation.
-								</Card.Description>
-							</Card.Header>
-							<Card.Content className="space-y-4">
-								{websites.length > 1 ? (
-									<DropdownMenu>
-										<DropdownMenu.Trigger
-											aria-label={`Source website: ${selectedWebsite?.name || selectedWebsite?.domain}`}
-											render={
-												<Button
-													disabled={generating || isSaving}
-													size="sm"
-													variant="secondary"
-													className="w-full justify-between"
-												/>
+						<BusinessContextResearchCard>
+							{websites.length > 1 ? (
+								<DropdownMenu>
+									<DropdownMenu.Trigger
+										aria-label={`Source website: ${selectedWebsite?.name || selectedWebsite?.domain}`}
+										render={
+											<Button
+												disabled={generating || isSaving}
+												size="sm"
+												variant="secondary"
+												className="w-full justify-between"
+											/>
+										}
+									>
+										<span className="truncate">
+											{selectedWebsite?.name || selectedWebsite?.domain}
+										</span>
+										<CaretDownIcon className="size-3 shrink-0" />
+									</DropdownMenu.Trigger>
+									<DropdownMenu.Content>
+										<DropdownMenu.Group>
+											<DropdownMenu.GroupLabel>
+												Generate from website
+											</DropdownMenu.GroupLabel>
+											<DropdownMenu.RadioGroup
+												value={selectedWebsite?.id}
+												onValueChange={setWebsiteId}
+											>
+												{websites.map((site) => (
+													<DropdownMenu.RadioItem key={site.id} value={site.id}>
+														{site.name || site.domain}
+													</DropdownMenu.RadioItem>
+												))}
+											</DropdownMenu.RadioGroup>
+										</DropdownMenu.Group>
+									</DropdownMenu.Content>
+								</DropdownMenu>
+							) : (
+								<p className="flex h-8 min-w-0 items-center font-medium text-xs">
+									<span className="truncate">
+										{selectedWebsite?.domain || "No website connected"}
+									</span>
+								</p>
+							)}
+							<BusinessContextSourceInput
+								value={sourceText}
+								onChange={setSourceText}
+								readOnly={generating || isSaving || !selectedWebsite}
+								error={sourceError}
+							/>
+							<div
+								className="min-h-20 text-xs leading-5"
+								role="status"
+								aria-live="polite"
+							>
+								{selectedWebsite ? (
+									generating ? (
+										<p>
+											{generation?.status === "queued"
+												? "Waiting to start…"
+												: generation?.progress?.stage === "writing"
+													? "Writing your draft…"
+													: "Reading your sources…"}
+											<span className="mt-1 block text-muted-foreground">
+												You can keep editing. Saving ends this generation.
+											</span>
+										</p>
+									) : generation?.status === "failed" &&
+										!accessPending &&
+										access?.status === "allowed" ? (
+										<p className="text-destructive">
+											{generation.error ||
+												"The draft could not be completed. Your saved brief is unchanged. Try again."}
+										</p>
+									) : accessPending ? (
+										<p className="text-muted-foreground">
+											Checking generation access…
+										</p>
+									) : (
+										<p
+											className={
+												access?.status === "allowed"
+													? "text-muted-foreground"
+													: "text-foreground"
 											}
 										>
-											<span className="truncate">
-												{selectedWebsite?.name || selectedWebsite?.domain}
-											</span>
-											<CaretDownIcon className="size-3 shrink-0" />
-										</DropdownMenu.Trigger>
-										<DropdownMenu.Content>
-											<DropdownMenu.Group>
-												<DropdownMenu.GroupLabel>
-													Generate from website
-												</DropdownMenu.GroupLabel>
-												<DropdownMenu.RadioGroup
-													value={selectedWebsite?.id}
-													onValueChange={setWebsiteId}
-												>
-													{websites.map((site) => (
-														<DropdownMenu.RadioItem
-															key={site.id}
-															value={site.id}
-														>
-															{site.name || site.domain}
-														</DropdownMenu.RadioItem>
-													))}
-												</DropdownMenu.RadioGroup>
-											</DropdownMenu.Group>
-										</DropdownMenu.Content>
-									</DropdownMenu>
+											{access?.message ||
+												"Generation access could not be checked. Your brief is still editable."}
+										</p>
+									)
 								) : (
-									<p className="break-all font-medium text-xs">
-										{selectedWebsite?.domain || "No website connected"}
+									<p className="text-muted-foreground">
+										Add a website to generate a draft. You can write and save
+										your brief now.
 									</p>
 								)}
-								<Field error={Boolean(sourceError)}>
-									<Field.Label>
-										Additional pages{" "}
-										<span className="font-normal text-muted-foreground">
-											(optional)
-										</span>
-									</Field.Label>
-									<Textarea
-										value={sourceText}
-										onChange={(event) => setSourceText(event.target.value)}
-										readOnly={generating || isSaving || !selectedWebsite}
-										minRows={3}
-										maxRows={3}
-										placeholder="https://example.com/pricing
-https://docs.example.com/start"
-										className="text-xs"
-									/>
-									<Field.Description>
-										Up to six URLs, one per line. Include your pricing, setup
-										guide, or product documentation.
-									</Field.Description>
-									{sourceError && <Field.Error>{sourceError}</Field.Error>}
-								</Field>
-								<div
-									className="min-h-20 text-xs leading-5"
-									role="status"
-									aria-live="polite"
-								>
-									{selectedWebsite ? (
-										generating ? (
-											<p>
-												{generation?.status === "queued"
-													? "Waiting to start…"
-													: generation?.progress?.stage === "writing"
-														? "Writing your draft…"
-														: "Reading your sources…"}
-												<span className="mt-1 block text-muted-foreground">
-													You can keep editing. Saving ends this generation.
-												</span>
-											</p>
-										) : generation?.status === "failed" &&
-											!accessPending &&
-											access?.status === "allowed" ? (
-											<p className="text-destructive">
-												{generation.error ||
-													"The draft could not be completed. Your saved brief is unchanged. Try again."}
-											</p>
-										) : accessPending ? (
-											<p className="text-muted-foreground">
-												Checking generation access…
-											</p>
-										) : (
-											<p
-												className={
-													access?.status === "allowed"
-														? "text-muted-foreground"
-														: "text-foreground"
-												}
-											>
-												{access?.message ||
-													"Generation access could not be checked. Your brief is still editable."}
-											</p>
-										)
-									) : (
-										<p className="text-muted-foreground">
-											Add a website to generate a draft. You can write and save
-											your brief now.
-										</p>
-									)}
-								</div>
-								<Button
-									className="w-full"
-									disabled={!canGenerate}
-									loading={generating}
-									onClick={generate}
-									size="sm"
-									variant="secondary"
-								>
-									<WandSparkleIcon className="size-4" />
-									{generating
-										? "Generating draft…"
-										: content.trim() || profile
-											? "Regenerate with AI"
-											: "Generate with AI"}
-								</Button>
+							</div>
+							<Button
+								className="w-full"
+								disabled={!canGenerate}
+								loading={generating}
+								onClick={generate}
+								size="sm"
+								variant="secondary"
+							>
+								<WandSparkleIcon className="size-4" />
+								{generating
+									? "Generating draft…"
+									: content.trim() || profile
+										? "Regenerate with AI"
+										: "Generate with AI"}
+							</Button>
+							<div className="min-h-8">
 								{activeGeneration && generation ? (
 									<Button
 										className="w-full"
@@ -1033,14 +1003,11 @@ https://docs.example.com/start"
 										<Link href="/websites">Add a website</Link>
 									</Button>
 								)}
-								{access && access.status !== "allowed" && !generating && (
-									<p className="text-muted-foreground text-xs leading-5">
-										You can always write, edit, and save business context
-										manually.
-									</p>
-								)}
-							</Card.Content>
-						</Card>
+							</div>
+							<p className="text-muted-foreground text-xs leading-5">
+								You can always write, edit, and save business context manually.
+							</p>
+						</BusinessContextResearchCard>
 					)}
 					<section className="space-y-3 px-1" aria-label="Context checklist">
 						<h2 className="font-semibold text-xs">Context at a glance</h2>
