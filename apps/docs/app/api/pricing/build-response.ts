@@ -1,5 +1,4 @@
 import {
-	DATABUNNY_CHAT,
 	INVESTIGATION_ALLOWANCES,
 	INVESTIGATION_USAGE,
 } from "@databuddy/shared/billing";
@@ -77,13 +76,13 @@ function mapRawPlans() {
 						}
 					: {}),
 			}));
-		if (plan.chatIncluded !== null) {
+		if (plan.agentCredits) {
 			features.unshift({
-				id: DATABUNNY_CHAT.featureId,
-				name: DATABUNNY_CHAT.name,
-				type: "boolean",
-				included: plan.chatIncluded,
-				interval: null,
+				id: "agent_credits",
+				name: "AI credits",
+				type: "metered",
+				included: plan.agentCredits.month,
+				interval: "month",
 			});
 		}
 

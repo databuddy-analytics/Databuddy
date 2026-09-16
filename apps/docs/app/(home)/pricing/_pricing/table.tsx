@@ -49,13 +49,16 @@ export function PlansComparisonTable({ plans }: { plans: NormalizedPlan[] }) {
 					: plan.includedEventsMonthly.toLocaleString(),
 		},
 		{
-			name: "Databunny chat",
-			value: (plan: NormalizedPlan) =>
-				plan.chatIncluded === null
-					? "Custom"
-					: plan.chatIncluded
-						? "Included"
-						: "—",
+			name: "AI credits",
+			value: (plan: NormalizedPlan) => {
+				if (!plan.agentCredits) {
+					return "Custom";
+				}
+				const monthly = `${plan.agentCredits.month.toLocaleString()} / month`;
+				return plan.agentCredits.day
+					? `${monthly} + ${plan.agentCredits.day.toLocaleString()} / day`
+					: monthly;
+			},
 		},
 		{
 			name: "Extra events",

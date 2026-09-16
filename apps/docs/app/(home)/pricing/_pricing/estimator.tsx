@@ -271,7 +271,7 @@ export function Estimator({ plans }: Props) {
 										</span>
 									</div>
 									<p className="mt-2 text-muted-foreground text-xs">
-										Estimate before taxes. Databunny chat is included.
+										Estimate before taxes. Databunny chat runs on AI credits.
 									</p>
 									<div className="mt-4 flex justify-end">
 										<SciFiButton

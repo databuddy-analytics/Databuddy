@@ -1,4 +1,5 @@
 import {
+	AGENT_CREDIT_ALLOWANCES,
 	INVESTIGATION_ALLOWANCES,
 	INVESTIGATION_USAGE,
 } from "@databuddy/shared/billing";
@@ -35,7 +36,7 @@ export type RawItem =
 	  };
 
 export interface RawPlan {
-	chatIncluded: boolean | null;
+	agentCredits: { day?: number; month: number } | null;
 	id: string;
 	items: RawItem[];
 	name: string;
@@ -75,7 +76,7 @@ const EVENT_TIERS = [
 export const RAW_PLANS: RawPlan[] = [
 	{
 		id: "free",
-		chatIncluded: true,
+		agentCredits: AGENT_CREDIT_ALLOWANCES.free,
 		name: "Free",
 		items: [
 			{
@@ -89,7 +90,7 @@ export const RAW_PLANS: RawPlan[] = [
 	},
 	{
 		id: "hobby",
-		chatIncluded: true,
+		agentCredits: AGENT_CREDIT_ALLOWANCES.hobby,
 		name: "Hobby",
 		items: [
 			{
@@ -112,7 +113,7 @@ export const RAW_PLANS: RawPlan[] = [
 	},
 	{
 		id: "pro",
-		chatIncluded: true,
+		agentCredits: AGENT_CREDIT_ALLOWANCES.pro,
 		name: "Pro",
 		items: [
 			{
@@ -132,7 +133,7 @@ export const RAW_PLANS: RawPlan[] = [
 	},
 	{
 		id: "intelligence",
-		chatIncluded: true,
+		agentCredits: AGENT_CREDIT_ALLOWANCES.intelligence,
 		name: "Business",
 		items: [
 			investigationAllowance(INVESTIGATION_ALLOWANCES.intelligence),
@@ -155,7 +156,7 @@ export const RAW_PLANS: RawPlan[] = [
 	},
 	{
 		id: "intelligence_scale",
-		chatIncluded: true,
+		agentCredits: AGENT_CREDIT_ALLOWANCES.intelligence_scale,
 		name: "Scale",
 		items: [
 			investigationAllowance(INVESTIGATION_ALLOWANCES.intelligence_scale),
@@ -178,7 +179,7 @@ export const RAW_PLANS: RawPlan[] = [
 	},
 	{
 		id: "enterprise",
-		chatIncluded: null,
+		agentCredits: null,
 		name: "Enterprise",
 		items: [{ type: "enterprise" }],
 	},

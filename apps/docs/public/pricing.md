@@ -1,18 +1,18 @@
 # Databuddy Pricing
 
-Start with analytics and included Databunny chat. Business includes 100 investigations per month; Scale includes 500. Extras cost $1 each, billed monthly.
+Start with analytics and a monthly AI credit allowance for Databunny chat. Business includes 100 investigations per month; Scale includes 500. Extra investigations cost $1 each, billed monthly, and do not draw from AI credits.
 
 Machine-readable: [JSON](https://www.databuddy.cc/api/pricing) · static [Markdown](https://www.databuddy.cc/pricing.md) · **GET `/pricing`** with `Accept: text/markdown`.
 
 ## Plans
 
-| Plan | Price | Events / month (included) | Investigations / month (included) | Databunny chat | Notes |
+| Plan | Price | Events / month (included) | Investigations / month (included) | AI credits / month (included) | Notes |
 | --- | --- | --- | --- | --- | --- |
-| Free | $0 | 10,000 | — | Included | No paid overage — ingestion pauses at the monthly event allowance |
-| Hobby | $9.99/mo | 30,000 | — | Included | Tiered event overage |
-| Pro | $49.99/mo | 1,000,000 | — | Included | Tiered event overage |
-| Business | $299/mo | 2,000,000 | 100 / month | Included | Invite only. $1 per additional investigation, billed monthly; tiered event overage |
-| Scale | $799/mo | 10,000,000 | 500 / month | Included | Invite only. $1 per additional investigation, billed monthly; tiered event overage |
+| Free | $0 | 10,000 | — | 10 | No paid overage — ingestion pauses at the monthly event allowance |
+| Hobby | $9.99/mo | 30,000 | — | 20 (plus 1 / day) | Tiered event overage |
+| Pro | $49.99/mo | 1,000,000 | — | 350 (plus 5 / day) | Tiered event overage |
+| Business | $299/mo | 2,000,000 | 100 / month | 1,500 | Invite only. $1 per additional investigation, billed monthly; tiered event overage |
+| Scale | $799/mo | 10,000,000 | 500 / month | 5,000 | Invite only. $1 per additional investigation, billed monthly; tiered event overage |
 | Enterprise | Custom | Custom | Custom | Custom | Volume, security, SLAs — [pricing page](https://www.databuddy.cc/pricing) |
 
 ## Events (overage on paid plans)
@@ -57,7 +57,7 @@ Custom volume, security, and support. [Contact us](https://www.databuddy.cc/cont
 
 - **Event:** A pageview, custom event, captured error, or Web Vital measurement counted toward monthly analytics usage. Feature flag evaluations and uptime checks do not count.
 - **Investigation:** A completed analysis of one question.
-- **Databunny chat:** Included questions and answers about your analytics.
+- **AI credits:** The monthly allowance that pays for Databunny chat questions and answers about your analytics.
 - **Overage:** Usage above the monthly included allowance. Events have tiered rates; completed investigations cost $1 each above the included amount.
 
 ## Links

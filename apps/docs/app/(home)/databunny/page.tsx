@@ -62,7 +62,7 @@ const FAQ_ITEMS = [
 	},
 	{
 		question: "Is Databunny included in all plans?",
-		answer: `Databunny chat is included in every plan. Business includes ${INVESTIGATION_ALLOWANCES.intelligence} investigations per month and Scale includes ${INVESTIGATION_ALLOWANCES.intelligence_scale}, with $${INVESTIGATION_USAGE.priceUsd} per extra. Investigation access is invite only.`,
+		answer: `Databunny chat runs on AI credits, and every plan includes a monthly allowance. Business includes ${INVESTIGATION_ALLOWANCES.intelligence} investigations per month and Scale includes ${INVESTIGATION_ALLOWANCES.intelligence_scale}, with $${INVESTIGATION_USAGE.priceUsd} per extra. Investigation access is invite only.`,
 	},
 ] as const;
 

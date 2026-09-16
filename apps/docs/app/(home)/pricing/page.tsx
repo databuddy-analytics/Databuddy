@@ -19,7 +19,7 @@ export default function PricingPage() {
 						Find the plan that fits your product.
 					</h1>
 					<p className="mx-auto max-w-2xl text-pretty text-muted-foreground text-sm sm:text-base">
-						Databunny chat is included. Business and Scale add monthly
+						Databunny chat runs on AI credits. Business and Scale add monthly
 						investigations.
 					</p>
 				</header>

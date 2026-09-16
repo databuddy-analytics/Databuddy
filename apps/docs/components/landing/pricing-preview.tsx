@@ -24,7 +24,7 @@ export function PricingPreview() {
 				</h2>
 				<p className="mt-3 max-w-2xl text-pretty text-muted-foreground text-sm sm:px-0 sm:text-base lg:text-lg">
 					Estimate your monthly bill from events and investigations. Databunny
-					chat is included.
+					chat runs on AI credits.
 				</p>
 			</div>
 

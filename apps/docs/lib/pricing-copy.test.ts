@@ -158,7 +158,7 @@ describe("public pricing copy", () => {
 		expect(markdown).not.toContain("Agent credits");
 		expect(markdown).not.toContain("Databunny usage");
 		expect(markdown).not.toContain("usage units");
-		expect(markdown).not.toContain("AI credits");
+		expect(markdown).toContain("AI credits");
 		expect(markdown).not.toContain("investigation credits");
 		expect(markdown).toContain("Databunny chat");
 		expect(markdown).toContain("Invite only");
@@ -283,25 +283,25 @@ describe("public pricing copy", () => {
 		expect(cards).not.toContain("Clarifications");
 	});
 
-	it("publishes included chat as a capability without customer credit grants or prices", () => {
+	it("publishes AI credit allowances as a metered capability", () => {
 		const response = buildPricingApiPayload(
 			new Request("https://www.databuddy.cc/api/pricing")
 		);
 		for (const plan of response.plans.filter(
 			(entry) => entry.id !== "enterprise"
 		)) {
-			const chat = plan.features.find(
-				(feature) => feature.id === "databunny_chat"
+			const credits = plan.features.find(
+				(feature) => feature.id === "agent_credits"
 			);
-			expect(chat).toEqual({
-				id: "databunny_chat",
-				name: "Databunny chat",
-				type: "boolean",
-				included: true,
-				interval: null,
+			expect(credits).toMatchObject({
+				id: "agent_credits",
+				name: "AI credits",
+				type: "metered",
+				interval: "month",
 			});
+			expect(credits?.included).toBeGreaterThan(0);
 			expect(
-				plan.features.some((feature) => feature.id === "agent_credits")
+				plan.features.some((feature) => feature.id === "databunny_chat")
 			).toBe(false);
 		}
 		expect(response).not.toHaveProperty("notes.legacyCredits");
@@ -311,17 +311,16 @@ describe("public pricing copy", () => {
 				elements: [{ type: "softwareOffers", plans: RAW_PLANS }],
 			})
 		);
-		expect(structured).toContain('"name":"Databunny chat","value":"Included"');
+		expect(structured).toContain('"name":"AI credits"');
 		const table = renderToStaticMarkup(
 			createElement(PlansComparisonTable, { plans: normalizePlans(RAW_PLANS) })
 		);
-		expect(table).toContain("Databunny chat");
-		expect(table).toContain("Included");
+		expect(table).toContain("AI credits");
 		expect(table).toContain("$9.99");
 		expect(table).toContain("$49.99");
 		expect(table).not.toContain("first month $2");
 		for (const output of [structured, table]) {
-			expect(output).not.toContain("AI credits");
+			expect(output).not.toContain("databunny_chat");
 			expect(output).not.toContain("investigation credits");
 			expect(output).not.toContain("prepaid");
 			expect(output).not.toContain("legacy billing");

@@ -43,9 +43,9 @@ describe("billing usage email copy", () => {
 		expect(text.toLowerCase()).toContain("ai credits: 82% used");
 		expect(text).toContain("288 of 350 AI credits");
 		expect(text).toContain("62 remain");
-		expect(text).toContain("pay for ordinary Databunny chat");
+		expect(text).toContain("AI credits pay for Databunny chat");
 		expect(text).toContain(
-			"Existing credit balances and allowances keep their value"
+			"Investigations are billed separately at $1 per completed investigation"
 		);
 		expect(text).not.toContain("agent credits");
 		expect(text).not.toContain("AI credits is");
@@ -64,9 +64,7 @@ describe("billing usage email copy", () => {
 			{ plainText: true }
 		);
 
-		expect(text).toContain(
-			"Access to Databunny chat and investigations on legacy billing terms is currently paused"
-		);
+		expect(text).toContain("Access to Databunny chat is currently paused");
 		expect(text).toContain("350 of 350 AI credits");
 		expect(text).not.toContain("AI credits is");
 		expect(text).not.toContain("1.5x");

@@ -47,7 +47,7 @@ export function normalizePlans(raw: RawPlan[]) {
 				includedInvestigationsMonthly: null,
 				investigationPrice: null,
 				eventTiers: null,
-				chatIncluded: plan.chatIncluded,
+				agentCredits: plan.agentCredits,
 			};
 		}
 
@@ -76,7 +76,7 @@ export function normalizePlans(raw: RawPlan[]) {
 					? (investigations.price ?? null)
 					: null,
 			eventTiers,
-			chatIncluded: plan.chatIncluded,
+			agentCredits: plan.agentCredits,
 		};
 	});
 }
