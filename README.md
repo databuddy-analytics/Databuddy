@@ -9,9 +9,9 @@ where they drop off. Use that insight to decide what to build or improve next.
 
 ## Self-hosting
 
-Run Databuddy on your server with Docker Compose. Core analytics works without
-email, AI, or billing credentials. Some features need extra setup; see
-[optional services](#optional-services).
+Run Databuddy on your server with Docker Compose. It sets `SELFHOST=true`, so
+events go straight to ClickHouse, while hosted billing and Databuddy's own telemetry are disabled.
+Email and AI are optional; see [optional services](#optional-services).
 
 ### Start your instance
 
@@ -64,8 +64,7 @@ dashboard after changing public URLs; they're part of its browser bundle.
 ### Optional services
 
 - **Email:** For resets, invitations, and alerts, set `RESEND_API_KEY` and an `EMAIL_FROM` sender on your verified domain, such as `Databuddy <no-reply@example.com>`. Leave `ALERTS_EMAIL_FROM` empty to use the same sender. Recreate the services after changes.
-- **Insights:** Set `AI_GATEWAY_API_KEY`, `AUTUMN_SECRET_KEY`, and `COMPOSE_PROFILES=insights` in `.env`, then rerun `docker compose -f docker-compose.selfhost.yml up -d --build`. Your organization also needs an Autumn customer with investigation allowance or credits.
-- **Billing-backed features:** Error analytics and creating goals, funnels, or feature flags still need Autumn. Billing screens can show errors without it.
+- **Insights:** Set `AI_GATEWAY_API_KEY` and `COMPOSE_PROFILES=insights` in `.env`, then rerun `docker compose -f docker-compose.selfhost.yml up -d --build`. Website research also needs `FIRECRAWL_API_KEY`.
 - **DQL:** Requires separate setup: a restricted `dql_user` and `CLICKHOUSE_DQL_URL` passed to the API in Compose. Use HTTPS outside loopback and never use the application's admin credentials. See the [DQL setup script](packages/db/src/clickhouse/dql.ts).
 
 Self-hosting is still evolving. If you get stuck, [tell us what happened](https://github.com/databuddy-analytics/Databuddy/issues) or ask in [Discord](https://discord.gg/JTk7a38tCZ).
