@@ -1,15 +1,14 @@
-const TAG_NAME_START = /[a-z_]/i;
-
-function isTagStart(value: string, index: number): boolean {
-	const name = value[index + 1] === "/" ? value[index + 2] : value[index + 1];
-	return name !== undefined && TAG_NAME_START.test(name);
-}
+const TAG_START = /^<\/?[a-z_]/i;
 
 function stripTagsOnce(value: string): string {
 	const lastClose = value.lastIndexOf(">");
 	let out = "";
 	for (let i = 0; i < value.length; i++) {
-		if (value[i] === "<" && i < lastClose && isTagStart(value, i)) {
+		if (
+			value[i] === "<" &&
+			i < lastClose &&
+			TAG_START.test(value.slice(i, i + 3))
+		) {
 			i = value.indexOf(">", i);
 			continue;
 		}
