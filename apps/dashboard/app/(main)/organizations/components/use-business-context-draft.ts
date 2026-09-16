@@ -77,6 +77,11 @@ export function useBusinessContextDraft(key: string, canEdit: boolean) {
 					const result = recoverySchema.safeParse(stored);
 					if (result.success) {
 						current = { ...result.data, recoverable: true };
+					} else {
+						const legacy = draftRecoverySchema.safeParse(stored);
+						if (legacy.success) {
+							current.draft = legacy.data;
+						}
 					}
 				}
 			} catch {
