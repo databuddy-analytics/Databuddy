@@ -19,6 +19,7 @@ import {
 	businessContextEditSchema,
 	businessContextIsGenerating,
 	businessContextSettingsSchema,
+	businessContextSourceUrlsSchema,
 } from "@databuddy/shared/organization-business-context";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
@@ -185,7 +186,12 @@ export const businessContextRouter = {
 			summary: "Generate a business context draft from a website",
 			tags: ["Organizations"],
 		})
-		.input(scope.extend({ websiteId: z.string().min(1).max(256) }))
+		.input(
+			scope.extend({
+				websiteId: z.string().min(1).max(256),
+				sourceUrls: businessContextSourceUrlsSchema.optional(),
+			})
+		)
 		.output(businessContextSettingsSchema)
 		.handler(({ context, input }) =>
 			runAuditedMutation("businessContext.generate", context, async () => {

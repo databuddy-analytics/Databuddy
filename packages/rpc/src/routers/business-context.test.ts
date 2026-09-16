@@ -72,6 +72,10 @@ const generation = {
 	draft: null,
 	error: null,
 };
+const begins = mock(async (_input: Record<string, unknown>) => {
+	state.generation = { ...generation };
+	return state;
+});
 
 beforeAll(async () => {
 	const realDb = await import("@databuddy/db");
@@ -102,10 +106,7 @@ beforeAll(async () => {
 				);
 			return saves();
 		},
-		beginBusinessContextGeneration: async () => {
-			state.generation = { ...generation };
-			return state;
-		},
+		beginBusinessContextGeneration: begins,
 		markBusinessContextGeneration: async () => {
 			state.generation = {
 				...generation,
@@ -170,6 +171,7 @@ beforeEach(() => {
 	restores.mockClear();
 	audits.mockClear();
 	queued.mockClear();
+	begins.mockClear();
 });
 
 afterAll(() => {
@@ -391,4 +393,28 @@ test("unconfigured billing preserves the worker's local policy and fails closed 
 	process.env.NODE_ENV = "production";
 	expect(await access()).toMatchObject({ status: "not-configured", billingMode: null });
 	expect(billingRequests).toEqual([]);
+});
+
+test("generation forwards selected public pages to the scope-validating service", async () => {
+	const sourceUrls = ["https://docs.example.com/start", "https://example.com/pricing"];
+	await createProcedureClient(router.generate, { context: context() })({
+		organizationId: "org-one", websiteId: "site-one", sourceUrls,
+	});
+	expect(begins).toHaveBeenCalledWith({
+		organizationId: "org-one", websiteId: "site-one", requestedBy: "owner-one", sourceUrls,
+	});
+});
+
+test("unsafe or excessive source pages are rejected before billing or queueing", async () => {
+	const generate = createProcedureClient(router.generate, { context: context() });
+	for (const sourceUrls of [
+		["http://127.0.0.1/private"],
+		["https://example.com/?token=secret"],
+		Array.from({ length: 7 }, (_, index) => `https://example.com/page-${index}`),
+	]) {
+		await expect(generate({ organizationId: "org-one", websiteId: "site-one", sourceUrls })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+	}
+	expect(billingRequests).toEqual([]);
+	expect(begins).not.toHaveBeenCalled();
+	expect(queued).not.toHaveBeenCalled();
 });
