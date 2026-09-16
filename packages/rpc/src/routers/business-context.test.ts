@@ -313,13 +313,13 @@ function access() {
 
 test("the first draft is included without checking billing", async () => {
 	state = { profile: null, generation: null };
-	expect(await access()).toMatchObject({ status: "allowed", billingMode: null, action: "generate" });
+	expect(await access()).toMatchObject({ status: "allowed", action: "generate" });
 	expect(billingRequests).toEqual([]);
 	expect(queued).not.toHaveBeenCalled();
 });
 
 test("preflight checks agent credits without charging", async () => {
-	expect(await access()).toMatchObject({ status: "allowed", billingMode: null, action: "generate" });
+	expect(await access()).toMatchObject({ status: "allowed", action: "generate" });
 	expect(billingRequests).toEqual([{ path: "/v1/balances.check", body: {
 		customer_id: "owner-one", feature_id: "agent_credits", required_balance: 0.01,
 	} }]);
@@ -328,7 +328,7 @@ test("preflight checks agent credits without charging", async () => {
 
 test("denied agent credits are actionable and block generation before state changes", async () => {
 	allowed = false;
-	expect(await access()).toMatchObject({ status: "credits-required", billingMode: null, action: "billing" });
+	expect(await access()).toMatchObject({ status: "credits-required", action: "billing" });
 	await expect(createProcedureClient(router.generate, { context: context() })({ organizationId: "org-one", websiteId: "site-one" })).rejects.toMatchObject({ code: "PAYMENT_REQUIRED" });
 	expect(state.generation).toBeNull();
 	expect(queued).not.toHaveBeenCalled();
@@ -343,14 +343,14 @@ test("generation rechecks an earlier successful preflight", async () => {
 
 test("read-only and unauthorized callers cannot inspect billing", async () => {
 	role = "member";
-	expect(await access()).toMatchObject({ status: "read-only", billingMode: null, action: "contact-admin" });
+	expect(await access()).toMatchObject({ status: "read-only", action: "contact-admin" });
 	await expect(createProcedureClient(router.generationAccess, { context: context() })({ organizationId: "org-other" })).rejects.toMatchObject({ code: "FORBIDDEN" });
 	expect(billingRequests).toEqual([]);
 });
 
 test.each([202, 500])("an unconfirmed credit check (%s) cannot authorize generation or block manual editing", async (status) => {
 	checkStatus = status;
-	expect(await access()).toMatchObject({ status: "unavailable", billingMode: null, action: "retry" });
+	expect(await access()).toMatchObject({ status: "unavailable", action: "retry" });
 	await expect(createProcedureClient(router.generate, { context: context() })({ organizationId: "org-one", websiteId: "site-one" })).rejects.toMatchObject({ code: "SERVICE_UNAVAILABLE" });
 	const requestsBeforeEditing = billingRequests.length;
 	await createProcedureClient(router.get, { context: context() })({ organizationId: "org-one" });
@@ -378,9 +378,9 @@ test.each(["AI_GATEWAY_API_KEY", "FIRECRAWL_API_KEY"])("missing %s disables gene
 
 test("unconfigured billing preserves the worker's local policy and fails closed in production", async () => {
 	delete process.env.AUTUMN_SECRET_KEY;
-	expect(await access()).toMatchObject({ status: "allowed", billingMode: null });
+	expect(await access()).toMatchObject({ status: "allowed" });
 	process.env.NODE_ENV = "production";
-	expect(await access()).toMatchObject({ status: "not-configured", billingMode: null });
+	expect(await access()).toMatchObject({ status: "not-configured" });
 	expect(billingRequests).toEqual([]);
 });
 

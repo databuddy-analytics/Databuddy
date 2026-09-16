@@ -307,14 +307,11 @@ integration("included saved-evidence replies", () => {
 		await closeInsightsQueue();
 		await shutdownPostgres();
 	});
-	it.each([
-		["legacy"],
-		["unconfigured"],
-	] as const)("refuses new analysis under %s terms before provider reservation or fresh work", async (mode) => {
+	it("refuses new analysis under unconfigured terms before provider reservation or fresh work", async () => {
 		const f = await fixture({ intent: "analysis" });
 		spyOn(billing, "resolveInvestigationBilling").mockResolvedValue({
-			mode,
-			customerId: mode === "legacy" ? "synthetic-customer" : null,
+			mode: "unconfigured",
+			customerId: null,
 		});
 		const reserve = spyOn(
 			billing,

@@ -13,7 +13,6 @@ export const businessContextGenerationAccessSchema = z.object({
 		"not-configured",
 		"read-only",
 	]),
-	billingMode: z.enum(["fixed", "legacy"]).nullable(),
 	message: z.string(),
 	action: z.enum(["generate", "billing", "retry", "contact-admin"]),
 });
@@ -27,7 +26,6 @@ export async function businessContextGenerationAccess(
 	if (!(role && roleHasPermission(role, "organization", ["update"]))) {
 		return {
 			status: "read-only",
-			billingMode: null,
 			message:
 				"Ask an organization admin to generate or edit business context.",
 			action: "contact-admin",
@@ -43,7 +41,6 @@ export async function businessContextGenerationAccess(
 	) {
 		return {
 			status: "not-configured",
-			billingMode: null,
 			message:
 				"AI draft generation is not configured. Contact your administrator, or edit the context manually.",
 			action: "contact-admin",
@@ -53,7 +50,6 @@ export async function businessContextGenerationAccess(
 	if (!process.env.AUTUMN_SECRET_KEY?.trim()) {
 		return {
 			status: "allowed",
-			billingMode: null,
 			message: "You can generate a draft from your website.",
 			action: "generate",
 		};
@@ -61,7 +57,6 @@ export async function businessContextGenerationAccess(
 	if (!hasProfile) {
 		return {
 			status: "allowed",
-			billingMode: null,
 			message: "Your first draft is included.",
 			action: "generate",
 		};
@@ -84,14 +79,12 @@ export async function businessContextGenerationAccess(
 		if (access.allowed === true) {
 			return {
 				status: "allowed",
-				billingMode: null,
 				message: "Generating a draft uses your AI credits.",
 				action: "generate",
 			};
 		}
 		return {
 			status: "credits-required",
-			billingMode: null,
 			message:
 				"AI credits are required to generate a draft. Review your AI credit balance and spending limit, or edit the context manually.",
 			action: roleHasPermission(role, "subscription", ["update"])
@@ -105,7 +98,6 @@ export async function businessContextGenerationAccess(
 		);
 		return {
 			status: "unavailable",
-			billingMode: null,
 			message:
 				"Generation access could not be checked. Try again, or edit the context manually.",
 			action: "retry",

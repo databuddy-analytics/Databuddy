@@ -210,11 +210,6 @@ export const pro = plan({
 	],
 });
 
-/*
- * Scale is being phased out — preserve current capability for existing
- * customers but do NOT add new feature items beyond what's necessary for
- * parity with Pro. No new bells, no overage tiers.
- */
 export const scale = plan({
 	id: LEGACY_SCALE_PLAN.id,
 	name: LEGACY_SCALE_PLAN.name,
@@ -252,19 +247,7 @@ export const scale = plan({
 	],
 });
 
-/*
- * Business and Scale include monthly investigations; additional investigations
- * use the same investigation_runs meter at a fixed $1 each.
- * Current plans include ordinary chat. Legacy grants and purchased credits
- * retain their terms on existing attached plan versions.
- * Do not migrate existing subscriptions: their attached versions retain legacy
- * investigation credit terms until they buy investigations or switch plan versions.
- *
- * These are invitation-only beta plans for now, so checkout stays contact-only
- * on the billing picker and public pricing docs. Keep them in the default
- * group so an attached beta plan replaces Free, Hobby, Pro, or legacy Scale
- * instead of stacking as a second base subscription.
- */
+// Default group on purpose: an attached Intelligence plan must replace the base plan, not stack on it.
 export const intelligence = plan({
 	id: "intelligence",
 	name: "Business",

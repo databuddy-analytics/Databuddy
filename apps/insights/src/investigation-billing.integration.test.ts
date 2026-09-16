@@ -254,7 +254,7 @@ integration("investigation billing through the native Autumn SDK", () => {
 				{ organizationId: "synthetic-org" },
 				provider({ entitled: false }).client
 			)
-		).toEqual({ mode: "legacy", customerId });
+		).toEqual({ mode: "fixed", customerId });
 		const failed = provider();
 		failed.faults.push({ endpoint: "customer", status: 500 });
 		await expect(
@@ -633,16 +633,14 @@ integration("investigation billing through the native Autumn SDK", () => {
 		await releaseInvestigationCharge(reservation, remote.client);
 	});
 
-	it("leaves legacy/unconfigured access on its original path without fixed-unit provider mutations", async () => {
+	it("leaves unconfigured access on its original path without provider mutations", async () => {
 		const remote = provider();
-		for (const mode of ["legacy", "unconfigured"] as const) {
-			const reservation = await reserveInvestigationCharge(
-				{ ...operation(), billing: { mode, customerId } },
-				remote.client
-			);
-			expect(reservation.mode).toBe(mode);
-			await releaseInvestigationCharge(reservation, remote.client);
-		}
+		const reservation = await reserveInvestigationCharge(
+			{ ...operation(), billing: { mode: "unconfigured", customerId } },
+			remote.client
+		);
+		expect(reservation.mode).toBe("unconfigured");
+		await releaseInvestigationCharge(reservation, remote.client);
 		expect(remote.requests).toHaveLength(0);
 	});
 

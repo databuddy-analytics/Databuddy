@@ -24,8 +24,8 @@ const integration =
 		? describe
 		: describe.skip;
 
-integration("selection billing across native generation retries", () => {
-	it("reuses the charge key before freeze, skips selection after freeze, and separates runs and websites", async () => {
+integration("selection usage across native generation retries", () => {
+	it("reuses the plan before freeze, skips selection after freeze, and never charges the provider", async () => {
 		const organizationId = randomUUIDv7();
 		const siteIds = [randomUUIDv7(), randomUUIDv7()];
 		const runIds = [randomUUIDv7(), randomUUIDv7()];
@@ -65,7 +65,7 @@ integration("selection billing across native generation retries", () => {
 			billing,
 			"resolveAgentBillingCustomerId"
 		).mockResolvedValue("synthetic-customer");
-		const mode = spyOn(investigationBilling, "resolveInvestigationBilling").mockResolvedValue({ mode: "legacy", customerId: "synthetic-customer" });
+		const mode = spyOn(investigationBilling, "resolveInvestigationBilling").mockResolvedValue({ mode: "fixed", customerId: "synthetic-customer" });
 		const access = spyOn(investigationBilling, "canRunInvestigation").mockResolvedValue(true);
 		const metrics = spyOn(detection, "detectSignals").mockResolvedValue(
 			["visitors", "sessions"].map((metric) => ({
@@ -188,14 +188,11 @@ integration("selection billing across native generation retries", () => {
 			expect(
 				await plans.loadInsightRunCandidatePlan(input, "scheduled")
 			).toMatchObject({ candidates: [] });
-			expect(requests).toEqual([
-				`insights:${input.runId}:${input.websiteId}:selection`,
-				`insights:${input.runId}:${input.websiteId}:selection`,
-			]);
-			expect(charges.size).toBe(1);
+			expect(requests).toEqual([]);
+			expect(charges.size).toBe(0);
 			await generateWebsiteInsights(input);
 			expect(choose).toHaveBeenCalledTimes(2);
-			expect(track).toHaveBeenCalledTimes(2);
+			expect(track).not.toHaveBeenCalled();
 			for (const identity of identities.slice(1)) {
 				if (identity.runId !== input.runId) {
 					await db
@@ -209,18 +206,8 @@ integration("selection billing across native generation retries", () => {
 				}
 				await generateWebsiteInsights({ ...input, ...identity });
 			}
-			expect(charges.size).toBe(3);
-			expect(requests.slice(2)).toEqual(
-				identities
-					.slice(1)
-					.map(
-						(identity) =>
-							`insights:${identity.runId}:${identity.websiteId}:selection`
-					)
-			);
-			// Opting into the fixed meter makes selection operating overhead. An
-			// empty portfolio must not reserve or debit an investigation unit.
-			mode.mockResolvedValue({ mode: "fixed", customerId: "synthetic-customer" });
+			expect(charges.size).toBe(0);
+			expect(requests).toEqual([]);
 			await db.update(insightRuns).set({ status: "succeeded" }).where(inArray(insightRuns.id, runIds));
 			const fixedRunId = randomUUIDv7();
 			const fixedItemId = randomUUIDv7();

@@ -5,7 +5,7 @@ import { Autumn, HTTPClient } from "autumn-js";
 
 export interface InvestigationBilling {
 	customerId: string | null;
-	mode: "fixed" | "legacy" | "unconfigured";
+	mode: "fixed" | "unconfigured";
 }
 
 const LOCK_MS = 23 * 60 * 60 * 1000;
@@ -58,13 +58,7 @@ export async function resolveInvestigationBilling(
 	if (customer.id !== customerId) {
 		throw new Error("The investigation billing customer could not be verified");
 	}
-	return {
-		customerId,
-		// Zero remaining units is still a fixed-price entitlement, never legacy/free.
-		mode: Object.hasOwn(customer.balances, INVESTIGATION_USAGE.featureId)
-			? "fixed"
-			: "legacy",
-	};
+	return { customerId, mode: "fixed" };
 }
 
 export async function canRunInvestigation(
@@ -73,9 +67,6 @@ export async function canRunInvestigation(
 ): Promise<boolean> {
 	if (billing.mode === "unconfigured") {
 		return true;
-	}
-	if (billing.mode === "legacy") {
-		return false;
 	}
 	if (!billing.customerId) {
 		throw new Error("The investigation billing customer is unavailable");
@@ -129,11 +120,6 @@ export async function reserveInvestigationCharge(
 	};
 	if (reservation.mode === "unconfigured") {
 		return reservation;
-	}
-	if (reservation.mode === "legacy") {
-		throw new Error(
-			"Investigations require a plan with an investigation allowance."
-		);
 	}
 	assertInvestigationReservationActive(reservation);
 	if (!reservation.customerId) {

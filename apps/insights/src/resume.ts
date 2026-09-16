@@ -23,7 +23,6 @@ import {
 } from "@databuddy/redis";
 import { createServiceAuth } from "@databuddy/rpc";
 import {
-	appliedInsightActionReply,
 	insightReplySlackDeliverySchema,
 	parseInvestigationOutcome,
 	parseInvestigationSignal,
@@ -250,17 +249,7 @@ export async function resumeInsightReply(
 		throw new Error("The investigation no longer exists");
 	}
 
-	const legacyVerification =
-		trigger.sourceObservationId === null &&
-		(["goal", "funnel"] as const).some(
-			(type) =>
-				trigger.body === appliedInsightActionReply(type) ||
-				(trigger.authorId === null &&
-					trigger.authorName === "Databuddy" &&
-					trigger.body ===
-						`Databuddy detected a ${type} definition change. Recheck the current evidence and resolve this investigation if the change addressed it.`)
-		);
-	const intent = legacyVerification ? "verification" : trigger.intent;
+	const intent = trigger.intent;
 	const track = (answer: {
 		modelId?: string;
 		usage?: InsightAgentResult["usage"];
@@ -461,12 +450,6 @@ export async function resumeInsightReply(
 				outcome: sourceOutcome,
 				signal: sourceSignal,
 			});
-			if (legacyVerification) {
-				await db
-					.update(insightReplies)
-					.set({ intent: "verification", sourceObservationId: source.id })
-					.where(eq(insightReplies.id, replyId));
-			}
 		}
 		let latest = history.at(-1);
 		for (

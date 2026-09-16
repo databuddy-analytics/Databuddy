@@ -192,49 +192,7 @@ it("rejects a cross-tenant snapshot before any clarification generation", async 
 	).rejects.toThrow("different investigation");
 	expect(forbidden).not.toHaveBeenCalled();
 });
-it("preserves a queued legacy Apply sentinel only when its source anchor is absent", async () => {
-	const { appliedInsightActionReply } = await import(
-		"@databuddy/shared/insights"
-	);
-	const reads = [
-		[
-			{
-				...trigger,
-				sourceObservationId: null,
-				body: appliedInsightActionReply("goal"),
-			},
-		],
-		[{ id: "case-1", status: "open", createdAt: new Date("2026-09-01") }],
-	];
-	replaceDb("select", mock(() => query(reads.shift() ?? [])) as never);
-	replaceDb("update", mock(() => query([{ id: "reply-1" }])) as never);
-	const forbidden = mock(async () => {
-		throw new Error("Must not clarify this legacy verification");
-	});
-	const currentScope = mock(async () => {
-		throw new Error("Reached included verification work");
-	});
-	await expect(
-		resumeInsightReply(
-			"reply-1",
-			forbidden,
-			forbidden,
-			forbidden,
-			{
-				loadCurrentBusinessScope: currentScope,
-				loadBusinessProfile: forbidden,
-				recallBusinessContext: forbidden,
-			},
-			forbidden
-		)
-	).rejects.toThrow("Reached included verification work");
-	expect(currentScope).toHaveBeenCalledTimes(1);
-	expect(forbidden).not.toHaveBeenCalled();
-});
-it.each([
-	"legacy",
-	"unconfigured",
-] as const)("rejects a new analysis under %s terms before any new work", async (mode) => {
+it("rejects a new analysis under unconfigured terms before any new work", async () => {
 	const billing = await import("./investigation-billing");
 	const reads = [
 		[{ ...trigger, intent: "analysis" }],
@@ -243,8 +201,8 @@ it.each([
 	replaceDb("select", mock(() => query(reads.shift() ?? [])) as never);
 	replaceDb("update", mock(() => query([{ id: "reply-1" }])) as never);
 	spyOn(billing, "resolveInvestigationBilling").mockResolvedValue({
-		mode,
-		customerId: mode === "legacy" ? "synthetic-customer" : null,
+		mode: "unconfigured",
+		customerId: null,
 	});
 	const forbidden = mock(async () => {
 		throw new Error("new work must not run");

@@ -80,9 +80,8 @@ type Review =
 			baseRevision: number;
 	  };
 interface BusinessContextEditorProps {
-	access?: Omit<
-		Awaited<ReturnType<typeof orpc.businessContext.generationAccess.call>>,
-		"billingMode"
+	access?: Awaited<
+		ReturnType<typeof orpc.businessContext.generationAccess.call>
 	>;
 	accessPending: boolean;
 	onCancel: (generationId: string) => Promise<void>;
