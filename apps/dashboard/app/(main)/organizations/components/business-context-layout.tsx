@@ -92,9 +92,6 @@ export function BusinessContextSourceInput({
 				readOnly={readOnly}
 				minRows={2}
 				maxRows={4}
-				placeholder={
-					"https://example.com/pricing\nhttps://docs.example.com/start"
-				}
 				className="min-h-16 text-xs"
 			/>
 			<Field.Description>

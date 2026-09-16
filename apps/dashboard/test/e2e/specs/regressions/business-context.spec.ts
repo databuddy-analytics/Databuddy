@@ -437,6 +437,103 @@ test("discards an AI draft without restoring it on the next refresh", {
 	await expect(editor).toHaveValue(savedContent);
 });
 
+test("requires conflict review before saving an AI draft based on an older brief", {
+	tag: "@regression",
+}, async ({ authenticatedPage: page, e2eSession }) => {
+	const newerContent = "A teammate corrected the newer saved brief.";
+	const generationId = "11111111-1111-4111-8111-111111111111";
+	const storageKey = `business-context-draft:${e2eSession.userId}:${e2eSession.organizationId}`;
+	const saved: unknown[] = [];
+	let current: BusinessContextSettings = {
+		...settings(),
+		profile: { ...settings().profile!, content: newerContent, revision: 2 },
+		generation: {
+			id: generationId,
+			websiteId: "example-site",
+			domain: "example.com",
+			requestedBy: "example-admin",
+			requestedAt: new Date().toISOString(),
+			baseRevision: 1,
+			status: "ready",
+			draft: { content: generatedContent, sources: [] },
+			error: null,
+		},
+	};
+	await page.route("**/rpc/businessContext/**", async (route) => {
+		const method = new URL(route.request().url()).pathname.split("/").at(-1);
+		if (method === "generationAccess") {
+			await route.fallback();
+			return;
+		}
+		if (method === "save") {
+			const input = route.request().postDataJSON().json;
+			saved.push(input);
+			current = {
+				...current,
+				profile: { ...current.profile!, content: input.content, revision: 3 },
+				generation: null,
+			};
+		}
+		await route.fulfill({ json: { json: current } });
+	});
+	await page.goto(path);
+	await page
+		.getByRole("button", { name: "Review AI draft", exact: true })
+		.click();
+	await expect(
+		page.getByText(
+			"This draft predates the latest saved version. Check any recent corrections before using it.",
+			{ exact: true }
+		)
+	).toBeVisible();
+	await page.getByRole("button", { name: "Use AI draft", exact: true }).click();
+	const recoveredDraft = () =>
+		page.evaluate((key) => {
+			const value = sessionStorage.getItem(key);
+			return value ? JSON.parse(value) : null;
+		}, storageKey);
+	await expect.poll(recoveredDraft).toMatchObject({
+		revision: 1,
+		content: generatedContent,
+		generationId,
+	});
+	const save = page.getByRole("button", { name: "Save changes", exact: true });
+	await expect(save).toBeDisabled();
+	await page.keyboard.press("ControlOrMeta+s");
+	expect(saved).toHaveLength(0);
+	await page.reload();
+	await expect(page.getByText(generatedContent, { exact: true })).toBeVisible();
+	await expect(save).toBeDisabled();
+	await expect
+		.poll(recoveredDraft)
+		.toMatchObject({ revision: 1, generationId });
+	await page
+		.getByRole("button", { name: "Review update", exact: true })
+		.click();
+	const review = page.getByRole("region", {
+		name: "Review saved changes",
+		exact: true,
+	});
+	await expect(review).toContainText(newerContent);
+	await expect(review).toContainText(generatedContent);
+	expect(saved).toHaveLength(0);
+	await page
+		.getByRole("button", { name: "Keep editing my version", exact: true })
+		.click();
+	await expect
+		.poll(recoveredDraft)
+		.toMatchObject({ revision: 2, generationId });
+	await expect(save).toBeEnabled();
+	await save.click();
+	await expect(page.getByText("Changes saved", { exact: true })).toBeVisible();
+	expect(saved).toHaveLength(1);
+	expect(saved[0]).toMatchObject({
+		revision: 2,
+		content: generatedContent,
+		generationId,
+	});
+});
+
 test("preserves edits on a revision conflict and requires reviewing the new brief", {
 	tag: "@regression",
 }, async ({ authenticatedPage: page }) => {

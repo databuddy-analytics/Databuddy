@@ -56,19 +56,18 @@ const teamFields = [
 	{
 		key: "priority",
 		label: "Current priority",
-		placeholder:
-			"For example, help more trial accounts complete their first project.",
+		description: "The customer outcome your team is focused on improving.",
 	},
 	{
 		key: "successDefinition",
 		label: "How you define success",
-		placeholder:
+		description:
 			"What does a successful customer actually do? Include relevant event names if you know them.",
 	},
 	{
 		key: "exclusions",
 		label: "Things to exclude or account for",
-		placeholder:
+		description:
 			"Internal testing, seasonal demand, known incidents, or other context.",
 	},
 ] as const;
@@ -513,7 +512,10 @@ export function BusinessContextEditor({
 													}
 													setDraft({
 														content: pendingDraft.draft.content,
-														revision,
+														revision: Math.min(
+															draft?.revision ?? revision,
+															pendingDraft.baseRevision
+														),
 														generationId: pendingDraft.id,
 														teamContext,
 														measurementPlans,
@@ -658,8 +660,8 @@ export function BusinessContextEditor({
 										<Field error={tooLong} className="h-full">
 											<Field.Label>Business brief</Field.Label>
 											<Field.Description>
-												Markdown is supported. Preview to see headings, lists,
-												and links.
+												Describe your product, customers, and business model.
+												Markdown is supported.
 											</Field.Description>
 											<Textarea
 												className="min-h-56 flex-1 font-mono text-sm leading-6"
@@ -679,7 +681,6 @@ export function BusinessContextEditor({
 													});
 													setNotice("");
 												}}
-												placeholder="Describe your product, customers, business model, and the workflow that brings them value."
 											/>
 											{tooLong && (
 												<Field.Error>
@@ -792,7 +793,7 @@ export function BusinessContextEditor({
 							</Card.Description>
 						</Card.Header>
 						<Card.Content className="space-y-5">
-							{teamFields.map(({ key, label, placeholder }) => (
+							{teamFields.map(({ key, label, description }) => (
 								<Field
 									key={key}
 									error={
@@ -801,9 +802,9 @@ export function BusinessContextEditor({
 									}
 								>
 									<Field.Label>{label}</Field.Label>
+									<Field.Description>{description}</Field.Description>
 									<Textarea
 										value={teamContext[key]}
-										placeholder={placeholder}
 										minRows={2}
 										maxRows={4}
 										readOnly={!(ready && canEdit) || isSaving}
