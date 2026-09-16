@@ -5,6 +5,7 @@ import type {
 	InvestigationOutcome,
 	InvestigationSignal,
 } from "@databuddy/shared/insights";
+import type { OrganizationBusinessContext } from "@databuddy/shared/organization-business-context";
 import {
 	boolean,
 	foreignKey,
@@ -360,6 +361,24 @@ export const insightReplies = pgTable(
 			foreignColumns: [user.id],
 			name: "insight_replies_author_id_fkey",
 		}).onDelete("set null"),
+	]
+);
+
+export const organizationBusinessContexts = pgTable(
+	"organization_business_contexts",
+	{
+		organizationId: text("organization_id").primaryKey(),
+		state: jsonb().$type<OrganizationBusinessContext>().notNull(),
+		updatedAt: timestamp("updated_at", { precision: 3, withTimezone: true })
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.organizationId],
+			foreignColumns: [organization.id],
+			name: "organization_business_contexts_organization_id_fkey",
+		}).onDelete("cascade"),
 	]
 );
 

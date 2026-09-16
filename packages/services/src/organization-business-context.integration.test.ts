@@ -9,7 +9,11 @@ import {
 	test,
 } from "bun:test";
 import { db, eq, shutdownPostgres } from "@databuddy/db";
-import { organization, websites } from "@databuddy/db/schema";
+import {
+	organization,
+	organizationBusinessContexts,
+	websites,
+} from "@databuddy/db/schema";
 import {
 	beginBusinessContextGeneration,
 	cancelBusinessContextGeneration,
@@ -317,9 +321,9 @@ integration("organization business context in isolated PostgreSQL", () => {
 			},
 		};
 		await db
-			.update(organization)
-			.set({ metadata: JSON.stringify({ businessContext: expired }) })
-			.where(eq(organization.id, org));
+			.update(organizationBusinessContexts)
+			.set({ state: expired })
+			.where(eq(organizationBusinessContexts.organizationId, org));
 		expect(
 			(await readOrganizationBusinessContext(org)).generation?.status
 		).toBe("failed");

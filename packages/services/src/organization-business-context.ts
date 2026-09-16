@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { and, db, eq, inArray, isNull, sql } from "@databuddy/db";
-import { organization, websites } from "@databuddy/db/schema";
+import {
+	organization,
+	organizationBusinessContexts,
+	websites,
+} from "@databuddy/db/schema";
 import {
 	BUSINESS_CONTEXT_GENERATION_TIMEOUT,
 	BUSINESS_CONTEXT_DRAFT_HISTORY_LIMIT,
@@ -18,7 +22,7 @@ import {
 	type OrganizationBusinessContext,
 	type OrganizationBusinessProfile,
 } from "@databuddy/shared/organization-business-context";
-import { z } from "zod";
+import type { z } from "zod";
 
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -30,23 +34,9 @@ export class BusinessContextError extends Error {
 	}
 }
 
-function metadata(value: string | null): Record<string, unknown> {
-	if (!value) {
-		return {};
-	}
-	try {
-		const parsed = z
-			.record(z.string(), z.unknown())
-			.safeParse(JSON.parse(value));
-		return parsed.success ? parsed.data : {};
-	} catch {
-		return {};
-	}
-}
-
-function state(value: Record<string, unknown>): OrganizationBusinessContext {
+function state(value: unknown): OrganizationBusinessContext {
 	const result = organizationBusinessContextSchema.parse(
-		value.businessContext ?? { profile: null, generation: null }
+		value ?? { profile: null, generation: null }
 	);
 	if (
 		businessContextIsGenerating(result) &&
@@ -69,14 +59,18 @@ function state(value: Record<string, unknown>): OrganizationBusinessContext {
 export async function readOrganizationBusinessContext(
 	organizationId: string
 ): Promise<OrganizationBusinessContext> {
-	const row = await db.query.organization.findFirst({
-		where: { id: organizationId },
-		columns: { metadata: true },
-	});
+	const [row] = await db
+		.select({ state: organizationBusinessContexts.state })
+		.from(organization)
+		.leftJoin(
+			organizationBusinessContexts,
+			eq(organizationBusinessContexts.organizationId, organization.id)
+		)
+		.where(eq(organization.id, organizationId));
 	if (!row) {
 		throw new BusinessContextError("NOT_FOUND", "Organization not found");
 	}
-	return state(metadata(row.metadata));
+	return state(row.state);
 }
 
 async function update(
@@ -88,22 +82,30 @@ async function update(
 ): Promise<OrganizationBusinessContext> {
 	return await db.transaction(async (tx) => {
 		await tx.execute(sql`SET LOCAL lock_timeout = '4s'`);
+		await tx.execute(
+			sql`SELECT pg_advisory_xact_lock(hashtext(${organizationId}))`
+		);
 		const [row] = await tx
-			.select({ metadata: organization.metadata })
+			.select({ state: organizationBusinessContexts.state })
 			.from(organization)
-			.where(eq(organization.id, organizationId))
-			.for("no key update");
+			.leftJoin(
+				organizationBusinessContexts,
+				eq(organizationBusinessContexts.organizationId, organization.id)
+			)
+			.where(eq(organization.id, organizationId));
 		if (!row) {
 			throw new BusinessContextError("NOT_FOUND", "Organization not found");
 		}
-		const values = metadata(row.metadata);
 		const next = organizationBusinessContextSchema.parse(
-			await change(state(values), tx)
+			await change(state(row.state), tx)
 		);
 		await tx
-			.update(organization)
-			.set({ metadata: JSON.stringify({ ...values, businessContext: next }) })
-			.where(eq(organization.id, organizationId));
+			.insert(organizationBusinessContexts)
+			.values({ organizationId, state: next })
+			.onConflictDoUpdate({
+				target: organizationBusinessContexts.organizationId,
+				set: { state: next, updatedAt: new Date() },
+			});
 		return next;
 	});
 }
