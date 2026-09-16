@@ -26,8 +26,14 @@ export const test = base.extend<{ contextStream: ContextStream }>({
 	contextStream: async ({ page }, use) => {
 		let response: ServerResponse | undefined;
 		const requests: GenerateInput[] = [];
-		const connection = Promise.withResolvers<void>();
-		const disconnection = Promise.withResolvers<void>();
+		let connected: (() => void) | undefined;
+		let disconnected: (() => void) | undefined;
+		const connection = new Promise<void>((resolve) => {
+			connected = resolve;
+		});
+		const disconnection = new Promise<void>((resolve) => {
+			disconnected = resolve;
+		});
 		const server = createServer(async (request, result) => {
 			result.setHeader(
 				"Access-Control-Allow-Origin",
@@ -54,8 +60,8 @@ export const test = base.extend<{ contextStream: ContextStream }>({
 				"cache-control": "no-cache",
 			});
 			result.flushHeaders();
-			result.once("close", disconnection.resolve);
-			connection.resolve();
+			result.once("close", () => disconnected?.());
+			connected?.();
 		});
 		await new Promise<void>((resolve) =>
 			server.listen(0, "127.0.0.1", resolve)
@@ -66,8 +72,8 @@ export const test = base.extend<{ contextStream: ContextStream }>({
 		}
 		try {
 			await use({
-				connected: connection.promise,
-				disconnected: disconnection.promise,
+				connected: connection,
+				disconnected: disconnection,
 				requests,
 				intercept: async () => {
 					await page.route("**/rpc/businessContext/generate", (route) =>
