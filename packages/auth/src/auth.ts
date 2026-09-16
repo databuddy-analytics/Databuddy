@@ -230,7 +230,7 @@ function notifySlack(
 	priority: "high" | "normal",
 	metadata: Record<string, string>
 ): void {
-	if (!SLACK_WEBHOOK_URL) {
+	if (isSelfHosted() || !SLACK_WEBHOOK_URL) {
 		return;
 	}
 
@@ -257,6 +257,9 @@ function trackDubSignUp(user: {
 	name: string | null;
 	image?: string | null;
 }): void {
+	if (isSelfHosted()) {
+		return;
+	}
 	const clickId = getAuthAuditContext()?.dubClickId;
 	if (!(DUB_API_KEY && clickId)) {
 		return;

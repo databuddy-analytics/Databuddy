@@ -50,13 +50,18 @@ describe("auth deployment settings", () => {
 				CLICKHOUSE_URL: "http://default:@127.0.0.1:1/test",
 				BETTER_AUTH_URL: "https://app.example.com",
 				BETTER_AUTH_SECRET: "example-test-secret-longer-than-32-chars",
+				DUB_API_KEY: "synthetic-dub-key",
+				SLACK_WEBHOOK_URL: "https://hooks.slack.com/services/synthetic-test",
 				...env,
 			},
 			stdin: new Blob([
 				`
 import assert from "node:assert/strict";
+import { db } from "@databuddy/db";
+import { SlackProvider } from "@databuddy/notifications";
 import { getCookies } from "better-auth/cookies";
 import { auth } from "./auth.ts";
+import { runWithAuthAuditContext } from "./audit-context.ts";
 const cookie = getCookies(auth.options).sessionToken;
 assert.equal(cookie.name, "__Secure-databuddy.session_token");
 assert.equal(cookie.attributes.domain, ${JSON.stringify(domain)});
@@ -66,6 +71,31 @@ assert.equal(cookie.attributes.sameSite, "lax");
 assert.equal(auth.options.emailAndPassword.requireEmailVerification, ${verify});
 assert.equal(auth.options.emailVerification.sendOnSignUp, ${verify});
 assert.equal(auth.options.emailVerification.sendOnSignIn, ${verify});
+const requests = [];
+let slackCalls = 0;
+SlackProvider.prototype.send = async () => {
+  slackCalls++;
+  return { success: true };
+};
+globalThis.fetch = async url => {
+  requests.push(String(url));
+  return new Response("ok");
+};
+let inserts = 0;
+db.transaction = async callback => callback({
+  insert: () => ({ values: () => {
+    inserts++;
+    return { returning: async () => [{ id: "synthetic-audit" }] };
+  } }),
+});
+await runWithAuthAuditContext({ dubClickId: "synthetic-click" }, () =>
+  auth.options.databaseHooks.user.create.after({
+    id: "synthetic-user", name: "Example", email: "user@example.com",
+  })
+);
+assert.ok(inserts > 0, "signup still provisions the organization");
+assert.deepEqual(requests, ${JSON.stringify(env.SELFHOST === "true" ? [] : ["https://api.dub.co/track/lead"])});
+assert.equal(slackCalls, ${env.SELFHOST === "true" ? 0 : 1});
 process.exit(0);
 			`,
 			]),

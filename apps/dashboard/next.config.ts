@@ -1,4 +1,5 @@
 import path from "node:path";
+import { readBooleanEnv } from "@databuddy/env/app";
 import type { NextConfig } from "next";
 
 function joinCspSources(...sources: (string | false)[]): string {
@@ -14,6 +15,11 @@ const demoFrameAncestorSources = [
 ] as const;
 
 const nextConfig: NextConfig = {
+	env: {
+		NEXT_PUBLIC_OPENAI_ADS_PIXEL_ID: readBooleanEnv("SELFHOST")
+			? ""
+			: process.env.NEXT_PUBLIC_OPENAI_ADS_PIXEL_ID,
+	},
 	outputFileTracingRoot: path.join(process.cwd(), "../.."),
 	outputFileTracingIncludes: {
 		"/dby/og": ["./fonts/lt-superior/*.otf"],

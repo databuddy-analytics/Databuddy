@@ -39,6 +39,45 @@ async function withEnv<T>(
 }
 
 describe("dashboard next config", () => {
+	it.each(["true", "false"])(
+		"respects SELFHOST=%s when signup initializes the advertising pixel",
+		async (selfhost) => {
+			const child = Bun.spawn([process.execPath, "--no-env-file", "-"], {
+				cwd: import.meta.dir,
+				env: {
+					NODE_ENV: "production",
+					SELFHOST: selfhost,
+					NEXT_PUBLIC_OPENAI_ADS_PIXEL_ID: "synthetic-pixel",
+				},
+				stdin: new Blob([`
+import assert from "node:assert/strict";
+const { default: config } = await import("./next.config");
+const pixelId = config.env.NEXT_PUBLIC_OPENAI_ADS_PIXEL_ID;
+assert.equal(pixelId, ${JSON.stringify(selfhost === "true" ? "" : "synthetic-pixel")});
+// Apply the value Next inlines into the browser bundle before loading the client.
+process.env.NEXT_PUBLIC_OPENAI_ADS_PIXEL_ID = pixelId;
+const scripts = [];
+globalThis.window = { location: { hostname: "app.example.com" } };
+globalThis.document = {
+  createElement: () => ({}),
+  head: { firstChild: null, insertBefore: script => scripts.push(script.src) },
+};
+const { trackOpenAiRegistrationCompleted } = await import("./components/openai-ads-pixel");
+trackOpenAiRegistrationCompleted();
+assert.deepEqual(scripts, ${JSON.stringify(selfhost === "true" ? [] : ["https://bzrcdn.openai.com/sdk/oaiq.min.js"])});
+assert.equal(window.oaiq?.q?.some(args => args[0] === "measure") ?? false, ${selfhost !== "true"});
+`]),
+				stdout: "ignore",
+				stderr: "pipe",
+			});
+			const [exitCode, stderr] = await Promise.all([
+				child.exited,
+				new Response(child.stderr).text(),
+			]);
+			expect(exitCode, stderr).toBe(0);
+		}
+	);
+
 	it("allows configured API and ingestion origins in production", async () => {
 		await withEnv(
 			{
