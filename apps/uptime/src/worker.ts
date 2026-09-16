@@ -5,7 +5,6 @@ import {
 	type UptimeCheckJobData,
 	type UptimeDeliveryJobData,
 	UPTIME_CHECK_JOB_NAME,
-	UPTIME_DELIVERY_JOB_NAME,
 	UPTIME_DELIVERY_JOB_OPTIONS,
 	UPTIME_DELIVERY_QUEUE_NAME,
 	UPTIME_JOB_OPTIONS,
@@ -107,7 +106,7 @@ const uptimeWorkerDeps: UptimeWorkerDeps = {
 	createLogger: (fields) => createLogger(fields),
 	enqueueUptimeDelivery: async (data) => {
 		await getUptimeDeliveryQueue().add(
-			UPTIME_DELIVERY_JOB_NAME,
+			UPTIME_DELIVERY_QUEUE_NAME,
 			{ event: data },
 			{ jobId: uptimeDeliveryJobId(data.event_id) }
 		);
@@ -619,7 +618,7 @@ export async function processUptimeDeliveryJob(
 	job: UptimeDeliveryWorkerJob,
 	deps: UptimeWorkerDeps = uptimeWorkerDeps
 ): Promise<void> {
-	if (job.name !== UPTIME_DELIVERY_JOB_NAME) {
+	if (job.name !== UPTIME_DELIVERY_QUEUE_NAME) {
 		throw new Error(`Unknown uptime delivery job: ${job.name}`);
 	}
 
