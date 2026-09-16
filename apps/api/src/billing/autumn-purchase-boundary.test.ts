@@ -7,13 +7,22 @@ const { forward } = vi.hoisted(() => ({
 	),
 }));
 vi.mock("autumn-js/fetch", () => ({ autumnHandler: () => forward }));
+const { getSession, getBillingCustomerId, getMemberRole } = vi.hoisted(
+	() => ({
+		getSession: vi.fn(async () => null),
+		getBillingCustomerId: vi.fn(),
+		getMemberRole: vi.fn(),
+	})
+);
 vi.mock("@databuddy/auth", () => ({
-	auth: { api: { getSession: vi.fn(async () => null) } },
+	auth: { api: { getSession } },
 }));
-vi.mock("@databuddy/redis", () => ({ getRedisCache: vi.fn() }));
+vi.mock("@databuddy/redis", () => ({
+	getRedisCache: () => ({ del: vi.fn(async () => 0) }),
+}));
 vi.mock("@databuddy/rpc", () => ({
-	getBillingCustomerId: vi.fn(),
-	getMemberRole: vi.fn(),
+	getBillingCustomerId,
+	getMemberRole,
 }));
 
 import { handleAutumnRequest } from "./autumn";
@@ -33,6 +42,51 @@ function request(body: JSONValue, contentType: string | null) {
 
 beforeEach(() => {
 	forward.mockClear();
+	getSession.mockResolvedValue(null);
+	getMemberRole.mockReset();
+	getBillingCustomerId.mockReset();
+});
+
+describe("Autumn attach Dub attribution", () => {
+	it("stamps the billing owner as the Dub customer on authenticated attach", async () => {
+		getSession.mockResolvedValue({
+			user: { id: "synthetic-user", name: "Synthetic user", email: null },
+			session: { activeOrganizationId: "synthetic-org" },
+		} as never);
+		getMemberRole.mockResolvedValue("owner");
+		getBillingCustomerId.mockResolvedValue("synthetic-owner");
+
+		const response = await handleAutumnRequest(
+			request(
+				{
+					planId: "pro",
+					metadata: {
+						databuddy_client_id: "client",
+						dubCustomerExternalId: "spoofed",
+					},
+				},
+				"application/json"
+			)
+		);
+		expect(response.status).toBe(200);
+		expect(await response.json()).toEqual({
+			planId: "pro",
+			metadata: {
+				databuddy_client_id: "client",
+				dubCustomerExternalId: "synthetic-owner",
+			},
+		});
+	});
+
+	it("leaves attach metadata untouched for anonymous requests", async () => {
+		const response = await handleAutumnRequest(
+			request({ planId: "pro", metadata: { a: "b" } }, "application/json")
+		);
+		expect(await response.json()).toEqual({
+			planId: "pro",
+			metadata: { a: "b" },
+		});
+	});
 });
 
 describe.each([

@@ -67,6 +67,33 @@ async function stripPrivilegedBody(request: Request): Promise<Request> {
 
 const autumn = autumnHandler({ identify: identifyAutumnCustomer });
 
+async function withDubCustomerMetadata(
+	request: Request,
+	body: JSONValue
+): Promise<Request> {
+	if (!body || typeof body !== "object" || Array.isArray(body)) {
+		return request;
+	}
+	const identity = await identifyAutumnCustomer(request).catch(() => null);
+	if (!identity?.customerId) {
+		return request;
+	}
+	const metadata =
+		body.metadata &&
+		typeof body.metadata === "object" &&
+		!Array.isArray(body.metadata)
+			? body.metadata
+			: {};
+	return new Request(request.url, {
+		method: request.method,
+		headers: request.headers,
+		body: JSON.stringify({
+			...body,
+			metadata: { ...metadata, dubCustomerExternalId: identity.customerId },
+		}),
+	});
+}
+
 const AUTUMN_CACHE_TTL_SEC: Record<string, number> = {
 	getOrCreateCustomer: 30,
 	listPlans: 300,
@@ -131,7 +158,7 @@ async function writeAutumnCache(
 }
 
 export async function handleAutumnRequest(request: Request) {
-	const sanitized = await stripPrivilegedBody(request);
+	let sanitized = await stripPrivilegedBody(request);
 	const segment = autumnPathSegment(sanitized);
 	if (sanitized.method !== "GET" && sanitized.method !== "HEAD") {
 		const body: JSONValue = await sanitized
@@ -144,6 +171,9 @@ export async function handleAutumnRequest(request: Request) {
 				error: null,
 			});
 			return Response.json(response.payload, { status: response.status });
+		}
+		if (segment === "attach") {
+			sanitized = await withDubCustomerMetadata(sanitized, body);
 		}
 		// Expanded responses have a different shape from the plain customer cache.
 		if (
