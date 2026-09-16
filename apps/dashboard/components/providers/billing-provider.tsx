@@ -1,9 +1,6 @@
 "use client";
 
-import {
-	getInvestigationBillingFeatureId,
-	INVESTIGATION_USAGE,
-} from "@databuddy/shared/billing";
+import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
 
 import {
 	FEATURE_METADATA,
@@ -322,16 +319,13 @@ export function useUsageFeature(featureId: FeatureId) {
 
 export function useInvestigationUsage() {
 	const { customer } = useBillingContext();
-	const featureId = getInvestigationBillingFeatureId(customer?.balances);
-	const usage = useUsageFeature(featureId);
-	const fixedPrice = featureId === INVESTIGATION_USAGE.featureId;
-	const details = summarizeInvestigationBalance(
-		fixedPrice ? customer?.balances?.[featureId] : null
-	);
+	const balance = customer?.balances?.[INVESTIGATION_USAGE.featureId];
+	const usage = useUsageFeature(INVESTIGATION_USAGE.featureId);
+	const details = summarizeInvestigationBalance(balance ?? null);
 	return {
 		...usage,
 		...details,
-		fixedPrice,
-		canUse: fixedPrice ? details.canUse : usage.unlimited || usage.balance > 0,
+		fixedPrice: balance !== undefined,
+		canUse: balance !== undefined && details.canUse,
 	};
 }

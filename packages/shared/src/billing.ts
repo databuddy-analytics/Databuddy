@@ -39,14 +39,6 @@ export const LEGACY_SCALE_PLAN = {
 	name: "Enterprise",
 } as const;
 
-export function getInvestigationBillingFeatureId(
-	balances: object | null | undefined
-) {
-	return balances && Object.hasOwn(balances, INVESTIGATION_USAGE.featureId)
-		? INVESTIGATION_USAGE.featureId
-		: "agent_credits";
-}
-
 export const investigationQuantitySchema = number()
 	.int()
 	.min(1)

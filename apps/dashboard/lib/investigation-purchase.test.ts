@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import {
-	getInvestigationBillingFeatureId,
 	INVESTIGATION_ALLOWANCES,
 	INVESTIGATION_USAGE,
 } from "@databuddy/shared/billing";
@@ -125,18 +124,5 @@ for (const [quantity, valid, authorized] of [
 		expect(credits_topup.items?.[0]?.price?.tiers).toEqual(TOPUP_TIERS);
 		expect(calculateTopupCost(100)).toBe(12);
 		expect(credits_booster.items?.[0]).toMatchObject({ included: 200, rollover: { max: 400, expiryDurationType: "forever" } });
-	});
-});
-
-describe("investigation billing mode", () => {
-	test("zero fixed balance remains fixed instead of falling back to available AI credits", () => {
-		expect(getInvestigationBillingFeatureId({ investigation_runs: { remaining: 0 }, agent_credits: { remaining: 500 } })).toBe("investigation_runs");
-		expect(getInvestigationBillingFeatureId({ investigation_runs: { remaining: 10 } })).toBe("investigation_runs");
-	});
-
-	test("absence retains legacy terms, while inherited properties do not grant an entitlement", () => {
-		for (const balances of [undefined, null, {}, { agent_credits: { remaining: 100 } }, Object.create({ investigation_runs: { remaining: 5 } })]) {
-			expect(getInvestigationBillingFeatureId(balances)).toBe("agent_credits");
-		}
 	});
 });

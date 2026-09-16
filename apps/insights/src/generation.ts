@@ -12,10 +12,7 @@ import {
 	withBusinessContextSnapshot,
 } from "./business-context";
 import type { AppContext } from "@databuddy/ai/config/context";
-import {
-	trackAgentUsage,
-	trackAgentUsageAndBill,
-} from "@databuddy/ai/agents/execution";
+import { trackAgentUsage } from "@databuddy/ai/agents/execution";
 import { and, between, db, eq, gt, isNull, lte, or } from "@databuddy/db";
 import { annotations, websites } from "@databuddy/db/schema";
 import { canonicalBusinessScope } from "@databuddy/services/business-memory";
@@ -1424,12 +1421,11 @@ export async function generateWebsiteInsights(
 	const billUsage = (
 		usage: Required<Pick<InsightAgentResult, "modelId" | "usage">>,
 		signalKey: string,
-		idempotencyKey: string,
-		mode: InvestigationBilling["mode"] | "included" | undefined = billing?.mode
+		idempotencyKey: string
 	) =>
 		Promise.resolve()
 			.then(() =>
-				(mode === "legacy" ? trackAgentUsageAndBill : trackAgentUsage)({
+				trackAgentUsage({
 					billingCustomerId,
 					chatId: `insights:${input.organizationId}:${site.id}:${signalKey}`,
 					idempotencyKey,
@@ -1750,16 +1746,7 @@ export async function generateWebsiteInsights(
 							plannedCandidate,
 							relatedSignals,
 							{
-								canRunAgent: async () => {
-									if (!charge || charge.mode === "fixed") {
-										return true;
-									}
-									noCredits = !(await canRunInvestigation({
-										mode: charge.mode,
-										customerId: charge.customerId,
-									}));
-									return !noCredits;
-								},
+								canRunAgent: async () => true,
 								mode: "production",
 								history,
 								sources: productionInvestigationSources,
@@ -1852,8 +1839,7 @@ export async function generateWebsiteInsights(
 							await billUsage(
 								billableUsage,
 								plannedCandidate.signal.signalKey,
-								usageIdempotencyKey,
-								charge?.mode ?? "included"
+								usageIdempotencyKey
 							);
 						}
 					}
