@@ -4,6 +4,48 @@ export const BUSINESS_CONTEXT_LIMIT = 12_000;
 export const BUSINESS_CONTEXT_GENERATION_TIMEOUT = 180_000;
 export const BUSINESS_CONTEXT_DRAFT_HISTORY_LIMIT = 5;
 export const BUSINESS_CONTEXT_TEAM_FIELD_LIMIT = 2000;
+const PUBLIC_HOST_SUFFIX = /\.[a-z]{2,}$/i;
+const WWW = /^www\./;
+
+export const businessContextSourceUrlsSchema = z
+	.array(
+		z
+			.url()
+			.max(2048)
+			.refine((value) => {
+				if (!URL.canParse(value)) {
+					return false;
+				}
+				const url = new URL(value);
+				return (
+					(url.protocol === "https:" || url.protocol === "http:") &&
+					!url.username &&
+					!url.password &&
+					!url.port &&
+					!url.search &&
+					!url.hash &&
+					PUBLIC_HOST_SUFFIX.test(url.hostname) &&
+					![".local", ".internal", ".localhost"].some((suffix) =>
+						url.hostname.endsWith(suffix)
+					)
+				);
+			}, "Use a public HTTP(S) page URL without credentials, ports, queries or fragments")
+	)
+	.max(6);
+
+export function businessContextSourceBelongsToSite(
+	value: string,
+	domain: string
+): boolean {
+	const host = new URL(value).hostname.replace(WWW, "");
+	const site = domain.toLowerCase().replace(WWW, "");
+	return host === site || host.endsWith(`.${site}`);
+}
+
+export const businessContextProgressSchema = z.object({
+	stage: z.enum(["reading", "writing"]),
+	content: z.string().max(BUSINESS_CONTEXT_LIMIT).optional(),
+});
 
 export const businessMeasurementPlanSchema = z.object({
 	websiteId: z.string().min(1).max(256),
@@ -60,6 +102,7 @@ export const businessBriefSchema = z.object({
 			z.object({
 				url: z.url().max(2048),
 				title: z.string().max(512),
+				fetchedAt: z.iso.datetime({ offset: true }).optional(),
 			})
 		)
 		.max(8),
@@ -79,12 +122,14 @@ export const businessContextGenerationSchema = z.object({
 	id: z.string(),
 	websiteId: z.string(),
 	domain: z.string(),
+	sourceUrls: businessContextSourceUrlsSchema.optional(),
 	requestedBy: z.string(),
 	requestedAt: z.iso.datetime(),
 	baseRevision: z.number().int().nonnegative(),
 	status: z.enum(["queued", "running", "ready", "failed"]),
 	draft: businessBriefSchema.nullable(),
 	error: z.string().max(500).nullable(),
+	progress: businessContextProgressSchema.optional(),
 });
 
 export const organizationBusinessContextSchema = z.object({

@@ -13,7 +13,7 @@ import {
 	BUSINESS_CONTEXT_LIMIT,
 	type OrganizationBusinessContext,
 } from "@databuddy/shared/organization-business-context";
-import { MockLanguageModelV3 } from "ai/test";
+import { MockLanguageModelV3, convertArrayToReadableStream } from "ai/test";
 import * as logs from "./lib/evlog-insights";
 import * as investigationBilling from "./investigation-billing";
 import { generateOrganizationBusinessContext } from "./organization-business-context";
@@ -104,6 +104,7 @@ function fixture(
 						status: change.status,
 						draft: change.draft ?? null,
 						error: change.error ?? null,
+						progress: change.status === "running" ? change.progress : undefined,
 					},
 				};
 			return structuredClone(state);
@@ -114,11 +115,11 @@ function fixture(
 		domain: "example.com",
 	});
 	const read = spyOn(scrape, "readWebsitePage").mockImplementation(
-		async ({ path }) => ({
+		async ({ path, domain }) => ({
 			success: true,
-			url: `https://example.com${path}`,
-			requestedUrl: `https://example.com${path}`,
-			finalUrl: `https://example.com${path}`,
+			url: `https://${domain}${path}`,
+			requestedUrl: `https://${domain}${path}`,
+			finalUrl: `https://${domain}${path}`,
 			fetchedAt: new Date().toISOString(),
 			title: path === "/" ? "Example Reports" : "Self-service pricing",
 			description: null,
@@ -175,7 +176,21 @@ function fixture(
 	const bill = spyOn(execution, "trackAgentUsageAndBill").mockImplementation(
 		async (call) => billed(call)
 	);
+	const usage = {
+		inputTokens: { total: 200, noCache: 200, cacheRead: 0, cacheWrite: 0 },
+		outputTokens: { total: 100, text: 100, reasoning: 0 },
+	};
 	const model = new MockLanguageModelV3({
+		doStream: async () => {
+			const text = JSON.stringify(outputs.shift());
+			return { stream: convertArrayToReadableStream([
+				{ type: "text-start", id: "draft" },
+				{ type: "text-delta", id: "draft", delta: text.slice(0, 60) },
+				{ type: "text-delta", id: "draft", delta: text.slice(60) },
+				{ type: "text-end", id: "draft" },
+				{ type: "finish", finishReason: { unified: "stop", raw: "stop" }, usage },
+			]) };
+		},
 		doGenerate: async () => ({
 			content: [{ type: "text", text: JSON.stringify(outputs.shift()) }],
 			finishReason: { unified: "stop", raw: "stop" },
@@ -216,6 +231,7 @@ function fixture(
 		bill,
 		billed,
 		model,
+		get calls() { return [...model.doGenerateCalls, ...model.doStreamCalls]; },
 		errors,
 		events,
 		logger,
@@ -223,6 +239,118 @@ function fixture(
 }
 
 describe("organization business context worker", () => {
+	it("accepts fresh offset-dated sources and ignores malformed discovery links", async () => {
+		const f = fixture();
+		const read = f.read.getMockImplementation();
+		if (!read) throw new Error("Missing page fixture");
+		f.read.mockImplementation(async (...args) => ({
+			...await read(...args),
+			fetchedAt: new Date().toISOString().replace("Z", "+00:00"),
+			internalLinks: ["http://", "/pricing"],
+		}));
+		await f.run();
+		expect(f.state.generation?.status).toBe("ready");
+		expect(f.read.mock.calls.map(([call]) => call.path)).toEqual(["/", "/pricing"]);
+		expect(f.state.generation?.draft?.sources.every((source) => source.fetchedAt?.endsWith("+00:00"))).toBe(true);
+	});
+
+	it("follows a docs index once, carries team definitions and reads fresh sources", async () => {
+		const f = fixture([
+			{ paths: ["/docs"] },
+			{ paths: ["/docs/start"] },
+			{ content: brief, sourceIds: [0, 2] },
+		]);
+		if (!f.state.profile) throw new Error("Missing profile");
+		f.state.profile.teamContext = { priority: "First accepted report", successDefinition: "report_accepted", exclusions: "Internal reports" };
+		f.state.profile.measurementPlans = [{ websiteId: "example-site", domain: "example.com", name: "Report return", activationEvent: "report_accepted", returnEvent: "report_accepted", horizonDays: 7 }];
+		const read = f.read.getMockImplementation();
+		if (!read) throw new Error("Missing page fixture");
+		f.read.mockImplementation(async (...args) => ({
+			...await read(...args),
+			internalLinks: args[0].path === "/" ? ["/docs"] : args[0].path === "/docs" ? ["/docs/start", "https://unapproved.example.com/setup"] : ["/docs/third-hop"],
+		}));
+		await f.run();
+		expect(f.state.generation?.status).toBe("ready");
+		expect(f.read.mock.calls.map(([call]) => call.path)).toEqual(["/", "/docs", "/docs/start"]);
+		expect(f.read.mock.calls.every(([call]) => call.freshAfter?.toISOString() === f.state.generation?.requestedAt)).toBe(true);
+		for (const call of f.calls) {
+			const message = call.prompt.find((item) => item.role === "user");
+			const part = message?.content.find((item) => item.type === "text");
+			if (!part || part.type !== "text") throw new Error("Missing context prompt");
+			const data = JSON.parse(part.text);
+			expect(data.savedContext.teamContext).toEqual(f.state.profile?.teamContext);
+			expect(data.savedContext.measurementPlans).toEqual(f.state.profile?.measurementPlans);
+		}
+		expect(f.state.generation?.draft?.sources.every((source) => source.fetchedAt)).toBe(true);
+		expect(f.bill).toHaveBeenCalledTimes(3);
+	});
+
+	it("reads explicitly selected subdomains within the seven-page budget", async () => {
+		const f = fixture([{ content: brief, sourceIds: [0, 1] }]);
+		if (!f.state.generation) throw new Error("Missing generation");
+		f.state.generation.sourceUrls = Array.from({ length: 6 }, (_, index) => `https://docs.example.com/page-${index}`);
+		await f.run();
+		expect(f.state.generation?.status).toBe("ready");
+		expect(f.read).toHaveBeenCalledTimes(7);
+		expect(f.read.mock.calls[1]?.[0].domain).toBe("docs.example.com");
+		expect(f.model.doGenerateCalls).toHaveLength(0);
+		expect(f.model.doStreamCalls).toHaveLength(1);
+	});
+
+	it("rejects an out-of-scope seed before any public read", async () => {
+		const f = fixture();
+		if (!f.state.generation) throw new Error("Missing generation");
+		f.state.generation.sourceUrls = ["https://example.com.evil.example/setup"];
+		await f.run();
+		expect(f.state.generation?.status).toBe("failed");
+		expect(f.read).not.toHaveBeenCalled();
+	});
+
+	it("canonical duplicate seed URLs do not spend the discovery read budget", async () => {
+		const f = fixture();
+		if (!f.state.generation) throw new Error("Missing generation");
+		f.state.generation.sourceUrls = ["https://example.com", "http://example.com/", "https://example.com/"];
+		await f.run();
+		expect(f.state.generation?.status).toBe("ready");
+		expect(f.read.mock.calls.map(([call]) => call.path)).toEqual(["/", "/pricing"]);
+	});
+
+	it("streams partial Markdown before completion without creating a saved draft", async () => {
+		const f = fixture();
+		const mark = f.mark.getMockImplementation();
+		if (!mark) throw new Error("Missing persistence fixture");
+		let partialSeen = false;
+		f.mark.mockImplementation(async (change) => {
+			if (change.progress?.content) {
+				partialSeen = true;
+				expect(brief.startsWith(change.progress.content)).toBe(true);
+				expect(change.progress.content.length).toBeLessThan(brief.length);
+				expect(f.state.generation?.draft).toBeNull();
+				expect(f.state.profile?.content).toBe(manual);
+			}
+			return await mark(change);
+		});
+		await f.run();
+		expect(partialSeen).toBe(true);
+		expect(f.state.generation?.status).toBe("ready");
+		expect(f.state.generation?.progress).toBeUndefined();
+	});
+
+	it("cancellation during streaming cannot publish a late draft", async () => {
+		const f = fixture();
+		const mark = f.mark.getMockImplementation();
+		if (!mark) throw new Error("Missing persistence fixture");
+		f.mark.mockImplementation(async (change) => {
+			if (change.progress?.content) f.state.generation = null;
+			return await mark(change);
+		});
+		await f.run();
+		expect(f.state.generation).toBeNull();
+		expect(f.state.profile?.content).toBe(manual);
+		expect(f.model.doStreamCalls[0]?.abortSignal?.aborted).toBe(true);
+		expect(f.mark.mock.calls.some(([change]) => change.status === "ready")).toBe(false);
+	});
+
 	it("treats fixed-price preparation as internal usage without consuming an investigation or credits", async () => {
 		const f = fixture();
 		process.env.AUTUMN_SECRET_KEY = "synthetic-business-context-test";
@@ -274,10 +402,10 @@ describe("organization business context worker", () => {
 			"/pricing",
 		]);
 		expect(JSON.stringify(f.search.mock.calls)).not.toContain(manual);
-		expect(f.model.doGenerateCalls).toHaveLength(2);
-		const selection = JSON.stringify(f.model.doGenerateCalls[0]?.prompt);
+		expect(f.calls).toHaveLength(2);
+		const selection = JSON.stringify(f.calls[0]?.prompt);
 		expect(selection).not.toContain("evil.example");
-		const synthesis = f.model.doGenerateCalls[1]?.prompt.find(
+		const synthesis = f.calls[1]?.prompt.find(
 			(item) => item.role === "user"
 		);
 		expect(JSON.stringify(synthesis)).toContain("savedContext");
@@ -330,7 +458,7 @@ describe("organization business context worker", () => {
 		];
 		f.state = { ...f.state, profile: { ...profile, origin, sources } };
 		await f.run();
-		const synthesis = f.model.doGenerateCalls[1];
+		const synthesis = f.calls[1];
 		const message = synthesis?.prompt.find((item) => item.role === "user");
 		const part = message?.content.find((item) => item.type === "text");
 		if (!part || part.type !== "text")
@@ -358,7 +486,7 @@ describe("organization business context worker", () => {
 			"origin=team or mixed may contain actual team edits"
 		);
 		expect(f.state.profile).toEqual({ ...profile, origin, sources });
-		expect(f.model.doGenerateCalls).toHaveLength(2);
+		expect(f.calls).toHaveLength(2);
 	});
 
 	it("retains custom detail above 6000 characters within the shared limit", async () => {
@@ -379,7 +507,7 @@ describe("organization business context worker", () => {
 		expect(f.state.generation?.status).toBe("ready");
 		expect(f.state.generation?.draft?.content).toBe(detail);
 		expect(f.state.profile?.content).toBe(detail);
-		const synthesis = f.model.doGenerateCalls[1];
+		const synthesis = f.calls[1];
 		expect(synthesis?.maxOutputTokens).toBe(4500);
 		const instructions = synthesis?.prompt.find(
 			(item) => item.role === "system"
@@ -390,7 +518,7 @@ describe("organization business context worker", () => {
 		expect(instructions?.content).toContain(
 			"Preserve meaningful existing custom detail even when regeneration needs more than 350 words"
 		);
-		expect(f.model.doGenerateCalls).toHaveLength(2);
+		expect(f.calls).toHaveLength(2);
 	});
 
 	it("rejects drafts exceeding the shared character limit", async () => {
@@ -430,7 +558,7 @@ describe("organization business context worker", () => {
 		await f.run();
 		expect(f.site).not.toHaveBeenCalled();
 		expect(f.mark).not.toHaveBeenCalled();
-		expect(f.model.doGenerateCalls).toHaveLength(0);
+		expect(f.calls).toHaveLength(0);
 	});
 
 	it.each([
@@ -465,7 +593,7 @@ describe("organization business context worker", () => {
 			return result;
 		};
 		await f.run();
-		expect(f.model.doGenerateCalls).toHaveLength(1);
+		expect(f.calls).toHaveLength(1);
 		expect(f.bill).toHaveBeenCalledTimes(1);
 		expect(f.read.mock.calls.map(([call]) => call.path)).toEqual(["/"]);
 		expect(f.mark).toHaveBeenCalledTimes(1);
@@ -511,7 +639,7 @@ describe("organization business context worker", () => {
 			return result;
 		});
 		await f.run();
-		expect(f.model.doGenerateCalls).toHaveLength(
+		expect(f.calls).toHaveLength(
 			phase === "selected-page" ? 1 : 0
 		);
 		expect(f.bill).toHaveBeenCalledTimes(phase === "selected-page" ? 1 : 0);
@@ -536,13 +664,13 @@ describe("organization business context worker", () => {
 		f.mark.mockImplementation(async () => ({ ...f.state, generation: null }));
 		await f.run();
 		expect(f.read).not.toHaveBeenCalled();
-		expect(f.model.doGenerateCalls).toHaveLength(0);
+		expect(f.calls).toHaveLength(0);
 	});
 
 	it("leaves a concurrent manual save alone", async () => {
 		const f = fixture();
 		f.bill.mockImplementation(async (call) => {
-			if (f.model.doGenerateCalls.length === 2 && f.state.profile)
+			if (f.calls.length === 2 && f.state.profile)
 				f.state = {
 					profile: {
 						...f.state.profile,
@@ -565,7 +693,7 @@ describe("organization business context worker", () => {
 		expect(f.state.generation?.status).toBe("failed");
 		expect(f.state.generation?.error).toContain("website");
 		expect(f.state.profile?.content).toBe(manual);
-		expect(f.model.doGenerateCalls).toHaveLength(0);
+		expect(f.calls).toHaveLength(0);
 		expect(f.errors).toHaveBeenCalled();
 	});
 
@@ -585,7 +713,7 @@ describe("organization business context worker", () => {
 				([call]) => call.path === "/" || call.path === "/pricing"
 			)
 		).toBe(true);
-		expect(f.bill.mock.calls.length).toBe(f.model.doGenerateCalls.length);
+		expect(f.bill.mock.calls.length).toBe(f.calls.length);
 	});
 
 	it("rejects off-site redirects", async () => {
@@ -604,7 +732,7 @@ describe("organization business context worker", () => {
 		});
 		await f.run();
 		expect(f.state.generation?.status).toBe("failed");
-		expect(f.model.doGenerateCalls).toHaveLength(0);
+		expect(f.calls).toHaveLength(0);
 	});
 
 	it.each([
@@ -632,7 +760,7 @@ describe("organization business context worker", () => {
 		expect(f.state.generation?.status).toBe("failed");
 		expect(f.state.generation?.draft).toBeNull();
 		expect(f.state.profile?.content).toBe(manual);
-		expect(f.model.doGenerateCalls.length).toBe(
+		expect(f.calls.length).toBe(
 			kind.includes("charge") ? 1 : 0
 		);
 	});
@@ -643,7 +771,7 @@ describe("organization business context worker", () => {
 		setAiRequestLoggerProvider(null);
 		await f.run();
 		expect(f.state.generation?.status).toBe("failed");
-		expect(f.model.doGenerateCalls).toHaveLength(0);
+		expect(f.calls).toHaveLength(0);
 	});
 
 	it.each([
@@ -662,7 +790,7 @@ describe("organization business context worker", () => {
 		expect(f.state.generation?.status).toBe("failed");
 		expect(f.state.generation?.error).toContain("too long");
 		expect(f.state.profile?.content).toBe(manual);
-		expect(f.model.doGenerateCalls).toHaveLength(0);
+		expect(f.calls).toHaveLength(0);
 	});
 
 	it("does not start work when only the persistence reserve remains", async () => {
@@ -692,7 +820,7 @@ describe("organization business context worker", () => {
 			return f.billed(call);
 		});
 		await f.run();
-		expect(f.model.doGenerateCalls).toHaveLength(1);
+		expect(f.calls).toHaveLength(1);
 		expect(f.bill).toHaveBeenCalledTimes(1);
 		expect(f.read.mock.calls.map(([call]) => call.path)).toEqual(["/"]);
 		expect(f.state.generation?.status).toBe("failed");
@@ -729,7 +857,7 @@ describe("organization business context worker", () => {
 			return result;
 		};
 		await f.run();
-		expect(f.model.doGenerateCalls).toHaveLength(1);
+		expect(f.calls).toHaveLength(1);
 		expect(f.state.generation?.status).toBe("failed");
 		expect(f.state.generation?.error).toContain("too long");
 		expect(f.bill).not.toHaveBeenCalled();
@@ -749,8 +877,10 @@ describe("organization business context worker", () => {
 			expect(options.abortSignal?.aborted).toBe(false);
 			return await generate(options);
 		};
+		const stream = f.model.doStream;
+		f.model.doStream = async (options) => { advance(2000); return await stream(options); };
 		f.bill.mockImplementation(async (call) => {
-			if (f.model.doGenerateCalls.length === 2) advance(4000);
+			if (f.calls.length === 2) advance(4000);
 			return f.billed(call);
 		});
 		const mark = f.mark.getMockImplementation();
@@ -763,8 +893,8 @@ describe("organization business context worker", () => {
 			return await mark(change);
 		});
 		await f.run();
-		expect(f.model.doGenerateCalls).toHaveLength(2);
-		expect(f.model.doGenerateCalls[1]?.abortSignal?.aborted).toBe(true);
+		expect(f.calls).toHaveLength(2);
+		expect(f.calls[1]?.abortSignal?.aborted).toBe(true);
 		expect(f.bill).toHaveBeenCalledTimes(2);
 		expect(f.state.generation?.status).toBe("ready");
 		expect(Date.now()).toBeLessThan(expiry);
@@ -796,7 +926,7 @@ describe("organization business context worker", () => {
 		});
 		f.search.mockResolvedValue({ success: true, results: [] });
 		await f.run();
-		expect(f.model.doGenerateCalls).toHaveLength(1);
+		expect(f.calls).toHaveLength(1);
 		expect(f.state.generation?.status).toBe("ready");
 		expect(f.bill).toHaveBeenCalledTimes(1);
 	});
@@ -810,7 +940,7 @@ describe("organization business context worker", () => {
 		await f.run();
 		expect(f.state.generation?.status).toBe("ready");
 		expect(f.state.generation?.draft?.content).toBe(content);
-		expect(f.state.generation?.draft?.sources).toEqual([
+		expect(f.state.generation?.draft?.sources).toMatchObject([
 			{ url: "https://example.com/", title: "Example Reports" },
 		]);
 		expect(f.read.mock.calls.map(([call]) => call.path)).toEqual([
@@ -818,7 +948,7 @@ describe("organization business context worker", () => {
 			"/pricing",
 		]);
 		expect(f.state.profile?.content).toBe(content);
-		expect(f.model.doGenerateCalls).toHaveLength(2);
+		expect(f.calls).toHaveLength(2);
 	});
 
 	it("rejects unknown payload fields", async () => {

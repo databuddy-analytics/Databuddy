@@ -1187,7 +1187,7 @@ describeIntegration("insights idempotency integration", () => {
 		};
 		let secondHistoryKinds: string[] = [];
 		let secondHistoryReplies: string[] = [];
-		let secondRunUserId: string | undefined;
+		let secondRunUserId: string | null | undefined;
 		let firstHistoricalWindow: { from: string; to: string } | undefined;
 		let secondCurrentWindow: { from: string; to: string } | undefined;
 		await withAgentBillingDisabled(() =>
@@ -1231,7 +1231,7 @@ describeIntegration("insights idempotency integration", () => {
 		expect(secondHistoryReplies).not.toContain(
 			"That deploy was intentionally rolled back."
 		);
-		expect(secondRunUserId).toBe("system");
+		expect(secondRunUserId).toBeNull();
 		expect(firstHistoricalWindow).toEqual(
 			investigation.signal.period.current
 		);

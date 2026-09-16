@@ -91,6 +91,25 @@ integration("organization business context in isolated PostgreSQL", () => {
 		exclusions: "Exclude employee and test traffic",
 	};
 
+	test("source URLs stay scoped and streaming progress never becomes a saved draft", async () => {
+		await expect(beginBusinessContextGeneration({ organizationId: org, websiteId, requestedBy: "synthetic-owner", sourceUrls: ["https://other.example/setup"] })).rejects.toMatchObject({ code: "CONFLICT" });
+		const sourceUrls = ["https://docs.reports.example.com/setup"];
+		const started = await beginBusinessContextGeneration({ organizationId: org, websiteId, requestedBy: "synthetic-owner", sourceUrls });
+		const generationId = started.generation!.id;
+		expect(started.generation?.sourceUrls).toEqual(sourceUrls);
+		const reading = await markBusinessContextGeneration({ organizationId: org, generationId, status: "running", progress: { stage: "writing", content: "## Draft in progress" } });
+		expect(reading.generation?.draft).toBeNull();
+		expect(reading.profile).toBeNull();
+		expect(reading.generation?.progress?.content).toBe("## Draft in progress");
+		await expect(save("## Draft in progress", 0, generationId)).rejects.toMatchObject({ code: "CONFLICT" });
+		const fetchedAt = new Date().toISOString();
+		const completed = { ...draft, sources: draft.sources.map((source) => ({ ...source, fetchedAt })) };
+		await markBusinessContextGeneration({ organizationId: org, generationId, status: "ready", draft: completed });
+		expect((await readOrganizationBusinessContext(org)).generation?.progress).toBeUndefined();
+		const saved = await save(completed.content, 0, generationId);
+		expect(saved.profile?.sources[0]?.fetchedAt).toBe(fetchedAt);
+	});
+
 	test("team-only context survives public regeneration without becoming public evidence", async () => {
 		await saveOrganizationBusinessProfile({ organizationId: org, revision: 0, content: "", teamContext, updatedBy: "owner" });
 		const generationId = (await generate()).generation!.id;

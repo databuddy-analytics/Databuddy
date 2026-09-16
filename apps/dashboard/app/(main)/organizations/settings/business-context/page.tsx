@@ -1,10 +1,8 @@
 "use client";
 
 import { useOrganizations } from "@/hooks/use-organizations";
-import {
-	BusinessContextSettings,
-	BusinessContextSkeleton,
-} from "../../components/business-context-settings";
+import { BusinessContextSettings } from "../../components/business-context-settings";
+import { BusinessContextSkeleton } from "../../components/business-context-layout";
 
 export default function OrganizationBusinessContextPage() {
 	const { activeOrganization, isSwitchingOrganization } = useOrganizations();

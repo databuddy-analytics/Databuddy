@@ -211,7 +211,6 @@ function syntheticCustomer(): Customer {
 			]);
 		}
 	);
-}
 
 test("billing fixture rejects a missing test key", {
 	tag: "@regression",

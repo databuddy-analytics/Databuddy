@@ -15,6 +15,7 @@ interface MeasurementPlanEditorProps {
 	disabled: boolean;
 	onChange: (plans: BusinessMeasurementPlan[]) => void;
 	plans: BusinessMeasurementPlan[];
+	readOnly: boolean;
 	websites: BusinessContextSettings["websites"];
 }
 
@@ -27,12 +28,13 @@ export function MeasurementPlanEditor({
 	websites,
 	plans,
 	disabled,
+	readOnly,
 	onChange,
 }: MeasurementPlanEditorProps) {
 	const [websiteId, setWebsiteId] = useState("");
 	const website = websites.find((site) => site.id === websiteId) ?? websites[0];
 	const plan = plans.find((item) => item.websiteId === website?.id);
-	const catalog = useAutocompleteData(website?.id ?? "", !disabled && !!plan);
+	const catalog = useAutocompleteData(website?.id ?? "", !readOnly && !!plan);
 	const events = catalog.data?.customEvents ?? [];
 	const domainMismatch = plan && website && plan.domain !== website.domain;
 	const update = (
@@ -92,8 +94,9 @@ export function MeasurementPlanEditor({
 								{item.name || item.domain}: website unavailable. This definition
 								is inactive.
 							</p>
-							{!disabled && (
+							{!readOnly && (
 								<Button
+									disabled={disabled}
 									size="sm"
 									variant="ghost"
 									onClick={() =>
@@ -109,7 +112,7 @@ export function MeasurementPlanEditor({
 							)}
 						</div>
 					))}
-				{disabled ? (
+				{readOnly ? (
 					plans.length ? (
 						plans.map((item) => {
 							const site = websites.find(
@@ -161,6 +164,7 @@ export function MeasurementPlanEditor({
 										aria-label={`Website: ${website.domain}`}
 										render={
 											<Button
+												disabled={disabled}
 												className="max-w-full"
 												size="sm"
 												variant="secondary"
@@ -190,7 +194,7 @@ export function MeasurementPlanEditor({
 							)}
 							<Button
 								aria-label={`${plan ? "Remove" : "Add"} definition for ${website.domain}`}
-								disabled={!plan && plans.length >= 20}
+								disabled={disabled || (!plan && plans.length >= 20)}
 								onClick={toggleDefinition}
 								size="sm"
 								variant={plan ? "ghost" : "secondary"}
@@ -207,6 +211,7 @@ export function MeasurementPlanEditor({
 											{website.domain} before saving.
 										</p>
 										<Button
+											disabled={disabled}
 											onClick={() => update({ domain: website.domain })}
 											size="sm"
 											variant="secondary"
@@ -218,6 +223,7 @@ export function MeasurementPlanEditor({
 								<Field>
 									<Field.Label>Business outcome</Field.Label>
 									<Input
+										disabled={disabled}
 										maxLength={120}
 										onChange={(event) => update({ name: event.target.value })}
 										placeholder="Name this outcome for your team"
@@ -229,6 +235,7 @@ export function MeasurementPlanEditor({
 										<Field className="min-w-0" key={key}>
 											<Field.Label>{label}</Field.Label>
 											<AutocompleteInput
+												disabled={disabled}
 												inputClassName="font-mono"
 												onValueChange={(value) => update({ [key]: value })}
 												placeholder="Exact event name"
@@ -252,7 +259,13 @@ export function MeasurementPlanEditor({
 								<DropdownMenu>
 									<DropdownMenu.Trigger
 										aria-label={`Return window: ${plan.horizonDays} days`}
-										render={<Button size="sm" variant="secondary" />}
+										render={
+											<Button
+												disabled={disabled}
+												size="sm"
+												variant="secondary"
+											/>
+										}
 									>
 										Return within {plan.horizonDays} days
 										<CaretDownIcon className="size-3 shrink-0" />
@@ -281,6 +294,7 @@ export function MeasurementPlanEditor({
 										<Field>
 											<Field.Label>Namespace (optional)</Field.Label>
 											<Input
+												disabled={disabled}
 												autoCapitalize="none"
 												maxLength={256}
 												onChange={(event) =>

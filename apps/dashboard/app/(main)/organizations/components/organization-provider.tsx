@@ -18,6 +18,8 @@ import {
 } from "@databuddy/ui/icons";
 import { Button, EmptyState, Skeleton } from "@databuddy/ui";
 
+import { BusinessContextSkeleton } from "./business-context-layout";
+
 type IconComponent = React.ComponentType<React.SVGProps<SVGSVGElement>>;
 
 interface HeaderActionButton {
@@ -108,6 +110,9 @@ export function OrganizationProvider({
 	);
 
 	if (isLoading) {
+		if (pathname === "/organizations/settings/business-context") {
+			return <BusinessContextSkeleton />;
+		}
 		return (
 			<div className="flex h-full flex-col">
 				<div className="border-b">
