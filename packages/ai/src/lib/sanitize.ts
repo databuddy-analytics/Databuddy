@@ -1,4 +1,4 @@
-const TAG_RE = /<\/?[a-z_][a-z_0-9-]*(?:\s[^>]*)?\s*\/?>/gi;
+const TAG_RE = /<\/?[a-z_][a-z_0-9-]*(?:[\s/][^>]*)?>/gi;
 
 export function stripHtmlTags(value: string, maxLength?: number): string {
 	let cleaned = maxLength ? value.slice(0, maxLength) : value;
