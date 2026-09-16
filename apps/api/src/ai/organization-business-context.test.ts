@@ -502,6 +502,46 @@ describe("organization business context request", () => {
 		expect(f.errors).not.toHaveBeenCalled();
 	});
 
+	it("awaits consumed synthesis billing after the request aborts", async () => {
+		const f = fixture();
+		const request = new AbortController();
+		const settling = Promise.withResolvers<void>();
+		const release = Promise.withResolvers<void>();
+		let completed = false;
+		let billed = false;
+		f.bill.mockImplementation(async (call) => {
+			if (f.calls.length === 2) {
+				settling.resolve();
+				await release.promise;
+				billed = true;
+			}
+			return f.billed(call);
+		});
+		const run = f.run(request.signal).then(() => {
+			completed = true;
+		});
+		await settling.promise;
+		try {
+			request.abort();
+			await new Promise<void>((resolve) => setImmediate(resolve));
+			expect(completed).toBe(false);
+			expect(billed).toBe(false);
+		} finally {
+			release.resolve();
+		}
+		await run;
+		expect(billed).toBe(true);
+		expect(f.bill).toHaveBeenCalledTimes(2);
+		expect(f.calls).toHaveLength(2);
+		expect(f.model.doStreamCalls[0]?.abortSignal?.aborted).toBe(true);
+		expect(f.state.generation?.draft).toBeNull();
+		expect(f.state.profile?.content).toBe(manual);
+		expect(
+			f.mark.mock.calls.every(([change]) => change.status === "running")
+		).toBe(true);
+		expect(f.errors).not.toHaveBeenCalled();
+	});
+
 	it("cancellation during streaming cannot publish a late draft", async () => {
 		const f = fixture();
 		const mark = f.mark.getMockImplementation();

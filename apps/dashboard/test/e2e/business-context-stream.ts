@@ -31,7 +31,7 @@ export const test = base.extend<{ contextStream: ContextStream }>({
 		const server = createServer(async (request, result) => {
 			result.setHeader(
 				"Access-Control-Allow-Origin",
-				request.headers.origin ?? new URL(page.url()).origin
+				new URL(page.url()).origin
 			);
 			result.setHeader("Access-Control-Allow-Credentials", "true");
 			result.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");

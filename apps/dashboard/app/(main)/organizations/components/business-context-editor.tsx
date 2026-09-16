@@ -279,6 +279,13 @@ export function BusinessContextEditor({
 		}
 	}, [view]);
 	useEffect(() => {
+		if (view === "draft" && isRequesting) {
+			pageRef.current
+				?.querySelector<HTMLButtonElement>('[role="tab"][aria-selected="true"]')
+				?.focus();
+		}
+	}, [view, isRequesting]);
+	useEffect(() => {
 		if (view === "draft" && !hasGeneratedContent) {
 			setView("preview");
 		}

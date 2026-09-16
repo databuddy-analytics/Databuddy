@@ -1414,6 +1414,7 @@ for (const viewport of contextViewports) {
 			const research = page.getByTestId("business-context-research");
 			const reading = panel.getByText("Reading your sources", { exact: true });
 			await expect(reading).toBeVisible();
+			await expect(panel).toBeInViewport({ ratio: 0.5 });
 			const initialPanel = await panel.boundingBox();
 			const initialBrief = await brief.boundingBox();
 			const title = await reading.boundingBox();
