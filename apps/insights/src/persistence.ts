@@ -14,7 +14,7 @@ import {
 import {
 	analyticsInsights,
 	insightObservations,
-	organization,
+	organizationBusinessContexts,
 	websites,
 } from "@databuddy/db/schema";
 import {
@@ -28,7 +28,6 @@ import type {
 } from "@databuddy/shared/insights";
 import { organizationBusinessContextSchema } from "@databuddy/shared/organization-business-context";
 import { randomUUIDv7 } from "bun";
-import { z } from "zod";
 import { normalizedErrorSubject } from "./investigation";
 import { captureInsightsError, emitInsightsEvent } from "./lib/evlog-insights";
 import { measurementPlanKey } from "./measurement-plan";
@@ -50,11 +49,16 @@ export async function retireObsoleteRetentionObservation(params: {
 	const retired = await db.transaction(async (tx) => {
 		// Match settings-save lock order and hold the canonical definition stable
 		// through the transition. A failed read must roll back, never imply removal.
+		await tx.execute(sql`SET LOCAL lock_timeout = '4s'`);
+		await tx.execute(
+			sql`SELECT pg_advisory_xact_lock(hashtext(${params.organizationId}))`
+		);
 		const [owner] = await tx
-			.select({ metadata: organization.metadata })
-			.from(organization)
-			.where(eq(organization.id, params.organizationId))
-			.for("no key update");
+			.select({ state: organizationBusinessContexts.state })
+			.from(organizationBusinessContexts)
+			.where(
+				eq(organizationBusinessContexts.organizationId, params.organizationId)
+			);
 		const [site] = await tx
 			.select({ id: websites.id })
 			.from(websites)
@@ -67,13 +71,10 @@ export async function retireObsoleteRetentionObservation(params: {
 				)
 			)
 			.for("update");
-		if (!(owner?.metadata && site)) {
+		if (!(owner?.state && site)) {
 			return false;
 		}
-		const { businessContext } = z
-			.object({ businessContext: organizationBusinessContextSchema.optional() })
-			.parse(JSON.parse(owner.metadata));
-		const profile = businessContext?.profile;
+		const { profile } = organizationBusinessContextSchema.parse(owner.state);
 		if (
 			!profile?.measurementPlans ||
 			Date.parse(profile.updatedAt) > params.asOf.getTime() ||
