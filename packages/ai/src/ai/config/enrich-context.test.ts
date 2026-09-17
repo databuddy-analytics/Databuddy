@@ -36,7 +36,10 @@ test("self-hosted agent context keeps local entity counts without hosted plan lo
 		expect(await enrichAgentContext(input)).toContain("<plan>free</plan>");
 		expect(billingOwner).toHaveBeenCalledTimes(1);
 	} finally {
-		if (original === undefined) delete process.env.SELFHOST;
-		else process.env.SELFHOST = original;
+		if (original === undefined) {
+			Reflect.deleteProperty(process.env, "SELFHOST");
+		} else {
+			process.env.SELFHOST = original;
+		}
 	}
 });

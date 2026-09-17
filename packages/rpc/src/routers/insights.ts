@@ -105,6 +105,14 @@ const appendInvestigationReplyInputSchema = z
 
 type InsightTimelineItem = z.infer<typeof insightTimelineItemSchema>;
 
+function requireInvestigationAI() {
+	if (readBooleanEnv("SELFHOST") && !process.env.AI_GATEWAY_API_KEY?.trim()) {
+		throw rpcError.badRequest(
+			"Ask your administrator to configure AI before continuing an investigation."
+		);
+	}
+}
+
 async function queueInsightReply(
 	replyId: string
 ): Promise<z.infer<typeof insightReplyStatusSchema>> {
@@ -163,6 +171,9 @@ export async function queueDefinitionChangeRechecks(input: {
 	type: RecheckableDefinitionType;
 	websiteId: string;
 }): Promise<void> {
+	if (readBooleanEnv("SELFHOST") && !process.env.AI_GATEWAY_API_KEY?.trim()) {
+		return;
+	}
 	const subjectPrefix = `${input.type}:${input.definitionId}`;
 	try {
 		const cases = await db
@@ -563,11 +574,7 @@ export async function appendInvestigationReply(
 	});
 	setAuditOrganization(context, insight.organizationId);
 
-	if (readBooleanEnv("SELFHOST") && !process.env.AI_GATEWAY_API_KEY?.trim()) {
-		throw rpcError.badRequest(
-			"Ask your administrator to configure AI before continuing an investigation."
-		);
-	}
+	requireInvestigationAI();
 	const author = replyAuthor(context, authorName);
 	if (parsed.intent === "analysis") {
 		if (!author.authorId) {
@@ -866,6 +873,7 @@ async function applyInsightAction(input: {
 	});
 	setAuditOrganization(context, target.organizationId);
 
+	requireInvestigationAI();
 	const author = replyAuthor(context);
 	const completed = await db.transaction(async (tx) => {
 		const [current] = await tx
@@ -1517,6 +1525,7 @@ export const insightsRouter = {
 				websiteId: reply.websiteId,
 			});
 			setAuditOrganization(context, reply.organizationId);
+			requireInvestigationAI();
 			const pendingStatus = await db.transaction(async (tx) => {
 				const insightCase = and(
 					eq(analyticsInsights.organizationId, reply.organizationId),

@@ -2,7 +2,13 @@ import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
- webhookHandler: undefined as ((context: { headers: Record<string, string>; request: Request; set: { status: number } }) => Promise<unknown>) | undefined,
+	webhookHandler: undefined as
+		| ((context: {
+				headers: Record<string, string>;
+				request: Request;
+				set: { status: number };
+			}) => Promise<Response | Awaited<ReturnType<typeof handleVerifiedAutumnEvent>>>)
+		| undefined,
 	check: vi.fn(async () => ({
 		allowed: true,
 		balance: {
@@ -885,8 +891,11 @@ it("rejects Autumn webhooks in self-hosted instances before verification or bill
 		expect(state.check).not.toHaveBeenCalled();
 		expect(state.send).not.toHaveBeenCalled();
 	} finally {
-		if (original === undefined) delete process.env.SELFHOST;
-		else process.env.SELFHOST = original;
+		if (original === undefined) {
+			Reflect.deleteProperty(process.env, "SELFHOST");
+		} else {
+			process.env.SELFHOST = original;
+		}
 	}
 });
 
