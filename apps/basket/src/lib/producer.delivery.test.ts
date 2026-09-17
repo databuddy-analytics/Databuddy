@@ -1,6 +1,6 @@
 import type { ClickHouseClient } from "@clickhouse/client";
 import { Effect } from "effect";
-import type { Admin, Producer } from "kafkajs";
+import { type Admin, Kafka, type Producer } from "kafkajs";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import type { ProducerConfig } from "./producer";
 
@@ -117,10 +117,9 @@ describe("producer delivery guarantees", () => {
 					resolveInsert = resolve;
 				})
 		);
-		const kafka = {
-			connect: vi.fn(),
-			send: vi.fn(),
-		} as unknown as Producer;
+		const kafka = new Kafka({ brokers: ["redpanda.test:9092"] }).producer();
+		vi.spyOn(kafka, "connect").mockResolvedValue();
+		vi.spyOn(kafka, "send").mockResolvedValue([]);
 		const effects = await makeEffects(
 			insert,
 			{ broker: "redpanda.test:9092" },
