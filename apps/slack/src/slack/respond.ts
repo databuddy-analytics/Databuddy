@@ -277,7 +277,7 @@ async function postComponentBlocks({
 	logger,
 	run,
 }: {
-	blocks: Record<string, unknown>[];
+	blocks: Block[];
 	client: Pick<SlackAgentClient, "apiCall">;
 	logger: LoggerLike;
 	run: SlackAgentRun;
