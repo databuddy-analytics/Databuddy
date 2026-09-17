@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import ts from "typescript";
 
 /**
@@ -15,6 +15,9 @@ const RULE = {
 	noCustomJsonErrorResponse: "http/no-custom-json-error-response",
 	noRawInteractiveHtml: "dashboard/no-raw-interactive-html",
 	noCustomColor: "dashboard/no-custom-color",
+	noScratchTestInfra: "tests/no-scratch-infra",
+	wrongTestRunner: "tests/wrong-runner-import",
+	unreachableTest: "tests/unreachable-test-file",
 } as const;
 
 type RuleId = (typeof RULE)[keyof typeof RULE];
@@ -27,6 +30,18 @@ export interface PolicyViolation {
 	path: string;
 	rule: RuleId;
 }
+
+export interface TestWiringPackage {
+	manifest: string;
+	scripts: Record<string, string>;
+	testFiles: string[];
+}
+
+const VITEST_PACKAGE_PATHS = ["apps/api/", "apps/basket/"];
+const TEST_SOURCE_EXTENSION = /\.(?:test|spec)\.tsx?$/u;
+const UNIT_TEST_EXTENSION = /\.test\.tsx?$/u;
+const SCRATCH_LOOPBACK_PORT = /(?:localhost|127\.0\.0\.1):1\d{4}\b/u;
+const SCRIPT_TOKEN_SEPARATOR = /\s+/u;
 
 const NATIVE_INTERACTIVE_TAGS = new Set([
 	"button",
@@ -73,33 +88,31 @@ export function findPolicyViolations(
 		return findCustomCssColors(path, text);
 	}
 
-	const sourceFile = ts.createSourceFile(
-		path,
-		text,
-		ts.ScriptTarget.Latest,
-		true,
-		path.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS
-	);
+	const sourceFile = parseSource(path, text);
 	const violations: PolicyViolation[] = [];
+	const report = (node: ts.Node, rule: RuleId, message: string) =>
+		reportNode(sourceFile, violations, node, rule, message);
 
-	const report = (node: ts.Node, rule: RuleId, message: string) => {
-		if (!hasPolicyIgnore(sourceFile, node, rule)) {
-			const location = sourceFile.getLineAndCharacterOfPosition(
-				node.getStart()
-			);
-			const endLocation = sourceFile.getLineAndCharacterOfPosition(
-				node.getEnd()
-			);
-			violations.push({
-				column: location.character + 1,
-				endLine: endLocation.line + 1,
-				line: location.line + 1,
-				message,
-				path,
-				rule,
-			});
-		}
-	};
+	if (isTestSource(path)) {
+		const visitTest = (node: ts.Node) => {
+			if (isScratchLoopbackLiteral(node)) {
+				report(
+					node,
+					RULE.noScratchTestInfra,
+					"Tests must use the shared services from @databuddy/test/env (Postgres 5432, Redis 6379, ClickHouse 8123), never a scratch database port."
+				);
+			}
+			if (ts.isImportDeclaration(node)) {
+				const runnerMessage = wrongTestRunnerMessage(path, node);
+				if (runnerMessage) {
+					report(node, RULE.wrongTestRunner, runnerMessage);
+				}
+			}
+			ts.forEachChild(node, visitTest);
+		};
+		visitTest(sourceFile);
+		return violations;
+	}
 
 	const visit = (node: ts.Node) => {
 		if (isDashboardFeatureSource(path)) {
@@ -151,17 +164,164 @@ export function findPolicyViolations(
 }
 
 function isPolicySource(path: string) {
-	if (path.endsWith(".test.ts") || path.endsWith(".spec.ts")) {
-		return false;
-	}
-	if (path.endsWith(".test.tsx") || path.endsWith(".spec.tsx")) {
-		return false;
+	if (isTestSource(path)) {
+		return true;
 	}
 
 	return (
 		(isDashboardSource(path) && DASHBOARD_SOURCE_EXTENSION.test(path)) ||
 		(isHttpSource(path) && HTTP_SOURCE_EXTENSION.test(path))
 	);
+}
+
+function isTestSource(path: string) {
+	return TEST_SOURCE_EXTENSION.test(path);
+}
+
+function parseSource(path: string, text: string) {
+	return ts.createSourceFile(
+		path,
+		text,
+		ts.ScriptTarget.Latest,
+		true,
+		path.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS
+	);
+}
+
+function reportNode(
+	sourceFile: ts.SourceFile,
+	violations: PolicyViolation[],
+	node: ts.Node,
+	rule: RuleId,
+	message: string
+) {
+	if (hasPolicyIgnore(sourceFile, node, rule)) {
+		return;
+	}
+	const location = sourceFile.getLineAndCharacterOfPosition(node.getStart());
+	const endLocation = sourceFile.getLineAndCharacterOfPosition(node.getEnd());
+	violations.push({
+		column: location.character + 1,
+		endLine: endLocation.line + 1,
+		line: location.line + 1,
+		message,
+		path: sourceFile.fileName,
+		rule,
+	});
+}
+
+function isScratchLoopbackLiteral(node: ts.Node) {
+	if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+		return SCRATCH_LOOPBACK_PORT.test(node.text);
+	}
+	if (ts.isTemplateExpression(node)) {
+		return [
+			node.head.text,
+			...node.templateSpans.map((span) => span.literal.text),
+		].some((text) => SCRATCH_LOOPBACK_PORT.test(text));
+	}
+	return false;
+}
+
+function usesVitest(path: string) {
+	return VITEST_PACKAGE_PATHS.some((prefix) => path.startsWith(prefix));
+}
+
+function wrongTestRunnerMessage(path: string, node: ts.ImportDeclaration) {
+	if (!ts.isStringLiteral(node.moduleSpecifier)) {
+		return;
+	}
+	const moduleName = node.moduleSpecifier.text;
+	if (moduleName === "vitest" && !usesVitest(path)) {
+		return "This package runs bun test; import test helpers from bun:test.";
+	}
+	if (moduleName === "bun:test" && usesVitest(path)) {
+		return "This package runs vitest; import test helpers from vitest.";
+	}
+}
+
+export function findTestWiringViolations(
+	packages: TestWiringPackage[]
+): PolicyViolation[] {
+	return packages.flatMap((pkg) => {
+		const violations: PolicyViolation[] = [];
+		const report = (message: string) =>
+			violations.push({
+				column: 1,
+				endLine: 1,
+				line: 1,
+				message,
+				path: pkg.manifest,
+				rule: RULE.unreachableTest,
+			});
+		const packageDir = dirname(pkg.manifest);
+		const scriptFile = (token: string) =>
+			packageDir === "." ? token : join(packageDir, token);
+		const referenced = new Set<string>();
+		for (const [name, script] of Object.entries(pkg.scripts)) {
+			for (const token of script.split(SCRIPT_TOKEN_SEPARATOR)) {
+				if (token.includes("*") || !TEST_SOURCE_EXTENSION.test(token)) {
+					continue;
+				}
+				const file = scriptFile(token);
+				referenced.add(file);
+				if (!pkg.testFiles.includes(file)) {
+					report(`Script "${name}" references ${token}, which does not exist.`);
+				}
+			}
+		}
+		const unreachable = pkg.scripts.test
+			? []
+			: pkg.testFiles.filter(
+					(file) => UNIT_TEST_EXTENSION.test(file) && !referenced.has(file)
+				);
+		if (unreachable.length > 0) {
+			report(
+				`Add a "test" script; ${unreachable.length} test file(s) under this package never run (first: ${unreachable[0]}).`
+			);
+		}
+		return violations;
+	});
+}
+
+function collectTestWiringPackages(): TestWiringPackage[] {
+	const manifests = runGit([
+		"ls-files",
+		"package.json",
+		"apps/*/package.json",
+		"packages/*/package.json",
+	])
+		.split("\n")
+		.filter(Boolean)
+		.sort((a, b) => b.length - a.length);
+	const testFiles = [
+		...runGit([
+			"ls-files",
+			"*.test.ts",
+			"*.test.tsx",
+			"*.spec.ts",
+			"*.spec.tsx",
+		]).split("\n"),
+		...runGit(["ls-files", "--others", "--exclude-standard"]).split("\n"),
+	].filter((file) => file && isTestSource(file) && existsSync(resolve(file)));
+	const packages = manifests.map((manifest) => ({
+		manifest,
+		scripts:
+			(
+				JSON.parse(readFileSync(resolve(manifest), "utf8")) as {
+					scripts?: Record<string, string>;
+				}
+			).scripts ?? {},
+		testFiles: [] as string[],
+	}));
+	for (const file of testFiles) {
+		const owner = packages.find((pkg) => {
+			const dir = dirname(pkg.manifest);
+			return dir === "." || file.startsWith(`${dir}/`);
+		});
+		owner?.testFiles.push(file);
+	}
+	return packages;
 }
 
 function isDashboardSource(path: string) {
@@ -630,12 +790,15 @@ function readPolicyText(path: string) {
 
 function main() {
 	const changedLines = getChangedLines();
-	const violations = [...changedLines.keys()].flatMap((path) => {
-		const text = readPolicyText(path);
-		return findPolicyViolations(path, text).filter((violation) =>
-			intersectsChangedLines(violation, changedLines)
-		);
-	});
+	const violations = [
+		...[...changedLines.keys()].flatMap((path) => {
+			const text = readPolicyText(path);
+			return findPolicyViolations(path, text).filter((violation) =>
+				intersectsChangedLines(violation, changedLines)
+			);
+		}),
+		...findTestWiringViolations(collectTestWiringPackages()),
+	];
 
 	if (violations.length === 0) {
 		return;
