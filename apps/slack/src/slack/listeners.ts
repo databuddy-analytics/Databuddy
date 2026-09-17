@@ -116,11 +116,13 @@ function createDatabuddyAssistant({
 				return;
 			}
 
-			await setTitle(toThreadTitle(text));
-			await setStatus({
-				loading_messages: [...SLACK_LOADING_MESSAGES],
-				status: "is thinking...",
-			});
+			if (!isSlackStopCommand(text)) {
+				await setTitle(toThreadTitle(text));
+				await setStatus({
+					loading_messages: [...SLACK_LOADING_MESSAGES],
+					status: "is thinking...",
+				});
+			}
 
 			const run: SlackAgentRun = {
 				channelId,
@@ -131,7 +133,6 @@ function createDatabuddyAssistant({
 				trigger: "assistant",
 				userId,
 			};
-			await threadQueue.markEngaged(run);
 			await handleAgentRun({
 				agent,
 				client,

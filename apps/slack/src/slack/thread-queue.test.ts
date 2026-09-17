@@ -42,7 +42,20 @@ function createFakeRedis() {
 			second: string,
 			...args: string[]
 		) {
+			if (script.includes("local stoppedAt")) {
+				const stoppedAt = values.get(second);
+				if (stoppedAt && Number(args[3]) <= Number(stoppedAt)) return [-1, 0];
+				const pending = lists.get(first) ?? [];
+				if (pending.length >= Number(args[1])) return [0, pending.length];
+				pending.push(args[0]!);
+				lists.set(first, pending);
+				expiries.set(first, Number(args[2]));
+				return [1, pending.length];
+			}
 			if (script.includes("local result = {}")) {
+				if (values.get(args[0]!) !== args[1])
+					throw new Error("Slack thread lock expired");
+				expiries.set(args[0]!, Number(args[2]));
 				const pending = lists.get(first) ?? [];
 				const result: string[] = [];
 				let author: string | undefined;
@@ -163,6 +176,7 @@ describe("SlackThreadQueue", () => {
 		const redis = createFakeRedis();
 		const queue = new SlackThreadQueue(redis);
 		const run = createRun();
+		await queue.tryAcquire(run);
 
 		await queue.enqueue(
 			createRun({ messageTs: "171234.568", text: "also referrers" })
@@ -191,6 +205,8 @@ describe("SlackThreadQueue", () => {
 	it("caps queued follow-up bursts", async () => {
 		const redis = createFakeRedis();
 		const queue = new SlackThreadQueue(redis);
+		const run = createRun();
+		await queue.tryAcquire(run);
 		let lastResult: Awaited<ReturnType<typeof queue.enqueue>> | undefined;
 
 		for (let index = 0; index < 11; index++) {
@@ -208,15 +224,17 @@ describe("SlackThreadQueue", () => {
 			reason: "queue_full",
 			truncated: false,
 		});
-		expect((await queue.drain(createRun())).length).toBe(10);
+		expect((await queue.drain(run)).length).toBe(10);
 	});
 
 	it("truncates very long queued follow-ups", async () => {
 		const redis = createFakeRedis();
 		const queue = new SlackThreadQueue(redis);
+		const run = createRun();
+		await queue.tryAcquire(run);
 
 		const result = await queue.enqueue(createRun({ text: "x".repeat(5000) }));
-		const [followUp] = await queue.drain(createRun());
+		const [followUp] = await queue.drain(run);
 
 		expect(result).toMatchObject({ ok: true, truncated: true });
 		expect(followUp?.text.length).toBe(4000);
@@ -225,6 +243,8 @@ describe("SlackThreadQueue", () => {
 	it("removes a queued follow-up when Slack deletes the source message", async () => {
 		const redis = createFakeRedis();
 		const queue = new SlackThreadQueue(redis);
+		const run = createRun();
+		await queue.tryAcquire(run);
 
 		await queue.enqueue(createRun({ messageTs: "171234.568", text: "keep" }));
 		await queue.enqueue(createRun({ messageTs: "171234.569", text: "delete" }));
@@ -237,28 +257,64 @@ describe("SlackThreadQueue", () => {
 			})
 		).toBe(true);
 
-		expect(await queue.drain(createRun())).toEqual([
+		expect(await queue.drain(run)).toEqual([
 			{ messageTs: "171234.568", text: "keep", userId: "U123" },
 		]);
 	});
 });
 
 describe("Slack queue safety", () => {
+	it("keeps concurrent enqueue attempts within the shared capacity", async () => {
+		const redis = createFakeRedis();
+		const replicas = [new SlackThreadQueue(redis), new SlackThreadQueue(redis)];
+		const results = await Promise.all(
+			Array.from({ length: 20 }, (_, index) =>
+				replicas[index % 2]!.enqueue(
+					createRun({
+						messageTs: `171234.${570 + index}`,
+						text: `message ${index}`,
+					})
+				)
+			)
+		);
+		expect(results.filter((result) => result.ok)).toHaveLength(10);
+		expect(
+			results.filter((result) => result.reason === "queue_full")
+		).toHaveLength(10);
+	});
+
+	it("prevents an expired owner from consuming a replacement owner's queued messages", async () => {
+		const redis = createFakeRedis();
+		const expired = new SlackThreadQueue(redis);
+		const previousRun = createRun();
+		await expired.tryAcquire(previousRun);
+		redis.values.clear();
+		const replacement = new SlackThreadQueue(redis);
+		const currentRun = createRun();
+		await replacement.tryAcquire(currentRun);
+		await replacement.enqueue(
+			createRun({ text: "belongs to the current owner" })
+		);
+
+		await expect(expired.drain(previousRun)).rejects.toThrow("lock");
+		expect((await replacement.drain(currentRun))[0]?.text).toBe(
+			"belongs to the current owner"
+		);
+	});
+
 	it("keeps consecutive authors together in arrival order", async () => {
 		const queue = new SlackThreadQueue(createFakeRedis());
+		const run = createRun();
+		await queue.tryAcquire(run);
 		for (const [index, userId] of ["A", "A", "B", "A"].entries()) {
 			await queue.enqueue(createRun({ userId, text: `message ${index}` }));
 		}
-		expect((await queue.drain(createRun())).map((item) => item.text)).toEqual([
+		expect((await queue.drain(run)).map((item) => item.text)).toEqual([
 			"message 0",
 			"message 1",
 		]);
-		expect((await queue.drain(createRun())).map((item) => item.userId)).toEqual(
-			["B"]
-		);
-		expect((await queue.drain(createRun())).map((item) => item.userId)).toEqual(
-			["A"]
-		);
+		expect((await queue.drain(run)).map((item) => item.userId)).toEqual(["B"]);
+		expect((await queue.drain(run)).map((item) => item.userId)).toEqual(["A"]);
 	});
 
 	it("fails closed when Redis is unavailable or lock acquisition fails", async () => {
@@ -296,12 +352,14 @@ describe("Slack queue safety", () => {
 		const redis = createFakeRedis();
 		const running = new SlackThreadQueue(redis);
 		const otherReplica = new SlackThreadQueue(redis);
+		const run = createRun();
+		await running.tryAcquire(run);
 		await running.enqueue(createRun());
 		await otherReplica.stop(
 			createRun({ messageTs: "171234.900", text: "stop" })
 		);
 		expect(await running.isStopped(createRun())).toBe(true);
-		expect(await running.drain(createRun())).toEqual([]);
+		expect(await running.drain(run)).toEqual([]);
 		expect(
 			await running.isStopped(createRun({ messageTs: "171235.000" }))
 		).toBe(false);
@@ -310,6 +368,8 @@ describe("Slack queue safety", () => {
 
 it("allows a new click on an old card after stop, including when queued", async () => {
 	const queue = new SlackThreadQueue(createFakeRedis());
+	const run = createRun();
+	await queue.tryAcquire(run);
 	await queue.stop(createRun({ messageTs: "171234.800" }));
 	const click = createRun({
 		messageTs: "171234.100",
@@ -318,5 +378,5 @@ it("allows a new click on an old card after stop, including when queued", async 
 	});
 	expect(await queue.isStopped(click)).toBe(false);
 	expect((await queue.enqueue(click)).ok).toBe(true);
-	expect((await queue.drain(createRun()))[0]?.requestTs).toBe("171234.900");
+	expect((await queue.drain(run))[0]?.requestTs).toBe("171234.900");
 });

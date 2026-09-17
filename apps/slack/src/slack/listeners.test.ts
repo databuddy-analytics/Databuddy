@@ -191,6 +191,44 @@ function registerFakeSlackListeners(
 }
 
 describe("Slack listeners", () => {
+	it("stops assistant work without depending on title or status updates", async () => {
+		const app = new FakeSlackApp();
+		const { agent, runs } = createAgent();
+		const { client } = createClient();
+		let stopped = false;
+		const queue = createQueue({
+			stop: async () => {
+				stopped = true;
+			},
+		});
+		registerFakeSlackListeners(app, agent, createInstallations(), queue);
+		const assistant = app.events.get("assistant") as unknown as {
+			userMessage: Handler[];
+		};
+		const failCosmeticUpdate = async () => {
+			throw new Error("Slack API unavailable");
+		};
+		await assistant.userMessage[0]?.({
+			client,
+			context: { teamId: "T123" },
+			logger,
+			message: {
+				channel: "D123",
+				channel_type: "im",
+				text: "stop",
+				thread_ts: "171234.000",
+				ts: "171234.568",
+				type: "message",
+				user: "U123",
+			},
+			say: async () => undefined,
+			setStatus: failCosmeticUpdate,
+			setTitle: failCosmeticUpdate,
+		});
+		expect(stopped).toBe(true);
+		expect(runs).toHaveLength(0);
+	});
+
 	it("keeps the Slack assistant manifest aligned with its live prompts", async () => {
 		const manifest = (await Bun.file(
 			new URL("../../slack-app-manifest.json", import.meta.url)

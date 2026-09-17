@@ -10,13 +10,9 @@ const MAX_FOLLOW_UP_TEXT_CHARS = 4000;
 interface RedisLike {
 	del(...keys: string[]): Promise<number>;
 	eval(script: string, keyCount: number, ...args: string[]): Promise<unknown>;
-	expire(key: string, seconds: number): Promise<number>;
 	get(key: string): Promise<string | null>;
-	llen(key: string): Promise<number>;
 	lrange(key: string, start: number, stop: number): Promise<string[]>;
 	lrem(key: string, count: number, value: string): Promise<number>;
-	ltrim(key: string, start: number, stop: number): Promise<unknown>;
-	rpush(key: string, ...values: string[]): Promise<number>;
 	set(
 		key: string,
 		value: string,
@@ -99,6 +95,15 @@ const RENEW_LOCK = `
 if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end
 return redis.call('EXPIRE', KEYS[1], ARGV[2])`;
 
+const ENQUEUE_FOLLOW_UP = `
+local stoppedAt = redis.call('GET', KEYS[2])
+if stoppedAt and tonumber(ARGV[4]) <= tonumber(stoppedAt) then return {-1, 0} end
+local count = redis.call('LLEN', KEYS[1])
+if count >= tonumber(ARGV[2]) then return {0, count} end
+count = redis.call('RPUSH', KEYS[1], ARGV[1])
+redis.call('EXPIRE', KEYS[1], ARGV[3])
+return {1, count}`;
+
 const STOP_THREAD = `
 local previous = redis.call('GET', KEYS[2])
 local stamp = previous and tonumber(previous) > tonumber(ARGV[1]) and previous or ARGV[1]
@@ -116,6 +121,8 @@ redis.call('EXPIRE', KEYS[1], ARGV[2])
 return 1`;
 
 const DRAIN_FOLLOW_UPS = `
+if redis.call('GET', KEYS[3]) ~= ARGV[1] then return redis.error_reply('Slack thread lock expired') end
+redis.call('EXPIRE', KEYS[3], ARGV[2])
 local result = {}
 local author = nil
 local cutoff = tonumber(redis.call('GET', KEYS[2]) or '0')
@@ -291,22 +298,34 @@ export class SlackThreadQueue implements SlackThreadQueueStore {
 			userId: run.userId,
 		};
 		try {
-			if (await this.isStopped(run)) {
+			const key = queueKey(run);
+			const result = await redis.eval(
+				ENQUEUE_FOLLOW_UP,
+				2,
+				key,
+				stopKey(run),
+				JSON.stringify(item),
+				String(MAX_FOLLOW_UP_ITEMS),
+				String(FOLLOW_UP_QUEUE_TTL_SECONDS),
+				run.requestTs ?? run.messageTs ?? "0"
+			);
+			const status = Array.isArray(result) ? result[0] : undefined;
+			const queuedCount = Array.isArray(result) ? result[1] : undefined;
+			if (typeof status !== "number" || typeof queuedCount !== "number") {
+				throw new Error("Invalid Slack enqueue response");
+			}
+			if (status === -1) {
 				return { ok: false, reason: "stopped" };
 			}
-			const key = queueKey(run);
-			const currentLength = await redis.llen(key);
-			if (currentLength >= MAX_FOLLOW_UP_ITEMS) {
+			if (status === 0) {
 				return {
 					ok: false,
-					queuedCount: currentLength,
+					queuedCount,
 					reason: "queue_full",
 					truncated,
 				};
 			}
 
-			const queuedCount = await redis.rpush(key, JSON.stringify(item));
-			await redis.expire(key, FOLLOW_UP_QUEUE_TTL_SECONDS);
 			if (run.messageTs) {
 				const identity = threadIdentity(run);
 				await Promise.all(
@@ -330,12 +349,19 @@ export class SlackThreadQueue implements SlackThreadQueueStore {
 		if (!redis) {
 			throw new Error("Slack thread coordination is unavailable");
 		}
+		const token = this.#locks.get(run);
+		if (!token) {
+			throw new Error("Slack thread lock is not held");
+		}
 		// Atomically discard cancelled messages and consume one contiguous author group.
 		const items = await redis.eval(
 			DRAIN_FOLLOW_UPS,
-			2,
+			3,
 			queueKey(run),
-			stopKey(run)
+			stopKey(run),
+			lockKey(run),
+			token,
+			String(THREAD_LOCK_TTL_SECONDS)
 		);
 		if (!Array.isArray(items)) {
 			throw new Error("Invalid Slack queue response");
