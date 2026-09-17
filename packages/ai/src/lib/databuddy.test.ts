@@ -1,13 +1,14 @@
 import { afterEach, expect, mock, test } from "bun:test";
+import type { CustomEventInput, DatabuddyConfig } from "@databuddy/sdk/node";
 
 const originalEnv = process.env;
-const create = mock((_options: unknown) => {});
-const track = mock(async (_event: unknown) => {});
+const create = mock((_options: DatabuddyConfig) => {});
+const track = mock(async (_event: CustomEventInput) => {});
 
 mock.module("@databuddy/sdk/node", () => ({
 	Databuddy: class {
 		track = track;
-		constructor(options: unknown) {
+		constructor(options: DatabuddyConfig) {
 			create(options);
 		}
 	},
