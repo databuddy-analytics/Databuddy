@@ -155,13 +155,24 @@ Dashboard (Next.js) ←→ ORPC (rpc package) ←→ API (Elysia) → PostgreSQL
   - Only make a single snapshot commit for the whole worktree when the user explicitly asks to include everything as-is.
 - **PRs**: Open against `staging` branch (not `main`).
 
-## Integration Tests
+## Tests
 
-Test infra lives in `packages/test`. Integration tests live in `apps/api/src/integration/`.
+Runners: `apps/api` and `apps/basket` use vitest; every other package uses `bun test`. Import helpers from the runner the package actually runs (`bun:test` vs `vitest`); `bun run lint:policies` rejects the wrong one. Biome and most `tsconfig.json` files exclude test files, so format tests by hand (tabs, no blank line before a closing `});`) and keep imports honest.
+
+**Every test file must be reachable.** A package that contains `*.test.ts(x)` needs a `test` script, and any file path named in a `test*` script must exist; `lint:policies` enforces both. Env-gated integration files must be listed in the package's `test:integration` script or in `.github/workflows/ci.yml`. A gated file nobody runs is dead, not "for later".
+
+**Integration tests use the shared services only.** Postgres `databuddy_test` on 5432, Redis on 6379, ClickHouse on 8123, via `import "@databuddy/test/env"` as the first import. Never pin a test to a scratch container port; `lint:policies` rejects five-digit loopback ports in test files. A test that needs isolation uses its own organization, website, or table names and cleans them up.
+
+**Do not write these tests.** They were removed in bulk once and will be removed again:
+- Constant snapshots: asserting a constant or config equals a literal copy of itself. Drift guards that compare two sources of truth are the exception.
+- Mock echo: mocking a dependency and asserting it was called with the arguments the test passed in.
+- Library behaviour: zod defaults, drizzle column config, ai-sdk retries, bun or node semantics.
+- Duplicates: add a case to the existing `<module>.test.ts` instead of creating `<module>-extra.test.ts`, `<module>-boundary.test.ts`, or a "fuzz" file that reruns fixed inputs.
+- `.skip` or `.todo` without an issue link, or a `describe.skip` that never turns on.
 
 ```bash
 # Run integration tests (requires Docker: postgres + redis)
-cd apps/api && bun test src/integration/
+cd apps/api && bun run test:integration
 
 # One-time setup for test DB
 cd packages/db && DATABASE_URL="postgres://databuddy:databuddy_dev_password@localhost:5432/databuddy_test" bunx drizzle-kit push
@@ -182,6 +193,7 @@ cd packages/db && DATABASE_URL="postgres://databuddy:databuddy_dev_password@loca
 - Use `userContext` / `apiKeyContext` / `expectCode` from the test package — don't redefine locally
 - Type API key objects against `Context["apiKey"]` to catch schema drift
 - `beforeEach(() => reset())` and `afterAll(() => cleanup())` in every file
+- Business context lives in `organization_business_contexts`, never `organization.metadata`; fixtures that write metadata test nothing
 
 ## Drift Prevention
 
