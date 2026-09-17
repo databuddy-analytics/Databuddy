@@ -295,7 +295,7 @@ export async function resumeInsightReply(
 			userId: trigger.authorId,
 			chatId: `insights:clarification:${replyId}`,
 		});
-		await db.transaction(async (tx) => {
+		const completed = await db.transaction(async (tx) => {
 			const [site] = await tx
 				.select({ id: websites.id })
 				.from(websites)
@@ -310,7 +310,7 @@ export async function resumeInsightReply(
 			if (!site) {
 				throw new Error("This investigation's website access changed");
 			}
-			await tx
+			return tx
 				.update(insightReplies)
 				.set({ assistantText: answer.text, status: "succeeded" })
 				.where(
@@ -318,8 +318,12 @@ export async function resumeInsightReply(
 						eq(insightReplies.id, replyId),
 						eq(insightReplies.status, "running")
 					)
-				);
+				)
+				.returning({ id: insightReplies.id });
 		});
+		if (completed.length === 0) {
+			return "skipped";
+		}
 		try {
 			await invalidateInsightsCachesForOrganization(trigger.organizationId);
 		} catch (error) {

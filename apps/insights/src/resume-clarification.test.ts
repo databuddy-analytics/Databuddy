@@ -158,6 +158,48 @@ it("resumes an anchored clarification without refresh, business reads, investiga
 	const { insightReplies } = await import("@databuddy/db/schema");
 	expect(updates).toEqual([insightReplies, insightReplies]);
 });
+it("skips delivery when the reply left running while the clarification was generating", async () => {
+	const reads = [
+		[trigger],
+		[{ id: "case-1", status: "open", createdAt: new Date("2026-09-01") }],
+		[{ id: "original-observation", snapshot, outcome, signal }],
+		[],
+		[{ id: "example-site" }],
+	];
+	replaceDb("select", mock(() => query(reads.shift() ?? [])) as never);
+	const updates = [[{ id: "reply-1" }], []];
+	replaceDb("update", mock(() => query(updates.shift() ?? [])) as never);
+	replaceDb("transaction", mock(async (body) => body(db)) as never);
+	const invalidate = spyOn(
+		redis,
+		"invalidateInsightsCachesForOrganization"
+	).mockResolvedValue(undefined);
+	const forbidden = mock(async () => {
+		throw new Error("must not run");
+	});
+	const clarify = mock(async () => ({
+		text: "Generated after the reply moved on.",
+		modelId: "openai/gpt-5.6-luna",
+		usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+	}));
+	const result = await resumeInsightReply(
+		"reply-1",
+		forbidden,
+		forbidden,
+		forbidden,
+		{
+			loadCurrentBusinessScope: forbidden,
+			loadBusinessProfile: forbidden,
+			recallBusinessContext: forbidden,
+		},
+		clarify
+	);
+	expect(result).toBe("skipped");
+	expect(clarify).toHaveBeenCalledTimes(1);
+	expect(updates).toHaveLength(0);
+	expect(invalidate).not.toHaveBeenCalled();
+	expect(forbidden).not.toHaveBeenCalled();
+});
 it("rejects a cross-tenant snapshot before any clarification generation", async () => {
 	const reads = [
 		[trigger],
