@@ -32,12 +32,6 @@ export function schemaTable(
 	});
 }
 
-export function randomIPv4(): string {
-	return Array.from({ length: 4 }, () => Math.floor(Math.random() * 256)).join(
-		"."
-	);
-}
-
 export function randomPublicIPv4(): string {
 	for (;;) {
 		const a = Math.floor(Math.random() * 223) + 1;
