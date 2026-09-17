@@ -110,12 +110,16 @@ assert.equal(window.oaiq?.q?.some(args => args[0] === "measure") ?? false, ${sel
 						.split(";")
 						.find((part) => part.trim().startsWith("connect-src"));
 					const connectSources = connect?.split(" ") ?? [];
-					expect(connectSources.includes("https://api.example.com")).toBe(
-						selfhost === "true"
-					);
-					expect(
-						connectSources.includes("https://events.example.com:8443")
-					).toBe(selfhost === "true");
+					for (const origin of [
+						"https://api.example.com",
+						"https://events.example.com:8443",
+					]) {
+						if (selfhost === "true") {
+							expect(connectSources).toContain(origin);
+						} else {
+							expect(connectSources).not.toContain(origin);
+						}
+					}
 					expect(connect).toContain("https://*.databuddy.cc");
 					expect(connect).not.toContain("/prefix");
 					expect(csp).not.toContain("'unsafe-eval'");
