@@ -212,6 +212,63 @@ describe("Slack listeners", () => {
 		).toContain("investigat");
 	});
 
+	it.each([
+		{ bot_id: "BOTHER" },
+		{ bot_profile: { id: "BOTHER" } },
+	])("ignores mentions from other bots with %j", async (botIdentity) => {
+		const app = new FakeSlackApp();
+		const { agent, runs } = createAgent();
+		const queue = createQueue();
+		const responses: unknown[] = [];
+		const readinessCalls: unknown[] = [];
+		const investigationRuns: SlackAgentRun[] = [];
+		const { apiCalls, client, reactionAdds } = createClient();
+		registerFakeSlackListeners(
+			app,
+			agent,
+			createInstallations({
+				getChannelReadiness: async (input) => {
+					readinessCalls.push(input);
+					return { message: "", ok: true };
+				},
+			}),
+			queue,
+			undefined,
+			async ({ run }) => {
+				investigationRuns.push(run);
+				return false;
+			}
+		);
+
+		for (const text of ["<@UBOT>", "<@UBOT> show me traffic"]) {
+			await app.events.get("app_mention")?.({
+				body: {},
+				client,
+				context: { botUserId: "UBOT", teamId: "T123" },
+				event: {
+					...botIdentity,
+					channel: "C123",
+					text,
+					ts: "171234.568",
+					type: "app_mention",
+					user: "UOTHERBOT",
+				},
+				logger,
+				say: async (message: unknown) => {
+					responses.push(message);
+				},
+			});
+		}
+
+		expect(runs).toEqual([]);
+		expect(investigationRuns).toEqual([]);
+		expect(readinessCalls).toEqual([]);
+		expect(queue.enqueuedRuns).toEqual([]);
+		expect(apiCalls).toEqual([]);
+		expect(reactionAdds).toEqual([]);
+		expect(responses).toEqual([]);
+	});
+
 	it("auto-connects Slack Connect mentions from the installed workspace", async () => {
 		const app = new FakeSlackApp();
 		const { agent, runs } = createAgent();
