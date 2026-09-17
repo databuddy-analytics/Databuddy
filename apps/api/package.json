@@ -38,7 +38,7 @@
     "elysia": "catalog:",
     "evlog": "catalog:",
     "lru-cache": "^11.2.7",
-    "resend": "^4.0.1",
+    "resend": "^6.28.0",
     "svix": "^1.84.1",
     "zod": "catalog:"
   },
