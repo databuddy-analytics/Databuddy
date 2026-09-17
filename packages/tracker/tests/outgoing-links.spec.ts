@@ -1,6 +1,48 @@
 import { expect, findEvent, hasEvent, test } from "./test-utils";
 
 test.describe("Outgoing Links Tracking", () => {
+	test("does not track outgoing links when tracker is disabled", async ({
+		page,
+	}) => {
+		let outgoingTracked = false;
+
+		await page.goto("/test");
+		await page.evaluate(() => {
+			const link = document.createElement("a");
+			link.href = "https://external-site.com/page";
+			link.innerText = "External";
+			link.id = "ext-link";
+			document.body.appendChild(link);
+
+			(window as any).databuddyConfig = {
+				clientId: "test-disabled-outgoing",
+				ignoreBotDetection: true,
+				disabled: true,
+				trackOutgoingLinks: true,
+				batchTimeout: 200,
+			};
+		});
+		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
+
+		await expect
+			.poll(async () => await page.evaluate(() => !!(window as any).db))
+			.toBeTruthy();
+
+		page.on("request", (req) => {
+			if (hasEvent(req, (e) => e.type === "outgoing_link")) {
+				outgoingTracked = true;
+			}
+		});
+
+		await page.evaluate(() => {
+			const link = document.getElementById("ext-link");
+			link?.addEventListener("click", (e) => e.preventDefault());
+		});
+		await page.click("#ext-link");
+
+		await page.waitForTimeout(500);
+		expect(outgoingTracked).toBe(false);
+	});
 
 	test("tracks clicks on external links", async ({ page }) => {
 		await page.goto("/test");

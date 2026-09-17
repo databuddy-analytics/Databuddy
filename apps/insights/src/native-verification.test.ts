@@ -319,6 +319,10 @@ describe("native saved verification", () => {
 			}
 			expect(execute).toHaveBeenCalledTimes(1);
 			const [query, context] = execute.mock.calls[0];
+			if (status === "aborted") {
+				expect(context.abortSignal?.aborted).toBe(true);
+				expect(context.abortSignal?.reason).toBe(reason);
+			}
 			const trace = {
 				service: "insights",
 				organization_id: input.appContext.organizationId,
@@ -487,30 +491,6 @@ describe("native saved verification", () => {
 		expectNoModelCalls(model);
 	});
 
-	it("propagates an abort during an uncooperative native read", async () => {
-		const { input, tools } = verificationFixture();
-		const controller = new AbortController();
-		const reason = new Error("Cancelled during native read");
-		const execute = mock((_query: unknown, _context: ToolExecutionOptions) => {
-			queueMicrotask(() => controller.abort(reason));
-			// A stalled executor never settles; cancellation must not wait for it.
-			return new Promise<never>(() => undefined);
-		});
-		const model = hostileModel();
-		await expect(
-			runInsightAgent(input, {
-				abortSignal: controller.signal,
-				model,
-				tools: { get_goal_analytics: { ...tools.get_goal_analytics, execute } },
-			})
-		).rejects.toBe(reason);
-
-		expect(execute).toHaveBeenCalledTimes(1);
-		const context = execute.mock.calls[0][1];
-		expect(context.abortSignal?.aborted).toBe(true);
-		expect(context.abortSignal?.reason).toBe(reason);
-		expectNoModelCalls(model);
-	});
 });
 
 it("rejects the observed repair workaround even after its structured check is dropped", async () => {

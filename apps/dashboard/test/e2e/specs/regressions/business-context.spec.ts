@@ -738,104 +738,77 @@ test(
 	}
 );
 
-for (const access of [
-	{
-		status: "credits-required",
-		billingMode: "fixed",
-		message:
-			"Investigation access is required to generate a draft. Review your investigation allowance and spending limit, or edit the context manually.",
-		action: "billing",
-	},
-	{
-		status: "unavailable",
-		billingMode: null,
-		message:
-			"Generation access could not be checked. Try again, or edit the context manually.",
-		action: "retry",
-	},
-	{
-		status: "not-configured",
-		billingMode: null,
-		message:
-			"AI draft generation is not configured. Contact your administrator, or edit the context manually.",
-		action: "contact-admin",
-	},
-]) {
-	test(`dismisses a failed generation when access is ${access.status}`, {
-		tag: "@regression",
-	}, async ({ authenticatedPage: page }) => {
-		const generationId = "11111111-1111-4111-8111-111111111111";
-		const failure =
-			"Generation took too long. Try again; your saved context is unchanged.";
-		let current: BusinessContextSettings = {
-			...settings(),
-			websites: access.status === "not-configured" ? [] : settings().websites,
-			generation: {
-				id: generationId,
-				websiteId: "example-site",
-				domain: "example.com",
-				requestedBy: "example-admin",
-				requestedAt: "2026-09-08T12:00:00Z",
-				baseRevision: 1,
-				status: "failed",
-				draft: null,
-				error: failure,
-			},
-		};
-		const mutations: string[] = [];
-		await page.route("**/rpc/businessContext/**", async (route) => {
-			const method = new URL(route.request().url()).pathname.split("/").at(-1);
-			if (method === "generationAccess") {
-				await route.fulfill({ json: { json: access } });
-				return;
-			}
-			if (method === "save" || method === "generate" || method === "cancel") {
-				mutations.push(method);
-			}
-			if (method === "cancel") {
-				expect(route.request().postDataJSON().json.generationId).toBe(
-					generationId
-				);
-				current = { ...current, generation: null };
-			}
-			await route.fulfill({ json: { json: current } });
-		});
-		await page.goto(path);
-		await expect(page.getByText(failure, { exact: true })).toBeVisible();
-		if (access.status === "not-configured") {
-			await expect(
-				page.getByRole("link", { name: "Add a website", exact: true })
-			).toBeVisible();
-		} else {
-			await expect(
-				page.getByText(access.message, { exact: true })
-			).toBeVisible();
-			await expect(
-				access.action === "billing"
-					? page.getByRole("link", { name: "Manage billing", exact: true })
-					: page.getByRole("button", { name: "Check again", exact: true })
-			).toBeVisible();
+test("dismisses a failed generation when no website is configured", {
+	tag: "@regression",
+}, async ({ authenticatedPage: page }) => {
+	const generationId = "11111111-1111-4111-8111-111111111111";
+	const failure =
+		"Generation took too long. Try again; your saved context is unchanged.";
+	let current: BusinessContextSettings = {
+		...settings(),
+		websites: [],
+		generation: {
+			id: generationId,
+			websiteId: "example-site",
+			domain: "example.com",
+			requestedBy: "example-admin",
+			requestedAt: "2026-09-08T12:00:00Z",
+			baseRevision: 1,
+			status: "failed",
+			draft: null,
+			error: failure,
+		},
+	};
+	const mutations: string[] = [];
+	await page.route("**/rpc/businessContext/**", async (route) => {
+		const method = new URL(route.request().url()).pathname.split("/").at(-1);
+		if (method === "generationAccess") {
+			await route.fulfill({
+				json: {
+					json: {
+						status: "not-configured",
+						billingMode: null,
+						message:
+							"AI draft generation is not configured. Contact your administrator, or edit the context manually.",
+						action: "contact-admin",
+					},
+				},
+			});
+			return;
 		}
-		const editor = await editBrief(page);
-		await editor.fill(
-			"Keep this unfinished brief while dismissing the failure."
-		);
-		await page
-			.getByRole("button", { name: "Dismiss generation error", exact: true })
-			.click();
-		await expect(page.getByText(failure, { exact: true })).toBeHidden();
-		await expect(editor).toHaveValue(
-			"Keep this unfinished brief while dismissing the failure."
-		);
-		await page.reload();
-		await editBrief(page);
-		await expect(page.getByText(failure, { exact: true })).toBeHidden();
-		await expect(editor).toHaveValue(
-			"Keep this unfinished brief while dismissing the failure."
-		);
-		expect(mutations).toEqual(["cancel"]);
+		if (method === "save" || method === "generate" || method === "cancel") {
+			mutations.push(method);
+		}
+		if (method === "cancel") {
+			expect(route.request().postDataJSON().json.generationId).toBe(
+				generationId
+			);
+			current = { ...current, generation: null };
+		}
+		await route.fulfill({ json: { json: current } });
 	});
-}
+	await page.goto(path);
+	await expect(page.getByText(failure, { exact: true })).toBeVisible();
+	await expect(
+		page.getByRole("link", { name: "Add a website", exact: true })
+	).toBeVisible();
+	const editor = await editBrief(page);
+	await editor.fill("Keep this unfinished brief while dismissing the failure.");
+	await page
+		.getByRole("button", { name: "Dismiss generation error", exact: true })
+		.click();
+	await expect(page.getByText(failure, { exact: true })).toBeHidden();
+	await expect(editor).toHaveValue(
+		"Keep this unfinished brief while dismissing the failure."
+	);
+	await page.reload();
+	await editBrief(page);
+	await expect(page.getByText(failure, { exact: true })).toBeHidden();
+	await expect(editor).toHaveValue(
+		"Keep this unfinished brief while dismissing the failure."
+	);
+	expect(mutations).toEqual(["cancel"]);
+});
 
 test("requires conflict review before saving an AI draft based on an older brief", {
 	tag: "@regression",

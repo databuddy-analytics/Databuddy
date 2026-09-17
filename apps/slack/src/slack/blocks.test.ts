@@ -64,7 +64,7 @@ describe("ComponentStreamSplitter", () => {
 	});
 });
 
-describe("componentToBlocks — tables and lists", () => {
+describe("componentToBlocks tables and lists", () => {
 	it("maps a data-table numeric cell to raw_number with value and text", () => {
 		const block = firstBlock({
 			type: "data-table",
@@ -82,7 +82,7 @@ describe("componentToBlocks — tables and lists", () => {
 
 });
 
-describe("componentToBlocks — charts are no longer dropped", () => {
+describe("componentToBlocks charts", () => {
 	it("renders a time-series chart as a data_table instead of vanishing", () => {
 		const blocks = componentToBlocks({
 			type: "area-chart",
@@ -100,7 +100,7 @@ describe("componentToBlocks — charts are no longer dropped", () => {
 
 });
 
-describe("componentToBlocks — native actions and previews", () => {
+describe("componentToBlocks native actions and previews", () => {
 	it("renders dashboard-actions as link buttons with absolute urls", () => {
 		const block = firstBlock({
 			type: "dashboard-actions",
@@ -134,7 +134,7 @@ describe("componentToBlocks — native actions and previews", () => {
 
 });
 
-describe("componentToBlocks — no silent drop", () => {
+describe("componentToBlocks no silent drop", () => {
 	it("falls back to a context note when a renderer produces nothing", () => {
 		const blocks = componentToBlocks({
 			type: "referrers-list",

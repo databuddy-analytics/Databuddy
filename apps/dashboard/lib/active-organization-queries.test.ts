@@ -1,5 +1,5 @@
 import { QueryClient } from "@tanstack/react-query";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "bun:test";
 import { AUTH_QUERY_KEYS } from "@/components/providers/organizations-provider";
 import { insightQueries } from "@/lib/insight-api";
 import { orpc } from "@/lib/orpc";

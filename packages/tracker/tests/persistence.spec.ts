@@ -1,7 +1,6 @@
 import { expect, test } from "./test-utils";
 
 test.describe("Persistence", () => {
-
 	test("persists anonymousId across reloads", async ({ page }) => {
 		await page.goto("/test");
 		await page.evaluate(() => {
@@ -13,11 +12,9 @@ test.describe("Persistence", () => {
 		});
 		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
-		// Get first ID
 		const id1 = await page.evaluate(() => localStorage.getItem("did"));
 		expect(id1).toBeTruthy();
 
-		// Reload
 		await page.reload();
 		await page.evaluate(() => {
 			(window as any).databuddyConfig = {
@@ -28,7 +25,6 @@ test.describe("Persistence", () => {
 		});
 		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
-		// Get second ID
 		const id2 = await page.evaluate(() => localStorage.getItem("did"));
 		expect(id2).toBe(id1);
 	});

@@ -323,7 +323,8 @@ describe("websites.updateSettings", () => {
 			},
 		});
 
-		expect(result.settings).toBeNull();
+		expect(result.settings?.allowedIps).toBeUndefined();
+		expect(result.settings?.allowedOrigins).toBeUndefined();
 	});
 
 	iit("rejects viewer role from updating settings", async () => {

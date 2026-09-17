@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, mock, spyOn } from "bun:test";
 import { asSchema } from "ai";
 import { SimpleQueryBuilder } from "../../query/simple-builder";
 import { discoverQueryTypesTool } from "./discover-query-types";
@@ -15,7 +15,7 @@ const options = {
 	},
 };
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => mock.restore());
 
 describe("analytics tool contract", () => {
 	it.each([
@@ -68,11 +68,9 @@ describe("analytics tool contract", () => {
 	])("returns a native retention option error instead of mislabeling grouped data: %j", async ({
 		groupBy,
 	}) => {
-		const query = vi.fn().mockResolvedValue([{ row_type: "overall" }]);
-		vi.spyOn(SimpleQueryBuilder.prototype, "execute").mockImplementation(
+		const query = mock().mockResolvedValue([{ row_type: "overall" }]);
+		spyOn(SimpleQueryBuilder.prototype, "execute").mockImplementation(
 			function () {
-				// Exercise native request parsing and the real SQL compiler;
-				// stub the rows returned after compilation.
 				this.compile();
 				return query();
 			}
@@ -137,9 +135,10 @@ describe("analytics tool contract", () => {
 	});
 
 	it("returns the measured scope and distinguishes a truncated result from its query row count", async () => {
-		const execute = vi
-			.spyOn(SimpleQueryBuilder.prototype, "execute")
-			.mockImplementation(function () {
+		const execute = spyOn(
+			SimpleQueryBuilder.prototype,
+			"execute"
+		).mockImplementation(function () {
 				const compiled = this.compile();
 				expect(compiled.params).toMatchObject({ f0: "activation_completed" });
 				expect(compiled.sql).toContain("event_name = {f0:String}");

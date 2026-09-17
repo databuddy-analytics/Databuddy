@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { SimpleQueryBuilder } from "../simple-builder";
 import { QueryBuilders } from "./index";
 

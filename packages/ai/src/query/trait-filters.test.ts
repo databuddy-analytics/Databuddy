@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, mock } from "bun:test";
 import {
 	invalidFilterFieldError,
 	publicQueryErrorMessage,
@@ -6,22 +6,20 @@ import {
 } from "./trait-filters";
 import type { QueryRequest } from "./types";
 
-vi.mock("@databuddy/services/identity", () => {
+mock.module("@databuddy/services/identity", () => {
 	class TraitFilterError extends Error {}
 
 	return {
 		TraitFilterError,
 		isTraitFilterField: (field: string) =>
 			field.startsWith("trait:") && field.length > "trait:".length,
-		// Created inside the factory so this works under both vitest and bun:test,
-		// which hoist vi.mock but differ on vi.hoisted support.
-		resolveTraitSegment: vi.fn(),
+		resolveTraitSegment: mock(),
 	};
 });
 
 const { resolveTraitSegment } = await import("@databuddy/services/identity");
 const mockResolveTraitSegment = resolveTraitSegment as unknown as ReturnType<
-	typeof vi.fn
+	typeof mock
 >;
 
 function makeRequest(overrides: Partial<QueryRequest> = {}): QueryRequest {

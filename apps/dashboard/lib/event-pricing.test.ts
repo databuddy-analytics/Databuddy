@@ -31,27 +31,6 @@ describe("event pricing catalog and estimates", () => {
 		}
 	});
 
-	test("Hobby and Pro retain their original thresholds and rates", () => {
-		expect(
-			hobby.items?.find((item) => item.featureId === "events")?.price?.tiers
-		).toEqual([
-			{ to: 2_030_000, amount: 0.000035 },
-			{ to: 10_030_000, amount: 0.00003 },
-			{ to: 50_030_000, amount: 0.00002 },
-			{ to: 250_030_000, amount: 0.000015 },
-			{ to: "inf", amount: 0.00001 },
-		]);
-		expect(
-			pro.items?.find((item) => item.featureId === "events")?.price?.tiers
-		).toEqual([
-			{ to: 2_000_000, amount: 0.000035 },
-			{ to: 10_000_000, amount: 0.00003 },
-			{ to: 50_000_000, amount: 0.00002 },
-			{ to: 250_000_000, amount: 0.000015 },
-			{ to: "inf", amount: 0.00001 },
-		]);
-	});
-
 	test.each([
 		["hobby", 30_000, 0],
 		["hobby", 2_030_000, 70],

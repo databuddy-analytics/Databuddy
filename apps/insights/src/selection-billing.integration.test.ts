@@ -46,7 +46,6 @@ integration("selection usage across native generation retries", () => {
 				requests.push(key);
 				expect(request.featureId).toBe("agent_credits");
 				expect(request.value).toBeGreaterThan(0);
-				// Emulate only the provider's idempotency boundary; billing logic is native.
 				if (!charges.has(key)) charges.set(key, request.value ?? 0);
 				return {
 					customerId: request.customerId,

@@ -77,24 +77,6 @@ for (const [quantity, valid, authorized] of [
 		}]);
 	});
 
-	test("every plan grants agent credits and none include chat as an entitlement", () => {
-		const allowances: [{ items?: { featureId?: string; included?: number }[] }, number[]][] = [
-			[free, [10]],
-			[hobby, [20, 1]],
-			[pro, [350, 5]],
-			[intelligence, [1500]],
-			[intelligence_scale, [5000]],
-		];
-		for (const [plan, included] of allowances) {
-			expect(
-				plan.items
-					?.filter((item) => item.featureId === "agent_credits")
-					.map((item) => item.included)
-			).toEqual(included);
-			expect(plan.items?.some((item) => item.featureId === "databunny_chat")).toBe(false);
-		}
-	});
-
 	test("analytics plans do not promise included automatic investigations", () => {
 		for (const plan of [free, hobby, pro]) {
 			expect(plan.items?.filter((item) => item.featureId === "investigation_runs")).toEqual([

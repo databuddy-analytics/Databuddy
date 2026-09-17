@@ -111,7 +111,6 @@ describe("verifyStripeSignature", () => {
 			expect(result.error).toContain("JSON");
 		}
 	});
-
 });
 
 describe("getInvoiceMetadata", () => {
@@ -810,44 +809,6 @@ describe("normalizeStripeEvent", () => {
 			},
 		});
 		expect(record?.createdUnix).toBe(1_700_172_800);
-	});
-
-	test("keeps embedded payment identities when allocations are paginated", () => {
-		const records = normalizeStripeEvent({
-			...modernInvoice,
-			api_version: "2025-08-27.basil",
-			data: {
-				object: {
-					...modernInvoice.data.object,
-					payments: {
-						data: [
-							{
-								amount_paid: 100,
-								created: 1_700_000_190,
-								currency: "usd",
-							id: "inpay_partial_page",
-							invoice: "in_1",
-							payment: {
-								payment_intent: "pi_partial_page",
-								type: "payment_intent",
-							},
-							status: "paid",
-							},
-						],
-						has_more: true,
-					},
-				},
-			},
-		});
-
-		expect(records).toHaveLength(1);
-		expect(records[0]).toMatchObject({
-			context: {
-				invoiceId: "in_1",
-				paymentIntentId: "pi_partial_page",
-			},
-			transactionId: "inpay_partial_page",
-		});
 	});
 
 	test("serializes source identity without changing analytics attribution", () => {

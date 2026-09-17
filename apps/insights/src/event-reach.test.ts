@@ -149,7 +149,6 @@ describe("custom-event reach without configured conversions", () => {
 					expect(input.investigationObjective).toContain(
 						"unavailable emitter context does not invalidate it"
 					);
-					// The stub tests publication plumbing, not model judgment or source proof.
 					return {
 						toolCallCount: 0,
 						outcome: {

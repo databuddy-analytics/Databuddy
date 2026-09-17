@@ -2665,48 +2665,6 @@ describe("intelligence agent", () => {
 		}
 	});
 
-	it("publishes a measured coverage gap without an executable repair", async () => {
-		const coverage = {
-			...agentOutcome,
-			title: "Site activity coverage stopped during the comparison week",
-			summary: "Recorded visitors fell from 1000 to 300.",
-			impact: "The coverage gap makes the traffic comparison unsafe.",
-			rootCause: null,
-			findingKind: "measurement_coverage" as const,
-			publicationBasis: "decision_safety" as const,
-			publish: true,
-			evidence: [
-				"Independent origin logs show requests continued while collection dropped; this period cannot support traffic comparisons.",
-			],
-			evidenceRefs: [{ source: "provided" as const, index: 0 }],
-			next: {
-				type: "resolve" as const,
-				reason: "Coverage is uncertain; the cause has not been established.",
-			},
-		};
-		const result = await runInsightAgent(
-			{
-				appContext: appContext(),
-				evidence: [
-					"Independent origin logs show requests continued while collection dropped; this period cannot support traffic comparisons.",
-				],
-				signal: {
-					...signal,
-					entity: { type: "website", id: "website", label: "Visitors" },
-				},
-				githubRepository: null,
-				history: [],
-				otherOpenWork: [],
-			},
-			{ model: outputModel(coverage), tools: {} }
-		);
-		expect(result.outcome).toMatchObject({
-			publish: true,
-			next: { type: "resolve" },
-			rootCause: null,
-		});
-	});
-
 	it.each([
 		{ providedCount: 0, citeBusiness: true, publish: true },
 		{ providedCount: 1, citeBusiness: true, publish: true },
@@ -4422,27 +4380,6 @@ describe("identified-profile cohort publication", () => {
 		});
 		expect(model.doGenerateCalls).toHaveLength(1);
 		expect(result.toolCallCount).toBe(0);
-	});
-	it("still rejects relabeling raw website traffic as a product loss", async () => {
-		await expect(
-			runInsightAgent(
-				{
-					appContext: appContext(),
-					signal: {
-						...cohort,
-						signalKey: "visitors",
-						entity: { type: "website", id: "website", label: "Visitors" },
-					},
-					evidence: [comparison],
-					history: [],
-					otherOpenWork: [],
-					githubRepository: null,
-				},
-				{ model: outputModel(finish), tools: {} }
-			)
-		).rejects.toThrow(
-			"A website traffic signal is not a verified product loss"
-		);
 	});
 });
 

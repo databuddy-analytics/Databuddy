@@ -480,6 +480,7 @@ describe("detectFunnelGoalSignals", () => {
 		);
 		const investigation = prepareInvestigation(signals[0], 7);
 		expect(investigation.evidence[0]).toBe(signals[0]?.definitionEvidence);
+		expect(investigation.signal.entity.label).toBe("Signup");
 		expect(signals[0]?.subjectKey).toBeUndefined();
 	});
 
@@ -788,23 +789,6 @@ describe("detectFunnelGoalSignals", () => {
 		expect(signals[0]?.definitionEvidence).toContain(
 			"completed for 1 of 100 observed website visitors, compared with 20 previously"
 		);
-	});
-
-	it("keeps the product name as the investigation entity", async () => {
-		let call = 0;
-		const [detected] = await detectFunnelGoalSignals(
-			PARAMS,
-			TODAY,
-			makeDeps({
-				fetchGoals: async () => [GOAL],
-				goalConversion: async () => {
-					call += 1;
-					return call === 1 ? goalResult(0, 0, 100) : goalResult(20, 20, 100);
-				},
-			})
-		);
-		const investigation = prepareInvestigation(detected, 7);
-		expect(investigation.signal.entity.label).toBe("Signup");
 	});
 
 	it("keeps page-view regressions and ignores recently edited definitions", async () => {

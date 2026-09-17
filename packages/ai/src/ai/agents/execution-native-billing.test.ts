@@ -12,8 +12,6 @@ let checkStatus = 200;
 let allowed = true;
 let balanceFeature = "agent_credits";
 
-// Exercise the installed SDK, including strict status handling and snake-case
-// parsing. No request reaches Autumn, analytics, a database or another service.
 const transport = spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
 	const request = input instanceof Request ? input : new Request(input, init);
 	const url = new URL(request.url);

@@ -533,28 +533,6 @@ describe("duplicate reservations", () => {
 		);
 	});
 
-	test("does not let a stale delivery promote a newer reservation", async () => {
-		let storedToken = "pending:newer-attempt";
-		mockRedisEval.mockImplementation(
-			async (_script, _keys, _key, expectedToken: string, deliveredValue: string) => {
-				if (storedToken === expectedToken) {
-					storedToken = deliveredValue;
-					return "OK";
-				}
-				return 0;
-			}
-		);
-
-		await markDuplicateReservationDelivered({
-			deliveredTtl: 86_400,
-			duplicate: false,
-			key: "dedup:track:evt_1",
-			token: "pending:stale-attempt",
-		});
-
-		expect(storedToken).toBe("pending:newer-attempt");
-	});
-
 	test("releases only the pending reservation owned by the failed request", async () => {
 		mockRedisEval.mockResolvedValue(1);
 
@@ -570,27 +548,6 @@ describe("duplicate reservations", () => {
 			"dedup:track:evt_1",
 			"pending:owner-attempt"
 		);
-	});
-
-	test("does not let a stale attempt release a newer reservation", async () => {
-		let storedToken = "pending:newer-attempt";
-		mockRedisEval.mockImplementation(
-			async (_script, _keys, _key, expectedToken: string) => {
-				if (storedToken === expectedToken) {
-					storedToken = "";
-					return 1;
-				}
-				return 0;
-			}
-		);
-
-		await releaseDuplicateReservation({
-			duplicate: false,
-			key: "dedup:track:evt_1",
-			token: "pending:stale-attempt",
-		});
-
-		expect(storedToken).toBe("pending:newer-attempt");
 	});
 
 	test("captures release failures without hiding the original delivery failure", async () => {

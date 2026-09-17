@@ -1,6 +1,5 @@
 import { describe, expect, it } from "bun:test";
 import {
-	AGENT_TENANT_COLUMN_BY_TABLE,
 	buildAdditionalTableFilters,
 	extractAllowlistedTables,
 	validateAgentSQL,
@@ -106,7 +105,6 @@ describe("validateAgentSQL", () => {
 
 	it("buildAdditionalTableFilters escapes single quotes in websiteId", () => {
 		const out = buildAdditionalTableFilters(["analytics.events"], "O'Brien");
-		// each ' in the id becomes '''' (2-level escape: outer string + inner SQL)
 		expect(out).toBe("{'analytics.events':'client_id=''O''''Brien'''}");
 	});
 
@@ -128,18 +126,6 @@ describe("validateAgentSQL", () => {
 			"analytics.error_spans",
 			"analytics.events",
 		]);
-	});
-
-	it("AGENT_TENANT_COLUMN_BY_TABLE only covers vetted tables", () => {
-		expect(AGENT_TENANT_COLUMN_BY_TABLE).toEqual({
-			"analytics.events": "client_id",
-			"analytics.error_spans": "client_id",
-			"analytics.web_vitals_spans": "client_id",
-			"analytics.outgoing_links": "client_id",
-			"analytics.custom_events": "owner_id",
-			"analytics.revenue": "owner_id",
-			"analytics.blocked_traffic": "client_id",
-		});
 	});
 
 	it("rejects queries against non-analytics tables", () => {

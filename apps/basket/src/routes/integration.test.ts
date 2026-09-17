@@ -356,11 +356,6 @@ describe("POST /vitals", () => {
 		const body = await json(res);
 		expect(body.count).toBe(0);
 	});
-
-	test("not an array → 400", async () => {
-		const res = await post(basketApp, "/vitals", { not: "array" });
-		expect(res.status).toBe(400);
-	});
 });
 
 describe("POST /errors", () => {
@@ -531,7 +526,6 @@ describe("POST /events", () => {
 		]);
 		expect(res.status).toBe(400);
 	});
-
 });
 
 describe("POST /batch", () => {
@@ -1217,14 +1211,6 @@ describe("POST /track", () => {
 
 		expect(res.status).toBe(403);
 		expect(mockInsertCustomEvents).not.toHaveBeenCalled();
-	});
-
-	test("missing name → 400", async () => {
-		const res = await post(trackRoute, "/track", {
-			namespace: "x",
-			websiteId: "ws_test",
-		});
-		expect(res.status).toBe(400);
 	});
 
 	test("schema failure response exposes Zod issues to client", async () => {

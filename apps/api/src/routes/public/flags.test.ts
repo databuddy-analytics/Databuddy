@@ -1,14 +1,76 @@
-import { describe, expect, it } from "vitest";
-import {
+import "@databuddy/test/env";
+import { Elysia } from "elysia";
+import { describe, expect, it, vi } from "vitest";
+
+const state = vi.hoisted(() => ({
+	findFirst: vi.fn(async () => null as unknown),
+	flags: [
+		{
+			defaultValue: true,
+			dependencies: null,
+			flagsToTargetGroups: [],
+			key: "enabled-for-everyone",
+			payload: null,
+			rolloutBy: null,
+			rolloutPercentage: null,
+			rules: null,
+			status: "active",
+			type: "boolean",
+			variants: null,
+		},
+	],
+	rateLimited: false,
+}));
+
+vi.mock("@databuddy/db", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@databuddy/db")>()),
+	db: {
+		query: {
+			flags: {
+				findFirst: state.findFirst,
+				findMany: vi.fn(async () => state.flags),
+			},
+		},
+	},
+}));
+
+vi.mock("@databuddy/redis", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@databuddy/redis")>()),
+	cacheable: (fn: (...args: never[]) => unknown) => fn,
+}));
+
+vi.mock("@databuddy/redis/rate-limit", () => ({
+	getRateLimitHeaders: () => ({ "x-ratelimit-remaining": "0" }),
+	ratelimit: async () => ({
+		limit: 600,
+		remaining: state.rateLimited ? 0 : 599,
+		reset: Date.now() + 60_000,
+		success: !state.rateLimited,
+	}),
+}));
+
+const {
 	evaluateFlag,
 	evaluateRule,
 	evaluateStringRule,
 	evaluateValueRule,
+	flagsRoute,
 	hashString,
 	parseProperties,
 	selectVariant,
-} from "./flags";
+} = await import("./flags");
+const app = new Elysia().use(flagsRoute);
 
+function request(path: string, body?: unknown) {
+	return app.handle(
+		new Request(`http://localhost${path}`, {
+			body: body === undefined ? undefined : JSON.stringify(body),
+			headers:
+				body === undefined ? undefined : { "content-type": "application/json" },
+			method: body === undefined ? "GET" : "POST",
+		})
+	);
+}
 const SAMPLE_SIZE = 500;
 const randomId = () => Math.random().toString(36).slice(2, 15);
 
@@ -171,7 +233,6 @@ describe("evaluateRule", () => {
 		);
 		expect(evaluateRule(emailEndsWithRule, {})).toBe(false);
 	});
-
 });
 
 describe("selectVariant", () => {
@@ -328,7 +389,6 @@ describe("evaluateFlag", () => {
 		const nobody = evaluateFlag(flag, { userId: "random" });
 		expect(nobody.reason).toBe("BOOLEAN_DEFAULT");
 	});
-
 });
 
 describe("rollout distribution", () => {
@@ -608,5 +668,127 @@ describe("edge cases and stress tests", () => {
 			expect(typeof r.enabled).toBe("boolean");
 		}
 	});
+});
 
+describe("public bulk flags boundary", () => {
+	it("returns all flags only when the key filter is omitted", async () => {
+		for (const response of [
+			await request("/v1/flags/bulk?clientId=site_1"),
+			await request("/v1/flags/bulk", { clientId: "site_1" }),
+		]) {
+			expect(response.status).toBe(200);
+			expect(await response.json()).toMatchObject({
+				count: 1,
+				flags: { "enabled-for-everyone": { enabled: true } },
+			});
+		}
+	});
+
+	it("returns no flags for explicitly empty or blank key lists", async () => {
+		for (const response of [
+			await request("/v1/flags/bulk?clientId=site_1&keys="),
+			await request("/v1/flags/bulk?clientId=site_1&keys=%20,%20"),
+			await request("/v1/flags/bulk", { clientId: "site_1", keys: [] }),
+			await request("/v1/flags/bulk", {
+				clientId: "site_1",
+				keys: ["", " "],
+			}),
+		]) {
+			expect(response.status).toBe(200);
+			expect(await response.json()).toEqual({ count: 0, flags: {} });
+		}
+	});
+
+	it("rejects more than 100 requested keys", async () => {
+		const keys = Array.from({ length: 101 }, (_, index) => `flag-${index}`);
+		const getResponse = await request(
+			`/v1/flags/bulk?clientId=site_1&keys=${keys.join(",")}`
+		);
+		expect(getResponse.status).toBe(400);
+
+		const postResponse = await request("/v1/flags/bulk", {
+			clientId: "site_1",
+			keys,
+		});
+		expect(postResponse.status).toBe(422);
+	});
+
+	it("rejects keys longer than 128 characters", async () => {
+		const key = "x".repeat(129);
+		const getResponse = await request(
+			`/v1/flags/bulk?clientId=site_1&keys=${key}`
+		);
+		expect(getResponse.status).toBe(400);
+
+		const postResponse = await request("/v1/flags/bulk", {
+			clientId: "site_1",
+			keys: [key],
+		});
+		expect(postResponse.status).toBe(422);
+	});
+
+	it("rejects requests without a usable clientId", async () => {
+		const missing = await request("/v1/flags/bulk");
+		expect(missing.status).toBe(422);
+
+		const blank = await request("/v1/flags/bulk?clientId=");
+		expect(blank.status).toBe(400);
+		expect(await blank.json()).toMatchObject({
+			count: 0,
+			error: "Missing required clientId parameter",
+		});
+	});
+});
+
+describe("public flag evaluation boundary", () => {
+	it("rejects evaluation without a usable clientId or key", async () => {
+		const missingParams = await request("/v1/flags/evaluate?key=&clientId=");
+		expect(missingParams.status).toBe(400);
+		expect(await missingParams.json()).toMatchObject({
+			enabled: false,
+			reason: "MISSING_REQUIRED_PARAMS",
+		});
+
+		const missingClientId = await request("/v1/flags/evaluate?key=some-flag");
+		expect(missingClientId.status).toBe(422);
+	});
+
+	it("caches missing flags so repeated misses skip the database", async () => {
+		const path = "/v1/flags/evaluate?key=absent-flag&clientId=neg_cache_site";
+
+		const first = await request(path);
+		const second = await request(path);
+
+		expect(first.status).toBe(200);
+		expect(await first.json()).toMatchObject({
+			enabled: false,
+			reason: "FLAG_NOT_FOUND",
+		});
+		expect(await second.json()).toMatchObject({ reason: "FLAG_NOT_FOUND" });
+		expect(state.findFirst).toHaveBeenCalledTimes(1);
+	});
+
+	it("returns 429 with rate limit headers when the per-client budget is exhausted", async () => {
+		state.rateLimited = true;
+		try {
+			const evaluate = await request(
+				"/v1/flags/evaluate?key=some-flag&clientId=limited_site"
+			);
+			expect(evaluate.status).toBe(429);
+			expect(evaluate.headers.get("x-ratelimit-remaining")).toBe("0");
+			expect(await evaluate.json()).toMatchObject({
+				enabled: false,
+				reason: "RATE_LIMITED",
+			});
+
+			const bulk = await request("/v1/flags/bulk?clientId=limited_site");
+			expect(bulk.status).toBe(429);
+			expect(await bulk.json()).toMatchObject({
+				count: 0,
+				reason: "RATE_LIMITED",
+			});
+		} finally {
+			state.rateLimited = false;
+		}
+	});
 });

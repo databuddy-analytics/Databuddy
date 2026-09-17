@@ -1,6 +1,5 @@
 import { describe, expect, it, mock } from "bun:test";
 
-// Keep native model selection and prompts; this contract does not execute tools.
 mock.module("../tools/toolkit", () => ({ createToolkit: () => ({}) }));
 mock.module("../mcp/agent-tools", () => ({ createMcpAgentTools: () => ({}) }));
 const { createConfig } = await import("./analytics");

@@ -1,7 +1,6 @@
 import { countEvents, expect, findEvent, hasEvent, test } from "./test-utils";
 
 test.describe("Edge Cases", () => {
-
 	test.describe("URL-based ID Override", () => {
 		test("uses a well-formed anonId from URL query param", async ({ page }) => {
 			const anonId = "anon_00000000-0000-4000-8000-000000000001";
@@ -93,34 +92,6 @@ test.describe("Edge Cases", () => {
 	});
 
 	test.describe("Opt-in after Opt-out", () => {
-		test("databuddyOptIn clears opt-out flags", async ({ page }) => {
-			await page.goto("/test");
-			await page.evaluate(() => {
-				// First opt out
-				localStorage.setItem("databuddy_opt_out", "true");
-				localStorage.setItem("databuddy_disabled", "true");
-			});
-
-			// Call optIn
-			await page.evaluate(() => {
-				// Simulate the opt-in function
-				localStorage.removeItem("databuddy_opt_out");
-				localStorage.removeItem("databuddy_disabled");
-				(window as any).databuddyOptedOut = false;
-				(window as any).databuddyDisabled = false;
-			});
-
-			const optOutFlag = await page.evaluate(() =>
-				localStorage.getItem("databuddy_opt_out")
-			);
-			const disabledFlag = await page.evaluate(() =>
-				localStorage.getItem("databuddy_disabled")
-			);
-
-			expect(optOutFlag).toBeNull();
-			expect(disabledFlag).toBeNull();
-		});
-
 		test("tracking resumes after opt-in (requires page reload)", async ({
 			page,
 		}) => {
@@ -130,12 +101,10 @@ test.describe("Edge Cases", () => {
 			});
 			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
-			// Opt back in
 			await page.evaluate(() => {
 				(window as any).databuddyOptIn();
 			});
 
-			// Reload to reinitialize tracker
 			await page.reload();
 			await page.evaluate(() => {
 				(window as any).databuddyConfig = {
@@ -154,6 +123,48 @@ test.describe("Edge Cases", () => {
 			const request = await requestPromise;
 			expect(request).toBeTruthy();
 		});
+
+		test("should resume tracking after optIn without requiring page reload", async ({
+			page,
+		}) => {
+			let trackRequestSent = false;
+
+			await page.goto("/test");
+
+			await page.evaluate(() => {
+				localStorage.setItem("databuddy_opt_out", "true");
+				(window as any).databuddyConfig = {
+					clientId: "test-optin-noreload",
+					ignoreBotDetection: true,
+					batchTimeout: 200,
+				};
+			});
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
+
+			await expect
+				.poll(async () => await page.evaluate(() => !!(window as any).db))
+				.toBeTruthy();
+
+			await page.evaluate(() => {
+				(window as any).databuddyOptIn();
+			});
+
+			page.on("request", (req) => {
+				if (
+					req.url().includes("basket.databuddy.cc") &&
+					hasEvent(req, (e) => e.name === "post_optin_event")
+				) {
+					trackRequestSent = true;
+				}
+			});
+
+			await page.evaluate(() => {
+				(window as any).db.track("post_optin_event");
+			});
+
+			await page.waitForTimeout(500);
+			expect(trackRequestSent).toBe(true);
+		});
 	});
 
 	test.describe("No ClientId", () => {
@@ -163,7 +174,6 @@ test.describe("Edge Cases", () => {
 			await page.goto("/test");
 			await page.evaluate(() => {
 				(window as any).databuddyConfig = {
-					// No clientId
 					ignoreBotDetection: true,
 					batchTimeout: 200,
 				};
@@ -199,13 +209,11 @@ test.describe("Edge Cases", () => {
 				initCount += countEvents(req, (e) => e.name === "screen_view");
 			});
 
-			// Load script twice
 			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 			await page.waitForTimeout(100);
 			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 			await page.waitForTimeout(500);
 
-			// Should only have one screen_view
 			expect(initCount).toBe(1);
 		});
 	});
@@ -260,8 +268,8 @@ test.describe("Edge Cases", () => {
 					clientId: "test-batch-timeout",
 					ignoreBotDetection: true,
 					enableBatching: true,
-					batchSize: 100, // Large batch size
-					batchTimeout: 500, // Short timeout for test
+					batchSize: 100,
+					batchTimeout: 500,
 				};
 			});
 			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
@@ -275,13 +283,11 @@ test.describe("Edge Cases", () => {
 				{ timeout: 3000 }
 			);
 
-			// Send fewer events than batch size
 			await page.evaluate(() => {
 				(window as any).db.track("timeout_event_1");
 				(window as any).db.track("timeout_event_2");
 			});
 
-			// Wait for timeout to trigger flush
 			const request = await requestPromise;
 			const payload = request.postDataJSON();
 
@@ -340,7 +346,7 @@ test.describe("Edge Cases", () => {
 				(window as any).databuddyConfig = {
 					clientId: "test-circular",
 					ignoreBotDetection: true,
-					usePixel: true, // Pixel mode uses the safeStringify
+					usePixel: true,
 					batchTimeout: 200,
 				};
 			});
@@ -350,7 +356,6 @@ test.describe("Edge Cases", () => {
 				.poll(async () => await page.evaluate(() => !!(window as any).db))
 				.toBeTruthy();
 
-			// This should not throw
 			const noError = await page.evaluate(() => {
 				try {
 					const circular: any = { a: 1 };
@@ -363,42 +368,6 @@ test.describe("Edge Cases", () => {
 			});
 
 			expect(noError).toBe(true);
-		});
-	});
-
-	test.describe("localStorage/sessionStorage Errors", () => {
-		test("handles localStorage access errors gracefully", async ({ page }) => {
-			await page.goto("/test");
-			await page.evaluate(() => {
-				// Mock localStorage to throw
-				const originalGetItem = localStorage.getItem;
-				localStorage.getItem = () => {
-					throw new Error("Storage access denied");
-				};
-
-				(window as any).databuddyConfig = {
-					clientId: "test-storage-error",
-					ignoreBotDetection: true,
-					batchTimeout: 200,
-				};
-
-				// Restore after a short delay
-				setTimeout(() => {
-					localStorage.getItem = originalGetItem;
-				}, 100);
-			});
-
-			// Should not throw
-			const loaded = await page.evaluate(async () => {
-				try {
-					await new Promise((r) => setTimeout(r, 200));
-					return true;
-				} catch {
-					return false;
-				}
-			});
-
-			expect(loaded).toBe(true);
 		});
 	});
 
@@ -418,7 +387,6 @@ test.describe("Edge Cases", () => {
 				.poll(async () => await page.evaluate(() => !!(window as any).db))
 				.toBeTruthy();
 
-			// Should not throw
 			const noError = await page.evaluate(() => {
 				try {
 					(window as any).db.track("");
@@ -509,6 +477,183 @@ test.describe("Edge Cases", () => {
 			expect(props?.quotes).toBe('He said "hello"');
 			expect(props?.newlines).toBe("line1\nline2");
 			expect(props?.html).toBe("<script>alert('xss')</script>");
+		});
+	});
+
+	test.describe("Destroy", () => {
+		test("interaction listeners should stop after destroy", async ({ page }) => {
+			await page.goto("/test");
+			await page.evaluate(() => {
+				(window as any).databuddyConfig = {
+					clientId: "test-destroy-interactions",
+					ignoreBotDetection: true,
+					batchTimeout: 200,
+					trackInteractions: true,
+				};
+			});
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
+
+			await expect
+				.poll(async () => await page.evaluate(() => !!(window as any).__tracker))
+				.toBeTruthy();
+
+			await page.mouse.move(100, 100);
+			await page.mouse.click(100, 100);
+			await page.waitForTimeout(100);
+
+			await page.evaluate(() => {
+				(window as any).__tracker.destroy();
+			});
+
+			const countAfterDestroy = await page.evaluate(
+				() => (window as any).__tracker.interactionCount
+			);
+
+			await page.mouse.move(200, 200);
+			await page.mouse.move(300, 300);
+			await page.mouse.click(200, 200);
+			await page.keyboard.press("a");
+			await page.waitForTimeout(100);
+
+			const countAfterInteractions = await page.evaluate(
+				() => (window as any).__tracker.interactionCount
+			);
+
+			expect(countAfterInteractions).toBe(countAfterDestroy);
+		});
+
+		test("scroll depth listener should stop after destroy", async ({ page }) => {
+			await page.goto("/test");
+			await page.evaluate(() => {
+				document.body.style.minHeight = "5000px";
+				(window as any).databuddyConfig = {
+					clientId: "test-destroy-scroll",
+					ignoreBotDetection: true,
+					batchTimeout: 200,
+				};
+			});
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
+
+			await expect
+				.poll(async () => await page.evaluate(() => !!(window as any).__tracker))
+				.toBeTruthy();
+
+			await page.evaluate(() => {
+				(window as any).__tracker.destroy();
+			});
+
+			const depthAfterDestroy = await page.evaluate(
+				() => (window as any).__tracker.maxScrollDepth
+			);
+
+			await page.evaluate(() => window.scrollTo(0, 2000));
+			await page.waitForTimeout(100);
+
+			const depthAfterScroll = await page.evaluate(
+				() => (window as any).__tracker.maxScrollDepth
+			);
+
+			expect(depthAfterScroll).toBe(depthAfterDestroy);
+		});
+
+		test("error listeners should stop after destroy", async ({ page }) => {
+			let errorTracked = false;
+
+			await page.route("**/basket.databuddy.cc/errors**", async (route) => {
+				errorTracked = true;
+				await route.fulfill({
+					status: 200,
+					body: JSON.stringify({ success: true }),
+				});
+			});
+
+			await page.goto("/test");
+			await page.evaluate(() => {
+				(window as any).databuddyConfig = {
+					clientId: "test-destroy-errors",
+					ignoreBotDetection: true,
+					batchTimeout: 200,
+					trackErrors: true,
+				};
+			});
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
+
+			await expect
+				.poll(async () => await page.evaluate(() => !!(window as any).__tracker))
+				.toBeTruthy();
+
+			await page.evaluate(() => {
+				(window as any).__tracker.destroy();
+			});
+
+			errorTracked = false;
+
+			await page.evaluate(() => {
+				setTimeout(() => {
+					throw new Error("Error after destroy");
+				}, 10);
+			});
+
+			await page.waitForTimeout(500);
+			expect(errorTracked).toBe(false);
+		});
+
+		test("should flush pending events before destroying", async ({
+			page,
+			browserName,
+		}) => {
+			test.skip(
+				browserName === "webkit",
+				"WebKit/Playwright batch interception issues"
+			);
+
+			const sentEvents: string[] = [];
+
+			page.on("request", (req) => {
+				if (!req.url().includes("basket.databuddy.cc")) {
+					return;
+				}
+				try {
+					const data = JSON.parse(req.postData() ?? "[]");
+					const events = Array.isArray(data) ? data : [data];
+					for (const e of events) {
+						if (e.name) {
+							sentEvents.push(e.name as string);
+						}
+					}
+				} catch {}
+			});
+
+			await page.goto("/test");
+			await page.evaluate(() => {
+				(window as any).databuddyConfig = {
+					clientId: "test-destroy-flush",
+					ignoreBotDetection: true,
+					enableBatching: true,
+					batchSize: 100,
+					batchTimeout: 60_000,
+				};
+			});
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
+
+			await expect
+				.poll(async () => await page.evaluate(() => !!(window as any).__tracker))
+				.toBeTruthy();
+
+			await page.evaluate(() => {
+				(window as any).db.track("queued_event_1");
+				(window as any).db.track("queued_event_2");
+			});
+			await page.waitForTimeout(100);
+
+			await page.evaluate(() => {
+				(window as any).__tracker.destroy();
+			});
+
+			await page.waitForTimeout(500);
+
+			expect(sentEvents).toContain("queued_event_1");
+			expect(sentEvents).toContain("queued_event_2");
 		});
 	});
 });

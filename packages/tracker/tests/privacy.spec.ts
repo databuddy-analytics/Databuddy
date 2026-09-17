@@ -106,7 +106,6 @@ test.describe("Privacy & Opt-out", () => {
 		await page.goto("/test?gclid=private-click-id");
 		await seedStoredTrackingIdentity(page);
 		await page.evaluate(() => {
-			// Pre-set opt-out in localStorage
 			localStorage.setItem("databuddy_opt_out", "true");
 			(window as any).databuddyConfig = {
 				clientId: "test-privacy",
@@ -117,7 +116,6 @@ test.describe("Privacy & Opt-out", () => {
 
 		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
-		// Try to track
 		await page.evaluate(() => {
 			if ((window as any).db) {
 				(window as any).db.track("should_fail");
@@ -152,7 +150,6 @@ test.describe("Privacy & Opt-out", () => {
 		});
 		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
-		// Ensure we are loaded
 		await expect
 			.poll(async () => await page.evaluate(() => !!(window as any).db))
 			.toBe(true);
@@ -161,13 +158,11 @@ test.describe("Privacy & Opt-out", () => {
 			(window as any).db.track("queued_before_opt_out");
 		});
 
-		// Call opt out
 		await page.evaluate(() => {
 			(window as any).databuddyOptOut();
 			window.dispatchEvent(new PageTransitionEvent("pagehide"));
 		});
 
-		// Verify flags
 		const isOptedOut = await page.evaluate(
 			() =>
 				localStorage.getItem("databuddy_opt_out") === "true" &&
@@ -179,7 +174,6 @@ test.describe("Privacy & Opt-out", () => {
 			session: [null, null, null, null],
 		});
 
-		// Try to track
 		let requestSent = false;
 		page.on("request", (req) => {
 			if (

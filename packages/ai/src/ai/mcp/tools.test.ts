@@ -530,38 +530,18 @@ describe("investigation tools", () => {
 	});
 
 	test("publishes the investigation lifecycle to a website-scoped key", async () => {
-		const principal = createInternalPrincipal({
-			metadata: {
-				resources: {
-					"website:site-1": ["read:data", "manage:websites"],
+		const { response, tools: listed } = await listToolsForPrincipal(
+			createInternalPrincipal({
+				metadata: {
+					resources: {
+						"website:site-1": ["read:data", "manage:websites"],
+					},
 				},
-			},
-			organizationId: "org-1",
-			scopes: [],
-		});
-		const response = await handleDatabuddyMcpRequest({
-			apiKey: principal.apiKey,
-			organizationId: "org-1",
-			request: new Request("https://api.databuddy.test/v1/mcp", {
-				body: JSON.stringify({
-					id: 1,
-					jsonrpc: "2.0",
-					method: "tools/list",
-					params: {},
-				}),
-				headers: {
-					accept: "application/json, text/event-stream",
-					"content-type": "application/json",
-				},
-				method: "POST",
-			}),
-			requestHeaders: new Headers(),
-			userId: null,
-		});
-		const body = (await response.json()) as {
-			result?: { tools?: Array<{ name: string }> };
-		};
-		const names = new Set(body.result?.tools?.map((tool) => tool.name));
+				organizationId: "org-1",
+				scopes: [],
+			})
+		);
+		const names = new Set(listed.map((tool) => tool.name));
 
 		expect(response.status).toBe(200);
 		for (const name of [

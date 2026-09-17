@@ -43,7 +43,7 @@ describe("BaseProvider", () => {
 	});
 
 	describe("withRetry", () => {
-		test("no retries by default — fn fails once, error thrown immediately", async () => {
+		test("no retries by default: fn fails once, error thrown immediately", async () => {
 			const provider = new TestProvider();
 			const fn = mock(() => Promise.reject(new Error("fail")));
 
@@ -108,6 +108,5 @@ describe("BaseProvider", () => {
 				timeoutMs: 5000,
 			});
 		});
-
 	});
 });

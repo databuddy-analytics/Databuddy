@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, mock, test } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
 import { querySearchAnalytics, type SearchConsoleRow } from "./search-console";
 
 const SITE_URL = "sc-domain:example.com";
@@ -16,10 +16,6 @@ function mockFetch(
 		)
 	) as unknown as typeof globalThis.fetch;
 }
-
-afterEach(() => {
-	globalThis.fetch = globalThis.fetch;
-});
 
 describe("querySearchAnalytics", () => {
 	test("maps rows with single dimension", async () => {

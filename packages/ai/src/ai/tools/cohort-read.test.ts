@@ -131,7 +131,6 @@ test("model can explicitly request unfiltered analytics without inventing a coho
 			[createGoalTools().get_goal_analytics, { goalId: "synthetic-goal" }],
 		] as const) {
 			const schema = asSchema(definition.inputSchema);
-			// Strict model providers need an explicit empty alternative for objects.
 			expect(JSON.stringify(schema.jsonSchema)).toContain('"type":"null"');
 			for (const cohort of [null, undefined]) {
 				const input = { ...id, ...dates, cohort };

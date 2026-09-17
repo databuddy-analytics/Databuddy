@@ -132,22 +132,21 @@ describe("identified profile retention contract", () => {
 			"Query failed"
 		);
 	});
-});
 
-
-it("accepts its documented native ordering and rejects generic filters", () => {
-	expect(
-		compile({
-			orderBy: "row_type DESC, cohort_date ASC",
-			timeUnit: "day",
-			groupBy: [],
-		})
-	).toEqual(compile());
-	for (const field of ["path", "country", "referrer"]) {
-		expect(() =>
+	it("accepts its documented native ordering and rejects generic filters", () => {
+		expect(
 			compile({
-				filters: [...filters, { field, op: "eq", value: "synthetic" }],
+				orderBy: "row_type DESC, cohort_date ASC",
+				timeUnit: "day",
+				groupBy: [],
 			})
-		).toThrow();
-	}
+		).toEqual(compile());
+		for (const field of ["path", "country", "referrer"]) {
+			expect(() =>
+				compile({
+					filters: [...filters, { field, op: "eq", value: "synthetic" }],
+				})
+			).toThrow();
+		}
+	});
 });

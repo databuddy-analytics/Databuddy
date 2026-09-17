@@ -1110,7 +1110,6 @@ describeIntegration("insights idempotency integration", () => {
 			authorId: author.id,
 			authorName: "Test author",
 			body: "The signup form changed in yesterday's deploy.",
-			// Trusted backend verification retains the fresh-analysis lifecycle.
 			intent: "verification",
 			createdAt: new Date("2026-01-11T00:00:00.000Z"),
 			id: replyId,
@@ -1254,7 +1253,6 @@ describeIntegration("insights idempotency integration", () => {
 			authorId: null,
 			authorName: "Test author",
 			body: "That deploy was intentionally rolled back.",
-			// Trusted backend verification retains the fresh-analysis lifecycle.
 			intent: "verification",
 			id: secondReplyId,
 			insightId: olderInsightId,
@@ -1376,7 +1374,6 @@ describeIntegration("insights idempotency integration", () => {
 			authorId: author.id,
 			authorName: "Test author",
 			body: "Keep watching the recovery.",
-			// Trusted backend verification retains the fresh-analysis lifecycle.
 			intent: "verification",
 			id: watchReplyId,
 			insightId: olderInsightId,

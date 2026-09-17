@@ -481,7 +481,7 @@ describe("processUptimeCheck", () => {
 		);
 	});
 
-	it("continues the failure streak from the previous monitor state", async () => {
+	it("continues the failure streak and persists it as the next previous state", async () => {
 		checkResults = [
 			{ success: true, data: uptimeData({ status: 0, error: "HTTP 503" }) },
 		];
@@ -492,16 +492,6 @@ describe("processUptimeCheck", () => {
 		expect(calls.delivery).toEqual([
 			uptimeData({ status: 0, error: "HTTP 503", failure_streak: 5 }),
 		]);
-	});
-
-	it("persists the resolved streak as the next previous state", async () => {
-		checkResults = [
-			{ success: true, data: uptimeData({ status: 0, error: "HTTP 503" }) },
-		];
-		previousState = { kind: "found", state: { status: 0, failureStreak: 4 } };
-
-		await processUptimeCheckForTest("schedule-1", "scheduled", deps());
-
 		expect(calls.monitorState).toEqual([
 			{ monitorId: "website-1", state: { status: 0, failureStreak: 5 } },
 		]);

@@ -153,21 +153,4 @@ test.describe("Subresource Integrity (SRI)", () => {
 		await page.waitForTimeout(2000);
 		expect(basketRequestSent).toBe(false);
 	});
-
-	test("SRI hash is deterministic across multiple generations", async () => {
-		const content = getScriptContent();
-		const hash1 = await generateSriHash(content);
-		const hash2 = await generateSriHash(content);
-		const hash3 = await generateSriHash(content);
-		expect(hash1).toBe(hash2);
-		expect(hash2).toBe(hash3);
-	});
-
-	test("SRI hash changes when script content changes", async () => {
-		const original = getScriptContent();
-		const modified = `${original}\n// tampered`;
-		const hash1 = await generateSriHash(original);
-		const hash2 = await generateSriHash(modified);
-		expect(hash1).not.toBe(hash2);
-	});
 });

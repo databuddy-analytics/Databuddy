@@ -20,7 +20,6 @@ it("uses exact saved reads, typed arithmetic and actual prior answers with no to
   return mockResponse("180 entrants did not complete: 200 minus 20. This does not establish failed attempts.");
  }});
  expect((await clarifyInsight(input, {model})).text).toContain("180 entrants");
- expect(outcome.next.type).toBe("resolve");
 });
 it("rejects a snapshot from another scope before calling a model", async () => {
  const model = new MockLanguageModelV3({doGenerate: async () => {throw new Error("must not run");}});

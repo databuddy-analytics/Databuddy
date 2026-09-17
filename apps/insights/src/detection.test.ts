@@ -400,11 +400,6 @@ describe("detectSignals", () => {
 			const rows = makeDailyRows([...normal, partialToday]);
 			const signals = await detectSignals(BASE_PARAMS, createMockQueryFn(rows));
 
-			expect(
-				signals.some(
-					(s) => s.method === "zscore" && s.current === 8
-				)
-			).toBe(false);
 			expect(signals.filter((s) => s.method === "zscore")).toHaveLength(0);
 		});
 
@@ -916,10 +911,9 @@ describe("detectSignals", () => {
 			);
 
 			const signals = await detectSignals(BASE_PARAMS, queryFn);
-			const visitorSignal = signals.find((s) => s.metric === "visitors");
-			if (visitorSignal) {
-				expect(visitorSignal.direction).toBe("up");
-			}
+			const visitorSignals = signals.filter((s) => s.metric === "visitors");
+			expect(visitorSignals).toHaveLength(1);
+			expect(visitorSignals[0]).toMatchObject({ direction: "up", method: "wow" });
 		});
 	});
 

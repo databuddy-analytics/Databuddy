@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
 	canReadQueryTypesPublicly,
 	PUBLIC_QUERY_TYPES,

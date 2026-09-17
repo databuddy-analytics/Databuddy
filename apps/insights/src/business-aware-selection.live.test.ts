@@ -15,8 +15,6 @@ import {
 	signalKeyForDetectedSignal,
 } from "./investigation";
 
-// Explicitly opt in. All business, analytics and reply data below are synthetic;
-// only the native model request is live. No detection, storage, billing or delivery runs.
 const live =
 	process.env.INSIGHTS_LIVE_SELECTION_TESTS === "true"
 		? describe

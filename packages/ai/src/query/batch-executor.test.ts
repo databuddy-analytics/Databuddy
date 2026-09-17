@@ -23,8 +23,6 @@ const {
 	getSchemaGroups,
 } = await import("./batch-executor");
 
-const lastSelectColumns = extractOuterSelectColumns;
-
 function compileSql(type: string): string {
 	const config = QueryBuilders[type];
 	if (!config) {
@@ -78,7 +76,7 @@ describe("batch-executor schema signatures", () => {
 		"$type emits the columns declared in meta.output_fields",
 		({ type, declared }) => {
 			const sql = compileSql(type);
-			const actual = lastSelectColumns(sql);
+			const actual = extractOuterSelectColumns(sql);
 			expect(actual).toEqual(declared);
 		}
 	);

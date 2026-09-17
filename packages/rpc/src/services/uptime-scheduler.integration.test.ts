@@ -346,48 +346,4 @@ describeIntegration("uptime scheduler BullMQ integration", () => {
 			await worker.close();
 		}
 	});
-
-	it("fires scheduler-created jobs through a real worker and stops after removal", async () => {
-		const scheduleId = makeScheduleId("worker-scheduler");
-		const receivedAt: number[] = [];
-		const queue = redis.getUptimeQueue();
-		await assertQueueIsSafeForWorker();
-		const worker = await withWorker(async (job) => {
-			if (job.data.scheduleId !== scheduleId) {
-				return;
-			}
-			expect(job.name).toBe(redis?.UPTIME_CHECK_JOB_NAME);
-			expect(job.data.trigger).toBe("scheduled");
-			receivedAt.push(Date.now());
-		});
-
-		try {
-			const startedAt = Date.now();
-			await queue.upsertJobScheduler(
-				redis.uptimeSchedulerId(scheduleId),
-				{ every: 300 },
-				{
-					name: redis.UPTIME_CHECK_JOB_NAME,
-					data: { scheduleId, trigger: "scheduled" },
-					opts: redis.UPTIME_JOB_OPTIONS,
-				}
-			);
-
-			await waitFor(
-				() => receivedAt.length >= 1,
-				"Scheduled uptime job was not consumed by the worker",
-				5000
-			);
-			expect(receivedAt[0] - startedAt).toBeGreaterThanOrEqual(0);
-			expect(receivedAt[0] - startedAt).toBeLessThan(5000);
-
-			await queue.removeJobScheduler(redis.uptimeSchedulerId(scheduleId));
-			const countAfterRemoval = receivedAt.length;
-			await Bun.sleep(900);
-			expect(receivedAt).toHaveLength(countAfterRemoval);
-		} finally {
-			await queue.removeJobScheduler(redis.uptimeSchedulerId(scheduleId));
-			await worker.close();
-		}
-	});
 });

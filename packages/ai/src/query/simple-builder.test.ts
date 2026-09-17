@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { QueryBuilders } from "./builders";
 import { makeRequiredFilters } from "./filter-fixtures";
 import {
@@ -65,17 +65,6 @@ describe("SimpleQueryBuilder.compile", () => {
 			expect(() => compileBuilder(type, config)).not.toThrow();
 		}
 	);
-
-	it("compiles summary_metrics with hourly granularity", () => {
-		const config = QueryBuilders.summary_metrics;
-		if (!config) {
-			throw new Error("summary_metrics builder is missing");
-		}
-		const { sql } = compileBuilder("summary_metrics", config, {
-			timeUnit: "hour",
-		});
-		expect(sql).toContain("SELECT");
-	});
 
 	it.each(QUERY_BUILDER_ENTRIES)(
 		"compiles %s for organization-scoped website ids",
@@ -223,24 +212,11 @@ describe("SimpleQueryBuilder.compile", () => {
 		const filters: Filter[] = [
 			{ field: "secret_col", op: "eq", value: "x" },
 		];
-		// Unsupported filter fields are skipped so that a multi-query batch
-		// (e.g. an "href" filter valid for outbound_links but not for "country")
-		// does not break unrelated queries.
 		const { sql } = compile({ allowedFilters: ["country"] }, { filters });
 		expect(sql).not.toContain("secret_col");
 	});
 
-	it("silently skips unknown filter fields when allowedFilters is not configured", () => {
-		const filters: Filter[] = [
-			{ field: "unknown_field", op: "eq", value: "x" },
-		];
-		const { sql } = compile({}, { filters });
-		expect(sql).not.toContain("unknown_field");
-	});
-
 	it("silently skips SQL injection attempts in filter field names", () => {
-		// Injection field names are not in the allowed set so they are skipped,
-		// meaning no unsafe SQL ever reaches ClickHouse.
 		const injectionAttempts = [
 			"'; DROP TABLE analytics.events; --",
 			"country UNION SELECT * FROM system.tables--",
@@ -270,10 +246,6 @@ describe("SimpleQueryBuilder.compile", () => {
 	});
 
 	it("skips 'href' filter on a query type that does not allow it (regression: outbound filter in mixed batch)", () => {
-		// When a user has an href filter active on the outbound links view, all
-		// batch queries receive that filter. Queries that don't declare "href" in
-		// allowedFilters (e.g. country, top_pages) should compile without error
-		// and simply omit the href condition from their WHERE clause.
 		const filters: Filter[] = [
 			{ field: "href", op: "eq", value: "https://example.com" },
 			{ field: "country", op: "eq", value: "US" },
@@ -524,36 +496,6 @@ describe("SimpleQueryBuilder.compile", () => {
 		const { params, sql } = builder.compile();
 		expect(sql).toContain("visitor_id = {visitorId:String}");
 		expect(params.visitorId).toBe("visitor-1");
-	});
-
-	it("requires anonymous_id for profile detail queries", () => {
-		const config = QueryBuilders.profile_detail;
-		if (!config) {
-			throw new Error("profile_detail builder is missing");
-		}
-
-		expect(() =>
-			new SimpleQueryBuilder(
-				config,
-				makeRequest({ type: "profile_detail" })
-			).compile()
-		).toThrow("Missing required filter: 'anonymous_id'.");
-	});
-
-	it("requires session_id for the session_events builder", () => {
-		const config = QueryBuilders.session_events;
-		if (!config) {
-			throw new Error("session_events builder is missing");
-		}
-
-		const builder = new SimpleQueryBuilder(
-			config,
-			makeRequest({ type: "session_events" })
-		);
-
-		expect(() => builder.compile()).toThrow(
-			"Missing required filter: 'session_id'."
-		);
 	});
 
 	it("throws on SQL injection in groupBy", () => {

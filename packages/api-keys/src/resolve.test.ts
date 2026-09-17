@@ -105,7 +105,6 @@ describe("API key database deadline", () => {
 			resolveApiKeySecret("dbdy_valid_test_key")
 		).resolves.toMatchObject({ outcome: "invalid" });
 
-		expect(API_KEY_LOOKUP_TIMEOUT_MS).toBe(5000);
 		expect(configuredQueryTimeoutMs).toBe(API_KEY_LOOKUP_TIMEOUT_MS);
 		expect(calls).toEqual(["lookup"]);
 		expect(findApiKey).toHaveBeenCalledTimes(1);
