@@ -17,8 +17,7 @@ Email and AI are optional; see [optional services](#optional-services).
 
 These steps need a release with the `databuddy-init` image. None is published yet;
 check [releases](https://github.com/databuddy-analytics/Databuddy/releases) before starting.
-You'll need Git and Docker Compose; Bun and Node are only needed for
-[local development](CONTRIBUTING.md#run-locally).
+You'll need Git and Docker Compose for this setup.
 
 ```bash
 git clone https://github.com/databuddy-analytics/Databuddy.git
@@ -60,7 +59,17 @@ dashboard after changing public URLs; they're part of its browser bundle.
 
 - **Email:** For resets, invitations, and alerts, set `RESEND_API_KEY` and an `EMAIL_FROM` sender on your verified domain, such as `Databuddy <no-reply@example.com>`. Leave `ALERTS_EMAIL_FROM` empty to use the same sender. Recreate the services after changes.
 - **Insights:** Set `AI_GATEWAY_API_KEY` and `COMPOSE_PROFILES=insights` in `.env`, then rerun `docker compose -f docker-compose.selfhost.yml up -d --build`. Website research also needs `FIRECRAWL_API_KEY`.
-- **Status pages:** Deploy [the status app](apps/status) separately. Build it with `NEXT_PUBLIC_SELFHOST=true`, `NEXT_PUBLIC_API_URL` set to your API URL, and `NEXT_PUBLIC_STATUS_URL` set to its own public URL; they're part of its browser bundle. Then set `STATUS_URL` to that same URL in `.env` and rebuild the dashboard. Public status links stay hidden until you configure it.
+- **Status pages:** Deploy [the status app](apps/status) separately with [Node, Bun, and dependencies](CONTRIBUTING.md#run-locally). From the repo root, set your API and status URLs before building:
+
+  ```bash
+  export NEXT_PUBLIC_SELFHOST=true
+  export NEXT_PUBLIC_API_URL=https://api.example.com
+  export NEXT_PUBLIC_STATUS_URL=https://status.example.com
+  NODE_ENV=production bun run --cwd apps/status build
+  NODE_ENV=production bun run --cwd apps/status start
+  ```
+
+  The app listens on port `3002`. Set the matching `STATUS_URL` in your Compose `.env` and rebuild the dashboard to enable public links.
 - **DQL:** Requires separate setup: a restricted `dql_user` and `CLICKHOUSE_DQL_URL` passed to the API in Compose. Use HTTPS outside loopback and never use the application's admin credentials. See the [DQL setup script](packages/db/src/clickhouse/dql.ts).
 
 Self-hosting is still evolving. If you get stuck, [tell us what happened](https://github.com/databuddy-analytics/Databuddy/issues) or ask in [Discord](https://discord.gg/JTk7a38tCZ).
