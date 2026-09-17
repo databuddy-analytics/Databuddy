@@ -1,4 +1,4 @@
-import { readBooleanEnv } from "@databuddy/env/app";
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import { and, desc, eq, sql, withTransaction } from "@databuddy/db";
 import type { db as DbType } from "@databuddy/db";
 import { feedback, feedbackRedemptions } from "@databuddy/db/schema";

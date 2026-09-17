@@ -1,4 +1,4 @@
-import { readBooleanEnv } from "@databuddy/env/app";
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import { hasKeyScope } from "@databuddy/api-keys/resolve";
 import { requiredScopesForResource } from "@databuddy/api-keys/scopes";
 import type { User } from "@databuddy/auth";

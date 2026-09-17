@@ -1,6 +1,6 @@
 import { db, shutdownPostgres, sql } from "@databuddy/db";
 import { clickHouse } from "@databuddy/db/clickhouse";
-import { readBooleanEnv } from "@databuddy/env/app";
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import {
 	closeUptimeQueue,
 	getUptimeDeliveryQueue,

@@ -1,4 +1,4 @@
-import { readBooleanEnv } from "@databuddy/env/app";
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import { roleHasPermission } from "@databuddy/auth/permissions";
 import { MIN_AGENT_CREDIT_CHECK_BALANCE } from "@databuddy/shared/agent-credits";
 import { z } from "zod";

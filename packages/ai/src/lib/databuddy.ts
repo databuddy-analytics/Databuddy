@@ -1,4 +1,4 @@
-import { readBooleanEnv } from "@databuddy/env/app";
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import { Databuddy } from "@databuddy/sdk/node";
 
 const apiKey = process.env.DATABUDDY_API_KEY;

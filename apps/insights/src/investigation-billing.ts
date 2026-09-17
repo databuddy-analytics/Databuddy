@@ -1,4 +1,4 @@
-import { readBooleanEnv } from "@databuddy/env/app";
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import { resolveAgentBillingCustomerId } from "@databuddy/ai/agents/execution";
 import { createHash } from "node:crypto";
 import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";

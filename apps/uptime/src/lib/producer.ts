@@ -1,5 +1,5 @@
 import { clickHouse } from "@databuddy/db/clickhouse";
-import { readBooleanEnv } from "@databuddy/env/app";
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import { CompressionTypes, Kafka, type Producer } from "kafkajs";
 import { captureError } from "./tracing";
 
