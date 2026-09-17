@@ -1,5 +1,7 @@
 "use client";
 
+import { isSelfHosted } from "@databuddy/env/public";
+
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect, memo, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
@@ -64,7 +66,7 @@ export function AgentInput() {
 	const [mentions, setMentions] = useAtom(agentMentionsAtom);
 	const { websites } = useWebsitesLight();
 	const bumpCreditShake = useSetAtom(agentCreditShakeNonceAtom);
-	const { balance, unlimited } = useUsageFeature("agent_credits");
+	const { balance, unlimited, canUse } = useUsageFeature("agent_credits");
 	const { customer, isLoading: billingLoading } = useBillingContext();
 	const agentCreditsRow = customer?.balances?.agent_credits;
 	const creditsResolvedForUi = agentCreditsRow != null;
@@ -153,6 +155,13 @@ export function AgentInput() {
 		if (!input.trim()) {
 			return;
 		}
+		if (isSelfHosted && !canUse) {
+			toast.error("AI is not configured", {
+				description:
+					"Ask your administrator to connect an AI provider to use Databunny.",
+			});
+			return;
+		}
 		if (
 			!(billingLoading || unlimited) &&
 			creditsResolvedForUi &&
@@ -161,11 +170,11 @@ export function AgentInput() {
 			bumpCreditShake((n) => n + 1);
 			toast.error("Databunny can't answer another question yet", {
 				description:
-					"This organization's investigation credit balance is empty. Add credits or change the plan to continue.",
+					"This organization's AI credit balance is empty. Add AI credits for chat or change the plan to continue.",
 				id: "databunny-usage-empty",
 				action: {
 					label: "View billing",
-					onClick: () => router.push("/billing#topup"),
+					onClick: () => router.push("/billing#chat-topup"),
 				},
 			});
 			return;
@@ -461,14 +470,14 @@ const InputToolbar = memo(function InputToolbar({
 });
 
 const THINKING_LABELS: Record<AgentThinking, string> = {
-	off: "Off",
+	off: "Default",
 	low: "Low",
 	medium: "Medium",
 	high: "High",
 };
 
 const THINKING_DESCRIPTIONS: Record<AgentThinking, string> = {
-	off: "Fastest, cheapest",
+	off: "Model's default reasoning",
 	low: "Brief reasoning",
 	medium: "Deeper analysis",
 	high: "Extended reasoning",

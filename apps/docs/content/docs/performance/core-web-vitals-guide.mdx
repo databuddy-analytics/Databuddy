@@ -1,493 +1,123 @@
 ---
-title: "Core Web Vitals Guide: Improve SEO & User Experience"
-description: "Complete guide to Core Web Vitals - LCP, INP, and CLS. Learn how to measure, optimize, and monitor these user-experience signals."
+title: "Core Web Vitals: Measure and Improve LCP, INP, and CLS"
+description: "Measure real-user Core Web Vitals with Databuddy, distinguish field data from lab tests, and diagnose loading, responsiveness, and layout stability."
 icon: "Zap"
 ---
 
-import { CodeBlock } from "@/components/docs";
-
-Core Web Vitals are essential metrics that Google uses to evaluate user experience and SEO rankings. This comprehensive guide will help you understand, measure, and optimize these crucial performance indicators.
+Core Web Vitals measure loading, responsiveness, and visual stability. Start with field measurements from your visitors, then use lab tools to reproduce and diagnose problems.
 
 ## What are Core Web Vitals?
 
-**Core Web Vitals** are a set of specific factors that Google considers important in a webpage's overall user experience. They are part of Google's "page experience" signals used in search ranking.
+| Metric | Measures | Good | Needs improvement | Poor |
+| --- | --- | --- | --- | --- |
+| LCP | Loading of the largest visible content element | ≤ 2.5 seconds | > 2.5 to 4 seconds | > 4 seconds |
+| INP | Responsiveness to interactions | ≤ 200 milliseconds | > 200 to 500 milliseconds | > 500 milliseconds |
+| CLS | Unexpected layout shifts | ≤ 0.1 | > 0.1 to 0.25 | > 0.25 |
 
-### The Three Core Web Vitals
-
-1. **Largest Contentful Paint (LCP)** - Loading performance
-2. **Interaction to Next Paint (INP)** - Responsiveness
-3. **Cumulative Layout Shift (CLS)** - Visual stability
-
-## 1. Largest Contentful Paint (LCP)
-
-### What is LCP?
-LCP measures how long it takes for the largest content element to become visible in the viewport. This could be:
-- Large images
-- Video elements
-- Block-level text elements
-- Background images
-
-### LCP Thresholds
-- **Good:** 2.5 seconds or less
-- **Needs Improvement:** 2.5 to 4.0 seconds
-- **Poor:** More than 4.0 seconds
-
-### How to Measure LCP
-
-**Using Databuddy:**
-<CodeBlock 
-  language="tsx"
-  code={`// Enable Web Vitals once; LCP is captured automatically from real users
-<Databuddy
-  clientId={process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID!}
-  trackWebVitals
-/>`}
-/>
-
-LCP then appears in your dashboard's Vitals tab, per route, with p50 to p99 percentiles.
-
-**Using JavaScript:**
-<CodeBlock 
-  language="javascript"
-  code={`new PerformanceObserver((entryList) => {
-    for (const entry of entryList.getEntries()) {
-      console.log('LCP candidate:', entry.startTime, entry.element);
-    }
-  }).observe({entryTypes: ['largest-contentful-paint']});`}
-/>
-
-### LCP Optimization Strategies
-
-#### 1. Optimize Images
-<CodeBlock 
-  language="html"
-  filename="Image Optimization"
-  code={`<!-- Use modern image formats -->
-  <picture>
-    <source srcset="hero.avif" type="image/avif">
-    <source srcset="hero.webp" type="image/webp">
-    <img src="hero.jpg" alt="Hero image" loading="eager">
-  </picture>
-
-  <!-- Preload critical images -->
-  <link rel="preload" as="image" href="hero.jpg">`}
-/>
-
-#### 2. Optimize Server Response Time
-- Use a Content Delivery Network (CDN)
-- Implement server-side caching
-- Optimize database queries
-- Use HTTP/2 or HTTP/3
-
-#### 3. Remove Render-Blocking Resources
-<CodeBlock 
-  language="html"
-  filename="Remove Render-Blocking Resources"
-  code={`<!-- async non-critical CSS -->
-  <link rel="preload" href="styles.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
-
-  <!-- async JavaScript -->
-  <script src="script.js" async></script>`}
-/>
-
-#### 4. Optimize Critical Rendering Path
-<CodeBlock 
-  language="html"
-  filename="Critical Rendering Path"
-  code={`<!-- Inline critical CSS -->
-  <style>
-    /* Critical above-the-fold styles */
-    .hero { display: block; }
-  </style>
-
-  <!-- Preconnect to external domains -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">`}
-/>
-
-## 2. Interaction to Next Paint (INP)
-
-### What is INP?
-INP measures how quickly a page responds visually to interactions across the visit, such as clicks, taps, and keyboard input.
-
-### INP Thresholds
-- **Good:** 200 milliseconds or less
-- **Needs Improvement:** 200 to 500 milliseconds
-- **Poor:** More than 500 milliseconds
-
-### How to Measure INP
-
-**Using Databuddy:**
-
-With `trackWebVitals` enabled, INP is captured automatically using Google's web-vitals library and re-measured on SPA route changes. No extra code is needed; see per-route INP in the Vitals dashboard.
-
-**Using JavaScript:**
-<CodeBlock 
-  language="javascript"
-  code={`import { onINP } from 'web-vitals';
-
-  onINP((metric) => {
-    console.log('INP:', metric.value);
-  });`}
-/>
-
-### INP Optimization Strategies
-
-#### 1. Reduce JavaScript Execution Time
-```javascript
-// Break up long tasks
-function processLargeArray(array) {
-  const chunk = array.splice(0, 50);
-  
-  // Process chunk
-  processChunk(chunk);
-  
-  if (array.length > 0) {
-    // Continue processing in next frame
-    setTimeout(() => processLargeArray(array), 0);
-  }
-}
-```
-
-#### 2. Code Splitting
-```javascript
-// Dynamic imports for code splitting
-const loadFeature = async () => {
-  const { feature } = await import('./feature.js');
-  return feature;
-};
-```
-
-#### 3. Web Workers for Heavy Tasks
-```javascript
-// Move heavy computations to Web Workers
-const worker = new Worker('heavy-computation.js');
-worker.postMessage(data);
-worker.onmessage = (event) => {
-  console.log('Result:', event.data);
-};
-```
-
-#### 4. Optimize Third-Party Scripts
-```html
-<!-- Load third-party scripts asynchronously -->
-<script async src="https://example.com/script.js"></script>
-
-<!-- Use resource hints -->
-<link rel="dns-prefetch" href="https://example.com">
-```
-
-## 3. Cumulative Layout Shift (CLS)
-
-### What is CLS?
-CLS measures the sum of all individual layout shift scores for every unexpected layout shift that occurs during the entire lifespan of the page.
-
-### CLS Thresholds
-- **Good:** 0.1 or less
-- **Needs Improvement:** 0.1 to 0.25
-- **Poor:** More than 0.25
-
-### How to Measure CLS
-
-**Using Databuddy:**
-
-With `trackWebVitals` enabled, CLS is captured automatically for the full page lifespan and re-measured on SPA route changes. No extra code is needed; see per-route CLS in the Vitals dashboard.
-
-**Using JavaScript:**
-```javascript
-let clsValue = 0;
-
-new PerformanceObserver((entryList) => {
-  for (const entry of entryList.getEntries()) {
-    if (!entry.hadRecentInput) {
-      clsValue += entry.value;
-      console.log('Current CLS value:', clsValue, entry);
-    }
-  }
-}).observe({entryTypes: ['layout-shift']});
-```
-
-### CLS Optimization Strategies
-
-#### 1. Set Dimensions for Media
-```html
-<!-- Always specify width and height -->
-<img src="image.jpg" width="400" height="300" alt="Description">
-
-<!-- Use aspect-ratio CSS -->
-<style>
-.image-container {
-  aspect-ratio: 16 / 9;
-}
-</style>
-```
-
-#### 2. Reserve Space for Ads
-```css
-.ad-container {
-  min-height: 250px; /* Reserve space for ad */
-  background: #f0f0f0; /* Placeholder background */
-}
-```
-
-#### 3. Avoid Inserting Content Above Existing Content
-```javascript
-// Bad: Inserting content at the top
-document.body.insertBefore(newElement, document.body.firstChild);
-
-// Good: Append to the end or use fixed positioning
-document.body.appendChild(newElement);
-```
-
-#### 4. Use CSS Transform for Animations
-```css
-/* Bad: Animating layout properties */
-.element {
-  transition: width 0.3s;
-}
-
-/* Good: Animating transform properties */
-.element {
-  transition: transform 0.3s;
-}
-```
-
-## Core Web Vitals and SEO
-
-### Google's Page Experience Update
-Since June 2021, Core Web Vitals are official Google ranking factors:
-
-- **Direct ranking impact** - Poor vitals can hurt rankings
-- **Mobile-first indexing** - Mobile vitals are prioritized
-- **User experience signals** - Combined with other UX factors
-- **Competitive advantage** - Good vitals can boost rankings
-
-### SEO Impact Analysis
-
-Databuddy already stores every vital per route, so there is nothing extra to track. Compare the Vitals dashboard against Google Search Console for the same period: routes that moved from Poor to Good LCP or INP are the ones most likely to see rankings and organic traffic recover.
+Assess the **75th percentile**, separately for mobile and desktop. A fast average can hide a poor experience for a substantial share of visitors. See [Google's Web Vitals guidance](https://web.dev/articles/vitals).
 
 ## Monitoring Core Web Vitals
 
-### Real User Monitoring (RUM)
-Monitor actual user experiences:
+Enable performance collection on the tracker:
 
-```javascript
-// Databuddy provides automatic RUM
-// Screen views are tracked automatically
-<Databuddy
-  clientId="your-client-id"
-  trackWebVitals // Enables Core Web Vitals tracking
-  trackErrors
+```html
+<script
+  async
+  src="https://cdn.databuddy.cc/databuddy.js"
+  data-client-id="YOUR_WEBSITE_ID"
+  data-track-web-vitals="true"
+></script>
+```
+
+Or use the React SDK:
+
+```tsx
+import { Databuddy } from "@databuddy/sdk/react";
+
+<Databuddy clientId="YOUR_WEBSITE_ID" trackWebVitals />;
+```
+
+Databuddy's Vitals dashboard shows collected metrics with page and device breakdowns, percentiles from p50 to p99, and previous-period comparisons. Performance collection also includes FCP, TTFB, and FPS; those are useful diagnostics but are not the three Core Web Vitals.
+
+### Single-page applications
+
+Databuddy associates reported measurements with the current path. A client-side route change does not restart the underlying document-level Web Vitals measurements. Do not interpret each route's INP or CLS as an independent fresh page load.
+
+### Field data and lab tests
+
+Field data reflects actual devices, networks, content, and interactions. Lab tools give you repeatable conditions for debugging, but a page-load test alone does not reproduce a visitor's full interaction history.
+
+Use [PageSpeed Insights](https://pagespeed.web.dev/) to inspect available Chrome field data and a Lighthouse run. Use browser performance traces to investigate a specific interaction or layout shift. Small sites may not have enough traffic for public field data. [Google's tool comparison](https://web.dev/articles/vitals-tools) explains these differences.
+
+## 1. Largest Contentful Paint (LCP)
+
+LCP measures when the largest eligible image or text block becomes visible in the viewport. Diagnose the contributing delays before choosing a fix: server response, resource discovery, transfer time, and rendering can each matter.
+
+### LCP Optimization Strategies
+
+- Make the main content and its resources discoverable in the initial HTML.
+- Size and compress the image actually displayed at each viewport.
+- Do not lazy-load an above-the-fold LCP image.
+- Use high fetch priority for the important image when appropriate; avoid marking every image high priority.
+- Investigate slow responses and render-blocking work in a performance trace.
+
+```html
+<img
+  src="/product-preview.webp"
+  alt="Product dashboard showing traffic and conversions"
+  width="1200"
+  height="800"
+  fetchpriority="high"
 />
 ```
 
-### Lab Testing Tools
-- **Google PageSpeed Insights** - Free Google tool
-- **Lighthouse** - Built into Chrome DevTools
-- **WebPageTest** - Detailed performance analysis
-- **GTmetrix** - Performance monitoring service
+The dimensions reserve space; they do not replace responsive image sizing. See [Optimize LCP](https://web.dev/articles/optimize-lcp) for diagnosing the loading stages.
 
-### Continuous Monitoring Setup
+## 2. Interaction to Next Paint (INP)
 
-#### 1. Automated Testing
-```yaml
-# GitHub Actions example
-name: Performance Testing
-on: [push, pull_request]
-jobs:
-  lighthouse:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - name: Run Lighthouse CI
-        run: |
-          npm install -g @lhci/cli
-          lhci autorun
-```
+INP summarizes a page's responsiveness to clicks, taps, and keyboard interactions over the visit. Slow handlers, main-thread contention, and rendering work can delay the next paint.
 
-#### 2. Performance Budgets
-```json
-{
-  "budgets": [{
-    "path": "/*",
-    "timings": [{
-      "metric": "largest-contentful-paint",
-      "budget": 2500
-    }, {
-      "metric": "cumulative-layout-shift",
-      "budget": 0.1
-    }]
-  }]
-}
-```
+### INP Optimization Strategies
 
-## Analytics Impact on Core Web Vitals
+- Reproduce the slow interaction, rather than testing only page load.
+- Reduce work in event handlers and break up long tasks.
+- Load optional features when needed and remove unused JavaScript.
+- Move suitable computation to a worker when measurement shows it helps.
 
-### Traditional Analytics Problems
-Many analytics tools negatively impact Core Web Vitals:
+Loading a script asynchronously does not eliminate its execution cost. See [Optimize INP](https://web.dev/articles/optimize-inp).
 
-- **Large script sizes** - Increase LCP
-- **Blocking JavaScript** - Worsen INP
-- **Dynamic content injection** - Cause CLS
-- **Third-party requests** - Slow loading
+## 3. Cumulative Layout Shift (CLS)
 
-### Databuddy's Performance Advantage
+CLS uses the largest burst of unexpected layout shifts during the page's lifetime. A burst has less than a one-second gap between shifts and lasts at most five seconds. It is not an unbounded sum of every shift. See [Google's CLS definition](https://web.dev/articles/cls).
 
-#### Minimal Impact on Core Web Vitals
+### CLS Optimization Strategies
+
+- Set dimensions or an aspect ratio on images, video, and embeds.
+- Reserve space for content that loads later, including ads and loading placeholders.
+- Avoid inserting content above what someone is reading.
+- Check font loading and animate transforms or opacity where appropriate.
+
+For diagnostic measurements, use the maintained `web-vitals` library instead of implementing metric aggregation with a raw observer:
+
 ```javascript
-// Lightweight, async loading
-<script src="https://cdn.databuddy.cc/sdk.js" 
-        data-client-id="your-id" 
-        async>
-</script>
+import { onCLS, onINP, onLCP } from "web-vitals";
+
+const reportMetric = ({ name, value }) => console.log(name, value);
+onCLS(reportMetric);
+onINP(reportMetric);
+onLCP(reportMetric);
 ```
 
-**Performance Benefits:**
-- **About 12 KB gzipped** - Current tracker bundle size
-- **Async loading** - No render blocking
-- **Edge CDN** - Fast global delivery
-- **No layout shifts** - Stable tracking
-- **Performance monitoring** - Built-in Core Web Vitals tracking
+This logs diagnostics. Databuddy already collects these metrics when `trackWebVitals` is enabled; do not add duplicate reporting just to populate its dashboard.
 
-## Optimization Checklist
+## Core Web Vitals and SEO
 
-### LCP Optimization
-- [ ] Optimize images (WebP, AVIF formats)
-- [ ] Implement lazy loading for below-fold images
-- [ ] Use preload for critical resources
-- [ ] Minimize server response time
-- [ ] Remove render-blocking resources
-- [ ] Use a CDN for static assets
-
-### INP Optimization
-- [ ] Minimize JavaScript execution time
-- [ ] Implement code splitting
-- [ ] Use Web Workers for heavy tasks
-- [ ] async non-critical JavaScript
-- [ ] Optimize third-party scripts
-- [ ] Remove unused JavaScript
-
-### CLS Optimization
-- [ ] Set dimensions for all images and videos
-- [ ] Reserve space for ads and embeds
-- [ ] Avoid inserting content above existing content
-- [ ] Use CSS transforms for animations
-- [ ] Preload fonts to prevent FOIT/FOUT
-- [ ] Test dynamic content loading
-
-## Common Core Web Vitals Issues
-
-### Issue 1: Large Images Causing Poor LCP
-**Problem:** Unoptimized hero images
-**Solution:**
-```html
-<picture>
-  <source media="(min-width: 800px)" srcset="hero-large.webp">
-  <source media="(min-width: 400px)" srcset="hero-medium.webp">
-  <img src="hero-small.webp" alt="Hero" loading="eager">
-</picture>
-```
-
-### Issue 2: Third-Party Scripts Hurting INP
-**Problem:** Synchronous third-party scripts
-**Solution:**
-```html
-<!-- Load scripts asynchronously -->
-<script async src="https://example.com/script.js"></script>
-
-<!-- Or async until after page load -->
-<script>
-window.addEventListener('load', () => {
-  const script = document.createElement('script');
-  script.src = 'https://example.com/script.js';
-  document.head.appendChild(script);
-});
-</script>
-```
-
-### Issue 3: Dynamic Content Causing CLS
-**Problem:** Content loading without reserved space
-**Solution:**
-```css
-.dynamic-content {
-  min-height: 200px; /* Reserve space */
-  background: linear-gradient(90deg, #f0f0f0 25%, transparent 25%);
-  background-size: 20px 20px;
-  animation: loading 1s infinite linear;
-}
-
-@keyframes loading {
-  0% { background-position: 0 0; }
-  100% { background-position: 20px 0; }
-}
-```
-
-## Advanced Optimization Techniques
-
-### 1. Resource Prioritization
-```html
-<!-- Prioritize critical resources -->
-<link rel="preload" href="critical.css" as="style">
-<link rel="preload" href="hero.jpg" as="image">
-
-<!-- Deprioritize non-critical resources -->
-<link rel="prefetch" href="next-page.html">
-```
-
-### 2. Service Worker Optimization
-```javascript
-// Cache critical resources
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open('v1').then((cache) => {
-      return cache.addAll([
-        '/critical.css',
-        '/hero.jpg',
-        '/app.js'
-      ]);
-    })
-  );
-});
-```
-
-### 3. Progressive Enhancement
-```javascript
-// Load features progressively
-if ('IntersectionObserver' in window) {
-  // Use modern lazy loading
-  lazyLoadImages();
-} else {
-  // Fallback for older browsers
-  loadAllImages();
-}
-```
+Google uses Core Web Vitals in its ranking systems, but good scores do not guarantee high rankings. Relevance, content, and other signals also matter. Improve performance for the people using your site, then assess search results separately. See [Google's page-experience guidance](https://developers.google.com/search/docs/appearance/page-experience).
 
 ## Measuring Success
 
-### Key Performance Indicators
-Track these metrics to measure Core Web Vitals improvement:
+Compare equivalent periods and device groups before and after a change. Account for changes in traffic, page content, and visitor mix. Databuddy's previous-period view helps inspect the result; a correlation alone does not prove that a release caused it.
 
-- **Core Web Vitals scores** - LCP, INP, CLS values
-- **Search rankings** - Position changes for target keywords
-- **Organic traffic** - Search engine traffic growth
-- **User engagement** - Bounce rate, time on page
-- **Conversion rates** - Goal completions, sales
+Use repeatable lab checks to catch regressions between releases. For continuous testing, follow the [Lighthouse CI setup](https://web.dev/articles/lighthouse-ci) and configure the build, running site, and URLs for your application.
 
-### Reporting Dashboard
-
-The Vitals dashboard compares every metric against the previous period automatically, so before/after reporting needs no custom events: ship the fix, pick the date range that spans it, and the per-route trend shows whether the improvement held.
-
-## Conclusion
-
-Core Web Vitals are crucial for both SEO and user experience. By following this guide, you can:
-
-- ✅ Understand what Core Web Vitals measure
-- ✅ Implement effective optimization strategies
-- ✅ Monitor performance continuously
-- ✅ Improve search rankings and user satisfaction
-- ✅ Use analytics that don't hurt performance
-
-Ready to optimize your Core Web Vitals? Databuddy provides built-in performance monitoring without impacting your scores.
-
-[Start monitoring your Core Web Vitals →](https://app.databuddy.cc/register)
-
----
+The Databuddy tracker is about 12 KB gzipped and loads asynchronously. Measure its impact alongside your other scripts; no analytics script has a universal zero-cost guarantee.

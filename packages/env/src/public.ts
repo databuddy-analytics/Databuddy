@@ -8,4 +8,7 @@ export const publicConfig = createConfig({
 	NEXT_PUBLIC_OPENAI_ADS_PIXEL_ID: process.env.NEXT_PUBLIC_OPENAI_ADS_PIXEL_ID,
 	NEXT_PUBLIC_STATUS_URL: process.env.NEXT_PUBLIC_STATUS_URL,
 	NODE_ENV: process.env.NODE_ENV,
+	SELFHOST: process.env.NEXT_PUBLIC_SELFHOST,
 });
+
+export const isSelfHosted = process.env.NEXT_PUBLIC_SELFHOST === "true";

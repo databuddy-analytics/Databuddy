@@ -85,7 +85,6 @@ export function MapComponent({
 	const [tooltipContent, setTooltipContent] = useState<TooltipContent | null>(
 		null
 	);
-	const [mapView] = useState<"countries" | "subdivisions">("countries");
 	const [hoveredId, setHoveredId] = useState<string | null>(null);
 
 	const themeColors = useMemo(() => {
@@ -314,7 +313,7 @@ export function MapComponent({
 				zoomDelta={0.5}
 				zoomSnap={0.25}
 			>
-				{mapView === "countries" && countriesGeoData && (
+				{countriesGeoData && (
 					<GeoJSON
 						data={countriesGeoData as GeoJsonObject}
 						key={`countries-${locationData?.countries?.length || 0}`}

@@ -5,9 +5,7 @@ import { discovery } from "./discovery";
 describe("agent discovery", () => {
 	test("does not expose unimplemented OAuth or credential-automation endpoints", async () => {
 		const metadata = await discovery.handle(
-			new Request(
-				"http://localhost/.well-known/oauth-protected-resource"
-			)
+			new Request("http://localhost/.well-known/oauth-protected-resource")
 		);
 		const claim = await discovery.handle(
 			new Request("http://localhost/agent-auth/claim", { method: "POST" })

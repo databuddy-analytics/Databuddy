@@ -1,27 +1,23 @@
-import { DATABUNNY_USAGE } from "@databuddy/shared/billing";
+import {
+	AGENT_CREDIT_ALLOWANCES,
+	INVESTIGATION_ALLOWANCES,
+	INVESTIGATION_USAGE,
+} from "@databuddy/shared/billing";
 
-interface FeatureDisplay {
-	plural: string;
-	singular: string;
-}
 interface RawFeature {
-	display: FeatureDisplay;
+	display: { singular: string };
 	id: string;
 	name: string;
-	type: "single_use";
 }
 export type RawItem =
 	| {
 			type: "price";
 			interval: "month";
 			price: number;
-			feature_id: null;
-			feature: null;
 	  }
 	| {
 			type: "feature";
 			feature_id: string;
-			feature_type: "single_use";
 			feature: RawFeature;
 			included_usage: number | "inf";
 			interval: "day" | "month" | null;
@@ -29,39 +25,44 @@ export type RawItem =
 	| {
 			type: "priced_feature";
 			feature_id: string;
-			feature_type: "single_use";
 			feature: RawFeature;
 			included_usage: number | "inf";
 			interval: "month" | null;
 			price?: number;
 			tiers?: Array<{ to: number | "inf"; amount: number }>;
-			usage_model: "pay_per_use";
 	  }
 	| {
 			type: "enterprise";
 	  };
 
 export interface RawPlan {
+	agentCredits: { day?: number; month: number } | null;
 	id: string;
 	items: RawItem[];
 	name: string;
 }
 
-const AGENT_CREDITS_FEATURE: RawFeature = {
-	id: "agent_credits",
-	name: DATABUNNY_USAGE.name,
-	type: "single_use",
-	display: {
-		singular: "investigation credit",
-		plural: DATABUNNY_USAGE.unit,
-	},
+const INVESTIGATION_FEATURE: RawFeature = {
+	id: INVESTIGATION_USAGE.featureId,
+	name: INVESTIGATION_USAGE.name,
+	display: { singular: "investigation" },
 };
+
+function investigationAllowance(included: number): RawItem {
+	return {
+		type: "priced_feature",
+		feature_id: INVESTIGATION_USAGE.featureId,
+		feature: INVESTIGATION_FEATURE,
+		included_usage: included,
+		interval: "month",
+		price: INVESTIGATION_USAGE.priceUsd,
+	};
+}
 
 const EVENTS_FEATURE: RawFeature = {
 	id: "events",
 	name: "Events",
-	type: "single_use",
-	display: { singular: "event", plural: "events" },
+	display: { singular: "event" },
 };
 
 const EVENT_TIERS = [
@@ -75,174 +76,111 @@ const EVENT_TIERS = [
 export const RAW_PLANS: RawPlan[] = [
 	{
 		id: "free",
+		agentCredits: AGENT_CREDIT_ALLOWANCES.free,
 		name: "Free",
 		items: [
 			{
 				type: "feature",
 				feature_id: "events",
-				feature_type: "single_use",
 				feature: EVENTS_FEATURE,
 				included_usage: 10_000,
-				interval: "month",
-			},
-			{
-				type: "feature",
-				feature_id: "agent_credits",
-				feature_type: "single_use",
-				feature: AGENT_CREDITS_FEATURE,
-				included_usage: 10,
 				interval: "month",
 			},
 		],
 	},
 	{
 		id: "hobby",
+		agentCredits: AGENT_CREDIT_ALLOWANCES.hobby,
 		name: "Hobby",
 		items: [
 			{
 				type: "price",
 				interval: "month",
 				price: 9.99,
-				feature_id: null,
-				feature: null,
 			},
 			{
 				type: "priced_feature",
 				feature_id: "events",
-				feature_type: "single_use",
 				feature: EVENTS_FEATURE,
 				included_usage: 30_000,
 				interval: "month",
-				tiers: EVENT_TIERS,
-				usage_model: "pay_per_use",
-			},
-			{
-				type: "feature",
-				feature_id: "agent_credits",
-				feature_type: "single_use",
-				feature: AGENT_CREDITS_FEATURE,
-				included_usage: 20,
-				interval: "month",
-			},
-			{
-				type: "feature",
-				feature_id: "agent_credits",
-				feature_type: "single_use",
-				feature: AGENT_CREDITS_FEATURE,
-				included_usage: 1,
-				interval: "day",
+				tiers: EVENT_TIERS.map((tier) => ({
+					...tier,
+					to: tier.to === "inf" ? "inf" : tier.to + 30_000,
+				})),
 			},
 		],
 	},
 	{
 		id: "pro",
+		agentCredits: AGENT_CREDIT_ALLOWANCES.pro,
 		name: "Pro",
 		items: [
 			{
 				type: "price",
 				interval: "month",
 				price: 49.99,
-				feature_id: null,
-				feature: null,
 			},
 			{
 				type: "priced_feature",
 				feature_id: "events",
-				feature_type: "single_use",
 				feature: EVENTS_FEATURE,
 				included_usage: 1_000_000,
 				interval: "month",
 				tiers: EVENT_TIERS,
-				usage_model: "pay_per_use",
-			},
-			{
-				type: "feature",
-				feature_id: "agent_credits",
-				feature_type: "single_use",
-				feature: AGENT_CREDITS_FEATURE,
-				included_usage: 350,
-				interval: "month",
-			},
-			{
-				type: "feature",
-				feature_id: "agent_credits",
-				feature_type: "single_use",
-				feature: AGENT_CREDITS_FEATURE,
-				included_usage: 5,
-				interval: "day",
 			},
 		],
 	},
 	{
 		id: "intelligence",
+		agentCredits: AGENT_CREDIT_ALLOWANCES.intelligence,
 		name: "Business",
 		items: [
+			investigationAllowance(INVESTIGATION_ALLOWANCES.intelligence),
 			{
 				type: "price",
 				interval: "month",
 				price: 299,
-				feature_id: null,
-				feature: null,
 			},
 			{
 				type: "priced_feature",
 				feature_id: "events",
-				feature_type: "single_use",
 				feature: EVENTS_FEATURE,
 				included_usage: 2_000_000,
 				interval: "month",
-				tiers: EVENT_TIERS,
-				usage_model: "pay_per_use",
-			},
-			{
-				type: "feature",
-				feature_id: "agent_credits",
-				feature_type: "single_use",
-				feature: AGENT_CREDITS_FEATURE,
-				included_usage: 1500,
-				interval: "month",
+				tiers: EVENT_TIERS.filter(
+					(tier) => tier.to === "inf" || tier.to > 2_000_000
+				),
 			},
 		],
 	},
 	{
 		id: "intelligence_scale",
+		agentCredits: AGENT_CREDIT_ALLOWANCES.intelligence_scale,
 		name: "Scale",
 		items: [
+			investigationAllowance(INVESTIGATION_ALLOWANCES.intelligence_scale),
 			{
 				type: "price",
 				interval: "month",
 				price: 799,
-				feature_id: null,
-				feature: null,
 			},
 			{
 				type: "priced_feature",
 				feature_id: "events",
-				feature_type: "single_use",
 				feature: EVENTS_FEATURE,
 				included_usage: 10_000_000,
 				interval: "month",
-				tiers: EVENT_TIERS,
-				usage_model: "pay_per_use",
-			},
-			{
-				type: "feature",
-				feature_id: "agent_credits",
-				feature_type: "single_use",
-				feature: AGENT_CREDITS_FEATURE,
-				included_usage: 5000,
-				interval: "month",
+				tiers: EVENT_TIERS.filter(
+					(tier) => tier.to === "inf" || tier.to > 10_000_000
+				),
 			},
 		],
 	},
 	{
 		id: "enterprise",
+		agentCredits: null,
 		name: "Enterprise",
 		items: [{ type: "enterprise" }],
 	},
 ];
-
-export const INTELLIGENCE_PLAN_TABLE_IDS = [
-	"intelligence",
-	"intelligence_scale",
-] as const;

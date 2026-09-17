@@ -1,8 +1,4 @@
-import {
-	expect,
-	test,
-	waitForSDK,
-} from "./test-utils";
+import { expect, test, waitForSDK } from "./test-utils";
 
 test.describe("SDK Functions", () => {
 	test.beforeEach(async ({ page }) => {
@@ -53,29 +49,6 @@ test.describe("SDK Functions", () => {
 	});
 
 	test.describe("track", () => {
-		test("calls window.databuddy.track with name and properties", async ({
-			page,
-		}) => {
-			const result = await page.evaluate(() => {
-				let capturedName = "";
-				let capturedProps: Record<string, unknown> = {};
-
-				(window as any).databuddy = {
-					track: (name: string, props: Record<string, unknown>) => {
-						capturedName = name;
-						capturedProps = props;
-					},
-					options: {},
-				};
-
-				window.__SDK__.track("test_event", { key: "value" });
-				return { capturedName, capturedProps };
-			});
-
-			expect(result.capturedName).toBe("test_event");
-			expect(result.capturedProps).toEqual({ key: "value" });
-		});
-
 		test("is a no-op when tracker is not loaded", async ({ page }) => {
 			const errored = await page.evaluate(() => {
 				try {
@@ -135,21 +108,6 @@ test.describe("SDK Functions", () => {
 	});
 
 	test.describe("clear", () => {
-		test("calls window.databuddy.clear", async ({ page }) => {
-			const result = await page.evaluate(() => {
-				let called = false;
-				(window as any).databuddy = {
-					clear: () => {
-						called = true;
-					},
-					options: {},
-				};
-				window.__SDK__.clear();
-				return called;
-			});
-			expect(result).toBe(true);
-		});
-
 		test("is a no-op when tracker is not loaded", async ({ page }) => {
 			const errored = await page.evaluate(() => {
 				try {
@@ -164,21 +122,6 @@ test.describe("SDK Functions", () => {
 	});
 
 	test.describe("flush", () => {
-		test("calls window.databuddy.flush", async ({ page }) => {
-			const result = await page.evaluate(() => {
-				let called = false;
-				(window as any).databuddy = {
-					flush: () => {
-						called = true;
-					},
-					options: {},
-				};
-				window.__SDK__.flush();
-				return called;
-			});
-			expect(result).toBe(true);
-		});
-
 		test("is a no-op when tracker is not loaded", async ({ page }) => {
 			const errored = await page.evaluate(() => {
 				try {

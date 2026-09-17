@@ -33,6 +33,47 @@ An append-only explanation of one signal at one point in time. It names the subj
 
 The durable work object for one signal. It has an `open` or `resolved` state plus observations, replies, actions, rechecks, and recurrence history.
 
+### Investigation price
+
+A completed investigation costs **$1**. The billable unit is one explicitly started
+analysis of a selected signal or new question, not the durable case that may hold
+several analyses over time. A supported measured answer, concrete inspected repair,
+or verified no-action conclusion can complete it. Failed, interrupted, inconclusive
+work and an unanswered necessary question are not completed investigations.
+
+Reserve one investigation before starting new analysis. Confirm that reservation
+only after its complete result is saved and readable; release it when the work is
+incomplete. Persist charge identity and settlement intent with the result so retries
+and recovery reuse the same unit. Uncertain payment-provider responses remain
+pending for reconciliation rather than starting a second charge.
+
+Clarifications of the same question use its saved evidence and are included.
+Verification after applying that investigation's proposed repair is also included,
+as are backend-triggered definition-change checks and deterministic continuations
+of saved verification conditions during regular scans. A new question or separate
+fresh analysis requires an explicit accepted price persisted with its queued reply;
+the reservation must match those immutable terms. The model must never decide
+whether a reply incurs a charge. Signal selection,
+preparation, model turns, and internal retries do not add customer charges.
+
+Autumn stores the unit in `investigation_runs`. Business includes 100 completed
+investigations per month; Scale includes 500. Monthly allowances reset without
+rollover. Additional completed investigations cost $1 each and are billed on the
+monthly invoice when overage is enabled. Previously purchased investigations stay
+available until used; they are not erased by a monthly reset. The stored accepted
+price is the additional-unit rate, not evidence of a new $1 invoice charge for an
+included investigation. Existing credit balances, credit refills, and attached
+legacy plans retain their terms until the customer adopts the new entitlement
+through an investigation purchase or a switch to a new plan version.
+An exhausted fixed-price balance does not fall back to spending legacy credits;
+Autumn's check decides whether paid overage or a remaining prepaid unit is allowed.
+Current plans include ordinary Databunny chat through Autumn's `databunny_chat`
+flag. Legacy accounts without that flag retain their existing chat credit terms.
+Chat access is verified before model execution; unavailable billing state does
+not grant access. The server pins that decision for the request, and token usage
+and model costs remain internal telemetry. Included chat does not bypass billing
+for a separately requested investigation.
+
 ### Action
 
 An optional proposed change with a target and verification condition. A code action may become a patch and PR. Other actions may target tracking, a goal, a campaign, configuration, or operations.
@@ -58,7 +99,10 @@ regressions retain priority even when the model selects none. Original measureme
 constraints and the unverified planning rationale stay in the frozen objective.
 Scheduled runs investigate at most two; a deliberate manual full scan investigates at
 most five and covers a distinct eligible specialist family before taking extra work from
-one family. The portfolio is diversified across correlated subjects and survives a
+one family. This does not reintroduce optional general work excluded by business-aware
+selection. Candidate input is bounded by serialized size rather than a count cutoff;
+the complete saved brief and newest relevant correction survive source budgeting, or
+selection retains the conservative fallback. The portfolio is diversified across correlated subjects and survives a
 retry unchanged. Each selected signal still gets its own exact agent turn, durable
 observation, and investigation history; a model does not manufacture a broad report
 from ungrounded raw data.
@@ -96,7 +140,7 @@ locks. Legacy replies without an original scope
 remain history rather than being relabeled as current business facts. Scope changes
 during execution reject the old outcome before persistence.
 
-Tools are discoverable. There is no fixed first query, query family, receipt choreography, or two-read limit. Each investigation uses one tool loop with at most eight model turns, including a reserved final turn. It ends through `finish_investigation`, which validates the outcome and returns any repair error in the same conversation; at most three finish attempts are allowed. Successful reads include exact citation references. The agent does not restart the conversation to repair output.
+Scheduled goal/funnel recovery checks and explicit Apply verification replies are deterministic: one exact native read verifies the saved subject, population, definition, full window, minimum sample and threshold without a model call. Code renders the result and keeps inconclusive checks private. An unfinished window preserves the case and saved check until midnight UTC after its inclusive end date; a completed check resolves without inventing another repair. Free-form human replies retain the investigation agent and their supplied context. Unsupported legacy population checks remain inconclusive without an aggregate read. Read inputs, results and failures remain observable. Other investigations use discoverable tools. There is no fixed first query, query family, receipt choreography, or two-read limit. Each investigation uses one tool loop with at most eight model turns, including a reserved final turn. It ends through `finish_investigation`, which validates the outcome and returns any repair error in the same conversation; at most three finish attempts are allowed. Supplied evidence and successful reads include exact citation references. Sufficient supplied evidence can finish immediately; requested reads must complete before finishing. The finish tool asks for sources and claims before the publication decision; code renders structured revenue claims and validates every claim against those sources before storing the existing text outcome. The agent does not restart the conversation to repair output.
 
 Native `revenue_overview` evidence selects a currency and metric fields from exact successful result references. Code renders labels, values, units, dates and differences for complete equal-duration comparison windows with the same website, timezone and filters, including fresh windows on a later recheck. The stored evidence remains text. This binds those numeric comparisons; other sources retain numeric grounding checks and every finding still needs semantic quality review.
 
@@ -128,6 +172,14 @@ The Insights brief reads like a short news report: headline, what happened, why 
 ## Continuity
 
 - A dashboard, Slack, or MCP reply resumes the same investigation.
+- A clarification is anchored to the original observation and typed, allowlisted
+  goal/funnel measurement fields, with trusted descriptions and exact scope. Raw
+  profiles, sessions, source files, search queries, arbitrary properties and free-form
+  context are omitted with explicit limitations. Retained evidence survives history
+  truncation and later reopening of the same case.
+  The answer is stored on the reply without new data reads or case-state changes.
+  Legacy results without saved evidence receive an honest explanation of that
+  limitation; answering them never silently starts paid analysis.
 - A GitHub comment or review resumes the agent working on that PR.
 - A materially worse resolved signal reopens the same investigation with its prior outcomes.
 - Corrections such as terminology, ownership, or known infrastructure become project memory.
@@ -159,12 +211,18 @@ Missing diagnostic access alone is not a coverage finding. Publish a measured mi
 
 Customer impact stays explicit about coverage. Anonymous visitor identifiers, sessions, identified profiles, and profiles with prior attributed completed-payment history are different cohorts. Unknown payment status is never reported as non-paying, and payment history is not called an active subscription. Error exposure alone does not prove that a page broke, a task failed, or work was lost.
 
+Saved activation/return comparisons retain their native definition, cohort boundaries, complete eligible-profile counts and activation-event identity coverage in the signal. Code supplies that dated comparison as one evidence entry; the agent interprets its business relevance and may add one distinct sourced control. The complete brief retains the same 60-word budget. Activation is first within each independent cohort, not first-ever, and return is measured within a fixed elapsed-hour horizon. The existing minimum of 50 eligible profiles per complete cohort remains unchanged. Legacy signals without this measurement remain readable. Investigations that query retention as supporting evidence use the same population rules: select two exact native results with `{retention: true}` and let code render their complete overall comparison. Published free-form retention tool claims are rejected. Truncated daily display rows do not invalidate a complete overall aggregate; an unrelated uncited retention read does not suppress an independently supported finding. Unsupported structured comparisons can resolve privately with code-rendered eligible and incomplete profile counts, without asserting a return rate or spending another correction turn. Quantity-only corrections identify the exact authoring fields to change while preserving valid evidence and references.
+
+Validated daily activation cohorts are retained with the saved comparison, including exact sums to the weekly populations. Before the model runs, code may offer one exploratory contiguous activation-date contrast against corresponding prior-week dates and the remaining dates. All four pooled groups require at least 50 eligible profiles; the selected decline must meet the existing materiality thresholds and differ from the remainder by at least ten percentage points. This bounded exploration describes recorded differences, not onset, cause or statistical significance after selection. The agent can select `{retentionDetail: true}` as its one optional evidence entry, citing the signal; it neither recalculates the numbers nor re-queries selected dates, which would redefine cohort membership. Sparse or uniform results retain the aggregate without extra work. Raw daily rows are kept in the saved signal; the model receives the compact validated comparison. The complete brief remains under the same 60-word budget. A conflicting observed daily cell in the same saved population keeps the entire run private even when weekly totals match. Omitting the detail selector or rewriting it as prose cannot erase that conflict. Aggregate-only reads remain usable when no contradictory daily result has been observed.
+
+A contradictory read of the exact saved retention population makes the current investigation private, even if the agent omits that read from its citations. Additional retention evidence must match the saved website, events, namespace, horizon, cohort dates and observation cutoff before publication. Retention quantities stay in the generated comparison; additional model prose may describe a qualitative discrepancy or a distinct non-retention fact. Conflicting counts require a fresh consistent investigation; model-selected citations cannot erase a contradictory measurement.
+
 When measured coverage proves that missing Databuddy setup blocks a useful answer, the insight may recommend a backend-verified setup candidate and the decision it unlocks. Today, a material fully unlinked error cohort can produce an exact `identify()` candidate; custom-event advice requires a measured coverage gap or an inspected workflow. Customer-impact counts alone never justify a profile trait, revenue integration, or invented event. These are evidence-backed product recommendations, not generic onboarding tips.
 
 When business meaning is missing, inspect the definition, site, events, and connected code first. Ambiguity alone does not open a case, and the customer should not have to invent a metric's purpose. Explain what a broad metric does measure and recommend a concrete edit, replacement, or cleanup only from inspected evidence. Do not recommend deletion merely because a description is missing. A definition that contradicts its configured purpose is broken tracking and becomes an action; an undescribed broad definition resolves when no material harm is proven. Ask only for a specific external fact that cannot be inspected and chooses between concrete next moves.
 
 ## Implementation constraint
 
-Use `insight_observations` as the append-only Insights source and `analytics_insights` as the current investigation projection. An `act` or `ask` creates or reopens that projection; `resolve` may update an open investigation but never creates or reopens one. Recommendations are a read projection of the latest observation for each signal: standalone setup and measurement recommendations expire at their recheck time unless renewed, while definition recommendations also verify against the current definition. Keep one agent and one evidence/tool stack. Add storage only when this model cannot represent a real use case.
+Use `insight_observations` as the append-only Insights source and `analytics_insights` as the current investigation projection. An `act` or `ask` creates or reopens that projection. A complete fixed-price result may create a resolved projection so its paid answer remains readable even when no action is needed; it does not create an interruption or reopen work. Other `resolve` outcomes may update an open investigation but never create or reopen one. Recommendations are a read projection of the latest observation for each signal: standalone setup and measurement recommendations expire at their recheck time unless renewed, while definition recommendations also verify against the current definition. Keep one agent and one evidence/tool stack. Add storage only when this model cannot represent a real use case.
 
 Exact error-customer joins run as a private, aggregate-only enrichment after the backend selects a signal. They return counts and coverage, never visitor, profile, session, payment, order, or request identifiers. Identity joins report same-window resolution explicitly; attributed completed-payment matches require the payment to predate the affected profile's first error and remain a lower bound.

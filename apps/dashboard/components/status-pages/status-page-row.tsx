@@ -106,26 +106,30 @@ function StatusPageActions({
 						<PencilSimpleIcon className="size-4" />
 						Edit Details
 					</DropdownMenu.Item>
-					<DropdownMenu.Item
-						className="gap-2"
-						onClick={() => copyToClipboard(url)}
-					>
-						<CopyIcon className="size-4" />
-						Copy URL
-					</DropdownMenu.Item>
-					<DropdownMenu.Item
-						render={
-							<Link
+					{url && (
+						<>
+							<DropdownMenu.Item
 								className="gap-2"
-								href={url}
-								rel="noopener noreferrer"
-								target="_blank"
-							/>
-						}
-					>
-						<ArrowSquareOutIcon className="size-4" />
-						View Page
-					</DropdownMenu.Item>
+								onClick={() => copyToClipboard(url)}
+							>
+								<CopyIcon className="size-4" />
+								Copy URL
+							</DropdownMenu.Item>
+							<DropdownMenu.Item
+								render={
+									<Link
+										className="gap-2"
+										href={url}
+										rel="noopener noreferrer"
+										target="_blank"
+									/>
+								}
+							>
+								<ArrowSquareOutIcon className="size-4" />
+								View Page
+							</DropdownMenu.Item>
+						</>
+					)}
 					<DropdownMenu.Item
 						className="gap-2"
 						onClick={() => setIsTransferOpen(true)}

@@ -128,7 +128,6 @@ describe("Slack investigation delivery", () => {
 
 		expect(JSON.stringify(blocks)).not.toContain("019d7dac");
 	});
-
 });
 
 describe("Slack investigation detail", () => {
@@ -186,8 +185,8 @@ describe("Slack investigation detail", () => {
 		expect(watching).toStartWith("*Watching ·");
 		expect(watching).toContain("Watch Pricing goal completion.");
 		expect(structuredWatch).toContain(
-		"*Next:* Escalate when Pricing goal completion is below 20 (prior baseline)."
-	);
+			"*Next:* Escalate when Pricing goal completion is below 20 (prior baseline)."
+		);
 		expect(structuredWatch).not.toContain("Watch Pricing goal completion");
 		expect(resolved).toStartWith("*Resolved ·");
 	});

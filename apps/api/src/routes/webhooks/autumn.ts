@@ -12,7 +12,8 @@ import {
 } from "@databuddy/db";
 import { usageAlertLog } from "@databuddy/db/schema";
 import { render, UsageAlertEmail, UsageLimitEmail } from "@databuddy/email";
-import { config } from "@databuddy/env/app";
+import { config, readBooleanEnv } from "@databuddy/env/app";
+import { buildHttpErrorResponse } from "@databuddy/shared/http-error-response";
 import { SlackProvider } from "@databuddy/notifications";
 import {
 	cacheable,
@@ -21,7 +22,10 @@ import {
 } from "@databuddy/redis";
 import { getAutumn } from "@databuddy/rpc";
 import { recordPlanChange } from "@databuddy/services/billing-lifecycle";
-import { DATABUNNY_USAGE } from "@databuddy/shared/billing";
+import {
+	DATABUNNY_USAGE,
+	INVESTIGATION_USAGE,
+} from "@databuddy/shared/billing";
 import { Elysia } from "elysia";
 import { log } from "evlog";
 import { useLogger } from "evlog/elysia";
@@ -42,7 +46,9 @@ import {
 
 const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 
-const SVIX_SECRET = process.env.AUTUMN_WEBHOOK_SECRET;
+const SVIX_SECRET = readBooleanEnv("SELFHOST")
+	? undefined
+	: process.env.AUTUMN_WEBHOOK_SECRET;
 const SLACK_URL = process.env.SLACK_WEBHOOK_URL ?? "";
 
 const svix = SVIX_SECRET ? new Webhook(SVIX_SECRET) : null;
@@ -227,6 +233,15 @@ async function resolveBillingOrganization(
 }
 
 function getFeatureCopy(featureId: string): BillingFeatureCopy {
+	if (featureId === INVESTIGATION_USAGE.featureId) {
+		return {
+			description: INVESTIGATION_USAGE.description,
+			name: INVESTIGATION_USAGE.name,
+			pausedActivity:
+				"new investigations (included clarifications remain available)",
+			unit: INVESTIGATION_USAGE.unit,
+		};
+	}
 	if (featureId === "agent_credits") {
 		return {
 			description: DATABUNNY_USAGE.description,
@@ -959,6 +974,13 @@ function dispatch(
 export const autumnWebhook = new Elysia().post(
 	"/autumn",
 	async ({ headers, request, set }) => {
+		if (readBooleanEnv("SELFHOST")) {
+			const response = buildHttpErrorResponse({
+				code: "NOT_FOUND",
+				error: null,
+			});
+			return Response.json(response.payload, { status: response.status });
+		}
 		const log = getAutumnLogger();
 		const rawBody = await request.text();
 

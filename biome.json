@@ -9,8 +9,6 @@
     "includes": [
       "!**/*.md",
       "!**/*.svg",
-      "!**/*.test.ts",
-      "!**/*.spec.ts",
       "!**/components/ui/**/*.tsx",
       "!.fablize",
       "!apps/dashboard/public/subdivisions.json"
@@ -21,9 +19,41 @@
       "indentStyle": "tab",
       "indentWidth": 2
     },
-    "globals": ["chrome"]
+    "globals": ["Bun", "chrome"]
   },
   "overrides": [
+    {
+      "includes": [
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*.spec.ts",
+        "**/*.spec.tsx"
+      ],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "useAwait": "off",
+            "noBitwiseOperators": "off",
+            "noThenProperty": "off",
+            "noTemplateCurlyInString": "off"
+          },
+          "style": {
+            "noNonNullAssertion": "off",
+            "useThrowOnlyError": "off"
+          },
+          "performance": {
+            "useTopLevelRegex": "off",
+            "noNamespaceImport": "off"
+          },
+          "complexity": {
+            "noBannedTypes": "off"
+          },
+          "correctness": {
+            "useYield": "off"
+          }
+        }
+      }
+    },
     {
       "includes": ["packages/ui/src/components/icons/**/*.tsx"],
       "linter": {

@@ -1,12 +1,6 @@
 import { afterAll, describe, expect, test, vi } from "vitest";
-import { randomIPv4, randomPublicIPv4, req } from "../test-helpers";
-import {
-	closeGeoIPReader,
-	extractIpFromRequest,
-	getGeo,
-} from "./ip-geo";
-
-const HEX12 = /^[a-f0-9]{12}$/;
+import { randomPublicIPv4, req } from "../test-helpers";
+import { closeGeoIPReader, extractIpFromRequest, getGeo } from "./ip-geo";
 
 afterAll(() => closeGeoIPReader());
 

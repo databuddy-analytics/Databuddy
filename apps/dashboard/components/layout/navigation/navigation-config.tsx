@@ -1,3 +1,4 @@
+import { isSelfHosted } from "@databuddy/env/public";
 import { GATED_FEATURES } from "@databuddy/shared/types/features";
 import {
 	OpenExternalIcon as ArrowSquareOutIcon,
@@ -316,9 +317,13 @@ export const settingsNavigation: NavigationGroup[] = [
 				ShieldCheckIcon,
 				"/organizations/settings/audit"
 			),
-			createNavItem("Billing", CreditCardIcon, "/billing"),
-			createNavItem("Plans", CurrencyDollarIcon, "/billing/plans"),
-			createNavItem("Invoices", ReceiptIcon, "/billing/history"),
+			...(isSelfHosted
+				? []
+				: [
+						createNavItem("Billing", CreditCardIcon, "/billing"),
+						createNavItem("Plans", CurrencyDollarIcon, "/billing/plans"),
+						createNavItem("Invoices", ReceiptIcon, "/billing/history"),
+					]),
 		],
 	},
 	{

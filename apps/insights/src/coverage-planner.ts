@@ -199,7 +199,9 @@ export function planCoveragePortfolio(
 					(candidate) =>
 						selection.has(candidate.key) ||
 						isCriticalReliabilitySignal(candidate.signal) ||
-						(options.reason === "manual" && !usedFamilies.has(candidate.family))
+						(options.reason === "manual" &&
+							candidate.family !== "general" &&
+							!usedFamilies.has(candidate.family))
 				)
 			: available;
 		const preferred =
@@ -223,7 +225,7 @@ export function planCoveragePortfolio(
 	return selected.map((candidate) => candidate.signal);
 }
 
-export function isCriticalReliabilitySignal(signal: DetectedSignal): boolean {
+function isCriticalReliabilitySignal(signal: DetectedSignal): boolean {
 	return (
 		portfolioFamilyForDetectedSignal(signal) === "reliability" &&
 		signal.severity === "critical" &&

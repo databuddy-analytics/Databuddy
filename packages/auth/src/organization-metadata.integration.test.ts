@@ -40,11 +40,13 @@ integration("native Better Auth organization metadata protection", () => {
 		const url = new URL(process.env.DATABASE_URL ?? "");
 		const redis = new URL(process.env.REDIS_URL ?? "");
 		if (
-			!["localhost", "127.0.0.1"].includes(url.hostname) ||
-			!["/databuddy_test", "/business_context_settings"].includes(
-				url.pathname
+			!(
+				["localhost", "127.0.0.1"].includes(url.hostname) &&
+				["/databuddy_test", "/business_context_settings"].includes(
+					url.pathname
+				) &&
+				["localhost", "127.0.0.1"].includes(redis.hostname)
 			) ||
-			!["localhost", "127.0.0.1"].includes(redis.hostname) ||
 			process.env.NODE_ENV !== "test"
 		) {
 			throw new Error(
@@ -58,45 +60,37 @@ integration("native Better Auth organization metadata protection", () => {
 		userId = `synthetic-auth-${randomUUID()}`;
 		const email = `${userId}@example.com`;
 		const now = new Date();
-		await db
-			.insert(user)
-			.values({
-				id: userId,
-				name: "Synthetic owner",
-				email,
-				emailVerified: true,
-				createdAt: now,
-				updatedAt: now,
-			});
-		await db
-			.insert(organization)
-			.values({
-				id: org,
-				name: "Synthetic organization",
-				slug: org,
-				createdAt: now,
-			});
-		await db
-			.insert(member)
-			.values({
-				id: randomUUID(),
-				organizationId: org,
-				userId,
-				role: "owner",
-				createdAt: now,
-			});
+		await db.insert(user).values({
+			id: userId,
+			name: "Synthetic owner",
+			email,
+			emailVerified: true,
+			createdAt: now,
+			updatedAt: now,
+		});
+		await db.insert(organization).values({
+			id: org,
+			name: "Synthetic organization",
+			slug: org,
+			createdAt: now,
+		});
+		await db.insert(member).values({
+			id: randomUUID(),
+			organizationId: org,
+			userId,
+			role: "owner",
+			createdAt: now,
+		});
 		const context = await auth.$context;
-		await db
-			.insert(account)
-			.values({
-				id: randomUUID(),
-				accountId: userId,
-				userId,
-				providerId: "credential",
-				password: await context.password.hash(password),
-				createdAt: now,
-				updatedAt: now,
-			});
+		await db.insert(account).values({
+			id: randomUUID(),
+			accountId: userId,
+			userId,
+			providerId: "credential",
+			password: await context.password.hash(password),
+			createdAt: now,
+			updatedAt: now,
+		});
 		const response = await auth.handler(
 			new Request(`${baseURL}/api/auth/sign-in/email`, {
 				method: "POST",
@@ -223,7 +217,10 @@ integration("native Better Auth organization metadata protection", () => {
 			data: edits,
 		});
 		expect(response.status).toBe(200);
-		expect(await metadata()).toEqual({ ...edits, metadata: before?.metadata ?? null });
+		expect(await metadata()).toEqual({
+			...edits,
+			metadata: before?.metadata ?? null,
+		});
 		expect((await readOrganizationBusinessContext(org)).profile).toMatchObject({
 			content: preserved,
 			origin: "team",

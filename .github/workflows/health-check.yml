@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - "*.Dockerfile"
+      - "docker-compose.selfhost.yml"
+      - "selfhost.env.example"
+      - "scripts/test-selfhost-init.sh"
       - ".dockerignore"
       - "apps/api/**"
       - "apps/basket/**"
@@ -15,11 +18,15 @@ on:
       - "bun.lock"
       - "package.json"
       - "turbo.json"
+      - "tsconfig/**"
       - ".github/workflows/health-check.yml"
   pull_request:
     branches: [main, staging]
     paths:
       - "*.Dockerfile"
+      - "docker-compose.selfhost.yml"
+      - "selfhost.env.example"
+      - "scripts/test-selfhost-init.sh"
       - ".dockerignore"
       - "apps/api/**"
       - "apps/basket/**"
@@ -30,6 +37,7 @@ on:
       - "bun.lock"
       - "package.json"
       - "turbo.json"
+      - "tsconfig/**"
       - ".github/workflows/health-check.yml"
 
 permissions:
@@ -40,6 +48,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  selfhost-init:
+    name: Self-host Database Initialization
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - run: bash scripts/test-selfhost-init.sh
+
   vector-config-check:
     name: Vector Delivery Canary
     runs-on: blacksmith-2vcpu-ubuntu-2404

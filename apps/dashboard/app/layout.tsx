@@ -120,6 +120,7 @@ export default function RootLayout({
 }>) {
 	const isLocalhost = process.env.NODE_ENV === "development";
 	const isE2E = readBooleanEnv("DATABUDDY_E2E_MODE");
+	const isTrackingDisabled = isE2E || readBooleanEnv("SELFHOST");
 
 	return (
 		<html
@@ -135,7 +136,7 @@ export default function RootLayout({
 					</main>
 				</Providers>
 				<Toaster />
-				{isE2E ? null : (
+				{isTrackingDisabled ? null : (
 					<Databuddy
 						apiUrl={publicConfig.urls.basket}
 						clientId={
@@ -162,7 +163,15 @@ export default function RootLayout({
 						trackWebVitals={true}
 					/>
 				)}
-				{isLocalhost || isE2E ? null : <OpenAiAdsPixel />}
+				{isLocalhost || isTrackingDisabled ? null : <OpenAiAdsPixel />}
+				{isLocalhost || isTrackingDisabled ? null : (
+					<script
+						data-cookie-options='{"domain":".databuddy.cc"}'
+						data-publishable-key="dub_pk_TbFwfIKx6BtgspSSbNDcDVRE"
+						defer
+						src="https://www.dubcdn.com/analytics/script.outbound-domains.conversion-tracking.js"
+					/>
+				)}
 				{isLocalhost && !isE2E ? <DatabuddyDevtools /> : null}
 			</body>
 		</html>

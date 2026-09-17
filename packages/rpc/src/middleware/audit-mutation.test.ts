@@ -9,7 +9,9 @@ describe("isAuditedMutationPath", () => {
 		expect(isAuditedMutationPath("businessContext.restore")).toBe(true);
 		expect(isAuditedMutationPath("businessContext.cancel")).toBe(true);
 		expect(isAuditedMutationPath("statusPage.createIncident")).toBe(true);
-		expect(isAuditedMutationPath("organizations.updateEmailNotificationSettings")).toBe(true);
+		expect(
+			isAuditedMutationPath("organizations.updateEmailNotificationSettings")
+		).toBe(true);
 	});
 
 	test("does not treat reads as mutations", () => {

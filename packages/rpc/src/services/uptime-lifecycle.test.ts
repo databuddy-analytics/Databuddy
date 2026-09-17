@@ -13,15 +13,15 @@ import {
 } from "./uptime-lifecycle";
 import type { UptimeGranularity } from "./uptime-scheduler";
 
-type StoredSchedule = {
-	id: string;
+interface StoredSchedule {
 	cacheBust: boolean;
 	granularity: string;
+	id: string;
 	isPaused: boolean;
 	name: string | null;
 	timeout: number | null;
 	updatedAt?: Date;
-};
+}
 
 const schedules = new Map<string, StoredSchedule>();
 const calls = {
@@ -254,7 +254,12 @@ describe("uptime lifecycle drift guards", () => {
 			updatedAt: new Date("2026-04-26T01:00:00.000Z"),
 		};
 
-		await updateScheduleWithScheduler("schedule-1", values, snapshot(row), deps());
+		await updateScheduleWithScheduler(
+			"schedule-1",
+			values,
+			snapshot(row),
+			deps()
+		);
 
 		expect(schedules.get("schedule-1")).toMatchObject({
 			granularity: "ten_minutes",
@@ -306,8 +311,9 @@ describe("uptime lifecycle drift guards", () => {
 		schedules.set("schedule-1", schedule({ isPaused: true }));
 		failUpsert = true;
 
-		await expect(resumeScheduleWithScheduler("schedule-1", "minute", deps()))
-			.rejects.toThrow("upsert failed");
+		await expect(
+			resumeScheduleWithScheduler("schedule-1", "minute", deps())
+		).rejects.toThrow("upsert failed");
 
 		expect(schedules.get("schedule-1")?.isPaused).toBe(true);
 		expect(calls.update).toEqual([]);

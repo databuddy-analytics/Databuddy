@@ -282,7 +282,7 @@ const replyToInvestigationTool = defineMcpTool(
 	{
 		name: "reply_to_investigation",
 		description:
-			"Add human context to an investigation and queue the same investigation agent to continue from its existing evidence and history.",
+			"Ask an included clarification of the same investigation using its saved evidence. No fresh measurements or actions run. Read the answer with get_investigation. New questions or fresh $1 analyses require the explicit dashboard control.",
 		inputSchema: z.object({
 			investigationId: z.string().min(1).max(256),
 			body: z.string().trim().min(1).max(2000),

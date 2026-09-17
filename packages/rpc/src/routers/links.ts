@@ -32,7 +32,6 @@ import { type Context, protectedProcedure, trackedProcedure } from "../orpc";
 import { requireLinkAccess, requireOrganizationId } from "./link-access";
 import {
 	createLinkSchema,
-	deleteLinkSchema,
 	getLinkSchema,
 	linkOutputSchema,
 	listLinksPageOutputSchema,
@@ -965,7 +964,7 @@ export const linksRouter = {
 			description: "Deletes a link by id. Requires write:links scope.",
 			spec: (s) => ({ ...s, "x-required-scopes": ["write:links"] as const }),
 		})
-		.input(deleteLinkSchema)
+		.input(getLinkSchema)
 		.output(z.object({ success: z.literal(true) }))
 		.handler(async ({ context, input }) => {
 			const link = await getLinkOrThrow(context, input.id);

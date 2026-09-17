@@ -1,11 +1,66 @@
 import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import { join } from "node:path";
-import { describe, expect, it } from "bun:test";
+import { runInNewContext } from "node:vm";
+import { describe, expect, it, spyOn } from "bun:test";
+import { plugin } from "bun";
+import { createMdxPlugin } from "fumadocs-mdx/bun";
+import matter from "gray-matter";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { StructuredData } from "@/components/structured-data";
+import { GET as robots } from "@/app/robots.txt/route";
 import { competitors } from "./comparison-config";
 import { homeFaqItems } from "./home-seo";
 
 describe("public copy contracts", () => {
+	it("emits GTM readiness only after the documented loader succeeds", async () => {
+		const guide = await readFile(
+			join(import.meta.dir, "..", "content", "docs", "Integrations", "gtm.mdx"),
+			"utf8"
+		);
+		const loader = guide.split("```html\n<script>\n")[1]?.split("</script>")[0];
+		expect(loader).toBeDefined();
+		if (!loader) {
+			throw new Error("Missing GTM loader");
+		}
+		expect(guide.match(/document\.createElement\("script"\)/g)).toHaveLength(1);
+		const attributes: Record<string, string> = {};
+		const script = {
+			src: "",
+			onload: () => {},
+			onerror: () => {},
+			setAttribute: (name: string, value: string) => {
+				attributes[name] = value;
+			},
+		};
+		const window = { dataLayer: [] as { event: string }[] };
+		const warnings: string[] = [];
+		let appended = false;
+		runInNewContext(loader, {
+			window,
+			console: { warn: (message: string) => warnings.push(message) },
+			document: {
+				createElement: () => script,
+				head: {
+					appendChild: () => {
+						appended = true;
+					},
+				},
+			},
+		});
+		expect(appended).toBe(true);
+		expect(script.src).toBe("https://cdn.databuddy.cc/databuddy.js");
+		expect(attributes["data-client-id"]).toBe("{{Databuddy Client ID}}");
+		expect(window.dataLayer).toEqual([]);
+		script.onerror();
+		expect(warnings).toEqual(["Databuddy script failed to load"]);
+		expect(window.dataLayer).toEqual([]);
+		script.onload();
+		expect(window.dataLayer).toEqual([{ event: "databuddy_ready" }]);
+	});
+
 	it("does not recommend deprecated or nonexistent browser tracking options", async () => {
 		const docsRoot = join(import.meta.dir, "..", "content", "docs");
 		const glob = new Bun.Glob("**/*.mdx");
@@ -14,13 +69,18 @@ describe("public copy contracts", () => {
 			files.push(await readFile(join(docsRoot, path), "utf8"));
 		}
 		files.push(
-			await readFile(join(import.meta.dir, "..", "app", "skill.md", "route.ts"), "utf8")
+			await readFile(
+				join(import.meta.dir, "..", "app", "skill.md", "route.ts"),
+				"utf8"
+			)
 		);
 		const publicDocs = files.join("\n");
 
 		expect(publicDocs).not.toContain("data-track-performance");
 		expect(publicDocs).not.toContain("data-track-screen-views");
 		expect(publicDocs).not.toContain("trackSessions=");
+		expect(publicDocs).not.toContain("window.databuddy?.optOut()");
+		expect(publicDocs).not.toContain("window.databuddy.optOut()");
 	});
 
 	it("lists every performance metric collected by trackWebVitals", async () => {
@@ -80,5 +140,282 @@ describe("public copy contracts", () => {
 		expect(comparisonCopy).toContain(`${gzipKilobytes} KB gzip`);
 		expect(comparisonCopy).not.toContain("3KB");
 		expect(comparisonCopy).not.toContain("all features");
+	});
+});
+
+describe("search discovery", () => {
+	it("serves every native document without changing its raw Markdown", async () => {
+		await plugin(createMdxPlugin());
+		const { source } = await import("./source");
+		const { GET: raw } = await import("@/app/api/docs/raw/[...slug]/route");
+		const { GET: index } = await import("@/app/llms.txt/route");
+		const { GET: full } = await import("@/app/llms-full.txt/route");
+		const request = new Request("https://www.databuddy.cc/api/docs/raw/index");
+		const indexBody = await index().text();
+		const pages = source.getPages();
+		await Promise.all(
+			pages.map(async (page) => {
+				const original = matter(
+					await readFile(
+						join(import.meta.dir, "..", "content", "docs", page.file.path),
+						"utf8"
+					)
+				);
+				const title = original.data.title ? `# ${original.data.title}\n\n` : "";
+				const description = original.data.description
+					? `> ${original.data.description}\n\n`
+					: "";
+				expect(indexBody).toContain(
+					`https://www.databuddy.cc/docs/${page.file.flattenedPath}.md`
+				);
+				await Promise.all(
+					[page.slugs, page.file.flattenedPath.split("/")].map(async (slug) => {
+						const response = await raw(request, {
+							params: Promise.resolve({ slug }),
+						});
+						const body = await response.text();
+						expect(response.status).toBe(200);
+						expect(body).toBe(`${title}${description}${original.content}`);
+						expect(response.headers.get("content-type")).toBe(
+							"text/markdown; charset=utf-8"
+						);
+						expect(response.headers.get("cache-control")).toBe(
+							"public, max-age=3600, must-revalidate"
+						);
+						expect(response.headers.get("etag")).toBe(
+							`"${createHash("sha256").update(body).digest("hex").slice(0, 16)}"`
+						);
+					})
+				);
+			})
+		);
+		await Promise.all(
+			[
+				["missing-document"],
+				["security", "index"],
+				["sdk", "react", "index"],
+				[".."],
+				["api/authentication"],
+				["api\\authentication"],
+				[""],
+				["api", "\0"],
+			].map(async (slug) => {
+				const response = await raw(request, {
+					params: Promise.resolve({ slug }),
+				});
+				expect(response.status).toBe(404);
+			})
+		);
+		const fullBody = await (await full()).text();
+		expect(fullBody.length).toBeLessThanOrEqual(190_000);
+		expect(fullBody).toContain("## Additional Documentation");
+		const firstPage = pages.at(0);
+		if (!firstPage) {
+			throw new Error("Missing documentation inventory");
+		}
+		const getText = spyOn(firstPage.data, "getText").mockRejectedValueOnce(
+			new Error("Read failed")
+		);
+		try {
+			await expect(
+				raw(request, { params: Promise.resolve({ slug: firstPage.slugs }) })
+			).rejects.toThrow("Read failed");
+		} finally {
+			getText.mockRestore();
+		}
+	});
+
+	it("models missing attribution from the supplied assumptions", async () => {
+		const { calculateCookieBannerCost } = await import(
+			"@/app/(home)/calculator/_components/calculator-engine"
+		);
+		const inputs = {
+			monthlyVisitors: 1000,
+			visitorDataLossRate: 0.2,
+			visitorToPaidRate: 0.05,
+			revenuePerConversion: 9.99,
+		};
+		const result = calculateCookieBannerCost(inputs);
+		expect(result.lostVisitors).toBe(200);
+		expect(result.lostConversions).toBe(10);
+		expect(result.lostRevenueYearly).toBeCloseTo(1198.8);
+		expect(
+			calculateCookieBannerCost({ ...inputs, visitorDataLossRate: 0 })
+				.lostRevenueYearly
+		).toBe(0);
+	});
+	it("restores shared calculator assumptions and derives the preview from them", async () => {
+		const { ShareButtons } = await import(
+			"@/app/(home)/calculator/_components/share-buttons"
+		);
+		const { readCalculatorInputs, calculateCookieBannerCost } = await import(
+			"@/app/(home)/calculator/_components/calculator-engine"
+		);
+		const { generateMetadata } = await import("@/app/(home)/calculator/page");
+		const inputs = {
+			monthlyVisitors: 1000,
+			visitorDataLossRate: 0.2,
+			visitorToPaidRate: 0.05,
+			revenuePerConversion: 9.99,
+		};
+		const markup = renderToStaticMarkup(
+			createElement(ShareButtons, { inputs })
+		);
+		const href = markup.match(/href="([^"]+)"/)?.[1].replaceAll("&amp;", "&");
+		expect(href).toBeDefined();
+		if (!href) {
+			throw new Error("Missing share link");
+		}
+		const shared = new URL(href).searchParams.get("url");
+		if (!shared) {
+			throw new Error("Missing calculator URL");
+		}
+		const shareUrl = new URL(shared);
+		const params = Object.fromEntries(shareUrl.searchParams);
+		expect(readCalculatorInputs(params)).toEqual(inputs);
+		const metadata = await generateMetadata({
+			searchParams: Promise.resolve(params),
+		});
+		expect(metadata.description).toContain("$1,198.80");
+		expect(JSON.stringify(metadata.openGraph)).toContain(
+			`revenue=${calculateCookieBannerCost(inputs).lostRevenueYearly}&visitors=1000`
+		);
+		for (const invalid of ["NaN", "Infinity", "-1", "", "2000001"]) {
+			expect(
+				readCalculatorInputs({ ...params, visitors: invalid })
+			).toBeUndefined();
+		}
+		expect(
+			readCalculatorInputs({ ...params, unmeasured: ["0.2"] })
+		).toBeUndefined();
+		expect(
+			readCalculatorInputs({ ...params, conversion: "0.06" })
+		).toBeUndefined();
+		expect(readCalculatorInputs({ ...params, value: "1001" })).toBeUndefined();
+		expect(
+			readCalculatorInputs({ revenue: "100", visitors: "1000", cost: "9.99" })
+		).toBeUndefined();
+		expect(readCalculatorInputs({ ...params, visitors: "1e3" })).toEqual(
+			inputs
+		);
+	});
+
+	it("allows rendering assets and pages whose noindex must be read", async () => {
+		const body = await robots().text();
+		expect(body).not.toContain("Disallow: /_next/");
+		expect(body).not.toContain("Disallow: /contact/thanks");
+		expect(body).toContain("Disallow: /api/");
+	});
+
+	it("uses supplied article authors and omits unknown documentation dates", () => {
+		const markup = renderToStaticMarkup(
+			createElement(StructuredData, {
+				page: { url: "/docs", title: "Docs" },
+				elements: [
+					{ type: "documentation", value: { title: "Docs" } },
+					{
+						type: "article",
+						value: {
+							title: "Example",
+							authors: [
+								{ name: "Example Author", url: "https://example.com/author" },
+							],
+							datePublished: "2024-01-01",
+						},
+					},
+				],
+			})
+		);
+		const graph = JSON.parse(
+			markup.slice(markup.indexOf(">") + 1, markup.lastIndexOf("</script>"))
+		)["@graph"];
+		const docs = graph.find((item: { "@type": string[] }) =>
+			item["@type"].includes("TechArticle")
+		);
+		const article = graph.find((item: { "@type": string[] }) =>
+			item["@type"].includes("BlogPosting")
+		);
+		expect(docs).not.toHaveProperty("datePublished");
+		expect(docs).not.toHaveProperty("dateModified");
+		expect(article.author).toEqual([
+			{
+				"@type": "Person",
+				name: "Example Author",
+				url: "https://example.com/author",
+			},
+		]);
+		expect(markup).not.toContain("speakable");
+	});
+
+	it("keeps public pages discoverable through CMS failures and excludes machine endpoints", async () => {
+		await plugin(createMdxPlugin());
+		const { generateSitemapEntries } = await import("./sitemap-generator");
+		const originalNodeEnv = process.env.NODE_ENV;
+		const originalApiKey = process.env.MARBLE_API_KEY;
+		const fetch = spyOn(globalThis, "fetch");
+		try {
+			process.env.NODE_ENV = "production";
+			process.env.MARBLE_API_KEY = "test-token";
+			fetch.mockResolvedValueOnce(Response.json(null, { status: 503 }));
+			const fallback = await generateSitemapEntries();
+			const urls = fallback.map((entry) => entry.url);
+			for (const path of ["/blog", "/oss", "/branding", "/docs", "/pricing"]) {
+				expect(urls).toContain(`https://www.databuddy.cc${path}`);
+			}
+			expect(new Set(urls).size).toBe(urls.length);
+			expect(urls).toContain("https://www.databuddy.cc/compare");
+			for (const { competitor } of Object.values(competitors)) {
+				expect(urls).toContain(
+					`https://www.databuddy.cc/compare/${competitor.slug}`
+				);
+				expect(urls).not.toContain(
+					`https://www.databuddy.cc/alternatives/${competitor.slug}`
+				);
+				expect(urls).not.toContain(
+					`https://www.databuddy.cc/switch-from/${competitor.slug}`
+				);
+			}
+			for (const path of [
+				"/ask",
+				"/api/llms.txt",
+				"/openapi.json",
+				"/contact/thanks",
+				"/alternatives",
+				"/switch-from",
+			]) {
+				expect(urls).not.toContain(`https://www.databuddy.cc${path}`);
+			}
+			fetch.mockResolvedValueOnce(
+				Response.json({
+					posts: [
+						{
+							slug: "example",
+							publishedAt: "2024-01-01",
+							updatedAt: "2024-02-01",
+						},
+						{ slug: "draft", status: "draft", publishedAt: "2024-01-01" },
+					],
+				})
+			);
+			const entries = await generateSitemapEntries();
+			expect(entries.filter((entry) => entry.url.includes("/blog/"))).toEqual([
+				{
+					url: "https://www.databuddy.cc/blog/example",
+					lastModified: "2024-02-01T00:00:00.000Z",
+				},
+			]);
+		} finally {
+			fetch.mockRestore();
+			if (originalNodeEnv === undefined) {
+				Reflect.deleteProperty(process.env, "NODE_ENV");
+			} else {
+				process.env.NODE_ENV = originalNodeEnv;
+			}
+			if (originalApiKey === undefined) {
+				Reflect.deleteProperty(process.env, "MARBLE_API_KEY");
+			} else {
+				process.env.MARBLE_API_KEY = originalApiKey;
+			}
+		}
 	});
 });

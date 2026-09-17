@@ -1,5 +1,7 @@
 "use client";
 
+import { isSelfHosted } from "@databuddy/env/public";
+
 import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -7,7 +9,7 @@ import { Suspense, type ReactNode, useEffect, useRef, useState } from "react";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import {
 	useBillingContext,
-	useUsageFeature,
+	useInvestigationUsage,
 } from "@/components/providers/billing-provider";
 import { type BriefInsight, insightQueries } from "@/lib/insight-api";
 import { APP_EVENTS, trackAppEvent } from "@/lib/app-events";
@@ -51,8 +53,7 @@ function InsightsPageContent() {
 	const searchParams = useSearchParams();
 	const firstReviewWebsiteId =
 		searchParams.get("firstReview")?.trim() || undefined;
-	const { balance: investigationCredits, unlimited } =
-		useUsageFeature("agent_credits");
+	const { canUse: canUseInvestigations, fixedPrice } = useInvestigationUsage();
 	const { isLoading: billingLoading } = useBillingContext();
 	const latestRun = useQuery({
 		...orpc.insightGeneration.getLatestRun.queryOptions({
@@ -274,7 +275,8 @@ function InsightsPageContent() {
 				<FirstReview
 					billingLoading={billingLoading}
 					canRun={canRunFirstReview}
-					canUseCredits={unlimited || investigationCredits > 0}
+					canUseCredits={canUseInvestigations}
+					fixedPrice={fixedPrice}
 					error={
 						firstReview.isError ||
 						(shouldPollFirstReviewStatus && firstReviewStatus.isError)
@@ -353,6 +355,7 @@ type FirstReviewRun = FirstReviewReadiness["latestRun"];
 
 function FirstReview({
 	billingLoading,
+	fixedPrice,
 	canRun,
 	canUseCredits,
 	error,
@@ -367,6 +370,7 @@ function FirstReview({
 	websiteId,
 }: {
 	billingLoading: boolean;
+	fixedPrice: boolean;
 	canRun: boolean;
 	canUseCredits: boolean;
 	error: boolean;
@@ -477,23 +481,35 @@ function FirstReview({
 			</Button>
 		);
 	} else if (!needsRefresh && canRun && status.action === "review") {
-		action = billingLoading ? (
-			<Button disabled loading size="sm">
-				Checking credits
-			</Button>
-		) : canUseCredits ? (
-			<Button onClick={onRun} size="sm">
-				{state === "ready" ? "Run first review" : "Retry first review"}
-				<ArrowRightIcon className="size-3" />
-			</Button>
-		) : (
-			<Button asChild size="sm">
-				<Link href="/billing#topup">
-					<CoinsIcon className="size-3.5" />
-					Add investigation credits
-				</Link>
-			</Button>
-		);
+		if (billingLoading) {
+			action = (
+				<Button disabled loading size="sm">
+					{isSelfHosted ? "Checking AI setup" : "Checking balance"}
+				</Button>
+			);
+		} else if (canUseCredits) {
+			action = (
+				<Button onClick={onRun} size="sm">
+					{state === "ready" ? "Run first review" : "Retry first review"}
+					<ArrowRightIcon className="size-3" />
+				</Button>
+			);
+		} else if (isSelfHosted) {
+			action = (
+				<p className="text-pretty text-muted-foreground text-sm">
+					Ask your administrator to configure AI before running a review.
+				</p>
+			);
+		} else {
+			action = (
+				<Button asChild size="sm">
+					<Link href="/billing#topup">
+						<CoinsIcon className="size-3.5" />
+						Add investigation balance
+					</Link>
+				</Button>
+			);
+		}
 	}
 	const permissionDescription =
 		!(needsRefresh || canRun) && status.action
@@ -529,6 +545,12 @@ function FirstReview({
 							{permissionDescription}
 						</p>
 					) : null}
+					{action && !billingLoading && fixedPrice && (
+						<p className="mt-3 text-muted-foreground text-xs">
+							A review can complete multiple investigations. Your monthly
+							allowance applies first, then $1 each.
+						</p>
+					)}
 					{action ? <div className="mt-3">{action}</div> : null}
 				</div>
 			</Card.Content>
@@ -590,12 +612,12 @@ const FIRST_REVIEW_STATUSES = {
 	},
 	needs_credits: {
 		action: "review",
-		badgeLabel: "Needs credits",
+		badgeLabel: "Needs balance",
 		badgeVariant: "warning",
 		description:
-			"No investigation credits were available for the last attempt. Add credits, then retry.",
+			"No investigation balance was available for the last attempt. Add balance, then retry.",
 		icon: <CoinsIcon className="size-5 text-warning" />,
-		title: "Your first review is waiting for credits",
+		title: "Your first review is waiting for balance",
 	},
 	deferred: {
 		action: null,

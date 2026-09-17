@@ -1,8 +1,12 @@
 "use client";
 
-import { GATED_FEATURES } from "@databuddy/shared/types/features";
+import { isSelfHosted } from "@databuddy/env/public";
+
 import { useQuery } from "@tanstack/react-query";
-import { useBillingContext } from "@/components/providers/billing-provider";
+import {
+	useBillingContext,
+	useInvestigationUsage,
+} from "@/components/providers/billing-provider";
 import { orpc } from "@/lib/orpc";
 import { LockSimpleIcon } from "@databuddy/ui/icons";
 import { Button } from "@databuddy/ui";
@@ -12,19 +16,19 @@ export function InvestigationsAccessNotice({
 }: {
 	organizationId?: string;
 }) {
-	const { isFeatureEnabled, isLoading } = useBillingContext();
+	const { isLoading } = useBillingContext();
+	const { hasAccess } = useInvestigationUsage();
 	const configQuery = useQuery({
 		...orpc.insightGeneration.getConfig.queryOptions({
 			input: { organizationId },
 		}),
-		enabled: Boolean(organizationId),
+		enabled: Boolean(organizationId) && !isSelfHosted,
 	});
 
 	const hadInvestigationsEnabled = Boolean(configQuery.data?.enabled);
-	const hasAccess =
-		isLoading || isFeatureEnabled(GATED_FEATURES.INVESTIGATIONS);
+	const canInvestigate = isLoading || hasAccess;
 
-	if (hasAccess || !hadInvestigationsEnabled) {
+	if (isSelfHosted || canInvestigate || !hadInvestigationsEnabled) {
 		return null;
 	}
 
@@ -33,8 +37,8 @@ export function InvestigationsAccessNotice({
 			<LockSimpleIcon className="size-4 shrink-0 text-muted-foreground" />
 			<p className="min-w-0 flex-1 text-muted-foreground text-sm">
 				Automatic investigations are now invite only, so your scheduled runs are
-				paused. Existing findings stay available and Databunny chat still works
-				with your credits.
+				paused. Existing findings stay available and you can still ask Databunny
+				for a manual check.
 			</p>
 			<Button asChild size="sm" variant="secondary">
 				<a

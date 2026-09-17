@@ -37,10 +37,7 @@ describe("Slack OAuth state", () => {
 	});
 
 	it("rejects expired state", () => {
-		const encoded = createOAuthState(
-			makeState({ expiresAt: NOW - 1 }),
-			SECRET
-		);
+		const encoded = createOAuthState(makeState({ expiresAt: NOW - 1 }), SECRET);
 
 		expect(verifyOAuthState(encoded, SECRET, NOW)).toBeNull();
 	});

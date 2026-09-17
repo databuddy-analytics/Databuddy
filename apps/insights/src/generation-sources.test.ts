@@ -470,8 +470,8 @@ describe("fixture investigation sources", () => {
 	it("adds supplied route-vital continuation evidence before a slow route reaches the agent", async () => {
 		const slowRoute: DetectedSignal = {
 			...trafficDrop,
-			baseline: 5_000,
-			current: 7_200,
+			baseline: 5000,
+			current: 7200,
 			deltaPercent: 44,
 			direction: "up",
 			entityId: "/sign-in",
@@ -1311,12 +1311,16 @@ describe("native definition detection in portfolio generation", () => {
 								"AbortError"
 							);
 						}
-						if (request.type !== "revenue_overview") return [];
-						if (coreFails) throw new Error("core revenue unavailable");
+						if (request.type !== "revenue_overview") {
+							return [];
+						}
+						if (coreFails) {
+							throw new Error("core revenue unavailable");
+						}
 						return [
 							{
 								currency: "USD",
-								total_revenue: 40000,
+								total_revenue: 40_000,
 								total_transactions: 400,
 								refund_amount: request.from === "2026-07-05" ? -2500 : -500,
 								refund_count: request.from === "2026-07-05" ? 25 : 5,
@@ -1407,7 +1411,9 @@ describe("native definition detection in portfolio generation", () => {
 						fetchFunnels: async () => [funnel],
 						fetchGoals: async () => [goal],
 						funnelConversion: async () => {
-							if (coreFails) throw new Error("core conversion unavailable");
+							if (coreFails) {
+								throw new Error("core conversion unavailable");
+							}
 							return { entrants: 1000, completions: 500, rate: 50 };
 						},
 						goalConversion: async (_goal, range) => ({

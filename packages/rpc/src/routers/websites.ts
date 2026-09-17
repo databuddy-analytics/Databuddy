@@ -1227,7 +1227,7 @@ export const websitesRouter = {
 			return {
 				filename: exportResult.filename,
 				data: exportResult.buffer.toString("base64"),
-				metadata: exportResult.meta as unknown as Record<string, unknown>,
+				metadata: { ...exportResult.meta },
 			};
 		}),
 };

@@ -3,11 +3,13 @@ import { afterAll, beforeEach, describe, expect, mock, test } from "bun:test";
 const originalApiKey = process.env.SUPERMEMORY_API_KEY;
 process.env.SUPERMEMORY_API_KEY = "test_supermemory_key";
 
-type ProfileInput = { containerTag: string };
-type SearchInput = {
+interface ProfileInput {
+	containerTag: string;
+}
+interface SearchInput {
 	containerTag: string;
 	filters?: unknown;
-};
+}
 
 const defaultProfile = () => ({
 	profile: { dynamic: [], static: [] },
@@ -104,31 +106,25 @@ describe("supermemory containers", () => {
 			websiteId: "site_1",
 		});
 
-		expect(mockProfile).toHaveBeenCalledTimes(4);
+		expect(mockProfile).toHaveBeenCalledTimes(2);
 		expect(mockProfile.mock.calls.map(([input]) => input.containerTag)).toEqual(
-			["user_usr_1", "website_site_1", "user:usr_1", "website:site_1"]
+			["user_usr_1", "website_site_1"]
 		);
 		expect(context.staticProfile).toEqual([
 			"static:user_usr_1",
 			"static:website_site_1",
-			"static:user:usr_1",
-			"static:website:site_1",
 		]);
 		expect(context.dynamicProfile).toEqual([
 			"dynamic:user_usr_1",
 			"dynamic:website_site_1",
-			"dynamic:user:usr_1",
-			"dynamic:website:site_1",
 		]);
 		expect(context.relevantMemories).toEqual([
 			"memory:user_usr_1",
 			"memory:website_site_1",
-			"memory:user:usr_1",
-			"memory:website:site_1",
 		]);
 	});
 
-	test("searches current and legacy containers with source tags", async () => {
+	test("searches current containers with source tags", async () => {
 		searchHandler = async ({ containerTag }) => ({
 			results:
 				containerTag === "website_site_1"
@@ -149,7 +145,7 @@ describe("supermemory containers", () => {
 			websiteId: "site_1",
 		});
 
-		expect(mockSearchMemories).toHaveBeenCalledTimes(4);
+		expect(mockSearchMemories).toHaveBeenCalledTimes(2);
 		expect(
 			mockSearchMemories.mock.calls.map(([input]) => ({
 				containerTag: input.containerTag,
@@ -158,8 +154,6 @@ describe("supermemory containers", () => {
 		).toEqual([
 			{ containerTag: "user_usr_1", hasFilters: true },
 			{ containerTag: "website_site_1", hasFilters: false },
-			{ containerTag: "user:usr_1", hasFilters: true },
-			{ containerTag: "website:site_1", hasFilters: false },
 		]);
 		expect(results).toEqual([
 			{
@@ -182,14 +176,11 @@ describe("supermemory containers", () => {
 
 	test("keeps successful search results when one container fails", async () => {
 		searchHandler = async ({ containerTag }) => {
-			if (containerTag === "user:usr_1") {
-				throw new Error("legacy container unavailable");
+			if (containerTag === "website_site_1") {
+				throw new Error("website container unavailable");
 			}
 			return {
-				results:
-					containerTag === "user_usr_1"
-						? [{ memory: "current memory", similarity: 0.7 }]
-						: [],
+				results: [{ memory: "current memory", similarity: 0.7 }],
 			};
 		};
 
@@ -198,7 +189,7 @@ describe("supermemory containers", () => {
 			websiteId: "site_1",
 		});
 
-		expect(mockSearchMemories).toHaveBeenCalledTimes(4);
+		expect(mockSearchMemories).toHaveBeenCalledTimes(2);
 		expect(results).toEqual([
 			{
 				containerTag: "user_usr_1",

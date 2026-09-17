@@ -76,6 +76,7 @@ export default function StatusPageDetailsPage() {
 	});
 
 	const statusPage = statusPageQuery.data;
+	const statusPageUrl = statusPage && getStatusPageUrl(statusPage.slug);
 
 	const monitorToRemoveData = statusPage?.monitors.find(
 		(m: StatusPageMonitor) => m.id === monitorToRemove
@@ -215,17 +216,19 @@ export default function StatusPageDetailsPage() {
 								<div className="flex items-center gap-2">
 									{statusPage ? (
 										<>
-											<Link
-												className={buttonVariants({
-													size: "sm",
-													variant: "secondary",
-												})}
-												href={getStatusPageUrl(statusPage.slug)}
-												rel="noopener noreferrer"
-												target="_blank"
-											>
-												View Page
-											</Link>
+											{statusPageUrl && (
+												<Link
+													className={buttonVariants({
+														size: "sm",
+														variant: "secondary",
+													})}
+													href={statusPageUrl}
+													rel="noopener noreferrer"
+													target="_blank"
+												>
+													View Page
+												</Link>
+											)}
 											<Button
 												aria-label="Refresh data"
 												disabled={

@@ -4,14 +4,14 @@ import { StructuredData } from "@/components/structured-data";
 import BrandingContent from "./branding-content";
 
 export const metadata: Metadata = {
-	title: "Brand Guidelines | Databuddy",
+	title: "Brand Guidelines",
 	description:
 		"Databuddy brand assets, logo usage guidelines, color palette, and typography. Download official logos, wordmarks, and graphic assets.",
 	alternates: {
 		canonical: "https://www.databuddy.cc/branding",
 	},
 	openGraph: {
-		title: "Brand Guidelines | Databuddy",
+		title: "Brand Guidelines",
 		description:
 			"Databuddy brand assets, logo usage guidelines, color palette, and typography.",
 		url: "https://www.databuddy.cc/branding",
@@ -24,7 +24,7 @@ export default function BrandingPage() {
 		<div className="overflow-hidden">
 			<StructuredData
 				page={{
-					title: "Brand Guidelines | Databuddy",
+					title: "Brand Guidelines",
 					description:
 						"Databuddy brand assets, logo usage guidelines, color palette, and typography.",
 					url: "https://www.databuddy.cc/branding",

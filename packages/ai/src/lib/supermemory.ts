@@ -25,13 +25,6 @@ export function memoryContainerTag(
 	return `${kind}_${id}`;
 }
 
-function legacyMemoryContainerTag(
-	kind: MemoryContainerKind,
-	id: string
-): string {
-	return `${kind}:${id}`;
-}
-
 function identityContainerTag(
 	userId: string | null,
 	apiKeyId: string | null
@@ -77,23 +70,6 @@ export function primaryContainerTag(
 	return "anonymous";
 }
 
-function readContainerTags(
-	userId: string | null,
-	apiKeyId: string | null,
-	websiteId?: string | null
-): string[] {
-	const tags = buildContainerTags(userId, apiKeyId, websiteId);
-	if (userId) {
-		tags.push(legacyMemoryContainerTag("user", userId));
-	} else if (apiKeyId) {
-		tags.push(legacyMemoryContainerTag("apikey", apiKeyId));
-	}
-	if (websiteId) {
-		tags.push(legacyMemoryContainerTag("website", websiteId));
-	}
-	return [...new Set(tags)];
-}
-
 function uniqueNonEmpty(values: string[]): string[] {
 	return [...new Set(values.filter(Boolean))];
 }
@@ -121,7 +97,11 @@ export async function getMemoryContext(
 		return { staticProfile: [], dynamicProfile: [], relevantMemories: [] };
 	}
 
-	const containerTags = readContainerTags(userId, apiKeyId, options?.websiteId);
+	const containerTags = buildContainerTags(
+		userId,
+		apiKeyId,
+		options?.websiteId
+	);
 	const threshold = options?.threshold ?? 0.25;
 
 	try {
@@ -252,14 +232,16 @@ export async function searchMemories(
 		return [];
 	}
 
-	const containerTags = readContainerTags(userId, apiKeyId, options?.websiteId);
+	const containerTags = buildContainerTags(
+		userId,
+		apiKeyId,
+		options?.websiteId
+	);
 	const primaryTags = new Set<string>();
 	if (userId) {
 		primaryTags.add(memoryContainerTag("user", userId));
-		primaryTags.add(legacyMemoryContainerTag("user", userId));
 	} else if (apiKeyId) {
 		primaryTags.add(memoryContainerTag("apikey", apiKeyId));
-		primaryTags.add(legacyMemoryContainerTag("apikey", apiKeyId));
 	} else if (!options?.websiteId) {
 		primaryTags.add("anonymous");
 	}

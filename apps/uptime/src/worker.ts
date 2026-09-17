@@ -1,3 +1,4 @@
+import { readBooleanEnv } from "@databuddy/env/app";
 import {
 	getBullMQWorkerConnectionOptions,
 	getUptimeDeliveryQueue,
@@ -5,7 +6,6 @@ import {
 	type UptimeCheckJobData,
 	type UptimeDeliveryJobData,
 	UPTIME_CHECK_JOB_NAME,
-	UPTIME_DELIVERY_JOB_NAME,
 	UPTIME_DELIVERY_JOB_OPTIONS,
 	UPTIME_DELIVERY_QUEUE_NAME,
 	UPTIME_JOB_OPTIONS,
@@ -16,7 +16,7 @@ import {
 	uptimeDeliveryJobId,
 	uptimeSchedulerId,
 } from "@databuddy/redis";
-import { type Job, Worker } from "bullmq";
+import { DelayedError, type Job, Worker } from "bullmq";
 import type { RequestLogger } from "evlog";
 import { createLogger, log } from "evlog";
 import { Cause, Data, Effect, Exit } from "effect";
@@ -107,7 +107,7 @@ const uptimeWorkerDeps: UptimeWorkerDeps = {
 	createLogger: (fields) => createLogger(fields),
 	enqueueUptimeDelivery: async (data) => {
 		await getUptimeDeliveryQueue().add(
-			UPTIME_DELIVERY_JOB_NAME,
+			UPTIME_DELIVERY_QUEUE_NAME,
 			{ event: data },
 			{ jobId: uptimeDeliveryJobId(data.event_id) }
 		);
@@ -155,7 +155,7 @@ type UptimeWorkerJob = Pick<
 
 type UptimeDeliveryWorkerJob = Pick<
 	Job<UptimeDeliveryJobData>,
-	"attemptsMade" | "data" | "id" | "name"
+	"attemptsMade" | "data" | "id" | "name" | "moveToDelayed"
 >;
 
 type UptimeStorageEvent = Omit<UptimeData, "event_id">;
@@ -617,9 +617,10 @@ export async function processUptimeJob(
 
 export async function processUptimeDeliveryJob(
 	job: UptimeDeliveryWorkerJob,
-	deps: UptimeWorkerDeps = uptimeWorkerDeps
+	deps: UptimeWorkerDeps = uptimeWorkerDeps,
+	token?: string
 ): Promise<void> {
-	if (job.name !== UPTIME_DELIVERY_JOB_NAME) {
+	if (job.name !== UPTIME_DELIVERY_QUEUE_NAME) {
 		throw new Error(`Unknown uptime delivery job: ${job.name}`);
 	}
 
@@ -642,6 +643,14 @@ export async function processUptimeDeliveryJob(
 			event_id: data.event_id,
 			job_id: job.id ?? "",
 		});
+		if (readBooleanEnv("SELFHOST")) {
+			// Keep the durable payload pending until ClickHouse recovers.
+			await job.moveToDelayed(
+				Date.now() + UPTIME_DELIVERY_JOB_OPTIONS.backoff.delay,
+				token
+			);
+			throw new DelayedError();
+		}
 		throw error;
 	}
 }
@@ -699,7 +708,7 @@ export function startUptimeWorker() {
 export function startUptimeDeliveryWorker() {
 	const worker = new Worker<UptimeDeliveryJobData>(
 		UPTIME_DELIVERY_QUEUE_NAME,
-		(job) => processUptimeDeliveryJob(job),
+		(job, token) => processUptimeDeliveryJob(job, uptimeWorkerDeps, token),
 		{
 			connection: getBullMQWorkerConnectionOptions(),
 			concurrency: 4,

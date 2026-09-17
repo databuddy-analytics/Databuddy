@@ -83,9 +83,11 @@ function assertLocalDependencies(): void {
 }
 
 function eventUnix(dayOffset: number, seconds = 0): number {
-	return Math.floor(Date.parse("2026-08-01T12:00:00.000Z") / 1000) +
+	return (
+		Math.floor(Date.parse("2026-08-01T12:00:00.000Z") / 1000) +
 		dayOffset * DAY_SECONDS +
-		seconds;
+		seconds
+	);
 }
 
 function eventTime(dayOffset: number, seconds = 0): string {
@@ -118,8 +120,7 @@ function paymentIntent(input: {
 	description?: string;
 	metadata?: Record<string, string>;
 	id: string;
-	}
-): StripeEvent {
+}): StripeEvent {
 	return stripeEvent("payment_intent.succeeded", input.day, {
 		amount: input.amount,
 		amount_received: input.amount,
@@ -132,8 +133,7 @@ function paymentIntent(input: {
 	});
 }
 
-function invoicePayment(
-	input: {
+function invoicePayment(input: {
 	amount: number;
 	customer?: string;
 	day: number;
@@ -143,8 +143,7 @@ function invoicePayment(
 	metadata?: Record<string, string>;
 	paymentIntentId?: string;
 	currency?: string;
-	}
-): StripeEvent {
+}): StripeEvent {
 	const invoiceMetadata = input.metadata ?? {};
 	const invoice: StripeObject = {
 		customer: input.customer ?? null,
@@ -175,8 +174,7 @@ function invoicePayment(
 	});
 }
 
-function paidInvoice(
-	input: {
+function paidInvoice(input: {
 	amountPaid: number;
 	amountDue?: number;
 	customer?: string;
@@ -191,8 +189,7 @@ function paidInvoice(
 		paymentIntentId?: string;
 	}>;
 	currency?: string;
-	}
-): StripeEvent {
+}): StripeEvent {
 	const currency = input.currency ?? "usd";
 	const metadata = input.metadata ?? {};
 	const invoice: StripeObject = {
@@ -216,11 +213,11 @@ function paidInvoice(
 				payment: {
 					payment_intent: payment.paymentIntentId
 						? {
-							customer: input.customer ?? null,
-							description: input.description ?? "Integration test invoice",
-							id: payment.paymentIntentId,
-							metadata,
-						}
+								customer: input.customer ?? null,
+								description: input.description ?? "Integration test invoice",
+								id: payment.paymentIntentId,
+								metadata,
+							}
 						: null,
 					type: "payment_intent",
 				},
@@ -234,14 +231,12 @@ function paidInvoice(
 	return stripeEvent("invoice.paid", input.day, invoice);
 }
 
-function failedPaymentIntent(
-	input: {
-		amount: number;
-		day: number;
-		id: string;
-		metadata?: Record<string, string>;
-	}
-): StripeEvent {
+function failedPaymentIntent(input: {
+	amount: number;
+	day: number;
+	id: string;
+	metadata?: Record<string, string>;
+}): StripeEvent {
 	return stripeEvent("payment_intent.payment_failed", input.day, {
 		amount: input.amount,
 		created: eventUnix(input.day),
@@ -351,8 +346,11 @@ function analyticsEvent(input: {
 	};
 }
 
-function signStripePayload(body: string, secret: string, timestamp = Math.floor(Date.now() / 1000)):
-	string {
+function signStripePayload(
+	body: string,
+	secret: string,
+	timestamp = Math.floor(Date.now() / 1000)
+): string {
 	const signature = createHmac("sha256", secret)
 		.update(`${timestamp}.${body}`, "utf8")
 		.digest("hex");
@@ -502,7 +500,10 @@ async function revenueOverview(
 	if (!query || typeof query === "string") {
 		throw new Error("Revenue overview did not compile");
 	}
-	return chQuery<Record<string, number | string | null>>(query.sql, query.params);
+	return chQuery<Record<string, number | string | null>>(
+		query.sql,
+		query.params
+	);
 }
 
 async function runBuilder(
@@ -519,473 +520,487 @@ async function runBuilder(
 	if (!query || typeof query === "string") {
 		throw new Error(`${name} did not compile`);
 	}
-	return chQuery<Record<string, number | string | null>>(query.sql, query.params);
+	return chQuery<Record<string, number | string | null>>(
+		query.sql,
+		query.params
+	);
 }
 
 describeStripeE2E("Stripe revenue end-to-end matrix", () => {
-	test(
-		"ingests, deduplicates, attributes, and rejects the pre-cutover duplicate result",
-		{ timeout: 120_000 },
-		async () => {
-			assertLocalDependencies();
-			const fixture = await createFixture();
-			const port = 41_00 + Math.floor(Math.random() * 400);
-			let basket: Awaited<ReturnType<typeof startBasket>> | undefined;
+	test("ingests, deduplicates, attributes, and rejects the pre-cutover duplicate result", {
+		timeout: 120_000,
+	}, async () => {
+		assertLocalDependencies();
+		const fixture = await createFixture();
+		const port = 4100 + Math.floor(Math.random() * 400);
+		let basket: Awaited<ReturnType<typeof startBasket>> | undefined;
 
-			const profileId = `profile_${fixture.runId}`;
-			const profileOnlyId = `profile_only_${fixture.runId}`;
-			const identifiedSession = `session_identified_${fixture.runId}`;
-			const sessionOnlyId = `session_only_${fixture.runId}`;
-			const anonymousId = `anonymous_${fixture.runId}`;
-			const saltedAnonymousId = `salted_${fixture.runId}`;
-			const sharedCustomerId = `cus_shared_${fixture.runId}`;
-			const linkedPaymentIntentId = `pi_linked_${fixture.runId}`;
-			const allocationPaymentIntentId = `pi_alloc_${fixture.runId}`;
-			const replayedPaymentIntentId = `pi_replayed_${fixture.runId}`;
-			const refundPaymentIntentId = `pi_refund_${fixture.runId}`;
+		const profileId = `profile_${fixture.runId}`;
+		const profileOnlyId = `profile_only_${fixture.runId}`;
+		const identifiedSession = `session_identified_${fixture.runId}`;
+		const sessionOnlyId = `session_only_${fixture.runId}`;
+		const anonymousId = `anonymous_${fixture.runId}`;
+		const saltedAnonymousId = `salted_${fixture.runId}`;
+		const sharedCustomerId = `cus_shared_${fixture.runId}`;
+		const linkedPaymentIntentId = `pi_linked_${fixture.runId}`;
+		const allocationPaymentIntentId = `pi_alloc_${fixture.runId}`;
+		const replayedPaymentIntentId = `pi_replayed_${fixture.runId}`;
+		const refundPaymentIntentId = `pi_refund_${fixture.runId}`;
 
-			try {
-				basket = await startBasket(port);
+		try {
+			basket = await startBasket(port);
 
-				const identifiedMetadata = {
-					databuddy_client_id: fixture.siteId,
-					databuddy_profile_id: profileId,
-					databuddy_session_id: identifiedSession,
-				};
-				const profileOnlyMetadata = {
-					databuddy_client_id: fixture.siteId,
-					databuddy_profile_id: profileOnlyId,
-				};
-				const sessionOnlyMetadata = {
-					databuddy_client_id: fixture.siteId,
-					databuddy_session_id: sessionOnlyId,
-				};
+			const identifiedMetadata = {
+				databuddy_client_id: fixture.siteId,
+				databuddy_profile_id: profileId,
+				databuddy_session_id: identifiedSession,
+			};
+			const profileOnlyMetadata = {
+				databuddy_client_id: fixture.siteId,
+				databuddy_profile_id: profileOnlyId,
+			};
+			const sessionOnlyMetadata = {
+				databuddy_client_id: fixture.siteId,
+				databuddy_session_id: sessionOnlyId,
+			};
 
-				const identifiedEvent = paymentIntent({
-					amount: 4200,
+			const identifiedEvent = paymentIntent({
+				amount: 4200,
+				customer: sharedCustomerId,
+				day: 2,
+				id: `pi_identified_${fixture.runId}`,
+				metadata: identifiedMetadata,
+			});
+			const events: StripeEvent[] = [
+				identifiedEvent,
+				paymentIntent({
+					amount: 1800,
+					day: 3,
+					id: `pi_anonymous_${fixture.runId}`,
+				}),
+				paymentIntent({
+					amount: 3000,
+					day: 8,
+					id: `pi_profile_${fixture.runId}`,
+					metadata: profileOnlyMetadata,
+				}),
+				paymentIntent({
+					amount: 3500,
+					day: 15,
+					id: `pi_session_${fixture.runId}`,
+					metadata: {
+						...sessionOnlyMetadata,
+						databuddy_anonymous_id: anonymousId,
+					},
+				}),
+				paymentIntent({
+					amount: 2200,
+					day: 22,
+					id: `pi_salted_${fixture.runId}`,
+					metadata: { databuddy_anonymous_id: saltedAnonymousId },
+				}),
+				paymentIntent({
+					amount: 6000,
 					customer: sharedCustomerId,
-					day: 2,
-					id: `pi_identified_${fixture.runId}`,
+					day: 29,
+					id: linkedPaymentIntentId,
 					metadata: identifiedMetadata,
-				});
-				const events: StripeEvent[] = [
-					identifiedEvent,
-					paymentIntent({
-						amount: 1800,
-						day: 3,
-						id: `pi_anonymous_${fixture.runId}`,
-					}),
-					paymentIntent({
-						amount: 3000,
-						day: 8,
-						id: `pi_profile_${fixture.runId}`,
-						metadata: profileOnlyMetadata,
-					}),
-					paymentIntent({
-						amount: 3500,
-						day: 15,
-						id: `pi_session_${fixture.runId}`,
-						metadata: {
-							...sessionOnlyMetadata,
-							databuddy_anonymous_id: anonymousId,
+				}),
+				paidInvoice({
+					amountPaid: 6000,
+					customer: sharedCustomerId,
+					day: 30,
+					invoiceId: `in_linked_${fixture.runId}`,
+					payments: [
+						{
+							amount: 6000,
+							invoicePaymentId: `inpay_linked_${fixture.runId}`,
+							paymentIntentId: linkedPaymentIntentId,
 						},
-					}),
-					paymentIntent({
-						amount: 2200,
-						day: 22,
-						id: `pi_salted_${fixture.runId}`,
-						metadata: { databuddy_anonymous_id: saltedAnonymousId },
-					}),
-					paymentIntent({
-						amount: 6000,
-						customer: sharedCustomerId,
-						day: 29,
-						id: linkedPaymentIntentId,
-						metadata: identifiedMetadata,
-					}),
-					paidInvoice({
-						amountPaid: 6000,
-						customer: sharedCustomerId,
-						day: 30,
-						invoiceId: `in_linked_${fixture.runId}`,
-						payments: [
-							{
-								amount: 6000,
-								invoicePaymentId: `inpay_linked_${fixture.runId}`,
-								paymentIntentId: linkedPaymentIntentId,
-							},
-						],
-						metadata: identifiedMetadata,
-					}),
-					invoicePayment({
-						amount: 6000,
-						customer: sharedCustomerId,
-						day: 31,
-						invoiceId: `in_linked_${fixture.runId}`,
-						invoicePaymentId: `inpay_linked_${fixture.runId}`,
-						metadata: identifiedMetadata,
-						paymentIntentId: linkedPaymentIntentId,
-					}),
-					paymentIntent({
-						amount: 3000,
-						day: 36,
-						id: allocationPaymentIntentId,
-						metadata: sessionOnlyMetadata,
-					}),
-					paidInvoice({
-						amountPaid: 5000,
-						day: 37,
-						invoiceId: `in_alloc_${fixture.runId}`,
-						payments: [
-							{
-								amount: 3000,
-								invoicePaymentId: `inpay_alloc_${fixture.runId}`,
-								paymentIntentId: allocationPaymentIntentId,
-							},
-						],
-						metadata: sessionOnlyMetadata,
-					}),
-					invoicePayment({
-						amount: 3000,
-						day: 38,
-						invoiceId: `in_alloc_${fixture.runId}`,
-						invoicePaymentId: `inpay_alloc_${fixture.runId}`,
-						metadata: sessionOnlyMetadata,
-						paymentIntentId: allocationPaymentIntentId,
-					}),
-					paidInvoice({
-						amountPaid: 4000,
-						day: 43,
-						hasMore: true,
-						invoiceId: `in_page_${fixture.runId}`,
-						payments: [
-							{
-								amount: 4000,
-								invoicePaymentId: `inpay_page_${fixture.runId}`,
-							},
-						],
-					}),
-					invoicePayment({
-						amount: 4000,
-						day: 44,
-						invoiceId: `in_page_${fixture.runId}`,
-						invoicePaymentId: `inpay_page_${fixture.runId}`,
-					}),
-					paymentIntent({
-						amount: 1000,
-						day: 50,
-						id: replayedPaymentIntentId,
-					}),
-					paymentIntent({
-						amount: 2500,
-						customer: `cus_refund_${fixture.runId}`,
-						day: 61,
-						id: refundPaymentIntentId,
-					}),
-					refundedCharge(62, refundPaymentIntentId),
-					invoicePayment({
-						amount: 2400,
-						customer: sharedCustomerId,
-						day: 68,
-						invoiceId: `in_stitched_${fixture.runId}`,
-						invoicePaymentId: `inpay_stitched_${fixture.runId}`,
-					}),
-					paymentIntent({
-						amount: 500,
-						currency: "jpy",
-						day: 90,
-						id: `pi_jpy_${fixture.runId}`,
-					}),
-					failedPaymentIntent({
-						amount: 2500,
-						day: 95,
-						id: `pi_failed_${fixture.runId}`,
-					}),
-					failedInvoice(96, `in_failed_${fixture.runId}`),
-					canceledPaymentIntent(100, `pi_canceled_${fixture.runId}`),
-					stripeEvent("customer.created", 105, {
-						id: `cus_unsupported_${fixture.runId}`,
-					}),
-				];
+					],
+					metadata: identifiedMetadata,
+				}),
+				invoicePayment({
+					amount: 6000,
+					customer: sharedCustomerId,
+					day: 31,
+					invoiceId: `in_linked_${fixture.runId}`,
+					invoicePaymentId: `inpay_linked_${fixture.runId}`,
+					metadata: identifiedMetadata,
+					paymentIntentId: linkedPaymentIntentId,
+				}),
+				paymentIntent({
+					amount: 3000,
+					day: 36,
+					id: allocationPaymentIntentId,
+					metadata: sessionOnlyMetadata,
+				}),
+				paidInvoice({
+					amountPaid: 5000,
+					day: 37,
+					invoiceId: `in_alloc_${fixture.runId}`,
+					payments: [
+						{
+							amount: 3000,
+							invoicePaymentId: `inpay_alloc_${fixture.runId}`,
+							paymentIntentId: allocationPaymentIntentId,
+						},
+					],
+					metadata: sessionOnlyMetadata,
+				}),
+				invoicePayment({
+					amount: 3000,
+					day: 38,
+					invoiceId: `in_alloc_${fixture.runId}`,
+					invoicePaymentId: `inpay_alloc_${fixture.runId}`,
+					metadata: sessionOnlyMetadata,
+					paymentIntentId: allocationPaymentIntentId,
+				}),
+				paidInvoice({
+					amountPaid: 4000,
+					day: 43,
+					hasMore: true,
+					invoiceId: `in_page_${fixture.runId}`,
+					payments: [
+						{
+							amount: 4000,
+							invoicePaymentId: `inpay_page_${fixture.runId}`,
+						},
+					],
+				}),
+				invoicePayment({
+					amount: 4000,
+					day: 44,
+					invoiceId: `in_page_${fixture.runId}`,
+					invoicePaymentId: `inpay_page_${fixture.runId}`,
+				}),
+				paymentIntent({
+					amount: 1000,
+					day: 50,
+					id: replayedPaymentIntentId,
+				}),
+				paymentIntent({
+					amount: 2500,
+					customer: `cus_refund_${fixture.runId}`,
+					day: 61,
+					id: refundPaymentIntentId,
+				}),
+				refundedCharge(62, refundPaymentIntentId),
+				invoicePayment({
+					amount: 2400,
+					customer: sharedCustomerId,
+					day: 68,
+					invoiceId: `in_stitched_${fixture.runId}`,
+					invoicePaymentId: `inpay_stitched_${fixture.runId}`,
+				}),
+				paymentIntent({
+					amount: 500,
+					currency: "jpy",
+					day: 90,
+					id: `pi_jpy_${fixture.runId}`,
+				}),
+				failedPaymentIntent({
+					amount: 2500,
+					day: 95,
+					id: `pi_failed_${fixture.runId}`,
+				}),
+				failedInvoice(96, `in_failed_${fixture.runId}`),
+				canceledPaymentIntent(100, `pi_canceled_${fixture.runId}`),
+				stripeEvent("customer.created", 105, {
+					id: `cus_unsupported_${fixture.runId}`,
+				}),
+			];
 
-				for (const event of events) {
-					const response = await postStripeEvent(
-						basket.baseUrl,
-						fixture.webhookHash,
-						fixture.secret,
-						event
-					);
-					expect(response.status, event.type).toBe(200);
-				}
-
-				// A replay has the same Stripe event and transaction identity. The
-				// current model must remain one logical payment after two deliveries.
-				for (const replay of [
-					paymentIntent({
-						amount: 1000,
-						day: 50,
-						id: replayedPaymentIntentId,
-					}),
-				]) {
-					const response = await postStripeEvent(
-						basket.baseUrl,
-						fixture.webhookHash,
-						fixture.secret,
-						replay,
-						{ signature: signStripePayload(JSON.stringify(replay), fixture.secret) }
-					);
-					expect(response.status).toBe(200);
-				}
-
-				const badSignatureResponse = await postStripeEvent(
+			for (const event of events) {
+				const response = await postStripeEvent(
 					basket.baseUrl,
 					fixture.webhookHash,
 					fixture.secret,
-					identifiedEvent,
-					{ signature: signStripePayload(JSON.stringify(identifiedEvent), "wrong") }
+					event
 				);
-				expect(badSignatureResponse.status).toBe(401);
+				expect(response.status, event.type).toBe(200);
+			}
 
-				const staleSignatureResponse = await postStripeEvent(
+			// A replay has the same Stripe event and transaction identity. The
+			// current model must remain one logical payment after two deliveries.
+			for (const replay of [
+				paymentIntent({
+					amount: 1000,
+					day: 50,
+					id: replayedPaymentIntentId,
+				}),
+			]) {
+				const response = await postStripeEvent(
 					basket.baseUrl,
 					fixture.webhookHash,
 					fixture.secret,
-					identifiedEvent,
+					replay,
 					{
 						signature: signStripePayload(
-							JSON.stringify(identifiedEvent),
-							fixture.secret,
-							Math.floor(Date.now() / 1000) - 301
+							JSON.stringify(replay),
+							fixture.secret
 						),
-					},
-				);
-				expect(staleSignatureResponse.status).toBe(401);
-
-				const missingSignatureResponse = await fetch(
-					`${basket.baseUrl}/webhooks/stripe/${fixture.webhookHash}`,
-					{
-						body: JSON.stringify(identifiedEvent),
-						headers: { "content-type": "application/json" },
-						method: "POST",
 					}
 				);
-				expect(missingSignatureResponse.status).toBe(400);
+				expect(response.status).toBe(200);
+			}
 
-				await clickHouse.insert({
-					format: "JSONEachRow",
-					table: "analytics.events",
-					values: [
-						analyticsEvent({
-							anonymousId: `anon_${fixture.runId}`,
-							campaign: "first-touch-campaign",
-							profileId,
-							referrer: "https://search.example/results",
-							sessionId: identifiedSession,
-							source: "search",
-							time: eventTime(1),
-							websiteId: fixture.siteId,
-						}),
-						analyticsEvent({
-							anonymousId: `anon_${fixture.runId}`,
-							campaign: "second-touch-campaign",
-							profileId,
-							referrer: "https://ignored.example/results",
-							sessionId: identifiedSession,
-							source: "ignored",
-							time: eventTime(1, 3600),
-							websiteId: fixture.siteId,
-						}),
-						analyticsEvent({
-							anonymousId,
-							campaign: "partner-campaign",
-							referrer: "https://partner.example/launch",
-							sessionId: sessionOnlyId,
-							source: "partner",
-							time: eventTime(14),
-							websiteId: fixture.siteId,
-						}),
-						analyticsEvent({
-							anonymousId: `anon_profile_${fixture.runId}`,
-							profileId: profileOnlyId,
-							referrer: "https://email.example/click",
-							sessionId: `profile_session_${fixture.runId}`,
-							source: "email",
-							time: eventTime(7),
-							websiteId: fixture.siteId,
-						}),
-					],
-				});
+			const badSignatureResponse = await postStripeEvent(
+				basket.baseUrl,
+				fixture.webhookHash,
+				fixture.secret,
+				identifiedEvent,
+				{
+					signature: signStripePayload(
+						JSON.stringify(identifiedEvent),
+						"wrong"
+					),
+				}
+			);
+			expect(badSignatureResponse.status).toBe(401);
 
-				const [usd] = await revenueOverview(fixture.siteId, [
-					{ field: "currency", op: "eq", value: "USD" },
-				]);
-				const [jpy] = await revenueOverview(fixture.siteId, [
-					{ field: "currency", op: "eq", value: "JPY" },
-				]);
-				expect(Number(usd?.total_revenue)).toBe(356);
-				expect(Number(usd?.total_transactions)).toBe(12);
-				expect(Number(usd?.subscription_revenue)).toBe(174);
-				expect(Number(usd?.sale_revenue)).toBe(182);
-				expect(Number(usd?.refund_amount)).toBe(-5);
-				expect(Number(usd?.refund_count)).toBe(2);
-				expect(Number(jpy?.total_revenue)).toBe(500);
-				expect(Number(jpy?.total_transactions)).toBe(1);
+			const staleSignatureResponse = await postStripeEvent(
+				basket.baseUrl,
+				fixture.webhookHash,
+				fixture.secret,
+				identifiedEvent,
+				{
+					signature: signStripePayload(
+						JSON.stringify(identifiedEvent),
+						fixture.secret,
+						Math.floor(Date.now() / 1000) - 301
+					),
+				}
+			);
+			expect(staleSignatureResponse.status).toBe(401);
 
-				const rows = await chQuery<RevenueRow>(
-					`SELECT transaction_id, amount, currency, type, status, metadata
+			const missingSignatureResponse = await fetch(
+				`${basket.baseUrl}/webhooks/stripe/${fixture.webhookHash}`,
+				{
+					body: JSON.stringify(identifiedEvent),
+					headers: { "content-type": "application/json" },
+					method: "POST",
+				}
+			);
+			expect(missingSignatureResponse.status).toBe(400);
+
+			await clickHouse.insert({
+				format: "JSONEachRow",
+				table: "analytics.events",
+				values: [
+					analyticsEvent({
+						anonymousId: `anon_${fixture.runId}`,
+						campaign: "first-touch-campaign",
+						profileId,
+						referrer: "https://search.example/results",
+						sessionId: identifiedSession,
+						source: "search",
+						time: eventTime(1),
+						websiteId: fixture.siteId,
+					}),
+					analyticsEvent({
+						anonymousId: `anon_${fixture.runId}`,
+						campaign: "second-touch-campaign",
+						profileId,
+						referrer: "https://ignored.example/results",
+						sessionId: identifiedSession,
+						source: "ignored",
+						time: eventTime(1, 3600),
+						websiteId: fixture.siteId,
+					}),
+					analyticsEvent({
+						anonymousId,
+						campaign: "partner-campaign",
+						referrer: "https://partner.example/launch",
+						sessionId: sessionOnlyId,
+						source: "partner",
+						time: eventTime(14),
+						websiteId: fixture.siteId,
+					}),
+					analyticsEvent({
+						anonymousId: `anon_profile_${fixture.runId}`,
+						profileId: profileOnlyId,
+						referrer: "https://email.example/click",
+						sessionId: `profile_session_${fixture.runId}`,
+						source: "email",
+						time: eventTime(7),
+						websiteId: fixture.siteId,
+					}),
+				],
+			});
+
+			const [usd] = await revenueOverview(fixture.siteId, [
+				{ field: "currency", op: "eq", value: "USD" },
+			]);
+			const [jpy] = await revenueOverview(fixture.siteId, [
+				{ field: "currency", op: "eq", value: "JPY" },
+			]);
+			expect(Number(usd?.total_revenue)).toBe(356);
+			expect(Number(usd?.total_transactions)).toBe(12);
+			expect(Number(usd?.subscription_revenue)).toBe(174);
+			expect(Number(usd?.sale_revenue)).toBe(182);
+			expect(Number(usd?.refund_amount)).toBe(-5);
+			expect(Number(usd?.refund_count)).toBe(2);
+			expect(Number(jpy?.total_revenue)).toBe(500);
+			expect(Number(jpy?.total_transactions)).toBe(1);
+
+			const rows = await chQuery<RevenueRow>(
+				`SELECT transaction_id, amount, currency, type, status, metadata
 					 FROM analytics.revenue FINAL
 					 WHERE owner_id = {ownerId:String}`,
-					{ ownerId: fixture.ownerId }
-				);
-				const logicalById = new Map(
-					rows.map((row) => [row.transaction_id, row])
-				);
-				expect(logicalById.get(`pi_replayed_${fixture.runId}`)).toBeDefined();
-				expect(rows.filter((row) => row.transaction_id === replayedPaymentIntentId)).toHaveLength(1);
+				{ ownerId: fixture.ownerId }
+			);
+			const logicalById = new Map(rows.map((row) => [row.transaction_id, row]));
+			expect(logicalById.get(`pi_replayed_${fixture.runId}`)).toBeDefined();
+			expect(
+				rows.filter((row) => row.transaction_id === replayedPaymentIntentId)
+			).toHaveLength(1);
 
-				const identityRows = await chQuery<IdentityRow>(
-					`SELECT transaction_id, profile_id, session_id, anonymous_id
+			const identityRows = await chQuery<IdentityRow>(
+				`SELECT transaction_id, profile_id, session_id, anonymous_id
 					 FROM analytics.revenue FINAL
 					 WHERE owner_id = {ownerId:String}
 					 AND transaction_id IN {transactionIds:Array(String)}`,
-					{
-						ownerId: fixture.ownerId,
-						transactionIds: [
-							`pi_identified_${fixture.runId}`,
-							`pi_anonymous_${fixture.runId}`,
-							`pi_profile_${fixture.runId}`,
-							`pi_session_${fixture.runId}`,
-							`pi_salted_${fixture.runId}`,
-						],
-					}
-				);
-				const identityById = new Map(
-					identityRows.map((row) => [row.transaction_id, row])
-				);
-				expect(identityById.get(`pi_identified_${fixture.runId}`)).toEqual(
-					expect.objectContaining({
-						profile_id: profileId,
-						session_id: identifiedSession,
-					})
-				);
-				expect(identityById.get(`pi_profile_${fixture.runId}`)).toEqual(
-					expect.objectContaining({ profile_id: profileOnlyId })
-				);
-				expect(identityById.get(`pi_session_${fixture.runId}`)).toEqual(
-					expect.objectContaining({ session_id: sessionOnlyId })
-				);
-				expect(identityById.get(`pi_anonymous_${fixture.runId}`)).toEqual(
-					expect.objectContaining({ profile_id: "" })
-				);
-				const saltedIdentity = identityById.get(`pi_salted_${fixture.runId}`);
-				expect(saltedIdentity?.anonymous_id).toBeTruthy();
-				expect(saltedIdentity?.anonymous_id).not.toBe(saltedAnonymousId);
-
-				// This is the regression oracle for the removed pre-cutover query:
-				// sum every completed sale/subscription row independently. That old
-				// rule counted a PaymentIntent and its InvoicePayment as two payments
-				// because Basil PaymentIntents no longer carry an invoice reference.
-				const legacyBrokenUsdGross = rows
-					.filter(
-						(row) =>
-							row.currency === "USD" &&
-							row.status === "completed" &&
-							(row.type === "sale" || row.type === "subscription")
-					)
-					.reduce((total, row) => total + Number(row.amount), 0);
-				const linkedPaymentIntentGross = rows
-					.filter((row) =>
-						[linkedPaymentIntentId, allocationPaymentIntentId].includes(
-							row.transaction_id
-						)
-					)
-					.reduce((total, row) => total + Number(row.amount), 0);
-				expect(legacyBrokenUsdGross).toBe(446);
-				expect(linkedPaymentIntentGross).toBe(90);
-				expect(legacyBrokenUsdGross).toBe(
-					Number(usd?.total_revenue) + linkedPaymentIntentGross
-				);
-				expect(legacyBrokenUsdGross).not.toBe(Number(usd?.total_revenue));
-
-				const attribution = await runBuilder(
-					"revenue_attribution_overview",
-					fixture.siteId
-				);
-				const attributed = attribution.find((row) => row.name === "Attributed");
-				const unattributed = attribution.find(
-					(row) => row.name === "Unattributed"
-				);
-				expect(Number(attributed?.revenue)).toBeGreaterThan(0);
-				expect(Number(unattributed?.revenue)).toBeGreaterThan(0);
-
-				const referrers = await runBuilder("revenue_by_referrer", fixture.siteId);
-				const sources = await runBuilder("revenue_by_utm_source", fixture.siteId);
-				const campaigns = await runBuilder(
-					"revenue_by_utm_campaign",
-					fixture.siteId
-				);
-				expect(referrers.some((row) => row.name === "search.example")).toBe(true);
-				expect(sources.some((row) => row.name === "search")).toBe(true);
-				expect(campaigns.some((row) => row.name === "first-touch-campaign")).toBe(
-					true
-				);
-				expect(campaigns.some((row) => row.name === "second-touch-campaign")).toBe(
-					false
-				);
-
-				const recent = await runBuilder("recent_transactions", fixture.siteId);
-				expect(recent.some((row) => row.transaction_id === refundPaymentIntentId)).toBe(
-					true
-				);
-				expect(recent.some((row) => row.type === "refund")).toBe(false);
-
-				const profileListQuery = ProfilesBuilders.profile_list?.customSql?.({
-					endDate: END_DATE,
-					limit: 50,
-					offset: 0,
-					startDate: START_DATE,
-					websiteId: fixture.siteId,
-				});
-				if (!profileListQuery || typeof profileListQuery === "string") {
-					throw new Error("Profile list did not compile");
+				{
+					ownerId: fixture.ownerId,
+					transactionIds: [
+						`pi_identified_${fixture.runId}`,
+						`pi_anonymous_${fixture.runId}`,
+						`pi_profile_${fixture.runId}`,
+						`pi_session_${fixture.runId}`,
+						`pi_salted_${fixture.runId}`,
+					],
 				}
-				const profiles = await chQuery<{ profile_id: string; ltv: number | string }>(
-					profileListQuery.sql,
-					profileListQuery.params
-				);
-				expect(profiles.some((profile) => profile.profile_id === profileId)).toBe(
-					true
-				);
+			);
+			const identityById = new Map(
+				identityRows.map((row) => [row.transaction_id, row])
+			);
+			expect(identityById.get(`pi_identified_${fixture.runId}`)).toEqual(
+				expect.objectContaining({
+					profile_id: profileId,
+					session_id: identifiedSession,
+				})
+			);
+			expect(identityById.get(`pi_profile_${fixture.runId}`)).toEqual(
+				expect.objectContaining({ profile_id: profileOnlyId })
+			);
+			expect(identityById.get(`pi_session_${fixture.runId}`)).toEqual(
+				expect.objectContaining({ session_id: sessionOnlyId })
+			);
+			expect(identityById.get(`pi_anonymous_${fixture.runId}`)).toEqual(
+				expect.objectContaining({ profile_id: "" })
+			);
+			const saltedIdentity = identityById.get(`pi_salted_${fixture.runId}`);
+			expect(saltedIdentity?.anonymous_id).toBeTruthy();
+			expect(saltedIdentity?.anonymous_id).not.toBe(saltedAnonymousId);
 
-				const profileRevenueQuery = ProfilesBuilders.profile_revenue?.customSql?.({
+			// This is the regression oracle for the removed pre-cutover query:
+			// sum every completed sale/subscription row independently. That old
+			// rule counted a PaymentIntent and its InvoicePayment as two payments
+			// because Basil PaymentIntents no longer carry an invoice reference.
+			const legacyBrokenUsdGross = rows
+				.filter(
+					(row) =>
+						row.currency === "USD" &&
+						row.status === "completed" &&
+						(row.type === "sale" || row.type === "subscription")
+				)
+				.reduce((total, row) => total + Number(row.amount), 0);
+			const linkedPaymentIntentGross = rows
+				.filter((row) =>
+					[linkedPaymentIntentId, allocationPaymentIntentId].includes(
+						row.transaction_id
+					)
+				)
+				.reduce((total, row) => total + Number(row.amount), 0);
+			expect(legacyBrokenUsdGross).toBe(446);
+			expect(linkedPaymentIntentGross).toBe(90);
+			expect(legacyBrokenUsdGross).toBe(
+				Number(usd?.total_revenue) + linkedPaymentIntentGross
+			);
+			expect(legacyBrokenUsdGross).not.toBe(Number(usd?.total_revenue));
+
+			const attribution = await runBuilder(
+				"revenue_attribution_overview",
+				fixture.siteId
+			);
+			const attributed = attribution.find((row) => row.name === "Attributed");
+			const unattributed = attribution.find(
+				(row) => row.name === "Unattributed"
+			);
+			expect(Number(attributed?.revenue)).toBeGreaterThan(0);
+			expect(Number(unattributed?.revenue)).toBeGreaterThan(0);
+
+			const referrers = await runBuilder("revenue_by_referrer", fixture.siteId);
+			const sources = await runBuilder("revenue_by_utm_source", fixture.siteId);
+			const campaigns = await runBuilder(
+				"revenue_by_utm_campaign",
+				fixture.siteId
+			);
+			expect(referrers.some((row) => row.name === "search.example")).toBe(true);
+			expect(sources.some((row) => row.name === "search")).toBe(true);
+			expect(campaigns.some((row) => row.name === "first-touch-campaign")).toBe(
+				true
+			);
+			expect(
+				campaigns.some((row) => row.name === "second-touch-campaign")
+			).toBe(false);
+
+			const recent = await runBuilder("recent_transactions", fixture.siteId);
+			expect(
+				recent.some((row) => row.transaction_id === refundPaymentIntentId)
+			).toBe(true);
+			expect(recent.some((row) => row.type === "refund")).toBe(false);
+
+			const profileListQuery = ProfilesBuilders.profile_list?.customSql?.({
+				endDate: END_DATE,
+				limit: 50,
+				offset: 0,
+				startDate: START_DATE,
+				websiteId: fixture.siteId,
+			});
+			if (!profileListQuery || typeof profileListQuery === "string") {
+				throw new Error("Profile list did not compile");
+			}
+			const profiles = await chQuery<{
+				profile_id: string;
+				ltv: number | string;
+			}>(profileListQuery.sql, profileListQuery.params);
+			expect(profiles.some((profile) => profile.profile_id === profileId)).toBe(
+				true
+			);
+
+			const profileRevenueQuery = ProfilesBuilders.profile_revenue?.customSql?.(
+				{
 					endDate: END_DATE,
 					filters: [{ field: "anonymous_id", op: "eq", value: profileId }],
 					limit: 50,
 					offset: 0,
 					startDate: START_DATE,
 					websiteId: fixture.siteId,
-				});
-				if (!profileRevenueQuery || typeof profileRevenueQuery === "string") {
-					throw new Error("Profile revenue did not compile");
 				}
-				const profileRevenue = await chQuery<{ transaction_id: string }>(
-					profileRevenueQuery.sql,
-					profileRevenueQuery.params
-				);
-				expect(
-					profileRevenue.some(
-						(transaction) => transaction.transaction_id === `pi_identified_${fixture.runId}`
-					)
-				).toBe(true);
+			);
+			if (!profileRevenueQuery || typeof profileRevenueQuery === "string") {
+				throw new Error("Profile revenue did not compile");
+			}
+			const profileRevenue = await chQuery<{ transaction_id: string }>(
+				profileRevenueQuery.sql,
+				profileRevenueQuery.params
+			);
+			expect(
+				profileRevenue.some(
+					(transaction) =>
+						transaction.transaction_id === `pi_identified_${fixture.runId}`
+				)
+			).toBe(true);
+		} finally {
+			try {
+				if (basket) {
+					await basket.stop();
+				}
 			} finally {
-				try {
-					if (basket) {
-						await basket.stop();
-					}
-				} finally {
-					await deleteFixture(fixture);
-				}
+				await deleteFixture(fixture);
 			}
 		}
-	);
+	});
 });

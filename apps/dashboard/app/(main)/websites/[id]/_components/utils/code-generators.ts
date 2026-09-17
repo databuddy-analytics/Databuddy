@@ -1,10 +1,44 @@
-import { ACTUAL_LIBRARY_DEFAULTS } from "./tracking-defaults";
+import { publicConfig } from "@databuddy/env/public";
+import {
+	ACTUAL_LIBRARY_DEFAULTS,
+	RECOMMENDED_DEFAULTS,
+} from "./tracking-defaults";
 import type { TrackingOptions } from "./types";
 
 export interface VersionedScript {
 	filename: string;
 	sriHash: string;
 	version: number;
+}
+
+export function generateAgentPrompt(websiteId: string): string {
+	return `Add Databuddy analytics to this repository. Choose one integration for its framework and follow the existing code style.
+Keep the client ID and API URL shown below so events reach this Databuddy instance.
+For React or Vue, install @databuddy/sdk with the repository's package manager and mount the component once at the app root.
+
+## React / Next.js
+\`\`\`tsx
+${generateNpmCode(websiteId, RECOMMENDED_DEFAULTS)}
+\`\`\`
+
+## Vue
+\`\`\`vue
+${generateVueCode(websiteId, RECOMMENDED_DEFAULTS)}
+\`\`\`
+
+## HTML (add to <head>)
+\`\`\`html
+${generateScriptTag(websiteId, RECOMMENDED_DEFAULTS)}
+\`\`\`
+
+Page views and sessions are automatic. For custom events, use track() from @databuddy/sdk with short event names and no personal data.
+
+## Verify
+- Open the website and check for successful event requests to ${publicConfig.urls.basket}, then confirm events appear in the dashboard.
+- The website's domain must match its Databuddy settings. On localhost, use the SDK's debug prop or the databuddy-debug.js script.
+- If CSP is enabled, allow the tracker script's origin in script-src and ${new URL(publicConfig.urls.basket).origin} in connect-src. Check for blocked requests in DevTools.
+
+More options: https://www.databuddy.cc/docs/getting-started`;
 }
 
 export function generateScriptTag(
@@ -48,6 +82,7 @@ export function generateScriptTag(
 	return `<script
     src="${scriptUrl}"
     data-client-id="${websiteId}"
+    data-api-url="${publicConfig.urls.basket}"
 ${optionsLine}${integrityLine}    crossorigin="anonymous"
     async
   ></script>`;
@@ -88,6 +123,7 @@ function AppLayout({ children }) {
     <>
       {children}
       <Databuddy
+        apiUrl="${publicConfig.urls.basket}"
         clientId="${websiteId}"${propsString}/>
     </>
   );
@@ -100,6 +136,7 @@ export function generateNodeCode(websiteId: string): string {
 const analytics = new Databuddy({
   apiKey: process.env.DATABUDDY_API_KEY!,
   websiteId: '${websiteId}',
+  apiUrl: ${JSON.stringify(publicConfig.urls.basket)},
   enableBatching: true,
 });
 
@@ -152,6 +189,7 @@ import { Databuddy } from '@databuddy/sdk/vue';
   <div>
     <router-view />
     <Databuddy
+      api-url="${publicConfig.urls.basket}"
       client-id="${websiteId}"${propsString}
     />
   </div>

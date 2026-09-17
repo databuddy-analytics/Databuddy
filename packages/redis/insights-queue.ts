@@ -7,7 +7,6 @@ export const INSIGHTS_DISPATCH_JOB_NAME = "insights-dispatch";
 export const INSIGHTS_GENERATE_WEBSITE_JOB_NAME = "insights-generate-website";
 export const INSIGHTS_MAINTENANCE_JOB_NAME = "insights-maintenance";
 export const INSIGHTS_RESUME_JOB_NAME = "insights-resume";
-export const INSIGHTS_BUSINESS_CONTEXT_JOB_NAME = "insights-business-context";
 
 export const INSIGHTS_JOB_TIMEOUT_MS = 120_000;
 
@@ -57,8 +56,7 @@ export type InsightsQueueJobData =
 	| InsightsDispatchJobData
 	| InsightsGenerateWebsiteJobData
 	| InsightsMaintenanceJobData
-	| InsightsResumeJobData
-	| { organizationId: string; generationId: string };
+	| InsightsResumeJobData;
 
 let insightsQueue: Queue<InsightsQueueJobData> | null = null;
 

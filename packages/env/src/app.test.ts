@@ -2,12 +2,34 @@ import { describe, expect, it } from "bun:test";
 import { createConfig, readBooleanEnv } from "./app";
 
 describe("createConfig", () => {
+	it("keeps production URL defaults local only when self-hosting", () => {
+		expect(createConfig({ NODE_ENV: "production" }).urls).toEqual({
+			api: "https://api.databuddy.cc",
+			basket: "https://basket.databuddy.cc",
+			dashboard: "https://app.databuddy.cc",
+			links: "https://dby.sh",
+			mcp: "https://api.databuddy.cc/v1/mcp/",
+			status: "https://status.databuddy.cc",
+		});
+		expect(
+			createConfig({ NODE_ENV: "production", SELFHOST: " TRUE " }).urls
+		).toEqual({
+			api: "http://localhost:3001",
+			basket: "http://localhost:4000",
+			dashboard: "http://localhost:3000",
+			links: "http://localhost:2500",
+			mcp: "http://localhost:3001/v1/mcp/",
+			status: "http://localhost:3002",
+		});
+	});
+
 	it("prefers self-hosting urls and strips trailing slashes", () => {
 		expect(
 			createConfig({
 				API_URL: "https://api.example.com/",
 				DASHBOARD_URL: "https://app.example.com/",
 				NODE_ENV: "production",
+				SELFHOST: "true",
 			})
 		).toMatchObject({
 			urls: {
@@ -114,14 +136,14 @@ describe("createConfig", () => {
 	});
 
 	it("falls alert email back to the normal sender before the default", () => {
-		expect(
-			createConfig({ EMAIL_FROM: "App <app@example.com>" })
-		).toMatchObject({
-			email: {
-				alertsFrom: "App <app@example.com>",
-				from: "App <app@example.com>",
-			},
-		});
+		expect(createConfig({ EMAIL_FROM: "App <app@example.com>" })).toMatchObject(
+			{
+				email: {
+					alertsFrom: "App <app@example.com>",
+					from: "App <app@example.com>",
+				},
+			}
+		);
 	});
 });
 

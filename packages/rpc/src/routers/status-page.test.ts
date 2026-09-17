@@ -78,7 +78,8 @@ beforeAll(async () => {
 		db: { select, query: { incidents: { findMany: async () => [incident] } } },
 	}));
 	mock.module("@databuddy/db/clickhouse", () => ({
-		chQuery: async (sql: string) => (sql.includes("argMax") ? [latestCheck] : []),
+		chQuery: async (sql: string) =>
+			sql.includes("argMax") ? [latestCheck] : [],
 	}));
 	mock.module("@databuddy/redis/redis", () => ({
 		...realRedis,

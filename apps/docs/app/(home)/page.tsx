@@ -17,6 +17,7 @@ import { StructuredData } from "@/components/structured-data";
 import { createAgentJson, developerResources } from "@/lib/agent-discovery";
 import { getDemoEmbedBaseUrl, hostFromNextHeaders } from "@/lib/demo-embed-url";
 import { homeFaqItems, homePageSeo } from "@/lib/home-seo";
+import { getGithubStars } from "@/lib/utils";
 
 export const metadata: Metadata = {
 	title: homePageSeo.title,
@@ -41,31 +42,6 @@ interface HomePageProps {
 
 function firstValue(value: string | string[] | undefined) {
 	return Array.isArray(value) ? value[0] : value;
-}
-
-async function getGithubStars(): Promise<number | null> {
-	try {
-		const response = await fetch(
-			"https://api.github.com/repos/databuddy-analytics/databuddy",
-			{
-				headers: {
-					Accept: "application/vnd.github+json",
-				},
-				next: { revalidate: 3600 },
-			}
-		);
-
-		if (!response.ok) {
-			return null;
-		}
-
-		const data = (await response.json()) as { stargazers_count?: number };
-		return typeof data.stargazers_count === "number"
-			? data.stargazers_count
-			: null;
-	} catch {
-		return null;
-	}
 }
 
 function AgentModeView() {

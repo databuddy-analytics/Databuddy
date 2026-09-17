@@ -91,14 +91,13 @@ describe("dashboard navigation actions", () => {
 			{ field: "path", operator: "in", value: ["/", "/pricing"] },
 		] as const;
 
-		expect(parseDashboardFiltersParam(serializeDashboardFilters([...filters]))).toEqual(
-			[...filters]
-		);
+		expect(
+			parseDashboardFiltersParam(serializeDashboardFilters([...filters]))
+		).toEqual([...filters]);
 		expect(
 			parseDashboardFiltersParam(
 				JSON.stringify([{ field: "utm_source", operator: "bad", value: "x" }])
 			)
 		).toBeNull();
 	});
-
 });

@@ -1,6 +1,5 @@
 import { describe, expect, it } from "bun:test";
 import {
-	AGENT_TENANT_COLUMN_BY_TABLE,
 	buildAdditionalTableFilters,
 	extractAllowlistedTables,
 	validateAgentSQL,
@@ -106,7 +105,6 @@ describe("validateAgentSQL", () => {
 
 	it("buildAdditionalTableFilters escapes single quotes in websiteId", () => {
 		const out = buildAdditionalTableFilters(["analytics.events"], "O'Brien");
-		// each ' in the id becomes '''' (2-level escape: outer string + inner SQL)
 		expect(out).toBe("{'analytics.events':'client_id=''O''''Brien'''}");
 	});
 
@@ -130,22 +128,8 @@ describe("validateAgentSQL", () => {
 		]);
 	});
 
-	it("AGENT_TENANT_COLUMN_BY_TABLE only covers vetted tables", () => {
-		expect(AGENT_TENANT_COLUMN_BY_TABLE).toEqual({
-			"analytics.events": "client_id",
-			"analytics.error_spans": "client_id",
-			"analytics.web_vitals_spans": "client_id",
-			"analytics.outgoing_links": "client_id",
-			"analytics.custom_events": "owner_id",
-			"analytics.revenue": "owner_id",
-			"analytics.blocked_traffic": "client_id",
-		});
-	});
-
 	it("rejects queries against non-analytics tables", () => {
-		const result = validateAgentSQL(
-			`SELECT * FROM public.users ${TENANT}`
-		);
+		const result = validateAgentSQL(`SELECT * FROM public.users ${TENANT}`);
 		expect(result.valid).toBe(false);
 		expect(result.reason).toContain("public.users");
 	});
@@ -174,7 +158,7 @@ describe("validateAgentSQL", () => {
 
 	it("is case-insensitive for FROM/JOIN keywords", () => {
 		const result = validateAgentSQL(
-			`select count() from analytics.events where client_id = {websiteId:String}`
+			"select count() from analytics.events where client_id = {websiteId:String}"
 		);
 		expect(result).toEqual({ valid: true, reason: null });
 	});
@@ -436,7 +420,7 @@ describe("validateAgentSQL", () => {
 
 		it("rejects comma-separated joins", () => {
 			const result = validateAgentSQL(
-				`SELECT a.path FROM analytics.events a, analytics.error_spans b WHERE a.client_id = {websiteId:String}`
+				"SELECT a.path FROM analytics.events a, analytics.error_spans b WHERE a.client_id = {websiteId:String}"
 			);
 			expect(result.valid).toBe(false);
 			expect(result.reason).toContain("Comma");

@@ -8,8 +8,6 @@ import {
 	useContext,
 	type ButtonHTMLAttributes,
 	useEffect,
-	useRef,
-	useState,
 } from "react";
 import { Spinner } from "./spinner";
 
@@ -166,19 +164,9 @@ export function Button({
 	...rest
 }: ButtonProps) {
 	const Comp = asChild ? Slot : "button";
-	const ref = useRef<HTMLButtonElement>(null);
-	const [lockedWidth, setLockedWidth] = useState<number>();
 	const isClickDisabled = disabled || loading;
 	const hasSubmitHint = useContext(SubmitHintContext);
 	const showSubmitHint = hasSubmitHint && type === "submit" && !keyboard;
-
-	useEffect(() => {
-		if (loading && ref.current && !lockedWidth) {
-			setLockedWidth(ref.current.offsetWidth);
-		} else if (!loading) {
-			setLockedWidth(undefined);
-		}
-	}, [loading, lockedWidth]);
 
 	useEffect(() => {
 		if (!keyboard || isClickDisabled) {
@@ -207,34 +195,49 @@ export function Button({
 		);
 	}
 
+	const content = (
+		<>
+			{children}
+			{keyboard && (
+				<kbd className="ml-1 rounded border bg-black/5 px-1.5 py-0.5 font-mono text-[10px] dark:bg-white/10">
+					{keyboard.display}
+				</kbd>
+			)}
+			{showSubmitHint && (
+				<kbd className="ml-1 hidden rounded bg-primary-foreground/20 px-1 py-px font-mono text-[10px] sm:inline">
+					⌘↵
+				</kbd>
+			)}
+		</>
+	);
+
 	return (
 		<Comp
-			className={buttonVariants({ className, size, tone, variant })}
-			disabled={disabled}
+			className={buttonVariants({
+				className: cn("relative", className),
+				size,
+				tone,
+				variant,
+			})}
+			disabled={isClickDisabled}
 			aria-disabled={isClickDisabled}
 			aria-busy={loading}
-			ref={ref}
-			style={lockedWidth ? { width: lockedWidth } : undefined}
 			type={type}
-			onClick={loading ? undefined : rest.onClick}
 			{...rest}
 		>
 			{loading ? (
-				<Spinner size="sm" />
+				<span className="items-[inherit] inline-flex gap-[inherit] opacity-0 [flex-direction:inherit]">
+					{content}
+				</span>
 			) : (
-				<>
-					{children}
-					{keyboard && (
-						<kbd className="ml-1 rounded border bg-black/5 px-1.5 py-0.5 font-mono text-[10px] dark:bg-white/10">
-							{keyboard.display}
-						</kbd>
-					)}
-					{showSubmitHint && (
-						<kbd className="ml-1 hidden rounded bg-primary-foreground/20 px-1 py-px font-mono text-[10px] sm:inline">
-							⌘↵
-						</kbd>
-					)}
-				</>
+				content
+			)}
+			{loading && (
+				<Spinner
+					aria-hidden="true"
+					className="absolute inset-0 m-auto"
+					size="sm"
+				/>
 			)}
 		</Comp>
 	);

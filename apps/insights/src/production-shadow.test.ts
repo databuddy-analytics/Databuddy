@@ -136,9 +136,9 @@ describe("specialist shadow scope", () => {
 				specialist
 			);
 		}
-		expect(() =>
-			parseShadowOptions([...args, "journey"])
-		).toThrow("specialist must be one of funnel, goal, reliability, general");
+		expect(() => parseShadowOptions([...args, "journey"])).toThrow(
+			"specialist must be one of funnel, goal, reliability, general"
+		);
 	});
 
 	it("keeps each specialist's detected and due work isolated", () => {

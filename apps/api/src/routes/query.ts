@@ -454,6 +454,9 @@ async function enforceFeatureGatesForQueryTypes(
 	queryTypes: string[],
 	website: { organizationId: string | null }
 ): Promise<{ error: string; feature: GatedFeatureId } | null> {
+	if (readBooleanEnv("SELFHOST")) {
+		return null;
+	}
 	const required = new Set<GatedFeatureId>();
 	for (const type of queryTypes) {
 		const feature = FEATURE_GATED_QUERY_TYPES[type];

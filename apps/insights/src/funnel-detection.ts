@@ -313,7 +313,7 @@ export function defaultFunnelGoalDeps(
 	};
 }
 
-async function raceWithAbort<T>(
+export async function raceWithAbort<T>(
 	work: () => Promise<T>,
 	signal: AbortSignal
 ): Promise<T> {
@@ -321,7 +321,7 @@ async function raceWithAbort<T>(
 	let removeAbortListener: (() => void) | undefined;
 	const stopped = new Promise<never>((_resolve, reject) => {
 		const onAbort = () => {
-			reject(signal.reason ?? new Error("Goal and funnel detection aborted"));
+			reject(signal.reason ?? new Error("Analytics detection aborted"));
 		};
 		if (signal.aborted) {
 			onAbort();

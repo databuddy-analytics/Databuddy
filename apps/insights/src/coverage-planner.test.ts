@@ -25,17 +25,22 @@ function keys(signals: DetectedSignal[]): string[] {
 
 describe("planCoveragePortfolio", () => {
 	it("uses a manual full scan for family breadth before repeated reliability work", () => {
-		const reliabilitySignals = ["checkout", "search", "billing", "account", "docs"].map(
-			(subject) =>
-				signal({
-					baseline: 50,
-					current: 100,
-					deltaPercent: 100,
-					direction: "up",
-					metric: "error_count",
-					severity: "critical",
-					subjectKey: `error:${subject}`,
-				})
+		const reliabilitySignals = [
+			"checkout",
+			"search",
+			"billing",
+			"account",
+			"docs",
+		].map((subject) =>
+			signal({
+				baseline: 50,
+				current: 100,
+				deltaPercent: 100,
+				direction: "up",
+				metric: "error_count",
+				severity: "critical",
+				subjectKey: `error:${subject}`,
+			})
 		);
 		const revenue = signal({
 			baseline: 100,
@@ -136,9 +141,13 @@ describe("planCoveragePortfolio", () => {
 			signalKeyForDetectedSignal(visitors),
 			signalKeyForDetectedSignal(goal),
 		]);
-		expect(plan.filter((item) => item.metric === "error_count")).toHaveLength(1);
+		expect(plan.filter((item) => item.metric === "error_count")).toHaveLength(
+			1
+		);
 		expect(
-			plan.filter((item) => ["visitors", "sessions", "pageviews"].includes(item.metric))
+			plan.filter((item) =>
+				["visitors", "sessions", "pageviews"].includes(item.metric)
+			)
 		).toHaveLength(1);
 	});
 
@@ -171,8 +180,12 @@ describe("planCoveragePortfolio", () => {
 			},
 		});
 
-		const forward = planCoveragePortfolio([first, second], { reason: "manual" });
-		const reversed = planCoveragePortfolio([second, first], { reason: "manual" });
+		const forward = planCoveragePortfolio([first, second], {
+			reason: "manual",
+		});
+		const reversed = planCoveragePortfolio([second, first], {
+			reason: "manual",
+		});
 
 		expect(forward).toEqual(reversed);
 	});
@@ -209,9 +222,7 @@ describe("planCoveragePortfolio", () => {
 		);
 
 		expect(plan).toHaveLength(3);
-		expect(
-			plan.filter((item) => item.entityId === "/explore")
-		).toHaveLength(1);
+		expect(plan.filter((item) => item.entityId === "/explore")).toHaveLength(1);
 	});
 
 	it("returns the same portfolio order regardless of detector input order", () => {
@@ -224,7 +235,9 @@ describe("planCoveragePortfolio", () => {
 		expect(
 			keys(planCoveragePortfolio(candidates, { reason: "manual" }))
 		).toEqual(
-			keys(planCoveragePortfolio([...candidates].reverse(), { reason: "manual" }))
+			keys(
+				planCoveragePortfolio([...candidates].reverse(), { reason: "manual" })
+			)
 		);
 	});
 
@@ -275,7 +288,6 @@ describe("planCoveragePortfolio", () => {
 			signalKeyForDetectedSignal(coolingError),
 		]);
 	});
-
 });
 
 describe("business preference constraints", () => {
@@ -303,10 +315,33 @@ describe("business preference constraints", () => {
 		expect(plan).toHaveLength(5);
 		expect(plan).toContain(error);
 		expect(plan).toContain(funnel);
-		expect(plan).toContain(traffic);
+		expect(plan).not.toContain(traffic);
 		expect(plan.filter((item) => item.metric.startsWith("goal:"))).toHaveLength(
-			2
+			3
 		);
+	});
+
+	it.each([
+		"manual",
+		"scheduled",
+	] as const)("preserves an explicit traffic exclusion in a %s scan", (reason) => {
+		const goal = signal({
+			metric: "goal:activation",
+			subjectKey: "goal:activation",
+		});
+		const traffic = signal({ metric: "visitors" });
+		expect(
+			planCoveragePortfolio([traffic, goal], {
+				reason,
+				selectedSignalKeys: keys([goal]),
+			})
+		).toEqual([goal]);
+		expect(
+			planCoveragePortfolio([traffic, goal], {
+				reason,
+				selectedSignalKeys: keys([traffic]),
+			})
+		).toContain(traffic);
 	});
 
 	it("keeps one correlated subject, the due case first, and the scheduled limit", () => {

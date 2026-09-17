@@ -11,7 +11,8 @@
     "./permissions": "./src/permissions.ts"
   },
   "scripts": {
-    "check-types": "tsc --noEmit"
+    "check-types": "tsc --noEmit",
+    "test": "bun test src"
   },
   "dependencies": {
     "@better-auth/core": "^1.6.11",

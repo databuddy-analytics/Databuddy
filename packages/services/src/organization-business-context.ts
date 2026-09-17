@@ -1,19 +1,28 @@
 import { randomUUID } from "node:crypto";
-import { and, db, eq, isNull, sql } from "@databuddy/db";
-import { organization, websites } from "@databuddy/db/schema";
+import { and, db, eq, inArray, isNull, sql } from "@databuddy/db";
+import {
+	organization,
+	organizationBusinessContexts,
+	websites,
+} from "@databuddy/db/schema";
 import {
 	BUSINESS_CONTEXT_GENERATION_TIMEOUT,
 	BUSINESS_CONTEXT_DRAFT_HISTORY_LIMIT,
 	businessBriefSchema,
 	businessTeamContextSchema,
+	businessMeasurementPlansSchema,
 	businessContextIsGenerating,
+	businessContextSourceUrlsSchema,
+	businessContextSourceBelongsToSite,
+	businessContextProgressSchema,
 	organizationBusinessContextSchema,
 	type BusinessBrief,
 	type BusinessTeamContext,
+	type BusinessMeasurementPlan,
 	type OrganizationBusinessContext,
 	type OrganizationBusinessProfile,
 } from "@databuddy/shared/organization-business-context";
-import { z } from "zod";
+import type { z } from "zod";
 
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -25,15 +34,9 @@ export class BusinessContextError extends Error {
 	}
 }
 
-function metadata(value: string | null): Record<string, unknown> {
-	return value
-		? z.record(z.string(), z.unknown()).parse(JSON.parse(value))
-		: {};
-}
-
-function state(value: Record<string, unknown>): OrganizationBusinessContext {
+function state(value: unknown): OrganizationBusinessContext {
 	const result = organizationBusinessContextSchema.parse(
-		value.businessContext ?? { profile: null, generation: null }
+		value ?? { profile: null, generation: null }
 	);
 	if (
 		businessContextIsGenerating(result) &&
@@ -45,6 +48,7 @@ function state(value: Record<string, unknown>): OrganizationBusinessContext {
 		result.generation = {
 			...result.generation,
 			status: "failed",
+			progress: undefined,
 			error:
 				"Generation took too long. Try again; your saved context is unchanged.",
 		};
@@ -55,14 +59,18 @@ function state(value: Record<string, unknown>): OrganizationBusinessContext {
 export async function readOrganizationBusinessContext(
 	organizationId: string
 ): Promise<OrganizationBusinessContext> {
-	const row = await db.query.organization.findFirst({
-		where: { id: organizationId },
-		columns: { metadata: true },
-	});
+	const [row] = await db
+		.select({ state: organizationBusinessContexts.state })
+		.from(organization)
+		.leftJoin(
+			organizationBusinessContexts,
+			eq(organizationBusinessContexts.organizationId, organization.id)
+		)
+		.where(eq(organization.id, organizationId));
 	if (!row) {
 		throw new BusinessContextError("NOT_FOUND", "Organization not found");
 	}
-	return state(metadata(row.metadata));
+	return state(row.state);
 }
 
 async function update(
@@ -70,26 +78,38 @@ async function update(
 	change: (
 		current: OrganizationBusinessContext,
 		tx: Transaction
-	) => OrganizationBusinessContext | Promise<OrganizationBusinessContext>
+	) => OrganizationBusinessContext | Promise<OrganizationBusinessContext>,
+	signal?: AbortSignal
 ): Promise<OrganizationBusinessContext> {
 	return await db.transaction(async (tx) => {
 		await tx.execute(sql`SET LOCAL lock_timeout = '4s'`);
+		await tx.execute(
+			sql`SELECT pg_advisory_xact_lock(hashtext(${organizationId}))`
+		);
 		const [row] = await tx
-			.select({ metadata: organization.metadata })
+			.select({ state: organizationBusinessContexts.state })
 			.from(organization)
-			.where(eq(organization.id, organizationId))
-			.for("no key update");
+			.leftJoin(
+				organizationBusinessContexts,
+				eq(organizationBusinessContexts.organizationId, organization.id)
+			)
+			.where(eq(organization.id, organizationId));
 		if (!row) {
 			throw new BusinessContextError("NOT_FOUND", "Organization not found");
 		}
-		const values = metadata(row.metadata);
 		const next = organizationBusinessContextSchema.parse(
-			await change(state(values), tx)
+			await change(state(row.state), tx)
 		);
+		signal?.throwIfAborted();
 		await tx
-			.update(organization)
-			.set({ metadata: JSON.stringify({ ...values, businessContext: next }) })
-			.where(eq(organization.id, organizationId));
+			.insert(organizationBusinessContexts)
+			.values({ organizationId, state: next })
+			.onConflictDoUpdate({
+				target: organizationBusinessContexts.organizationId,
+				set: { state: next, updatedAt: new Date() },
+			});
+		// Publication wins once this transaction is authorized to commit.
+		signal?.throwIfAborted();
 		return next;
 	});
 }
@@ -98,6 +118,7 @@ export async function beginBusinessContextGeneration(input: {
 	organizationId: string;
 	websiteId: string;
 	requestedBy: string;
+	sourceUrls?: string[];
 }): Promise<OrganizationBusinessContext> {
 	return await update(input.organizationId, async (current, tx) => {
 		const [site] = await tx
@@ -118,7 +139,23 @@ export async function beginBusinessContextGeneration(input: {
 			);
 		}
 		if (businessContextIsGenerating(current)) {
-			return current;
+			throw new BusinessContextError(
+				"CONFLICT",
+				"A business context generation is already running. Stop it before starting another."
+			);
+		}
+		const sourceUrls = businessContextSourceUrlsSchema.parse(
+			input.sourceUrls ?? []
+		);
+		if (
+			sourceUrls.some(
+				(url) => !businessContextSourceBelongsToSite(url, site.domain)
+			)
+		) {
+			throw new BusinessContextError(
+				"CONFLICT",
+				"Source pages must belong to the selected website or its subdomains."
+			);
 		}
 		const previousDrafts = [...(current.previousDrafts ?? [])];
 		if (current.generation?.status === "ready" && current.generation.draft) {
@@ -133,10 +170,12 @@ export async function beginBusinessContextGeneration(input: {
 				id: randomUUID(),
 				websiteId: input.websiteId,
 				domain: site.domain,
+				sourceUrls: [...new Set(sourceUrls)],
 				requestedBy: input.requestedBy,
 				requestedAt: new Date().toISOString(),
 				baseRevision: current.profile?.revision ?? 0,
-				status: "queued",
+				status: "running",
+				progress: { stage: "reading" },
 				draft: null,
 				error: null,
 			},
@@ -150,55 +189,107 @@ export async function markBusinessContextGeneration(input: {
 	status: "running" | "ready" | "failed";
 	draft?: BusinessBrief;
 	error?: string;
+	progress?: z.infer<typeof businessContextProgressSchema>;
+	signal?: AbortSignal;
 }): Promise<OrganizationBusinessContext> {
-	return await update(input.organizationId, async (current, tx) => {
-		const generation = current.generation;
-		if (
-			!generation ||
-			generation.id !== input.generationId ||
-			!businessContextIsGenerating(current)
-		) {
-			return current;
-		}
-		const [site] = await tx
-			.select({ id: websites.id })
-			.from(websites)
-			.where(
-				and(
-					eq(websites.id, generation.websiteId),
-					eq(websites.organizationId, input.organizationId),
-					eq(websites.domain, generation.domain),
-					isNull(websites.deletedAt)
+	return await update(
+		input.organizationId,
+		async (current, tx) => {
+			const generation = current.generation;
+			if (
+				!generation ||
+				generation.id !== input.generationId ||
+				!businessContextIsGenerating(current)
+			) {
+				return current;
+			}
+			const [site] = await tx
+				.select({ id: websites.id })
+				.from(websites)
+				.where(
+					and(
+						eq(websites.id, generation.websiteId),
+						eq(websites.organizationId, input.organizationId),
+						eq(websites.domain, generation.domain),
+						isNull(websites.deletedAt)
+					)
 				)
-			)
-			.for("update");
-		if (!site) {
+				.for("update");
+			if (!site) {
+				return {
+					...current,
+					generation: {
+						...generation,
+						status: "failed",
+						draft: null,
+						progress: undefined,
+						error: "The source website is no longer in this organization.",
+					},
+				};
+			}
 			return {
 				...current,
 				generation: {
 					...generation,
-					status: "failed",
-					draft: null,
-					error: "The source website is no longer in this organization.",
+					status: input.status,
+					progress:
+						input.status === "running"
+							? input.progress
+								? businessContextProgressSchema.parse(input.progress)
+								: generation.progress
+							: undefined,
+					draft:
+						input.status === "ready" && input.draft
+							? businessBriefSchema.parse(input.draft)
+							: null,
+					error:
+						input.status === "failed"
+							? (input.error ??
+								"Could not generate business context. Try again.")
+							: null,
 				},
 			};
-		}
-		return {
-			...current,
-			generation: {
-				...generation,
-				status: input.status,
-				draft:
-					input.status === "ready" && input.draft
-						? businessBriefSchema.parse(input.draft)
-						: null,
-				error:
-					input.status === "failed"
-						? (input.error ?? "Could not generate business context. Try again.")
-						: null,
-			},
-		};
-	});
+		},
+		input.signal
+	);
+}
+
+async function validateMeasurementBindings(
+	tx: Transaction,
+	organizationId: string,
+	plans?: BusinessMeasurementPlan[]
+) {
+	if (!plans?.length) {
+		return;
+	}
+
+	const sites = await tx
+		.select({ id: websites.id, domain: websites.domain })
+		.from(websites)
+		.where(
+			and(
+				inArray(
+					websites.id,
+					plans.map((plan) => plan.websiteId)
+				),
+				eq(websites.organizationId, organizationId),
+				isNull(websites.deletedAt)
+			)
+		)
+		.for("update");
+	if (
+		plans.some(
+			(plan) =>
+				!sites.some(
+					(site) => site.id === plan.websiteId && site.domain === plan.domain
+				)
+		)
+	) {
+		throw new BusinessContextError(
+			"CONFLICT",
+			"A measurement website changed or is unavailable. Review its definition before saving."
+		);
+	}
 }
 
 export async function saveOrganizationBusinessProfile(input: {
@@ -208,6 +299,7 @@ export async function saveOrganizationBusinessProfile(input: {
 	updatedBy: string;
 	generationId?: string;
 	teamContext?: BusinessTeamContext;
+	measurementPlans?: BusinessMeasurementPlan[];
 }): Promise<OrganizationBusinessContext> {
 	return await update(input.organizationId, async (current, tx) => {
 		if ((current.profile?.revision ?? 0) !== input.revision) {
@@ -253,6 +345,14 @@ export async function saveOrganizationBusinessProfile(input: {
 			}
 		}
 		const content = input.content.trim();
+		const measurementPlans = input.measurementPlans
+			? businessMeasurementPlansSchema.parse(input.measurementPlans)
+			: current.profile?.measurementPlans;
+		await validateMeasurementBindings(
+			tx,
+			input.organizationId,
+			measurementPlans
+		);
 		const unchangedDraft = generated?.draft?.content === content;
 		const unchangedSaved = !generated && current.profile?.content === content;
 		// A small edit does not verify every inherited website claim. Manual changes
@@ -283,6 +383,7 @@ export async function saveOrganizationBusinessProfile(input: {
 			history: profileHistory(current),
 			profile: {
 				...brief,
+				measurementPlans,
 				origin,
 				revision: input.revision + 1,
 				updatedAt: new Date().toISOString(),
@@ -311,15 +412,27 @@ function profileHistory(current: OrganizationBusinessContext) {
 export async function cancelBusinessContextGeneration(input: {
 	organizationId: string;
 	generationId: string;
+	activeOnly?: boolean;
 }): Promise<OrganizationBusinessContext> {
-	return await update(input.organizationId, (current) => ({
-		...current,
-		generation:
-			current.generation?.id === input.generationId ? null : current.generation,
-		previousDrafts: current.previousDrafts?.filter(
-			(draft) => draft.id !== input.generationId
-		),
-	}));
+	return await update(input.organizationId, (current) => {
+		if (
+			input.activeOnly &&
+			(current.generation?.id !== input.generationId ||
+				!businessContextIsGenerating(current))
+		) {
+			return current;
+		}
+		return {
+			...current,
+			generation:
+				current.generation?.id === input.generationId
+					? null
+					: current.generation,
+			previousDrafts: current.previousDrafts?.filter(
+				(draft) => draft.id !== input.generationId
+			),
+		};
+	});
 }
 
 export async function restoreOrganizationBusinessProfile(input: {
@@ -328,7 +441,7 @@ export async function restoreOrganizationBusinessProfile(input: {
 	restoreRevision: number;
 	updatedBy: string;
 }): Promise<OrganizationBusinessContext> {
-	return await update(input.organizationId, (current) => {
+	return await update(input.organizationId, async (current, tx) => {
 		if ((current.profile?.revision ?? 0) !== input.revision) {
 			throw new BusinessContextError(
 				"CONFLICT",
@@ -344,6 +457,11 @@ export async function restoreOrganizationBusinessProfile(input: {
 				"This version is no longer available."
 			);
 		}
+		await validateMeasurementBindings(
+			tx,
+			input.organizationId,
+			previous.measurementPlans
+		);
 		return {
 			profile: {
 				...previous,

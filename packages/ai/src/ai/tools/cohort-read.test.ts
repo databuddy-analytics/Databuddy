@@ -29,7 +29,9 @@ test("native cohort reaches the existing RPC procedure", async () => {
 		const dates = { startDate: "2026-08-22", endDate: "2026-08-28", cohort };
 		const funnel = createFunnelTools().get_funnel_analytics;
 		const goal = createGoalTools().get_goal_analytics;
-		if (!funnel.execute || !goal.execute) throw new Error("Missing executor");
+		if (!(funnel.execute && goal.execute)) {
+			throw new Error("Missing executor");
+		}
 		await funnel.execute({ funnelId: "synthetic-funnel", ...dates }, options);
 		await goal.execute({ goalId: "synthetic-goal", ...dates }, options);
 		expect(
@@ -71,12 +73,13 @@ test("cohort rejects tenant and step selectors", () => {
 		"event_name",
 		"referrer",
 		"browser_name OR 1=1",
-	])
+	]) {
 		expect(
 			analyticsCohortSchema.safeParse({
 				filters: [{ field, operator: "equals", value: "x" }],
 			}).success
 		).toBe(false);
+	}
 	expect(
 		analyticsCohortSchema.safeParse({
 			filters: [{ ...cohort.filters[0], target: "event" }],
@@ -85,7 +88,9 @@ test("cohort rejects tenant and step selectors", () => {
 });
 test("inaccessible website never reaches RPC", async () => {
 	const tool = createFunnelTools().get_funnel_analytics;
-	if (!tool.execute) throw new Error("Missing executor");
+	if (!tool.execute) {
+		throw new Error("Missing executor");
+	}
 	const invoke = spyOn(rpc, "callRPCProcedure").mockResolvedValue({
 		synthetic: true,
 	});
@@ -131,21 +136,27 @@ test("model can explicitly request unfiltered analytics without inventing a coho
 			[createGoalTools().get_goal_analytics, { goalId: "synthetic-goal" }],
 		] as const) {
 			const schema = asSchema(definition.inputSchema);
-			// Strict model providers need an explicit empty alternative for objects.
 			expect(JSON.stringify(schema.jsonSchema)).toContain('"type":"null"');
 			for (const cohort of [null, undefined]) {
 				const input = { ...id, ...dates, cohort };
-				if (!schema.validate) throw new Error("Missing schema validator");
+				if (!schema.validate) {
+					throw new Error("Missing schema validator");
+				}
 				expect((await schema.validate(input)).success).toBe(true);
 			}
 		}
 		if (
-			!funnelTools.get_funnel_analytics.execute ||
-			!funnelTools.get_funnel_analytics_by_referrer.execute
-		)
+			!(
+				funnelTools.get_funnel_analytics.execute &&
+				funnelTools.get_funnel_analytics_by_referrer.execute
+			)
+		) {
 			throw new Error("Missing executor");
+		}
 		const goal = createGoalTools().get_goal_analytics;
-		if (!goal.execute) throw new Error("Missing executor");
+		if (!goal.execute) {
+			throw new Error("Missing executor");
+		}
 		await funnelTools.get_funnel_analytics.execute(
 			{ funnelId: "synthetic-funnel", ...dates, cohort: null },
 			options

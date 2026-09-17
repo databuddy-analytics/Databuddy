@@ -1,7 +1,3 @@
-/**
- * Tunable iteration counts for fuzz / stress tests (single env var).
- * CI can set SDK_FUZZ_ITERATIONS=200 to keep runs shorter.
- */
 export function getFuzzIterations(): number {
 	const raw = process.env.SDK_FUZZ_ITERATIONS;
 	if (raw !== undefined && raw !== "") {

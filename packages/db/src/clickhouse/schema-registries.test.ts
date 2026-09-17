@@ -1,7 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { TABLE_NAMES } from "./client";
 import { PROFILE_ID_TABLES } from "./identity";
-import { parseTable, readSql } from "./schema-parse";
 import { TABLE_COLUMNS } from "./schema/tables.generated";
 import {
 	AGENT_TABLE_COLUMNS,
@@ -53,5 +52,4 @@ describe("hand-maintained registries stay in sync with the generated DDL columns
 			expect([...columnsOf(table)]).toContain("delivery_id");
 		}
 	});
-
 });

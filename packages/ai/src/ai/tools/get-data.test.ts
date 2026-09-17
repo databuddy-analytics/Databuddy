@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, mock, spyOn } from "bun:test";
 import { asSchema } from "ai";
 import { SimpleQueryBuilder } from "../../query/simple-builder";
 import { discoverQueryTypesTool } from "./discover-query-types";
@@ -15,7 +15,7 @@ const options = {
 	},
 };
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => mock.restore());
 
 describe("analytics tool contract", () => {
 	it.each([
@@ -23,7 +23,9 @@ describe("analytics tool contract", () => {
 		{ having: false },
 	])("rejects unsupported filter scope instead of silently stripping it: %o", async (scope) => {
 		const schema = asSchema(getDataTool.inputSchema);
-		if (!schema.validate) throw new Error("Missing tool schema validator");
+		if (!schema.validate) {
+			throw new Error("Missing tool schema validator");
+		}
 		const result = await schema.validate({
 			queries: [
 				{
@@ -43,8 +45,9 @@ describe("analytics tool contract", () => {
 	});
 
 	it("exposes the exact continuation selector contract before the model queries", async () => {
-		if (!discoverQueryTypesTool.execute)
+		if (!discoverQueryTypesTool.execute) {
 			throw new Error("Missing discovery tool");
+		}
 		const result = await discoverQueryTypesTool.execute(
 			{ search: "error_route_continuation_comparison" },
 			options
@@ -60,21 +63,99 @@ describe("analytics tool contract", () => {
 		});
 	});
 
-	it("returns the measured scope and distinguishes a truncated result from its query row count", async () => {
-		const execute = vi
-			.spyOn(SimpleQueryBuilder.prototype, "execute")
-			.mockImplementation(function () {
-				const compiled = this.compile();
-				expect(compiled.params).toMatchObject({ f0: "activation_completed" });
-				expect(compiled.sql).toContain("event_name = {f0:String}");
-				return Promise.resolve(
-					Array.from({ length: 25 }, (_, index) => ({
-						name: `/step-${index}`,
-						total_events: 1,
-					}))
-				);
+	it.each([
+		{ groupBy: undefined },
+		{ groupBy: [] },
+		{ groupBy: ["namespace"] },
+		{ groupBy: ["namespace", "profile_id"] },
+	])("returns a native retention option error instead of mislabeling grouped data: %j", async ({
+		groupBy,
+	}) => {
+		const query = mock().mockResolvedValue([{ row_type: "overall" }]);
+		spyOn(SimpleQueryBuilder.prototype, "execute").mockImplementation(
+			function () {
+				this.compile();
+				return query();
+			}
+		);
+		const request = {
+			queries: [
+				{
+					type: "identified_profile_retention",
+					from: "2026-08-01",
+					to: "2026-08-14",
+					groupBy,
+					filters: [
+						{
+							field: "activation_event",
+							op: "eq" as const,
+							value: "activated",
+						},
+						{ field: "return_event", op: "eq" as const, value: "returned" },
+						{ field: "horizon_days", op: "eq" as const, value: 7 },
+						{
+							field: "observation_end",
+							op: "eq" as const,
+							value: "2026-08-31",
+						},
+					],
+				},
+			],
+		};
+		const schema = asSchema(getDataTool.inputSchema);
+		if (!(schema.validate && getDataTool.execute)) {
+			throw new Error("Missing data tool contract");
+		}
+		expect((await schema.validate(request)).success).toBe(true);
+		const result = await getDataTool.execute(request, options);
+		if (groupBy?.length) {
+			expect(result).toEqual({
+				results: {
+					identified_profile_retention: {
+						type: "identified_profile_retention",
+						websiteId: "site-test",
+						data: [],
+						rowCount: 0,
+						error:
+							"Invalid retention options: fixed daily cohorts with overall row first; omit groupBy, orderBy and offset.",
+					},
+				},
 			});
-		if (!getDataTool.execute) throw new Error("Missing data tool");
+			expect(query).not.toHaveBeenCalled();
+			return;
+		}
+		expect(result).toMatchObject({
+			results: {
+				identified_profile_retention: {
+					data: [{ row_type: "overall" }],
+					rowCount: 1,
+					returnedRows: 1,
+					truncated: false,
+				},
+			},
+		});
+		expect(JSON.stringify(result)).not.toContain("groupBy:");
+		expect(query).toHaveBeenCalledOnce();
+	});
+
+	it("returns the measured scope and distinguishes a truncated result from its query row count", async () => {
+		const execute = spyOn(
+			SimpleQueryBuilder.prototype,
+			"execute"
+		).mockImplementation(function () {
+			const compiled = this.compile();
+			expect(compiled.params).toMatchObject({ f0: "activation_completed" });
+			expect(compiled.sql).toContain("event_name = {f0:String}");
+			return Promise.resolve(
+				Array.from({ length: 25 }, (_, index) => ({
+					name: `/step-${index}`,
+					total_events: 1,
+				}))
+			);
+		});
+		if (!getDataTool.execute) {
+			throw new Error("Missing data tool");
+		}
 		const result = await getDataTool.execute(
 			{
 				queries: [

@@ -21,19 +21,26 @@ const auditedOrganizationPaths = new Set([
 	"/organization/cancel-invitation",
 ]);
 const authRoutePrefix = /^\/api\/auth/;
+const dubClickIdCookie = /(?:^|;\s*)dub_id=([^;]+)/;
 
 async function withAuditContext<T>(
 	request: Parameters<typeof handlers.GET>[0],
 	handler: () => Promise<T>
 ): Promise<T> {
 	const pathname = new URL(request.url).pathname.replace(authRoutePrefix, "");
+	const dubClickId = request.headers
+		.get("cookie")
+		?.match(dubClickIdCookie)?.[1];
 	if (!auditedOrganizationPaths.has(pathname)) {
-		return handler();
+		return dubClickId
+			? runWithAuthAuditContext({ dubClickId }, handler)
+			: handler();
 	}
 
 	const session = await auth.api.getSession({ headers: request.headers });
 	return runWithAuthAuditContext(
 		{
+			dubClickId,
 			actor: session?.user
 				? {
 						type: "user",

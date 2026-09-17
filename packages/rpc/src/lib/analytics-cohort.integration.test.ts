@@ -1,6 +1,6 @@
-import { beforeAll, describe, expect, it } from "bun:test";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { randomUUIDv7 } from "bun";
-import { clickHouse } from "@databuddy/db/clickhouse";
+import { chCommand, clickHouse } from "@databuddy/db/clickhouse";
 import { analyticsCohortSchema } from "@databuddy/shared/analytics-filters";
 import {
 	getTotalWebsiteUsers,
@@ -11,8 +11,10 @@ import {
 	type AnalyticsStep,
 } from "./analytics-utils";
 
-const enabled = process.env.CLICKHOUSE_COHORT_INTEGRATION_TESTS === "true";
-const suite = enabled ? describe : describe.skip;
+const suite =
+	process.env.CLICKHOUSE_INTEGRATION_TESTS === "true"
+		? describe
+		: describe.skip;
 const prefix = `cohort-${randomUUIDv7()}`;
 const websiteId = `${prefix}-site`;
 const otherWebsiteId = `${prefix}-other`;
@@ -48,17 +50,23 @@ function params(window: (typeof windows)[number], site = websiteId) {
 	return { ...window, websiteId: site };
 }
 
-suite("native cohort SQL against disposable ClickHouse", () => {
+suite("native cohort SQL against ClickHouse", () => {
+	afterAll(async () => {
+		const websiteIds = [websiteId, otherWebsiteId, boundaryWebsiteId];
+		await chCommand(
+			"DELETE FROM analytics.events WHERE client_id IN {websiteIds:Array(String)}",
+			{ websiteIds }
+		);
+		await chCommand(
+			"DELETE FROM analytics.custom_events WHERE website_id IN {websiteIds:Array(String)}",
+			{ websiteIds }
+		);
+	});
 	beforeAll(async () => {
-		// Do not trust .env or a normal integration database for this insertion suite.
-		if (process.env.CLICKHOUSE_URL !== "http://127.0.0.1:18129")
-			throw new Error(
-				"Cohort integration inserts require the disposable loopback endpoint on port 18129"
-			);
 		const events: Record<string, unknown>[] = [];
 		const custom: Record<string, unknown>[] = [];
-		for (const site of [websiteId, otherWebsiteId])
-			for (const [period, window] of windows.entries())
+		for (const site of [websiteId, otherWebsiteId]) {
+			for (const [period, window] of windows.entries()) {
 				for (const browser of ["Safari", "Chrome"]) {
 					let completions = 20;
 					if (site === otherWebsiteId) {
@@ -69,7 +77,6 @@ suite("native cohort SQL against disposable ClickHouse", () => {
 						completions = 100;
 					}
 					for (let i = 0; i < 550; i++) {
-						// Deliberately collide anonymous/session/profile IDs across the two tenants.
 						const identity = `${prefix}-${period}-${browser}-${i}`;
 						const anonymous = `${identity}-anon`;
 						const session = `${identity}-session`;
@@ -100,12 +107,13 @@ suite("native cohort SQL against disposable ClickHouse", () => {
 							session_id: session,
 							profile_id: profile,
 						};
-						if (profile)
+						if (profile) {
 							custom.push({
 								...base,
 								timestamp: `${window.startDate} 11:59:30`,
 								event_name: "identify",
 							});
+						}
 						const entry = {
 							...base,
 							profile_id: "",
@@ -113,7 +121,9 @@ suite("native cohort SQL against disposable ClickHouse", () => {
 							event_name: "project_created",
 						};
 						custom.push(entry);
-						if (i === 0) custom.push({ ...entry });
+						if (i === 0) {
+							custom.push({ ...entry });
+						}
 						const valid = i < completions || i >= 500;
 						const completion = {
 							...base,
@@ -123,14 +133,17 @@ suite("native cohort SQL against disposable ClickHouse", () => {
 							event_name: "first_report_delivered",
 						};
 						custom.push(completion);
-						if (i === 0) custom.push({ ...completion });
+						if (i === 0) {
+							custom.push({ ...completion });
+						}
 					}
 				}
-		// Later steps must remain reachable even when their browser/country differs.
+			}
+		}
 		for (const [path, browser, country, time] of [
 			["/start", "Safari", "US", "12:00:00"],
 			["/finish", "Chrome", "CA", "12:01:00"],
-		])
+		]) {
 			events.push({
 				id: randomUUIDv7(),
 				client_id: boundaryWebsiteId,
@@ -147,6 +160,7 @@ suite("native cohort SQL against disposable ClickHouse", () => {
 				country,
 				browser_name: browser,
 			});
+		}
 		await clickHouse.insert({
 			table: "analytics.events",
 			format: "JSONEachRow",
@@ -162,7 +176,7 @@ suite("native cohort SQL against disposable ClickHouse", () => {
 	for (const [browser, expected] of [
 		["Safari", [100, 20]],
 		["Chrome", [80, 80]],
-	] as const)
+	] as const) {
 		it(`${browser}: ordered completions and stable entrants in both exact windows`, async () => {
 			for (const period of [0, 1] as const) {
 				const window = windows[period];
@@ -187,6 +201,7 @@ suite("native cohort SQL against disposable ClickHouse", () => {
 				).toEqual([[window.startDate, 500, expected[period]]]);
 			}
 		}, 30_000);
+	}
 
 	it("country filter remains ANDed with the requested browser cohort", async () => {
 		const cohort = analyticsCohortSchema.parse({

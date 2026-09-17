@@ -1,17 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import type { ToolSet } from "ai";
 import { z } from "zod";
-import {
-	createGitHubTools,
-	type GitHubToolDependencies,
-} from "./github-tools";
+import { createGitHubTools, type GitHubToolDependencies } from "./github-tools";
 import { createToolkit } from "./toolkit";
 
 const repository = { owner: "example", repo: "web-app" };
 
 function schema(tools: ToolSet, name: string): z.ZodType {
 	const input = tools[name]?.inputSchema;
-	if (!input || !("safeParse" in input)) {
+	if (!(input && "safeParse" in input)) {
 		throw new Error(`Missing Zod schema for ${name}`);
 	}
 	return input as z.ZodType;
@@ -51,23 +48,25 @@ describe("GitHub repository binding", () => {
 		).toBe(true);
 
 		const disabled = toolkit(null);
-		expect(Object.keys(disabled).filter((name) => name.startsWith("github_"))).toEqual(
-			[]
-		);
+		expect(
+			Object.keys(disabled).filter((name) => name.startsWith("github_"))
+		).toEqual([]);
 	});
 
 	test("bound tools omit repository discovery and reject cross-repo input", () => {
 		const bound = toolkit(repository);
 		expect(bound.github_repos).toBeUndefined();
 
-		for (const name of Object.keys(bound).filter((key) => key.startsWith("github_"))) {
+		for (const name of Object.keys(bound).filter((key) =>
+			key.startsWith("github_")
+		)) {
 			const input = schema(bound, name);
 			const json = z.toJSONSchema(input, { io: "input" });
 			expect(json).not.toHaveProperty("properties.owner");
 			expect(json).not.toHaveProperty("properties.repo");
-			expect(
-				input.safeParse({ owner: "other", repo: "escape" }).success
-			).toBe(false);
+			expect(input.safeParse({ owner: "other", repo: "escape" }).success).toBe(
+				false
+			);
 		}
 	});
 
@@ -81,14 +80,19 @@ describe("GitHub repository binding", () => {
 		const pullRequest = schema(bound, "github_pull_request");
 
 		expect(readFile.safeParse({ path: "src/index.ts" }).success).toBe(true);
-		for (const path of ["../secret", "src/../secret", "/etc/passwd", "src\\secret"]) {
+		for (const path of [
+			"../secret",
+			"src/../secret",
+			"/etc/passwd",
+			"src\\secret",
+		]) {
 			expect(readFile.safeParse({ path }).success).toBe(false);
 		}
 
 		expect(commit.safeParse({ sha: "a1b2c3d" }).success).toBe(true);
-		expect(
-			commit.safeParse({ base: "a1b2c3d", sha: "d4e5f6a" }).success
-		).toBe(true);
+		expect(commit.safeParse({ base: "a1b2c3d", sha: "d4e5f6a" }).success).toBe(
+			true
+		);
 		for (const sha of ["main", "a1b2c3", "../secret", "g1b2c3d"]) {
 			expect(commit.safeParse({ sha }).success).toBe(false);
 			expect(commit.safeParse({ base: sha, sha: "a1b2c3d" }).success).toBe(
@@ -113,7 +117,11 @@ describe("GitHub repository binding", () => {
 		expect(
 			search.safeParse({ query: "handleCheckout language:typescript" }).success
 		).toBe(true);
-		for (const query of ["button repo:other/app", "org:other button", "user:other button"]) {
+		for (const query of [
+			"button repo:other/app",
+			"org:other button",
+			"user:other button",
+		]) {
 			expect(search.safeParse({ query }).success).toBe(false);
 		}
 
@@ -207,9 +215,7 @@ describe("GitHub release and PR evidence", () => {
 			sha: "d4e5f6a",
 		});
 
-		expect(calls).toEqual([
-			"/repos/example/web-app/compare/a1b2c3d...d4e5f6a",
-		]);
+		expect(calls).toEqual(["/repos/example/web-app/compare/a1b2c3d...d4e5f6a"]);
 		expect(result).toMatchObject({
 			base: "a1b2c3d",
 			head: "d4e5f6a",
@@ -525,8 +531,7 @@ describe("GitHub bounded file evidence", () => {
 		const tools = createGitHubTools(
 			{ organizationId: "org_1", repository },
 			{
-				getToken: async () =>
-					++tokens === 2 ? pendingToken : "fixture-token",
+				getToken: async () => (++tokens === 2 ? pendingToken : "fixture-token"),
 				request: async () => {
 					requests++;
 					return {

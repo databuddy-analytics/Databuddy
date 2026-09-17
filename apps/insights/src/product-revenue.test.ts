@@ -65,8 +65,12 @@ function queries(
 					return actual === filter.value;
 				}) ?? true
 		);
-		if (request.type === "revenue_by_product") return selected;
-		if (request.type !== "revenue_overview") return [];
+		if (request.type === "revenue_by_product") {
+			return selected;
+		}
+		if (request.type !== "revenue_overview") {
+			return [];
+		}
 		if (request.filters?.some((filter) => filter.field === "product_name")) {
 			return selected.map((row) => ({
 				currency: row.currency,
@@ -109,8 +113,8 @@ describe("native unidentified payment-description discovery", () => {
 		).toEqual([20, 20]);
 		const [team] = descriptions;
 		expect(team).toMatchObject({
-			current: 15000,
-			baseline: 30000,
+			current: 15_000,
+			baseline: 30_000,
 			entityId: "Team",
 		});
 		const prepared = prepareInvestigation(team, 7);
@@ -127,8 +131,8 @@ describe("native unidentified payment-description discovery", () => {
 			await remeasureMetricSignal(params, prepared.signal, query, today)
 		).toMatchObject({
 			subjectKey: team.subjectKey,
-			current: 15000,
-			baseline: 30000,
+			current: 15_000,
+			baseline: 30_000,
 		});
 		expect(
 			calls
@@ -136,7 +140,7 @@ describe("native unidentified payment-description discovery", () => {
 				.filter((call) => call.type === "revenue_by_product")
 				.map((call) => call.filters)
 		).toEqual(
-			Array(2).fill([
+			new Array(2).fill([
 				{ field: "currency", op: "eq", value: "USD" },
 				{ field: "provider", op: "eq", value: "stripe" },
 				{ field: "product_name", op: "eq", value: "Team" },
@@ -182,7 +186,7 @@ describe("native unidentified payment-description discovery", () => {
 		const [team] = (await signals()).descriptions;
 		for (const current of [
 			[after[1]],
-			[receipt("Team Plus", 15000), after[1]],
+			[receipt("Team Plus", 15_000), after[1]],
 		]) {
 			expect(
 				(await signals(current)).descriptions.some(
@@ -200,22 +204,22 @@ describe("native unidentified payment-description discovery", () => {
 		}
 		const measured = await signals([
 			receipt("Team", 0),
-			receipt("Solo", 40000),
+			receipt("Solo", 40_000),
 		]);
 		expect(measured.descriptions[0].current).toBe(0);
 	});
 	it("does not mix the same label from identified receipts, another provider or another currency", async () => {
 		const other = [
-			receipt("Team", 40000, { product_id: "identified-team" }),
-			receipt("Team", 10000, { provider: "paddle" }),
-			receipt("Team", 10000, { currency: "EUR" }),
+			receipt("Team", 40_000, { product_id: "identified-team" }),
+			receipt("Team", 10_000, { provider: "paddle" }),
+			receipt("Team", 10_000, { currency: "EUR" }),
 		];
 		const totals = [
-			{ ...whole, total_revenue: 90000, total_transactions: 900 },
+			{ ...whole, total_revenue: 90_000, total_transactions: 900 },
 			{
 				...whole,
 				currency: "EUR",
-				total_revenue: 10000,
+				total_revenue: 10_000,
 				total_transactions: 100,
 			},
 		];
@@ -228,8 +232,8 @@ describe("native unidentified payment-description discovery", () => {
 		expect(descriptions).toHaveLength(1);
 		expect(descriptions[0]).toMatchObject({
 			entityId: "Team",
-			current: 15000,
-			baseline: 30000,
+			current: 15_000,
+			baseline: 30_000,
 		});
 		expect(
 			await remeasureMetricSignal(
@@ -238,12 +242,12 @@ describe("native unidentified payment-description discovery", () => {
 				query,
 				today
 			)
-		).toMatchObject({ current: 15000, baseline: 30000 });
+		).toMatchObject({ current: 15_000, baseline: 30_000 });
 	});
 	it("does not fabricate label meaning or accept invalid, ambiguous and unidentified source fields", async () => {
 		for (const name of ["Unknown", " Unknown ", "\tUnknown\n", " "]) {
 			expect(
-				(await signals([receipt(name, 15000)], [receipt(name, 30000)]))
+				(await signals([receipt(name, 15_000)], [receipt(name, 30_000)]))
 					.descriptions
 			).toEqual([]);
 		}
@@ -258,14 +262,14 @@ describe("native unidentified payment-description discovery", () => {
 			{ currency: "usd" },
 		]) {
 			expect(
-				(await signals([receipt("Team", 15000, override)], [before[0]]))
+				(await signals([receipt("Team", 15_000, override)], [before[0]]))
 					.descriptions
 			).toEqual([]);
 		}
 		expect(
 			(
 				await signals(
-					[receipt("Team", 10000), receipt("Team", 5000)],
+					[receipt("Team", 10_000), receipt("Team", 5000)],
 					[before[0]]
 				)
 			).descriptions
@@ -273,9 +277,9 @@ describe("native unidentified payment-description discovery", () => {
 		expect(
 			(
 				await signals(
-					[receipt("Team", 60000), receipt("Solo", 20000)],
+					[receipt("Team", 60_000), receipt("Solo", 20_000)],
 					before,
-					[{ ...whole, total_revenue: 80000, total_transactions: 800 }]
+					[{ ...whole, total_revenue: 80_000, total_transactions: 800 }]
 				)
 			).descriptions
 		).toEqual([]);
@@ -283,8 +287,8 @@ describe("native unidentified payment-description discovery", () => {
 	it("preserves full labels with delimiters across the bounded subject key and exact recheck", async () => {
 		const label = `Team:/ ${"long".repeat(70)}`;
 		const { descriptions, query } = await signals(
-			[receipt(label, 15000)],
-			[receipt(label, 30000)]
+			[receipt(label, 15_000)],
+			[receipt(label, 30_000)]
 		);
 		const prepared = prepareInvestigation(descriptions[0], 7);
 		expect(prepared.signal.signalKey.length).toBeLessThanOrEqual(160);

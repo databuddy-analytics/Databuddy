@@ -1,11 +1,7 @@
 import { Readable } from "node:stream";
 import { ResultSet } from "@clickhouse/client";
 import { afterEach, describe, expect, mock, spyOn, test } from "bun:test";
-import {
-	chQuery,
-	clickHouse,
-	setClickHouseReadMode,
-} from "./client";
+import { chQuery, clickHouse, setClickHouseReadMode } from "./client";
 
 describe("chQuery", () => {
 	afterEach(() => {

@@ -116,6 +116,7 @@ export interface CustomSqlContext {
 	filterParams?: Record<string, Filter["value"]>;
 	filters?: Filter[];
 	granularity?: TimeUnit;
+	groupBy?: string[];
 	helpers?: QueryHelpers;
 	limit?: number;
 	offset?: number;
@@ -151,6 +152,8 @@ export interface SimpleQueryConfig {
 	allowedFilterOperators?: Partial<Record<string, readonly FilterOperator[]>>;
 	allowedFilters?: string[];
 	appendEndOfDayToTo?: boolean;
+	/** False for native selectors that do not accept generic event filters. */
+	commonFilters?: boolean;
 	customizable?: boolean;
 	customSql?: CustomSqlFn;
 	fields?: ConfigField[];

@@ -37,10 +37,10 @@ describe("Databuddy Slack agent client", () => {
 
 		expect(input).toContain("slack_channel_id: C123");
 		expect(input).toContain("<slack_follow_ups>");
-		expect(input).toContain("<slack_follow_up index=\"1\">");
+		expect(input).toContain('<slack_follow_up index="1">');
 		expect(input).toContain("author: <@U1>");
 		expect(input).toContain("author_memory_scope: slack-T123-U1");
-		expect(input).toContain("<slack_follow_up index=\"2\">");
+		expect(input).toContain('<slack_follow_up index="2">');
 		expect(input).toContain("author: <@U2>");
 		expect(input).toContain("author_memory_scope: slack-T123-U2");
 		expect(input).toContain("</slack_follow_ups>");

@@ -40,37 +40,60 @@ function eventQuery(
 		if (request.type === "summary_metrics") {
 			return [{ sessions: isCurrent ? currentSessions : 1000 }];
 		}
-		if (request.type !== "custom_events") return [];
+		if (request.type !== "custom_events") {
+			return [];
+		}
 		const row = isCurrent ? current : previous;
-		if (!row) return [];
+		if (!row) {
+			return [];
+		}
 		for (const filter of request.filters ?? []) {
-			if (filter.field !== "event_name") throw new Error("Unexpected selector");
-			if (filter.op === "eq" && row.name !== filter.value) return [];
+			if (filter.field !== "event_name") {
+				throw new Error("Unexpected selector");
+			}
+			if (filter.op === "eq" && row.name !== filter.value) {
+				return [];
+			}
 			if (filter.op === "in" && Array.isArray(filter.value)) {
-				if (!filter.value.includes(String(row.name))) return [];
-			} else if (filter.op !== "eq") throw new Error("Unexpected operator");
+				if (!filter.value.includes(String(row.name))) {
+					return [];
+				}
+			} else if (filter.op !== "eq") {
+				throw new Error("Unexpected operator");
+			}
 		}
 		return [row];
 	};
 }
 
 describe("custom-event reach without configured conversions", () => {
-	it.each([1000, 2000])("finds hidden reach decline at %s occurrences and site sessions using the existing two reads", async (volume) => {
+	it.each([
+		1000, 2000,
+	])("finds hidden reach decline at %s occurrences and site sessions using the existing two reads", async (volume) => {
 		const requests: Parameters<QueryFn>[0][] = [];
 		const signals = await detectSignals(
 			params,
 			eventQuery(
-				{ ...baseline, total_events: volume, unique_users: 100, unique_sessions: 100 },
+				{
+					...baseline,
+					total_events: volume,
+					unique_users: 100,
+					unique_sessions: 100,
+				},
 				baseline,
 				volume,
 				requests
 			),
 			today
 		);
-		const reach = signals.filter((item) => item.metric === "custom_event_reach");
+		const reach = signals.filter(
+			(item) => item.metric === "custom_event_reach"
+		);
 		expect(reach).toHaveLength(1);
 		const signal = reach[0];
-		if (!signal) throw new Error("Missing reach change");
+		if (!signal) {
+			throw new Error("Missing reach change");
+		}
 		expect(signal).toMatchObject({
 			baseline: 400,
 			current: 100,
@@ -149,7 +172,6 @@ describe("custom-event reach without configured conversions", () => {
 					expect(input.investigationObjective).toContain(
 						"unavailable emitter context does not invalidate it"
 					);
-					// The stub tests publication plumbing, not model judgment or source proof.
 					return {
 						toolCallCount: 0,
 						outcome: {
@@ -180,7 +202,9 @@ describe("custom-event reach without configured conversions", () => {
 			outcome: { publish: true, next: { type: "resolve" } },
 		});
 		const prior = artifacts[0]?.signal;
-		if (!prior) throw new Error("Missing generated signal");
+		if (!prior) {
+			throw new Error("Missing generated signal");
+		}
 		expect(
 			await remeasureStoredSignal(params, prior, today, undefined, { query })
 		).toMatchObject({
@@ -258,7 +282,9 @@ describe("custom-event reach without configured conversions", () => {
 				current: occurrences === 100_000 ? 100_000 : 100_200,
 				baseline: occurrences === 100_000 ? 300_000 : 300_600,
 			});
-			if (!signal) throw new Error("Missing event change");
+			if (!signal) {
+				throw new Error("Missing event change");
+			}
 			expect(
 				await remeasureMetricSignal(
 					params,
@@ -281,7 +307,9 @@ describe("custom-event reach without configured conversions", () => {
 			eventQuery({ ...baseline, unique_users: 100, unique_sessions: 100 }),
 			today
 		);
-		if (!signals[0]) throw new Error("Missing reach change");
+		if (!signals[0]) {
+			throw new Error("Missing reach change");
+		}
 		const prior = prepareInvestigation(signals[0], 7).signal;
 		const requests: Parameters<QueryFn>[0][] = [];
 		const recovered = await remeasureMetricSignal(

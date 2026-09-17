@@ -9,14 +9,14 @@ import SponsorsGrid from "./sponsors-grid";
 import SponsorsHero from "./sponsors-hero";
 
 export const metadata: Metadata = {
-	title: "Sponsors | Databuddy",
+	title: "Sponsors",
 	description:
 		"Support Databuddy and help us build the future of privacy-first analytics",
 	alternates: {
 		canonical: "https://www.databuddy.cc/sponsors",
 	},
 	openGraph: {
-		title: "Sponsors | Databuddy",
+		title: "Sponsors",
 		description:
 			"Support Databuddy and help us build the future of privacy-first analytics",
 		url: "https://www.databuddy.cc/sponsors",
@@ -25,7 +25,7 @@ export const metadata: Metadata = {
 };
 
 export default function SponsorsPage() {
-	const title = "Sponsors | Databuddy";
+	const title = "Sponsors";
 	const description =
 		"Support Databuddy and help us build the future of privacy-first analytics";
 	const url = "https://www.databuddy.cc/sponsors";

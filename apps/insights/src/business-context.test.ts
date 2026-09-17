@@ -425,6 +425,38 @@ describe("saved organization business context", () => {
 	};
 	const input = { scope, asOf, allowRefresh: false };
 
+	it("keeps canonical replies ahead of extra public pages before selection", async () => {
+		const pages = Array.from({ length: 4 }, (_, index) => ({
+			...page,
+			id: `page-${index}`,
+			url: `https://example.com/${index || ""}`,
+			content: "Public background. ".padEnd(4000, "."),
+		}));
+		const result = await loadWebsiteBusinessProfile(
+			input,
+			dependencies({
+				loadProfile: async () => context(pages),
+				readReplies: async () => [statement],
+				readOrganization: async () => ({ profile, generation: null }),
+			})
+		);
+
+		expect(result.sources).toContainEqual(statement);
+		expect(result.sources[0]).toMatchObject({
+			kind: "organization_profile",
+			content: profile.content,
+		});
+		expect(result.sources[1]).toEqual(statement);
+		expect(
+			result.sources.filter((source) => source.kind === "website")
+		).toEqual(pages.slice(0, 3));
+		expect(
+			result.sources.reduce((total, source) => total + source.content.length, 0)
+		).toBeLessThanOrEqual(16_000);
+		expect(result.status).toBe("partial");
+		expect(businessContextSchema.parse(result)).toEqual(result);
+	});
+
 	it("keeps the complete 12k saved profile and canonical correction ahead of a full homepage", async () => {
 		const content = "A".repeat(4000) + "B".repeat(4000) + "C".repeat(4000);
 		const result = await loadWebsiteBusinessProfile(
@@ -577,8 +609,7 @@ describe("saved organization business context", () => {
 		"website",
 		"mixed",
 	] as const)("preserves all 12k saved characters and %s provenance through the loader", async (origin) => {
-		const content =
-			"A".repeat(3999) + "1" + "B".repeat(3999) + "2" + "C".repeat(3999) + "3";
+		const content = `${"A".repeat(3999)}1${"B".repeat(3999)}2${"C".repeat(3999)}3`;
 		const references = Array.from({ length: 8 }, (_, index) => ({
 			url: `https://example.com/docs/report-${index}?source=business-profile`,
 			title: `Report definition ${index + 1}`,
@@ -631,7 +662,6 @@ describe("saved organization business context", () => {
 		expect(result.sources).toContainEqual(statement);
 	});
 
-
 	it("supplies team-only priorities and definitions before bounded public background", async () => {
 		const teamContext = {
 			priority: "Prioritize activation",
@@ -639,47 +669,89 @@ describe("saved organization business context", () => {
 			exclusions: "Exclude employee traffic",
 		};
 		for (const content of ["", "Public background ".repeat(650)]) {
-			const result = await loadWebsiteBusinessProfile(input, dependencies({
-				readOrganization: async () => ({ profile: { ...profile, content, origin: "mixed", teamContext }, generation: null }),
-			}));
+			const result = await loadWebsiteBusinessProfile(
+				input,
+				dependencies({
+					readOrganization: async () => ({
+						profile: { ...profile, content, origin: "mixed", teamContext },
+						generation: null,
+					}),
+				})
+			);
 			expect(businessContextSchema.parse(result)).toEqual(result);
-			const sources = result.sources.filter((source) => source.kind === "organization_profile");
+			const sources = result.sources.filter(
+				(source) => source.kind === "organization_profile"
+			);
 			expect(sources[0]).toMatchObject({ origin: "team" });
 			expect(sources[0]?.content).toContain(teamContext.successDefinition);
 			expect(sources[0]?.content).toContain(teamContext.exclusions);
 			for (const source of sources) {
-				expect(source.profileVersion).toEqual({ revision: profile.revision, updatedAt: profile.updatedAt });
+				expect(source.profileVersion).toEqual({
+					revision: profile.revision,
+					updatedAt: profile.updatedAt,
+				});
 			}
-			if (content) expect(sources[1]?.origin).toBe("mixed");
+			if (content) {
+				expect(sources[1]?.origin).toBe("mixed");
+			}
 		}
 	});
 
 	it("retains the maximum brief, all team fields and a correction with profile revisions", async () => {
-		const content = "B".repeat(11990) + " END BRIEF";
+		const content = `${"B".repeat(11_990)} END BRIEF`;
 		const teamContext = {
 			priority: "P".repeat(2000),
 			successDefinition: "D".repeat(2000),
 			exclusions: "E".repeat(2000),
 		};
-		const correction = { ...statement, content: "Correction: ".padEnd(4000, "R") };
-		const result = await loadWebsiteBusinessProfile(input, dependencies({
-			readOrganization: async () => ({ profile: { ...profile, content, origin: "mixed", teamContext }, generation: null }),
-			readReplies: async () => [correction],
-			loadProfile: async () => context([{ ...page, content: "Public page ".padEnd(4000, "W") }]),
-		}));
-		const sources = result.sources.filter((source) => source.kind === "organization_profile");
+		const correction = {
+			...statement,
+			content: "Correction: ".padEnd(4000, "R"),
+		};
+		const result = await loadWebsiteBusinessProfile(
+			input,
+			dependencies({
+				readOrganization: async () => ({
+					profile: { ...profile, content, origin: "mixed", teamContext },
+					generation: null,
+				}),
+				readReplies: async () => [correction],
+				loadProfile: async () =>
+					context([{ ...page, content: "Public page ".padEnd(4000, "W") }]),
+			})
+		);
+		const sources = result.sources.filter(
+			(source) => source.kind === "organization_profile"
+		);
 		const supplied = sources.map((source) => source.content).join("");
 		expect(sources).toHaveLength(5);
-		expect(sources.map((source) => source.origin)).toEqual(["team", "team", "mixed", "mixed", "mixed"]);
+		expect(sources.map((source) => source.origin)).toEqual([
+			"team",
+			"team",
+			"mixed",
+			"mixed",
+			"mixed",
+		]);
 		expect(supplied).toContain(content);
-		for (const value of Object.values(teamContext)) expect(supplied).toContain(value);
+		for (const value of Object.values(teamContext)) {
+			expect(supplied).toContain(value);
+		}
 		for (const source of sources) {
-			expect(source.profileVersion).toEqual({ revision: profile.revision, updatedAt: profile.updatedAt });
+			expect(source.profileVersion).toEqual({
+				revision: profile.revision,
+				updatedAt: profile.updatedAt,
+			});
 		}
 		expect(result.sources).toContainEqual(correction);
-		expect(result.sources.some((source) => source.kind === "website")).toBe(false);
-		expect(result.sources.reduce((total, source) => total + source.content.length, 0)).toBeLessThanOrEqual(24_000);
-		expect(businessContextSchema.parse(JSON.parse(JSON.stringify(result)))).toEqual(result);
+		expect(result.sources.some((source) => source.kind === "website")).toBe(
+			false
+		);
+		expect(
+			result.sources.reduce((total, source) => total + source.content.length, 0)
+		).toBeLessThanOrEqual(24_000);
+		expect(
+			businessContextSchema.parse(JSON.parse(JSON.stringify(result)))
+		).toEqual(result);
 	});
 
 	it.each([
@@ -769,8 +841,12 @@ describe("saved organization business context", () => {
 			input,
 			dependencies({
 				currentScope: async () => {
-					if (!loaded) return scope;
-					if (changed instanceof Error) throw changed;
+					if (!loaded) {
+						return scope;
+					}
+					if (changed instanceof Error) {
+						throw changed;
+					}
 					return changed;
 				},
 				readOrganization: async () => {

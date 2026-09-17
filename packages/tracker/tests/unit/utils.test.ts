@@ -174,9 +174,7 @@ describe("privacy-safe page context", () => {
 		});
 		local.setItem("did_params", JSON.stringify({ gclid: "new-private-id" }));
 
-		(
-			tracker as unknown as { refreshUrlParams: () => void }
-		).refreshUrlParams();
+		(tracker as unknown as { refreshUrlParams: () => void }).refreshUrlParams();
 
 		expectNoStoredIdentity(local, session);
 	});

@@ -3,7 +3,9 @@ import { afterAll, beforeEach, describe, expect, mock, test } from "bun:test";
 const store = new Map<string, string>();
 let replacementBeforeConditionalDelete: string | null = null;
 
-function parseCacheValue(value: string | undefined): Record<string, unknown> | null {
+function parseCacheValue(
+	value: string | undefined
+): Record<string, unknown> | null {
 	if (!value || value === "null") {
 		return null;
 	}

@@ -15,13 +15,13 @@ vi.mock("evlog", () => ({
 	},
 }));
 
-const { handleUncaughtException, handleUnhandledRejection } = await import(
-	"./process-errors"
-);
+const { handleUncaughtException } = await import("./process-errors");
 
-const exitSpy = vi.spyOn(process, "exit").mockImplementation(((
-	_code?: number
-) => undefined as never) as typeof process.exit);
+const exitSpy = vi
+	.spyOn(process, "exit")
+	.mockImplementation(
+		((_code?: number) => undefined as never) as typeof process.exit
+	);
 
 beforeEach(() => {
 	mockCaptureError.mockReset();
@@ -65,4 +65,3 @@ describe("process error handlers", () => {
 		expect(exitSpy).toHaveBeenCalledWith(1);
 	});
 });
-

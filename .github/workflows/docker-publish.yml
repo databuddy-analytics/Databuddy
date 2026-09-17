@@ -15,9 +15,15 @@ on:
       - "turbo.json"
       - ".github/workflows/docker-publish.yml"
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      init-only:
+        description: Publish only the self-host database initialization image
+        type: boolean
+        default: false
 
 concurrency:
-  group: docker-${{ github.ref }}
+  group: docker-${{ github.ref }}${{ inputs.init-only && '-init' || '' }}
   cancel-in-progress: ${{ github.event_name != 'release' }}
 
 env:
@@ -46,9 +52,14 @@ jobs:
       - run: bun install --frozen-lockfile --ignore-scripts
       - id: detect
         env:
+          INIT_ONLY: ${{ inputs.init-only }}
           EVENT_NAME: ${{ github.event_name }}
           BEFORE_SHA: ${{ github.event.before }}
         run: |
+          if [[ "$INIT_ONLY" == "true" ]]; then
+            echo 'services=["init"]' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           ALL='["api","basket","dashboard","insights","links","uptime"]'
           if [[ "$EVENT_NAME" != "push" ]]; then
             echo "services=$ALL" >> "$GITHUB_OUTPUT"
@@ -136,6 +147,7 @@ jobs:
             api) text="Databuddy API service - analytics backend" ;;
             basket) text="Databuddy Basket service - event ingestion" ;;
             dashboard) text="Databuddy Dashboard service - web analytics UI" ;;
+            init) text="Databuddy database initialization and schema tools" ;;
             insights) text="Databuddy Insights service - queued insight generation" ;;
             links) text="Databuddy Links service - URL shortening and tracking" ;;
             uptime) text="Databuddy Uptime service - availability monitoring" ;;

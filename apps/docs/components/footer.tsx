@@ -5,8 +5,6 @@ import { EnvelopeIcon } from "@databuddy/ui/icons";
 import { SiDiscord, SiX } from "@icons-pack/react-simple-icons";
 import Image from "next/image";
 import Link from "next/link";
-import { CCPAIcon } from "./icons/ccpa";
-import { GDPRIcon } from "./icons/gdpr";
 import { LogoContent } from "./logo";
 import { NavLink } from "./nav-link";
 import { NewsletterForm } from "./newsletter-form";
@@ -20,7 +18,7 @@ const footerSections = [
 			{ href: "/pricing", label: "Pricing", navItem: "pricing" },
 			{
 				href: "/calculator",
-				label: "Cookie cost calculator",
+				label: "Measurement gap calculator",
 				navItem: "calculator",
 			},
 			{ href: "/compare", label: "Compare", navItem: "compare" },
@@ -67,12 +65,11 @@ function FooterHero() {
 				width={180}
 			/>
 			<div className="relative max-w-5xl px-8 pt-8 sm:px-16 md:pt-16">
-				<h2 className="mb-2 text-left font-medium text-2xl text-white leading-tight sm:text-4xl">
-					Every day without Databuddy is a day of data you'll never get back.
+				<h2 className="mb-2 text-balance text-left font-medium text-2xl text-white leading-tight sm:text-4xl">
+					See how people use your product.
 				</h2>
-				<p className="mb-6 text-lg text-white/70">
-					No credit card. No commitment. Set up in 5 minutes and see what you've
-					been missing.
+				<p className="mb-6 text-pretty text-lg text-white/70">
+					Start free with 10,000 events per month. No credit card required.
 				</p>
 				<div className="flex gap-3">
 					<Button
@@ -210,26 +207,10 @@ function FooterNav() {
 	);
 }
 
-function ComplianceLinks() {
+function LegalLinks() {
 	return (
 		<div className="mt-6">
 			<div className="flex flex-col gap-4">
-				<div className="flex items-center gap-6">
-					<Link
-						aria-label="CCPA Compliance"
-						className="text-foreground transition-colors hover:text-muted-foreground"
-						href="/privacy"
-					>
-						<CCPAIcon className="size-9" />
-					</Link>
-					<Link
-						aria-label="GDPR Compliance"
-						className="text-foreground transition-colors hover:text-muted-foreground"
-						href="/dpa"
-					>
-						<GDPRIcon className="size-11" />
-					</Link>
-				</div>
 				<div className="flex flex-wrap items-center gap-4">
 					{legalLinks.map((link, index) => (
 						<LegalLink index={index} key={link.href} link={link} />
@@ -281,7 +262,7 @@ export function Footer() {
 			<div className="mx-auto flex w-full max-w-400 flex-col gap-8 px-4 pt-10 sm:px-14 lg:px-20">
 				<FooterHero />
 				<FooterNav />
-				<ComplianceLinks />
+				<LegalLinks />
 				<FooterBottom />
 			</div>
 		</footer>

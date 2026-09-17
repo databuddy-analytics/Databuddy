@@ -1,7 +1,6 @@
 import { expect, findEvent, hasEvent, test } from "./test-utils";
 
 test.describe("SPA Navigation", () => {
-
 	test("tracks screen_view on pushState navigation", async ({ page }) => {
 		await page.goto("/test");
 		await page.evaluate(() => {

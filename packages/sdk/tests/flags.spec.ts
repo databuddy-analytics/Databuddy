@@ -217,7 +217,9 @@ test.describe("BrowserFlagsManager", () => {
 	});
 
 	test.describe("isEnabled (synchronous)", () => {
-		test("tracks cached evaluations from the synchronous path", async ({ page }) => {
+		test("tracks cached evaluations from the synchronous path", async ({
+			page,
+		}) => {
 			const tracked = await page.evaluate(async () => {
 				const events: Array<{
 					name: string;
@@ -372,7 +374,9 @@ test.describe("BrowserFlagsManager", () => {
 			expect(result).toBeLessThanOrEqual(2);
 		});
 
-		test("expired cache stays available during background revalidation", async ({ page }) => {
+		test("expired cache stays available during background revalidation", async ({
+			page,
+		}) => {
 			const result = await page.evaluate(async () => {
 				const manager = new window.__SDK__.BrowserFlagsManager({
 					config: {

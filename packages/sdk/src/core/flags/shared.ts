@@ -84,16 +84,6 @@ export class FlagsContextChangedError extends Error {
 	}
 }
 
-export function buildQueryParams(config: FlagsConfig): URLSearchParams {
-	const params = new URLSearchParams();
-	params.set("clientId", config.clientId);
-	if (config.environment) {
-		params.set("environment", config.environment);
-	}
-
-	return params;
-}
-
 export interface FlagEvaluationRequest {
 	clientId: string;
 	email?: string;

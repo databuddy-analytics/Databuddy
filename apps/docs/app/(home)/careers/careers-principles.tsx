@@ -41,7 +41,7 @@ const principles: Principle[] = [
 		icon: ShieldCheckIcon,
 		title: "Privacy isn't negotiable",
 		description:
-			"We don't collect personal data, we don't use cookies, and we don't bolt on tracking to pad metrics. Everything we build has to pass that bar.",
+			"We build cookieless analytics with explicit controls for collection and optional user identification. Privacy decisions belong in the product, from the first design through delivery.",
 	},
 	{
 		icon: ClockCounterClockwiseIcon,

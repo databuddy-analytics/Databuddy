@@ -1,17 +1,19 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { afterAll, beforeEach, describe, expect, mock, test } from "bun:test";
+
+const originalEnvironment = { ...process.env };
 
 const setAttributes = mock(() => {});
 const captureError = mock(() => {});
 const captureWarning = mock(() => {});
 const mergeWideEvent = mock(() => {});
 const clickHouseInsert = mock(() => Promise.resolve());
-const kafkaConfigs: Array<Record<string, unknown>> = [];
+const kafkaConfigs: Record<string, unknown>[] = [];
 
-type FakeProducer = {
+interface FakeProducer {
 	connect: () => Promise<void>;
 	disconnect: () => Promise<void>;
 	send: () => Promise<void>;
-};
+}
 
 let nextProducer: FakeProducer | null = null;
 const createProducer = mock(() => {
@@ -83,6 +85,7 @@ const event = {
 };
 
 beforeEach(() => {
+	process.env.SELFHOST = "false";
 	delete process.env.REDPANDA_BROKER;
 	delete process.env.REDPANDA_PASSWORD;
 	delete process.env.REDPANDA_USER;
@@ -94,7 +97,24 @@ beforeEach(() => {
 	nextProducer = null;
 });
 
+afterAll(() => {
+	process.env = originalEnvironment;
+});
+
 describe("sendLinkVisit", () => {
+	test("ignores copied broker settings when self-hosting", async () => {
+		process.env.SELFHOST = "true";
+		process.env.REDPANDA_BROKER = "redpanda.test:9092";
+		const { getProducerHealthState, sendLinkVisit, warmProducerConnection } =
+			await loadProducer();
+
+		await warmProducerConnection();
+		expect(getProducerHealthState()).toBe("disabled");
+		await expect(sendLinkVisit(event)).resolves.toBe(true);
+		expect(clickHouseInsert).toHaveBeenCalledTimes(1);
+		expect(kafkaConfigs).toEqual([]);
+	});
+
 	test("persists directly when Kafka is not configured", async () => {
 		const { sendLinkVisit } = await loadProducer();
 
@@ -112,9 +132,11 @@ describe("sendLinkVisit", () => {
 			})
 		);
 		expect(
-			(clickHouseInsert.mock.calls[0]?.[0] as {
-				abort_signal?: AbortSignal;
-			}).abort_signal
+			(
+				clickHouseInsert.mock.calls[0]?.[0] as {
+					abort_signal?: AbortSignal;
+				}
+			).abort_signal
 		).toBeInstanceOf(AbortSignal);
 		expect(clickHouseInsert).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -222,8 +244,7 @@ describe("sendLinkVisit", () => {
 		nextProducer = makeProducer({
 			disconnect: () => Promise.reject(disconnectError),
 		});
-		const { disconnectProducer, warmProducerConnection } =
-			await loadProducer();
+		const { disconnectProducer, warmProducerConnection } = await loadProducer();
 
 		await warmProducerConnection();
 
@@ -239,8 +260,7 @@ describe("sendLinkVisit", () => {
 					releaseConnect = resolve;
 				}),
 		});
-		const { disconnectProducer, warmProducerConnection } =
-			await loadProducer();
+		const { disconnectProducer, warmProducerConnection } = await loadProducer();
 
 		const warmup = warmProducerConnection();
 		await Bun.sleep(0);

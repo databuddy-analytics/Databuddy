@@ -100,8 +100,12 @@ describe("canonical visitor resolution", () => {
 			const cte = identityPairMapCte(key);
 			expect(cte).toContain(IDENTITY_PAIR_TABLES[key]);
 			expect(cte).toContain("client_id = {websiteId:String}");
-			expect(cte).toContain("identity_time >= parseDateTimeBestEffort({startDate:String})");
-			expect(cte).toContain("identity_time <= parseDateTimeBestEffort({endDate:String})");
+			expect(cte).toContain(
+				"identity_time >= parseDateTimeBestEffort({startDate:String})"
+			);
+			expect(cte).toContain(
+				"identity_time <= parseDateTimeBestEffort({endDate:String})"
+			);
 		}
 	});
 

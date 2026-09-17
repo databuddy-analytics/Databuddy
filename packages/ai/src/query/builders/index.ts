@@ -8,6 +8,7 @@ import { PagesBuilders } from "./pages";
 import { PerformanceBuilders } from "./performance";
 import { ProfilesBuilders } from "./profiles";
 import { RealtimeBuilders } from "./realtime";
+import { RetentionBuilders } from "./retention";
 import { RevenueBuilders } from "./revenue";
 import { SessionsBuilders } from "./sessions";
 import { SummaryBuilders } from "./summary";
@@ -34,6 +35,7 @@ const BASE_QUERY_BUILDERS = {
 	...UptimeBuilders,
 	...RevenueBuilders,
 	...RealtimeBuilders,
+	...RetentionBuilders,
 } satisfies Record<string, SimpleQueryConfig>;
 
 export const PUBLIC_QUERY_TYPES = new Set<string>([

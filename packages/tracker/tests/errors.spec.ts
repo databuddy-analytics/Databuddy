@@ -1,23 +1,6 @@
-import type { Request } from "@playwright/test";
-import { expect, test } from "./test-utils";
-
-function findError(
-	req: Request,
-	predicate: (event: Record<string, unknown>) => boolean
-): Record<string, unknown> | undefined {
-	try {
-		const data = req.postDataJSON();
-		if (Array.isArray(data)) {
-			return data.find(predicate);
-		}
-		return predicate(data) ? data : undefined;
-	} catch {
-		return undefined;
-	}
-}
+import { expect, findEvent, test } from "./test-utils";
 
 test.describe("Error Tracking", () => {
-
 	test("captures unhandled errors", async ({ page }) => {
 		await page.goto("/test");
 		await page.evaluate(() => {
@@ -43,7 +26,7 @@ test.describe("Error Tracking", () => {
 		});
 
 		const request = await requestPromise;
-		const error = findError(
+		const error = findEvent(
 			request,
 			(e) =>
 				typeof e.message === "string" &&
@@ -79,7 +62,7 @@ test.describe("Error Tracking", () => {
 		});
 
 		const request = await requestPromise;
-		const error = findError(
+		const error = findEvent(
 			request,
 			(e) =>
 				typeof e.message === "string" && e.message.includes("Async Failure")
@@ -112,7 +95,7 @@ test.describe("Error Tracking", () => {
 		});
 
 		const request = await requestPromise;
-		const error = findError(
+		const error = findEvent(
 			request,
 			(e) =>
 				typeof e.message === "string" && e.message.includes("String Rejection")
@@ -145,7 +128,7 @@ test.describe("Error Tracking", () => {
 		});
 
 		const request = await requestPromise;
-		const error = findError(
+		const error = findEvent(
 			request,
 			(e) =>
 				typeof e.message === "string" && e.message.includes("Object Rejection")
@@ -185,12 +168,17 @@ test.describe("Error Tracking", () => {
 		});
 
 		const request = await requestPromise;
-		const noise = findError(request, (e) =>
-			typeof e.message === "string" &&
-			e.message.includes("Object Not Found Matching Id")
+		const noise = findEvent(
+			request,
+			(e) =>
+				typeof e.message === "string" &&
+				e.message.includes("Object Not Found Matching Id")
 		);
-		const sentinel = findError(request, (e) =>
-			typeof e.message === "string" && e.message.includes("Sentinel After Noise")
+		const sentinel = findEvent(
+			request,
+			(e) =>
+				typeof e.message === "string" &&
+				e.message.includes("Sentinel After Noise")
 		);
 		expect(sentinel).toBeTruthy();
 		expect(noise).toBeUndefined();

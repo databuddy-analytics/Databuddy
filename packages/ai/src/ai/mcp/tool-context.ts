@@ -10,7 +10,7 @@ import {
 import { websitesApi } from "@databuddy/auth";
 import { getRedisCache } from "@databuddy/redis";
 import type { AppContext } from "../config/context";
-import { getCachedWebsite, validateWebsite } from "../../lib/website-utils";
+import { getCachedWebsite } from "../../lib/website-utils";
 import { matchesWebsiteDomain } from "../../lib/website-domain";
 
 const ACCESSIBLE_WEBSITES_TTL_SEC = 30;
@@ -34,11 +34,10 @@ export async function ensureWebsiteAccess(
 	apiKey: ApiKeyRow | null,
 	organizationId?: string | null
 ): Promise<{ domain: string } | Error> {
-	const validation = await validateWebsite(websiteId);
-	if (!(validation.success && validation.website)) {
-		return new Error(validation.error ?? "Website not found");
+	const website = await getCachedWebsite(websiteId);
+	if (!website) {
+		return new Error("Website not found");
 	}
-	const { website } = validation;
 	if (organizationId && website.organizationId !== organizationId) {
 		return new Error("Website is not in this organization");
 	}
@@ -235,7 +234,7 @@ export function buildRpcContext(
 	}
 ): AppContext {
 	return {
-		userId: principal.userId ?? "",
+		userId: principal.userId,
 		websiteId: "",
 		websiteDomain: "",
 		timezone: "UTC",

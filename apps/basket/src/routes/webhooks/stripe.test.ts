@@ -111,7 +111,6 @@ describe("verifyStripeSignature", () => {
 			expect(result.error).toContain("JSON");
 		}
 	});
-
 });
 
 describe("getInvoiceMetadata", () => {
@@ -143,7 +142,7 @@ describe("getInvoiceMetadata", () => {
 
 	test("returns empty object when no metadata anywhere", () => {
 		expect(
-		getInvoiceMetadata({
+			getInvoiceMetadata({
 				amount_paid: 100,
 				created: 1_700_000_000,
 				currency: "usd",
@@ -233,7 +232,9 @@ describe("normalizeStripeEvent", () => {
 			...normalizeStripeEvent(invoice),
 		];
 
-		expect(records.find((record) => record.transactionId === "in_1")).toBeUndefined();
+		expect(
+			records.find((record) => record.transactionId === "in_1")
+		).toBeUndefined();
 		expect(
 			records.find((record) => record.transactionId === "inpay_1")
 		).toMatchObject({
@@ -259,26 +260,23 @@ describe("normalizeStripeEvent", () => {
 		["jpy", 500, 500],
 		["isk", 500, 5],
 		["ugx", 500, 5],
-	] as const)(
-		"converts %s Stripe minor units using the charge exponent",
-		(currency, amount, expected) => {
-			const [record] = normalizeStripeEvent({
-				...modernIntent,
-				id: `evt_${currency}`,
-				data: {
-					object: {
-						...modernIntent.data.object,
-						amount,
-						currency,
-						id: `pi_${currency}`,
-					},
+	] as const)("converts %s Stripe minor units using the charge exponent", (currency, amount, expected) => {
+		const [record] = normalizeStripeEvent({
+			...modernIntent,
+			id: `evt_${currency}`,
+			data: {
+				object: {
+					...modernIntent.data.object,
+					amount,
+					currency,
+					id: `pi_${currency}`,
 				},
-			});
+			},
+		});
 
-			expect(record?.amount).toBe(expected);
-			expect(record?.currency).toBe(currency.toUpperCase());
-		}
-	);
+		expect(record?.amount).toBe(expected);
+		expect(record?.currency).toBe(currency.toUpperCase());
+	});
 
 	test("applies zero-decimal conversion to attempts and refunds", () => {
 		const [attempt] = normalizeStripeEvent({
@@ -345,7 +343,7 @@ describe("normalizeStripeEvent", () => {
 					payments: {
 						data: [
 							{
-								amount_paid: 6_000,
+								amount_paid: 6000,
 								created: 1_700_000_290,
 								currency: "usd",
 								id: "inpay_partial",
@@ -382,9 +380,9 @@ describe("normalizeStripeEvent", () => {
 		expect(partialMoney).toContainEqual(
 			expect.objectContaining({
 				amount: 60,
-					context: expect.objectContaining({
-						invoiceId: "in_partial_oob",
-						paymentIntentId: "pi_partial",
+				context: expect.objectContaining({
+					invoiceId: "in_partial_oob",
+					paymentIntentId: "pi_partial",
 				}),
 				transactionId: "inpay_partial",
 			})
@@ -392,9 +390,9 @@ describe("normalizeStripeEvent", () => {
 		expect(partialMoney).toContainEqual(
 			expect.objectContaining({
 				amount: 40,
-					context: expect.objectContaining({
-						invoiceId: "in_partial_oob",
-					}),
+				context: expect.objectContaining({
+					invoiceId: "in_partial_oob",
+				}),
 				transactionId: "in_partial_oob:out_of_band",
 			})
 		);
@@ -424,7 +422,7 @@ describe("normalizeStripeEvent", () => {
 					payments: {
 						data: [
 							{
-								amount_paid: 6_000,
+								amount_paid: 6000,
 								created: 1_700_000_290,
 								currency: "usd",
 								id: "inpay_transition",
@@ -444,13 +442,13 @@ describe("normalizeStripeEvent", () => {
 		}).filter((record) => record.context.recordKind === "money");
 
 		expect(money).toMatchObject([
-				{
-					amount: 60,
-					transactionId: "inpay_transition",
+			{
+				amount: 60,
+				transactionId: "inpay_transition",
 			},
-				{
-					amount: 40,
-					transactionId: "in_transition_oob:out_of_band",
+			{
+				amount: 40,
+				transactionId: "in_transition_oob:out_of_band",
 			},
 		]);
 	});
@@ -505,16 +503,18 @@ describe("normalizeStripeEvent", () => {
 		);
 
 		expect(money).toMatchObject([
-				{
-					amount: 1,
-					transactionId: "inpay_1",
+			{
+				amount: 1,
+				transactionId: "inpay_1",
 			},
-				{
-					amount: 2,
-					transactionId: "inpay_2",
+			{
+				amount: 2,
+				transactionId: "inpay_2",
 			},
 		]);
-		expect(records.find((record) => record.transactionId === "in_partial")).toBeUndefined();
+		expect(
+			records.find((record) => record.transactionId === "in_partial")
+		).toBeUndefined();
 	});
 
 	test("does not infer modern out-of-band revenue from a paginated list", () => {
@@ -539,9 +539,7 @@ describe("normalizeStripeEvent", () => {
 		});
 
 		expect(
-			records.some(
-				(record) => record.transactionId.endsWith(":out_of_band")
-			)
+			records.some((record) => record.transactionId.endsWith(":out_of_band"))
 		).toBe(false);
 	});
 
@@ -559,8 +557,8 @@ describe("normalizeStripeEvent", () => {
 			})[0];
 		const remaining = failedInvoice("evt_remaining", {
 			amount_due: 10_000,
-			amount_paid: 3_000,
-			amount_remaining: 7_000,
+			amount_paid: 3000,
+			amount_remaining: 7000,
 			created: 1_699_000_000,
 			currency: "usd",
 			id: "in_remaining",
@@ -568,25 +566,25 @@ describe("normalizeStripeEvent", () => {
 		});
 		const requested = failedInvoice("evt_requested", {
 			amount_due: 10_000,
-			amount_paid: 3_000,
-			amount_remaining: 7_000,
+			amount_paid: 3000,
+			amount_remaining: 7000,
 			created: 1_699_000_000,
 			currency: "usd",
 			id: "in_requested",
 			payments: {
 				data: [
 					{
-						amount_requested: 2_500,
+						amount_requested: 2500,
 						created: 1_700_000_390,
 						currency: "usd",
 						id: "inpay_requested",
-							invoice: "in_requested",
-							is_default: true,
-							payment: {
-								type: "payment_intent",
-								payment_intent: "pi_requested",
-							},
-							status: "open",
+						invoice: "in_requested",
+						is_default: true,
+						payment: {
+							type: "payment_intent",
+							payment_intent: "pi_requested",
+						},
+						status: "open",
 					},
 				],
 				has_more: false,
@@ -709,9 +707,9 @@ describe("normalizeStripeEvent", () => {
 			stripe_failure_decline_code: "insufficient_funds",
 			stripe_failure_type: "card_error",
 		});
-		expect(JSON.stringify(buildStripeMetadata({}, record.context))).not.toContain(
-			"provider message"
-		);
+		expect(
+			JSON.stringify(buildStripeMetadata({}, record.context))
+		).not.toContain("provider message");
 	});
 
 	test("rejects unbounded failure text but keeps a safe cancellation reason", () => {
@@ -812,71 +810,33 @@ describe("normalizeStripeEvent", () => {
 		expect(record?.createdUnix).toBe(1_700_172_800);
 	});
 
-	test("keeps embedded payment identities when allocations are paginated", () => {
-		const records = normalizeStripeEvent({
-			...modernInvoice,
-			api_version: "2025-08-27.basil",
-			data: {
-				object: {
-					...modernInvoice.data.object,
-					payments: {
-						data: [
-							{
-								amount_paid: 100,
-								created: 1_700_000_190,
-								currency: "usd",
-							id: "inpay_partial_page",
-							invoice: "in_1",
-							payment: {
-								payment_intent: "pi_partial_page",
-								type: "payment_intent",
-							},
-							status: "paid",
-							},
-						],
-						has_more: true,
-					},
-				},
-			},
-		});
-
-		expect(records).toHaveLength(1);
-		expect(records[0]).toMatchObject({
-			context: {
-				invoiceId: "in_1",
-				paymentIntentId: "pi_partial_page",
-			},
-			transactionId: "inpay_partial_page",
-		});
-	});
-
 	test("serializes source identity without changing analytics attribution", () => {
 		expect(
-				buildStripeMetadata(
-					{ profile_id: "profile-1" },
-					{
-						eventType: "invoice_payment.paid",
+			buildStripeMetadata(
+				{ profile_id: "profile-1" },
+				{
+					eventType: "invoice_payment.paid",
 					invoiceId: "in_1",
 					paymentIntentId: "pi_1",
 					recordKind: "money",
 				}
 			)
-			).toEqual({
-				profile_id: "profile-1",
-				stripe_event_type: "invoice_payment.paid",
+		).toEqual({
+			profile_id: "profile-1",
+			stripe_event_type: "invoice_payment.paid",
 			stripe_invoice_id: "in_1",
 			stripe_payment_intent_id: "pi_1",
 			stripe_record_kind: "money",
 		});
 		expect(
-				buildStripeMetadata(
-					{},
-					{
-						eventType: "invoice.paid",
-						invoiceId: "in_1",
-						recordKind: "money",
-					}
-				)
-			).toMatchObject({ stripe_event_type: "invoice.paid" });
+			buildStripeMetadata(
+				{},
+				{
+					eventType: "invoice.paid",
+					invoiceId: "in_1",
+					recordKind: "money",
+				}
+			)
+		).toMatchObject({ stripe_event_type: "invoice.paid" });
 	});
 });

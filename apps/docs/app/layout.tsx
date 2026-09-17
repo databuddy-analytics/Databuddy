@@ -42,7 +42,7 @@ export const metadata: Metadata = {
 			"Databuddy - Lightweight Developer Analytics, Error Tracking & Feature Flags",
 	},
 	description:
-		"One connected platform for analytics, error tracking, web vitals, feature flags, links, and AI analysis. No cookies, GDPR compliant. Free for small projects.",
+		"Cookieless analytics, errors, web vitals, feature flags, and AI analysis in one dashboard. Open source, with 10,000 monthly events free.",
 	authors: [{ name: "Databuddy Team" }],
 	creator: "Databuddy",
 	publisher: "Databuddy",
@@ -56,8 +56,8 @@ export const metadata: Metadata = {
 	twitter: {
 		card: "summary_large_image",
 		images: ["/og-image.png"],
-		creator: "@databuddyps",
-		site: "@databuddyps",
+		creator: "@trydatabuddy",
+		site: "@trydatabuddy",
 	},
 	robots: {
 		index: true,
@@ -118,6 +118,14 @@ export default function Layout({ children }: { children: ReactNode }) {
 					trackOutgoingLinks
 					trackWebVitals
 				/>
+				{process.env.NODE_ENV === "development" ? null : (
+					<script
+						data-cookie-options='{"domain":".databuddy.cc"}'
+						data-publishable-key="dub_pk_TbFwfIKx6BtgspSSbNDcDVRE"
+						defer
+						src="https://www.dubcdn.com/analytics/script.outbound-domains.conversion-tracking.js"
+					/>
+				)}
 			</body>
 		</html>
 	);

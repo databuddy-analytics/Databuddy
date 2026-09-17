@@ -12,12 +12,7 @@ import {
 	withBusinessContextSnapshot,
 } from "./business-context";
 import type { AppContext } from "@databuddy/ai/config/context";
-import {
-	ensureAgentCreditsAvailable,
-	isAgentBillingConfigured,
-	resolveAgentBillingCustomerId,
-	trackAgentUsageAndBill,
-} from "@databuddy/ai/agents/execution";
+import { trackAgentUsage } from "@databuddy/ai/agents/execution";
 import { and, between, db, eq, gt, isNull, lte, or } from "@databuddy/db";
 import { annotations, websites } from "@databuddy/db/schema";
 import { canonicalBusinessScope } from "@databuddy/services/business-memory";
@@ -26,6 +21,7 @@ import { createServiceAuth } from "@databuddy/rpc";
 import type {
 	InvestigationOutcome,
 	InvestigationSignal,
+	InvestigationEvidenceSnapshot,
 } from "@databuddy/shared/insights";
 import { randomUUIDv7 } from "bun";
 import dayjs from "dayjs";
@@ -37,6 +33,7 @@ import {
 	detectSignals,
 	remeasureMetricSignal,
 } from "./detection";
+import { detectRetentionSignals } from "./measurement-plan";
 import {
 	detectFunnelGoalSignals,
 	type FunnelGoalDeps,
@@ -61,6 +58,7 @@ import {
 import {
 	eligibleSignalsForInvestigation,
 	findRunObservations,
+	settleRunInvestigationCharges,
 	type DueOpenInvestigation,
 	type LatestInsightObservation,
 	loadDueOpenInvestigation,
@@ -81,6 +79,7 @@ import {
 	type InsightAgentInput,
 	type InsightAgentResult,
 	runInsightAgent,
+	savedVerificationCheck,
 } from "./agent";
 import {
 	errorCustomerImpactEvidence,
@@ -107,12 +106,22 @@ import type { WebsiteInvestigation } from "./persistence";
 import {
 	isInterruptingInvestigation,
 	persistInvestigation,
+	retireObsoleteRetentionObservation,
 } from "./persistence";
 import {
 	captureInsightsError,
 	emitInsightsEvent,
 	setInsightsLog,
 } from "./lib/evlog-insights";
+import {
+	canRunInvestigation,
+	type InvestigationBilling,
+	resolveInvestigationBilling,
+	reserveInvestigationCharge,
+	releaseInvestigationCharge,
+	settleInvestigationCharge,
+	assertInvestigationReservationActive,
+} from "./investigation-billing";
 
 interface GenerateWebsiteInsightsInput {
 	finalAttempt: boolean;
@@ -145,9 +154,11 @@ interface InvestigateWebsiteInput {
 
 export interface WebsiteInvestigationArtifact {
 	asOf: string;
+	completion?: "complete" | "incomplete";
 	evidence: string[];
 	outcome: InvestigationOutcome | null;
 	signal: InvestigationSignal | null;
+	snapshot?: InvestigationEvidenceSnapshot;
 	status: "completed" | "deferred" | "no_signals";
 }
 
@@ -174,17 +185,10 @@ const COVERAGE_FAMILIES: readonly InsightPortfolioFamily[] = [
 	"general",
 ];
 
-const COVERAGE_COUNT_STAGES = [
-	"detected",
-	"eligible",
-	"selected",
-	"completed",
-	"published",
-] as const satisfies ReadonlyArray<
-	keyof Omit<InvestigationCoverage, "noSignalReason">
+type InvestigationCoverageCountStage = keyof Omit<
+	InvestigationCoverage,
+	"noSignalReason"
 >;
-
-type InvestigationCoverageCountStage = (typeof COVERAGE_COUNT_STAGES)[number];
 
 function emptyCoverageCounts(): InvestigationCoverageCounts {
 	return Object.fromEntries(
@@ -297,6 +301,7 @@ const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 interface InvestigationRuntime {
 	canRunAgent?: () => Promise<boolean>;
+	history?: InsightAgentInput["history"];
 	mode: "production" | "shadow";
 	onUsage?: (
 		result: Required<Pick<InsightAgentResult, "modelId" | "usage">>
@@ -307,6 +312,7 @@ interface InvestigationRuntime {
 export interface InvestigationSources {
 	detectDefinitionSignals: typeof detectFunnelGoalSignals;
 	detectMetricSignals: typeof detectSignals;
+	detectRetentionSignals?: typeof detectRetentionSignals;
 	detectRouteHealthSignals: typeof detectRouteHealthSignals;
 	fetchAnnotations: (
 		websiteId: string,
@@ -348,10 +354,20 @@ export function remeasureStoredSignal(
 	abortSignal?: AbortSignal,
 	dependencies: {
 		funnelGoal?: FunnelGoalDeps;
+		retention?: Parameters<typeof detectRetentionSignals>[3];
 		query?: Parameters<typeof remeasureMetricSignal>[2];
 		routeHealth?: RouteHealthDetectionDeps;
 	} = {}
 ): Promise<DetectedSignal | null> {
+	if (prior.signalKey.startsWith("retention:")) {
+		return detectRetentionSignals(
+			params,
+			today,
+			abortSignal,
+			dependencies.retention,
+			prior
+		).then((signals) => signals[0] ?? null);
+	}
 	return prior.signalKey.startsWith("goal:") ||
 		prior.signalKey.startsWith("funnel:")
 		? remeasureFunnelGoalSignal(
@@ -466,6 +482,7 @@ export async function refreshInvestigationSignal(params: {
 }
 
 const productionInvestigationSources: InvestigationSources = {
+	detectRetentionSignals,
 	loadBusinessProfile: loadWebsiteBusinessProfile,
 	recallBusinessContext: recallWebsiteBusinessContext,
 	detectDefinitionSignals: detectFunnelGoalSignals,
@@ -523,7 +540,7 @@ function annotationEvidence(rows: InvestigationAnnotation[]): string | null {
 	return value.length <= 500 ? value : `${value.slice(0, 499).trimEnd()}…`;
 }
 
-async function discoverWebsiteSignals(
+export async function discoverWebsiteSignals(
 	input: InvestigateWebsiteInput,
 	runtime: InvestigationRuntime,
 	options: { allowCoolingFallback?: boolean } = {}
@@ -605,6 +622,15 @@ async function discoverWebsiteSignals(
 				sourceAbortSignal
 			)
 		),
+		detectSource(
+			"retention",
+			() =>
+				runtime.sources.detectRetentionSignals?.(
+					detectParams,
+					asOf,
+					sourceAbortSignal
+				) ?? Promise.resolve([])
+		),
 	] as const;
 	const settledDetections = await Promise.allSettled(detectionTasks);
 	const failedDetection = settledDetections.find(
@@ -613,8 +639,13 @@ async function discoverWebsiteSignals(
 	if (failedDetection?.status === "rejected") {
 		throw discoveryController.signal.reason ?? failedDetection.reason;
 	}
-	const [remeasuredDue, metricSignals, funnelGoalSignals, routeHealthSignals] =
-		await Promise.all(detectionTasks);
+	const [
+		remeasuredDue,
+		metricSignals,
+		funnelGoalSignals,
+		routeHealthSignals,
+		retentionSignals,
+	] = await Promise.all(detectionTasks);
 	if (
 		due &&
 		remeasuredDue &&
@@ -630,24 +661,40 @@ async function discoverWebsiteSignals(
 			`Insight detection was incomplete (${metricDiagnostics.failedFamilies} metric families and ${definitionDiagnostics.failedDefinitions} conversion definitions failed)`
 		);
 	}
+	const retiredDue =
+		due &&
+		!remeasuredDue &&
+		runtime.mode === "production" &&
+		(await retireObsoleteRetentionObservation({
+			asOf: asOf.toDate(),
+			domain: input.domain,
+			observation: due,
+			organizationId: input.organizationId,
+			websiteId: input.websiteId,
+		}));
 	const signalsByKey = new Map<string, DetectedSignal>();
 	for (const signal of [
 		...(remeasuredDue ? [remeasuredDue] : []),
 		...metricSignals,
 		...funnelGoalSignals,
 		...routeHealthSignals,
+		...retentionSignals,
 	]) {
 		const key = signalKeyForDetectedSignal(signal);
 		if (!signalsByKey.has(key)) {
 			signalsByKey.set(key, signal);
 		}
 	}
+	if (retiredDue && due) {
+		// A parallel detector may have read the definition before it was edited.
+		signalsByKey.delete(due.signal.signalKey);
+	}
 	const detectedSignals = rankSignals([...signalsByKey.values()]);
 	if (detectedSignals.length === 0) {
 		const coverage = emptyInvestigationCoverage(
-			due ? "due_recheck_unmeasurable" : "no_detected_signals"
+			due && !retiredDue ? "due_recheck_unmeasurable" : "no_detected_signals"
 		);
-		if (due) {
+		if (due && !retiredDue) {
 			if (runtime.mode === "production") {
 				emitInsightsEvent(
 					"info",
@@ -707,7 +754,8 @@ async function discoverWebsiteSignals(
 		: candidateAutomaticEligibleSignals;
 	const hasDetectedCandidate = detectedSignals.some(isInvestigationCandidate);
 	const hasPlannableCandidate = eligibleSignals.length > 0;
-	const hasUnmeasuredDue = due !== null && remeasuredDue === null;
+	const hasUnmeasuredDue =
+		due !== null && remeasuredDue === null && !retiredDue;
 	if (
 		(hasUnmeasuredDue && !hasPlannableCandidate) ||
 		(eligibleSignals.length === 0 && !options.allowCoolingFallback)
@@ -851,7 +899,7 @@ async function investigatePlannedCandidate(
 		evidence = [...evidence, annotation];
 	}
 	const appContext: AppContext = {
-		userId: input.userId ?? "system",
+		userId: input.userId,
 		organizationId: input.organizationId,
 		websiteId: input.websiteId,
 		defaultWebsiteId: input.websiteId,
@@ -864,12 +912,14 @@ async function investigatePlannedCandidate(
 		websiteName: input.name ?? null,
 	};
 	const [history, otherOpenWork] = await Promise.all([
-		runtime.sources.loadHistory({
-			organizationId: input.organizationId,
-			signalKey: candidate.signal.signalKey,
-			through: asOf.toDate(),
-			websiteId: input.websiteId,
-		}),
+		runtime.history
+			? Promise.resolve(runtime.history)
+			: runtime.sources.loadHistory({
+					organizationId: input.organizationId,
+					signalKey: candidate.signal.signalKey,
+					through: asOf.toDate(),
+					websiteId: input.websiteId,
+				}),
 		runtime.sources.loadOtherOpenWork({
 			organizationId: input.organizationId,
 			signalKey: candidate.signal.signalKey,
@@ -939,6 +989,8 @@ async function investigatePlannedCandidate(
 	return {
 		asOf: asOf.toISOString(),
 		evidence,
+		completion: investigationResult.completion,
+		snapshot: investigationResult.snapshot,
 		outcome: withBusinessContextSnapshot(
 			investigationResult.outcome,
 			candidate.businessContext
@@ -997,6 +1049,24 @@ export async function planInvestigationsWithBusinessContext(
 		: disabled;
 	// The shared profile already contains bounded, scoped PostgreSQL team replies.
 	// Only selected subjects incur recall, analytics enrichment and investigation loops.
+	// Descriptive context, priorities, exclusions or replies can change what matters.
+	// Only a standalone saved measurement can skip contextual selection safely.
+	const plannedKeys = profile.sources.every((source) =>
+		source.id.startsWith("organization-measurement-plan:")
+	)
+		? signals
+				.filter((signal) => signal.metric === "identified_retention")
+				.map(signalKeyForDetectedSignal)
+		: [];
+
+	if (plannedKeys.length) {
+		// A saved exact measurement already supplies the question; preserve critical
+		// reliability and due work without spending a model call to rediscover it.
+		candidates = planCoveragePortfolio(signals, {
+			...options,
+			selectedSignalKeys: plannedKeys,
+		}).map(toPlannedCandidate);
+	}
 	const protectedCount = candidates.filter(
 		(candidate) =>
 			candidate.signal.signalKey === options.dueSignalKey ||
@@ -1007,6 +1077,7 @@ export async function planInvestigationsWithBusinessContext(
 	).length;
 	if (
 		sources.selectCandidates &&
+		plannedKeys.length === 0 &&
 		profile.sources.length > 0 &&
 		(profile.status === "ready" || profile.status === "partial") &&
 		signals.length > 1 &&
@@ -1248,9 +1319,22 @@ export async function generateWebsiteInsights(
 		runId: input.runId,
 		websiteId: input.websiteId,
 	};
+	let settlementError: unknown;
+	try {
+		await settleRunInvestigationCharges({
+			organizationId: input.organizationId,
+			runId: input.runId,
+			websiteId: input.websiteId,
+		});
+	} catch (error) {
+		settlementError = error;
+	}
 	const prepared = await loadPreparedInsightRun(runIdentity);
 	if (prepared) {
 		await drainInsightRunEffects(runIdentity, input.finalAttempt);
+		if (settlementError) {
+			throw settlementError;
+		}
 		return prepared;
 	}
 	const [site] = await db
@@ -1312,17 +1396,16 @@ export async function generateWebsiteInsights(
 	});
 	let billingCheckError: unknown;
 	let billingCustomerId: string | null = null;
+	let billing: InvestigationBilling | null = null;
 	let noCredits = false;
 	const canRunAgent = async () => {
-		if (!isAgentBillingConfigured()) {
-			return true;
-		}
 		try {
-			billingCustomerId = await resolveAgentBillingCustomerId({
+			billing ??= await resolveInvestigationBilling({
 				organizationId: input.organizationId,
 				userId: input.requestedByUserId,
 			});
-			noCredits = !(await ensureAgentCreditsAvailable(billingCustomerId));
+			billingCustomerId = billing.customerId;
+			noCredits = !(await canRunInvestigation(billing));
 			return !noCredits;
 		} catch (error) {
 			billingCheckError = error;
@@ -1340,23 +1423,27 @@ export async function generateWebsiteInsights(
 		signalKey: string,
 		idempotencyKey: string
 	) =>
-		trackAgentUsageAndBill({
-			billingCustomerId,
-			chatId: `insights:${input.organizationId}:${site.id}:${signalKey}`,
-			idempotencyKey,
-			modelId: usage.modelId,
-			usage: usage.usage,
-			organizationId: input.organizationId,
-			source: "insights",
-			userId: input.requestedByUserId,
-			websiteId: site.id,
-		}).catch((error) =>
-			captureInsightsError(error, "generation.billing.failed", {
-				organization_id: input.organizationId,
-				run_id: input.runId,
-				website_id: site.id,
-			})
-		);
+		Promise.resolve()
+			.then(() =>
+				trackAgentUsage({
+					billingCustomerId,
+					chatId: `insights:${input.organizationId}:${site.id}:${signalKey}`,
+					idempotencyKey,
+					modelId: usage.modelId,
+					usage: usage.usage,
+					organizationId: input.organizationId,
+					source: "insights",
+					userId: input.requestedByUserId,
+					websiteId: site.id,
+				})
+			)
+			.catch((error) =>
+				captureInsightsError(error, "generation.billing.failed", {
+					organization_id: input.organizationId,
+					run_id: input.runId,
+					website_id: site.id,
+				})
+			);
 	let plan = await loadInsightRunCandidatePlan(
 		runIdentity,
 		input.reason,
@@ -1500,6 +1587,8 @@ export async function generateWebsiteInsights(
 		});
 	}
 	const emptyStatus = plan?.emptyStatus ?? null;
+	// These keys account for durable terminal observations in this run.
+	// Completed results retain their native evidence snapshot for replay.
 	const completedSignalKeys = new Set(
 		existingObservations.map((observation) => observation.signal.signalKey)
 	);
@@ -1586,12 +1675,65 @@ export async function generateWebsiteInsights(
 				candidates: plan.candidates,
 				completedSignalKeys,
 				runCandidate: async (plannedCandidate, relatedSignals) => {
-					if (noCredits) {
-						return;
-					}
 					if (plan.businessScope?.startedAt) {
 						await loadCurrentBusinessScope(plan.businessScope);
 					}
+					// Freeze the history used by the native deterministic continuation.
+					// Rechecking its exact saved condition is included, even on a manual scan.
+					const history = ["goal", "funnel"].includes(
+						plannedCandidate.signal.entity.type
+					)
+						? await productionInvestigationSources.loadHistory({
+								organizationId: input.organizationId,
+								signalKey: plannedCandidate.signal.signalKey,
+								through: new Date(plan.asOf),
+								websiteId: site.id,
+							})
+						: undefined;
+					const included = Boolean(
+						history &&
+							savedVerificationCheck({
+								history,
+								signal: plannedCandidate.signal,
+							})
+					);
+					if (noCredits && !included) {
+						return;
+					}
+					const operation = {
+						organizationId: input.organizationId,
+						websiteId: site.id,
+						operationKey: JSON.stringify([
+							"run",
+							input.runId,
+							site.id,
+							plannedCandidate.signal.signalKey,
+						]),
+					};
+					let charge: Awaited<
+						ReturnType<typeof reserveInvestigationCharge>
+					> | null = null;
+					if (!included) {
+						try {
+							billing ??= await resolveInvestigationBilling({
+								organizationId: input.organizationId,
+								userId: input.requestedByUserId,
+							});
+							charge = await reserveInvestigationCharge({
+								...operation,
+								billing,
+								startedAt: new Date(plan.asOf),
+							});
+							billingCustomerId = charge.customerId;
+						} catch (error) {
+							// Included continuations can still finish; report the unpaid
+							// fresh work as a partial failure after the portfolio runs.
+							billingCheckError = error;
+							noCredits = true;
+							return;
+						}
+					}
+					let outcomeSaved = false;
 					const usageIdempotencyKey = `insights:${input.runId}:${site.id}:${randomUUIDv7()}`;
 					const agentUsage: {
 						value: Required<
@@ -1604,8 +1746,9 @@ export async function generateWebsiteInsights(
 							plannedCandidate,
 							relatedSignals,
 							{
-								canRunAgent,
+								canRunAgent: async () => true,
 								mode: "production",
+								history,
 								sources: productionInvestigationSources,
 								onUsage: (usage) => {
 									agentUsage.value = usage;
@@ -1620,9 +1763,7 @@ export async function generateWebsiteInsights(
 							throw (
 								billingCheckError ??
 								new Error(
-									noCredits
-										? "AI usage allowance is empty"
-										: "Insight agent access is unavailable before the candidate portfolio is complete"
+									"Insight agent access is unavailable before the candidate portfolio is complete"
 								)
 							);
 						}
@@ -1635,7 +1776,12 @@ export async function generateWebsiteInsights(
 							websiteName: site.name,
 						};
 						const asOf = new Date(analysis.asOf);
+						if (charge) {
+							assertInvestigationReservationActive(charge);
+						}
 						const saved = await persistInvestigation({
+							completion: analysis.completion,
+							snapshot: analysis.snapshot,
 							businessScope: plan.businessScope ?? businessScope,
 							evidence: analysis.evidence,
 							investigation: candidate,
@@ -1645,6 +1791,7 @@ export async function generateWebsiteInsights(
 							runId: input.runId,
 							timezone: input.timezone,
 						});
+						outcomeSaved = true;
 						completedSignalKeys.add(candidate.signal.signalKey);
 						if (candidate.outcome.publish) {
 							publishedSignalKeys.add(candidate.signal.signalKey);
@@ -1661,6 +1808,31 @@ export async function generateWebsiteInsights(
 							interruptingInvestigations.push(saved);
 							await enqueueInterruptingEffects([saved]);
 						}
+						if (charge?.mode === "fixed") {
+							try {
+								await settleInvestigationCharge({
+									...operation,
+									complete:
+										analysis.completion === "complete" &&
+										analysis.snapshot?.completion === "complete",
+								});
+							} catch (error) {
+								settlementError = error;
+							}
+						}
+					} catch (error) {
+						if (charge && !outcomeSaved) {
+							try {
+								await releaseInvestigationCharge(charge);
+							} catch (releaseError) {
+								captureInsightsError(
+									releaseError,
+									"generation.billing.release_pending",
+									{ charge_id: charge.id }
+								);
+							}
+						}
+						throw error;
 					} finally {
 						const billableUsage = agentUsage.value;
 						if (billableUsage) {
@@ -1691,7 +1863,12 @@ export async function generateWebsiteInsights(
 		throw error;
 	}
 
-	if (billingCheckError) {
+	if (
+		billingCheckError &&
+		plan?.candidates.some(
+			(candidate) => !completedSignalKeys.has(candidate.signal.signalKey)
+		)
+	) {
 		emitExecutionCoverage("partial_failure");
 		throw billingCheckError;
 	}
@@ -1729,6 +1906,9 @@ export async function generateWebsiteInsights(
 			run_id: input.runId,
 		});
 		throw error;
+	}
+	if (settlementError) {
+		throw settlementError;
 	}
 	emitInsightsEvent("info", "generation.website.completed", {
 		organization_id: input.organizationId,

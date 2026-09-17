@@ -10,7 +10,6 @@ import {
 } from "./test-utils";
 
 test.describe("scroll depth", () => {
-
 	async function boot(
 		page: Page,
 		opts: { batchTimeout?: number; batchSize?: number; clientId?: string } = {}

@@ -141,6 +141,10 @@ function shouldRequireEmailVerification() {
 	return isProduction() && !isSelfHosted();
 }
 
+const cookieDomain =
+	process.env.BETTER_AUTH_COOKIE_DOMAIN?.trim() ||
+	(isSelfHosted() ? undefined : ".databuddy.cc");
+
 type EmailTemplate = Parameters<typeof render>[0];
 
 async function enforceAuthEmailRateLimit(input: {
@@ -226,7 +230,7 @@ function notifySlack(
 	priority: "high" | "normal",
 	metadata: Record<string, string>
 ): void {
-	if (!SLACK_WEBHOOK_URL) {
+	if (isSelfHosted() || !SLACK_WEBHOOK_URL) {
 		return;
 	}
 
@@ -242,6 +246,52 @@ function notifySlack(
 		})
 		.catch((error) => {
 			console.error(`Failed to send Slack notification (${title}):`, error);
+		});
+}
+
+const DUB_API_KEY = process.env.DUB_API_KEY ?? "";
+
+function trackDubSignUp(user: {
+	id: string;
+	email: string;
+	name: string | null;
+	image?: string | null;
+}): void {
+	if (isSelfHosted()) {
+		return;
+	}
+	const clickId = getAuthAuditContext()?.dubClickId;
+	if (!(DUB_API_KEY && clickId)) {
+		return;
+	}
+
+	fetch("https://api.dub.co/track/lead", {
+		method: "POST",
+		headers: {
+			Authorization: `Bearer ${DUB_API_KEY}`,
+			"Content-Type": "application/json",
+		},
+		body: JSON.stringify({
+			clickId,
+			eventName: "Sign Up",
+			customerExternalId: user.id,
+			customerEmail: user.email,
+			customerName: user.name,
+			customerAvatar: user.image,
+		}),
+	})
+		.then(async (response) => {
+			if (!response.ok) {
+				throw new Error(`${response.status} ${await response.text()}`);
+			}
+		})
+		.catch((error) => {
+			log.warn({
+				service: "auth",
+				dub_event: "lead",
+				auth_user_id: user.id,
+				error: error instanceof Error ? error.message : String(error),
+			});
 		});
 }
 
@@ -458,6 +508,7 @@ export const auth = betterAuth({
 						name: createdUser.name,
 						organizationId: orgId,
 					});
+					trackDubSignUp(createdUser);
 				},
 			},
 		},
@@ -574,8 +625,8 @@ export const auth = betterAuth({
 	},
 	advanced: {
 		crossSubDomainCookies: {
-			enabled: isProduction() && !isSelfHosted(),
-			domain: process.env.BETTER_AUTH_COOKIE_DOMAIN ?? ".databuddy.cc",
+			enabled: isProduction() && Boolean(cookieDomain),
+			domain: cookieDomain,
 		},
 		cookiePrefix: isProduction() ? "databuddy" : "databuddy-dev",
 		useSecureCookies: isProduction(),
@@ -634,8 +685,8 @@ export const auth = betterAuth({
 	},
 	emailVerification: {
 		expiresIn: AUTH_EMAIL_EXPIRY_SECONDS.emailVerification,
-		sendOnSignUp: process.env.NODE_ENV === "production",
-		sendOnSignIn: process.env.NODE_ENV === "production",
+		sendOnSignUp: shouldRequireEmailVerification(),
+		sendOnSignIn: shouldRequireEmailVerification(),
 		autoSignInAfterVerification: true,
 		sendVerificationEmail: async ({ user, url }) => {
 			await enforceAuthEmailRateLimit({

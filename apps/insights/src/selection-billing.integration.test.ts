@@ -17,14 +17,15 @@ import * as definitions from "./funnel-detection";
 import * as routes from "./route-health-detection";
 import * as selection from "./business-aware-selection";
 import * as plans from "./run-candidate-plan";
+import * as investigationBilling from "./investigation-billing";
 
 const integration =
 	process.env.INSIGHTS_INTEGRATION_TESTS === "true" && hasTestDb
 		? describe
 		: describe.skip;
 
-integration("selection billing across native generation retries", () => {
-	it("reuses the charge key before freeze, skips selection after freeze, and separates runs and websites", async () => {
+integration("selection usage across native generation retries", () => {
+	it("reuses the plan before freeze, skips selection after freeze, and never charges the provider", async () => {
 		const organizationId = randomUUIDv7();
 		const siteIds = [randomUUIDv7(), randomUUIDv7()];
 		const runIds = [randomUUIDv7(), randomUUIDv7()];
@@ -32,18 +33,26 @@ integration("selection billing across native generation retries", () => {
 		const secret = process.env.AUTUMN_SECRET_KEY;
 		process.env.AUTUMN_SECRET_KEY = "synthetic-selection-billing";
 		const autumn = getAutumn();
+		const provider = spyOn(globalThis, "fetch").mockRejectedValue(
+			new Error(
+				"Empty selection must not make investigation reservation requests"
+			)
+		);
 		const requests: string[] = [];
 		const charges = new Map<string, number>();
 		const track = spyOn(autumn, "track").mockImplementation(
 			async (request, options) => {
 				const key = new Headers(options?.headers).get("Idempotency-Key");
 				expect(key).toBeTruthy();
-				if (!key) throw new Error("Missing charge identity");
+				if (!key) {
+					throw new Error("Missing charge identity");
+				}
 				requests.push(key);
 				expect(request.featureId).toBe("agent_credits");
 				expect(request.value).toBeGreaterThan(0);
-				// Emulate only the provider's idempotency boundary; billing logic is native.
-				if (!charges.has(key)) charges.set(key, request.value ?? 0);
+				if (!charges.has(key)) {
+					charges.set(key, request.value ?? 0);
+				}
 				return {
 					customerId: request.customerId,
 					value: request.value ?? 0,
@@ -61,6 +70,14 @@ integration("selection billing across native generation retries", () => {
 			billing,
 			"resolveAgentBillingCustomerId"
 		).mockResolvedValue("synthetic-customer");
+		const mode = spyOn(
+			investigationBilling,
+			"resolveInvestigationBilling"
+		).mockResolvedValue({ mode: "fixed", customerId: "synthetic-customer" });
+		const access = spyOn(
+			investigationBilling,
+			"canRunInvestigation"
+		).mockResolvedValue(true);
 		const metrics = spyOn(detection, "detectSignals").mockResolvedValue(
 			["visitors", "sessions"].map((metric) => ({
 				metric,
@@ -182,14 +199,11 @@ integration("selection billing across native generation retries", () => {
 			expect(
 				await plans.loadInsightRunCandidatePlan(input, "scheduled")
 			).toMatchObject({ candidates: [] });
-			expect(requests).toEqual([
-				`insights:${input.runId}:${input.websiteId}:selection`,
-				`insights:${input.runId}:${input.websiteId}:selection`,
-			]);
-			expect(charges.size).toBe(1);
+			expect(requests).toEqual([]);
+			expect(charges.size).toBe(0);
 			await generateWebsiteInsights(input);
 			expect(choose).toHaveBeenCalledTimes(2);
-			expect(track).toHaveBeenCalledTimes(2);
+			expect(track).not.toHaveBeenCalled();
 			for (const identity of identities.slice(1)) {
 				if (identity.runId !== input.runId) {
 					await db
@@ -203,30 +217,58 @@ integration("selection billing across native generation retries", () => {
 				}
 				await generateWebsiteInsights({ ...input, ...identity });
 			}
-			expect(charges.size).toBe(3);
-			expect(requests.slice(2)).toEqual(
-				identities
-					.slice(1)
-					.map(
-						(identity) =>
-							`insights:${identity.runId}:${identity.websiteId}:selection`
-					)
-			);
+			expect(charges.size).toBe(0);
+			expect(requests).toEqual([]);
+			await db
+				.update(insightRuns)
+				.set({ status: "succeeded" })
+				.where(inArray(insightRuns.id, runIds));
+			const fixedRunId = randomUUIDv7();
+			const fixedItemId = randomUUIDv7();
+			runIds.push(fixedRunId);
+			itemIds.push(fixedItemId);
+			await db
+				.insert(insightRuns)
+				.values({ id: fixedRunId, organizationId, status: "running" });
+			await db.insert(insightRunItems).values({
+				id: fixedItemId,
+				runId: fixedRunId,
+				organizationId,
+				websiteId: input.websiteId,
+				queueJobId: `synthetic-${fixedItemId}`,
+				status: "running",
+			});
+			const priorTrackCalls = track.mock.calls.length;
+			await generateWebsiteInsights({
+				...input,
+				runId: fixedRunId,
+				itemId: fixedItemId,
+				queueJobId: `synthetic-${fixedItemId}`,
+			});
+			expect(track).toHaveBeenCalledTimes(priorTrackCalls);
+			expect(provider).not.toHaveBeenCalled();
 		} finally {
 			for (const stub of [
+				provider,
 				track,
 				check,
 				customer,
+				mode,
+				access,
 				metrics,
 				goals,
 				health,
 				profile,
 				choose,
 				interrupt,
-			])
+			]) {
 				stub.mockRestore();
-			if (secret === undefined) delete process.env.AUTUMN_SECRET_KEY;
-			else process.env.AUTUMN_SECRET_KEY = secret;
+			}
+			if (secret === undefined) {
+				delete process.env.AUTUMN_SECRET_KEY;
+			} else {
+				process.env.AUTUMN_SECRET_KEY = secret;
+			}
 			await db
 				.delete(insightRunItems)
 				.where(inArray(insightRunItems.id, itemIds));

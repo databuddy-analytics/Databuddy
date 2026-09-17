@@ -15,8 +15,6 @@ import {
 	signalKeyForDetectedSignal,
 } from "./investigation";
 
-// Explicitly opt in. All business, analytics and reply data below are synthetic;
-// only the native model request is live. No detection, storage, billing or delivery runs.
 const live =
 	process.env.INSIGHTS_LIVE_SELECTION_TESTS === "true"
 		? describe
@@ -133,8 +131,9 @@ live("live native business selection", () => {
 					calls++;
 					const part = params.prompt.find((message) => message.role === "user")
 						?.content[0];
-					if (!part || part.type !== "text")
+					if (!part || part.type !== "text") {
 						throw new Error("Missing selection input");
+					}
 					const sent = JSON.parse(part.text).businessContext;
 					expect(sent.sources).toEqual([newer, older, pricing]);
 					expect(sent.omittedSourceCount).toBe(1);
@@ -273,7 +272,9 @@ live("live native business selection", () => {
 					loadBusinessProfile: async () => fixture.businessContext,
 					selectCandidates: async (params) => {
 						const result = await chooseInvestigationSignals(params, model);
-						if (result) results.push(result);
+						if (result) {
+							results.push(result);
+						}
 						return result;
 					},
 				},
@@ -308,10 +309,15 @@ live("live native business selection", () => {
 			process.stdout.write(`${JSON.stringify(record)}\n`);
 			expect(calls).toBe(1);
 			expect(result).toBeDefined();
-			if (fixture.expected) expect(chosen).toEqual(fixture.expected);
-			if (fixture.required) expect(chosen).toContain(fixture.required);
-			if (fixture.sourceCharacters)
+			if (fixture.expected) {
+				expect(chosen).toEqual(fixture.expected);
+			}
+			if (fixture.required) {
+				expect(chosen).toContain(fixture.required);
+			}
+			if (fixture.sourceCharacters) {
 				expect(record.sourceCharacters).toBe(fixture.sourceCharacters);
+			}
 			expect(chosen.length).toBeLessThanOrEqual(2);
 			expect(
 				chosen.every((key) =>

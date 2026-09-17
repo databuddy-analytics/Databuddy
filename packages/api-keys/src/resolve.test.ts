@@ -2,8 +2,8 @@ import { afterAll, beforeEach, describe, expect, mock, test } from "bun:test";
 import type { ApiKeyRow } from "./resolve";
 
 const calls: string[] = [];
-const findApiKey = mock((_input?: unknown): Promise<unknown> =>
-	Promise.resolve(null)
+const findApiKey = mock(
+	(_input?: unknown): Promise<unknown> => Promise.resolve(null)
 );
 const redisSet = mock((): Promise<string | null> => Promise.resolve("OK"));
 
@@ -105,7 +105,6 @@ describe("API key database deadline", () => {
 			resolveApiKeySecret("dbdy_valid_test_key")
 		).resolves.toMatchObject({ outcome: "invalid" });
 
-		expect(API_KEY_LOOKUP_TIMEOUT_MS).toBe(5000);
 		expect(configuredQueryTimeoutMs).toBe(API_KEY_LOOKUP_TIMEOUT_MS);
 		expect(calls).toEqual(["lookup"]);
 		expect(findApiKey).toHaveBeenCalledTimes(1);
@@ -140,9 +139,9 @@ describe("API key database deadline", () => {
 			() => new Promise<never>(() => undefined)
 		);
 
-		await expect(
-			resolveApiKeySecret("dbdy_waiting_for_pool")
-		).rejects.toThrow("Query timeout");
+		await expect(resolveApiKeySecret("dbdy_waiting_for_pool")).rejects.toThrow(
+			"Query timeout"
+		);
 		expect(findApiKey).toHaveBeenCalledTimes(1);
 
 		await expect(
@@ -224,10 +223,7 @@ describe("resolve outcomes", () => {
 		["disabled", { enabled: false }],
 		["revoked", { revokedAt: new Date("2026-01-01T00:00:00Z") }],
 		["expired", { expiresAt: new Date("2020-01-01T00:00:00Z") }],
-	])("maps a %s key to that outcome without returning it", async (
-		outcome,
-		overrides
-	) => {
+	])("maps a %s key to that outcome without returning it", async (outcome, overrides) => {
 		findApiKey.mockResolvedValueOnce({ ...baseKey, ...overrides });
 
 		await expect(

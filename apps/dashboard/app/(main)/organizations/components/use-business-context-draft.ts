@@ -2,14 +2,26 @@
 
 import {
 	businessContextEditSchema,
+	businessMeasurementPlanSchema,
 	type BusinessContextEdit,
 } from "@databuddy/shared/organization-business-context";
 import { useCallback, useEffect, useState } from "react";
 import { z } from "zod";
 
 // Keep invalid/unfinished input recoverable too; saving applies the real limits.
-const recoverySchema = businessContextEditSchema.extend({
+const draftRecoverySchema = businessContextEditSchema.extend({
 	content: z.string().max(100_000),
+	measurementPlans: z
+		.array(
+			businessMeasurementPlanSchema.extend({
+				name: z.string().max(1000),
+				activationEvent: z.string().max(1000),
+				returnEvent: z.string().max(1000),
+				namespace: z.string().max(1000).optional(),
+			})
+		)
+		.max(20)
+		.optional(),
 	teamContext: z
 		.object({
 			priority: z.string().max(10_000),
@@ -18,70 +30,100 @@ const recoverySchema = businessContextEditSchema.extend({
 		})
 		.optional(),
 });
-const tabDrafts = new Map<
-	string,
-	{ draft: BusinessContextEdit | null; recoverable: boolean }
->();
+const researchSchema = z.object({
+	websiteId: z.string().optional(),
+	// Preserve incomplete and invalid input; generation validates it later.
+	sourceText: z.string().max(100_000),
+});
+type ResearchInput = z.infer<typeof researchSchema>;
+const recoverySchema = z.object({
+	draft: draftRecoverySchema.nullable(),
+	research: researchSchema.optional(),
+});
+interface Recovery {
+	draft: BusinessContextEdit | null;
+	recoverable: boolean;
+	research?: ResearchInput;
+}
+const tabDrafts = new Map<string, Recovery>();
 
 export function useBusinessContextDraft(key: string, canEdit: boolean) {
-	const [draft, setDraft] = useState<BusinessContextEdit | null>(null);
+	const [entry, setEntry] = useState<Recovery>({
+		draft: null,
+		recoverable: true,
+	});
 	const [ready, setReady] = useState(false);
-	const [recoverable, setRecoverable] = useState(true);
 
 	useEffect(() => {
 		if (!canEdit) {
-			tabDrafts.set(key, { draft: null, recoverable: true });
+			const empty = { draft: null, recoverable: true };
+			tabDrafts.set(key, empty);
 			try {
 				sessionStorage.removeItem(key);
 			} catch {
 				/* Storage may be disabled. */
 			}
-			setDraft(null);
+			setEntry(empty);
 			setReady(true);
 			return;
 		}
-		let entry = tabDrafts.get(key);
-		if (!entry) {
-			entry = { draft: null, recoverable: true };
+		let current = tabDrafts.get(key);
+		if (!current) {
+			current = { draft: null, recoverable: true };
 			try {
 				const raw = sessionStorage.getItem(key);
 				if (raw) {
-					const result = recoverySchema.safeParse(JSON.parse(raw));
+					const stored = JSON.parse(raw);
+					const result = recoverySchema.safeParse(stored);
 					if (result.success) {
-						entry.draft = result.data;
+						current = { ...result.data, recoverable: true };
+					} else {
+						const legacy = draftRecoverySchema.safeParse(stored);
+						if (legacy.success) {
+							current.draft = legacy.data;
+						}
 					}
 				}
 			} catch {
-				entry.recoverable = false;
+				current.recoverable = false;
 			}
-			tabDrafts.set(key, entry);
+			tabDrafts.set(key, current);
 		}
 		// Memory is newer than storage after a failed write; null is a tombstone.
-		setDraft(entry.draft);
-		setRecoverable(entry.recoverable);
+		setEntry(current);
 		setReady(true);
 	}, [key, canEdit]);
 
-	const updateDraft = useCallback(
-		(next: BusinessContextEdit | null) => {
-			setDraft(next);
-			const entry = { draft: next, recoverable: true };
-			tabDrafts.set(key, entry);
+	const store = useCallback(
+		(next: Omit<Recovery, "recoverable">) => {
+			const current = { ...next, recoverable: true };
+			tabDrafts.set(key, current);
 			try {
-				if (next) {
+				if (next.draft || next.research) {
 					sessionStorage.setItem(key, JSON.stringify(next));
 				} else {
 					sessionStorage.removeItem(key);
 				}
-				setRecoverable(true);
 			} catch {
-				entry.recoverable = false;
-				setRecoverable(false);
+				current.recoverable = false;
 			}
+			setEntry(current);
 		},
 		[key]
 	);
 
+	const updateDraft = useCallback(
+		(draft: BusinessContextEdit | null) => {
+			store({ draft, research: tabDrafts.get(key)?.research });
+		},
+		[key, store]
+	);
+	const updateResearch = useCallback(
+		(research: ResearchInput) => {
+			store({ draft: tabDrafts.get(key)?.draft ?? null, research });
+		},
+		[key, store]
+	);
 	const clearDraft = useCallback(
 		(submitted: BusinessContextEdit | null) => {
 			// A save may finish after unmount. Never erase a newer remounted draft.
@@ -93,15 +135,13 @@ export function useBusinessContextDraft(key: string, canEdit: boolean) {
 	);
 
 	useEffect(() => {
-		if (!draft || recoverable) {
+		if (!(entry.draft || entry.research) || entry.recoverable) {
 			return;
 		}
-		const protect = (event: BeforeUnloadEvent) => {
-			event.preventDefault();
-		};
+		const protect = (event: BeforeUnloadEvent) => event.preventDefault();
 		window.addEventListener("beforeunload", protect);
 		return () => window.removeEventListener("beforeunload", protect);
-	}, [draft, recoverable]);
+	}, [entry]);
 
-	return { draft, updateDraft, clearDraft, ready, recoverable };
+	return { ...entry, updateDraft, updateResearch, clearDraft, ready };
 }

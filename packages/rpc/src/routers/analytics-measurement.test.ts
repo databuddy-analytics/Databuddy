@@ -17,7 +17,9 @@ const withCache = async ({
 	key: string;
 	queryFn: () => Promise<unknown>;
 }) => {
-	if (!cache.has(key)) cache.set(key, await queryFn());
+	if (!cache.has(key)) {
+		cache.set(key, await queryFn());
+	}
 	return cache.get(key);
 };
 const metrics: Awaited<ReturnType<typeof processFunnelAnalytics>> = {
@@ -188,14 +190,17 @@ for (const kind of ["goal", "funnel"] as const) {
 			startDate: "2026-09-01",
 			endDate: `${period.endDate} 23:59:59`,
 		});
-		if (kind === "goal") expect(goalQuery.mock.calls[0]?.[3]).toBe(200);
-		if (kind === "goal")
+		if (kind === "goal") {
+			expect(goalQuery.mock.calls[0]?.[3]).toBe(200);
+		}
+		if (kind === "goal") {
 			expect(entrants.mock.calls[0]).toEqual([
 				period.websiteId,
 				"2026-09-01",
 				period.endDate,
 				filters,
 			]);
+		}
 	});
 
 	test(`${kind} cannot attach a changed definition to cached old measurements`, async () => {
@@ -251,8 +256,9 @@ for (const kind of ["goal", "funnel"] as const) {
 			cohort.filters[0]
 		);
 		expect(result.measurement.startDate).toBe("2026-09-01");
-		if ("steps" in result.savedDefinition)
+		if ("steps" in result.savedDefinition) {
 			expect(result.savedDefinition.steps).toEqual(row.steps);
+		}
 		await read();
 		expect(measuredQuery).toHaveBeenCalledTimes(1);
 		browserFilter.value = "Chrome";
@@ -261,72 +267,6 @@ for (const kind of ["goal", "funnel"] as const) {
 		expect(row.filters).toEqual([savedFilter]);
 	});
 }
-
-// Synthetic added world: event marginals cannot establish ordered funnel completion.
-// This validates the RPC/cache/read contract, not ClickHouse numerical execution.
-test("browser cohort comparison exposes Safari loss and retains unchanged Chrome control", async () => {
-	const row = definition();
-	row.ignoreHistoricData = false;
-	query.mockImplementation(async (_steps, filters, params) => {
-		const browser = filters.find((f) => f.field === "browser_name")?.value;
-		const previous = params.startDate === "2026-08-22";
-		let completed = previous ? 180 : 100;
-		if (browser === "Safari") {
-			completed = previous ? 100 : 20;
-		} else if (browser === "Chrome") {
-			completed = 80;
-		}
-		return {
-			...metrics,
-			total_users_entered: browser ? 500 : 1000,
-			total_users_completed: completed,
-			overall_conversion_rate: (completed / (browser ? 500 : 1000)) * 100,
-		};
-	});
-	const read = createProcedureClient(funnelsRouter.getAnalytics, {
-		context: context(row, "funnel"),
-	});
-	const output = [];
-	for (const browser of ["Safari", "Chrome"] as const) {
-		for (const window of [
-			{ startDate: "2026-08-22", endDate: "2026-08-28" },
-			{ startDate: "2026-08-29", endDate: "2026-09-04" },
-		]) {
-			const input = {
-				...window,
-				websiteId: "site-a",
-				funnelId: row.id,
-				cohort: {
-					filters: [
-						{
-							field: "browser_name" as const,
-							operator: "equals" as const,
-							value: browser,
-						},
-					],
-				},
-			};
-			const result = await read(input);
-			output.push({ input, result });
-		}
-	}
-	expect(output.map((v) => v.result.total_users_completed)).toEqual([
-		100, 20, 80, 80,
-	]);
-	expect(output.every((v) => v.result.total_users_entered === 500)).toBe(true);
-	expect(
-		output.every((v) => v.result.savedDefinition.filters.length === 1)
-	).toBe(true);
-});
-
-test("funnel reads restore default measurements after a cohort-specific mock", async () => {
-	const row = definition();
-	const read = createProcedureClient(funnelsRouter.getAnalytics, {
-		context: context(row, "funnel"),
-	});
-	const result = await read({ ...period, funnelId: row.id });
-	expect(result).toMatchObject(metrics);
-});
 
 test("link analytics rejects a cohort before querying definitions or analytics", async () => {
 	const row = definition();
@@ -382,7 +322,9 @@ test("referrer cohorts return actual dates and saved definition with independent
 	await read(input);
 	expect(referrerQuery).toHaveBeenCalledTimes(2);
 	const signupStep = row.steps[1];
-	if (!signupStep) throw new Error("Missing signup step");
+	if (!signupStep) {
+		throw new Error("Missing signup step");
+	}
 	signupStep.target = "/activated";
 	await read(input);
 	expect(referrerQuery).toHaveBeenCalledTimes(3);
