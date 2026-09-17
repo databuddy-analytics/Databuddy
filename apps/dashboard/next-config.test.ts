@@ -26,7 +26,7 @@ async function getCspHeader(source: string): Promise<string> {
 }
 
 async function withEnv<T>(
-	overrides: Record<string, string>,
+	overrides: Record<string, string | undefined>,
 	callback: () => Promise<T>
 ): Promise<T> {
 	const original = process.env;
@@ -40,6 +40,7 @@ async function withEnv<T>(
 
 describe("dashboard next config", () => {
 	it.each([
+		undefined,
 		"true",
 		"false",
 	])("respects SELFHOST=%s in browser config and signup tracking", async (selfhost) => {
@@ -54,7 +55,7 @@ describe("dashboard next config", () => {
 				`
 import assert from "node:assert/strict";
 const { default: config } = await import("./next.config");
-assert.equal(config.env.NEXT_PUBLIC_SELFHOST, ${JSON.stringify(selfhost)});
+assert.equal(config.env.NEXT_PUBLIC_SELFHOST, ${JSON.stringify(String(selfhost === "true"))});
 process.env.NEXT_PUBLIC_SELFHOST = config.env.NEXT_PUBLIC_SELFHOST;
 const pixelId = config.env.NEXT_PUBLIC_OPENAI_ADS_PIXEL_ID;
 assert.equal(pixelId, ${JSON.stringify(selfhost === "true" ? "" : "synthetic-pixel")});
@@ -86,10 +87,15 @@ assert.equal(window.oaiq?.q?.some(args => args[0] === "measure") ?? false, ${sel
 		expect(exitCode, stderr).toBe(0);
 	});
 
-	it("allows configured API and ingestion origins in production", async () => {
+	it.each([
+		undefined,
+		"false",
+		"true",
+	])("adds configured origins only for SELFHOST=%s", async (selfhost) => {
 		await withEnv(
 			{
 				NODE_ENV: "production",
+				SELFHOST: selfhost,
 				NEXT_PUBLIC_API_URL: "https://api.example.com/prefix",
 				NEXT_PUBLIC_BASKET_URL: "https://events.example.com:8443",
 			},
@@ -103,8 +109,12 @@ assert.equal(window.oaiq?.q?.some(args => args[0] === "measure") ?? false, ${sel
 					const connect = csp
 						.split(";")
 						.find((part) => part.trim().startsWith("connect-src"));
-					expect(connect).toContain("https://api.example.com");
-					expect(connect).toContain("https://events.example.com:8443");
+					expect(connect?.includes("https://api.example.com")).toBe(
+						selfhost === "true"
+					);
+					expect(connect?.includes("https://events.example.com:8443")).toBe(
+						selfhost === "true"
+					);
 					expect(connect).toContain("https://*.databuddy.cc");
 					expect(connect).not.toContain("/prefix");
 					expect(csp).not.toContain("'unsafe-eval'");

@@ -1,4 +1,4 @@
-import { readBooleanEnv } from "@databuddy/env/app";
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import { getAutumn } from "../lib/autumn-client";
 import { getBillingCustomerId } from "../utils/billing";
 import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";

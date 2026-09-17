@@ -1,5 +1,5 @@
 import { and, count, db, eq, isNull } from "@databuddy/db";
-import { readBooleanEnv } from "@databuddy/env/app";
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import {
 	annotations,
 	funnelDefinitions,

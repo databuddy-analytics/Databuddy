@@ -1,5 +1,4 @@
 import { describe, expect, spyOn, test } from "bun:test";
-import { config, createConfig } from "@databuddy/env/app";
 import {
 	buildAlarmNotificationConfig,
 	buildAlarmNotificationTargets,
@@ -8,22 +7,51 @@ import { NotificationClient } from "../client";
 
 describe("buildAlarmNotificationTargets", () => {
 	test.each([
-		["", undefined, "App <app@example.com>"],
-		["Alerts <alerts@example.com>", undefined, "Alerts <alerts@example.com>"],
-		["Alerts <alerts@example.com>", "alarm@example.com", "alarm@example.com"],
-		["Alerts <alerts@example.com>", "", "Alerts <alerts@example.com>"],
-	] as const)("delivers alarms with sender %s and destination override %s", async (alertsFrom, destinationFrom, expectedFrom) => {
-		const previousEmail = config.email;
-		const previousApiKey = process.env.RESEND_API_KEY;
+		["true", "", undefined, "App <app@example.com>"],
+		[
+			"true",
+			"Alerts <alerts@example.com>",
+			undefined,
+			"Alerts <alerts@example.com>",
+		],
+		[
+			"true",
+			"Alerts <alerts@example.com>",
+			"alarm@example.com",
+			"alarm@example.com",
+		],
+		["true", "Alerts <alerts@example.com>", "", "Alerts <alerts@example.com>"],
+		[
+			undefined,
+			"Alerts <alerts@example.com>",
+			undefined,
+			"Databuddy <alerts@databuddy.cc>",
+		],
+		[
+			"false",
+			"Alerts <alerts@example.com>",
+			"",
+			"Databuddy <alerts@databuddy.cc>",
+		],
+		[
+			"false",
+			"Alerts <alerts@example.com>",
+			"alarm@example.com",
+			"alarm@example.com",
+		],
+	] as const)("delivers alarms with SELFHOST=%s, sender %s and destination override %s", async (selfhost, alertsFrom, destinationFrom, expectedFrom) => {
+		const previousEnv = process.env;
+		process.env = {
+			...previousEnv,
+			SELFHOST: selfhost,
+			ALERTS_EMAIL_FROM: alertsFrom,
+			EMAIL_FROM: "App <app@example.com>",
+		};
 		const fetchMock = spyOn(globalThis, "fetch").mockImplementation(() =>
 			Promise.resolve(Response.json({ id: "email-example" }))
 		);
 		process.env.RESEND_API_KEY = "re_test_key";
 		try {
-			config.email = createConfig({
-				ALERTS_EMAIL_FROM: alertsFrom,
-				EMAIL_FROM: "App <app@example.com>",
-			}).email;
 			const [target] = buildAlarmNotificationTargets([
 				{
 					type: "email",
@@ -43,13 +71,8 @@ describe("buildAlarmNotificationTargets", () => {
 				to: ["recipient@example.com"],
 			});
 		} finally {
-			config.email = previousEmail;
 			fetchMock.mockRestore();
-			if (previousApiKey === undefined) {
-				Reflect.deleteProperty(process.env, "RESEND_API_KEY");
-			} else {
-				process.env.RESEND_API_KEY = previousApiKey;
-			}
+			process.env = previousEnv;
 		}
 	});
 
