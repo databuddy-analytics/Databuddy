@@ -1,9 +1,10 @@
 import { describe, expect, it } from "bun:test";
 import { DatabuddyAgentUserError } from "@databuddy/ai/agent/errors";
+import type { ChatStopStreamArguments } from "@slack/web-api";
 import type { DatabuddyAgentClient } from "@/agent/agent-client";
 import { SLACK_COPY } from "@/slack/messages";
 import { streamAgentToSlack } from "@/slack/respond";
-import type { SlackAgentClient } from "@/slack/types";
+import type { SlackAgentClient, SlackSay } from "@/slack/types";
 
 class SlackApiError extends Error {
 	code = "slack_webapi_platform_error";
@@ -167,7 +168,7 @@ describe("Databuddy Slack response streaming", () => {
 		const { calls, client } = createStreamClient(
 			streaming ? "stream_ts" : null
 		);
-		const sayCalls: unknown[] = [];
+		const sayCalls: Parameters<SlackSay>[0][] = [];
 		const result = await streamAgentToSlack({
 			agent: {
 				async *stream() {
@@ -289,7 +290,7 @@ describe("Databuddy Slack response streaming", () => {
 	it("finishes valid prose when Slack rejects its component blocks", async () => {
 		const { calls, client } = createStreamClient();
 		const stop = client.chat.stopStream;
-		const attemptedStops: unknown[] = [];
+		const attemptedStops: ChatStopStreamArguments[] = [];
 		client.chat.stopStream = async (options) => {
 			attemptedStops.push(options);
 			if (options.blocks) {
