@@ -1,3 +1,5 @@
+import { clickHouse } from "@databuddy/db/clickhouse";
+import { readBooleanEnv } from "@databuddy/env/app";
 import { CompressionTypes, Kafka, type Producer } from "kafkajs";
 import { captureError } from "./tracing";
 
@@ -74,6 +76,18 @@ export async function sendUptimeEvent(
 	event: unknown,
 	key?: string
 ): Promise<void> {
+	if (readBooleanEnv("SELFHOST")) {
+		await clickHouse.insert({
+			table: "uptime.uptime_monitor",
+			values: [event],
+			format: "JSONEachRow",
+			abort_signal: AbortSignal.timeout(10_000),
+			clickhouse_settings: {
+				async_insert: 0,
+			},
+		});
+		return;
+	}
 	const producer = await ensureProducer();
 	try {
 		await producer.send({

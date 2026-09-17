@@ -1,9 +1,12 @@
 import { clickHouse, TABLE_NAMES } from "@databuddy/db/clickhouse";
+import { readBooleanEnv } from "@databuddy/env/app";
 import { CompressionTypes, Kafka, type Producer } from "kafkajs";
 import { captureError, setAttributes } from "./logging";
 
 const TOPIC = "analytics-link-visits";
-const broker = process.env.REDPANDA_BROKER;
+const broker = readBooleanEnv("SELFHOST")
+	? undefined
+	: process.env.REDPANDA_BROKER;
 const username = process.env.REDPANDA_USER;
 const password = process.env.REDPANDA_PASSWORD;
 const reconnectCooldownMs = 60_000;

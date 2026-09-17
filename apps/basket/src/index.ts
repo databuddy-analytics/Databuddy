@@ -8,6 +8,7 @@ import {
 import { withHealthProbeDeadline } from "@lib/health-probe";
 import { shutdownPostgres } from "@databuddy/db";
 import { clickHouse } from "@databuddy/db/clickhouse";
+import { readBooleanEnv } from "@databuddy/env/app";
 import { getRedisCache } from "@databuddy/redis/redis";
 import {
 	checkProducerConnection,
@@ -224,13 +225,15 @@ const app = new Elysia()
 					throw new Error("ping failed");
 				}
 			}),
-			ping("redpanda", async () => {
-				await runPromise(checkProducerConnection);
-			}),
+			readBooleanEnv("SELFHOST")
+				? { status: "disabled" as const }
+				: ping("redpanda", async () => {
+						await runPromise(checkProducerConnection);
+					}),
 		]);
 
 		const services = { clickhouse, redis, redpanda };
-		const status = Object.values(services).every((s) => s.status === "ok")
+		const status = Object.values(services).every((s) => s.status !== "error")
 			? "ok"
 			: "degraded";
 		return Response.json(

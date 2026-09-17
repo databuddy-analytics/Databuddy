@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { afterAll, beforeEach, describe, expect, mock, test } from "bun:test";
+
+const originalEnvironment = { ...process.env };
 
 const setAttributes = mock(() => {});
 const captureError = mock(() => {});
@@ -83,6 +85,7 @@ const event = {
 };
 
 beforeEach(() => {
+	process.env.SELFHOST = "false";
 	delete process.env.REDPANDA_BROKER;
 	delete process.env.REDPANDA_PASSWORD;
 	delete process.env.REDPANDA_USER;
@@ -94,7 +97,24 @@ beforeEach(() => {
 	nextProducer = null;
 });
 
+afterAll(() => {
+	process.env = originalEnvironment;
+});
+
 describe("sendLinkVisit", () => {
+	test("ignores copied broker settings when self-hosting", async () => {
+		process.env.SELFHOST = "true";
+		process.env.REDPANDA_BROKER = "redpanda.test:9092";
+		const { getProducerHealthState, sendLinkVisit, warmProducerConnection } =
+			await loadProducer();
+
+		await warmProducerConnection();
+		expect(getProducerHealthState()).toBe("disabled");
+		await expect(sendLinkVisit(event)).resolves.toBe(true);
+		expect(clickHouseInsert).toHaveBeenCalledTimes(1);
+		expect(kafkaConfigs).toEqual([]);
+	});
+
 	test("persists directly when Kafka is not configured", async () => {
 		const { sendLinkVisit } = await loadProducer();
 

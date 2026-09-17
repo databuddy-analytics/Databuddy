@@ -1,6 +1,6 @@
 import type { ClickHouseClient } from "@clickhouse/client";
 import { Effect } from "effect";
-import type { Admin, Producer } from "kafkajs";
+import { type Admin, Kafka, type Producer } from "kafkajs";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import type { ProducerConfig } from "./producer";
 
@@ -107,6 +107,40 @@ describe("producer delivery guarantees", () => {
 		);
 		const stats = await Effect.runPromise(effects.stats);
 		expect(stats).toMatchObject({ inFlight: 0, sent: 1 });
+	});
+
+	test("self-hosting ignores a configured broker and waits for direct persistence", async () => {
+		let resolveInsert: (() => void) | undefined;
+		const insert = vi.fn(
+			() =>
+				new Promise<void>((resolve) => {
+					resolveInsert = resolve;
+				})
+		);
+		const kafka = new Kafka({ brokers: ["redpanda.test:9092"] }).producer();
+		vi.spyOn(kafka, "connect").mockResolvedValue();
+		vi.spyOn(kafka, "send").mockResolvedValue([]);
+		const effects = await makeEffects(
+			insert,
+			{ broker: "redpanda.test:9092" },
+			kafka
+		);
+		let settled = false;
+		const delivery = Effect.runPromise(
+			effects.sendOne("analytics-events", event("event_selfhost"))
+		).then(() => {
+			settled = true;
+		});
+		await vi.waitFor(() => expect(insert).toHaveBeenCalledOnce());
+		expect(settled).toBe(false);
+		expect(kafka.connect).not.toHaveBeenCalled();
+		expect(kafka.send).not.toHaveBeenCalled();
+		resolveInsert?.();
+		await delivery;
+		expect(await Effect.runPromise(effects.stats)).toMatchObject({
+			kafkaEnabled: false,
+			sent: 1,
+		});
 	});
 
 	test("keeps the ClickHouse deduplication token stable across an event retry", async () => {
