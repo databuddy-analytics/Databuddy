@@ -1,3 +1,5 @@
+import type { Button, KnownBlock } from "@slack/web-api";
+
 const COMPONENT_START = '{"type":"';
 
 const DASHBOARD_BASE_URL = "https://app.databuddy.cc";
@@ -13,7 +15,9 @@ export interface ComponentSpec {
 	[key: string]: unknown;
 }
 
-export type Block = Record<string, unknown>;
+export type Block =
+	| KnownBlock
+	| { type: "data_table"; caption: string; rows: TableCell[][] };
 
 interface SplitResult {
 	components: ComponentSpec[];
@@ -199,7 +203,7 @@ function renderListTable(spec: ComponentSpec): Block[] {
 
 function renderDashboardActions(spec: ComponentSpec): Block[] {
 	const elements = asArray(spec.actions)
-		.map((item): Block | null => {
+		.map((item): Button | null => {
 			const action = item as Record<string, unknown>;
 			const url = absoluteUrl(asString(action.href));
 			const label = asString(action.label).trim();
@@ -212,14 +216,14 @@ function renderDashboardActions(spec: ComponentSpec): Block[] {
 				url,
 			};
 		})
-		.filter((element): element is Block => element !== null)
+		.filter((element): element is Button => element !== null)
 		.slice(0, MAX_ACTION_BUTTONS);
 	return elements.length > 0 ? [{ type: "actions", elements }] : [];
 }
 
 function renderSuggestedActions(spec: ComponentSpec): Block[] {
 	const elements = asArray(spec.actions)
-		.map((item): Block | null => {
+		.map((item): Button | null => {
 			const action = item as Record<string, unknown>;
 			const label = asString(action.label).trim();
 			const prompt = asString(action.prompt).trim();
@@ -233,7 +237,7 @@ function renderSuggestedActions(spec: ComponentSpec): Block[] {
 				value: prompt.slice(0, DRILLDOWN_PROMPT_MAX),
 			};
 		})
-		.filter((element): element is Block => element !== null)
+		.filter((element): element is Button => element !== null)
 		.slice(0, MAX_ACTION_BUTTONS);
 	return elements.length > 0 ? [{ type: "actions", elements }] : [];
 }
