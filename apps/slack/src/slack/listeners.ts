@@ -176,7 +176,7 @@ export function registerSlackListeners(
 			const threadTs = event.thread_ts ?? event.ts;
 			const teamId = context.teamId ?? event.team;
 			const text = stripLeadingMention(event.text ?? "").trim();
-			if (!event.user) {
+			if (!event.user || event.bot_id || event.bot_profile) {
 				return;
 			}
 			if (!text) {
