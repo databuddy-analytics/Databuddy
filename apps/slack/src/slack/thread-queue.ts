@@ -2,9 +2,11 @@ import { getRedisCache } from "@databuddy/redis";
 import type { SlackAgentRun, SlackFollowUpMessage } from "@/agent/agent-client";
 
 const THREAD_LOCK_TTL_SECONDS = 5 * 60;
-const FOLLOW_UP_QUEUE_TTL_SECONDS = THREAD_LOCK_TTL_SECONDS;
-const ENGAGED_THREAD_TTL_SECONDS = 7 * 24 * 60 * 60;
 const MAX_FOLLOW_UP_ITEMS = 10;
+// Retain pending messages and deletion references while every queued author runs.
+const FOLLOW_UP_QUEUE_TTL_SECONDS =
+	MAX_FOLLOW_UP_ITEMS * THREAD_LOCK_TTL_SECONDS;
+const ENGAGED_THREAD_TTL_SECONDS = 7 * 24 * 60 * 60;
 const MAX_FOLLOW_UP_TEXT_CHARS = 4000;
 
 interface RedisLike {
@@ -249,7 +251,7 @@ export class SlackThreadQueue implements SlackThreadQueueStore {
 			queueKey(run),
 			stopKey(run),
 			run.requestTs ?? run.messageTs ?? String(Date.now() / 1000),
-			String(THREAD_LOCK_TTL_SECONDS)
+			String(FOLLOW_UP_QUEUE_TTL_SECONDS)
 		);
 	}
 

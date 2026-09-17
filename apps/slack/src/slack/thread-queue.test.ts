@@ -24,6 +24,17 @@ function createFakeRedis() {
 		values,
 		lists,
 		expiries,
+		advance(seconds: number) {
+			for (const [key, remaining] of expiries) {
+				if (remaining <= seconds) {
+					values.delete(key);
+					lists.delete(key);
+					expiries.delete(key);
+				} else {
+					expiries.set(key, remaining - seconds);
+				}
+			}
+		},
 		async del(...keys: string[]) {
 			let deleted = 0;
 			for (const key of keys) {
@@ -93,10 +104,15 @@ function createFakeRedis() {
 							cutoff
 					)
 				);
+				expiries.set(first, Number(args[1]));
+				expiries.set(second, Number(args[1]));
 				return 1;
 			}
-			if (script.includes("return redis.call('EXPIRE'"))
-				return values.get(first) === second ? 1 : 0;
+			if (script.includes("return redis.call('EXPIRE'")) {
+				if (values.get(first) !== second) return 0;
+				expiries.set(first, Number(args[0]));
+				return 1;
+			}
 			if (values.get(first) !== args[0]) return 1;
 			if (args[1] === "true" && (lists.get(second)?.length ?? 0) > 0) return 0;
 			values.delete(first);
@@ -264,6 +280,50 @@ describe("SlackThreadQueue", () => {
 });
 
 describe("Slack queue safety", () => {
+	it("retains queued authors and deletion references across slow responses", async () => {
+		const redis = createFakeRedis();
+		const queue = new SlackThreadQueue(redis);
+		const run = createRun();
+		await queue.tryAcquire(run);
+		for (let index = 0; index < 10; index++) {
+			await queue.enqueue(
+				createRun({
+					messageTs: `171235.${index}`,
+					text: `message ${index}`,
+					userId: `U${index}`,
+				})
+			);
+		}
+		for (let index = 0; index < 9; index++) {
+			redis.advance(4 * 60);
+			expect((await queue.drain(run)).map((item) => item.text)).toEqual([
+				`message ${index}`,
+			]);
+		}
+		expect(
+			await queue.removeDeletedFollowUp({
+				channelId: run.channelId,
+				messageTs: "171235.9",
+				teamId: run.teamId,
+			})
+		).toBe(true);
+		expect(await queue.drain(run)).toEqual([]);
+	});
+
+	it("keeps the stop cutoff and preserved follow-ups beyond one response lease", async () => {
+		const redis = createFakeRedis();
+		const queue = new SlackThreadQueue(redis);
+		const run = createRun();
+		await queue.tryAcquire(run);
+		await queue.enqueue(createRun({ messageTs: "171235.000", text: "keep" }));
+		await queue.stop(createRun({ messageTs: "171234.900" }));
+		redis.advance(4 * 60);
+		expect(await queue.renew(run)).toBe(true);
+		redis.advance(4 * 60);
+		expect(await queue.isStopped(run)).toBe(true);
+		expect((await queue.drain(run)).map((item) => item.text)).toEqual(["keep"]);
+	});
+
 	it("keeps concurrent enqueue attempts within the shared capacity", async () => {
 		const redis = createFakeRedis();
 		const replicas = [new SlackThreadQueue(redis), new SlackThreadQueue(redis)];
