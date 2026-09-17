@@ -1,6 +1,6 @@
 "use client";
 
-import { publicConfig } from "@databuddy/env/public";
+import { isSelfHosted, publicConfig } from "@databuddy/env/public";
 
 import { authClient } from "@databuddy/auth/client";
 import { FlagsProvider } from "@databuddy/sdk/react";
@@ -99,11 +99,11 @@ function FlagsProviderWrapper({ children }: { children: React.ReactNode }) {
 	return (
 		<FlagsProvider
 			apiUrl={apiUrl}
-			autoFetch={!isE2E}
+			autoFetch={!(isE2E || isSelfHosted)}
 			clientId={clientId}
-			disabled={isE2E}
+			disabled={isE2E || isSelfHosted}
 			isPending={isPending}
-			skipStorage={isE2E}
+			skipStorage={isE2E || isSelfHosted}
 			user={user}
 		>
 			{children}

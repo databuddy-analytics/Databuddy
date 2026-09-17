@@ -1,5 +1,7 @@
 "use client";
 
+import { isSelfHosted } from "@databuddy/env/public";
+
 import { useAtomValue } from "jotai";
 import { motion } from "motion/react";
 import { useRouter } from "next/navigation";
@@ -47,6 +49,9 @@ export function AgentCreditBalance({
 		return () => clearTimeout(timer);
 	}, [status]);
 
+	if (isSelfHosted) {
+		return null;
+	}
 	if (isLoading) {
 		return (
 			<Skeleton

@@ -1,3 +1,4 @@
+import { readBooleanEnv } from "@databuddy/env/app";
 import {
 	and,
 	db,
@@ -977,6 +978,14 @@ async function insertInsightRunOrFindActive(
 async function requireInvestigationsAccess(
 	organizationId: string
 ): Promise<void> {
+	if (readBooleanEnv("SELFHOST")) {
+		if (!process.env.AI_GATEWAY_API_KEY?.trim()) {
+			throw rpcError.badRequest(
+				"Ask your administrator to configure AI before running investigations."
+			);
+		}
+		return;
+	}
 	const customerId = await getOrganizationOwnerId(organizationId);
 	const customer = customerId
 		? await getAutumn().customers.get({ customerId })

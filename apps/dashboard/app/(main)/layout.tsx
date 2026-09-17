@@ -1,3 +1,4 @@
+import { readBooleanEnv } from "@databuddy/env/app";
 import { publicConfig } from "@databuddy/env/public";
 import { FeedbackPrompt } from "@/components/feedback-prompt";
 import { isDashboardE2E } from "@/lib/e2e-mode";
@@ -69,7 +70,7 @@ export default function MainLayout({
 		</BillingProvider>
 	);
 
-	if (isDashboardE2E) {
+	if (isDashboardE2E || readBooleanEnv("SELFHOST")) {
 		return content;
 	}
 

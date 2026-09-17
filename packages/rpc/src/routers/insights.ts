@@ -1,3 +1,4 @@
+import { readBooleanEnv } from "@databuddy/env/app";
 import { getAutumn } from "../lib/autumn-client";
 import { getBillingCustomerId } from "../utils/billing";
 import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
@@ -104,6 +105,14 @@ const appendInvestigationReplyInputSchema = z
 
 type InsightTimelineItem = z.infer<typeof insightTimelineItemSchema>;
 
+function requireInvestigationAI() {
+	if (readBooleanEnv("SELFHOST") && !process.env.AI_GATEWAY_API_KEY?.trim()) {
+		throw rpcError.badRequest(
+			"Ask your administrator to configure AI before continuing an investigation."
+		);
+	}
+}
+
 async function queueInsightReply(
 	replyId: string
 ): Promise<z.infer<typeof insightReplyStatusSchema>> {
@@ -162,6 +171,9 @@ export async function queueDefinitionChangeRechecks(input: {
 	type: RecheckableDefinitionType;
 	websiteId: string;
 }): Promise<void> {
+	if (readBooleanEnv("SELFHOST") && !process.env.AI_GATEWAY_API_KEY?.trim()) {
+		return;
+	}
 	const subjectPrefix = `${input.type}:${input.definitionId}`;
 	try {
 		const cases = await db
@@ -562,23 +574,26 @@ export async function appendInvestigationReply(
 	});
 	setAuditOrganization(context, insight.organizationId);
 
+	requireInvestigationAI();
 	const author = replyAuthor(context, authorName);
 	if (parsed.intent === "analysis") {
 		if (!author.authorId) {
 			throw rpcError.badRequest("Start a new analysis from the dashboard.");
 		}
-		const customerId = await getBillingCustomerId(
-			author.authorId,
-			insight.organizationId
-		);
-		const customer = await getAutumn().customers.get({ customerId });
-		if (
-			customer.id !== customerId ||
-			!Object.hasOwn(customer.balances, INVESTIGATION_USAGE.featureId)
-		) {
-			throw rpcError.badRequest(
-				"Activate investigation billing to start a new analysis. Clarifications remain included."
+		if (!readBooleanEnv("SELFHOST")) {
+			const customerId = await getBillingCustomerId(
+				author.authorId,
+				insight.organizationId
 			);
+			const customer = await getAutumn().customers.get({ customerId });
+			if (
+				customer.id !== customerId ||
+				!Object.hasOwn(customer.balances, INVESTIGATION_USAGE.featureId)
+			) {
+				throw rpcError.badRequest(
+					"Activate investigation billing to start a new analysis. Clarifications remain included."
+				);
+			}
 		}
 	}
 	const stored = await db.transaction(async (tx) => {
@@ -858,6 +873,7 @@ async function applyInsightAction(input: {
 	});
 	setAuditOrganization(context, target.organizationId);
 
+	requireInvestigationAI();
 	const author = replyAuthor(context);
 	const completed = await db.transaction(async (tx) => {
 		const [current] = await tx
@@ -1509,6 +1525,7 @@ export const insightsRouter = {
 				websiteId: reply.websiteId,
 			});
 			setAuditOrganization(context, reply.organizationId);
+			requireInvestigationAI();
 			const pendingStatus = await db.transaction(async (tx) => {
 				const insightCase = and(
 					eq(analyticsInsights.organizationId, reply.organizationId),

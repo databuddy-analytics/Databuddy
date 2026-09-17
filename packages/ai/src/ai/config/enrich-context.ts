@@ -1,4 +1,5 @@
 import { and, count, db, eq, isNull } from "@databuddy/db";
+import { readBooleanEnv } from "@databuddy/env/app";
 import {
 	annotations,
 	funnelDefinitions,
@@ -16,6 +17,9 @@ async function fetchPlanContext(
 	userId: string,
 	organizationId: string | null
 ): Promise<string> {
+	if (readBooleanEnv("SELFHOST")) {
+		return "<self_hosted>Analytics features have no plan limits.</self_hosted>";
+	}
 	try {
 		const { planId } = await getBillingOwner(userId, organizationId);
 		const capabilities = getPlanCapabilities(planId as PlanId);

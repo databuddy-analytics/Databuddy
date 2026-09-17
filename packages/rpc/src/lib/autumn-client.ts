@@ -4,6 +4,7 @@
  * https://docs.useautumn.com/documentation/modelling-pricing/spend-limits
  */
 import { Autumn, HTTPClient } from "autumn-js";
+import { readBooleanEnv } from "@databuddy/env/app";
 
 function createClient(strict = false): Autumn {
 	const secretKey = process.env.AUTUMN_SECRET_KEY;
@@ -32,6 +33,9 @@ let instance: Autumn | null = null;
 let strictInstance: Autumn | null = null;
 
 export function getAutumn(options?: { strict?: boolean }): Autumn {
+	if (readBooleanEnv("SELFHOST")) {
+		throw new Error("Hosted billing is disabled for self-hosted instances");
+	}
 	if (options?.strict) {
 		strictInstance ??= createClient(true);
 		return strictInstance;

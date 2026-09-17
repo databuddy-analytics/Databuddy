@@ -1,3 +1,4 @@
+import { readBooleanEnv } from "@databuddy/env/app";
 import { resolveAgentBillingCustomerId } from "@databuddy/ai/agents/execution";
 import { createHash } from "node:crypto";
 import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
@@ -43,6 +44,9 @@ export async function resolveInvestigationBilling(
 	principal: { organizationId: string; userId?: string | null },
 	client?: Autumn
 ): Promise<InvestigationBilling> {
+	if (readBooleanEnv("SELFHOST")) {
+		return { mode: "unconfigured", customerId: null };
+	}
 	if (!(process.env.AUTUMN_SECRET_KEY?.trim() || client)) {
 		if (process.env.NODE_ENV === "production") {
 			throw new Error("Investigation billing is not configured");
@@ -211,6 +215,9 @@ async function finalizeReservation(
 	complete: boolean,
 	client?: Autumn
 ): Promise<void> {
+	if (readBooleanEnv("SELFHOST")) {
+		return;
+	}
 	if (!(client || process.env.AUTUMN_SECRET_KEY?.trim())) {
 		if (process.env.NODE_ENV !== "production") {
 			return;

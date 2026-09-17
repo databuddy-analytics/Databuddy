@@ -120,3 +120,27 @@ describe("updateAutumnBalance", () => {
 		expect(isDefinitiveAutumnBalanceFailure(error)).toBe(false);
 	});
 });
+
+it("self-hosted balance writes fail definitively before any provider request", async () => {
+	const original = process.env.SELFHOST;
+	process.env.SELFHOST = "true";
+	const request = mock(async () => new Response("{}"));
+	globalThis.fetch = request as typeof fetch;
+	try {
+		const definitiveFailure = await updateAutumnBalance({
+			amount: 1,
+			customerId: "synthetic-customer",
+			featureId: "events",
+			redemptionId: "synthetic-redemption",
+			secretKey: "synthetic-stale-key",
+		}).catch(isDefinitiveAutumnBalanceFailure);
+		expect(definitiveFailure).toBe(true);
+		expect(request).not.toHaveBeenCalled();
+	} finally {
+		if (original === undefined) {
+			Reflect.deleteProperty(process.env, "SELFHOST");
+		} else {
+			process.env.SELFHOST = original;
+		}
+	}
+});

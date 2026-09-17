@@ -189,6 +189,8 @@ jobs:
           'apps/dashboard/app/(main)/websites/[id]/_components/utils/code-generators.test.ts'
           'apps/dashboard/app/(main)/onboarding/_components/step-install-tracking.test.ts'
           packages/auth/src/selfhost-config.test.ts
+      - name: Self-hosted billing UI
+        run: bun test --no-env-file --isolate apps/dashboard/components/providers/selfhost-billing.test.tsx
       - name: Business context integration
         env:
           NODE_ENV: test

@@ -16,6 +16,7 @@ const demoFrameAncestorSources = [
 
 const nextConfig: NextConfig = {
 	env: {
+		NEXT_PUBLIC_SELFHOST: String(readBooleanEnv("SELFHOST")),
 		NEXT_PUBLIC_OPENAI_ADS_PIXEL_ID: readBooleanEnv("SELFHOST")
 			? ""
 			: process.env.NEXT_PUBLIC_OPENAI_ADS_PIXEL_ID,

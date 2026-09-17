@@ -1,3 +1,4 @@
+import { readBooleanEnv } from "@databuddy/env/app";
 import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
 import { MIN_AGENT_CREDIT_CHECK_BALANCE } from "@databuddy/shared/agent-credits";
 import { getAutumn } from "@databuddy/rpc/autumn";
@@ -33,7 +34,10 @@ export interface AgentBillingAccess {
 }
 
 export function isAgentBillingConfigured(): boolean {
-	return Boolean(process.env.AUTUMN_SECRET_KEY?.trim());
+	return (
+		!readBooleanEnv("SELFHOST") &&
+		Boolean(process.env.AUTUMN_SECRET_KEY?.trim())
+	);
 }
 
 export async function resolveAgentBillingCustomerId(principal: {
@@ -93,6 +97,11 @@ export async function resolveAgentBillingCustomerId(principal: {
 export async function getAgentBillingAccess(
 	billingCustomerId: string | null
 ): Promise<AgentBillingAccess> {
+	if (readBooleanEnv("SELFHOST") && !process.env.AI_GATEWAY_API_KEY?.trim()) {
+		throw new Error(
+			"Ask your administrator to configure AI before using Databunny."
+		);
+	}
 	if (!isAgentBillingConfigured()) {
 		mergeWideEvent({
 			agent_credits_allowed: true,

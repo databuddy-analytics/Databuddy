@@ -1,5 +1,7 @@
 "use client";
 
+import { isSelfHosted } from "@databuddy/env/public";
+
 import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -479,23 +481,35 @@ function FirstReview({
 			</Button>
 		);
 	} else if (!needsRefresh && canRun && status.action === "review") {
-		action = billingLoading ? (
-			<Button disabled loading size="sm">
-				Checking balance
-			</Button>
-		) : canUseCredits ? (
-			<Button onClick={onRun} size="sm">
-				{state === "ready" ? "Run first review" : "Retry first review"}
-				<ArrowRightIcon className="size-3" />
-			</Button>
-		) : (
-			<Button asChild size="sm">
-				<Link href="/billing#topup">
-					<CoinsIcon className="size-3.5" />
-					Add investigation balance
-				</Link>
-			</Button>
-		);
+		if (billingLoading) {
+			action = (
+				<Button disabled loading size="sm">
+					{isSelfHosted ? "Checking AI setup" : "Checking balance"}
+				</Button>
+			);
+		} else if (canUseCredits) {
+			action = (
+				<Button onClick={onRun} size="sm">
+					{state === "ready" ? "Run first review" : "Retry first review"}
+					<ArrowRightIcon className="size-3" />
+				</Button>
+			);
+		} else if (isSelfHosted) {
+			action = (
+				<p className="text-pretty text-muted-foreground text-sm">
+					Ask your administrator to configure AI before running a review.
+				</p>
+			);
+		} else {
+			action = (
+				<Button asChild size="sm">
+					<Link href="/billing#topup">
+						<CoinsIcon className="size-3.5" />
+						Add investigation balance
+					</Link>
+				</Button>
+			);
+		}
 	}
 	const permissionDescription =
 		!(needsRefresh || canRun) && status.action
