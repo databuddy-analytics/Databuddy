@@ -9,7 +9,7 @@ import { serve } from "bun";
 import { App } from "@slack/bolt";
 import { initLogger, log } from "evlog";
 import { DatabuddyAgentClient } from "@/agent/agent-client";
-import { resolveSlackConfig } from "@/config";
+import { resolveSlackConfig, SLACK_WEB_CLIENT_OPTIONS } from "@/config";
 import {
 	captureSlackError,
 	flushBatchedSlackDrain,
@@ -103,8 +103,11 @@ async function main() {
 		appToken: config.appToken,
 		authorize: createSlackAuthorize(installations),
 		clientOptions: {
+			...SLACK_WEB_CLIENT_OPTIONS,
 			slackApiUrl: "https://slack.com/api",
 		},
+		// Socket Mode connection setup and OAuth keep their native retry behavior.
+		installerOptions: { clientOptions: {} },
 		logLevel: config.logLevel,
 		signingSecret: config.signingSecret,
 		socketMode: config.socketMode,
