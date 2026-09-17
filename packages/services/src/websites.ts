@@ -52,9 +52,6 @@ export class ValidationError extends Error {
 	}
 }
 
-export const buildWebsiteFilter = (organizationId: string) =>
-	eq(websites.organizationId, organizationId);
-
 function websiteBusinessScope(website: Website) {
 	return canonicalBusinessScope({
 		organizationId: website.organizationId,

@@ -26,14 +26,6 @@ export interface AppContext {
 	[key: string]: unknown;
 }
 
-export function requireWebsiteId(context: AppContext): string {
-	const websiteId = context.defaultWebsiteId ?? context.websiteId;
-	if (!websiteId) {
-		throw new Error("This operation requires a website in context.");
-	}
-	return websiteId;
-}
-
 function escapeAttr(value: string): string {
 	return value
 		.replace(/&/g, "&amp;")

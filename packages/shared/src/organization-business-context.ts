@@ -70,17 +70,6 @@ export type BusinessMeasurementPlan = z.infer<
 	typeof businessMeasurementPlanSchema
 >;
 
-export function formatBusinessMeasurementPlans(
-	plans: BusinessMeasurementPlan[] = []
-): string {
-	return plans
-		.map(
-			(plan) =>
-				`${plan.name} (${plan.domain}): ${plan.activationEvent} → ${plan.returnEvent} within ${plan.horizonDays} days${plan.namespace ? `; namespace ${plan.namespace}` : ""}`
-		)
-		.join("\n");
-}
-
 export const businessTeamContextSchema = z.object({
 	priority: z.string().trim().max(BUSINESS_CONTEXT_TEAM_FIELD_LIMIT),
 	successDefinition: z.string().trim().max(BUSINESS_CONTEXT_TEAM_FIELD_LIMIT),

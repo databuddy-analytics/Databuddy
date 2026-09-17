@@ -108,21 +108,6 @@ async function resolveOAuthToken(
 	return null;
 }
 
-export async function getOAuthToken(
-	providerId: string,
-	organizationId: string,
-	preferUserId?: string,
-	requiredScope?: string
-): Promise<string | null> {
-	const resolved = await resolveOAuthToken(
-		providerId,
-		organizationId,
-		preferUserId,
-		requiredScope
-	);
-	return resolved?.token ?? null;
-}
-
 export function createCachedTokenFn(
 	providerId: string,
 	organizationId: string,
