@@ -2,6 +2,7 @@ import { resolveAgentBillingCustomerId } from "@databuddy/ai/agents/execution";
 import { createHash } from "node:crypto";
 import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
 import { Autumn, HTTPClient } from "autumn-js";
+import { captureInsightsError } from "./lib/evlog-insights";
 
 export interface InvestigationBilling {
 	customerId: string | null;
@@ -252,6 +253,13 @@ async function finalizeReservation(
 			) {
 				// Missing can mean confirmed, released, or expired. Nothing remains to
 				// finalize; it is not proof of payment and never warrants a new debit.
+				if (complete) {
+					captureInsightsError(
+						new Error("Investigation charge lock was gone before confirmation"),
+						"investigation_billing.settlement_unconfirmed",
+						{ lock_id: id }
+					);
+				}
 				return;
 			}
 		}
