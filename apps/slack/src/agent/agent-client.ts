@@ -11,6 +11,7 @@ type SlackAgentTrigger =
 
 export interface SlackFollowUpMessage {
 	messageTs?: string;
+	requestTs?: string;
 	text: string;
 	userId?: string;
 }
@@ -19,6 +20,7 @@ export interface SlackAgentRun {
 	channelId: string;
 	followUpMessages?: SlackFollowUpMessage[];
 	messageTs?: string;
+	requestTs?: string;
 	slackContext?: DatabuddyAgentSlackContext | null;
 	teamId?: string;
 	text: string;
@@ -43,7 +45,7 @@ export interface SlackAgentStreamOptions {
 
 // Slack streams keep the "thinking" indicator open, and Slack imposes no stream
 // duration limit, so allow multi-site/complex analytics runs well past the 45s
-// default before the outer 5-minute run timeout in run-handler steps in.
+// default before the outer 4-minute response timeout in run-handler steps in.
 const SLACK_AGENT_TIMEOUT_MS = 120_000;
 
 export interface SlackAgentRunner {

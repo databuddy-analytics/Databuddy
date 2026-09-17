@@ -148,13 +148,16 @@ function createQueue(
 		enqueuedRuns,
 		removedMessages,
 		drain: async () => [],
+		stop: async () => undefined,
+		isStopped: async () => false,
+		renew: async () => true,
 		enqueue: async (run) => {
 			enqueuedRuns.push(run);
 			return { ok: true, queuedCount: enqueuedRuns.length };
 		},
 		isEngaged: async () => true,
 		markEngaged: async () => undefined,
-		release: async () => undefined,
+		release: async () => true,
 		removeDeletedFollowUp: async (ref) => {
 			removedMessages.push(ref);
 			return true;
@@ -693,5 +696,67 @@ describe("Slack listeners", () => {
 		expect(queue.removedMessages).toEqual([
 			{ channelId: "C123", messageTs: "171234.568", teamId: "T123" },
 		]);
+	});
+});
+
+describe("Slack stop routing", () => {
+	it("handles stop before relevance and investigation continuation, while rejecting external speakers", async () => {
+		const app = new FakeSlackApp();
+		const { agent, runs } = createAgent();
+		const { client } = createClient();
+		const stops: SlackAgentRun[] = [];
+		const queue = createQueue({
+			stop: async (run) => {
+				stops.push(run);
+			},
+		});
+		registerFakeSlackListeners(
+			app,
+			agent,
+			createInstallations(),
+			queue,
+			{
+				shouldReply: async () => {
+					throw new Error("Stop must bypass relevance");
+				},
+			},
+			async () => {
+				throw new Error("Stop must bypass investigation replies");
+			}
+		);
+		for (const user_team of ["T123", "TEXTERNAL"]) {
+			await app.messages[0]?.({
+				client,
+				context: { botUserId: "UBOT", teamId: "T123" },
+				logger,
+				message: {
+					channel: "C123",
+					channel_type: "channel",
+					text: "stop",
+					thread_ts: "171234.000",
+					ts: user_team === "T123" ? "171234.568" : "171234.569",
+					user: "U123",
+					user_team,
+				},
+				say: async () => undefined,
+			});
+		}
+		await app.events.get("app_mention")?.({
+			body: {},
+			client,
+			context: { teamId: "T123" },
+			logger,
+			event: {
+				channel: "C123",
+				text: "<@UBOT> stop",
+				thread_ts: "171234.000",
+				ts: "171234.570",
+				user: "U123",
+			},
+			say: async () => undefined,
+		});
+		expect(stops).toHaveLength(2);
+		expect(runs).toHaveLength(0);
+		expect(queue.enqueuedRuns).toHaveLength(0);
 	});
 });

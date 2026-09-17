@@ -35,6 +35,60 @@ function createFakeRedis() {
 			}
 			return deleted;
 		},
+		async eval(
+			script: string,
+			_keyCount: number,
+			first: string,
+			second: string,
+			...args: string[]
+		) {
+			if (script.includes("local result = {}")) {
+				const pending = lists.get(first) ?? [];
+				const result: string[] = [];
+				let author: string | undefined;
+				while (pending.length) {
+					const raw = pending[0];
+					if (!raw) break;
+					const item = JSON.parse(raw) as {
+						messageTs: string;
+						requestTs?: string;
+						userId: string;
+					};
+					if (
+						Number(item.requestTs ?? item.messageTs) >
+						Number(values.get(second) ?? 0)
+					) {
+						if (result.length && item.userId !== author) break;
+						author = item.userId;
+						result.push(raw);
+					}
+					pending.shift();
+				}
+				return result;
+			}
+			if (script.includes("local previous")) {
+				const cutoff = Math.max(
+					Number(args[0]),
+					Number(values.get(second) ?? 0)
+				);
+				values.set(second, String(cutoff));
+				lists.set(
+					first,
+					(lists.get(first) ?? []).filter(
+						(raw) =>
+							Number(JSON.parse(raw).requestTs ?? JSON.parse(raw).messageTs) >
+							cutoff
+					)
+				);
+				return 1;
+			}
+			if (script.includes("return redis.call('EXPIRE'"))
+				return values.get(first) === second ? 1 : 0;
+			if (values.get(first) !== args[0]) return 1;
+			if (args[1] === "true" && (lists.get(second)?.length ?? 0) > 0) return 0;
+			values.delete(first);
+			return 1;
+		},
 		async expire(key: string, seconds: number) {
 			expiries.set(key, seconds);
 			return 1;
@@ -187,4 +241,82 @@ describe("SlackThreadQueue", () => {
 			{ messageTs: "171234.568", text: "keep", userId: "U123" },
 		]);
 	});
+});
+
+describe("Slack queue safety", () => {
+	it("keeps consecutive authors together in arrival order", async () => {
+		const queue = new SlackThreadQueue(createFakeRedis());
+		for (const [index, userId] of ["A", "A", "B", "A"].entries()) {
+			await queue.enqueue(createRun({ userId, text: `message ${index}` }));
+		}
+		expect((await queue.drain(createRun())).map((item) => item.text)).toEqual([
+			"message 0",
+			"message 1",
+		]);
+		expect((await queue.drain(createRun())).map((item) => item.userId)).toEqual(
+			["B"]
+		);
+		expect((await queue.drain(createRun())).map((item) => item.userId)).toEqual(
+			["A"]
+		);
+	});
+
+	it("fails closed when Redis is unavailable or lock acquisition fails", async () => {
+		await expect(
+			new SlackThreadQueue(null).tryAcquire(createRun())
+		).rejects.toThrow("unavailable");
+		const redis = createFakeRedis();
+		redis.set = async () => {
+			throw new Error("Redis unavailable");
+		};
+		await expect(
+			new SlackThreadQueue(redis).tryAcquire(createRun())
+		).rejects.toThrow("unavailable");
+	});
+
+	it("keeps the lock for a late follow-up and never releases a replacement owner", async () => {
+		const redis = createFakeRedis();
+		const queue = new SlackThreadQueue(redis);
+		const run = createRun();
+		await queue.tryAcquire(run);
+		expect(await queue.drain(run)).toEqual([]);
+		await queue.enqueue(createRun({ text: "late message" }));
+		expect(await queue.release(run, true)).toBe(false);
+		expect((await queue.drain(run))[0]?.text).toBe("late message");
+		redis.values.clear(); // Simulate lease expiry and another replica acquiring it.
+		const replacement = new SlackThreadQueue(redis);
+		const next = createRun();
+		expect(await replacement.tryAcquire(next)).toBe(true);
+		await queue.release(run);
+		expect(await queue.tryAcquire(run)).toBe(false);
+		await replacement.release(next);
+	});
+
+	it("shares stop state across replicas, clears pending work, and allows later messages", async () => {
+		const redis = createFakeRedis();
+		const running = new SlackThreadQueue(redis);
+		const otherReplica = new SlackThreadQueue(redis);
+		await running.enqueue(createRun());
+		await otherReplica.stop(
+			createRun({ messageTs: "171234.900", text: "stop" })
+		);
+		expect(await running.isStopped(createRun())).toBe(true);
+		expect(await running.drain(createRun())).toEqual([]);
+		expect(
+			await running.isStopped(createRun({ messageTs: "171235.000" }))
+		).toBe(false);
+	});
+});
+
+it("allows a new click on an old card after stop, including when queued", async () => {
+	const queue = new SlackThreadQueue(createFakeRedis());
+	await queue.stop(createRun({ messageTs: "171234.800" }));
+	const click = createRun({
+		messageTs: "171234.100",
+		requestTs: "171234.900",
+		text: "new click",
+	});
+	expect(await queue.isStopped(click)).toBe(false);
+	expect((await queue.enqueue(click)).ok).toBe(true);
+	expect((await queue.drain(createRun()))[0]?.requestTs).toBe("171234.900");
 });

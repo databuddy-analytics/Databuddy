@@ -21,6 +21,7 @@ import {
 	createRecentDedupe,
 	isPlainChannelThreadFollowUp,
 	isPlainDirectMessage,
+	isSlackStopCommand,
 	stripLeadingMention,
 	toDeletedSlackMessage,
 	toSlackMessage,
@@ -250,13 +251,14 @@ export function registerSlackListeners(
 				userId: event.user,
 			};
 			if (
-				await investigationReplyHandler({
+				!isSlackStopCommand(run.text) &&
+				(await investigationReplyHandler({
 					client,
 					installations,
 					logger,
 					run,
 					say,
-				})
+				}))
 			) {
 				return;
 			}
@@ -375,13 +377,14 @@ export function registerSlackListeners(
 			userId: msg.user,
 		};
 		if (
-			await investigationReplyHandler({
+			!isSlackStopCommand(run.text) &&
+			(await investigationReplyHandler({
 				client,
 				installations,
 				logger,
 				run,
 				say,
-			})
+			}))
 		) {
 			return;
 		}
@@ -405,14 +408,16 @@ export function registerSlackListeners(
 		}
 
 		const slackContext = createSlackConversationContext(client, run);
-		const replyDecision = await threadReplyGate.shouldReply(run, {
-			botUserId: context.botUserId,
-			readThreadMessages: async () =>
-				(await slackContext?.readCurrentThread?.())?.messages ?? [],
-		});
-		if (!replyDecision.shouldReply) {
-			logThreadReplyIgnored({ decision: replyDecision, run });
-			return;
+		if (!isSlackStopCommand(run.text)) {
+			const replyDecision = await threadReplyGate.shouldReply(run, {
+				botUserId: context.botUserId,
+				readThreadMessages: async () =>
+					(await slackContext?.readCurrentThread?.())?.messages ?? [],
+			});
+			if (!replyDecision.shouldReply) {
+				logThreadReplyIgnored({ decision: replyDecision, run });
+				return;
+			}
 		}
 
 		await handleAgentRun({
