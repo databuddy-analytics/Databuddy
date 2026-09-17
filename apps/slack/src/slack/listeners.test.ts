@@ -1,6 +1,10 @@
 import { describe, expect, it } from "bun:test";
 import type { App } from "@slack/bolt";
 import type { DatabuddyAgentClient, SlackAgentRun } from "@/agent/agent-client";
+import {
+	cleanupSlackActiveRun,
+	registerSlackActiveRun,
+} from "@/slack/active-runs";
 import type { SlackInstallationServices } from "@/slack/installations";
 import {
 	registerSlackListeners,
@@ -738,6 +742,60 @@ describe("Slack listeners", () => {
 });
 
 describe("Slack stop routing", () => {
+	it("stops a known local run without an engagement marker and ignores unrelated threads", async () => {
+		const app = new FakeSlackApp();
+		const { agent, runs } = createAgent();
+		const { client } = createClient();
+		let stopped = 0;
+		let replies = 0;
+		const queue = createQueue({
+			isEngaged: async () => false,
+			stop: async () => {
+				stopped++;
+			},
+		});
+		registerFakeSlackListeners(app, agent, createInstallations(), queue);
+		const run: SlackAgentRun = {
+			channelId: "C123",
+			messageTs: "171234.100",
+			teamId: "T123",
+			text: "Compare campaigns",
+			threadTs: "171234.000",
+			trigger: "thread_follow_up",
+			userId: "U123",
+		};
+		const controller = new AbortController();
+		registerSlackActiveRun(run, controller);
+		try {
+			for (const threadTs of ["171233.000", run.threadTs]) {
+				await app.messages[0]?.({
+					client,
+					context: { botUserId: "UBOT", teamId: "T123" },
+					logger,
+					message: {
+						channel: "C123",
+						channel_type: "channel",
+						text: "stop",
+						thread_ts: threadTs,
+						ts: threadTs === run.threadTs ? "171234.201" : "171234.200",
+						user: "U123",
+					},
+					say: async () => {
+						replies++;
+					},
+				});
+				const expectedStops = threadTs === run.threadTs ? 1 : 0;
+				expect(controller.signal.aborted).toBe(expectedStops === 1);
+				expect(stopped).toBe(expectedStops);
+				expect(replies).toBe(expectedStops);
+			}
+			expect(runs).toHaveLength(0);
+			expect(queue.enqueuedRuns).toHaveLength(0);
+		} finally {
+			cleanupSlackActiveRun(run);
+		}
+	});
+
 	it("handles stop before relevance and investigation continuation, while rejecting external speakers", async () => {
 		const app = new FakeSlackApp();
 		const { agent, runs } = createAgent();

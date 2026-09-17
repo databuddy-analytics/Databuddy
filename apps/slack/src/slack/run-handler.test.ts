@@ -331,7 +331,9 @@ it("processes a newer request queued while the stopped response is cleaning up",
 	});
 	const queue = createQueue({
 		tryAcquire: async () => {
-			if (locked) return false;
+			if (locked) {
+				return false;
+			}
 			locked = true;
 			return true;
 		},
@@ -347,7 +349,9 @@ it("processes a newer request queued while the stopped response is cleaning up",
 				: [];
 		},
 		release: async (_run, whenEmpty) => {
-			if (whenEmpty && pending) return false;
+			if (whenEmpty && pending) {
+				return false;
+			}
 			locked = false;
 			return true;
 		},
@@ -399,8 +403,9 @@ it("does not start queued work after shutdown interrupts a response", async () =
 		async *stream(run) {
 			runs.push(run);
 			abortAllSlackActiveRuns("shutdown");
-			throw new DOMException("Shutdown", "AbortError");
-			yield "unreachable";
+			yield await Promise.reject<string>(
+				new DOMException("Shutdown", "AbortError")
+			);
 		},
 	};
 	await handleAgentRun({

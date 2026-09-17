@@ -11,7 +11,7 @@ import { appendInvestigationReply } from "@databuddy/rpc/insights";
 import type { DatabuddyAgentClient, SlackAgentRun } from "@/agent/agent-client";
 import { type ConnectedSite, buildAppHomeView } from "@/slack/app-home";
 import { createSlackEventLog } from "@/lib/evlog-slack";
-import { abortSlackActiveRun } from "@/slack/active-runs";
+import { abortSlackActiveRun, abortSlackThreadRun } from "@/slack/active-runs";
 import { getSlackChannelMentionPolicy } from "@/slack/channel-policy";
 import { DRILLDOWN_ACTION_ID, FEEDBACK_ACTION_ID } from "@/slack/blocks";
 import { parseDrilldownRun } from "@/slack/drilldown";
@@ -398,7 +398,9 @@ export function registerSlackListeners(
 			});
 			return;
 		}
-		if (!(await threadQueue.isEngaged(run))) {
+		const locallyStopped =
+			isSlackStopCommand(run.text) && abortSlackThreadRun(run);
+		if (!(locallyStopped || (await threadQueue.isEngaged(run)))) {
 			logMessageRouteSkipped({
 				botUserId: context.botUserId,
 				message: msg,

@@ -55,24 +55,31 @@ function createFakeRedis() {
 		) {
 			if (script.includes("local stoppedAt")) {
 				const stoppedAt = values.get(second);
-				if (stoppedAt && Number(args[3]) <= Number(stoppedAt)) return [-1, 0];
+				if (stoppedAt && Number(args[3]) <= Number(stoppedAt)) {
+					return [-1, 0];
+				}
 				const pending = lists.get(first) ?? [];
-				if (pending.length >= Number(args[1])) return [0, pending.length];
+				if (pending.length >= Number(args[1])) {
+					return [0, pending.length];
+				}
 				pending.push(args[0]!);
 				lists.set(first, pending);
 				expiries.set(first, Number(args[2]));
 				return [1, pending.length];
 			}
 			if (script.includes("local result = {}")) {
-				if (values.get(args[0]!) !== args[1])
+				if (values.get(args[0]!) !== args[1]) {
 					throw new Error("Slack thread lock expired");
+				}
 				expiries.set(args[0]!, Number(args[2]));
 				const pending = lists.get(first) ?? [];
 				const result: string[] = [];
 				let author: string | undefined;
 				while (pending.length) {
 					const raw = pending[0];
-					if (!raw) break;
+					if (!raw) {
+						break;
+					}
 					const item = JSON.parse(raw) as {
 						messageTs: string;
 						requestTs?: string;
@@ -82,7 +89,9 @@ function createFakeRedis() {
 						Number(item.requestTs ?? item.messageTs) >
 						Number(values.get(second) ?? 0)
 					) {
-						if (result.length && item.userId !== author) break;
+						if (result.length && item.userId !== author) {
+							break;
+						}
 						author = item.userId;
 						result.push(raw);
 					}
@@ -109,12 +118,18 @@ function createFakeRedis() {
 				return 1;
 			}
 			if (script.includes("return redis.call('EXPIRE'")) {
-				if (values.get(first) !== second) return 0;
+				if (values.get(first) !== second) {
+					return 0;
+				}
 				expiries.set(first, Number(args[0]));
 				return 1;
 			}
-			if (values.get(first) !== args[0]) return 1;
-			if (args[1] === "true" && (lists.get(second)?.length ?? 0) > 0) return 0;
+			if (values.get(first) !== args[0]) {
+				return 1;
+			}
+			if (args[1] === "true" && (lists.get(second)?.length ?? 0) > 0) {
+				return 0;
+			}
 			values.delete(first);
 			return 1;
 		},
