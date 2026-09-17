@@ -13,7 +13,7 @@ export interface ComponentSpec {
 	[key: string]: unknown;
 }
 
-export type Block = Record<string, unknown>;
+export type Block = Record<string, unknown> & { type: string };
 
 interface SplitResult {
 	components: ComponentSpec[];

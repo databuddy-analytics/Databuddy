@@ -150,15 +150,247 @@ describe("Databuddy Slack response streaming", () => {
 			"chat.appendStream",
 			"chat.appendStream",
 			"chat.stopStream",
-			"chat.postMessage",
 		]);
 
 		const feedbackPost = calls.at(-1);
-		expect(feedbackPost?.method).toBe("chat.postMessage");
+		expect(feedbackPost?.method).toBe("chat.stopStream");
 		const feedbackBlocks = (
 			feedbackPost?.options as { blocks: Array<{ type: string }> }
 		).blocks;
 		expect(feedbackBlocks.some((b) => b.type === "context_actions")).toBe(true);
+	});
+
+	it.each([
+		true,
+		false,
+	])("keeps tables and feedback with the streamed answer, preserving fallback (streaming: %s)", async (streaming) => {
+		const { calls, client } = createStreamClient(
+			streaming ? "stream_ts" : null
+		);
+		const sayCalls: unknown[] = [];
+		const result = await streamAgentToSlack({
+			agent: {
+				async *stream() {
+					yield 'Here are your pages.\n{"type":"data-table","title":"Top pages","columns":["Page","Visitors"],"rows":[["/pricing",42]]}';
+				},
+			},
+			client,
+			logger: silentLogger,
+			run: baseRun(),
+			say: async (message) => {
+				sayCalls.push(message);
+				return { ts: "say_ts" };
+			},
+		});
+		expect(result).toMatchObject({ ok: true, streamed: streaming });
+		const finalCall = calls.at(-1);
+		expect(finalCall?.method).toBe(
+			streaming ? "chat.stopStream" : "chat.postMessage"
+		);
+		expect(finalCall?.options).toMatchObject({
+			blocks: [
+				expect.objectContaining({ type: "data_table", caption: "Top pages" }),
+				expect.objectContaining({ type: "context_actions" }),
+			],
+		});
+		expect(
+			calls.filter((call) => call.method === "chat.postMessage")
+		).toHaveLength(streaming ? 0 : 1);
+		expect(sayCalls).toHaveLength(streaming ? 0 : 1);
+		if (!streaming) {
+			expect(sayCalls[0]).toMatchObject({ text: "Here are your pages." });
+		}
+	});
+
+	it.each([
+		"success",
+		"error",
+		"abort",
+	] as const)("waits for in-flight progress before finalizing a %s response", async (outcome) => {
+		const { calls, client } = createStreamClient();
+		const progressStarted = Promise.withResolvers<void>();
+		const releaseProgress = Promise.withResolvers<void>();
+		const append = client.chat.appendStream;
+		client.chat.appendStream = async (options) => {
+			if (JSON.stringify(options).includes('"status":"in_progress"')) {
+				progressStarted.resolve();
+				await releaseProgress.promise;
+			}
+			return append(options);
+		};
+		const controller = new AbortController();
+		const response = streamAgentToSlack({
+			abortSignal: controller.signal,
+			agent: {
+				async *stream(_run, options) {
+					options?.onToolEvent?.(["get_data"]);
+					if (outcome === "error") {
+						throw new Error("model failed");
+					}
+					yield "queued answer ".repeat(100);
+				},
+			},
+			client,
+			logger: silentLogger,
+			run: baseRun(),
+			say: async () => {},
+		});
+		await progressStarted.promise;
+		if (outcome === "abort") {
+			controller.abort("stop");
+		}
+		await Bun.sleep(0);
+		try {
+			expect(calls.map((call) => call.method)).toEqual(["chat.startStream"]);
+		} finally {
+			releaseProgress.resolve();
+			await response;
+		}
+		expect(calls.at(-1)?.method).toBe("chat.stopStream");
+		if (outcome === "abort") {
+			expect(
+				calls.some((call) =>
+					getChunkText(call.options)?.includes("queued answer")
+				)
+			).toBe(false);
+			expect(calls.at(-1)?.options).not.toHaveProperty("blocks");
+		}
+	});
+
+	it("closes a stream opened after cancellation without starting the model", async () => {
+		const { calls, client } = createStreamClient();
+		const controller = new AbortController();
+		const start = client.chat.startStream;
+		client.chat.startStream = async (options) => {
+			const result = await start(options);
+			controller.abort("stop");
+			return result;
+		};
+		let modelStarted = false;
+		const result = await streamAgentToSlack({
+			abortSignal: controller.signal,
+			agent: {
+				async *stream() {
+					modelStarted = true;
+					yield "too late";
+				},
+			},
+			client,
+			logger: silentLogger,
+			run: baseRun(),
+			say: async () => {},
+		});
+		expect(modelStarted).toBe(false);
+		expect(result).toMatchObject({ aborted: true, ok: false });
+		expect(calls.at(-1)?.method).toBe("chat.stopStream");
+		expect(calls.at(-1)?.options).not.toHaveProperty("blocks");
+	});
+
+	it("finishes valid prose when Slack rejects its component blocks", async () => {
+		const { calls, client } = createStreamClient();
+		const stop = client.chat.stopStream;
+		const attemptedStops: unknown[] = [];
+		client.chat.stopStream = async (options) => {
+			attemptedStops.push(options);
+			if (options.blocks) {
+				throw new SlackApiError("invalid_blocks");
+			}
+			return stop(options);
+		};
+		const result = await streamAgentToSlack({
+			agent: {
+				async *stream() {
+					yield "Traffic is up 12%.";
+				},
+			},
+			client,
+			logger: silentLogger,
+			run: baseRun(),
+			say: async () => {},
+		});
+		expect(result).toMatchObject({ ok: true, streamed: true });
+		expect(attemptedStops).toHaveLength(2);
+		expect(attemptedStops[1]).not.toHaveProperty("blocks");
+		expect(calls.some((call) => call.method === "chat.postMessage")).toBe(
+			false
+		);
+		expect(JSON.stringify(calls)).not.toContain(SLACK_COPY.responseInterrupted);
+	});
+
+	it("closes without new prose when cancelled during component rejection", async () => {
+		const { calls, client } = createStreamClient();
+		const controller = new AbortController();
+		const stop = client.chat.stopStream;
+		client.chat.stopStream = async (options) => {
+			if (options.blocks) {
+				controller.abort("stop");
+				throw new SlackApiError("invalid_blocks");
+			}
+			return stop(options);
+		};
+		const result = await streamAgentToSlack({
+			abortSignal: controller.signal,
+			agent: {
+				async *stream() {
+					yield '{"type":"data-table","columns":["Page"],"rows":[["/pricing"]]}';
+				},
+			},
+			client,
+			logger: silentLogger,
+			run: baseRun(),
+			say: async () => {},
+		});
+		expect(result).toMatchObject({ aborted: true, ok: false });
+		expect(calls.at(-1)).toEqual({
+			method: "chat.stopStream",
+			options: { channel: "C123", ts: "stream_ts" },
+		});
+	});
+
+	it("coalesces progress updates while an earlier update is in flight", async () => {
+		const { calls, client } = createStreamClient();
+		const firstStarted = Promise.withResolvers<void>();
+		const releaseFirst = Promise.withResolvers<void>();
+		const latestSent = Promise.withResolvers<void>();
+		const append = client.chat.appendStream;
+		client.chat.appendStream = async (options) => {
+			const payload = JSON.stringify(options);
+			if (payload.includes("Querying your analytics")) {
+				firstStarted.resolve();
+				await releaseFirst.promise;
+			}
+			const result = await append(options);
+			if (payload.includes("Finding your sites")) {
+				latestSent.resolve();
+			}
+			return result;
+		};
+		await streamAgentToSlack({
+			agent: {
+				async *stream(_run, options) {
+					options?.onToolEvent?.(["get_data"]);
+					await firstStarted.promise;
+					options?.onToolEvent?.(["memory"]);
+					options?.onToolEvent?.(["session"]);
+					options?.onToolEvent?.(["website"]);
+					releaseFirst.resolve();
+					await latestSent.promise;
+					yield "Done.";
+				},
+			},
+			client,
+			logger: silentLogger,
+			run: baseRun(),
+			say: async () => {},
+		});
+		const progress = calls.filter(
+			(call) =>
+				call.method === "chat.appendStream" &&
+				JSON.stringify(call.options).includes('"status":"in_progress"')
+		);
+		expect(progress).toHaveLength(2);
+		expect(JSON.stringify(progress)).not.toContain("Recalling context");
+		expect(JSON.stringify(progress)).not.toContain("Reading sessions");
 	});
 
 	it("marks a partial answer as interrupted when streaming fails", async () => {
