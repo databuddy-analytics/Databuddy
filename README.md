@@ -60,7 +60,7 @@ dashboard after changing public URLs; they're part of its browser bundle.
 
 - **Email:** For resets, invitations, and alerts, set `RESEND_API_KEY` and an `EMAIL_FROM` sender on your verified domain, such as `Databuddy <no-reply@example.com>`. Leave `ALERTS_EMAIL_FROM` empty to use the same sender. Recreate the services after changes.
 - **Insights:** Set `AI_GATEWAY_API_KEY` and `COMPOSE_PROFILES=insights` in `.env`, then rerun `docker compose -f docker-compose.selfhost.yml up -d --build`. Website research also needs `FIRECRAWL_API_KEY`.
-- **Status pages:** Deploy [the status app](apps/status) separately, set `STATUS_URL`, and rebuild the dashboard. Public status links stay hidden until you configure it.
+- **Status pages:** Deploy [the status app](apps/status) separately. Build it with `NEXT_PUBLIC_SELFHOST=true`, `NEXT_PUBLIC_API_URL` set to your API URL, and `NEXT_PUBLIC_STATUS_URL` set to its own public URL; they're part of its browser bundle. Then set `STATUS_URL` to that same URL in `.env` and rebuild the dashboard. Public status links stay hidden until you configure it.
 - **DQL:** Requires separate setup: a restricted `dql_user` and `CLICKHOUSE_DQL_URL` passed to the API in Compose. Use HTTPS outside loopback and never use the application's admin credentials. See the [DQL setup script](packages/db/src/clickhouse/dql.ts).
 
 Self-hosting is still evolving. If you get stuck, [tell us what happened](https://github.com/databuddy-analytics/Databuddy/issues) or ask in [Discord](https://discord.gg/JTk7a38tCZ).
