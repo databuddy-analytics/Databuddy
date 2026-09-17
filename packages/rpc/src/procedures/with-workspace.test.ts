@@ -531,7 +531,10 @@ it("self-hosting skips billing without relaxing workspace permissions", async ()
 		).toThrow();
 		expect(() => requireUsageWithinLimit("free", "goals", 10000)).toThrow();
 	} finally {
-		if (original === undefined) delete process.env.SELFHOST;
-		else process.env.SELFHOST = original;
+		if (original === undefined) {
+			Reflect.deleteProperty(process.env, "SELFHOST");
+		} else {
+			process.env.SELFHOST = original;
+		}
 	}
 });

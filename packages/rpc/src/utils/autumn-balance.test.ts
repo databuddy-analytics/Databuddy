@@ -127,17 +127,20 @@ it("self-hosted balance writes fail definitively before any provider request", a
 	const request = mock(async () => new Response("{}"));
 	globalThis.fetch = request as typeof fetch;
 	try {
-		const error = await updateAutumnBalance({
+		const definitiveFailure = await updateAutumnBalance({
 			amount: 1,
 			customerId: "synthetic-customer",
 			featureId: "events",
 			redemptionId: "synthetic-redemption",
 			secretKey: "synthetic-stale-key",
-		}).catch((caught: unknown) => caught);
-		expect(isDefinitiveAutumnBalanceFailure(error)).toBe(true);
+		}).catch(isDefinitiveAutumnBalanceFailure);
+		expect(definitiveFailure).toBe(true);
 		expect(request).not.toHaveBeenCalled();
 	} finally {
-		if (original === undefined) delete process.env.SELFHOST;
-		else process.env.SELFHOST = original;
+		if (original === undefined) {
+			Reflect.deleteProperty(process.env, "SELFHOST");
+		} else {
+			process.env.SELFHOST = original;
+		}
 	}
 });

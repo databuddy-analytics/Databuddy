@@ -13,7 +13,7 @@ const { orpc } = await import("../../lib/orpc");
 
 afterAll(() => {
 	if (original === undefined) {
-		delete process.env.NEXT_PUBLIC_SELFHOST;
+		Reflect.deleteProperty(process.env, "NEXT_PUBLIC_SELFHOST");
 	} else {
 		process.env.NEXT_PUBLIC_SELFHOST = original;
 	}

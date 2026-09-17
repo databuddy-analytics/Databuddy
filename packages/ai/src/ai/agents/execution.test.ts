@@ -312,7 +312,7 @@ it("self-hosted AI keeps provider setup and skips all hosted billing", async () 
 		expect(mockAutumnCheck).not.toHaveBeenCalled();
 		expect(mockAutumnTrack).not.toHaveBeenCalled();
 		expect(mockGetBillingCustomerId).not.toHaveBeenCalled();
-		delete process.env.AI_GATEWAY_API_KEY;
+		Reflect.deleteProperty(process.env, "AI_GATEWAY_API_KEY");
 		await expect(getAgentBillingAccess(null)).rejects.toThrow("configure AI");
 	} finally {
 		process.env = original;

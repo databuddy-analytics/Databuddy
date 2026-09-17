@@ -533,7 +533,7 @@ test("self-hosted production requires AI setup and admin access, without Autumn"
 		role = "viewer";
 		expect(await access()).toMatchObject({ status: "read-only" });
 		role = "owner";
-		delete process.env.AI_GATEWAY_API_KEY;
+		Reflect.deleteProperty(process.env, "AI_GATEWAY_API_KEY");
 		expect(await access()).toMatchObject({ status: "not-configured" });
 		expect(billingRequests).toEqual([]);
 	} finally {
