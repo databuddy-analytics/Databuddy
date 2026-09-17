@@ -199,13 +199,21 @@ async function prepareDatabuddyAgentCall(options: DatabuddyAgentOptions) {
 	const actor = await resolveDatabuddyAgentActor(options.actor);
 	const conversationId = options.conversationId ?? crypto.randomUUID();
 	const memoryUserId = options.memoryUserId ?? actor.userId;
+	// Slack threads belong to the integration; personal memory stays speaker-scoped.
+	const conversationUserId =
+		options.source === "slack" && actor.apiKey ? null : memoryUserId;
 	const history =
 		options.history ??
-		(await getConversationHistory(conversationId, memoryUserId, actor.apiKey));
+		(await getConversationHistory(
+			conversationId,
+			conversationUserId,
+			actor.apiKey
+		));
 
 	return {
 		actor,
 		conversationId,
+		conversationUserId,
 		history: history.length > 0 ? history : undefined,
 		memoryUserId,
 		source: options.source ?? "mcp",
@@ -262,7 +270,7 @@ async function persistAgentConversation(
 
 	await appendToConversation(
 		prepared.conversationId,
-		prepared.memoryUserId,
+		prepared.conversationUserId,
 		prepared.actor.apiKey,
 		options.input,
 		answer.trim() || "No response generated.",
