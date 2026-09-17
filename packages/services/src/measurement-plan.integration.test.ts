@@ -9,7 +9,11 @@ import {
 	test,
 } from "bun:test";
 import { db, eq, inArray, shutdownPostgres } from "@databuddy/db";
-import { organization, websites } from "@databuddy/db/schema";
+import {
+	organization,
+	organizationBusinessContexts,
+	websites,
+} from "@databuddy/db/schema";
 import type { BusinessMeasurementPlan } from "@databuddy/shared/organization-business-context";
 import {
 	beginBusinessContextGeneration,
@@ -19,16 +23,22 @@ import {
 	saveOrganizationBusinessProfile,
 } from "./organization-business-context";
 
-// Run from packages/services with env -i, --no-env-file, and this synthetic DSN.
-// Never load a developer .env or point this suite at customer data.
-const databaseUrl =
-	"postgresql://postgres:synthetic-only@localhost:16553/business_context_settings";
-const integration =
-	process.env.BUSINESS_CONTEXT_INTEGRATION_TESTS === "true"
-		? describe
-		: describe.skip;
+const enabled = process.env.BUSINESS_CONTEXT_INTEGRATION_TESTS === "true";
+const integration = enabled ? describe : describe.skip;
 
-integration("measurement plan storage in synthetic PostgreSQL", () => {
+beforeAll(() => {
+	if (!enabled) return;
+	const url = new URL(process.env.DATABASE_URL ?? "");
+	if (
+		!["localhost", "127.0.0.1"].includes(url.hostname) ||
+		(url.pathname !== "/databuddy_test" &&
+			!url.pathname.startsWith("/databuddy_e2e_"))
+	) {
+		throw new Error("Use a localhost test database");
+	}
+});
+
+integration("measurement plan storage in isolated PostgreSQL", () => {
 	let org: string;
 	let other: string;
 	let websiteId: string;
@@ -45,14 +55,6 @@ integration("measurement plan storage in synthetic PostgreSQL", () => {
 		sources: [{ url: "https://reports.example.com/", title: "Reports" }],
 	};
 
-	beforeAll(() => {
-		if (process.env.DATABASE_URL !== databaseUrl) {
-			throw new Error(
-				"Use only the synthetic localhost:16553/business_context_settings PostgreSQL database"
-			);
-		}
-	});
-
 	beforeEach(async () => {
 		org = `synthetic-measurement-${randomUUID()}`;
 		other = `synthetic-measurement-${randomUUID()}`;
@@ -65,7 +67,6 @@ integration("measurement plan storage in synthetic PostgreSQL", () => {
 				name: "Synthetic measurement organization",
 				slug: id,
 				createdAt: new Date(),
-				metadata: JSON.stringify({ unrelated: { preserved: true } }),
 			}))
 		);
 		await db.insert(websites).values([
@@ -132,15 +133,12 @@ integration("measurement plan storage in synthetic PostgreSQL", () => {
 		return { ...saved, profile: saved.profile };
 	};
 
-	const metadata = async (id = org) => {
-		const row = await db.query.organization.findFirst({
-			where: { id },
-			columns: { metadata: true },
-		});
-		if (!row?.metadata) {
-			throw new Error("Missing synthetic organization metadata");
-		}
-		return row.metadata;
+	const stored = async (id = org) => {
+		const [row] = await db
+			.select({ state: organizationBusinessContexts.state })
+			.from(organizationBusinessContexts)
+			.where(eq(organizationBusinessContexts.organizationId, id));
+		return JSON.stringify(row?.state ?? null);
 	};
 
 	const generate = async () => {
@@ -181,10 +179,8 @@ integration("measurement plan storage in synthetic PostgreSQL", () => {
 			measurementPlans: plans,
 			revision: 1,
 		});
-		const stored: unknown = JSON.parse(await metadata());
-		expect(stored).toMatchObject({
-			unrelated: { preserved: true },
-			businessContext: { profile: { measurementPlans: plans } },
+		expect(JSON.parse(await stored())).toMatchObject({
+			profile: { measurementPlans: plans },
 		});
 		expect(await readOrganizationBusinessContext(other)).toEqual({
 			profile: null,
@@ -236,15 +232,15 @@ integration("measurement plan storage in synthetic PostgreSQL", () => {
 				.set({ domain: "changed.example.com" })
 				.where(eq(websites.id, secondaryId));
 		}
-		const before = await metadata();
-		const foreignBefore = await metadata(other);
+		const before = await stored();
+		const foreignBefore = await stored(other);
 		for (const candidate of [
 			{ revision: 1, content: "Text-only edit", teamContext },
 			{ revision: 1, content: draft.content, generationId },
 		]) {
 			await expect(save(candidate)).rejects.toMatchObject({ code: "CONFLICT" });
-			expect(await metadata()).toBe(before);
-			expect(await metadata(other)).toBe(foreignBefore);
+			expect(await stored()).toBe(before);
+			expect(await stored(other)).toBe(foreignBefore);
 		}
 		const repaired = await save({
 			revision: 1,
@@ -398,8 +394,8 @@ integration("measurement plan storage in synthetic PostgreSQL", () => {
 				.set({ domain: "changed.example.com" })
 				.where(eq(websites.id, secondaryId));
 		}
-		const before = await metadata();
-		const foreignBefore = await metadata(other);
+		const before = await stored();
+		const foreignBefore = await stored(other);
 		await expect(
 			save({
 				revision: 1,
@@ -408,8 +404,8 @@ integration("measurement plan storage in synthetic PostgreSQL", () => {
 				measurementPlans: candidate,
 			})
 		).rejects.toMatchObject({ code: "CONFLICT" });
-		expect(await metadata()).toBe(before);
-		expect(await metadata(other)).toBe(foreignBefore);
+		expect(await stored()).toBe(before);
+		expect(await stored(other)).toBe(foreignBefore);
 	});
 
 	test.each([
@@ -439,7 +435,7 @@ integration("measurement plan storage in synthetic PostgreSQL", () => {
 				.set({ domain: "changed.example.com" })
 				.where(eq(websites.id, secondaryId));
 		}
-		const before = await metadata();
+		const before = await stored();
 		await expect(
 			restoreOrganizationBusinessProfile({
 				organizationId: org,
@@ -448,7 +444,7 @@ integration("measurement plan storage in synthetic PostgreSQL", () => {
 				updatedBy: "synthetic-restorer",
 			})
 		).rejects.toMatchObject({ code: "CONFLICT" });
-		expect(await metadata()).toBe(before);
+		expect(await stored()).toBe(before);
 	});
 
 	test("stale saves and restores leave profile, plans, history, drafts and metadata byte-for-byte unchanged", async () => {
@@ -465,7 +461,7 @@ integration("measurement plan storage in synthetic PostgreSQL", () => {
 		expect(state.history).toHaveLength(1);
 		expect(state.previousDrafts).toHaveLength(1);
 		expect(state.generation?.status).toBe("ready");
-		const before = await metadata();
+		const before = await stored();
 		for (const measurementPlans of [undefined, [], plans]) {
 			await expect(
 				save({
@@ -476,7 +472,7 @@ integration("measurement plan storage in synthetic PostgreSQL", () => {
 					teamContext: { ...teamContext, priority: "Stale priority" },
 				})
 			).rejects.toMatchObject({ code: "CONFLICT" });
-			expect(await metadata()).toBe(before);
+			expect(await stored()).toBe(before);
 		}
 		await expect(
 			restoreOrganizationBusinessProfile({
@@ -486,7 +482,7 @@ integration("measurement plan storage in synthetic PostgreSQL", () => {
 				updatedBy: "synthetic-stale-restorer",
 			})
 		).rejects.toMatchObject({ code: "CONFLICT" });
-		expect(await metadata()).toBe(before);
+		expect(await stored()).toBe(before);
 		expect(await readOrganizationBusinessContext(org)).toEqual(state);
 	});
 

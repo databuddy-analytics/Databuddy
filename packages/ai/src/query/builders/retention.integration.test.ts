@@ -4,12 +4,17 @@ import { SimpleQueryBuilder } from "../simple-builder";
 import type { Filter, QueryRequest } from "../types";
 import { RetentionBuilders } from "./retention";
 
-// Opt-in, credential-free, synthetic local service only. Never use the shared
-// runtime client or environment URLs: a developer's credentials cannot redirect it.
 const integration =
-	process.env.IDENTIFIED_RETENTION_CLICKHOUSE_TESTS === "true"
-		? describe
-		: describe.skip;
+	process.env.CLICKHOUSE_INTEGRATION_TESTS === "true" ? describe : describe.skip;
+const clickhouseUrl = new URL(
+	process.env.CLICKHOUSE_URL ?? "http://default:@localhost:8123"
+);
+const clickhouseHeaders = {
+	"X-ClickHouse-User": decodeURIComponent(clickhouseUrl.username || "default"),
+	"X-ClickHouse-Key": decodeURIComponent(clickhouseUrl.password),
+};
+clickhouseUrl.username = "";
+clickhouseUrl.password = "";
 const table = `analytics.retention_test_${crypto.randomUUID().replaceAll("-", "")}`;
 type Row = Record<string, string | number | null>;
 type Event = {
@@ -26,7 +31,7 @@ async function sql(
 	query: string,
 	params: Record<string, string | number> = {}
 ) {
-	const url = new URL("http://127.0.0.1:16555/");
+	const url = new URL(clickhouseUrl);
 	url.searchParams.set("output_format_json_quote_64bit_integers", "0");
 	url.searchParams.set("join_default_strictness", "ANY");
 	for (const [key, value] of Object.entries(params)) {
@@ -34,6 +39,7 @@ async function sql(
 	}
 	const response = await fetch(url, {
 		method: "POST",
+		headers: clickhouseHeaders,
 		body: query,
 		signal: AbortSignal.timeout(15_000),
 	});
@@ -89,7 +95,7 @@ async function measure(
 	return rows;
 }
 
-integration("identified retention SQL on synthetic local ClickHouse", () => {
+integration("identified retention SQL against ClickHouse", () => {
 	beforeAll(async () => {
 		const ddl = await Bun.file(
 			new URL(

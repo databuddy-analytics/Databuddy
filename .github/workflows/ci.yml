@@ -194,7 +194,7 @@ jobs:
           NODE_ENV: test
           BUSINESS_CONTEXT_INTEGRATION_TESTS: "true"
         run: |
-          bun test packages/services/src/organization-business-context.integration.test.ts packages/services/src/organization-business-context-hardening.integration.test.ts
+          bun test packages/services/src/organization-business-context.integration.test.ts packages/services/src/business-memory.integration.test.ts packages/services/src/measurement-plan.integration.test.ts
           bun test packages/auth/src/organization-metadata.integration.test.ts
       - name: Insights integration
         env:

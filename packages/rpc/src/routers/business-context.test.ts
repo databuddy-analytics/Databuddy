@@ -4,7 +4,7 @@ import { RPCHandler } from "@orpc/server/fetch";
 import type { OrganizationBusinessContext } from "@databuddy/shared/organization-business-context";
 import type { Context } from "../orpc";
 
-process.env.REDIS_URL ??= "redis://127.0.0.1:16554";
+process.env.REDIS_URL ??= "redis://localhost:6379";
 let role = "owner";
 let runnerWaits = false;
 let runnerFails = false;

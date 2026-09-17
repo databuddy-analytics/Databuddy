@@ -10,7 +10,7 @@ import {
 	spyOn,
 } from "bun:test";
 import { db, eq, shutdownPostgres, sql } from "@databuddy/db";
-import { websites } from "@databuddy/db/schema";
+import { organization, websites } from "@databuddy/db/schema";
 import {
 	businessContainerTag,
 	BusinessMemoryRetirementError,
@@ -22,8 +22,26 @@ import {
 } from "./business-memory";
 import { WebsiteService } from "./websites";
 
-const enabled = process.env.BUSINESS_MEMORY_INTEGRATION_TESTS === "true";
+const enabled = process.env.BUSINESS_CONTEXT_INTEGRATION_TESTS === "true";
 const integration = enabled ? describe : describe.skip;
+
+beforeAll(() => {
+	if (!enabled) return;
+	const url = new URL(process.env.DATABASE_URL ?? "");
+	if (
+		!["localhost", "127.0.0.1"].includes(url.hostname) ||
+		(url.pathname !== "/databuddy_test" &&
+			!url.pathname.startsWith("/databuddy_e2e_"))
+	) {
+		throw new Error("Use a localhost test database");
+	}
+});
+
+function insertOrganization(id: string) {
+	return db
+		.insert(organization)
+		.values({ id, name: "Synthetic organization", slug: id, createdAt: new Date() });
+}
 
 integration("business memory lifecycle against isolated PostgreSQL", () => {
 	const service = new WebsiteService(db, null);
@@ -39,28 +57,9 @@ integration("business memory lifecycle against isolated PostgreSQL", () => {
 	let previousKey: string | undefined;
 	let org: string;
 
-	beforeAll(async () => {
-		const url = new URL(process.env.DATABASE_URL ?? "");
-		if (
-			url.hostname !== "127.0.0.1" ||
-			url.port !== "16543" ||
-			url.pathname !== "/business_memory_synthetic"
-		) {
-			throw new Error(
-				"Use the dedicated localhost:16543/business_memory_synthetic test database"
-			);
-		}
+	beforeAll(() => {
 		previousKey = process.env.SUPERMEMORY_API_KEY;
 		process.env.SUPERMEMORY_API_KEY = "synthetic-transport-only";
-		await db.execute(
-			sql`CREATE TABLE IF NOT EXISTS organization (id text PRIMARY KEY)`
-		);
-		await db.execute(sql`CREATE TABLE IF NOT EXISTS websites (
-			id text PRIMARY KEY, domain text NOT NULL, name text, status text NOT NULL DEFAULT 'ACTIVE',
-			"isPublic" boolean NOT NULL DEFAULT false, "createdAt" timestamptz NOT NULL DEFAULT now(),
-			"updatedAt" timestamptz NOT NULL DEFAULT now(), "deletedAt" timestamptz,
-			organization_id text NOT NULL REFERENCES organization(id) ON DELETE CASCADE, integrations jsonb, settings jsonb
-		)`);
 		fetchMock = spyOn(globalThis, "fetch").mockImplementation(
 			async (input, init) => {
 				const request = new Request(input, init);
@@ -115,7 +114,7 @@ integration("business memory lifecycle against isolated PostgreSQL", () => {
 	});
 	beforeEach(async () => {
 		org = `synthetic-${randomUUID()}`;
-		await db.execute(sql`INSERT INTO organization(id) VALUES (${org})`);
+		await insertOrganization(org);
 		documents.clear();
 		events.length = 0;
 		partial = false;
@@ -144,7 +143,7 @@ integration("business memory lifecycle against isolated PostgreSQL", () => {
 		await db.insert(websites).values({
 			id: websiteId,
 			organizationId: org,
-			domain: "reports.example.com",
+			domain: `${websiteId}.example.com`,
 			name: "Synthetic reports",
 			settings: { allowedOrigins: ["https://example.com"] },
 		});
@@ -265,7 +264,7 @@ integration("business memory lifecycle against isolated PostgreSQL", () => {
 			businessContainerTag(scope)
 		);
 		const target = `synthetic-${randomUUID()}`;
-		await db.execute(sql`INSERT INTO organization(id) VALUES (${target})`);
+		await insertOrganization(target);
 		try {
 			await db.transaction((tx) =>
 				service.updateInTransaction(tx, scope.websiteId, {
@@ -342,7 +341,7 @@ integration("business memory lifecycle against isolated PostgreSQL", () => {
 						action === "delete"
 							? service.deleteInTransaction(tx, scope.websiteId)
 							: service.updateInTransaction(tx, scope.websiteId, {
-									domain: "other.example.com",
+									domain: `other-${scope.websiteId}.example.com`,
 								})
 					);
 				await expect(mutate()).rejects.toBeInstanceOf(

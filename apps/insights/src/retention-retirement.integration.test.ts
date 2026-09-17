@@ -1,30 +1,28 @@
+import "@databuddy/test/env";
 import { randomUUID } from "node:crypto";
-import {
-	afterAll,
-	afterEach,
-	beforeAll,
-	beforeEach,
-	describe,
-	expect,
-	it,
-} from "bun:test";
+import { afterAll, beforeEach, describe, expect, it } from "bun:test";
 import type { executeQuery } from "@databuddy/ai/query";
-import { db, eq, inArray, shutdownPostgres } from "@databuddy/db";
+import { db, eq, shutdownPostgres } from "@databuddy/db";
 import {
 	analyticsInsights,
 	insightObservations,
 	insightRuns,
 	organization,
+	organizationBusinessContexts,
 	websites,
 } from "@databuddy/db/schema";
 import { shutdownRedis } from "@databuddy/redis";
 import { saveOrganizationBusinessProfile } from "@databuddy/services/organization-business-context";
-import type { BusinessMeasurementPlan } from "@databuddy/shared/organization-business-context";
+import type {
+	BusinessMeasurementPlan,
+	OrganizationBusinessProfile,
+} from "@databuddy/shared/organization-business-context";
 import type {
 	InvestigationOutcome,
 	InvestigationSignal,
 } from "@databuddy/shared/insights";
 import { parseInvestigationOutcome } from "@databuddy/shared/insights";
+import { cleanup, hasTestDb, reset } from "@databuddy/test";
 import dayjs from "dayjs";
 import {
 	discoverWebsiteSignals,
@@ -42,10 +40,12 @@ import {
 	retireObsoleteRetentionObservation,
 } from "./persistence";
 
-// Run this file alone with env -i and --no-env-file. Only this synthetic DB is allowed.
-const databaseUrl =
-	"postgresql://postgres:synthetic-only@localhost:16553/business_context_settings";
-describe("obsolete retention observations in synthetic PostgreSQL", () => {
+const integration =
+	process.env.INSIGHTS_INTEGRATION_TESTS === "true" && hasTestDb
+		? describe
+		: describe.skip;
+
+integration("obsolete retention observations in isolated PostgreSQL", () => {
 	let organizationId: string;
 	let other: string;
 	let websiteId: string;
@@ -65,18 +65,6 @@ describe("obsolete retention observations in synthetic PostgreSQL", () => {
 		publish: true,
 		next: { type: "ask", question: "Was the report flow changed?" },
 	};
-	beforeAll(() => {
-		if (
-			process.env.DATABASE_URL !== databaseUrl ||
-			process.env.REDIS_URL !== "redis://localhost:16554" ||
-			process.env.BULLMQ_REDIS_URL !== "redis://localhost:16554"
-		) {
-			throw new Error(
-				"Use only synthetic PostgreSQL at localhost:16553/business_context_settings and Redis at localhost:16554"
-			);
-		}
-	});
-
 	const save = async (measurementPlans: BusinessMeasurementPlan[]) => {
 		const saved = await saveOrganizationBusinessProfile({
 			organizationId,
@@ -118,6 +106,7 @@ describe("obsolete retention observations in synthetic PostgreSQL", () => {
 		});
 
 	beforeEach(async () => {
+		await reset();
 		organizationId = `retirement-${randomUUID()}`;
 		other = `retirement-${randomUUID()}`;
 		websiteId = `retirement-${randomUUID()}`;
@@ -195,14 +184,8 @@ describe("obsolete retention observations in synthetic PostgreSQL", () => {
 			recheckAt: previous,
 		});
 	});
-	afterEach(async () => {
-		// Delete only this test's organizations and their cascading synthetic fixtures.
-		await db
-			.delete(organization)
-			.where(inArray(organization.id, [organizationId, other]));
-	});
 	afterAll(async () => {
-		await Promise.all([shutdownPostgres(), shutdownRedis()]);
+		await Promise.all([shutdownPostgres(), shutdownRedis(), cleanup()]);
 	});
 
 	const query =
@@ -436,7 +419,7 @@ describe("obsolete retention observations in synthetic PostgreSQL", () => {
 		expect((await due()).id).toBe(observationId);
 		expect(await rows()).toHaveLength(1);
 	});
-	it.each([
+	it.each<OrganizationBusinessProfile | null>([
 		null,
 		{
 			content: "Synthetic context",
@@ -449,13 +432,9 @@ describe("obsolete retention observations in synthetic PostgreSQL", () => {
 		},
 	])("defers when the canonical profile or selector list is unavailable", async (profile) => {
 		await db
-			.update(organization)
-			.set({
-				metadata: JSON.stringify({
-					businessContext: { profile, generation: null },
-				}),
-			})
-			.where(eq(organization.id, organizationId));
+			.update(organizationBusinessContexts)
+			.set({ state: { profile, generation: null } })
+			.where(eq(organizationBusinessContexts.organizationId, organizationId));
 		expect(await discover()).toMatchObject({
 			kind: "empty",
 			artifact: { status: "deferred" },
