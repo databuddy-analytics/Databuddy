@@ -287,13 +287,17 @@ describe("detectSignals", () => {
 	describe("z-score detection", () => {
 		it("flags a spike on the latest complete day", async () => {
 			const start = dayjs().subtract(28, "day");
-			const normal = generateStableDays(27, {
-				visitors: 100,
-				sessions: 120,
-				pageviews: 200,
-				bounce_rate: 40,
-				median_session_duration: 60,
-			}, start);
+			const normal = generateStableDays(
+				27,
+				{
+					visitors: 100,
+					sessions: 120,
+					pageviews: 200,
+					bounce_rate: 40,
+					median_session_duration: 60,
+				},
+				start
+			);
 
 			const spikeDay = {
 				date: start.add(27, "day").format("YYYY-MM-DD"),
@@ -323,13 +327,17 @@ describe("detectSignals", () => {
 
 		it("ignores normal variation below threshold", async () => {
 			const start = dayjs().subtract(14, "day");
-			const stable = generateStableDays(14, {
-				visitors: 100,
-				sessions: 120,
-				pageviews: 200,
-				bounce_rate: 40,
-				median_session_duration: 60,
-			}, start);
+			const stable = generateStableDays(
+				14,
+				{
+					visitors: 100,
+					sessions: 120,
+					pageviews: 200,
+					bounce_rate: 40,
+					median_session_duration: 60,
+				},
+				start
+			);
 
 			const rows = makeDailyRows(stable);
 			const queryFn = createMockQueryFn(rows);
@@ -341,13 +349,17 @@ describe("detectSignals", () => {
 
 		it("is not fooled by outlier days in the baseline", async () => {
 			const start = dayjs().subtract(27, "day");
-			const normal = generateStableDays(24, {
-				visitors: 150,
-				sessions: 170,
-				pageviews: 300,
-				bounce_rate: 40,
-				median_session_duration: 60,
-			}, start);
+			const normal = generateStableDays(
+				24,
+				{
+					visitors: 150,
+					sessions: 170,
+					pageviews: 300,
+					bounce_rate: 40,
+					median_session_duration: 60,
+				},
+				start
+			);
 
 			normal[20].visitors = 450;
 			normal[21].visitors = 400;
@@ -362,13 +374,21 @@ describe("detectSignals", () => {
 				median_session_duration: 60,
 			};
 
-			const rows = makeDailyRows([...normal, ...generateStableDays(3, {
-				visitors: 150,
-				sessions: 170,
-				pageviews: 300,
-				bounce_rate: 40,
-				median_session_duration: 60,
-			}, start.add(24, "day")), latestDay]);
+			const rows = makeDailyRows([
+				...normal,
+				...generateStableDays(
+					3,
+					{
+						visitors: 150,
+						sessions: 170,
+						pageviews: 300,
+						bounce_rate: 40,
+						median_session_duration: 60,
+					},
+					start.add(24, "day")
+				),
+				latestDay,
+			]);
 			const queryFn = createMockQueryFn(rows);
 
 			const signals = await detectSignals(BASE_PARAMS, queryFn);
@@ -380,13 +400,17 @@ describe("detectSignals", () => {
 
 		it("ignores the current partial day when picking the latest", async () => {
 			const start = dayjs().subtract(28, "day");
-			const normal = generateStableDays(28, {
-				visitors: 100,
-				sessions: 120,
-				pageviews: 200,
-				bounce_rate: 40,
-				median_session_duration: 60,
-			}, start);
+			const normal = generateStableDays(
+				28,
+				{
+					visitors: 100,
+					sessions: 120,
+					pageviews: 200,
+					bounce_rate: 40,
+					median_session_duration: 60,
+				},
+				start
+			);
 
 			const partialToday = {
 				date: dayjs().format("YYYY-MM-DD"),
@@ -472,13 +496,17 @@ describe("detectSignals", () => {
 
 		it("requires at least 7 days of data", async () => {
 			const start = dayjs().subtract(4, "day");
-			const days = generateStableDays(5, {
-				visitors: 100,
-				sessions: 120,
-				pageviews: 200,
-				bounce_rate: 40,
-				median_session_duration: 60,
-			}, start);
+			const days = generateStableDays(
+				5,
+				{
+					visitors: 100,
+					sessions: 120,
+					pageviews: 200,
+					bounce_rate: 40,
+					median_session_duration: 60,
+				},
+				start
+			);
 			days[4].visitors = 500;
 
 			const rows = makeDailyRows(days);
@@ -495,13 +523,17 @@ describe("detectSignals", () => {
 		it("fetches enough history for z-score detection at the default lookback", async () => {
 			const lastCompleteDay = dayjs().subtract(1, "day");
 			const start = lastCompleteDay.subtract(21, "day");
-			const rows = generateStableDays(22, {
-				visitors: 100,
-				sessions: 120,
-				pageviews: 200,
-				bounce_rate: 40,
-				median_session_duration: 60,
-			}, start);
+			const rows = generateStableDays(
+				22,
+				{
+					visitors: 100,
+					sessions: 120,
+					pageviews: 200,
+					bounce_rate: 40,
+					median_session_duration: 60,
+				},
+				start
+			);
 			rows[21].visitors = 500;
 
 			let requestedFrom = "";
@@ -698,13 +730,17 @@ describe("detectSignals", () => {
 	describe("deduplication", () => {
 		it("keeps highest delta per metric when both methods fire", async () => {
 			const start = dayjs().subtract(28, "day");
-			const normal = generateStableDays(27, {
-				visitors: 100,
-				sessions: 120,
-				pageviews: 200,
-				bounce_rate: 40,
-				median_session_duration: 60,
-			}, start);
+			const normal = generateStableDays(
+				27,
+				{
+					visitors: 100,
+					sessions: 120,
+					pageviews: 200,
+					bounce_rate: 40,
+					median_session_duration: 60,
+				},
+				start
+			);
 
 			const spikeDay = {
 				date: start.add(27, "day").format("YYYY-MM-DD"),
@@ -763,7 +799,7 @@ describe("detectSignals", () => {
 				d = d.add(1, "day");
 			}
 
-			const lastRow = rows[rows.length - 1];
+			const lastRow = rows.at(-1);
 			const lastDate = dayjs(lastRow.date as string);
 			const lastIsWeekend = lastDate.day() === 0 || lastDate.day() === 6;
 
@@ -841,15 +877,27 @@ describe("detectSignals", () => {
 			},
 			{
 				name: "filters rate metrics when the comparison has too few sessions",
-				current: { sessions: 10, bounce_rate: 60, median_session_duration: 120 },
+				current: {
+					sessions: 10,
+					bounce_rate: 60,
+					median_session_duration: 120,
+				},
 				previous: { sessions: 5, bounce_rate: 30, median_session_duration: 60 },
 				metrics: ["bounce_rate", "session_duration"],
 				detected: false,
 			},
 			{
 				name: "filters rate metrics with less than 10pp absolute change",
-				current: { sessions: 200, bounce_rate: 52, median_session_duration: 67 },
-				previous: { sessions: 200, bounce_rate: 45, median_session_duration: 60 },
+				current: {
+					sessions: 200,
+					bounce_rate: 52,
+					median_session_duration: 67,
+				},
+				previous: {
+					sessions: 200,
+					bounce_rate: 45,
+					median_session_duration: 60,
+				},
 				metrics: ["bounce_rate", "session_duration"],
 				detected: false,
 			},
@@ -885,13 +933,17 @@ describe("detectSignals", () => {
 	describe("z-score vs WoW conflict resolution", () => {
 		it("drops z-score signal when WoW shows the opposite direction", async () => {
 			const start = dayjs().subtract(27, "day");
-			const normal = generateStableDays(27, {
-				visitors: 100,
-				sessions: 120,
-				pageviews: 200,
-				bounce_rate: 40,
-				median_session_duration: 60,
-			}, start);
+			const normal = generateStableDays(
+				27,
+				{
+					visitors: 100,
+					sessions: 120,
+					pageviews: 200,
+					bounce_rate: 40,
+					median_session_duration: 60,
+				},
+				start
+			);
 
 			const latestDay = {
 				date: start.add(27, "day").format("YYYY-MM-DD"),
@@ -906,14 +958,29 @@ describe("detectSignals", () => {
 
 			const queryFn = createMockQueryFn(
 				rows,
-				{ unique_visitors: 200, sessions: 240, pageviews: 400, bounce_rate: 40, median_session_duration: 60 },
-				{ unique_visitors: 100, sessions: 120, pageviews: 200, bounce_rate: 40, median_session_duration: 60 },
+				{
+					unique_visitors: 200,
+					sessions: 240,
+					pageviews: 400,
+					bounce_rate: 40,
+					median_session_duration: 60,
+				},
+				{
+					unique_visitors: 100,
+					sessions: 120,
+					pageviews: 200,
+					bounce_rate: 40,
+					median_session_duration: 60,
+				}
 			);
 
 			const signals = await detectSignals(BASE_PARAMS, queryFn);
 			const visitorSignals = signals.filter((s) => s.metric === "visitors");
 			expect(visitorSignals).toHaveLength(1);
-			expect(visitorSignals[0]).toMatchObject({ direction: "up", method: "wow" });
+			expect(visitorSignals[0]).toMatchObject({
+				direction: "up",
+				method: "wow",
+			});
 		});
 	});
 
@@ -949,32 +1016,37 @@ describe("detectSignals", () => {
 		});
 
 		it("keeps distinct error fingerprints as distinct signals", async () => {
-			const queryFn = createMockQueryFn([], { sessions: 200 }, { sessions: 200 }, {
-				error_fingerprints: [
-					[
-						errorRow(60, 12, {
-							error_type: "TypeError",
-							path: "/checkout",
-						}),
-						errorRow(40, 8, {
-							error_type: "ChunkLoadError",
-							name: "checkout chunk failed",
-							path: "/checkout",
-						}),
+			const queryFn = createMockQueryFn(
+				[],
+				{ sessions: 200 },
+				{ sessions: 200 },
+				{
+					error_fingerprints: [
+						[
+							errorRow(60, 12, {
+								error_type: "TypeError",
+								path: "/checkout",
+							}),
+							errorRow(40, 8, {
+								error_type: "ChunkLoadError",
+								name: "checkout chunk failed",
+								path: "/checkout",
+							}),
+						],
+						[
+							errorRow(10, 5, {
+								error_type: "TypeError",
+								path: "/checkout",
+							}),
+							errorRow(5, 5, {
+								error_type: "ChunkLoadError",
+								name: "checkout chunk failed",
+								path: "/checkout",
+							}),
+						],
 					],
-					[
-						errorRow(10, 5, {
-							error_type: "TypeError",
-							path: "/checkout",
-						}),
-						errorRow(5, 5, {
-							error_type: "ChunkLoadError",
-							name: "checkout chunk failed",
-							path: "/checkout",
-						}),
-					],
-				],
-			});
+				}
+			);
 
 			const errors = (await detectSignals(BASE_PARAMS, queryFn)).filter(
 				(signal) => signal.metric === "error_count"
@@ -1002,12 +1074,17 @@ describe("detectSignals", () => {
 		});
 
 		it("skips errors below absolute threshold", async () => {
-			const queryFn = createMockQueryFn([], {}, {}, {
-				error_fingerprints: [
-					errorRow(3, 3, { name: "Small error" }),
-					errorRow(1, 1, { name: "Small error" }),
-				],
-			});
+			const queryFn = createMockQueryFn(
+				[],
+				{},
+				{},
+				{
+					error_fingerprints: [
+						errorRow(3, 3, { name: "Small error" }),
+						errorRow(1, 1, { name: "Small error" }),
+					],
+				}
+			);
 
 			const signals = await detectSignals(BASE_PARAMS, queryFn);
 			expect(signals.find((s) => s.metric === "error_count")).toBeUndefined();
@@ -1039,12 +1116,17 @@ describe("detectSignals", () => {
 		});
 
 		it("suppresses a current single-user spike even when the prior week had many affected users", async () => {
-			const queryFn = createMockQueryFn([], {}, {}, {
-				error_fingerprints: [
-					errorRow(168, 1, { name: "Looping error" }),
-					errorRow(20, 8, { name: "Looping error" }),
-				],
-			});
+			const queryFn = createMockQueryFn(
+				[],
+				{},
+				{},
+				{
+					error_fingerprints: [
+						errorRow(168, 1, { name: "Looping error" }),
+						errorRow(20, 8, { name: "Looping error" }),
+					],
+				}
+			);
 
 			const signals = await detectSignals(BASE_PARAMS, queryFn);
 			expect(signals.find((s) => s.metric === "error_count")).toBeUndefined();
@@ -1150,11 +1232,11 @@ describe("detectSignals", () => {
 						request.filters?.[0]?.value === materialFingerprint
 							? routeContinuationRow()
 							: routeContinuationRow({
-								control_continued_sessions: 26,
-								control_continuation_percent: 61.9,
-								exposed_continued_sessions: 24,
-								exposed_continuation_percent: 57.1,
-							}),
+									control_continued_sessions: 26,
+									control_continuation_percent: 61.9,
+									exposed_continued_sessions: 24,
+									exposed_continuation_percent: 57.1,
+								}),
 					];
 				}
 				return [];
@@ -1252,7 +1334,9 @@ describe("detectSignals", () => {
 			);
 
 			expect(signals.some((signal) => signal.metric === "visitors")).toBe(true);
-			expect(signals.some((signal) => signal.method === "behavior")).toBe(false);
+			expect(signals.some((signal) => signal.method === "behavior")).toBe(
+				false
+			);
 		});
 	});
 
@@ -1296,9 +1380,7 @@ describe("detectSignals", () => {
 			expect(
 				signals.find((signal) => signal.entityId === "checkout_completed")
 			).toMatchObject({ baseline: 80, current: 30, deltaPercent: -62.5 });
-			expect(
-				requests.find((request) => request.filters)?.filters
-			).toEqual([
+			expect(requests.find((request) => request.filters)?.filters).toEqual([
 				{
 					field: "event_name",
 					op: "in",
@@ -1397,9 +1479,9 @@ describe("detectSignals", () => {
 
 			const signals = await detectSignals(BASE_PARAMS, queryFn);
 			expect(signals.find((s) => s.metric === "bounce_rate")).toBeDefined();
-			expect(signals.find((s) => s.metric === "session_duration")).toMatchObject(
-				{ label: "Median session duration" }
-			);
+			expect(
+				signals.find((s) => s.metric === "session_duration")
+			).toMatchObject({ label: "Median session duration" });
 		});
 	});
 
@@ -1432,7 +1514,10 @@ describe("detectSignals", () => {
 					}
 				);
 
-				const sufficient = await detectSignals(BASE_PARAMS, withPreviousSamples);
+				const sufficient = await detectSignals(
+					BASE_PARAMS,
+					withPreviousSamples
+				);
 				const sparse = await detectSignals(BASE_PARAMS, withoutPreviousSamples);
 
 				expect(
@@ -1447,12 +1532,17 @@ describe("detectSignals", () => {
 		}
 
 		it("ignores healthy vital movement in either direction", async () => {
-			const queryFn = createMockQueryFn([], {}, {}, {
-				vitals_overview: [
-					{ metric_name: "INP", p75: 147, samples: 100 },
-					{ metric_name: "INP", p75: 104, samples: 100 },
-				],
-			});
+			const queryFn = createMockQueryFn(
+				[],
+				{},
+				{},
+				{
+					vitals_overview: [
+						{ metric_name: "INP", p75: 147, samples: 100 },
+						{ metric_name: "INP", p75: 104, samples: 100 },
+					],
+				}
+			);
 
 			const signals = await detectSignals(BASE_PARAMS, queryFn);
 			expect(signals.find((signal) => signal.metric === "inp")).toBeUndefined();
@@ -1472,9 +1562,9 @@ describe("detectSignals", () => {
 			);
 
 			const signals = await detectSignals(BASE_PARAMS, queryFn);
-			expect(signals.find((signal) => signal.metric === "lcp")).toMatchObject(
-				{ direction: "down" }
-			);
+			expect(signals.find((signal) => signal.metric === "lcp")).toMatchObject({
+				direction: "down",
+			});
 		});
 
 		it("finds persistently poor high-sample LCP even when it is flat", async () => {
@@ -1528,10 +1618,10 @@ describe("detectSignals", () => {
 				{ sessions: 1000 },
 				{ sessions: 1000 },
 				{
-				vitals_overview: [
-					{ metric_name: "INP", p75: 240, samples: 100 },
-					{ metric_name: "INP", p75: 150, samples: 100 },
-				],
+					vitals_overview: [
+						{ metric_name: "INP", p75: 240, samples: 100 },
+						{ metric_name: "INP", p75: 150, samples: 100 },
+					],
 				}
 			);
 
@@ -1540,12 +1630,17 @@ describe("detectSignals", () => {
 		});
 
 		it("ignores implausible instrumentation outliers", async () => {
-			const queryFn = createMockQueryFn([], {}, {}, {
-				vitals_overview: [
-					{ metric_name: "LCP", p75: 76_751_400, samples: 100 },
-					{ metric_name: "LCP", p75: 2400, samples: 100 },
-				],
-			});
+			const queryFn = createMockQueryFn(
+				[],
+				{},
+				{},
+				{
+					vitals_overview: [
+						{ metric_name: "LCP", p75: 76_751_400, samples: 100 },
+						{ metric_name: "LCP", p75: 2400, samples: 100 },
+					],
+				}
+			);
 
 			const signals = await detectSignals(BASE_PARAMS, queryFn);
 			expect(signals.find((signal) => signal.metric === "lcp")).toBeUndefined();
@@ -1556,12 +1651,12 @@ describe("detectSignals", () => {
 		it("matches unchanged currencies regardless of row order", async () => {
 			const usd = {
 				currency: "USD",
-				total_revenue: 10000,
+				total_revenue: 10_000,
 				total_transactions: 100,
 			};
 			const eur = {
 				currency: "EUR",
-				total_revenue: 15000,
+				total_revenue: 15_000,
 				total_transactions: 100,
 			};
 			const signals = await detectSignals(
@@ -1578,14 +1673,16 @@ describe("detectSignals", () => {
 					}
 				)
 			);
-			expect(signals.filter((signal) => signal.metric === "revenue")).toEqual([]);
+			expect(signals.filter((signal) => signal.metric === "revenue")).toEqual(
+				[]
+			);
 		});
 		it("keeps separate currency identities through preparation and exact remeasurement", async () => {
 			const params = { ...BASE_PARAMS, lookbackDays: 7 };
 			const today = dayjs.utc("2026-09-05");
 			const before = [
-				{ currency: "USD", total_revenue: 10000, total_transactions: 100 },
-				{ currency: "EUR", total_revenue: 15000, total_transactions: 100 },
+				{ currency: "USD", total_revenue: 10_000, total_transactions: 100 },
+				{ currency: "EUR", total_revenue: 15_000, total_transactions: 100 },
 			];
 			const after = [
 				{ ...before[1], total_revenue: 6000 },
@@ -1652,7 +1749,7 @@ describe("detectSignals", () => {
 		])("does not invent a zero for %s", async (scenario) => {
 			const row = {
 				currency: "USD",
-				total_revenue: 10000,
+				total_revenue: 10_000,
 				total_transactions: 100,
 			};
 			const before = scenario === "missing previous" ? [] : [row];
@@ -1675,7 +1772,9 @@ describe("detectSignals", () => {
 				BASE_PARAMS,
 				createMockQueryFn([], {}, {}, { revenue_overview: [after, before] })
 			);
-			expect(signals.filter((signal) => signal.metric === "revenue")).toEqual([]);
+			expect(signals.filter((signal) => signal.metric === "revenue")).toEqual(
+				[]
+			);
 		});
 		it.each([
 			"revenue",
@@ -1687,7 +1786,7 @@ describe("detectSignals", () => {
 					metric: "revenue",
 					label: "USD revenue",
 					current: 6000,
-					baseline: 10000,
+					baseline: 10_000,
 					deltaPercent: -40,
 					direction: "down",
 					method: "wow",
@@ -1703,12 +1802,16 @@ describe("detectSignals", () => {
 				{
 					revenue_overview: [
 						[{ currency: "EUR", total_revenue: 5000 }],
-						[{ currency: "USD", total_revenue: 10000 }],
+						[{ currency: "USD", total_revenue: 10_000 }],
 					],
 				}
 			);
 			expect(
-				await remeasureMetricSignal(BASE_PARAMS, { ...signal, signalKey }, query)
+				await remeasureMetricSignal(
+					BASE_PARAMS,
+					{ ...signal, signalKey },
+					query
+				)
 			).toBeNull();
 		});
 
@@ -1747,12 +1850,17 @@ describe("detectSignals", () => {
 			it(name, async () => {
 				const signals = await detectSignals(
 					BASE_PARAMS,
-					createMockQueryFn([], {}, {}, {
-						revenue_overview: [
-							{ currency: "USD", ...current },
-							{ currency: "USD", ...previous },
-						],
-					})
+					createMockQueryFn(
+						[],
+						{},
+						{},
+						{
+							revenue_overview: [
+								{ currency: "USD", ...current },
+								{ currency: "USD", ...previous },
+							],
+						}
+					)
 				);
 				const revenue = signals.find((signal) => signal.metric === "revenue");
 				if (expected) {
@@ -1792,7 +1900,6 @@ describe("detectSignals", () => {
 			);
 			expect(upTraffic.length).toBe(1);
 		});
-
 	});
 
 	describe("exact remeasurement", () => {
@@ -1805,9 +1912,7 @@ describe("detectSignals", () => {
 					deltaPercent: isLcp ? -0.72 : 0,
 					detectedAt: "2026-08-11",
 					direction: isLcp ? "down" : "up",
-					label: isLcp
-						? "Page load time (LCP)"
-						: "Interaction speed (INP)",
+					label: isLcp ? "Page load time (LCP)" : "Interaction speed (INP)",
 					method: "wow",
 					metric,
 					severity: "warning",
@@ -1820,12 +1925,17 @@ describe("detectSignals", () => {
 			const remeasured = await remeasureMetricSignal(
 				{ ...BASE_PARAMS, lookbackDays: 7 },
 				vitalPrior("lcp"),
-				createMockQueryFn([], {}, {}, {
-					vitals_overview: [
-						[{ metric_name: "LCP", p75: 4500, samples: 10 }],
-						[{ metric_name: "LCP", p75: 4450, samples: 10 }],
-					],
-				}),
+				createMockQueryFn(
+					[],
+					{},
+					{},
+					{
+						vitals_overview: [
+							[{ metric_name: "LCP", p75: 4500, samples: 10 }],
+							[{ metric_name: "LCP", p75: 4450, samples: 10 }],
+						],
+					}
+				),
 				dayjs("2026-08-12")
 			);
 
@@ -1836,12 +1946,17 @@ describe("detectSignals", () => {
 			const remeasured = await remeasureMetricSignal(
 				{ ...BASE_PARAMS, lookbackDays: 7 },
 				vitalPrior("lcp"),
-				createMockQueryFn([], {}, {}, {
-					vitals_overview: [
-						[{ metric_name: "LCP", p75: 4984, samples: 5129 }],
-						[{ metric_name: "LCP", p75: 5020, samples: 5000 }],
-					],
-				}),
+				createMockQueryFn(
+					[],
+					{},
+					{},
+					{
+						vitals_overview: [
+							[{ metric_name: "LCP", p75: 4984, samples: 5129 }],
+							[{ metric_name: "LCP", p75: 5020, samples: 5000 }],
+						],
+					}
+				),
 				dayjs("2026-08-12")
 			);
 
@@ -1856,12 +1971,17 @@ describe("detectSignals", () => {
 			const remeasured = await remeasureMetricSignal(
 				{ ...BASE_PARAMS, lookbackDays: 7 },
 				vitalPrior("lcp"),
-				createMockQueryFn([], {}, {}, {
-					vitals_overview: [
-						[{ metric_name: "LCP", p75: 3900, samples: 10 }],
-						[{ metric_name: "LCP", p75: 2500, samples: 10 }],
-					],
-				}),
+				createMockQueryFn(
+					[],
+					{},
+					{},
+					{
+						vitals_overview: [
+							[{ metric_name: "LCP", p75: 3900, samples: 10 }],
+							[{ metric_name: "LCP", p75: 2500, samples: 10 }],
+						],
+					}
+				),
 				dayjs("2026-08-12")
 			);
 
@@ -1875,12 +1995,17 @@ describe("detectSignals", () => {
 			const remeasured = await remeasureMetricSignal(
 				{ ...BASE_PARAMS, lookbackDays: 7 },
 				vitalPrior("inp"),
-				createMockQueryFn([], {}, {}, {
-					vitals_overview: [
-						[{ metric_name: "INP", p75: 250, samples: 10 }],
-						[{ metric_name: "INP", p75: 250, samples: 10 }],
-					],
-				}),
+				createMockQueryFn(
+					[],
+					{},
+					{},
+					{
+						vitals_overview: [
+							[{ metric_name: "INP", p75: 250, samples: 10 }],
+							[{ metric_name: "INP", p75: 250, samples: 10 }],
+						],
+					}
+				),
 				dayjs("2026-08-12")
 			);
 
@@ -1947,7 +2072,7 @@ describe("detectSignals", () => {
 			);
 
 			expect(remeasured).toMatchObject({
-			direction: "down",
+				direction: "down",
 				method: "behavior",
 				severity: "info",
 				subjectKey: prior.signalKey,
@@ -2020,9 +2145,9 @@ describe("detectSignals", () => {
 				subjectKey: prior.signalKey,
 			});
 			expect(requests).toHaveLength(2);
-			expect(requests.every((request) => request.type === "error_fingerprints")).toBe(
-				true
-			);
+			expect(
+				requests.every((request) => request.type === "error_fingerprints")
+			).toBe(true);
 			expect(requests[0]?.filters).toEqual([
 				{ field: "message", op: "eq", value: "cart is undefined" },
 			]);
@@ -2274,7 +2399,9 @@ describe("independent commercial discovery", () => {
 			const refund = detected.find(
 				(signal) => signal.subjectKey === "refund_amount:USD"
 			);
-			if (!refund) throw new Error("Missing signed refund candidate");
+			if (!refund) {
+				throw new Error("Missing signed refund candidate");
+			}
 			const prior = prepareInvestigation(refund, 7).signal;
 			expect(prior.sentiment).toBe("negative");
 			expect(prior.metric.current).toBe(2500);
@@ -2284,7 +2411,9 @@ describe("independent commercial discovery", () => {
 				createMockQueryFn([], {}, {}, { revenue_overview: [current, before] }),
 				dayjs("2026-09-08")
 			);
-			if (!measured) throw new Error("Missing exact refund remeasurement");
+			if (!measured) {
+				throw new Error("Missing exact refund remeasurement");
+			}
 			expect(measured.subjectKey).toBe("refund_amount:USD");
 			expect(measured.current).toBe(currentMagnitude);
 			expect(measured.baseline).toBe(previousMagnitude);

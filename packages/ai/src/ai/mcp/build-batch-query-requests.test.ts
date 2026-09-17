@@ -1,8 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import {
-	buildBatchQueryRequests,
-	formatMcpQueryResults,
-} from "./mcp-utils";
+import { buildBatchQueryRequests, formatMcpQueryResults } from "./mcp-utils";
 
 describe("buildBatchQueryRequests", () => {
 	it("keeps valid queries when one in the batch is invalid", () => {
@@ -31,8 +28,7 @@ describe("buildBatchQueryRequests", () => {
 		expect(plan.invalid).toHaveLength(0);
 		expect(plan.requests[0]?.type).toBe("top_pages");
 		expect(
-			formatMcpQueryResults(plan, [{ type: "top_pages", data: [] }])[0]
-				?.summary
+			formatMcpQueryResults(plan, [{ type: "top_pages", data: [] }])[0]?.summary
 		).toMatch(
 			/^top_pages \| \d{4}-\d{2}-\d{2} to \d{4}-\d{2}-\d{2} \| timezone=UTC \| filters=none \| groupBy=default \| timeUnit=default \| orderBy=default \| limit=default$/
 		);
@@ -118,8 +114,7 @@ describe("buildBatchQueryRequests", () => {
 		);
 
 		expect(
-			formatMcpQueryResults(plan, [{ type: "top_pages", data: [] }])[0]
-				?.summary
+			formatMcpQueryResults(plan, [{ type: "top_pages", data: [] }])[0]?.summary
 		).toBe(
 			'top_pages | 2026-07-01 to 2026-07-07 | timezone=UTC | filters=none | groupBy=["country"] | timeUnit=day | orderBy=visitors DESC | limit=50'
 		);

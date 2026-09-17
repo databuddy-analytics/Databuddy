@@ -29,18 +29,15 @@ describe("Slack conversation context", () => {
 				},
 			},
 		};
-		const context = createSlackConversationContext(
-			client,
-			{
-				channelId: "C123",
-				messageTs: "171234.001",
-				teamId: "T123",
-				text: "what did we decide?",
-				threadTs: "171234.000",
-				trigger: "app_mention",
-				userId: "U123",
-			}
-		);
+		const context = createSlackConversationContext(client, {
+			channelId: "C123",
+			messageTs: "171234.001",
+			teamId: "T123",
+			text: "what did we decide?",
+			threadTs: "171234.000",
+			trigger: "app_mention",
+			userId: "U123",
+		});
 
 		const result = await context?.readCurrentThread?.();
 

@@ -490,13 +490,14 @@ describe("native saved verification", () => {
 		expect(execute).not.toHaveBeenCalled();
 		expectNoModelCalls(model);
 	});
-
 });
 
 it("rejects the observed repair workaround even after its structured check is dropped", async () => {
 	const fixture = verificationFixture("check-population-drift");
-	if (!fixture.input.request) throw new Error("Missing human reply fixture");
-	delete fixture.input.request.kind;
+	if (!fixture.input.request) {
+		throw new Error("Missing human reply fixture");
+	}
+	fixture.input.request.kind = undefined;
 	const errors: string[] = [];
 	let calls = 0;
 	const model = new MockLanguageModelV3({
@@ -563,8 +564,11 @@ it("rejects the observed repair workaround even after its structured check is dr
 			model,
 			tools: fixture.tools,
 			onStepFinish: (step) => {
-				for (const part of step.content)
-					if (part.type === "tool-error") errors.push(String(part.error));
+				for (const part of step.content) {
+					if (part.type === "tool-error") {
+						errors.push(String(part.error));
+					}
+				}
 			},
 		})
 	).rejects.toThrow();

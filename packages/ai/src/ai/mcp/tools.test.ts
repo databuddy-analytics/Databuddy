@@ -136,7 +136,8 @@ describe("MCP tool invariants", () => {
 		const tool = defineMcpTool(
 			{
 				name: "literal_string_input",
-				description: "Test that literal string inputs reach the handler unchanged.",
+				description:
+					"Test that literal string inputs reach the handler unchanged.",
 				inputSchema: z.object({
 					enabled: z.boolean(),
 					literal: z.string(),
@@ -161,7 +162,8 @@ describe("MCP tool invariants", () => {
 		const tool = defineMcpTool(
 			{
 				name: "internal_error_test",
-				description: "Test that internal exception text is not returned to callers.",
+				description:
+					"Test that internal exception text is not returned to callers.",
 				inputSchema: z.object({}),
 			},
 			() => {
@@ -329,7 +331,6 @@ describe("MCP tool invariants", () => {
 			}
 		}
 	});
-
 });
 
 describe("investigation tools", () => {
@@ -350,18 +351,11 @@ describe("investigation tools", () => {
 		expect(readDataNames.has("create_link")).toBe(false);
 		expect(readDataNames.has("create_flag")).toBe(false);
 
-		const flagManager = await listToolsForScopes([
-			"read:data",
-			"manage:flags",
-		]);
+		const flagManager = await listToolsForScopes(["read:data", "manage:flags"]);
 		const flagManagerNames = new Set(
 			flagManager.tools.map((tool) => tool.name)
 		);
-		for (const name of [
-			"create_flag",
-			"update_flag",
-			"add_users_to_flag",
-		]) {
+		for (const name of ["create_flag", "update_flag", "add_users_to_flag"]) {
 			expect(flagManagerNames.has(name)).toBe(true);
 		}
 
@@ -396,10 +390,7 @@ describe("investigation tools", () => {
 			expect(workspaceWriterWithoutReadNames.has(name)).toBe(false);
 		}
 
-		const linkReader = await listToolsForScopes([
-			"read:data",
-			"read:links",
-		]);
+		const linkReader = await listToolsForScopes(["read:data", "read:links"]);
 		expect(
 			new Set(linkReader.tools.map((tool) => tool.name)).has("list_links")
 		).toBe(true);
@@ -423,9 +414,7 @@ describe("investigation tools", () => {
 			"read:links",
 			"write:links",
 		]);
-		const linkWriterNames = new Set(
-			linkWriter.tools.map((tool) => tool.name)
-		);
+		const linkWriterNames = new Set(linkWriter.tools.map((tool) => tool.name));
 		for (const name of ["create_link", "update_link", "delete_link"]) {
 			expect(linkWriterNames.has(name)).toBe(true);
 		}
@@ -436,11 +425,7 @@ describe("investigation tools", () => {
 			createInternalPrincipal({
 				metadata: {
 					resources: {
-						"website:site-1": [
-							"read:data",
-							"read:links",
-							"write:links",
-						],
+						"website:site-1": ["read:data", "read:links", "write:links"],
 					},
 				},
 				organizationId: "org-1",
@@ -553,5 +538,4 @@ describe("investigation tools", () => {
 			expect(names.has(name)).toBe(true);
 		}
 	});
-
 });

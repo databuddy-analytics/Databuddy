@@ -39,17 +39,19 @@ async function withEnv<T>(
 }
 
 describe("dashboard next config", () => {
-	it.each(["true", "false"])(
-		"respects SELFHOST=%s in browser config and signup tracking",
-		async (selfhost) => {
-			const child = Bun.spawn([process.execPath, "--no-env-file", "-"], {
-				cwd: import.meta.dir,
-				env: {
-					NODE_ENV: "production",
-					SELFHOST: selfhost,
-					NEXT_PUBLIC_OPENAI_ADS_PIXEL_ID: "synthetic-pixel",
-				},
-				stdin: new Blob([`
+	it.each([
+		"true",
+		"false",
+	])("respects SELFHOST=%s in browser config and signup tracking", async (selfhost) => {
+		const child = Bun.spawn([process.execPath, "--no-env-file", "-"], {
+			cwd: import.meta.dir,
+			env: {
+				NODE_ENV: "production",
+				SELFHOST: selfhost,
+				NEXT_PUBLIC_OPENAI_ADS_PIXEL_ID: "synthetic-pixel",
+			},
+			stdin: new Blob([
+				`
 import assert from "node:assert/strict";
 const { default: config } = await import("./next.config");
 assert.equal(config.env.NEXT_PUBLIC_SELFHOST, ${JSON.stringify(selfhost)});
@@ -72,17 +74,17 @@ const { trackOpenAiRegistrationCompleted } = await import("./components/openai-a
 trackOpenAiRegistrationCompleted();
 assert.deepEqual(scripts, ${JSON.stringify(selfhost === "true" ? [] : ["https://bzrcdn.openai.com/sdk/oaiq.min.js"])});
 assert.equal(window.oaiq?.q?.some(args => args[0] === "measure") ?? false, ${selfhost !== "true"});
-`]),
-				stdout: "ignore",
-				stderr: "pipe",
-			});
-			const [exitCode, stderr] = await Promise.all([
-				child.exited,
-				new Response(child.stderr).text(),
-			]);
-			expect(exitCode, stderr).toBe(0);
-		}
-	);
+`,
+			]),
+			stdout: "ignore",
+			stderr: "pipe",
+		});
+		const [exitCode, stderr] = await Promise.all([
+			child.exited,
+			new Response(child.stderr).text(),
+		]);
+		expect(exitCode, stderr).toBe(0);
+	});
 
 	it("allows configured API and ingestion origins in production", async () => {
 		await withEnv(

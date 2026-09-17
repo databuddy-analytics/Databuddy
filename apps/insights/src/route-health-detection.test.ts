@@ -52,10 +52,10 @@ function routeVitalSignal(
 		changePercent: 44,
 		entity: { id: "/sign-in", label: "Route /sign-in", type: "page" },
 		metric: {
-			current: 7_200,
+			current: 7200,
 			format: "duration_ms",
 			label: "Page load time (LCP) on /sign-in",
-			previous: 5_000,
+			previous: 5000,
 		},
 		period: {
 			current: { from: "2026-07-25", to: "2026-07-31" },
@@ -95,52 +95,52 @@ describe("canonicalStaticRoute", () => {
 
 	it("rejects identifiers, emails, slugs, encoded values, and non-path inputs", () => {
 		expect(canonicalStaticRoute("/users/ari")).toBeNull();
-		expect(canonicalStaticRoute("/creations/019fb864-acd8-7000-8186-24934df81e46")).toBeNull();
+		expect(
+			canonicalStaticRoute("/creations/019fb864-acd8-7000-8186-24934df81e46")
+		).toBeNull();
 		expect(canonicalStaticRoute("/explore/12345")).toBeNull();
-			expect(canonicalStaticRoute("/explore/ari@example.com")).toBeNull();
-			expect(canonicalStaticRoute("/explore/%61ri")).toBeNull();
-			expect(canonicalStaticRoute("/Explore")).toBeNull();
-			expect(canonicalStaticRoute("explore")).toBeNull();
-		});
+		expect(canonicalStaticRoute("/explore/ari@example.com")).toBeNull();
+		expect(canonicalStaticRoute("/explore/%61ri")).toBeNull();
+		expect(canonicalStaticRoute("/Explore")).toBeNull();
+		expect(canonicalStaticRoute("explore")).toBeNull();
 	});
+});
 
 describe("detectRouteHealthSignals", () => {
 	it("finds high-reach route regressions and omits raw dynamic paths", async () => {
 		const requests: RouteHealthQueryInput[] = [];
-		const signals = await detectRouteHealthSignals(
-			PARAMS,
-			TODAY,
-			{
-				query: async (input) => {
-					requests.push(input);
-					if (input.type === "errors_by_page" && input.from === "2026-07-25") {
-						return [
-							{ errors: 36, name: "/explore", users: 35 },
-							{
-								errors: 120,
-								name: "/users/ari@example.com?token=private",
-								users: 90,
-							},
-						];
-					}
-					if (input.type === "errors_by_page") {
-						return [{ errors: 23, name: "/explore", users: 19 }];
-					}
-					if (input.from === "2026-07-25") {
-						return [
-							{ metric_name: "LCP", p75: 4_000, page: "/creations", samples: 48 },
-							{
-								metric_name: "INP",
-								p75: 600,
-								page: "/explore/019fb864-acd8-7000-8186-24934df81e46",
-								samples: 80,
-							},
-						];
-					}
-					return [{ metric_name: "LCP", p75: 2_500, page: "/creations", samples: 50 }];
-				},
-			}
-		);
+		const signals = await detectRouteHealthSignals(PARAMS, TODAY, {
+			query: async (input) => {
+				requests.push(input);
+				if (input.type === "errors_by_page" && input.from === "2026-07-25") {
+					return [
+						{ errors: 36, name: "/explore", users: 35 },
+						{
+							errors: 120,
+							name: "/users/ari@example.com?token=private",
+							users: 90,
+						},
+					];
+				}
+				if (input.type === "errors_by_page") {
+					return [{ errors: 23, name: "/explore", users: 19 }];
+				}
+				if (input.from === "2026-07-25") {
+					return [
+						{ metric_name: "LCP", p75: 4000, page: "/creations", samples: 48 },
+						{
+							metric_name: "INP",
+							p75: 600,
+							page: "/explore/019fb864-acd8-7000-8186-24934df81e46",
+							samples: 80,
+						},
+					];
+				}
+				return [
+					{ metric_name: "LCP", p75: 2500, page: "/creations", samples: 50 },
+				];
+			},
+		});
 
 		expect(requests).toHaveLength(4);
 		expect(requests.map((request) => request.type).sort()).toEqual([
@@ -163,7 +163,7 @@ describe("detectRouteHealthSignals", () => {
 		);
 		expect(signals).toContainEqual(
 			expect.objectContaining({
-				current: 4_000,
+				current: 4000,
 				entityId: "/creations",
 				metric: "lcp",
 				severity: "warning",
@@ -231,12 +231,12 @@ describe("detectRouteHealthSignals", () => {
 				}
 				if (input.from === "2026-07-25") {
 					return [
-						{ metric_name: "LCP", p75: 2_400, page: "/explore", samples: 60 },
+						{ metric_name: "LCP", p75: 2400, page: "/explore", samples: 60 },
 						{ metric_name: "INP", p75: 220, page: "/sign-in", samples: 19 },
 					];
 				}
 				return [
-					{ metric_name: "LCP", p75: 1_500, page: "/explore", samples: 60 },
+					{ metric_name: "LCP", p75: 1500, page: "/explore", samples: 60 },
 					{ metric_name: "INP", p75: 120, page: "/sign-in", samples: 30 },
 				];
 			})
@@ -283,7 +283,7 @@ describe("loadRouteVitalContinuation", () => {
 
 		expect(requests).toEqual([
 			expect.objectContaining({
-				badThreshold: 2_500,
+				badThreshold: 2500,
 				from: "2026-07-25",
 				maxPlausible: 60_000,
 				metric: "LCP",
@@ -305,7 +305,9 @@ describe("loadRouteVitalContinuation", () => {
 			throw new Error("Expected matched route vital continuation");
 		}
 		const evidence = routeVitalContinuationEvidence(continuation);
-		expect(evidence).toContain("later viewed a different page within 10 minutes");
+		expect(evidence).toContain(
+			"later viewed a different page within 10 minutes"
+		);
 		expect(evidence).toContain("This is an association, not proof");
 		expect(evidence).not.toContain("bounce");
 		expect(evidence).not.toContain("session_id");
@@ -320,10 +322,10 @@ describe("loadRouteVitalContinuation", () => {
 		const invalidSignals = [
 			routeVitalSignal({
 				metric: {
-					current: 2_500,
+					current: 2500,
 					format: "duration_ms",
 					label: "Page load time (LCP) on /sign-in",
-					previous: 2_000,
+					previous: 2000,
 				},
 			}),
 			routeVitalSignal({
@@ -331,7 +333,7 @@ describe("loadRouteVitalContinuation", () => {
 					current: 60_001,
 					format: "duration_ms",
 					label: "Page load time (LCP) on /sign-in",
-					previous: 5_000,
+					previous: 5000,
 				},
 			}),
 			routeVitalSignal({

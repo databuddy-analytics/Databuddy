@@ -9,56 +9,49 @@ import { NotificationClient } from "../client";
 describe("buildAlarmNotificationTargets", () => {
 	test.each([
 		["", undefined, "App <app@example.com>"],
-		[
-			"Alerts <alerts@example.com>",
-			undefined,
-			"Alerts <alerts@example.com>",
-		],
+		["Alerts <alerts@example.com>", undefined, "Alerts <alerts@example.com>"],
 		["Alerts <alerts@example.com>", "alarm@example.com", "alarm@example.com"],
 		["Alerts <alerts@example.com>", "", "Alerts <alerts@example.com>"],
-	] as const)(
-		"delivers alarms with sender %s and destination override %s",
-		async (alertsFrom, destinationFrom, expectedFrom) => {
-			const previousEmail = config.email;
-			const previousApiKey = process.env.RESEND_API_KEY;
-			const fetchMock = spyOn(globalThis, "fetch").mockImplementation(() =>
-				Promise.resolve(Response.json({ id: "email-example" }))
+	] as const)("delivers alarms with sender %s and destination override %s", async (alertsFrom, destinationFrom, expectedFrom) => {
+		const previousEmail = config.email;
+		const previousApiKey = process.env.RESEND_API_KEY;
+		const fetchMock = spyOn(globalThis, "fetch").mockImplementation(() =>
+			Promise.resolve(Response.json({ id: "email-example" }))
+		);
+		process.env.RESEND_API_KEY = "re_test_key";
+		try {
+			config.email = createConfig({
+				ALERTS_EMAIL_FROM: alertsFrom,
+				EMAIL_FROM: "App <app@example.com>",
+			}).email;
+			const [target] = buildAlarmNotificationTargets([
+				{
+					type: "email",
+					identifier: "recipient@example.com",
+					config: { from: destinationFrom },
+				},
+			]);
+			expect(target?.channel).toBe("email");
+			const result = await new NotificationClient(target?.clientConfig).send(
+				{ title: "Site alert", message: "The site is unavailable." },
+				{ channels: ["email"] }
 			);
-			process.env.RESEND_API_KEY = "re_test_key";
-			try {
-				config.email = createConfig({
-					ALERTS_EMAIL_FROM: alertsFrom,
-					EMAIL_FROM: "App <app@example.com>",
-				}).email;
-				const [target] = buildAlarmNotificationTargets([
-					{
-						type: "email",
-						identifier: "recipient@example.com",
-						config: { from: destinationFrom },
-					},
-				]);
-				expect(target?.channel).toBe("email");
-				const result = await new NotificationClient(target?.clientConfig).send(
-					{ title: "Site alert", message: "The site is unavailable." },
-					{ channels: ["email"] }
-				);
-				expect(result).toEqual([{ channel: "email", success: true }]);
-				const request = fetchMock.mock.calls.at(-1)?.[1];
-				expect(JSON.parse(String(request?.body))).toMatchObject({
-					from: expectedFrom,
-					to: ["recipient@example.com"],
-				});
-			} finally {
-				config.email = previousEmail;
-				fetchMock.mockRestore();
-				if (previousApiKey === undefined) {
-					Reflect.deleteProperty(process.env, "RESEND_API_KEY");
-				} else {
-					process.env.RESEND_API_KEY = previousApiKey;
-				}
+			expect(result).toEqual([{ channel: "email", success: true }]);
+			const request = fetchMock.mock.calls.at(-1)?.[1];
+			expect(JSON.parse(String(request?.body))).toMatchObject({
+				from: expectedFrom,
+				to: ["recipient@example.com"],
+			});
+		} finally {
+			config.email = previousEmail;
+			fetchMock.mockRestore();
+			if (previousApiKey === undefined) {
+				Reflect.deleteProperty(process.env, "RESEND_API_KEY");
+			} else {
+				process.env.RESEND_API_KEY = previousApiKey;
 			}
 		}
-	);
+	});
 
 	test("keeps same-channel destinations as separate delivery targets", () => {
 		const firstSlack = "https://hooks.slack.com/services/T000/B000/first";

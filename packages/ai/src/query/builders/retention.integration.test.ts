@@ -5,7 +5,9 @@ import type { Filter, QueryRequest } from "../types";
 import { RetentionBuilders } from "./retention";
 
 const integration =
-	process.env.CLICKHOUSE_INTEGRATION_TESTS === "true" ? describe : describe.skip;
+	process.env.CLICKHOUSE_INTEGRATION_TESTS === "true"
+		? describe
+		: describe.skip;
 const clickhouseUrl = new URL(
 	process.env.CLICKHOUSE_URL ?? "http://default:@localhost:8123"
 );
@@ -17,15 +19,15 @@ clickhouseUrl.username = "";
 clickhouseUrl.password = "";
 const table = `analytics.retention_test_${crypto.randomUUID().replaceAll("-", "")}`;
 type Row = Record<string, string | number | null>;
-type Event = {
-	timestamp: string;
-	profile_id: string;
-	event_name?: string;
-	owner_id?: string;
-	website_id?: string | null;
-	namespace?: string | null;
+interface Event {
 	anonymous_id?: string | null;
-};
+	event_name?: string;
+	namespace?: string | null;
+	owner_id?: string;
+	profile_id: string;
+	timestamp: string;
+	website_id?: string | null;
+}
 
 async function sql(
 	query: string,
@@ -44,7 +46,9 @@ async function sql(
 		signal: AbortSignal.timeout(15_000),
 	});
 	const body = await response.text();
-	if (!response.ok) throw new Error(body);
+	if (!response.ok) {
+		throw new Error(body);
+	}
 	return body;
 }
 

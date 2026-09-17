@@ -23,7 +23,9 @@ describe("analytics tool contract", () => {
 		{ having: false },
 	])("rejects unsupported filter scope instead of silently stripping it: %o", async (scope) => {
 		const schema = asSchema(getDataTool.inputSchema);
-		if (!schema.validate) throw new Error("Missing tool schema validator");
+		if (!schema.validate) {
+			throw new Error("Missing tool schema validator");
+		}
 		const result = await schema.validate({
 			queries: [
 				{
@@ -43,8 +45,9 @@ describe("analytics tool contract", () => {
 	});
 
 	it("exposes the exact continuation selector contract before the model queries", async () => {
-		if (!discoverQueryTypesTool.execute)
+		if (!discoverQueryTypesTool.execute) {
 			throw new Error("Missing discovery tool");
+		}
 		const result = await discoverQueryTypesTool.execute(
 			{ search: "error_route_continuation_comparison" },
 			options
@@ -100,8 +103,9 @@ describe("analytics tool contract", () => {
 			],
 		};
 		const schema = asSchema(getDataTool.inputSchema);
-		if (!(schema.validate && getDataTool.execute))
+		if (!(schema.validate && getDataTool.execute)) {
 			throw new Error("Missing data tool contract");
+		}
 		expect((await schema.validate(request)).success).toBe(true);
 		const result = await getDataTool.execute(request, options);
 		if (groupBy?.length) {
@@ -139,17 +143,19 @@ describe("analytics tool contract", () => {
 			SimpleQueryBuilder.prototype,
 			"execute"
 		).mockImplementation(function () {
-				const compiled = this.compile();
-				expect(compiled.params).toMatchObject({ f0: "activation_completed" });
-				expect(compiled.sql).toContain("event_name = {f0:String}");
-				return Promise.resolve(
-					Array.from({ length: 25 }, (_, index) => ({
-						name: `/step-${index}`,
-						total_events: 1,
-					}))
-				);
-			});
-		if (!getDataTool.execute) throw new Error("Missing data tool");
+			const compiled = this.compile();
+			expect(compiled.params).toMatchObject({ f0: "activation_completed" });
+			expect(compiled.sql).toContain("event_name = {f0:String}");
+			return Promise.resolve(
+				Array.from({ length: 25 }, (_, index) => ({
+					name: `/step-${index}`,
+					total_events: 1,
+				}))
+			);
+		});
+		if (!getDataTool.execute) {
+			throw new Error("Missing data tool");
+		}
 		const result = await getDataTool.execute(
 			{
 				queries: [

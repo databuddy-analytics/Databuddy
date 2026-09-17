@@ -26,7 +26,12 @@ const mockMergeWideEvent = mock((_: Record<string, unknown>) => {});
 
 mock.module("@databuddy/rpc/autumn", () => ({
 	getAutumn: () => ({
-		customers: { get: async (input: { customerId: string }) => ({ id: input.customerId, flags: {} }) },
+		customers: {
+			get: async (input: { customerId: string }) => ({
+				id: input.customerId,
+				flags: {},
+			}),
+		},
 		check: mockAutumnCheck,
 		track: mockAutumnTrack,
 	}),

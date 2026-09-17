@@ -8,9 +8,9 @@ const configSource = readFileSync(
 	"utf8"
 );
 
-const configEntries = [...configSource.matchAll(/"\.\/src\/drizzle\/schema\/([\w-]+\.ts)"/g)].map(
-	(match) => match[1]
-);
+const configEntries = [
+	...configSource.matchAll(/"\.\/src\/drizzle\/schema\/([\w-]+\.ts)"/g),
+].map((match) => match[1]);
 
 const tableFiles = readdirSync(schemaDir).filter((file) => {
 	if (!file.endsWith(".ts") || file.endsWith(".test.ts")) {

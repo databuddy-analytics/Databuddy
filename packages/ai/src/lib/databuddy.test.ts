@@ -24,7 +24,10 @@ test.each([
 	{ selfHost: "true", clients: 0 },
 	{ selfHost: " TRUE ", clients: 0 },
 	{ selfHost: "false", clients: 2 },
-])("product telemetry with SELFHOST=$selfHost", async ({ selfHost, clients }) => {
+])("product telemetry with SELFHOST=$selfHost", async ({
+	selfHost,
+	clients,
+}) => {
 	process.env = {
 		...originalEnv,
 		SELFHOST: selfHost,

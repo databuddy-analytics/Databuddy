@@ -63,7 +63,7 @@ describe("websites.create", () => {
 					organizationId: org.id,
 				},
 			}),
-			"FORBIDDEN",
+			"FORBIDDEN"
 		);
 	});
 
@@ -81,7 +81,7 @@ describe("websites.create", () => {
 					organizationId: org.id,
 				},
 			}),
-			"FORBIDDEN",
+			"FORBIDDEN"
 		);
 	});
 
@@ -102,7 +102,7 @@ describe("websites.create", () => {
 				context: userContext(user, org.id),
 				input: { name: "Second", domain, organizationId: org.id },
 			}),
-			"CONFLICT",
+			"CONFLICT"
 		);
 	});
 
@@ -225,7 +225,7 @@ describe("websites.getById", () => {
 				context: context(),
 				input: { id: site.id },
 			}),
-			"UNAUTHORIZED",
+			"UNAUTHORIZED"
 		);
 	});
 
@@ -239,7 +239,7 @@ describe("websites.getById", () => {
 				context: userContext(user, org.id),
 				input: { id: "nonexistent" },
 			}),
-			"NOT_FOUND",
+			"NOT_FOUND"
 		);
 	});
 });
@@ -251,7 +251,10 @@ describe("websites.updateSettings", () => {
 		await addToOrganization(user.id, org.id, "admin");
 		const site = await insertWebsite({
 			organizationId: org.id,
-			settings: { allowedIps: ["10.0.0.1"], allowedOrigins: ["old.example.com"] },
+			settings: {
+				allowedIps: ["10.0.0.1"],
+				allowedOrigins: ["old.example.com"],
+			},
 		});
 
 		const result = await handler.updateSettings({
@@ -289,22 +292,25 @@ describe("websites.updateSettings", () => {
 		expect(result.settings).toEqual(initial);
 	});
 
-	iit("clears a single list via an empty array without touching the other", async () => {
-		const user = await signUp();
-		const org = await insertOrganization();
-		await addToOrganization(user.id, org.id, "admin");
-		const site = await insertWebsite({
-			organizationId: org.id,
-			settings: { allowedIps: ["10.0.0.1"], allowedOrigins: ["cal.com"] },
-		});
+	iit(
+		"clears a single list via an empty array without touching the other",
+		async () => {
+			const user = await signUp();
+			const org = await insertOrganization();
+			await addToOrganization(user.id, org.id, "admin");
+			const site = await insertWebsite({
+				organizationId: org.id,
+				settings: { allowedIps: ["10.0.0.1"], allowedOrigins: ["cal.com"] },
+			});
 
-		const result = await handler.updateSettings({
-			context: userContext(user, org.id),
-			input: { id: site.id, settings: { allowedOrigins: [] } },
-		});
+			const result = await handler.updateSettings({
+				context: userContext(user, org.id),
+				input: { id: site.id, settings: { allowedOrigins: [] } },
+			});
 
-		expect(result.settings).toEqual({ allowedIps: ["10.0.0.1"] });
-	});
+			expect(result.settings).toEqual({ allowedIps: ["10.0.0.1"] });
+		}
+	);
 
 	iit("clears all settings when both lists are emptied", async () => {
 		const user = await signUp();
@@ -341,7 +347,7 @@ describe("websites.updateSettings", () => {
 					settings: { allowedOrigins: ["cal.com"] },
 				},
 			}),
-			"FORBIDDEN",
+			"FORBIDDEN"
 		);
 	});
 });

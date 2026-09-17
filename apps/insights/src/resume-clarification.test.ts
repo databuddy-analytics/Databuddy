@@ -93,8 +93,9 @@ function replaceDb<K extends keyof typeof dbOriginals>(
 	return implementation;
 }
 afterEach(() => {
-	for (const key of Object.keys(dbOriginals) as (keyof typeof dbOriginals)[])
+	for (const key of Object.keys(dbOriginals) as (keyof typeof dbOriginals)[]) {
 		db[key] = dbOriginals[key] as never;
+	}
 	mock.restore();
 });
 it("resumes an anchored clarification without refresh, business reads, investigation, case writes or observations", async () => {

@@ -11,7 +11,9 @@ import {
 } from "./analytics-utils";
 
 const describeIntegration =
-	process.env.CLICKHOUSE_INTEGRATION_TESTS === "true" ? describe : describe.skip;
+	process.env.CLICKHOUSE_INTEGRATION_TESTS === "true"
+		? describe
+		: describe.skip;
 const testPrefix = randomUUIDv7();
 const profileWebsiteId = `identity-profile-${testPrefix}`;
 const sessionWebsiteId = `identity-session-${testPrefix}`;
@@ -212,11 +214,7 @@ describeIntegration("goal and funnel visitor identity", () => {
 
 	it("resolves row-time identity in direct event denominators and link cohorts", async () => {
 		const [totalUsers, linkVisitors] = await Promise.all([
-			getTotalWebsiteUsers(
-				profileWebsiteId,
-				startDate,
-				endDate
-			),
+			getTotalWebsiteUsers(profileWebsiteId, startDate, endDate),
 			queryLinkVisitorIds("missing-link", queryParams(profileWebsiteId)),
 		]);
 
@@ -340,7 +338,11 @@ describeIntegration("goal and funnel visitor identity", () => {
 	for (const [name, websiteId, expected] of [
 		["rejects browser context after the conversion", afterContextWebsiteId, 0],
 		["does not leak context across sessions", crossSessionWebsiteId, 0],
-		["accepts browser context at the exact same timestamp", sameTimeWebsiteId, 1],
+		[
+			"accepts browser context at the exact same timestamp",
+			sameTimeWebsiteId,
+			1,
+		],
 	] as const) {
 		it(name, async () => {
 			const result = await processGoalAnalytics(
@@ -384,7 +386,9 @@ describe("referrer query cancellation boundary", () => {
 			});
 		});
 		try {
-			if (preaborted) controller.abort(reason);
+			if (preaborted) {
+				controller.abort(reason);
+			}
 			const result = processFunnelAnalyticsByReferrer(
 				[
 					{
@@ -405,7 +409,9 @@ describe("referrer query cancellation boundary", () => {
 			}
 			await expect(result).rejects.toBe(reason);
 			expect(query).toHaveBeenCalledTimes(preaborted ? 0 : 1);
-			if (!preaborted) expect(querySignal?.reason).toBe(reason);
+			if (!preaborted) {
+				expect(querySignal?.reason).toBe(reason);
+			}
 		} finally {
 			query.mockRestore();
 		}

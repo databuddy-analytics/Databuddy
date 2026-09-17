@@ -43,7 +43,9 @@ mock.module("@databuddy/api-keys/resolve", () => ({
 }));
 mock.module("@databuddy/redis", () => ({ getRedisCache: () => null }));
 
-const { ensureWebsiteAccess, resolveWebsiteId } = await import("./tool-context");
+const { ensureWebsiteAccess, resolveWebsiteId } = await import(
+	"./tool-context"
+);
 
 describe("MCP domain selector compatibility", () => {
 	it.each([
@@ -78,7 +80,12 @@ describe("shared agent's business-context organization boundary", () => {
 	it("rejects a missing website before checking permissions", async () => {
 		permission.mockClear();
 		expect(
-			await ensureWebsiteAccess("missing-site", new Headers(), null, "org-other")
+			await ensureWebsiteAccess(
+				"missing-site",
+				new Headers(),
+				null,
+				"org-other"
+			)
 		).toEqual(new Error("Website not found"));
 		expect(permission).not.toHaveBeenCalled();
 	});

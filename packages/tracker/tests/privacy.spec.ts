@@ -8,7 +8,9 @@ const SESSION_STORAGE_KEYS = [
 	"did_session_timestamp",
 ];
 
-async function readStoredTrackingIdentity(page: import("@playwright/test").Page) {
+async function readStoredTrackingIdentity(
+	page: import("@playwright/test").Page
+) {
 	return page.evaluate(
 		({ identityKeys, sessionKeys }) => ({
 			local: identityKeys.map((key) => localStorage.getItem(key)),
@@ -18,7 +20,9 @@ async function readStoredTrackingIdentity(page: import("@playwright/test").Page)
 	);
 }
 
-async function seedStoredTrackingIdentity(page: import("@playwright/test").Page) {
+async function seedStoredTrackingIdentity(
+	page: import("@playwright/test").Page
+) {
 	await page.evaluate(
 		({ identityKeys, sessionKeys }) => {
 			for (const key of identityKeys) {

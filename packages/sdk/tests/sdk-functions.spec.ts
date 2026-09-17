@@ -1,8 +1,4 @@
-import {
-	expect,
-	test,
-	waitForSDK,
-} from "./test-utils";
+import { expect, test, waitForSDK } from "./test-utils";
 
 test.describe("SDK Functions", () => {
 	test.beforeEach(async ({ page }) => {

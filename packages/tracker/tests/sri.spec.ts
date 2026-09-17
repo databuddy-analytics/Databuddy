@@ -18,9 +18,7 @@ test.describe("Subresource Integrity (SRI)", () => {
 		validSriHash = await generateSriHash(getScriptContent());
 	});
 
-	test("script loads and initializes with valid SRI hash", async ({
-		page,
-	}) => {
+	test("script loads and initializes with valid SRI hash", async ({ page }) => {
 		await page.goto("/test");
 		await page.evaluate(
 			({ sri }) => {
@@ -39,9 +37,7 @@ test.describe("Subresource Integrity (SRI)", () => {
 		);
 
 		await expect
-			.poll(
-				async () => await page.evaluate(() => !!(window as any).databuddy)
-			)
+			.poll(async () => await page.evaluate(() => !!(window as any).databuddy))
 			.toBeTruthy();
 
 		const tracker = await page.evaluate(

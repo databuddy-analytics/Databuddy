@@ -4,10 +4,24 @@ import {
 	INVESTIGATION_USAGE,
 } from "@databuddy/shared/billing";
 import {
-	credits_booster, credits_topup, free, hobby, intelligence, intelligence_scale,
-	investigations_topup, investigation_runs, pro, pulse_hobby, pulse_pro, scale,
+	credits_booster,
+	credits_topup,
+	free,
+	hobby,
+	intelligence,
+	intelligence_scale,
+	investigations_topup,
+	investigation_runs,
+	pro,
+	pulse_hobby,
+	pulse_pro,
+	scale,
 } from "../autumn.config";
-import { calculateTopupCost, TOPUP_FEATURE_ID, TOPUP_TIERS } from "./topup-math";
+import {
+	calculateTopupCost,
+	TOPUP_FEATURE_ID,
+	TOPUP_TIERS,
+} from "./topup-math";
 
 describe("fixed investigation purchases", () => {
 	test("card displays one dollar per unit and sends only valid, authorized purchases to Autumn", async () => {
@@ -15,7 +29,8 @@ describe("fixed investigation purchases", () => {
 		const child = Bun.spawn([process.execPath, "--no-env-file", "-"], {
 			cwd: import.meta.dir,
 			env: { NODE_ENV: "test", TZ: "UTC" },
-			stdin: new Blob([`
+			stdin: new Blob([
+				`
 import assert from "node:assert/strict";
 import { mock } from "bun:test";
 const React = await import("react");
@@ -57,7 +72,8 @@ for (const [quantity, valid, authorized] of [
     successUrl: "https://dashboard.example/billing",
   }]] : []);
 }
-			`]),
+			`,
+			]),
 			stdout: "ignore",
 			stderr: "pipe",
 		});
@@ -69,19 +85,40 @@ for (const [quantity, valid, authorized] of [
 	});
 
 	test("new catalog item is prepaid without a reset, expiration, or volume discount", () => {
-		expect(investigation_runs).toMatchObject({ id: INVESTIGATION_USAGE.featureId, type: "metered", consumable: true });
-		expect(investigations_topup).toMatchObject({ addOn: true, autoEnable: false });
-		expect(investigations_topup.items).toEqual([{
-			featureId: "investigation_runs",
-			price: { amount: 1, interval: "one_off", billingMethod: "prepaid", billingUnits: 1, maxPurchase: 1000 },
-		}]);
+		expect(investigation_runs).toMatchObject({
+			id: INVESTIGATION_USAGE.featureId,
+			type: "metered",
+			consumable: true,
+		});
+		expect(investigations_topup).toMatchObject({
+			addOn: true,
+			autoEnable: false,
+		});
+		expect(investigations_topup.items).toEqual([
+			{
+				featureId: "investigation_runs",
+				price: {
+					amount: 1,
+					interval: "one_off",
+					billingMethod: "prepaid",
+					billingUnits: 1,
+					maxPurchase: 1000,
+				},
+			},
+		]);
 	});
 
 	test("analytics plans do not promise included automatic investigations", () => {
 		for (const plan of [free, hobby, pro]) {
-			expect(plan.items?.filter((item) => item.featureId === "investigation_runs")).toEqual([
-			{ featureId: "investigation_runs", included: 0, reset: { interval: "one_off" } },
-		]);
+			expect(
+				plan.items?.filter((item) => item.featureId === "investigation_runs")
+			).toEqual([
+				{
+					featureId: "investigation_runs",
+					included: 0,
+					reset: { interval: "one_off" },
+				},
+			]);
 		}
 	});
 
@@ -90,21 +127,43 @@ for (const [quantity, valid, authorized] of [
 		[intelligence_scale, INVESTIGATION_ALLOWANCES.intelligence_scale, 799],
 	] as const)("%s grants monthly investigations and bills only extras at one dollar", (plan, included, basePrice) => {
 		expect(plan.price).toEqual({ amount: basePrice, interval: "month" });
-		expect(plan.items?.filter((item) => item.featureId === INVESTIGATION_USAGE.featureId)).toEqual([{
-			featureId: INVESTIGATION_USAGE.featureId,
-			included,
-			price: { amount: 1, interval: "month", billingMethod: "usage_based", billingUnits: 1 },
-		}]);
+		expect(
+			plan.items?.filter(
+				(item) => item.featureId === INVESTIGATION_USAGE.featureId
+			)
+		).toEqual([
+			{
+				featureId: INVESTIGATION_USAGE.featureId,
+				included,
+				price: {
+					amount: 1,
+					interval: "month",
+					billingMethod: "usage_based",
+					billingUnits: 1,
+				},
+			},
+		]);
 		expect(plan.autoEnable).toBe(false);
 	});
 
 	test("legacy plans and credit top-ups are not converted into investigation units", () => {
-		for (const plan of [scale, pulse_hobby, pulse_pro, credits_booster, credits_topup]) {
-			expect(plan.items?.some((item) => item.featureId === "investigation_runs")).toBe(false);
+		for (const plan of [
+			scale,
+			pulse_hobby,
+			pulse_pro,
+			credits_booster,
+			credits_topup,
+		]) {
+			expect(
+				plan.items?.some((item) => item.featureId === "investigation_runs")
+			).toBe(false);
 		}
 		expect(TOPUP_FEATURE_ID).toBe("agent_credits");
 		expect(credits_topup.items?.[0]?.price?.tiers).toEqual(TOPUP_TIERS);
 		expect(calculateTopupCost(100)).toBe(12);
-		expect(credits_booster.items?.[0]).toMatchObject({ included: 200, rollover: { max: 400, expiryDurationType: "forever" } });
+		expect(credits_booster.items?.[0]).toMatchObject({
+			included: 200,
+			rollover: { max: 400, expiryDurationType: "forever" },
+		});
 	});
 });

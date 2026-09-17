@@ -136,14 +136,14 @@ describe("createConfig", () => {
 	});
 
 	it("falls alert email back to the normal sender before the default", () => {
-		expect(
-			createConfig({ EMAIL_FROM: "App <app@example.com>" })
-		).toMatchObject({
-			email: {
-				alertsFrom: "App <app@example.com>",
-				from: "App <app@example.com>",
-			},
-		});
+		expect(createConfig({ EMAIL_FROM: "App <app@example.com>" })).toMatchObject(
+			{
+				email: {
+					alertsFrom: "App <app@example.com>",
+					from: "App <app@example.com>",
+				},
+			}
+		);
 	});
 });
 

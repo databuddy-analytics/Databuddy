@@ -21,7 +21,11 @@ const USER_ID = "user-test";
 const WEBSITE_ID = "site-test";
 const OTHER_WEBSITE_ID = "site-other";
 
-type WebsiteRow = { id: string; organizationId: string; isPublic: boolean };
+interface WebsiteRow {
+	id: string;
+	isPublic: boolean;
+	organizationId: string;
+}
 
 const websites = new Map<string, WebsiteRow>();
 const memberRoles = new Map<string, string>();
@@ -162,22 +166,19 @@ describe("withWorkspace organization member grants", () => {
 		["viewer", "create"],
 		["member", "delete"],
 		["superuser", "read"],
-	] as const)(
-		"denies a %s role missing the %s permission",
-		async (role, permission) => {
-			memberRoles.set(`${USER_ID}:${ORGANIZATION_ID}`, role);
+	] as const)("denies a %s role missing the %s permission", async (role, permission) => {
+		memberRoles.set(`${USER_ID}:${ORGANIZATION_ID}`, role);
 
-			await expectRpcError(
-				withWorkspace(userContext(), {
-					organizationId: ORGANIZATION_ID,
-					permissions: [permission],
-					resource: "link",
-				}),
-				"FORBIDDEN",
-				/Missing required link permissions/
-			);
-		}
-	);
+		await expectRpcError(
+			withWorkspace(userContext(), {
+				organizationId: ORGANIZATION_ID,
+				permissions: [permission],
+				resource: "link",
+			}),
+			"FORBIDDEN",
+			/Missing required link permissions/
+		);
+	});
 
 	it("denies a user who is not a member of the organization", async () => {
 		await expectRpcError(
@@ -519,17 +520,17 @@ it("self-hosting skips billing without relaxing workspace permissions", async ()
 			"feature_flags",
 		] as const) {
 			expect(() =>
-				requireFeatureWithLimit("free", feature, 10000)
+				requireFeatureWithLimit("free", feature, 10_000)
 			).not.toThrow();
 			expect(() =>
-				requireUsageWithinLimit("free", feature, 10000)
+				requireUsageWithinLimit("free", feature, 10_000)
 			).not.toThrow();
 		}
 		process.env.SELFHOST = "false";
 		expect(() =>
 			requireFeatureWithLimit("free", "error_tracking", 0)
 		).toThrow();
-		expect(() => requireUsageWithinLimit("free", "goals", 10000)).toThrow();
+		expect(() => requireUsageWithinLimit("free", "goals", 10_000)).toThrow();
 	} finally {
 		if (original === undefined) {
 			Reflect.deleteProperty(process.env, "SELFHOST");

@@ -100,11 +100,7 @@ describe("isApiKeyPresent", () => {
 describe("extractSecret", () => {
 	it.each([
 		["x-api-key header", { "x-api-key": VALID_SECRET }, VALID_SECRET],
-		[
-			"Bearer token",
-			{ authorization: `Bearer ${VALID_SECRET}` },
-			VALID_SECRET,
-		],
+		["Bearer token", { authorization: `Bearer ${VALID_SECRET}` }, VALID_SECRET],
 		[
 			"x-api-key over Bearer",
 			{
@@ -137,7 +133,11 @@ describe("extractSecret", () => {
 			{ authorization: "Bearer invalid_token" },
 			null,
 		],
-		["Bearer token below minimum length", { authorization: "Bearer dbdy_" }, null],
+		[
+			"Bearer token below minimum length",
+			{ authorization: "Bearer dbdy_" },
+			null,
+		],
 		[
 			"Bearer token above maximum length",
 			{ authorization: `Bearer dbdy_${"a".repeat(200)}` },

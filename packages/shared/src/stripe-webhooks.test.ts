@@ -24,5 +24,4 @@ describe("STRIPE_WEBHOOK_EVENTS", () => {
 			expect(requiredEvents).toContain(event);
 		}
 	});
-
 });

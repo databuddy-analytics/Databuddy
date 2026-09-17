@@ -27,7 +27,9 @@ test(
 	{ tag: "@regression" },
 	async ({ page }, testInfo) => {
 		const key = process.env.DATABUDDY_E2E_TEST_KEY;
-		if (!key) throw new Error("DATABUDDY_E2E_TEST_KEY is required");
+		if (!key) {
+			throw new Error("DATABUDDY_E2E_TEST_KEY is required");
+		}
 		await page.setExtraHTTPHeaders({ "x-e2e-test-key": key });
 		const customer = syntheticCustomer();
 		const savedFeatures: string[] = [];
@@ -53,7 +55,9 @@ test(
 				return;
 			}
 			requestCount++;
-			if (requestCount === 1) await firstSave;
+			if (requestCount === 1) {
+				await firstSave;
+			}
 			const input = route.request().postDataJSON().json;
 			if (route.request().url().endsWith("setUsageAlert")) {
 				customer.billingControls.usageAlerts = [
@@ -73,7 +77,9 @@ test(
 						overageLimit: input.overageLimit,
 					},
 				];
-			} else throw new Error("Unexpected billing mutation");
+			} else {
+				throw new Error("Unexpected billing mutation");
+			}
 			await route.fulfill({
 				json: { json: input },
 				headers: {
@@ -181,9 +187,9 @@ test(
 		await page.reload();
 		await expect(alertSwitch).not.toBeChecked();
 		await expect(row.getByRole("spinbutton")).toHaveCount(0);
-		expect(
-			await row.evaluate((el) => el.getBoundingClientRect().height)
-		).toBe(closedHeight);
+		expect(await row.evaluate((el) => el.getBoundingClientRect().height)).toBe(
+			closedHeight
+		);
 		await alertSwitch.focus();
 		await page.keyboard.press("Tab");
 		await expect(
@@ -204,9 +210,7 @@ test(
 			.getByRole("button", { name: "Turn on", exact: true })
 			.click();
 		await expect(spendRow.getByRole("button")).toHaveCount(0);
-		expect(savedFeatures).toEqual([
-			"agent_credits",
-		]);
+		expect(savedFeatures).toEqual(["agent_credits"]);
 	}
 );
 

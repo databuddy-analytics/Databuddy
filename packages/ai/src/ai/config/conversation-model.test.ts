@@ -3,7 +3,10 @@ import { conversationModelOptions } from "./conversation-model";
 import { modelNames } from "./models";
 
 describe("conversation model compatibility", () => {
-	it.each(["openai/gpt-5.6-terra", "openai/gpt-5.6-luna"])("maps %s to OpenAI effort without inheriting Anthropic options", (modelId) => {
+	it.each([
+		"openai/gpt-5.6-terra",
+		"openai/gpt-5.6-luna",
+	])("maps %s to OpenAI effort without inheriting Anthropic options", (modelId) => {
 		for (const effort of ["low", "medium", "high"] as const) {
 			const options = conversationModelOptions(modelId, effort);
 			expect(options.providerOptions?.openai).toEqual({

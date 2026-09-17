@@ -127,13 +127,15 @@ describeIntegration("insights scheduler integration", () => {
 		});
 		const now = new Date();
 
-		await db().insert(insightGenerationConfigs).values({
-			id: randomUUIDv7(),
-			organizationId: org.id,
-			enabled: true,
-			frequency: "daily",
-			nextRunAt: new Date(now.getTime() - 1000),
-		});
+		await db()
+			.insert(insightGenerationConfigs)
+			.values({
+				id: randomUUIDv7(),
+				organizationId: org.id,
+				enabled: true,
+				frequency: "daily",
+				nextRunAt: new Date(now.getTime() - 1000),
+			});
 
 		const result = await dispatchDueInsightRuns(now);
 
@@ -177,9 +179,9 @@ describeIntegration("insights scheduler integration", () => {
 			.where(eq(insightGenerationConfigs.organizationId, org.id))
 			.limit(1);
 
-		expect(config?.nextRunAt && config.nextRunAt.getTime() > now.getTime()).toBe(
-			true
-		);
+		expect(
+			config?.nextRunAt && config.nextRunAt.getTime() > now.getTime()
+		).toBe(true);
 	});
 
 	it("advances a due config when the organization has no websites", async () => {
@@ -187,14 +189,16 @@ describeIntegration("insights scheduler integration", () => {
 		organizationIds.add(org.id);
 		const now = new Date();
 
-		await db().insert(insightGenerationConfigs).values({
-			id: randomUUIDv7(),
-			organizationId: org.id,
-			enabled: true,
-			frequency: "weekly",
-			nextRunAt: new Date(now.getTime() - 1000),
-			timezone: "UT<C",
-		});
+		await db()
+			.insert(insightGenerationConfigs)
+			.values({
+				id: randomUUIDv7(),
+				organizationId: org.id,
+				enabled: true,
+				frequency: "weekly",
+				nextRunAt: new Date(now.getTime() - 1000),
+				timezone: "UT<C",
+			});
 
 		const result = await dispatchDueInsightRuns(now);
 
@@ -359,13 +363,15 @@ describeIntegration("insights scheduler integration", () => {
 		const org = await insertOrganization();
 		organizationIds.add(org.id);
 		const now = new Date("2026-01-22T09:00:00.000Z");
-		await db().insert(insightGenerationConfigs).values({
-			id: randomUUIDv7(),
-			organizationId: org.id,
-			enabled: true,
-			frequency: "daily",
-			nextRunAt: new Date(now.getTime() - 1000),
-		});
+		await db()
+			.insert(insightGenerationConfigs)
+			.values({
+				id: randomUUIDv7(),
+				organizationId: org.id,
+				enabled: true,
+				frequency: "daily",
+				nextRunAt: new Date(now.getTime() - 1000),
+			});
 		const [stale] = await db()
 			.select()
 			.from(insightGenerationConfigs)
@@ -403,9 +409,7 @@ describeIntegration("insights scheduler integration", () => {
 				queueInsightGenerationRun({
 					organizationId: org.id,
 					timezone: " UTC ",
-					websiteIds: [
-						index % 2 === 0 ? firstWebsite.id : secondWebsite.id,
-					],
+					websiteIds: [index % 2 === 0 ? firstWebsite.id : secondWebsite.id],
 				})
 			)
 		);

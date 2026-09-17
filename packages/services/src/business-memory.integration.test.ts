@@ -26,7 +26,9 @@ const enabled = process.env.BUSINESS_CONTEXT_INTEGRATION_TESTS === "true";
 const integration = enabled ? describe : describe.skip;
 
 beforeAll(() => {
-	if (!enabled) return;
+	if (!enabled) {
+		return;
+	}
 	const url = new URL(process.env.DATABASE_URL ?? "");
 	if (
 		!["localhost", "127.0.0.1"].includes(url.hostname) ||
@@ -38,9 +40,12 @@ beforeAll(() => {
 });
 
 function insertOrganization(id: string) {
-	return db
-		.insert(organization)
-		.values({ id, name: "Synthetic organization", slug: id, createdAt: new Date() });
+	return db.insert(organization).values({
+		id,
+		name: "Synthetic organization",
+		slug: id,
+		createdAt: new Date(),
+	});
 }
 
 integration("business memory lifecycle against isolated PostgreSQL", () => {
@@ -64,8 +69,9 @@ integration("business memory lifecycle against isolated PostgreSQL", () => {
 			async (input, init) => {
 				const request = new Request(input, init);
 				const url = new URL(request.url);
-				if (url.hostname !== "api.supermemory.ai")
+				if (url.hostname !== "api.supermemory.ai") {
 					throw new Error("Unexpected provider request");
+				}
 				const body = await request.json();
 				const action = request.method === "DELETE" ? "retire" : "write";
 				events.push(`${action}:entered`);
@@ -90,17 +96,19 @@ integration("business memory lifecycle against isolated PostgreSQL", () => {
 				}
 				expect(url.pathname).toBe("/v3/documents/bulk");
 				const tag = body.containerTags[0];
-				if (unavailable)
+				if (unavailable) {
 					return Response.json(
 						{ error: "synthetic provider unavailable" },
 						{ status: 503 }
 					);
-				if (partial)
+				}
+				if (partial) {
 					return Response.json({
 						success: true,
 						deletedCount: 0,
 						skippedProcessingCount: 1,
 					});
+				}
 				const deletedCount = documents.get(tag) ?? 0;
 				documents.delete(tag);
 				events.push("retire:acknowledged");
@@ -132,9 +140,11 @@ integration("business memory lifecycle against isolated PostgreSQL", () => {
 	});
 	afterAll(async () => {
 		fetchMock?.mockRestore();
-		if (previousKey === undefined)
+		if (previousKey === undefined) {
 			Reflect.deleteProperty(process.env, "SUPERMEMORY_API_KEY");
-		else process.env.SUPERMEMORY_API_KEY = previousKey;
+		} else {
+			process.env.SUPERMEMORY_API_KEY = previousKey;
+		}
 		await shutdownPostgres();
 	});
 
@@ -151,7 +161,9 @@ integration("business memory lifecycle against isolated PostgreSQL", () => {
 			{ organizationId: org, websiteId },
 			{ initialize: true }
 		);
-		if (!scope) throw new Error("Synthetic scope was not initialized");
+		if (!scope) {
+			throw new Error("Synthetic scope was not initialized");
+		}
 		return scope;
 	}
 	async function waitForBlockedTransaction() {
@@ -160,7 +172,9 @@ integration("business memory lifecycle against isolated PostgreSQL", () => {
 			const result = await db.execute(
 				sql`SELECT count(*)::int AS waiting FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock'`
 			);
-			if (Number(result.rows[0]?.waiting) > 0) return;
+			if (Number(result.rows[0]?.waiting) > 0) {
+				return;
+			}
 			await new Promise((resolve) => setTimeout(resolve, 10));
 		}
 		throw new Error(
@@ -170,7 +184,9 @@ integration("business memory lifecycle against isolated PostgreSQL", () => {
 	function write(scope: BusinessScope) {
 		return withBusinessMemoryWrite(scope, async () => {
 			const client = getMemoryClient();
-			if (!client) throw new Error("Synthetic provider missing");
+			if (!client) {
+				throw new Error("Synthetic provider missing");
+			}
 			return client.documents.batchAdd(
 				{
 					containerTag: businessContainerTag(scope),
@@ -207,7 +223,9 @@ integration("business memory lifecycle against isolated PostgreSQL", () => {
 			)
 		);
 		const scope = results[0];
-		if (!scope) throw new Error("Concurrent initialization failed");
+		if (!scope) {
+			throw new Error("Concurrent initialization failed");
+		}
 		expect(
 			results.every((result) => result?.startedAt === scope.startedAt)
 		).toBe(true);
@@ -239,8 +257,13 @@ integration("business memory lifecycle against isolated PostgreSQL", () => {
 			service.updateInTransaction(tx, scope.websiteId, { settings: null })
 		);
 		expect(await getWebsiteBusinessScope(scope)).toEqual(scope);
-		const [cleared] = await db.select({ settings: websites.settings }).from(websites).where(eq(websites.id, scope.websiteId));
-		expect(cleared?.settings).toEqual({ businessContextStartedAt: scope.startedAt });
+		const [cleared] = await db
+			.select({ settings: websites.settings })
+			.from(websites)
+			.where(eq(websites.id, scope.websiteId));
+		expect(cleared?.settings).toEqual({
+			businessContextStartedAt: scope.startedAt,
+		});
 		await db.transaction((tx) =>
 			service.updateInTransaction(tx, scope.websiteId, {
 				domain: "www.reports.example.com",
@@ -370,10 +393,14 @@ integration("business memory lifecycle against isolated PostgreSQL", () => {
 		await writing;
 		await deleting;
 		expect(documents.size).toBe(0);
-		expect(events.filter((event) => event === "retire:acknowledged")).toHaveLength(2);
+		expect(
+			events.filter((event) => event === "retire:acknowledged")
+		).toHaveLength(2);
 		expect(await getWebsiteBusinessScope(first)).toBeNull();
 		expect(await getWebsiteBusinessScope(second)).toBeNull();
-		const remaining = await db.execute(sql`SELECT id FROM organization WHERE id=${org}`);
+		const remaining = await db.execute(
+			sql`SELECT id FROM organization WHERE id=${org}`
+		);
 		expect(remaining.rows).toHaveLength(0);
 	}, 10_000);
 
@@ -386,11 +413,17 @@ integration("business memory lifecycle against isolated PostgreSQL", () => {
 			() => "unexpected write",
 			(error) => error.message
 		);
-		const creating = db.insert(websites).values({
-			id: `synthetic-${randomUUID()}`,
-			organizationId: org,
-			domain: "new.example.com",
-		}).then(() => "unexpected creation", () => "rejected");
+		const creating = db
+			.insert(websites)
+			.values({
+				id: `synthetic-${randomUUID()}`,
+				organizationId: org,
+				domain: "new.example.com",
+			})
+			.then(
+				() => "unexpected creation",
+				() => "rejected"
+			);
 		await waitForBlockedTransaction();
 		release?.();
 		await deleting;
@@ -405,9 +438,13 @@ integration("business memory lifecycle against isolated PostgreSQL", () => {
 			documents.set(businessContainerTag(scope), 1);
 			partial = failure === "partial";
 			unavailable = failure === "unavailable";
-			await expect(deleteOrganizationWithBusinessMemory(org)).rejects.toBeInstanceOf(BusinessMemoryRetirementError);
+			await expect(
+				deleteOrganizationWithBusinessMemory(org)
+			).rejects.toBeInstanceOf(BusinessMemoryRetirementError);
 			expect(await getWebsiteBusinessScope(scope)).toEqual(scope);
-			const remaining = await db.execute(sql`SELECT id FROM organization WHERE id=${org}`);
+			const remaining = await db.execute(
+				sql`SELECT id FROM organization WHERE id=${org}`
+			);
 			expect(remaining.rows).toHaveLength(1);
 			partial = false;
 			unavailable = false;
@@ -418,7 +455,13 @@ integration("business memory lifecycle against isolated PostgreSQL", () => {
 	it("a rejected website mutation leaves the memory index intact", async () => {
 		const scope = await fixture();
 		documents.set(businessContainerTag(scope), 1);
-		await expect(db.transaction((tx) => service.updateInTransaction(tx, scope.websiteId, { organizationId: "synthetic-missing-organization" }))).rejects.toThrow();
+		await expect(
+			db.transaction((tx) =>
+				service.updateInTransaction(tx, scope.websiteId, {
+					organizationId: "synthetic-missing-organization",
+				})
+			)
+		).rejects.toThrow();
 		expect(events).toEqual([]);
 		expect(documents.get(businessContainerTag(scope))).toBe(1);
 		expect(await getWebsiteBusinessScope(scope)).toEqual(scope);

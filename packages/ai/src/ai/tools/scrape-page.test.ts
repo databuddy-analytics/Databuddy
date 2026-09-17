@@ -69,7 +69,7 @@ afterEach(() => {
 
 describe("readWebsitePage", () => {
 	it("refreshes a still-young cache that predates the current business scope", async () => {
-		const old = new Date(Date.now() - 3600_000).toISOString();
+		const old = new Date(Date.now() - 3_600_000).toISOString();
 		const freshAfter = new Date(Date.now() - 60_000);
 		const result = await readWebsitePage(
 			{ domain: "example.com", freshAfter, mutationMode: "dry-run" },
@@ -77,10 +77,11 @@ describe("readWebsitePage", () => {
 		);
 		expect(result.success).toBe(true);
 		expect(globalThis.fetch).toHaveBeenCalledTimes(1);
-		if (result.success)
+		if (result.success) {
 			expect(Date.parse(result.fetchedAt)).toBeGreaterThanOrEqual(
 				freshAfter.getTime()
 			);
+		}
 		globalThis.fetch = mock(async () =>
 			Response.json({
 				...PROVIDER_PAGE,
@@ -508,7 +509,7 @@ describe("website tools", () => {
 
 	it("uses the existing workspace authorization check before reading or searching", async () => {
 		const tools = createScrapeTools(memoryCache());
-		if (!tools.search_website.execute || !tools.scrape_page.execute) {
+		if (!(tools.search_website.execute && tools.scrape_page.execute)) {
 			throw new Error("Tools are not executable");
 		}
 		await expect(

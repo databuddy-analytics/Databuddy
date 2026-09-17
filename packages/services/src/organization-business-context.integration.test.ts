@@ -28,12 +28,18 @@ const enabled = process.env.BUSINESS_CONTEXT_INTEGRATION_TESTS === "true";
 const integration = enabled ? describe : describe.skip;
 
 beforeAll(() => {
-	if (!enabled) return;
+	if (!enabled) {
+		return;
+	}
 	const url = new URL(process.env.DATABASE_URL ?? "");
 	if (
-		!["localhost", "127.0.0.1"].includes(url.hostname) ||
-		(!["/databuddy_test", "/business_context_settings"].includes(url.pathname) &&
-			!url.pathname.startsWith("/databuddy_e2e_"))
+		!(
+			["localhost", "127.0.0.1"].includes(url.hostname) &&
+			(["/databuddy_test", "/business_context_settings"].includes(
+				url.pathname
+			) ||
+				url.pathname.startsWith("/databuddy_e2e_"))
+		)
 	) {
 		throw new Error("Use a localhost test database");
 	}
@@ -48,25 +54,21 @@ integration("organization business context in isolated PostgreSQL", () => {
 		org = `synthetic-${randomUUID()}`;
 		other = `synthetic-${randomUUID()}`;
 		websiteId = `synthetic-${randomUUID()}`;
-		await db
-			.insert(organization)
-			.values(
-				[org, other].map((id) => ({
-					id,
-					name: "Synthetic organization",
-					slug: id,
-					createdAt: new Date(),
-					metadata: JSON.stringify({ unrelated: { preserved: true } }),
-				}))
-			);
-		await db
-			.insert(websites)
-			.values({
-				id: websiteId,
-				organizationId: org,
-				domain: "reports.example.com",
-				name: "Synthetic reports",
-			});
+		await db.insert(organization).values(
+			[org, other].map((id) => ({
+				id,
+				name: "Synthetic organization",
+				slug: id,
+				createdAt: new Date(),
+				metadata: JSON.stringify({ unrelated: { preserved: true } }),
+			}))
+		);
+		await db.insert(websites).values({
+			id: websiteId,
+			organizationId: org,
+			domain: "reports.example.com",
+			name: "Synthetic reports",
+		});
 	});
 	afterEach(async () => {
 		await db.delete(organization).where(eq(organization.id, org));
@@ -92,33 +94,74 @@ integration("organization business context in isolated PostgreSQL", () => {
 	};
 	const teamContext = {
 		priority: "Increase activation",
-		successDefinition: "Activation means SDK installed and first production event",
+		successDefinition:
+			"Activation means SDK installed and first production event",
 		exclusions: "Exclude employee and test traffic",
 	};
 
 	test("source URLs stay scoped and streaming progress never becomes a saved draft", async () => {
-		await expect(beginBusinessContextGeneration({ organizationId: org, websiteId, requestedBy: "synthetic-owner", sourceUrls: ["https://other.example/setup"] })).rejects.toMatchObject({ code: "CONFLICT" });
+		await expect(
+			beginBusinessContextGeneration({
+				organizationId: org,
+				websiteId,
+				requestedBy: "synthetic-owner",
+				sourceUrls: ["https://other.example/setup"],
+			})
+		).rejects.toMatchObject({ code: "CONFLICT" });
 		const sourceUrls = ["https://docs.reports.example.com/setup"];
-		const started = await beginBusinessContextGeneration({ organizationId: org, websiteId, requestedBy: "synthetic-owner", sourceUrls });
+		const started = await beginBusinessContextGeneration({
+			organizationId: org,
+			websiteId,
+			requestedBy: "synthetic-owner",
+			sourceUrls,
+		});
 		const generationId = started.generation!.id;
 		expect(started.generation?.sourceUrls).toEqual(sourceUrls);
-		const reading = await markBusinessContextGeneration({ organizationId: org, generationId, status: "running", progress: { stage: "writing", content: "## Draft in progress" } });
+		const reading = await markBusinessContextGeneration({
+			organizationId: org,
+			generationId,
+			status: "running",
+			progress: { stage: "writing", content: "## Draft in progress" },
+		});
 		expect(reading.generation?.draft).toBeNull();
 		expect(reading.profile).toBeNull();
 		expect(reading.generation?.progress?.content).toBe("## Draft in progress");
-		await expect(save("## Draft in progress", 0, generationId)).rejects.toMatchObject({ code: "CONFLICT" });
+		await expect(
+			save("## Draft in progress", 0, generationId)
+		).rejects.toMatchObject({ code: "CONFLICT" });
 		const fetchedAt = new Date().toISOString();
-		const completed = { ...draft, sources: draft.sources.map((source) => ({ ...source, fetchedAt })) };
-		await markBusinessContextGeneration({ organizationId: org, generationId, status: "ready", draft: completed });
-		expect((await readOrganizationBusinessContext(org)).generation?.progress).toBeUndefined();
+		const completed = {
+			...draft,
+			sources: draft.sources.map((source) => ({ ...source, fetchedAt })),
+		};
+		await markBusinessContextGeneration({
+			organizationId: org,
+			generationId,
+			status: "ready",
+			draft: completed,
+		});
+		expect(
+			(await readOrganizationBusinessContext(org)).generation?.progress
+		).toBeUndefined();
 		const saved = await save(completed.content, 0, generationId);
 		expect(saved.profile?.sources[0]?.fetchedAt).toBe(fetchedAt);
 	});
 
 	test("team-only context survives public regeneration without becoming public evidence", async () => {
-		await saveOrganizationBusinessProfile({ organizationId: org, revision: 0, content: "", teamContext, updatedBy: "owner" });
+		await saveOrganizationBusinessProfile({
+			organizationId: org,
+			revision: 0,
+			content: "",
+			teamContext,
+			updatedBy: "owner",
+		});
 		const generationId = (await generate()).generation!.id;
-		await markBusinessContextGeneration({ organizationId: org, generationId, status: "ready", draft });
+		await markBusinessContextGeneration({
+			organizationId: org,
+			generationId,
+			status: "ready",
+			draft,
+		});
 		const saved = await save(draft.content, 1, generationId);
 		expect(saved.profile?.teamContext).toEqual(teamContext);
 		expect(saved.profile?.origin).toBe("website");
@@ -127,36 +170,118 @@ integration("organization business context in isolated PostgreSQL", () => {
 
 	test("history restores text, team inputs and sources together using a new revision", async () => {
 		const generationId = (await generate()).generation!.id;
-		await markBusinessContextGeneration({ organizationId: org, generationId, status: "ready", draft });
-		await saveOrganizationBusinessProfile({ organizationId: org, revision: 0, content: draft.content, generationId, teamContext, updatedBy: "first-owner" });
-		const edited = await saveOrganizationBusinessProfile({ organizationId: org, revision: 1, content: "Entirely rewritten", teamContext: { priority: "", successDefinition: "", exclusions: "" }, updatedBy: "second-owner" });
-		expect(edited.profile).toMatchObject({ origin: "mixed", sources: [], sourceWebsiteId: null });
-		const restored = await restoreOrganizationBusinessProfile({ organizationId: org, revision: 2, restoreRevision: 1, updatedBy: "restoring-owner" });
-		expect(restored.profile).toMatchObject({ ...draft, teamContext, origin: "website", sourceWebsiteId: websiteId, revision: 3, updatedBy: "restoring-owner" });
+		await markBusinessContextGeneration({
+			organizationId: org,
+			generationId,
+			status: "ready",
+			draft,
+		});
+		await saveOrganizationBusinessProfile({
+			organizationId: org,
+			revision: 0,
+			content: draft.content,
+			generationId,
+			teamContext,
+			updatedBy: "first-owner",
+		});
+		const edited = await saveOrganizationBusinessProfile({
+			organizationId: org,
+			revision: 1,
+			content: "Entirely rewritten",
+			teamContext: { priority: "", successDefinition: "", exclusions: "" },
+			updatedBy: "second-owner",
+		});
+		expect(edited.profile).toMatchObject({
+			origin: "mixed",
+			sources: [],
+			sourceWebsiteId: null,
+		});
+		const restored = await restoreOrganizationBusinessProfile({
+			organizationId: org,
+			revision: 2,
+			restoreRevision: 1,
+			updatedBy: "restoring-owner",
+		});
+		expect(restored.profile).toMatchObject({
+			...draft,
+			teamContext,
+			origin: "website",
+			sourceWebsiteId: websiteId,
+			revision: 3,
+			updatedBy: "restoring-owner",
+		});
 		expect(restored.history?.map((item) => item.revision)).toEqual([1, 2]);
-		await expect(restoreOrganizationBusinessProfile({ organizationId: org, revision: 2, restoreRevision: 1, updatedBy: "stale-owner" })).rejects.toMatchObject({ code: "CONFLICT" });
-		expect((await readOrganizationBusinessContext(org)).profile?.revision).toBe(3);
-		await expect(restoreOrganizationBusinessProfile({ organizationId: other, revision: 0, restoreRevision: 1, updatedBy: "other-owner" })).rejects.toMatchObject({ code: "NOT_FOUND" });
+		await expect(
+			restoreOrganizationBusinessProfile({
+				organizationId: org,
+				revision: 2,
+				restoreRevision: 1,
+				updatedBy: "stale-owner",
+			})
+		).rejects.toMatchObject({ code: "CONFLICT" });
+		expect((await readOrganizationBusinessContext(org)).profile?.revision).toBe(
+			3
+		);
+		await expect(
+			restoreOrganizationBusinessProfile({
+				organizationId: other,
+				revision: 0,
+				restoreRevision: 1,
+				updatedBy: "other-owner",
+			})
+		).rejects.toMatchObject({ code: "NOT_FOUND" });
 	});
 
 	test("saved history retains only five previous versions", async () => {
-		for (let revision = 0; revision < 8; revision++) await save(`Version ${revision + 1}`, revision);
+		for (let revision = 0; revision < 8; revision++) {
+			await save(`Version ${revision + 1}`, revision);
+		}
 		const saved = await readOrganizationBusinessContext(org);
-		expect(saved.history?.map((item) => item.revision)).toEqual([3, 4, 5, 6, 7]);
-		await expect(restoreOrganizationBusinessProfile({ organizationId: org, revision: 8, restoreRevision: 1, updatedBy: "owner" })).rejects.toMatchObject({ code: "NOT_FOUND" });
+		expect(saved.history?.map((item) => item.revision)).toEqual([
+			3, 4, 5, 6, 7,
+		]);
+		await expect(
+			restoreOrganizationBusinessProfile({
+				organizationId: org,
+				revision: 8,
+				restoreRevision: 1,
+				updatedBy: "owner",
+			})
+		).rejects.toMatchObject({ code: "NOT_FOUND" });
 	});
 
 	test("cancel is durable, rejects late publication and cannot cancel a newer generation", async () => {
 		const old = (await generate()).generation!.id;
-		await cancelBusinessContextGeneration({ organizationId: org, generationId: old });
-		await markBusinessContextGeneration({ organizationId: org, generationId: old, status: "ready", draft });
+		await cancelBusinessContextGeneration({
+			organizationId: org,
+			generationId: old,
+		});
+		await markBusinessContextGeneration({
+			organizationId: org,
+			generationId: old,
+			status: "ready",
+			draft,
+		});
 		expect((await readOrganizationBusinessContext(org)).generation).toBeNull();
 		const fresh = (await generate()).generation!.id;
-		await cancelBusinessContextGeneration({ organizationId: org, generationId: old });
-		expect((await readOrganizationBusinessContext(org)).generation?.id).toBe(fresh);
-		await markBusinessContextGeneration({ organizationId: org, generationId: fresh, status: "ready", draft });
+		await cancelBusinessContextGeneration({
+			organizationId: org,
+			generationId: old,
+		});
+		expect((await readOrganizationBusinessContext(org)).generation?.id).toBe(
+			fresh
+		);
+		await markBusinessContextGeneration({
+			organizationId: org,
+			generationId: fresh,
+			status: "ready",
+			draft,
+		});
 		const newer = (await generate()).generation!.id;
-		await cancelBusinessContextGeneration({ organizationId: org, generationId: fresh });
+		await cancelBusinessContextGeneration({
+			organizationId: org,
+			generationId: fresh,
+		});
 		const state = await readOrganizationBusinessContext(org);
 		expect(state.previousDrafts).toEqual([]);
 		expect(state.generation?.id).toBe(newer);
@@ -165,15 +290,21 @@ integration("organization business context in isolated PostgreSQL", () => {
 	test("request abort while publication waits for its lock cannot commit a ready draft", async () => {
 		await save("Saved context");
 		const generation = (await generate()).generation;
-		if (!generation) throw new Error("Missing generation");
+		if (!generation) {
+			throw new Error("Missing generation");
+		}
 		const request = new AbortController();
 		const locked = Promise.withResolvers<number>();
 		const release = Promise.withResolvers<void>();
 		const holding = db.transaction(async (tx) => {
 			await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${org}))`);
-			const result = await tx.execute<{ pid: number }>(sql`select pg_backend_pid() as pid`);
+			const result = await tx.execute<{ pid: number }>(
+				sql`select pg_backend_pid() as pid`
+			);
 			const row = result.rows[0];
-			if (!row) throw new Error("Missing lock holder");
+			if (!row) {
+				throw new Error("Missing lock holder");
+			}
 			locked.resolve(row.pid);
 			await release.promise;
 		});
@@ -200,7 +331,9 @@ integration("organization business context in isolated PostgreSQL", () => {
 					) as blocked
 				`);
 				blocked = result.rows[0]?.blocked ?? false;
-				if (!blocked) await Bun.sleep(10);
+				if (!blocked) {
+					await Bun.sleep(10);
+				}
 			}
 			expect(blocked).toBe(true);
 			request.abort();
@@ -216,37 +349,72 @@ integration("organization business context in isolated PostgreSQL", () => {
 		expect(state.generation?.status).toBe("running");
 		expect(state.generation?.draft).toBeNull();
 		expect(state.profile?.content).toBe("Saved context");
-		await cancelBusinessContextGeneration({ organizationId: org, generationId: generation.id, activeOnly: true });
+		await cancelBusinessContextGeneration({
+			organizationId: org,
+			generationId: generation.id,
+			activeOnly: true,
+		});
 		expect((await readOrganizationBusinessContext(org)).generation).toBeNull();
 	});
 
 	test("disconnect cleanup preserves terminal drafts and cannot remove a newer run", async () => {
 		await save("Saved context");
 		const first = (await generate()).generation;
-		if (!first) throw new Error("Missing generation");
-		await cancelBusinessContextGeneration({ organizationId: org, generationId: first.id, activeOnly: true });
+		if (!first) {
+			throw new Error("Missing generation");
+		}
+		await cancelBusinessContextGeneration({
+			organizationId: org,
+			generationId: first.id,
+			activeOnly: true,
+		});
 		expect((await readOrganizationBusinessContext(org)).generation).toBeNull();
 		for (const status of ["ready", "failed"] as const) {
 			const pending = (await generate()).generation;
-			if (!pending) throw new Error("Missing generation");
-			await markBusinessContextGeneration({ organizationId: org, generationId: pending.id, status, draft: status === "ready" ? draft : undefined });
-			await cancelBusinessContextGeneration({ organizationId: org, generationId: pending.id, activeOnly: true });
-			expect((await readOrganizationBusinessContext(org)).generation?.status).toBe(status);
+			if (!pending) {
+				throw new Error("Missing generation");
+			}
+			await markBusinessContextGeneration({
+				organizationId: org,
+				generationId: pending.id,
+				status,
+				draft: status === "ready" ? draft : undefined,
+			});
+			await cancelBusinessContextGeneration({
+				organizationId: org,
+				generationId: pending.id,
+				activeOnly: true,
+			});
+			expect(
+				(await readOrganizationBusinessContext(org)).generation?.status
+			).toBe(status);
 		}
 		const completed = (await generate()).generation;
-		if (!completed) throw new Error("Missing generation");
-		await markBusinessContextGeneration({ organizationId: org, generationId: completed.id, status: "ready", draft });
+		if (!completed) {
+			throw new Error("Missing generation");
+		}
+		await markBusinessContextGeneration({
+			organizationId: org,
+			generationId: completed.id,
+			status: "ready",
+			draft,
+		});
 		const newer = await generate();
-		await cancelBusinessContextGeneration({ organizationId: org, generationId: completed.id, activeOnly: true });
+		await cancelBusinessContextGeneration({
+			organizationId: org,
+			generationId: completed.id,
+			activeOnly: true,
+		});
 		const final = await readOrganizationBusinessContext(org);
 		expect(final.generation?.id).toBe(newer.generation?.id);
-		expect(final.previousDrafts?.some((item) => item.id === completed.id)).toBe(true);
+		expect(final.previousDrafts?.some((item) => item.id === completed.id)).toBe(
+			true
+		);
 		expect(final.profile?.content).toBe("Saved context");
 	});
 
 	test("manual content is durable and preserves unrelated organization metadata", async () => {
-		const content =
-			"Owner-defined priorities and terminology.\n" + "x".repeat(11_500);
+		const content = `Owner-defined priorities and terminology.\n${"x".repeat(11_500)}`;
 		await save(content);
 		const read = await readOrganizationBusinessContext(org);
 		expect(read.profile?.content).toBe(content);
@@ -264,11 +432,17 @@ integration("organization business context in isolated PostgreSQL", () => {
 	test("concurrent generation requests admit only one run and never replace saved content", async () => {
 		await save("Owner context");
 		const results = await Promise.allSettled([generate(), generate()]);
-		expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+		expect(
+			results.filter((result) => result.status === "fulfilled")
+		).toHaveLength(1);
 		const rejected = results.find((result) => result.status === "rejected");
-		expect(rejected?.status === "rejected" && rejected.reason.code).toBe("CONFLICT");
+		expect(rejected?.status === "rejected" && rejected.reason.code).toBe(
+			"CONFLICT"
+		);
 		const started = results.find((result) => result.status === "fulfilled");
-		if (started?.status !== "fulfilled" || !started.value.generation) throw new Error("Missing admitted generation");
+		if (started?.status !== "fulfilled" || !started.value.generation) {
+			throw new Error("Missing admitted generation");
+		}
 		const generationId = started.value.generation.id;
 		expect(started.value.generation.status).toBe("running");
 		await markBusinessContextGeneration({
@@ -465,7 +639,9 @@ integration("business context source locking and provenance", () => {
 			websiteId,
 			requestedBy: "synthetic-owner",
 		});
-		if (!state.generation) throw new Error("Missing generation");
+		if (!state.generation) {
+			throw new Error("Missing generation");
+		}
 		return state.generation.id;
 	};
 	const ready = async (content = draft.content) => {
@@ -523,7 +699,9 @@ integration("business context source locking and provenance", () => {
 					) as blocked
 				`);
 				blocked = result.rows[0].blocked;
-				if (!blocked) await Bun.sleep(10);
+				if (!blocked) {
+					await Bun.sleep(10);
+				}
 			}
 			expect(blocked).toBe(true);
 		} finally {
@@ -603,7 +781,9 @@ integration("business context source locking and provenance", () => {
 		await save("Trial started is our signup event.");
 		const content = `${draft.content} Trial started is our signup event.`;
 		const generationId = await ready(content);
-		expect((await save(content, 1, generationId)).profile?.origin).toBe("mixed");
+		expect((await save(content, 1, generationId)).profile?.origin).toBe(
+			"mixed"
+		);
 		expect((await save(content, 2)).profile?.origin).toBe("mixed");
 	});
 

@@ -24,7 +24,11 @@ const VALID_PAYLOAD = JSON.stringify({
 });
 describe("verifyPaddleSignature", () => {
 	test("valid Paddle Billing signature -> accepted", () => {
-		const result = verifyPaddleSignature(VALID_PAYLOAD, sign(VALID_PAYLOAD), SECRET);
+		const result = verifyPaddleSignature(
+			VALID_PAYLOAD,
+			sign(VALID_PAYLOAD),
+			SECRET
+		);
 		expect(result.valid).toBe(true);
 	});
 

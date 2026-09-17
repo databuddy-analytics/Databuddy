@@ -33,7 +33,8 @@ describe("resetActiveOrganizationQueries", () => {
 		).toBeUndefined();
 		expect(queryClient.getQueryData(unrelatedKey)).toBe("keep");
 		expect(
-			queryClient.getQueryState(AUTH_QUERY_KEYS.activeOrganization)?.isInvalidated
+			queryClient.getQueryState(AUTH_QUERY_KEYS.activeOrganization)
+				?.isInvalidated
 		).toBe(true);
 	});
 });

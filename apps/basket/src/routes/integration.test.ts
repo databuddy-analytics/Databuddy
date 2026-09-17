@@ -130,12 +130,13 @@ vi.mock("@utils/ip-geo", () => ({
 	getGeo: mockGetGeo,
 	extractIpFromRequest: vi.fn(() => "1.2.3.4"),
 	extractTrustedClientIp: vi.fn(() => "1.2.3.4"),
-	getVisitorCountryForAutoMode: vi.fn((events: Array<{ anonymizeVisitorIds?: unknown }>) =>
-		Promise.resolve(
-			events.some((event) => event.anonymizeVisitorIds === "auto")
-				? "US"
-				: undefined
-		)
+	getVisitorCountryForAutoMode: vi.fn(
+		(events: Array<{ anonymizeVisitorIds?: unknown }>) =>
+			Promise.resolve(
+				events.some((event) => event.anonymizeVisitorIds === "auto")
+					? "US"
+					: undefined
+			)
 	),
 	closeGeoIPReader: noop,
 }));
@@ -306,9 +307,7 @@ describe("POST /", () => {
 			code: "basket.DELIVERY_UNAVAILABLE",
 			retryable: true,
 		});
-		expect(mockGlobalErrorHandler).toHaveBeenCalledWith(
-			expect.any(EvlogError)
-		);
+		expect(mockGlobalErrorHandler).toHaveBeenCalledWith(expect.any(EvlogError));
 	});
 
 	test("unknown event type → 400 structured error", async () => {
@@ -1195,8 +1194,14 @@ describe("POST /track", () => {
 		expect(res.status).toBe(200);
 		expect(mockInsertCustomEvents).toHaveBeenCalledWith(
 			[
-				expect.objectContaining({ event_name: "signup", website_id: "ws_test" }),
-				expect.objectContaining({ event_name: "purchase", website_id: "ws_test" }),
+				expect.objectContaining({
+					event_name: "signup",
+					website_id: "ws_test",
+				}),
+				expect.objectContaining({
+					event_name: "purchase",
+					website_id: "ws_test",
+				}),
 			],
 			undefined
 		);
@@ -1221,7 +1226,7 @@ describe("POST /track", () => {
 		expect(res.status).toBe(400);
 		const body = await json(res);
 		expect(Array.isArray(body.errors)).toBe(true);
-		const issues = body.errors as Array<Record<string, unknown>>;
+		const issues = body.errors as Record<string, unknown>[];
 		expect(issues.length).toBeGreaterThan(0);
 		expect(JSON.stringify(issues)).toContain("name");
 	});

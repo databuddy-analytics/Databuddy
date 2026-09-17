@@ -1414,7 +1414,9 @@ describe("optional referrer deadlines", () => {
 						? goalResult(10, 50, 500)
 						: goalResult(50, 250, 500),
 				funnelReferrers: async (_funnel, _range, signal) => {
-					if (!signal) throw new Error("Missing probe cancellation");
+					if (!signal) {
+						throw new Error("Missing probe cancellation");
+					}
 					probeSignals.add(signal);
 					reads += 1;
 					active += 1;
@@ -1524,14 +1526,18 @@ describe("parallel bounded referrer reads", () => {
 									},
 								]),
 						});
-						if (pending.length === 6) ready();
+						if (pending.length === 6) {
+							ready();
+						}
 					}),
 			}),
 			{ diagnostics, timeoutMs: 1000 }
 		);
 		await started;
 		expect(pending).toHaveLength(6);
-		for (const read of [...pending].reverse()) read.finish();
+		for (const read of [...pending].reverse()) {
+			read.finish();
+		}
 		expect((await detection).map((signal) => signal.subjectKey)).toEqual([
 			"funnel:parallel-0:referrer:direct",
 			"funnel:parallel-1:referrer:direct",
@@ -1575,10 +1581,14 @@ describe("parallel bounded referrer reads", () => {
 					})),
 				funnelConversion: async () => funnelResult(50, 1000),
 				funnelReferrers: async (_funnel, _range, signal) => {
-					if (!signal) throw new Error("Missing probe cancellation");
+					if (!signal) {
+						throw new Error("Missing probe cancellation");
+					}
 					signals.push(signal);
 					active += 1;
-					if (active === 6) ready();
+					if (active === 6) {
+						ready();
+					}
 					try {
 						return await waitForAbort(signal);
 					} finally {
@@ -1622,7 +1632,9 @@ describe("parallel bounded referrer reads", () => {
 				PARAMS.websiteId,
 				TODAY.toDate()
 			).funnelReferrers;
-			if (!read) throw new Error("Native referrer dependency missing");
+			if (!read) {
+				throw new Error("Native referrer dependency missing");
+			}
 			const result = read(
 				FUNNEL,
 				{ from: "2026-05-22", to: "2026-05-28" },

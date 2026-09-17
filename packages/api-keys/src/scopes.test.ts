@@ -5,7 +5,7 @@ import {
 	type ApiScope,
 } from "./scopes";
 
-const scopeRows: Array<[string, string[], ApiScope[]]> = [
+const scopeRows: [string, string[], ApiScope[]][] = [
 	["website", ["read"], ["read:data"]],
 	["website", ["view_analytics"], ["read:data"]],
 	["website", ["create"], ["manage:websites"]],
@@ -25,12 +25,11 @@ const scopeRows: Array<[string, string[], ApiScope[]]> = [
 ];
 
 describe("requiredScopesForResource", () => {
-	test.each(scopeRows)(
-		"%s %j requires %j",
-		(resource, permissions, expected) => {
-			expect(requiredScopesForResource(resource, permissions)).toEqual(expected);
-		}
-	);
+	test.each(
+		scopeRows
+	)("%s %j requires %j", (resource, permissions, expected) => {
+		expect(requiredScopesForResource(resource, permissions)).toEqual(expected);
+	});
 
 	test("resources without overrides fall back to the default map", () => {
 		expect(requiredScopesForResource("subscription", ["read"])).toEqual([

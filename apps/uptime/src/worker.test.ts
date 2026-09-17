@@ -28,7 +28,10 @@ afterEach(() => {
 });
 
 const calls = {
-	captureError: [] as Array<{ error: unknown; context: Record<string, unknown> }>,
+	captureError: [] as Array<{
+		error: unknown;
+		context: Record<string, unknown>;
+	}>,
 	check: [] as Array<{
 		monitorId: string;
 		url: string;
@@ -39,8 +42,8 @@ const calls = {
 	checkpoint: [] as UptimeData[],
 	delivery: [] as UptimeData[],
 	email: [] as Array<{ schedule: ScheduleData; data: UptimeData }>,
-	loggerFields: [] as Array<Record<string, unknown>>,
-	loggerEmitted: [] as Array<boolean>,
+	loggerFields: [] as Record<string, unknown>[],
+	loggerEmitted: [] as boolean[],
 	monitorState: [] as Array<{ monitorId: string; state: MonitorState }>,
 	order: [] as string[],
 	reaped: [] as string[],
@@ -53,7 +56,11 @@ type CheckResult =
 
 let lookupResult:
 	| { success: true; data: ScheduleData }
-	| { success: false; error: string; reason?: "not_found" | "malformed" | "transient" };
+	| {
+			success: false;
+			error: string;
+			reason?: "not_found" | "malformed" | "transient";
+	  };
 let checkResults: CheckResult[];
 let previousState: MonitorStateLookup;
 let reapBehaviour: "ok" | "throw" = "ok";
@@ -113,7 +120,8 @@ function deps(): UptimeWorkerDeps {
 				timeout: options.timeout,
 				cacheBust: options.cacheBust,
 			});
-			const next = checkResults.length > 1 ? checkResults.shift() : checkResults[0];
+			const next =
+				checkResults.length > 1 ? checkResults.shift() : checkResults[0];
 			if (!next) {
 				throw new Error("no check result configured");
 			}

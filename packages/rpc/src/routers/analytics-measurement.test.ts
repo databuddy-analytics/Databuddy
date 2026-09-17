@@ -17,7 +17,9 @@ const withCache = async ({
 	key: string;
 	queryFn: () => Promise<unknown>;
 }) => {
-	if (!cache.has(key)) cache.set(key, await queryFn());
+	if (!cache.has(key)) {
+		cache.set(key, await queryFn());
+	}
 	return cache.get(key);
 };
 const metrics: Awaited<ReturnType<typeof processFunnelAnalytics>> = {
@@ -188,14 +190,17 @@ for (const kind of ["goal", "funnel"] as const) {
 			startDate: "2026-09-01",
 			endDate: `${period.endDate} 23:59:59`,
 		});
-		if (kind === "goal") expect(goalQuery.mock.calls[0]?.[3]).toBe(200);
-		if (kind === "goal")
+		if (kind === "goal") {
+			expect(goalQuery.mock.calls[0]?.[3]).toBe(200);
+		}
+		if (kind === "goal") {
 			expect(entrants.mock.calls[0]).toEqual([
 				period.websiteId,
 				"2026-09-01",
 				period.endDate,
 				filters,
 			]);
+		}
 	});
 
 	test(`${kind} cannot attach a changed definition to cached old measurements`, async () => {
@@ -251,8 +256,9 @@ for (const kind of ["goal", "funnel"] as const) {
 			cohort.filters[0]
 		);
 		expect(result.measurement.startDate).toBe("2026-09-01");
-		if ("steps" in result.savedDefinition)
+		if ("steps" in result.savedDefinition) {
 			expect(result.savedDefinition.steps).toEqual(row.steps);
+		}
 		await read();
 		expect(measuredQuery).toHaveBeenCalledTimes(1);
 		browserFilter.value = "Chrome";
@@ -316,7 +322,9 @@ test("referrer cohorts return actual dates and saved definition with independent
 	await read(input);
 	expect(referrerQuery).toHaveBeenCalledTimes(2);
 	const signupStep = row.steps[1];
-	if (!signupStep) throw new Error("Missing signup step");
+	if (!signupStep) {
+		throw new Error("Missing signup step");
+	}
 	signupStep.target = "/activated";
 	await read(input);
 	expect(referrerQuery).toHaveBeenCalledTimes(3);

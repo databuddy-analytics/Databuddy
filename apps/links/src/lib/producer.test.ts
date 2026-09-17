@@ -7,13 +7,13 @@ const captureError = mock(() => {});
 const captureWarning = mock(() => {});
 const mergeWideEvent = mock(() => {});
 const clickHouseInsert = mock(() => Promise.resolve());
-const kafkaConfigs: Array<Record<string, unknown>> = [];
+const kafkaConfigs: Record<string, unknown>[] = [];
 
-type FakeProducer = {
+interface FakeProducer {
 	connect: () => Promise<void>;
 	disconnect: () => Promise<void>;
 	send: () => Promise<void>;
-};
+}
 
 let nextProducer: FakeProducer | null = null;
 const createProducer = mock(() => {
@@ -132,9 +132,11 @@ describe("sendLinkVisit", () => {
 			})
 		);
 		expect(
-			(clickHouseInsert.mock.calls[0]?.[0] as {
-				abort_signal?: AbortSignal;
-			}).abort_signal
+			(
+				clickHouseInsert.mock.calls[0]?.[0] as {
+					abort_signal?: AbortSignal;
+				}
+			).abort_signal
 		).toBeInstanceOf(AbortSignal);
 		expect(clickHouseInsert).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -242,8 +244,7 @@ describe("sendLinkVisit", () => {
 		nextProducer = makeProducer({
 			disconnect: () => Promise.reject(disconnectError),
 		});
-		const { disconnectProducer, warmProducerConnection } =
-			await loadProducer();
+		const { disconnectProducer, warmProducerConnection } = await loadProducer();
 
 		await warmProducerConnection();
 
@@ -259,8 +260,7 @@ describe("sendLinkVisit", () => {
 					releaseConnect = resolve;
 				}),
 		});
-		const { disconnectProducer, warmProducerConnection } =
-			await loadProducer();
+		const { disconnectProducer, warmProducerConnection } = await loadProducer();
 
 		const warmup = warmProducerConnection();
 		await Bun.sleep(0);

@@ -62,7 +62,10 @@ const profile: BusinessContext = {
 
 describe("freezing investigation business context", () => {
 	it("retains the captured canonical revision when the saved profile changes after freezing", () => {
-		const reference = { title: "Report guide", url: "https://example.com/reports" };
+		const reference = {
+			title: "Report guide",
+			url: "https://example.com/reports",
+		};
 		const saved = {
 			content: "Preparation starts a draft.",
 			origin: "team" as const,

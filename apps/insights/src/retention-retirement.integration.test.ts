@@ -90,7 +90,9 @@ integration("obsolete retention observations in isolated PostgreSQL", () => {
 		)[0];
 	const due = async () => {
 		const value = await loadDueOpenInvestigation(scope());
-		if (!value) throw new Error("Expected a synthetic due observation");
+		if (!value) {
+			throw new Error("Expected a synthetic due observation");
+		}
 		return value;
 	};
 	const retire = async (
@@ -470,8 +472,9 @@ integration("obsolete retention observations in isolated PostgreSQL", () => {
 			{ organizationId: other },
 			{ websiteId: randomUUID() },
 			{ domain: "other.example.com" },
-		])
+		]) {
 			expect(await retire(overrides)).toBe(false);
+		}
 		expect((await due()).id).toBe(observationId);
 		expect(await rows()).toHaveLength(1);
 	});
@@ -571,14 +574,12 @@ integration("obsolete retention observations in isolated PostgreSQL", () => {
 		expect(detected).toHaveLength(1);
 		const measured = prepareInvestigation(detected[0], 7);
 		const runId = randomUUID();
-		await db
-			.insert(insightRuns)
-			.values({
-				id: runId,
-				organizationId,
-				reason: "scheduled",
-				status: "running",
-			});
+		await db.insert(insightRuns).values({
+			id: runId,
+			organizationId,
+			reason: "scheduled",
+			status: "running",
+		});
 		expect(
 			await persistInvestigation({
 				investigation: {

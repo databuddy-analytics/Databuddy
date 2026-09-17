@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, mock } from "bun:test";
 
-let constructorCalls: Array<{ name: string; options: Record<string, unknown> }> =
-	[];
+let constructorCalls: Array<{
+	name: string;
+	options: Record<string, unknown>;
+}> = [];
 let closeCalls = 0;
 
 class MockQueue {
@@ -23,7 +25,8 @@ mock.module("bullmq", () => ({
 	Queue: MockQueue,
 }));
 
-process.env.BULLMQ_REDIS_URL = "redis://queue-user:queue-pass@queue.test:6381/4";
+process.env.BULLMQ_REDIS_URL =
+	"redis://queue-user:queue-pass@queue.test:6381/4";
 
 const {
 	closeUptimeQueue,
@@ -92,5 +95,4 @@ describe("uptime queue", () => {
 		expect(secondDelivery).not.toBe(firstDelivery);
 		expect(constructorCalls).toHaveLength(4);
 	});
-
 });

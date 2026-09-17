@@ -84,8 +84,8 @@ describe("query builder publicAccess", () => {
 	});
 
 	it("keeps revenue builders private even for public websites", () => {
-		const revenueTypes = Object.keys(QueryBuilders).filter((type) =>
-			type.startsWith("revenue_") || type === "recent_transactions"
+		const revenueTypes = Object.keys(QueryBuilders).filter(
+			(type) => type.startsWith("revenue_") || type === "recent_transactions"
 		);
 
 		expect(revenueTypes.length).toBeGreaterThan(0);

@@ -54,7 +54,9 @@ describe("parseDrilldownRun", () => {
 	});
 
 	it("blocks an external Slack Connect user from triggering a run", () => {
-		const body = blockActionsBody({ user: { id: "U9", team_id: "T-EXTERNAL" } });
+		const body = blockActionsBody({
+			user: { id: "U9", team_id: "T-EXTERNAL" },
+		});
 		expect(parseDrilldownRun(body, { value: "leak data" }, "T1")).toBeNull();
 	});
 

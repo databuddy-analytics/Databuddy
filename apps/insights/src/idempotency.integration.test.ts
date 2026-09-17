@@ -39,10 +39,7 @@ import { randomUUIDv7 } from "bun";
 import type { DetectedSignal } from "./detection";
 import { generateWebsiteInsights } from "./generation";
 import { prepareInvestigation } from "./investigation";
-import {
-	persistInvestigation,
-	type WebsiteInvestigation,
-} from "./persistence";
+import { persistInvestigation, type WebsiteInvestigation } from "./persistence";
 import { recordInsightReplyFailure, resumeInsightReply } from "./resume";
 import {
 	findRunObservations,
@@ -138,7 +135,9 @@ describeIntegration("insights idempotency integration", () => {
 			requestedBy: "synthetic-owner",
 		};
 		const started = await beginBusinessContextGeneration(input);
-		if (!started.generation) throw new Error("Expected a generation");
+		if (!started.generation) {
+			throw new Error("Expected a generation");
+		}
 		// Persist the state admitted by the old API before the rolling upgrade.
 		const queued = {
 			...started,
@@ -173,7 +172,9 @@ describeIntegration("insights idempotency integration", () => {
 		).rejects.toThrow();
 		expect(await readOrganizationBusinessContext(org.id)).toEqual(queued);
 
-		await expect(processInsightsJob(job)).resolves.toEqual({ status: "skipped" });
+		await expect(processInsightsJob(job)).resolves.toEqual({
+			status: "skipped",
+		});
 		const failed = await readOrganizationBusinessContext(org.id);
 		expect(failed.generation).toMatchObject({
 			id: generationId,
@@ -188,7 +189,9 @@ describeIntegration("insights idempotency integration", () => {
 		const newer = await beginBusinessContextGeneration(input);
 		await processInsightsJob(job);
 		expect(await readOrganizationBusinessContext(org.id)).toEqual(newer);
-		if (!newer.generation) throw new Error("Expected a newer generation");
+		if (!newer.generation) {
+			throw new Error("Expected a newer generation");
+		}
 		const ready = await markBusinessContextGeneration({
 			organizationId: org.id,
 			generationId: newer.generation.id,
@@ -298,16 +301,18 @@ describeIntegration("insights idempotency integration", () => {
 		const dedupeKey = `${website.id}|checkout`;
 		const analysisStartedAt = new Date("2026-07-10T10:00:00.000Z");
 		const replyCommittedAt = new Date("2026-07-10T10:01:00.000Z");
-		await db().insert(analyticsInsights).values({
-			...insightRow({
-				dedupeKey,
-				id: insightId,
-				organizationId: org.id,
-				title: "Original scheduled result",
-				websiteId: website.id,
-			}),
-			createdAt: new Date("2026-07-10T09:00:00.000Z"),
-		});
+		await db()
+			.insert(analyticsInsights)
+			.values({
+				...insightRow({
+					dedupeKey,
+					id: insightId,
+					organizationId: org.id,
+					title: "Original scheduled result",
+					websiteId: website.id,
+				}),
+				createdAt: new Date("2026-07-10T09:00:00.000Z"),
+			});
 		await db()
 			.update(analyticsInsights)
 			.set({
@@ -335,7 +340,10 @@ describeIntegration("insights idempotency integration", () => {
 		);
 
 		const [stored] = await db()
-			.select({ createdAt: analyticsInsights.createdAt, title: analyticsInsights.title })
+			.select({
+				createdAt: analyticsInsights.createdAt,
+				title: analyticsInsights.title,
+			})
 			.from(analyticsInsights)
 			.where(eq(analyticsInsights.id, insightId));
 		expect(stored).toEqual({
@@ -359,17 +367,19 @@ describeIntegration("insights idempotency integration", () => {
 			organizationId: org.id,
 			status: "succeeded",
 		});
-		await db().insert(analyticsInsights).values({
-			...insightRow({
-				dedupeKey: `temporary:${insightId}`,
-				id: insightId,
-				organizationId: org.id,
-				title: "Legacy checkout result",
-				websiteId: website.id,
-			}),
-			createdAt: new Date("2026-07-10T09:00:00.000Z"),
-			dedupeKey: null,
-		});
+		await db()
+			.insert(analyticsInsights)
+			.values({
+				...insightRow({
+					dedupeKey: `temporary:${insightId}`,
+					id: insightId,
+					organizationId: org.id,
+					title: "Legacy checkout result",
+					websiteId: website.id,
+				}),
+				createdAt: new Date("2026-07-10T09:00:00.000Z"),
+				dedupeKey: null,
+			});
 
 		const saved = await persistInvestigation({
 			investigation: websiteInvestigation({
@@ -424,12 +434,12 @@ describeIntegration("insights idempotency integration", () => {
 			)
 		);
 
-		expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(
-			1
-		);
-		expect(results.filter((result) => result.status === "rejected")).toHaveLength(
-			1
-		);
+		expect(
+			results.filter((result) => result.status === "fulfilled")
+		).toHaveLength(1);
+		expect(
+			results.filter((result) => result.status === "rejected")
+		).toHaveLength(1);
 		const [[stored], [observation]] = await Promise.all([
 			db()
 				.select({ title: analyticsInsights.title })
@@ -491,20 +501,22 @@ describeIntegration("insights idempotency integration", () => {
 			runId,
 			timezone: "UTC",
 		});
-		await db().insert(insightObservations).values({
-			asOf,
-			createdAt: new Date("2026-07-10T10:00:00.000Z"),
-			evidence: ["Malformed historical row."],
-			id: randomUUIDv7(),
-			insightId: checkout.id,
-			organizationId: organization.id,
-			outcome: { next: { type: "unsupported" } },
-			recheckAt: new Date("2026-07-17T10:00:00.000Z"),
-			runId,
-			signal: {},
-			signalKey: "malformed",
-			websiteId: website.id,
-		});
+		await db()
+			.insert(insightObservations)
+			.values({
+				asOf,
+				createdAt: new Date("2026-07-10T10:00:00.000Z"),
+				evidence: ["Malformed historical row."],
+				id: randomUUIDv7(),
+				insightId: checkout.id,
+				organizationId: organization.id,
+				outcome: { next: { type: "unsupported" } },
+				recheckAt: new Date("2026-07-17T10:00:00.000Z"),
+				runId,
+				signal: {},
+				signalKey: "malformed",
+				websiteId: website.id,
+			});
 
 		const replay = await findRunObservations({
 			organizationId: organization.id,
@@ -670,7 +682,10 @@ describeIntegration("insights idempotency integration", () => {
 
 			const [cases, observations, history, due] = await Promise.all([
 				db()
-					.select({ id: analyticsInsights.id, status: analyticsInsights.status })
+					.select({
+						id: analyticsInsights.id,
+						status: analyticsInsights.status,
+					})
 					.from(analyticsInsights)
 					.where(eq(analyticsInsights.websiteId, website.id)),
 				db()
@@ -719,13 +734,15 @@ describeIntegration("insights idempotency integration", () => {
 			randomUUIDv7(),
 			randomUUIDv7(),
 		];
-		await db().insert(insightRuns).values(
-			[openedRunId, resolvedRunId, reopenedRunId].map((id) => ({
-				id,
-				organizationId: org.id,
-				status: "succeeded" as const,
-			}))
-		);
+		await db()
+			.insert(insightRuns)
+			.values(
+				[openedRunId, resolvedRunId, reopenedRunId].map((id) => ({
+					id,
+					organizationId: org.id,
+					status: "succeeded" as const,
+				}))
+			);
 		const action = (title: string): WebsiteInvestigation => {
 			const investigation = websiteInvestigation({ title, website });
 			return {
@@ -816,18 +833,20 @@ describeIntegration("insights idempotency integration", () => {
 			organizationId: org.id,
 			status: "succeeded",
 		});
-		await db().insert(analyticsInsights).values({
-			...insightRow({
-				dedupeKey: `${website.id}|checkout`,
-				id: insightId,
-				organizationId: org.id,
-				title: "Resolved checkout case",
-				websiteId: website.id,
-			}),
-			resolvedAt,
-			resolvedReason: "recovered",
-			status: "resolved",
-		});
+		await db()
+			.insert(analyticsInsights)
+			.values({
+				...insightRow({
+					dedupeKey: `${website.id}|checkout`,
+					id: insightId,
+					organizationId: org.id,
+					title: "Resolved checkout case",
+					websiteId: website.id,
+				}),
+				resolvedAt,
+				resolvedReason: "recovered",
+				status: "resolved",
+			});
 
 		const saved = await persistInvestigation({
 			investigation: websiteInvestigation({
@@ -874,10 +893,12 @@ describeIntegration("insights idempotency integration", () => {
 			const website = await insertWebsite({ organizationId: org.id });
 			const openedRunId = randomUUIDv7();
 			const closedRunId = randomUUIDv7();
-			await db().insert(insightRuns).values([
-				{ id: openedRunId, organizationId: org.id, status: "succeeded" },
-				{ id: closedRunId, organizationId: org.id, status: "succeeded" },
-			]);
+			await db()
+				.insert(insightRuns)
+				.values([
+					{ id: openedRunId, organizationId: org.id, status: "succeeded" },
+					{ id: closedRunId, organizationId: org.id, status: "succeeded" },
+				]);
 			const opened = await persistInvestigation({
 				investigation: websiteInvestigation({
 					next: "ask",
@@ -945,10 +966,12 @@ describeIntegration("insights idempotency integration", () => {
 		const quietRunId = randomUUIDv7();
 		const itemId = randomUUIDv7();
 		const queueJobId = randomUUIDv7();
-		await db().insert(insightRuns).values([
-			{ id: openedRunId, organizationId: org.id, status: "succeeded" },
-			{ id: quietRunId, organizationId: org.id, status: "running" },
-		]);
+		await db()
+			.insert(insightRuns)
+			.values([
+				{ id: openedRunId, organizationId: org.id, status: "succeeded" },
+				{ id: quietRunId, organizationId: org.id, status: "running" },
+			]);
 		await db().insert(insightRunItems).values({
 			id: itemId,
 			organizationId: org.id,
@@ -1056,71 +1079,77 @@ describeIntegration("insights idempotency integration", () => {
 			},
 			7
 		);
-		await db().insert(analyticsInsights).values([
-			{
-				...insightRow({
-					dedupeKey: `older:${investigation.signal.signalKey}`,
-					id: olderInsightId,
-					organizationId: org.id,
-					title: "Older signup case",
-					websiteId: website.id,
-				}),
-				createdAt: new Date("2026-01-01T00:00:00.000Z"),
-				subjectKey: investigation.signal.signalKey,
-			},
-			{
-				...insightRow({
-					dedupeKey: `other-site:${investigation.signal.signalKey}`,
-					id: otherInsightId,
-					organizationId: org.id,
-					title: "Other website signup case",
-					websiteId: otherWebsite.id,
-				}),
-				createdAt: new Date("2026-01-03T00:00:00.000Z"),
-				subjectKey: investigation.signal.signalKey,
-			},
-			{
-				...insightRow({
-					dedupeKey: `current:${investigation.signal.signalKey}`,
-					id: currentInsightId,
-					organizationId: org.id,
-					title: "Current signup case",
-					websiteId: website.id,
-				}),
-				createdAt: new Date("2026-01-02T00:00:00.000Z"),
-				subjectKey: investigation.signal.signalKey,
-			},
-		]);
-		await db().insert(insightObservations).values({
-			asOf: new Date("2026-01-10T00:00:00.000Z"),
-			createdAt: new Date("2026-01-10T00:00:00.000Z"),
-			evidence: ["Signup tracks the signup_completed event."],
-			id: randomUUIDv7(),
-			insightId: currentInsightId,
-			organizationId: org.id,
-			outcome: investigationOutcome("ask"),
-			recheckAt: new Date("2026-01-17T00:00:00.000Z"),
-			runId: null,
-			signal: investigation.signal,
-			signalKey: investigation.signal.signalKey,
-			websiteId: website.id,
-		});
+		await db()
+			.insert(analyticsInsights)
+			.values([
+				{
+					...insightRow({
+						dedupeKey: `older:${investigation.signal.signalKey}`,
+						id: olderInsightId,
+						organizationId: org.id,
+						title: "Older signup case",
+						websiteId: website.id,
+					}),
+					createdAt: new Date("2026-01-01T00:00:00.000Z"),
+					subjectKey: investigation.signal.signalKey,
+				},
+				{
+					...insightRow({
+						dedupeKey: `other-site:${investigation.signal.signalKey}`,
+						id: otherInsightId,
+						organizationId: org.id,
+						title: "Other website signup case",
+						websiteId: otherWebsite.id,
+					}),
+					createdAt: new Date("2026-01-03T00:00:00.000Z"),
+					subjectKey: investigation.signal.signalKey,
+				},
+				{
+					...insightRow({
+						dedupeKey: `current:${investigation.signal.signalKey}`,
+						id: currentInsightId,
+						organizationId: org.id,
+						title: "Current signup case",
+						websiteId: website.id,
+					}),
+					createdAt: new Date("2026-01-02T00:00:00.000Z"),
+					subjectKey: investigation.signal.signalKey,
+				},
+			]);
+		await db()
+			.insert(insightObservations)
+			.values({
+				asOf: new Date("2026-01-10T00:00:00.000Z"),
+				createdAt: new Date("2026-01-10T00:00:00.000Z"),
+				evidence: ["Signup tracks the signup_completed event."],
+				id: randomUUIDv7(),
+				insightId: currentInsightId,
+				organizationId: org.id,
+				outcome: investigationOutcome("ask"),
+				recheckAt: new Date("2026-01-17T00:00:00.000Z"),
+				runId: null,
+				signal: investigation.signal,
+				signalKey: investigation.signal.signalKey,
+				websiteId: website.id,
+			});
 		const replyId = randomUUIDv7();
-		await db().insert(insightReplies).values({
-			authorId: author.id,
-			authorName: "Test author",
-			body: "The signup form changed in yesterday's deploy.",
-			intent: "verification",
-			createdAt: new Date("2026-01-11T00:00:00.000Z"),
-			id: replyId,
-			insightId: olderInsightId,
-			slackDelivery: {
-				channelId: "C_TEST",
-				threadTs: "171234.000",
-				type: "slack",
-			},
-			status: "running",
-		});
+		await db()
+			.insert(insightReplies)
+			.values({
+				authorId: author.id,
+				authorName: "Test author",
+				body: "The signup form changed in yesterday's deploy.",
+				intent: "verification",
+				createdAt: new Date("2026-01-11T00:00:00.000Z"),
+				id: replyId,
+				insightId: olderInsightId,
+				slackDelivery: {
+					channelId: "C_TEST",
+					threadTs: "171234.000",
+					type: "slack",
+				},
+				status: "running",
+			});
 
 		const action: InvestigationOutcome = {
 			evidence: [
@@ -1128,7 +1157,8 @@ describeIntegration("insights idempotency integration", () => {
 			],
 			impact: "Signup completion is down by half.",
 			next: {
-				action: "Restore signup_completed emission in the signup submit handler.",
+				action:
+					"Restore signup_completed emission in the signup submit handler.",
 				target: "Signup submit handler",
 				type: "act",
 				verification:
@@ -1318,9 +1348,7 @@ describeIntegration("insights idempotency integration", () => {
 			"That deploy was intentionally rolled back."
 		);
 		expect(secondRunUserId).toBeNull();
-		expect(firstHistoricalWindow).toEqual(
-			investigation.signal.period.current
-		);
+		expect(firstHistoricalWindow).toEqual(investigation.signal.period.current);
 		expect(secondCurrentWindow).toEqual(
 			recoveredMeasurement.signal.period.current
 		);
@@ -1335,7 +1363,10 @@ describeIntegration("insights idempotency integration", () => {
 			.from(analyticsInsights)
 			.orderBy(analyticsInsights.createdAt);
 		const observations = await db()
-			.select({ id: insightObservations.id, signal: insightObservations.signal })
+			.select({
+				id: insightObservations.id,
+				signal: insightObservations.signal,
+			})
 			.from(insightObservations);
 		const replies = await db()
 			.select({ status: insightReplies.status })
@@ -1360,10 +1391,7 @@ describeIntegration("insights idempotency integration", () => {
 					recoveredMeasurement.signal.period.current.to
 			)?.signal
 		).toEqual(recoveredMeasurement.signal);
-		expect(replies).toEqual([
-			{ status: "succeeded" },
-			{ status: "succeeded" },
-		]);
+		expect(replies).toEqual([{ status: "succeeded" }, { status: "succeeded" }]);
 
 		const watchReplyId = randomUUIDv7();
 		const watch = investigationOutcome(
@@ -1418,19 +1446,21 @@ describeIntegration("insights idempotency integration", () => {
 		});
 
 		const failedReplyId = randomUUIDv7();
-		await db().insert(insightReplies).values({
-			authorId: author.id,
-			authorName: "Test author",
-			body: "Retry this context.",
-			id: failedReplyId,
-			insightId: olderInsightId,
-			slackDelivery: {
-				channelId: "C_TEST",
-				threadTs: "171234.000",
-				type: "slack",
-			},
-			status: "running",
-		});
+		await db()
+			.insert(insightReplies)
+			.values({
+				authorId: author.id,
+				authorName: "Test author",
+				body: "Retry this context.",
+				id: failedReplyId,
+				insightId: olderInsightId,
+				slackDelivery: {
+					channelId: "C_TEST",
+					threadTs: "171234.000",
+					type: "slack",
+				},
+				status: "running",
+			});
 		const slackFailures: unknown[] = [];
 		const deliverFailure: NonNullable<
 			Parameters<typeof recordInsightReplyFailure>[2]
@@ -1488,60 +1518,66 @@ describeIntegration("insights idempotency integration", () => {
 			"resolve",
 			"Later scheduled checkout outcome"
 		);
-		await db().insert(analyticsInsights).values({
-			...insightRow({
-				dedupeKey: `slack-retry:${investigation.signal.signalKey}`,
-				id: insightId,
-				organizationId: org.id,
-				title: laterOutcome.title,
-				websiteId: website.id,
-			}),
-			subjectKey: investigation.signal.signalKey,
-		});
-		await db().insert(insightObservations).values([
-			{
-				asOf: new Date("2026-01-10T00:00:00.000Z"),
-				createdAt: new Date("2026-01-10T00:00:00.000Z"),
-				evidence: replyOutcome.evidence,
-				id: firstObservationId,
+		await db()
+			.insert(analyticsInsights)
+			.values({
+				...insightRow({
+					dedupeKey: `slack-retry:${investigation.signal.signalKey}`,
+					id: insightId,
+					organizationId: org.id,
+					title: laterOutcome.title,
+					websiteId: website.id,
+				}),
+				subjectKey: investigation.signal.signalKey,
+			});
+		await db()
+			.insert(insightObservations)
+			.values([
+				{
+					asOf: new Date("2026-01-10T00:00:00.000Z"),
+					createdAt: new Date("2026-01-10T00:00:00.000Z"),
+					evidence: replyOutcome.evidence,
+					id: firstObservationId,
+					insightId,
+					organizationId: org.id,
+					outcome: replyOutcome,
+					recheckAt: new Date("2026-01-17T00:00:00.000Z"),
+					runId: null,
+					signal: investigation.signal,
+					signalKey: investigation.signal.signalKey,
+					websiteId: website.id,
+				},
+				{
+					asOf: new Date("2026-01-11T00:00:00.000Z"),
+					createdAt: new Date("2026-01-11T00:00:00.000Z"),
+					evidence: laterOutcome.evidence,
+					id: laterObservationId,
+					insightId,
+					organizationId: org.id,
+					outcome: laterOutcome,
+					recheckAt: new Date("2026-01-18T00:00:00.000Z"),
+					runId: null,
+					signal: investigation.signal,
+					signalKey: investigation.signal.signalKey,
+					websiteId: website.id,
+				},
+			]);
+		await db()
+			.insert(insightReplies)
+			.values({
+				authorId: null,
+				authorName: "Test author",
+				body: "Retry the committed Slack response.",
+				id: replyId,
 				insightId,
-				organizationId: org.id,
-				outcome: replyOutcome,
-				recheckAt: new Date("2026-01-17T00:00:00.000Z"),
-				runId: null,
-				signal: investigation.signal,
-				signalKey: investigation.signal.signalKey,
-				websiteId: website.id,
-			},
-			{
-				asOf: new Date("2026-01-11T00:00:00.000Z"),
-				createdAt: new Date("2026-01-11T00:00:00.000Z"),
-				evidence: laterOutcome.evidence,
-				id: laterObservationId,
-				insightId,
-				organizationId: org.id,
-				outcome: laterOutcome,
-				recheckAt: new Date("2026-01-18T00:00:00.000Z"),
-				runId: null,
-				signal: investigation.signal,
-				signalKey: investigation.signal.signalKey,
-				websiteId: website.id,
-			},
-		]);
-		await db().insert(insightReplies).values({
-			authorId: null,
-			authorName: "Test author",
-			body: "Retry the committed Slack response.",
-			id: replyId,
-			insightId,
-			observationId: firstObservationId,
-			slackDelivery: {
-				channelId: "C_TEST",
-				threadTs: "171234.000",
-				type: "slack",
-			},
-			status: "succeeded",
-		});
+				observationId: firstObservationId,
+				slackDelivery: {
+					channelId: "C_TEST",
+					threadTs: "171234.000",
+					type: "slack",
+				},
+				status: "succeeded",
+			});
 
 		let deliveredTitle: string | undefined;
 		const result = await resumeInsightReply(
@@ -1566,15 +1602,17 @@ describeIntegration("insights idempotency integration", () => {
 		const website = await insertWebsite({ organizationId: org.id });
 		const insightId = randomUUIDv7();
 		const replyId = randomUUIDv7();
-		await db().insert(analyticsInsights).values(
-			insightRow({
-				dedupeKey: `reply-worker:${replyId}`,
-				id: insightId,
-				organizationId: org.id,
-				title: "Reply worker case",
-				websiteId: website.id,
-			})
-		);
+		await db()
+			.insert(analyticsInsights)
+			.values(
+				insightRow({
+					dedupeKey: `reply-worker:${replyId}`,
+					id: insightId,
+					organizationId: org.id,
+					title: "Reply worker case",
+					websiteId: website.id,
+				})
+			);
 		await db().insert(insightReplies).values({
 			authorId: author.id,
 			authorName: "Test author",
@@ -1617,35 +1655,39 @@ describeIntegration("insights idempotency integration", () => {
 		const queuedReplyId = randomUUIDv7();
 		const runningReplyId = randomUUIDv7();
 		const createdAt = new Date("2026-07-01T00:00:00.000Z");
-		await db().insert(analyticsInsights).values(
-			insightRow({
-				dedupeKey: `reply-recovery:${insightId}`,
-				id: insightId,
-				organizationId: org.id,
-				title: "Reply recovery case",
-				websiteId: website.id,
-			})
-		);
-		await db().insert(insightReplies).values([
-			{
-				authorId: author.id,
-				authorName: "Test author",
-				body: "Queued without a job",
-				createdAt,
-				id: queuedReplyId,
-				insightId,
-				status: "queued",
-			},
-			{
-				authorId: author.id,
-				authorName: "Test author",
-				body: "Worker stalled",
-				createdAt,
-				id: runningReplyId,
-				insightId,
-				status: "running",
-			},
-		]);
+		await db()
+			.insert(analyticsInsights)
+			.values(
+				insightRow({
+					dedupeKey: `reply-recovery:${insightId}`,
+					id: insightId,
+					organizationId: org.id,
+					title: "Reply recovery case",
+					websiteId: website.id,
+				})
+			);
+		await db()
+			.insert(insightReplies)
+			.values([
+				{
+					authorId: author.id,
+					authorName: "Test author",
+					body: "Queued without a job",
+					createdAt,
+					id: queuedReplyId,
+					insightId,
+					status: "queued",
+				},
+				{
+					authorId: author.id,
+					authorName: "Test author",
+					body: "Worker stalled",
+					createdAt,
+					id: runningReplyId,
+					insightId,
+					status: "running",
+				},
+			]);
 
 		const result = await recoverStaleInsightRuns(
 			new Date("2026-07-01T01:00:00.000Z")
@@ -1668,11 +1710,13 @@ describeIntegration("insights idempotency integration", () => {
 		const firstRunId = randomUUIDv7();
 		const secondRunId = randomUUIDv7();
 		const thirdRunId = randomUUIDv7();
-		await db().insert(insightRuns).values([
-			{ id: firstRunId, organizationId: org.id, status: "succeeded" },
-			{ id: secondRunId, organizationId: org.id, status: "succeeded" },
-			{ id: thirdRunId, organizationId: org.id, status: "succeeded" },
-		]);
+		await db()
+			.insert(insightRuns)
+			.values([
+				{ id: firstRunId, organizationId: org.id, status: "succeeded" },
+				{ id: secondRunId, organizationId: org.id, status: "succeeded" },
+				{ id: thirdRunId, organizationId: org.id, status: "succeeded" },
+			]);
 
 		const detected: DetectedSignal = {
 			baseline: 20,
@@ -1801,9 +1845,9 @@ describeIntegration("insights idempotency integration", () => {
 			historical.get(investigation.signal.signalKey)?.outcome.next.type
 		).toBe("watch");
 		expect(latest.size).toBe(2);
-		expect(
-			latest.get(investigation.signal.signalKey)?.outcome.next.type
-		).toBe("resolve");
+		expect(latest.get(investigation.signal.signalKey)?.outcome.next.type).toBe(
+			"resolve"
+		);
 
 		await db().delete(insightRuns).where(eq(insightRuns.id, firstRunId));
 		const [preserved] = await db()
@@ -2019,15 +2063,17 @@ describeIntegration("insights idempotency integration", () => {
 		});
 		const first = identity();
 		const second = identity();
-		await db().insert(analyticsInsights).values(
-			insightRow({
-				dedupeKey: `${website.id}|checkout`,
-				id: insightId,
-				organizationId: org.id,
-				title: "Checkout conversion fell",
-				websiteId: website.id,
-			})
-		);
+		await db()
+			.insert(analyticsInsights)
+			.values(
+				insightRow({
+					dedupeKey: `${website.id}|checkout`,
+					id: insightId,
+					organizationId: org.id,
+					title: "Checkout conversion fell",
+					websiteId: website.id,
+				})
+			);
 		await db()
 			.insert(insightRuns)
 			.values(
@@ -2112,7 +2158,8 @@ describeIntegration("insights idempotency integration", () => {
 		});
 		const { itemId } = identity;
 
-		await db().execute(sql.raw(`
+		await db().execute(
+			sql.raw(`
 			CREATE SEQUENCE insight_effect_checkpoint_test_seq START WITH 1;
 			CREATE FUNCTION fail_first_insight_effect_checkpoint()
 			RETURNS trigger
@@ -2132,7 +2179,8 @@ describeIntegration("insights idempotency integration", () => {
 			BEFORE UPDATE OF status ON insight_run_effects
 			FOR EACH ROW
 			EXECUTE FUNCTION fail_first_insight_effect_checkpoint();
-		`));
+		`)
+		);
 
 		let providerCalls = 0;
 		try {
@@ -2143,12 +2191,14 @@ describeIntegration("insights idempotency integration", () => {
 				},
 			});
 		} finally {
-			await db().execute(sql.raw(`
+			await db().execute(
+				sql.raw(`
 				DROP TRIGGER IF EXISTS fail_first_insight_effect_checkpoint_trigger
 				ON insight_run_effects;
 				DROP FUNCTION IF EXISTS fail_first_insight_effect_checkpoint();
 				DROP SEQUENCE IF EXISTS insight_effect_checkpoint_test_seq;
-			`));
+			`)
+			);
 		}
 
 		const [effect] = await db()
@@ -2174,7 +2224,8 @@ describeIntegration("insights idempotency integration", () => {
 		});
 		const { itemId, organizationId, runId, websiteId } = identity;
 
-		await db().execute(sql.raw(`
+		await db().execute(
+			sql.raw(`
 			CREATE SEQUENCE insight_item_checkpoint_test_seq START WITH 1;
 			CREATE FUNCTION fail_first_insight_item_checkpoint()
 			RETURNS trigger
@@ -2210,7 +2261,8 @@ describeIntegration("insights idempotency integration", () => {
 			BEFORE UPDATE OF status ON insight_runs
 			FOR EACH ROW
 			EXECUTE FUNCTION fail_insight_run_sync();
-		`));
+		`)
+		);
 
 		const data: InsightsGenerateWebsiteJobData = {
 			itemId,
@@ -2231,7 +2283,8 @@ describeIntegration("insights idempotency integration", () => {
 				})
 			).rejects.toThrow('Failed query: update "insight_runs"');
 		} finally {
-			await db().execute(sql.raw(`
+			await db().execute(
+				sql.raw(`
 				DROP TRIGGER IF EXISTS fail_first_insight_item_checkpoint_trigger
 				ON insight_run_items;
 				DROP FUNCTION IF EXISTS fail_first_insight_item_checkpoint();
@@ -2239,7 +2292,8 @@ describeIntegration("insights idempotency integration", () => {
 				DROP TRIGGER IF EXISTS fail_insight_run_sync_trigger
 				ON insight_runs;
 				DROP FUNCTION IF EXISTS fail_insight_run_sync();
-			`));
+			`)
+			);
 		}
 
 		const [item] = await db()
@@ -2313,36 +2367,40 @@ describeIntegration("insights idempotency integration", () => {
 		const secondItemId = randomUUIDv7();
 		const firstJobId = `job-${firstItemId}`;
 		const secondJobId = `job-${secondItemId}`;
-		await db().insert(insightRuns).values([
-			{
-				id: firstRunId,
-				organizationId: firstOrg.id,
-				status: "queued",
-				totalItems: 1,
-			},
-			{
-				id: secondRunId,
-				organizationId: secondOrg.id,
-				status: "queued",
-				totalItems: 1,
-			},
-		]);
-		await db().insert(insightRunItems).values([
-			{
-				id: firstItemId,
-				queueJobId: firstJobId,
-				runId: firstRunId,
-				organizationId: firstOrg.id,
-				websiteId: firstWebsite.id,
-			},
-			{
-				id: secondItemId,
-				queueJobId: secondJobId,
-				runId: secondRunId,
-				organizationId: secondOrg.id,
-				websiteId: secondWebsite.id,
-			},
-		]);
+		await db()
+			.insert(insightRuns)
+			.values([
+				{
+					id: firstRunId,
+					organizationId: firstOrg.id,
+					status: "queued",
+					totalItems: 1,
+				},
+				{
+					id: secondRunId,
+					organizationId: secondOrg.id,
+					status: "queued",
+					totalItems: 1,
+				},
+			]);
+		await db()
+			.insert(insightRunItems)
+			.values([
+				{
+					id: firstItemId,
+					queueJobId: firstJobId,
+					runId: firstRunId,
+					organizationId: firstOrg.id,
+					websiteId: firstWebsite.id,
+				},
+				{
+					id: secondItemId,
+					queueJobId: secondJobId,
+					runId: secondRunId,
+					organizationId: secondOrg.id,
+					websiteId: secondWebsite.id,
+				},
+			]);
 		const runState = () =>
 			db()
 				.select({
@@ -2433,23 +2491,25 @@ describeIntegration("insights idempotency integration", () => {
 			finishedAt: staleAt,
 			updatedAt: staleAt,
 		});
-		await db().insert(insightRunItems).values([
-			{
-				id: itemId,
-				runId,
-				organizationId: org.id,
-				websiteId: website.id,
-				status: "running",
-			},
-			{
-				id: pendingItemId,
-				runId,
-				organizationId: org.id,
-				websiteId: pendingWebsite.id,
-				status: "running",
-				updatedAt: now,
-			},
-		]);
+		await db()
+			.insert(insightRunItems)
+			.values([
+				{
+					id: itemId,
+					runId,
+					organizationId: org.id,
+					websiteId: website.id,
+					status: "running",
+				},
+				{
+					id: pendingItemId,
+					runId,
+					organizationId: org.id,
+					websiteId: pendingWebsite.id,
+					status: "running",
+					updatedAt: now,
+				},
+			]);
 		await prepareInsightRun({
 			itemId,
 			organizationId: org.id,
@@ -2649,24 +2709,26 @@ describeIntegration("insights idempotency integration", () => {
 			totalItems: 2,
 			updatedAt: now,
 		});
-		await db().insert(insightRunItems).values([
-			{
-				id: itemId,
-				runId,
-				organizationId: org.id,
-				websiteId: website.id,
-				status: "running",
-				updatedAt: staleAt,
-			},
-			{
-				id: pendingItemId,
-				runId,
-				organizationId: org.id,
-				websiteId: pendingWebsite.id,
-				status: "running",
-				updatedAt: now,
-			},
-		]);
+		await db()
+			.insert(insightRunItems)
+			.values([
+				{
+					id: itemId,
+					runId,
+					organizationId: org.id,
+					websiteId: website.id,
+					status: "running",
+					updatedAt: staleAt,
+				},
+				{
+					id: pendingItemId,
+					runId,
+					organizationId: org.id,
+					websiteId: pendingWebsite.id,
+					status: "running",
+					updatedAt: now,
+				},
+			]);
 
 		let releaseLock: (() => void) | undefined;
 		let reportLock: (() => void) | undefined;

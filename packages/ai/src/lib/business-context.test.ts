@@ -173,53 +173,88 @@ describe("scoped business context through the native Supermemory transport", () 
 	});
 	it("refuses an uninitialized write before reaching the provider", async () => {
 		let requests = 0;
-		const client = provider(() => { requests++; return json({}); });
-		expect(await recordBusinessReplies({ scope, replies: [reply], client })).toEqual({ status: "unavailable", ids: [] });
+		const client = provider(() => {
+			requests++;
+			return json({});
+		});
+		expect(
+			await recordBusinessReplies({ scope, replies: [reply], client })
+		).toEqual({ status: "unavailable", ids: [] });
 		expect(requests).toBe(0);
 	});
-	it.skipIf(process.env.BUSINESS_MEMORY_INTEGRATION_TESTS !== "true")("does not claim a partial batch failure was saved; retry IDs stay stable under a native website lock", async () => {
-		const url = new URL(process.env.DATABASE_URL ?? "");
-		if (url.hostname !== "127.0.0.1" || url.port !== "16543" || url.pathname !== "/business_memory_synthetic") throw new Error("Use the dedicated synthetic business-memory database");
-		const { db, eq, sql } = await import("@databuddy/db");
-		const { websites } = await import("@databuddy/db/schema");
-		const { getWebsiteBusinessScope } = await import("@databuddy/services/business-memory");
-		const organizationId = `synthetic-${crypto.randomUUID()}`;
-		const websiteId = `synthetic-${crypto.randomUUID()}`;
-		await db.execute(sql`INSERT INTO organization(id) VALUES (${organizationId})`);
-		await db.insert(websites).values({ id: websiteId, organizationId, domain: scope.domain });
-		const initialized = await getWebsiteBusinessScope({ websiteId, organizationId }, { initialize: true });
-		if (!initialized) throw new Error("Synthetic scope not initialized");
-		try {
-		const bodies: Record<string, unknown>[] = [];
-		const client = provider((path, body) => {
-			expect(path).toBe("/v3/documents/batch");
-			bodies.push(body);
-			return json(
-				bodies.length === 1
-					? { failed: 1, success: 0, results: [{ id: "", status: "error" }] }
-					: {
-							failed: 0,
-							success: 1,
-							results: [{ id: "provider-doc", status: "queued" }],
-						}
+	it.skipIf(process.env.BUSINESS_MEMORY_INTEGRATION_TESTS !== "true")(
+		"does not claim a partial batch failure was saved; retry IDs stay stable under a native website lock",
+		async () => {
+			const url = new URL(process.env.DATABASE_URL ?? "");
+			if (
+				url.hostname !== "127.0.0.1" ||
+				url.port !== "16543" ||
+				url.pathname !== "/business_memory_synthetic"
+			) {
+				throw new Error("Use the dedicated synthetic business-memory database");
+			}
+			const { db, eq, sql } = await import("@databuddy/db");
+			const { websites } = await import("@databuddy/db/schema");
+			const { getWebsiteBusinessScope } = await import(
+				"@databuddy/services/business-memory"
 			);
-		});
-		const args = { scope: initialized, replies: [{ ...reply, observedAt: new Date().toISOString() }], client };
-		expect(await recordBusinessReplies(args)).toEqual({
-			status: "unavailable",
-			ids: [],
-		});
-		expect(await recordBusinessReplies(args)).toEqual({
-			status: "saved",
-			ids: [reply.id],
-		});
-		expect(bodies[0]).toEqual(bodies[1]);
-		expect(bodies[0]?.containerTag).toBe(businessContainerTag(initialized));
-		} finally {
-			await db.delete(websites).where(eq(websites.id, websiteId));
-			await db.execute(sql`DELETE FROM organization WHERE id=${organizationId}`);
+			const organizationId = `synthetic-${crypto.randomUUID()}`;
+			const websiteId = `synthetic-${crypto.randomUUID()}`;
+			await db.execute(
+				sql`INSERT INTO organization(id) VALUES (${organizationId})`
+			);
+			await db
+				.insert(websites)
+				.values({ id: websiteId, organizationId, domain: scope.domain });
+			const initialized = await getWebsiteBusinessScope(
+				{ websiteId, organizationId },
+				{ initialize: true }
+			);
+			if (!initialized) {
+				throw new Error("Synthetic scope not initialized");
+			}
+			try {
+				const bodies: Record<string, unknown>[] = [];
+				const client = provider((path, body) => {
+					expect(path).toBe("/v3/documents/batch");
+					bodies.push(body);
+					return json(
+						bodies.length === 1
+							? {
+									failed: 1,
+									success: 0,
+									results: [{ id: "", status: "error" }],
+								}
+							: {
+									failed: 0,
+									success: 1,
+									results: [{ id: "provider-doc", status: "queued" }],
+								}
+					);
+				});
+				const args = {
+					scope: initialized,
+					replies: [{ ...reply, observedAt: new Date().toISOString() }],
+					client,
+				};
+				expect(await recordBusinessReplies(args)).toEqual({
+					status: "unavailable",
+					ids: [],
+				});
+				expect(await recordBusinessReplies(args)).toEqual({
+					status: "saved",
+					ids: [reply.id],
+				});
+				expect(bodies[0]).toEqual(bodies[1]);
+				expect(bodies[0]?.containerTag).toBe(businessContainerTag(initialized));
+			} finally {
+				await db.delete(websites).where(eq(websites.id, websiteId));
+				await db.execute(
+					sql`DELETE FROM organization WHERE id=${organizationId}`
+				);
+			}
 		}
-	});
+	);
 	it("cannot promote a public page into the authenticated reply index", () => {
 		expect(() => recordBusinessReplies({ scope, replies: [page] })).toThrow(
 			"authenticated team replies"
@@ -287,7 +322,7 @@ describe("scoped business context through the native Supermemory transport", () 
 		expect(result.sources.map((s) => s.id)).toContain(page.id);
 		expect(
 			result.sources.reduce((n, s) => n + s.content.length, 0)
-		).toBeLessThanOrEqual(16000);
+		).toBeLessThanOrEqual(16_000);
 		expect(result.sources.length).toBeLessThan(shared.sources.length + 1);
 		const canonical = {
 			...relevant,

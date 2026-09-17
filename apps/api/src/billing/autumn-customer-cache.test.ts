@@ -177,22 +177,22 @@ describe("native Autumn customer response caching", () => {
 		expect(cache.setex).toHaveBeenCalledTimes(1);
 	});
 
-	it.each(["anonymous", "member"])(
-		"retains native authorization for an expanded %s request",
-		async (principal) => {
-			await handleAutumnRequest(request());
-			if (principal === "anonymous") {
-				getSession.mockResolvedValue(null);
-			} else {
-				getMemberRole.mockResolvedValue("member");
-			}
-			const response = await handleAutumnRequest(
-				request({ expand: ["subscriptions.plan"] })
-			);
-			expect(response.status).toBe(401);
-			expect(providerRequests).toHaveLength(1);
+	it.each([
+		"anonymous",
+		"member",
+	])("retains native authorization for an expanded %s request", async (principal) => {
+		await handleAutumnRequest(request());
+		if (principal === "anonymous") {
+			getSession.mockResolvedValue(null);
+		} else {
+			getMemberRole.mockResolvedValue("member");
 		}
-	);
+		const response = await handleAutumnRequest(
+			request({ expand: ["subscriptions.plan"] })
+		);
+		expect(response.status).toBe(401);
+		expect(providerRequests).toHaveLength(1);
+	});
 
 	it("uses the authenticated billing owner rather than a supplied identity", async () => {
 		const response = await handleAutumnRequest(

@@ -74,124 +74,130 @@ async function expectScopedApiKeys(
 	await expect(apiKeyRow(page, hiddenName)).toBeHidden();
 }
 
-test(
-	"isolates websites and links between organizations",
-	{ tag: "@core" },
-	async ({ authenticatedPage, e2eSession }) => {
-		const suffix = scopeSuffix(e2eSession);
-		const primary = organizationAssets("Primary", suffix);
-		const secondary = organizationAssets("Secondary", suffix);
+test("isolates websites and links between organizations", {
+	tag: "@core",
+}, async ({ authenticatedPage, e2eSession }) => {
+	const suffix = scopeSuffix(e2eSession);
+	const primary = organizationAssets("Primary", suffix);
+	const secondary = organizationAssets("Secondary", suffix);
 
-		await authenticatedPage.goto("/websites");
-		await expectDashboardReady(authenticatedPage);
-		await expect(websiteCard(authenticatedPage, SEEDED_WEBSITE_NAME)).toBeVisible();
-		const primaryWebsiteCard = await createWebsite(
-			authenticatedPage,
-			primary.website
-		);
-		await expect(primaryWebsiteCard).toBeVisible();
-		await primaryWebsiteCard.click();
-		await expect(authenticatedPage).toHaveURL(/\/websites\/[A-Za-z0-9_-]+/);
-		const primaryWebsiteId = idFromPath(authenticatedPage.url(), "websites");
+	await authenticatedPage.goto("/websites");
+	await expectDashboardReady(authenticatedPage);
+	await expect(
+		websiteCard(authenticatedPage, SEEDED_WEBSITE_NAME)
+	).toBeVisible();
+	const primaryWebsiteCard = await createWebsite(
+		authenticatedPage,
+		primary.website
+	);
+	await expect(primaryWebsiteCard).toBeVisible();
+	await primaryWebsiteCard.click();
+	await expect(authenticatedPage).toHaveURL(/\/websites\/[A-Za-z0-9_-]+/);
+	const primaryWebsiteId = idFromPath(authenticatedPage.url(), "websites");
 
-		await authenticatedPage.goto("/links");
-		const primaryLinkRow = await createShortLink(authenticatedPage, primary.link);
-		await expect(primaryLinkRow).toBeVisible();
-		await primaryLinkRow.click();
-		await expect(authenticatedPage).toHaveURL(/\/links\/[A-Za-z0-9_-]+/);
-		const primaryLinkId = idFromPath(authenticatedPage.url(), "links");
+	await authenticatedPage.goto("/links");
+	const primaryLinkRow = await createShortLink(authenticatedPage, primary.link);
+	await expect(primaryLinkRow).toBeVisible();
+	await primaryLinkRow.click();
+	await expect(authenticatedPage).toHaveURL(/\/links\/[A-Za-z0-9_-]+/);
+	const primaryLinkId = idFromPath(authenticatedPage.url(), "links");
 
-		await createOrganization(authenticatedPage, {
-			name: secondary.name,
-			slug: secondary.slug,
-		});
+	await createOrganization(authenticatedPage, {
+		name: secondary.name,
+		slug: secondary.slug,
+	});
 
-		await authenticatedPage.goto("/websites");
-		await expect(websiteCard(authenticatedPage, primary.website.name)).toBeHidden();
-		await expect(websiteCard(authenticatedPage, SEEDED_WEBSITE_NAME)).toBeHidden();
-		await expect(authenticatedPage.getByText(primary.website.domain)).toBeHidden();
-		await expect(
-			await createWebsite(authenticatedPage, secondary.website)
-		).toBeVisible();
+	await authenticatedPage.goto("/websites");
+	await expect(
+		websiteCard(authenticatedPage, primary.website.name)
+	).toBeHidden();
+	await expect(
+		websiteCard(authenticatedPage, SEEDED_WEBSITE_NAME)
+	).toBeHidden();
+	await expect(
+		authenticatedPage.getByText(primary.website.domain)
+	).toBeHidden();
+	await expect(
+		await createWebsite(authenticatedPage, secondary.website)
+	).toBeVisible();
 
-		await authenticatedPage.goto("/links");
-		await expect(linkRow(authenticatedPage, primary.link.name)).toBeHidden();
-		await expect(
-			await createShortLink(authenticatedPage, secondary.link)
-		).toBeVisible();
-		await expectScopedWebsitesAndLinks(authenticatedPage, secondary, primary, {
-			seededWebsiteVisible: false,
-		});
+	await authenticatedPage.goto("/links");
+	await expect(linkRow(authenticatedPage, primary.link.name)).toBeHidden();
+	await expect(
+		await createShortLink(authenticatedPage, secondary.link)
+	).toBeVisible();
+	await expectScopedWebsitesAndLinks(authenticatedPage, secondary, primary, {
+		seededWebsiteVisible: false,
+	});
 
-		await authenticatedPage.goto(`/websites/${primaryWebsiteId}`);
-		await expect(
-			authenticatedPage.getByRole("heading", {
-				name: "Resource unavailable",
-			})
-		).toBeVisible();
-		await expect(
-			authenticatedPage.getByText("current organization")
-		).toBeVisible();
-		await expect(authenticatedPage.getByText(primary.website.domain)).toBeHidden();
-		await authenticatedPage.goto(`/links/${primaryLinkId}`);
-		await expect(
-			authenticatedPage.getByRole("heading", {
-				name: "Resource unavailable",
-			})
-		).toBeVisible();
-		await expect(
-			authenticatedPage.getByText("current organization")
-		).toBeVisible();
-		await expect(linkRow(authenticatedPage, primary.link.name)).toBeHidden();
+	await authenticatedPage.goto(`/websites/${primaryWebsiteId}`);
+	await expect(
+		authenticatedPage.getByRole("heading", {
+			name: "Resource unavailable",
+		})
+	).toBeVisible();
+	await expect(
+		authenticatedPage.getByText("current organization")
+	).toBeVisible();
+	await expect(
+		authenticatedPage.getByText(primary.website.domain)
+	).toBeHidden();
+	await authenticatedPage.goto(`/links/${primaryLinkId}`);
+	await expect(
+		authenticatedPage.getByRole("heading", {
+			name: "Resource unavailable",
+		})
+	).toBeVisible();
+	await expect(
+		authenticatedPage.getByText("current organization")
+	).toBeVisible();
+	await expect(linkRow(authenticatedPage, primary.link.name)).toBeHidden();
 
-		await switchOrganization(authenticatedPage, e2eSession.organizationName);
-		await expectScopedWebsitesAndLinks(authenticatedPage, primary, secondary, {
-			seededWebsiteVisible: true,
-		});
+	await switchOrganization(authenticatedPage, e2eSession.organizationName);
+	await expectScopedWebsitesAndLinks(authenticatedPage, primary, secondary, {
+		seededWebsiteVisible: true,
+	});
 
-		await switchOrganization(authenticatedPage, secondary.name);
-		await expectScopedWebsitesAndLinks(authenticatedPage, secondary, primary, {
-			seededWebsiteVisible: false,
-		});
-	}
-);
+	await switchOrganization(authenticatedPage, secondary.name);
+	await expectScopedWebsitesAndLinks(authenticatedPage, secondary, primary, {
+		seededWebsiteVisible: false,
+	});
+});
 
-test(
-	"isolates organization API keys between organizations",
-	{ tag: "@core" },
-	async ({ authenticatedPage, e2eSession }) => {
-		const suffix = scopeSuffix(e2eSession);
-		const primary = organizationAssets("Primary", suffix);
-		const secondary = organizationAssets("Secondary", suffix);
+test("isolates organization API keys between organizations", {
+	tag: "@core",
+}, async ({ authenticatedPage, e2eSession }) => {
+	const suffix = scopeSuffix(e2eSession);
+	const primary = organizationAssets("Primary", suffix);
+	const secondary = organizationAssets("Secondary", suffix);
 
-		await authenticatedPage.goto("/organizations/settings");
-		await expect(
-			await createApiKey(authenticatedPage, primary.apiKeyName)
-		).toBeVisible();
+	await authenticatedPage.goto("/organizations/settings");
+	await expect(
+		await createApiKey(authenticatedPage, primary.apiKeyName)
+	).toBeVisible();
 
-		await createOrganization(authenticatedPage, {
-			name: secondary.name,
-			slug: secondary.slug,
-		});
+	await createOrganization(authenticatedPage, {
+		name: secondary.name,
+		slug: secondary.slug,
+	});
 
-		await authenticatedPage.goto("/organizations/settings");
-		await expect(apiKeyRow(authenticatedPage, primary.apiKeyName)).toBeHidden();
-		await expect(
-			await createApiKey(authenticatedPage, secondary.apiKeyName)
-		).toBeVisible();
+	await authenticatedPage.goto("/organizations/settings");
+	await expect(apiKeyRow(authenticatedPage, primary.apiKeyName)).toBeHidden();
+	await expect(
+		await createApiKey(authenticatedPage, secondary.apiKeyName)
+	).toBeVisible();
 
-		await switchOrganization(authenticatedPage, e2eSession.organizationName);
-		await expectScopedApiKeys(
-			authenticatedPage,
-			primary.apiKeyName,
-			secondary.apiKeyName
-		);
+	await switchOrganization(authenticatedPage, e2eSession.organizationName);
+	await expectScopedApiKeys(
+		authenticatedPage,
+		primary.apiKeyName,
+		secondary.apiKeyName
+	);
 
-		await switchOrganization(authenticatedPage, secondary.name);
-		await expectScopedApiKeys(
-			authenticatedPage,
-			secondary.apiKeyName,
-			primary.apiKeyName
-		);
-	}
-);
+	await switchOrganization(authenticatedPage, secondary.name);
+	await expectScopedApiKeys(
+		authenticatedPage,
+		secondary.apiKeyName,
+		primary.apiKeyName
+	);
+});

@@ -105,12 +105,15 @@ function expectRejection(promise: Promise<unknown>, status: number) {
 }
 
 describe("getWebsiteSecuritySettings", () => {
-	test.each([[null], [undefined], ["string"], [42], [["array"]]])(
-		"non-object settings %j → null",
-		(settings) => {
-			expect(getWebsiteSecuritySettings(settings)).toBeNull();
-		}
-	);
+	test.each([
+		[null],
+		[undefined],
+		["string"],
+		[42],
+		[["array"]],
+	])("non-object settings %j → null", (settings) => {
+		expect(getWebsiteSecuritySettings(settings)).toBeNull();
+	});
 
 	test("keeps only string entries from mixed allowlists", () => {
 		expect(
@@ -396,22 +399,19 @@ describe("checkForBot", () => {
 	test.each([
 		["body.url", { url: "/from-url" }, {}, "/from-url"],
 		["query.path", {}, { path: "/from-query" }, "/from-query"],
-	])(
-		"track_only path falls back to %s",
-		async (_label, body, query, expected) => {
-			mockDetectBot.mockReturnValue({
-				isBot: true,
-				action: "track_only",
-				botName: "ClaudeBot",
-				result: { category: "ai_crawler" },
-			});
-			await checkForBot(makeReq(), body, query, "ws_1", "ClaudeBot");
-			expect(mockSend).toHaveBeenCalledWith(
-				"analytics-ai-traffic-spans",
-				expect.objectContaining({ path: expected })
-			);
-		}
-	);
+	])("track_only path falls back to %s", async (_label, body, query, expected) => {
+		mockDetectBot.mockReturnValue({
+			isBot: true,
+			action: "track_only",
+			botName: "ClaudeBot",
+			result: { category: "ai_crawler" },
+		});
+		await checkForBot(makeReq(), body, query, "ws_1", "ClaudeBot");
+		expect(mockSend).toHaveBeenCalledWith(
+			"analytics-ai-traffic-spans",
+			expect.objectContaining({ path: expected })
+		);
+	});
 
 	test("track_only path falls back to the referer header last", async () => {
 		mockDetectBot.mockReturnValue({

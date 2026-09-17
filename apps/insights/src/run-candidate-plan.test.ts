@@ -1,7 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import {
-	parseFrozenInvestigationPlan,
-} from "./run-candidate-plan";
+import { parseFrozenInvestigationPlan } from "./run-candidate-plan";
 
 const candidate = {
 	evidence: ["The route recorded a materially higher error count."],

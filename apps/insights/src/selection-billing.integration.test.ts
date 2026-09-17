@@ -34,7 +34,9 @@ integration("selection usage across native generation retries", () => {
 		process.env.AUTUMN_SECRET_KEY = "synthetic-selection-billing";
 		const autumn = getAutumn();
 		const provider = spyOn(globalThis, "fetch").mockRejectedValue(
-			new Error("Empty selection must not make investigation reservation requests")
+			new Error(
+				"Empty selection must not make investigation reservation requests"
+			)
 		);
 		const requests: string[] = [];
 		const charges = new Map<string, number>();
@@ -42,11 +44,15 @@ integration("selection usage across native generation retries", () => {
 			async (request, options) => {
 				const key = new Headers(options?.headers).get("Idempotency-Key");
 				expect(key).toBeTruthy();
-				if (!key) throw new Error("Missing charge identity");
+				if (!key) {
+					throw new Error("Missing charge identity");
+				}
 				requests.push(key);
 				expect(request.featureId).toBe("agent_credits");
 				expect(request.value).toBeGreaterThan(0);
-				if (!charges.has(key)) charges.set(key, request.value ?? 0);
+				if (!charges.has(key)) {
+					charges.set(key, request.value ?? 0);
+				}
 				return {
 					customerId: request.customerId,
 					value: request.value ?? 0,
@@ -64,8 +70,14 @@ integration("selection usage across native generation retries", () => {
 			billing,
 			"resolveAgentBillingCustomerId"
 		).mockResolvedValue("synthetic-customer");
-		const mode = spyOn(investigationBilling, "resolveInvestigationBilling").mockResolvedValue({ mode: "fixed", customerId: "synthetic-customer" });
-		const access = spyOn(investigationBilling, "canRunInvestigation").mockResolvedValue(true);
+		const mode = spyOn(
+			investigationBilling,
+			"resolveInvestigationBilling"
+		).mockResolvedValue({ mode: "fixed", customerId: "synthetic-customer" });
+		const access = spyOn(
+			investigationBilling,
+			"canRunInvestigation"
+		).mockResolvedValue(true);
 		const metrics = spyOn(detection, "detectSignals").mockResolvedValue(
 			["visitors", "sessions"].map((metric) => ({
 				metric,
@@ -207,15 +219,32 @@ integration("selection usage across native generation retries", () => {
 			}
 			expect(charges.size).toBe(0);
 			expect(requests).toEqual([]);
-			await db.update(insightRuns).set({ status: "succeeded" }).where(inArray(insightRuns.id, runIds));
+			await db
+				.update(insightRuns)
+				.set({ status: "succeeded" })
+				.where(inArray(insightRuns.id, runIds));
 			const fixedRunId = randomUUIDv7();
 			const fixedItemId = randomUUIDv7();
 			runIds.push(fixedRunId);
 			itemIds.push(fixedItemId);
-			await db.insert(insightRuns).values({ id: fixedRunId, organizationId, status: "running" });
-			await db.insert(insightRunItems).values({ id: fixedItemId, runId: fixedRunId, organizationId, websiteId: input.websiteId, queueJobId: `synthetic-${fixedItemId}`, status: "running" });
+			await db
+				.insert(insightRuns)
+				.values({ id: fixedRunId, organizationId, status: "running" });
+			await db.insert(insightRunItems).values({
+				id: fixedItemId,
+				runId: fixedRunId,
+				organizationId,
+				websiteId: input.websiteId,
+				queueJobId: `synthetic-${fixedItemId}`,
+				status: "running",
+			});
 			const priorTrackCalls = track.mock.calls.length;
-			await generateWebsiteInsights({ ...input, runId: fixedRunId, itemId: fixedItemId, queueJobId: `synthetic-${fixedItemId}` });
+			await generateWebsiteInsights({
+				...input,
+				runId: fixedRunId,
+				itemId: fixedItemId,
+				queueJobId: `synthetic-${fixedItemId}`,
+			});
 			expect(track).toHaveBeenCalledTimes(priorTrackCalls);
 			expect(provider).not.toHaveBeenCalled();
 		} finally {
@@ -232,10 +261,14 @@ integration("selection usage across native generation retries", () => {
 				profile,
 				choose,
 				interrupt,
-			])
+			]) {
 				stub.mockRestore();
-			if (secret === undefined) delete process.env.AUTUMN_SECRET_KEY;
-			else process.env.AUTUMN_SECRET_KEY = secret;
+			}
+			if (secret === undefined) {
+				delete process.env.AUTUMN_SECRET_KEY;
+			} else {
+				process.env.AUTUMN_SECRET_KEY = secret;
+			}
 			await db
 				.delete(insightRunItems)
 				.where(inArray(insightRunItems.id, itemIds));

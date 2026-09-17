@@ -12,8 +12,9 @@ afterEach(() => {
 
 describe("updateAutumnBalance", () => {
 	it("posts the balance update with a redemption-scoped idempotency key", async () => {
-		const fetchMock = mock(async (_url: string | URL | Request, _init?: RequestInit) =>
-			new Response("{}", { status: 200 })
+		const fetchMock = mock(
+			async (_url: string | URL | Request, _init?: RequestInit) =>
+				new Response("{}", { status: 200 })
 		);
 		globalThis.fetch = fetchMock as typeof fetch;
 
@@ -46,30 +47,27 @@ describe("updateAutumnBalance", () => {
 		[499, true],
 		[500, false],
 		[503, false],
-	])(
-		"treats an HTTP %i Autumn response as definitive=%p for rollback",
-		async (status, definitive) => {
-			globalThis.fetch = mock(
-				async () => new Response("autumn error", { status })
-			) as typeof fetch;
+	])("treats an HTTP %i Autumn response as definitive=%p for rollback", async (status, definitive) => {
+		globalThis.fetch = mock(
+			async () => new Response("autumn error", { status })
+		) as typeof fetch;
 
-			let error: unknown;
-			try {
-				await updateAutumnBalance({
-					amount: 10,
-					customerId: "cus_1",
-					featureId: "agent-credits",
-					redemptionId: "redemption-2",
-					secretKey: "secret",
-				});
-			} catch (caught) {
-				error = caught;
-			}
-
-			expect(error).toBeInstanceOf(Error);
-			expect(isDefinitiveAutumnBalanceFailure(error)).toBe(definitive);
+		let error: unknown;
+		try {
+			await updateAutumnBalance({
+				amount: 10,
+				customerId: "cus_1",
+				featureId: "agent-credits",
+				redemptionId: "redemption-2",
+				secretKey: "secret",
+			});
+		} catch (caught) {
+			error = caught;
 		}
-	);
+
+		expect(error).toBeInstanceOf(Error);
+		expect(isDefinitiveAutumnBalanceFailure(error)).toBe(definitive);
+	});
 
 	it("fails definitively without calling Autumn when no secret key is configured", async () => {
 		const fetchMock = mock(async () => new Response("{}", { status: 200 }));

@@ -44,9 +44,9 @@ const baseConfig: ProducerConfig = {
 	broker: undefined,
 	chunkSize: 100,
 	connectTimeout: 100,
-	directFallbackTimeout: 1_000,
+	directFallbackTimeout: 1000,
 	healthProbeTimeout: 100,
-	kafkaTimeout: 1_000,
+	kafkaTimeout: 1000,
 	maxProducerRetries: 0,
 	password: undefined,
 	producerRetryDelay: 1,
@@ -89,7 +89,9 @@ describe("producer delivery guarantees", () => {
 		const insert = vi.fn(() => Promise.resolve());
 		const effects = await makeEffects(insert);
 
-		await Effect.runPromise(effects.sendOne("analytics-events", event("event_1")));
+		await Effect.runPromise(
+			effects.sendOne("analytics-events", event("event_1"))
+		);
 
 		expect(insert).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -147,7 +149,9 @@ describe("producer delivery guarantees", () => {
 		const insert = vi.fn(() => Promise.resolve());
 		const effects = await makeEffects(insert);
 
-		await Effect.runPromise(effects.sendOne("analytics-events", event("event_1")));
+		await Effect.runPromise(
+			effects.sendOne("analytics-events", event("event_1"))
+		);
 		await Effect.runPromise(
 			effects.sendOne("analytics-events", {
 				...event("event_1"),
@@ -176,11 +180,7 @@ describe("producer delivery guarantees", () => {
 		const retriedSpan = { ...firstSpan, timestamp: 2 };
 
 		await Effect.runPromise(
-			effects.sendMany(
-				"analytics-events",
-				[firstSpan],
-				["stable-delivery-id"]
-			)
+			effects.sendMany("analytics-events", [firstSpan], ["stable-delivery-id"])
 		);
 		await Effect.runPromise(
 			effects.sendMany(
@@ -333,7 +333,9 @@ describe("producer delivery guarantees", () => {
 	});
 
 	test("returns a retryable error instead of acknowledging a failed direct fallback", async () => {
-		const effects = await makeEffects(() => Promise.reject(new Error("offline")));
+		const effects = await makeEffects(() =>
+			Promise.reject(new Error("offline"))
+		);
 
 		await expect(
 			Effect.runPromise(effects.sendOne("analytics-events", event("event_1")))
@@ -363,8 +365,8 @@ describe("producer delivery guarantees", () => {
 
 		expect(insert).toHaveBeenCalledOnce();
 		expect(
-			(insert.mock.calls[0]?.[0] as { abort_signal?: AbortSignal })
-				.abort_signal?.aborted
+			(insert.mock.calls[0]?.[0] as { abort_signal?: AbortSignal }).abort_signal
+				?.aborted
 		).toBe(true);
 	});
 
@@ -567,7 +569,9 @@ describe("producer delivery guarantees", () => {
 
 		await Effect.runPromise(effects.checkConnection);
 		await Effect.runPromise(effects.checkConnection);
-		await Effect.runPromise(effects.sendOne("analytics-events", event("event_1")));
+		await Effect.runPromise(
+			effects.sendOne("analytics-events", event("event_1"))
+		);
 
 		expect(kafka.connect).toHaveBeenCalledTimes(1);
 		expect(kafkaAdmin.connect).toHaveBeenCalledTimes(1);
@@ -598,7 +602,9 @@ describe("producer delivery guarantees", () => {
 		);
 
 		await Effect.runPromise(effects.checkConnection);
-		await expect(Effect.runPromise(effects.checkConnection)).rejects.toMatchObject({
+		await expect(
+			Effect.runPromise(effects.checkConnection)
+		).rejects.toMatchObject({
 			_tag: "ProducerUnavailableError",
 			cause: expect.objectContaining({ message: "metadata unavailable" }),
 			retryable: true,
@@ -641,7 +647,9 @@ describe("producer delivery guarantees", () => {
 		);
 
 		const startedAt = performance.now();
-		await expect(Effect.runPromise(effects.checkConnection)).rejects.toMatchObject({
+		await expect(
+			Effect.runPromise(effects.checkConnection)
+		).rejects.toMatchObject({
 			_tag: "ProducerUnavailableError",
 			cause: expect.objectContaining({
 				message: "Redpanda health probe exceeded 20ms",
@@ -649,7 +657,9 @@ describe("producer delivery guarantees", () => {
 			retryable: true,
 		});
 		expect(performance.now() - startedAt).toBeLessThan(500);
-		await vi.waitFor(() => expect(kafkaAdmin.disconnect).toHaveBeenCalledOnce());
+		await vi.waitFor(() =>
+			expect(kafkaAdmin.disconnect).toHaveBeenCalledOnce()
+		);
 		expect((await Effect.runPromise(effects.stats)).inFlight).toBe(0);
 	});
 
@@ -683,7 +693,9 @@ describe("producer delivery guarantees", () => {
 			kafkaAdmin
 		);
 
-		await expect(Effect.runPromise(effects.checkConnection)).rejects.toMatchObject({
+		await expect(
+			Effect.runPromise(effects.checkConnection)
+		).rejects.toMatchObject({
 			_tag: "ProducerUnavailableError",
 			retryable: true,
 		});
@@ -720,7 +732,9 @@ describe("producer delivery guarantees", () => {
 			kafkaAdmin
 		);
 
-		await expect(Effect.runPromise(effects.checkConnection)).rejects.toMatchObject({
+		await expect(
+			Effect.runPromise(effects.checkConnection)
+		).rejects.toMatchObject({
 			_tag: "ProducerUnavailableError",
 			retryable: true,
 		});
@@ -766,7 +780,9 @@ describe("producer delivery guarantees", () => {
 		const shutdown = Effect.runPromise(effects.shutDown);
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
-		await expect(Effect.runPromise(effects.checkConnection)).rejects.toMatchObject({
+		await expect(
+			Effect.runPromise(effects.checkConnection)
+		).rejects.toMatchObject({
 			_tag: "ProducerUnavailableError",
 			retryable: true,
 		});
@@ -795,12 +811,13 @@ describe("producer delivery guarantees", () => {
 			connect: vi.fn(() => Promise.resolve()),
 			describeCluster: vi.fn(
 				() =>
-					new Promise<{ brokers: Array<{ nodeId: number }>; clusterId: string }>(
-						(resolve) => {
-							releaseMetadata = () =>
-								resolve({ brokers: [{ nodeId: 1 }], clusterId: "test" });
-						}
-					)
+					new Promise<{
+						brokers: Array<{ nodeId: number }>;
+						clusterId: string;
+					}>((resolve) => {
+						releaseMetadata = () =>
+							resolve({ brokers: [{ nodeId: 1 }], clusterId: "test" });
+					})
 			),
 			disconnect: vi.fn(() => Promise.resolve()),
 		} as unknown as Admin;

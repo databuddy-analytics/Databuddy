@@ -1,4 +1,12 @@
-import { afterAll, beforeAll, beforeEach, expect, mock, spyOn, test } from "bun:test";
+import {
+	afterAll,
+	beforeAll,
+	beforeEach,
+	expect,
+	mock,
+	spyOn,
+	test,
+} from "bun:test";
 import { createProcedureClient, ORPCError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import type { OrganizationBusinessContext } from "@databuddy/shared/organization-business-context";
@@ -37,54 +45,84 @@ let checkCustomerId = "owner-one";
 let checkStatus = 200;
 const billingRequests: { path: string; body: Record<string, unknown> }[] = [];
 const nativeFetch = globalThis.fetch;
-const transport = spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
-	const request = input instanceof Request ? input : new Request(input, init);
-	const url = new URL(request.url);
-	expect(url.origin).toBe("https://api.useautumn.com");
-	const body = request.method === "GET" ? {} : await request.json();
-	billingRequests.push({ path: url.pathname, body });
-	const balance = {
-		feature_id: "agent_credits",
-		granted: 0,
-		remaining: 0,
-		usage: 0,
-		unlimited: false,
-		overage_allowed: allowed,
-		max_purchase: null,
-		next_reset_at: null,
-	};
-	expect(url.pathname).toBe("/v1/balances.check");
-	expect(body).not.toHaveProperty("send_event");
-	expect(body).not.toHaveProperty("lock");
-	return Response.json({ allowed, customer_id: checkCustomerId, balance, flag: null }, { status: checkStatus });
-});
+const transport = spyOn(globalThis, "fetch").mockImplementation(
+	async (input, init) => {
+		const request = input instanceof Request ? input : new Request(input, init);
+		const url = new URL(request.url);
+		expect(url.origin).toBe("https://api.useautumn.com");
+		const body = request.method === "GET" ? {} : await request.json();
+		billingRequests.push({ path: url.pathname, body });
+		const balance = {
+			feature_id: "agent_credits",
+			granted: 0,
+			remaining: 0,
+			usage: 0,
+			unlimited: false,
+			overage_allowed: allowed,
+			max_purchase: null,
+			next_reset_at: null,
+		};
+		expect(url.pathname).toBe("/v1/balances.check");
+		expect(body).not.toHaveProperty("send_event");
+		expect(body).not.toHaveProperty("lock");
+		return Response.json(
+			{ allowed, customer_id: checkCustomerId, balance, flag: null },
+			{ status: checkStatus }
+		);
+	}
+);
 const reads = mock(async () => state);
 const saves = mock(async () => state);
-const cancels = mock(async (input: { generationId: string; activeOnly?: boolean }) => {
-	if (state.generation?.id === input.generationId && (!input.activeOnly || state.generation.status === "running")) {
-		state = { ...state, generation: null };
+const cancels = mock(
+	async (input: { generationId: string; activeOnly?: boolean }) => {
+		if (
+			state.generation?.id === input.generationId &&
+			(!input.activeOnly || state.generation.status === "running")
+		) {
+			state = { ...state, generation: null };
+		}
+		cleanupFinished.resolve();
+		return state;
 	}
-	cleanupFinished.resolve();
-	return state;
-});
+);
 const restores = mock(async () => state);
 const audits = mock(async (..._args: unknown[]) => undefined);
-const generates = mock(async function* (input: { signal?: AbortSignal }): AsyncGenerator<OrganizationBusinessContext, void, void> {
+const generates = mock(async function* (input: {
+	signal?: AbortSignal;
+}): AsyncGenerator<OrganizationBusinessContext, void, void> {
 	runnerSignal = input.signal;
 	runnerEntered.resolve();
 	if (runnerWaits) {
 		await new Promise<void>((resolve) => {
-			if (input.signal?.aborted) resolve();
-			else input.signal?.addEventListener("abort", () => resolve(), { once: true });
+			if (input.signal?.aborted) {
+				resolve();
+			} else {
+				input.signal?.addEventListener("abort", () => resolve(), {
+					once: true,
+				});
+			}
 		});
 		await runnerSettlement;
 		return;
 	}
-	state = { ...state, generation: { ...generation, progress: { stage: "writing", content: "## Partial draft" } } };
+	state = {
+		...state,
+		generation: {
+			...generation,
+			progress: { stage: "writing", content: "## Partial draft" },
+		},
+	};
 	yield state;
-	state = { ...state, generation: runnerFails
-		? { ...generation, status: "failed", error: "Source unavailable" }
-		: { ...generation, status: "ready", draft: { content: "Complete draft", sources: [] } } };
+	state = {
+		...state,
+		generation: runnerFails
+			? { ...generation, status: "failed", error: "Source unavailable" }
+			: {
+					...generation,
+					status: "ready",
+					draft: { content: "Complete draft", sources: [] },
+				},
+	};
 	yield state;
 });
 let router: typeof import("./business-context").businessContextRouter;
@@ -129,11 +167,12 @@ beforeAll(async () => {
 		cancelBusinessContextGeneration: cancels,
 		restoreOrganizationBusinessProfile: restores,
 		saveOrganizationBusinessProfile: async () => {
-			if (conflict)
+			if (conflict) {
 				throw new service.BusinessContextError(
 					"CONFLICT",
 					"Saved context changed"
 				);
+			}
 			return saves();
 		},
 		beginBusinessContextGeneration: begins,
@@ -156,7 +195,10 @@ beforeAll(async () => {
 		},
 	}));
 	const auditService = await import("@databuddy/services/audit");
-    mock.module("@databuddy/services/audit", () => ({ ...auditService, appendAuditEvent: audits }));
+	mock.module("@databuddy/services/audit", () => ({
+		...auditService,
+		appendAuditEvent: audits,
+	}));
 	const organizationUtils = await import("../utils/organization");
 	mock.module("../utils/organization", () => ({
 		...organizationUtils,
@@ -198,8 +240,11 @@ beforeEach(() => {
 afterAll(() => {
 	transport.mockRestore();
 	for (const [key, value] of Object.entries(originalEnv)) {
-		if (value === undefined) delete process.env[key];
-		else process.env[key] = value;
+		if (value === undefined) {
+			delete process.env[key];
+		} else {
+			process.env[key] = value;
+		}
 	}
 });
 
@@ -207,7 +252,7 @@ function context(): Context {
 	return {
 		generateBusinessContext: generates,
 		db: {},
-	headers: new Headers(),
+		headers: new Headers(),
 		organizationId: "org-one",
 		user: {
 			id: "owner-one",
@@ -219,7 +264,10 @@ function context(): Context {
 }
 
 test("reading is permission-scoped and never generates or saves", async () => {
-	const read = createProcedureClient(router.get, { path: ["businessContext", "get"], context: context() });
+	const read = createProcedureClient(router.get, {
+		path: ["businessContext", "get"],
+		context: context(),
+	});
 	const result = await read({ organizationId: "org-one" });
 	expect(result.websites[0]?.name).toBe("example.com");
 	expect(result.canEdit).toBe(true);
@@ -235,20 +283,29 @@ test("members can read but cannot edit or generate", async () => {
 	role = "member";
 	expect(
 		(
-			await createProcedureClient(router.get, { path: ["businessContext", "get"], context: context() })({
+			await createProcedureClient(router.get, {
+				path: ["businessContext", "get"],
+				context: context(),
+			})({
 				organizationId: "org-one",
 			})
 		).canEdit
 	).toBe(false);
 	await expect(
-		createProcedureClient(router.save, { path: ["businessContext", "save"], context: context() })({
+		createProcedureClient(router.save, {
+			path: ["businessContext", "save"],
+			context: context(),
+		})({
 			organizationId: "org-one",
 			revision: 0,
 			content: "Attempted edit",
 		})
 	).rejects.toMatchObject({ code: "FORBIDDEN" });
 	await expect(
-		createProcedureClient(router.generate, { path: ["businessContext", "generate"], context: context() })({
+		createProcedureClient(router.generate, {
+			path: ["businessContext", "generate"],
+			context: context(),
+		})({
 			organizationId: "org-one",
 			websiteId: "site-one",
 		})
@@ -260,7 +317,10 @@ test("members can read but cannot edit or generate", async () => {
 test("unauthenticated requests cannot read business context", async () => {
 	const anonymous = { ...context(), user: null, session: null };
 	await expect(
-		createProcedureClient(router.get, { path: ["businessContext", "get"], context: anonymous })({
+		createProcedureClient(router.get, {
+			path: ["businessContext", "get"],
+			context: anonymous,
+		})({
 			organizationId: "org-one",
 		})
 	).rejects.toMatchObject({ code: "UNAUTHORIZED" });
@@ -270,7 +330,10 @@ test("unauthenticated requests cannot read business context", async () => {
 test("save conflicts preserve their recoverable 409 response", async () => {
 	conflict = true;
 	await expect(
-		createProcedureClient(router.save, { path: ["businessContext", "save"], context: context() })({
+		createProcedureClient(router.save, {
+			path: ["businessContext", "save"],
+			context: context(),
+		})({
 			organizationId: "org-one",
 			revision: 1,
 			content: "My draft",
@@ -283,10 +346,15 @@ test("save conflicts preserve their recoverable 409 response", async () => {
 });
 
 test("generation streams progress and a reviewable draft without saving it", async () => {
-	const stream = await createProcedureClient(router.generate, { context: context() })({ organizationId: "org-one", websiteId: "site-one" });
-	const snapshots = [];
-	for await (const snapshot of stream) snapshots.push(snapshot);
-	expect(snapshots.map((snapshot) => snapshot.generation?.status)).toEqual(["running", "running", "ready"]);
+	const stream = await createProcedureClient(router.generate, {
+		context: context(),
+	})({ organizationId: "org-one", websiteId: "site-one" });
+	const snapshots = await Array.fromAsync(stream);
+	expect(snapshots.map((snapshot) => snapshot.generation?.status)).toEqual([
+		"running",
+		"running",
+		"ready",
+	]);
 	expect(snapshots[1]?.generation?.progress?.content).toBe("## Partial draft");
 	expect(snapshots[2]?.generation?.draft?.content).toBe("Complete draft");
 	expect(state.profile).toEqual(savedProfile);
@@ -296,16 +364,24 @@ test("generation streams progress and a reviewable draft without saving it", asy
 });
 
 test("closing before the first event releases admission without starting the provider", async () => {
-	const stream = await createProcedureClient(router.generate, { context: context() })({ organizationId: "org-one", websiteId: "site-one" });
+	const stream = await createProcedureClient(router.generate, {
+		context: context(),
+	})({ organizationId: "org-one", websiteId: "site-one" });
 	await stream.return();
 	expect(generates).not.toHaveBeenCalled();
 	expect(state.generation).toBeNull();
-	expect(cancels).toHaveBeenCalledWith({ organizationId: "org-one", generationId: generation.id, activeOnly: true });
+	expect(cancels).toHaveBeenCalledWith({
+		organizationId: "org-one",
+		generationId: generation.id,
+		activeOnly: true,
+	});
 });
 
 test("closing a pending stream aborts provider work and releases only its active generation", async () => {
 	runnerWaits = true;
-	const stream = await createProcedureClient(router.generate, { context: context() })({ organizationId: "org-one", websiteId: "site-one" });
+	const stream = await createProcedureClient(router.generate, {
+		context: context(),
+	})({ organizationId: "org-one", websiteId: "site-one" });
 	await stream.next();
 	const pending = stream.next();
 	await runnerEntered.promise;
@@ -320,7 +396,9 @@ test("disconnect releases the active run before consumed usage finishes settling
 	runnerWaits = true;
 	const settlement = Promise.withResolvers<void>();
 	runnerSettlement = settlement.promise;
-	const stream = await createProcedureClient(router.generate, { context: context() })({ organizationId: "org-one", websiteId: "site-one" });
+	const stream = await createProcedureClient(router.generate, {
+		context: context(),
+	})({ organizationId: "org-one", websiteId: "site-one" });
 	await stream.next();
 	const pending = stream.next();
 	await runnerEntered.promise;
@@ -346,19 +424,29 @@ test("disconnect during admission clears a run committed after the HTTP client l
 		hostname: "127.0.0.1",
 		port: 0,
 		async fetch(request) {
-			request.signal.addEventListener("abort", () => disconnected.resolve(), { once: true });
-			const result = await handler.handle(request, { prefix: "/rpc", context: context() });
+			request.signal.addEventListener("abort", () => disconnected.resolve(), {
+				once: true,
+			});
+			const result = await handler.handle(request, {
+				prefix: "/rpc",
+				context: context(),
+			});
 			return result.response ?? new Response(null, { status: 404 });
 		},
 	});
 	const controller = new AbortController();
 	try {
-		const request = nativeFetch(new URL("/rpc/businessContext/generate", server.url), {
-			method: "POST",
-			headers: { "content-type": "application/json" },
-			body: JSON.stringify({ json: { organizationId: "org-one", websiteId: "site-one" } }),
-			signal: controller.signal,
-		}).catch((error: Error) => error);
+		const request = nativeFetch(
+			new URL("/rpc/businessContext/generate", server.url),
+			{
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					json: { organizationId: "org-one", websiteId: "site-one" },
+				}),
+				signal: controller.signal,
+			}
+		).catch((error: Error) => error);
 		await admissionEntered.promise;
 		controller.abort();
 		expect(await request).toBeInstanceOf(Error);
@@ -377,75 +465,161 @@ test("disconnect during admission clears a run committed after the HTTP client l
 
 test("terminal provider failure remains available after stream cleanup", async () => {
 	runnerFails = true;
-	const stream = await createProcedureClient(router.generate, { context: context() })({ organizationId: "org-one", websiteId: "site-one" });
-	for await (const _snapshot of stream) { /* Consume the terminal failure. */ }
-	expect(state.generation).toMatchObject({ status: "failed", error: "Source unavailable" });
+	const stream = await createProcedureClient(router.generate, {
+		context: context(),
+	})({ organizationId: "org-one", websiteId: "site-one" });
+	for await (const _snapshot of stream) {
+		/* Consume the terminal failure. */
+	}
+	expect(state.generation).toMatchObject({
+		status: "failed",
+		error: "Source unavailable",
+	});
 	expect(state.profile).toEqual(savedProfile);
 });
 
 test("an active generation rejects duplicates before billing or provider work", async () => {
 	state.generation = { ...generation };
-	await expect(createProcedureClient(router.generate, { context: context() })({ organizationId: "org-one", websiteId: "site-one" })).rejects.toMatchObject({ code: "CONFLICT" });
+	await expect(
+		createProcedureClient(router.generate, { context: context() })({
+			organizationId: "org-one",
+			websiteId: "site-one",
+		})
+	).rejects.toMatchObject({ code: "CONFLICT" });
 	expect(billingRequests).toEqual([]);
 	expect(begins).not.toHaveBeenCalled();
 	expect(generates).not.toHaveBeenCalled();
 });
 
 test("a host without a generator fails before admission", async () => {
-	await expect(createProcedureClient(router.generate, { context: { ...context(), generateBusinessContext: undefined } })({ organizationId: "org-one", websiteId: "site-one" })).rejects.toMatchObject({ code: "SERVICE_UNAVAILABLE" });
+	await expect(
+		createProcedureClient(router.generate, {
+			context: { ...context(), generateBusinessContext: undefined },
+		})({ organizationId: "org-one", websiteId: "site-one" })
+	).rejects.toMatchObject({ code: "SERVICE_UNAVAILABLE" });
 	expect(begins).not.toHaveBeenCalled();
 });
 
 test("save and restore record the actor, target organization and outcome without brief text", async () => {
-    const owner = { ...context(), organizationId: "different-active-org" };
-    await createProcedureClient(router.save, { path: ["businessContext", "save"], context: owner })({ organizationId: "org-one", revision: 0, content: "Private team definitions" });
-    expect(audits.mock.calls.at(-1)).toMatchObject([{}, "org-one", {
-        action: { action: "business_context.updated" }, actor: { type: "user", id: "owner-one" }, outcome: "success", operation: "businessContext.save"
-    }]);
-    expect(JSON.stringify(audits.mock.calls)).not.toContain("Private team definitions");
-    await createProcedureClient(router.restore, { path: ["businessContext", "restore"], context: owner })({ organizationId: "org-one", revision: 2, restoreRevision: 1 });
-    expect(audits.mock.calls.at(-1)?.[2]).toMatchObject({ action: { action: "business_context.restored" }, outcome: "success" });
+	const owner = { ...context(), organizationId: "different-active-org" };
+	await createProcedureClient(router.save, {
+		path: ["businessContext", "save"],
+		context: owner,
+	})({
+		organizationId: "org-one",
+		revision: 0,
+		content: "Private team definitions",
+	});
+	expect(audits.mock.calls.at(-1)).toMatchObject([
+		{},
+		"org-one",
+		{
+			action: { action: "business_context.updated" },
+			actor: { type: "user", id: "owner-one" },
+			outcome: "success",
+			operation: "businessContext.save",
+		},
+	]);
+	expect(JSON.stringify(audits.mock.calls)).not.toContain(
+		"Private team definitions"
+	);
+	await createProcedureClient(router.restore, {
+		path: ["businessContext", "restore"],
+		context: owner,
+	})({ organizationId: "org-one", revision: 2, restoreRevision: 1 });
+	expect(audits.mock.calls.at(-1)?.[2]).toMatchObject({
+		action: { action: "business_context.restored" },
+		outcome: "success",
+	});
 });
 
 test("denied writes and revision conflicts are audited with the authorized organization", async () => {
-    role = "member";
-    const member = { ...context(), organizationId: "different-active-org" };
-    await expect(createProcedureClient(router.cancel, { path: ["businessContext", "cancel"], context: member })({ organizationId: "org-one", generationId: generation.id })).rejects.toMatchObject({ code: "FORBIDDEN" });
-    await expect(createProcedureClient(router.restore, { path: ["businessContext", "restore"], context: member })({ organizationId: "org-one", revision: 2, restoreRevision: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
-    expect(cancels).not.toHaveBeenCalled();
-    expect(restores).not.toHaveBeenCalled();
-    expect(audits.mock.calls.at(-1)).toMatchObject([{}, "org-one", { outcome: "denied", reason: "FORBIDDEN" }]);
-    role = "owner";
-    conflict = true;
-    await expect(createProcedureClient(router.save, { path: ["businessContext", "save"], context: context() })({ organizationId: "org-one", revision: 1, content: "Private conflicting draft" })).rejects.toMatchObject({ code: "CONFLICT" });
-    expect(audits.mock.calls.at(-1)?.[2]).toMatchObject({ outcome: "failure", reason: "CONFLICT" });
+	role = "member";
+	const member = { ...context(), organizationId: "different-active-org" };
+	await expect(
+		createProcedureClient(router.cancel, {
+			path: ["businessContext", "cancel"],
+			context: member,
+		})({ organizationId: "org-one", generationId: generation.id })
+	).rejects.toMatchObject({ code: "FORBIDDEN" });
+	await expect(
+		createProcedureClient(router.restore, {
+			path: ["businessContext", "restore"],
+			context: member,
+		})({ organizationId: "org-one", revision: 2, restoreRevision: 1 })
+	).rejects.toMatchObject({ code: "FORBIDDEN" });
+	expect(cancels).not.toHaveBeenCalled();
+	expect(restores).not.toHaveBeenCalled();
+	expect(audits.mock.calls.at(-1)).toMatchObject([
+		{},
+		"org-one",
+		{ outcome: "denied", reason: "FORBIDDEN" },
+	]);
+	role = "owner";
+	conflict = true;
+	await expect(
+		createProcedureClient(router.save, {
+			path: ["businessContext", "save"],
+			context: context(),
+		})({
+			organizationId: "org-one",
+			revision: 1,
+			content: "Private conflicting draft",
+		})
+	).rejects.toMatchObject({ code: "CONFLICT" });
+	expect(audits.mock.calls.at(-1)?.[2]).toMatchObject({
+		outcome: "failure",
+		reason: "CONFLICT",
+	});
 });
 
 function access() {
 	return createProcedureClient(router.generationAccess, {
-		path: ["businessContext", "generationAccess"], context: context(),
+		path: ["businessContext", "generationAccess"],
+		context: context(),
 	})({ organizationId: "org-one" });
 }
 
 test("the first draft is included without checking billing", async () => {
 	state = { profile: null, generation: null };
-	expect(await access()).toMatchObject({ status: "allowed", action: "generate" });
+	expect(await access()).toMatchObject({
+		status: "allowed",
+		action: "generate",
+	});
 	expect(billingRequests).toEqual([]);
 	expect(generates).not.toHaveBeenCalled();
 });
 
 test("preflight checks agent credits without charging", async () => {
-	expect(await access()).toMatchObject({ status: "allowed", action: "generate" });
-	expect(billingRequests).toEqual([{ path: "/v1/balances.check", body: {
-		customer_id: "owner-one", feature_id: "agent_credits", required_balance: 0.01,
-	} }]);
+	expect(await access()).toMatchObject({
+		status: "allowed",
+		action: "generate",
+	});
+	expect(billingRequests).toEqual([
+		{
+			path: "/v1/balances.check",
+			body: {
+				customer_id: "owner-one",
+				feature_id: "agent_credits",
+				required_balance: 0.01,
+			},
+		},
+	]);
 	expect(generates).not.toHaveBeenCalled();
 });
 
 test("denied agent credits are actionable and block generation before state changes", async () => {
 	allowed = false;
-	expect(await access()).toMatchObject({ status: "credits-required", action: "billing" });
-	await expect(createProcedureClient(router.generate, { context: context() })({ organizationId: "org-one", websiteId: "site-one" })).rejects.toMatchObject({ code: "PAYMENT_REQUIRED" });
+	expect(await access()).toMatchObject({
+		status: "credits-required",
+		action: "billing",
+	});
+	await expect(
+		createProcedureClient(router.generate, { context: context() })({
+			organizationId: "org-one",
+			websiteId: "site-one",
+		})
+	).rejects.toMatchObject({ code: "PAYMENT_REQUIRED" });
 	expect(state.generation).toBeNull();
 	expect(generates).not.toHaveBeenCalled();
 });
@@ -453,24 +627,51 @@ test("denied agent credits are actionable and block generation before state chan
 test("generation rechecks an earlier successful preflight", async () => {
 	expect((await access()).status).toBe("allowed");
 	allowed = false;
-	await expect(createProcedureClient(router.generate, { context: context() })({ organizationId: "org-one", websiteId: "site-one" })).rejects.toMatchObject({ code: "PAYMENT_REQUIRED" });
+	await expect(
+		createProcedureClient(router.generate, { context: context() })({
+			organizationId: "org-one",
+			websiteId: "site-one",
+		})
+	).rejects.toMatchObject({ code: "PAYMENT_REQUIRED" });
 	expect(generates).not.toHaveBeenCalled();
 });
 
 test("read-only and unauthorized callers cannot inspect billing", async () => {
 	role = "member";
-	expect(await access()).toMatchObject({ status: "read-only", action: "contact-admin" });
-	await expect(createProcedureClient(router.generationAccess, { context: context() })({ organizationId: "org-other" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+	expect(await access()).toMatchObject({
+		status: "read-only",
+		action: "contact-admin",
+	});
+	await expect(
+		createProcedureClient(router.generationAccess, { context: context() })({
+			organizationId: "org-other",
+		})
+	).rejects.toMatchObject({ code: "FORBIDDEN" });
 	expect(billingRequests).toEqual([]);
 });
 
-test.each([202, 500])("an unconfirmed credit check (%s) cannot authorize generation or block manual editing", async (status) => {
+test.each([
+	202, 500,
+])("an unconfirmed credit check (%s) cannot authorize generation or block manual editing", async (status) => {
 	checkStatus = status;
-	expect(await access()).toMatchObject({ status: "unavailable", action: "retry" });
-	await expect(createProcedureClient(router.generate, { context: context() })({ organizationId: "org-one", websiteId: "site-one" })).rejects.toMatchObject({ code: "SERVICE_UNAVAILABLE" });
+	expect(await access()).toMatchObject({
+		status: "unavailable",
+		action: "retry",
+	});
+	await expect(
+		createProcedureClient(router.generate, { context: context() })({
+			organizationId: "org-one",
+			websiteId: "site-one",
+		})
+	).rejects.toMatchObject({ code: "SERVICE_UNAVAILABLE" });
 	const requestsBeforeEditing = billingRequests.length;
-	await createProcedureClient(router.get, { context: context() })({ organizationId: "org-one" });
-	await createProcedureClient(router.save, { path: ["businessContext", "save"], context: context() })({ organizationId: "org-one", revision: 1, content: "Manual context" });
+	await createProcedureClient(router.get, { context: context() })({
+		organizationId: "org-one",
+	});
+	await createProcedureClient(router.save, {
+		path: ["businessContext", "save"],
+		context: context(),
+	})({ organizationId: "org-one", revision: 1, content: "Manual context" });
 	expect(saves).toHaveBeenCalledTimes(1);
 	expect(billingRequests).toHaveLength(requestsBeforeEditing);
 	expect(generates).not.toHaveBeenCalled();
@@ -486,9 +687,15 @@ test("missing or mismatched billing identities fail closed", async () => {
 	expect(billingRequests).toHaveLength(1);
 });
 
-test.each(["AI_GATEWAY_API_KEY", "FIRECRAWL_API_KEY"])("missing %s disables generation without checking billing", async (key) => {
+test.each([
+	"AI_GATEWAY_API_KEY",
+	"FIRECRAWL_API_KEY",
+])("missing %s disables generation without checking billing", async (key) => {
 	delete process.env[key];
-	expect(await access()).toMatchObject({ status: "not-configured", action: "contact-admin" });
+	expect(await access()).toMatchObject({
+		status: "not-configured",
+		action: "contact-admin",
+	});
 	expect(billingRequests).toEqual([]);
 });
 
@@ -501,24 +708,41 @@ test("unconfigured billing preserves the local billing policy and fails closed i
 });
 
 test("generation forwards selected public pages to the scope-validating service", async () => {
-	const sourceUrls = ["https://docs.example.com/start", "https://example.com/pricing"];
-	const stream = await createProcedureClient(router.generate, { context: context() })({
-		organizationId: "org-one", websiteId: "site-one", sourceUrls,
+	const sourceUrls = [
+		"https://docs.example.com/start",
+		"https://example.com/pricing",
+	];
+	const stream = await createProcedureClient(router.generate, {
+		context: context(),
+	})({
+		organizationId: "org-one",
+		websiteId: "site-one",
+		sourceUrls,
 	});
 	expect(begins).toHaveBeenCalledWith({
-		organizationId: "org-one", websiteId: "site-one", requestedBy: "owner-one", sourceUrls,
+		organizationId: "org-one",
+		websiteId: "site-one",
+		requestedBy: "owner-one",
+		sourceUrls,
 	});
 	await stream.return();
 });
 
 test("unsafe or excessive source pages are rejected before billing or generation", async () => {
-	const generate = createProcedureClient(router.generate, { context: context() });
+	const generate = createProcedureClient(router.generate, {
+		context: context(),
+	});
 	for (const sourceUrls of [
 		["http://127.0.0.1/private"],
 		["https://example.com/?token=secret"],
-		Array.from({ length: 7 }, (_, index) => `https://example.com/page-${index}`),
+		Array.from(
+			{ length: 7 },
+			(_, index) => `https://example.com/page-${index}`
+		),
 	]) {
-		await expect(generate({ organizationId: "org-one", websiteId: "site-one", sourceUrls })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		await expect(
+			generate({ organizationId: "org-one", websiteId: "site-one", sourceUrls })
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 	}
 	expect(billingRequests).toEqual([]);
 	expect(begins).not.toHaveBeenCalled();

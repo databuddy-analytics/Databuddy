@@ -167,7 +167,7 @@ vi.mock("@databuddy/redis/stream-buffer", () => ({
 	readStreamHistory: async () => [],
 	setActiveStream: async () => {},
 	streamBufferKey: () => "synthetic-stream",
-	tailStream: async function* () {},
+	async *tailStream() {},
 }));
 
 const { agent } = await import("./agent");
@@ -197,7 +197,10 @@ async function chat(input: Record<string, unknown> = {}) {
 }
 
 beforeEach(() => {
-	state.billing.mockReset().mockResolvedValue({ allowed: true, customerId: "synthetic-billing-owner" });
+	state.billing.mockReset().mockResolvedValue({
+		allowed: true,
+		customerId: "synthetic-billing-owner",
+	});
 	state.billedUsage.mockReset().mockResolvedValue(undefined);
 	state.rateLimit.mockReset().mockResolvedValue({ success: true });
 	state.profile = profile;
@@ -291,26 +294,44 @@ describe("dashboard canonical business context through the native HTTP/model str
 	});
 });
 
-
 describe("dashboard billing permission before the native model stream", () => {
 	it("fails closed when entitlement lookup fails, without a model call", async () => {
-		state.billing.mockRejectedValueOnce(new Error("synthetic billing unavailable"));
+		state.billing.mockRejectedValueOnce(
+			new Error("synthetic billing unavailable")
+		);
 		expect((await chat()).status).toBe(500);
 		expect(state.prompts).toHaveLength(0);
 		expect(state.billedUsage).not.toHaveBeenCalled();
 	});
 	it("keeps credit denial authoritative", async () => {
-		state.billing.mockResolvedValueOnce({ allowed: false, customerId: "synthetic-billing-owner" });
-		expect((await chat({ billingAccess: { allowed: true, customerId: "synthetic-billing-owner" } })).status).toBe(402);
+		state.billing.mockResolvedValueOnce({
+			allowed: false,
+			customerId: "synthetic-billing-owner",
+		});
+		expect(
+			(
+				await chat({
+					billingAccess: {
+						allowed: true,
+						customerId: "synthetic-billing-owner",
+					},
+				})
+			).status
+		).toBe(402);
 		expect(state.prompts).toHaveLength(0);
 	});
 	it("pins the server entitlement for usage and ignores a caller-supplied billing flag", async () => {
-		expect((await chat({ billingAccess: { allowed: true, customerId: "foreign" } })).status).toBe(200);
-		expect(state.billedUsage).toHaveBeenCalledWith(expect.objectContaining({
-			billingCustomerId: "synthetic-billing-owner",
-			billingAccess: { allowed: true, customerId: "synthetic-billing-owner" },
-			source: "dashboard",
-		}));
+		expect(
+			(await chat({ billingAccess: { allowed: true, customerId: "foreign" } }))
+				.status
+		).toBe(200);
+		expect(state.billedUsage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				billingCustomerId: "synthetic-billing-owner",
+				billingAccess: { allowed: true, customerId: "synthetic-billing-owner" },
+				source: "dashboard",
+			})
+		);
 		expect(state.billing).toHaveBeenCalledTimes(1);
 	});
 	it("preserves rate limits before any included-chat lookup", async () => {
@@ -320,7 +341,6 @@ describe("dashboard billing permission before the native model stream", () => {
 		expect(state.prompts).toHaveLength(0);
 	});
 });
-
 
 describe("dashboard executed model attribution", () => {
 	it("attributes usage to the model actually executed", async () => {

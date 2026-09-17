@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from "bun:test";
 
 const kafkaConfigs: unknown[] = [];
-const producers: Array<ReturnType<typeof createProducer>> = [];
+const producers: ReturnType<typeof createProducer>[] = [];
 const captureError = mock(() => {});
 const clickHouseInsert = mock(() => Promise.resolve());
 
@@ -132,7 +132,9 @@ describe("sendUptimeEvent", () => {
 		});
 		producers.push(producer);
 
-		const sends = Array.from({ length: 20 }, () => sendUptimeEvent({ ok: true }));
+		const sends = Array.from({ length: 20 }, () =>
+			sendUptimeEvent({ ok: true })
+		);
 
 		expect(producer.connect).toHaveBeenCalledTimes(1);
 		expect(resolveConnection).toBeDefined();

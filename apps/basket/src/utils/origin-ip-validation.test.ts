@@ -106,7 +106,9 @@ describe("isOriginAllowed (domain + allowedOrigins additive)", () => {
 		const label = `${origin} vs domain=${domain} allowed=${
 			allowed?.join(",") ?? "—"
 		} → ${expected}`;
-		test(label, () => expect(isOriginAllowed(origin, domain, allowed)).toBe(expected));
+		test(label, () =>
+			expect(isOriginAllowed(origin, domain, allowed)).toBe(expected)
+		);
 	}
 });
 
@@ -143,12 +145,13 @@ describe("isValidIpFromSettings", () => {
 		);
 	}
 
-	test.each([["", "empty"], ["   ", "whitespace"], ["not-an-ip", "malformed"]])(
-		"denies %s (%s) against a configured allowlist",
-		(ip) => {
-			expect(isValidIpFromSettings(ip, ["203.0.113.5"])).toBe(false);
-		}
-	);
+	test.each([
+		["", "empty"],
+		["   ", "whitespace"],
+		["not-an-ip", "malformed"],
+	])("denies %s (%s) against a configured allowlist", (ip) => {
+		expect(isValidIpFromSettings(ip, ["203.0.113.5"])).toBe(false);
+	});
 
 	test("allows any address when no allowlist is configured", () => {
 		expect(isValidIpFromSettings("", [])).toBe(true);

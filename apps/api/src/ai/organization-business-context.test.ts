@@ -53,8 +53,11 @@ afterEach(() => {
 	vi.restoreAllMocks();
 	vi.clearAllMocks();
 	setAiRequestLoggerProvider(null);
-	if (secret === undefined) delete process.env.AUTUMN_SECRET_KEY;
-	else process.env.AUTUMN_SECRET_KEY = secret;
+	if (secret === undefined) {
+		delete process.env.AUTUMN_SECRET_KEY;
+	} else {
+		process.env.AUTUMN_SECRET_KEY = secret;
+	}
 });
 
 function clock() {
@@ -118,7 +121,7 @@ function fixture(
 			if (
 				state.generation?.id === change.generationId &&
 				["queued", "running"].includes(state.generation.status)
-			)
+			) {
 				state = {
 					...state,
 					generation: {
@@ -129,6 +132,7 @@ function fixture(
 						progress: change.status === "running" ? change.progress : undefined,
 					},
 				};
+			}
 			return structuredClone(state);
 		});
 	const site = vi.spyOn(db.query.websites, "findFirst").mockResolvedValue({
@@ -180,8 +184,9 @@ function fixture(
 	const access = vi
 		.spyOn(execution, "getAgentBillingAccess")
 		.mockImplementation(async (customerId) => {
-			if (!customerId)
+			if (!customerId) {
 				throw new Error("Configured billing has no organization customer");
+			}
 			return { allowed: true, customerId };
 		});
 	const billed = (
@@ -268,7 +273,9 @@ describe("organization business context request", () => {
 	it("accepts fresh offset-dated sources and ignores malformed discovery links", async () => {
 		const f = fixture();
 		const read = f.read.getMockImplementation();
-		if (!read) throw new Error("Missing page fixture");
+		if (!read) {
+			throw new Error("Missing page fixture");
+		}
 		f.read.mockImplementation(async (...args) => ({
 			...(await read(...args)),
 			fetchedAt: new Date().toISOString().replace("Z", "+00:00"),
@@ -293,7 +300,9 @@ describe("organization business context request", () => {
 			{ paths: ["/docs/start"] },
 			{ content: brief, sourceIds: [0, 2] },
 		]);
-		if (!f.state.profile) throw new Error("Missing profile");
+		if (!f.state.profile) {
+			throw new Error("Missing profile");
+		}
 		f.state.profile.teamContext = {
 			priority: "First accepted report",
 			successDefinition: "report_accepted",
@@ -310,7 +319,9 @@ describe("organization business context request", () => {
 			},
 		];
 		const read = f.read.getMockImplementation();
-		if (!read) throw new Error("Missing page fixture");
+		if (!read) {
+			throw new Error("Missing page fixture");
+		}
 		f.read.mockImplementation(async (...args) => ({
 			...(await read(...args)),
 			internalLinks:
@@ -336,8 +347,9 @@ describe("organization business context request", () => {
 		for (const call of f.calls) {
 			const message = call.prompt.find((item) => item.role === "user");
 			const part = message?.content.find((item) => item.type === "text");
-			if (!part || part.type !== "text")
+			if (!part || part.type !== "text") {
 				throw new Error("Missing context prompt");
+			}
 			const data = JSON.parse(part.text);
 			expect(data.savedContext.teamContext).toEqual(
 				f.state.profile?.teamContext
@@ -354,7 +366,9 @@ describe("organization business context request", () => {
 
 	it("reads explicitly selected subdomains within the seven-page budget", async () => {
 		const f = fixture([{ content: brief, sourceIds: [0, 1] }]);
-		if (!f.state.generation) throw new Error("Missing generation");
+		if (!f.state.generation) {
+			throw new Error("Missing generation");
+		}
 		f.state.generation.sourceUrls = Array.from(
 			{ length: 6 },
 			(_, index) => `https://docs.example.com/page-${index}`
@@ -369,7 +383,9 @@ describe("organization business context request", () => {
 
 	it("rejects an out-of-scope seed before any public read", async () => {
 		const f = fixture();
-		if (!f.state.generation) throw new Error("Missing generation");
+		if (!f.state.generation) {
+			throw new Error("Missing generation");
+		}
 		f.state.generation.sourceUrls = ["https://example.com.evil.example/setup"];
 		await f.run();
 		expect(f.state.generation?.status).toBe("failed");
@@ -378,7 +394,9 @@ describe("organization business context request", () => {
 
 	it("canonical duplicate seed URLs do not spend the discovery read budget", async () => {
 		const f = fixture();
-		if (!f.state.generation) throw new Error("Missing generation");
+		if (!f.state.generation) {
+			throw new Error("Missing generation");
+		}
 		f.state.generation.sourceUrls = [
 			"https://example.com",
 			"http://example.com/",
@@ -396,7 +414,9 @@ describe("organization business context request", () => {
 		const f = fixture();
 		const request = new AbortController();
 		const mark = f.mark.getMockImplementation();
-		if (!mark) throw new Error("Missing persistence fixture");
+		if (!mark) {
+			throw new Error("Missing persistence fixture");
+		}
 		let partialSeen = false;
 		f.mark.mockImplementation(async (change) => {
 			if (change.progress?.content) {
@@ -444,8 +464,12 @@ describe("organization business context request", () => {
 		const iterator = generateOrganizationBusinessContext(input);
 		while (true) {
 			const update = await iterator.next();
-			if (update.done) throw new Error("Expected streamed Markdown");
-			if (update.value.generation?.progress?.content) break;
+			if (update.done) {
+				throw new Error("Expected streamed Markdown");
+			}
+			if (update.value.generation?.progress?.content) {
+				break;
+			}
 		}
 		await iterator.return();
 		expect(f.model.doStreamCalls[0]?.abortSignal?.aborted).toBe(true);
@@ -547,9 +571,13 @@ describe("organization business context request", () => {
 	it("cancellation during streaming cannot publish a late draft", async () => {
 		const f = fixture();
 		const mark = f.mark.getMockImplementation();
-		if (!mark) throw new Error("Missing persistence fixture");
+		if (!mark) {
+			throw new Error("Missing persistence fixture");
+		}
 		f.mark.mockImplementation(async (change) => {
-			if (change.progress?.content) f.state.generation = null;
+			if (change.progress?.content) {
+				f.state.generation = null;
+			}
 			return await mark(change);
 		});
 		await f.run();
@@ -648,7 +676,9 @@ describe("organization business context request", () => {
 	] as const)("preserves %s provenance in synthesis", async (origin) => {
 		const f = fixture();
 		const profile = f.state.profile;
-		if (!profile) throw new Error("Missing saved profile");
+		if (!profile) {
+			throw new Error("Missing saved profile");
+		}
 		const sources = [
 			{
 				url: "https://example.com/previous-product-page",
@@ -660,8 +690,9 @@ describe("organization business context request", () => {
 		const synthesis = f.calls[1];
 		const message = synthesis?.prompt.find((item) => item.role === "user");
 		const part = message?.content.find((item) => item.type === "text");
-		if (!part || part.type !== "text")
+		if (!part || part.type !== "text") {
 			throw new Error("Missing synthesis data");
+		}
 		const data = JSON.parse(part.text);
 		expect(data.savedContext).toEqual({
 			content: manual,
@@ -700,7 +731,9 @@ describe("organization business context request", () => {
 			{ paths: ["/pricing"] },
 			{ content: detail, sourceIds: [0] },
 		]);
-		if (!f.state.profile) throw new Error("Missing saved profile");
+		if (!f.state.profile) {
+			throw new Error("Missing saved profile");
+		}
 		f.state = { ...f.state, profile: { ...f.state.profile, content: detail } };
 		await f.run();
 		expect(f.state.generation?.status).toBe("ready");
@@ -745,15 +778,23 @@ describe("organization business context request", () => {
 	])("does no work for %s generation", async (condition) => {
 		const f = fixture();
 		const generation = f.state.generation;
-		if (!generation) throw new Error("Missing fixture generation");
-		if (condition === "stale") generation.id = "newer-generation";
-		if (condition === "expired")
+		if (!generation) {
+			throw new Error("Missing fixture generation");
+		}
+		if (condition === "stale") {
+			generation.id = "newer-generation";
+		}
+		if (condition === "expired") {
 			generation.requestedAt = new Date(
 				Date.now() - BUSINESS_CONTEXT_GENERATION_TIMEOUT - 1
 			).toISOString();
-		if (condition === "ready" || condition === "failed")
+		}
+		if (condition === "ready" || condition === "failed") {
 			generation.status = condition;
-		if (condition === "cancelled") f.state.generation = null;
+		}
+		if (condition === "cancelled") {
+			f.state.generation = null;
+		}
 		await f.run();
 		expect(f.site).not.toHaveBeenCalled();
 		expect(f.mark).not.toHaveBeenCalled();
@@ -771,8 +812,9 @@ describe("organization business context request", () => {
 		const generate = f.model.doGenerate;
 		f.model.doGenerate = async (options) => {
 			const result = await generate(options);
-			if (!f.state.profile || !f.state.generation)
+			if (!(f.state.profile && f.state.generation)) {
 				throw new Error("Missing fixture");
+			}
 			if (condition === "saved") {
 				f.state.profile = {
 					...f.state.profile,
@@ -781,14 +823,18 @@ describe("organization business context request", () => {
 				};
 				f.state.generation = null;
 			}
-			if (condition === "cancelled") f.state.generation = null;
-			if (condition === "superseded" && f.state.generation)
+			if (condition === "cancelled") {
+				f.state.generation = null;
+			}
+			if (condition === "superseded" && f.state.generation) {
 				f.state.generation = { ...f.state.generation, id: "new-generation" };
+			}
 			if (
 				(condition === "failed" || condition === "ready") &&
 				f.state.generation
-			)
+			) {
 				f.state.generation.status = condition;
+			}
 			return result;
 		};
 		await f.run();
@@ -827,21 +873,28 @@ describe("organization business context request", () => {
 			});
 		}
 		const read = f.read.getMockImplementation();
-		if (!read) throw new Error("Missing page fixture");
+		if (!read) {
+			throw new Error("Missing page fixture");
+		}
 		f.read.mockImplementation(async (...args) => {
 			const result = await read(...args);
 			if (
 				(phase === "homepage" && args[0].path === "/") ||
 				(phase === "selected-page" && args[0].path === "/pricing")
-			)
+			) {
 				f.state.generation = null;
+			}
 			return result;
 		});
 		await f.run();
 		expect(f.calls).toHaveLength(phase === "selected-page" ? 1 : 0);
 		expect(f.bill).toHaveBeenCalledTimes(phase === "selected-page" ? 1 : 0);
-		if (phase === "credits") expect(f.read).not.toHaveBeenCalled();
-		if (phase === "homepage") expect(f.search).not.toHaveBeenCalled();
+		if (phase === "credits") {
+			expect(f.read).not.toHaveBeenCalled();
+		}
+		if (phase === "homepage") {
+			expect(f.search).not.toHaveBeenCalled();
+		}
 		expect(f.state.generation).toBeNull();
 		expect(f.errors).not.toHaveBeenCalled();
 	});
@@ -867,7 +920,7 @@ describe("organization business context request", () => {
 	it("leaves a concurrent manual save alone", async () => {
 		const f = fixture();
 		f.bill.mockImplementation(async (call) => {
-			if (f.calls.length === 2 && f.state.profile)
+			if (f.calls.length === 2 && f.state.profile) {
 				f.state = {
 					profile: {
 						...f.state.profile,
@@ -876,6 +929,7 @@ describe("organization business context request", () => {
 					},
 					generation: null,
 				};
+			}
 			return f.billed(call);
 		});
 		await f.run();
@@ -941,16 +995,21 @@ describe("organization business context request", () => {
 	])("billing %s failure cannot publish a free draft", async (kind) => {
 		const f = fixture();
 		process.env.AUTUMN_SECRET_KEY = "synthetic-business-context-test";
-		if (kind === "customer") f.customer.mockResolvedValue(null);
-		if (kind === "credits")
+		if (kind === "customer") {
+			f.customer.mockResolvedValue(null);
+		}
+		if (kind === "credits") {
 			f.access.mockResolvedValue({
 				allowed: false,
 				customerId: "example-customer",
 			});
-		if (kind === "check")
+		}
+		if (kind === "check") {
 			f.access.mockRejectedValue(new Error("Synthetic billing unavailable"));
-		if (kind === "charge")
+		}
+		if (kind === "charge") {
 			f.bill.mockRejectedValue(new Error("Synthetic charge failure"));
+		}
 		if (kind === "swallowed-charge") {
 			f.bill.mockRestore();
 			vi.spyOn(getAutumn(), "track").mockRejectedValue(
@@ -994,7 +1053,9 @@ describe("organization business context request", () => {
 	])("bounds a hanging source read with %i ms queue age", async (age) => {
 		const f = fixture();
 		const advance = clock();
-		if (!f.state.generation) throw new Error("Missing fixture generation");
+		if (!f.state.generation) {
+			throw new Error("Missing fixture generation");
+		}
 		f.state.generation.requestedAt = new Date(Date.now() - age).toISOString();
 		f.read.mockImplementation(({ abortSignal }) => {
 			advance(age ? 5000 : 115_000);
@@ -1011,7 +1072,9 @@ describe("organization business context request", () => {
 	it("does not start work when only the persistence reserve remains", async () => {
 		const f = fixture();
 		clock();
-		if (!f.state.generation) throw new Error("Missing fixture generation");
+		if (!f.state.generation) {
+			throw new Error("Missing fixture generation");
+		}
 		f.state.generation.requestedAt = new Date(
 			Date.now() - 175_000
 		).toISOString();
@@ -1026,7 +1089,9 @@ describe("organization business context request", () => {
 	it("stops before synthesis when selection uses the remaining request budget", async () => {
 		const f = fixture();
 		const advance = clock();
-		if (!f.state.generation) throw new Error("Missing fixture generation");
+		if (!f.state.generation) {
+			throw new Error("Missing fixture generation");
+		}
 		f.state.generation.requestedAt = new Date(
 			Date.now() - 170_000
 		).toISOString();
@@ -1051,12 +1116,16 @@ describe("organization business context request", () => {
 	it("bounds the model by the request deadline after queue and source reads", async () => {
 		const f = fixture();
 		const advance = clock();
-		if (!f.state.generation) throw new Error("Missing fixture generation");
+		if (!f.state.generation) {
+			throw new Error("Missing fixture generation");
+		}
 		f.state.generation.requestedAt = new Date(
 			Date.now() - 170_000
 		).toISOString();
 		const read = f.read.getMockImplementation();
-		if (!read) throw new Error("Missing page fixture");
+		if (!read) {
+			throw new Error("Missing page fixture");
+		}
 		f.read.mockImplementation(async (...args) => {
 			advance(2000);
 			return await read(...args);
@@ -1081,7 +1150,9 @@ describe("organization business context request", () => {
 	it("finishes consumed-call billing and persists within the reserve before request expiry", async () => {
 		const f = fixture();
 		const advance = clock();
-		if (!f.state.generation) throw new Error("Missing fixture generation");
+		if (!f.state.generation) {
+			throw new Error("Missing fixture generation");
+		}
 		f.state.generation.requestedAt = new Date(
 			Date.now() - 170_000
 		).toISOString();
@@ -1098,11 +1169,15 @@ describe("organization business context request", () => {
 			return await stream(options);
 		};
 		f.bill.mockImplementation(async (call) => {
-			if (f.calls.length === 2) advance(4000);
+			if (f.calls.length === 2) {
+				advance(4000);
+			}
 			return f.billed(call);
 		});
 		const mark = f.mark.getMockImplementation();
-		if (!mark) throw new Error("Missing persistence fixture");
+		if (!mark) {
+			throw new Error("Missing persistence fixture");
+		}
 		f.mark.mockImplementation(async (change) => {
 			if (change.status === "ready") {
 				expect(Date.now()).toBe(expiry - 2000);
@@ -1139,7 +1214,9 @@ describe("organization business context request", () => {
 	it("uses only one model call when no additional page can be discovered", async () => {
 		const f = fixture([{ content: brief, sourceIds: [0] }]);
 		const read = f.read.getMockImplementation();
-		if (!read) throw new Error("Missing page fixture");
+		if (!read) {
+			throw new Error("Missing page fixture");
+		}
 		f.read.mockImplementation(async (...args) => {
 			const page = await read(...args);
 			return { ...page, internalLinks: [] };
@@ -1155,7 +1232,9 @@ describe("organization business context request", () => {
 		const content =
 			"## Team context\n\nUse https://app.example.com/workspaces as the product boundary. [Checkout](https://checkout.example.com/start) is entry only; /billing/success requires a confirmed invoice.";
 		const f = fixture([{ paths: ["/pricing"] }, { content, sourceIds: [0] }]);
-		if (!f.state.profile) throw new Error("Missing saved profile");
+		if (!f.state.profile) {
+			throw new Error("Missing saved profile");
+		}
 		f.state = { ...f.state, profile: { ...f.state.profile, content } };
 		await f.run();
 		expect(f.state.generation?.status).toBe("ready");

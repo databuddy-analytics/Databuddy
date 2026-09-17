@@ -1,9 +1,8 @@
 import { afterEach, describe, expect, mock, test } from "bun:test";
 import type { SafeFetchInit } from "@databuddy/shared/ssrf-guard";
 
-const safeFetchMock = mock(
-	(_url: string, _init?: SafeFetchInit) =>
-		Promise.resolve(new Response(null, { status: 204 }))
+const safeFetchMock = mock((_url: string, _init?: SafeFetchInit) =>
+	Promise.resolve(new Response(null, { status: 204 }))
 );
 
 mock.module("@databuddy/shared/ssrf-guard", () => ({

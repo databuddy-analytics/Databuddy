@@ -103,7 +103,7 @@ describe("billing add-on management", () => {
 
 	test("does not replace unavailable attached pricing with the public sale price", () => {
 		const subscription = attached();
-		delete subscription.plan;
+		subscription.plan = undefined;
 		const entry = getBillingAddOns([booster], [subscription], included)[0];
 		expect(entry?.subscription).toBe(subscription);
 		expect(getSubscriptionPriceText(entry?.subscription)).toBeNull();

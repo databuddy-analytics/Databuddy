@@ -72,14 +72,16 @@ describe("batch-executor schema signatures", () => {
 			type,
 		}));
 
-	it.each(builderCases)(
-		"$type emits the columns declared in meta.output_fields",
-		({ type, declared }) => {
-			const sql = compileSql(type);
-			const actual = extractOuterSelectColumns(sql);
-			expect(actual).toEqual(declared);
-		}
-	);
+	it.each(
+		builderCases
+	)("$type emits the columns declared in meta.output_fields", ({
+		type,
+		declared,
+	}) => {
+		const sql = compileSql(type);
+		const actual = extractOuterSelectColumns(sql);
+		expect(actual).toEqual(declared);
+	});
 
 	it("groups builders that share a schema signature", () => {
 		const groups = getSchemaGroups();
@@ -307,22 +309,22 @@ describe("extractOuterSelectColumns", () => {
 
 	it("does not treat SELECT/FROM inside block comments as keywords", () => {
 		expect(
-			extractOuterSelectColumns(
-				"SELECT a /* FROM commented out */, b FROM t"
-			)
+			extractOuterSelectColumns("SELECT a /* FROM commented out */, b FROM t")
 		).toEqual(["a", "b"]);
 	});
 
 	it("does not split on commas inside string literals", () => {
-		expect(
-			extractOuterSelectColumns("SELECT 'a, b' AS s, c FROM t")
-		).toEqual(["s", "c"]);
+		expect(extractOuterSelectColumns("SELECT 'a, b' AS s, c FROM t")).toEqual([
+			"s",
+			"c",
+		]);
 	});
 
 	it("treats quoted identifiers as identifiers, not keywords", () => {
-		expect(
-			extractOuterSelectColumns('SELECT "FROM" AS f, b FROM t')
-		).toEqual(["f", "b"]);
+		expect(extractOuterSelectColumns('SELECT "FROM" AS f, b FROM t')).toEqual([
+			"f",
+			"b",
+		]);
 	});
 
 	it("handles nested function calls without breaking on parens", () => {

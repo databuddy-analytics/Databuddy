@@ -328,11 +328,7 @@ describe("event-service producer handoff", () => {
 		});
 
 		await expect(
-			insertTrackEventsBatch([
-				batchItem("z"),
-				batchItem("a"),
-				batchItem("m"),
-			])
+			insertTrackEventsBatch([batchItem("z"), batchItem("a"), batchItem("m")])
 		).rejects.toMatchObject({ status: 503 });
 
 		expect(mockReserveDuplicateBatch).toHaveBeenCalledWith([
@@ -400,12 +396,7 @@ describe("event-service producer handoff", () => {
 
 		await insertErrorSpans([error], "ws_1", "US");
 
-		const expectedDeliveryId = stableBatchDeliveryId(
-			"ws_1",
-			"error",
-			error,
-			0
-		);
+		const expectedDeliveryId = stableBatchDeliveryId("ws_1", "error", error, 0);
 		expect(mockSendBatch).toHaveBeenCalledWith(
 			"analytics-error-spans",
 			[
@@ -430,12 +421,7 @@ describe("event-service producer handoff", () => {
 			timestamp: 1_780_000_000_000,
 		};
 		await insertIndividualVitals([vital], "ws_1", "US");
-		const vitalDeliveryId = stableBatchDeliveryId(
-			"ws_1",
-			"vital",
-			vital,
-			0
-		);
+		const vitalDeliveryId = stableBatchDeliveryId("ws_1", "vital", vital, 0);
 		expect(mockSendBatch).toHaveBeenLastCalledWith(
 			"analytics-vitals-spans",
 			[
@@ -475,9 +461,10 @@ describe("event-service producer handoff", () => {
 			[customDeliveryId],
 			{ allowDirectFallback: true }
 		);
-		const customPayload = mockSendBatch.mock.calls[
-			mockSendBatch.mock.calls.length - 1
-		]?.[1] as Array<Record<string, unknown>>;
+		const customPayload = mockSendBatch.mock.calls.at(-1)?.[1] as Record<
+			string,
+			unknown
+		>[];
 		expect(customPayload[0]).not.toHaveProperty("delivery_id");
 	});
 

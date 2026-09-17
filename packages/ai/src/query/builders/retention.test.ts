@@ -34,7 +34,10 @@ describe("identified profile retention contract", () => {
 			types: [
 				{
 					name: "identified_profile_retention",
-					allowedFilters: [...filters.map((filter) => filter.field), "namespace"],
+					allowedFilters: [
+						...filters.map((filter) => filter.field),
+						"namespace",
+					],
 					requiredFilters: filters.map((filter) => filter.field),
 					allowedFilterOperators: {
 						activation_event: ["eq"],

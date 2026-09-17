@@ -210,8 +210,9 @@ describe("saved investigation evidence", () => {
 		expect(saved.reads).toEqual([]);
 		expect(saved.providedEvidence).toEqual([]);
 		expect(clarificationMetrics(saved)).toEqual([]);
-		for (const value of privateValues)
+		for (const value of privateValues) {
 			expect(JSON.stringify(saved)).not.toContain(value);
+		}
 		expect(saved.limitations.join(" ")).toContain("unsupported read");
 		expect(saved.limitations.join(" ")).toContain("unavailable is not zero");
 		expect(saved.limitations).toHaveLength(3);
@@ -402,8 +403,9 @@ describe("saved investigation evidence", () => {
 			"private-agent",
 			"visitor-private-42",
 			"q=private",
-		])
+		]) {
 			expect(JSON.stringify(saved)).not.toContain(value);
+		}
 		expect(saved.limitations.join(" ")).toContain("unsafe/unsupported scope");
 	});
 	it("omits whole allowed reads when the byte budget is reached without truncating ranked rows", () => {
@@ -424,8 +426,9 @@ describe("saved investigation evidence", () => {
 		});
 		expect(saved.reads.length).toBeGreaterThan(0);
 		expect(saved.reads.length).toBeLessThan(5);
-		for (const read of saved.reads)
+		for (const read of saved.reads) {
 			expect(read.output).toEqual({ referrer_analytics: rows });
+		}
 		expect(Buffer.byteLength(JSON.stringify(saved))).toBeLessThanOrEqual(
 			256_000
 		);

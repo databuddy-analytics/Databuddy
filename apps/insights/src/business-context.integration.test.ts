@@ -106,7 +106,11 @@ integration("persisted business reply scope", () => {
 		const saved: OrganizationBusinessProfile = {
 			content: "Report preparation starts a draft.",
 			origin: "mixed",
-			teamContext: { priority: "Report preparation", successDefinition: "A draft is prepared", exclusions: "Employee traffic" },
+			teamContext: {
+				priority: "Report preparation",
+				successDefinition: "A draft is prepared",
+				exclusions: "Employee traffic",
+			},
 			revision: 3,
 			updatedAt: "2026-09-04T00:00:00.000Z",
 			updatedBy: "example-editor",
@@ -136,7 +140,9 @@ integration("persisted business reply scope", () => {
 				websiteName: website.name,
 			},
 		});
-		if (!investigation) throw new Error("Expected a durable investigation");
+		if (!investigation) {
+			throw new Error("Expected a durable investigation");
+		}
 		const replyId = randomUUIDv7();
 		await db().insert(insightReplies).values({
 			id: replyId,
@@ -148,7 +154,11 @@ integration("persisted business reply scope", () => {
 		});
 		saved.revision = 4;
 		saved.content = "Completed downloads are the current priority.";
-		saved.teamContext = { priority: "Completed downloads", successDefinition: "A download completes", exclusions: "Employee traffic" };
+		saved.teamContext = {
+			priority: "Completed downloads",
+			successDefinition: "A download completes",
+			exclusions: "Employee traffic",
+		};
 		saved.updatedAt = "2026-09-06T00:00:00.000Z";
 		let supplied: BusinessContext | undefined;
 		let models = 0;
@@ -165,7 +175,11 @@ integration("persisted business reply scope", () => {
 						// A save during the model turn must not rewrite the supplied snapshot.
 						saved.revision = 5;
 						saved.content = "Later priority, never supplied to this turn.";
-						saved.teamContext = { priority: "Later priority", successDefinition: "", exclusions: "" };
+						saved.teamContext = {
+							priority: "Later priority",
+							successDefinition: "",
+							exclusions: "",
+						};
 						return {
 							outcome: { ...original, title: "Revised priority checked" },
 							toolCallCount: 0,
@@ -199,8 +213,11 @@ integration("persisted business reply scope", () => {
 				})
 			).toBe("succeeded");
 		} finally {
-			if (billingKey === undefined) Reflect.deleteProperty(process.env, "AUTUMN_SECRET_KEY");
-			else process.env.AUTUMN_SECRET_KEY = billingKey;
+			if (billingKey === undefined) {
+				Reflect.deleteProperty(process.env, "AUTUMN_SECRET_KEY");
+			} else {
+				process.env.AUTUMN_SECRET_KEY = billingKey;
+			}
 		}
 		const rows = await db()
 			.select({ outcome: insightObservations.outcome })
@@ -225,7 +242,8 @@ integration("persisted business reply scope", () => {
 				{ title: "Report guide", url: "https://example.com/reports" },
 			],
 		});
-		const persistedTeam = parseInvestigationOutcome(rows[1]?.outcome)?.contextSnapshot?.sources[0];
+		const persistedTeam = parseInvestigationOutcome(rows[1]?.outcome)
+			?.contextSnapshot?.sources[0];
 		expect(persistedTeam).toMatchObject({
 			origin: "team",
 			author: "Team priorities and definitions",
@@ -703,8 +721,11 @@ integration("persisted business reply scope", () => {
 			}
 		} finally {
 			lookup.mockRestore();
-			if (billingKey === undefined) delete process.env.AUTUMN_SECRET_KEY;
-			else process.env.AUTUMN_SECRET_KEY = billingKey;
+			if (billingKey === undefined) {
+				delete process.env.AUTUMN_SECRET_KEY;
+			} else {
+				process.env.AUTUMN_SECRET_KEY = billingKey;
+			}
 		}
 		expect({ models, reads, deliveries }).toEqual({
 			models: failure === "lookup failure" ? 0 : 1,

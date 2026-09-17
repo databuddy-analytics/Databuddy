@@ -109,8 +109,9 @@ describe("business-aware investigation selection", () => {
 			doGenerate: async (request) => {
 				const message = request.prompt.find((item) => item.role === "user");
 				const part = message?.content[0];
-				if (!part || part.type !== "text")
+				if (!part || part.type !== "text") {
 					throw new Error("Missing selection input");
+				}
 				const received = JSON.parse(part.text);
 				expect(
 					received.candidates.find(
@@ -334,47 +335,128 @@ describe("business-aware investigation selection", () => {
 		expect(model.doGenerateCalls).toHaveLength(0);
 	});
 
-	it.each([9, 24, 33])("uses business context for %i bounded candidates", async (count) => {
+	it.each([
+		9, 24, 33,
+	])("uses business context for %i bounded candidates", async (count) => {
 		const key = `goal:${count - 1}`;
-		const model = new MockLanguageModelV3({ doGenerate: async (request) => {
-			expect(JSON.stringify(request.prompt)).toContain(explanation);
-			return response({ selections: [{ ...choice, signalKey: key }] });
-		} });
-		const plan = await planInvestigationsWithBusinessContext(input,
-			Array.from({ length: count }, (_, index) => ({ ...outcome, metric: `goal:${index}`, subjectKey: `goal:${index}` })),
-			{ loadBusinessProfile: async () => context, selectCandidates: params => chooseInvestigationSignals(params, model) },
-			false, scope, { reason: "scheduled" });
-		expect(plan.map(candidate => candidate.signal.signalKey)).toEqual([key]);
+		const model = new MockLanguageModelV3({
+			doGenerate: async (request) => {
+				expect(JSON.stringify(request.prompt)).toContain(explanation);
+				return response({ selections: [{ ...choice, signalKey: key }] });
+			},
+		});
+		const plan = await planInvestigationsWithBusinessContext(
+			input,
+			Array.from({ length: count }, (_, index) => ({
+				...outcome,
+				metric: `goal:${index}`,
+				subjectKey: `goal:${index}`,
+			})),
+			{
+				loadBusinessProfile: async () => context,
+				selectCandidates: (params) => chooseInvestigationSignals(params, model),
+			},
+			false,
+			scope,
+			{ reason: "scheduled" }
+		);
+		expect(plan.map((candidate) => candidate.signal.signalKey)).toEqual([key]);
 		expect(model.doGenerateCalls).toHaveLength(1);
 	});
 
 	it("keeps the complete maximum saved brief and a current correction before optional background", async () => {
-		const saved = organizationProfileContext({
-			content: "Business overview. ".padEnd(11_940, " Background.") + " Final exclusion: generic traffic is already explained.",
-			origin: "mixed", sources: [{ url: "https://example.com/", title: "Public overview" }],
-			revision: 4, updatedAt: "2026-07-11T00:00:00.000Z", updatedBy: "example-editor", sourceWebsiteId: null,
-			teamContext: { priority: "Prioritize delivery. ".padEnd(2000, " Priority."), successDefinition: "Delivery means accepted by the recipient. ".padEnd(2000, " Definition."), exclusions: "Exclude demos. ".padEnd(2000, " Exclusion.") },
-		}, input.organizationId, new Date(input.asOf));
-		const correction = { id: "current-correction", kind: "team_reply" as const, subjectKey: choice.signalKey,
-			content: "Current correction: use accepted delivery. ".padEnd(3950, " Team details.") + " Correction ends here.", observedAt: input.asOf };
+		const saved = organizationProfileContext(
+			{
+				content:
+					"Business overview. ".padEnd(11_940, " Background.") +
+					" Final exclusion: generic traffic is already explained.",
+				origin: "mixed",
+				sources: [{ url: "https://example.com/", title: "Public overview" }],
+				revision: 4,
+				updatedAt: "2026-07-11T00:00:00.000Z",
+				updatedBy: "example-editor",
+				sourceWebsiteId: null,
+				teamContext: {
+					priority: "Prioritize delivery. ".padEnd(2000, " Priority."),
+					successDefinition:
+						"Delivery means accepted by the recipient. ".padEnd(
+							2000,
+							" Definition."
+						),
+					exclusions: "Exclude demos. ".padEnd(2000, " Exclusion."),
+				},
+			},
+			input.organizationId,
+			new Date(input.asOf)
+		);
+		const correction = {
+			id: "current-correction",
+			kind: "team_reply" as const,
+			subjectKey: choice.signalKey,
+			content: `${"Current correction: use accepted delivery. ".padEnd(
+				3950,
+				" Team details."
+			)} Correction ends here.`,
+			observedAt: input.asOf,
+		};
 		saved.sources.push(correction);
-		const model = new MockLanguageModelV3({ doGenerate: async (request) => {
-			const sent = JSON.stringify(request.prompt);
-			expect(sent).toContain("Business overview.");
-			expect(sent).toContain("Final exclusion: generic traffic is already explained.");
-			expect(sent).toContain("Current correction: use accepted delivery.");
-			expect(sent).toContain("Correction ends here.");
-			expect(sent).toContain("Exclude demos.");
-			return response({ selections: [choice] });
-		} });
-		const result = await chooseInvestigationSignals({ businessContext: saved, candidates: [traffic, outcome].map(signal => ({ signal: prepareInvestigation(signal, 7).signal })), limit: 2 }, model);
+		const model = new MockLanguageModelV3({
+			doGenerate: async (request) => {
+				const sent = JSON.stringify(request.prompt);
+				expect(sent).toContain("Business overview.");
+				expect(sent).toContain(
+					"Final exclusion: generic traffic is already explained."
+				);
+				expect(sent).toContain("Current correction: use accepted delivery.");
+				expect(sent).toContain("Correction ends here.");
+				expect(sent).toContain("Exclude demos.");
+				return response({ selections: [choice] });
+			},
+		});
+		const result = await chooseInvestigationSignals(
+			{
+				businessContext: saved,
+				candidates: [traffic, outcome].map((signal) => ({
+					signal: prepareInvestigation(signal, 7).signal,
+				})),
+				limit: 2,
+			},
+			model
+		);
 		expect(result?.output.selections).toEqual([choice]);
 	});
 
 	it("falls back instead of selecting from an incomplete over-budget saved document", async () => {
-		const model = new MockLanguageModelV3({ doGenerate: async () => { throw new Error("Selection should be skipped"); } });
-		const saved = organizationProfileContext({ content: "\u0000".repeat(12_000), sources: [], origin: "team", revision: 1, updatedAt: input.asOf, updatedBy: "example-editor", sourceWebsiteId: null }, input.organizationId, new Date(input.asOf));
-		expect(await chooseInvestigationSignals({ businessContext: saved, candidates: [traffic, outcome].map(signal => ({ signal: prepareInvestigation(signal, 7).signal })), limit: 2 }, model)).toBeNull();
+		const model = new MockLanguageModelV3({
+			doGenerate: async () => {
+				throw new Error("Selection should be skipped");
+			},
+		});
+		const saved = organizationProfileContext(
+			{
+				content: "\u0000".repeat(12_000),
+				sources: [],
+				origin: "team",
+				revision: 1,
+				updatedAt: input.asOf,
+				updatedBy: "example-editor",
+				sourceWebsiteId: null,
+			},
+			input.organizationId,
+			new Date(input.asOf)
+		);
+		expect(
+			await chooseInvestigationSignals(
+				{
+					businessContext: saved,
+					candidates: [traffic, outcome].map((signal) => ({
+						signal: prepareInvestigation(signal, 7).signal,
+					})),
+					limit: 2,
+				},
+				model
+			)
+		).toBeNull();
 		expect(model.doGenerateCalls).toHaveLength(0);
 	});
 
@@ -474,8 +556,9 @@ describe("business-aware investigation selection", () => {
 			doGenerate: async (request) => {
 				const message = request.prompt.find((item) => item.role === "user");
 				const part = message?.content[0];
-				if (!part || part.type !== "text")
+				if (!part || part.type !== "text") {
 					throw new Error("Missing selection input");
+				}
 				const sent = JSON.parse(part.text);
 				expect(
 					JSON.stringify(sent.businessContext.sources).length
@@ -545,8 +628,9 @@ describe("business-aware investigation selection", () => {
 			doGenerate: async (request) => {
 				const message = request.prompt.find((item) => item.role === "user");
 				const part = message?.content[0];
-				if (!part || part.type !== "text")
+				if (!part || part.type !== "text") {
 					throw new Error("Missing selection input");
+				}
 				const sent = JSON.parse(part.text).businessContext;
 				expect(sent.sources).toEqual([newer, older, pricing]);
 				expect(sent.omittedSourceCount).toBe(1);
@@ -635,7 +719,6 @@ describe("business-aware investigation selection", () => {
 	});
 });
 
-
 describe("saved activation measurement selection", () => {
 	const retention: DetectedSignal = {
 		...outcome,
@@ -666,7 +749,9 @@ describe("saved activation measurement selection", () => {
 			const keys = selected.map((candidate) => candidate.signal.signalKey);
 			expect(keys).toContain(retention.subjectKey!);
 			expect(keys).toContain(error.subjectKey!);
-			if (dueSignalKey) expect(keys[0]).toBe(dueSignalKey);
+			if (dueSignalKey) {
+				expect(keys[0]).toBe(dueSignalKey);
+			}
 			expect(keys).not.toContain("visitors");
 		}
 		expect(calls).toBe(0);

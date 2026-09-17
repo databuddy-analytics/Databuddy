@@ -288,6 +288,8 @@ describe("durable retention daily rows", () => {
 			case "invalid-window-timestamp":
 				retained.current.cohortStart = "not-a-timestamp";
 				break;
+			default:
+				throw new Error(`Unhandled mode ${mode satisfies never}`);
 		}
 		expect(
 			parseInvestigationSignal({ ...signal, retentionMeasurement: retained })
@@ -833,7 +835,7 @@ describe("investigationOutcomeSchema", () => {
 	it("requires concise evidence", () => {
 		for (const invalid of [
 			{ ...outcomeBase, evidence: [] },
-			{ ...outcomeBase, evidence: Array(3).fill("Measured fact") },
+			{ ...outcomeBase, evidence: new Array(3).fill("Measured fact") },
 		]) {
 			expect(investigationOutcomeSchema.safeParse(invalid).success).toBe(false);
 		}

@@ -97,7 +97,9 @@ describe("Slack thread reply relevance", () => {
 	});
 
 	it("falls back conservatively for unmentioned replies when the model is unavailable", async () => {
-		await expect(decide("databuddy is gonna make qais mad")).resolves.toMatchObject({
+		await expect(
+			decide("databuddy is gonna make qais mad")
+		).resolves.toMatchObject({
 			reason: "ambiguous",
 			shouldReply: false,
 			source: "fallback",

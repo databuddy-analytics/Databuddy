@@ -191,13 +191,14 @@ function nativeProvider(
 	const client = billing.createInvestigationBillingClient({
 		secretKey: "synthetic-local-only",
 		fetcher: async (request) => {
-			if (!(request instanceof Request))
+			if (!(request instanceof Request)) {
 				throw new Error("Expected native SDK request");
+			}
 			expect(new URL(request.url).hostname).toBe("api.useautumn.com");
 			const body = (await request.json()) as Record<string, unknown>;
 			if (request.url.includes("balances.check")) {
 				const key = request.headers.get("Idempotency-Key")!;
-				if (keys.has(key))
+				if (keys.has(key)) {
 					return Response.json(
 						{
 							code: "duplicate_idempotency_key",
@@ -205,6 +206,7 @@ function nativeProvider(
 						},
 						{ status: 409 }
 					);
+				}
 				keys.add(key);
 				const lock = body.lock as { lock_id: string };
 				holds.add(lock.lock_id);
@@ -244,22 +246,26 @@ function nativeProvider(
 					},
 				});
 			}
-			if (!request.url.includes("balances.finalize"))
+			if (!request.url.includes("balances.finalize")) {
 				throw new Error("Unexpected native SDK endpoint");
+			}
 			expect(request.headers.get("Idempotency-Key")).toBeNull();
 			const id = String(body.lock_id);
-			if (failConfirmation)
+			if (failConfirmation) {
 				return Response.json(
 					{ code: "service_unavailable", message: "Synthetic provider outage" },
 					{ status: 503 }
 				);
-			if (!holds.delete(id))
+			}
+			if (!holds.delete(id)) {
 				return Response.json(
 					{ code: "invalid_request", message: `Lock not found for ID: ${id}` },
 					{ status: 400 }
 				);
-			if (body.action === "release") released++;
-			else {
+			}
+			if (body.action === "release") {
+				released++;
+			} else {
 				confirmed++;
 				if (loseConfirmation) {
 					loseConfirmation = false;
@@ -302,8 +308,9 @@ function wireProvider(remote: ReturnType<typeof nativeProvider>) {
 integration("included saved-evidence replies", () => {
 	afterEach(() => mock.restore());
 	afterAll(async () => {
-		if (ids.length)
+		if (ids.length) {
 			await db.delete(organization).where(inArray(organization.id, ids));
+		}
 		await closeInsightsQueue();
 		await shutdownPostgres();
 	});

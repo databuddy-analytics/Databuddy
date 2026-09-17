@@ -26,7 +26,9 @@ describe("event pricing catalog and estimates", () => {
 			expect(published.included_usage).toBe(native.included);
 			expect(published.tiers).toEqual(native.price?.tiers);
 			for (const tier of native.price?.tiers ?? []) {
-				if (tier.to !== "inf") expect(tier.to).toBeGreaterThan(native.included);
+				if (tier.to !== "inf") {
+					expect(tier.to).toBeGreaterThan(native.included);
+				}
 			}
 		}
 	});
@@ -34,22 +36,23 @@ describe("event pricing catalog and estimates", () => {
 	test.each([
 		["hobby", 30_000, 0],
 		["hobby", 2_030_000, 70],
-		["hobby", 2_030_001, 70.00003],
+		["hobby", 2_030_001, 70.000_03],
 		["pro", 1_000_000, 0],
 		["pro", 2_000_000, 35],
-		["pro", 2_000_001, 35.00003],
+		["pro", 2_000_001, 35.000_03],
 		["intelligence", 2_000_000, 0],
-		["intelligence", 2_000_001, 0.00003],
+		["intelligence", 2_000_001, 0.000_03],
 		["intelligence", 10_000_000, 240],
-		["intelligence", 10_000_001, 240.00002],
+		["intelligence", 10_000_001, 240.000_02],
 		["intelligence_scale", 10_000_000, 0],
-		["intelligence_scale", 10_000_001, 0.00002],
+		["intelligence_scale", 10_000_001, 0.000_02],
 		["intelligence_scale", 50_000_000, 800],
-		["intelligence_scale", 50_000_001, 800.000015],
+		["intelligence_scale", 50_000_001, 800.000_015],
 	] as const)("estimates %s at %i monthly events as $%f overage", (id, events, expected) => {
 		const plan = normalized.find((item) => item.id === id);
-		if (!plan?.eventTiers)
+		if (!plan?.eventTiers) {
 			throw new Error(`Missing normalized pricing for ${id}`);
+		}
 		expect(
 			estimateTieredOverageCostFromTiers(
 				Math.max(events - plan.includedEventsMonthly, 0),
@@ -60,7 +63,9 @@ describe("event pricing catalog and estimates", () => {
 
 	test("keeps the enterprise label threshold in total monthly events", () => {
 		const scale = normalized.find((plan) => plan.id === "intelligence_scale");
-		if (!scale) throw new Error("Missing Scale plan");
+		if (!scale) {
+			throw new Error("Missing Scale plan");
+		}
 		expect(displayNameForPlan(250_000_000, normalized, scale)).toBe(scale.name);
 		expect(displayNameForPlan(250_000_001, normalized, scale)).toBe(
 			"Enterprise"

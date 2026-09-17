@@ -105,7 +105,7 @@ describe("hashString", () => {
 });
 
 describe("parseProperties", () => {
-	const cases: Array<[string | undefined, Record<string, unknown>]> = [
+	const cases: [string | undefined, Record<string, unknown>][] = [
 		[undefined, {}],
 		["", {}],
 		["{invalid}", {}],

@@ -1,6 +1,9 @@
 import "@databuddy/test/env";
 import { describe, expect, it } from "bun:test";
-import { agentEvidenceReferenceSchema, describeInsightDefinitionAction } from "@databuddy/shared/insights";
+import {
+	type agentEvidenceReferenceSchema,
+	describeInsightDefinitionAction,
+} from "@databuddy/shared/insights";
 import type {
 	InvestigationOutcome,
 	InvestigationSignal,
@@ -75,10 +78,10 @@ const routeVitalSignal: InvestigationSignal = {
 		type: "page",
 	},
 	metric: {
-		current: 7_200,
+		current: 7200,
 		format: "duration_ms",
 		label: "Sign-in page load time",
-		previous: 4_900,
+		previous: 4900,
 	},
 };
 
@@ -192,6 +195,7 @@ function appContext() {
 }
 
 function outputResponse(value: unknown) {
+	let payload = value;
 	// Keep legacy outcome fixtures readable; raw/malformed model input stays invalid.
 	if (
 		typeof value === "object" &&
@@ -211,7 +215,7 @@ function outputResponse(value: unknown) {
 		)
 	) {
 		const { evidence, evidenceRefs, ...outcome } = value;
-		value = {
+		payload = {
 			...outcome,
 			evidence: evidence.map((claim, index) => ({
 				claim,
@@ -221,10 +225,14 @@ function outputResponse(value: unknown) {
 			})),
 		};
 	}
-	return toolCallResponse("finish_investigation", JSON.stringify(value));
+	return toolCallResponse("finish_investigation", JSON.stringify(payload));
 }
 
-function toolCallResponse(toolName = "inspect", input = "{}", toolCallId = `${toolName}-1`) {
+function toolCallResponse(
+	toolName = "inspect",
+	input = "{}",
+	toolCallId = `${toolName}-1`
+) {
 	return {
 		content: [
 			{
@@ -365,8 +373,9 @@ describe("claim-bound finish input", () => {
 		const error = model.doGenerateCalls[1]?.prompt
 			.flatMap((message) => (message.role === "tool" ? message.content : []))
 			.find((part) => part.type === "tool-result");
-		if (error?.output.type !== "error-text")
+		if (error?.output.type !== "error-text") {
 			throw new Error("Missing schema validation error");
+		}
 		const feedback = error.output.value;
 		expect(feedback).toContain("evidence");
 		expect(feedback).toContain("sources");
@@ -440,11 +449,15 @@ describe("claim-bound finish input", () => {
 	] as const)("retains all five provided sources in a bound comparison: %s", async (scenario) => {
 		const counts = [41, 52, 63, 74, 85];
 		const sources = counts.map((_, index) => ({ source: "provided", index }));
-		if (scenario === "omitted-source") sources.pop();
-		if (scenario === "wrong-source")
+		if (scenario === "omitted-source") {
+			sources.pop();
+		}
+		if (scenario === "wrong-source") {
 			sources[4] = { source: "provided", index: 0 };
-		if (scenario === "missing-source")
+		}
+		if (scenario === "missing-source") {
 			sources[4] = { source: "provided", index: 5 };
+		}
 		const claim = "The cohort counts were 41, 52, 63, 74, and 85.";
 		const model = outputModel({
 			...comparison,
@@ -638,8 +651,9 @@ describe("intelligence agent", () => {
 		const read = messages
 			?.flatMap((message) => (message.role === "tool" ? message.content : []))
 			.find((part) => part.type === "tool-result");
-		if (read?.output.type !== "text")
+		if (read?.output.type !== "text") {
 			throw new Error("Missing model-visible read");
+		}
 		expect(JSON.parse(read.output.value)).toEqual({
 			result: JSON.parse(
 				JSON.stringify(output, (_key, value) =>
@@ -1181,8 +1195,9 @@ describe("intelligence agent", () => {
 		expect(result.outcome.next).toEqual({
 			...proposal.next,
 			execution: expectedExecution,
-			...(scenario !== "legacy"
-				? {
+			...(scenario === "legacy"
+				? {}
+				: {
 						check: {
 							...check,
 							definition: {
@@ -1192,8 +1207,7 @@ describe("intelligence agent", () => {
 								filters: [],
 							},
 						},
-					}
-				: {}),
+					}),
 			action: describeInsightDefinitionAction(funnelSignal.entity.label, {
 				...expectedExecution,
 				action: executableDefinitionOutcome.next.action,
@@ -1274,7 +1288,9 @@ describe("intelligence agent", () => {
 				action: executableDefinitionOutcome.next.action,
 			}),
 		});
-		if (result.outcome.next.type !== "act") throw new Error("Expected repair");
+		if (result.outcome.next.type !== "act") {
+			throw new Error("Expected repair");
+		}
 		expect(result.outcome.next.execution).toEqual(execution);
 	});
 
@@ -1567,8 +1583,9 @@ describe("intelligence agent", () => {
 		const error = model.doGenerateCalls[1]?.prompt
 			.flatMap((message) => (message.role === "tool" ? message.content : []))
 			.find((part) => part.type === "tool-result");
-		if (error?.output.type !== "error-text")
+		if (error?.output.type !== "error-text") {
 			throw new Error("Missing validation error");
+		}
 		expect(error.output.value).toContain("expected null");
 		expect(error.output.value).toContain(field);
 	});
@@ -1667,7 +1684,9 @@ describe("intelligence agent", () => {
 		}
 		expect(failure).toBeInstanceOf(InsightAgentGenerationError);
 		expect(model.doGenerateCalls).toHaveLength(1);
-		if (!(failure instanceof InsightAgentGenerationError)) throw failure;
+		if (!(failure instanceof InsightAgentGenerationError)) {
+			throw failure;
+		}
 		expect(failure.usage.inputTokens).toBe(model.doGenerateCalls.length);
 	});
 
@@ -2745,7 +2764,9 @@ describe("intelligence agent", () => {
 		const message = model.doGenerateCalls[0]?.prompt
 			.find((item) => item.role === "user")
 			?.content.find((item) => item.type === "text");
-		if (message?.type !== "text") throw new Error("Missing evidence prompt");
+		if (message?.type !== "text") {
+			throw new Error("Missing evidence prompt");
+		}
 		expect(JSON.parse(message.text)).toMatchObject({
 			businessContext: { sourceEvidenceIndexes: [providedCount] },
 			evidence: [
@@ -3349,7 +3370,7 @@ describe("structured revenue evidence", () => {
 					metric: {
 						label: "Gross revenue",
 						current: 6000,
-						previous: 10000,
+						previous: 10_000,
 						format: "number",
 					},
 				},
@@ -3382,8 +3403,9 @@ describe("structured revenue evidence", () => {
 				},
 			}
 		);
-		if (accepted) expect((await run).outcome.publish).toBe(true);
-		else
+		if (accepted) {
+			expect((await run).outcome.publish).toBe(true);
+		} else {
 			await expect(run).rejects.toThrow(
 				signalKey.startsWith("attribution_rate:") &&
 					(signalKey !== "attribution_rate:USD" ||
@@ -3391,6 +3413,7 @@ describe("structured revenue evidence", () => {
 					? "Attribution findings require native"
 					: "not a verified product loss"
 			);
+		}
 	});
 
 	it.each([
@@ -3490,9 +3513,11 @@ describe("structured revenue evidence", () => {
 					: {},
 			}
 		);
-		if (variant === "private") expect((await run).outcome.publish).toBe(false);
-		else
+		if (variant === "private") {
+			expect((await run).outcome.publish).toBe(false);
+		} else {
 			await expect(run).rejects.toThrow("Attribution findings require native");
+		}
 	});
 
 	it.each([
@@ -3516,8 +3541,8 @@ describe("structured revenue evidence", () => {
 			entity: { type: "website", id: "Team", label: "Team" },
 			metric: {
 				label: "Team USD receipts",
-				current: 15000,
-				previous: 30000,
+				current: 15_000,
+				previous: 30_000,
 				format: "number",
 			},
 		};
@@ -3561,10 +3586,10 @@ describe("structured revenue evidence", () => {
 									variant === "null-amount"
 										? null
 										: variant === "exceeds-control"
-											? 50000
+											? 50_000
 											: index === 0
-												? 15000
-												: 30000,
+												? 15_000
+												: 30_000,
 							},
 						],
 		}));
@@ -3574,7 +3599,7 @@ describe("structured revenue evidence", () => {
 				variant === "filtered-control"
 					? [{ field: "country", op: "eq", value: "US" }]
 					: [],
-			data: [{ currency: "USD", total_revenue: 40000 }],
+			data: [{ currency: "USD", total_revenue: 40_000 }],
 		}));
 		const pairs = [productReadings, wholeReadings];
 		const snapshot = variant === "snapshot" || variant === "private";
@@ -3656,9 +3681,11 @@ describe("structured revenue evidence", () => {
 				"stripe receipts described Team with no product ID"
 			);
 			expect(result.outcome.evidence[1]).toContain("40,000 → 40,000");
-		} else if (variant === "private")
+		} else if (variant === "private") {
 			expect((await run).outcome.publish).toBe(false);
-		else await expect(run).rejects.toThrow();
+		} else {
+			await expect(run).rejects.toThrow();
+		}
 	});
 
 	it("binds metrics to their labels and computes a refund delta absent from the source", () => {
@@ -3684,17 +3711,18 @@ describe("structured revenue evidence", () => {
 		{ from: "2026-07-06" },
 		{ timezone: "America/New_York" },
 		{ filters: [{ field: "country", op: "eq", value: "US" }] },
-		{ data: [{ currency: "EUR", total_revenue: 10000 }] },
+		{ data: [{ currency: "EUR", total_revenue: 10_000 }] },
 		{ data: [{ currency: "USD", total_revenue: null }] },
 		{ data: [{ currency: "USD", total_revenue: "" }] },
 		{ data: [readings[0].data[0], readings[0].data[0]] },
 	])("rejects incompatible or ambiguous revenue measurements: %j", (changed) => {
-		expect(() =>
-			renderRevenueEvidence(
-				selection,
-				[{ ...readings[0], ...changed }, readings[1]],
-				input
-			).text
+		expect(
+			() =>
+				renderRevenueEvidence(
+					selection,
+					[{ ...readings[0], ...changed }, readings[1]],
+					input
+				).text
 		).toThrow();
 	});
 
@@ -3712,21 +3740,22 @@ describe("structured revenue evidence", () => {
 				},
 			}).text
 		).toContain("2026-07-05–2026-07-11 → 2026-07-12–2026-07-18 UTC");
-		expect(() =>
-			renderRevenueEvidence(
-				selection,
-				later.map((reading) => ({
-					...reading,
-					from: reading.to,
-					to: reading.from,
-				})),
-				{
-					appContext: {
-						...input.appContext,
-						currentDateTime: "2026-07-19T00:00:00Z",
-					},
-				}
-			).text
+		expect(
+			() =>
+				renderRevenueEvidence(
+					selection,
+					later.map((reading) => ({
+						...reading,
+						from: reading.to,
+						to: reading.from,
+					})),
+					{
+						appContext: {
+							...input.appContext,
+							currentDateTime: "2026-07-19T00:00:00Z",
+						},
+					}
+				).text
 		).toThrow();
 	});
 
@@ -3747,19 +3776,20 @@ describe("structured revenue evidence", () => {
 		).toContain(
 			"EUR, 2026-06-28–2026-07-04 → 2026-07-05–2026-07-11 UTC: Gross Revenue: 5,000 → 5,000."
 		);
-		expect(() =>
-			renderRevenueEvidence(
-				selection,
-				readings.map((reading) => ({ ...reading, websiteId: undefined })),
-				{
-					...input,
-					appContext: {
-						...input.appContext,
-						websiteId: undefined,
-						defaultWebsiteId: undefined,
-					},
-				}
-			).text
+		expect(
+			() =>
+				renderRevenueEvidence(
+					selection,
+					readings.map((reading) => ({ ...reading, websiteId: undefined })),
+					{
+						...input,
+						appContext: {
+							...input.appContext,
+							websiteId: undefined,
+							defaultWebsiteId: undefined,
+						},
+					}
+				).text
 		).toThrow();
 	});
 
@@ -3774,7 +3804,9 @@ describe("structured revenue evidence", () => {
 				currentDateTime: "2026-07-12T00:01:00Z",
 			},
 		};
-		expect(() => renderRevenueEvidence(selection, local, context).text).toThrow();
+		expect(
+			() => renderRevenueEvidence(selection, local, context).text
+		).toThrow();
 		expect(
 			renderRevenueEvidence(selection, local, {
 				...context,
@@ -3784,15 +3816,16 @@ describe("structured revenue evidence", () => {
 				},
 			}).text
 		).toContain(timezone);
-		expect(() =>
-			renderRevenueEvidence(
-				selection,
-				readings.map((reading) => ({ ...reading, timezone: "invalid-zone" })),
-				{
-					...input,
-					appContext: { ...input.appContext, timezone: "invalid-zone" },
-				}
-			).text
+		expect(
+			() =>
+				renderRevenueEvidence(
+					selection,
+					readings.map((reading) => ({ ...reading, timezone: "invalid-zone" })),
+					{
+						...input,
+						appContext: { ...input.appContext, timezone: "invalid-zone" },
+					}
+				).text
 		).toThrow();
 	});
 
@@ -3821,8 +3854,8 @@ describe("structured revenue evidence", () => {
 				input
 			).text
 		).toContain("Payment Failure Rate (%): 2 → 12 (+10 pp)");
-		expect(() =>
-			renderRevenueEvidence(selection, [readings[0]], input).text
+		expect(
+			() => renderRevenueEvidence(selection, [readings[0]], input).text
 		).toThrow();
 	});
 
@@ -3831,12 +3864,13 @@ describe("structured revenue evidence", () => {
 			...reading,
 			data: [{ ...reading.data[0], failed_payment_attempts: null }],
 		}));
-		expect(() =>
-			renderRevenueEvidence(
-				{ currency: "USD", fields: ["failed_payment_attempts"] },
-				partial,
-				input
-			).text
+		expect(
+			() =>
+				renderRevenueEvidence(
+					{ currency: "USD", fields: ["failed_payment_attempts"] },
+					partial,
+					input
+				).text
 		).toThrow("failed_payment_attempts is unavailable");
 		expect(renderRevenueEvidence(selection, partial, input).text).toContain(
 			"Refund Amount: 200 → 1,200 (+1,000)"
@@ -3848,37 +3882,41 @@ describe("structured revenue evidence", () => {
 		"observed_failure_event_types",
 		"required_failure_event_types",
 	])("excludes the internal diagnostic field %s", (field) => {
-		expect(() =>
-			renderRevenueEvidence(
-				{ currency: "USD", fields: [field] },
-				readings.map((reading) => ({
-					...reading,
-					data: [{ ...reading.data[0], [field]: 1 }],
-				})),
-				input
-			).text
+		expect(
+			() =>
+				renderRevenueEvidence(
+					{ currency: "USD", fields: [field] },
+					readings.map((reading) => ({
+						...reading,
+						data: [{ ...reading.data[0], [field]: 1 }],
+					})),
+					input
+				).text
 		).toThrow("declared numeric field");
 	});
 
 	it("rejects repeated periods and unmeasured fields", () => {
-		expect(() =>
-			renderRevenueEvidence(selection, [readings[0], readings[0]], input).text
+		expect(
+			() =>
+				renderRevenueEvidence(selection, [readings[0], readings[0]], input).text
 		).toThrow();
-		expect(() =>
-			renderRevenueEvidence(
-				{ ...selection, fields: ["active_subscribers"] },
-				readings,
-				input
-			).text
+		expect(
+			() =>
+				renderRevenueEvidence(
+					{ ...selection, fields: ["active_subscribers"] },
+					readings,
+					input
+				).text
 		).toThrow();
-		expect(() =>
-			renderRevenueEvidence(selection, readings, {
-				...input,
-				appContext: {
-					...input.appContext,
-					currentDateTime: "2026-07-10T00:00:00Z",
-				},
-			}).text
+		expect(
+			() =>
+				renderRevenueEvidence(selection, readings, {
+					...input,
+					appContext: {
+						...input.appContext,
+						currentDateTime: "2026-07-10T00:00:00Z",
+					},
+				}).text
 		).toThrow();
 	});
 
@@ -4106,7 +4144,6 @@ describe("validateNumericGrounding", () => {
 	});
 });
 
-
 describe("identified-profile cohort publication", () => {
 	const comparison =
 		"Eligible identified profiles returning within seven days fell from 140/200 (70%) to 60/200 (30%).";
@@ -4205,9 +4242,12 @@ describe("identified-profile cohort publication", () => {
 		);
 
 		const prepared = prepareInvestigation(detected, 7);
-		const reads = !["none", "control", "wrong-source", "swapped-signal"].includes(
-			mode
-		);
+		const reads = ![
+			"none",
+			"control",
+			"wrong-source",
+			"swapped-signal",
+		].includes(mode);
 		const additional = !["none", "hide-conflict"].includes(mode);
 		const updated = mode === "updated-read";
 		const retained = [
@@ -4220,7 +4260,9 @@ describe("identified-profile cohort publication", () => {
 		const original = nativeReads.find(
 			(item) => item.request.from === prepared.signal.period.previous.from
 		);
-		if (!original) throw new Error("Missing detector read fixture");
+		if (!original) {
+			throw new Error("Missing detector read fixture");
+		}
 		let claim = "Report sharing remained at 600 events.";
 		let source: z.infer<typeof agentEvidenceReferenceSchema> = {
 			source: "provided",
@@ -4235,9 +4277,15 @@ describe("identified-profile cohort publication", () => {
 				resultKey: "previous",
 			};
 		}
-		if (updated) claim = "The later read conflicts with the snapshot.";
-		if (mode.startsWith("swapped-")) claim = "Previous cohort: 60/200 returned.";
-		if (mode === "swapped-signal") source = { source: "signal" };
+		if (updated) {
+			claim = "The later read conflicts with the snapshot.";
+		}
+		if (mode.startsWith("swapped-")) {
+			claim = "Previous cohort: 60/200 returned.";
+		}
+		if (mode === "swapped-signal") {
+			source = { source: "signal" };
+		}
 		const proposed = {
 			...finish,
 			...(updated
@@ -4268,8 +4316,9 @@ describe("identified-profile cohort publication", () => {
 				? { value: 30 }
 				: {}),
 		}));
-		if (mode === "wrong-namespace")
+		if (mode === "wrong-namespace") {
 			filters.push({ field: "namespace", op: "eq", value: "demo" });
+		}
 		let readCount = 0;
 		const run = runInsightAgent(
 			{
@@ -4354,7 +4403,9 @@ describe("identified-profile cohort publication", () => {
 		);
 		expect(result.toolCallCount).toBe(reads ? 1 : 0);
 		expect(result.outcome.publish).toBe(!updated);
-		if (reads) expect(result.outcome.evidence[1]).toBe(proposed.evidence[0]);
+		if (reads) {
+			expect(result.outcome.evidence[1]).toBe(proposed.evidence[0]);
+		}
 	});
 	it("publishes a known-purpose cohort finding without a redundant data read or invented cause", async () => {
 		const model = outputModel(finish);
@@ -4384,96 +4435,326 @@ describe("identified-profile cohort publication", () => {
 });
 
 describe("investigation completion and retained evidence", () => {
- it.each([true, false])("keeps unknown cause independent of publication (%s)", async (publish) => {
-  const result = await runInsightAgent({appContext: appContext(), evidence: [], githubRepository: null, history: [], otherOpenWork: [], signal: reliabilitySignal}, {tools: {}, model: outputModel({
-   completion: "complete", title: "Route errors increased", summary: "The cause remains unknown.", rootCause: null, impact: null,
-   evidence: ["Route loading failures increased from 23 to 36."], evidenceRefs: [{source: "signal"}], findingKind: "reliability_exposure", publish, publicationBasis: publish ? "measured_reliability" : null,
-   next: {type: "resolve", reason: "No inspected repair is established."},
-  })});
-  expect(result.completion).toBe("complete");
-  expect(result.snapshot).toMatchObject({completion: "complete", organizationId: "org-1", websiteId: "site-1", signal: reliabilitySignal, reads: []});
- });
- it("does not bill an explicitly incomplete diagnostic even when the signal contains a count", async () => {
-  const result = await runInsightAgent({appContext: appContext(), evidence: [], githubRepository: null, history: [], otherOpenWork: [], signal: reliabilitySignal}, {tools: {}, model: outputModel({
-   completion: "incomplete", title: "Route errors increased", summary: "Required diagnostic evidence is unavailable.", rootCause: null, impact: null,
-   evidence: ["Route loading failures increased from 23 to 36."], evidenceRefs: [{source: "signal"}], findingKind: "reliability_exposure", publish: false, publicationBasis: null,
-   next: {type: "resolve", reason: "The requested answer remains incomplete."},
-  })});
-  expect(result.completion).toBe("incomplete");
- });
+	it.each([
+		true,
+		false,
+	])("keeps unknown cause independent of publication (%s)", async (publish) => {
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence: [],
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal: reliabilitySignal,
+			},
+			{
+				tools: {},
+				model: outputModel({
+					completion: "complete",
+					title: "Route errors increased",
+					summary: "The cause remains unknown.",
+					rootCause: null,
+					impact: null,
+					evidence: ["Route loading failures increased from 23 to 36."],
+					evidenceRefs: [{ source: "signal" }],
+					findingKind: "reliability_exposure",
+					publish,
+					publicationBasis: publish ? "measured_reliability" : null,
+					next: {
+						type: "resolve",
+						reason: "No inspected repair is established.",
+					},
+				}),
+			}
+		);
+		expect(result.completion).toBe("complete");
+		expect(result.snapshot).toMatchObject({
+			completion: "complete",
+			organizationId: "org-1",
+			websiteId: "site-1",
+			signal: reliabilitySignal,
+			reads: [],
+		});
+	});
+	it("does not bill an explicitly incomplete diagnostic even when the signal contains a count", async () => {
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence: [],
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal: reliabilitySignal,
+			},
+			{
+				tools: {},
+				model: outputModel({
+					completion: "incomplete",
+					title: "Route errors increased",
+					summary: "Required diagnostic evidence is unavailable.",
+					rootCause: null,
+					impact: null,
+					evidence: ["Route loading failures increased from 23 to 36."],
+					evidenceRefs: [{ source: "signal" }],
+					findingKind: "reliability_exposure",
+					publish: false,
+					publicationBasis: null,
+					next: {
+						type: "resolve",
+						reason: "The requested answer remains incomplete.",
+					},
+				}),
+			}
+		);
+		expect(result.completion).toBe("incomplete");
+	});
 });
 
 describe("completed answer measurement boundary", () => {
- it.each(["interleaved", "reversed", "non-native-current", "earlier-clipped"])("preserves native measurement boundaries within mixed evidence: %s", async (mode) => {
-  const goalSignal: InvestigationSignal = {
-   ...signal,
-   signalKey: "goal:workspace",
-   entity: {type: "goal", id: "workspace", label: "Workspace visits"},
-  };
-  const measurement = (startDate: string, endDate: string) => ({
-   measurement: {websiteId: "site-1", definitionId: "workspace", startDate, endDate, definition: {type: "PAGE_VIEW", target: "/workspace", filters: []}},
-   total_users_entered: 200,
-   total_users_completed: 164,
-  });
-  const reference = (name: string, toolCallId: string) => ({source: "tool" as const, name, toolCallId, resultKey: null});
-  const read = (toolCallId: string, period: typeof signal.period.current) => toolCallResponse("get_goal_analytics", JSON.stringify({goalId: "workspace", startDate: period.from, endDate: period.to}), toolCallId);
-  const responses = [read("previous", signal.period.previous)];
-  if (mode === "earlier-clipped") responses.push(read("clipped", signal.period.current));
-  if (mode !== "non-native-current") responses.push(read("current", signal.period.current));
-  responses.push(toolCallResponse("scrape_page", "{}", "page"));
-  const sources = [
-   {source: "signal" as const},
-   reference("get_goal_analytics", "previous"),
-   reference("scrape_page", "page"),
-   {source: "provided" as const, index: 0},
-   ...(mode === "non-native-current" ? [] : [reference("get_goal_analytics", "current")]),
-  ];
-  if (mode === "reversed") sources.reverse();
-  const finish = {
-   completion: "complete", findingKind: "product_outcome", title: "Workspace visits inspected",
-   summary: "The available evidence was inspected; no repair was established.",
-   rootCause: null, impact: null, publish: false, publicationBasis: null,
-   next: {type: "resolve", reason: "No inspected repair is established."},
-   evidence: [{claim: "The cited measurements and route inspection were reviewed together.", sources}],
-  };
-  responses.push(outputResponse(finish));
-  const model = new MockLanguageModelV3({doGenerate: mockValues(...responses)});
-  let currentReads = 0;
-  const result = await runInsightAgent({
-   appContext: appContext(), signal: goalSignal, evidence: ["Workspace visits are the intended goal."],
-   history: [], otherOpenWork: [], githubRepository: null,
-  }, {model, tools: {
-   get_goal_analytics: tool({
-    description: "Synthetic native goal measurement with exact dates and definition.",
-    inputSchema: z.object({goalId: z.string(), startDate: z.string(), endDate: z.string()}),
-    execute: ({startDate, endDate}) => {
-     if (startDate === signal.period.current.from) {
-      currentReads += 1;
-      if (mode === "earlier-clipped" && currentReads === 1) return measurement("2026-07-07", endDate);
-     }
-     return measurement(startDate, endDate);
-    },
-   }),
-   scrape_page: tool({
-    description: "Synthetic route content, never an authoritative native measurement.", inputSchema: z.object({}),
-    // Matching measurement-shaped page content must never establish completion.
-    execute: () => measurement(signal.period.current.from, signal.period.current.to),
-   }),
-  }});
-  const complete = mode === "interleaved" || mode === "reversed";
-  expect(result.completion).toBe(complete ? "complete" : "incomplete");
-  expect(result.snapshot?.completion).toBe(result.completion);
-  expect(result.outcome.publish).toBe(false);
-  expect(result.snapshot?.reads.filter((entry) => entry.name === "get_goal_analytics")).toHaveLength(mode === "earlier-clipped" ? 3 : mode === "non-native-current" ? 1 : 2);
- });
- it.each(["exact", "clipped", "unrelated", "definition-unavailable", "open-window", "immature-cohort"])("checks actual scope before accepting claimed completion: %s", async (mode) => {
-  const goalSignal: InvestigationSignal = {...signal, signalKey: "goal:workspace", entity: {type: "goal", id: "workspace", label: "Workspace visits"}};
-  const native = {measurement: {websiteId: "site-1", definitionId: mode === "unrelated" ? "other-goal" : "workspace", startDate: mode === "clipped" ? "2026-07-07" : signal.period.current.from, endDate: signal.period.current.to, definition: {type: "PAGE_VIEW", target: "/workspace", filters: []}}, total_users_entered: 200, total_users_completed: 20};
-  const output = mode === "definition-unavailable" ? {total_users_entered: 200, total_users_completed: 20} : mode === "immature-cohort" ? {results: {current: {type: "identified_profile_retention", websiteId: "site-1", from: signal.period.current.from, to: signal.period.current.to, timezone: "UTC", filters: [], data: [{eligible_profiles: 20, incomplete_profiles: 180}]}}} : native;
-  const name = mode === "immature-cohort" ? "get_data" : "get_goal_analytics";
-  const finish = {completion: "complete", findingKind: "product_outcome", title: "Current evidence inspected", summary: "The cause remains unknown.", rootCause: null, impact: null, publish: false, publicationBasis: null, next: {type: "resolve", reason: "No inspected repair is established."}, evidence: ["The available read was inspected."], evidenceRefs: [{source: "tool", name, toolCallId: `${name}-1`, resultKey: name === "get_data" ? "current" : null}]};
-  const model = new MockLanguageModelV3({doGenerate: mockValues(toolCallResponse(name, JSON.stringify({goalId:"workspace",startDate:signal.period.current.from,endDate:signal.period.current.to})), outputResponse(finish))});
-  const result = await runInsightAgent({appContext: {...appContext(), ...(mode === "open-window" ? {currentDateTime: "2026-07-11T12:00:00.000Z"} : {})}, signal: goalSignal, evidence: [], history: [], otherOpenWork: [], githubRepository: null}, {model, tools: {[name]: tool({description: "Synthetic native measurement.",inputSchema: z.object({goalId:z.string(),startDate:z.string(),endDate:z.string()}),execute:()=>output})}});
-  expect(result.completion).toBe(mode === "exact" ? "complete" : "incomplete");
- });
+	it.each([
+		"interleaved",
+		"reversed",
+		"non-native-current",
+		"earlier-clipped",
+	])("preserves native measurement boundaries within mixed evidence: %s", async (mode) => {
+		const goalSignal: InvestigationSignal = {
+			...signal,
+			signalKey: "goal:workspace",
+			entity: { type: "goal", id: "workspace", label: "Workspace visits" },
+		};
+		const measurement = (startDate: string, endDate: string) => ({
+			measurement: {
+				websiteId: "site-1",
+				definitionId: "workspace",
+				startDate,
+				endDate,
+				definition: { type: "PAGE_VIEW", target: "/workspace", filters: [] },
+			},
+			total_users_entered: 200,
+			total_users_completed: 164,
+		});
+		const reference = (name: string, toolCallId: string) => ({
+			source: "tool" as const,
+			name,
+			toolCallId,
+			resultKey: null,
+		});
+		const read = (toolCallId: string, period: typeof signal.period.current) =>
+			toolCallResponse(
+				"get_goal_analytics",
+				JSON.stringify({
+					goalId: "workspace",
+					startDate: period.from,
+					endDate: period.to,
+				}),
+				toolCallId
+			);
+		const responses = [read("previous", signal.period.previous)];
+		if (mode === "earlier-clipped") {
+			responses.push(read("clipped", signal.period.current));
+		}
+		if (mode !== "non-native-current") {
+			responses.push(read("current", signal.period.current));
+		}
+		responses.push(toolCallResponse("scrape_page", "{}", "page"));
+		const sources = [
+			{ source: "signal" as const },
+			reference("get_goal_analytics", "previous"),
+			reference("scrape_page", "page"),
+			{ source: "provided" as const, index: 0 },
+			...(mode === "non-native-current"
+				? []
+				: [reference("get_goal_analytics", "current")]),
+		];
+		if (mode === "reversed") {
+			sources.reverse();
+		}
+		const finish = {
+			completion: "complete",
+			findingKind: "product_outcome",
+			title: "Workspace visits inspected",
+			summary:
+				"The available evidence was inspected; no repair was established.",
+			rootCause: null,
+			impact: null,
+			publish: false,
+			publicationBasis: null,
+			next: { type: "resolve", reason: "No inspected repair is established." },
+			evidence: [
+				{
+					claim:
+						"The cited measurements and route inspection were reviewed together.",
+					sources,
+				},
+			],
+		};
+		responses.push(outputResponse(finish));
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(...responses),
+		});
+		let currentReads = 0;
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				signal: goalSignal,
+				evidence: ["Workspace visits are the intended goal."],
+				history: [],
+				otherOpenWork: [],
+				githubRepository: null,
+			},
+			{
+				model,
+				tools: {
+					get_goal_analytics: tool({
+						description:
+							"Synthetic native goal measurement with exact dates and definition.",
+						inputSchema: z.object({
+							goalId: z.string(),
+							startDate: z.string(),
+							endDate: z.string(),
+						}),
+						execute: ({ startDate, endDate }) => {
+							if (startDate === signal.period.current.from) {
+								currentReads += 1;
+								if (mode === "earlier-clipped" && currentReads === 1) {
+									return measurement("2026-07-07", endDate);
+								}
+							}
+							return measurement(startDate, endDate);
+						},
+					}),
+					scrape_page: tool({
+						description:
+							"Synthetic route content, never an authoritative native measurement.",
+						inputSchema: z.object({}),
+						// Matching measurement-shaped page content must never establish completion.
+						execute: () =>
+							measurement(signal.period.current.from, signal.period.current.to),
+					}),
+				},
+			}
+		);
+		const complete = mode === "interleaved" || mode === "reversed";
+		expect(result.completion).toBe(complete ? "complete" : "incomplete");
+		expect(result.snapshot?.completion).toBe(result.completion);
+		expect(result.outcome.publish).toBe(false);
+		expect(
+			result.snapshot?.reads.filter(
+				(entry) => entry.name === "get_goal_analytics"
+			)
+		).toHaveLength(
+			mode === "earlier-clipped" ? 3 : mode === "non-native-current" ? 1 : 2
+		);
+	});
+	it.each([
+		"exact",
+		"clipped",
+		"unrelated",
+		"definition-unavailable",
+		"open-window",
+		"immature-cohort",
+	])("checks actual scope before accepting claimed completion: %s", async (mode) => {
+		const goalSignal: InvestigationSignal = {
+			...signal,
+			signalKey: "goal:workspace",
+			entity: { type: "goal", id: "workspace", label: "Workspace visits" },
+		};
+		const native = {
+			measurement: {
+				websiteId: "site-1",
+				definitionId: mode === "unrelated" ? "other-goal" : "workspace",
+				startDate:
+					mode === "clipped" ? "2026-07-07" : signal.period.current.from,
+				endDate: signal.period.current.to,
+				definition: { type: "PAGE_VIEW", target: "/workspace", filters: [] },
+			},
+			total_users_entered: 200,
+			total_users_completed: 20,
+		};
+		const output =
+			mode === "definition-unavailable"
+				? { total_users_entered: 200, total_users_completed: 20 }
+				: mode === "immature-cohort"
+					? {
+							results: {
+								current: {
+									type: "identified_profile_retention",
+									websiteId: "site-1",
+									from: signal.period.current.from,
+									to: signal.period.current.to,
+									timezone: "UTC",
+									filters: [],
+									data: [{ eligible_profiles: 20, incomplete_profiles: 180 }],
+								},
+							},
+						}
+					: native;
+		const name = mode === "immature-cohort" ? "get_data" : "get_goal_analytics";
+		const finish = {
+			completion: "complete",
+			findingKind: "product_outcome",
+			title: "Current evidence inspected",
+			summary: "The cause remains unknown.",
+			rootCause: null,
+			impact: null,
+			publish: false,
+			publicationBasis: null,
+			next: { type: "resolve", reason: "No inspected repair is established." },
+			evidence: ["The available read was inspected."],
+			evidenceRefs: [
+				{
+					source: "tool",
+					name,
+					toolCallId: `${name}-1`,
+					resultKey: name === "get_data" ? "current" : null,
+				},
+			],
+		};
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				toolCallResponse(
+					name,
+					JSON.stringify({
+						goalId: "workspace",
+						startDate: signal.period.current.from,
+						endDate: signal.period.current.to,
+					})
+				),
+				outputResponse(finish)
+			),
+		});
+		const result = await runInsightAgent(
+			{
+				appContext: {
+					...appContext(),
+					...(mode === "open-window"
+						? { currentDateTime: "2026-07-11T12:00:00.000Z" }
+						: {}),
+				},
+				signal: goalSignal,
+				evidence: [],
+				history: [],
+				otherOpenWork: [],
+				githubRepository: null,
+			},
+			{
+				model,
+				tools: {
+					[name]: tool({
+						description: "Synthetic native measurement.",
+						inputSchema: z.object({
+							goalId: z.string(),
+							startDate: z.string(),
+							endDate: z.string(),
+						}),
+						execute: () => output,
+					}),
+				},
+			}
+		);
+		expect(result.completion).toBe(
+			mode === "exact" ? "complete" : "incomplete"
+		);
+	});
 });

@@ -3,11 +3,13 @@ import { afterAll, beforeEach, describe, expect, mock, test } from "bun:test";
 const originalApiKey = process.env.SUPERMEMORY_API_KEY;
 process.env.SUPERMEMORY_API_KEY = "test_supermemory_key";
 
-type ProfileInput = { containerTag: string };
-type SearchInput = {
+interface ProfileInput {
+	containerTag: string;
+}
+interface SearchInput {
 	containerTag: string;
 	filters?: unknown;
-};
+}
 
 const defaultProfile = () => ({
 	profile: { dynamic: [], static: [] },

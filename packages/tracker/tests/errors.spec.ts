@@ -168,12 +168,17 @@ test.describe("Error Tracking", () => {
 		});
 
 		const request = await requestPromise;
-		const noise = findEvent(request, (e) =>
-			typeof e.message === "string" &&
-			e.message.includes("Object Not Found Matching Id")
+		const noise = findEvent(
+			request,
+			(e) =>
+				typeof e.message === "string" &&
+				e.message.includes("Object Not Found Matching Id")
 		);
-		const sentinel = findEvent(request, (e) =>
-			typeof e.message === "string" && e.message.includes("Sentinel After Noise")
+		const sentinel = findEvent(
+			request,
+			(e) =>
+				typeof e.message === "string" &&
+				e.message.includes("Sentinel After Noise")
 		);
 		expect(sentinel).toBeTruthy();
 		expect(noise).toBeUndefined();

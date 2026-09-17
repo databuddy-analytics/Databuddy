@@ -22,14 +22,18 @@ describe("public copy contracts", () => {
 		);
 		const loader = guide.split("```html\n<script>\n")[1]?.split("</script>")[0];
 		expect(loader).toBeDefined();
-		if (!loader) throw new Error("Missing GTM loader");
+		if (!loader) {
+			throw new Error("Missing GTM loader");
+		}
 		expect(guide.match(/document\.createElement\("script"\)/g)).toHaveLength(1);
 		const attributes: Record<string, string> = {};
 		const script = {
 			src: "",
 			onload: () => {},
 			onerror: () => {},
-			setAttribute: (name: string, value: string) => { attributes[name] = value; },
+			setAttribute: (name: string, value: string) => {
+				attributes[name] = value;
+			},
 		};
 		const window = { dataLayer: [] as { event: string }[] };
 		const warnings: string[] = [];
@@ -39,7 +43,11 @@ describe("public copy contracts", () => {
 			console: { warn: (message: string) => warnings.push(message) },
 			document: {
 				createElement: () => script,
-				head: { appendChild: () => { appended = true; } },
+				head: {
+					appendChild: () => {
+						appended = true;
+					},
+				},
 			},
 		});
 		expect(appended).toBe(true);
@@ -255,9 +263,13 @@ describe("search discovery", () => {
 		);
 		const href = markup.match(/href="([^"]+)"/)?.[1].replaceAll("&amp;", "&");
 		expect(href).toBeDefined();
-		if (!href) throw new Error("Missing share link");
+		if (!href) {
+			throw new Error("Missing share link");
+		}
 		const shared = new URL(href).searchParams.get("url");
-		if (!shared) throw new Error("Missing calculator URL");
+		if (!shared) {
+			throw new Error("Missing calculator URL");
+		}
 		const shareUrl = new URL(shared);
 		const params = Object.fromEntries(shareUrl.searchParams);
 		expect(readCalculatorInputs(params)).toEqual(inputs);
@@ -394,12 +406,16 @@ describe("search discovery", () => {
 			]);
 		} finally {
 			fetch.mockRestore();
-			if (originalNodeEnv === undefined)
+			if (originalNodeEnv === undefined) {
 				Reflect.deleteProperty(process.env, "NODE_ENV");
-			else process.env.NODE_ENV = originalNodeEnv;
-			if (originalApiKey === undefined)
+			} else {
+				process.env.NODE_ENV = originalNodeEnv;
+			}
+			if (originalApiKey === undefined) {
 				Reflect.deleteProperty(process.env, "MARBLE_API_KEY");
-			else process.env.MARBLE_API_KEY = originalApiKey;
+			} else {
+				process.env.MARBLE_API_KEY = originalApiKey;
+			}
 		}
 	});
 });

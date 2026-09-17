@@ -376,7 +376,7 @@ test.describe("BrowserFlagsManager — edge cases", () => {
 		await page.evaluate(() => {
 			const w = window as unknown as { __tm: { destroy: () => void } };
 			w.__tm.destroy();
-			delete (window as unknown as { __tm?: unknown }).__tm;
+			(window as unknown as { __tm?: unknown }).__tm = undefined;
 		});
 	});
 

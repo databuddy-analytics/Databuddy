@@ -7,7 +7,9 @@ import { ProfilesBuilders } from "./profiles";
 import { RevenueBuilders } from "./revenue";
 
 const describeIntegration =
-	process.env.CLICKHOUSE_INTEGRATION_TESTS === "true" ? describe : describe.skip;
+	process.env.CLICKHOUSE_INTEGRATION_TESTS === "true"
+		? describe
+		: describe.skip;
 
 function stripeMetadata(
 	recordKind: "attempt" | "money",
@@ -575,7 +577,7 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 			table: "analytics.revenue",
 			format: "JSONEachRow",
 			values: [
-					revenueRow(
+				revenueRow(
 					websiteId,
 					"inpay_recovered",
 					60,
@@ -1009,12 +1011,7 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 			table: "analytics.events",
 			format: "JSONEachRow",
 			values: [
-				attributionEvent(
-					websiteId,
-					sessionId,
-					"2026-08-01 11:00:00",
-					null
-				),
+				attributionEvent(websiteId, sessionId, "2026-08-01 11:00:00", null),
 				attributionEvent(
 					websiteId,
 					sessionId,
@@ -1216,10 +1213,10 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 		if (!listQuery || typeof listQuery === "string") {
 			throw new Error("Profile list did not compile");
 		}
-		const profiles = await chQuery<{ ltv: number | string; profile_id: string }>(
-			listQuery.sql,
-			listQuery.params
-		);
+		const profiles = await chQuery<{
+			ltv: number | string;
+			profile_id: string;
+		}>(listQuery.sql, listQuery.params);
 
 		const detailQuery = ProfilesBuilders.profile_revenue?.customSql?.({
 			endDate: "2026-08-03",
@@ -1242,8 +1239,8 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 		expect(
 			Number(profiles.find((profile) => profile.profile_id === profileId)?.ltv)
 		).toBe(80);
-		expect(transactions.map((transaction) => transaction.transaction_id)).toEqual([
-			"re_profile_refund",
-		]);
+		expect(
+			transactions.map((transaction) => transaction.transaction_id)
+		).toEqual(["re_profile_refund"]);
 	});
 });

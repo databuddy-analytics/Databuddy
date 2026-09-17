@@ -80,10 +80,10 @@ describe("public pricing copy", () => {
 			included: 2_000_000,
 			overageTierBasis: "total_monthly_events",
 			overageTiers: [
-				{ upTo: 10_000_000, pricePerUnit: 0.00003 },
-				{ upTo: 50_000_000, pricePerUnit: 0.00002 },
-				{ upTo: 250_000_000, pricePerUnit: 0.000015 },
-				{ upTo: "unlimited", pricePerUnit: 0.00001 },
+				{ upTo: 10_000_000, pricePerUnit: 0.000_03 },
+				{ upTo: 50_000_000, pricePerUnit: 0.000_02 },
+				{ upTo: 250_000_000, pricePerUnit: 0.000_015 },
+				{ upTo: "unlimited", pricePerUnit: 0.000_01 },
 			],
 		});
 	});
@@ -221,7 +221,9 @@ describe("public pricing copy", () => {
 		["intelligence_scale", 10_001_000, 501, 800.02],
 	] as const)("calculates %s at %i events and %i completed investigations", (id, events, investigations, total) => {
 		const plan = normalizePlans(RAW_PLANS).find((entry) => entry.id === id);
-		if (!plan) throw new Error(`Missing pricing plan ${id}`);
+		if (!plan) {
+			throw new Error(`Missing pricing plan ${id}`);
+		}
 		expect(calculateTotalCost(plan, events, investigations)).toBeCloseTo(
 			total,
 			6
@@ -234,13 +236,17 @@ describe("public pricing copy", () => {
 		expect(selectBestPlan(25_000, plans, 1)?.id).toBe("intelligence");
 		const highVolume = selectBestPlan(10_000_001, plans, 100);
 		expect(highVolume?.id).toBe("intelligence");
-		if (!highVolume) throw new Error("Missing high-volume plan");
+		if (!highVolume) {
+			throw new Error("Missing high-volume plan");
+		}
 		expect(calculateTotalCost(highVolume, 10_000_001, 100)).toBeCloseTo(
-			539.00002,
+			539.000_02,
 			6
 		);
 		const hobby = plans.find((plan) => plan.id === "hobby");
-		if (!hobby) throw new Error("Missing Hobby plan");
+		if (!hobby) {
+			throw new Error("Missing Hobby plan");
+		}
 		expect(calculateTotalCost(hobby, 25_000, 1)).toBeNull();
 		expect(calculateTotalCost(hobby, 25_000, 0)).toBe(9.99);
 	});
@@ -326,25 +332,34 @@ describe("public pricing copy", () => {
 	});
 	it("restores a visible comparison table with all six plans and accurate request-access links", () => {
 		const plans = normalizePlans(RAW_PLANS);
-		const markup = renderToStaticMarkup(createElement(PlansComparisonTable, { plans }));
+		const markup = renderToStaticMarkup(
+			createElement(PlansComparisonTable, { plans })
+		);
 		expect(markup).not.toContain("<article");
 		expect(markup).not.toContain("<details");
-		for (const plan of plans) expect(markup).toContain(`id="${plan.id}"`);
-		for (const id of ["hobby", "pro"])
+		for (const plan of plans) {
+			expect(markup).toContain(`id="${plan.id}"`);
+		}
+		for (const id of ["hobby", "pro"]) {
 			expect(markup).toContain(
 				`href="https://app.databuddy.cc/register?plan=${id}"`
 			);
-		for (const topic of ["intelligence-business", "intelligence-scale"])
+		}
+		for (const topic of ["intelligence-business", "intelligence-scale"]) {
 			expect(markup).toContain(`href="/contact?topic=${topic}"`);
+		}
 		expect(markup).not.toContain("register?plan=intelligence");
 		expect(markup).not.toContain("Most popular");
 		const comparison = markup;
 		expect(comparison).toStartWith("<section ");
 		expect(comparison).not.toContain(" open=");
-		for (const plan of plans)
+		for (const plan of plans) {
 			expect(comparison).toContain(`>${plan.name}</span>`);
+		}
 		expect(comparison).toContain("Investigations / month");
-		const investigationRow = comparison.split("Investigations / month")[1]?.split("</tr>")[0];
+		const investigationRow = comparison
+			.split("Investigations / month")[1]
+			?.split("</tr>")[0];
 		expect(investigationRow).toContain(">100</td>");
 		expect(investigationRow).toContain(">500</td>");
 		expect(comparison).toContain("Priority email + Slack");
@@ -362,7 +377,9 @@ describe("public pricing copy", () => {
 					}
 				: plan
 		);
-		const markup = renderToStaticMarkup(createElement(PlansComparisonTable, { plans }));
+		const markup = renderToStaticMarkup(
+			createElement(PlansComparisonTable, { plans })
+		);
 		expect(markup).toContain("$123");
 		expect(markup).toContain(">42</td>");
 		expect(markup).toContain("$0.50 per extra");
@@ -378,7 +395,9 @@ describe("public pricing copy", () => {
 				chatIncluded: false,
 				investigationPrice: null,
 			}));
-		const markup = renderToStaticMarkup(createElement(PlansComparisonTable, { plans }));
+		const markup = renderToStaticMarkup(
+			createElement(PlansComparisonTable, { plans })
+		);
 		expect(markup).toContain(">100</td>");
 		expect(markup).toContain(">500</td>");
 		expect(markup).not.toContain("Databunny chat included");

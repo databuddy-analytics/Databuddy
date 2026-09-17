@@ -258,7 +258,7 @@ test("restores the submitted website and pages when retrying a failed generation
 		"https://second.example.net/pricing",
 		"https://second.example.net/docs",
 	];
-	let current: BusinessContextSettings = {
+	const current: BusinessContextSettings = {
 		...settings(),
 		websites: [
 			...settings().websites,
@@ -361,7 +361,13 @@ for (const viewport of contextViewports) {
 
 				const regions = ["page", "brief", "document", "research"] as const;
 				const readBounds = async () => {
-					const bounds = [];
+					const bounds: Array<{
+						region: (typeof regions)[number];
+						x: number;
+						y: number;
+						width: number;
+						height: number;
+					}> = [];
 					for (const region of regions) {
 						const element = page.getByTestId(`business-context-${region}`);
 						await expect(element).toBeVisible();
@@ -592,8 +598,9 @@ test("discards an AI draft without restoring it on the next refresh", {
 			await route.fallback();
 			return;
 		}
-		if (new URL(route.request().url()).pathname.endsWith("/cancel"))
+		if (new URL(route.request().url()).pathname.endsWith("/cancel")) {
 			current = { ...current, generation: null };
+		}
 		await route.fulfill({ json: { json: current } });
 	});
 	await page.goto(path);
@@ -1142,13 +1149,14 @@ test("failed browser storage keeps newer text and discarded tombstones across in
 			Storage.prototype[method] = function (
 				this: Storage,
 				key: string,
-				value: string = ""
+				value = ""
 			) {
-				if (key.startsWith("business-context-draft:"))
+				if (key.startsWith("business-context-draft:")) {
 					throw new DOMException(
 						"Synthetic quota failure",
 						"QuotaExceededError"
 					);
+				}
 				return original.call(this, key, value);
 			};
 		}
@@ -1221,7 +1229,9 @@ test("choosing a saved version dismisses an available AI draft", {
 			});
 			return;
 		}
-		if (method === "cancel") current = { ...current, generation: null };
+		if (method === "cancel") {
+			current = { ...current, generation: null };
+		}
 		await route.fulfill({ json: { json: current } });
 	});
 	await page.goto(path);
@@ -1320,7 +1330,9 @@ for (const access of [
 				await route.fulfill({ json: { json: access } });
 				return;
 			}
-			if (method === "generate") generationRequests++;
+			if (method === "generate") {
+				generationRequests++;
+			}
 			if (method === "save") {
 				current = {
 					...current,
@@ -1649,8 +1661,10 @@ test("saving manual edits stops the stream and ignores its late draft", {
 	let current = settings();
 	await page.route("**/rpc/businessContext/**", async (route) => {
 		const method = new URL(route.request().url()).pathname.split("/").at(-1);
-		if (method === "generationAccess") return route.fallback();
-		if (method === "save")
+		if (method === "generationAccess") {
+			return route.fallback();
+		}
+		if (method === "save") {
 			current = {
 				...current,
 				generation: null,
@@ -1660,6 +1674,7 @@ test("saving manual edits stops the stream and ignores its late draft", {
 					revision: 2,
 				},
 			};
+		}
 		await route.fulfill({ json: { json: current } });
 	});
 	await contextStream.intercept();
@@ -1750,7 +1765,7 @@ test("recovers unsubmitted research inputs independently of brief saving and leg
 	const storageKey = `business-context-draft:${e2eSession.userId}:${e2eSession.organizationId}`;
 	await page.addInitScript(
 		({ storageKey }) => {
-			if (!sessionStorage.getItem(storageKey))
+			if (!sessionStorage.getItem(storageKey)) {
 				sessionStorage.setItem(
 					storageKey,
 					JSON.stringify({
@@ -1758,6 +1773,7 @@ test("recovers unsubmitted research inputs independently of brief saving and leg
 						content: "A draft stored by an older tab.",
 					})
 				);
+			}
 		},
 		{ storageKey }
 	);
@@ -1774,8 +1790,10 @@ test("recovers unsubmitted research inputs independently of brief saving and leg
 	};
 	await page.route("**/rpc/businessContext/**", async (route) => {
 		const method = new URL(route.request().url()).pathname.split("/").at(-1);
-		if (method === "generationAccess") return route.fallback();
-		if (method === "save")
+		if (method === "generationAccess") {
+			return route.fallback();
+		}
+		if (method === "save") {
 			current = {
 				...current,
 				profile: {
@@ -1784,6 +1802,7 @@ test("recovers unsubmitted research inputs independently of brief saving and leg
 					revision: 2,
 				},
 			};
+		}
 		await route.fulfill({ json: { json: current } });
 	});
 	await page.goto(path);

@@ -79,7 +79,6 @@ describe("componentToBlocks tables and lists", () => {
 			{ type: "raw_number", value: 1500, text: "1,500" },
 		]);
 	});
-
 });
 
 describe("componentToBlocks charts", () => {
@@ -93,11 +92,15 @@ describe("componentToBlocks charts", () => {
 				["May 2", 1350, 520],
 			],
 		});
-		expect(blocks[0]).toMatchObject({ type: "data_table", caption: "Daily Traffic" });
-		const header = (blocks[0].rows as unknown[][])[0].map((c) => (c as { text: string }).text);
+		expect(blocks[0]).toMatchObject({
+			type: "data_table",
+			caption: "Daily Traffic",
+		});
+		const header = (blocks[0].rows as unknown[][])[0].map(
+			(c) => (c as { text: string }).text
+		);
 		expect(header).toEqual(["Period", "pageviews", "visitors"]);
 	});
-
 });
 
 describe("componentToBlocks native actions and previews", () => {
@@ -113,7 +116,9 @@ describe("componentToBlocks native actions and previews", () => {
 		expect(block.type).toBe("actions");
 		const elements = block.elements as Array<{ url: string }>;
 		expect(elements).toHaveLength(2);
-		expect(elements[0].url).toBe("https://app.databuddy.cc/websites/abc/errors");
+		expect(elements[0].url).toBe(
+			"https://app.databuddy.cc/websites/abc/errors"
+		);
 		expect(elements[1].url).toBe("https://example.com");
 	});
 
@@ -121,17 +126,19 @@ describe("componentToBlocks native actions and previews", () => {
 		const block = firstBlock({
 			type: "suggested-actions",
 			actions: [
-				{ label: "Break down by referrer", prompt: "break /pricing down by referrer" },
+				{
+					label: "Break down by referrer",
+					prompt: "break /pricing down by referrer",
+				},
 				{ label: "No prompt" },
 			],
 		});
 		expect(block.type).toBe("actions");
-		const elements = block.elements as Array<Record<string, unknown>>;
+		const elements = block.elements as Record<string, unknown>[];
 		expect(elements).toHaveLength(1);
 		expect(elements[0].action_id).toBe("agent_drilldown");
 		expect(elements[0].value).toBe("break /pricing down by referrer");
 	});
-
 });
 
 describe("componentToBlocks no silent drop", () => {

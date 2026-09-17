@@ -474,19 +474,24 @@ test.describe("API Methods", () => {
 			expect(trackEvents).toContain("book_demo");
 		});
 
-		test("custom track events are sent on page unload", async ({ page }, testInfo) => {
+		test("custom track events are sent on page unload", async ({
+			page,
+		}, testInfo) => {
 			test.skip(
 				testInfo.project.name !== "chromium",
 				"Native unload transport is exercised once to avoid shared server contention"
 			);
-			type BeaconRequest = {
+			interface BeaconRequest {
 				body: string;
 				contentType: string;
 				method: string;
-			};
+			}
 			const clientId = `test-unload-${crypto.randomUUID()}`;
 			const readRequests = async (): Promise<BeaconRequest[]> => {
-				const params = new URLSearchParams({ client_id: clientId, path: "/track" });
+				const params = new URLSearchParams({
+					client_id: clientId,
+					path: "/track",
+				});
 				const response = await fetch(
 					`http://127.0.0.1:3033/__test/beacons?${params}`
 				);

@@ -18,7 +18,9 @@ function makeRequest(overrides: Partial<QueryRequest> = {}): QueryRequest {
 	};
 }
 
-function makeConfig(overrides: Partial<SimpleQueryConfig> = {}): SimpleQueryConfig {
+function makeConfig(
+	overrides: Partial<SimpleQueryConfig> = {}
+): SimpleQueryConfig {
 	return {
 		table: "analytics.events",
 		fields: ["count() as total"],
@@ -59,36 +61,31 @@ function compile(
 }
 
 describe("SimpleQueryBuilder.compile", () => {
-	it.each(QUERY_BUILDER_ENTRIES)(
-		"compiles %s with its required filters",
-		(type, config) => {
-			expect(() => compileBuilder(type, config)).not.toThrow();
-		}
-	);
+	it.each(
+		QUERY_BUILDER_ENTRIES
+	)("compiles %s with its required filters", (type, config) => {
+		expect(() => compileBuilder(type, config)).not.toThrow();
+	});
 
-	it.each(QUERY_BUILDER_ENTRIES)(
-		"compiles %s for organization-scoped website ids",
-		(type, config) => {
-			const { params, sql } = compileBuilder(type, config, {
-				organizationWebsiteIds: ["site-a", "site-b"],
-				projectId: "org-id",
-			});
+	it.each(
+		QUERY_BUILDER_ENTRIES
+	)("compiles %s for organization-scoped website ids", (type, config) => {
+		const { params, sql } = compileBuilder(type, config, {
+			organizationWebsiteIds: ["site-a", "site-b"],
+			projectId: "org-id",
+		});
 
-			expect(sql).toContain("SELECT");
-			expect(params.websiteIds).toEqual(["site-a", "site-b"]);
-		}
-	);
+		expect(sql).toContain("SELECT");
+		expect(params.websiteIds).toEqual(["site-a", "site-b"]);
+	});
 
 	it.each(
 		QUERY_BUILDER_ENTRIES.filter(([, config]) => config.requiredFilters?.length)
-	)(
-		"rejects %s when any required filter is missing",
-		(type, config) => {
-			expect(() =>
-				new SimpleQueryBuilder(config, makeRequest({ type })).compile()
-			).toThrow("Missing required filter");
-		}
-	);
+	)("rejects %s when any required filter is missing", (type, config) => {
+		expect(() =>
+			new SimpleQueryBuilder(config, makeRequest({ type })).compile()
+		).toThrow("Missing required filter");
+	});
 
 	it("produces a valid SELECT with tenant filter and date range", () => {
 		const { sql, params } = compile();
@@ -209,9 +206,7 @@ describe("SimpleQueryBuilder.compile", () => {
 	});
 
 	it("silently skips disallowed filter fields rather than throwing", () => {
-		const filters: Filter[] = [
-			{ field: "secret_col", op: "eq", value: "x" },
-		];
+		const filters: Filter[] = [{ field: "secret_col", op: "eq", value: "x" }];
 		const { sql } = compile({ allowedFilters: ["country"] }, { filters });
 		expect(sql).not.toContain("secret_col");
 	});
@@ -231,9 +226,7 @@ describe("SimpleQueryBuilder.compile", () => {
 	});
 
 	it("allows globally allowed filters even when allowedFilters is set", () => {
-		const filters: Filter[] = [
-			{ field: "country", op: "eq", value: "US" },
-		];
+		const filters: Filter[] = [{ field: "country", op: "eq", value: "US" }];
 		expect(() =>
 			compile({ allowedFilters: ["custom_field"] }, { filters })
 		).not.toThrow();
@@ -294,29 +287,61 @@ describe("SimpleQueryBuilder.compile", () => {
 
 	it("applies a configured CTE selector inside that CTE", () => {
 		const { sql, params } = compile(
-			{ with: [{ name: "selected", table: "analytics.events", fields: ["country"] }], from: "selected", groupBy: ["country"] },
-			{ filters: [{ field: "country", op: "eq", value: "US", target: "selected" }] }
+			{
+				with: [
+					{ name: "selected", table: "analytics.events", fields: ["country"] },
+				],
+				from: "selected",
+				groupBy: ["country"],
+			},
+			{
+				filters: [
+					{ field: "country", op: "eq", value: "US", target: "selected" },
+				],
+			}
 		);
 		expect(sql).toContain("country = {f");
-		expect(sql.indexOf("country = {f")).toBeLessThan(sql.lastIndexOf("FROM selected"));
+		expect(sql.indexOf("country = {f")).toBeLessThan(
+			sql.lastIndexOf("FROM selected")
+		);
 		expect(Object.values(params)).toContain("US");
 	});
 
-	it.each(["custom_events_by_path", "error_frequency", "errors_by_page"])(
-		"rejects an invented target in %s before compiling unfiltered SQL",
-		(type) => {
-			const config = QueryBuilders[type];
-			if (!config) throw new Error("Missing builder");
-			expect(() => compileBuilder(type, config, {
-				filters: [{ field: type === "custom_events_by_path" ? "event_name" : "message", op: "eq", value: "synthetic-event", target: "event" }],
-			})).toThrow("Filter target 'event' is not permitted");
+	it.each([
+		"custom_events_by_path",
+		"error_frequency",
+		"errors_by_page",
+	])("rejects an invented target in %s before compiling unfiltered SQL", (type) => {
+		const config = QueryBuilders[type];
+		if (!config) {
+			throw new Error("Missing builder");
 		}
-	);
+		expect(() =>
+			compileBuilder(type, config, {
+				filters: [
+					{
+						field: type === "custom_events_by_path" ? "event_name" : "message",
+						op: "eq",
+						value: "synthetic-event",
+						target: "event",
+					},
+				],
+			})
+		).toThrow("Filter target 'event' is not permitted");
+	});
 
 	it("does not silently discard a HAVING selector in custom SQL", () => {
-		expect(() => compileBuilder("custom_events_by_path", QueryBuilders.custom_events_by_path, {
-			filters: [{field: "total_events", op: "eq", value: 10, having: true}],
-		})).toThrow("Having filters are not supported");
+		expect(() =>
+			compileBuilder(
+				"custom_events_by_path",
+				QueryBuilders.custom_events_by_path,
+				{
+					filters: [
+						{ field: "total_events", op: "eq", value: 10, having: true },
+					],
+				}
+			)
+		).toThrow("Having filters are not supported");
 	});
 
 	it("allows a configured required filter when present", () => {
@@ -368,12 +393,8 @@ describe("SimpleQueryBuilder.compile", () => {
 			})
 		).compile();
 
-		expect(sql).toContain(
-			"AND visitor_id IN ("
-		);
-		expect(sql).toContain(
-			"SELECT DISTINCT visitor_id"
-		);
+		expect(sql).toContain("AND visitor_id IN (");
+		expect(sql).toContain("SELECT DISTINCT visitor_id");
 		expect(sql).toContain("FROM analytics.custom_events");
 		expect(sql).toContain("event_name = {f0:String}");
 		expect(sql).not.toContain("eventNameFilter");
@@ -470,9 +491,7 @@ describe("SimpleQueryBuilder.compile", () => {
 			new SimpleQueryBuilder(
 				config,
 				makeRequest({
-					filters: [
-						{ field: "session_count", op: "contains", value: "1" },
-					],
+					filters: [{ field: "session_count", op: "contains", value: "1" }],
 					type: "profile_list",
 				})
 			).compile()
@@ -655,34 +674,34 @@ describe("SimpleQueryBuilder.compile", () => {
 
 		expect(sql).toContain("session_attribution AS");
 		expect(sql).toContain("sa.session_country = {f0:String}");
-		expect(sql).not.toContain("\n                    AND country = {f0:String}");
+		expect(sql).not.toContain(
+			"\n                    AND country = {f0:String}"
+		);
 		expect(params.f0).toBe("US");
 	});
 
-	it.each(["entry_pages", "exit_pages"])(
-		"filters %s by anonymous visitor id",
-		(type) => {
-			const config = QueryBuilders[type];
-			if (!config) {
-				throw new Error(`${type} builder is missing`);
-			}
-
-			const { params, sql } = new SimpleQueryBuilder(
-				config,
-				makeRequest({
-					filters: [
-						{ field: "anonymous_id", op: "eq", value: "visitor-1" },
-					],
-					type,
-				})
-			).compile();
-
-			expect(sql).toContain("anonymous_id = {f0:String}");
-			expect(sql).toContain("as visitor_id");
-			expect(sql).not.toMatch(/arg(?:Min|Max)\([^\n]+\) as anonymous_id/);
-			expect(params.f0).toBe("visitor-1");
+	it.each([
+		"entry_pages",
+		"exit_pages",
+	])("filters %s by anonymous visitor id", (type) => {
+		const config = QueryBuilders[type];
+		if (!config) {
+			throw new Error(`${type} builder is missing`);
 		}
-	);
+
+		const { params, sql } = new SimpleQueryBuilder(
+			config,
+			makeRequest({
+				filters: [{ field: "anonymous_id", op: "eq", value: "visitor-1" }],
+				type,
+			})
+		).compile();
+
+		expect(sql).toContain("anonymous_id = {f0:String}");
+		expect(sql).toContain("as visitor_id");
+		expect(sql).not.toMatch(/arg(?:Min|Max)\([^\n]+\) as anonymous_id/);
+		expect(params.f0).toBe("visitor-1");
+	});
 
 	it("normalizes standard session attribution queries", () => {
 		const { sql, params } = compile(
@@ -805,9 +824,7 @@ describe("SimpleQueryBuilder.compile", () => {
 		const { sql } = compileBuilder("session_metrics", config);
 
 		expect(sql).toContain("countIf(page_views >= 1) as total_sessions");
-		expect(sql).toContain(
-			"avgIf(duration, page_views >= 1 AND duration > 0)"
-		);
+		expect(sql).toContain("avgIf(duration, page_views >= 1 AND duration > 0)");
 		expect(sql).toContain(
 			"countIf(page_views = 1 AND duration < 10 AND engagement_events = 0)"
 		);
@@ -985,7 +1002,6 @@ describe("SimpleQueryBuilder.compile", () => {
 		const { sql } = compile({ limit: 10 }, { limit: 25 });
 		expect(sql).toContain("LIMIT 25");
 	});
-
 });
 
 describe("getClickHouseQuerySettings", () => {
@@ -994,8 +1010,7 @@ describe("getClickHouseQuerySettings", () => {
 		const previousReadonlyUrl = process.env.CLICKHOUSE_READONLY_URL;
 		try {
 			process.env.CLICKHOUSE_URL = "https://readonly.example.test";
-			process.env.CLICKHOUSE_READONLY_URL =
-				"https://readonly.example.test";
+			process.env.CLICKHOUSE_READONLY_URL = "https://readonly.example.test";
 
 			expect(getClickHouseQuerySettings()).toEqual({});
 			expect(getClickHouseQuerySettings(true)).toEqual({});

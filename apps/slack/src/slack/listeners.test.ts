@@ -8,10 +8,7 @@ import {
 } from "@/slack/listeners";
 import { SLACK_COPY, SLACK_SUGGESTED_PROMPTS } from "@/slack/messages";
 import type { SlackThreadReplyGate } from "@/slack/thread-relevance";
-import type {
-	SlackFollowUpQueueResult,
-	SlackThreadQueueStore,
-} from "@/slack/thread-queue";
+import type { SlackThreadQueueStore } from "@/slack/thread-queue";
 
 type Handler = (input: Record<string, unknown>) => Promise<void>;
 
@@ -52,7 +49,8 @@ function createClient({
 		options: Record<string, unknown>
 	) => Promise<Record<string, unknown>>;
 } = {}) {
-	const apiCalls: Array<{ method: string; options: Record<string, unknown> }> = [];
+	const apiCalls: Array<{ method: string; options: Record<string, unknown> }> =
+		[];
 	const reactionAdds: Record<string, unknown>[] = [];
 	return {
 		apiCalls,
@@ -133,7 +131,11 @@ function createQueue(
 	overrides: Partial<SlackThreadQueueStore> = {}
 ): SlackThreadQueueStore & {
 	enqueuedRuns: SlackAgentRun[];
-	removedMessages: Array<{ channelId: string; messageTs: string; teamId?: string }>;
+	removedMessages: Array<{
+		channelId: string;
+		messageTs: string;
+		teamId?: string;
+	}>;
 } {
 	const enqueuedRuns: SlackAgentRun[] = [];
 	const removedMessages: Array<{
@@ -368,7 +370,9 @@ describe("Slack listeners", () => {
 		const { agent, runs } = createAgent();
 		const queue = createQueue({
 			isEngaged: async () => {
-				throw new Error("investigation replies do not use the generic thread gate");
+				throw new Error(
+					"investigation replies do not use the generic thread gate"
+				);
 			},
 		});
 		const { client } = createClient();
@@ -633,5 +637,4 @@ describe("Slack listeners", () => {
 			{ channelId: "C123", messageTs: "171234.568", teamId: "T123" },
 		]);
 	});
-
 });

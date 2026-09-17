@@ -119,9 +119,7 @@ describe("BullMQ connection options", () => {
 		process.env.INSIGHTS_BULLMQ_REDIS_URL =
 			"redis://insights:secret@insights.test:6380/5";
 
-		expect(
-			getBullMQConnectionOptions({ envPrefix: "INSIGHTS" })
-		).toEqual({
+		expect(getBullMQConnectionOptions({ envPrefix: "INSIGHTS" })).toEqual({
 			host: "insights.test",
 			port: 6380,
 			username: "insights",

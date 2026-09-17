@@ -7,13 +7,11 @@ const { forward } = vi.hoisted(() => ({
 	),
 }));
 vi.mock("autumn-js/fetch", () => ({ autumnHandler: () => forward }));
-const { getSession, getBillingCustomerId, getMemberRole } = vi.hoisted(
-	() => ({
-		getSession: vi.fn(async () => null),
-		getBillingCustomerId: vi.fn(),
-		getMemberRole: vi.fn(),
-	})
-);
+const { getSession, getBillingCustomerId, getMemberRole } = vi.hoisted(() => ({
+	getSession: vi.fn(async () => null),
+	getBillingCustomerId: vi.fn(),
+	getMemberRole: vi.fn(),
+}));
 vi.mock("@databuddy/auth", () => ({
 	auth: { api: { getSession } },
 }));

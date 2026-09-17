@@ -129,9 +129,7 @@ describe("validateAgentSQL", () => {
 	});
 
 	it("rejects queries against non-analytics tables", () => {
-		const result = validateAgentSQL(
-			`SELECT * FROM public.users ${TENANT}`
-		);
+		const result = validateAgentSQL(`SELECT * FROM public.users ${TENANT}`);
 		expect(result.valid).toBe(false);
 		expect(result.reason).toContain("public.users");
 	});
@@ -160,7 +158,7 @@ describe("validateAgentSQL", () => {
 
 	it("is case-insensitive for FROM/JOIN keywords", () => {
 		const result = validateAgentSQL(
-			`select count() from analytics.events where client_id = {websiteId:String}`
+			"select count() from analytics.events where client_id = {websiteId:String}"
 		);
 		expect(result).toEqual({ valid: true, reason: null });
 	});
@@ -422,7 +420,7 @@ describe("validateAgentSQL", () => {
 
 		it("rejects comma-separated joins", () => {
 			const result = validateAgentSQL(
-				`SELECT a.path FROM analytics.events a, analytics.error_spans b WHERE a.client_id = {websiteId:String}`
+				"SELECT a.path FROM analytics.events a, analytics.error_spans b WHERE a.client_id = {websiteId:String}"
 			);
 			expect(result.valid).toBe(false);
 			expect(result.reason).toContain("Comma");

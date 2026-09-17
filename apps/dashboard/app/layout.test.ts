@@ -4,7 +4,8 @@ test("self-hosted and E2E dashboards omit first-party tracking", async () => {
 	const child = Bun.spawn([process.execPath, "--no-env-file", "-"], {
 		cwd: import.meta.dir,
 		env: { NODE_ENV: "production" },
-		stdin: new Blob([`
+		stdin: new Blob([
+			`
 import assert from "node:assert/strict";
 import { mock } from "bun:test";
 import { Children, isValidElement } from "react";
@@ -22,7 +23,8 @@ for (const [selfhost, e2e, tracked] of [["", "", true], ["true", "", false], [""
   }
   assert.equal(children.some(child => isValidElement(child) && child.type === "script" && child.props.src?.startsWith("https://www.dubcdn.com/")), tracked);
 }
-`]),
+`,
+		]),
 		stdout: "ignore",
 		stderr: "pipe",
 	});

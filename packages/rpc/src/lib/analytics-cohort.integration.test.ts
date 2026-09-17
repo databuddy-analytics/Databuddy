@@ -12,7 +12,9 @@ import {
 } from "./analytics-utils";
 
 const suite =
-	process.env.CLICKHOUSE_INTEGRATION_TESTS === "true" ? describe : describe.skip;
+	process.env.CLICKHOUSE_INTEGRATION_TESTS === "true"
+		? describe
+		: describe.skip;
 const prefix = `cohort-${randomUUIDv7()}`;
 const websiteId = `${prefix}-site`;
 const otherWebsiteId = `${prefix}-other`;
@@ -63,8 +65,8 @@ suite("native cohort SQL against ClickHouse", () => {
 	beforeAll(async () => {
 		const events: Record<string, unknown>[] = [];
 		const custom: Record<string, unknown>[] = [];
-		for (const site of [websiteId, otherWebsiteId])
-			for (const [period, window] of windows.entries())
+		for (const site of [websiteId, otherWebsiteId]) {
+			for (const [period, window] of windows.entries()) {
 				for (const browser of ["Safari", "Chrome"]) {
 					let completions = 20;
 					if (site === otherWebsiteId) {
@@ -105,12 +107,13 @@ suite("native cohort SQL against ClickHouse", () => {
 							session_id: session,
 							profile_id: profile,
 						};
-						if (profile)
+						if (profile) {
 							custom.push({
 								...base,
 								timestamp: `${window.startDate} 11:59:30`,
 								event_name: "identify",
 							});
+						}
 						const entry = {
 							...base,
 							profile_id: "",
@@ -118,7 +121,9 @@ suite("native cohort SQL against ClickHouse", () => {
 							event_name: "project_created",
 						};
 						custom.push(entry);
-						if (i === 0) custom.push({ ...entry });
+						if (i === 0) {
+							custom.push({ ...entry });
+						}
 						const valid = i < completions || i >= 500;
 						const completion = {
 							...base,
@@ -128,13 +133,17 @@ suite("native cohort SQL against ClickHouse", () => {
 							event_name: "first_report_delivered",
 						};
 						custom.push(completion);
-						if (i === 0) custom.push({ ...completion });
+						if (i === 0) {
+							custom.push({ ...completion });
+						}
 					}
 				}
+			}
+		}
 		for (const [path, browser, country, time] of [
 			["/start", "Safari", "US", "12:00:00"],
 			["/finish", "Chrome", "CA", "12:01:00"],
-		])
+		]) {
 			events.push({
 				id: randomUUIDv7(),
 				client_id: boundaryWebsiteId,
@@ -151,6 +160,7 @@ suite("native cohort SQL against ClickHouse", () => {
 				country,
 				browser_name: browser,
 			});
+		}
 		await clickHouse.insert({
 			table: "analytics.events",
 			format: "JSONEachRow",
@@ -166,7 +176,7 @@ suite("native cohort SQL against ClickHouse", () => {
 	for (const [browser, expected] of [
 		["Safari", [100, 20]],
 		["Chrome", [80, 80]],
-	] as const)
+	] as const) {
 		it(`${browser}: ordered completions and stable entrants in both exact windows`, async () => {
 			for (const period of [0, 1] as const) {
 				const window = windows[period];
@@ -191,6 +201,7 @@ suite("native cohort SQL against ClickHouse", () => {
 				).toEqual([[window.startDate, 500, expected[period]]]);
 			}
 		}, 30_000);
+	}
 
 	it("country filter remains ANDed with the requested browser cohort", async () => {
 		const cohort = analyticsCohortSchema.parse({

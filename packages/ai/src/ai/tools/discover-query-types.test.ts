@@ -8,14 +8,16 @@ async function discover(input: {
 	search?: string | null;
 }) {
 	const schema = discoverQueryTypesTool.inputSchema;
-	if (!(schema instanceof z.ZodType) || !discoverQueryTypesTool.execute)
+	if (!(schema instanceof z.ZodType && discoverQueryTypesTool.execute)) {
 		throw new Error("Expected executable native Zod tool");
+	}
 	const result = await discoverQueryTypesTool.execute(schema.parse(input), {
 		toolCallId: "catalog",
 		messages: [],
 	});
-	if (!(result && "types" in result))
+	if (!(result && "types" in result)) {
 		throw new Error("Expected catalog result");
+	}
 	return result;
 }
 
@@ -70,8 +72,9 @@ test("discovery distinguishes an unordered aggregate from undocumented custom SQ
 
 test("accepts an empty keyword to inspect a category after a missing match", async () => {
 	const schema = discoverQueryTypesTool.inputSchema;
-	if (!(schema instanceof z.ZodType))
+	if (!(schema instanceof z.ZodType)) {
 		throw new Error("Expected native Zod tool schema");
+	}
 	const query = schema.parse({ category: "Revenue", search: "" });
 	const result = await discoverQueryTypesTool.execute?.(query, {
 		toolCallId: "category",
@@ -89,8 +92,9 @@ test("accepts an empty keyword to inspect a category after a missing match", asy
 
 test("explicit null searches across categories and can inspect the full catalog", async () => {
 	const schema = discoverQueryTypesTool.inputSchema;
-	if (!(schema instanceof z.ZodType))
+	if (!(schema instanceof z.ZodType)) {
 		throw new Error("Expected native Zod tool schema");
+	}
 	const options = { toolCallId: "all-categories", messages: [] };
 	const filtered = await discoverQueryTypesTool.execute?.(
 		schema.parse({ category: null, search: "revenue_overview" }),

@@ -360,7 +360,9 @@ async function prepareFixture(kind: FixtureKind = "sufficient") {
 	const current = nativeReads.find(
 		({ request }) => request.from === "2026-08-25"
 	);
-	if (!current) throw new Error("Missing synthetic current cohort");
+	if (!current) {
+		throw new Error("Missing synthetic current cohort");
+	}
 	return {
 		prepared,
 		reading: {
@@ -403,7 +405,9 @@ function startAgent(
 	);
 	const model = new MockLanguageModelV3({ doGenerate: async () => respond() });
 	const read = mock(async ({ index }: { index: number }) => {
-		if (!(index in readings)) throw new Error("Unexpected agent read");
+		if (!(index in readings)) {
+			throw new Error("Unexpected agent read");
+		}
 		return { results: { current: readings[index] } };
 	});
 	const steps: StepResult<ToolSet>[] = [];
@@ -513,10 +517,13 @@ describe("native retention daily depth", () => {
 		});
 		const call = run.model.doGenerateCalls[0];
 		const userMessage = call.prompt.find((message) => message.role === "user");
-		if (!userMessage || typeof userMessage.content === "string")
+		if (!userMessage || typeof userMessage.content === "string") {
 			throw new Error("Missing native prompt");
+		}
 		const text = userMessage.content.find((part) => part.type === "text");
-		if (text?.type !== "text") throw new Error("Missing native prompt text");
+		if (text?.type !== "text") {
+			throw new Error("Missing native prompt text");
+		}
 		const prompt = JSON.parse(text.text);
 		expect(prompt.signal.retentionMeasurement).not.toHaveProperty("daily");
 		expect(JSON.stringify(call.prompt)).not.toContain("cohort_date");
@@ -556,7 +563,9 @@ describe("native retention daily depth", () => {
 		const { prepared } = await prepareFixture();
 		if (mode === "legacy") {
 			const measured = prepared.signal.retentionMeasurement;
-			if (!measured) throw new Error("Missing retention fixture");
+			if (!measured) {
+				throw new Error("Missing retention fixture");
+			}
 			const { daily: _daily, ...aggregateOnly } = measured;
 			prepared.signal.retentionMeasurement = aggregateOnly;
 		}
@@ -724,10 +733,11 @@ describe("tool-supplied retention publication without a saved snapshot", () => {
 			(part) => part.type === "tool-error"
 		);
 		expect(rejection?.type).toBe("tool-error");
-		if (rejection?.type === "tool-error")
+		if (rejection?.type === "tool-error") {
 			expect(String(rejection.error)).toContain(
 				'summary: "Identity coverage was 50%."'
 			);
+		}
 	});
 
 	it.each([

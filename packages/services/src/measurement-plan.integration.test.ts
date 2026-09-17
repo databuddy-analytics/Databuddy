@@ -27,7 +27,9 @@ const enabled = process.env.BUSINESS_CONTEXT_INTEGRATION_TESTS === "true";
 const integration = enabled ? describe : describe.skip;
 
 beforeAll(() => {
-	if (!enabled) return;
+	if (!enabled) {
+		return;
+	}
 	const url = new URL(process.env.DATABASE_URL ?? "");
 	if (
 		!["localhost", "127.0.0.1"].includes(url.hostname) ||

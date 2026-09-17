@@ -134,29 +134,30 @@ for (const [name, reply] of [
 	["retry", () => retry({ replyId: "synthetic-reply" })],
 	["apply action", () => apply({ insightId: "synthetic-insight" })],
 ] as const) {
-	test.each([undefined, "", "  "])(
-		`${name} rejects AI credentials %p before writes and queues`,
-		async (key) => {
-			if (key === undefined) {
-				Reflect.deleteProperty(process.env, "AI_GATEWAY_API_KEY");
-			} else {
-				process.env.AI_GATEWAY_API_KEY = key;
-			}
-			await expect(reply()).rejects.toMatchObject({
-				code: "BAD_REQUEST",
-				message:
-					"Ask your administrator to configure AI before continuing an investigation.",
-			});
-			expect(authorize).toHaveBeenCalledWith(context, {
-				allowCrossOrg: true,
-				organizationId: "synthetic-org",
-				permissions: ["update"],
-				websiteId: "synthetic-site",
-			});
-			expect(transaction).not.toHaveBeenCalled();
-			expect(enqueue).not.toHaveBeenCalled();
+	test.each([
+		undefined,
+		"",
+		"  ",
+	])(`${name} rejects AI credentials %p before writes and queues`, async (key) => {
+		if (key === undefined) {
+			Reflect.deleteProperty(process.env, "AI_GATEWAY_API_KEY");
+		} else {
+			process.env.AI_GATEWAY_API_KEY = key;
 		}
-	);
+		await expect(reply()).rejects.toMatchObject({
+			code: "BAD_REQUEST",
+			message:
+				"Ask your administrator to configure AI before continuing an investigation.",
+		});
+		expect(authorize).toHaveBeenCalledWith(context, {
+			allowCrossOrg: true,
+			organizationId: "synthetic-org",
+			permissions: ["update"],
+			websiteId: "synthetic-site",
+		});
+		expect(transaction).not.toHaveBeenCalled();
+		expect(enqueue).not.toHaveBeenCalled();
+	});
 
 	test(`${name} checks permissions before AI configuration`, async () => {
 		authorize.mockRejectedValueOnce(rpcError.forbidden());

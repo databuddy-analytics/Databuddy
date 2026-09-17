@@ -24,29 +24,35 @@ const originalSecret = process.env.AUTUMN_SECRET_KEY;
 const originalNodeEnv = process.env.NODE_ENV;
 
 afterEach(() => {
-	if (originalSecret === undefined) delete process.env.AUTUMN_SECRET_KEY;
-	else process.env.AUTUMN_SECRET_KEY = originalSecret;
-	if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
-	else process.env.NODE_ENV = originalNodeEnv;
+	if (originalSecret === undefined) {
+		delete process.env.AUTUMN_SECRET_KEY;
+	} else {
+		process.env.AUTUMN_SECRET_KEY = originalSecret;
+	}
+	if (originalNodeEnv === undefined) {
+		delete process.env.NODE_ENV;
+	} else {
+		process.env.NODE_ENV = originalNodeEnv;
+	}
 	resolveCustomer.mockResolvedValue(customerId);
 	resolveCustomer.mockClear();
 });
 
-type NativePrice = {
+interface NativePrice {
 	amount?: number;
-	billing_units?: number;
 	billing_method?: string;
+	billing_units?: number;
 	max_purchase?: number | null;
-	tiers?: { to: number | "inf"; amount: number }[];
 	tier_behavior?: string;
-};
-type Fault = {
-	endpoint: "reserve" | "finalize" | "customer";
+	tiers?: { to: number | "inf"; amount: number }[];
+}
+interface Fault {
 	afterCommit?: boolean;
-	status?: number;
 	body?: unknown;
+	endpoint: "reserve" | "finalize" | "customer";
 	lost?: boolean;
-};
+	status?: number;
+}
 
 function provider(
 	options: {
@@ -111,8 +117,9 @@ function provider(
 					],
 	});
 	const faultResponse = (fault: Fault) => {
-		if (fault.lost)
+		if (fault.lost) {
 			throw new TypeError("Synthetic response lost after provider processing");
+		}
 		return Response.json(
 			fault.body ?? {
 				code: "synthetic_error",
@@ -124,8 +131,9 @@ function provider(
 	const client = createInvestigationBillingClient({
 		secretKey: "synthetic-local-only",
 		fetcher: async (request) => {
-			if (!(request instanceof Request))
+			if (!(request instanceof Request)) {
 				throw new Error("Expected a native SDK request");
+			}
 			expect(new URL(request.url).hostname).toBe("api.useautumn.com");
 			const body =
 				request.method === "GET"
@@ -142,8 +150,10 @@ function provider(
 			requests.push({ endpoint, key, body });
 			const index = faults.findIndex((fault) => fault.endpoint === endpoint);
 			const fault = index >= 0 ? faults.splice(index, 1)[0] : undefined;
-			if (fault && !fault.afterCommit) return faultResponse(fault);
-			if (endpoint === "customer")
+			if (fault && !fault.afterCommit) {
+				return faultResponse(fault);
+			}
+			if (endpoint === "customer") {
 				return Response.json({
 					id: options.responseCustomerId ?? customerId,
 					name: null,
@@ -163,8 +173,9 @@ function provider(
 							? {}
 							: { [INVESTIGATION_USAGE.featureId]: balance() },
 				});
+			}
 			if (endpoint === "reserve") {
-				if (key && idempotencyKeys.has(key))
+				if (key && idempotencyKeys.has(key)) {
 					return Response.json(
 						{
 							code: "duplicate_idempotency_key",
@@ -172,7 +183,10 @@ function provider(
 						},
 						{ status: 409 }
 					);
-				if (key) idempotencyKeys.add(key);
+				}
+				if (key) {
+					idempotencyKeys.add(key);
+				}
 				const allowed =
 					remaining >= Number(body.required_balance ?? 1) ||
 					options.overage === true;
@@ -187,7 +201,9 @@ function provider(
 					remaining -= 1;
 					holds.set(lock.lock_id, lock.expires_at);
 				}
-				if (fault) return faultResponse(fault);
+				if (fault) {
+					return faultResponse(fault);
+				}
 				return Response.json({
 					allowed,
 					customer_id: options.responseCustomerId ?? customerId,
@@ -197,7 +213,7 @@ function provider(
 			}
 			if (endpoint === "finalize") {
 				const id = String(body.lock_id);
-				if (!holds.has(id))
+				if (!holds.has(id)) {
 					return Response.json(
 						{
 							code: "invalid_request",
@@ -205,6 +221,7 @@ function provider(
 						},
 						{ status: 400 }
 					);
+				}
 				holds.delete(id);
 				if (body.action === "release") {
 					remaining += 1;
@@ -213,7 +230,9 @@ function provider(
 					expect(body.action).toBe("confirm");
 					confirmed += 1;
 				}
-				if (fault) return faultResponse(fault);
+				if (fault) {
+					return faultResponse(fault);
+				}
 				return Response.json({ success: true });
 			}
 			throw new Error("Unexpected native SDK endpoint");

@@ -3,10 +3,7 @@ import { querySearchAnalytics, type SearchConsoleRow } from "./search-console";
 
 const SITE_URL = "sc-domain:example.com";
 
-function mockFetch(
-	body: unknown,
-	status = 200
-): typeof globalThis.fetch {
+function mockFetch(body: unknown, status = 200): typeof globalThis.fetch {
 	return mock(() =>
 		Promise.resolve(
 			new Response(JSON.stringify(body), {
@@ -22,8 +19,20 @@ describe("querySearchAnalytics", () => {
 		const original = globalThis.fetch;
 		globalThis.fetch = mockFetch({
 			rows: [
-				{ keys: ["best analytics tool"], clicks: 42, impressions: 1200, ctr: 0.035, position: 3.7 },
-				{ keys: ["web analytics"], clicks: 18, impressions: 800, ctr: 0.0225, position: 5.2 },
+				{
+					keys: ["best analytics tool"],
+					clicks: 42,
+					impressions: 1200,
+					ctr: 0.035,
+					position: 3.7,
+				},
+				{
+					keys: ["web analytics"],
+					clicks: 18,
+					impressions: 800,
+					ctr: 0.0225,
+					position: 5.2,
+				},
 			],
 		});
 
@@ -36,7 +45,11 @@ describe("querySearchAnalytics", () => {
 		globalThis.fetch = original;
 
 		expect(result).not.toHaveProperty("error");
-		const data = result as { rows: SearchConsoleRow[]; rowCount: number; siteUrl: string };
+		const data = result as {
+			rows: SearchConsoleRow[];
+			rowCount: number;
+			siteUrl: string;
+		};
 		expect(data.siteUrl).toBe(SITE_URL);
 		expect(data.rowCount).toBe(2);
 
@@ -90,16 +103,18 @@ describe("querySearchAnalytics", () => {
 		const original = globalThis.fetch;
 		let capturedBody: string | undefined;
 		let capturedUrl: string | undefined;
-		globalThis.fetch = mock((url: string | URL | Request, init?: RequestInit) => {
-			capturedUrl = typeof url === "string" ? url : url.toString();
-			capturedBody = init?.body as string;
-			return Promise.resolve(
-				new Response(JSON.stringify({ rows: [] }), {
-					status: 200,
-					headers: { "Content-Type": "application/json" },
-				})
-			);
-		}) as unknown as typeof globalThis.fetch;
+		globalThis.fetch = mock(
+			(url: string | URL | Request, init?: RequestInit) => {
+				capturedUrl = typeof url === "string" ? url : url.toString();
+				capturedBody = init?.body as string;
+				return Promise.resolve(
+					new Response(JSON.stringify({ rows: [] }), {
+						status: 200,
+						headers: { "Content-Type": "application/json" },
+					})
+				);
+			}
+		) as unknown as typeof globalThis.fetch;
 
 		await querySearchAnalytics("my-token", "sc-domain:test.com", {
 			startDate: "2026-01-01",

@@ -7,7 +7,9 @@ const state = vi.hoisted(() => ({
 				headers: Record<string, string>;
 				request: Request;
 				set: { status: number };
-			}) => Promise<Response | Awaited<ReturnType<typeof handleVerifiedAutumnEvent>>>)
+		  }) => Promise<
+				Response | Awaited<ReturnType<typeof handleVerifiedAutumnEvent>>
+		  >)
 		| undefined,
 	check: vi.fn(async () => ({
 		allowed: true,
@@ -77,7 +79,9 @@ vi.mock("./autumn-inbox", () => ({
 		};
 	}),
 	deadLetterExhaustedAutumnWebhooks: vi.fn(async () => 0),
-	getAutumnWebhook: vi.fn(async (id: string) => state.storedWebhooks.get(id) ?? null),
+	getAutumnWebhook: vi.fn(
+		async (id: string) => state.storedWebhooks.get(id) ?? null
+	),
 	listReplayableAutumnWebhookIds: vi.fn(async () =>
 		[...state.storedWebhooks.values()]
 			.filter((row) => ["pending", "deferred"].includes(row.status))
@@ -178,10 +182,10 @@ vi.mock("@databuddy/db", () => ({
 					where: vi.fn((condition: unknown) => {
 						state.cooldownConditions.push(condition);
 						return {
-						limit: vi.fn(async () => {
-							state.operations.push("select");
-							return state.recentRows;
-						}),
+							limit: vi.fn(async () => {
+								state.operations.push("select");
+								return state.recentRows;
+							}),
 						};
 					}),
 				})),
@@ -209,7 +213,7 @@ vi.mock("@databuddy/email", () => ({
 }));
 
 vi.mock("@databuddy/env/app", async (importOriginal) => ({
- ...await importOriginal<typeof import("@databuddy/env/app")>(),
+	...(await importOriginal<typeof import("@databuddy/env/app")>()),
 	config: { email: { alertsFrom: "alerts@databuddy.cc" } },
 }));
 
@@ -222,7 +226,10 @@ vi.mock("@databuddy/notifications", () => ({
 vi.mock("@databuddy/redis", () => ({
 	cacheable: (fn: (...args: unknown[]) => unknown) => fn,
 	invalidateAgentContextSnapshotsForOwner: vi.fn(async () => 0),
-	invalidateBillingOwnerCaches: vi.fn(async () => ({ attempted: 0, failed: 0 })),
+	invalidateBillingOwnerCaches: vi.fn(async () => ({
+		attempted: 0,
+		failed: 0,
+	})),
 }));
 
 vi.mock("@databuddy/rpc", () => ({
@@ -582,17 +589,31 @@ describe("Autumn usage emails", () => {
 	it("limits new investigations without describing included clarifications as paused", async () => {
 		state.check.mockResolvedValueOnce({
 			allowed: false,
-			balance: { granted: 10, remaining: 0, usage: 10, overageAllowed: false, nextResetAt: 0 },
+			balance: {
+				granted: 10,
+				remaining: 0,
+				usage: 10,
+				overageAllowed: false,
+				nextResetAt: 0,
+			},
 		});
 		await handleLimitReached({
-			customer_id: "user-1", entity_id: "org-1",
-			feature_id: "investigation_runs", limit_type: "included",
+			customer_id: "user-1",
+			entity_id: "org-1",
+			feature_id: "investigation_runs",
+			limit_type: "included",
 		});
-		expect(UsageLimitEmail).toHaveBeenCalledWith(expect.objectContaining({
-			featureName: "Investigations", usageUnit: "investigations",
-			pausedActivity: "new investigations (included clarifications remain available)",
-			featureDescription: expect.stringContaining("Extras cost $1 per completed investigation"),
-		}));
+		expect(UsageLimitEmail).toHaveBeenCalledWith(
+			expect.objectContaining({
+				featureName: "Investigations",
+				usageUnit: "investigations",
+				pausedActivity:
+					"new investigations (included clarifications remain available)",
+				featureDescription: expect.stringContaining(
+					"Extras cost $1 per completed investigation"
+				),
+			})
+		);
 	});
 
 	it("honors the resolved organization's billing email preference", async () => {
@@ -625,7 +646,8 @@ describe("Autumn usage emails", () => {
 		expect(result).toEqual({
 			disposition: "deferred",
 			success: false,
-			message: "Billing usage email deferred: organization could not be resolved",
+			message:
+				"Billing usage email deferred: organization could not be resolved",
 		});
 		expect(state.check).not.toHaveBeenCalled();
 		expect(UsageLimitEmail).not.toHaveBeenCalled();
@@ -713,9 +735,7 @@ describe("Autumn webhook inbox", () => {
 			success: true,
 		});
 		expect(state.send).toHaveBeenCalledTimes(1);
-		expect(state.storedWebhooks.get("msg-duplicate")?.status).toBe(
-			"completed"
-		);
+		expect(state.storedWebhooks.get("msg-duplicate")?.status).toBe("completed");
 	});
 
 	it("stops before claiming another replay when shutdown starts", async () => {
@@ -771,16 +791,12 @@ describe("Autumn webhook inbox", () => {
 		});
 
 		expect(key).toMatch(/^[0-9a-f]{64}$/);
-		expect(state.send).toHaveBeenNthCalledWith(
-			1,
-			expect.any(Object),
-			{ idempotencyKey: key }
-		);
-		expect(state.send).toHaveBeenNthCalledWith(
-			2,
-			expect.any(Object),
-			{ idempotencyKey: key }
-		);
+		expect(state.send).toHaveBeenNthCalledWith(1, expect.any(Object), {
+			idempotencyKey: key,
+		});
+		expect(state.send).toHaveBeenNthCalledWith(2, expect.any(Object), {
+			idempotencyKey: key,
+		});
 		expect(state.storedWebhooks.get(svixId)?.status).toBe("completed");
 	});
 

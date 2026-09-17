@@ -133,7 +133,9 @@ describe("configure_investigations confirmation preview", () => {
 		{ action: "configure", channelAction: "add", channelId: "C012345678" },
 	] as const)("discloses completed-unit pricing before %j", async (input) => {
 		const execute = tools.configure_investigations.execute;
-		if (!execute) throw new Error("Missing native tool executor");
+		if (!execute) {
+			throw new Error("Missing native tool executor");
+		}
 		const preview = previewSchema.parse(
 			await execute(schema.parse(input), options)
 		);
@@ -141,7 +143,9 @@ describe("configure_investigations confirmation preview", () => {
 		expect(preview.billing).toContain("fixed-price investigation billing");
 		expect(preview.billing).toContain("several signals");
 		expect(preview.billing).toContain("multiple investigations");
-		expect(preview.billing).toContain("Additional usage is billed monthly when overage is enabled");
+		expect(preview.billing).toContain(
+			"Additional usage is billed monthly when overage is enabled"
+		);
 		expect(preview.billing).toContain("AI credits pay for Databunny chat");
 		expect(preview.billing).toContain(
 			"Changing settings does not itself charge"
@@ -155,7 +159,9 @@ describe("configure_investigations confirmation preview", () => {
 
 	it("discloses organization-wide scope when a run has no selected website", async () => {
 		const execute = tools.configure_investigations.execute;
-		if (!execute) throw new Error("Missing native tool executor");
+		if (!execute) {
+			throw new Error("Missing native tool executor");
+		}
 		const preview = previewSchema.parse(
 			await execute(schema.parse({ action: "run" }), {
 				...options,
@@ -175,7 +181,9 @@ describe("configure_investigations confirmation preview", () => {
 		{ action: "configure", channelAction: "remove", channelId: "C012345678" },
 	] as const)("does not present %j as starting paid analysis", async (input) => {
 		const execute = tools.configure_investigations.execute;
-		if (!execute) throw new Error("Missing native tool executor");
+		if (!execute) {
+			throw new Error("Missing native tool executor");
+		}
 		const preview = previewSchema.parse(
 			await execute(schema.parse(input), options)
 		);
@@ -184,7 +192,9 @@ describe("configure_investigations confirmation preview", () => {
 
 	it("still delegates confirmed work to the canonical RPC mutation boundary", async () => {
 		const execute = tools.configure_investigations.execute;
-		if (!execute) throw new Error("Missing native tool executor");
+		if (!execute) {
+			throw new Error("Missing native tool executor");
+		}
 		const result = await execute(
 			schema.parse({ action: "run", confirmed: true }),
 			options
@@ -290,10 +300,16 @@ describe("investigations", () => {
 			action: "list",
 			investigations: [investigation],
 		});
-		expect(got).toMatchObject({ action: "get", investigation, timeline: [reply] });
+		expect(got).toMatchObject({
+			action: "get",
+			investigation,
+			timeline: [reply],
+		});
 		expect(replied).toMatchObject({ action: "reply", reply });
 		expect(replied.message).toContain("status queued");
-		expect(replied.message).toContain("included clarification uses saved evidence");
+		expect(replied.message).toContain(
+			"included clarification uses saved evidence"
+		);
 	});
 
 	it("requires a stable colon-free reply id", async () => {

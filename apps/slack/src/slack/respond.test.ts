@@ -25,11 +25,11 @@ function createStreamClient(startTs: string | null = "stream_ts") {
 			throw new SlackApiError("cannot_provide_both_markdown_text_and_chunks");
 		}
 		const callMode =
-			opts.chunks !== undefined
-				? "chunks"
-				: opts.markdown_text !== undefined
-					? "text"
-					: null;
+			opts.chunks === undefined
+				? opts.markdown_text === undefined
+					? null
+					: "text"
+				: "chunks";
 		if (callMode && streamMode && callMode !== streamMode) {
 			throw new SlackApiError("streaming_mode_mismatch");
 		}
@@ -48,9 +48,11 @@ function createStreamClient(startTs: string | null = "stream_ts") {
 			},
 			startStream: async (options) => {
 				calls.push({ method: "chat.startStream", options });
-				if (startTs === null) return { ok: false, error: "not_allowed" };
+				if (startTs === null) {
+					return { ok: false, error: "not_allowed" };
+				}
 				const opts = options as { chunks?: unknown; markdown_text?: unknown };
-				streamMode = opts.chunks !== undefined ? "chunks" : "text";
+				streamMode = opts.chunks === undefined ? "text" : "chunks";
 				return { ok: true, ts: startTs };
 			},
 			stopStream: async (options) => {
@@ -138,9 +140,7 @@ describe("Databuddy Slack response streaming", () => {
 		expect(calls[2]).toEqual({
 			method: "chat.appendStream",
 			options: expect.objectContaining({
-				chunks: [
-					{ text: "Sure — traffic is up 12%.", type: "markdown_text" },
-				],
+				chunks: [{ text: "Sure — traffic is up 12%.", type: "markdown_text" }],
 			}),
 		});
 		expect(calls[2].options).not.toHaveProperty("markdown_text");
@@ -155,8 +155,9 @@ describe("Databuddy Slack response streaming", () => {
 
 		const feedbackPost = calls.at(-1);
 		expect(feedbackPost?.method).toBe("chat.postMessage");
-		const feedbackBlocks = (feedbackPost?.options as { blocks: Array<{ type: string }> })
-			.blocks;
+		const feedbackBlocks = (
+			feedbackPost?.options as { blocks: Array<{ type: string }> }
+		).blocks;
 		expect(feedbackBlocks.some((b) => b.type === "context_actions")).toBe(true);
 	});
 
@@ -215,13 +216,13 @@ describe("Databuddy Slack response streaming", () => {
 		const thinkingResolve = calls.find(
 			(c) =>
 				c.method === "chat.appendStream" &&
-				JSON.stringify(c.options).includes('"error"'),
+				JSON.stringify(c.options).includes('"error"')
 		);
 		expect(thinkingResolve).toBeDefined();
 
 		const stopCall = calls.find((c) => c.method === "chat.stopStream");
 		expect(getChunkText(stopCall?.options)).toBe(
-			"You've used your Databunny allowance for this month. Add more usage, upgrade, or wait for the monthly reset.",
+			"You've used your Databunny allowance for this month. Add more usage, upgrade, or wait for the monthly reset."
 		);
 	});
 
@@ -287,12 +288,11 @@ describe("Databuddy Slack response streaming", () => {
 		expect(calls).toEqual([]);
 		expect(sayCalls).toEqual([]);
 	});
-
 });
 
 function getChunkText(value: unknown): string | undefined {
-	if (!isRecord(value) || !Array.isArray(value.chunks)) {
-		return undefined;
+	if (!(isRecord(value) && Array.isArray(value.chunks))) {
+		return;
 	}
 	const texts = value.chunks
 		.filter(

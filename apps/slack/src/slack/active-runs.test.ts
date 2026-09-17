@@ -1,5 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { abortSlackActiveRun, registerSlackActiveRun } from "@/slack/active-runs";
+import {
+	abortSlackActiveRun,
+	registerSlackActiveRun,
+} from "@/slack/active-runs";
 
 describe("Slack active runs", () => {
 	it("aborts a registered run by Slack message reference", () => {
