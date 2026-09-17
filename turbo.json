@@ -8,6 +8,7 @@
   "ui": "tui",
   "envMode": "strict",
   "globalEnv": [
+    "ALERTS_EMAIL_FROM",
     "AUTUMN_SECRET_KEY",
     "BETTER_AUTH_SECRET",
     "BETTER_AUTH_URL",
@@ -19,6 +20,7 @@
     "DATABUDDY_ENCRYPTION_KEY",
     "DATABUDDY_WEBSITE_ID",
     "DB_POOL_MAX",
+    "EMAIL_FROM",
     "GITHUB_CLIENT_ID",
     "GITHUB_CLIENT_SECRET",
     "GOOGLE_CLIENT_ID",
