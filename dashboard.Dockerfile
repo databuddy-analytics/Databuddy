@@ -19,6 +19,8 @@ COPY turbo.json turbo.json
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+ARG SELFHOST=false
+ENV SELFHOST=$SELFHOST
 # Build-time defaults keep the image buildable. Override these with real public
 # URLs when building environment-specific dashboard images.
 ARG NEXT_PUBLIC_API_URL=https://api.databuddy.cc
@@ -26,7 +28,6 @@ ARG NEXT_PUBLIC_APP_URL=https://app.databuddy.cc
 ARG NEXT_PUBLIC_BASKET_URL=https://basket.databuddy.cc
 ARG NEXT_PUBLIC_LINKS_URL=https://dby.sh
 ARG NEXT_PUBLIC_STATUS_URL=https://status.databuddy.cc
-ARG SELFHOST=false
 
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
