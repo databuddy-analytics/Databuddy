@@ -1,10 +1,14 @@
 import { expect, test } from "bun:test";
 
 test.each([
-	[undefined, "https://status.databuddy.cc/example"],
-	["", null],
-	["https://status.example.com", "https://status.example.com/example"],
-] as const)("status links with URL %s", (url, expected) => {
+	[false, undefined, "https://status.databuddy.cc/example"],
+	[false, "", "https://status.databuddy.cc/example"],
+	[true, undefined, null],
+	[true, "", null],
+	[true, "  ", null],
+	[true, "https://status.example.com", "https://status.example.com/example"],
+	[false, "https://status.example.com", "https://status.example.com/example"],
+] as const)("status links with self-host=%s and URL %s", (selfhost, url, expected) => {
 	const result = Bun.spawnSync({
 		cmd: [
 			process.execPath,
@@ -15,8 +19,8 @@ test.each([
 		env: {
 			...process.env,
 			NODE_ENV: "production",
-			SELFHOST: "false",
-			NEXT_PUBLIC_SELFHOST: "false",
+			SELFHOST: String(selfhost),
+			NEXT_PUBLIC_SELFHOST: String(selfhost),
 			STATUS_URL: "",
 			NEXT_PUBLIC_STATUS_URL: url,
 		},
