@@ -744,7 +744,7 @@ function ReplyComposer({
 					placeholder="Ask about this result, or write a new question…"
 					value={body}
 				/>
-				<p className="text-muted-foreground text-xs">
+				<p className="text-pretty text-muted-foreground text-xs">
 					{isSelfHosted
 						? "Ask a follow-up question or start a new investigation."
 						: "Clarifications are included. New investigations use your allowance, then cost $1 each."}

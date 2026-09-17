@@ -95,7 +95,7 @@ export function FeatureGate({
 
 	if (isSelfHosted) {
 		return (
-			<p className="p-4 text-muted-foreground text-sm">
+			<p className="text-pretty p-4 text-muted-foreground text-sm">
 				Ask your administrator to configure AI to use this feature.
 			</p>
 		);
