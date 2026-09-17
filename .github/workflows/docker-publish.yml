@@ -15,9 +15,15 @@ on:
       - "turbo.json"
       - ".github/workflows/docker-publish.yml"
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      init-only:
+        description: Publish only the self-host database initialization image
+        type: boolean
+        default: false
 
 concurrency:
-  group: docker-${{ github.ref }}
+  group: docker-${{ github.ref }}${{ inputs.init-only && '-init' || '' }}
   cancel-in-progress: ${{ github.event_name != 'release' }}
 
 env:
@@ -46,10 +52,15 @@ jobs:
       - run: bun install --frozen-lockfile --ignore-scripts
       - id: detect
         env:
+          INIT_ONLY: ${{ inputs.init-only }}
           EVENT_NAME: ${{ github.event_name }}
           BEFORE_SHA: ${{ github.event.before }}
         run: |
-          ALL='["api","basket","dashboard","init","insights","links","uptime"]'
+          if [[ "$INIT_ONLY" == "true" ]]; then
+            echo 'services=["init"]' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          ALL='["api","basket","dashboard","insights","links","uptime"]'
           if [[ "$EVENT_NAME" != "push" ]]; then
             echo "services=$ALL" >> "$GITHUB_OUTPUT"
             exit 0
@@ -60,16 +71,19 @@ jobs:
           fi
           export TURBO_SCM_BASE="$BEFORE_SHA"
           export TURBO_SCM_HEAD="HEAD"
-          # The init image ships the schema and tooling for every release.
-          affected=('"init"')
+          affected=()
           for svc in api basket dashboard insights links uptime; do
             count=$(bunx turbo ls --affected --filter="@databuddy/$svc" --output=json | jq -r '.packages.count')
             if [[ "$count" != "0" ]]; then
               affected+=("\"$svc\"")
             fi
           done
-          IFS=,
-          echo "services=[${affected[*]}]" >> "$GITHUB_OUTPUT"
+          if [[ ${#affected[@]} -eq 0 ]]; then
+            echo "services=[]" >> "$GITHUB_OUTPUT"
+          else
+            IFS=,
+            echo "services=[${affected[*]}]" >> "$GITHUB_OUTPUT"
+          fi
 
   build:
     name: Build ${{ matrix.service }} (${{ matrix.platform.arch }})
