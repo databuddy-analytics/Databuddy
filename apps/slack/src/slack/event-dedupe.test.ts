@@ -1,5 +1,5 @@
 import { expect, it } from "bun:test";
-import { App, type Receiver } from "@slack/bolt";
+import { App, type CodedError, type Receiver } from "@slack/bolt";
 import { createSlackEventDedupe } from "./event-dedupe";
 
 const eventBody = (eventId = "EvTEST", teamId = "TTEST") => ({
@@ -77,7 +77,7 @@ it("fails closed during an outage and keeps claims after handler failures", asyn
 	let stops = 0;
 	let deletions = 0;
 	const seen = new Set<string>();
-	const errors: unknown[] = [];
+	const errors: CodedError[] = [];
 	const app = createApp();
 	app.error(async (error) => {
 		errors.push(error);
