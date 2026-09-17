@@ -3,14 +3,13 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 test_compose=$(mktemp)
+test_env=$(mktemp)
 project="databuddy-init-test-$$"
-export IMAGE_TAG=selfhost-test
-export POSTGRES_PASSWORD=init_test_password CLICKHOUSE_PASSWORD=init_test_password
-export POSTGRES_USER=databuddy POSTGRES_DB=databuddy
-export CLICKHOUSE_USER=default CLICKHOUSE_DB=databuddy_analytics
-export REDIS_PASSWORD=unused BETTER_AUTH_SECRET=unused DATABUDDY_ENCRYPTION_KEY=unused
-unset AI_GATEWAY_API_KEY
-export DASHBOARD_URL=http://example.com API_URL=http://api.example.com BASKET_URL=http://basket.example.com
+
+sed -E \
+  -e 's/^IMAGE_TAG=$/IMAGE_TAG=selfhost-test/' \
+  -e 's/^(POSTGRES_PASSWORD|CLICKHOUSE_PASSWORD|REDIS_PASSWORD|BETTER_AUTH_SECRET|DATABUDDY_ENCRYPTION_KEY)=$/\1=init_test_password/' \
+  selfhost.env.example > "$test_env"
 
 cat > "$test_compose" <<'EOF'
 services:
@@ -24,12 +23,18 @@ services:
 EOF
 
 compose() {
-  docker compose --project-name "$project" --env-file /dev/null \
+  local docker_env=("PATH=$PATH" "HOME=$HOME") name
+  for name in "${!DOCKER_@}"; do
+    docker_env+=("$name=${!name}")
+  done
+  # Keep Docker connection settings without leaking Compose overrides into the fixture.
+  env -i "${docker_env[@]}" \
+    docker compose --project-name "$project" --env-file "$test_env" \
     -f docker-compose.selfhost.yml -f "$test_compose" "$@"
 }
 cleanup() {
   compose down --volumes --remove-orphans
-  rm -f "$test_compose"
+  rm -f "$test_compose" "$test_env"
 }
 trap cleanup EXIT
 

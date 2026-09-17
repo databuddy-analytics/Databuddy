@@ -6,6 +6,7 @@ on:
     paths:
       - "*.Dockerfile"
       - "docker-compose.selfhost.yml"
+      - "selfhost.env.example"
       - "scripts/test-selfhost-init.sh"
       - ".dockerignore"
       - "apps/api/**"
@@ -17,12 +18,14 @@ on:
       - "bun.lock"
       - "package.json"
       - "turbo.json"
+      - "tsconfig/**"
       - ".github/workflows/health-check.yml"
   pull_request:
     branches: [main, staging]
     paths:
       - "*.Dockerfile"
       - "docker-compose.selfhost.yml"
+      - "selfhost.env.example"
       - "scripts/test-selfhost-init.sh"
       - ".dockerignore"
       - "apps/api/**"
@@ -34,6 +37,7 @@ on:
       - "bun.lock"
       - "package.json"
       - "turbo.json"
+      - "tsconfig/**"
       - ".github/workflows/health-check.yml"
 
 permissions:

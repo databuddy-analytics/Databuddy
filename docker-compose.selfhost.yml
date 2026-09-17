@@ -24,7 +24,7 @@ x-auth-environment: &auth-environment
   API_URL: &api-url ${API_URL:?Set API_URL}
   BASKET_URL: &basket-url ${BASKET_URL:?Set BASKET_URL}
   LINKS_URL: &links-url ${LINKS_URL:-http://localhost:2500}
-  STATUS_URL: &status-url ${STATUS_URL:-http://localhost:3002}
+  STATUS_URL: &status-url ${STATUS_URL:-}
   EMAIL_FROM: ${EMAIL_FROM:-}
   ALERTS_EMAIL_FROM: ${ALERTS_EMAIL_FROM:-}
   RESEND_API_KEY: ${RESEND_API_KEY:-}

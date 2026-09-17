@@ -186,6 +186,7 @@ jobs:
         run: >-
           bun test --no-env-file apps/dashboard/next-config.test.ts
           apps/dashboard/app/layout.test.ts
+          apps/dashboard/lib/app-url.test.ts
           'apps/dashboard/app/(main)/websites/[id]/_components/utils/code-generators.test.ts'
           'apps/dashboard/app/(main)/onboarding/_components/step-install-tracking.test.ts'
           packages/auth/src/selfhost-config.test.ts

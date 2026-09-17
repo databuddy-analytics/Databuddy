@@ -4,6 +4,8 @@ export const APP_URL = publicConfig.urls.dashboard;
 
 const STATUS_URL = publicConfig.urls.status;
 
-export function getStatusPageUrl(slug: string): string {
-	return `${STATUS_URL}/${slug}`;
+export function getStatusPageUrl(slug: string): string | null {
+	return process.env.NEXT_PUBLIC_STATUS_URL === ""
+		? null
+		: `${STATUS_URL}/${slug}`;
 }
