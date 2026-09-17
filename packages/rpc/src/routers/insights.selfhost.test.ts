@@ -134,8 +134,9 @@ for (const [name, reply] of [
 	["retry", () => retry({ replyId: "synthetic-reply" })],
 	["apply action", () => apply({ insightId: "synthetic-insight" })],
 ] as const) {
-	test(`${name} rejects missing or blank AI credentials before writes and queues`, async () => {
-		for (const key of [undefined, "", "  "]) {
+	test.each([undefined, "", "  "])(
+		`${name} rejects AI credentials %p before writes and queues`,
+		async (key) => {
 			if (key === undefined) {
 				Reflect.deleteProperty(process.env, "AI_GATEWAY_API_KEY");
 			} else {
@@ -146,16 +147,16 @@ for (const [name, reply] of [
 				message:
 					"Ask your administrator to configure AI before continuing an investigation.",
 			});
+			expect(authorize).toHaveBeenCalledWith(context, {
+				allowCrossOrg: true,
+				organizationId: "synthetic-org",
+				permissions: ["update"],
+				websiteId: "synthetic-site",
+			});
+			expect(transaction).not.toHaveBeenCalled();
+			expect(enqueue).not.toHaveBeenCalled();
 		}
-		expect(authorize).toHaveBeenCalledWith(context, {
-			allowCrossOrg: true,
-			organizationId: "synthetic-org",
-			permissions: ["update"],
-			websiteId: "synthetic-site",
-		});
-		expect(transaction).not.toHaveBeenCalled();
-		expect(enqueue).not.toHaveBeenCalled();
-	});
+	);
 
 	test(`${name} checks permissions before AI configuration`, async () => {
 		authorize.mockRejectedValueOnce(rpcError.forbidden());
