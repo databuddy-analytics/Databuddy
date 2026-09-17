@@ -40,7 +40,7 @@ async function withEnv<T>(
 
 describe("dashboard next config", () => {
 	it.each(["true", "false"])(
-		"respects SELFHOST=%s when signup initializes the advertising pixel",
+		"respects SELFHOST=%s in browser config and signup tracking",
 		async (selfhost) => {
 			const child = Bun.spawn([process.execPath, "--no-env-file", "-"], {
 				cwd: import.meta.dir,
@@ -52,10 +52,16 @@ describe("dashboard next config", () => {
 				stdin: new Blob([`
 import assert from "node:assert/strict";
 const { default: config } = await import("./next.config");
+assert.equal(config.env.NEXT_PUBLIC_SELFHOST, ${JSON.stringify(selfhost)});
+process.env.NEXT_PUBLIC_SELFHOST = config.env.NEXT_PUBLIC_SELFHOST;
 const pixelId = config.env.NEXT_PUBLIC_OPENAI_ADS_PIXEL_ID;
 assert.equal(pixelId, ${JSON.stringify(selfhost === "true" ? "" : "synthetic-pixel")});
 // Apply the value Next inlines into the browser bundle before loading the client.
 process.env.NEXT_PUBLIC_OPENAI_ADS_PIXEL_ID = pixelId;
+const { publicConfig, isSelfHosted } = await import("@databuddy/env/public");
+assert.equal(isSelfHosted, ${selfhost === "true"});
+assert.equal(publicConfig.urls.api, ${JSON.stringify(selfhost === "true" ? "http://localhost:3001" : "https://api.databuddy.cc")});
+assert.equal(publicConfig.urls.dashboard, ${JSON.stringify(selfhost === "true" ? "http://localhost:3000" : "https://app.databuddy.cc")});
 const scripts = [];
 globalThis.window = { location: { hostname: "app.example.com" } };
 globalThis.document = {
