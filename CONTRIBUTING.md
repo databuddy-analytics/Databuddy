@@ -9,7 +9,7 @@ This guide is for working on Databuddy itself.
 
 ## Run locally
 
-You'll need Docker Compose, Node.js 20+, and the Bun version pinned in
+You'll need Docker Compose, [Node.js LTS](https://nodejs.org/en/about/previous-releases), and the Bun version pinned in
 [`package.json`](package.json).
 
 ```bash
