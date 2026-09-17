@@ -116,11 +116,26 @@ it("fails closed during an outage and keeps claims after handler failures", asyn
 		await ack();
 	});
 	app.event("message", async ({ event }) => {
-		if (event.subtype === "message_deleted") deletions++;
+		if (event.subtype === "message_deleted") {
+			deletions++;
+		}
 	});
 	const event = { body: eventBody(), ack: async () => undefined };
 	await app.processEvent(event);
 	expect(executions).toBe(0);
+	expect(notifications).toBe(1);
+	for (const botIdentity of [
+		{ bot_id: "BOTHER" },
+		{ bot_profile: { id: "BOTHER" } },
+	]) {
+		await app.processEvent({
+			body: {
+				...eventBody("EvBOT"),
+				event: { ...eventBody().event, user: "UOTHERBOT", ...botIdentity },
+			},
+			ack: async () => undefined,
+		});
+	}
 	expect(notifications).toBe(1);
 	const stop = eventBody("EvSTOP");
 	stop.event.text = "<@UBOT> stop";

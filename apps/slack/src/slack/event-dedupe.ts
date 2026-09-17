@@ -56,6 +56,7 @@ export function createSlackEventDedupe(
 				channel &&
 				user &&
 				!event.bot_id &&
+				!event.bot_profile &&
 				!event.subtype &&
 				text
 			) {
