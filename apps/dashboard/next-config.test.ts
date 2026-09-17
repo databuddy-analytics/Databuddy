@@ -109,12 +109,13 @@ assert.equal(window.oaiq?.q?.some(args => args[0] === "measure") ?? false, ${sel
 					const connect = csp
 						.split(";")
 						.find((part) => part.trim().startsWith("connect-src"));
-					expect(connect?.includes("https://api.example.com")).toBe(
+					const connectSources = connect?.split(" ") ?? [];
+					expect(connectSources.includes("https://api.example.com")).toBe(
 						selfhost === "true"
 					);
-					expect(connect?.includes("https://events.example.com:8443")).toBe(
-						selfhost === "true"
-					);
+					expect(
+						connectSources.includes("https://events.example.com:8443")
+					).toBe(selfhost === "true");
 					expect(connect).toContain("https://*.databuddy.cc");
 					expect(connect).not.toContain("/prefix");
 					expect(csp).not.toContain("'unsafe-eval'");
