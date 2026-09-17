@@ -19,8 +19,9 @@ bun install --frozen-lockfile
 cp .env.example .env
 ```
 
-Set `BETTER_AUTH_SECRET` and `DATABUDDY_ENCRYPTION_KEY` to separate random values
-in `.env`. The example database URLs match the local Docker services.
+In `.env`, set `SELFHOST=true` to work without hosted billing. Set
+`BETTER_AUTH_SECRET` and `DATABUDDY_ENCRYPTION_KEY` to separate random values.
+The example database URLs match the local Docker services.
 
 ```bash
 docker compose up -d
