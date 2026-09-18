@@ -1,5 +1,14 @@
 import { expect, it } from "bun:test";
 import { App, type CodedError, type Receiver } from "@slack/bolt";
+import type { DatabuddyAgentClient, SlackAgentRun } from "@/agent/agent-client";
+import {
+	cleanupSlackActiveRun,
+	registerSlackActiveRun,
+} from "@/slack/active-runs";
+import { stripLeadingMention } from "@/slack/message-routing";
+import { SLACK_COPY } from "@/slack/messages";
+import { handleAgentRun } from "@/slack/run-handler";
+import { SlackThreadQueue } from "@/slack/thread-queue";
 import { createSlackEventDedupe } from "./event-dedupe";
 
 const eventBody = (eventId = "EvTEST", teamId = "TTEST") => ({
@@ -74,7 +83,6 @@ it("fails closed during an outage and keeps claims after handler failures", asyn
 	let executions = 0;
 	let notifications = 0;
 	let commands = 0;
-	let stops = 0;
 	let deletions = 0;
 	const seen = new Set<string>();
 	const errors: CodedError[] = [];
@@ -103,11 +111,7 @@ it("fails closed during an outage and keeps claims after handler failures", asyn
 			},
 		}))
 	);
-	app.event("app_mention", async ({ event }) => {
-		if (event.text === "<@UBOT> stop") {
-			stops++;
-			return;
-		}
+	app.event("app_mention", async () => {
 		executions++;
 		throw new Error("Failure after an action was performed");
 	});
@@ -137,10 +141,6 @@ it("fails closed during an outage and keeps claims after handler failures", asyn
 		});
 	}
 	expect(notifications).toBe(1);
-	const stop = eventBody("EvSTOP");
-	stop.event.text = "<@UBOT> stop";
-	await app.processEvent({ body: stop, ack: async () => undefined });
-	expect(stops).toBe(1);
 	await app.processEvent({
 		body: {
 			...eventBody("EvUNADDRESSED"),
@@ -178,4 +178,92 @@ it("fails closed during an outage and keeps claims after handler failures", asyn
 	await app.processEvent(event);
 	expect(executions).toBe(1);
 	expect(errors).toHaveLength(1);
+});
+
+it("routes duplicate stop mentions through production cancellation during a Redis outage", async () => {
+	const activeRun: SlackAgentRun = {
+		channelId: "CTEST",
+		messageTs: "1700000000.000000",
+		teamId: "TTEST",
+		text: "summarize traffic",
+		threadTs: "1700000000.000000",
+		trigger: "app_mention",
+		userId: "UTEST",
+	};
+	const controller = new AbortController();
+	const queue = new SlackThreadQueue(null);
+	let stops = 0;
+	queue.stop = async () => {
+		stops++;
+	};
+	let executions = 0;
+	const agent: Pick<DatabuddyAgentClient, "stream"> = {
+		async *stream() {
+			executions++;
+			yield "Unexpected agent response";
+		},
+	};
+	let claims = 0;
+	let notices = 0;
+	const responses: string[] = [];
+	const replicas = [createApp(), createApp()];
+	for (const app of replicas) {
+		app.use(async ({ client, next }) => {
+			client.chat.postEphemeral = async () => {
+				notices++;
+				return { ok: true };
+			};
+			await next();
+		});
+		app.use(
+			createSlackEventDedupe(() => {
+				claims++;
+				throw new Error("Redis unavailable");
+			})
+		);
+		app.event("app_mention", async ({ body, client, event, logger }) => {
+			await handleAgentRun({
+				agent,
+				client,
+				logger,
+				run: {
+					...activeRun,
+					channelId: event.channel,
+					messageTs: event.ts,
+					teamId: body.team_id,
+					text: stripLeadingMention(event.text),
+					threadTs: event.thread_ts ?? event.ts,
+				},
+				say: async ({ text }) => {
+					responses.push(text);
+				},
+				threadQueue: queue,
+			});
+		});
+	}
+	const body = eventBody("EvSTOP");
+	body.event.text = "<@UBOT> stop";
+	const stop = {
+		...body,
+		event: { ...body.event, thread_ts: activeRun.threadTs },
+	};
+	registerSlackActiveRun(activeRun, controller);
+	try {
+		await Promise.all(
+			replicas.map((app) =>
+				app.processEvent({ body: stop, ack: async () => undefined })
+			)
+		);
+		expect(controller.signal.reason).toBe("stop");
+		expect(stops).toBe(2);
+		expect(executions).toBe(0);
+		expect(claims).toBe(0);
+		expect(notices).toBe(0);
+		expect(responses).toEqual([
+			SLACK_COPY.agentStopped,
+			SLACK_COPY.agentStopped,
+		]);
+	} finally {
+		cleanupSlackActiveRun(activeRun);
+	}
 });
