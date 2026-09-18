@@ -31,7 +31,7 @@ function answer(options: RunMcpAgentOptions): string {
 }
 mock.module("../ai/mcp/run-agent", () => ({
 	runMcpAgent: async (options: RunMcpAgentOptions) => answer(options),
-	streamMcpAgentText: async function* (options: RunMcpAgentOptions) {
+	async *streamMcpAgentText(options: RunMcpAgentOptions) {
 		yield answer(options);
 	},
 	runMcpAgentWithTrace: async (options: RunMcpAgentOptions) => ({
@@ -85,7 +85,9 @@ test.each([
 		"stream",
 		async (input: DatabuddyAgentOptions) => {
 			let result = "";
-			for await (const chunk of streamDatabuddyAgent(input)) result += chunk;
+			for await (const chunk of streamDatabuddyAgent(input)) {
+				result += chunk;
+			}
 			return result;
 		},
 	],
@@ -119,7 +121,6 @@ test("isolates Slack history by integration, channel and thread", async () => {
 				apiKey: {
 					...key,
 					id: "slack:other-integration",
-					organizationId: "other-organization",
 				},
 			},
 		},
