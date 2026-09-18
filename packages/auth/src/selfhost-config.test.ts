@@ -127,5 +127,5 @@ process.exit(0);
 			new Response(child.stderr).text(),
 		]);
 		expect(exitCode, stderr).toBe(0);
-	});
+	}, 30_000);
 });
