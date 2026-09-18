@@ -505,7 +505,7 @@ export async function* generateOrganizationBusinessContext(
 			const selected = await bounded(
 				generateText({
 					...options(phase),
-					maxOutputTokens: 500,
+					maxOutputTokens: 2000,
 					output: Output.object({
 						schema: z.strictObject({
 							paths: z.array(z.enum(paths)).max(limit),
