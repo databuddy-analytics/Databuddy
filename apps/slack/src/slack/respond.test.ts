@@ -622,6 +622,149 @@ describe("Databuddy Slack response streaming", () => {
 	});
 });
 
+describe("completed query receipts", () => {
+	it.each([
+		{ streaming: true, rejectChart: false },
+		{ streaming: false, rejectChart: false },
+		{ streaming: true, rejectChart: true },
+		{ streaming: false, rejectChart: true },
+	])("keeps completed query evidence with chart delivery %j", async ({
+		streaming,
+		rejectChart,
+	}) => {
+		const { calls, client } = createStreamClient(
+			streaming ? "stream_ts" : null
+		);
+		let chartAttempts = 0;
+		const stop = client.chat.stopStream;
+		const post = client.apiCall;
+		const checkChart = (
+			options:
+				| ChatStopStreamArguments
+				| Parameters<SlackAgentClient["apiCall"]>[1]
+		) => {
+			if (JSON.stringify(options).includes('"type":"data_visualization"')) {
+				chartAttempts++;
+				if (rejectChart) {
+					throw new SlackApiError("invalid_blocks");
+				}
+			}
+		};
+		client.chat.stopStream = (options) => {
+			checkChart(options);
+			return stop(options);
+		};
+		client.apiCall = (async (method, options) => {
+			checkChart(options);
+			return post(method, options);
+		}) as SlackAgentClient["apiCall"];
+		const summary =
+			"top_pages | 2026-09-01 to 2026-09-07 | timezone=UTC | filters=none";
+		const result = await streamAgentToSlack({
+			agent: {
+				async *stream(_run, options) {
+					yield 'Your top page is /pricing.\n{"type":"bar-chart","title":"Pages","series":["views"],"rows":[["/pricing",5]],"website":{"domain":"fabricated.example.com"},"source":"made-up evidence"}';
+					options?.onToolTrace?.([
+						{
+							index: 0,
+							name: "get_data",
+							input: { websiteId: "synthetic-site" },
+							output: {
+								batch: true,
+								website: {
+									id: "synthetic-site",
+									domain: "reports.example.com",
+								},
+								results: [
+									{ summary: "failed scope", error: "unavailable" },
+									{ summary, returnedRows: 1, rowCount: 1, truncated: false },
+								],
+							},
+						},
+					]);
+				},
+			},
+			client,
+			logger: silentLogger,
+			run: baseRun(),
+			say: async () => {},
+		});
+		expect(result.ok).toBe(true);
+		expect(chartAttempts).toBe(1);
+		const final = calls.find(
+			(call) =>
+				call.method === (streaming ? "chat.stopStream" : "chat.postMessage")
+		);
+		const serialized = JSON.stringify(final?.options);
+		expect(final?.options).toMatchObject({
+			blocks: expect.arrayContaining([
+				expect.objectContaining({
+					type: rejectChart ? "data_table" : "data_visualization",
+				}),
+				{
+					type: "section",
+					text: {
+						type: "plain_text",
+						text: `reports.example.com\n${summary}\n1 result row.`,
+						emoji: false,
+					},
+					accessory: {
+						type: "button",
+						text: { type: "plain_text", text: "Open website" },
+						url: "https://app.databuddy.cc/websites/synthetic-site",
+					},
+				},
+			]),
+		});
+		expect(serialized).toContain("Data checked");
+		expect(serialized).not.toContain("failed scope");
+		expect(serialized).not.toContain("fabricated.example.com");
+		expect(serialized).not.toContain("made-up evidence");
+	});
+
+	it("does not send receipts when cancelled after the completion callback", async () => {
+		const { calls, client } = createStreamClient();
+		const controller = new AbortController();
+		const result = await streamAgentToSlack({
+			abortSignal: controller.signal,
+			agent: {
+				async *stream(_run, options) {
+					yield "Partial answer";
+					options?.onToolTrace?.([
+						{
+							index: 0,
+							name: "get_data",
+							input: {},
+							output: {
+								batch: true,
+								website: {
+									id: "synthetic-site",
+									domain: "reports.example.com",
+								},
+								results: [
+									{
+										summary: "synthetic scope",
+										returnedRows: 1,
+										rowCount: 1,
+										truncated: false,
+									},
+								],
+							},
+						},
+					]);
+					controller.abort("stop");
+				},
+			},
+			client,
+			logger: silentLogger,
+			run: baseRun(),
+			say: async () => {},
+		});
+		expect(result).toMatchObject({ aborted: true, ok: false });
+		expect(JSON.stringify(calls)).not.toContain("Data checked");
+	});
+});
+
 function getChunkText(value: unknown): string | undefined {
 	if (!(isRecord(value) && Array.isArray(value.chunks))) {
 		return;
