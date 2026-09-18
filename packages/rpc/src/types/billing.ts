@@ -1,4 +1,4 @@
-import { readBooleanEnv } from "@databuddy/env/app";
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import type { GatedFeatureId } from "@databuddy/shared/types/features";
 import {
 	getFeatureUnavailableMessage,

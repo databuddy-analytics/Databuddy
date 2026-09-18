@@ -10,7 +10,6 @@ Use `run-local.sh` to create a per-run Postgres database, push the Drizzle schem
 
 ```bash
 bun run --cwd apps/dashboard test:e2e:local
-bun run --cwd apps/dashboard test:e2e:local:smoke
 bun run --cwd apps/dashboard test:e2e:local:regression
 bun run --cwd apps/dashboard test:e2e:local:core
 

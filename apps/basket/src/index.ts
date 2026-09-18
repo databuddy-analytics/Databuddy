@@ -8,7 +8,7 @@ import {
 import { withHealthProbeDeadline } from "@lib/health-probe";
 import { shutdownPostgres } from "@databuddy/db";
 import { clickHouse } from "@databuddy/db/clickhouse";
-import { readBooleanEnv } from "@databuddy/env/app";
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import { getRedisCache } from "@databuddy/redis/redis";
 import {
 	checkProducerConnection,

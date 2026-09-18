@@ -9,11 +9,9 @@
     "check-types": "tsc --noEmit",
     "test": "bun test --isolate --path-ignore-patterns='test/e2e/**' .",
     "test:e2e:local": "./test/e2e/run-local.sh bun run --cwd apps/dashboard test:e2e",
-    "test:e2e:local:smoke": "./test/e2e/run-local.sh bun run --cwd apps/dashboard test:e2e:smoke",
     "test:e2e:local:regression": "./test/e2e/run-local.sh bun run --cwd apps/dashboard test:e2e:regression",
     "test:e2e:local:core": "./test/e2e/run-local.sh bun run --cwd apps/dashboard test:e2e:core",
     "test:e2e": "playwright test",
-    "test:e2e:smoke": "playwright test --grep @smoke",
     "test:e2e:regression": "playwright test --grep @regression",
     "test:e2e:core": "playwright test --grep @core"
   },

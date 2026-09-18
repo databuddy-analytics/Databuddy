@@ -7,38 +7,58 @@ describe("auth deployment settings", () => {
 			env: {},
 			domain: ".databuddy.cc",
 			verify: true,
+			sendVerification: true,
 		},
 		{
 			name: "self-hosted single host",
 			env: { SELFHOST: "true" },
 			domain: undefined,
 			verify: false,
+			sendVerification: false,
 		},
 		{
 			name: "self-hosted empty domain",
 			env: { SELFHOST: "true", BETTER_AUTH_COOKIE_DOMAIN: "  " },
 			domain: undefined,
 			verify: false,
+			sendVerification: false,
 		},
 		{
 			name: "self-hosted subdomains",
 			env: { SELFHOST: "true", BETTER_AUTH_COOKIE_DOMAIN: " .example.com " },
 			domain: ".example.com",
 			verify: false,
+			sendVerification: false,
 		},
 		{
 			name: "self-hosted verification opt-in",
 			env: { SELFHOST: "true", REQUIRE_EMAIL_VERIFICATION: "true" },
 			domain: undefined,
 			verify: true,
+			sendVerification: true,
 		},
 		{
 			name: "hosted verification opt-out",
 			env: { REQUIRE_EMAIL_VERIFICATION: "false" },
 			domain: ".databuddy.cc",
 			verify: false,
+			sendVerification: true,
 		},
-	])("$name", async ({ env, domain, verify }) => {
+		{
+			name: "hosted explicit false with empty cookie domain",
+			env: { SELFHOST: "false", BETTER_AUTH_COOKIE_DOMAIN: "" },
+			domain: "app.example.com",
+			verify: true,
+			sendVerification: true,
+		},
+		{
+			name: "hosted cookie domain retains configured whitespace",
+			env: { BETTER_AUTH_COOKIE_DOMAIN: " .example.com " },
+			domain: " .example.com ",
+			verify: true,
+			sendVerification: true,
+		},
+	])("$name", async ({ env, domain, verify, sendVerification }) => {
 		// Import the real auth options with only inert local service URLs.
 		const child = Bun.spawn([process.execPath, "--no-env-file", "-"], {
 			cwd: import.meta.dir,
@@ -62,15 +82,15 @@ import { SlackProvider } from "@databuddy/notifications";
 import { getCookies } from "better-auth/cookies";
 import { auth } from "./auth.ts";
 import { runWithAuthAuditContext } from "./audit-context.ts";
-const cookie = getCookies(auth.options).sessionToken;
+const cookie = getCookies({ ...auth.options, baseURL: process.env.BETTER_AUTH_URL }).sessionToken;
 assert.equal(cookie.name, "__Secure-databuddy.session_token");
 assert.equal(cookie.attributes.domain, ${JSON.stringify(domain)});
 assert.equal(cookie.attributes.secure, true);
 assert.equal(cookie.attributes.httpOnly, true);
 assert.equal(cookie.attributes.sameSite, "lax");
 assert.equal(auth.options.emailAndPassword.requireEmailVerification, ${verify});
-assert.equal(auth.options.emailVerification.sendOnSignUp, ${verify});
-assert.equal(auth.options.emailVerification.sendOnSignIn, ${verify});
+assert.equal(auth.options.emailVerification.sendOnSignUp, ${sendVerification});
+assert.equal(auth.options.emailVerification.sendOnSignIn, ${sendVerification});
 const requests = [];
 let slackCalls = 0;
 SlackProvider.prototype.send = async () => {

@@ -1,4 +1,4 @@
-import { readBooleanEnv } from "@databuddy/env/app";
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { BillingHeader } from "./components/billing-header";

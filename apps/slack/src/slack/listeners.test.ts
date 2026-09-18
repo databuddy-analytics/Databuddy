@@ -1,6 +1,10 @@
 import { describe, expect, it } from "bun:test";
-import type { App } from "@slack/bolt";
+import { App, type CodedError, type Receiver } from "@slack/bolt";
 import type { DatabuddyAgentClient, SlackAgentRun } from "@/agent/agent-client";
+import {
+	cleanupSlackActiveRun,
+	registerSlackActiveRun,
+} from "@/slack/active-runs";
 import type { SlackInstallationServices } from "@/slack/installations";
 import {
 	registerSlackListeners,
@@ -14,6 +18,7 @@ type Handler = (input: Record<string, unknown>) => Promise<void>;
 
 class FakeSlackApp {
 	actions = new Map<string, Handler>();
+	assistantListener?: { userMessage: Handler[] };
 	commands = new Map<string, Handler>();
 	events = new Map<string, Handler>();
 	messages: Handler[] = [];
@@ -22,8 +27,8 @@ class FakeSlackApp {
 		this.actions.set(name, handler);
 	}
 
-	assistant(value: unknown) {
-		this.events.set("assistant", value as Handler);
+	assistant(value: { userMessage: Handler[] }) {
+		this.assistantListener = value;
 	}
 
 	command(name: string, handler: Handler) {
@@ -148,13 +153,16 @@ function createQueue(
 		enqueuedRuns,
 		removedMessages,
 		drain: async () => [],
+		stop: async () => undefined,
+		isStopped: async () => false,
+		renew: async () => true,
 		enqueue: async (run) => {
 			enqueuedRuns.push(run);
 			return { ok: true, queuedCount: enqueuedRuns.length };
 		},
 		isEngaged: async () => true,
 		markEngaged: async () => undefined,
-		release: async () => undefined,
+		release: async () => true,
 		removeDeletedFollowUp: async (ref) => {
 			removedMessages.push(ref);
 			return true;
@@ -188,6 +196,112 @@ function registerFakeSlackListeners(
 }
 
 describe("Slack listeners", () => {
+	it.each([
+		["agent_drilldown", true],
+		["agent_drilldown_0", true],
+		["agent_drilldown_2", true],
+		["other_agent_drilldown_0", false],
+		["agent_drilldown_0_other", false],
+		["agent_drilldown_", false],
+		["agent_drilldown_other", false],
+	])("routes drilldown action %s only when supported", async (actionId, supported) => {
+		const receiver: Receiver = {
+			init: () => undefined,
+			start: async () => undefined,
+			stop: async () => undefined,
+		};
+		const app = new App({
+			receiver,
+			authorize: async () => ({
+				botToken: "xoxb-test",
+				botId: "BTEST",
+				botUserId: "UBOT",
+			}),
+		});
+		const errors: CodedError[] = [];
+		app.error((error) => {
+			errors.push(error);
+			return Promise.resolve();
+		});
+		app.use(async ({ client, next }) => {
+			client.chat.startStream = async () => ({ ok: true, ts: "response_ts" });
+			client.chat.appendStream = async () => ({ ok: true });
+			client.chat.stopStream = async () => ({ ok: true });
+			client.chat.postMessage = async () => ({ ok: true, ts: "response_ts" });
+			client.reactions.add = async () => ({ ok: true });
+			await next();
+		});
+		const { agent, runs } = createAgent();
+		registerSlackListeners(app, agent, createInstallations(), createQueue());
+		let acknowledgments = 0;
+		await app.processEvent({
+			body: {
+				type: "block_actions",
+				team: { id: "TTEST" },
+				user: { id: "UTEST" },
+				channel: { id: "CTEST" },
+				message: { ts: "1700000000.000002", thread_ts: "1700000000.000001" },
+				actions: [
+					{
+						type: "button",
+						action_id: actionId,
+						action_ts: "1700000000.000003",
+						value: "break /pricing down by referrer",
+					},
+				],
+			},
+			ack: async () => {
+				acknowledgments++;
+			},
+		});
+		expect(errors).toEqual([]);
+		expect(acknowledgments).toBe(supported ? 1 : 0);
+		expect(runs).toHaveLength(supported ? 1 : 0);
+		if (supported) {
+			expect(runs[0]).toMatchObject({
+				text: "break /pricing down by referrer",
+				threadTs: "1700000000.000001",
+				requestTs: "1700000000.000003",
+				userId: "UTEST",
+			});
+		}
+	});
+
+	it("stops assistant work without depending on title or status updates", async () => {
+		const app = new FakeSlackApp();
+		const { agent, runs } = createAgent();
+		const { client } = createClient();
+		let stopped = false;
+		const queue = createQueue({
+			stop: async () => {
+				stopped = true;
+			},
+		});
+		registerFakeSlackListeners(app, agent, createInstallations(), queue);
+		const failCosmeticUpdate = async () => {
+			throw new Error("Slack API unavailable");
+		};
+		await app.assistantListener?.userMessage[0]?.({
+			client,
+			context: { teamId: "T123" },
+			logger,
+			message: {
+				channel: "D123",
+				channel_type: "im",
+				text: "stop",
+				thread_ts: "171234.000",
+				ts: "171234.568",
+				type: "message",
+				user: "U123",
+			},
+			say: async () => undefined,
+			setStatus: failCosmeticUpdate,
+			setTitle: failCosmeticUpdate,
+		});
+		expect(stopped).toBe(true);
+		expect(runs).toHaveLength(0);
+	});
+
 	it("keeps the Slack assistant manifest aligned with its live prompts", async () => {
 		const manifest = (await Bun.file(
 			new URL("../../slack-app-manifest.json", import.meta.url)
@@ -210,6 +324,63 @@ describe("Slack listeners", () => {
 		expect(
 			manifest.features.assistant_view.assistant_description.toLowerCase()
 		).toContain("investigat");
+	});
+
+	it.each([
+		{ bot_id: "BOTHER" },
+		{ bot_profile: { id: "BOTHER" } },
+	])("ignores mentions from other bots with %j", async (botIdentity) => {
+		const app = new FakeSlackApp();
+		const { agent, runs } = createAgent();
+		const queue = createQueue();
+		const responses: unknown[] = [];
+		const readinessCalls: unknown[] = [];
+		const investigationRuns: SlackAgentRun[] = [];
+		const { apiCalls, client, reactionAdds } = createClient();
+		registerFakeSlackListeners(
+			app,
+			agent,
+			createInstallations({
+				getChannelReadiness: async (input) => {
+					readinessCalls.push(input);
+					return { message: "", ok: true };
+				},
+			}),
+			queue,
+			undefined,
+			async ({ run }) => {
+				investigationRuns.push(run);
+				return false;
+			}
+		);
+
+		for (const text of ["<@UBOT>", "<@UBOT> show me traffic"]) {
+			await app.events.get("app_mention")?.({
+				body: {},
+				client,
+				context: { botUserId: "UBOT", teamId: "T123" },
+				event: {
+					...botIdentity,
+					channel: "C123",
+					text,
+					ts: "171234.568",
+					type: "app_mention",
+					user: "UOTHERBOT",
+				},
+				logger,
+				say: async (message: unknown) => {
+					responses.push(message);
+				},
+			});
+		}
+
+		expect(runs).toEqual([]);
+		expect(investigationRuns).toEqual([]);
+		expect(readinessCalls).toEqual([]);
+		expect(queue.enqueuedRuns).toEqual([]);
+		expect(apiCalls).toEqual([]);
+		expect(reactionAdds).toEqual([]);
+		expect(responses).toEqual([]);
 	});
 
 	it("auto-connects Slack Connect mentions from the installed workspace", async () => {
@@ -636,5 +807,121 @@ describe("Slack listeners", () => {
 		expect(queue.removedMessages).toEqual([
 			{ channelId: "C123", messageTs: "171234.568", teamId: "T123" },
 		]);
+	});
+});
+
+describe("Slack stop routing", () => {
+	it("stops a known local run without an engagement marker and ignores unrelated threads", async () => {
+		const app = new FakeSlackApp();
+		const { agent, runs } = createAgent();
+		const { client } = createClient();
+		let stopped = 0;
+		let replies = 0;
+		const queue = createQueue({
+			isEngaged: async () => false,
+			stop: async () => {
+				stopped++;
+			},
+		});
+		registerFakeSlackListeners(app, agent, createInstallations(), queue);
+		const run: SlackAgentRun = {
+			channelId: "C123",
+			messageTs: "171234.100",
+			teamId: "T123",
+			text: "Compare campaigns",
+			threadTs: "171234.000",
+			trigger: "thread_follow_up",
+			userId: "U123",
+		};
+		const controller = new AbortController();
+		registerSlackActiveRun(run, controller);
+		try {
+			for (const threadTs of ["171233.000", run.threadTs]) {
+				await app.messages[0]?.({
+					client,
+					context: { botUserId: "UBOT", teamId: "T123" },
+					logger,
+					message: {
+						channel: "C123",
+						channel_type: "channel",
+						text: "stop",
+						thread_ts: threadTs,
+						ts: threadTs === run.threadTs ? "171234.201" : "171234.200",
+						user: "U123",
+					},
+					say: async () => {
+						replies++;
+					},
+				});
+				const expectedStops = threadTs === run.threadTs ? 1 : 0;
+				expect(controller.signal.aborted).toBe(expectedStops === 1);
+				expect(stopped).toBe(expectedStops);
+				expect(replies).toBe(expectedStops);
+			}
+			expect(runs).toHaveLength(0);
+			expect(queue.enqueuedRuns).toHaveLength(0);
+		} finally {
+			cleanupSlackActiveRun(run);
+		}
+	});
+
+	it("handles stop before relevance and investigation continuation, while rejecting external speakers", async () => {
+		const app = new FakeSlackApp();
+		const { agent, runs } = createAgent();
+		const { client } = createClient();
+		const stops: SlackAgentRun[] = [];
+		const queue = createQueue({
+			stop: async (run) => {
+				stops.push(run);
+			},
+		});
+		registerFakeSlackListeners(
+			app,
+			agent,
+			createInstallations(),
+			queue,
+			{
+				shouldReply: async () => {
+					throw new Error("Stop must bypass relevance");
+				},
+			},
+			async () => {
+				throw new Error("Stop must bypass investigation replies");
+			}
+		);
+		for (const user_team of ["T123", "TEXTERNAL"]) {
+			await app.messages[0]?.({
+				client,
+				context: { botUserId: "UBOT", teamId: "T123" },
+				logger,
+				message: {
+					channel: "C123",
+					channel_type: "channel",
+					text: "stop",
+					thread_ts: "171234.000",
+					ts: user_team === "T123" ? "171234.568" : "171234.569",
+					user: "U123",
+					user_team,
+				},
+				say: async () => undefined,
+			});
+		}
+		await app.events.get("app_mention")?.({
+			body: {},
+			client,
+			context: { teamId: "T123" },
+			logger,
+			event: {
+				channel: "C123",
+				text: "<@UBOT> stop",
+				thread_ts: "171234.000",
+				ts: "171234.570",
+				user: "U123",
+			},
+			say: async () => undefined,
+		});
+		expect(stops).toHaveLength(2);
+		expect(runs).toHaveLength(0);
+		expect(queue.enqueuedRuns).toHaveLength(0);
 	});
 });

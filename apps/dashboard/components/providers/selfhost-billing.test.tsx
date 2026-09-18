@@ -1,3 +1,4 @@
+import { spawn } from "bun";
 import { afterAll, expect, test } from "bun:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -82,4 +83,46 @@ test.each([
 			.some(({ href }) => href.startsWith("/billing"))
 	).toBe(false);
 	client.clear();
+});
+
+test.each([
+	undefined,
+	"false",
+])("hosted billing still requires Autumn when SELFHOST=%s", async (selfhost) => {
+	const child = spawn(
+		[
+			process.execPath,
+			"--no-env-file",
+			"-e",
+			`
+import assert from "node:assert/strict";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BillingProvider } from "./billing-provider";
+import { settingsNavigation } from "../layout/navigation/navigation-config";
+const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+assert.throws(() => renderToStaticMarkup(
+  createElement(QueryClientProvider, { client }, createElement(BillingProvider, null, "example"))
+), /AutumnProvider/);
+assert.ok(settingsNavigation.flatMap(({ items }) => items).some(({ href }) => href.startsWith("/billing")));
+client.clear();
+`,
+		],
+		{
+			cwd: import.meta.dir,
+			env: {
+				NODE_ENV: "production",
+				NEXT_PUBLIC_SELFHOST: selfhost,
+				NEXT_PUBLIC_DATABUDDY_E2E_MODE: "false",
+			},
+			stdout: "ignore",
+			stderr: "pipe",
+		}
+	);
+	const [exitCode, stderr] = await Promise.all([
+		child.exited,
+		new Response(child.stderr).text(),
+	]);
+	expect(exitCode, stderr).toBe(0);
 });

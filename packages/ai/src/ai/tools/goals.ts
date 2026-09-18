@@ -37,9 +37,13 @@ const createGoalInputSchema = z.object({
 	confirmed: z.boolean().describe("false=preview, true=apply"),
 });
 const updateGoalInputSchema = createGoalInputSchema
-	.omit({ confirmed: true, websiteId: true })
+	.omit({ websiteId: true })
 	.partial()
-	.extend({ id: z.string(), isActive: z.boolean().optional() });
+	.extend({
+		id: z.string(),
+		isActive: z.boolean().optional(),
+		confirmed: createGoalInputSchema.shape.confirmed.default(false),
+	});
 
 export function createGoalTools() {
 	const listGoalsTool = tool({
@@ -189,36 +193,47 @@ export function createGoalTools() {
 	});
 
 	const updateGoalTool = tool({
-		description: "Update a goal.",
+		description:
+			"Update a goal. Preview changes first, then set confirmed=true after explicit user approval.",
 		inputSchema: updateGoalInputSchema,
-		execute: async (
-			{
-				id,
-				name,
-				description,
-				type,
-				target,
-				filters,
-				ignoreHistoricData,
-				isActive,
-			},
-			options
-		) => {
+		execute: async ({ id, confirmed, ...input }, options) => {
 			const context = getAppContext(options);
+			const updates = Object.fromEntries(
+				Object.entries(input).filter(([, value]) => value !== undefined)
+			);
+			const hasUpdates = Object.keys(updates).length > 0;
 			try {
+				if (!(confirmed && hasUpdates)) {
+					const current = await callRPCProcedure(
+						"goals",
+						"getById",
+						{ id },
+						context
+					);
+					if (!hasUpdates) {
+						return {
+							preview: true,
+							message: "No changes detected. The goal will remain unchanged.",
+							confirmationRequired: false,
+							current,
+							updates,
+						};
+					}
+					return {
+						preview: true,
+						message: "Please review this goal update before applying it.",
+						current,
+						updates,
+						confirmationRequired: true,
+						instruction:
+							"To update this goal, the user must explicitly confirm. Only then call this tool again with confirmed=true.",
+					};
+				}
+
 				const result = await callRPCProcedure(
 					"goals",
 					"update",
-					{
-						id,
-						name,
-						description,
-						type,
-						target,
-						filters,
-						ignoreHistoricData,
-						isActive,
-					},
+					{ id, ...updates },
 					context
 				);
 

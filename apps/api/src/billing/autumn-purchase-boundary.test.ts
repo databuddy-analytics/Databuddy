@@ -7,11 +7,14 @@ const { forward } = vi.hoisted(() => ({
 	),
 }));
 vi.mock("autumn-js/fetch", () => ({ autumnHandler: () => forward }));
-const { getSession, getBillingCustomerId, getMemberRole } = vi.hoisted(() => ({
-	getSession: vi.fn(async () => null),
-	getBillingCustomerId: vi.fn(),
-	getMemberRole: vi.fn(),
-}));
+const { getSession, getBillingCustomerId, getMemberRole, attach } = vi.hoisted(
+	() => ({
+		getSession: vi.fn(async () => null),
+		getBillingCustomerId: vi.fn(),
+		getMemberRole: vi.fn(),
+		attach: vi.fn(async (args: unknown) => ({ received: args })),
+	})
+);
 vi.mock("@databuddy/auth", () => ({
 	auth: { api: { getSession } },
 }));
@@ -19,6 +22,7 @@ vi.mock("@databuddy/redis", () => ({
 	getRedisCache: () => ({ del: vi.fn(async () => 0) }),
 }));
 vi.mock("@databuddy/rpc", () => ({
+	getAutumn: () => ({ billing: { attach } }),
 	getBillingCustomerId,
 	getMemberRole,
 }));
@@ -40,13 +44,14 @@ function request(body: JSONValue, contentType: string | null) {
 
 beforeEach(() => {
 	forward.mockClear();
+	attach.mockClear();
 	getSession.mockResolvedValue(null);
 	getMemberRole.mockReset();
 	getBillingCustomerId.mockReset();
 });
 
 describe("Autumn attach Dub attribution", () => {
-	it("stamps the billing owner as the Dub customer on authenticated attach", async () => {
+	it("attaches through the SDK with the billing owner as the Dub customer", async () => {
 		getSession.mockResolvedValue({
 			user: { id: "synthetic-user", name: "Synthetic user", email: null },
 			session: { activeOrganizationId: "synthetic-org" },
@@ -67,19 +72,24 @@ describe("Autumn attach Dub attribution", () => {
 			)
 		);
 		expect(response.status).toBe(200);
-		expect(await response.json()).toEqual({
+		expect(forward).not.toHaveBeenCalled();
+		const expected = {
 			planId: "pro",
+			customerId: "synthetic-owner",
 			metadata: {
 				databuddy_client_id: "client",
 				dubCustomerExternalId: "synthetic-owner",
 			},
-		});
+		};
+		expect(attach).toHaveBeenCalledWith(expected);
+		expect(await response.json()).toEqual({ received: expected });
 	});
 
-	it("leaves attach metadata untouched for anonymous requests", async () => {
+	it("forwards anonymous attach requests to the native handler untouched", async () => {
 		const response = await handleAutumnRequest(
 			request({ planId: "pro", metadata: { a: "b" } }, "application/json")
 		);
+		expect(attach).not.toHaveBeenCalled();
 		expect(await response.json()).toEqual({
 			planId: "pro",
 			metadata: { a: "b" },

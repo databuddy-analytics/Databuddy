@@ -19,10 +19,13 @@ describe("parseDrilldownRun", () => {
 	it("builds a thread follow-up run from the button prompt", () => {
 		const run = parseDrilldownRun(blockActionsBody(), {
 			action_id: "agent_drilldown",
+			action_ts: "222.2",
 			value: "break down by referrer",
 		});
 		expect(run).toMatchObject({
 			channelId: "C1",
+			messageTs: "111.1",
+			requestTs: "222.2",
 			teamId: "T1",
 			text: "break down by referrer",
 			threadTs: "100.0",

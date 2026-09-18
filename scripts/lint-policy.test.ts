@@ -160,6 +160,18 @@ describe("policy lint", () => {
 		);
 	});
 
+	it("blocks ephemeral container ports in tests", () => {
+		const violations = findPolicyViolations(
+			"packages/services/src/example.integration.test.ts",
+			// policy-ignore tests/no-scratch-infra: fixture exercising the rule itself
+			'const clickhouse = new URL("http://127.0.0.1:54321/");'
+		);
+
+		expect(violations.map((violation) => violation.rule)).toContain(
+			"tests/no-scratch-infra"
+		);
+	});
+
 	it("allows the shared test services in tests", () => {
 		expect(
 			findPolicyViolations(
@@ -228,6 +240,87 @@ describe("policy lint", () => {
 		expect(violations.map((violation) => violation.message)).toEqual([
 			'Script "test" references src/missing.test.ts, which does not exist.',
 		]);
+	});
+
+	it("flags test files outside the paths a test script enumerates", () => {
+		const violations = findTestWiringViolations([
+			{
+				manifest: "packages/example/package.json",
+				scripts: { test: "bun test --isolate src/routers src/utils/*.test.ts" },
+				testFiles: [
+					"packages/example/src/routers/a.test.ts",
+					"packages/example/src/utils/b.test.ts",
+					"packages/example/src/services/c.test.ts",
+				],
+			},
+		]);
+
+		expect(violations.map((violation) => violation.message)).toEqual([
+			"1 test file(s) are not run by any script in this package: src/services/c.test.ts. Add them to a test script.",
+		]);
+	});
+
+	it("honors ignore patterns and explicit integration chains", () => {
+		const scripts = {
+			test: "bun test src --path-ignore-patterns='**/*.integration.test.ts'",
+			"test:integration":
+				"FLAG=true bun test src/a.integration.test.ts && FLAG=true bun test src/b.integration.test.ts",
+		};
+
+		expect(
+			findTestWiringViolations([
+				{
+					manifest: "apps/example/package.json",
+					scripts,
+					testFiles: [
+						"apps/example/src/a.integration.test.ts",
+						"apps/example/src/b.integration.test.ts",
+						"apps/example/src/unit.test.ts",
+					],
+				},
+			])
+		).toEqual([]);
+
+		const violations = findTestWiringViolations([
+			{
+				manifest: "apps/example/package.json",
+				scripts,
+				testFiles: [
+					"apps/example/src/a.integration.test.ts",
+					"apps/example/src/orphan.integration.test.ts",
+				],
+			},
+		]);
+
+		expect(violations.map((violation) => violation.message)).toEqual([
+			'Script "test:integration" references src/b.integration.test.ts, which does not exist.',
+			"1 test file(s) are not run by any script in this package: src/orphan.integration.test.ts. Add them to a test script.",
+		]);
+	});
+
+	it("treats runner invocations without paths as covering the package", () => {
+		expect(
+			findTestWiringViolations([
+				{
+					manifest: "apps/vitest/package.json",
+					scripts: { test: "TZ=UTC bunx --bun vitest run" },
+					testFiles: ["apps/vitest/src/routes/a.test.ts"],
+				},
+				{
+					manifest: "apps/dashboard/package.json",
+					scripts: { test: "bun test --path-ignore-patterns='test/e2e/**' ." },
+					testFiles: [
+						"apps/dashboard/lib/a.test.ts",
+						"apps/dashboard/test/e2e/specs/flow.spec.ts",
+					],
+				},
+				{
+					manifest: "packages/redis/package.json",
+					scripts: { test: "bun test --max-concurrency=1 *.test.ts" },
+					testFiles: ["packages/redis/cacheable.test.ts"],
+				},
+			])
+		).toEqual([]);
 	});
 
 	it("accepts wired packages, root scripts, and spec-only packages", () => {

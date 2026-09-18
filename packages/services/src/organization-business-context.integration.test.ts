@@ -99,6 +99,157 @@ integration("organization business context in isolated PostgreSQL", () => {
 		exclusions: "Exclude employee and test traffic",
 	};
 
+	test("partial research survives failure without publishing a brief or accepting late outcomes", async () => {
+		const generation = (await generate()).generation;
+		if (!generation) {
+			throw new Error("Missing generation");
+		}
+		const research = {
+			startedAt: generation.requestedAt,
+			pages: [
+				{
+					url: "https://reports.example.com/",
+					status: "read" as const,
+					title: "Reports",
+				},
+				{
+					url: "https://reports.example.com/pricing",
+					status: "failed" as const,
+				},
+			],
+			discoveryFailed: true,
+		};
+		await markBusinessContextGeneration({
+			organizationId: org,
+			generationId: generation.id,
+			status: "running",
+			research,
+		});
+		await markBusinessContextGeneration({
+			organizationId: org,
+			generationId: generation.id,
+			status: "failed",
+			error: "The draft could not be completed.",
+		});
+		await markBusinessContextGeneration({
+			organizationId: org,
+			generationId: generation.id,
+			status: "ready",
+			draft,
+			research: { ...research, pages: [] },
+		});
+		const state = await readOrganizationBusinessContext(org);
+		expect(state.profile).toBeNull();
+		expect(state.generation).toMatchObject({
+			status: "failed",
+			draft: null,
+			research,
+		});
+		expect(state.generation?.progress).toBeUndefined();
+	});
+
+	test("follow-up answers save through team context without adopting AI text and survive history", async () => {
+		await save("Team-authored brief");
+		const generation = (await generate()).generation;
+		if (!generation) {
+			throw new Error("Missing generation");
+		}
+		const research = { startedAt: generation.requestedAt, pages: [] };
+		const questions = [
+			{
+				field: "priority" as const,
+				question: "Which customer outcome matters most?",
+			},
+			{
+				field: "successDefinition" as const,
+				question: "What marks a customer's first successful report?",
+			},
+		];
+		await markBusinessContextGeneration({
+			organizationId: org,
+			generationId: generation.id,
+			status: "ready",
+			draft: { ...draft, followUpQuestions: questions },
+			research,
+		});
+		const saved = await saveOrganizationBusinessProfile({
+			organizationId: org,
+			revision: 1,
+			content: "Team-authored brief",
+			updatedBy: "synthetic-owner",
+			teamContext: {
+				priority: "Improve report sharing",
+				successDefinition: " ",
+				exclusions: "",
+			},
+		});
+		expect(saved.generation).toBeNull();
+		expect(saved.profile).toMatchObject({
+			content: "Team-authored brief",
+			origin: "team",
+			sources: [],
+			research,
+			followUpQuestions: [questions[1]],
+			teamContext: {
+				priority: "Improve report sharing",
+				successDefinition: "",
+				exclusions: "",
+			},
+		});
+		const answered = await saveOrganizationBusinessProfile({
+			organizationId: org,
+			revision: 2,
+			content: "Corrected team brief",
+			updatedBy: "synthetic-owner",
+			teamContext,
+		});
+		expect(answered.profile?.followUpQuestions).toEqual([]);
+		expect(answered.profile?.research).toEqual(research);
+		const restored = await restoreOrganizationBusinessProfile({
+			organizationId: org,
+			revision: 3,
+			restoreRevision: 2,
+			updatedBy: "synthetic-owner",
+		});
+		expect(restored.profile).toMatchObject({
+			content: "Team-authored brief",
+			research,
+			followUpQuestions: [questions[1]],
+		});
+	});
+
+	test("an explicitly selected legacy draft never borrows another run's research or questions", async () => {
+		const older = (await generate()).generation;
+		if (!older) {
+			throw new Error("Missing generation");
+		}
+		await markBusinessContextGeneration({
+			organizationId: org,
+			generationId: older.id,
+			status: "ready",
+			draft,
+		});
+		const newer = (await generate()).generation;
+		if (!newer) {
+			throw new Error("Missing generation");
+		}
+		await markBusinessContextGeneration({
+			organizationId: org,
+			generationId: newer.id,
+			status: "ready",
+			draft: {
+				...draft,
+				followUpQuestions: [
+					{ field: "priority", question: "Which new outcome matters?" },
+				],
+			},
+			research: { startedAt: newer.requestedAt, pages: [] },
+		});
+		const saved = await save(draft.content, 0, older.id);
+		expect(saved.profile?.followUpQuestions).toBeUndefined();
+		expect(saved.profile?.research).toBeUndefined();
+	});
+
 	test("source URLs stay scoped and streaming progress never becomes a saved draft", async () => {
 		await expect(
 			beginBusinessContextGeneration({

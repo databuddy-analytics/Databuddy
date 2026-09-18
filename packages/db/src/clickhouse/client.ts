@@ -53,6 +53,20 @@ function assertCacheCompatibleSettings(
 	}
 }
 
+function assertLoopbackForIntegrationTests(url: string | undefined): void {
+	if (process.env.CLICKHOUSE_INTEGRATION_TESTS !== "true") {
+		return;
+	}
+	const hostname = url ? new URL(url).hostname : "";
+	if (!["localhost", "127.0.0.1", "::1", "[::1]"].includes(hostname)) {
+		throw new Error(
+			`ClickHouse integration tests only run against a loopback server; CLICKHOUSE_URL host is "${hostname || "unset"}"`
+		);
+	}
+}
+
+assertLoopbackForIntegrationTests(process.env.CLICKHOUSE_URL);
+
 const baseClient = createClient({
 	url: process.env.CLICKHOUSE_URL,
 	...CLICKHOUSE_OPTIONS,

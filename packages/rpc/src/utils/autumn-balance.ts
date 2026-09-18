@@ -1,4 +1,4 @@
-import { readBooleanEnv } from "@databuddy/env/app";
+import { readBooleanEnv } from "@databuddy/env/boolean";
 
 const AUTUMN_BALANCE_TIMEOUT_MS = 10_000;
 

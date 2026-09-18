@@ -47,6 +47,33 @@ export const businessContextProgressSchema = z.object({
 	content: z.string().max(BUSINESS_CONTEXT_LIMIT).optional(),
 });
 
+export const businessContextResearchSchema = z.object({
+	startedAt: z.iso.datetime(),
+	pages: z
+		.array(
+			z.object({
+				url: businessContextSourceUrlsSchema.element,
+				status: z.enum(["read", "failed"]),
+				title: z.string().max(512).optional(),
+			})
+		)
+		.max(7),
+	discoveryFailed: z.boolean().optional(),
+});
+
+export const businessContextFollowUpQuestionsSchema = z
+	.array(
+		z.strictObject({
+			field: z.enum(["priority", "successDefinition", "exclusions"]),
+			question: z.string().trim().min(1).max(300),
+		})
+	)
+	.max(3);
+
+export type BusinessContextResearch = z.infer<
+	typeof businessContextResearchSchema
+>;
+
 export const businessMeasurementPlanSchema = z.object({
 	websiteId: z.string().min(1).max(256),
 	domain: z.string().min(1).max(2048),
@@ -70,17 +97,6 @@ export type BusinessMeasurementPlan = z.infer<
 	typeof businessMeasurementPlanSchema
 >;
 
-export function formatBusinessMeasurementPlans(
-	plans: BusinessMeasurementPlan[] = []
-): string {
-	return plans
-		.map(
-			(plan) =>
-				`${plan.name} (${plan.domain}): ${plan.activationEvent} → ${plan.returnEvent} within ${plan.horizonDays} days${plan.namespace ? `; namespace ${plan.namespace}` : ""}`
-		)
-		.join("\n");
-}
-
 export const businessTeamContextSchema = z.object({
 	priority: z.string().trim().max(BUSINESS_CONTEXT_TEAM_FIELD_LIMIT),
 	successDefinition: z.string().trim().max(BUSINESS_CONTEXT_TEAM_FIELD_LIMIT),
@@ -97,6 +113,7 @@ export const businessContextEditSchema = z.object({
 
 export const businessBriefSchema = z.object({
 	content: z.string().trim().max(BUSINESS_CONTEXT_LIMIT),
+	followUpQuestions: businessContextFollowUpQuestionsSchema.optional(),
 	sources: z
 		.array(
 			z.object({
@@ -109,6 +126,7 @@ export const businessBriefSchema = z.object({
 });
 
 export const organizationBusinessProfileSchema = businessBriefSchema.extend({
+	research: businessContextResearchSchema.optional(),
 	origin: z.enum(["team", "website", "mixed"]),
 	teamContext: businessTeamContextSchema.optional(),
 	measurementPlans: businessMeasurementPlansSchema.optional(),
@@ -130,6 +148,7 @@ export const businessContextGenerationSchema = z.object({
 	draft: businessBriefSchema.nullable(),
 	error: z.string().max(500).nullable(),
 	progress: businessContextProgressSchema.optional(),
+	research: businessContextResearchSchema.optional(),
 });
 
 export const organizationBusinessContextSchema = z.object({

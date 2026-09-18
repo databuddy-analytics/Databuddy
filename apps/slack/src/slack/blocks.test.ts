@@ -73,7 +73,10 @@ describe("componentToBlocks tables and lists", () => {
 			rows: [["/", 1500]],
 		});
 		expect(block).toMatchObject({ type: "data_table", caption: "Top Pages" });
-		const rows = block.rows as unknown[][];
+		if (block.type !== "data_table") {
+			throw new Error("Expected a data table");
+		}
+		const rows = block.rows;
 		expect(rows[1]).toEqual([
 			{ type: "raw_text", text: "/" },
 			{ type: "raw_number", value: 1500, text: "1,500" },
@@ -96,9 +99,11 @@ describe("componentToBlocks charts", () => {
 			type: "data_table",
 			caption: "Daily Traffic",
 		});
-		const header = (blocks[0].rows as unknown[][])[0].map(
-			(c) => (c as { text: string }).text
-		);
+		const block = blocks[0];
+		if (block.type !== "data_table") {
+			throw new Error("Expected a data table");
+		}
+		const header = block.rows[0].map((cell) => cell.text);
 		expect(header).toEqual(["Period", "pageviews", "visitors"]);
 	});
 });
@@ -114,8 +119,13 @@ describe("componentToBlocks native actions and previews", () => {
 			],
 		});
 		expect(block.type).toBe("actions");
-		const elements = block.elements as Array<{ url: string }>;
-		expect(elements).toHaveLength(2);
+		if (block.type !== "actions") {
+			throw new Error("Expected an actions block");
+		}
+		const elements = block.elements.filter(
+			(element) => element.type === "button"
+		);
+		expect(block.elements).toHaveLength(2);
 		expect(elements[0].url).toBe(
 			"https://app.databuddy.cc/websites/abc/errors"
 		);
@@ -131,13 +141,23 @@ describe("componentToBlocks native actions and previews", () => {
 					prompt: "break /pricing down by referrer",
 				},
 				{ label: "No prompt" },
+				{ label: "Compare yesterday", prompt: "compare with yesterday" },
 			],
 		});
 		expect(block.type).toBe("actions");
-		const elements = block.elements as Record<string, unknown>[];
-		expect(elements).toHaveLength(1);
-		expect(elements[0].action_id).toBe("agent_drilldown");
+		if (block.type !== "actions") {
+			throw new Error("Expected an actions block");
+		}
+		const elements = block.elements.filter(
+			(element) => element.type === "button"
+		);
+		expect(block.elements).toHaveLength(2);
+		expect(elements.map((element) => element.action_id)).toEqual([
+			"agent_drilldown_0",
+			"agent_drilldown_2",
+		]);
 		expect(elements[0].value).toBe("break /pricing down by referrer");
+		expect(elements[1].value).toBe("compare with yesterday");
 	});
 });
 

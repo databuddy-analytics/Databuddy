@@ -1,4 +1,4 @@
-import { readBooleanEnv } from "@databuddy/env/app";
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import { chQuery } from "@databuddy/db/clickhouse";
 import { z } from "zod";
 import { rpcError } from "../errors";

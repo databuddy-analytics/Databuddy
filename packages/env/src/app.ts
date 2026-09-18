@@ -1,3 +1,7 @@
+import { readBooleanEnv } from "./boolean";
+
+export { readBooleanEnv } from "./boolean";
+
 // App-wide runtime config.
 //
 // To add or change a public URL, edit one entry in URLS:
@@ -158,10 +162,3 @@ export function createConfig(env: Env = process.env): Config {
 }
 
 export const config = createConfig();
-
-export function readBooleanEnv(
-	name: string,
-	environment: Record<string, string | undefined> = process.env
-): boolean {
-	return environment[name]?.trim().toLowerCase() === "true";
-}

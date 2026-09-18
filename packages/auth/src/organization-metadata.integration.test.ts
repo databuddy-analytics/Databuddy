@@ -151,15 +151,7 @@ integration("native Better Auth organization metadata protection", () => {
 	])("%s cannot replace or forge canonical metadata", async (role) => {
 		await db.update(member).set({ role }).where(eq(member.organizationId, org));
 		const original = await metadata();
-		for (const value of [
-			{},
-			{
-				businessContext: {
-					profile: { content: "Forged", origin: "team", revision: 999 },
-					generation: null,
-				},
-			},
-		]) {
+		for (const value of [{}, { forged: { grantedPlan: "scale" } }]) {
 			const response = await request("update", {
 				organizationId: org,
 				data: { name: "Must not change", metadata: value },
@@ -173,10 +165,7 @@ integration("native Better Auth organization metadata protection", () => {
 	});
 
 	test("native create rejects supplied metadata before inserting an organization", async () => {
-		for (const value of [
-			{},
-			{ businessContext: { profile: null, generation: null } },
-		]) {
+		for (const value of [{}, { forged: { grantedPlan: "scale" } }]) {
 			const slug = `synthetic-create-${randomUUID()}`;
 			createdSlugs.push(slug);
 			const response = await request("create", {

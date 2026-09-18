@@ -1,5 +1,5 @@
 import "./polyfills/compression";
-import { readBooleanEnv } from "@databuddy/env/app";
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import { buildHttpErrorResponse } from "@databuddy/shared/http-error-response";
 import cors from "@elysiajs/cors";
 import { Elysia } from "elysia";

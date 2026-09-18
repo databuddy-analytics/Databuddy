@@ -21,6 +21,41 @@ afterEach(() => {
 });
 
 describe("BullMQ connection options", () => {
+	it.each([
+		undefined,
+		"false",
+		"true",
+	])("ignores unrelated application URLs when SELFHOST=%s", async (selfhost) => {
+		const child = Bun.spawn(
+			[
+				process.execPath,
+				"--no-env-file",
+				"-e",
+				`
+import assert from "node:assert/strict";
+import { getBullMQConnectionOptions } from "./bullmq";
+assert.equal(getBullMQConnectionOptions().host, "queue.example.com");
+`,
+			],
+			{
+				cwd: import.meta.dir,
+				env: {
+					NODE_ENV: "production",
+					SELFHOST: selfhost,
+					BULLMQ_REDIS_URL: "redis://queue.example.com:6379",
+					DASHBOARD_URL: "unused-invalid-url",
+				},
+				stdout: "ignore",
+				stderr: "pipe",
+			}
+		);
+		const [exitCode, stderr] = await Promise.all([
+			child.exited,
+			new Response(child.stderr).text(),
+		]);
+		expect(exitCode, stderr).toBe(0);
+	});
+
 	it("requires BULLMQ_REDIS_URL", () => {
 		delete process.env.BULLMQ_REDIS_URL;
 

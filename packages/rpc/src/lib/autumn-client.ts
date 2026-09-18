@@ -4,7 +4,7 @@
  * https://docs.useautumn.com/documentation/modelling-pricing/spend-limits
  */
 import { Autumn, HTTPClient } from "autumn-js";
-import { readBooleanEnv } from "@databuddy/env/app";
+import { readBooleanEnv } from "@databuddy/env/boolean";
 
 function createClient(strict = false): Autumn {
 	const secretKey = process.env.AUTUMN_SECRET_KEY;

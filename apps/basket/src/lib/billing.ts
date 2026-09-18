@@ -1,4 +1,4 @@
-import { readBooleanEnv } from "@databuddy/env/app";
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import { getAutumn } from "@databuddy/rpc/autumn";
 import { basketErrors } from "@lib/structured-errors";
 import { captureError, record } from "@lib/tracing";
