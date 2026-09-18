@@ -223,7 +223,7 @@ function renderDashboardActions(spec: ComponentSpec): Block[] {
 
 function renderSuggestedActions(spec: ComponentSpec): Block[] {
 	const elements = asArray(spec.actions)
-		.map((item): Button | null => {
+		.map((item, index): Button | null => {
 			const action = item as Record<string, unknown>;
 			const label = asString(action.label).trim();
 			const prompt = asString(action.prompt).trim();
@@ -233,7 +233,7 @@ function renderSuggestedActions(spec: ComponentSpec): Block[] {
 			return {
 				type: "button",
 				text: { type: "plain_text", text: label.slice(0, 75) },
-				action_id: DRILLDOWN_ACTION_ID,
+				action_id: `${DRILLDOWN_ACTION_ID}_${index}`,
 				value: prompt.slice(0, DRILLDOWN_PROMPT_MAX),
 			};
 		})

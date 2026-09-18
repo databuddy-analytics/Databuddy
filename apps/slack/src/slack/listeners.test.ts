@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import type { App } from "@slack/bolt";
+import { App, type CodedError, type Receiver } from "@slack/bolt";
 import type { DatabuddyAgentClient, SlackAgentRun } from "@/agent/agent-client";
 import {
 	cleanupSlackActiveRun,
@@ -196,6 +196,77 @@ function registerFakeSlackListeners(
 }
 
 describe("Slack listeners", () => {
+	it.each([
+		["agent_drilldown", true],
+		["agent_drilldown_0", true],
+		["agent_drilldown_2", true],
+		["other_agent_drilldown_0", false],
+		["agent_drilldown_0_other", false],
+		["agent_drilldown_", false],
+		["agent_drilldown_other", false],
+	])("routes drilldown action %s only when supported", async (actionId, supported) => {
+		const receiver: Receiver = {
+			init: () => undefined,
+			start: async () => undefined,
+			stop: async () => undefined,
+		};
+		const app = new App({
+			receiver,
+			authorize: async () => ({
+				botToken: "xoxb-test",
+				botId: "BTEST",
+				botUserId: "UBOT",
+			}),
+		});
+		const errors: CodedError[] = [];
+		app.error((error) => {
+			errors.push(error);
+			return Promise.resolve();
+		});
+		app.use(async ({ client, next }) => {
+			client.chat.startStream = async () => ({ ok: true, ts: "response_ts" });
+			client.chat.appendStream = async () => ({ ok: true });
+			client.chat.stopStream = async () => ({ ok: true });
+			client.chat.postMessage = async () => ({ ok: true, ts: "response_ts" });
+			client.reactions.add = async () => ({ ok: true });
+			await next();
+		});
+		const { agent, runs } = createAgent();
+		registerSlackListeners(app, agent, createInstallations(), createQueue());
+		let acknowledgments = 0;
+		await app.processEvent({
+			body: {
+				type: "block_actions",
+				team: { id: "TTEST" },
+				user: { id: "UTEST" },
+				channel: { id: "CTEST" },
+				message: { ts: "1700000000.000002", thread_ts: "1700000000.000001" },
+				actions: [
+					{
+						type: "button",
+						action_id: actionId,
+						action_ts: "1700000000.000003",
+						value: "break /pricing down by referrer",
+					},
+				],
+			},
+			ack: async () => {
+				acknowledgments++;
+			},
+		});
+		expect(errors).toEqual([]);
+		expect(acknowledgments).toBe(supported ? 1 : 0);
+		expect(runs).toHaveLength(supported ? 1 : 0);
+		if (supported) {
+			expect(runs[0]).toMatchObject({
+				text: "break /pricing down by referrer",
+				threadTs: "1700000000.000001",
+				requestTs: "1700000000.000003",
+				userId: "UTEST",
+			});
+		}
+	});
+
 	it("stops assistant work without depending on title or status updates", async () => {
 		const app = new FakeSlackApp();
 		const { agent, runs } = createAgent();

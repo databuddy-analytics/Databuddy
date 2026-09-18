@@ -49,6 +49,11 @@ import {
 } from "@/slack/thread-relevance";
 import type { SlackAgentClient, SlackLogger, SlackSay } from "@/slack/types";
 
+// Keep handling buttons posted before drilldown IDs included an index.
+const DRILLDOWN_ACTION_PATTERN = new RegExp(
+	`^${DRILLDOWN_ACTION_ID}(?:_\\d+)?$`
+);
+
 export type SlackInvestigationReplyHandler = (options: {
 	client: SlackAgentClient;
 	installations: SlackInstallationServices;
@@ -444,7 +449,7 @@ function registerSlackDrilldown(
 	threadQueue: SlackThreadQueueStore
 ) {
 	app.action(
-		DRILLDOWN_ACTION_ID,
+		DRILLDOWN_ACTION_PATTERN,
 		async ({ ack, action, body, client, context, logger }) => {
 			await ack();
 			const run = parseDrilldownRun(body, action, context.teamId);
