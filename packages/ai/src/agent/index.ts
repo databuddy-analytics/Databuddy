@@ -21,7 +21,6 @@ export {
 } from "./errors";
 export {
 	classifySlackThreadReplyRelevance,
-	type SlackThreadReplyMessage,
 	type SlackThreadReplyRelevance,
 	type SlackThreadReplyRelevanceInput,
 } from "./slack-relevance";

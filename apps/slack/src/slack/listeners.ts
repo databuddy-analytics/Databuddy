@@ -43,9 +43,8 @@ import {
 	type SlackThreadQueueStore,
 } from "@/slack/thread-queue";
 import {
-	slackThreadReplyGate,
+	shouldReplyToSlackThreadFollowUp,
 	type SlackThreadReplyDecision,
-	type SlackThreadReplyGate,
 } from "@/slack/thread-relevance";
 import type { SlackAgentClient, SlackLogger, SlackSay } from "@/slack/types";
 
@@ -155,7 +154,7 @@ export function registerSlackListeners(
 	agent: Pick<DatabuddyAgentClient, "stream">,
 	installations: SlackInstallationServices,
 	threadQueue: SlackThreadQueueStore = slackThreadQueue,
-	threadReplyGate: SlackThreadReplyGate = slackThreadReplyGate,
+	shouldReply = shouldReplyToSlackThreadFollowUp,
 	investigationReplyHandler: SlackInvestigationReplyHandler = handleInvestigationThreadReply
 ): void {
 	const dedupe = createRecentDedupe();
@@ -417,7 +416,7 @@ export function registerSlackListeners(
 
 		const slackContext = createSlackConversationContext(client, run);
 		if (!isSlackStopCommand(run.text)) {
-			const replyDecision = await threadReplyGate.shouldReply(run, {
+			const replyDecision = await shouldReply(run, {
 				botUserId: context.botUserId,
 				readThreadMessages: async () =>
 					(await slackContext?.readCurrentThread?.())?.messages ?? [],
