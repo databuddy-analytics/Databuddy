@@ -39,7 +39,10 @@ import { setAuditOrganization } from "../lib/audit";
 import { logger } from "../lib/logger";
 import { getOrganizationOwnerId } from "../utils/organization";
 import { getAutumn } from "../lib/autumn-client";
-import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
+import {
+	hasInvestigationAllowance,
+	INVESTIGATION_USAGE,
+} from "@databuddy/shared/billing";
 import { auditedProcedure, type Context, protectedProcedure } from "../orpc";
 import { withWorkspace } from "../procedures/with-workspace";
 import {
@@ -991,9 +994,8 @@ async function requireInvestigationsAccess(
 		? await getAutumn().customers.get({ customerId })
 		: null;
 	if (
-		!(
-			customer &&
-			Object.hasOwn(customer.balances, INVESTIGATION_USAGE.featureId)
+		!hasInvestigationAllowance(
+			customer?.balances[INVESTIGATION_USAGE.featureId]
 		)
 	) {
 		throw rpcError.featureUnavailable(

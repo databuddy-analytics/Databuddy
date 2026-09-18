@@ -2,7 +2,10 @@
 
 import { isSelfHosted } from "@databuddy/env/public";
 
-import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
+import {
+	hasInvestigationAllowance,
+	INVESTIGATION_USAGE,
+} from "@databuddy/shared/billing";
 
 import {
 	FEATURE_METADATA,
@@ -352,13 +355,12 @@ export function useInvestigationUsage() {
 	const balance = customer?.balances?.[INVESTIGATION_USAGE.featureId];
 	const usage = useUsageFeature(INVESTIGATION_USAGE.featureId);
 	const details = summarizeInvestigationBalance(balance ?? null);
+	const allowed = hasInvestigationAllowance(balance);
 	return {
 		...usage,
 		...details,
-		fixedPrice: balance !== undefined,
-		hasAccess: isSelfHosted ? usage.canUse : balance !== undefined,
-		canUse: isSelfHosted
-			? usage.canUse
-			: balance !== undefined && details.canUse,
+		fixedPrice: allowed,
+		hasAccess: isSelfHosted ? usage.canUse : allowed,
+		canUse: isSelfHosted ? usage.canUse : allowed && details.canUse,
 	};
 }
