@@ -218,6 +218,38 @@ integration("organization business context in isolated PostgreSQL", () => {
 		});
 	});
 
+	test("an explicitly selected legacy draft never borrows another run's research or questions", async () => {
+		const older = (await generate()).generation;
+		if (!older) {
+			throw new Error("Missing generation");
+		}
+		await markBusinessContextGeneration({
+			organizationId: org,
+			generationId: older.id,
+			status: "ready",
+			draft,
+		});
+		const newer = (await generate()).generation;
+		if (!newer) {
+			throw new Error("Missing generation");
+		}
+		await markBusinessContextGeneration({
+			organizationId: org,
+			generationId: newer.id,
+			status: "ready",
+			draft: {
+				...draft,
+				followUpQuestions: [
+					{ field: "priority", question: "Which new outcome matters?" },
+				],
+			},
+			research: { startedAt: newer.requestedAt, pages: [] },
+		});
+		const saved = await save(draft.content, 0, older.id);
+		expect(saved.profile?.followUpQuestions).toBeUndefined();
+		expect(saved.profile?.research).toBeUndefined();
+	});
+
 	test("source URLs stay scoped and streaming progress never becomes a saved draft", async () => {
 		await expect(
 			beginBusinessContextGeneration({

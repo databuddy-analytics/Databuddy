@@ -355,9 +355,10 @@ export async function saveOrganizationBusinessProfile(input: {
 			? businessTeamContextSchema.parse(input.teamContext)
 			: current.profile?.teamContext;
 		const followUpQuestions = (
-			generated?.draft?.followUpQuestions ??
-			current.generation?.draft?.followUpQuestions ??
-			current.profile?.followUpQuestions
+			generated
+				? generated.draft?.followUpQuestions
+				: (current.generation?.draft?.followUpQuestions ??
+					current.profile?.followUpQuestions)
 		)?.filter(({ field }) => !teamContext?.[field].trim());
 		const measurementPlans = input.measurementPlans
 			? businessMeasurementPlansSchema.parse(input.measurementPlans)
@@ -398,10 +399,9 @@ export async function saveOrganizationBusinessProfile(input: {
 			history: profileHistory(current),
 			profile: {
 				...brief,
-				research:
-					generated?.research ??
-					current.generation?.research ??
-					current.profile?.research,
+				research: generated
+					? generated.research
+					: (current.generation?.research ?? current.profile?.research),
 				measurementPlans,
 				origin,
 				revision: input.revision + 1,
