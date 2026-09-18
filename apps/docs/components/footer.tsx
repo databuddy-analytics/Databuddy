@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@databuddy/ui";
+import { Button, cn } from "@databuddy/ui";
 import { EnvelopeIcon } from "@databuddy/ui/icons";
 import { SiDiscord, SiX } from "@icons-pack/react-simple-icons";
 import Image from "next/image";
@@ -50,10 +50,19 @@ const legalLinks = [
 	{ href: "/terms", label: "Terms of Service" },
 ] as const;
 
-function FooterHero() {
+export function CtaBanner({
+	children,
+	className,
+}: {
+	children: React.ReactNode;
+	className?: string;
+}) {
 	return (
 		<div
-			className="relative flex h-70 w-full items-start overflow-hidden rounded-lg bg-center bg-cover md:h-80"
+			className={cn(
+				"relative flex h-70 w-full items-start overflow-hidden rounded-lg bg-center bg-cover md:h-80",
+				className
+			)}
 			style={{ backgroundImage: "url('/brand/gradients/cta-bg.webp')" }}
 		>
 			<div className="absolute inset-0 bg-black/40" />
@@ -64,46 +73,60 @@ function FooterHero() {
 				src="/brand/logomark/white.svg"
 				width={180}
 			/>
-			<div className="relative max-w-5xl px-8 pt-8 sm:px-16 md:pt-16">
-				<h2 className="mb-2 text-balance text-left font-medium text-2xl text-white leading-tight sm:text-4xl">
-					See how people use your product.
-				</h2>
-				<p className="mb-6 text-pretty text-lg text-white/70">
-					Start free with 10,000 events per month. No credit card required.
-				</p>
-				<div className="flex gap-3">
-					<Button
-						asChild
-						className="bg-white text-black hover:bg-white/90"
-						size="sm"
-					>
-						<a
-							data-destination="register"
-							data-placement="footer_hero"
-							data-track="cta_clicked"
-							href="https://app.databuddy.cc/register"
-						>
-							Start free
-						</a>
-					</Button>
-					<Button
-						asChild
-						className="border-white/20 bg-white/10 text-white hover:bg-white/20"
-						size="sm"
-						variant="secondary"
-					>
-						<Link
-							data-destination="demo"
-							data-placement="footer_hero"
-							data-track="cta_clicked"
-							href="/demo"
-						>
-							Try the live demo
-						</Link>
-					</Button>
-				</div>
+			<div className="relative max-w-5xl px-8 pt-8 pb-8 sm:px-16 md:pt-16 md:pb-16">
+				{children}
 			</div>
 		</div>
+	);
+}
+
+export const ctaBannerHeadingClass =
+	"mb-2 text-balance text-left font-medium text-2xl text-white leading-tight sm:text-4xl";
+
+export const ctaBannerDescriptionClass =
+	"mb-6 text-pretty text-lg text-white/70";
+
+function FooterHero() {
+	return (
+		<CtaBanner>
+			<h2 className={ctaBannerHeadingClass}>
+				See how people use your product.
+			</h2>
+			<p className={ctaBannerDescriptionClass}>
+				Start free with 10,000 events per month. No credit card required.
+			</p>
+			<div className="flex gap-3">
+				<Button
+					asChild
+					className="bg-white text-black hover:bg-white/90"
+					size="sm"
+				>
+					<a
+						data-destination="register"
+						data-placement="footer_hero"
+						data-track="cta_clicked"
+						href="https://app.databuddy.cc/register"
+					>
+						Start free
+					</a>
+				</Button>
+				<Button
+					asChild
+					className="border-white/20 bg-white/10 text-white hover:bg-white/20"
+					size="sm"
+					variant="secondary"
+				>
+					<Link
+						data-destination="demo"
+						data-placement="footer_hero"
+						data-track="cta_clicked"
+						href="/demo"
+					>
+						Try the live demo
+					</Link>
+				</Button>
+			</div>
+		</CtaBanner>
 	);
 }
 

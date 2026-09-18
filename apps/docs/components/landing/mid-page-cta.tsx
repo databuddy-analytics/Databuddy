@@ -1,24 +1,50 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Button } from "@databuddy/ui";
 import { flush, track } from "@databuddy/sdk";
+import { Button, CopyButton } from "@databuddy/ui";
+import { usePathname } from "next/navigation";
+import { CtaBanner, ctaBannerHeadingClass } from "@/components/footer";
+
+const installSnippet = `<script
+    src="https://cdn.databuddy.cc/databuddy.js"
+    data-client-id="your-client-id"
+    data-track-web-vitals
+    crossorigin="anonymous"
+    async
+></script>`;
 
 export function MidPageCta() {
 	const pathname = usePathname();
 	const page = pathname?.split("/").filter(Boolean)[0] ?? "home";
 
 	return (
-		<div className="flex flex-col items-center gap-4 text-center">
-			<h2 className="text-balance font-semibold text-2xl sm:text-3xl">
-				Ready to see your data?
+		<CtaBanner className="h-auto md:h-auto">
+			<h2 className={ctaBannerHeadingClass}>
+				Add one script and watch the first visit land.
 			</h2>
-			<p className="max-w-lg text-pretty text-muted-foreground text-sm sm:text-base">
-				Free up to 10,000 events per month. No credit card required.
-			</p>
-			<div className="flex items-center gap-3 pt-1">
-				<Button asChild>
+
+			<div className="mb-6 flex items-start gap-3">
+				<pre className="min-w-0 flex-1 overflow-x-auto rounded border border-white/15 bg-black/40 p-4 font-mono text-[13px] text-white/90 leading-relaxed">
+					<code>{installSnippet}</code>
+				</pre>
+				<CopyButton
+					className="shrink-0 border-white/20 bg-white/10 text-white hover:bg-white/20"
+					label="Copy"
+					onCopy={() => {
+						track("install_snippet_copied", { page, placement: "closing_cta" });
+						flush();
+					}}
+					value={installSnippet}
+					variant="secondary"
+				/>
+			</div>
+
+			<div className="flex flex-wrap items-center gap-4">
+				<Button
+					asChild
+					className="bg-white text-black hover:bg-white/90"
+					size="sm"
+				>
 					<a
 						href="https://app.databuddy.cc/register"
 						onClick={() => {
@@ -29,18 +55,10 @@ export function MidPageCta() {
 						Start free
 					</a>
 				</Button>
-				<Button asChild variant="secondary">
-					<Link
-						href="/demo"
-						onClick={() => {
-							track("demo_opened", { page, placement: "closing_cta" });
-							flush();
-						}}
-					>
-						Live demo
-					</Link>
-				</Button>
+				<span className="text-sm text-white/70">
+					Free up to 10,000 events/mo. No credit card required.
+				</span>
 			</div>
-		</div>
+		</CtaBanner>
 	);
 }
