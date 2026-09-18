@@ -1,5 +1,6 @@
 import "./globals.css";
 
+import { DubAnalytics } from "@/components/dub-analytics";
 import { OpenAiAdsPixel } from "@/components/openai-ads-pixel";
 import { Toaster } from "@/components/ui/sonner";
 import { APP_URL } from "@/lib/app-url";
@@ -164,14 +165,7 @@ export default function RootLayout({
 					/>
 				)}
 				{isLocalhost || isTrackingDisabled ? null : <OpenAiAdsPixel />}
-				{isLocalhost || isTrackingDisabled ? null : (
-					<script
-						data-cookie-options='{"domain":".databuddy.cc"}'
-						data-publishable-key="dub_pk_TbFwfIKx6BtgspSSbNDcDVRE"
-						defer
-						src="https://www.dubcdn.com/analytics/script.outbound-domains.conversion-tracking.js"
-					/>
-				)}
+				{isLocalhost || isTrackingDisabled ? null : <DubAnalytics />}
 				{isLocalhost && !isE2E ? <DatabuddyDevtools /> : null}
 			</body>
 		</html>
