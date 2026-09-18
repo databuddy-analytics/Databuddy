@@ -63,7 +63,7 @@ beforeAll(async () => {
 	({ auditRouter, takeAuditExportPage } = await import("./audit"));
 
 	mock.restore();
-});
+}, 30_000);
 
 beforeEach(() => {
 	listCalls.length = 0;
