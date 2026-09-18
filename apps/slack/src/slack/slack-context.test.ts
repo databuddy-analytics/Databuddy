@@ -62,4 +62,33 @@ describe("Slack conversation context", () => {
 			threadTs: "171234.000",
 		});
 	});
+
+	it("shares one thread read across callers", async () => {
+		let replyCalls = 0;
+		const client: Pick<SlackAgentClient, "conversations"> = {
+			conversations: {
+				history: async () => ({ ok: true, messages: [] }),
+				info: async () => ({ ok: true }),
+				replies: async () => {
+					replyCalls += 1;
+					await Promise.resolve();
+					return { ok: true, messages: [] };
+				},
+			},
+		};
+		const context = createSlackConversationContext(client, {
+			channelId: "C123",
+			messageTs: "171234.001",
+			teamId: "T123",
+			text: "yes",
+			threadTs: "171234.000",
+			trigger: "thread_follow_up",
+			userId: "U123",
+		});
+
+		await context?.readCurrentThread?.();
+		await context?.readCurrentThread?.();
+
+		expect(replyCalls).toBe(1);
+	});
 });
