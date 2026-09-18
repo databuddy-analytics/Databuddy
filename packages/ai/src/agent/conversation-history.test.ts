@@ -112,9 +112,9 @@ test.each([
 	]);
 });
 
-test("isolates Slack history by integration, channel and thread", async () => {
-	await askDatabuddyAgent(options);
-	for (const isolated of [
+test.each([
+	[
+		"integration",
 		{
 			actor: {
 				type: "api_key" as const,
@@ -124,12 +124,13 @@ test("isolates Slack history by integration, channel and thread", async () => {
 				},
 			},
 		},
-		{ conversationId: "slack-T_TEST-C_OTHER-111_000" },
-		{ conversationId: "slack-T_TEST-C_TEST-222_000" },
-	]) {
-		await askDatabuddyAgent({ ...options, ...isolated });
-		expect(runs.at(-1)?.priorMessages).toBeUndefined();
-	}
+	],
+	["channel", { conversationId: "slack-T_TEST-C_OTHER-111_000" }],
+	["thread", { conversationId: "slack-T_TEST-C_TEST-222_000" }],
+] as const)("isolates Slack history by %s", async (_scope, isolated) => {
+	await askDatabuddyAgent(options);
+	await askDatabuddyAgent({ ...options, ...isolated });
+	expect(runs.at(-1)?.priorMessages).toBeUndefined();
 });
 
 test.each([
