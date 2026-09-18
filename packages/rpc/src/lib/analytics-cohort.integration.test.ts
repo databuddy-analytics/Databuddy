@@ -53,15 +53,21 @@ function params(window: (typeof windows)[number], site = websiteId) {
 suite("native cohort SQL against ClickHouse", () => {
 	afterAll(async () => {
 		const websiteIds = [websiteId, otherWebsiteId, boundaryWebsiteId];
-		await chCommand(
-			"DELETE FROM analytics.events WHERE client_id IN {websiteIds:Array(String)}",
-			{ websiteIds }
-		);
-		await chCommand(
-			"DELETE FROM analytics.custom_events WHERE website_id IN {websiteIds:Array(String)}",
-			{ websiteIds }
-		);
-	});
+		const results = await Promise.allSettled([
+			chCommand(
+				"DELETE FROM analytics.events WHERE client_id IN {websiteIds:Array(String)}",
+				{ websiteIds }
+			),
+			chCommand(
+				"DELETE FROM analytics.custom_events WHERE website_id IN {websiteIds:Array(String)}",
+				{ websiteIds }
+			),
+		]);
+		const failed = results.find((result) => result.status === "rejected");
+		if (failed) {
+			throw failed.reason;
+		}
+	}, 30_000);
 	beforeAll(async () => {
 		const events: Record<string, unknown>[] = [];
 		const custom: Record<string, unknown>[] = [];

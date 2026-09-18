@@ -182,27 +182,30 @@ describe("scoped business context through the native Supermemory transport", () 
 		).toEqual({ status: "unavailable", ids: [] });
 		expect(requests).toBe(0);
 	});
-	it.skipIf(process.env.BUSINESS_MEMORY_INTEGRATION_TESTS !== "true")(
+	it.skipIf(process.env.BUSINESS_CONTEXT_INTEGRATION_TESTS !== "true")(
 		"does not claim a partial batch failure was saved; retry IDs stay stable under a native website lock",
 		async () => {
 			const url = new URL(process.env.DATABASE_URL ?? "");
 			if (
-				url.hostname !== "127.0.0.1" ||
-				url.port !== "16543" ||
-				url.pathname !== "/business_memory_synthetic"
+				!["localhost", "127.0.0.1"].includes(url.hostname) ||
+				(url.pathname !== "/databuddy_test" &&
+					!url.pathname.startsWith("/databuddy_e2e_"))
 			) {
-				throw new Error("Use the dedicated synthetic business-memory database");
+				throw new Error("Use a localhost test database");
 			}
 			const { db, eq, sql } = await import("@databuddy/db");
-			const { websites } = await import("@databuddy/db/schema");
+			const { organization, websites } = await import("@databuddy/db/schema");
 			const { getWebsiteBusinessScope } = await import(
 				"@databuddy/services/business-memory"
 			);
 			const organizationId = `synthetic-${crypto.randomUUID()}`;
 			const websiteId = `synthetic-${crypto.randomUUID()}`;
-			await db.execute(
-				sql`INSERT INTO organization(id) VALUES (${organizationId})`
-			);
+			await db.insert(organization).values({
+				id: organizationId,
+				name: "Synthetic organization",
+				slug: organizationId,
+				createdAt: new Date(),
+			});
 			await db
 				.insert(websites)
 				.values({ id: websiteId, organizationId, domain: scope.domain });
@@ -373,7 +376,7 @@ describe("scoped business context through the native Supermemory transport", () 
 });
 
 afterAll(async () => {
-	if (process.env.BUSINESS_MEMORY_INTEGRATION_TESTS === "true") {
+	if (process.env.BUSINESS_CONTEXT_INTEGRATION_TESTS === "true") {
 		const { shutdownPostgres } = await import("@databuddy/db");
 		await shutdownPostgres();
 	}

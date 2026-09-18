@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
-import { z } from "zod";
+import { chCommand, chQuery, clickHouse } from "@databuddy/db/clickhouse";
 import { SimpleQueryBuilder } from "../simple-builder";
 import type { Filter, QueryRequest } from "../types";
 import { RetentionBuilders } from "./retention";
@@ -8,15 +8,6 @@ const integration =
 	process.env.CLICKHOUSE_INTEGRATION_TESTS === "true"
 		? describe
 		: describe.skip;
-const clickhouseUrl = new URL(
-	process.env.CLICKHOUSE_URL ?? "http://default:@localhost:8123"
-);
-const clickhouseHeaders = {
-	"X-ClickHouse-User": decodeURIComponent(clickhouseUrl.username || "default"),
-	"X-ClickHouse-Key": decodeURIComponent(clickhouseUrl.password),
-};
-clickhouseUrl.username = "";
-clickhouseUrl.password = "";
 const table = `analytics.retention_test_${crypto.randomUUID().replaceAll("-", "")}`;
 type Row = Record<string, string | number | null>;
 interface Event {
@@ -29,33 +20,20 @@ interface Event {
 	website_id?: string | null;
 }
 
-async function sql(
-	query: string,
-	params: Record<string, string | number> = {}
-) {
-	const url = new URL(clickhouseUrl);
-	url.searchParams.set("output_format_json_quote_64bit_integers", "0");
-	url.searchParams.set("join_default_strictness", "ANY");
-	for (const [key, value] of Object.entries(params)) {
-		url.searchParams.set(`param_${key}`, String(value));
-	}
-	const response = await fetch(url, {
-		method: "POST",
-		headers: clickhouseHeaders,
-		body: query,
-		signal: AbortSignal.timeout(15_000),
-	});
-	const body = await response.text();
-	if (!response.ok) {
-		throw new Error(body);
-	}
-	return body;
+function insert(rows: Record<string, unknown>[]) {
+	return clickHouse.insert({ table, format: "JSONEachRow", values: rows });
 }
 
 async function seed(events: Event[]) {
 	const website = `synthetic-${crypto.randomUUID()}`;
-	await sql(
-		`INSERT INTO ${table} FORMAT JSONEachRow\n${events.map((event) => JSON.stringify({ owner_id: website, website_id: website, event_name: "activated", properties: "{}", ...event })).join("\n")}`
+	await insert(
+		events.map((event) => ({
+			owner_id: website,
+			website_id: website,
+			event_name: "activated",
+			properties: "{}",
+			...event,
+		}))
 	);
 	return website;
 }
@@ -84,15 +62,11 @@ async function measure(
 			...options,
 		}
 	).compile();
-	const result = await sql(
-		`${query.sql.replaceAll("analytics.custom_events", table)} FORMAT JSONEachRow`,
-		z.record(z.string(), z.union([z.string(), z.number()])).parse(query.params)
+	const rows = await chQuery<Row>(
+		query.sql.replaceAll("analytics.custom_events", table),
+		query.params,
+		{ clickhouse_settings: { join_default_strictness: "ANY" } }
 	);
-	const rows: Row[] = result
-		.trim()
-		.split("\n")
-		.filter(Boolean)
-		.map((line) => JSON.parse(line));
 	expect(rows[0]?.row_type).toBe("overall");
 	expect(rows[0]?.cohort_date).toBeNull();
 	expect(rows.length).toBeLessThanOrEqual(91);
@@ -107,12 +81,12 @@ integration("identified retention SQL against ClickHouse", () => {
 				import.meta.url
 			)
 		).text();
-		await sql(
+		await chCommand(
 			`${ddl.slice(0, ddl.indexOf("ENGINE =")).replace("analytics.custom_events", table)} ENGINE = MergeTree ORDER BY (owner_id, event_name, timestamp)`
 		);
 	});
 	afterAll(async () => {
-		await sql(`DROP TABLE IF EXISTS ${table}`);
+		await chCommand(`DROP TABLE IF EXISTS ${table}`);
 	});
 
 	it("deduplicates activation/return events and counts raw identity coverage separately", async () => {
@@ -246,9 +220,32 @@ integration("identified retention SQL against ClickHouse", () => {
 				event_name: "returned",
 			},
 		]);
-		await sql(
-			`INSERT INTO ${table} FORMAT JSONEachRow\n${JSON.stringify({ owner_id: "other-owner", website_id: website, profile_id: "collision", event_name: "returned", timestamp: "2026-07-02 00:00:00.000", properties: "{}" })}\n${JSON.stringify({ owner_id: "shared-org", website_id: website, profile_id: "org-profile", event_name: "activated", timestamp: "2026-07-01 00:00:00.000", properties: "{}" })}\n${JSON.stringify({ owner_id: "shared-org", website_id: "other-site", profile_id: "org-profile", event_name: "returned", timestamp: "2026-07-02 00:00:00.000", properties: "{}" })}`
-		);
+		await insert([
+			{
+				owner_id: "other-owner",
+				website_id: website,
+				profile_id: "collision",
+				event_name: "returned",
+				timestamp: "2026-07-02 00:00:00.000",
+				properties: "{}",
+			},
+			{
+				owner_id: "shared-org",
+				website_id: website,
+				profile_id: "org-profile",
+				event_name: "activated",
+				timestamp: "2026-07-01 00:00:00.000",
+				properties: "{}",
+			},
+			{
+				owner_id: "shared-org",
+				website_id: "other-site",
+				profile_id: "org-profile",
+				event_name: "returned",
+				timestamp: "2026-07-02 00:00:00.000",
+				properties: "{}",
+			},
+		]);
 		expect((await measure(website))[0]).toMatchObject({
 			activated_profiles: 2,
 			retained_profiles: 0,
