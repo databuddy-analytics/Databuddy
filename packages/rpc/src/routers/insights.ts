@@ -579,6 +579,17 @@ export async function appendInvestigationReply(
 
 	requireInvestigationAI();
 	const author = replyAuthor(context, authorName);
+	const principalId = author.authorId ?? `apikey:${context.apiKey?.id}`;
+	const rate = await ratelimit(
+		`insights:reply:${insight.organizationId}:${principalId}`,
+		20,
+		60
+	);
+	if (!rate.success) {
+		throw rpcError.rateLimited(
+			Math.max(1, Math.ceil((rate.reset - Date.now()) / 1000))
+		);
+	}
 	if (parsed.intent === "analysis") {
 		if (!author.authorId) {
 			throw rpcError.badRequest("Start a new analysis from the dashboard.");
