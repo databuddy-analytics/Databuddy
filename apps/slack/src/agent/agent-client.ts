@@ -1,4 +1,7 @@
-import type { DatabuddyAgentSlackContext } from "@databuddy/ai/agent";
+import type {
+	DatabuddyAgentSlackContext,
+	DatabuddyAgentToolTrace,
+} from "@databuddy/ai/agent";
 import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
 import { setActiveSlackLog } from "@/lib/evlog-slack";
 import { SLACK_COPY } from "@/slack/messages";
@@ -41,6 +44,7 @@ export interface SlackRunContextResolver {
 export interface SlackAgentStreamOptions {
 	abortSignal?: AbortSignal;
 	onToolEvent?: (toolNames: string[]) => void;
+	onToolTrace?: (trace: DatabuddyAgentToolTrace[]) => void;
 }
 
 // Slack streams keep the "thinking" indicator open, and Slack imposes no stream
@@ -107,6 +111,7 @@ class SharedDatabuddyAgentRunner implements SlackAgentRunner {
 			input: formatSlackAgentInput(run),
 			memoryUserId: createSlackMemoryUserId(run),
 			onToolEvent: options?.onToolEvent,
+			onToolTrace: options?.onToolTrace,
 			slackContext: run.slackContext,
 			source: "slack",
 			timeoutMs: SLACK_AGENT_TIMEOUT_MS,

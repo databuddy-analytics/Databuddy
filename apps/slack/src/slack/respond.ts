@@ -10,6 +10,7 @@ import {
 	feedbackButtonsBlock,
 } from "@/slack/blocks";
 import { SLACK_COPY } from "@/slack/messages";
+import { queryEvidenceBlocks } from "@/slack/query-evidence";
 import type { SlackAgentClient } from "@/slack/types";
 
 const STREAM_FLUSH_INTERVAL_MS = 900;
@@ -92,6 +93,7 @@ export async function streamAgentToSlack({
 	let thinkingResolved = false;
 	let progressUpdate = Promise.resolve();
 	let latestProgress = 0;
+	let evidenceBlocks: Block[] = [];
 
 	const finishThinking = async (status: "complete" | "error") => {
 		if (!streamTs || thinkingResolved) {
@@ -164,6 +166,9 @@ export async function streamAgentToSlack({
 		for await (const chunk of agent.stream(run, {
 			abortSignal,
 			onToolEvent: updateThinkingStatus,
+			onToolTrace: (trace) => {
+				evidenceBlocks = queryEvidenceBlocks(trace);
+			},
 		})) {
 			abortSignal?.throwIfAborted();
 			chunkCount++;
@@ -179,11 +184,12 @@ export async function streamAgentToSlack({
 
 		const finalText = fullText.trim();
 		const componentBlocks = componentsToBlocks(tail.components);
-		const trailingBlocks = [...componentBlocks, feedbackButtonsBlock()];
+		const footerBlocks = [...evidenceBlocks, feedbackButtonsBlock()];
+		const trailingBlocks = [...componentBlocks, ...footerBlocks];
 		const fallbackBlocks = componentBlocks.some(
 			(block) => block.type === "data_visualization"
 		)
-			? [...componentsToBlocks(tail.components, false), feedbackButtonsBlock()]
+			? [...componentsToBlocks(tail.components, false), ...footerBlocks]
 			: undefined;
 		setSlackLog(eventLog, {
 			slack_component_count: tail.components.length,

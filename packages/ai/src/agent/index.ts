@@ -67,6 +67,8 @@ export interface DatabuddyAgentOptions {
 	modelOverride?: string | null;
 	mutationMode?: DatabuddyAgentMutationMode;
 	onToolEvent?: (toolNames: string[]) => void;
+	/** Streaming only: called once after completion and usage settlement. */
+	onToolTrace?: (trace: DatabuddyAgentToolTrace[]) => void;
 	persistConversation?: boolean;
 	slackContext?: DatabuddyAgentSlackContext | null;
 	source?: DatabuddyAgentSource;
@@ -181,6 +183,7 @@ export async function* streamDatabuddyAgent(
 		modelOverride: options.modelOverride,
 		mutationMode: options.mutationMode,
 		onToolEvent: options.onToolEvent,
+		onToolTrace: options.onToolTrace,
 		storeMemory: options.persistConversation !== false,
 		timeoutMs: options.timeoutMs,
 		timezone: options.timezone,

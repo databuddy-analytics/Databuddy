@@ -158,6 +158,7 @@ Critical schema footguns: website id column is client_id (not website_id); times
 				});
 				return {
 					batch: true,
+					website: { id: args.websiteId, domain: access.domain },
 					results: formatMcpQueryResults(plan, results),
 				};
 			},

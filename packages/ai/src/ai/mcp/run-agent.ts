@@ -36,6 +36,8 @@ export interface RunMcpAgentOptions {
 	modelOverride?: string | null;
 	mutationMode?: AppMutationMode;
 	onToolEvent?: (toolNames: string[]) => void;
+	/** Called once after a stream completes and its usage has been settled. */
+	onToolTrace?: (trace: McpAgentToolTrace[]) => void;
 	priorMessages?: Array<{ role: "user" | "assistant"; content: string }>;
 	question: string;
 	requestHeaders: Headers;
@@ -204,6 +206,7 @@ export async function* streamMcpAgentText(
 
 		const usage = await result.totalUsage;
 		await trackPreparedUsage(prepared, usage);
+		options.onToolTrace?.(collectToolTrace(prepared.capturedSteps));
 		if (options.storeMemory !== false) {
 			storePreparedConversation(
 				prepared,
