@@ -130,6 +130,9 @@ function fixture(
 						draft: change.draft ?? null,
 						error: change.error ?? null,
 						progress: change.status === "running" ? change.progress : undefined,
+						research: change.research
+							? structuredClone(change.research)
+							: state.generation.research,
 					},
 				};
 			}
@@ -201,7 +204,12 @@ function fixture(
 	};
 	const model = new MockLanguageModelV3({
 		doStream: async () => {
-			const text = JSON.stringify(outputs.shift());
+			const output = outputs.shift();
+			const text = JSON.stringify(
+				output && typeof output === "object" && "content" in output
+					? { followUpQuestions: [], ...output }
+					: output
+			);
 			return {
 				stream: convertArrayToReadableStream([
 					{ type: "text-start", id: "draft" },
@@ -270,6 +278,288 @@ function fixture(
 }
 
 describe("organization business context request", () => {
+	it("streams deterministic research outcomes after parallel seed reads", async () => {
+		const f = fixture([{ paths: [] }, { content: brief, sourceIds: [0, 1] }]);
+		if (!f.state.generation) {
+			throw new Error("Missing generation");
+		}
+		f.state.generation.sourceUrls = [
+			"https://docs.example.com/start",
+			"https://docs.example.com/missing",
+		];
+		const read = f.read.getMockImplementation();
+		if (!read) {
+			throw new Error("Missing page fixture");
+		}
+		const secondRead = Promise.withResolvers<void>();
+		f.read.mockImplementation(async (...args) => {
+			if (args[0].path === "/missing") {
+				secondRead.resolve();
+				throw new Error("Private provider response");
+			}
+			if (args[0].path === "/start") {
+				await secondRead.promise;
+				return { ...(await read(...args)), title: "A".repeat(600) };
+			}
+			return await read(...args);
+		});
+		await f.run();
+		const reading = f.updates.filter(
+			(state) => state.generation?.progress?.stage === "reading"
+		);
+		expect(
+			reading.map((state) => state.generation?.research?.pages.length)
+		).toEqual([0, 1, 3]);
+		expect(f.state.generation?.research).toEqual({
+			startedAt: f.state.generation?.requestedAt,
+			pages: [
+				{
+					url: "https://example.com/",
+					status: "read",
+					title: "Example Reports",
+				},
+				{
+					url: "https://docs.example.com/start",
+					status: "read",
+					title: "A".repeat(512),
+				},
+				{ url: "https://docs.example.com/missing", status: "failed" },
+			],
+		});
+		expect(f.state.generation?.status).toBe("ready");
+		expect(
+			f.state.generation?.draft?.sources.map((source) => source.url)
+		).toEqual(["https://example.com/", "https://docs.example.com/start"]);
+		expect(f.state.generation?.draft?.sources[1]?.title).toBe("A".repeat(512));
+		expect(JSON.stringify(f.updates)).not.toContain(
+			"Private provider response"
+		);
+	});
+
+	it.each([
+		"throws",
+		"returns failure",
+	])("continues with inspected evidence when a selected secondary page %s", async (mode) => {
+		const f = fixture([
+			{ paths: ["/pricing"] },
+			{ content: brief, sourceIds: [0] },
+		]);
+		const read = f.read.getMockImplementation();
+		if (!read) {
+			throw new Error("Missing page fixture");
+		}
+		f.read.mockImplementation(async (...args) => {
+			if (args[0].path === "/pricing") {
+				if (mode === "throws") {
+					throw new Error("Private provider response");
+				}
+				return { success: false, error: "Private provider response" };
+			}
+			return await read(...args);
+		});
+		await f.run();
+		expect(f.state.generation?.status).toBe("ready");
+		expect(f.state.generation?.research?.pages).toEqual([
+			{ url: "https://example.com/", status: "read", title: "Example Reports" },
+			{ url: "https://example.com/pricing", status: "failed" },
+		]);
+		expect(
+			f.updates
+				.filter((state) => state.generation?.progress?.stage === "reading")
+				.map((state) => state.generation?.research?.pages.length)
+		).toEqual([0, 1, 2]);
+		expect(
+			f.state.generation?.draft?.sources.map((source) => source.url)
+		).toEqual(["https://example.com/"]);
+		expect(JSON.stringify(f.updates)).not.toContain(
+			"Private provider response"
+		);
+		expect(f.bill).toHaveBeenCalledTimes(2);
+	});
+
+	it("retains the attempted homepage in a terminal failure without exposing provider errors", async () => {
+		const f = fixture();
+		f.read.mockRejectedValue(new Error("Private provider response"));
+		await f.run();
+		expect(f.state.generation?.status).toBe("failed");
+		expect(f.state.generation?.research?.pages).toEqual([
+			{ url: "https://example.com/", status: "failed" },
+		]);
+		expect(JSON.stringify(f.updates)).not.toContain(
+			"Private provider response"
+		);
+		expect(f.state.profile?.content).toBe(manual);
+		expect(f.calls).toHaveLength(0);
+	});
+
+	it.each([
+		"throws",
+		"returns failure",
+		"unavailable",
+	])("uses inspected links and reports degraded discovery when search %s", async (mode) => {
+		const f = fixture();
+		const nativeTools = scrape.createScrapeTools();
+		vi.mocked(scrape.createScrapeTools).mockReturnValue({
+			...nativeTools,
+			search_website: {
+				...nativeTools.search_website,
+				execute:
+					mode === "unavailable"
+						? undefined
+						: async () => {
+								if (mode === "throws") {
+									throw new Error("Private search response");
+								}
+								return { success: false, error: "Private search response" };
+							},
+			},
+		});
+		await f.run();
+		expect(f.state.generation?.status).toBe("ready");
+		expect(f.state.generation?.research?.discoveryFailed).toBe(true);
+		expect(
+			f.updates.some(
+				(state) =>
+					state.generation?.progress?.stage === "reading" &&
+					state.generation.research?.discoveryFailed
+			)
+		).toBe(true);
+		expect(f.read.mock.calls.map(([call]) => call.path)).toEqual([
+			"/",
+			"/pricing",
+		]);
+		expect(JSON.stringify(f.updates)).not.toContain("Private search response");
+		expect(f.bill).toHaveBeenCalledTimes(2);
+	});
+
+	it.each([
+		"secondary read",
+		"search",
+	])("does not turn an aborted %s into degraded research", async (phase) => {
+		const f = fixture();
+		const request = new AbortController();
+		const aborted = () => {
+			request.abort();
+			throw request.signal.reason;
+		};
+		if (phase === "secondary read") {
+			const read = f.read.getMockImplementation();
+			if (!read) {
+				throw new Error("Missing page fixture");
+			}
+			f.read.mockImplementation((...args) =>
+				args[0].path === "/" ? read(...args) : aborted()
+			);
+		} else {
+			f.search.mockImplementation(aborted);
+		}
+		await f.run(request.signal);
+		expect(f.state.generation?.draft).toBeNull();
+		expect(
+			f.mark.mock.calls.every(([change]) => change.status === "running")
+		).toBe(true);
+		expect(f.state.generation?.research?.discoveryFailed).toBeUndefined();
+		expect(f.errors).not.toHaveBeenCalled();
+		expect(f.model.doStreamCalls).toHaveLength(0);
+	});
+
+	it("fails a secondary provenance violation and records only the requested URL", async () => {
+		const f = fixture();
+		const read = f.read.getMockImplementation();
+		if (!read) {
+			throw new Error("Missing page fixture");
+		}
+		f.read.mockImplementation(async (...args) => ({
+			...(await read(...args)),
+			...(args[0].path === "/pricing"
+				? { finalUrl: "https://evil.example/private" }
+				: {}),
+		}));
+		await f.run();
+		expect(f.state.generation?.status).toBe("failed");
+		expect(f.state.generation?.research?.pages.at(-1)).toEqual({
+			url: "https://example.com/pricing",
+			status: "failed",
+		});
+		expect(JSON.stringify(f.updates)).not.toContain(
+			"https://evil.example/private"
+		);
+		expect(f.state.generation?.draft).toBeNull();
+		expect(f.model.doStreamCalls).toHaveLength(0);
+		expect(f.bill).toHaveBeenCalledTimes(1);
+	});
+
+	it("keeps only one focused question per unanswered team field", async () => {
+		const f = fixture([
+			{ paths: [] },
+			{
+				content: brief,
+				sourceIds: [0],
+				followUpQuestions: [
+					{
+						field: "priority",
+						question: "Which report workflow matters most?",
+					},
+					{
+						field: "successDefinition",
+						question: "Does success mean preparing or delivering a report?",
+					},
+					{ field: "successDefinition", question: "What is report success?" },
+				],
+			},
+		]);
+		if (!f.state.profile) {
+			throw new Error("Missing profile");
+		}
+		f.state.profile.teamContext = {
+			priority: "Accepted reports",
+			successDefinition: "",
+			exclusions: "",
+		};
+		await f.run();
+		expect(f.state.generation?.status).toBe("ready");
+		expect(f.state.generation?.draft?.followUpQuestions).toEqual([
+			{
+				field: "successDefinition",
+				question: "Does success mean preparing or delivering a report?",
+			},
+		]);
+		const responseFormat = f.model.doStreamCalls[0]?.responseFormat;
+		expect(responseFormat).toMatchObject({
+			type: "json",
+			schema: { required: ["content", "followUpQuestions", "sourceIds"] },
+		});
+		expect(JSON.stringify(f.model.doStreamCalls[0]?.prompt)).toContain(
+			"do not ask generic onboarding questions"
+		);
+	});
+
+	it("does not ask about any already completed team field", async () => {
+		const f = fixture([
+			{ paths: [] },
+			{
+				content: brief,
+				sourceIds: [0],
+				followUpQuestions: [
+					{ field: "priority", question: "What is the team priority?" },
+					{ field: "successDefinition", question: "What counts as success?" },
+					{ field: "exclusions", question: "Which reports should be ignored?" },
+				],
+			},
+		]);
+		if (!f.state.profile) {
+			throw new Error("Missing profile");
+		}
+		f.state.profile.teamContext = {
+			priority: "Accepted reports",
+			successDefinition: "report_accepted",
+			exclusions: "Internal reports",
+		};
+		await f.run();
+		expect(f.state.generation?.status).toBe("ready");
+		expect(f.state.generation?.draft?.followUpQuestions).toEqual([]);
+	});
+
 	it("accepts fresh offset-dated sources and ignores malformed discovery links", async () => {
 		const f = fixture();
 		const read = f.read.getMockImplementation();
@@ -376,6 +666,7 @@ describe("organization business context request", () => {
 		await f.run();
 		expect(f.state.generation?.status).toBe("ready");
 		expect(f.read).toHaveBeenCalledTimes(7);
+		expect(f.state.generation?.research?.pages).toHaveLength(7);
 		expect(f.read.mock.calls[1]?.[0].domain).toBe("docs.example.com");
 		expect(f.model.doGenerateCalls).toHaveLength(0);
 		expect(f.model.doStreamCalls).toHaveLength(1);
@@ -841,7 +1132,7 @@ describe("organization business context request", () => {
 		expect(f.calls).toHaveLength(1);
 		expect(f.bill).toHaveBeenCalledTimes(1);
 		expect(f.read.mock.calls.map(([call]) => call.path)).toEqual(["/"]);
-		expect(f.mark).toHaveBeenCalledTimes(1);
+		expect(f.mark).toHaveBeenCalledTimes(2);
 		expect(f.errors).not.toHaveBeenCalled();
 		expect(f.logger.getContext().ai).toMatchObject({
 			calls: 1,

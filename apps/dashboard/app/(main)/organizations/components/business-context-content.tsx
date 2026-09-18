@@ -3,8 +3,10 @@
 import type {
 	BusinessBrief,
 	BusinessContextEdit,
+	BusinessContextResearch,
 } from "@databuddy/shared/organization-business-context";
 import { cn, dayjs } from "@databuddy/ui";
+import { Accordion } from "@databuddy/ui/client";
 import { ArrowSquareOutIcon, FileTextIcon } from "@databuddy/ui/icons";
 import { Streamdown } from "streamdown";
 
@@ -149,5 +151,102 @@ export function BusinessContextSources({
 				);
 			})}
 		</ul>
+	);
+}
+
+export function BusinessContextResearchReport({
+	research,
+	active,
+	label,
+}: {
+	research?: BusinessContextResearch;
+	active: boolean;
+	label: string;
+}) {
+	const pages = research?.pages ?? [];
+	const read = pages.filter((page) => page.status === "read").length;
+	const failed = pages.length - read;
+	return (
+		<section
+			className="space-y-3 border-border border-t px-1 pt-5"
+			aria-label={label}
+		>
+			<h2 className="font-semibold text-xs">{label}</h2>
+			<div
+				className="min-h-10 text-muted-foreground text-xs leading-5"
+				role="status"
+			>
+				<p>
+					{pages.length
+						? `${read} ${read === 1 ? "page" : "pages"} read${failed ? ` · ${failed} could not be read` : ""}`
+						: active
+							? "Opening your website…"
+							: "No pages were read."}
+				</p>
+				<p>
+					{research?.discoveryFailed
+						? "Additional page discovery was unavailable."
+						: "Coverage is limited to the pages listed here."}
+				</p>
+			</div>
+			<Accordion>
+				<Accordion.Trigger>
+					Pages checked{pages.length ? ` (${pages.length})` : ""}
+				</Accordion.Trigger>
+				<Accordion.Content className="h-48 space-y-3 overflow-y-auto">
+					{pages.length ? (
+						<ul className="space-y-3 text-xs">
+							{pages.map((page) => (
+								<li key={page.url} className="space-y-1">
+									<a
+										className="block break-all hover:underline"
+										href={page.url}
+										target="_blank"
+										rel="noopener noreferrer"
+									>
+										{page.title || page.url}
+									</a>
+									<p
+										className={
+											page.status === "read"
+												? "text-muted-foreground"
+												: "text-warning"
+										}
+									>
+										{page.status === "read"
+											? "Read"
+											: "Could not read this page"}
+									</p>
+								</li>
+							))}
+						</ul>
+					) : (
+						<p className="text-muted-foreground text-xs leading-5">
+							{active
+								? "Page results will appear as research progresses."
+								: "No page results were recorded."}
+						</p>
+					)}
+					{research?.discoveryFailed && (
+						<p className="text-muted-foreground text-xs leading-5">
+							Additional pages could not be discovered. You can add specific
+							page URLs and try again.
+						</p>
+					)}
+					{research && (
+						<p className="text-muted-foreground text-xs leading-5">
+							<time
+								dateTime={research.startedAt}
+								title={dayjs(research.startedAt).format(
+									"MMM D, YYYY [at] h:mm A"
+								)}
+							>
+								Started {dayjs(research.startedAt).fromNow()}.
+							</time>
+						</p>
+					)}
+				</Accordion.Content>
+			</Accordion>
+		</section>
 	);
 }

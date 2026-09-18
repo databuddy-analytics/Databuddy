@@ -159,9 +159,8 @@ export function BusinessContextSettings({
 			if (stream.current === attempt) {
 				stream.current = null;
 				setStreamingOrganizationId(undefined);
-				await queryClient.invalidateQueries({
-					queryKey: queryOptions.queryKey,
-				});
+				// Stream results are usable even if the background refresh is slow.
+				queryClient.invalidateQueries({ queryKey: queryOptions.queryKey });
 			}
 		}
 	}

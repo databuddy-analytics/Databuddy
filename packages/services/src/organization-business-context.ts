@@ -15,8 +15,10 @@ import {
 	businessContextSourceUrlsSchema,
 	businessContextSourceBelongsToSite,
 	businessContextProgressSchema,
+	businessContextResearchSchema,
 	organizationBusinessContextSchema,
 	type BusinessBrief,
+	type BusinessContextResearch,
 	type BusinessTeamContext,
 	type BusinessMeasurementPlan,
 	type OrganizationBusinessContext,
@@ -190,6 +192,7 @@ export async function markBusinessContextGeneration(input: {
 	draft?: BusinessBrief;
 	error?: string;
 	progress?: z.infer<typeof businessContextProgressSchema>;
+	research?: BusinessContextResearch;
 	signal?: AbortSignal;
 }): Promise<OrganizationBusinessContext> {
 	return await update(
@@ -232,6 +235,9 @@ export async function markBusinessContextGeneration(input: {
 				generation: {
 					...generation,
 					status: input.status,
+					research: input.research
+						? businessContextResearchSchema.parse(input.research)
+						: generation.research,
 					progress:
 						input.status === "running"
 							? input.progress
@@ -345,6 +351,15 @@ export async function saveOrganizationBusinessProfile(input: {
 			}
 		}
 		const content = input.content.trim();
+		const teamContext = input.teamContext
+			? businessTeamContextSchema.parse(input.teamContext)
+			: current.profile?.teamContext;
+		const followUpQuestions = (
+			generated
+				? generated.draft?.followUpQuestions
+				: (current.generation?.draft?.followUpQuestions ??
+					current.profile?.followUpQuestions)
+		)?.filter(({ field }) => !teamContext?.[field].trim());
 		const measurementPlans = input.measurementPlans
 			? businessMeasurementPlansSchema.parse(input.measurementPlans)
 			: current.profile?.measurementPlans;
@@ -373,6 +388,7 @@ export async function saveOrganizationBusinessProfile(input: {
 		}
 		const brief = businessBriefSchema.parse({
 			content,
+			followUpQuestions,
 			sources: unchangedDraft
 				? (generated?.draft?.sources ?? [])
 				: unchangedSaved
@@ -383,14 +399,15 @@ export async function saveOrganizationBusinessProfile(input: {
 			history: profileHistory(current),
 			profile: {
 				...brief,
+				research: generated
+					? generated.research
+					: (current.generation?.research ?? current.profile?.research),
 				measurementPlans,
 				origin,
 				revision: input.revision + 1,
 				updatedAt: new Date().toISOString(),
 				updatedBy: input.updatedBy,
-				teamContext: input.teamContext
-					? businessTeamContextSchema.parse(input.teamContext)
-					: current.profile?.teamContext,
+				teamContext,
 				sourceWebsiteId: unchangedDraft
 					? (generated?.websiteId ?? null)
 					: unchangedSaved
