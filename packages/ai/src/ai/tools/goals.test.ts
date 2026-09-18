@@ -4,7 +4,7 @@ import * as rpc from "./utils/rpc";
 
 const { createGoalTools } = await import("./goals");
 
-test("goal updates preview until confirmed and apply only the requested fields", async () => {
+test("goal updates preview until confirmed, apply requested fields, and skip empty updates", async () => {
 	const current = { id: "goal-1", name: "Checkout", isActive: true };
 	const invoke = spyOn(rpc, "callRPCProcedure").mockResolvedValue(current);
 	const definition = createGoalTools().update_goal;
@@ -26,7 +26,9 @@ test("goal updates preview until confirmed and apply only the requested fields",
 				isActive: false,
 				confirmed,
 			});
-			if (!parsed.success) throw parsed.error;
+			if (!parsed.success) {
+				throw parsed.error;
+			}
 			const result = await definition.execute(parsed.value, options);
 			if (confirmed) {
 				expect(result).toMatchObject({ success: true, goal: current });
@@ -54,6 +56,27 @@ test("goal updates preview until confirmed and apply only the requested fields",
 					],
 				]);
 			}
+
+			invoke.mockClear();
+			const emptyInput = await schema.validate({
+				id: current.id,
+				name: undefined,
+				confirmed,
+			});
+			if (!emptyInput.success) {
+				throw emptyInput.error;
+			}
+			const emptyResult = await definition.execute(emptyInput.value, options);
+			expect(emptyResult).toMatchObject({
+				preview: true,
+				message: "No changes detected. The goal will remain unchanged.",
+				confirmationRequired: false,
+				current,
+				updates: {},
+			});
+			expect(invoke.mock.calls).toEqual([
+				["goals", "getById", { id: current.id }, options.experimental_context],
+			]);
 		}
 	} finally {
 		invoke.mockRestore();

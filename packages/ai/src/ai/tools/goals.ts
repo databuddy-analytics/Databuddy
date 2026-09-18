@@ -201,14 +201,24 @@ export function createGoalTools() {
 			const updates = Object.fromEntries(
 				Object.entries(input).filter(([, value]) => value !== undefined)
 			);
+			const hasUpdates = Object.keys(updates).length > 0;
 			try {
-				if (!confirmed) {
+				if (!(confirmed && hasUpdates)) {
 					const current = await callRPCProcedure(
 						"goals",
 						"getById",
 						{ id },
 						context
 					);
+					if (!hasUpdates) {
+						return {
+							preview: true,
+							message: "No changes detected. The goal will remain unchanged.",
+							confirmationRequired: false,
+							current,
+							updates,
+						};
+					}
 					return {
 						preview: true,
 						message: "Please review this goal update before applying it.",
