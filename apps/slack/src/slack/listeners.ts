@@ -577,6 +577,7 @@ async function handleInvestigationThreadReply({
 			{ apiKey: resolved.apiKey, session: null }
 		);
 		const { reply } = await appendInvestigationReply({
+			authorExternalId: run.userId,
 			authorName: "Slack teammate",
 			body: run.text,
 			context,

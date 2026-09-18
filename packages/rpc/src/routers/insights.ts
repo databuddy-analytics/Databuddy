@@ -526,6 +526,7 @@ function replyAuthor(
 
 export async function appendInvestigationReply(
 	input: z.input<typeof appendInvestigationReplyInputSchema> & {
+		authorExternalId?: string;
 		authorName?: string;
 		context: Context;
 		slackDelivery?: z.input<typeof insightReplySlackDeliverySchema>;
@@ -535,6 +536,7 @@ export async function appendInvestigationReply(
 	reply: z.infer<typeof insightTimelineReplySchema>;
 }> {
 	const {
+		authorExternalId,
 		authorName: rawAuthorName,
 		context,
 		slackDelivery: rawSlackDelivery,
@@ -579,7 +581,14 @@ export async function appendInvestigationReply(
 
 	requireInvestigationAI();
 	const author = replyAuthor(context, authorName);
-	const principalId = author.authorId ?? `apikey:${context.apiKey?.id}`;
+	if (parsed.intent === "analysis" && !author.authorId) {
+		throw rpcError.badRequest("Start a new analysis from the dashboard.");
+	}
+	const principalId =
+		author.authorId ??
+		[`apikey:${context.apiKey?.id}`, authorExternalId]
+			.filter(Boolean)
+			.join(":");
 	const rate = await ratelimit(
 		`insights:reply:${insight.organizationId}:${principalId}`,
 		20,
@@ -590,26 +599,25 @@ export async function appendInvestigationReply(
 			Math.max(1, Math.ceil((rate.reset - Date.now()) / 1000))
 		);
 	}
-	if (parsed.intent === "analysis") {
-		if (!author.authorId) {
-			throw rpcError.badRequest("Start a new analysis from the dashboard.");
-		}
-		if (!readBooleanEnv("SELFHOST")) {
-			const customerId = await getBillingCustomerId(
-				author.authorId,
-				insight.organizationId
+	if (
+		parsed.intent === "analysis" &&
+		author.authorId &&
+		!readBooleanEnv("SELFHOST")
+	) {
+		const customerId = await getBillingCustomerId(
+			author.authorId,
+			insight.organizationId
+		);
+		const customer = await getAutumn().customers.get({ customerId });
+		if (
+			customer.id !== customerId ||
+			!hasInvestigationAllowance(
+				customer.balances[INVESTIGATION_USAGE.featureId]
+			)
+		) {
+			throw rpcError.badRequest(
+				"Activate investigation billing to start a new analysis. Clarifications remain included."
 			);
-			const customer = await getAutumn().customers.get({ customerId });
-			if (
-				customer.id !== customerId ||
-				!hasInvestigationAllowance(
-					customer.balances[INVESTIGATION_USAGE.featureId]
-				)
-			) {
-				throw rpcError.badRequest(
-					"Activate investigation billing to start a new analysis. Clarifications remain included."
-				);
-			}
 		}
 	}
 	const stored = await db.transaction(async (tx) => {
