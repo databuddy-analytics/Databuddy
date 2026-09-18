@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY . .
 
-RUN bunx turbo prune @databuddy/dashboard --docker
+RUN bunx turbo@2.11.1 prune @databuddy/dashboard --docker
 
 FROM oven/bun:1.4.1-slim AS builder
 

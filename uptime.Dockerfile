@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY . .
 
-RUN bunx turbo prune @databuddy/uptime --docker
+RUN bunx turbo@2.11.1 prune @databuddy/uptime --docker
 
 FROM oven/bun:1.4.1-slim AS builder
 
