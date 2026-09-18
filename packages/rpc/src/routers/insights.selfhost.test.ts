@@ -77,7 +77,8 @@ mock.module("@databuddy/redis", () => ({
 	getInsightsQueue: mock(),
 	insightsResumeJobId: mock(),
 }));
-mock.module("@databuddy/redis/rate-limit", () => ({ ratelimit: {} }));
+const rateLimit = mock(async () => ({ success: true, reset: 0 }));
+mock.module("@databuddy/redis/rate-limit", () => ({ ratelimit: rateLimit }));
 mock.module("@databuddy/services/business-memory", () => ({
 	getWebsiteBusinessScope: mock(),
 }));
@@ -119,6 +120,28 @@ beforeEach(() => {
 });
 afterEach(() => {
 	process.env = originalEnv;
+});
+
+test("replies are rate limited per author before writes and queues", async () => {
+	process.env.SELFHOST = "false";
+	rateLimit.mockResolvedValueOnce({
+		success: false,
+		reset: Date.now() + 30_000,
+	});
+	await expect(
+		appendInvestigationReply({
+			context,
+			body: "Check again",
+			insightId: "synthetic-insight",
+		})
+	).rejects.toMatchObject({ code: "RATE_LIMITED" });
+	expect(rateLimit).toHaveBeenCalledWith(
+		expect.stringMatching(/^insights:reply:synthetic-org:/),
+		20,
+		60
+	);
+	expect(transaction).not.toHaveBeenCalled();
+	expect(enqueue).not.toHaveBeenCalled();
 });
 
 for (const [name, reply] of [

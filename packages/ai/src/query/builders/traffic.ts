@@ -86,7 +86,7 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		meta: {
 			title: "Top Referrers",
 			description:
-				"Top external websites and domains that drive traffic to your site, excluding direct visits.",
+				"External referrer traffic, excluding direct and self-referrals. Normalized aliases sum group-level visitor counts, so visitors may overlap within and across displayed sources. percentage is share of summed visitors in the query-limited source groups before agent row truncation, not site-wide unique visitors or customer acquisition.",
 			category: "Acquisition",
 			tags: ["referrers", "traffic sources", "external", "backlinks"],
 			output_fields: [
@@ -112,7 +112,8 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 					name: "percentage",
 					type: "number",
 					label: "Traffic %",
-					description: "Percentage of total referral traffic",
+					description:
+						"Share of summed visitor counts in query-limited referrer groups",
 					unit: "%",
 				},
 			],
@@ -213,7 +214,7 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		meta: {
 			title: "Traffic Sources",
 			description:
-				"Traffic breakdown by direct visits and referring sources, with self-referrals folded into Direct.",
+				"Page-view traffic by source; self-referrals are folded into Direct. Normalized aliases sum group-level visitor counts, so visitors may overlap within and across displayed sources. percentage is share of summed visitors in the query-limited source groups before agent row truncation, not site-wide unique visitors or customer acquisition.",
 			category: "Acquisition",
 			tags: ["traffic sources", "direct", "referrers", "acquisition"],
 			output_fields: [
@@ -239,7 +240,8 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 					name: "percentage",
 					type: "number",
 					label: "Traffic %",
-					description: "Percentage of all source-attributed traffic",
+					description:
+						"Share of summed visitor counts in query-limited source groups",
 					unit: "%",
 				},
 			],

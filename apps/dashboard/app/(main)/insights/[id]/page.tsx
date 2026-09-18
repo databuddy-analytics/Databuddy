@@ -71,7 +71,7 @@ export default function InsightDetailPage() {
 				<h1 className="font-semibold text-sm">Investigation</h1>
 			</TopBar.Title>
 
-			<div className="mx-auto w-full max-w-2xl space-y-3 px-3 pt-3 pb-20 sm:space-y-4 sm:p-5">
+			<div className="mx-auto w-full max-w-4xl space-y-3 px-3 pt-3 pb-20 sm:space-y-4 sm:p-5">
 				<Link
 					className="inline-flex w-fit items-center gap-1.5 text-muted-foreground text-xs transition-colors hover:text-foreground"
 					href="/insights/investigations"

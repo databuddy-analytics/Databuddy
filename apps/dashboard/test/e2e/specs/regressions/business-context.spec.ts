@@ -43,6 +43,32 @@ async function editBrief(page: Page) {
 	return page.getByRole("textbox", { name: "Business brief", exact: true });
 }
 
+async function sourcesInput(page: Page) {
+	const options = page.getByRole("button", {
+		name: "Research options",
+		exact: true,
+	});
+	await expect(options).toBeEnabled();
+	const input = page.getByRole("textbox", { name: /Additional pages/ });
+	if (!(await input.isVisible())) {
+		await options.click();
+		await page
+			.getByRole("menuitem", { name: "Add specific pages", exact: true })
+			.click();
+	}
+	return input;
+}
+
+async function expectResearchWebsite(page: Page, name: string) {
+	await page
+		.getByRole("button", { name: "Research options", exact: true })
+		.click();
+	await expect(
+		page.getByRole("menuitemradio", { name, exact: true })
+	).toHaveAttribute("aria-checked", "true");
+	await page.keyboard.press("Escape");
+}
+
 async function useGeneratedDraft(page: Page) {
 	await page
 		.getByRole("button", { name: "Review AI draft", exact: true })
@@ -59,6 +85,7 @@ test("recovers unfinished brief and team inputs across navigation and reload, th
 	const original = await editor.inputValue();
 	const unfinished = `Recover this draft ${crypto.randomUUID()}`;
 	await editor.fill(unfinished);
+	await page.getByRole("button", { name: /^Add \d+ more details?$/ }).click();
 	const priority = page.getByRole("textbox", { name: "Current priority" });
 	await priority.fill("Improve production activation");
 	await page.goto("/organizations/settings");
@@ -232,6 +259,7 @@ test("saves distinct team fields even when their formatted prose matches", {
 		await route.fulfill({ json: { json: current } });
 	});
 	await page.goto(path);
+	await page.getByRole("button", { name: /^Add \d+ more details?$/ }).click();
 	const priority = page.getByRole("textbox", {
 		name: "Current priority",
 		exact: true,
@@ -295,14 +323,9 @@ test("restores the submitted website and pages when retrying a failed generation
 	});
 	await contextStream.intercept();
 	await page.goto(path);
-	const sources = page.getByRole("textbox", { name: /Additional pages/ });
+	const sources = await sourcesInput(page);
 	await expect(sources).toHaveValue(sourceUrls.join("\n"));
-	await expect(
-		page.getByTestId("business-context-research").getByRole("button", {
-			name: "Source website: Second studio",
-			exact: true,
-		})
-	).toBeVisible();
+	await expectResearchWebsite(page, "Second studio");
 	await page.reload();
 	await expect(sources).toHaveValue(sourceUrls.join("\n"));
 	await page
@@ -361,7 +384,7 @@ for (const viewport of contextViewports) {
 					}
 				);
 
-				const regions = ["page", "brief", "document", "research"] as const;
+				const regions = ["page", "brief", "document"] as const;
 				const readBounds = async () => {
 					const bounds: Array<{
 						region: (typeof regions)[number];
@@ -392,33 +415,47 @@ for (const viewport of contextViewports) {
 					});
 					await expect(loading).toBeVisible();
 					const initial = await readBounds();
-					expect(initial[2]!.height).toBe(320);
+					const initialDocument = initial.at(2);
+					if (!initialDocument) {
+						throw new Error("Missing initial document bounds");
+					}
+					expect(initialDocument.height).toBeGreaterThan(0);
+					expect(initialDocument.height).toBeLessThanOrEqual(384);
 					await page.screenshot({
 						animations: "disabled",
 						path: testInfo.outputPath("organization-loading.png"),
 					});
-					const expectStableBounds = async (phase: string) => {
-						const current = await readBounds();
-						for (const [index, before] of initial.entries()) {
-							const after = current[index]!;
-							const dimensions =
-								before.region === "brief" || before.region === "document"
+					const expectStableBounds = async (phase: string, loading = false) => {
+						let current: Awaited<ReturnType<typeof readBounds>> = [];
+						await expect(async () => {
+							current = await readBounds();
+							for (const [index, before] of initial.entries()) {
+								const after = current.at(index);
+								if (!after) {
+									throw new Error(`Missing ${phase}: ${before.region} bounds`);
+								}
+								// After loading, content and the access notice can resize or
+								// move the document; the page and brief stay anchored.
+								const dimensions = loading
 									? (["x", "y", "width", "height"] as const)
-									: (["x", "y", "width"] as const);
-							for (const dimension of dimensions) {
-								expect(
-									Math.abs(after[dimension] - before[dimension]),
-									`${phase}: ${before.region} ${dimension}`
-								).toBeLessThanOrEqual(1);
+									: before.region === "document"
+										? (["x", "width"] as const)
+										: (["x", "y", "width"] as const);
+								for (const dimension of dimensions) {
+									expect(
+										Math.abs(after[dimension] - before[dimension]),
+										`${phase}: ${before.region} ${dimension}`
+									).toBeLessThanOrEqual(1);
+								}
 							}
-						}
+						}).toPass({ timeout: 5000 });
 						return current;
 					};
 
 					organizationGate.resolve();
 					await briefRequest;
 					await expect(loading).toBeVisible();
-					await expectStableBounds("business context loading");
+					await expectStableBounds("business context loading", true);
 
 					briefGate.resolve();
 					await accessRequest;
@@ -434,6 +471,11 @@ for (const viewport of contextViewports) {
 					const pendingAccess = await expectStableBounds(
 						"generation access loading"
 					);
+					const research = page.getByTestId("business-context-research");
+					const pendingControls = await research.boundingBox();
+					if (!pendingControls) {
+						throw new Error("Missing pending research controls bounds");
+					}
 
 					accessGate.resolve();
 					if (access.status === "allowed") {
@@ -445,8 +487,12 @@ for (const viewport of contextViewports) {
 						await expect(generate).toBeHidden();
 					}
 					const ready = await expectStableBounds("generation access ready");
+					const readyControls = await research.boundingBox();
+					if (!readyControls) {
+						throw new Error("Missing ready research controls bounds");
+					}
 					expect(
-						Math.abs(ready[3]!.height - pendingAccess[3]!.height),
+						Math.abs(readyControls.height - pendingControls.height),
 						"generation access must not resize research controls"
 					).toBeLessThanOrEqual(1);
 					expect(
@@ -687,6 +733,7 @@ test(
 		expect(mutations).toHaveLength(0);
 		const editor = await editBrief(page);
 		await editor.fill("Keep my unfinished business brief.");
+		await page.getByRole("button", { name: /^Add \d+ more details?$/ }).click();
 		const priority = page.getByRole("textbox", {
 			name: "Current priority",
 			exact: true,
@@ -1000,6 +1047,7 @@ test("shows the saved brief and sources to members without edit controls", {
 			name: /Generate with AI|Regenerate with AI|Save changes|Discard changes/,
 		})
 	).toBeHidden();
+	await page.getByText("1 source", { exact: true }).click();
 	await expect(page.getByRole("link", { name: /^Example/ })).toHaveAttribute(
 		"href",
 		"https://example.com"
@@ -1164,7 +1212,7 @@ test("failed browser storage keeps newer text and discarded tombstones across in
 		}
 	});
 	await editor.fill("Newer memory draft");
-	const sources = page.getByRole("textbox", { name: /Additional pages/ });
+	const sources = await sourcesInput(page);
 	await sources.fill("https://example.com/unfinished");
 	await page.getByRole("link", { name: "General", exact: true }).click();
 	await expect(page).toHaveURL(/organizations\/settings$/);
@@ -1380,7 +1428,7 @@ for (const access of [
 
 for (const viewport of contextViewports) {
 	test(
-		`keeps ${viewport.name} live research compact and stable`,
+		`keeps ${viewport.name} live research compact as draft content changes`,
 		{ tag: "@regression" },
 		async ({ authenticatedPage: page, contextStream }, testInfo) => {
 			await page.setViewportSize(viewport);
@@ -1404,12 +1452,15 @@ for (const viewport of contextViewports) {
 			const initialPanel = await panel.boundingBox();
 			const initialBrief = await brief.boundingBox();
 			const title = await reading.boundingBox();
-			expect(initialPanel).not.toBeNull();
-			expect(initialBrief).not.toBeNull();
-			expect(title).not.toBeNull();
-			expect(initialPanel!.height).toBe(320);
-			expect(title!.y - initialPanel!.y).toBeLessThanOrEqual(32);
-			await expect(research.getByRole("button")).toHaveCount(1);
+			if (!(initialPanel && initialBrief && title)) {
+				throw new Error("Missing initial research bounds");
+			}
+			expect(initialPanel.height).toBeGreaterThan(0);
+			expect(initialPanel.height).toBeLessThanOrEqual(384);
+			expect(title.y - initialPanel.y).toBeLessThanOrEqual(32);
+			await expect(
+				research.getByRole("button", { name: "Research options", exact: true })
+			).toBeDisabled();
 			await expect(
 				research.getByRole("button", { name: "Cancel generation", exact: true })
 			).toBeEnabled();
@@ -1444,9 +1495,22 @@ for (const viewport of contextViewports) {
 			).toBeVisible();
 			const writingPanel = await panel.boundingBox();
 			const writingBrief = await brief.boundingBox();
-			expect(writingPanel).toEqual(initialPanel);
-			expect(writingBrief).toEqual(initialBrief);
-			await expect(research.getByRole("button")).toHaveCount(1);
+			if (!(writingPanel && writingBrief)) {
+				throw new Error("Missing writing research bounds");
+			}
+			expect(writingPanel.height).toBeGreaterThan(0);
+			expect(writingPanel.height).toBeLessThanOrEqual(384);
+			for (const dimension of ["x", "y", "width"] as const) {
+				expect(writingPanel[dimension]).toBe(initialPanel[dimension]);
+				expect(writingBrief[dimension]).toBe(initialBrief[dimension]);
+			}
+			await expect(panel).toBeInViewport({ ratio: 0.5 });
+			await expect(
+				research.getByRole("button", { name: "Research options", exact: true })
+			).toBeDisabled();
+			await expect(
+				research.getByRole("button", { name: "Cancel generation", exact: true })
+			).toBeEnabled();
 			await expect(
 				page.getByRole("button", { name: "Use AI draft", exact: true })
 			).toBeHidden();
@@ -1635,7 +1699,7 @@ test("cancels research before its first event without losing manual work", {
 	await page.goto(path);
 	const editor = await editBrief(page);
 	await editor.fill("Keep this unfinished brief.");
-	const sources = page.getByRole("textbox", { name: /Additional pages/ });
+	const sources = await sourcesInput(page);
 	await sources.fill("https://example.com/docs");
 	await page
 		.getByRole("button", { name: "Regenerate with AI", exact: true })
@@ -1721,7 +1785,7 @@ test("an interrupted response preserves edits and does not restart generation on
 	await page.goto(path);
 	const editor = await editBrief(page);
 	await editor.fill("Keep the brief across a disconnected stream.");
-	const sources = page.getByRole("textbox", { name: /Additional pages/ });
+	const sources = await sourcesInput(page);
 	await sources.fill("https://example.com/pricing");
 	await page
 		.getByRole("button", { name: "Regenerate with AI", exact: true })
@@ -1811,22 +1875,17 @@ test("recovers unsubmitted research inputs independently of brief saving and leg
 	const editor = await editBrief(page);
 	await expect(editor).toHaveValue("A draft stored by an older tab.");
 	await page
-		.getByRole("button", { name: "Source website: Example", exact: true })
+		.getByRole("button", { name: "Research options", exact: true })
 		.click();
 	await page
 		.getByRole("menuitemradio", { name: "Second studio", exact: true })
 		.click();
-	const sources = page.getByRole("textbox", { name: /Additional pages/ });
+	const sources = await sourcesInput(page);
 	const unfinished = "https://second.example.net/pricing\nhttps://";
 	await sources.fill(unfinished);
 	await page.reload();
 	await expect(sources).toHaveValue(unfinished);
-	await expect(
-		page.getByRole("button", {
-			name: "Source website: Second studio",
-			exact: true,
-		})
-	).toBeVisible();
+	await expectResearchWebsite(page, "Second studio");
 	await editBrief(page);
 	await expect(editor).toHaveValue("A draft stored by an older tab.");
 	await page.getByRole("button", { name: "Save changes", exact: true }).click();
@@ -1841,12 +1900,7 @@ test("recovers unsubmitted research inputs independently of brief saving and leg
 		.getByRole("link", { name: "Business Context", exact: true })
 		.click();
 	await expect(sources).toHaveValue(unfinished);
-	await expect(
-		page.getByRole("button", {
-			name: "Source website: Second studio",
-			exact: true,
-		})
-	).toBeVisible();
+	await expectResearchWebsite(page, "Second studio");
 });
 
 test("leaving the page aborts active research without restarting it on return", {
@@ -1936,11 +1990,14 @@ for (const viewport of contextViewports) {
 		).toBeHidden();
 		const initial = await panel.boundingBox();
 		const initialReport = await report.boundingBox();
+		if (!initialReport) {
+			throw new Error("Missing initial research report bounds");
+		}
 		const priority = page.getByRole("textbox", {
 			name: "Current priority",
 			exact: true,
 		});
-		const initialPriority = await priority.boundingBox();
+		await expect(priority).toBeHidden();
 		current = {
 			...researching(),
 			generation: {
@@ -1966,14 +2023,15 @@ for (const viewport of contextViewports) {
 			"Additional page discovery was unavailable."
 		);
 
-		await expect(
-			page.getByText("Sources will be attached when the draft is complete.", {
-				exact: true,
-			})
-		).toBeVisible();
 		expect(await panel.boundingBox()).toEqual(initial);
-		expect(await report.boundingBox()).toEqual(initialReport);
-		expect(await priority.boundingBox()).toEqual(initialPriority);
+		const updatedReport = await report.boundingBox();
+		if (!updatedReport) {
+			throw new Error("Missing updated research report bounds");
+		}
+		for (const dimension of ["x", "y", "width"] as const) {
+			expect(updatedReport[dimension]).toBe(initialReport[dimension]);
+		}
+		await expect(priority).toBeHidden();
 		await report
 			.getByRole("button", { name: "Pages checked (2)", exact: true })
 			.click();

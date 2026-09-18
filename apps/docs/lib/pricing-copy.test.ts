@@ -92,7 +92,7 @@ describe("public pricing copy", () => {
 		["hobby", 30_001, 2_030_000, "0.035"],
 		["pro", 1_000_001, 2_000_000, "0.035"],
 		["intelligence", 2_000_001, 10_000_000, "0.03"],
-		["intelligence_scale", 10_000_001, 50_000_000, "0.02"],
+		["intelligence_scale", 6_000_001, 10_000_000, "0.03"],
 	] as const)("keeps %s structured event ranges and API ceilings aligned", (id, from, to, rate) => {
 		const plans = RAW_PLANS.filter((plan) => plan.id === id);
 		const markup = renderToStaticMarkup(
@@ -129,7 +129,7 @@ describe("public pricing copy", () => {
 				`$${INVESTIGATION_USAGE.priceUsd} per additional investigation`
 			);
 			expect(row.databuddy).toContain("100/month on Business");
-			expect(row.databuddy).toContain("500/month on Scale");
+			expect(row.databuddy).toContain("250/month on Scale");
 			expect(row.databuddy).toContain("billed monthly");
 			expect(row.databuddy).toContain("Invite only");
 			expect(["Free", "Included"]).not.toContain(row.databuddy);
@@ -180,7 +180,7 @@ describe("public pricing copy", () => {
 			pricePerAdditionalInvestigation: 1,
 			billingModel: "usage_based",
 			interval: "month",
-			includedByPlan: { intelligence: 100, intelligence_scale: 500 },
+			includedByPlan: { intelligence: 100, intelligence_scale: 250 },
 		});
 		expect(response.investigations).not.toHaveProperty("purchaseLimit");
 		for (const entitlement of Object.values(response.entitlements)) {
@@ -217,8 +217,8 @@ describe("public pricing copy", () => {
 		["intelligence", 2_000_000, 100, 299],
 		["intelligence", 2_000_000, 101, 300],
 		["intelligence", 2_001_000, 125, 324.03],
-		["intelligence_scale", 10_000_000, 500, 799],
-		["intelligence_scale", 10_001_000, 501, 800.02],
+		["intelligence_scale", 6_000_000, 250, 799],
+		["intelligence_scale", 6_001_000, 251, 800.03],
 	] as const)("calculates %s at %i events and %i completed investigations", (id, events, investigations, total) => {
 		const plan = normalizePlans(RAW_PLANS).find((entry) => entry.id === id);
 		if (!plan) {
@@ -361,9 +361,68 @@ describe("public pricing copy", () => {
 			.split("Investigations / month")[1]
 			?.split("</tr>")[0];
 		expect(investigationRow).toContain(">100</td>");
-		expect(investigationRow).toContain(">500</td>");
+		expect(investigationRow).toContain(">250</td>");
 		expect(comparison).toContain("Priority email + Slack");
 		expect(comparison).not.toContain("Automatic investigations");
+	});
+
+	it("anchors columns high-to-low and marks the recommended invite-only tier", () => {
+		const markup = renderToStaticMarkup(
+			createElement(PlansComparisonTable, { plans: normalizePlans(RAW_PLANS) })
+		);
+		const header = (id: string) => {
+			const anchor = markup.indexOf(`id="${id}"`);
+			return markup.slice(
+				markup.lastIndexOf("<th ", anchor),
+				markup.indexOf("</th>", anchor)
+			);
+		};
+		const order = [
+			"enterprise",
+			"intelligence_scale",
+			"intelligence",
+			"pro",
+			"hobby",
+			"free",
+		].map((id) => markup.indexOf(`id="${id}"`));
+		expect(order).not.toContain(-1);
+		expect(order).toEqual([...order].sort((a, b) => a - b));
+		expect(header("intelligence")).toContain("bg-primary/10");
+		expect(header("pro")).not.toContain("bg-primary/10");
+		expect(header("intelligence")).toContain("Recommended");
+		expect(header("intelligence")).toContain(
+			"An always-on product investigator"
+		);
+		for (const id of ["intelligence", "intelligence_scale"]) {
+			expect(header(id)).toContain("Invite only");
+		}
+		for (const id of ["free", "hobby", "pro", "enterprise"]) {
+			expect(header(id)).not.toContain("Invite only");
+		}
+		for (const plan of normalizePlans(RAW_PLANS)) {
+			expect(plan.description).toBeTruthy();
+			expect(header(plan.id)).toContain(plan.description ?? "");
+		}
+	});
+
+	it("gives Scale upgrade reasons that investigation top-ups cannot buy", () => {
+		const plans = normalizePlans(RAW_PLANS);
+		const markup = renderToStaticMarkup(
+			createElement(PlansComparisonTable, { plans })
+		);
+		const business = plans.find((plan) => plan.id === "intelligence");
+		const scale = plans.find((plan) => plan.id === "intelligence_scale");
+		if (!(business && scale)) {
+			throw new Error("Missing Intelligence plans");
+		}
+		const perInvestigation = (plan: typeof business) =>
+			plan.priceMonthly / (plan.includedInvestigationsMonthly ?? 1);
+		expect(perInvestigation(business)).toBeLessThan(perInvestigation(scale));
+		for (const row of ["SSO (SAML/OIDC)", "Audit logs", "Guided onboarding"]) {
+			const cells = markup.split(row)[1]?.split("</tr>")[0] ?? "";
+			expect(cells.indexOf("Included")).toBeGreaterThan(-1);
+			expect(cells.split("Included").length - 1).toBe(2);
+		}
 	});
 
 	it("renders table price and investigation allowance from the supplied plan terms", () => {
@@ -399,7 +458,7 @@ describe("public pricing copy", () => {
 			createElement(PlansComparisonTable, { plans })
 		);
 		expect(markup).toContain(">100</td>");
-		expect(markup).toContain(">500</td>");
+		expect(markup).toContain(">250</td>");
 		expect(markup).not.toContain("Databunny chat included");
 		expect(markup).not.toContain("per extra");
 		expect(markup).not.toContain("$null");

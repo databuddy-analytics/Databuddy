@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { DatePreset } from "../../lib/date-presets";
 import { FilterSchema, MCP_DATE_PRESETS } from "./mcp-utils";
 
 // Strict providers may require every key. Accept explicit null on the wire,
@@ -14,7 +15,7 @@ export const agentDataInputSchema = z.object({
 			z.object({
 				type: z.string(),
 				preset: optionalInput(
-					z.enum(MCP_DATE_PRESETS as [string, ...string[]])
+					z.enum(MCP_DATE_PRESETS as [DatePreset, ...DatePreset[]])
 				).describe(
 					"Date preset, or null when supplying explicit from/to dates."
 				),
@@ -39,8 +40,7 @@ export const agentDataInputSchema = z.object({
 		)
 		.min(1)
 		.max(10),
-	timezone: z
-		.string()
-		.nullish()
-		.transform((value) => value ?? "UTC"),
+	timezone: optionalInput(z.string()).describe(
+		"IANA timezone; omit to use the conversation timezone."
+	),
 });

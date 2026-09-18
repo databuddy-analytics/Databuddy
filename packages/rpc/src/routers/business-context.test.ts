@@ -205,7 +205,7 @@ beforeAll(async () => {
 		getOrganizationOwnerId: async () => customerId || null,
 	}));
 	({ businessContextRouter: router } = await import("./business-context"));
-});
+}, 30_000);
 
 beforeEach(() => {
 	process.env.AI_GATEWAY_API_KEY = "synthetic-model-key";

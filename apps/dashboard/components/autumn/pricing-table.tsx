@@ -1,6 +1,6 @@
 "use client";
 
-import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
+import { INVESTIGATION_USAGE, PLAN_COPY } from "@databuddy/shared/billing";
 import {
 	FEATURE_METADATA,
 	GATED_FEATURES,
@@ -45,21 +45,27 @@ type BillingPreview = AttachDialogProps["preview"];
 
 const CONTACT_TOPICS: Record<string, string | undefined> =
 	INTELLIGENCE_CONTACT_TOPICS;
-const DISPLAYED_PLAN_IDS = new Set(["hobby", "pro", "intelligence"]);
+const DISPLAYED_PLAN_IDS = [
+	"intelligence_scale",
+	"intelligence",
+	"pro",
+	"hobby",
+];
+const RECOMMENDED_PLAN_ID = "intelligence";
 const PLAN_ICONS: Record<string, typeof CrownIcon> = {
 	hobby: RocketLaunchIcon,
 	pro: StarIcon,
 	intelligence: CrownIcon,
+	intelligence_scale: CrownIcon,
 };
-const PLAN_TAGLINES: Record<string, string> = {
-	hobby: "For solo builders and side projects.",
-	pro: "For growing teams shipping production apps.",
-	intelligence: "An always-on product investigator for founders and engineers.",
-};
+const PLAN_TAGLINES: Record<string, string | undefined> = Object.fromEntries(
+	Object.entries(PLAN_COPY).map(([id, copy]) => [id, copy.description])
+);
 const PLAN_SUPPORT: Record<string, string> = {
 	hobby: "Email support",
 	pro: "Priority email support",
 	intelligence: "Priority email + Slack",
+	intelligence_scale: "Priority email + Slack",
 };
 
 function formatPriceAmount(amount: number) {
@@ -117,8 +123,8 @@ export default function PricingTable({
 
 	if (isLoading) {
 		return (
-			<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-				{[1, 2, 3].map((id) => (
+			<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+				{[1, 2, 3, 4].map((id) => (
 					<Card className="min-h-[340px]" key={id}>
 						<Card.Header className="min-h-[104px] flex-row items-start gap-3 bg-transparent p-5">
 							<Skeleton className="size-9 shrink-0" />
@@ -151,14 +157,15 @@ export default function PricingTable({
 			/>
 		);
 	}
-	const displayedPlans =
-		plans?.filter((plan) => DISPLAYED_PLAN_IDS.has(plan.id)) ?? [];
+	const displayedPlans = DISPLAYED_PLAN_IDS.flatMap(
+		(id) => plans?.find((plan) => plan.id === id) ?? []
+	);
 	const investigationTerms = getInvestigationTerms(
 		displayedPlans.flatMap((plan) => plan.items)
 	);
 	return (
 		<div className="space-y-4">
-			<div className="motion-safe:fade-in motion-safe:slide-in-from-bottom-1 grid items-stretch gap-4 motion-safe:animate-in motion-safe:duration-150 sm:grid-cols-2 lg:grid-cols-3">
+			<div className="motion-safe:fade-in motion-safe:slide-in-from-bottom-1 grid items-stretch gap-4 motion-safe:animate-in motion-safe:duration-150 sm:grid-cols-2 xl:grid-cols-4">
 				{displayedPlans.map((plan) => (
 					<PricingCard
 						attachAction={async () => {
@@ -226,7 +233,7 @@ function PricingCard({
 	const planName = getCustomerPlanName(plan.id, plan.name);
 	const investigationTerms = getInvestigationTerms(plan.items);
 	const contactTopic = CONTACT_TOPICS[plan.id];
-	const isRecommended = plan.id === "pro";
+	const isRecommended = plan.id === RECOMMENDED_PLAN_ID;
 	const Icon = PLAN_ICONS[plan.id] ?? CrownIcon;
 
 	return (
@@ -245,7 +252,7 @@ function PricingCard({
 					size="sm"
 					variant="primary"
 				>
-					Most popular
+					{PLAN_COPY.intelligence.positioning}
 				</Badge>
 			)}
 			<Card.Header className="min-h-[104px] flex-row items-start gap-3 bg-transparent p-5">
@@ -272,6 +279,11 @@ function PricingCard({
 						{isSelected && !isActive && (
 							<Badge size="sm" variant="primary">
 								Selected
+							</Badge>
+						)}
+						{contactTopic && !isActive && (
+							<Badge size="sm" variant="muted">
+								Invite only
 							</Badge>
 						)}
 					</div>

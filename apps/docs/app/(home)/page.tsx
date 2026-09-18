@@ -183,7 +183,11 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 					</div>
 				</Section>
 
-				<Section className="border-border border-b" id="mid-cta">
+				<Section
+					className="border-border border-b py-16 lg:py-24"
+					customPaddings
+					id="mid-cta"
+				>
 					<div className={container}>
 						<MidPageCta />
 					</div>

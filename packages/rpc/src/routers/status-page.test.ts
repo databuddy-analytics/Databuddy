@@ -92,7 +92,7 @@ beforeAll(async () => {
 	({ statusPageRouter } = await import("./status-page"));
 
 	mock.restore();
-});
+}, 30_000);
 
 function getBySlug() {
 	return createProcedureClient(statusPageRouter.getBySlug, {

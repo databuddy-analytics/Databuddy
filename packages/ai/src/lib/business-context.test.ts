@@ -1,3 +1,4 @@
+import "@databuddy/db/test-env";
 import { afterAll, describe, expect, it } from "bun:test";
 import Supermemory from "supermemory";
 import {
@@ -185,14 +186,6 @@ describe("scoped business context through the native Supermemory transport", () 
 	it.skipIf(process.env.BUSINESS_CONTEXT_INTEGRATION_TESTS !== "true")(
 		"does not claim a partial batch failure was saved; retry IDs stay stable under a native website lock",
 		async () => {
-			const url = new URL(process.env.DATABASE_URL ?? "");
-			if (
-				!["localhost", "127.0.0.1"].includes(url.hostname) ||
-				(url.pathname !== "/databuddy_test" &&
-					!url.pathname.startsWith("/databuddy_e2e_"))
-			) {
-				throw new Error("Use a localhost test database");
-			}
 			const { db, eq, sql } = await import("@databuddy/db");
 			const { organization, websites } = await import("@databuddy/db/schema");
 			const { getWebsiteBusinessScope } = await import(

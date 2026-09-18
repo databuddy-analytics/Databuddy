@@ -14,7 +14,6 @@ import {
 import {
 	analyticsInsights,
 	insightObservations,
-	organizationBusinessContexts,
 	websites,
 } from "@databuddy/db/schema";
 import {
@@ -26,6 +25,7 @@ import type {
 	InvestigationSignal,
 	InvestigationEvidenceSnapshot,
 } from "@databuddy/shared/insights";
+import { lockOrganizationBusinessContext } from "@databuddy/services/organization-business-context";
 import { organizationBusinessContextSchema } from "@databuddy/shared/organization-business-context";
 import { randomUUIDv7 } from "bun";
 import { normalizedErrorSubject } from "./investigation";
@@ -49,16 +49,10 @@ export async function retireObsoleteRetentionObservation(params: {
 	const retired = await db.transaction(async (tx) => {
 		// Match settings-save lock order and hold the canonical definition stable
 		// through the transition. A failed read must roll back, never imply removal.
-		await tx.execute(sql`SET LOCAL lock_timeout = '4s'`);
-		await tx.execute(
-			sql`SELECT pg_advisory_xact_lock(hashtext(${params.organizationId}))`
+		const owner = await lockOrganizationBusinessContext(
+			tx,
+			params.organizationId
 		);
-		const [owner] = await tx
-			.select({ state: organizationBusinessContexts.state })
-			.from(organizationBusinessContexts)
-			.where(
-				eq(organizationBusinessContexts.organizationId, params.organizationId)
-			);
 		const [site] = await tx
 			.select({ id: websites.id })
 			.from(websites)

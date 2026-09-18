@@ -1,3 +1,4 @@
+import "@databuddy/db/test-env";
 import { randomUUID } from "node:crypto";
 import {
 	afterAll,
@@ -24,20 +25,6 @@ import { WebsiteService } from "./websites";
 
 const enabled = process.env.BUSINESS_CONTEXT_INTEGRATION_TESTS === "true";
 const integration = enabled ? describe : describe.skip;
-
-beforeAll(() => {
-	if (!enabled) {
-		return;
-	}
-	const url = new URL(process.env.DATABASE_URL ?? "");
-	if (
-		!["localhost", "127.0.0.1"].includes(url.hostname) ||
-		(url.pathname !== "/databuddy_test" &&
-			!url.pathname.startsWith("/databuddy_e2e_"))
-	) {
-		throw new Error("Use a localhost test database");
-	}
-});
 
 function insertOrganization(id: string) {
 	return db.insert(organization).values({

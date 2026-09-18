@@ -1,10 +1,11 @@
-import { beforeEach, describe, expect, it, mock } from "bun:test";
+import { beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
 import type { LanguageModelV3 } from "@ai-sdk/provider";
 import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
 import { organizationBusinessContextSchema } from "@databuddy/shared/organization-business-context";
 import { tool } from "ai";
 import { z } from "zod";
 import { MockLanguageModelV3, convertArrayToReadableStream } from "ai/test";
+import type { DatabuddyAgentToolTrace } from "../../agent";
 import type {
 	AccessibleWebsitesAuth,
 	WebsiteSummary,
@@ -102,7 +103,10 @@ mock.module("../../agent/slack-relevance", () => ({
 	classifySlackThreadReplyRelevance: async () => ({}),
 }));
 const availableTools = {
-	get_data: tool({ inputSchema: z.object({}) }),
+	get_data: tool({
+		inputSchema: z.object({ value: z.number().optional() }),
+		execute: ({ value }) => ({ value }),
+	}),
 	discover_query_types: tool({ inputSchema: z.object({}) }),
 	describe_schema: tool({ inputSchema: z.object({}) }),
 	slack_read_current_thread: tool({ inputSchema: z.object({}) }),
@@ -199,6 +203,63 @@ beforeEach(() => {
 });
 
 describe("canonical business context at the native shared-agent model boundary", () => {
+	it("delivers completed tool traces through the shared stream after usage settlement", async () => {
+		const stream = spyOn(model, "doStream").mockImplementationOnce(
+			async () => ({
+				stream: convertArrayToReadableStream([
+					{
+						type: "tool-call",
+						toolCallId: "read-first",
+						toolName: "get_data",
+						input: '{"value":1}',
+					},
+					{
+						type: "tool-call",
+						toolCallId: "read-second",
+						toolName: "get_data",
+						input: '{"value":2}',
+					},
+					{
+						type: "finish",
+						finishReason: { unified: "tool-calls", raw: "tool_calls" },
+						usage,
+					},
+				]),
+			})
+		);
+		const events: string[] = [];
+		const onToolTrace = mock((trace: DatabuddyAgentToolTrace[]) => {
+			expect(billedUsage).toHaveBeenCalledTimes(1);
+			expect(trace).toEqual([
+				{
+					index: 0,
+					name: "get_data",
+					input: { value: 1 },
+					output: { value: 1 },
+				},
+				{
+					index: 1,
+					name: "get_data",
+					input: { value: 2 },
+					output: { value: 2 },
+				},
+			]);
+			events.push("trace");
+		});
+		try {
+			for await (const chunk of streamDatabuddyAgent({
+				...options,
+				source: "slack",
+				onToolTrace,
+			})) {
+				events.push(chunk);
+			}
+			expect(events).toEqual(["Synthetic response.", "trace"]);
+			expect(onToolTrace).toHaveBeenCalledTimes(1);
+		} finally {
+			stream.mockRestore();
+		}
+	});
 	it.each([
 		["Reports.Example.com", "reports.example.com"],
 		["reports.example.com", "REPORTS.EXAMPLE.COM"],

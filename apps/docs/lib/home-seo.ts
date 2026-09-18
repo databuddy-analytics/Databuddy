@@ -54,8 +54,18 @@ export const homeFaqItems: LandingFaqItem[] = [
 			"The tracker is about 12 KB gzipped and loads asynchronously. Real impact depends on your site and setup, so measure it in your own performance budget.",
 	},
 	{
-		question: "Is my data safe? Can I self-host?",
+		question: "Why pay when I can self-host for free?",
 		answer:
-			"Databuddy is open source and can run on your own infrastructure or our managed cloud. We do not sell your data. Hosting, billing, AI, and delivery providers process information needed to operate the features you use; see our Data Policy.",
+			"Self-hosting is a real option, not a downgrade. The whole stack is open source and runs on your own infrastructure at no cost. The paid plans exist for teams who would rather not operate ClickHouse, Postgres, and Redis themselves.",
+	},
+	{
+		question: "Can I trust the AI answers?",
+		answer:
+			"Databunny and investigations query your own analytics data, and every answer carries the evidence behind it. Investigations save the queries, findings, and recommendation so you can check the reasoning instead of trusting a summary.",
+	},
+	{
+		question: "Do you sell my data?",
+		answer:
+			"No. Databuddy is open source and can run on your own infrastructure or our managed cloud. Hosting, billing, AI, and delivery providers process information needed to operate the features you use; see our Data Policy.",
 	},
 ];

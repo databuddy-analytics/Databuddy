@@ -75,9 +75,7 @@ export function MeasurementPlanEditor({
 			<Card.Header>
 				<Card.Title className="text-balance">Activation and return</Card.Title>
 				<Card.Description className="text-pretty">
-					Choose the events that mean someone got value and came back. Saved
-					definitions guide automatic investigations. Only identified profiles
-					can be measured.
+					The events that mean someone got value and came back.
 				</Card.Description>
 			</Card.Header>
 			<Card.Content className="space-y-4">
@@ -312,7 +310,7 @@ export function MeasurementPlanEditor({
 							<p className="text-pretty text-muted-foreground text-xs">
 								{plans.length >= 20
 									? "Up to 20 website definitions are supported."
-									: "No definition for this website. Add one to choose the outcome and events."}
+									: "No definition yet for this website."}
 							</p>
 						)}
 					</>

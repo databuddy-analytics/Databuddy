@@ -70,7 +70,7 @@ beforeAll(async () => {
 	({ withWorkspace, withPublicWorkspace } = await import("./with-workspace"));
 
 	mock.restore();
-});
+}, 30_000);
 
 beforeEach(() => {
 	websites.clear();

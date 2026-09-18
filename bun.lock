@@ -268,7 +268,7 @@
         "@databuddy/rpc": "workspace:*",
         "@databuddy/services": "workspace:*",
         "@databuddy/shared": "workspace:*",
-        "@slack/web-api": "7.17.0",
+        "@slack/web-api": "8.1.1",
         "ai": "^6.0.188",
         "autumn-js": "catalog:",
         "bullmq": "^5.78.0",
@@ -312,7 +312,7 @@
         "@databuddy/rpc": "workspace:*",
         "@databuddy/shared": "workspace:*",
         "@slack/bolt": "^4.7.2",
-        "@slack/web-api": "7.17.0",
+        "@slack/web-api": "8.1.1",
         "evlog": "catalog:",
       },
       "devDependencies": {
@@ -434,6 +434,7 @@
       "version": "1.0.0",
       "dependencies": {
         "@clickhouse/client": "^1.14.0",
+        "@databuddy/env": "workspace:*",
         "@databuddy/shared": "workspace:*",
         "@faker-js/faker": "^10.5.0",
         "@neondatabase/serverless": "^1.0.2",

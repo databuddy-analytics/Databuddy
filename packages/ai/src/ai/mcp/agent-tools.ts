@@ -26,8 +26,10 @@ import { agentDataInputSchema } from "./agent-query-schema";
 
 interface McpAgentContext {
 	apiKey: ApiKeyRow | null;
+	currentDateTime?: string;
 	organizationId?: string | null;
 	requestHeaders: Headers;
+	timezone?: string;
 	userId: string | null;
 }
 
@@ -132,7 +134,7 @@ Critical schema footguns: website id column is client_id (not website_id); times
 		}),
 		get_data: tool({
 			description:
-				"Run 1-10 analytics builders. Use discover_query_types for builder names and required filters. Use preset or from/to; supports filters (including trait:<key>), groupBy, and orderBy. Returns a query summary, full rowCount, returnedRows, truncated, and up to 20 data rows. Call list_profile_traits before trait segmentation.",
+				"Run 1-10 analytics builders. Use discover_query_types for builder names and required filters. Use preset or from/to; omitted dates default to last_30d in the conversation timezone. Read the returned definition for population and percentage semantics. Supports filters (including trait:<key>), groupBy, and orderBy. Returns a query summary, full rowCount, returnedRows, truncated, and up to 20 data rows. Call list_profile_traits before trait segmentation.",
 			strict: true,
 			inputSchema: agentDataInputSchema,
 			execute: async (args, options) => {
@@ -146,18 +148,24 @@ Critical schema footguns: website id column is client_id (not website_id); times
 				if (access instanceof Error) {
 					throw new Error(access.message);
 				}
+				const timezone = args.timezone ?? ctx.timezone ?? "UTC";
+				const now = ctx.currentDateTime
+					? new Date(ctx.currentDateTime)
+					: new Date();
 				const plan = buildBatchQueryRequests(
 					args.queries,
 					args.websiteId,
-					args.timezone ?? "UTC"
+					timezone,
+					Number.isNaN(now.getTime()) ? new Date() : now
 				);
 				const results = await executeBatch(plan.requests, {
 					websiteDomain: access.domain,
-					timezone: args.timezone ?? "UTC",
+					timezone,
 					abortSignal: options.abortSignal,
 				});
 				return {
 					batch: true,
+					website: { id: args.websiteId, domain: access.domain },
 					results: formatMcpQueryResults(plan, results),
 				};
 			},

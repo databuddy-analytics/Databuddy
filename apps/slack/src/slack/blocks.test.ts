@@ -85,26 +85,165 @@ describe("componentToBlocks tables and lists", () => {
 });
 
 describe("componentToBlocks charts", () => {
-	it("renders a time-series chart as a data_table instead of vanishing", () => {
+	it.each([
+		"line",
+		"area",
+		"bar",
+	])("renders %s charts without changing values or order", (type) => {
 		const blocks = componentToBlocks({
-			type: "area-chart",
+			type: `${type}-chart`,
 			title: "Daily Traffic",
 			series: ["pageviews", "visitors"],
 			rows: [
 				["May 1", 1200, 480],
-				["May 2", 1350, 520],
+				["May 2", 0, -1.5],
 			],
 		});
-		expect(blocks[0]).toMatchObject({
-			type: "data_table",
-			caption: "Daily Traffic",
+		expect(blocks).toEqual([
+			{
+				type: "data_visualization",
+				title: "Daily Traffic",
+				chart: {
+					type,
+					axis_config: { categories: ["May 1", "May 2"] },
+					series: [
+						{
+							name: "pageviews",
+							data: [
+								{ label: "May 1", value: 1200 },
+								{ label: "May 2", value: 0 },
+							],
+						},
+						{
+							name: "visitors",
+							data: [
+								{ label: "May 1", value: 480 },
+								{ label: "May 2", value: -1.5 },
+							],
+						},
+					],
+				},
+			},
+		]);
+	});
+
+	it.each([
+		"pie-chart",
+		"donut-chart",
+	])("renders %s as a native pie with the complete denominator", (type) => {
+		expect(
+			firstBlock({
+				type,
+				title: "Devices",
+				rows: [
+					["Desktop", 3],
+					["Mobile", 7],
+				],
+			})
+		).toEqual({
+			type: "data_visualization",
+			title: "Devices",
+			chart: {
+				type: "pie",
+				segments: [
+					{ label: "Desktop", value: 3 },
+					{ label: "Mobile", value: 7 },
+				],
+			},
 		});
-		const block = blocks[0];
-		if (block.type !== "data_table") {
-			throw new Error("Expected a data table");
-		}
-		const header = block.rows[0].map((cell) => cell.text);
-		expect(header).toEqual(["Period", "pageviews", "visitors"]);
+	});
+
+	const chart = {
+		type: "line-chart",
+		title: "Trend",
+		series: ["visitors"],
+		rows: [["May 1", 42]],
+	};
+	it.each([
+		{ type: "stacked-bar-chart" },
+		{ title: "x".repeat(51) },
+		{ series: ["x".repeat(21)] },
+		{ series: ["same", "same"], rows: [["May 1", 1, 2]] },
+		{ rows: [["x".repeat(21), 1]] },
+		{
+			rows: [
+				["May 1", 1],
+				["May 1", 2],
+			],
+		},
+		{ rows: [["May 1", null]] },
+		{ rows: [["May 1", "42"]] },
+		{ rows: [["May 1", Number.NaN]] },
+		{ rows: [["May 1", Number.POSITIVE_INFINITY]] },
+		{ rows: [["May 1"]] },
+		{ rows: [["May 1", 1, 2]] },
+		{
+			type: "pie-chart",
+			rows: [
+				["Desktop", 3],
+				["Mobile", 0],
+			],
+		},
+		{
+			type: "pie-chart",
+			rows: [
+				["Desktop", 3],
+				["Mobile", -1],
+			],
+		},
+		{ rows: Array.from({ length: 21 }, (_, i) => [`Day ${i}`, i]) },
+		{
+			type: "pie-chart",
+			rows: Array.from({ length: 13 }, (_, i) => [`Item ${i}`, i + 1]),
+		},
+		{
+			series: Array.from({ length: 13 }, (_, i) => `Metric ${i}`),
+			rows: [["Day", ...Array.from({ length: 13 }, () => 1)]],
+		},
+	])("keeps a table when Slack cannot faithfully chart %j", (override) => {
+		expect(firstBlock({ ...chart, ...override }).type).toBe("data_table");
+	});
+
+	it("accepts chart limits and falls back only after two native charts per message", () => {
+		const boundary = {
+			type: "area-chart",
+			title: "x".repeat(50),
+			series: Array.from({ length: 12 }, (_, i) => `${i}`.padEnd(20, "x")),
+			rows: Array.from({ length: 20 }, (_, i) => [
+				`${i}`.padEnd(20, "x"),
+				...Array.from({ length: 12 }, () => i),
+			]),
+		};
+		const blocks = componentsToBlocks([
+			{ ...chart, type: "stacked-bar-chart" },
+			boundary,
+			chart,
+			chart,
+		]);
+		expect(blocks.map((block) => block.type)).toEqual([
+			"data_table",
+			"data_visualization",
+			"data_visualization",
+			"data_table",
+		]);
+		expect(blocks[3]).toEqual(componentToBlocks(chart, false)[0]);
+		expect(componentsToBlocks([chart], false)[0].type).toBe("data_table");
+	});
+
+	it("preserves values in table fallbacks and labels row limits", () => {
+		const rows = Array.from({ length: 100 }, (_, i) => [`Day ${i}`, i]);
+		const block = firstBlock({ ...chart, rows });
+		expect(block).toMatchObject({
+			type: "data_table",
+			caption: "Trend (showing 99 of 100 rows)",
+		});
+		expect(firstBlock({ ...chart, rows: [null] }).type).toBe("context");
+		expect(firstBlock({ ...chart, rows: [["Day", "42"]] })).toMatchObject({
+			rows: [
+				[{ text: "Period" }, { text: "visitors" }],
+				[{ text: "Day" }, { type: "raw_text", text: "42" }],
+			],
+		});
 	});
 });
 

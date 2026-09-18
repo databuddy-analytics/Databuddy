@@ -1,3 +1,4 @@
+import "@databuddy/db/test-env";
 import { randomUUID } from "node:crypto";
 import {
 	afterAll,
@@ -37,22 +38,6 @@ integration("native Better Auth organization metadata protection", () => {
 	const preserved = "Team-defined signup means a trial started.";
 
 	beforeAll(async () => {
-		const url = new URL(process.env.DATABASE_URL ?? "");
-		const redis = new URL(process.env.REDIS_URL ?? "");
-		if (
-			!(
-				["localhost", "127.0.0.1"].includes(url.hostname) &&
-				["/databuddy_test", "/business_context_settings"].includes(
-					url.pathname
-				) &&
-				["localhost", "127.0.0.1"].includes(redis.hostname)
-			) ||
-			process.env.NODE_ENV !== "test"
-		) {
-			throw new Error(
-				"Use NODE_ENV=test, localhost Redis and a localhost databuddy_test or business_context_settings database"
-			);
-		}
 		auth = (await import("./auth")).auth;
 	});
 	beforeEach(async () => {

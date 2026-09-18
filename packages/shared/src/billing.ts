@@ -34,8 +34,40 @@ export function hasInvestigationAllowance(
 
 export const INVESTIGATION_ALLOWANCES = {
 	intelligence: 100,
-	intelligence_scale: 500,
+	intelligence_scale: 250,
 } as const;
+
+export const PLAN_COPY = {
+	free: {
+		description: "For personal sites and trying Databuddy out.",
+		positioning: null,
+	},
+	hobby: {
+		description: "For solo builders and side projects.",
+		positioning: null,
+	},
+	pro: {
+		description: "For growing teams shipping production apps.",
+		positioning: null,
+	},
+	intelligence: {
+		description:
+			"An always-on product investigator for founders and engineers.",
+		positioning: "Recommended",
+	},
+	intelligence_scale: {
+		description:
+			"Adds SSO, audit logs, and onboarding for compliance-bound teams.",
+		positioning: null,
+	},
+	enterprise: {
+		description: "Custom volume, security review, and SLAs.",
+		positioning: null,
+	},
+} as const satisfies Record<
+	string,
+	{ description: string; positioning: string | null }
+>;
 
 export const AGENT_CREDIT_ALLOWANCES = {
 	free: { month: 10 },
@@ -43,7 +75,7 @@ export const AGENT_CREDIT_ALLOWANCES = {
 	pro: { month: 350, day: 5 },
 	scale: { month: 500 },
 	intelligence: { month: 1500 },
-	intelligence_scale: { month: 5000 },
+	intelligence_scale: { month: 3000 },
 } as const satisfies Record<string, { day?: number; month: number }>;
 
 export const SCALE_PLAN = {
