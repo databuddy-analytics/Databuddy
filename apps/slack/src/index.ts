@@ -25,6 +25,7 @@ import {
 	SlackInstallationStore,
 } from "@/slack/installations";
 import { registerSlackListeners } from "@/slack/listeners";
+import { createSlackEventDedupe } from "@/slack/event-dedupe";
 
 const SHUTDOWN_RUN_SETTLE_TIMEOUT_MS = 10_000;
 
@@ -113,6 +114,7 @@ async function main() {
 		socketMode: config.socketMode,
 	});
 
+	app.use(createSlackEventDedupe());
 	registerSlackListeners(
 		app,
 		new DatabuddyAgentClient(installations),
