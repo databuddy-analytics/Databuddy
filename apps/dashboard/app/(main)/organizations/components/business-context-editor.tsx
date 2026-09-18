@@ -126,9 +126,12 @@ export function BusinessContextEditor({
 	const [showAllTeamFields, setShowAllTeamFields] = useState(false);
 	const [showSourceInput, setShowSourceInput] = useState(false);
 	const editorRef = useRef<HTMLTextAreaElement>(null);
-	const [view, setView] = useState(
-		canEdit && !profile?.content ? "edit" : "preview"
-	);
+	const [view, setView] = useState(() => {
+		if (generation?.status === "ready" && generation.draft) {
+			return "draft";
+		}
+		return canEdit && !profile?.content ? "edit" : "preview";
+	});
 	const sourceText =
 		research?.sourceText ?? (generation?.sourceUrls ?? []).join("\n");
 	const pageRef = useRef<HTMLDivElement>(null);
