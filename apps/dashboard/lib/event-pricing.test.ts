@@ -44,10 +44,12 @@ describe("event pricing catalog and estimates", () => {
 		["intelligence", 2_000_001, 0.000_03],
 		["intelligence", 10_000_000, 240],
 		["intelligence", 10_000_001, 240.000_02],
-		["intelligence_scale", 10_000_000, 0],
-		["intelligence_scale", 10_000_001, 0.000_02],
-		["intelligence_scale", 50_000_000, 800],
-		["intelligence_scale", 50_000_001, 800.000_015],
+		["intelligence_scale", 6_000_000, 0],
+		["intelligence_scale", 6_000_001, 0.000_03],
+		["intelligence_scale", 10_000_000, 120],
+		["intelligence_scale", 10_000_001, 120.000_02],
+		["intelligence_scale", 50_000_000, 920],
+		["intelligence_scale", 50_000_001, 920.000_015],
 	] as const)("estimates %s at %i monthly events as $%f overage", (id, events, expected) => {
 		const plan = normalized.find((item) => item.id === id);
 		if (!plan?.eventTiers) {

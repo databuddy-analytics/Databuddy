@@ -2,6 +2,7 @@ import {
 	AGENT_CREDIT_ALLOWANCES,
 	INVESTIGATION_ALLOWANCES,
 	INVESTIGATION_USAGE,
+	PLAN_COPY,
 } from "@databuddy/shared/billing";
 
 interface RawFeature {
@@ -37,9 +38,11 @@ export type RawItem =
 
 export interface RawPlan {
 	agentCredits: { day?: number; month: number } | null;
+	description?: string;
 	id: string;
 	items: RawItem[];
 	name: string;
+	positioning?: string | null;
 }
 
 const INVESTIGATION_FEATURE: RawFeature = {
@@ -78,6 +81,8 @@ export const RAW_PLANS: RawPlan[] = [
 		id: "free",
 		agentCredits: AGENT_CREDIT_ALLOWANCES.free,
 		name: "Free",
+		description: PLAN_COPY.free.description,
+		positioning: PLAN_COPY.free.positioning,
 		items: [
 			{
 				type: "feature",
@@ -92,6 +97,8 @@ export const RAW_PLANS: RawPlan[] = [
 		id: "hobby",
 		agentCredits: AGENT_CREDIT_ALLOWANCES.hobby,
 		name: "Hobby",
+		description: PLAN_COPY.hobby.description,
+		positioning: PLAN_COPY.hobby.positioning,
 		items: [
 			{
 				type: "price",
@@ -115,6 +122,8 @@ export const RAW_PLANS: RawPlan[] = [
 		id: "pro",
 		agentCredits: AGENT_CREDIT_ALLOWANCES.pro,
 		name: "Pro",
+		description: PLAN_COPY.pro.description,
+		positioning: PLAN_COPY.pro.positioning,
 		items: [
 			{
 				type: "price",
@@ -135,6 +144,8 @@ export const RAW_PLANS: RawPlan[] = [
 		id: "intelligence",
 		agentCredits: AGENT_CREDIT_ALLOWANCES.intelligence,
 		name: "Business",
+		description: PLAN_COPY.intelligence.description,
+		positioning: PLAN_COPY.intelligence.positioning,
 		items: [
 			investigationAllowance(INVESTIGATION_ALLOWANCES.intelligence),
 			{
@@ -158,6 +169,8 @@ export const RAW_PLANS: RawPlan[] = [
 		id: "intelligence_scale",
 		agentCredits: AGENT_CREDIT_ALLOWANCES.intelligence_scale,
 		name: "Scale",
+		description: PLAN_COPY.intelligence_scale.description,
+		positioning: PLAN_COPY.intelligence_scale.positioning,
 		items: [
 			investigationAllowance(INVESTIGATION_ALLOWANCES.intelligence_scale),
 			{
@@ -169,10 +182,10 @@ export const RAW_PLANS: RawPlan[] = [
 				type: "priced_feature",
 				feature_id: "events",
 				feature: EVENTS_FEATURE,
-				included_usage: 10_000_000,
+				included_usage: 6_000_000,
 				interval: "month",
 				tiers: EVENT_TIERS.filter(
-					(tier) => tier.to === "inf" || tier.to > 10_000_000
+					(tier) => tier.to === "inf" || tier.to > 6_000_000
 				),
 			},
 		],
@@ -181,6 +194,8 @@ export const RAW_PLANS: RawPlan[] = [
 		id: "enterprise",
 		agentCredits: null,
 		name: "Enterprise",
+		description: PLAN_COPY.enterprise.description,
+		positioning: PLAN_COPY.enterprise.positioning,
 		items: [{ type: "enterprise" }],
 	},
 ];

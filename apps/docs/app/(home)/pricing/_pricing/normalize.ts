@@ -42,6 +42,8 @@ export function normalizePlans(raw: RawPlan[]) {
 			return {
 				id: plan.id,
 				name: plan.name,
+				description: plan.description ?? null,
+				positioning: plan.positioning ?? null,
 				priceMonthly: 0,
 				includedEventsMonthly: 0,
 				includedInvestigationsMonthly: null,
@@ -64,6 +66,8 @@ export function normalizePlans(raw: RawPlan[]) {
 		return {
 			id: plan.id,
 			name: plan.name,
+			description: plan.description ?? null,
+			positioning: plan.positioning ?? null,
 			priceMonthly,
 			includedEventsMonthly,
 			includedInvestigationsMonthly:

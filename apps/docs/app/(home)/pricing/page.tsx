@@ -1,5 +1,6 @@
 "use client";
 
+import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
 import { Footer } from "@/components/footer";
 import { Estimator } from "./_pricing/estimator";
 import { normalizePlans } from "./_pricing/normalize";
@@ -19,8 +20,10 @@ export default function PricingPage() {
 						Find the plan that fits your product.
 					</h1>
 					<p className="mx-auto max-w-2xl text-pretty text-muted-foreground text-sm sm:text-base">
-						Databunny chat runs on AI credits. Business and Scale add monthly
-						investigations.
+						A completed investigation costs ${INVESTIGATION_USAGE.priceUsd} and
+						answers a question that usually costs an engineer a morning.
+						Business and Scale include a monthly allowance; Databunny chat runs
+						on AI credits.
 					</p>
 				</header>
 

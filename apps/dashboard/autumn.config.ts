@@ -5,6 +5,7 @@ import {
 	DATABUNNY_USAGE,
 	INVESTIGATION_ALLOWANCES,
 	INVESTIGATION_USAGE,
+	PLAN_COPY,
 	SCALE_PLAN,
 } from "@databuddy/shared/billing";
 import { feature, item, plan } from "atmn";
@@ -251,7 +252,7 @@ export const scale = plan({
 export const intelligence = plan({
 	id: "intelligence",
 	name: "Business",
-	description: "An always-on product investigator for founders and engineers.",
+	description: PLAN_COPY.intelligence.description,
 	addOn: false,
 	autoEnable: false,
 	price: {
@@ -283,8 +284,7 @@ export const intelligence = plan({
 export const intelligence_scale = plan({
 	id: "intelligence_scale",
 	name: "Scale",
-	description:
-		"More investigation capacity for products with higher traffic and faster release cycles.",
+	description: PLAN_COPY.intelligence_scale.description,
 	addOn: false,
 	autoEnable: false,
 	price: {
@@ -302,7 +302,7 @@ export const intelligence_scale = plan({
 				billingUnits: 1,
 			},
 		}),
-		eventsOverageItem(10_000_000),
+		eventsOverageItem(6_000_000),
 		item({
 			featureId: agent_credits.id,
 			included: AGENT_CREDIT_ALLOWANCES.intelligence_scale.month,

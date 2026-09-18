@@ -1,6 +1,6 @@
 # Databuddy Pricing
 
-Start with analytics and a monthly AI credit allowance for Databunny chat. Business includes 100 investigations per month; Scale includes 500. Extra investigations cost $1 each, billed monthly, and do not draw from AI credits.
+Start with analytics and a monthly AI credit allowance for Databunny chat. Business includes 100 investigations per month; Scale includes 250 and adds SSO, audit logs, and guided onboarding. Extra investigations cost $1 each, billed monthly, and do not draw from AI credits.
 
 Machine-readable: [JSON](https://www.databuddy.cc/api/pricing) · static [Markdown](https://www.databuddy.cc/pricing.md) · **GET `/pricing`** with `Accept: text/markdown`.
 
@@ -12,7 +12,7 @@ Machine-readable: [JSON](https://www.databuddy.cc/api/pricing) · static [Markdo
 | Hobby | $9.99/mo | 30,000 | — | 20 (plus 1 / day) | Tiered event overage |
 | Pro | $49.99/mo | 1,000,000 | — | 350 (plus 5 / day) | Tiered event overage |
 | Business | $299/mo | 2,000,000 | 100 / month | 1,500 | Invite only. $1 per additional investigation, billed monthly; tiered event overage |
-| Scale | $799/mo | 10,000,000 | 500 / month | 5,000 | Invite only. $1 per additional investigation, billed monthly; tiered event overage |
+| Scale | $799/mo | 6,000,000 | 250 / month | 3,000 | Invite only. Adds SSO, audit logs, and guided onboarding. $1 per additional investigation, billed monthly; tiered event overage |
 | Enterprise | Custom | Custom | Custom | Custom | Volume, security, SLAs — [pricing page](https://www.databuddy.cc/pricing) |
 
 ## Events (overage on paid plans)
@@ -27,7 +27,7 @@ Overage = events **above** the monthly included amount. Usage is charged in band
 | 50,000,001 – 250,000,000 | $0.000015 | $0.015 |
 | 250,000,001+ | $0.00001 | $0.01 |
 
-Pro includes 1,000,000 events, then charges $0.035 per 1,000 for its first 1,000,000 paid events (up to 2,000,000 total monthly events). Business includes 2,000,000 events and starts overage at $0.03 per 1,000, up to 10,000,000 total monthly events. Scale includes 10,000,000 events and starts overage at $0.02 per 1,000, up to 50,000,000 total monthly events.
+Pro includes 1,000,000 events, then charges $0.035 per 1,000 for its first 1,000,000 paid events (up to 2,000,000 total monthly events). Business includes 2,000,000 events and starts overage at $0.03 per 1,000, up to 10,000,000 total monthly events. Scale includes 6,000,000 events and starts overage at $0.03 per 1,000, up to 10,000,000 total monthly events.
 
 The [JSON API](https://www.databuddy.cc/api/pricing) declares `overageTierBasis: "total_monthly_events"`: its `overageTiers.upTo` values are total monthly event ceilings, including the allowance, not cumulative paid overage. For exact monthly totals at your event volume, use the calculator on the [pricing page](https://www.databuddy.cc/pricing).
 
@@ -39,7 +39,7 @@ The [JSON API](https://www.databuddy.cc/api/pricing) declares `overageTierBasis:
 | Goals | 2 | 10 | Unlimited | Unlimited | Unlimited | Unlimited |
 | Feature flags | 3 | 10 | 100 | Unlimited | Unlimited | Unlimited |
 | Error tracking | — | Included | Included | Included | Included | Included |
-| SSO and audit logs | — | — | — | — | — | Included |
+| SSO and audit logs | — | — | — | — | Included | Included |
 
 All plans include unlimited websites and team members, user tracking, Web Vitals, geographic maps, uptime monitoring, and API access.
 

@@ -10,11 +10,14 @@ import type { NormalizedPlan } from "./normalize";
 const contactTopics: Record<string, string | undefined> =
 	INTELLIGENCE_CONTACT_TOPICS;
 
+const RECOMMENDED_PLAN_ID = "intelligence";
+
 function cellClass(planId: string) {
-	return `px-3 py-3 text-center text-sm sm:px-4 ${planId === "pro" ? "border-x border-border bg-primary/10" : ""}`;
+	return `px-3 py-3 text-center text-sm sm:px-4 ${planId === RECOMMENDED_PLAN_ID ? "border-x border-border bg-primary/10" : ""}`;
 }
 
 export function PlansComparisonTable({ plans }: { plans: NormalizedPlan[] }) {
+	const columns = [...plans].reverse();
 	const rows = [
 		{
 			name: "Price / month",
@@ -100,14 +103,31 @@ export function PlansComparisonTable({ plans }: { plans: NormalizedPlan[] }) {
 								>
 									Feature
 								</th>
-								{plans.map((plan) => (
+								{columns.map((plan) => (
 									<th
-										className={cellClass(plan.id)}
+										className={`${cellClass(plan.id)} align-top`}
 										id={plan.id}
 										key={plan.id}
 										scope="col"
 									>
-										<span className="font-medium">{plan.name}</span>
+										<div className="flex flex-col items-center gap-1.5">
+											<span className="font-medium">{plan.name}</span>
+											<div className="flex min-h-11 flex-col items-center gap-1">
+												{plan.positioning ? (
+													<span className="rounded-sm bg-primary/15 px-1.5 py-0.5 font-medium text-[10px] text-primary uppercase tracking-wide">
+														{plan.positioning}
+													</span>
+												) : null}
+												{contactTopics[plan.id] ? (
+													<span className="rounded-sm border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground uppercase tracking-wide">
+														Invite only
+													</span>
+												) : null}
+											</div>
+											<span className="min-h-12 max-w-44 text-pretty font-normal text-muted-foreground text-xs leading-snug">
+												{plan.description}
+											</span>
+										</div>
 									</th>
 								))}
 							</tr>
@@ -124,7 +144,7 @@ export function PlansComparisonTable({ plans }: { plans: NormalizedPlan[] }) {
 									>
 										{row.name}
 									</th>
-									{plans.map((plan) => (
+									{columns.map((plan) => (
 										<td className={cellClass(plan.id)} key={plan.id}>
 											{row.value(plan)}
 										</td>
@@ -132,7 +152,7 @@ export function PlansComparisonTable({ plans }: { plans: NormalizedPlan[] }) {
 								</tr>
 							))}
 							<GatedFeaturePricingRows
-								plans={plans}
+								plans={columns}
 								planTdClassName={cellClass}
 							/>
 							{["SSO (SAML/OIDC)", "Audit logs", "Guided onboarding"].map(
@@ -147,9 +167,12 @@ export function PlansComparisonTable({ plans }: { plans: NormalizedPlan[] }) {
 										>
 											{name}
 										</th>
-										{plans.map((plan) => (
+										{columns.map((plan) => (
 											<td className={cellClass(plan.id)} key={plan.id}>
-												{plan.id === "enterprise" ? "Included" : "—"}
+												{plan.id === "enterprise" ||
+												plan.id === "intelligence_scale"
+													? "Included"
+													: "—"}
 											</td>
 										))}
 									</tr>
@@ -157,7 +180,7 @@ export function PlansComparisonTable({ plans }: { plans: NormalizedPlan[] }) {
 							)}
 							<tr className="border-border border-t">
 								<td className="px-4 py-3 sm:px-5 lg:px-6" />
-								{plans.map((plan) => {
+								{columns.map((plan) => {
 									const topic = contactTopics[plan.id];
 									return (
 										<td className={cellClass(plan.id)} key={plan.id}>
@@ -197,8 +220,8 @@ export function PlansComparisonTable({ plans }: { plans: NormalizedPlan[] }) {
 				</section>
 			</SciFiCard>
 			<p className="mt-3 text-pretty text-muted-foreground text-xs">
-				Business and Scale are invite only. Extra investigations are billed
-				monthly. Paid plans add tiered charges for extra events.{" "}
+				Extra investigations are billed monthly. Paid plans add tiered charges
+				for extra events.{" "}
 				<Link className="underline underline-offset-4" href="#event-rates">
 					View usage rates
 				</Link>
