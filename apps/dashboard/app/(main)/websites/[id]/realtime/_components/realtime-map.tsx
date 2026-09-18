@@ -64,7 +64,7 @@ function buildMapGeometry(
 	width: number,
 	height: number,
 	background: string,
-	border: string
+	land: string
 ): MapGeometry {
 	const projection = geoNaturalEarth1().fitExtent(
 		[
@@ -85,13 +85,13 @@ function buildMapGeometry(
 
 	baseContext.fillStyle = background;
 	baseContext.fillRect(0, 0, width, height);
+	baseContext.fillStyle = land;
+	baseContext.strokeStyle = background;
+	baseContext.lineWidth = 0.5;
 	for (const country of WORLD_FEATURES) {
 		baseContext.beginPath();
 		path.context(baseContext)(country);
-		baseContext.fillStyle = background;
 		baseContext.fill();
-		baseContext.strokeStyle = border;
-		baseContext.lineWidth = 0.5;
 		baseContext.stroke();
 	}
 
@@ -209,6 +209,7 @@ export function RealtimeMap({ countries }: RealtimeMapProps) {
 		let hoveredId: number | null = null;
 		let background = "transparent";
 		let accent = "transparent";
+		let highlight = "transparent";
 
 		const applyTransform = () => {
 			const { scale, x, y } = viewRef.current;
@@ -234,6 +235,7 @@ export function RealtimeMap({ countries }: RealtimeMapProps) {
 			context.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
 			background = getCssColor("--background", background);
 			accent = getCssColor("--chart-4", accent);
+			highlight = getCssColor("--foreground", highlight);
 
 			mapGeometryRef.current = buildMapGeometry(
 				width,
@@ -315,7 +317,7 @@ export function RealtimeMap({ countries }: RealtimeMapProps) {
 					continue;
 				}
 
-				context.fillStyle = countryId === hoveredId ? "white" : accent;
+				context.fillStyle = countryId === hoveredId ? highlight : accent;
 				for (let index = 0; index < pixels.length; index += 2) {
 					const x = pixels[index] ?? 0;
 					const y = pixels[index + 1] ?? 0;
@@ -332,7 +334,7 @@ export function RealtimeMap({ countries }: RealtimeMapProps) {
 			if (hoveredId !== null && !numericToCountryRef.current.has(hoveredId)) {
 				const pixels = geometry.countryPixels.get(hoveredId);
 				if (pixels) {
-					context.fillStyle = "white";
+					context.fillStyle = highlight;
 					context.globalAlpha = 0.15;
 					for (let index = 0; index < pixels.length; index += 2) {
 						context.fillRect(pixels[index] ?? 0, pixels[index + 1] ?? 0, 2, 2);
@@ -452,6 +454,14 @@ export function RealtimeMap({ countries }: RealtimeMapProps) {
 
 		const resizeObserver = new ResizeObserver(resize);
 		resizeObserver.observe(wrapper);
+		const themeObserver = new MutationObserver(() => {
+			if (getCssColor("--background", background) !== background) {
+				resize();
+			}
+		});
+		themeObserver.observe(document.documentElement, {
+			attributeFilter: ["class"],
+		});
 		resize();
 		wrapper.addEventListener("wheel", handleWheel, { passive: false });
 		wrapper.addEventListener("pointerdown", handlePointerDown);
@@ -465,6 +475,7 @@ export function RealtimeMap({ countries }: RealtimeMapProps) {
 		return () => {
 			destroyed = true;
 			resizeObserver.disconnect();
+			themeObserver.disconnect();
 			wrapper.removeEventListener("wheel", handleWheel);
 			wrapper.removeEventListener("pointerdown", handlePointerDown);
 			wrapper.removeEventListener("pointermove", handlePointerMove);
