@@ -915,7 +915,7 @@ export const CustomEventsBuilders: Record<string, SimpleQueryConfig> = {
 		meta: {
 			title: "Custom Events Discovery",
 			description:
-				"Returns all custom events with their property keys and top 5 values per property in a single query. Use this instead of calling custom_events, custom_event_properties, and custom_events_property_top_values separately.",
+				"Bounded event/property discovery: one row per event and property, with up to 5 values. Event totals repeat across property rows; do not sum them. Popular events can consume the row limit, so omitted events are not proven absent. Use custom_events for event inventory, then filter this builder by event_name to inspect properties.",
 			category: "Custom Events",
 			tags: ["custom-events", "discovery", "properties"],
 		},
