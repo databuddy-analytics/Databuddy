@@ -84,10 +84,11 @@ const billing = mock(async () => ({
 	allowed: true,
 	customerId: "synthetic-owner",
 }));
+const resolveBillingCustomerId = mock(async () => "synthetic-owner");
 const billedUsage = mock(async (_input: Record<string, unknown>) => {});
 mock.module("../agents/execution", () => ({
 	getAgentBillingAccess: billing,
-	resolveAgentBillingCustomerId: async () => "synthetic-owner",
+	resolveAgentBillingCustomerId: resolveBillingCustomerId,
 	trackAgentUsageAndBill: billedUsage,
 }));
 mock.module("./conversation-store", () => ({
@@ -191,6 +192,7 @@ beforeEach(() => {
 	billing
 		.mockReset()
 		.mockResolvedValue({ allowed: true, customerId: "synthetic-owner" });
+	resolveBillingCustomerId.mockReset().mockResolvedValue("synthetic-owner");
 	billedUsage.mockClear();
 	read.mockReset();
 	read.mockImplementation(async () => saved);
@@ -762,6 +764,36 @@ describe("canonical measurement plan context", () => {
 });
 
 describe("shared Slack/MCP agent billing before model work", () => {
+	it("resolves billing and accessible websites concurrently", async () => {
+		let release!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		let websitesStarted = false;
+		let billingStarted = false;
+		accessible.mockImplementationOnce(async () => {
+			websitesStarted = true;
+			await gate;
+			return sites;
+		});
+		resolveBillingCustomerId.mockImplementationOnce(async () => {
+			billingStarted = true;
+			await gate;
+			return "synthetic-owner";
+		});
+
+		const pending = askDatabuddyAgent({
+			...options,
+			billingMode: "bill",
+		});
+		await Promise.resolve();
+		await Promise.resolve();
+		expect(websitesStarted).toBe(true);
+		expect(billingStarted).toBe(true);
+		release();
+		await pending;
+	});
+
 	it.each([
 		"slack",
 		"mcp",
