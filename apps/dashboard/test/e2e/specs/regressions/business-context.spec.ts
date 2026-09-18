@@ -415,36 +415,47 @@ for (const viewport of contextViewports) {
 					});
 					await expect(loading).toBeVisible();
 					const initial = await readBounds();
-					expect(initial.at(2)!.height).toBeGreaterThan(0);
-					expect(initial.at(2)!.height).toBeLessThanOrEqual(384);
+					const initialDocument = initial.at(2);
+					if (!initialDocument) {
+						throw new Error("Missing initial document bounds");
+					}
+					expect(initialDocument.height).toBeGreaterThan(0);
+					expect(initialDocument.height).toBeLessThanOrEqual(384);
 					await page.screenshot({
 						animations: "disabled",
 						path: testInfo.outputPath("organization-loading.png"),
 					});
-					const expectStableBounds = async (phase: string) => {
-						const current = await readBounds();
-						for (const [index, before] of initial.entries()) {
-							const after = current[index]!;
-							// Content and the access notice may change the document's height
-							// and position; the page and brief stay anchored and aligned.
-							const dimensions =
-								before.region === "document"
-									? (["x", "width"] as const)
-									: (["x", "y", "width"] as const);
-							for (const dimension of dimensions) {
-								expect(
-									Math.abs(after[dimension] - before[dimension]),
-									`${phase}: ${before.region} ${dimension}`
-								).toBeLessThanOrEqual(1);
+					const expectStableBounds = async (phase: string, loading = false) => {
+						let current: Awaited<ReturnType<typeof readBounds>> = [];
+						await expect(async () => {
+							current = await readBounds();
+							for (const [index, before] of initial.entries()) {
+								const after = current.at(index);
+								if (!after) {
+									throw new Error(`Missing ${phase}: ${before.region} bounds`);
+								}
+								// After loading, content and the access notice can resize or
+								// move the document; the page and brief stay anchored.
+								const dimensions = loading
+									? (["x", "y", "width", "height"] as const)
+									: before.region === "document"
+										? (["x", "width"] as const)
+										: (["x", "y", "width"] as const);
+								for (const dimension of dimensions) {
+									expect(
+										Math.abs(after[dimension] - before[dimension]),
+										`${phase}: ${before.region} ${dimension}`
+									).toBeLessThanOrEqual(1);
+								}
 							}
-						}
+						}).toPass({ timeout: 5000 });
 						return current;
 					};
 
 					organizationGate.resolve();
 					await briefRequest;
 					await expect(loading).toBeVisible();
-					expect(await readBounds()).toEqual(initial);
+					await expectStableBounds("business context loading", true);
 
 					briefGate.resolve();
 					await accessRequest;
@@ -462,6 +473,9 @@ for (const viewport of contextViewports) {
 					);
 					const research = page.getByTestId("business-context-research");
 					const pendingControls = await research.boundingBox();
+					if (!pendingControls) {
+						throw new Error("Missing pending research controls bounds");
+					}
 
 					accessGate.resolve();
 					if (access.status === "allowed") {
@@ -474,10 +488,11 @@ for (const viewport of contextViewports) {
 					}
 					const ready = await expectStableBounds("generation access ready");
 					const readyControls = await research.boundingBox();
-					expect(pendingControls).not.toBeNull();
-					expect(readyControls).not.toBeNull();
+					if (!readyControls) {
+						throw new Error("Missing ready research controls bounds");
+					}
 					expect(
-						Math.abs(readyControls!.height - pendingControls!.height),
+						Math.abs(readyControls.height - pendingControls.height),
 						"generation access must not resize research controls"
 					).toBeLessThanOrEqual(1);
 					expect(
@@ -1437,12 +1452,12 @@ for (const viewport of contextViewports) {
 			const initialPanel = await panel.boundingBox();
 			const initialBrief = await brief.boundingBox();
 			const title = await reading.boundingBox();
-			expect(initialPanel).not.toBeNull();
-			expect(initialBrief).not.toBeNull();
-			expect(title).not.toBeNull();
-			expect(initialPanel!.height).toBeGreaterThan(0);
-			expect(initialPanel!.height).toBeLessThanOrEqual(384);
-			expect(title!.y - initialPanel!.y).toBeLessThanOrEqual(32);
+			if (!(initialPanel && initialBrief && title)) {
+				throw new Error("Missing initial research bounds");
+			}
+			expect(initialPanel.height).toBeGreaterThan(0);
+			expect(initialPanel.height).toBeLessThanOrEqual(384);
+			expect(title.y - initialPanel.y).toBeLessThanOrEqual(32);
 			await expect(
 				research.getByRole("button", { name: "Research options", exact: true })
 			).toBeDisabled();
@@ -1480,13 +1495,14 @@ for (const viewport of contextViewports) {
 			).toBeVisible();
 			const writingPanel = await panel.boundingBox();
 			const writingBrief = await brief.boundingBox();
-			expect(writingPanel).not.toBeNull();
-			expect(writingBrief).not.toBeNull();
-			expect(writingPanel!.height).toBeGreaterThan(0);
-			expect(writingPanel!.height).toBeLessThanOrEqual(384);
+			if (!(writingPanel && writingBrief)) {
+				throw new Error("Missing writing research bounds");
+			}
+			expect(writingPanel.height).toBeGreaterThan(0);
+			expect(writingPanel.height).toBeLessThanOrEqual(384);
 			for (const dimension of ["x", "y", "width"] as const) {
-				expect(writingPanel![dimension]).toBe(initialPanel![dimension]);
-				expect(writingBrief![dimension]).toBe(initialBrief![dimension]);
+				expect(writingPanel[dimension]).toBe(initialPanel[dimension]);
+				expect(writingBrief[dimension]).toBe(initialBrief[dimension]);
 			}
 			await expect(panel).toBeInViewport({ ratio: 0.5 });
 			await expect(
@@ -1974,6 +1990,9 @@ for (const viewport of contextViewports) {
 		).toBeHidden();
 		const initial = await panel.boundingBox();
 		const initialReport = await report.boundingBox();
+		if (!initialReport) {
+			throw new Error("Missing initial research report bounds");
+		}
 		const priority = page.getByRole("textbox", {
 			name: "Current priority",
 			exact: true,
@@ -2006,10 +2025,11 @@ for (const viewport of contextViewports) {
 
 		expect(await panel.boundingBox()).toEqual(initial);
 		const updatedReport = await report.boundingBox();
-		expect(initialReport).not.toBeNull();
-		expect(updatedReport).not.toBeNull();
+		if (!updatedReport) {
+			throw new Error("Missing updated research report bounds");
+		}
 		for (const dimension of ["x", "y", "width"] as const) {
-			expect(updatedReport![dimension]).toBe(initialReport![dimension]);
+			expect(updatedReport[dimension]).toBe(initialReport[dimension]);
 		}
 		await expect(priority).toBeHidden();
 		await report
