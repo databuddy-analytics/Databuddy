@@ -95,6 +95,26 @@ const ANOMALY_METRICS: AnomalyMetric[] = [
 
 const SESSION_DERIVED_METRICS = new Set(["bounce_rate", "session_duration"]);
 
+const LOWER_IS_BETTER_METRICS = new Set([
+	"bounce_rate",
+	"error_count",
+	"lcp",
+	"inp",
+]);
+
+function isImprovement(
+	metric: string,
+	current: number,
+	baseline: number
+): boolean {
+	if (current === baseline) {
+		return false;
+	}
+	return LOWER_IS_BETTER_METRICS.has(metric)
+		? current < baseline
+		: current > baseline;
+}
+
 function median(values: number[]): number {
 	if (values.length === 0) {
 		return 0;
@@ -262,9 +282,7 @@ export function makeWowSignal(
 				? 0
 				: 100
 			: safeDeltaPercent(current, baseline);
-	const lowerIsBetter = ["bounce_rate", "error_count", "lcp", "inp"].includes(
-		metric
-	);
+	const lowerIsBetter = LOWER_IS_BETTER_METRICS.has(metric);
 	const direction = lowerIsBetter
 		? current > baseline
 			? "up"
@@ -280,7 +298,11 @@ export function makeWowSignal(
 		current: options.round ? round2(current) : current,
 		baseline: options.round ? round2(baseline) : baseline,
 		deltaPercent: round2(pct),
-		severity: assignSeverity(undefined, pct),
+		severity: assignSeverity(
+			undefined,
+			pct,
+			isImprovement(metric, current, baseline)
+		),
 		detectedAt,
 	};
 }
@@ -827,11 +849,12 @@ function weeklySessionVolume(
 
 function assignSeverity(
 	zScore: number | undefined,
-	deltaPercent: number
+	deltaPercent: number,
+	improvement: boolean
 ): "critical" | "warning" | "info" {
 	const absZ = zScore === undefined ? 0 : Math.abs(zScore);
 	const absD = Math.abs(deltaPercent);
-	if (absZ >= 3.5 || absD >= 60) {
+	if (!improvement && (absZ >= 3.5 || absD >= 60)) {
 		return "critical";
 	}
 	if (absZ >= 3.0 || absD >= 50) {
@@ -1400,7 +1423,11 @@ function detectZscore(sorted: Record<string, unknown>[]): DetectedSignal[] {
 			current: currentValue,
 			baseline: baselineMedian,
 			deltaPercent: Number(delta.toFixed(2)),
-			severity: assignSeverity(zScore, delta),
+			severity: assignSeverity(
+				zScore,
+				delta,
+				isImprovement(metric.key, currentValue, baselineMedian)
+			),
 			detectedAt: latestDate,
 		});
 	}
