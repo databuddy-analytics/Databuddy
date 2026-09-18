@@ -1418,7 +1418,7 @@ const addUsersToFlagTool = defineMcpTool(
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
 			flagId: z.string(),
-			users: z.array(z.string().min(1)).min(1).max(500),
+			users: z.array(z.string().trim().min(1)).min(1).max(500),
 			matchBy: z.enum(["email", "user_id"]).optional().default("email"),
 			mode: z.enum(["append", "replace"]).optional().default("append"),
 			confirmed: ConfirmedSchema,
