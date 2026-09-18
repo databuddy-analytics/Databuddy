@@ -56,7 +56,7 @@ export default function HistoryPage() {
 	if (error) {
 		return (
 			<main className="min-h-0 flex-1 overflow-y-auto">
-				<div className="mx-auto max-w-2xl p-5">
+				<div className="mx-auto max-w-4xl p-5">
 					<ErrorState error={error} onRetry={refetch} />
 				</div>
 			</main>
@@ -65,7 +65,7 @@ export default function HistoryPage() {
 
 	return (
 		<main className="min-h-0 flex-1 overflow-y-auto">
-			<div className="mx-auto max-w-2xl space-y-6 p-5">
+			<div className="mx-auto max-w-4xl space-y-6 p-5">
 				<Card>
 					<Card.Header className="flex-row items-start justify-between gap-4">
 						<div>
@@ -283,7 +283,7 @@ function SubscriptionItem({
 
 function HistorySkeleton() {
 	return (
-		<div className="mx-auto max-w-2xl space-y-6 p-5">
+		<div className="mx-auto max-w-4xl space-y-6 p-5">
 			<Card>
 				<Card.Header className="flex-row items-start justify-between gap-4">
 					<div className="space-y-1">
