@@ -6,7 +6,7 @@ export const GeoBuilders: Record<string, SimpleQueryConfig> = {
 		meta: {
 			title: "Countries",
 			description:
-				"Website traffic breakdown by country to understand your global audience distribution.",
+				"Page-view traffic by known country; empty locations are excluded. Visitors are counted per country and can overlap across countries. Normalized country aliases sum their visitor counts. percentage is each group's visitors divided by the sum of visitors in the query-limited groups before agent row truncation, not site-wide unique visitors.",
 			category: "Geography",
 			tags: ["countries", "geography", "international", "audience"],
 			output_fields: [
@@ -32,7 +32,8 @@ export const GeoBuilders: Record<string, SimpleQueryConfig> = {
 					name: "percentage",
 					type: "number",
 					label: "Traffic %",
-					description: "Percentage of total traffic",
+					description:
+						"Share of summed visitor counts in query-limited country groups, excluding unknown locations",
 					unit: "%",
 				},
 			],

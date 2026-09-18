@@ -6,6 +6,7 @@ import {
 	callRPCProcedure,
 	createToolLogger,
 	getAppContext,
+	resolveToolDateRange,
 	resolveToolWebsite,
 } from "./utils";
 
@@ -51,7 +52,7 @@ export function createFunnelTools() {
 
 	const getFunnelAnalyticsTool = tool({
 		description:
-			"Funnel definition, measured dates and distinct visitor counts. savedDefinition is the saved configuration; measurement.definition includes read-time cohort filters. A filtered measurement alone does not establish a saved-definition change. Entrants match the first step; completions reach every ordered step. These are visitors, not projects, occurrences or attempts. Optional cohort measures browser, device, country or campaign segments without editing the saved definition. Compare cohorts and periods with parallel calls. Reuse matching verified measurements; remeasure stale or conflicting context.",
+			"Funnel definition, measured dates and distinct visitor counts. savedDefinition is the saved configuration; measurement.definition includes read-time cohort filters. A filtered measurement alone does not establish a saved-definition change. Entrants match the first step; completions reach every ordered step within a 24-hour completion window. Final-step users are ordered-path completions, not all visitors to that page/event. These are visitors, not projects, occurrences or attempts. Optional cohort measures browser, device, country or campaign segments without editing the saved definition. Compare cohorts and periods with parallel calls. Omitted dates default to last 30 calendar days in the conversation timezone. Reuse matching verified measurements; remeasure stale or conflicting context.",
 		inputSchema: funnelAnalyticsInputSchema,
 		execute: async (
 			{ funnelId, websiteId: inputWebsiteId, startDate, endDate, cohort },
@@ -66,8 +67,7 @@ export function createFunnelTools() {
 					{
 						funnelId,
 						websiteId,
-						startDate,
-						endDate,
+						...resolveToolDateRange({ startDate, endDate }, context),
 						cohort: cohort ?? undefined,
 					},
 					context
@@ -89,7 +89,7 @@ export function createFunnelTools() {
 
 	const getFunnelAnalyticsByReferrerTool = tool({
 		description:
-			"Distinct visitors entering the first funnel step and completing its ordered steps, grouped by referrer/source. Counts are visitors, not projects or attempts. Accepts one date range; compare periods with separate calls.",
+			"Distinct visitors entering the first funnel step and completing its ordered steps, within a 24-hour completion window, grouped by the visitor's earliest first-step referrer in the queried period. Counts are visitors, not projects or attempts. Omitted dates default to last 30 calendar days in the conversation timezone. Accepts one date range; compare periods with separate calls.",
 		inputSchema: funnelAnalyticsInputSchema,
 		execute: async (
 			{ funnelId, websiteId: inputWebsiteId, startDate, endDate, cohort },
@@ -104,8 +104,7 @@ export function createFunnelTools() {
 					{
 						funnelId,
 						websiteId,
-						startDate,
-						endDate,
+						...resolveToolDateRange({ startDate, endDate }, context),
 						cohort: cohort ?? undefined,
 					},
 					context

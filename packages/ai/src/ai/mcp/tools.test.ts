@@ -281,8 +281,11 @@ describe("MCP tool invariants", () => {
 		}
 	});
 
-	test("resolves MCP date presets instead of ignoring them", () => {
-		const { from, to } = resolveMcpDateRange({ preset: "last_30d" });
+	test.each([
+		{},
+		{ preset: "last_30d" as const },
+	])("resolves MCP presets and defaults to 30 days: %j", (range) => {
+		const { from, to } = resolveMcpDateRange(range);
 		expect(from).toMatch(/^\d{4}-\d{2}-\d{2}$/);
 		expect(to).toMatch(/^\d{4}-\d{2}-\d{2}$/);
 		expect(

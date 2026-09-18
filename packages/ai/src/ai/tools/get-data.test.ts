@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, mock, spyOn } from "bun:test";
-import { asSchema } from "ai";
+import { asSchema, generateText } from "ai";
+import { MockLanguageModelV3 } from "ai/test";
 import { SimpleQueryBuilder } from "../../query/simple-builder";
 import { discoverQueryTypesTool } from "./discover-query-types";
 import { getDataTool } from "./get-data";
@@ -18,6 +19,153 @@ const options = {
 afterEach(() => mock.restore());
 
 describe("analytics tool contract", () => {
+	it("accepts strict-provider null fields through the native SDK and resolves the default", async () => {
+		spyOn(SimpleQueryBuilder.prototype, "execute").mockResolvedValue([]);
+		const model = new MockLanguageModelV3({
+			doGenerate: async () => ({
+				content: [
+					{
+						type: "tool-call",
+						toolCallId: "native-null-inputs",
+						toolName: "get_data",
+						input: JSON.stringify({
+							queries: [
+								{
+									type: "country",
+									websiteId: null,
+									from: null,
+									to: null,
+									preset: null,
+									timeUnit: null,
+									filters: null,
+									groupBy: null,
+									orderBy: null,
+									limit: null,
+									timezone: null,
+								},
+							],
+						}),
+					},
+				],
+				finishReason: { unified: "tool-calls", raw: "tool_calls" },
+				usage: { inputTokens: { total: 1 }, outputTokens: { total: 1 } },
+				warnings: [],
+			}),
+		});
+		const result = await generateText({
+			model,
+			prompt: "Show countries",
+			tools: { get_data: getDataTool },
+			experimental_context: options.experimental_context,
+		});
+		expect(result.toolResults[0]?.output).toMatchObject({
+			results: {
+				country: {
+					from: "2026-08-07",
+					to: "2026-09-05",
+					timezone: "UTC",
+					websiteId: "site-test",
+				},
+			},
+		});
+	});
+
+	it.each([
+		{ preset: undefined, from: "2026-08-06" },
+		{ preset: "last_30d" as const, from: "2026-08-06" },
+		{ preset: "last_7d" as const, from: "2026-08-29" },
+	])("resolves $preset as inclusive calendar dates using the conversation clock/timezone", async ({
+		preset,
+		from,
+	}) => {
+		const execute = spyOn(
+			SimpleQueryBuilder.prototype,
+			"execute"
+		).mockResolvedValue([]);
+		if (!getDataTool.execute) {
+			throw new Error("Missing data tool");
+		}
+		const result = await getDataTool.execute(
+			{ queries: [{ type: "country", preset }] },
+			{
+				...options,
+				experimental_context: {
+					...options.experimental_context,
+					timezone: "America/Los_Angeles",
+				},
+			}
+		);
+		expect(result).toMatchObject({
+			results: {
+				country: {
+					from,
+					to: "2026-09-04",
+					timezone: "America/Los_Angeles",
+					definition: expect.stringContaining("empty locations are excluded"),
+				},
+			},
+		});
+		expect(execute).toHaveBeenCalledOnce();
+	});
+
+	it("keeps timestamp ranges and isolates invalid timezones from other batch queries", async () => {
+		const execute = spyOn(
+			SimpleQueryBuilder.prototype,
+			"execute"
+		).mockResolvedValue([]);
+		const schema = asSchema(getDataTool.inputSchema);
+		if (!(schema.validate && getDataTool.execute)) {
+			throw new Error("Missing data tool");
+		}
+		const request = {
+			queries: [
+				{ type: "country", timezone: "not/a-timezone" },
+				{
+					type: "traffic_sources",
+					from: "2026-08-01 12:00:00Z",
+					to: "2026-08-01T13:00:00.000Z",
+				},
+			],
+		};
+		expect((await schema.validate(request)).success).toBe(true);
+		expect(
+			(
+				await schema.validate({
+					queries: [
+						{ type: "country", from: "2026-08-01T12:00:00Z", to: "2026-08-01" },
+					],
+				})
+			).success
+		).toBe(true);
+		const result = await getDataTool.execute(request, options);
+		expect(result).toMatchObject({
+			results: {
+				country: { error: expect.any(String), data: [] },
+				traffic_sources: {
+					from: request.queries[1]?.from,
+					to: request.queries[1]?.to,
+				},
+			},
+		});
+		expect(execute).toHaveBeenCalledOnce();
+	});
+
+	it.each([
+		{ from: "2026-08-01" },
+		{ to: "2026-08-31" },
+		{ from: "2026-08-31", to: "2026-08-01" },
+		{ from: "2026-08-01", to: "2026-08-31", preset: "last_30d" },
+	])("rejects invalid explicit dates instead of replacing them with defaults: %j", async (dates) => {
+		const schema = asSchema(getDataTool.inputSchema);
+		if (!schema.validate) {
+			throw new Error("Missing validator");
+		}
+		expect(
+			(await schema.validate({ queries: [{ type: "country", ...dates }] }))
+				.success
+		).toBe(false);
+	});
+
 	it.each([
 		{ target: "event" },
 		{ having: false },

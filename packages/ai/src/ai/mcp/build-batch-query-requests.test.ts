@@ -2,6 +2,25 @@ import { describe, expect, it } from "bun:test";
 import { buildBatchQueryRequests, formatMcpQueryResults } from "./mcp-utils";
 
 describe("buildBatchQueryRequests", () => {
+	it("defaults to 30 inclusive calendar days using the supplied clock and timezone", () => {
+		const plan = buildBatchQueryRequests(
+			[{ type: "country" }],
+			"website-1",
+			"America/Los_Angeles",
+			new Date("2026-09-05T00:00:00Z")
+		);
+		expect(plan.invalid).toEqual([]);
+		expect(plan.requests[0]).toMatchObject({
+			from: "2026-08-06",
+			to: "2026-09-04",
+		});
+		expect(
+			formatMcpQueryResults(plan, [{ type: "country", data: [] }])[0]
+		).toMatchObject({
+			definition: expect.stringContaining("empty locations are excluded"),
+		});
+	});
+
 	it("keeps valid queries when one in the batch is invalid", () => {
 		const { requests, invalid } = buildBatchQueryRequests(
 			[

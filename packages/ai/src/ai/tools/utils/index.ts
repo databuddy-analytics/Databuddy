@@ -1,6 +1,7 @@
 /** biome-ignore-all lint/performance/noBarrelFile: no barrel file */
 export {
 	getAppContext,
+	resolveToolDateRange,
 	resolveToolWebsite,
 	toolDateRangeError,
 } from "./context";

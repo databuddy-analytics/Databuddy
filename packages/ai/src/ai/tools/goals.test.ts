@@ -7,6 +7,7 @@ const invoke = mock<typeof callRPCProcedure>(async () => current);
 mock.module("./utils/rpc", () => ({ callRPCProcedure: invoke }));
 
 const { createGoalTools } = await import("./goals");
+const { createFunnelTools } = await import("./funnels");
 
 test.each([
 	undefined,
@@ -76,4 +77,67 @@ test.each([
 	expect(invoke.mock.calls).toEqual([
 		["goals", "getById", { id: current.id }, options.experimental_context],
 	]);
+});
+
+test("goal and funnel analytics share the conversation date default and preserve explicit ranges", async () => {
+	const options: ToolExecutionOptions = {
+		toolCallId: "analytics-defaults",
+		messages: [],
+		experimental_context: {
+			currentDateTime: "2026-09-05T00:00:00Z",
+			timezone: "America/Los_Angeles",
+			websiteId: "site-test",
+		},
+	};
+	const funnels = createFunnelTools();
+	const cases = [
+		{
+			definition: createGoalTools().get_goal_analytics,
+			input: { goalId: "goal-1" },
+			router: "goals",
+			procedure: "getAnalytics",
+		},
+		{
+			definition: funnels.get_funnel_analytics,
+			input: { funnelId: "funnel-1" },
+			router: "funnels",
+			procedure: "getAnalytics",
+		},
+		{
+			definition: funnels.get_funnel_analytics_by_referrer,
+			input: { funnelId: "funnel-1" },
+			router: "funnels",
+			procedure: "getAnalyticsByReferrer",
+		},
+	];
+	for (const { definition, input, router, procedure } of cases) {
+		for (const dates of [
+			{},
+			{ startDate: "2026-07-01", endDate: "2026-07-31" },
+		]) {
+			invoke.mockClear();
+			const schema = asSchema(definition.inputSchema);
+			if (!(schema.validate && definition.execute)) {
+				throw new Error("Missing analytics tool");
+			}
+			const parsed = await schema.validate({ ...input, ...dates });
+			if (!parsed.success) {
+				throw parsed.error;
+			}
+			// Each native schema supplies its own goal/funnel identifier.
+			await definition.execute(parsed.value as never, options);
+			expect(invoke.mock.calls[0]).toEqual([
+				router,
+				procedure,
+				{
+					...input,
+					websiteId: "site-test",
+					cohort: undefined,
+					startDate: dates.startDate ?? "2026-08-06",
+					endDate: dates.endDate ?? "2026-09-04",
+				},
+				options.experimental_context,
+			]);
+		}
+	}
 });
