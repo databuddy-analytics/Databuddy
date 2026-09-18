@@ -11,7 +11,7 @@ import {
 	type SlackInvestigationReplyHandler,
 } from "@/slack/listeners";
 import { SLACK_COPY, SLACK_SUGGESTED_PROMPTS } from "@/slack/messages";
-import type { SlackThreadReplyGate } from "@/slack/thread-relevance";
+import type { shouldReplyToSlackThreadFollowUp } from "@/slack/thread-relevance";
 import type { SlackThreadQueueStore } from "@/slack/thread-queue";
 
 type Handler = (input: Record<string, unknown>) => Promise<void>;
@@ -182,7 +182,7 @@ function registerFakeSlackListeners(
 	agent: Pick<DatabuddyAgentClient, "stream">,
 	installations: SlackInstallationServices,
 	queue: SlackThreadQueueStore,
-	threadReplyGate?: SlackThreadReplyGate,
+	shouldReply?: typeof shouldReplyToSlackThreadFollowUp,
 	investigationReplyHandler: SlackInvestigationReplyHandler = async () => false
 ): void {
 	registerSlackListeners(
@@ -190,7 +190,7 @@ function registerFakeSlackListeners(
 		agent,
 		installations,
 		queue,
-		threadReplyGate,
+		shouldReply,
 		investigationReplyHandler
 	);
 }
@@ -662,17 +662,15 @@ describe("Slack listeners", () => {
 		const { agent, runs } = createAgent();
 		const queue = createQueue();
 		const { client } = createClient();
-		const threadReplyGate: SlackThreadReplyGate = {
-			shouldReply: async () => {
-				throw new Error("message event should not reach the thread reply gate");
-			},
+		const shouldReply = async () => {
+			throw new Error("message event should not reach the thread reply gate");
 		};
 		registerFakeSlackListeners(
 			app,
 			agent,
 			createInstallations(),
 			queue,
-			threadReplyGate
+			shouldReply
 		);
 
 		await app.messages[0]?.({
@@ -700,20 +698,18 @@ describe("Slack listeners", () => {
 		const { agent, runs } = createAgent();
 		const queue = createQueue({ tryAcquire: async () => false });
 		const { client } = createClient();
-		const threadReplyGate: SlackThreadReplyGate = {
-			shouldReply: async () => ({
-				confidence: 0.9,
-				reason: "direct_request",
-				shouldReply: true,
-				source: "model",
-			}),
-		};
+		const shouldReply: typeof shouldReplyToSlackThreadFollowUp = async () => ({
+			confidence: 0.9,
+			reason: "relevant",
+			shouldReply: true,
+			source: "model",
+		});
 		registerFakeSlackListeners(
 			app,
 			agent,
 			createInstallations(),
 			queue,
-			threadReplyGate
+			shouldReply
 		);
 
 		await app.messages[0]?.({
@@ -748,20 +744,18 @@ describe("Slack listeners", () => {
 		const { agent, runs } = createAgent();
 		const queue = createQueue({ tryAcquire: async () => false });
 		const { client, reactionAdds } = createClient();
-		const threadReplyGate: SlackThreadReplyGate = {
-			shouldReply: async () => ({
-				confidence: 0.95,
-				reason: "side_chatter",
-				shouldReply: false,
-				source: "model",
-			}),
-		};
+		const shouldReply: typeof shouldReplyToSlackThreadFollowUp = async () => ({
+			confidence: 0.95,
+			reason: "irrelevant",
+			shouldReply: false,
+			source: "model",
+		});
 		registerFakeSlackListeners(
 			app,
 			agent,
 			createInstallations(),
 			queue,
-			threadReplyGate
+			shouldReply
 		);
 
 		await app.messages[0]?.({

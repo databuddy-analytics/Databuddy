@@ -1,6 +1,7 @@
 import { createGateway } from "@ai-sdk/gateway";
 import { z } from "zod";
 import { isAiGatewayConfigured } from "../ai/config/models";
+import type { DatabuddyAgentSlackMessage } from "../ai/mcp/slack-context";
 
 const DEFAULT_TIMEOUT_MS = 2000;
 const MAX_THREAD_MESSAGES = 30;
@@ -20,30 +21,15 @@ const ReplyAnswerSchema = z.strictObject({
 
 export interface SlackThreadReplyRelevance {
 	confidence: number;
-	reason:
-		| "relevant"
-		| "irrelevant"
-		| "bot_mentioned"
-		| "direct_request"
-		| "analytics_request"
-		| "human_to_human"
-		| "side_chatter"
-		| "ambiguous";
+	reason: "relevant" | "irrelevant";
 	shouldReply: boolean;
-}
-
-export interface SlackThreadReplyMessage {
-	authorName?: string;
-	text: string;
-	ts?: string;
-	userId?: string;
 }
 
 export interface SlackThreadReplyRelevanceInput {
 	botUserId?: string;
 	currentUserId?: string;
 	text: string;
-	threadMessages?: SlackThreadReplyMessage[];
+	threadMessages?: DatabuddyAgentSlackMessage[];
 	timeoutMs?: number;
 }
 
@@ -58,12 +44,11 @@ export async function classifySlackThreadReplyRelevance({
 		return null;
 	}
 
-	const controller = new AbortController();
-	const timeout = setTimeout(() => controller.abort(), timeoutMs);
+	const signal = AbortSignal.timeout(timeoutMs);
 
 	try {
 		const result = await relevanceModel.doEvaluate({
-			abortSignal: controller.signal,
+			abortSignal: signal,
 			providerOptions: { gateway: { zeroDataRetention: true } },
 			questions: {
 				reply: {
@@ -92,7 +77,7 @@ export async function classifySlackThreadReplyRelevance({
 					})),
 			},
 		});
-		controller.signal.throwIfAborted();
+		signal.throwIfAborted();
 		// The low-level provider does not validate question IDs or probability bounds.
 		const parsed = ReplyAnswerSchema.safeParse(result.answers);
 		if (!parsed.success) {
@@ -109,7 +94,5 @@ export async function classifySlackThreadReplyRelevance({
 	} catch {
 		// Preserve the caller's deterministic fallback on provider errors/timeouts.
 		return null;
-	} finally {
-		clearTimeout(timeout);
 	}
 }
