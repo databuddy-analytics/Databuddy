@@ -323,7 +323,7 @@ const getDataTool = defineMcpTool(
 	{
 		name: "get_data",
 		description:
-			"Query a website (batch 2-10). Use preset or from/to; default last_30d. Returns definition, query scope, rowCount, returnedRows, truncated and up to 20 rows. Read definition for population limits; capabilities/get_schema to discover.",
+			"Run one query or batch 2-10 for a website. Use preset or from/to; default last_30d. Returns definition, scope, rowCount, returnedRows, truncated and up to 20 rows. Read definition for population limits; capabilities/get_schema to discover.",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
 			type: z

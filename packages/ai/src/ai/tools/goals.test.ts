@@ -1,5 +1,6 @@
 import { expect, mock, test } from "bun:test";
-import { asSchema, type ToolExecutionOptions } from "ai";
+import { asSchema, type Tool, type ToolExecutionOptions } from "ai";
+import type { AppContext } from "../config/context";
 import type { callRPCProcedure } from "./utils/rpc";
 
 const current = { id: "goal-1", name: "Checkout", isActive: true };
@@ -16,10 +17,16 @@ test.each([
 ])("goal updates preview until confirmed, apply requested fields, and skip empty updates (confirmed=%s)", async (confirmed) => {
 	const definition = createGoalTools().update_goal;
 	const schema = asSchema(definition.inputSchema);
+	const context: AppContext = {
+		chatId: "goal-update",
+		currentDateTime: "2026-09-05T00:00:00Z",
+		timezone: "UTC",
+		mutationMode: "allow",
+	};
 	const options: ToolExecutionOptions = {
 		toolCallId: "goal-update",
 		messages: [],
-		experimental_context: { mutationMode: "allow" },
+		experimental_context: context,
 	};
 	if (!(schema.validate && definition.execute)) {
 		throw new Error("Missing goal tool validator or executor");
@@ -38,12 +45,7 @@ test.each([
 	if (confirmed) {
 		expect(result).toMatchObject({ success: true, goal: current });
 		expect(invoke.mock.calls).toEqual([
-			[
-				"goals",
-				"update",
-				{ id: current.id, isActive: false },
-				options.experimental_context,
-			],
+			["goals", "update", { id: current.id, isActive: false }, context],
 		]);
 	} else {
 		expect(result).toMatchObject({
@@ -53,7 +55,7 @@ test.each([
 			updates: { isActive: false },
 		});
 		expect(invoke.mock.calls).toEqual([
-			["goals", "getById", { id: current.id }, options.experimental_context],
+			["goals", "getById", { id: current.id }, context],
 		]);
 	}
 
@@ -75,42 +77,28 @@ test.each([
 		updates: {},
 	});
 	expect(invoke.mock.calls).toEqual([
-		["goals", "getById", { id: current.id }, options.experimental_context],
+		["goals", "getById", { id: current.id }, context],
 	]);
 });
 
 test("goal and funnel analytics share the conversation date default and preserve explicit ranges", async () => {
+	const context: AppContext = {
+		chatId: "analytics-defaults",
+		currentDateTime: "2026-09-05T00:00:00Z",
+		timezone: "America/Los_Angeles",
+		websiteId: "site-test",
+	};
 	const options: ToolExecutionOptions = {
 		toolCallId: "analytics-defaults",
 		messages: [],
-		experimental_context: {
-			currentDateTime: "2026-09-05T00:00:00Z",
-			timezone: "America/Los_Angeles",
-			websiteId: "site-test",
-		},
+		experimental_context: context,
 	};
-	const funnels = createFunnelTools();
-	const cases = [
-		{
-			definition: createGoalTools().get_goal_analytics,
-			input: { goalId: "goal-1" },
-			router: "goals",
-			procedure: "getAnalytics",
-		},
-		{
-			definition: funnels.get_funnel_analytics,
-			input: { funnelId: "funnel-1" },
-			router: "funnels",
-			procedure: "getAnalytics",
-		},
-		{
-			definition: funnels.get_funnel_analytics_by_referrer,
-			input: { funnelId: "funnel-1" },
-			router: "funnels",
-			procedure: "getAnalyticsByReferrer",
-		},
-	];
-	for (const { definition, input, router, procedure } of cases) {
+	async function checkDateRanges<Input, Output>(
+		definition: Tool<Input, Output>,
+		input: Input,
+		router: string,
+		procedure: string
+	) {
 		for (const dates of [
 			{},
 			{ startDate: "2026-07-01", endDate: "2026-07-31" },
@@ -124,8 +112,7 @@ test("goal and funnel analytics share the conversation date default and preserve
 			if (!parsed.success) {
 				throw parsed.error;
 			}
-			// Each native schema supplies its own goal/funnel identifier.
-			await definition.execute(parsed.value as never, options);
+			await definition.execute(parsed.value, options);
 			expect(invoke.mock.calls[0]).toEqual([
 				router,
 				procedure,
@@ -136,8 +123,27 @@ test("goal and funnel analytics share the conversation date default and preserve
 					startDate: dates.startDate ?? "2026-08-06",
 					endDate: dates.endDate ?? "2026-09-04",
 				},
-				options.experimental_context,
+				context,
 			]);
 		}
 	}
+	await checkDateRanges(
+		createGoalTools().get_goal_analytics,
+		{ goalId: "goal-1" },
+		"goals",
+		"getAnalytics"
+	);
+	const funnels = createFunnelTools();
+	await checkDateRanges(
+		funnels.get_funnel_analytics,
+		{ funnelId: "funnel-1" },
+		"funnels",
+		"getAnalytics"
+	);
+	await checkDateRanges(
+		funnels.get_funnel_analytics_by_referrer,
+		{ funnelId: "funnel-1" },
+		"funnels",
+		"getAnalyticsByReferrer"
+	);
 });
