@@ -24,6 +24,12 @@ interface TooltipState {
 	y: number;
 }
 
+interface MapColors {
+	backdrop: string;
+	land: string;
+	outline: string;
+}
+
 interface MapGeometry {
 	baseCanvas: HTMLCanvasElement;
 	countryPixels: Map<number, number[]>;
@@ -63,8 +69,7 @@ function getCountryId(countryCode: string): number | undefined {
 function buildMapGeometry(
 	width: number,
 	height: number,
-	background: string,
-	land: string
+	colors: MapColors
 ): MapGeometry {
 	const projection = geoNaturalEarth1().fitExtent(
 		[
@@ -83,10 +88,10 @@ function buildMapGeometry(
 		throw new Error("Unable to create the realtime map canvas");
 	}
 
-	baseContext.fillStyle = background;
+	baseContext.fillStyle = colors.backdrop;
 	baseContext.fillRect(0, 0, width, height);
-	baseContext.fillStyle = land;
-	baseContext.strokeStyle = background;
+	baseContext.fillStyle = colors.land;
+	baseContext.strokeStyle = colors.outline;
 	baseContext.lineWidth = 0.5;
 	for (const country of WORLD_FEATURES) {
 		baseContext.beginPath();
@@ -237,12 +242,13 @@ export function RealtimeMap({ countries }: RealtimeMapProps) {
 			accent = getCssColor("--chart-4", accent);
 			highlight = getCssColor("--foreground", highlight);
 
-			mapGeometryRef.current = buildMapGeometry(
-				width,
-				height,
-				background,
-				getCssColor("--border", "transparent")
-			);
+			const border = getCssColor("--border", "transparent");
+			const isDark = document.documentElement.classList.contains("dark");
+			mapGeometryRef.current = buildMapGeometry(width, height, {
+				backdrop: background,
+				land: isDark ? background : border,
+				outline: isDark ? border : background,
+			});
 			brightnessRef.current.clear();
 			numericToCountryRef.current.clear();
 			hoveredId = null;
