@@ -52,7 +52,7 @@ function createFakeRedis() {
 			first: string,
 			second: string,
 			...args: string[]
-		) {
+		): Promise<number | [number, number] | string[]> {
 			if (script.includes("local stoppedAt")) {
 				const stoppedAt = values.get(second);
 				if (stoppedAt && Number(args[3]) <= Number(stoppedAt)) {

@@ -238,7 +238,7 @@ describe("Slack response control", () => {
 	it("surfaces coordination failure without running the model", async () => {
 		const { agent, runs } = createAgent();
 		const { client } = createClient();
-		const replies: unknown[] = [];
+		const replies: Parameters<SlackSay>[0][] = [];
 		const queue = createQueue({
 			tryAcquire: async () => {
 				throw new Error("Redis down");

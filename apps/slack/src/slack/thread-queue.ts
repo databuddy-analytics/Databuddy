@@ -11,7 +11,11 @@ const MAX_FOLLOW_UP_TEXT_CHARS = 4000;
 
 interface RedisLike {
 	del(...keys: string[]): Promise<number>;
-	eval(script: string, keyCount: number, ...args: string[]): Promise<unknown>;
+	eval(
+		script: string,
+		keyCount: number,
+		...args: string[]
+	): Promise<number | [number, number] | string[]>;
 	get(key: string): Promise<string | null>;
 	lrange(key: string, start: number, stop: number): Promise<string[]>;
 	lrem(key: string, count: number, value: string): Promise<number>;
