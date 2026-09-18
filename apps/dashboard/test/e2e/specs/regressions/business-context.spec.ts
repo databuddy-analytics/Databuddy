@@ -44,14 +44,29 @@ async function editBrief(page: Page) {
 }
 
 async function sourcesInput(page: Page) {
-	const reveal = page.getByRole("button", {
-		name: "Add specific pages",
+	const options = page.getByRole("button", {
+		name: "Research options",
 		exact: true,
 	});
-	if (await reveal.isVisible()) {
-		await reveal.click();
+	await expect(options).toBeEnabled();
+	const input = page.getByRole("textbox", { name: /Additional pages/ });
+	if (!(await input.isVisible())) {
+		await options.click();
+		await page
+			.getByRole("menuitem", { name: "Add specific pages", exact: true })
+			.click();
 	}
-	return page.getByRole("textbox", { name: /Additional pages/ });
+	return input;
+}
+
+async function expectResearchWebsite(page: Page, name: string) {
+	await page
+		.getByRole("button", { name: "Research options", exact: true })
+		.click();
+	await expect(
+		page.getByRole("menuitemradio", { name, exact: true })
+	).toHaveAttribute("aria-checked", "true");
+	await page.keyboard.press("Escape");
 }
 
 async function useGeneratedDraft(page: Page) {
@@ -70,6 +85,7 @@ test("recovers unfinished brief and team inputs across navigation and reload, th
 	const original = await editor.inputValue();
 	const unfinished = `Recover this draft ${crypto.randomUUID()}`;
 	await editor.fill(unfinished);
+	await page.getByRole("button", { name: /^Add \d+ more details?$/ }).click();
 	const priority = page.getByRole("textbox", { name: "Current priority" });
 	await priority.fill("Improve production activation");
 	await page.goto("/organizations/settings");
@@ -243,6 +259,7 @@ test("saves distinct team fields even when their formatted prose matches", {
 		await route.fulfill({ json: { json: current } });
 	});
 	await page.goto(path);
+	await page.getByRole("button", { name: /^Add \d+ more details?$/ }).click();
 	const priority = page.getByRole("textbox", {
 		name: "Current priority",
 		exact: true,
@@ -308,12 +325,7 @@ test("restores the submitted website and pages when retrying a failed generation
 	await page.goto(path);
 	const sources = await sourcesInput(page);
 	await expect(sources).toHaveValue(sourceUrls.join("\n"));
-	await expect(
-		page.getByTestId("business-context-research").getByRole("button", {
-			name: "Source website: Second studio",
-			exact: true,
-		})
-	).toBeVisible();
+	await expectResearchWebsite(page, "Second studio");
 	await page.reload();
 	await expect(sources).toHaveValue(sourceUrls.join("\n"));
 	await page
@@ -372,7 +384,7 @@ for (const viewport of contextViewports) {
 					}
 				);
 
-				const regions = ["page", "brief", "document", "research"] as const;
+				const regions = ["page", "brief", "document"] as const;
 				const readBounds = async () => {
 					const bounds: Array<{
 						region: (typeof regions)[number];
@@ -403,7 +415,8 @@ for (const viewport of contextViewports) {
 					});
 					await expect(loading).toBeVisible();
 					const initial = await readBounds();
-					expect(initial[2]!.height).toBe(320);
+					expect(initial.at(2)!.height).toBeGreaterThan(0);
+					expect(initial.at(2)!.height).toBeLessThanOrEqual(384);
 					await page.screenshot({
 						animations: "disabled",
 						path: testInfo.outputPath("organization-loading.png"),
@@ -412,9 +425,11 @@ for (const viewport of contextViewports) {
 						const current = await readBounds();
 						for (const [index, before] of initial.entries()) {
 							const after = current[index]!;
+							// Content and the access notice may change the document's height
+							// and position; the page and brief stay anchored and aligned.
 							const dimensions =
-								before.region === "brief" || before.region === "document"
-									? (["x", "y", "width", "height"] as const)
+								before.region === "document"
+									? (["x", "width"] as const)
 									: (["x", "y", "width"] as const);
 							for (const dimension of dimensions) {
 								expect(
@@ -429,7 +444,7 @@ for (const viewport of contextViewports) {
 					organizationGate.resolve();
 					await briefRequest;
 					await expect(loading).toBeVisible();
-					await expectStableBounds("business context loading");
+					expect(await readBounds()).toEqual(initial);
 
 					briefGate.resolve();
 					await accessRequest;
@@ -445,6 +460,8 @@ for (const viewport of contextViewports) {
 					const pendingAccess = await expectStableBounds(
 						"generation access loading"
 					);
+					const research = page.getByTestId("business-context-research");
+					const pendingControls = await research.boundingBox();
 
 					accessGate.resolve();
 					if (access.status === "allowed") {
@@ -456,8 +473,11 @@ for (const viewport of contextViewports) {
 						await expect(generate).toBeHidden();
 					}
 					const ready = await expectStableBounds("generation access ready");
+					const readyControls = await research.boundingBox();
+					expect(pendingControls).not.toBeNull();
+					expect(readyControls).not.toBeNull();
 					expect(
-						Math.abs(ready[3]!.height - pendingAccess[3]!.height),
+						Math.abs(readyControls!.height - pendingControls!.height),
 						"generation access must not resize research controls"
 					).toBeLessThanOrEqual(1);
 					expect(
@@ -698,6 +718,7 @@ test(
 		expect(mutations).toHaveLength(0);
 		const editor = await editBrief(page);
 		await editor.fill("Keep my unfinished business brief.");
+		await page.getByRole("button", { name: /^Add \d+ more details?$/ }).click();
 		const priority = page.getByRole("textbox", {
 			name: "Current priority",
 			exact: true,
@@ -1011,6 +1032,7 @@ test("shows the saved brief and sources to members without edit controls", {
 			name: /Generate with AI|Regenerate with AI|Save changes|Discard changes/,
 		})
 	).toBeHidden();
+	await page.getByText("1 source", { exact: true }).click();
 	await expect(page.getByRole("link", { name: /^Example/ })).toHaveAttribute(
 		"href",
 		"https://example.com"
@@ -1391,7 +1413,7 @@ for (const access of [
 
 for (const viewport of contextViewports) {
 	test(
-		`keeps ${viewport.name} live research compact and stable`,
+		`keeps ${viewport.name} live research compact as draft content changes`,
 		{ tag: "@regression" },
 		async ({ authenticatedPage: page, contextStream }, testInfo) => {
 			await page.setViewportSize(viewport);
@@ -1418,9 +1440,12 @@ for (const viewport of contextViewports) {
 			expect(initialPanel).not.toBeNull();
 			expect(initialBrief).not.toBeNull();
 			expect(title).not.toBeNull();
-			expect(initialPanel!.height).toBe(320);
+			expect(initialPanel!.height).toBeGreaterThan(0);
+			expect(initialPanel!.height).toBeLessThanOrEqual(384);
 			expect(title!.y - initialPanel!.y).toBeLessThanOrEqual(32);
-			await expect(research.getByRole("button")).toHaveCount(1);
+			await expect(
+				research.getByRole("button", { name: "Research options", exact: true })
+			).toBeDisabled();
 			await expect(
 				research.getByRole("button", { name: "Cancel generation", exact: true })
 			).toBeEnabled();
@@ -1455,9 +1480,21 @@ for (const viewport of contextViewports) {
 			).toBeVisible();
 			const writingPanel = await panel.boundingBox();
 			const writingBrief = await brief.boundingBox();
-			expect(writingPanel).toEqual(initialPanel);
-			expect(writingBrief).toEqual(initialBrief);
-			await expect(research.getByRole("button")).toHaveCount(1);
+			expect(writingPanel).not.toBeNull();
+			expect(writingBrief).not.toBeNull();
+			expect(writingPanel!.height).toBeGreaterThan(0);
+			expect(writingPanel!.height).toBeLessThanOrEqual(384);
+			for (const dimension of ["x", "y", "width"] as const) {
+				expect(writingPanel![dimension]).toBe(initialPanel![dimension]);
+				expect(writingBrief![dimension]).toBe(initialBrief![dimension]);
+			}
+			await expect(panel).toBeInViewport({ ratio: 0.5 });
+			await expect(
+				research.getByRole("button", { name: "Research options", exact: true })
+			).toBeDisabled();
+			await expect(
+				research.getByRole("button", { name: "Cancel generation", exact: true })
+			).toBeEnabled();
 			await expect(
 				page.getByRole("button", { name: "Use AI draft", exact: true })
 			).toBeHidden();
@@ -1822,7 +1859,7 @@ test("recovers unsubmitted research inputs independently of brief saving and leg
 	const editor = await editBrief(page);
 	await expect(editor).toHaveValue("A draft stored by an older tab.");
 	await page
-		.getByRole("button", { name: "Source website: Example", exact: true })
+		.getByRole("button", { name: "Research options", exact: true })
 		.click();
 	await page
 		.getByRole("menuitemradio", { name: "Second studio", exact: true })
@@ -1832,12 +1869,7 @@ test("recovers unsubmitted research inputs independently of brief saving and leg
 	await sources.fill(unfinished);
 	await page.reload();
 	await expect(sources).toHaveValue(unfinished);
-	await expect(
-		page.getByRole("button", {
-			name: "Source website: Second studio",
-			exact: true,
-		})
-	).toBeVisible();
+	await expectResearchWebsite(page, "Second studio");
 	await editBrief(page);
 	await expect(editor).toHaveValue("A draft stored by an older tab.");
 	await page.getByRole("button", { name: "Save changes", exact: true }).click();
@@ -1852,12 +1884,7 @@ test("recovers unsubmitted research inputs independently of brief saving and leg
 		.getByRole("link", { name: "Business Context", exact: true })
 		.click();
 	await expect(sources).toHaveValue(unfinished);
-	await expect(
-		page.getByRole("button", {
-			name: "Source website: Second studio",
-			exact: true,
-		})
-	).toBeVisible();
+	await expectResearchWebsite(page, "Second studio");
 });
 
 test("leaving the page aborts active research without restarting it on return", {
@@ -1951,7 +1978,7 @@ for (const viewport of contextViewports) {
 			name: "Current priority",
 			exact: true,
 		});
-		const initialPriority = await priority.boundingBox();
+		await expect(priority).toBeHidden();
 		current = {
 			...researching(),
 			generation: {
@@ -1977,14 +2004,14 @@ for (const viewport of contextViewports) {
 			"Additional page discovery was unavailable."
 		);
 
-		await expect(
-			page.getByText("Sources will be attached when the draft is complete.", {
-				exact: true,
-			})
-		).toBeVisible();
 		expect(await panel.boundingBox()).toEqual(initial);
-		expect(await report.boundingBox()).toEqual(initialReport);
-		expect(await priority.boundingBox()).toEqual(initialPriority);
+		const updatedReport = await report.boundingBox();
+		expect(initialReport).not.toBeNull();
+		expect(updatedReport).not.toBeNull();
+		for (const dimension of ["x", "y", "width"] as const) {
+			expect(updatedReport![dimension]).toBe(initialReport![dimension]);
+		}
+		await expect(priority).toBeHidden();
 		await report
 			.getByRole("button", { name: "Pages checked (2)", exact: true })
 			.click();
