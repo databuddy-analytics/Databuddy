@@ -196,7 +196,7 @@ export function TopupCard() {
 									return (
 										<div
 											className="flex items-center justify-between gap-3 border-border/50 border-b px-3 py-2 last:border-b-0"
-											key={tier.amount}
+											key={tier.to}
 										>
 											<div className="flex items-center gap-2">
 												<Text
