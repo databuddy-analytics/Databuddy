@@ -26,7 +26,7 @@ import {
 } from "@databuddy/shared/organization-business-context";
 import type { z } from "zod";
 
-type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+export type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export class BusinessContextError extends Error {
 	readonly code: "NOT_FOUND" | "CONFLICT";
@@ -75,6 +75,25 @@ export async function readOrganizationBusinessContext(
 	return state(row.state);
 }
 
+export async function lockOrganizationBusinessContext(
+	tx: Transaction,
+	organizationId: string
+): Promise<{ state: unknown } | undefined> {
+	await tx.execute(sql`SET LOCAL lock_timeout = '4s'`);
+	await tx.execute(
+		sql`SELECT pg_advisory_xact_lock(hashtext(${organizationId}))`
+	);
+	const [row] = await tx
+		.select({ state: organizationBusinessContexts.state })
+		.from(organization)
+		.leftJoin(
+			organizationBusinessContexts,
+			eq(organizationBusinessContexts.organizationId, organization.id)
+		)
+		.where(eq(organization.id, organizationId));
+	return row;
+}
+
 async function update(
 	organizationId: string,
 	change: (
@@ -84,18 +103,7 @@ async function update(
 	signal?: AbortSignal
 ): Promise<OrganizationBusinessContext> {
 	return await db.transaction(async (tx) => {
-		await tx.execute(sql`SET LOCAL lock_timeout = '4s'`);
-		await tx.execute(
-			sql`SELECT pg_advisory_xact_lock(hashtext(${organizationId}))`
-		);
-		const [row] = await tx
-			.select({ state: organizationBusinessContexts.state })
-			.from(organization)
-			.leftJoin(
-				organizationBusinessContexts,
-				eq(organizationBusinessContexts.organizationId, organization.id)
-			)
-			.where(eq(organization.id, organizationId));
+		const row = await lockOrganizationBusinessContext(tx, organizationId);
 		if (!row) {
 			throw new BusinessContextError("NOT_FOUND", "Organization not found");
 		}
