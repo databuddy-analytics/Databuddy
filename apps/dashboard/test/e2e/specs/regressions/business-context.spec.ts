@@ -146,7 +146,9 @@ function settings(): BusinessContextSettings {
 	};
 }
 
-function researching(): BusinessContextSettings {
+function researching(): BusinessContextSettings & {
+	generation: NonNullable<BusinessContextSettings["generation"]>;
+} {
 	return {
 		...settings(),
 		generation: {
@@ -1692,7 +1694,7 @@ test("saving manual edits stops the stream and ignores its late draft", {
 	contextStream.send({
 		...researching(),
 		generation: {
-			...researching().generation!,
+			...researching().generation,
 			status: "ready",
 			draft: { content: "A late AI answer must not replace it.", sources: [] },
 		},
@@ -1728,7 +1730,7 @@ test("an interrupted response preserves edits and does not restart generation on
 	current = {
 		...researching(),
 		generation: {
-			...researching().generation!,
+			...researching().generation,
 			progress: {
 				stage: "writing",
 				content: "## Partial answer\n\nStill incomplete.",
@@ -1890,7 +1892,7 @@ for (const viewport of contextViewports) {
 		let current: BusinessContextSettings = {
 			...settings(),
 			generation: {
-				...researching().generation!,
+				...researching().generation,
 				status: "ready",
 				research: {
 					startedAt: "2026-09-18T10:00:00Z",
@@ -1942,7 +1944,7 @@ for (const viewport of contextViewports) {
 		current = {
 			...researching(),
 			generation: {
-				...researching().generation!,
+				...researching().generation,
 				id: "22222222-2222-4222-8222-222222222222",
 				research: {
 					startedAt: "2026-09-18T11:00:00Z",
@@ -1978,10 +1980,13 @@ for (const viewport of contextViewports) {
 		await expect(
 			report.getByRole("link", { name: "Studio homepage", exact: true })
 		).toHaveAttribute("href", "https://example.com");
+		if (!current.generation) {
+			throw new Error("Expected a running generation in the fixture");
+		}
 		current = {
 			...current,
 			generation: {
-				...current.generation!,
+				...current.generation,
 				status: "ready",
 				draft: {
 					content: "The new completed proposal.",
@@ -2042,7 +2047,7 @@ test("keeps a failed streamed research report and its explanation visible on mob
 	current = {
 		...researching(),
 		generation: {
-			...researching().generation!,
+			...researching().generation,
 			research: {
 				startedAt: "2026-09-18T11:00:00Z",
 				pages: [{ url: "https://example.com", status: "failed" }],
@@ -2088,7 +2093,7 @@ test("answers research questions in existing team fields and saves them independ
 	let current: BusinessContextSettings = {
 		...settings(),
 		generation: {
-			...researching().generation!,
+			...researching().generation,
 			status: "ready",
 			research: {
 				startedAt: "2026-09-18T11:00:00Z",
@@ -2112,12 +2117,15 @@ test("answers research questions in existing team fields and saves them independ
 			return route.fulfill({ json: { json: allowedAccess } });
 		}
 		if (method === "save") {
+			if (!current.profile) {
+				throw new Error("Expected a saved business profile in the fixture");
+			}
 			const input = route.request().postDataJSON().json;
 			savedInputs.push(input);
 			current = {
 				...current,
 				profile: {
-					...current.profile!,
+					...current.profile,
 					content: input.content,
 					revision: 2,
 					teamContext: input.teamContext,
@@ -2168,7 +2176,7 @@ test("does not attach newer research metadata to an adopted legacy draft", {
 	tag: "@regression",
 }, async ({ authenticatedPage: page, e2eSession }) => {
 	const adopted = {
-		...researching().generation!,
+		...researching().generation,
 		status: "ready" as const,
 		draft: { content: "The older draft I selected.", sources: [] },
 	};
