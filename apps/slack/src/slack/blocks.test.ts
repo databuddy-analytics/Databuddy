@@ -198,7 +198,7 @@ describe("componentToBlocks charts", () => {
 		},
 		{
 			series: Array.from({ length: 13 }, (_, i) => `Metric ${i}`),
-			rows: [["Day", ...new Array(13).fill(1)]],
+			rows: [["Day", ...Array.from({ length: 13 }, () => 1)]],
 		},
 	])("keeps a table when Slack cannot faithfully chart %j", (override) => {
 		expect(firstBlock({ ...chart, ...override }).type).toBe("data_table");
@@ -211,7 +211,7 @@ describe("componentToBlocks charts", () => {
 			series: Array.from({ length: 12 }, (_, i) => `${i}`.padEnd(20, "x")),
 			rows: Array.from({ length: 20 }, (_, i) => [
 				`${i}`.padEnd(20, "x"),
-				...new Array(12).fill(i),
+				...Array.from({ length: 12 }, () => i),
 			]),
 		};
 		const blocks = componentsToBlocks([
