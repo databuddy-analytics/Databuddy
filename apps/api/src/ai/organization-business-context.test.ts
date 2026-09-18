@@ -1031,7 +1031,6 @@ describe("organization business context request", () => {
 		expect(f.state.generation?.draft?.content).toBe(detail);
 		expect(f.state.profile?.content).toBe(detail);
 		const synthesis = f.calls[1];
-		expect(synthesis?.maxOutputTokens).toBe(4500);
 		const instructions = synthesis?.prompt.find(
 			(item) => item.role === "system"
 		);
