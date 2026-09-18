@@ -7,7 +7,7 @@ export default function FAQ() {
 			<FaqSection
 				className="max-w-full"
 				items={homeFaqItems}
-				title="Frequently asked questions"
+				title="We give a FAQ"
 			/>
 		</div>
 	);
