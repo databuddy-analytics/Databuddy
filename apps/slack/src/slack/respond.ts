@@ -180,6 +180,11 @@ export async function streamAgentToSlack({
 		const finalText = fullText.trim();
 		const componentBlocks = componentsToBlocks(tail.components);
 		const trailingBlocks = [...componentBlocks, feedbackButtonsBlock()];
+		const fallbackBlocks = componentBlocks.some(
+			(block) => block.type === "data_visualization"
+		)
+			? [...componentsToBlocks(tail.components, false), feedbackButtonsBlock()]
+			: undefined;
 		setSlackLog(eventLog, {
 			slack_component_count: tail.components.length,
 			slack_block_count: componentBlocks.length,
@@ -190,6 +195,7 @@ export async function streamAgentToSlack({
 			return await finishStreamedResponse({
 				abortSignal,
 				blocks: trailingBlocks,
+				fallbackBlocks,
 				client,
 				eventLog,
 				finalText,
@@ -210,7 +216,14 @@ export async function streamAgentToSlack({
 			startedAt,
 		});
 		abortSignal?.throwIfAborted();
-		await postComponentBlocks({ blocks: trailingBlocks, client, logger, run });
+		await postComponentBlocks({
+			abortSignal,
+			blocks: trailingBlocks,
+			fallbackBlocks,
+			client,
+			logger,
+			run,
+		});
 		return result;
 	} catch (error) {
 		const abortReason =
@@ -272,12 +285,16 @@ export async function streamAgentToSlack({
 }
 
 async function postComponentBlocks({
+	abortSignal,
 	blocks,
+	fallbackBlocks,
 	client,
 	logger,
 	run,
 }: {
+	abortSignal?: AbortSignal;
 	blocks: Block[];
+	fallbackBlocks?: Block[];
 	client: Pick<SlackAgentClient, "apiCall">;
 	logger: LoggerLike;
 	run: SlackAgentRun;
@@ -286,14 +303,38 @@ async function postComponentBlocks({
 		return;
 	}
 	try {
-		await client.apiCall("chat.postMessage", {
+		await sendWithChartFallback(
+			(payload) =>
+				client.apiCall("chat.postMessage", {
+					blocks: payload,
+					channel: run.channelId,
+					text: SLACK_COPY.blockFallback,
+					thread_ts: run.threadTs ?? run.messageTs,
+				}),
 			blocks,
-			channel: run.channelId,
-			text: SLACK_COPY.blockFallback,
-			thread_ts: run.threadTs ?? run.messageTs,
-		});
+			fallbackBlocks,
+			abortSignal
+		);
 	} catch (error) {
+		abortSignal?.throwIfAborted();
 		logger.warn("Failed to post Slack data blocks", error);
+	}
+}
+
+async function sendWithChartFallback(
+	send: (blocks: Block[]) => Promise<unknown>,
+	blocks: Block[],
+	fallbackBlocks: Block[] | undefined,
+	abortSignal: AbortSignal | undefined
+): Promise<void> {
+	try {
+		await send(blocks);
+	} catch (error) {
+		if (!fallbackBlocks || getSlackApiErrorCode(error) !== "invalid_blocks") {
+			throw error;
+		}
+		abortSignal?.throwIfAborted();
+		await send(fallbackBlocks);
 	}
 }
 
@@ -412,6 +453,7 @@ async function finishStreamedResponse(
 	options: SuccessLogOptions & {
 		abortSignal?: AbortSignal;
 		blocks: Block[];
+		fallbackBlocks?: Block[];
 		client: Pick<SlackAgentClient, "chat">;
 		logger: LoggerLike;
 		run: SlackAgentRun;
@@ -426,7 +468,12 @@ async function finishStreamedResponse(
 			: { chunks: [markdownChunk(SLACK_COPY.noAnswer)] }),
 	};
 	try {
-		await options.client.chat.stopStream({ ...stop, blocks: options.blocks });
+		await sendWithChartFallback(
+			(blocks) => options.client.chat.stopStream({ ...stop, blocks }),
+			options.blocks,
+			options.fallbackBlocks,
+			options.abortSignal
+		);
 	} catch (error) {
 		const code = getSlackApiErrorCode(error);
 		if (

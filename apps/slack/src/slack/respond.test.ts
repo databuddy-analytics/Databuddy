@@ -287,6 +287,70 @@ describe("Databuddy Slack response streaming", () => {
 		expect(calls.at(-1)?.options).not.toHaveProperty("blocks");
 	});
 
+	it.each([
+		true,
+		false,
+	])("sends native charts, retrying rejected charts as tables (streaming: %s)", async (streaming) => {
+		const { calls, client } = createStreamClient(
+			streaming ? "stream_ts" : null
+		);
+		const attempts: unknown[] = [];
+		const stop = client.chat.stopStream;
+		const post = client.apiCall;
+		const rejectChart = (options: unknown) => {
+			attempts.push(options);
+			if (JSON.stringify(options).includes('"type":"data_visualization"')) {
+				throw new SlackApiError("invalid_blocks");
+			}
+		};
+		client.chat.stopStream = async (options) => {
+			rejectChart(options);
+			return stop(options);
+		};
+		client.apiCall = (async (method, options) => {
+			rejectChart(options);
+			return post(method, options);
+		}) as SlackAgentClient["apiCall"];
+		const result = await streamAgentToSlack({
+			agent: {
+				async *stream() {
+					yield 'Traffic was 42.\n{"type":"line-chart","title":"Traffic","series":["visitors"],"rows":[["May 1",42]]}';
+				},
+			},
+			client,
+			logger: silentLogger,
+			run: baseRun(),
+			say: async () => ({ ts: "say_ts" }),
+		});
+		expect(result).toMatchObject({ ok: true, streamed: streaming });
+		expect(attempts).toHaveLength(2);
+		expect(attempts[0]).toMatchObject({
+			blocks: [
+				expect.objectContaining({ type: "data_visualization" }),
+				expect.anything(),
+			],
+		});
+		expect(calls.at(-1)?.options).toMatchObject({
+			blocks: [
+				{
+					type: "data_table",
+					caption: "Traffic",
+					rows: [
+						[
+							{ type: "raw_text", text: "Period" },
+							{ type: "raw_text", text: "visitors" },
+						],
+						[
+							{ type: "raw_text", text: "May 1" },
+							{ type: "raw_number", value: 42, text: "42" },
+						],
+					],
+				},
+				expect.objectContaining({ type: "context_actions" }),
+			],
+		});
+	});
+
 	it("finishes valid prose when Slack rejects its component blocks", async () => {
 		const { calls, client } = createStreamClient();
 		const stop = client.chat.stopStream;
@@ -316,6 +380,41 @@ describe("Databuddy Slack response streaming", () => {
 			false
 		);
 		expect(JSON.stringify(calls)).not.toContain(SLACK_COPY.responseInterrupted);
+	});
+
+	it.each([
+		true,
+		false,
+	])("does not retry a rejected chart after cancellation (streaming: %s)", async (streaming) => {
+		const { calls, client } = createStreamClient(
+			streaming ? "stream_ts" : null
+		);
+		const controller = new AbortController();
+		const stop = client.chat.stopStream;
+		let attempts = 0;
+		const reject = () => {
+			attempts++;
+			controller.abort("stop");
+			throw new SlackApiError("invalid_blocks");
+		};
+		client.chat.stopStream = (options) =>
+			options.blocks ? reject() : stop(options);
+		client.apiCall = async () => reject();
+		const result = await streamAgentToSlack({
+			abortSignal: controller.signal,
+			agent: {
+				async *stream() {
+					yield '{"type":"line-chart","series":["visitors"],"rows":[["May 1",42]]}';
+				},
+			},
+			client,
+			logger: silentLogger,
+			run: baseRun(),
+			say: async () => ({ ts: "say_ts" }),
+		});
+		expect(result).toMatchObject({ aborted: true, ok: false });
+		expect(attempts).toBe(1);
+		expect(JSON.stringify(calls)).not.toContain("data_table");
 	});
 
 	it("closes without new prose when cancelled during component rejection", async () => {
