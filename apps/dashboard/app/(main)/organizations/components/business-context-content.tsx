@@ -168,14 +168,11 @@ export function BusinessContextResearchReport({
 	const failed = pages.length - read;
 	return (
 		<section
-			className="space-y-3 border-border border-t px-1 pt-5"
+			className="space-y-3 border-border border-t px-1 pt-4"
 			aria-label={label}
 		>
 			<h2 className="font-semibold text-xs">{label}</h2>
-			<div
-				className="min-h-10 text-muted-foreground text-xs leading-5"
-				role="status"
-			>
+			<div className="text-muted-foreground text-xs leading-5" role="status">
 				<p>
 					{pages.length
 						? `${read} ${read === 1 ? "page" : "pages"} read${failed ? ` · ${failed} could not be read` : ""}`
@@ -183,11 +180,9 @@ export function BusinessContextResearchReport({
 							? "Opening your website…"
 							: "No pages were read."}
 				</p>
-				<p>
-					{research?.discoveryFailed
-						? "Additional page discovery was unavailable."
-						: "Coverage is limited to the pages listed here."}
-				</p>
+				{research?.discoveryFailed && (
+					<p>Additional page discovery was unavailable.</p>
+				)}
 			</div>
 			<Accordion>
 				<Accordion.Trigger>

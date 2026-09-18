@@ -43,6 +43,17 @@ async function editBrief(page: Page) {
 	return page.getByRole("textbox", { name: "Business brief", exact: true });
 }
 
+async function sourcesInput(page: Page) {
+	const reveal = page.getByRole("button", {
+		name: "Add specific pages",
+		exact: true,
+	});
+	if (await reveal.isVisible()) {
+		await reveal.click();
+	}
+	return page.getByRole("textbox", { name: /Additional pages/ });
+}
+
 async function useGeneratedDraft(page: Page) {
 	await page
 		.getByRole("button", { name: "Review AI draft", exact: true })
@@ -295,7 +306,7 @@ test("restores the submitted website and pages when retrying a failed generation
 	});
 	await contextStream.intercept();
 	await page.goto(path);
-	const sources = page.getByRole("textbox", { name: /Additional pages/ });
+	const sources = await sourcesInput(page);
 	await expect(sources).toHaveValue(sourceUrls.join("\n"));
 	await expect(
 		page.getByTestId("business-context-research").getByRole("button", {
@@ -1164,7 +1175,7 @@ test("failed browser storage keeps newer text and discarded tombstones across in
 		}
 	});
 	await editor.fill("Newer memory draft");
-	const sources = page.getByRole("textbox", { name: /Additional pages/ });
+	const sources = await sourcesInput(page);
 	await sources.fill("https://example.com/unfinished");
 	await page.getByRole("link", { name: "General", exact: true }).click();
 	await expect(page).toHaveURL(/organizations\/settings$/);
@@ -1635,7 +1646,7 @@ test("cancels research before its first event without losing manual work", {
 	await page.goto(path);
 	const editor = await editBrief(page);
 	await editor.fill("Keep this unfinished brief.");
-	const sources = page.getByRole("textbox", { name: /Additional pages/ });
+	const sources = await sourcesInput(page);
 	await sources.fill("https://example.com/docs");
 	await page
 		.getByRole("button", { name: "Regenerate with AI", exact: true })
@@ -1721,7 +1732,7 @@ test("an interrupted response preserves edits and does not restart generation on
 	await page.goto(path);
 	const editor = await editBrief(page);
 	await editor.fill("Keep the brief across a disconnected stream.");
-	const sources = page.getByRole("textbox", { name: /Additional pages/ });
+	const sources = await sourcesInput(page);
 	await sources.fill("https://example.com/pricing");
 	await page
 		.getByRole("button", { name: "Regenerate with AI", exact: true })
@@ -1816,7 +1827,7 @@ test("recovers unsubmitted research inputs independently of brief saving and leg
 	await page
 		.getByRole("menuitemradio", { name: "Second studio", exact: true })
 		.click();
-	const sources = page.getByRole("textbox", { name: /Additional pages/ });
+	const sources = await sourcesInput(page);
 	const unfinished = "https://second.example.net/pricing\nhttps://";
 	await sources.fill(unfinished);
 	await page.reload();
