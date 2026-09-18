@@ -6,9 +6,9 @@ import {
 	callRPCProcedure,
 	createToolLogger,
 	getAppContext,
-	resolveToolDateRange,
 	resolveToolWebsite,
 } from "./utils";
+import { resolveToolDateRange } from "./utils/context";
 
 const logger = createToolLogger("Funnels Tools");
 
