@@ -638,7 +638,11 @@ describe("completed query receipts", () => {
 		let chartAttempts = 0;
 		const stop = client.chat.stopStream;
 		const post = client.apiCall;
-		const checkChart = (options: unknown) => {
+		const checkChart = (
+			options:
+				| ChatStopStreamArguments
+				| Parameters<SlackAgentClient["apiCall"]>[1]
+		) => {
 			if (JSON.stringify(options).includes('"type":"data_visualization"')) {
 				chartAttempts++;
 				if (rejectChart) {

@@ -7,7 +7,9 @@ const summary =
 const result = { summary, returnedRows: 1, rowCount: 1, truncated: false };
 const website = { id: "site-synthetic", domain: "reports.example.com" };
 
-function trace(output: unknown): DatabuddyAgentToolTrace {
+function trace(
+	output: DatabuddyAgentToolTrace["output"]
+): DatabuddyAgentToolTrace {
 	return { index: 0, name: "get_data", input: {}, output };
 }
 
@@ -31,7 +33,7 @@ describe("Slack query evidence", () => {
 			}),
 		]);
 		expect(blocks).toHaveLength(4);
-		expect(blocks[1]).toMatchObject({
+		expect(blocks.at(1)).toMatchObject({
 			type: "section",
 			text: {
 				type: "plain_text",
@@ -39,8 +41,8 @@ describe("Slack query evidence", () => {
 			},
 			accessory: { url: "https://app.databuddy.cc/websites/site-synthetic" },
 		});
-		expect(JSON.stringify(blocks[2])).toContain(prior);
-		expect(blocks[3]).toMatchObject({
+		expect(JSON.stringify(blocks.at(2))).toContain(prior);
+		expect(blocks.at(3)).toMatchObject({
 			text: {
 				type: "plain_text",
 				text: `other.example.com\n${summary}\nPartial query result: 20 of 54 rows.`,
@@ -112,7 +114,7 @@ describe("Slack query evidence", () => {
 				results: [{ ...result, summary: `${summary} <@U_SYNTHETIC> <!here>` }],
 			}),
 		]);
-		expect(blocks[1]).toMatchObject({
+		expect(blocks.at(1)).toMatchObject({
 			text: {
 				type: "plain_text",
 				text: `${website.domain}\n${summary} <@U_SYNTHETIC> <!here>\n1 result row.`,
@@ -136,11 +138,11 @@ describe("Slack query evidence", () => {
 			}),
 		]);
 		expect(blocks).toHaveLength(3);
-		expect(blocks[1]).toMatchObject({
+		expect(blocks.at(1)).toMatchObject({
 			text: { text: `${website.domain}\n${boundary}\n1 result row.` },
 		});
 		expect(JSON.stringify(blocks)).not.toContain(`${boundary}y`);
-		expect(JSON.stringify(blocks[2])).toContain(
+		expect(JSON.stringify(blocks.at(2))).toContain(
 			"1 additional query receipt omitted"
 		);
 	});
