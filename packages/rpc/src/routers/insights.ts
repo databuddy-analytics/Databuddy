@@ -1,7 +1,10 @@
 import { readBooleanEnv } from "@databuddy/env/boolean";
 import { getAutumn } from "../lib/autumn-client";
 import { getBillingCustomerId } from "../utils/billing";
-import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
+import {
+	hasInvestigationAllowance,
+	INVESTIGATION_USAGE,
+} from "@databuddy/shared/billing";
 import { appliedInsightActionReply } from "@databuddy/shared/insights";
 import {
 	and,
@@ -588,7 +591,9 @@ export async function appendInvestigationReply(
 			const customer = await getAutumn().customers.get({ customerId });
 			if (
 				customer.id !== customerId ||
-				!Object.hasOwn(customer.balances, INVESTIGATION_USAGE.featureId)
+				!hasInvestigationAllowance(
+					customer.balances[INVESTIGATION_USAGE.featureId]
+				)
 			) {
 				throw rpcError.badRequest(
 					"Activate investigation billing to start a new analysis. Clarifications remain included."

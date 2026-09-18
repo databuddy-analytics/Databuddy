@@ -20,6 +20,18 @@ export const INVESTIGATION_USAGE = {
 		"Business and Scale include monthly investigations. Extras cost $1 per completed investigation.",
 } as const;
 
+export function hasInvestigationAllowance(
+	balance:
+		| { granted: number; unlimited: boolean; overageAllowed: boolean }
+		| null
+		| undefined
+): boolean {
+	return Boolean(
+		balance &&
+			(balance.unlimited || balance.overageAllowed || balance.granted > 0)
+	);
+}
+
 export const INVESTIGATION_ALLOWANCES = {
 	intelligence: 100,
 	intelligence_scale: 500,
