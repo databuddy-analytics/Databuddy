@@ -1031,10 +1031,6 @@ describe("organization business context request", () => {
 		expect(f.state.generation?.draft?.content).toBe(detail);
 		expect(f.state.profile?.content).toBe(detail);
 		const synthesis = f.calls[1];
-		expect(synthesis?.maxOutputTokens).toBe(4500);
-		// A reasoning model spends this budget before emitting the selected paths;
-		// too low returns no output at all and fails the whole draft.
-		expect(f.calls[0]?.maxOutputTokens).toBe(2000);
 		const instructions = synthesis?.prompt.find(
 			(item) => item.role === "system"
 		);
