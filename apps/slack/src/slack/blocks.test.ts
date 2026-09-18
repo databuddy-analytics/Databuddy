@@ -141,6 +141,7 @@ describe("componentToBlocks native actions and previews", () => {
 					prompt: "break /pricing down by referrer",
 				},
 				{ label: "No prompt" },
+				{ label: "Compare yesterday", prompt: "compare with yesterday" },
 			],
 		});
 		expect(block.type).toBe("actions");
@@ -150,9 +151,13 @@ describe("componentToBlocks native actions and previews", () => {
 		const elements = block.elements.filter(
 			(element) => element.type === "button"
 		);
-		expect(block.elements).toHaveLength(1);
-		expect(elements[0].action_id).toBe("agent_drilldown");
+		expect(block.elements).toHaveLength(2);
+		expect(elements.map((element) => element.action_id)).toEqual([
+			"agent_drilldown_0",
+			"agent_drilldown_2",
+		]);
 		expect(elements[0].value).toBe("break /pricing down by referrer");
+		expect(elements[1].value).toBe("compare with yesterday");
 	});
 });
 
