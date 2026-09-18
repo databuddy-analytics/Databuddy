@@ -98,6 +98,7 @@ const SESSION_DERIVED_METRICS = new Set(["bounce_rate", "session_duration"]);
 const LOWER_IS_BETTER_METRICS = new Set([
 	"bounce_rate",
 	"error_count",
+	"refund_amount",
 	"lcp",
 	"inp",
 ]);
