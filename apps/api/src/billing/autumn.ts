@@ -3,7 +3,8 @@ import { buildHttpErrorResponse } from "@databuddy/shared/http-error-response";
 import { isInvestigationPurchaseValid } from "./investigation-purchase";
 import { auth } from "@databuddy/auth";
 import { getRedisCache } from "@databuddy/redis";
-import { getBillingCustomerId, getMemberRole } from "@databuddy/rpc";
+import { getAutumn, getBillingCustomerId, getMemberRole } from "@databuddy/rpc";
+import { AutumnError } from "autumn-js";
 import { autumnHandler } from "autumn-js/fetch";
 import { useLogger } from "evlog/elysia";
 import { withAutumnApiPath } from "@/lib/autumn-mount";
@@ -66,6 +67,51 @@ async function stripPrivilegedBody(request: Request): Promise<Request> {
 }
 
 const autumn = autumnHandler({ identify: identifyAutumnCustomer });
+
+type AttachParams = Parameters<
+	ReturnType<typeof getAutumn>["billing"]["attach"]
+>[0];
+
+async function attachWithDubCustomer(
+	request: Request,
+	body: Record<string, unknown>,
+	customerId: string
+): Promise<Response> {
+	try {
+		const result = await getAutumn().billing.attach({
+			...(body as AttachParams),
+			customerId,
+			metadata: {
+				...(typeof body.metadata === "object" && body.metadata),
+				dubCustomerExternalId: customerId,
+			},
+		});
+		await invalidateAutumnCustomerCache(request);
+		return Response.json(result);
+	} catch (error) {
+		const statusCode = error instanceof AutumnError ? error.statusCode : 500;
+		let parsed: { message?: string; code?: string } = {};
+		if (error instanceof AutumnError) {
+			try {
+				parsed = JSON.parse(error.body);
+			} catch {
+				parsed = {};
+			}
+		}
+		return Response.json(
+			{
+				message:
+					parsed.message ??
+					(error instanceof Error
+						? error.message
+						: "Autumn API request failed"),
+				code: parsed.code ?? "autumn_api_error",
+				statusCode,
+			},
+			{ status: statusCode }
+		);
+	}
+}
 
 const AUTUMN_CACHE_TTL_SEC: Record<string, number> = {
 	getOrCreateCustomer: 30,
@@ -131,7 +177,7 @@ async function writeAutumnCache(
 }
 
 export async function handleAutumnRequest(request: Request) {
-	let sanitized = await stripPrivilegedBody(request);
+	const sanitized = await stripPrivilegedBody(request);
 	const segment = autumnPathSegment(sanitized);
 	const identity = await identifyAutumnCustomer(sanitized).catch(() => null);
 	if (sanitized.method !== "GET" && sanitized.method !== "HEAD") {
@@ -146,18 +192,14 @@ export async function handleAutumnRequest(request: Request) {
 			});
 			return Response.json(response.payload, { status: response.status });
 		}
-		if (identity && body && typeof body === "object" && !Array.isArray(body)) {
-			sanitized = new Request(sanitized.url, {
-				method: sanitized.method,
-				headers: sanitized.headers,
-				body: JSON.stringify({
-					...body,
-					metadata: {
-						...(typeof body.metadata === "object" && body.metadata),
-						dubCustomerExternalId: identity.customerId,
-					},
-				}),
-			});
+		if (
+			segment === "attach" &&
+			identity &&
+			body &&
+			typeof body === "object" &&
+			!Array.isArray(body)
+		) {
+			return attachWithDubCustomer(sanitized, body, identity.customerId);
 		}
 		// Expanded responses have a different shape from the plain customer cache.
 		if (
