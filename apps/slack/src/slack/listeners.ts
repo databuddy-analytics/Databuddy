@@ -13,7 +13,7 @@ import { type ConnectedSite, buildAppHomeView } from "@/slack/app-home";
 import { createSlackEventLog } from "@/lib/evlog-slack";
 import { abortSlackActiveRun, abortSlackThreadRun } from "@/slack/active-runs";
 import { getSlackChannelMentionPolicy } from "@/slack/channel-policy";
-import { FEEDBACK_ACTION_ID } from "@/slack/blocks";
+import { DRILLDOWN_ACTION_ID, FEEDBACK_ACTION_ID } from "@/slack/blocks";
 import { parseDrilldownRun } from "@/slack/drilldown";
 import { handleSlackFeedbackAction } from "@/slack/feedback";
 import type { SlackInstallationServices } from "@/slack/installations";
@@ -50,7 +50,9 @@ import {
 import type { SlackAgentClient, SlackLogger, SlackSay } from "@/slack/types";
 
 // Keep handling buttons posted before drilldown IDs included an index.
-const DRILLDOWN_ACTION_PATTERN = /^agent_drilldown(?:_\d+)?$/;
+const DRILLDOWN_ACTION_PATTERN = new RegExp(
+	`^${DRILLDOWN_ACTION_ID}(?:_\\d+)?$`
+);
 
 export type SlackInvestigationReplyHandler = (options: {
 	client: SlackAgentClient;

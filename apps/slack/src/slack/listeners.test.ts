@@ -219,8 +219,9 @@ describe("Slack listeners", () => {
 			}),
 		});
 		const errors: CodedError[] = [];
-		app.error(async (error) => {
+		app.error((error) => {
 			errors.push(error);
+			return Promise.resolve();
 		});
 		app.use(async ({ client, next }) => {
 			client.chat.startStream = async () => ({ ok: true, ts: "response_ts" });
