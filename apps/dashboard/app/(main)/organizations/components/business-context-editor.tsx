@@ -44,6 +44,7 @@ import { useBusinessContextDraft } from "./use-business-context-draft";
 import { MeasurementPlanEditor } from "./measurement-plan-editor";
 import {
 	BusinessContextMarkdown,
+	BusinessContextResearchReport,
 	BusinessContextSources,
 	BusinessContextVersion,
 } from "./business-context-content";
@@ -118,6 +119,7 @@ export function BusinessContextEditor({
 	const [isSaving, setIsSaving] = useState(false);
 	const [isRequesting, setIsRequesting] = useState(false);
 	const [error, setError] = useState<string>();
+	const [generationError, setGenerationError] = useState<string>();
 	const [notice, setNotice] = useState("");
 	const [settledGenerationId, setSettledGenerationId] = useState<string>();
 	const [reviewVersion, setReviewVersion] = useState("proposed");
@@ -133,6 +135,7 @@ export function BusinessContextEditor({
 	const reviewTitleRef = useRef<HTMLHeadingElement>(null);
 	const savingRef = useRef(false);
 	const requestingRef = useRef(false);
+	const previousGenerationId = useRef<string | undefined>(undefined);
 	const revision = profile?.revision ?? 0;
 	const content = draft?.content ?? profile?.content ?? "";
 	const teamContext =
@@ -162,20 +165,24 @@ export function BusinessContextEditor({
 			JSON.stringify(measurementPlans) !==
 				JSON.stringify(profile?.measurementPlans ?? []));
 	const conflict = dirty && draft.revision !== revision;
+	const awaitingGeneration =
+		(isRequesting || !!generationError) &&
+		generation?.id === previousGenerationId.current;
+	const currentGeneration =
+		!awaitingGeneration && generation?.id !== settledGenerationId
+			? generation
+			: undefined;
 	const activeGeneration = businessContextIsGenerating(settings);
 	const generating = isRequesting || activeGeneration;
 	const failedGeneration =
-		!generating &&
-		generation?.status === "failed" &&
-		generation.id !== settledGenerationId
-			? generation
+		!generating && currentGeneration?.status === "failed"
+			? currentGeneration
 			: null;
 	const readyGeneration =
-		generation?.status === "ready" &&
-		generation.id !== settledGenerationId &&
+		currentGeneration?.status === "ready" &&
 		generationWebsite &&
-		generation.draft
-			? generation
+		currentGeneration.draft
+			? currentGeneration
 			: null;
 	const pendingDraft =
 		!generating && readyGeneration && readyGeneration.id !== draft?.generationId
@@ -252,9 +259,29 @@ export function BusinessContextEditor({
 			: review?.kind === "generation"
 				? "Review AI draft"
 				: "Review saved changes";
-	const liveText = generation?.progress?.content ?? "";
+	const liveText = currentGeneration?.progress?.content ?? "";
 	const displayedDraft = readyGeneration?.draft?.content ?? liveText;
-	const hasGeneratedContent = generating || !!readyGeneration;
+	const researchError = failedGeneration?.error || generationError;
+	const hasGeneratedContent =
+		generating || !!readyGeneration || !!failedGeneration || !!generationError;
+	const reportGeneration =
+		generating || view === "draft"
+			? currentGeneration
+			: (draftGeneration ?? currentGeneration);
+	const report = reportGeneration
+		? reportGeneration.research
+		: generating
+			? undefined
+			: profile?.research;
+	const questionBrief = draftGeneration
+		? draftGeneration.draft
+		: readyGeneration
+			? readyGeneration.draft
+			: profile;
+	const questions = generating ? [] : (questionBrief?.followUpQuestions ?? []);
+	const hasQuestions =
+		canEdit &&
+		questions.some(({ field }) => !profile?.teamContext?.[field]?.trim());
 
 	useEffect(() => {
 		if (review) {
@@ -307,6 +334,7 @@ export function BusinessContextEditor({
 			// while its successful cancellation/save response reaches this render.
 			await action();
 			setSettledGenerationId(generation?.id);
+			setGenerationError(undefined);
 			if (clearDraft) {
 				clearSubmittedDraft(draft);
 			}
@@ -361,6 +389,8 @@ export function BusinessContextEditor({
 			return;
 		}
 		requestingRef.current = true;
+		previousGenerationId.current = generation?.id;
+		setGenerationError(undefined);
 		updateResearch({ websiteId: selectedWebsite.id, sourceText });
 		setIsRequesting(true);
 		setView("draft");
@@ -369,7 +399,7 @@ export function BusinessContextEditor({
 		try {
 			await onGenerate(selectedWebsite.id, sourceResult.data);
 		} catch (cause) {
-			setError(
+			setGenerationError(
 				getUserFacingErrorMessage(
 					cause,
 					"Research could not be completed. Your edits are still here. Try again."
@@ -704,7 +734,21 @@ export function BusinessContextEditor({
 										className="h-80 overflow-y-auto p-5 sm:p-6"
 										aria-label="AI draft preview"
 									>
-										{displayedDraft ? (
+										{researchError || failedGeneration ? (
+											<div className="space-y-2" role="alert">
+												<p className="font-medium text-sm">
+													Research could not be completed
+												</p>
+												<p className="text-muted-foreground text-sm leading-6">
+													{researchError ||
+														"The draft could not be completed. Try again."}
+												</p>
+												<p className="text-muted-foreground text-xs leading-5">
+													Your brief and team answers are unchanged. You can try
+													again when you are ready.
+												</p>
+											</div>
+										) : displayedDraft ? (
 											<BusinessContextMarkdown
 												content={displayedDraft}
 												streaming={generating}
@@ -797,42 +841,63 @@ export function BusinessContextEditor({
 							</Card.Description>
 						</Card.Header>
 						<Card.Content className="space-y-5">
-							{teamFields.map(({ key, label, description }) => (
-								<Field
-									key={key}
-									error={
-										teamContext[key].trim().length >
-										BUSINESS_CONTEXT_TEAM_FIELD_LIMIT
-									}
-								>
-									<Field.Label>{label}</Field.Label>
-									<Field.Description>{description}</Field.Description>
-									<Textarea
-										value={teamContext[key]}
-										minRows={2}
-										maxRows={4}
-										readOnly={!(ready && canEdit) || isSaving}
-										onChange={(event) => {
-											setDraft({
-												...(draft ?? { content, revision, measurementPlans }),
-												teamContext: {
-													...teamContext,
-													[key]: event.target.value,
-												},
-											});
-											setNotice("");
-										}}
-									/>
-									{teamContext[key].trim().length >
-										BUSINESS_CONTEXT_TEAM_FIELD_LIMIT && (
-										<Field.Error>
-											Keep this under{" "}
-											{BUSINESS_CONTEXT_TEAM_FIELD_LIMIT.toLocaleString()}{" "}
-											characters.
-										</Field.Error>
-									)}
-								</Field>
-							))}
+							{hasQuestions && (
+								<p className="text-muted-foreground text-xs leading-5">
+									Research raised a few questions only your team can answer. Add
+									what you know below, then save your changes.
+								</p>
+							)}
+							{teamFields.map(({ key, label, description }) => {
+								const question =
+									canEdit && !profile?.teamContext?.[key]?.trim()
+										? questions.find(({ field }) => field === key)?.question
+										: undefined;
+								return (
+									<Field
+										key={key}
+										error={
+											teamContext[key].trim().length >
+											BUSINESS_CONTEXT_TEAM_FIELD_LIMIT
+										}
+									>
+										<Field.Label>{label}</Field.Label>
+										<Field.Description>
+											{question ?? description}
+										</Field.Description>
+										{question && (
+											<p className="text-muted-foreground text-xs">
+												{teamContext[key].trim()
+													? "Answer not saved"
+													: "Optional · answer when you can"}
+											</p>
+										)}
+										<Textarea
+											value={teamContext[key]}
+											minRows={2}
+											maxRows={4}
+											readOnly={!(ready && canEdit) || isSaving}
+											onChange={(event) => {
+												setDraft({
+													...(draft ?? { content, revision, measurementPlans }),
+													teamContext: {
+														...teamContext,
+														[key]: event.target.value,
+													},
+												});
+												setNotice("");
+											}}
+										/>
+										{teamContext[key].trim().length >
+											BUSINESS_CONTEXT_TEAM_FIELD_LIMIT && (
+											<Field.Error>
+												Keep this under{" "}
+												{BUSINESS_CONTEXT_TEAM_FIELD_LIMIT.toLocaleString()}{" "}
+												characters.
+											</Field.Error>
+										)}
+									</Field>
+								);
+							})}
 						</Card.Content>
 					</Card>
 					<div className="order-3 min-w-0 space-y-3 xl:col-start-1">
@@ -1051,6 +1116,17 @@ export function BusinessContextEditor({
 							</div>
 						</BusinessContextResearchCard>
 					)}
+					{(report || generating) && (
+						<BusinessContextResearchReport
+							research={report}
+							active={generating}
+							label={
+								currentGeneration || generating
+									? "Research report"
+									: "Last research"
+							}
+						/>
+					)}
 					<section className="space-y-3 px-1" aria-label="Context checklist">
 						<h2 className="font-semibold text-xs">Context at a glance</h2>
 						<ul className="space-y-3 text-xs leading-5">
@@ -1106,13 +1182,23 @@ export function BusinessContextEditor({
 						<h2 className="font-semibold text-xs">
 							{view === "draft" ? "Draft sources" : "Brief sources"}
 						</h2>
-						<BusinessContextSources
-							sources={
-								view === "draft"
-									? (readyGeneration?.draft?.sources ?? [])
-									: (draftGeneration?.draft?.sources ?? profile?.sources ?? [])
-							}
-						/>
+						{view === "draft" && !readyGeneration ? (
+							<p className="text-muted-foreground text-xs leading-5">
+								{generating
+									? "Sources will be attached when the draft is complete."
+									: "This research did not produce a complete draft."}
+							</p>
+						) : (
+							<BusinessContextSources
+								sources={
+									view === "draft"
+										? (readyGeneration?.draft?.sources ?? [])
+										: (draftGeneration?.draft?.sources ??
+											profile?.sources ??
+											[])
+								}
+							/>
+						)}
 					</section>
 				</aside>
 			</div>

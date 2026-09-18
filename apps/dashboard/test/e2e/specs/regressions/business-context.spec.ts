@@ -1880,3 +1880,341 @@ test("leaving the page aborts active research without restarting it on return", 
 	).toBeEnabled();
 	expect(contextStream.requests).toHaveLength(1);
 });
+
+for (const viewport of contextViewports) {
+	test(`shows ${viewport.name} research results without reusing the previous run or waiting for refresh`, {
+		tag: "@regression",
+	}, async ({ authenticatedPage: page, contextStream }) => {
+		await page.setViewportSize(viewport);
+		const oldQuestion = "Which old goal matters?";
+		let current: BusinessContextSettings = {
+			...settings(),
+			generation: {
+				...researching().generation!,
+				status: "ready",
+				research: {
+					startedAt: "2026-09-18T10:00:00Z",
+					pages: [{ url: "https://example.com/old", status: "read" }],
+				},
+				draft: {
+					content: "The previous AI proposal.",
+					sources: [],
+					followUpQuestions: [{ field: "priority", question: oldQuestion }],
+				},
+			},
+		};
+		const refresh = requestGate();
+		let holdRefresh = false;
+		await page.route("**/rpc/businessContext/get", async (route) => {
+			if (holdRefresh) {
+				await refresh.promise;
+			}
+			await route.fulfill({ json: { json: current } });
+		});
+		await contextStream.intercept();
+		await page.goto(path);
+		await expect(page.getByText(oldQuestion, { exact: true })).toBeVisible();
+		await page
+			.getByRole("button", { name: "Regenerate with AI", exact: true })
+			.click();
+		await contextStream.connected;
+		const panel = page.getByRole("tabpanel", {
+			name: "AI draft preview",
+			exact: true,
+		});
+		await expect(panel).toContainText("Reading your sources");
+		await expect(panel).not.toContainText("The previous AI proposal.");
+		await expect(page.getByText(oldQuestion, { exact: true })).toBeHidden();
+		const report = page.getByRole("region", {
+			name: "Research report",
+			exact: true,
+		});
+		await expect(
+			report.getByRole("link", { name: "https://example.com/old", exact: true })
+		).toBeHidden();
+		const initial = await panel.boundingBox();
+		const initialReport = await report.boundingBox();
+		const priority = page.getByRole("textbox", {
+			name: "Current priority",
+			exact: true,
+		});
+		const initialPriority = await priority.boundingBox();
+		current = {
+			...researching(),
+			generation: {
+				...researching().generation!,
+				id: "22222222-2222-4222-8222-222222222222",
+				research: {
+					startedAt: "2026-09-18T11:00:00Z",
+					pages: [
+						{
+							url: "https://example.com",
+							title: "Studio homepage",
+							status: "read",
+						},
+						{ url: "https://example.com/pricing", status: "failed" },
+					],
+					discoveryFailed: true,
+				},
+			},
+		};
+		contextStream.send(current);
+		await expect(report).toContainText("1 page read · 1 could not be read");
+		await expect(report).toContainText(
+			"Additional page discovery was unavailable."
+		);
+
+		await expect(
+			page.getByText("Sources will be attached when the draft is complete.", {
+				exact: true,
+			})
+		).toBeVisible();
+		expect(await panel.boundingBox()).toEqual(initial);
+		expect(await report.boundingBox()).toEqual(initialReport);
+		expect(await priority.boundingBox()).toEqual(initialPriority);
+		await report
+			.getByRole("button", { name: "Pages checked (2)", exact: true })
+			.click();
+		await expect(
+			report.getByRole("link", { name: "Studio homepage", exact: true })
+		).toHaveAttribute("href", "https://example.com");
+		current = {
+			...current,
+			generation: {
+				...current.generation!,
+				status: "ready",
+				draft: {
+					content: "The new completed proposal.",
+					sources: [],
+					followUpQuestions: [
+						{
+							field: "successDefinition",
+							question: "Which completed booking counts as success?",
+						},
+					],
+				},
+			},
+		};
+		holdRefresh = true;
+		contextStream.send(current);
+		contextStream.end();
+		try {
+			await expect(
+				page.getByRole("button", { name: "Review AI draft", exact: true })
+			).toBeVisible();
+			await expect(
+				page.getByRole("button", { name: "Cancel generation", exact: true })
+			).toBeHidden();
+			await expect(
+				page.getByText("Which completed booking counts as success?", {
+					exact: true,
+				})
+			).toBeVisible();
+			await expect(report).toContainText("1 page read · 1 could not be read");
+			await expect(page.getByText(oldQuestion, { exact: true })).toBeHidden();
+			expect(
+				await page.evaluate(
+					() => document.documentElement.scrollWidth > window.innerWidth
+				)
+			).toBe(false);
+		} finally {
+			refresh.resolve();
+		}
+	});
+}
+
+test("keeps a failed streamed research report and its explanation visible on mobile", {
+	tag: "@regression",
+}, async ({ authenticatedPage: page, contextStream }) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	let current = settings();
+	await page.route("**/rpc/businessContext/get", (route) =>
+		route.fulfill({ json: { json: current } })
+	);
+	await contextStream.intercept();
+	await page.goto(path);
+	const editor = await editBrief(page);
+	await editor.fill("Keep this manual brief.");
+	await page
+		.getByRole("button", { name: "Regenerate with AI", exact: true })
+		.click();
+	await contextStream.connected;
+	current = {
+		...researching(),
+		generation: {
+			...researching().generation!,
+			research: {
+				startedAt: "2026-09-18T11:00:00Z",
+				pages: [{ url: "https://example.com", status: "failed" }],
+			},
+			status: "failed",
+			error: "The source website could not be read.",
+		},
+	};
+	contextStream.send(current);
+	contextStream.end();
+	const tab = page.getByRole("tab", { name: "AI draft", exact: true });
+	await expect(tab).toHaveAttribute("aria-selected", "true");
+	await expect(tab).toBeFocused();
+	const alert = page.getByTestId("business-context-brief").getByRole("alert");
+	await expect(alert).toContainText("The source website could not be read.");
+	await expect(alert).toBeInViewport();
+	await expect(
+		page.getByRole("region", { name: "Research report", exact: true })
+	).toContainText("0 pages read · 1 could not be read");
+	await expect(
+		page.getByRole("button", { name: "Review AI draft", exact: true })
+	).toBeHidden();
+	await page.reload();
+	await expect(
+		page.getByRole("region", { name: "Research report", exact: true })
+	).toContainText("0 pages read · 1 could not be read");
+	await editBrief(page);
+	await expect(editor).toHaveValue("Keep this manual brief.");
+});
+
+test("answers research questions in existing team fields and saves them independently of the AI brief", {
+	tag: "@regression",
+}, async ({ authenticatedPage: page }) => {
+	const priorityQuestion = "Which studio outcome should improve first?";
+	const successQuestion = "What does a successfully activated studio do?";
+	const exclusionQuestion =
+		"Which internal studio accounts should be excluded?";
+	const questions = [
+		{ field: "priority" as const, question: priorityQuestion },
+		{ field: "successDefinition" as const, question: successQuestion },
+		{ field: "exclusions" as const, question: exclusionQuestion },
+	];
+	let current: BusinessContextSettings = {
+		...settings(),
+		generation: {
+			...researching().generation!,
+			status: "ready",
+			research: {
+				startedAt: "2026-09-18T11:00:00Z",
+				pages: [{ url: "https://example.com", status: "read" }],
+			},
+			draft: {
+				content: generatedContent,
+				sources: [],
+				followUpQuestions: questions,
+			},
+		},
+	};
+	const savedInputs: {
+		content: string;
+		generationId?: string;
+		teamContext: BusinessTeamContext;
+	}[] = [];
+	await page.route("**/rpc/businessContext/**", async (route) => {
+		const method = new URL(route.request().url()).pathname.split("/").at(-1);
+		if (method === "generationAccess") {
+			return route.fulfill({ json: { json: allowedAccess } });
+		}
+		if (method === "save") {
+			const input = route.request().postDataJSON().json;
+			savedInputs.push(input);
+			current = {
+				...current,
+				profile: {
+					...current.profile!,
+					content: input.content,
+					revision: 2,
+					teamContext: input.teamContext,
+					research: current.generation?.research,
+					followUpQuestions: questions.filter(
+						({ field }) => !input.teamContext[field].trim()
+					),
+				},
+				generation: null,
+			};
+		}
+		await route.fulfill({ json: { json: current } });
+	});
+	await page.goto(path);
+	const priority = page.getByRole("textbox", {
+		name: "Current priority",
+		exact: true,
+	});
+	await expect(priority).toHaveAccessibleDescription(priorityQuestion);
+	await priority.fill("Improve first paid bookings.");
+	await expect(priority).toBeFocused();
+	await expect(priority).toHaveAccessibleDescription(priorityQuestion);
+	await expect(
+		page.getByText("Answer not saved", { exact: true })
+	).toBeVisible();
+	await page.reload();
+	await expect(priority).toHaveValue("Improve first paid bookings.");
+	await expect(priority).toHaveAccessibleDescription(priorityQuestion);
+	await page.getByRole("button", { name: "Save changes", exact: true }).click();
+	await expect(page.getByText("Changes saved", { exact: true })).toBeVisible();
+	expect(savedInputs).toHaveLength(1);
+	expect(savedInputs[0]?.content).toBe(savedContent);
+	expect(savedInputs[0]?.generationId).toBeUndefined();
+	await expect(page.getByText(priorityQuestion, { exact: true })).toBeHidden();
+	await expect(page.getByText(successQuestion, { exact: true })).toBeVisible();
+	await expect(
+		page.getByText(exclusionQuestion, { exact: true })
+	).toBeVisible();
+	await expect(
+		page.getByRole("region", { name: "Last research", exact: true })
+	).toContainText("1 page read");
+	await page.reload();
+	await expect(priority).toHaveValue("Improve first paid bookings.");
+	await expect(page.getByText(successQuestion, { exact: true })).toBeVisible();
+});
+
+test("does not attach newer research metadata to an adopted legacy draft", {
+	tag: "@regression",
+}, async ({ authenticatedPage: page, e2eSession }) => {
+	const adopted = {
+		...researching().generation!,
+		status: "ready" as const,
+		draft: { content: "The older draft I selected.", sources: [] },
+	};
+	const current: BusinessContextSettings = {
+		...settings(),
+		previousDrafts: [adopted],
+		generation: {
+			...adopted,
+			id: "22222222-2222-4222-8222-222222222222",
+			research: {
+				startedAt: "2026-09-18T11:00:00Z",
+				pages: [{ url: "https://example.com/new", status: "read" }],
+			},
+			draft: {
+				content: "The new proposal I have not selected.",
+				sources: [],
+				followUpQuestions: [
+					{ field: "priority", question: "A question from the newer run?" },
+				],
+			},
+		},
+	};
+	await page.addInitScript(
+		({ key, generationId, content }) => {
+			sessionStorage.setItem(
+				key,
+				JSON.stringify({ revision: 1, generationId, content })
+			);
+		},
+		{
+			key: `business-context-draft:${e2eSession.userId}:${e2eSession.organizationId}`,
+			generationId: adopted.id,
+			content: adopted.draft.content,
+		}
+	);
+	await page.route("**/rpc/businessContext/get", (route) =>
+		route.fulfill({ json: { json: current } })
+	);
+	await page.goto(path);
+	await expect(page.getByTestId("business-context-document")).toContainText(
+		adopted.draft.content
+	);
+	await expect(
+		page.getByRole("region", { name: "Research report", exact: true })
+	).toBeHidden();
+	await expect(
+		page.getByText("A question from the newer run?", { exact: true })
+	).toBeHidden();
+});
