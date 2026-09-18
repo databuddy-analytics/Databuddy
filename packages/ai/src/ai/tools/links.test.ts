@@ -1,6 +1,9 @@
-import { expect, mock, spyOn, test } from "bun:test";
+import { afterEach, expect, mock, test } from "bun:test";
 import { asSchema, type ToolExecutionOptions } from "ai";
-import * as rpc from "./utils/rpc";
+import type { callRPCProcedure } from "./utils/rpc";
+
+const invoke = mock<typeof callRPCProcedure>(async () => undefined);
+mock.module("./utils/rpc", () => ({ callRPCProcedure: invoke }));
 
 mock.module("../../lib/website-utils", () => ({
 	getCachedWebsite: async () => ({ organizationId: "org-1" }),
@@ -8,7 +11,54 @@ mock.module("../../lib/website-utils", () => ({
 
 const { createLinksTools } = await import("./links");
 
-test("link update previews contain every applied field, exact timestamps, and explicit clears", async () => {
+afterEach(() => invoke.mockReset());
+
+const folder = {
+	id: "folder-1",
+	name: "Launches",
+	slug: "launches",
+	organizationId: "org-1",
+};
+const updates = {
+	name: "Updated example",
+	slug: "updated-example",
+	targetUrl: "https://www.instagram.com/example/",
+	expiresAt: "2026-10-01T20:00:00Z",
+	expiredRedirectUrl: "https://example.com/expired",
+	ogTitle: "New title",
+	ogDescription: "New description",
+	ogImageUrl: "https://example.com/new.png",
+	externalId: "campaign-1",
+	deepLinkApp: "instagram",
+};
+const clears = {
+	expiresAt: null,
+	expiredRedirectUrl: null,
+	ogTitle: null,
+	ogDescription: null,
+	ogImageUrl: null,
+	externalId: null,
+	deepLinkApp: null,
+	folderId: null,
+};
+
+test.each(
+	[
+		{
+			name: "all fields and exact timestamps",
+			input: { ...updates, folderSlug: folder.slug },
+			expected: { ...updates, folderId: folder.id },
+		},
+		{ name: "explicit clears", input: clears, expected: clears },
+		{ name: "empty updates", input: {}, expected: {} },
+	].flatMap((testCase) =>
+		[false, true].map((confirmed) => ({ ...testCase, confirmed }))
+	)
+)("link update $name, confirmed=$confirmed", async ({
+	input,
+	expected,
+	confirmed,
+}) => {
 	const current = {
 		id: "link-1",
 		name: "Example",
@@ -16,14 +66,8 @@ test("link update previews contain every applied field, exact timestamps, and ex
 		targetUrl: "https://example.com",
 		expiresAt: "2026-10-01T08:00:00Z",
 	};
-	const folder = {
-		id: "folder-1",
-		name: "Launches",
-		slug: "launches",
-		organizationId: "org-1",
-	};
-	const invoke = spyOn(rpc, "callRPCProcedure").mockImplementation(
-		async (router) => (router === "linkFolders" ? [folder] : current)
+	invoke.mockImplementation(async (router) =>
+		router === "linkFolders" ? [folder] : current
 	);
 	const definition = createLinksTools().update_link;
 	const schema = asSchema(definition.inputSchema);
@@ -36,90 +80,58 @@ test("link update previews contain every applied field, exact timestamps, and ex
 		throw new Error("Missing link tool validator or executor");
 	}
 
-	const updates = {
-		name: "Updated example",
-		slug: "updated-example",
-		targetUrl: "https://www.instagram.com/example/",
-		expiresAt: "2026-10-01T20:00:00Z",
-		expiredRedirectUrl: "https://example.com/expired",
-		ogTitle: "New title",
-		ogDescription: "New description",
-		ogImageUrl: "https://example.com/new.png",
-		externalId: "campaign-1",
-		deepLinkApp: "instagram",
-	};
-	const clears = {
-		expiresAt: null,
-		expiredRedirectUrl: null,
-		ogTitle: null,
-		ogDescription: null,
-		ogImageUrl: null,
-		externalId: null,
-		deepLinkApp: null,
-		folderId: null,
-	};
-
-	try {
-		for (const [input, expected] of [
+	const parsed = await schema.validate({
+		id: current.id,
+		websiteId: "site-1",
+		...input,
+		confirmed,
+	});
+	if (!parsed.success) {
+		throw parsed.error;
+	}
+	const result = await definition.execute(parsed.value, options);
+	const mutations = invoke.mock.calls.filter(
+		([, method]) => method === "update"
+	);
+	const hasUpdates = Object.keys(expected).length > 0;
+	if (confirmed && hasUpdates) {
+		expect(mutations).toEqual([
 			[
-				{ ...updates, folderSlug: folder.slug },
-				{ ...updates, folderId: folder.id },
+				"links",
+				"update",
+				{ id: current.id, ...expected },
+				options.experimental_context,
 			],
-			[clears, clears],
-			[{}, {}],
-		]) {
-			for (const confirmed of [false, true]) {
-				invoke.mockClear();
-				const parsed = await schema.validate({
-					id: current.id,
-					websiteId: "site-1",
-					...input,
-					confirmed,
-				});
-				if (!parsed.success) {
-					throw parsed.error;
-				}
-				const result = await definition.execute(parsed.value, options);
-				const mutations = invoke.mock.calls.filter(
-					([, method]) => method === "update"
-				);
-				const hasUpdates = Object.keys(expected).length > 0;
-				if (confirmed && hasUpdates) {
-					expect(mutations).toEqual([
-						[
-							"links",
-							"update",
-							{ id: current.id, ...expected },
-							options.experimental_context,
-						],
-					]);
-				} else {
-					expect(mutations).toEqual([]);
-					expect(result).toMatchObject({
-						preview: true,
-						updates: expected,
-						confirmationRequired: hasUpdates,
-					});
-				}
-			}
-		}
-	} finally {
-		invoke.mockRestore();
+		]);
+	} else {
+		expect(mutations).toEqual([]);
+		expect(result).toMatchObject({
+			preview: true,
+			updates: expected,
+			confirmationRequired: hasUpdates,
+		});
 	}
 });
 
-test.each([
-	{ name: "unknown folder id", updates: { folderId: "missing-folder" } },
-	{ name: "unknown folder slug", updates: { folderSlug: "missing-folder" } },
-	{
-		name: "target incompatible with the current deep-link app",
-		updates: { targetUrl: "https://example.com" },
-	},
-	{
-		name: "deep-link app incompatible with the current target",
-		updates: { deepLinkApp: "youtube" },
-	},
-])("invalid link updates do not mutate: $name", async ({ updates }) => {
+test.each(
+	[
+		{ name: "unknown folder id", updates: { folderId: "missing-folder" } },
+		{ name: "unknown folder slug", updates: { folderSlug: "missing-folder" } },
+		{
+			name: "target incompatible with the current deep-link app",
+			updates: { targetUrl: "https://example.com" },
+		},
+		{
+			name: "deep-link app incompatible with the current target",
+			updates: { deepLinkApp: "youtube" },
+		},
+	].flatMap((testCase) =>
+		[false, true].map((confirmed) => ({ ...testCase, confirmed }))
+	)
+)("invalid link updates do not mutate: $name, confirmed=$confirmed", async ({
+	updates,
+	confirmed,
+}) => {
 	const current = {
 		id: "link-1",
 		name: "Example",
@@ -127,8 +139,8 @@ test.each([
 		targetUrl: "https://www.instagram.com/example/",
 		deepLinkApp: "instagram",
 	};
-	const invoke = spyOn(rpc, "callRPCProcedure").mockImplementation(
-		async (router) => (router === "linkFolders" ? [] : current)
+	invoke.mockImplementation(async (router) =>
+		router === "linkFolders" ? [] : current
 	);
 	const definition = createLinksTools().update_link;
 	const schema = asSchema(definition.inputSchema);
@@ -136,29 +148,22 @@ test.each([
 		throw new Error("Missing link tool validator or executor");
 	}
 
-	try {
-		for (const confirmed of [false, true]) {
-			invoke.mockClear();
-			const parsed = await schema.validate({
-				id: current.id,
-				websiteId: "site-1",
-				...updates,
-				confirmed,
-			});
-			if (!parsed.success) {
-				throw parsed.error;
-			}
-			const result = await definition.execute(parsed.value, {
-				toolCallId: "invalid-link-update",
-				messages: [],
-				experimental_context: { mutationMode: "allow" },
-			});
-			expect(result).toMatchObject({ success: false });
-			expect(
-				invoke.mock.calls.filter(([, method]) => method === "update")
-			).toEqual([]);
-		}
-	} finally {
-		invoke.mockRestore();
+	const parsed = await schema.validate({
+		id: current.id,
+		websiteId: "site-1",
+		...updates,
+		confirmed,
+	});
+	if (!parsed.success) {
+		throw parsed.error;
 	}
+	const result = await definition.execute(parsed.value, {
+		toolCallId: "invalid-link-update",
+		messages: [],
+		experimental_context: { mutationMode: "allow" },
+	});
+	expect(result).toMatchObject({ success: false });
+	expect(invoke.mock.calls.filter(([, method]) => method === "update")).toEqual(
+		[]
+	);
 });
