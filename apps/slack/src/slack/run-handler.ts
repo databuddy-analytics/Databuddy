@@ -11,19 +11,21 @@ import {
 	withSlackLogContext,
 } from "@/lib/evlog-slack";
 import {
+	abortSlackThreadRun,
 	cleanupSlackActiveRun,
 	registerSlackActiveRun,
 	trackSlackRunPromise,
 } from "@/slack/active-runs";
+import { isSlackStopCommand } from "@/slack/message-routing";
 import { SLACK_COPY } from "@/slack/messages";
 import { streamAgentToSlack } from "@/slack/respond";
 import { createSlackConversationContext } from "@/slack/slack-context";
 import type { SlackAgentClient, SlackLogger, SlackSay } from "@/slack/types";
 import type { SlackThreadQueueStore } from "@/slack/thread-queue";
 
-const MAX_FOLLOW_UP_ROUNDS = 3;
 const QUEUED_TAKEOVER_RETRY_DELAYS_MS = [0, 25, 75] as const;
-const RUN_TIMEOUT_MS = 5 * 60 * 1000;
+// Finish before the five-minute Redis lock expires.
+const RUN_TIMEOUT_MS = 4 * 60 * 1000;
 
 interface HandleAgentRunOptions {
 	agent: Pick<DatabuddyAgentClient, "stream">;
@@ -51,15 +53,21 @@ async function executeAgentRun({
 	const eventLog = createRunLog(run);
 	const startedAt = performance.now();
 	let lockAcquired = false;
-	let abortController: AbortController | null = null;
 	let registeredRun: SlackAgentRun | null = null;
 	let runTimeout: ReturnType<typeof setTimeout> | null = null;
+	let stopPoll: ReturnType<typeof setInterval> | null = null;
 
 	await withSlackLogContext(eventLog, async () => {
 		try {
+			if (isSlackStopCommand(run.text)) {
+				abortSlackThreadRun(run);
+				await threadQueue.stop(run);
+				await say({ text: SLACK_COPY.agentStopped, thread_ts: run.threadTs });
+				return;
+			}
 			await threadQueue.markEngaged(run);
 			lockAcquired = await threadQueue.tryAcquire(run);
-			let currentRun = run;
+			let currentRun: SlackAgentRun | undefined = run;
 			if (!lockAcquired) {
 				const queued = await threadQueue.enqueue(run);
 				setSlackLog(eventLog, {
@@ -70,6 +78,16 @@ async function executeAgentRun({
 				});
 
 				if (!queued.ok) {
+					if (queued.reason === "stopped") {
+						return;
+					}
+					await say({
+						text:
+							queued.reason === "queue_full"
+								? SLACK_COPY.queueFull
+								: SLACK_COPY.queueUnavailable,
+						thread_ts: run.threadTs,
+					});
 					return;
 				}
 
@@ -90,22 +108,69 @@ async function executeAgentRun({
 				currentRun = createFollowUpRun(run, followUps);
 			}
 
-			registeredRun = currentRun;
-			abortController =
-				registerSlackActiveRun(registeredRun) ?? new AbortController();
-			runTimeout = setTimeout(() => {
-				setSlackLog(eventLog, { slack_run_timed_out: true });
-				abortController?.abort("timeout");
-			}, RUN_TIMEOUT_MS);
-			await addTriggerReaction({ client, eventLog, logger, run: currentRun });
-			const slackContext =
-				currentRun.slackContext ??
-				createSlackConversationContext(client, currentRun);
-			currentRun = { ...currentRun, slackContext };
+			const shutdownController = new AbortController();
+			let controller = new AbortController();
+			stopPoll = setInterval(() => {
+				if (!registeredRun) {
+					return;
+				}
+				const currentController = controller;
+				threadQueue
+					.isStopped(registeredRun)
+					.then((stopped) => {
+						if (stopped) {
+							currentController.abort("stop");
+						}
+					})
+					.catch(() => currentController.abort("coordination_error"));
+			}, 500);
 			let totalFollowUps = 0;
-			for (let round = 0; round <= MAX_FOLLOW_UP_ROUNDS; round++) {
+			while (!shutdownController.signal.aborted) {
+				if (!currentRun) {
+					const followUps = await threadQueue.drain(run);
+					if (followUps.length === 0) {
+						// Check emptiness and release atomically so a late arrival has an owner.
+						if (await threadQueue.release(run, true)) {
+							lockAcquired = false;
+							break;
+						}
+						continue;
+					}
+					totalFollowUps += followUps.length;
+					currentRun = createFollowUpRun(run, followUps);
+				}
+				if (await threadQueue.isStopped(currentRun)) {
+					currentRun = undefined;
+					continue;
+				}
+				if (!(await threadQueue.renew(run))) {
+					throw new Error("Slack thread lock expired");
+				}
+				if (shutdownController.signal.aborted) {
+					break;
+				}
+				if (registeredRun) {
+					cleanupSlackActiveRun(registeredRun);
+				}
+				controller = new AbortController();
+				if (runTimeout) {
+					clearTimeout(runTimeout);
+				}
+				runTimeout = setTimeout(() => {
+					setSlackLog(eventLog, { slack_run_timed_out: true });
+					controller.abort("timeout");
+				}, RUN_TIMEOUT_MS);
+				registeredRun = currentRun;
+				registerSlackActiveRun(currentRun, controller, shutdownController);
+				await addTriggerReaction({ client, eventLog, logger, run: currentRun });
+				currentRun = {
+					...currentRun,
+					slackContext:
+						currentRun.slackContext ??
+						createSlackConversationContext(client, currentRun),
+				};
 				const result = await streamAgentToSlack({
-					abortSignal: abortController?.signal,
+					abortSignal: controller.signal,
 					agent,
 					client,
 					eventLog,
@@ -119,18 +184,10 @@ async function executeAgentRun({
 					slack_response_ts: result.responseTs,
 					slack_response_streamed: result.streamed,
 				});
-
-				if (result.aborted || round >= MAX_FOLLOW_UP_ROUNDS) {
-					break;
+				if (controller.signal.reason === "coordination_error") {
+					throw new Error("Slack thread coordination failed");
 				}
-
-				const followUps = await threadQueue.drain(run);
-				if (followUps.length === 0) {
-					break;
-				}
-
-				totalFollowUps += followUps.length;
-				currentRun = createFollowUpRun(currentRun, followUps);
+				currentRun = undefined;
 			}
 
 			if (totalFollowUps > 0) {
@@ -138,7 +195,13 @@ async function executeAgentRun({
 					slack_followup_drained_count: totalFollowUps,
 				});
 			}
+		} catch (error) {
+			logger.error(error);
+			await say({ text: SLACK_COPY.queueUnavailable, thread_ts: run.threadTs });
 		} finally {
+			if (stopPoll) {
+				clearInterval(stopPoll);
+			}
 			if (runTimeout) {
 				clearTimeout(runTimeout);
 			}
@@ -185,6 +248,7 @@ function createFollowUpRun(
 		...baseRun,
 		followUpMessages: followUps,
 		messageTs: lastFollowUp?.messageTs ?? baseRun.messageTs,
+		requestTs: lastFollowUp?.requestTs ?? lastFollowUp?.messageTs,
 		text: followUps.map((followUp) => followUp.text).join("\n"),
 		trigger: "thread_follow_up",
 		userId: lastFollowUp?.userId ?? baseRun.userId,

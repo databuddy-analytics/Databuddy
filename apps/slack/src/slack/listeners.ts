@@ -11,7 +11,7 @@ import { appendInvestigationReply } from "@databuddy/rpc/insights";
 import type { DatabuddyAgentClient, SlackAgentRun } from "@/agent/agent-client";
 import { type ConnectedSite, buildAppHomeView } from "@/slack/app-home";
 import { createSlackEventLog } from "@/lib/evlog-slack";
-import { abortSlackActiveRun } from "@/slack/active-runs";
+import { abortSlackActiveRun, abortSlackThreadRun } from "@/slack/active-runs";
 import { getSlackChannelMentionPolicy } from "@/slack/channel-policy";
 import { DRILLDOWN_ACTION_ID, FEEDBACK_ACTION_ID } from "@/slack/blocks";
 import { parseDrilldownRun } from "@/slack/drilldown";
@@ -21,6 +21,7 @@ import {
 	createRecentDedupe,
 	isPlainChannelThreadFollowUp,
 	isPlainDirectMessage,
+	isSlackStopCommand,
 	stripLeadingMention,
 	toDeletedSlackMessage,
 	toSlackMessage,
@@ -115,11 +116,13 @@ function createDatabuddyAssistant({
 				return;
 			}
 
-			await setTitle(toThreadTitle(text));
-			await setStatus({
-				loading_messages: [...SLACK_LOADING_MESSAGES],
-				status: "is thinking...",
-			});
+			if (!isSlackStopCommand(text)) {
+				await setTitle(toThreadTitle(text));
+				await setStatus({
+					loading_messages: [...SLACK_LOADING_MESSAGES],
+					status: "is thinking...",
+				});
+			}
 
 			const run: SlackAgentRun = {
 				channelId,
@@ -130,7 +133,6 @@ function createDatabuddyAssistant({
 				trigger: "assistant",
 				userId,
 			};
-			await threadQueue.markEngaged(run);
 			await handleAgentRun({
 				agent,
 				client,
@@ -250,13 +252,14 @@ export function registerSlackListeners(
 				userId: event.user,
 			};
 			if (
-				await investigationReplyHandler({
+				!isSlackStopCommand(run.text) &&
+				(await investigationReplyHandler({
 					client,
 					installations,
 					logger,
 					run,
 					say,
-				})
+				}))
 			) {
 				return;
 			}
@@ -375,13 +378,14 @@ export function registerSlackListeners(
 			userId: msg.user,
 		};
 		if (
-			await investigationReplyHandler({
+			!isSlackStopCommand(run.text) &&
+			(await investigationReplyHandler({
 				client,
 				installations,
 				logger,
 				run,
 				say,
-			})
+			}))
 		) {
 			return;
 		}
@@ -394,7 +398,9 @@ export function registerSlackListeners(
 			});
 			return;
 		}
-		if (!(await threadQueue.isEngaged(run))) {
+		const locallyStopped =
+			isSlackStopCommand(run.text) && abortSlackThreadRun(run);
+		if (!(locallyStopped || (await threadQueue.isEngaged(run)))) {
 			logMessageRouteSkipped({
 				botUserId: context.botUserId,
 				message: msg,
@@ -405,14 +411,16 @@ export function registerSlackListeners(
 		}
 
 		const slackContext = createSlackConversationContext(client, run);
-		const replyDecision = await threadReplyGate.shouldReply(run, {
-			botUserId: context.botUserId,
-			readThreadMessages: async () =>
-				(await slackContext?.readCurrentThread?.())?.messages ?? [],
-		});
-		if (!replyDecision.shouldReply) {
-			logThreadReplyIgnored({ decision: replyDecision, run });
-			return;
+		if (!isSlackStopCommand(run.text)) {
+			const replyDecision = await threadReplyGate.shouldReply(run, {
+				botUserId: context.botUserId,
+				readThreadMessages: async () =>
+					(await slackContext?.readCurrentThread?.())?.messages ?? [],
+			});
+			if (!replyDecision.shouldReply) {
+				logThreadReplyIgnored({ decision: replyDecision, run });
+				return;
+			}
 		}
 
 		await handleAgentRun({
