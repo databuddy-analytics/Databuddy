@@ -76,7 +76,9 @@ test("link update previews contain every applied field, exact timestamps, and ex
 					...input,
 					confirmed,
 				});
-				if (!parsed.success) throw parsed.error;
+				if (!parsed.success) {
+					throw parsed.error;
+				}
 				const result = await definition.execute(parsed.value, options);
 				const mutations = invoke.mock.calls.filter(
 					([, method]) => method === "update"
@@ -100,6 +102,61 @@ test("link update previews contain every applied field, exact timestamps, and ex
 					});
 				}
 			}
+		}
+	} finally {
+		invoke.mockRestore();
+	}
+});
+
+test.each([
+	{ name: "unknown folder id", updates: { folderId: "missing-folder" } },
+	{ name: "unknown folder slug", updates: { folderSlug: "missing-folder" } },
+	{
+		name: "target incompatible with the current deep-link app",
+		updates: { targetUrl: "https://example.com" },
+	},
+	{
+		name: "deep-link app incompatible with the current target",
+		updates: { deepLinkApp: "youtube" },
+	},
+])("invalid link updates do not mutate: $name", async ({ updates }) => {
+	const current = {
+		id: "link-1",
+		name: "Example",
+		slug: "example",
+		targetUrl: "https://www.instagram.com/example/",
+		deepLinkApp: "instagram",
+	};
+	const invoke = spyOn(rpc, "callRPCProcedure").mockImplementation(
+		async (router) => (router === "linkFolders" ? [] : current)
+	);
+	const definition = createLinksTools().update_link;
+	const schema = asSchema(definition.inputSchema);
+	if (!(schema.validate && definition.execute)) {
+		throw new Error("Missing link tool validator or executor");
+	}
+
+	try {
+		for (const confirmed of [false, true]) {
+			invoke.mockClear();
+			const parsed = await schema.validate({
+				id: current.id,
+				websiteId: "site-1",
+				...updates,
+				confirmed,
+			});
+			if (!parsed.success) {
+				throw parsed.error;
+			}
+			const result = await definition.execute(parsed.value, {
+				toolCallId: "invalid-link-update",
+				messages: [],
+				experimental_context: { mutationMode: "allow" },
+			});
+			expect(result).toMatchObject({ success: false });
+			expect(
+				invoke.mock.calls.filter(([, method]) => method === "update")
+			).toEqual([]);
 		}
 	} finally {
 		invoke.mockRestore();
