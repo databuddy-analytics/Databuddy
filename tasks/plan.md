@@ -49,3 +49,7 @@ The generator uses real partial-output streaming with durable updates, surfaced 
 - A terminal stream event ends the generating UI immediately. A new request cannot display the previous run's draft as its own. Keep failure details and keyboard focus in the draft view on narrow screens.
 - Preserve optimistic revision checks, explicit draft acceptance, manual edits, cancellation isolation, independent usage settlement, and source ownership checks. Old stored JSON remains valid; no database migration, new endpoint, or dependency is needed.
 - Verify schema boundaries, PostgreSQL report/question lifecycle, generator degradation and cancellation, and browser recovery/loading/error states. Live provider QA still requires a separately approved target.
+
+Validated this iteration: root lint, all 33 workspace typecheck tasks, all 29 unit-test tasks (including 69 generator cases), 30 isolated PostgreSQL cases, 40 business-context/measurement browser cases, and a production dashboard build with E2E mode disabled. Four additional desktop/mobile visual checks found no overflow, page errors, lost focus, or input movement while answering. Explicit legacy-draft acceptance has a regression check against borrowing another run's metadata.
+
+The API-only strict TypeScript probe reports the same 122 existing dependency diagnostics as unchanged staging, with no new diagnostics. The repository's required typecheck command passes. No live model or paid-provider quality check was run.

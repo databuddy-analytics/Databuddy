@@ -1919,7 +1919,7 @@ for (const viewport of contextViewports) {
 			.click();
 		await contextStream.connected;
 		const panel = page.getByRole("tabpanel", {
-			name: "AI draft preview",
+			name: "AI draft",
 			exact: true,
 		});
 		await expect(panel).toContainText("Reading your sources");
