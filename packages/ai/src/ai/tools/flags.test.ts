@@ -1,5 +1,5 @@
 import { afterEach, expect, mock, test } from "bun:test";
-import { asSchema } from "ai";
+import { asSchema, type InferToolInput } from "ai";
 import type { callRPCProcedure } from "./utils/rpc";
 
 const currentRules = [
@@ -53,16 +53,13 @@ const cases = boundaries.flatMap((boundary) =>
 	)
 );
 
-interface TargetingInput {
-	confirmed: boolean;
-	matchBy?: "email" | "user_id";
-	mode: "append" | "replace";
-	users: string[];
-}
-
 async function executeTargeting(
 	boundary: (typeof boundaries)[number],
-	input: TargetingInput
+	input: Omit<
+		InferToolInput<typeof nativeTool>,
+		"flagId" | "websiteId" | "matchBy"
+	> &
+		Partial<Pick<InferToolInput<typeof nativeTool>, "matchBy">>
 ) {
 	const args = { flagId: "flag-1", websiteId: "site-1", ...input };
 	if (boundary === "mcp") {
