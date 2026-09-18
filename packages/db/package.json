@@ -13,7 +13,8 @@
     "./clickhouse/dql": "./src/clickhouse/dql.ts",
     "./clickhouse/schema": "./src/clickhouse/schema.ts",
     "./clickhouse/tables": "./src/clickhouse/schema/tables.generated.ts",
-    "./e2e-db-lifecycle": "./src/e2e-db-lifecycle.ts"
+    "./e2e-db-lifecycle": "./src/e2e-db-lifecycle.ts",
+    "./test-env": "./src/test-env.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit",
@@ -31,6 +32,7 @@
   },
   "dependencies": {
     "@clickhouse/client": "^1.14.0",
+    "@databuddy/env": "workspace:*",
     "@databuddy/shared": "workspace:*",
     "@faker-js/faker": "^10.5.0",
     "@neondatabase/serverless": "^1.0.2",
