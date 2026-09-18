@@ -17,7 +17,21 @@ export interface ComponentSpec {
 
 export type Block =
 	| KnownBlock
-	| { type: "data_table"; caption: string; rows: TableCell[][] };
+	| { type: "data_table"; caption: string; rows: TableCell[][] }
+	| {
+			type: "data_visualization";
+			title: string;
+			chart:
+				| { type: "pie"; segments: { label: string; value: number }[] }
+				| {
+						type: "line" | "area" | "bar";
+						series: {
+							name: string;
+							data: { label: string; value: number }[];
+						}[];
+						axis_config: { categories: string[] };
+				  };
+	  };
 
 interface SplitResult {
 	components: ComponentSpec[];
@@ -77,6 +91,9 @@ function dataTable(
 	if (columns.length > DATA_TABLE_MAX_COLUMNS) {
 		return null;
 	}
+	if (!rows.every(Array.isArray)) {
+		return null;
+	}
 	const header = columns.map((column) => ({
 		type: "raw_text" as const,
 		text: column.length > 0 ? column : " ",
@@ -84,7 +101,14 @@ function dataTable(
 	const body = rows
 		.slice(0, DATA_TABLE_MAX_ROWS - 1)
 		.map((row) => columns.map((_, index) => toTableCell(row[index])));
-	return { type: "data_table", caption, rows: [header, ...body] };
+	return {
+		type: "data_table",
+		caption:
+			body.length < rows.length
+				? `${caption} (showing ${body.length} of ${rows.length} rows)`
+				: caption,
+		rows: [header, ...body],
+	};
 }
 
 function absoluteUrl(href: string): string | null {
@@ -124,6 +148,76 @@ function renderDistribution(spec: ComponentSpec): Block[] {
 	const rows = asArray(spec.rows) as Row[];
 	const block = dataTable(title(spec, "Breakdown"), ["Segment", "Value"], rows);
 	return block ? [block] : [];
+}
+
+const CHART_TYPES: Record<string, "line" | "area" | "bar" | "pie"> = {
+	"line-chart": "line",
+	"area-chart": "area",
+	"bar-chart": "bar",
+	"pie-chart": "pie",
+	"donut-chart": "pie",
+};
+
+function isChartLabel(value: unknown): value is string {
+	return (
+		typeof value === "string" && value.trim().length > 0 && value.length <= 20
+	);
+}
+
+function nativeChart(spec: ComponentSpec): Block | null {
+	const type = CHART_TYPES[spec.type];
+	if (!type) {
+		return null;
+	}
+	const chartTitle = title(spec, type === "pie" ? "Breakdown" : "Trend");
+	const names = type === "pie" ? ["Value"] : asArray(spec.series);
+	const rows = asArray(spec.rows);
+	// Slack's chart limits: https://docs.slack.dev/reference/block-kit/blocks/data-visualization-block/
+	// Keep the table when a chart would require dropping, renaming, or coercing data.
+	if (
+		chartTitle.length > 50 ||
+		names.length === 0 ||
+		names.length > 12 ||
+		!names.every(isChartLabel) ||
+		new Set(names).size !== names.length ||
+		rows.length === 0 ||
+		rows.length > (type === "pie" ? 12 : 20) ||
+		!rows.every(
+			(row): row is [string, ...number[]] =>
+				Array.isArray(row) &&
+				row.length === names.length + 1 &&
+				isChartLabel(row[0]) &&
+				row
+					.slice(1)
+					.every(
+						(value) =>
+							typeof value === "number" &&
+							Number.isFinite(value) &&
+							(type !== "pie" || value > 0)
+					)
+		) ||
+		new Set(rows.map((row) => row[0])).size !== rows.length
+	) {
+		return null;
+	}
+	return {
+		type: "data_visualization",
+		title: chartTitle,
+		chart:
+			type === "pie"
+				? { type, segments: rows.map(([label, value]) => ({ label, value })) }
+				: {
+						type,
+						axis_config: { categories: rows.map(([label]) => label) },
+						series: names.map((name, index) => ({
+							name,
+							data: rows.map(([label, ...values]) => ({
+								label,
+								value: values[index],
+							})),
+						})),
+					},
+	};
 }
 
 interface ListTableConfig {
@@ -478,7 +572,11 @@ export function splitAgentText(text: string): SplitResult {
 	return { components: rest.components, text: head + rest.text };
 }
 
-export function componentToBlocks(spec: ComponentSpec): Block[] {
+export function componentToBlocks(spec: ComponentSpec, charts = true): Block[] {
+	const chart = charts ? nativeChart(spec) : null;
+	if (chart) {
+		return [chart];
+	}
 	const renderer = RENDERERS[spec.type];
 	const blocks = renderer ? renderer(spec) : [];
 	if (blocks.length > 0) {
@@ -487,8 +585,18 @@ export function componentToBlocks(spec: ComponentSpec): Block[] {
 	return [context(`_${title(spec, spec.type)}_`)];
 }
 
-export function componentsToBlocks(components: ComponentSpec[]): Block[] {
-	return components.flatMap(componentToBlocks);
+export function componentsToBlocks(
+	components: ComponentSpec[],
+	charts = true
+): Block[] {
+	let chartCount = 0;
+	return components.flatMap((spec) => {
+		const blocks = componentToBlocks(spec, charts && chartCount < 2);
+		chartCount += blocks.filter(
+			(block) => block.type === "data_visualization"
+		).length;
+		return blocks;
+	});
 }
 
 export const FEEDBACK_ACTION_ID = "agent_feedback";
