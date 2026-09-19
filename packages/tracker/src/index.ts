@@ -329,12 +329,14 @@ export class Databuddy extends BaseTracker {
 	}
 
 	private pageEngagement(now: number) {
+		const globalEventProperties = this.globalProperties.properties;
 		return {
 			time_on_page: Math.round((now - this.pageStartTime) / 1000),
 			scroll_depth: this.maxScrollDepth,
 			interaction_count: this.interactionCount,
 			page_count: this.pageCount,
 			properties: {
+				...(typeof globalEventProperties === "object" && globalEventProperties),
 				clicks: this.clickCount,
 				keys: this.keyCount,
 				scrolls: this.scrollCount,
