@@ -449,7 +449,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				question: "Which tracker has less overhead?",
 				answer:
-					"The current Databuddy tracker is about 12 KB gzip and loads asynchronously. Compare current builds with the features you enable, then measure both on your site.",
+					"The current Databuddy tracker is about 13 KB gzip and loads asynchronously. Compare current builds with the features you enable, then measure both on your site.",
 			},
 		],
 		pricingTiers: [

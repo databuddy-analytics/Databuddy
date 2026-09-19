@@ -91,7 +91,7 @@ export const manifestoSections: readonly ManifestoChapter[] = [
 			},
 			{
 				type: "paragraph",
-				text: "Databuddy’s tracker is about 12 KB gzipped and uses browser storage instead of analytics cookies. User identification is optional. Website owners choose what to collect and remain responsible for their privacy notices and consent requirements.",
+				text: "Databuddy’s tracker is about 13 KB gzipped and uses browser storage instead of analytics cookies. User identification is optional. Website owners choose what to collect and remain responsible for their privacy notices and consent requirements.",
 			},
 			{
 				type: "paragraph",

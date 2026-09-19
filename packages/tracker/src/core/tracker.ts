@@ -68,6 +68,14 @@ export class BaseTracker {
 	pageCount = 0;
 	lastPath = "";
 	interactionCount = 0;
+	clickCount = 0;
+	keyCount = 0;
+	scrollCount = 0;
+	rageClickCount = 0;
+	deadClickCount = 0;
+	formFieldCount = 0;
+	formSubmitCount = 0;
+	errorCount = 0;
 	maxScrollDepth = 0;
 	pageStartTime = Date.now();
 
