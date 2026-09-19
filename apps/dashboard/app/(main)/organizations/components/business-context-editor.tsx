@@ -127,10 +127,13 @@ export function BusinessContextEditor({
 	const [showSourceInput, setShowSourceInput] = useState(false);
 	const editorRef = useRef<HTMLTextAreaElement>(null);
 	const [view, setView] = useState(() => {
+		if (profile?.content) {
+			return "preview";
+		}
 		if (generation?.status === "ready" && generation.draft) {
 			return "draft";
 		}
-		return canEdit && !profile?.content ? "edit" : "preview";
+		return canEdit ? "edit" : "preview";
 	});
 	const sourceText =
 		research?.sourceText ?? (generation?.sourceUrls ?? []).join("\n");
