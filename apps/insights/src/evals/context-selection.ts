@@ -6,9 +6,8 @@ import {
 } from "node:fs";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { createModelFromId } from "@databuddy/ai/config/models";
+import { createGateway } from "@ai-sdk/gateway";
 import type { BusinessContext } from "@databuddy/shared/insights";
-import { wrapLanguageModel } from "ai";
 import { spawnSync } from "bun";
 import { runInsightAgent } from "../agent";
 import { chooseInvestigationSignals } from "../business-aware-selection";
@@ -31,7 +30,10 @@ interface SelectionResult {
 // Frozen synthetic measurements and native selection/investigation entry points.
 // Only gateway model requests are live. No persistence, billing or delivery runs.
 const asOf = "2026-09-05T00:00:00.000Z";
-const modelId = "openai/gpt-5.6-terra";
+const modelId = "openai/gpt-5.6-luna";
+const selectionModel = createGateway({
+	apiKey: (process.env.AI_GATEWAY_API_KEY ?? "").trim(),
+}).evaluationModel("typesafe-ai/jev");
 const input = {
 	organizationId: "synthetic-org",
 	websiteId: "synthetic-site",
@@ -243,6 +245,7 @@ if (import.meta.main) {
 		JSON.stringify(
 			{
 				modelId,
+				selectionModelId: selectionModel.modelId,
 				asOf,
 				runs,
 				reverse: values.reverse,
@@ -277,34 +280,26 @@ if (import.meta.main) {
 					);
 				const calls: unknown[] = [];
 				const usage: unknown[] = [];
-				const model = wrapLanguageModel({
-					model: createModelFromId(modelId),
-					middleware: {
-						specificationVersion: "v3",
-						wrapGenerate: async ({ doGenerate, params }) => {
-							calls.push(params.prompt);
-							emit("model.request", params);
-							try {
-								const response = await doGenerate();
-								usage.push(response.usage);
-								emit("model.response", {
-									content: response.content.filter(
-										(item) => item.type !== "reasoning"
-									),
-									usage: response.usage,
-									finishReason: response.finishReason,
-								});
-								return response;
-							} catch (error) {
-								emit(
-									"model.error",
-									error instanceof Error ? error.message : String(error)
-								);
-								throw error;
-							}
-						},
+				const model = {
+					doEvaluate: async (
+						request: Parameters<typeof selectionModel.doEvaluate>[0]
+					) => {
+						calls.push(request);
+						emit("model.request", request);
+						try {
+							const response = await selectionModel.doEvaluate(request);
+							usage.push(response.usage);
+							emit("model.response", response);
+							return response;
+						} catch (error) {
+							emit(
+								"model.error",
+								error instanceof Error ? error.message : String(error)
+							);
+							throw error;
+						}
 					},
-				});
+				};
 				const started = performance.now();
 				const supplied = arm === "present" ? scenario.context : absent;
 				const signals = values.reverse
