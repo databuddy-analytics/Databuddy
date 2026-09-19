@@ -5,7 +5,7 @@ import { Footer } from "@/components/footer";
 import { AiSection } from "@/components/landing/ai-section";
 import { DemoPreconnectLinks } from "@/components/landing/demo-preconnect-links";
 import { Description } from "@/components/landing/description";
-import FAQ from "@/components/landing/faq";
+import { FaqSection } from "@/components/landing/faq-section";
 import { GridCards } from "@/components/landing/grid-cards";
 import Hero from "@/components/landing/hero";
 import { PricingPreview } from "@/components/landing/pricing-preview";
@@ -194,7 +194,11 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 					id="faq"
 				>
 					<div className={container}>
-						<FAQ />
+						<FaqSection
+							className="max-w-full"
+							items={homeFaqItems}
+							title="We give a FAQ"
+						/>
 					</div>
 				</Section>
 
