@@ -305,10 +305,7 @@ export class Databuddy extends BaseTracker {
 				timestamp: now,
 				...this.getBaseContext(),
 				...this.globalProperties,
-				time_on_page: Math.round((now - this.pageStartTime) / 1000),
-				scroll_depth: this.maxScrollDepth,
-				interaction_count: this.interactionCount,
-				page_count: this.pageCount,
+				...this.pageEngagement(now),
 			},
 		]);
 	}
@@ -331,21 +328,45 @@ export class Databuddy extends BaseTracker {
 		this.screenView({ navigation_type: "back_forward_cache" });
 	}
 
+	private pageEngagement(now: number) {
+		return {
+			time_on_page: Math.round((now - this.pageStartTime) / 1000),
+			scroll_depth: this.maxScrollDepth,
+			interaction_count: this.interactionCount,
+			page_count: this.pageCount,
+			properties: {
+				clicks: this.clickCount,
+				keys: this.keyCount,
+				scrolls: this.scrollCount,
+				rage_clicks: this.rageClickCount,
+				dead_clicks: this.deadClickCount,
+				form_fields: this.formFieldCount,
+				form_submits: this.formSubmitCount,
+				errors: this.errorCount,
+			},
+		};
+	}
+
 	private trackPageExit(exitPath?: string) {
 		const now = Date.now();
 		this._trackInternal("page_exit", {
 			path: exitPath ? sanitizePageUrl(exitPath) : undefined,
 			timestamp: now,
-			time_on_page: Math.round((now - this.pageStartTime) / 1000),
-			scroll_depth: this.maxScrollDepth,
-			interaction_count: this.interactionCount,
-			page_count: this.pageCount,
+			...this.pageEngagement(now),
 		});
 	}
 
 	private resetPageEngagement() {
 		this.pageStartTime = Date.now();
 		this.interactionCount = 0;
+		this.clickCount = 0;
+		this.keyCount = 0;
+		this.scrollCount = 0;
+		this.rageClickCount = 0;
+		this.deadClickCount = 0;
+		this.formFieldCount = 0;
+		this.formSubmitCount = 0;
+		this.errorCount = 0;
 		this.maxScrollDepth = 0;
 	}
 
@@ -439,6 +460,14 @@ export class Databuddy extends BaseTracker {
 		this.pageCount = 0;
 		this.lastPath = "";
 		this.interactionCount = 0;
+		this.clickCount = 0;
+		this.keyCount = 0;
+		this.scrollCount = 0;
+		this.rageClickCount = 0;
+		this.deadClickCount = 0;
+		this.formFieldCount = 0;
+		this.formSubmitCount = 0;
+		this.errorCount = 0;
 		this.maxScrollDepth = 0;
 	}
 
