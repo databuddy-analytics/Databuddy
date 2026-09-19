@@ -6,6 +6,7 @@ import localFont from "next/font/local";
 import { ThemeProvider } from "next-themes";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import type { ReactNode } from "react";
+import { DubAnalytics } from "@/components/dub-analytics";
 import { RegisterAttribution } from "@/components/register-attribution";
 import { Toaster } from "@/components/ui/sonner";
 import { SITE_URL } from "./util/constants";
@@ -118,14 +119,7 @@ export default function Layout({ children }: { children: ReactNode }) {
 					trackOutgoingLinks
 					trackWebVitals
 				/>
-				{process.env.NODE_ENV === "development" ? null : (
-					<script
-						data-cookie-options='{"domain":".databuddy.cc"}'
-						data-publishable-key="dub_pk_TbFwfIKx6BtgspSSbNDcDVRE"
-						defer
-						src="https://www.dubcdn.com/analytics/script.outbound-domains.conversion-tracking.js"
-					/>
-				)}
+				{process.env.NODE_ENV === "development" ? null : <DubAnalytics />}
 			</body>
 		</html>
 	);
