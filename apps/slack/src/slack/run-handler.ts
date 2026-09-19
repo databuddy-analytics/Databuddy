@@ -247,6 +247,7 @@ function createFollowUpRun(
 	return {
 		...baseRun,
 		followUpMessages: followUps,
+		slackContext: undefined,
 		messageTs: lastFollowUp?.messageTs ?? baseRun.messageTs,
 		requestTs: lastFollowUp?.requestTs ?? lastFollowUp?.messageTs,
 		text: followUps.map((followUp) => followUp.text).join("\n"),
