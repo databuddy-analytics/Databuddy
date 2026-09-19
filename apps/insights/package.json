@@ -25,7 +25,8 @@
     "dayjs": "^1.11.19",
     "elysia": "catalog:",
     "evlog": "catalog:",
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "@ai-sdk/gateway": "4.0.85"
   },
   "devDependencies": {
     "@databuddy/test": "workspace:*",

@@ -1,11 +1,8 @@
 import "@databuddy/test/env";
 import { describe, expect, it } from "bun:test";
-import {
-	createModelFromId,
-	isAiGatewayConfigured,
-} from "@databuddy/ai/config/models";
+import { createGateway } from "@ai-sdk/gateway";
+import { isAiGatewayConfigured } from "@databuddy/ai/config/models";
 import type { BusinessContext } from "@databuddy/ai/lib/business-context";
-import { wrapLanguageModel } from "ai";
 import { chooseInvestigationSignals } from "./business-aware-selection";
 import { planCoveragePortfolio } from "./coverage-planner";
 import type { DetectedSignal } from "./detection";
@@ -15,6 +12,9 @@ import {
 	signalKeyForDetectedSignal,
 } from "./investigation";
 
+const evaluationModel = createGateway({
+	apiKey: (process.env.AI_GATEWAY_API_KEY ?? "").trim(),
+}).evaluationModel("typesafe-ai/jev");
 const live =
 	process.env.INSIGHTS_LIVE_SELECTION_TESTS === "true"
 		? describe
@@ -123,24 +123,17 @@ live("live native business selection", () => {
 				.repeat(160)
 				.slice(0, 6063),
 		};
-		const model = wrapLanguageModel({
-			model: createModelFromId("openai/gpt-5.6-terra"),
-			middleware: {
-				specificationVersion: "v3",
-				wrapGenerate: async ({ doGenerate, params }) => {
-					calls++;
-					const part = params.prompt.find((message) => message.role === "user")
-						?.content[0];
-					if (!part || part.type !== "text") {
-						throw new Error("Missing selection input");
-					}
-					const sent = JSON.parse(part.text).businessContext;
-					expect(sent.sources).toEqual([newer, older, pricing]);
-					expect(sent.omittedSourceCount).toBe(1);
-					return await doGenerate();
-				},
+		const model = {
+			doEvaluate: async (
+				request: Parameters<typeof evaluationModel.doEvaluate>[0]
+			) => {
+				calls++;
+				const sent = JSON.parse(String(request.state)).businessContext;
+				expect(sent.sources).toEqual([newer, older, pricing]);
+				expect(sent.omittedSourceCount).toBe(1);
+				return await evaluationModel.doEvaluate(request);
 			},
-		});
+		};
 		const started = performance.now();
 		const result = await chooseInvestigationSignals(
 			{
@@ -149,7 +142,6 @@ live("live native business selection", () => {
 					signal: prepareInvestigation(signal, 7).signal,
 					definition: signal.definitionEvidence,
 				})),
-				limit: 2,
 			},
 			model
 		);
@@ -249,18 +241,15 @@ live("live native business selection", () => {
 			expect(isAiGatewayConfigured).toBe(true);
 			let calls = 0,
 				promptCharacters = 0;
-			const model = wrapLanguageModel({
-				model: createModelFromId("openai/gpt-5.6-terra"),
-				middleware: {
-					specificationVersion: "v3",
-					wrapGenerate: async ({ doGenerate, params }) => {
-						calls++;
-						promptCharacters = JSON.stringify(params.prompt).length;
-						expect(params.tools ?? []).toEqual([]);
-						return await doGenerate();
-					},
+			const model = {
+				doEvaluate: async (
+					request: Parameters<typeof evaluationModel.doEvaluate>[0]
+				) => {
+					calls++;
+					promptCharacters = JSON.stringify(request).length;
+					return await evaluationModel.doEvaluate(request);
 				},
-			});
+			};
 			const results: NonNullable<
 				Awaited<ReturnType<typeof chooseInvestigationSignals>>
 			>[] = [];

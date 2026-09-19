@@ -1087,7 +1087,6 @@ export async function planInvestigationsWithBusinessContext(
 		try {
 			const result = await sources.selectCandidates({
 				businessContext: profile,
-				limit: coveragePortfolioLimit(options.reason),
 				candidates: signals.map((signal) => ({
 					signal: toPlannedCandidate(signal).signal,
 					definition: signal.definitionEvidence,
@@ -1096,8 +1095,7 @@ export async function planInvestigationsWithBusinessContext(
 			});
 			if (result) {
 				const { selections } = investigationSelectionSchema(
-					signals.map(signalKeyForDetectedSignal),
-					coveragePortfolioLimit(options.reason)
+					signals.map(signalKeyForDetectedSignal)
 				).parse(result.output);
 				const objectives = new Map(
 					selections.map((item) => [item.signalKey, item.objective])
