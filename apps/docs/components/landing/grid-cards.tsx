@@ -28,7 +28,7 @@ const cards = [
 	},
 	{
 		id: 3,
-		title: "About 12 KB gzip",
+		title: "About 13 KB gzip",
 		description:
 			"An asynchronous browser tracker for analytics, errors, and web vitals. Measure its impact in your own performance budget.",
 		icon: LightningIcon,

@@ -51,7 +51,7 @@ export const homeFaqItems: LandingFaqItem[] = [
 	{
 		question: "Will the script slow down my site?",
 		answer:
-			"The tracker is about 12 KB gzipped and loads asynchronously. Real impact depends on your site and setup, so measure it in your own performance budget.",
+			"The tracker is about 13 KB gzipped and loads asynchronously. Real impact depends on your site and setup, so measure it in your own performance budget.",
 	},
 	{
 		question: "Why pay when I can self-host for free?",
