@@ -83,8 +83,7 @@ export function CtaBanner({
 export const ctaBannerHeadingClass =
 	"mb-2 text-balance text-left font-medium text-2xl text-white leading-tight sm:text-4xl";
 
-export const ctaBannerDescriptionClass =
-	"mb-6 text-pretty text-lg text-white/70";
+const ctaBannerDescriptionClass = "mb-6 text-pretty text-lg text-white/70";
 
 function FooterHero() {
 	return (
