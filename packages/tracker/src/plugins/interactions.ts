@@ -1,7 +1,5 @@
 import type { BaseTracker } from "../core/tracker";
 
-type InteractionCounter = "clickCount" | "keyCount" | "scrollCount";
-
 const interactionEvents = [
 	"mousedown",
 	"keydown",
@@ -13,7 +11,10 @@ const interactionEvents = [
 ] as const;
 
 const counterByEvent: Partial<
-	Record<(typeof interactionEvents)[number], InteractionCounter>
+	Record<
+		(typeof interactionEvents)[number],
+		"clickCount" | "keyCount" | "scrollCount"
+	>
 > = {
 	click: "clickCount",
 	keydown: "keyCount",
@@ -28,6 +29,29 @@ const INTERACTIVE_SELECTOR =
 	'a,button,input,select,textarea,summary,label,[role="button"],[role="link"],[role="tab"],[role="menuitem"],[onclick],[data-track]';
 
 const FORM_FIELD_SELECTOR = "input,select,textarea";
+
+const LEAVES_DOCUMENT_HREF = /^(?:mailto|tel|sms):/i;
+
+function leavesDocument(event: MouseEvent, element: Element): boolean {
+	if (
+		event.button !== 0 ||
+		event.metaKey ||
+		event.ctrlKey ||
+		event.shiftKey ||
+		event.altKey
+	) {
+		return true;
+	}
+	const anchor = element.closest("a");
+	if (!anchor) {
+		return false;
+	}
+	return (
+		anchor.target.toLowerCase() === "_blank" ||
+		anchor.hasAttribute("download") ||
+		LEAVES_DOCUMENT_HREF.test(anchor.getAttribute("href") ?? "")
+	);
+}
 
 export function initInteractionTracking(tracker: BaseTracker): () => void {
 	if (tracker.isServer()) {
@@ -53,15 +77,14 @@ export function initInteractionTracking(tracker: BaseTracker): () => void {
 	let lastClickAt = 0;
 	let clickStreak = 0;
 
-	let deadClickTimer: ReturnType<typeof setTimeout> | undefined;
-	let awaitingDeadClickCheck = false;
-	let mutatedSinceClick = false;
+	const deadClickTimers = new Set<ReturnType<typeof setTimeout>>();
+	let lastMutationAt = 0;
 
 	const mutationObserver =
 		typeof MutationObserver === "undefined"
 			? null
 			: new MutationObserver(() => {
-					mutatedSinceClick = true;
+					lastMutationAt = Date.now();
 				});
 
 	const countRageClick = (target: EventTarget | null, now: number) => {
@@ -81,49 +104,55 @@ export function initInteractionTracking(tracker: BaseTracker): () => void {
 		lastClickAt = now;
 	};
 
-	const watchForDeadClick = (target: EventTarget | null) => {
-		if (!mutationObserver || awaitingDeadClickCheck) {
-			return;
-		}
-
-		const element = target instanceof Element ? target : null;
-		if (!element?.closest(INTERACTIVE_SELECTOR)) {
+	const watchForDeadClick = (event: MouseEvent, now: number) => {
+		const element = event.target instanceof Element ? event.target : null;
+		if (
+			!(mutationObserver && element?.closest(INTERACTIVE_SELECTOR)) ||
+			leavesDocument(event, element)
+		) {
 			return;
 		}
 
 		const hrefAtClick = window.location.href;
-		awaitingDeadClickCheck = true;
-		mutatedSinceClick = false;
-		mutationObserver.observe(document, {
-			subtree: true,
-			childList: true,
-			attributes: true,
-		});
+		if (deadClickTimers.size === 0) {
+			mutationObserver.observe(document, {
+				subtree: true,
+				childList: true,
+				attributes: true,
+			});
+		}
 
-		deadClickTimer = setTimeout(() => {
-			mutationObserver.disconnect();
-			awaitingDeadClickCheck = false;
-
-			if (!mutatedSinceClick && window.location.href === hrefAtClick) {
+		const timer = setTimeout(() => {
+			deadClickTimers.delete(timer);
+			if (deadClickTimers.size === 0) {
+				mutationObserver.disconnect();
+			}
+			if (lastMutationAt < now && window.location.href === hrefAtClick) {
 				tracker.deadClickCount += 1;
 			}
 		}, DEAD_CLICK_WINDOW_MS);
+		deadClickTimers.add(timer);
 	};
 
 	const behaviourClickHandler = (event: MouseEvent) => {
 		const now = Date.now();
 		countRageClick(event.target, now);
-		watchForDeadClick(event.target);
+		watchForDeadClick(event, now);
 	};
 
-	const touchedFields = new WeakSet<Element>();
+	let touchedFields = new WeakSet<Element>();
+	let touchedFieldsPageStart = tracker.pageStartTime;
 
 	const focusHandler = (event: FocusEvent) => {
 		const element = event.target instanceof Element ? event.target : null;
-		if (!element?.matches(FORM_FIELD_SELECTOR)) {
+		if (!(element?.matches(FORM_FIELD_SELECTOR) && element.closest("form"))) {
 			return;
 		}
-		if (!element.closest("form") || touchedFields.has(element)) {
+		if (touchedFieldsPageStart !== tracker.pageStartTime) {
+			touchedFields = new WeakSet<Element>();
+			touchedFieldsPageStart = tracker.pageStartTime;
+		}
+		if (touchedFields.has(element)) {
 			return;
 		}
 
@@ -143,7 +172,10 @@ export function initInteractionTracking(tracker: BaseTracker): () => void {
 		document.removeEventListener("click", behaviourClickHandler);
 		document.removeEventListener("focusin", focusHandler);
 		document.removeEventListener("submit", submitHandler);
-		clearTimeout(deadClickTimer);
+		for (const timer of deadClickTimers) {
+			clearTimeout(timer);
+		}
+		deadClickTimers.clear();
 		mutationObserver?.disconnect();
 	});
 
