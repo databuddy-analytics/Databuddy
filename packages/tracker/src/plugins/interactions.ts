@@ -33,7 +33,13 @@ const FORM_FIELD_SELECTOR = "input,select,textarea";
 const LEAVES_DOCUMENT_HREF = /^(?:mailto|tel|sms):/i;
 
 function leavesDocument(event: MouseEvent, element: Element): boolean {
-	if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) {
+	if (
+		event.button !== 0 ||
+		event.metaKey ||
+		event.ctrlKey ||
+		event.shiftKey ||
+		event.altKey
+	) {
 		return true;
 	}
 	const anchor = element.closest("a");
@@ -41,7 +47,7 @@ function leavesDocument(event: MouseEvent, element: Element): boolean {
 		return false;
 	}
 	return (
-		anchor.target === "_blank" ||
+		anchor.target.toLowerCase() === "_blank" ||
 		anchor.hasAttribute("download") ||
 		LEAVES_DOCUMENT_HREF.test(anchor.getAttribute("href") ?? "")
 	);
