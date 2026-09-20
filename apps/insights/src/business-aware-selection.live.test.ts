@@ -159,9 +159,6 @@ live("live native business selection", () => {
 				inputTokens: result?.usage.inputTokens,
 				outputTokens: result?.usage.outputTokens,
 				omittedSourceCount: 1,
-				objectives: result?.output.selections.map(
-					(selection) => selection.objective
-				),
 			})}\n`
 		);
 		expect(calls).toBe(1);

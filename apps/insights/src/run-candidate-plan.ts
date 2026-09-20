@@ -20,7 +20,7 @@ const plannedCandidateSchema = z
 	.object({
 		businessContext: businessContextSchema.optional(),
 		evidence: z.array(z.string().max(500)).max(20),
-		// Retain the detector constraint alongside the bounded planning hypothesis.
+		// Preserve original constraints and objectives in existing frozen plans.
 		investigationObjective: z.string().max(1100).optional(),
 		signal: investigationSignalSchema,
 	})

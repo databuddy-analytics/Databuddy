@@ -1097,26 +1097,11 @@ export async function planInvestigationsWithBusinessContext(
 				const { selections } = investigationSelectionSchema(
 					signals.map(signalKeyForDetectedSignal)
 				).parse(result.output);
-				const objectives = new Map(
-					selections.map((item) => [item.signalKey, item.objective])
-				);
 				const fallbackCount = candidates.length;
 				candidates = planCoveragePortfolio(signals, {
 					...options,
-					selectedSignalKeys: [...objectives.keys()],
-				}).map((signal) => {
-					const hypothesis = objectives.get(signalKeyForDetectedSignal(signal));
-					return {
-						...toPlannedCandidate(signal),
-						investigationObjective:
-							[
-								signal.investigationObjective,
-								hypothesis && `Unverified planning hypothesis: ${hypothesis}`,
-							]
-								.filter(Boolean)
-								.join("\n") || undefined,
-					};
-				});
+					selectedSignalKeys: selections.map((item) => item.signalKey),
+				}).map(toPlannedCandidate);
 				emitInsightsEvent("info", "generation.candidate_portfolio.selected", {
 					organization_id: input.organizationId,
 					website_id: input.websiteId,

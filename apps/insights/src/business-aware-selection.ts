@@ -22,7 +22,6 @@ export function investigationSelectionSchema(keys: string[]) {
 			.array(
 				z.strictObject({
 					signalKey: z.enum(keys),
-					objective: z.string().trim().min(1).max(500),
 				})
 			)
 			.max(keys.length)
@@ -229,8 +228,6 @@ export async function chooseInvestigationSignals(
 				return [
 					{
 						signalKey: candidate.signal.signalKey,
-						objective:
-							"Check this candidate against the sourced business context, preserving its original measurement constraints.",
 						rank: priority.probability,
 					},
 				];
@@ -238,7 +235,7 @@ export async function chooseInvestigationSignals(
 			return investigationSelectionSchema(keys).parse({
 				selections: ranked
 					.sort((a, b) => b.rank - a.rank)
-					.map(({ signalKey, objective }) => ({ signalKey, objective })),
+					.map(({ signalKey }) => ({ signalKey })),
 			});
 		},
 	};

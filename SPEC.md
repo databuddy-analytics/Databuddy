@@ -96,10 +96,10 @@ business context and complete candidate definitions inform at most one bounded
 Jev evaluation before subject recall and investigation. It ranks all retained candidates;
 code applies correlation grouping and run limits afterward. Only an applicable sourced
 explanation or scope exclusion may remove optional work; uncertain meaning retains it.
-Code adds a fixed planning objective; Jev supplies neither evidence nor publication decisions. Unavailable or invalid
+Jev selects work without rewriting its question or supplying evidence or publication decisions. Unavailable or invalid
 context retains the deterministic fallback; due rechecks and critical reliability
 regressions retain priority even when the model selects none. Original measurement
-constraints and the unverified planning rationale stay in the frozen objective.
+constraints stay unchanged in the frozen objective.
 Scheduled runs investigate at most two; a deliberate manual full scan investigates at
 most five and covers a distinct eligible specialist family before taking extra work from
 one family. This does not reintroduce optional general work excluded by business-aware

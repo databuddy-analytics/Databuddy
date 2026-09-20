@@ -195,8 +195,8 @@ describe("Jev business-aware selection", () => {
 			loadOtherOpenWork: async () => [],
 			investigateSignal: async (params) => {
 				reads.push(params.signal.signalKey);
-				expect(params.investigationObjective).toStartWith(
-					`${outcome.investigationObjective}\nUnverified planning hypothesis:`
+				expect(params.investigationObjective).toBe(
+					outcome.investigationObjective
 				);
 				expect(params.appContext.organizationId).toBe(input.organizationId);
 				expect(params.appContext.mutationMode).toBe("dry-run");
@@ -316,6 +316,23 @@ describe("Jev business-aware selection", () => {
 			"visitors",
 			"revenue:USD",
 		]);
+		expect(
+			selected.every((item) => item.investigationObjective === undefined)
+		).toBe(true);
+		const restored = parseFrozenInvestigationPlan(
+			JSON.parse(
+				JSON.stringify({
+					asOf: input.asOf,
+					businessScope: scope,
+					reason: "scheduled",
+					candidates: selected,
+				})
+			),
+			"scheduled",
+			scope
+		).candidates;
+		expect(restored).toEqual(selected);
+		expect(restored[0]?.investigationObjective).toBeUndefined();
 	});
 
 	it("keeps all untrusted text in state, with exact expected answer IDs", async () => {
