@@ -39,7 +39,7 @@ A completed investigation costs **$1**. The billable unit is one explicitly star
 analysis of a selected signal or new question, not the durable case that may hold
 several analyses over time. A supported measured answer, concrete inspected repair,
 or verified no-action conclusion can complete it. Failed, interrupted, inconclusive
-work and an unanswered necessary question are not completed investigations.
+work and an unanswered necessary question are not completed investigations. Funnel-step completion requires both exact native comparison windows with the same definition and population; step conversion uses the preceding step’s visitors as its denominator.
 
 Reserve one investigation before starting new analysis. Confirm that reservation
 only after its complete result is saved and readable; release it when the work is

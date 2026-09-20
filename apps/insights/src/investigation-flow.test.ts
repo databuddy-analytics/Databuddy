@@ -4513,6 +4513,272 @@ describe("investigation completion and retained evidence", () => {
 
 describe("completed answer measurement boundary", () => {
 	it.each([
+		"exact",
+		"reversed-rows",
+		"first-predecessor-mismatch",
+		"last-step-mismatch",
+		"overview-only",
+		"missing-previous",
+		"wrong-parent",
+		"wrong-site",
+		"changed-definition",
+		"changed-filters",
+		"missing-step",
+		"missing-predecessor",
+		"duplicate-step",
+		"invalid-count",
+		"wrong-denominator-rate",
+		"unrounded-rate",
+		"clipped-current",
+		"clipped-previous",
+		"earlier-clipped-current",
+		"earlier-clipped-previous",
+		"conflicting-current",
+		"conflicting-previous",
+		"failed-current",
+		"native-lookalike",
+		"mismatched-identity",
+		"unknown-step",
+		"open-window",
+	])("requires the exact native funnel-step populations: %s", async (mode) => {
+		const prepared = prepareInvestigation(
+			{
+				metric: "funnel:checkout",
+				subjectKey: "funnel:checkout:step:3",
+				label: "Checkout payment conversion",
+				current: 20,
+				baseline: 40,
+				deltaPercent: -50,
+				direction: "down",
+				method: "wow",
+				severity: "warning",
+				detectedAt: signal.period.current.to,
+				period: signal.period,
+			},
+			7
+		);
+		const stepSignal = prepared.signal;
+		if (
+			mode === "first-predecessor-mismatch" ||
+			mode === "last-step-mismatch"
+		) {
+			const stepNumber = mode === "first-predecessor-mismatch" ? 2 : 4;
+			stepSignal.entity.id = `checkout:step:${stepNumber}`;
+			stepSignal.signalKey = `funnel:checkout:step:${stepNumber}`;
+		}
+		if (mode === "mismatched-identity") {
+			stepSignal.entity.id = "another:step:3";
+		}
+		if (mode === "unknown-step") {
+			stepSignal.entity.id = "checkout:step:9";
+			stepSignal.signalKey = "funnel:checkout:step:9";
+		}
+		const measurement = (period: typeof signal.period.current) => {
+			const previous = period.from === signal.period.previous.from;
+			const counts = previous ? [1000, 600, 480, 400] : [1000, 600, 300, 200];
+			return {
+				measurement: {
+					websiteId: "site-1",
+					definitionId: "checkout",
+					startDate: period.from,
+					endDate: period.to,
+					definition: {
+						steps: ["entry", "cart", "payment", "receipt"].map((name) => ({
+							name,
+							target: `/${name}`,
+							type: "PAGE_VIEW" as const,
+						})),
+						filters: [] as {
+							field: string;
+							operator: "equals";
+							value: string;
+						}[],
+					},
+				},
+				total_users_entered: 1000,
+				total_users_completed: counts[3],
+				steps_analytics: counts.map((users, index) => ({
+					step_number: index + 1,
+					users,
+					total_users: 1000,
+					conversion_rate:
+						index === 0
+							? 100
+							: Math.round((users / counts[index - 1]) * 10_000) / 100,
+				})),
+			};
+		};
+		const current = measurement(signal.period.current);
+		const previous = measurement(signal.period.previous);
+		if (mode === "first-predecessor-mismatch") {
+			current.steps_analytics[0].users = 999;
+			current.steps_analytics[1].conversion_rate = 60.06;
+		}
+		if (mode === "last-step-mismatch") {
+			current.total_users_completed = 199;
+		}
+		if (mode === "wrong-parent") {
+			current.measurement.definitionId = "another";
+		}
+		if (mode === "wrong-site") {
+			current.measurement.websiteId = "another";
+		}
+		if (mode === "changed-definition") {
+			previous.measurement.definition.steps[2].target = "/old";
+		}
+		if (mode === "changed-filters") {
+			previous.measurement.definition.filters.push({
+				field: "country",
+				operator: "equals",
+				value: "US",
+			});
+		}
+		if (mode === "missing-step") {
+			current.steps_analytics.splice(2, 1);
+		}
+		if (mode === "missing-predecessor") {
+			previous.steps_analytics.splice(1, 1);
+		}
+		if (mode === "duplicate-step") {
+			current.steps_analytics.push(current.steps_analytics[2]);
+		}
+		if (mode === "invalid-count") {
+			current.steps_analytics[2].users = 601;
+		}
+		if (mode === "wrong-denominator-rate") {
+			current.steps_analytics[2].conversion_rate = 30;
+		}
+		if (mode === "unrounded-rate") {
+			current.steps_analytics[2].conversion_rate = 50.001;
+		}
+		if (mode === "clipped-current") {
+			current.measurement.startDate = "2026-07-06";
+		}
+		if (mode === "clipped-previous") {
+			previous.measurement.startDate = "2026-06-29";
+		}
+		if (mode === "reversed-rows") {
+			current.steps_analytics.reverse();
+		}
+		const name =
+			mode === "native-lookalike" ? "scrape_page" : "get_funnel_analytics";
+		const reads: ReturnType<typeof toolCallResponse>[] = [];
+		const sources: z.infer<typeof agentEvidenceReferenceSchema>[] = [];
+		const outputs: Record<string, unknown> = {};
+		const read = (
+			id: string,
+			period: typeof signal.period.current,
+			output: unknown,
+			cite = true
+		) => {
+			outputs[id] = output;
+			reads.push(
+				toolCallResponse(
+					name,
+					JSON.stringify({
+						funnelId: "checkout",
+						startDate: period.from,
+						endDate: period.to,
+					}),
+					id
+				)
+			);
+			if (cite) {
+				sources.push({ source: "tool", name, toolCallId: id, resultKey: null });
+			}
+		};
+		if (
+			mode.startsWith("earlier-clipped") ||
+			mode.startsWith("conflicting") ||
+			mode === "failed-current"
+		) {
+			const period = mode.endsWith("previous")
+				? signal.period.previous
+				: signal.period.current;
+			const earlier = measurement(period);
+			if (mode.startsWith("earlier-clipped")) {
+				earlier.measurement.startDate = dayjs(period.from)
+					.add(1, "day")
+					.format("YYYY-MM-DD");
+			}
+			if (mode.startsWith("conflicting")) {
+				earlier.steps_analytics[2].users = mode.endsWith("previous")
+					? 420
+					: 240;
+				earlier.steps_analytics[2].conversion_rate = mode.endsWith("previous")
+					? 70
+					: 40;
+			}
+			read(
+				"earlier",
+				period,
+				mode === "failed-current" ? { error: "Unavailable" } : earlier,
+				false
+			);
+		}
+		if (mode !== "missing-previous") {
+			read("previous", signal.period.previous, previous);
+		}
+		read(
+			"current",
+			signal.period.current,
+			mode === "overview-only" ? { ...current, steps_analytics: [] } : current
+		);
+		const finish = {
+			completion: "complete",
+			findingKind: "product_outcome",
+			title: "Payment progression inspected",
+			summary: "The step comparison was inspected; no repair was established.",
+			rootCause: null,
+			impact: null,
+			publish: false,
+			publicationBasis: null,
+			next: { type: "resolve", reason: "No inspected repair is established." },
+			evidence: [
+				{
+					claim:
+						"Payment progression was compared across the requested windows.",
+					sources,
+				},
+			],
+		};
+		const generate = mockValues(...reads, outputResponse(finish));
+		const result = await runInsightAgent(
+			{
+				appContext: {
+					...appContext(),
+					...(mode === "open-window"
+						? { currentDateTime: "2026-07-11T12:00:00Z" }
+						: {}),
+				},
+				signal: stepSignal,
+				evidence: [],
+				history: [],
+				otherOpenWork: [],
+				githubRepository: null,
+			},
+			{
+				model: new MockLanguageModelV3({
+					doGenerate: async () => generate(),
+				}),
+				tools: {
+					[name]: tool({
+						inputSchema: z.object({
+							funnelId: z.string(),
+							startDate: z.string(),
+							endDate: z.string(),
+						}),
+						execute: (_query, options) => outputs[options.toolCallId],
+					}),
+				},
+			}
+		);
+		const complete = mode === "exact" || mode === "reversed-rows";
+		expect(result.completion).toBe(complete ? "complete" : "incomplete");
+		expect(result.snapshot?.completion).toBe(result.completion);
+		expect(result.outcome.publish).toBe(false);
+	});
+	it.each([
 		"interleaved",
 		"reversed",
 		"non-native-current",
