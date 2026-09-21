@@ -2,7 +2,9 @@ import { Elysia, t } from "elysia";
 import { describe, expect, it } from "vitest";
 import {
 	CompileRequestSchema,
+	type CompileRequestType,
 	DynamicQueryRequestSchema,
+	type DynamicQueryRequestType,
 } from "./query-schemas";
 
 const app = new Elysia()
@@ -14,7 +16,12 @@ const app = new Elysia()
 	})
 	.post("/compile", ({ body }) => body, { body: CompileRequestSchema });
 
-function post(path: string, body: unknown) {
+type QueryRequestBody =
+	| CompileRequestType
+	| DynamicQueryRequestType
+	| DynamicQueryRequestType[];
+
+function post(path: "/compile" | "/query", body: QueryRequestBody) {
 	return app.handle(
 		new Request(`http://localhost${path}`, {
 			body: JSON.stringify(body),
@@ -28,14 +35,14 @@ const queryBody = {
 	parameters: ["top_pages"],
 	startDate: "2026-01-01",
 	endDate: "2026-01-02",
-};
+} satisfies DynamicQueryRequestType;
 
 const compileBody = {
 	projectId: "test-website",
 	type: "top_pages",
 	from: "2026-01-01",
 	to: "2026-01-02",
-};
+} satisfies CompileRequestType;
 
 describe("query pagination schemas", () => {
 	it.each([
