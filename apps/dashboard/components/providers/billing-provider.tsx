@@ -131,7 +131,12 @@ export function BillingProvider({
 }
 
 function SelfHostedBillingProvider({ children }: { children: ReactNode }) {
-	const { data, isError, isLoading, refetch } = useQuery({
+	const {
+		data,
+		isError,
+		isFetching: isLoading,
+		refetch,
+	} = useQuery({
 		...orpc.organizations.getBillingContext.queryOptions(),
 		retry: false,
 	});

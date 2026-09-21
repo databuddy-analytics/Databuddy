@@ -1,7 +1,12 @@
 import { expect, test } from "@/test/e2e/fixtures";
 
 for (const aiConfigured of [false, true]) {
-	for (const capabilityState of ["ready", "delayed", "failed"]) {
+	for (const capabilityState of [
+		"ready",
+		"delayed",
+		"failed",
+		"cached-failed",
+	]) {
 		test(`finishes verified onboarding with AI ${aiConfigured}, capability ${capabilityState}`, {
 			tag: "@regression",
 		}, async ({ authenticatedPage: page, e2eSession }) => {
@@ -9,7 +14,14 @@ for (const aiConfigured of [false, true]) {
 			const capabilityReady = new Promise<void>((resolve) => {
 				releaseCapability = resolve;
 			});
-			let failed = false;
+			let releaseRetry: (() => void) | undefined;
+			const retryReady = new Promise<void>((resolve) => {
+				releaseRetry = resolve;
+			});
+			const hasFailure =
+				capabilityState === "failed" || capabilityState === "cached-failed";
+			const failureAttempt = capabilityState === "cached-failed" ? 2 : 1;
+			let attempt = 0;
 			await page.route(
 				/\/rpc\/(organizations\/getBillingContext|websites\/isTrackingSetup)/,
 				async (route) => {
@@ -17,8 +29,13 @@ for (const aiConfigured of [false, true]) {
 					if (!tracking && capabilityState === "delayed") {
 						await capabilityReady;
 					}
-					const fail = !tracking && capabilityState === "failed" && !failed;
-					failed ||= fail;
+					if (!tracking) {
+						attempt += 1;
+						if (hasFailure && attempt > failureAttempt) {
+							await retryReady;
+						}
+					}
+					const fail = !tracking && hasFailure && attempt === failureAttempt;
 					await route.fulfill({
 						status: fail ? 503 : 200,
 						json: {
@@ -58,7 +75,23 @@ for (const aiConfigured of [false, true]) {
 				releaseCapability?.();
 			}
 
-			if (selfHosted && capabilityState === "failed") {
+			if (selfHosted && capabilityState === "cached-failed") {
+				await expect(
+					page.getByRole("heading", {
+						name: aiConfigured
+							? "Your first review is set up"
+							: "You're all set",
+					})
+				).toBeVisible();
+				// Make the cached capability stale, then use the normal reconnect refetch.
+				await page.clock.setFixedTime(new Date(Date.now() + 180_000));
+				await page.evaluate(() => {
+					window.dispatchEvent(new Event("offline"));
+					window.dispatchEvent(new Event("online"));
+				});
+			}
+
+			if (selfHosted && hasFailure) {
 				await expect(
 					page.getByText(
 						"We couldn't check Insights. Try again, or open your analytics below."
@@ -78,6 +111,20 @@ for (const aiConfigured of [false, true]) {
 					return;
 				}
 				await page.getByRole("button", { name: "Try again" }).click();
+				try {
+					await expect(
+						page.getByRole("button", { name: "Checking Insights" })
+					).toBeDisabled();
+					await expect(
+						page.getByRole("button", { name: "Try again" })
+					).toHaveCount(0);
+					await expect(
+						page.getByRole("button", { name: "Go to dashboard" })
+					).toHaveCount(0);
+					await expect(page).toHaveURL(/step=explore$/);
+				} finally {
+					releaseRetry?.();
+				}
 			}
 
 			const opensInsights = !selfHosted || aiConfigured;

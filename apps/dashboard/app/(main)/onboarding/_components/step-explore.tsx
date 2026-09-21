@@ -63,7 +63,7 @@ export function StepExplore({
 }: StepExploreProps) {
 	const showFirstReview = hasVerifiedTracking && canReview;
 	const reviewLoading = hasVerifiedTracking && isLoading;
-	const reviewFailed = hasVerifiedTracking && hasError;
+	const reviewFailed = hasVerifiedTracking && hasError && !isLoading;
 	let title = "You're all set";
 	let description =
 		"Your organization is ready. Start with one of the core views below.";
