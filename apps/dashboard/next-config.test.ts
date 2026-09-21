@@ -65,6 +65,14 @@ const { publicConfig, isSelfHosted } = await import("@databuddy/env/public");
 assert.equal(isSelfHosted, ${selfhost === "true"});
 assert.equal(publicConfig.urls.api, ${JSON.stringify(selfhost === "true" ? "http://localhost:3001" : "https://api.databuddy.cc")});
 assert.equal(publicConfig.urls.dashboard, ${JSON.stringify(selfhost === "true" ? "http://localhost:3000" : "https://app.databuddy.cc")});
+const headers = await config.headers();
+for (const route of headers) {
+  const csp = route.headers.find(header => header.key === "Content-Security-Policy").value;
+  const connect = csp.split(";").find(part => part.trim().startsWith("connect-src"));
+  for (const origin of ["http://localhost:3001", "http://localhost:4000"]) {
+    assert.equal(connect.split(" ").includes(origin), ${selfhost === "true"});
+  }
+}
 const scripts = [];
 globalThis.window = { location: { hostname: "app.example.com" } };
 globalThis.document = {

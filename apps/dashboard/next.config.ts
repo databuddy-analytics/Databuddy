@@ -95,9 +95,11 @@ const nextConfig: NextConfig = {
 			"'self'",
 			localhostSources,
 			...(readBooleanEnv("SELFHOST")
-				? [process.env.NEXT_PUBLIC_API_URL, process.env.NEXT_PUBLIC_BASKET_URL]
-						.filter((url): url is string => Boolean(url?.trim()))
-						.map((url) => new URL(url).origin)
+				? [
+						process.env.NEXT_PUBLIC_API_URL?.trim() || "http://localhost:3001",
+						process.env.NEXT_PUBLIC_BASKET_URL?.trim() ||
+							"http://localhost:4000",
+					].map((url) => new URL(url).origin)
 				: []),
 			"https://*.databuddy.cc",
 			"https://*.useautumn.com",
