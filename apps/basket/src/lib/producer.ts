@@ -1107,6 +1107,7 @@ const TOPIC_MAP: Record<string, string> = {
 	"analytics-blocked-traffic": TABLE_NAMES.blocked_traffic,
 	"analytics-error-spans": TABLE_NAMES.error_spans,
 	"analytics-vitals-spans": TABLE_NAMES.web_vitals_spans,
+	"analytics-engagement-spans": TABLE_NAMES.engagement_spans,
 	"analytics-custom-events": TABLE_NAMES.custom_events,
 	"analytics-ai-traffic-spans": TABLE_NAMES.ai_traffic_spans,
 	"analytics-link-visits": TABLE_NAMES.link_visits,

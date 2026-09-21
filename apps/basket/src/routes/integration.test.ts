@@ -113,6 +113,7 @@ vi.mock("@lib/event-service", () => ({
 	insertTrackEventsBatch: mockInsertTrackEventsBatch,
 	insertOutgoingLinksBatch: mockInsertOutgoingLinksBatch,
 	insertIndividualVitals: mockInsertIndividualVitals,
+	insertEngagementSpans: vi.fn(async () => {}),
 	insertErrorSpans: mockInsertErrorSpans,
 	insertCustomEvents: mockInsertCustomEvents,
 	stableAnalyticsEventId: vi.fn(() => "stable_id"),
@@ -354,6 +355,55 @@ describe("POST /vitals", () => {
 		expect(res.status).toBe(200);
 		const body = await json(res);
 		expect(body.count).toBe(0);
+	});
+});
+
+describe("POST /engagement", () => {
+	const span = {
+		timestamp: now,
+		path: "https://example.com/pricing",
+		pageIndex: 2,
+		exitType: "spa",
+		timeOnPage: 42,
+		activeTime: 30,
+		timeToFirstInteraction: 1200,
+		maxScrollDepth: 80,
+		scrollCount: 6,
+		clickCount: 4,
+		keyCount: 0,
+		interactionCount: 10,
+		copyCount: 1,
+		rageClickCount: 1,
+		deadClickCount: 1,
+		rageClickTarget: "button:compare plans",
+		deadClickTarget: "button:compare plans",
+		formFieldCount: 2,
+		formSubmitCount: 0,
+		lastFormField: "input:email",
+		errorCount: 0,
+	};
+
+	test("valid engagement batch → 200 with the exact success body", async () => {
+		const res = await post(basketApp, "/engagement", [span]);
+		expect(res.status).toBe(200);
+		expect(await json(res)).toEqual({
+			status: "success",
+			type: "engagement",
+			count: 1,
+		});
+	});
+
+	test("invalid engagement (unknown exit type) → 400", async () => {
+		const res = await post(basketApp, "/engagement", [
+			{ ...span, exitType: "teleport" },
+		]);
+		expect(res.status).toBe(400);
+	});
+
+	test("empty array → 200 with count 0", async () => {
+		const res = await post(basketApp, "/engagement", []);
+		expect(res.status).toBe(200);
+		expect((await json(res)).count).toBe(0);
 	});
 });
 
