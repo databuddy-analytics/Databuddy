@@ -40,15 +40,19 @@ async function withEnv<T>(
 
 describe("dashboard next config", () => {
 	it.each([
-		undefined,
-		"true",
-		"false",
-	])("respects SELFHOST=%s in browser config and signup tracking", async (selfhost) => {
+		[undefined, undefined],
+		["true", undefined],
+		["false", undefined],
+		["true", ""],
+		["true", "   "],
+	])("respects SELFHOST=%s with URL override %j", async (selfhost, url) => {
 		const child = Bun.spawn([process.execPath, "--no-env-file", "-"], {
 			cwd: import.meta.dir,
 			env: {
 				NODE_ENV: "production",
 				SELFHOST: selfhost,
+				NEXT_PUBLIC_API_URL: url,
+				NEXT_PUBLIC_BASKET_URL: url,
 				NEXT_PUBLIC_OPENAI_ADS_PIXEL_ID: "synthetic-pixel",
 			},
 			stdin: new Blob([
