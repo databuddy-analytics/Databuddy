@@ -235,7 +235,13 @@ it("rejects a cross-tenant snapshot before any clarification generation", async 
 	).rejects.toThrow("different investigation");
 	expect(forbidden).not.toHaveBeenCalled();
 });
-it("rejects a new analysis under unconfigured terms before any new work", async () => {
+it.each([
+	undefined,
+	"false",
+	"true",
+])("requires hosted billing unless SELFHOST=%s", async (selfhost) => {
+	const originalEnv = process.env;
+	process.env = { ...originalEnv, NODE_ENV: "production", SELFHOST: selfhost };
 	const billing = await import("./investigation-billing");
 	const reads = [
 		[{ ...trigger, intent: "analysis" }],
@@ -243,28 +249,42 @@ it("rejects a new analysis under unconfigured terms before any new work", async 
 	];
 	replaceDb("select", mock(() => query(reads.shift() ?? [])) as never);
 	replaceDb("update", mock(() => query([{ id: "reply-1" }])) as never);
-	spyOn(billing, "resolveInvestigationBilling").mockResolvedValue({
+	const resolveBilling = spyOn(
+		billing,
+		"resolveInvestigationBilling"
+	).mockResolvedValue({
 		mode: "unconfigured",
 		customerId: null,
 	});
-	const forbidden = mock(async () => {
-		throw new Error("new work must not run");
+	const reserve = spyOn(billing, "reserveInvestigationCharge");
+	const work = mock(async () => {
+		throw new Error("Reached analysis work");
 	});
-	await expect(
-		resumeInsightReply(
-			"reply-1",
-			forbidden,
-			forbidden,
-			forbidden,
-			{
-				loadCurrentBusinessScope: forbidden,
-				loadBusinessProfile: forbidden,
-				recallBusinessContext: forbidden,
-			},
-			forbidden
-		)
-	).rejects.toThrow("Activate investigation billing");
-	expect(forbidden).not.toHaveBeenCalled();
+	try {
+		await expect(
+			resumeInsightReply(
+				"reply-1",
+				work,
+				work,
+				work,
+				{
+					loadCurrentBusinessScope: work,
+					loadBusinessProfile: work,
+					recallBusinessContext: work,
+				},
+				work
+			)
+		).rejects.toThrow(
+			selfhost === "true"
+				? "Reached analysis work"
+				: "Activate investigation billing"
+		);
+		expect(resolveBilling).toHaveBeenCalledTimes(selfhost === "true" ? 0 : 1);
+		expect(work).toHaveBeenCalledTimes(selfhost === "true" ? 1 : 0);
+		expect(reserve).not.toHaveBeenCalled();
+	} finally {
+		process.env = originalEnv;
+	}
 });
 it("reserves the explicit reply's stable unit before any refresh or business work", async () => {
 	const billing = await import("./investigation-billing");
