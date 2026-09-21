@@ -168,11 +168,7 @@ describe("sendLinkVisit", () => {
 		"false",
 		undefined,
 	])("drains pending direct visits only with SELFHOST=%s", async (mode) => {
-		if (mode === undefined) {
-			delete process.env.SELFHOST;
-		} else {
-			process.env.SELFHOST = mode;
-		}
+		process.env = { ...process.env, SELFHOST: mode };
 		const first = Promise.withResolvers<void>();
 		const second = Promise.withResolvers<void>();
 		clickHouseInsert.mockImplementationOnce(() => first.promise);
