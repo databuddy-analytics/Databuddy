@@ -125,7 +125,13 @@ recent and exact-subject PostgreSQL replies remain available during indexing del
 outages. Recalled meaning takes priority over unrelated recent conversation. Public
 copy explains the offering and audience; it does not establish completed behavior from
 an event name. Explicit team corrections, guesses, and historical metrics remain
-distinct from current measured evidence.
+distinct from current measured evidence. When the final profile/recall merge would
+omit optional pages, one bounded Jev call may rank those pages for the exact subject.
+Native code keeps the source budget, original records, and baseline-selected profile,
+team replies and homepage. Complete contexts skip ranking; oversized, failed, invalid
+or late rankings retain native ordering. This changes context priority, not evidence
+validity, tool access or publication. Clarifications and deterministic verification
+remain outside this ranking path.
 
 Public excerpts expire after seven days; a missing profile reads the homepage and
 exposes links plus site-scoped search for further inspection. Coverage is limited to
