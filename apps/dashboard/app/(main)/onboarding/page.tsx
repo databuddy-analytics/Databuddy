@@ -4,7 +4,10 @@ import { isSelfHosted } from "@databuddy/env/public";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { trackOpenAiRegistrationCompleted } from "@/components/openai-ads-pixel";
-import { useInvestigationUsage } from "@/components/providers/billing-provider";
+import {
+	useBillingContext,
+	useInvestigationUsage,
+} from "@/components/providers/billing-provider";
 import { useWebsitesLight } from "@/hooks/use-websites";
 import {
 	APP_EVENTS,
@@ -50,8 +53,10 @@ type StepId = (typeof STEPS)[number]["id"];
 
 export default function OnboardingPage() {
 	const router = useRouter();
+	const billing = useBillingContext();
 	const investigations = useInvestigationUsage();
-	const canReview = !isSelfHosted || investigations.canUse;
+	const canReview =
+		!isSelfHosted || (!billing.isError && investigations.canUse);
 	const { websites } = useWebsitesLight();
 	const trackedStepRef = useRef<number>(-1);
 	const onboardingCompletedRef = useRef(false);
@@ -167,6 +172,9 @@ export default function OnboardingPage() {
 	}, [attribution, markComplete]);
 
 	const handleExploreComplete = useCallback(() => {
+		if (isSelfHosted && firstReviewWebsiteId && billing.isLoading) {
+			return;
+		}
 		recordExploreComplete();
 		const pendingPlan = localStorage.getItem("pendingPlanSelection");
 		if (pendingPlan) {
@@ -182,6 +190,7 @@ export default function OnboardingPage() {
 			router.replace("/websites");
 		}
 	}, [
+		billing.isLoading,
 		canReview,
 		firstReviewWebsiteId,
 		recordExploreComplete,
@@ -266,9 +275,12 @@ export default function OnboardingPage() {
 				return (
 					<StepExplore
 						canReview={canReview}
+						hasError={isSelfHosted && billing.isError}
 						hasVerifiedTracking={firstReviewWebsiteId !== null}
+						isLoading={isSelfHosted && billing.isLoading}
 						onComplete={handleExploreComplete}
 						onEnterProduct={recordExploreComplete}
+						onRetry={billing.refetch}
 						websiteId={websiteId}
 					/>
 				);
