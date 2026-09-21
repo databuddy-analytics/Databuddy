@@ -1,5 +1,9 @@
 import { BaseTracker } from "./core/tracker";
-import type { ProfileTraits, TrackerOptions } from "./core/types";
+import type {
+	EngagementSpan,
+	ProfileTraits,
+	TrackerOptions,
+} from "./core/types";
 import {
 	clearStoredTrackingState,
 	generateUUIDv4,
@@ -19,6 +23,7 @@ import { initWebVitalsTracking } from "./plugins/vitals";
 const MAX_BEACON_PAYLOAD_BYTES = 60 * 1024;
 const MAX_BEACON_EVENTS_BY_ENDPOINT: Record<string, number> = {
 	"/batch": 100,
+	"/engagement": 20,
 	"/errors": 50,
 	"/track": 100,
 	"/vitals": 20,
@@ -215,10 +220,19 @@ export class Databuddy extends BaseTracker {
 		};
 		window.addEventListener("pageshow", pageshowHandler);
 
+		const activityHandler = () => this.updateActiveTime();
+		document.addEventListener("visibilitychange", activityHandler);
+		window.addEventListener("focus", activityHandler);
+		window.addEventListener("blur", activityHandler);
+		this.activeSince = this.isPageActive() ? Date.now() : 0;
+
 		this.cleanupFns.push(() => {
 			window.removeEventListener("beforeunload", handleUnload);
 			window.removeEventListener("pagehide", handleUnload);
 			window.removeEventListener("pageshow", pageshowHandler);
+			document.removeEventListener("visibilitychange", activityHandler);
+			window.removeEventListener("focus", activityHandler);
+			window.removeEventListener("blur", activityHandler);
 		});
 	}
 
@@ -288,12 +302,16 @@ export class Databuddy extends BaseTracker {
 		this.flushQueueViaBeacon(this.errorsQueue, "/errors", () =>
 			this.flushErrors()
 		);
+		this.flushQueueViaBeacon(this.engagementQueue, "/engagement", () =>
+			this.flushEngagement()
+		);
 		if (this.hasSentExitBeacon) {
 			return;
 		}
 		this.hasSentExitBeacon = true;
 
 		const now = Date.now();
+		this.sendBeacon([this.buildEngagementSpan(now, "unload")], "/engagement");
 		this.sendBatchBeacon([
 			{
 				eventId: generateUUIDv4(),
@@ -329,23 +347,11 @@ export class Databuddy extends BaseTracker {
 	}
 
 	private pageEngagement(now: number) {
-		const globalEventProperties = this.globalProperties.properties;
 		return {
 			time_on_page: Math.round((now - this.pageStartTime) / 1000),
 			scroll_depth: this.maxScrollDepth,
 			interaction_count: this.interactionCount,
 			page_count: this.pageCount,
-			properties: {
-				...(typeof globalEventProperties === "object" && globalEventProperties),
-				clicks: this.clickCount,
-				keys: this.keyCount,
-				scrolls: this.scrollCount,
-				rage_clicks: this.rageClickCount,
-				dead_clicks: this.deadClickCount,
-				form_fields: this.formFieldCount,
-				form_submits: this.formSubmitCount,
-				errors: this.errorCount,
-			},
 		};
 	}
 
@@ -356,6 +362,60 @@ export class Databuddy extends BaseTracker {
 			timestamp: now,
 			...this.pageEngagement(now),
 		});
+		this.sendEngagement(this.buildEngagementSpan(now, "spa", exitPath));
+	}
+
+	private buildEngagementSpan(
+		now: number,
+		exitType: EngagementSpan["exitType"],
+		exitPath?: string
+	): EngagementSpan {
+		return {
+			timestamp: now,
+			path: exitPath ? sanitizePageUrl(exitPath) : this.getMaskedPath(),
+			anonymousId: this.anonymousId,
+			anonymizeVisitorIds: this.options.anonymizeVisitorIds,
+			sessionId: this.sessionId,
+			pageIndex: this.pageCount,
+			exitType,
+			timeOnPage: Math.round((now - this.pageStartTime) / 1000),
+			activeTime: Math.round(
+				(this.activeTimeMs + (this.activeSince ? now - this.activeSince : 0)) /
+					1000
+			),
+			timeToFirstInteraction: this.firstInteractionAt
+				? Math.max(0, this.firstInteractionAt - this.pageStartTime)
+				: 0,
+			maxScrollDepth: Math.round(this.maxScrollDepth),
+			scrollCount: this.scrollCount,
+			clickCount: this.clickCount,
+			keyCount: this.keyCount,
+			interactionCount: this.interactionCount,
+			copyCount: this.copyCount,
+			rageClickCount: this.rageClickCount,
+			deadClickCount: this.deadClickCount,
+			rageClickTarget: this.rageClickTarget,
+			deadClickTarget: this.deadClickTarget,
+			formFieldCount: this.formFieldCount,
+			formSubmitCount: this.formSubmitCount,
+			lastFormField: this.lastFormField,
+			errorCount: this.errorCount,
+		};
+	}
+
+	private isPageActive(): boolean {
+		return document.visibilityState === "visible" && document.hasFocus();
+	}
+
+	private updateActiveTime() {
+		const now = Date.now();
+		if (this.activeSince) {
+			this.activeTimeMs += now - this.activeSince;
+			this.activeSince = 0;
+		}
+		if (this.isPageActive()) {
+			this.activeSince = now;
+		}
 	}
 
 	private resetPageEngagement() {
@@ -369,6 +429,13 @@ export class Databuddy extends BaseTracker {
 		this.formFieldCount = 0;
 		this.formSubmitCount = 0;
 		this.errorCount = 0;
+		this.copyCount = 0;
+		this.rageClickTarget = "";
+		this.deadClickTarget = "";
+		this.lastFormField = "";
+		this.firstInteractionAt = 0;
+		this.activeTimeMs = 0;
+		this.activeSince = this.isPageActive() ? this.pageStartTime : 0;
 		this.maxScrollDepth = 0;
 	}
 
