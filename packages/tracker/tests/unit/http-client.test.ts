@@ -458,6 +458,7 @@ describe("BaseTracker delivery outcomes", () => {
 		expect(sendBeacon.mock.calls.map((call) => call[1])).toEqual([
 			"/batch",
 			"/track",
+			"/engagement",
 			"/batch",
 		]);
 		expect(sendBeacon.mock.calls[0]?.[0]).toEqual([

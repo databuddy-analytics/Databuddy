@@ -10,6 +10,7 @@ const BASKET_ROUTES = new Set([
 	"POST /batch",
 	"POST /vitals",
 	"POST /errors",
+	"POST /engagement",
 	"POST /events",
 	"POST /identify",
 	"POST /track",

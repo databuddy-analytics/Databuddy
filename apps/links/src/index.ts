@@ -1,5 +1,6 @@
 import { db, shutdownPostgres, sql } from "@databuddy/db";
 import { clickHouse } from "@databuddy/db/clickhouse";
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import { redis } from "@databuddy/redis";
 import { buildHttpErrorResponse } from "@databuddy/shared/http-error-response";
 import {
@@ -70,6 +71,8 @@ function getSharedHealthProbe<T>(
 	pending.then(clear, clear);
 	return pending;
 }
+const selfHost = readBooleanEnv("SELFHOST");
+const pendingSelfHostRequests = new Set<Promise<Response>>();
 let shuttingDown = false;
 
 const app = new Elysia()
@@ -210,7 +213,7 @@ const app = new Elysia()
 	})
 	.use(redirectRoute);
 
-const SHUTDOWN_TIMEOUT_MS = 20_000;
+const SHUTDOWN_TIMEOUT_MS = selfHost ? 30_000 : 20_000;
 
 async function withTimeout<T>(
 	promise: Promise<T>,
@@ -268,10 +271,23 @@ async function shutdown(signal: string) {
 	try {
 		await withTimeout(
 			(async () => {
+				if (selfHost) {
+					const requestFailure = await runCleanupStep(
+						"httpRequestDrain",
+						async () => {
+							await Promise.allSettled(pendingSelfHostRequests);
+						},
+						10_000
+					);
+					if (requestFailure) {
+						failures.push(requestFailure);
+					}
+				}
+
 				const producerFailure = await runCleanupStep(
 					"redpandaDisconnect",
 					disconnectProducer,
-					3000
+					selfHost ? 11_000 : 3000
 				);
 				if (producerFailure) {
 					failures.push(producerFailure);
@@ -323,4 +339,13 @@ async function shutdown(signal: string) {
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
 
-export default { port: 2500, fetch: app.fetch };
+function fetchSelfHosted(request: Request) {
+	if (shuttingDown) {
+		return app.fetch(request);
+	}
+	const response = Promise.resolve(app.fetch(request));
+	pendingSelfHostRequests.add(response);
+	return response.finally(() => pendingSelfHostRequests.delete(response));
+}
+
+export default { port: 2500, fetch: selfHost ? fetchSelfHosted : app.fetch };

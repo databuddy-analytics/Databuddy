@@ -1,5 +1,6 @@
 "use client";
 
+import { EmailUnavailable, useAuthCapabilities } from "../../auth-capabilities";
 import { authClient } from "@databuddy/auth/client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -11,6 +12,7 @@ import { ArrowLeftIcon, EnvelopeSimpleIcon } from "@databuddy/ui/icons";
 import { Button, Field, Input, Spinner, Text } from "@databuddy/ui";
 
 function MagicLinkPage() {
+	const capabilities = useAuthCapabilities();
 	const router = useRouter();
 	const [callback] = useQueryState(
 		"callback",
@@ -49,6 +51,10 @@ function MagicLinkPage() {
 		}
 		setIsLoading(false);
 	};
+
+	if (!capabilities.email) {
+		return <EmailUnavailable loginHref={loginHref} />;
+	}
 
 	return (
 		<>

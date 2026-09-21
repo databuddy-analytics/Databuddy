@@ -155,7 +155,33 @@ export function TrustedBy() {
 	return (
 		<div className="w-full py-10 sm:py-12">
 			<p className="mb-6 text-pretty text-center text-muted-foreground text-sm uppercase tracking-wide">
-				Used by teams including
+				Used by developers at
+			</p>
+
+			<div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-5 sm:gap-x-12">
+				{devTeams.map((team) => (
+					<div
+						className="flex items-center gap-2.5 text-foreground"
+						key={team.name}
+					>
+						<img
+							alt={team.name}
+							className="size-5 rounded-sm invert sm:size-6"
+							height={24}
+							src={team.icon}
+							width={24}
+						/>
+						<span className="font-medium text-sm sm:text-base">
+							{team.name}
+						</span>
+					</div>
+				))}
+			</div>
+
+			<div className="mx-auto my-8 h-px w-full max-w-xs bg-border/50 sm:my-10" />
+
+			<p className="mb-5 text-center text-muted-foreground/60 text-xs uppercase tracking-wide">
+				And teams including
 			</p>
 
 			<div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
@@ -165,30 +191,6 @@ export function TrustedBy() {
 						fading={i === swapIndex}
 						key={`slot-${String(i)}`}
 					/>
-				))}
-			</div>
-
-			<div className="mx-auto my-8 h-px w-full max-w-xs bg-border/50 sm:my-10" />
-
-			<p className="mb-5 text-center text-muted-foreground/60 text-xs uppercase tracking-wide">
-				Used by developers at
-			</p>
-
-			<div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-4 sm:gap-x-10">
-				{devTeams.map((team) => (
-					<div
-						className="flex items-center gap-2 text-muted-foreground"
-						key={team.name}
-					>
-						<img
-							alt={team.name}
-							className="size-4 rounded-sm opacity-50 invert sm:size-5"
-							height={20}
-							src={team.icon}
-							width={20}
-						/>
-						<span className="font-medium text-xs sm:text-sm">{team.name}</span>
-					</div>
 				))}
 			</div>
 		</div>
