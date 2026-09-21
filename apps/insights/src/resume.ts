@@ -9,6 +9,7 @@ import {
 	unavailableBusinessContext,
 	withBusinessContextSnapshot,
 } from "./business-context";
+import { rankInvestigationBusinessContext } from "./business-context-ranking";
 import type { AppContext } from "@databuddy/ai/config/context";
 import { trackAgentUsage } from "@databuddy/ai/agents/execution";
 import { and, db, desc, eq, inArray, isNull, lte, ne } from "@databuddy/db";
@@ -166,10 +167,16 @@ export async function resumeInsightReply(
 	investigate: Investigate = runInsightAgent,
 	deliverSlackReply: typeof deliverInsightSlackReply = deliverInsightSlackReply,
 	refresh: Refresh = refreshInvestigationSignal,
-	business = {
+	business: {
+		loadCurrentBusinessScope: typeof loadCurrentBusinessScope;
+		loadBusinessProfile: typeof loadWebsiteBusinessProfile;
+		recallBusinessContext: typeof recallWebsiteBusinessContext;
+		rankBusinessContext?: typeof rankInvestigationBusinessContext;
+	} = {
 		loadCurrentBusinessScope,
 		loadBusinessProfile: loadWebsiteBusinessProfile,
 		recallBusinessContext: recallWebsiteBusinessContext,
+		rankBusinessContext: rankInvestigationBusinessContext,
 	},
 	clarify: typeof clarifyInsight = clarifyInsight
 ): Promise<"skipped" | "succeeded"> {
@@ -380,18 +387,25 @@ export async function resumeInsightReply(
 			})
 			.catch((error) => unavailableBusinessContext(error, scope, startedAt));
 		const recalledAt = new Date();
-		const businessContext = mergeBusinessContext(
-			profile,
-			await business
-				.recallBusinessContext({
-					scope: currentScope,
-					allowWrite: true,
-					asOf: recalledAt,
-					subjectKey: trigger.subjectKey,
-					query: `${trigger.subjectKey}\n${trigger.body}`,
-				})
-				.catch((error) => unavailableBusinessContext(error, scope, recalledAt))
-		);
+		const query = `${trigger.subjectKey}\n${trigger.body}`;
+		const related = await business
+			.recallBusinessContext({
+				scope: currentScope,
+				allowWrite: true,
+				asOf: recalledAt,
+				subjectKey: trigger.subjectKey,
+				query,
+			})
+			.catch((error) => unavailableBusinessContext(error, scope, recalledAt));
+		const businessContext =
+			intent === "analysis" && business.rankBusinessContext
+				? await business.rankBusinessContext({
+						contexts: [profile, related],
+						query,
+						subjectKey: trigger.subjectKey,
+						onUsage: track,
+					})
+				: mergeBusinessContext(profile, related);
 		const [history, otherOpenWork] = await Promise.all([
 			loadInvestigationHistory({
 				beforeReply: { createdAt: trigger.createdAt, id: replyId },

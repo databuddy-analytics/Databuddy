@@ -11,6 +11,7 @@ import {
 	unavailableBusinessContext,
 	withBusinessContextSnapshot,
 } from "./business-context";
+import { rankInvestigationBusinessContext } from "./business-context-ranking";
 import type { AppContext } from "@databuddy/ai/config/context";
 import { trackAgentUsage } from "@databuddy/ai/agents/execution";
 import { and, between, db, eq, gt, isNull, lte, or } from "@databuddy/db";
@@ -337,6 +338,7 @@ export interface InvestigationSources {
 	}) => Promise<Map<string, LatestInsightObservation>>;
 	loadOtherOpenWork: typeof loadOtherOpenWork;
 	loadRouteVitalContinuation: typeof loadRouteVitalContinuation;
+	rankBusinessContext?: typeof rankInvestigationBusinessContext;
 	recallBusinessContext?: typeof recallWebsiteBusinessContext;
 	remeasureSignal: (
 		params: DetectSignalsParams,
@@ -1005,7 +1007,10 @@ export async function planInvestigationsWithBusinessContext(
 	signals: DetectedSignal[],
 	sources: Pick<
 		InvestigationSources,
-		"loadBusinessProfile" | "recallBusinessContext" | "selectCandidates"
+		| "loadBusinessProfile"
+		| "recallBusinessContext"
+		| "selectCandidates"
+		| "rankBusinessContext"
 	>,
 	allowRefresh: boolean,
 	scope: BusinessScope | null = {
@@ -1147,6 +1152,15 @@ export async function planInvestigationsWithBusinessContext(
 	const recalledAt = allowRefresh ? new Date() : asOf;
 	return await Promise.all(
 		candidates.map(async (candidate) => {
+			const query = [
+				candidate.signal.signalKey,
+				candidate.signal.entity.type,
+				candidate.signal.entity.id,
+				candidate.signal.entity.label,
+				candidate.investigationObjective,
+			]
+				.filter(Boolean)
+				.join("\n");
 			const related = sources.recallBusinessContext
 				? await sources
 						.recallBusinessContext({
@@ -1154,15 +1168,7 @@ export async function planInvestigationsWithBusinessContext(
 							allowWrite: allowRefresh,
 							asOf: recalledAt,
 							subjectKey: candidate.signal.signalKey,
-							query: [
-								candidate.signal.signalKey,
-								candidate.signal.entity.type,
-								candidate.signal.entity.id,
-								candidate.signal.entity.label,
-								candidate.investigationObjective,
-							]
-								.filter(Boolean)
-								.join("\n"),
+							query,
 						})
 						.then((context) => businessContextSchema.parse(context))
 						.catch((error) =>
@@ -1171,7 +1177,13 @@ export async function planInvestigationsWithBusinessContext(
 				: disabled;
 			return {
 				...candidate,
-				businessContext: mergeBusinessContext(profile, related),
+				businessContext: sources.rankBusinessContext
+					? await sources.rankBusinessContext({
+							contexts: [profile, related],
+							query,
+							subjectKey: candidate.signal.signalKey,
+						})
+					: mergeBusinessContext(profile, related),
 			};
 		})
 	);
@@ -1524,6 +1536,18 @@ export async function generateWebsiteInsights(
 				discovered.value.eligibleSignals,
 				{
 					...productionInvestigationSources,
+					rankBusinessContext: (rankingInput) =>
+						rankInvestigationBusinessContext({
+							...rankingInput,
+							canRun: canRunAgent,
+							onUsage: async (usage) => {
+								await billUsage(
+									usage,
+									rankingInput.subjectKey,
+									`insights:${input.runId}:${site.id}:context:${rankingInput.subjectKey}`
+								);
+							},
+						}),
 					selectCandidates: async (selectionInput) => {
 						if (!(await canRunAgent())) {
 							return null;

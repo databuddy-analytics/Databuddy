@@ -2,6 +2,22 @@ import { describe, expect, test } from "bun:test";
 import { summarizeAgentUsage } from "./usage-telemetry";
 
 describe("summarizeAgentUsage", () => {
+	test("uses Jev input-only pricing without a model fallback", () => {
+		const summary = summarizeAgentUsage("typesafe-ai/jev", {
+			inputTokens: 1_000_000,
+			outputTokens: 1000,
+			totalTokens: 1_001_000,
+			inputTokenDetails: {
+				noCacheTokens: 1_000_000,
+				cacheReadTokens: undefined,
+				cacheWriteTokens: undefined,
+			},
+			outputTokenDetails: { textTokens: 1000, reasoningTokens: undefined },
+		});
+		expect(summary.cost_fallback).toBe(false);
+		expect(summary.cost_model_id).toBe("typesafe-ai/jev");
+		expect(summary.cost_total_usd).toBe(0.042);
+	});
 	test("records Luna fresh and cached costs without a model fallback", () => {
 		const summary = summarizeAgentUsage("openai/gpt-5.6-luna", {
 			inputTokens: 3_000_000,
