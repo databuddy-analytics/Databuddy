@@ -47,8 +47,8 @@ docker compose -f docker-compose.selfhost.yml up -d --build
 ```
 
 Open your dashboard URL, create an account, and add your first website.
-The stack includes the dashboard, API, Basket event collector, and short-link
-service (port `2500`). Ports are configurable in `docker-compose.selfhost.yml`.
+The stack includes the dashboard, API, Basket event collector, uptime worker,
+and short-link service (port `2500`). Ports are configurable in `docker-compose.selfhost.yml`.
 
 For a public instance, replace the template's local URLs with your HTTPS URLs.
 Keep the dashboard and API on the same parent domain. Set `BETTER_AUTH_COOKIE_DOMAIN`, such as `.example.com`,
