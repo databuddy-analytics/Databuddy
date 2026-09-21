@@ -15,9 +15,15 @@ on:
       - "turbo.json"
       - ".github/workflows/docker-publish.yml"
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      init-only:
+        description: Publish only the self-host database initialization image
+        type: boolean
+        default: false
 
 concurrency:
-  group: docker-${{ github.ref }}
+  group: docker-${{ github.ref }}${{ inputs.init-only && '-init' || '' }}
   cancel-in-progress: ${{ github.event_name != 'release' }}
 
 env:
@@ -37,7 +43,7 @@ jobs:
           fetch-depth: 0
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: "1.3.14"
+          bun-version: "1.4.1"
       - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: ~/.bun/install/cache
@@ -46,9 +52,14 @@ jobs:
       - run: bun install --frozen-lockfile --ignore-scripts
       - id: detect
         env:
+          INIT_ONLY: ${{ inputs.init-only }}
           EVENT_NAME: ${{ github.event_name }}
           BEFORE_SHA: ${{ github.event.before }}
         run: |
+          if [[ "$INIT_ONLY" == "true" ]]; then
+            echo 'services=["init"]' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           ALL='["api","basket","dashboard","insights","links","uptime"]'
           if [[ "$EVENT_NAME" != "push" ]]; then
             echo "services=$ALL" >> "$GITHUB_OUTPUT"
@@ -96,19 +107,6 @@ jobs:
           - arch: arm64
             os: linux/arm64
             runner: blacksmith-4vcpu-ubuntu-2404-arm
-        include:
-          - service: api
-            description: "Databuddy API service - analytics backend"
-          - service: basket
-            description: "Databuddy Basket service - event ingestion"
-          - service: dashboard
-            description: "Databuddy Dashboard service - web analytics UI"
-          - service: insights
-            description: "Databuddy Insights service - queued insight generation"
-          - service: links
-            description: "Databuddy Links service - URL shortening and tracking"
-          - service: uptime
-            description: "Databuddy Uptime service - availability monitoring"
 
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -140,6 +138,23 @@ jobs:
             echo "tag=edge" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Resolve service description
+        id: description
+        env:
+          SERVICE: ${{ matrix.service }}
+        run: |
+          case "$SERVICE" in
+            api) text="Databuddy API service - analytics backend" ;;
+            basket) text="Databuddy Basket service - event ingestion" ;;
+            dashboard) text="Databuddy Dashboard service - web analytics UI" ;;
+            init) text="Databuddy database initialization and schema tools" ;;
+            insights) text="Databuddy Insights service - queued insight generation" ;;
+            links) text="Databuddy Links service - URL shortening and tracking" ;;
+            uptime) text="Databuddy Uptime service - availability monitoring" ;;
+            *) echo "Unknown service $SERVICE" >&2; exit 1 ;;
+          esac
+          echo "text=$text" >> "$GITHUB_OUTPUT"
+
       - name: Extract metadata (labels)
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
@@ -147,7 +162,7 @@ jobs:
           images: ${{ env.IMAGE_PREFIX }}-${{ matrix.service }}
           labels: |
             org.opencontainers.image.title=databuddy-${{ matrix.service }}
-            org.opencontainers.image.description=${{ matrix.description }}
+            org.opencontainers.image.description=${{ steps.description.outputs.text }}
             org.opencontainers.image.vendor=Databuddy Analytics
             org.opencontainers.image.licenses=AGPL-3.0
 

@@ -260,7 +260,7 @@ export default function GoalsPage() {
 									},
 							description:
 								"Track single-step conversions like signups, purchases, or activation events.",
-							icon: <TargetIcon className="size-6" weight="duotone" />,
+							icon: <TargetIcon className="size-6" />,
 							title: "No goals yet",
 						}}
 						errorProps={{
@@ -268,7 +268,7 @@ export default function GoalsPage() {
 							description:
 								error?.message ??
 								"Something went wrong while loading goal data.",
-							icon: <TargetIcon className="size-6" weight="duotone" />,
+							icon: <TargetIcon className="size-6" />,
 							title: "Failed to load goals",
 						}}
 						loading={<GoalsListSkeleton />}

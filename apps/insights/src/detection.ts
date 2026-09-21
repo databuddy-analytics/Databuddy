@@ -1,11 +1,15 @@
 import { executeQuery, type Filter } from "@databuddy/ai/query";
+import { normalizeCurrencyCode } from "@databuddy/shared/currency";
 import type {
 	InvestigationSignal,
 	MatchedErrorContinuationMeasurement,
+	RetentionMeasurement,
+	WeekOverWeekPeriod,
 } from "@databuddy/shared/insights";
 import dayjs from "dayjs";
 import timezonePlugin from "dayjs/plugin/timezone";
 import utcPlugin from "dayjs/plugin/utc";
+import { z } from "zod";
 import {
 	hasMaterialRouteContinuation,
 	matchedErrorContinuationMeasurement,
@@ -13,6 +17,7 @@ import {
 	type RouteContinuationComparison,
 } from "./error-customer-impact";
 import { emitInsightsEvent } from "./lib/evlog-insights";
+import { rankSignals, signalKeyForDetectedSignal } from "./investigation";
 
 dayjs.extend(utcPlugin);
 dayjs.extend(timezonePlugin);
@@ -27,9 +32,13 @@ export interface DetectedSignal {
 	direction: "up" | "down";
 	entityId?: string;
 	entityLabel?: string;
+	evidence?: string[];
+	investigationObjective?: string;
 	label: string;
 	method: "behavior" | "zscore" | "wow";
 	metric: string;
+	period?: WeekOverWeekPeriod;
+	retentionMeasurement?: RetentionMeasurement;
 	severity: "critical" | "warning" | "info";
 	subjectKey?: string;
 }
@@ -85,6 +94,27 @@ const ANOMALY_METRICS: AnomalyMetric[] = [
 ];
 
 const SESSION_DERIVED_METRICS = new Set(["bounce_rate", "session_duration"]);
+
+const LOWER_IS_BETTER_METRICS = new Set([
+	"bounce_rate",
+	"error_count",
+	"refund_amount",
+	"lcp",
+	"inp",
+]);
+
+function isImprovement(
+	metric: string,
+	current: number,
+	baseline: number
+): boolean {
+	if (current === baseline) {
+		return false;
+	}
+	return LOWER_IS_BETTER_METRICS.has(metric)
+		? current < baseline
+		: current > baseline;
+}
 
 function median(values: number[]): number {
 	if (values.length === 0) {
@@ -220,12 +250,16 @@ const METRIC_FILTERS: Record<string, SignalFilter> = {
 	bounce_rate: (s) =>
 		Math.abs(s.current - s.baseline) >= FILTER_BOUNCE_MIN_DELTA,
 	custom_event_count: () => true,
+	custom_event_reach: () => true,
 	error_count: (s) =>
 		Math.abs(s.current - s.baseline) >= FILTER_ERROR_MIN_DELTA &&
 		Math.max(s.current, s.baseline) >= FILTER_ERROR_MIN_PEAK,
 	inp: () => true,
 	lcp: () => true,
 	revenue: () => true,
+	product_revenue: () => true,
+	refund_amount: () => true,
+	attribution_rate: () => true,
 	session_duration: (s) =>
 		Math.abs(s.current - s.baseline) >= FILTER_SESSION_DURATION_MIN_DELTA &&
 		Math.max(s.current, s.baseline) >= FILTER_SESSION_DURATION_MIN_PEAK,
@@ -249,9 +283,7 @@ export function makeWowSignal(
 				? 0
 				: 100
 			: safeDeltaPercent(current, baseline);
-	const lowerIsBetter = ["bounce_rate", "error_count", "lcp", "inp"].includes(
-		metric
-	);
+	const lowerIsBetter = LOWER_IS_BETTER_METRICS.has(metric);
 	const direction = lowerIsBetter
 		? current > baseline
 			? "up"
@@ -267,9 +299,228 @@ export function makeWowSignal(
 		current: options.round ? round2(current) : current,
 		baseline: options.round ? round2(baseline) : baseline,
 		deltaPercent: round2(pct),
-		severity: assignSeverity(undefined, pct),
+		severity: assignSeverity(
+			undefined,
+			pct,
+			isImprovement(metric, current, baseline)
+		),
 		detectedAt,
 	};
+}
+
+function makeRevenueSignal(
+	currency: string,
+	current: Record<string, unknown>,
+	previous: Record<string, unknown>,
+	detectedAt: string
+): DetectedSignal | null {
+	const c = commercialNumberSchema.safeParse(current.total_revenue);
+	const p = commercialNumberSchema.safeParse(previous.total_revenue);
+	if (!(c.success && p.success) || c.data < 0 || p.data < 0) {
+		return null;
+	}
+	return {
+		...makeWowSignal(
+			"revenue",
+			`${currency} gross revenue`,
+			c.data,
+			p.data,
+			detectedAt
+		),
+		subjectKey: `revenue:${currency}`,
+		investigationObjective:
+			"Find which measured receipt groups account for the gross revenue change and what decision that concentration changes. Inspect revenue_by_product; its names can be payment or invoice descriptions, not verified catalog products. Separate missing coverage from an unchanged group. Do not infer profit, acquisition ROI or subscription churn.",
+		definitionEvidence: `Business meaning: gross settled revenue in ${currency}, excluding refunds. The snapshot alone is not publication evidence: confirm with revenue_overview for this currency across both complete signal windows.`,
+	};
+}
+
+const commercialNumberSchema = z
+	.union([z.number(), z.string().trim().min(1)])
+	.pipe(z.coerce.number<string | number>().finite());
+const commercialOverviewSchema = z.object({
+	total_revenue: commercialNumberSchema.pipe(z.number().nonnegative()),
+	total_transactions: commercialNumberSchema.pipe(
+		z.number().int().nonnegative()
+	),
+	// The native ledger sums refunds as negative amounts; discovery compares money returned.
+	refund_amount: commercialNumberSchema
+		.transform(Math.abs)
+		.nullish()
+		.catch(null),
+	refund_count: commercialNumberSchema
+		.pipe(z.number().int().nonnegative())
+		.nullish()
+		.catch(null),
+	attributed_revenue: commercialNumberSchema
+		.pipe(z.number().nonnegative())
+		.nullish()
+		.catch(null),
+});
+
+const productRevenueRowSchema = z.object({
+	currency: z.string().regex(/^[A-Z]{3}$/),
+	provider: z.string().regex(/^[a-z][a-z0-9_-]{0,31}$/),
+	product_id: z.union([z.null(), z.literal("")]),
+	name: z
+		.string()
+		.refine((value) => value.trim().length > 0 && value.trim() !== "Unknown"),
+	revenue: commercialNumberSchema.pipe(z.number().nonnegative()),
+	transactions: commercialNumberSchema.pipe(z.number().int().nonnegative()),
+});
+
+function productRevenueRows(rows: Record<string, unknown>[]) {
+	const products = new Map<string, z.infer<typeof productRevenueRowSchema>>();
+	const ambiguous = new Set<string>();
+	for (const row of rows) {
+		const parsed = productRevenueRowSchema.safeParse(row);
+		if (!parsed.success) {
+			continue;
+		}
+		const product = parsed.data;
+		const key = `product_revenue:${product.currency}:${product.provider}:product_name:${encodeURIComponent(product.name)}`;
+		if (products.has(key)) {
+			ambiguous.add(key);
+		}
+		products.set(key, product);
+	}
+	for (const key of ambiguous) {
+		products.delete(key);
+	}
+	return products;
+}
+
+function makeProductRevenueSignal(
+	current: z.infer<typeof productRevenueRowSchema>,
+	previous: z.infer<typeof productRevenueRowSchema>,
+	currentWhole: unknown,
+	previousWhole: unknown,
+	detectedAt: string,
+	applyThreshold = true
+): DetectedSignal | null {
+	const cur = commercialOverviewSchema.safeParse(currentWhole);
+	const prev = commercialOverviewSchema.safeParse(previousWhole);
+	if (!(cur.success && prev.success)) {
+		return null;
+	}
+	const c = cur.data;
+	const p = prev.data;
+	if (
+		normalizeCurrencyCode(current.currency) !== current.currency ||
+		Math.min(c.total_transactions, p.total_transactions) < 20 ||
+		Math.min(c.total_revenue, p.total_revenue) <= 0 ||
+		current.revenue > c.total_revenue ||
+		previous.revenue > p.total_revenue ||
+		current.transactions > c.total_transactions ||
+		previous.transactions > p.total_transactions
+	) {
+		return null;
+	}
+	const currentShare = (100 * current.revenue) / c.total_revenue;
+	const previousShare = (100 * previous.revenue) / p.total_revenue;
+	if (
+		applyThreshold &&
+		(Math.max(current.transactions, previous.transactions) < 10 ||
+			Math.abs(current.revenue - previous.revenue) <
+				0.05 * Math.max(c.total_revenue, p.total_revenue) ||
+			Math.abs(safeDeltaPercent(current.revenue, previous.revenue)) < 30 ||
+			Math.abs(currentShare - previousShare) < 10)
+	) {
+		return null;
+	}
+	const label = current.name.trim();
+	return {
+		...makeWowSignal(
+			"product_revenue",
+			`${label} ${current.currency} receipts`,
+			current.revenue,
+			previous.revenue,
+			detectedAt
+		),
+		subjectKey: `product_revenue:${current.currency}:${current.provider}:product_name:${encodeURIComponent(current.name)}`,
+		entityId: current.name,
+		entityLabel: label,
+		investigationObjective:
+			"Find material changes in the composition of settled receipts, even when total revenue is flat. A verified material receipt-description shift is a measured business result and can publish with resolve when no cause or repair is known. Confirm revenue_overview for both windows: currency, provider, product_name=signal.entity.id and product_id=empty string, plus a separate currency-only whole control. These are payment descriptions, not verified catalog products. Do not infer churn, causality or absence from a limited table.",
+		definitionEvidence: `${current.provider} receipts described ${JSON.stringify(current.name)} with no product ID, ${current.currency} gross settled revenue excluding refunds: ${previous.revenue} across ${previous.transactions} transactions → ${current.revenue} across ${current.transactions}. Whole-currency gross: ${p.total_revenue} → ${c.total_revenue}; receipt-description share: ${round2(previousShare)}% → ${round2(currentShare)}%. Remaining gross: ${p.total_revenue - previous.revenue} → ${c.total_revenue - current.revenue}. Confirm description and whole controls with native revenue_overview; the snapshot alone cannot support publication.`,
+	};
+}
+
+function commercialSignals(
+	currency: string,
+	current: Record<string, unknown>,
+	previous: Record<string, unknown>,
+	detectedAt: string,
+	applyThreshold = true
+): DetectedSignal[] {
+	const cur = commercialOverviewSchema.safeParse(current);
+	const prev = commercialOverviewSchema.safeParse(previous);
+	if (!(cur.success && prev.success)) {
+		return [];
+	}
+	const c = cur.data;
+	const p = prev.data;
+	const signals: DetectedSignal[] = [];
+	const sampled = Math.min(c.total_transactions, p.total_transactions) >= 20;
+	if (
+		c.refund_amount != null &&
+		p.refund_amount != null &&
+		c.refund_count != null &&
+		p.refund_count != null
+	) {
+		const delta = Math.abs(c.refund_amount - p.refund_amount);
+		if (
+			!applyThreshold ||
+			(sampled &&
+				Math.max(c.refund_count, p.refund_count) >= 5 &&
+				delta >= Math.max(c.total_revenue, p.total_revenue) * 0.02 &&
+				Math.abs(safeDeltaPercent(c.refund_amount, p.refund_amount)) >= 30)
+		) {
+			signals.push({
+				...makeWowSignal(
+					"refund_amount",
+					`${currency} refunds`,
+					c.refund_amount,
+					p.refund_amount,
+					detectedAt
+				),
+				subjectKey: `refund_amount:${currency}`,
+				investigationObjective:
+					"Investigate the independent refund change and its operational consequence even if gross settled revenue is unchanged. Reconcile amounts and refund counts in this exact currency; do not let stable gross suppress refund review.",
+				definitionEvidence: `${currency} refunds: ${p.refund_amount} across ${p.refund_count} refunds → ${c.refund_amount} across ${c.refund_count}. Gross settled revenue: ${p.total_revenue} → ${c.total_revenue}; refunds are independent of gross, not subtracted from it. Refunds can refer to earlier purchases, so this is not a purchase-cohort refund rate. Confirm both complete windows with revenue_overview.`,
+			});
+		}
+	}
+	if (
+		c.attributed_revenue != null &&
+		p.attributed_revenue != null &&
+		c.total_revenue > 0 &&
+		p.total_revenue > 0 &&
+		c.attributed_revenue <= c.total_revenue &&
+		p.attributed_revenue <= p.total_revenue
+	) {
+		const currentRate = (100 * c.attributed_revenue) / c.total_revenue;
+		const previousRate = (100 * p.attributed_revenue) / p.total_revenue;
+		if (
+			!applyThreshold ||
+			(sampled && Math.abs(currentRate - previousRate) >= 15)
+		) {
+			signals.push({
+				...makeWowSignal(
+					"attribution_rate",
+					`${currency} revenue attribution coverage`,
+					currentRate,
+					previousRate,
+					detectedAt,
+					{ round: true }
+				),
+				subjectKey: `attribution_rate:${currency}`,
+				investigationObjective:
+					"Investigate the independent attribution coverage change and which acquisition comparison is now unsafe or newly supported. Retain this decision separately from refunds or gross movement. Unattributed revenue is not lost sales.",
+				definitionEvidence: `${currency} attributed settled revenue: ${p.attributed_revenue} of ${p.total_revenue} gross → ${c.attributed_revenue} of ${c.total_revenue} gross. Coverage is ${previousRate}% → ${currentRate}%. This changes which acquisition decisions the observed attribution supports; unattributed revenue is not lost sales. Confirm both complete windows with revenue_overview; attribution does not establish acquisition causality.`,
+			});
+		}
+	}
+	return signals;
 }
 
 function passesImpactFilter(signal: DetectedSignal): boolean {
@@ -289,6 +540,12 @@ function passesLowTrafficFloor(
 ): boolean {
 	if (weeklySessions >= LOW_TRAFFIC_WEEKLY_SESSIONS) {
 		return true;
+	}
+	if (
+		signal.metric === "refund_amount" ||
+		signal.metric === "attribution_rate"
+	) {
+		return true; // Commercial cohorts have their own transaction floor.
 	}
 	if (RATE_METRICS.has(signal.metric)) {
 		return false;
@@ -457,26 +714,50 @@ async function detectErrorBehaviorSignals(params: {
 	return signals;
 }
 
+const customEventCount = z
+	.union([z.number(), z.string().trim().min(1).pipe(z.coerce.number())])
+	.pipe(z.number().int().nonnegative());
+const customEventCounts = z.object({
+	total_events: customEventCount,
+	unique_users: customEventCount,
+	unique_sessions: customEventCount,
+});
+
 function makeCustomEventSignal(
 	name: string,
 	currentRow: Record<string, unknown> | undefined,
 	previousRow: Record<string, unknown> | undefined,
 	detectedAt: string,
-	subjectKey = `custom_event:${name}`
-): DetectedSignal {
-	const current = numberField(currentRow, "total_events");
-	const previous = numberField(previousRow, "total_events");
-	const currentUsers = numberField(currentRow, "unique_users");
-	const previousUsers = numberField(previousRow, "unique_users");
-	const currentSessions = numberField(currentRow, "unique_sessions");
-	const previousSessions = numberField(previousRow, "unique_sessions");
+	metric: "custom_event_count" | "custom_event_reach" = "custom_event_count",
+	subjectKey = `${metric === "custom_event_count" ? "custom_event" : metric}:${name}`
+): DetectedSignal | null {
+	const empty = { total_events: 0, unique_users: 0, unique_sessions: 0 };
+	const current = customEventCounts.safeParse(currentRow ?? empty);
+	const previous = customEventCounts.safeParse(previousRow ?? empty);
+	if (!(current.success && previous.success)) {
+		return null;
+	}
+	const field =
+		metric === "custom_event_reach" ? "unique_users" : "total_events";
 	const signal = capLowReachSeverity(
-		makeWowSignal("custom_event_count", name, current, previous, detectedAt),
-		Math.max(previousUsers, previousSessions)
+		makeWowSignal(
+			metric,
+			metric === "custom_event_reach" ? `${name} recorded visitors` : name,
+			current.data[field],
+			previous.data[field],
+			detectedAt
+		),
+		Math.max(previous.data.unique_users, previous.data.unique_sessions)
 	);
+
 	signal.subjectKey = subjectKey;
 	signal.entityId = name;
-	signal.definitionEvidence = `Event "${name}" occurred ${current} times across ${currentUsers} users and ${currentSessions} sessions, compared with ${previous} occurrences across ${previousUsers} users and ${previousSessions} sessions previously.`;
+	signal.entityLabel = name;
+	signal.definitionEvidence = `Event "${name}" occurred ${current.data.total_events} times across ${current.data.unique_users} recorded visitor identifiers and ${current.data.unique_sessions} sessions, compared with ${previous.data.total_events} occurrences across ${previous.data.unique_users} recorded visitor identifiers and ${previous.data.unique_sessions} sessions previously.`;
+	if (metric === "custom_event_reach") {
+		signal.investigationObjective =
+			"Explain the measured recorded-participation change alongside occurrence volume. Nonzero unique_users still measures recorded visitor identifiers; unavailable emitter context does not invalidate it or establish instrumentation failure. Claim identity-coverage loss only with evidence of missing identifiers, not fewer identifiers. Leave causes unknown without inspected support. Event names alone do not establish behavior, business outcomes or conversion rates; recorded identifiers are not people.";
+	}
 	return signal;
 }
 
@@ -569,11 +850,12 @@ function weeklySessionVolume(
 
 function assignSeverity(
 	zScore: number | undefined,
-	deltaPercent: number
+	deltaPercent: number,
+	improvement: boolean
 ): "critical" | "warning" | "info" {
 	const absZ = zScore === undefined ? 0 : Math.abs(zScore);
 	const absD = Math.abs(deltaPercent);
-	if (absZ >= 3.5 || absD >= 60) {
+	if (!improvement && (absZ >= 3.5 || absD >= 60)) {
 		return "critical";
 	}
 	if (absZ >= 3.0 || absD >= 50) {
@@ -702,7 +984,10 @@ export async function remeasureMetricSignal(
 		return countSignal();
 	}
 
-	if (prior.signalKey.startsWith("custom_event:")) {
+	if (
+		prior.signalKey.startsWith("custom_event:") ||
+		prior.signalKey.startsWith("custom_event_reach:")
+	) {
 		const name = prior.entity.id;
 		const pair = await readPair("custom_events", "custom_events", [
 			{ field: "event_name", op: "eq", value: name },
@@ -716,23 +1001,95 @@ export async function remeasureMetricSignal(
 			currentRows[0],
 			previousRows[0],
 			currentTo,
+			prior.signalKey.startsWith("custom_event_reach:")
+				? "custom_event_reach"
+				: "custom_event_count",
 			prior.signalKey
 		);
 	}
 
-	if (prior.signalKey === "revenue") {
-		const pair = await readPair("revenue", "revenue_overview");
+	if (prior.signalKey.startsWith("product_revenue:")) {
+		const [, currency, provider, selector] = prior.signalKey.split(":");
+		if (
+			normalizeCurrencyCode(currency) !== currency ||
+			selector !== "product_name" ||
+			!provider ||
+			!prior.entity.id ||
+			signalKeyForDetectedSignal({
+				metric: "product_revenue",
+				subjectKey: `product_revenue:${currency}:${provider}:product_name:${encodeURIComponent(prior.entity.id)}`,
+			}) !== prior.signalKey
+		) {
+			return null;
+		}
+		const currencyFilter = {
+			field: "currency",
+			op: "eq",
+			value: currency,
+		} as const;
+		const [product, whole] = await Promise.all([
+			readPair("revenue", "revenue_by_product", [
+				currencyFilter,
+				{ field: "provider", op: "eq", value: provider },
+				{ field: "product_name", op: "eq", value: prior.entity.id },
+				{ field: "product_id", op: "eq", value: "" },
+			]),
+			readPair("revenue", "revenue_overview", [currencyFilter]),
+		]);
+		if (!(product.value && whole.value)) {
+			return null;
+		}
+		const key = `product_revenue:${currency}:${provider}:product_name:${encodeURIComponent(prior.entity.id)}`;
+		const [current, previous] = product.value.map((rows) =>
+			productRevenueRows(rows).get(key)
+		);
+		const wholeRows = whole.value.map((rows) =>
+			rows.filter((row) => row.currency === currency)
+		);
+		return current && previous && wholeRows.every((rows) => rows.length === 1)
+			? makeProductRevenueSignal(
+					current,
+					previous,
+					wholeRows[0][0],
+					wholeRows[1][0],
+					currentTo,
+					false
+				)
+			: null;
+	}
+
+	if (
+		["revenue", "refund_amount", "attribution_rate"].some((metric) =>
+			prior.signalKey.startsWith(`${metric}:`)
+		)
+	) {
+		const [metric, currency] = prior.signalKey.split(":");
+		if (normalizeCurrencyCode(currency) !== currency) {
+			return null;
+		}
+		const pair = await readPair("revenue", "revenue_overview", [
+			{ field: "currency", op: "eq", value: currency },
+		]);
 		if (!pair.value) {
 			return null;
 		}
 		const [currentRows, previousRows] = pair.value;
-		return makeWowSignal(
-			"revenue",
-			prior.metric.label,
-			numberField(currentRows[0], "total_revenue"),
-			numberField(previousRows[0], "total_revenue"),
-			currentTo
+		const current = mapRowsByStringField(currentRows, "currency").get(currency);
+		const previous = mapRowsByStringField(previousRows, "currency").get(
+			currency
 		);
+		// An absent currency is not a measured zero; unscoped legacy signals are inconclusive.
+		return current && previous
+			? metric === "revenue"
+				? makeRevenueSignal(currency, current, previous, currentTo)
+				: (commercialSignals(
+						currency,
+						current,
+						previous,
+						currentTo,
+						false
+					).find((signal) => signal.metric === metric) ?? null)
+			: null;
 	}
 
 	const vital = prior.signalKey === "lcp" ? VITALS.LCP : VITALS.INP;
@@ -1067,7 +1424,11 @@ function detectZscore(sorted: Record<string, unknown>[]): DetectedSignal[] {
 			current: currentValue,
 			baseline: baselineMedian,
 			deltaPercent: Number(delta.toFixed(2)),
-			severity: assignSeverity(zScore, delta),
+			severity: assignSeverity(
+				zScore,
+				delta,
+				isImprovement(metric.key, currentValue, baselineMedian)
+			),
 			detectedAt: latestDate,
 		});
 	}
@@ -1096,7 +1457,8 @@ async function detectWow(
 		type: string,
 		from: string,
 		to: string,
-		options: { filters?: Filter[]; limit?: number } = {}
+		options: { filters?: Filter[]; limit?: number } = {},
+		signal = abortSignal
 	) {
 		return queryFn(
 			{
@@ -1109,7 +1471,7 @@ async function detectWow(
 			},
 			undefined,
 			timezone,
-			abortSignal
+			signal
 		);
 	}
 
@@ -1289,6 +1651,22 @@ async function detectWow(
 		const currentRow = currentByName.get(name);
 		const current = numberField(currentRow, "total_events");
 		const previous = numberField(previousRow, "total_events");
+		if (current >= previous && currentSessions >= previousSessions) {
+			const reach = makeCustomEventSignal(
+				name,
+				currentRow,
+				previousRow,
+				currentTo,
+				"custom_event_reach"
+			);
+			if (
+				reach &&
+				reach.baseline >= SIGNIFICANT_AFFECTED_USERS &&
+				reach.deltaPercent <= -CUSTOM_EVENT_DROP_THRESHOLD
+			) {
+				signals.push(reach);
+			}
+		}
 		const previousReach = Math.max(
 			numberField(previousRow, "unique_users"),
 			numberField(previousRow, "unique_sessions")
@@ -1308,28 +1686,122 @@ async function detectWow(
 		) {
 			continue;
 		}
-		signals.push(
-			makeCustomEventSignal(name, currentRow, previousRow, currentTo)
+		const event = makeCustomEventSignal(
+			name,
+			currentRow,
+			previousRow,
+			currentTo
 		);
+		if (event) {
+			signals.push(event);
+		}
 	}
 
-	const revNow = numberField(currentRevenue[0], "total_revenue");
-	const revPrev = numberField(previousRevenue[0], "total_revenue");
-	const revenueTransactions = Math.max(
-		numberField(currentRevenue[0], "total_transactions"),
-		numberField(previousRevenue[0], "total_transactions")
-	);
-	const meaningfulRevenueChange =
-		Math.abs(revNow - revPrev) >= REVENUE_MIN_ABSOLUTE_CHANGE ||
-		revenueTransactions >= REVENUE_MIN_TRANSACTIONS;
-	if ((revNow > 0 || revPrev > 0) && meaningfulRevenueChange) {
-		const pct = revPrev === 0 ? 100 : safeDeltaPercent(revNow, revPrev);
+	const previousCurrencies = mapRowsByStringField(previousRevenue, "currency");
+	for (const [currency, current] of mapRowsByStringField(
+		currentRevenue,
+		"currency"
+	)) {
+		const previous = previousCurrencies.get(currency);
+		if (!previous || normalizeCurrencyCode(currency) !== currency) {
+			continue;
+		}
+		signals.push(...commercialSignals(currency, current, previous, currentTo));
+		const signal = makeRevenueSignal(currency, current, previous, currentTo);
+		const transactions = Math.max(
+			numberField(current, "total_transactions"),
+			numberField(previous, "total_transactions")
+		);
 		if (
-			Math.abs(pct) >= WOW_REVENUE_THRESHOLD ||
-			(revPrev === 0 && revNow > 0)
+			signal &&
+			(signal.current > 0 || signal.baseline > 0) &&
+			(Math.abs(signal.current - signal.baseline) >=
+				REVENUE_MIN_ABSOLUTE_CHANGE ||
+				transactions >= REVENUE_MIN_TRANSACTIONS) &&
+			Math.abs(safeDeltaPercent(signal.current, signal.baseline)) >=
+				WOW_REVENUE_THRESHOLD
 		) {
-			signals.push(
-				makeWowSignal("revenue", "Revenue", revNow, revPrev, currentTo)
+			signals.push(signal);
+		}
+	}
+
+	// Two bounded discovery reads; a missing top-table row never becomes zero.
+	if (
+		currentRevenue.some(
+			(row) =>
+				Math.min(
+					numberField(row, "total_transactions"),
+					numberField(
+						previousCurrencies.get(String(row.currency)),
+						"total_transactions"
+					)
+				) >= 20
+		)
+	) {
+		const probeSignal = AbortSignal.any([
+			...(abortSignal ? [abortSignal] : []),
+			AbortSignal.timeout(3000),
+		]);
+		const [currentProbe, previousProbe] = await Promise.allSettled([
+			query(
+				"revenue_by_product",
+				currentFrom,
+				currentTo,
+				{ limit: 20 },
+				probeSignal
+			),
+			query(
+				"revenue_by_product",
+				previousFrom,
+				previousTo,
+				{ limit: 20 },
+				probeSignal
+			),
+		]);
+		abortSignal?.throwIfAborted();
+		if (
+			currentProbe.status === "fulfilled" &&
+			previousProbe.status === "fulfilled"
+		) {
+			const [currentRows, previousRows] = [
+				currentProbe.value,
+				previousProbe.value,
+			].map(productRevenueRows);
+			const currentWhole = mapRowsByStringField(currentRevenue, "currency");
+			const movements: DetectedSignal[] = [];
+			for (const [key, current] of currentRows) {
+				const previous = previousRows.get(key);
+				if (!previous) {
+					continue;
+				}
+				const productSignal = makeProductRevenueSignal(
+					current,
+					previous,
+					currentWhole.get(current.currency),
+					previousCurrencies.get(current.currency),
+					currentTo
+				);
+				if (productSignal) {
+					movements.push(productSignal);
+				}
+			}
+			// Keep the same covered movement on an identical next run, rather than rotating to its offset.
+			const coveredCurrencies = new Map<string, DetectedSignal>();
+			movements.sort((a, b) =>
+				(a.subjectKey ?? "").localeCompare(b.subjectKey ?? "")
+			);
+			for (const movement of rankSignals(movements).reverse()) {
+				coveredCurrencies.set(
+					movement.subjectKey?.split(":")[1] ?? "",
+					movement
+				);
+			}
+			signals.push(...coveredCurrencies.values());
+		} else {
+			emitInsightsEvent(
+				"warn",
+				"generation.detection.optional_product_unavailable",
+				{ website_id: websiteId }
 			);
 		}
 	}

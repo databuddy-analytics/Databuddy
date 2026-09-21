@@ -1,5 +1,7 @@
 "use client";
 
+import { isSelfHosted } from "@databuddy/env/public";
+
 import {
 	FEATURE_METADATA,
 	type GatedFeatureId,
@@ -7,6 +9,7 @@ import {
 	getPlanLimitMessage,
 	INTELLIGENCE_PLAN_IDS,
 	PLAN_IDS,
+	type PlanId,
 } from "@databuddy/shared/types/features";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -56,15 +59,19 @@ const PLAN_CONFIG: Record<
 };
 
 interface FeatureGateProps {
+	allowed?: boolean;
 	blockWhileLoading?: boolean;
 	children: ReactNode;
 	description?: string;
-	feature: GatedFeatureId;
+	feature?: GatedFeatureId;
+	requiredPlan?: PlanId;
 	title?: string;
 }
 
 export function FeatureGate({
+	allowed,
 	feature,
+	requiredPlan: requiredPlanOverride,
 	children,
 	title,
 	description,
@@ -82,13 +89,25 @@ export function FeatureGate({
 		return <>{children}</>;
 	}
 
-	if (isFeatureEnabled(feature)) {
+	if (allowed ?? (feature ? isFeatureEnabled(feature) : false)) {
 		return <>{children}</>;
 	}
 
-	const metadata = FEATURE_METADATA[feature];
-	const minPlanFromMatrix = getMinimumPlanForFeature(feature);
-	const requiredPlan = minPlanFromMatrix ?? metadata?.minPlan ?? PLAN_IDS.PRO;
+	if (isSelfHosted) {
+		return (
+			<p className="text-pretty p-4 text-muted-foreground text-sm">
+				Ask your administrator to configure AI to use this feature.
+			</p>
+		);
+	}
+
+	const metadata = feature ? FEATURE_METADATA[feature] : undefined;
+	const minPlanFromMatrix = feature ? getMinimumPlanForFeature(feature) : null;
+	const requiredPlan =
+		requiredPlanOverride ??
+		minPlanFromMatrix ??
+		metadata?.minPlan ??
+		PLAN_IDS.PRO;
 	const planConfig = PLAN_CONFIG[requiredPlan] ?? PLAN_CONFIG[PLAN_IDS.PRO];
 	const currentConfig =
 		PLAN_CONFIG[currentPlanId ?? PLAN_IDS.FREE] ?? PLAN_CONFIG[PLAN_IDS.FREE];
@@ -104,10 +123,7 @@ export function FeatureGate({
 			<Card className="w-full max-w-md overflow-hidden pt-0">
 				<Card.Header className="dotted-bg flex flex-col items-center gap-4 border-b bg-accent py-8">
 					<div className="flex size-14 items-center justify-center rounded border bg-card">
-						<LockSimpleIcon
-							className="size-7 text-muted-foreground"
-							weight="duotone"
-						/>
+						<LockSimpleIcon className="size-7 text-muted-foreground" />
 					</div>
 					<div className="text-center">
 						<h2 className="font-semibold text-lg">
@@ -125,10 +141,7 @@ export function FeatureGate({
 					<div className="flex items-center justify-between rounded border bg-accent/50 px-3 py-2.5">
 						<span className="text-muted-foreground text-sm">Required plan</span>
 						<div className="flex items-center gap-1.5">
-							<PlanIcon
-								className={cn("size-4", planConfig.color)}
-								weight="duotone"
-							/>
+							<PlanIcon className={cn("size-4", planConfig.color)} />
 							<span className={cn("font-semibold text-sm", planConfig.color)}>
 								{planConfig.name}
 							</span>
@@ -138,10 +151,7 @@ export function FeatureGate({
 					<div className="flex items-center justify-between rounded border px-3 py-2.5">
 						<span className="text-muted-foreground text-sm">Your plan</span>
 						<div className="flex items-center gap-1.5">
-							<CurrentIcon
-								className={cn("size-4", currentConfig.color)}
-								weight="duotone"
-							/>
+							<CurrentIcon className={cn("size-4", currentConfig.color)} />
 							<span className="font-medium text-foreground text-sm">
 								{currentPlanName}
 							</span>
@@ -151,7 +161,7 @@ export function FeatureGate({
 					{canUserUpgrade ? (
 						<Button asChild className="group w-full gap-2" size="lg">
 							<Link href="/billing/plans">
-								<RocketLaunchIcon className="size-5" weight="duotone" />
+								<RocketLaunchIcon className="size-5" />
 								Upgrade to {planConfig.name}
 								<ArrowRightIcon className="size-4 transition-transform group-hover:translate-x-0.5" />
 							</Link>

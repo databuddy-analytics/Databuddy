@@ -174,7 +174,7 @@ function LoginPage() {
 							variant="outline"
 						>
 							<Link href={`/login/magic${callbackQuery}`}>
-								<EnvelopeSimpleIcon className="size-4" weight="duotone" />
+								<EnvelopeSimpleIcon className="size-4" />
 								Sign in with Magic Link
 							</Link>
 						</Button>

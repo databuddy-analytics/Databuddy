@@ -61,7 +61,6 @@ describe("resolveTransitionKind — dedupe invariants", () => {
 	test("UP → UP is silent", () => {
 		expect(resolveTransitionKind(UP, UP)).toBeNull();
 	});
-
 });
 
 describe("resolveTransitionKind — defensive inputs", () => {

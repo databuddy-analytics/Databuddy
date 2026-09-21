@@ -1,3 +1,4 @@
+import { getClientIp } from "@databuddy/shared/utils/client-ip";
 import {
 	and,
 	db,
@@ -27,6 +28,13 @@ import {
 import { ratelimit } from "@databuddy/redis/rate-limit";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
+import {
+	createAssetUpload,
+	isUploadContentType,
+	MAX_UPLOAD_BYTES,
+	UPLOAD_CONTENT_TYPES,
+	type UploadContentType,
+} from "@databuddy/services/storage";
 import { parseUptimeGranularity } from "@databuddy/shared/uptime";
 import { rpcError } from "../errors";
 import { setAuditOrganization } from "../lib/audit";
@@ -189,11 +197,20 @@ const PUBLIC_SITEMAP_LIMIT = 1000;
 
 async function _listPublicStatusPageSitemapEntries() {
 	const rows = await db
-		.select({
+		.selectDistinct({
 			slug: statusPages.slug,
 			updatedAt: statusPages.updatedAt,
 		})
 		.from(statusPages)
+		.innerJoin(
+			statusPageMonitors,
+			eq(statusPageMonitors.statusPageId, statusPages.id)
+		)
+		.innerJoin(
+			uptimeSchedules,
+			eq(uptimeSchedules.id, statusPageMonitors.uptimeScheduleId)
+		)
+		.where(eq(uptimeSchedules.isPaused, false))
 		.orderBy(desc(statusPages.updatedAt))
 		.limit(PUBLIC_SITEMAP_LIMIT);
 
@@ -214,21 +231,13 @@ const listPublicStatusPageSitemapEntries = cacheable(
 	}
 );
 
-function clientIp(headers: Headers): string {
-	return (
-		headers.get("cf-connecting-ip") ??
-		headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-		"unknown"
-	);
-}
-
 async function enforcePublicRateLimit(
 	headers: Headers,
 	bucket: string,
 	limit: number
 ): Promise<void> {
 	const result = await ratelimit(
-		`status-page:${bucket}:${clientIp(headers)}`,
+		`status-page:${bucket}:${getClientIp(headers) ?? "unknown"}`,
 		limit,
 		60
 	);
@@ -242,8 +251,8 @@ const httpUrl = z
 	.max(2048)
 	.url()
 	.refine(
-		(value) => value.startsWith("https://") || value.startsWith("http://"),
-		"URL must start with http:// or https://"
+		(value) => value.startsWith("https://"),
+		"URL must start with https://"
 	);
 
 const statusPageSlug = z
@@ -445,40 +454,64 @@ async function _fetchStatusPageData(
 	const ninetyDaysAgoDate = new Date();
 	ninetyDaysAgoDate.setDate(ninetyDaysAgoDate.getDate() - 90);
 
-	const [websiteRows, allDailyData, allRecentChecks, recentIncidents] =
-		await Promise.all([
-			websiteIds.length > 0
-				? db
-						.select({
-							id: websites.id,
-							domain: websites.domain,
-							name: websites.name,
-						})
-						.from(websites)
-						.where(inArray(websites.id, websiteIds))
-				: Promise.resolve([]),
-			siteIds.length > 0
-				? chQuery<DailyRow>(DAILY_UPTIME_SQL, { siteIds, startDate, endDate })
-				: Promise.resolve([]),
-			siteIds.length > 0
-				? chQuery<LatestCheckRow>(LATEST_CHECK_SQL, { siteIds })
-				: Promise.resolve([]),
-			db.query.incidents.findMany({
-				where: {
-					statusPageId: rows[0].statusPageId,
-					createdAt: { gte: ninetyDaysAgoDate },
-				},
-				orderBy: { createdAt: "desc" },
-				limit: 50,
-				with: {
-					updates: {
-						orderBy: { createdAt: "desc" },
-						limit: 20,
-					},
-					affectedMonitors: true,
-				},
-			}),
-		]);
+	const incidentRelations = {
+		updates: {
+			orderBy: { createdAt: "desc" },
+			limit: 20,
+		},
+		affectedMonitors: true,
+	} as const;
+
+	const [
+		websiteRows,
+		allDailyData,
+		allRecentChecks,
+		windowedIncidents,
+		unresolvedIncidents,
+	] = await Promise.all([
+		websiteIds.length > 0
+			? db
+					.select({
+						id: websites.id,
+						domain: websites.domain,
+						name: websites.name,
+					})
+					.from(websites)
+					.where(inArray(websites.id, websiteIds))
+			: Promise.resolve([]),
+		siteIds.length > 0
+			? chQuery<DailyRow>(DAILY_UPTIME_SQL, { siteIds, startDate, endDate })
+			: Promise.resolve([]),
+		siteIds.length > 0
+			? chQuery<LatestCheckRow>(LATEST_CHECK_SQL, { siteIds })
+			: Promise.resolve([]),
+		db.query.incidents.findMany({
+			where: {
+				statusPageId: rows[0].statusPageId,
+				createdAt: { gte: ninetyDaysAgoDate },
+			},
+			orderBy: { createdAt: "desc" },
+			limit: 50,
+			with: incidentRelations,
+		}),
+		db.query.incidents.findMany({
+			where: {
+				statusPageId: rows[0].statusPageId,
+				status: { ne: "resolved" },
+			},
+			orderBy: { createdAt: "desc" },
+			limit: 50,
+			with: incidentRelations,
+		}),
+	]);
+
+	const recentIncidents = [
+		...new Map(
+			[...unresolvedIncidents, ...windowedIncidents].map(
+				(incident) => [incident.id, incident] as const
+			)
+		).values(),
+	].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
 	const websiteMap = new Map(websiteRows.map((w) => [w.id, w] as const));
 
@@ -761,6 +794,44 @@ export const statusPageRouter = {
 				...page,
 				monitors,
 			};
+		}),
+
+	createAssetUploadUrl: trackedProcedure
+		.route({
+			description:
+				"Returns a short-lived presigned URL for uploading a status page logo or favicon. Requires write:status_pages scope.",
+			method: "POST",
+			path: "/statusPage/createAssetUploadUrl",
+			summary: "Create an asset upload URL",
+			tags: ["StatusPage"],
+			spec: (s) => ({
+				...s,
+				"x-required-scopes": ["write:status_pages"] as const,
+			}),
+		})
+		.input(
+			z.object({
+				asset: z.enum(["logo", "favicon"]),
+				contentLength: z.number().int().positive().max(MAX_UPLOAD_BYTES),
+				contentType: z.string().refine(isUploadContentType, {
+					message: `Content type must be one of ${UPLOAD_CONTENT_TYPES.join(", ")}`,
+				}),
+				organizationId: z.string(),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			setTrackProperties({ asset: input.asset });
+			await withWorkspace(context, {
+				organizationId: input.organizationId,
+				resource: "status_page",
+				permissions: ["update"],
+			});
+
+			return createAssetUpload({
+				asset: input.asset,
+				contentType: input.contentType as UploadContentType,
+				organizationId: input.organizationId,
+			});
 		}),
 
 	create: trackedProcedure
@@ -1364,12 +1435,14 @@ export const statusPageRouter = {
 					message: input.message,
 				});
 
+				const resolvedAt =
+					input.status === "resolved"
+						? (incident.resolvedAt ?? new Date())
+						: null;
+
 				await tx
 					.update(incidents)
-					.set({
-						status: input.status,
-						resolvedAt: input.status === "resolved" ? new Date() : null,
-					})
+					.set({ status: input.status, resolvedAt })
 					.where(eq(incidents.id, input.incidentId));
 			});
 

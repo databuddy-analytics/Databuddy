@@ -14,11 +14,20 @@ function expectBot(ua: string, category: BotCategory, action: BotAction) {
 describe("detectBot", () => {
 	describe("AI crawlers — every major provider", () => {
 		it.each([
-			["OpenAI GPTBot", "Mozilla/5.0 (compatible; GPTBot/1.2; +https://openai.com/gptbot)"],
+			[
+				"OpenAI GPTBot",
+				"Mozilla/5.0 (compatible; GPTBot/1.2; +https://openai.com/gptbot)",
+			],
 			["OpenAI SearchBot", "Mozilla/5.0 (compatible; OAI-SearchBot/1.0)"],
-			["Anthropic ClaudeBot", "Mozilla/5.0 (compatible; ClaudeBot/1.0; +claudebot@anthropic.com)"],
+			[
+				"Anthropic ClaudeBot",
+				"Mozilla/5.0 (compatible; ClaudeBot/1.0; +claudebot@anthropic.com)",
+			],
 			["Anthropic Claude-Web", "Mozilla/5.0 (compatible; Claude-Web/1.0)"],
-			["Anthropic Claude-SearchBot", "Mozilla/5.0 (compatible; Claude-SearchBot/1.0)"],
+			[
+				"Anthropic Claude-SearchBot",
+				"Mozilla/5.0 (compatible; Claude-SearchBot/1.0)",
+			],
 			["Google-Extended", "Mozilla/5.0 (compatible; Google-Extended)"],
 			["GoogleOther", "GoogleOther"],
 			["Google-CloudVertexBot", "Google-CloudVertexBot"],
@@ -29,7 +38,10 @@ describe("detectBot", () => {
 			["Amazonbot", "Amazonbot/0.1"],
 			["Applebot", "Applebot/0.1"],
 			["DeepSeekBot", "DeepSeekBot/1.0"],
-			["Bytespider", "Mozilla/5.0 (compatible; Bytespider; spider-feedback@bytedance.com)"],
+			[
+				"Bytespider",
+				"Mozilla/5.0 (compatible; Bytespider; spider-feedback@bytedance.com)",
+			],
 			["TikTokSpider", "TikTokSpider"],
 			["Bravebot", "Bravebot"],
 			["YouBot", "YouBot/1.0"],
@@ -70,9 +82,18 @@ describe("detectBot", () => {
 
 	describe("search engines", () => {
 		it.each([
-			["Googlebot", "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"],
-			["Bingbot", "Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)"],
-			["YandexBot", "Mozilla/5.0 (compatible; YandexBot/3.0; +http://yandex.com/bots)"],
+			[
+				"Googlebot",
+				"Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+			],
+			[
+				"Bingbot",
+				"Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)",
+			],
+			[
+				"YandexBot",
+				"Mozilla/5.0 (compatible; YandexBot/3.0; +http://yandex.com/bots)",
+			],
 			["DuckDuckBot", "DuckDuckBot/1.0"],
 			["Baiduspider", "Mozilla/5.0 (compatible; Baiduspider/2.0)"],
 		])("allows %s", (_label, ua) => {
@@ -96,9 +117,18 @@ describe("detectBot", () => {
 
 	describe("SEO tools", () => {
 		it.each([
-			["AhrefsBot", "Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)"],
-			["SemrushBot", "Mozilla/5.0 (compatible; SemrushBot/7~bl; +http://www.semrush.com/bot.html)"],
-			["MJ12bot", "Mozilla/5.0 (compatible; MJ12bot/v1.4.8; http://mj12bot.com/)"],
+			[
+				"AhrefsBot",
+				"Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)",
+			],
+			[
+				"SemrushBot",
+				"Mozilla/5.0 (compatible; SemrushBot/7~bl; +http://www.semrush.com/bot.html)",
+			],
+			[
+				"MJ12bot",
+				"Mozilla/5.0 (compatible; MJ12bot/v1.4.8; http://mj12bot.com/)",
+			],
 			["DotBot", "Mozilla/5.0 (compatible; DotBot/1.2)"],
 		])("blocks %s", (_label, ua) => {
 			expectBot(ua, BotCategory.SEO_TOOL, BotAction.BLOCK);
@@ -131,7 +161,10 @@ describe("detectBot", () => {
 
 	describe("regex patterns (from UA2.json)", () => {
 		it.each([
-			["Googlebot with slash", "Googlebot/2.1 (+http://www.google.com/bot.html)"],
+			[
+				"Googlebot with slash",
+				"Googlebot/2.1 (+http://www.google.com/bot.html)",
+			],
 			["AdsBot-Google", "AdsBot-Google (+http://www.google.com/adsbot.html)"],
 			["Facebot regex", "Facebot/1.0"],
 			["BingPreview", "BingPreview/1.0b"],
@@ -143,19 +176,58 @@ describe("detectBot", () => {
 
 	describe("human traffic — no false positives", () => {
 		it.each([
-			["Chrome Desktop", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"],
-			["Chrome Android", "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.43 Mobile Safari/537.36"],
-			["Safari macOS", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"],
-			["Safari iOS", "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"],
-			["Firefox Desktop", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0"],
-			["Firefox Android", "Mozilla/5.0 (Android 14; Mobile; rv:121.0) Gecko/121.0 Firefox/121.0"],
-			["Edge", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.2210.91"],
-			["Opera", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 OPR/106.0.0.0"],
-			["Samsung Internet", "Mozilla/5.0 (Linux; Android 13; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/23.0 Chrome/115.0.0.0 Mobile Safari/537.36"],
-			["Brave Browser", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"],
-			["Arc Browser", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"],
-			["Vivaldi", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Vivaldi/6.5"],
-			["iPad Safari", "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"],
+			[
+				"Chrome Desktop",
+				"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+			],
+			[
+				"Chrome Android",
+				"Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.43 Mobile Safari/537.36",
+			],
+			[
+				"Safari macOS",
+				"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+			],
+			[
+				"Safari iOS",
+				"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+			],
+			[
+				"Firefox Desktop",
+				"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
+			],
+			[
+				"Firefox Android",
+				"Mozilla/5.0 (Android 14; Mobile; rv:121.0) Gecko/121.0 Firefox/121.0",
+			],
+			[
+				"Edge",
+				"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.2210.91",
+			],
+			[
+				"Opera",
+				"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 OPR/106.0.0.0",
+			],
+			[
+				"Samsung Internet",
+				"Mozilla/5.0 (Linux; Android 13; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/23.0 Chrome/115.0.0.0 Mobile Safari/537.36",
+			],
+			[
+				"Brave Browser",
+				"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+			],
+			[
+				"Arc Browser",
+				"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+			],
+			[
+				"Vivaldi",
+				"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Vivaldi/6.5",
+			],
+			[
+				"iPad Safari",
+				"Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+			],
 		])("does not flag %s as a bot", (_label, ua) => {
 			const result = detectBot(ua);
 			expect(result.isBot).toBe(false);
@@ -253,7 +325,10 @@ describe("matchCategory", () => {
 	});
 
 	it.each([
-		["human UA", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/120.0.0.0"],
+		[
+			"human UA",
+			"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/120.0.0.0",
+		],
 		["empty string", ""],
 	])("returns null for %s", (_label, ua) => {
 		expect(matchCategory(ua)).toBeNull();

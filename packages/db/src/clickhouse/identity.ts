@@ -31,15 +31,12 @@ export function identityPairMapCte(keyColumn: IdentityPairKey): string {
 )`;
 }
 
-export function sessionMetaCte(source: string): string {
-	return `session_meta AS (
-	SELECT
-		session_id,
-		argMinIf(profile_id, identity_time, profile_id != '') AS first_profile,
-		argMaxIf(anonymous_id, identity_time, anonymous_id != '') AS mapped_anonymous_id
+export function sessionMetaCte(source: string, name = "identity_rows"): string {
+	return `${name} AS (
+	SELECT *,
+		if(session_id != '', argMinIf(profile_id, identity_time, profile_id != '') OVER (PARTITION BY session_id), '') AS first_profile,
+		if(session_id != '', argMaxIf(anonymous_id, identity_time, anonymous_id != '') OVER (PARTITION BY session_id), '') AS mapped_anonymous_id
 	FROM ${source}
-	WHERE session_id != ''
-	GROUP BY session_id
 )`;
 }
 
@@ -54,10 +51,8 @@ export function identityJoins(
 	ASOF LEFT JOIN identity_pairs_session session_pairs
 		ON ${source}.session_id = session_pairs.session_id
 		AND session_pairs.identity_time <= ${identityTime}
-	LEFT JOIN session_meta session_identity
-		ON ${source}.session_id = session_identity.session_id
 	ASOF LEFT JOIN identity_pairs_anon session_profile
-		ON session_identity.mapped_anonymous_id = session_profile.anonymous_id
+		ON ${source}.mapped_anonymous_id = session_profile.anonymous_id
 		AND session_profile.identity_time <= ${identityTime}`;
 }
 
@@ -65,11 +60,11 @@ export function canonicalVisitorExpression(source: string): string {
 	return `coalesce(
 	nullIf(${source}.profile_id, ''),
 	nullIf(session_pairs.profile_id, ''),
-	nullIf(session_identity.first_profile, ''),
+	nullIf(${source}.first_profile, ''),
 	nullIf(direct_profile.profile_id, ''),
 	nullIf(session_profile.profile_id, ''),
 	nullIf(${source}.anonymous_id, ''),
-	nullIf(session_identity.mapped_anonymous_id, ''),
+	nullIf(${source}.mapped_anonymous_id, ''),
 	''
 )`;
 }

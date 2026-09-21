@@ -8,17 +8,17 @@ import { Steps, Step } from "@/components/docs";
 import { CodeBlock } from "@/components/docs";
 import { Card, Cards } from "@/components/docs";
 
-Add Databuddy's privacy-first analytics to your WordPress site with an asynchronous tracker that is about 12 KB gzipped. No cookies, fully GDPR compliant.
+Add Databuddy's privacy-first analytics to your WordPress site with an asynchronous tracker that is about 13 KB gzipped. The tracker uses browser storage instead of analytics cookies. Review your [privacy and consent configuration](/docs/compliance/gdpr-compliance-guide) before enabling collection.
 
 ## Installation Methods
 
-Choose the installation method that works best for your WordPress setup. If you're using WordPress.com (hosted), you'll need to use a plugin since direct theme editing isn't available. For self-hosted WordPress.org sites, you have more flexibility.
+Choose one installation method. WordPress.com requires a plan that supports plugins and custom JavaScript; see its [custom code requirements](https://wordpress.com/support/code/). Self-hosted WordPress supports the methods below.
 
 <Tabs items={['Plugin Method', 'functions.php Method', 'header.php Method']}>
   <Tab>
     **Using a Plugin (Recommended)**
 
-    The safest and easiest way to add Databuddy to WordPress is using a plugin that allows you to inject scripts without modifying theme files. This works for both WordPress.com and self-hosted installations.
+    The safest and easiest way to add Databuddy to WordPress is using a plugin that allows you to inject scripts without modifying theme files. Use a plugin-enabled WordPress.com plan or a self-hosted installation.
 
     <Steps>
       <Step title="Install a Script Injection Plugin">
@@ -158,7 +158,7 @@ For more detailed analytics, enable additional tracking options:
 
 ### Form Submission Tracking
 
-Track submissions from popular WordPress form plugins with a small submit handler:
+Track form submission attempts with a submit handler. To measure successful submissions, use your form plugin’s success callback instead:
 
 <CodeBlock
   language="html"
@@ -175,36 +175,13 @@ document.addEventListener('submit', function (event) {
 </script>`}
 />
 
-### Custom Post Type Analytics
-
-Track views of custom post types by adding this to your theme's `functions.php`:
-
-<CodeBlock
-  language="php"
-  filename="functions.php"
-  code={`function track_custom_post_types() {
-  if (is_singular('your_custom_post_type')) {
-    echo '<script>
-      if (window.databuddy) {
-        databuddy.track("custom_post_view", {
-          post_type: "' . esc_js(get_post_type()) . '",
-          post_id: ' . get_the_ID() . '
-        });
-      }
-    </script>';
-  }
-}
-add_action('wp_footer', 'track_custom_post_types');`}
-/>
-
 ## Performance Benefits
 
 Databuddy is designed to have minimal impact on your WordPress site's performance:
 
-- **Lightweight**: About 12 KB gzipped for the current tracker bundle
-- **Non-blocking**: Loads asynchronously without affecting page speed
+- **Lightweight**: About 13 KB gzipped for the current tracker bundle
+- **Asynchronous loading**: Does not block HTML parsing; measure the script’s runtime impact
 - **Core Web Vitals**: Can collect field performance data when enabled
-- **Server Friendly**: Minimal server load compared to other analytics solutions
 
 ## Common Use Cases
 

@@ -87,23 +87,22 @@ describe("redactSensitiveQueryParams", () => {
 			"/cb#access_token=abc&state=xyz",
 			"/cb#access_token=REDACTED&state=xyz",
 		],
-		["plain fragment untouched", "/docs?page=1#install", "/docs?page=1#install"],
+		[
+			"plain fragment untouched",
+			"/docs?page=1#install",
+			"/docs?page=1#install",
+		],
 		[
 			"query and fragment redacted independently",
 			"/cb?token=abc&page=2#access_token=xyz&state=ok",
 			"/cb?token=REDACTED&page=2#access_token=REDACTED&state=ok",
 		],
-		[
-			"relative path with otp",
-			"/verify?otp=123456",
-			"/verify?otp=REDACTED",
-		],
+		["relative path with otp", "/verify?otp=123456", "/verify?otp=REDACTED"],
 		["empty string", "", ""],
 	];
 
 	for (const [label, input, expected] of table) {
-		test(label, () =>
-			expect(redactSensitiveQueryParams(input)).toBe(expected));
+		test(label, () => expect(redactSensitiveQueryParams(input)).toBe(expected));
 	}
 });
 

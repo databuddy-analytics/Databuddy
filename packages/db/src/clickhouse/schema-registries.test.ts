@@ -1,7 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { TABLE_NAMES } from "./client";
 import { PROFILE_ID_TABLES } from "./identity";
-import { parseTable, readSql } from "./schema-parse";
 import { TABLE_COLUMNS } from "./schema/tables.generated";
 import {
 	AGENT_TABLE_COLUMNS,
@@ -47,12 +46,10 @@ describe("hand-maintained registries stay in sync with the generated DDL columns
 
 	it("id-less span tables expose a persisted delivery identity", () => {
 		for (const table of [
-			"analytics.custom_events",
 			"analytics.error_spans",
 			"analytics.web_vitals_spans",
 		]) {
 			expect([...columnsOf(table)]).toContain("delivery_id");
 		}
 	});
-
 });

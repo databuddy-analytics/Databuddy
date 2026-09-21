@@ -370,15 +370,9 @@ function TableContentInner<TData extends { name: string | number }>({
 															variant="ghost"
 														>
 															{isExpanded ? (
-																<CaretDownIcon
-																	className="size-3.5"
-																	weight="bold"
-																/>
+																<CaretDownIcon className="size-3.5" />
 															) : (
-																<CaretRightIcon
-																	className="size-3.5"
-																	weight="bold"
-																/>
+																<CaretRightIcon className="size-3.5" />
 															)}
 														</Button>
 													)}

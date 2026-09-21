@@ -109,7 +109,7 @@ export default function NotFound() {
 
 				<Link className="mt-6 w-full" href="/websites">
 					<Button className="w-full">
-						<HouseIcon className="mr-2 size-4" weight="duotone" />
+						<HouseIcon className="mr-2 size-4" />
 						Back to Websites
 					</Button>
 				</Link>

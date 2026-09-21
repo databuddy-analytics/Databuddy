@@ -42,6 +42,8 @@ pre-commit:
         - "apps/basket/**/*.{ts,tsx}"
         - "apps/links/**/*.{ts,tsx}"
         - "apps/uptime/**/*.{ts,tsx}"
+        - "**/*.{test,spec}.{ts,tsx}"
+        - "**/package.json"
         - "scripts/lint-policy.ts"
       run: bun scripts/lint-policy.ts --staged
     format:

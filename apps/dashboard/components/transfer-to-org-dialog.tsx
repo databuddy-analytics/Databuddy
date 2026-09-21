@@ -173,7 +173,7 @@ export function TransferToOrgDialog({
 						loading={isPending}
 						onClick={handleTransfer}
 					>
-						<ArrowSquareOutIcon className="size-4" weight="fill" />
+						<ArrowSquareOutIcon className="size-4" />
 						Transfer
 					</Button>
 				</Dialog.Footer>

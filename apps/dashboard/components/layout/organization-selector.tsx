@@ -1,5 +1,7 @@
 "use client";
 
+import { isSelfHosted } from "@databuddy/env/public";
+
 import { authClient } from "@databuddy/auth/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
@@ -94,15 +96,17 @@ function OrgDropdownItems({
 				<GearIcon className="size-4 shrink-0" />
 				Organization settings
 			</DropdownMenu.Item>
-			<DropdownMenu.Item onClick={() => onNavigate("/billing")}>
-				<CreditCardIcon className="size-4 shrink-0" />
-				Billing
-				{planLabel && (
-					<Badge className="ml-auto" size="sm">
-						{planLabel}
-					</Badge>
-				)}
-			</DropdownMenu.Item>
+			{!isSelfHosted && (
+				<DropdownMenu.Item onClick={() => onNavigate("/billing")}>
+					<CreditCardIcon className="size-4 shrink-0" />
+					Billing
+					{planLabel && (
+						<Badge className="ml-auto" size="sm">
+							{planLabel}
+						</Badge>
+					)}
+				</DropdownMenu.Item>
+			)}
 			<DropdownMenu.Separator />
 			<DropdownMenu.Item onClick={onCreateClick}>
 				<PlusIcon className="size-4 shrink-0" />

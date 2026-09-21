@@ -72,11 +72,7 @@ function MemberRow({
 						</Text>
 					)}
 					{member.role === "owner" && (
-						<CrownIcon
-							className="shrink-0 text-amber-500"
-							size={12}
-							weight="fill"
-						/>
+						<CrownIcon className="shrink-0 text-warning" size={12} />
 					)}
 				</div>
 				<Text className="truncate" tone="muted" variant="caption">

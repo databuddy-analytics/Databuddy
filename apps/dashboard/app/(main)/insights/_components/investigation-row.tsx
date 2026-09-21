@@ -118,7 +118,7 @@ function InsightStatusIcon({ insight }: { insight: Insight }) {
 				insight.severity === "warning" && "bg-warning/10 text-warning"
 			)}
 		>
-			<Icon className="size-4" weight="duotone" />
+			<Icon className="size-4" />
 		</span>
 	);
 }
@@ -178,7 +178,6 @@ export function InvestigationRow({ insight }: { insight: Insight }) {
 				<ArrowRightIcon
 					aria-hidden
 					className="mt-1 size-3.5 shrink-0 text-muted-foreground/60 transition-transform group-hover:translate-x-0.5"
-					weight="bold"
 				/>
 			</Link>
 		</List.Row>

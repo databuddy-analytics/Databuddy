@@ -1,3 +1,4 @@
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import {
 	and,
 	db,
@@ -355,6 +356,9 @@ export const organizationsRouter = {
 		})
 		.output(z.record(z.string(), z.unknown()))
 		.handler(async ({ context }) => {
+			if (readBooleanEnv("SELFHOST")) {
+				return { unlimited: true, canUserUpgrade: false };
+			}
 			const billing = await context.getBilling();
 			const customerId = billing?.customerId ?? context.user.id;
 			const isOrganization = billing?.isOrganization ?? false;
@@ -434,6 +438,16 @@ export const organizationsRouter = {
 					isOrganization = billing.isOrganization;
 					canUserUpgrade = billing.canUserUpgrade;
 				}
+			}
+
+			if (readBooleanEnv("SELFHOST")) {
+				return {
+					planId: null,
+					isOrganization: Boolean(context.organizationId),
+					canUserUpgrade: false,
+					hasActiveSubscription: false,
+					aiConfigured: Boolean(process.env.AI_GATEWAY_API_KEY?.trim()),
+				};
 			}
 
 			const debugInfo = isDev

@@ -13,10 +13,7 @@ export default function AnalyticsSettingsPage() {
 					title="Analytics Settings"
 				>
 					<div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
-						<ChartLineIcon
-							className="size-12 text-muted-foreground"
-							weight="duotone"
-						/>
+						<ChartLineIcon className="size-12 text-muted-foreground" />
 						<p className="text-muted-foreground text-sm">
 							Analytics settings coming soon
 						</p>

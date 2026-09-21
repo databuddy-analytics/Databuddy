@@ -16,7 +16,8 @@ const onFlush = () => adapter.runAction("flush");
 const onResetSession = () => adapter.runAction("resetSession");
 const onRefreshFlags = () => adapter.runAction("refreshFlags");
 const onClearEvents = () => adapter.clearEvents();
-const onClearGlobalProperties = () => adapter.runAction("clearGlobalProperties");
+const onClearGlobalProperties = () =>
+	adapter.runAction("clearGlobalProperties");
 
 const onSetFlagOverride = (
 	key: string,
@@ -47,7 +48,8 @@ const onSetAdminApiUrl = (url: string | null) => store.setAdminApiUrl(url);
 const onFetchCatalog = () => {
 	store.fetchCatalog().catch(() => undefined);
 };
-const onCreateFlag: typeof store.createFlag = (input) => store.createFlag(input);
+const onCreateFlag: typeof store.createFlag = (input) =>
+	store.createFlag(input);
 const onUpdateFlag: typeof store.updateFlag = (id, input) =>
 	store.updateFlag(id, input);
 const onDeleteFlag: typeof store.deleteFlag = (id) => store.deleteFlag(id);
@@ -149,7 +151,7 @@ export function Widget() {
 							snapshot={state.snapshot}
 						/>
 
-						<div aria-label="Resize" className="resize" ref={resizeRef} />
+						<div aria-hidden className="resize" ref={resizeRef} />
 					</>
 				) : (
 					<div className="pill" ref={pillRef}>

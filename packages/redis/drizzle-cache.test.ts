@@ -154,7 +154,11 @@ describe("withCache", () => {
 			cache.withCache({ key: "row-1", queryFn }),
 		]);
 
-		expect(results).toEqual([{ id: "row-1" }, { id: "row-1" }, { id: "row-1" }]);
+		expect(results).toEqual([
+			{ id: "row-1" },
+			{ id: "row-1" },
+			{ id: "row-1" },
+		]);
 		expect(queries).toBe(1);
 	});
 
@@ -168,7 +172,11 @@ describe("withCache", () => {
 	});
 
 	it("registers dependency and tag tracking before caching", async () => {
-		await seed("row-1", { id: "row-1" }, { tables: ["websites"], tag: "org-1" });
+		await seed(
+			"row-1",
+			{ id: "row-1" },
+			{ tables: ["websites"], tag: "org-1" }
+		);
 
 		expect(store.get("test:row-1")).toBe(JSON.stringify({ id: "row-1" }));
 		expect(sets.get("test:dep:websites")).toEqual(new Set(["row-1"]));
@@ -181,7 +189,11 @@ describe("withCache", () => {
 	it("returns the query result without caching when tracking fails", async () => {
 		failSadd = true;
 
-		const result = await seed("row-1", { id: "row-1" }, { tables: ["websites"] });
+		const result = await seed(
+			"row-1",
+			{ id: "row-1" },
+			{ tables: ["websites"] }
+		);
 
 		expect(result).toEqual({ id: "row-1" });
 		expect(store.has("test:row-1")).toBe(false);
@@ -202,7 +214,6 @@ describe("invalidateByTables", () => {
 		expect(sets.has("test:dep:websites")).toBe(false);
 		expect(sets.has("test:by-key:row-1")).toBe(false);
 	});
-
 });
 
 describe("invalidateByTags", () => {

@@ -385,6 +385,7 @@ export async function deliverInsightSlackEffect(
 }
 
 export async function deliverInsightSlackReply(params: {
+	text?: string;
 	clientMessageId: string;
 	context: InsightSlackReplyDeliveryContext;
 	result: {
@@ -395,9 +396,11 @@ export async function deliverInsightSlackReply(params: {
 	return await deliverInsightSlackEffect(
 		{
 			blocks: [],
-			text: params.result
-				? buildInsightReplyText(params.result.outcome, params.result.signal)
-				: "I couldn't finish this investigation. Try replying again, or open it from the original message.",
+			text:
+				params.text ??
+				(params.result
+					? buildInsightReplyText(params.result.outcome, params.result.signal)
+					: "I couldn't finish this investigation. Try replying again, or open it from the original message."),
 		},
 		params.context,
 		params.clientMessageId,

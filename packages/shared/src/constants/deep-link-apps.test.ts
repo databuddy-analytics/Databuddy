@@ -23,20 +23,23 @@ describe("deep-link app targets", () => {
 			resolveDeepLink("facebook", "https://not-facebook.example/promo")
 		).toBeNull();
 		expect(
-			resolveDeepLink("instagram", "https://instagram.com.attacker.example/promo")
+			resolveDeepLink(
+				"instagram",
+				"https://instagram.com.attacker.example/promo"
+			)
 		).toBeNull();
 	});
 
 	test("rejects unknown, malformed, and non-HTTPS targets", () => {
 		expect(resolveDeepLink("unknown", "https://example.com")).toBeNull();
-		expect(resolveDeepLink("instagram", "http://instagram.com/databuddy")).toBeNull();
+		expect(
+			resolveDeepLink("instagram", "http://instagram.com/databuddy")
+		).toBeNull();
 		expect(resolveDeepLink("instagram", "not a URL")).toBeNull();
 		expect(isDeepLinkTarget("instagram", "javascript:alert(1)")).toBe(false);
 	});
 
 	test("normalizes hostname lookup", () => {
-		expect(getDeepLinkAppByHostname("WWW.Instagram.COM")?.id).toBe(
-			"instagram"
-		);
+		expect(getDeepLinkAppByHostname("WWW.Instagram.COM")?.id).toBe("instagram");
 	});
 });

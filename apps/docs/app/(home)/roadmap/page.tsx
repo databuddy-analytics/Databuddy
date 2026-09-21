@@ -10,14 +10,14 @@ import RoadmapStatsComponent from "./roadmap-stats";
 import RoadmapTimeline from "./roadmap-timeline";
 
 export const metadata: Metadata = {
-	title: "Roadmap | Databuddy",
+	title: "Roadmap",
 	description:
 		"Discover what we're building next. Our transparent roadmap shows upcoming features, current progress, and completed milestones.",
 	alternates: {
 		canonical: "https://www.databuddy.cc/roadmap",
 	},
 	openGraph: {
-		title: "Roadmap | Databuddy",
+		title: "Roadmap",
 		description:
 			"Discover what we're building next. Our transparent roadmap shows upcoming features, current progress, and completed milestones.",
 		url: "https://www.databuddy.cc/roadmap",
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
 export default function RoadmapPage() {
 	const stats = calculateRoadmapStats();
 
-	const title = "Roadmap | Databuddy";
+	const title = "Roadmap";
 	const description =
 		"Discover what we're building next. Our transparent roadmap shows upcoming features, current progress, and completed milestones.";
 	const url = "https://www.databuddy.cc/roadmap";

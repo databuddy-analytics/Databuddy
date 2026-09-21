@@ -1,11 +1,12 @@
 "use client";
 
-import type { PointerEvent as ReactPointerEvent } from "react";
+import type {
+	KeyboardEvent as ReactKeyboardEvent,
+	PointerEvent as ReactPointerEvent,
+} from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "../utils";
-import { getUptimeHeatmapCellClass } from "./heatmap-cell-class";
-import { UptimeHeatmapDayTooltipBody } from "./heatmap-day-tooltip";
 import type { UptimeHeatmapDay } from "./heatmap-days";
 
 type UptimeSeverity =
@@ -15,35 +16,31 @@ type UptimeSeverity =
 	| "partial"
 	| "major";
 
-type TooltipState = {
+interface TooltipState {
 	above: boolean;
 	index: number;
 	left: number;
 	top: number;
-};
+}
 
-type Segment = {
+interface Segment {
 	length: number;
 	severity: UptimeSeverity;
 	start: number;
-};
-
-type UptimeHeatmapStripVariant = "segments" | "cells";
+}
 
 export interface UptimeHeatmapStripProps {
 	days: UptimeHeatmapDay[];
 	emptyLabel: string;
-	getDateLabel?: (date: Date) => string;
 	interactive: boolean;
 	isActive: boolean;
 	stripClassName?: string;
 	tooltipHasData?: (day: UptimeHeatmapDay) => boolean;
-	variant?: UptimeHeatmapStripVariant;
 }
 
 const TOOLTIP_WIDTH = 224;
 const TOOLTIP_GUTTER = 12;
-const TOOLTIP_HIDE_MS = 120;
+const TOOLTIP_HIDE_MS = 150;
 const TOOLTIP_Z_INDEX = 2_147_483_647;
 
 const SEGMENT_COLORS: Record<UptimeSeverity, string> = {
@@ -52,6 +49,14 @@ const SEGMENT_COLORS: Record<UptimeSeverity, string> = {
 	degraded: "#fbbf24",
 	partial: "#fb8f24",
 	major: "#ff2b3c",
+};
+
+const SEGMENT_HEIGHTS: Record<UptimeSeverity, string> = {
+	empty: "h-1.5",
+	operational: "h-1.5",
+	degraded: "h-2",
+	partial: "h-2.5",
+	major: "h-3",
 };
 
 function tintStatusColor(color: string, amount: number) {
@@ -165,23 +170,26 @@ function getOrdinalSuffix(day: number) {
 }
 
 function formatLongDate(date: Date): string {
-	const day = date.getDate();
+	const day = date.getUTCDate();
 
 	return `${date.toLocaleDateString("en-US", {
 		month: "long",
-	})} ${day}${getOrdinalSuffix(day)} ${date.getFullYear()}`;
+		timeZone: "UTC",
+	})} ${day}${getOrdinalSuffix(day)} ${date.getUTCFullYear()}`;
 }
 
 function getTooltipTransform(state: TooltipState, isVisible: boolean) {
+	const position = `translate3d(${state.left}px, ${state.top}px, 0)`;
+
 	if (state.above) {
 		return isVisible
-			? "translate(-50%, -100%) scale(1)"
-			: "translate(-50%, calc(-100% + 4px)) scale(0.96)";
+			? `${position} translate(-50%, -100%) scale(1)`
+			: `${position} translate(-50%, calc(-100% + 4px)) scale(0.96)`;
 	}
 
 	return isVisible
-		? "translate(-50%, 0) scale(1)"
-		: "translate(-50%, 4px) scale(0.96)";
+		? `${position} translate(-50%, 0) scale(1)`
+		: `${position} translate(-50%, 4px) scale(0.96)`;
 }
 
 function SegmentTooltip({
@@ -206,19 +214,17 @@ function SegmentTooltip({
 
 	return (
 		<div
-			className="pointer-events-none fixed w-56 overflow-hidden rounded-xl border border-border/80 bg-popover text-popover-foreground opacity-0 shadow-[0_24px_80px_-36px_rgba(0,0,0,0.72)] transition-[left,top,opacity,transform] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none"
+			className="pointer-events-none fixed top-0 left-0 w-56 overflow-hidden rounded-xl border border-border/80 bg-popover text-popover-foreground opacity-0 shadow-[0_24px_80px_-36px_rgba(0,0,0,0.72)] transition-[opacity,transform] duration-(--duration-quick) ease-(--ease-smooth) motion-reduce:transition-none"
 			role="tooltip"
 			style={{
-				left: state.left,
 				opacity: isVisible ? 1 : 0,
-				top: state.top,
 				transform: getTooltipTransform(state, isVisible),
 				transformOrigin: state.above ? "bottom center" : "top center",
 				zIndex: TOOLTIP_Z_INDEX,
 			}}
 		>
 			<div
-				className="border-border/60 border-b px-3.5 py-3 text-popover-foreground transition-colors duration-200"
+				className="border-border/60 border-b px-3.5 py-3 text-popover-foreground transition-colors duration-(--duration-quick) ease-(--ease-smooth)"
 				style={{
 					background: meta.background,
 				}}
@@ -269,24 +275,20 @@ function getHoveredIndex(rect: DOMRect, pointerX: number, itemCount: number) {
 function getTooltipPlacement({
 	index,
 	itemCount,
-	pointerX,
 	rect,
 	viewportHeight,
 	viewportWidth,
 }: {
-	index?: number;
+	index: number;
 	itemCount: number;
-	pointerX?: number;
 	rect: DOMRect;
 	viewportHeight: number;
 	viewportWidth: number;
 }): TooltipState {
-	const resolvedIndex =
-		index ?? getHoveredIndex(rect, pointerX ?? rect.left, itemCount);
 	const cellWidth = rect.width / itemCount;
 	const tooltipHalfWidth = TOOLTIP_WIDTH / 2;
 	const left = clamp(
-		rect.left + (resolvedIndex + 0.5) * cellWidth,
+		rect.left + (index + 0.5) * cellWidth,
 		tooltipHalfWidth + TOOLTIP_GUTTER,
 		viewportWidth - tooltipHalfWidth - TOOLTIP_GUTTER
 	);
@@ -294,10 +296,33 @@ function getTooltipPlacement({
 
 	return {
 		above,
-		index: resolvedIndex,
+		index,
 		left,
 		top: above ? rect.top - 10 : rect.bottom + 10,
 	};
+}
+
+function getRangeSummary(days: UptimeHeatmapDay[], isActive: boolean): string {
+	if (days.length === 0) {
+		return "No uptime history available.";
+	}
+
+	const counts = new Map<UptimeSeverity, number>();
+	for (const day of days) {
+		const severity = getSeverity(day, isActive);
+		counts.set(severity, (counts.get(severity) ?? 0) + 1);
+	}
+
+	const parts = (
+		["major", "partial", "degraded", "operational", "empty"] as const
+	)
+		.filter((severity) => counts.get(severity))
+		.map((severity) => {
+			const count = counts.get(severity) as number;
+			return `${count} ${count === 1 ? "day" : "days"} ${SEVERITY_META[severity].label.toLowerCase()}`;
+		});
+
+	return `Uptime history for the last ${days.length} days, oldest first: ${parts.join(", ")}. Use the arrow keys to review each day.`;
 }
 
 function getSegmentDayLabel(
@@ -315,7 +340,7 @@ function getSegmentDayLabel(
 	return `${formatLongDate(day.date)}, ${severity}, ${uptime}${downtime}`;
 }
 
-function SegmentedUptimeStrip({
+export function UptimeHeatmapStrip({
 	days,
 	interactive,
 	isActive,
@@ -325,13 +350,30 @@ function SegmentedUptimeStrip({
 }: UptimeHeatmapStripProps) {
 	const gridRef = useRef<HTMLFieldSetElement>(null);
 	const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const rectRef = useRef<DOMRect | null>(null);
+	const dayRefs = useRef<(HTMLButtonElement | null)[]>([]);
 	const [tooltip, setTooltip] = useState<TooltipState | null>(null);
 	const [isTooltipVisible, setIsTooltipVisible] = useState(false);
-	const segments = useMemo(() => buildSegments(days, isActive), [days, isActive]);
+	const [focusedIndex, setFocusedIndex] = useState(0);
+	const segments = useMemo(
+		() => buildSegments(days, isActive),
+		[days, isActive]
+	);
+	const dayLabels = useMemo(
+		() => days.map((day) => getSegmentDayLabel(day, emptyLabel, isActive)),
+		[days, emptyLabel, isActive]
+	);
+	const rangeSummary = useMemo(
+		() => getRangeSummary(days, isActive),
+		[days, isActive]
+	);
 	const activeDay = tooltip ? days[tooltip.index] : null;
-	const gridStyle = {
-		gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))`,
-	};
+	const gridStyle = useMemo(
+		() => ({
+			gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))`,
+		}),
+		[days.length]
+	);
 	const gridClassName =
 		stripClassName ??
 		"relative -my-3 grid cursor-pointer gap-x-px border-0 px-0 py-3 sm:gap-x-[2px]";
@@ -345,56 +387,83 @@ function SegmentedUptimeStrip({
 
 	const hideTooltip = useCallback(() => {
 		clearHideTimer();
+		rectRef.current = null;
 		setIsTooltipVisible(false);
 		hideTimerRef.current = setTimeout(() => {
 			setTooltip(null);
 		}, TOOLTIP_HIDE_MS);
 	}, [clearHideTimer]);
 
-	const handlePointerMove = useCallback(
-		(event: ReactPointerEvent<HTMLFieldSetElement>) => {
-			const grid = gridRef.current;
+	const measureGrid = useCallback(() => {
+		const grid = gridRef.current;
+		rectRef.current = grid ? grid.getBoundingClientRect() : null;
+		return rectRef.current;
+	}, []);
 
-			if (!(grid && days.length > 0)) {
-				return;
-			}
-
+	const showTooltipAt = useCallback(
+		(index: number, rect: DOMRect) => {
 			clearHideTimer();
-			setTooltip(
-				getTooltipPlacement({
-					itemCount: days.length,
-					pointerX: event.clientX,
-					rect: grid.getBoundingClientRect(),
-					viewportHeight: window.innerHeight,
-					viewportWidth: window.innerWidth,
-				})
+			setTooltip((previous) =>
+				previous?.index === index
+					? previous
+					: getTooltipPlacement({
+							index,
+							itemCount: days.length,
+							rect,
+							viewportHeight: window.innerHeight,
+							viewportWidth: window.innerWidth,
+						})
 			);
 			setIsTooltipVisible(true);
 		},
 		[clearHideTimer, days.length]
 	);
 
-	const handleDayFocus = useCallback(
-		(index: number) => {
-			const grid = gridRef.current;
+	const handlePointerMove = useCallback(
+		(event: ReactPointerEvent<HTMLFieldSetElement>) => {
+			const rect = rectRef.current ?? measureGrid();
 
-			if (!(grid && days.length > 0)) {
+			if (!(rect && days.length > 0)) {
 				return;
 			}
 
-			clearHideTimer();
-			setTooltip(
-				getTooltipPlacement({
-					index,
-					itemCount: days.length,
-					rect: grid.getBoundingClientRect(),
-					viewportHeight: window.innerHeight,
-					viewportWidth: window.innerWidth,
-				})
-			);
-			setIsTooltipVisible(true);
+			showTooltipAt(getHoveredIndex(rect, event.clientX, days.length), rect);
 		},
-		[clearHideTimer, days.length]
+		[days.length, measureGrid, showTooltipAt]
+	);
+
+	const handleDayFocus = useCallback(
+		(index: number) => {
+			setFocusedIndex(index);
+			const rect = measureGrid();
+
+			if (!(rect && days.length > 0)) {
+				return;
+			}
+
+			showTooltipAt(index, rect);
+		},
+		[days.length, measureGrid, showTooltipAt]
+	);
+
+	const handleDayKeyDown = useCallback(
+		(event: ReactKeyboardEvent<HTMLButtonElement>) => {
+			const lastIndex = days.length - 1;
+			const nextIndex = {
+				ArrowRight: Math.min(focusedIndex + 1, lastIndex),
+				ArrowLeft: Math.max(focusedIndex - 1, 0),
+				Home: 0,
+				End: lastIndex,
+			}[event.key];
+
+			if (nextIndex === undefined) {
+				return;
+			}
+
+			event.preventDefault();
+			dayRefs.current[nextIndex]?.focus();
+		},
+		[days.length, focusedIndex]
 	);
 
 	useEffect(
@@ -414,7 +483,10 @@ function SegmentedUptimeStrip({
 		return (
 			<div
 				aria-hidden
-				className="relative h-1.5 overflow-hidden rounded-full"
+				className={cn(
+					"relative overflow-hidden rounded-full",
+					SEGMENT_HEIGHTS[segment.severity]
+				)}
 				key={`${segment.start}-${segment.length}-${segment.severity}`}
 				style={{
 					background: SEGMENT_COLORS[segment.severity],
@@ -422,7 +494,7 @@ function SegmentedUptimeStrip({
 				}}
 			>
 				<div
-					className="pointer-events-none absolute inset-y-0 transition-[left,opacity] duration-100 ease-[cubic-bezier(0.2,0,0,1)]"
+					className="pointer-events-none absolute inset-y-0 transition-[left,opacity] duration-(--duration-quick) ease-(--ease-smooth)"
 					style={{
 						background:
 							"var(--status-bar-active-overlay, color-mix(in oklab, var(--foreground) 22%, transparent))",
@@ -440,7 +512,10 @@ function SegmentedUptimeStrip({
 
 	if (!interactive) {
 		return (
-			<div className={cn("grid gap-x-px", gridClassName)} style={gridStyle}>
+			<div
+				className={cn("grid items-end gap-x-px", gridClassName)}
+				style={gridStyle}
+			>
 				{segmentNodes}
 			</div>
 		);
@@ -453,8 +528,9 @@ function SegmentedUptimeStrip({
 	return (
 		<>
 			<fieldset
-				aria-label={`${days.length} day uptime history`}
-				className={cn("relative grid", gridClassName)}
+				aria-label={rangeSummary}
+				className={cn("relative grid items-end", gridClassName)}
+				onPointerEnter={measureGrid}
 				onPointerLeave={hideTooltip}
 				onPointerMove={handlePointerMove}
 				ref={gridRef}
@@ -467,155 +543,34 @@ function SegmentedUptimeStrip({
 				>
 					{days.map((day, index) => (
 						<button
-							aria-label={getSegmentDayLabel(day, emptyLabel, isActive)}
+							aria-label={dayLabels[index]}
 							className="h-full rounded-full bg-transparent outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
 							key={day.dateStr}
 							onBlur={hideTooltip}
 							onFocus={() => handleDayFocus(index)}
+							onKeyDown={handleDayKeyDown}
+							ref={(node) => {
+								dayRefs.current[index] = node;
+							}}
+							tabIndex={index === focusedIndex ? 0 : -1}
 							type="button"
 						/>
 					))}
 				</div>
 			</fieldset>
-			{typeof document !== "undefined" && activeDay && tooltip ? (
-				createPortal(
-					<SegmentTooltip
-						day={activeDay}
-						emptyLabel={emptyLabel}
-						isActive={isActive}
-						isVisible={isTooltipVisible}
-						showData={showData}
-						state={tooltip}
-					/>,
-					document.body
-				)
-			) : null}
+			{typeof document !== "undefined" && activeDay && tooltip
+				? createPortal(
+						<SegmentTooltip
+							day={activeDay}
+							emptyLabel={emptyLabel}
+							isActive={isActive}
+							isVisible={isTooltipVisible}
+							showData={showData}
+							state={tooltip}
+						/>,
+						document.body
+					)
+				: null}
 		</>
 	);
-}
-
-function CellUptimeStrip({
-	days,
-	interactive,
-	isActive,
-	stripClassName,
-	emptyLabel,
-	getDateLabel,
-	tooltipHasData,
-}: UptimeHeatmapStripProps) {
-	const [activeDay, setActiveDay] = useState<UptimeHeatmapDay | null>(null);
-	const [pos, setPos] = useState({ x: 0, y: 0 });
-	const stripRef = useRef<HTMLDivElement>(null);
-	const className = stripClassName ?? "flex h-8 w-full gap-px sm:gap-[2px]";
-
-	const handlePointerMove = useCallback(
-		(e: React.PointerEvent<HTMLDivElement>) => {
-			const target =
-				(e.target as HTMLElement).closest<HTMLElement>("[data-idx]") ??
-				(e.target as HTMLElement);
-			const idx = target.dataset.idx;
-			if (idx == null) {
-				return;
-			}
-			const day = days[Number(idx)];
-			if (!day) {
-				return;
-			}
-			setActiveDay(day);
-			const rect = stripRef.current?.getBoundingClientRect();
-			if (rect) {
-				const targetRect = target.getBoundingClientRect();
-				setPos({
-					x: targetRect.left + targetRect.width / 2 - rect.left,
-					y: 0,
-				});
-			}
-		},
-		[days]
-	);
-
-	const handlePointerLeave = useCallback(() => setActiveDay(null), []);
-
-	if (!interactive) {
-		return (
-			<div className={className}>
-				{days.map((day) => (
-					<div
-						className={cn(
-							"h-full flex-1 rounded-sm transition-colors",
-							getUptimeHeatmapCellClass({
-								uptimePercent: day.uptime,
-								hasData: day.hasData,
-								isActive,
-								interactive: false,
-							})
-						)}
-						key={day.dateStr}
-					/>
-				))}
-			</div>
-		);
-	}
-
-	const showData = activeDay
-		? (tooltipHasData?.(activeDay) ?? activeDay.hasData)
-		: false;
-
-	return (
-		<div className="relative" ref={stripRef}>
-			<div
-				className={className}
-				onPointerLeave={handlePointerLeave}
-				onPointerMove={handlePointerMove}
-			>
-				{days.map((day, i) => (
-					<div
-						className={cn(
-							"h-full flex-1 rounded-sm transition-colors",
-							getUptimeHeatmapCellClass({
-								uptimePercent: day.uptime,
-								hasData: day.hasData,
-								isActive,
-								interactive: true,
-							})
-						)}
-						data-idx={i}
-						key={day.dateStr}
-					/>
-				))}
-			</div>
-
-			{activeDay && (
-				<div
-					className="pointer-events-none absolute bottom-full mb-2"
-					style={{
-						left: pos.x,
-						transform: "translateX(-50%)",
-						zIndex: TOOLTIP_Z_INDEX,
-					}}
-				>
-					<div className="rounded-lg border border-border/60 bg-popover px-3 py-2.5 text-popover-foreground text-sm shadow-md">
-						<UptimeHeatmapDayTooltipBody
-							dateLabel={getDateLabel?.(activeDay.date) ?? formatLongDate(activeDay.date)}
-							downtimeSeconds={activeDay.downtimeSeconds}
-							emptyLabel={emptyLabel}
-							hasData={showData}
-							uptimePercent={activeDay.uptime}
-						/>
-					</div>
-				</div>
-			)}
-		</div>
-	);
-}
-
-export function UptimeHeatmapStrip({
-	variant = "segments",
-	...props
-}: UptimeHeatmapStripProps) {
-	if (variant === "cells") {
-		return <CellUptimeStrip {...props} />;
-	}
-
-	return <SegmentedUptimeStrip {...props} />;
 }

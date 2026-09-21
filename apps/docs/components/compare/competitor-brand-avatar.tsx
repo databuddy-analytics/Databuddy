@@ -93,7 +93,7 @@ export function CompetitorBrandAvatar({
 	const icon = renderIcon ? (
 		renderIcon({ title: name, fill })
 	) : (
-		<ChartLineIcon aria-hidden className="size-5 text-white" weight="duotone" />
+		<ChartLineIcon aria-hidden className="size-5 text-white" />
 	);
 
 	return (

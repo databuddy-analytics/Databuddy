@@ -8,7 +8,7 @@ import { logBlockedTraffic } from "@lib/blocked-traffic";
 import { runFork, send } from "@lib/producer";
 import { basketErrors } from "@lib/structured-errors";
 import { record } from "@lib/tracing";
-import { extractIpFromRequest, extractTrustedClientIp } from "@utils/ip-geo";
+import { extractAllowlistClientIp, extractIpFromRequest } from "@utils/ip-geo";
 import { detectBot } from "@utils/user-agent";
 import {
 	sanitizeString,
@@ -216,7 +216,7 @@ export function validateRequest(
 		}
 
 		if (allowedIps && allowedIps.length > 0) {
-			const trustedIp = extractTrustedClientIp(request);
+			const trustedIp = extractAllowlistClientIp(request);
 			const isAllowed =
 				trustedIp &&
 				(await record("isValidIpFromSettings", () =>

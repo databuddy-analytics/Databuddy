@@ -24,10 +24,7 @@ export default function LinkExpiredPage() {
 			<main className="flex flex-1 flex-col items-center justify-center px-6">
 				<div className="flex w-full max-w-sm flex-col items-center">
 					<div className="mb-5 flex size-12 items-center justify-center rounded bg-accent">
-						<ClockIcon
-							className="size-6 text-muted-foreground"
-							weight="duotone"
-						/>
+						<ClockIcon className="size-6 text-muted-foreground" />
 					</div>
 
 					<p className="mb-1 font-medium text-muted-foreground text-xs uppercase tracking-wider">

@@ -678,6 +678,26 @@ export const flagsRouter = {
 						.where(eq(flagsToTargetGroups.flagId, existingFlag[0].id));
 
 					if (input.targetGroupIds && input.targetGroupIds.length > 0) {
+						const ids = input.targetGroupIds;
+						const validGroups = await tx.query.targetGroups.findMany({
+							where: {
+								RAW: (t) =>
+									requireCondition(
+										and(
+											inArray(t.id, ids),
+											eq(t.websiteId, input.websiteId || ""),
+											isNull(t.deletedAt)
+										)
+									),
+							},
+						});
+
+						if (validGroups.length !== input.targetGroupIds.length) {
+							throw rpcError.badRequest(
+								"One or more target groups not found or do not belong to this website"
+							);
+						}
+
 						await tx.insert(flagsToTargetGroups).values(
 							input.targetGroupIds.map((targetGroupId) => ({
 								flagId: existingFlag[0].id,

@@ -209,12 +209,8 @@ export const RESGaugeCard = memo(function RESGaugeCard({
 									"bg-muted text-muted-foreground"
 							)}
 						>
-							{isImprovement && (
-								<TrendUpIcon className="size-3" weight="bold" />
-							)}
-							{isRegression && (
-								<TrendDownIcon className="size-3" weight="bold" />
-							)}
+							{isImprovement && <TrendUpIcon className="size-3" />}
+							{isRegression && <TrendDownIcon className="size-3" />}
 							<span>{Math.abs(Math.round(trend?.change ?? 0))} pts</span>
 						</div>
 					)}
@@ -230,22 +226,13 @@ export const RESGaugeCard = memo(function RESGaugeCard({
 								)}
 							>
 								{res.status === "good" && (
-									<CheckCircleIcon
-										className="size-4 text-success"
-										weight="duotone"
-									/>
+									<CheckCircleIcon className="size-4 text-success" />
 								)}
 								{res.status === "needs-improvement" && (
-									<WarningCircleIcon
-										className="size-4 text-warning"
-										weight="duotone"
-									/>
+									<WarningCircleIcon className="size-4 text-warning" />
 								)}
 								{res.status === "poor" && (
-									<WarningIcon
-										className="size-4 text-destructive"
-										weight="duotone"
-									/>
+									<WarningIcon className="size-4 text-destructive" />
 								)}
 							</div>
 						)}

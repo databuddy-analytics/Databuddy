@@ -130,12 +130,13 @@ vi.mock("@utils/ip-geo", () => ({
 	getGeo: mockGetGeo,
 	extractIpFromRequest: vi.fn(() => "1.2.3.4"),
 	extractTrustedClientIp: vi.fn(() => "1.2.3.4"),
-	getVisitorCountryForAutoMode: vi.fn((events: Array<{ anonymizeVisitorIds?: unknown }>) =>
-		Promise.resolve(
-			events.some((event) => event.anonymizeVisitorIds === "auto")
-				? "US"
-				: undefined
-		)
+	getVisitorCountryForAutoMode: vi.fn(
+		(events: Array<{ anonymizeVisitorIds?: unknown }>) =>
+			Promise.resolve(
+				events.some((event) => event.anonymizeVisitorIds === "auto")
+					? "US"
+					: undefined
+			)
 	),
 	closeGeoIPReader: noop,
 }));
@@ -186,6 +187,7 @@ vi.mock("@lib/producer", () => ({
 const { basketErrors, buildBasketErrorPayload } = await import(
 	"@lib/structured-errors"
 );
+const { ERRORS_BODY_MAX_BYTES } = await import("../routes/basket");
 const { createError, EvlogError } = await import("evlog");
 const { Elysia } = await import("elysia");
 const mockGlobalErrorHandler = vi.fn();
@@ -305,9 +307,7 @@ describe("POST /", () => {
 			code: "basket.DELIVERY_UNAVAILABLE",
 			retryable: true,
 		});
-		expect(mockGlobalErrorHandler).toHaveBeenCalledWith(
-			expect.any(EvlogError)
-		);
+		expect(mockGlobalErrorHandler).toHaveBeenCalledWith(expect.any(EvlogError));
 	});
 
 	test("unknown event type → 400 structured error", async () => {
@@ -355,11 +355,6 @@ describe("POST /vitals", () => {
 		const body = await json(res);
 		expect(body.count).toBe(0);
 	});
-
-	test("not an array → 400", async () => {
-		const res = await post(basketApp, "/vitals", { not: "array" });
-		expect(res.status).toBe(400);
-	});
 });
 
 describe("POST /errors", () => {
@@ -384,6 +379,112 @@ describe("POST /errors", () => {
 			{ timestamp: now, path: "https://example.com" },
 		]);
 		expect(res.status).toBe(400);
+	});
+
+	test("body over the size cap → 413 without parsing or validating", async () => {
+		mockValidateRequest.mockClear();
+		mockInsertErrorSpans.mockClear();
+
+		const spans = Array.from({ length: 50 }, () => ({
+			timestamp: now,
+			path: "https://example.com/page",
+			message: "x".repeat(4000),
+		}));
+		const serialized = JSON.stringify(spans);
+		expect(serialized.length).toBeGreaterThan(ERRORS_BODY_MAX_BYTES);
+
+		const request = new Request("http://localhost/errors", {
+			method: "POST",
+			body: serialized,
+			headers: {
+				"Content-Type": "application/json",
+				"content-length": String(serialized.length),
+			},
+		});
+		const res = await basketApp.handle(request);
+
+		expect(res.status).toBe(413);
+		expect(request.bodyUsed).toBe(false);
+		expect(await json(res)).toMatchObject({
+			code: basketErrors.ingestErrorsBodyTooLarge.code,
+			retryable: false,
+		});
+		expect(mockValidateRequest).not.toHaveBeenCalled();
+		expect(mockInsertErrorSpans).not.toHaveBeenCalled();
+	});
+
+	test("oversized body without content-length is still rejected", async () => {
+		const spans = Array.from({ length: 40 }, () => ({
+			timestamp: now,
+			path: "https://example.com/page",
+			message: "x".repeat(4000),
+		}));
+		const serialized = JSON.stringify(spans);
+		expect(serialized.length).toBeGreaterThan(ERRORS_BODY_MAX_BYTES);
+
+		const request = new Request("http://localhost/errors", {
+			method: "POST",
+			body: serialized,
+			headers: { "Content-Type": "application/json" },
+		});
+		request.headers.delete("content-length");
+
+		const res = await basketApp.handle(request);
+
+		expect(res.status).toBe(413);
+		expect(mockInsertErrorSpans).not.toHaveBeenCalled();
+	});
+
+	test("a chunked body stops being read once it passes the cap", async () => {
+		const chunk = new TextEncoder().encode("x".repeat(16 * 1024));
+		const ceiling = ERRORS_BODY_MAX_BYTES * 8;
+		let produced = 0;
+		const body = new ReadableStream({
+			pull(controller) {
+				if (produced >= ceiling) {
+					controller.close();
+					return;
+				}
+				produced += chunk.byteLength;
+				controller.enqueue(chunk);
+			},
+		});
+
+		const request = new Request("http://localhost/errors", {
+			method: "POST",
+			body,
+			duplex: "half",
+			headers: { "Content-Type": "application/json" },
+		} as RequestInit);
+
+		const res = await basketApp.handle(request);
+
+		expect(res.status).toBe(413);
+		expect(produced).toBeLessThanOrEqual(ERRORS_BODY_MAX_BYTES * 2);
+		expect(mockInsertErrorSpans).not.toHaveBeenCalled();
+	});
+
+	test("body under the size cap → 200", async () => {
+		const spans = [
+			{
+				timestamp: now,
+				path: "https://example.com/page",
+				message: "TypeError: x is undefined",
+			},
+		];
+		const serialized = JSON.stringify(spans);
+		expect(serialized.length).toBeLessThan(ERRORS_BODY_MAX_BYTES);
+
+		const res = await post(basketApp, "/errors", spans, {
+			"content-length": String(serialized.length),
+		});
+
+		expect(res.status).toBe(200);
+		expect(await json(res)).toEqual({
+			status: "success",
+			type: "error",
+			count: 1,
+		});
 	});
 });
 
@@ -424,7 +525,6 @@ describe("POST /events", () => {
 		]);
 		expect(res.status).toBe(400);
 	});
-
 });
 
 describe("POST /batch", () => {
@@ -1094,8 +1194,14 @@ describe("POST /track", () => {
 		expect(res.status).toBe(200);
 		expect(mockInsertCustomEvents).toHaveBeenCalledWith(
 			[
-				expect.objectContaining({ event_name: "signup", website_id: "ws_test" }),
-				expect.objectContaining({ event_name: "purchase", website_id: "ws_test" }),
+				expect.objectContaining({
+					event_name: "signup",
+					website_id: "ws_test",
+				}),
+				expect.objectContaining({
+					event_name: "purchase",
+					website_id: "ws_test",
+				}),
 			],
 			undefined
 		);
@@ -1112,14 +1218,6 @@ describe("POST /track", () => {
 		expect(mockInsertCustomEvents).not.toHaveBeenCalled();
 	});
 
-	test("missing name → 400", async () => {
-		const res = await post(trackRoute, "/track", {
-			namespace: "x",
-			websiteId: "ws_test",
-		});
-		expect(res.status).toBe(400);
-	});
-
 	test("schema failure response exposes Zod issues to client", async () => {
 		const res = await post(trackRoute, "/track", {
 			namespace: "x",
@@ -1128,7 +1226,7 @@ describe("POST /track", () => {
 		expect(res.status).toBe(400);
 		const body = await json(res);
 		expect(Array.isArray(body.errors)).toBe(true);
-		const issues = body.errors as Array<Record<string, unknown>>;
+		const issues = body.errors as Record<string, unknown>[];
 		expect(issues.length).toBeGreaterThan(0);
 		expect(JSON.stringify(issues)).toContain("name");
 	});

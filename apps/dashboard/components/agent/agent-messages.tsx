@@ -367,9 +367,9 @@ function AssistantActions({
 					variant="ghost"
 				>
 					{isCopied ? (
-						<CheckIcon className="size-3.5" weight="bold" />
+						<CheckIcon className="size-3.5" />
 					) : (
-						<CopyIcon className="size-3.5" weight="duotone" />
+						<CopyIcon className="size-3.5" />
 					)}
 				</Button>
 			) : null}
@@ -382,7 +382,7 @@ function AssistantActions({
 					type="button"
 					variant="ghost"
 				>
-					<ArrowsClockwiseIcon className="size-3.5" weight="duotone" />
+					<ArrowsClockwiseIcon className="size-3.5" />
 				</Button>
 			) : null}
 		</div>

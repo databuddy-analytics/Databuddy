@@ -367,10 +367,7 @@ export function AlarmSheet({
 											<Accordion defaultOpen={!identifier}>
 												<div className="flex items-center">
 													<Accordion.Trigger className="flex-1">
-														<Icon
-															className="size-4 shrink-0 text-muted-foreground"
-															weight="duotone"
-														/>
+														<Icon className="size-4 shrink-0 text-muted-foreground" />
 														<Text variant="label">
 															{channel?.label ?? destType}
 														</Text>
@@ -455,7 +452,7 @@ export function AlarmSheet({
 											type="button"
 											variant="secondary"
 										>
-											<Icon className="size-3.5" weight="duotone" />
+											<Icon className="size-3.5" />
 											{config.label}
 										</Button>
 									);

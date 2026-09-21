@@ -102,6 +102,7 @@ interface ExecutedQueryResult {
 
 export interface McpQueryResult {
 	data: Record<string, unknown>[];
+	definition?: string;
 	error?: string;
 	returnedRows: number;
 	rowCount: number;
@@ -147,7 +148,8 @@ function querySummary(input: {
 export function buildBatchQueryRequests(
 	items: McpQueryItem[],
 	websiteId: string,
-	timezone: string
+	timezone = "UTC",
+	now = new Date()
 ): McpBatchQueryPlan {
 	const requests: IndexedQueryRequest[] = [];
 	const invalid: InvalidBatchQuery[] = [];
@@ -179,7 +181,7 @@ export function buildBatchQueryRequests(
 			const hint = suggestQueryTypes(q.type.replace(TOP_QUERY_PREFIX, ""));
 			const message = hint.length
 				? `Unknown type: ${q.type}. Did you mean: ${hint.join(", ")}?`
-				: `Unknown type: ${q.type}. Use the capabilities tool to see valid types.`;
+				: `Unknown type: ${q.type}. Discover available query types before retrying.`;
 			reject(message, q.type);
 			continue;
 		}
@@ -199,13 +201,13 @@ export function buildBatchQueryRequests(
 			);
 			continue;
 		}
-		const preset = q.preset ?? (hasFrom ? undefined : "last_7d");
+		const preset = q.preset ?? (hasFrom ? undefined : "last_30d");
 		if (preset && !MCP_DATE_PRESETS.includes(preset as DatePreset)) {
 			reject(`Unknown date preset: ${preset}.`);
 			continue;
 		}
 		if (preset) {
-			const resolved = resolveDatePreset(preset as DatePreset, timezone);
+			const resolved = resolveDatePreset(preset as DatePreset, timezone, now);
 			from = resolved.from;
 			to = resolved.to;
 		}
@@ -252,27 +254,31 @@ export function formatMcpQueryResults(
 	plan: McpBatchQueryPlan,
 	results: readonly ExecutedQueryResult[]
 ): McpQueryResult[] {
-	const formatted = results.map((result, resultIndex) => {
-		const request = plan.requests[resultIndex];
-		if (!request) {
-			throw new Error("Query result does not match its request");
+	const formatted: (McpQueryResult & { inputIndex: number })[] = results.map(
+		(result, resultIndex) => {
+			const request = plan.requests[resultIndex];
+			if (!request) {
+				throw new Error("Query result does not match its request");
+			}
+			const rowCount = result.data.length;
+			const data =
+				QueryBuilders[request.type]?.meta?.default_visualization ===
+				"timeseries"
+					? result.data.slice(-AGENT_RESULT_ROW_LIMIT)
+					: result.data.slice(0, AGENT_RESULT_ROW_LIMIT);
+			return {
+				inputIndex: request.inputIndex,
+				type: result.type,
+				definition: QueryBuilders[request.type]?.meta?.description,
+				summary: querySummary(request),
+				data,
+				rowCount,
+				returnedRows: data.length,
+				truncated: data.length < rowCount,
+				...(result.error && { error: publicQueryErrorMessage(result.error) }),
+			};
 		}
-		const rowCount = result.data.length;
-		const data =
-			QueryBuilders[request.type]?.meta?.default_visualization === "timeseries"
-				? result.data.slice(-AGENT_RESULT_ROW_LIMIT)
-				: result.data.slice(0, AGENT_RESULT_ROW_LIMIT);
-		return {
-			inputIndex: request.inputIndex,
-			type: result.type,
-			summary: querySummary(request),
-			data,
-			rowCount,
-			returnedRows: data.length,
-			truncated: data.length < rowCount,
-			...(result.error && { error: publicQueryErrorMessage(result.error) }),
-		};
-	});
+	);
 
 	for (const item of plan.invalid) {
 		formatted.push({

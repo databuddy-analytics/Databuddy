@@ -1,3 +1,11 @@
+import { readBooleanEnv } from "@databuddy/env/boolean";
+import { getAutumn } from "../lib/autumn-client";
+import { getBillingCustomerId } from "../utils/billing";
+import {
+	hasInvestigationAllowance,
+	INVESTIGATION_USAGE,
+} from "@databuddy/shared/billing";
+import { appliedInsightActionReply } from "@databuddy/shared/insights";
 import {
 	and,
 	db,
@@ -5,6 +13,7 @@ import {
 	eq,
 	inArray,
 	isNull,
+	ne,
 	notExists,
 	sql,
 } from "@databuddy/db";
@@ -22,6 +31,7 @@ import {
 	insightsResumeJobId,
 } from "@databuddy/redis";
 import { ratelimit } from "@databuddy/redis/rate-limit";
+import { getWebsiteBusinessScope } from "@databuddy/services/business-memory";
 import {
 	historyInsightSchema,
 	insightBriefItemSchema,
@@ -31,13 +41,21 @@ import {
 	insightTimelineReplySchema,
 	parseInvestigationOutcome,
 	parseInvestigationSignal,
+	insightDefinitionEditError,
 } from "@databuddy/shared/insights";
+import { isDeepStrictEqual } from "node:util";
+
+// Goal and funnel filters are conjunctive, so reordering them does not change
+// what the definition measures. Compare them order-insensitively.
+const canonicalFilters = (filters: unknown[] | null | undefined): string[] =>
+	[...(filters ?? [])].map((filter) => JSON.stringify(filter)).sort();
 import { ORPCError } from "@orpc/server";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
 import { invalidateGoalsCache } from "../lib/goals-cache";
 import { invalidateFunnelsCache } from "../lib/funnels-cache";
+import { insightRepairError } from "./insight-repairs";
 import { logger } from "../lib/logger";
 import { setAuditOrganization } from "../lib/audit";
 import {
@@ -59,6 +77,8 @@ function isAccessDenied(error: unknown): boolean {
 
 const appendInvestigationReplyInputSchema = z
 	.object({
+		intent: z.enum(["clarification", "analysis"]).optional(),
+		acceptedPriceUsd: z.literal(INVESTIGATION_USAGE.priceUsd).optional(),
 		body: z.string().trim().min(1).max(2000),
 		insightId: z.string().min(1).max(256),
 		replyId: z
@@ -71,9 +91,30 @@ const appendInvestigationReplyInputSchema = z
 			})
 			.optional(),
 	})
-	.strict();
+	.strict()
+	.superRefine((input, context) => {
+		if (
+			input.intent === "analysis" &&
+			input.acceptedPriceUsd !== INVESTIGATION_USAGE.priceUsd
+		) {
+			context.addIssue({
+				code: "custom",
+				path: ["acceptedPriceUsd"],
+				message:
+					"A new analysis uses one investigation; additional investigations cost $1 after your allowance. Accept that rate to continue.",
+			});
+		}
+	});
 
 type InsightTimelineItem = z.infer<typeof insightTimelineItemSchema>;
+
+function requireInvestigationAI() {
+	if (readBooleanEnv("SELFHOST") && !process.env.AI_GATEWAY_API_KEY?.trim()) {
+		throw rpcError.badRequest(
+			"Ask your administrator to configure AI before continuing an investigation."
+		);
+	}
+}
 
 async function queueInsightReply(
 	replyId: string
@@ -133,6 +174,9 @@ export async function queueDefinitionChangeRechecks(input: {
 	type: RecheckableDefinitionType;
 	websiteId: string;
 }): Promise<void> {
+	if (readBooleanEnv("SELFHOST") && !process.env.AI_GATEWAY_API_KEY?.trim()) {
+		return;
+	}
 	const subjectPrefix = `${input.type}:${input.definitionId}`;
 	try {
 		const cases = await db
@@ -207,11 +251,31 @@ export async function queueDefinitionChangeRechecks(input: {
 						return null;
 					}
 
+					const [source] = await tx
+						.select({ id: insightObservations.id })
+						.from(insightObservations)
+						.where(
+							and(
+								eq(insightObservations.organizationId, insight.organizationId),
+								eq(insightObservations.websiteId, input.websiteId),
+								eq(insightObservations.signalKey, insight.subjectKey)
+							)
+						)
+						.orderBy(
+							desc(insightObservations.createdAt),
+							desc(insightObservations.id)
+						)
+						.limit(1);
+					if (!source) {
+						return null;
+					}
 					const id = randomUUIDv7();
 					await tx.insert(insightReplies).values({
 						authorId: null,
 						authorName: "Databuddy",
 						body: definitionChangeReply(input.type),
+						intent: "verification",
+						sourceObservationId: source.id,
 						id,
 						insightId: current.id,
 						status: "queued",
@@ -376,6 +440,8 @@ async function loadInsightTimeline(
 		db
 			.select({
 				authorName: insightReplies.authorName,
+				assistantText: insightReplies.assistantText,
+				intent: insightReplies.intent,
 				body: insightReplies.body,
 				createdAt: insightReplies.createdAt,
 				id: insightReplies.id,
@@ -414,6 +480,8 @@ async function loadInsightTimeline(
 			};
 		}),
 		...replies.map((reply) => ({
+			assistantText: reply.assistantText,
+			intent: reply.intent,
 			author: reply.authorName,
 			body: reply.body,
 			createdAt: reply.createdAt.toISOString(),
@@ -458,6 +526,7 @@ function replyAuthor(
 
 export async function appendInvestigationReply(
 	input: z.input<typeof appendInvestigationReplyInputSchema> & {
+		authorExternalId?: string;
 		authorName?: string;
 		context: Context;
 		slackDelivery?: z.input<typeof insightReplySlackDeliverySchema>;
@@ -467,6 +536,7 @@ export async function appendInvestigationReply(
 	reply: z.infer<typeof insightTimelineReplySchema>;
 }> {
 	const {
+		authorExternalId,
 		authorName: rawAuthorName,
 		context,
 		slackDelivery: rawSlackDelivery,
@@ -509,9 +579,70 @@ export async function appendInvestigationReply(
 	});
 	setAuditOrganization(context, insight.organizationId);
 
+	requireInvestigationAI();
 	const author = replyAuthor(context, authorName);
-	const createdAt = new Date();
+	if (parsed.intent === "analysis" && !author.authorId) {
+		throw rpcError.badRequest("Start a new analysis from the dashboard.");
+	}
+	const principalId =
+		author.authorId ??
+		[`apikey:${context.apiKey?.id}`, authorExternalId]
+			.filter(Boolean)
+			.join(":");
+	const rate = await ratelimit(
+		`insights:reply:${insight.organizationId}:${principalId}`,
+		20,
+		60
+	);
+	if (!rate.success) {
+		throw rpcError.rateLimited(
+			Math.max(1, Math.ceil((rate.reset - Date.now()) / 1000))
+		);
+	}
+	if (
+		parsed.intent === "analysis" &&
+		author.authorId &&
+		!readBooleanEnv("SELFHOST")
+	) {
+		const customerId = await getBillingCustomerId(
+			author.authorId,
+			insight.organizationId
+		);
+		const customer = await getAutumn().customers.get({ customerId });
+		if (
+			customer.id !== customerId ||
+			!hasInvestigationAllowance(
+				customer.balances[INVESTIGATION_USAGE.featureId]
+			)
+		) {
+			throw rpcError.badRequest(
+				"Activate investigation billing to start a new analysis. Clarifications remain included."
+			);
+		}
+	}
 	const stored = await db.transaction(async (tx) => {
+		// Match persistence and deletion: website first, then investigation rows.
+		const [site] = await tx
+			.select({ id: websites.id })
+			.from(websites)
+			.where(
+				and(
+					eq(websites.id, insight.websiteId),
+					eq(websites.organizationId, insight.organizationId),
+					isNull(websites.deletedAt)
+				)
+			)
+			.for("update");
+		if (!site) {
+			throw rpcError.notFound("website", insight.websiteId);
+		}
+		const businessScope =
+			parsed.intent === "analysis"
+				? await getWebsiteBusinessScope(insight, {
+						database: tx,
+						initialize: true,
+					})
+				: null;
 		const insightCase = and(
 			eq(analyticsInsights.organizationId, insight.organizationId),
 			eq(analyticsInsights.websiteId, insight.websiteId),
@@ -532,6 +663,7 @@ export async function appendInvestigationReply(
 			.select({
 				authorName: insightReplies.authorName,
 				body: insightReplies.body,
+				intent: insightReplies.intent,
 				createdAt: insightReplies.createdAt,
 				id: insightReplies.id,
 				organizationId: analyticsInsights.organizationId,
@@ -553,6 +685,7 @@ export async function appendInvestigationReply(
 				existing.websiteId !== insight.websiteId ||
 				existing.subjectKey !== insight.subjectKey ||
 				existing.body !== parsed.body ||
+				existing.intent !== (parsed.intent ?? "clarification") ||
 				existing.slackDelivery?.channelId !== slackDelivery?.channelId ||
 				existing.slackDelivery?.threadTs !== slackDelivery?.threadTs
 			) {
@@ -582,6 +715,10 @@ export async function appendInvestigationReply(
 					eq(insightObservations.signalKey, insight.subjectKey)
 				)
 			)
+			.orderBy(
+				desc(insightObservations.createdAt),
+				desc(insightObservations.id)
+			)
 			.limit(1);
 		if (!observation) {
 			throw rpcError.badRequest(
@@ -606,12 +743,20 @@ export async function appendInvestigationReply(
 			);
 		}
 
+		const createdAt = new Date(
+			Math.max(
+				Date.now(),
+				businessScope ? Date.parse(businessScope.startedAt) : 0
+			)
+		);
 		await tx.insert(insightReplies).values({
 			...author,
 			body: parsed.body,
 			createdAt,
 			id,
 			insightId: current.id,
+			intent: parsed.intent ?? "clarification",
+			sourceObservationId: observation.id,
 			slackDelivery,
 			status: "queued",
 		});
@@ -678,10 +823,7 @@ function sameDefinitionExecution(
 	if (left.operation === "delete" || right.operation === "delete") {
 		return true;
 	}
-	return (
-		left.changes.name === right.changes.name &&
-		left.changes.description === right.changes.description
-	);
+	return isDeepStrictEqual(left.changes, right.changes);
 }
 
 function definitionActionError(
@@ -755,6 +897,7 @@ async function applyInsightAction(input: {
 	});
 	setAuditOrganization(context, target.organizationId);
 
+	requireInvestigationAI();
 	const author = replyAuthor(context);
 	const completed = await db.transaction(async (tx) => {
 		const [current] = await tx
@@ -785,6 +928,7 @@ async function applyInsightAction(input: {
 
 		const [observation] = await tx
 			.select({
+				id: insightObservations.id,
 				createdAt: insightObservations.createdAt,
 				outcome: insightObservations.outcome,
 				signal: insightObservations.signal,
@@ -836,12 +980,21 @@ async function applyInsightAction(input: {
 		}
 
 		const completedAt = new Date();
+		if (action.operation === "edit") {
+			const error = insightDefinitionEditError(entityType, action.changes);
+			if (error) {
+				throw rpcError.badRequest(error);
+			}
+		}
 		if (entityType === "goal") {
 			const [goal] = await tx
 				.select({
 					description: goals.description,
 					id: goals.id,
 					name: goals.name,
+					target: goals.target,
+					type: goals.type,
+					filters: goals.filters,
 					updatedAt: goals.updatedAt,
 				})
 				.from(goals)
@@ -873,11 +1026,45 @@ async function applyInsightAction(input: {
 					})
 					.where(eq(goals.id, goal.id));
 			} else {
+				const changes = {
+					description: action.changes.description ?? goal.description,
+					name: action.changes.name ?? goal.name,
+					target: action.changes.target ?? goal.target,
+					type: action.changes.type ?? goal.type,
+					filters: action.changes.filters ?? goal.filters,
+				};
+				const includesMeasurement =
+					action.changes.target != null ||
+					action.changes.type != null ||
+					action.changes.filters != null;
+				if (includesMeasurement) {
+					const error = insightRepairError(
+						{ id: goal.id, type: "goal" },
+						goal,
+						action.changes
+					);
+					if (error) {
+						throw rpcError.badRequest(error);
+					}
+				}
+				if (
+					changes.description === goal.description &&
+					changes.name === goal.name &&
+					changes.target === goal.target &&
+					changes.type === goal.type &&
+					isDeepStrictEqual(
+						canonicalFilters(changes.filters),
+						canonicalFilters(goal.filters)
+					)
+				) {
+					throw rpcError.badRequest(
+						"This action does not change the goal definition."
+					);
+				}
 				await tx
 					.update(goals)
 					.set({
-						description: action.changes.description ?? goal.description,
-						name: action.changes.name ?? goal.name,
+						...changes,
 						updatedAt: completedAt,
 					})
 					.where(eq(goals.id, goal.id));
@@ -888,6 +1075,8 @@ async function applyInsightAction(input: {
 					description: funnelDefinitions.description,
 					id: funnelDefinitions.id,
 					name: funnelDefinitions.name,
+					steps: funnelDefinitions.steps,
+					filters: funnelDefinitions.filters,
 					updatedAt: funnelDefinitions.updatedAt,
 				})
 				.from(funnelDefinitions)
@@ -919,11 +1108,39 @@ async function applyInsightAction(input: {
 					})
 					.where(eq(funnelDefinitions.id, funnel.id));
 			} else {
+				const changes = {
+					description: action.changes.description ?? funnel.description,
+					name: action.changes.name ?? funnel.name,
+					steps: action.changes.steps ?? funnel.steps,
+					filters: action.changes.filters ?? funnel.filters,
+				};
+				if (action.changes.steps != null || action.changes.filters != null) {
+					const error = insightRepairError(
+						{ id: funnel.id, type: "funnel" },
+						funnel,
+						action.changes
+					);
+					if (error) {
+						throw rpcError.badRequest(error);
+					}
+				}
+				if (
+					changes.description === funnel.description &&
+					changes.name === funnel.name &&
+					isDeepStrictEqual(changes.steps, funnel.steps) &&
+					isDeepStrictEqual(
+						canonicalFilters(changes.filters),
+						canonicalFilters(funnel.filters)
+					)
+				) {
+					throw rpcError.badRequest(
+						"This action does not change the funnel definition."
+					);
+				}
 				await tx
 					.update(funnelDefinitions)
 					.set({
-						description: action.changes.description ?? funnel.description,
-						name: action.changes.name ?? funnel.name,
+						...changes,
 						updatedAt: completedAt,
 					})
 					.where(eq(funnelDefinitions.id, funnel.id));
@@ -931,13 +1148,15 @@ async function applyInsightAction(input: {
 		}
 
 		const replyId = randomUUIDv7();
-		const body = `Databuddy applied the ${entityType} action. Recheck its verification condition against current data.`;
+		const body = appliedInsightActionReply(entityType);
 		await tx.insert(insightReplies).values({
 			...author,
 			body,
 			createdAt: completedAt,
 			id: replyId,
 			insightId: current.id,
+			intent: "verification",
+			sourceObservationId: observation.id,
 			status: "queued",
 		});
 		return { body, createdAt: completedAt, id: replyId, type: entityType };
@@ -1067,7 +1286,8 @@ export const insightsRouter = {
 					.where(
 						and(
 							eq(insightReplies.insightId, analyticsInsights.id),
-							inArray(insightReplies.status, ["queued", "running"])
+							inArray(insightReplies.status, ["queued", "running"]),
+							ne(insightReplies.intent, "clarification")
 						)
 					)
 			);
@@ -1108,7 +1328,7 @@ export const insightsRouter = {
 						eq(insightObservations.insightId, analyticsInsights.id),
 						eq(insightObservations.websiteId, analyticsInsights.websiteId),
 						eq(insightObservations.signalKey, analyticsInsights.subjectKey),
-						sql`${insightObservations.outcome}->'next'->>'type' in ('act', 'ask')`
+						sql`(${insightObservations.outcome}->'next'->>'type' in ('act', 'ask') OR ${insightObservations.snapshot}->>'completion' = 'complete')`
 					)
 				)
 				.where(whereClause)
@@ -1329,6 +1549,7 @@ export const insightsRouter = {
 				websiteId: reply.websiteId,
 			});
 			setAuditOrganization(context, reply.organizationId);
+			requireInvestigationAI();
 			const pendingStatus = await db.transaction(async (tx) => {
 				const insightCase = and(
 					eq(analyticsInsights.organizationId, reply.organizationId),

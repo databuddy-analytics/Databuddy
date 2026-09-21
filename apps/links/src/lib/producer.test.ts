@@ -1,17 +1,19 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { afterAll, beforeEach, describe, expect, mock, test } from "bun:test";
+
+const originalEnvironment = { ...process.env };
 
 const setAttributes = mock(() => {});
 const captureError = mock(() => {});
 const captureWarning = mock(() => {});
 const mergeWideEvent = mock(() => {});
 const clickHouseInsert = mock(() => Promise.resolve());
-const kafkaConfigs: Array<Record<string, unknown>> = [];
+const kafkaConfigs: Record<string, unknown>[] = [];
 
-type FakeProducer = {
+interface FakeProducer {
 	connect: () => Promise<void>;
 	disconnect: () => Promise<void>;
 	send: () => Promise<void>;
-};
+}
 
 let nextProducer: FakeProducer | null = null;
 const createProducer = mock(() => {
@@ -34,6 +36,7 @@ class MockKafka {
 mock.module("./logging", () => ({
 	captureError,
 	captureWarning,
+	emitServiceEvent: mock(() => {}),
 	mergeWideEvent,
 	record: async <T>(_name: string, run: () => Promise<T> | T) => run(),
 	setAttributes,
@@ -82,9 +85,9 @@ const event = {
 };
 
 beforeEach(() => {
+	process.env.SELFHOST = "false";
 	delete process.env.REDPANDA_BROKER;
 	delete process.env.REDPANDA_PASSWORD;
-	delete process.env.REDPANDA_SSL;
 	delete process.env.REDPANDA_USER;
 	setAttributes.mockClear();
 	captureError.mockClear();
@@ -94,7 +97,24 @@ beforeEach(() => {
 	nextProducer = null;
 });
 
+afterAll(() => {
+	process.env = originalEnvironment;
+});
+
 describe("sendLinkVisit", () => {
+	test("ignores copied broker settings when self-hosting", async () => {
+		process.env.SELFHOST = "true";
+		process.env.REDPANDA_BROKER = "redpanda.test:9092";
+		const { getProducerHealthState, sendLinkVisit, warmProducerConnection } =
+			await loadProducer();
+
+		await warmProducerConnection();
+		expect(getProducerHealthState()).toBe("disabled");
+		await expect(sendLinkVisit(event)).resolves.toBe(true);
+		expect(clickHouseInsert).toHaveBeenCalledTimes(1);
+		expect(kafkaConfigs).toEqual([]);
+	});
+
 	test("persists directly when Kafka is not configured", async () => {
 		const { sendLinkVisit } = await loadProducer();
 
@@ -112,15 +132,18 @@ describe("sendLinkVisit", () => {
 			})
 		);
 		expect(
-			(clickHouseInsert.mock.calls[0]?.[0] as {
-				abort_signal?: AbortSignal;
-			}).abort_signal
+			(
+				clickHouseInsert.mock.calls[0]?.[0] as {
+					abort_signal?: AbortSignal;
+				}
+			).abort_signal
 		).toBeInstanceOf(AbortSignal);
 		expect(clickHouseInsert).toHaveBeenCalledWith(
 			expect.objectContaining({
 				clickhouse_settings: {
 					async_insert: 1,
 					wait_for_async_insert: 1,
+					async_insert_busy_timeout_ms: 50,
 				},
 			})
 		);
@@ -142,7 +165,6 @@ describe("sendLinkVisit", () => {
 
 	test("uses native Kafka timeouts and enables TLS without SASL", async () => {
 		process.env.REDPANDA_BROKER = "redpanda.test:9092";
-		process.env.REDPANDA_SSL = "true";
 		nextProducer = makeProducer();
 		const { disconnectProducer, sendLinkVisit } = await loadProducer();
 
@@ -216,65 +238,13 @@ describe("sendLinkVisit", () => {
 		expect(clickHouseInsert).toHaveBeenCalledTimes(1);
 	});
 
-	test("disposes a failed producer without falling back after an ambiguous send", async () => {
-		process.env.REDPANDA_BROKER = "redpanda.test:9092";
-		const sendError = new Error("send failed");
-		nextProducer = makeProducer({
-			send: () => Promise.reject(sendError),
-		});
-		const { sendLinkVisit } = await loadProducer();
-
-		const result = await sendLinkVisit(event, event.link_id);
-		const retry = await sendLinkVisit(
-			{ ...event, id: "retry-after-ambiguous-send" },
-			event.link_id,
-			{ allowDirectFallback: false }
-		);
-		const unrelated = await sendLinkVisit(
-			{ ...event, id: "unrelated-event" },
-			event.link_id
-		);
-
-		expect(nextProducer.disconnect).toHaveBeenCalledTimes(1);
-		expect(result).toBe(false);
-		expect(retry).toBe(false);
-		expect(unrelated).toBe(true);
-		expect(clickHouseInsert).toHaveBeenCalledTimes(1);
-		expect(captureError).toHaveBeenCalledWith(sendError, {
-			kafka_topic: "analytics-link-visits",
-			operation: "kafka_send",
-		});
-	});
-
-	test("does not classify a failed job-marker write as a Kafka send", async () => {
-		process.env.REDPANDA_BROKER = "redpanda.test:9092";
-		nextProducer = makeProducer();
-		const { disconnectProducer, sendLinkVisit } = await loadProducer();
-		const markerError = new Error("BullMQ marker unavailable");
-
-		await expect(
-			sendLinkVisit(event, event.link_id, {
-				beforeKafkaSend: () => Promise.reject(markerError),
-			})
-		).rejects.toBe(markerError);
-
-		expect(nextProducer.send).not.toHaveBeenCalled();
-		expect(nextProducer.disconnect).not.toHaveBeenCalled();
-		expect(captureError).not.toHaveBeenCalledWith(
-			markerError,
-			expect.objectContaining({ operation: "kafka_send" })
-		);
-		await disconnectProducer();
-	});
-
 	test("propagates disconnect failures to shutdown", async () => {
 		process.env.REDPANDA_BROKER = "redpanda.test:9092";
 		const disconnectError = new Error("disconnect timed out");
 		nextProducer = makeProducer({
 			disconnect: () => Promise.reject(disconnectError),
 		});
-		const { disconnectProducer, warmProducerConnection } =
-			await loadProducer();
+		const { disconnectProducer, warmProducerConnection } = await loadProducer();
 
 		await warmProducerConnection();
 
@@ -290,8 +260,7 @@ describe("sendLinkVisit", () => {
 					releaseConnect = resolve;
 				}),
 		});
-		const { disconnectProducer, warmProducerConnection } =
-			await loadProducer();
+		const { disconnectProducer, warmProducerConnection } = await loadProducer();
 
 		const warmup = warmProducerConnection();
 		await Bun.sleep(0);

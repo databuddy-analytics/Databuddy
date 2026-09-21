@@ -5,7 +5,7 @@ description: Add privacy-first analytics to your Shopify store
 
 import { Card, Cards } from "@/components/docs";
 
-Add Databuddy's privacy-first analytics to your Shopify store to track customer behavior, e-commerce events, and improve conversion rates while maintaining GDPR compliance.
+Add Databuddy's privacy-first analytics to your Shopify store to track customer behavior, e-commerce events, and improve conversion rates with configurable collection and privacy controls.
 
 ## Installation Methods
 
@@ -325,11 +325,11 @@ Optimize for mobile users:
 
 ### GDPR Compliance
 
-Databuddy is GDPR compliant by default: it uses no cookies and anonymizes visitors, so no extra privacy configuration is needed.
+Review your Shopify privacy and consent configuration before enabling collection. Databuddy uses browser storage instead of analytics cookies; optional customer identification and order properties may contain personal data. See the [web analytics privacy guide](/docs/compliance/gdpr-compliance-guide).
 
 ### Cookie Consent Integration
 
-If using a cookie consent banner:
+If your setup requires prior consent, load the tracker from your consent manager’s granted callback. The event below is illustrative; connect it to your actual consent manager and handle withdrawal as well:
 
 ```javascript
 // Wait for consent before tracking

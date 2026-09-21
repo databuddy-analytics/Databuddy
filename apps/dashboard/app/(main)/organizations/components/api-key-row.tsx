@@ -174,7 +174,6 @@ export function ApiKeyRow({ apiKey, onSelect }: ApiKeyRowProps) {
 					"group-hover:translate-x-0.5 group-hover:text-muted-foreground"
 				)}
 				size={12}
-				weight="bold"
 			/>
 		</button>
 	);

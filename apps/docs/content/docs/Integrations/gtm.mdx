@@ -5,17 +5,9 @@ description: Add Databuddy analytics through Google Tag Manager
 
 import { Card, Cards } from "@/components/docs";
 
-Integrate Databuddy with Google Tag Manager for centralized tag management while maintaining privacy-first analytics. Perfect for teams managing multiple tracking tools.
+Load Databuddy through a GTM Custom HTML tag and send application events from your data layer.
 
-> TL;DR: In GTM, create a Custom HTML tag with an inline loader that appends `https://cdn.databuddy.cc/databuddy.js` and sets `data-client-id`. Enable optional flags such as `data-track-attributes` or `data-track-errors`. Page views and sessions are automatic. Trigger on All Pages and publish.
-
-## Why Use GTM with Databuddy?
-
-- **Centralized Management**: Manage Databuddy alongside other marketing tools
-- **Team Collaboration**: Non-developers can deploy tracking updates
-- **Version Control**: Built-in versioning and rollback capabilities
-- **Testing**: Preview and debug mode before publishing
-- **Conditional Loading**: Load Databuddy based on specific conditions
+> TL;DR: In GTM, create a Custom HTML tag with an inline loader that appends `https://cdn.databuddy.cc/databuddy.js` and sets `data-client-id`. Enable optional flags such as `data-track-attributes` or `data-track-errors`. Page views and sessions are automatic. Choose a page or consent-granted trigger that matches your privacy configuration, then preview and publish.
 
 ## Basic Setup
 
@@ -25,7 +17,7 @@ Integrate Databuddy with Google Tag Manager for centralized tag management while
 2. Choose **Custom HTML** as the tag type
 3. Add the Databuddy script:
 
-> **Important**: GTM sanitizes HTML and removes non-standard attributes like `data-client-id`. Always use `createElement()` and `setAttribute()` as shown below:
+This loader sets the tracker attributes before loading the script and signals when it is ready:
 
 ```html
 <script>
@@ -37,6 +29,13 @@ Integrate Databuddy with Google Tag Manager for centralized tag management while
     el.setAttribute("data-client-id", "{{Databuddy Client ID}}");
     el.setAttribute("data-track-attributes", "true");
     el.setAttribute("data-track-errors", "true");
+    el.onload = function () {
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({ event: 'databuddy_ready' });
+    };
+    el.onerror = function () {
+      console.warn('Databuddy script failed to load');
+    };
     document.head.appendChild(el);
   })();
 </script>
@@ -56,8 +55,9 @@ Create a **Constant** variable for your Client ID:
 ### Step 3: Set Trigger
 
 1. In your Databuddy tag, click **Triggering**
-2. Choose **All Pages** trigger
-3. Save the tag
+2. Choose **All Pages**, or your consent manager’s granted trigger when prior consent is required
+3. Under **Advanced Settings > Tag firing options**, choose **Once per page**
+4. Save the tag
 
 ### Step 4: Publish
 
@@ -67,53 +67,19 @@ Create a **Constant** variable for your Client ID:
 
 ## Advanced Configuration
 
-### Environment-Based Loading
+Reuse the loader above for each configuration:
 
-Load different Databuddy configurations based on environment:
+- **Environments:** make `Databuddy Client ID` a Lookup Table variable keyed by `Page Hostname`. Map every hostname where the tag can fire to its registered site's Client ID, including staging or preview hosts used for testing. Add a trigger condition that permits only mapped hostnames; do not fire the tag on an unmatched host with an empty or unresolved Client ID.
+- **Internal traffic:** add a trigger condition or exception using your internal-traffic variable.
+- **Optional tracking:** change the `data-*` attributes before `appendChild()`. See the [configuration reference](/docs/sdk/configuration).
 
-```html
-<script>
-  (function() {
-    var isProduction = '{{Page Hostname}}' === 'yourdomain.com';
-    var clientId = isProduction ? '{{Databuddy Prod Client ID}}' : '{{Databuddy Dev Client ID}}';
-
-    var el = document.createElement("script");
-    el.src = "https://cdn.databuddy.cc/databuddy.js";
-    el.async = true;
-    el.crossOrigin = "anonymous";
-    el.setAttribute("data-client-id", clientId);
-    el.setAttribute("data-track-attributes", "true");
-    el.setAttribute("data-track-errors", "true");
-    document.head.appendChild(el);
-  })();
-</script>
-```
-
-### Conditional Loading
-
-Load Databuddy only for specific conditions:
-
-```html
-<script>
-  (function() {
-    // Only load for non-internal traffic
-    if ('{{Internal Traffic}}' === 'false') {
-      var el = document.createElement("script");
-      el.src = "https://cdn.databuddy.cc/databuddy.js";
-      el.async = true;
-      el.crossOrigin = "anonymous";
-      el.setAttribute("data-client-id", "{{Databuddy Client ID}}");
-      el.setAttribute("data-track-attributes", "true");
-      el.setAttribute("data-track-errors", "true");
-      document.head.appendChild(el);
-    }
-  })();
-</script>
-```
+Keep the `onload` callback so tags waiting for `databuddy_ready` can fire. Use the loader once per page; automatic pageview tracking already handles SPA navigation.
 
 ## Event Tracking Setup
 
 ### Custom Event Tags
+
+The loader above emits `databuddy_ready` after the script finishes loading. For startup events, use a Custom Event trigger named `databuddy_ready`. For purchase and other application events, dispatch them after readiness or buffer them in your application until then. The examples below do not queue early events. GTM tag sequencing alone does not wait for an asynchronously injected script.
 
 Create tags for specific events:
 
@@ -248,55 +214,11 @@ Track the complete customer journey. Create Data Layer Variables for the product
 
 ## User Privacy and Consent
 
-### GDPR Compliance
+Google's consent settings do not automatically gate Databuddy. If your deployment requires consent, configure the loader tag's **additional consent checks** and trigger it only after your consent manager grants analytics consent. Connect that trigger to the manager's actual consent event; its name varies by implementation.
 
-Respect user privacy choices:
+On withdrawal, call `window.databuddyOptOut()` and prevent the tag from loading again. On a later grant, `window.databuddyOptIn()` clears that local opt-out; it does not override Do Not Track or Global Privacy Control. Test both a fresh browser session and withdrawal after collection has started.
 
-```html
-<script>
-  (function() {
-    // Check consent status
-    var hasConsent = '{{Cookie Consent Status}}' === 'granted';
-
-    if (hasConsent) {
-      var el = document.createElement("script");
-      el.src = "https://cdn.databuddy.cc/databuddy.js";
-      el.async = true;
-      el.crossOrigin = "anonymous";
-      el.setAttribute("data-client-id", "{{Databuddy Client ID}}");
-      el.setAttribute("data-track-attributes", "true");
-      el.setAttribute("data-track-errors", "true");
-      document.head.appendChild(el);
-    }
-  })();
-</script>
-```
-
-### Consent Mode Integration
-
-Integrate with Google Consent Mode:
-
-```html
-<script>
-  gtag("consent", "default", {
-    analytics_storage: "denied",
-    ad_storage: "denied",
-  });
-
-  // When user grants consent
-  gtag("consent", "update", {
-    analytics_storage: "granted",
-  });
-
-  // Initialize Databuddy after consent
-  if (window.databuddy) {
-    databuddy.track("consent_granted", {
-      consent_type: "analytics",
-      timestamp: new Date().toISOString(),
-    });
-  }
-</script>
-```
+See [Google's consent overview](https://developers.google.com/tag-platform/security/concepts/consent) and the [Databuddy privacy guide](/docs/compliance/gdpr-compliance-guide).
 
 ## Debugging and Testing
 
@@ -345,31 +267,7 @@ function() {
 
 ## Best Practices
 
-### Performance Optimization
-
-1. **Async Loading**: Always load Databuddy asynchronously
-2. **Conditional Loading**: Only load when necessary
-3. **Error Handling**: Wrap in try-catch blocks
-
-```html
-<script>
-  (function () {
-    try {
-      var el = document.createElement("script");
-      el.src = "https://cdn.databuddy.cc/databuddy.js";
-      el.async = true;
-      el.crossOrigin = "anonymous";
-      el.setAttribute("data-client-id", "{{Databuddy Client ID}}");
-      el.onerror = function () {
-        console.warn("Databuddy script failed to load");
-      };
-      document.head.appendChild(el);
-    } catch (e) {
-      console.error("Error initializing Databuddy:", e);
-    }
-  })();
-</script>
-```
+The loader is asynchronous and reports load failures in the browser console. A failed load does not emit `databuddy_ready`.
 
 ### Tag Organization
 

@@ -1,3 +1,4 @@
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import { hasKeyScope } from "@databuddy/api-keys/resolve";
 import { requiredScopesForResource } from "@databuddy/api-keys/scopes";
 import type { User } from "@databuddy/auth";
@@ -128,7 +129,7 @@ async function getPlanId(context: Context): Promise<PlanId> {
 }
 
 function requirePlan(plan: PlanId, requiredPlans: PlanId[] | undefined): void {
-	if (!requiredPlans?.length) {
+	if (readBooleanEnv("SELFHOST") || !requiredPlans?.length) {
 		return;
 	}
 	if (!requiredPlans.includes(plan)) {

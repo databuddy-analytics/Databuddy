@@ -205,7 +205,7 @@ const dashboardActionFilterSchema = z.object({
 	]),
 });
 
-export const dashboardActionsSchema = z
+const dashboardActionsSchema = z
 	.object({
 		type: z.literal("dashboard-actions"),
 		title: z.string().optional(),

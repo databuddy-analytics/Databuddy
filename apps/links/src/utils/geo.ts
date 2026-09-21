@@ -1,5 +1,5 @@
 import { cacheable } from "@databuddy/redis";
-import { getTrustedClientIp } from "@databuddy/shared/utils/trusted-client-ip";
+import { getClientIp } from "@databuddy/shared/utils/client-ip";
 import type { City } from "@maxmind/geoip2-node";
 import {
 	AddressNotFoundError,
@@ -11,7 +11,7 @@ import { LRUCache } from "lru-cache";
 import { isIP } from "node:net";
 import {
 	captureError,
-	emitStartupEvent,
+	emitServiceEvent,
 	record,
 	setAttributes,
 } from "../lib/logging";
@@ -72,7 +72,7 @@ function loadDatabase(): Promise<void> {
 
 			reader = Reader.openBuffer(buffer) as GeoIPReader;
 			setAttributes({ geo_db_loaded: true });
-			emitStartupEvent({
+			emitServiceEvent("info", {
 				links: "geoip_db_loaded",
 				geo_db_size_bytes: buffer.length,
 				geo_db_load_ms: Math.round(performance.now() - loadStart),
@@ -201,5 +201,5 @@ export async function getGeo(
 }
 
 export function extractIp(request: Request): string {
-	return getTrustedClientIp(request.headers) ?? "unknown";
+	return getClientIp(request.headers) ?? "unknown";
 }

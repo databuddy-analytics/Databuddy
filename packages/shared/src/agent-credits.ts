@@ -51,6 +51,12 @@ export const AGENT_MODEL_COSTS_USD_PER_MILLION: Record<
 		cache_read: 0.25,
 		cache_write: 3.125,
 	},
+	"openai/gpt-5.6-luna": {
+		input: 0.2,
+		output: 1.2,
+		cache_read: 0.02,
+		cache_write: 0.25,
+	},
 };
 
 export const AGENT_PRICING_BASELINE_MODEL_ID =

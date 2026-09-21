@@ -28,8 +28,12 @@ const OVERRIDES_KEY = "databuddy:flag-overrides:v1";
 const DEFAULT_API = "https://api.databuddy.cc";
 const DEFAULT_MAX_CACHE_SIZE = 5000;
 
+const FAILURE_BACKOFF_BASE_MS = 5000;
+const FAILURE_BACKOFF_MAX_MS = 60_000;
+
 interface CacheEntry {
 	expiresAt: number;
+	failureCount?: number;
 	promise: Promise<FlagResult>;
 	refreshing: boolean;
 	result: FlagResult | null;
@@ -48,6 +52,30 @@ function resolved(
 		result,
 		expiresAt: now + ttl,
 		staleAt: now + staleTime,
+	};
+}
+
+function failed(
+	promise: Promise<FlagResult>,
+	failureCount: number,
+	error: unknown
+): CacheEntry {
+	const requested =
+		error instanceof FlagsRequestError ? error.retryAfterMs : undefined;
+	const retryAt =
+		Date.now() +
+		(requested ??
+			Math.min(
+				FAILURE_BACKOFF_BASE_MS * 2 ** (failureCount - 1),
+				FAILURE_BACKOFF_MAX_MS
+			));
+	return {
+		promise,
+		refreshing: false,
+		result: null,
+		failureCount,
+		expiresAt: retryAt,
+		staleAt: retryAt,
 	};
 }
 
@@ -273,6 +301,9 @@ export abstract class BaseFlagsManager implements FlagsManager {
 				if (!this.requestGenerationIsCurrent(requestGeneration)) {
 					return;
 				}
+				if (this.cache.get(cacheKey)?.promise !== promise) {
+					return;
+				}
 				this.lastError = null;
 				this.setCache(cacheKey, resolved(result, ttl, stale));
 				this.emit();
@@ -318,6 +349,7 @@ export abstract class BaseFlagsManager implements FlagsManager {
 			this.config.environment,
 			this.config.clientId
 		);
+		const priorFailures = this.cache.get(cacheKey)?.failureCount ?? 0;
 		const entry = this.validEntry(cacheKey);
 
 		if (entry) {
@@ -363,8 +395,10 @@ export abstract class BaseFlagsManager implements FlagsManager {
 			if (!this.requestGenerationIsCurrent(requestGeneration)) {
 				return this.getFlag(key, user);
 			}
-			this.lastError = null;
-			this.setCache(cacheKey, resolved(result, ttl, stale));
+			if (this.cache.get(cacheKey)?.promise === promise) {
+				this.lastError = null;
+				this.setCache(cacheKey, resolved(result, ttl, stale));
+			}
 			this.emit();
 			this.onCacheUpdated();
 			this.onFlagEvaluated(key, result);
@@ -381,8 +415,8 @@ export abstract class BaseFlagsManager implements FlagsManager {
 				return this.getFlag(key, user);
 			}
 			this.captureError(err);
-			if (!this.cache.get(cacheKey)?.result) {
-				this.cache.delete(cacheKey);
+			if (this.cache.get(cacheKey)?.promise === promise) {
+				this.setCache(cacheKey, failed(promise, priorFailures + 1, err));
 			}
 			throw err;
 		}

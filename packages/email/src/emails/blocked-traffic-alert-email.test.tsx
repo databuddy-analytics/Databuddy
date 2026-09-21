@@ -1,4 +1,4 @@
-import { render as renderEmail } from "react-email";
+import { render as renderEmail } from "@react-email/render";
 import { describe, expect, test } from "bun:test";
 import { BlockedTrafficAlertEmail } from "./blocked-traffic-alert-email";
 

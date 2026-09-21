@@ -1,6 +1,6 @@
 /** biome-ignore-all lint/performance/useTopLevelRegex: it's a test file */
 import { describe, expect, test } from "bun:test";
-import { render as renderEmail } from "react-email";
+import { render as renderEmail } from "@react-email/render";
 import { UptimeAlertEmail } from "./uptime-alert-email";
 
 type Props = Parameters<typeof UptimeAlertEmail>[0];
@@ -140,10 +140,8 @@ describe("UptimeAlertEmail — HTML injection in string fields", () => {
 			kind: "down",
 			url: 'https://example.com" onmouseover="alert(1)',
 		});
-		// Raw quote after the anchor tag opens would be a breakout; ensure only escaped.
 		expect(html).not.toMatch(/<a[^>]*onmouseover="alert/i);
 		expect(html).toContain("onmouseover=&quot;alert(1)");
-		// And the href itself must be the safe fallback (URL parser rejects it).
 		expect(html).toContain(`href="${SAFE_HREF_FALLBACK}"`);
 	});
 

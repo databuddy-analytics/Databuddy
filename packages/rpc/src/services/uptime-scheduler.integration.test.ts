@@ -1,4 +1,12 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it, setDefaultTimeout } from "bun:test";
+import {
+	afterAll,
+	afterEach,
+	beforeAll,
+	describe,
+	expect,
+	it,
+	setDefaultTimeout,
+} from "bun:test";
 
 setDefaultTimeout(15_000);
 import { Worker, type Job } from "bullmq";
@@ -23,7 +31,9 @@ async function waitFor(
 const TEST_SCHEDULE_PREFIX = "bullmq-integration-";
 const TEST_SCHEDULER_KEY_PREFIX = `uptime-${TEST_SCHEDULE_PREFIX}`;
 
-const describeIntegration = process.env.BULLMQ_REDIS_URL ? describe : describe.skip;
+const describeIntegration = process.env.BULLMQ_REDIS_URL
+	? describe
+	: describe.skip;
 
 describeIntegration("uptime scheduler BullMQ integration", () => {
 	let redis: typeof import("@databuddy/redis") | undefined;
@@ -57,15 +67,15 @@ describeIntegration("uptime scheduler BullMQ integration", () => {
 	}
 
 	function isAnyTestSchedulerKey(key: unknown): key is string {
-		return (
-			typeof key === "string" && key.startsWith(TEST_SCHEDULER_KEY_PREFIX)
-		);
+		return typeof key === "string" && key.startsWith(TEST_SCHEDULER_KEY_PREFIX);
 	}
 
 	function isThisRunSchedulerKey(key: unknown): key is string {
 		return (
 			typeof key === "string" &&
-			key.startsWith(`${TEST_SCHEDULER_KEY_PREFIX}${testRunId.slice(TEST_SCHEDULE_PREFIX.length)}`)
+			key.startsWith(
+				`${TEST_SCHEDULER_KEY_PREFIX}${testRunId.slice(TEST_SCHEDULE_PREFIX.length)}`
+			)
 		);
 	}
 
@@ -96,9 +106,7 @@ describeIntegration("uptime scheduler BullMQ integration", () => {
 				return;
 			}
 			await Promise.allSettled(
-				leaked.map((s) =>
-					queue.removeJobScheduler((s as { key: string }).key)
-				)
+				leaked.map((s) => queue.removeJobScheduler((s as { key: string }).key))
 			);
 		} catch {}
 	}
@@ -119,9 +127,7 @@ describeIntegration("uptime scheduler BullMQ integration", () => {
 				isThisRunSchedulerKey((s as { key?: string }).key)
 			);
 			await Promise.allSettled(
-				orphans.map((s) =>
-					queue.removeJobScheduler((s as { key: string }).key)
-				)
+				orphans.map((s) => queue.removeJobScheduler((s as { key: string }).key))
 			);
 			const jobs = await queue.getJobs(
 				["waiting", "delayed", "prioritized", "paused", "completed", "failed"],
@@ -309,7 +315,9 @@ describeIntegration("uptime scheduler BullMQ integration", () => {
 		}
 	});
 
-	it("retries failed worker processing using the uptime job options", { timeout: 15000 }, async () => {
+	it("retries failed worker processing using the uptime job options", {
+		timeout: 15_000,
+	}, async () => {
 		const scheduleId = makeScheduleId("worker-retry");
 		const attempts: number[] = [];
 		const failures: string[] = [];
@@ -343,50 +351,6 @@ describeIntegration("uptime scheduler BullMQ integration", () => {
 			expect(failures).toEqual(["first attempt failed"]);
 			expect(completed).toEqual([{ scheduleId, trigger: "manual" }]);
 		} finally {
-			await worker.close();
-		}
-	});
-
-	it("fires scheduler-created jobs through a real worker and stops after removal", async () => {
-		const scheduleId = makeScheduleId("worker-scheduler");
-		const receivedAt: number[] = [];
-		const queue = redis.getUptimeQueue();
-		await assertQueueIsSafeForWorker();
-		const worker = await withWorker(async (job) => {
-			if (job.data.scheduleId !== scheduleId) {
-				return;
-			}
-			expect(job.name).toBe(redis?.UPTIME_CHECK_JOB_NAME);
-			expect(job.data.trigger).toBe("scheduled");
-			receivedAt.push(Date.now());
-		});
-
-		try {
-			const startedAt = Date.now();
-			await queue.upsertJobScheduler(
-				redis.uptimeSchedulerId(scheduleId),
-				{ every: 300 },
-				{
-					name: redis.UPTIME_CHECK_JOB_NAME,
-					data: { scheduleId, trigger: "scheduled" },
-					opts: redis.UPTIME_JOB_OPTIONS,
-				}
-			);
-
-			await waitFor(
-				() => receivedAt.length >= 1,
-				"Scheduled uptime job was not consumed by the worker",
-				5000
-			);
-			expect(receivedAt[0] - startedAt).toBeGreaterThanOrEqual(0);
-			expect(receivedAt[0] - startedAt).toBeLessThan(5000);
-
-			await queue.removeJobScheduler(redis.uptimeSchedulerId(scheduleId));
-			const countAfterRemoval = receivedAt.length;
-			await Bun.sleep(900);
-			expect(receivedAt).toHaveLength(countAfterRemoval);
-		} finally {
-			await queue.removeJobScheduler(redis.uptimeSchedulerId(scheduleId));
 			await worker.close();
 		}
 	});

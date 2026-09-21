@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { EvlogError } from "evlog";
 
 const { mockCheck, mockLoggerSet, mockLoggerWarn } = vi.hoisted(() => ({
@@ -34,9 +34,20 @@ const { checkAutumnUsage } = await import("./billing");
 
 describe("checkAutumnUsage", () => {
 	beforeEach(() => {
+		vi.stubEnv("SELFHOST", "false");
 		mockCheck.mockReset();
 		mockLoggerSet.mockReset();
 		mockLoggerWarn.mockReset();
+	});
+	afterEach(() => vi.unstubAllEnvs());
+
+	test("self-hosted events skip hosted billing", async () => {
+		vi.stubEnv("SELFHOST", "true");
+		mockCheck.mockRejectedValue(new Error("AUTUMN_SECRET_KEY is not set"));
+		await expect(checkAutumnUsage("cust_1", "events")).resolves.toEqual({
+			allowed: true,
+		});
+		expect(mockCheck).not.toHaveBeenCalled();
 	});
 
 	test("denied response → quota error", async () => {

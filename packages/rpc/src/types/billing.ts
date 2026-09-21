@@ -1,3 +1,4 @@
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import type { GatedFeatureId } from "@databuddy/shared/types/features";
 import {
 	getFeatureUnavailableMessage,
@@ -13,6 +14,9 @@ function requireFeature(
 	planId: string | undefined,
 	feature: GatedFeatureId
 ): void {
+	if (readBooleanEnv("SELFHOST")) {
+		return;
+	}
 	if (!isFeatureAvailable(planId ?? null, feature)) {
 		const nextPlan = getNextPlanForFeature(planId ?? null, feature);
 		throw rpcError.featureUnavailable(
@@ -37,6 +41,9 @@ export function requireUsageWithinLimit(
 	feature: GatedFeatureId,
 	currentUsage: number
 ): void {
+	if (readBooleanEnv("SELFHOST")) {
+		return;
+	}
 	if (!isWithinLimit(planId ?? null, feature, currentUsage)) {
 		const limit = getPlanFeatureLimit(planId ?? null, feature);
 		const nextPlan = getNextPlanForFeature(planId ?? null, feature);

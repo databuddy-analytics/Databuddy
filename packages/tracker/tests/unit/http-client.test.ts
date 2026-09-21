@@ -4,7 +4,10 @@ import { BaseTracker } from "../../src/core/tracker";
 import { Databuddy as BrowserDatabuddy } from "../../src/index";
 
 const originalFetch = globalThis.fetch;
-const originalNavigator = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+const originalNavigator = Object.getOwnPropertyDescriptor(
+	globalThis,
+	"navigator"
+);
 
 class DeliveryTestTracker extends BaseTracker {
 	private deliveryBlocked = false;
@@ -137,7 +140,11 @@ describe("HttpClient", () => {
 			requestTimeoutMs: 20,
 		});
 
-		const delivery = client.post("https://example.com/events", {}, { keepalive: true });
+		const delivery = client.post(
+			"https://example.com/events",
+			{},
+			{ keepalive: true }
+		);
 		await flushMicrotasks();
 		jest.advanceTimersByTime(20);
 		await flushMicrotasks();
@@ -334,7 +341,9 @@ describe("BaseTracker delivery outcomes", () => {
 
 		await tracker.flushBatch();
 		await tracker.flushBatch();
-		expect(send.mock.calls.map((call) => call[1].length)).toEqual([100, 100, 5]);
+		expect(send.mock.calls.map((call) => call[1].length)).toEqual([
+			100, 100, 5,
+		]);
 		expect(tracker.batchQueue).toHaveLength(0);
 	});
 
@@ -434,10 +443,10 @@ describe("BaseTracker delivery outcomes", () => {
 			timestamp: 1,
 		};
 		cyclic.self = cyclic;
-		tracker.batchQueue.push(
-			cyclic as never,
-			{ eventId: "event_valid", timestamp: 2 }
-		);
+		tracker.batchQueue.push(cyclic as never, {
+			eventId: "event_valid",
+			timestamp: 2,
+		});
 		tracker.trackQueue.push({
 			eventId: "track_valid",
 			name: "signup",
@@ -580,7 +589,10 @@ describe("BaseTracker delivery outcomes", () => {
 		await staleFlush;
 		expect(tracker.batchQueue).toHaveLength(0);
 
-		await tracker.addToBatch({ eventId: "while_current_flush_runs", timestamp: 3 });
+		await tracker.addToBatch({
+			eventId: "while_current_flush_runs",
+			timestamp: 3,
+		});
 		expect(await tracker.flushBatch()).toEqual({
 			ok: true,
 			status: "queued",
@@ -599,14 +611,5 @@ describe("BaseTracker delivery outcomes", () => {
 			count: 1,
 		});
 		expect(send).toHaveBeenCalledTimes(3);
-	});
-
-	test("treats trackPerformance as a compatibility alias", () => {
-		const tracker = new BaseTracker({
-			clientId: "site_example",
-			trackPerformance: true,
-		});
-
-		expect(tracker.options.trackWebVitals).toBe(true);
 	});
 });

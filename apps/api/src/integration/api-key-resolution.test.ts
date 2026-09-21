@@ -24,7 +24,7 @@ describe("resolveApiKey", () => {
 		});
 
 		const result = await resolveApiKey(
-			new Headers({ "x-api-key": key.secret }),
+			new Headers({ "x-api-key": key.secret })
 		);
 		expect(result.outcome).toBe("ok");
 		expect(result.key?.id).toBe(key.id);
@@ -36,7 +36,7 @@ describe("resolveApiKey", () => {
 		const key = await insertApiKey({ organizationId: org.id });
 
 		const result = await resolveApiKey(
-			new Headers({ authorization: `Bearer ${key.secret}` }),
+			new Headers({ authorization: `Bearer ${key.secret}` })
 		);
 		expect(result.outcome).toBe("ok");
 		expect(result.key?.id).toBe(key.id);
@@ -50,7 +50,7 @@ describe("resolveApiKey", () => {
 
 	iit("returns invalid for malformed key", async () => {
 		const result = await resolveApiKey(
-			new Headers({ "x-api-key": "not-a-valid-key" }),
+			new Headers({ "x-api-key": "not-a-valid-key" })
 		);
 		expect(result.outcome).toBe("invalid");
 		expect(result.key).toBeNull();
@@ -60,7 +60,7 @@ describe("resolveApiKey", () => {
 		const result = await resolveApiKey(
 			new Headers({
 				"x-api-key": "dbdy_thisKeyDoesNotExistInTheDatabaseAtAll00000000",
-			}),
+			})
 		);
 		expect(result.outcome).toBe("invalid");
 		expect(result.key).toBeNull();
@@ -74,7 +74,7 @@ describe("resolveApiKey", () => {
 		});
 
 		const result = await resolveApiKey(
-			new Headers({ "x-api-key": key.secret }),
+			new Headers({ "x-api-key": key.secret })
 		);
 		expect(result.outcome).toBe("disabled");
 		expect(result.key).toBeNull();
@@ -88,7 +88,7 @@ describe("resolveApiKey", () => {
 		});
 
 		const result = await resolveApiKey(
-			new Headers({ "x-api-key": key.secret }),
+			new Headers({ "x-api-key": key.secret })
 		);
 		expect(result.outcome).toBe("revoked");
 		expect(result.key).toBeNull();
@@ -102,7 +102,7 @@ describe("resolveApiKey", () => {
 		});
 
 		const result = await resolveApiKey(
-			new Headers({ "x-api-key": key.secret }),
+			new Headers({ "x-api-key": key.secret })
 		);
 		expect(result.outcome).toBe("expired");
 		expect(result.key).toBeNull();
@@ -116,7 +116,7 @@ describe("resolveApiKey", () => {
 		});
 
 		const result = await resolveApiKey(
-			new Headers({ "x-api-key": key.secret }),
+			new Headers({ "x-api-key": key.secret })
 		);
 		expect(result.outcome).toBe("ok");
 		expect(result.key?.scopes).toEqual(["read:data", "write:links"]);

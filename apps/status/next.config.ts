@@ -13,7 +13,6 @@ const nextConfig: NextConfig = {
 				: [{ protocol: "http" as const, hostname: "localhost" }]),
 		],
 	},
-	output: "standalone",
 	async headers() {
 		return [
 			{

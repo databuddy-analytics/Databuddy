@@ -1,14 +1,6 @@
 import { getRateLimitHeaders, ratelimit } from "@databuddy/redis/rate-limit";
+import { getClientIp } from "@databuddy/shared/utils/client-ip";
 import { NextResponse } from "next/server";
-
-export function getClientIp(requestHeaders: Headers): string {
-	return (
-		requestHeaders.get("cf-connecting-ip")?.trim() ||
-		requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-		requestHeaders.get("x-real-ip")?.trim() ||
-		"unknown"
-	);
-}
 
 interface FormRateLimitOptions {
 	key: string;
@@ -20,7 +12,7 @@ export async function enforceFormRateLimit(
 	request: Request,
 	options: FormRateLimitOptions
 ): Promise<NextResponse | null> {
-	const ip = getClientIp(request.headers);
+	const ip = getClientIp(request.headers) ?? "unknown";
 	const rl = await ratelimit(
 		`docs:${options.key}:${ip}`,
 		options.max,

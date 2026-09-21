@@ -36,10 +36,7 @@ function ReferrerRow({ referrer }: { referrer: ReferrerItem }) {
 		<div className="flex items-center gap-3 rounded-sm bg-muted px-2.5 py-2.5 transition-colors hover:bg-accent">
 			<div className="flex min-w-0 flex-1 items-center gap-2">
 				{isDirect ? (
-					<GlobeIcon
-						className="size-4 shrink-0 text-muted-foreground"
-						weight="duotone"
-					/>
+					<GlobeIcon className="size-4 shrink-0 text-muted-foreground" />
 				) : (
 					<FaviconImage
 						altText={`${displayName} favicon`}
@@ -104,20 +101,14 @@ export function ReferrersListRenderer({
 				<div className="flex flex-col gap-1">
 					<div className="flex items-center gap-2.5 rounded-md bg-background px-2.5 py-2">
 						<div className="flex size-6 items-center justify-center rounded bg-accent">
-							<GlobeIcon
-								className="size-3.5 text-muted-foreground"
-								weight="duotone"
-							/>
+							<GlobeIcon className="size-3.5 text-muted-foreground" />
 						</div>
 						<p className="font-medium text-sm">{resolvedTitle}</p>
 					</div>
 
 					<div className="rounded-md bg-background px-3 py-8">
 						<div className="flex flex-col items-center justify-center gap-2 text-center">
-							<GlobeIcon
-								className="size-8 text-muted-foreground/40"
-								weight="duotone"
-							/>
+							<GlobeIcon className="size-8 text-muted-foreground/40" />
 							<p className="font-medium text-sm">No referrers found</p>
 							<p className="text-muted-foreground text-xs">
 								Traffic sources will appear once visitors arrive
@@ -139,10 +130,7 @@ export function ReferrersListRenderer({
 			<div className="flex flex-col gap-1">
 				<div className="flex items-center gap-2.5 rounded-md bg-background px-2 py-2">
 					<div className="flex size-6 items-center justify-center rounded bg-accent">
-						<GlobeIcon
-							className="size-3.5 text-muted-foreground"
-							weight="duotone"
-						/>
+						<GlobeIcon className="size-3.5 text-muted-foreground" />
 					</div>
 					<p className="font-medium text-sm">{resolvedTitle}</p>
 					<div className="ml-auto flex items-center gap-5 text-muted-foreground text-xs">

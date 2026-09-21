@@ -348,7 +348,7 @@ export default function OnboardingPage() {
 										onClick={goBack}
 										variant="ghost"
 									>
-										<ArrowLeftIcon className="size-4" weight="bold" />
+										<ArrowLeftIcon className="size-4" />
 										Back
 									</Button>
 									<Button disabled={!canContinue} onClick={handleContinue}>
@@ -356,7 +356,7 @@ export default function OnboardingPage() {
 										!completedSteps.has("tracking")
 											? "Skip for now"
 											: "Continue"}
-										<ArrowRightIcon className="size-4" weight="bold" />
+										<ArrowRightIcon className="size-4" />
 									</Button>
 								</Card.Footer>
 							)}

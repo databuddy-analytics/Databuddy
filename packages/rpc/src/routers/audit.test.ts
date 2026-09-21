@@ -63,7 +63,7 @@ beforeAll(async () => {
 	({ auditRouter, takeAuditExportPage } = await import("./audit"));
 
 	mock.restore();
-});
+}, 30_000);
 
 beforeEach(() => {
 	listCalls.length = 0;
@@ -155,7 +155,7 @@ describe("takeAuditExportPage", () => {
 	});
 
 	test("caps a final page at 10,000 rows and marks the export truncated", () => {
-		const currentEvents = Array.from({ length: 9_998 }, (_, index) => index);
+		const currentEvents = Array.from({ length: 9998 }, (_, index) => index);
 		const rows = Array.from({ length: 101 }, (_, index) => index);
 
 		const result = takeAuditExportPage(currentEvents, rows);
@@ -166,7 +166,7 @@ describe("takeAuditExportPage", () => {
 	});
 
 	test("does not mark an exact-cap export as truncated", () => {
-		const currentEvents = Array.from({ length: 9_998 }, (_, index) => index);
+		const currentEvents = Array.from({ length: 9998 }, (_, index) => index);
 		const rows = [0, 1];
 
 		const result = takeAuditExportPage(currentEvents, rows);

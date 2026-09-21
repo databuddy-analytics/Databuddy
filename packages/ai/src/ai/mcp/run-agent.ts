@@ -5,13 +5,17 @@ import {
 	storeConversation,
 } from "../../lib/supermemory";
 import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
+import { auth } from "@databuddy/auth";
 import type { LanguageModelUsage, StepResult, ToolSet } from "ai";
-import { ToolLoopAgent } from "ai";
+import { createConversationAgent } from "../agents/conversation";
 import { DatabuddyAgentUserError } from "../../agent/errors";
 import { getAILogger } from "../../lib/ai-logger";
+import { getAccessibleWebsites } from "../../lib/accessible-websites";
+import { loadOrganizationBusinessContext } from "../../lib/organization-business-context";
+import { matchesWebsiteDomain } from "../../lib/website-domain";
 import { mergeWideEvent } from "../../lib/tracing";
 import {
-	ensureAgentCreditsAvailable,
+	getAgentBillingAccess,
 	resolveAgentBillingCustomerId,
 	trackAgentUsageAndBill,
 } from "../agents/execution";
@@ -32,6 +36,8 @@ export interface RunMcpAgentOptions {
 	modelOverride?: string | null;
 	mutationMode?: AppMutationMode;
 	onToolEvent?: (toolNames: string[]) => void;
+	/** Called once after a stream completes and its usage has been settled. */
+	onToolTrace?: (trace: McpAgentToolTrace[]) => void;
 	priorMessages?: Array<{ role: "user" | "assistant"; content: string }>;
 	question: string;
 	requestHeaders: Headers;
@@ -200,6 +206,7 @@ export async function* streamMcpAgentText(
 
 		const usage = await result.totalUsage;
 		await trackPreparedUsage(prepared, usage);
+		options.onToolTrace?.(collectToolTrace(prepared.capturedSteps));
 		if (options.storeMemory !== false) {
 			storePreparedConversation(
 				prepared,
@@ -218,7 +225,10 @@ function createRunAbortController(options: RunMcpAgentOptions): {
 	signal: AbortSignal;
 } {
 	const controller = new AbortController();
-	const timeout = setTimeout(() => controller.abort(), getTimeoutMs(options));
+	const timeout = setTimeout(
+		() => controller.abort(),
+		options.timeoutMs ?? DEFAULT_MCP_AGENT_TIMEOUT_MS
+	);
 	const externalSignal = options.abortSignal;
 	const abortFromExternalSignal = () => {
 		controller.abort(externalSignal?.reason);
@@ -245,7 +255,34 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 	const sessionId = options.conversationId ?? crypto.randomUUID();
 	const mcpUserId = options.userId ?? options.apiKey?.userId ?? null;
 	const memoryUserId = options.memoryUserId ?? mcpUserId;
-	const organizationId = options.apiKey?.organizationId ?? null;
+	const session =
+		!options.apiKey && mcpUserId
+			? await auth.api.getSession({ headers: options.requestHeaders })
+			: null;
+	const organizationId = options.apiKey
+		? options.apiKey.organizationId
+		: session?.user.id === mcpUserId
+			? (session?.session.activeOrganizationId ?? null)
+			: null;
+	const accessibleWebsites = await getAccessibleWebsites({
+		apiKey: options.apiKey,
+		organizationId,
+		user: session?.user.id === mcpUserId ? session.user : null,
+	});
+	const websiteDomain = options.websiteDomain;
+	// A caller-supplied site must not bind another organization's brief or tools.
+	if (
+		(options.websiteId &&
+			!accessibleWebsites.some((site) => site.id === options.websiteId)) ||
+		(websiteDomain &&
+			!accessibleWebsites.some(
+				(site) =>
+					matchesWebsiteDomain(site.domain, websiteDomain) &&
+					(!options.websiteId || site.id === options.websiteId)
+			))
+	) {
+		throw new Error("Website is not accessible in this organization");
+	}
 	const source = options.source ?? "mcp";
 	const selectedModelId =
 		options.modelOverride ?? getDefaultAgentModelId(source);
@@ -264,10 +301,11 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 		agent_billing_mode: options.billingMode === "skip" ? "skip" : "bill",
 	});
 
-	if (
-		options.billingMode !== "skip" &&
-		!(await ensureAgentCreditsAvailable(billingCustomerId))
-	) {
+	const billingAccess =
+		options.billingMode === "skip"
+			? undefined
+			: await getAgentBillingAccess(billingCustomerId);
+	if (billingAccess && !billingAccess.allowed) {
 		throw new DatabuddyAgentUserError({
 			code: "agent_credits_exhausted",
 			message:
@@ -275,39 +313,38 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 		});
 	}
 
-	const [config, memoryCtx] = await Promise.all([
-		Promise.resolve(
-			createMcpAgentConfig({
-				billingCustomerId,
-				requestHeaders: options.requestHeaders,
-				apiKey: options.apiKey,
-				userId: mcpUserId,
-				timezone: options.timezone,
-				chatId: sessionId,
-				modelOverride: options.modelOverride,
-				memoryUserId,
-				mutationMode: options.mutationMode,
-				organizationId,
-				slackContext: options.slackContext,
-				source,
-				websiteDomain: options.websiteDomain,
-				websiteId: options.websiteId,
-				activeTools: selectActiveToolsForQuestion({
-					hasPriorMessages: Boolean(options.priorMessages?.length),
-					question: options.question,
-					source,
-				}),
-			})
-		),
+	const [config, memoryCtx, businessContext] = await Promise.all([
+		createMcpAgentConfig({
+			billingCustomerId,
+			requestHeaders: options.requestHeaders,
+			apiKey: options.apiKey,
+			userId: mcpUserId,
+			timezone: options.timezone,
+			chatId: sessionId,
+			modelOverride: options.modelOverride,
+			memoryUserId,
+			mutationMode: options.mutationMode,
+			organizationId,
+			accessibleWebsites,
+			slackContext: options.slackContext,
+			source,
+			websiteDomain: options.websiteDomain,
+			websiteId: options.websiteId,
+		}),
 		isMemoryEnabled()
 			? getMemoryContext(options.question, memoryUserId, apiKeyId, {
 					websiteId: options.websiteId ?? undefined,
 				})
 			: Promise.resolve(null),
+		loadOrganizationBusinessContext({
+			organizationId,
+			accessibleWebsites,
+			websiteIds: options.websiteId ? [options.websiteId] : [],
+			abortSignal: options.abortSignal,
+		}),
 	]);
 
 	const memoryBlock = memoryCtx ? formatMemoryForPrompt(memoryCtx) : "";
-	const instructions = config.system;
 
 	const mcpTelemetryMetadata: Record<string, string> = {
 		source,
@@ -325,44 +362,41 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 
 	const ai = getAILogger();
 	const capturedSteps: StepResult<ToolSet>[] = [];
-	const agent = new ToolLoopAgent({
-		model: ai.wrap(config.model),
-		instructions,
-		tools: config.tools,
-		activeTools: config.activeTools,
-		stopWhen: config.stopWhen,
-		temperature: config.temperature,
-		experimental_context: config.experimental_context,
-		onStepFinish: (step) => {
-			capturedSteps.push(step);
-			const toolNames = step.toolCalls.map((call) => call.toolName);
-			if (toolNames.length > 0) {
-				options.onToolEvent?.(toolNames);
-			}
-		},
-		experimental_telemetry: {
-			isEnabled: true,
-			functionId: `databuddy.${source}.ask`,
-			metadata: mcpTelemetryMetadata,
-		},
-	});
+	const agent = createConversationAgent(
+		{ ...config, model: ai.wrap(config.model) },
+		{
+			onStepFinish: (step) => {
+				capturedSteps.push(step);
+				const toolNames = step.toolCalls.map((call) => call.toolName);
+				if (toolNames.length > 0) {
+					options.onToolEvent?.(toolNames);
+				}
+			},
+			experimental_telemetry: {
+				isEnabled: true,
+				functionId: `databuddy.${source}.ask`,
+				metadata: mcpTelemetryMetadata,
+			},
+		}
+	);
 
-	const questionContent = memoryBlock
-		? `<context>\n${memoryBlock}\n</context>\n\n${options.question}`
+	const contextBlock = [businessContext, memoryBlock]
+		.filter(Boolean)
+		.join("\n\n");
+	const questionContent = contextBlock
+		? `<context>\n${contextBlock}\n</context>\n\n${options.question}`
 		: options.question;
 
-	const messages =
-		options.priorMessages && options.priorMessages.length > 0
-			? [
-					...options.priorMessages,
-					{ role: "user" as const, content: questionContent },
-				]
-			: [{ role: "user" as const, content: questionContent }];
+	const messages = [
+		...(options.priorMessages ?? []),
+		{ role: "user" as const, content: questionContent },
+	];
 
 	return {
 		agent,
 		apiKeyId,
 		billingCustomerId,
+		billingAccess,
 		capturedSteps,
 		memoryUserId,
 		mcpUserId,
@@ -388,198 +422,12 @@ async function trackPreparedUsage(
 		userId: prepared.mcpUserId,
 		chatId: prepared.sessionId,
 		billingCustomerId: prepared.billingCustomerId,
+		billingAccess: prepared.billingAccess,
 	});
 }
 
-const NO_TOOL_CHAT_PATTERN =
-	/\b(hi|hello|hey|thanks|thank you|lol|nice|cool|ok|okay|nah that's wrong|that's wrong|nope|shut up)\b|^\s*(damn|lol|nice|thanks)[.!?\s]*$/i;
-const THREAD_REFERENCE_PATTERN =
-	/\b(above|that|this thread|which one|what first|where do we .*first|poke first|prioriti[sz]e|what'?s the call|do you agree|who said|who asked|recap|from earlier|from above)\b/i;
-const ANALYTICS_REQUEST_PATTERN =
-	/\b(analytics?|metrics?|insights?|findings?|traffic|visitors?|sessions?|page\s*views?|pageviews?|top pages?|pages?|referrers?|sources?|campaigns?|conversions?|events?|errors?|vitals?|performance|uptime|revenue|transactions?|llm|latency|bounce|countries|country|regions?|cities|devices?|browsers?|operating systems?|utm|fresh|current|latest|live|rerun|last \d+|last week|last month|today|yesterday)\b/i;
-const NON_ANALYTICS_TOOL_PATTERN =
-	/\b(remember|memory|forget|profile|profiles|flag|flags|feature flag|feature flags|funnel|funnels|goal|goals|annotation|annotations|link|links|short link|short links|investigation|investigations|automatic analysis|subscribe|unsubscribe|create|update|delete|archive|enable|disable|rollout|target|folder|folders|navigate|open|go to|take me|feedback|bug|bugs|broken)\b/i;
-const INVESTIGATION_REQUEST_PATTERN =
-	/\b(why|what caused|root cause|because|reason|investigate|investigation|diagnose|debug|deploy|deployed|deployment|commit|commits|merged|pull request|pr|branch|release|rollback|regression|search console|google search|keyword|seo|impressions|ranking|scrape|crawl)\b/i;
-const COPY_ONLY_PATTERN = /\b(exact copy|copy only)\b/i;
-const FEEDBACK_REQUEST_PATTERN =
-	/\b(feedback|feature request|report (this|that|it|a bug)|file a bug|send (this|that|it) to|tell the (databuddy )?team|complain)\b/i;
-const SLACK_FOLLOW_UP_OPEN_TAG = "<slack_follow_up";
-const SLACK_FOLLOW_UP_CLOSE_TAG = "</slack_follow_up>";
-const SLACK_LATEST_MESSAGE_OPEN_TAG = "<slack_latest_message>";
-const SLACK_LATEST_MESSAGE_CLOSE_TAG = "</slack_latest_message>";
-const SLACK_TEXT_MARKER = "\ntext:\n";
-const SLACK_TEXT_PREFIX = "text:\n";
-const ANALYTICS_ACTIVE_TOOLS = [
-	"list_websites",
-	"investigations",
-	"get_data",
-	"execute_sql_query",
-	"list_profiles",
-	"get_profile",
-	"get_profile_sessions",
-	"list_profile_traits",
-	"submit_feedback",
-];
-
-function latestSlackText(input: string): string {
-	const lastFollowUp = getLastTaggedBlock(
-		input,
-		SLACK_FOLLOW_UP_OPEN_TAG,
-		SLACK_FOLLOW_UP_CLOSE_TAG
-	);
-	if (lastFollowUp !== undefined) {
-		return getSlackBlockText(lastFollowUp) ?? lastFollowUp;
-	}
-
-	const latestMessage = getFirstTaggedBlock(
-		input,
-		SLACK_LATEST_MESSAGE_OPEN_TAG,
-		SLACK_LATEST_MESSAGE_CLOSE_TAG
-	);
-	return latestMessage === undefined
-		? input
-		: (getSlackBlockText(latestMessage) ?? latestMessage);
-}
-
-function getFirstTaggedBlock(
-	input: string,
-	openTagPrefix: string,
-	closeTag: string
-): string | undefined {
-	const openStart = input.indexOf(openTagPrefix);
-	return openStart === -1
-		? undefined
-		: getTaggedBlockAfterOpen(input, openStart, openTagPrefix, closeTag)?.block;
-}
-
-function getLastTaggedBlock(
-	input: string,
-	openTagPrefix: string,
-	closeTag: string
-): string | undefined {
-	let searchFrom = 0;
-	let lastBlock: string | undefined;
-	while (searchFrom < input.length) {
-		const openStart = input.indexOf(openTagPrefix, searchFrom);
-		if (openStart === -1) {
-			return lastBlock;
-		}
-
-		const parsed = getTaggedBlockAfterOpen(
-			input,
-			openStart,
-			openTagPrefix,
-			closeTag
-		);
-		if (!parsed) {
-			return lastBlock;
-		}
-
-		lastBlock = parsed.block;
-		searchFrom = parsed.nextIndex;
-	}
-	return lastBlock;
-}
-
-function getTaggedBlockAfterOpen(
-	input: string,
-	openStart: number,
-	openTagPrefix: string,
-	closeTag: string
-): { block: string; nextIndex: number } | undefined {
-	const openEnd = input.indexOf(">", openStart + openTagPrefix.length);
-	if (openEnd === -1) {
-		return;
-	}
-
-	const bodyStart = openEnd + 1;
-	const closeStart = input.indexOf(closeTag, bodyStart);
-	if (closeStart === -1) {
-		return;
-	}
-
-	return {
-		block: input.slice(bodyStart, closeStart),
-		nextIndex: closeStart + closeTag.length,
-	};
-}
-
-function getSlackBlockText(block: string): string | undefined {
-	const textIndex = block.indexOf(SLACK_TEXT_MARKER);
-	if (textIndex !== -1) {
-		return block.slice(textIndex + SLACK_TEXT_MARKER.length);
-	}
-	return block.startsWith(SLACK_TEXT_PREFIX)
-		? block.slice(SLACK_TEXT_PREFIX.length)
-		: undefined;
-}
-
-export function selectActiveToolsForQuestion(options: {
-	hasPriorMessages?: boolean;
-	question: string;
-	source: "dashboard" | "mcp" | "slack";
-}): string[] | undefined {
-	if (options.source === "slack" && options.hasPriorMessages) {
-		return;
-	}
-	const text = (
-		options.source === "slack"
-			? latestSlackText(options.question)
-			: options.question
-	).toLowerCase();
-	const hasAnalyticsRequest = ANALYTICS_REQUEST_PATTERN.test(text);
-	const hasNonAnalyticsToolRequest = NON_ANALYTICS_TOOL_PATTERN.test(text);
-	const hasInvestigationRequest = INVESTIGATION_REQUEST_PATTERN.test(text);
-	if (hasInvestigationRequest) {
-		return;
-	}
-	if (FEEDBACK_REQUEST_PATTERN.test(text)) {
-		return;
-	}
-	if (options.source === "slack") {
-		if (hasAnalyticsRequest && !hasNonAnalyticsToolRequest) {
-			return THREAD_REFERENCE_PATTERN.test(text)
-				? ["slack_read_current_thread", ...ANALYTICS_ACTIVE_TOOLS]
-				: ANALYTICS_ACTIVE_TOOLS;
-		}
-		if (COPY_ONLY_PATTERN.test(text) && !THREAD_REFERENCE_PATTERN.test(text)) {
-			return [];
-		}
-		if (THREAD_REFERENCE_PATTERN.test(text)) {
-			return ["slack_read_current_thread"];
-		}
-		if (NO_TOOL_CHAT_PATTERN.test(text)) {
-			return [];
-		}
-	}
-
-	if (
-		NO_TOOL_CHAT_PATTERN.test(text) &&
-		!hasAnalyticsRequest &&
-		!hasNonAnalyticsToolRequest
-	) {
-		return [];
-	}
-	if (hasAnalyticsRequest && !hasNonAnalyticsToolRequest) {
-		return ANALYTICS_ACTIVE_TOOLS;
-	}
-
-	return;
-}
-
 function collectToolTrace(
-	steps: readonly {
-		readonly toolCalls: readonly {
-			readonly input: unknown;
-			readonly toolCallId: string;
-			readonly toolName: string;
-		}[];
-		readonly toolResults: readonly {
-			readonly output: unknown;
-			readonly toolCallId: string;
-		}[];
-	}[]
+	steps: readonly StepResult<ToolSet>[]
 ): McpAgentToolTrace[] {
 	const traces: McpAgentToolTrace[] = [];
 	for (const step of steps) {
@@ -617,8 +465,4 @@ function storePreparedConversation(
 			websiteId: prepared.websiteId,
 		}
 	);
-}
-
-function getTimeoutMs(options: RunMcpAgentOptions): number {
-	return options.timeoutMs ?? DEFAULT_MCP_AGENT_TIMEOUT_MS;
 }

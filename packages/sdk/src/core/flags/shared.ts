@@ -84,16 +84,6 @@ export class FlagsContextChangedError extends Error {
 	}
 }
 
-export function buildQueryParams(config: FlagsConfig): URLSearchParams {
-	const params = new URLSearchParams();
-	params.set("clientId", config.clientId);
-	if (config.environment) {
-		params.set("environment", config.environment);
-	}
-
-	return params;
-}
-
 export interface FlagEvaluationRequest {
 	clientId: string;
 	email?: string;
@@ -125,6 +115,7 @@ export function buildEvaluationRequest(
 export class FlagsRequestError extends Error {
 	readonly code: FlagsRequestFailure["code"];
 	readonly requestId?: string;
+	readonly retryAfterMs?: number;
 	readonly retryable: boolean;
 	readonly status: number | null;
 
@@ -135,6 +126,7 @@ export class FlagsRequestError extends Error {
 		this.status = failure.status;
 		this.retryable = failure.retryable;
 		this.requestId = failure.requestId;
+		this.retryAfterMs = failure.retryAfterMs;
 	}
 
 	toFailure(): FlagsRequestFailure {
@@ -144,12 +136,29 @@ export class FlagsRequestError extends Error {
 			status: this.status,
 			retryable: this.retryable,
 			...(this.requestId ? { requestId: this.requestId } : {}),
+			...(this.retryAfterMs ? { retryAfterMs: this.retryAfterMs } : {}),
 		};
 	}
 }
 
 function isRetryableStatus(status: number): boolean {
 	return status === 408 || status === 425 || status === 429 || status >= 500;
+}
+
+const MAX_RETRY_AFTER_MS = 300_000;
+
+function parseRetryAfter(header: string | null): { retryAfterMs?: number } {
+	if (!header) {
+		return {};
+	}
+	const seconds = Number(header);
+	const ms = Number.isFinite(seconds)
+		? seconds * 1000
+		: Date.parse(header) - Date.now();
+	if (!Number.isFinite(ms) || ms < 0) {
+		return {};
+	}
+	return { retryAfterMs: Math.min(ms, MAX_RETRY_AFTER_MS) };
 }
 
 async function readFlagsResponse(
@@ -177,6 +186,7 @@ async function readFlagsResponse(
 					: `Flag evaluation failed with HTTP ${response.status}`,
 			status: response.status,
 			retryable: isRetryableStatus(response.status),
+			...parseRetryAfter(response.headers.get("retry-after")),
 			requestId:
 				response.headers.get("x-request-id") ??
 				(typeof record?.requestId === "string" ? record.requestId : undefined),

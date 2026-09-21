@@ -282,7 +282,7 @@ const replyToInvestigationTool = defineMcpTool(
 	{
 		name: "reply_to_investigation",
 		description:
-			"Add human context to an investigation and queue the same investigation agent to continue from its existing evidence and history.",
+			"Ask an included clarification of the same investigation using its saved evidence. No fresh measurements or actions run. Read the answer with get_investigation. New questions or fresh $1 analyses require the explicit dashboard control.",
 		inputSchema: z.object({
 			investigationId: z.string().min(1).max(256),
 			body: z.string().trim().min(1).max(2000),
@@ -323,7 +323,7 @@ const getDataTool = defineMcpTool(
 	{
 		name: "get_data",
 		description:
-			"Run one analytics query or batch 2-10 for a website. Use preset or from/to; defaults to last_7d. Returns a query summary, full rowCount, returnedRows, truncated, and up to 20 data rows. Use capabilities/get_schema for discovery.",
+			"Run one query or batch 2-10 for a website. Use preset or from/to; default last_30d. Returns definition, scope, rowCount, returnedRows, truncated and up to 20 rows. Read definition for population limits; capabilities/get_schema to discover.",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
 			type: z
@@ -380,6 +380,7 @@ const getDataTool = defineMcpTool(
 		}),
 		outputSchema: z.object({
 			// Single-query shape
+			definition: z.string().optional(),
 			data: z.array(z.record(z.string(), z.unknown())).optional(),
 			returnedRows: z.number().optional(),
 			rowCount: z.number().optional(),
@@ -392,6 +393,7 @@ const getDataTool = defineMcpTool(
 				.array(
 					z.object({
 						type: z.string(),
+						definition: z.string().optional(),
 						data: z.array(z.record(z.string(), z.unknown())),
 						returnedRows: z.number(),
 						rowCount: z.number(),
@@ -467,6 +469,7 @@ const getDataTool = defineMcpTool(
 			throw new McpToolError("internal", "No results returned");
 		}
 		return {
+			definition: first.definition,
 			data: first.data,
 			returnedRows: first.returnedRows,
 			rowCount: first.rowCount,
@@ -1418,7 +1421,7 @@ const addUsersToFlagTool = defineMcpTool(
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
 			flagId: z.string(),
-			users: z.array(z.string().min(1)).min(1).max(500),
+			users: z.array(z.string().trim().min(1)).min(1).max(500),
 			matchBy: z.enum(["email", "user_id"]).optional().default("email"),
 			mode: z.enum(["append", "replace"]).optional().default("append"),
 			confirmed: ConfirmedSchema,

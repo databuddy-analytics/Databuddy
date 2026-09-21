@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { readBooleanEnv } from "@databuddy/env/app";
 import { isIP } from "node:net";
 import { captureError, mergeWideEvent, record } from "@lib/tracing";
 import type { City } from "@maxmind/geoip2-node";
@@ -7,30 +7,28 @@ import {
 	BadMethodCallError,
 	Reader,
 } from "@maxmind/geoip2-node";
-import { createError, EvlogError, log } from "evlog";
-
-if (!process.env.IP_HASH_SALT && process.env.NODE_ENV === "production") {
-	throw new Error(
-		"IP_HASH_SALT must be set in production. The fallback salt is public in the open-source repo, so leaving it unset lets anyone reverse 'anonymized' IPs via a precomputed table."
-	);
-}
+import { createError, EvlogError } from "evlog";
 
 interface GeoIPReader extends Reader {
 	city(ip: string): City;
 }
 
 const CDN_URL = "https://cdn.databuddy.cc/mmdb/GeoLite2-City.mmdb";
+const GEOIP_FETCH_TIMEOUT_MS = 60_000;
+const GEOIP_RETRY_AFTER_MS = 10_000;
 
 let reader: GeoIPReader | null = null;
 let isLoading = false;
 let loadPromise: Promise<void> | null = null;
-let loadError: Error | null = null;
+let retryLoadAfter = 0;
 let dbBuffer: Buffer | null = null;
 
 function loadDatabaseFromCdn(): Promise<Buffer> {
 	return record("loadDatabaseFromCdn", async () => {
 		try {
-			const response = await fetch(CDN_URL);
+			const response = await fetch(CDN_URL, {
+				signal: AbortSignal.timeout(GEOIP_FETCH_TIMEOUT_MS),
+			});
 			if (!response.ok) {
 				throw createError({
 					code: "basket.GEOIP_DOWNLOAD_FAILED",
@@ -79,8 +77,8 @@ function loadDatabaseFromCdn(): Promise<Buffer> {
 }
 
 function loadDatabase() {
-	if (loadError) {
-		throw loadError;
+	if (Date.now() < retryLoadAfter) {
+		return;
 	}
 
 	if (isLoading && loadPromise) {
@@ -98,7 +96,7 @@ function loadDatabase() {
 			reader = Reader.openBuffer(dbBuffer) as GeoIPReader;
 		} catch (error) {
 			captureError(error, { message: "Failed to load GeoIP database" });
-			loadError = error as Error;
+			retryLoadAfter = Date.now() + GEOIP_RETRY_AFTER_MS;
 			reader = null;
 			dbBuffer = null;
 		} finally {
@@ -129,7 +127,7 @@ function lookupGeoLocation(ip: string): Promise<{
 	city: string | undefined;
 }> {
 	return record("lookupGeoLocation", async () => {
-		if (!(reader || isLoading || loadError)) {
+		if (!(reader || isLoading)) {
 			try {
 				await loadDatabase();
 			} catch (error) {
@@ -164,17 +162,6 @@ function lookupGeoLocation(ip: string): Promise<{
 	});
 }
 
-export function anonymizeIp(ip: string): string {
-	if (!ip) {
-		return "";
-	}
-
-	const salt = process.env.IP_HASH_SALT || "databuddy-ip-salt";
-	const hash = createHash("sha256");
-	hash.update(`${ip}${salt}`);
-	return hash.digest("hex").slice(0, 12);
-}
-
 export function getGeo(ip: string, request?: Request) {
 	return record("getGeo", async () => {
 		if (!ip || ignore.includes(ip) || !isValidIp(ip)) {
@@ -182,7 +169,6 @@ export function getGeo(ip: string, request?: Request) {
 				geo: { skipped: true, reason: "invalid_or_local_ip" },
 			});
 			return {
-				anonymizedIP: anonymizeIp(ip),
 				country: undefined,
 				region: undefined,
 				city: undefined,
@@ -201,7 +187,6 @@ export function getGeo(ip: string, request?: Request) {
 					},
 				});
 				return {
-					anonymizedIP: anonymizeIp(ip),
 					country: cfCountry,
 					region: undefined,
 					city: undefined,
@@ -221,7 +206,6 @@ export function getGeo(ip: string, request?: Request) {
 		});
 
 		return {
-			anonymizedIP: anonymizeIp(ip),
 			country: geo.country,
 			region: geo.region,
 			city: geo.city,
@@ -229,20 +213,9 @@ export function getGeo(ip: string, request?: Request) {
 	});
 }
 
-const TRUSTED_IP_HEADER = process.env.TRUSTED_IP_HEADER || "cf-connecting-ip";
-const IP_HEADER_VERIFIED =
-	process.env.IP_HEADER_VERIFIED?.toLowerCase() === "true";
-
-if (!process.env.IP_HEADER_VERIFIED && process.env.NODE_ENV === "production") {
-	log.warn({
-		message:
-			"IP_HEADER_VERIFIED is not set — client-supplied IP headers are spoofable. Set IP_HEADER_VERIFIED=true only when traffic is forced through a trusted proxy that overwrites this header.",
-	});
-}
-
 export function extractIpFromRequest(
 	request: Request,
-	trustedHeader = TRUSTED_IP_HEADER
+	trustedHeader = "cf-connecting-ip"
 ): string {
 	const headerName = trustedHeader.toLowerCase();
 	const trusted = request.headers.get(headerName);
@@ -260,10 +233,14 @@ export function extractIpFromRequest(
 }
 
 export function extractTrustedClientIp(request: Request): string | null {
-	if (!IP_HEADER_VERIFIED) {
-		return null;
-	}
-	return extractIpFromRequest(request) || null;
+	return request.headers.get("cf-connecting-ip")?.trim() || null;
+}
+
+// Self-host deployments may answer directly, where a caller can set
+// cf-connecting-ip themselves, so an ip allowlist must refuse rather than
+// trust it.
+export function extractAllowlistClientIp(request: Request): string | null {
+	return readBooleanEnv("SELFHOST") ? null : extractTrustedClientIp(request);
 }
 
 export async function getVisitorCountryForAutoMode(
@@ -290,6 +267,6 @@ export function closeGeoIPReader(): void {
 		dbBuffer = null;
 	}
 	loadPromise = null;
-	loadError = null;
+	retryLoadAfter = 0;
 	isLoading = false;
 }

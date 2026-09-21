@@ -1,15 +1,21 @@
+import type { BusinessScope } from "@databuddy/ai/lib/business-context";
+import { assertBusinessScopeCurrent } from "./business-context";
 import {
 	and,
 	db,
 	desc,
 	eq,
-	getTableColumns,
 	isNotNull,
+	isNull,
 	lte,
 	or,
 	sql,
 } from "@databuddy/db";
-import { analyticsInsights, insightObservations } from "@databuddy/db/schema";
+import {
+	analyticsInsights,
+	insightObservations,
+	websites,
+} from "@databuddy/db/schema";
 import {
 	invalidateAgentContextSnapshotsForWebsite,
 	invalidateInsightsCachesForOrganization,
@@ -17,20 +23,155 @@ import {
 import type {
 	InvestigationOutcome,
 	InvestigationSignal,
+	InvestigationEvidenceSnapshot,
 } from "@databuddy/shared/insights";
+import { lockOrganizationBusinessContext } from "@databuddy/services/organization-business-context";
+import { organizationBusinessContextSchema } from "@databuddy/shared/organization-business-context";
 import { randomUUIDv7 } from "bun";
 import { normalizedErrorSubject } from "./investigation";
 import { captureInsightsError, emitInsightsEvent } from "./lib/evlog-insights";
+import { measurementPlanKey } from "./measurement-plan";
+import type { DueOpenInvestigation } from "./observations";
 
-const REFRESHED_INSIGHT_COLUMNS = [
-	"title",
-	"description",
-	"severity",
-	"sentiment",
-	"changePercent",
-	"subjectKey",
-	"timezone",
-] as const satisfies readonly (keyof typeof analyticsInsights.$inferInsert)[];
+export async function retireObsoleteRetentionObservation(params: {
+	asOf: Date;
+	domain: string;
+	observation: DueOpenInvestigation;
+	organizationId: string;
+	websiteId: string;
+}): Promise<boolean> {
+	const { observation } = params;
+	const signalKey = observation.signal.signalKey;
+	const insightId = observation.insightId;
+	if (!(signalKey.startsWith("retention:") && observation.id && insightId)) {
+		return false;
+	}
+	const retired = await db.transaction(async (tx) => {
+		// Match settings-save lock order and hold the canonical definition stable
+		// through the transition. A failed read must roll back, never imply removal.
+		const owner = await lockOrganizationBusinessContext(
+			tx,
+			params.organizationId
+		);
+		const [site] = await tx
+			.select({ id: websites.id })
+			.from(websites)
+			.where(
+				and(
+					eq(websites.id, params.websiteId),
+					eq(websites.organizationId, params.organizationId),
+					eq(websites.domain, params.domain),
+					isNull(websites.deletedAt)
+				)
+			)
+			.for("update");
+		if (!(owner?.state && site)) {
+			return false;
+		}
+		const { profile } = organizationBusinessContextSchema.parse(owner.state);
+		if (
+			!profile?.measurementPlans ||
+			Date.parse(profile.updatedAt) > params.asOf.getTime() ||
+			profile.measurementPlans.some(
+				(plan) =>
+					plan.websiteId === params.websiteId &&
+					plan.domain === params.domain &&
+					measurementPlanKey(plan) === signalKey
+			)
+		) {
+			return false;
+		}
+		const scope = and(
+			eq(analyticsInsights.id, insightId),
+			eq(analyticsInsights.organizationId, params.organizationId),
+			eq(analyticsInsights.websiteId, params.websiteId),
+			eq(analyticsInsights.subjectKey, signalKey),
+			eq(analyticsInsights.status, "open"),
+			lte(analyticsInsights.createdAt, params.asOf)
+		);
+		const [current] = await tx
+			.select({ id: analyticsInsights.id })
+			.from(analyticsInsights)
+			.where(scope)
+			.for("update");
+		if (!current) {
+			return false;
+		}
+		const [latest] = await tx
+			.select()
+			.from(insightObservations)
+			.where(
+				and(
+					eq(insightObservations.organizationId, params.organizationId),
+					eq(insightObservations.websiteId, params.websiteId),
+					eq(insightObservations.signalKey, signalKey)
+				)
+			)
+			.orderBy(
+				desc(insightObservations.asOf),
+				desc(insightObservations.createdAt)
+			)
+			.limit(1);
+		if (
+			latest?.id !== observation.id ||
+			latest.insightId !== current.id ||
+			latest.asOf > params.asOf ||
+			latest.createdAt > params.asOf ||
+			latest.recheckAt > params.asOf ||
+			latest.outcome.next.type === "resolve"
+		) {
+			return false;
+		}
+		const reason =
+			"The saved activation and return definition was removed or changed. This investigation's measurement no longer applies; recovery was not measured.";
+		await tx
+			.update(analyticsInsights)
+			.set({
+				// Supersede even an in-flight write with this exact snapshot time.
+				// The existing UPDATE/UPSERT fences both compare createdAt with <=.
+				createdAt: new Date(params.asOf.getTime() + 1),
+				status: "resolved",
+				resolvedAt: params.asOf,
+				resolvedReason: "stale",
+			})
+			.where(scope);
+		await tx.insert(insightObservations).values({
+			id: randomUUIDv7(),
+			insightId: current.id,
+			organizationId: params.organizationId,
+			websiteId: params.websiteId,
+			signalKey,
+			signal: latest.signal,
+			evidence: [reason],
+			outcome: {
+				title: latest.outcome.title,
+				summary: reason,
+				evidence: [reason],
+				rootCause: null,
+				impact: null,
+				publish: false,
+				next: { type: "resolve", reason },
+			},
+			asOf: params.asOf,
+			recheckAt: params.asOf,
+		});
+		return true;
+	});
+	if (retired) {
+		try {
+			await Promise.all([
+				invalidateInsightsCachesForOrganization(params.organizationId),
+				invalidateAgentContextSnapshotsForWebsite(params.websiteId),
+			]);
+		} catch (error) {
+			captureInsightsError(error, "generation.cache_invalidation.failed", {
+				organization_id: params.organizationId,
+				website_id: params.websiteId,
+			});
+		}
+	}
+	return retired;
+}
 
 export interface WebsiteInvestigation {
 	id: string;
@@ -46,16 +187,6 @@ export function isInterruptingInvestigation(
 ): boolean {
 	const next = investigation.outcome.next.type;
 	return next === "act" || next === "ask";
-}
-
-function excludedRefreshSet() {
-	const columns = getTableColumns(analyticsInsights);
-	return Object.fromEntries(
-		REFRESHED_INSIGHT_COLUMNS.map((key) => [
-			key,
-			sql.raw(`excluded.${columns[key].name}`),
-		])
-	);
 }
 
 function dedupeKeyFor(investigation: WebsiteInvestigation): string {
@@ -101,12 +232,24 @@ async function fetchPriorInsight(
 
 export function caseValues(
 	investigation: Pick<WebsiteInvestigation, "outcome" | "signal">,
-	timezone: string
+	timezone: string,
+	at: Date
 ) {
 	const { outcome, signal } = investigation;
 	return {
 		changePercent: signal.changePercent,
 		description: outcome.summary,
+		createdAt: at,
+		resolvedAt: outcome.next.type === "resolve" ? at : null,
+		resolvedReason:
+			outcome.next.type === "resolve" &&
+			(!outcome.verification || outcome.verification.status === "passed")
+				? ("recovered" as const)
+				: null,
+		status:
+			outcome.next.type === "resolve"
+				? ("resolved" as const)
+				: ("open" as const),
 		sentiment: signal.sentiment,
 		severity: signal.severity,
 		subjectKey: signal.signalKey,
@@ -116,6 +259,9 @@ export function caseValues(
 }
 
 export async function persistInvestigation(params: {
+	completion?: "complete" | "incomplete";
+	snapshot?: InvestigationEvidenceSnapshot;
+	businessScope?: BusinessScope;
 	evidence?: string[];
 	investigation: WebsiteInvestigation;
 	notNewerThan: Date;
@@ -140,32 +286,28 @@ export async function persistInvestigation(params: {
 		prior?.status === "open" &&
 		(investigation.outcome.next.type === "watch" ||
 			investigation.outcome.next.type === "resolve");
-	const shouldPersistCase = interrupting || quietContinuation;
-	const open = investigation.outcome.next.type !== "resolve";
-	const resolvedAt = open ? null : persistedAt;
-	const resolvedReason = open ? null : ("recovered" as const);
-	const status: "open" | "resolved" = open ? "open" : "resolved";
-
-	function caseRow(value: WebsiteInvestigation, dedupeKey: string) {
-		return {
-			id: value.id,
-			organizationId: params.organizationId,
-			websiteId: value.websiteId,
-			dedupeKey,
-			...caseValues(value, params.timezone),
-			createdAt: persistedAt,
-			resolvedAt,
-			resolvedReason,
-			status,
-		};
-	}
+	const complete =
+		params.completion === "complete" &&
+		params.snapshot?.completion === "complete";
+	const shouldPersistCase = interrupting || quietContinuation || complete;
+	const projection = caseValues(investigation, params.timezone, persistedAt);
+	const row = {
+		...projection,
+		id: investigation.id,
+		organizationId: params.organizationId,
+		websiteId: investigation.websiteId,
+		dedupeKey: key,
+	};
 
 	const persisted = await db.transaction(async (tx) => {
+		if (params.businessScope) {
+			await assertBusinessScopeCurrent(params.businessScope, tx);
+		}
 		const rows = shouldPersistCase
 			? prior && (prior.dedupeKey !== key || !interrupting)
 				? await tx
 						.update(analyticsInsights)
-						.set(caseRow(investigation, key))
+						.set(row)
 						.where(
 							and(
 								eq(analyticsInsights.id, prior.id),
@@ -178,7 +320,7 @@ export async function persistInvestigation(params: {
 						.returning({ id: analyticsInsights.id })
 				: await tx
 						.insert(analyticsInsights)
-						.values(caseRow(investigation, key))
+						.values(row)
 						.onConflictDoUpdate({
 							target: [
 								analyticsInsights.organizationId,
@@ -186,13 +328,7 @@ export async function persistInvestigation(params: {
 							],
 							targetWhere: isNotNull(analyticsInsights.dedupeKey),
 							setWhere: lte(analyticsInsights.createdAt, params.notNewerThan),
-							set: {
-								createdAt: persistedAt,
-								status,
-								resolvedAt,
-								resolvedReason,
-								...excludedRefreshSet(),
-							},
+							set: projection,
 						})
 						.returning({ id: analyticsInsights.id })
 			: [];
@@ -210,6 +346,10 @@ export async function persistInvestigation(params: {
 				insightId: rows[0]?.id ?? null,
 				organizationId: params.organizationId,
 				outcome: investigation.outcome,
+				snapshot: params.snapshot && {
+					...params.snapshot,
+					completion: complete ? "complete" : "incomplete",
+				},
 				recheckAt: params.recheckAt,
 				runId: params.runId,
 				signal: investigation.signal,

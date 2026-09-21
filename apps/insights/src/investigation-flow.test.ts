@@ -1,5 +1,9 @@
 import "@databuddy/test/env";
 import { describe, expect, it } from "bun:test";
+import {
+	type agentEvidenceReferenceSchema,
+	describeInsightDefinitionAction,
+} from "@databuddy/shared/insights";
 import type {
 	InvestigationOutcome,
 	InvestigationSignal,
@@ -7,16 +11,21 @@ import type {
 import { tool } from "ai";
 import { MockLanguageModelV3, mockValues } from "ai/test";
 import { z } from "zod";
+import dayjs from "dayjs";
+import type { QueryRequest } from "@databuddy/ai/query";
+import { detectRetentionSignals } from "./measurement-plan";
+import { prepareInvestigation } from "./investigation";
 import {
 	InsightAgentExecutionError,
 	InsightAgentGenerationError,
 	runInsightAgent,
+	renderRevenueEvidence,
 	validateNumericGrounding,
 } from "./agent";
 
 const signal: InvestigationSignal = {
 	signalKey: "visitors",
-	entity: { type: "website", id: "website", label: "Visitors" },
+	entity: { type: "channel", id: "paid-search", label: "Paid search visits" },
 	metric: {
 		label: "Visitors",
 		current: 300,
@@ -69,10 +78,10 @@ const routeVitalSignal: InvestigationSignal = {
 		type: "page",
 	},
 	metric: {
-		current: 7_200,
+		current: 7200,
 		format: "duration_ms",
 		label: "Sign-in page load time",
-		previous: 4_900,
+		previous: 4900,
 	},
 };
 
@@ -84,7 +93,7 @@ const evidence = [
 const outcome: InvestigationOutcome = {
 	title: "Paid search campaign is paused",
 	summary: "Most of the visitor loss followed campaign cmp_search_1 pausing.",
-	impact: "The site lost 700 visitors in the comparison window.",
+	impact: null,
 	rootCause: "Campaign cmp_search_1 was paused before the comparison window.",
 	evidence: [
 		"Visitors fell from 1,000 to 300.",
@@ -118,6 +127,17 @@ const agentOutcome = {
 	],
 };
 
+const inspectedFunnel = {
+	id: "checkout",
+	name: "Checkout journey",
+	description: null,
+	filters: [],
+	steps: [
+		{ name: "Landing", target: "/", type: "PAGE_VIEW" as const },
+		{ name: "Documentation", target: "/docs", type: "PAGE_VIEW" as const },
+	],
+};
+
 const executableDefinitionOutcome = {
 	...agentOutcome,
 	findingKind: "measurement_definition" as const,
@@ -135,6 +155,14 @@ const executableDefinitionOutcome = {
 			changes: {
 				description: "Tracks visitors who complete account creation.",
 				name: "Account creation journey",
+				steps: [
+					{ name: "Landing", target: "/", type: "PAGE_VIEW" as const },
+					{
+						name: "Account created",
+						target: "account_created",
+						type: "EVENT" as const,
+					},
+				],
 			},
 			operation: "edit" as const,
 		},
@@ -167,20 +195,49 @@ function appContext() {
 }
 
 function outputResponse(value: unknown) {
-	return {
-		content: [{ type: "text" as const, text: JSON.stringify(value) }],
-		finishReason: { unified: "stop" as const, raw: undefined },
-		usage,
-		warnings: [],
-	};
+	let payload = value;
+	// Keep legacy outcome fixtures readable; raw/malformed model input stays invalid.
+	if (
+		typeof value === "object" &&
+		value !== null &&
+		"evidence" in value &&
+		"evidenceRefs" in value &&
+		Array.isArray(value.evidence) &&
+		Array.isArray(value.evidenceRefs) &&
+		value.evidence.length === value.evidenceRefs.length &&
+		value.evidence.every(
+			(claim) =>
+				typeof claim === "string" ||
+				(typeof claim === "object" &&
+					claim !== null &&
+					"currency" in claim &&
+					"fields" in claim)
+		)
+	) {
+		const { evidence, evidenceRefs, ...outcome } = value;
+		payload = {
+			...outcome,
+			evidence: evidence.map((claim, index) => ({
+				claim,
+				sources: Array.isArray(evidenceRefs[index])
+					? evidenceRefs[index]
+					: [evidenceRefs[index]],
+			})),
+		};
+	}
+	return toolCallResponse("finish_investigation", JSON.stringify(payload));
 }
 
-function toolCallResponse(toolName = "inspect", input = "{}") {
+function toolCallResponse(
+	toolName = "inspect",
+	input = "{}",
+	toolCallId = `${toolName}-1`
+) {
 	return {
 		content: [
 			{
 				input,
-				toolCallId: `${toolName}-1`,
+				toolCallId,
 				toolName,
 				type: "tool-call" as const,
 			},
@@ -215,8 +272,284 @@ function outputModel(value: unknown = agentOutcome) {
 	});
 }
 
+describe("claim-bound finish input", () => {
+	const finish = {
+		...outcome,
+		next: agentOutcome.next,
+		evidence: outcome.evidence.map((claim, index) => ({
+			claim,
+			sources: [{ source: "provided", index }],
+		})),
+	};
+	const input = {
+		appContext: appContext(),
+		evidence,
+		githubRepository: null,
+		history: [],
+		otherOpenWork: [],
+		signal,
+	};
+	const comparison = {
+		...finish,
+		title: "Measured cohort comparison",
+		summary: "The measured populations have distinct counts.",
+		rootCause: null,
+		next: { type: "resolve", reason: "The comparison is measured." },
+	};
+
+	it("requires sources on each model claim and stores the existing text outcome", async () => {
+		const model = outputModel(finish);
+		const result = await runInsightAgent(input, { model, tools: {} });
+		const schema = model.doGenerateCalls[0]?.tools?.find(
+			(item) => item.name === "finish_investigation"
+		)?.inputSchema;
+		expect(schema).toMatchObject({
+			properties: {
+				evidence: {
+					minItems: 1,
+					maxItems: 2,
+					items: {
+						required: expect.arrayContaining(["claim", "sources"]),
+						properties: {
+							claim: {
+								anyOf: expect.arrayContaining([
+									expect.objectContaining({ type: "string" }),
+									expect.objectContaining({
+										type: "object",
+										required: expect.arrayContaining(["currency", "fields"]),
+									}),
+								]),
+							},
+							sources: { type: "array", minItems: 1, maxItems: 8 },
+						},
+					},
+				},
+			},
+		});
+		expect(schema).not.toHaveProperty("properties.evidenceRefs");
+		expect(result.outcome).toEqual(outcome);
+		expect(result.outcome).not.toHaveProperty("evidenceRefs");
+		expect(model.doGenerateCalls).toHaveLength(1);
+	});
+
+	it.each([
+		{ name: "missing sources", item: { claim: outcome.evidence[0] } },
+		{
+			name: "empty sources",
+			item: { claim: outcome.evidence[0], sources: [] },
+		},
+		{
+			name: "nested references",
+			item: {
+				claim: outcome.evidence[0],
+				sources: [[{ source: "provided", index: 0 }]],
+			},
+		},
+		{
+			name: "too many sources",
+			item: {
+				claim: outcome.evidence[0],
+				sources: Array.from({ length: 9 }, () => ({
+					source: "provided",
+					index: 0,
+				})),
+			},
+		},
+	])("rejects $name without repairing the raw model input", async ({
+		item,
+	}) => {
+		const candidate = { ...finish, evidence: [item, finish.evidence[1]] };
+		const response = toolCallResponse(
+			"finish_investigation",
+			JSON.stringify(candidate)
+		);
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(response, response, response),
+		});
+		await expect(
+			runInsightAgent(input, { model, tools: {} })
+		).rejects.toBeInstanceOf(InsightAgentGenerationError);
+		expect(model.doGenerateCalls).toHaveLength(3);
+		const error = model.doGenerateCalls[1]?.prompt
+			.flatMap((message) => (message.role === "tool" ? message.content : []))
+			.find((part) => part.type === "tool-result");
+		if (error?.output.type !== "error-text") {
+			throw new Error("Missing schema validation error");
+		}
+		const feedback = error.output.value;
+		expect(feedback).toContain("evidence");
+		expect(feedback).toContain("sources");
+	});
+
+	it("rejects legacy prose and separate references at the model boundary", async () => {
+		const response = toolCallResponse(
+			"finish_investigation",
+			JSON.stringify(agentOutcome)
+		);
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(response, response, response),
+		});
+		await expect(
+			runInsightAgent(input, { model, tools: {} })
+		).rejects.toBeInstanceOf(InsightAgentGenerationError);
+		expect(model.doGenerateCalls).toHaveLength(3);
+	});
+
+	it.each([
+		"valid",
+		"wrong-source",
+		"wrong-number",
+	] as const)("validates each claim against its own sources: %s", async (scenario) => {
+		const candidate = {
+			...comparison,
+			evidence: [
+				{
+					claim: "Checkout and report counts were 41 and 52.",
+					sources: [
+						{ source: "provided", index: 0 },
+						{ source: "provided", index: 1 },
+					],
+				},
+				{
+					claim: `${scenario === "wrong-number" ? 53 : 52} reports were shared.`,
+					sources: [
+						{ source: "provided", index: scenario === "wrong-source" ? 0 : 1 },
+					],
+				},
+			],
+		};
+		const model = outputModel(candidate);
+		const run = runInsightAgent(
+			{
+				...input,
+				evidence: ["41 sessions used checkout.", "52 reports were shared."],
+			},
+			{ model, tools: {} }
+		);
+		if (scenario === "valid") {
+			expect((await run).outcome.evidence).toEqual(
+				candidate.evidence.map((item) => item.claim)
+			);
+			expect(model.doGenerateCalls).toHaveLength(1);
+			return;
+		}
+		await expect(run).rejects.toThrow(
+			`evidence[1] cites the number ${scenario === "wrong-number" ? 53 : 52}`
+		);
+		expect(JSON.stringify(model.doGenerateCalls[1]?.prompt)).toContain(
+			"Correct evidence[1].sources"
+		);
+	});
+
+	it.each([
+		"valid",
+		"omitted-source",
+		"wrong-source",
+		"missing-source",
+	] as const)("retains all five provided sources in a bound comparison: %s", async (scenario) => {
+		const counts = [41, 52, 63, 74, 85];
+		const sources = counts.map((_, index) => ({ source: "provided", index }));
+		if (scenario === "omitted-source") {
+			sources.pop();
+		}
+		if (scenario === "wrong-source") {
+			sources[4] = { source: "provided", index: 0 };
+		}
+		if (scenario === "missing-source") {
+			sources[4] = { source: "provided", index: 5 };
+		}
+		const claim = "The cohort counts were 41, 52, 63, 74, and 85.";
+		const model = outputModel({
+			...comparison,
+			evidence: [{ claim, sources }],
+		});
+		const run = runInsightAgent(
+			{
+				...input,
+				evidence: counts.map(
+					(count) => `The measured cohort contained ${count} profiles.`
+				),
+			},
+			{ model, tools: {} }
+		);
+		if (scenario === "valid") {
+			expect((await run).outcome.evidence).toEqual([claim]);
+			expect(model.doGenerateCalls).toHaveLength(1);
+			return;
+		}
+		await expect(run).rejects.toThrow(
+			scenario === "missing-source" ? "evidence index 5" : "number 85"
+		);
+	});
+
+	it("accepts all eight sources at the normalization limit", async () => {
+		const counts = [41, 52, 63, 74, 85, 96, 107, 118];
+		const claim = `The measured cohort counts were ${counts.join(", ")}.`;
+		const sources = counts.map((_, index) => ({ source: "provided", index }));
+		const model = outputModel({
+			...comparison,
+			evidence: [{ claim, sources }],
+		});
+		const result = await runInsightAgent(
+			{
+				...input,
+				evidence: counts.map(
+					(count) => `The cohort contained ${count} profiles.`
+				),
+			},
+			{ model, tools: {} }
+		);
+		expect(result.outcome.evidence).toEqual([claim]);
+		expect(model.doGenerateCalls).toHaveLength(1);
+	});
+});
+
 describe("intelligence agent", () => {
-	it("returns the model's structured outcome directly", async () => {
+	it("does not resupply prior context snapshots or offer model-authored provenance", async () => {
+		const model = outputModel();
+		await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence,
+				githubRepository: null,
+				otherOpenWork: [],
+				signal,
+				history: [
+					{
+						kind: "investigation",
+						asOf: "2026-07-10T00:00:00Z",
+						evidence: [],
+						signal,
+						outcome: {
+							...outcome,
+							contextSnapshot: {
+								capturedAt: "2026-07-10T00:00:00Z",
+								status: "ready",
+								issues: [],
+								sources: [
+									{
+										id: "old-profile",
+										kind: "organization_profile",
+										content: "Superseded private business context",
+										observedAt: "2026-07-09T00:00:00Z",
+									},
+								],
+							},
+						},
+					},
+				],
+			},
+			{ model, tools: {} }
+		);
+		expect(JSON.stringify(model.doGenerateCalls[0]?.prompt)).not.toContain(
+			"Superseded private business context"
+		);
+		expect(JSON.stringify(model.doGenerateCalls[0]?.tools)).not.toContain(
+			"contextSnapshot"
+		);
+		expect(model.doGenerateCalls).toHaveLength(1);
+	});
+	it("preserves manual repairs while omitting definition-only choices", async () => {
 		const model = outputModel();
 		const availableRead = tool({
 			description: "Test read",
@@ -248,9 +581,95 @@ describe("intelligence agent", () => {
 		expect(result).toMatchObject({ outcome, toolCallCount: 0 });
 		const call = model.doGenerateCalls[0];
 		expect(call?.tools?.map((item) => item.name).sort()).toEqual([
+			"finish_investigation",
 			"get_data",
 			"get_goal_analytics",
 		]);
+		expect(
+			call?.tools?.find((item) => item.name === "finish_investigation")
+		).toMatchObject({
+			inputSchema: {
+				properties: {
+					next: {
+						anyOf: [
+							{
+								properties: {
+									check: { type: "null" },
+									execution: { type: "null" },
+								},
+							},
+							{ properties: { type: { const: "ask" } } },
+							{ properties: { type: { const: "resolve" } } },
+						],
+					},
+				},
+			},
+		});
+	});
+
+	it.each([
+		{ name: "inspect", output: { visitors: 300n }, keys: [null] },
+		{ name: "inspect", output: { error: "Read failed" }, keys: [] },
+		{
+			name: "get_data",
+			output: {
+				results: {
+					pages: { data: [{ visitors: 300 }] },
+					broken: { error: "Read failed" },
+				},
+			},
+			keys: ["pages"],
+		},
+	])("provides exact usable citation references for $name: $keys", async ({
+		name,
+		output,
+		keys,
+	}) => {
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				toolCallResponse(name),
+				outputResponse({ ...agentOutcome, title: "Search campaign is paused" })
+			),
+		});
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence,
+				signal,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+			},
+			{
+				model,
+				tools: {
+					[name]: tool({ inputSchema: z.object({}), execute: () => output }),
+				},
+			}
+		);
+		const messages = model.doGenerateCalls[1]?.prompt;
+		const read = messages
+			?.flatMap((message) => (message.role === "tool" ? message.content : []))
+			.find((part) => part.type === "tool-result");
+		if (read?.output.type !== "text") {
+			throw new Error("Missing model-visible read");
+		}
+		expect(JSON.parse(read.output.value)).toEqual({
+			result: JSON.parse(
+				JSON.stringify(output, (_key, value) =>
+					typeof value === "bigint" ? value.toString() : value
+				)
+			),
+			sources: keys.map((resultKey) => ({
+				source: "tool",
+				name,
+				toolCallId: `${name}-1`,
+				resultKey,
+			})),
+		});
+		expect(result.outcome.title).toBe("Search campaign is paused");
+		expect(result.toolCallCount).toBe(1);
+		expect(model.doGenerateCalls).toHaveLength(2);
 	});
 
 	it("forces published raw-error findings into reliability exposure", async () => {
@@ -346,7 +765,8 @@ describe("intelligence agent", () => {
 		const exposureOutcome = {
 			...measuredOutcome,
 			findingKind: "reliability_exposure" as const,
-			impact: "Sign-in page loads reached 7.2 seconds in the comparison window.",
+			impact:
+				"Sign-in page loads reached 7.2 seconds in the comparison window.",
 			publicationBasis: "measured_reliability" as const,
 			title: "Sign-in page loads were slow",
 		};
@@ -434,9 +854,7 @@ describe("intelligence agent", () => {
 			{ ...input, hasQualifiedRouteVitalContinuation: true },
 			{ model: measurementModel, tools: {} }
 		);
-		expect(measurementResult.outcome.findingKind).toBe(
-			"reliability_exposure"
-		);
+		expect(measurementResult.outcome.findingKind).toBe("reliability_exposure");
 	});
 
 	it("turns ambiguous definition questions into unpublished resolves", async () => {
@@ -497,12 +915,582 @@ describe("intelligence agent", () => {
 		expect(JSON.stringify(model.doGenerateCalls[1])).toContain(
 			"executable definition action"
 		);
-		expect(JSON.stringify(model.doGenerateCalls[0])).toContain(
-			"Classify every outcome"
+	});
+
+	it("retains an exact goal repair and saved verification check", async () => {
+		const goal = {
+			id: "signup",
+			name: "Account creation",
+			type: "PAGE_VIEW",
+			target: "/docs",
+			filters: [],
+		};
+		const next = {
+			type: "act" as const,
+			action: "Measure completed account creation.",
+			target: "Account creation goal",
+			verification:
+				"Account creation conversion returns to its healthy baseline.",
+			recheckAt: "2026-07-15T00:00:00.000Z",
+			execution: {
+				operation: "edit" as const,
+				changes: { target: "/account-created" },
+			},
+			check: {
+				metric: "overall_conversion_rate" as const,
+				startDate: "2026-07-13",
+				endDate: "2026-07-14",
+				minimumEntrants: 100,
+				threshold: {
+					anchor: "prior_baseline" as const,
+					comparison: "at_or_above" as const,
+					value: 20,
+					evidenceRef: { source: "signal" as const },
+				},
+			},
+		};
+		const proposal = {
+			...executableDefinitionOutcome,
+			title: "Account creation goal measures documentation",
+			summary:
+				"Completed account creation cannot be measured by the saved goal.",
+			rootCause:
+				"The saved goal targets documentation instead of the account-created page.",
+			evidence: [
+				"Account creation ends at /account-created; the saved goal targets /docs.",
+			],
+			evidenceRefs: [
+				[
+					{ source: "provided", index: 0 },
+					{
+						source: "tool",
+						name: "list_goals",
+						toolCallId: "list_goals-1",
+						resultKey: null,
+					},
+				],
+			],
+			next,
+		};
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence: [
+					"Business meaning: Account creation completes at /account-created.",
+				],
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal: {
+					...funnelSignal,
+					signalKey: "goal:signup",
+					entity: { type: "goal", id: "signup", label: "Account creation" },
+				},
+			},
+			{
+				model: new MockLanguageModelV3({
+					doGenerate: mockValues(
+						toolCallsResponse(["list_goals", "scrape_page"]),
+						outputResponse(proposal)
+					),
+				}),
+				tools: {
+					scrape_page: tool({
+						inputSchema: z.object({}),
+						execute: () => ({
+							content:
+								"Successful account creation redirects to /account-created.",
+						}),
+					}),
+					list_goals: tool({
+						inputSchema: z.object({}),
+						execute: () => ({ goals: [goal] }),
+					}),
+				},
+			}
+		);
+		expect(result.outcome.next).toMatchObject({
+			...next,
+			action: describeInsightDefinitionAction(goal.name, {
+				...next.execution,
+				action: next.action,
+			}),
+			check: {
+				...next.check,
+				definition: {
+					type: "PAGE_VIEW",
+					target: "/account-created",
+					filters: [],
+				},
+			},
+		});
+	});
+
+	it.each([
+		"legacy",
+		"valid",
+		"native-only",
+		"native-after-list",
+		"native-cohort",
+		"native-lost-conditions",
+		"uninspected-check",
+		"unanchored",
+		"past-window",
+		"wrong-units",
+		"referrer-check",
+	] as const)("validates a definition repair and saved verification: %s", async (scenario) => {
+		const native = scenario.startsWith("native");
+		const current = {
+			...inspectedFunnel,
+			steps: inspectedFunnel.steps.map((step) => ({
+				...step,
+				...(native ? { conditions: { plan: "paid" } } : {}),
+			})),
+		};
+		let thresholdValue = 20;
+		if (scenario === "unanchored") {
+			thresholdValue = 99;
+		} else if (scenario === "wrong-units") {
+			thresholdValue = 120;
+		}
+		const check = {
+			metric: "overall_conversion_rate" as const,
+			startDate: scenario === "past-window" ? "2026-07-01" : "2026-07-13",
+			endDate: "2026-07-14",
+			minimumEntrants: 100,
+			threshold: {
+				anchor: "prior_baseline" as const,
+				comparison: "at_or_above" as const,
+				value: thresholdValue,
+				evidenceRef: { source: "signal" as const },
+			},
+		};
+		const proposal = {
+			...executableDefinitionOutcome,
+			next: {
+				...executableDefinitionOutcome.next,
+				...(scenario === "legacy" ? {} : { check }),
+				...(native && scenario !== "native-lost-conditions"
+					? {
+							execution: {
+								...executableDefinitionOutcome.next.execution,
+								changes: {
+									...executableDefinitionOutcome.next.execution.changes,
+									steps:
+										executableDefinitionOutcome.next.execution.changes.steps.map(
+											(step) => ({ ...step, conditions: { plan: "paid" } })
+										),
+								},
+							},
+						}
+					: {}),
+			},
+		};
+		const inspectionResponses: ReturnType<typeof toolCallsResponse>[] = [];
+		if (scenario === "native-only" || scenario === "native-cohort") {
+			inspectionResponses.push(toolCallsResponse(["get_funnel_analytics"]));
+		} else if (scenario === "native-after-list") {
+			inspectionResponses.push(
+				toolCallsResponse(["list_funnels"]),
+				toolCallsResponse(["get_funnel_analytics"])
+			);
+		} else if (scenario !== "uninspected-check") {
+			inspectionResponses.push(
+				toolCallsResponse(["list_funnels", "get_funnel_analytics"])
+			);
+		}
+		const savedDefinition =
+			scenario === "native-cohort" ? { savedDefinition: current } : {};
+		const measuredDefinition =
+			scenario === "native-cohort"
+				? {
+						...current,
+						filters: [
+							{ field: "browser_name", operator: "equals", value: "Safari" },
+						],
+					}
+				: current;
+		const nativeMeasurement = native
+			? {
+					...savedDefinition,
+					measurement: {
+						websiteId: "site-1",
+						definitionId: "checkout",
+						startDate: "2026-07-05",
+						endDate: "2026-07-11",
+						definition: measuredDefinition,
+					},
+				}
+			: {};
+		const run = runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence: [...evidence, "Business meaning: Tracks account creation."],
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal:
+					scenario === "referrer-check"
+						? {
+								...funnelSignal,
+								signalKey: "funnel:checkout:referrer:paid.example",
+							}
+						: funnelSignal,
+			},
+			{
+				model: new MockLanguageModelV3({
+					doGenerate: mockValues(
+						...inspectionResponses,
+						outputResponse(proposal),
+						outputResponse(proposal),
+						outputResponse(proposal)
+					),
+				}),
+				tools: {
+					get_funnel_analytics: tool({
+						description: "Inspect funnel journey analytics.",
+						execute: () => ({
+							completions: 10,
+							entrants: 100,
+							...nativeMeasurement,
+						}),
+						inputSchema: z.object({}).strict(),
+					}),
+					list_funnels: tool({
+						description: "Inspect funnel definitions.",
+						execute: () => ({ funnels: [inspectedFunnel] }),
+						inputSchema: z.object({}).strict(),
+					}),
+				},
+			}
+		);
+
+		if (
+			![
+				"legacy",
+				"valid",
+				"native-only",
+				"native-after-list",
+				"native-cohort",
+			].includes(scenario)
+		) {
+			let expectedError = "Verification checks require";
+			if (scenario === "uninspected-check") {
+				expectedError = "Until the exact subject is verified";
+			} else if (scenario === "native-lost-conditions") {
+				expectedError = "preserve existing step conditions";
+			} else if (scenario === "unanchored") {
+				expectedError = "99";
+			}
+			await expect(run).rejects.toThrow(expectedError);
+			return;
+		}
+		const result = await run;
+		const expectedExecution = {
+			...proposal.next.execution,
+			changes: native
+				? { steps: proposal.next.execution.changes.steps }
+				: proposal.next.execution.changes,
+		};
+		expect(result.outcome.next).toEqual({
+			...proposal.next,
+			execution: expectedExecution,
+			...(scenario === "legacy"
+				? {}
+				: {
+						check: {
+							...check,
+							definition: {
+								steps: proposal.next.execution.changes.steps.map(
+									({ type, target }) => ({ type, target })
+								),
+								filters: [],
+							},
+						},
+					}),
+			action: describeInsightDefinitionAction(funnelSignal.entity.label, {
+				...expectedExecution,
+				action: executableDefinitionOutcome.next.action,
+			}),
+		});
+	});
+
+	it.each([
+		false,
+		true,
+	])("strips unchanged repair fields while retaining a real filter removal: %s", async (filtered) => {
+		const changes = {
+			name: inspectedFunnel.name,
+			description: null,
+			filters: [],
+			steps: executableDefinitionOutcome.next.execution.changes.steps,
+		};
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence: [
+					...evidence,
+					"Business meaning: Tracks account creation across all countries.",
+				],
+				signal: funnelSignal,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+			},
+			{
+				model: new MockLanguageModelV3({
+					doGenerate: mockValues(
+						toolCallsResponse(["list_funnels", "scrape_page"]),
+						outputResponse({
+							...executableDefinitionOutcome,
+							next: {
+								...executableDefinitionOutcome.next,
+								execution: { operation: "edit", changes },
+							},
+						})
+					),
+				}),
+				tools: {
+					scrape_page: tool({
+						inputSchema: z.object({}),
+						execute: () => ({
+							content:
+								"Successful account creation emits account_created for visitors in all countries.",
+						}),
+					}),
+					list_funnels: tool({
+						inputSchema: z.object({}),
+						execute: () => ({
+							funnels: [
+								{
+									...inspectedFunnel,
+									filters: filtered
+										? [{ field: "country", operator: "equals", value: "US" }]
+										: [],
+								},
+							],
+						}),
+					}),
+				},
+			}
+		);
+		const execution = {
+			operation: "edit" as const,
+			changes: {
+				steps: changes.steps,
+				...(filtered ? { filters: [] } : {}),
+			},
+		};
+		expect(result.outcome.next).toMatchObject({
+			execution,
+			action: describeInsightDefinitionAction(funnelSignal.entity.label, {
+				...execution,
+				action: executableDefinitionOutcome.next.action,
+			}),
+		});
+		if (result.outcome.next.type !== "act") {
+			throw new Error("Expected repair");
+		}
+		expect(result.outcome.next.execution).toEqual(execution);
+	});
+
+	it("rejects a cosmetic rename presented as a measurement repair", async () => {
+		const cosmetic = {
+			...executableDefinitionOutcome,
+			next: {
+				...executableDefinitionOutcome.next,
+				execution: {
+					operation: "edit" as const,
+					changes: { name: "Account creation journey", description: null },
+				},
+			},
+		};
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+					signal: funnelSignal,
+				},
+				{
+					model: new MockLanguageModelV3({
+						doGenerate: mockValues(
+							toolCallsResponse(["list_funnels"]),
+							outputResponse(cosmetic),
+							outputResponse(cosmetic),
+							outputResponse(cosmetic)
+						),
+					}),
+					tools: {
+						list_funnels: tool({
+							description: "Inspect definitions.",
+							execute: () => ({ funnels: [inspectedFunnel] }),
+							inputSchema: z.object({}).strict(),
+						}),
+					},
+				}
+			)
+		).rejects.toThrow("does not change what the funnel measures");
+	});
+
+	it.each([
+		"different subject",
+		"already repaired",
+		"missing conditions",
+	])("rejects an unsafe proposal before publication: %s", async (variant) => {
+		const current =
+			variant === "different subject"
+				? { ...inspectedFunnel, id: "another-funnel" }
+				: variant === "already repaired"
+					? {
+							...inspectedFunnel,
+							steps: executableDefinitionOutcome.next.execution.changes.steps,
+						}
+					: {
+							...inspectedFunnel,
+							steps: inspectedFunnel.steps.map((step) => ({
+								...step,
+								conditions: { plan: "paid" },
+							})),
+						};
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				toolCallsResponse(["list_funnels", "get_funnel_analytics"]),
+				outputResponse(executableDefinitionOutcome),
+				outputResponse(executableDefinitionOutcome),
+				outputResponse(executableDefinitionOutcome)
+			),
+		});
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence: [...evidence, "Business meaning: Tracks account creation."],
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+					signal: funnelSignal,
+				},
+				{
+					model,
+					tools: {
+						list_funnels: tool({
+							description: "Read complete definitions.",
+							inputSchema: z.object({}),
+							execute: () => ({ funnels: [current] }),
+						}),
+						get_funnel_analytics: tool({
+							description: "Read journey context.",
+							inputSchema: z.object({}),
+							execute: () => ({ completions: 10 }),
+						}),
+					},
+				}
+			)
+		).rejects.toThrow(
+			variant === "different subject"
+				? "exact current funnel"
+				: variant === "already repaired"
+					? "does not change"
+					: "preserve existing step conditions"
 		);
 	});
 
-	it("accepts a conversion definition edit after purpose and journey evidence", async () => {
+	it.each([
+		"missing",
+		"failed",
+		"thrown",
+	])("keeps a %s definition private instead of inventing a coverage diagnosis", async (variant) => {
+		const diagnosis = {
+			...executableDefinitionOutcome,
+			findingKind: "measurement_coverage" as const,
+			next: {
+				type: "resolve" as const,
+				reason: "The saved journey cannot support account creation decisions.",
+			},
+		};
+		const unresolved = {
+			...diagnosis,
+			publish: false,
+			publicationBasis: null,
+			impact: null,
+			rootCause: null,
+			next: {
+				type: "resolve" as const,
+				reason:
+					"The inspected definitions do not contain this journey's exact id.",
+			},
+		};
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				toolCallsResponse(["list_funnels"]),
+				outputResponse(diagnosis),
+				outputResponse(unresolved)
+			),
+		});
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal: funnelSignal,
+			},
+			{
+				model,
+				tools: {
+					list_funnels: tool({
+						description: "Read saved journeys.",
+						inputSchema: z.object({}),
+						execute: () => {
+							if (variant === "thrown") {
+								throw new Error("Definition lookup unavailable");
+							}
+							if (variant === "failed") {
+								return {
+									success: false,
+									error: "Definition lookup unavailable",
+								};
+							}
+							return {
+								funnels: [{ ...inspectedFunnel, id: "another-funnel" }],
+							};
+						},
+					}),
+				},
+			}
+		);
+		expect(result.outcome.publish).toBe(false);
+		expect(result.outcome.rootCause).toBeNull();
+		expect(result.outcome.next.type).toBe("resolve");
+		expect(JSON.stringify(model.doGenerateCalls[2]?.prompt)).toContain(
+			"resolve privately with rootCause null"
+		);
+	});
+
+	it("corrects a no-op proposal using the inspected definition without repeating reads", async () => {
+		const noOp = {
+			...executableDefinitionOutcome,
+			next: {
+				...executableDefinitionOutcome.next,
+				execution: {
+					operation: "edit" as const,
+					changes: { steps: inspectedFunnel.steps },
+				},
+			},
+		};
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				toolCallsResponse(["list_funnels", "get_funnel_analytics"]),
+				outputResponse(noOp),
+				outputResponse(executableDefinitionOutcome)
+			),
+		});
+		let reads = 0;
 		const result = await runInsightAgent(
 			{
 				appContext: appContext(),
@@ -513,28 +1501,31 @@ describe("intelligence agent", () => {
 				signal: funnelSignal,
 			},
 			{
-				model: new MockLanguageModelV3({
-					doGenerate: mockValues(
-						toolCallsResponse(["list_funnels", "get_funnel_analytics"]),
-						outputResponse(executableDefinitionOutcome)
-					),
-				}),
+				model,
 				tools: {
-					get_funnel_analytics: tool({
-						description: "Inspect funnel journey analytics.",
-						execute: () => ({ completions: 10, entrants: 100 }),
-						inputSchema: z.object({}).strict(),
-					}),
 					list_funnels: tool({
-						description: "Inspect funnel definitions.",
-						execute: () => ({ data: [{ id: "checkout" }] }),
-						inputSchema: z.object({}).strict(),
+						description: "Read complete definitions.",
+						inputSchema: z.object({}),
+						execute: () => {
+							reads++;
+							return { funnels: [inspectedFunnel] };
+						},
+					}),
+					get_funnel_analytics: tool({
+						description: "Read journey context.",
+						inputSchema: z.object({}),
+						execute: () => ({ completions: 10 }),
 					}),
 				},
 			}
 		);
-
-		expect(result.outcome.next).toEqual(executableDefinitionOutcome.next);
+		expect(reads).toBe(1);
+		expect(result.outcome.next).toMatchObject({
+			execution: executableDefinitionOutcome.next.execution,
+		});
+		expect(JSON.stringify(model.doGenerateCalls[2]?.prompt)).toContain(
+			"does not change what the funnel measures"
+		);
 	});
 
 	it("rejects a definition edit without an inspected definition", async () => {
@@ -550,12 +1541,32 @@ describe("intelligence agent", () => {
 				},
 				{ model: outputModel(executableDefinitionOutcome), tools: {} }
 			)
-		).rejects.toThrow(
-			"Insights funnel definition changes require an inspected funnel definition"
-		);
+		).rejects.toThrow("exact current funnel definition was not inspected");
 	});
 
-	it("rejects a definition edit outside a goal or funnel signal", async () => {
+	it.each([
+		"execution",
+		"check",
+	] as const)("rejects a non-definition %s at the tool boundary", async (field) => {
+		const next =
+			field === "execution"
+				? executableDefinitionOutcome.next
+				: {
+						...agentOutcome.next,
+						check: {
+							metric: "overall_conversion_rate",
+							startDate: "2026-07-13",
+							endDate: "2026-07-14",
+							minimumEntrants: 100,
+							threshold: {
+								anchor: "prior_baseline",
+								comparison: "at_or_above",
+								value: 20,
+								evidenceRef: { source: "signal" },
+							},
+						},
+					};
+		const model = outputModel({ ...agentOutcome, next });
 		await expect(
 			runInsightAgent(
 				{
@@ -566,18 +1577,24 @@ describe("intelligence agent", () => {
 					otherOpenWork: [],
 					signal,
 				},
-				{ model: outputModel(executableDefinitionOutcome), tools: {} }
+				{ model, tools: {} }
 			)
-		).rejects.toThrow(
-			"Insights definition recommendations require an existing goal or funnel signal"
-		);
+		).rejects.toBeInstanceOf(InsightAgentGenerationError);
+		const error = model.doGenerateCalls[1]?.prompt
+			.flatMap((message) => (message.role === "tool" ? message.content : []))
+			.find((part) => part.type === "tool-result");
+		if (error?.output.type !== "error-text") {
+			throw new Error("Missing validation error");
+		}
+		expect(error.output.value).toContain("expected null");
+		expect(error.output.value).toContain(field);
 	});
 
 	it("retries one malformed final object without losing its usage", async () => {
 		const model = new MockLanguageModelV3({
 			doGenerate: mockValues(
 				{
-					content: [{ type: "text" as const, text: "not-json" }],
+					...toolCallResponse("finish_investigation", "not-json"),
 					finishReason: { unified: "stop" as const, raw: undefined },
 					usage,
 					warnings: [],
@@ -603,7 +1620,7 @@ describe("intelligence agent", () => {
 		expect(result.usage?.outputTokens).toBe(2);
 		expect(model.doGenerateCalls).toHaveLength(2);
 		expect(JSON.stringify(model.doGenerateCalls[1])).toContain(
-			"prior final response was not valid structured output"
+			"finish_investigation"
 		);
 	});
 
@@ -632,8 +1649,121 @@ describe("intelligence agent", () => {
 
 		expect(result.outcome).toEqual(outcome);
 		expect(JSON.stringify(model.doGenerateCalls[1])).toContain(
-			"next.execution"
+			"expected null, received undefined"
 		);
+	});
+
+	it.each([
+		"",
+		"I cannot complete this investigation.",
+	])("stops a provider turn without a tool call and preserves usage: %s", async (text) => {
+		const model = new MockLanguageModelV3({
+			doGenerate: () =>
+				Promise.resolve({
+					content: text ? [{ type: "text" as const, text }] : [],
+					finishReason: { unified: "stop" as const, raw: undefined },
+					usage,
+					warnings: [],
+				}),
+		});
+		let failure: unknown;
+		try {
+			await runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					signal,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+				},
+				{ model, tools: {} }
+			);
+		} catch (error) {
+			failure = error;
+		}
+		expect(failure).toBeInstanceOf(InsightAgentGenerationError);
+		expect(model.doGenerateCalls).toHaveLength(1);
+		if (!(failure instanceof InsightAgentGenerationError)) {
+			throw failure;
+		}
+		expect(failure.usage.inputTokens).toBe(model.doGenerateCalls.length);
+	});
+
+	it("can inspect missing context after a malformed response follows a read", async () => {
+		const calls: string[] = [];
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				toolCallResponse("inspect"),
+				outputResponse("malformed"),
+				toolCallResponse("read_context"),
+				outputResponse(agentOutcome)
+			),
+		});
+		const tools = Object.fromEntries(
+			["inspect", "read_context"].map((name) => [
+				name,
+				tool({
+					description: "Read synthetic context.",
+					inputSchema: z.object({}),
+					execute: () => {
+						calls.push(name);
+						return { fact: evidence[0] };
+					},
+				}),
+			])
+		);
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence,
+				signal,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+			},
+			{ model, tools }
+		);
+		expect(calls).toEqual(["inspect", "read_context"]);
+		expect(result.outcome).toEqual(outcome);
+	});
+
+	it("finishes from existing evidence when the overall read budget is exhausted", async () => {
+		let calls = 0;
+		const model = new MockLanguageModelV3({
+			doGenerate: () => {
+				calls++;
+				return Promise.resolve(
+					calls <= 7 ? toolCallResponse() : outputResponse(agentOutcome)
+				);
+			},
+		});
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence,
+				signal,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+			},
+			{
+				model,
+				tools: {
+					inspect: tool({
+						description: "Read synthetic context.",
+						inputSchema: z.object({}),
+						execute: () => ({ fact: evidence[0] }),
+					}),
+				},
+			}
+		);
+		expect(result.toolCallCount).toBe(7);
+		expect(calls).toBe(8);
+		expect(model.doGenerateCalls[7]?.tools?.map((entry) => entry.name)).toEqual(
+			["finish_investigation"]
+		);
+		expect(result.outcome).toEqual(outcome);
 	});
 
 	it("continues an output retry without repeating inspected reads", async () => {
@@ -642,7 +1772,7 @@ describe("intelligence agent", () => {
 			doGenerate: mockValues(
 				toolCallResponse(),
 				{
-					content: [{ type: "text" as const, text: "not-json" }],
+					...toolCallResponse("finish_investigation", "not-json"),
 					finishReason: { unified: "stop" as const, raw: undefined },
 					usage,
 					warnings: [],
@@ -650,7 +1780,12 @@ describe("intelligence agent", () => {
 				outputResponse({
 					...agentOutcome,
 					evidenceRefs: [
-						{ name: "inspect", source: "tool" as const },
+						{
+							name: "inspect",
+							source: "tool" as const,
+							toolCallId: "inspect-1",
+							resultKey: null,
+						},
 						{ index: 1, source: "provided" as const },
 					],
 				})
@@ -674,6 +1809,7 @@ describe("intelligence agent", () => {
 						execute: () => {
 							inspectCalls += 1;
 							return {
+								fact: evidence[0],
 								inspected: true,
 								inspectedAt: new Date("2026-07-12T00:00:00.000Z"),
 							};
@@ -687,9 +1823,11 @@ describe("intelligence agent", () => {
 		expect(result.outcome).toEqual(outcome);
 		expect(inspectCalls).toBe(1);
 		expect(model.doGenerateCalls).toHaveLength(3);
-		expect(model.doGenerateCalls[2]?.tools).toBeUndefined();
+		expect(model.doGenerateCalls[2]?.tools?.map((item) => item.name)).toContain(
+			"inspect"
+		);
 		expect(JSON.stringify(model.doGenerateCalls[2])).toContain(
-			"prior final response was not valid structured output"
+			"finish_investigation"
 		);
 	});
 
@@ -697,7 +1835,12 @@ describe("intelligence agent", () => {
 		const invalidOutcome = {
 			...agentOutcome,
 			evidenceRefs: [
-				{ name: "unused_tool", source: "tool" as const },
+				{
+					name: "unused_tool",
+					source: "tool" as const,
+					toolCallId: "unused",
+					resultKey: null,
+				},
 				{ index: 1, source: "provided" as const },
 			],
 		};
@@ -886,12 +2029,11 @@ describe("intelligence agent", () => {
 		);
 	});
 
-	it("retries a published measurement finding without a decision impact", async () => {
+	it("retries a published measurement finding with the wrong publication basis", async () => {
 		const invalidOutcome = {
 			...agentOutcome,
 			findingKind: "measurement_definition" as const,
-			impact: null,
-			publicationBasis: "decision_safety" as const,
+			publicationBasis: "measured_impact" as const,
 		};
 		const model = new MockLanguageModelV3({
 			doGenerate: mockValues(
@@ -914,14 +2056,16 @@ describe("intelligence agent", () => {
 
 		expect(result.outcome).toEqual(outcome);
 		expect(model.doGenerateCalls).toHaveLength(2);
-		expect(JSON.stringify(model.doGenerateCalls[1])).toContain("impact");
+		expect(JSON.stringify(model.doGenerateCalls[1])).toContain(
+			"publicationBasis"
+		);
 	});
 
-	it("retries when the structured response reaches the output limit", async () => {
+	it("repairs a truncated finish call inside the same tool loop", async () => {
 		const model = new MockLanguageModelV3({
 			doGenerate: mockValues(
 				{
-					content: [{ type: "text" as const, text: '{"title":"cut off' }],
+					...toolCallResponse("finish_investigation", '{"title":"cut off'),
 					finishReason: { unified: "length" as const, raw: undefined },
 					usage,
 					warnings: [],
@@ -947,9 +2091,9 @@ describe("intelligence agent", () => {
 		expect(model.doGenerateCalls).toHaveLength(2);
 	});
 
-	it("reports aggregate usage when all structured output attempts fail", async () => {
+	it("bounds rejected finish calls and retains their aggregate usage", async () => {
 		const malformed = {
-			content: [{ type: "text" as const, text: "not-json" }],
+			...toolCallResponse("finish_investigation", "not-json"),
 			finishReason: { unified: "stop" as const, raw: undefined },
 			usage,
 			warnings: [],
@@ -1088,7 +2232,12 @@ describe("intelligence agent", () => {
 					model: outputModel({
 						...agentOutcome,
 						evidenceRefs: [
-							{ name: "get_data", source: "tool" },
+							{
+								name: "get_data",
+								source: "tool",
+								toolCallId: "unused",
+								resultKey: null,
+							},
 							{ index: 1, source: "provided" },
 						],
 					}),
@@ -1121,6 +2270,231 @@ describe("intelligence agent", () => {
 				}
 			)
 		).rejects.toThrow("scheduled a recheck");
+	});
+
+	it.each([
+		"effective-window",
+		"changed-definition",
+		"missing-metadata",
+		"wrong-measured-site",
+		"wrong-measured-id",
+		"passed",
+		"passed-explicit",
+		"passed-cosmetic",
+		"failed-rate",
+		"failed",
+		"small-sample",
+		"unfinished-window",
+		"failed-read",
+		"invalid-count",
+		"newer-resolution",
+		"referrer-rate",
+		"referrer-count",
+	] as const)("binds verification to the exact measurement: %s", async (scenario) => {
+		const check = {
+			definition: {
+				steps: inspectedFunnel.steps.map(({ target, type }) => ({
+					type,
+					target,
+				})),
+				filters: [],
+			},
+			metric:
+				scenario === "failed-rate" || scenario === "referrer-rate"
+					? ("overall_conversion_rate" as const)
+					: ("total_users_completed" as const),
+			startDate: "2026-07-05",
+			endDate: "2026-07-11",
+			minimumEntrants: 100,
+			threshold: {
+				anchor: "prior_baseline" as const,
+				comparison: "at_or_above" as const,
+				value:
+					scenario === "failed-rate"
+						? 80
+						: scenario === "referrer-rate"
+							? 40
+							: 100,
+				evidenceRef: { source: "signal" as const },
+			},
+		};
+		const status = [
+			"passed",
+			"passed-explicit",
+			"passed-null-cohort",
+			"passed-domain",
+			"passed-cosmetic",
+		].includes(scenario)
+			? "passed"
+			: scenario === "failed" || scenario === "failed-rate"
+				? "failed"
+				: "inconclusive";
+		const completed = scenario === "failed" ? 40 : 120;
+		const query = {
+			funnelId: "checkout",
+			startDate: check.startDate,
+			endDate: check.endDate,
+		};
+		const candidate = {
+			...agentOutcome,
+			title: "Checkout repair verification",
+			summary: "Recovery definitely passed.",
+			rootCause: null,
+			evidence: ["The saved condition concerns checkout."],
+			evidenceRefs: [{ source: "signal" as const }],
+			publish: false,
+			publicationBasis: null,
+			next: { type: "resolve" as const, reason: "Verification completed." },
+			verificationStatus: status,
+			...(scenario === "passed"
+				? { publish: true, publicationBasis: "measured_impact" as const }
+				: {}),
+		};
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				toolCallResponse("get_funnel_analytics", JSON.stringify(query)),
+				outputResponse(candidate)
+			),
+		});
+		const previous = {
+			asOf: "2026-07-01T00:00:00Z",
+			evidence: [],
+			kind: "investigation" as const,
+			signal: scenario.startsWith("referrer-")
+				? {
+						...funnelSignal,
+						signalKey: "funnel:checkout:referrer:paid.example",
+					}
+				: funnelSignal,
+			outcome: { ...outcome, next: { ...agentOutcome.next, check } },
+		};
+		const result = await runInsightAgent(
+			{
+				appContext: {
+					...appContext(),
+					...(scenario === "passed-explicit" ? { websiteId: undefined } : {}),
+					...(scenario === "unfinished-window"
+						? { currentDateTime: "2026-07-11T12:00:00Z" }
+						: {}),
+				},
+				evidence: [],
+				githubRepository: null,
+				otherOpenWork: [],
+				signal: scenario.startsWith("referrer-")
+					? {
+							...funnelSignal,
+							signalKey: "funnel:checkout:referrer:paid.example",
+						}
+					: funnelSignal,
+				history:
+					scenario === "newer-resolution"
+						? [
+								previous,
+								{
+									...previous,
+									outcome: {
+										...outcome,
+										next: { type: "resolve", reason: "This case was closed." },
+									},
+								},
+							]
+						: [previous],
+			},
+			{
+				model,
+				tools: {
+					get_funnel_analytics: tool({
+						inputSchema: z.object({}).passthrough(),
+						execute: (readInput, options) => {
+							if (scenario !== "newer-resolution") {
+								expect(readInput).toEqual({
+									...query,
+									websiteId: "site-1",
+									cohort: null,
+								});
+								expect(options.experimental_context).toMatchObject({
+									organizationId: appContext().organizationId,
+								});
+							}
+							return {
+								...(scenario === "missing-metadata"
+									? {}
+									: {
+											measurement: {
+												websiteId:
+													scenario === "wrong-measured-site"
+														? "another-site"
+														: "site-1",
+												definitionId:
+													scenario === "wrong-measured-id"
+														? "another-funnel"
+														: "checkout",
+												startDate:
+													scenario === "effective-window"
+														? "2026-07-07"
+														: check.startDate,
+												endDate: check.endDate,
+												definition: {
+													...check.definition,
+													steps: inspectedFunnel.steps.map((step) => ({
+														...step,
+														...(scenario === "passed-cosmetic"
+															? { name: "Renamed" }
+															: {}),
+													})),
+													...(scenario === "changed-definition"
+														? {
+																filters: [
+																	{
+																		field: "country",
+																		operator: "equals",
+																		value: "US",
+																	},
+																],
+															}
+														: {}),
+												},
+											},
+										}),
+								total_users_entered: scenario === "small-sample" ? 80 : 200,
+								total_users_completed:
+									scenario === "small-sample"
+										? 60
+										: scenario === "invalid-count"
+											? 250
+											: completed,
+								overall_conversion_rate: 60,
+								...(scenario === "failed-read" ? { error: "Unavailable" } : {}),
+							};
+						},
+					}),
+				},
+			}
+		);
+		if (scenario === "newer-resolution") {
+			expect(result.outcome.verification).toBeUndefined();
+			return;
+		}
+		expect(result.outcome.verification?.status).toBe(status);
+		expect(result.toolCallCount).toBe(scenario.startsWith("referrer-") ? 0 : 1);
+		expect(model.doGenerateCalls).toHaveLength(0);
+		expect(result.usage?.totalTokens).toBe(0);
+		expect(result.modelId).toBeUndefined();
+		expect(result.outcome.rootCause).toBeNull();
+		expect(result.outcome.next.type).toBe(
+			scenario === "unfinished-window" ? "watch" : "resolve"
+		);
+		expect(result.outcome.publish).toBe(status !== "inconclusive");
+		if (!scenario.startsWith("referrer-")) {
+			expect(result.verificationRead).toMatchObject({
+				toolName: "get_funnel_analytics",
+				input: { ...query, websiteId: "site-1", cohort: null },
+			});
+		}
+		expect(result.outcome.summary).not.toBe("Recovery definitely passed.");
+		expect(result.outcome.summary).toContain(
+			status === "inconclusive" ? "unverified" : status
+		);
 	});
 
 	it("replays prior outcomes and new human context", async () => {
@@ -1161,8 +2535,7 @@ describe("intelligence agent", () => {
 					{
 						asOf: "2026-07-12T00:30:00.000Z",
 						next: {
-							question:
-								"Connect the repository that owns the checkout flow.",
+							question: "Connect the repository that owns the checkout flow.",
 							type: "ask",
 						},
 						title: "Checkout repository access",
@@ -1189,6 +2562,684 @@ describe("intelligence agent", () => {
 		expect(prompt.match(/It was restarted this morning\./g)).toHaveLength(1);
 	});
 
+	it.each([
+		"valid",
+		"uncited-count",
+		"missing-source",
+	] as const)("validates every source in a combined claim: %s", async (scenario) => {
+		const candidate = {
+			...agentOutcome,
+			evidence: [
+				`Visitors fell from 1000 to 300; ${scenario === "uncited-count" ? 42 : 41} sessions used checkout.`,
+			],
+			evidenceRefs: [
+				[
+					{ source: "signal" as const },
+					{
+						source: "provided" as const,
+						index: scenario === "missing-source" ? 1 : 0,
+					},
+				],
+			],
+			rootCause: null,
+			next: { type: "resolve" as const, reason: "The comparison is measured." },
+		};
+		const run = runInsightAgent(
+			{
+				appContext: appContext(),
+				signal,
+				evidence: ["41 sessions used checkout."],
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+			},
+			{ model: outputModel(candidate), tools: {} }
+		);
+		if (scenario === "valid") {
+			expect((await run).outcome.evidence).toEqual(candidate.evidence);
+			return;
+		}
+		await expect(run).rejects.toThrow(
+			scenario === "uncited-count" ? "42" : "evidence index 1"
+		);
+	});
+
+	it.each([
+		"investigation",
+		"reply",
+		"other-subject",
+		"missing",
+		"stale-measurement",
+	] as const)("validates historical verification citations: %s", async (kind) => {
+		const prior = {
+			kind: "investigation" as const,
+			asOf: "2026-07-01T00:00:00Z",
+			evidence: [],
+			signal:
+				kind === "other-subject"
+					? { ...signal, entity: { ...signal.entity, id: "another-channel" } }
+					: signal,
+			outcome: {
+				...outcome,
+				evidence: ["999 visits were measured in an earlier period."],
+				next: {
+					...outcome.next,
+					type: "act" as const,
+					action: "Resume campaign.",
+					target: "Campaign",
+					verification: "At least 137 visits in the verification window.",
+				},
+			},
+		};
+		const history =
+			kind === "missing"
+				? []
+				: kind === "reply"
+					? [
+							{
+								kind: "reply" as const,
+								author: "Ari",
+								body: "137 visits happened.",
+								createdAt: "2026-07-01T00:00:00Z",
+							},
+						]
+					: [prior];
+		const candidate = {
+			...agentOutcome,
+			title: "Campaign verification condition",
+			summary: "The saved condition defines the next measurement.",
+			rootCause: null,
+			evidence: [
+				kind === "stale-measurement"
+					? "999 current visits."
+					: "The saved condition requires at least 137 visits.",
+			],
+			evidenceRefs: [{ source: "history" as const, index: 0 }],
+			publish: false,
+			publicationBasis: null,
+			next: {
+				type: "resolve" as const,
+				reason: "This is a saved condition, not evidence of recovery.",
+			},
+		};
+		const run = runInsightAgent(
+			{
+				appContext: appContext(),
+				signal,
+				history,
+				evidence: [],
+				githubRepository: null,
+				otherOpenWork: [],
+			},
+			{ model: outputModel(candidate), tools: {} }
+		);
+		if (kind === "investigation") {
+			expect((await run).outcome.evidence).toEqual(candidate.evidence);
+		} else if (kind === "stale-measurement") {
+			await expect(run).rejects.toThrow("number 999");
+		} else {
+			await expect(run).rejects.toThrow(
+				"cited history must be an investigation for this exact signal"
+			);
+		}
+	});
+
+	it.each([
+		{ providedCount: 0, citeBusiness: true, publish: true },
+		{ providedCount: 1, citeBusiness: true, publish: true },
+		{ providedCount: 2, citeBusiness: true, publish: true },
+		{ providedCount: 0, citeBusiness: true, publish: false },
+		{ providedCount: 1, citeBusiness: false, publish: true },
+		{ providedCount: 2, citeBusiness: false, publish: true },
+	])("keeps business citations separate from supplied collection evidence: %j", async ({
+		providedCount,
+		citeBusiness,
+		publish,
+	}) => {
+		const collection =
+			"Independent origin logs show requests continued while collection dropped; this period cannot support traffic comparisons.";
+		const background = "Example produces downloadable reports.";
+		const coverage = {
+			...agentOutcome,
+			title: "Site activity coverage stopped during the comparison week",
+			summary: "Recorded visitors fell from 1000 to 300.",
+			impact: "The coverage gap makes the traffic comparison unsafe.",
+			rootCause: null,
+			findingKind: "measurement_coverage" as const,
+			publicationBasis: publish ? ("decision_safety" as const) : null,
+			publish,
+			evidence: [citeBusiness ? background : collection],
+			evidenceRefs: [
+				{
+					source: "provided" as const,
+					index: citeBusiness ? providedCount : providedCount - 1,
+				},
+			],
+			next: {
+				type: "resolve" as const,
+				reason: "Coverage is uncertain; the cause has not been established.",
+			},
+		};
+		const model = outputModel(coverage);
+		const run = runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence: Array.from({ length: providedCount }, () => collection),
+				businessContext: {
+					capturedAt: "2026-07-12T00:00:00.000Z",
+					status: "ready",
+					issues: [],
+					sources: [
+						{
+							id: "business-profile",
+							kind: "website",
+							content: background,
+							url: "https://example.com/",
+							observedAt: "2026-07-11T00:00:00.000Z",
+						},
+					],
+				},
+				signal: {
+					...signal,
+					entity: { type: "website", id: "website", label: "Visitors" },
+				},
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+			},
+			{ model, tools: {} }
+		);
+		if (citeBusiness && publish) {
+			await expect(run).rejects.toThrow(
+				"cited collection or implementation evidence"
+			);
+			return;
+		}
+		expect((await run).outcome).toMatchObject({
+			publish,
+			evidence: coverage.evidence,
+			next: { type: "resolve" },
+			rootCause: null,
+		});
+		const message = model.doGenerateCalls[0]?.prompt
+			.find((item) => item.role === "user")
+			?.content.find((item) => item.type === "text");
+		if (message?.type !== "text") {
+			throw new Error("Missing evidence prompt");
+		}
+		expect(JSON.parse(message.text)).toMatchObject({
+			businessContext: { sourceEvidenceIndexes: [providedCount] },
+			evidence: [
+				...Array.from({ length: providedCount }, (_, index) => ({
+					value: collection,
+					reference: { source: "provided", index },
+				})),
+				{
+					value: expect.stringContaining(background),
+					reference: { source: "provided", index: providedCount },
+				},
+			],
+		});
+	});
+
+	it.each([
+		{
+			resultKey: "bad",
+			output: {
+				results: {
+					bad: { error: "Invalid selector", data: [] },
+					good: { data: [{ visitors: 88 }] },
+				},
+			},
+			expected: "failed read",
+		},
+		{
+			resultKey: "missing",
+			output: { results: { good: { data: [{ visitors: 88 }] } } },
+			expected: "exact resultKey",
+		},
+	])("rejects a missing or failed subquery citation: $resultKey", async ({
+		resultKey,
+		output,
+		expected,
+	}) => {
+		const cited = {
+			...agentOutcome,
+			evidence: ["88 visitors reached checkout."],
+			evidenceRefs: [
+				{
+					source: "tool" as const,
+					name: "get_data",
+					toolCallId: "get_data-1",
+					resultKey,
+				},
+			],
+		};
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					signal,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+				},
+				{
+					model: new MockLanguageModelV3({
+						doGenerate: mockValues(
+							toolCallResponse("get_data"),
+							outputResponse(cited),
+							outputResponse(cited),
+							outputResponse(cited)
+						),
+					}),
+					tools: {
+						get_data: tool({
+							description: "Query synthetic data.",
+							inputSchema: z.object({}),
+							execute: () => output,
+						}),
+					},
+				}
+			)
+		).rejects.toThrow(expected);
+	});
+
+	it.each([
+		false,
+		true,
+	])("defers a grounded finish batched with an unseen read (finish first: %s)", async (finishFirst) => {
+		const read = toolCallResponse().content;
+		const finish = outputResponse(agentOutcome).content;
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				{
+					...toolCallResponse(),
+					content: finishFirst ? [...finish, ...read] : [...read, ...finish],
+				},
+				outputResponse(agentOutcome)
+			),
+		});
+		let reads = 0;
+		let inputHooks = 0;
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence,
+				signal,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+			},
+			{
+				model,
+				tools: {
+					inspect: tool({
+						inputSchema: z.object({}),
+						onInputAvailable: () => {
+							inputHooks++;
+						},
+						toModelOutput: ({ output }) => ({
+							type: "text",
+							value: JSON.stringify(output),
+						}),
+						execute: () => {
+							reads++;
+							return { fact: evidence[0] };
+						},
+					}),
+				},
+			}
+		);
+		expect(reads).toBe(1);
+		expect(inputHooks).toBe(1);
+		expect(model.doGenerateCalls).toHaveLength(2);
+		expect(JSON.stringify(model.doGenerateCalls[1]?.prompt)).toContain(
+			"Finish after receiving"
+		);
+		expect(result.outcome).toEqual(outcome);
+	});
+
+	it.each([
+		false,
+		true,
+	])("repairs a citation without repeating its read (premature finish: %s)", async (premature) => {
+		const discovered = {
+			...agentOutcome,
+			evidence: ["88 visitors reached checkout."],
+			evidenceRefs: [{ source: "provided" as const, index: 0 }],
+		};
+		const corrected = {
+			...discovered,
+			evidenceRefs: [
+				{
+					source: "tool" as const,
+					name: "inspect",
+					toolCallId: "inspect-1",
+					resultKey: null,
+				},
+			],
+		};
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				...(premature
+					? [
+							{
+								...toolCallResponse(),
+								content: [
+									...toolCallResponse().content,
+									...outputResponse(corrected).content,
+								],
+							},
+							outputResponse(corrected),
+						]
+					: [
+							toolCallResponse(),
+							outputResponse(discovered),
+							outputResponse(corrected),
+						])
+			),
+		});
+		let reads = 0;
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence,
+				signal,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+			},
+			{
+				model,
+				tools: {
+					inspect: tool({
+						description: "Inspect checkout reach.",
+						inputSchema: z.object({}),
+						execute: () => {
+							reads += 1;
+							return { visitors: 88 };
+						},
+					}),
+				},
+			}
+		);
+		const feedback = JSON.stringify(
+			model.doGenerateCalls[premature ? 1 : 2]?.prompt
+		);
+		if (premature) {
+			expect(feedback).toContain("Finish after receiving this step's reads");
+			expect(feedback).toContain(
+				"Use those results next turn without repeating the reads"
+			);
+		} else {
+			expect(feedback).toContain("evidence[0] cites the number 88");
+			expect(feedback).toContain("Correct evidence[0].sources");
+			expect(feedback).toContain(
+				"Preserve facts supported by inspected results"
+			);
+		}
+		expect(model.doGenerateCalls).toHaveLength(premature ? 2 : 3);
+		expect(result.outcome.evidence).toEqual(discovered.evidence);
+		expect(reads).toBe(1);
+	});
+
+	it("requires a number to occur in its cited subquery, not an unrelated result", async () => {
+		const cited = {
+			...agentOutcome,
+			evidence: ["88 visitors reached checkout."],
+			evidenceRefs: [
+				{
+					source: "tool" as const,
+					name: "get_data",
+					toolCallId: "get_data-1",
+					resultKey: "checkout",
+				},
+			],
+		};
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					signal,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+				},
+				{
+					model: new MockLanguageModelV3({
+						doGenerate: mockValues(
+							toolCallResponse("get_data"),
+							outputResponse(cited),
+							outputResponse(cited),
+							outputResponse(cited)
+						),
+					}),
+					tools: {
+						get_data: tool({
+							description: "Query synthetic data.",
+							inputSchema: z.object({}),
+							execute: () => ({
+								results: {
+									checkout: { data: [{ visitors: 44 }] },
+									homepage: { data: [{ visitors: 88 }] },
+								},
+							}),
+						}),
+					},
+				}
+			)
+		).rejects.toThrow("number 88");
+	});
+
+	it("does not accept a failed definition lookup as an inspected definition", async () => {
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					signal: funnelSignal,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+				},
+				{
+					model: new MockLanguageModelV3({
+						doGenerate: mockValues(
+							toolCallsResponse(["list_funnels", "get_funnel_analytics"]),
+							outputResponse(executableDefinitionOutcome),
+							outputResponse(executableDefinitionOutcome),
+							outputResponse(executableDefinitionOutcome)
+						),
+					}),
+					tools: {
+						list_funnels: tool({
+							description: "Read definition.",
+							inputSchema: z.object({}),
+							execute: () => ({ error: "Unavailable" }),
+						}),
+						get_funnel_analytics: tool({
+							description: "Read analytics.",
+							inputSchema: z.object({}),
+							execute: () => ({ completions: 10 }),
+						}),
+					},
+				}
+			)
+		).rejects.toThrow("exact current funnel definition was not inspected");
+	});
+
+	it("keeps related evidence usable for non-website investigations", async () => {
+		const related = {
+			...signal,
+			signalKey: "event:account_created",
+			entity: {
+				type: "event" as const,
+				id: "account_created",
+				label: "Completed accounts",
+			},
+			metric: {
+				label: "Completed accounts",
+				current: 24,
+				previous: 80,
+				format: "number" as const,
+			},
+		};
+		const supported = {
+			...agentOutcome,
+			title: "Completed accounts declined during the comparison",
+			summary: "Completed accounts fell from 80 to 24.",
+			impact: "Fewer completed accounts reached the product.",
+			rootCause: null,
+			evidence: ["Completed accounts fell from 80 to 24."],
+			evidenceRefs: [{ source: "related_signal" as const, index: 0 }],
+			next: {
+				type: "resolve" as const,
+				reason: "The product decline is measured; its cause remains unknown.",
+			},
+		};
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence: [],
+				signal,
+				relatedSignals: [related],
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+			},
+			{ model: outputModel(supported), tools: {} }
+		);
+		expect(result.outcome.publish).toBe(true);
+	});
+
+	it.each([
+		"uncited context",
+		"unrelated lookup",
+		"sibling metric",
+	])("does not let %s unlock website publication", async (variant) => {
+		const website = {
+			...signal,
+			entity: { type: "website" as const, id: "website", label: "Visitors" },
+		};
+		const unsupported = {
+			...agentOutcome,
+			title: "Visitor recordings dropped during the comparison",
+			summary: "Visitor recordings fell from 1000 to 300.",
+			impact: "Traffic decisions lack verified context.",
+			rootCause: null,
+			findingKind:
+				variant === "sibling metric"
+					? ("product_outcome" as const)
+					: ("measurement_coverage" as const),
+			publicationBasis:
+				variant === "sibling metric"
+					? ("measured_impact" as const)
+					: ("decision_safety" as const),
+			evidence: ["The measurement fell from 1000 to 300."],
+			evidenceRefs:
+				variant === "sibling metric"
+					? [{ source: "related_signal" as const, index: 0 }]
+					: [{ source: "signal" as const }],
+			next: { type: "resolve" as const, reason: "The cause remains unknown." },
+		};
+		const model =
+			variant === "unrelated lookup"
+				? new MockLanguageModelV3({
+						doGenerate: mockValues(
+							toolCallResponse("list_goals"),
+							outputResponse(unsupported),
+							outputResponse(unsupported),
+							outputResponse(unsupported)
+						),
+					})
+				: outputModel(unsupported);
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					signal: website,
+					evidence: ["An unrelated goal definition is available."],
+					relatedSignals: [
+						{
+							...signal,
+							entity: {
+								type: "event",
+								id: "account_created",
+								label: "Completed accounts",
+							},
+						},
+					],
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+				},
+				{
+					model,
+					tools: {
+						list_goals: tool({
+							description: "Read saved goals.",
+							inputSchema: z.object({}),
+							execute: () => ({
+								goals: [{ id: "unrelated-goal", name: "Account created" }],
+							}),
+						}),
+					},
+				}
+			)
+		).rejects.toThrow("not a verified product loss");
+	});
+
+	it("does not publish a bare traffic signal as verified product loss", async () => {
+		const bare = {
+			...agentOutcome,
+			rootCause: null,
+			evidence: ["Visitors fell from 1000 to 300."],
+			evidenceRefs: [{ source: "signal" as const }],
+			next: { type: "resolve" as const, reason: "The cause is unknown." },
+		};
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence: [],
+					signal: {
+						...signal,
+						entity: { type: "website", id: "website", label: "Visitors" },
+					},
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+				},
+				{ model: outputModel(bare), tools: {} }
+			)
+		).rejects.toThrow("not a verified product loss");
+	});
+
+	it("keeps a prior count out of a measurement-repair headline", async () => {
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					signal: funnelSignal,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+				},
+				{
+					model: outputModel({
+						...executableDefinitionOutcome,
+						title: "300 visits missed after the route change",
+					}),
+					tools: {},
+				}
+			)
+		).rejects.toThrow("headline must name the mismatch");
+	});
+
 	it("requires an organization before exposing investigation tools", async () => {
 		await expect(
 			runInsightAgent(
@@ -1206,7 +3257,797 @@ describe("intelligence agent", () => {
 	});
 });
 
+describe("structured revenue evidence", () => {
+	const readings = [signal.period.current, signal.period.previous].map(
+		(period, index) => ({
+			type: "revenue_overview",
+			websiteId: "site-1",
+			...period,
+			timezone: "UTC",
+			filters: [],
+			data: [
+				{
+					currency: "USD",
+					total_revenue: "10000",
+					total_transactions: 100,
+					refund_amount: index === 0 ? "1200" : "200",
+					refund_count: index === 0 ? 12 : 2,
+					attributed_revenue: index === 0 ? 3000 : 9000,
+				},
+			],
+		})
+	);
+	const selection = {
+		currency: "USD",
+		fields: ["total_revenue", "total_transactions", "refund_amount"],
+	};
+	const input = { appContext: appContext(), signal };
+
+	it.each([
+		[
+			"refund_amount:USD",
+			["refund_amount", "refund_count"],
+			"product_outcome",
+			true,
+		],
+		[
+			"refund_amount:EUR",
+			["refund_amount", "refund_count"],
+			"product_outcome",
+			false,
+		],
+		["refund_amount:USD", ["total_revenue"], "product_outcome", false],
+		["refund_amount:USD", ["refund_amount"], "product_outcome", false],
+		[
+			"attribution_rate:USD",
+			["attributed_revenue", "total_revenue"],
+			"measurement_coverage",
+			true,
+		],
+		[
+			"attribution_rate:USD",
+			["attributed_revenue", "total_revenue"],
+			"product_outcome",
+			false,
+		],
+		[
+			"attribution_rate:EUR",
+			["attributed_revenue", "total_revenue"],
+			"measurement_coverage",
+			false,
+		],
+		[
+			"attribution_rate:USD",
+			["attributed_revenue"],
+			"measurement_coverage",
+			false,
+		],
+		["revenue", ["total_revenue"], "product_outcome", false],
+		["revenue:USD", ["total_revenue"], "product_outcome", true],
+		["revenue:EUR", ["total_revenue"], "product_outcome", false],
+		["visitors", ["total_revenue"], "product_outcome", false],
+		["revenue:USD", ["refund_amount"], "product_outcome", false],
+		["revenue:USD", null, "product_outcome", false],
+		["revenue:USD", ["total_revenue"], "measurement_coverage", false],
+		["revenue:USD", ["total_revenue"], "user_experience", false],
+	] as const)("requires subject and field-bound currency evidence: %s / %j", async (signalKey, fields, findingKind, accepted) => {
+		const proposal = {
+			findingKind,
+			title: "USD gross revenue fell",
+			summary: "Gross settlements declined.",
+			rootCause: null,
+			evidence: fields
+				? [{ currency: "USD", fields: [...fields] }]
+				: ["Gross revenue declined."],
+			evidenceRefs: fields
+				? [
+						["current", "previous"].map((resultKey) => ({
+							source: "tool",
+							name: "get_data",
+							toolCallId: "get_data-1",
+							resultKey,
+						})),
+					]
+				: [{ source: "signal" }],
+			publish: true,
+			publicationBasis:
+				findingKind === "measurement_coverage"
+					? "decision_safety"
+					: "measured_impact",
+			next: { type: "resolve", reason: "No inspected cause is established." },
+		};
+		const run = runInsightAgent(
+			{
+				...input,
+				signal: {
+					...signal,
+					signalKey,
+					entity: {
+						type: "website",
+						id: "website",
+						label: "USD gross revenue",
+					},
+					metric: {
+						label: "Gross revenue",
+						current: 6000,
+						previous: 10_000,
+						format: "number",
+					},
+				},
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				evidence: [],
+			},
+			{
+				model: new MockLanguageModelV3({
+					doGenerate: mockValues(
+						toolCallResponse("get_data"),
+						outputResponse(proposal)
+					),
+				}),
+				tools: {
+					get_data: tool({
+						description: "Native revenue measurement",
+						inputSchema: z.object({}),
+						execute: () => ({
+							results: {
+								current: {
+									...readings[0],
+									data: [{ ...readings[0].data[0], total_revenue: 6000 }],
+								},
+								previous: readings[1],
+							},
+						}),
+					}),
+				},
+			}
+		);
+		if (accepted) {
+			expect((await run).outcome.publish).toBe(true);
+		} else {
+			await expect(run).rejects.toThrow(
+				signalKey.startsWith("attribution_rate:") &&
+					(signalKey !== "attribution_rate:USD" ||
+						!fields?.some((field) => field === "total_revenue"))
+					? "Attribution findings require native"
+					: "not a verified product loss"
+			);
+		}
+	});
+
+	it.each([
+		"snapshot-only",
+		"wrong-currency",
+		"missing-denominator",
+		"private",
+	] as const)("requires native attribution proof despite provided evidence: %s", async (variant) => {
+		const snapshot =
+			"USD attributed settled revenue: 9000 of 10000 gross → 3000 of 10000 gross.";
+		const hasRead =
+			variant === "wrong-currency" || variant === "missing-denominator";
+		const proposal = {
+			findingKind: "measurement_coverage",
+			title: "Revenue attribution coverage declined",
+			summary: "Channel comparisons have incomplete coverage.",
+			rootCause: null,
+			evidence: [
+				snapshot,
+				...(hasRead
+					? [
+							{
+								currency: variant === "wrong-currency" ? "EUR" : "USD",
+								fields:
+									variant === "missing-denominator"
+										? ["attributed_revenue"]
+										: ["attributed_revenue", "total_revenue"],
+							},
+						]
+					: []),
+			],
+			evidenceRefs: [
+				[{ source: "provided", index: 0 }],
+				...(hasRead
+					? [
+							["current", "previous"].map((resultKey) => ({
+								source: "tool",
+								name: "get_data",
+								toolCallId: "get_data-1",
+								resultKey,
+							})),
+						]
+					: []),
+			],
+			publish: variant !== "private",
+			publicationBasis: variant === "private" ? null : "decision_safety",
+			next: { type: "resolve", reason: "No cause has been established." },
+		};
+		const run = runInsightAgent(
+			{
+				...input,
+				signal: {
+					...signal,
+					signalKey: "attribution_rate:USD",
+					entity: {
+						type: "website",
+						id: "website",
+						label: "USD revenue attribution",
+					},
+				},
+				evidence: [snapshot],
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+			},
+			{
+				model: new MockLanguageModelV3({
+					doGenerate: mockValues(
+						...(hasRead ? [toolCallResponse("get_data")] : []),
+						outputResponse(proposal),
+						outputResponse(proposal),
+						outputResponse(proposal)
+					),
+				}),
+				tools: hasRead
+					? {
+							get_data: tool({
+								description: "Native revenue measurement",
+								inputSchema: z.object({}),
+								execute: () => ({
+									results: Object.fromEntries(
+										["current", "previous"].map((key, i) => [
+											key,
+											{
+												...readings[i],
+												data: readings[i].data.map((row) => ({
+													...row,
+													currency:
+														variant === "wrong-currency" ? "EUR" : "USD",
+												})),
+											},
+										])
+									),
+								}),
+							}),
+						}
+					: {},
+			}
+		);
+		if (variant === "private") {
+			expect((await run).outcome.publish).toBe(false);
+		} else {
+			await expect(run).rejects.toThrow("Attribution findings require native");
+		}
+	});
+
+	it.each([
+		"valid",
+		"missing-control",
+		"identified-population",
+		"snapshot",
+		"wrong-product",
+		"wrong-provider",
+		"wrong-currency",
+		"filtered-control",
+		"wrong-period",
+		"missing-row",
+		"null-amount",
+		"exceeds-control",
+		"private",
+	] as const)("binds product publication to exact native subject and whole controls: %s", async (variant) => {
+		const productSignal: InvestigationSignal = {
+			...signal,
+			signalKey: "product_revenue:USD:stripe:product_name:Team",
+			entity: { type: "website", id: "Team", label: "Team" },
+			metric: {
+				label: "Team USD receipts",
+				current: 15_000,
+				previous: 30_000,
+				format: "number",
+			},
+		};
+		const productReadings = readings.map((reading, index) => ({
+			...reading,
+			...(variant === "wrong-period"
+				? {
+						from: index === 0 ? "2026-06-14" : "2026-06-07",
+						to: index === 0 ? "2026-06-20" : "2026-06-13",
+					}
+				: {}),
+			filters: [
+				{
+					field: "currency",
+					op: "eq",
+					value: variant === "wrong-currency" ? "EUR" : "USD",
+				},
+				{
+					field: "provider",
+					op: "eq",
+					value: variant === "wrong-provider" ? "paddle" : "stripe",
+				},
+				{
+					field: "product_name",
+					op: "eq",
+					value: variant === "wrong-product" ? "Solo" : "Team",
+				},
+				{
+					field: "product_id",
+					op: "eq",
+					value: variant === "identified-population" ? "identified-team" : "",
+				},
+			],
+			data:
+				variant === "missing-row"
+					? []
+					: [
+							{
+								currency: "USD",
+								total_revenue:
+									variant === "null-amount"
+										? null
+										: variant === "exceeds-control"
+											? 50_000
+											: index === 0
+												? 15_000
+												: 30_000,
+							},
+						],
+		}));
+		const wholeReadings = readings.map((reading) => ({
+			...reading,
+			filters:
+				variant === "filtered-control"
+					? [{ field: "country", op: "eq", value: "US" }]
+					: [],
+			data: [{ currency: "USD", total_revenue: 40_000 }],
+		}));
+		const pairs = [productReadings, wholeReadings];
+		const snapshot = variant === "snapshot" || variant === "private";
+		const proposal = {
+			findingKind: snapshot ? "measurement_coverage" : "product_outcome",
+			title: "Team receipts fell behind the stable total",
+			summary: "Other products offset the decline in Team receipts.",
+			rootCause: null,
+			evidence: snapshot
+				? ["Team receipts fell behind stable gross."]
+				: [
+						{ currency: "USD", fields: ["total_revenue"] },
+						...(variant === "missing-control"
+							? []
+							: [{ currency: "USD", fields: ["total_revenue"] }]),
+					],
+			evidenceRefs: snapshot
+				? [{ source: "provided", index: 0 }]
+				: [0, ...(variant === "missing-control" ? [] : [1])].map((pair) =>
+						[0, 1].map((period) => ({
+							source: "tool",
+							name: "get_data",
+							toolCallId: "get_data-1",
+							resultKey: `${pair}-${period}`,
+						}))
+					),
+			publish: variant !== "private",
+			publicationBasis:
+				variant === "private"
+					? null
+					: snapshot
+						? "decision_safety"
+						: "measured_impact",
+			next: {
+				type: "resolve",
+				reason: "An inspected cause is not established.",
+			},
+		};
+		const run = runInsightAgent(
+			{
+				...input,
+				signal: productSignal,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				evidence: ["Team receipts fell behind stable gross."],
+			},
+			{
+				model: new MockLanguageModelV3({
+					doGenerate: snapshot
+						? outputResponse(proposal)
+						: mockValues(
+								toolCallResponse("get_data"),
+								outputResponse(proposal)
+							),
+				}),
+				tools: {
+					get_data: tool({
+						description: "Native revenue measurement",
+						inputSchema: z.object({}),
+						execute: () => ({
+							results: Object.fromEntries(
+								pairs.flatMap((pair, pairIndex) =>
+									pair.map((reading, period) => [
+										`${pairIndex}-${period}`,
+										reading,
+									])
+								)
+							),
+						}),
+					}),
+				},
+			}
+		);
+		if (variant === "valid") {
+			const result = await run;
+			expect(result.outcome.publish).toBe(true);
+			expect(result.outcome.evidence[0]).toContain(
+				"stripe receipts described Team with no product ID"
+			);
+			expect(result.outcome.evidence[1]).toContain("40,000 → 40,000");
+		} else if (variant === "private") {
+			expect((await run).outcome.publish).toBe(false);
+		} else {
+			await expect(run).rejects.toThrow();
+		}
+	});
+
+	it("binds metrics to their labels and computes a refund delta absent from the source", () => {
+		expect(renderRevenueEvidence(selection, readings, input).text).toBe(
+			"USD, 2026-06-28–2026-07-04 → 2026-07-05–2026-07-11 UTC: Gross Revenue: 10,000 → 10,000; Settled Transactions: 100 → 100; Refund Amount: 200 → 1,200 (+1,000)."
+		);
+	});
+	it("does not describe an unrestricted receipt-name population as unidentified", () => {
+		const named = readings.map((reading) => ({
+			...reading,
+			filters: [{ field: "product_name", op: "eq", value: "Team" }],
+		}));
+		expect(renderRevenueEvidence(selection, named, input).text).toContain(
+			"receipts described Team)"
+		);
+		expect(renderRevenueEvidence(selection, named, input).text).not.toContain(
+			"no product ID"
+		);
+	});
+
+	it.each([
+		{ websiteId: "another-site" },
+		{ from: "2026-07-06" },
+		{ timezone: "America/New_York" },
+		{ filters: [{ field: "country", op: "eq", value: "US" }] },
+		{ data: [{ currency: "EUR", total_revenue: 10_000 }] },
+		{ data: [{ currency: "USD", total_revenue: null }] },
+		{ data: [{ currency: "USD", total_revenue: "" }] },
+		{ data: [readings[0].data[0], readings[0].data[0]] },
+	])("rejects incompatible or ambiguous revenue measurements: %j", (changed) => {
+		expect(
+			() =>
+				renderRevenueEvidence(
+					selection,
+					[{ ...readings[0], ...changed }, readings[1]],
+					input
+				).text
+		).toThrow();
+	});
+
+	it("accepts later recheck windows while preserving their actual dates", () => {
+		const later = readings.map((reading, index) => ({
+			...reading,
+			from: index === 0 ? "2026-07-12" : "2026-07-05",
+			to: index === 0 ? "2026-07-18" : "2026-07-11",
+		}));
+		expect(
+			renderRevenueEvidence(selection, later, {
+				appContext: {
+					...input.appContext,
+					currentDateTime: "2026-07-19T00:00:00Z",
+				},
+			}).text
+		).toContain("2026-07-05–2026-07-11 → 2026-07-12–2026-07-18 UTC");
+		expect(
+			() =>
+				renderRevenueEvidence(
+					selection,
+					later.map((reading) => ({
+						...reading,
+						from: reading.to,
+						to: reading.from,
+					})),
+					{
+						appContext: {
+							...input.appContext,
+							currentDateTime: "2026-07-19T00:00:00Z",
+						},
+					}
+				).text
+		).toThrow();
+	});
+
+	it("keeps a stable currency control distinct from the changing currency", () => {
+		const both = readings.map((reading) => ({
+			...reading,
+			data: [...reading.data, { currency: "EUR", total_revenue: 5000 }],
+		}));
+		expect(renderRevenueEvidence(selection, both, input).text).toContain(
+			"Refund Amount: 200 → 1,200 (+1,000)"
+		);
+		expect(
+			renderRevenueEvidence(
+				{ currency: "EUR", fields: ["total_revenue"] },
+				both,
+				input
+			).text
+		).toContain(
+			"EUR, 2026-06-28–2026-07-04 → 2026-07-05–2026-07-11 UTC: Gross Revenue: 5,000 → 5,000."
+		);
+		expect(
+			() =>
+				renderRevenueEvidence(
+					selection,
+					readings.map((reading) => ({ ...reading, websiteId: undefined })),
+					{
+						...input,
+						appContext: {
+							...input.appContext,
+							websiteId: undefined,
+							defaultWebsiteId: undefined,
+						},
+					}
+				).text
+		).toThrow();
+	});
+
+	it("uses the source timezone to require a complete window", () => {
+		const timezone = "America/New_York";
+		const local = readings.map((reading) => ({ ...reading, timezone }));
+		const context = {
+			...input,
+			appContext: {
+				...input.appContext,
+				timezone,
+				currentDateTime: "2026-07-12T00:01:00Z",
+			},
+		};
+		expect(
+			() => renderRevenueEvidence(selection, local, context).text
+		).toThrow();
+		expect(
+			renderRevenueEvidence(selection, local, {
+				...context,
+				appContext: {
+					...context.appContext,
+					currentDateTime: "2026-07-12T04:00:00Z",
+				},
+			}).text
+		).toContain(timezone);
+		expect(
+			() =>
+				renderRevenueEvidence(
+					selection,
+					readings.map((reading) => ({ ...reading, timezone: "invalid-zone" })),
+					{
+						...input,
+						appContext: { ...input.appContext, timezone: "invalid-zone" },
+					}
+				).text
+		).toThrow();
+	});
+
+	it("preserves a filtered population and native rate units", () => {
+		const filtered = readings.map((reading) => ({
+			...reading,
+			filters: [{ field: "country", op: "eq", value: "US" }],
+			data: [
+				{
+					currency: "USD",
+					payment_failure_rate: reading === readings[0] ? 12 : 2,
+				},
+			],
+		}));
+		expect(
+			renderRevenueEvidence(
+				{ currency: "USD", fields: ["payment_failure_rate"] },
+				filtered,
+				input
+			).text
+		).toContain("USD (filtered population)");
+		expect(
+			renderRevenueEvidence(
+				{ currency: "USD", fields: ["payment_failure_rate"] },
+				filtered,
+				input
+			).text
+		).toContain("Payment Failure Rate (%): 2 → 12 (+10 pp)");
+		expect(
+			() => renderRevenueEvidence(selection, [readings[0]], input).text
+		).toThrow();
+	});
+
+	it("names unavailable diagnostics without fabricating a zero or losing supported metrics", () => {
+		const partial = readings.map((reading) => ({
+			...reading,
+			data: [{ ...reading.data[0], failed_payment_attempts: null }],
+		}));
+		expect(
+			() =>
+				renderRevenueEvidence(
+					{ currency: "USD", fields: ["failed_payment_attempts"] },
+					partial,
+					input
+				).text
+		).toThrow("failed_payment_attempts is unavailable");
+		expect(renderRevenueEvidence(selection, partial, input).text).toContain(
+			"Refund Amount: 200 → 1,200 (+1,000)"
+		);
+	});
+
+	it.each([
+		"payment_diagnostics_available",
+		"observed_failure_event_types",
+		"required_failure_event_types",
+	])("excludes the internal diagnostic field %s", (field) => {
+		expect(
+			() =>
+				renderRevenueEvidence(
+					{ currency: "USD", fields: [field] },
+					readings.map((reading) => ({
+						...reading,
+						data: [{ ...reading.data[0], [field]: 1 }],
+					})),
+					input
+				).text
+		).toThrow("declared numeric field");
+	});
+
+	it("rejects repeated periods and unmeasured fields", () => {
+		expect(
+			() =>
+				renderRevenueEvidence(selection, [readings[0], readings[0]], input).text
+		).toThrow();
+		expect(
+			() =>
+				renderRevenueEvidence(
+					{ ...selection, fields: ["active_subscribers"] },
+					readings,
+					input
+				).text
+		).toThrow();
+		expect(
+			() =>
+				renderRevenueEvidence(selection, readings, {
+					...input,
+					appContext: {
+						...input.appContext,
+						currentDateTime: "2026-07-10T00:00:00Z",
+					},
+				}).text
+		).toThrow();
+	});
+
+	it("rejects relabeled numeric prose and accepts field-bound evidence in the same loop", async () => {
+		const proposal = {
+			findingKind: "product_outcome",
+			title: "Paid search visits had higher refunds",
+			summary: "More settled revenue was refunded.",
+			rootCause: null,
+			evidence: [
+				"Gross Revenue and settled transactions were 100 each period.",
+			],
+			evidenceRefs: [
+				["current", "previous"].map((resultKey) => ({
+					source: "tool",
+					name: "get_data",
+					toolCallId: "get_data-1",
+					resultKey,
+				})),
+			],
+			publish: true,
+			publicationBasis: "measured_impact",
+			next: { type: "resolve", reason: "No inspected cause is established." },
+		};
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				toolCallResponse("get_data"),
+				outputResponse(proposal),
+				outputResponse({ ...proposal, evidence: [selection] })
+			),
+		});
+		const result = await runInsightAgent(
+			{
+				...input,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				evidence: [],
+			},
+			{
+				model,
+				tools: {
+					get_data: tool({
+						description: "Native revenue measurement fixture",
+						inputSchema: z.object({}),
+						execute: () => ({
+							results: { current: readings[0], previous: readings[1] },
+						}),
+					}),
+				},
+			}
+		);
+		expect(result.outcome.evidence).toEqual([
+			renderRevenueEvidence(selection, readings, input).text,
+		]);
+		expect(JSON.stringify(model.doGenerateCalls[2])).toContain(
+			"code binds every value to its field"
+		);
+		expect(result.toolCallCount).toBe(1);
+	});
+});
+
 describe("validateNumericGrounding", () => {
+	it("does not strip a count preceding a month name", () => {
+		const claim = {
+			title: "August activity",
+			summary: "12 August completions",
+			evidence: [],
+		};
+		expect(() =>
+			validateNumericGrounding(claim, "There were 40 completions.")
+		).toThrow("number 12");
+		expect(() =>
+			validateNumericGrounding(claim, "There were 12 completions.")
+		).not.toThrow();
+	});
+
+	it.each(["0", "zero"])("grounds %s against a spelled-out zero", (count) => {
+		const claim = { title: `${count} events`, summary: "", evidence: [] };
+		expect(() =>
+			validateNumericGrounding(claim, "The collector recorded zero events.")
+		).not.toThrow();
+		expect(() =>
+			validateNumericGrounding(claim, "The collector recorded 18 events.", 0)
+		).toThrow("evidence[0] cites the number 0");
+	});
+
+	it.each([
+		"29 Aug–4 Sep",
+		"29–31 August, 2026",
+		"August 29–September 4",
+		"2026-08-29",
+	])("does not treat %s as a count", (date) => {
+		const claim = {
+			title: "Collection gap",
+			summary: `${date}: 2200 origin responses, zero events.`,
+			evidence: [],
+		};
+		expect(() =>
+			validateNumericGrounding(claim, "2200 origin responses; zero events.")
+		).not.toThrow();
+		expect(() =>
+			validateNumericGrounding(
+				{ ...claim, evidence: ["29 visitors"] },
+				"2200 origin responses; zero events."
+			)
+		).toThrow("number 29");
+	});
+
+	it.each([
+		["1.2k", 1200],
+		["70k", 70_000],
+		["2.5M", 2_500_000],
+		["1.2e3", 1200],
+		["999ms", 999],
+		["9.99s", 9.99],
+		["18px", 18],
+	] as const)("checks the full magnitude of %s", (text, value) => {
+		const claim = {
+			title: `${text} visits`,
+			summary: "",
+			impact: null,
+			evidence: [],
+		};
+		expect(() =>
+			validateNumericGrounding(claim, JSON.stringify({ value }))
+		).not.toThrow();
+		expect(() =>
+			validateNumericGrounding(claim, JSON.stringify({ value: 1 }))
+		).toThrow(`number ${value}`);
+	});
 	const grounded = {
 		evidence: [
 			"680 occurrences affected 263 visitor identifiers, up from 209 previously.",
@@ -1226,13 +4067,13 @@ describe("validateNumericGrounding", () => {
 		expect(() => validateNumericGrounding(grounded, corpus)).not.toThrow();
 	});
 
-	it("accepts sums and differences of measured numbers", () => {
+	it("rejects unsupported arithmetic across measured numbers", () => {
 		expect(() =>
 			validateNumericGrounding(
 				{ ...grounded, impact: "Occurrences rose by 471 week over week." },
 				corpus
 			)
-		).not.toThrow();
+		).toThrow("471");
 	});
 
 	it("rejects numbers that appear nowhere in the inspected evidence", () => {
@@ -1244,15 +4085,676 @@ describe("validateNumericGrounding", () => {
 		).toThrow("does not appear in the supplied signal");
 	});
 
-	it("skips dates and small counts", () => {
+	it.each([
+		3, 27, 1999, 2026,
+	])("checks unsupported count %i without a size exemption", (count) => {
+		expect(() =>
+			validateNumericGrounding(
+				{ ...grounded, impact: `${count} visitors could not continue.` },
+				corpus
+			)
+		).toThrow(`number ${count}`);
+	});
+	it.each([
+		"2026-08-29–09-04",
+		"2026-08-22–28",
+	])("recognizes abbreviated ISO date ranges without dropping counts: %s", (period) => {
+		expect(() =>
+			validateNumericGrounding(
+				{
+					title: "",
+					summary: "",
+					evidence: [`20 completions during ${period}.`],
+				},
+				'{"completed":20}'
+			)
+		).not.toThrow();
+		expect(() =>
+			validateNumericGrounding(
+				{
+					title: "",
+					summary: "",
+					evidence: [`21 completions during ${period}.`],
+				},
+				'{"completed":20}'
+			)
+		).toThrow("21");
+	});
+
+	it("checks factual numbers in the root cause", () => {
+		expect(() =>
+			validateNumericGrounding(
+				{ ...grounded, rootCause: "The rollout removed 17 handlers." },
+				corpus
+			)
+		).toThrow("number 17");
+	});
+
+	it("recognizes dates without exempting small counts", () => {
 		expect(() =>
 			validateNumericGrounding(
 				{
 					...grounded,
-					summary: "From August 19 to 25, 2026, three journeys completed.",
+					summary:
+						"Between August 19–25, 2026 and August 29–September 4, three journeys completed.",
 				},
 				corpus
 			)
 		).not.toThrow();
+	});
+});
+
+describe("identified-profile cohort publication", () => {
+	const comparison =
+		"Eligible identified profiles returning within seven days fell from 140/200 (70%) to 60/200 (30%).";
+	const finish = {
+		title: "Report reuse fell",
+		summary: "Fewer identified profiles returned after sharing a report.",
+		rootCause: null,
+		evidence: [comparison],
+		evidenceRefs: [{ source: "provided", index: 0 }],
+		publish: true,
+		findingKind: "product_outcome",
+		publicationBasis: "measured_impact",
+		next: {
+			type: "resolve",
+			reason: "The measured change is useful; its cause remains unknown.",
+		},
+	};
+	const cohort: InvestigationSignal = {
+		...signal,
+		signalKey: "retention:synthetic",
+		entity: { type: "cohort", id: "synthetic", label: "Shared reports" },
+		metric: {
+			label: "Return within seven days",
+			format: "percent",
+			current: 30,
+			previous: 70,
+		},
+		changePercent: -57.14,
+	};
+	it.each([
+		"none",
+		"control",
+		"wrong-source",
+		"updated-read",
+		"confirmed-read",
+		"publish-conflict",
+		"hide-conflict",
+		"wrong-namespace",
+		"wrong-horizon",
+		"wrong-window",
+		"wrong-website",
+		"wrong-timezone",
+		"wrong-cutoff",
+		"malformed-read",
+		"swapped-return",
+		"swapped-signal",
+		"sticky-conflict",
+	])("preserves native facts and grounds additional evidence: %s", async (mode) => {
+		const nativeReads: {
+			request: QueryRequest;
+			data: Record<string, unknown>[];
+		}[] = [];
+		const [detected] = await detectRetentionSignals(
+			{ websiteId: "site-1", timezone: "UTC", lookbackDays: 7 },
+			dayjs("2026-07-12T00:00:00Z"),
+			undefined,
+			{
+				readPlan: async () => ({
+					websiteId: "site-1",
+					domain: "example.com",
+					name: "Shared reports",
+					activationEvent: "report_shared",
+					returnEvent: "report_opened",
+					horizonDays: 7,
+				}),
+				query: async (request) => {
+					const retained = request.from === "2026-06-20" ? 140 : 60;
+					const row = {
+						cohort_from: request.from,
+						cohort_to: request.to,
+						observation_end: "2026-07-11",
+						cohort_start: `${request.from}T00:00:00.000Z`,
+						cohort_end: dayjs(request.to).add(1, "day").toISOString(),
+						observed_before: "2026-07-12T00:00:00.000Z",
+						timezone: "UTC",
+						horizon_days: 7,
+						identity_basis: "direct_profile_id",
+						activation_basis: "first_in_cohort_window",
+						activated_profiles: 200,
+						eligible_profiles: 200,
+						retained_profiles: retained,
+						not_retained_profiles: 200 - retained,
+						incomplete_profiles: 0,
+						activation_events: 2000,
+						identified_activation_events: 200,
+						unidentified_activation_events: 1800,
+					};
+					const data = [
+						{ ...row, row_type: "overall", cohort_date: null },
+						{ ...row, row_type: "cohort", cohort_date: request.from },
+					];
+					nativeReads.push({ request, data });
+					return data;
+				},
+			}
+		);
+
+		const prepared = prepareInvestigation(detected, 7);
+		const reads = ![
+			"none",
+			"control",
+			"wrong-source",
+			"swapped-signal",
+		].includes(mode);
+		const additional = !["none", "hide-conflict"].includes(mode);
+		const updated = mode === "updated-read";
+		const retained = [
+			"updated-read",
+			"publish-conflict",
+			"hide-conflict",
+		].includes(mode)
+			? 130
+			: 140;
+		const original = nativeReads.find(
+			(item) => item.request.from === prepared.signal.period.previous.from
+		);
+		if (!original) {
+			throw new Error("Missing detector read fixture");
+		}
+		let claim = "Report sharing remained at 600 events.";
+		let source: z.infer<typeof agentEvidenceReferenceSchema> = {
+			source: "provided",
+			index: mode === "wrong-source" ? 1 : 0,
+		};
+		if (reads) {
+			claim = "The read confirms the previous cohort.";
+			source = {
+				source: "tool",
+				name: "get_data",
+				toolCallId: mode === "sticky-conflict" ? "get_data-2" : "get_data-1",
+				resultKey: "previous",
+			};
+		}
+		if (updated) {
+			claim = "The later read conflicts with the snapshot.";
+		}
+		if (mode.startsWith("swapped-")) {
+			claim = "Previous cohort: 60/200 returned.";
+		}
+		if (mode === "swapped-signal") {
+			source = { source: "signal" };
+		}
+		const proposed = {
+			...finish,
+			...(updated
+				? {
+						publish: false,
+						publicationBasis: null,
+						summary:
+							"The latest read conflicts with the initial count; the change remains unconfirmed.",
+					}
+				: {}),
+			evidence: additional ? [claim] : [],
+			evidenceRefs: additional ? [source] : [],
+		};
+		const model = reads
+			? new MockLanguageModelV3({
+					doGenerate: mockValues(
+						toolCallResponse("get_data"),
+						...(mode === "sticky-conflict"
+							? [toolCallResponse("get_data", "{}", "get_data-2")]
+							: []),
+						outputResponse(proposed)
+					),
+				})
+			: outputModel(proposed);
+		const filters = (original.request.filters ?? []).map((filter) => ({
+			...filter,
+			...(mode === "wrong-horizon" && filter.field === "horizon_days"
+				? { value: 30 }
+				: {}),
+		}));
+		if (mode === "wrong-namespace") {
+			filters.push({ field: "namespace", op: "eq", value: "demo" });
+		}
+		let readCount = 0;
+		const run = runInsightAgent(
+			{
+				appContext: appContext(),
+				...prepared,
+				evidence: [
+					"Report sharing remained at 600 events.",
+					"No measured count in this separate source.",
+				],
+				history: [],
+				otherOpenWork: [],
+				githubRepository: null,
+			},
+			{
+				model,
+				tools: reads
+					? {
+							get_data: tool({
+								inputSchema: z.object({}),
+								execute: async () => {
+									const observedRetained =
+										mode === "sticky-conflict" && readCount++ === 0
+											? 130
+											: retained;
+									return {
+										results: {
+											previous: {
+												type: "identified_profile_retention",
+												websiteId:
+													mode === "wrong-website" ? "other-site" : "site-1",
+												...prepared.signal.period.previous,
+												...(mode === "wrong-window"
+													? { from: "2026-06-21" }
+													: {}),
+												timezone:
+													mode === "wrong-timezone" ? "Europe/London" : "UTC",
+												filters,
+												data: original.data.map((row) => ({
+													...row,
+													retained_profiles: observedRetained,
+													not_retained_profiles: 200 - observedRetained,
+													...(mode === "wrong-cutoff"
+														? { observed_before: "2026-07-11T00:00:00.000Z" }
+														: {}),
+													...(mode === "malformed-read"
+														? { identity_basis: "anonymous" }
+														: {}),
+												})),
+											},
+										},
+									};
+								},
+							}),
+						}
+					: {},
+			}
+		);
+		if (mode.startsWith("swapped-")) {
+			await expect(run).rejects.toThrow(
+				"Retention quantities belong in the code-generated comparison"
+			);
+			return;
+		}
+		if (mode === "wrong-source") {
+			await expect(run).rejects.toThrow("does not appear in its cited source");
+			return;
+		}
+		if (reads && !["updated-read", "confirmed-read"].includes(mode)) {
+			await expect(run).rejects.toThrow(
+				"conflicts with the snapshot or the cited cohort uses a different scope"
+			);
+			return;
+		}
+		const result = await run;
+		expect(result.outcome.evidence[0]).toBe(
+			"7-day return among identified profiles: 140/200 (70%) → 60/200 (30%). Cohorts 2026-06-20–2026-06-26 → 2026-06-27–2026-07-03; fully observed through 2026-07-11 UTC. Activation events with identity: 200/2000 (10%) → 200/2000 (10%); anonymous excluded."
+		);
+		expect(result.outcome.evidence).toHaveLength(additional ? 2 : 1);
+		expect(model.doGenerateCalls).toHaveLength(reads ? 2 : 1);
+		expect(JSON.stringify(model.doGenerateCalls[0].prompt)).toContain(
+			"retentionMeasurement"
+		);
+		expect(result.toolCallCount).toBe(reads ? 1 : 0);
+		expect(result.outcome.publish).toBe(!updated);
+		if (reads) {
+			expect(result.outcome.evidence[1]).toBe(proposed.evidence[0]);
+		}
+	});
+	it("publishes a known-purpose cohort finding without a redundant data read or invented cause", async () => {
+		const model = outputModel(finish);
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				signal: cohort,
+				evidence: [
+					comparison,
+					"The team defines sharing a report as initial value and opening it later as reuse.",
+				],
+				history: [],
+				otherOpenWork: [],
+				githubRepository: null,
+			},
+			{ model, tools: {} }
+		);
+		expect(result.outcome).toMatchObject({
+			publish: true,
+			findingKind: "product_outcome",
+			rootCause: null,
+			next: { type: "resolve" },
+		});
+		expect(model.doGenerateCalls).toHaveLength(1);
+		expect(result.toolCallCount).toBe(0);
+	});
+});
+
+describe("investigation completion and retained evidence", () => {
+	it.each([
+		true,
+		false,
+	])("keeps unknown cause independent of publication (%s)", async (publish) => {
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence: [],
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal: reliabilitySignal,
+			},
+			{
+				tools: {},
+				model: outputModel({
+					completion: "complete",
+					title: "Route errors increased",
+					summary: "The cause remains unknown.",
+					rootCause: null,
+					impact: null,
+					evidence: ["Route loading failures increased from 23 to 36."],
+					evidenceRefs: [{ source: "signal" }],
+					findingKind: "reliability_exposure",
+					publish,
+					publicationBasis: publish ? "measured_reliability" : null,
+					next: {
+						type: "resolve",
+						reason: "No inspected repair is established.",
+					},
+				}),
+			}
+		);
+		expect(result.completion).toBe("complete");
+		expect(result.snapshot).toMatchObject({
+			completion: "complete",
+			organizationId: "org-1",
+			websiteId: "site-1",
+			signal: reliabilitySignal,
+			reads: [],
+		});
+	});
+	it("does not bill an explicitly incomplete diagnostic even when the signal contains a count", async () => {
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence: [],
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal: reliabilitySignal,
+			},
+			{
+				tools: {},
+				model: outputModel({
+					completion: "incomplete",
+					title: "Route errors increased",
+					summary: "Required diagnostic evidence is unavailable.",
+					rootCause: null,
+					impact: null,
+					evidence: ["Route loading failures increased from 23 to 36."],
+					evidenceRefs: [{ source: "signal" }],
+					findingKind: "reliability_exposure",
+					publish: false,
+					publicationBasis: null,
+					next: {
+						type: "resolve",
+						reason: "The requested answer remains incomplete.",
+					},
+				}),
+			}
+		);
+		expect(result.completion).toBe("incomplete");
+	});
+});
+
+describe("completed answer measurement boundary", () => {
+	it.each([
+		"interleaved",
+		"reversed",
+		"non-native-current",
+		"earlier-clipped",
+	])("preserves native measurement boundaries within mixed evidence: %s", async (mode) => {
+		const goalSignal: InvestigationSignal = {
+			...signal,
+			signalKey: "goal:workspace",
+			entity: { type: "goal", id: "workspace", label: "Workspace visits" },
+		};
+		const measurement = (startDate: string, endDate: string) => ({
+			measurement: {
+				websiteId: "site-1",
+				definitionId: "workspace",
+				startDate,
+				endDate,
+				definition: { type: "PAGE_VIEW", target: "/workspace", filters: [] },
+			},
+			total_users_entered: 200,
+			total_users_completed: 164,
+		});
+		const reference = (name: string, toolCallId: string) => ({
+			source: "tool" as const,
+			name,
+			toolCallId,
+			resultKey: null,
+		});
+		const read = (toolCallId: string, period: typeof signal.period.current) =>
+			toolCallResponse(
+				"get_goal_analytics",
+				JSON.stringify({
+					goalId: "workspace",
+					startDate: period.from,
+					endDate: period.to,
+				}),
+				toolCallId
+			);
+		const responses = [read("previous", signal.period.previous)];
+		if (mode === "earlier-clipped") {
+			responses.push(read("clipped", signal.period.current));
+		}
+		if (mode !== "non-native-current") {
+			responses.push(read("current", signal.period.current));
+		}
+		responses.push(toolCallResponse("scrape_page", "{}", "page"));
+		const sources = [
+			{ source: "signal" as const },
+			reference("get_goal_analytics", "previous"),
+			reference("scrape_page", "page"),
+			{ source: "provided" as const, index: 0 },
+			...(mode === "non-native-current"
+				? []
+				: [reference("get_goal_analytics", "current")]),
+		];
+		if (mode === "reversed") {
+			sources.reverse();
+		}
+		const finish = {
+			completion: "complete",
+			findingKind: "product_outcome",
+			title: "Workspace visits inspected",
+			summary:
+				"The available evidence was inspected; no repair was established.",
+			rootCause: null,
+			impact: null,
+			publish: false,
+			publicationBasis: null,
+			next: { type: "resolve", reason: "No inspected repair is established." },
+			evidence: [
+				{
+					claim:
+						"The cited measurements and route inspection were reviewed together.",
+					sources,
+				},
+			],
+		};
+		responses.push(outputResponse(finish));
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(...responses),
+		});
+		let currentReads = 0;
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				signal: goalSignal,
+				evidence: ["Workspace visits are the intended goal."],
+				history: [],
+				otherOpenWork: [],
+				githubRepository: null,
+			},
+			{
+				model,
+				tools: {
+					get_goal_analytics: tool({
+						description:
+							"Synthetic native goal measurement with exact dates and definition.",
+						inputSchema: z.object({
+							goalId: z.string(),
+							startDate: z.string(),
+							endDate: z.string(),
+						}),
+						execute: ({ startDate, endDate }) => {
+							if (startDate === signal.period.current.from) {
+								currentReads += 1;
+								if (mode === "earlier-clipped" && currentReads === 1) {
+									return measurement("2026-07-07", endDate);
+								}
+							}
+							return measurement(startDate, endDate);
+						},
+					}),
+					scrape_page: tool({
+						description:
+							"Synthetic route content, never an authoritative native measurement.",
+						inputSchema: z.object({}),
+						// Matching measurement-shaped page content must never establish completion.
+						execute: () =>
+							measurement(signal.period.current.from, signal.period.current.to),
+					}),
+				},
+			}
+		);
+		const complete = mode === "interleaved" || mode === "reversed";
+		expect(result.completion).toBe(complete ? "complete" : "incomplete");
+		expect(result.snapshot?.completion).toBe(result.completion);
+		expect(result.outcome.publish).toBe(false);
+		expect(
+			result.snapshot?.reads.filter(
+				(entry) => entry.name === "get_goal_analytics"
+			)
+		).toHaveLength(
+			mode === "earlier-clipped" ? 3 : mode === "non-native-current" ? 1 : 2
+		);
+	});
+	it.each([
+		"exact",
+		"clipped",
+		"unrelated",
+		"definition-unavailable",
+		"open-window",
+		"immature-cohort",
+	])("checks actual scope before accepting claimed completion: %s", async (mode) => {
+		const goalSignal: InvestigationSignal = {
+			...signal,
+			signalKey: "goal:workspace",
+			entity: { type: "goal", id: "workspace", label: "Workspace visits" },
+		};
+		const native = {
+			measurement: {
+				websiteId: "site-1",
+				definitionId: mode === "unrelated" ? "other-goal" : "workspace",
+				startDate:
+					mode === "clipped" ? "2026-07-07" : signal.period.current.from,
+				endDate: signal.period.current.to,
+				definition: { type: "PAGE_VIEW", target: "/workspace", filters: [] },
+			},
+			total_users_entered: 200,
+			total_users_completed: 20,
+		};
+		const output =
+			mode === "definition-unavailable"
+				? { total_users_entered: 200, total_users_completed: 20 }
+				: mode === "immature-cohort"
+					? {
+							results: {
+								current: {
+									type: "identified_profile_retention",
+									websiteId: "site-1",
+									from: signal.period.current.from,
+									to: signal.period.current.to,
+									timezone: "UTC",
+									filters: [],
+									data: [{ eligible_profiles: 20, incomplete_profiles: 180 }],
+								},
+							},
+						}
+					: native;
+		const name = mode === "immature-cohort" ? "get_data" : "get_goal_analytics";
+		const finish = {
+			completion: "complete",
+			findingKind: "product_outcome",
+			title: "Current evidence inspected",
+			summary: "The cause remains unknown.",
+			rootCause: null,
+			impact: null,
+			publish: false,
+			publicationBasis: null,
+			next: { type: "resolve", reason: "No inspected repair is established." },
+			evidence: ["The available read was inspected."],
+			evidenceRefs: [
+				{
+					source: "tool",
+					name,
+					toolCallId: `${name}-1`,
+					resultKey: name === "get_data" ? "current" : null,
+				},
+			],
+		};
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				toolCallResponse(
+					name,
+					JSON.stringify({
+						goalId: "workspace",
+						startDate: signal.period.current.from,
+						endDate: signal.period.current.to,
+					})
+				),
+				outputResponse(finish)
+			),
+		});
+		const result = await runInsightAgent(
+			{
+				appContext: {
+					...appContext(),
+					...(mode === "open-window"
+						? { currentDateTime: "2026-07-11T12:00:00.000Z" }
+						: {}),
+				},
+				signal: goalSignal,
+				evidence: [],
+				history: [],
+				otherOpenWork: [],
+				githubRepository: null,
+			},
+			{
+				model,
+				tools: {
+					[name]: tool({
+						description: "Synthetic native measurement.",
+						inputSchema: z.object({
+							goalId: z.string(),
+							startDate: z.string(),
+							endDate: z.string(),
+						}),
+						execute: () => output,
+					}),
+				},
+			}
+		);
+		expect(result.completion).toBe(
+			mode === "exact" ? "complete" : "incomplete"
+		);
 	});
 });

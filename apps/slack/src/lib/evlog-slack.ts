@@ -2,7 +2,7 @@ import { isRecord } from "@/lib/guards";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readBooleanEnv } from "@databuddy/env/boolean";
+import { readBooleanEnv } from "@databuddy/env/app";
 import { createBatchedSuperlogDrain } from "@databuddy/shared/evlog-superlog";
 import type { DrainContext, RequestLogger } from "evlog";
 import { createLogger, log } from "evlog";

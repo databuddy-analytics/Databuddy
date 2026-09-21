@@ -242,10 +242,7 @@ export default function RoadmapTimeline({ items }: Props) {
 								<div
 									className={`relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 ${statusConfig.borderColor} ${statusConfig.bgColor}`}
 								>
-									<StatusIcon
-										className={`size-6 ${statusConfig.color}`}
-										weight="duotone"
-									/>
+									<StatusIcon className={`size-6 ${statusConfig.color}`} />
 								</div>
 
 								{/* Content */}

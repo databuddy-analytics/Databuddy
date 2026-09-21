@@ -1,3 +1,4 @@
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import {
 	getBullMQWorkerConnectionOptions,
 	getUptimeDeliveryQueue,
@@ -5,7 +6,6 @@ import {
 	type UptimeCheckJobData,
 	type UptimeDeliveryJobData,
 	UPTIME_CHECK_JOB_NAME,
-	UPTIME_DELIVERY_JOB_NAME,
 	UPTIME_DELIVERY_JOB_OPTIONS,
 	UPTIME_DELIVERY_QUEUE_NAME,
 	UPTIME_JOB_OPTIONS,
@@ -16,7 +16,7 @@ import {
 	uptimeDeliveryJobId,
 	uptimeSchedulerId,
 } from "@databuddy/redis";
-import { type Job, Worker } from "bullmq";
+import { DelayedError, type Job, Worker } from "bullmq";
 import type { RequestLogger } from "evlog";
 import { createLogger, log } from "evlog";
 import { Cause, Data, Effect, Exit } from "effect";
@@ -40,7 +40,9 @@ import {
 import {
 	fireTransitionAlerts,
 	getPreviousMonitorState,
-	type PreviousMonitorState,
+	type MonitorState,
+	type MonitorStateLookup,
+	writeMonitorState,
 } from "./uptime-transition-alerts";
 
 class ScheduleNotFound extends Data.TaggedError("ScheduleNotFound")<{
@@ -92,12 +94,11 @@ export interface UptimeWorkerDeps {
 		transition_kind: "down" | "recovered" | null;
 		alarms_fired: number;
 	}>;
-	getPreviousMonitorState: (
-		monitorId: string
-	) => Promise<PreviousMonitorState | undefined>;
+	getPreviousMonitorState: (monitorId: string) => Promise<MonitorStateLookup>;
 	lookupSchedule: (scheduleId: string) => Promise<ActionResult<ScheduleData>>;
 	reapOrphanScheduler: (scheduleId: string) => Promise<void>;
 	sendUptimeEvent: (event: unknown, key?: string) => Promise<void>;
+	setMonitorState: (monitorId: string, state: MonitorState) => Promise<void>;
 }
 
 const uptimeWorkerDeps: UptimeWorkerDeps = {
@@ -106,7 +107,7 @@ const uptimeWorkerDeps: UptimeWorkerDeps = {
 	createLogger: (fields) => createLogger(fields),
 	enqueueUptimeDelivery: async (data) => {
 		await getUptimeDeliveryQueue().add(
-			UPTIME_DELIVERY_JOB_NAME,
+			UPTIME_DELIVERY_QUEUE_NAME,
 			{ event: data },
 			{ jobId: uptimeDeliveryJobId(data.event_id) }
 		);
@@ -115,6 +116,7 @@ const uptimeWorkerDeps: UptimeWorkerDeps = {
 	lookupSchedule,
 	reapOrphanScheduler: defaultReapOrphanScheduler,
 	sendUptimeEvent,
+	setMonitorState: writeMonitorState,
 	fireTransitionAlerts,
 };
 
@@ -153,7 +155,7 @@ type UptimeWorkerJob = Pick<
 
 type UptimeDeliveryWorkerJob = Pick<
 	Job<UptimeDeliveryJobData>,
-	"attemptsMade" | "data" | "id" | "name"
+	"attemptsMade" | "data" | "id" | "name" | "moveToDelayed"
 >;
 
 type UptimeStorageEvent = Omit<UptimeData, "event_id">;
@@ -234,21 +236,42 @@ const runCheck = (
 
 const fetchPreviousState = (monitorId: string, deps: UptimeWorkerDeps) =>
 	Effect.tryPromise(() => deps.getPreviousMonitorState(monitorId)).pipe(
-		Effect.orElseSucceed(() => undefined)
+		Effect.orElseSucceed(() => ({ kind: "unavailable" }) as MonitorStateLookup)
 	);
 
 export function resolveFailureStreak(
 	status: number,
-	previous: PreviousMonitorState | undefined
+	previous: MonitorStateLookup
 ): number {
 	if (status !== MonitorStatus.DOWN) {
 		return 0;
 	}
-	if (previous?.status === MonitorStatus.DOWN) {
-		return previous.failureStreak + 1;
+	if (previous.kind === "found") {
+		return previous.state.status === MonitorStatus.DOWN
+			? previous.state.failureStreak + 1
+			: 1;
 	}
 	return 1;
 }
+
+const persistMonitorState = (
+	monitorId: string,
+	data: UptimeData,
+	deps: UptimeWorkerDeps
+) =>
+	Effect.tryPromise(() =>
+		deps
+			.setMonitorState(monitorId, {
+				failureStreak: data.failure_streak,
+				status: data.status,
+			})
+			.catch((cause: unknown) => {
+				deps.captureError(cause, {
+					error_step: "monitor_state_persist",
+					event_id: data.event_id,
+				});
+			})
+	).pipe(Effect.orElseSucceed(() => undefined));
 
 type UptimeEventCheckpoint = (data: UptimeData) => Promise<void>;
 
@@ -402,10 +425,18 @@ const processCheck = (
 			failure_streak: resolveFailureStreak(checked.status, previousState),
 		};
 
+		yield* timed(
+			"monitor_state_persist",
+			persistMonitorState(monitorId, data, deps),
+			log
+		);
+
 		log.set({
 			event_id: data.event_id,
 			outcome: data.status === MonitorStatus.UP ? "up" : "down",
-			previous_uptime_status: previousState?.status ?? -1,
+			previous_state_source: previousState.kind,
+			previous_uptime_status:
+				previousState.kind === "found" ? previousState.state.status : -1,
 			monitor_status: data.status,
 			check_attempt: data.attempt,
 			check_retries: data.retries,
@@ -586,9 +617,10 @@ export async function processUptimeJob(
 
 export async function processUptimeDeliveryJob(
 	job: UptimeDeliveryWorkerJob,
-	deps: UptimeWorkerDeps = uptimeWorkerDeps
+	deps: UptimeWorkerDeps = uptimeWorkerDeps,
+	token?: string
 ): Promise<void> {
-	if (job.name !== UPTIME_DELIVERY_JOB_NAME) {
+	if (job.name !== UPTIME_DELIVERY_QUEUE_NAME) {
 		throw new Error(`Unknown uptime delivery job: ${job.name}`);
 	}
 
@@ -611,6 +643,14 @@ export async function processUptimeDeliveryJob(
 			event_id: data.event_id,
 			job_id: job.id ?? "",
 		});
+		if (readBooleanEnv("SELFHOST")) {
+			// Keep the durable payload pending until ClickHouse recovers.
+			await job.moveToDelayed(
+				Date.now() + UPTIME_DELIVERY_JOB_OPTIONS.backoff.delay,
+				token
+			);
+			throw new DelayedError();
+		}
 		throw error;
 	}
 }
@@ -668,7 +708,7 @@ export function startUptimeWorker() {
 export function startUptimeDeliveryWorker() {
 	const worker = new Worker<UptimeDeliveryJobData>(
 		UPTIME_DELIVERY_QUEUE_NAME,
-		(job) => processUptimeDeliveryJob(job),
+		(job, token) => processUptimeDeliveryJob(job, uptimeWorkerDeps, token),
 		{
 			connection: getBullMQWorkerConnectionOptions(),
 			concurrency: 4,

@@ -44,7 +44,6 @@ function WebsiteItem({
 					<GlobeIcon
 						className="absolute inset-0 m-auto text-muted-foreground"
 						size={20}
-						weight="duotone"
 					/>
 				}
 				size={32}
@@ -105,7 +104,7 @@ export function TransferAssets({ organizationId }: { organizationId: string }) {
 		return (
 			<EmptyState
 				description="This organization has no websites to transfer"
-				icon={<ArrowsLeftRightIcon weight="duotone" />}
+				icon={<ArrowsLeftRightIcon />}
 				title="No websites"
 			/>
 		);
@@ -115,11 +114,7 @@ export function TransferAssets({ organizationId }: { organizationId: string }) {
 		<div className="space-y-4">
 			<div>
 				<div className="mb-2 flex items-center gap-2">
-					<BuildingsIcon
-						className="text-muted-foreground"
-						size={13}
-						weight="duotone"
-					/>
+					<BuildingsIcon className="text-muted-foreground" size={13} />
 					<Text variant="label">Select a website</Text>
 					<Text tone="muted" variant="caption">
 						({organizationWebsites.length})

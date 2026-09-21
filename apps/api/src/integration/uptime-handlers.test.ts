@@ -1,7 +1,7 @@
 import "@databuddy/test/env";
 
-import { flags, uptimeSchedules } from "@databuddy/db/schema";
-import { readBooleanEnv } from "@databuddy/env/boolean";
+import { flags } from "@databuddy/db/schema";
+import { readBooleanEnv } from "@databuddy/env/app";
 import {
 	closeUptimeQueue,
 	getUptimeQueue,
@@ -60,17 +60,15 @@ function scheduleIdFrom(result: unknown): string {
 }
 
 async function enableMonitorsFeature(userId: string, organizationId: string) {
-	await db()
-		.insert(flags)
-		.values({
-			id: randomUUIDv7(),
-			key: "monitors",
-			name: "Monitors",
-			defaultValue: true,
-			status: "active",
-			organizationId,
-			createdBy: userId,
-		});
+	await db().insert(flags).values({
+		id: randomUUIDv7(),
+		key: "monitors",
+		name: "Monitors",
+		defaultValue: true,
+		status: "active",
+		organizationId,
+		createdBy: userId,
+	});
 }
 
 async function workspace(role = "owner") {
@@ -91,7 +89,10 @@ async function createSchedule(values: {
 	websiteId?: string;
 	url?: string;
 }) {
-	const result = await call(appRouter.uptime.createSchedule, values.context)({
+	const result = await call(
+		appRouter.uptime.createSchedule,
+		values.context
+	)({
 		url: values.url ?? `https://${randomUUIDv7()}.example.com/health`,
 		name: "Primary API",
 		organizationId: values.organizationId,
@@ -181,7 +182,10 @@ describe("uptime router BullMQ integration", () => {
 			organizationId: org.id,
 		});
 
-		await call(appRouter.uptime.updateSchedule, context)({
+		await call(
+			appRouter.uptime.updateSchedule,
+			context
+		)({
 			scheduleId,
 			name: "Renamed API",
 			granularity: "ten_minutes",
@@ -217,28 +221,31 @@ describe("uptime router BullMQ integration", () => {
 		expect(await jobsForSchedule(scheduleId)).toHaveLength(1);
 	});
 
-	iit("manual checks enqueue an immediate job and reject paused schedules", async () => {
-		const { context, org } = await workspace();
-		const scheduleId = await createSchedule({
-			context,
-			organizationId: org.id,
-		});
+	iit(
+		"manual checks enqueue an immediate job and reject paused schedules",
+		async () => {
+			const { context, org } = await workspace();
+			const scheduleId = await createSchedule({
+				context,
+				organizationId: org.id,
+			});
 
-		await call(appRouter.uptime.manualCheck, context)({ scheduleId });
+			await call(appRouter.uptime.manualCheck, context)({ scheduleId });
 
-		const manualJobs = (await jobsForSchedule(scheduleId)).filter(
-			(job) => job.data.trigger === "manual"
-		);
-		expect(manualJobs).toHaveLength(1);
-		expect(manualJobs[0]?.name).toBe(UPTIME_CHECK_JOB_NAME);
+			const manualJobs = (await jobsForSchedule(scheduleId)).filter(
+				(job) => job.data.trigger === "manual"
+			);
+			expect(manualJobs).toHaveLength(1);
+			expect(manualJobs[0]?.name).toBe(UPTIME_CHECK_JOB_NAME);
 
-		await call(appRouter.uptime.pauseSchedule, context)({ scheduleId });
+			await call(appRouter.uptime.pauseSchedule, context)({ scheduleId });
 
-		await expectCode(
-			call(appRouter.uptime.manualCheck, context)({ scheduleId }),
-			"BAD_REQUEST"
-		);
-	});
+			await expectCode(
+				call(appRouter.uptime.manualCheck, context)({ scheduleId }),
+				"BAD_REQUEST"
+			);
+		}
+	);
 
 	iit("deletes schedule storage and scheduler state together", async () => {
 		const { context, org } = await workspace();

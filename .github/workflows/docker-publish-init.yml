@@ -1,0 +1,30 @@
+name: Publish Self-host Init Image
+
+on:
+  release:
+    types: [published]
+  push:
+    branches: [main]
+    paths:
+      - "init.Dockerfile"
+      - ".dockerignore"
+      - "apps/**"
+      - "packages/**"
+      - "tsconfig/**"
+      - "bun.lock"
+      - "package.json"
+      - "turbo.json"
+      - ".github/workflows/docker-publish.yml"
+      - ".github/workflows/docker-publish-init.yml"
+  workflow_dispatch:
+
+jobs:
+  publish:
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      security-events: write
+    uses: ./.github/workflows/docker-publish.yml
+    with:
+      init-only: true

@@ -213,7 +213,7 @@ export function RevenueContent({ websiteId }: RevenueContentProps) {
 					size="sm"
 					variant="secondary"
 				>
-					<GearIcon className="size-4 shrink-0" weight="duotone" />
+					<GearIcon className="size-4 shrink-0" />
 					Configure
 				</Button>
 			</TopBar.Actions>

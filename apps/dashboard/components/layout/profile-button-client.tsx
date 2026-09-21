@@ -219,7 +219,7 @@ export function ProfileDropdownContent({
 					navigateTo("/settings/account");
 				}}
 			>
-				<GearIcon className="size-4 shrink-0" weight="duotone" />
+				<GearIcon className="size-4 shrink-0" />
 				Account settings
 			</DropdownMenu.Item>
 			<DropdownMenu.Separator />
@@ -231,7 +231,7 @@ export function ProfileDropdownContent({
 				}}
 				variant="destructive"
 			>
-				<SignOutIcon className="size-4 shrink-0" weight="duotone" />
+				<SignOutIcon className="size-4 shrink-0" />
 				{isLoggingOut ? "Signing out…" : "Sign out"}
 			</DropdownMenu.Item>
 		</DropdownMenu.Content>

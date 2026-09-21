@@ -1,5 +1,7 @@
 "use client";
 
+import { isSelfHosted } from "@databuddy/env/public";
+
 import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -7,7 +9,7 @@ import { Suspense, type ReactNode, useEffect, useRef, useState } from "react";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import {
 	useBillingContext,
-	useUsageFeature,
+	useInvestigationUsage,
 } from "@/components/providers/billing-provider";
 import { type BriefInsight, insightQueries } from "@/lib/insight-api";
 import { APP_EVENTS, trackAppEvent } from "@/lib/app-events";
@@ -51,8 +53,7 @@ function InsightsPageContent() {
 	const searchParams = useSearchParams();
 	const firstReviewWebsiteId =
 		searchParams.get("firstReview")?.trim() || undefined;
-	const { balance: investigationCredits, unlimited } =
-		useUsageFeature("agent_credits");
+	const { canUse: canUseInvestigations, fixedPrice } = useInvestigationUsage();
 	const { isLoading: billingLoading } = useBillingContext();
 	const latestRun = useQuery({
 		...orpc.insightGeneration.getLatestRun.queryOptions({
@@ -274,7 +275,8 @@ function InsightsPageContent() {
 				<FirstReview
 					billingLoading={billingLoading}
 					canRun={canRunFirstReview}
-					canUseCredits={unlimited || investigationCredits > 0}
+					canUseCredits={canUseInvestigations}
+					fixedPrice={fixedPrice}
 					error={
 						firstReview.isError ||
 						(shouldPollFirstReviewStatus && firstReviewStatus.isError)
@@ -353,6 +355,7 @@ type FirstReviewRun = FirstReviewReadiness["latestRun"];
 
 function FirstReview({
 	billingLoading,
+	fixedPrice,
 	canRun,
 	canUseCredits,
 	error,
@@ -367,6 +370,7 @@ function FirstReview({
 	websiteId,
 }: {
 	billingLoading: boolean;
+	fixedPrice: boolean;
 	canRun: boolean;
 	canUseCredits: boolean;
 	error: boolean;
@@ -387,7 +391,6 @@ function FirstReview({
 					<CircleNotchIcon
 						aria-hidden
 						className="size-5 animate-spin text-primary"
-						weight="duotone"
 					/>
 					<div>
 						<p className="font-medium text-sm">Checking your first review</p>
@@ -407,11 +410,7 @@ function FirstReview({
 				className="border-destructive/30"
 			>
 				<Card.Content className="flex flex-wrap items-center gap-3 py-5">
-					<WarningCircleIcon
-						aria-hidden
-						className="size-5 text-destructive"
-						weight="duotone"
-					/>
+					<WarningCircleIcon aria-hidden className="size-5 text-destructive" />
 					<div className="min-w-0 flex-1">
 						<p className="font-medium text-sm">
 							Couldn't check your first review
@@ -477,28 +476,40 @@ function FirstReview({
 			<Button asChild size="sm">
 				<Link href={`/websites/${websiteId}/settings/tracking`}>
 					Open tracking setup
-					<ArrowRightIcon className="size-3" weight="bold" />
+					<ArrowRightIcon className="size-3" />
 				</Link>
 			</Button>
 		);
 	} else if (!needsRefresh && canRun && status.action === "review") {
-		action = billingLoading ? (
-			<Button disabled loading size="sm">
-				Checking credits
-			</Button>
-		) : canUseCredits ? (
-			<Button onClick={onRun} size="sm">
-				{state === "ready" ? "Run first review" : "Retry first review"}
-				<ArrowRightIcon className="size-3" weight="bold" />
-			</Button>
-		) : (
-			<Button asChild size="sm">
-				<Link href="/billing#topup">
-					<CoinsIcon className="size-3.5" weight="duotone" />
-					Add investigation credits
-				</Link>
-			</Button>
-		);
+		if (billingLoading) {
+			action = (
+				<Button disabled loading size="sm">
+					{isSelfHosted ? "Checking AI setup" : "Checking balance"}
+				</Button>
+			);
+		} else if (canUseCredits) {
+			action = (
+				<Button onClick={onRun} size="sm">
+					{state === "ready" ? "Run first review" : "Retry first review"}
+					<ArrowRightIcon className="size-3" />
+				</Button>
+			);
+		} else if (isSelfHosted) {
+			action = (
+				<p className="text-pretty text-muted-foreground text-sm">
+					Ask your administrator to configure AI before running a review.
+				</p>
+			);
+		} else {
+			action = (
+				<Button asChild size="sm">
+					<Link href="/billing#topup">
+						<CoinsIcon className="size-3.5" />
+						Add investigation balance
+					</Link>
+				</Button>
+			);
+		}
 	}
 	const permissionDescription =
 		!(needsRefresh || canRun) && status.action
@@ -534,6 +545,12 @@ function FirstReview({
 							{permissionDescription}
 						</p>
 					) : null}
+					{action && !billingLoading && fixedPrice && (
+						<p className="mt-3 text-muted-foreground text-xs">
+							A review can complete multiple investigations. Your monthly
+							allowance applies first, then $1 each.
+						</p>
+					)}
 					{action ? <div className="mt-3">{action}</div> : null}
 				</div>
 			</Card.Content>
@@ -556,9 +573,7 @@ const FIRST_REVIEW_STATUSES = {
 		badgeVariant: "warning",
 		description:
 			"No recent page activity has reached Databuddy, so there is nothing to review yet.",
-		icon: (
-			<WarningCircleIcon className="size-5 text-warning" weight="duotone" />
-		),
+		icon: <WarningCircleIcon className="size-5 text-warning" />,
 		title: "Connect tracking before your first review",
 	},
 	collecting_baseline: {
@@ -566,7 +581,7 @@ const FIRST_REVIEW_STATUSES = {
 		badgeLabel: "Collecting baseline",
 		badgeVariant: "muted",
 		description: "",
-		icon: <ClockIcon className="size-5 text-warning" weight="duotone" />,
+		icon: <ClockIcon className="size-5 text-warning" />,
 		title: "Tracking is working; your first trend review is next",
 	},
 	ready: {
@@ -575,7 +590,7 @@ const FIRST_REVIEW_STATUSES = {
 		badgeVariant: "success",
 		description:
 			"Run one review of this site. You will see a specific finding—or a clear no-finding result.",
-		icon: <LightbulbIcon className="size-5 text-success" weight="duotone" />,
+		icon: <LightbulbIcon className="size-5 text-success" />,
 		title: "Your first review is ready",
 	},
 	running: {
@@ -583,12 +598,7 @@ const FIRST_REVIEW_STATUSES = {
 		badgeLabel: "Review in progress",
 		badgeVariant: "primary",
 		description: "Checking this site for a decision-worthy finding.",
-		icon: (
-			<CircleNotchIcon
-				className="size-5 animate-spin text-primary"
-				weight="duotone"
-			/>
-		),
+		icon: <CircleNotchIcon className="size-5 animate-spin text-primary" />,
 		title: "Looking for one thing worth acting on",
 	},
 	waiting_for_organization_run: {
@@ -597,17 +607,17 @@ const FIRST_REVIEW_STATUSES = {
 		badgeVariant: "warning",
 		description:
 			"Databuddy runs one organization analysis at a time. Start this review when it finishes.",
-		icon: <ClockIcon className="size-5 text-warning" weight="duotone" />,
+		icon: <ClockIcon className="size-5 text-warning" />,
 		title: "Another site is being reviewed",
 	},
 	needs_credits: {
 		action: "review",
-		badgeLabel: "Needs credits",
+		badgeLabel: "Needs balance",
 		badgeVariant: "warning",
 		description:
-			"No investigation credits were available for the last attempt. Add credits, then retry.",
-		icon: <CoinsIcon className="size-5 text-warning" weight="duotone" />,
-		title: "Your first review is waiting for credits",
+			"No investigation balance was available for the last attempt. Add balance, then retry.",
+		icon: <CoinsIcon className="size-5 text-warning" />,
+		title: "Your first review is waiting for balance",
 	},
 	deferred: {
 		action: null,
@@ -615,7 +625,7 @@ const FIRST_REVIEW_STATUSES = {
 		badgeVariant: "warning",
 		description:
 			"Databuddy found a change, but needs another comparison window before it can make a recommendation.",
-		icon: <ClockIcon className="size-5 text-warning" weight="duotone" />,
+		icon: <ClockIcon className="size-5 text-warning" />,
 		title: "This needs more evidence",
 	},
 	no_findings: {
@@ -623,7 +633,7 @@ const FIRST_REVIEW_STATUSES = {
 		badgeLabel: "First review complete",
 		badgeVariant: "success",
 		description: "",
-		icon: <CheckCircleIcon className="size-5 text-success" weight="duotone" />,
+		icon: <CheckCircleIcon className="size-5 text-success" />,
 		title: "",
 	},
 	needs_attention: {
@@ -632,9 +642,7 @@ const FIRST_REVIEW_STATUSES = {
 		badgeVariant: "destructive",
 		description:
 			"The last attempt did not finish. Retrying runs this site only.",
-		icon: (
-			<WarningCircleIcon className="size-5 text-destructive" weight="duotone" />
-		),
+		icon: <WarningCircleIcon className="size-5 text-destructive" />,
 		title: "Your first review needs another try",
 	},
 	reviewed: {
@@ -642,7 +650,7 @@ const FIRST_REVIEW_STATUSES = {
 		badgeLabel: "First review complete",
 		badgeVariant: "success",
 		description: "",
-		icon: <CheckCircleIcon className="size-5 text-success" weight="duotone" />,
+		icon: <CheckCircleIcon className="size-5 text-success" />,
 		title: "",
 	},
 } as const satisfies Record<
@@ -724,7 +732,7 @@ function InsightBrief({
 						variant: "secondary",
 					}}
 					description="Databuddy couldn't load recent insights."
-					icon={<LightbulbIcon weight="duotone" />}
+					icon={<LightbulbIcon />}
 					title="Couldn't load insights"
 					variant="error"
 				/>
@@ -738,7 +746,7 @@ function InsightBrief({
 						emptyDescription ??
 						"Noteworthy changes, improvements, and recoveries will appear here."
 					}
-					icon={<LightbulbIcon weight="duotone" />}
+					icon={<LightbulbIcon />}
 					title={emptyTitle ?? "No insights yet"}
 					variant="minimal"
 				/>
@@ -807,7 +815,7 @@ function InsightBriefRow({ insight }: { insight: BriefInsight }) {
 					!(positive || negative) && "bg-primary/10 text-primary"
 				)}
 			>
-				<Icon aria-hidden className="size-4" weight="duotone" />
+				<Icon aria-hidden className="size-4" />
 			</span>
 			<div className="min-w-0 flex-1">
 				<div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
@@ -898,7 +906,7 @@ function InsightBriefRow({ insight }: { insight: BriefInsight }) {
 							href={`/insights/${insight.investigationId}`}
 						>
 							Review & respond
-							<ArrowRightIcon className="size-3" weight="bold" />
+							<ArrowRightIcon className="size-3" />
 						</Link>
 					</Button>
 				) : null}

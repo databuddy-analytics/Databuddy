@@ -199,10 +199,7 @@ export function DateRangePicker({
 					)}
 					disabled={disabled}
 				>
-					<CalendarDotsIcon
-						className="size-3.5 text-muted-foreground"
-						weight="duotone"
-					/>
+					<CalendarDotsIcon className="size-3.5 text-muted-foreground" />
 					<span className="truncate">{formatDisplayRange(value)}</span>
 				</Popover.Trigger>
 
@@ -252,10 +249,7 @@ export function DateRangePicker({
 													{formatLocalTime(tempRange.from, "MMM D")}
 												</span>
 											</div>
-											<CaretRightIcon
-												className="size-3 text-muted-foreground"
-												weight="bold"
-											/>
+											<CaretRightIcon className="size-3 text-muted-foreground" />
 											<div
 												className={cn(
 													"rounded-md px-2 py-1",

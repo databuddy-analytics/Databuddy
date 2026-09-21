@@ -2,7 +2,7 @@
 
 import { ratelimit } from "@databuddy/redis/rate-limit";
 import { headers } from "next/headers";
-import { getClientIp } from "@/lib/rate-limit";
+import { getClientIp } from "@databuddy/shared/utils/client-ip";
 import type {
 	BatchQueryResponse,
 	DynamicQueryRequest,
@@ -45,7 +45,7 @@ function clampDates(
 }
 
 async function enforceDemoRateLimit(): Promise<void> {
-	const ip = getClientIp(await headers());
+	const ip = getClientIp(await headers()) ?? "unknown";
 	const rl = await ratelimit(`docs:query-demo:${ip}`, 20, 60);
 	if (!rl.success) {
 		throw new DemoRateLimitError();

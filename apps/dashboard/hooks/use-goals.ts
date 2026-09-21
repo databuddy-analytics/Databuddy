@@ -74,7 +74,7 @@ interface CreateGoalInput {
 }
 
 export type CreateGoalData = CreateGoalInput;
-export type UpdateGoalData = Partial<CreateGoalInput> &
+type UpdateGoalData = Partial<CreateGoalInput> &
 	Pick<Partial<InferInsertModel<typeof goals>>, "isActive">;
 
 interface UpdateGoalInput {
@@ -88,7 +88,7 @@ interface UpdateGoalInput {
 	type?: "PAGE_VIEW" | "EVENT" | "CUSTOM";
 }
 
-export function useGoalActions(websiteId: string) {
+function useGoalActions(websiteId: string) {
 	const queryClient = useQueryClient();
 	const invalidateAll = () =>
 		Promise.all([

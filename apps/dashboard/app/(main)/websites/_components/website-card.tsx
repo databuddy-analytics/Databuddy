@@ -62,11 +62,7 @@ function TrendStat({
 	if (trend?.type === "up") {
 		return (
 			<div className={className}>
-				<TrendUpIcon
-					aria-hidden="true"
-					className="size-4 text-success"
-					weight="fill"
-				/>
+				<TrendUpIcon aria-hidden="true" className="size-4 text-success" />
 				<span className="text-success">+{trend.value.toFixed(0)}%</span>
 			</div>
 		);
@@ -74,11 +70,7 @@ function TrendStat({
 	if (trend?.type === "down") {
 		return (
 			<div className={className}>
-				<TrendDownIcon
-					aria-hidden
-					className="size-4 text-destructive"
-					weight="fill"
-				/>
+				<TrendDownIcon aria-hidden className="size-4 text-destructive" />
 				<span className="text-destructive">-{trend.value.toFixed(0)}%</span>
 			</div>
 		);
@@ -97,9 +89,9 @@ function ChartEmptyState({
 	hasHistoricalData: boolean;
 }) {
 	const icon = hasHistoricalData ? (
-		<ChartBarIcon className="size-4 text-muted-foreground" weight="duotone" />
+		<ChartBarIcon className="size-4 text-muted-foreground" />
 	) : (
-		<CodeIcon className="size-4 text-amber-500" weight="duotone" />
+		<CodeIcon className="size-4 text-warning" />
 	);
 
 	return (
@@ -251,10 +243,7 @@ export const WebsiteCard = memo(
 												</div>
 												<div className="flex shrink-0 flex-col items-end space-y-0.5">
 													<span className="flex items-center gap-1 font-semibold text-foreground text-xs tabular-nums">
-														<EyeIcon
-															className="size-4 shrink-0 text-muted-foreground"
-															weight="duotone"
-														/>
+														<EyeIcon className="size-4 shrink-0 text-muted-foreground" />
 														{chartData
 															? formatNumber(chartData.totalViews)
 															: "0"}
@@ -278,21 +267,21 @@ export const WebsiteCard = memo(
 									className="flex w-full cursor-default select-none items-center gap-2 rounded-none px-3 py-2 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
 									onClick={handleOpen}
 								>
-									<EyeIcon className="size-4" weight="duotone" />
+									<EyeIcon className="size-4" />
 									Open
 								</ContextMenuItem>
 								<ContextMenuItem
 									className="flex w-full cursor-default select-none items-center gap-2 rounded-none px-3 py-2 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
 									onClick={handleOpenNewTab}
 								>
-									<ArrowSquareOutIcon className="size-4" weight="duotone" />
+									<ArrowSquareOutIcon className="size-4" />
 									Open in new tab
 								</ContextMenuItem>
 								<ContextMenuItem
 									className="flex w-full cursor-default select-none items-center gap-2 rounded-none px-3 py-2 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
 									onClick={handleCopyLink}
 								>
-									<CopyIcon className="size-4" weight="duotone" />
+									<CopyIcon className="size-4" />
 									Copy link
 								</ContextMenuItem>
 								<ContextMenuSeparator className="h-px bg-border" />
@@ -300,21 +289,21 @@ export const WebsiteCard = memo(
 									className="flex w-full cursor-default select-none items-center gap-2 rounded-none px-3 py-2 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
 									onClick={handleEdit}
 								>
-									<PencilSimpleIcon className="size-4" weight="duotone" />
+									<PencilSimpleIcon className="size-4" />
 									Edit
 								</ContextMenuItem>
 								<ContextMenuItem
 									className="flex w-full cursor-default select-none items-center gap-2 rounded-none px-3 py-2 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
 									onClick={handleSettings}
 								>
-									<GearIcon className="size-4" weight="duotone" />
+									<GearIcon className="size-4" />
 									Settings
 								</ContextMenuItem>
 								<ContextMenuItem
 									className="flex w-full cursor-default select-none items-center gap-2 rounded-none px-3 py-2 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
 									onClick={handleTransfer}
 								>
-									<ArrowsLeftRightIcon className="size-4" weight="duotone" />
+									<ArrowsLeftRightIcon className="size-4" />
 									Transfer…
 								</ContextMenuItem>
 								<ContextMenuSeparator className="h-px bg-border" />
@@ -322,7 +311,7 @@ export const WebsiteCard = memo(
 									className="flex w-full cursor-default select-none items-center gap-2 rounded-none px-3 py-2 text-destructive text-sm outline-none data-[highlighted]:bg-destructive/10 data-[highlighted]:text-destructive"
 									onClick={handleDelete}
 								>
-									<TrashIcon className="size-4" weight="duotone" />
+									<TrashIcon className="size-4" />
 									Delete
 								</ContextMenuItem>
 							</ContextMenuPopup>

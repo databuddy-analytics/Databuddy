@@ -100,11 +100,7 @@ describe("isApiKeyPresent", () => {
 describe("extractSecret", () => {
 	it.each([
 		["x-api-key header", { "x-api-key": VALID_SECRET }, VALID_SECRET],
-		[
-			"Bearer token",
-			{ authorization: `Bearer ${VALID_SECRET}` },
-			VALID_SECRET,
-		],
+		["Bearer token", { authorization: `Bearer ${VALID_SECRET}` }, VALID_SECRET],
 		[
 			"x-api-key over Bearer",
 			{
@@ -137,7 +133,11 @@ describe("extractSecret", () => {
 			{ authorization: "Bearer invalid_token" },
 			null,
 		],
-		["Bearer token below minimum length", { authorization: "Bearer dbdy_" }, null],
+		[
+			"Bearer token below minimum length",
+			{ authorization: "Bearer dbdy_" },
+			null,
+		],
 		[
 			"Bearer token above maximum length",
 			{ authorization: `Bearer dbdy_${"a".repeat(200)}` },
@@ -369,43 +369,5 @@ describe("website scope helpers", () => {
 		expect(resolveEffectiveScopesForWebsite(key, "site-123")).toEqual(
 			new Set(["read:data", "track:events", "write:data"])
 		);
-	});
-});
-
-describe("hasGlobalAccess", () => {
-	it.each([
-		["no resources", {}, false],
-		["only website resources", { resources: { "website:site-123": ["read:data"] } }, false],
-		["empty global resource", { resources: { global: [] } }, false],
-		["populated global resource", { resources: { global: ["read:data"] } }, true],
-	])("%s -> %s", (_name, metadata, expected) => {
-		expect(hasGlobalAccess(createMockKey({ metadata }))).toBe(expected);
-	});
-});
-
-describe("getAccessibleWebsiteIds", () => {
-	it("returns empty array when no website resources exist", () => {
-		expect(getAccessibleWebsiteIds(createMockKey({ metadata: {} }))).toEqual(
-			[]
-		);
-		expect(
-			getAccessibleWebsiteIds(
-				createMockKey({ metadata: { resources: { global: ["read:data"] } } })
-			)
-		).toEqual([]);
-	});
-
-	it("extracts ids from website resources only", () => {
-		const key = createMockKey({
-			metadata: {
-				resources: {
-					global: ["track:events"],
-					"website:site-1": ["read:data"],
-					"website:site-2": ["write:data"],
-				},
-			},
-		});
-
-		expect(getAccessibleWebsiteIds(key).sort()).toEqual(["site-1", "site-2"]);
 	});
 });

@@ -1,11 +1,14 @@
 "use client";
 
-import { GATED_FEATURES } from "@databuddy/shared/types/features";
+import { PLAN_IDS } from "@databuddy/shared/types/features";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { FeatureGate } from "@/components/feature-gate";
-import { useBillingContext } from "@/components/providers/billing-provider";
+import {
+	useBillingContext,
+	useInvestigationUsage,
+} from "@/components/providers/billing-provider";
 import { orpc } from "@/lib/orpc";
 import {
 	Button,
@@ -109,9 +112,9 @@ export function InvestigationSettings({
 		},
 	});
 
-	const { isFeatureEnabled, isLoading: billingLoading } = useBillingContext();
-	const canInvestigate =
-		billingLoading || isFeatureEnabled(GATED_FEATURES.INVESTIGATIONS);
+	const { isLoading: billingLoading } = useBillingContext();
+	const { fixedPrice, hasAccess } = useInvestigationUsage();
+	const canInvestigate = billingLoading || hasAccess;
 	const configReady = Boolean(organizationId && configQuery.isSuccess && form);
 	const analysisPending = isAnalyzing || triggerMutation.isPending;
 	const isBusy = !configReady || saveMutation.isPending || analysisPending;
@@ -129,7 +132,7 @@ export function InvestigationSettings({
 						{analysisPending ? (
 							<Spinner size="sm" />
 						) : (
-							<GearIcon className="size-4" weight="duotone" />
+							<GearIcon className="size-4" />
 						)}
 						<span className="hidden sm:inline">
 							{analysisPending ? "Analyzing…" : "Analysis"}
@@ -147,8 +150,9 @@ export function InvestigationSettings({
 
 				<Sheet.Body className="space-y-6">
 					<FeatureGate
+						allowed={hasAccess}
 						description="Databunny runs scheduled investigations on the invite-only Business plan. Request access to turn them on for your organization."
-						feature={GATED_FEATURES.INVESTIGATIONS}
+						requiredPlan={PLAN_IDS.SCALE}
 						title="Automatic investigations are invite only"
 					>
 						{!configReady && configQuery.isError && !configQuery.isFetching ? (
@@ -161,7 +165,7 @@ export function InvestigationSettings({
 									variant: "secondary",
 								}}
 								description="Databuddy couldn't load analysis settings for this organization."
-								icon={<GearIcon weight="duotone" />}
+								icon={<GearIcon />}
 								title="Couldn't load settings"
 								variant="error"
 							/>
@@ -212,7 +216,13 @@ export function InvestigationSettings({
 					</FeatureGate>
 				</Sheet.Body>
 
-				<Sheet.Footer className="flex items-center justify-between gap-3">
+				<Sheet.Footer className="flex flex-wrap items-center justify-between gap-3">
+					{!billingLoading && fixedPrice && (
+						<p className="w-full text-muted-foreground text-xs">
+							Scheduled and manual runs can complete multiple investigations.
+							Your monthly allowance applies first, then $1 each.
+						</p>
+					)}
 					<Button
 						disabled={isBusy || !canInvestigate}
 						onClick={() => {

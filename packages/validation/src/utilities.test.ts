@@ -32,12 +32,16 @@ describe("parseDurationToSeconds", () => {
 		expect(parseDurationToSeconds(duration)).toBe(seconds);
 	});
 
-	it.each([["abc"], ["100"], ["5w"], ["-5m"], ["1.5h"], [""]])(
-		"throws on invalid duration %j",
-		(duration) => {
-			expect(() => parseDurationToSeconds(duration)).toThrow("Invalid duration");
-		}
-	);
+	it.each([
+		["abc"],
+		["100"],
+		["5w"],
+		["-5m"],
+		["1.5h"],
+		[""],
+	])("throws on invalid duration %j", (duration) => {
+		expect(() => parseDurationToSeconds(duration)).toThrow("Invalid duration");
+	});
 });
 
 describe("sanitizeString", () => {
@@ -77,12 +81,13 @@ describe("sanitizeString", () => {
 });
 
 describe("validateTimezone", () => {
-	it.each([["America/New_York"], ["UTC"], ["Europe/London"]])(
-		"accepts %s",
-		(timezone) => {
-			expect(validateTimezone(timezone)).toBe(timezone);
-		}
-	);
+	it.each([
+		["America/New_York"],
+		["UTC"],
+		["Europe/London"],
+	])("accepts %s", (timezone) => {
+		expect(validateTimezone(timezone)).toBe(timezone);
+	});
 
 	it.each([
 		["number", 123],
@@ -362,4 +367,3 @@ describe("validateExitIntent", () => {
 		expect(validateExitIntent(intent)).toBe(0);
 	});
 });
-

@@ -15,6 +15,7 @@ import { integrationsRouter } from "./routers/integrations";
 import { linkFoldersRouter } from "./routers/link-folders";
 import { linksRouter } from "./routers/links";
 import { organizationsRouter } from "./routers/organizations";
+import { businessContextRouter } from "./routers/business-context";
 import { profilesRouter } from "./routers/profiles";
 import { revenueRouter } from "./routers/revenue";
 import { statusPageRouter } from "./routers/status-page";
@@ -40,6 +41,7 @@ export const appRouter = {
 	insights: insightsRouter,
 	targetGroups: targetGroupsRouter,
 	organizations: organizationsRouter,
+	businessContext: businessContextRouter,
 	profiles: profilesRouter,
 	billing: billingRouter,
 	statusPage: statusPageRouter,

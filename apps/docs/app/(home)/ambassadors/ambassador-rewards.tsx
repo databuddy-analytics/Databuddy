@@ -82,7 +82,6 @@ function RewardCard({ reward }: { reward: Reward }) {
 								className={`size-8 ${
 									reward.highlight ? "text-primary" : "text-muted-foreground"
 								} duration-300 group-hover:text-foreground`}
-								weight="duotone"
 							/>
 							{reward.soon && (
 								<span className="rounded bg-orange-500/20 px-1.5 py-0.5 font-semibold text-orange-500 text-xs uppercase tracking-wide">

@@ -324,7 +324,7 @@ export function McpSetupSheet({
 				<Sheet.Header>
 					<div className="flex items-start gap-3">
 						<div className="flex size-8 items-center justify-center rounded bg-primary/10">
-							<RobotIcon className="text-primary" size={16} weight="fill" />
+							<RobotIcon className="text-primary" size={16} />
 						</div>
 						<div className="min-w-0 flex-1">
 							<Sheet.Title>
@@ -580,10 +580,7 @@ function ConnectionCreated({
 		<div className="space-y-5">
 			<div className="rounded border border-success/30 bg-success/5 p-3">
 				<div className="flex items-start gap-2">
-					<CheckCircleIcon
-						className="mt-0.5 size-4 shrink-0 text-success"
-						weight="fill"
-					/>
+					<CheckCircleIcon className="mt-0.5 size-4 shrink-0 text-success" />
 					<div className="min-w-0">
 						<Text className="text-success" variant="label">
 							Connection created

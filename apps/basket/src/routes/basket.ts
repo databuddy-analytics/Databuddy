@@ -148,7 +148,53 @@ async function processOutgoingLinkData(
 	};
 }
 
+export const ERRORS_BODY_MAX_BYTES = 128 * 1024;
+
+const OVERSIZED_ERRORS_BODY = Symbol("basket.oversized_errors_body");
+
+async function markOversizedErrorsBody({
+	path,
+	request,
+}: {
+	path: string;
+	request: Request;
+}) {
+	if (path !== "/errors" && path !== "/errors/") {
+		return;
+	}
+	const declaredBytes = Number.parseInt(
+		request.headers.get("content-length") ?? "",
+		10
+	);
+	if (Number.isFinite(declaredBytes)) {
+		return declaredBytes > ERRORS_BODY_MAX_BYTES
+			? OVERSIZED_ERRORS_BODY
+			: undefined;
+	}
+	const stream = request.clone().body;
+	if (!stream) {
+		return;
+	}
+	const reader = stream.getReader();
+	let seenBytes = 0;
+	let chunk = await reader.read();
+	while (!chunk.done) {
+		seenBytes += chunk.value.byteLength;
+		if (seenBytes > ERRORS_BODY_MAX_BYTES) {
+			// Not awaited on purpose: clone() tees the body, and waiting for one
+			// branch to cancel while the other is never read deadlocks the request.
+			reader.cancel().catch(() => {
+				// The request is already rejected; a failed cancel changes nothing.
+			});
+			return OVERSIZED_ERRORS_BODY;
+		}
+		chunk = await reader.read();
+	}
+	return;
+}
+
 const app = new Elysia()
+	.onParse(markOversizedErrorsBody)
 	.onParse(parseCorsSafeJson)
 	.get("/px.jpg", async ({ query, request }) => {
 		const log = useLogger();
@@ -281,6 +327,11 @@ const app = new Elysia()
 		log.set({ route: "errors" });
 
 		try {
+			if (body === OVERSIZED_ERRORS_BODY) {
+				log.set({ rejected: "payload_too_large" });
+				throw basketErrors.ingestErrorsBodyTooLarge();
+			}
+
 			const { clientId, userAgent } = await validateRequest(
 				body,
 				query,

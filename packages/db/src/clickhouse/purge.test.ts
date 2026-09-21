@@ -1,8 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import {
-	CLIENT_ID_PURGE_TABLES,
-	WEBSITE_ID_PURGE_TABLES,
-} from "./purge";
+import { CLIENT_ID_PURGE_TABLES, WEBSITE_ID_PURGE_TABLES } from "./purge";
 import { TABLE_COLUMNS } from "./schema/tables.generated";
 
 const PURGE_EXEMPT: Record<string, string> = {

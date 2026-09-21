@@ -9,66 +9,61 @@ import {
 	QueryBuilders,
 	SANITIZED_QUERY_ERROR,
 } from "../../query";
-import { shiftDate, todayInTimeZone } from "../../query/date-utils";
+import { resolveDatePreset } from "../../lib/date-presets";
 import type { QueryRequest } from "../../query/types";
-import { getAppContext, resolveToolWebsite, toolDateRangeError } from "./utils";
+import { agentDataInputSchema } from "../mcp/agent-query-schema";
+import { normalizeClickHouseDateTime } from "../../query/date-utils";
+import {
+	getAppContext,
+	resolveToolWebsite,
+	toolDateRangeError,
+} from "./utils/context";
 
 type QueryType = Extract<keyof typeof QueryBuilders, string>;
 const QUERY_TYPES = Object.keys(QueryBuilders) as [QueryType, ...QueryType[]];
 
-const queryItemSchema = z.object({
-	type: z.enum(QUERY_TYPES),
-	websiteId: z
-		.string()
-		.optional()
-		.describe("Target website id. Omit to use the workspace default."),
-	from: z.string().optional(),
-	to: z.string().optional(),
-	preset: z
-		.enum(["today", "yesterday", "last_7d", "last_14d", "last_30d", "last_90d"])
-		.optional(),
-	timeUnit: z.enum(["minute", "hour", "day", "week", "month"]).optional(),
-	filters: z
-		.array(
-			z.object({
-				field: z
-					.string()
-					.describe(
-						"Column name, or trait:<key> (e.g. trait:plan) to segment by an identified-user trait"
-					),
-				op: z.enum([
-					"eq",
-					"ne",
-					"contains",
-					"not_contains",
-					"starts_with",
-					"in",
-					"not_in",
-				]),
-				value: z.union([
-					z.string(),
-					z.number(),
-					z.array(z.union([z.string(), z.number()])),
-				]),
-				target: z.string().optional(),
-				having: z.boolean().optional(),
-			})
-		)
-		.optional(),
-	groupBy: z.array(z.string()).optional(),
-	orderBy: z.string().optional(),
-	limit: z.number().min(1).max(1000).optional(),
-	timezone: z.string().optional(),
-});
+const queryItemSchema = agentDataInputSchema.shape.queries.element
+	.extend({
+		type: z.enum(QUERY_TYPES),
+		websiteId: z
+			.string()
+			.nullish()
+			.transform((value) => value ?? undefined)
+			.describe("Target website id; null uses the workspace default."),
+		timezone: z
+			.string()
+			.nullish()
+			.transform((value) => value ?? undefined)
+			.describe("IANA timezone; null uses the conversation timezone."),
+	})
+	.refine(({ from, to, preset }) => {
+		if (preset && (from !== undefined || to !== undefined)) {
+			return false;
+		}
+		return (
+			Boolean(from) === Boolean(to) &&
+			!(
+				from &&
+				to &&
+				normalizeClickHouseDateTime(from) >
+					normalizeClickHouseDateTime(to, { endOfDay: true })
+			)
+		);
+	}, "Use a preset with from/to null, or both dates with preset null in chronological order.");
 
 type QueryItem = z.infer<typeof queryItemSchema>;
 
 interface QueryItemResult {
 	data: unknown[];
+	definition?: string;
 	error?: string;
+	filters?: QueryItem["filters"];
+	from?: string;
 	returnedRows?: number;
 	rowCount: number;
 	summary?: string;
+	timezone?: string;
+	to?: string;
 	truncated?: boolean;
 	type: string;
 	websiteId?: string;
@@ -110,42 +105,25 @@ function describeQueryError(error: unknown): string {
 	return message;
 }
 
-const PRESET_DAYS = {
-	last_7d: 7,
-	last_14d: 14,
-	last_30d: 30,
-	last_90d: 90,
-} as const;
-
 function resolveDates(
 	item: QueryItem,
 	timeZone: string,
 	currentDateTime?: string
 ): { from: string; to: string } {
-	const reference = currentDateTime ? new Date(currentDateTime) : new Date();
-	const today = todayInTimeZone(
-		timeZone,
-		Number.isNaN(reference.getTime()) ? new Date() : reference
-	);
 	if (item.from && item.to) {
 		return { from: item.from, to: item.to };
 	}
-
-	if (item.preset === "today") {
-		return { from: today, to: today };
-	}
-	if (item.preset === "yesterday") {
-		const yesterday = shiftDate(today, -1);
-		return { from: yesterday, to: yesterday };
-	}
-
-	const days = PRESET_DAYS[item.preset as keyof typeof PRESET_DAYS] ?? 7;
-	return { from: shiftDate(today, -days), to: today };
+	const reference = currentDateTime ? new Date(currentDateTime) : new Date();
+	return resolveDatePreset(
+		item.preset ?? "last_30d",
+		timeZone,
+		Number.isNaN(reference.getTime()) ? new Date() : reference
+	);
 }
 
 export const getDataTool = tool({
 	description:
-		"Run analytics query builders for explicit data questions. Batch 1-10 queries per call. Use preset (last_7d/last_30d/...) or from+to dates. Each query may target a specific website via websiteId; omit to use the workspace default. When truncated is true, data contains only returnedRows examples from rowCount query rows; never aggregate or generalize that sample.",
+		"Run analytics query builders for explicit data questions. Batch 1-10 queries per call. Use preset (last_7d/last_30d/...) or from+to dates; omitted dates default to last_30d in the context timezone. Read the returned definition for population and percentage semantics. Each query may target a specific website via websiteId; omit to use the workspace default. Filters select rows: never supply target or having. discover_query_types lists allowed and required filters. Results include at most 20 rows; rowCount is the number of query rows, not the whole population. Query limits may exclude more rows even when truncated is false. Never infer absence, totals, or completeness from a ranked list; query the exact subject or use an aggregate builder.",
 	inputSchema: z.object({
 		queries: z
 			.array(queryItemSchema)
@@ -177,33 +155,37 @@ export const getDataTool = tool({
 					};
 				}
 
-				const domain = resolvedDomain || (await getWebsiteDomain(websiteId));
-				const timezone = item.timezone ?? ctx.timezone ?? "UTC";
-				const { from, to } = resolveDates(item, timezone, ctx.currentDateTime);
-				const dateError = toolDateRangeError(from, to, ctx, timezone);
-				if (dateError) {
-					return {
-						type: item.type,
-						websiteId,
-						data: [],
-						rowCount: 0,
-						error: dateError,
-					};
-				}
-				const req: QueryRequest = {
-					projectId: websiteId,
-					type: item.type,
-					from,
-					to,
-					timeUnit: item.timeUnit,
-					filters: item.filters as QueryRequest["filters"],
-					groupBy: item.groupBy,
-					orderBy: item.orderBy,
-					limit: item.limit,
-					timezone,
-				};
-
 				try {
+					const domain = resolvedDomain || (await getWebsiteDomain(websiteId));
+					const timezone = item.timezone ?? ctx.timezone ?? "UTC";
+					const { from, to } = resolveDates(
+						item,
+						timezone,
+						ctx.currentDateTime
+					);
+					const dateError = toolDateRangeError(from, to, ctx, timezone);
+					if (dateError) {
+						return {
+							type: item.type,
+							websiteId,
+							data: [],
+							rowCount: 0,
+							error: dateError,
+						};
+					}
+					const req: QueryRequest = {
+						projectId: websiteId,
+						type: item.type,
+						from,
+						to,
+						timeUnit: item.timeUnit,
+						filters: item.filters,
+						groupBy: item.groupBy,
+						orderBy: item.orderBy,
+						limit: item.limit,
+						timezone,
+					};
+
 					const data = await executeQuery(
 						req,
 						domain,
@@ -213,7 +195,12 @@ export const getDataTool = tool({
 					const returnedRows = Math.min(data.length, MAX_MODEL_ROWS);
 					return {
 						type: item.type,
+						definition: QueryBuilders[item.type]?.meta?.description,
 						websiteId,
+						filters: item.filters ?? [],
+						from,
+						to,
+						timezone,
 						summary: buildResultSummary(
 							item.type,
 							from,

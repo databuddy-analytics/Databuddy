@@ -21,7 +21,10 @@ describe("classifyFetchError", () => {
 	}
 
 	it("reads codes from the error cause chain", () => {
-		const cause = withCode("getaddrinfo ENOTFOUND example.invalid", "EAI_AGAIN");
+		const cause = withCode(
+			"getaddrinfo ENOTFOUND example.invalid",
+			"EAI_AGAIN"
+		);
 		const wrapped = new Error("fetch failed", { cause });
 		expect(classifyFetchError(wrapped, 5000)).toBe("DNS lookup failed");
 	});

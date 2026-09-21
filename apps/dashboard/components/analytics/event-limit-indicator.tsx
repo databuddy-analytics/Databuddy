@@ -1,5 +1,7 @@
 "use client";
 
+import { isSelfHosted } from "@databuddy/env/public";
+
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -15,10 +17,10 @@ export function EventLimitIndicator() {
 
 	const { data } = useQuery({
 		...orpc.organizations.getUsage.queryOptions(),
-		enabled: !isDemoRoute,
+		enabled: !(isDemoRoute || isSelfHosted),
 	});
 
-	if (!data || data.unlimited) {
+	if (isSelfHosted || !data || data.unlimited) {
 		return null;
 	}
 
@@ -57,7 +59,6 @@ export function EventLimitIndicator() {
 						"size-4 shrink-0",
 						isDestructive ? "text-destructive" : "text-warning"
 					)}
-					weight="fill"
 				/>
 				{isOverage ? (
 					<p className="font-medium text-destructive text-xs">

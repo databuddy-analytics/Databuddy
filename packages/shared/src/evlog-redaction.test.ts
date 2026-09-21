@@ -84,10 +84,13 @@ describe("databuddy evlog redaction", () => {
 
 	it("matches Databuddy and common provider secrets in string values", () => {
 		expect(
-			matchesSecretPattern("Authorization: Bearer dbdy_123456789012345678901234")
+			matchesSecretPattern(
+				"Authorization: Bearer dbdy_123456789012345678901234"
+			)
 		).toBe(true);
-		expect(matchesSecretPattern("OPENAI_API_KEY=sk-svcacct-1234567890123456"))
-			.toBe(true);
+		expect(
+			matchesSecretPattern("OPENAI_API_KEY=sk-svcacct-1234567890123456")
+		).toBe(true);
 		expect(matchesSecretPattern("not-a-secret")).toBe(false);
 	});
 });

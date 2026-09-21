@@ -5,6 +5,7 @@ import { appRouter } from "@databuddy/rpc";
 import {
 	reset,
 	cleanup,
+	countPgQueries,
 	hasTestDb,
 	userContext,
 	apiKeyContext,
@@ -21,6 +22,25 @@ beforeEach(() => reset());
 afterAll(() => cleanup());
 
 describe("links.create", () => {
+	iit("stays within its postgres round-trip budget", async () => {
+		const user = await signUp();
+		const org = await insertOrganization();
+		await addToOrganization(user.id, org.id, "member");
+
+		const { queries } = await countPgQueries(() =>
+			call(
+				appRouter.links.create,
+				userContext(user, org.id)
+			)({
+				name: "Budgeted",
+				targetUrl: "https://example.com",
+				organizationId: org.id,
+			})
+		);
+
+		expect(queries).toBeLessThanOrEqual(2);
+	});
+
 	iit("creates a link for a member", async () => {
 		const user = await signUp();
 		const org = await insertOrganization();
@@ -28,7 +48,7 @@ describe("links.create", () => {
 
 		const result = await call(
 			appRouter.links.create,
-			userContext(user, org.id),
+			userContext(user, org.id)
 		)({
 			name: "My Link",
 			targetUrl: "https://example.com",
@@ -48,12 +68,15 @@ describe("links.create", () => {
 		await addToOrganization(user.id, org.id, "viewer");
 
 		await expectCode(
-			call(appRouter.links.create, userContext(user, org.id))({
+			call(
+				appRouter.links.create,
+				userContext(user, org.id)
+			)({
 				name: "Blocked",
 				targetUrl: "https://example.com",
 				organizationId: org.id,
 			}),
-			"FORBIDDEN",
+			"FORBIDDEN"
 		);
 	});
 
@@ -64,7 +87,7 @@ describe("links.create", () => {
 
 		const link = await call(
 			appRouter.links.create,
-			userContext(user, org.id),
+			userContext(user, org.id)
 		)({
 			name: "To Delete",
 			targetUrl: "https://example.com",
@@ -72,10 +95,13 @@ describe("links.create", () => {
 		});
 
 		await expectCode(
-			call(appRouter.links.delete, userContext(user, org.id))({
+			call(
+				appRouter.links.delete,
+				userContext(user, org.id)
+			)({
 				id: link.id,
 			}),
-			"FORBIDDEN",
+			"FORBIDDEN"
 		);
 	});
 
@@ -86,7 +112,7 @@ describe("links.create", () => {
 
 		const link = await call(
 			appRouter.links.create,
-			userContext(admin, org.id),
+			userContext(admin, org.id)
 		)({
 			name: "Deletable",
 			targetUrl: "https://example.com",
@@ -95,7 +121,7 @@ describe("links.create", () => {
 
 		const result = await call(
 			appRouter.links.delete,
-			userContext(admin, org.id),
+			userContext(admin, org.id)
 		)({ id: link.id });
 		expect(result.success).toBe(true);
 	});
@@ -106,7 +132,10 @@ describe("links.create", () => {
 		await addToOrganization(user.id, org.id, "member");
 		const slug = `taken-${Date.now()}`;
 
-		await call(appRouter.links.create, userContext(user, org.id))({
+		await call(
+			appRouter.links.create,
+			userContext(user, org.id)
+		)({
 			name: "First",
 			targetUrl: "https://example.com",
 			organizationId: org.id,
@@ -114,7 +143,10 @@ describe("links.create", () => {
 		});
 
 		try {
-			await call(appRouter.links.create, userContext(user, org.id))({
+			await call(
+				appRouter.links.create,
+				userContext(user, org.id)
+			)({
 				name: "Second",
 				targetUrl: "https://example.com",
 				organizationId: org.id,
@@ -133,7 +165,7 @@ describe("links.create", () => {
 
 		const result = await call(
 			appRouter.links.create,
-			apiKeyContext(org.id, ["write:links"]),
+			apiKeyContext(org.id, ["write:links"])
 		)({
 			name: "API Link",
 			targetUrl: "https://example.com",
@@ -143,20 +175,26 @@ describe("links.create", () => {
 		expect(result.createdBy).toBe(owner.id);
 	});
 
-	iit("rejects API key with manage:config but without write:links", async () => {
-		const org = await insertOrganization();
-		const owner = await signUp();
-		await addToOrganization(owner.id, org.id, "owner");
+	iit(
+		"rejects API key with manage:config but without write:links",
+		async () => {
+			const org = await insertOrganization();
+			const owner = await signUp();
+			await addToOrganization(owner.id, org.id, "owner");
 
-		await expectCode(
-			call(appRouter.links.create, apiKeyContext(org.id, ["manage:config"]))({
-				name: "Missing Scope",
-				targetUrl: "https://example.com",
-				organizationId: org.id,
-			}),
-			"FORBIDDEN",
-		);
-	});
+			await expectCode(
+				call(
+					appRouter.links.create,
+					apiKeyContext(org.id, ["manage:config"])
+				)({
+					name: "Missing Scope",
+					targetUrl: "https://example.com",
+					organizationId: org.id,
+				}),
+				"FORBIDDEN"
+			);
+		}
+	);
 
 	iit("rejects API key create when org has no owner", async () => {
 		const org = await insertOrganization();
@@ -164,13 +202,13 @@ describe("links.create", () => {
 		await expectCode(
 			call(
 				appRouter.links.create,
-				apiKeyContext(org.id, ["write:links"]),
+				apiKeyContext(org.id, ["write:links"])
 			)({
 				name: "No Owner",
 				targetUrl: "https://example.com",
 				organizationId: org.id,
 			}),
-			"FORBIDDEN",
+			"FORBIDDEN"
 		);
 	});
 
@@ -181,7 +219,7 @@ describe("links.create", () => {
 
 		const result = await call(
 			appRouter.links.list,
-			apiKeyContext(org.id, ["read:links"]),
+			apiKeyContext(org.id, ["read:links"])
 		)({ organizationId: org.id });
 
 		expect(result).toEqual([]);
@@ -194,12 +232,18 @@ describe("links.list", () => {
 		const org = await insertOrganization();
 		await addToOrganization(user.id, org.id, "member");
 
-		await call(appRouter.links.create, userContext(user, org.id))({
+		await call(
+			appRouter.links.create,
+			userContext(user, org.id)
+		)({
 			name: "Link 1",
 			targetUrl: "https://one.example.com",
 			organizationId: org.id,
 		});
-		await call(appRouter.links.create, userContext(user, org.id))({
+		await call(
+			appRouter.links.create,
+			userContext(user, org.id)
+		)({
 			name: "Link 2",
 			targetUrl: "https://two.example.com",
 			organizationId: org.id,
@@ -207,7 +251,7 @@ describe("links.list", () => {
 
 		const result = await call(
 			appRouter.links.list,
-			userContext(user, org.id),
+			userContext(user, org.id)
 		)({ organizationId: org.id });
 
 		expect(result).toHaveLength(2);
@@ -221,12 +265,18 @@ describe("links.list", () => {
 		await addToOrganization(userA.id, orgA.id, "member");
 		await addToOrganization(userB.id, orgB.id, "member");
 
-		await call(appRouter.links.create, userContext(userA, orgA.id))({
+		await call(
+			appRouter.links.create,
+			userContext(userA, orgA.id)
+		)({
 			name: "Org A Link",
 			targetUrl: "https://a.example.com",
 			organizationId: orgA.id,
 		});
-		await call(appRouter.links.create, userContext(userB, orgB.id))({
+		await call(
+			appRouter.links.create,
+			userContext(userB, orgB.id)
+		)({
 			name: "Org B Link",
 			targetUrl: "https://b.example.com",
 			organizationId: orgB.id,
@@ -234,7 +284,7 @@ describe("links.list", () => {
 
 		const result = await call(
 			appRouter.links.list,
-			userContext(userA, orgA.id),
+			userContext(userA, orgA.id)
 		)({ organizationId: orgA.id });
 
 		expect(result).toHaveLength(1);
@@ -249,7 +299,10 @@ describe("links.paginated", () => {
 		await addToOrganization(user.id, org.id, "member");
 
 		for (let i = 0; i < 3; i++) {
-			await call(appRouter.links.create, userContext(user, org.id))({
+			await call(
+				appRouter.links.create,
+				userContext(user, org.id)
+			)({
 				name: `Link ${i}`,
 				targetUrl: `https://link-${i}.example.com`,
 				organizationId: org.id,
@@ -258,7 +311,7 @@ describe("links.paginated", () => {
 
 		const firstPage = await call(
 			appRouter.links.paginated,
-			userContext(user, org.id),
+			userContext(user, org.id)
 		)({ organizationId: org.id, limit: 2, offset: 0 });
 
 		expect(firstPage.items).toHaveLength(2);
@@ -266,7 +319,7 @@ describe("links.paginated", () => {
 
 		const secondPage = await call(
 			appRouter.links.paginated,
-			userContext(user, org.id),
+			userContext(user, org.id)
 		)({ organizationId: org.id, limit: 2, offset: 2 });
 
 		expect(secondPage.items).toHaveLength(1);
@@ -278,12 +331,18 @@ describe("links.paginated", () => {
 		const org = await insertOrganization();
 		await addToOrganization(user.id, org.id, "member");
 
-		await call(appRouter.links.create, userContext(user, org.id))({
+		await call(
+			appRouter.links.create,
+			userContext(user, org.id)
+		)({
 			name: "Summer Campaign",
 			targetUrl: "https://summer.example.com",
 			organizationId: org.id,
 		});
-		await call(appRouter.links.create, userContext(user, org.id))({
+		await call(
+			appRouter.links.create,
+			userContext(user, org.id)
+		)({
 			name: "Winter Promo",
 			targetUrl: "https://winter.example.com",
 			organizationId: org.id,
@@ -291,11 +350,10 @@ describe("links.paginated", () => {
 
 		const result = await call(
 			appRouter.links.paginated,
-			userContext(user, org.id),
+			userContext(user, org.id)
 		)({ organizationId: org.id, search: "summer" });
 
 		expect(result.items).toHaveLength(1);
 		expect(result.items[0].name).toBe("Summer Campaign");
 	});
-
 });

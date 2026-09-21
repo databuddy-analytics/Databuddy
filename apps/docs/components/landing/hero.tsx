@@ -64,9 +64,8 @@ const heroInsights = [
 	{
 		tabId: "overview",
 		icon: TrendUpIcon,
-		headline: "Pricing traffic is converting 3x above baseline",
-		meta: "databuddy.cc - now",
-		change: "+340%",
+		headline: "Pricing traffic is converting 3× the baseline",
+		change: "+200%",
 		tone: "positive",
 		whyItMatters:
 			"Launch referral traffic is landing on /pricing and signing up at 12.4%.",
@@ -77,7 +76,6 @@ const heroInsights = [
 		tabId: "events",
 		icon: LightningIcon,
 		headline: "Invite accepted events jumped after the docs CTA shipped",
-		meta: "app.databuddy.cc - 12m ago",
 		change: "+64%",
 		tone: "positive",
 		whyItMatters:
@@ -89,7 +87,6 @@ const heroInsights = [
 		tabId: "errors",
 		icon: BugIcon,
 		headline: "Checkout errors are concentrated on mobile Safari",
-		meta: "app.databuddy.cc - 6m ago",
 		change: "+180%",
 		tone: "negative",
 		whyItMatters:
@@ -101,7 +98,6 @@ const heroInsights = [
 		tabId: "vitals",
 		icon: GaugeIcon,
 		headline: "INP degraded on the signup flow after script growth",
-		meta: "app.databuddy.cc - 24m ago",
 		change: "+42%",
 		tone: "warning",
 		whyItMatters:
@@ -113,7 +109,6 @@ const heroInsights = [
 		tabId: "funnels",
 		icon: FunnelIcon,
 		headline: "Signup funnel is leaking at email verification",
-		meta: "app.databuddy.cc - 38m ago",
 		change: "-18%",
 		tone: "warning",
 		whyItMatters:
@@ -126,7 +121,6 @@ const heroInsights = [
 		tabId: "flags",
 		icon: FlagIcon,
 		headline: "New onboarding variant is lifting activation",
-		meta: "app.databuddy.cc - 1h ago",
 		change: "+21%",
 		tone: "positive",
 		whyItMatters:
@@ -139,7 +133,6 @@ const heroInsights = [
 	evidence: string[];
 	headline: string;
 	icon: HeroInsightIcon;
-	meta: string;
 	nextStep: string;
 	tabId: HeroTabId;
 	tone: HeroInsightTone;
@@ -155,9 +148,9 @@ const tabLabels = new Map<HeroTabId, string>(
 );
 
 const proofChips = [
-	{ icon: LightningIcon, label: "~12 KB script" },
-	{ icon: LockSimpleIcon, label: "Cookieless, no banners" },
-	{ icon: ShieldCheckIcon, label: "GDPR by default" },
+	{ icon: LightningIcon, label: "13 KB script, 12× smaller than GA4" },
+	{ icon: LockSimpleIcon, label: "Cookieless analytics" },
+	{ icon: ShieldCheckIcon, label: "Privacy controls" },
 ] as const;
 
 type FullscreenElement = HTMLIFrameElement & {
@@ -201,24 +194,21 @@ function HeroInsightOverlay({ activeTab }: { activeTab: HeroTabId }) {
 							tone.text
 						)}
 					>
-						<Icon className="size-4" weight="duotone" />
+						<Icon className="size-4" />
 					</span>
 					<div className="min-w-0 flex-1">
 						<div className="flex items-start justify-between gap-2">
 							<p className="line-clamp-2 font-medium text-foreground text-sm leading-snug">
 								{insight.headline}
 							</p>
-							<CaretDownIcon
-								className="mt-0.5 size-3 shrink-0 rotate-180 text-muted-foreground"
-								weight="fill"
-							/>
+							<CaretDownIcon className="mt-0.5 size-3 shrink-0 rotate-180 text-muted-foreground" />
 						</div>
 						<div className="mt-0.5 flex items-center gap-1.5 text-xs">
 							<span className="rounded bg-accent px-1.5 py-0.5 text-[10px] text-muted-foreground">
 								From {sourceLabel}
 							</span>
 							<span className="truncate text-muted-foreground">
-								{insight.meta}
+								Example investigation
 							</span>
 							<span className="text-muted-foreground/30">&middot;</span>
 							<span className={cn("tabular-nums", tone.text)}>
@@ -248,10 +238,7 @@ function HeroInsightOverlay({ activeTab }: { activeTab: HeroTabId }) {
 						initial={{ opacity: 0, y: 5 }}
 						transition={{ delay: 0.22, duration: 0.22, ease: "easeOut" }}
 					>
-						<LightbulbFilamentIcon
-							className="mt-0.5 size-4 shrink-0 text-amber-500"
-							weight="duotone"
-						/>
+						<LightbulbFilamentIcon className="mt-0.5 size-4 shrink-0 text-amber-500" />
 						<div className="min-w-0">
 							<p className="font-medium text-[11px] text-foreground uppercase">
 								Do this next
@@ -298,7 +285,7 @@ function HeroInsightOverlay({ activeTab }: { activeTab: HeroTabId }) {
 							href="/databunny"
 						>
 							Ask agent
-							<ArrowRightIcon className="ml-1 size-3" weight="fill" />
+							<ArrowRightIcon className="ml-1 size-3" />
 						</Link>
 					</motion.div>
 				</div>
@@ -395,7 +382,7 @@ export default function Hero({
 									ease: "easeOut",
 								}}
 							>
-								<chip.icon className="size-3.5" weight="duotone" />
+								<chip.icon className="size-3.5" />
 								{chip.label}
 							</motion.span>
 						))}
@@ -412,7 +399,7 @@ export default function Hero({
 								ease: "easeOut",
 							}}
 						>
-							<StarIcon className="size-3.5 text-amber-500" weight="duotone" />
+							<StarIcon className="size-3.5 text-amber-500" />
 							Open source
 							{typeof stars === "number" && (
 								<span className="tabular-nums">

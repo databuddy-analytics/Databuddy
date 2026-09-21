@@ -87,7 +87,7 @@ function SectionHeading({
 }) {
 	return (
 		<div className="mb-2 flex min-h-7 items-center gap-2">
-			<Icon className="size-4 text-muted-foreground" weight="duotone" />
+			<Icon className="size-4 text-muted-foreground" />
 			<span className="font-semibold text-foreground text-sm">{title}</span>
 		</div>
 	);
@@ -533,7 +533,7 @@ function Header({
 										side="bottom"
 									>
 										<span className="flex items-center text-muted-foreground">
-											<LockSimpleIcon className="size-3" weight="duotone" />
+											<LockSimpleIcon className="size-3" />
 										</span>
 									</Tooltip>
 								) : null}

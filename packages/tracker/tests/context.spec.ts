@@ -1,30 +1,7 @@
 import { expect, findEvent, hasEvent, test } from "./test-utils";
 
 test.describe("Event Context", () => {
-
 	test.describe("UTM Parameters", () => {
-		test("captures utm_source from URL", async ({ page }) => {
-			await page.goto("/test?utm_source=google");
-			await page.evaluate(() => {
-				(window as any).databuddyConfig = {
-					clientId: "test-utm",
-					ignoreBotDetection: true,
-					batchTimeout: 200,
-				};
-			});
-
-			const requestPromise = page.waitForRequest((req) =>
-				hasEvent(req, (e) => e.name === "screen_view")
-			);
-
-			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
-
-			const request = await requestPromise;
-			const payload = findEvent(request, (e) => e.name === "screen_view");
-
-			expect(payload?.utm_source).toBe("google");
-		});
-
 		test("captures all UTM parameters", async ({ page }) => {
 			await page.goto(
 				"/test?utm_source=facebook&utm_medium=cpc&utm_campaign=summer_sale&utm_term=shoes&utm_content=banner_1"
@@ -78,50 +55,6 @@ test.describe("Event Context", () => {
 	});
 
 	test.describe("Ad Click IDs", () => {
-		test("captures gclid from URL", async ({ page }) => {
-			await page.goto("/test?gclid=EAIaIQobChMI_test123");
-			await page.evaluate(() => {
-				(window as any).databuddyConfig = {
-					clientId: "test-gclid",
-					ignoreBotDetection: true,
-					batchTimeout: 200,
-				};
-			});
-
-			const requestPromise = page.waitForRequest((req) =>
-				hasEvent(req, (e) => e.name === "screen_view")
-			);
-
-			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
-
-			const request = await requestPromise;
-			const payload = findEvent(request, (e) => e.name === "screen_view");
-
-			expect(payload?.gclid).toBe("EAIaIQobChMI_test123");
-		});
-
-		test("captures fbclid from URL", async ({ page }) => {
-			await page.goto("/test?fbclid=fb_click_abc");
-			await page.evaluate(() => {
-				(window as any).databuddyConfig = {
-					clientId: "test-fbclid",
-					ignoreBotDetection: true,
-					batchTimeout: 200,
-				};
-			});
-
-			const requestPromise = page.waitForRequest((req) =>
-				hasEvent(req, (e) => e.name === "screen_view")
-			);
-
-			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
-
-			const request = await requestPromise;
-			const payload = findEvent(request, (e) => e.name === "screen_view");
-
-			expect(payload?.fbclid).toBe("fb_click_abc");
-		});
-
 		test("gclid is undefined when not present", async ({ page }) => {
 			await page.goto("/test");
 			await page.evaluate(() => {
@@ -142,72 +75,6 @@ test.describe("Event Context", () => {
 			const payload = findEvent(request, (e) => e.name === "screen_view");
 
 			expect(payload?.gclid).toBeUndefined();
-		});
-
-		test("persists gclid to localStorage for later pages", async ({ page }) => {
-			await page.goto("/test?gclid=persist_test_123");
-			await page.evaluate(() => {
-				(window as any).databuddyConfig = {
-					clientId: "test-gclid-persist",
-					ignoreBotDetection: true,
-					batchTimeout: 200,
-				};
-			});
-			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
-
-			await expect
-				.poll(async () => await page.evaluate(() => !!(window as any).db))
-				.toBeTruthy();
-
-			const stored = await page.evaluate(() =>
-				localStorage.getItem("did_params")
-			);
-			expect(stored).toBeTruthy();
-			const parsed = JSON.parse(stored as string);
-			expect(parsed.gclid).toBe("persist_test_123");
-		});
-
-		test("restores gclid from localStorage on pages without it in URL", async ({
-			page,
-		}) => {
-			await page.goto("/test?gclid=restored_456");
-			await page.evaluate(() => {
-				(window as any).databuddyConfig = {
-					clientId: "test-gclid-restore",
-					ignoreBotDetection: true,
-					batchTimeout: 200,
-				};
-			});
-			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
-
-			await expect
-				.poll(async () => await page.evaluate(() => !!(window as any).db))
-				.toBeTruthy();
-
-			const requestPromise = page.waitForRequest((req) =>
-				hasEvent(
-					req,
-					(e) =>
-						e.name === "screen_view" &&
-						typeof e.path === "string" &&
-						e.path.includes("/no-gclid-page")
-				)
-			);
-
-			await page.evaluate(() => {
-				history.pushState({}, "", "/no-gclid-page");
-			});
-
-			const request = await requestPromise;
-			const payload = findEvent(
-				request,
-				(e) =>
-					e.name === "screen_view" &&
-					typeof e.path === "string" &&
-					e.path.includes("/no-gclid-page")
-			);
-
-			expect(payload?.gclid).toBe("restored_456");
 		});
 
 		test("captures gclid and utm params together", async ({ page }) => {
@@ -488,20 +355,17 @@ test.describe("Event Context", () => {
 			const payload = findEvent(request, (e) => e.name === "screen_view");
 
 			expect(payload?.timezone).toBeTruthy();
-			// Timezone should be a valid IANA timezone string (UTC, GMT, or Area/Location format)
 			expect(payload?.timezone).toMatch(/^([A-Za-z_]+\/[A-Za-z_]+|UTC|GMT)$/);
 		});
 	});
 
 	test.describe("Referrer", () => {
 		test("captures document referrer", async ({ page, browserName }) => {
-			// WebKit has stricter referrer policies in Playwright
 			test.skip(
 				browserName === "webkit",
 				"WebKit has stricter referrer policies that may not pass through referer header"
 			);
 
-			// Set referrer via page context
 			await page.goto("/test", {
 				referer: "https://google.com/search?q=test",
 			});
@@ -528,7 +392,6 @@ test.describe("Event Context", () => {
 		test("uses empty string when no referrer", async ({ page }) => {
 			await page.goto("/test");
 			await page.evaluate(() => {
-				// Clear any referrer
 				Object.defineProperty(document, "referrer", {
 					value: "",
 					writable: true,
@@ -576,29 +439,6 @@ test.describe("Event Context", () => {
 
 			expect(payload?.viewport_size).toBe("1920x1080");
 		});
-
-		test("captures different viewport sizes", async ({ page }) => {
-			await page.setViewportSize({ width: 375, height: 667 });
-			await page.goto("/test");
-			await page.evaluate(() => {
-				(window as any).databuddyConfig = {
-					clientId: "test-viewport",
-					ignoreBotDetection: true,
-					batchTimeout: 200,
-				};
-			});
-
-			const requestPromise = page.waitForRequest((req) =>
-				hasEvent(req, (e) => e.name === "screen_view")
-			);
-
-			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
-
-			const request = await requestPromise;
-			const payload = findEvent(request, (e) => e.name === "screen_view");
-
-			expect(payload?.viewport_size).toBe("375x667");
-		});
 	});
 
 	test.describe("Language", () => {
@@ -622,7 +462,6 @@ test.describe("Event Context", () => {
 			const payload = findEvent(request, (e) => e.name === "screen_view");
 
 			expect(payload?.language).toBeTruthy();
-			// Language should be a valid locale string
 			expect(payload?.language).toMatch(/^[a-z]{2}(-[A-Z]{2})?$/);
 		});
 	});

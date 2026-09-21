@@ -1,25 +1,37 @@
+import {
+	INVESTIGATION_ALLOWANCES,
+	INVESTIGATION_USAGE,
+} from "@databuddy/shared/billing";
 import { FaqSection } from "@/components/landing/faq-section";
 
 export const pricingFaqItems = [
 	{
+		question: "How many investigations are included?",
+		answer: `Business includes ${INVESTIGATION_ALLOWANCES.intelligence} investigations per month; Scale includes ${INVESTIGATION_ALLOWANCES.intelligence_scale}. Extras cost $${INVESTIGATION_USAGE.priceUsd} each, billed monthly.`,
+	},
+	{
+		question: "What is included in one investigation?",
+		answer:
+			"Only completed investigations count. Same-question clarifications and repair checks are included.",
+	},
+	{
 		question: "What happens when I hit my event limit?",
 		answer:
-			"On Free, event ingestion pauses after 10,000 events for the month. Hobby and Pro continue with tiered event overage unless you set a hard billing limit. The dashboard shows current usage and lets you configure alerts and limits.",
+			"On Free, event ingestion pauses after 10,000 events for the month. Paid plans continue at tiered rates, subject to your billing limits.",
 	},
 	{
 		question: "Is there a free trial?",
 		answer:
-			"The Free plan has no trial period and requires no credit card. It includes 10,000 events and 10 investigation credits per month. Credits pay for the work Databunny performs, not a fixed number of messages: simple checks use fewer credits; deeper investigations, replies, and rechecks use more.",
+			"The Free plan has no trial period and requires no credit card. It includes 10,000 events per month and 10 AI credits for Databunny chat. Monthly investigations are available on the invite-only Business and Scale plans.",
 	},
 	{
 		question: "Can I switch plans?",
 		answer:
-			"Yes, you can upgrade or downgrade at any time. When you upgrade, the new plan takes effect immediately. When you downgrade, the change takes effect at the start of your next billing cycle.",
+			"Self-serve upgrades take effect immediately; downgrades start next billing cycle. Contact us for Business, Scale, or Enterprise access.",
 	},
 	{
 		question: "Do you offer annual billing?",
-		answer:
-			"Not yet, but it's on the roadmap. Right now all plans are billed monthly with no long-term commitment. You can cancel at any time.",
+		answer: "Plans are billed monthly. You can cancel at any time.",
 	},
 	{
 		question: "What counts as an event?",

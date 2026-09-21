@@ -364,7 +364,9 @@ function groupBySchema(
 			continue;
 		}
 
-		const sig = getSchemaSignature(req.type, config) || `__solo_${req.type}`;
+		const sig = config.prepareSql
+			? `__staged_${req.type}_${index}`
+			: getSchemaSignature(req.type, config) || `__solo_${req.type}`;
 		const list = groups.get(sig) || [];
 		list.push({ index, req });
 		groups.set(sig, list);
@@ -527,6 +529,7 @@ export async function executeBatch(
 			const rawRows = await chQuery(sql, params, {
 				abort_signal: opts?.abortSignal,
 				clickhouse_settings: getClickHouseQuerySettings(groupNoCache),
+				label: `batch:${[...new Set(compiledItems.map(({ req }) => req.type))].sort().join("+")}`,
 			});
 
 			mergeWideEvent({

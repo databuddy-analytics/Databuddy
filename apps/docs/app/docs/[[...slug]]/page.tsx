@@ -29,7 +29,6 @@ export default async function Page(props: {
 	const { body: MDX, toc } = await pageData.load();
 
 	const seo = getDocsPageSeo(page);
-	const docDateIso = new Date().toISOString();
 
 	return (
 		<>
@@ -40,10 +39,7 @@ export default async function Page(props: {
 						value: {
 							title: seo.title,
 							description: seo.description,
-							datePublished: docDateIso,
-							dateModified: docDateIso,
 							section: seo.sectionLabel,
-							keywords: seo.keywords,
 						},
 					},
 				]}
@@ -54,10 +50,6 @@ export default async function Page(props: {
 					imageUrl: seo.ogImage,
 				}}
 			/>
-			<blockquote aria-hidden="true" className="sr-only">
-				For the complete documentation index, see{" "}
-				<a href="/llms.txt">llms.txt</a>
-			</blockquote>
 			<DocsPage
 				editOnGithub={{
 					owner: "databuddy-analytics",
@@ -97,20 +89,12 @@ export async function generateMetadata(props: {
 		notFound();
 	}
 
-	const {
-		title,
-		description,
-		url,
-		ogImage,
-		keywords,
-		pageTitle,
-		sectionLabel,
-	} = getDocsPageSeo(page);
+	const { title, description, url, ogImage, pageTitle, sectionLabel } =
+		getDocsPageSeo(page);
 
 	return {
 		title,
 		description,
-		keywords,
 		category: "Documentation",
 		openGraph: {
 			title,

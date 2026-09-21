@@ -1,6 +1,6 @@
 import type { ClickHouseClient } from "@clickhouse/client";
 import { Effect } from "effect";
-import type { Admin, Producer } from "kafkajs";
+import { type Admin, Kafka, type Producer } from "kafkajs";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import type { ProducerConfig } from "./producer";
 
@@ -35,15 +35,18 @@ vi.mock("@lib/tracing", () => ({
 
 const { createProducerEffects } = await import("./producer");
 
-const topicMap = { "analytics-events": "analytics.events" };
+const topicMap = {
+	"analytics-custom-events": "analytics.custom_events",
+	"analytics-events": "analytics.events",
+};
 
 const baseConfig: ProducerConfig = {
 	broker: undefined,
 	chunkSize: 100,
 	connectTimeout: 100,
-	directFallbackTimeout: 1_000,
+	directFallbackTimeout: 1000,
 	healthProbeTimeout: 100,
-	kafkaTimeout: 1_000,
+	kafkaTimeout: 1000,
 	maxProducerRetries: 0,
 	password: undefined,
 	producerRetryDelay: 1,
@@ -86,13 +89,16 @@ describe("producer delivery guarantees", () => {
 		const insert = vi.fn(() => Promise.resolve());
 		const effects = await makeEffects(insert);
 
-		await Effect.runPromise(effects.sendOne("analytics-events", event("event_1")));
+		await Effect.runPromise(
+			effects.sendOne("analytics-events", event("event_1"))
+		);
 
 		expect(insert).toHaveBeenCalledWith(
 			expect.objectContaining({
 				clickhouse_settings: {
 					async_insert: 1,
 					wait_for_async_insert: 1,
+					async_insert_busy_timeout_ms: 50,
 					insert_deduplication_token: expect.stringMatching(/^[\da-f]{64}$/),
 				},
 				format: "JSONEachRow",
@@ -105,11 +111,47 @@ describe("producer delivery guarantees", () => {
 		expect(stats).toMatchObject({ inFlight: 0, sent: 1 });
 	});
 
+	test("self-hosting ignores a configured broker and waits for direct persistence", async () => {
+		let resolveInsert: (() => void) | undefined;
+		const insert = vi.fn(
+			() =>
+				new Promise<void>((resolve) => {
+					resolveInsert = resolve;
+				})
+		);
+		const kafka = new Kafka({ brokers: ["redpanda.test:9092"] }).producer();
+		vi.spyOn(kafka, "connect").mockResolvedValue();
+		vi.spyOn(kafka, "send").mockResolvedValue([]);
+		const effects = await makeEffects(
+			insert,
+			{ broker: "redpanda.test:9092" },
+			kafka
+		);
+		let settled = false;
+		const delivery = Effect.runPromise(
+			effects.sendOne("analytics-events", event("event_selfhost"))
+		).then(() => {
+			settled = true;
+		});
+		await vi.waitFor(() => expect(insert).toHaveBeenCalledOnce());
+		expect(settled).toBe(false);
+		expect(kafka.connect).not.toHaveBeenCalled();
+		expect(kafka.send).not.toHaveBeenCalled();
+		resolveInsert?.();
+		await delivery;
+		expect(await Effect.runPromise(effects.stats)).toMatchObject({
+			kafkaEnabled: false,
+			sent: 1,
+		});
+	});
+
 	test("keeps the ClickHouse deduplication token stable across an event retry", async () => {
 		const insert = vi.fn(() => Promise.resolve());
 		const effects = await makeEffects(insert);
 
-		await Effect.runPromise(effects.sendOne("analytics-events", event("event_1")));
+		await Effect.runPromise(
+			effects.sendOne("analytics-events", event("event_1"))
+		);
 		await Effect.runPromise(
 			effects.sendOne("analytics-events", {
 				...event("event_1"),
@@ -138,11 +180,7 @@ describe("producer delivery guarantees", () => {
 		const retriedSpan = { ...firstSpan, timestamp: 2 };
 
 		await Effect.runPromise(
-			effects.sendMany(
-				"analytics-events",
-				[firstSpan],
-				["stable-delivery-id"]
-			)
+			effects.sendMany("analytics-events", [firstSpan], ["stable-delivery-id"])
 		);
 		await Effect.runPromise(
 			effects.sendMany(
@@ -170,7 +208,54 @@ describe("producer delivery guarantees", () => {
 		);
 	});
 
-	test("partitions span retries by their persisted delivery identity", async () => {
+	test("strips legacy custom-event delivery identities from direct fallback rows", async () => {
+		const insert = vi.fn(() => Promise.resolve());
+		const effects = await makeEffects(insert);
+		const customEvent = {
+			delivery_id: "stable-delivery-id",
+			event_name: "checkout_completed",
+			owner_id: "org_1",
+			timestamp: 1,
+		};
+
+		await Effect.runPromise(
+			effects.sendMany(
+				"analytics-custom-events",
+				[customEvent],
+				["stable-delivery-id"]
+			)
+		);
+		await Effect.runPromise(
+			effects.sendMany(
+				"analytics-custom-events",
+				[{ ...customEvent, timestamp: 2 }],
+				["stable-delivery-id"]
+			)
+		);
+
+		expect(insert).toHaveBeenCalledWith(
+			expect.objectContaining({
+				table: "analytics.custom_events",
+				values: [
+					{
+						event_name: "checkout_completed",
+						owner_id: "org_1",
+						timestamp: 1,
+					},
+				],
+			})
+		);
+		expect(customEvent).toHaveProperty("delivery_id", "stable-delivery-id");
+		const tokenAt = (call: number) =>
+			(
+				insert.mock.calls[call]?.[0] as {
+					clickhouse_settings?: { insert_deduplication_token?: string };
+				}
+			).clickhouse_settings?.insert_deduplication_token;
+		expect(tokenAt(1)).toBe(tokenAt(0));
+	});
+
+	test("partitions custom-event retries by their side-channel delivery identity", async () => {
 		const insert = vi.fn(() => Promise.resolve());
 		const kafka = {
 			connect: vi.fn(() => Promise.resolve()),
@@ -185,14 +270,18 @@ describe("producer delivery guarantees", () => {
 			},
 			kafka
 		);
-		const span = {
-			client_id: "ws_1",
-			delivery_id: "stable-delivery-id",
+		const customEvent = {
+			owner_id: "org_1",
+			event_name: "checkout_completed",
 			timestamp: 1,
 		};
 
 		await Effect.runPromise(
-			effects.sendMany("analytics-events", [span], ["stable-delivery-id"])
+			effects.sendMany(
+				"analytics-custom-events",
+				[customEvent],
+				["stable-delivery-id"]
+			)
 		);
 
 		expect(kafka.send).toHaveBeenCalledWith(
@@ -200,17 +289,53 @@ describe("producer delivery guarantees", () => {
 				messages: [
 					{
 						key: "stable-delivery-id",
-						value: JSON.stringify(span),
+						value: JSON.stringify(customEvent),
 					},
 				],
-				topic: "analytics-events",
+				topic: "analytics-custom-events",
 			})
 		);
 		expect(insert).not.toHaveBeenCalled();
 	});
 
+	test("keeps non-custom Kafka partition keys derived from event payloads", async () => {
+		const insert = vi.fn(() => Promise.resolve());
+		const kafka = {
+			connect: vi.fn(() => Promise.resolve()),
+			disconnect: vi.fn(() => Promise.resolve()),
+			send: vi.fn(() => Promise.resolve([])),
+		} as unknown as Producer;
+		const effects = await makeEffects(
+			insert,
+			{
+				broker: "redpanda.test:9092",
+				selfHost: false,
+			},
+			kafka
+		);
+		const trackEvent = event("event_1");
+
+		await Effect.runPromise(
+			effects.sendMany("analytics-events", [trackEvent], ["stable-delivery-id"])
+		);
+
+		expect(kafka.send).toHaveBeenCalledWith(
+			expect.objectContaining({
+				messages: [
+					{
+						key: "ws_1",
+						value: JSON.stringify(trackEvent),
+					},
+				],
+				topic: "analytics-events",
+			})
+		);
+	});
+
 	test("returns a retryable error instead of acknowledging a failed direct fallback", async () => {
-		const effects = await makeEffects(() => Promise.reject(new Error("offline")));
+		const effects = await makeEffects(() =>
+			Promise.reject(new Error("offline"))
+		);
 
 		await expect(
 			Effect.runPromise(effects.sendOne("analytics-events", event("event_1")))
@@ -240,8 +365,8 @@ describe("producer delivery guarantees", () => {
 
 		expect(insert).toHaveBeenCalledOnce();
 		expect(
-			(insert.mock.calls[0]?.[0] as { abort_signal?: AbortSignal })
-				.abort_signal?.aborted
+			(insert.mock.calls[0]?.[0] as { abort_signal?: AbortSignal }).abort_signal
+				?.aborted
 		).toBe(true);
 	});
 
@@ -444,7 +569,9 @@ describe("producer delivery guarantees", () => {
 
 		await Effect.runPromise(effects.checkConnection);
 		await Effect.runPromise(effects.checkConnection);
-		await Effect.runPromise(effects.sendOne("analytics-events", event("event_1")));
+		await Effect.runPromise(
+			effects.sendOne("analytics-events", event("event_1"))
+		);
 
 		expect(kafka.connect).toHaveBeenCalledTimes(1);
 		expect(kafkaAdmin.connect).toHaveBeenCalledTimes(1);
@@ -475,7 +602,9 @@ describe("producer delivery guarantees", () => {
 		);
 
 		await Effect.runPromise(effects.checkConnection);
-		await expect(Effect.runPromise(effects.checkConnection)).rejects.toMatchObject({
+		await expect(
+			Effect.runPromise(effects.checkConnection)
+		).rejects.toMatchObject({
 			_tag: "ProducerUnavailableError",
 			cause: expect.objectContaining({ message: "metadata unavailable" }),
 			retryable: true,
@@ -518,7 +647,9 @@ describe("producer delivery guarantees", () => {
 		);
 
 		const startedAt = performance.now();
-		await expect(Effect.runPromise(effects.checkConnection)).rejects.toMatchObject({
+		await expect(
+			Effect.runPromise(effects.checkConnection)
+		).rejects.toMatchObject({
 			_tag: "ProducerUnavailableError",
 			cause: expect.objectContaining({
 				message: "Redpanda health probe exceeded 20ms",
@@ -526,7 +657,9 @@ describe("producer delivery guarantees", () => {
 			retryable: true,
 		});
 		expect(performance.now() - startedAt).toBeLessThan(500);
-		await vi.waitFor(() => expect(kafkaAdmin.disconnect).toHaveBeenCalledOnce());
+		await vi.waitFor(() =>
+			expect(kafkaAdmin.disconnect).toHaveBeenCalledOnce()
+		);
 		expect((await Effect.runPromise(effects.stats)).inFlight).toBe(0);
 	});
 
@@ -560,7 +693,9 @@ describe("producer delivery guarantees", () => {
 			kafkaAdmin
 		);
 
-		await expect(Effect.runPromise(effects.checkConnection)).rejects.toMatchObject({
+		await expect(
+			Effect.runPromise(effects.checkConnection)
+		).rejects.toMatchObject({
 			_tag: "ProducerUnavailableError",
 			retryable: true,
 		});
@@ -597,7 +732,9 @@ describe("producer delivery guarantees", () => {
 			kafkaAdmin
 		);
 
-		await expect(Effect.runPromise(effects.checkConnection)).rejects.toMatchObject({
+		await expect(
+			Effect.runPromise(effects.checkConnection)
+		).rejects.toMatchObject({
 			_tag: "ProducerUnavailableError",
 			retryable: true,
 		});
@@ -643,7 +780,9 @@ describe("producer delivery guarantees", () => {
 		const shutdown = Effect.runPromise(effects.shutDown);
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
-		await expect(Effect.runPromise(effects.checkConnection)).rejects.toMatchObject({
+		await expect(
+			Effect.runPromise(effects.checkConnection)
+		).rejects.toMatchObject({
 			_tag: "ProducerUnavailableError",
 			retryable: true,
 		});
@@ -672,12 +811,13 @@ describe("producer delivery guarantees", () => {
 			connect: vi.fn(() => Promise.resolve()),
 			describeCluster: vi.fn(
 				() =>
-					new Promise<{ brokers: Array<{ nodeId: number }>; clusterId: string }>(
-						(resolve) => {
-							releaseMetadata = () =>
-								resolve({ brokers: [{ nodeId: 1 }], clusterId: "test" });
-						}
-					)
+					new Promise<{
+						brokers: Array<{ nodeId: number }>;
+						clusterId: string;
+					}>((resolve) => {
+						releaseMetadata = () =>
+							resolve({ brokers: [{ nodeId: 1 }], clusterId: "test" });
+					})
 			),
 			disconnect: vi.fn(() => Promise.resolve()),
 		} as unknown as Admin;

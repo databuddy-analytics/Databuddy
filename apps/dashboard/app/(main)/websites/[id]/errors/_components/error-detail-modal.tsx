@@ -47,7 +47,7 @@ function CopyButton({
 			type="button"
 		>
 			{copiedField === field ? (
-				<CheckIcon className="size-3 text-green-500" weight="bold" />
+				<CheckIcon className="size-3 text-success" />
 			) : (
 				<CopyIcon className="size-3" />
 			)}
@@ -227,10 +227,7 @@ export const ErrorDetailModal = ({
 				<Sheet.Header>
 					<div className="flex items-start gap-4">
 						<div className="flex size-11 items-center justify-center rounded border bg-background">
-							<BugIcon
-								className="size-[22px] text-accent-foreground"
-								weight="fill"
-							/>
+							<BugIcon className="size-[22px] text-accent-foreground" />
 						</div>
 						<div className="min-w-0 flex-1">
 							<div className="flex items-center gap-2">
@@ -289,10 +286,7 @@ export const ErrorDetailModal = ({
 						<div className="overflow-hidden rounded-md border border-border/60">
 							<Accordion>
 								<Accordion.Trigger>
-									<StackIcon
-										className="size-4 shrink-0 text-muted-foreground"
-										weight="duotone"
-									/>
+									<StackIcon className="size-4 shrink-0 text-muted-foreground" />
 									<span className="font-medium text-foreground">
 										Stack Trace
 									</span>
@@ -377,7 +371,7 @@ export const ErrorDetailModal = ({
 						variant="secondary"
 					>
 						{copiedField === "all" ? (
-							<CheckIcon className="size-4 text-green-500" weight="bold" />
+							<CheckIcon className="size-4 text-success" />
 						) : (
 							<CopyIcon className="size-4" />
 						)}

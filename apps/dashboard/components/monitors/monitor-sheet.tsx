@@ -332,10 +332,7 @@ export function MonitorSheet({
 							<Field.Label className="flex items-center gap-2">
 								Check Frequency
 								<Tooltip content="How often the monitor checks availability">
-									<InfoIcon
-										className="size-3.5 text-muted-foreground"
-										weight="duotone"
-									/>
+									<InfoIcon className="size-3.5 text-muted-foreground" />
 								</Tooltip>
 							</Field.Label>
 							<SegmentedControl
@@ -353,10 +350,7 @@ export function MonitorSheet({
 							<div className="overflow-hidden rounded-md border border-border/60">
 								<Accordion>
 									<Accordion.Trigger>
-										<GearIcon
-											className="size-4 shrink-0 text-muted-foreground"
-											weight="duotone"
-										/>
+										<GearIcon className="size-4 shrink-0 text-muted-foreground" />
 										<Text variant="label">Advanced Settings</Text>
 										{advancedCount > 0 && (
 											<span className="ml-auto flex size-5 items-center justify-center rounded-full bg-primary font-medium text-primary-foreground text-xs">
@@ -405,10 +399,7 @@ export function MonitorSheet({
 								<div className="overflow-hidden rounded-md border border-border/60">
 									<Accordion>
 										<Accordion.Trigger>
-											<BellIcon
-												className="size-4 shrink-0 text-muted-foreground"
-												weight="duotone"
-											/>
+											<BellIcon className="size-4 shrink-0 text-muted-foreground" />
 											<Text variant="label">Alerts</Text>
 											{linkedAlarmCount > 0 && (
 												<span className="ml-auto flex size-5 items-center justify-center rounded-full bg-primary font-medium text-primary-foreground text-xs">

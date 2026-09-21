@@ -101,7 +101,7 @@ export function IncidentsTab({
 							</Button>
 						}
 						description="Report an incident when something is wrong. It will appear on your public status page."
-						icon={<SirenIcon weight="duotone" />}
+						icon={<SirenIcon />}
 						title="No incidents"
 					/>
 				</div>
@@ -222,7 +222,7 @@ function IncidentRow({
 					iconBg
 				)}
 			>
-				<StatusIcon className={cn("size-4", iconColor)} weight="fill" />
+				<StatusIcon className={cn("size-4", iconColor)} />
 			</div>
 
 			<div className="min-w-0 flex-1">

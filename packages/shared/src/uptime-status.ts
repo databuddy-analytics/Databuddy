@@ -73,21 +73,23 @@ export function deriveMonitorStatus({
 	return "down";
 }
 
-export function deriveOverallStatus(
-	monitors: Array<{
-		currentStatus: MonitorStatus;
-		freshness: MonitorFreshness;
-	}>,
-	incidents: Array<{
-		status: string;
+const OVERALL_STATUS_SEVERITY: Record<OverallStatus, number> = {
+	operational: 0,
+	unknown: 1,
+	degraded: 2,
+	outage: 3,
+};
+
+function moreSevereStatus(a: OverallStatus, b: OverallStatus): OverallStatus {
+	return OVERALL_STATUS_SEVERITY[a] >= OVERALL_STATUS_SEVERITY[b] ? a : b;
+}
+
+function deriveIncidentStatus(
+	activeIncidents: Array<{
 		severity: string;
 		affectedMonitors: { impact: string }[];
-	}> = []
+	}>
 ): OverallStatus {
-	const activeIncidents = incidents.filter(
-		(incident) => incident.status !== "resolved"
-	);
-
 	if (activeIncidents.some((incident) => incident.severity === "critical")) {
 		return "outage";
 	}
@@ -101,7 +103,15 @@ export function deriveOverallStatus(
 	if (activeIncidents.length > 0) {
 		return "degraded";
 	}
+	return "operational";
+}
 
+function deriveMonitorsStatus(
+	monitors: Array<{
+		currentStatus: MonitorStatus;
+		freshness: MonitorFreshness;
+	}>
+): OverallStatus {
 	if (monitors.length === 0) {
 		return "unknown";
 	}
@@ -127,4 +137,25 @@ export function deriveOverallStatus(
 		return "unknown";
 	}
 	return "operational";
+}
+
+export function deriveOverallStatus(
+	monitors: Array<{
+		currentStatus: MonitorStatus;
+		freshness: MonitorFreshness;
+	}>,
+	incidents: Array<{
+		status: string;
+		severity: string;
+		affectedMonitors: { impact: string }[];
+	}> = []
+): OverallStatus {
+	const activeIncidents = incidents.filter(
+		(incident) => incident.status !== "resolved"
+	);
+
+	return moreSevereStatus(
+		deriveIncidentStatus(activeIncidents),
+		deriveMonitorsStatus(monitors)
+	);
 }

@@ -1,4 +1,48 @@
 import { z } from "zod";
+import { businessMeasurementPlanSchema } from "./organization-business-context";
+import {
+	goalFunnelFilterFields,
+	goalFunnelFilterFieldSet,
+} from "./analytics-filters";
+
+// Shared by the model input, frozen run plan and durable outcome. Keep a single
+// bounded source contract so persistence cannot silently strip provenance.
+const businessContextTimestamp = z.iso
+	.datetime({ offset: true })
+	.refine((value) => Number.isFinite(Date.parse(value)));
+
+export const businessSourceSchema = z.object({
+	id: z.string().min(1).max(500),
+	kind: z.enum(["website", "team_reply", "organization_profile"]),
+	content: z.string().min(1).max(4000),
+	observedAt: businessContextTimestamp,
+	url: z.url().max(2048).optional(),
+	references: z
+		.array(z.object({ url: z.url().max(2048), title: z.string().max(512) }))
+		.max(8)
+		.optional(),
+	internalLinks: z.array(z.string().max(300)).max(10).optional(),
+	subjectKey: z.string().max(500).optional(),
+	author: z.string().max(200).optional(),
+	origin: z.enum(["team", "website", "mixed"]).optional(),
+	expiresAt: businessContextTimestamp.optional(),
+	// Version of the canonical profile supplied with this source, not claim attribution.
+	profileVersion: z
+		.object({
+			revision: z.number().int().positive(),
+			updatedAt: businessContextTimestamp,
+		})
+		.optional(),
+});
+export type BusinessSource = z.infer<typeof businessSourceSchema>;
+
+export const businessContextSchema = z.object({
+	capturedAt: businessContextTimestamp,
+	status: z.enum(["ready", "partial", "unavailable", "disabled"]),
+	sources: z.array(businessSourceSchema).max(16),
+	issues: z.array(z.string().max(200)).max(20),
+});
+export type BusinessContext = z.infer<typeof businessContextSchema>;
 
 export const weekOverWeekPeriodSchema = z
 	.object({
@@ -44,6 +88,7 @@ const investigationEntitySchema = z
 			"website",
 			"page",
 			"event",
+			"cohort",
 			"goal",
 			"funnel",
 			"funnel_step",
@@ -71,6 +116,121 @@ export type MatchedErrorContinuationMeasurement = z.infer<
 	typeof matchedErrorContinuationMeasurementSchema
 >;
 
+export const RETENTION_MINIMUM_PROFILES = 50;
+const retentionWindowSchema = z
+	.strictObject({
+		eligible: z.number().int().min(RETENTION_MINIMUM_PROFILES).safe(),
+		retained: z.number().int().nonnegative().safe(),
+		incomplete: z.literal(0),
+		events: z.number().int().positive().safe(),
+		identifiedEvents: z.number().int().positive().safe(),
+		cohortStart: z.iso.datetime({ offset: true }),
+		cohortEnd: z.iso.datetime({ offset: true }),
+	})
+	.refine(
+		(row) =>
+			row.retained <= row.eligible &&
+			row.eligible <= row.identifiedEvents &&
+			row.identifiedEvents <= row.events &&
+			Date.parse(row.cohortStart) < Date.parse(row.cohortEnd),
+		"Retention requires a consistent, complete identified-profile population"
+	);
+
+const retentionDayCount = z.number().int().nonnegative().safe();
+const retentionDaySchema = z
+	.strictObject({
+		date: z.iso.date(),
+		eligible: retentionDayCount,
+		retained: retentionDayCount,
+		incomplete: z.literal(0),
+		events: retentionDayCount,
+		identifiedEvents: retentionDayCount,
+	})
+	.refine(
+		(row) =>
+			row.retained <= row.eligible &&
+			row.eligible <= row.identifiedEvents &&
+			row.identifiedEvents <= row.events,
+		"Retention daily counts require a consistent identified-profile population"
+	);
+export type RetentionDay = z.infer<typeof retentionDaySchema>;
+
+export const retentionMeasurementSchema = z
+	.strictObject({
+		definition: businessMeasurementPlanSchema.omit({ name: true }),
+		timezone: z.string().min(1).max(100),
+		observationEnd: z.iso.date(),
+		observedBefore: z.iso.datetime({ offset: true }),
+		previous: retentionWindowSchema,
+		current: retentionWindowSchema,
+		daily: z
+			.strictObject({
+				previous: z.array(retentionDaySchema).max(7),
+				current: z.array(retentionDaySchema).max(7),
+			})
+			.optional(),
+	})
+	.superRefine((measurement, context) => {
+		if (!measurement.daily) {
+			return;
+		}
+		let calendar: Intl.DateTimeFormat;
+		try {
+			calendar = new Intl.DateTimeFormat("en-CA", {
+				timeZone: measurement.timezone,
+				year: "numeric",
+				month: "2-digit",
+				day: "2-digit",
+			});
+		} catch {
+			context.addIssue({
+				code: "custom",
+				message: "Retention daily dates require a valid timezone",
+				path: ["timezone"],
+			});
+			return;
+		}
+		for (const period of ["previous", "current"] as const) {
+			const overall = measurement[period];
+			// Invalid aggregate timestamps already have schema issues.
+			if (!(Date.parse(overall.cohortStart) < Date.parse(overall.cohortEnd))) {
+				continue;
+			}
+			const rows = measurement.daily[period];
+			const from = calendar.format(new Date(overall.cohortStart));
+			const end = calendar.format(new Date(overall.cohortEnd));
+			if (
+				Date.parse(end) - Date.parse(from) !== 7 * 86_400_000 ||
+				rows.some(
+					(row, index) =>
+						row.date < from ||
+						row.date >= end ||
+						(index > 0 && row.date <= rows[index - 1].date)
+				) ||
+				(
+					[
+						"eligible",
+						"retained",
+						"incomplete",
+						"events",
+						"identifiedEvents",
+					] as const
+				).some(
+					(field) =>
+						rows.reduce((sum, row) => sum + row[field], 0) !== overall[field]
+				)
+			) {
+				context.addIssue({
+					code: "custom",
+					message:
+						"Retention daily rows must be sorted, unique, inside their seven-day window and sum to its counts",
+					path: ["daily", period],
+				});
+			}
+		}
+	});
+export type RetentionMeasurement = z.infer<typeof retentionMeasurementSchema>;
+
 const investigationSignalShape = {
 	signalKey: investigationKeySchema.describe(
 		"Backend-owned identity for this exact signal."
@@ -83,6 +243,7 @@ const investigationSignalShape = {
 	period: weekOverWeekPeriodSchema,
 	baselineDates: z.array(z.iso.date()).min(6).max(90).optional(),
 	cohortMeasurement: matchedErrorContinuationMeasurementSchema.optional(),
+	retentionMeasurement: retentionMeasurementSchema.optional(),
 };
 
 function validateBaselineDates(
@@ -127,18 +288,70 @@ export const insightDefinitionEditChangesSchema = z
 			.trim()
 			.min(1)
 			.max(500)
-			.nullable()
+			.nullish()
 			.describe("Exact replacement description; null to leave unchanged."),
 		name: z
 			.string()
 			.trim()
 			.min(1)
 			.max(100)
-			.nullable()
+			.nullish()
 			.describe("Exact replacement name; null to leave unchanged."),
+		target: z
+			.string()
+			.trim()
+			.min(1)
+			.max(2000)
+			.nullish()
+			.describe(
+				"Exact replacement page path or event name for a goal; omit or null to leave unchanged. Not valid for funnels."
+			),
+		type: z
+			.enum(["PAGE_VIEW", "EVENT", "CUSTOM"])
+			.nullish()
+			.describe(
+				"Replacement goal type; omit or null to leave unchanged. Not valid for funnels."
+			),
+		steps: z
+			.array(
+				z.strictObject({
+					name: z.string().trim().min(1).max(100),
+					target: z.string().trim().min(1).max(2000),
+					type: z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]),
+					conditions: z.record(z.string(), z.unknown()).optional(),
+				})
+			)
+			.min(2)
+			.max(20)
+			.nullish()
+			.describe(
+				"Complete ordered replacement steps for a funnel. Preserve existing conditions at their positions; do not add or change conditions, which analytics does not evaluate. Renaming steps alone does not repair measurement. Not valid for goals."
+			),
+		filters: z
+			.array(
+				z.strictObject({
+					field: z.enum(goalFunnelFilterFields.map((field) => field.value)),
+					operator: z.enum([
+						"equals",
+						"contains",
+						"not_contains",
+						"starts_with",
+						"ends_with",
+						"not_equals",
+						"in",
+						"not_in",
+					]),
+					value: z.union([z.string(), z.array(z.string())]),
+				})
+			)
+			.max(20)
+			.nullish()
+			.describe(
+				"Complete replacement filters; [] clears filters, omit or null leaves them unchanged."
+			),
 	})
 	.strict()
-	.refine((changes) => changes.description !== null || changes.name !== null, {
+	.refine((changes) => Object.values(changes).some((value) => value != null), {
 		message: "Definition edits require at least one changed field",
 	});
 
@@ -186,19 +399,34 @@ const definitionDeleteExecutionSchema = z
 	})
 	.strip();
 
-const legacyDefinitionExecutionSchema = z
-	.object({
-		changes: z.null(),
-		operation: z.null(),
-	})
-	.strip();
 const insightDefinitionExecutionSchema = z.discriminatedUnion("operation", [
 	definitionEditExecutionSchema,
 	definitionDeleteExecutionSchema,
-	legacyDefinitionExecutionSchema,
 ]);
 
-const agentEvidenceReferenceSchema = z.discriminatedUnion("source", [
+export const agentEvidenceReferenceSchema = z.discriminatedUnion("source", [
+	z
+		.strictObject({
+			source: z.literal("history"),
+			index: z.number().int().nonnegative(),
+		})
+		.describe(
+			"A zero-based index of an investigation in history for this exact signal. Cites only the prior action’s saved verification condition, never historical measurements, current measurements, or a human reply."
+		),
+	z
+		.strictObject({ source: z.literal("customer_impact") })
+		.describe("The supplied customerImpact measurements, only when present."),
+	z
+		.strictObject({
+			source: z.literal("related_signal"),
+			index: z.number().int().nonnegative(),
+		})
+		.describe("A zero-based index in the supplied relatedSignals array."),
+	z
+		.strictObject({ source: z.literal("signal") })
+		.describe(
+			"The supplied signal measurement, including its exact comparison windows and metric delta. Always available, even when evidence is empty."
+		),
 	z
 		.object({
 			index: z
@@ -216,8 +444,21 @@ const agentEvidenceReferenceSchema = z.discriminatedUnion("source", [
 				.trim()
 				.min(1)
 				.max(100)
-				.describe("Exact name of a read tool used during this investigation."),
+				.describe("Exact name of the read tool that returned the cited fact."),
 			source: z.literal("tool"),
+			toolCallId: z
+				.string()
+				.min(1)
+				.describe(
+					"Exact tool call ID from this investigation; cite a successful result, not merely a tool name."
+				),
+			resultKey: z
+				.string()
+				.min(1)
+				.nullable()
+				.describe(
+					"For get_data, the exact key under results (including any website or # suffix). For other tools, null."
+				),
 		})
 		.strict(),
 ]);
@@ -250,6 +491,81 @@ export const insightWatchThresholdSchema = z
 	})
 	.strict();
 
+// Bind only fields that analytics evaluates. The read snapshot also retains the
+// complete funnel steps so repair validation can preserve names and conditions.
+const evaluatedFilterSchema = z.object({ field: z.string() });
+const measurementFiltersSchema = z
+	.preprocess(
+		(value) =>
+			Array.isArray(value)
+				? value.filter((filter) => {
+						const parsed = evaluatedFilterSchema.safeParse(filter);
+						return (
+							parsed.success && goalFunnelFilterFieldSet.has(parsed.data.field)
+						);
+					})
+				: value,
+		z.array(
+			insightDefinitionEditChangesSchema.shape.filters.unwrap().unwrap().element
+		)
+	)
+	.default([]);
+export const insightVerificationDefinitionSchema = z.union([
+	z.object({
+		type: z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]),
+		target: z.string(),
+		filters: measurementFiltersSchema,
+	}),
+	z.object({
+		steps: z
+			.array(
+				z.object({
+					type: z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]),
+					target: z.string(),
+				})
+			)
+			.min(2),
+		filters: measurementFiltersSchema,
+	}),
+]);
+export const insightMeasurementSchema = z.object({
+	websiteId: z.string(),
+	definitionId: z.string(),
+	startDate: z.iso.date(),
+	endDate: z.iso.date(),
+	definition: z.union([
+		insightVerificationDefinitionSchema.options[0],
+		insightVerificationDefinitionSchema.options[1].extend({
+			steps: z
+				.array(
+					insightVerificationDefinitionSchema.options[1].shape.steps.element.extend(
+						{
+							name: z.string().min(1),
+							conditions: z.record(z.string(), z.unknown()).optional(),
+						}
+					)
+				)
+				.min(2),
+		}),
+	]),
+});
+
+const insightVerificationCheckSchema = z
+	.object({
+		definition: insightVerificationDefinitionSchema.optional(),
+		metric: z.enum(["total_users_completed", "overall_conversion_rate"]),
+		startDate: z.iso.date(),
+		endDate: z.iso.date(),
+		minimumEntrants: z.number().int().positive(),
+		threshold: insightWatchThresholdSchema.extend({
+			evidenceRef: agentEvidenceReferenceSchema,
+		}),
+	})
+	.strict()
+	.refine((check) => check.startDate <= check.endDate, {
+		message: "Verification dates must be ordered",
+	});
+
 const investigationActNextSchema = z.object({
 	type: z.literal("act"),
 	action: z
@@ -269,6 +585,12 @@ const investigationActNextSchema = z.object({
 		.trim()
 		.min(1)
 		.describe("One short measured condition that proves the repair worked."),
+	check: insightVerificationCheckSchema
+		.nullable()
+		.optional()
+		.describe(
+			"For a goal or funnel repair with known verification dates, bind the condition to that exact definition's analytics: completed users or conversion percent, inclusive UTC dates, minimum entrants, and an evidence-backed threshold. Null when the dates are unknown, the definition is deleted, or another metric/cohort is needed; never invent a check."
+		),
 	recheckAt: z.iso
 		.datetime()
 		.optional()
@@ -336,6 +658,14 @@ const agentInsightDefinitionExecutionSchema = z.discriminatedUnion(
 
 const agentInvestigationNextSchema = z.discriminatedUnion("type", [
 	investigationActNextSchema.extend({
+		check: z
+			.object(insightVerificationCheckSchema.shape)
+			.omit({ definition: true })
+			.nullable()
+			.optional()
+			.describe(
+				"Save a structured check when its metric, future dates and healthy threshold are known. Databuddy binds the expected definition; do not repeat it."
+			),
 		recheckAt: z.iso
 			.datetime()
 			.describe("Exact ISO 8601 time to remeasure the verification condition."),
@@ -365,6 +695,15 @@ export const insightPublicationBasisSchema = z.enum([
 
 export const investigationOutcomeSchema = z
 	.object({
+		verification: z
+			.object({
+				check: insightVerificationCheckSchema,
+				status: z.enum(["passed", "failed", "inconclusive"]),
+				measured: z.number().finite().nullable(),
+				entrants: z.number().int().nonnegative().nullable(),
+				source: agentEvidenceReferenceSchema.nullable(),
+			})
+			.optional(),
 		findingKind: insightFindingKindSchema
 			.optional()
 			.describe(
@@ -375,31 +714,27 @@ export const investigationOutcomeSchema = z
 			.trim()
 			.min(1)
 			.describe(
-				"A 5–12 word news headline stating the verified finding. For a directly measured user experience, lead with the affected visitor or customer count and observed problem. For a measurement definition or coverage finding, name the mismatch or blind spot, never an implied user failure. Never translate occurrences, sessions, entrants, or performance samples into people, or use a raw identifier, generic config label, schema label, arrow relationship, or measurement language as the title."
+				"A short news headline stating the verified finding. For a directly measured user experience, lead with the affected visitor or customer count and observed problem. For a measurement definition or coverage finding, name the mismatch or blind spot, never an implied user failure. Never translate occurrences, sessions, entrants, or performance samples into people, or use a raw identifier, generic config label, schema label, arrow relationship, or measurement language as the title."
 			),
 		summary: z
 			.string()
 			.trim()
 			.min(1)
 			.describe(
-				"One short sentence stating what happened, where, and when. Prefer the verified problem or experience over the percentage change; keep comparison detail in evidence when an affected cohort is known. Do not repeat the title, impact, root cause, or evidence."
+				"In 8–10 words, add a concrete implication or material limit. No restatement of the headline, generic advice, or unmeasured customer/revenue harm. Keep comparisons in evidence and the inspected mechanism in rootCause."
 			),
-		impact: z
-			.string()
-			.trim()
-			.min(1)
-			.nullable()
-			.describe(
-				"One short, directly measured user, reliability, business, or decision consequence. State affected scope and notable verified cohorts when available. Error exposure does not prove a broken page, failed task, lost work, or blocked conversion. For a broken definition, say the decision it cannot support. Null when no consequence was measured."
-			),
+		// Retain stored briefs; new investigations include the consequence in summary.
+		impact: z.string().trim().min(1).nullable().default(null),
 		rootCause: z
 			.string()
 			.trim()
 			.min(1)
 			.nullable()
 			.describe(
-				"One short, inspected causal mechanism. Use null for unknown, suspected, or merely correlated explanations. Error text, a runtime stack, bundle location, route, browser document line, timing, or annotation is not a source-code mechanism."
+				"One short, inspected mechanism naming the actual failing operation; otherwise null. A business brief or team reply alone cannot verify an implementation or measurement defect. Error text, a runtime stack, route, timing or annotation is not an inspected mechanism."
 			),
+		// Supplied background only; does not establish which facts influenced a claim.
+		contextSnapshot: businessContextSchema.optional(),
 		evidence: z
 			.array(
 				z
@@ -428,13 +763,6 @@ export const investigationOutcomeSchema = z
 	})
 	.strip()
 	.superRefine((outcome, context) => {
-		if (outcome.next.type === "act" && outcome.impact === null) {
-			context.addIssue({
-				code: "custom",
-				message: "Actions require measured impact",
-				path: ["impact"],
-			});
-		}
 		if (outcome.next.type === "act" && outcome.rootCause === null) {
 			context.addIssue({
 				code: "custom",
@@ -538,64 +866,49 @@ export const investigationOutcomeSchema = z
 				path: ["publicationBasis"],
 			});
 		}
-		if (
-			(outcome.findingKind === "user_experience" ||
-				outcome.publicationBasis === "measured_impact" ||
-				isPublishedMeasurementFinding ||
-				isPublishedMeasuredFinding ||
-				isPublishedReliabilityFinding) &&
-			outcome.impact === null
-		) {
-			context.addIssue({
-				code: "custom",
-				message:
-					"Measured experience and published decision findings require impact",
-				path: ["impact"],
-			});
-		}
 	});
 
 const RAW_IDENTIFIER_PATTERN =
 	/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\b[a-z0-9]+(?:_[a-z0-9]+)+\b|https?:\/\//i;
-const TITLE_WORD_SEPARATOR = /\s+/;
 
 const agentTitleSchema = z
 	.string()
 	.trim()
+	.min(1)
 	.max(120)
-	.refine(
-		(title) => {
-			const words = title.split(TITLE_WORD_SEPARATOR).length;
-			return words >= 5 && words <= 12;
-		},
-		{ message: "Titles must be 5-12 words" }
-	)
 	.refine((title) => !RAW_IDENTIFIER_PATTERN.test(title), {
 		message:
 			"Titles must use natural product language, never raw identifiers, event names, or URLs",
 	})
 	.describe(
-		"A 5–12 word news headline stating the verified finding in natural product language. Lead with the affected count and observed problem. Never use raw identifiers, snake_case event names, URLs, or measurement jargon."
+		"A natural 4–8 word headline stating the finding. Directly measured reliability or user impact may lead with an affected count. Structured revenue headlines stay qualitative. Measurement findings name the inspected mismatch or measured blind spot without implying product harm; counts belong with dates in evidence. Never use raw identifiers, event names or URLs."
 	);
 
-export const agentInvestigationOutcomeSchema = investigationOutcomeSchema
-	.safeExtend({
+export const agentInvestigationOutcomeSchema = z
+	.object(investigationOutcomeSchema.shape)
+	.omit({ impact: true, verification: true, contextSnapshot: true })
+	.extend({
 		title: agentTitleSchema,
 		evidenceRefs: z
-			.array(agentEvidenceReferenceSchema)
+			.array(
+				z.union([
+					agentEvidenceReferenceSchema,
+					z.array(agentEvidenceReferenceSchema).min(1).max(8),
+				])
+			)
 			.min(1)
 			.max(2)
 			.describe(
-				"One source reference for each evidence item, in the same order."
+				"Sources for each evidence item, in the same order. Use an array when a concise comparison needs multiple sources."
 			),
 		next: agentInvestigationNextSchema,
 		publish: z
 			.boolean()
 			.describe(
-				"True only when this turn adds a new customer-relevant fact worth showing in Insights."
+				"True for a new material measured change or coverage gap, inspected defect, or verification verdict. False for a baseline alone, normal maturation, explained/excluded changes, stale business context, or missing diagnostic access. Answering a question does not itself merit a feed incident."
 			),
 		findingKind: insightFindingKindSchema.describe(
-			"Classify this as user_experience only for a directly measured downstream user experience; product_outcome for a measured business or journey result; reliability_exposure for directly measured error or performance exposure without a measured downstream outcome; measurement_definition for a named definition that measures something other than its stated purpose; or measurement_coverage for missing telemetry/setup. Published user experience and product outcomes require measured impact, reliability exposure requires measured reliability, and published measurement findings require decision safety."
+			"Classify the cited evidence: user_experience needs a measured downstream consequence; product_outcome needs a measured result of known-purpose behavior; reliability_exposure reports measured errors or performance. measurement_definition needs an inspected current definition or emitter mismatch, not a stale brief or reply alone. measurement_coverage needs a measured missing population or inspected collection defect, not immature cohorts or unavailable diagnostics. Event names alone establish no business purpose."
 		),
 		publicationBasis: insightPublicationBasisSchema
 			.nullable()
@@ -604,6 +917,12 @@ export const agentInvestigationOutcomeSchema = investigationOutcomeSchema
 			),
 	})
 	.superRefine((outcome, context) => {
+		const stored = investigationOutcomeSchema.safeParse(outcome);
+		if (!stored.success) {
+			for (const issue of stored.error.issues) {
+				context.addIssue({ ...issue });
+			}
+		}
 		if (outcome.evidenceRefs.length !== outcome.evidence.length) {
 			context.addIssue({
 				code: "custom",
@@ -615,6 +934,10 @@ export const agentInvestigationOutcomeSchema = investigationOutcomeSchema
 
 const insightStatusSchema = z.enum(["open", "resolved"]);
 const insightResolvedReasonSchema = z.enum(["recovered", "stale"]);
+export function appliedInsightActionReply(type: "goal" | "funnel"): string {
+	return `Databuddy applied the ${type} action. Recheck its verification condition against current data.`;
+}
+
 export const insightReplyStatusSchema = z.enum([
 	"queued",
 	"running",
@@ -671,6 +994,8 @@ const insightTimelineInvestigationSchema = z.object({
 });
 
 export const insightTimelineReplySchema = z.object({
+	assistantText: z.string().nullable().optional(),
+	intent: z.enum(["clarification", "analysis", "verification"]).optional(),
 	author: z.string(),
 	body: z.string(),
 	createdAt: z.string(),
@@ -699,6 +1024,53 @@ export type InsightDefinitionEditChanges = z.infer<
 export type InsightDefinitionOperation = z.infer<
 	typeof insightDefinitionOperationSchema
 >;
+
+export function describeInsightDefinitionAction(
+	label: string,
+	operation: InsightDefinitionOperation
+): string {
+	if (operation.operation === "delete") {
+		return `Delete ${label}.`;
+	}
+	const changes = operation.changes;
+	const edits: string[] = [];
+	if (changes.target != null) {
+		edits.push(`set target to ${JSON.stringify(changes.target)}`);
+	}
+	if (changes.type != null) {
+		edits.push(`set type to ${changes.type}`);
+	}
+	if (changes.steps != null) {
+		edits.push(
+			`replace steps with ${changes.steps.map((step) => `${step.name} (${step.type}: ${step.target})`).join(" → ")}`
+		);
+	}
+	if (changes.filters != null) {
+		edits.push(
+			`set filters to ${changes.filters.length ? changes.filters.map((filter) => `${filter.field} ${filter.operator} ${JSON.stringify(filter.value)}`).join(" AND ") : "none"}`
+		);
+	}
+	if (changes.name != null) {
+		edits.push(`rename to ${JSON.stringify(changes.name)}`);
+	}
+	if (changes.description != null) {
+		edits.push(`set description to ${JSON.stringify(changes.description)}`);
+	}
+	return `For ${label}, ${edits.join("; ")}.`;
+}
+
+export function insightDefinitionEditError(
+	entity: "goal" | "funnel",
+	changes: InsightDefinitionEditChanges
+): string | null {
+	if (entity === "goal" && changes.steps != null) {
+		return "Goal edits cannot replace funnel steps.";
+	}
+	if (entity === "funnel" && (changes.target != null || changes.type != null)) {
+		return "Funnel edits must replace steps, not a goal target or type.";
+	}
+	return null;
+}
 export type InsightWatchThreshold = z.infer<typeof insightWatchThresholdSchema>;
 export type InsightReplySlackDelivery = z.infer<
 	typeof insightReplySlackDeliverySchema
@@ -736,3 +1108,34 @@ export function parseInvestigationSignal(
 	const result = storedInvestigationSignalSchema.safeParse(value);
 	return result.success ? result.data : null;
 }
+
+/** Internal observation evidence. Never exposed by the public timeline schema. */
+export const investigationEvidenceSnapshotSchema = z.object({
+	version: z.literal(1),
+	completion: z.enum(["complete", "incomplete"]),
+	organizationId: z.string(),
+	websiteId: z.string(),
+	signalKey: z.string(),
+	capturedAt: z.iso.datetime(),
+	signal: investigationSignalSchema,
+	providedEvidence: z.array(z.string()),
+	reads: z.array(
+		z.object({
+			name: z.string(),
+			toolCallId: z.string(),
+			resultKey: z.string().nullable(),
+			description: z.string().nullable(),
+			input: z.json(),
+			output: z.json(),
+		})
+	),
+	limitations: z.array(z.string()),
+});
+export type InvestigationEvidenceSnapshot = z.infer<
+	typeof investigationEvidenceSnapshotSchema
+>;
+export const insightReplyIntentSchema = z.enum([
+	"clarification",
+	"analysis",
+	"verification",
+]);

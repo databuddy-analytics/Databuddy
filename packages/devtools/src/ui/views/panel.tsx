@@ -33,26 +33,28 @@ import {
 	type UpdateFlagInput,
 } from "../store";
 
+const NUMERIC_LITERAL = /^-?\d+(\.\d+)?$/;
+
 interface PanelProps {
+	adminApiUrl: string | null;
+	adminKey: string | null;
+	catalog: FlagCatalogState;
 	diagnostics: DiagnosticItem[];
 	events: DatabuddyDevtoolsEvent[];
 	flags: DatabuddyFlagsSnapshot;
 	identity: DatabuddyIdentitySnapshot;
-	queue: DatabuddyQueueSnapshot;
-	snapshot: DatabuddyTrackerSnapshot;
-	runtime: { tone: RuntimeTone; label: string };
-	adminApiUrl: string | null;
-	adminKey: string | null;
-	catalog: FlagCatalogState;
-	onTrackTest: () => void;
-	onFlush: () => void;
-	onResetSession: () => void;
-	onRefreshFlags: () => void;
 	onClearEvents: () => void;
-	onTrackCustom: (name: string, properties: Record<string, unknown>) => void;
-	onSetGlobalProperty: (key: string, value: unknown) => void;
-	onRemoveGlobalProperty: (key: string) => void;
+	onClearFlagOverride: (key: string) => void;
 	onClearGlobalProperties: () => void;
+	onCreateFlag: (input: CreateFlagInput) => Promise<FlagMutationResult>;
+	onDeleteFlag: (id: string) => Promise<FlagMutationResult>;
+	onFetchCatalog: () => void;
+	onFlush: () => void;
+	onRefreshFlags: () => void;
+	onRemoveGlobalProperty: (key: string) => void;
+	onResetSession: () => void;
+	onSetAdminApiUrl: (url: string | null) => void;
+	onSetAdminKey: (key: string | null) => void;
 	onSetFlagOverride: (
 		key: string,
 		override: {
@@ -61,16 +63,16 @@ interface PanelProps {
 			variant?: string;
 		}
 	) => void;
-	onClearFlagOverride: (key: string) => void;
-	onSetAdminKey: (key: string | null) => void;
-	onSetAdminApiUrl: (url: string | null) => void;
-	onFetchCatalog: () => void;
-	onCreateFlag: (input: CreateFlagInput) => Promise<FlagMutationResult>;
+	onSetGlobalProperty: (key: string, value: unknown) => void;
+	onTrackCustom: (name: string, properties: Record<string, unknown>) => void;
+	onTrackTest: () => void;
 	onUpdateFlag: (
 		id: string,
 		input: UpdateFlagInput
 	) => Promise<FlagMutationResult>;
-	onDeleteFlag: (id: string) => Promise<FlagMutationResult>;
+	queue: DatabuddyQueueSnapshot;
+	runtime: { tone: RuntimeTone; label: string };
+	snapshot: DatabuddyTrackerSnapshot;
 }
 
 const TIME_FORMAT = new Intl.DateTimeFormat(undefined, {
@@ -148,7 +150,7 @@ function parseInputValue(raw: string): unknown {
 	if (trimmed === "null") {
 		return null;
 	}
-	if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
+	if (NUMERIC_LITERAL.test(trimmed)) {
 		const num = Number(trimmed);
 		if (!Number.isNaN(num)) {
 			return num;
@@ -448,9 +450,11 @@ function FlagRow({
 			/>
 			<span className="flag-key">{flag.key}</span>
 			<span className="flag-badges">
-				{typeof flag.value !== "boolean" ? (
-					<span className="flag-chip flag-chip--on">{formatValue(flag.value)}</span>
-				) : null}
+				{typeof flag.value === "boolean" ? null : (
+					<span className="flag-chip flag-chip--on">
+						{formatValue(flag.value)}
+					</span>
+				)}
 				{flag.variant ? (
 					<span className="flag-chip flag-chip--variant">{flag.variant}</span>
 				) : null}
@@ -597,9 +601,12 @@ function FlagManageControls({
 				</label>
 				<span className="flag-manage-type">{entry.type}</span>
 			</div>
-			<label className="field-label">Description</label>
+			<label className="field-label" htmlFor="flag-manage-description">
+				Description
+			</label>
 			<input
 				className="input"
+				id="flag-manage-description"
 				onChange={(e) => setDraftDesc(e.currentTarget.value)}
 				placeholder="Optional"
 				type="text"
@@ -612,7 +619,10 @@ function FlagManageControls({
 						<div className="hint">No variants yet.</div>
 					) : (
 						draftVariants.map((variant, idx) => (
-							<div className="flag-manage-variant" key={`${idx}-${variant.key}`}>
+							<div
+								className="flag-manage-variant"
+								key={`${idx}-${variant.key}`}
+							>
 								<input
 									className="input mono"
 									onChange={(e) =>
@@ -764,9 +774,12 @@ function NewFlagForm({
 
 	return (
 		<div className="flag-new">
-			<label className="field-label">Key</label>
+			<label className="field-label" htmlFor="flag-new-key">
+				Key
+			</label>
 			<input
 				className="input mono"
+				id="flag-new-key"
 				onChange={(e) => setKey(e.currentTarget.value)}
 				placeholder="new_feature"
 				type="text"
@@ -795,9 +808,12 @@ function NewFlagForm({
 					<span>Default on</span>
 				</label>
 			</div>
-			<label className="field-label">Description</label>
+			<label className="field-label" htmlFor="flag-new-description">
+				Description
+			</label>
 			<input
 				className="input"
+				id="flag-new-description"
 				onChange={(e) => setDescription(e.currentTarget.value)}
 				placeholder="Optional"
 				type="text"
@@ -868,7 +884,7 @@ function FlagAdminStrip({
 		onSetApiUrl(null);
 	};
 
-	if (!adminKey && !settingsOpen) {
+	if (!(adminKey || settingsOpen)) {
 		return (
 			<div className="flag-admin-strip flag-admin-strip--cta">
 				<span className="flag-admin-label">
@@ -899,7 +915,9 @@ function FlagAdminStrip({
 				className={`flag-admin-strip ${catalog.status === "error" ? "flag-admin-strip--error" : ""}`}
 			>
 				<span className="flag-admin-label">
-					<span className={`dot dot--${catalog.status === "error" ? "destructive" : "ok"} dot--mini`} />
+					<span
+						className={`dot dot--${catalog.status === "error" ? "destructive" : "ok"} dot--mini`}
+					/>
 					{status}
 				</span>
 				<div className="button-row">
@@ -926,25 +944,29 @@ function FlagAdminStrip({
 
 	return (
 		<div className="flag-admin-settings">
-			<label className="field-label">API key</label>
+			<label className="field-label" htmlFor="settings-api-key">
+				API key
+			</label>
 			<input
 				className="input mono"
+				id="settings-api-key"
 				onChange={(e) => setKeyDraft(e.currentTarget.value)}
 				placeholder="dbd_…"
 				type="password"
 				value={keyDraft}
 			/>
-			<label className="field-label">API URL</label>
+			<label className="field-label" htmlFor="settings-api-url">
+				API URL
+			</label>
 			<input
 				className="input mono"
+				id="settings-api-url"
 				onChange={(e) => setUrlDraft(e.currentTarget.value)}
 				placeholder={DEFAULT_ADMIN_API_URL}
 				type="text"
 				value={urlDraft}
 			/>
-			<div className="hint">
-				Calls {activeUrl}/public/v1/flags/definitions
-			</div>
+			<div className="hint">Calls {activeUrl}/public/v1/flags/definitions</div>
 			<div className="button-row">
 				<button
 					className="btn btn--primary"
@@ -1062,11 +1084,7 @@ function FlagsSection({
 						</button>
 					) : null}
 					{overrideCount > 0 ? (
-						<button
-							className="btn btn--ghost"
-							onClick={clearAll}
-							type="button"
-						>
+						<button className="btn btn--ghost" onClick={clearAll} type="button">
 							Clear overrides
 						</button>
 					) : null}
@@ -1084,7 +1102,10 @@ function FlagsSection({
 				onSetKey={onSetAdminKey}
 			/>
 			{canManage && newOpen ? (
-				<NewFlagForm onCancel={() => setNewOpen(false)} onCreate={onCreateFlag} />
+				<NewFlagForm
+					onCancel={() => setNewOpen(false)}
+					onCreate={onCreateFlag}
+				/>
 			) : null}
 			{totalCount === 0 ? (
 				<div className="empty empty--compact">
@@ -1151,7 +1172,9 @@ function EventsSection({
 			{events.length === 0 ? (
 				<div className="empty empty--compact">
 					<InboxIcon />
-					<div className="hint">No events yet. Trigger a page view or hit Test.</div>
+					<div className="hint">
+						No events yet. Trigger a page view or hit Test.
+					</div>
 				</div>
 			) : (
 				<div>
@@ -1249,11 +1272,7 @@ function CustomEventComposer({
 			/>
 			{error ? <div className="form-error">{error}</div> : null}
 			<div>
-				<button
-					className="btn btn--primary"
-					onClick={handleSend}
-					type="button"
-				>
+				<button className="btn btn--primary" onClick={handleSend} type="button">
 					<PlayIcon /> Send
 				</button>
 			</div>
@@ -1370,7 +1389,7 @@ function AdvancedSection({
 						{globalEntries.map(([key, value]) => (
 							<div className="row" key={key}>
 								<span className="row-label">{key}</span>
-								<span className="row-value mono">
+								<span className="mono row-value">
 									{typeof value === "string" ? value : JSON.stringify(value)}
 									<button
 										aria-label={`Remove ${key}`}
@@ -1428,12 +1447,12 @@ function AdvancedSection({
 							</div>
 						))}
 					</div>
-					{queue.maxScrollDepth !== null ? (
+					{queue.maxScrollDepth === null ? null : (
 						<div className="meta-text">
 							scroll {queue.maxScrollDepth}% · {queue.interactionCount ?? 0}{" "}
 							interactions
 						</div>
-					) : null}
+					)}
 				</div>
 			</details>
 
@@ -1448,7 +1467,7 @@ function AdvancedSection({
 						{urlParamEntries.map(([key, value]) => (
 							<div className="row" key={key}>
 								<span className="row-label">{key}</span>
-								<span className="row-value mono">{value}</span>
+								<span className="mono row-value">{value}</span>
 							</div>
 						))}
 					</div>
@@ -1471,7 +1490,7 @@ function AdvancedSection({
 								{entry.key}
 							</span>
 							<span
-								className={`row-value mono ${entry.value ? "" : "id-value--muted"}`}
+								className={`mono row-value ${entry.value ? "" : "id-value--muted"}`}
 							>
 								{entry.value ?? "—"}
 							</span>
@@ -1496,7 +1515,7 @@ function AdvancedSection({
 							<div className="row" key={key}>
 								<span className="row-label">{key}</span>
 								<span
-									className={`row-value mono ${muted ? "id-value--muted" : ""}`}
+									className={`mono row-value ${muted ? "id-value--muted" : ""}`}
 								>
 									{display}
 								</span>

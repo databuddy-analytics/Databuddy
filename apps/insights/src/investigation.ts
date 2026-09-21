@@ -14,6 +14,7 @@ dayjs.extend(timezonePlugin);
 
 interface InvestigationInput {
 	evidence: string[];
+	investigationObjective?: string;
 	signal: InvestigationSignal;
 }
 
@@ -66,6 +67,8 @@ export function normalizedErrorSubject(value: string): string {
 function metricFormat(metric: string): InsightMetric["format"] {
 	if (
 		metric === "bounce_rate" ||
+		metric === "attribution_rate" ||
+		metric === "identified_retention" ||
 		metric.startsWith("funnel:") ||
 		metric.startsWith("goal:")
 	) {
@@ -81,7 +84,9 @@ function metricFormat(metric: string): InsightMetric["format"] {
 }
 
 function isLowerBetter(metric: string): boolean {
-	return ["bounce_rate", "error_count", "lcp", "inp"].includes(metric);
+	return ["bounce_rate", "error_count", "lcp", "inp", "refund_amount"].includes(
+		metric
+	);
 }
 
 const SEVERITY_RANK = { critical: 2, warning: 1, info: 0 } as const;
@@ -111,8 +116,13 @@ function isFunnelStepSignal(signal: DetectedSignal): boolean {
 function isDirectSignal(signal: DetectedSignal): boolean {
 	return (
 		signal.metric === "revenue" ||
+		signal.metric === "refund_amount" ||
+		signal.metric === "attribution_rate" ||
+		signal.metric === "identified_retention" ||
+		signal.subjectKey?.includes(":referrer:") === true ||
 		signal.metric === "error_count" ||
 		signal.metric === "custom_event_count" ||
+		signal.metric === "custom_event_reach" ||
 		signal.metric === "lcp" ||
 		signal.metric === "inp" ||
 		isPersistentZeroCompletionSignal(signal) ||
@@ -150,7 +160,19 @@ export function isInvestigationCandidate(signal: DetectedSignal): boolean {
 	) {
 		return false;
 	}
-	return isRegression(signal) || signal.metric === "revenue";
+	return (
+		isRegression(signal) ||
+		[
+			"revenue",
+			"product_revenue",
+			"refund_amount",
+			"attribution_rate",
+			"identified_retention",
+		].includes(signal.metric) ||
+		(isConversionDefinitionSignal(signal) &&
+			signal.current - signal.baseline >= 10 &&
+			signal.deltaPercent >= 30)
+	);
 }
 
 function signalBucket(signal: DetectedSignal): number {
@@ -187,6 +209,14 @@ export function rankSignals(signals: DetectedSignal[]): DetectedSignal[] {
 }
 
 function signalWindow(signal: DetectedSignal, lookbackDays: number) {
+	if (signal.period) {
+		return {
+			currentFrom: signal.period.current.from,
+			currentTo: signal.period.current.to,
+			previousFrom: signal.period.previous.from,
+			previousTo: signal.period.previous.to,
+		};
+	}
 	const detectedDay = dayjs(signal.detectedAt);
 	if (signal.method === "zscore") {
 		const baselineDates = signal.baselineDates ?? [];
@@ -217,6 +247,13 @@ function entity(signal: DetectedSignal): InvestigationSignal["entity"] {
 	const exactId = idParts.join(":");
 	const rawId = exactId.trim();
 	const id = boundedKey(rawId);
+	if (prefix === "retention" && signal.metric === "identified_retention") {
+		return {
+			type: "cohort",
+			id,
+			label: (signal.entityLabel ?? signal.label).slice(0, 120),
+		};
+	}
 	if (prefix === "funnel" && idParts.at(1) === "step") {
 		return {
 			type: "funnel_step",
@@ -234,7 +271,14 @@ function entity(signal: DetectedSignal): InvestigationSignal["entity"] {
 			label: (signal.entityLabel ?? signal.label).slice(0, 120),
 		};
 	}
-	if (prefix === "custom_event") {
+	if (prefix === "product_revenue" && signal.entityId) {
+		return {
+			type: "website",
+			id: signal.entityId,
+			label: (signal.entityLabel ?? signal.label).slice(0, 120),
+		};
+	}
+	if (prefix === "custom_event" || prefix === "custom_event_reach") {
 		return {
 			id: signal.entityId ?? rawId,
 			label: (signal.entityLabel ?? signal.label).slice(0, 120),
@@ -319,8 +363,11 @@ export function prepareInvestigation(
 		...(candidate.cohortMeasurement
 			? { cohortMeasurement: candidate.cohortMeasurement }
 			: {}),
+		...(candidate.retentionMeasurement
+			? { retentionMeasurement: candidate.retentionMeasurement }
+			: {}),
 	};
-	const evidence: string[] = [];
+	const evidence: string[] = [...(candidate.evidence ?? [])];
 	if (candidate.definitionEvidence) {
 		evidence.push(evidenceSummary(candidate.definitionEvidence));
 	}
@@ -340,6 +387,7 @@ export function prepareInvestigation(
 
 	return {
 		evidence,
+		investigationObjective: candidate.investigationObjective,
 		signal: investigationSignalSchema.parse(signal),
 	};
 }

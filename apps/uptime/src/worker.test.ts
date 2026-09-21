@@ -1,7 +1,11 @@
-import { beforeEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { DelayedError } from "bullmq";
 import type { ScheduleData } from "./actions";
 import type { UptimeData } from "./types";
-import type { PreviousMonitorState } from "./uptime-transition-alerts";
+import type {
+	MonitorState,
+	MonitorStateLookup,
+} from "./uptime-transition-alerts";
 import {
 	DEFAULT_UPTIME_WORKER_CONCURRENCY,
 	getUptimeWorkerConcurrency,
@@ -13,9 +17,21 @@ import {
 } from "./worker";
 
 process.env.UPTIME_CHECK_RETRY_DELAY_MS = "0";
+const originalSelfHost = process.env.SELFHOST;
+
+afterEach(() => {
+	if (originalSelfHost === undefined) {
+		Reflect.deleteProperty(process.env, "SELFHOST");
+	} else {
+		process.env.SELFHOST = originalSelfHost;
+	}
+});
 
 const calls = {
-	captureError: [] as Array<{ error: unknown; context: Record<string, unknown> }>,
+	captureError: [] as Array<{
+		error: unknown;
+		context: Record<string, unknown>;
+	}>,
 	check: [] as Array<{
 		monitorId: string;
 		url: string;
@@ -26,8 +42,9 @@ const calls = {
 	checkpoint: [] as UptimeData[],
 	delivery: [] as UptimeData[],
 	email: [] as Array<{ schedule: ScheduleData; data: UptimeData }>,
-	loggerFields: [] as Array<Record<string, unknown>>,
-	loggerEmitted: [] as Array<boolean>,
+	loggerFields: [] as Record<string, unknown>[],
+	loggerEmitted: [] as boolean[],
+	monitorState: [] as Array<{ monitorId: string; state: MonitorState }>,
 	order: [] as string[],
 	reaped: [] as string[],
 	send: [] as Array<{ event: unknown; key: string | undefined }>,
@@ -39,9 +56,13 @@ type CheckResult =
 
 let lookupResult:
 	| { success: true; data: ScheduleData }
-	| { success: false; error: string; reason?: "not_found" | "malformed" | "transient" };
+	| {
+			success: false;
+			error: string;
+			reason?: "not_found" | "malformed" | "transient";
+	  };
 let checkResults: CheckResult[];
-let previousState: PreviousMonitorState | undefined;
+let previousState: MonitorStateLookup;
 let reapBehaviour: "ok" | "throw" = "ok";
 
 function schedule(values: Partial<ScheduleData> = {}): ScheduleData {
@@ -99,7 +120,8 @@ function deps(): UptimeWorkerDeps {
 				timeout: options.timeout,
 				cacheBust: options.cacheBust,
 			});
-			const next = checkResults.length > 1 ? checkResults.shift() : checkResults[0];
+			const next =
+				checkResults.length > 1 ? checkResults.shift() : checkResults[0];
 			if (!next) {
 				throw new Error("no check result configured");
 			}
@@ -122,6 +144,9 @@ function deps(): UptimeWorkerDeps {
 			calls.order.push("enqueue");
 		},
 		getPreviousMonitorState: async () => previousState,
+		setMonitorState: async (monitorId, state) => {
+			calls.monitorState.push({ monitorId, state });
+		},
 		lookupSchedule: async () => lookupResult,
 		reapOrphanScheduler: async (scheduleId: string) => {
 			calls.reaped.push(scheduleId);
@@ -141,6 +166,7 @@ function deps(): UptimeWorkerDeps {
 }
 
 beforeEach(() => {
+	process.env.SELFHOST = "false";
 	calls.captureError = [];
 	calls.check = [];
 	calls.checkpoint = [];
@@ -148,12 +174,13 @@ beforeEach(() => {
 	calls.email = [];
 	calls.loggerFields = [];
 	calls.loggerEmitted = [];
+	calls.monitorState = [];
 	calls.order = [];
 	calls.reaped = [];
 	calls.send = [];
 	lookupResult = { success: true, data: schedule() };
 	checkResults = [{ success: true, data: uptimeData() }];
-	previousState = { status: 0, failureStreak: 1 };
+	previousState = { kind: "found", state: { status: 0, failureStreak: 1 } };
 	reapBehaviour = "ok";
 });
 
@@ -278,7 +305,7 @@ describe("processUptimeCheck", () => {
 	});
 
 	it("records -1 when no previous monitor status exists", async () => {
-		previousState = undefined;
+		previousState = { kind: "missing" };
 
 		await processUptimeCheckForTest("schedule-1", "scheduled", deps());
 
@@ -460,7 +487,7 @@ describe("processUptimeCheck", () => {
 		checkResults = [
 			{ success: true, data: uptimeData({ status: 0, error: "HTTP 503" }) },
 		];
-		previousState = { status: 1, failureStreak: 0 };
+		previousState = { kind: "found", state: { status: 1, failureStreak: 0 } };
 
 		await processUptimeCheckForTest("schedule-1", "scheduled", deps());
 
@@ -473,17 +500,33 @@ describe("processUptimeCheck", () => {
 		);
 	});
 
-	it("continues the failure streak from the previous monitor state", async () => {
+	it("continues the failure streak and persists it as the next previous state", async () => {
 		checkResults = [
 			{ success: true, data: uptimeData({ status: 0, error: "HTTP 503" }) },
 		];
-		previousState = { status: 0, failureStreak: 4 };
+		previousState = { kind: "found", state: { status: 0, failureStreak: 4 } };
 
 		await processUptimeCheckForTest("schedule-1", "scheduled", deps());
 
 		expect(calls.delivery).toEqual([
 			uptimeData({ status: 0, error: "HTTP 503", failure_streak: 5 }),
 		]);
+		expect(calls.monitorState).toEqual([
+			{ monitorId: "website-1", state: { status: 0, failureStreak: 5 } },
+		]);
+	});
+
+	it("does not reset the streak when the previous state is unavailable", async () => {
+		checkResults = [
+			{ success: true, data: uptimeData({ status: 0, error: "HTTP 503" }) },
+		];
+		previousState = { kind: "unavailable" };
+
+		await processUptimeCheckForTest("schedule-1", "scheduled", deps());
+
+		expect(calls.loggerFields).toContainEqual(
+			expect.objectContaining({ previous_state_source: "unavailable" })
+		);
 	});
 
 	it("persists the exact event before enqueueing it for delivery", async () => {
@@ -603,6 +646,9 @@ describe("processUptimeCheck", () => {
 					id: "uptime-delivery-uptime-event-1",
 					name: "uptime-event-delivery",
 					attemptsMade: 0,
+					moveToDelayed: async () => {
+						throw new Error("Hosted delivery must keep bounded retries");
+					},
 				},
 				failingDeps
 			)
@@ -618,6 +664,38 @@ describe("processUptimeCheck", () => {
 		);
 	});
 
+	it("keeps self-hosted delivery pending beyond the retry limit until storage recovers", async () => {
+		process.env.SELFHOST = "true";
+		const failingDeps = deps();
+		failingDeps.sendUptimeEvent = async () => {
+			throw new Error("ClickHouse unavailable");
+		};
+		const delayed: Array<{ timestamp: number; token?: string }> = [];
+		const data = { event: uptimeData() };
+		const job = {
+			data,
+			id: "uptime-delivery-uptime-event-1",
+			name: "uptime-event-delivery",
+			attemptsMade: 20,
+			moveToDelayed: async (timestamp: number, token?: string) => {
+				delayed.push({ timestamp, token });
+			},
+		};
+		const startedAt = Date.now();
+		await expect(
+			processUptimeDeliveryJob(job, failingDeps, "worker-lock")
+		).rejects.toBeInstanceOf(DelayedError);
+		expect(delayed).toHaveLength(1);
+		expect(delayed[0]?.timestamp).toBeGreaterThanOrEqual(startedAt + 30_000);
+		expect(delayed[0]?.timestamp).toBeLessThanOrEqual(Date.now() + 30_000);
+		expect(delayed[0]?.token).toBe("worker-lock");
+		await processUptimeDeliveryJob(job, deps(), "worker-lock");
+		const { event_id: _eventId, ...event } = data.event;
+		expect(calls.send).toEqual([{ event, key: "website-1" }]);
+		expect(job.data).toBe(data);
+		expect(delayed).toHaveLength(1);
+	});
+
 	it("delivers the checkpointed payload without its relay-only ID", async () => {
 		await processUptimeDeliveryJob(
 			{
@@ -625,6 +703,7 @@ describe("processUptimeCheck", () => {
 				id: "uptime-delivery-uptime-event-1",
 				name: "uptime-event-delivery",
 				attemptsMade: 0,
+				moveToDelayed: async () => {},
 			},
 			deps()
 		);
@@ -634,13 +713,30 @@ describe("processUptimeCheck", () => {
 	});
 
 	it("resolves failure streaks from previous state", () => {
-		expect(resolveFailureStreak(1, { status: 0, failureStreak: 3 })).toBe(0);
-		expect(resolveFailureStreak(0, undefined)).toBe(1);
-		expect(resolveFailureStreak(0, { status: 1, failureStreak: 0 })).toBe(1);
-		expect(resolveFailureStreak(0, { status: 0, failureStreak: 3 })).toBe(4);
+		expect(
+			resolveFailureStreak(1, {
+				kind: "found",
+				state: { status: 0, failureStreak: 3 },
+			})
+		).toBe(0);
+		expect(resolveFailureStreak(0, { kind: "missing" })).toBe(1);
+		expect(resolveFailureStreak(0, { kind: "unavailable" })).toBe(1);
+		expect(
+			resolveFailureStreak(0, {
+				kind: "found",
+				state: { status: 1, failureStreak: 0 },
+			})
+		).toBe(1);
+		expect(
+			resolveFailureStreak(0, {
+				kind: "found",
+				state: { status: 0, failureStreak: 3 },
+			})
+		).toBe(4);
 	});
 
 	it("rejects malformed delivery payloads before sending", async () => {
+		process.env.SELFHOST = "true";
 		await expect(
 			processUptimeDeliveryJob(
 				{
@@ -648,6 +744,9 @@ describe("processUptimeCheck", () => {
 					id: "uptime-delivery-uptime-event-1",
 					name: "uptime-event-delivery",
 					attemptsMade: 0,
+					moveToDelayed: async () => {
+						throw new Error("Malformed payload must keep bounded retries");
+					},
 				},
 				deps()
 			)

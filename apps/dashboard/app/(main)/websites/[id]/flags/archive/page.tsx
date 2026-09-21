@@ -99,7 +99,7 @@ export default function ArchivePage() {
 						<div className="flex flex-1 items-center justify-center py-16">
 							<EmptyState
 								description="Archive a flag from the Flags tab to retire it here."
-								icon={<ArchiveIcon weight="duotone" />}
+								icon={<ArchiveIcon />}
 								title="No archived flags"
 								variant="minimal"
 							/>

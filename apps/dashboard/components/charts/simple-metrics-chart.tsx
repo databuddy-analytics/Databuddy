@@ -70,7 +70,7 @@ export function SimpleMetricsChart({
 			<Chart.Content<SimpleChartReadyPayload>
 				emptyProps={{
 					description: "No samples in this range.",
-					icon: <ChartLineIcon weight="duotone" />,
+					icon: <ChartLineIcon />,
 					title: "No data",
 				}}
 				loading={<Chart.DefaultLoading height={height} />}

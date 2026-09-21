@@ -49,7 +49,7 @@ export function MembersView({
 							</Button>
 						}
 						description="Something went wrong while loading team members"
-						icon={<UsersIcon weight="duotone" />}
+						icon={<UsersIcon />}
 						title="Failed to load"
 					/>
 				</Card.Content>
@@ -83,10 +83,7 @@ export function MembersView({
 				<Card.Content className="p-0">
 					{isEmpty ? (
 						<div className="px-5 py-8">
-							<EmptyState
-								icon={<UsersIcon weight="duotone" />}
-								title="No members yet"
-							/>
+							<EmptyState icon={<UsersIcon />} title="No members yet" />
 						</div>
 					) : (
 						<div className="divide-y">

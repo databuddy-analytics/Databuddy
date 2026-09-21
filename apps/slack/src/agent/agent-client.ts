@@ -1,4 +1,7 @@
-import type { DatabuddyAgentSlackContext } from "@databuddy/ai/agent";
+import type {
+	DatabuddyAgentSlackContext,
+	DatabuddyAgentToolTrace,
+} from "@databuddy/ai/agent";
 import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
 import { setActiveSlackLog } from "@/lib/evlog-slack";
 import { SLACK_COPY } from "@/slack/messages";
@@ -11,6 +14,7 @@ type SlackAgentTrigger =
 
 export interface SlackFollowUpMessage {
 	messageTs?: string;
+	requestTs?: string;
 	text: string;
 	userId?: string;
 }
@@ -19,6 +23,7 @@ export interface SlackAgentRun {
 	channelId: string;
 	followUpMessages?: SlackFollowUpMessage[];
 	messageTs?: string;
+	requestTs?: string;
 	slackContext?: DatabuddyAgentSlackContext | null;
 	teamId?: string;
 	text: string;
@@ -39,11 +44,12 @@ export interface SlackRunContextResolver {
 export interface SlackAgentStreamOptions {
 	abortSignal?: AbortSignal;
 	onToolEvent?: (toolNames: string[]) => void;
+	onToolTrace?: (trace: DatabuddyAgentToolTrace[]) => void;
 }
 
 // Slack streams keep the "thinking" indicator open, and Slack imposes no stream
 // duration limit, so allow multi-site/complex analytics runs well past the 45s
-// default before the outer 5-minute run timeout in run-handler steps in.
+// default before the outer 4-minute response timeout in run-handler steps in.
 const SLACK_AGENT_TIMEOUT_MS = 120_000;
 
 export interface SlackAgentRunner {
@@ -105,6 +111,7 @@ class SharedDatabuddyAgentRunner implements SlackAgentRunner {
 			input: formatSlackAgentInput(run),
 			memoryUserId: createSlackMemoryUserId(run),
 			onToolEvent: options?.onToolEvent,
+			onToolTrace: options?.onToolTrace,
 			slackContext: run.slackContext,
 			source: "slack",
 			timeoutMs: SLACK_AGENT_TIMEOUT_MS,
@@ -124,7 +131,7 @@ export function createSlackConversationId(run: SlackAgentRun): string {
 	);
 }
 
-export function createSlackMemoryUserId(run: SlackAgentRun): string {
+function createSlackMemoryUserId(run: SlackAgentRun): string {
 	return safeId(["slack", run.teamId ?? "team", run.userId].join("-"));
 }
 

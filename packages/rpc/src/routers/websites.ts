@@ -1,4 +1,5 @@
 import { successOutputSchema } from "../lib/schemas";
+import { BusinessMemoryRetirementError } from "@databuddy/services/business-memory";
 import { db } from "@databuddy/db";
 import { chQuery, purgeWebsiteAnalyticsData } from "@databuddy/db/clickhouse";
 import { cacheable } from "@databuddy/redis";
@@ -54,6 +55,9 @@ import {
 const websiteService = new WebsiteService(db);
 
 function handleServiceError(error: unknown): never {
+	if (error instanceof BusinessMemoryRetirementError) {
+		throw rpcError.serviceUnavailable(4, error.message);
+	}
 	if (error instanceof ValidationError) {
 		throw rpcError.badRequest(error.message);
 	}
@@ -1223,7 +1227,7 @@ export const websitesRouter = {
 			return {
 				filename: exportResult.filename,
 				data: exportResult.buffer.toString("base64"),
-				metadata: exportResult.meta as unknown as Record<string, unknown>,
+				metadata: { ...exportResult.meta },
 			};
 		}),
 };

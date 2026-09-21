@@ -21,7 +21,11 @@ const USER_ID = "user-test";
 const WEBSITE_ID = "site-test";
 const OTHER_WEBSITE_ID = "site-other";
 
-type WebsiteRow = { id: string; organizationId: string; isPublic: boolean };
+interface WebsiteRow {
+	id: string;
+	isPublic: boolean;
+	organizationId: string;
+}
 
 const websites = new Map<string, WebsiteRow>();
 const memberRoles = new Map<string, string>();
@@ -38,6 +42,7 @@ const mockWebsiteFindFirst = mock(
 const mockGetMemberRole = mock(getMemberRoleFake);
 const mockGetOrganizationOwnerId = mock(getOrganizationOwnerIdFake);
 
+let createRPCContext: typeof import("../orpc").createRPCContext;
 let createInternalPrincipal: typeof import("../orpc").createInternalPrincipal;
 let requireLinkAccess: typeof import("../routers/link-access").requireLinkAccess;
 let withWorkspace: typeof import("./with-workspace").withWorkspace;
@@ -60,12 +65,12 @@ beforeAll(async () => {
 		getOrganizationOwnerId: mockGetOrganizationOwnerId,
 	}));
 
-	({ createInternalPrincipal } = await import("../orpc"));
+	({ createRPCContext, createInternalPrincipal } = await import("../orpc"));
 	({ requireLinkAccess } = await import("../routers/link-access"));
 	({ withWorkspace, withPublicWorkspace } = await import("./with-workspace"));
 
 	mock.restore();
-});
+}, 30_000);
 
 beforeEach(() => {
 	websites.clear();
@@ -161,22 +166,19 @@ describe("withWorkspace organization member grants", () => {
 		["viewer", "create"],
 		["member", "delete"],
 		["superuser", "read"],
-	] as const)(
-		"denies a %s role missing the %s permission",
-		async (role, permission) => {
-			memberRoles.set(`${USER_ID}:${ORGANIZATION_ID}`, role);
+	] as const)("denies a %s role missing the %s permission", async (role, permission) => {
+		memberRoles.set(`${USER_ID}:${ORGANIZATION_ID}`, role);
 
-			await expectRpcError(
-				withWorkspace(userContext(), {
-					organizationId: ORGANIZATION_ID,
-					permissions: [permission],
-					resource: "link",
-				}),
-				"FORBIDDEN",
-				/Missing required link permissions/
-			);
-		}
-	);
+		await expectRpcError(
+			withWorkspace(userContext(), {
+				organizationId: ORGANIZATION_ID,
+				permissions: [permission],
+				resource: "link",
+			}),
+			"FORBIDDEN",
+			/Missing required link permissions/
+		);
+	});
 
 	it("denies a user who is not a member of the organization", async () => {
 		await expectRpcError(
@@ -469,4 +471,71 @@ describe("withWorkspace plan resolution", () => {
 		expect(getBilling).toHaveBeenCalledTimes(1);
 		expect(workspace.plan).toBe("free");
 	});
+});
+
+it("self-hosting skips billing without relaxing workspace permissions", async () => {
+	const original = process.env.SELFHOST;
+	process.env.SELFHOST = "true";
+	try {
+		const context = await createRPCContext(
+			{ headers: new Headers() },
+			createInternalPrincipal({
+				organizationId: ORGANIZATION_ID,
+				scopes: ["write:links"],
+			})
+		);
+		expect(await context.getBilling()).toBeUndefined();
+		const workspace = await withWorkspace(context, {
+			organizationId: ORGANIZATION_ID,
+			resource: "link",
+			permissions: ["create"],
+			requiredPlans: ["pro"],
+		});
+		expect(workspace.organizationId).toBe(ORGANIZATION_ID);
+		await expectRpcError(
+			withWorkspace(context, {
+				organizationId: OTHER_ORGANIZATION_ID,
+				resource: "link",
+				permissions: ["create"],
+				requiredPlans: ["pro"],
+			}),
+			"FORBIDDEN"
+		);
+		await expectRpcError(
+			withWorkspace(apiKeyContext({ scopes: [] }), {
+				organizationId: ORGANIZATION_ID,
+				resource: "link",
+				permissions: ["create"],
+				requiredPlans: ["pro"],
+			}),
+			"FORBIDDEN"
+		);
+		const { requireFeatureWithLimit, requireUsageWithinLimit } = await import(
+			"../types/billing"
+		);
+		for (const feature of [
+			"error_tracking",
+			"goals",
+			"funnels",
+			"feature_flags",
+		] as const) {
+			expect(() =>
+				requireFeatureWithLimit("free", feature, 10_000)
+			).not.toThrow();
+			expect(() =>
+				requireUsageWithinLimit("free", feature, 10_000)
+			).not.toThrow();
+		}
+		process.env.SELFHOST = "false";
+		expect(() =>
+			requireFeatureWithLimit("free", "error_tracking", 0)
+		).toThrow();
+		expect(() => requireUsageWithinLimit("free", "goals", 10_000)).toThrow();
+	} finally {
+		if (original === undefined) {
+			Reflect.deleteProperty(process.env, "SELFHOST");
+		} else {
+			process.env.SELFHOST = original;
+		}
+	}
 });

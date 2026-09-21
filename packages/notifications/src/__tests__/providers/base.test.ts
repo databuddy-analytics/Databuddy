@@ -2,9 +2,8 @@ import { afterEach, describe, expect, mock, test } from "bun:test";
 import type { SafeFetchInit } from "@databuddy/shared/ssrf-guard";
 import type { NotificationPayload, NotificationResult } from "../../types";
 
-const safeFetchMock = mock(
-	(_url: string, _init?: SafeFetchInit) =>
-		Promise.resolve(new Response("ok", { status: 200 }))
+const safeFetchMock = mock((_url: string, _init?: SafeFetchInit) =>
+	Promise.resolve(new Response("ok", { status: 200 }))
 );
 
 mock.module("@databuddy/shared/ssrf-guard", () => ({
@@ -18,18 +17,15 @@ class TestProvider extends BaseProvider {
 		return { success: true, channel: "webhook" };
 	}
 
-	public testWithRetry<T>(fn: () => Promise<T>): Promise<T> {
+	testWithRetry<T>(fn: () => Promise<T>): Promise<T> {
 		return this.withRetry(fn);
 	}
 
-	public testFetchWithTimeout(
-		url: string,
-		init?: RequestInit
-	): Promise<Response> {
+	testFetchWithTimeout(url: string, init?: RequestInit): Promise<Response> {
 		return this.fetchWithTimeout(url, init);
 	}
 
-	public override delay(ms: number): Promise<void> {
+	override delay(ms: number): Promise<void> {
 		return super.delay(ms);
 	}
 }
@@ -43,7 +39,7 @@ describe("BaseProvider", () => {
 	});
 
 	describe("withRetry", () => {
-		test("no retries by default — fn fails once, error thrown immediately", async () => {
+		test("no retries by default: fn fails once, error thrown immediately", async () => {
 			const provider = new TestProvider();
 			const fn = mock(() => Promise.reject(new Error("fail")));
 
@@ -108,6 +104,5 @@ describe("BaseProvider", () => {
 				timeoutMs: 5000,
 			});
 		});
-
 	});
 });

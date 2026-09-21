@@ -26,6 +26,7 @@ import {
 } from "@lib/structured-errors";
 import { record } from "@lib/tracing";
 import {
+	extractAllowlistClientIp,
 	extractTrustedClientIp,
 	getVisitorCountryForAutoMode,
 } from "@utils/ip-geo";
@@ -130,7 +131,7 @@ async function enforceWebsiteSecurity(
 	}
 
 	if (allowedIps && allowedIps.length > 0) {
-		const ip = extractTrustedClientIp(request);
+		const ip = extractAllowlistClientIp(request);
 		if (!(ip && (await isValidIpFromSettings(ip, allowedIps)))) {
 			log.set({ auth: { ok: false, reason: "ip_not_authorized" } });
 			throw basketErrors.ingestIpNotAuthorized();

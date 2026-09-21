@@ -1,5 +1,5 @@
 import { DATABUNNY_USAGE } from "@databuddy/shared/billing";
-import { Heading, Link, Section, Text } from "react-email";
+import { Heading, Link, Section, Text } from "@react-email/components";
 import { emailBrand } from "./email-brand";
 import { EmailButton } from "./email-button";
 import { EmailLayout } from "./email-layout";

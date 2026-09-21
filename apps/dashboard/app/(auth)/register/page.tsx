@@ -1,5 +1,7 @@
 "use client";
 
+import { isSelfHosted } from "@databuddy/env/public";
+
 import { authClient } from "@databuddy/auth/client";
 import Link from "next/link";
 import { parseAsString, useQueryState } from "nuqs";
@@ -119,7 +121,9 @@ function RegisterPageContent() {
 					trackSignup(APP_EVENTS.signupCompleted, signupProperties);
 					trackOpenAiRegistrationCompleted();
 					toast.success(
-						"Account created! Please check your email to verify your account."
+						isSelfHosted
+							? "Account created. Check your inbox for any verification steps, then sign in."
+							: "Account created! Please check your email to verify your account."
 					);
 					setRegistrationStep("verification-needed");
 				},
@@ -202,15 +206,18 @@ function RegisterPageContent() {
 				return (
 					<>
 						<Text as="h1" className="text-balance font-medium text-2xl">
-							Verify your email
+							{isSelfHosted ? "Account created" : "Verify your email"}
 						</Text>
 						<Text tone="muted">
-							Please check your email:{" "}
+							{isSelfHosted
+								? "If verification is required, check your email:"
+								: "Please check your email:"}{" "}
 							<span className="font-medium text-accent-foreground">
 								{formData.email}
 							</span>{" "}
-							and click the verification link to activate your account. If you
-							don't see the email, check your spam folder.
+							{isSelfHosted
+								? "and click the verification link. Otherwise, you can sign in now."
+								: "and click the verification link to activate your account. If you don't see the email, check your spam folder."}
 						</Text>
 					</>
 				);
@@ -244,7 +251,7 @@ function RegisterPageContent() {
 				size="lg"
 				variant="ghost"
 			>
-				<CaretLeftIcon className="size-3" weight="bold" />
+				<CaretLeftIcon className="size-3" />
 				<span className="hidden sm:inline">Back to registration</span>
 				<span className="sm:hidden">Back</span>
 			</Button>
@@ -455,7 +462,7 @@ function RegisterPageContent() {
 		<>
 			<div className="mb-8 space-y-1.5 px-6">{renderHeaderContent()}</div>
 			<div className="px-6">{renderContent()}</div>
-			{registrationStep === "form" && (
+			{(isSelfHosted || registrationStep === "form") && (
 				<div className="mt-4 text-center">
 					<Text tone="muted">
 						Already have an account?{" "}

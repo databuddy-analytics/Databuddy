@@ -67,6 +67,8 @@ export interface DatabuddyAgentOptions {
 	modelOverride?: string | null;
 	mutationMode?: DatabuddyAgentMutationMode;
 	onToolEvent?: (toolNames: string[]) => void;
+	/** Streaming only: called once after completion and usage settlement. */
+	onToolTrace?: (trace: DatabuddyAgentToolTrace[]) => void;
 	persistConversation?: boolean;
 	slackContext?: DatabuddyAgentSlackContext | null;
 	source?: DatabuddyAgentSource;
@@ -181,6 +183,7 @@ export async function* streamDatabuddyAgent(
 		modelOverride: options.modelOverride,
 		mutationMode: options.mutationMode,
 		onToolEvent: options.onToolEvent,
+		onToolTrace: options.onToolTrace,
 		storeMemory: options.persistConversation !== false,
 		timeoutMs: options.timeoutMs,
 		timezone: options.timezone,
@@ -199,13 +202,21 @@ async function prepareDatabuddyAgentCall(options: DatabuddyAgentOptions) {
 	const actor = await resolveDatabuddyAgentActor(options.actor);
 	const conversationId = options.conversationId ?? crypto.randomUUID();
 	const memoryUserId = options.memoryUserId ?? actor.userId;
+	// Slack threads belong to the integration; personal memory stays speaker-scoped.
+	const conversationUserId =
+		options.source === "slack" && actor.apiKey ? null : memoryUserId;
 	const history =
 		options.history ??
-		(await getConversationHistory(conversationId, memoryUserId, actor.apiKey));
+		(await getConversationHistory(
+			conversationId,
+			conversationUserId,
+			actor.apiKey
+		));
 
 	return {
 		actor,
 		conversationId,
+		conversationUserId,
 		history: history.length > 0 ? history : undefined,
 		memoryUserId,
 		source: options.source ?? "mcp",
@@ -262,7 +273,7 @@ async function persistAgentConversation(
 
 	await appendToConversation(
 		prepared.conversationId,
-		prepared.memoryUserId,
+		prepared.conversationUserId,
 		prepared.actor.apiKey,
 		options.input,
 		answer.trim() || "No response generated.",

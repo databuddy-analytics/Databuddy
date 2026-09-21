@@ -16,6 +16,7 @@ export const INSIGHTS_JOB_OPTIONS = {
 		type: "exponential",
 		delay: 5000,
 	},
+	stackTraceLimit: 3,
 	removeOnComplete: {
 		age: 24 * 3600,
 		count: 1000,

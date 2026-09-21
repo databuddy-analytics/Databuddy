@@ -1,4 +1,6 @@
 import "./polyfills/compression";
+import { readBooleanEnv } from "@databuddy/env/boolean";
+import { buildHttpErrorResponse } from "@databuddy/shared/http-error-response";
 import cors from "@elysiajs/cors";
 import { Elysia } from "elysia";
 import { evlog } from "evlog/elysia";
@@ -139,7 +141,16 @@ const app = new Elysia({ precompile: true })
 	.use(health)
 	.use(discovery)
 	.use(webhooks)
-	.mount(AUTUMN_API_PREFIX, handleAutumnRequest)
+	.mount(AUTUMN_API_PREFIX, (request) => {
+		if (readBooleanEnv("SELFHOST")) {
+			const response = buildHttpErrorResponse({
+				code: "NOT_FOUND",
+				error: null,
+			});
+			return Response.json(response.payload, { status: response.status });
+		}
+		return handleAutumnRequest(request);
+	})
 	.use(query)
 	.use(agent)
 	.use(integrations)
@@ -152,11 +163,13 @@ const app = new Elysia({ precompile: true })
 	.all("/*", handleOpenApiEndpoint, { parse: "none" })
 	.onError(handleAppError);
 
-const autumnWebhookReplay = startAutumnWebhookReplayLoop();
+const autumnWebhookReplay = readBooleanEnv("SELFHOST")
+	? null
+	: startAutumnWebhookReplayLoop();
 const auditOutboxReplay = startAuditOutboxReplayLoop();
 warmPostgresConnection();
 registerShutdownHooks(async () => {
-	await Promise.all([autumnWebhookReplay.stop(), auditOutboxReplay.stop()]);
+	await Promise.all([autumnWebhookReplay?.stop(), auditOutboxReplay.stop()]);
 });
 
 export default {

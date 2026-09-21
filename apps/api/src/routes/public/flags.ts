@@ -28,7 +28,7 @@ import { getRateLimitHeaders, ratelimit } from "@databuddy/redis/rate-limit";
 import { invalidateFlagCache } from "@databuddy/rpc/flags";
 import { appendAuditEvent } from "@databuddy/services/audit";
 import { auditActions } from "@databuddy/shared/audit";
-import { getTrustedClientIp } from "@databuddy/shared/utils/trusted-client-ip";
+import { getClientIp } from "@databuddy/shared/utils/client-ip";
 import { randomUUIDv7 } from "bun";
 import { getRequestId } from "@/http/request-id";
 import { Elysia, t } from "elysia";
@@ -380,7 +380,7 @@ export function evaluateValueRule(value: unknown, rule: FlagRule): boolean {
 	}
 }
 
-function getContextValue(
+function ruleTargetValue(
 	rule: FlagRule,
 	context: UserContext
 ): string | undefined {
@@ -398,7 +398,7 @@ function getContextValue(
 
 export function evaluateRule(rule: FlagRule, context: UserContext): boolean {
 	if (rule.batch && rule.batchValues?.length) {
-		const contextValue = getContextValue(rule, context);
+		const contextValue = ruleTargetValue(rule, context);
 
 		if (rule.operator === "in" || rule.operator === "not_in") {
 			const isInList = contextValue
@@ -486,14 +486,12 @@ export function selectVariant(
 	return { value: lastVariant.value, variant: lastVariant.key };
 }
 
-function dependencyFailure(): FlagResult {
-	return {
-		enabled: false,
-		value: false,
-		payload: null,
-		reason: "DEPENDENCY_NOT_SATISFIED",
-	};
-}
+const DEPENDENCY_NOT_SATISFIED: FlagResult = Object.freeze({
+	enabled: false,
+	value: false,
+	payload: null,
+	reason: "DEPENDENCY_NOT_SATISFIED",
+});
 
 function dependenciesSatisfiedFromList(
 	flag: EvaluableFlag,
@@ -615,15 +613,6 @@ export function evaluateFlag(
 
 const PUBLIC_EVAL_RATE_PER_MINUTE = 600;
 
-function clientIpForFlags(request: Request): string {
-	return (
-		request.headers.get("cf-connecting-ip") ||
-		request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-		request.headers.get("x-real-ip") ||
-		"unknown"
-	);
-}
-
 interface ElysiaSet {
 	headers: Record<string, unknown>;
 	status?: unknown;
@@ -634,11 +623,19 @@ async function enforcePublicFlagRateLimit(
 	clientId: string | undefined,
 	set: ElysiaSet
 ): Promise<boolean> {
-	const ip = clientIpForFlags(request);
-	const key = clientId
-		? `flags:eval:${clientId}:${ip}`
-		: `flags:eval:anon:${ip}`;
-	const rl = await ratelimit(key, PUBLIC_EVAL_RATE_PER_MINUTE, 60);
+	const ip = getClientIp(request.headers);
+	const rl = await ratelimit(
+		`flags:eval:${clientId || "anon"}:${ip ?? "shared"}`,
+		PUBLIC_EVAL_RATE_PER_MINUTE,
+		60
+	);
+
+	mergeWideEvent({
+		flag_client_id: clientId || "",
+		flag_rate_limit_scope: ip ? "ip" : "shared",
+		flag_rate_limited: !rl.success,
+	});
+
 	if (rl.success) {
 		return true;
 	}
@@ -725,7 +722,7 @@ async function recordPublicFlagAudit(input: {
 			outcome: input.action,
 			reason: input.reason,
 			request: {
-				ip: getTrustedClientIp(input.request.headers),
+				ip: getClientIp(input.request.headers),
 				requestId: getRequestId(input.request),
 				userAgent: input.request.headers.get("user-agent") ?? undefined,
 			},
@@ -755,7 +752,7 @@ function invalidateMemCacheForClient(clientId: string) {
 	}
 }
 
-function resolveScope(
+function resolveFlagOwnership(
 	apiKey: ApiKeyRow,
 	clientId: string
 ): { organizationId: string | null; websiteId: string | null } {
@@ -868,7 +865,7 @@ async function evaluateBulkFlags(
 		for (const flag of flagsToEvaluate) {
 			results[flag.key] = dependenciesSatisfiedFromList(flag, allFlags)
 				? evaluateFlag(flag, context)
-				: dependencyFailure();
+				: DEPENDENCY_NOT_SATISFIED;
 		}
 
 		const count = Object.keys(results).length;
@@ -987,7 +984,7 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 					query.environment
 				))
 					? evaluateFlag(flag, context)
-					: dependencyFailure();
+					: DEPENDENCY_NOT_SATISFIED;
 				mergeWideEvent({
 					flag_found: true,
 					flag_type: flag.type,
@@ -1159,7 +1156,7 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 					return { error: "Forbidden" };
 				}
 
-				const scope = resolveScope(auth.apiKey, body.clientId);
+				const scope = resolveFlagOwnership(auth.apiKey, body.clientId);
 				if (!(scope.websiteId || scope.organizationId)) {
 					await recordPublicFlagAudit({
 						action: "denied",

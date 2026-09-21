@@ -3,7 +3,7 @@ import {
 	runWithAuthAuditContext,
 	runWithAuthTransaction,
 } from "@databuddy/auth";
-import { getTrustedClientIp } from "@databuddy/shared/utils/trusted-client-ip";
+import { getClientIp } from "@databuddy/shared/utils/client-ip";
 import { toNextJsHandler } from "better-auth/next-js";
 
 const handlers = toNextJsHandler(auth.handler);
@@ -21,19 +21,26 @@ const auditedOrganizationPaths = new Set([
 	"/organization/cancel-invitation",
 ]);
 const authRoutePrefix = /^\/api\/auth/;
+const dubClickIdCookie = /(?:^|;\s*)dub_id=([^;]+)/;
 
 async function withAuditContext<T>(
 	request: Parameters<typeof handlers.GET>[0],
 	handler: () => Promise<T>
 ): Promise<T> {
 	const pathname = new URL(request.url).pathname.replace(authRoutePrefix, "");
+	const dubClickId = request.headers
+		.get("cookie")
+		?.match(dubClickIdCookie)?.[1];
 	if (!auditedOrganizationPaths.has(pathname)) {
-		return handler();
+		return dubClickId
+			? runWithAuthAuditContext({ dubClickId }, handler)
+			: handler();
 	}
 
 	const session = await auth.api.getSession({ headers: request.headers });
 	return runWithAuthAuditContext(
 		{
+			dubClickId,
 			actor: session?.user
 				? {
 						type: "user",
@@ -44,7 +51,7 @@ async function withAuditContext<T>(
 			operation: `auth${pathname}`,
 			request: {
 				requestId: request.headers.get("x-request-id") ?? undefined,
-				ip: getTrustedClientIp(request.headers),
+				ip: getClientIp(request.headers),
 				userAgent: request.headers.get("user-agent") ?? undefined,
 			},
 		},

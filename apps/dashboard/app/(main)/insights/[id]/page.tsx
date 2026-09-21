@@ -1,11 +1,16 @@
 "use client";
 
+import { isSelfHosted } from "@databuddy/env/public";
+
+import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
+
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { type FormEvent, useId, useState } from "react";
 import { toast } from "sonner";
 import { TopBar } from "@/components/layout/top-bar";
+import { MessageResponse } from "@/components/ai-elements/message";
 import { insightQueries, type InsightByIdResponse } from "@/lib/insight-api";
 import { orpc } from "@/lib/orpc";
 import {
@@ -30,6 +35,7 @@ import {
 	StatusDot,
 	Textarea,
 } from "@databuddy/ui";
+import { ContextUsed } from "../_components/context-used";
 import { ExecuteDefinitionAction } from "../_components/investigation-row";
 
 type TimelineItem = InsightByIdResponse["timeline"][number];
@@ -65,7 +71,7 @@ export default function InsightDetailPage() {
 				<h1 className="font-semibold text-sm">Investigation</h1>
 			</TopBar.Title>
 
-			<div className="mx-auto w-full max-w-2xl space-y-3 px-3 pt-3 pb-20 sm:space-y-4 sm:p-5">
+			<div className="mx-auto w-full max-w-4xl space-y-3 px-3 pt-3 pb-20 sm:space-y-4 sm:p-5">
 				<Link
 					className="inline-flex w-fit items-center gap-1.5 text-muted-foreground text-xs transition-colors hover:text-foreground"
 					href="/insights/investigations"
@@ -128,7 +134,7 @@ export default function InsightDetailPage() {
 								? "This investigation is unavailable, or it belongs to a workspace you can't access."
 								: "This investigation no longer exists."
 						}
-						icon={<LightbulbIcon weight="duotone" />}
+						icon={<LightbulbIcon />}
 						className="min-h-[50dvh]"
 						title="Investigation not available"
 						variant="minimal"
@@ -155,7 +161,8 @@ function CaseState({
 	);
 	const verifying =
 		reported &&
-		reported.status !== "failed" &&
+		reported.intent !== "clarification" &&
+		(reported.status === "queued" || reported.status === "running") &&
 		reported.createdAt > latest.createdAt;
 	const label = verifying
 		? "Measuring"
@@ -281,13 +288,12 @@ function CaseActivity({
 							: `Show ${items.length - 1} earlier update${items.length === 2 ? "" : "s"}`}
 						<CaretDownIcon
 							className={historyExpanded ? "rotate-180" : undefined}
-							weight="bold"
 						/>
 					</Button>
 				</div>
 			) : null}
 
-			{canReply && !isResolved && (
+			{canReply && (
 				<ContextReply
 					disabled={active}
 					insightId={insightId}
@@ -326,11 +332,11 @@ function TimelineEntry({
 				<header className="flex min-w-0 items-center gap-2 text-xs">
 					{item.kind === "reply" ? (
 						<span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-secondary text-muted-foreground">
-							<UserIcon className="size-3" weight="duotone" />
+							<UserIcon className="size-3" />
 						</span>
 					) : (
 						<span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-							<RobotIcon className="size-3" weight="duotone" />
+							<RobotIcon className="size-3" />
 						</span>
 					)}
 					<div className="flex min-w-0 items-center gap-2">
@@ -355,17 +361,30 @@ function TimelineEntry({
 						<p className="whitespace-pre-wrap text-foreground/85 text-sm leading-relaxed">
 							{item.body}
 						</p>
+						{item.assistantText && (
+							<div className="space-y-1 border-t pt-3">
+								<p className="font-medium text-xs">Databuddy</p>
+								<MessageResponse
+									className="text-sm leading-relaxed"
+									mode="static"
+								>
+									{item.assistantText}
+								</MessageResponse>
+							</div>
+						)}
 						{(item.status === "queued" || item.status === "running") && (
 							<p className="flex items-center gap-2 text-muted-foreground text-xs">
 								<Spinner size="sm" />
 								{item.status === "queued"
-									? "Queued for investigation…"
-									: "Databuddy is investigating…"}
+									? "Reply queued…"
+									: item.intent === "clarification"
+										? "Databuddy is answering…"
+										: "Databuddy is investigating…"}
 							</p>
 						)}
 						{item.status === "failed" && (
 							<div className="flex flex-wrap items-center gap-2 text-muted-foreground text-xs">
-								<span>Investigation failed.</span>
+								<span>Reply failed.</span>
 								{onRetry && (
 									<Button
 										disabled={retrying}
@@ -472,6 +491,8 @@ function InvestigationActivity({
 				}
 			/>
 
+			<ContextUsed snapshot={outcome.contextSnapshot} />
+
 			<NextStep
 				hideAction={executable}
 				next={outcome.next}
@@ -519,7 +540,6 @@ function Evidence({
 					<CaretDownIcon
 						aria-hidden
 						className={expanded ? "rotate-180" : undefined}
-						weight="bold"
 					/>
 				</Button>
 				{sourceHref ? (
@@ -632,7 +652,7 @@ function ContextReply({
 					type="button"
 					variant="ghost"
 				>
-					Reply with context
+					Ask about this investigation
 				</Button>
 			</div>
 		);
@@ -683,14 +703,25 @@ function ReplyComposer({
 		if (!trimmed) {
 			return;
 		}
-		sendReply(trimmed, "Databuddy is checking the latest context");
+		sendReply(trimmed, "Databuddy is answering your clarification");
 	};
-	const sendReply = (message: string, successMessage: string) => {
+	const sendReply = (
+		message: string,
+		successMessage: string,
+		intent: "clarification" | "analysis" = "clarification"
+	) => {
 		if (disabled || replyMutation.isPending) {
 			return;
 		}
 		replyMutation.mutate(
-			{ body: message, insightId },
+			{
+				body: message,
+				insightId,
+				intent,
+				...(intent === "analysis"
+					? { acceptedPriceUsd: INVESTIGATION_USAGE.priceUsd }
+					: {}),
+			},
 			{
 				onSuccess: (data) => {
 					if (data.reply.status !== "failed") {
@@ -703,17 +734,33 @@ function ReplyComposer({
 	return (
 		<form className="border-t px-4 py-4 sm:px-5" onSubmit={submitReply}>
 			<Field>
-				<Field.Label className="sr-only">Add context</Field.Label>
+				<Field.Label className="sr-only">Question</Field.Label>
 				<Textarea
 					disabled={disabled}
 					maxLength={2000}
 					maxRows={8}
 					minRows={2}
 					onChange={(event) => setBody(event.target.value)}
-					placeholder="Add context, a correction, or what changed…"
+					placeholder="Ask about this result, or write a new question…"
 					value={body}
 				/>
-				<div className="flex justify-end gap-2">
+				<p className="text-pretty text-muted-foreground text-xs">
+					{isSelfHosted
+						? "Ask a follow-up question or start a new investigation."
+						: "Clarifications are included. New investigations use your allowance, then cost $1 each."}
+				</p>
+				<div className="flex flex-wrap justify-end gap-2">
+					<Button
+						disabled={disabled || !body.trim() || replyMutation.isPending}
+						onClick={() =>
+							sendReply(body.trim(), "New analysis queued", "analysis")
+						}
+						size="sm"
+						type="button"
+						variant="secondary"
+					>
+						New analysis · 1 investigation
+					</Button>
 					<Button
 						disabled={replyMutation.isPending}
 						onClick={onClose}
@@ -729,8 +776,8 @@ function ReplyComposer({
 						size="sm"
 						type="submit"
 					>
-						<PaperPlaneIcon className="size-3.5" weight="bold" />
-						Check latest context
+						<PaperPlaneIcon className="size-3.5" />
+						Send clarification
 					</Button>
 				</div>
 			</Field>
@@ -773,7 +820,7 @@ function nextCopy(
 				label: "Measuring",
 			};
 		case "resolve":
-			return { body: next.reason, label: "Verified" };
+			return { body: next.reason, label: "Conclusion" };
 		default:
 			throw new Error("Unknown investigation outcome");
 	}

@@ -19,19 +19,11 @@ export interface AppContext {
 	serviceAuth?: ServiceAuth;
 	source?: "dashboard" | "mcp" | "slack";
 	timezone: string;
-	userId: string;
+	userId?: string | null;
 	websiteDomain?: string;
 	websiteId?: string;
 	websiteName?: string | null;
 	[key: string]: unknown;
-}
-
-export function requireWebsiteId(context: AppContext): string {
-	const websiteId = context.defaultWebsiteId ?? context.websiteId;
-	if (!websiteId) {
-		throw new Error("This operation requires a website in context.");
-	}
-	return websiteId;
 }
 
 function escapeAttr(value: string): string {

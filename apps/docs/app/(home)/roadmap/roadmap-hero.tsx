@@ -52,10 +52,7 @@ export default function RoadmapHero({ stats }: Props) {
 					<SciFiCard className="rounded border border-border bg-card/50 p-6 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
 						<div className="mb-3 flex items-center justify-center">
 							<div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30">
-								<ClockIcon
-									className="size-6 text-blue-600 dark:text-blue-400"
-									weight="duotone"
-								/>
+								<ClockIcon className="size-6 text-blue-600 dark:text-blue-400" />
 							</div>
 						</div>
 						<div className="font-bold text-2xl">{stats.currentQuarter}</div>
@@ -69,10 +66,7 @@ export default function RoadmapHero({ stats }: Props) {
 					<SciFiCard className="rounded border border-border bg-card/50 p-6 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
 						<div className="mb-3 flex items-center justify-center">
 							<div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
-								<RocketLaunchIcon
-									className="size-6 text-green-600 dark:text-green-400"
-									weight="duotone"
-								/>
+								<RocketLaunchIcon className="size-6 text-green-600 dark:text-green-400" />
 							</div>
 						</div>
 						<div className="font-bold text-2xl">{stats.completedItems}</div>
@@ -87,10 +81,7 @@ export default function RoadmapHero({ stats }: Props) {
 					<SciFiCard className="rounded border border-border bg-card/50 p-6 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
 						<div className="mb-3 flex items-center justify-center">
 							<div className="flex h-12 w-12 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900/30">
-								<MapPinIcon
-									className="size-6 text-purple-600 dark:text-purple-400"
-									weight="duotone"
-								/>
+								<MapPinIcon className="size-6 text-purple-600 dark:text-purple-400" />
 							</div>
 						</div>
 						<div className="font-bold text-2xl">{stats.upcomingMilestones}</div>

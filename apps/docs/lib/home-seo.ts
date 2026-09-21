@@ -3,7 +3,7 @@ import { SITE_URL } from "@/app/util/constants";
 export const homePageSeo = {
 	title: "Lightweight Analytics for Developers - One Connected Platform",
 	description:
-		"Analytics, error tracking, web vitals, feature flags, and automatic investigations in one connected platform. No cookies, GDPR compliant. Free for small projects. Open-source Google Analytics alternative for developers.",
+		"Cookieless analytics, errors, web vitals, feature flags, and AI analysis in one dashboard. Open source, with 10,000 monthly events free.",
 	url: SITE_URL,
 } as const;
 
@@ -21,12 +21,12 @@ export const homeFaqItems: LandingFaqItem[] = [
 	{
 		question: "How is Databuddy different from Google Analytics?",
 		answer:
-			"Databuddy uses a lightweight asynchronous tracker, uses no cookies, and is GDPR compliant by default. It also connects error tracking, Core Web Vitals monitoring, funnels, and feature flags in the same platform.",
+			"Databuddy combines cookieless analytics with errors, Core Web Vitals, funnels, feature flags, and AI analysis. It is open source and can be self-hosted. Google Analytics offers its own reporting and advertising integrations.",
 	},
 	{
 		question: "Do I need cookie consent banners?",
 		answer:
-			"Databuddy uses no cookies and is anonymous by default; individual user profiles exist only if you opt in with the identify API. By default, many sites can run without an analytics consent banner under GDPR, CCPA, and ePrivacy, depending on your jurisdiction and what you send.",
+			"The analytics tracker uses browser storage instead of cookies. Consent requirements depend on your configuration, the information you collect, and applicable rules. Cookieless does not automatically mean consent-free.",
 	},
 	{
 		question: "What is included in the free plan?",
@@ -36,7 +36,7 @@ export const homeFaqItems: LandingFaqItem[] = [
 	{
 		question: "How long does setup take?",
 		answer:
-			"Under 5 minutes. Add one script tag to your HTML, or install our SDK for Next.js, React, Vue, or vanilla JS. Data appears in your dashboard immediately after the first page load.",
+			"Add the script tag or install the SDK for your framework, then verify your first visit in the dashboard. Custom events and user identification are optional setup steps.",
 	},
 	{
 		question: "Can I migrate from Google Analytics, PostHog, or Plausible?",
@@ -51,11 +51,21 @@ export const homeFaqItems: LandingFaqItem[] = [
 	{
 		question: "Will the script slow down my site?",
 		answer:
-			"The tracker is about 12 KB gzipped and loads asynchronously. Real impact depends on your site and setup, so measure it in your own performance budget.",
+			"The tracker is about 13 KB gzipped and loads asynchronously. Real impact depends on your site and setup, so measure it in your own performance budget.",
 	},
 	{
-		question: "Is my data safe? Can I self-host?",
+		question: "Why pay when I can self-host for free?",
 		answer:
-			"Databuddy is open source. You can self-host on your own infrastructure for full data sovereignty, or use our managed cloud where data is encrypted at rest and in transit. We never sell or share your data.",
+			"Self-hosting is a real option, not a downgrade. The whole stack is open source and runs on your own infrastructure at no cost. The paid plans exist for teams who would rather not operate ClickHouse, Postgres, and Redis themselves.",
+	},
+	{
+		question: "Can I trust the AI answers?",
+		answer:
+			"Databunny and investigations query your own analytics data, and every answer carries the evidence behind it. Investigations save the queries, findings, and recommendation so you can check the reasoning instead of trusting a summary.",
+	},
+	{
+		question: "Do you sell my data?",
+		answer:
+			"No. Databuddy is open source and can run on your own infrastructure or our managed cloud. Hosting, billing, AI, and delivery providers process information needed to operate the features you use; see our Data Policy.",
 	},
 ];

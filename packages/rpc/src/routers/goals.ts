@@ -1,3 +1,5 @@
+import { analyticsCohortSchema } from "@databuddy/shared/analytics-filters";
+import { insightMeasurementSchema } from "@databuddy/shared/insights";
 import { successOutputSchema } from "../lib/schemas";
 import { and, desc, eq, inArray, isNull } from "@databuddy/db";
 import { goals } from "@databuddy/db/schema";
@@ -49,6 +51,7 @@ const filterSchema = z.object({
 type Filter = z.infer<typeof filterSchema>;
 
 const goalAnalyticsInputSchema = analyticsDateRangeSchema.safeExtend({
+	cohort: analyticsCohortSchema.optional(),
 	filters: z.array(filterSchema).optional(),
 	goalId: z.string(),
 	websiteId: z.string(),
@@ -384,7 +387,13 @@ export const goalsRouter = {
 				"Returns conversion analytics for a single goal. Requires website read permission.",
 		})
 		.input(goalAnalyticsInputSchema)
-		.output(goalAnalyticsOutputSchema)
+		.output(
+			goalAnalyticsOutputSchema.extend({
+				measurement: insightMeasurementSchema,
+				savedDefinition: insightMeasurementSchema.shape.definition,
+				cohort: analyticsCohortSchema.optional(),
+			})
+		)
 		.use(withWebsiteRead)
 		.handler(async ({ context, input }) => {
 			const { startDate, endDate } = resolveAnalyticsDateRange(input);
@@ -411,11 +420,21 @@ export const goalsRouter = {
 				goal.ignoreHistoricData
 			);
 
-			const requestFilters = input.filters ?? [];
-			const cacheKey = `analytics:${input.goalId}:${effectiveStartDate}:${endDate}:${JSON.stringify(requestFilters)}`;
+			const combinedFilters = [
+				...(input.filters ?? []),
+				...(input.cohort?.filters ?? []),
+				...((goal.filters as Filter[]) || []),
+			];
+			const measurement = insightMeasurementSchema.parse({
+				websiteId: input.websiteId,
+				definitionId: goal.id,
+				startDate: effectiveStartDate,
+				endDate,
+				definition: { ...goal, filters: combinedFilters },
+			});
 
-			return cache.withCache({
-				key: cacheKey,
+			const analytics = await cache.withCache({
+				key: `analytics:${JSON.stringify(measurement)}`,
 				ttl: ANALYTICS_CACHE_TTL,
 				tables: ["goals"],
 				queryFn: async () => {
@@ -428,8 +447,6 @@ export const goalsRouter = {
 						},
 					];
 
-					const filters = (goal.filters as Filter[]) || [];
-					const combinedFilters = [...requestFilters, ...filters];
 					const totalWebsiteUsers = await getTotalWebsiteUsers(
 						input.websiteId,
 						effectiveStartDate,
@@ -448,6 +465,15 @@ export const goalsRouter = {
 					);
 				},
 			});
+			return {
+				...analytics,
+				measurement,
+				cohort: input.cohort,
+				savedDefinition: insightMeasurementSchema.shape.definition.parse({
+					...goal,
+					filters: goal.filters ?? [],
+				}),
+			};
 		}),
 
 	bulkAnalytics: publicProcedure

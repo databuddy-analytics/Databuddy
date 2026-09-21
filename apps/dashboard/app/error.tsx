@@ -107,7 +107,7 @@ export default function ErrorPage({
 						className="absolute -top-2 -right-3.5 text-destructive opacity-70"
 						style={{ animation: "bobble 2s ease-in-out infinite" }}
 					>
-						<WarningCircleIcon className="size-5" weight="fill" />
+						<WarningCircleIcon className="size-5" />
 					</span>
 				</div>
 
@@ -121,13 +121,13 @@ export default function ErrorPage({
 				</div>
 
 				<Button className="mt-6 w-full" onClick={() => reset()}>
-					<ArrowClockwiseIcon className="mr-2 size-4" weight="duotone" />
+					<ArrowClockwiseIcon className="mr-2 size-4" />
 					Try Again
 				</Button>
 
 				<Link className="mt-3 w-full" href="/websites">
 					<Button className="w-full" variant="secondary">
-						<HouseIcon className="mr-2 size-4" weight="duotone" />
+						<HouseIcon className="mr-2 size-4" />
 						Back to Websites
 					</Button>
 				</Link>

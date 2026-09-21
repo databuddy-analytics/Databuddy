@@ -1,3 +1,4 @@
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import { and, desc, eq, sql, withTransaction } from "@databuddy/db";
 import type { db as DbType } from "@databuddy/db";
 import { feedback, feedbackRedemptions } from "@databuddy/db/schema";
@@ -247,6 +248,11 @@ export const feedbackRouter = {
 			})
 		)
 		.handler(async ({ context, input }) => {
+			if (readBooleanEnv("SELFHOST")) {
+				throw rpcError.badRequest(
+					"Cloud credit rewards are not used on self-hosted instances"
+				);
+			}
 			if (!context.organizationId) {
 				throw rpcError.badRequest("Organization context is required");
 			}

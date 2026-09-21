@@ -4,15 +4,15 @@ import { buildAppHomeView } from "@/slack/app-home";
 describe("buildAppHomeView", () => {
 	it("includes quick-action buttons that deep-link into the dashboard", () => {
 		const view = buildAppHomeView();
-		const blocks = view.blocks as Array<Record<string, unknown>>;
+		const blocks = view.blocks as Record<string, unknown>[];
 		const actions = blocks.find((b) => b.type === "actions");
 		expect(actions).toBeDefined();
 		const buttons = actions?.elements as Array<{ url: string }>;
 		expect(buttons.length).toBeGreaterThan(0);
-			const dashboardOrigin = new URL("https://app.databuddy.cc").origin;
-			expect(buttons.every((button) => new URL(button.url).origin === dashboardOrigin)).toBe(
-				true
-			);
+		const dashboardOrigin = new URL("https://app.databuddy.cc").origin;
+		expect(
+			buttons.every((button) => new URL(button.url).origin === dashboardOrigin)
+		).toBe(true);
 	});
 
 	it("renders connected sites when provided, and omits the block when empty", () => {

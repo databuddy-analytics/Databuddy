@@ -4,7 +4,6 @@ import { getBullMQConnectionOptions } from "./bullmq";
 export const UPTIME_QUEUE_NAME = "uptime-checks";
 export const UPTIME_CHECK_JOB_NAME = "uptime-check";
 export const UPTIME_DELIVERY_QUEUE_NAME = "uptime-event-delivery";
-export const UPTIME_DELIVERY_JOB_NAME = UPTIME_DELIVERY_QUEUE_NAME;
 
 export const UPTIME_WORKER_LOCK_MS = 90_000;
 export const UPTIME_WORKER_STALLED_INTERVAL_MS = 60_000;
@@ -16,6 +15,7 @@ export const UPTIME_JOB_OPTIONS = {
 		type: "exponential",
 		delay: 5000,
 	},
+	stackTraceLimit: 3,
 	// A failed source job can contain the only durable copy of a completed probe.
 	removeOnComplete: {
 		age: 24 * 3600,
@@ -33,6 +33,7 @@ export const UPTIME_DELIVERY_JOB_OPTIONS = {
 		type: "fixed",
 		delay: 30_000,
 	},
+	stackTraceLimit: 3,
 	// Keep completed IDs long enough for an ambiguous queue add to stay idempotent.
 	removeOnComplete: {
 		age: 7 * 24 * 3600,

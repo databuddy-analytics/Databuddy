@@ -65,7 +65,7 @@ function ExpiryBadge({ link }: { link: Link }) {
 						: "bg-amber-500/10 text-amber-600 dark:text-amber-400"
 				)}
 			>
-				<ClockCountdownIcon className="size-3" weight="duotone" />
+				<ClockCountdownIcon className="size-3" />
 				{isExpired ? "Expired" : localDayjs(link.expiresAt).fromNow(true)}
 			</span>
 		</Tooltip>
@@ -154,23 +154,23 @@ export function LinkRow({
 						aria-label={`Actions for ${link.name}`}
 						className="inline-flex size-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-interactive-hover hover:text-foreground group-hover:opacity-100 data-[state=open]:opacity-100"
 					>
-						<DotsThreeIcon className="size-4" weight="bold" />
+						<DotsThreeIcon className="size-4" />
 					</DropdownMenu.Trigger>
 					<DropdownMenu.Content align="end" className="w-40">
 						<DropdownMenu.Item
 							className="gap-2"
 							onClick={() => copyShortUrl(link.slug)}
 						>
-							<CopyIcon className="size-4" weight="duotone" />
+							<CopyIcon className="size-4" />
 							Copy URL
 						</DropdownMenu.Item>
 						<DropdownMenu.Item className="gap-2" onClick={() => onShowQr(link)}>
-							<QrCodeIcon className="size-4" weight="duotone" />
+							<QrCodeIcon className="size-4" />
 							QR Code
 						</DropdownMenu.Item>
 						<DropdownMenu.Separator />
 						<DropdownMenu.Item className="gap-2" onClick={() => onEdit(link)}>
-							<PencilSimpleIcon className="size-4" weight="duotone" />
+							<PencilSimpleIcon className="size-4" />
 							Edit
 						</DropdownMenu.Item>
 						<DropdownMenu.Separator />
@@ -179,7 +179,7 @@ export function LinkRow({
 							onClick={() => onDelete(link.id)}
 							variant="destructive"
 						>
-							<TrashIcon className="size-4" weight="duotone" />
+							<TrashIcon className="size-4" />
 							Delete
 						</DropdownMenu.Item>
 					</DropdownMenu.Content>
@@ -220,7 +220,7 @@ export function LinksList({
 						onClick: onCreateLink,
 					}}
 					description="Create short links to track clicks and measure engagement across your marketing campaigns."
-					icon={<LinkIcon weight="regular" />}
+					icon={<LinkIcon />}
 					title="No links yet"
 					variant="minimal"
 				/>

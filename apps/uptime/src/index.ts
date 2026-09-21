@@ -1,4 +1,6 @@
 import { db, shutdownPostgres, sql } from "@databuddy/db";
+import { clickHouse } from "@databuddy/db/clickhouse";
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import {
 	closeUptimeQueue,
 	getUptimeDeliveryQueue,
@@ -244,13 +246,26 @@ const probe = (name: string, fn: () => Promise<void>) =>
 	});
 
 const healthCheck = Effect.gen(function* () {
-	const [postgres, bullmqRedis, redpanda] = yield* Effect.all(
+	const deliveryService = readBooleanEnv("SELFHOST")
+		? "clickhouse"
+		: "redpanda";
+	const [postgres, bullmqRedis, delivery] = yield* Effect.all(
 		[
 			probe("postgres", () => db.execute(sql`SELECT 1`).then(() => {})),
 			probe("bullmqRedis", async () => {
 				await getUptimeQueue().count();
 			}),
-			probe("redpanda", async () => {
+			probe(deliveryService, async () => {
+				if (deliveryService === "clickhouse") {
+					const { success } = await clickHouse.ping({
+						abort_signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+						select: false,
+					});
+					if (!success) {
+						throw new Error("ping failed");
+					}
+					return;
+				}
 				const broker = process.env.REDPANDA_BROKER;
 				if (!broker) {
 					throw new Error("not configured");
@@ -267,7 +282,7 @@ const healthCheck = Effect.gen(function* () {
 								password: process.env.REDPANDA_PASSWORD,
 							},
 						}),
-					...(process.env.REDPANDA_SSL === "true" ? { ssl: true } : {}),
+					ssl: true,
 				});
 				const admin = kafka.admin();
 				try {
@@ -280,7 +295,7 @@ const healthCheck = Effect.gen(function* () {
 		{ concurrency: "unbounded" }
 	);
 
-	const services = { postgres, bullmqRedis, redpanda };
+	const services = { postgres, bullmqRedis, [deliveryService]: delivery };
 	const status = Object.values(services).every((s) => s.status === "ok")
 		? "ok"
 		: "degraded";

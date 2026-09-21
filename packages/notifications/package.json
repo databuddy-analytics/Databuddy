@@ -14,10 +14,10 @@
   },
   "scripts": {
     "check-types": "tsc --noEmit",
-    "test": "bun test src/__tests__",
-    "test:integration": "bun test src/__tests__/integration"
+    "test": "bun test src/__tests__"
   },
   "dependencies": {
+    "@databuddy/env": "workspace:*",
     "@databuddy/shared": "workspace:*",
     "resend": "^4.0.1"
   },

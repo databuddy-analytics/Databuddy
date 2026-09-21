@@ -192,8 +192,6 @@ export const updateLinkFolderSchema = linkFolderUpdateSchema
 		slug: folderSlugSchema.optional(),
 	});
 
-export const deleteLinkSchema = getLinkSchema;
-
 export const deleteLinkFolderSchema = z.object({
 	id: z.string(),
 });

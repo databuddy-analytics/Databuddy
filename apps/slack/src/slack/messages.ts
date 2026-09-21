@@ -28,6 +28,12 @@ export const SLACK_COPY = {
 		"I was restarted before I could finish. Mention me again and I'll take another look.",
 	agentTimeout:
 		"This took longer than expected, so I stopped. Try again with a narrower question.",
+	agentStopped:
+		"Stopping this response and clearing queued follow-ups in this thread.",
+	queueUnavailable:
+		"I couldn't safely process this thread. Please try again in a moment.",
+	queueFull:
+		"There are too many queued follow-ups in this thread. Please wait for my response before sending this again.",
 	assistantGreeting:
 		"I'm in. Show open investigations, run one now, or send new investigations to this channel automatically.",
 	autoBindSuccess: "Ready here.",
@@ -45,6 +51,7 @@ export const SLACK_COPY = {
 		"Databuddy reads messages in approved channels and DMs to understand the current question and thread. Answers posted in a channel are visible to that channel's members.",
 		"Channels usually connect on first mention from the workspace where Databuddy is installed. Slack Connect may need approval from the installed side, or Databuddy connected in both workspaces.",
 		"Commands: `/databuddy-status`, `/databuddy-help`, `/databuddy-bind`.",
+		"To stop a response and clear its queued follow-ups, reply `stop` in that thread (or `@Databuddy stop` in a channel).",
 	].join("\n\n"),
 	slackConnectExternalUser:
 		"Almost there: I'm only installed on the other side of this Slack Connect channel, so I can't answer you here yet.\n\nAsk that side to approve the channel, or connect Databuddy in your own workspace. No analytics were shared.",

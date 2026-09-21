@@ -2,12 +2,20 @@ import "@databuddy/test/env";
 import { describe, expect, it } from "bun:test";
 import type { InvestigationOutcome } from "@databuddy/shared/insights";
 import { InsightAgentGenerationError } from "./agent";
-import type { DetectedSignal } from "./detection";
+import { detectSignals, type DetectedSignal } from "./detection";
+import {
+	detectFunnelGoalSignals,
+	type FunnelDef,
+	type GoalDef,
+	type FunnelGoalDetectionDiagnostics,
+} from "./funnel-detection";
 import {
 	type InvestigationCoverage,
 	type InvestigationSources,
 	investigateWebsitePortfolioWithSources,
 } from "./generation";
+import { organizationProfileContext } from "./business-context";
+import { parseInvestigationOutcome } from "@databuddy/shared/insights";
 import { prepareInvestigation } from "./investigation";
 
 const trafficDrop: DetectedSignal = {
@@ -107,6 +115,68 @@ async function investigateFixture(
 }
 
 describe("fixture investigation sources", () => {
+	it("retains exactly the supplied context in the generated durable outcome", async () => {
+		const context = organizationProfileContext(
+			{
+				content: "Paid report preparation is the current priority.",
+				origin: "team",
+				revision: 3,
+				updatedAt: "2026-07-11T11:00:00Z",
+				updatedBy: "example-editor",
+				sourceWebsiteId: null,
+				sources: [
+					{ title: "Report guide", url: "https://example.com/reports" },
+				],
+			},
+			fixtureInput.organizationId,
+			new Date(fixtureInput.asOf)
+		);
+		let modelCalls = 0;
+		const artifact = await investigateFixture(
+			fixtureSources({
+				detectDefinitionSignals: async () => [],
+				detectMetricSignals: async () => [trafficDrop],
+				fetchAnnotations: async () => [],
+				loadDueInvestigation: async () => null,
+				loadObservations: async () => new Map(),
+				loadHistory: async () => [],
+				loadBusinessProfile: async () => context,
+				investigateSignal: async (input) => {
+					modelCalls += 1;
+					expect(input.businessContext).toEqual(context);
+					return {
+						outcome: {
+							title: "Traffic changed",
+							summary: "Traffic needs a closer look.",
+							impact: null,
+							rootCause: null,
+							evidence: ["Visitors fell from 1000 to 300."],
+							next: {
+								type: "resolve",
+								reason: "No material action established.",
+							},
+							contextSnapshot: { ...context, sources: [] },
+						},
+						toolCallCount: 0,
+					};
+				},
+			})
+		);
+		expect(artifact.status).toBe("completed");
+		expect(modelCalls).toBe(1);
+		expect(
+			parseInvestigationOutcome(JSON.parse(JSON.stringify(artifact.outcome)))
+				?.contextSnapshot
+		).toEqual(context);
+		const source = context.sources[0];
+		if (!source) {
+			throw new Error("Expected a supplied context source");
+		}
+		source.content = "Changed after the turn.";
+		expect(artifact.outcome?.contextSnapshot?.sources[0]?.content).toBe(
+			"Paid report preparation is the current priority."
+		);
+	});
 	it("passes a completed sibling ask to later candidates as open work", async () => {
 		const errorSignal: DetectedSignal = {
 			...trafficDrop,
@@ -121,12 +191,31 @@ describe("fixture investigation sources", () => {
 			severity: "critical",
 			subjectKey: "error:SyntaxError: boom",
 		};
+		const businessContext = {
+			capturedAt: "2026-07-12T00:00:00.000Z",
+			status: "ready" as const,
+			issues: [],
+			sources: [
+				{
+					id: "context-example",
+					kind: "team_reply" as const,
+					content: "Report preparation is not a completed download.",
+					observedAt: "2026-07-11T12:00:00.000Z",
+				},
+			],
+		};
+		let profileReads = 0;
 		const openWorkPerCall: unknown[] = [];
 		const sources = fixtureSources({
 			detectDefinitionSignals: async () => [],
+			loadBusinessProfile: async () => {
+				profileReads += 1;
+				return businessContext;
+			},
 			detectMetricSignals: async () => [errorSignal, trafficDrop],
 			fetchAnnotations: async () => [],
 			investigateSignal: async (input) => {
+				expect(input).toMatchObject({ businessContext });
 				openWorkPerCall.push(input.otherOpenWork);
 				return {
 					outcome: {
@@ -158,6 +247,7 @@ describe("fixture investigation sources", () => {
 
 		await investigateFixture(sources, {}, () => Promise.resolve(true));
 
+		expect(profileReads).toBe(1);
 		expect(openWorkPerCall).toHaveLength(2);
 		expect(openWorkPerCall[0]).toEqual([]);
 		expect(openWorkPerCall[1]).toMatchObject([
@@ -193,7 +283,10 @@ describe("fixture investigation sources", () => {
 		const outcome: InvestigationOutcome = {
 			evidence: ["The selected signal was measured in the comparison window."],
 			impact: null,
-			next: { reason: "No action is required in this fixture.", type: "resolve" },
+			next: {
+				reason: "No action is required in this fixture.",
+				type: "resolve",
+			},
 			rootCause: null,
 			summary: "The selected signal changed in the comparison window.",
 			title: "Measured signal",
@@ -204,7 +297,8 @@ describe("fixture investigation sources", () => {
 			fetchAnnotations: async () => [],
 			investigateSignal: async (input) => {
 				seen.push({
-					related: input.relatedSignals?.map((signal) => signal.signalKey) ?? [],
+					related:
+						input.relatedSignals?.map((signal) => signal.signalKey) ?? [],
 					signal: input.signal.signalKey,
 				});
 				return { outcome, toolCallCount: 1 };
@@ -268,7 +362,10 @@ describe("fixture investigation sources", () => {
 		const outcome: InvestigationOutcome = {
 			evidence: ["The selected signal was measured in the comparison window."],
 			impact: null,
-			next: { reason: "No action is required in this fixture.", type: "resolve" },
+			next: {
+				reason: "No action is required in this fixture.",
+				type: "resolve",
+			},
 			rootCause: null,
 			summary: "The selected signal changed in the comparison window.",
 			title: "Measured signal",
@@ -295,11 +392,7 @@ describe("fixture investigation sources", () => {
 		});
 
 		await expect(
-			investigateWebsitePortfolioWithSources(
-				fixtureInput,
-				sources,
-				"manual"
-			)
+			investigateWebsitePortfolioWithSources(fixtureInput, sources, "manual")
 		).rejects.toThrow("Model returned malformed structured output");
 		expect(attempted).toEqual([
 			"route:error:/explore",
@@ -322,8 +415,9 @@ describe("fixture investigation sources", () => {
 			severity: "warning",
 			subjectKey: "route:error:/explore",
 		};
-		let received: Parameters<InvestigationSources["investigateSignal"]>[0] | null =
-			null;
+		let received:
+			| Parameters<InvestigationSources["investigateSignal"]>[0]
+			| null = null;
 		const outcome: InvestigationOutcome = {
 			evidence: ["The exact error cohort was measured."],
 			impact: "Thirty-five visitor identifiers were affected.",
@@ -376,8 +470,8 @@ describe("fixture investigation sources", () => {
 	it("adds supplied route-vital continuation evidence before a slow route reaches the agent", async () => {
 		const slowRoute: DetectedSignal = {
 			...trafficDrop,
-			baseline: 5_000,
-			current: 7_200,
+			baseline: 5000,
+			current: 7200,
 			deltaPercent: 44,
 			direction: "up",
 			entityId: "/sign-in",
@@ -387,8 +481,9 @@ describe("fixture investigation sources", () => {
 			severity: "warning",
 			subjectKey: "route:lcp:/sign-in",
 		};
-		let received: Parameters<InvestigationSources["investigateSignal"]>[0] | null =
-			null;
+		let received:
+			| Parameters<InvestigationSources["investigateSignal"]>[0]
+			| null = null;
 		let continuationCalls = 0;
 		const outcome: InvestigationOutcome = {
 			evidence: ["The matched route cohort was measured."],
@@ -453,11 +548,7 @@ describe("fixture investigation sources", () => {
 		});
 
 		await expect(
-			investigateWebsitePortfolioWithSources(
-				fixtureInput,
-				sources,
-				"manual"
-			)
+			investigateWebsitePortfolioWithSources(fixtureInput, sources, "manual")
 		).rejects.toThrow("AI gateway configuration is unavailable");
 		expect(attempted).toEqual(["visitors"]);
 	});
@@ -489,11 +580,7 @@ describe("fixture investigation sources", () => {
 		});
 
 		await expect(
-			investigateWebsitePortfolioWithSources(
-				fixtureInput,
-				sources,
-				"manual"
-			)
+			investigateWebsitePortfolioWithSources(fixtureInput, sources, "manual")
 		).rejects.toThrow("Annotation storage unavailable");
 		expect(annotationCalls).toEqual(["visitors"]);
 		expect(attempted).toEqual([]);
@@ -579,7 +666,7 @@ describe("fixture investigation sources", () => {
 		});
 
 		const artifact = await investigateFixture(sources, {
-				githubRepository: { owner: "databuddy-analytics", repo: "app" },
+			githubRepository: { owner: "databuddy-analytics", repo: "app" },
 		});
 
 		expect(artifact).toMatchObject({
@@ -587,15 +674,13 @@ describe("fixture investigation sources", () => {
 			status: "completed",
 		});
 		expect(artifact.signal?.signalKey).toBe("visitors");
-		expect(receivedHistoryBody).toBe(
-			"The campaign was intentionally paused."
-		);
+		expect(receivedHistoryBody).toBe("The campaign was intentionally paused.");
 		expect(receivedOpenWorkTitle).toBe("Checkout repository access");
 		expect(receivedRepository).toEqual({
 			owner: "databuddy-analytics",
 			repo: "app",
 		});
-			expect(receivedRelatedMetrics).toEqual(["revenue"]);
+		expect(receivedRelatedMetrics).toEqual(["revenue"]);
 		expect(calls.sort()).toEqual(
 			[
 				"agent:visitors",
@@ -649,9 +734,7 @@ describe("fixture investigation sources", () => {
 		const sources = fixtureSources({
 			loadDueInvestigation: async () => null,
 			detectDefinitionSignals: async () => [],
-			detectMetricSignals: async () => [
-				{ ...trafficDrop, severity: "info" },
-			],
+			detectMetricSignals: async () => [{ ...trafficDrop, severity: "info" }],
 			investigateSignal: async () => {
 				throw new Error("Informational traffic must not reach the agent");
 			},
@@ -803,14 +886,10 @@ describe("fixture investigation sources", () => {
 			},
 		});
 
-		const artifact = await investigateFixture(
-			sources,
-			{},
-			async () => {
-				calls.push("agent access");
-				return false;
-			}
-		);
+		const artifact = await investigateFixture(sources, {}, async () => {
+			calls.push("agent access");
+			return false;
+		});
 
 		expect(artifact).toMatchObject({
 			outcome: null,
@@ -1204,5 +1283,202 @@ describe("fixture investigation sources", () => {
 		expect(remeasureCalls).toBe(1);
 		expect(investigated).toBe("error:clerk-duplicate-provider");
 		expect(artifact.signal?.signalKey).toBe("error:clerk-duplicate-provider");
+	});
+});
+
+describe("native definition detection in portfolio generation", () => {
+	it.each([
+		false,
+		true,
+	])("keeps optional product failure separate from core revenue failure=%s", async (coreFails) => {
+		const seen: string[] = [];
+		let productReads = 0;
+		const sources = fixtureSources({
+			detectMetricSignals: async (
+				params,
+				_query,
+				today,
+				abortSignal,
+				diagnostics
+			) =>
+				detectSignals(
+					params,
+					async (request) => {
+						if (request.type === "revenue_by_product") {
+							productReads += 1;
+							throw new DOMException(
+								"optional product breakdown aborted",
+								"AbortError"
+							);
+						}
+						if (request.type !== "revenue_overview") {
+							return [];
+						}
+						if (coreFails) {
+							throw new Error("core revenue unavailable");
+						}
+						return [
+							{
+								currency: "USD",
+								total_revenue: 40_000,
+								total_transactions: 400,
+								refund_amount: request.from === "2026-07-05" ? -2500 : -500,
+								refund_count: request.from === "2026-07-05" ? 25 : 5,
+							},
+						];
+					},
+					today,
+					abortSignal,
+					diagnostics
+				),
+			detectDefinitionSignals: async () => [],
+			loadDueInvestigation: async () => null,
+			loadHistory: async () => [],
+			loadObservations: async () => new Map(),
+			fetchAnnotations: async () => [],
+			investigateSignal: async (input) => {
+				seen.push(input.signal.signalKey);
+				return {
+					outcome: {
+						title: "Refund amounts increased",
+						summary: "Refunds changed behind steady receipts.",
+						rootCause: null,
+						evidence: ["Refunds increased in the measured comparison."],
+						publish: false,
+						next: {
+							type: "resolve",
+							reason: "Synthetic generation-boundary control.",
+						},
+					},
+					toolCallCount: 0,
+				};
+			},
+		});
+		const run = investigateFixture(sources, {}, undefined, "scheduled");
+		if (coreFails) {
+			await expect(run).rejects.toThrow(
+				"1 metric families and 0 conversion definitions failed"
+			);
+			expect(seen).toEqual([]);
+		} else {
+			expect(await run).toMatchObject({
+				status: "completed",
+				signal: { signalKey: "refund_amount:USD" },
+			});
+			expect(seen).toEqual(["refund_amount:USD"]);
+			expect(productReads).toBe(2);
+		}
+	});
+
+	it.each([
+		false,
+		true,
+	])("keeps optional breakdown failure separate from core failure=%s", async (coreFails) => {
+		const funnel: FunnelDef = {
+			id: "checkout",
+			name: "Checkout",
+			description: "Complete a purchase",
+			filters: null,
+			createdAt: new Date("2026-01-01"),
+			updatedAt: new Date("2026-01-01"),
+			steps: [
+				{ name: "Cart", target: "/cart", type: "PAGE_VIEW" },
+				{ name: "Purchase", target: "purchase", type: "EVENT" },
+			],
+		};
+		const goal: GoalDef = {
+			id: "signup",
+			name: "Signup",
+			description: "Create an account",
+			type: "EVENT",
+			target: "sign_up",
+			filters: null,
+			createdAt: new Date("2026-01-01"),
+			updatedAt: new Date("2026-01-01"),
+		};
+		const seen: string[] = [];
+		let diagnostics: FunnelGoalDetectionDiagnostics | undefined;
+		const sources = fixtureSources({
+			detectMetricSignals: async () => [],
+			detectDefinitionSignals: async (params, today, _deps, options) => {
+				expect(params.websiteId).toBe(fixtureInput.websiteId);
+				expect(options?.abortSignal).toBeDefined();
+				diagnostics = options?.diagnostics;
+				return await detectFunnelGoalSignals(
+					params,
+					today,
+					{
+						fetchFunnels: async () => [funnel],
+						fetchGoals: async () => [goal],
+						funnelConversion: async () => {
+							if (coreFails) {
+								throw new Error("core conversion unavailable");
+							}
+							return { entrants: 1000, completions: 500, rate: 50 };
+						},
+						goalConversion: async (_goal, range) => ({
+							entrants: 500,
+							completions: range.from === "2026-07-05" ? 50 : 250,
+							rate: range.from === "2026-07-05" ? 10 : 50,
+						}),
+						funnelReferrers: async () => {
+							throw new Error("optional breakdown unavailable");
+						},
+					},
+					options
+				);
+			},
+			loadDueInvestigation: async () => null,
+			loadHistory: async () => [],
+			loadObservations: async () => new Map(),
+			fetchAnnotations: async () => [],
+			investigateSignal: async (input) => {
+				seen.push(input.signal.signalKey);
+				expect(input.signal).toMatchObject({
+					entity: { type: "goal", id: "signup" },
+					metric: { current: 10, previous: 50 },
+					sentiment: "negative",
+				});
+				return {
+					outcome: {
+						title: "Signup completion declined",
+						summary: "Signup completed for fewer eligible visitors.",
+						rootCause: null,
+						impact: null,
+						evidence: [
+							"50 of 500 visitors completed signup, previously 250 of 500.",
+						],
+						publish: false,
+						next: {
+							type: "resolve",
+							reason: "Synthetic generation boundary check.",
+						},
+					},
+					toolCallCount: 0,
+				};
+			},
+		});
+		const run = investigateFixture(sources, {}, undefined, "scheduled");
+		if (coreFails) {
+			await expect(run).rejects.toThrow(
+				"0 metric families and 1 conversion definitions failed"
+			);
+			expect(seen).toEqual([]);
+		} else {
+			expect(await run).toMatchObject({
+				status: "completed",
+				signal: { signalKey: "goal:signup" },
+			});
+			expect(seen).toEqual(["goal:signup"]);
+		}
+		expect(diagnostics).toEqual({
+			failedDefinitions: coreFails ? 1 : 0,
+			referrerCoverage: {
+				eligibleFunnels: 1,
+				probedFunnels: 1,
+				unprobedFunnels: 0,
+				failedProbes: 1,
+			},
+		});
 	});
 });

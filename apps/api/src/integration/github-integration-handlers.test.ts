@@ -46,7 +46,7 @@ describe("integrations.list github", () => {
 
 		const result = await call(
 			appRouter.integrations.list,
-			userContext(user, org.id),
+			userContext(user, org.id)
 		)({ organizationId: org.id });
 
 		expect(result.github).toEqual([]);
@@ -60,7 +60,7 @@ describe("integrations.list github", () => {
 
 		const result = await call(
 			appRouter.integrations.list,
-			userContext(user, org.id),
+			userContext(user, org.id)
 		)({ organizationId: org.id });
 
 		expect(result.github).toHaveLength(1);
@@ -78,7 +78,7 @@ describe("integrations.list github", () => {
 
 		const result = await call(
 			appRouter.integrations.list,
-			userContext(user, org.id),
+			userContext(user, org.id)
 		)({ organizationId: org.id });
 
 		expect(result.github).toEqual([]);
@@ -94,7 +94,7 @@ describe("integrations.uninstallGitHub", () => {
 
 		const result = await call(
 			appRouter.integrations.uninstallGitHub,
-			userContext(user, org.id),
+			userContext(user, org.id)
 		)({ organizationId: org.id, integrationId });
 
 		expect(result.success).toBe(true);
@@ -102,7 +102,7 @@ describe("integrations.uninstallGitHub", () => {
 
 		const remaining = await call(
 			appRouter.integrations.list,
-			userContext(user, org.id),
+			userContext(user, org.id)
 		)({ organizationId: org.id });
 		expect(remaining.github).toEqual([]);
 	});
@@ -116,9 +116,9 @@ describe("integrations.uninstallGitHub", () => {
 		await expectCode(
 			call(
 				appRouter.integrations.uninstallGitHub,
-				userContext(user, org.id),
+				userContext(user, org.id)
 			)({ organizationId: org.id, integrationId }),
-			"FORBIDDEN",
+			"FORBIDDEN"
 		);
 	});
 
@@ -132,9 +132,9 @@ describe("integrations.uninstallGitHub", () => {
 		await expectCode(
 			call(
 				appRouter.integrations.uninstallGitHub,
-				userContext(attacker, attackerOrg.id),
+				userContext(attacker, attackerOrg.id)
 			)({ organizationId: attackerOrg.id, integrationId }),
-			"NOT_FOUND",
+			"NOT_FOUND"
 		);
 	});
 });
@@ -148,9 +148,9 @@ describe("integrations.listGitHubRepos", () => {
 		await expectCode(
 			call(
 				appRouter.integrations.listGitHubRepos,
-				userContext(user, org.id),
+				userContext(user, org.id)
 			)({ organizationId: org.id }),
-			"BAD_REQUEST",
+			"BAD_REQUEST"
 		);
 	});
 });

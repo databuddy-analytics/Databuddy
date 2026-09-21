@@ -116,10 +116,7 @@ export function FunnelFlow({ steps }: FunnelFlowProps) {
 						{index !== 0 && (
 							<div className="flex items-center justify-center gap-3 border-y bg-secondary/50 py-2">
 								<div className="flex items-center gap-1.5 text-xs">
-									<CaretDownIcon
-										className="size-3 text-muted-foreground"
-										weight="fill"
-									/>
+									<CaretDownIcon className="size-3 text-muted-foreground" />
 									<span className="text-muted-foreground">
 										{droppedUsers.toLocaleString()} left
 									</span>
@@ -145,7 +142,7 @@ export function FunnelFlow({ steps }: FunnelFlowProps) {
 								)}
 							>
 								{isLast ? (
-									<CheckCircleIcon className="size-5" weight="fill" />
+									<CheckCircleIcon className="size-5" />
 								) : (
 									step.step_number
 								)}
@@ -198,7 +195,7 @@ export function FunnelFlow({ steps }: FunnelFlowProps) {
 												side="top"
 											>
 												<div className="flex shrink-0 cursor-help items-center gap-1 rounded bg-destructive/10 px-1.5 py-0.5 text-destructive text-xs">
-													<WarningCircleIcon className="size-3" weight="fill" />
+													<WarningCircleIcon className="size-3" />
 													<span className="font-medium tabular-nums">
 														{step.error_count}
 													</span>

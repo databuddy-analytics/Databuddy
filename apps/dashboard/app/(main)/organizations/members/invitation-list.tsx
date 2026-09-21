@@ -81,7 +81,7 @@ function InvitationRow({
 						className="inline-flex size-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
 						disabled={isCancellingInvitation || isResending}
 					>
-						<DotsThreeIcon size={16} weight="bold" />
+						<DotsThreeIcon size={16} />
 					</DropdownMenu.Trigger>
 					<DropdownMenu.Content align="end" side="bottom">
 						<DropdownMenu.Item onClick={() => onResend(invitation)}>

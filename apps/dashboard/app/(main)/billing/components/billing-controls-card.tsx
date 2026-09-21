@@ -1,7 +1,7 @@
 "use client";
 
 import { orpc } from "@/lib/orpc";
-import { cn } from "@/lib/utils";
+import { useBillingContext } from "@/components/providers/billing-provider";
 import {
 	calculateTopupCost,
 	TOPUP_FEATURE_ID,
@@ -17,8 +17,17 @@ import {
 	InfinityIcon,
 	ShieldCheckIcon,
 } from "@databuddy/ui/icons";
-import { Badge, Button, Card, Divider, Input, Text } from "@databuddy/ui";
+import {
+	Button,
+	Card,
+	Divider,
+	Field,
+	Input,
+	Skeleton,
+	Text,
+} from "@databuddy/ui";
 import { Switch } from "@databuddy/ui/client";
+import { cn } from "@/lib/utils";
 
 const EVENTS_FEATURE_ID = "events";
 
@@ -31,13 +40,13 @@ const TOPUP_LIMITS = {
 const ALERT_DEFAULTS = { threshold: 80 };
 const ALERT_LIMITS = { threshold: [1, 99] } as const;
 
-const SPEND_DEFAULTS = { overageLimit: 50 };
-const SPEND_LIMITS = { overageLimit: [1, 10_000] } as const;
-
-const EXPAND_EASE = "cubic-bezier(0.32, 0.72, 0, 1)";
+const USAGE_LIMIT_DEFAULTS = { overageLimit: 50 };
+const USAGE_LIMITS = { overageLimit: [1, 10_000] } as const;
 
 export function BillingControlsCard() {
-	const { data: customer, refetch } = useCustomer();
+	const { data: customer, isLoading, refetch } = useCustomer();
+	const { canUserUpgrade } = useBillingContext();
+	const spendFeatureId = TOPUP_FEATURE_ID;
 
 	const topup = useMemo(() => {
 		const e = customer?.billingControls?.autoTopups?.find(
@@ -59,90 +68,97 @@ export function BillingControlsCard() {
 
 	const spend = useMemo(() => {
 		const e = customer?.billingControls?.spendLimits?.find(
-			(s) => s.featureId === TOPUP_FEATURE_ID
+			(s) => s.featureId === spendFeatureId
 		);
 		return e && typeof e.overageLimit === "number"
 			? { enabled: e.enabled, overageLimit: e.overageLimit }
 			: null;
-	}, [customer]);
+	}, [customer, spendFeatureId]);
+
+	if (!customer) {
+		return (
+			<Card>
+				<Card.Content>
+					{isLoading ? (
+						<Skeleton className="h-32" />
+					) : (
+						<p className="text-pretty text-muted-foreground text-sm">
+							Billing settings are unavailable. Refresh to try again.
+						</p>
+					)}
+				</Card.Content>
+			</Card>
+		);
+	}
 
 	return (
 		<Card>
 			<Card.Header>
-				<Card.Title className="flex items-center gap-2">
-					<GearIcon
-						className="text-muted-foreground"
-						size={14}
-						weight="duotone"
-					/>
+				<Card.Title className="flex items-center gap-2 text-balance">
+					<GearIcon className="text-muted-foreground" size={14} />
 					Billing controls
 				</Card.Title>
-				<Card.Description>
-					Control investigation credit refills, event alerts, and AI spending.
-				</Card.Description>
 			</Card.Header>
 			<Card.Content className="p-0">
+				{
+					<>
+						<BillingRow
+							canEdit={canUserUpgrade}
+							turnOffLabel="Turn off auto top-up"
+							defaults={TOPUP_DEFAULTS}
+							description="Refill your AI credits when they run low."
+							icon={<InfinityIcon size={16} />}
+							initial={topup}
+							limits={TOPUP_LIMITS}
+							messages={{
+								error: "Failed to update auto top-up.",
+								successDisable: "Auto top-up turned off.",
+								successEnable: "Auto top-up enabled.",
+							}}
+							onSave={(input) => orpc.billing.setAutoTopup.call(input)}
+							onSaved={refetch}
+							switchLabel="Enable credit auto top-up"
+							title="Credit auto top-up"
+						>
+							{(form, setForm) => (
+								<>
+									<div className="grid gap-3 sm:grid-cols-2">
+										<LabeledNumberInput
+											helper={`between ${TOPUP_LIMITS.threshold[0].toLocaleString()} and ${TOPUP_LIMITS.threshold[1].toLocaleString()}`}
+											id="auto-topup-threshold"
+											label="When balance drops below"
+											max={TOPUP_LIMITS.threshold[1]}
+											min={TOPUP_LIMITS.threshold[0]}
+											onChange={(v) => setForm({ threshold: v })}
+											step={10}
+											suffix="credits"
+											value={form.threshold}
+										/>
+										<LabeledNumberInput
+											helper={`${TOPUP_LIMITS.quantity[0].toLocaleString()}–${TOPUP_LIMITS.quantity[1].toLocaleString()} per refill`}
+											id="auto-topup-quantity"
+											label="Add this many each time"
+											max={TOPUP_LIMITS.quantity[1]}
+											min={TOPUP_LIMITS.quantity[0]}
+											onChange={(v) => setForm({ quantity: v })}
+											step={100}
+											suffix="credits"
+											value={form.quantity}
+										/>
+									</div>
+									<RefillSummary quantity={form.quantity} />
+								</>
+							)}
+						</BillingRow>
+						<Divider />
+					</>
+				}
 				<BillingRow
-					actions={{
-						save: "Save changes",
-						turnOff: "Turn off auto top-up",
-						turnOn: "Turn on",
-					}}
-					defaults={TOPUP_DEFAULTS}
-					description="Add investigation credits automatically when the organization's balance runs low."
-					icon={<InfinityIcon size={16} weight="duotone" />}
-					initial={topup}
-					limits={TOPUP_LIMITS}
-					messages={{
-						error: "Failed to update auto top-up.",
-						successDisable: "Auto top-up turned off.",
-						successEnable: "Auto top-up enabled.",
-					}}
-					mutationOptions={orpc.billing.setAutoTopup.mutationOptions()}
-					onSaved={refetch}
-					switchLabel="Enable auto top-up"
-					title="Auto top-up"
-				>
-					{(form, setForm) => (
-						<>
-							<div className="grid gap-3 sm:grid-cols-2">
-								<LabeledNumberInput
-									helper={`between ${TOPUP_LIMITS.threshold[0].toLocaleString()} and ${TOPUP_LIMITS.threshold[1].toLocaleString()}`}
-									id="auto-topup-threshold"
-									label="When balance drops below"
-									max={TOPUP_LIMITS.threshold[1]}
-									min={TOPUP_LIMITS.threshold[0]}
-									onChange={(v) => setForm({ threshold: v })}
-									step={10}
-									suffix="credits"
-									value={form.threshold}
-								/>
-								<LabeledNumberInput
-									helper={`${TOPUP_LIMITS.quantity[0].toLocaleString()}–${TOPUP_LIMITS.quantity[1].toLocaleString()} per refill`}
-									id="auto-topup-quantity"
-									label="Add this many each time"
-									max={TOPUP_LIMITS.quantity[1]}
-									min={TOPUP_LIMITS.quantity[0]}
-									onChange={(v) => setForm({ quantity: v })}
-									step={100}
-									suffix="credits"
-									value={form.quantity}
-								/>
-							</div>
-							<RefillSummary quantity={form.quantity} />
-						</>
-					)}
-				</BillingRow>
-				<Divider />
-				<BillingRow
-					actions={{
-						save: "Save changes",
-						turnOff: "Turn off alert",
-						turnOn: "Turn on",
-					}}
+					canEdit={canUserUpgrade}
+					turnOffLabel="Turn off alert"
 					defaults={ALERT_DEFAULTS}
-					description="Get an email when your monthly event usage crosses a threshold — no more surprises."
-					icon={<BellIcon size={16} weight="duotone" />}
+					description="Email me before I reach my monthly event allowance."
+					icon={<BellIcon size={16} />}
 					initial={alert}
 					limits={ALERT_LIMITS}
 					messages={{
@@ -150,14 +166,14 @@ export function BillingControlsCard() {
 						successDisable: "Usage alert turned off.",
 						successEnable: "Usage alert enabled.",
 					}}
-					mutationOptions={orpc.billing.setUsageAlert.mutationOptions()}
+					onSave={(input) => orpc.billing.setUsageAlert.call(input)}
 					onSaved={refetch}
 					switchLabel="Enable usage alert"
 					title="Event usage alert"
 				>
 					{(form, setForm) => (
 						<LabeledNumberInput
-							helper={`alert when you've used this % of your monthly events (${ALERT_LIMITS.threshold[0]}–${ALERT_LIMITS.threshold[1]})`}
+							helper="Percentage of your monthly event allowance."
 							id="events-usage-alert"
 							label="Notify me at"
 							max={ALERT_LIMITS.threshold[1]}
@@ -169,43 +185,48 @@ export function BillingControlsCard() {
 						/>
 					)}
 				</BillingRow>
-				<Divider />
-				<BillingRow
-					actions={{
-						save: "Save changes",
-						turnOff: "Remove limit",
-						turnOn: "Turn on",
-					}}
-					defaults={SPEND_DEFAULTS}
-					description="Cap monthly investigation credit spending. Automatic refills stop when the cap is reached."
-					icon={<ShieldCheckIcon size={16} weight="duotone" />}
-					initial={spend}
-					limits={SPEND_LIMITS}
-					messages={{
-						error: "Failed to update spend limit.",
-						successDisable: "Spend limit removed.",
-						successEnable: "Spend limit set.",
-					}}
-					mutationOptions={orpc.billing.setSpendLimit.mutationOptions()}
-					onSaved={refetch}
-					switchLabel="Enable spend limit"
-					title="Investigation credit spend limit"
-				>
-					{(form, setForm) => (
-						<LabeledNumberInput
-							helper={`between $${SPEND_LIMITS.overageLimit[0]} and $${SPEND_LIMITS.overageLimit[1].toLocaleString()} per month`}
-							id="spend-limit"
-							label="Stop spending above"
-							max={SPEND_LIMITS.overageLimit[1]}
-							min={SPEND_LIMITS.overageLimit[0]}
-							onChange={(v) => setForm({ overageLimit: v })}
-							prefix="$"
-							step={10}
-							suffix="USD"
-							value={form.overageLimit}
-						/>
-					)}
-				</BillingRow>
+				{
+					<>
+						<Divider />
+						<BillingRow
+							canEdit={canUserUpgrade}
+							turnOffLabel="Remove limit"
+							defaults={USAGE_LIMIT_DEFAULTS}
+							description="Limit additional AI credit usage."
+							icon={<ShieldCheckIcon size={16} />}
+							initial={spend}
+							limits={USAGE_LIMITS}
+							messages={{
+								error: "Failed to update usage limit.",
+								successDisable: "Usage limit removed.",
+								successEnable: "Usage limit set.",
+							}}
+							onSave={(input) =>
+								orpc.billing.setSpendLimit.call({
+									...input,
+									featureId: spendFeatureId,
+								})
+							}
+							onSaved={refetch}
+							switchLabel="Enable credit usage limit"
+							title="Credit usage limit"
+						>
+							{(form, setForm) => (
+								<LabeledNumberInput
+									helper={`Up to ${USAGE_LIMITS.overageLimit[1].toLocaleString()} additional credits.`}
+									id="spend-limit"
+									label="Per month"
+									max={USAGE_LIMITS.overageLimit[1]}
+									min={USAGE_LIMITS.overageLimit[0]}
+									onChange={(v) => setForm({ overageLimit: v })}
+									step={10}
+									suffix="credits"
+									value={form.overageLimit}
+								/>
+							)}
+						</BillingRow>
+					</>
+				}
 			</Card.Content>
 		</Card>
 	);
@@ -217,7 +238,7 @@ type FormLimits<T extends FormShape> = {
 };
 
 interface BillingRowProps<TForm extends FormShape> {
-	actions: { save: string; turnOff: string; turnOn: string };
+	canEdit: boolean;
 	children: (
 		form: TForm,
 		setForm: (patch: Partial<TForm>) => void
@@ -228,10 +249,13 @@ interface BillingRowProps<TForm extends FormShape> {
 	initial: ({ enabled: boolean } & TForm) | null;
 	limits: FormLimits<TForm>;
 	messages: { error: string; successDisable: string; successEnable: string };
-	mutationOptions: any;
+	onSave: (
+		input: { enabled: boolean } & TForm
+	) => Promise<{ enabled: boolean } & TForm>;
 	onSaved: () => void;
 	switchLabel: string;
 	title: string;
+	turnOffLabel: string;
 }
 
 function BillingRow<TForm extends FormShape>({
@@ -242,17 +266,23 @@ function BillingRow<TForm extends FormShape>({
 	title,
 	description,
 	switchLabel,
-	actions,
+	turnOffLabel,
 	messages,
-	mutationOptions,
+	onSave,
+	canEdit,
 	onSaved,
 	children,
 }: BillingRowProps<TForm>) {
 	const wasEnabled = initial?.enabled ?? false;
-	const initialForm = useMemo(
-		() => (initial ? stripEnabled(initial) : defaults),
-		[initial, defaults]
-	);
+	const initialForm = useMemo(() => {
+		const values = { ...defaults };
+		if (initial) {
+			for (const key of Object.keys(defaults) as (keyof TForm)[]) {
+				values[key] = initial[key];
+			}
+		}
+		return values;
+	}, [initial, defaults]);
 
 	const [enabled, setEnabled] = useState(wasEnabled);
 	const [form, setFormState] = useState<TForm>(initialForm);
@@ -262,16 +292,7 @@ function BillingRow<TForm extends FormShape>({
 		setFormState(initialForm);
 	}, [wasEnabled, initialForm]);
 
-	const mutation = useMutation(mutationOptions) as {
-		isPending: boolean;
-		mutate: (
-			input: { enabled: boolean } & TForm,
-			options: {
-				onError: (error: unknown) => void;
-				onSuccess: () => void;
-			}
-		) => void;
-	};
+	const mutation = useMutation({ mutationFn: onSave });
 	const setForm = (patch: Partial<TForm>) =>
 		setFormState((f) => ({ ...f, ...patch }));
 
@@ -281,8 +302,11 @@ function BillingRow<TForm extends FormShape>({
 	const invalid = enabled && !withinLimits(form, limits);
 
 	const handleSave = () => {
+		if (!canEdit) {
+			return;
+		}
 		mutation.mutate(
-			{ enabled, ...roundForm(form) } as { enabled: boolean } & TForm,
+			{ enabled, ...roundForm(form) },
 			{
 				onSuccess: () => {
 					toast.success(
@@ -290,20 +314,16 @@ function BillingRow<TForm extends FormShape>({
 					);
 					onSaved();
 				},
-				onError: (error) => {
-					toast.error(error instanceof Error ? error.message : messages.error);
-				},
 			}
 		);
 	};
 
-	const saveLabel = mutation.isPending
-		? "Saving…"
-		: wasEnabled && !enabled
-			? actions.turnOff
+	const saveLabel =
+		wasEnabled && !enabled
+			? turnOffLabel
 			: wasEnabled
-				? actions.save
-				: actions.turnOn;
+				? "Save changes"
+				: "Turn on";
 
 	return (
 		<section className="px-5 py-4">
@@ -311,20 +331,19 @@ function BillingRow<TForm extends FormShape>({
 				<div className="flex min-w-0 items-start gap-3">
 					<div
 						className={cn(
-							"flex size-9 shrink-0 items-center justify-center rounded-lg border transition-colors",
-							wasEnabled
+							"flex size-9 shrink-0 items-center justify-center rounded-lg border transition-opacity duration-(--duration-quick) ease-out motion-reduce:transition-none",
+							enabled
 								? "border-primary/30 bg-primary/10 text-primary"
-								: "border-border bg-secondary text-muted-foreground"
+								: "border-border bg-secondary text-muted-foreground opacity-75"
 						)}
 					>
 						{icon}
 					</div>
 					<div className="min-w-0 space-y-0.5">
-						<div className="flex items-center gap-2">
-							<Text variant="label">{title}</Text>
-							{wasEnabled && <Badge variant="success">On</Badge>}
-						</div>
-						<Text tone="muted" variant="caption">
+						<Text className="text-balance" variant="label">
+							{title}
+						</Text>
+						<Text className="text-pretty" tone="muted" variant="caption">
 							{description}
 						</Text>
 					</div>
@@ -332,18 +351,28 @@ function BillingRow<TForm extends FormShape>({
 				<Switch
 					aria-label={switchLabel}
 					checked={enabled}
+					disabled={!canEdit || mutation.isPending}
 					onCheckedChange={setEnabled}
 				/>
 			</header>
 
-			<Expand open={enabled}>
-				<div className="space-y-3 pt-4">{children(form, setForm)}</div>
-			</Expand>
+			{enabled && (
+				<div className="motion-safe:fade-in motion-safe:slide-in-from-top-1 space-y-3 pt-4 motion-safe:animate-in motion-safe:duration-150">
+					{children(form, setForm)}
+				</div>
+			)}
 
-			<Expand duration={0.18} open={dirty}>
-				<div className="flex justify-end pt-3">
+			{mutation.isError && (
+				<p className="text-pretty pt-3 text-destructive text-sm" role="alert">
+					{mutation.error.message || messages.error}
+				</p>
+			)}
+			{dirty && (
+				<div className="motion-safe:fade-in motion-safe:slide-in-from-top-1 flex justify-end pt-3 motion-safe:animate-in motion-safe:duration-150">
 					<Button
-						disabled={invalid || mutation.isPending}
+						aria-label={mutation.isPending ? "Saving…" : saveLabel}
+						disabled={!canEdit || invalid || mutation.isPending}
+						loading={mutation.isPending}
 						onClick={handleSave}
 						size="sm"
 						variant={wasEnabled && !enabled ? "destructive" : "secondary"}
@@ -351,34 +380,8 @@ function BillingRow<TForm extends FormShape>({
 						{saveLabel}
 					</Button>
 				</div>
-			</Expand>
-		</section>
-	);
-}
-
-function Expand({
-	children,
-	duration = 0.22,
-	open,
-}: {
-	children: React.ReactNode;
-	duration?: number;
-	open: boolean;
-}) {
-	return (
-		<div
-			className={cn(
-				"grid transition-[grid-template-rows,opacity] motion-reduce:transition-none",
-				open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
 			)}
-			inert={!open}
-			style={{
-				transitionDuration: `${duration}s`,
-				transitionTimingFunction: EXPAND_EASE,
-			}}
-		>
-			<div className="overflow-y-clip overflow-x-visible">{children}</div>
-		</div>
+		</section>
 	);
 }
 
@@ -392,7 +395,6 @@ function LabeledNumberInput({
 	max,
 	step,
 	suffix,
-	prefix,
 }: {
 	helper: string;
 	id: string;
@@ -400,30 +402,26 @@ function LabeledNumberInput({
 	max: number;
 	min: number;
 	onChange: (v: number) => void;
-	prefix?: string;
 	step: number;
 	suffix?: string;
 	value: number;
 }) {
 	return (
-		<div className="flex flex-col gap-1.5">
-			<label className="font-medium text-foreground text-xs" htmlFor={id}>
-				{label}
-			</label>
+		<Field>
+			<Field.Label htmlFor={id}>{label}</Field.Label>
 			<Input
 				id={id}
 				inputMode="numeric"
 				max={max}
 				min={min}
 				onChange={(e) => onChange(Number(e.target.value) || 0)}
-				prefix={prefix}
 				step={step}
 				suffix={suffix}
 				type="number"
 				value={value}
 			/>
-			<span className="text-[11px] text-muted-foreground">{helper}</span>
-		</div>
+			<Field.Description>{helper}</Field.Description>
+		</Field>
 	);
 }
 
@@ -444,11 +442,6 @@ function RefillSummary({ quantity }: { quantity: number }) {
 			</Text>
 		</div>
 	);
-}
-
-function stripEnabled<T extends FormShape>(v: { enabled: boolean } & T): T {
-	const { enabled: _e, ...rest } = v;
-	return rest as unknown as T;
 }
 
 function shallowEqualNumbers<T extends FormShape>(a: T, b: T) {
