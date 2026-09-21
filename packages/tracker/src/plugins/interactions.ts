@@ -11,19 +11,34 @@ const interactionEvents = [
 ] as const;
 
 const counterByEvent: Partial<
-	Record<
-		(typeof interactionEvents)[number],
-		"clickCount" | "keyCount" | "scrollCount"
-	>
+	Record<(typeof interactionEvents)[number], "clickCount" | "keyCount">
 > = {
 	click: "clickCount",
 	keydown: "keyCount",
-	scroll: "scrollCount",
 };
 
 const RAGE_CLICK_WINDOW_MS = 1000;
 const RAGE_CLICK_THRESHOLD = 3;
+const RAGE_CLICK_RADIUS_PX = 12;
 const DEAD_CLICK_WINDOW_MS = 500;
+const SCROLL_GESTURE_IDLE_MS = 500;
+
+const MUTATION_ATTRIBUTE_FILTER = [
+	"class",
+	"style",
+	"hidden",
+	"disabled",
+	"open",
+	"checked",
+	"value",
+	"selected",
+	"aria-expanded",
+	"aria-selected",
+	"aria-checked",
+	"aria-hidden",
+	"aria-pressed",
+	"data-state",
+];
 
 const INTERACTIVE_SELECTOR =
 	'a,button,input,select,textarea,summary,label,[role="button"],[role="link"],[role="tab"],[role="menuitem"],[onclick],[data-track]';
@@ -73,25 +88,39 @@ export function initInteractionTracking(tracker: BaseTracker): () => void {
 		cleanupFns.push(() => window.removeEventListener(eventType, handler));
 	}
 
-	let lastClickTarget: EventTarget | null = null;
+	let lastScrollAt = 0;
+	const scrollHandler = () => {
+		const now = Date.now();
+		if (now - lastScrollAt > SCROLL_GESTURE_IDLE_MS) {
+			tracker.scrollCount += 1;
+		}
+		lastScrollAt = now;
+	};
+	window.addEventListener("scroll", scrollHandler, { passive: true });
+	cleanupFns.push(() => window.removeEventListener("scroll", scrollHandler));
+
 	let lastClickAt = 0;
+	let lastClickX = 0;
+	let lastClickY = 0;
 	let clickStreak = 0;
 
 	const deadClickTimers = new Set<ReturnType<typeof setTimeout>>();
-	let lastMutationAt = 0;
+	let mutationSeq = 0;
 
 	const mutationObserver =
 		typeof MutationObserver === "undefined"
 			? null
 			: new MutationObserver(() => {
-					lastMutationAt = Date.now();
+					mutationSeq += 1;
 				});
 
-	const countRageClick = (target: EventTarget | null, now: number) => {
-		if (
-			target === lastClickTarget &&
-			now - lastClickAt <= RAGE_CLICK_WINDOW_MS
-		) {
+	const countRageClick = (event: MouseEvent, now: number) => {
+		const repeated =
+			now - lastClickAt <= RAGE_CLICK_WINDOW_MS &&
+			Math.abs(event.clientX - lastClickX) <= RAGE_CLICK_RADIUS_PX &&
+			Math.abs(event.clientY - lastClickY) <= RAGE_CLICK_RADIUS_PX;
+
+		if (repeated) {
 			clickStreak += 1;
 			if (clickStreak === RAGE_CLICK_THRESHOLD) {
 				tracker.rageClickCount += 1;
@@ -100,11 +129,12 @@ export function initInteractionTracking(tracker: BaseTracker): () => void {
 			clickStreak = 1;
 		}
 
-		lastClickTarget = target;
 		lastClickAt = now;
+		lastClickX = event.clientX;
+		lastClickY = event.clientY;
 	};
 
-	const watchForDeadClick = (event: MouseEvent, now: number) => {
+	const watchForDeadClick = (event: MouseEvent) => {
 		const element = event.target instanceof Element ? event.target : null;
 		if (
 			!(mutationObserver && element?.closest(INTERACTIVE_SELECTOR)) ||
@@ -119,15 +149,17 @@ export function initInteractionTracking(tracker: BaseTracker): () => void {
 				subtree: true,
 				childList: true,
 				attributes: true,
+				attributeFilter: MUTATION_ATTRIBUTE_FILTER,
 			});
 		}
 
+		const seqAtClick = mutationSeq;
 		const timer = setTimeout(() => {
 			deadClickTimers.delete(timer);
 			if (deadClickTimers.size === 0) {
 				mutationObserver.disconnect();
 			}
-			if (lastMutationAt < now && window.location.href === hrefAtClick) {
+			if (mutationSeq === seqAtClick && window.location.href === hrefAtClick) {
 				tracker.deadClickCount += 1;
 			}
 		}, DEAD_CLICK_WINDOW_MS);
@@ -135,9 +167,8 @@ export function initInteractionTracking(tracker: BaseTracker): () => void {
 	};
 
 	const behaviourClickHandler = (event: MouseEvent) => {
-		const now = Date.now();
-		countRageClick(event.target, now);
-		watchForDeadClick(event, now);
+		countRageClick(event, Date.now());
+		watchForDeadClick(event);
 	};
 
 	let touchedFields = new WeakSet<Element>();
@@ -145,7 +176,7 @@ export function initInteractionTracking(tracker: BaseTracker): () => void {
 
 	const focusHandler = (event: FocusEvent) => {
 		const element = event.target instanceof Element ? event.target : null;
-		if (!(element?.matches(FORM_FIELD_SELECTOR) && element.closest("form"))) {
+		if (!element?.matches(FORM_FIELD_SELECTOR)) {
 			return;
 		}
 		if (touchedFieldsPageStart !== tracker.pageStartTime) {
