@@ -11,6 +11,7 @@ export const SCHEMA_SECTIONS = [
 	"custom_events",
 	"errors",
 	"vitals",
+	"engagement",
 	"outgoing",
 	"revenue",
 	"blocked_traffic",
@@ -119,6 +120,44 @@ export const ANALYTICS_TABLES: TableDef[] = [
 			"Has bloom filter indexes on session_id, error_type, and message. Filterable fields on error queries: path, message, error_type (plus the global filters: country, region, city, device_type, browser_name, os_name).",
 	},
 	{
+		name: "analytics.engagement_spans",
+		section: "engagement",
+		description:
+			"One row per page view, written when the visitor leaves the page: attention, interaction, frustration, and form activity",
+		keyColumns: [
+			"client_id (String)",
+			"anonymous_id (String)",
+			"session_id (String)",
+			"timestamp (DateTime64) - When the page view ended",
+			"path (String)",
+			"device_type (String) - mobile/desktop/tablet",
+			"browser_name (String)",
+			"country (String) - ISO country code",
+			"page_index (UInt16) - Position of the page view in the session",
+			"exit_type (String) - spa (route change) or unload (tab closed or navigated away)",
+			"time_on_page (UInt32) - Seconds on page",
+			"active_time (UInt32) - Seconds the tab was visible and focused; use as the denominator for engagement rates",
+			"time_to_first_interaction (UInt32) - Milliseconds until the first click, key, or scroll; 0 when none",
+			"max_scroll_depth (UInt8) - 0-100",
+			"scroll_count (UInt16)",
+			"click_count (UInt16)",
+			"key_count (UInt16)",
+			"interaction_count (UInt16) - All pointer, key, and scroll events",
+			"copy_count (UInt16) - Copy events on the page view",
+			"rage_click_count (UInt16) - Three or more clicks on one control within a second",
+			"dead_click_count (UInt16) - Clicks on interactive controls that changed nothing within half a second",
+			"rage_click_target (String) - Descriptor of the last rage-clicked control: tag:role:label, e.g. button:compare plans",
+			"dead_click_target (String) - Descriptor of the last dead-clicked control, same format",
+			"form_field_count (UInt16) - Distinct form fields focused on the page view",
+			"form_submit_count (UInt16) - Form submits on the page view",
+			"last_form_field (String) - Descriptor of the last focused field, e.g. input:email:work email",
+			"form_abandoned (UInt8) - 1 when fields were touched and nothing was submitted",
+			"error_count (UInt16) - Captured JavaScript errors during the page view",
+		],
+		additionalInfo:
+			"Rates should divide by page views (COUNT(*)) or by active_time, never by session count. Targets are UI locations, not identifiers; group by them to find the control behind a frustration spike. Has a bloom filter index on session_id; no profile_id, resolve identified users via analytics.events anonymous_ids.",
+	},
+	{
 		name: "analytics.web_vitals_spans",
 		section: "vitals",
 		description: "Core Web Vitals measurements (FCP, LCP, CLS, INP, TTFB, FPS)",
@@ -216,6 +255,28 @@ const GUIDELINES = `## Query Guidelines
 - web_vitals_spans has NO device_type, country, or referrer columns. Join to analytics.events via session_id to get those.`;
 
 const EXAMPLES_BY_SECTION: Record<SchemaSection, string> = {
+	engagement: `-- Pages where visitors get stuck
+SELECT
+  path,
+  count() as page_views,
+  round(100 * countIf(dead_click_count > 0) / count(), 1) as dead_click_rate,
+  topKIf(1)(dead_click_target, dead_click_target != '')[1] as control
+FROM analytics.engagement_spans
+WHERE client_id = {websiteId:String}
+  AND timestamp >= now() - INTERVAL 7 DAY
+GROUP BY path
+HAVING page_views >= 20
+ORDER BY dead_click_rate DESC
+LIMIT 10
+
+-- Attention on a page: active time as a share of time on page
+SELECT
+  round(100 * sum(active_time) / greatest(sum(time_on_page), 1), 1) as attention_pct,
+  avg(max_scroll_depth) as avg_scroll
+FROM analytics.engagement_spans
+WHERE client_id = {websiteId:String}
+  AND path = '/pricing'
+  AND timestamp >= now() - INTERVAL 30 DAY`,
 	events: `-- Page views over time
 SELECT
   toStartOfDay(time) as date,
