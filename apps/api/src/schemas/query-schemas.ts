@@ -46,8 +46,8 @@ const ParameterWithDatesSchema = t.Object({
 export const DynamicQueryRequestSchema = t.Object({
 	id: t.Optional(t.String()),
 	parameters: t.Array(t.Union([t.String(), ParameterWithDatesSchema])),
-	limit: t.Optional(t.Number()),
-	page: t.Optional(t.Number()),
+	limit: t.Optional(t.Integer({ minimum: 1, maximum: 10_000 })),
+	page: t.Optional(t.Integer({ minimum: 1 })),
 	filters: t.Optional(t.Array(FilterSchema)),
 	granularity: t.Optional(
 		t.Union([
@@ -83,8 +83,8 @@ export const CompileRequestSchema = t.Object({
 	filters: t.Optional(t.Array(FilterSchema)),
 	groupBy: t.Optional(t.Array(t.String())),
 	orderBy: t.Optional(t.String()),
-	limit: t.Optional(t.Number({ minimum: 1, maximum: 1000 })),
-	offset: t.Optional(t.Number({ minimum: 0 })),
+	limit: t.Optional(t.Integer({ minimum: 1, maximum: 1000 })),
+	offset: t.Optional(t.Integer({ minimum: 0 })),
 });
 
 interface FilterType {
