@@ -68,7 +68,7 @@ export const EngagementBuilders: Record<string, SimpleQueryConfig> = {
 						AND timestamp >= toDateTime({startDate:String})
 						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 						AND path != ''
-					GROUP BY path
+					GROUP BY name
 					HAVING page_views >= 5
 					ORDER BY (rage_click_rate + dead_click_rate) DESC, page_views DESC
 					LIMIT {limit:UInt32}
@@ -126,7 +126,7 @@ export const EngagementBuilders: Record<string, SimpleQueryConfig> = {
 						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 						AND path != ''
 						AND form_field_count > 0
-					GROUP BY path
+					GROUP BY name
 					HAVING form_starts >= 5
 					ORDER BY abandonment_rate DESC, form_starts DESC
 					LIMIT {limit:UInt32}
@@ -206,7 +206,7 @@ export const EngagementBuilders: Record<string, SimpleQueryConfig> = {
 						AND timestamp >= toDateTime({startDate:String})
 						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 						AND path != ''
-					GROUP BY path
+					GROUP BY name
 					HAVING page_views >= 5
 					ORDER BY page_views DESC
 					LIMIT {limit:UInt32}
