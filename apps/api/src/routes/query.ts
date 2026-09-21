@@ -297,14 +297,21 @@ function validatePaginationFields(
 	request: DynamicQueryRequestType
 ): ValidationError[] {
 	const errors: ValidationError[] = [];
-	if (request.limit !== undefined && request.limit < 1) {
-		errors.push({ field: "limit", message: "Limit must be at least 1" });
+	if (request.limit !== undefined) {
+		if (!Number.isInteger(request.limit)) {
+			errors.push({ field: "limit", message: "Limit must be an integer" });
+		} else if (request.limit < 1) {
+			errors.push({ field: "limit", message: "Limit must be at least 1" });
+		} else if (request.limit > 10_000) {
+			errors.push({ field: "limit", message: "Limit cannot exceed 10000" });
+		}
 	}
-	if (request.limit !== undefined && request.limit > 10_000) {
-		errors.push({ field: "limit", message: "Limit cannot exceed 10000" });
-	}
-	if (request.page !== undefined && request.page < 1) {
-		errors.push({ field: "page", message: "Page must be at least 1" });
+	if (request.page !== undefined) {
+		if (!Number.isInteger(request.page)) {
+			errors.push({ field: "page", message: "Page must be an integer" });
+		} else if (request.page < 1) {
+			errors.push({ field: "page", message: "Page must be at least 1" });
+		}
 	}
 	return errors;
 }
@@ -929,6 +936,8 @@ async function executeDynamicQuery(
 	};
 }> {
 	const { startDate: from, endDate: to } = request;
+	const limit = request.limit ?? 100;
+	const page = request.page ?? 1;
 
 	const domain =
 		projectType === "website"
@@ -1042,8 +1051,8 @@ async function executeDynamicQuery(
 				filters: effectiveFilters.filter((f) =>
 					isFilterFieldAllowed(config, f.field)
 				),
-				limit: request.limit || 100,
-				offset: request.page ? (request.page - 1) * (request.limit || 100) : 0,
+				limit,
+				offset: (page - 1) * limit,
 				timezone,
 				organizationWebsiteIds: isOrgCustomEvents
 					? (organizationWebsiteIds ?? [])
@@ -1145,8 +1154,8 @@ async function executeDynamicQuery(
 		meta: {
 			parameters: request.parameters as (string | Record<string, unknown>)[],
 			total_parameters: request.parameters.length,
-			page: request.page || 1,
-			limit: request.limit || 100,
+			page,
+			limit,
 			filters_applied: request.filters?.length || 0,
 		},
 	};
@@ -1437,8 +1446,8 @@ export const query = new Elysia({ prefix: "/v1/query" })
 									meta: {
 										parameters: req.parameters,
 										total_parameters: req.parameters.length,
-										page: req.page || 1,
-										limit: req.limit || 100,
+										page: req.page ?? 1,
+										limit: req.limit ?? 100,
 										filters_applied: req.filters?.length || 0,
 									},
 								};
@@ -1474,8 +1483,8 @@ export const query = new Elysia({ prefix: "/v1/query" })
 									meta: {
 										parameters: req.parameters,
 										total_parameters: req.parameters.length,
-										page: req.page || 1,
-										limit: req.limit || 100,
+										page: req.page ?? 1,
+										limit: req.limit ?? 100,
 										filters_applied: req.filters?.length || 0,
 									},
 								};
