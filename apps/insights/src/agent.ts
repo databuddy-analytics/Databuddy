@@ -15,6 +15,7 @@ import { getAILogger } from "@databuddy/ai/lib/ai-logger";
 import { QueryBuilders } from "@databuddy/ai/query/builders";
 import { shiftDate } from "@databuddy/ai/query/date-utils";
 import { insightRepairError } from "@databuddy/rpc/insight-repairs";
+import { analyticsCohortSchema } from "@databuddy/shared/analytics-filters";
 import {
 	agentEvidenceReferenceSchema,
 	agentInvestigationOutcomeSchema,
@@ -1134,6 +1135,110 @@ function validateRepositoryAsk(
 	}
 }
 
+function definitionMeasurementConflict(
+	input: Pick<InsightAgentInput, "signal" | "appContext">,
+	results: StepResult<ToolSet>["toolResults"],
+	references: AgentInvestigationOutcome["evidenceRefs"]
+) {
+	const { entity, period, signalKey } = input.signal;
+	if (!["goal", "funnel", "funnel_step"].includes(entity.type)) {
+		return;
+	}
+	const type = entity.type === "goal" ? "goal" : "funnel";
+	let definitionId = entity.id;
+	if (entity.type === "funnel_step") {
+		const separator = entity.id.lastIndexOf(":step:");
+		const step = entity.id.slice(separator + 6);
+		if (
+			separator < 1 ||
+			!Number.isSafeInteger(Number(step)) ||
+			Number(step) < 2 ||
+			String(Number(step)) !== step ||
+			signalKey !== `funnel:${entity.id}`
+		) {
+			return;
+		}
+		definitionId = entity.id.slice(0, separator);
+	}
+	const websiteId =
+		input.appContext.websiteId ?? input.appContext.defaultWebsiteId;
+	const mainTool = signalKey.startsWith(`funnel:${definitionId}:referrer:`)
+		? "get_funnel_analytics_by_referrer"
+		: `get_${type}_analytics`;
+	const requestSchema = z.object({
+		goalId: z.string().optional(),
+		funnelId: z.string().optional(),
+		websiteId: z.string().optional(),
+		startDate: z.iso.date(),
+		endDate: z.iso.date(),
+		cohort: analyticsCohortSchema.nullish(),
+	});
+	const definitions = new Map<
+		string,
+		z.infer<typeof insightVerificationDefinitionSchema>
+	>();
+	for (const result of results) {
+		if (
+			!(
+				(result.toolName === `get_${type}_analytics` ||
+					(type === "funnel" &&
+						result.toolName === "get_funnel_analytics_by_referrer")) &&
+				isSuccessfulRead(result.output)
+			)
+		) {
+			continue;
+		}
+		const parsed = requestSchema.safeParse(result.input);
+		if (!parsed.success) {
+			continue;
+		}
+		const request = parsed.data;
+		if (
+			request[`${type}Id`] !== definitionId ||
+			(request.websiteId ?? websiteId) !== websiteId ||
+			![period.current, period.previous].some(
+				(window) =>
+					window.from === request.startDate && window.to === request.endDate
+			) ||
+			!(
+				(result.toolName === mainTool && request.cohort == null) ||
+				references
+					.flat()
+					.some(
+						(ref) =>
+							ref.source === "tool" &&
+							ref.name === result.toolName &&
+							ref.toolCallId === result.toolCallId
+					)
+			)
+		) {
+			continue;
+		}
+		const actual = z
+			.object({ measurement: insightMeasurementSchema })
+			.safeParse(result.output);
+		if (!actual.success) {
+			continue;
+		}
+		const measurement = actual.data.measurement;
+		const definition = insightVerificationDefinitionSchema.parse(
+			measurement.definition
+		);
+		const population = JSON.stringify(request.cohort ?? null);
+		const previous = definitions.get(population);
+		if (
+			measurement.websiteId !== websiteId ||
+			measurement.definitionId !== definitionId ||
+			measurement.startDate !== request.startDate ||
+			measurement.endDate !== request.endDate ||
+			(previous !== undefined && !isDeepStrictEqual(previous, definition))
+		) {
+			return `Native definition measurement contradicts the requested comparison for ${type} ${definitionId} on ${websiteId}, cohort ${population}: requested ${request.startDate}–${request.endDate}; actual ${measurement.startDate}–${measurement.endDate}, definition ${measurement.definitionId} on ${measurement.websiteId}${previous !== undefined && !isDeepStrictEqual(previous, definition) ? "; evaluated definition or filters changed" : ""}. Resolve privately with publish=false and publicationBasis=null using the existing evidence and its actual coverage.`;
+		}
+		definitions.set(population, definition);
+	}
+}
+
 function validateDefinitionOutcome(
 	outcome: AgentInvestigationOutcome,
 	input: Pick<InsightAgentInput, "evidence" | "signal" | "appContext">,
@@ -1756,6 +1861,16 @@ function validateAgentOutcome(
 	validateMeasurementPublish(outcome);
 	validateErrorAskReach(outcome, input, isError);
 	validateRepositoryAsk(outcome, input.otherOpenWork);
+	if (outcome.publish && outcome.findingKind === "product_outcome") {
+		const conflict = definitionMeasurementConflict(
+			input,
+			results,
+			outcome.evidenceRefs
+		);
+		if (conflict) {
+			throw new Error(conflict);
+		}
+	}
 	const definition = validateDefinitionOutcome(
 		outcome,
 		input,
