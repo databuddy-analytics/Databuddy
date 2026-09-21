@@ -99,11 +99,11 @@ const finishSchema = z.object({
 			z.strictObject({
 				sources: z.array(agentEvidenceReferenceSchema).min(1).max(8),
 				claim: z.union([
+					revenueEvidenceSchema,
+					retentionEvidenceSchema,
 					agentInvestigationOutcomeSchema.shape.evidence.element.describe(
 						"One compact comparison: behavior, before → after, dates and denominator, plus any interpretation-changing control. Use about 30 words across all prose claims. Do not repeat event definitions or describe source provenance."
 					),
-					revenueEvidenceSchema,
-					retentionEvidenceSchema,
 				]),
 			})
 		)
@@ -2076,11 +2076,11 @@ export async function runInsightAgent(
 					.array(
 						finishSchema.shape.evidence.element.extend({
 							claim: z.union([
+								revenueEvidenceSchema,
+								...(nativeRetentionDetail ? [detailSchema] : []),
 								agentInvestigationOutcomeSchema.shape.evidence.element.describe(
 									"One additional sourced fact that changes the interpretation, under 10 words. Leave retention quantities to the generated comparison; add other context or a qualitative discrepancy."
 								),
-								revenueEvidenceSchema,
-								...(nativeRetentionDetail ? [detailSchema] : []),
 							]),
 						})
 					)
