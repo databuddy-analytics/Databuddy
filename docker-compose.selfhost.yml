@@ -214,6 +214,7 @@ services:
 
   links:
     <<: *backend
+    stop_grace_period: 25s
     image: ghcr.io/databuddy-analytics/databuddy-links:${IMAGE_TAG:?Set IMAGE_TAG to a release tag}
     ports:
       - "${LINKS_PORT:-2500}:2500"

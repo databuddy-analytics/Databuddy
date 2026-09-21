@@ -1,5 +1,6 @@
 import { db, shutdownPostgres, sql } from "@databuddy/db";
 import { clickHouse } from "@databuddy/db/clickhouse";
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import { redis } from "@databuddy/redis";
 import { buildHttpErrorResponse } from "@databuddy/shared/http-error-response";
 import {
@@ -271,7 +272,7 @@ async function shutdown(signal: string) {
 				const producerFailure = await runCleanupStep(
 					"redpandaDisconnect",
 					disconnectProducer,
-					3000
+					readBooleanEnv("SELFHOST") ? 11_000 : 3000
 				);
 				if (producerFailure) {
 					failures.push(producerFailure);

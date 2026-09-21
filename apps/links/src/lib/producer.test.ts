@@ -163,6 +163,46 @@ describe("sendLinkVisit", () => {
 		});
 	});
 
+	test.each([
+		"true",
+		"false",
+		undefined,
+	])("drains pending direct visits only with SELFHOST=%s", async (mode) => {
+		if (mode === undefined) {
+			delete process.env.SELFHOST;
+		} else {
+			process.env.SELFHOST = mode;
+		}
+		const first = Promise.withResolvers<void>();
+		const second = Promise.withResolvers<void>();
+		clickHouseInsert.mockImplementationOnce(() => first.promise);
+		clickHouseInsert.mockImplementationOnce(() => second.promise);
+		const { sendLinkVisit, disconnectProducer } = await loadProducer();
+		const visits = [
+			sendLinkVisit(event),
+			sendLinkVisit({ ...event, id: "second-event" }),
+		];
+		let drained = false;
+		const shutdown = disconnectProducer().then(() => {
+			drained = true;
+		});
+		await Bun.sleep(0);
+		expect(clickHouseInsert).toHaveBeenCalledTimes(2);
+		expect(drained).toBe(mode !== "true");
+
+		if (mode === "true") {
+			await expect(sendLinkVisit(event)).resolves.toBe(false);
+			expect(clickHouseInsert).toHaveBeenCalledTimes(2);
+		}
+		first.resolve();
+		await visits[0];
+		expect(drained).toBe(mode !== "true");
+		second.reject(new Error("synthetic ClickHouse failure"));
+		await expect(Promise.all(visits)).resolves.toEqual([true, false]);
+		await shutdown;
+		expect(drained).toBe(true);
+	});
+
 	test("uses native Kafka timeouts and enables TLS without SASL", async () => {
 		process.env.REDPANDA_BROKER = "redpanda.test:9092";
 		nextProducer = makeProducer();
