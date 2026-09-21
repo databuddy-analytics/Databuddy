@@ -172,7 +172,7 @@ export default function OnboardingPage() {
 	}, [attribution, markComplete]);
 
 	const handleExploreComplete = useCallback(() => {
-		if (isSelfHosted && firstReviewWebsiteId && billing.isLoading) {
+		if (isSelfHosted && firstReviewWebsiteId && billing.isFetching) {
 			return;
 		}
 		recordExploreComplete();
@@ -190,7 +190,7 @@ export default function OnboardingPage() {
 			router.replace("/websites");
 		}
 	}, [
-		billing.isLoading,
+		billing.isFetching,
 		canReview,
 		firstReviewWebsiteId,
 		recordExploreComplete,
@@ -277,7 +277,7 @@ export default function OnboardingPage() {
 						canReview={canReview}
 						hasError={isSelfHosted && billing.isError}
 						hasVerifiedTracking={firstReviewWebsiteId !== null}
-						isLoading={isSelfHosted && billing.isLoading}
+						isLoading={isSelfHosted && billing.isFetching}
 						onComplete={handleExploreComplete}
 						onEnterProduct={recordExploreComplete}
 						onRetry={billing.refetch}
