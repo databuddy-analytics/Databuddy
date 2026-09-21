@@ -236,10 +236,10 @@ it("rejects a cross-tenant snapshot before any clarification generation", async 
 	expect(forbidden).not.toHaveBeenCalled();
 });
 it.each([
-	undefined,
-	"false",
-	"true",
-])("requires hosted billing unless SELFHOST=%s", async (selfhost) => {
+	[undefined, "Activate investigation billing", 1, 0],
+	["false", "Activate investigation billing", 1, 0],
+	["true", "Reached analysis work", 0, 1],
+] as const)("requires hosted billing unless SELFHOST=%s", async (selfhost, message, billingCalls, workCalls) => {
 	const originalEnv = process.env;
 	process.env = { ...originalEnv, NODE_ENV: "production", SELFHOST: selfhost };
 	const billing = await import("./investigation-billing");
@@ -274,13 +274,9 @@ it.each([
 				},
 				work
 			)
-		).rejects.toThrow(
-			selfhost === "true"
-				? "Reached analysis work"
-				: "Activate investigation billing"
-		);
-		expect(resolveBilling).toHaveBeenCalledTimes(selfhost === "true" ? 0 : 1);
-		expect(work).toHaveBeenCalledTimes(selfhost === "true" ? 1 : 0);
+		).rejects.toThrow(message);
+		expect(resolveBilling).toHaveBeenCalledTimes(billingCalls);
+		expect(work).toHaveBeenCalledTimes(workCalls);
 		expect(reserve).not.toHaveBeenCalled();
 	} finally {
 		process.env = originalEnv;
