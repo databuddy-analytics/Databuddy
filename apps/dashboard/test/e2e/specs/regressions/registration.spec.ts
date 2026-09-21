@@ -6,7 +6,11 @@ const verifyEmail =
 	process.env.REQUIRE_EMAIL_VERIFICATION?.trim().toLowerCase() === "true";
 // The Playwright web server supplies synthetic credentials when omitted.
 const emailEnabled =
-	!selfHosted || Boolean(process.env.RESEND_API_KEY ?? "e2e");
+	!selfHosted ||
+	Boolean(
+		(process.env.RESEND_API_KEY ?? "e2e").trim() &&
+			process.env.EMAIL_FROM?.trim()
+	);
 const githubEnabled =
 	!selfHosted ||
 	Boolean(

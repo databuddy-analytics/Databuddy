@@ -46,6 +46,7 @@ test.each([
 		env: {
 			SELFHOST: "true",
 			RESEND_API_KEY: "example-resend-key",
+			EMAIL_FROM: "Databuddy <no-reply@example.com>",
 			GITHUB_CLIENT_ID: "example-id",
 			GITHUB_CLIENT_SECRET: "example-secret",
 			GOOGLE_CLIENT_ID: "example-id",
@@ -54,6 +55,21 @@ test.each([
 		},
 		expected: { email: true, github: true, google: true, verifyEmail: true },
 	},
+	...[
+		{ RESEND_API_KEY: "example-resend-key" },
+		{ EMAIL_FROM: "Databuddy <no-reply@example.com>" },
+		{ RESEND_API_KEY: "example-resend-key", EMAIL_FROM: "  " },
+		{ RESEND_API_KEY: "  ", EMAIL_FROM: "Databuddy <no-reply@example.com>" },
+	].map((env) => ({
+		name: "self-hosted incomplete email setup",
+		env: { SELFHOST: "true", ...env },
+		expected: {
+			email: false,
+			github: false,
+			google: false,
+			verifyEmail: false,
+		},
+	})),
 ])("$name", async ({ env, expected }) => {
 	process.env = { NODE_ENV: "production", ...env };
 	const layout = await Layout({ children: null });

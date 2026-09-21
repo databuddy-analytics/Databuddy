@@ -57,7 +57,7 @@ dashboard after changing public URLs; they're part of its browser bundle.
 
 ### Optional services
 
-- **Email:** For resets, invitations, and alerts, set `RESEND_API_KEY` and an `EMAIL_FROM` sender on your verified domain, such as `Databuddy <no-reply@example.com>`. Leave `ALERTS_EMAIL_FROM` empty to use the same sender. Set `REQUIRE_EMAIL_VERIFICATION=true` if new accounts should verify their email. Recreate the services after changes.
+- **Email:** For resets, invitations, and alerts, set `RESEND_API_KEY` and an `EMAIL_FROM` sender on your verified domain, such as `Databuddy <no-reply@example.com>`. Leave `ALERTS_EMAIL_FROM` empty to use the same sender. Once both email settings are configured, set `REQUIRE_EMAIL_VERIFICATION=true` to require verified accounts. Recreate the services after changes.
 - **Social login:** Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, or `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`. Register your dashboard's `/api/auth/callback/google` or `/api/auth/callback/github` URL with the provider, then recreate the services. Sign-in options appear when configured; password sign-in works without email or social providers.
 - **Insights:** Set `AI_GATEWAY_API_KEY` and `COMPOSE_PROFILES=insights` in `.env`, then rerun `docker compose -f docker-compose.selfhost.yml up -d --build`. Website research also needs `FIRECRAWL_API_KEY`.
 - **Status pages:** Deploy [the status app](apps/status) separately with [Node, Bun, and dependencies](CONTRIBUTING.md#run-locally). From the repo root, set your API and status URLs before building:
