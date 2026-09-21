@@ -152,6 +152,7 @@ jobs:
               analytics-events \
               analytics-error-spans \
               analytics-vitals-spans \
+              analytics-engagement-spans \
               analytics-custom-events \
               analytics-ai-traffic-spans \
               analytics-outgoing-links \
