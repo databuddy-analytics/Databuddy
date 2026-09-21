@@ -174,6 +174,22 @@ services:
       <<: *http-healthcheck
       test: [ "CMD", "bun", "-e", "fetch('http://127.0.0.1:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" ]
 
+  uptime:
+    <<: *backend
+    image: ghcr.io/databuddy-analytics/databuddy-uptime:${IMAGE_TAG:?Set IMAGE_TAG to a release tag}
+    stop_grace_period: 40s
+    environment:
+      <<: *environment
+      SERVICE_NAME: databuddy-uptime
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      ALERTS_EMAIL_FROM: ${ALERTS_EMAIL_FROM:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      SUPERLOG_API_KEY: ${SUPERLOG_API_KEY:-}
+    healthcheck:
+      <<: *http-healthcheck
+      timeout: 10s
+      test: [ "CMD", "bun", "-e", "fetch('http://127.0.0.1:4000/health/status').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" ]
+
   insights:
     <<: *backend
     image: ghcr.io/databuddy-analytics/databuddy-insights:${IMAGE_TAG:?Set IMAGE_TAG to a release tag}
