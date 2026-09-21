@@ -1,4 +1,5 @@
 import { isDeepStrictEqual } from "node:util";
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import { mergeBusinessContext } from "@databuddy/ai/lib/business-context";
 import {
 	assertBusinessScopeCurrent,
@@ -339,7 +340,7 @@ export async function resumeInsightReply(
 	let charge:
 		| Awaited<ReturnType<typeof reserveInvestigationCharge>>
 		| undefined;
-	if (intent === "analysis") {
+	if (intent === "analysis" && !readBooleanEnv("SELFHOST")) {
 		const billing = await resolveInvestigationBilling({
 			organizationId: trigger.organizationId,
 			userId: trigger.authorId,
