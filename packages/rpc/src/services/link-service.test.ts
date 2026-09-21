@@ -63,28 +63,30 @@ afterAll(() => {
 	mock.restore();
 });
 
-type FakeLink = {
-	id: string;
-	slug: string;
-	organizationId: string;
-	targetUrl: string;
-	targetDomain: string | null;
-	name: string;
-	folderId: string | null;
-	deepLinkApp: string | null;
-	expiresAt: Date | null;
-	deletedAt: null;
+interface FakeLink {
 	createdAt: Date;
+	deepLinkApp: string | null;
+	deletedAt: null;
+	expiresAt: Date | null;
+	folderId: string | null;
+	id: string;
+	name: string;
+	organizationId: string;
+	slug: string;
+	targetDomain: string | null;
+	targetUrl: string;
 	updatedAt: Date;
-};
+}
 
-function makeFakeDb(opts: {
-	folderExists?: boolean;
-	insertImpl?: (values: Record<string, unknown>) => Promise<FakeLink[]>;
-	selectImpl?: () => Promise<FakeLink[]>;
-	updateImpl?: () => Promise<FakeLink[]>;
-	deleteImpl?: () => Promise<{ id: string }[]>;
-} = {}) {
+function makeFakeDb(
+	opts: {
+		folderExists?: boolean;
+		insertImpl?: (values: Record<string, unknown>) => Promise<FakeLink[]>;
+		selectImpl?: () => Promise<FakeLink[]>;
+		updateImpl?: () => Promise<FakeLink[]>;
+		deleteImpl?: () => Promise<{ id: string }[]>;
+	} = {}
+) {
 	const folderExists = opts.folderExists ?? true;
 	const links = new Map<string, FakeLink>();
 
@@ -95,7 +97,9 @@ function makeFakeDb(opts: {
 				from: (..._f: unknown[]) => ({
 					where: (..._w: unknown[]) => ({
 						limit: async (n: number) => {
-							if (opts.selectImpl) return opts.selectImpl();
+							if (opts.selectImpl) {
+								return opts.selectImpl();
+							}
 							// folder check path — called with { id: linkFolders.id }
 							// distinguish by checking if we are in folder validation context:
 							// the service checks folder existence: return 1 row if folderExists
@@ -112,7 +116,9 @@ function makeFakeDb(opts: {
 			insert: (..._a: unknown[]) => ({
 				values: (values: Record<string, unknown>) => ({
 					returning: async () => {
-						if (opts.insertImpl) return opts.insertImpl(values);
+						if (opts.insertImpl) {
+							return opts.insertImpl(values);
+						}
 						const row: FakeLink = {
 							id: values.id as string,
 							slug: values.slug as string,
@@ -136,7 +142,9 @@ function makeFakeDb(opts: {
 				set: (..._s: unknown[]) => ({
 					where: (..._w: unknown[]) => ({
 						returning: async () => {
-							if (opts.updateImpl) return opts.updateImpl();
+							if (opts.updateImpl) {
+								return opts.updateImpl();
+							}
 							return [];
 						},
 					}),
@@ -145,7 +153,9 @@ function makeFakeDb(opts: {
 			delete: (..._a: unknown[]) => ({
 				where: (..._w: unknown[]) => ({
 					returning: async () => {
-						if (opts.deleteImpl) return opts.deleteImpl();
+						if (opts.deleteImpl) {
+							return opts.deleteImpl();
+						}
 						return [];
 					},
 				}),
@@ -163,7 +173,10 @@ beforeEach(() => {
 	mockInvalidate.mockClear();
 	mockLoggerError.mockClear();
 	mockLoggerWarn.mockClear();
-	mockBegin.mockImplementation(async () => ({ state: "acquired", token: "tok-1" }));
+	mockBegin.mockImplementation(async () => ({
+		state: "acquired",
+		token: "tok-1",
+	}));
 	mockFinish.mockImplementation(async () => true);
 	mockAbandon.mockImplementation(async () => true);
 	mockSetIfAbsent.mockImplementation(async () => true);
