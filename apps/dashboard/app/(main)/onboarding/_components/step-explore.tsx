@@ -41,6 +41,7 @@ const FEATURES = [
 ];
 
 interface StepExploreProps {
+	canReview: boolean;
 	hasVerifiedTracking: boolean;
 	onComplete: () => void;
 	onEnterProduct: () => void;
@@ -48,11 +49,13 @@ interface StepExploreProps {
 }
 
 export function StepExplore({
+	canReview,
 	hasVerifiedTracking,
 	onComplete,
 	onEnterProduct,
 	websiteId,
 }: StepExploreProps) {
+	const showFirstReview = hasVerifiedTracking && canReview;
 	return (
 		<div className="space-y-6">
 			<div className="flex items-center gap-3">
@@ -61,12 +64,10 @@ export function StepExplore({
 				</div>
 				<div>
 					<h2 className="text-balance font-semibold text-lg">
-						{hasVerifiedTracking
-							? "Your first review is set up"
-							: "You're all set"}
+						{showFirstReview ? "Your first review is set up" : "You're all set"}
 					</h2>
 					<p className="text-pretty text-muted-foreground text-sm">
-						{hasVerifiedTracking
+						{showFirstReview
 							? "Tracking is verified. Insights will be ready when there is enough history to compare."
 							: "Your organization is ready. Start with one of the core views below."}
 					</p>
@@ -106,7 +107,7 @@ export function StepExplore({
 			</div>
 
 			<Button className="w-full sm:w-auto" onClick={onComplete} size="lg">
-				{hasVerifiedTracking ? "Open Insights" : "Go to dashboard"}
+				{showFirstReview ? "Open Insights" : "Go to dashboard"}
 			</Button>
 		</div>
 	);

@@ -1,8 +1,10 @@
 "use client";
 
+import { isSelfHosted } from "@databuddy/env/public";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { trackOpenAiRegistrationCompleted } from "@/components/openai-ads-pixel";
+import { useInvestigationUsage } from "@/components/providers/billing-provider";
 import { useWebsitesLight } from "@/hooks/use-websites";
 import {
 	APP_EVENTS,
@@ -48,6 +50,8 @@ type StepId = (typeof STEPS)[number]["id"];
 
 export default function OnboardingPage() {
 	const router = useRouter();
+	const investigations = useInvestigationUsage();
+	const canReview = !isSelfHosted || investigations.canUse;
 	const { websites } = useWebsitesLight();
 	const trackedStepRef = useRef<number>(-1);
 	const onboardingCompletedRef = useRef(false);
@@ -168,7 +172,7 @@ export default function OnboardingPage() {
 		if (pendingPlan) {
 			localStorage.removeItem("pendingPlanSelection");
 			router.replace(`/billing/plans?plan=${encodeURIComponent(pendingPlan)}`);
-		} else if (firstReviewWebsiteId) {
+		} else if (firstReviewWebsiteId && canReview) {
 			router.replace(
 				`/insights?firstReview=${encodeURIComponent(firstReviewWebsiteId)}`
 			);
@@ -177,7 +181,13 @@ export default function OnboardingPage() {
 		} else {
 			router.replace("/websites");
 		}
-	}, [firstReviewWebsiteId, recordExploreComplete, router, websiteId]);
+	}, [
+		canReview,
+		firstReviewWebsiteId,
+		recordExploreComplete,
+		router,
+		websiteId,
+	]);
 
 	const handleSkipOnboarding = useCallback(() => {
 		trackAppEvent(APP_EVENTS.onboardingSkipped, {
@@ -255,6 +265,7 @@ export default function OnboardingPage() {
 			case "explore":
 				return (
 					<StepExplore
+						canReview={canReview}
 						hasVerifiedTracking={firstReviewWebsiteId !== null}
 						onComplete={handleExploreComplete}
 						onEnterProduct={recordExploreComplete}
