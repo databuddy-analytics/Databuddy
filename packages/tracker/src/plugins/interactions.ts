@@ -36,7 +36,10 @@ const TARGET_MAX_LENGTH = 32;
 
 function normalizeLabel(value: string | null | undefined): string {
 	const text = value?.replace(/\s+/g, " ").trim().toLowerCase() ?? "";
-	return text.replace(/\d+/g, "#").slice(0, TARGET_MAX_LENGTH);
+	return text
+		.replace(/\S+@\S+/g, "#")
+		.replace(/\d+/g, "#")
+		.slice(0, TARGET_MAX_LENGTH);
 }
 
 function stableAttribute(element: Element, name: string): string | null {
@@ -64,7 +67,9 @@ export function describeTarget(element: Element): string {
 		stableAttribute(element, "id") ??
 		(element.matches(FORM_FIELD_SELECTOR)
 			? fieldLabel(element)
-			: element.textContent);
+			: element.matches("a,button,summary,[role]")
+				? element.textContent
+				: null);
 	const label = normalizeLabel(name);
 	return `${prefix}:${label || "unnamed"}`;
 }
