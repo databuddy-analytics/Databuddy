@@ -407,7 +407,7 @@ describe("health probe failures (issue #719)", () => {
 
 	test("a failing health-owned attempt does not break concurrent sends", async () => {
 		process.env.REDPANDA_BROKER = "redpanda.test:9092";
-		let releaseConnect!: (error: Error) => void;
+		let releaseConnect: ((error: Error) => void) | undefined;
 		nextProducer = makeProducer({
 			connect: () =>
 				new Promise<void>((_resolve, reject) => {
@@ -421,6 +421,9 @@ describe("health probe failures (issue #719)", () => {
 		await Bun.sleep(0);
 		const send = sendLinkVisit(event, event.link_id);
 		await Bun.sleep(0);
+		if (!releaseConnect) {
+			throw new Error("expected Kafka connect() to still be pending");
+		}
 		releaseConnect(new Error("tls handshake failed"));
 
 		await expect(health).rejects.toThrow("Kafka health probe failed");
@@ -447,7 +450,7 @@ describe("health probe failures (issue #719)", () => {
 
 	test("reports connection dependency error when sendLinkVisit joins health-owned attempt", async () => {
 		process.env.REDPANDA_BROKER = "redpanda.test:9092";
-		let releaseConnect!: (error: Error) => void;
+		let releaseConnect: ((error: Error) => void) | undefined;
 		const connectErr = new Error("connection failed");
 		nextProducer = makeProducer({
 			connect: () =>
@@ -462,6 +465,9 @@ describe("health probe failures (issue #719)", () => {
 		await Bun.sleep(0);
 		const send = sendLinkVisit(event, event.link_id);
 		await Bun.sleep(0);
+		if (!releaseConnect) {
+			throw new Error("expected Kafka connect() to still be pending");
+		}
 		releaseConnect(connectErr);
 
 		await expect(health).rejects.toThrow("Kafka health probe failed");
@@ -473,7 +479,7 @@ describe("health probe failures (issue #719)", () => {
 
 	test("does not fail disconnectProducer if a pending connection fails during shutdown", async () => {
 		process.env.REDPANDA_BROKER = "redpanda.test:9092";
-		let releaseConnect!: (error: Error) => void;
+		let releaseConnect: ((error: Error) => void) | undefined;
 		nextProducer = makeProducer({
 			connect: () =>
 				new Promise<void>((_resolve, reject) => {
@@ -486,6 +492,9 @@ describe("health probe failures (issue #719)", () => {
 		const warmup = warmProducerConnection();
 		await Bun.sleep(0);
 		const shutdown = disconnectProducer();
+		if (!releaseConnect) {
+			throw new Error("expected Kafka connect() to still be pending");
+		}
 		releaseConnect(new Error("connection rejected during shutdown"));
 
 		await warmup;
