@@ -17,66 +17,65 @@ import {
 	type MonitorFreshness,
 	type MonitorStatus,
 } from "@databuddy/shared/uptime-status";
-import type { z } from "zod";
 import type {
-	incidentSchema,
-	monitorSchema,
+	Incident,
+	Monitor,
 	StatusPageOutput,
 } from "./status-page-schemas";
 
 const UPTIME_TABLE = "uptime.uptime_monitor";
 
 const DAILY_UPTIME_SQL = `SELECT
-					site_id,
-					date,
-					round(100 * (1 - least(downtime_seconds, 86400) / 86400), 2) as uptime_percentage,
-					total_checks,
-					successful_checks,
-					downtime_seconds,
-					avg_response_time,
-					p95_response_time
-				FROM (
-					SELECT
-						site_id,
-						toDate(ts) as date,
-						toUInt32(countIf(status = 1) + countIf(status = 0)) as total_checks,
-						toUInt32(countIf(status = 1)) as successful_checks,
-						toUInt32(sumIf(
-							least(dateDiff('second', ts, next_ts), 86400),
-							status = 0
-						)) as downtime_seconds,
-						round(avg(total_ms), 2) as avg_response_time,
-						round(quantile(0.95)(total_ms), 2) as p95_response_time
-					FROM (
-						SELECT
-							site_id,
-							timestamp as ts,
-							status,
-							total_ms,
-							leadInFrame(timestamp, 1, now()) OVER (
-								PARTITION BY site_id
-								ORDER BY timestamp ASC
-								ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
-							) as next_ts
-						FROM ${UPTIME_TABLE}
-						WHERE
-							site_id IN ({siteIds:Array(String)})
-							AND timestamp >= toDateTime({startDate:String})
-							AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-					)
-					GROUP BY site_id, date
-				)
-				ORDER BY site_id, date ASC`;
+	site_id,
+	date,
+	round(100 * (1 - least(downtime_seconds, 86400) / 86400), 2) as uptime_percentage,
+	total_checks,
+	successful_checks,
+	downtime_seconds,
+	avg_response_time,
+	p95_response_time
+FROM (
+	SELECT
+		site_id,
+		toDate(ts) as date,
+		toUInt32(countIf(status = 1) + countIf(status = 0)) as total_checks,
+		toUInt32(countIf(status = 1)) as successful_checks,
+		toUInt32(sumIf(
+			least(dateDiff('second', ts, next_ts), 86400),
+			status = 0
+		)) as downtime_seconds,
+		round(avg(total_ms), 2) as avg_response_time,
+		round(quantile(0.95)(total_ms), 2) as p95_response_time
+	FROM (
+		SELECT
+			site_id,
+			timestamp as ts,
+			status,
+			total_ms,
+			leadInFrame(timestamp, 1, now()) OVER (
+				PARTITION BY site_id
+				ORDER BY timestamp ASC
+				ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
+			) as next_ts
+		FROM ${UPTIME_TABLE}
+		WHERE
+			site_id IN ({siteIds:Array(String)})
+			AND timestamp >= toDateTime({startDate:String})
+			AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+	)
+	GROUP BY site_id, date
+)
+ORDER BY site_id, date ASC`;
 
 const LATEST_CHECK_SQL = `SELECT
-						site_id,
-						max(timestamp) as last_timestamp,
-						argMax(status, timestamp) as last_status,
-						argMax(http_code, timestamp) as last_http_code
-					FROM ${UPTIME_TABLE}
-					WHERE site_id IN ({siteIds:Array(String)})
-						AND timestamp >= now() - INTERVAL 7 DAY
-					GROUP BY site_id`;
+	site_id,
+	max(timestamp) as last_timestamp,
+	argMax(status, timestamp) as last_status,
+	argMax(http_code, timestamp) as last_http_code
+FROM ${UPTIME_TABLE}
+WHERE site_id IN ({siteIds:Array(String)})
+	AND timestamp >= now() - INTERVAL 7 DAY
+GROUP BY site_id`;
 
 const PUBLIC_SITEMAP_LIMIT = 1000;
 
@@ -157,15 +156,9 @@ function groupDailyRows(rows: DailyRow[]): Map<string, DailyRow[]> {
 	return grouped;
 }
 
-function indexLatestChecks(
-	rows: LatestCheckRow[]
-): Map<string, LatestCheckRow> {
-	return new Map(rows.map((row) => [row.site_id, row]));
-}
-
 function applyIncidentImpacts(
-	monitors: z.infer<typeof monitorSchema>[],
-	activeIncidents: z.infer<typeof incidentSchema>[],
+	monitors: Monitor[],
+	activeIncidents: Incident[],
 	rows: Array<{ scheduleId: string | null; statusPageMonitorId: string | null }>
 ) {
 	const spmToScheduleId = new Map(
@@ -356,7 +349,9 @@ async function _fetchStatusPageData(
 	const websiteMap = new Map(websiteRows.map((w) => [w.id, w] as const));
 
 	const dailyBySite = groupDailyRows(allDailyData);
-	const latestBySite = indexLatestChecks(allRecentChecks);
+	const latestBySite = new Map(
+		allRecentChecks.map((row) => [row.site_id, row])
+	);
 
 	const monitors = schedules.map((schedule) => {
 		const siteId = schedule.websiteId ?? schedule.id;
