@@ -59,6 +59,14 @@ type Env = Record<string, string | undefined>;
 type UrlConfig = (typeof URLS)[keyof typeof URLS];
 type EmailConfig = (typeof EMAIL)[keyof typeof EMAIL];
 
+export interface StorageConfig {
+	accessKeyId: string;
+	endpoint: string;
+	publicUrl: string;
+	region: string;
+	secretAccessKey: string;
+}
+
 export interface Config {
 	cors: {
 		apiOrigins: string[];
@@ -71,6 +79,7 @@ export interface Config {
 	integrations: {
 		openAiAdsPixelId?: string;
 	};
+	storage?: StorageConfig;
 	urls: {
 		api: string;
 		basket: string;
@@ -81,10 +90,12 @@ export interface Config {
 	};
 }
 
+function isHostedCloud(env: Env): boolean {
+	return env.NODE_ENV === "production" && !readBooleanEnv("SELFHOST", env);
+}
+
 function defaultUrl(env: Env, setting: UrlConfig): string {
-	return env.NODE_ENV === "production" && !readBooleanEnv("SELFHOST", env)
-		? setting.cloud
-		: setting.local;
+	return isHostedCloud(env) ? setting.cloud : setting.local;
 }
 
 function readFirst(env: Env, keys: readonly string[]): string | undefined {
@@ -130,6 +141,30 @@ function readOrigins(values: Array<string | undefined>): string[] {
 	return [...new Set(values.flatMap(readList).map(normalizeOrigin))];
 }
 
+function readStorage(env: Env): StorageConfig | undefined {
+	const accessKeyId = readOptional(env, "AWS_ACCESS_KEY_ID");
+	const secretAccessKey = readOptional(env, "AWS_SECRET_ACCESS_KEY");
+
+	if (!(accessKeyId && secretAccessKey)) {
+		return;
+	}
+
+	const bucket = readOptional(env, "STORAGE_BUCKET") ?? "databuddy-static";
+	const endpoint = normalizeUrl(
+		readOptional(env, "STORAGE_ENDPOINT") ?? `https://${bucket}.t3.storage.dev`
+	);
+
+	return {
+		accessKeyId,
+		endpoint,
+		publicUrl: normalizeUrl(
+			readOptional(env, "STORAGE_PUBLIC_URL") ?? endpoint
+		),
+		region: readOptional(env, "AWS_REGION") ?? "auto",
+		secretAccessKey,
+	};
+}
+
 export function createConfig(env: Env = process.env): Config {
 	const dashboardUrl = readUrl(env, URLS.dashboard);
 	const apiUrl = readUrl(env, URLS.api);
@@ -150,6 +185,7 @@ export function createConfig(env: Env = process.env): Config {
 		integrations: {
 			openAiAdsPixelId: readOptional(env, "NEXT_PUBLIC_OPENAI_ADS_PIXEL_ID"),
 		},
+		storage: readStorage(env),
 		urls: {
 			api: apiUrl,
 			basket: readUrl(env, URLS.basket),
@@ -159,6 +195,25 @@ export function createConfig(env: Env = process.env): Config {
 			status: readUrl(env, URLS.status),
 		},
 	};
+}
+
+export function assertStorageConfigured(): void {
+	const hasAccessKeyId = Boolean(
+		readOptional(process.env, "AWS_ACCESS_KEY_ID")
+	);
+	const hasSecret = Boolean(readOptional(process.env, "AWS_SECRET_ACCESS_KEY"));
+
+	if (hasAccessKeyId !== hasSecret) {
+		throw new Error(
+			"Object storage is half-configured. Set both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, or neither."
+		);
+	}
+
+	if (isHostedCloud(process.env) && !config.storage) {
+		throw new Error(
+			"Object storage credentials are missing. Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, or set SELFHOST=true to run without status page asset uploads."
+		);
+	}
 }
 
 export const config = createConfig();
