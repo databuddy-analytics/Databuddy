@@ -1,3 +1,4 @@
+import { EVENTS_USAGE } from "@databuddy/shared/billing";
 import { Heading, Link, Section, Text } from "@react-email/components";
 import { emailBrand } from "./email-brand";
 import { EmailButton } from "./email-button";
@@ -202,19 +203,18 @@ export const UsageLimitEmail = ({
 };
 
 UsageLimitEmail.PreviewProps = {
-	featureDescription:
-		"Events include page views, custom events, errors, and Web Vitals collected by Databuddy.",
-	featureName: "Event tracking",
+	featureDescription: EVENTS_USAGE.description,
+	featureName: EVENTS_USAGE.name,
 	isAvailable: true,
 	limitAmount: 1_000_000,
 	limitType: "included",
 	nextResetAt: Date.UTC(2026, 9, 1),
 	organizationName: "Acme Inc",
 	overageAllowed: true,
-	pausedActivity: "new event collection",
+	pausedActivity: EVENTS_USAGE.pausedActivity,
 	remainingAmount: 0,
 	usageAmount: 1_284_000,
-	usageUnit: "events",
+	usageUnit: EVENTS_USAGE.unit,
 } satisfies UsageLimitEmailProps;
 
 export default UsageLimitEmail;
