@@ -496,9 +496,15 @@ export async function handleLimitReached(
 
 	const feature = getFeatureCopy(feature_id);
 	const isHardStop = !snapshot.isAvailable;
-	const subject = isHardStop
-		? `[Action required] ${feature.name} limit reached`
-		: `${feature.name}: included allowance used`;
+	const continuesOnOverage = snapshot.isAvailable && snapshot.overageAllowed;
+	let subject: string;
+	if (isHardStop) {
+		subject = `[Action required] ${feature.name} paused at your limit`;
+	} else if (continuesOnOverage) {
+		subject = `${feature.name}: still running, now billing overage`;
+	} else {
+		subject = `${feature.name}: included allowance used`;
+	}
 	mergeWideEvent({ customer_id, feature_id, limit_type });
 
 	return sendAlertEmail({

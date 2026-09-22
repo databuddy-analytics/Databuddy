@@ -581,7 +581,7 @@ describe("Autumn usage emails", () => {
 		);
 		expect(state.send).toHaveBeenCalledWith(
 			expect.objectContaining({
-				subject: "[Action required] AI credits limit reached",
+				subject: "[Action required] AI credits paused at your limit",
 			})
 		);
 	});
