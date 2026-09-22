@@ -6,21 +6,12 @@ import { cn } from "@/lib/utils";
 import {
 	type FeatureUsage,
 	formatCompactNumber,
+	formatCurrency,
 	getResetText,
 } from "../utils/feature-usage";
 import { PricingTiersTooltip } from "./pricing-tiers-tooltip";
 import { ChartBarIcon, DatabaseIcon, UsersIcon } from "@databuddy/ui/icons";
 import { Badge, Progress, Text } from "@databuddy/ui";
-
-function formatCurrency(amount: number): string {
-	if (amount >= 1000) {
-		return `$${(amount / 1000).toFixed(1)}K`;
-	}
-	if (amount >= 1) {
-		return `$${amount.toFixed(2)}`;
-	}
-	return `$${amount.toFixed(4)}`;
-}
 
 const FEATURE_ICONS: Record<string, typeof ChartBarIcon> = {
 	event: ChartBarIcon,
@@ -41,36 +32,25 @@ function getFeatureIcon(name: string): typeof ChartBarIcon {
 	return ChartBarIcon;
 }
 
-function getOverageRateText(feature: FeatureUsage): string | null {
-	const paidTier = feature.pricingTiers.find(
-		(tier) => tier.to === "inf" || tier.to > feature.includedLimit
-	);
-	if (!paidTier?.amount) {
-		return null;
-	}
-	const per1k = (paidTier.amount * 1000).toLocaleString("en-US", {
-		maximumFractionDigits: 4,
-	});
-	return `Billed at $${per1k} per 1k ${feature.name.toLowerCase()}`;
-}
-
-function ActionLink({ showUpgrade }: { showUpgrade: boolean }) {
+function ActionLink({ canSelfServeUpgrade }: { canSelfServeUpgrade: boolean }) {
 	return (
 		<Link
 			className="shrink-0 font-medium text-primary text-xs hover:underline"
-			href={showUpgrade ? "/billing/plans" : "/billing#billing-controls"}
+			href={
+				canSelfServeUpgrade ? "/billing/plans" : "/billing#billing-controls"
+			}
 		>
-			{showUpgrade ? "Upgrade" : "Manage limits"}
+			{canSelfServeUpgrade ? "Upgrade" : "Set a usage alert"}
 		</Link>
 	);
 }
 
 export const UsageRow = memo(function UsageRowComponent({
 	feature,
-	showUpgrade = true,
+	canSelfServeUpgrade = true,
 }: {
+	canSelfServeUpgrade?: boolean;
 	feature: FeatureUsage;
-	showUpgrade?: boolean;
 }) {
 	const used = feature.includedLimit - feature.balance;
 	const usedClamped = Math.max(0, used);
@@ -83,9 +63,9 @@ export const UsageRow = memo(function UsageRowComponent({
 	if (isBilledOverage && feature.overage) {
 		return (
 			<BilledOverageRow
+				canSelfServeUpgrade={canSelfServeUpgrade}
 				feature={feature}
 				Icon={Icon}
-				showUpgrade={showUpgrade}
 			/>
 		);
 	}
@@ -147,7 +127,9 @@ export const UsageRow = memo(function UsageRowComponent({
 						tone={hasOverage ? "destructive" : isLow ? "warning" : "primary"}
 						value={hasOverage ? 100 : usedPercent}
 					/>
-					{(isLow || hasOverage) && <ActionLink showUpgrade={showUpgrade} />}
+					{(isLow || hasOverage) && (
+						<ActionLink canSelfServeUpgrade={canSelfServeUpgrade} />
+					)}
 				</div>
 			)}
 		</div>
@@ -155,13 +137,13 @@ export const UsageRow = memo(function UsageRowComponent({
 });
 
 function BilledOverageRow({
+	canSelfServeUpgrade,
 	feature,
 	Icon,
-	showUpgrade,
 }: {
+	canSelfServeUpgrade: boolean;
 	feature: FeatureUsage;
 	Icon: typeof ChartBarIcon;
-	showUpgrade: boolean;
 }) {
 	const overage = feature.overage;
 	if (!overage) {
@@ -170,7 +152,6 @@ function BilledOverageRow({
 
 	const totalUsed = feature.limit + overage.amount;
 	const includedPercent = Math.max((feature.limit / totalUsed) * 100, 5);
-	const rateText = getOverageRateText(feature);
 
 	return (
 		<div className="px-5 py-4">
@@ -233,19 +214,14 @@ function BilledOverageRow({
 			</div>
 
 			<div className="mt-3 flex items-center justify-between gap-3 rounded-md border border-warning/25 bg-warning/5 px-3 py-2">
-				<div className="min-w-0">
-					<Text variant="caption">Overage so far this period</Text>
-					{rateText && (
-						<Text tone="muted" variant="caption">
-							{rateText}
-						</Text>
-					)}
-				</div>
+				<Text className="min-w-0" variant="caption">
+					Overage so far this period
+				</Text>
 				<div className="flex shrink-0 items-center gap-3">
 					<Text className="font-mono tabular-nums" variant="label">
 						~{formatCurrency(overage.cost)}
 					</Text>
-					<ActionLink showUpgrade={showUpgrade} />
+					<ActionLink canSelfServeUpgrade={canSelfServeUpgrade} />
 				</div>
 			</div>
 		</div>

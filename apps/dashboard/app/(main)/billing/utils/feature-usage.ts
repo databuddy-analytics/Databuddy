@@ -131,6 +131,16 @@ export function calculateFeatureUsage(
 	};
 }
 
+export function formatCurrency(amount: number): string {
+	if (amount >= 1000) {
+		return `$${(amount / 1000).toFixed(1)}K`;
+	}
+	if (amount >= 1) {
+		return `$${amount.toFixed(2)}`;
+	}
+	return `$${amount.toFixed(4)}`;
+}
+
 export function formatCompactNumber(num: number): string {
 	if (num >= 1_000_000_000) {
 		return `${(num / 1_000_000_000).toFixed(1)}B`;
