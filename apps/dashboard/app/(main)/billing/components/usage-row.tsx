@@ -41,6 +41,30 @@ function getFeatureIcon(name: string): typeof ChartBarIcon {
 	return ChartBarIcon;
 }
 
+function getOverageRateText(feature: FeatureUsage): string | null {
+	const paidTier = feature.pricingTiers.find(
+		(tier) => tier.to === "inf" || tier.to > feature.includedLimit
+	);
+	if (!paidTier?.amount) {
+		return null;
+	}
+	const per1k = (paidTier.amount * 1000).toLocaleString("en-US", {
+		maximumFractionDigits: 4,
+	});
+	return `Billed at $${per1k} per 1k ${feature.name.toLowerCase()}`;
+}
+
+function ActionLink({ showUpgrade }: { showUpgrade: boolean }) {
+	return (
+		<Link
+			className="shrink-0 font-medium text-primary text-xs hover:underline"
+			href={showUpgrade ? "/billing/plans" : "/billing#billing-controls"}
+		>
+			{showUpgrade ? "Upgrade" : "Manage limits"}
+		</Link>
+	);
+}
+
 export const UsageRow = memo(function UsageRowComponent({
 	feature,
 	showUpgrade = true,
@@ -123,14 +147,7 @@ export const UsageRow = memo(function UsageRowComponent({
 						tone={hasOverage ? "destructive" : isLow ? "warning" : "primary"}
 						value={hasOverage ? 100 : usedPercent}
 					/>
-					{(isLow || hasOverage) && showUpgrade && (
-						<Link
-							className="shrink-0 font-medium text-primary text-xs hover:underline"
-							href="/billing/plans"
-						>
-							Upgrade
-						</Link>
-					)}
+					{(isLow || hasOverage) && <ActionLink showUpgrade={showUpgrade} />}
 				</div>
 			)}
 		</div>
@@ -153,6 +170,7 @@ function BilledOverageRow({
 
 	const totalUsed = feature.limit + overage.amount;
 	const includedPercent = Math.max((feature.limit / totalUsed) * 100, 5);
+	const rateText = getOverageRateText(feature);
 
 	return (
 		<div className="px-5 py-4">
@@ -161,19 +179,19 @@ function BilledOverageRow({
 					<div className="flex items-center gap-2">
 						<Icon className="size-4 shrink-0 text-muted-foreground" />
 						<Text variant="label">{feature.name}</Text>
-						<Badge size="sm" variant="destructive">
+						<Badge size="sm" variant="warning">
 							Overage
 						</Badge>
 					</div>
 					<Text className="mt-0.5 pl-6" tone="muted" variant="caption">
-						{getResetText(feature)}
+						Still collecting · {getResetText(feature)}
 					</Text>
 				</div>
 				<div className="shrink-0 text-right">
 					<Text className="font-mono tabular-nums" variant="label">
 						{formatCompactNumber(totalUsed)} total
 					</Text>
-					<Text className="text-destructive tabular-nums" variant="caption">
+					<Text className="text-warning tabular-nums" variant="caption">
 						+{formatCompactNumber(overage.amount)} over limit
 					</Text>
 				</div>
@@ -214,25 +232,20 @@ function BilledOverageRow({
 				</div>
 			</div>
 
-			<div className="mt-3 flex items-center justify-between rounded-md bg-destructive/5 px-3 py-2">
-				<Text tone="muted" variant="caption">
-					Estimated overage
-				</Text>
-				<div className="flex items-center gap-3">
-					<Text
-						className="font-mono text-destructive tabular-nums"
-						variant="label"
-					>
+			<div className="mt-3 flex items-center justify-between gap-3 rounded-md border border-warning/25 bg-warning/5 px-3 py-2">
+				<div className="min-w-0">
+					<Text variant="caption">Overage so far this period</Text>
+					{rateText && (
+						<Text tone="muted" variant="caption">
+							{rateText}
+						</Text>
+					)}
+				</div>
+				<div className="flex shrink-0 items-center gap-3">
+					<Text className="font-mono tabular-nums" variant="label">
 						~{formatCurrency(overage.cost)}
 					</Text>
-					{showUpgrade && (
-						<Link
-							className="font-medium text-primary text-xs hover:underline"
-							href="/billing/plans"
-						>
-							Upgrade
-						</Link>
-					)}
+					<ActionLink showUpgrade={showUpgrade} />
 				</div>
 			</div>
 		</div>

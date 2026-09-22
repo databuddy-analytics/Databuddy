@@ -13,7 +13,10 @@ import { getSubscriptionPriceText } from "@/lib/autumn/subscription-price";
 import { orpc } from "@/lib/orpc";
 import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
 import type { UsageResponse } from "@/types/billing";
-import { INTELLIGENCE_PLAN_IDS } from "@databuddy/shared/types/features";
+import {
+	INTELLIGENCE_PLAN_IDS,
+	PLAN_IDS,
+} from "@databuddy/shared/types/features";
 import { useQuery } from "@tanstack/react-query";
 import type { PreviewAttachResponse } from "autumn-js";
 import type { UseCustomerResult } from "autumn-js/react";
@@ -54,8 +57,9 @@ import {
 	dayjs,
 } from "@databuddy/ui";
 
-const PLANS_WITHOUT_SELF_SERVE_UPGRADES = new Set([
-	"scale",
+const PLANS_WITHOUT_SELF_SERVE_UPGRADES = new Set<string>([
+	PLAN_IDS.PRO,
+	PLAN_IDS.SCALE,
 	...Object.values(INTELLIGENCE_PLAN_IDS),
 ]);
 const INTELLIGENCE_PLAN_ID_SET = new Set<string>(

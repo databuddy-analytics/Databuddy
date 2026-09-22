@@ -92,7 +92,7 @@ export function BillingControlsCard() {
 	}
 
 	return (
-		<Card>
+		<Card id="billing-controls">
 			<Card.Header>
 				<Card.Title className="flex items-center gap-2 text-balance">
 					<GearIcon className="text-muted-foreground" size={14} />

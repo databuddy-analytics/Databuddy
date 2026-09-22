@@ -8,6 +8,7 @@ import {
 	SidebarLayout,
 } from "@/components/layout/sidebar-layout";
 import { SidebarNavigationProvider } from "@/components/layout/sidebar-navigation-provider";
+import { OverageBanner } from "@/components/layout/overage-banner";
 import { TopBar, TopBarProvider } from "@/components/layout/top-bar";
 import { BillingProvider } from "@/components/providers/billing-provider";
 import { IdentifyBillingTraits } from "@/components/providers/identify-billing-traits";
@@ -56,6 +57,7 @@ export default function MainLayout({
 									</Suspense>
 									<SidebarInset>
 										<TopBar />
+										<OverageBanner />
 										<div className="flex min-h-0 flex-1 flex-col overflow-hidden overflow-x-hidden overscroll-y-none pt-12 md:pt-0">
 											{children}
 										</div>
