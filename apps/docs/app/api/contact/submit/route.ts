@@ -180,12 +180,9 @@ export async function POST(request: NextRequest) {
 							anonymousId: contactData.anonId,
 							sessionId: contactData.sessionId,
 							properties: {
-								fullName: contactData.fullName,
-								businessName: contactData.businessName,
-								website: contactData.website,
-								email: contactData.email,
-								phone: contactData.phone,
-								ip: clientIP,
+								hasBusinessName: Boolean(contactData.businessName),
+								hasWebsite: Boolean(contactData.website),
+								hasPhone: Boolean(contactData.phone),
 							},
 						})
 						.then(() => databuddy.flush())
