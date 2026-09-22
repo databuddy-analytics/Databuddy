@@ -1,8 +1,8 @@
 import {
 	boolean,
 	foreignKey,
-	integer,
 	index,
+	integer,
 	jsonb,
 	pgEnum,
 	pgTable,

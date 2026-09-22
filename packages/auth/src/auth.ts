@@ -57,7 +57,6 @@ import { log } from "evlog";
 import { Resend } from "resend";
 import { ac, admin, member, owner, viewer } from "./permissions";
 import { getAuthAuditContext } from "./audit-context";
-import { createAuthRateLimitStorage } from "./rate-limit-storage";
 
 function generateOrgSlug(name: string): string {
 	const base = name
@@ -459,7 +458,17 @@ export const auth = betterAuth({
 	rateLimit: {
 		window: 60,
 		max: 100,
-		customStorage: createAuthRateLimitStorage(),
+		customStorage: {
+			consume: async (key, rule) => {
+				const result = await ratelimit(key, rule.max, rule.window);
+				return {
+					allowed: result.success,
+					retryAfter: result.success
+						? null
+						: Math.max(1, Math.ceil((result.reset - Date.now()) / 1000)),
+				};
+			},
+		},
 		customRules: {
 			"/sign-up/email": { window: 60, max: 3 },
 			"/sign-in/email": { window: 10, max: 3 },
