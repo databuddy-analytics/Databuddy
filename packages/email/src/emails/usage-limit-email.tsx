@@ -21,30 +21,36 @@ export interface UsageLimitEmailProps {
 	usageUnit: string;
 }
 
-const PAUSED_HEADINGS: Record<UsageLimitType, string> = {
-	included: "Paused at your included allowance",
-	max_purchase: "Paused at your top-up limit",
-	spend_limit: "Paused at your spending limit",
+export type UsageLimitState = "paused" | "overage" | "allowance_used";
+
+const LIMIT_LABELS: Record<UsageLimitType, string> = {
+	included: "included allowance",
+	max_purchase: "top-up limit",
+	spend_limit: "spending limit",
 };
 
-const REMAINING_HEADINGS: Record<UsageLimitType, string> = {
-	included: "Included allowance used",
-	max_purchase: "Top-up limit reached",
-	spend_limit: "Spending limit reached",
-};
-
-function getHeading(
-	limitType: UsageLimitType,
+export function usageLimitState(
 	isAvailable: boolean,
 	overageAllowed: boolean
-): string {
+): UsageLimitState {
 	if (!isAvailable) {
-		return PAUSED_HEADINGS[limitType];
+		return "paused";
 	}
-	if (overageAllowed) {
-		return "Still running, now billing overage";
+	return overageAllowed ? "overage" : "allowance_used";
+}
+
+export function usageLimitHeading(
+	state: UsageLimitState,
+	limitType: UsageLimitType
+): string {
+	const label = LIMIT_LABELS[limitType];
+	if (state === "paused") {
+		return `Paused at your ${label}`;
 	}
-	return REMAINING_HEADINGS[limitType];
+	if (state === "overage") {
+		return `Past your ${label}, still running on overage`;
+	}
+	return `${label.charAt(0).toUpperCase()}${label.slice(1)} used`;
 }
 
 export const UsageLimitEmail = ({
@@ -66,14 +72,22 @@ export const UsageLimitEmail = ({
 	const remaining = formatUsageNumber(Math.max(0, remainingAmount));
 	const resetDate = formatResetDate(nextResetAt);
 	const context = organizationName ? ` for ${organizationName}` : "";
-	const continuesOnOverage = isAvailable && overageAllowed;
+	const state = usageLimitState(isAvailable, overageAllowed);
+	const resetClause = resetDate
+		? `, or wait until the allowance resets ${resetDate} UTC`
+		: "";
+
 	let accessStatus: string;
-	if (continuesOnOverage) {
+	let detail: string;
+	if (state === "overage") {
 		accessStatus = `Nothing is paused: ${pausedActivity} keeps running, and usage past your allowance is billed as overage.`;
-	} else if (isAvailable) {
+		detail = `Your billing page shows the overage so far this period and the rate it is charged at${resetDate ? `, and the allowance resets ${resetDate} UTC` : ""}.`;
+	} else if (state === "allowance_used") {
 		accessStatus = `Nothing is paused: ${pausedActivity} keeps running on the ${remaining} ${usageUnit} you have left.`;
+		detail = `Once the remaining ${usageUnit} run out, ${pausedActivity} pauses until you change the billing limit or plan${resetClause}.`;
 	} else {
 		accessStatus = `Access to ${pausedActivity} is paused.`;
+		detail = `Change the billing limit or plan to resume ${pausedActivity}${resetClause}.`;
 	}
 
 	return (
@@ -86,7 +100,7 @@ export const UsageLimitEmail = ({
 					className="m-0 mb-3 font-semibold text-xl tracking-tight"
 					style={{ color: emailBrand.foreground }}
 				>
-					{featureName}: {getHeading(limitType, isAvailable, overageAllowed)}
+					{featureName}: {usageLimitHeading(state, limitType)}
 				</Heading>
 			</Section>
 
@@ -121,24 +135,12 @@ export const UsageLimitEmail = ({
 				>
 					{featureDescription}
 				</Text>
-				{!isAvailable && (
-					<Text
-						className="m-0 mb-4 text-sm leading-relaxed"
-						style={{ color: emailBrand.muted }}
-					>
-						{`Change the billing limit or plan to resume it${resetDate ? `, or wait until the allowance resets ${resetDate} UTC` : ""}.`}
-					</Text>
-				)}
-				{continuesOnOverage && (
-					<Text
-						className="m-0 mb-4 text-sm leading-relaxed"
-						style={{ color: emailBrand.muted }}
-					>
-						Your billing page shows the overage so far this period and the rate
-						it is charged at
-						{resetDate ? `, and the allowance resets ${resetDate} UTC` : ""}.
-					</Text>
-				)}
+				<Text
+					className="m-0 mb-4 text-sm leading-relaxed"
+					style={{ color: emailBrand.muted }}
+				>
+					{detail}
+				</Text>
 			</Section>
 
 			<Section
@@ -167,7 +169,7 @@ export const UsageLimitEmail = ({
 
 			<Section className="text-center">
 				<EmailButton href="https://app.databuddy.cc/billing">
-					{continuesOnOverage
+					{state === "overage"
 						? "See your overage so far"
 						: "Review billing settings"}
 				</EmailButton>

@@ -206,7 +206,8 @@ vi.mock("@databuddy/db/schema", () => ({
 	},
 }));
 
-vi.mock("@databuddy/email", () => ({
+vi.mock("@databuddy/email", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@databuddy/email")>()),
 	render: vi.fn(async () => "<html />"),
 	UsageAlertEmail: vi.fn(() => ({ type: "usage" })),
 	UsageLimitEmail: vi.fn(() => ({ type: "limit" })),
@@ -581,7 +582,7 @@ describe("Autumn usage emails", () => {
 		);
 		expect(state.send).toHaveBeenCalledWith(
 			expect.objectContaining({
-				subject: "[Action required] AI credits paused at your limit",
+				subject: "[Action required] AI credits: Paused at your spending limit",
 			})
 		);
 	});

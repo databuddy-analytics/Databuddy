@@ -14,8 +14,8 @@ import { orpc } from "@/lib/orpc";
 import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
 import type { UsageResponse } from "@/types/billing";
 import {
+	INTELLIGENCE_CONTACT_TOPICS,
 	INTELLIGENCE_PLAN_IDS,
-	PLAN_IDS,
 } from "@databuddy/shared/types/features";
 import { useQuery } from "@tanstack/react-query";
 import type { PreviewAttachResponse } from "autumn-js";
@@ -57,11 +57,6 @@ import {
 	dayjs,
 } from "@databuddy/ui";
 
-const PLANS_WITHOUT_SELF_SERVE_UPGRADES = new Set<string>([
-	PLAN_IDS.PRO,
-	PLAN_IDS.SCALE,
-	...Object.values(INTELLIGENCE_PLAN_IDS),
-]);
 const INTELLIGENCE_PLAN_ID_SET = new Set<string>(
 	Object.values(INTELLIGENCE_PLAN_IDS)
 );
@@ -400,8 +395,10 @@ export default function BillingPage() {
 		currentSubscription?.canceledAt ||
 			currentPlan?.customerEligibility?.canceling === true
 	);
-	const showUsageUpgrade = !(
-		currentPlan?.id && PLANS_WITHOUT_SELF_SERVE_UPGRADES.has(currentPlan.id)
+	const canSelfServeUpgrade = plans.some(
+		(plan) =>
+			plan.customerEligibility?.attachAction === "upgrade" &&
+			!(plan.id in INTELLIGENCE_CONTACT_TOPICS)
 	);
 	const showAddOns = addOns.length > 0;
 	const currentPlanDisplayName = getCustomerPlanName(
@@ -632,7 +629,7 @@ export default function BillingPage() {
 									<UsageRow
 										feature={feature}
 										key={feature.id}
-										showUpgrade={showUsageUpgrade}
+										canSelfServeUpgrade={canSelfServeUpgrade}
 									/>
 								))}
 							</Card.Content>
