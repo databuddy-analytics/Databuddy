@@ -26,6 +26,8 @@ function Access() {
 	return (
 		<span>
 			{JSON.stringify({
+				isLoading: billing.isLoading,
+				isFetching: billing.isFetching,
 				plan: billing.currentPlanId,
 				subscription: billing.hasActiveSubscription,
 				upgrades: billing.canUserUpgrade,
@@ -64,6 +66,8 @@ test.each([
 	);
 	expect(markup).toContain(
 		JSON.stringify({
+			isLoading: false,
+			isFetching: false,
 			plan: null,
 			subscription: false,
 			upgrades: false,
@@ -83,6 +87,33 @@ test.each([
 			.some(({ href }) => href.startsWith("/billing"))
 	).toBe(false);
 	client.clear();
+});
+
+test("self-hosted background fetch preserves cached AI denial without initial loading", async () => {
+	const client = new QueryClient();
+	const queryKey = orpc.organizations.getBillingContext.queryKey();
+	const capability = { aiConfigured: false };
+	client.setQueryData(queryKey, capability);
+	const { promise, resolve } = Promise.withResolvers<typeof capability>();
+	const fetch = client.fetchQuery({ queryKey, queryFn: () => promise });
+	try {
+		const markup = renderToStaticMarkup(
+			<QueryClientProvider client={client}>
+				<BillingProvider>
+					<Access />
+				</BillingProvider>
+			</QueryClientProvider>
+		);
+		expect(markup).toContain(
+			"&quot;isLoading&quot;:false,&quot;isFetching&quot;:true"
+		);
+		expect(markup).toContain("&quot;chat&quot;:false");
+		expect(markup).toContain("&quot;investigations&quot;:false");
+	} finally {
+		resolve(capability);
+		await fetch;
+		client.clear();
+	}
 });
 
 test.each([

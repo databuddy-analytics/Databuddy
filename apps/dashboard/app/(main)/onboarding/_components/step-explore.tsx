@@ -41,18 +41,48 @@ const FEATURES = [
 ];
 
 interface StepExploreProps {
+	canReview: boolean;
+	hasError: boolean;
 	hasVerifiedTracking: boolean;
+	isLoading: boolean;
 	onComplete: () => void;
 	onEnterProduct: () => void;
+	onRetry: () => void;
 	websiteId: string;
 }
 
 export function StepExplore({
+	canReview,
+	hasError,
 	hasVerifiedTracking,
+	isLoading,
 	onComplete,
 	onEnterProduct,
+	onRetry,
 	websiteId,
 }: StepExploreProps) {
+	const showFirstReview = hasVerifiedTracking && canReview;
+	const reviewLoading = hasVerifiedTracking && isLoading;
+	const reviewFailed = hasVerifiedTracking && hasError && !isLoading;
+	let title = "You're all set";
+	let description =
+		"Your organization is ready. Start with one of the core views below.";
+	let action = "Go to dashboard";
+	if (reviewLoading) {
+		title = "Checking Insights";
+		description =
+			"Your tracking is verified. We're checking if Insights is available.";
+		action = "Checking Insights";
+	} else if (reviewFailed) {
+		title = "Tracking is ready";
+		description =
+			"We couldn't check Insights. Try again, or open your analytics below.";
+	} else if (showFirstReview) {
+		title = "Your first review is set up";
+		description =
+			"Tracking is verified. Insights will be ready when there is enough history to compare.";
+		action = "Open Insights";
+	}
 	return (
 		<div className="space-y-6">
 			<div className="flex items-center gap-3">
@@ -60,15 +90,9 @@ export function StepExplore({
 					<RocketLaunchIcon className="size-5 text-primary" />
 				</div>
 				<div>
-					<h2 className="text-balance font-semibold text-lg">
-						{hasVerifiedTracking
-							? "Your first review is set up"
-							: "You're all set"}
-					</h2>
+					<h2 className="text-balance font-semibold text-lg">{title}</h2>
 					<p className="text-pretty text-muted-foreground text-sm">
-						{hasVerifiedTracking
-							? "Tracking is verified. Insights will be ready when there is enough history to compare."
-							: "Your organization is ready. Start with one of the core views below."}
+						{description}
 					</p>
 				</div>
 			</div>
@@ -105,9 +129,21 @@ export function StepExplore({
 				))}
 			</div>
 
-			<Button className="w-full sm:w-auto" onClick={onComplete} size="lg">
-				{hasVerifiedTracking ? "Open Insights" : "Go to dashboard"}
-			</Button>
+			<div className="flex flex-wrap gap-3">
+				<Button
+					className="w-full sm:w-auto"
+					loading={reviewLoading}
+					onClick={onComplete}
+					size="lg"
+				>
+					{action}
+				</Button>
+				{reviewFailed && (
+					<Button onClick={onRetry} size="lg" variant="outline">
+						Try again
+					</Button>
+				)}
+			</div>
 		</div>
 	);
 }

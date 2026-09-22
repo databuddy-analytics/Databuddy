@@ -136,7 +136,17 @@ function isSelfHosted() {
 
 function shouldRequireEmailVerification() {
 	if (process.env.REQUIRE_EMAIL_VERIFICATION != null) {
-		return readBooleanEnv("REQUIRE_EMAIL_VERIFICATION");
+		const required = readBooleanEnv("REQUIRE_EMAIL_VERIFICATION");
+		if (
+			required &&
+			isSelfHosted() &&
+			!(process.env.RESEND_API_KEY?.trim() && process.env.EMAIL_FROM?.trim())
+		) {
+			throw new Error(
+				"Self-hosted email verification requires RESEND_API_KEY and EMAIL_FROM on a verified domain."
+			);
+		}
+		return required;
 	}
 	return isProduction() && !isSelfHosted();
 }

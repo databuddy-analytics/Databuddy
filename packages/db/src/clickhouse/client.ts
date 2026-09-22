@@ -7,6 +7,7 @@ export const TABLE_NAMES = {
 	blocked_traffic: "analytics.blocked_traffic",
 	error_spans: "analytics.error_spans",
 	web_vitals_spans: "analytics.web_vitals_spans",
+	engagement_spans: "analytics.engagement_spans",
 	custom_events: "analytics.custom_events",
 	ai_traffic_spans: "analytics.ai_traffic_spans",
 	link_visits: "analytics.link_visits",
