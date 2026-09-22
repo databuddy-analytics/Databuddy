@@ -1,13 +1,53 @@
 import { db, sql } from "@databuddy/db";
 import { chQuery } from "@databuddy/db/clickhouse";
-import { redis } from "@databuddy/redis";
+import { cacheable, redis } from "@databuddy/redis";
 import { Elysia } from "elysia";
 import { useLogger } from "evlog/elysia";
 
-// The backup job runs hourly. Two missed runs is the smallest window that is
-// not a single transient failure, and it is what turns a multi-day silent
-// outage into a one-hour one.
-const BACKUP_MAX_AGE_MINUTES = 120;
+// created_at is stamped when a run starts, so this budget spans two hourly
+// runs plus the slowest observed backup rather than two runs exactly.
+const STALE_BACKUP_AFTER_MINUTES = 150;
+const BACKUP_PROBE_TIMEOUT_MS = 4000;
+const MISSING_TABLE_CODES = ["UNKNOWN_TABLE", "UNKNOWN_DATABASE"];
+
+type BackupFreshness =
+	| { state: "measured"; ageMinutes: number }
+	| { state: "never" }
+	| { state: "unconfigured" };
+
+const readBackupFreshness = cacheable(
+	async function readBackupFreshness(): Promise<BackupFreshness> {
+		try {
+			const rows = await chQuery<{ started_at: number }>(
+				`SELECT toUnixTimestamp(max(created_at)) AS started_at
+				 FROM internal.databuddy_backups
+				 WHERE status = 'completed'`,
+				undefined,
+				{
+					abort_signal: AbortSignal.timeout(BACKUP_PROBE_TIMEOUT_MS),
+					label: "health.backups",
+					readonly: true,
+				}
+			);
+			// max() over no rows yields the DateTime zero value, not NULL.
+			const startedAt = Number(rows[0]?.started_at ?? 0);
+			if (startedAt === 0) {
+				return { state: "never" };
+			}
+			return {
+				state: "measured",
+				ageMinutes: Math.round((Date.now() / 1000 - startedAt) / 60),
+			};
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			if (MISSING_TABLE_CODES.some((code) => message.includes(code))) {
+				return { state: "unconfigured" };
+			}
+			throw err;
+		}
+	},
+	{ expireInSec: 60, prefix: "health:backups", reviveDates: false }
+);
 
 type PingResult =
 	| { status: "ok"; latency_ms: number }
@@ -51,34 +91,39 @@ export const health = new Elysia()
 		return Response.json({ status, services }, { status: allOk ? 200 : 503 });
 	})
 	.get("/health/backups", async () => {
+		let freshness: BackupFreshness;
 		try {
-			const rows = await chQuery<{ age_minutes: string | null }>(
-				`SELECT dateDiff('minute', max(created_at), now()) AS age_minutes
-				 FROM internal.databuddy_backups
-				 WHERE status = 'completed'`
-			);
-			// A null age means no completed backup exists at all, which is the
-			// worst case rather than a missing reading.
-			const raw = rows[0]?.age_minutes ?? null;
-			const ageMinutes = raw === null ? null : Number(raw);
-			const fresh = ageMinutes !== null && ageMinutes <= BACKUP_MAX_AGE_MINUTES;
-
-			return Response.json(
-				{
-					status: fresh ? "ok" : "stale",
-					age_minutes: ageMinutes,
-					max_age_minutes: BACKUP_MAX_AGE_MINUTES,
-				},
-				{ status: fresh ? 200 : 503 }
-			);
+			freshness = await readBackupFreshness();
 		} catch (err) {
 			useLogger().warn("Backup freshness probe unavailable", {
 				error_message: err instanceof Error ? err.message : String(err),
 			});
+			// 500, not 503: the probe failed, which is a different alert from
+			// backups being known-stale.
 			return Response.json(
-				{ status: "unknown", code: "UNAVAILABLE" },
-				{ status: 503 }
+				{ status: "probe_failed", code: "UNAVAILABLE" },
+				{ status: 500 }
 			);
 		}
+
+		// Self-hosters without the backup job have no table to read, so this
+		// must not page them forever.
+		if (freshness.state === "unconfigured") {
+			return Response.json({ status: "unconfigured" });
+		}
+
+		const ageMinutes =
+			freshness.state === "measured" ? freshness.ageMinutes : null;
+		const fresh =
+			ageMinutes !== null && ageMinutes <= STALE_BACKUP_AFTER_MINUTES;
+
+		return Response.json(
+			{
+				status: fresh ? "ok" : "stale",
+				age_minutes: ageMinutes,
+				stale_after_minutes: STALE_BACKUP_AFTER_MINUTES,
+			},
+			{ status: fresh ? 200 : 503 }
+		);
 	})
 	.get("/health", () => Response.json({ status: "ok" }));
