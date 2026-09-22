@@ -30,6 +30,7 @@ import { getAutumn } from "@databuddy/rpc";
 import { recordPlanChange } from "@databuddy/services/billing-lifecycle";
 import {
 	DATABUNNY_USAGE,
+	EVENTS_USAGE,
 	INVESTIGATION_USAGE,
 } from "@databuddy/shared/billing";
 import { Elysia } from "elysia";
@@ -259,11 +260,10 @@ function getFeatureCopy(featureId: string): BillingFeatureCopy {
 
 	if (featureId === "events") {
 		return {
-			description:
-				"Events include page views, custom events, errors, and Web Vitals collected by Databuddy.",
-			name: "Event tracking",
-			pausedActivity: "new event collection",
-			unit: "events",
+			description: EVENTS_USAGE.description,
+			name: EVENTS_USAGE.name,
+			pausedActivity: EVENTS_USAGE.pausedActivity,
+			unit: EVENTS_USAGE.unit,
 		};
 	}
 
