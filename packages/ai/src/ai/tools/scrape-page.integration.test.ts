@@ -14,22 +14,18 @@ it.skipIf(process.env.WEBSITE_READER_INTEGRATION_TESTS !== "true")(
 		const domain = `reader-${crypto.randomUUID()}.example`;
 		const key = `scrape:${domain}:/`;
 		const originalFetch = globalThis.fetch;
-		const originalKey = process.env.FIRECRAWL_API_KEY;
+		const originalKey = process.env.CONTEXT_DEV_API_KEY;
 		let calls = 0;
 		try {
-			process.env.FIRECRAWL_API_KEY = "test-key";
+			process.env.CONTEXT_DEV_API_KEY = "test-key";
 			globalThis.fetch = async () => {
 				calls += 1;
 				return Response.json({
-					success: true,
-					data: {
-						markdown: "# Example service",
-						metadata: {
-							url: `https://${domain}/`,
-							title: "Example",
-							statusCode: 200,
-						},
-					},
+					url: `https://${domain}/`,
+					markdown: { requested: true, data: "# Example service" },
+					parsed: { requested: true, data: { links: [] } },
+					metadata: { title: "Example" },
+					cache_metadata: { status: "miss", age_ms: 0 },
 				});
 			};
 			const first = await readWebsitePage({ domain });
@@ -58,9 +54,9 @@ it.skipIf(process.env.WEBSITE_READER_INTEGRATION_TESTS !== "true")(
 		} finally {
 			globalThis.fetch = originalFetch;
 			if (originalKey === undefined) {
-				delete process.env.FIRECRAWL_API_KEY;
+				delete process.env.CONTEXT_DEV_API_KEY;
 			} else {
-				process.env.FIRECRAWL_API_KEY = originalKey;
+				process.env.CONTEXT_DEV_API_KEY = originalKey;
 			}
 			await redis.del(key);
 			await redis.quit();
