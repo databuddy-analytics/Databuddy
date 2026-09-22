@@ -1,7 +1,7 @@
--- Apply before deploying Basket code that accepts /engagement beacons. The
--- bootstrap command creates missing tables, so this is the same statement
--- for clusters that were initialized before the table existed.
-CREATE TABLE IF NOT EXISTS analytics.engagement_spans
+-- Apply before the tracker CDN deploy that sends /engagement beacons. Uses
+-- ON CLUSTER so all three replicas hold the table; see
+-- 20260829_identity_pair_maps.md for why a single-replica apply is not enough.
+CREATE TABLE IF NOT EXISTS analytics.engagement_spans ON CLUSTER databuddy_cluster
 (
 	`client_id` String CODEC(ZSTD(1)),
 	`anonymous_id` String CODEC(ZSTD(1)),
