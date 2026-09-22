@@ -179,6 +179,170 @@ integration("MCP OAuth authorization round trip", () => {
 		expect(claims.sub).toBe(createdUserIds[0]);
 	});
 
+	test("issues a token to a public client with PKCE and no secret", async () => {
+		const registration = await auth.handler(
+			new Request(`${baseURL}/api/auth/oauth2/create-client`, {
+				method: "POST",
+				headers: {
+					"content-type": "application/json",
+					origin: baseURL,
+					cookie,
+				},
+				body: JSON.stringify({
+					client_name: "Public Round Trip Client",
+					redirect_uris: [redirectUri],
+					token_endpoint_auth_method: "none",
+				}),
+			})
+		);
+		expect(registration.status).toBeLessThan(300);
+		const client = (await registration.json()) as {
+			client_id: string;
+			client_secret?: string;
+		};
+		expect(client.client_secret).toBeFalsy();
+
+		const codeVerifier = base64Url(randomBytes(32));
+		const authorizeQuery = new URLSearchParams({
+			client_id: client.client_id,
+			response_type: "code",
+			redirect_uri: redirectUri,
+			code_challenge: base64Url(
+				createHash("sha256").update(codeVerifier).digest()
+			),
+			code_challenge_method: "S256",
+			state: "public-client-state",
+			resource: config.urls.mcp,
+		});
+
+		const authorize = await auth.handler(
+			new Request(
+				`${baseURL}/api/auth/oauth2/authorize?${authorizeQuery.toString()}`,
+				{ headers: { cookie, origin: baseURL } }
+			)
+		);
+		const consentLocation = authorize.headers.get("location") ?? "";
+		expect(consentLocation).toContain("/consent");
+
+		const consent = await auth.handler(
+			new Request(`${baseURL}/api/auth/oauth2/consent`, {
+				method: "POST",
+				headers: {
+					"content-type": "application/json",
+					origin: baseURL,
+					cookie,
+				},
+				body: JSON.stringify({
+					accept: true,
+					oauth_query: consentLocation.split("?")[1] ?? "",
+				}),
+			})
+		);
+		const { url: callback } = (await consent.json()) as { url: string };
+		const code = new URL(callback).searchParams.get("code");
+		expect(code).toBeTruthy();
+
+		const token = await auth.handler(
+			new Request(`${baseURL}/api/auth/oauth2/token`, {
+				method: "POST",
+				headers: {
+					"content-type": "application/x-www-form-urlencoded",
+					origin: baseURL,
+				},
+				body: new URLSearchParams({
+					grant_type: "authorization_code",
+					code: code as string,
+					redirect_uri: redirectUri,
+					client_id: client.client_id,
+					code_verifier: codeVerifier,
+				}).toString(),
+			})
+		);
+		expect(token.status).toBe(200);
+		const issued = (await token.json()) as { access_token: string };
+		const [, payload] = issued.access_token.split(".");
+		const claims = JSON.parse(
+			Buffer.from(payload, "base64url").toString("utf8")
+		) as { aud: string | string[] };
+		const audiences = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
+		expect(audiences).toContain(config.urls.mcp);
+	});
+
+	test("rejects a public client token request that replays a bad verifier", async () => {
+		const registration = await auth.handler(
+			new Request(`${baseURL}/api/auth/oauth2/create-client`, {
+				method: "POST",
+				headers: {
+					"content-type": "application/json",
+					origin: baseURL,
+					cookie,
+				},
+				body: JSON.stringify({
+					client_name: "PKCE Guard Client",
+					redirect_uris: [redirectUri],
+					token_endpoint_auth_method: "none",
+				}),
+			})
+		);
+		const client = (await registration.json()) as { client_id: string };
+
+		const codeVerifier = base64Url(randomBytes(32));
+		const authorizeQuery = new URLSearchParams({
+			client_id: client.client_id,
+			response_type: "code",
+			redirect_uri: redirectUri,
+			code_challenge: base64Url(
+				createHash("sha256").update(codeVerifier).digest()
+			),
+			code_challenge_method: "S256",
+			resource: config.urls.mcp,
+		});
+		const authorize = await auth.handler(
+			new Request(
+				`${baseURL}/api/auth/oauth2/authorize?${authorizeQuery.toString()}`,
+				{ headers: { cookie, origin: baseURL } }
+			)
+		);
+		const consent = await auth.handler(
+			new Request(`${baseURL}/api/auth/oauth2/consent`, {
+				method: "POST",
+				headers: {
+					"content-type": "application/json",
+					origin: baseURL,
+					cookie,
+				},
+				body: JSON.stringify({
+					accept: true,
+					oauth_query: (authorize.headers.get("location") ?? "").split("?")[1],
+				}),
+			})
+		);
+		const { url: callback } = (await consent.json()) as { url: string };
+		const code = new URL(callback).searchParams.get("code") as string;
+
+		const token = await auth.handler(
+			new Request(`${baseURL}/api/auth/oauth2/token`, {
+				method: "POST",
+				headers: {
+					"content-type": "application/x-www-form-urlencoded",
+					origin: baseURL,
+				},
+				body: new URLSearchParams({
+					grant_type: "authorization_code",
+					code,
+					redirect_uri: redirectUri,
+					client_id: client.client_id,
+					code_verifier: base64Url(randomBytes(32)),
+				}).toString(),
+			})
+		);
+
+		expect(token.status).toBeGreaterThanOrEqual(400);
+		expect((await token.json()) as { access_token?: string }).not.toHaveProperty(
+			"access_token"
+		);
+	});
+
 	test("publishes authorization server metadata clients discover through", async () => {
 		const response = await auth.handler(
 			new Request(`${baseURL}/api/auth/.well-known/oauth-authorization-server`)
