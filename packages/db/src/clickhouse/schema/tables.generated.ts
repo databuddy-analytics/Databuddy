@@ -134,11 +134,8 @@ export interface EngagementSpansRow {
 	active_time: number;
 	time_to_first_interaction: number;
 	max_scroll_depth: number;
-	scroll_count: number;
 	click_count: number;
-	key_count: number;
 	interaction_count: number;
-	copy_count: number;
 	rage_click_count: number;
 	dead_click_count: number;
 	rage_click_target: string;
@@ -166,11 +163,8 @@ export interface EngagementSpansInsert {
 	active_time: number;
 	time_to_first_interaction: number;
 	max_scroll_depth: number;
-	scroll_count: number;
 	click_count: number;
-	key_count: number;
 	interaction_count: number;
-	copy_count: number;
 	rage_click_count: number;
 	dead_click_count: number;
 	rage_click_target: string;
@@ -521,7 +515,7 @@ export const TABLE_COLUMNS = {
 	"analytics.blocked_traffic": ["id", "client_id", "timestamp", "path", "url", "referrer", "method", "origin", "ip", "user_agent", "accept_header", "language", "block_reason", "block_category", "bot_name", "country", "region", "browser_name", "browser_version", "os_name", "os_version", "device_type", "payload_size", "created_at"],
 	"analytics.custom_events": ["owner_id", "website_id", "timestamp", "event_name", "namespace", "path", "properties", "anonymous_id", "session_id", "source", "profile_id"],
 	"analytics.daily_pageviews": ["client_id", "date", "pageviews"],
-	"analytics.engagement_spans": ["client_id", "anonymous_id", "session_id", "timestamp", "path", "device_type", "browser_name", "country", "page_index", "exit_type", "time_on_page", "active_time", "time_to_first_interaction", "max_scroll_depth", "scroll_count", "click_count", "key_count", "interaction_count", "copy_count", "rage_click_count", "dead_click_count", "rage_click_target", "dead_click_target", "form_field_count", "form_submit_count", "last_form_field", "form_abandoned", "error_count", "delivery_id"],
+	"analytics.engagement_spans": ["client_id", "anonymous_id", "session_id", "timestamp", "path", "device_type", "browser_name", "country", "page_index", "exit_type", "time_on_page", "active_time", "time_to_first_interaction", "max_scroll_depth", "click_count", "interaction_count", "rage_click_count", "dead_click_count", "rage_click_target", "dead_click_target", "form_field_count", "form_submit_count", "last_form_field", "form_abandoned", "error_count", "delivery_id"],
 	"analytics.error_spans": ["client_id", "anonymous_id", "session_id", "timestamp", "path", "message", "filename", "lineno", "colno", "stack", "error_type", "delivery_id"],
 	"analytics.events": ["id", "client_id", "event_name", "anonymous_id", "time", "session_id", "referrer", "url", "path", "title", "ip", "user_agent", "browser_name", "browser_version", "os_name", "os_version", "device_type", "device_brand", "device_model", "viewport_size", "language", "timezone", "time_on_page", "country", "region", "city", "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "gclid", "dom_ready_time", "ttfb", "request_time", "render_time", "scroll_depth", "interaction_count", "page_count", "properties", "created_at", "timestamp", "profile_id"],
 	"analytics.identity_anon_pairs": ["client_id", "anonymous_id", "identity_time", "profile_id"],

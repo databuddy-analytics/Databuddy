@@ -11,14 +11,9 @@ const interactionEvents = [
 ] as const;
 
 const counterByEvent: Partial<
-	Record<
-		(typeof interactionEvents)[number],
-		"clickCount" | "keyCount" | "scrollCount"
-	>
+	Record<(typeof interactionEvents)[number], "clickCount">
 > = {
 	click: "clickCount",
-	keydown: "keyCount",
-	scroll: "scrollCount",
 };
 
 const RAGE_CLICK_WINDOW_MS = 1000;
@@ -190,10 +185,6 @@ export function initInteractionTracking(tracker: BaseTracker): () => void {
 		watchForDeadClick(event, now);
 	};
 
-	const copyHandler = () => {
-		tracker.copyCount += 1;
-	};
-
 	let touchedFields = new WeakSet<Element>();
 	let touchedFieldsPageStart = tracker.pageStartTime;
 
@@ -220,13 +211,11 @@ export function initInteractionTracking(tracker: BaseTracker): () => void {
 	};
 
 	document.addEventListener("click", behaviourClickHandler, { passive: true });
-	document.addEventListener("copy", copyHandler, { passive: true });
 	document.addEventListener("focusin", focusHandler, { passive: true });
 	document.addEventListener("submit", submitHandler, { passive: true });
 
 	cleanupFns.push(() => {
 		document.removeEventListener("click", behaviourClickHandler);
-		document.removeEventListener("copy", copyHandler);
 		document.removeEventListener("focusin", focusHandler);
 		document.removeEventListener("submit", submitHandler);
 		for (const timer of deadClickTimers) {

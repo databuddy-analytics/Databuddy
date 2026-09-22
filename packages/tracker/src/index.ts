@@ -387,11 +387,8 @@ export class Databuddy extends BaseTracker {
 				? Math.max(0, this.firstInteractionAt - this.pageStartTime)
 				: 0,
 			maxScrollDepth: Math.round(this.maxScrollDepth),
-			scrollCount: this.scrollCount,
 			clickCount: this.clickCount,
-			keyCount: this.keyCount,
 			interactionCount: this.interactionCount,
-			copyCount: this.copyCount,
 			rageClickCount: this.rageClickCount,
 			deadClickCount: this.deadClickCount,
 			rageClickTarget: this.rageClickTarget,
@@ -422,14 +419,11 @@ export class Databuddy extends BaseTracker {
 		this.pageStartTime = Date.now();
 		this.interactionCount = 0;
 		this.clickCount = 0;
-		this.keyCount = 0;
-		this.scrollCount = 0;
 		this.rageClickCount = 0;
 		this.deadClickCount = 0;
 		this.formFieldCount = 0;
 		this.formSubmitCount = 0;
 		this.errorCount = 0;
-		this.copyCount = 0;
 		this.rageClickTarget = "";
 		this.deadClickTarget = "";
 		this.lastFormField = "";
@@ -530,8 +524,6 @@ export class Databuddy extends BaseTracker {
 		this.lastPath = "";
 		this.interactionCount = 0;
 		this.clickCount = 0;
-		this.keyCount = 0;
-		this.scrollCount = 0;
 		this.rageClickCount = 0;
 		this.deadClickCount = 0;
 		this.formFieldCount = 0;

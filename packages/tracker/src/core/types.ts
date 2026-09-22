@@ -100,11 +100,8 @@ export type EngagementSpan = {
 	activeTime: number;
 	timeToFirstInteraction: number;
 	maxScrollDepth: number;
-	scrollCount: number;
 	clickCount: number;
-	keyCount: number;
 	interactionCount: number;
-	copyCount: number;
 	rageClickCount: number;
 	deadClickCount: number;
 	rageClickTarget: string;
