@@ -334,14 +334,6 @@ export const statusPageRouter = {
 				permissions: ["create"],
 			});
 
-			const existing = await db.query.statusPages.findFirst({
-				where: { slug: input.slug },
-			});
-
-			if (existing) {
-				throw rpcError.badRequest("Slug is already taken");
-			}
-
 			const id = randomUUIDv7();
 
 			try {
@@ -401,16 +393,6 @@ export const statusPageRouter = {
 				id: input.statusPageId,
 				permissions: ["update"],
 			});
-
-			if (input.slug && input.slug !== statusPage.slug) {
-				const existing = await db.query.statusPages.findFirst({
-					where: { slug: input.slug },
-				});
-
-				if (existing) {
-					throw rpcError.badRequest("Slug is already taken");
-				}
-			}
 
 			try {
 				await db

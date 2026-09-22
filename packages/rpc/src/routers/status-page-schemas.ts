@@ -91,4 +91,6 @@ export const publicStatusPageSitemapEntrySchema = z.object({
 	updatedAt: z.string().datetime(),
 });
 
+export type Monitor = z.infer<typeof monitorSchema>;
+export type Incident = z.infer<typeof incidentSchema>;
 export type StatusPageOutput = z.infer<typeof statusPageOutputSchema>;
