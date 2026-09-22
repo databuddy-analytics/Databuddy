@@ -6,21 +6,12 @@ import { cn } from "@/lib/utils";
 import {
 	type FeatureUsage,
 	formatCompactNumber,
+	formatCurrency,
 	getResetText,
 } from "../utils/feature-usage";
 import { PricingTiersTooltip } from "./pricing-tiers-tooltip";
 import { ChartBarIcon, DatabaseIcon, UsersIcon } from "@databuddy/ui/icons";
 import { Badge, Progress, Text } from "@databuddy/ui";
-
-function formatCurrency(amount: number): string {
-	if (amount >= 1000) {
-		return `$${(amount / 1000).toFixed(1)}K`;
-	}
-	if (amount >= 1) {
-		return `$${amount.toFixed(2)}`;
-	}
-	return `$${amount.toFixed(4)}`;
-}
 
 const FEATURE_ICONS: Record<string, typeof ChartBarIcon> = {
 	event: ChartBarIcon,
@@ -41,15 +32,27 @@ function getFeatureIcon(name: string): typeof ChartBarIcon {
 	return ChartBarIcon;
 }
 
+function ActionLink({ canSelfServeUpgrade }: { canSelfServeUpgrade: boolean }) {
+	return (
+		<Link
+			className="shrink-0 font-medium text-primary text-xs hover:underline"
+			href={
+				canSelfServeUpgrade ? "/billing/plans" : "/billing#billing-controls"
+			}
+		>
+			{canSelfServeUpgrade ? "Upgrade" : "Set a usage alert"}
+		</Link>
+	);
+}
+
 export const UsageRow = memo(function UsageRowComponent({
 	feature,
-	showUpgrade = true,
+	canSelfServeUpgrade = true,
 }: {
+	canSelfServeUpgrade?: boolean;
 	feature: FeatureUsage;
-	showUpgrade?: boolean;
 }) {
-	const used = feature.includedLimit - feature.balance;
-	const usedClamped = Math.max(0, used);
+	const usedClamped = Math.max(0, feature.used);
 	const hasNormalLimit = !(feature.unlimited || feature.hasExtraCredits);
 	const hasOverage = feature.overage !== null;
 	const isBilledOverage = hasOverage && feature.hasPricedOverage;
@@ -59,9 +62,9 @@ export const UsageRow = memo(function UsageRowComponent({
 	if (isBilledOverage && feature.overage) {
 		return (
 			<BilledOverageRow
+				canSelfServeUpgrade={canSelfServeUpgrade}
 				feature={feature}
 				Icon={Icon}
-				showUpgrade={showUpgrade}
 			/>
 		);
 	}
@@ -123,13 +126,8 @@ export const UsageRow = memo(function UsageRowComponent({
 						tone={hasOverage ? "destructive" : isLow ? "warning" : "primary"}
 						value={hasOverage ? 100 : usedPercent}
 					/>
-					{(isLow || hasOverage) && showUpgrade && (
-						<Link
-							className="shrink-0 font-medium text-primary text-xs hover:underline"
-							href="/billing/plans"
-						>
-							Upgrade
-						</Link>
+					{(isLow || hasOverage) && (
+						<ActionLink canSelfServeUpgrade={canSelfServeUpgrade} />
 					)}
 				</div>
 			)}
@@ -138,13 +136,13 @@ export const UsageRow = memo(function UsageRowComponent({
 });
 
 function BilledOverageRow({
+	canSelfServeUpgrade,
 	feature,
 	Icon,
-	showUpgrade,
 }: {
+	canSelfServeUpgrade: boolean;
 	feature: FeatureUsage;
 	Icon: typeof ChartBarIcon;
-	showUpgrade: boolean;
 }) {
 	const overage = feature.overage;
 	if (!overage) {
@@ -161,19 +159,19 @@ function BilledOverageRow({
 					<div className="flex items-center gap-2">
 						<Icon className="size-4 shrink-0 text-muted-foreground" />
 						<Text variant="label">{feature.name}</Text>
-						<Badge size="sm" variant="destructive">
+						<Badge size="sm" variant="warning">
 							Overage
 						</Badge>
 					</div>
 					<Text className="mt-0.5 pl-6" tone="muted" variant="caption">
-						{getResetText(feature)}
+						Still collecting · {getResetText(feature)}
 					</Text>
 				</div>
 				<div className="shrink-0 text-right">
 					<Text className="font-mono tabular-nums" variant="label">
 						{formatCompactNumber(totalUsed)} total
 					</Text>
-					<Text className="text-destructive tabular-nums" variant="caption">
+					<Text className="text-warning tabular-nums" variant="caption">
 						+{formatCompactNumber(overage.amount)} over limit
 					</Text>
 				</div>
@@ -214,25 +212,15 @@ function BilledOverageRow({
 				</div>
 			</div>
 
-			<div className="mt-3 flex items-center justify-between rounded-md bg-destructive/5 px-3 py-2">
-				<Text tone="muted" variant="caption">
-					Estimated overage
+			<div className="mt-3 flex items-center justify-between gap-3 rounded-md border border-warning/25 bg-warning/5 px-3 py-2">
+				<Text className="min-w-0" variant="caption">
+					Overage so far this period
 				</Text>
-				<div className="flex items-center gap-3">
-					<Text
-						className="font-mono text-destructive tabular-nums"
-						variant="label"
-					>
+				<div className="flex shrink-0 items-center gap-3">
+					<Text className="font-mono tabular-nums" variant="label">
 						~{formatCurrency(overage.cost)}
 					</Text>
-					{showUpgrade && (
-						<Link
-							className="font-medium text-primary text-xs hover:underline"
-							href="/billing/plans"
-						>
-							Upgrade
-						</Link>
-					)}
+					<ActionLink canSelfServeUpgrade={canSelfServeUpgrade} />
 				</div>
 			</div>
 		</div>

@@ -31,6 +31,7 @@
     "./stripe-webhooks": "./src/stripe-webhooks.ts",
     "./tracking-blocks": "./src/tracking-blocks.ts",
     "./types/features": "./src/types/features.ts",
+    "./uploads": "./src/uploads.ts",
     "./uptime": "./src/uptime.ts",
     "./uptime-status": "./src/uptime-status.ts",
     "./utils/client-ip": "./src/utils/client-ip.ts",

@@ -1,5 +1,7 @@
 "use client";
 
+import { APP_EVENTS } from "@databuddy/shared/custom-events";
+import { trackAppEvent } from "@/lib/app-events";
 import type { WebsiteOutput } from "@databuddy/rpc";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect } from "react";
@@ -111,6 +113,7 @@ export function WebsiteDialog({
 				toast.success("Website updated successfully!");
 			} else {
 				const result = await createWebsiteMutation.mutateAsync(submissionData);
+				trackAppEvent(APP_EVENTS.websiteCreated, { source: "dialog" });
 				if (onSave) {
 					onSave(result);
 				}

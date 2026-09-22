@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { AppRouter } from "@databuddy/rpc";
+import type { OverallStatus } from "@databuddy/shared/uptime-status";
 import type { RouterClient } from "@orpc/server";
 import { Badge, cn, StatusDot } from "@databuddy/ui";
 import {
@@ -76,7 +77,7 @@ const STATUS_CONFIG = {
 		lineClass: "bg-muted-foreground/50",
 		textClass: "text-muted-foreground",
 	},
-} as const;
+} as const satisfies Record<OverallStatus, unknown>;
 
 function pluralize(count: number, singular: string, plural = `${singular}s`) {
 	return `${count} ${count === 1 ? singular : plural}`;
@@ -86,7 +87,7 @@ interface StatusHeaderProps {
 	activeIncidentCount: number;
 	className?: string;
 	description?: string;
-	status: "operational" | "degraded" | "outage" | "unknown";
+	status: OverallStatus;
 }
 
 function StatusHeader({
